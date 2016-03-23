@@ -514,7 +514,7 @@ nsToolkitProfileService::Init()
     // Check if we are running Firefox, as we don't want to create a profile
     // on webapprt.
     bool isFirefox = strcmp(gAppData->ID,
-                            "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}") == 0;
+                            "{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}") == 0;
     if (!foundAuroraDefault && isFirefox && !shouldIgnoreSeparateProfile) {
         // If a single profile exists, it may not be already marked as default.
         // Do it now to avoid problems when we create the dev-edition-default profile.

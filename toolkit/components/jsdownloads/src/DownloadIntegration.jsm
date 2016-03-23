@@ -186,7 +186,7 @@ this.DownloadIntegration = {
       return this.shouldKeepBlockedDataInTest;
     }
 
-    const FIREFOX_ID = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
+    const FIREFOX_ID = "{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}";
     return Services.appinfo.ID == FIREFOX_ID;
   },
 

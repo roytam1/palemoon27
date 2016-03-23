@@ -27,7 +27,7 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 const PDF_CONTENT_TYPE = 'application/pdf';
-const FIREFOX_ID = '{ec8030f7-c20a-464f-9b0e-13a3a9e97384}';
+const FIREFOX_ID = '{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}';
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');

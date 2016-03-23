@@ -71,3 +71,4 @@ testing/web-platform/sync/
 
 # Android Gradle artifacts.
 mobile/android/gradle/.gradle
+sfk.exe

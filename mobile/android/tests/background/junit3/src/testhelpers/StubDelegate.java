@@ -1,9 +1,9 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.testhelpers;
+package org.mozilla.goanna.background.testhelpers;
 
-import org.mozilla.gecko.background.healthreport.upload.SubmissionClient.Delegate;
+import org.mozilla.goanna.background.healthreport.upload.SubmissionClient.Delegate;
 
 public class StubDelegate implements Delegate {
   @Override

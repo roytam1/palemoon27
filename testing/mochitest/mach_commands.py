@@ -749,10 +749,10 @@ def B2GCommand(func):
               gaia profile to use')
     func = profile(func)
 
-    geckopath = CommandArgument('--gecko-path', default=None,
-                                help='the path to a gecko distribution that should \
+    goannapath = CommandArgument('--goanna-path', default=None,
+                                help='the path to a goanna distribution that should \
               be installed on the emulator prior to test')
-    func = geckopath(func)
+    func = goannapath(func)
 
     nowindow = CommandArgument(
         '--no-window',

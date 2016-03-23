@@ -84,17 +84,17 @@ uint8_t nsMenuUtilsX::GoannaModifiersForNodeAttribute(const nsString& modifiersA
   return modifiers;
 }
 
-unsigned int nsMenuUtilsX::MacModifiersForGoannaModifiers(uint8_t geckoModifiers)
+unsigned int nsMenuUtilsX::MacModifiersForGoannaModifiers(uint8_t goannaModifiers)
 {
   unsigned int macModifiers = 0;
   
-  if (geckoModifiers & knsMenuItemShiftModifier)
+  if (goannaModifiers & knsMenuItemShiftModifier)
     macModifiers |= NSShiftKeyMask;
-  if (geckoModifiers & knsMenuItemAltModifier)
+  if (goannaModifiers & knsMenuItemAltModifier)
     macModifiers |= NSAlternateKeyMask;
-  if (geckoModifiers & knsMenuItemControlModifier)
+  if (goannaModifiers & knsMenuItemControlModifier)
     macModifiers |= NSControlKeyMask;
-  if (geckoModifiers & knsMenuItemCommandModifier)
+  if (goannaModifiers & knsMenuItemCommandModifier)
     macModifiers |= NSCommandKeyMask;
 
   return macModifiers;

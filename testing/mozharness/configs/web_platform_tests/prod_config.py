@@ -6,7 +6,7 @@
 import os
 
 config = {
-    # test harness options are located in the gecko tree
+    # test harness options are located in the goanna tree
     "in_tree_config": "config/mozharness/web_platform_tests_config.py",
 
     "options": [],

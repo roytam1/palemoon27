@@ -14,7 +14,7 @@ config = {
     "verify_path":  "/builds/sut_tools/verify.py",
     "install_app_path":  "/builds/sut_tools/installApp.py",
     "logcat_path":  "/builds/sut_tools/logcat.py",
-    # test harness options are located in the gecko tree
+    # test harness options are located in the goanna tree
     "in_tree_config": "config/mozharness/android_panda_config.py",
     "all_mochitest_suites": {
         "mochitest-1": ["--total-chunks=8", "--this-chunk=1"],

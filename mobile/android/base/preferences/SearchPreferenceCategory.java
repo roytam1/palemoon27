@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
 import android.content.Context;
 import android.preference.Preference;
@@ -13,14 +13,14 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.TelemetryContract.Method;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.TelemetryContract.Method;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 public class SearchPreferenceCategory extends CustomListCategory implements GoannaEventListener {
     public static final String LOGTAG = "SearchPrefCategory";

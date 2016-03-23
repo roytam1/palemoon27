@@ -3,20 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserContract.Favicons;
-import org.mozilla.gecko.db.BrowserContract.History;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.db.BrowserContract.SearchHistory;
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import static org.mozilla.gecko.db.DBUtils.qualifyColumn;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserContract.Favicons;
+import org.mozilla.goanna.db.BrowserContract.History;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.db.BrowserContract.SearchHistory;
+import org.mozilla.goanna.db.BrowserContract.Thumbnails;
+import static org.mozilla.goanna.db.DBUtils.qualifyColumn;
 
 import android.content.ContentValues;
 import android.content.Context;

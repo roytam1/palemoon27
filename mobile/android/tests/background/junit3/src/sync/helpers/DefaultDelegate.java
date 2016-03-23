@@ -1,13 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync.helpers;
+package org.mozilla.goanna.background.sync.helpers;
 
 import java.util.concurrent.ExecutorService;
 
 import junit.framework.AssertionFailedError;
 
-import org.mozilla.gecko.background.testhelpers.WaitHelper;
+import org.mozilla.goanna.background.testhelpers.WaitHelper;
 
 public abstract class DefaultDelegate {
   protected ExecutorService executor;

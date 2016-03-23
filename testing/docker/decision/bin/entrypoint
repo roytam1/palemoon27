@@ -1,6 +1,6 @@
 #! /bin/bash -ex
 
-DEST=/home/worker/source/gecko
+DEST=/home/worker/source/goanna
 
 test $GECKO_BASE_REPOSITORY
 test $GECKO_HEAD_REPOSITORY

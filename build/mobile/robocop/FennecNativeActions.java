@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.FennecNativeDriver.LogLevel;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.LayerView.DrawListener;
-import org.mozilla.gecko.mozglue.GoannaLoader;
-import org.mozilla.gecko.sqlite.SQLiteBridge;
-import org.mozilla.gecko.util.GoannaEventListener;
+import org.mozilla.goanna.FennecNativeDriver.LogLevel;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.LayerView.DrawListener;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.sqlite.SQLiteBridge;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import android.app.Activity;
 import android.app.Instrumentation;
@@ -52,12 +52,12 @@ public class FennecNativeActions implements Actions {
         private String mEventData;
         private BlockingQueue<String> mEventDataQueue;
 
-        GoannaEventExpecter(final String geckoEvent) {
-            if (TextUtils.isEmpty(geckoEvent)) {
-                throw new IllegalArgumentException("geckoEvent must not be empty");
+        GoannaEventExpecter(final String goannaEvent) {
+            if (TextUtils.isEmpty(goannaEvent)) {
+                throw new IllegalArgumentException("goannaEvent must not be empty");
             }
 
-            mGoannaEvent = geckoEvent;
+            mGoannaEvent = goannaEvent;
             mEventDataQueue = new LinkedBlockingQueue<String>();
 
             final GoannaEventExpecter expecter = this;
@@ -181,13 +181,13 @@ public class FennecNativeActions implements Actions {
         }
     }
 
-    public RepeatedEventExpecter expectGoannaEvent(final String geckoEvent) {
-        FennecNativeDriver.log(FennecNativeDriver.LogLevel.DEBUG, "waiting for " + geckoEvent);
-        return new GoannaEventExpecter(geckoEvent);
+    public RepeatedEventExpecter expectGoannaEvent(final String goannaEvent) {
+        FennecNativeDriver.log(FennecNativeDriver.LogLevel.DEBUG, "waiting for " + goannaEvent);
+        return new GoannaEventExpecter(goannaEvent);
     }
 
-    public void sendGoannaEvent(final String geckoEvent, final String data) {
-        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(geckoEvent, data));
+    public void sendGoannaEvent(final String goannaEvent, final String data) {
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(goannaEvent, data));
     }
 
     public void sendPreferencesGetEvent(int requestId, String[] prefNames) {

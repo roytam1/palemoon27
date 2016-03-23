@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.setup;
+package org.mozilla.goanna.sync.setup;
 
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.setup.activities.SetupSyncActivity;
 
 import android.accounts.AbstractAccountAuthenticator;
 import android.accounts.Account;

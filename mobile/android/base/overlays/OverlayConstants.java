@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays;
+package org.mozilla.goanna.overlays;
 
 /**
  * Constants used by the share handler service (and clients).
@@ -22,7 +22,7 @@ public class OverlayConstants {
      *
      * None.
      */
-    public static final String ACTION_PREPARE_SHARE = "org.mozilla.gecko.overlays.ACTION_PREPARE_SHARE";
+    public static final String ACTION_PREPARE_SHARE = "org.mozilla.goanna.overlays.ACTION_PREPARE_SHARE";
 
     /*
      * Action for sharing a page.
@@ -35,7 +35,7 @@ public class OverlayConstants {
      * $EXTRA_TITLE: Title of page to share (optional)
      * $EXTRA_PARAMETERS: Parcelable of extra data to pass to the ShareMethod (optional)
      */
-    public static final String ACTION_SHARE = "org.mozilla.gecko.overlays.ACTION_SHARE";
+    public static final String ACTION_SHARE = "org.mozilla.goanna.overlays.ACTION_SHARE";
 
     /*
      * OverlayIntentHandler service intent extra field keys.
@@ -64,5 +64,5 @@ public class OverlayConstants {
      * $EXTRA_SHARE_METHOD: The ShareType to which this event relates.
      * ... ShareType-specific parameters as desired... (optional)
      */
-    public static final String SHARE_METHOD_UI_EVENT = "org.mozilla.gecko.overlays.ACTION_SHARE_METHOD_UI_EVENT";
+    public static final String SHARE_METHOD_UI_EVENT = "org.mozilla.goanna.overlays.ACTION_SHARE_METHOD_UI_EVENT";
 }

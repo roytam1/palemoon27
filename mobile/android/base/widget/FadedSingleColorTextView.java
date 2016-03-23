@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -12,7 +12,7 @@ import android.graphics.Shader;
 import android.util.AttributeSet;
 
 /**
- * Fades the end of the text by gecko:fadeWidth amount,
+ * Fades the end of the text by goanna:fadeWidth amount,
  * if the text is too long and requires an ellipsis.
  *
  * This implementation is an improvement over Android's built-in fadingEdge

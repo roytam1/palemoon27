@@ -10,7 +10,7 @@
               android:layout_width="match_parent"
               android:layout_height="match_parent"/>
 
-    <org.mozilla.gecko.home.HomeListView
+    <org.mozilla.goanna.home.HomeListView
             android:id="@+id/list"
             style="@style/Widget.Home.HomeList"
             android:layout_width="match_parent"

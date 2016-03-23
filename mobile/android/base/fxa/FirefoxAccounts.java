@@ -2,24 +2,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa;
+package org.mozilla.goanna.fxa;
 
 import java.io.File;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.fxa.authenticator.AccountPickler;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncAdapter;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncStatusHelper;
-import org.mozilla.gecko.fxa.tasks.FxAccountCodeResender;
-import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.fxa.authenticator.AccountPickler;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncAdapter;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncStatusHelper;
+import org.mozilla.goanna.fxa.tasks.FxAccountCodeResender;
+import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.Utils;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -316,7 +316,7 @@ public class FirefoxAccounts {
    * toast on both send success and failure. Note that because the underlying implementation
    * uses {@link AsyncTask}, the provided context must be UI-capable, and this
    * method called from the UI thread (see
-   * {@link org.mozilla.gecko.fxa.tasks.FxAccountCodeResender#resendCode(Context, AndroidFxAccount)}
+   * {@link org.mozilla.goanna.fxa.tasks.FxAccountCodeResender#resendCode(Context, AndroidFxAccount)}
    * for more).
    *
    * @param context a UI-capable Android context.

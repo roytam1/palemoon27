@@ -2,22 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.components;
+package org.mozilla.goanna.tests.components;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertEquals;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertFalse;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotNull;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertTrue;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertEquals;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertFalse;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertNotNull;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertTrue;
 
 import java.util.List;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.menu.MenuItemActionBar;
-import org.mozilla.gecko.menu.MenuItemDefault;
-import org.mozilla.gecko.tests.UITestContext;
-import org.mozilla.gecko.tests.helpers.DeviceHelper;
-import org.mozilla.gecko.tests.helpers.WaitHelper;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.menu.MenuItemActionBar;
+import org.mozilla.goanna.menu.MenuItemDefault;
+import org.mozilla.goanna.tests.UITestContext;
+import org.mozilla.goanna.tests.helpers.DeviceHelper;
+import org.mozilla.goanna.tests.helpers.WaitHelper;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.text.TextUtils;
 import android.view.View;

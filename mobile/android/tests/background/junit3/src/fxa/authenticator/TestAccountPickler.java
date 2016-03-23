@@ -1,16 +1,16 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.fxa.authenticator;
+package org.mozilla.goanna.background.fxa.authenticator;
 
-import org.mozilla.gecko.background.sync.AndroidSyncTestCaseWithAccounts;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.authenticator.AccountPickler;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.Separated;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.background.sync.AndroidSyncTestCaseWithAccounts;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.authenticator.AccountPickler;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.login.Separated;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.Utils;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;

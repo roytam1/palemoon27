@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.common.telemetry;
+package org.mozilla.goanna.background.common.telemetry;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.goanna.background.common.log.Logger;
 
 /**
  * Android Background Services are normally built into Fennec, but can also be
@@ -34,13 +34,13 @@ public class TelemetryWrapper {
   public static void addToHistogram(String key, int value) {
     if (mAddToHistogram == null) {
       try {
-        final Class<?> telemetry = Class.forName("org.mozilla.gecko.Telemetry");
+        final Class<?> telemetry = Class.forName("org.mozilla.goanna.Telemetry");
         mAddToHistogram = telemetry.getMethod("addToHistogram", String.class, int.class);
       } catch (ClassNotFoundException e) {
-        Logger.warn(LOG_TAG, "org.mozilla.gecko.Telemetry class found!");
+        Logger.warn(LOG_TAG, "org.mozilla.goanna.Telemetry class found!");
         return;
       } catch (NoSuchMethodException e) {
-        Logger.warn(LOG_TAG, "org.mozilla.gecko.Telemetry.addToHistogram(String, int) method not found!");
+        Logger.warn(LOG_TAG, "org.mozilla.goanna.Telemetry.addToHistogram(String, int) method not found!");
         return;
       }
     }

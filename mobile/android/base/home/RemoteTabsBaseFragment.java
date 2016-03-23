@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import android.accounts.Account;
 import android.content.Context;
@@ -16,15 +16,15 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.RemoteClientsDialogFragment.RemoteClientsListener;
-import org.mozilla.gecko.RemoteTabsExpandableListAdapter;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.RemoteClient;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.widget.GoannaSwipeRefreshLayout;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.RemoteClientsDialogFragment.RemoteClientsListener;
+import org.mozilla.goanna.RemoteTabsExpandableListAdapter;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.RemoteClient;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.widget.GoannaSwipeRefreshLayout;
 
 import java.util.ArrayList;
 import java.util.Iterator;

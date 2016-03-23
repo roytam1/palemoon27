@@ -2,20 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.components;
+package org.mozilla.goanna.tests.components;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertEquals;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertTrue;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertEquals;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertTrue;
 
 import java.util.Arrays;
 
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.home.HomeConfig.PanelType;
-import org.mozilla.gecko.tests.UITestContext;
-import org.mozilla.gecko.tests.helpers.WaitHelper;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.home.HomeConfig.PanelType;
+import org.mozilla.goanna.tests.UITestContext;
+import org.mozilla.goanna.tests.helpers.WaitHelper;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.os.Build;
 import android.support.v4.view.ViewPager;

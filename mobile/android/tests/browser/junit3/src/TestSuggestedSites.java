@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -19,10 +19,10 @@ import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.SuggestedSites;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.preferences.GoannaPreferences;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.SuggestedSites;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.preferences.GoannaPreferences;
 
 import android.content.ContentResolver;
 import android.content.Context;

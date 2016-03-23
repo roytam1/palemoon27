@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
-import static org.mozilla.gecko.db.URLMetadataTable.TILE_COLOR_COLUMN;
-import static org.mozilla.gecko.db.URLMetadataTable.TILE_IMAGE_URL_COLUMN;
+import static org.mozilla.goanna.db.URLMetadataTable.TILE_COLOR_COLUMN;
+import static org.mozilla.goanna.db.URLMetadataTable.TILE_IMAGE_URL_COLUMN;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -15,28 +15,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.Locales;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import org.mozilla.gecko.db.BrowserContract.TopSites;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.home.HomeContextMenuInfo.RemoveItemType;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.home.PinSiteDialog.OnSiteSelectedListener;
-import org.mozilla.gecko.home.TopSitesGridView.OnEditPinnedSiteListener;
-import org.mozilla.gecko.home.TopSitesGridView.TopSitesGridContextMenuInfo;
-import org.mozilla.gecko.tiles.TilesRecorder;
-import org.mozilla.gecko.tiles.Tile;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.Locales;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.BrowserContract.Thumbnails;
+import org.mozilla.goanna.db.BrowserContract.TopSites;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.favicons.OnFaviconLoadedListener;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.home.HomeContextMenuInfo.RemoveItemType;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.home.PinSiteDialog.OnSiteSelectedListener;
+import org.mozilla.goanna.home.TopSitesGridView.OnEditPinnedSiteListener;
+import org.mozilla.goanna.home.TopSitesGridView.TopSitesGridContextMenuInfo;
+import org.mozilla.goanna.tiles.TilesRecorder;
+import org.mozilla.goanna.tiles.Tile;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Activity;
 import android.content.ContentResolver;

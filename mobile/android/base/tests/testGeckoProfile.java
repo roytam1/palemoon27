@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.io.File;
 import java.util.Enumeration;
 import java.util.Hashtable;
 
-import org.mozilla.gecko.GoannaApp;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.GoannaProfileDirectories;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.util.INIParser;
-import org.mozilla.gecko.util.INISection;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.GoannaProfileDirectories;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.util.INIParser;
+import org.mozilla.goanna.util.INISection;
 
 import android.content.Context;
 import android.text.TextUtils;

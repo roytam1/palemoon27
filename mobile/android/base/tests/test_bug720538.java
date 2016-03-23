@@ -1,7 +1,7 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.PaintedSurface;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.PaintedSurface;
 
 public class test_bug720538 extends PixelTest {
     public void test_bug720538() {

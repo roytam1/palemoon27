@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.TelemetryContract.Event;
-import org.mozilla.gecko.TelemetryContract.Method;
-import org.mozilla.gecko.TelemetryContract.Reason;
-import org.mozilla.gecko.TelemetryContract.Session;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.TelemetryContract.Event;
+import org.mozilla.goanna.TelemetryContract.Method;
+import org.mozilla.goanna.TelemetryContract.Reason;
+import org.mozilla.goanna.TelemetryContract.Session;
 
 import android.os.SystemClock;
 import android.util.Log;
@@ -115,9 +115,9 @@ public class Telemetry {
         final String sessionName = getSessionName(session, sessionNameSuffix);
 
         Log.d(LOGTAG, "StartUISession: " + sessionName);
-        final GoannaEvent geckoEvent =
+        final GoannaEvent goannaEvent =
                 GoannaEvent.createTelemetryUISessionStartEvent(sessionName, realtime());
-        GoannaAppShell.sendEventToGoanna(geckoEvent);
+        GoannaAppShell.sendEventToGoanna(goannaEvent);
     }
 
     public static void startUISession(final Session session) {
@@ -129,9 +129,9 @@ public class Telemetry {
         final String sessionName = getSessionName(session, sessionNameSuffix);
 
         Log.d(LOGTAG, "StopUISession: " + sessionName + ", reason=" + reason);
-        final GoannaEvent geckoEvent = GoannaEvent.createTelemetryUISessionStopEvent(
+        final GoannaEvent goannaEvent = GoannaEvent.createTelemetryUISessionStopEvent(
                 sessionName, reason.toString(), realtime());
-        GoannaAppShell.sendEventToGoanna(geckoEvent);
+        GoannaAppShell.sendEventToGoanna(goannaEvent);
     }
 
     public static void stopUISession(final Session session, final Reason reason) {
@@ -165,9 +165,9 @@ public class Telemetry {
 
         Log.d(LOGTAG, "SendUIEvent: event = " + eventName + " method = " + method +
                 " timestamp = " + timestamp + " extras = " + extras);
-        final GoannaEvent geckoEvent = GoannaEvent.createTelemetryUIEvent(
+        final GoannaEvent goannaEvent = GoannaEvent.createTelemetryUIEvent(
                 eventName, method.toString(), timestamp, extras);
-        GoannaAppShell.sendEventToGoanna(geckoEvent);
+        GoannaAppShell.sendEventToGoanna(goannaEvent);
     }
 
     public static void sendUIEvent(final Event event, final Method method, final long timestamp,

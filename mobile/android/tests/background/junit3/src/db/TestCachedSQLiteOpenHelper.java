@@ -1,15 +1,15 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
-import org.mozilla.gecko.background.sync.helpers.HistoryHelpers;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserHistoryDataExtender;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabase;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.goanna.background.sync.helpers.HistoryHelpers;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserHistoryDataExtender;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabase;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.sync.repositories.domain.HistoryRecord;
+import org.mozilla.goanna.sync.setup.Constants;
 
 import android.database.Cursor;
 import android.test.AndroidTestCase;

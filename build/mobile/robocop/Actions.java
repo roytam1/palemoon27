@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 import android.database.Cursor;
 
 public interface Actions {
@@ -41,9 +41,9 @@ public interface Actions {
     /**
      * Sends an event to Goanna.
      * 
-     * @param geckoEvent The geckoEvent JSONObject's type
+     * @param goannaEvent The goannaEvent JSONObject's type
      */
-    void sendGoannaEvent(String geckoEvent, String data);
+    void sendGoannaEvent(String goannaEvent, String data);
 
     /**
      * Sends a preferences get event to Goanna.
@@ -69,13 +69,13 @@ public interface Actions {
     void sendPreferencesRemoveObserversEvent(int requestid);
 
     /**
-     * Listens for a gecko event to be sent from the Goanna instance.
+     * Listens for a goanna event to be sent from the Goanna instance.
      * The returned object can be used to test if the event has been
      * received. Note that only one event is listened for.
      * 
-     * @param geckoEvent The geckoEvent JSONObject's type
+     * @param goannaEvent The goannaEvent JSONObject's type
      */
-    RepeatedEventExpecter expectGoannaEvent(String geckoEvent);
+    RepeatedEventExpecter expectGoannaEvent(String goannaEvent);
 
     /**
      * Listens for a paint event. Note that calling expectPaint() will

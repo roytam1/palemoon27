@@ -1,31 +1,31 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
 import java.util.ArrayList;
 
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.background.sync.helpers.ExpectFetchDelegate;
-import org.mozilla.gecko.background.sync.helpers.ExpectFinishDelegate;
-import org.mozilla.gecko.background.sync.helpers.HistoryHelpers;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserHistoryDataAccessor;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserHistoryRepository;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserHistoryRepositorySession;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserRepository;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserRepositoryDataAccessor;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserRepositorySession;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.sync.helpers.ExpectFetchDelegate;
+import org.mozilla.goanna.background.sync.helpers.ExpectFinishDelegate;
+import org.mozilla.goanna.background.sync.helpers.HistoryHelpers;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserHistoryDataAccessor;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserHistoryRepository;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserHistoryRepositorySession;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserRepository;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserRepositoryDataAccessor;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserRepositorySession;
+import org.mozilla.goanna.sync.repositories.android.BrowserContractHelpers;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.domain.HistoryRecord;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 import android.content.ContentValues;
 import android.content.Context;

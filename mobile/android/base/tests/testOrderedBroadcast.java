@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -25,10 +25,10 @@ public class testOrderedBroadcast extends JavascriptTest {
     public void setUp() throws Exception {
         super.setUp();
 
-        mAsserter.dumpLog("Registering org.mozilla.gecko.test.receiver broadcast receiver");
+        mAsserter.dumpLog("Registering org.mozilla.goanna.test.receiver broadcast receiver");
 
         IntentFilter filter = new IntentFilter();
-        filter.addAction("org.mozilla.gecko.test.receiver");
+        filter.addAction("org.mozilla.goanna.test.receiver");
 
         mReceiver = new BroadcastReceiver() {
                 @Override
@@ -59,7 +59,7 @@ public class testOrderedBroadcast extends JavascriptTest {
     public void tearDown() throws Exception {
         super.tearDown();
 
-        mAsserter.dumpLog("Unregistering org.mozilla.gecko.test.receiver broadcast receiver");
+        mAsserter.dumpLog("Unregistering org.mozilla.goanna.test.receiver broadcast receiver");
 
         if (mReceiver != null) {
             getActivity().getApplicationContext().unregisterReceiver(mReceiver);

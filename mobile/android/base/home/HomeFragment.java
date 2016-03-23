@@ -3,31 +3,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.EnumSet;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.EditBookmarkDialog;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.ReaderModeUtils;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.BrowserContract.SuggestedSites;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.home.HomeContextMenuInfo.RemoveItemType;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenInBackgroundListener;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.home.TopSitesGridView.TopSitesGridContextMenuInfo;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
+import org.mozilla.goanna.EditBookmarkDialog;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.ReaderModeUtils;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.BrowserContract.SuggestedSites;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.home.HomeContextMenuInfo.RemoveItemType;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenInBackgroundListener;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.home.TopSitesGridView.TopSitesGridContextMenuInfo;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UIAsyncTask;
 
 import android.app.Activity;
 import android.content.ContentResolver;

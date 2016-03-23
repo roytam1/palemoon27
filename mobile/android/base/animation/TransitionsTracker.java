@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.animation;
+package org.mozilla.goanna.animation;
 
 import com.nineoldandroids.animation.Animator;
 
@@ -10,9 +10,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.PropertyAnimator.PropertyAnimationListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.PropertyAnimator.PropertyAnimationListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 
 /**

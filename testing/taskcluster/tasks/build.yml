@@ -44,7 +44,7 @@ task:
 
 
     env:
-      # Common environment variables for checking out gecko
+      # Common environment variables for checking out goanna
       GECKO_BASE_REPOSITORY: '{{base_repository}}'
       GECKO_HEAD_REPOSITORY: '{{head_repository}}'
       GECKO_HEAD_REV: '{{head_rev}}'

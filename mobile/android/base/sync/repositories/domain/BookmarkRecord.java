@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.domain;
+package org.mozilla.goanna.sync.repositories.domain;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Map;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonArrayJSONException;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.NonArrayJSONException;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils;
 
 /**
  * Covers the fields used by all bookmark objects.

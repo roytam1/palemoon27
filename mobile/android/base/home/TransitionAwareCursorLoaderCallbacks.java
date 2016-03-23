@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import android.database.Cursor;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
 
-import org.mozilla.gecko.animation.TransitionsTracker;
+import org.mozilla.goanna.animation.TransitionsTracker;
 
 /**
  * A {@link LoaderCallbacks} implementation that avoids running its

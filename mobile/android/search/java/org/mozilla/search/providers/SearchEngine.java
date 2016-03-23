@@ -8,7 +8,7 @@ import android.net.Uri;
 import android.util.Log;
 import android.util.Xml;
 
-import org.mozilla.gecko.util.StringUtils;
+import org.mozilla.goanna.util.StringUtils;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 

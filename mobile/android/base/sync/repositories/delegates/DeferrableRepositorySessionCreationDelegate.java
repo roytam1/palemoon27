@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.delegates;
+package org.mozilla.goanna.sync.repositories.delegates;
 
-import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
 
 public abstract class DeferrableRepositorySessionCreationDelegate implements RepositorySessionCreationDelegate {
   @Override

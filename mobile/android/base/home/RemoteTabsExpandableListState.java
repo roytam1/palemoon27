@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import org.mozilla.gecko.util.PrefUtils;
+import org.mozilla.goanna.util.PrefUtils;
 
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;

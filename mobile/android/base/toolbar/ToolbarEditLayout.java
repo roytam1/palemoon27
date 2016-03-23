@@ -3,16 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.PropertyAnimator.PropertyAnimationListener;
-import org.mozilla.gecko.toolbar.BrowserToolbar.OnCommitListener;
-import org.mozilla.gecko.toolbar.BrowserToolbar.OnDismissListener;
-import org.mozilla.gecko.toolbar.BrowserToolbar.OnFilterListener;
-import org.mozilla.gecko.toolbar.BrowserToolbar.TabEditingState;
-import org.mozilla.gecko.widget.ThemedLinearLayout;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.PropertyAnimator.PropertyAnimationListener;
+import org.mozilla.goanna.toolbar.BrowserToolbar.OnCommitListener;
+import org.mozilla.goanna.toolbar.BrowserToolbar.OnDismissListener;
+import org.mozilla.goanna.toolbar.BrowserToolbar.OnFilterListener;
+import org.mozilla.goanna.toolbar.BrowserToolbar.TabEditingState;
+import org.mozilla.goanna.widget.ThemedLinearLayout;
 
 import android.content.Context;
 import android.util.AttributeSet;

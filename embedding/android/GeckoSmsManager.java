@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -293,8 +293,8 @@ public class GoannaSmsManager
   implements ISmsManager
 {
   public final static String ACTION_SMS_RECEIVED  = "android.provider.Telephony.SMS_RECEIVED";
-  public final static String ACTION_SMS_SENT      = "org.mozilla.gecko.SMS_SENT";
-  public final static String ACTION_SMS_DELIVERED = "org.mozilla.gecko.SMS_DELIVERED";
+  public final static String ACTION_SMS_SENT      = "org.mozilla.goanna.SMS_SENT";
+  public final static String ACTION_SMS_DELIVERED = "org.mozilla.goanna.SMS_DELIVERED";
 
   /*
    * Make sure that the following error codes are in sync with the ones

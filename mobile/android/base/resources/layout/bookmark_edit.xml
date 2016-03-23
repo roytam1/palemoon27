@@ -9,14 +9,14 @@
               android:orientation="vertical"
               android:layout_height="match_parent">
 
-    <org.mozilla.gecko.widget.FloatingHintEditText
+    <org.mozilla.goanna.widget.FloatingHintEditText
               android:id="@+id/edit_bookmark_name"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
               android:singleLine="true"
               android:hint="@string/bookmark_edit_name"/>
 
-    <org.mozilla.gecko.widget.FloatingHintEditText
+    <org.mozilla.goanna.widget.FloatingHintEditText
               android:id="@+id/edit_bookmark_location"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
@@ -24,7 +24,7 @@
               android:hint="@string/bookmark_edit_location"
               android:inputType="textNoSuggestions"/>
 
-    <org.mozilla.gecko.widget.FloatingHintEditText
+    <org.mozilla.goanna.widget.FloatingHintEditText
               android:id="@+id/edit_bookmark_keyword"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"

@@ -1,7 +1,7 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
-import org.mozilla.gecko.tests.helpers.NavigationHelper;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.tests.helpers.NavigationHelper;
 
 /**
  * Tests that navigating through session history (ex: forward, back) sets the correct UI state.

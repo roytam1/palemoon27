@@ -1,12 +1,12 @@
-package org.mozilla.gecko.prompts;
+package org.mozilla.goanna.prompts;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.menu.MenuItemActionView;
-import org.mozilla.gecko.widget.GoannaActionProvider;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.menu.MenuItemActionView;
+import org.mozilla.goanna.widget.GoannaActionProvider;
 
 import org.json.JSONArray;
 import org.json.JSONObject;

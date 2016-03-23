@@ -26,7 +26,7 @@ FakeCu.prototype = {
     Cu.evalInSandbox(`(function(){` + readURISync(url) + `\n})`,
                      sandbox, "1.8", url).call(target);
     // Borrowed from mozJSComponentLoader.cpp to match errors closer.
-    // https://github.com/mozilla/gecko-dev/blob/f6ca65e8672433b2ce1a0e7c31f72717930b5e27/js/xpconnect/loader/mozJSComponentLoader.cpp#L1205-L1208
+    // https://github.com/mozilla/goanna-dev/blob/f6ca65e8672433b2ce1a0e7c31f72717930b5e27/js/xpconnect/loader/mozJSComponentLoader.cpp#L1205-L1208
     if (!Array.isArray(target.EXPORTED_SYMBOLS)) {
       throw Error("EXPORTED_SYMBOLS is not an array.");
     }

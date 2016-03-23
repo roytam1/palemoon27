@@ -220,15 +220,15 @@ function isShumwayEnabledFor(actions) {
 function getVersionInfo() {
   var deferred = Promise.defer();
   var versionInfo = {
-    geckoVersion: 'unknown',
-    geckoBuildID: 'unknown',
+    goannaVersion: 'unknown',
+    goannaBuildID: 'unknown',
     shumwayVersion: 'unknown'
   };
   try {
     var appInfo = Components.classes["@mozilla.org/xre/app-info;1"]
         .getService(Components.interfaces.nsIXULAppInfo);
-    versionInfo.geckoVersion = appInfo.version;
-    versionInfo.geckoBuildID = appInfo.appBuildID;
+    versionInfo.goannaVersion = appInfo.version;
+    versionInfo.goannaBuildID = appInfo.appBuildID;
   } catch (e) {
     log('Error encountered while getting platform version info: ' + e);
   }
@@ -552,7 +552,7 @@ ChromeActions.prototype = {
     getVersionInfo().then(function (versions) {
       params.versions = versions;
     }).then(function () {
-      var ffbuild = params.versions.geckoVersion + ' (' + params.versions.geckoBuildID + ')';
+      var ffbuild = params.versions.goannaVersion + ' (' + params.versions.goannaBuildID + ')';
       //params.exceptions = encodeURIComponent(exceptions);
       var comment = '+++ Initially filed via the problem reporting functionality in Shumway +++\n' +
                     'Please add any further information that you deem helpful here:\n\n\n\n' +

@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.Checkable;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 /**
   * This preference shows a checkbox on its left hand side, but will show a menu when clicked.

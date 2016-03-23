@@ -35,7 +35,7 @@
 
     </LinearLayout>
 
-    <org.mozilla.gecko.home.HomeListView android:id="@+id/list"
+    <org.mozilla.goanna.home.HomeListView android:id="@+id/list"
                                          android:layout_width="match_parent"
                                          android:layout_height="0dip"
                                          android:layout_weight="1.0"/>

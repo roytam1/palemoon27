@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.AppConstants;
+import org.mozilla.goanna.AppConstants;
 
 import android.content.Context;
 import android.content.Intent;
@@ -40,9 +40,9 @@ public class testANRReporter extends BaseTest {
         + "  | sysTid=3485 nice=0 sched=0/0 cgrp=apps handle=1074852180\n"
         + "  | state=S schedstat=( 0 0 0 ) utm=1065 stm=152 core=0\n"
         + "  at java.lang.Object.wait(Native Method)\n"
-        + "  - waiting on <0x427ab340> (a org.mozilla.gecko.GoannaEditable$5)\n"
+        + "  - waiting on <0x427ab340> (a org.mozilla.goanna.GoannaEditable$5)\n"
         + "  at java.lang.Object.wait(Object.java:364)\n"
-        + "  at org.mozilla.gecko.GoannaEditable$5.run(GoannaEditable.java:746)\n"
+        + "  at org.mozilla.goanna.GoannaEditable$5.run(GoannaEditable.java:746)\n"
         + "  at android.os.Handler.handleCallback(Handler.java:733)\n"
         + "  at android.os.Handler.dispatchMessage(Handler.java:95)\n"
         + "  at android.os.Looper.loop(Looper.java:137)\n"
@@ -65,9 +65,9 @@ public class testANRReporter extends BaseTest {
         + "  #05  pc 00049507  /system/lib/libdvm.so\n"
         + "  #06  pc 0004d84b  /system/lib/libdvm.so\n"
         + "  #07  pc 0003f1df  /dev/ashmem/libxul.so (deleted)\n"
-        + "  at org.mozilla.gecko.mozglue.GoannaLoader.nativeRun(Native Method)\n"
-        + "  at org.mozilla.gecko.GoannaAppShell.runGoanna(GoannaAppShell.java:384)\n"
-        + "  at org.mozilla.gecko.GoannaThread.run(GoannaThread.java:177)\n"
+        + "  at org.mozilla.goanna.mozglue.GoannaLoader.nativeRun(Native Method)\n"
+        + "  at org.mozilla.goanna.GoannaAppShell.runGoanna(GoannaAppShell.java:384)\n"
+        + "  at org.mozilla.goanna.GoannaThread.run(GoannaThread.java:177)\n"
         + "\n"
         + "----- end 1 -----\n"
         + "\n"

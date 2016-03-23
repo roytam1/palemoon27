@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays.service;
+package org.mozilla.goanna.overlays.service;
 
 import android.app.Service;
 import android.content.Context;
@@ -11,19 +11,19 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.overlays.service.sharemethods.AddBookmark;
-import org.mozilla.gecko.overlays.service.sharemethods.AddToReadingList;
-import org.mozilla.gecko.overlays.service.sharemethods.SendTab;
-import org.mozilla.gecko.overlays.service.sharemethods.ShareMethod;
-import org.mozilla.gecko.overlays.ui.OverlayToastHelper;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.overlays.service.sharemethods.AddBookmark;
+import org.mozilla.goanna.overlays.service.sharemethods.AddToReadingList;
+import org.mozilla.goanna.overlays.service.sharemethods.SendTab;
+import org.mozilla.goanna.overlays.service.sharemethods.ShareMethod;
+import org.mozilla.goanna.overlays.ui.OverlayToastHelper;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import java.util.EnumMap;
 import java.util.Map;
 
-import static org.mozilla.gecko.overlays.OverlayConstants.ACTION_PREPARE_SHARE;
-import static org.mozilla.gecko.overlays.OverlayConstants.ACTION_SHARE;
+import static org.mozilla.goanna.overlays.OverlayConstants.ACTION_PREPARE_SHARE;
+import static org.mozilla.goanna.overlays.OverlayConstants.ACTION_SHARE;
 
 /**
  * A service to receive requests from overlays to perform actions.

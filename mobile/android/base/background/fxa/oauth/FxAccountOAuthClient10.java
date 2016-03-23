@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.fxa.oauth;
+package org.mozilla.goanna.background.fxa.oauth;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.Executor;
 
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.net.BaseResource;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.net.BaseResource;
 
 import ch.boye.httpclientandroidlib.HttpResponse;
 

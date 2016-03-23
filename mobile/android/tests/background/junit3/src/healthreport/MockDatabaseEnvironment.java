@@ -1,10 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage.DatabaseEnvironment;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage.DatabaseEnvironment;
 
 public class MockDatabaseEnvironment extends DatabaseEnvironment {
   public MockDatabaseEnvironment(HealthReportDatabaseStorage storage, Class<? extends EnvironmentAppender> appender) {

@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.helpers;
+package org.mozilla.goanna.tests.helpers;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertEquals;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertEquals;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;

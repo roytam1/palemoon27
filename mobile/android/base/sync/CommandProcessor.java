@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,12 +12,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.BrowserLocaleManager;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
 
 import android.app.Notification;
 import android.app.NotificationManager;

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.stage;
+package org.mozilla.goanna.sync.stage;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -10,38 +10,38 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.EngineSettings;
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.HTTPFailureException;
-import org.mozilla.gecko.sync.MetaGlobalException;
-import org.mozilla.gecko.sync.NoCollectionKeysSetException;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.SynchronizerConfiguration;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.delegates.WipeServerDelegate;
-import org.mozilla.gecko.sync.middleware.Crypto5MiddlewareRepository;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.SyncStorageRequest;
-import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
-import org.mozilla.gecko.sync.repositories.RecordFactory;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.RepositorySessionBundle;
-import org.mozilla.gecko.sync.repositories.Server11Repository;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
-import org.mozilla.gecko.sync.synchronizer.ServerLocalSynchronizer;
-import org.mozilla.gecko.sync.synchronizer.Synchronizer;
-import org.mozilla.gecko.sync.synchronizer.SynchronizerDelegate;
-import org.mozilla.gecko.sync.synchronizer.SynchronizerSession;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.EngineSettings;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.HTTPFailureException;
+import org.mozilla.goanna.sync.MetaGlobalException;
+import org.mozilla.goanna.sync.NoCollectionKeysSetException;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.SynchronizerConfiguration;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.delegates.WipeServerDelegate;
+import org.mozilla.goanna.sync.middleware.Crypto5MiddlewareRepository;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.SyncStorageRequest;
+import org.mozilla.goanna.sync.net.SyncStorageRequestDelegate;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.InvalidSessionTransitionException;
+import org.mozilla.goanna.sync.repositories.RecordFactory;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.RepositorySessionBundle;
+import org.mozilla.goanna.sync.repositories.Server11Repository;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionBeginDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFinishDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionWipeDelegate;
+import org.mozilla.goanna.sync.synchronizer.ServerLocalSynchronizer;
+import org.mozilla.goanna.sync.synchronizer.Synchronizer;
+import org.mozilla.goanna.sync.synchronizer.SynchronizerDelegate;
+import org.mozilla.goanna.sync.synchronizer.SynchronizerSession;
 
 import android.content.Context;
 

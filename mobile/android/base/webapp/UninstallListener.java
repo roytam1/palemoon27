@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.webapp;
+package org.mozilla.goanna.webapp;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GoannaApp;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;

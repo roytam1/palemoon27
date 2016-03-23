@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.helpers;
+package org.mozilla.goanna.tests.helpers;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotNull;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertTrue;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertNotNull;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertTrue;
 
 import android.os.SystemClock;
 import java.util.regex.Pattern;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Actions.EventExpecter;
-import org.mozilla.gecko.tests.UITestContext;
-import org.mozilla.gecko.tests.UITestContext.ComponentType;
-import org.mozilla.gecko.tests.components.ToolbarComponent;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Actions.EventExpecter;
+import org.mozilla.goanna.tests.UITestContext;
+import org.mozilla.goanna.tests.UITestContext.ComponentType;
+import org.mozilla.goanna.tests.components.ToolbarComponent;
 
 import com.jayway.android.robotium.solo.Condition;
 import com.jayway.android.robotium.solo.Solo;

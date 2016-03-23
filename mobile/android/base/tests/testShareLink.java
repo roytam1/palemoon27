@@ -1,10 +1,10 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.home.HomePager;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.home.HomePager;
 
 import android.app.Activity;
 import android.content.Intent;

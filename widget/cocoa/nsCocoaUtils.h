@@ -208,13 +208,13 @@ public:
   // contain width/height info, with no difference in their use.
   // This function does no scaling, so the Goanna coordinates are
   // expected to be CSS pixels, which we treat as equal to Cocoa points.
-  static NSRect GoannaRectToCocoaRect(const nsIntRect &geckoRect);
+  static NSRect GoannaRectToCocoaRect(const nsIntRect &goannaRect);
 
   // Converts aGoannaRect in dev pixels to points in Cocoa coordinates
   static NSRect GoannaRectToCocoaRectDevPix(const nsIntRect &aGoannaRect,
                                            CGFloat aBackingScale);
 
-  // See explanation for geckoRectToCocoaRect, guess what this does...
+  // See explanation for goannaRectToCocoaRect, guess what this does...
   static nsIntRect CocoaRectToGoannaRect(const NSRect &cocoaRect);
 
   static nsIntRect CocoaRectToGoannaRectDevPix(const NSRect &aCocoaRect,

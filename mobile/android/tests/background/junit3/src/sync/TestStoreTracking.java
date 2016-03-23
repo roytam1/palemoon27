@@ -1,33 +1,33 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync;
+package org.mozilla.goanna.background.sync;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import junit.framework.AssertionFailedError;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessBeginDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessCreationDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessFetchDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessFinishDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessStoreDelegate;
-import org.mozilla.gecko.background.testhelpers.WBORepository;
-import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
-import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.RepositorySessionBundle;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.domain.BookmarkRecord;
-import org.mozilla.gecko.sync.repositories.domain.Record;
-import org.mozilla.gecko.sync.synchronizer.Synchronizer;
-import org.mozilla.gecko.sync.synchronizer.SynchronizerDelegate;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessBeginDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessCreationDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessFetchDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessFinishDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessStoreDelegate;
+import org.mozilla.goanna.background.testhelpers.WBORepository;
+import org.mozilla.goanna.sync.CryptoRecord;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.InvalidSessionTransitionException;
+import org.mozilla.goanna.sync.repositories.NoStoreDelegateException;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.RepositorySessionBundle;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.domain.BookmarkRecord;
+import org.mozilla.goanna.sync.repositories.domain.Record;
+import org.mozilla.goanna.sync.synchronizer.Synchronizer;
+import org.mozilla.goanna.sync.synchronizer.SynchronizerDelegate;
 
 import android.content.Context;
 

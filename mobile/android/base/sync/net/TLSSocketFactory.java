@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.net;
+package org.mozilla.goanna.sync.net;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -10,7 +10,7 @@ import java.net.Socket;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.goanna.background.common.log.Logger;
 
 import ch.boye.httpclientandroidlib.conn.ssl.SSLSocketFactory;
 import ch.boye.httpclientandroidlib.params.HttpParams;

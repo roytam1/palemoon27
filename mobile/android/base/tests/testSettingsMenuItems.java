@@ -1,4 +1,4 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.util.HardwareUtils;
 
 /** This patch tests the Sections present in the Settings Menu and the
  *  default values for them

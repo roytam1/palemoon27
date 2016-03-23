@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.telemetry;
+package org.mozilla.goanna.background.telemetry;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -16,8 +16,8 @@ import junit.framework.Assert;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.background.datareporting.TelemetryRecorder;
-import org.mozilla.gecko.background.helpers.FakeProfileTestCase;
+import org.mozilla.goanna.background.datareporting.TelemetryRecorder;
+import org.mozilla.goanna.background.helpers.FakeProfileTestCase;
 
 import android.util.Base64;
 

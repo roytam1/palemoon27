@@ -11974,17 +11974,17 @@ ComprehensionTlvHelperObject.prototype = {
   },
 
   /**
-   * Given a geckoError string, this function translates it into cause value
+   * Given a goannaError string, this function translates it into cause value
    * and write the value into buffer.
    *
-   * @param geckoError Error string that is passed to gecko.
+   * @param goannaError Error string that is passed to goanna.
    */
-  writeCauseTlv: function(geckoError) {
+  writeCauseTlv: function(goannaError) {
     let GsmPDUHelper = this.context.GsmPDUHelper;
 
     let cause = -1;
     for (let errorNo in RIL_ERROR_TO_GECKO_ERROR) {
-      if (geckoError == RIL_ERROR_TO_GECKO_ERROR[errorNo]) {
+      if (goannaError == RIL_ERROR_TO_GECKO_ERROR[errorNo]) {
         cause = errorNo;
         break;
       }
@@ -15029,12 +15029,12 @@ ICCUtilsHelperObject.prototype = {
   /**
    * Get whether specificed (U)SIM service is available.
    *
-   * @param geckoService
+   * @param goannaService
    *        Service name like "ADN", "BDN", etc.
    *
    * @return true if the service is enabled, false otherwise.
    */
-  isICCServiceAvailable: function(geckoService) {
+  isICCServiceAvailable: function(goannaService) {
     let RIL = this.context.RIL;
     let serviceTable = RIL._isCdma ? RIL.iccInfoPrivate.cst:
                                      RIL.iccInfoPrivate.sst;
@@ -15056,9 +15056,9 @@ ICCUtilsHelperObject.prototype = {
        */
       let simService;
       if (RIL.appType == CARD_APPTYPE_SIM) {
-        simService = GECKO_ICC_SERVICES.sim[geckoService];
+        simService = GECKO_ICC_SERVICES.sim[goannaService];
       } else {
-        simService = GECKO_ICC_SERVICES.ruim[geckoService];
+        simService = GECKO_ICC_SERVICES.ruim[goannaService];
       }
       if (!simService) {
         return false;
@@ -15079,7 +15079,7 @@ ICCUtilsHelperObject.prototype = {
        *
        * @see 3GPP TS 31.102 4.2.8.
        */
-      let usimService = GECKO_ICC_SERVICES.usim[geckoService];
+      let usimService = GECKO_ICC_SERVICES.usim[goannaService];
       if (!usimService) {
         return false;
       }
@@ -15096,12 +15096,12 @@ ICCUtilsHelperObject.prototype = {
   /**
    * Get whether specificed CPHS service is available.
    *
-   * @param geckoService
+   * @param goannaService
    *        Service name like "MDN", etc.
    *
    * @return true if the service is enabled, false otherwise.
    */
-  isCphsServiceAvailable: function(geckoService) {
+  isCphsServiceAvailable: function(goannaService) {
     let RIL = this.context.RIL;
     let serviceTable = RIL.iccInfoPrivate.cphsSt;
 
@@ -15123,7 +15123,7 @@ ICCUtilsHelperObject.prototype = {
      *
      * @See  B.3.1.1 CPHS Information in CPHS Phase 2.
      */
-    let cphsService  = GECKO_ICC_SERVICES.cphs[geckoService];
+    let cphsService  = GECKO_ICC_SERVICES.cphs[goannaService];
 
     if (!cphsService) {
       return false;

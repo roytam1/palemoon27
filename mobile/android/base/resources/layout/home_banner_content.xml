@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
-       xmlns:gecko="http://schemas.android.com/apk/res-auto">
+       xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
      <ImageView android:id="@+id/icon"
                 android:layout_width="@dimen/home_banner_icon_width"
@@ -12,7 +12,7 @@
                 android:layout_marginLeft="10dp"
                 android:scaleType="centerInside"/>
 
-     <org.mozilla.gecko.widget.EllipsisTextView
+     <org.mozilla.goanna.widget.EllipsisTextView
          android:id="@+id/text"
          android:layout_width="0dip"
          android:layout_height="match_parent"
@@ -23,7 +23,7 @@
          android:textAppearance="@style/TextAppearance.Widget.HomeBanner"
          android:layout_gravity="bottom"
          android:gravity="center_vertical"
-         gecko:ellipsizeAtLine="3"/>
+         goanna:ellipsizeAtLine="3"/>
 
     <ImageButton android:id="@+id/close"
                  android:layout_width="@dimen/home_banner_close_width"

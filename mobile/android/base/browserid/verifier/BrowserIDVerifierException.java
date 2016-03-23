@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.browserid.verifier;
+package org.mozilla.goanna.browserid.verifier;
 
 public class BrowserIDVerifierException extends Exception {
   private static final long serialVersionUID = 2228946910754889975L;

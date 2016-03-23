@@ -6,14 +6,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.ArrayList;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.db.BrowserDB;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.db.BrowserDB;
 
 import android.app.Activity;
 import android.content.ContentResolver;

@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.concurrent.Callable;
 
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.SearchHistory;
-import org.mozilla.gecko.db.SearchHistoryProvider;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.SearchHistory;
+import org.mozilla.goanna.db.SearchHistoryProvider;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;

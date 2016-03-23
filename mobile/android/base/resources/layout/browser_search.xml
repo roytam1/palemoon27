@@ -13,7 +13,7 @@
               android:layout_height="wrap_content"
               android:layout="@layout/home_suggestion_prompt" />
 
-    <view class="org.mozilla.gecko.home.BrowserSearch$HomeSearchListView"
+    <view class="org.mozilla.goanna.home.BrowserSearch$HomeSearchListView"
             android:id="@+id/home_list_view"
             android:layout_width="match_parent"
             android:layout_height="0dp"

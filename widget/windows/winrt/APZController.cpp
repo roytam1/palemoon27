@@ -136,7 +136,7 @@ APZController::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
     aFrameMetrics.GetScrollId());
 #endif
 
-  // This must be on the gecko thread since we access the dom
+  // This must be on the goanna thread since we access the dom
   MOZ_ASSERT(NS_IsMainThread());
 
 #ifdef DEBUG_CONTROLLER

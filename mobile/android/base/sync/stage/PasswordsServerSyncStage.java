@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.stage;
+package org.mozilla.goanna.sync.stage;
 
-import org.mozilla.gecko.sync.repositories.RecordFactory;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.android.PasswordsRepositorySession;
-import org.mozilla.gecko.sync.repositories.domain.PasswordRecordFactory;
-import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
+import org.mozilla.goanna.sync.repositories.RecordFactory;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.android.PasswordsRepositorySession;
+import org.mozilla.goanna.sync.repositories.domain.PasswordRecordFactory;
+import org.mozilla.goanna.sync.repositories.domain.VersionConstants;
 
 public class PasswordsServerSyncStage extends ServerSyncStage {
   @Override

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.browserid;
+package org.mozilla.goanna.browserid;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -15,9 +15,9 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 import org.mozilla.apache.commons.codec.binary.Base64;
 import org.mozilla.apache.commons.codec.binary.StringUtils;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.Utils;
 
 /**
  * Encode and decode JSON Web Tokens.

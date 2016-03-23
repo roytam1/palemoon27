@@ -3,21 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserContract.FaviconColumns;
-import org.mozilla.gecko.db.BrowserContract.Favicons;
-import org.mozilla.gecko.db.BrowserContract.History;
-import org.mozilla.gecko.db.BrowserContract.Schema;
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserContract.FaviconColumns;
+import org.mozilla.goanna.db.BrowserContract.Favicons;
+import org.mozilla.goanna.db.BrowserContract.History;
+import org.mozilla.goanna.db.BrowserContract.Schema;
+import org.mozilla.goanna.db.BrowserContract.Thumbnails;
+import org.mozilla.goanna.sync.Utils;
 
 import android.app.SearchManager;
 import android.content.ContentProviderOperation;
@@ -1118,7 +1118,7 @@ public class BrowserProvider extends SharedBrowserDatabaseProvider {
 
         // If no URL is provided, insert using the default one.
         if (TextUtils.isEmpty(faviconUrl) && !TextUtils.isEmpty(pageUrl)) {
-            values.put(Favicons.URL, org.mozilla.gecko.favicons.Favicons.guessDefaultFaviconURL(pageUrl));
+            values.put(Favicons.URL, org.mozilla.goanna.favicons.Favicons.guessDefaultFaviconURL(pageUrl));
         }
 
         final long now = System.currentTimeMillis();

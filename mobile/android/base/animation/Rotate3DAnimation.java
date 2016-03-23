@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.animation;
+package org.mozilla.goanna.animation;
 
 import android.view.animation.Animation;
 import android.view.animation.Transformation;

@@ -700,12 +700,12 @@ class MochitestOptions(optparse.OptionParser):
             "default": options.defaultLeakThreshold,
             "tab": 25000,  # See dependencies of bug 1051230.
             # GMP rarely gets a log, but when it does, it leaks a little.
-            "geckomediaplugin": 20000,
+            "goannamediaplugin": 20000,
         }
 
-        # Bug 1065098 - The geckomediaplugin process fails to produce a leak
+        # Bug 1065098 - The goannamediaplugin process fails to produce a leak
         # log for some reason.
-        options.ignoreMissingLeaks = ["geckomediaplugin", "tab"]
+        options.ignoreMissingLeaks = ["goannamediaplugin", "tab"]
 
         # Bug 1121539 - OSX-only intermittent tab process leak in test_ipc.html
         if mozinfo.isMac:
@@ -813,11 +813,11 @@ class B2GOptions(MochitestOptions):
           "help": "ip address where the remote web server is hosted at",
           "default": None,
           }],
-        [["--gecko-path"],
+        [["--goanna-path"],
          {"action": "store",
           "type": "string",
-          "dest": "geckoPath",
-          "help": "the path to a gecko distribution that should \
+          "dest": "goannaPath",
+          "help": "the path to a goanna distribution that should \
                    be installed on the emulator prior to test",
           "default": None,
           }],
@@ -880,9 +880,9 @@ class B2GOptions(MochitestOptions):
                     "You must specify a --remote-webserver=<ip address>")
         options.webServer = options.remoteWebServer
 
-        if options.geckoPath and not options.emulator:
+        if options.goannaPath and not options.emulator:
             self.error(
-                "You must specify --emulator if you specify --gecko-path")
+                "You must specify --emulator if you specify --goanna-path")
 
         if options.logdir and not options.emulator:
             self.error("You must specify --emulator if you specify --logdir")

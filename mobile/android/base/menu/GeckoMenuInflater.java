@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.menu;
+package org.mozilla.goanna.menu;
 
 import java.io.IOException;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.NewTabletUI;
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.NewTabletUI;
+import org.mozilla.goanna.R;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -142,13 +142,13 @@ public class GoannaMenuInflater extends MenuInflater {
 
     public void setValues(ParsedItem item, MenuItem menuItem) {
         // We are blocking any presenter updates during inflation.
-        GoannaMenuItem geckoItem = null;
+        GoannaMenuItem goannaItem = null;
         if (menuItem instanceof GoannaMenuItem) {
-            geckoItem = (GoannaMenuItem) menuItem;
+            goannaItem = (GoannaMenuItem) menuItem;
         }
 
-        if (geckoItem != null) {
-            geckoItem.stopDispatchingChanges();
+        if (goannaItem != null) {
+            goannaItem.stopDispatchingChanges();
         }
 
         menuItem.setChecked(item.checked)
@@ -161,10 +161,10 @@ public class GoannaMenuInflater extends MenuInflater {
             menuItem.setShowAsAction(item.showAsAction);
         }
 
-        if (geckoItem != null) {
+        if (goannaItem != null) {
             // We don't need to allow presenter updates during inflation,
             // so we use the weak form of re-enabling changes.
-            geckoItem.resumeDispatchingChanges();
+            goannaItem.resumeDispatchingChanges();
         }
     }
 }

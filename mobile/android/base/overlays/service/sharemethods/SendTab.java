@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays.service.sharemethods;
+package org.mozilla.goanna.overlays.service.sharemethods;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -14,25 +14,25 @@ import android.os.Bundle;
 import android.os.Parcelable;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.activities.FxAccountGetStartedActivity;
-import org.mozilla.gecko.fxa.activities.FxAccountStatusActivity;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.overlays.OverlayConstants;
-import org.mozilla.gecko.overlays.service.ShareData;
-import org.mozilla.gecko.sync.CommandProcessor;
-import org.mozilla.gecko.sync.CommandRunner;
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.activities.FxAccountGetStartedActivity;
+import org.mozilla.goanna.fxa.activities.FxAccountStatusActivity;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.overlays.OverlayConstants;
+import org.mozilla.goanna.overlays.service.ShareData;
+import org.mozilla.goanna.sync.CommandProcessor;
+import org.mozilla.goanna.sync.CommandRunner;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.sync.syncadapter.SyncAdapter;
 
 import java.util.ArrayList;
 import java.util.Arrays;

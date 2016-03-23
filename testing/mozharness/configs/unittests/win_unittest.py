@@ -53,7 +53,7 @@ config = {
         "mozbase": ["mozbase/*"],
         "mozmill": ["mozmill/*"],
     },
-    # test harness options are located in the gecko tree
+    # test harness options are located in the goanna tree
     "in_tree_config": "config/mozharness/windows_config.py",
     # local mochi suites
     "all_mochitest_suites":

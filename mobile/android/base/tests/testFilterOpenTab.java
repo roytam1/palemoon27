@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.PrivateTab;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.TabsProvider;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.PrivateTab;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.TabsProvider;
 
 import android.content.ContentProvider;
 import android.content.Context;

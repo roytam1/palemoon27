@@ -1,13 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.mozilla.gecko.util.RawResource;
+import org.mozilla.goanna.util.RawResource;
 
 import android.content.Context;
 import android.content.res.Resources;

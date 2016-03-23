@@ -5,10 +5,10 @@
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
        xmlns:tools="http://schemas.android.com/tools"
-       xmlns:gecko="http://schemas.android.com/apk/res-auto"
+       xmlns:goanna="http://schemas.android.com/apk/res-auto"
        tools:context=".BrowserApp">
 
-    <org.mozilla.gecko.widget.FaviconView android:id="@+id/icon"
+    <org.mozilla.goanna.widget.FaviconView android:id="@+id/icon"
                                           android:layout_width="@dimen/favicon_bg"
                                           android:layout_height="@dimen/favicon_bg"
                                           android:layout_margin="16dp"
@@ -20,12 +20,12 @@
                   android:orientation="vertical"
                   android:paddingRight="25dp">
 
-        <org.mozilla.gecko.widget.FadedSingleColorTextView
+        <org.mozilla.goanna.widget.FadedSingleColorTextView
                 android:id="@+id/title"
                 style="@style/Widget.TwoLinePageRow.Title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                gecko:fadeWidth="30dp"
+                goanna:fadeWidth="30dp"
                 tools:text="This is a long test title"/>
 
         <TextView android:id="@+id/url"

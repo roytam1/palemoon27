@@ -4,7 +4,7 @@
 
 package org.mozilla.search.ui;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.graphics.Canvas;

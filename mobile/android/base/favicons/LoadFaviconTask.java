@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.favicons;
+package org.mozilla.goanna.favicons;
 
 
 import android.content.ContentResolver;
@@ -15,14 +15,14 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.favicons.decoders.FaviconDecoder;
-import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
-import org.mozilla.gecko.util.GoannaJarReader;
-import org.mozilla.gecko.util.IOUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.decoders.FaviconDecoder;
+import org.mozilla.goanna.favicons.decoders.LoadFaviconResult;
+import org.mozilla.goanna.util.GoannaJarReader;
+import org.mozilla.goanna.util.IOUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,7 +34,7 @@ import java.util.LinkedList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.mozilla.gecko.util.IOUtils.ConsumedInputStream;
+import static org.mozilla.goanna.util.IOUtils.ConsumedInputStream;
 
 /**
  * Class representing the asynchronous task to load a Favicon which is not currently in the in-memory

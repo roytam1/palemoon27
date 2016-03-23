@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.File;
 import java.util.Collection;
@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.util.GoannaJarReader;
+import org.mozilla.goanna.util.GoannaJarReader;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

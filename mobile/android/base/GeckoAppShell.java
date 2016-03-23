@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -30,29 +30,29 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.PanZoomController;
-import org.mozilla.gecko.mozglue.ContextUtils;
-import org.mozilla.gecko.mozglue.GoannaLoader;
-import org.mozilla.gecko.mozglue.JNITarget;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.mozglue.generatorannotations.OptionalGeneratedParameter;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
-import org.mozilla.gecko.overlays.ui.ShareDialog;
-import org.mozilla.gecko.prompts.PromptService;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GoannaRequest;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSContainer;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.ProxySelector;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.favicons.OnFaviconLoadedListener;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.PanZoomController;
+import org.mozilla.goanna.mozglue.ContextUtils;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.generatorannotations.OptionalGeneratedParameter;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.overlays.ui.ShareDialog;
+import org.mozilla.goanna.prompts.PromptService;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.GoannaRequest;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSContainer;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.ProxySelector;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -338,11 +338,11 @@ public class GoannaAppShell
         // Preparation for pumpMessageLoop()
         MessageQueue.IdleHandler idleHandler = new MessageQueue.IdleHandler() {
             @Override public boolean queueIdle() {
-                final Handler geckoHandler = ThreadUtils.sGoannaHandler;
-                Message idleMsg = Message.obtain(geckoHandler);
+                final Handler goannaHandler = ThreadUtils.sGoannaHandler;
+                Message idleMsg = Message.obtain(goannaHandler);
                 // Use |Message.obj == GoannaHandler| to identify our "queue is empty" message
-                idleMsg.obj = geckoHandler;
-                geckoHandler.sendMessageAtFrontOfQueue(idleMsg);
+                idleMsg.obj = goannaHandler;
+                goannaHandler.sendMessageAtFrontOfQueue(idleMsg);
                 // Keep this IdleHandler
                 return true;
             }
@@ -508,7 +508,7 @@ public class GoannaAppShell
         synchronized (sEventAckLock) {
             if (sWaitingForEventAck) {
                 // should never happen since we always leave it as false when we exit this function.
-                Log.e(LOGTAG, "geckoEventSync() may have been called twice concurrently!", new Exception());
+                Log.e(LOGTAG, "goannaEventSync() may have been called twice concurrently!", new Exception());
                 // fall through for graceful handling
             }
 
@@ -2468,14 +2468,14 @@ public class GoannaAppShell
 
     @WrapElementForJNI
     public static boolean pumpMessageLoop() {
-        Handler geckoHandler = ThreadUtils.sGoannaHandler;
+        Handler goannaHandler = ThreadUtils.sGoannaHandler;
         Message msg = getNextMessageFromQueue(ThreadUtils.sGoannaQueue);
 
         if (msg == null) {
             return false;
         }
 
-        if (msg.obj == geckoHandler && msg.getTarget() == geckoHandler) {
+        if (msg.obj == goannaHandler && msg.getTarget() == goannaHandler) {
             // Our "queue is empty" message; see runGoanna()
             return false;
         }

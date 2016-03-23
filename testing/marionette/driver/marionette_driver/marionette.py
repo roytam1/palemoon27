@@ -20,7 +20,7 @@ from marionette_transport import MarionetteTransport
 
 from mozrunner import B2GEmulatorRunner
 
-import geckoinstance
+import goannainstance
 import errors
 
 class HTMLElement(object):
@@ -551,7 +551,7 @@ class Marionette(object):
     def __init__(self, host='localhost', port=2828, app=None, app_args=None, bin=None,
                  profile=None, emulator=None, sdcard=None, emulator_img=None,
                  emulator_binary=None, emulator_res=None, connect_to_running_emulator=False,
-                 gecko_log=None, homedir=None, baseurl=None, no_window=False, logdir=None,
+                 goanna_log=None, homedir=None, baseurl=None, no_window=False, logdir=None,
                  busybox=None, symbols_path=None, timeout=None, socket_timeout=360,
                  device_serial=None, adb_path=None, process_args=None,
                  adb_host=None, adb_port=None, prefs=None):
@@ -584,24 +584,24 @@ class Marionette(object):
             if app:
                 # select instance class for the given app
                 try:
-                    instance_class = geckoinstance.apps[app]
+                    instance_class = goannainstance.apps[app]
                 except KeyError:
                     msg = 'Application "%s" unknown (should be one of %s)'
-                    raise NotImplementedError(msg % (app, geckoinstance.apps.keys()))
+                    raise NotImplementedError(msg % (app, goannainstance.apps.keys()))
             else:
                 try:
                     config = ConfigParser.RawConfigParser()
                     config.read(os.path.join(os.path.dirname(bin), 'application.ini'))
                     app = config.get('App', 'Name')
-                    instance_class = geckoinstance.apps[app.lower()]
+                    instance_class = goannainstance.apps[app.lower()]
                 except (ConfigParser.NoOptionError,
                         ConfigParser.NoSectionError,
                         KeyError):
-                    instance_class = geckoinstance.GoannaInstance
+                    instance_class = goannainstance.GoannaInstance
             self.instance = instance_class(host=self.host, port=self.port,
                                            bin=self.bin, profile=self.profile,
                                            app_args=app_args, symbols_path=symbols_path,
-                                           gecko_log=gecko_log, prefs=prefs)
+                                           goanna_log=goanna_log, prefs=prefs)
             self.instance.start()
             assert(self.wait_for_port()), "Timed out waiting for port!"
 
@@ -841,7 +841,7 @@ class Marionette(object):
                     typing.append(val[i])
         return typing
 
-    def enforce_gecko_prefs(self, prefs):
+    def enforce_goanna_prefs(self, prefs):
         """
         Checks if the running instance has the given prefs. If not, it will kill the
         currently running instance, and spawn a new instance with the requested preferences.
@@ -849,8 +849,8 @@ class Marionette(object):
         : param prefs: A dictionary whose keys are preference names.
         """
         if not self.instance:
-            raise errors.MarionetteException("enforce_gecko_prefs can only be called " \
-                                             "on gecko instances launched by Marionette")
+            raise errors.MarionetteException("enforce_goanna_prefs can only be called " \
+                                             "on goanna instances launched by Marionette")
         pref_exists = True
         self.set_context(self.CONTEXT_CHROME)
         for pref, value in prefs.iteritems():
@@ -897,7 +897,7 @@ class Marionette(object):
         """
         if not self.instance:
             raise errors.MarionetteException("restart can only be called " \
-                                             "on gecko instances launched by Marionette")
+                                             "on goanna instances launched by Marionette")
 
         if in_app:
             if clean:

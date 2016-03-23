@@ -1,13 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.common;
+package org.mozilla.goanna.background.common;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.common.log.writers.AndroidLevelCachingLogWriter;
-import org.mozilla.gecko.background.common.log.writers.AndroidLogWriter;
-import org.mozilla.gecko.background.common.log.writers.LogWriter;
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.common.log.writers.AndroidLevelCachingLogWriter;
+import org.mozilla.goanna.background.common.log.writers.AndroidLogWriter;
+import org.mozilla.goanna.background.common.log.writers.LogWriter;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
 
 public class TestAndroidLogWriters extends AndroidSyncTestCase {
   public static final String TEST_LOG_TAG = "TestAndroidLogWriters";

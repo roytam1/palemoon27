@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,9 +14,9 @@ import java.util.Map.Entry;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -68,11 +68,11 @@ public class ContactService implements GoannaEventListener {
     // assigned to by default for a given account. After Honeycomb, an AUTO_ADD database column
     // was added to denote groups that contacts are automatically added to
     private final static String PRE_HONEYCOMB_DEFAULT_GROUP = "System Group: My Contacts";
-    private final static String MIMETYPE_ADDITIONAL_NAME = "org.mozilla.gecko/additional_name";
-    private final static String MIMETYPE_SEX = "org.mozilla.gecko/sex";
-    private final static String MIMETYPE_GENDER_IDENTITY = "org.mozilla.gecko/gender_identity";
-    private final static String MIMETYPE_KEY = "org.mozilla.gecko/key";
-    private final static String MIMETYPE_MOZILLA_CONTACTS_FLAG = "org.mozilla.gecko/contact_flag";
+    private final static String MIMETYPE_ADDITIONAL_NAME = "org.mozilla.goanna/additional_name";
+    private final static String MIMETYPE_SEX = "org.mozilla.goanna/sex";
+    private final static String MIMETYPE_GENDER_IDENTITY = "org.mozilla.goanna/gender_identity";
+    private final static String MIMETYPE_KEY = "org.mozilla.goanna/key";
+    private final static String MIMETYPE_MOZILLA_CONTACTS_FLAG = "org.mozilla.goanna/contact_flag";
 
     private final EventDispatcher mEventDispatcher;
 

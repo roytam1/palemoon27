@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.io.File;
 import java.util.HashMap;
 
-import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.goanna.GoannaProfile;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteOpenHelper;

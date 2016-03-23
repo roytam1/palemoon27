@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync.helpers;
+package org.mozilla.goanna.background.sync.helpers;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import junit.framework.AssertionFailedError;
 
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 public class ExpectManyStoredDelegate extends DefaultStoreDelegate {
   HashSet<String> expectedGUIDs;

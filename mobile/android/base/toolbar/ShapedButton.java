@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.GoannaApplication;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.lwt.LightweightTheme;
-import org.mozilla.gecko.lwt.LightweightThemeDrawable;
-import org.mozilla.gecko.tabs.TabCurve;
-import org.mozilla.gecko.widget.ThemedImageButton;
+import org.mozilla.goanna.GoannaApplication;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.lwt.LightweightTheme;
+import org.mozilla.goanna.lwt.LightweightThemeDrawable;
+import org.mozilla.goanna.tabs.TabCurve;
+import org.mozilla.goanna.widget.ThemedImageButton;
 
 import android.content.Context;
 import android.content.res.TypedArray;

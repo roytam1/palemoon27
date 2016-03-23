@@ -4,12 +4,12 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:gecko="http://schemas.android.com/apk/res-auto">
+          xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:drawable="@drawable/tab_new_pb"/>
 
-    <item gecko:state_light="true"
+    <item goanna:state_light="true"
           android:drawable="@drawable/new_tablet_tab_new_dark"/>
 
     <item android:drawable="@drawable/tab_new"/>

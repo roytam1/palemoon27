@@ -4,15 +4,15 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:gecko="http://schemas.android.com/apk/res-auto">
+          xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <!-- private pressed state -->
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:state_pressed="true"
           android:drawable="@color/new_tablet_highlight_pb"/>
 
     <!-- focused state -->
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:state_focused="true"
           android:state_pressed="false"
           android:drawable="@color/new_tablet_highlight_focused_pb"/>
@@ -27,7 +27,7 @@
           android:drawable="@color/new_tablet_highlight_focused"/>
 
     <!-- private browsing mode -->
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:drawable="@color/background_private"/>
 
     <!-- normal mode -->

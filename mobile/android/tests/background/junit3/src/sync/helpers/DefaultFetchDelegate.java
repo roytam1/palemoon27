@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync.helpers;
+package org.mozilla.goanna.background.sync.helpers;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -15,10 +15,10 @@ import java.util.concurrent.ExecutorService;
 
 import junit.framework.AssertionFailedError;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.repositories.delegates.DeferredRepositorySessionFetchRecordsDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.repositories.delegates.DeferredRepositorySessionFetchRecordsDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 public class DefaultFetchDelegate extends DefaultDelegate implements RepositorySessionFetchRecordsDelegate {
 

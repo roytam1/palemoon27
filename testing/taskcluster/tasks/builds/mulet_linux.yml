@@ -7,13 +7,13 @@ task:
 
   workerType: b2gbuild-desktop
   scopes:
-    - 'docker-worker:cache:sources-gecko'
+    - 'docker-worker:cache:sources-goanna'
     - 'docker-worker:cache:build-mulet-linux-objects'
     - 'docker-worker:cache:tooltool-cache'
 
   payload:
     cache:
-      sources-gecko: '/home/worker/gecko'
+      sources-goanna: '/home/worker/goanna'
       build-mulet-linux-objects: '/home/worker/object-folder'
       tooltool-cache: '/home/worker/tools/tooltool-cache'
 

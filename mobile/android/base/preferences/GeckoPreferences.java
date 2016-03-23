@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,36 +14,36 @@ import java.util.Map;
 import android.os.Build;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.DataReportingNotification;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaActivityStatus;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaApplication;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.GuestSession;
-import org.mozilla.gecko.LocaleManager;
-import org.mozilla.gecko.Locales;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.RestrictedProfiles;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.TelemetryContract.Method;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.healthreport.HealthReportConstants;
-import org.mozilla.gecko.db.BrowserContract.SuggestedSites;
-import org.mozilla.gecko.updater.UpdateService;
-import org.mozilla.gecko.updater.UpdateServiceHelper;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.FloatingHintEditText;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.BrowserLocaleManager;
+import org.mozilla.goanna.DataReportingNotification;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaActivityStatus;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaApplication;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.GuestSession;
+import org.mozilla.goanna.LocaleManager;
+import org.mozilla.goanna.Locales;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.RestrictedProfiles;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.TelemetryContract.Method;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.healthreport.HealthReportConstants;
+import org.mozilla.goanna.db.BrowserContract.SuggestedSites;
+import org.mozilla.goanna.updater.UpdateService;
+import org.mozilla.goanna.updater.UpdateServiceHelper;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.FloatingHintEditText;
 
 import android.app.ActionBar;
 import android.app.Activity;
@@ -1359,7 +1359,7 @@ OnSharedPreferenceChangeListener
 
             @Override
             public void finish() {
-                // enable all preferences once we have them from gecko
+                // enable all preferences once we have them from goanna
                 ThreadUtils.postToUiThread(new Runnable() {
                     @Override
                     public void run() {

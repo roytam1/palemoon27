@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import android.widget.CheckBox;
 import android.view.View;
@@ -10,7 +10,7 @@ import com.jayway.android.robotium.solo.Condition;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.Actions;
+import org.mozilla.goanna.Actions;
 
 /* This test will test if doorhangers are displayed and dismissed
    The test will test:

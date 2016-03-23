@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.webapp;
+package org.mozilla.goanna.webapp;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,19 +11,19 @@ import java.net.URI;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GoannaApp;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.GoannaThread;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.StubBrowserDB;
-import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.webapp.InstallHelper.InstallCallback;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.GoannaThread;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.StubBrowserDB;
+import org.mozilla.goanna.mozglue.ContextUtils.SafeIntent;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.webapp.InstallHelper.InstallCallback;
 
 import android.content.Intent;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -249,7 +249,7 @@ public class WebappImpl extends GoannaApp implements InstallCallback {
     }
 
     /* (non-Javadoc)
-     * @see org.mozilla.gecko.GoannaApp#getDefaultProfileName()
+     * @see org.mozilla.goanna.GoannaApp#getDefaultProfileName()
      */
     @Override
     protected String getDefaultProfileName() {

@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.prompts;
+package org.mozilla.goanna.prompts;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
 
 import android.app.AlertDialog;
 import android.content.Context;

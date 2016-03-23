@@ -1,8 +1,8 @@
-package org.mozilla.gecko.prompts;
+package org.mozilla.goanna.prompts;
 
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.widget.GoannaActionProvider;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.widget.GoannaActionProvider;
 
 import org.json.JSONArray;
 import org.json.JSONObject;

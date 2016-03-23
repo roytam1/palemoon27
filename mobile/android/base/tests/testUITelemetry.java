@@ -1,12 +1,12 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract.Event;
-import org.mozilla.gecko.TelemetryContract.Method;
-import org.mozilla.gecko.TelemetryContract.Reason;
-import org.mozilla.gecko.TelemetryContract.Session;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract.Event;
+import org.mozilla.goanna.TelemetryContract.Method;
+import org.mozilla.goanna.TelemetryContract.Reason;
+import org.mozilla.goanna.TelemetryContract.Session;
 
 import android.util.Log;
 

@@ -15,13 +15,13 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.sqlite;
+package org.mozilla.goanna.sqlite;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.database.AbstractCursor;
 import android.database.CursorIndexOutOfBoundsException;

@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.home.HomeConfig;
-import org.mozilla.gecko.home.HomeConfig.PanelType;
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
-import org.mozilla.gecko.tests.helpers.NavigationHelper;
+import org.mozilla.goanna.home.HomeConfig;
+import org.mozilla.goanna.home.HomeConfig.PanelType;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.tests.helpers.NavigationHelper;
 
 /**
  * Tests the visibility of about:home after various interactions with the browser.

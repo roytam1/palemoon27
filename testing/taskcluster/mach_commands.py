@@ -96,7 +96,7 @@ def get_task(task_id):
 def gaia_info():
     '''
     Fetch details from in tree gaia.json (which links this version of
-    gecko->gaia) and construct the usual base/head/ref/rev pairing...
+    goanna->gaia) and construct the usual base/head/ref/rev pairing...
     '''
     gaia = json.load(open(os.path.join(GECKO, 'b2g', 'config', 'gaia.json')))
 
@@ -495,21 +495,21 @@ class CIDockerRun(object):
     @Command('taskcluster-docker-run', category='ci',
         description='Run a docker image and optionally mount local hg repos. ' \
                     'Repos will be mounted to /home/worker/x/source accordingly. ' \
-                    'For example, to run a centos image and mount local gecko ' \
-                    'and gaia repos: mach ci-docker-run --local-gecko-repo ' \
+                    'For example, to run a centos image and mount local goanna ' \
+                    'and gaia repos: mach ci-docker-run --local-goanna-repo ' \
                     '/home/user/mozilla-central/ --local-gaia-repo /home/user/gaia/ '\
                     '--docker-flags="-t -i" centos:centos7 /bin/bash')
-    @CommandArgument('--local-gecko-repo',
-        action='store', dest='local_gecko_repo',
-        help='local gecko hg repository for volume mount')
-    @CommandArgument('--gecko-revision',
-        action='store', dest='gecko_revision',
-        help='local gecko repo revision (defaults to latest)')
+    @CommandArgument('--local-goanna-repo',
+        action='store', dest='local_goanna_repo',
+        help='local goanna hg repository for volume mount')
+    @CommandArgument('--goanna-revision',
+        action='store', dest='goanna_revision',
+        help='local goanna repo revision (defaults to latest)')
     @CommandArgument('--local-gaia-repo',
         action='store', dest='local_gaia_repo',
         help='local gaia hg repository for volume mount')
     @CommandArgument('--mozconfig',
-        help='The mozconfig file for building gecko')
+        help='The mozconfig file for building goanna')
     @CommandArgument('--docker-flags',
         action='store', dest='flags',
         help='string of run flags (i.e. --docker-flags="-i -t")')
@@ -518,23 +518,23 @@ class CIDockerRun(object):
     @CommandArgument('command',
         nargs='*',
         help='command to run inside the docker image')
-    def ci_docker_run(self, local_gecko_repo='', gecko_revision='',
+    def ci_docker_run(self, local_goanna_repo='', goanna_revision='',
                       local_gaia_repo='', mozconfig="", flags="", **kwargs):
         ''' Run docker image and optionally volume mount specified local repos '''
-        gecko_mount_point='/home/worker/mozilla-central/source/'
+        goanna_mount_point='/home/worker/mozilla-central/source/'
         gaia_mount_point='/home/worker/gaia/source/'
         cmd_out = ['docker', 'run']
         if flags:
             cmd_out.extend(flags.split())
-        if local_gecko_repo:
-            if not os.path.exists(local_gecko_repo):
-                print("Goanna repository path doesn't exist: %s" % local_gecko_repo)
+        if local_goanna_repo:
+            if not os.path.exists(local_goanna_repo):
+                print("Goanna repository path doesn't exist: %s" % local_goanna_repo)
                 sys.exit(1)
-            if not gecko_revision:
-                gecko_revision = get_latest_hg_revision(local_gecko_repo)
-            cmd_out.extend(['-v', '%s:%s' % (local_gecko_repo, gecko_mount_point)])
-            cmd_out.extend(['-e', 'REPOSITORY=%s' % gecko_mount_point])
-            cmd_out.extend(['-e', 'REVISION=%s' % gecko_revision])
+            if not goanna_revision:
+                goanna_revision = get_latest_hg_revision(local_goanna_repo)
+            cmd_out.extend(['-v', '%s:%s' % (local_goanna_repo, goanna_mount_point)])
+            cmd_out.extend(['-e', 'REPOSITORY=%s' % goanna_mount_point])
+            cmd_out.extend(['-e', 'REVISION=%s' % goanna_revision])
         if local_gaia_repo:
             if not os.path.exists(local_gaia_repo):
                 print("Gaia repository path doesn't exist: %s" % local_gaia_repo)

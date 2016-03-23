@@ -157,7 +157,7 @@ TEST(Strings, findinreadable)
   nsMemory::Free(r);
 
   // Should not find a match
-  EXPECT_FALSE(FindInReadable(NS_LITERAL_CSTRING("gecko"), delim_begin, delim_end));
+  EXPECT_FALSE(FindInReadable(NS_LITERAL_CSTRING("goanna"), delim_begin, delim_end));
 
   // When no match is found, range should be empty
   EXPECT_EQ(delim_begin, delim_end);
@@ -224,7 +224,7 @@ TEST(Strings, rfindinreadable)
   // Should not find a match
   delim_begin = begin;
   delim_end = end;
-  EXPECT_FALSE(RFindInReadable(NS_LITERAL_CSTRING("gecko"), delim_begin, delim_end));
+  EXPECT_FALSE(RFindInReadable(NS_LITERAL_CSTRING("goanna"), delim_begin, delim_end));
 
   // When no match is found, range should be empty
   EXPECT_EQ(delim_begin, delim_end);

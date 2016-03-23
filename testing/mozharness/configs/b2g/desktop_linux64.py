@@ -53,9 +53,9 @@ config = {
 
     #########################################################################
     ###### 64 bit specific ######
-    'base_name': 'B2G_%(branch)s_linux64_gecko',
-    'platform': 'linux64_gecko',
-    'stage_platform': 'linux64_gecko',
+    'base_name': 'B2G_%(branch)s_linux64_goanna',
+    'platform': 'linux64_goanna',
+    'stage_platform': 'linux64_goanna',
     'stage_product': 'b2g',
     'env': {
         'MOZBUILD_STATE_PATH': os.path.join(os.getcwd(), '.mozbuild'),
@@ -97,7 +97,7 @@ config = {
                       'freetype-2.3.11-6.el6_2.9',
                       'freetype-devel-2.3.11-6.el6_2.9', 'gstreamer-devel',
                       'gstreamer-plugins-base-devel'],
-    'src_mozconfig': 'b2g/config/mozconfigs/linux64_gecko/nightly',
+    'src_mozconfig': 'b2g/config/mozconfigs/linux64_goanna/nightly',
     'tooltool_manifest_src': "b2g/config/tooltool-manifests/linux64/releng.manifest",
     #########################################################################
 }

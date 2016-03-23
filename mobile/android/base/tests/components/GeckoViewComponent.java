@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.components;
+package org.mozilla.goanna.tests.components;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotNull;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotSame;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertTrue;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertNotNull;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertNotSame;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertTrue;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.tests.UITestContext;
-import org.mozilla.gecko.tests.helpers.FrameworkHelper;
-import org.mozilla.gecko.tests.helpers.WaitHelper;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.tests.UITestContext;
+import org.mozilla.goanna.tests.helpers.FrameworkHelper;
+import org.mozilla.goanna.tests.helpers.WaitHelper;
 
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -49,12 +49,12 @@ public class GoannaViewComponent extends BaseComponent {
     }
 
     private void setContext(final Context newContext) {
-        final View geckoView = getView();
+        final View goannaView = getView();
         // Switch to a no-InputMethodManager context to avoid interference
         mTestContext.getInstrumentation().runOnMainSync(new Runnable() {
             @Override
             public void run() {
-                FrameworkHelper.setViewContext(geckoView, newContext);
+                FrameworkHelper.setViewContext(goannaView, newContext);
             }
         });
     }
@@ -135,9 +135,9 @@ public class GoannaViewComponent extends BaseComponent {
 
             // GoannaInputConnection can run on another thread than the main thread,
             // so we need to be testing it on that same thread it's running on
-            final View geckoView = getView();
-            final Handler inputConnectionHandler = geckoView.getHandler();
-            final Context oldGoannaViewContext = FrameworkHelper.getViewContext(geckoView);
+            final View goannaView = getView();
+            final Handler inputConnectionHandler = goannaView.getHandler();
+            final Context oldGoannaViewContext = FrameworkHelper.getViewContext(goannaView);
 
             setContext(new ContextWrapper(oldGoannaViewContext) {
                 @Override

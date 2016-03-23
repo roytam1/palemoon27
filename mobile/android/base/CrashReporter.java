@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +21,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.util.zip.GZIPOutputStream;
 
-import org.mozilla.gecko.AppConstants.Versions;
+import org.mozilla.goanna.AppConstants.Versions;
 
 import android.app.Activity;
 import android.app.AlertDialog;

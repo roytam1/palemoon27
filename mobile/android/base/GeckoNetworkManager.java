@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.mozglue.JNITarget;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.EventCallback;
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.EventCallback;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

@@ -152,7 +152,7 @@ abortThroughJava(const char* msg)
         return;
     }
 
-    jclass loader = env->FindClass("org/mozilla/gecko/mozglue/GoannaLoader");
+    jclass loader = env->FindClass("org/mozilla/goanna/mozglue/GoannaLoader");
     if (!loader) {
         return;
     }
@@ -333,7 +333,7 @@ loadNSSLibs(const char *apkName)
 }
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_mozglue_GoannaLoader_loadGoannaLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName)
+Java_org_mozilla_goanna_mozglue_GoannaLoader_loadGoannaLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName)
 {
   jenv->GetJavaVM(&sJavaVM);
 
@@ -346,13 +346,13 @@ Java_org_mozilla_gecko_mozglue_GoannaLoader_loadGoannaLibsNative(JNIEnv *jenv, j
 
   int res = loadGoannaLibs(str);
   if (res != SUCCESS) {
-    JNI_Throw(jenv, "java/lang/Exception", "Error loading gecko libraries");
+    JNI_Throw(jenv, "java/lang/Exception", "Error loading goanna libraries");
   }
   jenv->ReleaseStringUTFChars(jApkName, str);
 }
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_mozglue_GoannaLoader_loadSQLiteLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName) {
+Java_org_mozilla_goanna_mozglue_GoannaLoader_loadSQLiteLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName) {
   const char* str;
   // XXX: java doesn't give us true UTF8, we should figure out something
   // better to do here
@@ -370,7 +370,7 @@ Java_org_mozilla_gecko_mozglue_GoannaLoader_loadSQLiteLibsNative(JNIEnv *jenv, j
 }
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_mozglue_GoannaLoader_loadNSSLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName) {
+Java_org_mozilla_goanna_mozglue_GoannaLoader_loadNSSLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName) {
   const char* str;
   // XXX: java doesn't give us true UTF8, we should figure out something
   // better to do here
@@ -390,7 +390,7 @@ Java_org_mozilla_gecko_mozglue_GoannaLoader_loadNSSLibsNative(JNIEnv *jenv, jcla
 typedef void (*GoannaStart_t)(void *, const nsXREAppData *);
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_mozglue_GoannaLoader_nativeRun(JNIEnv *jenv, jclass jc, jstring jargs)
+Java_org_mozilla_goanna_mozglue_GoannaLoader_nativeRun(JNIEnv *jenv, jclass jc, jstring jargs)
 {
   GoannaStart_t GoannaStart;
   xul_dlsym("GoannaStart", &GoannaStart);

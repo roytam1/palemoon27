@@ -247,7 +247,7 @@ private:
   GstAppSrcCallbacks mSrcCallbacks;
   GstAppSinkCallbacks mSinkCallbacks;
   /* monitor used to synchronize access to shared state between gstreamer
-   * threads and other gecko threads */
+   * threads and other goanna threads */
   ReentrantMonitor mGstThreadsMonitor;
   /* video and audio segments we use to convert absolute timestamps to [0,
    * stream_duration]. They're set when the pipeline is started or after a seek.

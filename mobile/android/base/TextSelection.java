@@ -2,22 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.res.Resources;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.gfx.BitmapUtils.BitmapLoader;
-import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.LayerView.DrawListener;
-import org.mozilla.gecko.menu.GoannaMenu;
-import org.mozilla.gecko.menu.GoannaMenuItem;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.ActionModeCompat.Callback;
-import org.mozilla.gecko.AppConstants.Versions;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.BitmapUtils.BitmapLoader;
+import org.mozilla.goanna.gfx.Layer;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.LayerView.DrawListener;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.menu.GoannaMenuItem;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.util.FloatUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.ActionModeCompat.Callback;
+import org.mozilla.goanna.AppConstants.Versions;
 
 import android.content.Context;
 import android.app.Activity;

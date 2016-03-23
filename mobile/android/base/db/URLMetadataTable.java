@@ -4,10 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.History;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.History;
 
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;

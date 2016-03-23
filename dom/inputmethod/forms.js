@@ -737,7 +737,7 @@ let FormAssistant = {
 
   sendInputState: function(element) {
     // FIXME/bug 729623: work around apparent bug in the IME manager
-    // in gecko.
+    // in goanna.
     let readonly = element.getAttribute("readonly");
     if (readonly) {
       return false;

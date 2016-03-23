@@ -3,19 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
 import java.util.Locale;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.LocaleManager;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.TelemetryContract.Method;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.BrowserLocaleManager;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.LocaleManager;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.TelemetryContract.Method;
 
 import android.app.ActionBar;
 import android.app.Activity;

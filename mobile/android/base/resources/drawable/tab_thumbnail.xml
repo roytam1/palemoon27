@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:gecko="http://schemas.android.com/apk/res-auto">
+          xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <item android:state_focused="true">
 
@@ -24,7 +24,7 @@
 
     </item>
 
-    <item gecko:state_recording="true">
+    <item goanna:state_recording="true">
 
         <shape android:shape="rectangle">
             <solid android:color="#FFFF0000"/>
@@ -36,7 +36,7 @@
     <item android:state_focused="false"
           android:state_pressed="false"
           android:state_checked="true"
-          gecko:state_recording="false">
+          goanna:state_recording="false">
 
         <shape android:shape="rectangle">
             <solid android:color="#FFFF9500"/>

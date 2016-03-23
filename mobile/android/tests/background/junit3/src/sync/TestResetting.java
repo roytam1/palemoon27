@@ -1,33 +1,33 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync;
+package org.mozilla.goanna.background.sync;
 
 import java.io.IOException;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.background.testhelpers.BaseMockServerSyncStage;
-import org.mozilla.gecko.background.testhelpers.DefaultGlobalSessionCallback;
-import org.mozilla.gecko.background.testhelpers.MockRecord;
-import org.mozilla.gecko.background.testhelpers.MockSharedPreferences;
-import org.mozilla.gecko.background.testhelpers.WBORepository;
-import org.mozilla.gecko.background.testhelpers.WaitHelper;
-import org.mozilla.gecko.sync.EngineSettings;
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.MetaGlobalException;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConfigurationException;
-import org.mozilla.gecko.sync.SynchronizerConfiguration;
-import org.mozilla.gecko.sync.crypto.CryptoException;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BasicAuthHeaderProvider;
-import org.mozilla.gecko.sync.repositories.domain.Record;
-import org.mozilla.gecko.sync.stage.NoSuchStageException;
-import org.mozilla.gecko.sync.synchronizer.Synchronizer;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.testhelpers.BaseMockServerSyncStage;
+import org.mozilla.goanna.background.testhelpers.DefaultGlobalSessionCallback;
+import org.mozilla.goanna.background.testhelpers.MockRecord;
+import org.mozilla.goanna.background.testhelpers.MockSharedPreferences;
+import org.mozilla.goanna.background.testhelpers.WBORepository;
+import org.mozilla.goanna.background.testhelpers.WaitHelper;
+import org.mozilla.goanna.sync.EngineSettings;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.MetaGlobalException;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.SyncConfigurationException;
+import org.mozilla.goanna.sync.SynchronizerConfiguration;
+import org.mozilla.goanna.sync.crypto.CryptoException;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.delegates.GlobalSessionCallback;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BasicAuthHeaderProvider;
+import org.mozilla.goanna.sync.repositories.domain.Record;
+import org.mozilla.goanna.sync.stage.NoSuchStageException;
+import org.mozilla.goanna.sync.synchronizer.Synchronizer;
 
 import android.content.SharedPreferences;
 

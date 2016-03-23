@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.android;
+package org.mozilla.goanna.sync.repositories.android;
 
 import java.io.IOException;
 
 import org.json.simple.JSONArray;
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonArrayJSONException;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.NonArrayJSONException;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.sync.repositories.domain.HistoryRecord;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

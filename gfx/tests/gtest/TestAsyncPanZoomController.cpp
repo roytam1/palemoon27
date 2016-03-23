@@ -2136,7 +2136,7 @@ TEST_F(APZHitTestingTester, TestRepaintFlushOnNewInputBlock) {
   // The main purpose of this test is to verify that touch-start events (or anything
   // that starts a new input block) don't ever get untransformed. This should always
   // hold because the APZ code should flush repaints when we start a new input block
-  // and the transform to gecko space should be empty.
+  // and the transform to goanna space should be empty.
 
   CreateSimpleScrollingLayer();
   ScopedLayerTreeRegistration registration(0, root, mcc);
@@ -2577,7 +2577,7 @@ protected:
     // LayerID                     0 1 2 3
     // 0 is the root
     // 1 is a container layer whose sole purpose to make a non-empty ancestor
-    //   transform for 2, so that 2's screen-to-apzc and apzc-to-gecko
+    //   transform for 2, so that 2's screen-to-apzc and apzc-to-goanna
     //   transforms are different from 3's.
     // 2 is a small layer that is the actual target
     // 3 is a big layer obscuring 2 with a dispatch-to-content region

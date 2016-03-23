@@ -59,12 +59,12 @@ ConvertToAtkTextAttributeSet(nsIPersistentProperties* aAttributes)
     const char* atkName = nullptr;
     nsAutoString atkValue;
     if (name.EqualsLiteral("color")) {
-      // The format of the atk attribute is r,g,b and the gecko one is
+      // The format of the atk attribute is r,g,b and the goanna one is
       // rgb(r,g,b).
       atkValue = Substring(value, 5, value.Length() - 1);
       atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_FG_COLOR];
     } else if (name.EqualsLiteral("background-color")) {
-      // The format of the atk attribute is r,g,b and the gecko one is
+      // The format of the atk attribute is r,g,b and the goanna one is
       // rgb(r,g,b).
       atkValue = Substring(value, 5, value.Length() - 1);
       atkName = sAtkTextAttrNames[ATK_TEXT_ATTR_BG_COLOR];
@@ -288,13 +288,13 @@ getCharacterExtentsCB(AtkText *aText, gint aOffset,
   if (!text || !text->IsTextRole())
     return;
 
-    uint32_t geckoCoordType;
+    uint32_t goannaCoordType;
     if (aCoords == ATK_XY_SCREEN)
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
     else
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
 
-  nsIntRect rect = text->CharBounds(aOffset, geckoCoordType);
+  nsIntRect rect = text->CharBounds(aOffset, goannaCoordType);
   *aX = rect.x;
   *aY = rect.y;
   *aWidth = rect.width;
@@ -313,13 +313,13 @@ getRangeExtentsCB(AtkText *aText, gint aStartOffset, gint aEndOffset,
   if (!text || !text->IsTextRole())
     return;
 
-    uint32_t geckoCoordType;
+    uint32_t goannaCoordType;
     if (aCoords == ATK_XY_SCREEN)
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
     else
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
 
-  nsIntRect rect = text->TextBounds(aStartOffset, aEndOffset, geckoCoordType);
+  nsIntRect rect = text->TextBounds(aStartOffset, aEndOffset, goannaCoordType);
   aRect->x = rect.x;
   aRect->y = rect.y;
   aRect->width = rect.width;

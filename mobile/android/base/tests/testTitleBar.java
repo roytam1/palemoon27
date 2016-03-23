@@ -1,7 +1,7 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.util.HardwareUtils;
 
 /**
  * This patch tests the option that shows the full URL and title in the URL Bar

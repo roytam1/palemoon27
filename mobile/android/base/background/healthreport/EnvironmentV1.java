@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
@@ -12,8 +12,8 @@ import java.util.SortedSet;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.nativecode.NativeCrypto;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.nativecode.NativeCrypto;
 
 public abstract class EnvironmentV1 {
   private static final String LOG_TAG = "GoannaEnvironment";
@@ -36,7 +36,7 @@ public abstract class EnvironmentV1 {
   public String sysName;
   public String sysVersion;       // Kernel.
 
-  // geckoAppInfo.
+  // goannaAppInfo.
   public String vendor;
   public String appName;
   public String appID;

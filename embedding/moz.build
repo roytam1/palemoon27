@@ -7,7 +7,7 @@
 DIRS += ['components', 'browser']
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
-    DIRS += ['android/geckoview_example']
+    DIRS += ['android/goannaview_example']
 
 TEST_DIRS += ['test']
 

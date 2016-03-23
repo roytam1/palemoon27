@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tokenserver;
+package org.mozilla.goanna.tokenserver;
 
 import java.io.IOException;
 import java.net.URI;
@@ -12,22 +12,22 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.SkewHandler;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonArrayJSONException;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.UnexpectedJSONException.BadRequiredFieldJSONException;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
-import org.mozilla.gecko.sync.net.BrowserIDAuthHeaderProvider;
-import org.mozilla.gecko.sync.net.SyncResponse;
-import org.mozilla.gecko.tokenserver.TokenServerException.TokenServerConditionsRequiredException;
-import org.mozilla.gecko.tokenserver.TokenServerException.TokenServerInvalidCredentialsException;
-import org.mozilla.gecko.tokenserver.TokenServerException.TokenServerMalformedRequestException;
-import org.mozilla.gecko.tokenserver.TokenServerException.TokenServerMalformedResponseException;
-import org.mozilla.gecko.tokenserver.TokenServerException.TokenServerUnknownServiceException;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.SkewHandler;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.NonArrayJSONException;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.UnexpectedJSONException.BadRequiredFieldJSONException;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.sync.net.BrowserIDAuthHeaderProvider;
+import org.mozilla.goanna.sync.net.SyncResponse;
+import org.mozilla.goanna.tokenserver.TokenServerException.TokenServerConditionsRequiredException;
+import org.mozilla.goanna.tokenserver.TokenServerException.TokenServerInvalidCredentialsException;
+import org.mozilla.goanna.tokenserver.TokenServerException.TokenServerMalformedRequestException;
+import org.mozilla.goanna.tokenserver.TokenServerException.TokenServerMalformedResponseException;
+import org.mozilla.goanna.tokenserver.TokenServerException.TokenServerUnknownServiceException;
 
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpHeaders;

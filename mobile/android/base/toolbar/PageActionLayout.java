@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.GoannaPopupMenu;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.GoannaPopupMenu;
 
 import android.content.Context;
 import android.content.res.Resources;

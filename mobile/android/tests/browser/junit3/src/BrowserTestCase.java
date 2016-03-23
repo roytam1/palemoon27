@@ -1,9 +1,9 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.AppConstants;
+import org.mozilla.goanna.AppConstants;
 
 import android.app.Activity;
 import android.content.Context;

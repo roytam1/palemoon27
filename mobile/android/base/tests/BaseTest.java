@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,17 +16,17 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Element;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.GoannaThread;
-import org.mozilla.gecko.GoannaThread.LaunchState;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.RobocopUtils;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Element;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.GoannaThread;
+import org.mozilla.goanna.GoannaThread.LaunchState;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.RobocopUtils;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
 
 import android.app.Activity;
 import android.content.ContentValues;
@@ -88,11 +88,11 @@ abstract class BaseTest extends BaseRobocopTest {
 
     protected void blockForGoannaReady() {
         try {
-            Actions.EventExpecter geckoReadyExpector = mActions.expectGoannaEvent("Goanna:Ready");
+            Actions.EventExpecter goannaReadyExpector = mActions.expectGoannaEvent("Goanna:Ready");
             if (!GoannaThread.checkLaunchState(LaunchState.GoannaRunning)) {
-                geckoReadyExpector.blockForEvent(GECKO_READY_WAIT_MS, true);
+                goannaReadyExpector.blockForEvent(GECKO_READY_WAIT_MS, true);
             }
-            geckoReadyExpector.unregisterListener();
+            goannaReadyExpector.unregisterListener();
         } catch (Exception e) {
             mAsserter.dumpLog("Exception in blockForGoannaReady", e);
         }
@@ -248,7 +248,7 @@ abstract class BaseTest extends BaseRobocopTest {
 
     /**
      * Load <code>url</code> using reflection and the internal
-     * <code>org.mozilla.gecko.Tabs</code> API.
+     * <code>org.mozilla.goanna.Tabs</code> API.
      *
      * This method does not wait for any confirmation from Goanna before
      * returning.

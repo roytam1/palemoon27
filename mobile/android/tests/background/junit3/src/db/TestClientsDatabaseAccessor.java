@@ -1,18 +1,18 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.mozilla.gecko.background.testhelpers.CommandHelpers;
-import org.mozilla.gecko.sync.CommandProcessor.Command;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.background.testhelpers.CommandHelpers;
+import org.mozilla.goanna.sync.CommandProcessor.Command;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
 
 import android.content.Context;
 import android.database.Cursor;

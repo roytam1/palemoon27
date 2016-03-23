@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.DBUtils;
-import org.mozilla.gecko.db.ReadingListAccessor;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.DBUtils;
+import org.mozilla.goanna.db.ReadingListAccessor;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UIAsyncTask;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;

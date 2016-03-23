@@ -3,15 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.PanZoomController;
-import org.mozilla.gecko.gfx.PointUtils;
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.PanZoomController;
+import org.mozilla.goanna.gfx.PointUtils;
+import org.mozilla.goanna.mozglue.DirectBufferAllocator;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -160,7 +160,7 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
     }
 
     // This method (onFinishInflate) is called only when the zoomed view class is used inside
-    // an xml structure <org.mozilla.gecko.ZoomedView ...
+    // an xml structure <org.mozilla.goanna.ZoomedView ...
     // It won't be called if the class is used from java code like "new  ZoomedView(context);"
     @Override
     protected void onFinishInflate() {
@@ -354,9 +354,9 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
                         int left = clickPosition.getInt("x");
                         int top = clickPosition.getInt("y");
                         // Start to display inside the zoomedView
-                        LayerView geckoAppLayerView = GoannaAppShell.getLayerView();
-                        if (geckoAppLayerView != null) {
-                            startZoomDisplay(geckoAppLayerView, left, top);
+                        LayerView goannaAppLayerView = GoannaAppShell.getLayerView();
+                        if (goannaAppLayerView != null) {
+                            startZoomDisplay(goannaAppLayerView, left, top);
                         }
                     } else if (event.equals("Window:Resize")) {
                         ImmutableViewportMetrics metrics = layerView.getViewportMetrics();

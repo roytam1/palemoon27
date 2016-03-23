@@ -40,6 +40,6 @@ config = {
         "mochitest": "runtestsb2g.py",
         "reftest": "runreftestb2g.py",
     },
-    # test harness options are located in the gecko tree
+    # test harness options are located in the goanna tree
     "in_tree_config": "config/mozharness/b2g_desktop_config.py",
 }

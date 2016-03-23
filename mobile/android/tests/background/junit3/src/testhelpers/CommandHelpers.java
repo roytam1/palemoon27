@@ -1,10 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.testhelpers;
+package org.mozilla.goanna.background.testhelpers;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.sync.CommandProcessor.Command;
+import org.mozilla.goanna.sync.CommandProcessor.Command;
 
 public class CommandHelpers {
 

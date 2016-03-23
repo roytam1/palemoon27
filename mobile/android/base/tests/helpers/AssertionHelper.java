@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.helpers;
+package org.mozilla.goanna.tests.helpers;
 
 import java.util.Arrays;
 
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.tests.UITestContext;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.tests.UITestContext;
 
 /**
  * Provides assertions in a JUnit-like API that wraps the robocop Assert interface.

@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.middleware;
+package org.mozilla.goanna.sync.middleware;
 
 import java.io.UnsupportedEncodingException;
 import java.util.concurrent.ExecutorService;
 
-import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.crypto.CryptoException;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
-import org.mozilla.gecko.sync.repositories.RecordFactory;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionStoreDelegate;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.sync.CryptoRecord;
+import org.mozilla.goanna.sync.crypto.CryptoException;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.NoStoreDelegateException;
+import org.mozilla.goanna.sync.repositories.RecordFactory;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionStoreDelegate;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 /**
  * It's a RepositorySession that accepts Records as input, producing CryptoRecords

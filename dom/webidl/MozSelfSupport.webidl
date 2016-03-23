@@ -28,7 +28,7 @@ interface MozSelfSupport
    *   clientID: String,
    *   clientIDVersion: Number,
    *   thisPingDate: String,
-   *   geckoAppInfo: Object,
+   *   goannaAppInfo: Object,
    *   data: Object
    * }
    *

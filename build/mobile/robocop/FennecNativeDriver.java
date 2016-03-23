@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -20,9 +20,9 @@ import java.util.Map;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.PanningPerfAPI;
-import org.mozilla.gecko.util.GoannaEventListener;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.PanningPerfAPI;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import android.app.Activity;
 import android.util.Log;
@@ -72,17 +72,17 @@ public class FennecNativeDriver implements Driver {
     private int mGoannaWidth = 1024;
 
     private void getGoannaInfo() {
-        View geckoLayout = mActivity.findViewById(R.id.gecko_layout);
-        if (geckoLayout != null) {
+        View goannaLayout = mActivity.findViewById(R.id.goanna_layout);
+        if (goannaLayout != null) {
             int[] pos = new int[2];
-            geckoLayout.getLocationOnScreen(pos);
+            goannaLayout.getLocationOnScreen(pos);
             mGoannaTop = pos[1];
             mGoannaLeft = pos[0];
-            mGoannaWidth = geckoLayout.getWidth();
-            mGoannaHeight = geckoLayout.getHeight();
+            mGoannaWidth = goannaLayout.getWidth();
+            mGoannaHeight = goannaLayout.getHeight();
             mGoannaInfo = true;
         } else {
-            throw new RoboCopException("Unable to find view gecko_layout");
+            throw new RoboCopException("Unable to find view goanna_layout");
         }
     }
 

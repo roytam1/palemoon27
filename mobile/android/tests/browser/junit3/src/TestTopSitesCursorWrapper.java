@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -11,11 +11,11 @@ import android.text.TextUtils;
 import java.util.Arrays;
 import java.util.List;
 
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserContract.SuggestedSites;
-import org.mozilla.gecko.db.BrowserContract.TopSites;
-import org.mozilla.gecko.db.TopSitesCursorWrapper;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserContract.SuggestedSites;
+import org.mozilla.goanna.db.BrowserContract.TopSites;
+import org.mozilla.goanna.db.TopSitesCursorWrapper;
 
 public class TestTopSitesCursorWrapper extends BrowserTestCase {
 

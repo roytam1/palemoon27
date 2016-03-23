@@ -13,7 +13,7 @@
     <intent
       android:action="android.intent.action.MAIN"
       android:targetPackage="@string/android_package_name"
-      android:targetClass="org.mozilla.gecko.sync.setup.activities.SetupSyncActivity">
+      android:targetClass="org.mozilla.goanna.sync.setup.activities.SetupSyncActivity">
       <extra
         android:name="isSetup"
         android:value="false" />
@@ -25,7 +25,7 @@
     <intent
       android:action="android.intent.action.MAIN"
       android:targetPackage="@string/android_package_name"
-      android:targetClass="org.mozilla.gecko.sync.config.activities.SelectEnginesActivity">
+      android:targetClass="org.mozilla.goanna.sync.config.activities.SelectEnginesActivity">
     </intent>
   </PreferenceScreen>
 </PreferenceScreen>

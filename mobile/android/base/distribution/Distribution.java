@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.distribution;
+package org.mozilla.goanna.distribution;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -36,15 +36,15 @@ import org.apache.http.protocol.HTTP;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.util.FileUtils;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.util.FileUtils;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Activity;
 import android.content.Context;
@@ -121,7 +121,7 @@ public class Distribution {
      * a call to <code>distributionArrivedLate</code>.
      *
      * When <code>distributionNotFound</code> is called,
-     * {@link org.mozilla.gecko.distribution.Distribution#exists()} will return
+     * {@link org.mozilla.goanna.distribution.Distribution#exists()} will return
      * false. In the other two callbacks, it will return true.
      */
     public interface ReadyCallback {
@@ -471,14 +471,14 @@ public class Distribution {
 
             // If the Search Activity starts, and we handle the referrer intent, this'll return
             // null. Recover gracefully in this case.
-            final GoannaAppShell.GoannaInterface geckoInterface = GoannaAppShell.getGoannaInterface();
+            final GoannaAppShell.GoannaInterface goannaInterface = GoannaAppShell.getGoannaInterface();
             final String ua;
-            if (geckoInterface == null) {
+            if (goannaInterface == null) {
                 // Fall back to GoannaApp's default implementation.
                 ua = HardwareUtils.isTablet() ? AppConstants.USER_AGENT_FENNEC_TABLET :
                                                 AppConstants.USER_AGENT_FENNEC_MOBILE;
             } else {
-                ua = geckoInterface.getDefaultUAString();
+                ua = goannaInterface.getDefaultUAString();
             }
 
             connection.setRequestProperty(HTTP.USER_AGENT, ua);

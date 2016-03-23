@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.Locale;
 
-import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.Locales;
-import org.mozilla.gecko.PrefsHelper;
+import org.mozilla.goanna.BrowserLocaleManager;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.Locales;
+import org.mozilla.goanna.PrefsHelper;
 
 import android.content.SharedPreferences;
 

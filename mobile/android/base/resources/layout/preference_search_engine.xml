@@ -11,7 +11,7 @@
               android:paddingLeft="15dp"
               android:paddingRight="?android:attr/scrollbarSize">
 
-    <org.mozilla.gecko.widget.FaviconView
+    <org.mozilla.goanna.widget.FaviconView
         android:id="@+id/search_engine_icon"
         android:layout_width="@dimen/favicon_bg"
         android:layout_height="@dimen/favicon_bg"

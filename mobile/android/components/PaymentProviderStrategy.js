@@ -27,7 +27,7 @@ PaymentProviderStrategy.prototype = {
     let jenv = JNI.GetForThread();
     let jMethodName = "get" + type.toUpperCase();
     let jGoannaNetworkManager = JNI.LoadClass(
-      jenv, "org/mozilla/gecko/GoannaNetworkManager", {
+      jenv, "org/mozilla/goanna/GoannaNetworkManager", {
       static_methods: [
         { name: jMethodName, sig: "()I" },
       ],

@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.helpers;
+package org.mozilla.goanna.tests.helpers;
 
-import org.mozilla.gecko.Assert;
+import org.mozilla.goanna.Assert;
 
 import junit.framework.AssertionFailedError;
 
@@ -38,7 +38,7 @@ public final class JavascriptMessageParser {
 
     /**
      * Constructs a message parser for test result messages sent from JavaScript. When seeing an
-     * assertion failure, the message parser can use the given {@link org.mozilla.gecko.Assert}
+     * assertion failure, the message parser can use the given {@link org.mozilla.goanna.Assert}
      * instance to immediately end the test (typically if the underlying JS framework is not able
      * to end the test itself) or to swallow the Errors - this functionality is determined by the
      * <code>endOnAssertionFailure</code> parameter.

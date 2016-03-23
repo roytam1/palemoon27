@@ -51,7 +51,7 @@ CDMProxy::Init(PromiseId aPromiseId,
 
   if (!mGMPThread) {
     nsCOMPtr<mozIGoannaMediaPluginService> mps =
-      do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+      do_GetService("@mozilla.org/goanna-media-plugin-service;1");
     if (!mps) {
       RejectPromise(aPromiseId, NS_ERROR_DOM_INVALID_STATE_ERR);
       return;
@@ -88,7 +88,7 @@ CDMProxy::gmp_Init(nsAutoPtr<InitData> aData)
   MOZ_ASSERT(IsOnGMPThread());
 
   nsCOMPtr<mozIGoannaMediaPluginService> mps =
-    do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   if (!mps) {
     RejectPromise(aData->mPromiseId, NS_ERROR_DOM_INVALID_STATE_ERR);
     return;

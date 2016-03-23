@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.android;
+package org.mozilla.goanna.sync.repositories.android;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,9 +12,9 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.repositories.domain.BookmarkRecord;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.repositories.domain.BookmarkRecord;
 
 /**
  * Queue up insertions:

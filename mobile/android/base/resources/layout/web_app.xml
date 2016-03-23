@@ -20,7 +20,7 @@
 
     </LinearLayout>
 
-    <RelativeLayout android:id="@+id/gecko_layout"
+    <RelativeLayout android:id="@+id/goanna_layout"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_weight="1"

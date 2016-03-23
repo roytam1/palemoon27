@@ -507,7 +507,7 @@ ParseManifest(NSLocationType aType, FileLocation& aFile, char* aBuf,
 
   nsAutoString appID;
   nsAutoString appVersion;
-  nsAutoString geckoVersion;
+  nsAutoString goannaVersion;
   nsAutoString osTarget;
   nsAutoString abi;
   nsAutoString process;
@@ -532,7 +532,7 @@ ParseManifest(NSLocationType aType, FileLocation& aFile, char* aBuf,
 
     rv = xapp->GetPlatformVersion(s);
     if (NS_SUCCEEDED(rv)) {
-      CopyUTF8toUTF16(s, geckoVersion);
+      CopyUTF8toUTF16(s, goannaVersion);
     }
 
     nsCOMPtr<nsIXULRuntime> xruntime(do_QueryInterface(xapp));
@@ -698,7 +698,7 @@ ParseManifest(NSLocationType aType, FileLocation& aFile, char* aBuf,
           CheckStringFlag(kProcess, wtoken, process, stProcess) ||
           CheckVersionFlag(kOsVersion, wtoken, osVersion, stOsVersion) ||
           CheckVersionFlag(kAppVersion, wtoken, appVersion, stAppVersion) ||
-          CheckVersionFlag(kGoannaVersion, wtoken, geckoVersion, stGoannaVersion)) {
+          CheckVersionFlag(kGoannaVersion, wtoken, goannaVersion, stGoannaVersion)) {
         continue;
       }
 

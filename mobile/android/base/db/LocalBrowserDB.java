@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -23,26 +23,26 @@ import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserContract.ExpirePriority;
-import org.mozilla.gecko.db.BrowserContract.Favicons;
-import org.mozilla.gecko.db.BrowserContract.History;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.db.BrowserContract.SearchHistory;
-import org.mozilla.gecko.db.BrowserContract.SyncColumns;
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.favicons.decoders.FaviconDecoder;
-import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.util.GoannaJarReader;
-import org.mozilla.gecko.util.StringUtils;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserContract.ExpirePriority;
+import org.mozilla.goanna.db.BrowserContract.Favicons;
+import org.mozilla.goanna.db.BrowserContract.History;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.db.BrowserContract.SearchHistory;
+import org.mozilla.goanna.db.BrowserContract.SyncColumns;
+import org.mozilla.goanna.db.BrowserContract.Thumbnails;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.favicons.decoders.FaviconDecoder;
+import org.mozilla.goanna.favicons.decoders.LoadFaviconResult;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.util.GoannaJarReader;
+import org.mozilla.goanna.util.StringUtils;
 
 import android.content.ContentProviderOperation;
 import android.content.ContentResolver;
@@ -58,10 +58,10 @@ import android.net.Uri;
 import android.provider.Browser;
 import android.text.TextUtils;
 import android.util.Log;
-import org.mozilla.gecko.util.IOUtils;
+import org.mozilla.goanna.util.IOUtils;
 
-import static org.mozilla.gecko.util.IOUtils.ConsumedInputStream;
-import static org.mozilla.gecko.favicons.LoadFaviconTask.DEFAULT_FAVICON_BUFFER_SIZE;
+import static org.mozilla.goanna.util.IOUtils.ConsumedInputStream;
+import static org.mozilla.goanna.favicons.LoadFaviconTask.DEFAULT_FAVICON_BUFFER_SIZE;
 
 public class LocalBrowserDB implements BrowserDB {
     private static final String LOGTAG = "GoannaLocalBrowserDB";

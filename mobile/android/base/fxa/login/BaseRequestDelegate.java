@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.login;
+package org.mozilla.goanna.fxa.login;
 
-import org.mozilla.gecko.background.fxa.FxAccountClient10;
-import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
-import org.mozilla.gecko.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.AccountNeedsVerification;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.LocalError;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.RemoteError;
+import org.mozilla.goanna.background.fxa.FxAccountClient10;
+import org.mozilla.goanna.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
+import org.mozilla.goanna.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.AccountNeedsVerification;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.LocalError;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.RemoteError;
 
 public abstract class BaseRequestDelegate<T> implements FxAccountClient10.RequestDelegate<T> {
   protected final ExecuteDelegate delegate;

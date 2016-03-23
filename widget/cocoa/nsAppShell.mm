@@ -844,13 +844,13 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 //
 // Roll up our context menu (if any) when some other app (or the OS) opens
 // any sort of menu.  But make sure we don't do this for notifications we
-// send ourselves (whose 'sender' will be @"org.mozilla.gecko.PopupWindow").
+// send ourselves (whose 'sender' will be @"org.mozilla.goanna.PopupWindow").
 - (void)beginMenuTracking:(NSNotification*)aNotification
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   NSString *sender = [aNotification object];
-  if (!sender || ![sender isEqualToString:@"org.mozilla.gecko.PopupWindow"]) {
+  if (!sender || ![sender isEqualToString:@"org.mozilla.goanna.PopupWindow"]) {
     nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
     nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
     if (rollupWidget)

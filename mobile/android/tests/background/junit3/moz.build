@@ -13,13 +13,13 @@ jar.sources += background_junit3_sources
 jar.extra_jars += [CONFIG['ANDROID_COMPAT_LIB']]
 
 main = add_android_eclipse_project('BackgroundInstrumentationTests', OBJDIR + '/AndroidManifest.xml')
-main.package_name = 'org.mozilla.gecko.background.tests'
+main.package_name = 'org.mozilla.goanna.background.tests'
 main.res = SRCDIR + '/res'
 main.recursive_make_targets += [
     OBJDIR + '/AndroidManifest.xml']
 main.referenced_projects += ['Fennec']
 
 main.add_classpathentry('src', SRCDIR + '/src',
-    dstdir='src/org/mozilla/gecko/background')
+    dstdir='src/org/mozilla/goanna/background')
 
 ANDROID_INSTRUMENTATION_MANIFESTS += ['instrumentation.ini']

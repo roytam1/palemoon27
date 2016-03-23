@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.gfx.LayerView.DrawListener;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.FloatUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.gfx.LayerView.DrawListener;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.ZoomConstraints;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.util.FloatUtils;
 
 import android.content.Context;
 import android.graphics.PointF;
@@ -158,7 +158,7 @@ class GoannaLayerClient implements LayerView.Listener, PanZoomTarget
         DisplayPortCalculator.initPrefs();
 
         // Goanna being ready is one of the two conditions (along with having an available
-        // surface) that cause us to create the compositor. So here, now that we know gecko
+        // surface) that cause us to create the compositor. So here, now that we know goanna
         // is ready, call updateCompositor() to see if we can actually do the creation.
         // This needs to run on the UI thread so that the surface validity can't change on
         // us while we're in the middle of creating the compositor.
@@ -218,11 +218,11 @@ class GoannaLayerClient implements LayerView.Listener, PanZoomTarget
         mViewportMetrics = mViewportMetrics.setViewportSize(width, height);
 
         if (mGoannaIsReady) {
-            // here we send gecko a resize message. The code in browser.js is responsible for
+            // here we send goanna a resize message. The code in browser.js is responsible for
             // picking up on that resize event, modifying the viewport as necessary, and informing
             // us of the new viewport.
             sendResizeEventIfNecessary(true);
-            // the following call also sends gecko a message, which will be processed after the resize
+            // the following call also sends goanna a message, which will be processed after the resize
             // message above has updated the viewport. this message ensures that if we have just put
             // focus in a text field, we scroll the content so that the text field is in view.
             GoannaAppShell.viewSizeChanged();
@@ -416,11 +416,11 @@ class GoannaLayerClient implements LayerView.Listener, PanZoomTarget
 
             // Update the Goanna-side viewport metrics. Make sure to do this
             // before modifying the metrics below.
-            final ImmutableViewportMetrics geckoMetrics = newMetrics.clamp();
+            final ImmutableViewportMetrics goannaMetrics = newMetrics.clamp();
             post(new Runnable() {
                 @Override
                 public void run() {
-                    mGoannaViewport = geckoMetrics;
+                    mGoannaViewport = goannaMetrics;
                 }
             });
 
@@ -612,7 +612,7 @@ class GoannaLayerClient implements LayerView.Listener, PanZoomTarget
             // we previously displaying. This means we need to abort any panning/zooming animations
             // that are in progress and send an updated display port request to browser.js as soon
             // as possible. The call to PanZoomController.abortAnimation accomplishes this by calling the
-            // forceRedraw function, which sends the viewport to gecko. The display port request is
+            // forceRedraw function, which sends the viewport to goanna. The display port request is
             // actually a full viewport update, which is fine because if browser.js has somehow moved to
             // be out of sync with this first-paint viewport, then we force them back in sync.
             abortPanZoomAnimation();
@@ -978,18 +978,18 @@ class GoannaLayerClient implements LayerView.Listener, PanZoomTarget
         PointF offset = viewportMetrics.getMarginOffset();
         origin.offset(-offset.x, -offset.y);
         float zoom = viewportMetrics.zoomFactor;
-        ImmutableViewportMetrics geckoViewport = mGoannaViewport;
-        PointF geckoOrigin = geckoViewport.getOrigin();
-        float geckoZoom = geckoViewport.zoomFactor;
+        ImmutableViewportMetrics goannaViewport = mGoannaViewport;
+        PointF goannaOrigin = goannaViewport.getOrigin();
+        float goannaZoom = goannaViewport.zoomFactor;
 
         // viewPoint + origin - offset gives the coordinate in device pixels from the top-left corner of the page.
         // Divided by zoom, this gives us the coordinate in CSS pixels from the top-left corner of the page.
-        // geckoOrigin / geckoZoom is where Goanna thinks it is (scrollTo position) in CSS pixels from
+        // goannaOrigin / goannaZoom is where Goanna thinks it is (scrollTo position) in CSS pixels from
         // the top-left corner of the page. Subtracting the two gives us the offset of the viewPoint from
         // the current Goanna coordinate in CSS pixels.
         PointF layerPoint = new PointF(
-                ((viewPoint.x + origin.x) / zoom) - (geckoOrigin.x / geckoZoom),
-                ((viewPoint.y + origin.y) / zoom) - (geckoOrigin.y / geckoZoom));
+                ((viewPoint.x + origin.x) / zoom) - (goannaOrigin.x / goannaZoom),
+                ((viewPoint.y + origin.y) / zoom) - (goannaOrigin.y / goannaZoom));
 
         return layerPoint;
     }

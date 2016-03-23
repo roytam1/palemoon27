@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -15,12 +15,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.gfx.InputConnectionHandler;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils.AssertBehavior;
 
 import android.os.Handler;
 import android.os.Looper;
@@ -371,17 +371,17 @@ final class GoannaEditable
         ThreadUtils.assertOnThread(mIcRunHandler.getLooper().getThread(), AssertBehavior.THROW);
     }
 
-    private void geckoPostToIc(Runnable runnable) {
+    private void goannaPostToIc(Runnable runnable) {
         mIcPostHandler.post(runnable);
     }
 
-    private void geckoUpdateGoanna(final boolean force) {
-        /* We do not increment the seqno here, but only check it, because geckoUpdateGoanna is a
-           request for update. If we incremented the seqno here, geckoUpdateGoanna would have
+    private void goannaUpdateGoanna(final boolean force) {
+        /* We do not increment the seqno here, but only check it, because goannaUpdateGoanna is a
+           request for update. If we incremented the seqno here, goannaUpdateGoanna would have
            prevented other updates from occurring */
         final int seqnoWhenPosted = mGoannaUpdateSeqno;
 
-        geckoPostToIc(new Runnable() {
+        goannaPostToIc(new Runnable() {
             @Override
             public void run() {
                 mActionQueue.syncWithGoanna();
@@ -631,8 +631,8 @@ final class GoannaEditable
         return true;
     }
 
-    private void geckoSetIcHandler(final Handler newHandler) {
-        geckoPostToIc(new Runnable() { // posting to old IC thread
+    private void goannaSetIcHandler(final Handler newHandler) {
+        goannaPostToIc(new Runnable() { // posting to old IC thread
             @Override
             public void run() {
                 synchronized (newHandler) {
@@ -647,7 +647,7 @@ final class GoannaEditable
         // old IC thread still waiting to run.
         mIcPostHandler = newHandler;
 
-        geckoPostToIc(new Runnable() { // posting to new IC thread
+        goannaPostToIc(new Runnable() { // posting to new IC thread
             @Override
             public void run() {
                 synchronized (newHandler) {
@@ -664,7 +664,7 @@ final class GoannaEditable
 
     // GoannaEditableListener interface
 
-    private void geckoActionReply() {
+    private void goannaActionReply() {
         if (DEBUG) {
             // GoannaEditableListener methods should all be called from the Goanna thread
             ThreadUtils.assertOnGoannaThread();
@@ -689,7 +689,7 @@ final class GoannaEditable
                 Log.w(LOGTAG, "IME sync error: selection out of bounds");
             }
             Selection.setSelection(mText, selStart, selEnd);
-            geckoPostToIc(new Runnable() {
+            goannaPostToIc(new Runnable() {
                 @Override
                 public void run() {
                     mActionQueue.syncWithGoanna();
@@ -713,11 +713,11 @@ final class GoannaEditable
             break;
 
         case Action.TYPE_SET_HANDLER:
-            geckoSetIcHandler(action.mHandler);
+            goannaSetIcHandler(action.mHandler);
             break;
         }
         if (action.mShouldUpdate) {
-            geckoUpdateGoanna(false);
+            goannaUpdateGoanna(false);
         }
     }
 
@@ -726,7 +726,7 @@ final class GoannaEditable
         if (DEBUG) {
             // GoannaEditableListener methods should all be called from the Goanna thread
             ThreadUtils.assertOnGoannaThread();
-            // NOTIFY_IME_REPLY_EVENT is logged separately, inside geckoActionReply()
+            // NOTIFY_IME_REPLY_EVENT is logged separately, inside goannaActionReply()
             if (type != NOTIFY_IME_REPLY_EVENT) {
                 Log.d(LOGTAG, "notifyIME(" +
                               getConstantName(GoannaEditableListener.class, "NOTIFY_IME_", type) +
@@ -738,18 +738,18 @@ final class GoannaEditable
                 if (mFocused) {
                     // When mFocused is false, the reply is for a stale action,
                     // and we should not do anything
-                    geckoActionReply();
+                    goannaActionReply();
                 } else if (DEBUG) {
                     Log.d(LOGTAG, "discarding stale reply");
                 }
             } finally {
                 // Ensure action is always removed from queue
-                // even if stale action results in exception in geckoActionReply
+                // even if stale action results in exception in goannaActionReply
                 mActionQueue.poll();
             }
             return;
         }
-        geckoPostToIc(new Runnable() {
+        goannaPostToIc(new Runnable() {
             @Override
             public void run() {
                 if (type == NOTIFY_IME_OF_BLUR) {
@@ -794,7 +794,7 @@ final class GoannaEditable
                           getConstantName(GoannaEditableListener.class, "IME_STATE_", state) +
                           ", \"" + typeHint + "\", \"" + modeHint + "\", \"" + actionHint + "\")");
         }
-        geckoPostToIc(new Runnable() {
+        goannaPostToIc(new Runnable() {
             @Override
             public void run() {
                 // Make sure there are no other things going on
@@ -835,7 +835,7 @@ final class GoannaEditable
             return;
         }
 
-        geckoPostToIc(new Runnable() {
+        goannaPostToIc(new Runnable() {
             @Override
             public void run() {
                 mActionQueue.syncWithGoanna();
@@ -856,7 +856,7 @@ final class GoannaEditable
         });
     }
 
-    private void geckoReplaceText(int start, int oldEnd, CharSequence newText) {
+    private void goannaReplaceText(int start, int oldEnd, CharSequence newText) {
         // Don't use replace() because Gingerbread has a bug where if the replaced text
         // has the same spans as the original text, the spans will end up being deleted
         mText.delete(start, oldEnd);
@@ -919,7 +919,7 @@ final class GoannaEditable
                 // Replace old spans with new spans
                 mChangedText.replace(action.mStart - start, actionNewEnd - start,
                                      action.mSequence);
-                geckoReplaceText(start, oldEnd, mChangedText);
+                goannaReplaceText(start, oldEnd, mChangedText);
 
                 // delete/insert above might have moved our selection to somewhere else
                 // this happens when the Goanna text change covers a larger range than
@@ -939,12 +939,12 @@ final class GoannaEditable
                                   Spanned.SPAN_POINT_POINT);
                 }
             } else {
-                geckoReplaceText(start, oldEnd, mChangedText);
+                goannaReplaceText(start, oldEnd, mChangedText);
             }
         } else {
-            geckoReplaceText(start, oldEnd, mChangedText);
+            goannaReplaceText(start, oldEnd, mChangedText);
         }
-        geckoPostToIc(new Runnable() {
+        goannaPostToIc(new Runnable() {
             @Override
             public void run() {
                 mListener.onTextChange(text, start, oldEnd, newEnd);

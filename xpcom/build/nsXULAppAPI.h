@@ -369,7 +369,7 @@ static const char* const kGoannaProcessTypeString[] = {
   "plugin",
   "tab",
   "ipdlunittest",
-  "geckomediaplugin"
+  "goannamediaplugin"
 };
 
 static_assert(MOZ_ARRAY_LENGTH(kGoannaProcessTypeString) ==

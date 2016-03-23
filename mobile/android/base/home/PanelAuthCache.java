@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.util.Log;
 
-import org.mozilla.gecko.GoannaSharedPrefs;
+import org.mozilla.goanna.GoannaSharedPrefs;
 
 /**
  * Cache used to store authentication state of dynamic panels. The values

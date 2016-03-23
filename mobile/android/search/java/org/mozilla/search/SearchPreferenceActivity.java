@@ -4,12 +4,12 @@
 
 package org.mozilla.search;
 
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.Locales;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.BrowserContract;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.Locales;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.BrowserContract;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;

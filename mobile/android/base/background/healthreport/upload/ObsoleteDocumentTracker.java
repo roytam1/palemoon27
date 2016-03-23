@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport.upload;
+package org.mozilla.goanna.background.healthreport.upload;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.healthreport.HealthReportConstants;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.HealthReportConstants;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
 
 import android.content.SharedPreferences;
 

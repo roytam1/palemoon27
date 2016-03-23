@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -10,9 +10,9 @@ import java.util.ArrayList;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.home.HomePager;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.home.HomePager;
 
 import android.widget.ImageView;
 import android.widget.ListAdapter;

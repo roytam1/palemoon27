@@ -196,9 +196,9 @@ typedef struct _nsCocoaWindowList {
   BOOL mHasEverBeenZoomed;
 }
 + (void)paintMenubarForWindow:(NSWindow*)aWindow;
-- (id)initWithGoannaWindow:(nsCocoaWindow*)geckoWind;
+- (id)initWithGoannaWindow:(nsCocoaWindow*)goannaWind;
 - (void)windowDidResize:(NSNotification*)aNotification;
-- (nsCocoaWindow*)geckoWidget;
+- (nsCocoaWindow*)goannaWidget;
 - (bool)toplevelActiveState;
 - (void)sendToplevelActivateEvents;
 - (void)sendToplevelDeactivateEvents;

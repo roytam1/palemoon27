@@ -3538,7 +3538,7 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType,
 NS_IMETHODIMP
 nsNativeThemeCocoa::ThemeChanged()
 {
-  // This is unimplemented because we don't care if gecko changes its theme
+  // This is unimplemented because we don't care if goanna changes its theme
   // and Mac OS X doesn't have themes.
   return NS_OK;
 }

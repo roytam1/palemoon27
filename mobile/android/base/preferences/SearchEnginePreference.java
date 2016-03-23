@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
-import org.mozilla.gecko.favicons.decoders.FaviconDecoder;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.FaviconView;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.favicons.OnFaviconLoadedListener;
+import org.mozilla.goanna.favicons.decoders.FaviconDecoder;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.FaviconView;
 
 import android.app.AlertDialog;
 import android.content.Context;
@@ -39,7 +39,7 @@ public class SearchEnginePreference extends CustomListPreference {
 
     private FaviconView mFaviconView;
 
-    // Search engine identifier specified by the gecko search service. This will be "other"
+    // Search engine identifier specified by the goanna search service. This will be "other"
     // for engines that are not shipped with the app.
     private String mIdentifier;
 
@@ -137,23 +137,23 @@ public class SearchEnginePreference extends CustomListPreference {
 
     /**
      * Configure this Preference object from the Goanna search engine JSON object.
-     * @param geckoEngineJSON The Goanna-formatted JSON object representing the search engine.
+     * @param goannaEngineJSON The Goanna-formatted JSON object representing the search engine.
      * @throws JSONException If the JSONObject is invalid.
      */
-    public void setSearchEngineFromJSON(JSONObject geckoEngineJSON) throws JSONException {
-        mIdentifier = geckoEngineJSON.getString("identifier");
+    public void setSearchEngineFromJSON(JSONObject goannaEngineJSON) throws JSONException {
+        mIdentifier = goannaEngineJSON.getString("identifier");
 
         // A null JS value gets converted into a string.
         if (mIdentifier.equals("null")) {
             mIdentifier = "other";
         }
 
-        final String engineName = geckoEngineJSON.getString("name");
+        final String engineName = goannaEngineJSON.getString("name");
         final SpannableString titleSpannable = new SpannableString(engineName);
 
         setTitle(titleSpannable);
 
-        final String iconURI = geckoEngineJSON.getString("iconURI");
+        final String iconURI = goannaEngineJSON.getString("iconURI");
         // Keep a reference to the bitmap - we'll need it later in onBindView.
         try {
             final int desiredWidth;

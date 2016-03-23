@@ -1,6 +1,6 @@
 #!/bin/bash -vex
 
-gecko_dir=/home/worker/gecko/source
+goanna_dir=/home/worker/goanna/source
 gaia_dir=/home/worker/gaia/source
 
 create_parent_dir() {
@@ -10,8 +10,8 @@ create_parent_dir() {
   fi
 }
 
-# Ensure we always have the parent directory for gecko
-create_parent_dir $gecko_dir
+# Ensure we always have the parent directory for goanna
+create_parent_dir $goanna_dir
 
 # Create .mozbuild so mach doesn't complain about this
 mkdir -p /home/worker/.mozbuild/

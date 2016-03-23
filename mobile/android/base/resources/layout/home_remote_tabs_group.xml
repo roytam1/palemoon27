@@ -7,7 +7,7 @@
 
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    xmlns:gecko="http://schemas.android.com/apk/res-auto"
+    xmlns:goanna="http://schemas.android.com/apk/res-auto"
     style="@style/Widget.RemoteTabsClientView"
     android:gravity="center_vertical"
     android:layout_width="match_parent"
@@ -29,12 +29,12 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <org.mozilla.gecko.widget.FadedSingleColorTextView
+        <org.mozilla.goanna.widget.FadedSingleColorTextView
             android:id="@+id/client"
             style="@style/Widget.TwoLinePageRow.Title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            gecko:fadeWidth="30dp"
+            goanna:fadeWidth="30dp"
             tools:text="Firefox on Nexus 5"/>
 
         <TextView

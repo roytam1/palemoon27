@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays.service;
+package org.mozilla.goanna.overlays.service;
 
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Parcelable;
-import org.mozilla.gecko.overlays.OverlayConstants;
-import org.mozilla.gecko.overlays.service.sharemethods.ShareMethod;
+import org.mozilla.goanna.overlays.OverlayConstants;
+import org.mozilla.goanna.overlays.service.sharemethods.ShareMethod;
 
-import static org.mozilla.gecko.overlays.OverlayConstants.EXTRA_SHARE_METHOD;
+import static org.mozilla.goanna.overlays.OverlayConstants.EXTRA_SHARE_METHOD;
 
 /**
  * Class to hold information related to a particular request to perform a share.

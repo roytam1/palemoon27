@@ -1,13 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.testhelpers;
+package org.mozilla.goanna.background.testhelpers;
 
 import java.net.URI;
 
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
-import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.delegates.GlobalSessionCallback;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage.Stage;
 
 public class DefaultGlobalSessionCallback implements GlobalSessionCallback {
 

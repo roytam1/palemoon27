@@ -13,18 +13,18 @@
               android:layout_width="match_parent"
               android:layout_height="match_parent"/>
 
-    <org.mozilla.gecko.widget.GoannaSwipeRefreshLayout
+    <org.mozilla.goanna.widget.GoannaSwipeRefreshLayout
                  android:id="@+id/remote_tabs_refresh_layout"
                  android:layout_width="match_parent"
                  android:layout_height="match_parent">
 
-        <org.mozilla.gecko.home.HomeExpandableListView
+        <org.mozilla.goanna.home.HomeExpandableListView
                 android:id="@+id/list"
                 style="@style/Widget.RemoteTabsListView"
                 android:groupIndicator="@android:color/transparent"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
-    </org.mozilla.gecko.widget.GoannaSwipeRefreshLayout>
+    </org.mozilla.goanna.widget.GoannaSwipeRefreshLayout>
 
 </LinearLayout>

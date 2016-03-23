@@ -196,7 +196,7 @@ public:
                                   uint64_t* aOutInputBlockId);
 
   /**
-   * A helper for transforming coordinates to gecko coordinate space.
+   * A helper for transforming coordinates to goanna coordinate space.
    *
    * @param aPoint point to transform
    * @param aOutTransformedPoint resulting transformed point

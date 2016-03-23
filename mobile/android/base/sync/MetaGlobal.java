@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -14,14 +14,14 @@ import java.util.Set;
 
 import org.json.simple.JSONArray;
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.MetaGlobalException.MetaGlobalMalformedSyncIDException;
-import org.mozilla.gecko.sync.MetaGlobalException.MetaGlobalMalformedVersionException;
-import org.mozilla.gecko.sync.delegates.MetaGlobalDelegate;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
-import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.MetaGlobalException.MetaGlobalMalformedSyncIDException;
+import org.mozilla.goanna.sync.MetaGlobalException.MetaGlobalMalformedVersionException;
+import org.mozilla.goanna.sync.delegates.MetaGlobalDelegate;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.SyncStorageRecordRequest;
+import org.mozilla.goanna.sync.net.SyncStorageRequestDelegate;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
 
 public class MetaGlobal implements SyncStorageRequestDelegate {
   private static final String LOG_TAG = "MetaGlobal";

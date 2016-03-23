@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
-import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage.Stage;
 
 import android.content.SyncResult;
 

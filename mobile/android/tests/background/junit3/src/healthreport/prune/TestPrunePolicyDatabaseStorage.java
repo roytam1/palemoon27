@@ -1,12 +1,12 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport.prune;
+package org.mozilla.goanna.background.healthreport.prune;
 
 import java.io.File;
 
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.helpers.FakeProfileTestCase;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.helpers.FakeProfileTestCase;
 
 import android.content.Context;
 

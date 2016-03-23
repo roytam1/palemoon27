@@ -3,17 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
-import org.mozilla.gecko.GoannaScreenOrientation;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.fxa.AccountLoader;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.fxa.login.State.Action;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.GoannaScreenOrientation;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.fxa.AccountLoader;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.fxa.login.State.Action;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.accounts.Account;
 import android.content.res.Configuration;

@@ -57,7 +57,7 @@ MetroApp::CreateView(ABI::Windows::ApplicationModel::Core::IFrameworkView **aVie
   // gone through startup at this point.
 
   // Note that we create the view which creates our native window for us. The
-  // gecko widget gets created by gecko, and the two get hooked up later in
+  // goanna widget gets created by goanna, and the two get hooked up later in
   // MetroWidget::Create().
 
   LogFunction();
@@ -77,7 +77,7 @@ MetroApp::Run()
   LogThread();
 
   // Name this thread for debugging and register it with the profiler
-  // and IOInterposer as the main gecko thread.
+  // and IOInterposer as the main goanna thread.
   char aLocal;
   PR_SetCurrentThreadName(gGoannaThreadName);
   profiler_register_thread(gGoannaThreadName, &aLocal);
@@ -151,7 +151,7 @@ MetroApp::ActivateBaseView()
 
 /*
  * TBD: when we support multiple widgets, we'll need a way to sync up the view
- * created in CreateView with the widget gecko creates. Currently we only have
+ * created in CreateView with the widget goanna creates. Currently we only have
  * one view (sFrameworkView) and one main widget.
  */
 void

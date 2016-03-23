@@ -3,21 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.ZoomConstraints;
+import org.mozilla.goanna.util.FloatUtils;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.graphics.PointF;
 import android.graphics.RectF;
@@ -363,7 +363,7 @@ class JavaPanZoomController
     @Override
     public void abortAnimation() {
         checkMainThread();
-        // this happens when gecko changes the viewport on us or if the device is rotated.
+        // this happens when goanna changes the viewport on us or if the device is rotated.
         // if that's the case, abort any animation in progress and re-zoom so that the page
         // snaps to edges. for other cases (where the user's finger(s) are down) don't do
         // anything special.
@@ -1304,7 +1304,7 @@ class JavaPanZoomController
             case ANIMATED_ZOOM:
             case BOUNCE:
                 // don't redraw during these because the zoom is (or might be, in the case
-                // of BOUNCE) be changing rapidly and gecko will have to redraw the entire
+                // of BOUNCE) be changing rapidly and goanna will have to redraw the entire
                 // display port area. we trigger a force-redraw upon exiting these states.
                 return false;
             default:

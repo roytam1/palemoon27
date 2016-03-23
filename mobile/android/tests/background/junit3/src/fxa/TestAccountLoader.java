@@ -14,7 +14,7 @@
  * limitations under the License
  */
 
-package org.mozilla.gecko.background.fxa;
+package org.mozilla.goanna.background.fxa;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
@@ -22,17 +22,17 @@ import java.security.GeneralSecurityException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.mozilla.gecko.background.sync.AndroidSyncTestCaseWithAccounts;
-import org.mozilla.gecko.background.sync.TestSyncAccounts;
-import org.mozilla.gecko.fxa.AccountLoader;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.Separated;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
+import org.mozilla.goanna.background.sync.AndroidSyncTestCaseWithAccounts;
+import org.mozilla.goanna.background.sync.TestSyncAccounts;
+import org.mozilla.goanna.fxa.AccountLoader;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.login.Separated;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.sync.setup.SyncAccounts.SyncAccountParameters;
 
 import android.accounts.Account;
 import android.content.Context;

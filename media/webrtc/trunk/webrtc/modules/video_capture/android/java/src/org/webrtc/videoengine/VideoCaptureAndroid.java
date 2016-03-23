@@ -32,9 +32,9 @@ import android.view.SurfaceHolder.Callback;
 import android.view.SurfaceHolder;
 import android.view.WindowManager;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaAppShell.AppStateListener;
-import org.mozilla.gecko.mozglue.WebRTCJNITarget;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaAppShell.AppStateListener;
+import org.mozilla.goanna.mozglue.WebRTCJNITarget;
 
 // Wrapper for android Camera, with support for direct local preview rendering.
 // Threading notes: this class is called from ViE C++ code, and from Camera &

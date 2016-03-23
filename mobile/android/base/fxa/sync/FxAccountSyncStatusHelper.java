@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.sync;
+package org.mozilla.goanna.fxa.sync;
 
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.WeakHashMap;
 
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
 
 import android.content.ContentResolver;
 import android.content.SyncStatusObserver;

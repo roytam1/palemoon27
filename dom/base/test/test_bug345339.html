@@ -30,7 +30,7 @@ function afterLoad() {
     iframeDoc.getElementById("select").selectedIndex = 1;
     iframeDoc.getElementById("radio2").checked = true;
     iframeDoc.getElementById("password").value = "123456";
-    iframeDoc.getElementById("hidden").value = "gecko";
+    iframeDoc.getElementById("hidden").value = "goanna";
 
     var file = SpecialPowers.Cc["@mozilla.org/file/directory_service;1"]
              .getService(SpecialPowers.Ci.nsIProperties)
@@ -60,7 +60,7 @@ function afterReload() {
        "radio button #2 value preserved");
     isnot(iframeDoc.getElementById("password").value, "123456",
        "password field value forgotten");
-    is(iframeDoc.getElementById("hidden").value, "gecko",
+    is(iframeDoc.getElementById("hidden").value, "goanna",
        "hidden field value preserved");
     is(SpecialPowers.wrap(iframeDoc).getElementById("file").value, filePath,
        "file field value preserved");

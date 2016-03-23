@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,10 +11,10 @@ import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UIAsyncTask;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;

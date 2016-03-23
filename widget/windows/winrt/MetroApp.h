@@ -45,7 +45,7 @@ public:
   void Shutdown();
   void ActivateBaseView();
 
-  // Set when gecko enters xpcom shutdown.
+  // Set when goanna enters xpcom shutdown.
   static bool sGoannaShuttingDown;
 
   // Shared pointers between framework and widget

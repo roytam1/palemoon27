@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,21 +11,21 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.SessionParser;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.BrowserContract.CommonColumns;
-import org.mozilla.gecko.db.BrowserContract.URLColumns;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.SessionParser;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.BrowserContract.CommonColumns;
+import org.mozilla.goanna.db.BrowserContract.URLColumns;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -66,7 +66,7 @@ public class RecentTabsPanel extends HomeFragment
     // Callbacks used for the search and favicon cursor loaders
     private CursorLoaderCallbacks mCursorLoaderCallbacks;
 
-    // Recently closed tabs from gecko
+    // Recently closed tabs from goanna
     private ClosedTab[] mClosedTabs;
 
     private void restoreSessionWithHistory(List<String> dataList) {

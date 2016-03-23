@@ -938,7 +938,7 @@ AbstractHealthReporter.prototype = Object.freeze({
       clientID: this._state.clientID,
       clientIDVersion: this._state.clientIDVersion,
       thisPingDate: pingDateString,
-      geckoAppInfo: this.obtainAppInfo(this._log),
+      goannaAppInfo: this.obtainAppInfo(this._log),
       data: {last: {}, days: {}},
     };
 

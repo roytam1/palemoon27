@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.crypto;
+package org.mozilla.goanna.sync.crypto;
 
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -11,7 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.sync.Utils;
 
 /*
  * A standards-compliant implementation of RFC 5869

@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.Tabs;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.Tabs;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils;
 
 import android.content.ContentValues;
 import android.database.Cursor;

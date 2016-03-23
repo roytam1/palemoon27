@@ -311,5 +311,5 @@ special kind of library.
 All the Goanna-prefixed templates take the same arguments as their
 non-Goanna-prefixed counterparts, and can take a few more arguments
 for non-standard cases. See the definition of ``GoannaBinary`` in
-build/gecko_templates.mozbuild for more details, but most usecases
+build/goanna_templates.mozbuild for more details, but most usecases
 should not require these additional arguments.

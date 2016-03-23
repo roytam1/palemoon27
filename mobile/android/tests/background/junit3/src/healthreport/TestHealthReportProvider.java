@@ -1,10 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
-import org.mozilla.gecko.background.helpers.DBHelpers;
-import org.mozilla.gecko.background.helpers.DBProviderTestCase;
+import org.mozilla.goanna.background.helpers.DBHelpers;
+import org.mozilla.goanna.background.helpers.DBProviderTestCase;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;

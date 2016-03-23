@@ -8,10 +8,10 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
 import org.mozilla.search.providers.SearchEngine;
 
 import android.content.Intent;

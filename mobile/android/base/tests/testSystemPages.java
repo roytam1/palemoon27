@@ -1,6 +1,6 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
+import org.mozilla.goanna.Actions;
 
 /** This patch tests the System Pages first by loading system pages from
  *  the awesome bar and then from Firefox menu

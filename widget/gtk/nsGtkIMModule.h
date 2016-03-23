@@ -312,7 +312,7 @@ protected:
 
     /**
      *  WARNING:
-     *    Following methods dispatch gecko events.  Then, the focused widget
+     *    Following methods dispatch goanna events.  Then, the focused widget
      *    can be destroyed, and also it can be stolen focus.  If they returns
      *    FALSE, callers cannot continue the composition.
      *      - DispatchCompositionStart

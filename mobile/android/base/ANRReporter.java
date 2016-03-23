@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -20,8 +20,8 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

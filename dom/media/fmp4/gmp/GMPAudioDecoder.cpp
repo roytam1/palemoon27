@@ -11,7 +11,7 @@ namespace mozilla {
 #if defined(DEBUG)
 bool IsOnGMPThread()
 {
-  nsCOMPtr<mozIGoannaMediaPluginService> mps = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+  nsCOMPtr<mozIGoannaMediaPluginService> mps = do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   MOZ_ASSERT(mps);
 
   nsCOMPtr<nsIThread> gmpThread;
@@ -137,7 +137,7 @@ GMPAudioDecoder::Init()
 {
   MOZ_ASSERT(IsOnGMPThread());
 
-  mMPS = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+  mMPS = do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   MOZ_ASSERT(mMPS);
 
   nsTArray<nsCString> tags;

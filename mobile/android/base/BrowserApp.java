@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -19,76 +19,76 @@ import java.util.Vector;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.DynamicToolbar.PinReason;
-import org.mozilla.gecko.DynamicToolbar.VisibilityTransition;
-import org.mozilla.gecko.GoannaProfileDirectories.NoMozillaDirectoryException;
-import org.mozilla.gecko.Tabs.TabEvents;
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.TransitionsTracker;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.SuggestedSites;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.favicons.LoadFaviconTask;
-import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
-import org.mozilla.gecko.favicons.decoders.IconDirectoryEntry;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.activities.FxAccountGetStartedActivity;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerMarginsAnimator;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.health.BrowserHealthRecorder;
-import org.mozilla.gecko.health.BrowserHealthReporter;
-import org.mozilla.gecko.health.HealthRecorder;
-import org.mozilla.gecko.health.SessionInformation;
-import org.mozilla.gecko.home.BrowserSearch;
-import org.mozilla.gecko.home.HomeBanner;
-import org.mozilla.gecko.home.HomePager;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenInBackgroundListener;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.home.HomePanelsManager;
-import org.mozilla.gecko.home.SearchEngine;
-import org.mozilla.gecko.menu.GoannaMenu;
-import org.mozilla.gecko.menu.GoannaMenuItem;
-import org.mozilla.gecko.mozglue.ContextUtils;
-import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.firstrun.FirstrunPane;
-import org.mozilla.gecko.overlays.ui.ShareDialog;
-import org.mozilla.gecko.preferences.ClearOnShutdownPref;
-import org.mozilla.gecko.preferences.GoannaPreferences;
-import org.mozilla.gecko.prompts.Prompt;
-import org.mozilla.gecko.prompts.PromptListItem;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.tabs.TabHistoryController;
-import org.mozilla.gecko.tabs.TabHistoryFragment;
-import org.mozilla.gecko.tabs.TabHistoryPage;
-import org.mozilla.gecko.tabs.TabsPanel;
-import org.mozilla.gecko.tabs.TabHistoryController.OnShowTabHistory;
-import org.mozilla.gecko.toolbar.AutocompleteHandler;
-import org.mozilla.gecko.toolbar.BrowserToolbar;
-import org.mozilla.gecko.toolbar.BrowserToolbar.TabEditingState;
-import org.mozilla.gecko.toolbar.ToolbarProgressView;
-import org.mozilla.gecko.util.ActivityUtils;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.MenuUtils;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.PrefUtils;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
-import org.mozilla.gecko.widget.ButtonToast;
-import org.mozilla.gecko.widget.ButtonToast.ToastListener;
-import org.mozilla.gecko.widget.GoannaActionProvider;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.DynamicToolbar.PinReason;
+import org.mozilla.goanna.DynamicToolbar.VisibilityTransition;
+import org.mozilla.goanna.GoannaProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.goanna.Tabs.TabEvents;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.TransitionsTracker;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.SuggestedSites;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.favicons.LoadFaviconTask;
+import org.mozilla.goanna.favicons.OnFaviconLoadedListener;
+import org.mozilla.goanna.favicons.decoders.IconDirectoryEntry;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.activities.FxAccountGetStartedActivity;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.gfx.LayerMarginsAnimator;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.health.BrowserHealthRecorder;
+import org.mozilla.goanna.health.BrowserHealthReporter;
+import org.mozilla.goanna.health.HealthRecorder;
+import org.mozilla.goanna.health.SessionInformation;
+import org.mozilla.goanna.home.BrowserSearch;
+import org.mozilla.goanna.home.HomeBanner;
+import org.mozilla.goanna.home.HomePager;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenInBackgroundListener;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.home.HomePanelsManager;
+import org.mozilla.goanna.home.SearchEngine;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.menu.GoannaMenuItem;
+import org.mozilla.goanna.mozglue.ContextUtils;
+import org.mozilla.goanna.mozglue.ContextUtils.SafeIntent;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.firstrun.FirstrunPane;
+import org.mozilla.goanna.overlays.ui.ShareDialog;
+import org.mozilla.goanna.preferences.ClearOnShutdownPref;
+import org.mozilla.goanna.preferences.GoannaPreferences;
+import org.mozilla.goanna.prompts.Prompt;
+import org.mozilla.goanna.prompts.PromptListItem;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.tabs.TabHistoryController;
+import org.mozilla.goanna.tabs.TabHistoryFragment;
+import org.mozilla.goanna.tabs.TabHistoryPage;
+import org.mozilla.goanna.tabs.TabsPanel;
+import org.mozilla.goanna.tabs.TabHistoryController.OnShowTabHistory;
+import org.mozilla.goanna.toolbar.AutocompleteHandler;
+import org.mozilla.goanna.toolbar.BrowserToolbar;
+import org.mozilla.goanna.toolbar.BrowserToolbar.TabEditingState;
+import org.mozilla.goanna.toolbar.ToolbarProgressView;
+import org.mozilla.goanna.util.ActivityUtils;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.MenuUtils;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.PrefUtils;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UIAsyncTask;
+import org.mozilla.goanna.widget.ButtonToast;
+import org.mozilla.goanna.widget.ButtonToast.ToastListener;
+import org.mozilla.goanna.widget.GoannaActionProvider;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -504,7 +504,7 @@ public class BrowserApp extends GoannaApp
     }
 
     private void updateEditingModeForTab(final Tab selectedTab) {
-        // (bug 1086983 comment 11) Because the tab may be selected from the gecko thread and we're
+        // (bug 1086983 comment 11) Because the tab may be selected from the goanna thread and we're
         // running this code on the UI thread, the selected tab argument may not still refer to the
         // selected tab. However, that means this code should be run again and the initial state
         // changes will be overridden. As an optimization, we can skip this update, but it may have
@@ -865,7 +865,7 @@ public class BrowserApp extends GoannaApp
     private Class<?> getMediaPlayerManager() {
         if (AppConstants.MOZ_MEDIA_PLAYER) {
             try {
-                return Class.forName("org.mozilla.gecko.MediaPlayerManager");
+                return Class.forName("org.mozilla.goanna.MediaPlayerManager");
             } catch(Exception ex) {
                 // Ignore failures
                 Log.e(LOGTAG, "No native casting support", ex);
@@ -3542,7 +3542,7 @@ public class BrowserApp extends GoannaApp
     }
 
     @Override
-    public int getLayout() { return R.layout.gecko_app; }
+    public int getLayout() { return R.layout.goanna_app; }
 
     @Override
     protected String getDefaultProfileName() throws NoMozillaDirectoryException {

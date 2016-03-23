@@ -1,12 +1,12 @@
 ---
 # For complete sample of all build and test jobs,
-# see <gecko>/testing/taskcluster/tasks/job_flags.yml
+# see <goanna>/testing/taskcluster/tasks/job_flags.yml
 
 $inherits:
   from: tasks/branches/base_job_flags.yml
 
 builds:
-  linux64_gecko:
+  linux64_goanna:
     platforms:
       - b2g
     types:

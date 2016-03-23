@@ -813,7 +813,7 @@ MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLPara
       break;
     }
 
-    // Keyboard handling is passed to KeyboardLayout, which delivers gecko events
+    // Keyboard handling is passed to KeyboardLayout, which delivers goanna events
     // via DispatchKeyboardEvent.
 
     case WM_KEYDOWN:

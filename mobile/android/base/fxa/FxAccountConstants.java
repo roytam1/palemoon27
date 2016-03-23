@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa;
+package org.mozilla.goanna.fxa;
 
-import org.mozilla.gecko.AppConstants;
+import org.mozilla.goanna.AppConstants;
 
 public class FxAccountConstants {
   public static final String GLOBAL_LOG_TAG = "FxAccounts";
@@ -52,7 +52,7 @@ public class FxAccountConstants {
    * can be received only by Firefox channels sharing the same Android Firefox
    * Account type.
    * <p>
-   * See {@link org.mozilla.gecko.fxa.AndroidFxAccount#makeDeletedAccountIntent(android.content.Context, android.accounts.Account)}
+   * See {@link org.mozilla.goanna.fxa.AndroidFxAccount#makeDeletedAccountIntent(android.content.Context, android.accounts.Account)}
    * for contents of the intent.
    *
    * See bug 790931 for additional information in the context of Sync.

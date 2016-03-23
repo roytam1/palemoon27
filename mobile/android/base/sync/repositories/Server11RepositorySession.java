@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories;
+package org.mozilla.goanna.sync.repositories;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -16,27 +16,27 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.DelayedWorkTracker;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.HTTPFailureException;
-import org.mozilla.gecko.sync.Server11PreviousPostFailedException;
-import org.mozilla.gecko.sync.Server11RecordPostFailedException;
-import org.mozilla.gecko.sync.UnexpectedJSONException;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.SyncStorageCollectionRequest;
-import org.mozilla.gecko.sync.net.SyncStorageRequest;
-import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
-import org.mozilla.gecko.sync.net.WBOCollectionRequestDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionStoreDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.CryptoRecord;
+import org.mozilla.goanna.sync.DelayedWorkTracker;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.HTTPFailureException;
+import org.mozilla.goanna.sync.Server11PreviousPostFailedException;
+import org.mozilla.goanna.sync.Server11RecordPostFailedException;
+import org.mozilla.goanna.sync.UnexpectedJSONException;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.SyncStorageCollectionRequest;
+import org.mozilla.goanna.sync.net.SyncStorageRequest;
+import org.mozilla.goanna.sync.net.SyncStorageRequestDelegate;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.sync.net.WBOCollectionRequestDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionBeginDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionStoreDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionWipeDelegate;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 import ch.boye.httpclientandroidlib.entity.ContentProducer;
 import ch.boye.httpclientandroidlib.entity.EntityTemplate;

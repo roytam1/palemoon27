@@ -9,7 +9,7 @@ task:
     description: |
       Decision task for testing purposes for alder.
 
-  workerType: gecko-decision
+  workerType: goanna-decision
   provisionerId: aws-provisioner
 
   scopes:

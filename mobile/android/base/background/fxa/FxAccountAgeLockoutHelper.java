@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.fxa;
+package org.mozilla.goanna.background.fxa;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Locale;
 
-import org.mozilla.gecko.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.FxAccountConstants;
 
 /**
  * Utility to manage COPPA age verification requirements.

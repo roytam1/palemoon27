@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.android;
+package org.mozilla.goanna.sync.repositories.android;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;

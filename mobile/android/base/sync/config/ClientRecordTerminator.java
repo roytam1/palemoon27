@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.config;
+package org.mozilla.goanna.sync.config;
 
 import java.net.URI;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
-import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.SyncStorageRecordRequest;
+import org.mozilla.goanna.sync.net.SyncStorageRequestDelegate;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
 
 /**
  * Bug 770785: when an Android Account is deleted, we need to (try to) delete

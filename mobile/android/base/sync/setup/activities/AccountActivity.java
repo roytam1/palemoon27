@@ -2,20 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.setup.activities;
+package org.mozilla.goanna.sync.setup.activities;
 
 import java.util.Locale;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.setup.Constants;
-import org.mozilla.gecko.sync.setup.InvalidSyncKeyException;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
-import org.mozilla.gecko.sync.setup.auth.AccountAuthenticator;
-import org.mozilla.gecko.sync.setup.auth.AuthenticationResult;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.setup.Constants;
+import org.mozilla.goanna.sync.setup.InvalidSyncKeyException;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.sync.setup.SyncAccounts.SyncAccountParameters;
+import org.mozilla.goanna.sync.setup.auth.AccountAuthenticator;
+import org.mozilla.goanna.sync.setup.auth.AuthenticationResult;
 
 import android.accounts.Account;
 import android.accounts.AccountAuthenticatorActivity;

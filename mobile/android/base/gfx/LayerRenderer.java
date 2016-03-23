@@ -3,15 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.gfx.Layer.RenderContext;
-import org.mozilla.gecko.gfx.RenderTask;
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.gfx.Layer.RenderContext;
+import org.mozilla.goanna.gfx.RenderTask;
+import org.mozilla.goanna.mozglue.DirectBufferAllocator;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -27,8 +27,8 @@ import android.opengl.GLES20;
 import android.os.SystemClock;
 import android.util.Log;
 
-import org.mozilla.gecko.mozglue.JNITarget;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

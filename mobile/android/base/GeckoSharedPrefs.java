@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -51,7 +51,7 @@ public final class GoannaSharedPrefs {
     public static final String PROFILE_PREFS_NAME_PREFIX = "GoannaProfile-";
 
     // The prefs key that holds the current migration
-    private static final String PREFS_VERSION_KEY = "gecko_shared_prefs_migration";
+    private static final String PREFS_VERSION_KEY = "goanna_shared_prefs_migration";
 
     // For disabling migration when getting a SharedPreferences instance
     private static final EnumSet<Flags> disableMigrations = EnumSet.of(Flags.DISABLE_MIGRATIONS);

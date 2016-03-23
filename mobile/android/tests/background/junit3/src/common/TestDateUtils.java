@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.common;
+package org.mozilla.goanna.background.common;
 
 import java.text.SimpleDateFormat;
 import java.util.Locale;
@@ -9,7 +9,7 @@ import java.util.TimeZone;
 
 import junit.framework.TestCase;
 
-import org.mozilla.gecko.background.common.DateUtils.DateFormatter;
+import org.mozilla.goanna.background.common.DateUtils.DateFormatter;
 //import android.util.SparseArray;
 
 public class TestDateUtils extends TestCase {

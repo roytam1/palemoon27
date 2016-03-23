@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.HashSet;
 import java.util.Random;
@@ -10,11 +10,11 @@ import java.util.concurrent.Callable;
 
 import android.app.Activity;
 import android.content.ContentResolver;
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.db.ReadingListAccessor;
-import org.mozilla.gecko.db.ReadingListProvider;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.db.ReadingListAccessor;
+import org.mozilla.goanna.db.ReadingListProvider;
 
 import android.content.ContentProvider;
 import android.content.ContentUris;
@@ -23,26 +23,26 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.*;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.ADDED_ON;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.CLIENT_LAST_MODIFIED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.EXCERPT;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.GUID;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.IS_UNREAD;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.RESOLVED_TITLE;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.RESOLVED_URL;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SERVER_LAST_MODIFIED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SERVER_STORED_ON;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_CHANGE_FLAGS;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_CHANGE_NONE;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_CHANGE_RESOLVED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_CHANGE_UNREAD_CHANGED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_STATUS;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_STATUS_MODIFIED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_STATUS_NEW;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_STATUS_SYNCED;
-import static org.mozilla.gecko.db.BrowserContract.URLColumns.TITLE;
-import static org.mozilla.gecko.db.BrowserContract.URLColumns.URL;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.*;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.ADDED_ON;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.CLIENT_LAST_MODIFIED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.EXCERPT;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.GUID;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.IS_UNREAD;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.RESOLVED_TITLE;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.RESOLVED_URL;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SERVER_LAST_MODIFIED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SERVER_STORED_ON;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_CHANGE_FLAGS;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_CHANGE_NONE;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_CHANGE_RESOLVED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_CHANGE_UNREAD_CHANGED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_STATUS;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_STATUS_MODIFIED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_STATUS_NEW;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_STATUS_SYNCED;
+import static org.mozilla.goanna.db.BrowserContract.URLColumns.TITLE;
+import static org.mozilla.goanna.db.BrowserContract.URLColumns.URL;
 
 public class testReadingListProvider extends ContentProviderTest {
 

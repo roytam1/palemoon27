@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Element;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.StringUtils;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Element;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.util.StringUtils;
 
 public class testBookmarksPanel extends AboutHomeTest {
     public void testBookmarksPanel() {

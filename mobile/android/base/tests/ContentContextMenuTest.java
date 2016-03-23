@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.util.Clipboard;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.util.Clipboard;
 
 import android.util.DisplayMetrics;
 

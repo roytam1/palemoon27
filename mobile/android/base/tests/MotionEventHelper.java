@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.gfx.LayerView;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.gfx.LayerView;
 
 import android.app.Instrumentation;
 import android.os.SystemClock;

@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.stage;
+package org.mozilla.goanna.sync.stage;
 
 import java.net.URISyntaxException;
 
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.InfoCollections;
-import org.mozilla.gecko.sync.delegates.JSONRecordFetchDelegate;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.InfoCollections;
+import org.mozilla.goanna.sync.delegates.JSONRecordFetchDelegate;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
 
 public class FetchInfoCollectionsStage extends AbstractNonRepositorySyncStage {
   public class StageInfoCollectionsDelegate implements JSONRecordFetchDelegate {

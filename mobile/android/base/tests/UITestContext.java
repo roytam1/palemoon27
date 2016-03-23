@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.Driver;
-import org.mozilla.gecko.tests.components.BaseComponent;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.Driver;
+import org.mozilla.goanna.tests.components.BaseComponent;
 
 import android.app.Activity;
 import android.app.Instrumentation;

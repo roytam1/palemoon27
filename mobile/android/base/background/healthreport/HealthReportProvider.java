@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
 
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage.DatabaseEnvironment;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage.DatabaseEnvironment;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
 
 import android.content.ContentProvider;
 import android.content.ContentUris;
@@ -29,16 +29,16 @@ import android.net.Uri;
  * each of these by integer ID.
  *
  * Insert = daily discrete.
- * content://org.mozilla.gecko.health/events/env/measurement/v/field
+ * content://org.mozilla.goanna.health/events/env/measurement/v/field
  *
  * Update = daily last or daily counter
- * content://org.mozilla.gecko.health/events/env/measurement/v/field/counter
- * content://org.mozilla.gecko.health/events/env/measurement/v/field/last
+ * content://org.mozilla.goanna.health/events/env/measurement/v/field/counter
+ * content://org.mozilla.goanna.health/events/env/measurement/v/field/last
  *
  * Delete = drop today's row
- * content://org.mozilla.gecko.health/events/env/measurement/v/field/
+ * content://org.mozilla.goanna.health/events/env/measurement/v/field/
  *
- * Query, of course: content://org.mozilla.gecko.health/events/?since
+ * Query, of course: content://org.mozilla.goanna.health/events/?since
  *
  * Each operation accepts an optional `time` query parameter, formatted as
  * milliseconds since epoch. If omitted, it defaults to the current time.
@@ -266,7 +266,7 @@ public class HealthReportProvider extends ContentProvider {
   /**
    * Assumes a URI structured like:
    *
-   * <code>content://org.mozilla.gecko.health/events/env/measurement/v/field</code>
+   * <code>content://org.mozilla.goanna.health/events/env/measurement/v/field</code>
    *
    * @param uri a URI formatted as expected.
    * @return a {@link Field} instance.

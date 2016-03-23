@@ -2,23 +2,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.reading;
+package org.mozilla.goanna.reading;
 
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_CHANGE_FAVORITE_CHANGED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_CHANGE_FLAGS;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_CHANGE_UNREAD_CHANGED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_STATUS;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_STATUS_MODIFIED;
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.SYNC_STATUS_NEW;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_CHANGE_FAVORITE_CHANGED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_CHANGE_FLAGS;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_CHANGE_UNREAD_CHANGED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_STATUS;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_STATUS_MODIFIED;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.SYNC_STATUS_NEW;
 
 import java.util.ArrayList;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils;
 
 import android.content.ContentProviderClient;
 import android.content.ContentProviderOperation;

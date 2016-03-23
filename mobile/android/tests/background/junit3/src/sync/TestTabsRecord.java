@@ -1,14 +1,14 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync;
+package org.mozilla.goanna.background.sync;
 
-import org.mozilla.gecko.background.db.CursorDumper;
-import org.mozilla.gecko.background.db.TestFennecTabsStorage;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
-import org.mozilla.gecko.sync.repositories.android.FennecTabsRepository;
-import org.mozilla.gecko.sync.repositories.domain.TabsRecord;
+import org.mozilla.goanna.background.db.CursorDumper;
+import org.mozilla.goanna.background.db.TestFennecTabsStorage;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.repositories.android.BrowserContractHelpers;
+import org.mozilla.goanna.sync.repositories.android.FennecTabsRepository;
+import org.mozilla.goanna.sync.repositories.domain.TabsRecord;
 
 import android.content.ContentProviderClient;
 import android.database.Cursor;

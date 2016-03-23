@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.FloatSize;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.SwipeDismissListViewTouchListener;
-import org.mozilla.gecko.widget.SwipeDismissListViewTouchListener.OnDismissCallback;
+import org.mozilla.goanna.gfx.FloatSize;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.SwipeDismissListViewTouchListener;
+import org.mozilla.goanna.widget.SwipeDismissListViewTouchListener.OnDismissCallback;
 
 import org.json.JSONArray;
 import org.json.JSONException;

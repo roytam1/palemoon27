@@ -1,31 +1,31 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.background.sync.helpers.ExpectFetchDelegate;
-import org.mozilla.gecko.background.sync.helpers.ExpectFetchSinceDelegate;
-import org.mozilla.gecko.background.sync.helpers.ExpectGuidsSinceDelegate;
-import org.mozilla.gecko.background.sync.helpers.ExpectStoredDelegate;
-import org.mozilla.gecko.background.sync.helpers.PasswordHelpers;
-import org.mozilla.gecko.background.sync.helpers.SessionTestHelper;
-import org.mozilla.gecko.background.testhelpers.WaitHelper;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
-import org.mozilla.gecko.sync.repositories.android.PasswordsRepositorySession;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.domain.PasswordRecord;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.sync.helpers.ExpectFetchDelegate;
+import org.mozilla.goanna.background.sync.helpers.ExpectFetchSinceDelegate;
+import org.mozilla.goanna.background.sync.helpers.ExpectGuidsSinceDelegate;
+import org.mozilla.goanna.background.sync.helpers.ExpectStoredDelegate;
+import org.mozilla.goanna.background.sync.helpers.PasswordHelpers;
+import org.mozilla.goanna.background.sync.helpers.SessionTestHelper;
+import org.mozilla.goanna.background.testhelpers.WaitHelper;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.NoStoreDelegateException;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.android.BrowserContractHelpers;
+import org.mozilla.goanna.sync.repositories.android.PasswordsRepositorySession;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.domain.PasswordRecord;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

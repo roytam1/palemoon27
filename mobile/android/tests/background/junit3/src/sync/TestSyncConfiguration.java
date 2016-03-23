@@ -1,15 +1,15 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync;
+package org.mozilla.goanna.background.sync;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.sync.SyncConfiguration;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.sync.SyncConfiguration;
 
 import android.content.SharedPreferences;
 

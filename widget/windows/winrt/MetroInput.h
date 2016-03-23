@@ -115,7 +115,7 @@ public:
 
   // These input events are received from our window. These are basic
   // pointer and keyboard press events. MetroInput responds to them
-  // by sending gecko events and forwarding these input events to its
+  // by sending goanna events and forwarding these input events to its
   // GestureRecognizer to be processed into more complex input events
   // (tap, rightTap, rotate, etc)
   HRESULT OnPointerPressed(ICoreWindow* aSender,
@@ -220,10 +220,10 @@ private:
   // PointerPressed/PointerMoved/PointerReleased event for each touchpoint
   // that has changed.
   //
-  // When we learn of touch input, we dispatch gecko events in response.
+  // When we learn of touch input, we dispatch goanna events in response.
   // With the new WinRT way of doing things, we would end up sending many
-  // more gecko events than we would using the Win32 mechanism.  E.g.,
-  // for 5 active touchpoints, we would be sending 5 times as many gecko
+  // more goanna events than we would using the Win32 mechanism.  E.g.,
+  // for 5 active touchpoints, we would be sending 5 times as many goanna
   // events.  This caused performance to visibly degrade on modestly-powered
   // machines.  In response, we no longer send touch events immediately
   // upon receiving PointerPressed or PointerMoved.  Instead, we store
@@ -262,7 +262,7 @@ private:
   // Due to a limitation added in 8.1 the ui thread can't re-enter the main
   // native event dispatcher in MetroAppShell. So all events delivered to us
   // on the ui thread via a native event dispatch call get bounced through
-  // the gecko thread event queue using runnables. Most events can be sent
+  // the goanna thread event queue using runnables. Most events can be sent
   // async without the need to see the status result. Those that do have
   // specialty callbacks. Note any event that arrives to us on the ui thread
   // that originates from another thread is safe to send sync.

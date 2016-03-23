@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.net;
+package org.mozilla.goanna.sync.net;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -10,8 +10,8 @@ import java.net.URISyntaxException;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.ThreadPool;
+import org.mozilla.goanna.sync.CryptoRecord;
+import org.mozilla.goanna.sync.ThreadPool;
 
 /**
  * Resource class that implements expected headers and processing for Sync.

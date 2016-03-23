@@ -80,7 +80,7 @@ FENNEC_APPLICATION_INI_PATH='$(STAGEDIST)/application.ini'
 endif
 
 ident:
-	@printf 'gecko_revision '
+	@printf 'goanna_revision '
 	@$(PYTHON) $(topsrcdir)/config/printconfigsetting.py $(GECKO_PLATFORM_INI_PATH) Build SourceStamp
 	@printf 'fennec_revision '
 	@$(PYTHON) $(topsrcdir)/config/printconfigsetting.py $(FENNEC_APPLICATION_INI_PATH) App SourceStamp

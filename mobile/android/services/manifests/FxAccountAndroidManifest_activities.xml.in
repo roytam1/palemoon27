@@ -3,7 +3,7 @@
             android:label="@string/fxaccount_status_activity_label"
             android:clearTaskOnLaunch="true"
             android:taskAffinity="@ANDROID_PACKAGE_NAME@.FXA"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountStatusActivity"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountStatusActivity"
             android:configChanges="locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
             <!-- Adding a launcher will make this activity appear on the
@@ -19,7 +19,7 @@
             android:label="@string/sync_app_name"
             android:clearTaskOnLaunch="true"
             android:taskAffinity="@ANDROID_PACKAGE_NAME@.FXA"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountGetStartedActivity"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountGetStartedActivity"
             android:configChanges="locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
             <!-- Adding a launcher will make this activity appear on the
@@ -32,29 +32,14 @@
 
         <activity
             android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountCreateAccountActivity"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountCreateAccountActivity"
             android:configChanges="locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
         </activity>
 
         <activity
             android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountConfirmAccountActivity"
-            android:configChanges="locale|layoutDirection"
-            android:noHistory="true"
-            android:windowSoftInputMode="adjustResize">
-        </activity>
-
-        <activity
-            android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountSignInActivity"
-            android:configChanges="locale|layoutDirection"
-            android:windowSoftInputMode="adjustResize">
-        </activity>
-
-        <activity
-            android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountVerifiedAccountActivity"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountConfirmAccountActivity"
             android:configChanges="locale|layoutDirection"
             android:noHistory="true"
             android:windowSoftInputMode="adjustResize">
@@ -62,21 +47,14 @@
 
         <activity
             android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountUpdateCredentialsActivity"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountSignInActivity"
             android:configChanges="locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
         </activity>
 
         <activity
             android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountFinishMigratingActivity"
-            android:configChanges="locale|layoutDirection"
-            android:windowSoftInputMode="adjustResize">
-        </activity>
-
-        <activity
-            android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountMigrationFinishedActivity"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountVerifiedAccountActivity"
             android:configChanges="locale|layoutDirection"
             android:noHistory="true"
             android:windowSoftInputMode="adjustResize">
@@ -84,14 +62,36 @@
 
         <activity
             android:theme="@style/FxAccountTheme"
-            android:name="org.mozilla.gecko.fxa.activities.FxAccountCreateAccountNotAllowedActivity"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountUpdateCredentialsActivity"
+            android:configChanges="locale|layoutDirection"
+            android:windowSoftInputMode="adjustResize">
+        </activity>
+
+        <activity
+            android:theme="@style/FxAccountTheme"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountFinishMigratingActivity"
+            android:configChanges="locale|layoutDirection"
+            android:windowSoftInputMode="adjustResize">
+        </activity>
+
+        <activity
+            android:theme="@style/FxAccountTheme"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountMigrationFinishedActivity"
+            android:configChanges="locale|layoutDirection"
+            android:noHistory="true"
+            android:windowSoftInputMode="adjustResize">
+        </activity>
+
+        <activity
+            android:theme="@style/FxAccountTheme"
+            android:name="org.mozilla.goanna.fxa.activities.FxAccountCreateAccountNotAllowedActivity"
             android:configChanges="locale|layoutDirection"
             android:noHistory="true"
             android:windowSoftInputMode="adjustResize">
         </activity>
 
         <receiver
-            android:name="org.mozilla.gecko.fxa.receivers.FxAccountDeletedReceiver"
+            android:name="org.mozilla.goanna.fxa.receivers.FxAccountDeletedReceiver"
             android:permission="@MOZ_ANDROID_SHARED_FXACCOUNT_TYPE@.permission.PER_ACCOUNT_TYPE">
             <intent-filter>
                 <action android:name="@MOZ_ANDROID_SHARED_FXACCOUNT_TYPE@.accounts.ACCOUNT_DELETED_ACTION"/>
@@ -99,7 +99,7 @@
         </receiver>
 
         <receiver
-            android:name="org.mozilla.gecko.fxa.receivers.FxAccountUpgradeReceiver">
+            android:name="org.mozilla.goanna.fxa.receivers.FxAccountUpgradeReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.PACKAGE_REPLACED" />
                 <data android:scheme="package"/>

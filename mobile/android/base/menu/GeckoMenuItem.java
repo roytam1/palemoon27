@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.menu;
+package org.mozilla.goanna.menu;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.widget.GoannaActionProvider;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.widget.GoannaActionProvider;
 
 import android.content.Intent;
 import android.graphics.drawable.Drawable;

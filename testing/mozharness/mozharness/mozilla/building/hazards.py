@@ -30,7 +30,7 @@ class HazardAnalysis(object):
         if not os.path.exists(dirs['shell_objdir']):
             builder.mkdir_p(dirs['shell_objdir'])
 
-        js_src_dir = os.path.join(dirs['gecko_src'], 'js', 'src')
+        js_src_dir = os.path.join(dirs['goanna_src'], 'js', 'src')
         rc = builder.run_command(['autoconf-2.13'],
                               cwd=js_src_dir,
                               env=builder.env,
@@ -76,7 +76,7 @@ class HazardAnalysis(object):
         if not os.path.exists(analysis_dir):
             builder.mkdir_p(analysis_dir)
 
-        js_src_dir = os.path.join(dirs['gecko_src'], 'js', 'src')
+        js_src_dir = os.path.join(dirs['goanna_src'], 'js', 'src')
 
         values = {
             'js': os.path.join(dirs['shell_objdir'], 'dist', 'bin', 'js'),
@@ -121,7 +121,7 @@ jobs = 2
         cmd = [
             builder.config['python'],
             os.path.join(analysis_scriptdir, 'analyze.py'),
-            "--source", dirs['gecko_src'],
+            "--source", dirs['goanna_src'],
             "--buildcommand", build_script,
         ]
         retval = builder.run_command(cmd,
@@ -194,7 +194,7 @@ jobs = 2
 
         dirs = builder.query_abs_dirs()
         analysis_dir = dirs['abs_analysis_dir']
-        analysis_scriptdir = os.path.join(dirs['gecko_src'], 'js', 'src', 'devtools', 'rootAnalysis')
+        analysis_scriptdir = os.path.join(dirs['goanna_src'], 'js', 'src', 'devtools', 'rootAnalysis')
         expect_file = os.path.join(analysis_scriptdir, builder.config['expect_file'])
         expect = builder.read_from_file(expect_file)
         if expect is None:

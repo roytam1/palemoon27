@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.background.preferences;
+package org.mozilla.goanna.background.preferences;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.content.Intent;
 import android.os.Bundle;

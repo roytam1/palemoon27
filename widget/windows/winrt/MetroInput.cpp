@@ -215,7 +215,7 @@ namespace {
    * NOTE: This function will set the `mChanged` member of each
    * element it encounters to `false`, since this function is only
    * used to populate a touchlist that is about to be dispatched
-   * in a gecko touch event.
+   * in a goanna touch event.
    *
    * @param aKey the key of the current element being enumerated
    * @param aData the value of the current element being enumerated
@@ -367,16 +367,16 @@ MetroInput::OnEdgeGestureStarted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
+  WidgetSimpleGestureEvent goannaEvent(true,
                                       NS_SIMPLE_GESTURE_EDGE_STARTED,
                                       mWidget.Get());
   mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(geckoEvent);
-  geckoEvent.time = ::GetMessageTime();
-  geckoEvent.inputSource = ProcessInputTypeForGesture(aArgs);
+  mModifierKeyState.InitInputEvent(goannaEvent);
+  goannaEvent.time = ::GetMessageTime();
+  goannaEvent.inputSource = ProcessInputTypeForGesture(aArgs);
 
   // Safe
-  DispatchEventIgnoreStatus(&geckoEvent);
+  DispatchEventIgnoreStatus(&goannaEvent);
   return S_OK;
 }
 
@@ -396,16 +396,16 @@ MetroInput::OnEdgeGestureCanceled(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
+  WidgetSimpleGestureEvent goannaEvent(true,
                                       NS_SIMPLE_GESTURE_EDGE_CANCELED,
                                       mWidget.Get());
   mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(geckoEvent);
-  geckoEvent.time = ::GetMessageTime();
-  geckoEvent.inputSource = ProcessInputTypeForGesture(aArgs);
+  mModifierKeyState.InitInputEvent(goannaEvent);
+  goannaEvent.time = ::GetMessageTime();
+  goannaEvent.inputSource = ProcessInputTypeForGesture(aArgs);
 
   // Safe
-  DispatchEventIgnoreStatus(&geckoEvent);
+  DispatchEventIgnoreStatus(&goannaEvent);
   return S_OK;
 }
 
@@ -424,23 +424,23 @@ MetroInput::OnEdgeGestureCompleted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  WidgetSimpleGestureEvent geckoEvent(true,
+  WidgetSimpleGestureEvent goannaEvent(true,
                                       NS_SIMPLE_GESTURE_EDGE_COMPLETED,
                                       mWidget.Get());
   mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(geckoEvent);
-  geckoEvent.time = ::GetMessageTime();
-  geckoEvent.inputSource = ProcessInputTypeForGesture(aArgs);
+  mModifierKeyState.InitInputEvent(goannaEvent);
+  goannaEvent.time = ::GetMessageTime();
+  goannaEvent.inputSource = ProcessInputTypeForGesture(aArgs);
 
   // Safe
-  DispatchEventIgnoreStatus(&geckoEvent);
+  DispatchEventIgnoreStatus(&goannaEvent);
   return S_OK;
 }
 
 /**
  * This helper function is used by our processing of PointerPressed,
  * PointerReleased, and PointerMoved events.
- * It dispatches a gecko event in response to the input received.  This
+ * It dispatches a goanna event in response to the input received.  This
  * function should only be called for non-touch (i.e. pen or mouse) input
  * events.
  *
@@ -1051,7 +1051,7 @@ MetroInput::HandleTap(const Foundation::Point& aPoint, unsigned int aTapCount)
   mouseEvent->button = WidgetMouseEvent::buttonType::eLeftButton;
   DispatchAsyncEventIgnoreStatus(mouseEvent);
 
-  // Make sure all gecko events are dispatched and the dom is up to date
+  // Make sure all goanna events are dispatched and the dom is up to date
   // so that when ui automation comes in looking for focus info it gets
   // the right information.
   MetroAppShell::MarkEventQueueForPurge();

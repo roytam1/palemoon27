@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -11,9 +11,9 @@ import java.util.Iterator;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
-import org.mozilla.gecko.util.GoannaEventListener;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.mozglue.ContextUtils.SafeIntent;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import android.app.PendingIntent;
 import android.content.Context;
@@ -306,7 +306,7 @@ public final class NotificationHelper implements GoannaEventListener {
 
         boolean persistent = message.optBoolean(PERSISTENT_ATTR);
         // We add only not persistent notifications to the list since we want to purge only
-        // them when geckoapp is destroyed.
+        // them when goannaapp is destroyed.
         if (!persistent && !mClearableNotifications.containsKey(id)) {
             mClearableNotifications.put(id, message.toString());
         }

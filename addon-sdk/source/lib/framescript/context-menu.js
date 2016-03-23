@@ -56,7 +56,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 // Firefox always creates a HTMLVideoElement when loading an ogg file
 // directly. If the media is actually audio, be smarter and provide a
 // context menu with audio operations.
-// Source: https://github.com/mozilla/gecko-dev/blob/28c2fca3753c5371643843fc2f2f205146b083b7/browser/base/content/nsContextMenu.js#L632-L637
+// Source: https://github.com/mozilla/goanna-dev/blob/28c2fca3753c5371643843fc2f2f205146b083b7/browser/base/content/nsContextMenu.js#L632-L637
 const isVideoLoadingAudio = node =>
   node.readyState >= node.HAVE_METADATA &&
     (node.videoWidth == 0 || node.videoHeight == 0)

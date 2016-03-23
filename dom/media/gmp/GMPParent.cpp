@@ -515,7 +515,7 @@ nsIThread*
 GMPParent::GMPThread()
 {
   if (!mGMPThread) {
-    nsCOMPtr<mozIGoannaMediaPluginService> mps = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    nsCOMPtr<mozIGoannaMediaPluginService> mps = do_GetService("@mozilla.org/goanna-media-plugin-service;1");
     MOZ_ASSERT(mps);
     if (!mps) {
       return nullptr;

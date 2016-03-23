@@ -86,19 +86,19 @@ interface mozIGoannaMediaPluginService : nsISupports
   GMPDecryptorProxy getGMPDecryptor(in TagArray tags, in ACString nodeId);
 
   /**
-   * Add a directory to scan for gecko media plugins.
+   * Add a directory to scan for goanna media plugins.
    * @note Main-thread API.
    */
   void addPluginDirectory(in AString directory);
 
   /**
-   * Remove a directory for gecko media plugins.
+   * Remove a directory for goanna media plugins.
    * @note Main-thread API.
    */
   void removePluginDirectory(in AString directory);
 
   /**
-   * Remove a directory for gecko media plugins and delete it from disk.
+   * Remove a directory for goanna media plugins and delete it from disk.
    * If |defer| is true, wait until the plugin is unused before removing.
    * @note Main-thread API.
    */

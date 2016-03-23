@@ -16,13 +16,13 @@ constants_jar.sources = [
     'SysInfo.java',
 ]
 constants_jar.generated_sources = [
-    'preprocessed/org/mozilla/gecko/AppConstants.java',
+    'preprocessed/org/mozilla/goanna/AppConstants.java',
 ]
 
-resjar = add_java_jar('gecko-R')
+resjar = add_java_jar('goanna-R')
 resjar.sources = []
 resjar.generated_sources += [
-    'org/mozilla/gecko/R.java',
+    'org/mozilla/goanna/R.java',
 ]
 
 if CONFIG['MOZ_NATIVE_DEVICES']:
@@ -32,7 +32,7 @@ if CONFIG['MOZ_NATIVE_DEVICES']:
 
 resjar.javac_flags += ['-Xlint:all']
 
-mgjar = add_java_jar('gecko-mozglue')
+mgjar = add_java_jar('goanna-mozglue')
 mgjar.sources += [
     'mozglue/ByteBufferInputStream.java',
     'mozglue/ContextUtils.java',
@@ -53,7 +53,7 @@ mgjar.extra_jars += [
 ]
 mgjar.javac_flags += ['-Xlint:all']
 
-gujar = add_java_jar('gecko-util')
+gujar = add_java_jar('goanna-util')
 gujar.sources += [
     'util/ActivityResultHandler.java',
     'util/ActivityResultHandlerMap.java',
@@ -88,7 +88,7 @@ gujar.sources += [
 ]
 gujar.extra_jars = [
     'constants.jar',
-    'gecko-mozglue.jar',
+    'goanna-mozglue.jar',
 ]
 gujar.javac_flags += ['-Xlint:all,-deprecation']
 
@@ -114,14 +114,14 @@ if CONFIG['MOZ_WEBRTC']:
         audio_root + 'WebRtcAudioTrack.java',
     ]
     wrjar.extra_jars = [
-        'gecko-R.jar',
-        'gecko-browser.jar',
-        'gecko-util.jar',
-        'gecko-mozglue.jar',
+        'goanna-R.jar',
+        'goanna-browser.jar',
+        'goanna-util.jar',
+        'goanna-mozglue.jar',
     ]
     wrjar.javac_flags += ['-Xlint:all,-deprecation,-cast']
 
-gbjar = add_java_jar('gecko-browser')
+gbjar = add_java_jar('goanna-browser')
 gbjar.sources += [
     'AboutPages.java',
     'ActionModeCompat.java',
@@ -575,10 +575,10 @@ if CONFIG['MOZ_ANDROID_READING_LIST_SERVICE']:
 
 gbjar.sources += sync_java_files
 gbjar.extra_jars += [
-    'gecko-R.jar',
-    'gecko-mozglue.jar',
-    'gecko-thirdparty.jar',
-    'gecko-util.jar',
+    'goanna-R.jar',
+    'goanna-mozglue.jar',
+    'goanna-thirdparty.jar',
+    'goanna-util.jar',
     'sync-thirdparty.jar',
 ]
 
@@ -598,8 +598,8 @@ if CONFIG['MOZ_NATIVE_DEVICES']:
 
 gbjar.javac_flags += ['-Xlint:all,-deprecation,-fallthrough', '-J-Xmx512m', '-J-Xms128m']
 
-# gecko-thirdparty is a good place to put small independent libraries
-gtjar = add_java_jar('gecko-thirdparty')
+# goanna-thirdparty is a good place to put small independent libraries
+gtjar = add_java_jar('goanna-thirdparty')
 gtjar.sources += [ thirdparty_source_dir + f for f in [
     'com/nineoldandroids/animation/Animator.java',
     'com/nineoldandroids/animation/AnimatorInflater.java',
@@ -721,42 +721,42 @@ if CONFIG['MOZ_ANDROID_SEARCH_ACTIVITY']:
     search_activity.javac_flags += ['-Xlint:all']
     search_activity.extra_jars = [
         'constants.jar',
-        'gecko-R.jar',
-        'gecko-browser.jar',
-        'gecko-mozglue.jar',
-        'gecko-thirdparty.jar',
-        'gecko-util.jar'
+        'goanna-R.jar',
+        'goanna-browser.jar',
+        'goanna-mozglue.jar',
+        'goanna-thirdparty.jar',
+        'goanna-util.jar'
     ]
 
 generated_recursive_make_targets = ['.aapt.deps', '.locales.deps'] # Captures dependencies on Android manifest and all resources.
 
 generated = add_android_eclipse_library_project('FennecResourcesGenerated')
-generated.package_name = 'org.mozilla.gecko.generated'
+generated.package_name = 'org.mozilla.goanna.generated'
 generated.res = OBJDIR + '/res'
 generated.recursive_make_targets += generated_recursive_make_targets
 
 branding = add_android_eclipse_library_project('FennecResourcesBranding')
-branding.package_name = 'org.mozilla.gecko.branding'
+branding.package_name = 'org.mozilla.goanna.branding'
 branding.res = TOPSRCDIR + '/' + CONFIG['MOZ_BRANDING_DIRECTORY'] + '/res'
 branding.recursive_make_targets += generated_recursive_make_targets
 
 static = add_android_eclipse_library_project('FennecResourcesStatic')
-# 'org.mozilla.gecko.static' is not a valid Java package name, so we use a different one.
-static.package_name = 'org.mozilla.gecko.resources'
+# 'org.mozilla.goanna.static' is not a valid Java package name, so we use a different one.
+static.package_name = 'org.mozilla.goanna.resources'
 static.res = SRCDIR + '/resources'
 static.recursive_make_targets += generated_recursive_make_targets
 static.included_projects += ['../' + generated.name, '../' + branding.name]
 static.referenced_projects += ['../' + generated.name, '../' + branding.name]
 
 main = add_android_eclipse_project('Fennec', OBJDIR + '/AndroidManifest.xml')
-main.package_name = 'org.mozilla.gecko'
+main.package_name = 'org.mozilla.goanna'
 
 # These values were extracted from an existing Eclipse project.  Use
 # Project > Resource > Resource Filters and inspect the resulting
 # .project file to modify this list.
 main.filtered_resources += [
-    '1.0-projectRelativePath-matches-false-false-*org/mozilla/gecko/resources/**',
-    '1.0-projectRelativePath-matches-false-false-*org/mozilla/gecko/tests/**',
+    '1.0-projectRelativePath-matches-false-false-*org/mozilla/goanna/resources/**',
+    '1.0-projectRelativePath-matches-false-false-*org/mozilla/goanna/tests/**',
 ]
 
 main.recursive_make_targets += generated_recursive_make_targets
@@ -774,13 +774,13 @@ main.libs = [
 main.res = None
 
 cpe = main.add_classpathentry('src', SRCDIR,
-    dstdir='src/org/mozilla/gecko',
+    dstdir='src/org/mozilla/goanna',
     exclude_patterns=[
-        'org/mozilla/gecko/tests/**',
-        'org/mozilla/gecko/resources/**'])
+        'org/mozilla/goanna/tests/**',
+        'org/mozilla/goanna/resources/**'])
 
 if not CONFIG['MOZ_CRASHREPORTER']:
-    cpe.exclude_patterns += ['org/mozilla/gecko/CrashReporter.java']
+    cpe.exclude_patterns += ['org/mozilla/goanna/CrashReporter.java']
 
 if CONFIG['MOZ_NATIVE_DEVICES']:
     # This is rather hacky, but: we define three Eclipse projects for appcompat,
@@ -824,23 +824,23 @@ main.add_classpathentry('thirdparty', TOPSRCDIR + '/mobile/android/thirdparty',
     dstdir='thirdparty',
     ignore_warnings=True)
 
-# Eclipse generates org.mozilla.gecko.R for this project, which is referenced by
+# Eclipse generates org.mozilla.goanna.R for this project, which is referenced by
 # all the Java code. The reason that this is not generated in the main Fennec
 # project is that you cannot specify a custom package to the Eclipse Android
 # builder; that is, the Eclipse Android builder always builds the
 # org.mozilla.fennec_*.R class. This approach works because Eclipse shares
 # resources and some code across projects implicitly, which lets us provide
-# org.mozilla.gecko.R to the main Fennec project from the FennecResources
+# org.mozilla.goanna.R to the main Fennec project from the FennecResources
 # project.
 #
 # Previously, the static resources were in the FennecResources project. To let
-# the FennecResources Eclipse project produce org.mozilla.gecko.R, however, the
+# the FennecResources Eclipse project produce org.mozilla.goanna.R, however, the
 # project must depend on all the resource projects.  But the crash reporter
 # resources depend on some of the static resources, and that causes a cycle.
 # This layer of indirection lets us break the cycle.
 
 resources = add_android_eclipse_library_project('FennecResources')
-resources.package_name = 'org.mozilla.gecko'
+resources.package_name = 'org.mozilla.goanna'
 resources.res = None
 resources.included_projects += ['../' + static.name, '../' + generated.name, '../' + branding.name]
 resources.recursive_make_targets += generated_recursive_make_targets
@@ -849,7 +849,7 @@ resources.recursive_make_targets += generated_recursive_make_targets
 main.included_projects += ['../' + resources.name]
 
 omnijar = add_android_eclipse_library_project('FennecOmnijar')
-omnijar.package_name = 'org.mozilla.gecko.omnijar'
+omnijar.package_name = 'org.mozilla.goanna.omnijar'
 # This is delicate.  We write into OBJDIR, and write triggers a new build of the
 # Fennec project, because the omni.ja timestamp is always updated. (The target
 # is FORCE and the installer does not track dependencies.) However, Eclipse only
@@ -865,7 +865,7 @@ main.included_projects += ['../' + omnijar.name]
 
 if CONFIG['MOZ_CRASHREPORTER']:
     crashreporter = add_android_eclipse_library_project('FennecResourcesCrashReporter')
-    crashreporter.package_name = 'org.mozilla.gecko.crashreporter'
+    crashreporter.package_name = 'org.mozilla.goanna.crashreporter'
     crashreporter.res = SRCDIR + '/crashreporter/res'
     crashreporter.recursive_make_targets += generated_recursive_make_targets
 

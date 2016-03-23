@@ -1,19 +1,19 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.util.ArrayList;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields;
-import org.mozilla.gecko.background.healthreport.MockHealthReportDatabaseStorage.PrepopulatedMockHealthReportDatabaseStorage;
-import org.mozilla.gecko.background.helpers.DBHelpers;
-import org.mozilla.gecko.background.helpers.FakeProfileTestCase;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
+import org.mozilla.goanna.background.healthreport.MockHealthReportDatabaseStorage.PrepopulatedMockHealthReportDatabaseStorage;
+import org.mozilla.goanna.background.helpers.DBHelpers;
+import org.mozilla.goanna.background.helpers.FakeProfileTestCase;
 
 import android.content.ContentValues;
 import android.database.Cursor;

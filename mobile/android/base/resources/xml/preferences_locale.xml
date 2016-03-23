@@ -4,13 +4,13 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:title="@string/pref_category_language"
                   android:enabled="false">
     <PreferenceCategory android:title="@string/pref_browser_locale">
         <!-- No title set here. We set the title to the current locale in
              GoannaPreferences. -->
-        <org.mozilla.gecko.preferences.LocaleListPreference
+        <org.mozilla.goanna.preferences.LocaleListPreference
             android:key="locale"
             android:persistent="true"
             android:defaultValue=""

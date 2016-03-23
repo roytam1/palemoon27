@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.helpers;
+package org.mozilla.goanna.background.helpers;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -14,7 +14,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.UUID;
 
-import org.mozilla.gecko.background.common.GlobalConstants;
+import org.mozilla.goanna.background.common.GlobalConstants;
 
 /**
  * An abstract test class for testing background services. Since we have to wait for background

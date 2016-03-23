@@ -2,20 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.Driver;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.tests.components.AboutHomeComponent;
-import org.mozilla.gecko.tests.components.AppMenuComponent;
-import org.mozilla.gecko.tests.components.BaseComponent;
-import org.mozilla.gecko.tests.components.GoannaViewComponent;
-import org.mozilla.gecko.tests.components.ToolbarComponent;
-import org.mozilla.gecko.tests.helpers.HelperInitializer;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.Driver;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.tests.components.AboutHomeComponent;
+import org.mozilla.goanna.tests.components.AppMenuComponent;
+import org.mozilla.goanna.tests.components.BaseComponent;
+import org.mozilla.goanna.tests.components.GoannaViewComponent;
+import org.mozilla.goanna.tests.components.ToolbarComponent;
+import org.mozilla.goanna.tests.helpers.HelperInitializer;
 
 import android.content.Intent;
 import android.text.TextUtils;

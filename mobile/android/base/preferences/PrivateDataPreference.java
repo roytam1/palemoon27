@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -54,7 +54,7 @@ class PrivateDataPreference extends MultiPrefMultiChoicePreference {
             }
         }
 
-        // clear private data in gecko
+        // clear private data in goanna
         GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
     }
 }

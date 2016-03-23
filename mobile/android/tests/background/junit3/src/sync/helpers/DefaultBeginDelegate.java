@@ -1,12 +1,12 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync.helpers;
+package org.mozilla.goanna.background.sync.helpers;
 
 import java.util.concurrent.ExecutorService;
 
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionBeginDelegate;
 
 public class DefaultBeginDelegate extends DefaultDelegate implements RepositorySessionBeginDelegate {
   @Override

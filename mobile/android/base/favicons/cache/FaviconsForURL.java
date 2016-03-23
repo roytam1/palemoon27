@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.favicons.cache;
+package org.mozilla.goanna.favicons.cache;
 
 import android.graphics.Bitmap;
 import android.util.Log;
-import org.mozilla.gecko.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.BitmapUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;

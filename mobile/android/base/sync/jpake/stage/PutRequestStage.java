@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.jpake.stage;
+package org.mozilla.goanna.sync.jpake.stage;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -11,13 +11,13 @@ import java.security.GeneralSecurityException;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.jpake.JPakeClient;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
-import org.mozilla.gecko.sync.net.Resource;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.jpake.JPakeClient;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.sync.net.Resource;
+import org.mozilla.goanna.sync.setup.Constants;
 
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpResponse;

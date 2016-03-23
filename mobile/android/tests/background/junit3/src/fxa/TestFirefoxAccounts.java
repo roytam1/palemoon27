@@ -1,17 +1,17 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.fxa;
+package org.mozilla.goanna.background.fxa;
 
 import java.util.EnumSet;
 
 import junit.framework.Assert;
 
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncAdapter;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncAdapter;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.setup.Constants;
 
 import android.content.ContentResolver;
 import android.os.Bundle;

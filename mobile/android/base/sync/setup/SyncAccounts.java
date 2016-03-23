@@ -2,23 +2,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.setup;
+package org.mozilla.goanna.sync.setup;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.CredentialException;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.config.AccountPickler;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.CredentialException;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.config.AccountPickler;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;

@@ -12,7 +12,7 @@ from .tree import GitTree, HgTree, GoannaCommit
 from .upstream import SyncToUpstream
 
 class LoadTrees(Step):
-    """Load gecko tree and sync tree containing web-platform-tests"""
+    """Load goanna tree and sync tree containing web-platform-tests"""
 
     provides = ["local_tree", "sync_tree"]
 

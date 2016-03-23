@@ -4,18 +4,18 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
-       xmlns:gecko="http://schemas.android.com/apk/res-auto">
+       xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <RelativeLayout android:id="@+id/tabs_panel_header"
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/browser_toolbar_height">
 
-        <view class="org.mozilla.gecko.tabs.TabsPanel$TabsPanelToolbar"
+        <view class="org.mozilla.goanna.tabs.TabsPanel$TabsPanelToolbar"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:background="@color/background_tabs">
 
-            <org.mozilla.gecko.widget.IconTabWidget android:id="@+id/tab_widget"
+            <org.mozilla.goanna.widget.IconTabWidget android:id="@+id/tab_widget"
                                                     android:layout_width="wrap_content"
                                                     android:layout_height="match_parent"
                                                     android:tabStripEnabled="false"
@@ -32,22 +32,22 @@
 
     </RelativeLayout>
 
-    <view class="org.mozilla.gecko.tabs.TabsPanel$TabsLayoutContainer"
+    <view class="org.mozilla.goanna.tabs.TabsPanel$TabsLayoutContainer"
           android:id="@+id/tabs_container"
           android:layout_width="match_parent"
           android:layout_height="0dip"
           android:layout_weight="1.0">
 
-        <view class="org.mozilla.gecko.tabs.TabsPanel$TabsLayout"
+        <view class="org.mozilla.goanna.tabs.TabsPanel$TabsLayout"
               android:id="@+id/normal_tabs"
               style="@style/TabsLayout"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:choiceMode="singleChoice"
               android:visibility="gone"
-              gecko:tabs="tabs_normal"/>
+              goanna:tabs="tabs_normal"/>
 
-        <org.mozilla.gecko.tabs.PrivateTabsPanel
+        <org.mozilla.goanna.tabs.PrivateTabsPanel
                 android:id="@+id/private_tabs_panel"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -59,7 +59,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/browser_toolbar_height">
 
-        <view class="org.mozilla.gecko.tabs.TabsPanel$TabsPanelToolbar"
+        <view class="org.mozilla.goanna.tabs.TabsPanel$TabsPanelToolbar"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:background="@color/background_tabs">

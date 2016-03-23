@@ -12,7 +12,7 @@ add_task(function test_JNI() {
     jenv = JNI.GetForThread();
 
     // Test a simple static method.
-    var geckoAppShell = JNI.LoadClass(jenv, "org.mozilla.gecko.GoannaAppShell", {
+    var goannaAppShell = JNI.LoadClass(jenv, "org.mozilla.goanna.GoannaAppShell", {
       static_methods: [
         { name: "getPreferredIconSize", sig: "()I" },
         { name: "getContext", sig: "()Landroid/content/Context;" },
@@ -20,13 +20,13 @@ add_task(function test_JNI() {
     });
 
     let iconSize = -1;
-    iconSize = geckoAppShell.getPreferredIconSize();
+    iconSize = goannaAppShell.getPreferredIconSize();
     do_check_neq(iconSize, -1);
 
     // Test GoannaNetworkManager methods that are accessed by PaymentsUI.js.
     // The return values can vary, so we can't test for equivalence, but we
     // can ensure that the method calls return values of the correct type.
-    let jGoannaNetworkManager = JNI.LoadClass(jenv, "org/mozilla/gecko/GoannaNetworkManager", {
+    let jGoannaNetworkManager = JNI.LoadClass(jenv, "org/mozilla/goanna/GoannaNetworkManager", {
       static_methods: [
         { name: "getMNC", sig: "()I" },
         { name: "getMCC", sig: "()I" },
@@ -47,7 +47,7 @@ add_task(function test_JNI() {
         { name: "getName", sig: "()Ljava/lang/String;" },
       ],
     });
-    do_check_eq("org.mozilla.gecko.BrowserApp", JNI.ReadString(jenv, geckoAppShell.getContext().getClass().getName()));
+    do_check_eq("org.mozilla.goanna.BrowserApp", JNI.ReadString(jenv, goannaAppShell.getContext().getClass().getName()));
   } finally {
     if (jenv) {
       JNI.UnloadClasses(jenv);

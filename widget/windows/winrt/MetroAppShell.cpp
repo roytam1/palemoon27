@@ -260,7 +260,7 @@ MetroAppShell::Run(void)
         restartingInDesktop = false;
       }
 
-      // This calls XRE_metroShutdown() in xre. Shuts down gecko, including
+      // This calls XRE_metroShutdown() in xre. Shuts down goanna, including
       // releasing the profile, and destroys MessagePump.
       sMetroApp->Shutdown();
 

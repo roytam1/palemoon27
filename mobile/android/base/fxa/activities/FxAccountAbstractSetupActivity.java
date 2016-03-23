@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.activities;
+package org.mozilla.goanna.fxa.activities;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -12,26 +12,26 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountClient10.RequestDelegate;
-import org.mozilla.gecko.background.fxa.FxAccountClient20.LoginResponse;
-import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.background.fxa.PasswordStretcher;
-import org.mozilla.gecko.background.fxa.QuickPasswordStretcher;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.Engaged;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.fxa.tasks.FxAccountSetupTask.ProgressDisplay;
-import org.mozilla.gecko.fxa.tasks.FxAccountUnlockCodeResender;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.setup.Constants;
-import org.mozilla.gecko.sync.setup.activities.ActivityUtils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.FxAccountClient10.RequestDelegate;
+import org.mozilla.goanna.background.fxa.FxAccountClient20.LoginResponse;
+import org.mozilla.goanna.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.background.fxa.PasswordStretcher;
+import org.mozilla.goanna.background.fxa.QuickPasswordStretcher;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.login.Engaged;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.fxa.tasks.FxAccountSetupTask.ProgressDisplay;
+import org.mozilla.goanna.fxa.tasks.FxAccountUnlockCodeResender;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.setup.Constants;
+import org.mozilla.goanna.sync.setup.activities.ActivityUtils;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;

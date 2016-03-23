@@ -3,21 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.ActivityHandlerHelper;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.CustomEditText;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.InputMethods;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.toolbar.BrowserToolbar.OnCommitListener;
-import org.mozilla.gecko.toolbar.BrowserToolbar.OnDismissListener;
-import org.mozilla.gecko.toolbar.BrowserToolbar.OnFilterListener;
-import org.mozilla.gecko.util.ActivityResultHandler;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.StringUtils;
+import org.mozilla.goanna.ActivityHandlerHelper;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.CustomEditText;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.InputMethods;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.toolbar.BrowserToolbar.OnCommitListener;
+import org.mozilla.goanna.toolbar.BrowserToolbar.OnDismissListener;
+import org.mozilla.goanna.toolbar.BrowserToolbar.OnFilterListener;
+import org.mozilla.goanna.util.ActivityResultHandler;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.StringUtils;
 
 import android.app.Activity;
 import android.app.AlertDialog;

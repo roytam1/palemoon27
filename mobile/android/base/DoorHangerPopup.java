@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.HashSet;
 import java.util.List;
@@ -11,12 +11,12 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.prompts.PromptInput;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.ArrowPopup;
-import org.mozilla.gecko.widget.DoorHanger;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.prompts.PromptInput;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.ArrowPopup;
+import org.mozilla.goanna.widget.DoorHanger;
 
 import android.content.Context;
 import android.util.Log;
@@ -73,14 +73,14 @@ public class DoorHangerPopup extends ArrowPopup
     }
 
     @Override
-    public void handleMessage(String event, JSONObject geckoObject) {
+    public void handleMessage(String event, JSONObject goannaObject) {
         try {
             if (event.equals("Doorhanger:Add")) {
-                final int tabId = geckoObject.getInt("tabID");
-                final String value = geckoObject.getString("value");
-                final String message = geckoObject.getString("message");
-                final JSONArray buttons = geckoObject.getJSONArray("buttons");
-                final JSONObject options = geckoObject.getJSONObject("options");
+                final int tabId = goannaObject.getInt("tabID");
+                final String value = goannaObject.getString("value");
+                final String message = goannaObject.getString("message");
+                final JSONArray buttons = goannaObject.getJSONArray("buttons");
+                final JSONObject options = goannaObject.getJSONObject("options");
 
                 ThreadUtils.postToUiThread(new Runnable() {
                     @Override
@@ -89,8 +89,8 @@ public class DoorHangerPopup extends ArrowPopup
                     }
                 });
             } else if (event.equals("Doorhanger:Remove")) {
-                final int tabId = geckoObject.getInt("tabID");
-                final String value = geckoObject.getString("value");
+                final int tabId = goannaObject.getInt("tabID");
+                final String value = goannaObject.getString("value");
 
                 ThreadUtils.postToUiThread(new Runnable() {
                     @Override

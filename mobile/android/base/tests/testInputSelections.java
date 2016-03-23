@@ -1,9 +1,9 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
-import org.mozilla.gecko.tests.helpers.NavigationHelper;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.tests.helpers.NavigationHelper;
 
 import android.util.Log;
 

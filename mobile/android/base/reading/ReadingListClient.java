@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.reading;
+package org.mozilla.goanna.reading;
 
 import java.io.IOException;
 import java.net.URI;
@@ -11,16 +11,16 @@ import java.security.GeneralSecurityException;
 import java.util.Queue;
 import java.util.concurrent.Executor;
 
-import org.mozilla.gecko.background.ReadingListConstants;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.reading.ReadingListResponse.ResponseFactory;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
-import org.mozilla.gecko.sync.net.BasicAuthHeaderProvider;
-import org.mozilla.gecko.sync.net.MozResponse;
-import org.mozilla.gecko.sync.net.Resource;
+import org.mozilla.goanna.background.ReadingListConstants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.reading.ReadingListResponse.ResponseFactory;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.sync.net.BasicAuthHeaderProvider;
+import org.mozilla.goanna.sync.net.MozResponse;
+import org.mozilla.goanna.sync.net.Resource;
 
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -13,14 +13,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.mozglue.JNITarget;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;

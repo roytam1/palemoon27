@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.Map;
 
@@ -10,16 +10,16 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.Driver;
-import org.mozilla.gecko.FennecInstrumentationTestRunner;
-import org.mozilla.gecko.FennecMochitestAssert;
-import org.mozilla.gecko.FennecNativeActions;
-import org.mozilla.gecko.FennecNativeDriver;
-import org.mozilla.gecko.FennecTalosAssert;
-import org.mozilla.gecko.updater.UpdateServiceHelper;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.Driver;
+import org.mozilla.goanna.FennecInstrumentationTestRunner;
+import org.mozilla.goanna.FennecMochitestAssert;
+import org.mozilla.goanna.FennecNativeActions;
+import org.mozilla.goanna.FennecNativeDriver;
+import org.mozilla.goanna.FennecTalosAssert;
+import org.mozilla.goanna.updater.UpdateServiceHelper;
 
 import android.app.Activity;
 import android.content.Context;

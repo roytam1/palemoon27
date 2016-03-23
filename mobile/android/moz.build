@@ -22,7 +22,7 @@ DIRS += [
     'themes/core',
     'app',
     'fonts',
-    'geckoview_library',
+    'goannaview_library',
     'extensions',
 ]
 

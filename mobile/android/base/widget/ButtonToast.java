@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.animation.PropertyAnimator;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.animation.PropertyAnimator;
 
 import android.graphics.drawable.Drawable;
 import android.os.Handler;

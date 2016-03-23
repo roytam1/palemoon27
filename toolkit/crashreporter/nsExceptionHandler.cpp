@@ -943,7 +943,7 @@ bool MinidumpCallback(
                        "/system/bin/am",
                        "start",
                        "--user", androidUserSerial,
-                       "-a", "org.mozilla.gecko.reportCrash",
+                       "-a", "org.mozilla.goanna.reportCrash",
                        "-n", crashReporterPath,
                        "--es", "minidumpPath", minidumpPath,
                        (char*)0);
@@ -951,7 +951,7 @@ bool MinidumpCallback(
       unused << execlp("/system/bin/am",
                        "/system/bin/am",
                        "start",
-                       "-a", "org.mozilla.gecko.reportCrash",
+                       "-a", "org.mozilla.goanna.reportCrash",
                        "-n", crashReporterPath,
                        "--es", "minidumpPath", minidumpPath,
                        (char*)0);
@@ -1131,7 +1131,7 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
 #else
     // On Android, we launch using the application package name
     // instead of a filename, so use ANDROID_PACKAGE_NAME to do that here.
-    nsCString package(ANDROID_PACKAGE_NAME "/org.mozilla.gecko.CrashReporter");
+    nsCString package(ANDROID_PACKAGE_NAME "/org.mozilla.goanna.CrashReporter");
     crashReporterPath = ToNewCString(package);
 #endif
   }
@@ -2719,7 +2719,7 @@ OOPInit()
 
 #if defined(XP_WIN)
   childCrashNotifyPipe =
-    PR_smprintf("\\\\.\\pipe\\gecko-crash-server-pipe.%i",
+    PR_smprintf("\\\\.\\pipe\\goanna-crash-server-pipe.%i",
                 static_cast<int>(::GetCurrentProcessId()));
 
   const std::wstring dumpPath = gExceptionHandler->dump_path();
@@ -2749,7 +2749,7 @@ OOPInit()
 
 #elif defined(XP_MACOSX)
   childCrashNotifyPipe =
-    PR_smprintf("gecko-crash-server-pipe.%i",
+    PR_smprintf("goanna-crash-server-pipe.%i",
                 static_cast<int>(getpid()));
   const std::string dumpPath = gExceptionHandler->dump_path();
 

@@ -242,7 +242,7 @@ AndroidBridge::Init(JNIEnv *jEnv, Object::Param clsLoader)
     InitAndroidJavaWrappers(jEnv);
 
     // jEnv should NOT be cached here by anything -- the jEnv here
-    // is not valid for the real gecko main thread, which is set
+    // is not valid for the real goanna main thread, which is set
     // at SetMainThread time.
 
     return true;
@@ -1676,7 +1676,7 @@ AndroidBridge::AddPluginView(jobject view, const LayoutDeviceRect& rect, bool is
 extern "C"
 __attribute__ ((visibility("default")))
 jobject JNICALL
-Java_org_mozilla_gecko_GoannaAppShell_allocateDirectBuffer(JNIEnv *env, jclass, jlong size);
+Java_org_mozilla_goanna_GoannaAppShell_allocateDirectBuffer(JNIEnv *env, jclass, jlong size);
 
 bool
 AndroidBridge::GetThreadNameJavaProfiling(uint32_t aThreadId, nsCString & aResult)

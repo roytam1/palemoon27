@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.activities;
+package org.mozilla.goanna.fxa.activities;
 
-import org.mozilla.gecko.Locales.LocaleAwareActivity;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountAgeLockoutHelper;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.sync.setup.activities.ActivityUtils;
+import org.mozilla.goanna.Locales.LocaleAwareActivity;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.FxAccountAgeLockoutHelper;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.sync.setup.activities.ActivityUtils;
 
 import android.accounts.Account;
 import android.app.Activity;

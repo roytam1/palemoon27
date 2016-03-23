@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.fxa;
+package org.mozilla.goanna.background.fxa;
 
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
 
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.background.fxa.FxAccountClient10.CreateDelegate;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.background.fxa.FxAccountClient10.CreateDelegate;
+import org.mozilla.goanna.sync.Utils;
 
 public class FxAccount20CreateDelegate implements CreateDelegate {
   protected final byte[] emailUTF8;

@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.login;
+package org.mozilla.goanna.fxa.login;
 
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.background.fxa.FxAccountClient10.TwoKeys;
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.browserid.BrowserIDKeyPair;
-import org.mozilla.gecko.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.AccountVerified;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.LocalError;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.LogMessage;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.RemoteError;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.Transition;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.background.fxa.FxAccountClient10.TwoKeys;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.browserid.BrowserIDKeyPair;
+import org.mozilla.goanna.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.AccountVerified;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.LocalError;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.LogMessage;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.RemoteError;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.Transition;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.Utils;
 
 public class Engaged extends State {
   private static final String LOG_TAG = Engaged.class.getSimpleName();

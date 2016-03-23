@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.AppConstants.Versions;
+import org.mozilla.goanna.AppConstants.Versions;
 
 import android.content.Context;
 import android.content.res.Resources;

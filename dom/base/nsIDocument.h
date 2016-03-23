@@ -845,7 +845,7 @@ public:
    * front.
    *
    * By "built-in" user-agent style sheets we mean the user-agent style sheets
-   * that gecko itself supplies (such as html.css and svg.css) as opposed to
+   * that goanna itself supplies (such as html.css and svg.css) as opposed to
    * user-agent level style sheets inserted by add-ons or the like.
    *
    * This function prepends the given style sheet to the document's style set

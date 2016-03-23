@@ -188,8 +188,8 @@ nsNativeDragTarget::ProcessDrag(uint32_t     aEventType,
                                 DWORD*       pdwEffect)
 {
   // Before dispatching the event make sure we have the correct drop action set
-  uint32_t geckoAction;
-  GetGoannaDragAction(grfKeyState, pdwEffect, &geckoAction);
+  uint32_t goannaAction;
+  GetGoannaDragAction(grfKeyState, pdwEffect, &goannaAction);
 
   // Set the current action into the Goanna specific type
   nsCOMPtr<nsIDragSession> currSession;
@@ -198,7 +198,7 @@ nsNativeDragTarget::ProcessDrag(uint32_t     aEventType,
     return;
   }
 
-  currSession->SetDragAction(geckoAction);
+  currSession->SetDragAction(goannaAction);
 
   // Dispatch the event into Goanna
   DispatchDragDropEvent(aEventType, ptl);

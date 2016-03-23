@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.setup.auth;
+package org.mozilla.goanna.sync.setup.auth;
 
 import java.util.LinkedList;
 import java.util.Queue;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.setup.activities.AccountActivity;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.setup.activities.AccountActivity;
 
 public class AccountAuthenticator {
   private final String LOG_TAG = "AccountAuthenticator";

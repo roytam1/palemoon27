@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -27,9 +27,9 @@ import java.util.TreeMap;
 import org.json.simple.JSONArray;
 import org.mozilla.apache.commons.codec.binary.Base32;
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.nativecode.NativeCrypto;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.nativecode.NativeCrypto;
+import org.mozilla.goanna.sync.setup.Constants;
 
 import android.annotation.SuppressLint;
 import android.content.Context;

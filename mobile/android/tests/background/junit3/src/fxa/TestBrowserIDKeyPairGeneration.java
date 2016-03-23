@@ -1,19 +1,19 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.fxa;
+package org.mozilla.goanna.background.fxa;
 
 import java.security.GeneralSecurityException;
 
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.browserid.BrowserIDKeyPair;
-import org.mozilla.gecko.browserid.DSACryptoImplementation;
-import org.mozilla.gecko.browserid.JSONWebTokenUtils;
-import org.mozilla.gecko.browserid.RSACryptoImplementation;
-import org.mozilla.gecko.browserid.SigningPrivateKey;
-import org.mozilla.gecko.browserid.VerifyingPublicKey;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.browserid.BrowserIDKeyPair;
+import org.mozilla.goanna.browserid.DSACryptoImplementation;
+import org.mozilla.goanna.browserid.JSONWebTokenUtils;
+import org.mozilla.goanna.browserid.RSACryptoImplementation;
+import org.mozilla.goanna.browserid.SigningPrivateKey;
+import org.mozilla.goanna.browserid.VerifyingPublicKey;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.Utils;
 
 public class TestBrowserIDKeyPairGeneration extends AndroidSyncTestCase {
   public void doTestEncodeDecode(BrowserIDKeyPair keyPair) throws Exception {

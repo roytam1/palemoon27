@@ -65,8 +65,8 @@ private:
 
 const WCHAR *const IA2_RELATION_NULL = L"";
 
-#define RELATIONTYPE(geckoType, name, atkType, msaaType, ia2Type) \
-  std::pair<RelationType, const WCHAR *const>(RelationType::geckoType, ia2Type),
+#define RELATIONTYPE(goannaType, name, atkType, msaaType, ia2Type) \
+  std::pair<RelationType, const WCHAR *const>(RelationType::goannaType, ia2Type),
 
 static const std::pair<RelationType, const WCHAR *const> sRelationTypePairs[] = {
 #include "RelationTypeMap.h"

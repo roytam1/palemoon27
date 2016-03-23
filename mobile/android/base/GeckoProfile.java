@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -17,17 +17,17 @@ import java.util.Hashtable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.mozilla.gecko.GoannaProfileDirectories.NoMozillaDirectoryException;
-import org.mozilla.gecko.GoannaProfileDirectories.NoSuchProfileException;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.LocalBrowserDB;
-import org.mozilla.gecko.db.StubBrowserDB;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.mozglue.ContextUtils;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.firstrun.FirstrunPane;
-import org.mozilla.gecko.util.INIParser;
-import org.mozilla.gecko.util.INISection;
+import org.mozilla.goanna.GoannaProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.goanna.GoannaProfileDirectories.NoSuchProfileException;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.LocalBrowserDB;
+import org.mozilla.goanna.db.StubBrowserDB;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.mozglue.ContextUtils;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.firstrun.FirstrunPane;
+import org.mozilla.goanna.util.INIParser;
+import org.mozilla.goanna.util.INISection;
 
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -142,9 +142,9 @@ public final class GoannaProfile {
         if (isGoannaApp) {
             // Check for a cached profile on this context already
             // TODO: We should not be caching profile information on the Activity context
-            final GoannaApp geckoApp = (GoannaApp) context;
-            if (geckoApp.mProfile != null) {
-                return geckoApp.mProfile;
+            final GoannaApp goannaApp = (GoannaApp) context;
+            if (goannaApp.mProfile != null) {
+                return goannaApp.mProfile;
             }
         }
 
@@ -172,10 +172,10 @@ public final class GoannaProfile {
         }
 
         if (isGoannaApp) {
-            final GoannaApp geckoApp = (GoannaApp) context;
+            final GoannaApp goannaApp = (GoannaApp) context;
             String defaultProfileName;
             try {
-                defaultProfileName = geckoApp.getDefaultProfileName();
+                defaultProfileName = goannaApp.getDefaultProfileName();
             } catch (NoMozillaDirectoryException e) {
                 // If this failed, we're screwed. But there are so many callers that
                 // we'll just throw a RuntimeException.

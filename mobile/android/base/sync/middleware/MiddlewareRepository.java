@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.middleware;
+package org.mozilla.goanna.sync.middleware;
 
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
 
 public abstract class MiddlewareRepository extends Repository {
 

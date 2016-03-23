@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.EnumSet;
 
-import org.mozilla.gecko.db.BrowserContract.HomeItems;
-import org.mozilla.gecko.home.HomeConfig.ItemHandler;
-import org.mozilla.gecko.home.HomeConfig.ViewConfig;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.home.PanelLayout.DatasetBacked;
-import org.mozilla.gecko.home.PanelLayout.FilterManager;
-import org.mozilla.gecko.home.PanelLayout.OnItemOpenListener;
-import org.mozilla.gecko.home.PanelLayout.PanelView;
+import org.mozilla.goanna.db.BrowserContract.HomeItems;
+import org.mozilla.goanna.home.HomeConfig.ItemHandler;
+import org.mozilla.goanna.home.HomeConfig.ViewConfig;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.home.PanelLayout.DatasetBacked;
+import org.mozilla.goanna.home.PanelLayout.FilterManager;
+import org.mozilla.goanna.home.PanelLayout.OnItemOpenListener;
+import org.mozilla.goanna.home.PanelLayout.PanelView;
 
 import android.content.Context;
 import android.database.Cursor;

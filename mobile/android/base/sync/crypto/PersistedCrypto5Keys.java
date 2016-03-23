@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.crypto;
+package org.mozilla.goanna.sync.crypto;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.CollectionKeys;
-import org.mozilla.gecko.sync.CryptoRecord;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.CollectionKeys;
+import org.mozilla.goanna.sync.CryptoRecord;
 
 import android.content.SharedPreferences;
 

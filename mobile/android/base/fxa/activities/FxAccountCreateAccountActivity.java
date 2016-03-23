@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.activities;
+package org.mozilla.goanna.fxa.activities;
 
 import java.util.Calendar;
 import java.util.HashMap;
@@ -12,21 +12,21 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountAgeLockoutHelper;
-import org.mozilla.gecko.background.fxa.FxAccountClient;
-import org.mozilla.gecko.background.fxa.FxAccountClient10.RequestDelegate;
-import org.mozilla.gecko.background.fxa.FxAccountClient20;
-import org.mozilla.gecko.background.fxa.FxAccountClient20.LoginResponse;
-import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.background.fxa.PasswordStretcher;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.tasks.FxAccountCreateAccountTask;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.FxAccountAgeLockoutHelper;
+import org.mozilla.goanna.background.fxa.FxAccountClient;
+import org.mozilla.goanna.background.fxa.FxAccountClient10.RequestDelegate;
+import org.mozilla.goanna.background.fxa.FxAccountClient20;
+import org.mozilla.goanna.background.fxa.FxAccountClient20.LoginResponse;
+import org.mozilla.goanna.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.background.fxa.PasswordStretcher;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.tasks.FxAccountCreateAccountTask;
+import org.mozilla.goanna.sync.Utils;
 
 import android.app.AlertDialog;
 import android.app.Dialog;

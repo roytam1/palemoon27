@@ -33,7 +33,7 @@ class Test1BrowserCall(MarionetteTestCase):
         # Unfortunately, enforcing preferences currently comes with the side
         # effect of launching and restarting the browser before running the
         # real functional tests.  Bug 1048554 has been filed to track this.
-        self.marionette.enforce_gecko_prefs(FIREFOX_PREFERENCES)
+        self.marionette.enforce_goanna_prefs(FIREFOX_PREFERENCES)
 
         # this is browser chrome, kids, not the content window just yet
         self.marionette.set_context("chrome")

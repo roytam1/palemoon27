@@ -6151,43 +6151,43 @@ nsWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
         DispatchEvent(&query, status);
 
         if (query.mSucceeded && query.mReply.mWritingMode.IsVertical()) {
-            uint32_t geckoCode = 0;
+            uint32_t goannaCode = 0;
             uint32_t gdkCode = 0;
             switch (aEvent.keyCode) {
             case nsIDOMKeyEvent::DOM_VK_LEFT:
                 if (query.mReply.mWritingMode.IsVerticalLR()) {
-                    geckoCode = nsIDOMKeyEvent::DOM_VK_UP;
+                    goannaCode = nsIDOMKeyEvent::DOM_VK_UP;
                     gdkCode = GDK_Up;
                 } else {
-                    geckoCode = nsIDOMKeyEvent::DOM_VK_DOWN;
+                    goannaCode = nsIDOMKeyEvent::DOM_VK_DOWN;
                     gdkCode = GDK_Down;
                 }
                 break;
 
             case nsIDOMKeyEvent::DOM_VK_RIGHT:
                 if (query.mReply.mWritingMode.IsVerticalLR()) {
-                    geckoCode = nsIDOMKeyEvent::DOM_VK_DOWN;
+                    goannaCode = nsIDOMKeyEvent::DOM_VK_DOWN;
                     gdkCode = GDK_Down;
                 } else {
-                    geckoCode = nsIDOMKeyEvent::DOM_VK_UP;
+                    goannaCode = nsIDOMKeyEvent::DOM_VK_UP;
                     gdkCode = GDK_Up;
                 }
                 break;
 
             case nsIDOMKeyEvent::DOM_VK_UP:
-                geckoCode = nsIDOMKeyEvent::DOM_VK_LEFT;
+                goannaCode = nsIDOMKeyEvent::DOM_VK_LEFT;
                 gdkCode = GDK_Left;
                 break;
 
             case nsIDOMKeyEvent::DOM_VK_DOWN:
-                geckoCode = nsIDOMKeyEvent::DOM_VK_RIGHT;
+                goannaCode = nsIDOMKeyEvent::DOM_VK_RIGHT;
                 gdkCode = GDK_Right;
                 break;
             }
 
             return ExecuteNativeKeyBindingRemapped(aType, aEvent, aCallback,
                                                    aCallbackData,
-                                                   geckoCode, gdkCode);
+                                                   goannaCode, gdkCode);
         }
     }
 

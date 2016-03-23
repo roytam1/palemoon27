@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.helpers;
+package org.mozilla.goanna.background.helpers;
 
 import java.io.File;
 
@@ -11,9 +11,9 @@ import android.content.SharedPreferences;
 import android.test.ActivityInstrumentationTestCase2;
 import java.util.UUID;
 
-import org.mozilla.gecko.background.common.GlobalConstants;
+import org.mozilla.goanna.background.common.GlobalConstants;
 
-import org.mozilla.gecko.background.common.TestUtils;
+import org.mozilla.goanna.background.common.TestUtils;
 
 public abstract class FakeProfileTestCase extends ActivityInstrumentationTestCase2<Activity> {
 

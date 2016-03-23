@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.PaintedSurface;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.PaintedSurface;
 
 abstract class PixelTest extends BaseTest {
     private static final long PAINT_CLEAR_DELAY = 10000; // milliseconds
@@ -83,7 +83,7 @@ abstract class PixelTest extends BaseTest {
         } catch (InterruptedException ie) {
             ie.printStackTrace();
         }
-        mAsserter.is(expecter.eventReceived(), false, "Checking gecko didn't draw unnecessarily");
+        mAsserter.is(expecter.eventReceived(), false, "Checking goanna didn't draw unnecessarily");
         PaintedSurface p = mDriver.getPaintedSurface();
         if (p == null) {
             mAsserter.ok(p != null, "checking that painted surface loaded", 

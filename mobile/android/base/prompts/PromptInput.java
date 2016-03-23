@@ -3,17 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.prompts;
+package org.mozilla.goanna.prompts;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.widget.AllCapsTextView;
-import org.mozilla.gecko.widget.DateTimePicker;
-import org.mozilla.gecko.widget.FloatingHintEditText;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.widget.AllCapsTextView;
+import org.mozilla.goanna.widget.DateTimePicker;
+import org.mozilla.goanna.widget.FloatingHintEditText;
 
 import android.content.Context;
 import android.content.res.Configuration;

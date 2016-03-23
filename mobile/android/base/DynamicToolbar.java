@@ -1,10 +1,10 @@
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.EnumSet;
 
-import org.mozilla.gecko.PrefsHelper.PrefHandlerBase;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.PrefsHelper.PrefHandlerBase;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.os.Bundle;
 

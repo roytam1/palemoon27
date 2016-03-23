@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.util;
+package org.mozilla.goanna.util;
 
 import android.util.Log;
 
@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.io.FilenameFilter;
 import java.util.Scanner;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 public class FileUtils {
     private static final String LOGTAG= "GoannaFileUtils";

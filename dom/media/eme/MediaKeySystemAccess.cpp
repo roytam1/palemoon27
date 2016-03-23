@@ -130,7 +130,7 @@ MediaKeySystemAccess::GetKeySystemStatus(const nsAString& aKeySystem,
 {
   MOZ_ASSERT(Preferences::GetBool("media.eme.enabled", false));
   nsCOMPtr<mozIGoannaMediaPluginService> mps =
-    do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return MediaKeySystemStatus::Error;
   }
@@ -245,7 +245,7 @@ MediaKeySystemAccess::IsSupported(const nsAString& aKeySystem,
                                   const Sequence<MediaKeySystemOptions>& aOptions)
 {
   nsCOMPtr<mozIGoannaMediaPluginService> mps =
-    do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return false;
   }

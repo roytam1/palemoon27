@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.middleware;
+package org.mozilla.goanna.sync.middleware;
 
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.repositories.IdentityRecordFactory;
-import org.mozilla.gecko.sync.repositories.RecordFactory;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCleanDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.repositories.IdentityRecordFactory;
+import org.mozilla.goanna.sync.repositories.RecordFactory;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCleanDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
 
 import android.content.Context;
 

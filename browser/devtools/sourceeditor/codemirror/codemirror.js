@@ -22,7 +22,7 @@
   // Kludges for bugs and behavior differences that can't be feature
   // detected are enabled based on userAgent etc sniffing.
 
-  var gecko = /gecko\/\d/i.test(navigator.userAgent);
+  var goanna = /goanna\/\d/i.test(navigator.userAgent);
   // ie_uptoN means Internet Explorer version N or lower
   var ie_upto10 = /MSIE \d/.test(navigator.userAgent);
   var ie_upto7 = ie_upto10 && (document.documentMode == null || document.documentMode < 8);
@@ -50,7 +50,7 @@
   if (presto_version && presto_version >= 15) { presto = false; webkit = true; }
   // Some browsers use the wrong event properties to signal cmd/ctrl on OS X
   var flipCtrlCmd = mac && (qtwebkit || presto && (presto_version == null || presto_version < 12.11));
-  var captureRightClick = gecko || (ie && !ie_upto8);
+  var captureRightClick = goanna || (ie && !ie_upto8);
 
   // Optimize some code when these features are not used.
   var sawReadOnlySpans = false, sawCollapsedSpans = false;
@@ -2861,10 +2861,10 @@
   function setScrollTop(cm, val) {
     if (Math.abs(cm.doc.scrollTop - val) < 2) return;
     cm.doc.scrollTop = val;
-    if (!gecko) updateDisplay(cm, {top: val});
+    if (!goanna) updateDisplay(cm, {top: val});
     if (cm.display.scroller.scrollTop != val) cm.display.scroller.scrollTop = val;
     if (cm.display.scrollbarV.scrollTop != val) cm.display.scrollbarV.scrollTop = val;
-    if (gecko) updateDisplay(cm);
+    if (goanna) updateDisplay(cm);
     startWorker(cm, 100);
   }
   // Sync scroller and scrollbar, ensure the gutter elements are
@@ -2895,7 +2895,7 @@
   // being wrong would just be a slight flicker on the first wheel
   // scroll (if it is large enough).
   if (ie) wheelPixelsPerUnit = -.53;
-  else if (gecko) wheelPixelsPerUnit = 15;
+  else if (goanna) wheelPixelsPerUnit = 15;
   else if (chrome) wheelPixelsPerUnit = -.7;
   else if (safari) wheelPixelsPerUnit = -1/3;
 
@@ -2931,7 +2931,7 @@
     // estimated pixels/delta value, we just handle horizontal
     // scrolling entirely here. It'll be slightly off from native, but
     // better than glitching out.
-    if (dx && !gecko && !presto && wheelPixelsPerUnit != null) {
+    if (dx && !goanna && !presto && wheelPixelsPerUnit != null) {
       if (dy)
         setScrollTop(cm, Math.max(0, Math.min(scroll.scrollTop + dy * wheelPixelsPerUnit, scroll.scrollHeight - scroll.clientHeight)));
       setScrollLeft(cm, Math.max(0, Math.min(scroll.scrollLeft + dx * wheelPixelsPerUnit, scroll.scrollWidth - scroll.clientWidth)));

@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.content.res.TypedArray;

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.browserid;
+package org.mozilla.goanna.browserid;
 
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
@@ -19,9 +19,9 @@ import java.security.spec.DSAPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.Utils;
 
 public class DSACryptoImplementation {
   public static final String SIGNATURE_ALGORITHM = "SHA1withDSA";

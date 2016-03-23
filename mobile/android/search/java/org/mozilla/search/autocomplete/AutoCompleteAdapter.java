@@ -6,7 +6,7 @@ package org.mozilla.search.autocomplete;
 
 import java.util.List;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 import org.mozilla.search.AcceptsSearchQuery;
 import org.mozilla.search.autocomplete.SuggestionsFragment.Suggestion;
 

@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories;
+package org.mozilla.goanna.sync.repositories;
 
 import java.net.URISyntaxException;
 
-import org.mozilla.gecko.sync.InfoCollections;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.InfoCollections;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
 
 /**
  * A kind of Server11Repository that supports explicit setting of limit and sort on operations.

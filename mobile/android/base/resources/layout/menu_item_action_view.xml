@@ -11,7 +11,7 @@
                  android:layout_height="@dimen/menu_item_row_height"
                  android:layout_weight="1.0">
 
-        <org.mozilla.gecko.menu.MenuItemDefault
+        <org.mozilla.goanna.menu.MenuItemDefault
                 android:id="@+id/menu_item"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -19,7 +19,7 @@
                 android:clickable="true"
                 android:focusable="true"/>
 
-        <org.mozilla.gecko.menu.MenuItemActionBar
+        <org.mozilla.goanna.menu.MenuItemActionBar
                 style="@style/Widget.MenuItemSecondaryActionBar"
                 android:id="@+id/menu_item_button"
                 android:layout_width="match_parent"

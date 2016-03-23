@@ -7,23 +7,23 @@
 ### Check that require variables are defined
 test $MOZCONFIG
 
-# Ensure gecko is at the correct revision
-pull-gecko.sh $gecko_dir
+# Ensure goanna is at the correct revision
+pull-goanna.sh $goanna_dir
 
 ### Install package dependencies
-install-packages.sh $gecko_dir
+install-packages.sh $goanna_dir
 
 ### Clone gaia
-pull-gaia.sh $gecko_dir $gaia_dir
+pull-gaia.sh $goanna_dir $gaia_dir
 
-cd $gecko_dir
+cd $goanna_dir
 
 # Nightly mozconfig expects gaia repo be inside mozilla-central tree
 if [ ! -d "gaia" ]; then
   ln -s $gaia_dir gaia
 fi
 
-export MOZ_OBJDIR=$(get-objdir.py $gecko_dir)
+export MOZ_OBJDIR=$(get-objdir.py $goanna_dir)
 
 ./mach build;
 

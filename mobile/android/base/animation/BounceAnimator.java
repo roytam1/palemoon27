@@ -1,4 +1,4 @@
-package org.mozilla.gecko.animation;
+package org.mozilla.goanna.animation;
 
 import java.util.LinkedList;
 import java.util.List;

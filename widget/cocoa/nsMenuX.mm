@@ -785,13 +785,13 @@ nsresult nsMenuX::SetupIcon()
 
 @implementation MenuDelegate
 
-- (id)initWithGoannaMenu:(nsMenuX*)geckoMenu
+- (id)initWithGoannaMenu:(nsMenuX*)goannaMenu
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if ((self = [super init])) {
-    NS_ASSERTION(geckoMenu, "Cannot initialize native menu delegate with NULL gecko menu! Will crash!");
-    mGoannaMenu = geckoMenu;
+    NS_ASSERTION(goannaMenu, "Cannot initialize native menu delegate with NULL goanna menu! Will crash!");
+    mGoannaMenu = goannaMenu;
   }
   return self;
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import android.content.ContentUris;
 import android.content.ContentValues;
@@ -14,9 +14,9 @@ import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
-import org.mozilla.gecko.db.DBUtils.UpdateOperation;
+import org.mozilla.goanna.db.DBUtils.UpdateOperation;
 
-import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.*;
+import static org.mozilla.goanna.db.BrowserContract.ReadingListItems.*;
 
 public class ReadingListProvider extends SharedBrowserDatabaseProvider {
     private static final String LOGTAG = "GoannaRLProvider";

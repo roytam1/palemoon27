@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Locale;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.text.format.DateFormat;

@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:title="@string/pref_category_search"
                   android:enabled="false">
 
@@ -13,12 +13,12 @@
                         android:defaultValue="false"
                         android:persistent="false" />
 
-    <org.mozilla.gecko.preferences.SearchPreferenceCategory
+    <org.mozilla.goanna.preferences.SearchPreferenceCategory
                         android:title="@string/pref_category_installed_search_engines"/>
 
     <PreferenceCategory android:title="@string/pref_category_add_search_providers">
 
-        <org.mozilla.gecko.preferences.ModifiableHintPreference
+        <org.mozilla.goanna.preferences.ModifiableHintPreference
                     android:layout="@layout/preference_search_tip"
                     android:enabled="false"
                     android:selectable="false"/>

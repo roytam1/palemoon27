@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import android.content.Context;
 import android.database.Cursor;

@@ -17,9 +17,9 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 
-import org.mozilla.gecko.GoannaApp;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.util.ThreadUtils;
 
 public class ViERenderer {
     private final static String TAG = "WEBRTC-ViEREnderer";

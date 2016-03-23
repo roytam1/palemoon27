@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.nativecode;
+package org.mozilla.goanna.background.nativecode;
 
 import java.security.GeneralSecurityException;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import android.util.Log;
 

@@ -43,7 +43,7 @@ GARBAGE += \
   AndroidManifest.xml  \
   WebappManifestFragment.xml.frag \
   classes.dex  \
-  gecko.ap_  \
+  goanna.ap_  \
   res/values/strings.xml \
   res/raw/browsersearch.json \
   res/raw/suggestedsites.json \
@@ -101,11 +101,11 @@ java_bundled_libs := $(subst $(NULL) ,:,$(strip $(java_bundled_libs)))
 # java_bundled_libs, which holds the jars which we're including as binaries).
 ALL_JARS = \
   constants.jar \
-  gecko-R.jar \
-  gecko-browser.jar \
-  gecko-mozglue.jar \
-  gecko-thirdparty.jar \
-  gecko-util.jar \
+  goanna-R.jar \
+  goanna-browser.jar \
+  goanna-mozglue.jar \
+  goanna-thirdparty.jar \
+  goanna-util.jar \
   sync-thirdparty.jar \
   $(NULL)
 
@@ -159,7 +159,7 @@ proguard_config_dir=$(topsrcdir)/mobile/android/config/proguard
 # non-GoannaView classes that GoannaView already depended on at a certain point in
 # time.  The idea is to set a high-water mark that is not to be crossed.
 classycle_jar := $(topsrcdir)/mobile/android/build/classycle/classycle-1.4.1.jar
-.geckoview.deps: geckoview.ddf $(classycle_jar) $(ALL_JARS)
+.goannaview.deps: goannaview.ddf $(classycle_jar) $(ALL_JARS)
 	java -cp $(classycle_jar) \
 		classycle.dependency.DependencyChecker \
 		-mergeInnerClasses \
@@ -176,9 +176,9 @@ classycle_jar := $(topsrcdir)/mobile/android/build/classycle/classycle-1.4.1.jar
 # for stack frames inside libraries.
 #
 # This step can occur much earlier than the main Proguard pass: it needs only
-# gecko-R.jar to have been compiled (as that's where the library R.java files
+# goanna-R.jar to have been compiled (as that's where the library R.java files
 # end up), but it does block the main Proguard pass.
-.bundled.proguard.deps: gecko-R.jar $(proguard_config_dir)/strip-libs.cfg
+.bundled.proguard.deps: goanna-R.jar $(proguard_config_dir)/strip-libs.cfg
 	$(REPORT_BUILD)
 	@$(TOUCH) $@
 	java \
@@ -187,13 +187,13 @@ classycle_jar := $(topsrcdir)/mobile/android/build/classycle/classycle-1.4.1.jar
 		@$(proguard_config_dir)/strip-libs.cfg \
 		-injars $(subst ::,:,$(java_bundled_libs))\
 		-outjars bundled-jars-nodebug \
-		-libraryjars $(library_jars):gecko-R.jar
+		-libraryjars $(library_jars):goanna-R.jar
 
 # We touch the target file before invoking Proguard so that Proguard's
 # outputs are fresher than the target, preventing a subsequent
 # invocation from thinking Proguard's outputs are stale.  This is safe
 # because Make removes the target file if any recipe command fails.
-.proguard.deps: .geckoview.deps .bundled.proguard.deps $(ALL_JARS) $(proguard_config_dir)/proguard.cfg
+.proguard.deps: .goannaview.deps .bundled.proguard.deps $(ALL_JARS) $(proguard_config_dir)/proguard.cfg
 	$(REPORT_BUILD)
 	@$(TOUCH) $@
 	java \
@@ -206,12 +206,12 @@ classycle_jar := $(topsrcdir)/mobile/android/build/classycle/classycle-1.4.1.jar
 		-libraryjars $(library_jars)
 
 CLASSES_WITH_JNI= \
-    org.mozilla.gecko.ANRReporter \
-    org.mozilla.gecko.GoannaAppShell \
-    org.mozilla.gecko.GoannaJavaSampler \
-    org.mozilla.gecko.gfx.NativePanZoomController \
-    org.mozilla.gecko.util.NativeJSContainer \
-    org.mozilla.gecko.util.NativeJSObject \
+    org.mozilla.goanna.ANRReporter \
+    org.mozilla.goanna.GoannaAppShell \
+    org.mozilla.goanna.GoannaJavaSampler \
+    org.mozilla.goanna.gfx.NativePanZoomController \
+    org.mozilla.goanna.util.NativeJSContainer \
+    org.mozilla.goanna.util.NativeJSObject \
     $(NULL)
 
 ifdef MOZ_WEBSMS_BACKEND
@@ -220,10 +220,10 @@ ifdef MOZ_WEBSMS_BACKEND
 # be different than the one checked in (i.e. it will have the sms-related
 # JNI stubs as well). Just copy the generated file to mozglue/android/
 # like the error message says and rebuild. All should be well after that.
-CLASSES_WITH_JNI += org.mozilla.gecko.GoannaSmsManager
+CLASSES_WITH_JNI += org.mozilla.goanna.GoannaSmsManager
 endif
 
-jni-stubs.inc: gecko-browser.jar gecko-mozglue.jar gecko-util.jar sync-thirdparty.jar
+jni-stubs.inc: goanna-browser.jar goanna-mozglue.jar goanna-util.jar sync-thirdparty.jar
 	$(JAVAH) -o javah.out -bootclasspath $(JAVA_BOOTCLASSPATH) -classpath $(subst $(NULL) $(NULL),:,$^) $(CLASSES_WITH_JNI)
 	$(PYTHON) $(topsrcdir)/mobile/android/base/jni-generator.py javah.out $@
 
@@ -231,7 +231,7 @@ ANNOTATION_PROCESSOR_JAR_FILES := $(DEPTH)/build/annotationProcessors/annotation
 
 GeneratedJNIWrappers.cpp: $(ANNOTATION_PROCESSOR_JAR_FILES)
 GeneratedJNIWrappers.cpp: $(ALL_JARS)
-	$(JAVA) -classpath gecko-mozglue.jar:$(JAVA_BOOTCLASSPATH):$(JAVA_CLASSPATH):$(ANNOTATION_PROCESSOR_JAR_FILES) org.mozilla.gecko.annotationProcessors.AnnotationProcessor $(ALL_JARS)
+	$(JAVA) -classpath goanna-mozglue.jar:$(JAVA_BOOTCLASSPATH):$(JAVA_CLASSPATH):$(ANNOTATION_PROCESSOR_JAR_FILES) org.mozilla.goanna.annotationProcessors.AnnotationProcessor $(ALL_JARS)
 
 manifest := \
   AndroidManifest.xml.in \
@@ -241,18 +241,18 @@ manifest := \
 PP_TARGETS += manifest
 
 # Certain source files need to be preprocessed.  This special rule
-# generates these files into generated/org/mozilla/gecko for
+# generates these files into generated/org/mozilla/goanna for
 # consumption by the build system and IDEs.
 
 # The list in moz.build looks like
-# 'preprocessed/org/mozilla/gecko/AppConstants.java'.  The list in
+# 'preprocessed/org/mozilla/goanna/AppConstants.java'.  The list in
 # constants_PP_JAVAFILES looks like
-# 'generated/preprocessed/org/mozilla/gecko/AppConstants.java'.  We
+# 'generated/preprocessed/org/mozilla/goanna/AppConstants.java'.  We
 # need to write AppConstants.java.in to
-# generated/preprocessed/org/mozilla/gecko.
-preprocessed := $(addsuffix .in,$(subst generated/preprocessed/org/mozilla/gecko/,,$(filter generated/preprocessed/org/mozilla/gecko/%,$(constants_PP_JAVAFILES))))
+# generated/preprocessed/org/mozilla/goanna.
+preprocessed := $(addsuffix .in,$(subst generated/preprocessed/org/mozilla/goanna/,,$(filter generated/preprocessed/org/mozilla/goanna/%,$(constants_PP_JAVAFILES))))
 
-preprocessed_PATH := generated/preprocessed/org/mozilla/gecko
+preprocessed_PATH := generated/preprocessed/org/mozilla/goanna
 preprocessed_KEEP_PATH := 1
 preprocessed_FLAGS := --marker='//\\\#'
 
@@ -277,12 +277,12 @@ $(ANDROID_GENERATED_RESFILES): $(call mkdir_deps,$(sort $(dir $(ANDROID_GENERATE
 # [Comment 1/3] We don't have correct dependencies for strings.xml at
 # this point, so we always recursively invoke the submake to check the
 # dependencies.  Sigh.  And, with multilocale builds, there will be
-# multiple strings.xml files, and we need to rebuild gecko.ap_ if any
+# multiple strings.xml files, and we need to rebuild goanna.ap_ if any
 # of them change.  But!  mobile/android/base/locales does not have
 # enough information to actually build res/values/strings.xml during a
 # language repack.  So rather than adding rules into the main
 # makefile, and trying to work around the lack of information, we
-# force a rebuild of gecko.ap_ during packaging.  See below.
+# force a rebuild of goanna.ap_ during packaging.  See below.
 
 # Since the sub-Make is forced, it doesn't matter that we touch the
 # target file before the command.  If in the future we stop forcing
@@ -334,18 +334,18 @@ endef
 
 # We delete the archive before updating so that resources removed from
 # the filesystem are removed from the archive.
-geckoview_resources.zip: $(all_resources) $(GLOBAL_DEPS)
+goannaview_resources.zip: $(all_resources) $(GLOBAL_DEPS)
 	$(REPORT_BUILD)
 	$(RM) -rf $@
 	$(foreach dir,$(ANDROID_RES_DIRS),$(call zip_directory_with_relative_paths,$(CURDIR)/$@,$(dir)))
 
-# All of generated/org/mozilla/gecko/R.java, gecko.ap_, and R.txt are
+# All of generated/org/mozilla/goanna/R.java, goanna.ap_, and R.txt are
 # produced by aapt; this saves aapt invocations.  The trailing
 # semi-colon defines an empty recipe; defining no recipe at all causes
 # Make to treat the target differently, in a way that defeats our
 # dependencies.
 
-generated/org/mozilla/gecko/R.java: .aapt.deps ;
+generated/org/mozilla/goanna/R.java: .aapt.deps ;
 
 # If native devices are enabled, add Google Play Services, build their resources
 generated/android/support/v7/appcompat/R.java: .aapt.deps ;
@@ -363,17 +363,17 @@ ifdef MOZ_NATIVE_DEVICES
     extra_res_dirs += $(GOOGLE_PLAY_SERVICES_RES)
 endif
 
-gecko.ap_: .aapt.deps ;
+goanna.ap_: .aapt.deps ;
 R.txt: .aapt.deps ;
 
 # [Comment 2/3] This tom-foolery provides a target that forces a
-# rebuild of gecko.ap_.  This is used during packaging to ensure that
+# rebuild of goanna.ap_.  This is used during packaging to ensure that
 # resources are fresh.  The alternative would be complicated; see
 # [Comment 1/3].
 
-gecko-nodeps/R.java: .aapt.nodeps ;
-gecko-nodeps.ap_: .aapt.nodeps ;
-gecko-nodeps/R.txt: .aapt.nodeps ;
+goanna-nodeps/R.java: .aapt.nodeps ;
+goanna-nodeps.ap_: .aapt.nodeps ;
+goanna-nodeps/R.txt: .aapt.nodeps ;
 
 # This ignores the default set of resources ignored by aapt, plus
 # files starting with '#'.  (Emacs produces temp files named #temp#.)
@@ -408,7 +408,7 @@ $(1): $$(call mkdir_deps,$(filter-out ./,$(dir $(3) $(4) $(5)))) $(2)
 		$$(addprefix -S ,$$(ANDROID_RES_DIRS)) \
 		$(if $(extra_res_dirs),$$(addprefix -S ,$$(extra_res_dirs)),) \
 		$(if $(extra_packages),--extra-packages $$(extra_packages),) \
-		--custom-package org.mozilla.gecko \
+		--custom-package org.mozilla.goanna \
 		--non-constant-id \
 		-F $(3) \
 		-J $(4) \
@@ -425,12 +425,12 @@ endef
 # toolkit/mozapps/installer/packager.mk.
 
 # .aapt.deps: $(all_resources)
-$(eval $(call aapt_command,.aapt.deps,$(all_resources),gecko.ap_,generated/,./))
+$(eval $(call aapt_command,.aapt.deps,$(all_resources),goanna.ap_,generated/,./))
 
 # .aapt.nodeps: $(CURDIR)/AndroidManifest.xml FORCE
-$(eval $(call aapt_command,.aapt.nodeps,$(CURDIR)/AndroidManifest.xml FORCE,gecko-nodeps.ap_,gecko-nodeps/,gecko-nodeps/))
+$(eval $(call aapt_command,.aapt.nodeps,$(CURDIR)/AndroidManifest.xml FORCE,goanna-nodeps.ap_,goanna-nodeps/,goanna-nodeps/))
 
-fennec_ids.txt: generated/org/mozilla/gecko/R.java fennec-ids-generator.py
+fennec_ids.txt: generated/org/mozilla/goanna/R.java fennec-ids-generator.py
 	$(PYTHON) $(topsrcdir)/mobile/android/base/fennec-ids-generator.py -i $< -o $@
 
 # Override the Java settings with some specific android settings
@@ -469,8 +469,8 @@ gradle-omnijar: $(abspath $(DIST)/fennec/$(OMNIJAR_NAME))
 
 .PHONY: gradle-targets gradle-omnijar
 
-libs:: geckoview_resources.zip classes.dex jni-stubs.inc GeneratedJNIWrappers.cpp fennec_ids.txt
-	$(INSTALL) geckoview_resources.zip $(FINAL_TARGET)
+libs:: goannaview_resources.zip classes.dex jni-stubs.inc GeneratedJNIWrappers.cpp fennec_ids.txt
+	$(INSTALL) goannaview_resources.zip $(FINAL_TARGET)
 	$(INSTALL) classes.dex $(FINAL_TARGET)
 	@(diff jni-stubs.inc $(topsrcdir)/mozglue/android/jni-stubs.inc >/dev/null && diff GeneratedJNIWrappers.cpp $(topsrcdir)/widget/android/GeneratedJNIWrappers.cpp >/dev/null) || \
 	 (echo '*****************************************************' && \

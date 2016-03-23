@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;

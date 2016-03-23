@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -25,41 +25,41 @@ import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.GoannaProfileDirectories.NoMozillaDirectoryException;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.gfx.FullScreenState;
-import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.PluginLayer;
-import org.mozilla.gecko.health.HealthRecorder;
-import org.mozilla.gecko.health.SessionInformation;
-import org.mozilla.gecko.health.StubbedHealthRecorder;
-import org.mozilla.gecko.menu.GoannaMenu;
-import org.mozilla.gecko.menu.GoannaMenuInflater;
-import org.mozilla.gecko.menu.MenuPanel;
-import org.mozilla.gecko.mozglue.ContextUtils;
-import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
-import org.mozilla.gecko.mozglue.GoannaLoader;
-import org.mozilla.gecko.preferences.ClearOnShutdownPref;
-import org.mozilla.gecko.preferences.GoannaPreferences;
-import org.mozilla.gecko.prompts.PromptService;
-import org.mozilla.gecko.updater.UpdateServiceHelper;
-import org.mozilla.gecko.util.ActivityResultHandler;
-import org.mozilla.gecko.util.ActivityUtils;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.FileUtils;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.PrefUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.webapp.EventListener;
-import org.mozilla.gecko.webapp.UninstallListener;
-import org.mozilla.gecko.widget.ButtonToast;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.GoannaProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.FullScreenState;
+import org.mozilla.goanna.gfx.Layer;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.PluginLayer;
+import org.mozilla.goanna.health.HealthRecorder;
+import org.mozilla.goanna.health.SessionInformation;
+import org.mozilla.goanna.health.StubbedHealthRecorder;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.menu.GoannaMenuInflater;
+import org.mozilla.goanna.menu.MenuPanel;
+import org.mozilla.goanna.mozglue.ContextUtils;
+import org.mozilla.goanna.mozglue.ContextUtils.SafeIntent;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.preferences.ClearOnShutdownPref;
+import org.mozilla.goanna.preferences.GoannaPreferences;
+import org.mozilla.goanna.prompts.PromptService;
+import org.mozilla.goanna.updater.UpdateServiceHelper;
+import org.mozilla.goanna.util.ActivityResultHandler;
+import org.mozilla.goanna.util.ActivityUtils;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.FileUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.PrefUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.webapp.EventListener;
+import org.mozilla.goanna.webapp.UninstallListener;
+import org.mozilla.goanna.widget.ButtonToast;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -135,12 +135,12 @@ public abstract class GoannaApp
         PREFETCH    /* launched with a passed URL that we prefetch */
     }
 
-    public static final String ACTION_ALERT_CALLBACK       = "org.mozilla.gecko.ACTION_ALERT_CALLBACK";
-    public static final String ACTION_HOMESCREEN_SHORTCUT  = "org.mozilla.gecko.BOOKMARK";
-    public static final String ACTION_DEBUG                = "org.mozilla.gecko.DEBUG";
-    public static final String ACTION_LAUNCH_SETTINGS      = "org.mozilla.gecko.SETTINGS";
-    public static final String ACTION_LOAD                 = "org.mozilla.gecko.LOAD";
-    public static final String ACTION_INIT_PW              = "org.mozilla.gecko.INIT_PW";
+    public static final String ACTION_ALERT_CALLBACK       = "org.mozilla.goanna.ACTION_ALERT_CALLBACK";
+    public static final String ACTION_HOMESCREEN_SHORTCUT  = "org.mozilla.goanna.BOOKMARK";
+    public static final String ACTION_DEBUG                = "org.mozilla.goanna.DEBUG";
+    public static final String ACTION_LAUNCH_SETTINGS      = "org.mozilla.goanna.SETTINGS";
+    public static final String ACTION_LOAD                 = "org.mozilla.goanna.LOAD";
+    public static final String ACTION_INIT_PW              = "org.mozilla.goanna.INIT_PW";
 
     public static final String EXTRA_STATE_BUNDLE          = "stateBundle";
 
@@ -202,8 +202,8 @@ public abstract class GoannaApp
 
     abstract protected String getDefaultProfileName() throws NoMozillaDirectoryException;
 
-    private static final String RESTARTER_ACTION = "org.mozilla.gecko.restart";
-    private static final String RESTARTER_CLASS = "org.mozilla.gecko.Restarter";
+    private static final String RESTARTER_ACTION = "org.mozilla.goanna.restart";
+    private static final String RESTARTER_CLASS = "org.mozilla.goanna.Restarter";
 
     @SuppressWarnings("serial")
     class SessionRestoreException extends Exception {
@@ -320,7 +320,7 @@ public abstract class GoannaApp
         mMenu = menu;
 
         MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.gecko_app_menu, mMenu);
+        inflater.inflate(R.menu.goanna_app_menu, mMenu);
         return true;
     }
 
@@ -679,7 +679,7 @@ public abstract class GoannaApp
                 ThreadUtils.postToBackgroundThread(new UninstallListener.DelayedStartupTask(this));
             } else if (event.equals("Goanna:Ready")) {
                 mGoannaReadyStartupTimer.stop();
-                geckoConnected();
+                goannaConnected();
 
                 // This method is already running on the background thread, so we
                 // know that mHealthRecorder will exist. That doesn't stop us being
@@ -1262,7 +1262,7 @@ public abstract class GoannaApp
 
         // Set up Goanna layout.
         mRootLayout = (OuterLayout) findViewById(R.id.root_layout);
-        mGoannaLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
+        mGoannaLayout = (RelativeLayout) findViewById(R.id.goanna_layout);
         mMainLayout = (RelativeLayout) findViewById(R.id.main_layout);
 
         // Determine whether we should restore tabs.
@@ -1602,7 +1602,7 @@ public abstract class GoannaApp
             Tab selectedTab = Tabs.getInstance().getSelectedTab();
             if (selectedTab != null)
                 Tabs.getInstance().notifyListeners(selectedTab, Tabs.TabEvents.SELECTED);
-            geckoConnected();
+            goannaConnected();
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Viewport:Flush", null));
         }
 
@@ -2361,8 +2361,8 @@ public abstract class GoannaApp
         GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Update:CheckResult", result));
     }
 
-    protected void geckoConnected() {
-        mLayerView.geckoConnected();
+    protected void goannaConnected() {
+        mLayerView.goannaConnected();
         mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 

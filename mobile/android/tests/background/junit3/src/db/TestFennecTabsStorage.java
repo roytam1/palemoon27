@@ -1,11 +1,11 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.repositories.android.BrowserContractHelpers;
 
 import android.app.Activity;
 import android.content.ContentProviderClient;

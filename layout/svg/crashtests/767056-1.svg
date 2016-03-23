@@ -14,7 +14,7 @@ function resize() {
 }
 
 document.addEventListener("MozReftestInvalidate", resize, false);
-setTimeout(resize, 3000); // For non-gecko
+setTimeout(resize, 3000); // For non-goanna
 
   </script>
   <rect width="100%" height="100%"/>

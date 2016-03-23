@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.reading;
+package org.mozilla.goanna.reading;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -12,13 +12,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.PrefsBranch;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.reading.ReadingListRecord.ServerMetadata;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.net.MozResponse;
+import org.mozilla.goanna.background.common.PrefsBranch;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.reading.ReadingListRecord.ServerMetadata;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.net.MozResponse;
 
 import android.database.Cursor;
 import android.text.TextUtils;

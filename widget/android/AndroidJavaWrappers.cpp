@@ -122,61 +122,61 @@ mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
 void
 AndroidGoannaEvent::InitGoannaEventClass(JNIEnv *jEnv)
 {
-    AutoJNIClass geckoEvent(jEnv, "org/mozilla/gecko/GoannaEvent");
-    jGoannaEventClass = geckoEvent.getGlobalRef();
+    AutoJNIClass goannaEvent(jEnv, "org/mozilla/goanna/GoannaEvent");
+    jGoannaEventClass = goannaEvent.getGlobalRef();
 
-    jActionField = geckoEvent.getField("mAction", "I");
-    jTypeField = geckoEvent.getField("mType", "I");
-    jAckNeededField = geckoEvent.getField("mAckNeeded", "Z");
-    jTimeField = geckoEvent.getField("mTime", "J");
-    jPoints = geckoEvent.getField("mPoints", "[Landroid/graphics/Point;");
-    jPointIndicies = geckoEvent.getField("mPointIndicies", "[I");
-    jOrientations = geckoEvent.getField("mOrientations", "[F");
-    jPressures = geckoEvent.getField("mPressures", "[F");
-    jToolTypes = geckoEvent.getField("mToolTypes", "[I");
-    jPointRadii = geckoEvent.getField("mPointRadii", "[Landroid/graphics/Point;");
-    jXField = geckoEvent.getField("mX", "D");
-    jYField = geckoEvent.getField("mY", "D");
-    jZField = geckoEvent.getField("mZ", "D");
-    jRectField = geckoEvent.getField("mRect", "Landroid/graphics/Rect;");
+    jActionField = goannaEvent.getField("mAction", "I");
+    jTypeField = goannaEvent.getField("mType", "I");
+    jAckNeededField = goannaEvent.getField("mAckNeeded", "Z");
+    jTimeField = goannaEvent.getField("mTime", "J");
+    jPoints = goannaEvent.getField("mPoints", "[Landroid/graphics/Point;");
+    jPointIndicies = goannaEvent.getField("mPointIndicies", "[I");
+    jOrientations = goannaEvent.getField("mOrientations", "[F");
+    jPressures = goannaEvent.getField("mPressures", "[F");
+    jToolTypes = goannaEvent.getField("mToolTypes", "[I");
+    jPointRadii = goannaEvent.getField("mPointRadii", "[Landroid/graphics/Point;");
+    jXField = goannaEvent.getField("mX", "D");
+    jYField = goannaEvent.getField("mY", "D");
+    jZField = goannaEvent.getField("mZ", "D");
+    jRectField = goannaEvent.getField("mRect", "Landroid/graphics/Rect;");
 
-    jCharactersField = geckoEvent.getField("mCharacters", "Ljava/lang/String;");
-    jCharactersExtraField = geckoEvent.getField("mCharactersExtra", "Ljava/lang/String;");
-    jDataField = geckoEvent.getField("mData", "Ljava/lang/String;");
-    jKeyCodeField = geckoEvent.getField("mKeyCode", "I");
-    jScanCodeField = geckoEvent.getField("mScanCode", "I");
-    jMetaStateField = geckoEvent.getField("mMetaState", "I");
-    jFlagsField = geckoEvent.getField("mFlags", "I");
-    jUnicodeCharField = geckoEvent.getField("mUnicodeChar", "I");
-    jBaseUnicodeCharField = geckoEvent.getField("mBaseUnicodeChar", "I");
-    jDOMPrintableKeyValueField = geckoEvent.getField("mDOMPrintableKeyValue", "I");
-    jRepeatCountField = geckoEvent.getField("mRepeatCount", "I");
-    jCountField = geckoEvent.getField("mCount", "I");
-    jStartField = geckoEvent.getField("mStart", "I");
-    jEndField = geckoEvent.getField("mEnd", "I");
-    jPointerIndexField = geckoEvent.getField("mPointerIndex", "I");
-    jRangeTypeField = geckoEvent.getField("mRangeType", "I");
-    jRangeStylesField = geckoEvent.getField("mRangeStyles", "I");
-    jRangeLineStyleField = geckoEvent.getField("mRangeLineStyle", "I");
-    jRangeBoldLineField = geckoEvent.getField("mRangeBoldLine", "Z");
-    jRangeForeColorField = geckoEvent.getField("mRangeForeColor", "I");
-    jRangeBackColorField = geckoEvent.getField("mRangeBackColor", "I");
-    jRangeLineColorField = geckoEvent.getField("mRangeLineColor", "I");
-    jLocationField = geckoEvent.getField("mLocation", "Landroid/location/Location;");
-    jConnectionTypeField = geckoEvent.getField("mConnectionType", "I");
-    jIsWifiField = geckoEvent.getField("mIsWifi", "Z");
-    jDHCPGatewayField = geckoEvent.getField("mDHCPGateway", "I");
-    jScreenOrientationField = geckoEvent.getField("mScreenOrientation", "S");
-    jByteBufferField = geckoEvent.getField("mBuffer", "Ljava/nio/ByteBuffer;");
-    jWidthField = geckoEvent.getField("mWidth", "I");
-    jHeightField = geckoEvent.getField("mHeight", "I");
-    jIDField = geckoEvent.getField("mID", "I");
-    jGamepadButtonField = geckoEvent.getField("mGamepadButton", "I");
-    jGamepadButtonPressedField = geckoEvent.getField("mGamepadButtonPressed", "Z");
-    jGamepadButtonValueField = geckoEvent.getField("mGamepadButtonValue", "F");
-    jGamepadValuesField = geckoEvent.getField("mGamepadValues", "[F");
-    jPrefNamesField = geckoEvent.getField("mPrefNames", "[Ljava/lang/String;");
-    jObjectField = geckoEvent.getField("mObject", "Ljava/lang/Object;");
+    jCharactersField = goannaEvent.getField("mCharacters", "Ljava/lang/String;");
+    jCharactersExtraField = goannaEvent.getField("mCharactersExtra", "Ljava/lang/String;");
+    jDataField = goannaEvent.getField("mData", "Ljava/lang/String;");
+    jKeyCodeField = goannaEvent.getField("mKeyCode", "I");
+    jScanCodeField = goannaEvent.getField("mScanCode", "I");
+    jMetaStateField = goannaEvent.getField("mMetaState", "I");
+    jFlagsField = goannaEvent.getField("mFlags", "I");
+    jUnicodeCharField = goannaEvent.getField("mUnicodeChar", "I");
+    jBaseUnicodeCharField = goannaEvent.getField("mBaseUnicodeChar", "I");
+    jDOMPrintableKeyValueField = goannaEvent.getField("mDOMPrintableKeyValue", "I");
+    jRepeatCountField = goannaEvent.getField("mRepeatCount", "I");
+    jCountField = goannaEvent.getField("mCount", "I");
+    jStartField = goannaEvent.getField("mStart", "I");
+    jEndField = goannaEvent.getField("mEnd", "I");
+    jPointerIndexField = goannaEvent.getField("mPointerIndex", "I");
+    jRangeTypeField = goannaEvent.getField("mRangeType", "I");
+    jRangeStylesField = goannaEvent.getField("mRangeStyles", "I");
+    jRangeLineStyleField = goannaEvent.getField("mRangeLineStyle", "I");
+    jRangeBoldLineField = goannaEvent.getField("mRangeBoldLine", "Z");
+    jRangeForeColorField = goannaEvent.getField("mRangeForeColor", "I");
+    jRangeBackColorField = goannaEvent.getField("mRangeBackColor", "I");
+    jRangeLineColorField = goannaEvent.getField("mRangeLineColor", "I");
+    jLocationField = goannaEvent.getField("mLocation", "Landroid/location/Location;");
+    jConnectionTypeField = goannaEvent.getField("mConnectionType", "I");
+    jIsWifiField = goannaEvent.getField("mIsWifi", "Z");
+    jDHCPGatewayField = goannaEvent.getField("mDHCPGateway", "I");
+    jScreenOrientationField = goannaEvent.getField("mScreenOrientation", "S");
+    jByteBufferField = goannaEvent.getField("mBuffer", "Ljava/nio/ByteBuffer;");
+    jWidthField = goannaEvent.getField("mWidth", "I");
+    jHeightField = goannaEvent.getField("mHeight", "I");
+    jIDField = goannaEvent.getField("mID", "I");
+    jGamepadButtonField = goannaEvent.getField("mGamepadButton", "I");
+    jGamepadButtonPressedField = goannaEvent.getField("mGamepadButtonPressed", "Z");
+    jGamepadButtonValueField = goannaEvent.getField("mGamepadButtonValue", "F");
+    jGamepadValuesField = goannaEvent.getField("mGamepadValues", "[F");
+    jPrefNamesField = goannaEvent.getField("mPrefNames", "[Ljava/lang/String;");
+    jObjectField = goannaEvent.getField("mObject", "Ljava/lang/Object;");
 }
 
 void
@@ -256,7 +256,7 @@ AndroidRectF::InitRectFClass(JNIEnv *jEnv)
 void
 AndroidLayerRendererFrame::InitLayerRendererFrameClass(JNIEnv *jEnv)
 {
-    AutoJNIClass layerRendererFrame(jEnv, "org/mozilla/gecko/gfx/LayerRenderer$Frame");
+    AutoJNIClass layerRendererFrame(jEnv, "org/mozilla/goanna/gfx/LayerRenderer$Frame");
     jLayerRendererFrameClass = layerRendererFrame.getGlobalRef();
 
     jBeginDrawingMethod = layerRendererFrame.getMethod("beginDrawing", "()V");

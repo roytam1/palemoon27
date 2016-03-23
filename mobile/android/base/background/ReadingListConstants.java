@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background;
+package org.mozilla.goanna.background;
 
-import org.mozilla.gecko.AppConstants;
+import org.mozilla.goanna.AppConstants;
 
 /**
  * This is in 'background' not 'reading' so that it's still usable even when the

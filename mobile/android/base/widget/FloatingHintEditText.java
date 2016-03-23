@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
@@ -14,7 +14,7 @@ import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.widget.EditText;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 public class FloatingHintEditText extends EditText {
     private static enum Animation { NONE, SHRINK, GROW }

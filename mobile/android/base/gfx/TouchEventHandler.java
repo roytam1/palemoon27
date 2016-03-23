@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
 
 import android.content.Context;
 import android.os.SystemClock;
@@ -38,7 +38,7 @@ import java.util.Queue;
  * the block, or the first MOVE event following that, were prevent-defaulted.
  *
  * A "default-prevented notification" is when we here in Java-land receive a notification
- * from gecko as to whether or not a block of events was default-prevented. This happens
+ * from goanna as to whether or not a block of events was default-prevented. This happens
  * at some point after the first or second event in the block is processed in Goanna.
  * This code assumes we get EXACTLY ONE default-prevented notification for each block
  * of events.
@@ -82,7 +82,7 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
 
     // this next variable requires some explanation. strap yourself in.
     //
-    // for each block of events, we do two things: (1) send the events to gecko and expect
+    // for each block of events, we do two things: (1) send the events to goanna and expect
     // exactly one default-prevented notification in return, and (2) kick off a delayed
     // ListenerTimeoutProcessor that triggers in case we don't hear from the listener in
     // a timely fashion.
@@ -91,7 +91,7 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     //
     // this means that there are ordering restrictions on these that we can take advantage of,
     // and need to abide by. blocks of events in the queue will always be in the order that
-    // the user generated them. default-prevented notifications we get from gecko will be in
+    // the user generated them. default-prevented notifications we get from goanna will be in
     // the same order as the blocks of events in the queue. the ListenerTimeoutProcessors that
     // have been posted will also fire in the same order as the blocks of events in the queue.
     // HOWEVER, we may get multiple default-prevented notifications interleaved with multiple
@@ -182,8 +182,8 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     }
 
     /**
-     * This function is how gecko sends us a default-prevented notification. It is called
-     * once gecko knows definitively whether the block of events has had preventDefault
+     * This function is how goanna sends us a default-prevented notification. It is called
+     * once goanna knows definitively whether the block of events has had preventDefault
      * called on it (either on the initial down event that starts the block, or on
      * the first event following that down event).
      *
@@ -287,7 +287,7 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
         @Override
         public void run() {
             if (mProcessingBalance < 0) {
-                // gecko already responded with default-prevented notification, and so
+                // goanna already responded with default-prevented notification, and so
                 // the block of events this ListenerTimeoutProcessor corresponds to have
                 // already been removed from the queue.
             } else {

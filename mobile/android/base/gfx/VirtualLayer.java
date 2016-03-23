@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 public class VirtualLayer extends Layer {
     public VirtualLayer(IntSize size) {
@@ -27,7 +27,7 @@ public class VirtualLayer extends Layer {
         // }
 
         // it is safe to drop the transaction lock in this instance (i.e. for the
-        // VirtualLayer that is just a shadow of what gecko is painting) because
+        // VirtualLayer that is just a shadow of what goanna is painting) because
         // the position and resolution of this layer are always touched on the compositor
         // thread, and therefore do not require synchronization.
         mPosition.set(left, top, right, bottom);

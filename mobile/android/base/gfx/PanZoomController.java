@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.EventDispatcher;
 
 import android.graphics.PointF;
 import android.view.KeyEvent;
@@ -23,7 +23,7 @@ public interface PanZoomController {
 
     static class Factory {
         static PanZoomController create(PanZoomTarget target, View view, EventDispatcher dispatcher) {
-            if (org.mozilla.gecko.AppConstants.MOZ_ANDROID_APZ) {
+            if (org.mozilla.goanna.AppConstants.MOZ_ANDROID_APZ) {
                 return new NativePanZoomController(target, view, dispatcher);
             } else {
                 return new JavaPanZoomController(target, view, dispatcher);

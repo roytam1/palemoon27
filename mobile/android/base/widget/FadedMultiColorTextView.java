@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
@@ -18,11 +18,11 @@ import android.graphics.Shader;
 import android.util.AttributeSet;
 
 /**
- * Fades the end of the text by gecko:fadeWidth amount,
+ * Fades the end of the text by goanna:fadeWidth amount,
  * if the text is too long and requires an ellipsis.
  *
  * This implementation is an improvement over Android's built-in fadingEdge
- * but potentially slower than the {@link org.mozilla.gecko.widget.FadedSingleColorTextView}.
+ * but potentially slower than the {@link org.mozilla.goanna.widget.FadedSingleColorTextView}.
  * It works for text of multiple colors but only one background color. It works by
  * drawing a gradient rectangle with the background color over the text, fading it out.
  */

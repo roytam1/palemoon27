@@ -26,9 +26,9 @@ fi
 # Figure out where the remote manifest is so we can use caches for it.
 MANIFEST=$(repository-url.py $GECKO_HEAD_REPOSITORY $GECKO_HEAD_REV b2g/config/$TARGET/sources.xml)
 tc-vcs repo-checkout $OBJDIR/B2G https://git.mozilla.org/b2g/B2G.git $MANIFEST
-# Ensure we update gecko prior to invoking mozharness so commits match up
-# initially between manifest and gecko tree...
-pull-gecko.sh $OBJDIR/B2G/gecko
+# Ensure we update goanna prior to invoking mozharness so commits match up
+# initially between manifest and goanna tree...
+pull-goanna.sh $OBJDIR/B2G/goanna
 
 debug_flag=""
 if [ 0$B2G_DEBUG -ne 0 ]; then
@@ -54,4 +54,4 @@ mv $OBJDIR/B2G/sources.xml artifacts/sources.xml
 mv $OBJDIR/B2G/out/target/product/generic/tests/gaia-tests.zip artifacts/gaia-tests.zip
 mv $OBJDIR/B2G/out/target/product/generic/tests/b2g-*.zip artifacts/b2g-tests.zip
 mv $OBJDIR/B2G/out/emulator.tar.gz artifacts/emulator.tar.gz
-mv $OBJDIR/B2G/objdir-gecko/dist/b2g-*.crashreporter-symbols.zip artifacts/b2g-crashreporter-symbols.zip
+mv $OBJDIR/B2G/objdir-goanna/dist/b2g-*.crashreporter-symbols.zip artifacts/b2g-crashreporter-symbols.zip

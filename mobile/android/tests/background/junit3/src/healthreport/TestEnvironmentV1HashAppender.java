@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
@@ -10,10 +10,10 @@ import java.util.Arrays;
 import java.util.LinkedList;
 
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.background.healthreport.EnvironmentV1.EnvironmentAppender;
-import org.mozilla.gecko.background.healthreport.EnvironmentV1.HashAppender;
-import org.mozilla.gecko.background.helpers.FakeProfileTestCase;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.background.healthreport.EnvironmentV1.EnvironmentAppender;
+import org.mozilla.goanna.background.healthreport.EnvironmentV1.HashAppender;
+import org.mozilla.goanna.background.helpers.FakeProfileTestCase;
+import org.mozilla.goanna.sync.Utils;
 
 /**
  * Tests the HashAppender functionality. Note that these tests must be run on an Android

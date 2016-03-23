@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.stage;
+package org.mozilla.goanna.sync.stage;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.InfoCollections;
-import org.mozilla.gecko.sync.MetaGlobal;
-import org.mozilla.gecko.sync.PersistedMetaGlobal;
-import org.mozilla.gecko.sync.delegates.MetaGlobalDelegate;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.InfoCollections;
+import org.mozilla.goanna.sync.MetaGlobal;
+import org.mozilla.goanna.sync.PersistedMetaGlobal;
+import org.mozilla.goanna.sync.delegates.MetaGlobalDelegate;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
 
 public class FetchMetaGlobalStage extends AbstractNonRepositorySyncStage {
   private static final String LOG_TAG = "FetchMetaGlobalStage";

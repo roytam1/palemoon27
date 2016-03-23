@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.graphics.Rect;
 import android.view.MotionEvent;
@@ -32,7 +32,7 @@ import com.nineoldandroids.animation.ValueAnimator;
 import com.nineoldandroids.view.ViewHelper;
 import com.nineoldandroids.view.ViewPropertyAnimator;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 /**
  * This code is based off of Jake Wharton's NOA port (https://github.com/JakeWharton/SwipeToDismissNOA)

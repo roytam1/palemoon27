@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.health;
+package org.mozilla.goanna.health;
 
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import org.mozilla.gecko.GoannaApp;
+import org.mozilla.goanna.GoannaApp;
 
 import org.json.JSONException;
 import org.json.JSONObject;

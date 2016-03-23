@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import android.content.ContentResolver;
 import android.content.ContentUris;
@@ -12,12 +12,12 @@ import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.util.Log;
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.ReaderModeUtils;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.ReaderModeUtils;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 
 @RobocopTarget

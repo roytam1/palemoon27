@@ -37,7 +37,7 @@ add_task(function test_getUserRestrictions() {
   var jenv = null;
   try {
     jenv = JNI.GetForThread();
-    var profile = JNI.LoadClass(jenv, "org.mozilla.gecko.RestrictedProfiles", {
+    var profile = JNI.LoadClass(jenv, "org.mozilla.goanna.RestrictedProfiles", {
       static_methods: [
         { name: "getUserRestrictions", sig: "()Ljava/lang/String;" },
       ],

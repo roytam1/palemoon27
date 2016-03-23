@@ -2,23 +2,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.jpake.stage;
+package org.mozilla.goanna.sync.jpake.stage;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.jpake.BigIntegerHelper;
-import org.mozilla.gecko.sync.jpake.Gx3OrGx4IsZeroOrOneException;
-import org.mozilla.gecko.sync.jpake.IncorrectZkpException;
-import org.mozilla.gecko.sync.jpake.JPakeClient;
-import org.mozilla.gecko.sync.jpake.JPakeCrypto;
-import org.mozilla.gecko.sync.jpake.JPakeJson;
-import org.mozilla.gecko.sync.jpake.Zkp;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.jpake.BigIntegerHelper;
+import org.mozilla.goanna.sync.jpake.Gx3OrGx4IsZeroOrOneException;
+import org.mozilla.goanna.sync.jpake.IncorrectZkpException;
+import org.mozilla.goanna.sync.jpake.JPakeClient;
+import org.mozilla.goanna.sync.jpake.JPakeCrypto;
+import org.mozilla.goanna.sync.jpake.JPakeJson;
+import org.mozilla.goanna.sync.jpake.Zkp;
+import org.mozilla.goanna.sync.setup.Constants;
 
 public class ComputeStepTwoStage extends JPakeStage {
 

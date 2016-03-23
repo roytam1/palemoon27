@@ -1,12 +1,12 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport.prune;
+package org.mozilla.goanna.background.healthreport.prune;
 
 import java.util.concurrent.BrokenBarrierException;
 
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.helpers.BackgroundServiceTestCase;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.helpers.BackgroundServiceTestCase;
 
 import android.content.Intent;
 import android.content.SharedPreferences;

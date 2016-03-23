@@ -1,23 +1,23 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync;
+package org.mozilla.goanna.background.sync;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.background.testhelpers.DefaultGlobalSessionCallback;
-import org.mozilla.gecko.background.testhelpers.MockClientsDataDelegate;
-import org.mozilla.gecko.background.testhelpers.MockSharedPreferences;
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
-import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BasicAuthHeaderProvider;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.stage.SyncClientsEngineStage;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.testhelpers.DefaultGlobalSessionCallback;
+import org.mozilla.goanna.background.testhelpers.MockClientsDataDelegate;
+import org.mozilla.goanna.background.testhelpers.MockSharedPreferences;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.delegates.ClientsDataDelegate;
+import org.mozilla.goanna.sync.delegates.GlobalSessionCallback;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BasicAuthHeaderProvider;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.sync.stage.SyncClientsEngineStage;
 
 import android.content.Context;
 import android.content.SharedPreferences;

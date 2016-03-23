@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.updater.UpdateServiceHelper;
+import org.mozilla.goanna.updater.UpdateServiceHelper;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

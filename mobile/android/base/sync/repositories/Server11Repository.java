@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories;
+package org.mozilla.goanna.sync.repositories;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 
-import org.mozilla.gecko.sync.InfoCollections;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.InfoCollections;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
 
 import android.content.Context;
 

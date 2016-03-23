@@ -3,20 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.RemoteClientsDialogFragment;
-import org.mozilla.gecko.RemoteTabsExpandableListAdapter;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.RemoteClient;
-import org.mozilla.gecko.db.RemoteTab;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.RemoteClientsDialogFragment;
+import org.mozilla.goanna.RemoteTabsExpandableListAdapter;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.RemoteClient;
+import org.mozilla.goanna.db.RemoteTab;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;

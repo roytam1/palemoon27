@@ -41,8 +41,8 @@ ia2AccessibleRelation::get_relationType(BSTR* aRelationType)
 
   *aRelationType = nullptr;
 
-#define RELATIONTYPE(geckoType, geckoTypeName, atkType, msaaType, ia2Type) \
-  case RelationType::geckoType: \
+#define RELATIONTYPE(goannaType, goannaTypeName, atkType, msaaType, ia2Type) \
+  case RelationType::goannaType: \
     *aRelationType = ::SysAllocString(ia2Type); \
     break;
 

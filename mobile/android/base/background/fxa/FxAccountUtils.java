@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.fxa;
+package org.mozilla.goanna.background.fxa;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -12,14 +12,14 @@ import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.nativecode.NativeCrypto;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.crypto.HKDF;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.crypto.PBKDF2;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.nativecode.NativeCrypto;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.crypto.HKDF;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.crypto.PBKDF2;
 
 import android.content.Context;
 

@@ -4,9 +4,9 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:gecko="http://schemas.android.com/apk/res-auto">
+          xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
-   <item gecko:state_private="true"
+   <item goanna:state_private="true"
          android:state_pressed="true"
          android:state_enabled="true">
 
@@ -22,7 +22,7 @@
 
     </item>
 
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:state_focused="true"
           android:state_pressed="false">
 

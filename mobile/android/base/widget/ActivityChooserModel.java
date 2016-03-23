@@ -18,18 +18,18 @@
  * Mozilla: Changing the package.
  */
 //package android.widget;
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 // Mozilla: New import
 import android.accounts.Account;
 import android.content.pm.PackageManager;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.overlays.ui.ShareDialog;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.overlays.ui.ShareDialog;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.R;
 import java.io.File;
 
 import android.content.BroadcastReceiver;

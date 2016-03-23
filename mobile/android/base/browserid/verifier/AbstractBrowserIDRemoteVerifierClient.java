@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.browserid.verifier;
+package org.mozilla.goanna.browserid.verifier;
 
 import java.io.IOException;
 import java.net.URI;
 import java.security.GeneralSecurityException;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.browserid.verifier.BrowserIDVerifierException.BrowserIDVerifierErrorResponseException;
-import org.mozilla.gecko.browserid.verifier.BrowserIDVerifierException.BrowserIDVerifierMalformedResponseException;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
-import org.mozilla.gecko.sync.net.Resource;
-import org.mozilla.gecko.sync.net.SyncResponse;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.browserid.verifier.BrowserIDVerifierException.BrowserIDVerifierErrorResponseException;
+import org.mozilla.goanna.browserid.verifier.BrowserIDVerifierException.BrowserIDVerifierMalformedResponseException;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.sync.net.Resource;
+import org.mozilla.goanna.sync.net.SyncResponse;
 
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;

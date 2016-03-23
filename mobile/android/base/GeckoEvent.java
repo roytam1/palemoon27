@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ArrayBlockingQueue;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.gfx.DisplayPortMetrics;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.gfx.DisplayPortMetrics;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
 
 import android.graphics.Point;
 import android.graphics.PointF;
@@ -25,8 +25,8 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import org.mozilla.gecko.mozglue.JNITarget;
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 /**
  * We're not allowed to hold on to most events given to us
@@ -347,15 +347,15 @@ public class GoannaEvent {
             event.mCount = 1;
             event.mPoints = new Point[1];
 
-            PointF geckoPoint = new PointF(pt.x, pt.y);
-            geckoPoint = GoannaAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
+            PointF goannaPoint = new PointF(pt.x, pt.y);
+            goannaPoint = GoannaAppShell.getLayerView().convertViewPointToLayerPoint(goannaPoint);
 
-            if (geckoPoint == null) {
+            if (goannaPoint == null) {
                 // This could happen if Goanna isn't ready yet.
                 return null;
             }
 
-            event.mPoints[0] = new Point(Math.round(geckoPoint.x), Math.round(geckoPoint.y));
+            event.mPoints[0] = new Point(Math.round(goannaPoint.x), Math.round(goannaPoint.y));
 
             event.mX = size;
             event.mTime = System.currentTimeMillis();
@@ -370,7 +370,7 @@ public class GoannaEvent {
      * Creates a GoannaEvent that contains the data from the MotionEvent.
      * The keepInViewCoordinates parameter can be set to false to convert from the Java
      * coordinate system (device pixels relative to the LayerView) to a coordinate system
-     * relative to gecko's coordinate system (CSS pixels relative to gecko scroll position).
+     * relative to goanna's coordinate system (CSS pixels relative to goanna scroll position).
      */
     public static GoannaEvent createMotionEvent(MotionEvent m, boolean keepInViewCoordinates) {
         GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.MOTION_EVENT);
@@ -380,7 +380,7 @@ public class GoannaEvent {
 
     /**
      * Creates a GoannaEvent that contains the data from the LongPressEvent, to be
-     * dispatched in CSS pixels relative to gecko's scroll position.
+     * dispatched in CSS pixels relative to goanna's scroll position.
      */
     public static GoannaEvent createLongPressEvent(MotionEvent m) {
         GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.LONG_PRESS);
@@ -431,12 +431,12 @@ public class GoannaEvent {
 
     private void addMotionPoint(int index, int eventIndex, MotionEvent event, boolean keepInViewCoordinates) {
         try {
-            PointF geckoPoint = new PointF(event.getX(eventIndex), event.getY(eventIndex));
+            PointF goannaPoint = new PointF(event.getX(eventIndex), event.getY(eventIndex));
             if (!keepInViewCoordinates) {
-                geckoPoint = GoannaAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
+                goannaPoint = GoannaAppShell.getLayerView().convertViewPointToLayerPoint(goannaPoint);
             }
 
-            mPoints[index] = new Point(Math.round(geckoPoint.x), Math.round(geckoPoint.y));
+            mPoints[index] = new Point(Math.round(goannaPoint.x), Math.round(goannaPoint.y));
             mPointIndicies[index] = event.getPointerId(eventIndex);
 
             double radians = event.getOrientation(eventIndex);
@@ -463,7 +463,7 @@ public class GoannaEvent {
             }
 
             if (!keepInViewCoordinates) {
-                // If we are converting to gecko CSS pixels, then we should adjust the
+                // If we are converting to goanna CSS pixels, then we should adjust the
                 // radii as well
                 float zoom = GoannaAppShell.getLayerView().getViewportMetrics().zoomFactor;
                 mPointRadii[index].x /= zoom;

@@ -60,13 +60,13 @@ GetClosestInterestingAccessible(id anObject)
 
 @implementation mozAccessible
  
-- (id)initWithAccessible:(AccessibleWrap*)geckoAccessible
+- (id)initWithAccessible:(AccessibleWrap*)goannaAccessible
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if ((self = [super init])) {
-    mGoannaAccessible = geckoAccessible;
-    mRole = geckoAccessible->Role();
+    mGoannaAccessible = goannaAccessible;
+    mRole = goannaAccessible->Role();
   }
    
   return self;
@@ -236,10 +236,10 @@ GetClosestInterestingAccessible(id anObject)
   NSScreen* mainView = [[NSScreen screens] objectAtIndex:0];
   NSPoint tmpPoint = NSMakePoint(point.x,
                                  [mainView frame].size.height - point.y);
-  nsIntPoint geckoPoint = nsCocoaUtils::
+  nsIntPoint goannaPoint = nsCocoaUtils::
     CocoaPointsToDevPixels(tmpPoint, nsCocoaUtils::GetBackingScaleFactor(mainView));
 
-  Accessible* child = mGoannaAccessible->ChildAtPoint(geckoPoint.x, geckoPoint.y,
+  Accessible* child = mGoannaAccessible->ChildAtPoint(goannaPoint.x, goannaPoint.y,
                                                      Accessible::eDeepestChild);
 
   if (child) {
@@ -411,8 +411,8 @@ GetClosestInterestingAccessible(id anObject)
                "Does not support Text when it should");
 #endif
 
-#define ROLE(geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role, nameRule) \
-  case roles::geckoRole: \
+#define ROLE(goannaRole, stringRole, atkRole, macRole, msaaRole, ia2Role, nameRule) \
+  case roles::goannaRole: \
     return macRole;
 
   switch (mRole) {

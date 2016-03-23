@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
-import static org.mozilla.gecko.home.HomeConfig.createBuiltinPanelConfig;
+import static org.mozilla.goanna.home.HomeConfig.createBuiltinPanelConfig;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -16,13 +16,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.db.HomeProvider;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.home.PanelInfoManager.PanelInfo;
-import org.mozilla.gecko.home.PanelInfoManager.RequestCallback;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.db.HomeProvider;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.home.HomeConfig.PanelConfig;
+import org.mozilla.goanna.home.PanelInfoManager.PanelInfo;
+import org.mozilla.goanna.home.PanelInfoManager.RequestCallback;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -144,7 +144,7 @@ public class HomePanelsManager implements GoannaEventListener {
     }
 
     /**
-     * Runs in the gecko thread.
+     * Runs in the goanna thread.
      */
     private void handlePanelInstall(PanelConfig panelConfig, InvalidationMode mode) {
         mPendingChanges.offer(new ConfigChange(ChangeType.INSTALL, panelConfig));
@@ -154,7 +154,7 @@ public class HomePanelsManager implements GoannaEventListener {
     }
 
     /**
-     * Runs in the gecko thread.
+     * Runs in the goanna thread.
      */
     private void handlePanelUninstall(String panelId) {
         mPendingChanges.offer(new ConfigChange(ChangeType.UNINSTALL, panelId));
@@ -164,7 +164,7 @@ public class HomePanelsManager implements GoannaEventListener {
     }
 
     /**
-     * Runs in the gecko thread.
+     * Runs in the goanna thread.
      */
     private void handlePanelUpdate(PanelConfig panelConfig) {
         mPendingChanges.offer(new ConfigChange(ChangeType.UPDATE, panelConfig));
@@ -188,7 +188,7 @@ public class HomePanelsManager implements GoannaEventListener {
      * Handles a dataset refresh request from Goanna. This is usually
      * triggered by a HomeStorage.save() call in an add-on.
      *
-     * Runs in the gecko thread.
+     * Runs in the goanna thread.
      */
     private void handleDatasetRefresh(JSONObject message) {
         final String datasetId;
@@ -206,7 +206,7 @@ public class HomePanelsManager implements GoannaEventListener {
     }
 
     /**
-     * Runs in the gecko or main thread.
+     * Runs in the goanna or main thread.
      */
     private void scheduleInvalidation(InvalidationMode mode) {
         final Handler handler = ThreadUtils.getBackgroundHandler();
@@ -343,7 +343,7 @@ public class HomePanelsManager implements GoannaEventListener {
                 refreshFromPanelInfos(editor, latestPanelInfos);
             }
         } catch (InterruptedException e) {
-            Log.e(LOGTAG, "Failed to fetch panels from gecko", e);
+            Log.e(LOGTAG, "Failed to fetch panels from goanna", e);
         }
     }
 

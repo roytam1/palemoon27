@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.PropertyAnimator.Property;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.PropertyAnimator.Property;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.R;
 
 import android.app.AlertDialog;
 import android.app.Dialog;

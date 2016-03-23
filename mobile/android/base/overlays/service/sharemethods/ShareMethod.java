@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays.service.sharemethods;
+package org.mozilla.goanna.overlays.service.sharemethods;
 
 import android.content.Context;
 import android.os.Parcel;
 import android.os.Parcelable;
-import org.mozilla.gecko.overlays.service.ShareData;
+import org.mozilla.goanna.overlays.service.ShareData;
 
 /**
  * Represents a method of sharing a URL/title. Add a bookmark? Send to a device? Add to reading list?

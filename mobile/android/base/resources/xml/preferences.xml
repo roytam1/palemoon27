@@ -8,10 +8,10 @@
      to xml-v11/preferences.xml. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:enabled="false">
 
-    <org.mozilla.gecko.preferences.SyncPreference android:key="android.not_a_preference.sync"
+    <org.mozilla.goanna.preferences.SyncPreference android:key="android.not_a_preference.sync"
                                                   android:title="@string/pref_sync"
                                                   android:summary="@string/pref_sync_summary"
                                                   android:persistent="false" />
@@ -20,7 +20,7 @@
                       android:summary="@string/pref_category_customize_summary" >
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_customize" />
@@ -31,7 +31,7 @@
                       android:summary="@string/pref_category_display_summary" >
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_display" />
@@ -42,7 +42,7 @@
                       android:summary="@string/pref_category_privacy_summary" >
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_privacy" />
@@ -53,7 +53,7 @@
                       android:summary="@string/pref_category_language_summary" >
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_locale" />
@@ -64,7 +64,7 @@
                       android:summary="@string/pref_category_vendor_summary" >
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_vendor" />
@@ -74,7 +74,7 @@
                       android:summary="@string/pref_category_devtools_summary" >
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_devtools" />

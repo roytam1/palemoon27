@@ -561,7 +561,7 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
   if (!domdoc)
     return nil;
 
-  // Get information from the gecko menu item
+  // Get information from the goanna menu item
   nsAutoString label;
   nsAutoString modifiers;
   nsAutoString key;
@@ -595,8 +595,8 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
       // now grab the key equivalent modifiers
       nsAutoString modifiersStr;
       keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiersStr);
-      uint8_t geckoModifiers = nsMenuUtilsX::GoannaModifiersForNodeAttribute(modifiersStr);
-      macKeyModifiers = nsMenuUtilsX::MacModifiersForGoannaModifiers(geckoModifiers);
+      uint8_t goannaModifiers = nsMenuUtilsX::GoannaModifiersForNodeAttribute(modifiersStr);
+      macKeyModifiers = nsMenuUtilsX::MacModifiersForGoannaModifiers(goannaModifiers);
     }
   }
   // get the label into NSString-form

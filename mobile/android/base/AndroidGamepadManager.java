@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.Context;
 import android.hardware.input.InputManager;

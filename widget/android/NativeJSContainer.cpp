@@ -25,7 +25,7 @@ public:
             return;
         }
         jNativeJSContainer = AndroidBridge::GetClassGlobalRef(
-            env, "org/mozilla/gecko/util/NativeJSContainer");
+            env, "org/mozilla/goanna/util/NativeJSContainer");
         MOZ_ASSERT(jNativeJSContainer);
         jContainerNativeObject = AndroidBridge::GetFieldID(
             env, jNativeJSContainer, "mNativeObject", "J");
@@ -35,18 +35,18 @@ public:
         MOZ_ASSERT(jContainerConstructor);
 
         jNativeJSObject = AndroidBridge::GetClassGlobalRef(
-            env, "org/mozilla/gecko/util/NativeJSObject");
+            env, "org/mozilla/goanna/util/NativeJSObject");
         MOZ_ASSERT(jNativeJSObject);
         jObjectContainer = AndroidBridge::GetFieldID(
             env, jNativeJSObject, "mContainer",
-            "Lorg/mozilla/gecko/util/NativeJSContainer;");
+            "Lorg/mozilla/goanna/util/NativeJSContainer;");
         MOZ_ASSERT(jObjectContainer);
         jObjectIndex = AndroidBridge::GetFieldID(
             env, jNativeJSObject, "mObjectIndex", "I");
         MOZ_ASSERT(jObjectIndex);
         jObjectConstructor = AndroidBridge::GetMethodID(
             env, jNativeJSObject, "<init>",
-            "(Lorg/mozilla/gecko/util/NativeJSContainer;I)V");
+            "(Lorg/mozilla/goanna/util/NativeJSContainer;I)V");
         MOZ_ASSERT(jContainerConstructor);
 
         jBundle = AndroidBridge::GetClassGlobalRef(
@@ -408,7 +408,7 @@ template <bool (*InValue)(JSContext*, JS::HandleValue)> bool
 CheckProperty(JNIEnv* env, JSContext* cx, JS::HandleValue val) {
     if (!(*InValue)(cx, val)) {
         AndroidBridge::ThrowException(env,
-            "org/mozilla/gecko/util/NativeJSObject$InvalidPropertyException",
+            "org/mozilla/goanna/util/NativeJSObject$InvalidPropertyException",
             "Property type mismatch");
         return false;
     }
@@ -679,7 +679,7 @@ GetProperty(JNIEnv* env, jobject instance, jstring name,
     if (val.isUndefined() || val.isNull()) {
         if (option == FallbackOption::THROW) {
             AndroidBridge::ThrowException(env,
-                "org/mozilla/gecko/util/NativeJSObject$InvalidPropertyException",
+                "org/mozilla/goanna/util/NativeJSObject$InvalidPropertyException",
                 "Property does not exist");
         }
         return fallback;
@@ -784,189 +784,189 @@ GetBundle(JNIEnv* env, jobject instance, JSContext* cx, JS::HandleObject obj)
 extern "C" {
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_util_NativeJSContainer_dispose(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_util_NativeJSContainer_dispose(JNIEnv* env, jobject instance)
 {
     MOZ_ASSERT(env);
     NativeJSContainer::DisposeInstance(env, instance);
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_util_NativeJSContainer_clone(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_util_NativeJSContainer_clone(JNIEnv* env, jobject instance)
 {
     MOZ_ASSERT(env);
     return NativeJSContainer::CloneInstance(env, instance);
 }
 
 NS_EXPORT jboolean JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getBoolean(JNIEnv* env, jobject instance, jstring name)
+Java_org_mozilla_goanna_util_NativeJSObject_getBoolean(JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<BooleanProperty>(env, instance, name);
 }
 
 NS_EXPORT jboolean JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optBoolean(JNIEnv* env, jobject instance,
+Java_org_mozilla_goanna_util_NativeJSObject_optBoolean(JNIEnv* env, jobject instance,
                                                       jstring name, jboolean fallback)
 {
     return GetProperty<BooleanProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jbooleanArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getBooleanArray(
+Java_org_mozilla_goanna_util_NativeJSObject_getBooleanArray(
     JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<BooleanArrayProperty>(env, instance, name);
 }
 
 NS_EXPORT jbooleanArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optBooleanArray(
+Java_org_mozilla_goanna_util_NativeJSObject_optBooleanArray(
     JNIEnv* env, jobject instance, jstring name, jbooleanArray fallback)
 {
     return GetProperty<BooleanArrayProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getBundle(JNIEnv* env, jobject instance, jstring name)
+Java_org_mozilla_goanna_util_NativeJSObject_getBundle(JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<BundleProperty>(env, instance, name);
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optBundle(JNIEnv* env, jobject instance,
+Java_org_mozilla_goanna_util_NativeJSObject_optBundle(JNIEnv* env, jobject instance,
                                                      jstring name, jobject fallback)
 {
     return GetProperty<BundleProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jobjectArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getBundleArray(
+Java_org_mozilla_goanna_util_NativeJSObject_getBundleArray(
     JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<BundleArrayProperty>(env, instance, name);
 }
 
 NS_EXPORT jobjectArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optBundleArray(
+Java_org_mozilla_goanna_util_NativeJSObject_optBundleArray(
     JNIEnv* env, jobject instance, jstring name, jobjectArray fallback)
 {
     return GetProperty<BundleArrayProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jdouble JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getDouble(JNIEnv* env, jobject instance, jstring name)
+Java_org_mozilla_goanna_util_NativeJSObject_getDouble(JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<DoubleProperty>(env, instance, name);
 }
 
 NS_EXPORT jdouble JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optDouble(JNIEnv* env, jobject instance,
+Java_org_mozilla_goanna_util_NativeJSObject_optDouble(JNIEnv* env, jobject instance,
                                                      jstring name, jdouble fallback)
 {
     return GetProperty<DoubleProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jdoubleArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getDoubleArray(
+Java_org_mozilla_goanna_util_NativeJSObject_getDoubleArray(
     JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<DoubleArrayProperty>(env, instance, name);
 }
 
 NS_EXPORT jdoubleArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optDoubleArray(
+Java_org_mozilla_goanna_util_NativeJSObject_optDoubleArray(
     JNIEnv* env, jobject instance, jstring name, jdoubleArray fallback)
 {
     return GetProperty<DoubleArrayProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jint JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getInt(JNIEnv* env, jobject instance, jstring name)
+Java_org_mozilla_goanna_util_NativeJSObject_getInt(JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<IntProperty>(env, instance, name);
 }
 
 NS_EXPORT jint JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optInt(JNIEnv* env, jobject instance,
+Java_org_mozilla_goanna_util_NativeJSObject_optInt(JNIEnv* env, jobject instance,
                                                   jstring name, jint fallback)
 {
     return GetProperty<IntProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jintArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getIntArray(
+Java_org_mozilla_goanna_util_NativeJSObject_getIntArray(
     JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<IntArrayProperty>(env, instance, name);
 }
 
 NS_EXPORT jintArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optIntArray(
+Java_org_mozilla_goanna_util_NativeJSObject_optIntArray(
     JNIEnv* env, jobject instance, jstring name, jintArray fallback)
 {
     return GetProperty<IntArrayProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getObject(JNIEnv* env, jobject instance, jstring name)
+Java_org_mozilla_goanna_util_NativeJSObject_getObject(JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<ObjectProperty>(env, instance, name);
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optObject(JNIEnv* env, jobject instance,
+Java_org_mozilla_goanna_util_NativeJSObject_optObject(JNIEnv* env, jobject instance,
                                                      jstring name, jobject fallback)
 {
     return GetProperty<ObjectProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jobjectArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getObjectArray(
+Java_org_mozilla_goanna_util_NativeJSObject_getObjectArray(
     JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<ObjectArrayProperty>(env, instance, name);
 }
 
 NS_EXPORT jobjectArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optObjectArray(
+Java_org_mozilla_goanna_util_NativeJSObject_optObjectArray(
     JNIEnv* env, jobject instance, jstring name, jobjectArray fallback)
 {
     return GetProperty<ObjectArrayProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jstring JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getString(JNIEnv* env, jobject instance, jstring name)
+Java_org_mozilla_goanna_util_NativeJSObject_getString(JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<StringProperty>(env, instance, name);
 }
 
 NS_EXPORT jstring JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optString(JNIEnv* env, jobject instance,
+Java_org_mozilla_goanna_util_NativeJSObject_optString(JNIEnv* env, jobject instance,
                                                      jstring name, jstring fallback)
 {
     return GetProperty<StringProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jobjectArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_getStringArray(
+Java_org_mozilla_goanna_util_NativeJSObject_getStringArray(
     JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<StringArrayProperty>(env, instance, name);
 }
 
 NS_EXPORT jobjectArray JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_optStringArray(
+Java_org_mozilla_goanna_util_NativeJSObject_optStringArray(
     JNIEnv* env, jobject instance, jstring name, jobjectArray fallback)
 {
     return GetProperty<StringArrayProperty>(env, instance, name, FallbackOption::RETURN, fallback);
 }
 
 NS_EXPORT jboolean JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_has(JNIEnv* env, jobject instance, jstring name)
+Java_org_mozilla_goanna_util_NativeJSObject_has(JNIEnv* env, jobject instance, jstring name)
 {
     return GetProperty<HasProperty>(env, instance, name, FallbackOption::RETURN, JNI_FALSE);
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_toBundle(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_util_NativeJSObject_toBundle(JNIEnv* env, jobject instance)
 {
     MOZ_ASSERT(env);
     MOZ_ASSERT(instance);
@@ -984,7 +984,7 @@ Java_org_mozilla_gecko_util_NativeJSObject_toBundle(JNIEnv* env, jobject instanc
 }
 
 NS_EXPORT jstring JNICALL
-Java_org_mozilla_gecko_util_NativeJSObject_toString(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_util_NativeJSObject_toString(JNIEnv* env, jobject instance)
 {
     MOZ_ASSERT(env);
     MOZ_ASSERT(instance);

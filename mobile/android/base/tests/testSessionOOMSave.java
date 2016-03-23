@@ -1,6 +1,6 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
+import org.mozilla.goanna.Actions;
 
 import com.jayway.android.robotium.solo.Condition;
 

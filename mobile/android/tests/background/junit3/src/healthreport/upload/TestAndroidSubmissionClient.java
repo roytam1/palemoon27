@@ -1,22 +1,22 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport.upload;
+package org.mozilla.goanna.background.healthreport.upload;
 
 import java.util.Collection;
 
-import org.mozilla.gecko.background.bagheera.BagheeraRequestDelegate;
-import org.mozilla.gecko.background.healthreport.Environment;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.MockHealthReportDatabaseStorage.PrepopulatedMockHealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.MockProfileInformationCache;
-import org.mozilla.gecko.background.healthreport.ProfileInformationCache;
-import org.mozilla.gecko.background.healthreport.upload.AndroidSubmissionClient;
-import org.mozilla.gecko.background.healthreport.upload.AndroidSubmissionClient.SubmissionsFieldName;
-import org.mozilla.gecko.background.helpers.FakeProfileTestCase;
-import org.mozilla.gecko.background.testhelpers.StubDelegate;
+import org.mozilla.goanna.background.bagheera.BagheeraRequestDelegate;
+import org.mozilla.goanna.background.healthreport.Environment;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.MockHealthReportDatabaseStorage.PrepopulatedMockHealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.MockProfileInformationCache;
+import org.mozilla.goanna.background.healthreport.ProfileInformationCache;
+import org.mozilla.goanna.background.healthreport.upload.AndroidSubmissionClient;
+import org.mozilla.goanna.background.healthreport.upload.AndroidSubmissionClient.SubmissionsFieldName;
+import org.mozilla.goanna.background.helpers.FakeProfileTestCase;
+import org.mozilla.goanna.background.testhelpers.StubDelegate;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

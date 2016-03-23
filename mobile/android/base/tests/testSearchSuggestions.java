@@ -1,11 +1,11 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.SuggestClient;
-import org.mozilla.gecko.home.BrowserSearch;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.SuggestClient;
+import org.mozilla.goanna.home.BrowserSearch;
 
 import android.content.Context;
 import android.view.View;

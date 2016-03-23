@@ -26,13 +26,13 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.SearchHistory;
-import org.mozilla.gecko.widget.SwipeDismissListViewTouchListener;
-import org.mozilla.gecko.widget.SwipeDismissListViewTouchListener.OnDismissCallback;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.SearchHistory;
+import org.mozilla.goanna.widget.SwipeDismissListViewTouchListener;
+import org.mozilla.goanna.widget.SwipeDismissListViewTouchListener.OnDismissCallback;
 import org.mozilla.search.AcceptsSearchQuery.SuggestionAnimation;
 
 /**

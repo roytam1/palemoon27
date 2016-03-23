@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.android;
+package org.mozilla.goanna.sync.repositories.android;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionStoreDelegate;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionStoreDelegate;
 
 /**
  * Queue up deletions. Process them at the end.

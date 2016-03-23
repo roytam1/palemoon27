@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.synchronizer;
+package org.mozilla.goanna.sync.synchronizer;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 /**
  * Consume records from a queue inside a RecordsChannel, storing them serially.

@@ -3392,7 +3392,7 @@ Tab.prototype = {
         stub = true;
       } else {
         let jenv = JNI.GetForThread();
-        let jTabs = JNI.LoadClass(jenv, "org.mozilla.gecko.Tabs", {
+        let jTabs = JNI.LoadClass(jenv, "org.mozilla.goanna.Tabs", {
           static_methods: [
             { name: "getNextTabId", sig: "()I" }
           ],
@@ -3671,11 +3671,11 @@ Tab.prototype = {
       return;
 
     // "zoom" is the user-visible zoom of the "this" tab
-    // "resolution" is the zoom at which we wish gecko to render "this" tab at
+    // "resolution" is the zoom at which we wish goanna to render "this" tab at
     // these two may be different if we are, for example, trying to render a
     // large area of the page at low resolution because the user is panning real
     // fast.
-    // The gecko scroll position is in CSS pixels. The display port rect
+    // The goanna scroll position is in CSS pixels. The display port rect
     // values (aDisplayPort), however, are in CSS pixels multiplied by the desired
     // rendering resolution. Therefore care must be taken when doing math with
     // these sets of values, to ensure that they are normalized to the same coordinate

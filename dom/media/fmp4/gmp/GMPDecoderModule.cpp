@@ -24,7 +24,7 @@ GMPDecoderModule::~GMPDecoderModule()
 static already_AddRefed<MediaDataDecoderProxy>
 CreateDecoderWrapper(MediaDataDecoderCallback* aCallback)
 {
-  nsCOMPtr<mozIGoannaMediaPluginService> gmpService = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+  nsCOMPtr<mozIGoannaMediaPluginService> gmpService = do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   if (!gmpService) {
     return nullptr;
   }

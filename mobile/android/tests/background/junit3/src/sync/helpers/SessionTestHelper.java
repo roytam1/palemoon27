@@ -1,15 +1,15 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync.helpers;
+package org.mozilla.goanna.background.sync.helpers;
 
 import static junit.framework.Assert.assertNotNull;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.testhelpers.WaitHelper;
-import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.testhelpers.WaitHelper;
+import org.mozilla.goanna.sync.repositories.InvalidSessionTransitionException;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
 
 import android.content.Context;
 

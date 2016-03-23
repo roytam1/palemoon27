@@ -778,9 +778,9 @@ MessageChannel::SyncStackFrame::~SyncStackFrame()
 
 MessageChannel::SyncStackFrame* MessageChannel::sStaticTopFrame;
 
-// nsAppShell's notification that gecko events are being processed.
+// nsAppShell's notification that goanna events are being processed.
 // If we are here and there is an Interrupt Incall active, we are spinning
-// a nested gecko event loop. In which case the remote process needs
+// a nested goanna event loop. In which case the remote process needs
 // to know about it.
 void /* static */
 MessageChannel::NotifyGoannaEventDispatch()

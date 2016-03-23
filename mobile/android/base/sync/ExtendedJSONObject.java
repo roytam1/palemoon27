@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -16,7 +16,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.sync.UnexpectedJSONException.BadRequiredFieldJSONException;
+import org.mozilla.goanna.sync.UnexpectedJSONException.BadRequiredFieldJSONException;
 
 /**
  * Extend JSONObject to do little things, like, y'know, accessing members.

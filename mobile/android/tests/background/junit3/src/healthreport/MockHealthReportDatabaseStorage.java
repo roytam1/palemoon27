@@ -1,16 +1,16 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
 
 import android.content.ContentValues;
 import android.content.Context;

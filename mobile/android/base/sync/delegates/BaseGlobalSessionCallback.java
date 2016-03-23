@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.delegates;
+package org.mozilla.goanna.sync.delegates;
 
 import java.net.URI;
 
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage.Stage;
 
 public interface BaseGlobalSessionCallback {
   /**

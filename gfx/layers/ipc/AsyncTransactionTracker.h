@@ -104,7 +104,7 @@ protected:
   bool    mCompleted;
 
   /**
-   * gecko does not provide atomic operation for uint64_t.
+   * goanna does not provide atomic operation for uint64_t.
    * Ensure atomicity by using Mutex.
    */
   static uint64_t sSerialCounter;
@@ -173,7 +173,7 @@ protected:
   std::map<uint64_t, RefPtr<AsyncTransactionTracker> > mAsyncTransactionTrackeres;
 
   /**
-   * gecko does not provide atomic operation for uint64_t.
+   * goanna does not provide atomic operation for uint64_t.
    * Ensure atomicity by using Mutex.
    */
   static uint64_t sSerialCounter;

@@ -3,16 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.home.PanelLayout.DatasetBacked;
-import org.mozilla.gecko.home.PanelLayout.FilterManager;
-import org.mozilla.gecko.widget.GoannaSwipeRefreshLayout;
-import org.mozilla.gecko.widget.GoannaSwipeRefreshLayout.OnRefreshListener;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.home.PanelLayout.DatasetBacked;
+import org.mozilla.goanna.home.PanelLayout.FilterManager;
+import org.mozilla.goanna.widget.GoannaSwipeRefreshLayout;
+import org.mozilla.goanna.widget.GoannaSwipeRefreshLayout.OnRefreshListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;

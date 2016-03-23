@@ -4,22 +4,22 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:gecko="http://schemas.android.com/apk/res-auto">
+          xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <!-- private browsing mode -->
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:state_focused="true"
           android:drawable="@drawable/url_bar_entry_pressed_pb"/>
 
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:state_pressed="true"
           android:drawable="@drawable/url_bar_entry_pressed_pb"/>
 
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:state_selected="true"
           android:drawable="@drawable/url_bar_entry_pressed_pb"/>
 
-    <item gecko:state_private="true"
+    <item goanna:state_private="true"
           android:drawable="@drawable/url_bar_entry_default_pb"/>
  
     <!-- normal modes -->

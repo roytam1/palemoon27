@@ -134,7 +134,7 @@ endif
 
 
 ident:
-	@printf 'gecko_revision '
+	@printf 'goanna_revision '
 	@$(PYTHON) $(topsrcdir)/config/printconfigsetting.py $(GECKO_PLATFORM_INI_PATH) Build SourceStamp
 	@printf 'b2g_revision '
 	@$(PYTHON) $(topsrcdir)/config/printconfigsetting.py $(B2G_APPLICATION_INI_PATH) App SourceStamp

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport.upload;
+package org.mozilla.goanna.background.healthreport.upload;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -12,23 +12,23 @@ import java.util.Collection;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.background.bagheera.BagheeraClient;
-import org.mozilla.gecko.background.bagheera.BagheeraRequestDelegate;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.healthreport.AndroidConfigurationProvider;
-import org.mozilla.gecko.background.healthreport.Environment;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
-import org.mozilla.gecko.background.healthreport.HealthReportConstants;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportGenerator;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields;
-import org.mozilla.gecko.background.healthreport.ProfileInformationCache;
-import org.mozilla.gecko.sync.net.BaseResource;
+import org.mozilla.goanna.BrowserLocaleManager;
+import org.mozilla.goanna.background.bagheera.BagheeraClient;
+import org.mozilla.goanna.background.bagheera.BagheeraRequestDelegate;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.AndroidConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.Environment;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.HealthReportConstants;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportGenerator;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
+import org.mozilla.goanna.background.healthreport.ProfileInformationCache;
+import org.mozilla.goanna.sync.net.BaseResource;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

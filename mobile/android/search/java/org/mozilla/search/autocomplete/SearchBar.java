@@ -4,10 +4,10 @@
 
 package org.mozilla.search.autocomplete;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.gfx.BitmapUtils;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.gfx.BitmapUtils;
 import org.mozilla.search.providers.SearchEngine;
 
 import android.content.Context;

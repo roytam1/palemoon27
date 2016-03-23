@@ -3,8 +3,8 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<org.mozilla.gecko.tabs.TabsLayoutItemView xmlns:android="http://schemas.android.com/apk/res/android"
-                                           xmlns:gecko="http://schemas.android.com/apk/res-auto"
+<org.mozilla.goanna.tabs.TabsLayoutItemView xmlns:android="http://schemas.android.com/apk/res/android"
+                                           xmlns:goanna="http://schemas.android.com/apk/res-auto"
                                            style="@style/TabsItem"
                                            android:id="@+id/info"
                                            android:layout_width="wrap_content"
@@ -20,7 +20,7 @@
                   android:paddingRight="@dimen/new_tablet_tab_highlight_stroke_width"
                   android:paddingBottom="@dimen/new_tablet_tab_highlight_stroke_width">
 
-       <org.mozilla.gecko.widget.FadedSingleColorTextView
+       <org.mozilla.goanna.widget.FadedSingleColorTextView
                android:id="@+id/title"
                android:layout_width="0dip"
                android:layout_height="wrap_content"
@@ -30,7 +30,7 @@
                android:textColor="@color/new_tablet_tab_item_title"
                android:singleLine="true"
                android:duplicateParentState="true"
-               gecko:fadeWidth="15dp"
+               goanna:fadeWidth="15dp"
                android:paddingRight="5dp"/>
 
 
@@ -55,11 +55,11 @@
                     android:background="@drawable/tab_thumbnail"
                     android:duplicateParentState="true">
 
-        <org.mozilla.gecko.widget.ThumbnailView android:id="@+id/thumbnail"
+        <org.mozilla.goanna.widget.ThumbnailView android:id="@+id/thumbnail"
                                                 android:layout_width="@dimen/new_tablet_tab_thumbnail_width"
                                                 android:layout_height="@dimen/new_tablet_tab_thumbnail_height"
                                                 />
 
     </RelativeLayout>
 
-</org.mozilla.gecko.tabs.TabsLayoutItemView>
+</org.mozilla.goanna.tabs.TabsLayoutItemView>

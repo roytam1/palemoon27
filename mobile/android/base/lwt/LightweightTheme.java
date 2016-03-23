@@ -3,20 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.lwt;
+package org.mozilla.goanna.lwt;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.WindowUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.WindowUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils.AssertBehavior;
 
 import android.app.Application;
 import android.content.SharedPreferences;

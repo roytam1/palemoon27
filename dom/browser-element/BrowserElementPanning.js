@@ -236,7 +236,7 @@ const ContentPanning = {
     }
 
     // !isPan() and evt.detail should always give the same answer here
-    // since they use the same heuristics, but use the native gecko
+    // since they use the same heuristics, but use the native goanna
     // computation when possible.
     //
     // NB: when we're using touch events, then !KineticPanning.isPan()

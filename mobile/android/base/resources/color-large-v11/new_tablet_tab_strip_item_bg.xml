@@ -4,19 +4,19 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-	      xmlns:gecko="http://schemas.android.com/apk/res-auto">
+	      xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <item android:state_pressed="true"
           android:state_checked="true"
-          gecko:state_private="true"
+          goanna:state_private="true"
           android:color="@color/highlight_nav_pb" />
 
     <item android:state_checked="true"
-          gecko:state_private="true"
+          goanna:state_private="true"
           android:color="@color/background_private" />
 
     <item android:state_pressed="true"
-          gecko:state_private="true"
+          goanna:state_private="true"
           android:color="@color/highlight_dark_focused" />
 
     <item android:state_pressed="true"
@@ -25,16 +25,16 @@
 
     <!-- Lightweight Themes -->
     <item android:state_checked="true"
-          gecko:state_light="true"
+          goanna:state_light="true"
           android:color="@color/background_normal_lwt" />
     <item android:state_checked="true"
-          gecko:state_dark="true"
+          goanna:state_dark="true"
           android:color="@color/background_normal_lwt" />
     <item android:state_pressed="true"
-          gecko:state_light="true"
+          goanna:state_light="true"
           android:color="@color/new_tablet_highlight_lwt" />
     <item android:state_pressed="true"
-          gecko:state_dark="true"
+          goanna:state_dark="true"
           android:color="@color/new_tablet_highlight_dark_lwt" />
 
     <item android:state_checked="true"

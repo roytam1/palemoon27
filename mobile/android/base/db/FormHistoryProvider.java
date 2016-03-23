@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.lang.IllegalArgumentException;
 import java.util.HashMap;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.db.BrowserContract.FormHistory;
-import org.mozilla.gecko.db.BrowserContract.DeletedFormHistory;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sqlite.SQLiteBridge;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.db.BrowserContract.FormHistory;
+import org.mozilla.goanna.db.BrowserContract.DeletedFormHistory;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sqlite.SQLiteBridge;
+import org.mozilla.goanna.sync.Utils;
 
 import android.content.ContentValues;
 import android.content.UriMatcher;

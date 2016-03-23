@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 public interface LayoutInterceptor {
     public void onLayout();

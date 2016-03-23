@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fFail;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fFail;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Element;
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Element;
+import org.mozilla.goanna.R;
 
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.GoannaEventListener;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONObject;
 

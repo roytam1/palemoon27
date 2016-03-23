@@ -4,14 +4,14 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:enabled="false">
 
     <PreferenceScreen android:title="@string/pref_category_home"
                       android:summary="@string/pref_category_home_summary" >
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_home" />
@@ -23,7 +23,7 @@
 
         <intent android:action="android.intent.action.VIEW"
                 android:targetPackage="@string/android_package_name"
-                android:targetClass="org.mozilla.gecko.preferences.GoannaPreferences" >
+                android:targetClass="org.mozilla.goanna.preferences.GoannaPreferences" >
             <extra
                 android:name="resource"
                 android:value="preferences_search" />
@@ -38,12 +38,12 @@
                     android:persistent="true" />
 
 
-    <org.mozilla.gecko.preferences.AndroidImportPreference
+    <org.mozilla.goanna.preferences.AndroidImportPreference
                   android:key="android.not_a_preference.import_android"
-                  gecko:entries="@array/pref_import_android_entries"
-                  gecko:entryValues="@array/pref_import_android_values"
-                  gecko:initialValues="@array/pref_import_android_defaults"
-                  gecko:entryKeys="@array/pref_import_android_keys"
+                  goanna:entries="@array/pref_import_android_entries"
+                  goanna:entryValues="@array/pref_import_android_values"
+                  goanna:initialValues="@array/pref_import_android_defaults"
+                  goanna:entryKeys="@array/pref_import_android_keys"
                   android:title="@string/pref_import_android"
                   android:summary="@string/pref_import_android_summary"
                   android:positiveButtonText="@string/bookmarkhistory_button_import"

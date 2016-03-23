@@ -58,7 +58,7 @@ Functional Tests
 ================
 These are currently a work in progress, but it's already possible to run a test
 if you have a [loop-server](https://github.com/mozilla-services/loop-server)
-install that is properly configured.  From the top-level gecko directory,
+install that is properly configured.  From the top-level goanna directory,
 execute:
 
   export LOOP_SERVER=/Users/larry/src/loop-server

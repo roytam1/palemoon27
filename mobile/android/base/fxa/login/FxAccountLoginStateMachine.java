@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.login;
+package org.mozilla.goanna.fxa.login;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.EnumSet;
 import java.util.Set;
 
-import org.mozilla.gecko.background.fxa.FxAccountClient;
-import org.mozilla.gecko.browserid.BrowserIDKeyPair;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.Transition;
-import org.mozilla.gecko.fxa.login.State.StateLabel;
+import org.mozilla.goanna.background.fxa.FxAccountClient;
+import org.mozilla.goanna.browserid.BrowserIDKeyPair;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.Transition;
+import org.mozilla.goanna.fxa.login.State.StateLabel;
 
 public class FxAccountLoginStateMachine {
   public static final String LOG_TAG = FxAccountLoginStateMachine.class.getSimpleName();

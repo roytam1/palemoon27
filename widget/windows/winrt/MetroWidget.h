@@ -209,7 +209,7 @@ public:
 
   // Hit test a point to see if an apzc would consume input there
   bool ApzHitTest(mozilla::ScreenIntPoint& pt);
-  // Transforms a coord so that it properly targets gecko content based
+  // Transforms a coord so that it properly targets goanna content based
   // on apzc transforms currently applied.
   void ApzTransformGoannaCoordinate(const mozilla::ScreenIntPoint& pt,
                                    mozilla::LayoutDeviceIntPoint* aRefPointOut);

@@ -1,10 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.common;
+package org.mozilla.goanna.background.common;
 
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.sync.repositories.android.BrowserContractHelpers;
 
 public class TestBrowserContractHelpers extends AndroidSyncTestCase {
   public void testBookmarkCodes() {

@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.domain;
+package org.mozilla.goanna.sync.repositories.domain;
 
 import java.io.UnsupportedEncodingException;
 
-import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.CryptoRecord;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
 
 /**
  * Record is the abstract base class for all entries that Sync processes:

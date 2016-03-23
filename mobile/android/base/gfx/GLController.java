@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.GoannaThread;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaThread;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.util.Log;
 
@@ -187,7 +187,7 @@ public class GLController {
             return;
         }
 
-        // Only try to create the compositor if we have a valid surface and gecko is up. When these
+        // Only try to create the compositor if we have a valid surface and goanna is up. When these
         // two conditions are satisfied, we can be relatively sure that the compositor creation will
         // happen without needing to block anywhere. Do it with a synchronous Goanna event so that the
         // Android doesn't have a chance to destroy our surface in between.
@@ -198,7 +198,7 @@ public class GLController {
 
     void compositorCreated() {
         // This is invoked on the compositor thread, while the java UI thread
-        // is blocked on the gecko sync event in updateCompositor() above
+        // is blocked on the goanna sync event in updateCompositor() above
         mCompositorCreated = true;
     }
 

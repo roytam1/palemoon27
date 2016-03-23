@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.synchronizer;
+package org.mozilla.goanna.sync.synchronizer;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SynchronizerConfiguration;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.RepositorySessionBundle;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SynchronizerConfiguration;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.RepositorySessionBundle;
 
 import android.content.Context;
 

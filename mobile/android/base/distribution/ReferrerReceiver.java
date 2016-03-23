@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.distribution;
+package org.mozilla.goanna.distribution;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

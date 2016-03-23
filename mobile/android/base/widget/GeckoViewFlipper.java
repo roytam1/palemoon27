@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.animation.ViewHelper;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.animation.ViewHelper;
 
 import android.content.Context;
 import android.graphics.Rect;

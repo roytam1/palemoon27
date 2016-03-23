@@ -7,7 +7,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.LinkedList;
 

@@ -46,7 +46,7 @@ config = {
         "xpcshell": "runtestsb2g.py",
         "cppunittest": "remotecppunittests.py"
     },
-    # test harness options are located in the gecko tree
+    # test harness options are located in the goanna tree
     "in_tree_config": "config/mozharness/b2g_emulator_config.py",
     "vcs_output_timeout": 1760,
 }

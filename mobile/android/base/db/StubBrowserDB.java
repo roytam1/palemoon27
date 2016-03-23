@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -13,10 +13,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.favicons.decoders.LoadFaviconResult;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import android.content.ContentProviderOperation;
 import android.content.ContentResolver;

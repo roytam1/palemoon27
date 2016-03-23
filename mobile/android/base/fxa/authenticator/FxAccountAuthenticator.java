@@ -2,33 +2,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.authenticator;
+package org.mozilla.goanna.fxa.authenticator;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountClient;
-import org.mozilla.gecko.background.fxa.FxAccountClient20;
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.background.fxa.oauth.FxAccountAbstractClient.RequestDelegate;
-import org.mozilla.gecko.background.fxa.oauth.FxAccountAbstractClientException.FxAccountAbstractClientRemoteException;
-import org.mozilla.gecko.background.fxa.oauth.FxAccountOAuthClient10;
-import org.mozilla.gecko.background.fxa.oauth.FxAccountOAuthClient10.AuthorizationResponse;
-import org.mozilla.gecko.browserid.BrowserIDKeyPair;
-import org.mozilla.gecko.browserid.JSONWebTokenUtils;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.activities.FxAccountGetStartedActivity;
-import org.mozilla.gecko.fxa.login.FxAccountLoginStateMachine;
-import org.mozilla.gecko.fxa.login.FxAccountLoginStateMachine.LoginStateMachineDelegate;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.Transition;
-import org.mozilla.gecko.fxa.login.Married;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.fxa.login.State.StateLabel;
-import org.mozilla.gecko.fxa.login.StateFactory;
-import org.mozilla.gecko.fxa.sync.FxAccountNotificationManager;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncAdapter;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.FxAccountClient;
+import org.mozilla.goanna.background.fxa.FxAccountClient20;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.background.fxa.oauth.FxAccountAbstractClient.RequestDelegate;
+import org.mozilla.goanna.background.fxa.oauth.FxAccountAbstractClientException.FxAccountAbstractClientRemoteException;
+import org.mozilla.goanna.background.fxa.oauth.FxAccountOAuthClient10;
+import org.mozilla.goanna.background.fxa.oauth.FxAccountOAuthClient10.AuthorizationResponse;
+import org.mozilla.goanna.browserid.BrowserIDKeyPair;
+import org.mozilla.goanna.browserid.JSONWebTokenUtils;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.activities.FxAccountGetStartedActivity;
+import org.mozilla.goanna.fxa.login.FxAccountLoginStateMachine;
+import org.mozilla.goanna.fxa.login.FxAccountLoginStateMachine.LoginStateMachineDelegate;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.Transition;
+import org.mozilla.goanna.fxa.login.Married;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.fxa.login.State.StateLabel;
+import org.mozilla.goanna.fxa.login.StateFactory;
+import org.mozilla.goanna.fxa.sync.FxAccountNotificationManager;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncAdapter;
 
 import android.accounts.AbstractAccountAuthenticator;
 import android.accounts.Account;

@@ -44,7 +44,7 @@ function registerPlayPreview(mimeType, targetUrl) {
 
     // nsIFactory
     lockFactory: function lockFactory(lock) {
-      // No longer used as of gecko 1.7.
+      // No longer used as of goanna 1.7.
       throw Cr.NS_ERROR_NOT_IMPLEMENTED;
     }
   };

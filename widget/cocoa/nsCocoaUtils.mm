@@ -64,14 +64,14 @@ nsCocoaUtils::FlippedScreenY(float y)
   return MenuBarScreenHeight() - y;
 }
 
-NSRect nsCocoaUtils::GoannaRectToCocoaRect(const nsIntRect &geckoRect)
+NSRect nsCocoaUtils::GoannaRectToCocoaRect(const nsIntRect &goannaRect)
 {
   // We only need to change the Y coordinate by starting with the primary screen
-  // height and subtracting the gecko Y coordinate of the bottom of the rect.
-  return NSMakeRect(geckoRect.x,
-                    MenuBarScreenHeight() - geckoRect.YMost(),
-                    geckoRect.width,
-                    geckoRect.height);
+  // height and subtracting the goanna Y coordinate of the bottom of the rect.
+  return NSMakeRect(goannaRect.x,
+                    MenuBarScreenHeight() - goannaRect.YMost(),
+                    goannaRect.width,
+                    goannaRect.height);
 }
 
 NSRect nsCocoaUtils::GoannaRectToCocoaRectDevPix(const nsIntRect &aGoannaRect,
@@ -810,7 +810,7 @@ struct KeyConversionData
 {
   const char* str;
   size_t strLength;
-  uint32_t geckoKeyCode;
+  uint32_t goannaKeyCode;
   uint32_t charCode;
 };
 
@@ -974,7 +974,7 @@ nsCocoaUtils::ConvertGoannaKeyCodeToMacCharCode(uint32_t aKeyCode)
   }
 
   for (uint16_t i = 0; i < ArrayLength(gKeyConversions); ++i) {
-    if (gKeyConversions[i].geckoKeyCode == aKeyCode) {
+    if (gKeyConversions[i].goannaKeyCode == aKeyCode) {
       return gKeyConversions[i].charCode;
     }
   }

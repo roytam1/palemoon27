@@ -16,7 +16,7 @@
 
 // This code is based on AOSP /libcore/luni/src/main/java/java/net/ProxySelectorImpl.java
 
-package org.mozilla.gecko.util;
+package org.mozilla.goanna.util;
 
 import android.text.TextUtils;
 

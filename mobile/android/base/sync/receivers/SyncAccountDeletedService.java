@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.receivers;
+package org.mozilla.goanna.sync.receivers;
 
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.Sync11Configuration;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.config.AccountPickler;
-import org.mozilla.gecko.sync.config.ClientRecordTerminator;
-import org.mozilla.gecko.sync.net.BasicAuthHeaderProvider;
-import org.mozilla.gecko.sync.repositories.android.FennecTabsRepository;
-import org.mozilla.gecko.sync.setup.Constants;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.Sync11Configuration;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.config.AccountPickler;
+import org.mozilla.goanna.sync.config.ClientRecordTerminator;
+import org.mozilla.goanna.sync.net.BasicAuthHeaderProvider;
+import org.mozilla.goanna.sync.repositories.android.FennecTabsRepository;
+import org.mozilla.goanna.sync.setup.Constants;
+import org.mozilla.goanna.sync.setup.SyncAccounts.SyncAccountParameters;
 
 import android.accounts.AccountManager;
 import android.app.IntentService;

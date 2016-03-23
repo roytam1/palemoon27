@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.synchronizer;
+package org.mozilla.goanna.sync.synchronizer;
 
-import org.mozilla.gecko.sync.SyncException;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.SyncException;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
 
 /**
  * An exception class that indicates that a session was passed

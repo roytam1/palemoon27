@@ -1,4 +1,4 @@
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -14,14 +14,14 @@ import android.widget.ImageView;
 import android.widget.ListAdapter;
 import android.widget.TextView;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.RemoteClientsDialogFragment;
-import org.mozilla.gecko.RemoteTabsExpandableListAdapter;
-import org.mozilla.gecko.RemoteTabsExpandableListAdapter.GroupViewHolder;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.RemoteClient;
-import org.mozilla.gecko.db.RemoteTab;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.RemoteClientsDialogFragment;
+import org.mozilla.goanna.RemoteTabsExpandableListAdapter;
+import org.mozilla.goanna.RemoteTabsExpandableListAdapter.GroupViewHolder;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.RemoteClient;
+import org.mozilla.goanna.db.RemoteTab;
 
 import java.util.ArrayList;
 import java.util.EnumSet;

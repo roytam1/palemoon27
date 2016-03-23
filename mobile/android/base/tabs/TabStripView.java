@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tabs;
+package org.mozilla.goanna.tabs;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -26,11 +26,11 @@ import com.nineoldandroids.animation.ObjectAnimator;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.mozilla.gecko.animation.TransitionsTracker;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.widget.TwoWayView;
+import org.mozilla.goanna.animation.TransitionsTracker;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.widget.TwoWayView;
 
 public class TabStripView extends TwoWayView {
     private static final String LOGTAG = "GoannaTabStrip";

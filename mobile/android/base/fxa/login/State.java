@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.login;
+package org.mozilla.goanna.fxa.login;
 
-import org.mozilla.gecko.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.Utils;
 
 public abstract class State {
   public static final long CURRENT_VERSION = 3L;

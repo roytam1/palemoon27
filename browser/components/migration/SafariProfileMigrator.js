@@ -373,7 +373,7 @@ Preferences.prototype = {
    * @param aSafariKey
    *        The dictionary key for the preference of Safari.
    * @param aMozPref
-   *        The gecko/firefox preference to which aSafariKey should be migrated
+   *        The goanna/firefox preference to which aSafariKey should be migrated
    * @param [optional] aConvertFunction(aSafariValue)
    *        a function that converts the safari-preference value to the
    *        appropriate value for aMozPref.  If it's not passed, then the

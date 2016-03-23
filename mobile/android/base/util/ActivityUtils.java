@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.util;
+package org.mozilla.goanna.util;
 
 import android.app.Activity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 
-import org.mozilla.gecko.AppConstants.Versions;
+import org.mozilla.goanna.AppConstants.Versions;
 
 public class ActivityUtils {
     private ActivityUtils() {

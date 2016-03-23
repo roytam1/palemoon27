@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.animation.Rotate3DAnimation;
-import org.mozilla.gecko.widget.ThemedTextSwitcher;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.animation.Rotate3DAnimation;
+import org.mozilla.goanna.widget.ThemedTextSwitcher;
 
 import android.content.Context;
 import android.content.res.TypedArray;

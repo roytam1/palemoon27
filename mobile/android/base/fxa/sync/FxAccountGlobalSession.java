@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.sync;
+package org.mozilla.goanna.fxa.sync;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -11,15 +11,15 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.sync.GlobalSession;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConfigurationException;
-import org.mozilla.gecko.sync.delegates.BaseGlobalSessionCallback;
-import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
-import org.mozilla.gecko.sync.stage.CheckPreconditionsStage;
-import org.mozilla.gecko.sync.stage.GlobalSyncStage;
-import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
+import org.mozilla.goanna.sync.GlobalSession;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.SyncConfigurationException;
+import org.mozilla.goanna.sync.delegates.BaseGlobalSessionCallback;
+import org.mozilla.goanna.sync.delegates.ClientsDataDelegate;
+import org.mozilla.goanna.sync.stage.CheckPreconditionsStage;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage.Stage;
 
 import android.content.Context;
 

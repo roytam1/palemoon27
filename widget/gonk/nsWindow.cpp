@@ -322,7 +322,7 @@ nsWindow::DispatchTouchEventForAPZ(const MultiTouchInput& aInput,
         }
     }
 
-    // If it didn't get captured, dispatch the event into the gecko root process
+    // If it didn't get captured, dispatch the event into the goanna root process
     // for "normal" flow. The event might get sent to the child process still,
     // but if it doesn't we need to notify the APZ of various things. All of
     // that happens in DispatchEventForAPZ

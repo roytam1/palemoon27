@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.middleware;
+package org.mozilla.goanna.sync.middleware;
 
 import java.util.concurrent.ExecutorService;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.RepositorySessionBundle;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.InvalidSessionTransitionException;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.RepositorySessionBundle;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionBeginDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFinishDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionWipeDelegate;
 
 public abstract class MiddlewareRepositorySession extends RepositorySession {
   private static final String LOG_TAG = "MiddlewareSession";

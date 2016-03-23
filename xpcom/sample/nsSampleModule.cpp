@@ -41,7 +41,7 @@ static const mozilla::Module::CIDEntry kSampleCIDs[] = {
 
 // Build a table which maps contract IDs to CIDs.
 // A contract is a string which identifies a particular set of functionality. In some
-// cases an extension component may override the contract ID of a builtin gecko component
+// cases an extension component may override the contract ID of a builtin goanna component
 // to modify or extend functionality.
 static const mozilla::Module::ContractIDEntry kSampleContracts[] = {
   { NS_SAMPLE_CONTRACTID, &kNS_SAMPLE_CID },

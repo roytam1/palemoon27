@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.stage;
+package org.mozilla.goanna.sync.stage;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,14 +12,14 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.NodeAuthenticationException;
-import org.mozilla.gecko.sync.NullClusterURLException;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.delegates.NodeAssignmentCallback;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.NodeAuthenticationException;
+import org.mozilla.goanna.sync.NullClusterURLException;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.delegates.NodeAssignmentCallback;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.BaseResourceDelegate;
 
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;

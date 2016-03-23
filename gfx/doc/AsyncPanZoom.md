@@ -283,7 +283,7 @@ The layout code also adds the area (or bounding region in case of weird shapes) 
 
 When the user starts interacting with that content, the hit-test in the APZ code finds the dispatch-to-content region of P.
 The input block therefore has a tentative target of P when it goes into step 4(ii) in the flow above.
-When gecko processes the input event, it must detect the inactive scrollframe and activate it, as part of step 7.
+When goanna processes the input event, it must detect the inactive scrollframe and activate it, as part of step 7.
 Finally, the widget code sends the SetTargetAPZC notification in step 8 to notify the APZ that the input block should really apply to this new layer.
 The issue here is that the layer transaction containing the new layer must reach the compositor and APZ before the SetTargetAPZC notification.
 If this does not occur within the 300ms timeout, the APZ code will be unable to update the tentative target, and will continue to use P for that input block.
@@ -291,5 +291,5 @@ Input blocks that start after the layer transaction will get correctly routed to
 
 This model implies that when the user initially attempts to scroll an inactive scrollframe, it may end up scrolling an ancestor scrollframe.
 (This is because in the absence of the SetTargetAPZC notification, the input events will get applied to the closest ancestor scrollframe's APZC.)
-Only after the round-trip to the gecko thread is complete is there a layer for async scrolling to actually occur on the scrollframe itself.
+Only after the round-trip to the goanna thread is complete is there a layer for async scrolling to actually occur on the scrollframe itself.
 At that point the scrollframe will start receiving new input blocks and will scroll normally.

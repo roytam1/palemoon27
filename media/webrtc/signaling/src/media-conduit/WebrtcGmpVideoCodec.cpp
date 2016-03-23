@@ -141,7 +141,7 @@ WebrtcGmpVideoEncoder::InitEncode(const webrtc::VideoCodec* aCodecSettings,
                                   uint32_t aMaxPayloadSize)
 {
   if (!mMPS) {
-    mMPS = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    mMPS = do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   }
   MOZ_ASSERT(mMPS);
 
@@ -551,7 +551,7 @@ int32_t
 WebrtcGmpVideoDecoder::InitDecode(const webrtc::VideoCodec* aCodecSettings,
                                   int32_t aNumberOfCores)
 {
-  mMPS = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+  mMPS = do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   MOZ_ASSERT(mMPS);
 
   if (!mGMPThread) {

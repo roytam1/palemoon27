@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.background.preferences;
+package org.mozilla.goanna.background.preferences;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;

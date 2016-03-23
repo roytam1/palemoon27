@@ -398,27 +398,27 @@ AccessibleWrap::get_accRole(
   if (xpAccessible->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  a11y::role geckoRole;
+  a11y::role goannaRole;
   if (xpAccessible->IsProxy()) {
-    geckoRole = xpAccessible->Proxy()->Role();
+    goannaRole = xpAccessible->Proxy()->Role();
   } else {
 #ifdef DEBUG
     NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(xpAccessible),
                  "Does not support Text when it should");
 #endif
 
-    geckoRole = xpAccessible->Role();
+    goannaRole = xpAccessible->Role();
   }
 
   uint32_t msaaRole = 0;
 
-#define ROLE(_geckoRole, stringRole, atkRole, macRole, \
+#define ROLE(_goannaRole, stringRole, atkRole, macRole, \
              _msaaRole, ia2Role, nameRule) \
-  case roles::_geckoRole: \
+  case roles::_goannaRole: \
     msaaRole = _msaaRole; \
     break;
 
-  switch (geckoRole) {
+  switch (goannaRole) {
 #include "RoleMap.h"
     default:
       MOZ_CRASH("Unknown role.");
@@ -430,11 +430,11 @@ AccessibleWrap::get_accRole(
   // a ROLE_OUTLINEITEM for consistency and compatibility.
   // We need this because ARIA has a role of "row" for both grid and treegrid
   if (xpAccessible->IsProxy()) {
-      if (geckoRole == roles::ROW
+      if (goannaRole == roles::ROW
           && xpAccessible->Proxy()->Parent()->Role() == roles::TREE_TABLE)
         msaaRole = ROLE_SYSTEM_OUTLINEITEM;
   } else {
-    if (geckoRole == roles::ROW) {
+    if (goannaRole == roles::ROW) {
       Accessible* xpParent = Parent();
       if (xpParent && xpParent->Role() == roles::TREE_TABLE)
         msaaRole = ROLE_SYSTEM_OUTLINEITEM;
@@ -968,9 +968,9 @@ AccessibleWrap::accNavigate(
   Accessible* navAccessible = nullptr;
   Maybe<RelationType> xpRelation;
 
-#define RELATIONTYPE(geckoType, stringType, atkType, msaaType, ia2Type) \
+#define RELATIONTYPE(goannaType, stringType, atkType, msaaType, ia2Type) \
   case msaaType: \
-    xpRelation.emplace(RelationType::geckoType); \
+    xpRelation.emplace(RelationType::goannaType); \
     break;
 
   switch(navDir) {

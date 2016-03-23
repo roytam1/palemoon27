@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.firstrun;
+package org.mozilla.goanna.firstrun;
 
 import android.content.Context;
 import android.support.v4.app.FragmentManager;
@@ -14,8 +14,8 @@ import android.widget.LinearLayout;
 import com.nineoldandroids.animation.Animator;
 import com.nineoldandroids.animation.AnimatorListenerAdapter;
 import com.nineoldandroids.animation.ObjectAnimator;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.animation.TransitionsTracker;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.animation.TransitionsTracker;
 
 public class FirstrunPane extends LinearLayout {
     public static final String PREF_FIRSTRUN_ENABLED = "startpane_enabled";

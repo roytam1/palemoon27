@@ -53,7 +53,7 @@ GetGMPStorageDir(nsIFile** aTempDir, const nsCString& aNodeId)
   }
 
   nsCOMPtr<mozIGoannaMediaPluginService> mps =
-    do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return NS_ERROR_FAILURE;
   }
@@ -469,7 +469,7 @@ GMPStorageParent::Init()
     return NS_ERROR_FAILURE;
   }
   nsCOMPtr<mozIGoannaMediaPluginService> mps =
-    do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    do_GetService("@mozilla.org/goanna-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return NS_ERROR_FAILURE;
   }

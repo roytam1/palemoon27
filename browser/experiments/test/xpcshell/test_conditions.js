@@ -97,8 +97,8 @@ const sanityFilter = function filter(c) {
   if (c.healthReportPayload === undefined) {
     throw Error("No .healthReportPayload");
   }
-  if (c.healthReportPayload.geckoAppInfo == undefined) {
-    throw Error("No .geckoAppInfo");
+  if (c.healthReportPayload.goannaAppInfo == undefined) {
+    throw Error("No .goannaAppInfo");
   }
   return true;
 }

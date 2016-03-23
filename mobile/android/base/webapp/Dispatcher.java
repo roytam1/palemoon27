@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.webapp;
+package org.mozilla.goanna.webapp;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -45,7 +45,7 @@ public class Dispatcher extends Activity {
         Intent intent = new Intent(getIntent());
 
         // Only change its destination.
-        intent.setClassName(getApplicationContext(), "org.mozilla.gecko.webapp.Webapps$Webapp" + index);
+        intent.setClassName(getApplicationContext(), "org.mozilla.goanna.webapp.Webapps$Webapp" + index);
 
         // If and only if we haven't seen this before.
         intent.putExtra("isInstalled", isInstalled);

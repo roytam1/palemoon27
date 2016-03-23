@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.EnumSet;
 import java.util.Locale;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.activities.FxAccountCreateAccountActivity;
-import org.mozilla.gecko.fxa.activities.FxAccountFinishMigratingActivity;
-import org.mozilla.gecko.fxa.activities.FxAccountUpdateCredentialsActivity;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.activities.FxAccountCreateAccountActivity;
+import org.mozilla.goanna.fxa.activities.FxAccountFinishMigratingActivity;
+import org.mozilla.goanna.fxa.activities.FxAccountUpdateCredentialsActivity;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
 
 import android.content.Intent;
 import android.os.Bundle;

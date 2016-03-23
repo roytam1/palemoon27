@@ -4,11 +4,11 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:title="@string/pref_category_display"
                   android:enabled="false">
 
-    <org.mozilla.gecko.preferences.FontSizePreference
+    <org.mozilla.goanna.preferences.FontSizePreference
                     android:key="font.size.inflation.minTwips"
                     android:title="@string/pref_text_size"
                     android:positiveButtonText="@string/pref_font_size_set"

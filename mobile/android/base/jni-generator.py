@@ -40,7 +40,7 @@ class Generator:
                               + 'Do not edit manually! */\n')
 
         # this matches lines such as:
-        # JNIEXPORT void JNICALL Java_org_mozilla_gecko_GoannaAppShell_onResume
+        # JNIEXPORT void JNICALL Java_org_mozilla_goanna_GoannaAppShell_onResume
         # and extracts the return type and the function name
         nameRegex = re.compile('''JNIEXPORT \s+
                                   (?P<returnType>\S+) \s+

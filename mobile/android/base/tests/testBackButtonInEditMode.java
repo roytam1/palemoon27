@@ -1,6 +1,6 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
 
 import android.view.View;
 

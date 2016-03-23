@@ -316,7 +316,7 @@ setUpdateTrackingId();
   //In order of precedence they are:
   //
   //1. mozSettings "layers.composer.enabled"
-  //2. a gecko pref "layers.composer.enabled"
+  //2. a goanna pref "layers.composer.enabled"
   //3. presence of ro.display.colorfill at the Gonk level
 
   var req = navigator.mozSettings.createLock().get('layers.composer2d.enabled');
@@ -380,11 +380,11 @@ setUpdateTrackingId();
 // =================== Telemetry  ======================
 (function setupTelemetrySettings() {
   let gaiaSettingName = 'debug.performance_data.shared';
-  let geckoPrefName = 'toolkit.telemetry.enabled';
+  let goannaPrefName = 'toolkit.telemetry.enabled';
   SettingsListener.observe(gaiaSettingName, null, function(value) {
     if (value !== null) {
       // Gaia setting has been set; update Goanna pref to that.
-      Services.prefs.setBoolPref(geckoPrefName, value);
+      Services.prefs.setBoolPref(goannaPrefName, value);
       return;
     }
     // Gaia setting has not been set; set the gaia setting to default.
@@ -394,7 +394,7 @@ setUpdateTrackingId();
     let prefValue = false;
 #endif
     try {
-      prefValue = Services.prefs.getBoolPref(geckoPrefName);
+      prefValue = Services.prefs.getBoolPref(goannaPrefName);
     } catch (e) {
       // Pref not set; use default value.
     }
@@ -406,14 +406,14 @@ setUpdateTrackingId();
 
 // =================== Low-precision buffer ======================
 (function setupLowPrecisionSettings() {
-  // The gaia setting layers.low-precision maps to two gecko prefs
+  // The gaia setting layers.low-precision maps to two goanna prefs
   SettingsListener.observe('layers.low-precision', null, function(value) {
     if (value !== null) {
-      // Update gecko from the new Gaia setting
+      // Update goanna from the new Gaia setting
       Services.prefs.setBoolPref('layers.low-precision-buffer', value);
       Services.prefs.setBoolPref('layers.progressive-paint', value);
     } else {
-      // Update gaia setting from gecko value
+      // Update gaia setting from goanna value
       try {
         let prefValue = Services.prefs.getBoolPref('layers.low-precision-buffer');
         let setting = { 'layers.low-precision': prefValue };
@@ -424,13 +424,13 @@ setUpdateTrackingId();
     }
   });
 
-  // The gaia setting layers.low-opacity maps to a string gecko pref (0.5/1.0)
+  // The gaia setting layers.low-opacity maps to a string goanna pref (0.5/1.0)
   SettingsListener.observe('layers.low-opacity', null, function(value) {
     if (value !== null) {
-      // Update gecko from the new Gaia setting
+      // Update goanna from the new Gaia setting
       Services.prefs.setCharPref('layers.low-precision-opacity', value ? '0.5' : '1.0');
     } else {
-      // Update gaia setting from gecko value
+      // Update gaia setting from goanna value
       try {
         let prefValue = Services.prefs.getCharPref('layers.low-precision-opacity');
         let setting = { 'layers.low-opacity': (prefValue == '0.5') };

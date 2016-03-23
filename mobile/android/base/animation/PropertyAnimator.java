@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.animation;
+package org.mozilla.goanna.animation;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.mozilla.gecko.AppConstants.Versions;
+import org.mozilla.goanna.AppConstants.Versions;
 
 import android.os.Handler;
 import android.support.v4.view.ViewCompat;

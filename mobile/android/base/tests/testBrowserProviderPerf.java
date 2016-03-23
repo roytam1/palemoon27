@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.io.File;
 import java.util.EnumSet;
 import java.util.Random;
 import java.util.UUID;
 
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserDB.FilterFlags;
-import org.mozilla.gecko.db.BrowserProvider;
-import org.mozilla.gecko.db.LocalBrowserDB;
-import org.mozilla.gecko.util.FileUtils;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserDB.FilterFlags;
+import org.mozilla.goanna.db.BrowserProvider;
+import org.mozilla.goanna.db.LocalBrowserDB;
+import org.mozilla.goanna.util.FileUtils;
 
 import android.content.ContentProvider;
 import android.content.ContentProviderClient;

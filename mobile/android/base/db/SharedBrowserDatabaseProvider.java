@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.db.BrowserContract.CommonColumns;
-import org.mozilla.gecko.db.BrowserContract.SyncColumns;
-import org.mozilla.gecko.db.PerProfileDatabases.DatabaseHelperFactory;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.db.BrowserContract.CommonColumns;
+import org.mozilla.goanna.db.BrowserContract.SyncColumns;
+import org.mozilla.goanna.db.PerProfileDatabases.DatabaseHelperFactory;
 
 import android.content.Context;
 import android.database.Cursor;

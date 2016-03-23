@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.jpake;
+package org.mozilla.goanna.sync.jpake;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -14,9 +14,9 @@ import java.security.NoSuchAlgorithmException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.crypto.HKDF;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.crypto.HKDF;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
 
 public class JPakeCrypto {
   private static final String LOG_TAG = "JPakeCrypto";

@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa;
+package org.mozilla.goanna.fxa;
 
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -25,7 +25,7 @@ import android.support.v4.content.AsyncTaskLoader;
  *
  * The loader listens for Accounts added and deleted, and also Accounts being
  * updated by Sync or another Activity, via the use of
- * {@link AndroidFxAccount#setState(org.mozilla.gecko.fxa.login.State)}.
+ * {@link AndroidFxAccount#setState(org.mozilla.goanna.fxa.login.State)}.
  * Be careful of message loops if you update the account state from an activity
  * that uses this loader.
  *

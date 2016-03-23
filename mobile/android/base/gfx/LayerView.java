@@ -3,24 +3,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 
-import org.mozilla.gecko.AndroidGamepadManager;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaAccessibility;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.AndroidGamepadManager;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAccessibility;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.ZoomConstraints;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -153,7 +153,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
                          (int)event.getToolMinor() / 2);
     }
 
-    public void geckoConnected() {
+    public void goannaConnected() {
         // See if we want to force 16-bit colour before doing anything
         PrefsHelper.getPref("gfx.android.rgb16.force", new PrefsHelper.PrefHandlerBase() {
             @Override public void prefValue(String pref, boolean force16bit) {

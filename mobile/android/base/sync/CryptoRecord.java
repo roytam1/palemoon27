@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -10,13 +10,13 @@ import java.io.UnsupportedEncodingException;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.sync.crypto.CryptoException;
-import org.mozilla.gecko.sync.crypto.CryptoInfo;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.crypto.MissingCryptoInputException;
-import org.mozilla.gecko.sync.crypto.NoKeyBundleException;
-import org.mozilla.gecko.sync.repositories.domain.Record;
-import org.mozilla.gecko.sync.repositories.domain.RecordParseException;
+import org.mozilla.goanna.sync.crypto.CryptoException;
+import org.mozilla.goanna.sync.crypto.CryptoInfo;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.crypto.MissingCryptoInputException;
+import org.mozilla.goanna.sync.crypto.NoKeyBundleException;
+import org.mozilla.goanna.sync.repositories.domain.Record;
+import org.mozilla.goanna.sync.repositories.domain.RecordParseException;
 
 /**
  * A Sync crypto record has:

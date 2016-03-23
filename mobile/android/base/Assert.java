@@ -1,4 +1,4 @@
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 /**
  * Static helper class to provide debug assertions for Java.

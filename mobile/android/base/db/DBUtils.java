@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import android.annotation.TargetApi;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import android.os.Build;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaProfile;
 
 import android.content.ContentValues;
 import android.database.Cursor;
@@ -18,8 +18,8 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import java.util.Map;
 

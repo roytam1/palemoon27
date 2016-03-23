@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.fxa.oauth;
+package org.mozilla.goanna.background.fxa.oauth;
 
 public interface FxAccountOAuthRemoteError {
   public static final int ATTEMPT_TO_CREATE_AN_ACCOUNT_THAT_ALREADY_EXISTS = 101;

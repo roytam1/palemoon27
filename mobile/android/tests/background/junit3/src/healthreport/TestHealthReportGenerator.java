@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -10,10 +10,10 @@ import java.util.Iterator;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.background.common.DateUtils;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields;
-import org.mozilla.gecko.background.helpers.FakeProfileTestCase;
+import org.mozilla.goanna.background.common.DateUtils;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
+import org.mozilla.goanna.background.helpers.FakeProfileTestCase;
 
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -278,7 +278,7 @@ public class TestHealthReportGenerator extends FakeProfileTestCase {
     assertTrue(current.has("org.mozilla.profile.age"));
     assertTrue(current.has("org.mozilla.sysinfo.sysinfo"));
     assertTrue(current.has("org.mozilla.appInfo.appinfo"));
-    assertTrue(current.has("geckoAppInfo"));
+    assertTrue(current.has("goannaAppInfo"));
     assertTrue(current.has("org.mozilla.addons.active"));
     assertTrue(current.has("org.mozilla.addons.counts"));
 
@@ -309,14 +309,14 @@ public class TestHealthReportGenerator extends FakeProfileTestCase {
     assertTrue(current.has("org.mozilla.profile.age"));
     assertTrue(current.has("org.mozilla.sysinfo.sysinfo"));
     assertTrue(current.has("org.mozilla.appInfo.appinfo"));
-    assertTrue(current.has("geckoAppInfo"));
+    assertTrue(current.has("goannaAppInfo"));
     assertTrue(current.has("org.mozilla.addons.active"));
     assertTrue(current.has("org.mozilla.addons.counts"));
 
     // The diff only contains the changed measurement and fields.
     JSONObject previous = environments.getJSONObject(env1.getHash());
-    assertTrue(previous.has("geckoAppInfo"));
-    final JSONObject previousAppInfo = previous.getJSONObject("geckoAppInfo");
+    assertTrue(previous.has("goannaAppInfo"));
+    final JSONObject previousAppInfo = previous.getJSONObject("goannaAppInfo");
     assertEquals(2, previousAppInfo.length());
     assertEquals("23", previousAppInfo.getString("version"));
     assertEquals(Integer.valueOf(1), (Integer) previousAppInfo.get("_v"));

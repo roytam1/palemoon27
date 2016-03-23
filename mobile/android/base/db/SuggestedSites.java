@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import android.content.Context;
 import android.content.ContentResolver;
@@ -34,16 +34,16 @@ import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.Locales;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.preferences.GoannaPreferences;
-import org.mozilla.gecko.util.RawResource;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.Locales;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.preferences.GoannaPreferences;
+import org.mozilla.goanna.util.RawResource;
+import org.mozilla.goanna.util.ThreadUtils;
 
 /**
  * {@code SuggestedSites} provides API to get a list of locale-specific

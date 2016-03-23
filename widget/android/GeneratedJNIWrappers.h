@@ -21,7 +21,7 @@ public:
     typedef const typename mozilla::jni::Param<DownloadsIntegration>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/DownloadsIntegration";
+            "org/mozilla/goanna/DownloadsIntegration";
 
 protected:
     DownloadsIntegration(jobject instance) : Class(instance) {}
@@ -52,7 +52,7 @@ public:
     typedef const typename mozilla::jni::Param<GoannaAppShell>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/GoannaAppShell";
+            "org/mozilla/goanna/GoannaAppShell";
 
 protected:
     GoannaAppShell(jobject instance) : Class(instance) {}
@@ -709,7 +709,7 @@ public:
         typedef void SetterType;
         static constexpr char name[] = "handleGoannaMessage";
         static constexpr char signature[] =
-                "(Lorg/mozilla/gecko/util/NativeJSContainer;)V";
+                "(Lorg/mozilla/goanna/util/NativeJSContainer;)V";
         static const bool isStatic = true;
         static const bool isMultithreaded = false;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -1298,7 +1298,7 @@ public:
     typedef const typename mozilla::jni::Param<GoannaJavaSampler>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/GoannaJavaSampler";
+            "org/mozilla/goanna/GoannaJavaSampler";
 
 protected:
     GoannaJavaSampler(jobject instance) : Class(instance) {}
@@ -1419,7 +1419,7 @@ public:
     typedef const typename mozilla::jni::Param<RestrictedProfiles>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/RestrictedProfiles";
+            "org/mozilla/goanna/RestrictedProfiles";
 
 protected:
     RestrictedProfiles(jobject instance) : Class(instance) {}
@@ -1480,7 +1480,7 @@ public:
     typedef const typename mozilla::jni::Param<SurfaceBits>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/SurfaceBits";
+            "org/mozilla/goanna/SurfaceBits";
 
 protected:
     SurfaceBits(jobject instance) : Class(instance) {}
@@ -1579,7 +1579,7 @@ public:
     typedef const typename mozilla::jni::Param<ThumbnailHelper>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/ThumbnailHelper";
+            "org/mozilla/goanna/ThumbnailHelper";
 
 protected:
     ThumbnailHelper(jobject instance) : Class(instance) {}
@@ -1610,7 +1610,7 @@ public:
     typedef const typename mozilla::jni::Param<DisplayPortMetrics>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/DisplayPortMetrics";
+            "org/mozilla/goanna/gfx/DisplayPortMetrics";
 
 protected:
     DisplayPortMetrics(jobject instance) : Class(instance) {}
@@ -1671,7 +1671,7 @@ public:
     typedef const typename mozilla::jni::Param<GLController>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/GLController";
+            "org/mozilla/goanna/gfx/GLController";
 
 protected:
     GLController(jobject instance) : Class(instance) {}
@@ -1702,7 +1702,7 @@ public:
     typedef const typename mozilla::jni::Param<GoannaLayerClient>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/GoannaLayerClient";
+            "org/mozilla/goanna/gfx/GoannaLayerClient";
 
 protected:
     GoannaLayerClient(jobject instance) : Class(instance) {}
@@ -1744,7 +1744,7 @@ public:
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "createFrame";
         static constexpr char signature[] =
-                "()Lorg/mozilla/gecko/gfx/LayerRenderer$Frame;";
+                "()Lorg/mozilla/goanna/gfx/LayerRenderer$Frame;";
         static const bool isStatic = false;
         static const bool isMultithreaded = true;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -1774,7 +1774,7 @@ public:
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "getDisplayPort";
         static constexpr char signature[] =
-                "(ZZILorg/mozilla/gecko/gfx/ImmutableViewportMetrics;)Lorg/mozilla/gecko/gfx/DisplayPortMetrics;";
+                "(ZZILorg/mozilla/goanna/gfx/ImmutableViewportMetrics;)Lorg/mozilla/goanna/gfx/DisplayPortMetrics;";
         static const bool isStatic = false;
         static const bool isMultithreaded = false;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -1804,7 +1804,7 @@ public:
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "progressiveUpdateCallback";
         static constexpr char signature[] =
-                "(ZFFFFFZ)Lorg/mozilla/gecko/gfx/ProgressiveUpdateData;";
+                "(ZFFFFFZ)Lorg/mozilla/goanna/gfx/ProgressiveUpdateData;";
         static const bool isStatic = false;
         static const bool isMultithreaded = true;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -1849,7 +1849,7 @@ public:
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "syncFrameMetrics";
         static constexpr char signature[] =
-                "(FFFFFFFZIIIIFZ)Lorg/mozilla/gecko/gfx/ViewTransform;";
+                "(FFFFFFFZIIIIFZ)Lorg/mozilla/goanna/gfx/ViewTransform;";
         static const bool isStatic = false;
         static const bool isMultithreaded = true;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -1864,7 +1864,7 @@ public:
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "syncViewportInfo";
         static constexpr char signature[] =
-                "(IIIIFZ)Lorg/mozilla/gecko/gfx/ViewTransform;";
+                "(IIIIFZ)Lorg/mozilla/goanna/gfx/ViewTransform;";
         static const bool isStatic = false;
         static const bool isMultithreaded = true;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -1883,7 +1883,7 @@ public:
     typedef const typename mozilla::jni::Param<ImmutableViewportMetrics>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/ImmutableViewportMetrics";
+            "org/mozilla/goanna/gfx/ImmutableViewportMetrics";
 
 protected:
     ImmutableViewportMetrics(jobject instance) : Class(instance) {}
@@ -1914,7 +1914,7 @@ public:
     typedef const typename mozilla::jni::Param<LayerView>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/LayerView";
+            "org/mozilla/goanna/gfx/LayerView";
 
 protected:
     LayerView(jobject instance) : Class(instance) {}
@@ -1926,7 +1926,7 @@ public:
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "registerCxxCompositor";
         static constexpr char signature[] =
-                "()Lorg/mozilla/gecko/gfx/GLController;";
+                "()Lorg/mozilla/goanna/gfx/GLController;";
         static const bool isStatic = true;
         static const bool isMultithreaded = true;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -1960,7 +1960,7 @@ public:
     typedef const typename mozilla::jni::Param<NativePanZoomController>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/NativePanZoomController";
+            "org/mozilla/goanna/gfx/NativePanZoomController";
 
 protected:
     NativePanZoomController(jobject instance) : Class(instance) {}
@@ -1991,7 +1991,7 @@ public:
     typedef const typename mozilla::jni::Param<ProgressiveUpdateData>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/ProgressiveUpdateData";
+            "org/mozilla/goanna/gfx/ProgressiveUpdateData";
 
 protected:
     ProgressiveUpdateData(jobject instance) : Class(instance) {}
@@ -2018,7 +2018,7 @@ public:
         typedef void SetterType;
         static constexpr char name[] = "setViewport";
         static constexpr char signature[] =
-                "(Lorg/mozilla/gecko/gfx/ImmutableViewportMetrics;)V";
+                "(Lorg/mozilla/goanna/gfx/ImmutableViewportMetrics;)V";
         static const bool isStatic = false;
         static const bool isMultithreaded = true;
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
@@ -2105,7 +2105,7 @@ public:
     typedef const typename mozilla::jni::Param<ViewTransform>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/ViewTransform";
+            "org/mozilla/goanna/gfx/ViewTransform";
 
 protected:
     ViewTransform(jobject instance) : Class(instance) {}
@@ -2289,7 +2289,7 @@ public:
     typedef const typename mozilla::jni::Param<NativeZip>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/mozglue/NativeZip";
+            "org/mozilla/goanna/mozglue/NativeZip";
 
 protected:
     NativeZip(jobject instance) : Class(instance) {}
@@ -2320,7 +2320,7 @@ public:
     typedef const typename mozilla::jni::Param<MatrixBlobCursor>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/sqlite/MatrixBlobCursor";
+            "org/mozilla/goanna/sqlite/MatrixBlobCursor";
 
 protected:
     MatrixBlobCursor(jobject instance) : Class(instance) {}
@@ -2411,7 +2411,7 @@ public:
     typedef const typename mozilla::jni::Param<SQLiteBridgeException>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/sqlite/SQLiteBridgeException";
+            "org/mozilla/goanna/sqlite/SQLiteBridgeException";
 
 protected:
     SQLiteBridgeException(jobject instance) : Class(instance) {}
@@ -2472,7 +2472,7 @@ public:
     typedef const typename mozilla::jni::Param<Clipboard>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/util/Clipboard";
+            "org/mozilla/goanna/util/Clipboard";
 
 protected:
     Clipboard(jobject instance) : Class(instance) {}

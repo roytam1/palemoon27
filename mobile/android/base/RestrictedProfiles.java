@@ -3,16 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.net.Uri;
@@ -85,7 +85,7 @@ public class RestrictedProfiles {
         }
     }
 
-    private static Restriction geckoActionToRestriction(int action) {
+    private static Restriction goannaActionToRestriction(int action) {
         for (Restriction rest : Restriction.values()) {
             if (rest.id == action) {
                 return rest;
@@ -182,7 +182,7 @@ public class RestrictedProfiles {
     private static boolean isAllowed(final Context context, int action, String url) {
         final Restriction restriction;
         try {
-            restriction = geckoActionToRestriction(action);
+            restriction = goannaActionToRestriction(action);
         } catch (IllegalArgumentException ex) {
             // Unknown actions represent a coding error, so we
             // refuse the action and log.

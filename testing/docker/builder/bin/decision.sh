@@ -1,6 +1,6 @@
 #! /bin/bash -ex
 
-DEST=/home/worker/source/gecko
+DEST=/home/worker/source/goanna
 
 test $GECKO_BASE_REPOSITORY # e.g. https://hg.mozilla.org/mozilla-central
 test $GECKO_HEAD_REPOSITORY # e.g. https://hg.mozilla.org/try

@@ -28,7 +28,7 @@ tasks:
       tags:
         createdForUser: {{owner}}
 
-      workerType: "gecko-decision"
+      workerType: "goanna-decision"
       provisionerId: "aws-provisioner"
 
       scopes:

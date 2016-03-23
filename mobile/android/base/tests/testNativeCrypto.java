@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertArrayEquals;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertEquals;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotNull;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fFail;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertArrayEquals;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertEquals;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertNotNull;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fFail;
 
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-import org.mozilla.gecko.background.nativecode.NativeCrypto;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.background.nativecode.NativeCrypto;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
 
 import android.os.SystemClock;
 

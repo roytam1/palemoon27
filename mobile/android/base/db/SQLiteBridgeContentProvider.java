@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.io.File;
 import java.util.HashMap;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.GoannaThread;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.mozglue.GoannaLoader;
-import org.mozilla.gecko.sqlite.SQLiteBridge;
-import org.mozilla.gecko.sqlite.SQLiteBridgeException;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.GoannaThread;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.sqlite.SQLiteBridge;
+import org.mozilla.goanna.sqlite.SQLiteBridgeException;
 
 import android.content.ContentProvider;
 import android.content.ContentUris;

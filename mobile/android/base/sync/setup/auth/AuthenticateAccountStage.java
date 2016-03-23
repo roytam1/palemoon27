@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.setup.auth;
+package org.mozilla.goanna.sync.setup.auth;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -13,11 +13,11 @@ import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.sync.setup.Constants;
 
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;

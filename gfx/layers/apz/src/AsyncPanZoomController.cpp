@@ -1654,14 +1654,14 @@ nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent)
   nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     int32_t modifiers = WidgetModifiersToDOMModifiers(aEvent.modifiers);
-    CSSPoint geckoScreenPoint;
-    if (ConvertToGoanna(aEvent.mLocalPoint, &geckoScreenPoint)) {
+    CSSPoint goannaScreenPoint;
+    if (ConvertToGoanna(aEvent.mLocalPoint, &goannaScreenPoint)) {
       if (CurrentTouchBlock()->IsDuringFastMotion()) {
         APZC_LOG("%p dropping long-press because of fast motion\n", this);
         return nsEventStatus_eIgnore;
       }
       uint64_t blockId = GetInputQueue()->InjectNewTouchBlock(this);
-      controller->HandleLongTap(geckoScreenPoint, modifiers, GetGuid(), blockId);
+      controller->HandleLongTap(goannaScreenPoint, modifiers, GetGuid(), blockId);
       return nsEventStatus_eConsumeNoDefault;
     }
   }
@@ -1673,9 +1673,9 @@ nsEventStatus AsyncPanZoomController::OnLongPressUp(const TapGestureInput& aEven
   nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     int32_t modifiers = WidgetModifiersToDOMModifiers(aEvent.modifiers);
-    CSSPoint geckoScreenPoint;
-    if (ConvertToGoanna(aEvent.mLocalPoint, &geckoScreenPoint)) {
-      controller->HandleLongTapUp(geckoScreenPoint, modifiers, GetGuid());
+    CSSPoint goannaScreenPoint;
+    if (ConvertToGoanna(aEvent.mLocalPoint, &goannaScreenPoint)) {
+      controller->HandleLongTapUp(goannaScreenPoint, modifiers, GetGuid());
       return nsEventStatus_eConsumeNoDefault;
     }
   }
@@ -1685,8 +1685,8 @@ nsEventStatus AsyncPanZoomController::OnLongPressUp(const TapGestureInput& aEven
 nsEventStatus AsyncPanZoomController::GenerateSingleTap(const ParentLayerPoint& aPoint, mozilla::Modifiers aModifiers) {
   nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
-    CSSPoint geckoScreenPoint;
-    if (ConvertToGoanna(aPoint, &geckoScreenPoint)) {
+    CSSPoint goannaScreenPoint;
+    if (ConvertToGoanna(aPoint, &goannaScreenPoint)) {
       if (!CurrentTouchBlock()->SetSingleTapOccurred()) {
         return nsEventStatus_eIgnore;
       }
@@ -1697,7 +1697,7 @@ nsEventStatus AsyncPanZoomController::GenerateSingleTap(const ParentLayerPoint& 
       // See bug 965381 for the issue this was causing.
       controller->PostDelayedTask(
         NewRunnableMethod(controller.get(), &GoannaContentController::HandleSingleTap,
-                          geckoScreenPoint, WidgetModifiersToDOMModifiers(aModifiers),
+                          goannaScreenPoint, WidgetModifiersToDOMModifiers(aModifiers),
                           GetGuid()),
         0);
       return nsEventStatus_eConsumeNoDefault;
@@ -1734,9 +1734,9 @@ nsEventStatus AsyncPanZoomController::OnDoubleTap(const TapGestureInput& aEvent)
   if (controller) {
     if (mZoomConstraints.mAllowDoubleTapZoom && CurrentTouchBlock()->TouchActionAllowsDoubleTapZoom()) {
       int32_t modifiers = WidgetModifiersToDOMModifiers(aEvent.modifiers);
-      CSSPoint geckoScreenPoint;
-      if (ConvertToGoanna(aEvent.mLocalPoint, &geckoScreenPoint)) {
-        controller->HandleDoubleTap(geckoScreenPoint, modifiers, GetGuid());
+      CSSPoint goannaScreenPoint;
+      if (ConvertToGoanna(aEvent.mLocalPoint, &goannaScreenPoint)) {
+        controller->HandleDoubleTap(goannaScreenPoint, modifiers, GetGuid());
       }
     }
     return nsEventStatus_eConsumeNoDefault;

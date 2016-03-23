@@ -3,15 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.preferences;
+package org.mozilla.goanna.preferences;
 
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.TelemetryContract.Method;
-import org.mozilla.gecko.fxa.activities.FxAccountGetStartedActivity;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.TelemetryContract.Method;
+import org.mozilla.goanna.fxa.activities.FxAccountGetStartedActivity;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.sync.setup.activities.SetupSyncActivity;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.content.Context;
 import android.content.Intent;

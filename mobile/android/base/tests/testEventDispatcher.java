@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.*;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.*;
 
-import org.mozilla.gecko.tests.helpers.*;
+import org.mozilla.goanna.tests.helpers.*;
 
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.os.Bundle;
 

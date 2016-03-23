@@ -19,9 +19,9 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import java.util.ArrayList;
 import java.util.List;

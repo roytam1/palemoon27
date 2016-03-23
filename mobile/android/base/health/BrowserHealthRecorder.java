@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.health;
+package org.mozilla.goanna.health;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -22,21 +22,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.background.healthreport.AndroidConfigurationProvider;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields;
-import org.mozilla.gecko.background.healthreport.ProfileInformationCache;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.distribution.Distribution.DistributionDescriptor;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.background.healthreport.AndroidConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
+import org.mozilla.goanna.background.healthreport.ProfileInformationCache;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.distribution.Distribution.DistributionDescriptor;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

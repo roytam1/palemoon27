@@ -237,17 +237,17 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::Init(nsIWidget *aWidget,
   // This is a horrible workaround for some printer driver bugs that treat custom page sizes different
   // to standard ones. If our paper object matches one of a standard one, use a standard paper size
   // object instead. See bug 414314 for more info.
-  GtkPaperSize* geckosHackishPaperSize = gtk_page_setup_get_paper_size(mGtkPageSetup);
-  GtkPaperSize* standardGtkPaperSize = gtk_paper_size_new(gtk_paper_size_get_name(geckosHackishPaperSize));
+  GtkPaperSize* goannasHackishPaperSize = gtk_page_setup_get_paper_size(mGtkPageSetup);
+  GtkPaperSize* standardGtkPaperSize = gtk_paper_size_new(gtk_paper_size_get_name(goannasHackishPaperSize));
 
   mGtkPageSetup = gtk_page_setup_copy(mGtkPageSetup);
   mGtkPrintSettings = gtk_print_settings_copy(mGtkPrintSettings);
 
   GtkPaperSize* properPaperSize;
-  if (gtk_paper_size_is_equal(geckosHackishPaperSize, standardGtkPaperSize)) {
+  if (gtk_paper_size_is_equal(goannasHackishPaperSize, standardGtkPaperSize)) {
     properPaperSize = standardGtkPaperSize;
   } else {
-    properPaperSize = geckosHackishPaperSize;
+    properPaperSize = goannasHackishPaperSize;
   }
   gtk_print_settings_set_paper_size(mGtkPrintSettings, properPaperSize);
   gtk_page_setup_set_paper_size_and_default_margins(mGtkPageSetup, properPaperSize);

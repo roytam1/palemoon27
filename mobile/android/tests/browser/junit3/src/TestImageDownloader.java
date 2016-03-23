@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -19,8 +19,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.home.ImageLoader.ImageDownloader;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.home.ImageLoader.ImageDownloader;
 
 public class TestImageDownloader extends BrowserTestCase {
     private static class TestContext extends RenamingDelegatingContext {
@@ -139,7 +139,7 @@ public class TestImageDownloader extends BrowserTestCase {
 
     public void testAccessedFiles() {
         // Filename only.
-        checkAccessedFilesForUri(Uri.parse("gecko.distribution://file"),
+        checkAccessedFilesForUri(Uri.parse("goanna.distribution://file"),
                                  DisplayMetrics.DENSITY_MEDIUM,
                                  new String[] {
                                     "mdpi/file.png",
@@ -148,7 +148,7 @@ public class TestImageDownloader extends BrowserTestCase {
                                  });
 
         // Directory and filename.
-        checkAccessedFilesForUri(Uri.parse("gecko.distribution://dir/file"),
+        checkAccessedFilesForUri(Uri.parse("goanna.distribution://dir/file"),
                                  DisplayMetrics.DENSITY_MEDIUM,
                                  new String[] {
                                     "dir/mdpi/file.png",
@@ -157,7 +157,7 @@ public class TestImageDownloader extends BrowserTestCase {
                                  });
 
         // Sub-directories and filename.
-        checkAccessedFilesForUri(Uri.parse("gecko.distribution://dir/subdir/file"),
+        checkAccessedFilesForUri(Uri.parse("goanna.distribution://dir/subdir/file"),
                                  DisplayMetrics.DENSITY_MEDIUM,
                                  new String[] {
                                     "dir/subdir/mdpi/file.png",
@@ -167,7 +167,7 @@ public class TestImageDownloader extends BrowserTestCase {
     }
 
     public void testDensityLookup() {
-        Uri uri = Uri.parse("gecko.distribution://file");
+        Uri uri = Uri.parse("goanna.distribution://file");
 
         // Medium density
         checkAccessedFilesForUri(uri,

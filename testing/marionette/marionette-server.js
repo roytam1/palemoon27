@@ -358,7 +358,7 @@ MarionetteServerConnection.prototype = {
 
   sayHello: function MDA_sayHello() {
     this.conn.send({ from: "root",
-                     applicationType: "gecko",
+                     applicationType: "goanna",
                      traits: [] });
   },
 

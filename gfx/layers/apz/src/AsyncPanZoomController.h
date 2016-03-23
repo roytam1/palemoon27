@@ -104,12 +104,12 @@ public:
                          GestureBehavior aGestures = DEFAULT_GESTURES);
 
   // --------------------------------------------------------------------------
-  // These methods must only be called on the gecko thread.
+  // These methods must only be called on the goanna thread.
   //
 
   /**
    * Read the various prefs and do any global initialization for all APZC instances.
-   * This must be run on the gecko thread before any APZC instances are actually
+   * This must be run on the goanna thread before any APZC instances are actually
    * used for anything meaningful.
    */
   static void InitializeGlobalState();
@@ -226,10 +226,10 @@ public:
 
   /**
    * Returns the transform to take something from the coordinate space of the
-   * last thing we know gecko painted, to the coordinate space of the last thing
-   * we asked gecko to paint. In cases where that last request has not yet been
+   * last thing we know goanna painted, to the coordinate space of the last thing
+   * we asked goanna to paint. In cases where that last request has not yet been
    * processed, this is needed to transform input events properly into a space
-   * gecko will understand.
+   * goanna will understand.
    */
   Matrix4x4 GetTransformToLastDispatchedPaint() const;
 
@@ -564,7 +564,7 @@ protected:
   void RequestContentRepaint(FrameMetrics& aFrameMetrics, bool aThrottled = true);
 
   /**
-   * Actually send the next pending paint request to gecko.
+   * Actually send the next pending paint request to goanna.
    */
   void DispatchRepaintRequest(const FrameMetrics& aFrameMetrics);
 

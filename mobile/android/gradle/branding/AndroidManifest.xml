@@ -1,4 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.mozilla.gecko.branding">
+    package="org.mozilla.goanna.branding">
 
 </manifest>

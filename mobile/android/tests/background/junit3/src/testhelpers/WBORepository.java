@@ -1,27 +1,27 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.testhelpers;
+package org.mozilla.goanna.background.testhelpers;
 
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
-import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
-import org.mozilla.gecko.sync.repositories.RecordFilter;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.StoreTrackingRepositorySession;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.InvalidSessionTransitionException;
+import org.mozilla.goanna.sync.repositories.NoStoreDelegateException;
+import org.mozilla.goanna.sync.repositories.RecordFilter;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.StoreTrackingRepositorySession;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionBeginDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFinishDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionWipeDelegate;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 import android.content.Context;
 

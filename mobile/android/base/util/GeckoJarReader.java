@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.util;
+package org.mozilla.goanna.util;
 
 import android.content.Context;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.mozglue.NativeZip;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.mozglue.NativeZip;
 
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import java.io.BufferedReader;
 import java.io.File;

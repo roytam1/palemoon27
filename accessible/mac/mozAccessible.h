@@ -49,13 +49,13 @@ GetNativeFromGoannaAccessible(mozilla::a11y::Accessible* aAccessible)
   mozAccessible* mParent;
 
   /**
-   * The role of our gecko accessible.
+   * The role of our goanna accessible.
    */
   mozilla::a11y::role        mRole;
 }
 
-// inits with the gecko owner.
-- (id)initWithAccessible:(mozilla::a11y::AccessibleWrap*)geckoParent;
+// inits with the goanna owner.
+- (id)initWithAccessible:(mozilla::a11y::AccessibleWrap*)goannaParent;
 
 // our accessible parent (AXParent)
 - (id <mozAccessible>)parent;

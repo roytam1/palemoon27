@@ -1,4 +1,4 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import android.content.Context;
 import android.content.Intent;

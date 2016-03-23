@@ -3,16 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
 import java.util.Arrays;
 
-import org.mozilla.gecko.NewTabletUI;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.tabs.TabHistoryController;
-import org.mozilla.gecko.menu.MenuItemActionBar;
+import org.mozilla.goanna.NewTabletUI;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.tabs.TabHistoryController;
+import org.mozilla.goanna.menu.MenuItemActionBar;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;

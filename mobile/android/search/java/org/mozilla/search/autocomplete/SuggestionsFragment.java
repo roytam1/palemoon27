@@ -7,10 +7,10 @@ package org.mozilla.search.autocomplete;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.SuggestClient;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.SuggestClient;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
 import org.mozilla.search.AcceptsSearchQuery;
 import org.mozilla.search.AcceptsSearchQuery.SuggestionAnimation;
 import org.mozilla.search.providers.SearchEngine;

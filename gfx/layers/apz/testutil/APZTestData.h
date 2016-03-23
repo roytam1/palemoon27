@@ -22,7 +22,7 @@ namespace layers {
 typedef uint32_t SequenceNumber;
 
 /**
- * This structure is used to store information logged by various gecko
+ * This structure is used to store information logged by various goanna
  * components for later examination by test code.
  * It consists of a bucket for every paint (initiated on the client side),
  * and every repaint request (initiated on the compositor side by

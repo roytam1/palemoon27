@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,25 +14,25 @@ import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.SuggestClient;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.BrowserContract.History;
-import org.mozilla.gecko.db.BrowserContract.URLColumns;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.home.SearchLoader.SearchCursorLoader;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.toolbar.AutocompleteHandler;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.SuggestClient;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.BrowserContract.History;
+import org.mozilla.goanna.db.BrowserContract.URLColumns;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.home.SearchLoader.SearchCursorLoader;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.toolbar.AutocompleteHandler;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Activity;
 import android.content.Context;
@@ -669,7 +669,7 @@ public class BrowserSearch extends HomeFragment
             }
         });
 
-        // Pref observer in gecko will also set prompted = true
+        // Pref observer in goanna will also set prompted = true
         PrefsHelper.setPref("browser.search.suggest.enabled", enabled);
 
         TranslateAnimation slideAnimation = new TranslateAnimation(0, mSuggestionsOptInPrompt.getWidth(), 0, 0);

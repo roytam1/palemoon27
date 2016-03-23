@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport.upload;
+package org.mozilla.goanna.background.healthreport.upload;
 
 import java.net.MalformedURLException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Collection;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.healthreport.HealthReportConstants;
-import org.mozilla.gecko.background.healthreport.HealthReportUtils;
-import org.mozilla.gecko.background.healthreport.upload.SubmissionClient.Delegate;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.HealthReportConstants;
+import org.mozilla.goanna.background.healthreport.HealthReportUtils;
+import org.mozilla.goanna.background.healthreport.upload.SubmissionClient.Delegate;
 
 import android.content.SharedPreferences;
 

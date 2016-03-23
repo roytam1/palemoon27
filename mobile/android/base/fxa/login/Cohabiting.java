@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.login;
+package org.mozilla.goanna.fxa.login;
 
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.browserid.BrowserIDKeyPair;
-import org.mozilla.gecko.browserid.JSONWebTokenUtils;
-import org.mozilla.gecko.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
-import org.mozilla.gecko.fxa.login.FxAccountLoginTransition.LogMessage;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.browserid.BrowserIDKeyPair;
+import org.mozilla.goanna.browserid.JSONWebTokenUtils;
+import org.mozilla.goanna.fxa.login.FxAccountLoginStateMachine.ExecuteDelegate;
+import org.mozilla.goanna.fxa.login.FxAccountLoginTransition.LogMessage;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
 
 public class Cohabiting extends TokensAndKeysState {
   private static final String LOG_TAG = Cohabiting.class.getSimpleName();

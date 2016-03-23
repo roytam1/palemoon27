@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.activities;
+package org.mozilla.goanna.fxa.activities;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -11,22 +11,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.background.preferences.PreferenceFragment;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.Married;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncStatusHelper;
-import org.mozilla.gecko.fxa.tasks.FxAccountCodeResender;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.SharedPreferencesClientsDataDelegate;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.background.preferences.PreferenceFragment;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.login.Married;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncStatusHelper;
+import org.mozilla.goanna.fxa.tasks.FxAccountCodeResender;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.SharedPreferencesClientsDataDelegate;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.accounts.Account;
 import android.content.ContentResolver;

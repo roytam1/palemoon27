@@ -1,11 +1,11 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.File;
 
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage.HealthReportSQLiteOpenHelper;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage.HealthReportSQLiteOpenHelper;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;

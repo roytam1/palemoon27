@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerView;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.gfx.LayerView;
 
 import org.json.JSONObject;
 
@@ -135,14 +135,14 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         // Send x coordinate on the right side of the start handle, left side of the end handle.
         float left = mLeft + adjustLeftForHandle();
 
-        PointF geckoPoint = new PointF(left, mTop);
-        geckoPoint = layerView.convertViewPointToLayerPoint(geckoPoint);
+        PointF goannaPoint = new PointF(left, mTop);
+        goannaPoint = layerView.convertViewPointToLayerPoint(goannaPoint);
 
         JSONObject args = new JSONObject();
         try {
             args.put("handleType", mHandleType.toString());
-            args.put("x", (int) geckoPoint.x);
-            args.put("y", (int) geckoPoint.y);
+            args.put("x", (int) goannaPoint.x);
+            args.put("y", (int) goannaPoint.y);
         } catch (Exception e) {
             Log.e(LOGTAG, "Error building JSON arguments for TextSelection:Move");
         }

@@ -898,14 +898,14 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   // GetTransform here.
   Matrix4x4 oldTransform = aLayer->GetTransform();
 
-  CSSToLayerScale geckoZoom = metrics.LayersPixelsPerCSSPixel();
+  CSSToLayerScale goannaZoom = metrics.LayersPixelsPerCSSPixel();
 
-  LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.GetScrollOffset() * geckoZoom);
+  LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.GetScrollOffset() * goannaZoom);
 
   if (mIsFirstPaint) {
     mContentRect = metrics.GetScrollableRect();
     SetFirstPaintViewport(scrollOffsetLayerPixels,
-                          geckoZoom,
+                          goannaZoom,
                           mContentRect);
     mIsFirstPaint = false;
   } else if (!metrics.GetScrollableRect().IsEqualEdges(mContentRect)) {
@@ -920,7 +920,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
     (metrics.GetCriticalDisplayPort().IsEmpty()
       ? metrics.GetDisplayPort()
       : metrics.GetCriticalDisplayPort()
-    ) * geckoZoom);
+    ) * goannaZoom);
   displayPort += scrollOffsetLayerPixels;
 
   LayerMargin fixedLayerMargins(0, 0, 0, 0);
@@ -933,7 +933,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   // works fine.
   CSSToParentLayerScale userZoom(metrics.GetDevPixelsPerCSSPixel() * metrics.GetCumulativeResolution() * LayerToParentLayerScale(1));
   ParentLayerPoint userScroll = metrics.GetScrollOffset() * userZoom;
-  SyncViewportInfo(displayPort, geckoZoom, mLayersUpdated,
+  SyncViewportInfo(displayPort, goannaZoom, mLayersUpdated,
                    userScroll, userZoom, fixedLayerMargins,
                    offset);
   mLayersUpdated = false;
@@ -947,13 +947,13 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   // primary scrollable layer. We compare this to the user zoom and scroll
   // offset in the view transform we obtained from Java in order to compute the
   // transformation we need to apply.
-  ParentLayerPoint geckoScroll(0, 0);
+  ParentLayerPoint goannaScroll(0, 0);
   if (metrics.IsScrollable()) {
-    geckoScroll = metrics.GetScrollOffset() * userZoom;
+    goannaScroll = metrics.GetScrollOffset() * userZoom;
   }
 
   LayerToParentLayerScale asyncZoom = userZoom / metrics.LayersPixelsPerCSSPixel();
-  ParentLayerPoint translation = userScroll - geckoScroll;
+  ParentLayerPoint translation = userScroll - goannaScroll;
   Matrix4x4 treeTransform = ViewTransform(asyncZoom, -translation);
 
   SetShadowTransform(aLayer, oldTransform * treeTransform);

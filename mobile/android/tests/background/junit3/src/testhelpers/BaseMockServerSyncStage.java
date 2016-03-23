@@ -1,18 +1,18 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.testhelpers;
+package org.mozilla.goanna.background.testhelpers;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.sync.NoCollectionKeysSetException;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.SynchronizerConfiguration;
-import org.mozilla.gecko.sync.repositories.RecordFactory;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.stage.ServerSyncStage;
+import org.mozilla.goanna.sync.NoCollectionKeysSetException;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.SynchronizerConfiguration;
+import org.mozilla.goanna.sync.repositories.RecordFactory;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.stage.ServerSyncStage;
 
 /**
  * A stage that joins two Repositories with no wrapping.

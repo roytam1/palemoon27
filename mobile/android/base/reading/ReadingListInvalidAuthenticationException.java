@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.reading;
+package org.mozilla.goanna.reading;
 
-import org.mozilla.gecko.sync.net.MozResponse;
+import org.mozilla.goanna.sync.net.MozResponse;
 
 public class ReadingListInvalidAuthenticationException extends Exception {
   private static final long serialVersionUID = 7112459541558266597L;

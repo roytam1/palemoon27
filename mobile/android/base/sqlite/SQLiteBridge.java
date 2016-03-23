@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sqlite;
+package org.mozilla.goanna.sqlite;
 
 import android.content.ContentValues;
 import android.database.Cursor;
@@ -11,7 +11,7 @@ import android.database.sqlite.SQLiteException;
 import android.text.TextUtils;
 import android.util.Log;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import java.util.ArrayList;
 import java.util.Arrays;

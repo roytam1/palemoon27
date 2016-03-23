@@ -82,7 +82,7 @@
     <application android:label="@string/moz_app_displayname"
                  android:icon="@drawable/icon"
                  android:logo="@drawable/logo"
-                 android:name="org.mozilla.gecko.GoannaApplication"
+                 android:name="org.mozilla.goanna.GoannaApplication"
                  android:hardwareAccelerated="true"
 # The preprocessor does not yet support arbitrary parentheses, so this cannot
 # be parenthesized thus to clarify that the logical AND operator has precedence:
@@ -102,7 +102,7 @@
 
         <!-- If the windowSoftInputMode adjust* flag changes below, the
              setSoftInputMode call in BrowserSearch#onStop must also be updated. -->
-        <activity android:name="org.mozilla.gecko.BrowserApp"
+        <activity android:name="org.mozilla.goanna.BrowserApp"
                   android:label="@string/moz_app_displayname"
                   android:taskAffinity="@ANDROID_PACKAGE_NAME@.BROWSER"
                   android:alwaysRetainTaskState="true"
@@ -122,14 +122,14 @@
              org.mozilla.{fennec,firefox,firefox_beta}.  The internal Java package
              hierarchy inside the Android package has both an
              org.mozilla.{fennec,firefox,firefox_beta} subtree *and* an
-             org.mozilla.gecko subtree.  The non-org.mozilla.gecko is deprecated
+             org.mozilla.goanna subtree.  The non-org.mozilla.goanna is deprecated
              and we would like to get rid of it entirely.  Until that happens, we
              have external consumers (such as intents and bookmarks) of
-             non-org.mozilla.gecko Activity classes, so we define activity aliases
+             non-org.mozilla.goanna Activity classes, so we define activity aliases
              for backwards compatibility. -->
         <activity-alias android:name=".App"
                         android:label="@MOZ_APP_DISPLAYNAME@"
-                        android:targetActivity="org.mozilla.gecko.BrowserApp">
+                        android:targetActivity="org.mozilla.goanna.BrowserApp">
             <!-- android:priority ranges between -1000 and 1000.  We never want
                  another activity to usurp the MAIN action, so we ratchet our
                  priority up. -->
@@ -147,11 +147,11 @@
                        android:resource="@drawable/icon" />
 
             <intent-filter>
-                <action android:name="org.mozilla.gecko.ACTION_ALERT_CALLBACK" />
+                <action android:name="org.mozilla.goanna.ACTION_ALERT_CALLBACK" />
             </intent-filter>
 
             <intent-filter>
-                <action android:name="org.mozilla.gecko.GUEST_SESSION_INPROGRESS" />
+                <action android:name="org.mozilla.goanna.GUEST_SESSION_INPROGRESS" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
@@ -163,7 +163,7 @@
             </intent-filter>
 
             <intent-filter>
-                <action android:name="org.mozilla.gecko.UPDATE"/>
+                <action android:name="org.mozilla.goanna.UPDATE"/>
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
@@ -235,16 +235,16 @@
 
             <!-- For debugging -->
             <intent-filter>
-                <action android:name="org.mozilla.gecko.DEBUG" />
+                <action android:name="org.mozilla.goanna.DEBUG" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity-alias>
 
-        <activity android:name="org.mozilla.gecko.StartPane"
+        <activity android:name="org.mozilla.goanna.StartPane"
                   android:theme="@style/GoannaStartPane"
                   android:excludeFromRecents="true"/>
 
-        <activity android:name="org.mozilla.gecko.webapp.Dispatcher"
+        <activity android:name="org.mozilla.goanna.webapp.Dispatcher"
             android:noHistory="true" >
             <intent-filter>
                 <!-- catch links from synthetic apks -->
@@ -254,14 +254,14 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name="org.mozilla.gecko.webapp.UninstallListener" >
+        <receiver android:name="org.mozilla.goanna.webapp.UninstallListener" >
           <intent-filter>
              <action android:name="android.intent.action.PACKAGE_REMOVED" />
              <data android:scheme="package" />
           </intent-filter>
         </receiver>
 
-        <receiver android:name="org.mozilla.gecko.webapp.TaskKiller">
+        <receiver android:name="org.mozilla.goanna.webapp.TaskKiller">
           <intent-filter>
              <action android:name="org.mozilla.webapp.TASK_REMOVED" />
              <category android:name="android.intent.category.DEFAULT" />
@@ -269,12 +269,12 @@
         </receiver>
 
         <!-- Activity used for launching non-privileged WebApps via a URL -->
-        <activity android:name="org.mozilla.gecko.Webapp"
+        <activity android:name="org.mozilla.goanna.Webapp"
                   android:label="@string/webapp_generic_name"
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleTask"
-                  android:taskAffinity="org.mozilla.gecko.WEBAPP"
+                  android:taskAffinity="org.mozilla.goanna.WEBAPP"
                   android:process=":@ANDROID_PACKAGE_NAME@.Webapp"
                   android:excludeFromRecents="true"
                   android:exported="true"
@@ -286,15 +286,15 @@
         </activity>
 
         <!-- Alias Webapp so we can launch it from the package namespace. Prefer
-             to launch with the fully qualified name "org.mozilla.gecko.Webapp". -->
+             to launch with the fully qualified name "org.mozilla.goanna.Webapp". -->
         <activity-alias android:name=".Webapp"
                         android:label="@string/webapp_generic_name"
-                        android:targetActivity="org.mozilla.gecko.Webapp">
+                        android:targetActivity="org.mozilla.goanna.Webapp">
             <intent-filter>
-                <action android:name="org.mozilla.gecko.WEBAPP" />
+                <action android:name="org.mozilla.goanna.WEBAPP" />
             </intent-filter>
             <intent-filter>
-                <action android:name="org.mozilla.gecko.ACTION_ALERT_CALLBACK" />
+                <action android:name="org.mozilla.goanna.ACTION_ALERT_CALLBACK" />
             </intent-filter>
         </activity-alias>
 
@@ -309,37 +309,37 @@
         <!-- Masquerade as the Resolver so that we can be opened from the Marketplace. -->
         <activity-alias
             android:name="com.android.internal.app.ResolverActivity"
-            android:targetActivity="org.mozilla.gecko.BrowserApp"
+            android:targetActivity="org.mozilla.goanna.BrowserApp"
             android:exported="true" />
 
-        <receiver android:name="org.mozilla.gecko.GoannaUpdateReceiver">
+        <receiver android:name="org.mozilla.goanna.GoannaUpdateReceiver">
             <intent-filter>
                 <action android:name="@ANDROID_PACKAGE_NAME@.CHECK_UPDATE_RESULT" />
             </intent-filter>
         </receiver>
 
-        <receiver android:name="org.mozilla.gecko.GoannaMessageReceiver"
+        <receiver android:name="org.mozilla.goanna.GoannaMessageReceiver"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER">
             <intent-filter>
-                  <action android:name="org.mozilla.gecko.INIT_PW"></action>
+                  <action android:name="org.mozilla.goanna.INIT_PW"></action>
             </intent-filter>
         </receiver>
 
         <!-- Catch install referrer so we can do post-install work. -->
-        <receiver android:name="org.mozilla.gecko.distribution.ReferrerReceiver"
+        <receiver android:name="org.mozilla.goanna.distribution.ReferrerReceiver"
                   android:exported="true">
             <intent-filter>
                 <action android:name="com.android.vending.INSTALL_REFERRER" />
             </intent-filter>
         </receiver>
 
-        <activity android:name="org.mozilla.gecko.Restarter"
+        <activity android:name="org.mozilla.goanna.Restarter"
                   android:process="@ANDROID_PACKAGE_NAME@Restarter"
                   android:noHistory="true"
                   android:theme="@style/Goanna">
           <intent-filter>
-            <action android:name="org.mozilla.gecko.restart"/>
-            <action android:name="org.mozilla.gecko.restart_update"/>
+            <action android:name="org.mozilla.goanna.restart"/>
+            <action android:name="org.mozilla.goanna.restart_update"/>
           </intent-filter>
         </activity>
 
@@ -351,7 +351,7 @@
 #endif
 
 #if MOZ_CRASHREPORTER
-  <activity android:name="org.mozilla.gecko.CrashReporter"
+  <activity android:name="org.mozilla.goanna.CrashReporter"
             android:process="@ANDROID_PACKAGE_NAME@.CrashReporter"
             android:label="@string/crash_reporter_title"
             android:icon="@drawable/crash_reporter"
@@ -359,17 +359,17 @@
             android:exported="false"
             android:excludeFromRecents="true">
           <intent-filter>
-            <action android:name="org.mozilla.gecko.reportCrash" />
+            <action android:name="org.mozilla.goanna.reportCrash" />
           </intent-filter>
   </activity>
 #endif
 
-        <activity android:name="org.mozilla.gecko.preferences.GoannaPreferences"
+        <activity android:name="org.mozilla.goanna.preferences.GoannaPreferences"
                   android:theme="@style/Goanna.Preferences"
                   android:configChanges="orientation|screenSize|locale|layoutDirection"
                   android:excludeFromRecents="true"/>
 
-        <provider android:name="org.mozilla.gecko.db.BrowserProvider"
+        <provider android:name="org.mozilla.goanna.db.BrowserProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.browser"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER">
 
@@ -383,7 +383,7 @@
 
              Setting launchMode="singleTop" ensures onNewIntent is called when the Activity is
              reused. Ideally we create a new instance but Android L breaks this (bug 1137928). -->
-        <activity android:name="org.mozilla.gecko.overlays.ui.ShareDialog"
+        <activity android:name="org.mozilla.goanna.overlays.ui.ShareDialog"
                   android:label="@string/overlay_share_label"
                   android:theme="@style/ShareOverlayActivity"
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|locale|layoutDirection"
@@ -399,7 +399,7 @@
         </activity>
 
         <!-- Service to handle requests from overlays. -->
-        <service android:name="org.mozilla.gecko.overlays.service.OverlayActionService" />
+        <service android:name="org.mozilla.goanna.overlays.service.OverlayActionService" />
 #endif
         <!--
           Ensure that passwords provider runs in its own process. (Bug 718760.)
@@ -407,49 +407,49 @@
           Fennec versions into the same process. (Bug 749727.)
           Process name is a mangled version to avoid a Talos bug. (Bug 750548.)
           -->
-        <provider android:name="org.mozilla.gecko.db.PasswordsProvider"
+        <provider android:name="org.mozilla.goanna.db.PasswordsProvider"
                   android:label="@string/sync_configure_engines_title_passwords"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.passwords"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER"
                   android:process="@MANGLED_ANDROID_PACKAGE_NAME@.PasswordsProvider"/>
 
-        <provider android:name="org.mozilla.gecko.db.FormHistoryProvider"
+        <provider android:name="org.mozilla.goanna.db.FormHistoryProvider"
                   android:label="@string/sync_configure_engines_title_history"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.formhistory"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.FORMHISTORY_PROVIDER"
                   android:protectionLevel="signature"/>
 
-        <provider android:name="org.mozilla.gecko.GoannaProfilesProvider"
+        <provider android:name="org.mozilla.goanna.GoannaProfilesProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.profiles"/>
 
-        <provider android:name="org.mozilla.gecko.db.TabsProvider"
+        <provider android:name="org.mozilla.goanna.db.TabsProvider"
                   android:label="@string/sync_configure_engines_title_tabs"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.tabs"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
 
-        <provider android:name="org.mozilla.gecko.db.HomeProvider"
+        <provider android:name="org.mozilla.goanna.db.HomeProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.home"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
 
-        <provider android:name="org.mozilla.gecko.db.ReadingListProvider"
+        <provider android:name="org.mozilla.goanna.db.ReadingListProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.readinglist"
                   android:exported="false"
                   android:label="@string/reading_list_title"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
 
-        <provider android:name="org.mozilla.gecko.db.SearchHistoryProvider"
+        <provider android:name="org.mozilla.goanna.db.SearchHistoryProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.searchhistory"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
 
         <service
             android:exported="false"
-            android:name="org.mozilla.gecko.updater.UpdateService"
+            android:name="org.mozilla.goanna.updater.UpdateService"
             android:process="@MANGLED_ANDROID_PACKAGE_NAME@.UpdateService">
         </service>
 
         <service
             android:exported="false"
-            android:name="org.mozilla.gecko.NotificationService">
+            android:name="org.mozilla.goanna.NotificationService">
         </service>
 
 

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import android.content.Context;
 import android.net.Uri;
@@ -20,12 +20,12 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Set;
 
-import org.mozilla.gecko.distribution.Distribution;
+import org.mozilla.goanna.distribution.Distribution;
 
 public class ImageLoader {
     private static final String LOGTAG = "GoannaImageLoader";
 
-    private static final String DISTRIBUTION_SCHEME = "gecko.distribution";
+    private static final String DISTRIBUTION_SCHEME = "goanna.distribution";
     private static final String SUGGESTED_SITES_AUTHORITY = "suggestedsites";
 
     // The order of density factors to try when looking for an image resource
@@ -109,7 +109,7 @@ public class ImageLoader {
         /**
          * Handle distribution URIs in Picasso. The expected format is:
          *
-         *   gecko.distribution://<basepath>/<imagename>
+         *   goanna.distribution://<basepath>/<imagename>
          *
          * Which will look for the following file in the distribution:
          *

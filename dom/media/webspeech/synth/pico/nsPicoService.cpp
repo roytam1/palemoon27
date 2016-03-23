@@ -715,7 +715,7 @@ nsPicoService::GetInstance()
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (XRE_GetProcessType() != GoannaProcessType_Default) {
-    MOZ_ASSERT(false, "nsPicoService can only be started on main gecko process");
+    MOZ_ASSERT(false, "nsPicoService can only be started on main goanna process");
     return nullptr;
   }
 

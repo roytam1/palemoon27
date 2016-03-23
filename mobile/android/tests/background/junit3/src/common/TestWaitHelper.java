@@ -1,15 +1,15 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.common;
+package org.mozilla.goanna.background.common;
 
 import junit.framework.AssertionFailedError;
 
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.background.testhelpers.WaitHelper;
-import org.mozilla.gecko.background.testhelpers.WaitHelper.InnerError;
-import org.mozilla.gecko.background.testhelpers.WaitHelper.TimeoutError;
-import org.mozilla.gecko.sync.ThreadPool;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.testhelpers.WaitHelper;
+import org.mozilla.goanna.background.testhelpers.WaitHelper.InnerError;
+import org.mozilla.goanna.background.testhelpers.WaitHelper.TimeoutError;
+import org.mozilla.goanna.sync.ThreadPool;
 
 public class TestWaitHelper extends AndroidSyncTestCase {
   private static final String ERROR_UNIQUE_IDENTIFIER = "error unique identifier";

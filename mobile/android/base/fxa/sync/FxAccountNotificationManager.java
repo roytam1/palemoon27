@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.sync;
+package org.mozilla.goanna.fxa.sync;
 
-import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.common.telemetry.TelemetryWrapper;
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.fxa.activities.FxAccountFinishMigratingActivity;
-import org.mozilla.gecko.fxa.activities.FxAccountStatusActivity;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.fxa.login.State.Action;
-import org.mozilla.gecko.sync.telemetry.TelemetryContract;
+import org.mozilla.goanna.BrowserLocaleManager;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.common.telemetry.TelemetryWrapper;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.fxa.activities.FxAccountFinishMigratingActivity;
+import org.mozilla.goanna.fxa.activities.FxAccountStatusActivity;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.login.State;
+import org.mozilla.goanna.fxa.login.State.Action;
+import org.mozilla.goanna.sync.telemetry.TelemetryContract;
 
 import android.app.NotificationManager;
 import android.app.PendingIntent;

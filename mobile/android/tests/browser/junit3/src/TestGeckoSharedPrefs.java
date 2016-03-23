@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -9,7 +9,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.mozilla.gecko.GoannaSharedPrefs.Flags;
+import org.mozilla.goanna.GoannaSharedPrefs.Flags;
 
 import android.content.Context;
 import android.content.SharedPreferences;

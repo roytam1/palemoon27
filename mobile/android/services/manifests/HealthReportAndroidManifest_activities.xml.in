@@ -1,4 +1,4 @@
-        <provider android:name="org.mozilla.gecko.background.healthreport.HealthReportProvider"
+        <provider android:name="org.mozilla.goanna.background.healthreport.HealthReportProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.health"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.HEALTH_PROVIDER">
         </provider>
@@ -7,7 +7,7 @@
              start the background service in response to external events,
              some sent by the system and some particular to Health Report.
           -->
-        <receiver android:name="org.mozilla.gecko.background.healthreport.HealthReportBroadcastReceiver" >
+        <receiver android:name="org.mozilla.goanna.background.healthreport.HealthReportBroadcastReceiver" >
             <intent-filter>
                 <!-- Startup. -->
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

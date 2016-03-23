@@ -12,7 +12,7 @@ public class TelemetryWrapper {
     public static void addToHistogram(String key, int value) {
         if (mAddToHistogram == null) {
             try {
-                Class<?> telemetry = Class.forName("org.mozilla.gecko.Telemetry");
+                Class<?> telemetry = Class.forName("org.mozilla.goanna.Telemetry");
                 mAddToHistogram = telemetry.getMethod("addToHistogram", String.class, int.class);
             } catch (ClassNotFoundException e) {
                 Log.d(LOG_TAG, "Class not found!");

@@ -1,11 +1,11 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.helpers;
+package org.mozilla.goanna.background.helpers;
 
 import junit.framework.AssertionFailedError;
 
-import org.mozilla.gecko.background.testhelpers.WaitHelper;
+import org.mozilla.goanna.background.testhelpers.WaitHelper;
 
 import android.app.Activity;
 import android.content.Context;

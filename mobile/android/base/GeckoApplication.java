@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.LocalBrowserDB;
-import org.mozilla.gecko.home.HomePanelsManager;
-import org.mozilla.gecko.lwt.LightweightTheme;
-import org.mozilla.gecko.mozglue.GoannaLoader;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.LocalBrowserDB;
+import org.mozilla.goanna.home.HomePanelsManager;
+import org.mozilla.goanna.lwt.LightweightTheme;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Application;
 import android.content.Context;

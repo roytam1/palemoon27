@@ -2,30 +2,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.android;
+package org.mozilla.goanna.sync.repositories.android;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.DeletedColumns;
-import org.mozilla.gecko.db.BrowserContract.DeletedPasswords;
-import org.mozilla.gecko.db.BrowserContract.Passwords;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.RecordFilter;
-import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.StoreTrackingRepositorySession;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils.QueryHelper;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
-import org.mozilla.gecko.sync.repositories.domain.PasswordRecord;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.DeletedColumns;
+import org.mozilla.goanna.db.BrowserContract.DeletedPasswords;
+import org.mozilla.goanna.db.BrowserContract.Passwords;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.NoStoreDelegateException;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.RecordFilter;
+import org.mozilla.goanna.sync.repositories.Repository;
+import org.mozilla.goanna.sync.repositories.StoreTrackingRepositorySession;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils.QueryHelper;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFinishDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionWipeDelegate;
+import org.mozilla.goanna.sync.repositories.domain.PasswordRecord;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 import android.content.ContentProviderClient;
 import android.content.ContentUris;

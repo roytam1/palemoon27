@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.os.Build;
 
@@ -75,7 +75,7 @@ public class AppConstants {
     /**
      * The name of the Java class that launches the browser.
      */
-    public static final String BROWSER_INTENT_CLASS_NAME = "org.mozilla.gecko.BrowserApp";
+    public static final String BROWSER_INTENT_CLASS_NAME = "org.mozilla.goanna.BrowserApp";
     public static final String SEARCH_INTENT_CLASS_NAME = "org.mozilla.search.SearchActivity";
 
     public static final String GRE_MILESTONE = "@GRE_MILESTONE@";

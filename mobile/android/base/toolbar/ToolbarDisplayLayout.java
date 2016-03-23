@@ -3,31 +3,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.NewTabletUI;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.ReaderModeUtils;
-import org.mozilla.gecko.SiteIdentity;
-import org.mozilla.gecko.SiteIdentity.SecurityMode;
-import org.mozilla.gecko.SiteIdentity.MixedMode;
-import org.mozilla.gecko.SiteIdentity.TrackingMode;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.toolbar.BrowserToolbarTabletBase.ForwardButtonAnimation;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.widget.ThemedLinearLayout;
-import org.mozilla.gecko.widget.ThemedTextView;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.NewTabletUI;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.ReaderModeUtils;
+import org.mozilla.goanna.SiteIdentity;
+import org.mozilla.goanna.SiteIdentity.SecurityMode;
+import org.mozilla.goanna.SiteIdentity.MixedMode;
+import org.mozilla.goanna.SiteIdentity.TrackingMode;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.toolbar.BrowserToolbarTabletBase.ForwardButtonAnimation;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.widget.ThemedLinearLayout;
+import org.mozilla.goanna.widget.ThemedTextView;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -52,7 +52,7 @@ import android.widget.LinearLayout;
 * {@code ToolbarDisplayLayout} is the UI for when the toolbar is in
 * display state. It's used to display the state of the currently selected
 * tab. It should always be updated through a single entry point
-* (updateFromTab) and should never track any tab events or gecko messages
+* (updateFromTab) and should never track any tab events or goanna messages
 * on its own to keep it as dumb as possible.
 *
 * The UI has two possible modes: progress and display which are triggered

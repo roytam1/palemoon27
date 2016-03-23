@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.prompts;
+package org.mozilla.goanna.prompts;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.GoannaActionProvider;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.GoannaActionProvider;
 
 import android.content.ComponentName;
 import android.content.Context;

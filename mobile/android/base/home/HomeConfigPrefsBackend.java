@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
-import static org.mozilla.gecko.home.HomeConfig.createBuiltinPanelConfig;
+import static org.mozilla.goanna.home.HomeConfig.createBuiltinPanelConfig;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -14,14 +14,14 @@ import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.RestrictedProfiles;
-import org.mozilla.gecko.home.HomeConfig.HomeConfigBackend;
-import org.mozilla.gecko.home.HomeConfig.OnReloadListener;
-import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.home.HomeConfig.PanelType;
-import org.mozilla.gecko.home.HomeConfig.State;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.RestrictedProfiles;
+import org.mozilla.goanna.home.HomeConfig.HomeConfigBackend;
+import org.mozilla.goanna.home.HomeConfig.OnReloadListener;
+import org.mozilla.goanna.home.HomeConfig.PanelConfig;
+import org.mozilla.goanna.home.HomeConfig.PanelType;
+import org.mozilla.goanna.home.HomeConfig.State;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

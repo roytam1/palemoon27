@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -10,34 +10,34 @@ import java.util.HashSet;
 import java.util.Iterator;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.background.sync.helpers.BookmarkHelpers;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessBeginDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessCreationDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessFetchDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessFinishDelegate;
-import org.mozilla.gecko.background.sync.helpers.SimpleSuccessStoreDelegate;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
-import org.mozilla.gecko.sync.repositories.InvalidSessionTransitionException;
-import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.RepositorySessionBundle;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserBookmarksDataAccessor;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserBookmarksRepository;
-import org.mozilla.gecko.sync.repositories.android.AndroidBrowserBookmarksRepositorySession;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionStoreDelegate;
-import org.mozilla.gecko.sync.repositories.domain.BookmarkRecord;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.sync.helpers.BookmarkHelpers;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessBeginDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessCreationDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessFetchDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessFinishDelegate;
+import org.mozilla.goanna.background.sync.helpers.SimpleSuccessStoreDelegate;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.repositories.InactiveSessionException;
+import org.mozilla.goanna.sync.repositories.InvalidSessionTransitionException;
+import org.mozilla.goanna.sync.repositories.NoStoreDelegateException;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.RepositorySessionBundle;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserBookmarksDataAccessor;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserBookmarksRepository;
+import org.mozilla.goanna.sync.repositories.android.AndroidBrowserBookmarksRepositorySession;
+import org.mozilla.goanna.sync.repositories.android.BrowserContractHelpers;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionBeginDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionStoreDelegate;
+import org.mozilla.goanna.sync.repositories.domain.BookmarkRecord;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 import android.content.ContentResolver;
 import android.content.ContentUris;

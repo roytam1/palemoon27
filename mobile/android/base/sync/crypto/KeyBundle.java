@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.crypto;
+package org.mozilla.goanna.sync.crypto;
 
 import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
@@ -13,7 +13,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.Mac;
 
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.sync.Utils;
 
 public class KeyBundle {
     private static final String KEY_ALGORITHM_SPEC = "AES";

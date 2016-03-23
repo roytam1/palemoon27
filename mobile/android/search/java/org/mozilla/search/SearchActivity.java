@@ -4,14 +4,14 @@
 
 package org.mozilla.search;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.Locales;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.BrowserContract.SearchHistory;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.health.BrowserHealthRecorder;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.Locales;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.BrowserContract.SearchHistory;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.health.BrowserHealthRecorder;
 import org.mozilla.search.autocomplete.SearchBar;
 import org.mozilla.search.autocomplete.SuggestionsFragment;
 import org.mozilla.search.providers.SearchEngine;

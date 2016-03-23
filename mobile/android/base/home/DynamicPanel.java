@@ -3,16 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.HomeItems;
-import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.home.PanelLayout.ContextMenuRegistry;
-import org.mozilla.gecko.home.PanelLayout.DatasetHandler;
-import org.mozilla.gecko.home.PanelLayout.DatasetRequest;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.HomeItems;
+import org.mozilla.goanna.home.HomeConfig.PanelConfig;
+import org.mozilla.goanna.home.PanelLayout.ContextMenuRegistry;
+import org.mozilla.goanna.home.PanelLayout.DatasetHandler;
+import org.mozilla.goanna.home.PanelLayout.DatasetRequest;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UIAsyncTask;
 
 import android.content.ContentResolver;
 import android.content.Context;

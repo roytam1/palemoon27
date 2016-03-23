@@ -7,15 +7,15 @@
 ### Check that require variables are defined
 test $MOZCONFIG
 
-# Ensure gecko is at the correct revision
-pull-gecko.sh $gecko_dir
+# Ensure goanna is at the correct revision
+pull-goanna.sh $goanna_dir
 
 ### Install package dependencies
-install-packages.sh $gecko_dir
+install-packages.sh $goanna_dir
 
-export MOZ_OBJDIR=$(get-objdir.py $gecko_dir)
+export MOZ_OBJDIR=$(get-objdir.py $goanna_dir)
 
-cd $gecko_dir
+cd $goanna_dir
 ./mach build;
 
 ### Make package

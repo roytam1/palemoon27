@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.AppConstants.Versions;
+import org.mozilla.goanna.AppConstants.Versions;
 
 import android.content.Context;
 import android.graphics.Canvas;

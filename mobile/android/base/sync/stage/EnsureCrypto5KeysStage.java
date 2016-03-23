@@ -2,24 +2,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.stage;
+package org.mozilla.goanna.sync.stage;
 
 import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.CollectionKeys;
-import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.InfoCollections;
-import org.mozilla.gecko.sync.NoCollectionKeysSetException;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.crypto.PersistedCrypto5Keys;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
-import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.CollectionKeys;
+import org.mozilla.goanna.sync.CryptoRecord;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.InfoCollections;
+import org.mozilla.goanna.sync.NoCollectionKeysSetException;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.crypto.PersistedCrypto5Keys;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.SyncStorageRecordRequest;
+import org.mozilla.goanna.sync.net.SyncStorageRequestDelegate;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
 
 public class EnsureCrypto5KeysStage
 extends AbstractNonRepositorySyncStage

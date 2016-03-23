@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.helpers;
+package org.mozilla.goanna.tests.helpers;
 
-import org.mozilla.gecko.tests.UITestContext;
+import org.mozilla.goanna.tests.UITestContext;
 
 /**
  * AssertionHelper is statically imported in many places. Thus we want to hide

@@ -77,7 +77,7 @@ static void throwSqliteException(JNIEnv* jenv, const char* aFormat, ...)
     char* msg = nullptr;
     vasprintf(&msg, aFormat, ap);
     LOG("Error in SQLiteBridge: %s\n", msg);
-    JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", msg);
+    JNI_Throw(jenv, "org/mozilla/goanna/sqlite/SQLiteBridgeException", msg);
     free(msg);
     va_end(ap);
 }
@@ -90,7 +90,7 @@ JNI_Setup(JNIEnv* jenv)
     jclass lObjectClass       = jenv->FindClass("java/lang/Object");
     jclass lStringClass       = jenv->FindClass("java/lang/String");
     jclass lByteBufferClass   = jenv->FindClass("java/nio/ByteBuffer");
-    jclass lCursorClass       = jenv->FindClass("org/mozilla/gecko/sqlite/MatrixBlobCursor");
+    jclass lCursorClass       = jenv->FindClass("org/mozilla/goanna/sqlite/MatrixBlobCursor");
 
     if (lStringClass == nullptr
         || lObjectClass == nullptr
@@ -135,7 +135,7 @@ JNI_Setup(JNIEnv* jenv)
 }
 
 extern "C" NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
                                                       jstring jDb,
                                                       jstring jQuery,
                                                       jobjectArray jParams,
@@ -163,7 +163,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
 }
 
 extern "C" NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCallWithDb(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_sqliteCallWithDb(JNIEnv* jenv, jclass,
                                                             jlong jDb,
                                                             jstring jQuery,
                                                             jobjectArray jParams,
@@ -178,7 +178,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCallWithDb(JNIEnv* jenv, jclass
 }
 
 extern "C" NS_EXPORT jlong JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
                                                         jstring jDb)
 {
     JNI_Setup(jenv);
@@ -200,7 +200,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
 }
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_closeDatabase(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_closeDatabase(JNIEnv* jenv, jclass,
                                                         jlong jDb)
 {
     JNI_Setup(jenv);

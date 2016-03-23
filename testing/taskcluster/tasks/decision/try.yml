@@ -26,7 +26,7 @@ tasks:
           This is the single most important task as it decides how all other tasks
           get built.
 
-      workerType: "gecko-decision"
+      workerType: "goanna-decision"
       provisionerId: "aws-provisioner"
 
       tags:

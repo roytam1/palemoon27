@@ -28,7 +28,7 @@ class LocalesMixin(ChunkingMixin):
         """
         self.abs_dirs = None
         self.locales = None
-        self.gecko_locale_revisions = None
+        self.goanna_locale_revisions = None
 
     def query_locales(self):
         if self.locales is not None:
@@ -187,7 +187,7 @@ class LocalesMixin(ChunkingMixin):
         revs = self.vcs_checkout_repos(repo_list=locale_repos,
                                        parent_dir=parent_dir,
                                        tag_override=c.get('tag_override'))
-        self.gecko_locale_revisions = revs
+        self.goanna_locale_revisions = revs
 
 
 # GaiaLocalesMixin {{{1

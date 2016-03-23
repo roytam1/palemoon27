@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories;
+package org.mozilla.goanna.sync.repositories;
 
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
-import org.mozilla.gecko.sync.repositories.domain.Record;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionBeginDelegate;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFinishDelegate;
+import org.mozilla.goanna.sync.repositories.domain.Record;
 
 public abstract class StoreTrackingRepositorySession extends RepositorySession {
   private static final String LOG_TAG = "StoreTrackSession";

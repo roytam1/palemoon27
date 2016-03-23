@@ -466,7 +466,7 @@ interface nsIXPCComponents_Utils : nsISupports
     void setWantXrays(in jsval vscope);
 
     /*
-     * For gecko internal automation use only. Calling this in production code
+     * For goanna internal automation use only. Calling this in production code
      * would result in security vulnerabilities, so it will crash if used outside
      * of automation.
      */

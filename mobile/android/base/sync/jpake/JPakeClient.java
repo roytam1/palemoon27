@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.jpake;
+package org.mozilla.goanna.sync.jpake;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -11,28 +11,28 @@ import java.util.Queue;
 
 import org.json.simple.JSONObject;
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.crypto.CryptoException;
-import org.mozilla.gecko.sync.crypto.CryptoInfo;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.crypto.NoKeyBundleException;
-import org.mozilla.gecko.sync.jpake.stage.CompleteStage;
-import org.mozilla.gecko.sync.jpake.stage.ComputeFinalStage;
-import org.mozilla.gecko.sync.jpake.stage.ComputeKeyVerificationStage;
-import org.mozilla.gecko.sync.jpake.stage.ComputeStepOneStage;
-import org.mozilla.gecko.sync.jpake.stage.ComputeStepTwoStage;
-import org.mozilla.gecko.sync.jpake.stage.DecryptDataStage;
-import org.mozilla.gecko.sync.jpake.stage.DeleteChannel;
-import org.mozilla.gecko.sync.jpake.stage.GetChannelStage;
-import org.mozilla.gecko.sync.jpake.stage.GetRequestStage;
-import org.mozilla.gecko.sync.jpake.stage.JPakeStage;
-import org.mozilla.gecko.sync.jpake.stage.PutRequestStage;
-import org.mozilla.gecko.sync.jpake.stage.VerifyPairingStage;
-import org.mozilla.gecko.sync.setup.Constants;
-import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.crypto.CryptoException;
+import org.mozilla.goanna.sync.crypto.CryptoInfo;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.crypto.NoKeyBundleException;
+import org.mozilla.goanna.sync.jpake.stage.CompleteStage;
+import org.mozilla.goanna.sync.jpake.stage.ComputeFinalStage;
+import org.mozilla.goanna.sync.jpake.stage.ComputeKeyVerificationStage;
+import org.mozilla.goanna.sync.jpake.stage.ComputeStepOneStage;
+import org.mozilla.goanna.sync.jpake.stage.ComputeStepTwoStage;
+import org.mozilla.goanna.sync.jpake.stage.DecryptDataStage;
+import org.mozilla.goanna.sync.jpake.stage.DeleteChannel;
+import org.mozilla.goanna.sync.jpake.stage.GetChannelStage;
+import org.mozilla.goanna.sync.jpake.stage.GetRequestStage;
+import org.mozilla.goanna.sync.jpake.stage.JPakeStage;
+import org.mozilla.goanna.sync.jpake.stage.PutRequestStage;
+import org.mozilla.goanna.sync.jpake.stage.VerifyPairingStage;
+import org.mozilla.goanna.sync.setup.Constants;
+import org.mozilla.goanna.sync.setup.activities.SetupSyncActivity;
 
 import ch.boye.httpclientandroidlib.entity.StringEntity;
 

@@ -55,7 +55,7 @@ interface nsIContentPolicy : nsIContentPolicyBase
    *
    * @param aRequestPrincipal an OPTIONAL argument, defines the principal that
    *                          caused the load. This is optional only for
-   *                          non-gecko code: all gecko code should set this
+   *                          non-goanna code: all goanna code should set this
    *                          argument.  For navigation events, this is
    *                          the principal of the page that caused this load.
    *

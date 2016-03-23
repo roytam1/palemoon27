@@ -280,7 +280,7 @@ config = {
             "extra_args": ["--this-chunk=4"],
         },
     }, # end of "test_definitions"
-    # test harness options are located in the gecko tree
+    # test harness options are located in the goanna tree
     "in_tree_config": "config/mozharness/android_arm_config.py",
     "download_minidump_stackwalk": True,
     "default_blob_upload_servers": [

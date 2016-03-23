@@ -1,21 +1,21 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.sync;
+package org.mozilla.goanna.background.sync;
 
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConstants;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.config.AccountPickler;
-import org.mozilla.gecko.sync.setup.Constants;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.SyncConstants;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.config.AccountPickler;
+import org.mozilla.goanna.sync.setup.Constants;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.sync.setup.SyncAccounts.SyncAccountParameters;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;

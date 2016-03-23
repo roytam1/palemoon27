@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -13,8 +13,8 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 
 import org.json.JSONArray;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.content.Context;
 import android.net.ConnectivityManager;

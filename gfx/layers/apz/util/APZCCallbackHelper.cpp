@@ -75,16 +75,16 @@ ScrollFrameTo(nsIScrollableFrame* aFrame, const CSSPoint& aPoint, bool& aSuccess
   // If the frame is overflow:hidden on a particular axis, we don't want to allow
   // user-driven scroll on that axis. Simply set the scroll position on that axis
   // to whatever it already is. Note that this will leave the APZ's async scroll
-  // position out of sync with the gecko scroll position, but APZ can deal with that
+  // position out of sync with the goanna scroll position, but APZ can deal with that
   // (by design). Note also that when we run into this case, even if both axes
   // have overflow:hidden, we want to set aSuccessOut to true, so that the displayport
-  // follows the async scroll position rather than the gecko scroll position.
-  CSSPoint geckoScrollPosition = CSSPoint::FromAppUnits(aFrame->GetScrollPosition());
+  // follows the async scroll position rather than the goanna scroll position.
+  CSSPoint goannaScrollPosition = CSSPoint::FromAppUnits(aFrame->GetScrollPosition());
   if (aFrame->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_HIDDEN) {
-    targetScrollPosition.y = geckoScrollPosition.y;
+    targetScrollPosition.y = goannaScrollPosition.y;
   }
   if (aFrame->GetScrollbarStyles().mHorizontal == NS_STYLE_OVERFLOW_HIDDEN) {
-    targetScrollPosition.x = geckoScrollPosition.x;
+    targetScrollPosition.x = goannaScrollPosition.x;
   }
 
   // If the scrollable frame is currently in the middle of an async or smooth
@@ -97,13 +97,13 @@ ScrollFrameTo(nsIScrollableFrame* aFrame, const CSSPoint& aPoint, bool& aSuccess
       || aFrame->LastSmoothScrollOrigin();
   if (!scrollInProgress) {
     aFrame->ScrollToCSSPixelsApproximate(targetScrollPosition, nsGkAtoms::apz);
-    geckoScrollPosition = CSSPoint::FromAppUnits(aFrame->GetScrollPosition());
+    goannaScrollPosition = CSSPoint::FromAppUnits(aFrame->GetScrollPosition());
     aSuccessOut = true;
   }
   // Return the final scroll position after setting it so that anything that relies
   // on it can have an accurate value. Note that even if we set it above re-querying it
   // is a good idea because it may have gotten clamped or rounded.
-  return geckoScrollPosition;
+  return goannaScrollPosition;
 }
 
 /**
@@ -191,7 +191,7 @@ APZCCallbackHelper::UpdateRootFrame(nsIDOMWindowUtils* aUtils,
 
   // Set the scroll port size, which determines the scroll range. For example if
   // a 500-pixel document is shown in a 100-pixel frame, the scroll port length would
-  // be 100, and gecko would limit the maximum scroll offset to 400 (so as to prevent
+  // be 100, and goanna would limit the maximum scroll offset to 400 (so as to prevent
   // overscroll). Note that if the content here was zoomed to 2x, the document would
   // be 1000 pixels long but the frame would still be 100 pixels, and so the maximum
   // scroll range would be 900. Therefore this calculation depends on the zoom applied

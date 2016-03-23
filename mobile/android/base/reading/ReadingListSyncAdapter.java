@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.reading;
+package org.mozilla.goanna.reading;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -14,23 +14,23 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.mozilla.gecko.background.ReadingListConstants;
-import org.mozilla.gecko.background.common.PrefsBranch;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountUtils;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.fxa.FirefoxAccounts.SyncHint;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncDelegate;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncDelegate.Result;
-import org.mozilla.gecko.sync.BackoffHandler;
-import org.mozilla.gecko.sync.PrefsBackoffHandler;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BearerAuthHeaderProvider;
+import org.mozilla.goanna.background.ReadingListConstants;
+import org.mozilla.goanna.background.common.PrefsBranch;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.FxAccountUtils;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.fxa.FirefoxAccounts.SyncHint;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.authenticator.AndroidFxAccount;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncDelegate;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncDelegate.Result;
+import org.mozilla.goanna.sync.BackoffHandler;
+import org.mozilla.goanna.sync.PrefsBackoffHandler;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.BearerAuthHeaderProvider;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;

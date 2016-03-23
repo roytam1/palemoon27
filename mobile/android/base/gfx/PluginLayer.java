@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.util.FloatUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.graphics.PointF;
 import android.graphics.Rect;

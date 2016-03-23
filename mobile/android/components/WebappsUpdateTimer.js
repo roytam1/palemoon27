@@ -24,7 +24,7 @@ function getContextClassName() {
   try {
     jenv = JNI.GetForThread();
 
-    let GoannaAppShell = JNI.LoadClass(jenv, "org.mozilla.gecko.GoannaAppShell", {
+    let GoannaAppShell = JNI.LoadClass(jenv, "org.mozilla.goanna.GoannaAppShell", {
       static_methods: [
         { name: "getContext", sig: "()Landroid/content/Context;" }
       ],
@@ -62,7 +62,7 @@ WebappsUpdateTimer.prototype = {
     // is a webapp process (since we only want to bug people about updates
     // from the browser process).
     if (Services.prefs.getIntPref("browser.webapps.checkForUpdates") == 0 ||
-        getContextClassName().startsWith("org.mozilla.gecko.webapp")) {
+        getContextClassName().startsWith("org.mozilla.goanna.webapp")) {
       return;
     }
 

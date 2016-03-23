@@ -1,25 +1,25 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.db;
+package org.mozilla.goanna.background.db;
 
 import org.json.simple.JSONArray;
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.background.sync.helpers.ExpectFetchDelegate;
-import org.mozilla.gecko.background.sync.helpers.SessionTestHelper;
-import org.mozilla.gecko.background.testhelpers.MockClientsDataDelegate;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.Clients;
-import org.mozilla.gecko.sync.repositories.NoContentProviderException;
-import org.mozilla.gecko.sync.repositories.RepositorySession;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
-import org.mozilla.gecko.sync.repositories.android.FennecTabsRepository;
-import org.mozilla.gecko.sync.repositories.android.FennecTabsRepository.FennecTabsRepositorySession;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.repositories.domain.Record;
-import org.mozilla.gecko.sync.repositories.domain.TabsRecord;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.background.sync.helpers.ExpectFetchDelegate;
+import org.mozilla.goanna.background.sync.helpers.SessionTestHelper;
+import org.mozilla.goanna.background.testhelpers.MockClientsDataDelegate;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.Clients;
+import org.mozilla.goanna.sync.repositories.NoContentProviderException;
+import org.mozilla.goanna.sync.repositories.RepositorySession;
+import org.mozilla.goanna.sync.repositories.android.BrowserContractHelpers;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.repositories.android.FennecTabsRepository;
+import org.mozilla.goanna.sync.repositories.android.FennecTabsRepository.FennecTabsRepositorySession;
+import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionCreationDelegate;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.sync.repositories.domain.Record;
+import org.mozilla.goanna.sync.repositories.domain.TabsRecord;
 
 import android.content.ContentProviderClient;
 import android.content.ContentResolver;

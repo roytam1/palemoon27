@@ -3,19 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.List;
 
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.home.BookmarksListAdapter.FolderInfo;
-import org.mozilla.gecko.home.BookmarksListAdapter.OnRefreshFolderListener;
-import org.mozilla.gecko.home.BookmarksListAdapter.RefreshType;
-import org.mozilla.gecko.home.HomeContextMenuInfo.RemoveItemType;
-import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.home.BookmarksListAdapter.FolderInfo;
+import org.mozilla.goanna.home.BookmarksListAdapter.OnRefreshFolderListener;
+import org.mozilla.goanna.home.BookmarksListAdapter.RefreshType;
+import org.mozilla.goanna.home.HomeContextMenuInfo.RemoveItemType;
+import org.mozilla.goanna.home.HomePager.OnUrlOpenListener;
 
 import android.app.Activity;
 import android.content.Context;

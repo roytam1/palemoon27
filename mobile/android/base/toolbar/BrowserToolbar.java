@@ -3,37 +3,37 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.PropertyAnimator.PropertyAnimationListener;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.lwt.LightweightTheme;
-import org.mozilla.gecko.lwt.LightweightThemeDrawable;
-import org.mozilla.gecko.menu.GoannaMenu;
-import org.mozilla.gecko.menu.MenuPopup;
-import org.mozilla.gecko.tabs.TabHistoryController;
-import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.OnStopListener;
-import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.OnTitleChangeListener;
-import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.UpdateFlags;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.MenuUtils;
-import org.mozilla.gecko.widget.ThemedImageButton;
-import org.mozilla.gecko.widget.ThemedImageView;
-import org.mozilla.gecko.widget.ThemedRelativeLayout;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.PropertyAnimator.PropertyAnimationListener;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.lwt.LightweightTheme;
+import org.mozilla.goanna.lwt.LightweightThemeDrawable;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.menu.MenuPopup;
+import org.mozilla.goanna.tabs.TabHistoryController;
+import org.mozilla.goanna.toolbar.ToolbarDisplayLayout.OnStopListener;
+import org.mozilla.goanna.toolbar.ToolbarDisplayLayout.OnTitleChangeListener;
+import org.mozilla.goanna.toolbar.ToolbarDisplayLayout.UpdateFlags;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.MenuUtils;
+import org.mozilla.goanna.widget.ThemedImageButton;
+import org.mozilla.goanna.widget.ThemedImageView;
+import org.mozilla.goanna.widget.ThemedRelativeLayout;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -60,7 +60,7 @@ import android.widget.PopupWindow;
 * package.
 *
 * {@code BrowserToolbar} serves at the single event bus for all
-* sub-components in the toolbar. It tracks tab events and gecko messages
+* sub-components in the toolbar. It tracks tab events and goanna messages
 * and update the state of its inner components accordingly.
 *
 * It has two states, display and edit, which are controlled by

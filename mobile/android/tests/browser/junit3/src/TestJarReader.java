@@ -1,12 +1,12 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.io.InputStream;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.util.GoannaJarReader;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.util.GoannaJarReader;
 
 /**
  * A basic jar reader test. Tests reading a png from fennec's apk, as well as

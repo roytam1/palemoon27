@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.util.HashMap;
 
-import org.mozilla.gecko.CrashHandler;
-import org.mozilla.gecko.GoannaApp;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.NSSBridge;
-import org.mozilla.gecko.db.BrowserContract.DeletedPasswords;
-import org.mozilla.gecko.db.BrowserContract.Passwords;
-import org.mozilla.gecko.mozglue.GoannaLoader;
-import org.mozilla.gecko.sqlite.MatrixBlobCursor;
-import org.mozilla.gecko.sqlite.SQLiteBridge;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.CrashHandler;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.NSSBridge;
+import org.mozilla.goanna.db.BrowserContract.DeletedPasswords;
+import org.mozilla.goanna.db.BrowserContract.Passwords;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.sqlite.MatrixBlobCursor;
+import org.mozilla.goanna.sqlite.SQLiteBridge;
+import org.mozilla.goanna.sync.Utils;
 
 import android.content.ContentValues;
 import android.content.Intent;
@@ -56,7 +56,7 @@ public class PasswordsProvider extends SQLiteBridgeContentProvider {
     static {
         URI_MATCHER = new UriMatcher(UriMatcher.NO_MATCH);
 
-        // content://org.mozilla.gecko.providers.browser/passwords/#
+        // content://org.mozilla.goanna.providers.browser/passwords/#
         URI_MATCHER.addURI(BrowserContract.PASSWORDS_AUTHORITY, "passwords", PASSWORDS);
 
         PASSWORDS_PROJECTION_MAP = new HashMap<String, String>();

@@ -684,11 +684,11 @@ APZCTreeManager::GetTouchInputBlockAPZC(const MultiTouchInput& aEvent,
 
   { // In this block we flush repaint requests for the entire APZ tree. We need to do this
     // at the start of an input block for a number of reasons. One of the reasons is so that
-    // after we untransform the event into gecko space, it doesn't end up under something
+    // after we untransform the event into goanna space, it doesn't end up under something
     // else. Another reason is that if we hit-test this event and end up on a layer's
     // dispatch-to-content region we cannot be sure we actually got the correct layer. We
-    // have to fall back to the gecko hit-test to handle this case, but we can't untransform
-    // the event we send to gecko because we don't know the layer to untransform with
+    // have to fall back to the goanna hit-test to handle this case, but we can't untransform
+    // the event we send to goanna because we don't know the layer to untransform with
     // respect to.
     MonitorAutoLock lock(mTreeLock);
     FlushRepaintsRecursively(mRootNode);
@@ -1450,15 +1450,15 @@ APZCTreeManager::GetAPZCAtPoint(HitTestingTreeNode* aNode,
         MC.Inverse()
    This combined transformation is returned by GetScreenToApzcTransform().
 
-   Next, if we want user inputs sent to gecko for event-dispatching, we will need to strip
+   Next, if we want user inputs sent to goanna for event-dispatching, we will need to strip
    out all of the async transforms that are involved in this chain. This is because async
-   transforms are stored only in the compositor and gecko does not account for them when
+   transforms are stored only in the compositor and goanna does not account for them when
    doing display-list-based hit-testing for event dispatching.
    Furthermore, because these input events are processed by Goanna in a FIFO queue that
    includes other things (specifically paint requests), it is possible that by time the
-   input event reaches gecko, it will have painted something else. Therefore, we need to
+   input event reaches goanna, it will have painted something else. Therefore, we need to
    apply another transform to the input events to account for the possible disparity between
-   what we know gecko last painted and the last paint request we sent to gecko. Let this
+   what we know goanna last painted and the last paint request we sent to goanna. Let this
    transform be represented by LD, MD, ... RD.
    Therefore, given a user input in screen space, the following transforms need to be applied
    (in order from top to bottom):

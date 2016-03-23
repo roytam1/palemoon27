@@ -3,19 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.SynchronousQueue;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.gfx.InputConnectionHandler;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils.AssertBehavior;
 
 import android.R;
 import android.content.Context;
@@ -48,7 +48,7 @@ class GoannaInputConnection
 
     private static final String CUSTOM_HANDLER_TEST_METHOD = "testInputConnection";
     private static final String CUSTOM_HANDLER_TEST_CLASS =
-        "org.mozilla.gecko.tests.components.GoannaViewComponent$TextInput";
+        "org.mozilla.goanna.tests.components.GoannaViewComponent$TextInput";
 
     private static final int INLINE_IME_MIN_DISPLAY_SIZE = 480;
 

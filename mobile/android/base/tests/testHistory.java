@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ListView;
 
-import org.mozilla.gecko.home.HomePager;
+import org.mozilla.goanna.home.HomePager;
 
 import com.jayway.android.robotium.solo.Condition;
 

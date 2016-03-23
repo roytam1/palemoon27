@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays.service.sharemethods;
+package org.mozilla.goanna.overlays.service.sharemethods;
 
 import android.content.ContentResolver;
 import android.content.Context;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.LocalBrowserDB;
-import org.mozilla.gecko.overlays.service.ShareData;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.db.LocalBrowserDB;
+import org.mozilla.goanna.overlays.service.ShareData;
 
 public class AddBookmark extends ShareMethod {
     private static final String LOGTAG = "GoannaAddBookmark";

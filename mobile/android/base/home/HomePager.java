@@ -3,21 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.home.HomeAdapter.OnAddPanelListener;
-import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.home.HomeAdapter.OnAddPanelListener;
+import org.mozilla.goanna.home.HomeConfig.PanelConfig;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;

@@ -11,12 +11,12 @@ GARBAGE = \
 	ant.properties \
 	build.xml \
 	local.properties \
-	geckoview_example.apk \
+	goannaview_example.apk \
 	$(NULL)
 
 GARBAGE_DIRS = \
 	assets \
-	geckoview_library \
+	goannaview_library \
 	gen \
 	bin \
 	libs \
@@ -32,7 +32,7 @@ TARGET="android-$(ANDROID_TARGET_SDK)"
 PACKAGE_DEPS = \
 	assets/libxul.so \
 	build.xml \
-	src/org/mozilla/geckoviewexample/GoannaViewExample.java \
+	src/org/mozilla/goannaviewexample/GoannaViewExample.java \
 	$(CURDIR)/res/layout/main.xml \
 	$(CURDIR)/AndroidManifest.xml \
 	$(NULL)
@@ -40,16 +40,16 @@ PACKAGE_DEPS = \
 $(CURDIR)/res/layout/main.xml: $(srcdir)/main.xml
 	$(NSINSTALL) $(srcdir)/main.xml res/layout/
 
-src/org/mozilla/geckoviewexample/GoannaViewExample.java: $(srcdir)/GoannaViewExample.java
-	$(NSINSTALL) $(srcdir)/GoannaViewExample.java src/org/mozilla/geckoviewexample/
+src/org/mozilla/goannaviewexample/GoannaViewExample.java: $(srcdir)/GoannaViewExample.java
+	$(NSINSTALL) $(srcdir)/GoannaViewExample.java src/org/mozilla/goannaviewexample/
 
-assets/libxul.so: $(DIST)/geckoview_library/geckoview_assets.zip FORCE
-	$(UNZIP) -o $(DIST)/geckoview_library/geckoview_assets.zip
+assets/libxul.so: $(DIST)/goannaview_library/goannaview_assets.zip FORCE
+	$(UNZIP) -o $(DIST)/goannaview_library/goannaview_assets.zip
 
 build.xml: $(CURDIR)/AndroidManifest.xml
 	mv AndroidManifest.xml AndroidManifest.xml.save
-	$(ANDROID) create project --name GoannaViewExample --target $(TARGET) --path $(CURDIR) --activity GoannaViewExample --package org.mozilla.geckoviewexample
-	$(ANDROID) update project --target $(TARGET) --path $(CURDIR) --library $(DEPTH)/mobile/android/geckoview_library
+	$(ANDROID) create project --name GoannaViewExample --target $(TARGET) --path $(CURDIR) --activity GoannaViewExample --package org.mozilla.goannaviewexample
+	$(ANDROID) update project --target $(TARGET) --path $(CURDIR) --library $(DEPTH)/mobile/android/goannaview_library
 	$(RM) $(CURDIR)/res/layout/main.xml
 	$(NSINSTALL) $(srcdir)/main.xml res/layout/
 	$(RM) AndroidManifest.xml
@@ -59,7 +59,7 @@ build.xml: $(CURDIR)/AndroidManifest.xml
 bin/GoannaViewExample-debug.apk: $(PACKAGE_DEPS)
 	ant debug
 
-geckoview_example.apk: bin/GoannaViewExample-debug.apk
+goannaview_example.apk: bin/GoannaViewExample-debug.apk
 	cp $< $@
 
-package: geckoview_example.apk FORCE
+package: goannaview_example.apk FORCE

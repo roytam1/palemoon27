@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.mozglue.DirectBufferAllocator;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.graphics.Bitmap;
 import android.util.Log;

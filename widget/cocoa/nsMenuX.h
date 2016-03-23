@@ -30,7 +30,7 @@ class nsIWidget;
 {
   nsMenuX* mGoannaMenu; // weak ref
 }
-- (id)initWithGoannaMenu:(nsMenuX*)geckoMenu;
+- (id)initWithGoannaMenu:(nsMenuX*)goannaMenu;
 @end
 
 // Once instantiated, this object lives until its DOM node or its parent window is destroyed.

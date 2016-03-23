@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.tests.components.AppMenuComponent;
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
-import org.mozilla.gecko.tests.helpers.NavigationHelper;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.tests.components.AppMenuComponent;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.tests.helpers.NavigationHelper;
 
 /**
  * Set of tests to test UI App menu and submenus the user interact with.

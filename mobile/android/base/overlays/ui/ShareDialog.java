@@ -3,27 +3,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays.ui;
+package org.mozilla.goanna.overlays.ui;
 
 import java.net.URISyntaxException;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.Locales;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.db.LocalBrowserDB;
-import org.mozilla.gecko.overlays.OverlayConstants;
-import org.mozilla.gecko.overlays.service.OverlayActionService;
-import org.mozilla.gecko.overlays.service.sharemethods.ParcelableClientRecord;
-import org.mozilla.gecko.overlays.service.sharemethods.SendTab;
-import org.mozilla.gecko.overlays.service.sharemethods.ShareMethod;
-import org.mozilla.gecko.sync.setup.activities.WebURLFinder;
-import org.mozilla.gecko.mozglue.ContextUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.Locales;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.db.LocalBrowserDB;
+import org.mozilla.goanna.overlays.OverlayConstants;
+import org.mozilla.goanna.overlays.service.OverlayActionService;
+import org.mozilla.goanna.overlays.service.sharemethods.ParcelableClientRecord;
+import org.mozilla.goanna.overlays.service.sharemethods.SendTab;
+import org.mozilla.goanna.overlays.service.sharemethods.ShareMethod;
+import org.mozilla.goanna.sync.setup.activities.WebURLFinder;
+import org.mozilla.goanna.mozglue.ContextUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UIAsyncTask;
 
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;

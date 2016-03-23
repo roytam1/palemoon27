@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.menu.GoannaMenu;
-import org.mozilla.gecko.menu.GoannaMenuInflater;
-import org.mozilla.gecko.menu.MenuPanel;
-import org.mozilla.gecko.menu.MenuPopup;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.menu.GoannaMenuInflater;
+import org.mozilla.goanna.menu.MenuPanel;
+import org.mozilla.goanna.menu.MenuPopup;
 
 import android.content.Context;
 import android.view.Menu;

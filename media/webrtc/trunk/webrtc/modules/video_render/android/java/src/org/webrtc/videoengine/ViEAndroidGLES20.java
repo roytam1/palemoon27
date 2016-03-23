@@ -25,7 +25,7 @@ import android.graphics.PixelFormat;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
 
-import org.mozilla.gecko.mozglue.WebRTCJNITarget;
+import org.mozilla.goanna.mozglue.WebRTCJNITarget;
 
 public class ViEAndroidGLES20 extends GLSurfaceView
         implements GLSurfaceView.Renderer {

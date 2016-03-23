@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertEquals;
-import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertSelection;
-import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertSelectionAt;
-import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertText;
-import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertTextAndSelection;
-import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertTextAndSelectionAt;
+import static org.mozilla.goanna.tests.helpers.AssertionHelper.fAssertEquals;
+import static org.mozilla.goanna.tests.helpers.TextInputHelper.assertSelection;
+import static org.mozilla.goanna.tests.helpers.TextInputHelper.assertSelectionAt;
+import static org.mozilla.goanna.tests.helpers.TextInputHelper.assertText;
+import static org.mozilla.goanna.tests.helpers.TextInputHelper.assertTextAndSelection;
+import static org.mozilla.goanna.tests.helpers.TextInputHelper.assertTextAndSelectionAt;
 
-import org.mozilla.gecko.tests.components.GoannaViewComponent.InputConnectionTest;
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
-import org.mozilla.gecko.tests.helpers.NavigationHelper;
+import org.mozilla.goanna.tests.components.GoannaViewComponent.InputConnectionTest;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.tests.helpers.NavigationHelper;
 
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;

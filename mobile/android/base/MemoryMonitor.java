@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.BroadcastReceiver;
 import android.content.ComponentCallbacks2;
@@ -38,8 +38,8 @@ import android.util.Log;
   */
 class MemoryMonitor extends BroadcastReceiver {
     private static final String LOGTAG = "GoannaMemoryMonitor";
-    private static final String ACTION_MEMORY_DUMP = "org.mozilla.gecko.MEMORY_DUMP";
-    private static final String ACTION_FORCE_PRESSURE = "org.mozilla.gecko.FORCE_MEMORY_PRESSURE";
+    private static final String ACTION_MEMORY_DUMP = "org.mozilla.goanna.MEMORY_DUMP";
+    private static final String ACTION_FORCE_PRESSURE = "org.mozilla.goanna.FORCE_MEMORY_PRESSURE";
 
     // Memory pressure levels. Keep these in sync with those in AndroidJavaWrappers.h
     private static final int MEMORY_PRESSURE_NONE = 0;
@@ -102,7 +102,7 @@ class MemoryMonitor extends BroadcastReceiver {
             // includes TRIM_MEMORY_BACKGROUND
             increaseMemoryPressure(MEMORY_PRESSURE_CLEANUP);
         } else {
-            // levels down here mean gecko is the foreground process so we
+            // levels down here mean goanna is the foreground process so we
             // should be less aggressive with wiping memory as it may impact
             // user experience.
             increaseMemoryPressure(MEMORY_PRESSURE_LOW);

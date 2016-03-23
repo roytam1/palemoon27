@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 
 
 import android.text.format.DateUtils;
-import org.mozilla.gecko.db.RemoteClient;
-import org.mozilla.gecko.db.RemoteTab;
-import org.mozilla.gecko.home.TwoLinePageRow;
+import org.mozilla.goanna.db.RemoteClient;
+import org.mozilla.goanna.db.RemoteTab;
+import org.mozilla.goanna.home.TwoLinePageRow;
 
 import android.content.Context;
 import android.text.TextUtils;

@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaEvent;
-import org.mozilla.gecko.SiteIdentity;
-import org.mozilla.gecko.SiteIdentity.SecurityMode;
-import org.mozilla.gecko.SiteIdentity.MixedMode;
-import org.mozilla.gecko.SiteIdentity.TrackingMode;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.widget.ArrowPopup;
-import org.mozilla.gecko.widget.DoorHanger;
-import org.mozilla.gecko.widget.DoorHanger.OnButtonClickListener;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.SiteIdentity;
+import org.mozilla.goanna.SiteIdentity.SecurityMode;
+import org.mozilla.goanna.SiteIdentity.MixedMode;
+import org.mozilla.goanna.SiteIdentity.TrackingMode;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.widget.ArrowPopup;
+import org.mozilla.goanna.widget.DoorHanger;
+import org.mozilla.goanna.widget.DoorHanger.OnButtonClickListener;
 import org.json.JSONException;
 import org.json.JSONObject;
 

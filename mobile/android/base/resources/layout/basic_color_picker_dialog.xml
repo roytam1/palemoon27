@@ -8,7 +8,7 @@
               android:layout_width="match_parent"
               android:orientation="vertical">
 
-  <org.mozilla.gecko.widget.BasicColorPicker android:id="@+id/colorpicker"
+  <org.mozilla.goanna.widget.BasicColorPicker android:id="@+id/colorpicker"
                                              android:layout_height="0dip"
                                              android:layout_weight="1"
                                              android:drawSelectorOnTop="true"

@@ -615,7 +615,7 @@ private:
   // not any parents, regardless of parent transforms.
   CSSPoint mScrollOffset;
 
-  // The "user zoom". Content is painted by gecko at mResolution * mDevPixelsPerCSSPixel,
+  // The "user zoom". Content is painted by goanna at mResolution * mDevPixelsPerCSSPixel,
   // but will be drawn to the screen at mZoom. In the steady state, the
   // two will be the same, but during an async zoom action the two may
   // diverge. This information is initialized in Goanna but updated in the APZC.

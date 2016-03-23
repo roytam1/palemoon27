@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.EnumSet;
 
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.db.BrowserDB.FilterFlags;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.db.BrowserDB.FilterFlags;
 
 import android.content.Context;
 import android.database.Cursor;

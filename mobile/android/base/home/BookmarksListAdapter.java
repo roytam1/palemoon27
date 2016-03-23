@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.home;
+package org.mozilla.goanna.home;
 
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
 
 import android.content.Context;
 import android.content.res.Resources;

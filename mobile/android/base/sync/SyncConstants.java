@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
-import org.mozilla.gecko.AppConstants;
+import org.mozilla.goanna.AppConstants;
 
 /**
  * Preprocessed class for storing preprocessed values specific to Android Sync.
@@ -32,7 +32,7 @@ public class SyncConstants {
    * can be received only by Firefox versions sharing the same Android Sync
    * Account type.
    * <p>
-   * See {@link org.mozilla.gecko.sync.setup.SyncAccounts#makeSyncAccountDeletedIntent(android.content.Context, android.accounts.AccountManager, android.accounts.Account)}
+   * See {@link org.mozilla.goanna.sync.setup.SyncAccounts#makeSyncAccountDeletedIntent(android.content.Context, android.accounts.AccountManager, android.accounts.Account)}
    * for contents of the intent.
    */
   public static final String SYNC_ACCOUNT_DELETED_ACTION = AppConstants.MOZ_ANDROID_SHARED_ACCOUNT_TYPE + ".accounts.SYNC_ACCOUNT_DELETED_ACTION";
@@ -41,7 +41,7 @@ public class SyncConstants {
    * Bug 790931: version number of contents of SYNC_ACCOUNT_DELETED_ACTION
    * intent.
    * <p>
-   * See {@link org.mozilla.gecko.sync.setup.SyncAccounts#makeSyncAccountDeletedIntent(android.content.Context, android.accounts.AccountManager, android.accounts.Account)}
+   * See {@link org.mozilla.goanna.sync.setup.SyncAccounts#makeSyncAccountDeletedIntent(android.content.Context, android.accounts.AccountManager, android.accounts.Account)}
    * for contents of the intent.
    */
   public static final long SYNC_ACCOUNT_DELETED_INTENT_VERSION = 1;

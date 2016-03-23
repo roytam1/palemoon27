@@ -3,17 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tabs;
+package org.mozilla.goanna.tabs;
 
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.widget.ResizablePathDrawable;
-import org.mozilla.gecko.widget.ResizablePathDrawable.NonScaledPathShape;
-import org.mozilla.gecko.widget.ThemedImageButton;
-import org.mozilla.gecko.widget.ThemedLinearLayout;
-import org.mozilla.gecko.widget.ThemedTextView;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.widget.ResizablePathDrawable;
+import org.mozilla.goanna.widget.ResizablePathDrawable.NonScaledPathShape;
+import org.mozilla.goanna.widget.ThemedImageButton;
+import org.mozilla.goanna.widget.ThemedLinearLayout;
+import org.mozilla.goanna.widget.ThemedTextView;
 
 import android.content.Context;
 import android.content.res.ColorStateList;

@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 class ToolbarPrefs {
     private static final String PREF_AUTOCOMPLETE_ENABLED = "browser.urlbar.autocomplete.enabled";

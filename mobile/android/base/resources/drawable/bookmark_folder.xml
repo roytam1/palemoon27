@@ -4,10 +4,10 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:gecko="http://schemas.android.com/apk/res-auto">
+          xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <!-- state open -->
-    <item gecko:state_open="true"
+    <item goanna:state_open="true"
           android:drawable="@drawable/folder_up"/>
 
     <!-- state close -->

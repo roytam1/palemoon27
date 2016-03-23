@@ -180,7 +180,7 @@ class TestJavaException(unittest.TestCase):
        def setUp(self):
                self.test_log = ["01-30 20:15:41.937 E/GoannaAppShell( 1703): >>> REPORTING UNCAUGHT EXCEPTION FROM THREAD 9 (\"GoannaBackgroundThread\")",
                        "01-30 20:15:41.937 E/GoannaAppShell( 1703): java.lang.NullPointerException",
-                       "01-30 20:15:41.937 E/GoannaAppShell( 1703):    at org.mozilla.gecko.GoannaApp$21.run(GoannaApp.java:1833)",
+                       "01-30 20:15:41.937 E/GoannaAppShell( 1703):    at org.mozilla.goanna.GoannaApp$21.run(GoannaApp.java:1833)",
                        "01-30 20:15:41.937 E/GoannaAppShell( 1703):    at android.os.Handler.handleCallback(Handler.java:587)"]
 
        def test_uncaught_exception(self):

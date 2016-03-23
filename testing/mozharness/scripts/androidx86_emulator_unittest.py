@@ -407,7 +407,7 @@ class AndroidEmulatorTest(BlobUploadMixin, TestingMixin, EmulatorMixin, VCSMixin
         if suite_category not in self.tree_config["suite_definitions"]:
             self.fatal("Key '%s' not defined in the in-tree config! Please add it to '%s'. "
                        "See bug 981030 for more details." % (suite_category,
-                       os.path.join('gecko', 'testing', self.config['in_tree_config'])))
+                       os.path.join('goanna', 'testing', self.config['in_tree_config'])))
         cmd = [
             self.query_python_path('python'),
             '-u',

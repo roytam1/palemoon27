@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.overlays.ui;
+package org.mozilla.goanna.overlays.ui;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -10,7 +10,7 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 /**
  * Static helper class for generating toasts for share events.

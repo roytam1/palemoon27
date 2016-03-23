@@ -9,7 +9,7 @@
      between ExpandableListView and onClick handling.  We need a child
      to attach a click listener to. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:gecko="http://schemas.android.com/apk/res-auto"
+    xmlns:goanna="http://schemas.android.com/apk/res-auto"
     style="@style/Widget.RemoteTabsClientView"
     android:layout_width="match_parent"
     android:layout_height="@dimen/home_remote_tabs_hidden_footer_height"

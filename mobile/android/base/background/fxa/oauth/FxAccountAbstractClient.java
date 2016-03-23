@@ -2,25 +2,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.fxa.oauth;
+package org.mozilla.goanna.background.fxa.oauth;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Locale;
 import java.util.concurrent.Executor;
 
-import org.mozilla.gecko.background.fxa.FxAccountClientException;
-import org.mozilla.gecko.background.fxa.oauth.FxAccountAbstractClientException.FxAccountAbstractClientMalformedResponseException;
-import org.mozilla.gecko.background.fxa.oauth.FxAccountAbstractClientException.FxAccountAbstractClientRemoteException;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.BaseResourceDelegate;
-import org.mozilla.gecko.sync.net.Resource;
-import org.mozilla.gecko.sync.net.SyncResponse;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.background.fxa.FxAccountClientException;
+import org.mozilla.goanna.background.fxa.oauth.FxAccountAbstractClientException.FxAccountAbstractClientMalformedResponseException;
+import org.mozilla.goanna.background.fxa.oauth.FxAccountAbstractClientException.FxAccountAbstractClientRemoteException;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.sync.net.Resource;
+import org.mozilla.goanna.sync.net.SyncResponse;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
 
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpHeaders;

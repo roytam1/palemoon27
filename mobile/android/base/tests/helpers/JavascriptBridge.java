@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests.helpers;
+package org.mozilla.goanna.tests.helpers;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -13,10 +13,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Actions.EventExpecter;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.tests.UITestContext;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Actions.EventExpecter;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.tests.UITestContext;
 
 /**
  * Javascript bridge allows calls to and from JavaScript.

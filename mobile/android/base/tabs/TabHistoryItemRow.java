@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tabs;
+package org.mozilla.goanna.tabs;
 
 import java.lang.ref.WeakReference;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.FaviconView;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.favicons.OnFaviconLoadedListener;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.FaviconView;
 
 import android.content.Context;
 import android.graphics.Bitmap;

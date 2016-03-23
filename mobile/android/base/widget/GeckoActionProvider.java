@@ -3,17 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.view.Menu;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.menu.MenuItemActionView;
-import org.mozilla.gecko.menu.QuickShareBarActionView;
-import org.mozilla.gecko.overlays.ui.ShareDialog;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.menu.MenuItemActionView;
+import org.mozilla.goanna.menu.QuickShareBarActionView;
+import org.mozilla.goanna.overlays.ui.ShareDialog;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.Context;
 import android.content.Intent;

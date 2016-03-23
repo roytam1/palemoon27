@@ -1,6 +1,6 @@
-package org.mozilla.gecko.util;
+package org.mozilla.goanna.util;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 /**
  * Callback interface for Goanna requests.

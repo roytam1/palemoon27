@@ -1,4 +1,4 @@
-package org.mozilla.geckoviewexample;
+package org.mozilla.goannaviewexample;
 
 import android.app.Activity;
 import android.os.Bundle;

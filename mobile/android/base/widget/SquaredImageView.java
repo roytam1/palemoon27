@@ -1,4 +1,4 @@
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.content.Context;
 import android.util.AttributeSet;

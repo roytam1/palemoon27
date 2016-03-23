@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.common;
+package org.mozilla.goanna.background.common;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,8 +12,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.background.helpers.AndroidSyncTestCase;
+import org.mozilla.goanna.sync.Utils;
 
 import android.os.Bundle;
 

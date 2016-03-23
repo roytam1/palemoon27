@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -13,12 +13,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import org.mozilla.gecko.background.common.PrefsBranch;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.crypto.PersistedCrypto5Keys;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
+import org.mozilla.goanna.background.common.PrefsBranch;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.crypto.PersistedCrypto5Keys;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage.Stage;
 
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;

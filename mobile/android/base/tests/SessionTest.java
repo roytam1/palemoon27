@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.io.File;
 import java.io.FileReader;
@@ -12,9 +12,9 @@ import java.io.IOException;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.FennecMochitestAssert;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.Assert;
+import org.mozilla.goanna.FennecMochitestAssert;
 
 public abstract class SessionTest extends BaseTest {
     protected Navigation mNavigation;

@@ -1,6 +1,6 @@
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.db.BrowserDB;
+import org.mozilla.goanna.db.BrowserDB;
 
 import android.content.ContentResolver;
 import android.graphics.Color;

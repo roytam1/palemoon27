@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.toolbar;
+package org.mozilla.goanna.toolbar;
 
 import android.content.Context;
 import android.util.AttributeSet;
 
-import org.mozilla.gecko.tabs.TabCurve;
+import org.mozilla.goanna.tabs.TabCurve;
 
 public class PhoneTabsButton extends ShapedButton {
     public PhoneTabsButton(Context context, AttributeSet attrs) {

@@ -142,7 +142,7 @@ HelperAppLauncherDialog.prototype = {
     // Add a fake intent for save to disk at the top of the list.
     apps.unshift({
       name: bundle.GetStringFromName("helperapps.saveToDisk"),
-      packageName: "org.mozilla.gecko.Download",
+      packageName: "org.mozilla.goanna.Download",
       iconUri: "drawable://icon",
       selected: true, // Default to download for files
       launch: function() {

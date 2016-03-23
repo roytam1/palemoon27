@@ -464,13 +464,13 @@ You can set this by:
             if not os.path.isfile(tree_config_path):
                 self.fatal("The in-tree configuration file '%s' does not exist!"
                            "It must be added to '%s'. See bug 1035551 for more details." %
-                           (tree_config_path, os.path.join('gecko', 'testing', rel_tree_config_path)))
+                           (tree_config_path, os.path.join('goanna', 'testing', rel_tree_config_path)))
 
             try:
                 self.tree_config.update(parse_config_file(tree_config_path))
             except:
                 msg = "There was a problem parsing the in-tree configuration file '%s'!" % \
-                      os.path.join('gecko', 'testing', rel_tree_config_path)
+                      os.path.join('goanna', 'testing', rel_tree_config_path)
                 self.exception(message=msg, level=FATAL)
 
             self.dump_config(file_path=os.path.join(dirs['abs_log_dir'], 'treeconfig.json'),

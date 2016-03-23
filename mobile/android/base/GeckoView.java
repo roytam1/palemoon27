@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,15 +12,15 @@ import java.util.Set;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.mozglue.GoannaLoader;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GoannaEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Activity;
 import android.content.Context;
@@ -268,7 +268,7 @@ public class GoannaView extends LayerView
         Tab selectedTab = Tabs.getInstance().getSelectedTab();
         if (selectedTab != null)
             Tabs.getInstance().notifyListeners(selectedTab, Tabs.TabEvents.SELECTED);
-        geckoConnected();
+        goannaConnected();
         GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Viewport:Flush", null));
     }
 
@@ -372,8 +372,8 @@ public class GoannaView extends LayerView
         mContentDelegate = content;
     }
 
-    public static void setGoannaInterface(final BaseGoannaInterface geckoInterface) {
-        GoannaAppShell.setGoannaInterface(geckoInterface);
+    public static void setGoannaInterface(final BaseGoannaInterface goannaInterface) {
+        GoannaAppShell.setGoannaInterface(goannaInterface);
     }
 
     public static GoannaAppShell.GoannaInterface getGoannaInterface() {

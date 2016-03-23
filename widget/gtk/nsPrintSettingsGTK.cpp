@@ -250,7 +250,7 @@ nsPrintSettingsGTK::GetStartPageRange(int32_t *aStartPageRange)
   if (ctRanges < 1) {
     *aStartPageRange = 1;
   } else {
-    // GTK supports multiple page ranges; gecko only supports 1. So find
+    // GTK supports multiple page ranges; goanna only supports 1. So find
     // the lowest start page.
     int32_t start(lstRanges[0].start);
     for (gint ii = 1; ii < ctRanges; ii++) {

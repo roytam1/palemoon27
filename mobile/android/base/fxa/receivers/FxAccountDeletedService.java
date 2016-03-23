@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.receivers;
+package org.mozilla.goanna.fxa.receivers;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.fxa.FxAccountConstants;
-import org.mozilla.gecko.fxa.sync.FxAccountNotificationManager;
-import org.mozilla.gecko.fxa.sync.FxAccountSyncAdapter;
-import org.mozilla.gecko.sync.config.AccountPickler;
-import org.mozilla.gecko.sync.repositories.android.FennecTabsRepository;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.fxa.FxAccountConstants;
+import org.mozilla.goanna.fxa.sync.FxAccountNotificationManager;
+import org.mozilla.goanna.fxa.sync.FxAccountSyncAdapter;
+import org.mozilla.goanna.sync.config.AccountPickler;
+import org.mozilla.goanna.sync.repositories.android.FennecTabsRepository;
 
 import android.app.IntentService;
 import android.content.Context;

@@ -5,11 +5,11 @@
 
 package org.mozilla.search;
 
-import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.goanna.AboutPages;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
 
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;

@@ -3,7 +3,7 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<org.mozilla.gecko.tabs.TabsLayoutItemView xmlns:android="http://schemas.android.com/apk/res/android"
+<org.mozilla.goanna.tabs.TabsLayoutItemView xmlns:android="http://schemas.android.com/apk/res/android"
                                            style="@style/TabsItem"
                                            android:focusable="true"
                                            android:id="@+id/info"
@@ -22,7 +22,7 @@
                     android:background="@drawable/tab_thumbnail"
                     android:duplicateParentState="true">
 
-        <org.mozilla.gecko.widget.ThumbnailView android:id="@+id/thumbnail"
+        <org.mozilla.goanna.widget.ThumbnailView android:id="@+id/thumbnail"
                                                 android:layout_width="@dimen/tab_thumbnail_width"
                                                 android:layout_height="@dimen/tab_thumbnail_height"/>
 
@@ -57,4 +57,4 @@
 
     </RelativeLayout>
 
-</org.mozilla.gecko.tabs.TabsLayoutItemView>
+</org.mozilla.goanna.tabs.TabsLayoutItemView>

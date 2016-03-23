@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.text.Layout;
 import android.util.AttributeSet;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 /**
  * An implementation of FadedTextView should fade the end of the text
- * by gecko:fadeWidth amount, if the text is too long and requires an ellipsis.
+ * by goanna:fadeWidth amount, if the text is too long and requires an ellipsis.
  */
 public abstract class FadedTextView extends ThemedTextView {
     // Width of the fade effect from end of the view.

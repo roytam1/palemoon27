@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
-       xmlns:gecko="http://schemas.android.com/apk/res-auto">
+       xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <ScrollView android:layout_width="match_parent"
                 android:layout_height="match_parent">
@@ -48,12 +48,12 @@
 
     <!-- Note: for an unknown reason, scrolling in the TabsLayout
          does not work unless it is laid out after the empty view. -->
-    <view class="org.mozilla.gecko.tabs.TabsPanel$TabsLayout"
+    <view class="org.mozilla.goanna.tabs.TabsPanel$TabsLayout"
           android:id="@+id/private_tabs_layout"
           style="@style/TabsLayout"
           android:layout_width="match_parent"
           android:layout_height="match_parent"
           android:choiceMode="singleChoice"
-          gecko:tabs="tabs_private"/>
+          goanna:tabs="tabs_private"/>
 
 </merge>

@@ -3,25 +3,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tabs;
+package org.mozilla.goanna.tabs;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.GoannaApp;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.GoannaApplication;
-import org.mozilla.gecko.NewTabletUI;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.lwt.LightweightTheme;
-import org.mozilla.gecko.lwt.LightweightThemeDrawable;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.widget.GoannaPopupMenu;
-import org.mozilla.gecko.widget.IconTabWidget;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaApplication;
+import org.mozilla.goanna.NewTabletUI;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Telemetry;
+import org.mozilla.goanna.TelemetryContract;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.lwt.LightweightTheme;
+import org.mozilla.goanna.lwt.LightweightThemeDrawable;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.widget.GoannaPopupMenu;
+import org.mozilla.goanna.widget.IconTabWidget;
 
 import android.content.Context;
 import android.content.res.Resources;

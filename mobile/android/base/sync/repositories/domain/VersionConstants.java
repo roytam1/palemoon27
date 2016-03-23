@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.domain;
+package org.mozilla.goanna.sync.repositories.domain;
 
 public class VersionConstants {
   public static final int BOOKMARKS_ENGINE_VERSION = 2;

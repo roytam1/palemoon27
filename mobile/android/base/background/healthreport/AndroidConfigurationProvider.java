@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
-import org.mozilla.gecko.background.healthreport.Environment.UIType;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.background.healthreport.Environment.UIType;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.content.Context;
 import android.content.res.Configuration;

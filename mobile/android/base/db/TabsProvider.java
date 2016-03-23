@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.db.BrowserContract.Clients;
-import org.mozilla.gecko.db.BrowserContract.Tabs;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.db.BrowserContract.Clients;
+import org.mozilla.goanna.db.BrowserContract.Tabs;
 
 import android.content.ContentUris;
 import android.content.ContentValues;

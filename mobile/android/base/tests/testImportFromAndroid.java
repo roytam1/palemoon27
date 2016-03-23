@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.ArrayList;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.GoannaProfile;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;

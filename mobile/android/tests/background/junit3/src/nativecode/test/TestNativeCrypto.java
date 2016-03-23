@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.nativecode.test;
+package org.mozilla.goanna.background.nativecode.test;
 
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
@@ -11,8 +11,8 @@ import java.util.Arrays;
 
 import junit.framework.TestCase;
 
-import org.mozilla.gecko.background.nativecode.NativeCrypto;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.goanna.background.nativecode.NativeCrypto;
+import org.mozilla.goanna.sync.Utils;
 
 /*
  * Tests the Java wrapper over native implementations of crypto code. Test vectors from:

@@ -1,22 +1,22 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko.background.testhelpers;
+package org.mozilla.goanna.background.testhelpers;
 
 import java.io.IOException;
 import java.util.HashMap;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.sync.EngineSettings;
-import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConfigurationException;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
-import org.mozilla.gecko.sync.net.BasicAuthHeaderProvider;
-import org.mozilla.gecko.sync.stage.CompletedStage;
-import org.mozilla.gecko.sync.stage.GlobalSyncStage;
-import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
+import org.mozilla.goanna.sync.EngineSettings;
+import org.mozilla.goanna.sync.NonObjectJSONException;
+import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.SyncConfigurationException;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.delegates.GlobalSessionCallback;
+import org.mozilla.goanna.sync.net.BasicAuthHeaderProvider;
+import org.mozilla.goanna.sync.stage.CompletedStage;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage;
+import org.mozilla.goanna.sync.stage.GlobalSyncStage.Stage;
 
 
 public class MockGlobalSession extends MockPrefsGlobalSession {

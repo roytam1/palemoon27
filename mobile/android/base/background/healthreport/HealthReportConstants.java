@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.AppConstants;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.AppConstants;
 
 public class HealthReportConstants {
   public static final String HEALTH_AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".health";

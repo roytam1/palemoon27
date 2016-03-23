@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tabs;
+package org.mozilla.goanna.tabs;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.util.GoannaRequest;
-import org.mozilla.gecko.util.NativeJSObject;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.util.GoannaRequest;
+import org.mozilla.goanna.util.NativeJSObject;
 
 import android.util.Log;
 
@@ -50,7 +50,7 @@ public class TabHistoryController {
             @Override
             public void onResponse(NativeJSObject nativeJSObject) {
                 /*
-                 * The response from gecko request is of the form
+                 * The response from goanna request is of the form
                  * {
                  *   "historyItems" : [
                  *     {

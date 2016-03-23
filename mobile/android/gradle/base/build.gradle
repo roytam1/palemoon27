@@ -32,10 +32,10 @@ android {
     sourceSets {
         main {
             java {
-                exclude 'org/mozilla/gecko/tests/**'
-                exclude 'org/mozilla/gecko/resources/**'
+                exclude 'org/mozilla/goanna/tests/**'
+                exclude 'org/mozilla/goanna/resources/**'
                 if (!mozconfig.substs.MOZ_CRASHREPORTER) {
-                    exclude 'org/mozilla/gecko/CrashReporter.java'
+                    exclude 'org/mozilla/goanna/CrashReporter.java'
                 }
             }
 
@@ -73,7 +73,7 @@ apply plugin: 'idea'
 
 idea {
     module {
-        excludeDirs += file('org/mozilla/gecko/resources')
-        excludeDirs += file('org/mozilla/gecko/tests')
+        excludeDirs += file('org/mozilla/goanna/resources')
+        excludeDirs += file('org/mozilla/goanna/tests')
     }
 }

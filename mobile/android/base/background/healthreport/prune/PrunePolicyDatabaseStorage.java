@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport.prune;
+package org.mozilla.goanna.background.healthreport.prune;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.healthreport.AndroidConfigurationProvider;
-import org.mozilla.gecko.background.healthreport.Environment;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.ProfileInformationCache;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.AndroidConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.Environment;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.ProfileInformationCache;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

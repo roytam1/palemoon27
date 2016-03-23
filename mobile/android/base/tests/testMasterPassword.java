@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
-import org.mozilla.gecko.Actions;
+import org.mozilla.goanna.Actions;
 
 /* This patch tests the Master Password feature first by enabling the password,
 then testing it on a login page and finally disabling the password */

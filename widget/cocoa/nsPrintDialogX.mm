@@ -368,9 +368,9 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   mPrintBGColorsCheckbox = [self checkboxWithLabel:"printBGColors"
                                           andFrame:NSMakeRect(156, 188, 0, 0)];
 
-  bool geckoBool;
-  mSettings->GetPrintBGColors(&geckoBool);
-  [mPrintBGColorsCheckbox setState:(geckoBool ? NSOnState : NSOffState)];
+  bool goannaBool;
+  mSettings->GetPrintBGColors(&goannaBool);
+  [mPrintBGColorsCheckbox setState:(goannaBool ? NSOnState : NSOffState)];
 
   [self addSubview:mPrintBGColorsCheckbox];
 
@@ -378,8 +378,8 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   mPrintBGImagesCheckbox = [self checkboxWithLabel:"printBGImages"
                                           andFrame:NSMakeRect(156, 166, 0, 0)];
 
-  mSettings->GetPrintBGImages(&geckoBool);
-  [mPrintBGImagesCheckbox setState:(geckoBool ? NSOnState : NSOffState)];
+  mSettings->GetPrintBGImages(&goannaBool);
+  [mPrintBGImagesCheckbox setState:(goannaBool ? NSOnState : NSOffState)];
 
   [self addSubview:mPrintBGImagesCheckbox];
 }

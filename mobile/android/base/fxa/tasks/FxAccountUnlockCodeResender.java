@@ -2,17 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.fxa.tasks;
+package org.mozilla.goanna.fxa.tasks;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.FxAccountClient;
-import org.mozilla.gecko.background.fxa.FxAccountClient10.RequestDelegate;
-import org.mozilla.gecko.background.fxa.FxAccountClient20;
-import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.fxa.FxAccountClient;
+import org.mozilla.goanna.background.fxa.FxAccountClient10.RequestDelegate;
+import org.mozilla.goanna.background.fxa.FxAccountClient20;
+import org.mozilla.goanna.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
 
 import android.content.Context;
 import android.os.AsyncTask;

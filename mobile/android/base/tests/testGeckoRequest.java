@@ -2,20 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.jayway.android.robotium.solo.Condition;
 
-import org.mozilla.gecko.GoannaAppShell;
-import org.mozilla.gecko.tests.helpers.AssertionHelper;
-import org.mozilla.gecko.tests.helpers.GoannaHelper;
-import org.mozilla.gecko.tests.helpers.JavascriptBridge;
-import org.mozilla.gecko.tests.helpers.NavigationHelper;
-import org.mozilla.gecko.tests.helpers.WaitHelper;
-import org.mozilla.gecko.util.GoannaRequest;
-import org.mozilla.gecko.util.NativeJSObject;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.tests.helpers.AssertionHelper;
+import org.mozilla.goanna.tests.helpers.GoannaHelper;
+import org.mozilla.goanna.tests.helpers.JavascriptBridge;
+import org.mozilla.goanna.tests.helpers.NavigationHelper;
+import org.mozilla.goanna.tests.helpers.WaitHelper;
+import org.mozilla.goanna.util.GoannaRequest;
+import org.mozilla.goanna.util.NativeJSObject;
 
 /**
  * Tests sending and receiving Goanna requests using the GoannaRequest API.

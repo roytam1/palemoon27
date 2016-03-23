@@ -588,20 +588,20 @@ this.AppsUtils = {
   isFirstRun: function isFirstRun(aPrefBranch) {
     let savedmstone = null;
     try {
-      savedmstone = aPrefBranch.getCharPref("gecko.mstone");
+      savedmstone = aPrefBranch.getCharPref("goanna.mstone");
     } catch (e) {}
 
     let mstone = Services.appinfo.platformVersion;
 
     let savedBuildID = null;
     try {
-      savedBuildID = aPrefBranch.getCharPref("gecko.buildID");
+      savedBuildID = aPrefBranch.getCharPref("goanna.buildID");
     } catch (e) {}
 
     let buildID = Services.appinfo.platformBuildID;
 
-    aPrefBranch.setCharPref("gecko.mstone", mstone);
-    aPrefBranch.setCharPref("gecko.buildID", buildID);
+    aPrefBranch.setCharPref("goanna.mstone", mstone);
+    aPrefBranch.setCharPref("goanna.buildID", buildID);
 
     return ((mstone != savedmstone) || (buildID != savedBuildID));
   },

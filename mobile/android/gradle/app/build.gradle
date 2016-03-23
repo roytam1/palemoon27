@@ -32,7 +32,7 @@ android {
 
     defaultConfig {
         testApplicationId 'org.mozilla.roboexample.test'
-        testInstrumentationRunner 'org.mozilla.gecko.FennecInstrumentationTestRunner'
+        testInstrumentationRunner 'org.mozilla.goanna.FennecInstrumentationTestRunner'
     }
 
     sourceSets {

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.stage;
+package org.mozilla.goanna.sync.stage;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -13,31 +13,31 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.CommandProcessor;
-import org.mozilla.gecko.sync.CommandProcessor.Command;
-import org.mozilla.gecko.sync.CryptoRecord;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.HTTPFailureException;
-import org.mozilla.gecko.sync.NoCollectionKeysSetException;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.crypto.CryptoException;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
-import org.mozilla.gecko.sync.net.BaseResource;
-import org.mozilla.gecko.sync.net.SyncStorageCollectionRequest;
-import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
-import org.mozilla.gecko.sync.net.SyncStorageResponse;
-import org.mozilla.gecko.sync.net.WBOCollectionRequestDelegate;
-import org.mozilla.gecko.sync.net.WBORequestDelegate;
-import org.mozilla.gecko.sync.repositories.NullCursorException;
-import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
-import org.mozilla.gecko.sync.repositories.android.RepoUtils;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.repositories.domain.ClientRecordFactory;
-import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.CommandProcessor;
+import org.mozilla.goanna.sync.CommandProcessor.Command;
+import org.mozilla.goanna.sync.CryptoRecord;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
+import org.mozilla.goanna.sync.HTTPFailureException;
+import org.mozilla.goanna.sync.NoCollectionKeysSetException;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.sync.crypto.CryptoException;
+import org.mozilla.goanna.sync.crypto.KeyBundle;
+import org.mozilla.goanna.sync.delegates.ClientsDataDelegate;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
+import org.mozilla.goanna.sync.net.BaseResource;
+import org.mozilla.goanna.sync.net.SyncStorageCollectionRequest;
+import org.mozilla.goanna.sync.net.SyncStorageRecordRequest;
+import org.mozilla.goanna.sync.net.SyncStorageResponse;
+import org.mozilla.goanna.sync.net.WBOCollectionRequestDelegate;
+import org.mozilla.goanna.sync.net.WBORequestDelegate;
+import org.mozilla.goanna.sync.repositories.NullCursorException;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.repositories.android.RepoUtils;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecordFactory;
+import org.mozilla.goanna.sync.repositories.domain.VersionConstants;
 
 import ch.boye.httpclientandroidlib.HttpStatus;
 

@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.reading;
+package org.mozilla.goanna.reading;
 
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.reading.ReadingListRecord.ServerMetadata;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.db.BrowserContract.ReadingListItems;
+import org.mozilla.goanna.reading.ReadingListRecord.ServerMetadata;
+import org.mozilla.goanna.sync.ExtendedJSONObject;
 
 import android.annotation.TargetApi;
 import android.database.AbstractWindowedCursor;

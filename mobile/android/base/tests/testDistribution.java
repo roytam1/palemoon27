@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.tests;
+package org.mozilla.goanna.tests;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -18,17 +18,17 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.GoannaProfile;
-import org.mozilla.gecko.GoannaSharedPrefs;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.SuggestedSites;
-import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.distribution.ReferrerDescriptor;
-import org.mozilla.gecko.distribution.ReferrerReceiver;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.Actions;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.BrowserLocaleManager;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.GoannaSharedPrefs;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.SuggestedSites;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.distribution.ReferrerDescriptor;
+import org.mozilla.goanna.distribution.ReferrerReceiver;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Activity;
 import android.content.BroadcastReceiver;
@@ -55,7 +55,7 @@ import android.util.Log;
  *           suggestedsites.json
  */
 public class testDistribution extends ContentProviderTest {
-    private static final String CLASS_REFERRER_RECEIVER = "org.mozilla.gecko.distribution.ReferrerReceiver";
+    private static final String CLASS_REFERRER_RECEIVER = "org.mozilla.goanna.distribution.ReferrerReceiver";
     private static final String ACTION_INSTALL_REFERRER = "com.android.vending.INSTALL_REFERRER";
     private static final int WAIT_TIMEOUT_MSEC = 10000;
     public static final String LOGTAG = "GoannaTestDistribution";
@@ -226,7 +226,7 @@ public class testDistribution extends ContentProviderTest {
     public void doTestValidReferrerIntent() throws Exception {
         // Equivalent to
         // am broadcast -a com.android.vending.INSTALL_REFERRER \
-        //              -n org.mozilla.fennec/org.mozilla.gecko.distribution.ReferrerReceiver \
+        //              -n org.mozilla.fennec/org.mozilla.goanna.distribution.ReferrerReceiver \
         //              --es "referrer" "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=distribution"
         final String ref = "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=distribution";
         final TestableDistribution distribution = new TestableDistribution(mActivity);
@@ -257,7 +257,7 @@ public class testDistribution extends ContentProviderTest {
     public void doTestInvalidReferrerIntent() throws Exception {
         // Equivalent to
         // am broadcast -a com.android.vending.INSTALL_REFERRER \
-        //              -n org.mozilla.fennec/org.mozilla.gecko.distribution.ReferrerReceiver \
+        //              -n org.mozilla.fennec/org.mozilla.goanna.distribution.ReferrerReceiver \
         //              --es "referrer" "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=testname"
         final String ref = "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=testname";
         final TestableDistribution distribution = new TestableDistribution(mActivity);

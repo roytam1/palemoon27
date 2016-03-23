@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.menu;
+package org.mozilla.goanna.menu;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
-import org.mozilla.gecko.widget.GoannaActionProvider;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils.AssertBehavior;
+import org.mozilla.goanna.widget.GoannaActionProvider;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -129,7 +129,7 @@ public class GoannaMenu extends ListView
     }
 
     public GoannaMenu(Context context, AttributeSet attrs) {
-        this(context, attrs, R.attr.geckoMenuListViewStyle);
+        this(context, attrs, R.attr.goannaMenuListViewStyle);
     }
 
     public GoannaMenu(Context context, AttributeSet attrs, int defStyle) {

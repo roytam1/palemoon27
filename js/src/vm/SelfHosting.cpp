@@ -1046,6 +1046,11 @@ JSRuntime::createSelfHostingGlobal(JSContext* cx)
     return shg;
 }
 
+// This function is miscompiled by LTCG with MSVC, and results in a crash
+// when running xpcshell during the build.  See bug 915735.
+#ifdef _MSC_VER
+#pragma optimize("", off)
+#endif
 bool
 JSRuntime::initSelfHosting(JSContext* cx)
 {
@@ -1102,6 +1107,9 @@ JSRuntime::initSelfHosting(JSContext* cx)
     JS_SetErrorReporter(cx->runtime(), oldReporter);
     return ok;
 }
+#ifdef _MSC_VER
+#pragma optimize("", on)
+#endif
 
 void
 JSRuntime::finishSelfHosting()

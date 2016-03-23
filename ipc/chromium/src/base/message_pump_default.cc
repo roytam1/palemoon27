@@ -7,7 +7,7 @@
 #include "base/logging.h"
 #include "base/message_loop.h"
 #include "base/scoped_nsautorelease_pool.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "mozilla/BackgroundHangMonitor.h"
 
@@ -56,7 +56,7 @@ void MessagePumpDefault::Run(Delegate* delegate) {
       PROFILER_LABEL("MessagePump", "Wait",
         js::ProfileEntry::Category::OTHER);
       {
-        GeckoProfilerSleepRAII profiler_sleep;
+        GoannaProfilerSleepRAII profiler_sleep;
         event_.Wait();
       }
     } else {
@@ -66,7 +66,7 @@ void MessagePumpDefault::Run(Delegate* delegate) {
         PROFILER_LABEL("MessagePump", "Wait",
           js::ProfileEntry::Category::OTHER);
         {
-          GeckoProfilerSleepRAII profiler_sleep;
+          GoannaProfilerSleepRAII profiler_sleep;
           event_.TimedWait(delay);
         }
       } else {

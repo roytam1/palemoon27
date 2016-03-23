@@ -85,7 +85,7 @@ abstract class AboutHomeTest extends PixelTest {
     protected void loadBookmark(String url) {
         View bookmark = getDisplayedBookmark(url);
         if (bookmark != null) {
-            Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+            Actions.EventExpecter contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
             mSolo.clickOnView(bookmark);
             contentEventExpecter.blockForEvent();
             contentEventExpecter.unregisterListener();
@@ -212,8 +212,8 @@ abstract class AboutHomeTest extends PixelTest {
      */
     private void swipeAboutHome(int swipeVector) {
         // Increase swipe width, which will especially impact tablets.
-        int swipeWidth = mDriver.getGeckoWidth() - 1;
-        int swipeHeight = mDriver.getGeckoHeight() / 2;
+        int swipeWidth = mDriver.getGoannaWidth() - 1;
+        int swipeHeight = mDriver.getGoannaHeight() / 2;
 
         if (swipeVector >= 0) {
             // Emulate swipe motion from right to left.

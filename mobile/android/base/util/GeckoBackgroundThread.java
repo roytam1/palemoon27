@@ -9,10 +9,10 @@ import android.os.Looper;
 
 import java.util.concurrent.SynchronousQueue;
 
-final class GeckoBackgroundThread extends Thread {
-    private static final String LOOPER_NAME = "GeckoBackgroundThread";
+final class GoannaBackgroundThread extends Thread {
+    private static final String LOOPER_NAME = "GoannaBackgroundThread";
 
-    // Guarded by 'GeckoBackgroundThread.class'.
+    // Guarded by 'GoannaBackgroundThread.class'.
     private static Handler handler;
     private static Thread thread;
 
@@ -21,7 +21,7 @@ final class GeckoBackgroundThread extends Thread {
     private Runnable initialRunnable;
 
     // Singleton, so private constructor.
-    private GeckoBackgroundThread(final Runnable initialRunnable) {
+    private GoannaBackgroundThread(final Runnable initialRunnable) {
         this.initialRunnable = initialRunnable;
     }
 
@@ -30,9 +30,9 @@ final class GeckoBackgroundThread extends Thread {
         setName(LOOPER_NAME);
         Looper.prepare();
 
-        synchronized (GeckoBackgroundThread.class) {
+        synchronized (GoannaBackgroundThread.class) {
             handler = new Handler();
-            GeckoBackgroundThread.class.notify();
+            GoannaBackgroundThread.class.notify();
         }
 
         if (initialRunnable != null) {
@@ -44,7 +44,7 @@ final class GeckoBackgroundThread extends Thread {
     }
 
     private static void startThread(final Runnable initialRunnable) {
-        thread = new GeckoBackgroundThread(initialRunnable);
+        thread = new GoannaBackgroundThread(initialRunnable);
         ThreadUtils.setBackgroundThread(thread);
 
         thread.setDaemon(true);
@@ -59,7 +59,7 @@ final class GeckoBackgroundThread extends Thread {
 
         while (handler == null) {
             try {
-                GeckoBackgroundThread.class.wait();
+                GoannaBackgroundThread.class.wait();
             } catch (final InterruptedException e) {
             }
         }

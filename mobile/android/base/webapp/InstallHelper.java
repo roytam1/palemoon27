@@ -15,9 +15,9 @@ import java.io.OutputStream;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.NativeEventListener;
@@ -30,17 +30,17 @@ import android.net.Uri;
 import android.util.Log;
 
 public class InstallHelper implements NativeEventListener {
-    private static final String LOGTAG = "GeckoWebappInstallHelper";
+    private static final String LOGTAG = "GoannaWebappInstallHelper";
     private static final String[] INSTALL_EVENT_NAMES = new String[] {"Webapps:Postinstall"};
     private final Context mContext;
     private final InstallCallback mCallback;
     private final ApkResources mApkResources;
 
     public static interface InstallCallback {
-        // on the GeckoThread
+        // on the GoannaThread
         void installCompleted(InstallHelper installHelper, String event, NativeJSObject message);
 
-        // on the GeckoBackgroundThread
+        // on the GoannaBackgroundThread
         void installErrored(InstallHelper installHelper, Exception exception);
     }
 
@@ -81,7 +81,7 @@ public class InstallHelper implements NativeEventListener {
         }
 
         // we can change the profile to be in the app's area here
-        GeckoProfile profile = GeckoProfile.get(mContext, profileName);
+        GoannaProfile profile = GoannaProfile.get(mContext, profileName);
 
         try {
             message.put("apkPackageName", mApkResources.getPackageName());
@@ -106,9 +106,9 @@ public class InstallHelper implements NativeEventListener {
             return;
         }
 
-        registerGeckoListener();
+        registerGoannaListener();
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Webapps:AutoInstall", message.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Webapps:AutoInstall", message.toString()));
         calculateColor();
     }
 
@@ -151,8 +151,8 @@ public class InstallHelper implements NativeEventListener {
         }
     }
 
-    public void registerGeckoListener() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, INSTALL_EVENT_NAMES);
+    public void registerGoannaListener() {
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, INSTALL_EVENT_NAMES);
     }
 
     private void calculateColor() {
@@ -165,7 +165,7 @@ public class InstallHelper implements NativeEventListener {
 
     @Override
     public void handleMessage(String event, NativeJSObject message, EventCallback callback) {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, INSTALL_EVENT_NAMES);
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, INSTALL_EVENT_NAMES);
 
         if (mCallback != null) {
             mCallback.installCompleted(this, event, message);

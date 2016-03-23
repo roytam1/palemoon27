@@ -32,7 +32,7 @@ TARGET="android-$(ANDROID_TARGET_SDK)"
 PACKAGE_DEPS = \
 	assets/libxul.so \
 	build.xml \
-	src/org/mozilla/geckoviewexample/GeckoViewExample.java \
+	src/org/mozilla/geckoviewexample/GoannaViewExample.java \
 	$(CURDIR)/res/layout/main.xml \
 	$(CURDIR)/AndroidManifest.xml \
 	$(NULL)
@@ -40,15 +40,15 @@ PACKAGE_DEPS = \
 $(CURDIR)/res/layout/main.xml: $(srcdir)/main.xml
 	$(NSINSTALL) $(srcdir)/main.xml res/layout/
 
-src/org/mozilla/geckoviewexample/GeckoViewExample.java: $(srcdir)/GeckoViewExample.java
-	$(NSINSTALL) $(srcdir)/GeckoViewExample.java src/org/mozilla/geckoviewexample/
+src/org/mozilla/geckoviewexample/GoannaViewExample.java: $(srcdir)/GoannaViewExample.java
+	$(NSINSTALL) $(srcdir)/GoannaViewExample.java src/org/mozilla/geckoviewexample/
 
 assets/libxul.so: $(DIST)/geckoview_library/geckoview_assets.zip FORCE
 	$(UNZIP) -o $(DIST)/geckoview_library/geckoview_assets.zip
 
 build.xml: $(CURDIR)/AndroidManifest.xml
 	mv AndroidManifest.xml AndroidManifest.xml.save
-	$(ANDROID) create project --name GeckoViewExample --target $(TARGET) --path $(CURDIR) --activity GeckoViewExample --package org.mozilla.geckoviewexample
+	$(ANDROID) create project --name GoannaViewExample --target $(TARGET) --path $(CURDIR) --activity GoannaViewExample --package org.mozilla.geckoviewexample
 	$(ANDROID) update project --target $(TARGET) --path $(CURDIR) --library $(DEPTH)/mobile/android/geckoview_library
 	$(RM) $(CURDIR)/res/layout/main.xml
 	$(NSINSTALL) $(srcdir)/main.xml res/layout/
@@ -56,10 +56,10 @@ build.xml: $(CURDIR)/AndroidManifest.xml
 	mv AndroidManifest.xml.save AndroidManifest.xml
 	echo jar.libs.dir=libs >> project.properties
 
-bin/GeckoViewExample-debug.apk: $(PACKAGE_DEPS)
+bin/GoannaViewExample-debug.apk: $(PACKAGE_DEPS)
 	ant debug
 
-geckoview_example.apk: bin/GeckoViewExample-debug.apk
+geckoview_example.apk: bin/GoannaViewExample-debug.apk
 	cp $< $@
 
 package: geckoview_example.apk FORCE

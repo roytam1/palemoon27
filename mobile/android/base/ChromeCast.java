@@ -33,8 +33,8 @@ import android.os.Bundle;
 import android.support.v7.media.MediaRouter.RouteInfo;
 import android.util.Log;
 
-/* Implementation of GeckoMediaPlayer for talking to ChromeCast devices */
-class ChromeCast implements GeckoMediaPlayer {
+/* Implementation of GoannaMediaPlayer for talking to ChromeCast devices */
+class ChromeCast implements GoannaMediaPlayer {
     private static final boolean SHOW_DEBUG = false;
 
     static final String MIRROR_RECEIVER_APP_ID = "08FF1091";
@@ -48,7 +48,7 @@ class ChromeCast implements GeckoMediaPlayer {
     private MirrorChannel mMirrorChannel;
     private boolean mApplicationStarted = false;
 
-    // EventCallback which is actually a GeckoEventCallback is sometimes being invoked more
+    // EventCallback which is actually a GoannaEventCallback is sometimes being invoked more
     // than once. That causes the IllegalStateException to be thrown. To prevent a crash,
     // catch the exception and report it as an error to the log.
     private static void sendSuccess(final EventCallback callback, final String msg) {
@@ -92,7 +92,7 @@ class ChromeCast implements GeckoMediaPlayer {
             if (mediaStatus.getPlayerState() == MediaStatus.PLAYER_STATE_IDLE &&
                 mediaStatus.getIdleReason() == MediaStatus.IDLE_REASON_FINISHED) {
 
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Casting:Stop", null));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Casting:Stop", null));
             }
         }
 
@@ -378,7 +378,7 @@ class ChromeCast implements GeckoMediaPlayer {
         @Override
         public void onMessageReceived(CastDevice castDevice, String namespace,
                                       String message) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("MediaPlayer:Response", message));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("MediaPlayer:Response", message));
         }
 
         public void sendMessage(String message) {
@@ -427,7 +427,7 @@ class ChromeCast implements GeckoMediaPlayer {
                     Log.e(LOGTAG, "Exception while creating channel", e);
                 }
 
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Casting:Mirror", route.getId()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Casting:Mirror", route.getId()));
             } else {
                 sendError(callback, status.toString());
             }
@@ -483,7 +483,7 @@ class ChromeCast implements GeckoMediaPlayer {
         apiClient.connect();
     }
 
-    private static final String LOGTAG = "GeckoChromeCast";
+    private static final String LOGTAG = "GoannaChromeCast";
     private void debug(String msg, Exception e) {
         if (SHOW_DEBUG) {
             Log.e(LOGTAG, msg, e);

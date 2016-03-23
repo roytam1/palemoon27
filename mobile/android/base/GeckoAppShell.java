@@ -38,7 +38,7 @@ import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
 import org.mozilla.gecko.mozglue.ContextUtils;
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.gecko.mozglue.GoannaLoader;
 import org.mozilla.gecko.mozglue.JNITarget;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.mozglue.generatorannotations.OptionalGeneratedParameter;
@@ -46,7 +46,7 @@ import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import org.mozilla.gecko.overlays.ui.ShareDialog;
 import org.mozilla.gecko.prompts.PromptService;
 import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GeckoRequest;
+import org.mozilla.gecko.util.GoannaRequest;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSContainer;
@@ -117,16 +117,16 @@ import android.webkit.URLUtil;
 import android.widget.AbsoluteLayout;
 import android.widget.Toast;
 
-public class GeckoAppShell
+public class GoannaAppShell
 {
-    private static final String LOGTAG = "GeckoAppShell";
+    private static final String LOGTAG = "GoannaAppShell";
     private static final boolean LOGGING = false;
 
     // We have static members only.
-    private GeckoAppShell() { }
+    private GoannaAppShell() { }
 
     private static boolean restartScheduled;
-    private static GeckoEditableListener editableListener;
+    private static GoannaEditableListener editableListener;
 
     private static final CrashHandler CRASH_HANDLER = new CrashHandler() {
         @Override
@@ -154,7 +154,7 @@ public class GeckoAppShell
 
         @Override
         public void uncaughtException(final Thread thread, final Throwable exc) {
-            if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoExited)) {
+            if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaExited)) {
                 // We've called System.exit. All exceptions after this point are Android
                 // berating us for being nasty to it.
                 return;
@@ -169,7 +169,7 @@ public class GeckoAppShell
                 if (exc instanceof OutOfMemoryError) {
                     SharedPreferences prefs = getSharedPreferences();
                     SharedPreferences.Editor editor = prefs.edit();
-                    editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, true);
+                    editor.putBoolean(GoannaApp.PREFS_OOM_EXCEPTION, true);
 
                     // Synchronously write to disk so we know it's done before we
                     // shutdown
@@ -182,7 +182,7 @@ public class GeckoAppShell
             }
 
             // reportJavaCrash should have caused us to hard crash. If we're still here,
-            // it probably means Gecko is not loaded, and we should do something else.
+            // it probably means Goanna is not loaded, and we should do something else.
             if (AppConstants.MOZ_CRASHREPORTER && AppConstants.MOZILLA_OFFICIAL) {
                 // Only use Java crash reporter if enabled on official build.
                 return super.reportException(thread, exc);
@@ -192,11 +192,11 @@ public class GeckoAppShell
     };
 
     public static CrashHandler ensureCrashHandling() {
-        // Crash handling is automatically enabled when GeckoAppShell is loaded.
+        // Crash handling is automatically enabled when GoannaAppShell is loaded.
         return CRASH_HANDLER;
     }
 
-    private static final Queue<GeckoEvent> PENDING_EVENTS = new ConcurrentLinkedQueue<GeckoEvent>();
+    private static final Queue<GoannaEvent> PENDING_EVENTS = new ConcurrentLinkedQueue<GoannaEvent>();
     private static final Map<String, String> ALERT_COOKIES = new ConcurrentHashMap<String, String>();
 
     private static volatile boolean locationHighAccuracyEnabled;
@@ -261,10 +261,10 @@ public class GeckoAppShell
     // helper methods
     public static native void onResume();
     public static void callObserver(String observerKey, String topic, String data) {
-        sendEventToGecko(GeckoEvent.createCallObserverEvent(observerKey, topic, data));
+        sendEventToGoanna(GoannaEvent.createCallObserverEvent(observerKey, topic, data));
     }
     public static void removeObserver(String observerKey) {
-        sendEventToGecko(GeckoEvent.createRemoveObserverEvent(observerKey));
+        sendEventToGoanna(GoannaEvent.createRemoveObserverEvent(observerKey));
     }
     public static native Message getNextMessageFromQueue(MessageQueue queue);
     public static native void onSurfaceTextureFrameAvailable(Object surfaceTexture, int id);
@@ -273,7 +273,7 @@ public class GeckoAppShell
     private static native void reportJavaCrash(String stackTrace);
 
     public static void notifyUriVisited(String uri) {
-        sendEventToGecko(GeckoEvent.createVisitedEvent(uri));
+        sendEventToGoanna(GoannaEvent.createVisitedEvent(uri));
     }
 
     public static native void processNextNativeEvent(boolean mayWait);
@@ -305,7 +305,7 @@ public class GeckoAppShell
 
         @Override
         public void onFaviconLoaded(String pageUrl, String faviconURL, Bitmap favicon) {
-            GeckoAppShell.createShortcut(title, url, favicon);
+            GoannaAppShell.createShortcut(title, url, favicon);
         }
     }
 
@@ -317,15 +317,15 @@ public class GeckoAppShell
         }
         sLayerView = lv;
 
-        // We should have a unique GeckoEditable instance per nsWindow instance,
+        // We should have a unique GoannaEditable instance per nsWindow instance,
         // so even though we have a new view here, the underlying nsWindow is the same,
-        // and we don't create a new GeckoEditable.
+        // and we don't create a new GoannaEditable.
         if (editableListener == null) {
-            // Starting up; istall new Gecko-to-Java editable listener.
-            editableListener = new GeckoEditable();
+            // Starting up; istall new Goanna-to-Java editable listener.
+            editableListener = new GoannaEditable();
         } else {
-            // Bind the existing GeckoEditable instance to the new LayerView
-            GeckoAppShell.notifyIMEContext(GeckoEditableListener.IME_STATE_DISABLED, "", "", "");
+            // Bind the existing GoannaEditable instance to the new LayerView
+            GoannaAppShell.notifyIMEContext(GoannaEditableListener.IME_STATE_DISABLED, "", "", "");
         }
     }
 
@@ -334,13 +334,13 @@ public class GeckoAppShell
         return sLayerView;
     }
 
-    public static void runGecko(String apkPath, String args, String url, String type) {
+    public static void runGoanna(String apkPath, String args, String url, String type) {
         // Preparation for pumpMessageLoop()
         MessageQueue.IdleHandler idleHandler = new MessageQueue.IdleHandler() {
             @Override public boolean queueIdle() {
-                final Handler geckoHandler = ThreadUtils.sGeckoHandler;
+                final Handler geckoHandler = ThreadUtils.sGoannaHandler;
                 Message idleMsg = Message.obtain(geckoHandler);
-                // Use |Message.obj == GeckoHandler| to identify our "queue is empty" message
+                // Use |Message.obj == GoannaHandler| to identify our "queue is empty" message
                 idleMsg.obj = geckoHandler;
                 geckoHandler.sendMessageAtFrontOfQueue(idleMsg);
                 // Keep this IdleHandler
@@ -350,7 +350,7 @@ public class GeckoAppShell
         Looper.myQueue().addIdleHandler(idleHandler);
 
         // Initialize AndroidBridge.
-        nativeInit(GeckoAppShell.class.getClassLoader());
+        nativeInit(GoannaAppShell.class.getClassLoader());
 
         // First argument is the .apk path
         String combinedArgs = apkPath + " -greomni " + apkPath;
@@ -375,32 +375,32 @@ public class GeckoAppShell
         combinedArgs += " -width " + metrics.widthPixels + " -height " + metrics.heightPixels;
 
         if (!AppConstants.MOZILLA_OFFICIAL) {
-            Log.d(LOGTAG, "GeckoLoader.nativeRun " + combinedArgs);
+            Log.d(LOGTAG, "GoannaLoader.nativeRun " + combinedArgs);
         }
         // and go
-        GeckoLoader.nativeRun(combinedArgs);
+        GoannaLoader.nativeRun(combinedArgs);
 
         // Remove pumpMessageLoop() idle handler
         Looper.myQueue().removeIdleHandler(idleHandler);
     }
 
-    static void sendPendingEventsToGecko() {
+    static void sendPendingEventsToGoanna() {
         try {
             while (!PENDING_EVENTS.isEmpty()) {
-                final GeckoEvent e = PENDING_EVENTS.poll();
-                notifyGeckoOfEvent(e);
+                final GoannaEvent e = PENDING_EVENTS.poll();
+                notifyGoannaOfEvent(e);
             }
         } catch (NoSuchElementException e) {}
     }
 
     /**
-     * If the Gecko thread is running, immediately dispatches the event to
-     * Gecko.
+     * If the Goanna thread is running, immediately dispatches the event to
+     * Goanna.
      *
-     * If the Gecko thread is not running, queues the event. If the queue is
+     * If the Goanna thread is not running, queues the event. If the queue is
      * full, throws {@link IllegalStateException}.
      *
-     * Queued events will be dispatched in order of arrival when the Gecko
+     * Queued events will be dispatched in order of arrival when the Goanna
      * thread becomes live.
      *
      * This method can be called from any thread.
@@ -409,14 +409,14 @@ public class GeckoAppShell
      *            the event to dispatch. Cannot be null.
      */
     @RobocopTarget
-    public static void sendEventToGecko(GeckoEvent e) {
+    public static void sendEventToGoanna(GoannaEvent e) {
         if (e == null) {
             throw new IllegalArgumentException("e cannot be null.");
         }
 
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-            notifyGeckoOfEvent(e);
-            // Gecko will copy the event data into a normal C++ object. We can recycle the event now.
+        if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
+            notifyGoannaOfEvent(e);
+            // Goanna will copy the event data into a normal C++ object. We can recycle the event now.
             e.recycle();
             return;
         }
@@ -426,24 +426,24 @@ public class GeckoAppShell
     }
 
     /**
-     * Sends an asynchronous request to Gecko.
+     * Sends an asynchronous request to Goanna.
      *
-     * The response data will be passed to {@link GeckoRequest#onResponse(NativeJSObject)} if the
-     * request succeeds; otherwise, {@link GeckoRequest#onError()} will fire.
+     * The response data will be passed to {@link GoannaRequest#onResponse(NativeJSObject)} if the
+     * request succeeds; otherwise, {@link GoannaRequest#onError()} will fire.
      *
-     * This method follows the same queuing conditions as {@link #sendEventToGecko(GeckoEvent)}.
-     * It can be called from any thread. The GeckoRequest callbacks will be executed on the Gecko thread.
+     * This method follows the same queuing conditions as {@link #sendEventToGoanna(GoannaEvent)}.
+     * It can be called from any thread. The GoannaRequest callbacks will be executed on the Goanna thread.
      *
      * @param request The request to dispatch. Cannot be null.
      */
     @RobocopTarget
-    public static void sendRequestToGecko(final GeckoRequest request) {
-        final String responseMessage = "Gecko:Request" + request.getId();
+    public static void sendRequestToGoanna(final GoannaRequest request) {
+        final String responseMessage = "Goanna:Request" + request.getId();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(new NativeEventListener() {
+        EventDispatcher.getInstance().registerGoannaThreadListener(new NativeEventListener() {
             @Override
             public void handleMessage(String event, NativeJSObject message, EventCallback callback) {
-                EventDispatcher.getInstance().unregisterGeckoThreadListener(this, event);
+                EventDispatcher.getInstance().unregisterGoannaThreadListener(this, event);
                 if (!message.has(GECKOREQUEST_RESPONSE_KEY)) {
                     request.onError(message.getObject(GECKOREQUEST_ERROR_KEY));
                     return;
@@ -452,17 +452,17 @@ public class GeckoAppShell
             }
         }, responseMessage);
 
-        sendEventToGecko(GeckoEvent.createBroadcastEvent(request.getName(), request.getData()));
+        sendEventToGoanna(GoannaEvent.createBroadcastEvent(request.getName(), request.getData()));
     }
 
-    // Tell the Gecko event loop that an event is available.
-    public static native void notifyGeckoOfEvent(GeckoEvent event);
+    // Tell the Goanna event loop that an event is available.
+    public static native void notifyGoannaOfEvent(GoannaEvent event);
 
-    // Synchronously notify a Gecko observer; must be called from Gecko thread.
-    public static native void notifyGeckoObservers(String subject, String data);
+    // Synchronously notify a Goanna observer; must be called from Goanna thread.
+    public static native void notifyGoannaObservers(String subject, String data);
 
     /*
-     *  The Gecko-side API: API methods that Gecko calls
+     *  The Goanna-side API: API methods that Goanna calls
      */
 
     @WrapElementForJNI(allowMultithread = true, noThrow = true)
@@ -498,8 +498,8 @@ public class GeckoAppShell
     private static final Object sEventAckLock = new Object();
     private static boolean sWaitingForEventAck;
 
-    // Block the current thread until the Gecko event loop is caught up
-    public static void sendEventToGeckoSync(GeckoEvent e) {
+    // Block the current thread until the Goanna event loop is caught up
+    public static void sendEventToGoannaSync(GoannaEvent e) {
         e.setAckNeeded(true);
 
         long time = SystemClock.uptimeMillis();
@@ -512,7 +512,7 @@ public class GeckoAppShell
                 // fall through for graceful handling
             }
 
-            sendEventToGecko(e);
+            sendEventToGoanna(e);
             sWaitingForEventAck = true;
             while (true) {
                 try {
@@ -524,7 +524,7 @@ public class GeckoAppShell
                     break;
                 }
                 long waited = SystemClock.uptimeMillis() - time;
-                Log.d(LOGTAG, "Gecko event sync taking too long: " + waited + "ms");
+                Log.d(LOGTAG, "Goanna event sync taking too long: " + waited + "ms");
             }
         }
     }
@@ -600,7 +600,7 @@ public class GeckoAppShell
                     if (enable) {
                         Location lastKnownLocation = getLastKnownLocation(lm);
                         if (lastKnownLocation != null) {
-                            getGeckoInterface().getLocationListener().onLocationChanged(lastKnownLocation);
+                            getGoannaInterface().getLocationListener().onLocationChanged(lastKnownLocation);
                         }
 
                         Criteria criteria = new Criteria();
@@ -622,9 +622,9 @@ public class GeckoAppShell
                             return;
 
                         Looper l = Looper.getMainLooper();
-                        lm.requestLocationUpdates(provider, 100, (float).5, getGeckoInterface().getLocationListener(), l);
+                        lm.requestLocationUpdates(provider, 100, (float).5, getGoannaInterface().getLocationListener(), l);
                     } else {
-                        lm.removeUpdates(getGeckoInterface().getLocationListener());
+                        lm.removeUpdates(getGoannaInterface().getLocationListener());
                     }
                 }
             });
@@ -650,49 +650,49 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void enableSensor(int aSensortype) {
-        GeckoInterface gi = getGeckoInterface();
+        GoannaInterface gi = getGoannaInterface();
         if (gi == null)
             return;
         SensorManager sm = (SensorManager)
             getContext().getSystemService(Context.SENSOR_SERVICE);
 
         switch(aSensortype) {
-        case GeckoHalDefines.SENSOR_ORIENTATION:
+        case GoannaHalDefines.SENSOR_ORIENTATION:
             if(gOrientationSensor == null)
                 gOrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
             if (gOrientationSensor != null) 
                 sm.registerListener(gi.getSensorEventListener(), gOrientationSensor, SensorManager.SENSOR_DELAY_GAME);
             break;
 
-        case GeckoHalDefines.SENSOR_ACCELERATION:
+        case GoannaHalDefines.SENSOR_ACCELERATION:
             if(gAccelerometerSensor == null)
                 gAccelerometerSensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             if (gAccelerometerSensor != null)
                 sm.registerListener(gi.getSensorEventListener(), gAccelerometerSensor, SensorManager.SENSOR_DELAY_GAME);
             break;
 
-        case GeckoHalDefines.SENSOR_PROXIMITY:
+        case GoannaHalDefines.SENSOR_PROXIMITY:
             if(gProximitySensor == null  )
                 gProximitySensor = sm.getDefaultSensor(Sensor.TYPE_PROXIMITY);
             if (gProximitySensor != null)
                 sm.registerListener(gi.getSensorEventListener(), gProximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
             break;
 
-        case GeckoHalDefines.SENSOR_LIGHT:
+        case GoannaHalDefines.SENSOR_LIGHT:
             if(gLightSensor == null)
                 gLightSensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT);
             if (gLightSensor != null)
                 sm.registerListener(gi.getSensorEventListener(), gLightSensor, SensorManager.SENSOR_DELAY_NORMAL);
             break;
 
-        case GeckoHalDefines.SENSOR_LINEAR_ACCELERATION:
+        case GoannaHalDefines.SENSOR_LINEAR_ACCELERATION:
             if(gLinearAccelerometerSensor == null)
                 gLinearAccelerometerSensor = sm.getDefaultSensor(10 /* API Level 9 - TYPE_LINEAR_ACCELERATION */);
             if (gLinearAccelerometerSensor != null)
                 sm.registerListener(gi.getSensorEventListener(), gLinearAccelerometerSensor, SensorManager.SENSOR_DELAY_GAME);
             break;
 
-        case GeckoHalDefines.SENSOR_GYROSCOPE:
+        case GoannaHalDefines.SENSOR_GYROSCOPE:
             if(gGyroscopeSensor == null)
                 gGyroscopeSensor = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
             if (gGyroscopeSensor != null)
@@ -705,7 +705,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void disableSensor(int aSensortype) {
-        GeckoInterface gi = getGeckoInterface();
+        GoannaInterface gi = getGoannaInterface();
         if (gi == null)
             return;
 
@@ -713,32 +713,32 @@ public class GeckoAppShell
             getContext().getSystemService(Context.SENSOR_SERVICE);
 
         switch (aSensortype) {
-        case GeckoHalDefines.SENSOR_ORIENTATION:
+        case GoannaHalDefines.SENSOR_ORIENTATION:
             if (gOrientationSensor != null)
                 sm.unregisterListener(gi.getSensorEventListener(), gOrientationSensor);
             break;
 
-        case GeckoHalDefines.SENSOR_ACCELERATION:
+        case GoannaHalDefines.SENSOR_ACCELERATION:
             if (gAccelerometerSensor != null)
                 sm.unregisterListener(gi.getSensorEventListener(), gAccelerometerSensor);
             break;
 
-        case GeckoHalDefines.SENSOR_PROXIMITY:
+        case GoannaHalDefines.SENSOR_PROXIMITY:
             if (gProximitySensor != null)
                 sm.unregisterListener(gi.getSensorEventListener(), gProximitySensor);
             break;
 
-        case GeckoHalDefines.SENSOR_LIGHT:
+        case GoannaHalDefines.SENSOR_LIGHT:
             if (gLightSensor != null)
                 sm.unregisterListener(gi.getSensorEventListener(), gLightSensor);
             break;
 
-        case GeckoHalDefines.SENSOR_LINEAR_ACCELERATION:
+        case GoannaHalDefines.SENSOR_LINEAR_ACCELERATION:
             if (gLinearAccelerometerSensor != null)
                 sm.unregisterListener(gi.getSensorEventListener(), gLinearAccelerometerSensor);
             break;
 
-        case GeckoHalDefines.SENSOR_GYROSCOPE:
+        case GoannaHalDefines.SENSOR_GYROSCOPE:
             if (gGyroscopeSensor != null)
                 sm.unregisterListener(gi.getSensorEventListener(), gGyroscopeSensor);
             break;
@@ -779,24 +779,24 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void moveTaskToBack() {
-        if (getGeckoInterface() != null)
-            getGeckoInterface().getActivity().moveTaskToBack(true);
+        if (getGoannaInterface() != null)
+            getGoannaInterface().getActivity().moveTaskToBack(true);
     }
 
     public static void returnIMEQueryResult(String result, int selectionStart, int selectionLength) {
-        // This method may be called from JNI to report Gecko's current selection indexes, but
+        // This method may be called from JNI to report Goanna's current selection indexes, but
         // Native Fennec doesn't care because the Java code already knows the selection indexes.
     }
 
     @WrapElementForJNI(stubName = "NotifyXreExit")
     static void onXreExit() {
-        // The launch state can only be Launched or GeckoRunning at this point
-        GeckoThread.setLaunchState(GeckoThread.LaunchState.GeckoExiting);
-        if (getGeckoInterface() != null) {
+        // The launch state can only be Launched or GoannaRunning at this point
+        GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaExiting);
+        if (getGoannaInterface() != null) {
             if (restartScheduled) {
-                getGeckoInterface().doRestart();
+                getGoannaInterface().doRestart();
             } else {
-                getGeckoInterface().getActivity().finish();
+                getGoannaInterface().getActivity().finish();
             }
         }
 
@@ -805,14 +805,14 @@ public class GeckoAppShell
 
     static void gracefulExit() {
         Log.d(LOGTAG, "Initiating graceful exit...");
-        sendEventToGeckoSync(GeckoEvent.createBroadcastEvent("Browser:Quit", ""));
-        GeckoThread.setLaunchState(GeckoThread.LaunchState.GeckoExited);
+        sendEventToGoannaSync(GoannaEvent.createBroadcastEvent("Browser:Quit", ""));
+        GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaExited);
         System.exit(0);
     }
 
     static void systemExit() {
         Log.d(LOGTAG, "Killing via System.exit()");
-        GeckoThread.setLaunchState(GeckoThread.LaunchState.GeckoExited);
+        GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaExited);
         System.exit(0);
     }
 
@@ -853,7 +853,7 @@ public class GeckoAppShell
     private static void doCreateShortcut(final String aTitle, final String aURI, final Bitmap aIcon) {
         // The intent to be launched by the shortcut.
         Intent shortcutIntent = new Intent();
-        shortcutIntent.setAction(GeckoApp.ACTION_HOMESCREEN_SHORTCUT);
+        shortcutIntent.setAction(GoannaApp.ACTION_HOMESCREEN_SHORTCUT);
         shortcutIntent.setData(Uri.parse(aURI));
         shortcutIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
                                     AppConstants.BROWSER_INTENT_CLASS_NAME);
@@ -972,7 +972,7 @@ public class GeckoAppShell
             List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
             return !list.isEmpty();
         } catch (Exception ex) {
-            Log.e(LOGTAG, "Exception in GeckoAppShell.hasHandlersForIntent");
+            Log.e(LOGTAG, "Exception in GoannaAppShell.hasHandlersForIntent");
             return false;
         }
     }
@@ -995,7 +995,7 @@ public class GeckoAppShell
             }
             return ret;
         } catch (Exception ex) {
-            Log.e(LOGTAG, "Exception in GeckoAppShell.getHandlersForIntent");
+            Log.e(LOGTAG, "Exception in GoannaAppShell.getHandlersForIntent");
             return new String[0];
         }
     }
@@ -1227,7 +1227,7 @@ public class GeckoAppShell
             if (youtubeURI != null) {
                 // Load it as a new URL in the current tab. Hitting 'back' will return
                 // the user to the YouTube overview page.
-                final Intent view = new Intent(GeckoApp.ACTION_LOAD, youtubeURI, context, c);
+                final Intent view = new Intent(GoannaApp.ACTION_LOAD, youtubeURI, context, c);
                 return view;
             }
         }
@@ -1297,7 +1297,7 @@ public class GeckoAppShell
     }
 
     /**
-     * Only called from GeckoApp.
+     * Only called from GoannaApp.
      */
     public static void setNotificationClient(NotificationClient client) {
         if (notificationClient == null) {
@@ -1312,7 +1312,7 @@ public class GeckoAppShell
                                              String aAlertCookie, String aAlertName) {
         // The intent to launch when the user clicks the expanded notification
         String app = getContext().getClass().getName();
-        Intent notificationIntent = new Intent(GeckoApp.ACTION_ALERT_CALLBACK);
+        Intent notificationIntent = new Intent(GoannaApp.ACTION_ALERT_CALLBACK);
         notificationIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, app);
         notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
@@ -1357,7 +1357,7 @@ public class GeckoAppShell
     public static void handleNotification(String aAction, String aAlertName, String aAlertCookie) {
         int notificationID = aAlertName.hashCode();
 
-        if (GeckoApp.ACTION_ALERT_CALLBACK.equals(aAction)) {
+        if (GoannaApp.ACTION_ALERT_CALLBACK.equals(aAction)) {
             callObserver(aAlertName, "alertclickcallback", aAlertCookie);
 
             if (notificationClient.isOngoing(notificationID)) {
@@ -1395,7 +1395,7 @@ public class GeckoAppShell
         if (sScreenDepth == 0) {
             sScreenDepth = 16;
             PixelFormat info = new PixelFormat();
-            PixelFormat.getPixelFormatInfo(getGeckoInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat(), info);
+            PixelFormat.getPixelFormatInfo(getGoannaInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat(), info);
             if (info.bitsPerPixel >= 24 && isHighMemoryDevice()) {
                 sScreenDepth = 24;
             }
@@ -1415,8 +1415,8 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void setFullScreen(boolean fullscreen) {
-        if (getGeckoInterface() != null)
-            getGeckoInterface().setFullScreen(fullscreen);
+        if (getGoannaInterface() != null)
+            getGoannaInterface().setFullScreen(fullscreen);
     }
 
     @WrapElementForJNI
@@ -1637,7 +1637,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void killAnyZombies() {
-        GeckoProcessesVisitor visitor = new GeckoProcessesVisitor() {
+        GoannaProcessesVisitor visitor = new GoannaProcessesVisitor() {
             @Override
             public boolean callback(int pid) {
                 if (pid != android.os.Process.myPid())
@@ -1646,12 +1646,12 @@ public class GeckoAppShell
             }
         };
             
-        EnumerateGeckoProcesses(visitor);
+        EnumerateGoannaProcesses(visitor);
     }
 
-    public static boolean checkForGeckoProcs() {
+    public static boolean checkForGoannaProcs() {
 
-        class GeckoPidCallback implements GeckoProcessesVisitor {
+        class GoannaPidCallback implements GoannaProcessesVisitor {
             public boolean otherPidExist;
             @Override
             public boolean callback(int pid) {
@@ -1662,16 +1662,16 @@ public class GeckoAppShell
                 return true;
             }            
         }
-        GeckoPidCallback visitor = new GeckoPidCallback();            
-        EnumerateGeckoProcesses(visitor);
+        GoannaPidCallback visitor = new GoannaPidCallback();            
+        EnumerateGoannaProcesses(visitor);
         return visitor.otherPidExist;
     }
 
-    interface GeckoProcessesVisitor{
+    interface GoannaProcessesVisitor{
         boolean callback(int pid);
     }
 
-    private static void EnumerateGeckoProcesses(GeckoProcessesVisitor visiter) {
+    private static void EnumerateGoannaProcesses(GoannaProcessesVisitor visiter) {
         int pidColumn = -1;
         int userColumn = -1;
 
@@ -1714,13 +1714,13 @@ public class GeckoAppShell
             in.close();
         }
         catch (Exception e) {
-            Log.w(LOGTAG, "Failed to enumerate Gecko processes.",  e);
+            Log.w(LOGTAG, "Failed to enumerate Goanna processes.",  e);
         }
     }
 
-    public static void waitForAnotherGeckoProc(){
+    public static void waitForAnotherGoannaProc(){
         int countdown = 40;
-        while (!checkForGeckoProcs() &&  --countdown > 0) {
+        while (!checkForGoannaProcs() &&  --countdown > 0) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException ie) {}
@@ -1751,7 +1751,7 @@ public class GeckoAppShell
         int nameColumn = -1;
 
         try {
-            String filter = GeckoProfile.get(getContext()).getDir().toString();
+            String filter = GoannaProfile.get(getContext()).getDir().toString();
             Log.d(LOGTAG, "[OPENFILE] Filter: " + filter);
 
             // run lsof and parse its output
@@ -1867,14 +1867,14 @@ public class GeckoAppShell
                                      float x, float y,
                                      float w, float h,
                                      boolean isFullScreen) {
-        if (getGeckoInterface() != null)
-             getGeckoInterface().addPluginView(view, new RectF(x, y, x + w, y + h), isFullScreen);
+        if (getGoannaInterface() != null)
+             getGoannaInterface().addPluginView(view, new RectF(x, y, x + w, y + h), isFullScreen);
     }
 
     @WrapElementForJNI
     public static void removePluginView(View view, boolean isFullScreen) {
-        if (getGeckoInterface() != null)
-            getGeckoInterface().removePluginView(view, isFullScreen);
+        if (getGoannaInterface() != null)
+            getGoannaInterface().removePluginView(view, isFullScreen);
     }
 
     /**
@@ -2079,7 +2079,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI(allowMultithread = true)
     public static Class<?> loadPluginClass(String className, String libName) {
-        if (getGeckoInterface() == null)
+        if (getGoannaInterface() == null)
             return null;
         try {
             final String packageName = getPluginPackage(libName);
@@ -2119,8 +2119,8 @@ public class GeckoAppShell
         public void onOrientationChanged();
     }
 
-    public interface GeckoInterface {
-        public GeckoProfile getProfile();
+    public interface GoannaInterface {
+        public GoannaProfile getProfile();
         public PromptService getPromptService();
         public Activity getActivity();
         public String getDefaultUAString();
@@ -2144,14 +2144,14 @@ public class GeckoAppShell
         public void invalidateOptionsMenu();
     };
 
-    private static GeckoInterface sGeckoInterface;
+    private static GoannaInterface sGoannaInterface;
 
-    public static GeckoInterface getGeckoInterface() {
-        return sGeckoInterface;
+    public static GoannaInterface getGoannaInterface() {
+        return sGoannaInterface;
     }
 
-    public static void setGeckoInterface(GeckoInterface aGeckoInterface) {
-        sGeckoInterface = aGeckoInterface;
+    public static void setGoannaInterface(GoannaInterface aGoannaInterface) {
+        sGoannaInterface = aGoannaInterface;
     }
 
     public static android.hardware.Camera sCamera;
@@ -2168,8 +2168,8 @@ public class GeckoAppShell
                 @Override
                 public void run() {
                     try {
-                        if (getGeckoInterface() != null)
-                            getGeckoInterface().enableCameraView();
+                        if (getGoannaInterface() != null)
+                            getGoannaInterface().enableCameraView();
                     } catch (Exception e) {}
                 }
             });
@@ -2220,8 +2220,8 @@ public class GeckoAppShell
             }
 
             try {
-                if (getGeckoInterface() != null) {
-                    View cameraView = getGeckoInterface().getCameraView();
+                if (getGoannaInterface() != null) {
+                    View cameraView = getGoannaInterface().getCameraView();
                     if (cameraView instanceof SurfaceView) {
                         sCamera.setPreviewDisplay(((SurfaceView)cameraView).getHolder());
                     } else if (cameraView instanceof TextureView) {
@@ -2262,8 +2262,8 @@ public class GeckoAppShell
                 @Override
                 public void run() {
                     try {
-                        if (getGeckoInterface() != null)
-                            getGeckoInterface().disableCameraView();
+                        if (getGoannaInterface() != null)
+                            getGoannaInterface().disableCameraView();
                     } catch (Exception e) {}
                 }
             });
@@ -2280,23 +2280,23 @@ public class GeckoAppShell
      */
     @WrapElementForJNI
     public static void enableBatteryNotifications() {
-        GeckoBatteryManager.enableNotifications();
+        GoannaBatteryManager.enableNotifications();
     }
 
-    @WrapElementForJNI(stubName = "HandleGeckoMessageWrapper")
-    public static void handleGeckoMessage(final NativeJSContainer message) {
+    @WrapElementForJNI(stubName = "HandleGoannaMessageWrapper")
+    public static void handleGoannaMessage(final NativeJSContainer message) {
         EventDispatcher.getInstance().dispatchEvent(message);
         message.dispose();
     }
 
     @WrapElementForJNI
     public static void disableBatteryNotifications() {
-        GeckoBatteryManager.disableNotifications();
+        GoannaBatteryManager.disableNotifications();
     }
 
     @WrapElementForJNI(stubName = "GetCurrentBatteryInformationWrapper")
     public static double[] getCurrentBatteryInformation() {
-        return GeckoBatteryManager.getCurrentInformation();
+        return GoannaBatteryManager.getCurrentInformation();
     }
 
     @WrapElementForJNI(stubName = "CheckURIVisited")
@@ -2307,7 +2307,7 @@ public class GeckoAppShell
     @WrapElementForJNI(stubName = "MarkURIVisited")
     static void markUriVisited(final String uri) {
         final Context context = getContext();
-        final BrowserDB db = GeckoProfile.get(context).getDB();
+        final BrowserDB db = GoannaProfile.get(context).getDB();
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
@@ -2319,7 +2319,7 @@ public class GeckoAppShell
     @WrapElementForJNI(stubName = "SetURITitle")
     static void setUriTitle(final String uri, final String title) {
         final Context context = getContext();
-        final BrowserDB db = GeckoProfile.get(context).getDB();
+        final BrowserDB db = GoannaProfile.get(context).getDB();
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
@@ -2400,14 +2400,14 @@ public class GeckoAppShell
     public static void viewSizeChanged() {
         LayerView v = getLayerView();
         if (v != null && v.isIMEEnabled()) {
-            sendEventToGecko(GeckoEvent.createBroadcastEvent(
+            sendEventToGoanna(GoannaEvent.createBroadcastEvent(
                     "ScrollTo:FocusedInput", ""));
         }
     }
 
     @WrapElementForJNI(stubName = "GetCurrentNetworkInformationWrapper")
     public static double[] getCurrentNetworkInformation() {
-        return GeckoNetworkManager.getInstance().getCurrentInformation();
+        return GoannaNetworkManager.getInstance().getCurrentInformation();
     }
 
     @WrapElementForJNI
@@ -2415,7 +2415,7 @@ public class GeckoAppShell
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                GeckoNetworkManager.getInstance().enableNotifications();
+                GoannaNetworkManager.getInstance().enableNotifications();
             }
         });
     }
@@ -2425,7 +2425,7 @@ public class GeckoAppShell
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                GeckoNetworkManager.getInstance().disableNotifications();
+                GoannaNetworkManager.getInstance().disableNotifications();
             }
         });
     }
@@ -2443,40 +2443,40 @@ public class GeckoAppShell
 
     @WrapElementForJNI(stubName = "GetScreenOrientationWrapper")
     public static short getScreenOrientation() {
-        return GeckoScreenOrientation.getInstance().getScreenOrientation().value;
+        return GoannaScreenOrientation.getInstance().getScreenOrientation().value;
     }
 
     @WrapElementForJNI
     public static void enableScreenOrientationNotifications() {
-        GeckoScreenOrientation.getInstance().enableNotifications();
+        GoannaScreenOrientation.getInstance().enableNotifications();
     }
 
     @WrapElementForJNI
     public static void disableScreenOrientationNotifications() {
-        GeckoScreenOrientation.getInstance().disableNotifications();
+        GoannaScreenOrientation.getInstance().disableNotifications();
     }
 
     @WrapElementForJNI
     public static void lockScreenOrientation(int aOrientation) {
-        GeckoScreenOrientation.getInstance().lock(aOrientation);
+        GoannaScreenOrientation.getInstance().lock(aOrientation);
     }
 
     @WrapElementForJNI
     public static void unlockScreenOrientation() {
-        GeckoScreenOrientation.getInstance().unlock();
+        GoannaScreenOrientation.getInstance().unlock();
     }
 
     @WrapElementForJNI
     public static boolean pumpMessageLoop() {
-        Handler geckoHandler = ThreadUtils.sGeckoHandler;
-        Message msg = getNextMessageFromQueue(ThreadUtils.sGeckoQueue);
+        Handler geckoHandler = ThreadUtils.sGoannaHandler;
+        Message msg = getNextMessageFromQueue(ThreadUtils.sGoannaQueue);
 
         if (msg == null) {
             return false;
         }
 
         if (msg.obj == geckoHandler && msg.getTarget() == geckoHandler) {
-            // Our "queue is empty" message; see runGecko()
+            // Our "queue is empty" message; see runGoanna()
             return false;
         }
 
@@ -2491,8 +2491,8 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void notifyWakeLockChanged(String topic, String state) {
-        if (getGeckoInterface() != null)
-            getGeckoInterface().notifyWakeLockChanged(topic, state);
+        if (getGoannaInterface() != null)
+            getGoannaInterface().notifyWakeLockChanged(topic, state);
     }
 
     @WrapElementForJNI(allowMultithread = true)
@@ -2500,7 +2500,7 @@ public class GeckoAppShell
         ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
             @Override
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-                GeckoAppShell.onSurfaceTextureFrameAvailable(surfaceTexture, id);
+                GoannaAppShell.onSurfaceTextureFrameAvailable(surfaceTexture, id);
             }
         });
     }
@@ -2513,11 +2513,11 @@ public class GeckoAppShell
     @WrapElementForJNI
     public static boolean unlockProfile() {
         // Try to kill any zombie Fennec's that might be running
-        GeckoAppShell.killAnyZombies();
+        GoannaAppShell.killAnyZombies();
 
         // Then force unlock this profile
-        if (getGeckoInterface() != null) {
-            GeckoProfile profile = getGeckoInterface().getProfile();
+        if (getGoannaInterface() != null) {
+            GoannaProfile profile = getGoannaInterface().getProfile();
             File lock = profile.getFile(".parentlock");
             return lock.exists() && lock.delete();
         }
@@ -2552,14 +2552,14 @@ public class GeckoAppShell
             return;
         }
 
-        final File dir = GeckoApp.getTempDirectory();
+        final File dir = GoannaApp.getTempDirectory();
 
         if (dir == null) {
             showImageShareFailureToast();
             return;
         }
 
-        GeckoApp.deleteTempFiles();
+        GoannaApp.deleteTempFiles();
 
         String type = intent.getType();
         OutputStream os = null;

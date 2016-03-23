@@ -178,7 +178,7 @@
 #include "nsIFile.h"
 #include "nsDumpUtils.h"
 #include "xpcpublic.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include <stdint.h>
 #include <stdio.h>
 
@@ -260,13 +260,13 @@ struct nsCycleCollectorParams
     bool processLogging = true;
     if (logProcessEnv && !!strcmp(logProcessEnv, "all")) {
       switch (XRE_GetProcessType()) {
-        case GeckoProcessType_Default:
+        case GoannaProcessType_Default:
           processLogging = !strcmp(logProcessEnv, "main");
           break;
-        case GeckoProcessType_Plugin:
+        case GoannaProcessType_Plugin:
           processLogging = !strcmp(logProcessEnv, "plugins");
           break;
-        case GeckoProcessType_Content:
+        case GoannaProcessType_Content:
           processLogging = !strcmp(logProcessEnv, "content");
           break;
         default:

@@ -10,7 +10,7 @@ import sys
 from .runner import BaseRunner
 
 
-class GeckoRuntimeRunner(BaseRunner):
+class GoannaRuntimeRunner(BaseRunner):
     """
     The base runner class used for local gecko runtime binaries,
     such as Firefox and Thunderbird.

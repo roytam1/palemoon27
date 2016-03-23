@@ -18,7 +18,7 @@ public class BufferedImage {
     private IntSize mSize;
     private int mFormat;
 
-    private static final String LOGTAG = "GeckoBufferedImage";
+    private static final String LOGTAG = "GoannaBufferedImage";
 
     /** Creates an empty buffered image */
     public BufferedImage() {

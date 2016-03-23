@@ -14,7 +14,7 @@ public class testLoad extends PixelTest {
     public void testLoad() {
         String url = getAbsoluteUrl(StringHelper.ROBOCOP_BOXES_URL);
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         loadAndVerifyBoxes(url);
 

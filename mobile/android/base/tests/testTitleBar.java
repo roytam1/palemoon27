@@ -14,7 +14,7 @@ public class testTitleBar extends PixelTest {
             return;
         }
 
-        blockForGeckoReady();
+        blockForGoannaReady();
         checkOption();
     }
 

@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko.home;
 
-import org.mozilla.gecko.GeckoScreenOrientation;
+import org.mozilla.gecko.GoannaScreenOrientation;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.fxa.AccountLoader;
 import org.mozilla.gecko.fxa.FirefoxAccounts;
@@ -37,7 +37,7 @@ import android.view.ViewGroup;
  * </ul>
  */
 public class RemoteTabsPanel extends HomeFragment {
-    private static final String LOGTAG = "GeckoRemoteTabsPanel";
+    private static final String LOGTAG = "GoannaRemoteTabsPanel";
 
     // Loader ID for Android Account loader.
     private static final int LOADER_ID_ACCOUNT = 0;
@@ -68,7 +68,7 @@ public class RemoteTabsPanel extends HomeFragment {
         // Force reload fragment only in tablets when there is valid account and the orientation has changed.
         Pair<String, Integer> actionOrientationPair;
         if (canLoad() && HardwareUtils.isTablet() && (actionOrientationPair = getActionAndOrientationForFragmentInBackStack()) != null) {
-            if (actionOrientationPair.first.equals(Action.None.name()) && actionOrientationPair.second != GeckoScreenOrientation.getInstance().getAndroidOrientation()) {
+            if (actionOrientationPair.first.equals(Action.None.name()) && actionOrientationPair.second != GoannaScreenOrientation.getInstance().getAndroidOrientation()) {
                 // As the fragment becomes visible only after onStart callback, we can safely remove it from the back-stack.
                 // If a portrait fragment is in the back-stack and then a landscape fragment should be shown, there can
                 // be a brief flash as the fragment as replaced.
@@ -94,7 +94,7 @@ public class RemoteTabsPanel extends HomeFragment {
     private void showSubPanel(Account account) {
         final Action actionNeeded = getActionNeeded(account);
         final String actionString = actionNeeded != null ? actionNeeded.name() : NO_ACCOUNT;
-        final int orientation = HardwareUtils.isTablet() ? GeckoScreenOrientation.getInstance().getAndroidOrientation()
+        final int orientation = HardwareUtils.isTablet() ? GoannaScreenOrientation.getInstance().getAndroidOrientation()
                 : Configuration.ORIENTATION_UNDEFINED;
 
         // Check if fragment for given action and orientation is in the back-stack.
@@ -181,7 +181,7 @@ public class RemoteTabsPanel extends HomeFragment {
 
         switch (action) {
         case None:
-            if (HardwareUtils.isTablet() && GeckoScreenOrientation.getInstance().getAndroidOrientation() == Configuration.ORIENTATION_LANDSCAPE) {
+            if (HardwareUtils.isTablet() && GoannaScreenOrientation.getInstance().getAndroidOrientation() == Configuration.ORIENTATION_LANDSCAPE) {
                 return new RemoteTabsSplitPlaneFragment();
             } else {
                 return new RemoteTabsExpandableListFragment();

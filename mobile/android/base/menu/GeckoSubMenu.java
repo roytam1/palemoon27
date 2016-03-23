@@ -11,22 +11,22 @@ import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
 
-public class GeckoSubMenu extends GeckoMenu 
+public class GoannaSubMenu extends GoannaMenu 
                           implements SubMenu {
-    private static final String LOGTAG = "GeckoSubMenu";
+    private static final String LOGTAG = "GoannaSubMenu";
 
     // MenuItem associated with this submenu.
     private MenuItem mMenuItem;
 
-    public GeckoSubMenu(Context context) {
+    public GoannaSubMenu(Context context) {
         super(context);
     }
 
-    public GeckoSubMenu(Context context, AttributeSet attrs) {
+    public GoannaSubMenu(Context context, AttributeSet attrs) {
         super(context, attrs);
     }
 
-    public GeckoSubMenu(Context context, AttributeSet attrs, int defStyle) {
+    public GoannaSubMenu(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
     }
 

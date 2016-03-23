@@ -53,7 +53,7 @@ public class SearchEngine {
                     "document.getElementsByTagName('head')[0].appendChild(tag);" +
                     "tag.innerText='%s'})();";
 
-    // The Gecko search identifier. This will be null for engines that don't ship with the locale.
+    // The Goanna search identifier. This will be null for engines that don't ship with the locale.
     private final String identifier;
 
     private String shortName;

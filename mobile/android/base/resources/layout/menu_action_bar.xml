@@ -8,7 +8,7 @@
      android:showDividers are available only 11+
 -->
 <view xmlns:android="http://schemas.android.com/apk/res/android"
-      class="org.mozilla.gecko.menu.GeckoMenu$DefaultActionItemBar"
+      class="org.mozilla.gecko.menu.GoannaMenu$DefaultActionItemBar"
       android:layout_width="@dimen/menu_item_row_width"
       android:layout_height="@dimen/browser_toolbar_height"
       android:orientation="horizontal"

@@ -30,7 +30,7 @@ mozilla_StartupTimeline_Event(PROFILE_BEFORE_CHANGE, "profileBeforeChange")
 
 #include "mozilla/TimeStamp.h"
 #include "nscore.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #ifdef MOZ_LINKER
 extern "C" {

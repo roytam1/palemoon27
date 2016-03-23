@@ -14,7 +14,7 @@ import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.RestrictedProfiles;
 import org.mozilla.gecko.home.HomeConfig.HomeConfigBackend;
 import org.mozilla.gecko.home.HomeConfig.OnReloadListener;
@@ -33,7 +33,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 class HomeConfigPrefsBackend implements HomeConfigBackend {
-    private static final String LOGTAG = "GeckoHomeConfigBackend";
+    private static final String LOGTAG = "GoannaHomeConfigBackend";
 
     // Increment this to trigger a migration.
     private static final int VERSION = 3;
@@ -63,7 +63,7 @@ class HomeConfigPrefsBackend implements HomeConfigBackend {
     }
 
     private SharedPreferences getSharedPreferences() {
-        return GeckoSharedPrefs.forProfile(mContext);
+        return GoannaSharedPrefs.forProfile(mContext);
     }
 
     private State loadDefaultConfig() {
@@ -214,7 +214,7 @@ class HomeConfigPrefsBackend implements HomeConfigBackend {
         final JSONArray jsonPanels;
         final int version;
 
-        final SharedPreferences prefs = GeckoSharedPrefs.forProfile(context);
+        final SharedPreferences prefs = GoannaSharedPrefs.forProfile(context);
         if (prefs.contains(PREFS_CONFIG_KEY_OLD)) {
             // Our original implementation did not contain versioning, so this is implicitly version 0.
             jsonPanels = new JSONArray(jsonString);

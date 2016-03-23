@@ -9,7 +9,7 @@ import org.mozilla.gecko.Actions;
 public class testPromptGridInput extends BaseTest {
     protected int index = 1;
     public void testPromptGridInput() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         test(1);
 

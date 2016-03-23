@@ -14,7 +14,7 @@ import android.util.Log;
 import android.view.View;
 
 class FramePanelLayout extends PanelLayout {
-    private static final String LOGTAG = "GeckoFramePanelLayout";
+    private static final String LOGTAG = "GoannaFramePanelLayout";
 
     private final View mChildView;
     private final ViewConfig mChildConfig;

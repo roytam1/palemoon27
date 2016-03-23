@@ -11,13 +11,13 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.distribution.Distribution;
 import org.mozilla.gecko.util.FileUtils;
-import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.gecko.util.GoannaJarReader;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.RawResource;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -39,12 +39,12 @@ import java.util.Collections;
 import java.util.Locale;
 
 public class SearchEngineManager implements SharedPreferences.OnSharedPreferenceChangeListener {
-    private static final String LOG_TAG = "GeckoSearchEngineManager";
+    private static final String LOG_TAG = "GoannaSearchEngineManager";
 
-    // Gecko pref that defines the name of the default search engine.
+    // Goanna pref that defines the name of the default search engine.
     private static final String PREF_GECKO_DEFAULT_ENGINE = "browser.search.defaultenginename";
 
-    // Gecko pref that defines the name of the default searchplugin locale.
+    // Goanna pref that defines the name of the default searchplugin locale.
     private static final String PREF_GECKO_DEFAULT_LOCALE = "distribution.searchplugins.defaultLocale";
 
     // Key for shared preference that stores default engine name.
@@ -53,11 +53,11 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
     // Key for shared preference that stores search region.
     private static final String PREF_REGION_KEY = "search.region";
 
-    // URL for the geo-ip location service. Keep in sync with "browser.search.geoip.url" perference in Gecko.
+    // URL for the geo-ip location service. Keep in sync with "browser.search.geoip.url" perference in Goanna.
     private static final String GEOIP_LOCATION_URL = "https://location.services.mozilla.com/v1/country?key=" + AppConstants.MOZ_MOZILLA_API_KEY;
 
-    // This should go through GeckoInterface to get the UA, but the search activity
-    // doesn't use a GeckoView yet. Until it does, get the UA directly.
+    // This should go through GoannaInterface to get the UA, but the search activity
+    // doesn't use a GoannaView yet. Until it does, get the UA directly.
     private static final String USER_AGENT = HardwareUtils.isTablet() ?
         AppConstants.USER_AGENT_FENNEC_TABLET : AppConstants.USER_AGENT_FENNEC_MOBILE;
 
@@ -66,7 +66,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
     private SearchEngineCallback changeCallback;
     private SearchEngine engine;
 
-    // Cached version of default locale included in Gecko chrome manifest.
+    // Cached version of default locale included in Goanna chrome manifest.
     // This should only be accessed from the background thread.
     private String fallbackLocale;
 
@@ -81,7 +81,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
     public SearchEngineManager(Context context, Distribution distribution) {
         this.context = context;
         this.distribution = distribution;
-        GeckoSharedPrefs.forApp(context).registerOnSharedPreferenceChangeListener(this);
+        GoannaSharedPrefs.forApp(context).registerOnSharedPreferenceChangeListener(this);
     }
 
     /**
@@ -111,7 +111,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
     }
 
     public void destroy() {
-        GeckoSharedPrefs.forApp(context).unregisterOnSharedPreferenceChangeListener(this);
+        GoannaSharedPrefs.forApp(context).unregisterOnSharedPreferenceChangeListener(this);
         context = null;
         distribution = null;
         changeCallback = null;
@@ -186,7 +186,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
                 // Increment an 'ignore' counter so that this preference change
                 // won't cause getDefaultEngine to be called again.
                 ignorePreferenceChange++;
-                GeckoSharedPrefs.forApp(context)
+                GoannaSharedPrefs.forApp(context)
                         .edit()
                         .putString(PREF_DEFAULT_ENGINE_KEY, name)
                         .apply();
@@ -197,11 +197,11 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
 
             private void defaultBehavior() {
                 // First look for a default name stored in shared preferences.
-                String name = GeckoSharedPrefs.forApp(context).getString(PREF_DEFAULT_ENGINE_KEY, null);
+                String name = GoannaSharedPrefs.forApp(context).getString(PREF_DEFAULT_ENGINE_KEY, null);
 
                 // Check for a region stored in shared preferences. If we don't have a region,
                 // we should force a recheck of the default engine.
-                String region = GeckoSharedPrefs.forApp(context).getString(PREF_REGION_KEY, null);
+                String region = GoannaSharedPrefs.forApp(context).getString(PREF_REGION_KEY, null);
 
                 if (name != null && region != null) {
                     Log.d(LOG_TAG, "Found default engine name in SharedPreferences: " + name);
@@ -217,7 +217,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
                     // Increment an 'ignore' counter so that this preference change
                     // won't cause getDefaultEngine to be called again.
                     ignorePreferenceChange++;
-                    GeckoSharedPrefs.forApp(context)
+                    GoannaSharedPrefs.forApp(context)
                                     .edit()
                                     .putString(PREF_DEFAULT_ENGINE_KEY, name)
                                     .apply();
@@ -317,7 +317,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
      */
     private String fetchCountryCode() {
         // First, we look to see if we have a cached code.
-        final String region = GeckoSharedPrefs.forApp(context).getString(PREF_REGION_KEY, null);
+        final String region = GoannaSharedPrefs.forApp(context).getString(PREF_REGION_KEY, null);
         if (region != null) {
             return region;
         }
@@ -378,7 +378,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
 
             // Store the result, even if it's empty. If we fail to get a region, we never
             // try to get it again, and we will always fallback to the non-region engine.
-            GeckoSharedPrefs.forApp(context)
+            GoannaSharedPrefs.forApp(context)
                             .edit()
                             .putString(PREF_REGION_KEY, (region == null ? "" : region))
                             .apply();
@@ -546,7 +546,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
      * @return SearchEngine instance for name.
      */
     private SearchEngine createEngineFromProfile(String name) {
-        final File pluginsDir = GeckoProfile.get(context).getFile("searchplugins");
+        final File pluginsDir = GoannaProfile.get(context).getFile("searchplugins");
         if (pluginsDir == null) {
             return null;
         }
@@ -607,7 +607,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
     }
 
     /**
-     * Reads a file from the searchplugins directory in the Gecko jar.
+     * Reads a file from the searchplugins directory in the Goanna jar.
      *
      * @param fileName name of the file to read.
      * @return InputStream for file.
@@ -619,7 +619,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
         final String languageTag = Locales.getLanguageTag(locale);
         String url = getSearchPluginsJarURL(context, languageTag, fileName);
 
-        InputStream in = GeckoJarReader.getStream(url);
+        InputStream in = GoannaJarReader.getStream(url);
         if (in != null) {
             return in;
         }
@@ -628,7 +628,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
         final String language = Locales.getLanguage(locale);
         if (!languageTag.equals(language)) {
             url = getSearchPluginsJarURL(context, language, fileName);
-            in = GeckoJarReader.getStream(url);
+            in = GoannaJarReader.getStream(url);
             if (in != null) {
                 return in;
             }
@@ -636,11 +636,11 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
 
         // Finally, fall back to default locale defined in chrome registry.
         url = getSearchPluginsJarURL(context, getFallbackLocale(), fileName);
-        return GeckoJarReader.getStream(url);
+        return GoannaJarReader.getStream(url);
     }
 
     /**
-     * Finds a fallback locale in the Gecko chrome registry. If a locale is declared
+     * Finds a fallback locale in the Goanna chrome registry. If a locale is declared
      * here, we should be guaranteed to find a searchplugins directory for it.
      *
      * This method should only be accessed from the background thread.
@@ -650,7 +650,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
             return fallbackLocale;
         }
 
-        final InputStream in = GeckoJarReader.getStream(GeckoJarReader.getJarURL(context, "chrome/chrome.manifest"));
+        final InputStream in = GoannaJarReader.getStream(GoannaJarReader.getJarURL(context, "chrome/chrome.manifest"));
         final BufferedReader br = getBufferedReader(in);
 
         try {
@@ -678,13 +678,13 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
     /**
      * Gets the jar URL for a file in the searchplugins directory.
      *
-     * @param locale String representing the Gecko locale (e.g. "en-US").
+     * @param locale String representing the Goanna locale (e.g. "en-US").
      * @param fileName The name of the file to read.
      * @return URL for jar file.
      */
     private static String getSearchPluginsJarURL(Context context, String locale, String fileName) {
         final String path = "chrome/" + locale + "/locale/" + locale + "/browser/searchplugins/" + fileName;
-        return GeckoJarReader.getJarURL(context, path);
+        return GoannaJarReader.getJarURL(context, path);
     }
 
     private BufferedReader getBufferedReader(InputStream in) {

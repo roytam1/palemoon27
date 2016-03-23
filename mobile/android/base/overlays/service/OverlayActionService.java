@@ -36,12 +36,12 @@ import static org.mozilla.gecko.overlays.OverlayConstants.ACTION_SHARE;
  * Send tab (delegates to Sync's existing handler)
  * Future: Load page in background.
  *
- * * Neither of these incur a page fetch on the service... yet. That will require headless Gecko,
- *   something we're yet to have. Refactoring Gecko as a service itself and restructing the rest of
+ * * Neither of these incur a page fetch on the service... yet. That will require headless Goanna,
+ *   something we're yet to have. Refactoring Goanna as a service itself and restructing the rest of
  *   the app to talk to it seems like the way to go there.
  */
 public class OverlayActionService extends Service {
-    private static final String LOGTAG = "GeckoOverlayService";
+    private static final String LOGTAG = "GoannaOverlayService";
 
     // Map used for selecting the appropriate helper object when handling a share.
     final Map<ShareMethod.Type, ShareMethod> shareTypes = new EnumMap<>(ShareMethod.Type.class);

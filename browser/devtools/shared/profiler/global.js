@@ -89,7 +89,7 @@ const [CATEGORY_MASK, CATEGORY_MASK_LIST] = (function () {
   ];
 })();
 
-// Human-readable "other" category bitmask. Older Geckos don't have all the
+// Human-readable "other" category bitmask. Older Goannas don't have all the
 // necessary instrumentation in the sampling profiler backend for creating
 // a categories graph, in which case we default to the "other" category.
 const CATEGORY_OTHER = CATEGORY_MASK('other');

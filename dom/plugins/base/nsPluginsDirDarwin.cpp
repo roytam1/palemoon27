@@ -11,7 +11,7 @@
   by Patrick C. Beard.
  */
 
-#include "GeckoChildProcessHost.h"
+#include "GoannaChildProcessHost.h"
 #include "base/process_util.h"
 
 #include "prlink.h"
@@ -386,14 +386,14 @@ static bool IsCompatibleArch(nsIFile *file)
       }
 
       uint32_t pluginLibArchitectures;
-      nsresult rv = mozilla::ipc::GeckoChildProcessHost::GetArchitecturesForBinary(executablePath, &pluginLibArchitectures);
+      nsresult rv = mozilla::ipc::GoannaChildProcessHost::GetArchitecturesForBinary(executablePath, &pluginLibArchitectures);
       if (NS_FAILED(rv)) {
         return false;
       }
 
       uint32_t supportedArchitectures =
 #ifdef __LP64__
-          mozilla::ipc::GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
+          mozilla::ipc::GoannaChildProcessHost::GetSupportedArchitecturesForProcessType(GoannaProcessType_Plugin);
 #else
           base::GetCurrentProcessArchitecture();
 #endif

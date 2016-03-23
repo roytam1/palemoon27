@@ -21,7 +21,7 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 
 public class MenuItemActionView extends LinearLayout
-                                implements GeckoMenuItem.Layout,
+                                implements GoannaMenuItem.Layout,
                                            View.OnClickListener {
     private final MenuItemDefault mMenuItem;
     private final MenuItemActionBar mMenuButton;
@@ -65,7 +65,7 @@ public class MenuItemActionView extends LinearLayout
     }
 
     @Override
-    public void initialize(GeckoMenuItem item) {
+    public void initialize(GoannaMenuItem item) {
         if (item == null) {
             return;
         }
@@ -165,7 +165,7 @@ public class MenuItemActionView extends LinearLayout
      * Update the styles if this view is being used in the context menus.
      *
      * Ideally, we just use different layout files and styles to set this, but
-     * MenuItemActionView is too integrated into GeckoActionProvider to provide
+     * MenuItemActionView is too integrated into GoannaActionProvider to provide
      * an easy separation so instead I provide this hack. I'm sorry.
      */
     public void initContextMenuStyles() {

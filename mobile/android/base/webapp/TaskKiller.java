@@ -19,7 +19,7 @@ import android.util.Log;
  */
 public class TaskKiller extends BroadcastReceiver {
 
-    private static final String LOGTAG = "GeckoWebappTaskKiller";
+    private static final String LOGTAG = "GoannaWebappTaskKiller";
 
     @Override
     public void onReceive(Context context, Intent intent) {

@@ -129,7 +129,7 @@ bool
 IsMainProcess()
 {
   static const bool isMainProcess =
-    XRE_GetProcessType() == GeckoProcessType_Default;
+    XRE_GetProcessType() == GoannaProcessType_Default;
   return isMainProcess;
 }
 

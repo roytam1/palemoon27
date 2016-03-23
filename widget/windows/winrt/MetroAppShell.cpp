@@ -50,7 +50,7 @@ extern ComPtr<MetroApp> sMetroApp;
 namespace mozilla {
 namespace widget {
 // pulled from win32 app shell
-extern UINT sAppShellGeckoMsgId;
+extern UINT sAppShellGoannaMsgId;
 } }
 
 static ComPtr<ICoreWindowStatic> sCoreStatic;
@@ -227,18 +227,18 @@ MetroAppShell::Run(void)
   nsresult rv = NS_OK;
 
   switch(XRE_GetProcessType()) {
-    case  GeckoProcessType_Content:
-    case GeckoProcessType_IPDLUnitTest:
+    case  GoannaProcessType_Content:
+    case GoannaProcessType_IPDLUnitTest:
       mozilla::widget::StartAudioSession();
       rv = nsBaseAppShell::Run();
       mozilla::widget::StopAudioSession();
     break;
-    case  GeckoProcessType_Plugin:
+    case  GoannaProcessType_Plugin:
       NS_WARNING("We don't support plugins currently.");
       // Just exit
       rv = NS_ERROR_NOT_IMPLEMENTED;
     break;
-    case GeckoProcessType_Default: {
+    case GoannaProcessType_Default: {
       {
         nsRefPtr<WakeLockListener> wakeLock = InitWakeLock();
         mozilla::widget::StartAudioSession();
@@ -311,7 +311,7 @@ MetroAppShell::MarkEventQueueForPurge()
   }
 
   // Safe to process pending events now
-  DispatchAllGeckoEvents();
+  DispatchAllGoannaEvents();
 }
 
 // Notification from MetroInput that all events it wanted delivered
@@ -325,14 +325,14 @@ MetroAppShell::InputEventsDispatched()
 
 // static
 void
-MetroAppShell::DispatchAllGeckoEvents()
+MetroAppShell::DispatchAllGoannaEvents()
 {
   // Only do this if requested and when we're not shutting down
-  if (!sShouldPurgeThreadQueue || MetroApp::sGeckoShuttingDown) {
+  if (!sShouldPurgeThreadQueue || MetroApp::sGoannaShuttingDown) {
     return;
   }
 
-  NS_ASSERTION(NS_IsMainThread(), "DispatchAllGeckoEvents should be called on the main thread");
+  NS_ASSERTION(NS_IsMainThread(), "DispatchAllGoannaEvents should be called on the main thread");
 
   sShouldPurgeThreadQueue = false;
   sPurgeThreadQueueStart = TimeStamp::Now();
@@ -380,7 +380,7 @@ MetroAppShell::ProcessOneNativeEventIfPresent()
     ProcessNativeEvents(CoreProcessEventsOption::CoreProcessEventsOption_ProcessOneIfPresent);
   }
 
-  DispatchAllGeckoEvents();
+  DispatchAllGoannaEvents();
 
   return !!HIWORD(::GetQueueStatus(MOZ_QS_ALLEVENT));
 }
@@ -391,7 +391,7 @@ MetroAppShell::ProcessNextNativeEvent(bool mayWait)
   // NS_ProcessPendingEvents will process thread events *and* call
   // nsBaseAppShell::OnProcessNextEvent to process native events. However
   // we do not want native events getting dispatched while we are trying
-  // to dispatch pending input in DispatchAllGeckoEvents since a native
+  // to dispatch pending input in DispatchAllGoannaEvents since a native
   // event may be a UIA Automation call coming in to check focus.
   if (sBlockNativeEvents) {
     if ((TimeStamp::Now() - sPurgeThreadQueueStart).ToMilliseconds()
@@ -422,7 +422,7 @@ MetroAppShell::NativeCallback()
   // trigger unexpected xpcom event dispatching for the main thread when
   // the thread manager is in the process of shutting down non-main threads,
   // resulting in shutdown hangs.
-  if (MetroApp::sGeckoShuttingDown) {
+  if (MetroApp::sGoannaShuttingDown) {
     return;
   }
 
@@ -433,7 +433,7 @@ MetroAppShell::NativeCallback()
 LRESULT CALLBACK
 MetroAppShell::EventWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-  if (uMsg == sAppShellGeckoMsgId) {
+  if (uMsg == sAppShellGoannaMsgId) {
     MetroAppShell *as = reinterpret_cast<MetroAppShell *>(lParam);
     as->NativeCallback();
     NS_RELEASE(as);
@@ -446,11 +446,11 @@ void
 MetroAppShell::ScheduleNativeEventCallback()
 {
   NS_ADDREF_THIS();
-  PostMessage(mEventWnd, sAppShellGeckoMsgId, 0, reinterpret_cast<LPARAM>(this));
+  PostMessage(mEventWnd, sAppShellGoannaMsgId, 0, reinterpret_cast<LPARAM>(this));
 }
 
 void
-MetroAppShell::DoProcessMoreGeckoEvents()
+MetroAppShell::DoProcessMoreGoannaEvents()
 {
   ScheduleNativeEventCallback();
 }

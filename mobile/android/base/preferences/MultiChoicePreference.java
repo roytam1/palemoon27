@@ -6,7 +6,7 @@
 package org.mozilla.gecko.preferences;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.util.PrefUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -22,7 +22,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 class MultiChoicePreference extends DialogPreference implements DialogInterface.OnMultiChoiceClickListener {
-    private static final String LOGTAG = "GeckoMultiChoicePreference";
+    private static final String LOGTAG = "GoannaMultiChoicePreference";
 
     private boolean mValues[];
     private boolean mPrevValues[];
@@ -206,7 +206,7 @@ class MultiChoicePreference extends DialogPreference implements DialogInterface.
     /* Persists the current data stored by this pref to SharedPreferences. */
     public boolean persist() {
         if (isPersistent()) {
-            final SharedPreferences.Editor edit = GeckoSharedPrefs.forProfile(getContext()).edit();
+            final SharedPreferences.Editor edit = GoannaSharedPrefs.forProfile(getContext()).edit();
             final boolean res = persist(edit);
             edit.apply();
             return res;
@@ -232,7 +232,7 @@ class MultiChoicePreference extends DialogPreference implements DialogInterface.
             return defaultVal;
         }
 
-        final SharedPreferences prefs = GeckoSharedPrefs.forProfile(getContext());
+        final SharedPreferences prefs = GoannaSharedPrefs.forProfile(getContext());
         return PrefUtils.getStringSet(prefs, getKey(), defaultVal);
     }
 

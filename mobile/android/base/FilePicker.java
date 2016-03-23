@@ -4,8 +4,8 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -27,8 +27,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class FilePicker implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoFilePicker";
+public class FilePicker implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaFilePicker";
     private static FilePicker sFilePicker;
     private final Context context;
 
@@ -44,7 +44,7 @@ public class FilePicker implements GeckoEventListener {
 
     protected FilePicker(Context context) {
         this.context = context;
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "FilePicker:Show");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "FilePicker:Show");
     }
 
     @Override
@@ -58,7 +58,7 @@ public class FilePicker implements GeckoEventListener {
             if ("mimeType".equals(mode))
                 mimeType = message.optString("mimeType");
             else if ("extension".equals(mode))
-                mimeType = GeckoAppShell.getMimeTypeFromExtensions(message.optString("extensions"));
+                mimeType = GoannaAppShell.getMimeTypeFromExtensions(message.optString("extensions"));
 
             showFilePickerAsync(title, mimeType, new ResultHandler() {
                 @Override
@@ -70,7 +70,7 @@ public class FilePicker implements GeckoEventListener {
                     }
 
 
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(
                         "FilePicker:Result", message.toString()));
                 }
             }, tabId);

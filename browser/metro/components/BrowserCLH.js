@@ -49,7 +49,7 @@ function resolveURIInternal(aCmdLine, aArgument) {
  * Returns:
  *  "new profile" if this is the first run with a new profile.
  *  "new version" if this is the first run with a build with a different
- *                      Gecko milestone (i.e. right after an upgrade).
+ *                      Goanna milestone (i.e. right after an upgrade).
  *  "none" otherwise.
  */
 function needHomepageOverride() {

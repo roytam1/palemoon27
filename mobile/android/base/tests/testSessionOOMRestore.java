@@ -12,7 +12,7 @@ import android.os.Bundle;
  */
 public class testSessionOOMRestore extends SessionTest {
     private Session mSession;
-    private static final String PREFS_NAME = "GeckoApp";
+    private static final String PREFS_NAME = "GoannaApp";
     private static final String PREFS_ALLOW_STATE_BUNDLE = "allowStateBundle";
 
     @Override
@@ -48,7 +48,7 @@ public class testSessionOOMRestore extends SessionTest {
     }
 
     public void testSessionOOMRestore() throws Exception {
-        blockForGeckoReady();
+        blockForGoannaReady();
         verifySessionTabs(mSession);
     }
 }

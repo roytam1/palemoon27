@@ -22,7 +22,7 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 /*
- * A part of the work of GeckoNetworkManager is to give an general connection
+ * A part of the work of GoannaNetworkManager is to give an general connection
  * type based on the current connection. According to spec of NetworkInformation
  * API version 3, connection types include: bluetooth, cellular, ethernet, none,
  * wifi and other. The objective of providing such general connection is due to
@@ -34,10 +34,10 @@ import android.util.Log;
  * connection type defined in Network Information API version 3.
  */
 
-public class GeckoNetworkManager extends BroadcastReceiver implements NativeEventListener {
-    private static final String LOGTAG = "GeckoNetworkManager";
+public class GoannaNetworkManager extends BroadcastReceiver implements NativeEventListener {
+    private static final String LOGTAG = "GoannaNetworkManager";
 
-    private static GeckoNetworkManager sInstance;
+    private static GoannaNetworkManager sInstance;
 
     public static void destroy() {
         if (sInstance != null) {
@@ -67,12 +67,12 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
         MNC
     }
 
-    private GeckoNetworkManager() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "Wifi:Enable");
+    private GoannaNetworkManager() {
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "Wifi:Enable");
     }
 
     private void onDestroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "Wifi:Enable");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "Wifi:Enable");
     }
 
     private volatile ConnectionType mConnectionType = ConnectionType.NONE;
@@ -81,7 +81,7 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
     // Whether the manager should be listening to Network Information changes.
     private boolean mShouldBeListening;
 
-    // Whether the manager should notify Gecko that a change in Network
+    // Whether the manager should notify Goanna that a change in Network
     // Information happened.
     private boolean mShouldNotify;
 
@@ -90,9 +90,9 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
     private volatile Context mApplicationContext;
     private boolean mIsListening;
 
-    public static GeckoNetworkManager getInstance() {
+    public static GoannaNetworkManager getInstance() {
         if (sInstance == null) {
-            sInstance = new GeckoNetworkManager();
+            sInstance = new GoannaNetworkManager();
         }
 
         return sInstance;
@@ -216,7 +216,7 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
             return;
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createNetworkEvent(
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createNetworkEvent(
                                        newConnectionType.value,
                                        newConnectionType == ConnectionType.WIFI,
                                        wifiDhcpGatewayAddress()));
@@ -317,16 +317,16 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
     /**
      * These are called from JavaScript ctypes. Avoid letting ProGuard delete them.
      *
-     * Note that these methods must only be called after GeckoAppShell has been
+     * Note that these methods must only be called after GoannaAppShell has been
      * initialized: they depend on access to the context.
      */
     @JNITarget
     public static int getMCC() {
-        return getNetworkOperator(InfoType.MCC, GeckoAppShell.getContext().getApplicationContext());
+        return getNetworkOperator(InfoType.MCC, GoannaAppShell.getContext().getApplicationContext());
     }
 
     @JNITarget
     public static int getMNC() {
-        return getNetworkOperator(InfoType.MNC, GeckoAppShell.getContext().getApplicationContext());
+        return getNetworkOperator(InfoType.MNC, GoannaAppShell.getContext().getApplicationContext());
     }
 }

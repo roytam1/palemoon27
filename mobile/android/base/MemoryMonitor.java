@@ -21,7 +21,7 @@ import android.util.Log;
 
 /**
   * This is a utility class to keep track of how much memory and disk-space pressure
-  * the system is under. It receives input from GeckoActivity via the onLowMemory() and
+  * the system is under. It receives input from GoannaActivity via the onLowMemory() and
   * onTrimMemory() functions, and also listens for some system intents related to
   * disk-space notifications. Internally it will track how much memory and disk pressure
   * the system is under, and perform various actions to help alleviate the pressure.
@@ -37,7 +37,7 @@ import android.util.Log;
   * is allowed to pick up the MemoryMonitor lock, but not vice-versa.
   */
 class MemoryMonitor extends BroadcastReceiver {
-    private static final String LOGTAG = "GeckoMemoryMonitor";
+    private static final String LOGTAG = "GoannaMemoryMonitor";
     private static final String ACTION_MEMORY_DUMP = "org.mozilla.gecko.MEMORY_DUMP";
     private static final String ACTION_FORCE_PRESSURE = "org.mozilla.gecko.FORCE_MEMORY_PRESSURE";
 
@@ -81,9 +81,9 @@ class MemoryMonitor extends BroadcastReceiver {
     public void onLowMemory() {
         Log.d(LOGTAG, "onLowMemory() notification received");
         if (increaseMemoryPressure(MEMORY_PRESSURE_HIGH)) {
-            // We need to wait on Gecko here, because if we haven't reduced
+            // We need to wait on Goanna here, because if we haven't reduced
             // memory usage enough when we return from this, Android will kill us.
-            GeckoAppShell.sendEventToGeckoSync(GeckoEvent.createNoOpEvent());
+            GoannaAppShell.sendEventToGoannaSync(GoannaEvent.createNoOpEvent());
         }
     }
 
@@ -123,7 +123,7 @@ class MemoryMonitor extends BroadcastReceiver {
             if (label == null) {
                 label = "default";
             }
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Memory:Dump", label));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Memory:Dump", label));
         } else if (ACTION_FORCE_PRESSURE.equals(intent.getAction())) {
             increaseMemoryPressure(MEMORY_PRESSURE_HIGH);
         }
@@ -157,8 +157,8 @@ class MemoryMonitor extends BroadcastReceiver {
         // TODO hook in memory-reduction stuff for different levels here
         if (level >= MEMORY_PRESSURE_MEDIUM) {
             //Only send medium or higher events because that's all that is used right now
-            if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-                GeckoAppShell.dispatchMemoryPressure();
+            if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
+                GoannaAppShell.dispatchMemoryPressure();
             }
 
             Favicons.clearMemCache();
@@ -222,10 +222,10 @@ class MemoryMonitor extends BroadcastReceiver {
             this.mContext = context;
             // Since this may be called while Fennec is in the background, we don't want to risk accidentally
             // using the wrong context. If the profile we get is a guest profile, use the default profile instead.
-            GeckoProfile profile = GeckoProfile.get(mContext);
+            GoannaProfile profile = GoannaProfile.get(mContext);
             if (profile.inGuestMode()) {
                 // If it was the guest profile, switch to the default one.
-                profile = GeckoProfile.get(mContext, GeckoProfile.DEFAULT_PROFILE);
+                profile = GoannaProfile.get(mContext, GoannaProfile.DEFAULT_PROFILE);
             }
 
             mDB = profile.getDB();
@@ -234,7 +234,7 @@ class MemoryMonitor extends BroadcastReceiver {
         @Override
         public void run() {
             // this might get run right on startup, if so wait 10 seconds and try again
-            if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+            if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
                 ThreadUtils.getBackgroundHandler().postDelayed(this, 10000);
                 return;
             }

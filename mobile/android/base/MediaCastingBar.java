@@ -4,7 +4,7 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONObject;
@@ -19,8 +19,8 @@ import android.widget.ImageButton;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-public class MediaCastingBar extends RelativeLayout implements View.OnClickListener, GeckoEventListener  {
-    private static final String LOGTAG = "GeckoMediaCastingBar";
+public class MediaCastingBar extends RelativeLayout implements View.OnClickListener, GoannaEventListener  {
+    private static final String LOGTAG = "GoannaMediaCastingBar";
 
     private TextView mCastingTo;
     private ImageButton mMediaPlay;
@@ -32,7 +32,7 @@ public class MediaCastingBar extends RelativeLayout implements View.OnClickListe
     public MediaCastingBar(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Casting:Started",
             "Casting:Stopped");
     }
@@ -69,7 +69,7 @@ public class MediaCastingBar extends RelativeLayout implements View.OnClickListe
     }
 
     public void onDestroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "Casting:Started",
             "Casting:Stopped");
     }
@@ -80,19 +80,19 @@ public class MediaCastingBar extends RelativeLayout implements View.OnClickListe
         final int viewId = v.getId();
 
         if (viewId == R.id.media_play) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Casting:Play", ""));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Casting:Play", ""));
             mMediaPlay.setVisibility(GONE);
             mMediaPause.setVisibility(VISIBLE);
         } else if (viewId == R.id.media_pause) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Casting:Pause", ""));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Casting:Pause", ""));
             mMediaPause.setVisibility(GONE);
             mMediaPlay.setVisibility(VISIBLE);
         } else if (viewId == R.id.media_stop) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Casting:Stop", ""));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Casting:Stop", ""));
         }
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
     @Override
     public void handleMessage(final String event, final JSONObject message) {
         final String device = message.optString("device");

@@ -533,7 +533,7 @@ BluetoothHfpManager::NotifyConnectionStateChanged(const nsAString& aType)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  // Notify Gecko observers
+  // Notify Goanna observers
   nsCOMPtr<nsIObserverService> obs =
     do_GetService("@mozilla.org/observer-service;1");
   NS_ENSURE_TRUE_VOID(obs);

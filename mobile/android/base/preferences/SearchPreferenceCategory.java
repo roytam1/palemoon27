@@ -14,15 +14,15 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.TelemetryContract.Method;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
-public class SearchPreferenceCategory extends CustomListCategory implements GeckoEventListener {
+public class SearchPreferenceCategory extends CustomListCategory implements GoannaEventListener {
     public static final String LOGTAG = "SearchPrefCategory";
 
     public SearchPreferenceCategory(Context context) {
@@ -41,23 +41,23 @@ public class SearchPreferenceCategory extends CustomListCategory implements Geck
     protected void onAttachedToActivity() {
         super.onAttachedToActivity();
 
-        // Register for SearchEngines messages and request list of search engines from Gecko.
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "SearchEngines:Data");
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:GetVisible", null));
+        // Register for SearchEngines messages and request list of search engines from Goanna.
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "SearchEngines:Data");
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SearchEngines:GetVisible", null));
     }
 
     @Override
     protected void onPrepareForRemoval() {
         super.onPrepareForRemoval();
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "SearchEngines:Data");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "SearchEngines:Data");
     }
 
     @Override
     public void setDefault(CustomListPreference item) {
         super.setDefault(item);
 
-        sendGeckoEngineEvent("SearchEngines:SetDefault", item.getTitle().toString());
+        sendGoannaEngineEvent("SearchEngines:SetDefault", item.getTitle().toString());
 
         final String identifier = ((SearchEnginePreference) item).getIdentifier();
         Telemetry.sendUIEvent(TelemetryContract.Event.SEARCH_SET_DEFAULT, Method.DIALOG, identifier);
@@ -67,7 +67,7 @@ public class SearchPreferenceCategory extends CustomListCategory implements Geck
     public void uninstall(CustomListPreference item) {
         super.uninstall(item);
 
-        sendGeckoEngineEvent("SearchEngines:Remove", item.getTitle().toString());
+        sendGoannaEngineEvent("SearchEngines:Remove", item.getTitle().toString());
 
         final String identifier = ((SearchEnginePreference) item).getIdentifier();
         Telemetry.sendUIEvent(TelemetryContract.Event.SEARCH_REMOVE, Method.DIALOG, identifier);
@@ -81,7 +81,7 @@ public class SearchPreferenceCategory extends CustomListCategory implements Geck
             try {
                 engines = data.getJSONArray("searchEngines");
             } catch (JSONException e) {
-                Log.e(LOGTAG, "Unable to decode search engine data from Gecko.", e);
+                Log.e(LOGTAG, "Unable to decode search engine data from Goanna.", e);
                 return;
             }
 
@@ -128,18 +128,18 @@ public class SearchPreferenceCategory extends CustomListCategory implements Geck
     }
 
     /**
-     * Helper method to send a particular event string to Gecko with an associated engine name.
+     * Helper method to send a particular event string to Goanna with an associated engine name.
      * @param event The type of event to send.
      * @param engine The engine to which the event relates.
      */
-    private void sendGeckoEngineEvent(String event, String engineName) {
+    private void sendGoannaEngineEvent(String event, String engineName) {
         JSONObject json = new JSONObject();
         try {
             json.put("engine", engineName);
         } catch (JSONException e) {
-            Log.e(LOGTAG, "JSONException creating search engine configuration change message for Gecko.", e);
+            Log.e(LOGTAG, "JSONException creating search engine configuration change message for Goanna.", e);
             return;
         }
-        GeckoAppShell.notifyGeckoOfEvent(GeckoEvent.createBroadcastEvent(event, json.toString()));
+        GoannaAppShell.notifyGoannaOfEvent(GoannaEvent.createBroadcastEvent(event, json.toString()));
     }
 }

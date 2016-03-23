@@ -245,7 +245,7 @@ void nsMenuItemX::SetKeyEquiv()
         nsAutoString keyCodeName;
         keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::keycode, keyCodeName);
         uint32_t charCode =
-          nsCocoaUtils::ConvertGeckoNameToMacCharCode(keyCodeName);
+          nsCocoaUtils::ConvertGoannaNameToMacCharCode(keyCodeName);
         if (charCode) {
           keyChar.Assign(charCode);
         }
@@ -256,9 +256,9 @@ void nsMenuItemX::SetKeyEquiv()
 
       nsAutoString modifiersStr;
       keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiersStr);
-      uint8_t modifiers = nsMenuUtilsX::GeckoModifiersForNodeAttribute(modifiersStr);
+      uint8_t modifiers = nsMenuUtilsX::GoannaModifiersForNodeAttribute(modifiersStr);
 
-      unsigned int macModifiers = nsMenuUtilsX::MacModifiersForGeckoModifiers(modifiers);
+      unsigned int macModifiers = nsMenuUtilsX::MacModifiersForGoannaModifiers(modifiers);
       [mNativeMenuItem setKeyEquivalentModifierMask:macModifiers];
 
       NSString *keyEquivalent = [[NSString stringWithCharacters:(unichar*)keyChar.get()

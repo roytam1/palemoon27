@@ -8,7 +8,7 @@
 #define mozilla_layers_AsyncPanZoomController_h
 
 #include "CrossProcessMutex.h"
-#include "mozilla/layers/GeckoContentController.h"
+#include "mozilla/layers/GoannaContentController.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
@@ -100,7 +100,7 @@ public:
   AsyncPanZoomController(uint64_t aLayersId,
                          APZCTreeManager* aTreeManager,
                          const nsRefPtr<InputQueue>& aInputQueue,
-                         GeckoContentController* aController,
+                         GoannaContentController* aController,
                          GestureBehavior aGestures = DEFAULT_GESTURES);
 
   // --------------------------------------------------------------------------
@@ -451,7 +451,7 @@ protected:
   nsEventStatus OnDoubleTap(const TapGestureInput& aEvent);
 
   /**
-   * Helper method to cancel any gesture currently going to Gecko. Used
+   * Helper method to cancel any gesture currently going to Goanna. Used
    * primarily when a user taps the screen over some clickable content but then
    * pans down instead of letting go (i.e. to cancel a previous touch so that a
    * new one can properly take effect.
@@ -545,8 +545,8 @@ protected:
   void TrackTouch(const MultiTouchInput& aEvent);
 
   /**
-   * Utility function to send updated FrameMetrics to Gecko so that it can paint
-   * the displayport area. Calls into GeckoContentController to do the actual
+   * Utility function to send updated FrameMetrics to Goanna so that it can paint
+   * the displayport area. Calls into GoannaContentController to do the actual
    * work. Note that only one paint request can be active at a time. If a paint
    * request is made while a paint is currently happening, it gets queued up. If
    * a new paint request arrives before a paint is completed, the old request
@@ -558,7 +558,7 @@ protected:
    * Tell the paint throttler to request a content repaint with the given
    * metrics.  (Helper function used by RequestContentRepaint.) If aThrottled
    * is set to false, the repaint request is sent directly without going through
-   * the paint throttler. In particular, the GeckoContentController::RequestContentRepaint
+   * the paint throttler. In particular, the GoannaContentController::RequestContentRepaint
    * function will be invoked before this function returns.
    */
   void RequestContentRepaint(FrameMetrics& aFrameMetrics, bool aThrottled = true);
@@ -569,7 +569,7 @@ protected:
   void DispatchRepaintRequest(const FrameMetrics& aFrameMetrics);
 
   /**
-   * Gets the current frame metrics. This is *not* the Gecko copy stored in the
+   * Gets the current frame metrics. This is *not* the Goanna copy stored in the
    * layers code.
    */
   const FrameMetrics& GetFrameMetrics() const;
@@ -600,7 +600,7 @@ protected:
    * NOTE: This must be converted to CSSPoint relative to the child
    * document before sending over IPC.
    */
-  bool ConvertToGecko(const ParentLayerPoint& aPoint, CSSPoint* aOut);
+  bool ConvertToGoanna(const ParentLayerPoint& aPoint, CSSPoint* aOut);
 
   enum AxisLockMode {
     FREE,     /* No locking at all */
@@ -623,12 +623,12 @@ protected:
   /* Access to the following two fields is protected by the mRefPtrMonitor,
      since they are accessed on the UI thread but can be cleared on the
      compositor thread. */
-  nsRefPtr<GeckoContentController> mGeckoContentController;
+  nsRefPtr<GoannaContentController> mGoannaContentController;
   nsRefPtr<GestureEventListener> mGestureEventListener;
   mutable Monitor mRefPtrMonitor;
 
   /* Utility functions that return a addrefed pointer to the corresponding fields. */
-  already_AddRefed<GeckoContentController> GetGeckoContentController() const;
+  already_AddRefed<GoannaContentController> GetGoannaContentController() const;
   already_AddRefed<GestureEventListener> GetGestureEventListener() const;
 
   // If we are sharing our frame metrics with content across processes
@@ -656,16 +656,16 @@ private:
   // stored here so that it is accessible from the UI/controller thread.
   // These are the metrics at last content paint, the most recent
   // values we were notified of in NotifyLayersUpdate(). Since it represents
-  // the Gecko state, it should be used as a basis for untransformation when
-  // sending messages back to Gecko.
+  // the Goanna state, it should be used as a basis for untransformation when
+  // sending messages back to Goanna.
   FrameMetrics mLastContentPaintMetrics;
   // The last metrics that we requested a paint for. These are used to make sure
   // that we're not requesting a paint of the same thing that's already drawn.
   // If we don't do this check, we don't get a ShadowLayersUpdated back.
   FrameMetrics mLastPaintRequestMetrics;
-  // The last metrics that we actually sent to Gecko. This allows us to transform
-  // inputs into a coordinate space that Gecko knows about. This assumes the pipe
-  // through which input events and repaint requests are sent to Gecko operates
+  // The last metrics that we actually sent to Goanna. This allows us to transform
+  // inputs into a coordinate space that Goanna knows about. This assumes the pipe
+  // through which input events and repaint requests are sent to Goanna operates
   // in a FIFO manner.
   FrameMetrics mLastDispatchedPaintMetrics;
 

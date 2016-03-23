@@ -17,7 +17,7 @@ import java.util.NoSuchElementException;
  * Class providing static utility methods for decoding favicons.
  */
 public class FaviconDecoder {
-    private static final String LOG_TAG = "GeckoFaviconDecoder";
+    private static final String LOG_TAG = "GoannaFaviconDecoder";
 
     static enum ImageMagicNumbers {
         // It is irritating that Java bytes are signed...

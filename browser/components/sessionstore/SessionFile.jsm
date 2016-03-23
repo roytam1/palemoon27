@@ -184,7 +184,7 @@ let SessionFileInternal = {
     },
   }),
 
-  // The ID of the latest version of Gecko for which we have an upgrade backup
+  // The ID of the latest version of Goanna for which we have an upgrade backup
   // or |undefined| if no upgrade backup was ever written.
   get latestUpgradeBackupID() {
     try {

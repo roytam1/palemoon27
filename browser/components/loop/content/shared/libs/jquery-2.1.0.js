@@ -1223,7 +1223,7 @@ setDocument = Sizzle.setDocument = function( node ) {
       support.disconnectedMatch = matches.call( div, "div" );
 
       // This should fail with an exception
-      // Gecko does not error, returns false instead
+      // Goanna does not error, returns false instead
       matches.call( div, "[s!='']:x" );
       rbuggyMatches.push( "!=", pseudos );
     });

@@ -518,7 +518,7 @@ nsPrintSettingsGTK::SetPaperName(const char16_t * aPaperName)
 {
   NS_ConvertUTF16toUTF8 gtkPaperName(aPaperName);
 
-  // Convert these Gecko names to GTK names
+  // Convert these Goanna names to GTK names
   if (gtkPaperName.EqualsIgnoreCase("letter"))
     gtkPaperName.AssignLiteral(GTK_PAPER_NAME_LETTER);
   else if (gtkPaperName.EqualsIgnoreCase("legal"))
@@ -542,9 +542,9 @@ nsPrintSettingsGTK::SetPaperName(const char16_t * aPaperName)
 }
 
 GtkUnit
-nsPrintSettingsGTK::GetGTKUnit(int16_t aGeckoUnit)
+nsPrintSettingsGTK::GetGTKUnit(int16_t aGoannaUnit)
 {
-  if (aGeckoUnit == kPaperSizeMillimeters)
+  if (aGoannaUnit == kPaperSizeMillimeters)
     return GTK_UNIT_MM;
   else
     return GTK_UNIT_INCH;

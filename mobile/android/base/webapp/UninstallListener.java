@@ -6,10 +6,10 @@
 package org.mozilla.gecko.webapp;
 
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaApp;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.ActivityManager;
@@ -34,7 +34,7 @@ import java.util.ArrayList;
 
 public class UninstallListener extends BroadcastReceiver {
 
-    private static final String LOGTAG = "GeckoWebappUninstallListener";
+    private static final String LOGTAG = "GoannaWebappUninstallListener";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -70,8 +70,8 @@ public class UninstallListener extends BroadcastReceiver {
         JSONArray jsonPackages = new JSONArray();
 
         for (String packageName : packageNames) {
-            // Although its unlikely that an app is not allocated, but is installed in Gecko, it
-            // is possible. We always send the packageName to JS to be removed from Gecko's registry.
+            // Although its unlikely that an app is not allocated, but is installed in Goanna, it
+            // is possible. We always send the packageName to JS to be removed from Goanna's registry.
             jsonPackages.put(packageName);
 
             int index = allocator.getIndexForApp(packageName);
@@ -98,14 +98,14 @@ public class UninstallListener extends BroadcastReceiver {
             }
 
             // then nuke the profile
-            GeckoProfile.removeProfile(context, "webapp" + index);
+            GoannaProfile.removeProfile(context, "webapp" + index);
         }
 
         try {
             message.put("apkPackageNames", jsonPackages);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Webapps:AutoUninstall", message.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Webapps:AutoUninstall", message.toString()));
         } catch (JSONException e) {
-            Log.e(LOGTAG, "Error sending uninstall packages to Gecko", e);
+            Log.e(LOGTAG, "Error sending uninstall packages to Goanna", e);
         }
     }
 
@@ -136,9 +136,9 @@ public class UninstallListener extends BroadcastReceiver {
     }
 
     public static class DelayedStartupTask implements Runnable {
-        private final GeckoApp mApp;
+        private final GoannaApp mApp;
 
-        public DelayedStartupTask(GeckoApp app) {
+        public DelayedStartupTask(GoannaApp app) {
             mApp = app;
         }
 

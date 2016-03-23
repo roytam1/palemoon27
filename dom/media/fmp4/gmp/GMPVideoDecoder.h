@@ -11,7 +11,7 @@
 #include "ImageContainer.h"
 #include "MediaDataDecoderProxy.h"
 #include "PlatformDecoderModule.h"
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 #include "mp4_demuxer/DecoderData.h"
 
 namespace mozilla {
@@ -98,7 +98,7 @@ protected:
 private:
   const mp4_demuxer::VideoDecoderConfig& mConfig;
   MediaDataDecoderCallbackProxy* mCallback;
-  nsCOMPtr<mozIGeckoMediaPluginService> mMPS;
+  nsCOMPtr<mozIGoannaMediaPluginService> mMPS;
   GMPVideoDecoderProxy* mGMP;
   GMPVideoHost* mHost;
   nsAutoPtr<VideoCallbackAdapter> mAdapter;

@@ -91,7 +91,7 @@ static nsPluginInstanceOwner* sFullScreenInstance = nullptr;
 using namespace mozilla::dom;
 
 #include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #endif
 
 using namespace mozilla;
@@ -222,7 +222,7 @@ nsPluginInstanceOwner::GetImageContainer()
   nsRefPtr<ImageContainer> container;
 
 #if MOZ_WIDGET_ANDROID
-  // Right now we only draw with Gecko layers on Honeycomb and higher. See Paint()
+  // Right now we only draw with Goanna layers on Honeycomb and higher. See Paint()
   // for what we do on other versions.
   if (AndroidBridge::Bridge()->GetAPIVersion() < 11)
     return nullptr;
@@ -689,7 +689,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
   // we only attempt to get the nearest window if this really is a "windowless" plugin so as not
   // to change any behaviour for the much more common windowed plugins,
   // though why this method would even be being called for a windowed plugin escapes me.
-  if (XRE_GetProcessType() != GeckoProcessType_Content &&
+  if (XRE_GetProcessType() != GoannaProcessType_Content &&
       mPluginWindow && mPluginWindow->type == NPWindowTypeDrawable) {
     // it turns out that flash also uses this window for determining focus, and is currently
     // unable to show a caret correctly if we return the enclosing window. Therefore for
@@ -910,27 +910,27 @@ NPBool nsPluginInstanceOwner::ConvertPointNoPuppet(nsIWidget *widget,
 
   nsIntRect pluginScreenRect = pluginFrame->GetScreenRect();
 
-  double screenXGecko, screenYGecko;
+  double screenXGoanna, screenYGoanna;
   switch (sourceSpace) {
     case NPCoordinateSpacePlugin:
-      screenXGecko = pluginScreenRect.x + sourceX;
-      screenYGecko = pluginScreenRect.y + sourceY;
+      screenXGoanna = pluginScreenRect.x + sourceX;
+      screenYGoanna = pluginScreenRect.y + sourceY;
       break;
     case NPCoordinateSpaceWindow:
-      screenXGecko = windowX + sourceX;
-      screenYGecko = windowY + (windowHeight - sourceY);
+      screenXGoanna = windowX + sourceX;
+      screenYGoanna = windowY + (windowHeight - sourceY);
       break;
     case NPCoordinateSpaceFlippedWindow:
-      screenXGecko = windowX + sourceX;
-      screenYGecko = windowY + sourceY;
+      screenXGoanna = windowX + sourceX;
+      screenYGoanna = windowY + sourceY;
       break;
     case NPCoordinateSpaceScreen:
-      screenXGecko = sourceX;
-      screenYGecko = screenHeight - sourceY;
+      screenXGoanna = sourceX;
+      screenYGoanna = screenHeight - sourceY;
       break;
     case NPCoordinateSpaceFlippedScreen:
-      screenXGecko = sourceX;
-      screenYGecko = sourceY;
+      screenXGoanna = sourceX;
+      screenYGoanna = sourceY;
       break;
     default:
       return false;
@@ -939,24 +939,24 @@ NPBool nsPluginInstanceOwner::ConvertPointNoPuppet(nsIWidget *widget,
   double destXCocoa, destYCocoa;
   switch (destSpace) {
     case NPCoordinateSpacePlugin:
-      destXCocoa = screenXGecko - pluginScreenRect.x;
-      destYCocoa = screenYGecko - pluginScreenRect.y;
+      destXCocoa = screenXGoanna - pluginScreenRect.x;
+      destYCocoa = screenYGoanna - pluginScreenRect.y;
       break;
     case NPCoordinateSpaceWindow:
-      destXCocoa = screenXGecko - windowX;
-      destYCocoa = windowHeight - (screenYGecko - windowY);
+      destXCocoa = screenXGoanna - windowX;
+      destYCocoa = windowHeight - (screenYGoanna - windowY);
       break;
     case NPCoordinateSpaceFlippedWindow:
-      destXCocoa = screenXGecko - windowX;
-      destYCocoa = screenYGecko - windowY;
+      destXCocoa = screenXGoanna - windowX;
+      destYCocoa = screenYGoanna - windowY;
       break;
     case NPCoordinateSpaceScreen:
-      destXCocoa = screenXGecko;
-      destYCocoa = screenHeight - screenYGecko;
+      destXCocoa = screenXGoanna;
+      destYCocoa = screenHeight - screenYGoanna;
       break;
     case NPCoordinateSpaceFlippedScreen:
-      destXCocoa = screenXGecko;
-      destYCocoa = screenYGecko;
+      destXCocoa = screenXGoanna;
+      destYCocoa = screenYGoanna;
       break;
     default:
       return false;
@@ -1365,7 +1365,7 @@ void nsPluginInstanceOwner::RemovePluginView()
   if (!mInstance || !mJavaView)
     return;
 
-  widget::GeckoAppShell::RemovePluginView(
+  widget::GoannaAppShell::RemovePluginView(
       jni::Object::Ref::From(jobject(mJavaView)), mFullScreen);
   AndroidBridge::GetJNIEnv()->DeleteGlobalRef((jobject)mJavaView);
   mJavaView = nullptr;
@@ -2887,7 +2887,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
       parentWidget = nsContentUtils::WidgetForDocument(doc);
 #ifndef XP_MACOSX
       // If we're running in the content process, we need a remote widget created in chrome.
-      if (XRE_GetProcessType() == GeckoProcessType_Content) {
+      if (XRE_GetProcessType() == GoannaProcessType_Content) {
         nsCOMPtr<nsIDOMWindow> window = doc->GetWindow();
         if (window) {
           nsCOMPtr<nsIDOMWindow> topWindow;
@@ -3009,7 +3009,7 @@ void nsPluginInstanceOwner::FixUpPluginWindow(int32_t inPaintState)
     mPluginWindow->clipRect.bottom = mPluginWindow->clipRect.top;
     mPluginWindow->clipRect.right  = mPluginWindow->clipRect.left;
   }
-  else if (XRE_GetProcessType() != GeckoProcessType_Default)
+  else if (XRE_GetProcessType() != GoannaProcessType_Default)
   {
     // For e10s we only support async windowless plugin. This means that
     // we're always going to allocate a full window for the plugin to draw
@@ -3203,7 +3203,7 @@ nsPluginInstanceOwner::UpdateDocumentActiveState(bool aIsActive)
   // to be forwarded over after the active state is updated. If we
   // don't hide plugin widgets in hidden tabs, the native child window
   // in chrome will remain visible after a tab switch.
-  if (mWidget && XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (mWidget && XRE_GetProcessType() == GoannaProcessType_Content) {
     mWidget->Show(aIsActive);
     mWidget->Enable(aIsActive);
   }

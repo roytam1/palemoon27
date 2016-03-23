@@ -296,7 +296,7 @@ nsresult InitOSFileConstants()
   }
 
   // For other directories, ignore errors (they may be undefined on
-  // some platforms or in non-Firefox embeddings of Gecko).
+  // some platforms or in non-Firefox embeddings of Goanna).
 
   GetPathToSpecialDir(NS_OS_TEMP_DIR, paths->tmpDir);
   GetPathToSpecialDir(NS_OS_HOME_DIR, paths->homeDir);

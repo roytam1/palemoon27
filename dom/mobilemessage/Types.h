@@ -14,7 +14,7 @@ namespace mobilemessage {
 
 // For MmsMessageData.state and SmsMessageData.deliveryState
 // Please keep the following files in sync with enum below:
-// mobile/android/base/GeckoSmsManager.java
+// mobile/android/base/GoannaSmsManager.java
 enum DeliveryState {
   eDeliveryState_Sent = 0,
   eDeliveryState_Received,

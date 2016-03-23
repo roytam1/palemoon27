@@ -5,8 +5,8 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.gfx.LayerView.DrawListener;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
@@ -26,9 +26,9 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
 
-class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
+class GoannaLayerClient implements LayerView.Listener, PanZoomTarget
 {
-    private static final String LOGTAG = "GeckoLayerClient";
+    private static final String LOGTAG = "GoannaLayerClient";
 
     private LayerRenderer mLayerRenderer;
     private boolean mLayerRendererInitialized;
@@ -43,15 +43,15 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 
     private VirtualLayer mRootLayer;
 
-    /* The Gecko viewport as per the UI thread. Must be touched only on the UI thread.
-     * If any events being sent to Gecko that are relative to the Gecko viewport position,
+    /* The Goanna viewport as per the UI thread. Must be touched only on the UI thread.
+     * If any events being sent to Goanna that are relative to the Goanna viewport position,
      * they must (a) be relative to this viewport, and (b) be sent on the UI thread to
      * avoid races. As long as these two conditions are satisfied, and the events being
-     * sent to Gecko are processed in FIFO order, the events will properly be relative
-     * to the Gecko viewport position. Note that if Gecko updates its viewport independently,
+     * sent to Goanna are processed in FIFO order, the events will properly be relative
+     * to the Goanna viewport position. Note that if Goanna updates its viewport independently,
      * we get notified synchronously and also update this on the UI thread.
      */
-    private ImmutableViewportMetrics mGeckoViewport;
+    private ImmutableViewportMetrics mGoannaViewport;
 
     /*
      * The viewport metrics being used to draw the current frame. This is only
@@ -91,7 +91,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 
     private ZoomConstraints mZoomConstraints;
 
-    private boolean mGeckoIsReady;
+    private boolean mGoannaIsReady;
 
     private final PanZoomController mPanZoomController;
     private final LayerMarginsAnimator mMarginsAnimator;
@@ -106,7 +106,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
      */
     private volatile boolean mContentDocumentIsDisplayed;
 
-    public GeckoLayerClient(Context context, LayerView view, EventDispatcher eventDispatcher) {
+    public GoannaLayerClient(Context context, LayerView view, EventDispatcher eventDispatcher) {
         // we can fill these in with dummy values because they are always written
         // to before being read
         mContext = context;
@@ -146,9 +146,9 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         mPanZoomController.setOverscrollHandler(listener);
     }
 
-    /** Attaches to root layer so that Gecko appears. */
-    public void notifyGeckoReady() {
-        mGeckoIsReady = true;
+    /** Attaches to root layer so that Goanna appears. */
+    public void notifyGoannaReady() {
+        mGoannaIsReady = true;
 
         mRootLayer = new VirtualLayer(new IntSize(mView.getWidth(), mView.getHeight()));
         mLayerRenderer = mView.getRenderer();
@@ -157,7 +157,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 
         DisplayPortCalculator.initPrefs();
 
-        // Gecko being ready is one of the two conditions (along with having an available
+        // Goanna being ready is one of the two conditions (along with having an available
         // surface) that cause us to create the compositor. So here, now that we know gecko
         // is ready, call updateCompositor() to see if we can actually do the creation.
         // This needs to run on the UI thread so that the surface validity can't change on
@@ -195,7 +195,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     }
 
     Layer getRoot() {
-        return mGeckoIsReady ? mRootLayer : null;
+        return mGoannaIsReady ? mRootLayer : null;
     }
 
     public LayerView getView() {
@@ -217,7 +217,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     void setViewportSize(int width, int height) {
         mViewportMetrics = mViewportMetrics.setViewportSize(width, height);
 
-        if (mGeckoIsReady) {
+        if (mGoannaIsReady) {
             // here we send gecko a resize message. The code in browser.js is responsible for
             // picking up on that resize event, modifying the viewport as necessary, and informing
             // us of the new viewport.
@@ -225,7 +225,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
             // the following call also sends gecko a message, which will be processed after the resize
             // message above has updated the viewport. this message ensures that if we have just put
             // focus in a text field, we scroll the content so that the text field is in view.
-            GeckoAppShell.viewSizeChanged();
+            GoannaAppShell.viewSizeChanged();
         }
     }
 
@@ -237,7 +237,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         return mMarginsAnimator;
     }
 
-    /* Informs Gecko that the screen size has changed. */
+    /* Informs Goanna that the screen size has changed. */
     private void sendResizeEventIfNecessary(boolean force) {
         DisplayMetrics metrics = mContext.getResources().getDisplayMetrics();
 
@@ -262,10 +262,10 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
             Log.d(LOGTAG, "Window-size changed to " + mWindowSize);
         }
 
-        GeckoEvent event = GeckoEvent.createSizeChangedEvent(mWindowSize.width, mWindowSize.height,
+        GoannaEvent event = GoannaEvent.createSizeChangedEvent(mWindowSize.width, mWindowSize.height,
                                                              mScreenSize.width, mScreenSize.height);
-        GeckoAppShell.sendEventToGecko(event);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Window:Resize", ""));
+        GoannaAppShell.sendEventToGoanna(event);
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Window:Resize", ""));
     }
 
     /** Sets the current page rect. You must hold the monitor while calling this. */
@@ -359,13 +359,13 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         }
 
         mDisplayPort = displayPort;
-        mGeckoViewport = clampedMetrics;
+        mGoannaViewport = clampedMetrics;
 
         if (mRecordDrawTimes) {
             mDrawTimingQueue.add(displayPort);
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createViewportEvent(clampedMetrics, displayPort));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createViewportEvent(clampedMetrics, displayPort));
     }
 
     /** Aborts any pan/zoom animation that is currently in progress. */
@@ -407,20 +407,20 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
                 break;
             case PAGE_SIZE:
                 // adjust the page dimensions to account for differences in zoom
-                // between the rendered content (which is what Gecko tells us)
+                // between the rendered content (which is what Goanna tells us)
                 // and our zoom level (which may have diverged).
                 float scaleFactor = oldMetrics.zoomFactor / messageMetrics.zoomFactor;
                 newMetrics = oldMetrics.setPageRect(RectUtils.scale(messageMetrics.getPageRect(), scaleFactor), messageMetrics.getCssPageRect());
                 break;
             }
 
-            // Update the Gecko-side viewport metrics. Make sure to do this
+            // Update the Goanna-side viewport metrics. Make sure to do this
             // before modifying the metrics below.
             final ImmutableViewportMetrics geckoMetrics = newMetrics.clamp();
             post(new Runnable() {
                 @Override
                 public void run() {
-                    mGeckoViewport = geckoMetrics;
+                    mGoannaViewport = geckoMetrics;
                 }
             });
 
@@ -457,7 +457,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         return mContentDocumentIsDisplayed;
     }
 
-    // This is called on the Gecko thread to determine if we're still interested
+    // This is called on the Goanna thread to determine if we're still interested
     // in the update of this display-port to continue. We can return true here
     // to abort the current update and continue with any subsequent ones. This
     // is useful for slow-to-render pages when the display-port starts lagging
@@ -478,7 +478,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         }
         mLastProgressiveUpdateWasLowPrecision = lowPrecision;
 
-        // Grab a local copy of the last display-port sent to Gecko and the
+        // Grab a local copy of the last display-port sent to Goanna and the
         // current viewport metrics to avoid races when accessing them.
         DisplayPortMetrics displayPort = mDisplayPort;
         ImmutableViewportMetrics viewportMetrics = mViewportMetrics;
@@ -515,7 +515,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
             }
         }
 
-        // XXX All sorts of rounding happens inside Gecko that becomes hard to
+        // XXX All sorts of rounding happens inside Goanna that becomes hard to
         //     account exactly for. Given we align the display-port to tile
         //     boundaries (and so they rarely vary by sub-pixel amounts), just
         //     check that values are within a couple of pixels of the
@@ -593,13 +593,13 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
                 .setPageRect(pageRect, cssPageRect)
                 .setIsRTL(tab.getIsRTL());
             // Since we have switched to displaying a different document, we need to update any
-            // viewport-related state we have lying around. This includes mGeckoViewport and
+            // viewport-related state we have lying around. This includes mGoannaViewport and
             // mViewportMetrics. Usually this information is updated via handleViewportMessage
             // while we remain on the same document.
             post(new Runnable() {
                 @Override
                 public void run() {
-                    mGeckoViewport = newMetrics;
+                    mGoannaViewport = newMetrics;
                 }
             });
 
@@ -760,7 +760,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     }
 
     private void geometryChanged(DisplayPortMetrics displayPort) {
-        /* Let Gecko know if the screensize has changed */
+        /* Let Goanna know if the screensize has changed */
         sendResizeEventIfNecessary(false);
         if (getRedrawHint()) {
             adjustViewport(displayPort);
@@ -771,7 +771,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     @Override
     public void renderRequested() {
         try {
-            GeckoAppShell.scheduleComposite();
+            GoannaAppShell.scheduleComposite();
         } catch (UnsupportedOperationException uoe) {
             // In some very rare cases this gets called before libxul is loaded,
             // so catch and ignore the exception that will throw. See bug 837821
@@ -821,7 +821,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     /** Implementation of PanZoomTarget */
     @Override
     public void setAnimationTarget(ImmutableViewportMetrics metrics) {
-        if (mGeckoIsReady) {
+        if (mGoannaIsReady) {
             // We know what the final viewport of the animation is going to be, so
             // immediately request a draw of that area by setting the display port
             // accordingly. This way we should have the content pre-rendered by the
@@ -842,23 +842,23 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     /*
      * You must hold the monitor while calling this.
      */
-    private void setViewportMetrics(ImmutableViewportMetrics metrics, boolean notifyGecko) {
+    private void setViewportMetrics(ImmutableViewportMetrics metrics, boolean notifyGoanna) {
         // This class owns the viewport size and the fixed layer margins; don't let other pieces
         // of code clobber either of them. The only place the viewport size should ever be
-        // updated is in GeckoLayerClient.setViewportSize, and the only place the margins should
-        // ever be updated is in GeckoLayerClient.setFixedLayerMargins; both of these assign to
+        // updated is in GoannaLayerClient.setViewportSize, and the only place the margins should
+        // ever be updated is in GoannaLayerClient.setFixedLayerMargins; both of these assign to
         // mViewportMetrics directly.
         metrics = metrics.setViewportSize(mViewportMetrics.getWidth(), mViewportMetrics.getHeight());
         metrics = metrics.setMarginsFrom(mViewportMetrics);
         mViewportMetrics = metrics;
 
-        viewportMetricsChanged(notifyGecko);
+        viewportMetricsChanged(notifyGoanna);
     }
 
     /*
      * You must hold the monitor while calling this.
      */
-    private void viewportMetricsChanged(boolean notifyGecko) {
+    private void viewportMetricsChanged(boolean notifyGoanna) {
         if (mDynamicToolbarViewportChangeListener != null) {
             mDynamicToolbarViewportChangeListener.onMetricsChanged(mViewportMetrics);
         }
@@ -867,7 +867,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         }
 
         mView.requestRender();
-        if (notifyGecko && mGeckoIsReady) {
+        if (notifyGoanna && mGoannaIsReady) {
             geometryChanged(null);
         }
     }
@@ -877,12 +877,12 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
      * which are normally retained when calling setViewportMetrics.
      * You must hold the monitor while calling this.
      */
-    void forceViewportMetrics(ImmutableViewportMetrics metrics, boolean notifyGecko, boolean forceRedraw) {
+    void forceViewportMetrics(ImmutableViewportMetrics metrics, boolean notifyGoanna, boolean forceRedraw) {
         if (forceRedraw) {
             mForceRedraw = true;
         }
         mViewportMetrics = metrics;
-        viewportMetricsChanged(notifyGecko);
+        viewportMetricsChanged(notifyGoanna);
     }
 
     /** Implementation of PanZoomTarget
@@ -931,7 +931,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     @Override
     public void forceRedraw(DisplayPortMetrics displayPort) {
         mForceRedraw = true;
-        if (mGeckoIsReady) {
+        if (mGoannaIsReady) {
             geometryChanged(displayPort);
         }
     }
@@ -963,13 +963,13 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     /** Implementation of PanZoomTarget
      * Converts a point from layer view coordinates to layer coordinates. In other words, given a
      * point measured in pixels from the top left corner of the layer view, returns the point in
-     * pixels measured from the last scroll position we sent to Gecko, in CSS pixels. Assuming the
-     * events being sent to Gecko are processed in FIFO order, this calculation should always be
+     * pixels measured from the last scroll position we sent to Goanna, in CSS pixels. Assuming the
+     * events being sent to Goanna are processed in FIFO order, this calculation should always be
      * correct.
      */
     @Override
     public PointF convertViewPointToLayerPoint(PointF viewPoint) {
-        if (!mGeckoIsReady) {
+        if (!mGoannaIsReady) {
             return null;
         }
 
@@ -978,15 +978,15 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         PointF offset = viewportMetrics.getMarginOffset();
         origin.offset(-offset.x, -offset.y);
         float zoom = viewportMetrics.zoomFactor;
-        ImmutableViewportMetrics geckoViewport = mGeckoViewport;
+        ImmutableViewportMetrics geckoViewport = mGoannaViewport;
         PointF geckoOrigin = geckoViewport.getOrigin();
         float geckoZoom = geckoViewport.zoomFactor;
 
         // viewPoint + origin - offset gives the coordinate in device pixels from the top-left corner of the page.
         // Divided by zoom, this gives us the coordinate in CSS pixels from the top-left corner of the page.
-        // geckoOrigin / geckoZoom is where Gecko thinks it is (scrollTo position) in CSS pixels from
+        // geckoOrigin / geckoZoom is where Goanna thinks it is (scrollTo position) in CSS pixels from
         // the top-left corner of the page. Subtracting the two gives us the offset of the viewPoint from
-        // the current Gecko coordinate in CSS pixels.
+        // the current Goanna coordinate in CSS pixels.
         PointF layerPoint = new PointF(
                 ((viewPoint.x + origin.x) / zoom) - (geckoOrigin.x / geckoZoom),
                 ((viewPoint.y + origin.y) / zoom) - (geckoOrigin.y / geckoZoom));

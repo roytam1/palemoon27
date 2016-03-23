@@ -109,7 +109,7 @@ public class testSettingsMenuItems extends PixelTest {
     }
 
     public void testSettingsMenuItems() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         Map<String[], List<String[]>> settingsMenuItems = new HashMap<String[], List<String[]>>();
         setupSettingsMap(settingsMenuItems);

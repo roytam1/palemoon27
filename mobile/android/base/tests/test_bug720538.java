@@ -7,7 +7,7 @@ public class test_bug720538 extends PixelTest {
     public void test_bug720538() {
         String url = getAbsoluteUrl("/robocop/test_bug720538.html");
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         /*
          * for this test, we load the associated test_bug720538.html file. this file has two
@@ -34,7 +34,7 @@ public class test_bug720538 extends PixelTest {
         // do the double tap and wait for the double-tap animation to finish. we assume the animation is done
         // when we find a 500ms period with no paint events that occurs after at least one paint event.
         Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();
-        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
+        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGoannaLeft(), mDriver.getGoannaTop());
         meh.doubleTap(100, 100);
         painted = waitForPaint(paintExpecter);
         paintExpecter.unregisterListener();
@@ -45,15 +45,15 @@ public class test_bug720538 extends PixelTest {
             // visible in between those edges
             mAsserter.ispixel(painted.getPixelAt(0, 100), 0, 0x80, 0, "Checking page background to the left of the iframe");
             mAsserter.ispixel(painted.getPixelAt(50, 100), 0, 0, 0xFF, "Checking for iframe a few pixels from the left edge");
-            mAsserter.ispixel(painted.getPixelAt(mDriver.getGeckoWidth() - 51, 100), 0, 0, 0xFF, "Checking for iframe a few pixels from the right edge");
-            mAsserter.ispixel(painted.getPixelAt(mDriver.getGeckoWidth() - 1, 100), 0, 0x80, 0, "Checking page background the right of the iframe");
+            mAsserter.ispixel(painted.getPixelAt(mDriver.getGoannaWidth() - 51, 100), 0, 0, 0xFF, "Checking for iframe a few pixels from the right edge");
+            mAsserter.ispixel(painted.getPixelAt(mDriver.getGoannaWidth() - 1, 100), 0, 0x80, 0, "Checking page background the right of the iframe");
         } finally {
             painted.close();
         }
 
         // now we do double-tap again to zoom out and wait for the animation to finish, as before
         paintExpecter = mActions.expectPaint();
-        meh.doubleTap(mDriver.getGeckoWidth() / 2, 100);
+        meh.doubleTap(mDriver.getGoannaWidth() / 2, 100);
         painted = waitForPaint(paintExpecter);
         paintExpecter.unregisterListener();
 
@@ -63,10 +63,10 @@ public class test_bug720538 extends PixelTest {
             // the last row because the last row is subject to rounding and clipping errors
             for (int y = 2; y < 10; y++) {
                 for (int x = 0; x < 10; x++) {
-                    mAsserter.dumpLog("Pixel at " + x + ", " + (mDriver.getGeckoHeight() - y) + ": " + Integer.toHexString(painted.getPixelAt(x, mDriver.getGeckoHeight() - y)));
+                    mAsserter.dumpLog("Pixel at " + x + ", " + (mDriver.getGoannaHeight() - y) + ": " + Integer.toHexString(painted.getPixelAt(x, mDriver.getGoannaHeight() - y)));
                 }
             }
-            mAsserter.ispixel(painted.getPixelAt(0, mDriver.getGeckoHeight() - 2), 0, 0x80, 0, "Checking bottom-left corner of viewport");
+            mAsserter.ispixel(painted.getPixelAt(0, mDriver.getGoannaHeight() - 2), 0, 0x80, 0, "Checking bottom-left corner of viewport");
         } finally {
             painted.close();
         }

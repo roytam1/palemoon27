@@ -17,8 +17,8 @@ import java.util.Hashtable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.mozilla.gecko.GeckoProfileDirectories.NoMozillaDirectoryException;
-import org.mozilla.gecko.GeckoProfileDirectories.NoSuchProfileException;
+import org.mozilla.gecko.GoannaProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.gecko.GoannaProfileDirectories.NoSuchProfileException;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.LocalBrowserDB;
 import org.mozilla.gecko.db.StubBrowserDB;
@@ -36,8 +36,8 @@ import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.util.Log;
 
-public final class GeckoProfile {
-    private static final String LOGTAG = "GeckoProfile";
+public final class GoannaProfile {
+    private static final String LOGTAG = "GoannaProfile";
 
     // Only tests should need to do this.
     // We can default this to AppConstants.RELEASE_BUILD once we fix Bug 1069687.
@@ -54,12 +54,12 @@ public final class GeckoProfile {
     public static final String DEFAULT_PROFILE = "default";
     public static final String GUEST_PROFILE = "guest";
 
-    private static final HashMap<String, GeckoProfile> sProfileCache = new HashMap<String, GeckoProfile>();
+    private static final HashMap<String, GoannaProfile> sProfileCache = new HashMap<String, GoannaProfile>();
     private static String sDefaultProfileName;
 
     // Caches the guest profile dir.
     private static File sGuestDir;
-    private static GeckoProfile sGuestProfile;
+    private static GoannaProfile sGuestProfile;
 
     public static boolean sIsUsingCustomProfile;
 
@@ -72,7 +72,7 @@ public final class GeckoProfile {
 
     /**
      * Access to this member should be synchronized to avoid
-     * races during creation -- particularly between getDir and GeckoView#init.
+     * races during creation -- particularly between getDir and GoannaView#init.
      *
      * Not final because this is lazily computed. 
      */
@@ -97,7 +97,7 @@ public final class GeckoProfile {
      * Warning: has a side-effect of setting sIsUsingCustomProfile.
      * Can return null.
      */
-    public static GeckoProfile getFromArgs(final Context context, final String args) {
+    public static GoannaProfile getFromArgs(final Context context, final String args) {
         if (args == null) {
             return null;
         }
@@ -120,29 +120,29 @@ public final class GeckoProfile {
             }
 
             if (profileName == null) {
-                profileName = GeckoProfile.DEFAULT_PROFILE;
+                profileName = GoannaProfile.DEFAULT_PROFILE;
             }
 
-            GeckoProfile.sIsUsingCustomProfile = true;
+            GoannaProfile.sIsUsingCustomProfile = true;
         }
 
         if (profileName == null && profilePath == null) {
             return null;
         }
 
-        return GeckoProfile.get(context, profileName, profilePath);
+        return GoannaProfile.get(context, profileName, profilePath);
     }
 
-    public static GeckoProfile get(Context context) {
-        boolean isGeckoApp = false;
+    public static GoannaProfile get(Context context) {
+        boolean isGoannaApp = false;
         try {
-            isGeckoApp = context instanceof GeckoApp;
+            isGoannaApp = context instanceof GoannaApp;
         } catch (NoClassDefFoundError ex) {}
 
-        if (isGeckoApp) {
+        if (isGoannaApp) {
             // Check for a cached profile on this context already
             // TODO: We should not be caching profile information on the Activity context
-            final GeckoApp geckoApp = (GeckoApp) context;
+            final GoannaApp geckoApp = (GoannaApp) context;
             if (geckoApp.mProfile != null) {
                 return geckoApp.mProfile;
             }
@@ -156,23 +156,23 @@ public final class GeckoProfile {
         }
 
         if (GuestSession.shouldUse(context, args)) {
-            final GeckoProfile p = GeckoProfile.getOrCreateGuestProfile(context);
-            if (isGeckoApp) {
-                ((GeckoApp) context).mProfile = p;
+            final GoannaProfile p = GoannaProfile.getOrCreateGuestProfile(context);
+            if (isGoannaApp) {
+                ((GoannaApp) context).mProfile = p;
             }
             return p;
         }
 
-        final GeckoProfile fromArgs = GeckoProfile.getFromArgs(context, args);
+        final GoannaProfile fromArgs = GoannaProfile.getFromArgs(context, args);
         if (fromArgs != null) {
-            if (isGeckoApp) {
-                ((GeckoApp) context).mProfile = fromArgs;
+            if (isGoannaApp) {
+                ((GoannaApp) context).mProfile = fromArgs;
             }
             return fromArgs;
         }
 
-        if (isGeckoApp) {
-            final GeckoApp geckoApp = (GeckoApp) context;
+        if (isGoannaApp) {
+            final GoannaApp geckoApp = (GoannaApp) context;
             String defaultProfileName;
             try {
                 defaultProfileName = geckoApp.getDefaultProfileName();
@@ -189,9 +189,9 @@ public final class GeckoProfile {
         return get(context, "");
     }
 
-    public static GeckoProfile get(Context context, String profileName) {
+    public static GoannaProfile get(Context context, String profileName) {
         synchronized (sProfileCache) {
-            GeckoProfile profile = sProfileCache.get(profileName);
+            GoannaProfile profile = sProfileCache.get(profileName);
             if (profile != null)
                 return profile;
         }
@@ -199,7 +199,7 @@ public final class GeckoProfile {
     }
 
     @RobocopTarget
-    public static GeckoProfile get(Context context, String profileName, String profilePath) {
+    public static GoannaProfile get(Context context, String profileName, String profilePath) {
         File dir = null;
         if (!TextUtils.isEmpty(profilePath)) {
             dir = new File(profilePath);
@@ -217,24 +217,24 @@ public final class GeckoProfile {
     }
 
     @RobocopTarget
-    public static GeckoProfile get(Context context, String profileName, File profileDir) {
+    public static GoannaProfile get(Context context, String profileName, File profileDir) {
         if (sDBFactory == null) {
-            // We do this so that GeckoView consumers don't need to know anything about BrowserDB.
+            // We do this so that GoannaView consumers don't need to know anything about BrowserDB.
             // It's a bit of a broken abstraction, but very tightly coupled, so we work around it
-            // for now. We can't just have GeckoView set this, because then it would collide in
-            // Fennec's use of GeckoView.
-            // We should never see this in Fennec itself, because GeckoApplication sets the factory
+            // for now. We can't just have GoannaView set this, because then it would collide in
+            // Fennec's use of GoannaView.
+            // We should never see this in Fennec itself, because GoannaApplication sets the factory
             // in onCreate.
             Log.d(LOGTAG, "Defaulting to StubBrowserDB.");
             sDBFactory = StubBrowserDB.getFactory();
         }
-        return GeckoProfile.get(context, profileName, profileDir, sDBFactory);
+        return GoannaProfile.get(context, profileName, profileDir, sDBFactory);
     }
 
     // Note that the profile cache respects only the profile name!
-    // If the directory changes, the returned GeckoProfile instance will be mutated.
+    // If the directory changes, the returned GoannaProfile instance will be mutated.
     // If the factory differs, it will be *ignored*.
-    public static GeckoProfile get(Context context, String profileName, File profileDir, BrowserDB.Factory dbFactory) {
+    public static GoannaProfile get(Context context, String profileName, File profileDir, BrowserDB.Factory dbFactory) {
         Log.v(LOGTAG, "Fetching profile: '" + profileName + "', '" + profileDir + "'");
         if (context == null) {
             throw new IllegalArgumentException("context must be non-null");
@@ -244,7 +244,7 @@ public final class GeckoProfile {
         // If that doesn't exist, look for a profile called 'default'.
         if (TextUtils.isEmpty(profileName) && profileDir == null) {
             try {
-                profileName = GeckoProfile.getDefaultProfileName(context);
+                profileName = GoannaProfile.getDefaultProfileName(context);
             } catch (NoMozillaDirectoryException e) {
                 // We're unable to do anything sane here.
                 throw new RuntimeException(e);
@@ -253,10 +253,10 @@ public final class GeckoProfile {
 
         // Actually try to look up the profile.
         synchronized (sProfileCache) {
-            GeckoProfile profile = sProfileCache.get(profileName);
+            GoannaProfile profile = sProfileCache.get(profileName);
             if (profile == null) {
                 try {
-                    profile = new GeckoProfile(context, profileName, profileDir, dbFactory);
+                    profile = new GoannaProfile(context, profileName, profileDir, dbFactory);
                 } catch (NoMozillaDirectoryException e) {
                     // We're unable to do anything sane here.
                     throw new RuntimeException(e);
@@ -293,7 +293,7 @@ public final class GeckoProfile {
             return false;
         }
 
-        final GeckoProfile profile = get(context, profileName);
+        final GoannaProfile profile = get(context, profileName);
         if (profile == null) {
             return false;
         }
@@ -301,7 +301,7 @@ public final class GeckoProfile {
 
         if (success) {
             // Clear all shared prefs for the given profile.
-            GeckoSharedPrefs.forProfileName(context, profileName)
+            GoannaSharedPrefs.forProfileName(context, profileName)
                             .edit().clear().apply();
         }
 
@@ -310,12 +310,12 @@ public final class GeckoProfile {
 
     // Only public for access from tests.
     @RobocopTarget
-    public static GeckoProfile createGuestProfile(Context context) {
+    public static GoannaProfile createGuestProfile(Context context) {
         try {
             // We need to force the creation of a new guest profile if we want it outside of the normal profile path,
-            // otherwise GeckoProfile.getDir will try to be smart and build it for us in the normal profiles dir.
+            // otherwise GoannaProfile.getDir will try to be smart and build it for us in the normal profiles dir.
             getGuestDir(context).mkdir();
-            GeckoProfile profile = getGuestProfile(context);
+            GoannaProfile profile = getGuestProfile(context);
 
             // If we're creating this guest session over the keyguard, don't lock it.
             // This will force the guest session to exit if the user unlocks their phone
@@ -336,7 +336,7 @@ public final class GeckoProfile {
     }
 
     public static void leaveGuestSession(Context context) {
-        GeckoProfile profile = getGuestProfile(context);
+        GoannaProfile profile = getGuestProfile(context);
         if (profile != null) {
             profile.unlock();
         }
@@ -352,8 +352,8 @@ public final class GeckoProfile {
     /**
      * Performs IO. Be careful of using this on the main thread.
      */
-    public static GeckoProfile getOrCreateGuestProfile(Context context) {
-        GeckoProfile p = getGuestProfile(context);
+    public static GoannaProfile getOrCreateGuestProfile(Context context) {
+        GoannaProfile p = getGuestProfile(context);
         if (p == null) {
             return createGuestProfile(context);
         }
@@ -361,7 +361,7 @@ public final class GeckoProfile {
         return p;
     }
 
-    public static GeckoProfile getGuestProfile(Context context) {
+    public static GoannaProfile getGuestProfile(Context context) {
         if (sGuestProfile == null) {
             File guestDir = getGuestDir(context);
             if (guestDir.exists()) {
@@ -374,7 +374,7 @@ public final class GeckoProfile {
     }
 
     public static boolean maybeCleanupGuestProfile(final Context context) {
-        final GeckoProfile profile = getGuestProfile(context);
+        final GoannaProfile profile = getGuestProfile(context);
         if (profile == null) {
             return false;
         }
@@ -403,7 +403,7 @@ public final class GeckoProfile {
 
         if (success) {
             // Clear all shared prefs for the guest profile.
-            GeckoSharedPrefs.forProfileName(context, GUEST_PROFILE)
+            GoannaSharedPrefs.forProfileName(context, GUEST_PROFILE)
                             .edit().clear().apply();
         }
     }
@@ -426,15 +426,15 @@ public final class GeckoProfile {
         return file.delete();
     }
 
-    private GeckoProfile(Context context, String profileName, File profileDir, BrowserDB.Factory dbFactory) throws NoMozillaDirectoryException {
+    private GoannaProfile(Context context, String profileName, File profileDir, BrowserDB.Factory dbFactory) throws NoMozillaDirectoryException {
         if (TextUtils.isEmpty(profileName)) {
-            throw new IllegalArgumentException("Unable to create GeckoProfile for empty profile name.");
+            throw new IllegalArgumentException("Unable to create GoannaProfile for empty profile name.");
         }
 
         mApplicationContext = context.getApplicationContext();
         mName = profileName;
         mIsWebAppProfile = profileName.startsWith("webapp");
-        mMozillaDir = GeckoProfileDirectories.getMozillaDirectory(context);
+        mMozillaDir = GoannaProfileDirectories.getMozillaDirectory(context);
 
         // This apes the behavior of setDir.
         if (profileDir != null && profileDir.exists() && profileDir.isDirectory()) {
@@ -544,7 +544,7 @@ public final class GeckoProfile {
         return mProfileDir;
     }
 
-    public synchronized GeckoProfile forceCreate() {
+    public synchronized GoannaProfile forceCreate() {
         if (mProfileDir != null) {
             return this;
         }
@@ -656,7 +656,7 @@ public final class GeckoProfile {
                 }
             }
 
-            final INIParser parser = GeckoProfileDirectories.getProfilesINI(mMozillaDir);
+            final INIParser parser = GoannaProfileDirectories.getProfilesINI(mMozillaDir);
             final Hashtable<String, INISection> sections = parser.getSections();
             for (Enumeration<INISection> e = sections.elements(); e.hasMoreElements();) {
                 final INISection section = e.nextElement();
@@ -705,7 +705,7 @@ public final class GeckoProfile {
 
     /**
      * @return the default profile name for this application, or
-     *         {@link GeckoProfile#DEFAULT_PROFILE} if none could be found.
+     *         {@link GoannaProfile#DEFAULT_PROFILE} if none could be found.
      *
      * @throws NoMozillaDirectoryException
      *             if the Mozilla directory did not exist and could not be
@@ -719,7 +719,7 @@ public final class GeckoProfile {
             return sDefaultProfileName;
         }
 
-        final String profileName = GeckoProfileDirectories.findDefaultProfileName(context);
+        final String profileName = GoannaProfileDirectories.findDefaultProfileName(context);
         if (profileName == null) {
             // Note that we don't persist this back to profiles.ini.
             sDefaultProfileName = DEFAULT_PROFILE;
@@ -731,17 +731,17 @@ public final class GeckoProfile {
     }
 
     private File findProfileDir() throws NoSuchProfileException {
-        return GeckoProfileDirectories.findProfileDir(mMozillaDir, mName);
+        return GoannaProfileDirectories.findProfileDir(mMozillaDir, mName);
     }
 
     private File createProfileDir() throws IOException {
-        INIParser parser = GeckoProfileDirectories.getProfilesINI(mMozillaDir);
+        INIParser parser = GoannaProfileDirectories.getProfilesINI(mMozillaDir);
 
         // Salt the name of our requested profile
-        String saltedName = GeckoProfileDirectories.saltProfileName(mName);
+        String saltedName = GoannaProfileDirectories.saltProfileName(mName);
         File profileDir = new File(mMozillaDir, saltedName);
         while (profileDir.exists()) {
-            saltedName = GeckoProfileDirectories.saltProfileName(mName);
+            saltedName = GoannaProfileDirectories.saltProfileName(mName);
             profileDir = new File(mMozillaDir, saltedName);
         }
 
@@ -810,7 +810,7 @@ public final class GeckoProfile {
 
         // Initialize pref flag for displaying the start pane for a new non-webapp profile.
         if (!mIsWebAppProfile) {
-            final SharedPreferences prefs = GeckoSharedPrefs.forProfile(mApplicationContext);
+            final SharedPreferences prefs = GoannaSharedPrefs.forProfile(mApplicationContext);
             prefs.edit().putBoolean(FirstrunPane.PREF_FIRSTRUN_ENABLED, true).apply();
         }
 
@@ -846,9 +846,9 @@ public final class GeckoProfile {
                 final ContentResolver cr = context.getContentResolver();
 
                 // Because we are running in the background, we want to synchronize on the
-                // GeckoProfile instance so that we don't race with main thread operations
+                // GoannaProfile instance so that we don't race with main thread operations
                 // such as locking/unlocking/removing the profile.
-                synchronized (GeckoProfile.this) {
+                synchronized (GoannaProfile.this) {
                     // Skip initialization if the profile directory has been removed.
                     if (!profileDir.exists()) {
                         return;
@@ -869,7 +869,7 @@ public final class GeckoProfile {
             public void distributionArrivedLate(Distribution distribution) {
                 Log.d(LOGTAG, "Running late distribution task: bookmarks.");
                 // Recover as best we can.
-                synchronized (GeckoProfile.this) {
+                synchronized (GoannaProfile.this) {
                     // Skip initialization if the profile directory has been removed.
                     if (!profileDir.exists()) {
                         return;

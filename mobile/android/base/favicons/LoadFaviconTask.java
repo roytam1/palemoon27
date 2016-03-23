@@ -15,12 +15,12 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.decoders.FaviconDecoder;
 import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
-import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.gecko.util.GoannaJarReader;
 import org.mozilla.gecko.util.IOUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -72,7 +72,7 @@ public class LoadFaviconTask {
     private LinkedList<LoadFaviconTask> chainees;
     private boolean isChaining;
 
-    static AndroidHttpClient httpClient = AndroidHttpClient.newInstance(GeckoAppShell.getGeckoInterface().getDefaultUAString());
+    static AndroidHttpClient httpClient = AndroidHttpClient.newInstance(GoannaAppShell.getGoannaInterface().getDefaultUAString());
 
     public LoadFaviconTask(Context context, String pageURL, String faviconURL, int flags, OnFaviconLoadedListener listener) {
         this(context, pageURL, faviconURL, flags, listener, -1, false);
@@ -83,7 +83,7 @@ public class LoadFaviconTask {
         id = nextFaviconLoadId.incrementAndGet();
 
         this.context = context;
-        db = GeckoProfile.get(context).getDB();
+        db = GoannaProfile.get(context).getDB();
         this.pageUrl = pageURL;
         this.faviconURL = faviconURL;
         this.listener = listener;
@@ -196,7 +196,7 @@ public class LoadFaviconTask {
         if (uri.startsWith("jar:jar:")) {
             Log.d(LOGTAG, "Fetching favicon from JAR.");
             try {
-                return GeckoJarReader.getBitmap(context.getResources(), uri);
+                return GoannaJarReader.getBitmap(context.getResources(), uri);
             } catch (Exception e) {
                 // Just about anything could happen here.
                 Log.w(LOGTAG, "Error fetching favicon from JAR.", e);

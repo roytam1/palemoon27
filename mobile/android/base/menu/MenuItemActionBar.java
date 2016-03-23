@@ -14,8 +14,8 @@ import android.util.AttributeSet;
 import android.widget.ImageButton;
 
 public class MenuItemActionBar extends ThemedImageButton
-                               implements GeckoMenuItem.Layout {
-    private static final String LOGTAG = "GeckoMenuItemActionBar";
+                               implements GoannaMenuItem.Layout {
+    private static final String LOGTAG = "GoannaMenuItemActionBar";
 
     public MenuItemActionBar(Context context) {
         this(context, null);
@@ -30,7 +30,7 @@ public class MenuItemActionBar extends ThemedImageButton
     }
 
     @Override
-    public void initialize(GeckoMenuItem item) {
+    public void initialize(GoannaMenuItem item) {
         if (item == null)
             return;
 

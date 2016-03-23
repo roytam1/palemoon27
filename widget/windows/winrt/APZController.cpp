@@ -4,7 +4,7 @@
 
 #include "APZController.h"
 #include "base/message_loop.h"
-#include "mozilla/layers/GeckoContentController.h"
+#include "mozilla/layers/GoannaContentController.h"
 #include "nsThreadUtils.h"
 #include "MetroUtils.h"
 #include "nsPrintfCString.h"
@@ -104,13 +104,13 @@ APZController::HitTestAPZC(ScreenIntPoint& aPoint)
 }
 
 void
-APZController::TransformCoordinateToGecko(const ScreenIntPoint& aPoint,
+APZController::TransformCoordinateToGoanna(const ScreenIntPoint& aPoint,
                                           LayoutDeviceIntPoint* aRefPointOut)
 {
   if (!sAPZC || !aRefPointOut) {
     return;
   }
-  sAPZC->TransformCoordinateToGecko(aPoint, aRefPointOut);
+  sAPZC->TransformCoordinateToGoanna(aPoint, aRefPointOut);
 }
 
 nsEventStatus

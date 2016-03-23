@@ -1,6 +1,6 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
 /**
@@ -8,7 +8,7 @@ import org.mozilla.gecko.tests.helpers.NavigationHelper;
  */
 public class testSessionHistory extends UITest {
     public void testSessionHistory() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
 
         String url = StringHelper.ROBOCOP_BLANK_PAGE_01_URL;
         NavigationHelper.enterAndLoadUrl(url);

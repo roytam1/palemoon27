@@ -66,7 +66,7 @@ import android.widget.LinearLayout;
 public class ToolbarDisplayLayout extends ThemedLinearLayout
                                   implements Animation.AnimationListener {
 
-    private static final String LOGTAG = "GeckoToolbarDisplayLayout";
+    private static final String LOGTAG = "GoannaToolbarDisplayLayout";
 
     // To be used with updateFromTab() to allow the caller
     // to give enough context for the requested state change.

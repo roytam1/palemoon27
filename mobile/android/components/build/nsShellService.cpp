@@ -25,6 +25,6 @@ nsShellService::CreateShortcut(const nsAString& aTitle, const nsAString& aURI,
   if (!aTitle.Length() || !aURI.Length() || !aIconData.Length())
     return NS_ERROR_FAILURE;
 
-  widget::GeckoAppShell::CreateShortcut(aTitle, aURI, aIconData);
+  widget::GoannaAppShell::CreateShortcut(aTitle, aURI, aIconData);
   return NS_OK;
 }

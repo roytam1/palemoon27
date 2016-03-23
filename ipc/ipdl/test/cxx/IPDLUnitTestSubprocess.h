@@ -7,13 +7,13 @@
 #define mozilla__ipdltest_IPDLUnitTestTestSubprocess_h 1
 
 
-#include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/GoannaChildProcessHost.h"
 
 namespace mozilla {
 namespace _ipdltest {
 //-----------------------------------------------------------------------------
 
-class IPDLUnitTestSubprocess : public mozilla::ipc::GeckoChildProcessHost
+class IPDLUnitTestSubprocess : public mozilla::ipc::GoannaChildProcessHost
 {
 public:
   IPDLUnitTestSubprocess();

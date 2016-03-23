@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SearchEngine {
-    public static final String LOG_TAG = "GeckoSearchEngine";
+    public static final String LOG_TAG = "GoannaSearchEngine";
 
     public final String name;             // Never null.
     public final String identifier;       // Can be null.

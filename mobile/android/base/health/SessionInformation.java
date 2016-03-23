@@ -8,13 +8,13 @@ package org.mozilla.gecko.health;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import org.mozilla.gecko.GeckoApp;
+import org.mozilla.gecko.GoannaApp;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 public class SessionInformation {
-    private static final String LOG_TAG = "GeckoSessInfo";
+    private static final String LOG_TAG = "GoannaSessInfo";
 
     public static final String PREFS_SESSION_START = "sessionStart";
 
@@ -24,11 +24,11 @@ public class SessionInformation {
     private final boolean wasOOM;
     private final boolean wasStopped;
 
-    private volatile long timedGeckoStartup = -1;
+    private volatile long timedGoannaStartup = -1;
     private volatile long timedJavaStartup = -1;
 
     // Current sessions don't (right now) care about wasOOM/wasStopped.
-    // Eventually we might want to lift that logic out of GeckoApp.
+    // Eventually we might want to lift that logic out of GoannaApp.
     public SessionInformation(long wallTime, long realTime) {
         this(wallTime, realTime, false, false);
     }
@@ -51,8 +51,8 @@ public class SessionInformation {
      * wallStartTime is returned.
      */
     public static SessionInformation fromSharedPrefs(SharedPreferences prefs) {
-        boolean wasOOM = prefs.getBoolean(GeckoApp.PREFS_OOM_EXCEPTION, false);
-        boolean wasStopped = prefs.getBoolean(GeckoApp.PREFS_WAS_STOPPED, true);
+        boolean wasOOM = prefs.getBoolean(GoannaApp.PREFS_OOM_EXCEPTION, false);
+        boolean wasStopped = prefs.getBoolean(GoannaApp.PREFS_WAS_STOPPED, true);
         long wallStartTime = prefs.getLong(PREFS_SESSION_START, 0L);
         long realStartTime = 0L;
         Log.d(LOG_TAG, "Building SessionInformation from prefs: " +
@@ -107,8 +107,8 @@ public class SessionInformation {
         JSONObject out = new JSONObject();
         out.put("r", reason);
         out.put("d", durationSecs);
-        if (this.timedGeckoStartup > 0) {
-            out.put("sg", this.timedGeckoStartup);
+        if (this.timedGoannaStartup > 0) {
+            out.put("sg", this.timedGoannaStartup);
         }
         if (this.timedJavaStartup > 0) {
             out.put("sj", this.timedJavaStartup);
@@ -127,8 +127,8 @@ public class SessionInformation {
         return out;
     }
 
-    public void setTimedGeckoStartup(final long duration) {
-        timedGeckoStartup = duration;
+    public void setTimedGoannaStartup(final long duration) {
+        timedGoannaStartup = duration;
     }
 
     public void setTimedJavaStartup(final long duration) {

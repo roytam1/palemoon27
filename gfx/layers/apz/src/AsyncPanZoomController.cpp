@@ -139,7 +139,7 @@ namespace mozilla {
 namespace layers {
 
 typedef mozilla::layers::AllowedTouchBehavior AllowedTouchBehavior;
-typedef GeckoContentController::APZStateChange APZStateChange;
+typedef GoannaContentController::APZStateChange APZStateChange;
 typedef mozilla::gfx::Point Point;
 typedef mozilla::gfx::Matrix4x4 Matrix4x4;
 using mozilla::gfx::PointTyped;
@@ -855,11 +855,11 @@ AsyncPanZoomController::InitializeGlobalState()
 AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
                                                APZCTreeManager* aTreeManager,
                                                const nsRefPtr<InputQueue>& aInputQueue,
-                                               GeckoContentController* aGeckoContentController,
+                                               GoannaContentController* aGoannaContentController,
                                                GestureBehavior aGestures)
   :  mLayersId(aLayersId),
      mPaintThrottler(GetFrameTime(), TimeDuration::FromMilliseconds(500)),
-     mGeckoContentController(aGeckoContentController),
+     mGoannaContentController(aGoannaContentController),
      mRefPtrMonitor("RefPtrMonitor"),
      mSharingFrameMetricsAcrossProcesses(false),
      mMonitor("AsyncPanZoomController"),
@@ -903,10 +903,10 @@ AsyncPanZoomController::GetSharedFrameMetricsCompositor()
   return mCompositorParent.get();
 }
 
-already_AddRefed<GeckoContentController>
-AsyncPanZoomController::GetGeckoContentController() const {
+already_AddRefed<GoannaContentController>
+AsyncPanZoomController::GetGoannaContentController() const {
   MonitorAutoLock lock(mRefPtrMonitor);
-  nsRefPtr<GeckoContentController> controller = mGeckoContentController;
+  nsRefPtr<GoannaContentController> controller = mGoannaContentController;
   return controller.forget();
 }
 
@@ -931,7 +931,7 @@ AsyncPanZoomController::Destroy()
 
   { // scope the lock
     MonitorAutoLock lock(mRefPtrMonitor);
-    mGeckoContentController = nullptr;
+    mGoannaContentController = nullptr;
     mGestureEventListener = nullptr;
   }
   mParent = nullptr;
@@ -1121,7 +1121,7 @@ nsEventStatus AsyncPanZoomController::OnTouchStart(const MultiTouchInput& aEvent
     case NOTHING: {
       mX.StartTouch(point.x, aEvent.mTime);
       mY.StartTouch(point.y, aEvent.mTime);
-      if (nsRefPtr<GeckoContentController> controller = GetGeckoContentController()) {
+      if (nsRefPtr<GoannaContentController> controller = GetGoannaContentController()) {
         controller->NotifyAPZStateChange(
             GetGuid(), APZStateChange::StartTouch,
             CurrentTouchBlock()->GetOverscrollHandoffChain()->CanBePanned(this));
@@ -1436,13 +1436,13 @@ nsEventStatus AsyncPanZoomController::OnScaleEnd(const PinchGestureInput& aEvent
 }
 
 bool
-AsyncPanZoomController::ConvertToGecko(const ParentLayerPoint& aPoint, CSSPoint* aOut)
+AsyncPanZoomController::ConvertToGoanna(const ParentLayerPoint& aPoint, CSSPoint* aOut)
 {
   if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
-    Matrix4x4 transformToGecko = treeManagerLocal->GetApzcToGeckoTransform(this);
+    Matrix4x4 transformToGoanna = treeManagerLocal->GetApzcToGoannaTransform(this);
     // NOTE: This isn't *quite* LayoutDevicePoint, we just don't have a name
     // for this coordinate space and it maps the closest to LayoutDevicePoint.
-    LayoutDevicePoint layoutPoint = TransformTo<LayoutDevicePixel>(transformToGecko, aPoint);
+    LayoutDevicePoint layoutPoint = TransformTo<LayoutDevicePixel>(transformToGoanna, aPoint);
     { // scoped lock to access mFrameMetrics
       ReentrantMonitorAutoEnter lock(mMonitor);
       *aOut = layoutPoint / mFrameMetrics.GetDevPixelsPerCSSPixel();
@@ -1651,11 +1651,11 @@ nsEventStatus AsyncPanZoomController::OnPanMomentumEnd(const PanGestureInput& aE
 
 nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent) {
   APZC_LOG("%p got a long-press in state %d\n", this, mState);
-  nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+  nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     int32_t modifiers = WidgetModifiersToDOMModifiers(aEvent.modifiers);
     CSSPoint geckoScreenPoint;
-    if (ConvertToGecko(aEvent.mLocalPoint, &geckoScreenPoint)) {
+    if (ConvertToGoanna(aEvent.mLocalPoint, &geckoScreenPoint)) {
       if (CurrentTouchBlock()->IsDuringFastMotion()) {
         APZC_LOG("%p dropping long-press because of fast motion\n", this);
         return nsEventStatus_eIgnore;
@@ -1670,11 +1670,11 @@ nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent)
 
 nsEventStatus AsyncPanZoomController::OnLongPressUp(const TapGestureInput& aEvent) {
   APZC_LOG("%p got a long-tap-up in state %d\n", this, mState);
-  nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+  nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     int32_t modifiers = WidgetModifiersToDOMModifiers(aEvent.modifiers);
     CSSPoint geckoScreenPoint;
-    if (ConvertToGecko(aEvent.mLocalPoint, &geckoScreenPoint)) {
+    if (ConvertToGoanna(aEvent.mLocalPoint, &geckoScreenPoint)) {
       controller->HandleLongTapUp(geckoScreenPoint, modifiers, GetGuid());
       return nsEventStatus_eConsumeNoDefault;
     }
@@ -1683,10 +1683,10 @@ nsEventStatus AsyncPanZoomController::OnLongPressUp(const TapGestureInput& aEven
 }
 
 nsEventStatus AsyncPanZoomController::GenerateSingleTap(const ParentLayerPoint& aPoint, mozilla::Modifiers aModifiers) {
-  nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+  nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     CSSPoint geckoScreenPoint;
-    if (ConvertToGecko(aPoint, &geckoScreenPoint)) {
+    if (ConvertToGoanna(aPoint, &geckoScreenPoint)) {
       if (!CurrentTouchBlock()->SetSingleTapOccurred()) {
         return nsEventStatus_eIgnore;
       }
@@ -1696,7 +1696,7 @@ nsEventStatus AsyncPanZoomController::GenerateSingleTap(const ParentLayerPoint& 
       // schedule the singletap message to run on the next spin of the event loop.
       // See bug 965381 for the issue this was causing.
       controller->PostDelayedTask(
-        NewRunnableMethod(controller.get(), &GeckoContentController::HandleSingleTap,
+        NewRunnableMethod(controller.get(), &GoannaContentController::HandleSingleTap,
                           geckoScreenPoint, WidgetModifiersToDOMModifiers(aModifiers),
                           GetGuid()),
         0);
@@ -1707,7 +1707,7 @@ nsEventStatus AsyncPanZoomController::GenerateSingleTap(const ParentLayerPoint& 
 }
 
 void AsyncPanZoomController::OnTouchEndOrCancel() {
-  if (nsRefPtr<GeckoContentController> controller = GetGeckoContentController()) {
+  if (nsRefPtr<GoannaContentController> controller = GetGoannaContentController()) {
     controller->NotifyAPZStateChange(
         GetGuid(), APZStateChange::EndTouch, CurrentTouchBlock()->SingleTapOccurred());
   }
@@ -1730,12 +1730,12 @@ nsEventStatus AsyncPanZoomController::OnSingleTapConfirmed(const TapGestureInput
 
 nsEventStatus AsyncPanZoomController::OnDoubleTap(const TapGestureInput& aEvent) {
   APZC_LOG("%p got a double-tap in state %d\n", this, mState);
-  nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+  nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     if (mZoomConstraints.mAllowDoubleTapZoom && CurrentTouchBlock()->TouchActionAllowsDoubleTapZoom()) {
       int32_t modifiers = WidgetModifiersToDOMModifiers(aEvent.modifiers);
       CSSPoint geckoScreenPoint;
-      if (ConvertToGecko(aEvent.mLocalPoint, &geckoScreenPoint)) {
+      if (ConvertToGoanna(aEvent.mLocalPoint, &geckoScreenPoint)) {
         controller->HandleDoubleTap(geckoScreenPoint, modifiers, GetGuid());
       }
     }
@@ -1907,7 +1907,7 @@ nsEventStatus AsyncPanZoomController::StartPanning(const MultiTouchInput& aEvent
   }
 
   if (IsInPanningState()) {
-    if (nsRefPtr<GeckoContentController> controller = GetGeckoContentController()) {
+    if (nsRefPtr<GoannaContentController> controller = GetGoannaContentController()) {
       controller->NotifyAPZStateChange(GetGuid(), APZStateChange::StartPanning);
     }
     return nsEventStatus_eConsumeNoDefault;
@@ -2407,7 +2407,7 @@ GetDisplayPortRect(const FrameMetrics& aFrameMetrics)
 
 void
 AsyncPanZoomController::DispatchRepaintRequest(const FrameMetrics& aFrameMetrics) {
-  nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+  nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     APZC_LOG_FM(aFrameMetrics, "%p requesting content repaint", this);
     LogRendertraceRect(GetGuid(), "requested displayport", "yellow", GetDisplayPortRect(aFrameMetrics));
@@ -2416,7 +2416,7 @@ AsyncPanZoomController::DispatchRepaintRequest(const FrameMetrics& aFrameMetrics
       controller->RequestContentRepaint(aFrameMetrics);
     } else {
       NS_DispatchToMainThread(NS_NewRunnableMethodWithArg<FrameMetrics>(
-        controller, &GeckoContentController::RequestContentRepaint, aFrameMetrics));
+        controller, &GoannaContentController::RequestContentRepaint, aFrameMetrics));
     }
     mLastDispatchedPaintMetrics = aFrameMetrics;
   }
@@ -2728,7 +2728,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
   } else {
     // If we're not taking the aLayerMetrics wholesale we still need to pull
     // in some things into our local mFrameMetrics because these things are
-    // determined by Gecko and our copy in mFrameMetrics may be stale.
+    // determined by Goanna and our copy in mFrameMetrics may be stale.
 
     if (FuzzyEqualsAdditive(mFrameMetrics.mCompositionBounds.width, aLayerMetrics.mCompositionBounds.width) &&
         mFrameMetrics.GetDevPixelsPerCSSPixel() == aLayerMetrics.GetDevPixelsPerCSSPixel() &&
@@ -2778,7 +2778,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
       // going to be ignored by layout, and so mLastDispatchedPaintMetrics
       // becomes incorrect for the purposes of calculating the LD transform. To
       // correct this we need to update mLastDispatchedPaintMetrics to be the
-      // last thing we know was painted by Gecko.
+      // last thing we know was painted by Goanna.
       mLastDispatchedPaintMetrics = aLayerMetrics;
 
       // Since the scroll offset has changed, we need to recompute the
@@ -2814,7 +2814,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     // scroll offset updates from APZ until we acknowledge the update it sent.
     // This prevents APZ updates from clobbering scroll updates from other
     // more "legitimate" sources like content scripts.
-    nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+    nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
     if (controller) {
       APZC_LOG("%p sending scroll update acknowledgement with gen %u\n", this, aLayerMetrics.GetScrollGeneration());
       controller->AcknowledgeScrollUpdate(aLayerMetrics.GetScrollId(),
@@ -2992,7 +2992,7 @@ void AsyncPanZoomController::DispatchStateChangeNotification(PanZoomState aOldSt
     }
   }
 
-  if (nsRefPtr<GeckoContentController> controller = GetGeckoContentController()) {
+  if (nsRefPtr<GoannaContentController> controller = GetGoannaContentController()) {
     if (!IsTransformingState(aOldState) && IsTransformingState(aNewState)) {
       controller->NotifyAPZStateChange(
           GetGuid(), APZStateChange::TransformBegin);
@@ -3037,14 +3037,14 @@ AsyncPanZoomController::GetZoomConstraints() const
 
 void AsyncPanZoomController::PostDelayedTask(Task* aTask, int aDelayMs) {
   APZThreadUtils::AssertOnControllerThread();
-  nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+  nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (controller) {
     controller->PostDelayedTask(aTask, aDelayMs);
   }
 }
 
 void AsyncPanZoomController::SendAsyncScrollEvent() {
-  nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
+  nsRefPtr<GoannaContentController> controller = GetGoannaContentController();
   if (!controller) {
     return;
   }

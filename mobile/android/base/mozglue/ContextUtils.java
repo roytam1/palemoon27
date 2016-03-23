@@ -10,7 +10,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 public class ContextUtils {
-    private static final String LOGTAG = "GeckoContextUtils";
+    private static final String LOGTAG = "GoannaContextUtils";
 
     public static Bundle getBundleExtra(final Intent intent, final String name) {
         return new SafeIntent(intent).getBundleExtra(name);

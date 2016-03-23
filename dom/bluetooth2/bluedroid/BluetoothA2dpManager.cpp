@@ -706,7 +706,7 @@ BluetoothA2dpManager::NotifyConnectionStatusChanged()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  // Notify Gecko observers
+  // Notify Goanna observers
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_ENSURE_TRUE_VOID(obs);
 

@@ -26,7 +26,7 @@ public class testBookmark extends AboutHomeTest {
     }
 
     public void runAboutHomeTest() {
-        blockForGeckoReady();
+        blockForGoannaReady();
         for (String url:StringHelper.DEFAULT_BOOKMARKS_URLS) {
             mAsserter.ok(mDatabaseHelper.isBookmark(url), "Checking that " + url + " is bookmarked by default", url + " is bookmarked");
         }

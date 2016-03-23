@@ -6435,7 +6435,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
   nsCOMPtr<nsIDocumentLoaderFactory> docFactory;
 
   nsXPIDLCString contractID;
-  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", aType, getter_Copies(contractID));
+  nsresult rv = catMan->GetCategoryEntry("Goanna-Content-Viewers", aType, getter_Copies(contractID));
   if (NS_SUCCEEDED(rv)) {
     docFactory = do_GetService(contractID);
     if (docFactory && aLoaderType) {

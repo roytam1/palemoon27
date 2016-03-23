@@ -344,7 +344,7 @@ struct BluetoothOsCallout
                void* aData)
   {
     // FIXME: need to be implemented in later patches
-    // HAL wants to manage an wake_alarm but Gecko cannot fulfill it for now.
+    // HAL wants to manage an wake_alarm but Goanna cannot fulfill it for now.
     // Simply pass the request until a proper implementation has been added.
     return true;
   }
@@ -353,7 +353,7 @@ struct BluetoothOsCallout
   AcquireWakeLock(const char* aLockName)
   {
     // FIXME: need to be implemented in later patches
-    // HAL wants to manage an wake_lock but Gecko cannot fulfill it for now.
+    // HAL wants to manage an wake_lock but Goanna cannot fulfill it for now.
     // Simply pass the request until a proper implementation has been added.
     return BT_STATUS_SUCCESS;
   }
@@ -362,7 +362,7 @@ struct BluetoothOsCallout
   ReleaseWakeLock(const char* aLockName)
   {
     // FIXME: need to be implemented in later patches
-    // HAL wants to manage an wake_lock but Gecko cannot fulfill it for now.
+    // HAL wants to manage an wake_lock but Goanna cannot fulfill it for now.
     // Simply pass the request until a proper implementation has been added.
     return BT_STATUS_SUCCESS;
   }

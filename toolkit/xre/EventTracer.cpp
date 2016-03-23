@@ -49,7 +49,7 @@
  * component.
  */
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "EventTracer.h"
 

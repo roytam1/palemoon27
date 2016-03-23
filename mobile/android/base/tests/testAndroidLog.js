@@ -13,13 +13,13 @@ const ERROR_MESSAGE = "This is an error message.";
 
 // Number of bytes we expect to log.  This isn't equivalent to the number
 // of characters, although the difference is consistent, so we can calculate it
-// from the lengths of the messages and tag.  We include the length of "Gecko"
+// from the lengths of the messages and tag.  We include the length of "Goanna"
 // because the module prepends it to the tag.
-const VERBOSE_BYTES = "Gecko".length + TAG.length + VERBOSE_MESSAGE.length + 3;
-const DEBUG_BYTES = "Gecko".length + TAG.length + DEBUG_MESSAGE.length + 3;
-const INFO_BYTES = "Gecko".length + TAG.length + INFO_MESSAGE.length + 3;
-const WARNING_BYTES = "Gecko".length + TAG.length + WARNING_MESSAGE.length + 3;
-const ERROR_BYTES = "Gecko".length + TAG.length + ERROR_MESSAGE.length + 3;
+const VERBOSE_BYTES = "Goanna".length + TAG.length + VERBOSE_MESSAGE.length + 3;
+const DEBUG_BYTES = "Goanna".length + TAG.length + DEBUG_MESSAGE.length + 3;
+const INFO_BYTES = "Goanna".length + TAG.length + INFO_MESSAGE.length + 3;
+const WARNING_BYTES = "Goanna".length + TAG.length + WARNING_MESSAGE.length + 3;
+const ERROR_BYTES = "Goanna".length + TAG.length + ERROR_MESSAGE.length + 3;
 
 add_task(function test_AndroidLog() {
   Components.utils.import("resource://gre/modules/AndroidLog.jsm");

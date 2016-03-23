@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
@@ -68,7 +68,7 @@ import android.widget.ListView;
  */
 public class TopSitesPanel extends HomeFragment {
     // Logging tag name
-    private static final String LOGTAG = "GeckoTopSitesPanel";
+    private static final String LOGTAG = "GoannaTopSitesPanel";
 
     // Cursor loader ID for the top sites
     private static final int LOADER_ID_TOP_SITES = 0;
@@ -106,7 +106,7 @@ public class TopSitesPanel extends HomeFragment {
     // Fields used for tiles metrics recording.
     private TilesRecorder mTilesRecorder;
 
-    // Time in ms until the Gecko thread is reset to normal priority.
+    // Time in ms until the Goanna thread is reset to normal priority.
     private static final long PRIORITY_RESET_TIMEOUT = 10000;
 
     public static TopSitesPanel newInstance() {
@@ -282,7 +282,7 @@ public class TopSitesPanel extends HomeFragment {
     private List<Tile> getTilesSnapshot() {
         final int count = mGrid.getCount();
         final ArrayList<Tile> snapshot = new ArrayList<>();
-        final BrowserDB db = GeckoProfile.get(getActivity()).getDB();
+        final BrowserDB db = GoannaProfile.get(getActivity()).getDB();
         for (int i = 0; i < count; i++) {
             final Cursor cursor = (Cursor) mGrid.getItemAtPosition(i);
             final int type = cursor.getInt(cursor.getColumnIndexOrThrow(TopSites.TYPE));
@@ -371,7 +371,7 @@ public class TopSitesPanel extends HomeFragment {
             menu.findItem(R.id.top_sites_unpin).setVisible(false);
         }
 
-        if (!StringUtils.isShareableUrl(info.url) || GeckoProfile.get(getActivity()).inGuestMode()) {
+        if (!StringUtils.isShareableUrl(info.url) || GoannaProfile.get(getActivity()).inGuestMode()) {
             menu.findItem(R.id.home_share).setVisible(false);
         }
     }
@@ -392,7 +392,7 @@ public class TopSitesPanel extends HomeFragment {
         TopSitesGridContextMenuInfo info = (TopSitesGridContextMenuInfo) menuInfo;
 
         final int itemId = item.getItemId();
-        final BrowserDB db = GeckoProfile.get(getActivity()).getDB();
+        final BrowserDB db = GoannaProfile.get(getActivity()).getDB();
 
         if (itemId == R.id.top_sites_pin) {
             final String url = info.url;
@@ -445,11 +445,11 @@ public class TopSitesPanel extends HomeFragment {
 
         // Since this is the primary fragment that loads whenever about:home is
         // visited, we want to load it as quickly as possible. Heavy load on
-        // the Gecko thread can slow down the time it takes for thumbnails to
+        // the Goanna thread can slow down the time it takes for thumbnails to
         // appear, especially during startup (bug 897162). By minimizing the
-        // Gecko thread priority, we ensure that the UI appears quickly. The
+        // Goanna thread priority, we ensure that the UI appears quickly. The
         // priority is reset to normal once thumbnails are loaded.
-        ThreadUtils.reduceGeckoPriority(PRIORITY_RESET_TIMEOUT);
+        ThreadUtils.reduceGoannaPriority(PRIORITY_RESET_TIMEOUT);
     }
 
     /**
@@ -481,7 +481,7 @@ public class TopSitesPanel extends HomeFragment {
         public void onSiteSelected(final String url, final String title) {
             final int position = mPosition;
             final Context context = getActivity().getApplicationContext();
-            final BrowserDB db = GeckoProfile.get(getActivity()).getDB();
+            final BrowserDB db = GoannaProfile.get(getActivity()).getDB();
             ThreadUtils.postToBackgroundThread(new Runnable() {
                 @Override
                 public void run() {
@@ -501,8 +501,8 @@ public class TopSitesPanel extends HomeFragment {
         }
 
         // Once thumbnails have finished loading, the UI is ready. Reset
-        // Gecko to normal priority.
-        ThreadUtils.resetGeckoPriority();
+        // Goanna to normal priority.
+        ThreadUtils.resetGoannaPriority();
     }
 
     private static class TopSitesLoader extends SimpleCursorLoader {
@@ -515,7 +515,7 @@ public class TopSitesPanel extends HomeFragment {
         public TopSitesLoader(Context context) {
             super(context);
             mMaxGridEntries = context.getResources().getInteger(R.integer.number_of_top_sites);
-            mDB = GeckoProfile.get(context).getDB();
+            mDB = GoannaProfile.get(context).getDB();
         }
 
         @Override
@@ -567,7 +567,7 @@ public class TopSitesPanel extends HomeFragment {
 
         public TopSitesGridAdapter(Context context, Cursor cursor) {
             super(context, cursor, 0);
-            mDB = GeckoProfile.get(context).getDB();
+            mDB = GoannaProfile.get(context).getDB();
         }
 
         @Override
@@ -734,7 +734,7 @@ public class TopSitesPanel extends HomeFragment {
 
                 // Only try to fetch thumbnails for non-empty URLs that
                 // don't have an associated suggested image URL.
-                final GeckoProfile profile = GeckoProfile.get(getActivity());
+                final GoannaProfile profile = GoannaProfile.get(getActivity());
                 if (TextUtils.isEmpty(url) || profile.getDB().hasSuggestedImageUrl(url)) {
                     continue;
                 }
@@ -822,7 +822,7 @@ public class TopSitesPanel extends HomeFragment {
         public ThumbnailsLoader(Context context, ArrayList<String> urls) {
             super(context);
             mUrls = urls;
-            mDB = GeckoProfile.get(context).getDB();
+            mDB = GoannaProfile.get(context).getDB();
         }
 
         @Override

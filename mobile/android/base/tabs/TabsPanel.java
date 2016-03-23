@@ -6,9 +6,9 @@
 package org.mozilla.gecko.tabs;
 
 import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoApplication;
+import org.mozilla.gecko.GoannaApp;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaApplication;
 import org.mozilla.gecko.NewTabletUI;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
@@ -20,7 +20,7 @@ import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.lwt.LightweightTheme;
 import org.mozilla.gecko.lwt.LightweightThemeDrawable;
 import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.widget.GeckoPopupMenu;
+import org.mozilla.gecko.widget.GoannaPopupMenu;
 import org.mozilla.gecko.widget.IconTabWidget;
 
 import android.content.Context;
@@ -40,10 +40,10 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
 public class TabsPanel extends LinearLayout
-                       implements GeckoPopupMenu.OnMenuItemClickListener,
+                       implements GoannaPopupMenu.OnMenuItemClickListener,
                                   LightweightTheme.OnChangeListener,
                                   IconTabWidget.OnTabChangedListener {
-    private static final String LOGTAG = "Gecko" + TabsPanel.class.getSimpleName();
+    private static final String LOGTAG = "Goanna" + TabsPanel.class.getSimpleName();
 
     public static enum Panel {
         NORMAL_TABS,
@@ -78,7 +78,7 @@ public class TabsPanel extends LinearLayout
     }
 
     private final Context mContext;
-    private final GeckoApp mActivity;
+    private final GoannaApp mActivity;
     private final LightweightTheme mTheme;
     private RelativeLayout mHeader;
     private TabsLayoutContainer mTabsContainer;
@@ -98,13 +98,13 @@ public class TabsPanel extends LinearLayout
     private boolean mVisible;
     private boolean mHeaderVisible;
 
-    private final GeckoPopupMenu mPopupMenu;
+    private final GoannaPopupMenu mPopupMenu;
 
     public TabsPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
         mContext = context;
-        mActivity = (GeckoApp) context;
-        mTheme = ((GeckoApplication) context.getApplicationContext()).getLightweightTheme();
+        mActivity = (GoannaApp) context;
+        mTheme = ((GoannaApplication) context.getApplicationContext()).getLightweightTheme();
 
         setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                                                       LinearLayout.LayoutParams.MATCH_PARENT));
@@ -112,7 +112,7 @@ public class TabsPanel extends LinearLayout
 
         mCurrentPanel = Panel.NORMAL_TABS;
 
-        mPopupMenu = new GeckoPopupMenu(context);
+        mPopupMenu = new GoannaPopupMenu(context);
         mPopupMenu.inflate(R.menu.tabs_menu);
         mPopupMenu.setOnMenuItemClickListener(this);
 
@@ -334,7 +334,7 @@ public class TabsPanel extends LinearLayout
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            if (!GeckoAppShell.getGeckoInterface().hasTabsSideBar()) {
+            if (!GoannaAppShell.getGoannaInterface().hasTabsSideBar()) {
                 int heightSpec = MeasureSpec.makeMeasureSpec(getTabContainerHeight(TabsLayoutContainer.this), MeasureSpec.EXACTLY);
                 super.onMeasure(widthMeasureSpec, heightSpec);
             } else {
@@ -350,7 +350,7 @@ public class TabsPanel extends LinearLayout
 
         public TabsPanelToolbar(Context context, AttributeSet attrs) {
             super(context, attrs);
-            mTheme = ((GeckoApplication) context.getApplicationContext()).getLightweightTheme();
+            mTheme = ((GoannaApplication) context.getApplicationContext()).getLightweightTheme();
 
             setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                                                           (int) context.getResources().getDimension(R.dimen.browser_toolbar_height)));

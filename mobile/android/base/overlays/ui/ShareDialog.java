@@ -9,7 +9,7 @@ import java.net.URISyntaxException;
 
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
@@ -56,7 +56,7 @@ public class ShareDialog extends Locales.LocaleAwareActivity implements SendTabT
         DEVICES_ONLY // Only display the device list.
     }
 
-    private static final String LOGTAG = "GeckoShareDialog";
+    private static final String LOGTAG = "GoannaShareDialog";
 
     /** Flag to indicate that we should always show the device list; specific to this release channel. **/
     public static final String INTENT_EXTRA_DEVICES_ONLY =
@@ -434,7 +434,7 @@ public class ShareDialog extends Locales.LocaleAwareActivity implements SendTabT
     }
 
     private String getCurrentProfile() {
-        return GeckoProfile.DEFAULT_PROFILE;
+        return GoannaProfile.DEFAULT_PROFILE;
     }
 
     /**

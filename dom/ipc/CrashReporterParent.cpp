@@ -49,7 +49,7 @@ CrashReporterParent::CloneProtocol(Channel* aChannel,
 #ifdef MOZ_CRASHREPORTER
     ContentParent* contentParent = aCtx->GetContentParent();
     CrashReporter::ThreadId childThreadId = contentParent->Pid();
-    GeckoProcessType childProcessType =
+    GoannaProcessType childProcessType =
         contentParent->Process()->GetProcessType();
 
     nsAutoPtr<PCrashReporterParent> actor(
@@ -112,11 +112,11 @@ CrashReporterParent::GenerateChildData(const AnnotationTable* processNotes)
 
     nsAutoCString type;
     switch (mProcessType) {
-        case GeckoProcessType_Content:
+        case GoannaProcessType_Content:
             type = NS_LITERAL_CSTRING("content");
             break;
-        case GeckoProcessType_Plugin:
-        case GeckoProcessType_GMPlugin:
+        case GoannaProcessType_Plugin:
+        case GoannaProcessType_GMPlugin:
             type = NS_LITERAL_CSTRING("plugin");
             break;
         default:
@@ -174,11 +174,11 @@ CrashReporterParent::NotifyCrashService()
     nsCString telemetryKey;
 
     switch (mProcessType) {
-        case GeckoProcessType_Content:
+        case GoannaProcessType_Content:
             processType = nsICrashService::PROCESS_TYPE_CONTENT;
             telemetryKey.AssignLiteral("content");
             break;
-        case GeckoProcessType_Plugin: {
+        case GoannaProcessType_Plugin: {
             processType = nsICrashService::PROCESS_TYPE_PLUGIN;
             telemetryKey.AssignLiteral("plugin");
             nsAutoCString val;
@@ -189,7 +189,7 @@ CrashReporterParent::NotifyCrashService()
             }
             break;
         }
-        case GeckoProcessType_GMPlugin:
+        case GoannaProcessType_GMPlugin:
             processType = nsICrashService::PROCESS_TYPE_GMPLUGIN;
             telemetryKey.AssignLiteral("gmplugin");
             break;

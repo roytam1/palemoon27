@@ -8,9 +8,9 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.support.v4.app.FragmentActivity;
 
-public class GeckoActivity extends FragmentActivity implements GeckoActivityStatus {
-    // has this activity recently started another Gecko activity?
-    private boolean mGeckoActivityOpened;
+public class GoannaActivity extends FragmentActivity implements GoannaActivityStatus {
+    // has this activity recently started another Goanna activity?
+    private boolean mGoannaActivityOpened;
 
     /**
      * Display any resources that show strings or encompass locale-specific
@@ -25,8 +25,8 @@ public class GeckoActivity extends FragmentActivity implements GeckoActivityStat
     public void onPause() {
         super.onPause();
 
-        if (getApplication() instanceof GeckoApplication) {
-            ((GeckoApplication) getApplication()).onActivityPause(this);
+        if (getApplication() instanceof GoannaApplication) {
+            ((GoannaApplication) getApplication()).onActivityPause(this);
         }
     }
 
@@ -34,9 +34,9 @@ public class GeckoActivity extends FragmentActivity implements GeckoActivityStat
     public void onResume() {
         super.onResume();
 
-        if (getApplication() instanceof GeckoApplication) {
-            ((GeckoApplication) getApplication()).onActivityResume(this);
-            mGeckoActivityOpened = false;
+        if (getApplication() instanceof GoannaApplication) {
+            ((GoannaApplication) getApplication()).onActivityResume(this);
+            mGoannaActivityOpened = false;
         }
     }
 
@@ -58,17 +58,17 @@ public class GeckoActivity extends FragmentActivity implements GeckoActivityStat
 
     @Override
     public void startActivity(Intent intent) {
-        mGeckoActivityOpened = checkIfGeckoActivity(intent);
+        mGoannaActivityOpened = checkIfGoannaActivity(intent);
         super.startActivity(intent);
     }
 
     @Override
     public void startActivityForResult(Intent intent, int request) {
-        mGeckoActivityOpened = checkIfGeckoActivity(intent);
+        mGoannaActivityOpened = checkIfGoannaActivity(intent);
         super.startActivityForResult(intent, request);
     }
 
-    private static boolean checkIfGeckoActivity(Intent intent) {
+    private static boolean checkIfGoannaActivity(Intent intent) {
         // Whenever we call our own activity, the component and its package name is set.
         // If we call an activity from another package, or an open intent (leaving android to resolve)
         // component has a different package name or it is null.
@@ -78,12 +78,12 @@ public class GeckoActivity extends FragmentActivity implements GeckoActivityStat
     }
 
     @Override
-    public boolean isGeckoActivityOpened() {
-        return mGeckoActivityOpened;
+    public boolean isGoannaActivityOpened() {
+        return mGoannaActivityOpened;
     }
 
     public boolean isApplicationInBackground() {
-        return ((GeckoApplication) getApplication()).isApplicationInBackground();
+        return ((GoannaApplication) getApplication()).isApplicationInBackground();
     }
 
     @Override

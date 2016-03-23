@@ -10,11 +10,11 @@ import org.mozilla.gecko.gfx.BitmapUtils.BitmapLoader;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.LayerView.DrawListener;
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.menu.GeckoMenuItem;
+import org.mozilla.gecko.menu.GoannaMenu;
+import org.mozilla.gecko.menu.GoannaMenuItem;
 import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.ActionModeCompat.Callback;
 import org.mozilla.gecko.AppConstants.Versions;
@@ -35,8 +35,8 @@ import java.util.TimerTask;
 import android.util.Log;
 import android.view.View;
 
-class TextSelection extends Layer implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoTextSelection";
+class TextSelection extends Layer implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaTextSelection";
 
     private final TextSelectionHandle anchorHandle;
     private final TextSelectionHandle caretHandle;
@@ -80,7 +80,7 @@ class TextSelection extends Layer implements GeckoEventListener {
             @Override
             public void drawFinished() {
                 if (!mDraggingHandles) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:LayerReflow", ""));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("TextSelection:LayerReflow", ""));
                 }
             }
         };
@@ -89,7 +89,7 @@ class TextSelection extends Layer implements GeckoEventListener {
         if (anchorHandle == null || caretHandle == null || focusHandle == null) {
             Log.e(LOGTAG, "Failed to initialize text selection because at least one handle is null");
         } else {
-            EventDispatcher.getInstance().registerGeckoThreadListener(this,
+            EventDispatcher.getInstance().registerGoannaThreadListener(this,
                 "TextSelection:ShowHandles",
                 "TextSelection:HideHandles",
                 "TextSelection:PositionHandles",
@@ -99,7 +99,7 @@ class TextSelection extends Layer implements GeckoEventListener {
     }
 
     void destroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "TextSelection:ShowHandles",
             "TextSelection:HideHandles",
             "TextSelection:PositionHandles",
@@ -144,21 +144,21 @@ class TextSelection extends Layer implements GeckoEventListener {
                         mViewZoom = 0.0f;
 
                         // Create text selection layer and add draw-listener for positioning on reflows
-                        LayerView layerView = GeckoAppShell.getLayerView();
+                        LayerView layerView = GoannaAppShell.getLayerView();
                         if (layerView != null) {
                             layerView.addDrawListener(mDrawListener);
                             layerView.addLayer(TextSelection.this);
                         }
 
                         if (handles.length() > 1)
-                            GeckoAppShell.performHapticFeedback(true);
+                            GoannaAppShell.performHapticFeedback(true);
                     } else if (event.equals("TextSelection:Update")) {
                         if (mActionModeTimerTask != null)
                             mActionModeTimerTask.cancel();
                         showActionMode(message.getJSONArray("actions"));
                     } else if (event.equals("TextSelection:HideHandles")) {
                         // Remove draw-listener and text selection layer
-                        LayerView layerView = GeckoAppShell.getLayerView();
+                        LayerView layerView = GoannaAppShell.getLayerView();
                         if (layerView != null) {
                             layerView.removeDrawListener(mDrawListener);
                             layerView.removeLayer(TextSelection.this);
@@ -181,7 +181,7 @@ class TextSelection extends Layer implements GeckoEventListener {
 
                             TextSelectionHandle handle = getHandle(position.getString("handle"));
                             handle.setVisibility(position.getBoolean("hidden") ? View.GONE : View.VISIBLE);
-                            handle.positionFromGecko(left, top, rtl);
+                            handle.positionFromGoanna(left, top, rtl);
                         }
                     }
                 } catch (JSONException e) {
@@ -275,8 +275,8 @@ class TextSelection extends Layer implements GeckoEventListener {
             for (int i = 0; i < length; i++) {
                 try {
                     final JSONObject obj = mItems.getJSONObject(i);
-                    final GeckoMenuItem menuitem = (GeckoMenuItem) menu.add(0, i, 0, obj.optString("label"));
-                    final int actionEnum = obj.optBoolean("showAsAction") ? GeckoMenuItem.SHOW_AS_ACTION_ALWAYS : GeckoMenuItem.SHOW_AS_ACTION_NEVER;
+                    final GoannaMenuItem menuitem = (GoannaMenuItem) menu.add(0, i, 0, obj.optString("label"));
+                    final int actionEnum = obj.optBoolean("showAsAction") ? GoannaMenuItem.SHOW_AS_ACTION_ALWAYS : GoannaMenuItem.SHOW_AS_ACTION_NEVER;
                     menuitem.setShowAsAction(actionEnum, R.attr.menuItemActionModeStyle);
 
                     final String iconString = obj.optString("icon");
@@ -316,7 +316,7 @@ class TextSelection extends Layer implements GeckoEventListener {
         public boolean onActionItemClicked(ActionModeCompat mode, MenuItem item) {
             try {
                 final JSONObject obj = mItems.getJSONObject(item.getItemId());
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:Action", obj.optString("id")));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("TextSelection:Action", obj.optString("id")));
                 return true;
             } catch(Exception ex) {
                 Log.i(LOGTAG, "Exception calling action", ex);
@@ -329,7 +329,7 @@ class TextSelection extends Layer implements GeckoEventListener {
         public void onDestroyActionMode(ActionModeCompat mode) {
             mActionMode = null;
             mCallback = null;
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:End", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("TextSelection:End", null));
         }
     }
 }

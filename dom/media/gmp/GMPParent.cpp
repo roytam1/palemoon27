@@ -13,7 +13,7 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsThreadUtils.h"
 #include "nsIRunnable.h"
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 #include "mozilla/unused.h"
 #include "nsIObserverService.h"
 #include "GMPTimerParent.h"
@@ -91,7 +91,7 @@ GMPParent::CloneFrom(const GMPParent* aOther)
 }
 
 nsresult
-GMPParent::Init(GeckoMediaPluginService *aService, nsIFile* aPluginDir)
+GMPParent::Init(GoannaMediaPluginService *aService, nsIFile* aPluginDir)
 {
   MOZ_ASSERT(aPluginDir);
   MOZ_ASSERT(aService);
@@ -188,8 +188,8 @@ AbortWaitingForGMPAsyncShutdown(nsITimer* aTimer, void* aClosure)
 {
   NS_WARNING("Timed out waiting for GMP async shutdown!");
   GMPParent* parent = reinterpret_cast<GMPParent*>(aClosure);
-  nsRefPtr<GeckoMediaPluginService> service =
-    GeckoMediaPluginService::GetGeckoMediaPluginService();
+  nsRefPtr<GoannaMediaPluginService> service =
+    GoannaMediaPluginService::GetGoannaMediaPluginService();
   if (service) {
     service->AsyncShutdownComplete(parent);
   }
@@ -216,8 +216,8 @@ GMPParent::EnsureAsyncShutdownTimeoutSet()
   }
 
   int32_t timeout = GMP_DEFAULT_ASYNC_SHUTDONW_TIMEOUT;
-  nsRefPtr<GeckoMediaPluginService> service =
-    GeckoMediaPluginService::GetGeckoMediaPluginService();
+  nsRefPtr<GoannaMediaPluginService> service =
+    GoannaMediaPluginService::GetGoannaMediaPluginService();
   if (service) {
     timeout = service->AsyncShutdownTimeoutMs();
   }
@@ -405,7 +405,7 @@ GMPParent::ChildTerminated()
   nsRefPtr<GMPParent> self(this);
   GMPThread()->Dispatch(NS_NewRunnableMethodWithArg<nsRefPtr<GMPParent>>(
                           mService,
-                          &GeckoMediaPluginService::PluginTerminated,
+                          &GoannaMediaPluginService::PluginTerminated,
                           self),
                         NS_DISPATCH_NORMAL);
 }
@@ -515,7 +515,7 @@ nsIThread*
 GMPParent::GMPThread()
 {
   if (!mGMPThread) {
-    nsCOMPtr<mozIGeckoMediaPluginService> mps = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+    nsCOMPtr<mozIGoannaMediaPluginService> mps = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
     MOZ_ASSERT(mps);
     if (!mps) {
       return nullptr;
@@ -687,8 +687,8 @@ GMPNotifyObservers(const nsACString& aPluginId, const nsACString& aPluginName, c
     obs->NotifyObservers(nullptr, "gmp-plugin-crash", id.Data());
   }
 
-  nsRefPtr<gmp::GeckoMediaPluginService> service =
-    gmp::GeckoMediaPluginService::GetGeckoMediaPluginService();
+  nsRefPtr<gmp::GoannaMediaPluginService> service =
+    gmp::GoannaMediaPluginService::GetGoannaMediaPluginService();
   if (service) {
     service->RunPluginCrashCallbacks(aPluginId, aPluginName, aPluginDumpId);
   }
@@ -738,7 +738,7 @@ GMPParent::AllocPCrashReporterParent(const NativeThreadId& aThread)
   MOZ_ASSERT(false, "Should only be sent if crash reporting is enabled.");
 #endif
   CrashReporterParent* cr = new CrashReporterParent();
-  cr->SetChildData(aThread, GeckoProcessType_GMPlugin);
+  cr->SetChildData(aThread, GoannaProcessType_GMPlugin);
   return cr;
 }
 

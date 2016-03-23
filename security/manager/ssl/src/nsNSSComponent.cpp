@@ -72,7 +72,7 @@ bool nsPSMInitPanic::isPanic = false;
 bool EnsureNSSInitializedChromeOrContent()
 {
   nsresult rv;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     nsCOMPtr<nsISupports> nss = do_GetService(PSM_COMPONENT_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
       return false;
@@ -108,7 +108,7 @@ bool EnsureNSSInitialized(EnsureNSSOperator op)
   if (nsPSMInitPanic::GetPanic())
     return false;
 
-  if (GeckoProcessType_Default != XRE_GetProcessType())
+  if (GoannaProcessType_Default != XRE_GetProcessType())
   {
     if (op == nssEnsureOnChromeOnly)
     {

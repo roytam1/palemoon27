@@ -12,7 +12,7 @@
 #include "SQLiteBridge.h"
 
 #ifdef DEBUG
-#define LOG(x...) __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", x)
+#define LOG(x...) __android_log_print(ANDROID_LOG_INFO, "GoannaJNI", x)
 #else
 #define LOG(x...)
 #endif

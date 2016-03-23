@@ -172,7 +172,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLEditor)
 
 class nsIDocumentLoaderFactory;
 
-#define PRODUCT_NAME "Gecko"
+#define PRODUCT_NAME "Goanna"
 
 /* 0ddf4df8-4dbb-4133-8b79-9afb966514f5 */
 #define NS_PLUGINDOCLOADERFACTORY_CID \
@@ -264,7 +264,7 @@ using mozilla::dom::TCPServerSocketChild;
 using mozilla::dom::UDPSocketChild;
 using mozilla::dom::time::TimeService;
 using mozilla::net::StreamingProtocolControllerService;
-using mozilla::gmp::GeckoMediaPluginService;
+using mozilla::gmp::GoannaMediaPluginService;
 
 // Transformiix
 /* 5d5d92cd-6bf8-11d9-bf4a-000a95dc234c */
@@ -634,7 +634,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(TCPSocketParent)
 NS_GENERIC_FACTORY_CONSTRUCTOR(TCPServerSocketChild)
 NS_GENERIC_FACTORY_CONSTRUCTOR(UDPSocketChild)
 
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(GeckoMediaPluginService, GeckoMediaPluginService::GetGeckoMediaPluginService)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(GoannaMediaPluginService, GoannaMediaPluginService::GetGoannaMediaPluginService)
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -1093,7 +1093,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kTCPSOCKETPARENT_CID, false, nullptr, TCPSocketParentConstructor },
   { &kTCPSERVERSOCKETCHILD_CID, false, nullptr, TCPServerSocketChildConstructor },
   { &kUDPSOCKETCHILD_CID, false, nullptr, UDPSocketChildConstructor },
-  { &kGECKO_MEDIA_PLUGIN_SERVICE_CID, true, nullptr, GeckoMediaPluginServiceConstructor },
+  { &kGECKO_MEDIA_PLUGIN_SERVICE_CID, true, nullptr, GoannaMediaPluginServiceConstructor },
   { &kNS_TIMESERVICE_CID, false, nullptr, nsITimeServiceConstructor },
   { &kNS_MEDIASTREAMCONTROLLERSERVICE_CID, false, nullptr, nsIStreamingProtocolControllerServiceConstructor },
 #ifdef MOZ_WIDGET_GONK

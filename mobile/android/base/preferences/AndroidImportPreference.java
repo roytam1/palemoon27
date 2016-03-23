@@ -24,7 +24,7 @@ class AndroidImportPreference extends MultiPrefMultiChoicePreference {
     private static final String PREF_KEY_PREFIX = "import_android.data.";
     private final Context mContext;
 
-    public static class Handler implements GeckoPreferences.PrefHandler {
+    public static class Handler implements GoannaPreferences.PrefHandler {
         public boolean setupPref(Context context, Preference pref) {
             return RestrictedProfiles.isAllowed(context, Restriction.DISALLOW_IMPORT_SETTINGS);
         }

@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 // before RobocopTarget, we instead add o.m.g.SysInfo directly to the Proguard
 // configuration.
 public final class SysInfo {
-    private static final String LOG_TAG = "GeckoSysInfo";
+    private static final String LOG_TAG = "GoannaSysInfo";
 
     // Number of bytes of /proc/meminfo to read in one go.
     private static final int MEMINFO_BUFFER_SIZE_BYTES = 256;

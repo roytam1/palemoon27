@@ -78,17 +78,17 @@ function init() {
   function checkForUpdates() {
     showCheckingMessage();
 
-    Services.androidBridge.handleGeckoMessage({ type: "Update:Check" });
+    Services.androidBridge.handleGoannaMessage({ type: "Update:Check" });
   }
 
   function downloadUpdate() {
-    Services.androidBridge.handleGeckoMessage({ type: "Update:Download" });
+    Services.androidBridge.handleGoannaMessage({ type: "Update:Download" });
   }
 
   function installUpdate() {
     showCheckAction();
 
-    Services.androidBridge.handleGeckoMessage({ type: "Update:Install" });
+    Services.androidBridge.handleGoannaMessage({ type: "Update:Install" });
   }
 
   let updateLink = document.getElementById("updateLink");

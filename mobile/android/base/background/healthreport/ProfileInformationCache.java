@@ -20,12 +20,12 @@ import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ProfileInfor
 
 /**
  * There are some parts of the FHR environment that can't be readily computed
- * without a running Gecko -- add-ons, for example. In order to make this
- * information available without launching Gecko, we persist it on Fennec
+ * without a running Goanna -- add-ons, for example. In order to make this
+ * information available without launching Goanna, we persist it on Fennec
  * startup. This class is the notepad in which we write.
  */
 public class ProfileInformationCache implements ProfileInformationProvider {
-  private static final String LOG_TAG = "GeckoProfileInfo";
+  private static final String LOG_TAG = "GoannaProfileInfo";
   private static final String CACHE_FILE = "profile_info_cache.json";
 
   /*
@@ -53,10 +53,10 @@ public class ProfileInformationCache implements ProfileInformationProvider {
   //
   // * The OS
   // * The Android environment of the app (setDefault)
-  // * The Gecko locale
+  // * The Goanna locale
   // * The requested content locale (Accept-Language).
   //
-  // We track only the first two, assuming that the Gecko locale will typically
+  // We track only the first two, assuming that the Goanna locale will typically
   // be the same as the app locale.
   //
   // The app locale is fetched from the PIC because it can be modified at

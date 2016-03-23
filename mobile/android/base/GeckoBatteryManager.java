@@ -14,8 +14,8 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.util.Log;
 
-public class GeckoBatteryManager extends BroadcastReceiver {
-    private static final String LOGTAG = "GeckoBatteryManager";
+public class GoannaBatteryManager extends BroadcastReceiver {
+    private static final String LOGTAG = "GoannaBatteryManager";
 
     // Those constants should be keep in sync with the ones in:
     // dom/battery/Constants.h
@@ -30,17 +30,17 @@ public class GeckoBatteryManager extends BroadcastReceiver {
     private static boolean sCharging                   = kDefaultCharging;
     private static double  sRemainingTime              = kDefaultRemainingTime;
 
-    private static final GeckoBatteryManager sInstance = new GeckoBatteryManager();
+    private static final GoannaBatteryManager sInstance = new GoannaBatteryManager();
 
     private final IntentFilter mFilter;
     private Context mApplicationContext;
     private boolean mIsEnabled;
 
-    public static GeckoBatteryManager getInstance() {
+    public static GoannaBatteryManager getInstance() {
         return sInstance;
     }
 
-    private GeckoBatteryManager() {
+    private GoannaBatteryManager() {
         mFilter = new IntentFilter();
         mFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
     }
@@ -167,7 +167,7 @@ public class GeckoBatteryManager extends BroadcastReceiver {
          */
         if (sNotificationsEnabled &&
                 (previousCharging != isCharging() || previousLevel != getLevel())) {
-            GeckoAppShell.notifyBatteryChange(getLevel(), isCharging(), getRemainingTime());
+            GoannaAppShell.notifyBatteryChange(getLevel(), isCharging(), getRemainingTime());
         }
     }
 

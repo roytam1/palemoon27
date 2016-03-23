@@ -49,7 +49,7 @@
 #include "base/platform_thread.h"       // for PlatformThreadId
 #include "mozilla/GenericRefCounted.h"
 #include "gfx2DGlue.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 class nsIntRegion;
 class nsIRunnable;

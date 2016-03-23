@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * be used for all thumbnails.
  */
 public final class ThumbnailHelper {
-    private static final String LOGTAG = "GeckoThumbnailHelper";
+    private static final String LOGTAG = "GoannaThumbnailHelper";
 
     public static final float THUMBNAIL_ASPECT_RATIO = 0.571f;  // this is a 4:7 ratio (as per UX decision)
 
@@ -61,7 +61,7 @@ public final class ThumbnailHelper {
     private ThumbnailHelper() {
         mPendingThumbnails = new LinkedList<Tab>();
         try {
-            mPendingWidth = new AtomicInteger((int)GeckoAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
+            mPendingWidth = new AtomicInteger((int)GoannaAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
         } catch (Resources.NotFoundException nfe) { mPendingWidth = new AtomicInteger(0); }
         mWidth = -1;
         mHeight = -1;
@@ -95,7 +95,7 @@ public final class ThumbnailHelper {
 
     public void setThumbnailWidth(int width) {
         // Check inverted for safety: Bug 803299 Comment 34.
-        if (GeckoAppShell.getScreenDepth() == 24) {
+        if (GoannaAppShell.getScreenDepth() == 24) {
             mPendingWidth.set(width);
         } else {
             // Bug 776906: on 16-bit screens we need to ensure an even width.
@@ -107,13 +107,13 @@ public final class ThumbnailHelper {
         // Apply any pending width updates.
         mWidth = mPendingWidth.get();
 
-        if(NewTabletUI.isEnabled(GeckoAppShell.getContext())) {
+        if(NewTabletUI.isEnabled(GoannaAppShell.getContext())) {
             mHeight = Math.round(mWidth * NEW_TABLET_THUMBNAIL_ASPECT_RATIO);
         } else {
             mHeight = Math.round(mWidth * THUMBNAIL_ASPECT_RATIO);
         }
 
-        int pixelSize = (GeckoAppShell.getScreenDepth() == 24) ? 4 : 2;
+        int pixelSize = (GoannaAppShell.getScreenDepth() == 24) ? 4 : 2;
         int capacity = mWidth * mHeight * pixelSize;
         Log.d(LOGTAG, "Using new thumbnail size: " + capacity + " (width " + mWidth + " - height " + mHeight + ")");
         if (mBuffer == null || mBuffer.capacity() != capacity) {
@@ -148,8 +148,8 @@ public final class ThumbnailHelper {
         }
 
         Log.d(LOGTAG, "Sending thumbnail event: " + mWidth + ", " + mHeight);
-        GeckoEvent e = GeckoEvent.createThumbnailEvent(tab.getId(), mWidth, mHeight, mBuffer);
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createThumbnailEvent(tab.getId(), mWidth, mHeight, mBuffer);
+        GoannaAppShell.sendEventToGoanna(e);
     }
 
     /* This method is invoked by JNI once the thumbnail data is ready. */
@@ -211,6 +211,6 @@ public final class ThumbnailHelper {
     }
 
     private boolean shouldUpdateThumbnail(Tab tab) {
-        return (Tabs.getInstance().isSelectedTab(tab) || (GeckoAppShell.getGeckoInterface() != null && GeckoAppShell.getGeckoInterface().areTabsShown()));
+        return (Tabs.getInstance().isSelectedTab(tab) || (GoannaAppShell.getGoannaInterface() != null && GoannaAppShell.getGoannaInterface().areTabsShown()));
     }
 }

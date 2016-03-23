@@ -33,7 +33,7 @@ interface nsIContentPolicyBase : nsISupports
   const nsContentPolicyType TYPE_INVALID = 0;
 
   /**
-   * Gecko/Firefox developers: Avoid using TYPE_OTHER. Especially for
+   * Goanna/Firefox developers: Avoid using TYPE_OTHER. Especially for
    * requests that are coming from webpages. Or requests in general which
    * you expect that security checks will be done on.
    * Always use a more specific type if one is available. And do not hesitate
@@ -50,7 +50,7 @@ interface nsIContentPolicyBase : nsISupports
    * value and name your new content type will have; in that interim period,
    * use TYPE_OTHER. In your patch, document your new content type in the style
    * of the existing ones. In the bug you file, provide a more detailed
-   * description of the new type of content you want Gecko to support, so that
+   * description of the new type of content you want Goanna to support, so that
    * the existing implementations of nsIContentPolicy can be properly modified
    * to deal with that new type of content.
    *

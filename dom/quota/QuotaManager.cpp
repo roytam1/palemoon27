@@ -25,7 +25,7 @@
 #include "nsPIDOMWindow.h"
 
 #include <algorithm>
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
@@ -781,7 +781,7 @@ struct MOZ_STACK_CLASS InactiveOriginsInfo
 bool
 IsMainProcess()
 {
-  return XRE_GetProcessType() == GeckoProcessType_Default;
+  return XRE_GetProcessType() == GoannaProcessType_Default;
 }
 
 void

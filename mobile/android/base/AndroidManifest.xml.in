@@ -82,7 +82,7 @@
     <application android:label="@string/moz_app_displayname"
                  android:icon="@drawable/icon"
                  android:logo="@drawable/logo"
-                 android:name="org.mozilla.gecko.GeckoApplication"
+                 android:name="org.mozilla.gecko.GoannaApplication"
                  android:hardwareAccelerated="true"
 # The preprocessor does not yet support arbitrary parentheses, so this cannot
 # be parenthesized thus to clarify that the logical AND operator has precedence:
@@ -110,7 +110,7 @@
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleTask"
                   android:exported="true"
-                  android:theme="@style/Gecko.App">
+                  android:theme="@style/Goanna.App">
           <!-- We export this activity so that it can be launched by explicit
                intents, in particular homescreen shortcuts.  See Bug 1032217.
                In future we would prefer to move all intent filters off the .App
@@ -241,7 +241,7 @@
         </activity-alias>
 
         <activity android:name="org.mozilla.gecko.StartPane"
-                  android:theme="@style/GeckoStartPane"
+                  android:theme="@style/GoannaStartPane"
                   android:excludeFromRecents="true"/>
 
         <activity android:name="org.mozilla.gecko.webapp.Dispatcher"
@@ -278,7 +278,7 @@
                   android:process=":@ANDROID_PACKAGE_NAME@.Webapp"
                   android:excludeFromRecents="true"
                   android:exported="true"
-                  android:theme="@style/Gecko.App">
+                  android:theme="@style/Goanna.App">
           <!-- We export this activity so that it can be launched by explicit
                intents, in particular old-style WebApp launching homescreen
                shortcuts. Such shortcuts were made before the new "synthetic
@@ -312,13 +312,13 @@
             android:targetActivity="org.mozilla.gecko.BrowserApp"
             android:exported="true" />
 
-        <receiver android:name="org.mozilla.gecko.GeckoUpdateReceiver">
+        <receiver android:name="org.mozilla.gecko.GoannaUpdateReceiver">
             <intent-filter>
                 <action android:name="@ANDROID_PACKAGE_NAME@.CHECK_UPDATE_RESULT" />
             </intent-filter>
         </receiver>
 
-        <receiver android:name="org.mozilla.gecko.GeckoMessageReceiver"
+        <receiver android:name="org.mozilla.gecko.GoannaMessageReceiver"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER">
             <intent-filter>
                   <action android:name="org.mozilla.gecko.INIT_PW"></action>
@@ -336,7 +336,7 @@
         <activity android:name="org.mozilla.gecko.Restarter"
                   android:process="@ANDROID_PACKAGE_NAME@Restarter"
                   android:noHistory="true"
-                  android:theme="@style/Gecko">
+                  android:theme="@style/Goanna">
           <intent-filter>
             <action android:name="org.mozilla.gecko.restart"/>
             <action android:name="org.mozilla.gecko.restart_update"/>
@@ -355,7 +355,7 @@
             android:process="@ANDROID_PACKAGE_NAME@.CrashReporter"
             android:label="@string/crash_reporter_title"
             android:icon="@drawable/crash_reporter"
-            android:theme="@style/Gecko"
+            android:theme="@style/Goanna"
             android:exported="false"
             android:excludeFromRecents="true">
           <intent-filter>
@@ -364,8 +364,8 @@
   </activity>
 #endif
 
-        <activity android:name="org.mozilla.gecko.preferences.GeckoPreferences"
-                  android:theme="@style/Gecko.Preferences"
+        <activity android:name="org.mozilla.gecko.preferences.GoannaPreferences"
+                  android:theme="@style/Goanna.Preferences"
                   android:configChanges="orientation|screenSize|locale|layoutDirection"
                   android:excludeFromRecents="true"/>
 
@@ -419,7 +419,7 @@
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.FORMHISTORY_PROVIDER"
                   android:protectionLevel="signature"/>
 
-        <provider android:name="org.mozilla.gecko.GeckoProfilesProvider"
+        <provider android:name="org.mozilla.gecko.GoannaProfilesProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.profiles"/>
 
         <provider android:name="org.mozilla.gecko.db.TabsProvider"

@@ -11,7 +11,7 @@ import org.mozilla.gecko.util.EventCallback;
 /**
  * Wrapper for MediaRouter types supported by Android, such as Chromecast, Miracast, etc.
  */
-interface GeckoMediaPlayer {
+interface GoannaMediaPlayer {
     /**
      * Can return null.
      */

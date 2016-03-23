@@ -8,15 +8,15 @@ package org.mozilla.gecko.gfx;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.graphics.PointF;
@@ -37,9 +37,9 @@ import android.view.View;
  */
 class JavaPanZoomController
     extends GestureDetector.SimpleOnGestureListener
-    implements PanZoomController, SimpleScaleGestureDetector.SimpleScaleGestureListener, GeckoEventListener
+    implements PanZoomController, SimpleScaleGestureDetector.SimpleScaleGestureListener, GoannaEventListener
 {
-    private static final String LOGTAG = "GeckoPanZoomController";
+    private static final String LOGTAG = "GoannaPanZoomController";
 
     private static final String MESSAGE_ZOOM_RECT = "Browser:ZoomToRect";
     private static final String MESSAGE_ZOOM_PAGE = "Browser:ZoomToPageWidth";
@@ -58,13 +58,13 @@ class JavaPanZoomController
     private static final double AXIS_BREAKOUT_ANGLE = Math.PI / 8.0;
 
     // The distance the user has to pan before we consider breaking out of a locked axis
-    public static final float AXIS_BREAKOUT_THRESHOLD = 1/32f * GeckoAppShell.getDpi();
+    public static final float AXIS_BREAKOUT_THRESHOLD = 1/32f * GoannaAppShell.getDpi();
 
     // The maximum amount we allow you to zoom into a page
     private static final float MAX_ZOOM = 4.0f;
 
     // The maximum amount we would like to scroll with the mouse
-    private static final float MAX_SCROLL = 0.075f * GeckoAppShell.getDpi();
+    private static final float MAX_SCROLL = 0.075f * GoannaAppShell.getDpi();
 
     // The maximum zoom factor adjustment per frame of the AUTONAV animation
     private static final float MAX_ZOOM_DELTA = 0.125f;
@@ -144,7 +144,7 @@ class JavaPanZoomController
         setState(PanZoomState.NOTHING);
 
         mEventDispatcher = eventDispatcher;
-        mEventDispatcher.registerGeckoThreadListener(this,
+        mEventDispatcher.registerGoannaThreadListener(this,
             MESSAGE_ZOOM_RECT,
             MESSAGE_ZOOM_PAGE,
             MESSAGE_TOUCH_LISTENER);
@@ -191,7 +191,7 @@ class JavaPanZoomController
 
     @Override
     public void destroy() {
-        mEventDispatcher.unregisterGeckoThreadListener(this,
+        mEventDispatcher.unregisterGoannaThreadListener(this,
             MESSAGE_ZOOM_RECT,
             MESSAGE_ZOOM_PAGE,
             MESSAGE_TOUCH_LISTENER);
@@ -208,7 +208,7 @@ class JavaPanZoomController
 
     private void setState(PanZoomState state) {
         if (state != mState) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("PanZoom:StateChange", state.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("PanZoom:StateChange", state.toString()));
             mState = state;
 
             // Let the target know we've finished with it (for now)
@@ -1172,7 +1172,7 @@ class JavaPanZoomController
         mLastZoomFocus = new PointF(detector.getFocusX(), detector.getFocusY());
         cancelTouch();
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createNativeGestureEvent(GeckoEvent.ACTION_MAGNIFY_START, mLastZoomFocus, getMetrics().zoomFactor));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createNativeGestureEvent(GoannaEvent.ACTION_MAGNIFY_START, mLastZoomFocus, getMetrics().zoomFactor));
 
         return true;
     }
@@ -1205,8 +1205,8 @@ class JavaPanZoomController
             mTarget.setViewportMetrics(target);
         }
 
-        GeckoEvent event = GeckoEvent.createNativeGestureEvent(GeckoEvent.ACTION_MAGNIFY, mLastZoomFocus, getMetrics().zoomFactor);
-        GeckoAppShell.sendEventToGecko(event);
+        GoannaEvent event = GoannaEvent.createNativeGestureEvent(GoannaEvent.ACTION_MAGNIFY, mLastZoomFocus, getMetrics().zoomFactor);
+        GoannaAppShell.sendEventToGoanna(event);
 
         return true;
     }
@@ -1288,13 +1288,13 @@ class JavaPanZoomController
         mTarget.forceRedraw(null);
 
         PointF point = new PointF(detector.getFocusX(), detector.getFocusY());
-        GeckoEvent event = GeckoEvent.createNativeGestureEvent(GeckoEvent.ACTION_MAGNIFY_END, point, getMetrics().zoomFactor);
+        GoannaEvent event = GoannaEvent.createNativeGestureEvent(GoannaEvent.ACTION_MAGNIFY_END, point, getMetrics().zoomFactor);
 
         if (event == null) {
             return;
         }
 
-        GeckoAppShell.sendEventToGecko(event);
+        GoannaAppShell.sendEventToGoanna(event);
     }
 
     @Override
@@ -1313,7 +1313,7 @@ class JavaPanZoomController
         }
     }
 
-    private void sendPointToGecko(String event, MotionEvent motionEvent) {
+    private void sendPointToGoanna(String event, MotionEvent motionEvent) {
         String json;
         try {
             PointF point = new PointF(motionEvent.getX(), motionEvent.getY());
@@ -1327,7 +1327,7 @@ class JavaPanZoomController
             return;
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(event, json));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(event, json));
     }
 
     @Override
@@ -1361,8 +1361,8 @@ class JavaPanZoomController
             return;
         }
 
-        GeckoEvent e = GeckoEvent.createLongPressEvent(motionEvent);
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createLongPressEvent(motionEvent);
+        GoannaAppShell.sendEventToGoanna(e);
     }
 
     @Override
@@ -1370,7 +1370,7 @@ class JavaPanZoomController
         // When double-tapping is allowed, we have to wait to see if this is
         // going to be a double-tap.
         if (!mWaitForDoubleTap) {
-            sendPointToGecko("Gesture:SingleTap", motionEvent);
+            sendPointToGoanna("Gesture:SingleTap", motionEvent);
         }
         // return false because we still want to get the ACTION_UP event that triggers this
         return false;
@@ -1380,20 +1380,20 @@ class JavaPanZoomController
     public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
         // In cases where we don't wait for double-tap, we handle this in onSingleTapUp.
         if (mWaitForDoubleTap) {
-            sendPointToGecko("Gesture:SingleTap", motionEvent);
+            sendPointToGoanna("Gesture:SingleTap", motionEvent);
         }
         return true;
     }
 
     @Override
     public boolean onDoubleTap(MotionEvent motionEvent) {
-        sendPointToGecko("Gesture:DoubleTap", motionEvent);
+        sendPointToGoanna("Gesture:DoubleTap", motionEvent);
         return true;
     }
 
     private void cancelTouch() {
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Gesture:CancelTouch", "");
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createBroadcastEvent("Gesture:CancelTouch", "");
+        GoannaAppShell.sendEventToGoanna(e);
     }
 
     /**

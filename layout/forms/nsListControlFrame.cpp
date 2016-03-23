@@ -1810,7 +1810,7 @@ nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   } else {
     // NOTE: the combo box is responsible for dropping it down
     if (mComboboxFrame) {
-      if (XRE_GetProcessType() == GeckoProcessType_Content &&
+      if (XRE_GetProcessType() == GoannaProcessType_Content &&
           Preferences::GetBool("browser.tabs.remote.desktopbehavior", false)) {
         nsContentUtils::DispatchChromeEvent(mContent->OwnerDoc(), mContent,
                                             NS_LITERAL_STRING("mozshowdropdown"), true,

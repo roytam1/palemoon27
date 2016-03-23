@@ -47,7 +47,7 @@ let ContactService = {
   },
 
   _sendMessageToJava: function(aMsg) {
-    Services.androidBridge.handleGeckoMessage(aMsg);
+    Services.androidBridge.handleGoannaMessage(aMsg);
   },
 
   _sendReturnMessage: function(aTopic, aRequestID, aResult) {

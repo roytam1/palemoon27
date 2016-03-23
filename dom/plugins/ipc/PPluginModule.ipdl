@@ -93,7 +93,7 @@ child:
     returns (NativeThreadId tid, uint32_t processType);
 
   /**
-   * Control the Gecko Profiler in the plugin process.
+   * Control the Goanna Profiler in the plugin process.
    */
   async StartProfiler(uint32_t aEntries, double aInterval, nsCString[] aFeatures,
                       nsCString[] aThreadNameFilters);

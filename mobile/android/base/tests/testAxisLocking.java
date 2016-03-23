@@ -19,9 +19,9 @@ public class testAxisLocking extends PixelTest {
     public void testAxisLocking() {
         String url = getAbsoluteUrl(StringHelper.ROBOCOP_BOXES_URL);
 
-        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
+        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGoannaLeft(), mDriver.getGoannaTop());
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // load page and check we're at 0,0
         loadAndVerifyBoxes(url);

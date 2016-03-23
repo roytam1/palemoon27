@@ -47,7 +47,7 @@ import android.widget.FrameLayout;
  * receives dataset requests and delivers them back to the {@code PanelLayout}.
  */
 public class DynamicPanel extends HomeFragment {
-    private static final String LOGTAG = "GeckoDynamicPanel";
+    private static final String LOGTAG = "GoannaDynamicPanel";
 
     // Dataset ID to be used by the loader
     private static final String DATASET_REQUEST = "dataset_request";

@@ -28,7 +28,7 @@ public class testReaderMode extends AboutHomeTest {
     static final int READER_ICON_MAX_WAIT_MS = 15000;
 
     public void testReaderMode() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         Actions.EventExpecter contentEventExpecter;
         Actions.EventExpecter contentReaderAddedExpecter;
@@ -48,7 +48,7 @@ public class testReaderMode extends AboutHomeTest {
 
         // Add the page to the Reading List using long click on the reader icon
         readerIcon = getReaderIcon();
-        contentReaderAddedExpecter = mActions.expectGeckoEvent("Reader:Added");
+        contentReaderAddedExpecter = mActions.expectGoannaEvent("Reader:Added");
         mSolo.clickLongOnView(readerIcon);
         String eventData = contentReaderAddedExpecter.blockForEventData();
         isAdded(eventData);
@@ -56,15 +56,15 @@ public class testReaderMode extends AboutHomeTest {
 
         // Try to add the page to the Reading List using long click on the reader icon a second time
         readerIcon = getReaderIcon();
-        contentReaderAddedExpecter = mActions.expectGeckoEvent("Reader:Added");
+        contentReaderAddedExpecter = mActions.expectGoannaEvent("Reader:Added");
         mSolo.clickLongOnView(readerIcon);
         eventData = contentReaderAddedExpecter.blockForEventData();
         isAdded(eventData);
         contentReaderAddedExpecter.unregisterListener();
 
         // Waiting for the favicon since is the last element loaded usually
-        faviconExpecter = mActions.expectGeckoEvent("Reader:FaviconRequest");
-        contentPageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
+        faviconExpecter = mActions.expectGoannaEvent("Reader:FaviconRequest");
+        contentPageShowExpecter = mActions.expectGoannaEvent("Content:PageShow");
         readerIcon = getReaderIcon();
         paintExpecter = mActions.expectPaint();
         mSolo.clickOnView(readerIcon);
@@ -80,16 +80,16 @@ public class testReaderMode extends AboutHomeTest {
         verifyUrlBarTitle(StringHelper.ROBOCOP_TEXT_PAGE_URL);
 
         // Open the share menu for the reader toolbar
-        height = mDriver.getGeckoTop() + mDriver.getGeckoHeight() - 10;
-        width = mDriver.getGeckoLeft() + mDriver.getGeckoWidth() - 10;
+        height = mDriver.getGoannaTop() + mDriver.getGoannaHeight() - 10;
+        width = mDriver.getGoannaLeft() + mDriver.getGoannaWidth() - 10;
         mAsserter.dumpLog("Long Clicking at width = " + String.valueOf(width) + " and height = " + String.valueOf(height));
         mSolo.clickOnScreen(width,height);
         mAsserter.ok(mSolo.waitForText("Share via"), "Waiting for the share menu", "The share menu is present");
         mActions.sendSpecialKey(Actions.SpecialKey.BACK); // Close the share menu
 
         // Remove page from the Reading List using reader toolbar
-        height = mDriver.getGeckoTop() + mDriver.getGeckoHeight() - 10;
-        width = mDriver.getGeckoLeft() + 50;
+        height = mDriver.getGoannaTop() + mDriver.getGoannaHeight() - 10;
+        width = mDriver.getGoannaLeft() + 50;
         mAsserter.dumpLog("Long Clicking at width = " + String.valueOf(width) + " and height = " + String.valueOf(height));
         mSolo.clickOnScreen(width,height);
         mAsserter.ok(mSolo.waitForText("Page removed from your Reading List"), "Waiting for the page to removed from your Reading List", "The page is removed from your Reading List");
@@ -99,10 +99,10 @@ public class testReaderMode extends AboutHomeTest {
         mAsserter.ok(mSolo.waitForText("Page added to your Reading List"), "Waiting for the page to be added to your Reading List", "The page was added to your Reading List");
 
         // Open the Reading List menu for the toolbar
-        height = mDriver.getGeckoTop() + mDriver.getGeckoHeight() - 10;
-        width = mDriver.getGeckoLeft() + mDriver.getGeckoWidth()/2 - 10;
+        height = mDriver.getGoannaTop() + mDriver.getGoannaHeight() - 10;
+        width = mDriver.getGoannaLeft() + mDriver.getGoannaWidth()/2 - 10;
         mAsserter.dumpLog("Long Clicking at width = " + String.valueOf(width) + " and height = " + String.valueOf(height));
-        contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
         mSolo.clickOnScreen(width,height);
         contentEventExpecter.blockForEvent();
         contentEventExpecter.unregisterListener();
@@ -134,15 +134,15 @@ public class testReaderMode extends AboutHomeTest {
         list = findListViewWithTag(HomePager.LIST_TAG_READING_LIST);
         child = list.getChildAt(childNo-1);
         mAsserter.ok(child != null, "Verify if the page is present to your Reading List", "The page is present in your Reading List");
-        contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
         mSolo.clickOnView(child);
         contentEventExpecter.blockForEvent();
         contentEventExpecter.unregisterListener();
         verifyUrlBarTitle(StringHelper.ROBOCOP_TEXT_PAGE_URL);
 
         // Verify that we are in reader mode and remove the page from Reading List
-        height = mDriver.getGeckoTop() + mDriver.getGeckoHeight() - 10;
-        width = mDriver.getGeckoLeft() + 50;
+        height = mDriver.getGoannaTop() + mDriver.getGoannaHeight() - 10;
+        width = mDriver.getGoannaLeft() + 50;
         mAsserter.dumpLog("Long Clicking at width = " + String.valueOf(width) + " and height = " + String.valueOf(height));
         mSolo.clickOnScreen(width,height);
         mAsserter.ok(mSolo.waitForText("Page removed from your Reading List"), "Waiting for the page to removed from your Reading List", "The page is removed from your Reading List");

@@ -16,7 +16,7 @@ import android.view.WindowManager;
 import java.lang.reflect.Method;
 
 public class WindowUtils {
-    private static final String LOGTAG = "Gecko" + WindowUtils.class.getSimpleName();
+    private static final String LOGTAG = "Goanna" + WindowUtils.class.getSimpleName();
 
     private WindowUtils() { /* To prevent instantiation */ }
 

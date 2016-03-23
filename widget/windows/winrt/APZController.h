@@ -6,7 +6,7 @@
 
 #include "mozwrlbase.h"
 
-#include "mozilla/layers/GeckoContentController.h"
+#include "mozilla/layers/GoannaContentController.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/EventForwards.h"
 #include "FrameMetrics.h"
@@ -23,7 +23,7 @@ public:
 };
 
 class APZController :
-  public mozilla::layers::GeckoContentController
+  public mozilla::layers::GoannaContentController
 {
   typedef mozilla::layers::FrameMetrics FrameMetrics;
   typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
@@ -35,7 +35,7 @@ public:
   {
   }
 
-  // GeckoContentController interface
+  // GoannaContentController interface
   virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics);
   virtual void AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId, const uint32_t& aScrollGeneration);
   virtual void HandleDoubleTap(const mozilla::CSSPoint& aPoint,
@@ -61,7 +61,7 @@ public:
   void SetPendingResponseFlusher(APZPendingResponseFlusher* aFlusher);
   
   bool HitTestAPZC(mozilla::ScreenIntPoint& aPoint);
-  void TransformCoordinateToGecko(const mozilla::ScreenIntPoint& aPoint,
+  void TransformCoordinateToGoanna(const mozilla::ScreenIntPoint& aPoint,
                                   LayoutDeviceIntPoint* aRefPointOut);
   void ContentReceivedInputBlock(uint64_t aInputBlockId, bool aPreventDefault);
   nsEventStatus ReceiveInputEvent(mozilla::WidgetInputEvent* aEvent,

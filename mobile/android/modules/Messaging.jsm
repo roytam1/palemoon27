@@ -77,7 +77,7 @@ let Messaging = {
    * @param aMessage  Message to send; must be an object with a "type" property
    */
   sendRequest: function (aMessage) {
-    Services.androidBridge.handleGeckoMessage(aMessage);
+    Services.androidBridge.handleGoannaMessage(aMessage);
   },
 
   /**
@@ -146,18 +146,18 @@ let requestHandler = {
     try {
       let response = yield listener(wrapper.data);
       if (typeof response !== "object" || response === null) {
-        throw new Error("Gecko request listener did not return an object");
+        throw new Error("Goanna request listener did not return an object");
       }
 
       Messaging.sendRequest({
-        type: "Gecko:Request" + wrapper.id,
+        type: "Goanna:Request" + wrapper.id,
         response: response
       });
     } catch (e) {
       Cu.reportError("Error in Messaging handler for " + aTopic + ": " + e);
 
       Messaging.sendRequest({
-        type: "Gecko:Request" + wrapper.id,
+        type: "Goanna:Request" + wrapper.id,
         error: {
           message: e.message || (e && e.toString()),
           stack: e.stack || Components.stack.formattedStack,

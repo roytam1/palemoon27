@@ -119,7 +119,7 @@ public:
  * Motivation: For truly smooth animation and video playback, we need to
  * be able to compose frames and render them on a dedicated thread (i.e.
  * off the main thread where DOM manipulation, script execution and layout
- * induce difficult-to-bound latency). This requires Gecko to construct
+ * induce difficult-to-bound latency). This requires Goanna to construct
  * some kind of persistent scene structure (graph or tree) that can be
  * safely transmitted across threads. We have other scenarios (e.g. mobile
  * browsing) where retaining some rendered data between paints is desired
@@ -134,8 +134,8 @@ public:
  * We want to support a variety of layer implementations, including
  * a simple "immediate mode" implementation that doesn't retain any
  * rendered data between paints (i.e. uses cairo in just the way that
- * Gecko used it before layers were introduced). But we also don't want
- * to have bifurcated "layers"/"non-layers" rendering paths in Gecko.
+ * Goanna used it before layers were introduced). But we also don't want
+ * to have bifurcated "layers"/"non-layers" rendering paths in Goanna.
  * Therefore the layers API is carefully designed to permit maximally
  * efficient implementation in an "immediate mode" style. See the
  * BasicLayerManager for such an implementation.

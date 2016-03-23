@@ -33,7 +33,7 @@ void HandleUncaughtException(JNIEnv *aEnv)
     MOZ_ASSERT(e);
 
     aEnv->ExceptionClear();
-    widget::GeckoAppShell::HandleUncaughtException(nullptr, e);
+    widget::GoannaAppShell::HandleUncaughtException(nullptr, e);
 
     // Should be dead by now...
     MOZ_CRASH("Failed to handle uncaught exception");

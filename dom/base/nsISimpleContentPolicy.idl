@@ -19,7 +19,7 @@ interface nsIDOMElement;
  *
  * This interface differs from nsIContentPolicy in that it offers less control
  * (the DOM node doing the load is not provided) but more flexibility for
- * Gecko. In particular, this interface allows an add-on in the chrome process
+ * Goanna. In particular, this interface allows an add-on in the chrome process
  * to block loads without using cross-process wrappers (CPOWs). Add-ons should
  * prefer this interface to nsIContentPolicy because it should be faster in
  * e10s. In the future, it may also be run asynchronously.
@@ -60,7 +60,7 @@ interface nsISimpleContentPolicy : nsIContentPolicyBase
    *                          attribute); does not reliably reflect the
    *                          actual MIME type of the requested content
    *
-   * @param aExtra            an OPTIONAL argument, pass-through for non-Gecko
+   * @param aExtra            an OPTIONAL argument, pass-through for non-Goanna
    *                          callers to pass extra data to callees.
    *
    * @param aRequestPrincipal an OPTIONAL argument, defines the principal that
@@ -127,7 +127,7 @@ interface nsISimpleContentPolicy : nsIContentPolicyBase
    *                          if available (may be empty if inappropriate for
    *                          the type, e.g., TYPE_REFRESH).
    *
-   * @param aExtra            an OPTIONAL argument, pass-through for non-Gecko
+   * @param aExtra            an OPTIONAL argument, pass-through for non-Goanna
    *                          callers to pass extra data to callees.
    *
    * @return ACCEPT or REJECT_*

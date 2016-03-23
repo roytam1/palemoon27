@@ -1517,11 +1517,11 @@ Requisition.prototype._contextUpdate = function(typed) {
  * with the same that contains the command to update with
  */
 Requisition.prototype.update = function(typed) {
-  // Should be "if (typed instanceof HTMLElement)" except Gecko
+  // Should be "if (typed instanceof HTMLElement)" except Goanna
   if (typeof typed.querySelector === 'function') {
     typed = getDataCommandAttribute(typed);
   }
-  // Should be "if (typed instanceof Event)" except Gecko
+  // Should be "if (typed instanceof Event)" except Goanna
   if (typeof typed.currentTarget === 'object') {
     typed = getDataCommandAttribute(typed.currentTarget);
   }

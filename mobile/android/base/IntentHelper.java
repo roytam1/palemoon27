@@ -6,7 +6,7 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.ActivityResultHandler;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.JSONUtils;
 import org.mozilla.gecko.util.WebActivityMapper;
 
@@ -21,8 +21,8 @@ import android.util.Log;
 import java.util.Arrays;
 import java.util.List;
 
-public final class IntentHelper implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoIntentHelper";
+public final class IntentHelper implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaIntentHelper";
     private static final String[] EVENTS = {
         "Intent:GetHandlers",
         "Intent:Open",
@@ -35,7 +35,7 @@ public final class IntentHelper implements GeckoEventListener {
 
     private IntentHelper(Activity activity) {
         this.activity = activity;
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, EVENTS);
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, EVENTS);
     }
 
     public static IntentHelper init(Activity activity) {
@@ -50,7 +50,7 @@ public final class IntentHelper implements GeckoEventListener {
 
     public static void destroy() {
         if (instance != null) {
-            EventDispatcher.getInstance().unregisterGeckoThreadListener(instance, EVENTS);
+            EventDispatcher.getInstance().unregisterGoannaThreadListener(instance, EVENTS);
             instance = null;
         }
     }
@@ -73,12 +73,12 @@ public final class IntentHelper implements GeckoEventListener {
     }
 
     private void getHandlers(JSONObject message) throws JSONException {
-        final Intent intent = GeckoAppShell.getOpenURIIntent(activity,
+        final Intent intent = GoannaAppShell.getOpenURIIntent(activity,
                                                              message.optString("url"),
                                                              message.optString("mime"),
                                                              message.optString("action"),
                                                              message.optString("title"));
-        final List<String> appList = Arrays.asList(GeckoAppShell.getHandlersForIntent(intent));
+        final List<String> appList = Arrays.asList(GoannaAppShell.getHandlersForIntent(intent));
 
         final JSONObject response = new JSONObject();
         response.put("apps", new JSONArray(appList));
@@ -86,7 +86,7 @@ public final class IntentHelper implements GeckoEventListener {
     }
 
     private void open(JSONObject message) throws JSONException {
-        GeckoAppShell.openUriExternal(message.optString("url"),
+        GoannaAppShell.openUriExternal(message.optString("url"),
                                       message.optString("mime"),
                                       message.optString("packageName"),
                                       message.optString("className"),
@@ -95,7 +95,7 @@ public final class IntentHelper implements GeckoEventListener {
     }
 
     private void openForResult(final JSONObject message) throws JSONException {
-        Intent intent = GeckoAppShell.getOpenURIIntent(activity,
+        Intent intent = GoannaAppShell.getOpenURIIntent(activity,
                                                        message.optString("url"),
                                                        message.optString("mime"),
                                                        message.optString("action"),

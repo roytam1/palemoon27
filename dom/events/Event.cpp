@@ -1054,7 +1054,7 @@ Event::GetPreventDefault() const
       doc->WarnOnceAbout(nsIDocument::eGetPreventDefault);
     }
   }
-  // GetPreventDefault() is legacy and Gecko specific method.  Although,
+  // GetPreventDefault() is legacy and Goanna specific method.  Although,
   // the result should be same as defaultPrevented, we don't need to break
   // backward compatibility of legacy method.  Let's behave traditionally.
   return DefaultPrevented();

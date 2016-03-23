@@ -74,7 +74,7 @@ import com.squareup.picasso.Picasso;
  * the panel views in different ways.
  */
 abstract class PanelLayout extends FrameLayout {
-    private static final String LOGTAG = "GeckoPanelLayout";
+    private static final String LOGTAG = "GoannaPanelLayout";
 
     protected final SparseArray<ViewState> mViewStates;
     private final PanelConfig mPanelConfig;

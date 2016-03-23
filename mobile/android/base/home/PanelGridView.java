@@ -26,7 +26,7 @@ import android.widget.GridView;
 
 public class PanelGridView extends GridView
                            implements DatasetBacked, PanelView {
-    private static final String LOGTAG = "GeckoPanelGridView";
+    private static final String LOGTAG = "GoannaPanelGridView";
 
     private final ViewConfig viewConfig;
     private final PanelViewAdapter adapter;

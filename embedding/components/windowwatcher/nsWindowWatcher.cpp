@@ -457,7 +457,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     aParent = parent->GetOuterWindow();
   }
 
-  MOZ_ASSERT_IF(openedFromRemoteTab, XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT_IF(openedFromRemoteTab, XRE_GetProcessType() == GoannaProcessType_Default);
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = 0;
 

@@ -11,11 +11,11 @@ import java.net.URI;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.GeckoThread;
+import org.mozilla.gecko.GoannaApp;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.gecko.GoannaThread;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
@@ -40,8 +40,8 @@ import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-public class WebappImpl extends GeckoApp implements InstallCallback {
-    private static final String LOGTAG = "GeckoWebappImpl";
+public class WebappImpl extends GoannaApp implements InstallCallback {
+    private static final String LOGTAG = "GoannaWebappImpl";
 
     private URI mOrigin;
     private TextView mTitlebarText;
@@ -64,7 +64,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
     public boolean hasTabsSideBar() { return false; }
 
     public WebappImpl() {
-        GeckoProfile.setBrowserDBFactory(new BrowserDB.Factory() {
+        GoannaProfile.setBrowserDBFactory(new BrowserDB.Factory() {
             @Override
             public BrowserDB get(String profileName, File profileDir) {
                 return new StubBrowserDB(profileName);
@@ -119,7 +119,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
             mAppName = mApkResources.getAppName();
         }
 
-        // start Gecko.
+        // start Goanna.
         super.onCreate(savedInstance);
 
         mTitlebarText = (TextView)findViewById(R.id.webapp_title);
@@ -136,8 +136,8 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
         String origin = allocator.getOrigin(index);
         boolean isInstallCompleting = (origin == null);
 
-        if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning) || !isInstalled || isInstallCompleting) {
-            // Show the splash screen if we need to start Gecko, or we need to install this.
+        if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning) || !isInstalled || isInstallCompleting) {
+            // Show the splash screen if we need to start Goanna, or we need to install this.
             overridePendingTransition(R.anim.grow_fade_in_center, android.R.anim.fade_out);
             showSplash();
         } else {
@@ -156,7 +156,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
             } else {
                 // an install is already happening, so we should let it complete.
                 Log.i(LOGTAG, "Waiting for existing install to complete");
-                installHelper.registerGeckoListener();
+                installHelper.registerGoannaListener();
             }
             return;
         }
@@ -249,7 +249,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
     }
 
     /* (non-Javadoc)
-     * @see org.mozilla.gecko.GeckoApp#getDefaultProfileName()
+     * @see org.mozilla.gecko.GoannaApp#getDefaultProfileName()
      */
     @Override
     protected String getDefaultProfileName() {
@@ -386,7 +386,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
             launchObject.putOpt("url", mManifestUrl);
             launchObject.putOpt("name", mAppName);
             Log.i(LOGTAG, "Trying to launch: " + launchObject);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Webapps:Load", launchObject.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Webapps:Load", launchObject.toString()));
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error populating launch message", e);
         }

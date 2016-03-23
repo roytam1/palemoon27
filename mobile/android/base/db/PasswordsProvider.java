@@ -7,13 +7,13 @@ package org.mozilla.gecko.db;
 import java.util.HashMap;
 
 import org.mozilla.gecko.CrashHandler;
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaApp;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.NSSBridge;
 import org.mozilla.gecko.db.BrowserContract.DeletedPasswords;
 import org.mozilla.gecko.db.BrowserContract.Passwords;
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.gecko.mozglue.GoannaLoader;
 import org.mozilla.gecko.sqlite.MatrixBlobCursor;
 import org.mozilla.gecko.sqlite.SQLiteBridge;
 import org.mozilla.gecko.sync.Utils;
@@ -93,7 +93,7 @@ public class PasswordsProvider extends SQLiteBridgeContentProvider {
 
         // We don't use .loadMozGlue because we're in a different process,
         // and we just want to reuse code rather than use the loader lock etc.
-        GeckoLoader.doLoadLibrary(getContext(), "mozglue");
+        GoannaLoader.doLoadLibrary(getContext(), "mozglue");
         return super.onCreate();
     }
 
@@ -215,9 +215,9 @@ public class PasswordsProvider extends SQLiteBridgeContentProvider {
     }
 
     @Override
-    public void initGecko() {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Passwords:Init", null));
-        Intent initIntent = new Intent(GeckoApp.ACTION_INIT_PW);
+    public void initGoanna() {
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Passwords:Init", null));
+        Intent initIntent = new Intent(GoannaApp.ACTION_INIT_PW);
         mContext.sendBroadcast(initIntent);
     }
 

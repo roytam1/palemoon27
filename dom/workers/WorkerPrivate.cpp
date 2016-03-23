@@ -303,7 +303,7 @@ LogErrorToConsole(const nsAString& aMessage,
   static const char kErrorString[] = "JS error in Web Worker: %s [%s:%u]";
 
 #ifdef ANDROID
-  __android_log_print(ANDROID_LOG_INFO, "Gecko", kErrorString, msg.get(),
+  __android_log_print(ANDROID_LOG_INFO, "Goanna", kErrorString, msg.get(),
                       filename.get(), aLineNumber);
 #endif
 
@@ -2316,7 +2316,7 @@ private:
 
     mAlreadyMappedToAddon = true;
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
       // Only try to access the service from the main process.
       return;
     }

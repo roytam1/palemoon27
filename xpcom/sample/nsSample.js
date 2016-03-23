@@ -21,7 +21,7 @@ mySample.prototype = {
 
     /**
      * .classDescription and .contractID are only used for
-     * backwards compatibility with Gecko 1.9.2 and
+     * backwards compatibility with Goanna 1.9.2 and
      * XPCOMUtils.generateNSGetModule.
      */
     classDescription: "nsSample: JS version", // any human-readable string

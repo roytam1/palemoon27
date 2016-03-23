@@ -46,7 +46,7 @@ public final class DirectBufferAllocator {
         return null;
     }
 
-    // These JNI methods are implemented in mozglue/android/nsGeckoUtils.cpp.
+    // These JNI methods are implemented in mozglue/android/nsGoannaUtils.cpp.
     private static native ByteBuffer nativeAllocateDirectBuffer(long size);
     private static native void nativeFreeDirectBuffer(ByteBuffer buf);
 }

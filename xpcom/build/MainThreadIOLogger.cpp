@@ -6,7 +6,7 @@
 
 #include "MainThreadIOLogger.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "IOInterposerPrivate.h"
 #include "mozilla/IOInterposer.h"
 #include "mozilla/StaticPtr.h"

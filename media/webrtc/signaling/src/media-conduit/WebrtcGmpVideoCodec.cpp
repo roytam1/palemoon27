@@ -14,7 +14,7 @@
 #include "AudioConduit.h"
 #include "runnable_utils.h"
 
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 #include "nsServiceManagerUtils.h"
 #include "GMPVideoDecoderProxy.h"
 #include "GMPVideoEncoderProxy.h"

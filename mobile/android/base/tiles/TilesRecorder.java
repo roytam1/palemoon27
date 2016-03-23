@@ -10,8 +10,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.Tab;
 
 import android.util.Log;
@@ -19,7 +19,7 @@ import android.util.Log;
 public class TilesRecorder {
     public static final String ACTION_CLICK = "click";
 
-    private static final String LOG_TAG = "GeckoTilesRecorder";
+    private static final String LOG_TAG = "GoannaTilesRecorder";
     private static final String EVENT_TILES_CLICK = "Tiles:Click";
 
     public void recordAction(Tab tab, String action, int index, List<Tile> tiles, String locale) {
@@ -73,7 +73,7 @@ public class TilesRecorder {
             data.put("tabId", tab.getId());
             data.put("payload", payload.toString());
 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(EVENT_TILES_CLICK, data.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(EVENT_TILES_CLICK, data.toString()));
         } catch (JSONException e) {
             Log.e(LOG_TAG, "JSON error", e);
         }

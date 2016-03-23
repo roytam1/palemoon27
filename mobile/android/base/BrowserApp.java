@@ -22,7 +22,7 @@ import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.DynamicToolbar.PinReason;
 import org.mozilla.gecko.DynamicToolbar.VisibilityTransition;
-import org.mozilla.gecko.GeckoProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.gecko.GoannaProfileDirectories.NoMozillaDirectoryException;
 import org.mozilla.gecko.Tabs.TabEvents;
 import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.TransitionsTracker;
@@ -52,15 +52,15 @@ import org.mozilla.gecko.home.HomePager.OnUrlOpenInBackgroundListener;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.HomePanelsManager;
 import org.mozilla.gecko.home.SearchEngine;
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.menu.GeckoMenuItem;
+import org.mozilla.gecko.menu.GoannaMenu;
+import org.mozilla.gecko.menu.GoannaMenuItem;
 import org.mozilla.gecko.mozglue.ContextUtils;
 import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.firstrun.FirstrunPane;
 import org.mozilla.gecko.overlays.ui.ShareDialog;
 import org.mozilla.gecko.preferences.ClearOnShutdownPref;
-import org.mozilla.gecko.preferences.GeckoPreferences;
+import org.mozilla.gecko.preferences.GoannaPreferences;
 import org.mozilla.gecko.prompts.Prompt;
 import org.mozilla.gecko.prompts.PromptListItem;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -77,7 +77,7 @@ import org.mozilla.gecko.util.ActivityUtils;
 import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.MenuUtils;
 import org.mozilla.gecko.util.NativeEventListener;
@@ -88,7 +88,7 @@ import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UIAsyncTask;
 import org.mozilla.gecko.widget.ButtonToast;
 import org.mozilla.gecko.widget.ButtonToast.ToastListener;
-import org.mozilla.gecko.widget.GeckoActionProvider;
+import org.mozilla.gecko.widget.GoannaActionProvider;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -140,7 +140,7 @@ import android.widget.RelativeLayout;
 import android.widget.Toast;
 import android.widget.ViewFlipper;
 
-public class BrowserApp extends GeckoApp
+public class BrowserApp extends GoannaApp
                         implements TabsPanel.TabsLayoutChangeListener,
                                    PropertyAnimator.PropertyAnimationListener,
                                    View.OnKeyListener,
@@ -151,7 +151,7 @@ public class BrowserApp extends GeckoApp
                                    OnUrlOpenInBackgroundListener,
                                    ActionModeCompat.Presenter,
                                    LayoutInflater.Factory {
-    private static final String LOGTAG = "GeckoBrowserApp";
+    private static final String LOGTAG = "GoannaBrowserApp";
 
     private static final boolean ZOOMED_VIEW_ENABLED = AppConstants.NIGHTLY_BUILD;
 
@@ -568,7 +568,7 @@ public class BrowserApp extends GeckoApp
         }
 
         // Global onKey handler. This is called if the focused UI doesn't
-        // handle the key event, and before Gecko swallows the events.
+        // handle the key event, and before Goanna swallows the events.
         if (event.getAction() != KeyEvent.ACTION_DOWN) {
             return false;
         }
@@ -661,24 +661,24 @@ public class BrowserApp extends GeckoApp
     public void onCreate(Bundle savedInstanceState) {
         final Intent intent = getIntent();
 
-        // Note that we're calling GeckoProfile.get *before GeckoApp.onCreate*.
-        // This means we're reliant on the logic in GeckoProfile to correctly
+        // Note that we're calling GoannaProfile.get *before GoannaApp.onCreate*.
+        // This means we're reliant on the logic in GoannaProfile to correctly
         // look up our launch intent (via BrowserApp's Activity-ness) and pull
         // out the arguments. Be careful if you change that!
-        final GeckoProfile p = GeckoProfile.get(this);
+        final GoannaProfile p = GoannaProfile.get(this);
 
         if (p != null && !p.inGuestMode()) {
             // This is *only* valid because we never want to use the guest mode
             // profile concurrently with a normal profile -- no syncing to it,
             // no dual-profile usage, nothing. BrowserApp startup with a conventional
-            // GeckoProfile will cause the guest profile to be deleted.
-            GeckoProfile.maybeCleanupGuestProfile(this);
+            // GoannaProfile will cause the guest profile to be deleted.
+            GoannaProfile.maybeCleanupGuestProfile(this);
         }
 
-        // This has to be prepared prior to calling GeckoApp.onCreate, because
+        // This has to be prepared prior to calling GoannaApp.onCreate, because
         // widget code and BrowserToolbar need it, and they're created by the
-        // layout, which GeckoApp takes care of.
-        ((GeckoApplication) getApplication()).prepareLightweightTheme();
+        // layout, which GoannaApp takes care of.
+        ((GoannaApplication) getApplication()).prepareLightweightTheme();
         super.onCreate(savedInstanceState);
 
         final Context appContext = getApplicationContext();
@@ -700,7 +700,7 @@ public class BrowserApp extends GeckoApp
                     public void run() {
                         final TabHistoryFragment fragment = TabHistoryFragment.newInstance(historyPageList, toIndex);
                         final FragmentManager fragmentManager = getSupportFragmentManager();
-                        GeckoAppShell.vibrateOnHapticFeedbackEnabled(getResources().getIntArray(R.array.long_press_vibrate_msec));
+                        GoannaAppShell.vibrateOnHapticFeedbackEnabled(getResources().getIntArray(R.array.long_press_vibrate_msec));
                         fragment.show(R.id.tab_history_panel, fragmentManager.beginTransaction(), TAB_HISTORY_FRAGMENT_TAG);
                     }
                 });
@@ -722,8 +722,8 @@ public class BrowserApp extends GeckoApp
             mTabStrip = (Refreshable) (((ViewStub) findViewById(R.id.new_tablet_tab_strip)).inflate());
         }
 
-        ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideOnTouchListener());
-        ((GeckoApp.MainLayout) mMainLayout).setMotionEventInterceptor(new MotionEventInterceptor() {
+        ((GoannaApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideOnTouchListener());
+        ((GoannaApp.MainLayout) mMainLayout).setMotionEventInterceptor(new MotionEventInterceptor() {
             @Override
             public boolean onInterceptMotionEvent(View view, MotionEvent event) {
                 // If we get a gamepad panning MotionEvent while the focus is not on the layerview,
@@ -757,14 +757,14 @@ public class BrowserApp extends GeckoApp
         mFindInPageBar = (FindInPageBar) findViewById(R.id.find_in_page);
         mMediaCastingBar = (MediaCastingBar) findViewById(R.id.media_casting);
 
-        EventDispatcher.getInstance().registerGeckoThreadListener((GeckoEventListener)this,
+        EventDispatcher.getInstance().registerGoannaThreadListener((GoannaEventListener)this,
             "Menu:Open",
             "Menu:Update",
             "Search:Keyword",
             "Prompt:ShowTop",
             "Accounts:Exist");
 
-        EventDispatcher.getInstance().registerGeckoThreadListener((NativeEventListener)this,
+        EventDispatcher.getInstance().registerGoannaThreadListener((NativeEventListener)this,
             "Accounts:Create",
             "CharEncoding:Data",
             "CharEncoding:State",
@@ -824,7 +824,7 @@ public class BrowserApp extends GeckoApp
         mRootLayout.setDraggableCallback(mDragHelper);
 
         // Set the maximum bits-per-pixel the favicon system cares about.
-        IconDirectoryEntry.setMaxBPP(GeckoAppShell.getScreenDepth());
+        IconDirectoryEntry.setMaxBPP(GoannaAppShell.getScreenDepth());
 
         if (ZOOMED_VIEW_ENABLED) {
             ViewStub stub = (ViewStub) findViewById(R.id.zoomed_view_stub);
@@ -848,7 +848,7 @@ public class BrowserApp extends GeckoApp
         final StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskReads();
 
         try {
-            final SharedPreferences prefs = GeckoSharedPrefs.forProfile(this);
+            final SharedPreferences prefs = GoannaSharedPrefs.forProfile(this);
 
             if (prefs.getBoolean(FirstrunPane.PREF_FIRSTRUN_ENABLED, false)) {
                 if (!Intent.ACTION_VIEW.equals(intent.getAction())) {
@@ -901,7 +901,7 @@ public class BrowserApp extends GeckoApp
 
     @Override
     public void onAttachedToWindow() {
-        // We can't show the first run experience until Gecko has finished initialization (bug 1077583).
+        // We can't show the first run experience until Goanna has finished initialization (bug 1077583).
         checkFirstrun(this, new SafeIntent(getIntent()));
     }
 
@@ -914,14 +914,14 @@ public class BrowserApp extends GeckoApp
         // in guest mode, this will change modes before opening the url.
         // NOTE: OnResume is called twice sometimes when showing on the lock screen.
         final boolean enableGuestSession = GuestSession.shouldUse(this, args);
-        final boolean inGuestSession = GeckoProfile.get(this).inGuestMode();
+        final boolean inGuestSession = GoannaProfile.get(this).inGuestMode();
         if (enableGuestSession != inGuestSession) {
             doRestart(getIntent());
-            GeckoAppShell.gracefulExit();
+            GoannaAppShell.gracefulExit();
             return;
         }
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener((GeckoEventListener)this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((GoannaEventListener)this,
             "Prompt:ShowTop");
     }
 
@@ -929,7 +929,7 @@ public class BrowserApp extends GeckoApp
     public void onPause() {
         super.onPause();
         // Register for Prompt:ShowTop so we can foreground this activity even if it's hidden.
-        EventDispatcher.getInstance().registerGeckoThreadListener((GeckoEventListener)this,
+        EventDispatcher.getInstance().registerGoannaThreadListener((GoannaEventListener)this,
             "Prompt:ShowTop");
     }
 
@@ -1085,7 +1085,7 @@ public class BrowserApp extends GeckoApp
                     String title = tab.getDisplayTitle();
                     Bitmap favicon = tab.getFavicon();
                     if (url != null && title != null) {
-                        GeckoAppShell.createShortcut(title, url, favicon);
+                        GoannaAppShell.createShortcut(title, url, favicon);
                     }
                 }
             }
@@ -1148,7 +1148,7 @@ public class BrowserApp extends GeckoApp
 
         if (itemId == R.id.site_settings) {
             // This can be selected from either the browser menu or the contextmenu, depending on the size and version (v11+) of the phone.
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Permissions:Get", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Permissions:Get", null));
             if (Versions.preHC) {
                 Telemetry.sendUIEvent(TelemetryContract.Event.ACTION, TelemetryContract.Method.CONTEXT_MENU, "site_settings");
             }
@@ -1176,7 +1176,7 @@ public class BrowserApp extends GeckoApp
                 } catch (JSONException e) {
                     Log.e(LOGTAG, "error building json arguments", e);
                 }
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feeds:Subscribe", args.toString()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Feeds:Subscribe", args.toString()));
                 if (Versions.preHC) {
                     Telemetry.sendUIEvent(TelemetryContract.Event.ACTION, TelemetryContract.Method.CONTEXT_MENU, "subscribe");
                 }
@@ -1195,7 +1195,7 @@ public class BrowserApp extends GeckoApp
                     Log.e(LOGTAG, "error building json arguments", e);
                     return true;
                 }
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:Add", args.toString()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SearchEngines:Add", args.toString()));
 
                 if (Versions.preHC) {
                     Telemetry.sendUIEvent(TelemetryContract.Event.ACTION, TelemetryContract.Method.CONTEXT_MENU, "add_search_engine");
@@ -1228,7 +1228,7 @@ public class BrowserApp extends GeckoApp
                 return true;
             }
 
-            final OnFaviconLoadedListener listener = new GeckoAppShell.CreateShortcutFaviconLoadedListener(url, title);
+            final OnFaviconLoadedListener listener = new GoannaAppShell.CreateShortcutFaviconLoadedListener(url, title);
             Favicons.getSizedFavicon(getContext(),
                                      url,
                                      tab.getFaviconURL(),
@@ -1287,14 +1287,14 @@ public class BrowserApp extends GeckoApp
             mZoomedView.destroy();
         }
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener((GeckoEventListener)this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((GoannaEventListener)this,
             "Menu:Open",
             "Menu:Update",
             "Search:Keyword",
             "Prompt:ShowTop",
             "Accounts:Exist");
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener((NativeEventListener)this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((NativeEventListener)this,
             "Accounts:Create",
             "CharEncoding:Data",
             "CharEncoding:State",
@@ -1356,7 +1356,7 @@ public class BrowserApp extends GeckoApp
             url = ReaderModeUtils.getUrlFromAboutReader(url);
         }
 
-        GeckoAppShell.openUriExternal(url, "text/plain", "", "",
+        GoannaAppShell.openUriExternal(url, "text/plain", "", "",
                                       Intent.ACTION_SEND, tab.getDisplayTitle());
 
         // Context: Sharing via chrome list (no explicit session is active)
@@ -1364,8 +1364,8 @@ public class BrowserApp extends GeckoApp
     }
 
     private void setToolbarMargin(int margin) {
-        ((RelativeLayout.LayoutParams) mGeckoLayout.getLayoutParams()).topMargin = margin;
-        mGeckoLayout.requestLayout();
+        ((RelativeLayout.LayoutParams) mGoannaLayout.getLayoutParams()).topMargin = margin;
+        mGoannaLayout.requestLayout();
     }
 
     @Override
@@ -1574,8 +1574,8 @@ public class BrowserApp extends GeckoApp
                     new AlertDialog.OnClickListener() {
                 @Override
                 public void onClick(final DialogInterface dialog, final int which) {
-                    GeckoAppShell.sendEventToGecko(
-                        GeckoEvent.createBroadcastEvent("CharEncoding:Set", codeArray[which]));
+                    GoannaAppShell.sendEventToGoanna(
+                        GoannaEvent.createBroadcastEvent("CharEncoding:Set", codeArray[which]));
                     dialog.dismiss();
                 }
             });
@@ -1595,7 +1595,7 @@ public class BrowserApp extends GeckoApp
 
         } else if ("CharEncoding:State".equals(event)) {
             final boolean visible = message.getString("visible").equals("true");
-            GeckoPreferences.setCharEncodingState(visible);
+            GoannaPreferences.setCharEncodingState(visible);
             final Menu menu = mMenu;
             ThreadUtils.postToUiThread(new Runnable() {
                 @Override
@@ -1652,13 +1652,13 @@ public class BrowserApp extends GeckoApp
         } else if ("Reader:Share".equals(event)) {
             final String title = message.getString("title");
             final String url = message.getString("url");
-            GeckoAppShell.openUriExternal(url, "text/plain", "", "", Intent.ACTION_SEND, title);
+            GoannaAppShell.openUriExternal(url, "text/plain", "", "", Intent.ACTION_SEND, title);
 
         } else if ("Settings:Show".equals(event)) {
             final String resource =
-                    message.optString(GeckoPreferences.INTENT_EXTRA_RESOURCES, null);
-            final Intent settingsIntent = new Intent(this, GeckoPreferences.class);
-            GeckoPreferences.setResourceToOpen(settingsIntent, resource);
+                    message.optString(GoannaPreferences.INTENT_EXTRA_RESOURCES, null);
+            final Intent settingsIntent = new Intent(this, GoannaPreferences.class);
+            GoannaPreferences.setResourceToOpen(settingsIntent, resource);
             startActivityForResult(settingsIntent, ACTIVITY_REQUEST_PREFERENCES);
 
             // Don't use a transition to settings if we're on a device where that
@@ -1768,7 +1768,7 @@ public class BrowserApp extends GeckoApp
                         updateAddonMenuItem(id, options);
                     }
                 });
-            } else if (event.equals("Gecko:DelayedStartup")) {
+            } else if (event.equals("Goanna:DelayedStartup")) {
                 ThreadUtils.postToUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -1809,14 +1809,14 @@ public class BrowserApp extends GeckoApp
                     ThreadUtils.getBackgroundHandler().postDelayed(new Runnable() {
                         @Override
                         public void run() {
-                             GeckoPreferences.broadcastStumblerPref(BrowserApp.this);
+                             GoannaPreferences.broadcastStumblerPref(BrowserApp.this);
                         }
                     }, oneSecondInMillis);
                 }
 
                 super.handleMessage(event, message);
-            } else if (event.equals("Gecko:Ready")) {
-                // Handle this message in GeckoApp, but also enable the Settings
+            } else if (event.equals("Goanna:Ready")) {
+                // Handle this message in GoannaApp, but also enable the Settings
                 // menuitem, which is specific to BrowserApp.
                 super.handleMessage(event, message);
                 final Menu menu = mMenu;
@@ -1832,7 +1832,7 @@ public class BrowserApp extends GeckoApp
 
                 // Display notification for Mozilla data reporting, if data should be collected.
                 if (AppConstants.MOZ_DATA_REPORTING) {
-                    DataReportingNotification.checkAndNotifyPolicy(GeckoAppShell.getContext());
+                    DataReportingNotification.checkAndNotifyPolicy(GoannaAppShell.getContext());
                 }
 
             } else if (event.equals("Search:Keyword")) {
@@ -2300,7 +2300,7 @@ public class BrowserApp extends GeckoApp
             return;
         }
 
-        final GeckoProfile profile = getProfile();
+        final GoannaProfile profile = getProfile();
         // Don't bother storing search queries in guest mode
         if (profile.inGuestMode()) {
             return;
@@ -2395,7 +2395,7 @@ public class BrowserApp extends GeckoApp
                 // We just returned from preferences. If our locale changed,
                 // we need to redisplay at this point, and do any other browser-level
                 // bookkeeping that we associate with a locale change.
-                if (resultCode != GeckoPreferences.RESULT_CODE_LOCALE_DID_CHANGE) {
+                if (resultCode != GoannaPreferences.RESULT_CODE_LOCALE_DID_CHANGE) {
                     Log.d(LOGTAG, "No locale change returning from preferences; nothing to do.");
                     return;
                 }
@@ -2722,7 +2722,7 @@ public class BrowserApp extends GeckoApp
         item.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(info.id - ADDON_MENU_OFFSET)));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(info.id - ADDON_MENU_OFFSET)));
                 return true;
             }
         });
@@ -2827,9 +2827,9 @@ public class BrowserApp extends GeckoApp
         super.onCreateOptionsMenu(menu);
 
         // Inform the menu about the action-items bar.
-        if (menu instanceof GeckoMenu &&
+        if (menu instanceof GoannaMenu &&
             HardwareUtils.isTablet()) {
-            ((GeckoMenu) menu).setActionItemBarPresenter(mBrowserToolbar);
+            ((GoannaMenu) menu).setActionItemBarPresenter(mBrowserToolbar);
         }
 
         MenuInflater inflater = getMenuInflater();
@@ -2844,10 +2844,10 @@ public class BrowserApp extends GeckoApp
 
         // Action providers are available only ICS+.
         if (Versions.feature14Plus) {
-            GeckoMenuItem share = (GeckoMenuItem) mMenu.findItem(R.id.share);
-            final GeckoMenuItem quickShare = (GeckoMenuItem) mMenu.findItem(R.id.quickshare);
+            GoannaMenuItem share = (GoannaMenuItem) mMenu.findItem(R.id.share);
+            final GoannaMenuItem quickShare = (GoannaMenuItem) mMenu.findItem(R.id.quickshare);
 
-            GeckoActionProvider provider = GeckoActionProvider.getForType(GeckoActionProvider.DEFAULT_MIME_TYPE, this);
+            GoannaActionProvider provider = GoannaActionProvider.getForType(GoannaActionProvider.DEFAULT_MIME_TYPE, this);
 
             share.setActionProvider(provider);
             quickShare.setActionProvider(provider);
@@ -2927,7 +2927,7 @@ public class BrowserApp extends GeckoApp
             frag.dismiss();
         }
 
-        if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+        if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             aMenu.findItem(R.id.settings).setEnabled(false);
             aMenu.findItem(R.id.help).setEnabled(false);
         }
@@ -2952,7 +2952,7 @@ public class BrowserApp extends GeckoApp
         // In ICS+, it's easy to kill an app through the task switcher.
         final boolean visible = Versions.preICS ||
                                 HardwareUtils.isTelevision() ||
-                                !PrefUtils.getStringSet(GeckoSharedPrefs.forProfile(this),
+                                !PrefUtils.getStringSet(GoannaSharedPrefs.forProfile(this),
                                                         ClearOnShutdownPref.PREF,
                                                         new HashSet<String>()).isEmpty();
         aMenu.findItem(R.id.quit).setVisible(visible);
@@ -2981,7 +2981,7 @@ public class BrowserApp extends GeckoApp
             return true;
         }
 
-        final boolean inGuestMode = GeckoProfile.get(this).inGuestMode();
+        final boolean inGuestMode = GoannaProfile.get(this).inGuestMode();
 
         final boolean isAboutReader = AboutPages.isAboutReader(tab.getURL());
         bookmark.setEnabled(!isAboutReader);
@@ -3036,7 +3036,7 @@ public class BrowserApp extends GeckoApp
             quickShare.setEnabled(shareEnabled);
 
             // This provider also applies to the quick share menu item.
-            final GeckoActionProvider provider = ((GeckoMenuItem) share).getGeckoActionProvider();
+            final GoannaActionProvider provider = ((GoannaMenuItem) share).getGoannaActionProvider();
             if (provider != null) {
                 Intent shareIntent = provider.getIntent();
 
@@ -3090,7 +3090,7 @@ public class BrowserApp extends GeckoApp
         // Disable find in page for about:home, since it won't work on Java content.
         findInPage.setEnabled(!isAboutHome(tab));
 
-        charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
+        charEncoding.setVisible(GoannaPreferences.getCharEncodingState());
 
         if (mProfile.inGuestMode()) {
             exitGuestMode.setVisible(true);
@@ -3201,12 +3201,12 @@ public class BrowserApp extends GeckoApp
         }
 
         if (itemId == R.id.save_as_pdf) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SaveAs:PDF", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SaveAs:PDF", null));
             return true;
         }
 
         if (itemId == R.id.settings) {
-            intent = new Intent(this, GeckoPreferences.class);
+            intent = new Intent(this, GoannaPreferences.class);
 
             // We want to know when the Settings activity returns, because
             // we might need to redisplay based on a locale change.
@@ -3240,7 +3240,7 @@ public class BrowserApp extends GeckoApp
         }
 
         if (itemId == R.id.char_encoding) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("CharEncoding:Get", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("CharEncoding:Get", null));
             return true;
         }
 
@@ -3260,7 +3260,7 @@ public class BrowserApp extends GeckoApp
             } catch (JSONException e) {
                 Log.e(LOGTAG, "error building json arguments", e);
             }
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("DesktopMode:Change", args.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("DesktopMode:Change", args.toString()));
             return true;
         }
 
@@ -3305,14 +3305,14 @@ public class BrowserApp extends GeckoApp
                         if (type == GuestModeDialog.ENTERING) {
                             args = GUEST_BROWSING_ARG;
                         } else {
-                            GeckoProfile.leaveGuestSession(BrowserApp.this);
+                            GoannaProfile.leaveGuestSession(BrowserApp.this);
 
                             // Now's a good time to make sure we're not displaying the Guest Browsing notification.
                             GuestSession.hideNotification(BrowserApp.this);
                         }
 
                         doRestart(args);
-                        GeckoAppShell.gracefulExit();
+                        GoannaAppShell.gracefulExit();
                     }
                 } catch(JSONException ex) {
                     Log.e(LOGTAG, "Exception reading guest mode prompt result", ex);
@@ -3368,7 +3368,7 @@ public class BrowserApp extends GeckoApp
         String action = intent.getAction();
 
         final boolean isViewAction = Intent.ACTION_VIEW.equals(action);
-        final boolean isBookmarkAction = GeckoApp.ACTION_HOMESCREEN_SHORTCUT.equals(action);
+        final boolean isBookmarkAction = GoannaApp.ACTION_HOMESCREEN_SHORTCUT.equals(action);
 
         if (mInitialized && (isViewAction || isBookmarkAction)) {
             // Dismiss editing mode if the user is loading a URL from an external app.
@@ -3377,7 +3377,7 @@ public class BrowserApp extends GeckoApp
             // Hide firstrun-pane if the user is loading a URL from an external app.
             hideFirstrunPager();
 
-            // GeckoApp.ACTION_HOMESCREEN_SHORTCUT means we're opening a bookmark that
+            // GoannaApp.ACTION_HOMESCREEN_SHORTCUT means we're opening a bookmark that
             // was added to Android's homescreen.
             final TelemetryContract.Method method =
                 (isViewAction ? TelemetryContract.Method.INTENT : TelemetryContract.Method.HOMESCREEN);
@@ -3389,7 +3389,7 @@ public class BrowserApp extends GeckoApp
 
         if (AppConstants.MOZ_ANDROID_BEAM && NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
             String uri = intent.getDataString();
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createURILoadEvent(uri));
         }
 
         // Only solicit feedback when the app has been launched from the icon shortcut.
@@ -3416,7 +3416,7 @@ public class BrowserApp extends GeckoApp
 
                 // If we've reached our magic number, show the feedback page.
                 if (launchCount == FEEDBACK_LAUNCH_COUNT) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feedback:Show", null));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Feedback:Show", null));
                 }
             }
         } finally {
@@ -3546,7 +3546,7 @@ public class BrowserApp extends GeckoApp
 
     @Override
     protected String getDefaultProfileName() throws NoMozillaDirectoryException {
-        return GeckoProfile.getDefaultProfileName(this);
+        return GoannaProfile.getDefaultProfileName(this);
     }
 
     // For use from tests only.
@@ -3642,7 +3642,7 @@ public class BrowserApp extends GeckoApp
                                                   final String appLocale,
                                                   final SessionInformation previousSession) {
         return new BrowserHealthRecorder(context,
-                                         GeckoSharedPrefs.forApp(context),
+                                         GoannaSharedPrefs.forApp(context),
                                          profilePath,
                                          dispatcher,
                                          osLocale,

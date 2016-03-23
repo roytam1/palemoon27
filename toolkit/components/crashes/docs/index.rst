@@ -5,7 +5,7 @@ Crash Manager
 =============
 
 The **Crash Manager** is a service and interface for managing crash
-data within the Gecko application.
+data within the Goanna application.
 
 From JavaScript, the service can be accessed via::
 

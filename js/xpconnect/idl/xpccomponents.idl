@@ -445,7 +445,7 @@ interface nsIXPCComponents_Utils : nsISupports
     ACString getCrossProcessWrapperTag(in jsval obj);
 
     /*
-     * To be called from JS only. This is for Gecko internal use only, and may
+     * To be called from JS only. This is for Goanna internal use only, and may
      * disappear at any moment.
      *
      * Forces a recomputation of all wrappers in and out of the compartment
@@ -456,7 +456,7 @@ interface nsIXPCComponents_Utils : nsISupports
     void recomputeWrappers([optional] in jsval vobj);
 
     /*
-     * To be called from JS only. This is for Gecko internal use only, and may
+     * To be called from JS only. This is for Goanna internal use only, and may
      * disappear at any moment.
      *
      * Enables Xray vision for same-compartment access for the compartment

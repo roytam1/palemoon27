@@ -10,7 +10,7 @@ import org.mozilla.gecko.tests.helpers.*;
 
 import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -26,11 +26,11 @@ import org.json.JSONObject;
  * including associated NativeJSObject objects.
  */
 public class testEventDispatcher extends UITest
-        implements GeckoEventListener, NativeEventListener {
+        implements GoannaEventListener, NativeEventListener {
 
     private static final String TEST_JS = "testEventDispatcher.js";
-    private static final String GECKO_EVENT = "Robocop:TestGeckoEvent";
-    private static final String GECKO_RESPONSE_EVENT = "Robocop:TestGeckoResponse";
+    private static final String GECKO_EVENT = "Robocop:TestGoannaEvent";
+    private static final String GECKO_RESPONSE_EVENT = "Robocop:TestGoannaResponse";
     private static final String NATIVE_EVENT = "Robocop:TestNativeEvent";
     private static final String NATIVE_RESPONSE_EVENT = "Robocop:TestNativeResponse";
     private static final String NATIVE_EXCEPTION_EVENT = "Robocop:TestNativeException";
@@ -42,18 +42,18 @@ public class testEventDispatcher extends UITest
         super.setUp();
         js = new JavascriptBridge(this);
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(
-                (GeckoEventListener) this, GECKO_EVENT, GECKO_RESPONSE_EVENT);
-        EventDispatcher.getInstance().registerGeckoThreadListener(
+        EventDispatcher.getInstance().registerGoannaThreadListener(
+                (GoannaEventListener) this, GECKO_EVENT, GECKO_RESPONSE_EVENT);
+        EventDispatcher.getInstance().registerGoannaThreadListener(
                 (NativeEventListener) this,
                 NATIVE_EVENT, NATIVE_RESPONSE_EVENT, NATIVE_EXCEPTION_EVENT);
     }
 
     @Override
     public void tearDown() throws Exception {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(
-                (GeckoEventListener) this, GECKO_EVENT, GECKO_RESPONSE_EVENT);
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(
+                (GoannaEventListener) this, GECKO_EVENT, GECKO_RESPONSE_EVENT);
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(
                 (NativeEventListener) this,
                 NATIVE_EVENT, NATIVE_RESPONSE_EVENT, NATIVE_EXCEPTION_EVENT);
 
@@ -62,7 +62,7 @@ public class testEventDispatcher extends UITest
     }
 
     public void testEventDispatcher() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
         NavigationHelper.enterAndLoadUrl(StringHelper.getHarnessUrlForJavascript(TEST_JS));
 
         js.syncCall("send_test_message", GECKO_EVENT);
@@ -77,7 +77,7 @@ public class testEventDispatcher extends UITest
 
     @Override
     public void handleMessage(final String event, final JSONObject message) {
-        ThreadUtils.assertOnGeckoThread();
+        ThreadUtils.assertOnGoannaThread();
 
         try {
             if (GECKO_EVENT.equals(event)) {
@@ -105,7 +105,7 @@ public class testEventDispatcher extends UITest
     @Override
     public void handleMessage(final String event, final NativeJSObject message,
                               final EventCallback callback) {
-        ThreadUtils.assertOnGeckoThread();
+        ThreadUtils.assertOnGoannaThread();
 
         if (NATIVE_EVENT.equals(event)) {
             checkNativeJSObject(message);

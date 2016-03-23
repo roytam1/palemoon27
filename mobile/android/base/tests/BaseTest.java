@@ -18,11 +18,11 @@ import org.json.JSONObject;
 
 import org.mozilla.gecko.Actions;
 import org.mozilla.gecko.Element;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.GeckoThread;
-import org.mozilla.gecko.GeckoThread.LaunchState;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.gecko.GoannaThread;
+import org.mozilla.gecko.GoannaThread.LaunchState;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.RobocopUtils;
 import org.mozilla.gecko.Tab;
@@ -78,7 +78,7 @@ abstract class BaseTest extends BaseRobocopTest {
 
     protected void blockForDelayedStartup() {
         try {
-            Actions.EventExpecter delayedStartupExpector = mActions.expectGeckoEvent("Gecko:DelayedStartup");
+            Actions.EventExpecter delayedStartupExpector = mActions.expectGoannaEvent("Goanna:DelayedStartup");
             delayedStartupExpector.blockForEvent(GECKO_READY_WAIT_MS, true);
             delayedStartupExpector.unregisterListener();
         } catch (Exception e) {
@@ -86,15 +86,15 @@ abstract class BaseTest extends BaseRobocopTest {
         }
     }
 
-    protected void blockForGeckoReady() {
+    protected void blockForGoannaReady() {
         try {
-            Actions.EventExpecter geckoReadyExpector = mActions.expectGeckoEvent("Gecko:Ready");
-            if (!GeckoThread.checkLaunchState(LaunchState.GeckoRunning)) {
+            Actions.EventExpecter geckoReadyExpector = mActions.expectGoannaEvent("Goanna:Ready");
+            if (!GoannaThread.checkLaunchState(LaunchState.GoannaRunning)) {
                 geckoReadyExpector.blockForEvent(GECKO_READY_WAIT_MS, true);
             }
             geckoReadyExpector.unregisterListener();
         } catch (Exception e) {
-            mAsserter.dumpLog("Exception in blockForGeckoReady", e);
+            mAsserter.dumpLog("Exception in blockForGoannaReady", e);
         }
     }
 
@@ -110,19 +110,19 @@ abstract class BaseTest extends BaseRobocopTest {
         throwIfScreenNotOn();
     }
 
-    protected GeckoProfile getTestProfile() {
+    protected GoannaProfile getTestProfile() {
         if (mProfile.startsWith("/")) {
-            return GeckoProfile.get(getActivity(), "default", mProfile);
+            return GoannaProfile.get(getActivity(), "default", mProfile);
         }
 
-        return GeckoProfile.get(getActivity(), mProfile);
+        return GoannaProfile.get(getActivity(), mProfile);
     }
 
     protected void initializeProfile() {
-        final GeckoProfile profile = getTestProfile();
+        final GoannaProfile profile = getTestProfile();
 
         // In Robocop tests, we typically don't get initialized correctly, because
-        // GeckoProfile doesn't create the profile directory.
+        // GoannaProfile doesn't create the profile directory.
         profile.enqueueInitialization(profile.getDir());
     }
 
@@ -148,7 +148,7 @@ abstract class BaseTest extends BaseRobocopTest {
         try {
             mAsserter.endTest();
             // request a force quit of the browser and wait for it to take effect
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Robocop:Quit", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Robocop:Quit", null));
             mSolo.sleep(120000);
             // if still running, finish activities as recommended by Robotium
             mSolo.finishOpenedActivities();
@@ -228,7 +228,7 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     protected final void hitEnterAndWait() {
-        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        Actions.EventExpecter contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
         mActions.sendSpecialKey(Actions.SpecialKey.ENTER);
         // wait for screen to load
         contentEventExpecter.blockForEvent();
@@ -239,7 +239,7 @@ abstract class BaseTest extends BaseRobocopTest {
      * Load <code>url</code> by sending key strokes to the URL bar UI.
      *
      * This method waits synchronously for the <code>DOMContentLoaded</code>
-     * message from Gecko before returning.
+     * message from Goanna before returning.
      */
     protected final void inputAndLoadUrl(String url) {
         enterUrl(url);
@@ -250,7 +250,7 @@ abstract class BaseTest extends BaseRobocopTest {
      * Load <code>url</code> using reflection and the internal
      * <code>org.mozilla.gecko.Tabs</code> API.
      *
-     * This method does not wait for any confirmation from Gecko before
+     * This method does not wait for any confirmation from Goanna before
      * returning.
      */
     protected final void loadUrl(final String url) {
@@ -395,13 +395,13 @@ abstract class BaseTest extends BaseRobocopTest {
         boolean foundText = waitForText(txt);
         if (!foundText) {
             if ((mScreenMidWidth == 0) || (mScreenMidHeight == 0)) {
-                mScreenMidWidth = mDriver.getGeckoWidth()/2;
-                mScreenMidHeight = mDriver.getGeckoHeight()/2;
+                mScreenMidWidth = mDriver.getGoannaWidth()/2;
+                mScreenMidHeight = mDriver.getGoannaHeight()/2;
             }
 
             // If we don't see the item, scroll down once in case it's off-screen.
             // Hacky way to scroll down.  solo.scroll* does not work in dialogs.
-            MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
+            MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGoannaLeft(), mDriver.getGoannaTop());
             meh.dragSync(mScreenMidWidth, mScreenMidHeight+100, mScreenMidWidth, mScreenMidHeight-100);
 
             foundText = mSolo.waitForText(txt);
@@ -601,7 +601,7 @@ abstract class BaseTest extends BaseRobocopTest {
             }
         }, MAX_WAIT_MS);
         mAsserter.ok(success, "waiting for add tab view", "add tab view available");
-        final Actions.RepeatedEventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
+        final Actions.RepeatedEventExpecter pageShowExpecter = mActions.expectGoannaEvent("Content:PageShow");
         mSolo.clickOnView(mSolo.getView(R.id.add_tab));
         // Wait until we get a PageShow event for a new tab ID
         for(;;) {
@@ -750,7 +750,7 @@ abstract class BaseTest extends BaseRobocopTest {
 
     public void clearPrivateData() {
         selectSettingsItem(StringHelper.PRIVACY_SECTION_LABEL, StringHelper.CLEAR_PRIVATE_DATA_LABEL);
-        Actions.EventExpecter clearData = mActions.expectGeckoEvent("Sanitize:Finished");
+        Actions.EventExpecter clearData = mActions.expectGoannaEvent("Sanitize:Finished");
         mSolo.clickOnText("Clear data");
         clearData.blockForEvent();
         clearData.unregisterListener();
@@ -784,7 +784,7 @@ abstract class BaseTest extends BaseRobocopTest {
             // Determine device type
             type = "phone";
             try {
-                if (GeckoAppShell.isTablet()) {
+                if (GoannaAppShell.isTablet()) {
                     type = "tablet";
                 }
             } catch (Exception e) {
@@ -811,7 +811,7 @@ abstract class BaseTest extends BaseRobocopTest {
         }
 
         public void back() {
-            Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
+            Actions.EventExpecter pageShowExpecter = mActions.expectGoannaEvent("Content:PageShow");
 
             if (devType.equals("tablet")) {
                 Element backBtn = mDriver.findElement(getActivity(), R.id.back);
@@ -825,7 +825,7 @@ abstract class BaseTest extends BaseRobocopTest {
         }
 
         public void forward() {
-            Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
+            Actions.EventExpecter pageShowExpecter = mActions.expectGoannaEvent("Content:PageShow");
 
             if (devType.equals("tablet")) {
                 mSolo.waitForView(R.id.forward);
@@ -956,7 +956,7 @@ abstract class BaseTest extends BaseRobocopTest {
         /**
          * Implement tests here. setUp and tearDown for the test case
          * should be handled by the parent test. This is so we can avoid the
-         * overhead of starting Gecko and creating profiles.
+         * overhead of starting Goanna and creating profiles.
          */
         protected abstract void test() throws Exception;
 
@@ -976,7 +976,7 @@ abstract class BaseTest extends BaseRobocopTest {
      * Set the preference and wait for it to change before proceeding with the test.
      */
     public void setPreferenceAndWaitForChange(final JSONObject jsonPref) {
-        mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
+        mActions.sendGoannaEvent("Preferences:Set", jsonPref.toString());
 
         // Get the preference name from the json and store it in an array. This array
         // will be used later while fetching the preference data.
@@ -989,7 +989,7 @@ abstract class BaseTest extends BaseRobocopTest {
 
         // Wait for confirmation of the pref change before proceeding with the test.
         final int ourRequestID = mPreferenceRequestID--;
-        final Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
+        final Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("Preferences:Data");
         mActions.sendPreferencesGetEvent(ourRequestID, prefNames);
 
         // Wait until we get the correct "Preferences:Data" event

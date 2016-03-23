@@ -10,9 +10,9 @@ import java.util.EnumSet;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.EditBookmarkDialog;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.Telemetry;
@@ -52,7 +52,7 @@ import android.widget.Toast;
  */
 public abstract class HomeFragment extends Fragment {
     // Log Tag.
-    private static final String LOGTAG="GeckoHomeFragment";
+    private static final String LOGTAG="GoannaHomeFragment";
 
     // Share MIME type.
     protected static final String SHARE_MIME_TYPE = "text/plain";
@@ -148,7 +148,7 @@ public abstract class HomeFragment extends Fragment {
             menu.findItem(R.id.home_remove).setVisible(false);
         }
 
-        if (!StringUtils.isShareableUrl(info.url) || GeckoProfile.get(getActivity()).inGuestMode()) {
+        if (!StringUtils.isShareableUrl(info.url) || GoannaProfile.get(getActivity()).inGuestMode()) {
             menu.findItem(R.id.home_share).setVisible(false);
         }
     }
@@ -189,7 +189,7 @@ public abstract class HomeFragment extends Fragment {
                 Log.e(LOGTAG, "Can't share because URL is null");
                 return false;
             } else {
-                GeckoAppShell.openUriExternal(info.url, SHARE_MIME_TYPE, "", "",
+                GoannaAppShell.openUriExternal(info.url, SHARE_MIME_TYPE, "", "",
                                               Intent.ACTION_SEND, info.getDisplayTitle());
 
                 // Context: Sharing via chrome homepage contextmenu list (home session should be active)
@@ -205,7 +205,7 @@ public abstract class HomeFragment extends Fragment {
             }
 
             // Fetch an icon big enough for use as a home screen icon.
-            Favicons.getPreferredSizeFaviconForPage(context, info.url, new GeckoAppShell.CreateShortcutFaviconLoadedListener(info.url, info.getDisplayTitle()));
+            Favicons.getPreferredSizeFaviconForPage(context, info.url, new GoannaAppShell.CreateShortcutFaviconLoadedListener(info.url, info.getDisplayTitle()));
             return true;
         }
 
@@ -339,7 +339,7 @@ public abstract class HomeFragment extends Fragment {
             mUrl = url;
             mType = type;
             mPosition = position;
-            mDB = GeckoProfile.get(context).getDB();
+            mDB = GoannaProfile.get(context).getDB();
         }
 
         @Override
@@ -364,7 +364,7 @@ public abstract class HomeFragment extends Fragment {
 
                 case READING_LIST:
                     mDB.getReadingListAccessor().removeReadingListItemWithURL(cr, mUrl);
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:Removed", mUrl));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Reader:Removed", mUrl));
                     break;
 
                 default:

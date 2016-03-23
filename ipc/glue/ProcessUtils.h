@@ -20,7 +20,7 @@ void SetThisProcessName(const char *aName);
 
 #ifdef MOZ_B2G_LOADER
 // see ProcessUtils_linux.cpp for explaination.
-void ProcLoaderClientGeckoInit();
+void ProcLoaderClientGoannaInit();
 
 bool ProcLoaderLoad(const char *aArgv[],
                     const char *aEnvp[],

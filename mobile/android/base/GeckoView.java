@@ -13,10 +13,10 @@ import java.util.Set;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.gecko.mozglue.GoannaLoader;
 import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
@@ -32,23 +32,23 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 
-public class GeckoView extends LayerView
+public class GoannaView extends LayerView
     implements ContextGetter {
 
-    private static final String DEFAULT_SHARED_PREFERENCES_FILE = "GeckoView";
-    private static final String LOGTAG = "GeckoView";
+    private static final String DEFAULT_SHARED_PREFERENCES_FILE = "GoannaView";
+    private static final String LOGTAG = "GoannaView";
 
     private ChromeDelegate mChromeDelegate;
     private ContentDelegate mContentDelegate;
 
-    private final GeckoEventListener mGeckoEventListener = new GeckoEventListener() {
+    private final GoannaEventListener mGoannaEventListener = new GoannaEventListener() {
         @Override
         public void handleMessage(final String event, final JSONObject message) {
             ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        if (event.equals("Gecko:Ready")) {
+                        if (event.equals("Goanna:Ready")) {
                             handleReady(message);
                         } else if (event.equals("Content:StateChange")) {
                             handleStateChange(message);
@@ -66,7 +66,7 @@ public class GeckoView extends LayerView
                             int mode = getImportantForAccessibility();
                             if (mode == View.IMPORTANT_FOR_ACCESSIBILITY_YES ||
                                 mode == View.IMPORTANT_FOR_ACCESSIBILITY_AUTO) {
-                                GeckoAccessibility.sendAccessibilityEvent(message);
+                                GoannaAccessibility.sendAccessibilityEvent(message);
                             }
                         }
                     } catch (Exception e) {
@@ -82,9 +82,9 @@ public class GeckoView extends LayerView
         public void handleMessage(final String event, final NativeJSObject message, final EventCallback callback) {
             try {
                 if ("Accessibility:Ready".equals(event)) {
-                    GeckoAccessibility.updateAccessibilitySettings(getContext());
-                } else if ("GeckoView:Message".equals(event)) {
-                    // We need to pull out the bundle while on the Gecko thread.
+                    GoannaAccessibility.updateAccessibilitySettings(getContext());
+                } else if ("GoannaView:Message".equals(event)) {
+                    // We need to pull out the bundle while on the Goanna thread.
                     NativeJSObject json = message.optObject("data", null);
                     if (json == null) {
                         // Must have payload to call the message handler.
@@ -104,68 +104,68 @@ public class GeckoView extends LayerView
         }
     };
 
-    public GeckoView(Context context) {
+    public GoannaView(Context context) {
         super(context);
         init(context, null, true);
     }
 
-    public GeckoView(Context context, AttributeSet attrs) {
+    public GoannaView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.GeckoView);
-        String url = a.getString(R.styleable.GeckoView_url);
-        boolean doInit = a.getBoolean(R.styleable.GeckoView_doinit, true);
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.GoannaView);
+        String url = a.getString(R.styleable.GoannaView_url);
+        boolean doInit = a.getBoolean(R.styleable.GoannaView_doinit, true);
         a.recycle();
         init(context, url, doInit);
     }
 
     private void init(Context context, String url, boolean doInit) {
-        // Perform common initialization for Fennec/GeckoView.
-        GeckoAppShell.setLayerView(this);
+        // Perform common initialization for Fennec/GoannaView.
+        GoannaAppShell.setLayerView(this);
 
         // TODO: Fennec currently takes care of its own initialization, so this
-        // flag is a hack used in Fennec to prevent GeckoView initialization.
-        // This should go away once Fennec also uses GeckoView for
+        // flag is a hack used in Fennec to prevent GoannaView initialization.
+        // This should go away once Fennec also uses GoannaView for
         // initialization.
         if (!doInit)
             return;
 
-        // If running outside of a GeckoActivity (eg, from a library project),
+        // If running outside of a GoannaActivity (eg, from a library project),
         // load the native code and disable content providers
-        boolean isGeckoActivity = false;
+        boolean isGoannaActivity = false;
         try {
-            isGeckoActivity = context instanceof GeckoActivity;
+            isGoannaActivity = context instanceof GoannaActivity;
         } catch (NoClassDefFoundError ex) {}
 
-        if (!isGeckoActivity) {
-            // Set the GeckoInterface if the context is an activity and the GeckoInterface
+        if (!isGoannaActivity) {
+            // Set the GoannaInterface if the context is an activity and the GoannaInterface
             // has not already been set
-            if (context instanceof Activity && getGeckoInterface() == null) {
-                setGeckoInterface(new BaseGeckoInterface(context));
+            if (context instanceof Activity && getGoannaInterface() == null) {
+                setGoannaInterface(new BaseGoannaInterface(context));
             }
 
             Clipboard.init(context);
             HardwareUtils.init(context);
 
-            // If you want to use GeckoNetworkManager, start it.
+            // If you want to use GoannaNetworkManager, start it.
 
-            GeckoLoader.loadMozGlue(context);
+            GoannaLoader.loadMozGlue(context);
 
-            final GeckoProfile profile = GeckoProfile.get(context);
+            final GoannaProfile profile = GoannaProfile.get(context);
          }
 
         if (url != null) {
-            GeckoThread.setUri(url);
-            GeckoThread.setAction(Intent.ACTION_VIEW);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(url));
+            GoannaThread.setUri(url);
+            GoannaThread.setAction(Intent.ACTION_VIEW);
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createURILoadEvent(url));
         }
-        GeckoAppShell.setContextGetter(this);
+        GoannaAppShell.setContextGetter(this);
         if (context instanceof Activity) {
             Tabs tabs = Tabs.getInstance();
             tabs.attachToContext(context);
         }
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(mGeckoEventListener,
-            "Gecko:Ready",
+        EventDispatcher.getInstance().registerGoannaThreadListener(mGoannaEventListener,
+            "Goanna:Ready",
             "Accessibility:Event",
             "Content:StateChange",
             "Content:LoadError",
@@ -175,28 +175,28 @@ public class GeckoView extends LayerView
             "Prompt:Show",
             "Prompt:ShowTop");
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(mNativeEventListener,
+        EventDispatcher.getInstance().registerGoannaThreadListener(mNativeEventListener,
             "Accessibility:Ready",
-            "GeckoView:Message");
+            "GoannaView:Message");
 
         initializeView(EventDispatcher.getInstance());
 
-        if (GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.Launched)) {
+        if (GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.Launching, GoannaThread.LaunchState.Launched)) {
             // This is the first launch, so finish initialization and go.
-            GeckoProfile profile = GeckoProfile.get(context).forceCreate();
+            GoannaProfile profile = GoannaProfile.get(context).forceCreate();
 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createObjectEvent(
-                GeckoEvent.ACTION_OBJECT_LAYER_CLIENT, getLayerClientObject()));
-            GeckoThread.createAndStart();
-        } else if(GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-            // If Gecko is already running, that means the Activity was
-            // destroyed, so we need to re-attach Gecko to this GeckoView.
-            connectToGecko();
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createObjectEvent(
+                GoannaEvent.ACTION_OBJECT_LAYER_CLIENT, getLayerClientObject()));
+            GoannaThread.createAndStart();
+        } else if(GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
+            // If Goanna is already running, that means the Activity was
+            // destroyed, so we need to re-attach Goanna to this GoannaView.
+            connectToGoanna();
         }
     }
 
     /**
-    * Add a Browser to the GeckoView container.
+    * Add a Browser to the GoannaView container.
     * @param url The URL resource to load into the new Browser.
     */
     public Browser addBrowser(String url) {
@@ -208,7 +208,7 @@ public class GeckoView extends LayerView
     }
 
     /**
-    * Remove a Browser from the GeckoView container.
+    * Remove a Browser from the GoannaView container.
     * @param browser The Browser to remove.
     */
     public void removeBrowser(Browser browser) {
@@ -242,7 +242,7 @@ public class GeckoView extends LayerView
     }
 
     /**
-    * Get the list of current Browsers in the GeckoView container.
+    * Get the list of current Browsers in the GoannaView container.
     * @return An unmodifiable List of Browser objects.
     */
     public List<Browser> getBrowsers() {
@@ -256,24 +256,24 @@ public class GeckoView extends LayerView
 
     public void importScript(final String url) {
         if (url.startsWith("resource://android/assets/")) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("GeckoView:ImportScript", url));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("GoannaView:ImportScript", url));
             return;
         }
 
         throw new IllegalArgumentException("Must import script from 'resources://android/assets/' location.");
     }
 
-    private void connectToGecko() {
-        GeckoThread.setLaunchState(GeckoThread.LaunchState.GeckoRunning);
+    private void connectToGoanna() {
+        GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaRunning);
         Tab selectedTab = Tabs.getInstance().getSelectedTab();
         if (selectedTab != null)
             Tabs.getInstance().notifyListeners(selectedTab, Tabs.TabEvents.SELECTED);
         geckoConnected();
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Viewport:Flush", null));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Viewport:Flush", null));
     }
 
     private void handleReady(final JSONObject message) {
-        connectToGecko();
+        connectToGoanna();
 
         if (mChromeDelegate != null) {
             mChromeDelegate.onReady(this);
@@ -282,13 +282,13 @@ public class GeckoView extends LayerView
 
     private void handleStateChange(final JSONObject message) throws JSONException {
         int state = message.getInt("state");
-        if ((state & GeckoAppShell.WPL_STATE_IS_NETWORK) != 0) {
-            if ((state & GeckoAppShell.WPL_STATE_START) != 0) {
+        if ((state & GoannaAppShell.WPL_STATE_IS_NETWORK) != 0) {
+            if ((state & GoannaAppShell.WPL_STATE_START) != 0) {
                 if (mContentDelegate != null) {
                     int id = message.getInt("tabID");
                     mContentDelegate.onPageStart(this, new Browser(id), message.getString("uri"));
                 }
-            } else if ((state & GeckoAppShell.WPL_STATE_STOP) != 0) {
+            } else if ((state & GoannaAppShell.WPL_STATE_STOP) != 0) {
                 if (mContentDelegate != null) {
                     int id = message.getInt("tabID");
                     mContentDelegate.onPageStop(this, new Browser(id), message.getBoolean("success"));
@@ -300,28 +300,28 @@ public class GeckoView extends LayerView
     private void handleLoadError(final JSONObject message) throws JSONException {
         if (mContentDelegate != null) {
             int id = message.getInt("tabID");
-            mContentDelegate.onPageStop(GeckoView.this, new Browser(id), false);
+            mContentDelegate.onPageStop(GoannaView.this, new Browser(id), false);
         }
     }
 
     private void handlePageShow(final JSONObject message) throws JSONException {
         if (mContentDelegate != null) {
             int id = message.getInt("tabID");
-            mContentDelegate.onPageShow(GeckoView.this, new Browser(id));
+            mContentDelegate.onPageShow(GoannaView.this, new Browser(id));
         }
     }
 
     private void handleTitleChanged(final JSONObject message) throws JSONException {
         if (mContentDelegate != null) {
             int id = message.getInt("tabID");
-            mContentDelegate.onReceivedTitle(GeckoView.this, new Browser(id), message.getString("title"));
+            mContentDelegate.onReceivedTitle(GoannaView.this, new Browser(id), message.getString("title"));
         }
     }
 
     private void handleLinkFavicon(final JSONObject message) throws JSONException {
         if (mContentDelegate != null) {
             int id = message.getInt("tabID");
-            mContentDelegate.onReceivedFavicon(GeckoView.this, new Browser(id), message.getString("href"), message.getInt("size"));
+            mContentDelegate.onReceivedFavicon(GoannaView.this, new Browser(id), message.getString("href"), message.getInt("size"));
         }
     }
 
@@ -330,16 +330,16 @@ public class GeckoView extends LayerView
             String hint = message.optString("hint");
             if ("alert".equals(hint)) {
                 String text = message.optString("text");
-                mChromeDelegate.onAlert(GeckoView.this, null, text, new PromptResult(message));
+                mChromeDelegate.onAlert(GoannaView.this, null, text, new PromptResult(message));
             } else if ("confirm".equals(hint)) {
                 String text = message.optString("text");
-                mChromeDelegate.onConfirm(GeckoView.this, null, text, new PromptResult(message));
+                mChromeDelegate.onConfirm(GoannaView.this, null, text, new PromptResult(message));
             } else if ("prompt".equals(hint)) {
                 String text = message.optString("text");
                 String defaultValue = message.optString("textbox0");
-                mChromeDelegate.onPrompt(GeckoView.this, null, text, defaultValue, new PromptResult(message));
+                mChromeDelegate.onPrompt(GoannaView.this, null, text, defaultValue, new PromptResult(message));
             } else if ("remotedebug".equals(hint)) {
-                mChromeDelegate.onDebugRequest(GeckoView.this, new PromptResult(message));
+                mChromeDelegate.onDebugRequest(GoannaView.this, new PromptResult(message));
             }
         }
     }
@@ -350,14 +350,14 @@ public class GeckoView extends LayerView
             if (callback != null) {
                 result = new MessageResult(callback);
             }
-            mChromeDelegate.onScriptMessage(GeckoView.this, data, result);
+            mChromeDelegate.onScriptMessage(GoannaView.this, data, result);
         }
     }
 
     /**
     * Set the chrome callback handler.
     * This will replace the current handler.
-    * @param chrome An implementation of GeckoViewChrome.
+    * @param chrome An implementation of GoannaViewChrome.
     */
     public void setChromeDelegate(ChromeDelegate chrome) {
         mChromeDelegate = chrome;
@@ -372,12 +372,12 @@ public class GeckoView extends LayerView
         mContentDelegate = content;
     }
 
-    public static void setGeckoInterface(final BaseGeckoInterface geckoInterface) {
-        GeckoAppShell.setGeckoInterface(geckoInterface);
+    public static void setGoannaInterface(final BaseGoannaInterface geckoInterface) {
+        GoannaAppShell.setGoannaInterface(geckoInterface);
     }
 
-    public static GeckoAppShell.GeckoInterface getGeckoInterface() {
-        return GeckoAppShell.getGeckoInterface();
+    public static GoannaAppShell.GoannaInterface getGoannaInterface() {
+        return GoannaAppShell.getGoannaInterface();
     }
 
     protected String getSharedPreferencesFile() {
@@ -390,8 +390,8 @@ public class GeckoView extends LayerView
     }
 
     /**
-    * Wrapper for a browser in the GeckoView container. Associated with a browser
-    * element in the Gecko system.
+    * Wrapper for a browser in the GoannaView container. Associated with a browser
+    * element in the Goanna system.
     */
     public class Browser {
         private final int mId;
@@ -400,7 +400,7 @@ public class GeckoView extends LayerView
         }
 
         /**
-        * Get the ID of the Browser. This is the same ID used by Gecko for it's underlying
+        * Get the ID of the Browser. This is the same ID used by Goanna for it's underlying
         * browser element.
         * @return The integer ID of the Browser.
         */
@@ -422,7 +422,7 @@ public class GeckoView extends LayerView
             } catch (Exception e) {
                 Log.w(LOGTAG, "Error building JSON arguments for loadUrl.", e);
             }
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Load", args.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Load", args.toString()));
         }
 
         /**
@@ -450,7 +450,7 @@ public class GeckoView extends LayerView
         * Check to see if the Browser has session history and can go back to a
         * previous page.
         * @return A boolean flag indicating if previous session exists.
-        * This method will likely be removed and replaced by a callback in GeckoViewContent
+        * This method will likely be removed and replaced by a callback in GoannaViewContent
         */
         public boolean canGoBack() {
             Tab tab = Tabs.getInstance().getTab(mId);
@@ -474,7 +474,7 @@ public class GeckoView extends LayerView
         * Check to see if the Browser has session history and can go forward to a
         * new page.
         * @return A boolean flag indicating if forward session exists.
-        * This method will likely be removed and replaced by a callback in GeckoViewContent
+        * This method will likely be removed and replaced by a callback in GoannaViewContent
         */
         public boolean canGoForward() {
             Tab tab = Tabs.getInstance().getTab(mId);
@@ -497,7 +497,7 @@ public class GeckoView extends LayerView
 
     /* Provides a means for the client to indicate whether a JavaScript
      * dialog request should proceed. An instance of this class is passed to
-     * various GeckoViewChrome callback actions.
+     * various GoannaViewChrome callback actions.
      */
     public class PromptResult {
         private final int RESULT_OK = 0;
@@ -547,7 +547,7 @@ public class GeckoView extends LayerView
     }
 
     /* Provides a means for the client to respond to a script message with some data.
-     * An instance of this class is passed to GeckoViewChrome.onScriptMessage.
+     * An instance of this class is passed to GoannaViewChrome.onScriptMessage.
      */
     public class MessageResult {
         private final EventCallback mCallback;
@@ -593,103 +593,103 @@ public class GeckoView extends LayerView
 
     public interface ChromeDelegate {
         /**
-        * Tell the host application that Gecko is ready to handle requests.
-        * @param view The GeckoView that initiated the callback.
+        * Tell the host application that Goanna is ready to handle requests.
+        * @param view The GoannaView that initiated the callback.
         */
-        public void onReady(GeckoView view);
+        public void onReady(GoannaView view);
 
         /**
         * Tell the host application to display an alert dialog.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that is loading the content.
         * @param message The string to display in the dialog.
         * @param result A PromptResult used to send back the result without blocking.
         * Defaults to cancel requests.
         */
-        public void onAlert(GeckoView view, GeckoView.Browser browser, String message, GeckoView.PromptResult result);
+        public void onAlert(GoannaView view, GoannaView.Browser browser, String message, GoannaView.PromptResult result);
     
         /**
         * Tell the host application to display a confirmation dialog.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that is loading the content.
         * @param message The string to display in the dialog.
         * @param result A PromptResult used to send back the result without blocking.
         * Defaults to cancel requests.
         */
-        public void onConfirm(GeckoView view, GeckoView.Browser browser, String message, GeckoView.PromptResult result);
+        public void onConfirm(GoannaView view, GoannaView.Browser browser, String message, GoannaView.PromptResult result);
     
         /**
         * Tell the host application to display an input prompt dialog.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that is loading the content.
         * @param message The string to display in the dialog.
         * @param defaultValue The string to use as default input.
         * @param result A PromptResult used to send back the result without blocking.
         * Defaults to cancel requests.
         */
-        public void onPrompt(GeckoView view, GeckoView.Browser browser, String message, String defaultValue, GeckoView.PromptResult result);
+        public void onPrompt(GoannaView view, GoannaView.Browser browser, String message, String defaultValue, GoannaView.PromptResult result);
     
         /**
         * Tell the host application to display a remote debugging request dialog.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param result A PromptResult used to send back the result without blocking.
         * Defaults to cancel requests.
         */
-        public void onDebugRequest(GeckoView view, GeckoView.PromptResult result);
+        public void onDebugRequest(GoannaView view, GoannaView.PromptResult result);
 
         /**
         * Receive a message from an imported script.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param data Bundle of data sent with the message. Never null.
         * @param result A MessageResult used to send back a response without blocking. Can be null.
         * Defaults to do nothing.
         */
-        public void onScriptMessage(GeckoView view, Bundle data, GeckoView.MessageResult result);
+        public void onScriptMessage(GoannaView view, Bundle data, GoannaView.MessageResult result);
     }
 
     public interface ContentDelegate {
         /**
         * A Browser has started loading content from the network.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that is loading the content.
         * @param url The resource being loaded.
         */
-        public void onPageStart(GeckoView view, GeckoView.Browser browser, String url);
+        public void onPageStart(GoannaView view, GoannaView.Browser browser, String url);
     
         /**
         * A Browser has finished loading content from the network.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that was loading the content.
         * @param success Whether the page loaded successfully or an error occurred.
         */
-        public void onPageStop(GeckoView view, GeckoView.Browser browser, boolean success);
+        public void onPageStop(GoannaView view, GoannaView.Browser browser, boolean success);
 
         /**
         * A Browser is displaying content. This page could have been loaded via
         * network or from the session history.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that is showing the content.
         */
-        public void onPageShow(GeckoView view, GeckoView.Browser browser);
+        public void onPageShow(GoannaView view, GoannaView.Browser browser);
 
         /**
         * A page title was discovered in the content or updated after the content
         * loaded.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that is showing the content.
         * @param title The title sent from the content.
         */
-        public void onReceivedTitle(GeckoView view, GeckoView.Browser browser, String title);
+        public void onReceivedTitle(GoannaView view, GoannaView.Browser browser, String title);
 
         /**
         * A link element was discovered in the content or updated after the content
         * loaded that specifies a favicon.
-        * @param view The GeckoView that initiated the callback.
+        * @param view The GoannaView that initiated the callback.
         * @param browser The Browser that is showing the content.
         * @param url The href of the link element specifying the favicon.
         * @param size The maximum size specified for the favicon, or -1 for any size.
         */
-        public void onReceivedFavicon(GeckoView view, GeckoView.Browser browser, String url, int size);
+        public void onReceivedFavicon(GoannaView view, GoannaView.Browser browser, String url, int size);
     }
 
 }

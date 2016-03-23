@@ -9,7 +9,7 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.LocalBrowserDB;
 import org.mozilla.gecko.home.HomePanelsManager;
 import org.mozilla.gecko.lwt.LightweightTheme;
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.gecko.mozglue.GoannaLoader;
 import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -22,23 +22,23 @@ import android.util.Log;
 
 import java.io.File;
 
-public class GeckoApplication extends Application 
+public class GoannaApplication extends Application 
     implements ContextGetter {
-    private static final String LOG_TAG = "GeckoApplication";
+    private static final String LOG_TAG = "GoannaApplication";
 
-    private static volatile GeckoApplication instance;
+    private static volatile GoannaApplication instance;
 
     private boolean mInBackground;
-    private boolean mPausedGecko;
+    private boolean mPausedGoanna;
 
     private LightweightTheme mLightweightTheme;
 
-    public GeckoApplication() {
+    public GoannaApplication() {
         super();
         instance = this;
     }
 
-    public static GeckoApplication get() {
+    public static GoannaApplication get() {
         return instance;
     }
 
@@ -49,7 +49,7 @@ public class GeckoApplication extends Application
 
     @Override
     public SharedPreferences getSharedPreferences() {
-        return GeckoSharedPrefs.forApp(this);
+        return GoannaSharedPrefs.forApp(this);
     }
 
     /**
@@ -68,32 +68,32 @@ public class GeckoApplication extends Application
             return;
         }
 
-        // Otherwise, correct the locale. This catches some cases that GeckoApp
+        // Otherwise, correct the locale. This catches some cases that GoannaApp
         // doesn't get a chance to.
         try {
             BrowserLocaleManager.getInstance().correctLocale(this, getResources(), config);
         } catch (IllegalStateException ex) {
-            // GeckoApp hasn't started, so we have no ContextGetter in BrowserLocaleManager.
+            // GoannaApp hasn't started, so we have no ContextGetter in BrowserLocaleManager.
             Log.w(LOG_TAG, "Couldn't correct locale.", ex);
         }
 
         super.onConfigurationChanged(config);
     }
 
-    public void onActivityPause(GeckoActivityStatus activity) {
+    public void onActivityPause(GoannaActivityStatus activity) {
         mInBackground = true;
 
         if ((activity.isFinishing() == false) &&
-            (activity.isGeckoActivityOpened() == false)) {
-            // Notify Gecko that we are pausing; the cache service will be
+            (activity.isGoannaActivityOpened() == false)) {
+            // Notify Goanna that we are pausing; the cache service will be
             // shutdown, closing the disk cache cleanly. If the android
             // low memory killer subsequently kills us, the disk cache will
             // be left in a consistent state, avoiding costly cleanup and
             // re-creation. 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createAppBackgroundingEvent());
-            mPausedGecko = true;
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createAppBackgroundingEvent());
+            mPausedGoanna = true;
 
-            final BrowserDB db = GeckoProfile.get(this).getDB();
+            final BrowserDB db = GoannaProfile.get(this).getDB();
             ThreadUtils.postToBackgroundThread(new Runnable() {
                 @Override
                 public void run() {
@@ -101,20 +101,20 @@ public class GeckoApplication extends Application
                 }
             });
         }
-        GeckoConnectivityReceiver.getInstance().stop();
-        GeckoNetworkManager.getInstance().stop();
+        GoannaConnectivityReceiver.getInstance().stop();
+        GoannaNetworkManager.getInstance().stop();
     }
 
-    public void onActivityResume(GeckoActivityStatus activity) {
-        if (mPausedGecko) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createAppForegroundingEvent());
-            mPausedGecko = false;
+    public void onActivityResume(GoannaActivityStatus activity) {
+        if (mPausedGoanna) {
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createAppForegroundingEvent());
+            mPausedGoanna = false;
         }
 
         final Context applicationContext = getApplicationContext();
-        GeckoBatteryManager.getInstance().start(applicationContext);
-        GeckoConnectivityReceiver.getInstance().start(applicationContext);
-        GeckoNetworkManager.getInstance().start(applicationContext);
+        GoannaBatteryManager.getInstance().start(applicationContext);
+        GoannaConnectivityReceiver.getInstance().start(applicationContext);
+        GoannaNetworkManager.getInstance().start(applicationContext);
 
         mInBackground = false;
     }
@@ -125,7 +125,7 @@ public class GeckoApplication extends Application
         HardwareUtils.init(context);
         Clipboard.init(context);
         FilePicker.init(context);
-        GeckoLoader.loadMozGlue(context);
+        GoannaLoader.loadMozGlue(context);
         DownloadsIntegration.init();
         HomePanelsManager.getInstance().init(context);
 
@@ -133,15 +133,15 @@ public class GeckoApplication extends Application
         NotificationHelper.getInstance(context).init();
 
         // Make sure that all browser-ish applications default to the real LocalBrowserDB.
-        // GeckoView consumers use their own Application class, so this doesn't affect them.
+        // GoannaView consumers use their own Application class, so this doesn't affect them.
         // WebappImpl overrides this on creation.
         //
         // We need to do this before any access to the profile; it controls
         // which database class is used.
         //
-        // As such, this needs to occur before the GeckoView in GeckoApp is inflated -- i.e., in the
-        // GeckoApp constructor or earlier -- because GeckoView implicitly accesses the profile. This is earlier!
-        GeckoProfile.setBrowserDBFactory(new BrowserDB.Factory() {
+        // As such, this needs to occur before the GoannaView in GoannaApp is inflated -- i.e., in the
+        // GoannaApp constructor or earlier -- because GoannaView implicitly accesses the profile. This is earlier!
+        GoannaProfile.setBrowserDBFactory(new BrowserDB.Factory() {
             @Override
             public BrowserDB get(String profileName, File profileDir) {
                 // Note that we don't use the profile directory -- we

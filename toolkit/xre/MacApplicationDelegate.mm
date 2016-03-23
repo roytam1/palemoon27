@@ -64,7 +64,7 @@ EnsureUseCocoaDockAPI()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [GeckoNSApplication sharedApplication];
+  [GoannaNSApplication sharedApplication];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -79,7 +79,7 @@ SetupMacApplicationDelegate()
   AutoAutoreleasePool pool;
 
   // Ensure that ProcessPendingGetURLAppleEvents() doesn't regress bug 377166.
-  [GeckoNSApplication sharedApplication];
+  [GoannaNSApplication sharedApplication];
 
   // This call makes it so that application:openFile: doesn't get bogus calls
   // from Cocoa doing its own parsing of the argument string. And yes, we need
@@ -89,7 +89,7 @@ SetupMacApplicationDelegate()
 
   // Create the delegate. This should be around for the lifetime of the app.
   id<NSApplicationDelegate> delegate = [[MacApplicationDelegate alloc] init];
-  [[GeckoNSApplication sharedApplication] setDelegate:delegate];
+  [[GoannaNSApplication sharedApplication] setDelegate:delegate];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

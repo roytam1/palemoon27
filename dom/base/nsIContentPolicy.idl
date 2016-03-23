@@ -50,7 +50,7 @@ interface nsIContentPolicy : nsIContentPolicyBase
    *                          attribute); does not reliably reflect the
    *                          actual MIME type of the requested content
    *
-   * @param aExtra            an OPTIONAL argument, pass-through for non-Gecko
+   * @param aExtra            an OPTIONAL argument, pass-through for non-Goanna
    *                          callers to pass extra data to callees.
    *
    * @param aRequestPrincipal an OPTIONAL argument, defines the principal that
@@ -112,7 +112,7 @@ interface nsIContentPolicy : nsIContentPolicyBase
    *                          if available (may be empty if inappropriate for
    *                          the type, e.g., TYPE_REFRESH).
    *
-   * @param aExtra            an OPTIONAL argument, pass-through for non-Gecko
+   * @param aExtra            an OPTIONAL argument, pass-through for non-Goanna
    *                          callers to pass extra data to callees.
    *
    * @return ACCEPT or REJECT_*

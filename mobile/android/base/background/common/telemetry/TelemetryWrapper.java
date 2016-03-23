@@ -12,14 +12,14 @@ import org.mozilla.gecko.background.common.log.Logger;
 /**
  * Android Background Services are normally built into Fennec, but can also be
  * built as a stand-alone APK for rapid local development. The current Telemetry
- * implementation is coupled to Gecko, and Background Services should not
- * interact with Gecko directly. To maintain this independence, Background
+ * implementation is coupled to Goanna, and Background Services should not
+ * interact with Goanna directly. To maintain this independence, Background
  * Services lazily introspects the relevant Telemetry class from the enclosing
  * package, warning but otherwise ignoring failures during introspection or
  * invocation.
  * <p>
  * It is possible that Background Services will introspect and invoke the
- * Telemetry implementation while Gecko is not running. In this case, the Fennec
+ * Telemetry implementation while Goanna is not running. In this case, the Fennec
  * process itself buffers Telemetry events until such time as they can be
  * flushed to disk and uploaded. <b>There is no guarantee that all Telemetry
  * events will be uploaded!</b> Depending on the volume of data and the

@@ -23,7 +23,7 @@ import java.util.Set;
 import org.mozilla.gecko.distribution.Distribution;
 
 public class ImageLoader {
-    private static final String LOGTAG = "GeckoImageLoader";
+    private static final String LOGTAG = "GoannaImageLoader";
 
     private static final String DISTRIBUTION_SCHEME = "gecko.distribution";
     private static final String SUGGESTED_SITES_AUTHORITY = "suggestedsites";

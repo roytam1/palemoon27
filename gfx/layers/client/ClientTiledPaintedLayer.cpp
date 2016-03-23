@@ -167,7 +167,7 @@ ClientTiledPaintedLayer::BeginPaint()
     ApplyParentLayerToLayerTransform(transformDisplayPortToLayer, criticalDisplayPort));
   TILING_LOG("TILING %p: Critical displayport %s\n", this, Stringify(mPaintData.mCriticalDisplayPort).c_str());
 
-  // Store the resolution from the displayport ancestor layer. Because this is Gecko-side,
+  // Store the resolution from the displayport ancestor layer. Because this is Goanna-side,
   // before any async transforms have occurred, we can use the zoom for this.
   mPaintData.mResolution = displayportMetrics.GetZoom();
   TILING_LOG("TILING %p: Resolution %f\n", this, mPaintData.mResolution.scale);

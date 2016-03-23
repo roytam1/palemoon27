@@ -18,7 +18,7 @@ import org.mozilla.gecko.R;
   * multiple boolean options inside.
   **/
 class ListCheckboxPreference extends MultiChoicePreference implements Checkable {
-    private static final String LOGTAG = "GeckoListCheckboxPreference";
+    private static final String LOGTAG = "GoannaListCheckboxPreference";
     private boolean checked;
 
     public ListCheckboxPreference(Context context, AttributeSet attrs) {

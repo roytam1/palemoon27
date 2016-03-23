@@ -16,7 +16,7 @@ import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.background.nativecode.NativeCrypto;
 
 public abstract class EnvironmentV1 {
-  private static final String LOG_TAG = "GeckoEnvironment";
+  private static final String LOG_TAG = "GoannaEnvironment";
   private static final int VERSION = 1;
 
   protected final Class<? extends EnvironmentAppender> appenderClass;

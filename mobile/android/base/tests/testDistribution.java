@@ -21,8 +21,8 @@ import org.json.JSONObject;
 import org.mozilla.gecko.Actions;
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.SuggestedSites;
 import org.mozilla.gecko.distribution.Distribution;
@@ -58,7 +58,7 @@ public class testDistribution extends ContentProviderTest {
     private static final String CLASS_REFERRER_RECEIVER = "org.mozilla.gecko.distribution.ReferrerReceiver";
     private static final String ACTION_INSTALL_REFERRER = "com.android.vending.INSTALL_REFERRER";
     private static final int WAIT_TIMEOUT_MSEC = 10000;
-    public static final String LOGTAG = "GeckoTestDistribution";
+    public static final String LOGTAG = "GoannaTestDistribution";
 
     public static class TestableDistribution extends Distribution {
         @Override
@@ -135,7 +135,7 @@ public class testDistribution extends ContentProviderTest {
         clearDistributionPref();
         Distribution dist = initDistribution(mockPackagePath);
         SuggestedSites suggestedSites = new SuggestedSites(mActivity, dist);
-        GeckoProfile.get(mActivity).getDB().setSuggestedSites(suggestedSites);
+        GoannaProfile.get(mActivity).getDB().setSuggestedSites(suggestedSites);
 
         // Test tiles uploading for an en-US OS locale with no app locale.
         setOSLocale(Locale.US);
@@ -170,7 +170,7 @@ public class testDistribution extends ContentProviderTest {
 
     private void setOSLocale(Locale locale) {
         Locale.setDefault(locale);
-        BrowserLocaleManager.storeAndNotifyOSLocale(GeckoSharedPrefs.forProfile(mActivity), locale);
+        BrowserLocaleManager.storeAndNotifyOSLocale(GoannaSharedPrefs.forProfile(mActivity), locale);
     }
 
     private abstract class ExpectNoDistributionCallback implements Distribution.ReadyCallback {
@@ -279,7 +279,7 @@ public class testDistribution extends ContentProviderTest {
     // Initialize the distribution from the mock package.
     private Distribution initDistribution(String aPackagePath) {
         // Call Distribution.init with the mock package.
-        Actions.EventExpecter distributionSetExpecter = mActions.expectGeckoEvent("Distribution:Set:OK");
+        Actions.EventExpecter distributionSetExpecter = mActions.expectGoannaEvent("Distribution:Set:OK");
         Distribution dist = Distribution.init(mActivity, aPackagePath, "prefs-" + System.currentTimeMillis());
         distributionSetExpecter.blockForEvent();
         distributionSetExpecter.unregisterListener();
@@ -303,7 +303,7 @@ public class testDistribution extends ContentProviderTest {
                                          prefTestString,
                                          prefTestInt };
 
-            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
+            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("Preferences:Data");
             mActions.sendPreferencesGetEvent(PREF_REQUEST_ID, prefNames);
 
             JSONObject data = null;
@@ -342,8 +342,8 @@ public class testDistribution extends ContentProviderTest {
     }
 
     private void checkSearchPlugin() {
-        Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("SearchEngines:Data");
-        mActions.sendGeckoEvent("SearchEngines:GetVisible", null);
+        Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("SearchEngines:Data");
+        mActions.sendGoannaEvent("SearchEngines:GetVisible", null);
 
         try {
             JSONObject data = new JSONObject(eventExpecter.blockForEventData());
@@ -378,7 +378,7 @@ public class testDistribution extends ContentProviderTest {
         try {
             final String[] prefNames = { prefAbout, prefLocalizeable, prefLocalizeableOverride };
 
-            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
+            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("Preferences:Data");
             mActions.sendPreferencesGetEvent(PREF_REQUEST_ID, prefNames);
 
             JSONObject data = null;
@@ -454,7 +454,7 @@ public class testDistribution extends ContentProviderTest {
      */
     private void clearDistributionPref() {
         mAsserter.dumpLog("Clearing distribution pref.");
-        SharedPreferences settings = mActivity.getSharedPreferences("GeckoApp", Activity.MODE_PRIVATE);
+        SharedPreferences settings = mActivity.getSharedPreferences("GoannaApp", Activity.MODE_PRIVATE);
         String keyName = mActivity.getPackageName() + ".distribution_state";
         settings.edit().remove(keyName).commit();
         TestableDistribution.clearReferrerDescriptorForTesting();
@@ -491,7 +491,7 @@ public class testDistribution extends ContentProviderTest {
         boolean tileFound = waitForText(text);
         mAsserter.ok(tileFound, "Found tile: " + text, null);
 
-        Actions.EventExpecter loadExpecter = mActions.expectGeckoEvent("Robocop:TilesResponse");
+        Actions.EventExpecter loadExpecter = mActions.expectGoannaEvent("Robocop:TilesResponse");
         mSolo.clickOnText(text);
         String data = loadExpecter.blockForEventData();
         JSONObject dataJSON = new JSONObject(data);

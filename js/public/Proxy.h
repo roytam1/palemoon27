@@ -112,7 +112,7 @@ class JS_FRIEND_API(Wrapper);
  * to any underlying JS object, DOMJSProxyHandler directly subclasses
  * BaseProxyHandler.
  *
- * Gecko's security wrappers are examples of cross-compartment wrappers.
+ * Goanna's security wrappers are examples of cross-compartment wrappers.
  *
  * ### Proxy prototype chains
  *

@@ -13,7 +13,7 @@ from mozprofile import Profile
 from mozrunner import Runner
 
 
-class GeckoInstance(object):
+class GoannaInstance(object):
 
     required_prefs = {"marionette.defaultPrefs.enabled": True,
                       "marionette.logging": True,
@@ -44,7 +44,7 @@ class GeckoInstance(object):
         else:
             self.profile_path = profile
         self.prefs = prefs
-        self.required_prefs = deepcopy(GeckoInstance.required_prefs)
+        self.required_prefs = deepcopy(GoannaInstance.required_prefs)
         if prefs:
             self.required_prefs.update(prefs)
         self.app_args = app_args or []
@@ -149,12 +149,12 @@ class GeckoInstance(object):
             self.prefs = None
         self.start()
 
-class B2GDesktopInstance(GeckoInstance):
+class B2GDesktopInstance(GoannaInstance):
     def __init__(self, host, port, bin, **kwargs):
         # Pass a profile and change the binary to -bin so that
         # the built-in gaia profile doesn't get touched.
         if kwargs.get('profile', None) is None:
-            # GeckoInstance.start will clone the profile.
+            # GoannaInstance.start will clone the profile.
             kwargs['profile'] = os.path.join(os.path.dirname(bin),
                                              'gaia',
                                              'profile')

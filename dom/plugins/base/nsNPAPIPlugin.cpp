@@ -102,7 +102,7 @@ using mozilla::plugins::PluginModuleContentParent;
 #include "ANPBase.h"
 #include "AndroidBridge.h"
 #undef LOG
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #endif
 
 using namespace mozilla;
@@ -249,7 +249,7 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
 bool
 nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return true;
   }
 
@@ -404,7 +404,7 @@ GetNewPluginLibrary(nsPluginTag *aPluginTag)
     return nullptr;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return PluginModuleContentParent::LoadModule(aPluginTag->mId);
   }
 
@@ -2280,7 +2280,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     }
 
     case kJavaContext_ANPGetValue: {
-      auto ret = widget::GeckoAppShell::GetContext();
+      auto ret = widget::GoannaAppShell::GetContext();
       if (!ret)
         return NPERR_GENERIC_ERROR;
 

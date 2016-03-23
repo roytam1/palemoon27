@@ -6,7 +6,7 @@ package org.mozilla.gecko.tests;
 
 import org.mozilla.gecko.home.HomeConfig;
 import org.mozilla.gecko.home.HomeConfig.PanelType;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
 /**
@@ -14,7 +14,7 @@ import org.mozilla.gecko.tests.helpers.NavigationHelper;
  */
 public class testAboutHomeVisibility extends UITest {
     public void testAboutHomeVisibility() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
 
         // Check initial state on about:home.
         mToolbar.assertTitle(StringHelper.ABOUT_HOME_URL);

@@ -2715,7 +2715,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   // up with the outer. See bug 969156.
   if (createdInnerWindow) {
     // AutoEntryScript required to invoke debugger hook, which is a
-    // Gecko-specific concept at present.
+    // Goanna-specific concept at present.
     AutoEntryScript aes(newInnerWindow);
     JS::Rooted<JSObject*> global(aes.cx(), newInnerWindow->GetWrapper());
     JS_FireOnNewGlobalObject(aes.cx(), global);
@@ -6115,7 +6115,7 @@ nsGlobalWindow::Dump(const nsAString& aStr)
     PrintToDebugger(cstr);
 #endif
 #ifdef ANDROID
-    __android_log_write(ANDROID_LOG_INFO, "GeckoDump", cstr);
+    __android_log_write(ANDROID_LOG_INFO, "GoannaDump", cstr);
 #endif
     FILE *fp = gDumpFile ? gDumpFile : stdout;
     fputs(cstr, fp);
@@ -11004,7 +11004,7 @@ nsGlobalWindow::ShowSlowScriptDialog()
   unsigned lineno;
   bool hasFrame = JS::DescribeScriptedCaller(cx, &filename, &lineno);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content &&
+  if (XRE_GetProcessType() == GoannaProcessType_Content &&
       ProcessHangMonitor::Get()) {
     ProcessHangMonitor::SlowScriptAction action;
     nsRefPtr<ProcessHangMonitor> monitor = ProcessHangMonitor::Get();

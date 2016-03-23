@@ -28,9 +28,9 @@ One might imagine that we need only set the locale when our Application is insta
 
 For this reason, each starting activity must ask ``BrowserLocaleManager`` to fix its locale.
 
-Ideally, we also need to perform some amount of work when our configuration changes, when our activity is resumed, and perhaps when a result is returned from another activity, if that activity can change the app locale (as is the case for any activity that calls out to ``GeckoPreferences`` -- see ``BrowserApp#onActivityResult``).
+Ideally, we also need to perform some amount of work when our configuration changes, when our activity is resumed, and perhaps when a result is returned from another activity, if that activity can change the app locale (as is the case for any activity that calls out to ``GoannaPreferences`` -- see ``BrowserApp#onActivityResult``).
 
-``GeckoApp`` itself does some additional work, because it has particular performance constraints, and also is the typical root of the preferences activity.
+``GoannaApp`` itself does some additional work, because it has particular performance constraints, and also is the typical root of the preferences activity.
 
 Here's an example of the work that a typical activity should do::
 
@@ -71,7 +71,7 @@ Here's an example of the work that a typical activity should do::
     super.onCreate(icicle);
   }
 
-``GeckoApplication`` itself handles correcting locales when the configuration changes; your activity shouldn't need to do this itself. See ``GeckoApplication``'s and ``GeckoApp``'s ``onConfigurationChanged`` methods.
+``GoannaApplication`` itself handles correcting locales when the configuration changes; your activity shouldn't need to do this itself. See ``GoannaApplication``'s and ``GoannaApp``'s ``onConfigurationChanged`` methods.
 
 System locale changes
 =====================
@@ -94,4 +94,4 @@ When the system locale changes when we're mirroring, your activity will receive 
 Further reference
 =================
 
-``GeckoPreferences``, ``GeckoApp``, and ``BrowserApp`` are excellent resources for figuring out what you should do.
+``GoannaPreferences``, ``GoannaApp``, and ``BrowserApp`` are excellent resources for figuring out what you should do.

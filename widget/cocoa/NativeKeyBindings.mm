@@ -74,7 +74,7 @@ NativeKeyBindings::Init(NativeKeyBindingsType aType)
   PR_LOG(gNativeKeyBindingsLog, PR_LOG_ALWAYS,
     ("%p NativeKeyBindings::Init", this));
 
-  // Many selectors have a one-to-one mapping to a Gecko command. Those mappings
+  // Many selectors have a one-to-one mapping to a Goanna command. Those mappings
   // are registered in mSelectorToCommand.
 
   // Selectors from NSResponder's "Responding to Action Messages" section and
@@ -284,7 +284,7 @@ NativeKeyBindings::Execute(const WidgetKeyboardEvent& aEvent,
       ("%p NativeKeyBindings::KeyPress, command=%s",
        this, WidgetKeyboardEvent::GetCommandStr(geckoCommand)));
 
-    // Execute the Gecko command
+    // Execute the Goanna command
     aCallback(geckoCommand, aCallbackData);
   }
 

@@ -16,7 +16,7 @@
 #include "mozilla/StaticPtr.h"
 
 #include "nsCOMPtr.h"
-#include "nsXULAppAPI.h"        // for GeckoProcessType
+#include "nsXULAppAPI.h"        // for GoannaProcessType
 #include "nsString.h"
 
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
@@ -28,7 +28,7 @@ class nsIFile;
 namespace mozilla {
 namespace ipc {
 
-class GeckoChildProcessHost : public ChildProcessHost
+class GoannaChildProcessHost : public ChildProcessHost
 {
 protected:
   typedef mozilla::Monitor Monitor;
@@ -40,14 +40,14 @@ public:
 
   static ChildPrivileges DefaultChildPrivileges();
 
-  explicit GeckoChildProcessHost(GeckoProcessType aProcessType,
+  explicit GoannaChildProcessHost(GoannaProcessType aProcessType,
                                  ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
 
-  ~GeckoChildProcessHost();
+  ~GoannaChildProcessHost();
 
   static nsresult GetArchitecturesForBinary(const char *path, uint32_t *result);
 
-  static uint32_t GetSupportedArchitecturesForProcessType(GeckoProcessType type);
+  static uint32_t GetSupportedArchitecturesForProcessType(GoannaProcessType type);
 
   // Block until the IPC channel for our subprocess is initialized,
   // but no longer.  The child process may or may not have been
@@ -118,7 +118,7 @@ public:
     return ok ? handle : 0;
   }
 
-  GeckoProcessType GetProcessType() {
+  GoannaProcessType GetProcessType() {
     return mProcessType;
   }
 
@@ -138,7 +138,7 @@ public:
   void SetAlreadyDead();
 
 protected:
-  GeckoProcessType mProcessType;
+  GoannaProcessType mProcessType;
   ChildPrivileges mPrivileges;
   Monitor mMonitor;
   FilePath mProcessPath;
@@ -192,7 +192,7 @@ protected:
   void OpenPrivilegedHandle(base::ProcessId aPid);
 
 private:
-  DISALLOW_EVIL_CONSTRUCTORS(GeckoChildProcessHost);
+  DISALLOW_EVIL_CONSTRUCTORS(GoannaChildProcessHost);
 
   // Does the actual work for AsyncLaunch, on the IO thread.
   bool PerformAsyncLaunchInternal(std::vector<std::string>& aExtraOpts,
@@ -214,15 +214,15 @@ private:
 };
 
 #ifdef MOZ_NUWA_PROCESS
-class GeckoExistingProcessHost final : public GeckoChildProcessHost
+class GoannaExistingProcessHost final : public GoannaChildProcessHost
 {
 public:
-  GeckoExistingProcessHost(GeckoProcessType aProcessType,
+  GoannaExistingProcessHost(GoannaProcessType aProcessType,
                            base::ProcessHandle aProcess,
                            const FileDescriptor& aFileDescriptor,
                            ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
 
-  ~GeckoExistingProcessHost();
+  ~GoannaExistingProcessHost();
 
   virtual bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
           base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture()) override;

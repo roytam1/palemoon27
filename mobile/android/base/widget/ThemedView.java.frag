@@ -7,7 +7,7 @@
 
 package org.mozilla.gecko.widget;
 
-import org.mozilla.gecko.GeckoApplication;
+import org.mozilla.gecko.GoannaApplication;
 import org.mozilla.gecko.LightweightTheme;
 import org.mozilla.gecko.R;
 
@@ -47,10 +47,10 @@ public class Themed@VIEW_NAME_SUFFIX@ extends @BASE_TYPE@
 //#endif
     private void initialize(final Context context, final AttributeSet attrs) {
         // The theme can be null, particularly for webapps: Bug 1089266.  Or we
-        // might be instantiating this View in an IDE, with no ambient GeckoApplication.
+        // might be instantiating this View in an IDE, with no ambient GoannaApplication.
         final Context applicationContext = context.getApplicationContext();
-        if (applicationContext instanceof GeckoApplication) {
-            mTheme = ((GeckoApplication) applicationContext).getLightweightTheme();
+        if (applicationContext instanceof GoannaApplication) {
+            mTheme = ((GoannaApplication) applicationContext).getLightweightTheme();
         }
 
         final TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.LightweightTheme);

@@ -110,7 +110,7 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
 CompositorChild::Get()
 {
   // This is only expected to be used in child processes.
-  MOZ_ASSERT(XRE_GetProcessType() != GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() != GoannaProcessType_Default);
   return sCompositor;
 }
 

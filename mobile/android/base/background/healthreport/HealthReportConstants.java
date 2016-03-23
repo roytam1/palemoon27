@@ -9,7 +9,7 @@ import org.mozilla.gecko.AppConstants;
 
 public class HealthReportConstants {
   public static final String HEALTH_AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".health";
-  public static final String GLOBAL_LOG_TAG = "GeckoHealth";
+  public static final String GLOBAL_LOG_TAG = "GoannaHealth";
 
   public static final String USER_AGENT = "Firefox-Android-HealthReport/" + AppConstants.MOZ_APP_VERSION + " (" + AppConstants.MOZ_APP_DISPLAYNAME + ")";
 

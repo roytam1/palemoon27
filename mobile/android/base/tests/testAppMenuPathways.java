@@ -7,7 +7,7 @@ package org.mozilla.gecko.tests;
 import org.json.JSONObject;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.tests.components.AppMenuComponent;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
 /**
@@ -20,7 +20,7 @@ public class testAppMenuPathways extends UITest {
      * have a single top-level test function that dispatches to sub-tests.
      */
     public void testAppMenuPathways() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
 
         _testSaveAsPDFPathway();
     }

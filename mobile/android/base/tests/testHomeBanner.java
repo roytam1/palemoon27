@@ -5,7 +5,7 @@
 package org.mozilla.gecko.tests;
 
 import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
 public class testHomeBanner extends UITest {
@@ -14,7 +14,7 @@ public class testHomeBanner extends UITest {
     private static final String TEXT = "The quick brown fox jumps over the lazy dog.";
 
     public void testHomeBanner() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
 
         // Make sure the banner is not visible to start.
         mAboutHome.assertVisible()
@@ -39,7 +39,7 @@ public class testHomeBanner extends UITest {
      */
     private void addBannerTest() {
         // Load about:home and make sure the onshown handler is called.
-        Actions.EventExpecter eventExpecter = getActions().expectGeckoEvent("TestHomeBanner:MessageShown");
+        Actions.EventExpecter eventExpecter = getActions().expectGoannaEvent("TestHomeBanner:MessageShown");
         addBannerMessage();
         NavigationHelper.enterAndLoadUrl(StringHelper.ABOUT_HOME_URL);
         eventExpecter.blockForEvent();
@@ -76,7 +76,7 @@ public class testHomeBanner extends UITest {
         mAboutHome.assertVisible();
 
         // Test to make sure the ondismiss handler is called when the close button is clicked.
-        final Actions.EventExpecter eventExpecter = getActions().expectGeckoEvent("TestHomeBanner:MessageDismissed");
+        final Actions.EventExpecter eventExpecter = getActions().expectGoannaEvent("TestHomeBanner:MessageDismissed");
         mAboutHome.dismissBanner();
         eventExpecter.blockForEvent();
 
@@ -87,7 +87,7 @@ public class testHomeBanner extends UITest {
      * Loads the roboextender page to add a message to the banner.
      */
     private void addBannerMessage() {
-        final Actions.EventExpecter eventExpecter = getActions().expectGeckoEvent("TestHomeBanner:MessageAdded");
+        final Actions.EventExpecter eventExpecter = getActions().expectGoannaEvent("TestHomeBanner:MessageAdded");
         NavigationHelper.enterAndLoadUrl(TEST_URL + "#addMessage");
         eventExpecter.blockForEvent();
     }

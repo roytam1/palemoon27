@@ -15,7 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class StringUtils {
-    private static final String LOGTAG = "GeckoStringUtils";
+    private static final String LOGTAG = "GoannaStringUtils";
 
     private static final String FILTER_URL_PREFIX = "filter://";
     private static final String USER_ENTERED_URL_PREFIX = "user-entered:";

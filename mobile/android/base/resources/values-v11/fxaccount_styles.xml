@@ -12,7 +12,7 @@
          <item name="android:displayOptions">showHome|homeAsUp|showTitle</item>
     </style>
 
-    <style name="FxAccountTheme" parent="@style/Gecko" />
+    <style name="FxAccountTheme" parent="@style/Goanna" />
 
     <style name="FxAccountTheme.FxAccountStatusActivity" parent="@FxAccountTheme">
          <item name="android:windowActionBar">true</item>

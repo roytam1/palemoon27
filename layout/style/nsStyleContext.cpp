@@ -20,7 +20,7 @@
 #include "nsRuleNode.h"
 #include "nsStyleContext.h"
 #include "mozilla/StyleAnimationValue.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsIDocument.h"
 #include "nsPrintfCString.h"
 

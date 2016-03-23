@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class JSONUtils {
-    private static final String LOGTAG = "GeckoJSONUtils";
+    private static final String LOGTAG = "GoannaJSONUtils";
 
     private JSONUtils() {}
 

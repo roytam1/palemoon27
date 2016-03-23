@@ -24,7 +24,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.SubMenu;
 
-public class GeckoMenuInflater extends MenuInflater {
+public class GoannaMenuInflater extends MenuInflater {
     private static final String TAG_MENU = "menu";
     private static final String TAG_ITEM = "item";
     private static final int NO_ID = 0;
@@ -45,7 +45,7 @@ public class GeckoMenuInflater extends MenuInflater {
         public boolean hasSubMenu;
     }
 
-    public GeckoMenuInflater(Context context) {
+    public GoannaMenuInflater(Context context) {
         super(context);
         mContext = context;
     }
@@ -142,9 +142,9 @@ public class GeckoMenuInflater extends MenuInflater {
 
     public void setValues(ParsedItem item, MenuItem menuItem) {
         // We are blocking any presenter updates during inflation.
-        GeckoMenuItem geckoItem = null;
-        if (menuItem instanceof GeckoMenuItem) {
-            geckoItem = (GeckoMenuItem) menuItem;
+        GoannaMenuItem geckoItem = null;
+        if (menuItem instanceof GoannaMenuItem) {
+            geckoItem = (GoannaMenuItem) menuItem;
         }
 
         if (geckoItem != null) {

@@ -25,7 +25,7 @@ using namespace android;
 #include "webrtc/video_engine/include/vie_external_codec.h"
 #include "runnable_utils.h"
 
-// Gecko
+// Goanna
 #include "GonkNativeWindow.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Mutex.h"

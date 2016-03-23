@@ -47,10 +47,10 @@ def isTypeCopyConstructible(type):
              CGUnionStruct.isUnionCopyConstructible(type)) or
             (type.isDictionary() and
              CGDictionary.isDictionaryCopyConstructible(type.inner)) or
-            # Interface types are only copy-constructible if they're Gecko
+            # Interface types are only copy-constructible if they're Goanna
             # interfaces.  SpiderMonkey interfaces are not copy-constructible
             # because of rooting issues.
-            (type.isInterface() and type.isGeckoInterface()))
+            (type.isInterface() and type.isGoannaInterface()))
 
 
 def idlTypeNeedsCycleCollection(type):
@@ -62,7 +62,7 @@ def idlTypeNeedsCycleCollection(type):
         type.isObject() or
         type.isSpiderMonkeyInterface()):
         return False
-    elif type.isCallback() or type.isGeckoInterface():
+    elif type.isCallback() or type.isGoannaInterface():
         return True
     elif type.isUnion():
         return any(idlTypeNeedsCycleCollection(t) for t in type.flatMemberTypes)
@@ -4629,7 +4629,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                                         holderArgs=holderArgs,
                                         dealWithOptional=isOptional and (not nullable or isOwningUnion))
 
-    if type.isGeckoInterface():
+    if type.isGoannaInterface():
         assert not isEnforceRange and not isClamp
 
         descriptor = descriptorProvider.getDescriptor(
@@ -5725,7 +5725,7 @@ def getWrapTemplateForType(type, descriptorProvider, result, successCode,
 
         return (code, False)
 
-    if type.isGeckoInterface() and not type.isCallbackInterface():
+    if type.isGoannaInterface() and not type.isCallbackInterface():
         descriptor = descriptorProvider.getDescriptor(type.unroll().inner.identifier.name)
         if type.nullable():
             wrappingCode = ("if (!%s) {\n" % (result) +
@@ -6057,7 +6057,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         if returnType.nullable():
             result = CGTemplatedType("Nullable", result)
         return result, None, None, None, None
-    if returnType.isGeckoInterface():
+    if returnType.isGoannaInterface():
         result = CGGeneric(descriptorProvider.getDescriptor(
             returnType.unroll().inner.identifier.name).nativeType)
         conversion = None
@@ -6226,7 +6226,7 @@ class CGCallGenerator(CGThing):
             if needsConst(a):
                 arg = CGWrapper(arg, pre="Constify(", post=")")
             # And convert NonNull<T> to T&
-            if (((a.type.isGeckoInterface() or a.type.isCallback()) and not a.type.nullable()) or
+            if (((a.type.isGoannaInterface() or a.type.isCallback()) and not a.type.nullable()) or
                 a.type.isDOMString()):
                 arg = CGWrapper(arg, pre="NonNullHelper(", post=")")
             args.append(arg)
@@ -6296,7 +6296,7 @@ class CGCallGenerator(CGThing):
 
 
 def getUnionMemberName(type):
-    if type.isGeckoInterface():
+    if type.isGoannaInterface():
         return type.inner.identifier.name
     if type.isEnum():
         return type.inner.identifier.name
@@ -6426,7 +6426,7 @@ def wrapTypeIntoCurrentCompartment(type, value, isMember=True):
         return CGList(memberWraps, "else ") if len(memberWraps) != 0 else None
 
     if (type.isString() or type.isPrimitive() or type.isEnum() or
-        type.isGeckoInterface() or type.isCallback() or type.isDate()):
+        type.isGoannaInterface() or type.isCallback() or type.isDate()):
         # All of these don't need wrapping
         return None
 
@@ -6658,7 +6658,7 @@ class CGPerSignatureCall(CGThing):
 
         returnsNewObject = memberReturnsNewObject(self.idlNode)
         if (returnsNewObject and
-            self.returnType.isGeckoInterface()):
+            self.returnType.isGoannaInterface()):
             wrapCode += dedent(
                 """
                 static_assert(!IsPointer<decltype(result)>::value,
@@ -6832,7 +6832,7 @@ class CGMethodCall(CGThing):
 
         def filteredSignatures(signatures, descriptor):
             def typeExposedInWorkers(type):
-                return (not type.isGeckoInterface() or
+                return (not type.isGoannaInterface() or
                         type.inner.isExposedInAnyWorker())
             if descriptor.workers:
                 # Filter out the signatures that should not be exposed in a
@@ -8244,7 +8244,7 @@ class CGMemberJITInfo(CGThing):
             return "JSVAL_TYPE_OBJECT"
         if t.isMozMap():
             return "JSVAL_TYPE_OBJECT"
-        if t.isGeckoInterface():
+        if t.isGoannaInterface():
             return "JSVAL_TYPE_OBJECT"
         if t.isString():
             return "JSVAL_TYPE_STRING"
@@ -8320,7 +8320,7 @@ class CGMemberJITInfo(CGThing):
             assert False
         if t.isSequence():
             return "JSJitInfo::Object"
-        if t.isGeckoInterface():
+        if t.isGoannaInterface():
             return "JSJitInfo::Object"
         if t.isString():
             return "JSJitInfo::String"
@@ -8495,7 +8495,7 @@ def getUnionAccessorSignatureType(type, descriptorProvider):
     # Nested unions are unwrapped automatically into our flatMemberTypes.
     assert not type.isUnion()
 
-    if type.isGeckoInterface():
+    if type.isGoannaInterface():
         descriptor = descriptorProvider.getDescriptor(
             type.unroll().inner.identifier.name)
         typeName = CGGeneric(descriptor.nativeType)
@@ -11023,7 +11023,7 @@ class CGDescriptor(CGThing):
             for m in methods:
                 for sig in m.signatures():
                     for arg in sig[1]:
-                        if (arg.type.isGeckoInterface() and
+                        if (arg.type.isGoannaInterface() and
                             not arg.type.inner.isExternal()):
                             self._deps.add(arg.type.inner.filename())
 
@@ -12207,7 +12207,7 @@ class CGForwardDeclarations(CGWrapper):
 
         def forwardDeclareForType(t, workerness='both'):
             t = t.unroll()
-            if t.isGeckoInterface():
+            if t.isGoannaInterface():
                 name = t.inner.identifier.name
                 # Find and add the non-worker implementation, if any.
                 if workerness != 'workeronly':
@@ -12612,7 +12612,7 @@ class CGNativeMember(ClassMethod):
             else:
                 defaultValue = "%s(0)" % enumName
             return enumName, defaultValue, "return ${declName};\n"
-        if type.isGeckoInterface():
+        if type.isGoannaInterface():
             iface = type.unroll().inner
             result = CGGeneric(self.descriptorProvider.getDescriptor(
                 iface.identifier.name).prettyNativeType)
@@ -12810,7 +12810,7 @@ class CGNativeMember(ClassMethod):
             # auto-wrapping in Nullable
             return CGUnionStruct.unionTypeDecl(type, isMember), True, False
 
-        if type.isGeckoInterface() and not type.isCallbackInterface():
+        if type.isGoannaInterface() and not type.isCallbackInterface():
             iface = type.unroll().inner
             argIsPointer = type.nullable() or iface.isExternal()
             forceOwningType = iface.isCallback() or isMember
@@ -14696,7 +14696,7 @@ class CGEventGetter(CGNativeMember):
     def getMethodBody(self):
         type = self.member.type
         memberName = CGDictionary.makeMemberName(self.member.identifier.name)
-        if (type.isPrimitive() and type.tag() in builtinNames) or type.isEnum() or type.isGeckoInterface():
+        if (type.isPrimitive() and type.tag() in builtinNames) or type.isEnum() or type.isGoannaInterface():
             return "return " + memberName + ";\n"
         if type.isDOMString() or type.isByteString() or type.isUSVString():
             return "aRetVal = " + memberName + ";\n"
@@ -15096,7 +15096,7 @@ class CGEventClass(CGBindingImplClass):
             nativeType = CGGeneric("nsString")
         elif type.isByteString():
             nativeType = CGGeneric("nsCString")
-        elif type.isGeckoInterface():
+        elif type.isGoannaInterface():
             iface = type.unroll().inner
             nativeType = self.descriptor.getDescriptor(
                 iface.identifier.name).nativeType
@@ -15120,7 +15120,7 @@ class CGEventClass(CGBindingImplClass):
                 innerType = type.inner
             if (not innerType.isPrimitive() and not innerType.isEnum() and
                 not innerType.isDOMString() and not innerType.isByteString() and
-                not innerType.isGeckoInterface()):
+                not innerType.isGoannaInterface()):
                 raise TypeError("Don't know how to properly manage GC/CC for "
                                 "event member of type %s" %
                                 type)

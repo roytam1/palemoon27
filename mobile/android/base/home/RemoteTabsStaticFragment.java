@@ -38,7 +38,7 @@ import android.view.ViewGroup;
  */
 public class RemoteTabsStaticFragment extends HomeFragment implements OnClickListener {
     @SuppressWarnings("unused")
-    private static final String LOGTAG = "GeckoRemoteTabsStatic";
+    private static final String LOGTAG = "GoannaRemoteTabsStatic";
 
     protected static final String RESOURCE_ID = "resource_id";
     protected static final int DEFAULT_RESOURCE_ID = R.layout.remote_tabs_setup;

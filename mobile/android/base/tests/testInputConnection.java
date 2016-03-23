@@ -11,28 +11,28 @@ import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertText;
 import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertTextAndSelection;
 import static org.mozilla.gecko.tests.helpers.TextInputHelper.assertTextAndSelectionAt;
 
-import org.mozilla.gecko.tests.components.GeckoViewComponent.InputConnectionTest;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.components.GoannaViewComponent.InputConnectionTest;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
 /**
- * Tests the proper operation of GeckoInputConnection
+ * Tests the proper operation of GoannaInputConnection
  */
 public class testInputConnection extends UITest {
 
     private static final String INITIAL_TEXT = "foo";
 
     public void testInputConnection() throws InterruptedException {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
 
         final String url = StringHelper.ROBOCOP_INPUT_URL + "#" + INITIAL_TEXT;
         NavigationHelper.enterAndLoadUrl(url);
         mToolbar.assertTitle(url);
 
-        mGeckoView.mTextInput
+        mGoannaView.mTextInput
             .waitForInputConnection()
             .testInputConnection(new BasicInputConnectionTest());
     }

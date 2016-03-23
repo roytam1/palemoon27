@@ -14,13 +14,13 @@ namespace hal_impl {
 void
 StartMonitoringGamepadStatus()
 {
-  widget::GeckoAppShell::StartMonitoringGamepad();
+  widget::GoannaAppShell::StartMonitoringGamepad();
 }
 
 void
 StopMonitoringGamepadStatus()
 {
-  widget::GeckoAppShell::StopMonitoringGamepad();
+  widget::GoannaAppShell::StopMonitoringGamepad();
 }
 
 } // hal_impl

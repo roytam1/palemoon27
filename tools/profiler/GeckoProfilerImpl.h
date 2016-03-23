@@ -2,7 +2,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-// IWYU pragma: private, include "GeckoProfiler.h"
+// IWYU pragma: private, include "GoannaProfiler.h"
 
 #ifndef TOOLS_SPS_SAMPLER_H_
 #define TOOLS_SPS_SAMPLER_H_
@@ -13,13 +13,13 @@
 #include "mozilla/ThreadLocal.h"
 #include "mozilla/Assertions.h"
 #include "nscore.h"
-#include "GeckoProfilerFunc.h"
+#include "GoannaProfilerFunc.h"
 #include "PseudoStack.h"
 #include "nsISupports.h"
 #include "ProfilerBacktrace.h"
 
 #ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
+#include "GoannaTaskTracer.h"
 #endif
 
 /* QT has a #define for the word "slots" and jsfriendapi.h has a struct with

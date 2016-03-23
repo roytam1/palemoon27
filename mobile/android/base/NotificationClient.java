@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Client for posting notifications through a NotificationHandler.
  */
 public abstract class NotificationClient {
-    private static final String LOGTAG = "GeckoNotificationClient";
+    private static final String LOGTAG = "GoannaNotificationClient";
 
     private volatile NotificationHandler mHandler;
     private boolean mReady;

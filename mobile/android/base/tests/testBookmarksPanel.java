@@ -40,7 +40,7 @@ public class testBookmarksPanel extends AboutHomeTest {
         // Test that "Open in New Tab" works
         final Element tabCount = mDriver.findElement(getActivity(), R.id.tabs_counter);
         final int tabCountInt = Integer.parseInt(tabCount.getText());
-        Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
+        Actions.EventExpecter tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
         mSolo.clickOnText(StringHelper.BOOKMARK_CONTEXT_MENU_ITEMS[0]);
         try {
             data = new JSONObject(tabEventExpecter.blockForEventData());
@@ -62,7 +62,7 @@ public class testBookmarksPanel extends AboutHomeTest {
 
         // Test that "Open in Private Tab" works
         openBookmarkContextMenu(StringHelper.DEFAULT_BOOKMARKS_URLS[0]);
-        tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
+        tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
         mSolo.clickOnText(StringHelper.BOOKMARK_CONTEXT_MENU_ITEMS[1]);
         try {
             data = new JSONObject(tabEventExpecter.blockForEventData());

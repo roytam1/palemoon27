@@ -98,7 +98,7 @@ PerformanceActorsConnection.prototype = {
 
     // Sets `this._profiler`, `this._timeline` and `this._memory`.
     // Only initialize the timeline and memory fronts if the respective actors
-    // are available. Older Gecko versions don't have existing implementations,
+    // are available. Older Goanna versions don't have existing implementations,
     // in which case all the methods we need can be easily mocked.
     yield this._connectProfilerActor();
     yield this._connectTimelineActor();
@@ -315,7 +315,7 @@ PerformanceFront.prototype = {
    */
   _startTimeline: Task.async(function *(options) {
     // The timeline actor is target-dependent, so just make sure it's recording.
-    // It won't, however, be available in older Geckos (FF < 35).
+    // It won't, however, be available in older Goannas (FF < 35).
     return (yield this._request("timeline", "start", options));
   }),
 
@@ -383,7 +383,7 @@ PerformanceFront.prototype = {
     entries: 1000000,
     interval: 1,
     features: ["js"],
-    threadFilters: ["GeckoMain"]
+    threadFilters: ["GoannaMain"]
   },
 
   /**

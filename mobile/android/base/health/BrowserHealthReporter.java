@@ -8,9 +8,9 @@ package org.mozilla.gecko.health;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.healthreport.AndroidConfigurationProvider;
 import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
@@ -18,7 +18,7 @@ import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.Configuratio
 import org.mozilla.gecko.background.healthreport.HealthReportConstants;
 import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
 import org.mozilla.gecko.background.healthreport.HealthReportGenerator;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.ContentProviderClient;
@@ -29,12 +29,12 @@ import android.util.Log;
  * BrowserHealthReporter is the browser's interface to the Firefox Health
  * Report report generator.
  *
- * Each instance registers Gecko event listeners, so keep a single instance
+ * Each instance registers Goanna event listeners, so keep a single instance
  * around for the life of the browser. Java callers should use this globally
  * available singleton.
  */
-public class BrowserHealthReporter implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoHealthRep";
+public class BrowserHealthReporter implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaHealthRep";
 
     public static final String EVENT_REQUEST  = "HealthReport:Request";
     public static final String EVENT_RESPONSE = "HealthReport:Response";
@@ -42,16 +42,16 @@ public class BrowserHealthReporter implements GeckoEventListener {
     protected final Context context;
 
     public BrowserHealthReporter() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, EVENT_REQUEST);
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, EVENT_REQUEST);
 
-        context = GeckoAppShell.getContext();
+        context = GoannaAppShell.getContext();
         if (context == null) {
-            throw new IllegalStateException("Null Gecko context");
+            throw new IllegalStateException("Null Goanna context");
         }
     }
 
     public void uninit() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, EVENT_REQUEST);
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, EVENT_REQUEST);
     }
 
     /**
@@ -114,7 +114,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
     }
 
     /**
-     * Generate a new Health Report for the current Gecko profile.
+     * Generate a new Health Report for the current Goanna profile.
      *
      * This method performs IO, so call it from a background thread.
      *
@@ -123,7 +123,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
      * @return non-null Health Report.
      */
     public JSONObject generateReport() throws JSONException {
-        GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
+        GoannaProfile profile = GoannaAppShell.getGoannaInterface().getProfile();
         String profilePath = profile.getDir().getAbsolutePath();
 
         long since = System.currentTimeMillis() - GlobalConstants.MILLISECONDS_PER_SIX_MONTHS;
@@ -146,7 +146,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
                         report = new JSONObject();
                     }
 
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(EVENT_RESPONSE, report.toString()));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(EVENT_RESPONSE, report.toString()));
                 }
            });
         } catch (Exception e) {

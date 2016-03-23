@@ -24,7 +24,7 @@ package org.mozilla.gecko.widget;
 import android.accounts.Account;
 import android.content.pm.PackageManager;
 import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.overlays.ui.ShareDialog;
 import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
@@ -1087,7 +1087,7 @@ public class ActivityChooserModel extends DataSetObservable {
      */
     private void readHistoricalDataImpl() {
         try {
-            GeckoProfile profile = GeckoProfile.get(mContext);
+            GoannaProfile profile = GoannaProfile.get(mContext);
             File f = profile.getFile(mHistoryFileName);
             if (!f.exists()) {
                 // Fall back to the non-profile aware file if it exists...
@@ -1204,7 +1204,7 @@ public class ActivityChooserModel extends DataSetObservable {
 
             try {
                 // Mozilla - Update the location we save files to
-                GeckoProfile profile = GeckoProfile.get(mContext);
+                GoannaProfile profile = GoannaProfile.get(mContext);
                 File file = profile.getFile(historyFileName);
                 fos = new FileOutputStream(file);
             } catch (FileNotFoundException fnfe) {
@@ -1261,7 +1261,7 @@ public class ActivityChooserModel extends DataSetObservable {
     /**
      * Mozilla: Adapted significantly
      */
-    private static final String LOGTAG = "GeckoActivityChooserModel";
+    private static final String LOGTAG = "GoannaActivityChooserModel";
     private final class DataModelPackageMonitor extends BroadcastReceiver {
         Context mContext;
 

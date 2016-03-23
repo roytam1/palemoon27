@@ -47,7 +47,7 @@ import android.widget.ListView;
  */
 public class SendTabList extends ListView {
     @SuppressWarnings("unused")
-    private static final String LOGTAG = "GeckoSendTabList";
+    private static final String LOGTAG = "GoannaSendTabList";
 
     // The maximum number of target devices to show in the main list. Further devices are available
     // from a secondary menu.
@@ -126,7 +126,7 @@ public class SendTabList extends ListView {
 
         final AlertDialog.Builder builder;
         if (Versions.feature11Plus) {
-            builder = new AlertDialog.Builder(context, R.style.Gecko_Dialog);
+            builder = new AlertDialog.Builder(context, R.style.Goanna_Dialog);
         } else {
             builder = new AlertDialog.Builder(context);
         }

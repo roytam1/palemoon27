@@ -248,7 +248,7 @@ public:
   // instead.
   //
   // This value is valid for nested scrollable layers as well, and is still
-  // relative to the layer tree origin. This value is provided by Gecko at
+  // relative to the layer tree origin. This value is provided by Goanna at
   // layout/paint time.
   ParentLayerRect mCompositionBounds;
 
@@ -568,7 +568,7 @@ private:
   // The cumulative resolution that the current frame has been painted at.
   // This is the product of the pres-shell resolutions of the document
   // containing this scroll frame and its ancestors, and any css-driven
-  // resolution. This information is provided by Gecko at layout/paint time.
+  // resolution. This information is provided by Goanna at layout/paint time.
   LayoutDeviceToLayerScale mCumulativeResolution;
 
   // New fields from now on should be made private and old fields should
@@ -618,7 +618,7 @@ private:
   // The "user zoom". Content is painted by gecko at mResolution * mDevPixelsPerCSSPixel,
   // but will be drawn to the screen at mZoom. In the steady state, the
   // two will be the same, but during an async zoom action the two may
-  // diverge. This information is initialized in Gecko but updated in the APZC.
+  // diverge. This information is initialized in Goanna but updated in the APZC.
   CSSToParentLayerScale mZoom;
 
   // Whether mScrollOffset was updated by something other than the APZ code, and

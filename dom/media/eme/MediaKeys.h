@@ -17,7 +17,7 @@
 #include "nsRefPtrHashtable.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/MediaKeysBinding.h"
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 
 namespace mozilla {
 

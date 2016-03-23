@@ -1,12 +1,12 @@
 package org.mozilla.gecko.prompts;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.menu.MenuItemActionView;
-import org.mozilla.gecko.widget.GeckoActionProvider;
+import org.mozilla.gecko.widget.GoannaActionProvider;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -36,7 +36,7 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
     private static final int VIEW_TYPE_ACTIONS = 2;
     private static final int VIEW_TYPE_COUNT = 3;
 
-    private static final String LOGTAG = "GeckoPromptListAdapter";
+    private static final String LOGTAG = "GoannaPromptListAdapter";
 
     private final int mResourceId;
     private Drawable mBlankDrawable;
@@ -176,11 +176,11 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
     }
 
     private View getActionView(PromptListItem item, final ListView list, final int position) {
-        final GeckoActionProvider provider = GeckoActionProvider.getForType(item.getIntent().getType(), getContext());
+        final GoannaActionProvider provider = GoannaActionProvider.getForType(item.getIntent().getType(), getContext());
         provider.setIntent(item.getIntent());
 
         final MenuItemActionView view = (MenuItemActionView) provider.onCreateActionView(
-                GeckoActionProvider.ActionViewType.CONTEXT_MENU);
+                GoannaActionProvider.ActionViewType.CONTEXT_MENU);
         // If a quickshare button is clicked, we need to close the dialog.
         view.addActionButtonClickListener(new View.OnClickListener() {
             @Override
@@ -209,7 +209,7 @@ public class PromptListAdapter extends ArrayAdapter<PromptListItem> {
                     listener.onItemClick(list, view, position, position);
                 }
 
-                final GeckoActionProvider provider = GeckoActionProvider.getForType(item.getIntent().getType(), getContext());
+                final GoannaActionProvider provider = GoannaActionProvider.getForType(item.getIntent().getType(), getContext());
                 IntentChooserPrompt prompt = new IntentChooserPrompt(getContext(), provider);
                 prompt.show(item.label, getContext(), new IntentHandler() {
                     @Override

@@ -7,9 +7,9 @@ package org.mozilla.gecko.tests;
 import java.util.Locale;
 
 import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.PrefsHelper;
 
@@ -27,7 +27,7 @@ public class testOSLocale extends BaseTest {
         // so see the main test method for more logic.
         final String profileName = getTestProfile().getName();
         mAsserter.info("Setup", "Clearing pref in " + profileName + ".");
-        GeckoSharedPrefs.forProfileName(getActivity(), profileName)
+        GoannaSharedPrefs.forProfileName(getActivity(), profileName)
                         .edit()
                         .remove("osLocale")
                         .apply();
@@ -46,7 +46,7 @@ public class testOSLocale extends BaseTest {
 
         public void fetch() throws InterruptedException {
             // Wait for any pending changes to have taken. Bug 1092580.
-            GeckoAppShell.sendEventToGeckoSync(GeckoEvent.createNoOpEvent());
+            GoannaAppShell.sendEventToGoannaSync(GoannaEvent.createNoOpEvent());
             synchronized (waiter) {
                 PrefsHelper.getPrefs(TO_FETCH, this);
                 waiter.wait(MAX_WAIT_MS);
@@ -76,18 +76,18 @@ public class testOSLocale extends BaseTest {
     public void testOSLocale() throws Exception {
         blockForDelayedStartup();
 
-        final SharedPreferences prefs = GeckoSharedPrefs.forProfile(getActivity());
+        final SharedPreferences prefs = GoannaSharedPrefs.forProfile(getActivity());
         final PrefState state = new PrefState();
 
         state.fetch();
 
         // We don't know at this point whether we were run against a dirty profile or not.
         //
-        // If we cleared the pref above prior to BrowserApp's delayed init, or our Gecko
+        // If we cleared the pref above prior to BrowserApp's delayed init, or our Goanna
         // profile has been used before, then we're already going to be set up for en-US.
         //
         // If we cleared the pref after the initial broadcast, and our Android-side profile
-        // has been used before but the Gecko profile is clean, then the Gecko prefs won't
+        // has been used before but the Goanna profile is clean, then the Goanna prefs won't
         // have been set.
         //
         // Instead, we always send a new locale code, and see what we get.

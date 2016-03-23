@@ -14,17 +14,17 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.util.Log;
 import android.util.SparseArray;
 
-public class PanelInfoManager implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoPanelInfoManager";
+public class PanelInfoManager implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaPanelInfoManager";
 
     public class PanelInfo {
         private final String mId;
@@ -65,7 +65,7 @@ public class PanelInfoManager implements GeckoEventListener {
     private static final SparseArray<RequestCallback> sCallbacks = new SparseArray<RequestCallback>();
 
     /**
-     * Asynchronously fetches list of available panels from Gecko
+     * Asynchronously fetches list of available panels from Goanna
      * for the given IDs.
      *
      * @param ids list of panel ids to be fetched. A null value will fetch all
@@ -78,7 +78,7 @@ public class PanelInfoManager implements GeckoEventListener {
         synchronized(sCallbacks) {
             // If there are no pending callbacks, register the event listener.
             if (sCallbacks.size() == 0) {
-                EventDispatcher.getInstance().registerGeckoThreadListener(this,
+                EventDispatcher.getInstance().registerGoannaThreadListener(this,
                     "HomePanels:Data");
             }
             sCallbacks.put(requestId, callback);
@@ -101,11 +101,11 @@ public class PanelInfoManager implements GeckoEventListener {
             return;
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomePanels:Get", message.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("HomePanels:Get", message.toString()));
     }
 
     /**
-     * Asynchronously fetches list of available panels from Gecko.
+     * Asynchronously fetches list of available panels from Goanna.
      *
      * @param callback onComplete will be called on the UI thread.
      */
@@ -137,7 +137,7 @@ public class PanelInfoManager implements GeckoEventListener {
 
                 // Unregister the event listener if there are no more pending callbacks.
                 if (sCallbacks.size() == 0) {
-                    EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+                    EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
                         "HomePanels:Data");
                 }
             }

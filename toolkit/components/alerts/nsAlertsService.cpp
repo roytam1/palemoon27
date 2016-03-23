@@ -72,7 +72,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                                                      nsIPrincipal * aPrincipal,
                                                      bool aInPrivateBrowsing)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
 
     if (aAlertListener)
@@ -128,14 +128,14 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
 NS_IMETHODIMP nsAlertsService::CloseAlert(const nsAString& aAlertName,
                                           nsIPrincipal* aPrincipal)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
     cpc->SendCloseAlert(nsAutoString(aAlertName), IPC::Principal(aPrincipal));
     return NS_OK;
   }
 
 #ifdef MOZ_WIDGET_ANDROID
-  widget::GeckoAppShell::CloseNotification(aAlertName);
+  widget::GoannaAppShell::CloseNotification(aAlertName);
   return NS_OK;
 #else
 
@@ -156,7 +156,7 @@ NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
                                           const nsAString & aAlertText)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  widget::GeckoAppShell::AlertsProgressListener_OnProgress(aAlertName,
+  widget::GoannaAppShell::AlertsProgressListener_OnProgress(aAlertName,
                                                            aProgress, aProgressMax,
                                                            aAlertText);
   return NS_OK;
@@ -168,7 +168,7 @@ NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
 NS_IMETHODIMP nsAlertsService::OnCancel(const nsAString & aAlertName)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  widget::GeckoAppShell::CloseNotification(aAlertName);
+  widget::GoannaAppShell::CloseNotification(aAlertName);
   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;

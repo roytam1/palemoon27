@@ -12,7 +12,7 @@ public class testMasterPassword extends PixelTest {
     Device dev;
 
     public void testMasterPassword() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         dev = new Device();
         String password = ("Good");
@@ -147,7 +147,7 @@ public class testMasterPassword extends PixelTest {
         selectSettingsItem(StringHelper.PRIVACY_SECTION_LABEL, StringHelper.CLEAR_PRIVATE_DATA_LABEL);
 
         waitForText("Browsing history"); // Make sure the Clear private data pop-up is displayed
-        Actions.EventExpecter clearPrivateDataEventExpecter = mActions.expectGeckoEvent("Sanitize:Finished");
+        Actions.EventExpecter clearPrivateDataEventExpecter = mActions.expectGoannaEvent("Sanitize:Finished");
         if (mSolo.searchText("Clear data") && !mSolo.searchText("Cookies")) {
             mSolo.clickOnText("^Clear data$");
             clearPrivateDataEventExpecter.blockForEvent();

@@ -1,6 +1,6 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 
 import android.view.View;
 
@@ -9,7 +9,7 @@ import android.view.View;
  */
 public class testBackButtonInEditMode extends UITest {
     public void testBackButtonInEditMode() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
 
         // Verify back button behavior for edit mode.
         mToolbar.enterEditingMode()

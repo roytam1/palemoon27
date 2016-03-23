@@ -24,7 +24,7 @@ def main(file):
     appdata['flags'] = ' | '.join(flags) if flags else '0'
     appdata['App:profile'] = '"%s"' % appdata['App:profile'] if 'App:profile' in appdata else 'NULL'
     expected = ('App:vendor', 'App:name', 'App:remotingname', 'App:version', 'App:buildid',
-                'App:id', 'Gecko:minversion', 'Gecko:maxversion')
+                'App:id', 'Goanna:minversion', 'Goanna:maxversion')
     missing = [var for var in expected if var not in appdata]
     if missing:
         print >>sys.stderr, \
@@ -47,8 +47,8 @@ def main(file):
                  NULL, // copyright
                  %(flags)s,
                  NULL, // xreDirectory
-                 "%(Gecko:minversion)s",
-                 "%(Gecko:maxversion)s",
+                 "%(Goanna:minversion)s",
+                 "%(Goanna:maxversion)s",
                  "%(Crash Reporter:serverurl)s",
                  %(App:profile)s
              };''' % appdata

@@ -22,7 +22,7 @@ import android.os.SystemClock;
 import android.util.Log;
 
 class GlobalHistory {
-    private static final String LOGTAG = "GeckoGlobalHistory";
+    private static final String LOGTAG = "GoannaGlobalHistory";
 
     private static final String TELEMETRY_HISTOGRAM_ADD = "FENNEC_GLOBALHISTORY_ADD_MS";
     private static final String TELEMETRY_HISTOGRAM_UPDATE = "FENNEC_GLOBALHISTORY_UPDATE_MS";
@@ -52,7 +52,7 @@ class GlobalHistory {
 
         public NotifierRunnable(final Context context) {
             mContentResolver = context.getContentResolver();
-            mDB = GeckoProfile.get(context).getDB();
+            mDB = GoannaProfile.get(context).getDB();
         }
 
         @Override
@@ -92,7 +92,7 @@ class GlobalHistory {
                 }
 
                 if (visitedSet.contains(uri)) {
-                    GeckoAppShell.notifyUriVisited(uri);
+                    GoannaAppShell.notifyUriVisited(uri);
                 }
             }
 
@@ -106,12 +106,12 @@ class GlobalHistory {
         mVisitedCache = new SoftReference<Set<String>>(null);
     }
 
-    public void addToGeckoOnly(String uri) {
+    public void addToGoannaOnly(String uri) {
         Set<String> visitedSet = mVisitedCache.get();
         if (visitedSet != null) {
             visitedSet.add(uri);
         }
-        GeckoAppShell.notifyUriVisited(uri);
+        GoannaAppShell.notifyUriVisited(uri);
     }
 
     public void add(final Context context, final BrowserDB db, String uri) {
@@ -123,7 +123,7 @@ class GlobalHistory {
         final long end = SystemClock.uptimeMillis();
         final long took = end - start;
         Telemetry.addToHistogram(TELEMETRY_HISTOGRAM_ADD, (int) Math.min(took, Integer.MAX_VALUE));
-        addToGeckoOnly(uri);
+        addToGoannaOnly(uri);
     }
 
     @SuppressWarnings("static-method")
@@ -139,7 +139,7 @@ class GlobalHistory {
     }
 
     public void checkUriVisited(final String uri) {
-        final NotifierRunnable runnable = new NotifierRunnable(GeckoAppShell.getContext());
+        final NotifierRunnable runnable = new NotifierRunnable(GoannaAppShell.getContext());
         mHandler.post(new Runnable() {
             @Override
             public void run() {

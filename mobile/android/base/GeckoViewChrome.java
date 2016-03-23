@@ -7,43 +7,43 @@ package org.mozilla.gecko;
 
 import android.os.Bundle;
 
-public class GeckoViewChrome implements GeckoView.ChromeDelegate {
+public class GoannaViewChrome implements GoannaView.ChromeDelegate {
     /**
-    * Tell the host application that Gecko is ready to handle requests.
-    * @param view The GeckoView that initiated the callback.
+    * Tell the host application that Goanna is ready to handle requests.
+    * @param view The GoannaView that initiated the callback.
     */
     @Override
-    public void onReady(GeckoView view) {}
+    public void onReady(GoannaView view) {}
 
     /**
     * Tell the host application to display an alert dialog.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that is loading the content.
     * @param message The string to display in the dialog.
     * @param result A PromptResult used to send back the result without blocking.
     * Defaults to cancel requests.
     */
     @Override
-    public void onAlert(GeckoView view, GeckoView.Browser browser, String message, GeckoView.PromptResult result) {
+    public void onAlert(GoannaView view, GoannaView.Browser browser, String message, GoannaView.PromptResult result) {
         result.cancel();
     }
 
     /**
     * Tell the host application to display a confirmation dialog.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that is loading the content.
     * @param message The string to display in the dialog.
     * @param result A PromptResult used to send back the result without blocking.
     * Defaults to cancel requests.
     */
     @Override
-    public void onConfirm(GeckoView view, GeckoView.Browser browser, String message, GeckoView.PromptResult result) {
+    public void onConfirm(GoannaView view, GoannaView.Browser browser, String message, GoannaView.PromptResult result) {
         result.cancel();
     }
 
     /**
     * Tell the host application to display an input prompt dialog.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that is loading the content.
     * @param message The string to display in the dialog.
     * @param defaultValue The string to use as default input.
@@ -51,29 +51,29 @@ public class GeckoViewChrome implements GeckoView.ChromeDelegate {
     * Defaults to cancel requests.
     */
     @Override
-    public void onPrompt(GeckoView view, GeckoView.Browser browser, String message, String defaultValue, GeckoView.PromptResult result) {
+    public void onPrompt(GoannaView view, GoannaView.Browser browser, String message, String defaultValue, GoannaView.PromptResult result) {
         result.cancel();
     }
 
     /**
     * Tell the host application to display a remote debugging request dialog.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param result A PromptResult used to send back the result without blocking.
     * Defaults to cancel requests.
     */
     @Override
-    public void onDebugRequest(GeckoView view, GeckoView.PromptResult result) {
+    public void onDebugRequest(GoannaView view, GoannaView.PromptResult result) {
         result.cancel();
     }
 
     /**
     * Receive a message from an imported script.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param data Bundle of data sent with the message. Never null.
     * @param result A MessageResult used to send back a response without blocking. Can be null.
     * Defaults to cancel requests with a failed response.
     */
-    public void onScriptMessage(GeckoView view, Bundle data, GeckoView.MessageResult result) {
+    public void onScriptMessage(GoannaView view, Bundle data, GoannaView.MessageResult result) {
         if (result != null) {
             result.failure(null);
         }

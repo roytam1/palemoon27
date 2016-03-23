@@ -16,7 +16,7 @@ import static org.mozilla.gecko.overlays.OverlayConstants.EXTRA_SHARE_METHOD;
  * Class to hold information related to a particular request to perform a share.
  */
 public class ShareData {
-    private static final String LOGTAG = "GeckoShareRequest";
+    private static final String LOGTAG = "GoannaShareRequest";
 
     public final String url;
     public final String title;

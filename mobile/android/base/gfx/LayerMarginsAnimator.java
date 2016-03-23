@@ -5,8 +5,8 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -20,7 +20,7 @@ import android.view.MotionEvent;
 import android.view.View;
 
 public class LayerMarginsAnimator {
-    private static final String LOGTAG = "GeckoLayerMarginsAnimator";
+    private static final String LOGTAG = "GoannaLayerMarginsAnimator";
     // The duration of the animation in ns
     private static final long MARGIN_ANIMATION_DURATION = 250000000;
     private static final String PREF_SHOW_MARGINS_THRESHOLD = "browser.ui.show-margins-threshold";
@@ -40,15 +40,15 @@ public class LayerMarginsAnimator {
     private LayerMarginsAnimationTask mAnimationTask;
     /* This interpolator is used for the above mentioned animation */
     private final DecelerateInterpolator mInterpolator;
-    /* The GeckoLayerClient whose margins will be animated */
-    private final GeckoLayerClient mTarget;
+    /* The GoannaLayerClient whose margins will be animated */
+    private final GoannaLayerClient mTarget;
     /* The distance that has been scrolled since either the first touch event,
      * or since the margins were last fully hidden */
     private final PointF mTouchTravelDistance;
     /* The ID of the prefs listener for the show-margins threshold */
     private Integer mPrefObserverId;
 
-    public LayerMarginsAnimator(GeckoLayerClient aTarget, LayerView aView) {
+    public LayerMarginsAnimator(GoannaLayerClient aTarget, LayerView aView) {
         // Assign member variables from parameters
         mTarget = aTarget;
 
@@ -86,9 +86,9 @@ public class LayerMarginsAnimator {
 
         mMaxMargins.set(left, top, right, bottom);
 
-        // Update the Gecko-side global for fixed viewport margins.
-        GeckoAppShell.sendEventToGecko(
-            GeckoEvent.createBroadcastEvent("Viewport:FixedMarginsChanged",
+        // Update the Goanna-side global for fixed viewport margins.
+        GoannaAppShell.sendEventToGoanna(
+            GoannaEvent.createBroadcastEvent("Viewport:FixedMarginsChanged",
                 "{ \"top\" : " + top + ", \"right\" : " + right
                 + ", \"bottom\" : " + bottom + ", \"left\" : " + left + " }"));
     }
@@ -299,7 +299,7 @@ public class LayerMarginsAnimator {
                 if (progress >= 1.0f) {
                     mContinueAnimation = false;
 
-                    // Force a redraw and update Gecko
+                    // Force a redraw and update Goanna
                     mTarget.forceViewportMetrics(newMetrics, true, true);
                 } else {
                     mTarget.forceViewportMetrics(newMetrics, false, false);

@@ -4,7 +4,7 @@
 package org.mozilla.gecko.tests;
 
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.preferences.GeckoPreferences;
+import org.mozilla.gecko.preferences.GoannaPreferences;
 import org.mozilla.mozstumbler.service.AppGlobals;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -27,7 +27,7 @@ public class testStumblerSetting extends BaseTest {
             return;
         }
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         selectMenuItem(StringHelper.SETTINGS_LABEL);
         mAsserter.ok(mSolo.waitForText(StringHelper.SETTINGS_LABEL),

@@ -34,14 +34,14 @@ import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoSharedPrefs;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaSharedPrefs;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.distribution.Distribution;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.preferences.GeckoPreferences;
+import org.mozilla.gecko.preferences.GoannaPreferences;
 import org.mozilla.gecko.util.RawResource;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -66,7 +66,7 @@ import org.mozilla.gecko.util.ThreadUtils;
  */
 @RobocopTarget
 public class SuggestedSites {
-    private static final String LOGTAG = "GeckoSuggestedSites";
+    private static final String LOGTAG = "GoannaSuggestedSites";
 
     // SharedPreference key for suggested sites that should be hidden.
     public static final String PREF_SUGGESTED_SITES_HIDDEN = "suggestedSites.hidden";
@@ -176,13 +176,13 @@ public class SuggestedSites {
 
     synchronized File getFile() {
         if (cachedFile == null) {
-            cachedFile = GeckoProfile.get(context).getFile(FILENAME);
+            cachedFile = GoannaProfile.get(context).getFile(FILENAME);
         }
         return cachedFile;
     }
 
     private static boolean isNewLocale(Context context, Locale requestedLocale) {
-        final SharedPreferences prefs = GeckoSharedPrefs.forProfile(context);
+        final SharedPreferences prefs = GoannaSharedPrefs.forProfile(context);
 
         String locale = prefs.getString(PREF_SUGGESTED_SITES_LOCALE, null);
         if (locale == null) {
@@ -405,14 +405,14 @@ public class SuggestedSites {
     }
 
     private static void updateSuggestedSitesLocale(Context context) {
-        final Editor editor = GeckoSharedPrefs.forProfile(context).edit();
+        final Editor editor = GoannaSharedPrefs.forProfile(context).edit();
         editor.putString(PREF_SUGGESTED_SITES_LOCALE, Locale.getDefault().toString());
         editor.apply();
     }
 
     private boolean isEnabled() {
-        final SharedPreferences prefs = GeckoSharedPrefs.forApp(context);
-        return prefs.getBoolean(GeckoPreferences.PREFS_SUGGESTED_SITES, true);
+        final SharedPreferences prefs = GoannaSharedPrefs.forApp(context);
+        return prefs.getBoolean(GoannaPreferences.PREFS_SUGGESTED_SITES, true);
     }
 
     private synchronized Site getSiteForUrl(String url) {
@@ -537,7 +537,7 @@ public class SuggestedSites {
         Log.d(LOGTAG, "Loading blacklisted suggested sites from SharedPreferences.");
         final Set<String> blacklist = new HashSet<String>();
 
-        final SharedPreferences preferences = GeckoSharedPrefs.forProfile(context);
+        final SharedPreferences preferences = GoannaSharedPrefs.forProfile(context);
         final String sitesString = preferences.getString(PREF_SUGGESTED_SITES_HIDDEN, null);
 
         if (sitesString != null) {
@@ -606,7 +606,7 @@ public class SuggestedSites {
     }
 
     private void saveToBlacklist(String url) {
-        final SharedPreferences prefs = GeckoSharedPrefs.forProfile(context);
+        final SharedPreferences prefs = GoannaSharedPrefs.forProfile(context);
         final String prefString = prefs.getString(PREF_SUGGESTED_SITES_HIDDEN, "");
         final String siteString = prefString.concat(" " + Uri.encode(url));
         prefs.edit().putString(PREF_SUGGESTED_SITES_HIDDEN, siteString).apply();

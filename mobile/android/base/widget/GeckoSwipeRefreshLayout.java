@@ -42,7 +42,7 @@ import android.view.animation.Transformation;
 import android.widget.AbsListView;
 
 /**
- * GeckoSwipeRefreshLayout is mostly lifted from Android's support library (v4) with these
+ * GoannaSwipeRefreshLayout is mostly lifted from Android's support library (v4) with these
  * modifications:
  *  - Removes elastic "rubber banding" effect when overscrolling the child view.
  *  - Changes the height of the progress bar to match the height of HomePager's page indicator.
@@ -54,7 +54,7 @@ import android.widget.AbsListView;
  * Original source: https://android.googlesource.com/platform/frameworks/support/+/
  * android-support-lib-19.1.0/v4/java/android/support/v4/widget/SwipeRefreshLayout.java
  */
-public class GeckoSwipeRefreshLayout extends ViewGroup {
+public class GoannaSwipeRefreshLayout extends ViewGroup {
     private static final long RETURN_TO_ORIGINAL_POSITION_TIMEOUT = 300;
     private static final float ACCELERATE_INTERPOLATION_FACTOR = 1.5f;
     private static final float DECELERATE_INTERPOLATION_FACTOR = 2f;
@@ -162,19 +162,19 @@ public class GeckoSwipeRefreshLayout extends ViewGroup {
     };
 
     /**
-     * Simple constructor to use when creating a GeckoSwipeRefreshLayout from code.
+     * Simple constructor to use when creating a GoannaSwipeRefreshLayout from code.
      * @param context
      */
-    public GeckoSwipeRefreshLayout(Context context) {
+    public GoannaSwipeRefreshLayout(Context context) {
         this(context, null);
     }
 
     /**
-     * Constructor that is called when inflating GeckoSwipeRefreshLayout from XML.
+     * Constructor that is called when inflating GoannaSwipeRefreshLayout from XML.
      * @param context
      * @param attrs
      */
-    public GeckoSwipeRefreshLayout(Context context, AttributeSet attrs) {
+    public GoannaSwipeRefreshLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
 
         mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
@@ -294,7 +294,7 @@ public class GeckoSwipeRefreshLayout extends ViewGroup {
         if (mTarget == null) {
             if (getChildCount() > 1 && !isInEditMode()) {
                 throw new IllegalStateException(
-                        "GeckoSwipeRefreshLayout can host only one direct child");
+                        "GoannaSwipeRefreshLayout can host only one direct child");
             }
             mTarget = getChildAt(0);
             mOriginalOffsetTop = mTarget.getTop() + getPaddingTop();
@@ -335,7 +335,7 @@ public class GeckoSwipeRefreshLayout extends ViewGroup {
     public void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         if (getChildCount() > 1 && !isInEditMode()) {
-            throw new IllegalStateException("GeckoSwipeRefreshLayout can host only one direct child");
+            throw new IllegalStateException("GoannaSwipeRefreshLayout can host only one direct child");
         }
         if (getChildCount() > 0) {
             getChildAt(0).measure(

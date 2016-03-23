@@ -243,7 +243,7 @@ ia2AccessibleText::get_textBeforeOffset(long aOffset,
     endOffset = textAcc->CharacterCount();
     textAcc->TextSubstring(startOffset, endOffset, text);
   } else {
-    AccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
+    AccessibleTextBoundary boundaryType = GetGoannaTextBoundary(aBoundaryType);
     if (boundaryType == -1)
       return S_FALSE;
 
@@ -292,7 +292,7 @@ ia2AccessibleText::get_textAfterOffset(long aOffset,
     endOffset = textAcc->CharacterCount();
     textAcc->TextSubstring(startOffset, endOffset, text);
   } else {
-    AccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
+    AccessibleTextBoundary boundaryType = GetGoannaTextBoundary(aBoundaryType);
     if (boundaryType == -1)
       return S_FALSE;
     textAcc->TextAfterOffset(aOffset, boundaryType, &startOffset, &endOffset, text);
@@ -338,7 +338,7 @@ ia2AccessibleText::get_textAtOffset(long aOffset,
     endOffset = textAcc->CharacterCount();
     textAcc->TextSubstring(startOffset, endOffset, text);
   } else {
-    AccessibleTextBoundary boundaryType = GetGeckoTextBoundary(aBoundaryType);
+    AccessibleTextBoundary boundaryType = GetGoannaTextBoundary(aBoundaryType);
     if (boundaryType == -1)
       return S_FALSE;
     textAcc->TextAtOffset(aOffset, boundaryType, &startOffset, &endOffset, text);
@@ -516,7 +516,7 @@ ia2AccessibleText::GetModifiedText(bool aGetInsertedText,
 }
 
 AccessibleTextBoundary
-ia2AccessibleText::GetGeckoTextBoundary(enum IA2TextBoundaryType aBoundaryType)
+ia2AccessibleText::GetGoannaTextBoundary(enum IA2TextBoundaryType aBoundaryType)
 {
   switch (aBoundaryType) {
     case IA2_TEXT_BOUNDARY_CHAR:

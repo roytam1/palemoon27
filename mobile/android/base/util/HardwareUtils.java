@@ -15,13 +15,13 @@ import android.util.Log;
 import android.view.ViewConfiguration;
 
 public final class HardwareUtils {
-    private static final String LOGTAG = "GeckoHardwareUtils";
+    private static final String LOGTAG = "GoannaHardwareUtils";
 
     // Minimum memory threshold for a device to be considered
     // a low memory platform (see isLowMemoryPlatform). This value
-    // has be in sync with Gecko's equivalent threshold (defined in
+    // has be in sync with Goanna's equivalent threshold (defined in
     // xpcom/base/nsMemoryImpl.cpp) and should only be used in cases
-    // where we can't depend on Gecko to be up and running e.g. show/hide
+    // where we can't depend on Goanna to be up and running e.g. show/hide
     // reading list capabilities in HomePager.
     private static final int LOW_MEMORY_THRESHOLD_MB = 384;
 

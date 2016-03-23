@@ -77,7 +77,7 @@ nsAndroidHistory::RegisterVisitedCallback(nsIURI *aURI, Link *aContent)
   list->AppendElement(aContent);
 
   if (AndroidBridge::HasEnv()) {
-    widget::GeckoAppShell::CheckURIVisited(uriString);
+    widget::GoannaAppShell::CheckURIVisited(uriString);
   }
 
   return NS_OK;
@@ -203,7 +203,7 @@ nsAndroidHistory::SaveVisitURI(nsIURI* aURI) {
     // Save this URI in our history
     nsAutoCString spec;
     (void)aURI->GetSpec(spec);
-    widget::GeckoAppShell::MarkURIVisited(NS_ConvertUTF8toUTF16(spec));
+    widget::GoannaAppShell::MarkURIVisited(NS_ConvertUTF8toUTF16(spec));
   }
 
   // Finally, notify that we've been visited.
@@ -288,7 +288,7 @@ nsAndroidHistory::SetURITitle(nsIURI *aURI, const nsAString& aTitle)
     nsresult rv = aURI->GetSpec(uri);
     if (NS_FAILED(rv)) return rv;
     NS_ConvertUTF8toUTF16 uriString(uri);
-    widget::GeckoAppShell::SetURITitle(uriString, aTitle);
+    widget::GoannaAppShell::SetURITitle(uriString, aTitle);
   }
   return NS_OK;
 }

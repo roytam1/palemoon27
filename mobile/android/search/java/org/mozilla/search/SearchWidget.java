@@ -26,7 +26,7 @@ import android.widget.RemoteViews;
  * and one to launch the search activity. All intents are actually sent back
  * here and then forwarded on to start the real activity. */
 public class SearchWidget extends AppWidgetProvider {
-    final private static String LOGTAG = "GeckoSearchWidget";
+    final private static String LOGTAG = "GoannaSearchWidget";
 
     final public static String ACTION_LAUNCH_BROWSER = "org.mozilla.widget.LAUNCH_BROWSER";
     final public static String ACTION_LAUNCH_SEARCH = "org.mozilla.widget.LAUNCH_SEARCH";

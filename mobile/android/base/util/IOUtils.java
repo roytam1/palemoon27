@@ -14,7 +14,7 @@ import java.io.InputStream;
  * Static helper class containing useful methods for manipulating IO objects.
  */
 public class IOUtils {
-    private static final String LOGTAG = "GeckoIOUtils";
+    private static final String LOGTAG = "GoannaIOUtils";
 
     /**
      * Represents the result of consuming an input stream, holding the returned data as well

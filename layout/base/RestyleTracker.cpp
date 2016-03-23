@@ -10,7 +10,7 @@
 
 #include "RestyleTracker.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsFrameManager.h"
 #include "nsIDocument.h"
 #include "nsStyleChangeList.h"

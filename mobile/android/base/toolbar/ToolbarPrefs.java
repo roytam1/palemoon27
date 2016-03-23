@@ -31,8 +31,8 @@ class ToolbarPrefs {
     private Integer prefObserverId;
 
     ToolbarPrefs() {
-        // Skip autocompletion while Gecko is loading.
-        // We will get the correct pref value once Gecko is loaded.
+        // Skip autocompletion while Goanna is loading.
+        // We will get the correct pref value once Goanna is loaded.
         enableAutocomplete = false;
         trimUrls = true;
     }

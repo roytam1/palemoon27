@@ -136,8 +136,8 @@ public class SearchEnginePreference extends CustomListPreference {
     }
 
     /**
-     * Configure this Preference object from the Gecko search engine JSON object.
-     * @param geckoEngineJSON The Gecko-formatted JSON object representing the search engine.
+     * Configure this Preference object from the Goanna search engine JSON object.
+     * @param geckoEngineJSON The Goanna-formatted JSON object representing the search engine.
      * @throws JSONException If the JSONObject is invalid.
      */
     public void setSearchEngineFromJSON(JSONObject geckoEngineJSON) throws JSONException {
@@ -161,7 +161,7 @@ public class SearchEnginePreference extends CustomListPreference {
                 desiredWidth = mFaviconView.getWidth();
             } else {
                 // largestFaviconSize is initialized when Favicons is attached to a
-                // context, which occurs during GeckoApp.onCreate. That might not
+                // context, which occurs during GoannaApp.onCreate. That might not
                 // ever happen (leaving it at 0), so we fall back.
                 if (Favicons.largestFaviconSize == 0) {
                     desiredWidth = 128;

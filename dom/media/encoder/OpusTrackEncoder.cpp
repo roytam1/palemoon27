@@ -4,7 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "OpusTrackEncoder.h"
 #include "nsString.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include <opus/opus.h>
 

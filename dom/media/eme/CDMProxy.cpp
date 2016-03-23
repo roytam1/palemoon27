@@ -8,7 +8,7 @@
 #include "nsString.h"
 #include "mozilla/dom/MediaKeys.h"
 #include "mozilla/dom/MediaKeySession.h"
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 #include "nsContentCID.h"
 #include "nsServiceManagerUtils.h"
 #include "MainThreadUtils.h"
@@ -50,7 +50,7 @@ CDMProxy::Init(PromiseId aPromiseId,
           (aInPrivateBrowsing ? "PrivateBrowsing" : "NonPrivateBrowsing"));
 
   if (!mGMPThread) {
-    nsCOMPtr<mozIGeckoMediaPluginService> mps =
+    nsCOMPtr<mozIGoannaMediaPluginService> mps =
       do_GetService("@mozilla.org/gecko-media-plugin-service;1");
     if (!mps) {
       RejectPromise(aPromiseId, NS_ERROR_DOM_INVALID_STATE_ERR);
@@ -87,7 +87,7 @@ CDMProxy::gmp_Init(nsAutoPtr<InitData> aData)
 {
   MOZ_ASSERT(IsOnGMPThread());
 
-  nsCOMPtr<mozIGeckoMediaPluginService> mps =
+  nsCOMPtr<mozIGoannaMediaPluginService> mps =
     do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   if (!mps) {
     RejectPromise(aData->mPromiseId, NS_ERROR_DOM_INVALID_STATE_ERR);

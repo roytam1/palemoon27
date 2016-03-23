@@ -9,8 +9,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import android.os.Build;
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaProfile;
 
 import android.content.ContentValues;
 import android.database.Cursor;
@@ -24,7 +24,7 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 import java.util.Map;
 
 public class DBUtils {
-    private static final String LOGTAG = "GeckoDBUtils";
+    private static final String LOGTAG = "GoannaDBUtils";
 
     public static final String qualifyColumn(String table, String column) {
         return table + "." + column;
@@ -93,7 +93,7 @@ public class DBUtils {
 
                 // Things could get very bad if we don't find a way to unlock the DB.
                 Log.d(LOGTAG, "Database is locked, trying to kill any zombie processes: " + databasePath);
-                GeckoAppShell.killAnyZombies();
+                GoannaAppShell.killAnyZombies();
                 try {
                     Thread.sleep(attempt * 100);
                 } catch (InterruptedException ie) {
@@ -103,7 +103,7 @@ public class DBUtils {
 
         if (db == null) {
             Log.w(LOGTAG, "Failed to unlock database.");
-            GeckoAppShell.listOfOpenFiles();
+            GoannaAppShell.listOfOpenFiles();
             return;
         }
 
@@ -176,7 +176,7 @@ public class DBUtils {
 
     public static Uri appendProfileWithDefault(final String profile, final Uri uri) {
         if (TextUtils.isEmpty(profile)) {
-            return appendProfile(GeckoProfile.DEFAULT_PROFILE, uri);
+            return appendProfile(GoannaProfile.DEFAULT_PROFILE, uri);
         }
         return appendProfile(profile, uri);
     }

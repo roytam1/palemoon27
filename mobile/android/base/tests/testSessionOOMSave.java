@@ -13,7 +13,7 @@ public class testSessionOOMSave extends SessionTest {
     private final static int SESSION_TIMEOUT = 25000;
 
     public void testSessionOOMSave() {
-        Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
+        Actions.EventExpecter pageShowExpecter = mActions.expectGoannaEvent("Content:PageShow");
         pageShowExpecter.blockForEvent();
         pageShowExpecter.unregisterListener();
 
@@ -34,7 +34,7 @@ public class testSessionOOMSave extends SessionTest {
         // Load the tabs into the browser
         loadSessionTabs(session);
 
-        // Verify sessionstore.js written by Gecko. The session write is
+        // Verify sessionstore.js written by Goanna. The session write is
         // delayed for certain interactions (such as changing the selected
         // tab), so the file is repeatedly read until it matches the expected
         // output. Because of the delay, this part of the test takes ~9 seconds

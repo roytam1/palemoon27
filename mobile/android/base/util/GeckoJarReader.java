@@ -26,10 +26,10 @@ import java.util.Stack;
 /* Reads out of a multiple level deep jar file such as
  *  jar:jar:file:///data/app/org.mozilla.fennec.apk!/omni.ja!/chrome/chrome/content/branding/favicon32.png
  */
-public final class GeckoJarReader {
-    private static final String LOGTAG = "GeckoJarReader";
+public final class GoannaJarReader {
+    private static final String LOGTAG = "GoannaJarReader";
 
-    private GeckoJarReader() {}
+    private GoannaJarReader() {}
 
     public static Bitmap getBitmap(Resources resources, String url) {
         BitmapDrawable drawable = getBitmapDrawable(resources, url);

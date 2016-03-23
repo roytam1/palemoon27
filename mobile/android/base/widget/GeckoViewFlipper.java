@@ -17,14 +17,14 @@ import android.widget.ViewFlipper;
 /* This extends the normal ViewFlipper only to fix bug 956075 on < 3.0 devices.
  * i.e. It ignores touch events on the ViewFlipper when its hidden. */
 
-public class GeckoViewFlipper extends ViewFlipper {
+public class GoannaViewFlipper extends ViewFlipper {
     private final Rect mRect = new Rect();
 
-    public GeckoViewFlipper(Context context) {
+    public GoannaViewFlipper(Context context) {
         super(context);
     }
 
-    public GeckoViewFlipper(Context context, AttributeSet attrs) {
+    public GoannaViewFlipper(Context context, AttributeSet attrs) {
         super(context, attrs);
     }
 

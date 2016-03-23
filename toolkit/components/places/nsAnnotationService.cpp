@@ -18,7 +18,7 @@
 #include "nsVariant.h"
 #include "mozilla/storage.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "nsNetCID.h"
 
@@ -1482,7 +1482,7 @@ nsAnnotationService::RemoveItemAnnotations(int64_t aItemId)
 
 
 /**
- * @note If we use annotations for some standard items like GeckoFlags, it
+ * @note If we use annotations for some standard items like GoannaFlags, it
  *       might be a good idea to blacklist these standard annotations from this
  *       copy function.
  */

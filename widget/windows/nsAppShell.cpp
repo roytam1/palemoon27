@@ -21,13 +21,13 @@
 #include "mozilla/StaticPtr.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
 
 // A wake lock listener that disables screen saver when requested by
-// Gecko. For example when we're playing video in a foreground tab we
+// Goanna. For example when we're playing video in a foreground tab we
 // don't want the screen saver to turn on.
 class WinWakeLockListener : public nsIDOMMozWakeLockListener {
 public:
@@ -82,7 +82,7 @@ RemoveScreenWakeLockListener()
 namespace mozilla {
 namespace widget {
 // Native event callback message.
-UINT sAppShellGeckoMsgId = RegisterWindowMessageW(L"nsAppShell:EventID");
+UINT sAppShellGoannaMsgId = RegisterWindowMessageW(L"nsAppShell:EventID");
 } }
 
 const wchar_t* kTaskbarButtonEventId = L"TaskbarButtonCreated";
@@ -106,7 +106,7 @@ using mozilla::crashreporter::LSPAnnotate;
 /*static*/ LRESULT CALLBACK
 nsAppShell::EventWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-  if (uMsg == sAppShellGeckoMsgId) {
+  if (uMsg == sAppShellGoannaMsgId) {
     nsAppShell *as = reinterpret_cast<nsAppShell *>(lParam);
     as->NativeEventCallback();
     NS_RELEASE(as);
@@ -171,7 +171,7 @@ nsAppShell::Run(void)
   // appropriate response to failing to start an audio session.
   mozilla::widget::StartAudioSession();
 
-  // Add an observer that disables the screen saver when requested by Gecko.
+  // Add an observer that disables the screen saver when requested by Goanna.
   // For example when we're playing video in the foreground tab.
   AddScreenWakeLockListener();
 
@@ -191,7 +191,7 @@ nsAppShell::Exit(void)
 }
 
 void
-nsAppShell::DoProcessMoreGeckoEvents()
+nsAppShell::DoProcessMoreGoannaEvents()
 {
   // Called by nsBaseAppShell's NativeEventCallback() after it has finished
   // processing pending gecko events and there are still gecko events pending
@@ -235,14 +235,14 @@ nsAppShell::ScheduleNativeEventCallback()
     // dropping in sub classes / modal loops we do not control.
     mLastNativeEventScheduled = TimeStamp::NowLoRes();
   }
-  ::PostMessage(mEventWnd, sAppShellGeckoMsgId, 0, reinterpret_cast<LPARAM>(this));
+  ::PostMessage(mEventWnd, sAppShellGoannaMsgId, 0, reinterpret_cast<LPARAM>(this));
 }
 
 bool
 nsAppShell::ProcessNextNativeEvent(bool mayWait)
 {
   // Notify ipc we are spinning a (possibly nested) gecko event loop.
-  mozilla::ipc::MessageChannel::NotifyGeckoEventDispatch();
+  mozilla::ipc::MessageChannel::NotifyGoannaEventDispatch();
 
   bool gotMessage = false;
 
@@ -296,7 +296,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
       // Block and wait for any posted application message
       mozilla::HangMonitor::Suspend();
       {
-        GeckoProfilerSleepRAII profiler_sleep;
+        GoannaProfilerSleepRAII profiler_sleep;
         WinUtils::WaitForMessage();
       }
     }
@@ -305,7 +305,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
   // See DoProcessNextNativeEvent, mEventloopNestingLevel will be
   // one when a modal loop unwinds.
   if (mNativeCallbackPending && mEventloopNestingLevel == 1)
-    DoProcessMoreGeckoEvents();
+    DoProcessMoreGoannaEvents();
 
   // Check for starved native callbacks. If we haven't processed one
   // of these events in NATIVE_EVENT_STARVATION_LIMIT, fire one off.

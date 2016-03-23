@@ -28,7 +28,7 @@ import android.util.Log;
 import android.widget.Toast;
 
 public final class ReadingListHelper implements NativeEventListener {
-    private static final String LOGTAG = "GeckoReadingListHelper";
+    private static final String LOGTAG = "GoannaReadingListHelper";
 
     protected final Context context;
     private final BrowserDB db;
@@ -37,12 +37,12 @@ public final class ReadingListHelper implements NativeEventListener {
 
     volatile boolean fetchInBackground = true;
 
-    public ReadingListHelper(Context context, GeckoProfile profile) {
+    public ReadingListHelper(Context context, GoannaProfile profile) {
         this.context = context;
         this.db = profile.getDB();
         this.readingListAccessor = db.getReadingListAccessor();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener((NativeEventListener) this,
+        EventDispatcher.getInstance().registerGoannaThreadListener((NativeEventListener) this,
             "Reader:AddToList", "Reader:UpdateList", "Reader:FaviconRequest", "Reader:ListStatusRequest", "Reader:RemoveFromList");
 
 
@@ -59,7 +59,7 @@ public final class ReadingListHelper implements NativeEventListener {
     }
 
     public void uninit() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener((NativeEventListener) this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((NativeEventListener) this,
             "Reader:AddToList", "Reader:UpdateList", "Reader:FaviconRequest", "Reader:ListStatusRequest", "Reader:RemoveFromList");
 
         context.getContentResolver().unregisterContentObserver(contentObserver);
@@ -192,7 +192,7 @@ public final class ReadingListHelper implements NativeEventListener {
     }
 
     /**
-     * Gecko (ReaderMode) requests the page favicon to append to the
+     * Goanna (ReaderMode) requests the page favicon to append to the
      * document head for display.
      */
     private void handleReaderModeFaviconRequest(final EventCallback callback, final String url) {
@@ -233,7 +233,7 @@ public final class ReadingListHelper implements NativeEventListener {
     }
 
     /**
-     * Gecko (ReaderMode) requests the page ReadingList status, to display
+     * Goanna (ReaderMode) requests the page ReadingList status, to display
      * the proper ReaderMode banner icon (readinglist-add / readinglist-remove).
      */
     private void handleReadingListStatusRequest(final EventCallback callback, final String url) {
@@ -279,8 +279,8 @@ public final class ReadingListHelper implements NativeEventListener {
                         try {
                             json.put("id", c.getInt(c.getColumnIndexOrThrow(ReadingListItems._ID)));
                             json.put("url", c.getString(c.getColumnIndexOrThrow(ReadingListItems.URL)));
-                            GeckoAppShell.sendEventToGecko(
-                                GeckoEvent.createBroadcastEvent("Reader:FetchContent", json.toString()));
+                            GoannaAppShell.sendEventToGoanna(
+                                GoannaEvent.createBroadcastEvent("Reader:FetchContent", json.toString()));
                         } catch (JSONException e) {
                             Log.e(LOGTAG, "Failed to fetch reading list content for item");
                         }

@@ -14,7 +14,7 @@ public class DynamicToolbar {
 
     // DynamicToolbar is enabled iff prefEnabled is true *and* accessibilityEnabled is false,
     // so it is disabled by default on startup. We do not enable it until we explicitly get
-    // the pref from Gecko telling us to turn it on.
+    // the pref from Goanna telling us to turn it on.
     private volatile boolean prefEnabled;
     private boolean accessibilityEnabled;
 

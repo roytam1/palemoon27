@@ -16,7 +16,7 @@ import java.security.NoSuchAlgorithmException;
 
 import org.mozilla.gecko.background.nativecode.NativeCrypto;
 import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 
 import android.os.SystemClock;
 
@@ -43,9 +43,9 @@ public class testNativeCrypto extends UITest {
     // This test could complete very quickly. If it completes too soon, the
     // minidumps directory may not be created before the process is
     // taken down, causing bug 722166. But we can't run the test and then block
-    // for Gecko:Ready, since it may have arrived before we block. So we wait.
+    // for Goanna:Ready, since it may have arrived before we block. So we wait.
     // Again, JUnit 3 can't land soon enough!
-    GeckoHelper.blockForReady();
+    GoannaHelper.blockForReady();
 
     _testPBKDF2SHA256A();
     _testPBKDF2SHA256B();

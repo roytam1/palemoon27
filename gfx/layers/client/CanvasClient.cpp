@@ -38,7 +38,7 @@ CanvasClient::CreateCanvasClient(CanvasClientType aType,
                                  TextureFlags aFlags)
 {
 #ifndef MOZ_WIDGET_GONK
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     NS_WARNING("Most platforms still need an optimized way to share GL cross process.");
     return new CanvasClient2D(aForwarder, aFlags);
   }

@@ -124,10 +124,10 @@ interface Element : Node {
    * Requests that this element be made the full-screen element, as per the DOM
    * full-screen api.
    *
-   * The options parameter is non-standard. In Gecko, it can be:
+   * The options parameter is non-standard. In Goanna, it can be:
    *  a RequestFullscreenOptions object
    *
-   * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
+   * @see <https://wiki.mozilla.org/index.php?title=Goanna:FullScreenAPI>
    */
   [Throws, UnsafeInPrerendering]
   void mozRequestFullScreen(optional any options);

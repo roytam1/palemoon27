@@ -23,8 +23,8 @@ abstract class ContentContextMenuTest extends PixelTest {
         getActivity().getWindowManager().getDefaultDisplay().getMetrics(dm);
 
         // The web content we are trying to open the context menu for should be positioned at the top of the page, at least 60px high and aligned to the middle
-        float top = mDriver.getGeckoTop() + 30 * dm.density;
-        float left = mDriver.getGeckoLeft() + mDriver.getGeckoWidth() / 2;
+        float top = mDriver.getGoannaTop() + 30 * dm.density;
+        float left = mDriver.getGoannaLeft() + mDriver.getGoannaWidth() / 2;
 
         mAsserter.dumpLog("long-clicking at "+left+", "+top);
         mSolo.clickLongOnScreen(left, top);
@@ -46,7 +46,7 @@ abstract class ContentContextMenuTest extends PixelTest {
         if (!mSolo.searchText(contextMenuOption)) {
             openWebContentContextMenu(contextMenuOption); // Open the context menu if it is not already
         }
-        Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
+        Actions.EventExpecter tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
         mSolo.clickOnText(contextMenuOption);
         tabEventExpecter.blockForEvent();
         tabEventExpecter.unregisterListener();

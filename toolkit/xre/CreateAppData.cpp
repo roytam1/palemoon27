@@ -121,8 +121,8 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
 
   if (aAppData->size > offsetof(nsXREAppData, xreDirectory)) {
     ReadString strings2[] = {
-      { "Gecko", "MinVersion", &aAppData->minVersion },
-      { "Gecko", "MaxVersion", &aAppData->maxVersion },
+      { "Goanna", "MinVersion", &aAppData->minVersion },
+      { "Goanna", "MaxVersion", &aAppData->maxVersion },
       { nullptr }
     };
     ReadStrings(parser, strings2);

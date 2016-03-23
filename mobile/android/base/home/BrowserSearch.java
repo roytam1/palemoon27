@@ -15,8 +15,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.SuggestClient;
@@ -30,7 +30,7 @@ import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.SearchLoader.SearchCursorLoader;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.toolbar.AutocompleteHandler;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -65,7 +65,7 @@ import android.widget.TextView;
  * Fragment that displays frecency search results in a ListView.
  */
 public class BrowserSearch extends HomeFragment
-                           implements GeckoEventListener {
+                           implements GoannaEventListener {
 
     @RobocopTarget
     public interface SuggestClientFactory {
@@ -87,7 +87,7 @@ public class BrowserSearch extends HomeFragment
     public static volatile SuggestClientFactory sSuggestClientFactory = new DefaultSuggestClientFactory();
 
     // Logging tag name
-    private static final String LOGTAG = "GeckoBrowserSearch";
+    private static final String LOGTAG = "GoannaBrowserSearch";
 
     // Cursor loader ID for search query
     private static final int LOADER_ID_SEARCH = 0;
@@ -129,7 +129,7 @@ public class BrowserSearch extends HomeFragment
     @RobocopTarget
     public volatile SuggestClient mSuggestClient;
 
-    // List of search engines from Gecko.
+    // List of search engines from Goanna.
     // Do not mutate this list.
     // Access to this member must only occur from the UI thread.
     private List<SearchEngine> mSearchEngines;
@@ -249,7 +249,7 @@ public class BrowserSearch extends HomeFragment
 
         // Fetch engines if we need to.
         if (mSearchEngines.isEmpty() || !Locale.getDefault().equals(mLastLocale)) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:GetVisible", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SearchEngines:GetVisible", null));
         }
 
         Telemetry.startUISession(TelemetryContract.Session.FRECENCY);
@@ -276,7 +276,7 @@ public class BrowserSearch extends HomeFragment
     public void onDestroyView() {
         super.onDestroyView();
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "SearchEngines:Data");
 
         mList.setAdapter(null);
@@ -348,7 +348,7 @@ public class BrowserSearch extends HomeFragment
         });
 
         registerForContextMenu(mList);
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "SearchEngines:Data");
     }
 
@@ -402,7 +402,7 @@ public class BrowserSearch extends HomeFragment
         }
 
         // Prefetch auto-completed domain since it's a likely target
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Prefetch", "http://" + autocompletion));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Session:Prefetch", "http://" + autocompletion));
 
         mAutocompleteHandler.onAutocomplete(autocompletion);
         mAutocompleteHandler = null;
@@ -463,7 +463,7 @@ public class BrowserSearch extends HomeFragment
 
             if (searchCount == 0) {
                 // Prefetch the first item in the list since it's weighted the highest
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Prefetch", url));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Session:Prefetch", url));
             }
 
             // Does the completion match against the whole URL? This will match
@@ -538,7 +538,7 @@ public class BrowserSearch extends HomeFragment
     private void setSearchEngines(JSONObject data) {
         ThreadUtils.assertOnUiThread();
 
-        // This method is called via a Runnable posted from the Gecko thread, so
+        // This method is called via a Runnable posted from the Goanna thread, so
         // it's possible the fragment and/or its view has been destroyed by the
         // time we get here. If so, just abort.
         if (mView == null) {

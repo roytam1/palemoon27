@@ -14,7 +14,7 @@ public class testLinkContextMenu extends ContentContextMenuTest {
     private static final String linkMenuItems [] = StringHelper.CONTEXT_MENU_ITEMS_IN_NORMAL_TAB;
 
     public void testLinkContextMenu() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         LINK_PAGE_URL=getAbsoluteUrl(StringHelper.ROBOCOP_BIG_LINK_URL);
         BLANK_PAGE_URL=getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);

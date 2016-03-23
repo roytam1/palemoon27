@@ -1835,7 +1835,7 @@ const Class TypedArrayObject::classes[Scalar::MaxTypedArrayViewType] = {
 };
 
 // The various typed array prototypes are supposed to 1) be normal objects,
-// 2) stringify to "[object <name of constructor>]", and 3) (Gecko-specific)
+// 2) stringify to "[object <name of constructor>]", and 3) (Goanna-specific)
 // be xrayable.  The first and second requirements mandate (in the absence of
 // @@toStringTag) a custom class.  The third requirement mandates that each
 // prototype's class have the relevant typed array's cached JSProtoKey in them.

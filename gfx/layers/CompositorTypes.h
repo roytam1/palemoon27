@@ -9,7 +9,7 @@
 #include <stdint.h>                     // for uint32_t
 #include <sys/types.h>                  // for int32_t
 #include "LayersTypes.h"                // for LayersBackend, etc
-#include "nsXULAppAPI.h"                // for GeckoProcessType, etc
+#include "nsXULAppAPI.h"                // for GoannaProcessType, etc
 #include "mozilla/gfx/Types.h"
 #include "mozilla/EnumSet.h"
 
@@ -171,7 +171,7 @@ typedef uintptr_t SyncHandle;
 struct TextureFactoryIdentifier
 {
   LayersBackend mParentBackend;
-  GeckoProcessType mParentProcessId;
+  GoannaProcessType mParentProcessId;
   EnumSet<gfx::CompositionOp> mSupportedBlendModes;
   int32_t mMaxTextureSize;
   bool mSupportsTextureBlitting;
@@ -179,7 +179,7 @@ struct TextureFactoryIdentifier
   SyncHandle mSyncHandle;
 
   explicit TextureFactoryIdentifier(LayersBackend aLayersBackend = LayersBackend::LAYERS_NONE,
-                                    GeckoProcessType aParentProcessId = GeckoProcessType_Default,
+                                    GoannaProcessType aParentProcessId = GoannaProcessType_Default,
                                     int32_t aMaxTextureSize = 4096,
                                     bool aSupportsTextureBlitting = false,
                                     bool aSupportsPartialUploads = false,

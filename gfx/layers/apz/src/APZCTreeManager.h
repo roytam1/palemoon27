@@ -48,7 +48,7 @@ class OverscrollHandoffChain;
 struct OverscrollHandoffState;
 class LayerMetricsWrapper;
 class InputQueue;
-class GeckoContentController;
+class GoannaContentController;
 class HitTestingTreeNode;
 
 /**
@@ -201,7 +201,7 @@ public:
    * @param aPoint point to transform
    * @param aOutTransformedPoint resulting transformed point
    */
-  void TransformCoordinateToGecko(const ScreenIntPoint& aPoint,
+  void TransformCoordinateToGoanna(const ScreenIntPoint& aPoint,
                                   LayoutDeviceIntPoint* aOutTransformedPoint);
 
   /**
@@ -397,7 +397,7 @@ protected:
 
   // Hook for gtests subclass
   virtual AsyncPanZoomController* MakeAPZCInstance(uint64_t aLayersId,
-                                                   GeckoContentController* aController);
+                                                   GoannaContentController* aController);
 
 public:
   /* Some helper functions to find an APZC given some identifying input. These functions
@@ -410,7 +410,7 @@ public:
   already_AddRefed<AsyncPanZoomController> GetTargetAPZC(const ScreenPoint& aPoint,
                                                          HitTestResult* aOutHitResult);
   gfx::Matrix4x4 GetScreenToApzcTransform(const AsyncPanZoomController *aApzc) const;
-  gfx::Matrix4x4 GetApzcToGeckoTransform(const AsyncPanZoomController *aApzc) const;
+  gfx::Matrix4x4 GetApzcToGoannaTransform(const AsyncPanZoomController *aApzc) const;
 private:
   typedef bool (*GuidComparator)(const ScrollableLayerGuid&, const ScrollableLayerGuid&);
 

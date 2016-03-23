@@ -24,7 +24,7 @@ GetObjectOrRepresentedView(id <mozAccessible> aObject)
 }
 
 inline mozAccessible*
-GetNativeFromGeckoAccessible(mozilla::a11y::Accessible* aAccessible)
+GetNativeFromGoannaAccessible(mozilla::a11y::Accessible* aAccessible)
 {
   mozAccessible* native = nil;
   aAccessible->GetNativeInterface((void**)&native);
@@ -36,7 +36,7 @@ GetNativeFromGeckoAccessible(mozilla::a11y::Accessible* aAccessible)
   /**
    * Weak reference; it owns us.
    */
-  mozilla::a11y::AccessibleWrap* mGeckoAccessible;
+  mozilla::a11y::AccessibleWrap* mGoannaAccessible;
   
   /**
    * Strong ref to array of children

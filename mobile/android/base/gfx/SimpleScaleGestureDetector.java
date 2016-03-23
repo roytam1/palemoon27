@@ -34,7 +34,7 @@ import java.util.Stack;
  *   - It doesn't take pressure into account, which results in smoother scaling.
  */
 class SimpleScaleGestureDetector {
-    private static final String LOGTAG = "GeckoSimpleScaleGestureDetector";
+    private static final String LOGTAG = "GoannaSimpleScaleGestureDetector";
 
     private final SimpleScaleGestureListener mListener;
     private long mLastEventTime;

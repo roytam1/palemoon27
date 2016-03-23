@@ -16,7 +16,7 @@ import android.view.View;
  *
  * This class uses reflection to access framework functionalities that are
  * unavailable through the regular Android API. Using reflection in this
- * case is okay because it does not touch Gecko classes that go through
+ * case is okay because it does not touch Goanna classes that go through
  * ProGuard.
  */
 public final class FrameworkHelper {

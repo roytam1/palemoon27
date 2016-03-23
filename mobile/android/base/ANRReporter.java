@@ -34,10 +34,10 @@ import android.util.Log;
 public final class ANRReporter extends BroadcastReceiver
 {
     private static final boolean DEBUG = false;
-    private static final String LOGTAG = "GeckoANRReporter";
+    private static final String LOGTAG = "GoannaANRReporter";
 
     private static final String ANR_ACTION = "android.intent.action.ANR";
-    // Number of lines to search traces.txt to decide whether it's a Gecko ANR
+    // Number of lines to search traces.txt to decide whether it's a Goanna ANR
     private static final int LINES_TO_IDENTIFY_TRACES = 10;
     // ANRs may happen because of memory pressure,
     //  so don't use up too much memory here
@@ -180,10 +180,10 @@ public final class ANRReporter extends BroadcastReceiver
     }
 
     private static File getPingFile() {
-        if (GeckoAppShell.getContext() == null) {
+        if (GoannaAppShell.getContext() == null) {
             return null;
         }
-        GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
+        GoannaProfile profile = GoannaAppShell.getGoannaInterface().getProfile();
         if (profile == null) {
             return null;
         }
@@ -199,8 +199,8 @@ public final class ANRReporter extends BroadcastReceiver
         return new File(pingDir, UUID.randomUUID().toString());
     }
 
-    // Return true if the traces file corresponds to a Gecko ANR
-    private static boolean isGeckoTraces(String pkgName, File tracesFile) {
+    // Return true if the traces file corresponds to a Goanna ANR
+    private static boolean isGoannaTraces(String pkgName, File tracesFile) {
         try {
             final String END_OF_PACKAGE_NAME = "([^a-zA-Z0-9_]|$)";
             // Regex for finding our package name in the traces file
@@ -472,10 +472,10 @@ public final class ANRReporter extends BroadcastReceiver
 
     private static void processTraces(Reader traces, File pingFile) {
 
-        // Only get native stack if Gecko is running.
+        // Only get native stack if Goanna is running.
         // Also, unwinding is memory intensive, so only unwind if we have enough memory.
         final boolean haveNativeStack =
-            GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning) ?
+            GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning) ?
             requestNativeStack(/* unwind */ SysInfo.getMemSize() >= 640) : false;
 
         try {
@@ -579,14 +579,14 @@ public final class ANRReporter extends BroadcastReceiver
             return;
         }
 
-        // We get ANR intents from all ANRs in the system, but we only want Gecko ANRs
-        if (!isGeckoTraces(context.getPackageName(), tracesFile)) {
+        // We get ANR intents from all ANRs in the system, but we only want Goanna ANRs
+        if (!isGoannaTraces(context.getPackageName(), tracesFile)) {
             if (DEBUG) {
-                Log.d(LOGTAG, "traces is not Gecko ANR");
+                Log.d(LOGTAG, "traces is not Goanna ANR");
             }
             return;
         }
-        Log.i(LOGTAG, "processing Gecko ANR");
+        Log.i(LOGTAG, "processing Goanna ANR");
         processTraces(tracesFile, pingFile);
     }
 }

@@ -14,7 +14,7 @@ import java.util.Scanner;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 
 public class FileUtils {
-    private static final String LOGTAG= "GeckoFileUtils";
+    private static final String LOGTAG= "GoannaFileUtils";
     /*
     * A basic Filter for checking a filename and age.
     **/

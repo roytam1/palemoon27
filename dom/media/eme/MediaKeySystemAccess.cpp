@@ -17,7 +17,7 @@
 #endif
 #include "nsContentCID.h"
 #include "nsServiceManagerUtils.h"
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 #include "VideoUtils.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
@@ -73,7 +73,7 @@ MediaKeySystemAccess::CreateMediaKeys(ErrorResult& aRv)
 }
 
 static bool
-HaveGMPFor(mozIGeckoMediaPluginService* aGMPService,
+HaveGMPFor(mozIGoannaMediaPluginService* aGMPService,
            const nsCString& aKeySystem,
            const nsCString& aAPI,
            const nsCString& aTag = EmptyCString())
@@ -93,7 +93,7 @@ HaveGMPFor(mozIGeckoMediaPluginService* aGMPService,
 }
 
 static MediaKeySystemStatus
-EnsureMinCDMVersion(mozIGeckoMediaPluginService* aGMPService,
+EnsureMinCDMVersion(mozIGoannaMediaPluginService* aGMPService,
                     const nsAString& aKeySystem,
                     int32_t aMinCdmVersion)
 {
@@ -129,7 +129,7 @@ MediaKeySystemAccess::GetKeySystemStatus(const nsAString& aKeySystem,
                                          int32_t aMinCdmVersion)
 {
   MOZ_ASSERT(Preferences::GetBool("media.eme.enabled", false));
-  nsCOMPtr<mozIGeckoMediaPluginService> mps =
+  nsCOMPtr<mozIGoannaMediaPluginService> mps =
     do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return MediaKeySystemStatus::Error;
@@ -181,7 +181,7 @@ MediaKeySystemAccess::GetKeySystemStatus(const nsAString& aKeySystem,
 }
 
 static bool
-IsPlayableWithGMP(mozIGeckoMediaPluginService* aGMPS,
+IsPlayableWithGMP(mozIGoannaMediaPluginService* aGMPS,
                   const nsAString& aKeySystem,
                   const nsAString& aContentType)
 {
@@ -244,7 +244,7 @@ bool
 MediaKeySystemAccess::IsSupported(const nsAString& aKeySystem,
                                   const Sequence<MediaKeySystemOptions>& aOptions)
 {
-  nsCOMPtr<mozIGeckoMediaPluginService> mps =
+  nsCOMPtr<mozIGoannaMediaPluginService> mps =
     do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return false;

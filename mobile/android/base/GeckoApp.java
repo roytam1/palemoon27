@@ -26,7 +26,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.GeckoProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.gecko.GoannaProfileDirectories.NoMozillaDirectoryException;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.gfx.BitmapUtils;
@@ -37,21 +37,21 @@ import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.health.HealthRecorder;
 import org.mozilla.gecko.health.SessionInformation;
 import org.mozilla.gecko.health.StubbedHealthRecorder;
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.menu.GeckoMenuInflater;
+import org.mozilla.gecko.menu.GoannaMenu;
+import org.mozilla.gecko.menu.GoannaMenuInflater;
 import org.mozilla.gecko.menu.MenuPanel;
 import org.mozilla.gecko.mozglue.ContextUtils;
 import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.gecko.mozglue.GoannaLoader;
 import org.mozilla.gecko.preferences.ClearOnShutdownPref;
-import org.mozilla.gecko.preferences.GeckoPreferences;
+import org.mozilla.gecko.preferences.GoannaPreferences;
 import org.mozilla.gecko.prompts.PromptService;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
 import org.mozilla.gecko.util.ActivityResultHandler;
 import org.mozilla.gecko.util.ActivityUtils;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.FileUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
@@ -113,20 +113,20 @@ import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public abstract class GeckoApp
-    extends GeckoActivity
+public abstract class GoannaApp
+    extends GoannaActivity
     implements
     ContextGetter,
-    GeckoAppShell.GeckoInterface,
-    GeckoEventListener,
-    GeckoMenu.Callback,
-    GeckoMenu.MenuPresenter,
+    GoannaAppShell.GoannaInterface,
+    GoannaEventListener,
+    GoannaMenu.Callback,
+    GoannaMenu.MenuPresenter,
     LocationListener,
     NativeEventListener,
     SensorEventListener,
     Tabs.OnTabsChangedListener {
 
-    private static final String LOGTAG = "GeckoApp";
+    private static final String LOGTAG = "GoannaApp";
     private static final int ONE_DAY_MS = 1000*60*60*24;
 
     private static enum StartupAction {
@@ -161,13 +161,13 @@ public abstract class GeckoApp
     protected OuterLayout mRootLayout;
     protected RelativeLayout mMainLayout;
 
-    protected RelativeLayout mGeckoLayout;
+    protected RelativeLayout mGoannaLayout;
     private View mCameraView;
     private OrientationEventListener mCameraOrientationEventListener;
-    public List<GeckoAppShell.AppStateListener> mAppStateListeners = new LinkedList<GeckoAppShell.AppStateListener>();
+    public List<GoannaAppShell.AppStateListener> mAppStateListeners = new LinkedList<GoannaAppShell.AppStateListener>();
     protected MenuPanel mMenuPanel;
     protected Menu mMenu;
-    protected GeckoProfile mProfile;
+    protected GoannaProfile mProfile;
     protected boolean mIsRestoringActivity;
 
     private ContactService mContactService;
@@ -189,7 +189,7 @@ public abstract class GeckoApp
     protected boolean mShouldRestore;
     protected boolean mInitialized;
     private Telemetry.Timer mJavaUiStartupTimer;
-    private Telemetry.Timer mGeckoReadyStartupTimer;
+    private Telemetry.Timer mGoannaReadyStartupTimer;
 
     private String mPrivateBrowsingSession;
 
@@ -227,7 +227,7 @@ public abstract class GeckoApp
 
     @Override
     public SharedPreferences getSharedPreferences() {
-        return GeckoSharedPrefs.forApp(this);
+        return GoannaSharedPrefs.forApp(this);
     }
 
     @Override
@@ -251,12 +251,12 @@ public abstract class GeckoApp
     }
 
     @Override
-    public void addAppStateListener(GeckoAppShell.AppStateListener listener) {
+    public void addAppStateListener(GoannaAppShell.AppStateListener listener) {
         mAppStateListeners.add(listener);
     }
 
     @Override
-    public void removeAppStateListener(GeckoAppShell.AppStateListener listener) {
+    public void removeAppStateListener(GoannaAppShell.AppStateListener listener) {
         mAppStateListeners.remove(listener);
     }
 
@@ -327,7 +327,7 @@ public abstract class GeckoApp
     @Override
     public MenuInflater getMenuInflater() {
         if (Versions.feature11Plus) {
-            return new GeckoMenuInflater(this);
+            return new GoannaMenuInflater(this);
         } else {
             return super.getMenuInflater();
         }
@@ -402,7 +402,7 @@ public abstract class GeckoApp
                 mMenuPanel = (MenuPanel) onCreatePanelView(featureId);
             }
 
-            GeckoMenu gMenu = new GeckoMenu(this, null);
+            GoannaMenu gMenu = new GoannaMenu(this, null);
             gMenu.setCallback(this);
             gMenu.setMenuPresenter(this);
             menu = gMenu;
@@ -427,7 +427,7 @@ public abstract class GeckoApp
     public boolean onMenuOpened(int featureId, Menu menu) {
         // exit full-screen mode whenever the menu is opened
         if (mLayerView != null && mLayerView.isFullScreen()) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FullScreen:Exit", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FullScreen:Exit", null));
         }
 
         if (Versions.feature11Plus && featureId == Window.FEATURE_OPTIONS_PANEL) {
@@ -453,8 +453,8 @@ public abstract class GeckoApp
             // Make sure the Guest Browsing notification goes away when we quit.
             GuestSession.hideNotification(this);
 
-            if (GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.GeckoRunning, GeckoThread.LaunchState.GeckoExiting)) {
-                final SharedPreferences prefs = GeckoSharedPrefs.forProfile(this);
+            if (GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.GoannaRunning, GoannaThread.LaunchState.GoannaExiting)) {
+                final SharedPreferences prefs = GoannaSharedPrefs.forProfile(this);
                 final Set<String> clearSet = PrefUtils.getStringSet(prefs, ClearOnShutdownPref.PREF, new HashSet<String>());
 
                 final JSONObject clearObj = new JSONObject();
@@ -484,9 +484,9 @@ public abstract class GeckoApp
                     }
                 }
 
-                GeckoAppShell.notifyGeckoOfEvent(GeckoEvent.createBroadcastEvent("Browser:Quit", res.toString()));
+                GoannaAppShell.notifyGoannaOfEvent(GoannaEvent.createBroadcastEvent("Browser:Quit", res.toString()));
             } else {
-                GeckoAppShell.systemExit();
+                GoannaAppShell.systemExit();
             }
 
             return true;
@@ -499,7 +499,7 @@ public abstract class GeckoApp
     public void onOptionsMenuClosed(Menu menu) {
         if (Versions.feature11Plus) {
             mMenuPanel.removeAllViews();
-            mMenuPanel.addView((GeckoMenu) mMenu);
+            mMenuPanel.addView((GoannaMenu) mMenu);
         }
     }
 
@@ -558,7 +558,7 @@ public abstract class GeckoApp
     public void handleMessage(final String event, final NativeJSObject message,
                               final EventCallback callback) {
         if ("Accessibility:Ready".equals(event)) {
-            GeckoAccessibility.updateAccessibilitySettings(this);
+            GoannaAccessibility.updateAccessibilitySettings(this);
 
         } else if ("Bookmark:Insert".equals(event)) {
             final String url = message.getString("url");
@@ -633,7 +633,7 @@ public abstract class GeckoApp
 
         } else if ("Share:Text".equals(event)) {
             String text = message.getString("text");
-            GeckoAppShell.openUriExternal(text, "text/plain", "", "", Intent.ACTION_SEND, "");
+            GoannaAppShell.openUriExternal(text, "text/plain", "", "", Intent.ACTION_SEND, "");
 
             // Context: Sharing via chrome list (no explicit session is active)
             Telemetry.sendUIEvent(TelemetryContract.Event.SHARE, TelemetryContract.Method.LIST);
@@ -675,10 +675,10 @@ public abstract class GeckoApp
     @Override
     public void handleMessage(String event, JSONObject message) {
         try {
-            if (event.equals("Gecko:DelayedStartup")) {
+            if (event.equals("Goanna:DelayedStartup")) {
                 ThreadUtils.postToBackgroundThread(new UninstallListener.DelayedStartupTask(this));
-            } else if (event.equals("Gecko:Ready")) {
-                mGeckoReadyStartupTimer.stop();
+            } else if (event.equals("Goanna:Ready")) {
+                mGoannaReadyStartupTimer.stop();
                 geckoConnected();
 
                 // This method is already running on the background thread, so we
@@ -687,14 +687,14 @@ public abstract class GeckoApp
                 // This method is cheap, so don't spawn a new runnable.
                 final HealthRecorder rec = mHealthRecorder;
                 if (rec != null) {
-                  rec.recordGeckoStartupTime(mGeckoReadyStartupTimer.getElapsed());
+                  rec.recordGoannaStartupTime(mGoannaReadyStartupTimer.getElapsed());
                 }
             } else if ("NativeApp:IsDebuggable".equals(event)) {
                 JSONObject ret = new JSONObject();
                 ret.put("isDebuggable", getIsDebuggable());
                 EventDispatcher.sendResponse(message, ret);
             } else if (event.equals("Accessibility:Event")) {
-                GeckoAccessibility.sendAccessibilityEvent(message);
+                GoannaAccessibility.sendAccessibilityEvent(message);
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
@@ -734,7 +734,7 @@ public abstract class GeckoApp
             // setMultiChoiceItems doesn't support using an adapter, so we're creating a hack with
             // setSingleChoiceItems and changing the choiceMode below when we create the dialog
             builder.setSingleChoiceItems(new SimpleAdapter(
-                GeckoApp.this,
+                GoannaApp.this,
                 itemList,
                 R.layout.site_setting_item,
                 new String[] { "setting", "value" },
@@ -756,7 +756,7 @@ public abstract class GeckoApp
                         if (checkedItemPositions.get(i))
                             permissionsToClear.put(i);
 
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(
                         "Permissions:Clear", permissionsToClear.toString()));
                 }
             });
@@ -790,7 +790,7 @@ public abstract class GeckoApp
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                Toast.makeText(GeckoApp.this, resId, duration).show();
+                Toast.makeText(GoannaApp.this, resId, duration).show();
             }
         });
     }
@@ -801,9 +801,9 @@ public abstract class GeckoApp
             public void run() {
                 Toast toast;
                 if (duration.equals("long")) {
-                    toast = Toast.makeText(GeckoApp.this, message, Toast.LENGTH_LONG);
+                    toast = Toast.makeText(GoannaApp.this, message, Toast.LENGTH_LONG);
                 } else {
-                    toast = Toast.makeText(GeckoApp.this, message, Toast.LENGTH_SHORT);
+                    toast = Toast.makeText(GoannaApp.this, message, Toast.LENGTH_SHORT);
                 }
                 toast.show();
             }
@@ -824,14 +824,14 @@ public abstract class GeckoApp
     void showButtonToast(final String message, final String duration,
                          final String buttonText, final String buttonIcon,
                          final String buttonId) {
-        BitmapUtils.getDrawable(GeckoApp.this, buttonIcon, new BitmapUtils.BitmapLoader() {
+        BitmapUtils.getDrawable(GoannaApp.this, buttonIcon, new BitmapUtils.BitmapLoader() {
             @Override
             public void onBitmapFound(final Drawable d) {
                 final int toastDuration = duration.equals("long") ? ButtonToast.LENGTH_LONG : ButtonToast.LENGTH_SHORT;
                 getButtonToast().show(false, message, toastDuration ,buttonText, d, new ButtonToast.ToastListener() {
                     @Override
                     public void onButtonClicked() {
-                        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Click", buttonId));
+                        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Toast:Click", buttonId));
                     }
 
                     @Override
@@ -839,7 +839,7 @@ public abstract class GeckoApp
                         if (reason == ButtonToast.ReasonHidden.TIMEOUT ||
                             reason == ButtonToast.ReasonHidden.TOUCH_OUTSIDE ||
                             reason == ButtonToast.ReasonHidden.REPLACED) {
-                            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Hidden", buttonId));
+                            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Toast:Hidden", buttonId));
                         }
                     }
                 });
@@ -929,7 +929,7 @@ public abstract class GeckoApp
 
         mFullScreenPluginView = null;
 
-        GeckoScreenOrientation.getInstance().unlock();
+        GoannaScreenOrientation.getInstance().unlock();
         setFullScreen(false);
     }
 
@@ -1097,7 +1097,7 @@ public abstract class GeckoApp
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                ActivityUtils.setFullScreen(GeckoApp.this, fullscreen);
+                ActivityUtils.setFullScreen(GoannaApp.this, fullscreen);
             }
         });
     }
@@ -1110,7 +1110,7 @@ public abstract class GeckoApp
         for (int i = 1; env != null; i++) {
             if (env.startsWith("MOZ_PROFILER_STARTUP=")) {
                 if (!env.endsWith("=")) {
-                    GeckoJavaSampler.start(10, 1000);
+                    GoannaJavaSampler.start(10, 1000);
                     Log.d(LOGTAG, "Profiling Java on startup");
                 }
                 break;
@@ -1127,7 +1127,7 @@ public abstract class GeckoApp
      **/
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        GeckoAppShell.ensureCrashHandling();
+        GoannaAppShell.ensureCrashHandling();
 
         // Enable Android Strict Mode for developers' local builds (the "default" channel).
         if ("default".equals(AppConstants.MOZ_UPDATE_CHANNEL)) {
@@ -1136,7 +1136,7 @@ public abstract class GeckoApp
 
         // The clock starts...now. Better hurry!
         mJavaUiStartupTimer = new Telemetry.UptimeTimer("FENNEC_STARTUP_TIME_JAVAUI");
-        mGeckoReadyStartupTimer = new Telemetry.UptimeTimer("FENNEC_STARTUP_TIME_GECKOREADY");
+        mGoannaReadyStartupTimer = new Telemetry.UptimeTimer("FENNEC_STARTUP_TIME_GECKOREADY");
 
         final SafeIntent intent = new SafeIntent(getIntent());
         final String action = intent.getAction();
@@ -1144,10 +1144,10 @@ public abstract class GeckoApp
 
         earlyStartJavaSampler(intent);
 
-        // GeckoLoader wants to dig some environment variables out of the
-        // incoming intent, so pass it in here. GeckoLoader will do its
+        // GoannaLoader wants to dig some environment variables out of the
+        // incoming intent, so pass it in here. GoannaLoader will do its
         // business later and dispose of the reference.
-        GeckoLoader.setLastIntent(intent);
+        GoannaLoader.setLastIntent(intent);
 
         // If we don't already have a profile, but we do have arguments,
         // let's see if they're enough to find one.
@@ -1155,7 +1155,7 @@ public abstract class GeckoApp
         // the profile prior to this code being run, then they do something
         // similar.
         if (mProfile == null && args != null) {
-            final GeckoProfile p = GeckoProfile.getFromArgs(this, args);
+            final GoannaProfile p = GoannaProfile.getFromArgs(this, args);
             if (p != null) {
                 mProfile = p;
             }
@@ -1176,14 +1176,14 @@ public abstract class GeckoApp
 
         MemoryMonitor.getInstance().init(getApplicationContext());
 
-        // GeckoAppShell is tightly coupled to us, rather than
+        // GoannaAppShell is tightly coupled to us, rather than
         // the app context, because various parts of Fennec (e.g.,
-        // GeckoScreenOrientation) use GAS to access the Activity in
+        // GoannaScreenOrientation) use GAS to access the Activity in
         // the guise of fetching a Context.
         // When that's fixed, `this` can change to
-        // `(GeckoApplication) getApplication()` here.
-        GeckoAppShell.setContextGetter(this);
-        GeckoAppShell.setGeckoInterface(this);
+        // `(GoannaApplication) getApplication()` here.
+        GoannaAppShell.setContextGetter(this);
+        GoannaAppShell.setGoannaInterface(this);
 
         Tabs.getInstance().attachToContext(this);
         try {
@@ -1193,22 +1193,22 @@ public abstract class GeckoApp
         }
 
         // Did the OS locale change while we were backgrounded? If so,
-        // we need to die so that Gecko will re-init add-ons that touch
+        // we need to die so that Goanna will re-init add-ons that touch
         // the UI.
         // This is using a sledgehammer to crack a nut, but it'll do for
         // now.
         // Our OS locale pref will be detected as invalid after the
-        // restart, and will be propagated to Gecko accordingly, so there's
+        // restart, and will be propagated to Goanna accordingly, so there's
         // no need to touch that here.
         if (BrowserLocaleManager.getInstance().systemLocaleDidChange()) {
             Log.i(LOGTAG, "System locale changed. Restarting.");
             doRestart();
-            GeckoAppShell.gracefulExit();
+            GoannaAppShell.gracefulExit();
             return;
         }
 
-        if (GeckoThread.isCreated()) {
-            // This happens when the GeckoApp activity is destroyed by Android
+        if (GoannaThread.isCreated()) {
+            // This happens when the GoannaApp activity is destroyed by Android
             // without killing the entire application (see Bug 769269).
             mIsRestoringActivity = true;
             Telemetry.addToHistogram("FENNEC_RESTORING_ACTIVITY", 1);
@@ -1216,24 +1216,24 @@ public abstract class GeckoApp
         } else {
             final String uri = getURIFromIntent(intent);
 
-            GeckoThread.setArgs(args);
-            GeckoThread.setAction(action);
-            GeckoThread.setUri(TextUtils.isEmpty(uri) ? null : uri);
+            GoannaThread.setArgs(args);
+            GoannaThread.setAction(action);
+            GoannaThread.setUri(TextUtils.isEmpty(uri) ? null : uri);
         }
 
         if (!ACTION_DEBUG.equals(action) &&
-                GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching,
-                                                   GeckoThread.LaunchState.Launched)) {
-            GeckoThread.createAndStart();
+                GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.Launching,
+                                                   GoannaThread.LaunchState.Launched)) {
+            GoannaThread.createAndStart();
 
         } else if (ACTION_DEBUG.equals(action) &&
-                GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching,
-                                                   GeckoThread.LaunchState.WaitForDebugger)) {
+                GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.Launching,
+                                                   GoannaThread.LaunchState.WaitForDebugger)) {
             ThreadUtils.getUiHandler().postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    GeckoThread.setLaunchState(GeckoThread.LaunchState.Launched);
-                    GeckoThread.createAndStart();
+                    GoannaThread.setLaunchState(GoannaThread.LaunchState.Launched);
+                    GoannaThread.createAndStart();
                 }
             }, 1000 * 5 /* 5 seconds */);
         }
@@ -1256,13 +1256,13 @@ public abstract class GeckoApp
 
         super.onCreate(savedInstanceState);
 
-        GeckoScreenOrientation.getInstance().update(getResources().getConfiguration().orientation);
+        GoannaScreenOrientation.getInstance().update(getResources().getConfiguration().orientation);
 
         setContentView(getLayout());
 
-        // Set up Gecko layout.
+        // Set up Goanna layout.
         mRootLayout = (OuterLayout) findViewById(R.id.root_layout);
-        mGeckoLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
+        mGoannaLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
         mMainLayout = (RelativeLayout) findViewById(R.id.main_layout);
 
         // Determine whether we should restore tabs.
@@ -1284,7 +1284,7 @@ public abstract class GeckoApp
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                final SharedPreferences prefs = GeckoApp.this.getSharedPreferences();
+                final SharedPreferences prefs = GoannaApp.this.getSharedPreferences();
 
                 // Wait until now to set this, because we'd rather throw an exception than
                 // have a caller of BrowserLocaleManager regress startup.
@@ -1297,11 +1297,11 @@ public abstract class GeckoApp
                 }
 
                 SharedPreferences.Editor editor = prefs.edit();
-                editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, false);
+                editor.putBoolean(GoannaApp.PREFS_OOM_EXCEPTION, false);
 
                 // Put a flag to check if we got a normal `onSaveInstanceState`
                 // on exit, or if we were suddenly killed (crash or native OOM).
-                editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
+                editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, false);
 
                 editor.apply();
 
@@ -1316,14 +1316,14 @@ public abstract class GeckoApp
 
                 // Both of these are Java-format locale strings: "en_US", not "en-US".
                 final String osLocaleString = osLocale.toString();
-                String appLocaleString = localeManager.getAndApplyPersistedLocale(GeckoApp.this);
+                String appLocaleString = localeManager.getAndApplyPersistedLocale(GoannaApp.this);
                 Log.d(LOGTAG, "OS locale is " + osLocaleString + ", app locale is " + appLocaleString);
 
                 if (appLocaleString == null) {
                     appLocaleString = osLocaleString;
                 }
 
-                mHealthRecorder = GeckoApp.this.createHealthRecorder(GeckoApp.this,
+                mHealthRecorder = GoannaApp.this.createHealthRecorder(GoannaApp.this,
                                                                      profilePath,
                                                                      dispatcher,
                                                                      osLocaleString,
@@ -1334,17 +1334,17 @@ public abstract class GeckoApp
                 ThreadUtils.postToUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        GeckoApp.this.onLocaleReady(uiLocale);
+                        GoannaApp.this.onLocaleReady(uiLocale);
                     }
                 });
 
                 // We use per-profile prefs here, because we're tracking against
-                // a Gecko pref. The same applies to the locale switcher!
-                BrowserLocaleManager.storeAndNotifyOSLocale(GeckoSharedPrefs.forProfile(GeckoApp.this), osLocale);
+                // a Goanna pref. The same applies to the locale switcher!
+                BrowserLocaleManager.storeAndNotifyOSLocale(GoannaSharedPrefs.forProfile(GoannaApp.this), osLocale);
             }
         });
 
-        GeckoAppShell.setNotificationClient(makeNotificationClient());
+        GoannaAppShell.setNotificationClient(makeNotificationClient());
         IntentHelper.init(this);
     }
 
@@ -1378,7 +1378,7 @@ public abstract class GeckoApp
             final String hint = getResources().getString(R.string.url_bar_default_text);
             urlBar.setHint(hint);
         } else {
-            Log.d(LOGTAG, "No URL bar in GeckoApp. Not loading localized hint string.");
+            Log.d(LOGTAG, "No URL bar in GoannaApp. Not loading localized hint string.");
         }
 
         mLastLocale = loc;
@@ -1407,8 +1407,8 @@ public abstract class GeckoApp
             LayerView layerView = (LayerView) findViewById(R.id.layer_view);
             layerView.initializeView(EventDispatcher.getInstance());
             mLayerView = layerView;
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createObjectEvent(
-                GeckoEvent.ACTION_OBJECT_LAYER_CLIENT, layerView.getLayerClientObject()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createObjectEvent(
+                GoannaEvent.ACTION_OBJECT_LAYER_CLIENT, layerView.getLayerClientObject()));
         }
     }
 
@@ -1459,14 +1459,14 @@ public abstract class GeckoApp
         }
 
         // Start migrating as early as possible, can do this in
-        // parallel with Gecko load.
+        // parallel with Goanna load.
         checkMigrateProfile();
 
         Tabs.registerOnTabsChangedListener(this);
 
         initializeChrome();
 
-        // If we are doing a restore, read the session data and send it to Gecko
+        // If we are doing a restore, read the session data and send it to Goanna
         if (!mIsRestoringActivity) {
             String restoreMessage = null;
             if (mShouldRestore) {
@@ -1475,7 +1475,7 @@ public abstract class GeckoApp
                     // URL and title for each page, but we also need to restore
                     // session history. restoreSessionTabs() will inject the IDs
                     // of the tab stubs into the JSON data (which holds the session
-                    // history). This JSON data is then sent to Gecko so session
+                    // history). This JSON data is then sent to Goanna so session
                     // history can be restored for each tab.
                     restoreMessage = restoreSessionTabs(isExternalURL);
                 } catch (SessionRestoreException e) {
@@ -1485,10 +1485,10 @@ public abstract class GeckoApp
                 }
             }
 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Restore", restoreMessage));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Session:Restore", restoreMessage));
         }
 
-        // External URLs should always be loaded regardless of whether Gecko is
+        // External URLs should always be loaded regardless of whether Goanna is
         // already running.
         if (isExternalURL) {
             // Restore tabs before opening an external URL so that the new tab
@@ -1517,23 +1517,23 @@ public abstract class GeckoApp
 
         // Check if launched from data reporting notification.
         if (ACTION_LAUNCH_SETTINGS.equals(action)) {
-            Intent settingsIntent = new Intent(GeckoApp.this, GeckoPreferences.class);
+            Intent settingsIntent = new Intent(GoannaApp.this, GoannaPreferences.class);
             // Copy extras.
             settingsIntent.putExtras(intent.getUnsafe());
             startActivity(settingsIntent);
         }
 
         //app state callbacks
-        mAppStateListeners = new LinkedList<GeckoAppShell.AppStateListener>();
+        mAppStateListeners = new LinkedList<GoannaAppShell.AppStateListener>();
 
         //register for events
-        EventDispatcher.getInstance().registerGeckoThreadListener((GeckoEventListener)this,
-            "Gecko:Ready",
-            "Gecko:DelayedStartup",
+        EventDispatcher.getInstance().registerGoannaThreadListener((GoannaEventListener)this,
+            "Goanna:Ready",
+            "Goanna:DelayedStartup",
             "Accessibility:Event",
             "NativeApp:IsDebuggable");
 
-        EventDispatcher.getInstance().registerGeckoThreadListener((NativeEventListener)this,
+        EventDispatcher.getInstance().registerGoannaThreadListener((NativeEventListener)this,
             "Accessibility:Ready",
             "Bookmark:Insert",
             "Contact:Add",
@@ -1585,25 +1585,25 @@ public abstract class GeckoApp
                     rec.recordJavaStartupTime(javaDuration);
                 }
 
-                UpdateServiceHelper.registerForUpdates(GeckoApp.this);
+                UpdateServiceHelper.registerForUpdates(GoannaApp.this);
 
                 // Kick off our background services. We do this by invoking the broadcast
                 // receiver, which uses the system alarm infrastructure to perform tasks at
                 // intervals.
-                GeckoPreferences.broadcastHealthReportUploadPref(GeckoApp.this);
-                if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.Launched)) {
+                GoannaPreferences.broadcastHealthReportUploadPref(GoannaApp.this);
+                if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.Launched)) {
                     return;
                 }
             }
         }, 50);
 
         if (mIsRestoringActivity) {
-            GeckoThread.setLaunchState(GeckoThread.LaunchState.GeckoRunning);
+            GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaRunning);
             Tab selectedTab = Tabs.getInstance().getSelectedTab();
             if (selectedTab != null)
                 Tabs.getInstance().notifyListeners(selectedTab, Tabs.TabEvents.SELECTED);
             geckoConnected();
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Viewport:Flush", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Viewport:Flush", null));
         }
 
         if (ACTION_ALERT_CALLBACK.equals(action)) {
@@ -1622,7 +1622,7 @@ public abstract class GeckoApp
 
             // If we are doing an OOM restore, parse the session data and
             // stub the restored tabs immediately. This allows the UI to be
-            // updated before Gecko has restored.
+            // updated before Goanna has restored.
             if (mShouldRestore) {
                 final JSONArray tabs = new JSONArray();
                 final JSONObject windowObject = new JSONObject();
@@ -1676,10 +1676,10 @@ public abstract class GeckoApp
     }
 
     @Override
-    public synchronized GeckoProfile getProfile() {
+    public synchronized GoannaProfile getProfile() {
         // fall back to default profile if we didn't load a specific one
         if (mProfile == null) {
-            mProfile = GeckoProfile.get(this);
+            mProfile = GoannaProfile.get(this);
         }
         return mProfile;
     }
@@ -1706,7 +1706,7 @@ public abstract class GeckoApp
             // We're coming back from a background kill by the OS, the user
             // has chosen to always restore, or we restarted.
             shouldRestore = true;
-        } else if (prefs.getBoolean(GeckoApp.PREFS_CRASHED, false)) {
+        } else if (prefs.getBoolean(GoannaApp.PREFS_CRASHED, false)) {
             prefs.edit().putBoolean(PREFS_CRASHED, false).apply();
             shouldRestore = true;
         }
@@ -1715,7 +1715,7 @@ public abstract class GeckoApp
     }
 
     private String getSessionRestorePreference() {
-        return getSharedPreferences().getString(GeckoPreferences.PREFS_RESTORE_SESSION, "quit");
+        return getSharedPreferences().getString(GoannaPreferences.PREFS_RESTORE_SESSION, "quit");
     }
 
     private boolean getRestartFromIntent() {
@@ -1747,7 +1747,7 @@ public abstract class GeckoApp
             @Override
             public void onOrientationChanged(int orientation) {
                 if (mAppStateListeners != null) {
-                    for (GeckoAppShell.AppStateListener listener: mAppStateListeners) {
+                    for (GoannaAppShell.AppStateListener listener: mAppStateListeners) {
                         listener.onOrientationChanged();
                     }
                 }
@@ -1804,10 +1804,10 @@ public abstract class GeckoApp
     protected void onNewIntent(Intent externalIntent) {
         final SafeIntent intent = new SafeIntent(externalIntent);
 
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoExiting)) {
+        if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaExiting)) {
             // We're exiting and shouldn't try to do anything else. In the case
             // where we are hung while exiting, we should force the process to exit.
-            GeckoAppShell.systemExit();
+            GoannaAppShell.systemExit();
             return;
         }
 
@@ -1830,17 +1830,17 @@ public abstract class GeckoApp
                                             Tabs.LOADURL_EXTERNAL);
         } else if (ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
             String uri = getURIFromIntent(intent);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBookmarkLoadEvent(uri));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBookmarkLoadEvent(uri));
         } else if (Intent.ACTION_SEARCH.equals(action)) {
             String uri = getURIFromIntent(intent);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createURILoadEvent(uri));
         } else if (ACTION_ALERT_CALLBACK.equals(action)) {
             processAlertCallback(intent);
         } else if (NotificationHelper.HELPER_BROADCAST_ACTION.equals(action)) {
             NotificationHelper.getInstance(getApplicationContext()).handleNotificationIntent(intent);
         } else if (ACTION_LAUNCH_SETTINGS.equals(action)) {
             // Check if launched from data reporting notification.
-            Intent settingsIntent = new Intent(GeckoApp.this, GeckoPreferences.class);
+            Intent settingsIntent = new Intent(GoannaApp.this, GoannaPreferences.class);
             // Copy extras.
             settingsIntent.putExtras(intent.getUnsafe());
             startActivity(settingsIntent);
@@ -1861,7 +1861,7 @@ public abstract class GeckoApp
     }
 
     protected int getOrientation() {
-        return GeckoScreenOrientation.getInstance().getAndroidOrientation();
+        return GoannaScreenOrientation.getInstance().getAndroidOrientation();
     }
 
     @Override
@@ -1872,7 +1872,7 @@ public abstract class GeckoApp
         super.onResume();
 
         int newOrientation = getResources().getConfiguration().orientation;
-        if (GeckoScreenOrientation.getInstance().update(newOrientation)) {
+        if (GoannaScreenOrientation.getInstance().update(newOrientation)) {
             refreshChrome();
         }
 
@@ -1880,11 +1880,11 @@ public abstract class GeckoApp
             // Update accessibility settings in case it has been changed by the
             // user. On API14+, this is handled in LayerView by registering an
             // accessibility state change listener.
-            GeckoAccessibility.updateAccessibilitySettings(this);
+            GoannaAccessibility.updateAccessibilitySettings(this);
         }
 
         if (mAppStateListeners != null) {
-            for (GeckoAppShell.AppStateListener listener : mAppStateListeners) {
+            for (GoannaAppShell.AppStateListener listener : mAppStateListeners) {
                 listener.onResume();
             }
         }
@@ -1902,9 +1902,9 @@ public abstract class GeckoApp
                 // so it can benefit from a single near-startup prefs commit.
                 SessionInformation currentSession = new SessionInformation(now, realTime);
 
-                SharedPreferences prefs = GeckoApp.this.getSharedPreferences();
+                SharedPreferences prefs = GoannaApp.this.getSharedPreferences();
                 SharedPreferences.Editor editor = prefs.edit();
-                editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
+                editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, false);
                 currentSession.recordBegin(editor);
                 editor.apply();
 
@@ -1941,19 +1941,19 @@ public abstract class GeckoApp
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                SharedPreferences prefs = GeckoApp.this.getSharedPreferences();
+                SharedPreferences prefs = GoannaApp.this.getSharedPreferences();
                 SharedPreferences.Editor editor = prefs.edit();
-                editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, true);
+                editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, true);
                 if (rec != null) {
                     rec.recordSessionEnd("P", editor);
                 }
 
                 // If we haven't done it before, cleanup any old files in our old temp dir
-                if (prefs.getBoolean(GeckoApp.PREFS_CLEANUP_TEMP_FILES, true)) {
-                    File tempDir = GeckoLoader.getGREDir(GeckoApp.this);
+                if (prefs.getBoolean(GoannaApp.PREFS_CLEANUP_TEMP_FILES, true)) {
+                    File tempDir = GoannaLoader.getGREDir(GoannaApp.this);
                     FileUtils.delTree(tempDir, new FileUtils.NameAndAgeFilter(null, ONE_DAY_MS), false);
 
-                    editor.putBoolean(GeckoApp.PREFS_CLEANUP_TEMP_FILES, false);
+                    editor.putBoolean(GoannaApp.PREFS_CLEANUP_TEMP_FILES, false);
                 }
 
                 editor.apply();
@@ -1961,12 +1961,12 @@ public abstract class GeckoApp
                 // In theory, the first browser session will not run long enough that we need to
                 // prune during it and we'd rather run it when the browser is inactive so we wait
                 // until here to register the prune service.
-                GeckoPreferences.broadcastHealthReportPrune(context);
+                GoannaPreferences.broadcastHealthReportPrune(context);
             }
         });
 
         if (mAppStateListeners != null) {
-            for (GeckoAppShell.AppStateListener listener : mAppStateListeners) {
+            for (GoannaAppShell.AppStateListener listener : mAppStateListeners) {
                 listener.onPause();
             }
         }
@@ -1979,8 +1979,8 @@ public abstract class GeckoApp
         // Faster on main thread with an async apply().
         final StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskReads();
         try {
-            SharedPreferences.Editor editor = GeckoApp.this.getSharedPreferences().edit();
-            editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, false);
+            SharedPreferences.Editor editor = GoannaApp.this.getSharedPreferences().edit();
+            editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, false);
             editor.apply();
         } finally {
             StrictMode.setThreadPolicy(savedPolicy);
@@ -1991,13 +1991,13 @@ public abstract class GeckoApp
 
     @Override
     public void onDestroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener((GeckoEventListener)this,
-            "Gecko:Ready",
-            "Gecko:DelayedStartup",
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((GoannaEventListener)this,
+            "Goanna:Ready",
+            "Goanna:DelayedStartup",
             "Accessibility:Event",
             "NativeApp:IsDebuggable");
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener((NativeEventListener)this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((NativeEventListener)this,
             "Accessibility:Ready",
             "Bookmark:Insert",
             "Contact:Add",
@@ -2040,7 +2040,7 @@ public abstract class GeckoApp
             mTextSelection.destroy();
         NotificationHelper.destroy();
         IntentHelper.destroy();
-        GeckoNetworkManager.destroy();
+        GoannaNetworkManager.destroy();
 
         if (SmsManager.isEnabled()) {
             SmsManager.getInstance().stop();
@@ -2070,7 +2070,7 @@ public abstract class GeckoApp
 
     // Get a temporary directory, may return null
     public static File getTempDirectory() {
-        File dir = GeckoApplication.get().getExternalFilesDir("temp");
+        File dir = GoannaApplication.get().getExternalFilesDir("temp");
         return dir;
     }
 
@@ -2100,7 +2100,7 @@ public abstract class GeckoApp
         // onConfigurationChanged is not called for 180 degree orientation changes,
         // we will miss such rotations and the screen orientation will not be
         // updated.
-        if (GeckoScreenOrientation.getInstance().update(newConfig.orientation)) {
+        if (GoannaScreenOrientation.getInstance().update(newConfig.orientation)) {
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
             refreshChrome();
@@ -2155,7 +2155,7 @@ public abstract class GeckoApp
 
             intent.putExtra("didRestart", true);
             Log.d(LOGTAG, "Restart intent: " + intent.toString());
-            GeckoAppShell.killAnyZombies();
+            GoannaAppShell.killAnyZombies();
             startActivity(intent);
         } catch (Exception e) {
             Log.e(LOGTAG, "Error effecting restart.", e);
@@ -2163,15 +2163,15 @@ public abstract class GeckoApp
 
         finish();
         // Give the restart process time to start before we die
-        GeckoAppShell.waitForAnotherGeckoProc();
+        GoannaAppShell.waitForAnotherGoannaProc();
     }
 
     public void handleNotification(String action, String alertName, String alertCookie) {
-        // If Gecko isn't running yet, we ignore the notification. Note that
-        // even if Gecko is running but it was restarted since the notification
+        // If Goanna isn't running yet, we ignore the notification. Note that
+        // even if Goanna is running but it was restarted since the notification
         // was created, the notification won't be handled (bug 849653).
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-            GeckoAppShell.handleNotification(action, alertName, alertCookie);
+        if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
+            GoannaAppShell.handleNotification(action, alertName, alertCookie);
         }
     }
 
@@ -2192,7 +2192,7 @@ public abstract class GeckoApp
     private class DeferredCleanupTask implements Runnable {
         // The cleanup-version setting is recorded to avoid repeating the same
         // tasks on subsequent startups; CURRENT_CLEANUP_VERSION may be updated
-        // if we need to do additional cleanup for future Gecko versions.
+        // if we need to do additional cleanup for future Goanna versions.
 
         private static final String CLEANUP_VERSION = "cleanup-version";
         private static final int CURRENT_CLEANUP_VERSION = 1;
@@ -2222,7 +2222,7 @@ public abstract class GeckoApp
             // Additional cleanup needed for future versions would go here
 
             if (cleanupVersion != CURRENT_CLEANUP_VERSION) {
-                SharedPreferences.Editor editor = GeckoApp.this.getSharedPreferences().edit();
+                SharedPreferences.Editor editor = GoannaApp.this.getSharedPreferences().edit();
                 editor.putInt(CLEANUP_VERSION, CURRENT_CLEANUP_VERSION);
                 editor.apply();
             }
@@ -2251,13 +2251,13 @@ public abstract class GeckoApp
         }
 
         if (mFullScreenPluginView != null) {
-            GeckoAppShell.onFullScreenPluginHidden(mFullScreenPluginView);
+            GoannaAppShell.onFullScreenPluginHidden(mFullScreenPluginView);
             removeFullScreenPluginView(mFullScreenPluginView);
             return;
         }
 
         if (mLayerView != null && mLayerView.isFullScreen()) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FullScreen:Exit", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FullScreen:Exit", null));
             return;
         }
 
@@ -2305,14 +2305,14 @@ public abstract class GeckoApp
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createSensorEvent(event));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createSensorEvent(event));
     }
 
     // Geolocation.
     @Override
     public void onLocationChanged(Location location) {
         // No logging here: user-identifying information.
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createLocationEvent(location));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createLocationEvent(location));
     }
 
     @Override
@@ -2333,7 +2333,7 @@ public abstract class GeckoApp
     private static final String CPU = "cpu";
     private static final String SCREEN = "screen";
 
-    // Called when a Gecko Hal WakeLock is changed
+    // Called when a Goanna Hal WakeLock is changed
     @Override
     public void notifyWakeLockChanged(String topic, String state) {
         PowerManager.WakeLock wl = mWakeLocks.get(topic);
@@ -2358,7 +2358,7 @@ public abstract class GeckoApp
 
     @Override
     public void notifyCheckUpdateResult(String result) {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Update:CheckResult", result));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Update:CheckResult", result));
     }
 
     protected void geckoConnected() {
@@ -2444,7 +2444,7 @@ public abstract class GeckoApp
              * for the video. It is unhappy if we have the LayerView underneath
              * it for some reason so we need to hide that. Hiding the LayerView causes
              * its surface to be destroyed, which causes a pause composition
-             * event to be sent to Gecko. We synchronously wait for that to be
+             * event to be sent to Goanna. We synchronously wait for that to be
              * processed. Simultaneously, however, Flash is waiting on a mutex so
              * the post() below is an attempt to avoid a deadlock.
              */
@@ -2534,9 +2534,9 @@ public abstract class GeckoApp
 
     /**
      * This exists so that a locale can be applied in two places: when saved
-     * in a nested activity, and then again when we get back up to GeckoApp.
+     * in a nested activity, and then again when we get back up to GoannaApp.
      *
-     * GeckoApp needs to do a bunch more stuff than, say, GeckoPreferences.
+     * GoannaApp needs to do a bunch more stuff than, say, GoannaPreferences.
      */
     protected void onLocaleChanged(final String locale) {
         final boolean startNewSession = true;
@@ -2555,7 +2555,7 @@ public abstract class GeckoApp
             ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    GeckoApp.this.onLocaleReady(locale);
+                    GoannaApp.this.onLocaleReady(locale);
                 }
             });
             return;
@@ -2566,8 +2566,8 @@ public abstract class GeckoApp
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                GeckoApp.this.doRestart();
-                GeckoApp.this.finish();
+                GoannaApp.this.doRestart();
+                GoannaApp.this.finish();
             }
         });
     }
@@ -2612,7 +2612,7 @@ public abstract class GeckoApp
                                                   final String osLocale,
                                                   final String appLocale,
                                                   final SessionInformation previousSession) {
-        // GeckoApp does not need to record any health information - return a stub.
+        // GoannaApp does not need to record any health information - return a stub.
         return new StubbedHealthRecorder();
     }
 }

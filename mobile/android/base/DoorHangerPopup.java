@@ -13,7 +13,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.prompts.PromptInput;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.ArrowPopup;
 import org.mozilla.gecko.widget.DoorHanger;
@@ -24,10 +24,10 @@ import android.view.View;
 import android.widget.CheckBox;
 
 public class DoorHangerPopup extends ArrowPopup
-                             implements GeckoEventListener,
+                             implements GoannaEventListener,
                                         Tabs.OnTabsChangedListener,
                                         DoorHanger.OnButtonClickListener {
-    private static final String LOGTAG = "GeckoDoorHangerPopup";
+    private static final String LOGTAG = "GoannaDoorHangerPopup";
 
     // Stores a set of all active DoorHanger notifications. A DoorHanger is
     // uniquely identified by its tabId and value.
@@ -41,14 +41,14 @@ public class DoorHangerPopup extends ArrowPopup
 
         mDoorHangers = new HashSet<DoorHanger>();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Doorhanger:Add",
             "Doorhanger:Remove");
         Tabs.registerOnTabsChangedListener(this);
     }
 
     void destroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "Doorhanger:Add",
             "Doorhanger:Remove");
         Tabs.unregisterOnTabsChangedListener(this);
@@ -217,8 +217,8 @@ public class DoorHangerPopup extends ArrowPopup
             Log.e(LOGTAG, "Error creating onClick response", e);
         }
 
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Doorhanger:Reply", response.toString());
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createBroadcastEvent("Doorhanger:Reply", response.toString());
+        GoannaAppShell.sendEventToGoanna(e);
         removeDoorHanger(dh);
         updatePopup();
     }

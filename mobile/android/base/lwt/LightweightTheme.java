@@ -11,9 +11,9 @@ import java.util.List;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.WindowUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
@@ -34,8 +34,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewParent;
 
-public class LightweightTheme implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoLightweightTheme";
+public class LightweightTheme implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaLightweightTheme";
 
     private static final String PREFS_URL = "lightweightTheme.headerURL";
     private static final String PREFS_COLOR = "lightweightTheme.color";
@@ -72,13 +72,13 @@ public class LightweightTheme implements GeckoEventListener {
         }
 
         private void loadFromPrefs() {
-            SharedPreferences prefs = GeckoSharedPrefs.forProfile(mApplication);
+            SharedPreferences prefs = GoannaSharedPrefs.forProfile(mApplication);
             mSavedURL = prefs.getString(PREFS_URL, null);
             mSavedColor = prefs.getString(PREFS_COLOR, null);
         }
 
         private void saveToPrefs() {
-            GeckoSharedPrefs.forProfile(mApplication)
+            GoannaSharedPrefs.forProfile(mApplication)
                             .edit()
                             .putString(PREFS_URL, mHeaderURL)
                             .putString(PREFS_COLOR, mColor)
@@ -135,7 +135,7 @@ public class LightweightTheme implements GeckoEventListener {
         mListeners = new ArrayList<OnChangeListener>();
 
         // unregister isn't needed as the lifetime is same as the application.
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "LightweightTheme:Update",
             "LightweightTheme:Disable");
 
@@ -163,7 +163,7 @@ public class LightweightTheme implements GeckoEventListener {
                 ThreadUtils.postToBackgroundThread(new LightweightThemeRunnable(headerURL, color));
             } else if (event.equals("LightweightTheme:Disable")) {
                 // Clear the saved data when a theme is disabled.
-                // Called on the Gecko thread, but should be very lightweight.
+                // Called on the Goanna thread, but should be very lightweight.
                 clearPrefs();
 
                 ThreadUtils.postToUiThread(new Runnable() {
@@ -182,7 +182,7 @@ public class LightweightTheme implements GeckoEventListener {
      * Clear the data stored in preferences for fast path loading during startup
      */
     private void clearPrefs() {
-        GeckoSharedPrefs.forProfile(mApplication)
+        GoannaSharedPrefs.forProfile(mApplication)
                         .edit()
                         .remove(PREFS_URL)
                         .remove(PREFS_COLOR)

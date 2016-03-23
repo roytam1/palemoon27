@@ -28,7 +28,7 @@ class OwningHeadersOrByteStringSequenceSequenceOrByteStringMozMap;
 
 /**
  * This Headers class is only used to represent the content facing Headers
- * object. It is actually backed by an InternalHeaders implementation. Gecko
+ * object. It is actually backed by an InternalHeaders implementation. Goanna
  * code should NEVER use this, except in the Request and Response
  * implementations, where they must always be created from the backing
  * InternalHeaders object.

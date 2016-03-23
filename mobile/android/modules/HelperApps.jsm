@@ -163,7 +163,7 @@ var HelperApps =  {
 
   _parseApps: function _parseApps(appInfo) {
     // appInfo -> {apps: [app1Label, app1Default, app1PackageName, app1ActivityName, app2Label, app2Defaut, ...]}
-    // see GeckoAppShell.java getHandlersForIntent function for details
+    // see GoannaAppShell.java getHandlersForIntent function for details
     const numAttr = 4; // 4 elements per ResolveInfo: label, default, package name, activity name.
 
     let apps = [];

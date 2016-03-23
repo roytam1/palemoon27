@@ -74,7 +74,7 @@ static mozilla::StaticAutoPtr<mozilla::ProfilerIOInterposeObserver>
 // the thread that calls mozilla_sampler_init is considered
 // the gecko thread.  With metro the gecko thread is
 // registered later based on this thread name.
-static const char * gGeckoThreadName = "GeckoMain";
+static const char * gGoannaThreadName = "GoannaMain";
 
 void Sampler::Startup() {
   sRegisteredThreads = new std::vector<ThreadInfo*>();
@@ -434,7 +434,7 @@ bool is_main_thread_name(const char* aName) {
   if (!aName) {
     return false;
   }
-  return strcmp(aName, gGeckoThreadName) == 0;
+  return strcmp(aName, gGoannaThreadName) == 0;
 }
 
 #ifdef HAVE_VA_COPY
@@ -504,7 +504,7 @@ void mozilla_sampler_init(void* stackTop)
   isMainThread = !(XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro);
 #endif
   Sampler::RegisterCurrentThread(isMainThread ?
-                                   gGeckoThreadName : "Application Thread",
+                                   gGoannaThreadName : "Application Thread",
                                  stack, isMainThread, stackTop);
 
   // Read mode settings from MOZ_PROFILER_MODE and interval
@@ -536,7 +536,7 @@ void mozilla_sampler_init(void* stackTop)
 #endif
                          };
 
-  const char* threadFilters[] = { "GeckoMain", "Compositor" };
+  const char* threadFilters[] = { "GoannaMain", "Compositor" };
 
   profiler_start(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
                          features, MOZ_ARRAY_LENGTH(features),
@@ -746,7 +746,7 @@ void mozilla_sampler_start(int aProfileEntries, double aInterval,
     if (javaInterval < 10) {
       aInterval = 10;
     }
-    mozilla::widget::GeckoJavaSampler::StartJavaProfiling(javaInterval, 1000);
+    mozilla::widget::GoannaJavaSampler::StartJavaProfiling(javaInterval, 1000);
   }
 #endif
 

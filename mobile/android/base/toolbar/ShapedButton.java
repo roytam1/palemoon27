@@ -4,7 +4,7 @@
 
 package org.mozilla.gecko.toolbar;
 
-import org.mozilla.gecko.GeckoApplication;
+import org.mozilla.gecko.GoannaApplication;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.lwt.LightweightTheme;
 import org.mozilla.gecko.lwt.LightweightThemeDrawable;

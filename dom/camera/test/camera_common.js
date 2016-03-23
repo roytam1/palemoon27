@@ -2,7 +2,7 @@ var CameraTest = (function() {
   'use strict';
 
   /**
-   * 'camera.control.test.enabled' is queried in Gecko to enable different
+   * 'camera.control.test.enabled' is queried in Goanna to enable different
    * test modes in the camera stack. The only currently-supported setting
    * is 'hardware', which wraps the Gonk camera abstraction class in a
    * shim class that supports injecting hardware camera API failures into

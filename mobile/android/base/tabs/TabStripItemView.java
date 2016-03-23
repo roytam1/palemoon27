@@ -32,7 +32,7 @@ import android.widget.ImageView;
 public class TabStripItemView extends ThemedLinearLayout
                               implements Checkable {
     @SuppressWarnings("unused")
-    private static final String LOGTAG = "GeckoTabStripItem";
+    private static final String LOGTAG = "GoannaTabStripItem";
 
     private static final int[] STATE_CHECKED = {
         android.R.attr.state_checked

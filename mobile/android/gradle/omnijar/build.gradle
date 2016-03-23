@@ -6,7 +6,7 @@ apply plugin: 'java'
 task buildOmnijar(type:Exec) {
     dependsOn generateCodeAndResources
 
-    // Depend on all the Gecko resources.
+    // Depend on all the Goanna resources.
     inputs.sourceDir 'src/main/java/locales'
     inputs.sourceDir 'src/main/java/chrome'
     inputs.sourceDir 'src/main/java/components'

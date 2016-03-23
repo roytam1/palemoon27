@@ -25,7 +25,7 @@
 #include "mozilla/layers/CompositorTypes.h"
 #include "FrameMetrics.h"
 #include "FilterSupport.h"
-#include "mozilla/layers/GeckoContentController.h"
+#include "mozilla/layers/GoannaContentController.h"
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4800 )
@@ -1111,7 +1111,7 @@ struct ParamTraits<mozilla::gfx::FilterDescription>
   }
 };
 
-typedef mozilla::layers::GeckoContentController::APZStateChange APZStateChange;
+typedef mozilla::layers::GoannaContentController::APZStateChange APZStateChange;
 
 template <>
 struct ParamTraits<APZStateChange>

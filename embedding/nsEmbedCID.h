@@ -7,13 +7,13 @@
 
 /**
  * @file
- * @brief List of, and documentation for, frozen Gecko embedding contracts.
+ * @brief List of, and documentation for, frozen Goanna embedding contracts.
  */
 
 /**
  * Web Browser ContractID
  *   Creating an instance of this ContractID (via createInstanceByContractID)
- *   is the basic way to instantiate a Gecko browser.
+ *   is the basic way to instantiate a Goanna browser.
  *
  * This contract implements the following interfaces:
  * nsIWebBrowser

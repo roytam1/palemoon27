@@ -30,7 +30,7 @@
 #include "nsAnimationManager.h"
 #include "nsStyleSheetService.h"
 #include "mozilla/dom/Element.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsHTMLCSSStyleSheet.h"
 #include "nsHTMLStyleSheet.h"
 #include "SVGAttrAnimationRuleProcessor.h"

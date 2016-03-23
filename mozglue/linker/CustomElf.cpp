@@ -18,7 +18,7 @@ using namespace mozilla;
 
 /* TODO: Fill ElfLoader::Singleton.lastError on errors. */
 
-/* Function used to report library mappings from the custom linker to Gecko
+/* Function used to report library mappings from the custom linker to Goanna
  * crash reporter */
 #ifdef ANDROID
 extern "C" {

@@ -7,11 +7,11 @@
 #include "base/string_util.h"
 #include "base/thread_local.h"
 #include "base/waitable_event.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/IOInterposer.h"
 
 #ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
+#include "GoannaTaskTracer.h"
 #endif
 
 namespace base {

@@ -11,7 +11,7 @@ import android.app.Activity;
 import android.content.Intent;
 
 public class ActivityHandlerHelper {
-    private static final String LOGTAG = "GeckoActivityHandlerHelper";
+    private static final String LOGTAG = "GoannaActivityHandlerHelper";
     private static final ActivityResultHandlerMap mActivityResultHandlerMap = new ActivityResultHandlerMap();
 
     private static int makeRequestCode(ActivityResultHandler aHandler) {
@@ -19,7 +19,7 @@ public class ActivityHandlerHelper {
     }
 
     public static void startIntent(Intent intent, ActivityResultHandler activityResultHandler) {
-        startIntentForActivity(GeckoAppShell.getGeckoInterface().getActivity(), intent, activityResultHandler);
+        startIntentForActivity(GoannaAppShell.getGoannaInterface().getActivity(), intent, activityResultHandler);
     }
 
     public static void startIntentForActivity(Activity activity, Intent intent, ActivityResultHandler activityResultHandler) {

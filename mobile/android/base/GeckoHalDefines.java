@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko;
 
-public class GeckoHalDefines
+public class GoannaHalDefines
 {
     /*
      * Keep these values consistent with |SensorType| in Hal.h

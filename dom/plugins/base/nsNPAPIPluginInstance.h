@@ -51,10 +51,10 @@ const NPDrawingModel kDefaultDrawingModel = static_cast<NPDrawingModel>(0);
 #endif
 
 /**
- * Used to indicate whether it's OK to reenter Gecko and repaint, flush frames,
+ * Used to indicate whether it's OK to reenter Goanna and repaint, flush frames,
  * run scripts, etc, during this plugin call.
  * When NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO is set, we try to avoid dangerous
- * Gecko activities when the plugin spins a nested event loop, on a best-effort
+ * Goanna activities when the plugin spins a nested event loop, on a best-effort
  * basis.
  */
 enum NSPluginCallReentry {
@@ -88,7 +88,7 @@ public:
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
   nsresult HandleEvent(void* event, int16_t* result,
-                       NSPluginCallReentry aSafeToReenterGecko = NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+                       NSPluginCallReentry aSafeToReenterGoanna = NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
   nsresult GetValueFromPlugin(NPPVariable variable, void* value);
   nsresult GetDrawingModel(int32_t* aModel);
   nsresult IsRemoteDrawingCoreAnimation(bool* aDrawing);

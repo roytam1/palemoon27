@@ -177,7 +177,7 @@ NS_GetContentList(nsINode* aRootNode,
 //----------------------------------------------------------------------
 
 // Document interface.  This is implemented by all document objects in
-// Gecko.
+// Goanna.
 class nsIDocument : public nsINode
 {
   typedef mozilla::dom::GlobalObject GlobalObject;
@@ -1247,8 +1247,8 @@ public:
   }
 
   /**
-   * Only to be used inside Gecko, you can't really do anything with the
-   * pointer outside Gecko anyway.
+   * Only to be used inside Goanna, you can't really do anything with the
+   * pointer outside Goanna anyway.
    */
   nsNodeInfoManager* NodeInfoManager() const
   {

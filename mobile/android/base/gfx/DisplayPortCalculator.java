@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.util.FloatUtils;
 
@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 final class DisplayPortCalculator {
-    private static final String LOGTAG = "GeckoDisplayPort";
+    private static final String LOGTAG = "GoannaDisplayPort";
     private static final PointF ZERO_VELOCITY = new PointF(0, 0);
 
     // Keep this in sync with the TILEDLAYERBUFFER_TILE_SIZE defined in gfx/layers/TiledLayerBuffer.h
@@ -358,7 +358,7 @@ final class DisplayPortCalculator {
 
         VelocityBiasStrategy(Map<String, Integer> prefs) {
             SIZE_MULTIPLIER = getFloatPref(prefs, PREF_DISPLAYPORT_VB_MULTIPLIER, 2000);
-            VELOCITY_THRESHOLD = GeckoAppShell.getDpi() * getFloatPref(prefs, PREF_DISPLAYPORT_VB_VELOCITY_THRESHOLD, 32);
+            VELOCITY_THRESHOLD = GoannaAppShell.getDpi() * getFloatPref(prefs, PREF_DISPLAYPORT_VB_VELOCITY_THRESHOLD, 32);
             REVERSE_BUFFER = getFloatPref(prefs, PREF_DISPLAYPORT_VB_REVERSE_BUFFER, 200);
             DANGER_ZONE_BASE_X_MULTIPLIER = getFloatPref(prefs, PREF_DISPLAYPORT_VB_DANGER_X_BASE, 1000);
             DANGER_ZONE_BASE_Y_MULTIPLIER = getFloatPref(prefs, PREF_DISPLAYPORT_VB_DANGER_Y_BASE, 1000);
@@ -474,14 +474,14 @@ final class DisplayPortCalculator {
 
         // The velocity above which we start zooming out the display port to keep up
         // with the panning.
-        private static final float VELOCITY_EXPANSION_THRESHOLD = GeckoAppShell.getDpi() / 16f;
+        private static final float VELOCITY_EXPANSION_THRESHOLD = GoannaAppShell.getDpi() / 16f;
 
         // How much we increase the display port based on velocity. Assuming no friction and
         // splitting (see below), this should be be the number of frames (@60fps) between us
         // calculating the display port and the draw of the *next* display port getting composited
         // and displayed on the screen. This is because the timeline looks like this:
         //      Java: pan pan pan pan pan pan ! pan pan pan pan pan pan !
-        //     Gecko:   \-> draw -> composite /   \-> draw -> composite /
+        //     Goanna:   \-> draw -> composite /   \-> draw -> composite /
         // The display port calculated on the first "pan" gets composited to the screen at the
         // first exclamation mark, and remains on the screen until the second exclamation mark.
         // In order to avoid checkerboarding, that display port must be able to contain all of
@@ -545,7 +545,7 @@ final class DisplayPortCalculator {
             }
 
             // at this point, displayPortWidth and displayPortHeight are how much of the page (in device pixels)
-            // we want to be rendered by Gecko. Note here "device pixels" is equivalent to CSS pixels multiplied
+            // we want to be rendered by Goanna. Note here "device pixels" is equivalent to CSS pixels multiplied
             // by metrics.zoomFactor
 
             // we need to avoid having a display port that is larger than the page, or we will end up
@@ -575,7 +575,7 @@ final class DisplayPortCalculator {
 
             // finally, we calculate the resolution we want to render the display port area at. We do this
             // so that as we expand the display port area (because of velocity), we reduce the resolution of
-            // the painted area so as to maintain the size of the buffer Gecko is painting into. we calculate
+            // the painted area so as to maintain the size of the buffer Goanna is painting into. we calculate
             // the reduction in resolution by comparing the display port size with and without the velocity
             // changes applied.
             // this effectively means that as we pan faster and faster, the display port grows, but we paint
@@ -677,7 +677,7 @@ final class DisplayPortCalculator {
         private int mMaxFramesToDraw;   // maximum number of frames we take to draw
 
         PredictionBiasStrategy(Map<String, Integer> prefs) {
-            VELOCITY_THRESHOLD = GeckoAppShell.getDpi() * getFloatPref(prefs, PREF_DISPLAYPORT_PB_VELOCITY_THRESHOLD, 16);
+            VELOCITY_THRESHOLD = GoannaAppShell.getDpi() * getFloatPref(prefs, PREF_DISPLAYPORT_PB_VELOCITY_THRESHOLD, 16);
             resetPageState();
         }
 

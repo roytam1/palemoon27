@@ -27,7 +27,7 @@ class GMPVideoHost;
 [ptr] native GMPAudioDecoderProxy(GMPAudioDecoderProxy);
 
 [scriptable, uuid(46c7cd80-a19d-49e7-a147-ca314ad8d8b0)]
-interface mozIGeckoMediaPluginService : nsISupports
+interface mozIGoannaMediaPluginService : nsISupports
 {
 
   /**

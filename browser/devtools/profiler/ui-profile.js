@@ -690,7 +690,7 @@ let RecordingUtils = {
    *         A data source useful for a LineGraphWidget.
    */
   plotFramerateFor: function(ticksData, beginAt, endAt) {
-    // Older Gecko versions don't have a framerate actor implementation,
+    // Older Goanna versions don't have a framerate actor implementation,
     // in which case the returned ticks data is null.
     if (ticksData == null) {
       return [];

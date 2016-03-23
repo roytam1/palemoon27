@@ -17,8 +17,8 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -1062,7 +1062,7 @@ public final class HomeConfig {
         private final HomeConfig mHomeConfig;
         private final Map<String, PanelConfig> mConfigMap;
         private final List<String> mConfigOrder;
-        private final List<GeckoEvent> mEventQueue;
+        private final List<GoannaEvent> mEventQueue;
         private final Thread mOriginalThread;
 
         private PanelConfig mDefaultPanel;
@@ -1076,7 +1076,7 @@ public final class HomeConfig {
             mOriginalThread = Thread.currentThread();
             mConfigMap = new HashMap<String, PanelConfig>();
             mConfigOrder = new LinkedList<String>();
-            mEventQueue = new LinkedList<GeckoEvent>();
+            mEventQueue = new LinkedList<GoannaEvent>();
 
             mIsFromDefault = configState.isDefault();
 
@@ -1282,7 +1282,7 @@ public final class HomeConfig {
                 installed = true;
 
                 // Add an event to the queue if a new panel is successfully installed.
-                mEventQueue.add(GeckoEvent.createBroadcastEvent("HomePanels:Installed", panelConfig.getId()));
+                mEventQueue.add(GoannaEvent.createBroadcastEvent("HomePanels:Installed", panelConfig.getId()));
             }
 
             mHasChanged = true;
@@ -1318,7 +1318,7 @@ public final class HomeConfig {
             }
 
             // Add an event to the queue if a panel is successfully uninstalled.
-            mEventQueue.add(GeckoEvent.createBroadcastEvent("HomePanels:Uninstalled", panelId));
+            mEventQueue.add(GoannaEvent.createBroadcastEvent("HomePanels:Uninstalled", panelId));
 
             mHasChanged = true;
             return true;
@@ -1392,7 +1392,7 @@ public final class HomeConfig {
 
             // Copy the event queue to a new list, so that we only modify mEventQueue on
             // the original thread where it was created.
-            final LinkedList<GeckoEvent> eventQueueCopy = new LinkedList<GeckoEvent>(mEventQueue);
+            final LinkedList<GoannaEvent> eventQueueCopy = new LinkedList<GoannaEvent>(mEventQueue);
             mEventQueue.clear();
 
             ThreadUtils.getBackgroundHandler().post(new Runnable() {
@@ -1401,7 +1401,7 @@ public final class HomeConfig {
                     mHomeConfig.save(newConfigState);
 
                     // Send pending events after the new config is saved.
-                    sendEventsToGecko(eventQueueCopy);
+                    sendEventsToGoanna(eventQueueCopy);
                 }
             });
 
@@ -1425,7 +1425,7 @@ public final class HomeConfig {
             mHomeConfig.save(newConfigState);
 
             // Send pending events after the new config is saved.
-            sendEventsToGecko(mEventQueue);
+            sendEventsToGoanna(mEventQueue);
             mEventQueue.clear();
 
             return newConfigState;
@@ -1445,9 +1445,9 @@ public final class HomeConfig {
             return mConfigMap.isEmpty();
         }
 
-        private void sendEventsToGecko(List<GeckoEvent> events) {
-            for (GeckoEvent e : events) {
-                GeckoAppShell.sendEventToGecko(e);
+        private void sendEventsToGoanna(List<GoannaEvent> events) {
+            for (GoannaEvent e : events) {
+                GoannaAppShell.sendEventToGoanna(e);
             }
         }
 

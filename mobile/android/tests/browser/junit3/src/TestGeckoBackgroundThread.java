@@ -6,12 +6,12 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.ThreadUtils;
 
-public class TestGeckoBackgroundThread extends BrowserTestCase {
+public class TestGoannaBackgroundThread extends BrowserTestCase {
 
     private boolean finishedTest;
     private boolean ranFirstRunnable;
 
-    public void testGeckoBackgroundThread() throws InterruptedException {
+    public void testGoannaBackgroundThread() throws InterruptedException {
 
         final Thread testThread = Thread.currentThread();
 
@@ -39,9 +39,9 @@ public class TestGeckoBackgroundThread extends BrowserTestCase {
                 // This Runnable must be run after the first Runnable had finished.
                 assertTrue(ranFirstRunnable);
 
-                synchronized (TestGeckoBackgroundThread.this) {
+                synchronized (TestGoannaBackgroundThread.this) {
                     finishedTest = true;
-                    TestGeckoBackgroundThread.this.notify();
+                    TestGoannaBackgroundThread.this.notify();
                 }
             }
         });

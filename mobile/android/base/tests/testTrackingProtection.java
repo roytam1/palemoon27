@@ -7,14 +7,14 @@ package org.mozilla.gecko.tests;
 import static org.mozilla.gecko.tests.helpers.AssertionHelper.fFail;
 
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class testTrackingProtection extends JavascriptTest implements GeckoEventListener {
+public class testTrackingProtection extends JavascriptTest implements GoannaEventListener {
     private String mLastTracking;
 
     public testTrackingProtection() {
@@ -49,15 +49,15 @@ public class testTrackingProtection extends JavascriptTest implements GeckoEvent
     public void setUp() throws Exception {
         super.setUp();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "Content:SecurityChange");
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "Test:Expected");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "Content:SecurityChange");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "Test:Expected");
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "Content:SecurityChange");
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "Test:Expected");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "Content:SecurityChange");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "Test:Expected");
     }
 }

@@ -71,7 +71,7 @@ public final class WaitHelper {
     }
 
     /**
-     * Waits for the Gecko event declaring the page has loaded. Takes in and runs a Runnable
+     * Waits for the Goanna event declaring the page has loaded. Takes in and runs a Runnable
      * that will perform the action that will cause the page to load.
      */
     public static void waitForPageLoad(final Runnable initiatingAction) {
@@ -88,8 +88,8 @@ public final class WaitHelper {
 
         // Wait for the page load and title changed event.
         final EventExpecter[] eventExpecters = new EventExpecter[] {
-            sActions.expectGeckoEvent("DOMContentLoaded"),
-            sActions.expectGeckoEvent("DOMTitleChanged")
+            sActions.expectGoannaEvent("DOMContentLoaded"),
+            sActions.expectGoannaEvent("DOMTitleChanged")
         };
 
         initiatingAction.run();

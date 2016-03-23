@@ -18,7 +18,7 @@
 #include "nsXULAppAPI.h"
 #include <dirent.h>
 #include <android/log.h>
-#define ALOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gecko" , ## args)
+#define ALOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Goanna" , ## args)
 
 #include "ft2build.h"
 #include FT_FREETYPE_H
@@ -631,7 +631,7 @@ public:
 
         PL_DHashTableInit(&mMap, &mOps, sizeof(FNCMapEntry), 0);
 
-        MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default,
+        MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default,
                    "StartupCacheFontNameCache should only be used in chrome "
                    "process");
         mCache = mozilla::scache::StartupCache::GetSingleton();
@@ -1165,7 +1165,7 @@ gfxFT2FontList::FindFonts()
     mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
     mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
         // Content process: ask the Chrome process to give us the list
         InfallibleTArray<FontListEntry> fonts;
         mozilla::dom::ContentChild::GetSingleton()->SendReadFontList(&fonts);

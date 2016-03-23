@@ -22,7 +22,7 @@ class TextInputHandler;
 // implement this protocol.
 @protocol mozView
 
-  // aHandler is Gecko's default text input handler:  It implements the
+  // aHandler is Goanna's default text input handler:  It implements the
   // NSTextInput protocol to handle key events.  Don't make aHandler a
   // strong reference -- that causes a memory leak.
 - (void)installTextInputHandler:(mozilla::widget::TextInputHandler*)aHandler;
@@ -39,7 +39,7 @@ class TextInputHandler;
 - (void)setNeedsPendingDisplay;
 - (void)setNeedsPendingDisplayInRect:(NSRect)invalidRect;
 
-  // called when our corresponding Gecko view goes away
+  // called when our corresponding Goanna view goes away
 - (void)widgetDestroyed;
 
 - (BOOL)isDragInProgress;

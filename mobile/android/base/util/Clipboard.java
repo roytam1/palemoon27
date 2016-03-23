@@ -18,7 +18,7 @@ public final class Clipboard {
     // init, because both app contexts will be the same, but we do care about a
     // thread having a stale null value of mContext.
     volatile static Context mContext;
-    private final static String LOGTAG = "GeckoClipboard";
+    private final static String LOGTAG = "GoannaClipboard";
     private final static SynchronousQueue<String> sClipboardQueue = new SynchronousQueue<String>();
 
     private Clipboard() {

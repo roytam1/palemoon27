@@ -3,7 +3,7 @@ package org.mozilla.gecko.util;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 
 /**
- * Callback interface for Gecko requests.
+ * Callback interface for Goanna requests.
  *
  * For each instance of EventCallback, exactly one of sendResponse, sendError, or sendCancel
  * must be called to prevent observer leaks. If more than one send* method is called, or if a
@@ -14,7 +14,7 @@ public interface EventCallback {
     /**
      * Sends a success response with the given data.
      *
-     * @param response The response data to send to Gecko. Can be any of the types accepted by
+     * @param response The response data to send to Goanna. Can be any of the types accepted by
      *                 JSONObject#put(String, Object).
      */
     public void sendSuccess(Object response);
@@ -22,7 +22,7 @@ public interface EventCallback {
     /**
      * Sends an error response with the given data.
      *
-     * @param response The response data to send to Gecko. Can be any of the types accepted by
+     * @param response The response data to send to Goanna. Can be any of the types accepted by
      *                 JSONObject#put(String, Object).
      */
     public void sendError(Object response);

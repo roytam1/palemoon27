@@ -2,7 +2,7 @@ package org.mozilla.gecko.tests;
 
 import org.mozilla.gecko.Actions;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
 import android.util.Log;
@@ -13,10 +13,10 @@ import org.json.JSONObject;
 public class testInputSelections extends UITest {
 
     public void testInputSelections() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
 
         Actions.EventExpecter robocopTestExpecter =
-            getActions().expectGeckoEvent("Robocop:testInputSelections");
+            getActions().expectGoannaEvent("Robocop:testInputSelections");
         final String url = "chrome://roboextender/content/testInputSelections.html";
         NavigationHelper.enterAndLoadUrl(url);
         mToolbar.assertTitle(url);

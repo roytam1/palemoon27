@@ -8,7 +8,7 @@
 
 #include "nsIObserverService.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"

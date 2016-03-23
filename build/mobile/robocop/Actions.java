@@ -39,14 +39,14 @@ public interface Actions {
     }
 
     /**
-     * Sends an event to Gecko.
+     * Sends an event to Goanna.
      * 
      * @param geckoEvent The geckoEvent JSONObject's type
      */
-    void sendGeckoEvent(String geckoEvent, String data);
+    void sendGoannaEvent(String geckoEvent, String data);
 
     /**
-     * Sends a preferences get event to Gecko.
+     * Sends a preferences get event to Goanna.
      *
      * @param requestId The id of this request.
      * @param prefNames The preferences being requested.
@@ -54,7 +54,7 @@ public interface Actions {
     void sendPreferencesGetEvent(int requestId, String[] prefNames);
 
     /**
-     * Sends a preferences observe event to Gecko.
+     * Sends a preferences observe event to Goanna.
      *
      * @param requestId The id of this request.
      * @param prefNames The preferences being requested.
@@ -62,20 +62,20 @@ public interface Actions {
     void sendPreferencesObserveEvent(int requestId, String[] prefNames);
 
     /**
-     * Sends a preferences remove observers event to Gecko.
+     * Sends a preferences remove observers event to Goanna.
      *
      * @param requestId The id of this request.
      */
     void sendPreferencesRemoveObserversEvent(int requestid);
 
     /**
-     * Listens for a gecko event to be sent from the Gecko instance.
+     * Listens for a gecko event to be sent from the Goanna instance.
      * The returned object can be used to test if the event has been
      * received. Note that only one event is listened for.
      * 
      * @param geckoEvent The geckoEvent JSONObject's type
      */
-    RepeatedEventExpecter expectGeckoEvent(String geckoEvent);
+    RepeatedEventExpecter expectGoannaEvent(String geckoEvent);
 
     /**
      * Listens for a paint event. Note that calling expectPaint() will

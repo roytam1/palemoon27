@@ -6,7 +6,7 @@
 #ifndef MOZ_UNWINDER_THREAD_2_H
 #define MOZ_UNWINDER_THREAD_2_H
 
-#include "GeckoProfilerImpl.h"
+#include "GoannaProfilerImpl.h"
 #include "ProfileEntry.h"
 
 #include "PlatformMacros.h"

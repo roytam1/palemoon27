@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <fstream>
 #include <sstream>
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "SaveProfileTask.h"
 #include "ProfileEntry.h"
 #include "SyncProfile.h"
@@ -132,7 +132,7 @@ void TableTicker::StreamTaskTracer(JSStreamWriter& b)
         // Thread meta data
         ThreadInfo* info = sRegisteredThreads->at(i);
         b.BeginObject();
-        if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
+        if (XRE_GetProcessType() == GoannaProcessType_Plugin) {
           // TODO Add the proper plugin name
           b.NameValue("name", "Plugin");
         } else {
@@ -278,7 +278,7 @@ void BuildJavaThreadJSObject(JSStreamWriter& b)
             firstRun = false;
 
             double sampleTime =
-              mozilla::widget::GeckoJavaSampler::GetSampleTimeJavaProfiling(0, sampleId);
+              mozilla::widget::GoannaJavaSampler::GetSampleTimeJavaProfiling(0, sampleId);
 
             b.BeginObject();
               b.NameValue("time", sampleTime);
@@ -355,11 +355,11 @@ void TableTicker::StreamJSObject(JSStreamWriter& b)
 
   #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
       if (ProfileJava()) {
-        mozilla::widget::GeckoJavaSampler::PauseJavaProfiling();
+        mozilla::widget::GoannaJavaSampler::PauseJavaProfiling();
 
         BuildJavaThreadJSObject(b);
 
-        mozilla::widget::GeckoJavaSampler::UnpauseJavaProfiling();
+        mozilla::widget::GoannaJavaSampler::UnpauseJavaProfiling();
       }
   #endif
 

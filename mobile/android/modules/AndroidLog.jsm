@@ -27,16 +27,16 @@
  * // Bind a function with a tag to replace a bespoke dump/log/debug function:
  * let debug = Log.d.bind(null, "MyModule");
  * debug("This is a debug message.");
- * // Outputs "D/GeckoMyModule(#####): This is a debug message."
+ * // Outputs "D/GoannaMyModule(#####): This is a debug message."
  *
  * // Or "bind" the module object to a tag to automatically tag messages:
  * Log = Log.bind("MyModule");
  * Log.d("This is a debug message.");
- * // Outputs "D/GeckoMyModule(#####): This is a debug message."
+ * // Outputs "D/GoannaMyModule(#####): This is a debug message."
  *
- * Note: the module automatically prepends "Gecko" to the tag you specify,
+ * Note: the module automatically prepends "Goanna" to the tag you specify,
  * since all tags used by Fennec code should start with that string; and it
- * truncates tags longer than MAX_TAG_LENGTH characters (not including "Gecko").
+ * truncates tags longer than MAX_TAG_LENGTH characters (not including "Goanna").
  */
 
 if (typeof Components != "undefined") {
@@ -53,7 +53,7 @@ const ANDROID_LOG_WARN = 5;
 const ANDROID_LOG_ERROR = 6;
 
 // android.util.Log.isLoggable throws IllegalArgumentException if a tag length
-// exceeds 23 characters, and we prepend five characters ("Gecko") to every tag,
+// exceeds 23 characters, and we prepend five characters ("Goanna") to every tag,
 // so we truncate tags exceeding 18 characters (although __android_log_write
 // itself and other android.util.Log methods don't seem to mind longer tags).
 const MAX_TAG_LENGTH = 18;
@@ -68,11 +68,11 @@ let __android_log_write = liblog.declare("__android_log_write",
 
 let AndroidLog = {
   MAX_TAG_LENGTH: MAX_TAG_LENGTH,
-  v: (tag, msg) => __android_log_write(ANDROID_LOG_VERBOSE, "Gecko" + tag.substring(0, MAX_TAG_LENGTH), msg),
-  d: (tag, msg) => __android_log_write(ANDROID_LOG_DEBUG, "Gecko" + tag.substring(0, MAX_TAG_LENGTH), msg),
-  i: (tag, msg) => __android_log_write(ANDROID_LOG_INFO, "Gecko" + tag.substring(0, MAX_TAG_LENGTH), msg),
-  w: (tag, msg) => __android_log_write(ANDROID_LOG_WARN, "Gecko" + tag.substring(0, MAX_TAG_LENGTH), msg),
-  e: (tag, msg) => __android_log_write(ANDROID_LOG_ERROR, "Gecko" + tag.substring(0, MAX_TAG_LENGTH), msg),
+  v: (tag, msg) => __android_log_write(ANDROID_LOG_VERBOSE, "Goanna" + tag.substring(0, MAX_TAG_LENGTH), msg),
+  d: (tag, msg) => __android_log_write(ANDROID_LOG_DEBUG, "Goanna" + tag.substring(0, MAX_TAG_LENGTH), msg),
+  i: (tag, msg) => __android_log_write(ANDROID_LOG_INFO, "Goanna" + tag.substring(0, MAX_TAG_LENGTH), msg),
+  w: (tag, msg) => __android_log_write(ANDROID_LOG_WARN, "Goanna" + tag.substring(0, MAX_TAG_LENGTH), msg),
+  e: (tag, msg) => __android_log_write(ANDROID_LOG_ERROR, "Goanna" + tag.substring(0, MAX_TAG_LENGTH), msg),
 
   bind: function(tag) {
     return {

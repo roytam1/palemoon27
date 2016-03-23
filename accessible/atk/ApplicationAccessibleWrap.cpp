@@ -39,7 +39,7 @@ toplevel_event_watcher(GSignalInvocationHint* ihint,
   static GQuark sQuark_gecko_acc_obj = 0;
 
   if (!sQuark_gecko_acc_obj)
-    sQuark_gecko_acc_obj = g_quark_from_static_string("GeckoAccObj");
+    sQuark_gecko_acc_obj = g_quark_from_static_string("GoannaAccObj");
 
   if (nsAccessibilityService::IsShutdown())
     return TRUE;

@@ -13,8 +13,8 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.util.Log;
 import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
 import org.mozilla.gecko.mozglue.RobocopTarget;
@@ -22,7 +22,7 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 
 @RobocopTarget
 public class LocalReadingListAccessor implements ReadingListAccessor {
-    private static final String LOG_TAG = "GeckoReadingListAcc";
+    private static final String LOG_TAG = "GoannaReadingListAcc";
 
     private static final String NOT_DELETED = ReadingListItems.IS_DELETED + " = 0";
     private static final String NEITHER_DELETED_NOR_ARCHIVED = ReadingListItems.IS_ARCHIVED + " = 0 AND " + ReadingListItems.IS_DELETED + " = 0";
@@ -116,7 +116,7 @@ public class LocalReadingListAccessor implements ReadingListAccessor {
         // Re-add if necessary and allow the server to resolve conflicts.
         final long id = ContentUris.parseId(cr.insert(mReadingListUriWithProfile, values));
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:Added", url));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Reader:Added", url));
 
         return id;
     }
@@ -162,13 +162,13 @@ public class LocalReadingListAccessor implements ReadingListAccessor {
                   ReadingListItems.URL + " = ? OR " + ReadingListItems.RESOLVED_URL + " = ?",
                   new String[]{ uri, uri });
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:Removed", uri));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Reader:Removed", uri));
     }
 
     @Override
     public void deleteItem(ContentResolver cr, long itemID) {
         // TODO: For completness, we should send a "Reader:Removed"
-        // GeckoEvent, but we don't have the uri. Luckily, this is
+        // GoannaEvent, but we don't have the uri. Luckily, this is
         // only called in testing at the moment.
         cr.delete(ContentUris.appendId(mReadingListUriWithProfile.buildUpon(), itemID).build(),
                   null, null);

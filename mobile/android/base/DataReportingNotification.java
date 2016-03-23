@@ -6,7 +6,7 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.preferences.GeckoPreferences;
+import org.mozilla.gecko.preferences.GoannaPreferences;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -33,7 +33,7 @@ public class DataReportingNotification {
     private static final int DATA_REPORTING_VERSION = 2;
 
     public static void checkAndNotifyPolicy(Context context) {
-        SharedPreferences dataPrefs = GeckoSharedPrefs.forApp(context);
+        SharedPreferences dataPrefs = GoannaSharedPrefs.forApp(context);
         final int currentVersion = dataPrefs.getInt(PREFS_POLICY_VERSION, -1);
 
         if (currentVersion < 1) {
@@ -43,7 +43,7 @@ public class DataReportingNotification {
             // If healthreport is enabled, set default preference value.
             if (AppConstants.MOZ_SERVICES_HEALTHREPORT) {
                 SharedPreferences.Editor editor = dataPrefs.edit();
-                editor.putBoolean(GeckoPreferences.PREFS_HEALTHREPORT_UPLOAD_ENABLED, true);
+                editor.putBoolean(GoannaPreferences.PREFS_HEALTHREPORT_UPLOAD_ENABLED, true);
                 editor.apply();
             }
             return;
@@ -75,10 +75,10 @@ public class DataReportingNotification {
         boolean result = false;
         try {
             // Launch main App to launch Data choices when notification is clicked.
-            Intent prefIntent = new Intent(GeckoApp.ACTION_LAUNCH_SETTINGS);
+            Intent prefIntent = new Intent(GoannaApp.ACTION_LAUNCH_SETTINGS);
             prefIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS_NAME);
 
-            GeckoPreferences.setResourceToOpen(prefIntent, "preferences_vendor");
+            GoannaPreferences.setResourceToOpen(prefIntent, "preferences_vendor");
             prefIntent.putExtra(ALERT_NAME_DATAREPORTING_NOTIFICATION, true);
 
             PendingIntent contentIntent = PendingIntent.getActivity(context, 0, prefIntent, PendingIntent.FLAG_UPDATE_CURRENT);

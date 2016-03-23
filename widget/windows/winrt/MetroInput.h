@@ -184,7 +184,7 @@ private:
   void TransformTouchEvent(WidgetTouchEvent* aEvent);
   void OnPointerNonTouch(IPointerPoint* aPoint);
   void AddPointerMoveDataToRecognizer(IPointerEventArgs* aArgs);
-  void InitGeckoMouseEventFromPointerPoint(WidgetMouseEvent* aEvent,
+  void InitGoannaMouseEventFromPointerPoint(WidgetMouseEvent* aEvent,
                                            IPointerPoint* aPoint);
   void ProcessManipulationDelta(ManipulationDelta const& aDelta,
                                 Point const& aPosition,

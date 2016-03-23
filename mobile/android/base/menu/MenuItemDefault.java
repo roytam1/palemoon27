@@ -14,7 +14,7 @@ import android.util.AttributeSet;
 import android.widget.TextView;
 
 public class MenuItemDefault extends TextView
-                             implements GeckoMenuItem.Layout {
+                             implements GoannaMenuItem.Layout {
     private static final int[] STATE_MORE = new int[] { R.attr.state_more };
     private static final int[] STATE_CHECKED = new int[] { android.R.attr.state_checkable, android.R.attr.state_checked };
     private static final int[] STATE_UNCHECKED = new int[] { android.R.attr.state_checkable };
@@ -74,7 +74,7 @@ public class MenuItemDefault extends TextView
     }
 
     @Override
-    public void initialize(GeckoMenuItem item) {
+    public void initialize(GoannaMenuItem item) {
         if (item == null)
             return;
 

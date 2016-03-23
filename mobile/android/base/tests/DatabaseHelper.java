@@ -12,7 +12,7 @@ import java.util.ArrayList;
 
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.db.BrowserDB;
 
 import android.app.Activity;
@@ -44,7 +44,7 @@ class DatabaseHelper {
         } else {
            mAsserter.ok(false, "The wrong data type has been provided = " + dataType.toString(), "Please provide the correct data type");
         }
-        uri = uri.buildUpon().appendQueryParameter("profile", GeckoProfile.DEFAULT_PROFILE)
+        uri = uri.buildUpon().appendQueryParameter("profile", GoannaProfile.DEFAULT_PROFILE)
                              .appendQueryParameter("sync", "true").build();
         return uri;
     }
@@ -167,6 +167,6 @@ class DatabaseHelper {
     }
 
     protected BrowserDB getProfileDB() {
-        return GeckoProfile.get(mActivity).getDB();
+        return GoannaProfile.get(mActivity).getDB();
     }
 }

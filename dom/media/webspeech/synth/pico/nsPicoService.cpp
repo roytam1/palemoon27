@@ -714,7 +714,7 @@ nsPicoService*
 nsPicoService::GetInstance()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     MOZ_ASSERT(false, "nsPicoService can only be started on main gecko process");
     return nullptr;
   }

@@ -6,8 +6,8 @@ package org.mozilla.gecko.toolbar;
 
 import org.mozilla.gecko.AboutPages;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.SiteIdentity;
 import org.mozilla.gecko.SiteIdentity.SecurityMode;
 import org.mozilla.gecko.SiteIdentity.MixedMode;
@@ -33,7 +33,7 @@ import android.widget.TextView;
  * an arrow panel popup hanging from the lock icon in the browser toolbar.
  */
 public class SiteIdentityPopup extends ArrowPopup {
-    private static final String LOGTAG = "GeckoSiteIdentityPopup";
+    private static final String LOGTAG = "GoannaSiteIdentityPopup";
 
     private static final String MIXED_CONTENT_SUPPORT_URL =
         "https://support.mozilla.org/kb/how-does-insecure-content-affect-safety-android";
@@ -286,8 +286,8 @@ public class SiteIdentityPopup extends ArrowPopup {
                 data.put("allowContent", tag.equals("disable"));
                 data.put("contentType", (dh == mMixedContentNotification ? "mixed" : "tracking"));
 
-                GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", data.toString());
-                GeckoAppShell.sendEventToGecko(e);
+                GoannaEvent e = GoannaEvent.createBroadcastEvent("Session:Reload", data.toString());
+                GoannaAppShell.sendEventToGoanna(e);
             } catch (JSONException e) {
                 Log.e(LOGTAG, "Exception creating message to enable/disable content blocking", e);
             }

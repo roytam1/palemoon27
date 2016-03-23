@@ -7,7 +7,7 @@
 #include "OMXCodecWrapper.h"
 #include "VideoUtils.h"
 #include "ISOTrackMetadata.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>

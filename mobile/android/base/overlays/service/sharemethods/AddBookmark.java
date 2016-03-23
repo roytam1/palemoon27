@@ -6,19 +6,19 @@ package org.mozilla.gecko.overlays.service.sharemethods;
 
 import android.content.ContentResolver;
 import android.content.Context;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.LocalBrowserDB;
 import org.mozilla.gecko.overlays.service.ShareData;
 
 public class AddBookmark extends ShareMethod {
-    private static final String LOGTAG = "GeckoAddBookmark";
+    private static final String LOGTAG = "GoannaAddBookmark";
 
     @Override
     public Result handle(ShareData shareData) {
         ContentResolver resolver = context.getContentResolver();
 
-        LocalBrowserDB browserDB = new LocalBrowserDB(GeckoProfile.DEFAULT_PROFILE);
+        LocalBrowserDB browserDB = new LocalBrowserDB(GoannaProfile.DEFAULT_PROFILE);
         browserDB.addBookmark(resolver, shareData.title, shareData.url);
 
         return Result.SUCCESS;

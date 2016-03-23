@@ -24,7 +24,7 @@ function getContextClassName() {
   try {
     jenv = JNI.GetForThread();
 
-    let GeckoAppShell = JNI.LoadClass(jenv, "org.mozilla.gecko.GeckoAppShell", {
+    let GoannaAppShell = JNI.LoadClass(jenv, "org.mozilla.gecko.GoannaAppShell", {
       static_methods: [
         { name: "getContext", sig: "()Landroid/content/Context;" }
       ],
@@ -42,7 +42,7 @@ function getContextClassName() {
       ],
     });
 
-    return JNI.ReadString(jenv, GeckoAppShell.getContext().getClass().getName());
+    return JNI.ReadString(jenv, GoannaAppShell.getContext().getClass().getName());
   } finally {
     if (jenv) {
       JNI.UnloadClasses(jenv);

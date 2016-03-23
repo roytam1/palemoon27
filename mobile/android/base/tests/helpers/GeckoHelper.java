@@ -6,20 +6,20 @@ package org.mozilla.gecko.tests.helpers;
 
 import org.mozilla.gecko.Actions;
 import org.mozilla.gecko.Actions.EventExpecter;
-import org.mozilla.gecko.GeckoThread;
-import org.mozilla.gecko.GeckoThread.LaunchState;
+import org.mozilla.gecko.GoannaThread;
+import org.mozilla.gecko.GoannaThread.LaunchState;
 import org.mozilla.gecko.tests.UITestContext;
 
 import android.app.Activity;
 
 /**
- * Provides helper functions for accessing the underlying Gecko engine.
+ * Provides helper functions for accessing the underlying Goanna engine.
  */
-public final class GeckoHelper {
+public final class GoannaHelper {
     private static Activity sActivity;
     private static Actions sActions;
 
-    private GeckoHelper() { /* To disallow instantiation. */ }
+    private GoannaHelper() { /* To disallow instantiation. */ }
 
     protected static void init(final UITestContext context) {
         sActivity = context.getActivity();
@@ -27,21 +27,21 @@ public final class GeckoHelper {
     }
 
     public static void blockForReady() {
-        blockForEvent("Gecko:Ready");
+        blockForEvent("Goanna:Ready");
     }
 
     /**
-     * Blocks for the "Gecko:DelayedStartup" event, which occurs after "Gecko:Ready" and the
+     * Blocks for the "Goanna:DelayedStartup" event, which occurs after "Goanna:Ready" and the
      * first page load.
      */
     public static void blockForDelayedStartup() {
-        blockForEvent("Gecko:DelayedStartup");
+        blockForEvent("Goanna:DelayedStartup");
     }
 
     private static void blockForEvent(final String eventName) {
-        final EventExpecter eventExpecter = sActions.expectGeckoEvent(eventName);
+        final EventExpecter eventExpecter = sActions.expectGoannaEvent(eventName);
 
-        final boolean isRunning = GeckoThread.checkLaunchState(LaunchState.GeckoRunning);
+        final boolean isRunning = GoannaThread.checkLaunchState(LaunchState.GoannaRunning);
         if (!isRunning) {
             eventExpecter.blockForEvent();
         }

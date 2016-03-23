@@ -13,7 +13,7 @@
 #include "nsICommandLineRunner.h"
 #include "FrameworkView.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include <shellapi.h>
 
 using namespace ABI::Windows::ApplicationModel;
@@ -30,7 +30,7 @@ using namespace mozilla::widget;
 extern nsresult XRE_metroStartup(bool runXREMain);
 extern void XRE_metroShutdown();
 
-static const char* gGeckoThreadName = "GeckoMain";
+static const char* gGoannaThreadName = "GoannaMain";
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gWindowsLog;
@@ -43,7 +43,7 @@ namespace winrt {
 ComPtr<FrameworkView> sFrameworkView;
 ComPtr<MetroApp> sMetroApp;
 ComPtr<ICoreApplication> sCoreApp;
-bool MetroApp::sGeckoShuttingDown = false;
+bool MetroApp::sGoannaShuttingDown = false;
 
 ////////////////////////////////////////////////////
 // IFrameworkViewSource impl.
@@ -79,8 +79,8 @@ MetroApp::Run()
   // Name this thread for debugging and register it with the profiler
   // and IOInterposer as the main gecko thread.
   char aLocal;
-  PR_SetCurrentThreadName(gGeckoThreadName);
-  profiler_register_thread(gGeckoThreadName, &aLocal);
+  PR_SetCurrentThreadName(gGoannaThreadName);
+  profiler_register_thread(gGoannaThreadName, &aLocal);
   IOInterposer::RegisterCurrentThread(true);
 
   HRESULT hr;
@@ -117,7 +117,7 @@ MetroApp::Shutdown()
     sFrameworkView->Shutdown();
   }
 
-  MetroApp::sGeckoShuttingDown = true;
+  MetroApp::sGoannaShuttingDown = true;
 
   // Shut down xpcom
   XRE_metroShutdown();

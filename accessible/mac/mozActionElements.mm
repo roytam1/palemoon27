@@ -73,7 +73,7 @@ enum CheckboxValue {
 
 - (BOOL)accessibilityIsIgnored
 {
-  return !mGeckoAccessible;
+  return !mGoannaAccessible;
 }
 
 - (NSArray*)accessibilityActionNames
@@ -118,12 +118,12 @@ enum CheckboxValue {
 {
   // both buttons and checkboxes have only one action. we should really stop using arbitrary
   // arrays with actions, and define constants for these actions.
-  mGeckoAccessible->DoAction(0);
+  mGoannaAccessible->DoAction(0);
 }
 
 - (BOOL)isTab
 {
-  return (mGeckoAccessible && (mGeckoAccessible->Role() == roles::PAGETAB));
+  return (mGoannaAccessible && (mGoannaAccessible->Role() == roles::PAGETAB));
 }
 
 @end
@@ -148,7 +148,7 @@ enum CheckboxValue {
 
 - (int)isChecked
 {
-  uint64_t state = mGeckoAccessible->NativeState();
+  uint64_t state = mGoannaAccessible->NativeState();
 
   // check if we're checked or in a mixed state
   if (state & states::CHECKED) {
@@ -292,10 +292,10 @@ enum CheckboxValue {
  */
 - (id)value
 {
-  if (!mGeckoAccessible)
+  if (!mGoannaAccessible)
     return nil;
 
-  Accessible* accessible = mGeckoAccessible->GetSelectedItem(0);
+  Accessible* accessible = mGoannaAccessible->GetSelectedItem(0);
   if (!accessible)
     return nil;
 
@@ -339,33 +339,33 @@ enum CheckboxValue {
 
 - (NSUInteger)accessibilityArrayAttributeCount:(NSString*)attribute
 {
-  if (!mGeckoAccessible)
+  if (!mGoannaAccessible)
     return 0;
 
   // By default this calls -[[mozAccessible children] count].
   // Since we don't cache mChildren. This is faster.
   if ([attribute isEqualToString:NSAccessibilityChildrenAttribute])
-    return mGeckoAccessible->ChildCount() ? 1 : 0;
+    return mGoannaAccessible->ChildCount() ? 1 : 0;
 
   return [super accessibilityArrayAttributeCount:attribute];
 }
 
 - (NSArray*)children
 {
-  if (!mGeckoAccessible)
+  if (!mGoannaAccessible)
     return nil;
 
-  nsDeckFrame* deckFrame = do_QueryFrame(mGeckoAccessible->GetFrame());
+  nsDeckFrame* deckFrame = do_QueryFrame(mGoannaAccessible->GetFrame());
   nsIFrame* selectedFrame = deckFrame ? deckFrame->GetSelectedBox() : nullptr;
 
   Accessible* selectedAcc = nullptr;
   if (selectedFrame) {
     nsINode* node = selectedFrame->GetContent();
-    selectedAcc = mGeckoAccessible->Document()->GetAccessible(node);
+    selectedAcc = mGoannaAccessible->Document()->GetAccessible(node);
   }
 
   if (selectedAcc) {
-    mozAccessible *curNative = GetNativeFromGeckoAccessible(selectedAcc);
+    mozAccessible *curNative = GetNativeFromGoannaAccessible(selectedAcc);
     if (curNative)
       return [NSArray arrayWithObjects:GetObjectOrRepresentedView(curNative), nil];
   }

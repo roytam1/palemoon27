@@ -21,7 +21,7 @@ import android.util.SparseArray;
 public class HealthReportGenerator {
   private static final int PAYLOAD_VERSION = 3;
 
-  private static final String LOG_TAG = "GeckoHealthGen";
+  private static final String LOG_TAG = "GoannaHealthGen";
 
   private final HealthReportStorage storage;
   private final DateFormatter dateFormatter;
@@ -274,7 +274,7 @@ public class HealthReportGenerator {
   public static JSONObject jsonify(Environment e, Environment current) throws JSONException {
     JSONObject age = getProfileAge(e, current);
     JSONObject sysinfo = getSysInfo(e, current);
-    JSONObject gecko = getGeckoInfo(e, current);
+    JSONObject gecko = getGoannaInfo(e, current);
     JSONObject appinfo = getAppInfo(e, current);
     JSONObject counts = getAddonCounts(e, current);
     JSONObject config = getDeviceConfig(e, current);
@@ -398,7 +398,7 @@ public class HealthReportGenerator {
     return sysinfo;
   }
 
-  private static JSONObject getGeckoInfo(Environment e, Environment current) throws JSONException {
+  private static JSONObject getGoannaInfo(Environment e, Environment current) throws JSONException {
     JSONObject gecko = new JSONObject();
     int changes = 0;
     if (current == null || !current.vendor.equals(e.vendor)) {

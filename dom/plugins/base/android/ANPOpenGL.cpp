@@ -12,7 +12,7 @@
 #include "GLContextProvider.h"
 #include "GLContextEGL.h"
 
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #define ASSIGN(obj, name)   (obj)->name = anp_opengl_##name
 
 using namespace mozilla;

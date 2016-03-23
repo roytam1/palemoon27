@@ -1,4 +1,4 @@
-# Taskcluster + Gecko Integration
+# Taskcluster + Goanna Integration
 
 ## Task conventions
 

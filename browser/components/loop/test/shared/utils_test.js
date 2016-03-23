@@ -48,9 +48,9 @@ describe("loop.shared.utils", function() {
   describe("#isFirefox", function() {
     it("should detect Firefox", function() {
       expect(sharedUtils.isFirefox("Firefox")).eql(true);
-      expect(sharedUtils.isFirefox("Gecko/Firefox")).eql(true);
-      expect(sharedUtils.isFirefox("Firefox/Gecko")).eql(true);
-      expect(sharedUtils.isFirefox("Gecko/Firefox/Chuck Norris")).eql(true);
+      expect(sharedUtils.isFirefox("Goanna/Firefox")).eql(true);
+      expect(sharedUtils.isFirefox("Firefox/Goanna")).eql(true);
+      expect(sharedUtils.isFirefox("Goanna/Firefox/Chuck Norris")).eql(true);
     });
 
     it("shouldn't detect Firefox with other platforms", function() {
@@ -174,28 +174,28 @@ describe("loop.shared.utils", function() {
 
   describe("#getOS", function() {
     it("should recognize the OSX userAgent string", function() {
-      var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Gecko/20100101 Firefox/37.0";
+      var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Goanna/20100101 Firefox/37.0";
       var result = sharedUtils.getOS(UA);
 
       expect(result).eql("intel mac os x");
     });
 
     it("should recognize the OSX userAgent string with version", function() {
-      var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Gecko/20100101 Firefox/37.0";
+      var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Goanna/20100101 Firefox/37.0";
       var result = sharedUtils.getOS(UA, true);
 
       expect(result).eql("intel mac os x 10.10");
     });
 
     it("should recognize the Windows userAgent string with version", function() {
-      var UA = "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:10.0) Gecko/20100101 Firefox/10.0";
+      var UA = "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:10.0) Goanna/20100101 Firefox/10.0";
       var result = sharedUtils.getOS(UA, true);
 
       expect(result).eql("windows nt 6.1");
     });
 
     it("should recognize the Linux userAgent string", function() {
-      var UA = "Mozilla/5.0 (X11; Linux i686 on x86_64; rv:10.0) Gecko/20100101 Firefox/10.0";
+      var UA = "Mozilla/5.0 (X11; Linux i686 on x86_64; rv:10.0) Goanna/20100101 Firefox/10.0";
       var result = sharedUtils.getOS(UA);
 
       expect(result).eql("linux i686 on x86_64");
@@ -218,14 +218,14 @@ describe("loop.shared.utils", function() {
 
   describe("#getOSVersion", function() {
     it("should fetch the correct version info for OSX", function() {
-      var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Gecko/20100101 Firefox/37.0";
+      var UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:37.0) Goanna/20100101 Firefox/37.0";
       var result = sharedUtils.getOSVersion(UA);
 
       expect(result).eql({ major: 10, minor: 10 });
     });
 
     it("should fetch the correct version info for Windows", function() {
-      var UA = "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:10.0) Gecko/20100101 Firefox/10.0";
+      var UA = "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:10.0) Goanna/20100101 Firefox/10.0";
       var result = sharedUtils.getOSVersion(UA);
 
       expect(result).eql({ major: 6, minor: 1 });
@@ -239,7 +239,7 @@ describe("loop.shared.utils", function() {
     });
 
     it("should fetch the correct version info for Linux", function() {
-      var UA = "Mozilla/5.0 (X11; Linux i686 on x86_64; rv:10.0) Gecko/20100101 Firefox/10.0";
+      var UA = "Mozilla/5.0 (X11; Linux i686 on x86_64; rv:10.0) Goanna/20100101 Firefox/10.0";
       var result = sharedUtils.getOSVersion(UA);
 
       // Linux version can't be determined correctly.

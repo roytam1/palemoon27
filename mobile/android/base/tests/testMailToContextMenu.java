@@ -13,7 +13,7 @@ public class testMailToContextMenu extends ContentContextMenuTest {
     private static final String mailtoMenuItems [] = {"Copy Email Address", "Share Email Address"};
 
     public void testMailToContextMenu() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         MAILTO_PAGE_URL=getAbsoluteUrl(StringHelper.ROBOCOP_BIG_MAILTO_URL);
         inputAndLoadUrl(MAILTO_PAGE_URL);

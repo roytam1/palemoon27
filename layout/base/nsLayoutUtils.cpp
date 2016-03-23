@@ -100,7 +100,7 @@
 #include "nsXULPopupManager.h"
 #endif
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
 #include "RestyleManager.h"
@@ -3269,7 +3269,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     // but it should be close enough to now not to matter.
     if (layerManager && !layerManager->NeedsWidgetInvalidation()) {
 #if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
-      if (XRE_GetProcessType() == GeckoProcessType_Content) {
+      if (XRE_GetProcessType() == GoannaProcessType_Content) {
         // If this is a remotely managed widget (PluginWidgetProxy in content)
         // store this information in the compositor, which ships this
         // over to chrome for application when we paint.
@@ -5747,7 +5747,7 @@ StableRound(const gfxPoint& aPoint)
 /**
  * Given a set of input parameters, compute certain output parameters
  * for drawing an image with the image snapping algorithm.
- * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
+ * See https://wiki.mozilla.org/Goanna:Image_Snapping_and_Rendering
  *
  *  @see nsLayoutUtils::DrawImage() for the descriptions of input parameters
  */

@@ -23,7 +23,7 @@ public class ScrollAnimator implements View.OnGenericMotionListener {
     static final long MS_PER_FRAME = 1000 / 60;
 
     // Maximum number of pixels that can be scrolled per frame
-    static final float MAX_SCROLL = 0.075f * GeckoAppShell.getDpi();
+    static final float MAX_SCROLL = 0.075f * GoannaAppShell.getDpi();
 
     private class ScrollRunnable extends TimerTask {
         private final View mView;

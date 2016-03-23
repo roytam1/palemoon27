@@ -17,7 +17,7 @@ this.EXPORTED_SYMBOLS = ["PageActions"];
 
 // Copied from browser.js
 // TODO: We should move this method to a common importable location
-function resolveGeckoURI(aURI) {
+function resolveGoannaURI(aURI) {
   if (!aURI)
     throw "Can't resolve an empty uri";
 
@@ -71,7 +71,7 @@ var PageActions = {
       type: "PageActions:Add",
       id: id,
       title: aOptions.title,
-      icon: resolveGeckoURI(aOptions.icon),
+      icon: resolveGoannaURI(aOptions.icon),
       important: "important" in aOptions ? aOptions.important : false
     });
 

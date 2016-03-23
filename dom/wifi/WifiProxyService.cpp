@@ -11,7 +11,7 @@
 #include "WifiUtils.h"
 
 #ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
+#include "GoannaTaskTracer.h"
 using namespace mozilla::tasktracer;
 #endif
 
@@ -151,7 +151,7 @@ WifiProxyService::~WifiProxyService()
 already_AddRefed<WifiProxyService>
 WifiProxyService::FactoryCreate()
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     return nullptr;
   }
 

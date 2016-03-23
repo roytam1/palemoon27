@@ -29,7 +29,7 @@ import android.util.Log;
 
 public class CrashHandler implements Thread.UncaughtExceptionHandler {
 
-    private static final String LOGTAG = "GeckoCrashHandler";
+    private static final String LOGTAG = "GoannaCrashHandler";
     private static final Thread MAIN_THREAD = Thread.currentThread();
     private static final String DEFAULT_SERVER_URL =
         "https://crash-reports.mozilla.com/submit?id=%1$s&version=%2$s&buildid=%3$s";
@@ -413,7 +413,7 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
         }
 
         if (thread == null) {
-            // Gecko may pass in null for thread to denote the current thread.
+            // Goanna may pass in null for thread to denote the current thread.
             thread = Thread.currentThread();
         }
 

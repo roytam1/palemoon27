@@ -30,7 +30,7 @@
 #include "nsToolkitCompsCID.h"
 
 NativeMenuItemTarget* nsMenuBarX::sNativeEventTarget = nil;
-nsMenuBarX* nsMenuBarX::sLastGeckoMenuBarPainted = nullptr; // Weak
+nsMenuBarX* nsMenuBarX::sLastGoannaMenuBarPainted = nullptr; // Weak
 nsMenuBarX* nsMenuBarX::sCurrentPaintDelayedMenuBar = nullptr; // Weak
 NSMenu* sApplicationMenu = nil;
 BOOL gSomeMenuBarPainted = NO;
@@ -61,7 +61,7 @@ nsMenuBarX::nsMenuBarX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  mNativeMenu = [[GeckoNSMenu alloc] initWithTitle:@"MainMenuBar" andMenuBarOwner:this];
+  mNativeMenu = [[GoannaNSMenu alloc] initWithTitle:@"MainMenuBar" andMenuBarOwner:this];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -70,8 +70,8 @@ nsMenuBarX::~nsMenuBarX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (nsMenuBarX::sLastGeckoMenuBarPainted == this)
-    nsMenuBarX::sLastGeckoMenuBarPainted = nullptr;
+  if (nsMenuBarX::sLastGoannaMenuBarPainted == this)
+    nsMenuBarX::sLastGoannaMenuBarPainted = nullptr;
 
   // the quit/pref items of a random window might have been used if there was no
   // hidden window, thus we need to invalidate the weak references.
@@ -398,7 +398,7 @@ nsresult nsMenuBarX::Paint(bool aDelayed)
   mAwaitingDelayedPaint = false;
 
   // Don't try to optimize anything in this painting by checking
-  // sLastGeckoMenuBarPainted because the menubar can be manipulated by
+  // sLastGoannaMenuBarPainted because the menubar can be manipulated by
   // native dialogs and sheet code and other things besides this paint method.
 
   // We have to keep the same menu item for the Application menu so we keep
@@ -419,10 +419,10 @@ nsresult nsMenuBarX::Paint(bool aDelayed)
   // causes the item to remain semi-permanently highlighted (until you quit
   // Firefox or navigate the main menu by hand).
   if ((outgoingMenu != mNativeMenu) &&
-      [outgoingMenu isKindOfClass:[GeckoNSMenu class]]) {
+      [outgoingMenu isKindOfClass:[GoannaNSMenu class]]) {
     if (aDelayed) {
-      [(GeckoNSMenu *)outgoingMenu setDelayResignMainMenu:false];
-    } else if ([(GeckoNSMenu *)outgoingMenu delayResignMainMenu]) {
+      [(GoannaNSMenu *)outgoingMenu setDelayResignMainMenu:false];
+    } else if ([(GoannaNSMenu *)outgoingMenu delayResignMainMenu]) {
       PaintMenuBarAfterDelay();
       return NS_OK;
     }
@@ -437,7 +437,7 @@ nsresult nsMenuBarX::Paint(bool aDelayed)
     [NSApp setMainMenu:mNativeMenu];
   }
   SetSystemHelpMenu();
-  nsMenuBarX::sLastGeckoMenuBarPainted = this;
+  nsMenuBarX::sLastGoannaMenuBarPainted = this;
 
   gSomeMenuBarPainted = YES;
 
@@ -468,10 +468,10 @@ void nsMenuBarX::PaintMenuBarAfterDelay()
 // when [NSEvent modifierFlags] == NSCommandKeyMask.
 char nsMenuBarX::GetLocalizedAccelKey(const char *shortcutID)
 {
-  if (!sLastGeckoMenuBarPainted)
+  if (!sLastGoannaMenuBarPainted)
     return 0;
 
-  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(sLastGeckoMenuBarPainted->mContent->OwnerDoc()));
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(sLastGoannaMenuBarPainted->mContent->OwnerDoc()));
   if (!domDoc)
     return 0;
 
@@ -595,8 +595,8 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
       // now grab the key equivalent modifiers
       nsAutoString modifiersStr;
       keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiersStr);
-      uint8_t geckoModifiers = nsMenuUtilsX::GeckoModifiersForNodeAttribute(modifiersStr);
-      macKeyModifiers = nsMenuUtilsX::MacModifiersForGeckoModifiers(geckoModifiers);
+      uint8_t geckoModifiers = nsMenuUtilsX::GoannaModifiersForNodeAttribute(modifiersStr);
+      macKeyModifiers = nsMenuUtilsX::MacModifiersForGoannaModifiers(geckoModifiers);
     }
   }
   // get the label into NSString-form
@@ -707,7 +707,7 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
       [sApplicationMenu addItem:itemBeingAdded];
       
       // set this menu item up as the Mac OS X Services menu
-      NSMenu* servicesMenu = [[GeckoServicesNSMenu alloc] initWithTitle:@""];
+      NSMenu* servicesMenu = [[GoannaServicesNSMenu alloc] initWithTitle:@""];
       [itemBeingAdded setSubmenu:servicesMenu];
       [NSApp setServicesMenu:servicesMenu];
       
@@ -795,7 +795,7 @@ void nsMenuBarX::SetParent(nsIWidget* aParent)
 // Controls whether or not native menu items should invoke their commands.
 static BOOL gMenuItemsExecuteCommands = YES;
 
-@implementation GeckoNSMenu
+@implementation GoannaNSMenu
 
 - (id)initWithTitle:(NSString *)aTitle
 {
@@ -851,8 +851,8 @@ static BOOL gMenuItemsExecuteCommands = YES;
 - (void)_performActionWithHighlightingForItemAtIndex:(NSInteger)index
 {
   NSMenu *mainMenu = [NSApp mainMenu];
-  if ([mainMenu isKindOfClass:[GeckoNSMenu class]]) {
-    [(GeckoNSMenu *)mainMenu setDelayResignMainMenu:true];
+  if ([mainMenu isKindOfClass:[GoannaNSMenu class]]) {
+    [(GoannaNSMenu *)mainMenu setDelayResignMainMenu:true];
   }
   [super _performActionWithHighlightingForItemAtIndex:index];
 }
@@ -876,7 +876,7 @@ static BOOL gMenuItemsExecuteCommands = YES;
   NSWindow *keyWindow = [NSApp keyWindow];
 
   // If there is no key window then just behave normally. This
-  // probably means that this menu is associated with Gecko's
+  // probably means that this menu is associated with Goanna's
   // hidden window.
   if (!keyWindow) {
     return [super performKeyEquivalent:theEvent];
@@ -921,11 +921,11 @@ static BOOL gMenuItemsExecuteCommands = YES;
   // need to null out its "menuGroupOwner" if it's the same as the nsMenuBarX
   // object being destroyed.)  But if the nsMenuBarX object being destroyed
   // corresponds to the currently focused window, it's likely that the
-  // nsMenuBarX destructor will null out sLastGeckoMenuBarPainted.  So we can
+  // nsMenuBarX destructor will null out sLastGoannaMenuBarPainted.  So we can
   // probably eliminate most of these crashes if we use this variable being
   // null as an indicator that we're likely to crash below when we dereference
   // menuGroupOwner.
-  if (!nsMenuBarX::sLastGeckoMenuBarPainted) {
+  if (!nsMenuBarX::sLastGoannaMenuBarPainted) {
     return;
   }
 
@@ -1008,12 +1008,12 @@ static BOOL gMenuItemsExecuteCommands = YES;
 
 @end
 
-// Objective-C class used for menu items on the Services menu to allow Gecko
+// Objective-C class used for menu items on the Services menu to allow Goanna
 // to override their standard behavior in order to stop key equivalents from
 // firing in certain instances. When gMenuItemsExecuteCommands is NO, we return
 // a dummy target and action instead of the actual target and action.
 
-@implementation GeckoServicesNSMenuItem
+@implementation GoannaServicesNSMenuItem
 
 - (id) target
 {
@@ -1039,11 +1039,11 @@ static BOOL gMenuItemsExecuteCommands = YES;
 
 @end
 
-// Objective-C class used as the Services menu so that Gecko can override the
+// Objective-C class used as the Services menu so that Goanna can override the
 // standard behavior of the Services menu in order to stop key equivalents
 // from firing in certain instances.
 
-@implementation GeckoServicesNSMenu
+@implementation GoannaServicesNSMenu
 
 - (void)addItem:(NSMenuItem *)newItem
 {
@@ -1074,7 +1074,7 @@ static BOOL gMenuItemsExecuteCommands = YES;
 - (void) _overrideClassOfMenuItem:(NSMenuItem *)menuItem
 {
   if ([menuItem class] == [NSMenuItem class])
-    object_setClass(menuItem, [GeckoServicesNSMenuItem class]);
+    object_setClass(menuItem, [GoannaServicesNSMenuItem class]);
 }
 
 @end

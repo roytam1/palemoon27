@@ -9,7 +9,7 @@
 
 #include "mozilla/ThreadHangStats.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include <stddef.h>
 

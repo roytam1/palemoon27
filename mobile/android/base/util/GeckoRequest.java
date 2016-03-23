@@ -12,8 +12,8 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 
 import android.util.Log;
 
-public abstract class GeckoRequest {
-    private static final String LOGTAG = "GeckoRequest";
+public abstract class GoannaRequest {
+    private static final String LOGTAG = "GoannaRequest";
     private static final AtomicInteger currentId = new AtomicInteger(0);
 
     private final int id = currentId.getAndIncrement();
@@ -22,15 +22,15 @@ public abstract class GeckoRequest {
 
     /**
      * Creates a request that can be dispatched using
-     * {@link GeckoAppShell#sendRequestToGecko(GeckoRequest)}.
+     * {@link GoannaAppShell#sendRequestToGoanna(GoannaRequest)}.
      *
      * @param name The name of the event associated with this request, which must have a
-     *             Gecko-side listener registered to respond to this request.
+     *             Goanna-side listener registered to respond to this request.
      * @param data Data to send with this request, which can be any object serializable by
      *             {@link JSONObject#put(String, Object)}.
      */
     @RobocopTarget
-    public GeckoRequest(String name, Object data) {
+    public GoannaRequest(String name, Object data) {
         this.name = name;
         final JSONObject message = new JSONObject();
         try {
@@ -54,7 +54,7 @@ public abstract class GeckoRequest {
     /**
      * Gets the event name associated with this request.
      *
-     * @return The name of the event sent to Gecko
+     * @return The name of the event sent to Goanna
      */
     public String getName() {
         return name;
@@ -72,7 +72,7 @@ public abstract class GeckoRequest {
     /**
      * Callback executed when the request succeeds.
      *
-     * @param nativeJSObject The response data from Gecko
+     * @param nativeJSObject The response data from Goanna
      */
     @RobocopTarget
     public abstract void onResponse(NativeJSObject nativeJSObject);
@@ -81,7 +81,7 @@ public abstract class GeckoRequest {
      * Callback executed when the request fails.
      *
      * By default, an exception is thrown. This should be overridden if the
-     * GeckoRequest is able to recover from the error.
+     * GoannaRequest is able to recover from the error.
      *
      * @throws RuntimeException
      */
@@ -89,6 +89,6 @@ public abstract class GeckoRequest {
     public void onError(NativeJSObject error) {
         final String message = error.optString("message", "<no message>");
         final String stack = error.optString("stack", "<no stack>");
-        throw new RuntimeException("Unhandled error for GeckoRequest " + name + ": " + message + "\nJS stack:\n" + stack);
+        throw new RuntimeException("Unhandled error for GoannaRequest " + name + ": " + message + "\nJS stack:\n" + stack);
     }
 }

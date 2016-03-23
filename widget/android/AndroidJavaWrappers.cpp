@@ -15,61 +15,61 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-jclass AndroidGeckoEvent::jGeckoEventClass = 0;
-jfieldID AndroidGeckoEvent::jActionField = 0;
-jfieldID AndroidGeckoEvent::jTypeField = 0;
-jfieldID AndroidGeckoEvent::jAckNeededField = 0;
-jfieldID AndroidGeckoEvent::jTimeField = 0;
-jfieldID AndroidGeckoEvent::jPoints = 0;
-jfieldID AndroidGeckoEvent::jPointIndicies = 0;
-jfieldID AndroidGeckoEvent::jPressures = 0;
-jfieldID AndroidGeckoEvent::jToolTypes = 0;
-jfieldID AndroidGeckoEvent::jPointRadii = 0;
-jfieldID AndroidGeckoEvent::jOrientations = 0;
-jfieldID AndroidGeckoEvent::jXField = 0;
-jfieldID AndroidGeckoEvent::jYField = 0;
-jfieldID AndroidGeckoEvent::jZField = 0;
-jfieldID AndroidGeckoEvent::jDistanceField = 0;
-jfieldID AndroidGeckoEvent::jRectField = 0;
-jfieldID AndroidGeckoEvent::jNativeWindowField = 0;
+jclass AndroidGoannaEvent::jGoannaEventClass = 0;
+jfieldID AndroidGoannaEvent::jActionField = 0;
+jfieldID AndroidGoannaEvent::jTypeField = 0;
+jfieldID AndroidGoannaEvent::jAckNeededField = 0;
+jfieldID AndroidGoannaEvent::jTimeField = 0;
+jfieldID AndroidGoannaEvent::jPoints = 0;
+jfieldID AndroidGoannaEvent::jPointIndicies = 0;
+jfieldID AndroidGoannaEvent::jPressures = 0;
+jfieldID AndroidGoannaEvent::jToolTypes = 0;
+jfieldID AndroidGoannaEvent::jPointRadii = 0;
+jfieldID AndroidGoannaEvent::jOrientations = 0;
+jfieldID AndroidGoannaEvent::jXField = 0;
+jfieldID AndroidGoannaEvent::jYField = 0;
+jfieldID AndroidGoannaEvent::jZField = 0;
+jfieldID AndroidGoannaEvent::jDistanceField = 0;
+jfieldID AndroidGoannaEvent::jRectField = 0;
+jfieldID AndroidGoannaEvent::jNativeWindowField = 0;
 
-jfieldID AndroidGeckoEvent::jCharactersField = 0;
-jfieldID AndroidGeckoEvent::jCharactersExtraField = 0;
-jfieldID AndroidGeckoEvent::jDataField = 0;
-jfieldID AndroidGeckoEvent::jDOMPrintableKeyValueField = 0;
-jfieldID AndroidGeckoEvent::jKeyCodeField = 0;
-jfieldID AndroidGeckoEvent::jScanCodeField = 0;
-jfieldID AndroidGeckoEvent::jMetaStateField = 0;
-jfieldID AndroidGeckoEvent::jFlagsField = 0;
-jfieldID AndroidGeckoEvent::jUnicodeCharField = 0;
-jfieldID AndroidGeckoEvent::jBaseUnicodeCharField = 0;
-jfieldID AndroidGeckoEvent::jRepeatCountField = 0;
-jfieldID AndroidGeckoEvent::jCountField = 0;
-jfieldID AndroidGeckoEvent::jStartField = 0;
-jfieldID AndroidGeckoEvent::jEndField = 0;
-jfieldID AndroidGeckoEvent::jPointerIndexField = 0;
-jfieldID AndroidGeckoEvent::jRangeTypeField = 0;
-jfieldID AndroidGeckoEvent::jRangeStylesField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineStyleField = 0;
-jfieldID AndroidGeckoEvent::jRangeBoldLineField = 0;
-jfieldID AndroidGeckoEvent::jRangeForeColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeBackColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineColorField = 0;
-jfieldID AndroidGeckoEvent::jLocationField = 0;
-jfieldID AndroidGeckoEvent::jConnectionTypeField = 0;
-jfieldID AndroidGeckoEvent::jIsWifiField = 0;
-jfieldID AndroidGeckoEvent::jDHCPGatewayField = 0;
-jfieldID AndroidGeckoEvent::jScreenOrientationField = 0;
-jfieldID AndroidGeckoEvent::jByteBufferField = 0;
-jfieldID AndroidGeckoEvent::jWidthField = 0;
-jfieldID AndroidGeckoEvent::jHeightField = 0;
-jfieldID AndroidGeckoEvent::jIDField = 0;
-jfieldID AndroidGeckoEvent::jGamepadButtonField = 0;
-jfieldID AndroidGeckoEvent::jGamepadButtonPressedField = 0;
-jfieldID AndroidGeckoEvent::jGamepadButtonValueField = 0;
-jfieldID AndroidGeckoEvent::jGamepadValuesField = 0;
-jfieldID AndroidGeckoEvent::jPrefNamesField = 0;
-jfieldID AndroidGeckoEvent::jObjectField = 0;
+jfieldID AndroidGoannaEvent::jCharactersField = 0;
+jfieldID AndroidGoannaEvent::jCharactersExtraField = 0;
+jfieldID AndroidGoannaEvent::jDataField = 0;
+jfieldID AndroidGoannaEvent::jDOMPrintableKeyValueField = 0;
+jfieldID AndroidGoannaEvent::jKeyCodeField = 0;
+jfieldID AndroidGoannaEvent::jScanCodeField = 0;
+jfieldID AndroidGoannaEvent::jMetaStateField = 0;
+jfieldID AndroidGoannaEvent::jFlagsField = 0;
+jfieldID AndroidGoannaEvent::jUnicodeCharField = 0;
+jfieldID AndroidGoannaEvent::jBaseUnicodeCharField = 0;
+jfieldID AndroidGoannaEvent::jRepeatCountField = 0;
+jfieldID AndroidGoannaEvent::jCountField = 0;
+jfieldID AndroidGoannaEvent::jStartField = 0;
+jfieldID AndroidGoannaEvent::jEndField = 0;
+jfieldID AndroidGoannaEvent::jPointerIndexField = 0;
+jfieldID AndroidGoannaEvent::jRangeTypeField = 0;
+jfieldID AndroidGoannaEvent::jRangeStylesField = 0;
+jfieldID AndroidGoannaEvent::jRangeLineStyleField = 0;
+jfieldID AndroidGoannaEvent::jRangeBoldLineField = 0;
+jfieldID AndroidGoannaEvent::jRangeForeColorField = 0;
+jfieldID AndroidGoannaEvent::jRangeBackColorField = 0;
+jfieldID AndroidGoannaEvent::jRangeLineColorField = 0;
+jfieldID AndroidGoannaEvent::jLocationField = 0;
+jfieldID AndroidGoannaEvent::jConnectionTypeField = 0;
+jfieldID AndroidGoannaEvent::jIsWifiField = 0;
+jfieldID AndroidGoannaEvent::jDHCPGatewayField = 0;
+jfieldID AndroidGoannaEvent::jScreenOrientationField = 0;
+jfieldID AndroidGoannaEvent::jByteBufferField = 0;
+jfieldID AndroidGoannaEvent::jWidthField = 0;
+jfieldID AndroidGoannaEvent::jHeightField = 0;
+jfieldID AndroidGoannaEvent::jIDField = 0;
+jfieldID AndroidGoannaEvent::jGamepadButtonField = 0;
+jfieldID AndroidGoannaEvent::jGamepadButtonPressedField = 0;
+jfieldID AndroidGoannaEvent::jGamepadButtonValueField = 0;
+jfieldID AndroidGoannaEvent::jGamepadValuesField = 0;
+jfieldID AndroidGoannaEvent::jPrefNamesField = 0;
+jfieldID AndroidGoannaEvent::jObjectField = 0;
 
 jclass AndroidPoint::jPointClass = 0;
 jfieldID AndroidPoint::jXField = 0;
@@ -111,7 +111,7 @@ RefCountedJavaObject::~RefCountedJavaObject() {
 void
 mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
 {
-    AndroidGeckoEvent::InitGeckoEventClass(jEnv);
+    AndroidGoannaEvent::InitGoannaEventClass(jEnv);
     AndroidPoint::InitPointClass(jEnv);
     AndroidLocation::InitLocationClass(jEnv);
     AndroidRect::InitRectClass(jEnv);
@@ -120,10 +120,10 @@ mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
 }
 
 void
-AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
+AndroidGoannaEvent::InitGoannaEventClass(JNIEnv *jEnv)
 {
-    AutoJNIClass geckoEvent(jEnv, "org/mozilla/gecko/GeckoEvent");
-    jGeckoEventClass = geckoEvent.getGlobalRef();
+    AutoJNIClass geckoEvent(jEnv, "org/mozilla/gecko/GoannaEvent");
+    jGoannaEventClass = geckoEvent.getGlobalRef();
 
     jActionField = geckoEvent.getField("mAction", "I");
     jTypeField = geckoEvent.getField("mType", "I");
@@ -266,7 +266,7 @@ AndroidLayerRendererFrame::InitLayerRendererFrameClass(JNIEnv *jEnv)
 }
 
 void
-AndroidGeckoEvent::ReadPointArray(nsTArray<nsIntPoint> &points,
+AndroidGoannaEvent::ReadPointArray(nsTArray<nsIntPoint> &points,
                                   JNIEnv *jenv,
                                   jfieldID field,
                                   int32_t count)
@@ -282,7 +282,7 @@ AndroidGeckoEvent::ReadPointArray(nsTArray<nsIntPoint> &points,
 }
 
 void
-AndroidGeckoEvent::ReadIntArray(nsTArray<int> &aVals,
+AndroidGoannaEvent::ReadIntArray(nsTArray<int> &aVals,
                                 JNIEnv *jenv,
                                 jfieldID field,
                                 int32_t count)
@@ -296,7 +296,7 @@ AndroidGeckoEvent::ReadIntArray(nsTArray<int> &aVals,
 }
 
 void
-AndroidGeckoEvent::ReadFloatArray(nsTArray<float> &aVals,
+AndroidGoannaEvent::ReadFloatArray(nsTArray<float> &aVals,
                                   JNIEnv *jenv,
                                   jfieldID field,
                                   int32_t count)
@@ -310,7 +310,7 @@ AndroidGeckoEvent::ReadFloatArray(nsTArray<float> &aVals,
 }
 
 void
-AndroidGeckoEvent::ReadStringArray(nsTArray<nsString> &array,
+AndroidGoannaEvent::ReadStringArray(nsTArray<nsString> &array,
                                    JNIEnv *jenv,
                                    jfieldID field)
 {
@@ -325,7 +325,7 @@ AndroidGeckoEvent::ReadStringArray(nsTArray<nsString> &array,
 }
 
 void
-AndroidGeckoEvent::ReadRectField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadRectField(JNIEnv *jenv)
 {
     AndroidRect r(jenv, jenv->GetObjectField(wrappedObject(), jRectField));
     if (!r.isNull()) {
@@ -339,7 +339,7 @@ AndroidGeckoEvent::ReadRectField(JNIEnv *jenv)
 }
 
 void
-AndroidGeckoEvent::ReadStringFromJString(nsString &aString, JNIEnv *jenv,
+AndroidGoannaEvent::ReadStringFromJString(nsString &aString, JNIEnv *jenv,
                                          jstring s)
 {
     if (!s) {
@@ -353,34 +353,34 @@ AndroidGeckoEvent::ReadStringFromJString(nsString &aString, JNIEnv *jenv,
 }
 
 void
-AndroidGeckoEvent::ReadCharactersField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadCharactersField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersField);
     ReadStringFromJString(mCharacters, jenv, s);
 }
 
 void
-AndroidGeckoEvent::ReadCharactersExtraField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadCharactersExtraField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersExtraField);
     ReadStringFromJString(mCharactersExtra, jenv, s);
 }
 
 void
-AndroidGeckoEvent::ReadDataField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadDataField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jDataField);
     ReadStringFromJString(mData, jenv, s);
 }
 
 void
-AndroidGeckoEvent::UnionRect(nsIntRect const& aRect)
+AndroidGoannaEvent::UnionRect(nsIntRect const& aRect)
 {
     mRect = aRect.Union(mRect);
 }
 
 void
-AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
+AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
 {
     NS_ASSERTION(!wrapped_obj, "Init called on non-null wrapped_obj!");
 
@@ -620,19 +620,19 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
     }
 
 #ifdef DEBUG_ANDROID_EVENTS
-    ALOG("AndroidGeckoEvent: %p : %d", (void*)jobj, mType);
+    ALOG("AndroidGoannaEvent: %p : %d", (void*)jobj, mType);
 #endif
 }
 
 void
-AndroidGeckoEvent::Init(int aType)
+AndroidGoannaEvent::Init(int aType)
 {
     mType = aType;
     mAckNeeded = false;
 }
 
 void
-AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
+AndroidGoannaEvent::Init(AndroidGoannaEvent *aResizeEvent)
 {
     NS_ASSERTION(aResizeEvent->Type() == SIZE_CHANGED, "Init called on non-SIZE_CHANGED event");
 
@@ -643,7 +643,7 @@ AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
 }
 
 bool
-AndroidGeckoEvent::CanCoalesceWith(AndroidGeckoEvent* ae)
+AndroidGoannaEvent::CanCoalesceWith(AndroidGoannaEvent* ae)
 {
     if (Type() == MOTION_EVENT && ae->Type() == MOTION_EVENT) {
         return Action() == AndroidMotionEvent::ACTION_MOVE
@@ -656,21 +656,21 @@ AndroidGeckoEvent::CanCoalesceWith(AndroidGeckoEvent* ae)
 }
 
 mozilla::layers::ScrollableLayerGuid
-AndroidGeckoEvent::ApzGuid()
+AndroidGoannaEvent::ApzGuid()
 {
     MOZ_ASSERT(Type() == APZ_INPUT_EVENT);
     return mApzGuid;
 }
 
 uint64_t
-AndroidGeckoEvent::ApzInputBlockId()
+AndroidGoannaEvent::ApzInputBlockId()
 {
     MOZ_ASSERT(Type() == APZ_INPUT_EVENT);
     return mApzInputBlockId;
 }
 
 WidgetTouchEvent
-AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
+AndroidGoannaEvent::MakeTouchEvent(nsIWidget* widget)
 {
     if (Type() == APZ_INPUT_EVENT) {
         return mApzInput.ToWidgetTouchEvent(widget);
@@ -734,7 +734,7 @@ AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
     event.touches.SetCapacity(endIndex - startIndex);
     for (int i = startIndex; i < endIndex; i++) {
         // In this code branch, we are dispatching this event directly
-        // into Gecko (as opposed to going through the AsyncPanZoomController),
+        // into Goanna (as opposed to going through the AsyncPanZoomController),
         // and the Points() array has points in CSS pixels, which we need
         // to convert.
         CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
@@ -756,7 +756,7 @@ AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
 }
 
 MultiTouchInput
-AndroidGeckoEvent::MakeMultiTouchInput(nsIWidget* widget)
+AndroidGoannaEvent::MakeMultiTouchInput(nsIWidget* widget)
 {
     MultiTouchInput::MultiTouchType type = (MultiTouchInput::MultiTouchType)-1;
     int startIndex = 0;
@@ -815,7 +815,7 @@ AndroidGeckoEvent::MakeMultiTouchInput(nsIWidget* widget)
 }
 
 WidgetMouseEvent
-AndroidGeckoEvent::MakeMouseEvent(nsIWidget* widget)
+AndroidGoannaEvent::MakeMouseEvent(nsIWidget* widget)
 {
     uint32_t msg = NS_EVENT_NULL;
     if (Points().Length() > 0) {
@@ -850,7 +850,7 @@ AndroidGeckoEvent::MakeMouseEvent(nsIWidget* widget)
     event.modifiers = DOMModifiers();
     event.time = Time();
 
-    // We are dispatching this event directly into Gecko (as opposed to going
+    // We are dispatching this event directly into Goanna (as opposed to going
     // through the AsyncPanZoomController), and the Points() array has points
     // in CSS pixels, which we need to convert to LayoutDevice pixels.
     const LayoutDeviceIntPoint& offset = widget->WidgetToScreenOffset();
@@ -861,7 +861,7 @@ AndroidGeckoEvent::MakeMouseEvent(nsIWidget* widget)
 }
 
 Modifiers
-AndroidGeckoEvent::DOMModifiers() const
+AndroidGoannaEvent::DOMModifiers() const
 {
     Modifiers result = 0;
     if (mMetaState & AMETA_ALT_MASK) {

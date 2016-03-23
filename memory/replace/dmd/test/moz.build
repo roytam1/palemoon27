@@ -6,7 +6,7 @@
 
 FAIL_ON_WARNINGS = True
 
-GeckoSimplePrograms([
+GoannaSimplePrograms([
     'SmokeDMD',
 ], linkage=None)
 

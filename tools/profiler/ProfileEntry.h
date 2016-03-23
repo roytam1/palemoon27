@@ -8,7 +8,7 @@
 #define MOZ_PROFILE_ENTRY_H
 
 #include <ostream>
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "platform.h"
 #include "JSStreamWriter.h"
 #include "ProfilerBacktrace.h"

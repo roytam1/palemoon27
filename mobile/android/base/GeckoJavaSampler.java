@@ -14,7 +14,7 @@ import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import java.lang.Thread;
 import java.util.Set;
 
-public class GeckoJavaSampler {
+public class GoannaJavaSampler {
     private static final String LOGTAG = "JavaSampler";
     private static Thread sSamplingThread;
     private static SamplingThread sSamplingRunnable;
@@ -36,7 +36,7 @@ public class GeckoJavaSampler {
             }
             if (mTime == 0.0d) {
                 // getProfilerTime is not available yet; either libs are not loaded,
-                // or profiling hasn't started on the Gecko side yet
+                // or profiling hasn't started on the Goanna side yet
                 mJavaTime = SystemClock.elapsedRealtime();
             }
             for (int i = 0; i < aStack.length; i++) {
@@ -73,7 +73,7 @@ public class GeckoJavaSampler {
 
         @Override
         public void run() {
-            synchronized (GeckoJavaSampler.class) {
+            synchronized (GoannaJavaSampler.class) {
                 mSamples.put(0, new Sample[mSampleCount]);
                 mSamplePos = 0;
 
@@ -98,7 +98,7 @@ public class GeckoJavaSampler {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                synchronized (GeckoJavaSampler.class) {
+                synchronized (GoannaJavaSampler.class) {
                     if (!mPauseSampler) {
                         StackTraceElement[] bt = sMainThread.getStackTrace();
                         mSamples.get(0)[mSamplePos] = new Sample(bt);
@@ -167,7 +167,7 @@ public class GeckoJavaSampler {
 
     @WrapElementForJNI(allowMultithread = true, stubName = "StartJavaProfiling")
     public static void start(int aInterval, int aSamples) {
-        synchronized (GeckoJavaSampler.class) {
+        synchronized (GoannaJavaSampler.class) {
             if (sSamplingRunnable != null) {
                 return;
             }
@@ -179,21 +179,21 @@ public class GeckoJavaSampler {
 
     @WrapElementForJNI(allowMultithread = true, stubName = "PauseJavaProfiling")
     public static void pause() {
-        synchronized (GeckoJavaSampler.class) {
+        synchronized (GoannaJavaSampler.class) {
             sSamplingRunnable.mPauseSampler = true;
         }
     }
 
     @WrapElementForJNI(allowMultithread = true, stubName = "UnpauseJavaProfiling")
     public static void unpause() {
-        synchronized (GeckoJavaSampler.class) {
+        synchronized (GoannaJavaSampler.class) {
             sSamplingRunnable.mPauseSampler = false;
         }
     }
 
     @WrapElementForJNI(allowMultithread = true, stubName = "StopJavaProfiling")
     public static void stop() {
-        synchronized (GeckoJavaSampler.class) {
+        synchronized (GoannaJavaSampler.class) {
             if (sSamplingThread == null) {
                 return;
             }

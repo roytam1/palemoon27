@@ -76,7 +76,7 @@ nsAndroidHandlerApp::LaunchWithURI(nsIURI *aURI, nsIInterfaceRequestor *aWindowC
 {
   nsCString uriSpec;
   aURI->GetSpec(uriSpec);
-  return widget::GeckoAppShell::OpenUriExternal(
+  return widget::GoannaAppShell::OpenUriExternal(
           uriSpec, mMimeType, mPackageName, mClassName,
           mAction, EmptyString()) ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -84,7 +84,7 @@ nsAndroidHandlerApp::LaunchWithURI(nsIURI *aURI, nsIInterfaceRequestor *aWindowC
 NS_IMETHODIMP
 nsAndroidHandlerApp::Share(const nsAString & data, const nsAString & title)
 {
-  return widget::GeckoAppShell::OpenUriExternal(
+  return widget::GoannaAppShell::OpenUriExternal(
           data, mMimeType, mPackageName, mClassName,
           mAction, EmptyString()) ? NS_OK : NS_ERROR_FAILURE;
 }

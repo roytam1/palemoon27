@@ -11,7 +11,7 @@ EXPORTS += [
 SOURCES += [
     'APKOpen.cpp',
     'NativeCrypto.cpp',
-    'nsGeckoUtils.cpp',
+    'nsGoannaUtils.cpp',
     'NSSBridge.cpp',
     'pbkdf2_sha256.c',
     'SQLiteBridge.cpp',

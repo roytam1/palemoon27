@@ -15,7 +15,7 @@ import android.os.Build;
  * other things.
  *
  * See also SysInfo.java, which includes some of the values available from
- * nsSystemInfo inside Gecko.
+ * nsSystemInfo inside Goanna.
  */
 // Normally, we'd annotate with @RobocopTarget.  Since AppConstants is compiled
 // before RobocopTarget, we instead add o.m.g.AppConstants directly to the
@@ -116,12 +116,12 @@ public class AppConstants {
         " (Android; rv:" + AppConstants.MOZ_APP_VERSION + ")";
 
     public static final String USER_AGENT_FENNEC_MOBILE = "Mozilla/5.0 (Android; Mobile; rv:" +
-        AppConstants.MOZ_APP_VERSION + ") Gecko/" +
+        AppConstants.MOZ_APP_VERSION + ") Goanna/" +
         AppConstants.MOZ_APP_VERSION + " Firefox/" +
         AppConstants.MOZ_APP_VERSION;
 
     public static final String USER_AGENT_FENNEC_TABLET = "Mozilla/5.0 (Android; Tablet; rv:" +
-        AppConstants.MOZ_APP_VERSION + ") Gecko/" +
+        AppConstants.MOZ_APP_VERSION + ") Goanna/" +
         AppConstants.MOZ_APP_VERSION + " Firefox/" +
         AppConstants.MOZ_APP_VERSION;
 

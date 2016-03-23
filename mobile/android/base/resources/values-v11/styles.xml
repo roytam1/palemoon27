@@ -46,9 +46,9 @@
     <!-- ActionBar -->
     <style name="ActionBar" parent="android:style/Widget.Holo.ActionBar" />
  
-    <!-- GeckoPreferences ActionBar -->
-    <style name="ActionBar.GeckoPreferences">
-         <!-- Partially duplicated in GeckoPreferences.initActionBar - look there for more details. -->
+    <!-- GoannaPreferences ActionBar -->
+    <style name="ActionBar.GoannaPreferences">
+         <!-- Partially duplicated in GoannaPreferences.initActionBar - look there for more details. -->
          <item name="android:displayOptions">showHome|homeAsUp|showTitle|useLogo</item>
     </style>
  
@@ -77,27 +77,27 @@
         <item name="android:textColor">#FF000000</item>
     </style>
 
-    <style name="GeckoActionBar" parent="@android:style/Widget.Holo.Light.ActionMode">
+    <style name="GoannaActionBar" parent="@android:style/Widget.Holo.Light.ActionMode">
         <item name="android:background">@drawable/ab_background</item>
     </style>
 
     <style name="TextAppearance.Widget.ActionBar.Title" parent="@android:style/TextAppearance.Medium"/>
 
-    <style name="GeckoActionBar.Title" parent="TextAppearance.Widget.ActionBar.Title">
+    <style name="GoannaActionBar.Title" parent="TextAppearance.Widget.ActionBar.Title">
         <item name="android:drawableLeft">@drawable/ab_done</item>
         <item name="android:background">@android:color/transparent</item>
         <item name="android:paddingLeft">15dp</item>
         <item name="android:paddingRight">15dp</item>
     </style>
 
-    <style name="GeckoActionBar.Button" parent="android:style/Widget.Holo.Light.ActionButton">
+    <style name="GoannaActionBar.Button" parent="android:style/Widget.Holo.Light.ActionButton">
         <item name="android:padding">8dip</item>
         <!-- The default implementation doesn't do any image scaling. Our custom menus mean we can't just use the same image
              in both menus and the actionbar without doing some scaling though. -->
         <item name="android:scaleType">centerInside</item>
     </style>
 
-    <style name="GeckoActionBar.Button.MenuButton" parent="android:style/Widget.Holo.Light.ActionButton.Overflow">
+    <style name="GoannaActionBar.Button.MenuButton" parent="android:style/Widget.Holo.Light.ActionButton.Overflow">
         <item name="android:scaleType">center</item>
         <item name="android:background">@android:color/transparent</item>
         <item name="android:src">@drawable/menu_light</item>

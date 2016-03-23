@@ -40,7 +40,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 
-// Implementation of nICEr/nr_socket that is tied to the Gecko
+// Implementation of nICEr/nr_socket that is tied to the Goanna
 // SocketTransportService.
 
 #ifndef nr_socket_prsock__

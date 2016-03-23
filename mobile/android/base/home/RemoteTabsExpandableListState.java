@@ -24,7 +24,7 @@ import android.content.SharedPreferences.Editor;
  * enough to do on the main thread.
  * <p>
  * This state is "per SharedPreferences" object. In practice, there should exist
- * one state object per Gecko Profile; since we can't change profiles without
+ * one state object per Goanna Profile; since we can't change profiles without
  * killing our process, this can be a static singleton.
  */
 public class RemoteTabsExpandableListState {

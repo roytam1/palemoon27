@@ -4,9 +4,9 @@
 
 package org.mozilla.gecko.prompts;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.GeckoActionProvider;
+import org.mozilla.gecko.widget.GoannaActionProvider;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -24,7 +24,7 @@ import java.util.List;
 
 /**
  * Shows a prompt letting the user pick from a list of intent handlers for a set of Intents or
- * for a GeckoActionProvider.  Basic usage:
+ * for a GoannaActionProvider.  Basic usage:
  *   IntentChooserPrompt prompt = new IntentChooserPrompt(context, new Intent[] {
  *      ... // some intents
  *    });
@@ -34,7 +34,7 @@ import java.util.List;
  *    });
  **/
 public class IntentChooserPrompt {
-    private static final String LOGTAG = "GeckoIntentChooser";
+    private static final String LOGTAG = "GoannaIntentChooser";
 
     private final ArrayList<PromptListItem> mItems;
 
@@ -42,7 +42,7 @@ public class IntentChooserPrompt {
         mItems = getItems(context, intents);
     }
 
-    public IntentChooserPrompt(Context context, GeckoActionProvider provider) {
+    public IntentChooserPrompt(Context context, GoannaActionProvider provider) {
         mItems = getItems(context, provider);
     }
 
@@ -110,8 +110,8 @@ public class IntentChooserPrompt {
         return items;
     }
 
-    // Gets a list of PromptListItems for a GeckoActionProvider
-    private ArrayList<PromptListItem> getItems(final Context context, final GeckoActionProvider provider) {
+    // Gets a list of PromptListItems for a GoannaActionProvider
+    private ArrayList<PromptListItem> getItems(final Context context, final GoannaActionProvider provider) {
         final ArrayList<PromptListItem> items = new ArrayList<PromptListItem>();
 
         // Add any intents from the provider.
@@ -141,7 +141,7 @@ public class IntentChooserPrompt {
     private ArrayList<PromptListItem> getItemsForIntent(Context context, Intent intent) {
         ArrayList<PromptListItem> items = new ArrayList<PromptListItem>();
         PackageManager pm = context.getPackageManager();
-        List<ResolveInfo> lri = pm.queryIntentActivityOptions(GeckoAppShell.getGeckoInterface().getActivity().getComponentName(), null, intent, 0);
+        List<ResolveInfo> lri = pm.queryIntentActivityOptions(GoannaAppShell.getGoannaInterface().getActivity().getComponentName(), null, intent, 0);
 
         // If we didn't find any activities, just return the empty list
         if (lri == null) {

@@ -189,7 +189,7 @@ ServiceWorkerManager::ServiceWorkerManager()
   // Register this component to PBackground.
   MOZ_ALWAYS_TRUE(BackgroundChild::GetOrCreateForCurrentThread(this));
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     nsRefPtr<ServiceWorkerRegistrar> swr = ServiceWorkerRegistrar::Get();
     MOZ_ASSERT(swr);
 

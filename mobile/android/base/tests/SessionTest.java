@@ -156,7 +156,7 @@ public abstract class SessionTest extends BaseTest {
             }
 
             for (int j = 1; j < pages.length; j++) {
-                Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
+                Actions.EventExpecter pageShowExpecter = mActions.expectGoannaEvent("Content:PageShow");
 
                 loadUrl(pages[j].url);
 
@@ -226,8 +226,8 @@ public abstract class SessionTest extends BaseTest {
     /**
      * Gets session restore JSON corresponding to the open session.
      *
-     * The JSON format follows the format used in Gecko for session restore and
-     * should be interchangeable with the Gecko's generated sessionstore.js.
+     * The JSON format follows the format used in Goanna for session restore and
+     * should be interchangeable with the Goanna's generated sessionstore.js.
      *
      * @param session Session to serialize
      * @return JSON string of session

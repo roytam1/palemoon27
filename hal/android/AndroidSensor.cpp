@@ -13,12 +13,12 @@ namespace hal_impl {
 
 void
 EnableSensorNotifications(SensorType aSensor) {
-  widget::GeckoAppShell::EnableSensor(aSensor);
+  widget::GoannaAppShell::EnableSensor(aSensor);
 }
 
 void
 DisableSensorNotifications(SensorType aSensor) {
-  widget::GeckoAppShell::DisableSensor(aSensor);
+  widget::GoannaAppShell::DisableSensor(aSensor);
 }
 
 } // hal_impl

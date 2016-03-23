@@ -13,7 +13,7 @@ import android.opengl.GLES20;
  * ES.
  */
 public abstract class TileLayer extends Layer {
-    private static final String LOGTAG = "GeckoTileLayer";
+    private static final String LOGTAG = "GoannaTileLayer";
 
     protected final BufferedImage mImage;
 

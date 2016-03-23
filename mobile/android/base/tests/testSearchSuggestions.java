@@ -32,7 +32,7 @@ public class testSearchSuggestions extends BaseTest {
         // search term is entered, but we swizzle in a new factory beforehand.
         mockSuggestClientFactory();
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Map of expected values. See robocop_suggestions.sjs.
         final HashMap<String, ArrayList<String>> suggestMap = new HashMap<String, ArrayList<String>>();

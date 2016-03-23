@@ -26,13 +26,13 @@ PaymentProviderStrategy.prototype = {
   _getNetworkInfo: function(type) {
     let jenv = JNI.GetForThread();
     let jMethodName = "get" + type.toUpperCase();
-    let jGeckoNetworkManager = JNI.LoadClass(
-      jenv, "org/mozilla/gecko/GeckoNetworkManager", {
+    let jGoannaNetworkManager = JNI.LoadClass(
+      jenv, "org/mozilla/gecko/GoannaNetworkManager", {
       static_methods: [
         { name: jMethodName, sig: "()I" },
       ],
     });
-    let val = jGeckoNetworkManager[jMethodName]();
+    let val = jGoannaNetworkManager[jMethodName]();
     JNI.UnloadClasses(jenv);
 
     if (val < 0) {

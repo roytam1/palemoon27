@@ -9,7 +9,7 @@ import java.util.Locale;
 
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.LocaleManager;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.R;
@@ -32,9 +32,9 @@ import android.view.MenuInflater;
 
 /* A simple implementation of PreferenceFragment for large screen devices
  * This will strip category headers (so that they aren't shown to the user twice)
- * as well as initializing Gecko prefs when a fragment is shown.
+ * as well as initializing Goanna prefs when a fragment is shown.
 */
-public class GeckoPreferenceFragment extends PreferenceFragment {
+public class GoannaPreferenceFragment extends PreferenceFragment {
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
@@ -50,7 +50,7 @@ public class GeckoPreferenceFragment extends PreferenceFragment {
         }
     }
 
-    private static final String LOGTAG = "GeckoPreferenceFragment";
+    private static final String LOGTAG = "GoannaPreferenceFragment";
     private int mPrefsRequestId;
     private Locale lastLocale = Locale.getDefault();
 
@@ -58,8 +58,8 @@ public class GeckoPreferenceFragment extends PreferenceFragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Write prefs to our custom GeckoSharedPrefs file.
-        getPreferenceManager().setSharedPreferencesName(GeckoSharedPrefs.APP_PREFS_NAME);
+        // Write prefs to our custom GoannaSharedPrefs file.
+        getPreferenceManager().setSharedPreferencesName(GoannaSharedPrefs.APP_PREFS_NAME);
 
         int res = getResource();
         if (res == R.xml.preferences) {
@@ -78,7 +78,7 @@ public class GeckoPreferenceFragment extends PreferenceFragment {
 
         PreferenceScreen screen = getPreferenceScreen();
         setPreferenceScreen(screen);
-        mPrefsRequestId = ((GeckoPreferences)getActivity()).setupPreferences(screen);
+        mPrefsRequestId = ((GoannaPreferences)getActivity()).setupPreferences(screen);
     }
 
     /**

@@ -8,12 +8,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-public class GeckoMessageReceiver extends BroadcastReceiver {
+public class GoannaMessageReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         final String action = intent.getAction();
-        if (GeckoApp.ACTION_INIT_PW.equals(action)) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Passwords:Init", null));
+        if (GoannaApp.ACTION_INIT_PW.equals(action)) {
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Passwords:Init", null));
         }
     }
 }

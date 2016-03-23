@@ -8,22 +8,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.jayway.android.robotium.solo.Condition;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.tests.helpers.AssertionHelper;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 import org.mozilla.gecko.tests.helpers.JavascriptBridge;
 import org.mozilla.gecko.tests.helpers.NavigationHelper;
 import org.mozilla.gecko.tests.helpers.WaitHelper;
-import org.mozilla.gecko.util.GeckoRequest;
+import org.mozilla.gecko.util.GoannaRequest;
 import org.mozilla.gecko.util.NativeJSObject;
 
 /**
- * Tests sending and receiving Gecko requests using the GeckoRequest API.
+ * Tests sending and receiving Goanna requests using the GoannaRequest API.
  */
-public class testGeckoRequest extends UITest {
-    private static final String TEST_JS = "testGeckoRequest.js";
-    private static final String REQUEST_EVENT = "Robocop:GeckoRequest";
-    private static final String REQUEST_EXCEPTION_EVENT = "Robocop:GeckoRequestException";
+public class testGoannaRequest extends UITest {
+    private static final String TEST_JS = "testGoannaRequest.js";
+    private static final String REQUEST_EVENT = "Robocop:GoannaRequest";
+    private static final String REQUEST_EXCEPTION_EVENT = "Robocop:GoannaRequestException";
     private static final int MAX_WAIT_MS = 5000;
 
     private JavascriptBridge js;
@@ -40,8 +40,8 @@ public class testGeckoRequest extends UITest {
         super.tearDown();
     }
 
-    public void testGeckoRequest() {
-        GeckoHelper.blockForReady();
+    public void testGoannaRequest() {
+        GoannaHelper.blockForReady();
         NavigationHelper.enterAndLoadUrl(StringHelper.getHarnessUrlForJavascript(TEST_JS));
 
         // Register a listener for this request.
@@ -71,10 +71,10 @@ public class testGeckoRequest extends UITest {
         final AtomicBoolean responseReceived = new AtomicBoolean(false);
         final String data = "foo";
 
-        GeckoAppShell.sendRequestToGecko(new GeckoRequest(REQUEST_EVENT, data) {
+        GoannaAppShell.sendRequestToGoanna(new GoannaRequest(REQUEST_EVENT, data) {
             @Override
             public void onResponse(NativeJSObject nativeJSObject) {
-                // Ensure we receive the expected response from Gecko.
+                // Ensure we receive the expected response from Goanna.
                 final String result = nativeJSObject.getString("result");
                 AssertionHelper.fAssertEquals("Sent and received request data", data + "bar", result);
                 responseReceived.set(true);
@@ -93,7 +93,7 @@ public class testGeckoRequest extends UITest {
         final AtomicBoolean responseReceived = new AtomicBoolean(false);
         final AtomicBoolean errorReceived = new AtomicBoolean(false);
 
-        GeckoAppShell.sendRequestToGecko(new GeckoRequest(REQUEST_EXCEPTION_EVENT, null) {
+        GoannaAppShell.sendRequestToGoanna(new GoannaRequest(REQUEST_EXCEPTION_EVENT, null) {
             @Override
             public void onResponse(NativeJSObject nativeJSObject) {
                 responseReceived.set(true);
@@ -118,7 +118,7 @@ public class testGeckoRequest extends UITest {
     private void checkUnregisteredRequest() {
         final AtomicBoolean responseReceived = new AtomicBoolean(false);
 
-        GeckoAppShell.sendRequestToGecko(new GeckoRequest(REQUEST_EVENT, null) {
+        GoannaAppShell.sendRequestToGoanna(new GoannaRequest(REQUEST_EVENT, null) {
             @Override
             public void onResponse(NativeJSObject nativeJSObject) {
                 responseReceived.set(true);

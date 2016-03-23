@@ -179,7 +179,7 @@ This section describes how input events flow through the APZ code.
 <ol>
 <li value="1">
 Input events arrive from the hardware/widget code into the APZ via APZCTreeManager::ReceiveInputEvent.
-The thread that invokes this is called the input thread, and may or may not be the same as the Gecko main thread.
+The thread that invokes this is called the input thread, and may or may not be the same as the Goanna main thread.
 </li>
 <li value="2">
 Conceptually the first thing that the APZCTreeManager does is to group these events into "input blocks".
@@ -210,18 +210,18 @@ The call stack unwinds back to APZCTreeManager::ReceiveInputEvent, which does an
 </li>
 <li value="6">
 The call stack unwinds back to the widget code that called ReceiveInputEvent.
-This code now has the event in the coordinate space Gecko is expecting, and so can dispatch it to the Gecko main thread.
+This code now has the event in the coordinate space Goanna is expecting, and so can dispatch it to the Goanna main thread.
 </li>
 <li value="7">
-Gecko performs its own usual hit-testing and event dispatching for the event.
+Goanna performs its own usual hit-testing and event dispatching for the event.
 As part of this, it records whether any touch listeners cancelled the input block by calling preventDefault().
 It also activates inactive scrollframes that were hit by the input events.
 </li>
 <li value="8">
 The call stack unwinds back to the widget code, which sends two notifications to the APZ code on the input thread.
 The first notification is via APZCTreeManager::ContentReceivedInputBlock, and informs the APZ whether the input block was cancelled.
-The second notification is via APZCTreeManager::SetTargetAPZC, and informs the APZ the results of the Gecko hit-test during event dispatch.
-Note that Gecko may report that the input event did not hit any scrollable frame at all.
+The second notification is via APZCTreeManager::SetTargetAPZC, and informs the APZ the results of the Goanna hit-test during event dispatch.
+Note that Goanna may report that the input event did not hit any scrollable frame at all.
 These notifications happen only once per input block.
 </li>
 <li value="9">
@@ -238,7 +238,7 @@ These notifications happen only once per input block.
  </ol>
 </li>
 <li value="10">
-If events were queued as part of step 4(ii) they are now either processed (if the input block was not cancelled and Gecko detected a scrollframe under the input event, or if the timeout expired) or dropped (all other cases).
+If events were queued as part of step 4(ii) they are now either processed (if the input block was not cancelled and Goanna detected a scrollframe under the input event, or if the timeout expired) or dropped (all other cases).
 Note that the APZC that processes the events may be different at this step than the tentative target from step 3, depending on the SetTargetAPZC notification.
 Processing the events may trigger behaviours like scrolling or tap gestures.
 </li>
@@ -261,14 +261,14 @@ If the CSS touch-action property is enabled, the above steps are modified as fol
 #### Threading considerations
 
 The bulk of the input processing in the APZ code happens on what we call "the input thread".
-In practice the input thread could be the Gecko main thread, the compositor thread, or some other thread.
-There are obvious downsides to using the Gecko main thread - that is, "asynchronous" panning and zooming is not really asynchronous as input events can only be processed while Gecko is idle.
+In practice the input thread could be the Goanna main thread, the compositor thread, or some other thread.
+There are obvious downsides to using the Goanna main thread - that is, "asynchronous" panning and zooming is not really asynchronous as input events can only be processed while Goanna is idle.
 However, this is the current state of things on B2G and Metro.
 Using the compositor thread as the input thread could work on some platforms, but may be inefficient on others.
 For example, on Android (Fennec) we receive input events from the system on a dedicated UI thread.
 We would have to redispatch the input events to the compositor thread if we wanted to the input thread to be the same as the compositor thread.
 This introduces a potential for higher latency, particularly if the compositor does any blocking operations - blocking SwapBuffers operations, for example.
-As a result, the APZ code itself does not assume that the input thread will be the same as the Gecko main thread or the compositor thread.
+As a result, the APZ code itself does not assume that the input thread will be the same as the Goanna main thread or the compositor thread.
 
 #### Active vs. inactive scrollframes
 

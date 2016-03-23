@@ -23,7 +23,7 @@ public class testPasswordEncrypt extends BaseTest {
         mAsserter.isnot(cr, null, "Found a content resolver");
         ContentValues cvs = new ContentValues();
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         File db = new File(mProfile, "signons.sqlite");
         String dbPath = db.getPath();

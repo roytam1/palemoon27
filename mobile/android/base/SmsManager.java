@@ -9,7 +9,7 @@ public class SmsManager {
     private static final ISmsManager sInstance;
     static {
         if (AppConstants.MOZ_WEBSMS_BACKEND) {
-            sInstance = new GeckoSmsManager();
+            sInstance = new GoannaSmsManager();
         } else {
             sInstance = null;
         }

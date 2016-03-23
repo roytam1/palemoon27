@@ -8,7 +8,7 @@ import java.util.ArrayList;
 
 import org.mozilla.gecko.Actions;
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -35,7 +35,7 @@ public class testImportFromAndroid extends AboutHomeTest {
         ArrayList<String> firefoxBookmarks = new ArrayList<String>();
         ArrayList<String> oldFirefoxHistory = new ArrayList<String>();
         ArrayList<String> oldFirefoxBookmarks = new ArrayList<String>();
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Get the Android history
         androidData = getAndroidUrls("history");
@@ -120,7 +120,7 @@ public class testImportFromAndroid extends AboutHomeTest {
         // Add a few history items in Firefox Mobile
         ContentResolver resolver = getActivity().getContentResolver();
         Uri uri = Uri.parse("content://" + AppConstants.ANDROID_PACKAGE_NAME + ".db.browser/history");
-        uri = uri.buildUpon().appendQueryParameter("profile", GeckoProfile.DEFAULT_PROFILE)
+        uri = uri.buildUpon().appendQueryParameter("profile", GoannaProfile.DEFAULT_PROFILE)
                              .appendQueryParameter("sync", "true").build();
         for (String url:androidData) {
             // Add every 3rd website from Android History to Firefox Mobile

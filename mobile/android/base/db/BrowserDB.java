@@ -9,7 +9,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.db.BrowserContract.ExpirePriority;
 import org.mozilla.gecko.distribution.Distribution;
 import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
@@ -23,12 +23,12 @@ import android.graphics.drawable.BitmapDrawable;
 
 /**
  * Interface for interactions with all databases. If you want an instance
- * that implements this, you should go through GeckoProfile. E.g.,
- * <code>GeckoProfile.get(context).getDB()</code>.
+ * that implements this, you should go through GoannaProfile. E.g.,
+ * <code>GoannaProfile.get(context).getDB()</code>.
  *
- * GeckoProfile itself will construct an appropriate subclass using
+ * GoannaProfile itself will construct an appropriate subclass using
  * a factory that the containing application can set with
- * {@link GeckoProfile#setBrowserDBFactory(BrowserDB.Factory)}.
+ * {@link GoannaProfile#setBrowserDBFactory(BrowserDB.Factory)}.
  */
 public interface BrowserDB {
     public interface Factory {

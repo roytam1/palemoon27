@@ -7,7 +7,7 @@ package org.mozilla.gecko.webapp;
 
 import java.util.ArrayList;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -16,7 +16,7 @@ import android.util.Log;
 
 public class Allocator {
 
-    private final String LOGTAG = "GeckoWebappAllocator";
+    private final String LOGTAG = "GoannaWebappAllocator";
 
     private static final String PREFIX_ORIGIN = "webapp-origin-";
     private static final String PREFIX_PACKAGE_NAME = "webapp-package-name-";
@@ -33,7 +33,7 @@ public class Allocator {
 
     protected static Allocator sInstance;
     public static Allocator getInstance() {
-        return getInstance(GeckoAppShell.getContext());
+        return getInstance(GoannaAppShell.getContext());
     }
 
     public static synchronized Allocator getInstance(Context cx) {

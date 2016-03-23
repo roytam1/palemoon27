@@ -195,7 +195,7 @@ class MessageChannel : HasResultCodes
 
   public:
     void ProcessNativeEventsInInterruptCall();
-    static void NotifyGeckoEventDispatch();
+    static void NotifyGoannaEventDispatch();
 
   private:
     void SpinInternalEventLoop();

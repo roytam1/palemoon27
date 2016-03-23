@@ -22,6 +22,6 @@ nsIMEPicker::~nsIMEPicker()
 /* void show (); */
 NS_IMETHODIMP nsIMEPicker::Show()
 {
-    widget::GeckoAppShell::ShowInputMethodPicker();
+    widget::GoannaAppShell::ShowInputMethodPicker();
     return NS_OK;
 }

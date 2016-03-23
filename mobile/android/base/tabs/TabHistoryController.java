@@ -9,9 +9,9 @@ import java.util.List;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.util.GeckoRequest;
+import org.mozilla.gecko.util.GoannaRequest;
 import org.mozilla.gecko.util.NativeJSObject;
 
 import android.util.Log;
@@ -46,7 +46,7 @@ public class TabHistoryController {
             Log.e(LOGTAG, "JSON error", e);
         }
 
-        GeckoAppShell.sendRequestToGecko(new GeckoRequest("Session:GetHistory", json) {
+        GoannaAppShell.sendRequestToGoanna(new GoannaRequest("Session:GetHistory", json) {
             @Override
             public void onResponse(NativeJSObject nativeJSObject) {
                 /*

@@ -18,7 +18,7 @@ import java.util.ArrayList;
 
 // Adapter to bind tabs into a list
 public class TabsLayoutAdapter extends BaseAdapter {
-    public static final String LOGTAG = "Gecko" + TabsLayoutAdapter.class.getSimpleName();
+    public static final String LOGTAG = "Goanna" + TabsLayoutAdapter.class.getSimpleName();
 
     private final Context mContext;
     private final int mTabLayoutId;

@@ -8,7 +8,7 @@ import java.io.File;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.mozilla.gecko.GeckoProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.gecko.GoannaProfileDirectories.NoMozillaDirectoryException;
 import org.mozilla.gecko.db.BrowserContract;
 
 import android.content.ContentProvider;
@@ -23,8 +23,8 @@ import android.util.Log;
  * This is not a per-profile provider. This provider allows read-only,
  * restricted access to certain attributes of Fennec profiles.
  */
-public class GeckoProfilesProvider extends ContentProvider {
-    private static final String LOG_TAG = "GeckoProfilesProvider";
+public class GoannaProfilesProvider extends ContentProvider {
+    private static final String LOG_TAG = "GoannaProfilesProvider";
 
     private static final UriMatcher URI_MATCHER = new UriMatcher(UriMatcher.NO_MATCH);
 
@@ -100,7 +100,7 @@ public class GeckoProfilesProvider extends ContentProvider {
 
         final File mozillaDir;
         try {
-            mozillaDir = GeckoProfileDirectories.getMozillaDirectory(getContext());
+            mozillaDir = GoannaProfileDirectories.getMozillaDirectory(getContext());
         } catch (NoMozillaDirectoryException e) {
             Log.d(LOG_TAG, "No Mozilla directory; cannot query for profiles. Assuming there are none.");
             return new MatrixCursor(projection);
@@ -112,16 +112,16 @@ public class GeckoProfilesProvider extends ContentProvider {
         switch (match) {
         case PROFILES:
             // Return all profiles.
-            matchingProfiles = GeckoProfileDirectories.getAllProfiles(mozillaDir);
+            matchingProfiles = GoannaProfileDirectories.getAllProfiles(mozillaDir);
             break;
         case PROFILES_NAME:
             // Return data about the specified profile.
             final String name = uri.getLastPathSegment();
-            matchingProfiles = GeckoProfileDirectories.getProfilesNamed(mozillaDir,
+            matchingProfiles = GoannaProfileDirectories.getProfilesNamed(mozillaDir,
                                                                        name);
             break;
         case PROFILES_DEFAULT:
-            matchingProfiles = GeckoProfileDirectories.getDefaultProfile(mozillaDir);
+            matchingProfiles = GoannaProfileDirectories.getDefaultProfile(mozillaDir);
             break;
         default:
             throw new UnsupportedOperationException("Unknown query URI " + uri);

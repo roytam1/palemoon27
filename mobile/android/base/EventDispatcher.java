@@ -4,11 +4,11 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSContainer;
 import org.mozilla.gecko.util.NativeJSObject;
@@ -26,7 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 @RobocopTarget
 public final class EventDispatcher {
-    private static final String LOGTAG = "GeckoEventDispatcher";
+    private static final String LOGTAG = "GoannaEventDispatcher";
     private static final String GUID = "__guid__";
     private static final String STATUS_ERROR = "error";
     private static final String STATUS_SUCCESS = "success";
@@ -42,10 +42,10 @@ public final class EventDispatcher {
     private static final int GECKO_NATIVE_EVENTS_COUNT = 0; // Default for HashMap
     private static final int GECKO_JSON_EVENTS_COUNT = 256; // Empirically measured
 
-    private final Map<String, List<NativeEventListener>> mGeckoThreadNativeListeners =
+    private final Map<String, List<NativeEventListener>> mGoannaThreadNativeListeners =
         new HashMap<String, List<NativeEventListener>>(GECKO_NATIVE_EVENTS_COUNT);
-    private final Map<String, List<GeckoEventListener>> mGeckoThreadJSONListeners =
-        new HashMap<String, List<GeckoEventListener>>(GECKO_JSON_EVENTS_COUNT);
+    private final Map<String, List<GoannaEventListener>> mGoannaThreadJSONListeners =
+        new HashMap<String, List<GoannaEventListener>>(GECKO_JSON_EVENTS_COUNT);
 
     public static EventDispatcher getInstance() {
         return INSTANCE;
@@ -104,38 +104,38 @@ public final class EventDispatcher {
     }
 
     @SuppressWarnings("unchecked")
-    public void registerGeckoThreadListener(final NativeEventListener listener,
+    public void registerGoannaThreadListener(final NativeEventListener listener,
                                             final String... events) {
-        checkNotRegistered(mGeckoThreadJSONListeners, events);
+        checkNotRegistered(mGoannaThreadJSONListeners, events);
 
-        // For listeners running on the Gecko thread, we want to notify the listeners
+        // For listeners running on the Goanna thread, we want to notify the listeners
         // outside of our synchronized block, because the listeners may take an
         // indeterminate amount of time to run. Therefore, to ensure concurrency when
         // iterating the list outside of the synchronized block, we use a
         // CopyOnWriteArrayList.
         registerListener((Class)CopyOnWriteArrayList.class,
-                         mGeckoThreadNativeListeners, listener, events);
+                         mGoannaThreadNativeListeners, listener, events);
     }
 
     @Deprecated // Use NativeEventListener instead
     @SuppressWarnings("unchecked")
-    public void registerGeckoThreadListener(final GeckoEventListener listener,
+    public void registerGoannaThreadListener(final GoannaEventListener listener,
                                             final String... events) {
-        checkNotRegistered(mGeckoThreadNativeListeners, events);
+        checkNotRegistered(mGoannaThreadNativeListeners, events);
 
         registerListener((Class)CopyOnWriteArrayList.class,
-                         mGeckoThreadJSONListeners, listener, events);
+                         mGoannaThreadJSONListeners, listener, events);
     }
 
-    public void unregisterGeckoThreadListener(final NativeEventListener listener,
+    public void unregisterGoannaThreadListener(final NativeEventListener listener,
                                               final String... events) {
-        unregisterListener(mGeckoThreadNativeListeners, listener, events);
+        unregisterListener(mGoannaThreadNativeListeners, listener, events);
     }
 
     @Deprecated // Use NativeEventListener instead
-    public void unregisterGeckoThreadListener(final GeckoEventListener listener,
+    public void unregisterGoannaThreadListener(final GoannaEventListener listener,
                                               final String... events) {
-        unregisterListener(mGeckoThreadJSONListeners, listener, events);
+        unregisterListener(mGoannaThreadJSONListeners, listener, events);
     }
 
     public void dispatchEvent(final NativeJSContainer message) {
@@ -147,14 +147,14 @@ public final class EventDispatcher {
         }
 
         final List<NativeEventListener> listeners;
-        synchronized (mGeckoThreadNativeListeners) {
-            listeners = mGeckoThreadNativeListeners.get(type);
+        synchronized (mGoannaThreadNativeListeners) {
+            listeners = mGoannaThreadNativeListeners.get(type);
         }
 
         final String guid = message.optString(GUID, null);
         EventCallback callback = null;
         if (guid != null) {
-            callback = new GeckoEventCallback(guid, type);
+            callback = new GoannaEventCallback(guid, type);
         }
 
         if (listeners != null) {
@@ -191,9 +191,9 @@ public final class EventDispatcher {
         try {
             final String type = message.getString("type");
 
-            List<GeckoEventListener> listeners;
-            synchronized (mGeckoThreadJSONListeners) {
-                listeners = mGeckoThreadJSONListeners.get(type);
+            List<GoannaEventListener> listeners;
+            synchronized (mGoannaThreadJSONListeners) {
+                listeners = mGoannaThreadJSONListeners.get(type);
             }
             if (listeners == null || listeners.size() == 0) {
                 Log.w(LOGTAG, "No listeners for " + type);
@@ -204,11 +204,11 @@ public final class EventDispatcher {
                 }
                 return;
             }
-            for (final GeckoEventListener listener : listeners) {
+            for (final GoannaEventListener listener : listeners) {
                 listener.handleMessage(type, message);
             }
         } catch (final JSONException e) {
-            Log.e(LOGTAG, "handleGeckoMessage throws " + e, e);
+            Log.e(LOGTAG, "handleGoannaMessage throws " + e, e);
         }
     }
 
@@ -232,23 +232,23 @@ public final class EventDispatcher {
             wrapper.put("status", status);
             wrapper.put("response", response);
 
-            if (ThreadUtils.isOnGeckoThread()) {
-                GeckoAppShell.notifyGeckoObservers(topic, wrapper.toString());
+            if (ThreadUtils.isOnGoannaThread()) {
+                GoannaAppShell.notifyGoannaObservers(topic, wrapper.toString());
             } else {
-                GeckoAppShell.sendEventToGecko(
-                    GeckoEvent.createBroadcastEvent(topic, wrapper.toString()));
+                GoannaAppShell.sendEventToGoanna(
+                    GoannaEvent.createBroadcastEvent(topic, wrapper.toString()));
             }
         } catch (final JSONException e) {
             Log.e(LOGTAG, "Unable to send response", e);
         }
     }
 
-    private static class GeckoEventCallback implements EventCallback {
+    private static class GoannaEventCallback implements EventCallback {
         private final String guid;
         private final String type;
         private boolean sent;
 
-        public GeckoEventCallback(final String guid, final String type) {
+        public GoannaEventCallback(final String guid, final String type) {
             this.guid = guid;
             this.type = type;
         }
@@ -278,11 +278,11 @@ public final class EventDispatcher {
                 wrapper.put("status", status);
                 wrapper.put("response", response);
 
-                if (ThreadUtils.isOnGeckoThread()) {
-                    GeckoAppShell.notifyGeckoObservers(topic, wrapper.toString());
+                if (ThreadUtils.isOnGoannaThread()) {
+                    GoannaAppShell.notifyGoannaObservers(topic, wrapper.toString());
                 } else {
-                    GeckoAppShell.sendEventToGecko(
-                        GeckoEvent.createBroadcastEvent(topic, wrapper.toString()));
+                    GoannaAppShell.sendEventToGoanna(
+                        GoannaEvent.createBroadcastEvent(topic, wrapper.toString()));
                 }
             } catch (final JSONException e) {
                 Log.e(LOGTAG, "Unable to send response for: " + type, e);

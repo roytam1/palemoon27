@@ -1746,7 +1746,7 @@ pref("security.mixed_content.block_active_content", true);
 // 1 = allow MITM for certificate pinning checks.
 pref("security.cert_pinning.enforcement_level", 1);
 
-// Override the Gecko-default value of false for Firefox.
+// Override the Goanna-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
 
 // If this turns true, Moz*Gesture events are not called stopPropagation()

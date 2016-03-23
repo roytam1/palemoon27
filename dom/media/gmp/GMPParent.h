@@ -62,7 +62,7 @@ public:
 
   GMPParent();
 
-  nsresult Init(GeckoMediaPluginService *aService, nsIFile* aPluginDir);
+  nsresult Init(GoannaMediaPluginService *aService, nsIFile* aPluginDir);
   nsresult CloneFrom(const GMPParent* aOther);
 
   void Crash();
@@ -145,7 +145,7 @@ public:
 
 private:
   ~GMPParent();
-  nsRefPtr<GeckoMediaPluginService> mService;
+  nsRefPtr<GoannaMediaPluginService> mService;
   bool EnsureProcessLoaded();
   nsresult ReadGMPMetaData();
 #ifdef MOZ_CRASHREPORTER

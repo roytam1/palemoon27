@@ -140,7 +140,7 @@ Notification.prototype = {
     if (this._handlerKey)
       msg.handlerKey = this._handlerKey;
 
-    Services.androidBridge.handleGeckoMessage(msg);
+    Services.androidBridge.handleGoannaMessage(msg);
     return this;
   },
 
@@ -151,7 +151,7 @@ Notification.prototype = {
       handlerKey: this._handlerKey,
       cookie: JSON.stringify(this._cookie),
     };
-    Services.androidBridge.handleGeckoMessage(msg);
+    Services.androidBridge.handleGoannaMessage(msg);
   }
 }
 

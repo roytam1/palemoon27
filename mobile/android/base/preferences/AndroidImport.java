@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko.preferences;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.LocalBrowserDB;
@@ -37,7 +37,7 @@ class AndroidImport implements Runnable {
         mOnDoneRunnable = onDoneRunnable;
         mOperations = new ArrayList<ContentProviderOperation>();
         mCr = mContext.getContentResolver();
-        mDB = new LocalBrowserDB(GeckoProfile.get(context).getName());
+        mDB = new LocalBrowserDB(GoannaProfile.get(context).getName());
         mImportBookmarks = doBookmarks;
         mImportHistory = doHistory;
     }

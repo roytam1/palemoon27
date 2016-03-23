@@ -369,13 +369,13 @@ MediaKeys::Init(ErrorResult& aRv)
   return promise.forget();
 }
 
-class CrashHandler : public gmp::GeckoMediaPluginService::PluginCrashCallback
+class CrashHandler : public gmp::GoannaMediaPluginService::PluginCrashCallback
 {
 public:
   CrashHandler(const nsACString& aPluginId,
                nsPIDOMWindow* aParentWindow,
                nsIDocument* aDocument)
-    : gmp::GeckoMediaPluginService::PluginCrashCallback(aPluginId)
+    : gmp::GoannaMediaPluginService::PluginCrashCallback(aPluginId)
     , mParentWindowWeakPtr(do_GetWeakReference(aParentWindow))
     , mDocumentWeakPtr(do_GetWeakReference(aDocument))
   {
@@ -465,8 +465,8 @@ MediaKeys::OnCDMCreated(PromiseId aId, const nsACString& aNodeId, const nsACStri
 
   if (!aPluginId.IsEmpty()) {
     // Prepare plugin crash reporter.
-    nsRefPtr<gmp::GeckoMediaPluginService> service =
-      gmp::GeckoMediaPluginService::GetGeckoMediaPluginService();
+    nsRefPtr<gmp::GoannaMediaPluginService> service =
+      gmp::GoannaMediaPluginService::GetGoannaMediaPluginService();
     if (NS_WARN_IF(!service)) {
       return;
     }

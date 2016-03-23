@@ -7,7 +7,7 @@ package org.mozilla.gecko.home;
 
 import java.util.EnumSet;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.db.BrowserDB.FilterFlags;
 
@@ -23,7 +23,7 @@ import android.support.v4.content.Loader;
  * Encapsulates the implementation of the search cursor loader.
  */
 class SearchLoader {
-    public static final String LOGTAG = "GeckoSearchLoader";
+    public static final String LOGTAG = "GoannaSearchLoader";
 
     private static final String KEY_SEARCH_TERM = "search_term";
     private static final String KEY_FILTER_FLAGS = "flags";
@@ -86,13 +86,13 @@ class SearchLoader {
 
         // The filter flags associated with the loader.
         private final EnumSet<FilterFlags> mFlags;
-        private final GeckoProfile mProfile;
+        private final GoannaProfile mProfile;
 
         public SearchCursorLoader(Context context, String searchTerm, EnumSet<FilterFlags> flags) {
             super(context);
             mSearchTerm = searchTerm;
             mFlags = flags;
-            mProfile = GeckoProfile.get(context);
+            mProfile = GoannaProfile.get(context);
         }
 
         @Override

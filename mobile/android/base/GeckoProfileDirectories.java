@@ -16,13 +16,13 @@ import org.mozilla.gecko.util.INISection;
 import android.content.Context;
 
 /**
- * <code>GeckoProfileDirectories</code> manages access to mappings from profile
+ * <code>GoannaProfileDirectories</code> manages access to mappings from profile
  * names to salted profile directory paths, as well as the default profile name.
  *
  * This class will eventually come to encapsulate the remaining logic embedded
  * in profiles.ini; for now it's a read-only wrapper.
  */
-public class GeckoProfileDirectories {
+public class GoannaProfileDirectories {
     @SuppressWarnings("serial")
     public static class NoMozillaDirectoryException extends Exception {
         public NoMozillaDirectoryException(Throwable cause) {
@@ -107,7 +107,7 @@ public class GeckoProfileDirectories {
      * Return the Mozilla directory within the files directory of the provided
      * context. This should always be the same within a running application.
      *
-     * This method is package-scoped so that new {@link GeckoProfile} instances can
+     * This method is package-scoped so that new {@link GoannaProfile} instances can
      * contextualize themselves.
      *
      * @return a new File object for the Mozilla directory.
@@ -129,7 +129,7 @@ public class GeckoProfileDirectories {
     /**
      * Discover the default profile name by examining profiles.ini.
      *
-     * Package-scoped because {@link GeckoProfile} needs access to it.
+     * Package-scoped because {@link GoannaProfile} needs access to it.
      *
      * @return null if there is no "Default" entry in profiles.ini, or the profile
      *         name if there is.
@@ -137,7 +137,7 @@ public class GeckoProfileDirectories {
      *             if the Mozilla directory did not exist and could not be created.
      */
     static String findDefaultProfileName(final Context context) throws NoMozillaDirectoryException {
-      final INIParser parser = GeckoProfileDirectories.getProfilesINI(getMozillaDirectory(context));
+      final INIParser parser = GoannaProfileDirectories.getProfilesINI(getMozillaDirectory(context));
 
       for (Enumeration<INISection> e = parser.getSections().elements(); e.hasMoreElements();) {
           final INISection section = e.nextElement();
@@ -164,7 +164,7 @@ public class GeckoProfileDirectories {
     }
 
     /**
-     * Calls {@link GeckoProfileDirectories#getMatchingProfiles(File, INISectionPredicate, boolean)}
+     * Calls {@link GoannaProfileDirectories#getMatchingProfiles(File, INISectionPredicate, boolean)}
      * with a filter to ensure that all profiles are named.
      */
     static Map<String, String> getAllProfiles(final File mozillaDir) {
@@ -189,7 +189,7 @@ public class GeckoProfileDirectories {
      */
     public static Map<String, String> getMatchingProfiles(final File mozillaDir, INISectionPredicate predicate, boolean stopOnSuccess) {
         final HashMap<String, String> result = new HashMap<String, String>();
-        final INIParser parser = GeckoProfileDirectories.getProfilesINI(mozillaDir);
+        final INIParser parser = GoannaProfileDirectories.getProfilesINI(mozillaDir);
 
         for (Enumeration<INISection> e = parser.getSections().elements(); e.hasMoreElements();) {
             final INISection section = e.nextElement();
@@ -210,7 +210,7 @@ public class GeckoProfileDirectories {
 
     public static File findProfileDir(final File mozillaDir, final String profileName) throws NoSuchProfileException {
         // Open profiles.ini to find the correct path.
-        final INIParser parser = GeckoProfileDirectories.getProfilesINI(mozillaDir);
+        final INIParser parser = GoannaProfileDirectories.getProfilesINI(mozillaDir);
 
         for (Enumeration<INISection> e = parser.getSections().elements(); e.hasMoreElements();) {
             final INISection section = e.nextElement();

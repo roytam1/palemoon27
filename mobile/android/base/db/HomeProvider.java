@@ -24,7 +24,7 @@ import android.net.Uri;
 import android.util.Log;
 
 public class HomeProvider extends SQLiteBridgeContentProvider {
-    private static final String LOGTAG = "GeckoHomeProvider";
+    private static final String LOGTAG = "GoannaHomeProvider";
 
     // This should be kept in sync with the db version in mobile/android/modules/HomeProvider.jsm
     private static final int DB_VERSION = 2;
@@ -177,7 +177,7 @@ public class HomeProvider extends SQLiteBridgeContentProvider {
     public void setupDefaults(Uri uri, ContentValues values) { }
 
     @Override
-    public void initGecko() { }
+    public void initGoanna() { }
 
     @Override
     public void onPreInsert(ContentValues values, Uri uri, SQLiteBridge db) { }

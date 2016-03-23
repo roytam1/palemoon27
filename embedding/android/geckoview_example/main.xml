@@ -5,7 +5,7 @@
               android:layout_width="fill_parent"
               android:layout_height="fill_parent"
               >
-  <org.mozilla.gecko.GeckoView android:id="@+id/gecko_view"
+  <org.mozilla.gecko.GoannaView android:id="@+id/gecko_view"
                                android:layout_width="fill_parent"
                                android:layout_height="fill_parent"
                                gecko:url="about:mozilla"/>

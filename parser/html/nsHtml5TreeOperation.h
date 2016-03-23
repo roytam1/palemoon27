@@ -36,7 +36,7 @@ enum eHtml5TreeOperation {
   eTreeOpAppendDoctypeToDocument,
   eTreeOpGetDocumentFragmentForTemplate,
   eTreeOpGetFosterParent,
-  // Gecko-specific on-pop ops
+  // Goanna-specific on-pop ops
   eTreeOpMarkAsBroken,
   eTreeOpRunScript,
   eTreeOpRunScriptAsyncDefer,
@@ -94,11 +94,11 @@ class nsHtml5TreeOperation {
   public:
     /**
      * Atom is used inside the parser core are either static atoms that are
-     * the same as Gecko-wide static atoms or they are dynamic atoms scoped by
+     * the same as Goanna-wide static atoms or they are dynamic atoms scoped by
      * both thread and parser to a particular nsHtml5AtomTable. In order to
-     * such scoped atoms coming into contact with the rest of Gecko, atoms
+     * such scoped atoms coming into contact with the rest of Goanna, atoms
      * that are about to exit the parser must go through this method which
-     * reobtains dynamic atoms from the Gecko-global atom table.
+     * reobtains dynamic atoms from the Goanna-global atom table.
      *
      * @param aAtom a potentially parser-scoped atom
      * @return an nsIAtom that's pointer comparable on the main thread with

@@ -31,7 +31,7 @@ public class testShareLink extends AboutHomeTest {
     public void testShareLink() {
         url = getAbsoluteUrl(StringHelper.ROBOCOP_BIG_LINK_URL);
         ArrayList<String> shareOptions;
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // FIXME: This is a temporary hack workaround for a permissions problem.
         openAboutHomeTab(AboutHomeTabs.READING_LIST);
@@ -61,8 +61,8 @@ public class testShareLink extends AboutHomeTest {
         verifySharePopup(shareOptions,"urlbar");
 
         // The link has a 60px height, so let's try to hit the middle
-        float top = mDriver.getGeckoTop() + 30 * mDevice.density;
-        float left = mDriver.getGeckoLeft() + mDriver.getGeckoWidth() / 2;
+        float top = mDriver.getGoannaTop() + 30 * mDevice.density;
+        float left = mDriver.getGoannaLeft() + mDriver.getGoannaWidth() / 2;
         mSolo.clickLongOnScreen(left, top);
         verifySharePopup("Share Link",shareOptions,"Link");
 
@@ -110,8 +110,8 @@ public class testShareLink extends AboutHomeTest {
         openAboutHomeTab(AboutHomeTabs.TOP_SITES);
 
         // Scroll down a bit so that the top sites list has more items on screen.
-        int width = mDriver.getGeckoWidth();
-        int height = mDriver.getGeckoHeight();
+        int width = mDriver.getGoannaWidth();
+        int height = mDriver.getGoannaHeight();
         mActions.drag(width / 2, width / 2, height - 10, height / 2);
 
         ListView topSitesList = findListViewWithTag(HomePager.LIST_TAG_TOP_SITES);

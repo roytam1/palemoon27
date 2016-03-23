@@ -42,7 +42,7 @@ public class testGetUserMedia extends BaseTest {
             return;
         }
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         final String GUM_CAMERA_URL = getAbsoluteUrl("/robocop/robocop_getusermedia2.html");
         final String GUM_TAB_URL = getAbsoluteUrl("/robocop/robocop_getusermedia.html");

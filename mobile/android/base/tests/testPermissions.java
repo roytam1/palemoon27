@@ -13,7 +13,7 @@ import android.widget.CheckBox;
 
 public class testPermissions extends PixelTest {
     public void testPermissions() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         geolocationTest();
     }

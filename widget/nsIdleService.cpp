@@ -50,7 +50,7 @@ using namespace mozilla;
 static PRLogModuleInfo *sLog = nullptr;
 #endif
 
-#define LOG_TAG "GeckoIdleService"
+#define LOG_TAG "GoannaIdleService"
 #define LOG_LEVEL ANDROID_LOG_DEBUG
 
 // Use this to find previously added observers in our array:
@@ -402,7 +402,7 @@ nsIdleService::nsIdleService() : mCurrentlySetToTimeoutAt(TimeStamp()),
 #endif
   MOZ_ASSERT(!gIdleService);
   gIdleService = this;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     mDailyIdle = new nsIdleServiceDaily(this);
     mDailyIdle->Init();
   }
@@ -429,7 +429,7 @@ nsIdleService::AddIdleObserver(nsIObserver* aObserver, uint32_t aIdleTimeInS)
   // high either - no more than ~136 years.
   NS_ENSURE_ARG_RANGE(aIdleTimeInS, 1, (UINT32_MAX / 10) - 1);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     dom::ContentChild* cpc = dom::ContentChild::GetSingleton();
     cpc->AddIdleObserver(aObserver, aIdleTimeInS);
     return NS_OK;
@@ -488,7 +488,7 @@ nsIdleService::RemoveIdleObserver(nsIObserver* aObserver, uint32_t aTimeInS)
   NS_ENSURE_ARG_POINTER(aObserver);
   NS_ENSURE_ARG(aTimeInS);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     dom::ContentChild* cpc = dom::ContentChild::GetSingleton();
     cpc->RemoveIdleObserver(aObserver, aTimeInS);
     return NS_OK;

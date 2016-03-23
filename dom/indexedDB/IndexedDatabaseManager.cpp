@@ -252,7 +252,7 @@ IndexedDatabaseManager::GetOrCreate()
   }
 
   if (!gDBManager) {
-    sIsMainProcess = XRE_GetProcessType() == GeckoProcessType_Default;
+    sIsMainProcess = XRE_GetProcessType() == GoannaProcessType_Default;
 
     if (!sLoggingModule) {
       sLoggingModule = PR_NewLogModule("IndexedDB");
@@ -597,7 +597,7 @@ IndexedDatabaseManager::IsMainProcess()
 {
   NS_ASSERTION(gDBManager,
                "IsMainProcess() called before indexedDB has been initialized!");
-  NS_ASSERTION((XRE_GetProcessType() == GeckoProcessType_Default) ==
+  NS_ASSERTION((XRE_GetProcessType() == GoannaProcessType_Default) ==
                sIsMainProcess, "XRE_GetProcessType changed its tune!");
   return sIsMainProcess;
 }

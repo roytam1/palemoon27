@@ -22,7 +22,7 @@ import org.json.JSONObject;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.SuggestedSites;
 import org.mozilla.gecko.distribution.Distribution;
-import org.mozilla.gecko.preferences.GeckoPreferences;
+import org.mozilla.gecko.preferences.GoannaPreferences;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -311,7 +311,7 @@ public class TestSuggestedSites extends BrowserTestCase {
         }
 
         final String hiddenPref = hiddenUrlBuilder.toString();
-        GeckoSharedPrefs.forProfile(context).edit()
+        GoannaSharedPrefs.forProfile(context).edit()
                                         .putString(SuggestedSites.PREF_SUGGESTED_SITES_HIDDEN, hiddenPref)
                                         .commit();
 
@@ -336,8 +336,8 @@ public class TestSuggestedSites extends BrowserTestCase {
         c.close();
 
         // Disable suggested sites
-        GeckoSharedPrefs.forApp(context).edit()
-                                        .putBoolean(GeckoPreferences.PREFS_SUGGESTED_SITES, false)
+        GoannaSharedPrefs.forApp(context).edit()
+                                        .putBoolean(GoannaPreferences.PREFS_SUGGESTED_SITES, false)
                                         .commit();
 
         c = new SuggestedSites(context).get(DEFAULT_LIMIT);

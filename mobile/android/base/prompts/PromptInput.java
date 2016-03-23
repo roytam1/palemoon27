@@ -41,7 +41,7 @@ public class PromptInput {
     protected final String mValue;
     protected OnChangeListener mListener;
     protected View mView;
-    public static final String LOGTAG = "GeckoPromptInput";
+    public static final String LOGTAG = "GoannaPromptInput";
 
     public interface OnChangeListener {
         public void onChange(PromptInput input);

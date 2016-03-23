@@ -349,22 +349,22 @@ XRE_API(nsresult,
 XRE_API(void,
         XRE_FreeAppData, (nsXREAppData* aAppData))
 
-enum GeckoProcessType
+enum GoannaProcessType
 {
-  GeckoProcessType_Default = 0,
+  GoannaProcessType_Default = 0,
 
-  GeckoProcessType_Plugin,
-  GeckoProcessType_Content,
+  GoannaProcessType_Plugin,
+  GoannaProcessType_Content,
 
-  GeckoProcessType_IPDLUnitTest,
+  GoannaProcessType_IPDLUnitTest,
 
-  GeckoProcessType_GMPlugin, // Gecko Media Plugin
+  GoannaProcessType_GMPlugin, // Goanna Media Plugin
 
-  GeckoProcessType_End,
-  GeckoProcessType_Invalid = GeckoProcessType_End
+  GoannaProcessType_End,
+  GoannaProcessType_Invalid = GoannaProcessType_End
 };
 
-static const char* const kGeckoProcessTypeString[] = {
+static const char* const kGoannaProcessTypeString[] = {
   "default",
   "plugin",
   "tab",
@@ -372,12 +372,12 @@ static const char* const kGeckoProcessTypeString[] = {
   "geckomediaplugin"
 };
 
-static_assert(MOZ_ARRAY_LENGTH(kGeckoProcessTypeString) ==
-              GeckoProcessType_End,
+static_assert(MOZ_ARRAY_LENGTH(kGoannaProcessTypeString) ==
+              GoannaProcessType_End,
               "Array length mismatch");
 
 XRE_API(const char*,
-        XRE_ChildProcessTypeToString, (GeckoProcessType aProcessType))
+        XRE_ChildProcessTypeToString, (GoannaProcessType aProcessType))
 
 XRE_API(void,
         XRE_SetProcessType, (const char* aProcessTypeString))
@@ -404,7 +404,7 @@ XRE_API(nsresult,
                                char* aArgv[],
                                mozilla::gmp::GMPLoader* aGMPLoader))
 
-XRE_API(GeckoProcessType,
+XRE_API(GoannaProcessType,
         XRE_GetProcessType, ())
 
 XRE_API(bool,

@@ -44,7 +44,7 @@
                         android:title="@string/pref_use_master_password"
                         android:persistent="false" />
 
-    <!-- keys prefixed with "android.not_a_preference." are not synced with Gecko -->
+    <!-- keys prefixed with "android.not_a_preference." are not synced with Goanna -->
     <PreferenceCategory android:title="@string/pref_clear_private_data_category">
 
         <org.mozilla.gecko.preferences.PrivateDataPreference
@@ -57,7 +57,7 @@
                             gecko:entryKeys="@array/pref_private_data_keys"
                             gecko:initialValues="@array/pref_private_data_defaults" />
 
-        <!-- This pref is persisted in both Gecko and Java -->
+        <!-- This pref is persisted in both Goanna and Java -->
         <org.mozilla.gecko.preferences.ListCheckboxPreference
                             android:key="android.not_a_preference.history.clear_on_exit"
                             gecko:entries="@array/pref_private_data_entries"

@@ -61,7 +61,7 @@ function runViewer() {
     Components.utils.makeObjectPropsNormal(shumwayComAdapter);
 
     // Exposing createSpecialInflate function for DEFLATE stream decoding using
-    // Gecko API.
+    // Goanna API.
     if (SpecialInflateUtils.isSpecialInflateEnabled) {
       Components.utils.exportFunction(function () {
         return SpecialInflateUtils.createWrappedSpecialInflate(childWindow);

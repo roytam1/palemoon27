@@ -19,12 +19,12 @@ CrashReporterChild::GetCrashReporter()
 {
   const InfallibleTArray<PCrashReporterChild*>* reporters = nullptr;
   switch (XRE_GetProcessType()) {
-    case GeckoProcessType_Content: {
+    case GoannaProcessType_Content: {
       ContentChild* child = ContentChild::GetSingleton();
       reporters = &child->ManagedPCrashReporterChild();
       break;
     }
-    case GeckoProcessType_Plugin: {
+    case GoannaProcessType_Plugin: {
       PluginModuleChild* child = PluginModuleChild::GetChrome();
       reporters = &child->ManagedPCrashReporterChild();
       break;

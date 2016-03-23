@@ -11,7 +11,7 @@
 #include "mozilla/Mutex.h"
 #include "IntelPowerGadget.h"
 #ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
+#include "GoannaTaskTracer.h"
 #endif
 
 static bool

@@ -26,7 +26,7 @@ import android.text.format.DateUtils;
 import android.util.Log;
 
 public class LocalTabsAccessor implements TabsAccessor {
-    private static final String LOGTAG = "GeckoTabsAccessor";
+    private static final String LOGTAG = "GoannaTabsAccessor";
 
     public static final String[] TABS_PROJECTION_COLUMNS = new String[] {
                                                                 BrowserContract.Tabs.TITLE,

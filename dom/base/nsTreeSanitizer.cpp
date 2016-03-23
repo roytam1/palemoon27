@@ -1318,7 +1318,7 @@ nsTreeSanitizer::SanitizeURL(mozilla::dom::Element* aElement,
       } else if (nsGkAtoms::cdgroup_ == aLocalName ||
                  nsGkAtoms::altimg_ == aLocalName ||
                  nsGkAtoms::definitionURL_ == aLocalName) {
-        // Gecko doesn't fetch these now and shouldn't in the future, but
+        // Goanna doesn't fetch these now and shouldn't in the future, but
         // in case someone goofs with these in the future, let's drop them.
         rv = NS_ERROR_FAILURE;
       } else {

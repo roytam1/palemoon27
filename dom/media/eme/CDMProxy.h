@@ -300,7 +300,7 @@ private:
 
   const nsAutoString mKeySystem;
 
-  // Gecko Media Plugin thread. All interactions with the out-of-process
+  // Goanna Media Plugin thread. All interactions with the out-of-process
   // EME plugin must come from this thread.
   nsRefPtr<nsIThread> mGMPThread;
 

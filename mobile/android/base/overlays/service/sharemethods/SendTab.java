@@ -49,7 +49,7 @@ import java.util.Set;
  * this class is chiefly interacted with).
  */
 public class SendTab extends ShareMethod {
-    private static final String LOGTAG = "GeckoSendTab";
+    private static final String LOGTAG = "GoannaSendTab";
 
     // Key used in the extras Bundle in the share intent used for a send tab ShareMethod.
     public static final String SEND_TAB_TARGET_DEVICES = "SEND_TAB_TARGET_DEVICES";

@@ -26,7 +26,7 @@ import android.util.Log;
 
 // Holds metadata info about URLs. Supports some helper functions for getting back a HashMap of key value data.
 public class LocalURLMetadata implements URLMetadata {
-    private static final String LOGTAG = "GeckoURLMetadata";
+    private static final String LOGTAG = "GoannaURLMetadata";
     private final Uri uriWithProfile;
 
     public LocalURLMetadata(String mProfile) {
@@ -91,14 +91,14 @@ public class LocalURLMetadata implements URLMetadata {
 
     /**
      * Returns an unmodifiable Map of url->Metadata (i.e. A second HashMap) for a list of urls.
-     * Must not be called from UI or Gecko threads.
+     * Must not be called from UI or Goanna threads.
      */
     @Override
     public Map<String, Map<String, Object>> getForURLs(final ContentResolver cr,
                                                        final List<String> urls,
                                                        final List<String> columns) {
         ThreadUtils.assertNotOnUiThread();
-        ThreadUtils.assertNotOnGeckoThread();
+        ThreadUtils.assertNotOnGoannaThread();
 
         final Map<String, Map<String, Object>> data = new HashMap<String, Map<String, Object>>();
 
@@ -161,12 +161,12 @@ public class LocalURLMetadata implements URLMetadata {
     /**
      * Saves a HashMap of metadata into the database. Will iterate through columns
      * in the Database and only save rows with matching keys in the HashMap.
-     * Must not be called from UI or Gecko threads.
+     * Must not be called from UI or Goanna threads.
      */
     @Override
     public void save(final ContentResolver cr, final String url, final Map<String, Object> data) {
         ThreadUtils.assertNotOnUiThread();
-        ThreadUtils.assertNotOnGeckoThread();
+        ThreadUtils.assertNotOnGoannaThread();
 
         try {
             ContentValues values = new ContentValues();

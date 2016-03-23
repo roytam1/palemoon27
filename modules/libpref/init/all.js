@@ -1880,7 +1880,7 @@ pref("mousewheel.acceleration.factor", 10);
 // speed is multiplied by the following factors.  The value will be used as
 // 1/100.  E.g., 200 means 2.00.
 // NOTE: Even if "mousewheel.system_scroll_override_on_root_content.enabled" is
-// true, when Gecko detects the user customized the system scrolling speed
+// true, when Goanna detects the user customized the system scrolling speed
 // settings, the override isn't executed.
 pref("mousewheel.system_scroll_override_on_root_content.vertical.factor", 200);
 pref("mousewheel.system_scroll_override_on_root_content.horizontal.factor", 200);
@@ -4561,7 +4561,7 @@ pref("reader.toolbar.vertical", true);
 
 #if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
 // Whether to allow, on a Linux system that doesn't support the necessary sandboxing
-// features, loading Gecko Media Plugins unsandboxed.  However, EME CDMs will not be
+// features, loading Goanna Media Plugins unsandboxed.  However, EME CDMs will not be
 // loaded without sandboxing even if this pref is changed.
 pref("media.gmp.insecure.allow", false);
 #endif

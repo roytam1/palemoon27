@@ -190,7 +190,7 @@ public class AndroidGamepadManager {
                                     int which) {
         if (pressed != gamepad.dpad[which]) {
             gamepad.dpad[which] = pressed;
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createGamepadButtonEvent(gamepad.id, FIRST_DPAD_BUTTON + which, pressed, Math.abs(value)));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createGamepadButtonEvent(gamepad.id, FIRST_DPAD_BUTTON + which, pressed, Math.abs(value)));
         }
     }
 
@@ -222,7 +222,7 @@ public class AndroidGamepadManager {
         }
         if (anyValidAxes) {
             // Send an axismove event.
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createGamepadAxisEvent(gamepad.id, valid, axes));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createGamepadAxisEvent(gamepad.id, valid, axes));
         }
 
         // Map triggers to buttons.
@@ -234,7 +234,7 @@ public class AndroidGamepadManager {
                 if (value != gamepad.triggers[i]) {
                     gamepad.triggers[i] = value;
                     boolean pressed = value > TRIGGER_PRESSED_THRESHOLD;
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createGamepadButtonEvent(gamepad.id, trigger.button, pressed, value));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createGamepadButtonEvent(gamepad.id, trigger.button, pressed, value));
                 }
             }
         }
@@ -292,7 +292,7 @@ public class AndroidGamepadManager {
 
         Gamepad gamepad = sGamepads.get(deviceId);
         boolean pressed = ev.getAction() == KeyEvent.ACTION_DOWN;
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createGamepadButtonEvent(gamepad.id, key, pressed, pressed ? 1.0f : 0.0f));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createGamepadButtonEvent(gamepad.id, key, pressed, pressed ? 1.0f : 0.0f));
         return true;
     }
 
@@ -320,12 +320,12 @@ public class AndroidGamepadManager {
         //int pid = device.getProductId();
         //}
         sPendingGamepads.put(device.getId(), new ArrayList<KeyEvent>());
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createGamepadAddRemoveEvent(device.getId(), true));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createGamepadAddRemoveEvent(device.getId(), true));
     }
 
     private static void removeGamepad(int deviceId) {
         Gamepad gamepad = sGamepads.get(deviceId);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createGamepadAddRemoveEvent(gamepad.id, false));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createGamepadAddRemoveEvent(gamepad.id, false));
         sGamepads.remove(deviceId);
     }
 
@@ -360,7 +360,7 @@ public class AndroidGamepadManager {
                 @Override
                 public void onInputDeviceRemoved(int deviceId) {
                     if (sPendingGamepads.containsKey(deviceId)) {
-                        // Got removed before Gecko's ack reached us.
+                        // Got removed before Goanna's ack reached us.
                         // gamepadAdded will deal with it.
                         sPendingGamepads.remove(deviceId);
                         return;
@@ -374,7 +374,7 @@ public class AndroidGamepadManager {
                 public void onInputDeviceChanged(int deviceId) {
                 }
             };
-        ((InputManager)GeckoAppShell.getContext().getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(sListener, ThreadUtils.getUiHandler());
+        ((InputManager)GoannaAppShell.getContext().getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(sListener, ThreadUtils.getUiHandler());
     }
 
     private static void removeDeviceListener() {
@@ -385,7 +385,7 @@ public class AndroidGamepadManager {
             }
             return;
         }
-        ((InputManager)GeckoAppShell.getContext().getSystemService(Context.INPUT_SERVICE)).unregisterInputDeviceListener(sListener);
+        ((InputManager)GoannaAppShell.getContext().getSystemService(Context.INPUT_SERVICE)).unregisterInputDeviceListener(sListener);
         sListener = null;
     }
 }

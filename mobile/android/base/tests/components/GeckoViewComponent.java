@@ -25,9 +25,9 @@ import android.view.inputmethod.InputMethodManager;
 import com.jayway.android.robotium.solo.Condition;
 
 /**
- * A class representing any interactions that take place on GeckoView.
+ * A class representing any interactions that take place on GoannaView.
  */
-public class GeckoViewComponent extends BaseComponent {
+public class GoannaViewComponent extends BaseComponent {
 
     public interface InputConnectionTest {
         public void test(InputConnection ic, EditorInfo info);
@@ -35,13 +35,13 @@ public class GeckoViewComponent extends BaseComponent {
 
     public final TextInput mTextInput;
 
-    public GeckoViewComponent(final UITestContext testContext) {
+    public GoannaViewComponent(final UITestContext testContext) {
         super(testContext);
         mTextInput = new TextInput();
     }
 
     /**
-     * Returns the GeckoView.
+     * Returns the GoannaView.
      */
     private View getView() {
         // Solo.getView asserts returning a valid View
@@ -71,7 +71,7 @@ public class GeckoViewComponent extends BaseComponent {
         }
 
         /**
-         * Returns whether text input is being directed to the GeckoView.
+         * Returns whether text input is being directed to the GoannaView.
          */
         private boolean isActive() {
             return getInputMethodManager().isActive(getView());
@@ -95,8 +95,8 @@ public class GeckoViewComponent extends BaseComponent {
         /**
          * Returns whether an InputConnection is available.
          * An InputConnection is available when text input is being directed to the
-         * GeckoView, and a text field (input, textarea, contentEditable, etc.) is
-         * currently focused inside the GeckoView.
+         * GoannaView, and a text field (input, textarea, contentEditable, etc.) is
+         * currently focused inside the GoannaView.
          */
         private boolean hasInputConnection() {
             final InputMethodManager imm = getInputMethodManager();
@@ -123,7 +123,7 @@ public class GeckoViewComponent extends BaseComponent {
          * InputConnection thread which may or may not be the main UI thread. Also,
          * during an InputConnectionTest, the system InputMethodManager service must
          * be temporarily disabled to prevent the system IME from interfering with our
-         * tests. We disable the service by override the GeckoView's context with one
+         * tests. We disable the service by override the GoannaView's context with one
          * that returns a null InputMethodManager service.
          *
          * @param test Test to run
@@ -133,13 +133,13 @@ public class GeckoViewComponent extends BaseComponent {
             fAssertNotNull("Test must not be null", test);
             assertInputConnection();
 
-            // GeckoInputConnection can run on another thread than the main thread,
+            // GoannaInputConnection can run on another thread than the main thread,
             // so we need to be testing it on that same thread it's running on
             final View geckoView = getView();
             final Handler inputConnectionHandler = geckoView.getHandler();
-            final Context oldGeckoViewContext = FrameworkHelper.getViewContext(geckoView);
+            final Context oldGoannaViewContext = FrameworkHelper.getViewContext(geckoView);
 
-            setContext(new ContextWrapper(oldGeckoViewContext) {
+            setContext(new ContextWrapper(oldGoannaViewContext) {
                 @Override
                 public Object getSystemService(String name) {
                     if (Context.INPUT_METHOD_SERVICE.equals(name)) {
@@ -151,7 +151,7 @@ public class GeckoViewComponent extends BaseComponent {
 
             (new InputConnectionTestRunner(test)).runOnHandler(inputConnectionHandler);
 
-            setContext(oldGeckoViewContext);
+            setContext(oldGoannaViewContext);
             return this;
         }
 

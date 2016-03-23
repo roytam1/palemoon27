@@ -37,7 +37,7 @@ import android.widget.TextView;
  */
 public class RemoteTabsExpandableListFragment extends RemoteTabsBaseFragment {
     // Logging tag name.
-    private static final String LOGTAG = "GeckoRemoteTabsExpList";
+    private static final String LOGTAG = "GoannaRemoteTabsExpList";
 
     // The view shown by the fragment.
     private HomeExpandableListView mList;

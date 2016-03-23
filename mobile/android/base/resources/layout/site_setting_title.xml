@@ -10,7 +10,7 @@
               android:gravity="center_vertical">
 
     <TextView android:id="@+id/title"
-              style="@style/GeckoDialogTitle"
+              style="@style/GoannaDialogTitle"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
               android:paddingTop="6dip"
@@ -19,7 +19,7 @@
               android:paddingRight="10dip"/>
 
     <TextView android:id="@+id/host"
-              style="@style/GeckoDialogTitle.SubTitle"
+              style="@style/GoannaDialogTitle.SubTitle"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
               android:paddingTop="2dip"

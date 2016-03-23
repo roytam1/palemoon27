@@ -21,12 +21,12 @@ namespace ipc {
 
 // Friendly names for the well-known threads.
 static const char* kBrowserThreadNames[BrowserProcessSubThread::ID_COUNT] = {
-  "Gecko_IOThread",  // IO
+  "Goanna_IOThread",  // IO
 //  "Chrome_FileThread",  // FILE
 //  "Chrome_DBThread",  // DB
 //  "Chrome_HistoryThread",  // HISTORY
 #if defined(OS_LINUX)
-  "Gecko_Background_X11Thread",  // BACKGROUND_X11
+  "Goanna_Background_X11Thread",  // BACKGROUND_X11
 #endif
 };
 

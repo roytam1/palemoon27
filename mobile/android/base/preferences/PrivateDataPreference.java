@@ -5,8 +5,8 @@
 
 package org.mozilla.gecko.preferences;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 
@@ -20,7 +20,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 
 class PrivateDataPreference extends MultiPrefMultiChoicePreference {
-    private static final String LOGTAG = "GeckoPrivateDataPreference";
+    private static final String LOGTAG = "GoannaPrivateDataPreference";
     private static final String PREF_KEY_PREFIX = "private.data.";
 
     public PrivateDataPreference(Context context, AttributeSet attrs) {
@@ -43,8 +43,8 @@ class PrivateDataPreference extends MultiPrefMultiChoicePreference {
         for (String value : values) {
             // Privacy pref checkbox values are stored in Android prefs to
             // remember their check states. The key names are private.data.X,
-            // where X is a string from Gecko sanitization. This prefix is
-            // removed here so we can send the values to Gecko, which then does
+            // where X is a string from Goanna sanitization. This prefix is
+            // removed here so we can send the values to Goanna, which then does
             // the sanitization for each key.
             final String key = value.substring(PREF_KEY_PREFIX.length());
             try {
@@ -55,6 +55,6 @@ class PrivateDataPreference extends MultiPrefMultiChoicePreference {
         }
 
         // clear private data in gecko
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
     }
 }

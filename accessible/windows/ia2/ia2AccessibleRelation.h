@@ -60,7 +60,7 @@ private:
 
 
 /**
- * Gecko to IAccessible2 relation types map.
+ * Goanna to IAccessible2 relation types map.
  */
 
 const WCHAR *const IA2_RELATION_NULL = L"";

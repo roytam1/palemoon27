@@ -24,7 +24,7 @@ import android.util.Log;
  */
 public class Logger {
   public static final String LOGGER_TAG = "Logger";
-  public static final String DEFAULT_LOG_TAG = "GeckoLogger";
+  public static final String DEFAULT_LOG_TAG = "GoannaLogger";
 
   // For extra debugging.
   public static boolean LOG_PERSONAL_INFORMATION = false;

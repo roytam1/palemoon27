@@ -247,7 +247,7 @@ public class testBrowserProviderPerf extends BaseRobocopTest {
             try {
                 FileUtils.delTree(new File(mProfile), null, true);
             } catch (Exception e) {
-                Log.w("GeckoTest", "Unable to delete profile " + mProfile, e);
+                Log.w("GoannaTest", "Unable to delete profile " + mProfile, e);
             }
         }
     }

@@ -655,7 +655,7 @@ nsresult nsNPAPIPluginInstance::Print(NPPrint* platformPrint)
 }
 
 nsresult nsNPAPIPluginInstance::HandleEvent(void* event, int16_t* result,
-                                            NSPluginCallReentry aSafeToReenterGecko)
+                                            NSPluginCallReentry aSafeToReenterGoanna)
 {
   if (RUNNING != mRunning)
     return NS_OK;
@@ -678,7 +678,7 @@ nsresult nsNPAPIPluginInstance::HandleEvent(void* event, int16_t* result,
 #endif
 #if defined(XP_WIN)
     NS_TRY_SAFE_CALL_RETURN(tmpResult, (*pluginFunctions->event)(&mNPP, event), this,
-                            aSafeToReenterGecko);
+                            aSafeToReenterGoanna);
 #else
     MAIN_THREAD_JNI_REF_GUARD;
     tmpResult = (*pluginFunctions->event)(&mNPP, event);
@@ -850,7 +850,7 @@ void nsNPAPIPluginInstance::NotifyFullScreen(bool aFullScreen)
   SendLifecycleEvent(this, mFullScreen ? kEnterFullScreen_ANPLifecycleAction : kExitFullScreen_ANPLifecycleAction);
 
   if (mFullScreen && mFullScreenOrientation != dom::eScreenOrientation_None) {
-    widget::GeckoAppShell::LockScreenOrientation(mFullScreenOrientation);
+    widget::GoannaAppShell::LockScreenOrientation(mFullScreenOrientation);
   }
 }
 
@@ -907,11 +907,11 @@ void nsNPAPIPluginInstance::SetFullScreenOrientation(uint32_t orientation)
     // We're already fullscreen so immediately apply the orientation change
 
     if (mFullScreenOrientation != dom::eScreenOrientation_None) {
-      widget::GeckoAppShell::LockScreenOrientation(mFullScreenOrientation);
+      widget::GoannaAppShell::LockScreenOrientation(mFullScreenOrientation);
     } else if (oldOrientation != dom::eScreenOrientation_None) {
       // We applied an orientation when we entered fullscreen, but
       // we don't want it anymore
-      widget::GeckoAppShell::UnlockScreenOrientation();
+      widget::GoannaAppShell::UnlockScreenOrientation();
     }
   }
 }

@@ -78,7 +78,7 @@ interface Document : Node {
   // void append((Node or DOMString)... nodes);
 
   // These are not in the spec, but leave them for now for backwards compat.
-  // So sort of like Gecko extensions
+  // So sort of like Goanna extensions
   [NewObject, Throws]
   CDATASection createCDATASection(DOMString data);
   [NewObject, Throws]
@@ -143,7 +143,7 @@ partial interface Document {
   // special event handler IDL attributes that only apply to Document objects
   [LenientThis] attribute EventHandler onreadystatechange;
 
-  // Gecko extensions?
+  // Goanna extensions?
                 attribute EventHandler onwheel;
                 attribute EventHandler oncopy;
                 attribute EventHandler oncut;
@@ -223,7 +223,7 @@ partial interface Document {
 
   //(Renamed?)void exitFullscreen();
 
-  // Gecko-specific fullscreen bits
+  // Goanna-specific fullscreen bits
   readonly attribute boolean mozFullScreen;
   void mozCancelFullScreen();
 };

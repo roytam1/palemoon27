@@ -5,52 +5,52 @@
 
 package org.mozilla.gecko;
 
-public class GeckoViewContent implements GeckoView.ContentDelegate {
+public class GoannaViewContent implements GoannaView.ContentDelegate {
     /**
     * A Browser has started loading content from the network.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that is loading the content.
     * @param url The resource being loaded.
     */
     @Override
-    public void onPageStart(GeckoView view, GeckoView.Browser browser, String url) {}
+    public void onPageStart(GoannaView view, GoannaView.Browser browser, String url) {}
 
     /**
     * A Browser has finished loading content from the network.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that was loading the content.
     * @param success Whether the page loaded successfully or an error occurred.
     */
     @Override
-    public void onPageStop(GeckoView view, GeckoView.Browser browser, boolean success) {}
+    public void onPageStop(GoannaView view, GoannaView.Browser browser, boolean success) {}
 
     /**
     * A Browser is displaying content. This page could have been loaded via
     * network or from the session history.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that is showing the content.
     */
     @Override
-    public void onPageShow(GeckoView view, GeckoView.Browser browser) {}
+    public void onPageShow(GoannaView view, GoannaView.Browser browser) {}
 
     /**
     * A page title was discovered in the content or updated after the content
     * loaded.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that is showing the content.
     * @param title The title sent from the content.
     */
     @Override
-    public void onReceivedTitle(GeckoView view, GeckoView.Browser browser, String title) {}
+    public void onReceivedTitle(GoannaView view, GoannaView.Browser browser, String title) {}
 
     /**
     * A link element was discovered in the content or updated after the content
     * loaded that specifies a favicon.
-    * @param view The GeckoView that initiated the callback.
+    * @param view The GoannaView that initiated the callback.
     * @param browser The Browser that is showing the content.
     * @param url The href of the link element specifying the favicon.
     * @param size The maximum size specified for the favicon, or -1 for any size.
     */
     @Override
-    public void onReceivedFavicon(GeckoView view, GeckoView.Browser browser, String url, int size) {}
+    public void onReceivedFavicon(GoannaView view, GoannaView.Browser browser, String url, int size) {}
 }

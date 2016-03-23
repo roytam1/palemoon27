@@ -56,7 +56,7 @@ public:
     ~AutoLock();
 
     // Returns true if the capabilities of the CDM are known, i.e. they have
-    // been reported by the CDM to Gecko.
+    // been reported by the CDM to Goanna.
     bool AreCapsKnown();
 
     bool IsKeyUsable(const CencKeyId& aKeyId);

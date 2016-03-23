@@ -7,7 +7,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "ConsoleAPI",
                                   "resource://gre/modules/devtools/Console.jsm");
 
 /*
- * Collection of methods and features specific to using a GeckoView instance.
+ * Collection of methods and features specific to using a GoannaView instance.
  * The code is isolated from browser.js for code size and performance reasons.
  */
 var EmbedRT = {
@@ -15,7 +15,7 @@ var EmbedRT = {
 
   observe: function(subject, topic, data) {
     switch(topic) {
-      case "GeckoView:ImportScript":
+      case "GoannaView:ImportScript":
         this.importScript(data);
         break;
     }
@@ -39,13 +39,13 @@ var EmbedRT = {
     );
 
     sandbox["console"] = new ConsoleAPI({ consoleID: "script/" + scriptURL });
-    sandbox["GeckoView"] = {
+    sandbox["GoannaView"] = {
       sendRequest: function(data) {
         if (!data) {
           throw new Error("Invalid parameter: 'data' can't be null.");
         }
 
-        let message = { type: "GeckoView:Message", data: data };
+        let message = { type: "GoannaView:Message", data: data };
         Messaging.sendRequest(message);
       },
       sendRequestForResult: function(data) {
@@ -53,7 +53,7 @@ var EmbedRT = {
           throw new Error("Invalid parameter: 'data' can't be null.");
         }
 
-        let message = { type: "GeckoView:Message", data: data };
+        let message = { type: "GoannaView:Message", data: data };
         return Messaging.sendRequestForResult(message);
       }
     };

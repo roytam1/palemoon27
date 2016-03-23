@@ -15,7 +15,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.accounts.Account;
@@ -51,8 +51,8 @@ import android.provider.ContactsContract.RawContacts.Entity;
 import android.telephony.PhoneNumberUtils;
 import android.util.Log;
 
-public class ContactService implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoContactService";
+public class ContactService implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaContactService";
     private static final boolean DEBUG = false;
 
     private final static int GROUP_ACCOUNT_NAME = 0;
@@ -91,14 +91,14 @@ public class ContactService implements GeckoEventListener {
     private HashMap<String, Integer> mImTypesMap;
 
     private final ContentResolver mContentResolver;
-    private final GeckoApp mActivity;
+    private final GoannaApp mActivity;
 
-    ContactService(EventDispatcher eventDispatcher, GeckoApp activity) {
+    ContactService(EventDispatcher eventDispatcher, GoannaApp activity) {
         mEventDispatcher = eventDispatcher;
         mActivity = activity;
         mContentResolver = mActivity.getContentResolver();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Android:Contacts:Clear",
             "Android:Contacts:Find",
             "Android:Contacts:GetAll",
@@ -108,7 +108,7 @@ public class ContactService implements GeckoEventListener {
     }
 
     public void destroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "Android:Contacts:Clear",
             "Android:Contacts:Find",
             "Android:Contacts:GetAll",
@@ -1506,7 +1506,7 @@ public class ContactService implements GeckoEventListener {
                 }
             }
 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(subject, callbackMessage.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(subject, callbackMessage.toString()));
         } catch (JSONException e) {
             throw new IllegalArgumentException(e);
         }

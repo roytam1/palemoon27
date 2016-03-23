@@ -66,7 +66,7 @@ final public class NavigationHelper {
             public void run() {
                 // TODO: Lower soft keyboard first if applicable. Note that
                 // Solo.hideSoftKeyboard() does not clear focus (which might be fine since
-                // Gecko would be the element focused).
+                // Goanna would be the element focused).
                 sSolo.goBack();
             }
         });

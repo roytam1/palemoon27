@@ -26,7 +26,7 @@ public class testDoorHanger extends BaseTest {
         String OFFLINE_STORAGE_URL = getAbsoluteUrl(StringHelper.ROBOCOP_OFFLINE_STORAGE_URL);
         String LOGIN_URL = getAbsoluteUrl(StringHelper.ROBOCOP_LOGIN_URL);
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Test geolocation notification
         inputAndLoadUrl(GEO_URL);
@@ -68,7 +68,7 @@ public class testDoorHanger extends BaseTest {
         // Save offline-allow-by-default preferences first
         final String[] prefNames = { "offline-apps.allow_by_default" };
         final int ourRequestId = 0x7357;
-        final Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
+        final Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("Preferences:Data");
         mActions.sendPreferencesGetEvent(ourRequestId, prefNames);
         try {
             JSONObject data = null;
@@ -171,7 +171,7 @@ public class testDoorHanger extends BaseTest {
         mAsserter.is(mSolo.searchText(StringHelper.POPUP_MESSAGE), true, "Popup blocker is displayed");
 
         // Wait for the popup to be shown.
-        Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
+        Actions.EventExpecter tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
 
         waitForCheckBox();
         mSolo.clickOnCheckBox(0);

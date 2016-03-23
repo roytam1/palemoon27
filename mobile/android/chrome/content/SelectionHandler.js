@@ -1005,7 +1005,7 @@ var SelectionHandler = {
    * activity that may restore it.
    *
    * At this point, we hide the UI handles, and stop responding to messages until
-   * either the final _closeSelection() is triggered, or until our Gecko selectionListener
+   * either the final _closeSelection() is triggered, or until our Goanna selectionListener
    * notices a subsequent programmatic selection that results in a new selection.
    */
   _deferCloseSelection: function() {

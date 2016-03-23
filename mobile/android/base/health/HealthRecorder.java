@@ -21,7 +21,7 @@ public interface HealthRecorder {
     public void setCurrentSession(SessionInformation session);
     public void checkForOrphanSessions();
 
-    public void recordGeckoStartupTime(long duration);
+    public void recordGoannaStartupTime(long duration);
     public void recordJavaStartupTime(long duration);
     public void recordSearch(final String engineID, final String location);
     public void recordSessionEnd(String reason, SharedPreferences.Editor editor);

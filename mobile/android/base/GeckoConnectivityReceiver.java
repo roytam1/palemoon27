@@ -13,7 +13,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.util.Log;
 
-public class GeckoConnectivityReceiver extends BroadcastReceiver {
+public class GoannaConnectivityReceiver extends BroadcastReceiver {
     /*
      * Keep the below constants in sync with
      * http://mxr.mozilla.org/mozilla-central/source/netwerk/base/nsINetworkLinkService.idl
@@ -23,19 +23,19 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
     private static final String LINK_DATA_CHANGED = "changed";
     private static final String LINK_DATA_UNKNOWN = "unknown";
 
-    private static final String LOGTAG = "GeckoConnectivityReceiver";
+    private static final String LOGTAG = "GoannaConnectivityReceiver";
 
-    private static final GeckoConnectivityReceiver sInstance = new GeckoConnectivityReceiver();
+    private static final GoannaConnectivityReceiver sInstance = new GoannaConnectivityReceiver();
 
     private final IntentFilter mFilter;
     private Context mApplicationContext;
     private boolean mIsEnabled;
 
-    public static GeckoConnectivityReceiver getInstance() {
+    public static GoannaConnectivityReceiver getInstance() {
         return sInstance;
     }
 
-    private GeckoConnectivityReceiver() {
+    private GoannaConnectivityReceiver() {
         mFilter = new IntentFilter();
         mFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
     }
@@ -81,9 +81,9 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
             status = LINK_DATA_UP;
         }
 
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createNetworkLinkChangeEvent(status));
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createNetworkLinkChangeEvent(LINK_DATA_CHANGED));
+        if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createNetworkLinkChangeEvent(status));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createNetworkLinkChangeEvent(LINK_DATA_CHANGED));
         }
     }
 }

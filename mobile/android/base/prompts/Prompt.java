@@ -8,8 +8,8 @@ package org.mozilla.gecko.prompts;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -43,7 +43,7 @@ import java.util.ArrayList;
 
 public class Prompt implements OnClickListener, OnCancelListener, OnItemClickListener,
                                PromptInput.OnChangeListener, Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "GeckoPromptService";
+    private static final String LOGTAG = "GoannaPromptService";
 
     private String[] mButtons;
     private PromptInput[] mInputs;
@@ -163,7 +163,7 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
 
     private void create(String title, String text, PromptListItem[] listItems, int choiceMode)
             throws IllegalStateException {
-        final LayerView view = GeckoAppShell.getLayerView();
+        final LayerView view = GoannaAppShell.getLayerView();
         if (view != null) {
             view.abortPanning();
         }
@@ -498,8 +498,8 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
             Tabs.unregisterOnTabsChangedListener(this);
         }
 
-        // poke the Gecko thread in case it's waiting for new events
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createNoOpEvent());
+        // poke the Goanna thread in case it's waiting for new events
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createNoOpEvent());
 
         if (mCallback != null) {
             mCallback.onPromptFinished(aReturn.toString());

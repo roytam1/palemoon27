@@ -32,7 +32,7 @@
 #include "nsNPAPIPlugin.h"
 #include "nsPrintfCString.h"
 #include "prsystem.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsPluginTags.h"
 
 #ifdef XP_WIN
@@ -267,7 +267,7 @@ bool PluginModuleMapping::sIsLoadModuleOnStack = false;
 void
 mozilla::plugins::TerminatePlugin(uint32_t aPluginId)
 {
-    MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+    MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
 
     nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst();
     nsPluginTag* pluginTag = host->PluginWithId(aPluginId);
@@ -286,7 +286,7 @@ PluginModuleContentParent::LoadModule(uint32_t aPluginId)
     PluginModuleMapping::NotifyLoadingModule loadingModule;
     nsAutoPtr<PluginModuleMapping> mapping(new PluginModuleMapping(aPluginId));
 
-    MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Content);
+    MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Content);
 
     /*
      * We send a LoadPlugin message to the chrome process using an intr
@@ -1340,7 +1340,7 @@ PluginModuleParent::SetPluginFuncs(NPPluginFuncs* aFuncs)
     aFuncs->version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
     aFuncs->javaClass = nullptr;
 
-    // Gecko should always call these functions through a PluginLibrary object.
+    // Goanna should always call these functions through a PluginLibrary object.
     aFuncs->newp = nullptr;
     aFuncs->clearsitedata = nullptr;
     aFuncs->getsiteswithdata = nullptr;

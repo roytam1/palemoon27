@@ -66,7 +66,7 @@ nsScreenAndroid::GetColorDepth(int32_t *aColorDepth)
 void
 nsScreenAndroid::ApplyMinimumBrightness(uint32_t aBrightness)
 {
-    widget::GeckoAppShell::SetKeepScreenOn(aBrightness == BRIGHTNESS_FULL);
+    widget::GoannaAppShell::SetKeepScreenOn(aBrightness == BRIGHTNESS_FULL);
 }
 
 NS_IMPL_ISUPPORTS(nsScreenManagerAndroid, nsIScreenManager)

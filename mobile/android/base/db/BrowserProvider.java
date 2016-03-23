@@ -37,7 +37,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 public class BrowserProvider extends SharedBrowserDatabaseProvider {
-    private static final String LOGTAG = "GeckoBrowserProvider";
+    private static final String LOGTAG = "GoannaBrowserProvider";
 
     // How many records to reposition in a single query.
     // This should be less than the SQLite maximum number of query variables

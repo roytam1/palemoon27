@@ -15,7 +15,7 @@ else:
     }
     if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_ARCH'] == 'WINNT':
         kwargs['msvcrt'] = 'static'
-    GeckoProgram(CONFIG['MOZ_CHILD_PROCESS_NAME'], **kwargs)
+    GoannaProgram(CONFIG['MOZ_CHILD_PROCESS_NAME'], **kwargs)
 
     SOURCES += [
         'MozillaRuntimeMain.cpp',

@@ -6,9 +6,9 @@
 
 if not CONFIG['LIBXUL_SDK']:
     if CONFIG['GAIADIR']:
-        GeckoProgram(CONFIG['MOZ_APP_NAME'] + "-bin")
+        GoannaProgram(CONFIG['MOZ_APP_NAME'] + "-bin")
     else:
-        GeckoProgram(CONFIG['MOZ_APP_NAME'])
+        GoannaProgram(CONFIG['MOZ_APP_NAME'])
     if CONFIG['MOZ_B2G_LOADER']:
         SOURCES += [
             'B2GLoader.cpp',

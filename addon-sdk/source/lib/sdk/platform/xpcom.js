@@ -188,10 +188,10 @@ exports.unregister = unregister;
 function autoRegister(path) {
   // TODO: This assumes that the url points to a directory
   // that contains subdirectories corresponding to OS/ABI and then
-  // further subdirectories corresponding to Gecko platform version.
+  // further subdirectories corresponding to Goanna platform version.
   // we should probably either behave intelligently here or allow
   // the caller to pass-in more options if e.g. there aren't
-  // Gecko-specific binaries for a component (which will be the case
+  // Goanna-specific binaries for a component (which will be the case
   // if only frozen interfaces are used).
 
   var runtime = require("../system/runtime");

@@ -27,7 +27,7 @@ import android.widget.TextView;
  * tapping calls the OnClickListener set by the consumer in the usual way.
  */
 public class OverlayDialogButton extends LinearLayout {
-    private static final String LOGTAG = "GeckoOverlayDialogButton";
+    private static final String LOGTAG = "GoannaOverlayDialogButton";
 
     // The views making up this button.
     private final ImageView icon;

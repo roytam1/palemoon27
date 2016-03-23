@@ -27,7 +27,7 @@ import android.widget.TextView;
 
 public class ButtonToast {
     @SuppressWarnings("unused")
-    private final static String LOGTAG = "GeckoButtonToast";
+    private final static String LOGTAG = "GoannaButtonToast";
 
     public static int LENGTH_SHORT = 3000;
     public static int LENGTH_LONG = 5000;

@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PanningPerfAPI {
-    private static final String LOGTAG = "GeckoPanningPerfAPI";
+    private static final String LOGTAG = "GoannaPanningPerfAPI";
 
     // make this large enough to avoid having to resize the frame time
     // list, as that may be expensive and impact the thing we're trying

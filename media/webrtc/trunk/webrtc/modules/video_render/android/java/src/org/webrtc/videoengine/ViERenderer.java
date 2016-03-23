@@ -17,8 +17,8 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaApp;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.util.ThreadUtils;
 
 public class ViERenderer {
@@ -53,7 +53,7 @@ public class ViERenderer {
     // LinearLayout.addview
     // ViECapture::StartCapture
     public static void CreateLocalRenderer() {
-        View cameraView = GeckoAppShell.getGeckoInterface().getCameraView();
+        View cameraView = GoannaAppShell.getGoannaInterface().getCameraView();
         if (cameraView != null && (cameraView instanceof SurfaceView)) {
             SurfaceView localRender = (SurfaceView)cameraView;
             g_localRenderer = localRender.getHolder();
@@ -63,7 +63,7 @@ public class ViERenderer {
             @Override
             public void run() {
                 try {
-                    GeckoAppShell.getGeckoInterface().enableCameraView();
+                    GoannaAppShell.getGoannaInterface().enableCameraView();
                 } catch (Exception e) {
                     Log.e(TAG, "CreateLocalRenderer enableCameraView exception: "
                           + e.getLocalizedMessage());
@@ -80,7 +80,7 @@ public class ViERenderer {
                 @Override
                 public void run() {
                     try {
-                        GeckoAppShell.getGeckoInterface().disableCameraView();
+                        GoannaAppShell.getGoannaInterface().disableCameraView();
                     } catch (Exception e) {
                         Log.e(TAG,
                               "DestroyLocalRenderer disableCameraView exception: " +

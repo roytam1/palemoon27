@@ -20,7 +20,7 @@ let Scope = Object.freeze({
 });
 
 /**
- * Public API to getting a SharedPreferencesImpl instance. These scopes mirror GeckoSharedPrefs.
+ * Public API to getting a SharedPreferencesImpl instance. These scopes mirror GoannaSharedPrefs.
  */
 let SharedPreferences = {
   forApp: function() {

@@ -217,7 +217,7 @@
   <key>NSSupportsAutomaticGraphicsSwitching</key>
   <true/>
   <key>NSPrincipalClass</key>
-  <string>GeckoNSApplication</string>
+  <string>GoannaNSApplication</string>
   <key>NSDisablePersistence</key>
   <true/>
 </dict>

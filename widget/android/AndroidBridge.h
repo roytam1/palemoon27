@@ -66,7 +66,7 @@ class CompositorParent;
 } // namespace layers
 
 // The order and number of the members in this structure must correspond
-// to the attrsAppearance array in GeckoAppShell.getSystemColors()
+// to the attrsAppearance array in GoannaAppShell.getSystemColors()
 typedef struct AndroidSystemColors {
     nscolor textColorPrimary;
     nscolor textColorPrimaryInverse;
@@ -119,7 +119,7 @@ class AndroidBridge final
 {
 public:
     enum {
-        // Values for NotifyIME, in addition to values from the Gecko
+        // Values for NotifyIME, in addition to values from the Goanna
         // IMEMessage enum; use negative values here to prevent conflict
         NOTIFY_IME_OPEN_VKB = -2,
         NOTIFY_IME_REPLY_EVENT = -1,
@@ -127,7 +127,7 @@ public:
 
     enum {
         LAYER_CLIENT_TYPE_NONE = 0,
-        LAYER_CLIENT_TYPE_GL = 2            // AndroidGeckoGLLayerClient
+        LAYER_CLIENT_TYPE_GL = 2            // AndroidGoannaGLLayerClient
     };
 
     static void RegisterJavaUiThread() {
@@ -178,7 +178,7 @@ public:
     }
 
     // The bridge needs to be constructed via ConstructBridge first,
-    // and then once the Gecko main thread is spun up (Gecko side),
+    // and then once the Goanna main thread is spun up (Goanna side),
     // SetMainThread should be called which will create the JNIEnv for
     // us to use.  toolkit/xre/nsAndroidStartup.cpp calls
     // SetMainThread.
@@ -197,8 +197,8 @@ public:
     bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical,
                                    mozilla::ParentLayerPoint& aScrollOffset, mozilla::CSSToParentLayerScale& aZoom);
 
-    void SetLayerClient(widget::GeckoLayerClient::Param jobj);
-    const widget::GeckoLayerClient::Ref& GetLayerClient() { return mLayerClient; }
+    void SetLayerClient(widget::GoannaLayerClient::Param jobj);
+    const widget::GoannaLayerClient::Ref& GetLayerClient() { return mLayerClient; }
 
     bool GetHandlersForURL(const nsAString& aURL,
                            nsIMutableArray* handlersArray = nullptr,
@@ -231,7 +231,7 @@ public:
 
     void GetIconForExtension(const nsACString& aFileExt, uint32_t aIconSize, uint8_t * const aBuf);
 
-    // Switch Java to composite with the Gecko Compositor thread
+    // Switch Java to composite with the Goanna Compositor thread
     void RegisterCompositor(JNIEnv* env = nullptr);
     EGLSurface CreateEGLSurfaceForCompositor();
 
@@ -271,7 +271,7 @@ public:
     bool LockWindow(void *window, unsigned char **bits, int *width, int *height, int *format, int *stride);
     bool UnlockWindow(void *window);
 
-    void HandleGeckoMessage(JSContext* cx, JS::HandleObject message);
+    void HandleGoannaMessage(JSContext* cx, JS::HandleObject message);
 
     bool InitCamera(const nsCString& contentType, uint32_t camera, uint32_t *width, uint32_t *height, uint32_t *fps);
 
@@ -355,7 +355,7 @@ protected:
     JNIEnv *mJNIEnv;
     pthread_t mThread;
 
-    widget::GeckoLayerClient::GlobalRef mLayerClient;
+    widget::GoannaLayerClient::GlobalRef mLayerClient;
 
     // the android.telephony.SmsMessage class
     jclass mAndroidSmsMessageClass;

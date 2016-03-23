@@ -11,9 +11,9 @@ import java.util.EnumSet;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
@@ -52,7 +52,7 @@ import android.widget.TextView;
  */
 public class HistoryPanel extends HomeFragment {
     // Logging tag name
-    private static final String LOGTAG = "GeckoHistoryPanel";
+    private static final String LOGTAG = "GoannaHistoryPanel";
 
     // Cursor loader ID for history query
     private static final int LOADER_ID_HISTORY = 0;
@@ -150,7 +150,7 @@ public class HistoryPanel extends HomeFragment {
                             Log.e(LOGTAG, "JSON error", e);
                         }
 
-                        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
+                        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
 
                         Telemetry.sendUIEvent(TelemetryContract.Event.SANITIZE, TelemetryContract.Method.BUTTON, "history");
                     }
@@ -194,7 +194,7 @@ public class HistoryPanel extends HomeFragment {
 
         public HistoryCursorLoader(Context context) {
             super(context);
-            mDB = GeckoProfile.get(context).getDB();
+            mDB = GoannaProfile.get(context).getDB();
         }
 
         @Override

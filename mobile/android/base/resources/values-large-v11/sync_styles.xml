@@ -5,7 +5,7 @@
 
 <resources xmlns:android="http://schemas.android.com/apk/res/android">
   <!-- Theme Styles -->
-  <style name="SyncTheme" parent="@style/Gecko.Dialog" />
+  <style name="SyncTheme" parent="@style/Goanna.Dialog" />
 
   <!-- Outer container: a container with top, middle, and bottom
        content in it. -->

@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.PrivateTab;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.db.BrowserContract;

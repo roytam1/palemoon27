@@ -16,8 +16,8 @@ import org.json.JSONObject;
 import org.mozilla.gecko.ActivityHandlerHelper;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.util.ActivityResultHandler;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.NativeEventListener;
@@ -36,10 +36,10 @@ import android.util.Log;
 
 public class EventListener implements NativeEventListener  {
 
-    private static final String LOGTAG = "GeckoWebappEventListener";
+    private static final String LOGTAG = "GoannaWebappEventListener";
 
     public void registerEvents() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Webapps:Preinstall",
             "Webapps:InstallApk",
             "Webapps:UninstallApk",
@@ -50,7 +50,7 @@ public class EventListener implements NativeEventListener  {
     }
 
     public void unregisterEvents() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "Webapps:Preinstall",
             "Webapps:InstallApk",
             "Webapps:UninstallApk",
@@ -64,16 +64,16 @@ public class EventListener implements NativeEventListener  {
     public void handleMessage(String event, NativeJSObject message, EventCallback callback) {
         try {
             if (event.equals("Webapps:InstallApk")) {
-                installApk(GeckoAppShell.getGeckoInterface().getActivity(), message, callback);
+                installApk(GoannaAppShell.getGoannaInterface().getActivity(), message, callback);
             } else if (event.equals("Webapps:UninstallApk")) {
-                uninstallApk(GeckoAppShell.getGeckoInterface().getActivity(), message);
+                uninstallApk(GoannaAppShell.getGoannaInterface().getActivity(), message);
             } else if (event.equals("Webapps:Postinstall")) {
                 postInstallWebapp(message.getString("apkPackageName"), message.getString("origin"));
             } else if (event.equals("Webapps:Launch")) {
                 launchWebapp(message.getString("packageName"));
             } else if (event.equals("Webapps:GetApkVersions")) {
                 JSONObject obj = new JSONObject();
-                obj.put("versions", getApkVersions(GeckoAppShell.getGeckoInterface().getActivity(),
+                obj.put("versions", getApkVersions(GoannaAppShell.getGoannaInterface().getActivity(),
                                                    message.getStringArray("packageNames")));
                 callback.sendSuccess(obj);
             }
@@ -83,14 +83,14 @@ public class EventListener implements NativeEventListener  {
     }
 
     public static void postInstallWebapp(String aPackageName, String aOrigin) {
-        Allocator allocator = Allocator.getInstance(GeckoAppShell.getContext());
+        Allocator allocator = Allocator.getInstance(GoannaAppShell.getContext());
         int index = allocator.findOrAllocatePackage(aPackageName);
         allocator.putOrigin(index, aOrigin);
     }
 
     private void launchWebapp(String aPackageName) {
-        Intent intent = GeckoAppShell.getContext().getPackageManager().getLaunchIntentForPackage(aPackageName);
-        GeckoAppShell.getGeckoInterface().getActivity().startActivity(intent);
+        Intent intent = GoannaAppShell.getContext().getPackageManager().getLaunchIntentForPackage(aPackageName);
+        GoannaAppShell.getGoannaInterface().getActivity().startActivity(intent);
     }
 
     public static void uninstallWebapp(final String packageName) {
@@ -100,16 +100,16 @@ public class EventListener implements NativeEventListener  {
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                int index = Allocator.getInstance(GeckoAppShell.getContext()).releaseIndexForApp(packageName);
+                int index = Allocator.getInstance(GoannaAppShell.getContext()).releaseIndexForApp(packageName);
 
                 // if -1, nothing to do; we didn't think it was installed anyway
                 if (index == -1)
                     return;
 
-                killWebappSlot(GeckoAppShell.getContext(), index);
+                killWebappSlot(GoannaAppShell.getContext(), index);
 
                 // then nuke the profile
-                GeckoProfile.removeProfile(GeckoAppShell.getContext(), "webapp" + index);
+                GoannaProfile.removeProfile(GoannaAppShell.getContext(), "webapp" + index);
             }
         });
     }

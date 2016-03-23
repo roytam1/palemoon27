@@ -27,7 +27,7 @@ public class testThumbnails extends BaseTest {
         // should be plenty of time, even on slow devices
         final int thumbnailDelay = 3000;
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // load sites; both will return HTTP 200 with a green background
         inputAndLoadUrl(site1Url);

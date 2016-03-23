@@ -71,7 +71,7 @@ function test() {
     "The .A node's function cell displays the correct line.");
   is($$fun(".call-tree-host")[1].getAttribute("value"), "foo",
     "The .A node's function cell displays the correct host.");
-  is($$fun(".call-tree-category")[1].getAttribute("value"), "Gecko",
+  is($$fun(".call-tree-category")[1].getAttribute("value"), "Goanna",
     "The .A node's function cell displays the correct category.");
 
   let A = treeRoot.getChild();

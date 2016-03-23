@@ -135,8 +135,8 @@ public:
   }
 
   /**
-   * Get the owning node info manager. Only to be used inside Gecko, you can't
-   * really do anything with the pointer outside Gecko anyway.
+   * Get the owning node info manager. Only to be used inside Goanna, you can't
+   * really do anything with the pointer outside Goanna anyway.
    */
   nsNodeInfoManager* NodeInfoManager() const
   {

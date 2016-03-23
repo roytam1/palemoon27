@@ -7,7 +7,7 @@ package org.mozilla.gecko.tests;
 
 public class testBookmarkKeyword extends AboutHomeTest {
     public void testBookmarkKeyword() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         final String url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
         final String keyword = "testkeyword";

@@ -58,7 +58,7 @@
   </style>
 
   <!-- Theme Styles -->
-  <style name="SyncTheme" parent="@style/Gecko" />
+  <style name="SyncTheme" parent="@style/Goanna" />
 
   <!-- Outer container: a container with top, middle, and bottom
        content in it. -->

@@ -22,7 +22,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanningPerfAPI;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import android.app.Activity;
 import android.util.Log;
@@ -64,58 +64,58 @@ public class FennecNativeDriver implements Driver {
         mRootPath = rootPath;
     }
 
-    //Information on the location of the Gecko Frame.
-    private boolean mGeckoInfo = false;
-    private int mGeckoTop = 100;
-    private int mGeckoLeft = 0;
-    private int mGeckoHeight= 700;
-    private int mGeckoWidth = 1024;
+    //Information on the location of the Goanna Frame.
+    private boolean mGoannaInfo = false;
+    private int mGoannaTop = 100;
+    private int mGoannaLeft = 0;
+    private int mGoannaHeight= 700;
+    private int mGoannaWidth = 1024;
 
-    private void getGeckoInfo() {
+    private void getGoannaInfo() {
         View geckoLayout = mActivity.findViewById(R.id.gecko_layout);
         if (geckoLayout != null) {
             int[] pos = new int[2];
             geckoLayout.getLocationOnScreen(pos);
-            mGeckoTop = pos[1];
-            mGeckoLeft = pos[0];
-            mGeckoWidth = geckoLayout.getWidth();
-            mGeckoHeight = geckoLayout.getHeight();
-            mGeckoInfo = true;
+            mGoannaTop = pos[1];
+            mGoannaLeft = pos[0];
+            mGoannaWidth = geckoLayout.getWidth();
+            mGoannaHeight = geckoLayout.getHeight();
+            mGoannaInfo = true;
         } else {
             throw new RoboCopException("Unable to find view gecko_layout");
         }
     }
 
     @Override
-    public int getGeckoTop() {
-        if (!mGeckoInfo) {
-            getGeckoInfo();
+    public int getGoannaTop() {
+        if (!mGoannaInfo) {
+            getGoannaInfo();
         }
-        return mGeckoTop;
+        return mGoannaTop;
     }
 
     @Override
-    public int getGeckoLeft() {
-        if (!mGeckoInfo) {
-            getGeckoInfo();
+    public int getGoannaLeft() {
+        if (!mGoannaInfo) {
+            getGoannaInfo();
         }
-        return mGeckoLeft;
+        return mGoannaLeft;
     }
 
     @Override
-    public int getGeckoHeight() {
-        if (!mGeckoInfo) {
-            getGeckoInfo();
+    public int getGoannaHeight() {
+        if (!mGoannaInfo) {
+            getGoannaInfo();
         }
-        return mGeckoHeight;
+        return mGoannaHeight;
     }
 
     @Override
-    public int getGeckoWidth() {
-        if (!mGeckoInfo) {
-            getGeckoInfo();
+    public int getGoannaWidth() {
+        if (!mGoannaInfo) {
+            getGoannaInfo();
         }
-        return mGeckoWidth;
+        return mGoannaWidth;
     }
 
     /** Find the element with given id.
@@ -248,7 +248,7 @@ public class FennecNativeDriver implements Driver {
 
     @Override
     public void setupScrollHandling() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(new GeckoEventListener() {
+        EventDispatcher.getInstance().registerGoannaThreadListener(new GoannaEventListener() {
             @Override
             public void handleMessage(final String event, final JSONObject message) {
                 try {

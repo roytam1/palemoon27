@@ -7,7 +7,7 @@ package org.mozilla.gecko.home;
 
 import java.util.EnumSet;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.Telemetry;
@@ -174,7 +174,7 @@ public class ReadingListPanel extends HomeFragment {
 
         public ReadingListLoader(Context context) {
             super(context);
-            accessor = GeckoProfile.get(context).getDB().getReadingListAccessor();
+            accessor = GoannaProfile.get(context).getDB().getReadingListAccessor();
         }
 
         @Override

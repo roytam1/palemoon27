@@ -62,7 +62,7 @@ namespace detail {
 const MozRefCountType DEAD = 0xffffdead;
 #endif
 
-// When building code that gets compiled into Gecko, try to use the
+// When building code that gets compiled into Goanna, try to use the
 // trace-refcount leak logging facilities.
 #ifdef MOZ_REFCOUNTED_LEAK_CHECKING
 class RefCountLogger

@@ -1434,7 +1434,7 @@ HttpBaseChannel::RedirectTo(nsIURI *newURI)
 NS_IMETHODIMP
 HttpBaseChannel::ContinueBeginConnect()
 {
-  MOZ_ASSERT(XRE_GetProcessType() != GeckoProcessType_Default,
+  MOZ_ASSERT(XRE_GetProcessType() != GoannaProcessType_Default,
              "The parent overrides this");
   MOZ_ASSERT(false, "This method must be overridden");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -2039,7 +2039,7 @@ HttpBaseChannel::AddCookiesToRequest()
   }
 
   bool useCookieService =
-    (XRE_GetProcessType() == GeckoProcessType_Default);
+    (XRE_GetProcessType() == GoannaProcessType_Default);
   nsXPIDLCString cookie;
   if (useCookieService) {
     nsICookieService *cs = gHttpHandler->GetCookieService();

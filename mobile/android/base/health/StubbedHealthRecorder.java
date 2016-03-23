@@ -23,7 +23,7 @@ public class StubbedHealthRecorder implements HealthRecorder {
     public void checkForOrphanSessions() { }
 
     @Override
-    public void recordGeckoStartupTime(long duration) { }
+    public void recordGoannaStartupTime(long duration) { }
     @Override
     public void recordJavaStartupTime(long duration) { }
     @Override

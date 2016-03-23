@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -47,13 +47,13 @@ import java.util.Map;
  * dispatcher, they can do so by inserting the response string into the bundle
  * under the key "response".
  */
-class JavaAddonManager implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoJavaAddonManager";
+class JavaAddonManager implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaJavaAddonManager";
 
     private static JavaAddonManager sInstance;
 
     private final EventDispatcher mDispatcher;
-    private final Map<String, Map<String, GeckoEventListener>> mAddonCallbacks;
+    private final Map<String, Map<String, GoannaEventListener>> mAddonCallbacks;
 
     private Context mApplicationContext;
 
@@ -66,7 +66,7 @@ class JavaAddonManager implements GeckoEventListener {
 
     private JavaAddonManager() {
         mDispatcher = EventDispatcher.getInstance();
-        mAddonCallbacks = new HashMap<String, Map<String, GeckoEventListener>>();
+        mAddonCallbacks = new HashMap<String, Map<String, GoannaEventListener>>();
     }
 
     void init(Context applicationContext) {
@@ -75,7 +75,7 @@ class JavaAddonManager implements GeckoEventListener {
             return;
         }
         mApplicationContext = applicationContext;
-        mDispatcher.registerGeckoThreadListener(this,
+        mDispatcher.registerGoannaThreadListener(this,
             "Dex:Load",
             "Dex:Unload");
     }
@@ -114,32 +114,32 @@ class JavaAddonManager implements GeckoEventListener {
     }
 
     private void registerCallbacks(String zipFile, Map<String, Handler.Callback> callbacks) {
-        Map<String, GeckoEventListener> addonCallbacks = mAddonCallbacks.get(zipFile);
+        Map<String, GoannaEventListener> addonCallbacks = mAddonCallbacks.get(zipFile);
         if (addonCallbacks != null) {
             Log.w(LOGTAG, "Found pre-existing callbacks for zipfile [" + zipFile + "]; aborting re-registration!");
             return;
         }
-        addonCallbacks = new HashMap<String, GeckoEventListener>();
+        addonCallbacks = new HashMap<String, GoannaEventListener>();
         for (String event : callbacks.keySet()) {
             CallbackWrapper wrapper = new CallbackWrapper(callbacks.get(event));
-            mDispatcher.registerGeckoThreadListener(wrapper, event);
+            mDispatcher.registerGoannaThreadListener(wrapper, event);
             addonCallbacks.put(event, wrapper);
         }
         mAddonCallbacks.put(zipFile, addonCallbacks);
     }
 
     private void unregisterCallbacks(String zipFile) {
-        Map<String, GeckoEventListener> callbacks = mAddonCallbacks.remove(zipFile);
+        Map<String, GoannaEventListener> callbacks = mAddonCallbacks.remove(zipFile);
         if (callbacks == null) {
             Log.w(LOGTAG, "Attempting to unregister callbacks from zipfile [" + zipFile + "] which has no callbacks registered.");
             return;
         }
         for (String event : callbacks.keySet()) {
-            mDispatcher.unregisterGeckoThreadListener(callbacks.get(event), event);
+            mDispatcher.unregisterGoannaThreadListener(callbacks.get(event), event);
         }
     }
 
-    private static class CallbackWrapper implements GeckoEventListener {
+    private static class CallbackWrapper implements GoannaEventListener {
         private final Handler.Callback mDelegate;
         private Bundle mBundle;
 

@@ -20,8 +20,8 @@ import java.util.List;
  * Note: Replaces the OnOrientationChangeListener to avoid redundant rotation
  * event handling.
  */
-public class GeckoScreenOrientation {
-    private static final String LOGTAG = "GeckoScreenOrientation";
+public class GoannaScreenOrientation {
+    private static final String LOGTAG = "GoannaScreenOrientation";
 
     // Make sure that any change in dom/base/ScreenOrientation.h happens here too.
     public enum ScreenOrientation {
@@ -53,7 +53,7 @@ public class GeckoScreenOrientation {
     }
 
     // Singleton instance.
-    private static GeckoScreenOrientation sInstance;
+    private static GoannaScreenOrientation sInstance;
     // Default screen orientation, used for initialization and unlocking.
     private static final ScreenOrientation DEFAULT_SCREEN_ORIENTATION = ScreenOrientation.DEFAULT;
     // Default rotation, used when device rotation is unknown.
@@ -62,12 +62,12 @@ public class GeckoScreenOrientation {
     private ScreenOrientation mDefaultScreenOrientation;
     // Last updated screen orientation.
     private ScreenOrientation mScreenOrientation;
-    // Whether the update should notify Gecko about screen orientation changes.
+    // Whether the update should notify Goanna about screen orientation changes.
     private boolean mShouldNotify = true;
     // Configuration screen orientation preference path.
     private static final String DEFAULT_SCREEN_ORIENTATION_PREF = "app.orientation.default";
 
-    public GeckoScreenOrientation() {
+    public GoannaScreenOrientation() {
         PrefsHelper.getPref(DEFAULT_SCREEN_ORIENTATION_PREF, new PrefsHelper.PrefHandlerBase() {
             @Override public void prefValue(String pref, String value) {
                 // Read and update the configuration default preference.
@@ -80,15 +80,15 @@ public class GeckoScreenOrientation {
         update();
     }
 
-    public static GeckoScreenOrientation getInstance() {
+    public static GoannaScreenOrientation getInstance() {
         if (sInstance == null) {
-            sInstance = new GeckoScreenOrientation();
+            sInstance = new GoannaScreenOrientation();
         }
         return sInstance;
     }
 
     /*
-     * Enable Gecko screen orientation events on update.
+     * Enable Goanna screen orientation events on update.
      */
     public void enableNotifications() {
         update();
@@ -96,7 +96,7 @@ public class GeckoScreenOrientation {
     }
 
     /*
-     * Disable Gecko screen orientation events on update.
+     * Disable Goanna screen orientation events on update.
      */
     public void disableNotifications() {
         mShouldNotify = false;
@@ -104,12 +104,12 @@ public class GeckoScreenOrientation {
 
     /*
      * Update screen orientation.
-     * Retrieve orientation and rotation via GeckoAppShell.
+     * Retrieve orientation and rotation via GoannaAppShell.
      *
      * @return Whether the screen orientation has changed.
      */
     public boolean update() {
-        Activity activity = GeckoAppShell.getGeckoInterface().getActivity();
+        Activity activity = GoannaAppShell.getGoannaInterface().getActivity();
         if (activity == null) {
             return false;
         }
@@ -119,7 +119,7 @@ public class GeckoScreenOrientation {
 
     /*
      * Update screen orientation given the android orientation.
-     * Retrieve rotation via GeckoAppShell.
+     * Retrieve rotation via GoannaAppShell.
      *
      * @param aAndroidOrientation
      *        Android screen orientation from Configuration.orientation.
@@ -134,7 +134,7 @@ public class GeckoScreenOrientation {
      * Update screen orientation given the screen orientation.
      *
      * @param aScreenOrientation
-     *        Gecko screen orientation based on android orientation and rotation.
+     *        Goanna screen orientation based on android orientation and rotation.
      *
      * @return Whether the screen orientation has changed.
      */
@@ -145,14 +145,14 @@ public class GeckoScreenOrientation {
         mScreenOrientation = aScreenOrientation;
         Log.d(LOGTAG, "updating to new orientation " + mScreenOrientation);
         if (mShouldNotify) {
-            // Gecko expects a definite screen orientation, so we default to the
+            // Goanna expects a definite screen orientation, so we default to the
             // primary orientations.
             if (aScreenOrientation == ScreenOrientation.PORTRAIT) {
                 aScreenOrientation = ScreenOrientation.PORTRAIT_PRIMARY;
             } else if (aScreenOrientation == ScreenOrientation.LANDSCAPE) {
                 aScreenOrientation = ScreenOrientation.LANDSCAPE_PRIMARY;
             }
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenOrientationEvent(aScreenOrientation.value));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createScreenOrientationEvent(aScreenOrientation.value));
         }
         return true;
     }
@@ -165,7 +165,7 @@ public class GeckoScreenOrientation {
     }
 
     /*
-     * @return The Gecko screen orientation derived from Android orientation and
+     * @return The Goanna screen orientation derived from Android orientation and
      *         rotation.
      */
     public ScreenOrientation getScreenOrientation() {
@@ -173,21 +173,21 @@ public class GeckoScreenOrientation {
     }
 
     /*
-     * Lock screen orientation given the Gecko screen orientation.
+     * Lock screen orientation given the Goanna screen orientation.
      *
-     * @param aGeckoOrientation
-     *        The Gecko orientation provided.
+     * @param aGoannaOrientation
+     *        The Goanna orientation provided.
      */
-    public void lock(int aGeckoOrientation) {
-        lock(ScreenOrientation.get(aGeckoOrientation));
+    public void lock(int aGoannaOrientation) {
+        lock(ScreenOrientation.get(aGoannaOrientation));
     }
 
     /*
-     * Lock screen orientation given the Gecko screen orientation.
-     * Retrieve rotation via GeckoAppShell.
+     * Lock screen orientation given the Goanna screen orientation.
+     * Retrieve rotation via GoannaAppShell.
      *
      * @param aScreenOrientation
-     *        Gecko screen orientation derived from Android orientation and
+     *        Goanna screen orientation derived from Android orientation and
      *        rotation.
      *
      * @return Whether the locking was successful.
@@ -214,15 +214,15 @@ public class GeckoScreenOrientation {
      * This is essentially an unlock without an update.
      *
      * @param aScreenOrientation
-     *        Gecko screen orientation.
+     *        Goanna screen orientation.
      *
      * @return Whether the requested orientation was set. This can only fail if
-     *         the current activity cannot be retrieved vie GeckoAppShell.
+     *         the current activity cannot be retrieved vie GoannaAppShell.
      *
      */
     private boolean setRequestedOrientation(ScreenOrientation aScreenOrientation) {
         int activityOrientation = screenOrientationToActivityInfoOrientation(aScreenOrientation);
-        Activity activity = GeckoAppShell.getGeckoInterface().getActivity();
+        Activity activity = GoannaAppShell.getGoannaInterface().getActivity();
         if (activity == null) {
             Log.w(LOGTAG, "setRequestOrientation: failed to get activity");
         }
@@ -234,14 +234,14 @@ public class GeckoScreenOrientation {
     }
 
     /*
-     * Combine the Android orientation and rotation to the Gecko orientation.
+     * Combine the Android orientation and rotation to the Goanna orientation.
      *
      * @param aAndroidOrientation
      *        Android orientation from Configuration.orientation.
      * @param aRotation
      *        Device rotation from Display.getRotation().
      *
-     * @return Gecko screen orientation.
+     * @return Goanna screen orientation.
      */
     private ScreenOrientation getScreenOrientation(int aAndroidOrientation, int aRotation) {
         boolean isPrimary = aRotation == Surface.ROTATION_0 || aRotation == Surface.ROTATION_90;
@@ -268,7 +268,7 @@ public class GeckoScreenOrientation {
      * @return Device rotation from Display.getRotation().
      */
     private int getRotation() {
-        Activity activity = GeckoAppShell.getGeckoInterface().getActivity();
+        Activity activity = GoannaAppShell.getGoannaInterface().getActivity();
         if (activity == null) {
             Log.w(LOGTAG, "getRotation: failed to get activity");
             return DEFAULT_ROTATION;
@@ -282,7 +282,7 @@ public class GeckoScreenOrientation {
      * @param aArray
      *        String containing comma-delimited strings.
      *
-     * @return First parsed Gecko screen orientation.
+     * @return First parsed Goanna screen orientation.
      */
     public static ScreenOrientation screenOrientationFromArrayString(String aArray) {
         List<String> orientations = Arrays.asList(aArray.split(","));
@@ -302,7 +302,7 @@ public class GeckoScreenOrientation {
      *
      * @param aStr
      *        String hopefully containing a screen orientation name.
-     * @return Gecko screen orientation if matched, DEFAULT_SCREEN_ORIENTATION
+     * @return Goanna screen orientation if matched, DEFAULT_SCREEN_ORIENTATION
      *         otherwise.
      */
     public static ScreenOrientation screenOrientationFromString(String aStr) {
@@ -326,10 +326,10 @@ public class GeckoScreenOrientation {
     }
 
     /*
-     * Convert Gecko screen orientation to Android orientation.
+     * Convert Goanna screen orientation to Android orientation.
      *
      * @param aScreenOrientation
-     *        Gecko screen orientation.
+     *        Goanna screen orientation.
      * @return Android orientation. This conversion is lossy, the Android
      *         orientation does not differentiate between primary and secondary
      *         orientations.
@@ -353,13 +353,13 @@ public class GeckoScreenOrientation {
 
 
     /*
-     * Convert Gecko screen orientation to Android ActivityInfo orientation.
+     * Convert Goanna screen orientation to Android ActivityInfo orientation.
      * This is yet another orientation used by Android, but it's more detailed
      * than the Android orientation.
      * It is required for screen orientation locking and unlocking.
      *
      * @param aScreenOrientation
-     *        Gecko screen orientation.
+     *        Goanna screen orientation.
      * @return Android ActivityInfo orientation.
      */
     public static int screenOrientationToActivityInfoOrientation(ScreenOrientation aScreenOrientation) {

@@ -15,7 +15,7 @@ Cu.import("resource://gre/modules/SharedPreferences.jsm");
 // health reports.
 const PREF_UPLOAD_ENABLED = "android.not_a_preference.healthreport.uploadEnabled";
 
-// Name of Gecko Pref specifying report content location.
+// Name of Goanna Pref specifying report content location.
 const PREF_REPORTURL = "datareporting.healthreport.about.reportUrl";
 
 // Monotonically increasing wrapper API version number.

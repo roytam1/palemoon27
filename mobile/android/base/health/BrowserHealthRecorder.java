@@ -24,8 +24,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.background.healthreport.AndroidConfigurationProvider;
 import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
 import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
@@ -35,7 +35,7 @@ import org.mozilla.gecko.background.healthreport.HealthReportStorage.Measurement
 import org.mozilla.gecko.background.healthreport.ProfileInformationCache;
 import org.mozilla.gecko.distribution.Distribution;
 import org.mozilla.gecko.distribution.Distribution.DistributionDescriptor;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.ContentProviderClient;
@@ -59,8 +59,8 @@ import android.util.Log;
  *
  * Shut it down when you're done being a browser: {@link #close()}.
  */
-public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener {
-    private static final String LOG_TAG = "GeckoHealthRec";
+public class BrowserHealthRecorder implements HealthRecorder, GoannaEventListener {
+    private static final String LOG_TAG = "GoannaHealthRec";
     private static final String PREF_ACCEPT_LANG = "intl.accept_languages";
     private static final String PREF_BLOCKLIST_ENABLED = "extensions.blocklist.enabled";
     private static final String EVENT_SNAPSHOT = "HealthReport:Snapshot";
@@ -68,7 +68,7 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
     private static final String EVENT_ADDONS_UNINSTALLING = "Addons:Uninstalling";
     private static final String EVENT_PREF_CHANGE = "Pref:Change";
 
-    // This is raised from Gecko and signifies a search via the URL bar (not a bookmarks keyword
+    // This is raised from Goanna and signifies a search via the URL bar (not a bookmarks keyword
     // search). Using this event (rather than passing the invocation location as an arg) avoids
     // browser.js having to know about the invocation location.
     public static final String EVENT_KEYWORD_SEARCH = "Search:Keyword";
@@ -107,11 +107,11 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
     }
 
     @Override
-    public void recordGeckoStartupTime(long duration) {
+    public void recordGoannaStartupTime(long duration) {
         if (this.session == null) {
             return;
         }
-        this.session.setTimedGeckoStartup(duration);
+        this.session.setTimedGoannaStartup(duration);
     }
     @Override
     public void recordJavaStartupTime(long duration) {
@@ -204,7 +204,7 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
         if (state != State.INITIALIZED) {
             return;
         }
-        dispatcher.unregisterGeckoThreadListener(this,
+        dispatcher.unregisterGoannaThreadListener(this,
             EVENT_SNAPSHOT,
             EVENT_ADDONS_CHANGE,
             EVENT_ADDONS_UNINSTALLING,
@@ -471,7 +471,7 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
 
                     try {
                         // Listen for add-ons and prefs changes.
-                        dispatcher.registerGeckoThreadListener(self,
+                        dispatcher.registerGoannaThreadListener(self,
                             EVENT_ADDONS_UNINSTALLING,
                             EVENT_ADDONS_CHANGE,
                             EVENT_PREF_CHANGE);
@@ -529,18 +529,18 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
         this.profileCache.setAppLocale(appLocale);
 
         // Because the distribution lookup can take some time, do it at the end of
-        // our background startup work, along with the Gecko snapshot fetch.
+        // our background startup work, along with the Goanna snapshot fetch.
         final Distribution distribution = Distribution.getInstance(context);
         distribution.addOnDistributionReadyCallback(new Distribution.ReadyCallback() {
-            private void requestGeckoFields() {
-                Log.d(LOG_TAG, "Requesting all add-ons and FHR prefs from Gecko.");
-                dispatcher.registerGeckoThreadListener(BrowserHealthRecorder.this, EVENT_SNAPSHOT);
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HealthReport:RequestSnapshot", null));
+            private void requestGoannaFields() {
+                Log.d(LOG_TAG, "Requesting all add-ons and FHR prefs from Goanna.");
+                dispatcher.registerGoannaThreadListener(BrowserHealthRecorder.this, EVENT_SNAPSHOT);
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("HealthReport:RequestSnapshot", null));
             }
 
             @Override
             public void distributionNotFound() {
-                requestGeckoFields();
+                requestGoannaFields();
             }
 
             @Override
@@ -550,7 +550,7 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
                 if (desc != null && desc.valid) {
                     profileCache.setDistributionString(desc.id, desc.version);
                 }
-                requestGeckoFields();
+                requestGoannaFields();
             }
 
             @Override
@@ -717,7 +717,7 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
         // Do this here, rather than in a centralized registration spot, in
         // case the above throws and we wind up handling events that we can't
         // store.
-        this.dispatcher.registerGeckoThreadListener(this,
+        this.dispatcher.registerGoannaThreadListener(this,
             EVENT_KEYWORD_SEARCH,
             EVENT_SEARCH);
     }
@@ -814,7 +814,7 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
      *
      * "r": reason. Values are "P" (activity paused), "A" (abnormal termination)
      * "d": duration. Value in seconds.
-     * "sg": Gecko startup time. Present if this is a clean launch. This
+     * "sg": Goanna startup time. Present if this is a clean launch. This
      *       corresponds to the telemetry timer FENNEC_STARTUP_TIME_GECKOREADY.
      * "sj": Java activity init time. Present if this is a clean launch. This
      *       corresponds to the telemetry timer FENNEC_STARTUP_TIME_JAVAUI,

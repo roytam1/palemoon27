@@ -262,7 +262,7 @@ Editor.prototype = {
         Services.scriptloader.loadSubScript(url, win, "utf8"));
 
       // Replace the propertyKeywords, colorKeywords and valueKeywords
-      // properties of the CSS MIME type with the values provided by Gecko.
+      // properties of the CSS MIME type with the values provided by Goanna.
       let cssSpec = win.CodeMirror.resolveMode("text/css");
       cssSpec.propertyKeywords = cssProperties;
       cssSpec.colorKeywords = cssColors;
@@ -1123,7 +1123,7 @@ Editor.keyFor = function (cmd, opts={ noaccel: false }) {
   return opts.noaccel ? key : Editor.accel(key);
 };
 
-// Since Gecko already provide complete and up to date list of CSS property
+// Since Goanna already provide complete and up to date list of CSS property
 // names, values and color names, we compute them so that they can replace
 // the ones used in CodeMirror while initiating an editor object. This is done
 // here instead of the file codemirror/css.js so as to leave that file untouched

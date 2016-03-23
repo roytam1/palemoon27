@@ -70,7 +70,7 @@ public:
 
   void GetProduct(nsString& aProduct) const
   {
-    aProduct.AssignLiteral("Gecko");
+    aProduct.AssignLiteral("Goanna");
   }
 
   bool TaintEnabled() const

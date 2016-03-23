@@ -67,7 +67,7 @@ def pu
 end
 
 # Define a "ps" command to display subclasses of nsAC?String.  Note that
-# this assumes strings as of Gecko 1.9 (well, and probably a few
+# this assumes strings as of Goanna 1.9 (well, and probably a few
 # releases before that as well); going back far enough will get you
 # to string classes that this function doesn't work for.
 def ps

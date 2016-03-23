@@ -407,7 +407,7 @@ HandlerInfoWrapper.prototype = {
                               disabledPluginTypes.join(","));
 
     // Update the category manager so existing browser windows update.
-    this._categoryMgr.deleteCategoryEntry("Gecko-Content-Viewers",
+    this._categoryMgr.deleteCategoryEntry("Goanna-Content-Viewers",
                                           this.type,
                                           false);
   },
@@ -423,7 +423,7 @@ HandlerInfoWrapper.prototype = {
 
     // Update the category manager so existing browser windows update.
     this._categoryMgr.
-      addCategoryEntry("Gecko-Content-Viewers",
+      addCategoryEntry("Goanna-Content-Viewers",
                        this.type,
                        "@mozilla.org/content/plugin/document-loader-factory;1",
                        false,

@@ -25,7 +25,7 @@ import android.widget.TextView;
  * This is denoted by the empty state.
  */
 public class TopSitesGridItemView extends RelativeLayout {
-    private static final String LOGTAG = "GeckoTopSitesGridItemView";
+    private static final String LOGTAG = "GoannaTopSitesGridItemView";
 
     // Empty state, to denote there is no valid url.
     private static final int[] STATE_EMPTY = { android.R.attr.state_empty };

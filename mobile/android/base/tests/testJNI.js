@@ -12,7 +12,7 @@ add_task(function test_JNI() {
     jenv = JNI.GetForThread();
 
     // Test a simple static method.
-    var geckoAppShell = JNI.LoadClass(jenv, "org.mozilla.gecko.GeckoAppShell", {
+    var geckoAppShell = JNI.LoadClass(jenv, "org.mozilla.gecko.GoannaAppShell", {
       static_methods: [
         { name: "getPreferredIconSize", sig: "()I" },
         { name: "getContext", sig: "()Landroid/content/Context;" },
@@ -23,17 +23,17 @@ add_task(function test_JNI() {
     iconSize = geckoAppShell.getPreferredIconSize();
     do_check_neq(iconSize, -1);
 
-    // Test GeckoNetworkManager methods that are accessed by PaymentsUI.js.
+    // Test GoannaNetworkManager methods that are accessed by PaymentsUI.js.
     // The return values can vary, so we can't test for equivalence, but we
     // can ensure that the method calls return values of the correct type.
-    let jGeckoNetworkManager = JNI.LoadClass(jenv, "org/mozilla/gecko/GeckoNetworkManager", {
+    let jGoannaNetworkManager = JNI.LoadClass(jenv, "org/mozilla/gecko/GoannaNetworkManager", {
       static_methods: [
         { name: "getMNC", sig: "()I" },
         { name: "getMCC", sig: "()I" },
       ],
     });
-    do_check_eq(typeof jGeckoNetworkManager.getMNC(), "number");
-    do_check_eq(typeof jGeckoNetworkManager.getMCC(), "number");
+    do_check_eq(typeof jGoannaNetworkManager.getMNC(), "number");
+    do_check_eq(typeof jGoannaNetworkManager.getMCC(), "number");
 
     // Test retrieving the context's class's name, which tests dynamic method
     // invocation as well as converting a Java string to JavaScript.

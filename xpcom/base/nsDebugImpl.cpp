@@ -384,7 +384,7 @@ NS_DebugBreak(uint32_t aSeverity, const char* aStr, const char* aExpr,
 #endif
 
 #ifdef ANDROID
-  __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", buf.buffer);
+  __android_log_print(ANDROID_LOG_INFO, "Goanna", "%s", buf.buffer);
 #endif
 
   // Write the message to stderr unless it's a warning and MOZ_IGNORE_WARNINGS
@@ -407,7 +407,7 @@ NS_DebugBreak(uint32_t aSeverity, const char* aStr, const char* aExpr,
       // Updating crash annotations in the child causes us to do IPC. This can
       // really cause trouble if we're asserting from within IPC code. So we
       // have to do without the annotations in that case.
-      if (XRE_GetProcessType() == GeckoProcessType_Default) {
+      if (XRE_GetProcessType() == GoannaProcessType_Default) {
         nsCString note("xpcom_runtime_abort(");
         note += buf.buffer;
         note += ")";

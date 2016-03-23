@@ -4,7 +4,7 @@
 
 package org.mozilla.search;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
@@ -42,7 +42,7 @@ import com.nineoldandroids.animation.ObjectAnimator;
 public class SearchActivity extends Locales.LocaleAwareFragmentActivity
         implements AcceptsSearchQuery, SearchEngineCallback {
 
-    private static final String LOGTAG = "GeckoSearchActivity";
+    private static final String LOGTAG = "GoannaSearchActivity";
 
     private static final String KEY_SEARCH_STATE = "search_state";
     private static final String KEY_EDIT_STATE = "edit_state";
@@ -94,7 +94,7 @@ public class SearchActivity extends Locales.LocaleAwareFragmentActivity
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        GeckoAppShell.ensureCrashHandling();
+        GoannaAppShell.ensureCrashHandling();
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.search_activity_main);

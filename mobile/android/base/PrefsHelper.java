@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -20,7 +20,7 @@ import java.util.ArrayList;
  * Helper class to get/set gecko prefs.
  */
 public final class PrefsHelper {
-    private static final String LOGTAG = "GeckoPrefsHelper";
+    private static final String LOGTAG = "GoannaPrefsHelper";
 
     private static boolean sRegistered;
     private static int sUniqueRequestId = 1;
@@ -47,13 +47,13 @@ public final class PrefsHelper {
             sCallbacks.put(requestId, callback);
         }
 
-        GeckoEvent event;
+        GoannaEvent event;
         if (callback.isObserver()) {
-            event = GeckoEvent.createPreferencesObserveEvent(requestId, prefNames);
+            event = GoannaEvent.createPreferencesObserveEvent(requestId, prefNames);
         } else {
-            event = GeckoEvent.createPreferencesGetEvent(requestId, prefNames);
+            event = GoannaEvent.createPreferencesGetEvent(requestId, prefNames);
         }
-        GeckoAppShell.sendEventToGecko(event);
+        GoannaAppShell.sendEventToGoanna(event);
 
         return requestId;
     }
@@ -63,7 +63,7 @@ public final class PrefsHelper {
             return;
         }
 
-        GeckoEventListener listener = new GeckoEventListener() {
+        GoannaEventListener listener = new GoannaEventListener() {
             @Override
             public void handleMessage(String event, JSONObject message) {
                 try {
@@ -110,7 +110,7 @@ public final class PrefsHelper {
                 }
             }
         };
-        EventDispatcher.getInstance().registerGeckoThreadListener(listener, "Preferences:Data");
+        EventDispatcher.getInstance().registerGoannaThreadListener(listener, "Preferences:Data");
         sRegistered = true;
     }
 
@@ -133,8 +133,8 @@ public final class PrefsHelper {
                 jsonPref.put("value", String.valueOf(value));
             }
 
-            GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
-            GeckoAppShell.sendEventToGecko(event);
+            GoannaEvent event = GoannaEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+            GoannaAppShell.sendEventToGoanna(event);
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error setting pref [" + pref + "]", e);
         }
@@ -155,9 +155,9 @@ public final class PrefsHelper {
             }
         }
 
-        GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:RemoveObserver",
+        GoannaEvent event = GoannaEvent.createBroadcastEvent("Preferences:RemoveObserver",
                                                            Integer.toString(requestId));
-        GeckoAppShell.sendEventToGecko(event);
+        GoannaAppShell.sendEventToGoanna(event);
     }
 
     public interface PrefHandler {

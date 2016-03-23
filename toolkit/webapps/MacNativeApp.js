@@ -270,7 +270,7 @@ NativeApp.prototype = {
     <key>NSHighResolutionCapable</key>\n\
     <true/>\n\
     <key>NSPrincipalClass</key>\n\
-    <string>GeckoNSApplication</string>\n\
+    <string>GoannaNSApplication</string>\n\
     <key>FirefoxBinary</key>\n\
 #expand     <string>__MOZ_MACBUNDLE_ID__</string>\n\
   </dict>\n\

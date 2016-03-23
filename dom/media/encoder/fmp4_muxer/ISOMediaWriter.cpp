@@ -10,7 +10,7 @@
 #include "nsThreadUtils.h"
 #include "MediaEncoder.h"
 #include "VideoUtils.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #undef LOG
 #ifdef MOZ_WIDGET_GONK

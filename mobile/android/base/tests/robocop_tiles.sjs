@@ -17,7 +17,7 @@ function handleRequest(request, response) {
   }
   let data = String.fromCharCode.apply(null, bytes);
 
-  // Including this header will cause Gecko to broadcast the Robocop:TilesResponse event.
+  // Including this header will cause Goanna to broadcast the Robocop:TilesResponse event.
   response.setHeader("X-Robocop", "true", false);
 
   response.setHeader("Content-Type", "application/json", false);

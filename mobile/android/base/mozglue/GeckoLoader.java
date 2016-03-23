@@ -24,8 +24,8 @@ import android.util.Log;
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
 
-public final class GeckoLoader {
-    private static final String LOGTAG = "GeckoLoader";
+public final class GoannaLoader {
+    private static final String LOGTAG = "GoannaLoader";
 
     private static volatile SafeIntent sIntent;
     private static File sCacheFile;
@@ -38,7 +38,7 @@ public final class GeckoLoader {
     private static boolean sMozGlueLoaded;
     private static boolean sLibsSetup;
 
-    private GeckoLoader() {
+    private GoannaLoader() {
         // prevent instantiation
     }
 
@@ -125,13 +125,13 @@ public final class GeckoLoader {
         sIntent = intent;
     }
 
-    public static void setupGeckoEnvironment(Context context, String[] pluginDirs, String profilePath) {
+    public static void setupGoannaEnvironment(Context context, String[] pluginDirs, String profilePath) {
         // if we have an intent (we're being launched by an activity)
         // read in any environmental variables from it here
         final SafeIntent intent = sIntent;
         if (intent != null) {
             String env = intent.getStringExtra("env0");
-            Log.d(LOGTAG, "Gecko environment env0: " + env);
+            Log.d(LOGTAG, "Goanna environment env0: " + env);
             for (int c = 1; env != null; c++) {
                 putenv(env);
                 env = intent.getStringExtra("env" + c);
@@ -520,9 +520,9 @@ public final class GeckoLoader {
         doLoadLibrary(context, "mozglue");
     }
 
-    public static void loadGeckoLibs(final Context context, final String apkName) {
+    public static void loadGoannaLibs(final Context context, final String apkName) {
         loadLibsSetup(context);
-        loadGeckoLibsNative(apkName);
+        loadGoannaLibsNative(apkName);
     }
 
     private static void setupLocaleEnvironment() {
@@ -555,12 +555,12 @@ public final class GeckoLoader {
         }
     }
 
-    // These methods are implemented in mozglue/android/nsGeckoUtils.cpp
+    // These methods are implemented in mozglue/android/nsGoannaUtils.cpp
     private static native void putenv(String map);
 
     // These methods are implemented in mozglue/android/APKOpen.cpp
     public static native void nativeRun(String args);
-    private static native void loadGeckoLibsNative(String apkName);
+    private static native void loadGoannaLibsNative(String apkName);
     private static native void loadSQLiteLibsNative(String apkName);
     private static native void loadNSSLibsNative(String apkName);
 }

@@ -7,8 +7,8 @@ package org.mozilla.gecko.distribution;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 
 import android.content.BroadcastReceiver;
@@ -19,7 +19,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 public class ReferrerReceiver extends BroadcastReceiver {
-    private static final String LOGTAG = "GeckoReferrerReceiver";
+    private static final String LOGTAG = "GoannaReferrerReceiver";
 
     private static final String ACTION_INSTALL_REFERRER = "com.android.vending.INSTALL_REFERRER";
 
@@ -56,7 +56,7 @@ public class ReferrerReceiver extends BroadcastReceiver {
             Distribution.onReceivedReferrer(context, referrer);
         } else {
             Log.d(LOGTAG, "Not downloading distribution: non-matching campaign.");
-            // If this is a Mozilla campaign, pass the campaign along to Gecko.
+            // If this is a Mozilla campaign, pass the campaign along to Goanna.
             // It'll pretend to be a "playstore" distribution for BLP purposes.
             propagateMozillaCampaign(referrer);
         }
@@ -79,8 +79,8 @@ public class ReferrerReceiver extends BroadcastReceiver {
             String payload = data.toString();
 
             // Try to make sure the prefs are written as a group.
-            final GeckoEvent event = GeckoEvent.createBroadcastEvent("Campaign:Set", payload);
-            GeckoAppShell.sendEventToGecko(event);
+            final GoannaEvent event = GoannaEvent.createBroadcastEvent("Campaign:Set", payload);
+            GoannaAppShell.sendEventToGoanna(event);
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error propagating campaign identifier.", e);
         }

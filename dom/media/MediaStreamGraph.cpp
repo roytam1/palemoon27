@@ -26,7 +26,7 @@
 #include "AudioNodeExternalInputStream.h"
 #include <algorithm>
 #include "DOMMediaStream.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/unused.h"
 #ifdef MOZ_WEBRTC
 #include "AudioOutputObserver.h"
@@ -54,7 +54,7 @@ PRLogModuleInfo* gMediaStreamGraphLog;
 #ifdef ENABLE_LIFECYCLE_LOG
 #  ifdef ANDROID
 #    include "android/log.h"
-#    define LIFECYCLE_LOG(...)  __android_log_print(ANDROID_LOG_INFO, "Gecko - MSG", ## __VA_ARGS__); printf(__VA_ARGS__);printf("\n");
+#    define LIFECYCLE_LOG(...)  __android_log_print(ANDROID_LOG_INFO, "Goanna - MSG", ## __VA_ARGS__); printf(__VA_ARGS__);printf("\n");
 #  else
 #    define LIFECYCLE_LOG(...) printf(__VA_ARGS__);printf("\n");
 #  endif

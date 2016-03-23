@@ -19,7 +19,7 @@ import org.mozilla.gecko.db.DBUtils.UpdateOperation;
 import static org.mozilla.gecko.db.BrowserContract.ReadingListItems.*;
 
 public class ReadingListProvider extends SharedBrowserDatabaseProvider {
-    private static final String LOGTAG = "GeckoRLProvider";
+    private static final String LOGTAG = "GoannaRLProvider";
 
     static final String TABLE_READING_LIST = TABLE_NAME;
 

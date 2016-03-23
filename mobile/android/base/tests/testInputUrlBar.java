@@ -20,7 +20,7 @@ public final class testInputUrlBar extends BaseTest {
     private EditText mUrlBarEditView;
 
     public void testInputUrlBar() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         startEditingMode();
         assertUrlBarText(StringHelper.ABOUT_HOME_URL);
@@ -99,8 +99,8 @@ public final class testInputUrlBar extends BaseTest {
         startEditingMode();
         assertUrlBarText(StringHelper.ABOUT_HOME_URL);
 
-        int width = mDriver.getGeckoWidth() / 2;
-        int y = mDriver.getGeckoHeight() / 2;
+        int width = mDriver.getGoannaWidth() / 2;
+        int y = mDriver.getGoannaHeight() / 2;
 
         // Slide to the right, force URL bar entry to lose input focus
         mActions.drag(width, 0, y, y);

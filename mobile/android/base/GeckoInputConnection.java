@@ -39,16 +39,16 @@ import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 
-class GeckoInputConnection
+class GoannaInputConnection
     extends BaseInputConnection
-    implements InputConnectionHandler, GeckoEditableListener {
+    implements InputConnectionHandler, GoannaEditableListener {
 
     private static final boolean DEBUG = false;
-    protected static final String LOGTAG = "GeckoInputConnection";
+    protected static final String LOGTAG = "GoannaInputConnection";
 
     private static final String CUSTOM_HANDLER_TEST_METHOD = "testInputConnection";
     private static final String CUSTOM_HANDLER_TEST_CLASS =
-        "org.mozilla.gecko.tests.components.GeckoViewComponent$TextInput";
+        "org.mozilla.gecko.tests.components.GoannaViewComponent$TextInput";
 
     private static final int INLINE_IME_MIN_DISPLAY_SIZE = 480;
 
@@ -131,7 +131,7 @@ class GeckoInputConnection
         }
 
         public void runOnIcThread(final Handler uiHandler,
-                                  final GeckoEditableClient client,
+                                  final GoannaEditableClient client,
                                   final Runnable runnable) {
             final Handler icHandler = client.getInputConnectionHandler();
             if (icHandler.getLooper() == uiHandler.getLooper()) {
@@ -143,8 +143,8 @@ class GeckoInputConnection
         }
 
         public void sendEventFromUiThread(final Handler uiHandler,
-                                          final GeckoEditableClient client,
-                                          final GeckoEvent event) {
+                                          final GoannaEditableClient client,
+                                          final GoannaEvent event) {
             runOnIcThread(uiHandler, client, new Runnable() {
                 @Override public void run() {
                     client.sendEvent(event);
@@ -153,7 +153,7 @@ class GeckoInputConnection
         }
 
         public Editable getEditableForUiThread(final Handler uiHandler,
-                                               final GeckoEditableClient client) {
+                                               final GoannaEditableClient client) {
             if (DEBUG) {
                 ThreadUtils.assertOnThread(uiHandler.getLooper().getThread(), AssertBehavior.THROW);
             }
@@ -221,7 +221,7 @@ class GeckoInputConnection
 
     private String mCurrentInputMethod = "";
 
-    private final GeckoEditableClient mEditableClient;
+    private final GoannaEditableClient mEditableClient;
     protected int mBatchEditCount;
     private ExtractedTextRequest mUpdateRequest;
     private final ExtractedText mUpdateExtract = new ExtractedText();
@@ -230,16 +230,16 @@ class GeckoInputConnection
     private long mLastRestartInputTime;
     private final InputConnection mKeyInputConnection;
 
-    public static GeckoEditableListener create(View targetView,
-                                               GeckoEditableClient editable) {
+    public static GoannaEditableListener create(View targetView,
+                                               GoannaEditableClient editable) {
         if (DEBUG)
-            return DebugGeckoInputConnection.create(targetView, editable);
+            return DebugGoannaInputConnection.create(targetView, editable);
         else
-            return new GeckoInputConnection(targetView, editable);
+            return new GoannaInputConnection(targetView, editable);
     }
 
-    protected GeckoInputConnection(View targetView,
-                                   GeckoEditableClient editable) {
+    protected GoannaInputConnection(View targetView,
+                                   GoannaEditableClient editable) {
         super(targetView, true);
         mEditableClient = editable;
         mIMEState = IME_STATE_DISABLED;
@@ -250,7 +250,7 @@ class GeckoInputConnection
     @Override
     public synchronized boolean beginBatchEdit() {
         mBatchEditCount++;
-        mEditableClient.setUpdateGecko(false, false);
+        mEditableClient.setUpdateGoanna(false, false);
         return true;
     }
 
@@ -259,7 +259,7 @@ class GeckoInputConnection
         if (mBatchEditCount > 0) {
             mBatchEditCount--;
             if (mBatchEditCount == 0) {
-                // Force Gecko update for cancelled auto-correction of single-
+                // Force Goanna update for cancelled auto-correction of single-
                 // character words to prevent character duplication. (bug 1133802)
                 boolean forceUpdate = !mBatchTextChanged && !mBatchSelectionChanged;
 
@@ -273,7 +273,7 @@ class GeckoInputConnection
                                            Selection.getSelectionEnd(editable));
                     mBatchSelectionChanged = false;
                 }
-                mEditableClient.setUpdateGecko(true, forceUpdate);
+                mEditableClient.setUpdateGoanna(true, forceUpdate);
             }
         } else {
             Log.w(LOGTAG, "endBatchEdit() called, but mBatchEditCount == 0?!");
@@ -359,7 +359,7 @@ class GeckoInputConnection
     }
 
     private static View getView() {
-        return GeckoAppShell.getLayerView();
+        return GoannaAppShell.getLayerView();
     }
 
     private static InputMethodManager getInputMethodManager() {
@@ -508,17 +508,17 @@ class GeckoInputConnection
         if (sBackgroundHandler != null) {
             return sBackgroundHandler;
         }
-        // Don't use GeckoBackgroundThread because Gecko thread may block waiting on
-        // GeckoBackgroundThread. If we were to use GeckoBackgroundThread, due to IME,
-        // GeckoBackgroundThread may end up also block waiting on Gecko thread and a
+        // Don't use GoannaBackgroundThread because Goanna thread may block waiting on
+        // GoannaBackgroundThread. If we were to use GoannaBackgroundThread, due to IME,
+        // GoannaBackgroundThread may end up also block waiting on Goanna thread and a
         // deadlock occurs
         Thread backgroundThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 Looper.prepare();
-                synchronized (GeckoInputConnection.class) {
+                synchronized (GoannaInputConnection.class) {
                     sBackgroundHandler = new Handler();
-                    GeckoInputConnection.class.notify();
+                    GoannaInputConnection.class.notify();
                 }
                 Looper.loop();
                 // We should never be exiting the thread loop.
@@ -530,7 +530,7 @@ class GeckoInputConnection
         while (sBackgroundHandler == null) {
             try {
                 // wait for new thread to set sBackgroundHandler
-                GeckoInputConnection.class.wait();
+                GoannaInputConnection.class.wait();
             } catch (InterruptedException e) {
             }
         }
@@ -650,7 +650,7 @@ class GeckoInputConnection
             outAttrs.actionLabel = mIMEActionHint;
         }
 
-        Context context = GeckoAppShell.getContext();
+        Context context = GoannaAppShell.getContext();
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         if (Math.min(metrics.widthPixels, metrics.heightPixels) > INLINE_IME_MIN_DISPLAY_SIZE) {
             // prevent showing full-screen keyboard only when the screen is tall enough
@@ -672,8 +672,8 @@ class GeckoInputConnection
         }
 
         // If the user has changed IMEs, then notify input method observers.
-        if (!mCurrentInputMethod.equals(prevInputMethod) && GeckoAppShell.getGeckoInterface() != null) {
-            FormAssistPopup popup = GeckoAppShell.getGeckoInterface().getFormAssistPopup();
+        if (!mCurrentInputMethod.equals(prevInputMethod) && GoannaAppShell.getGoannaInterface() != null) {
+            FormAssistPopup popup = GoannaAppShell.getGoannaInterface().getFormAssistPopup();
             if (popup != null) {
                 popup.onInputMethodChanged(mCurrentInputMethod);
             }
@@ -826,7 +826,7 @@ class GeckoInputConnection
         View view = getView();
         if (view == null) {
             InputThreadUtils.sInstance.sendEventFromUiThread(ThreadUtils.getUiHandler(),
-                mEditableClient, GeckoEvent.createKeyEvent(event, 0));
+                mEditableClient, GoannaEvent.createKeyEvent(event, 0));
             return true;
         }
 
@@ -844,7 +844,7 @@ class GeckoInputConnection
             (down && !keyListener.onKeyDown(view, uiEditable, keyCode, event)) ||
             (!down && !keyListener.onKeyUp(view, uiEditable, keyCode, event))) {
             InputThreadUtils.sInstance.sendEventFromUiThread(uiHandler, mEditableClient,
-                GeckoEvent.createKeyEvent(event, TextKeyListener.getMetaState(uiEditable)));
+                GoannaEvent.createKeyEvent(event, TextKeyListener.getMetaState(uiEditable)));
             if (skip && down) {
                 // Usually, the down key listener call above adjusts meta states for us.
                 // However, if we skip that call above, we have to manually adjust meta
@@ -878,9 +878,9 @@ class GeckoInputConnection
                     view.getRootView().getHandler(), mEditableClient,
                     new Runnable() {
                         @Override public void run() {
-                            // Don't call GeckoInputConnection.commitText because it can
+                            // Don't call GoannaInputConnection.commitText because it can
                             // post a key event back to onKeyMultiple, causing a loop
-                            GeckoInputConnection.super.commitText(event.getCharacters(), 1);
+                            GoannaInputConnection.super.commitText(event.getCharacters(), 1);
                         }
                     });
             }
@@ -967,7 +967,7 @@ class GeckoInputConnection
         // mIMEState and the mIME*Hint fields should only be changed by notifyIMEContext,
         // and not reset anywhere else. Usually, notifyIMEContext is called right after a
         // focus or blur, so resetting mIMEState during the focus or blur seems harmless.
-        // However, this behavior is not guaranteed. Gecko may call notifyIMEContext
+        // However, this behavior is not guaranteed. Goanna may call notifyIMEContext
         // independent of focus change; that is, a focus change may not be accompanied by
         // a notifyIMEContext call. So if we reset mIMEState inside focus, there may not
         // be another notifyIMEContext call to set mIMEState to a proper value (bug 829318)
@@ -999,30 +999,30 @@ class GeckoInputConnection
     }
 }
 
-final class DebugGeckoInputConnection
-        extends GeckoInputConnection
+final class DebugGoannaInputConnection
+        extends GoannaInputConnection
         implements InvocationHandler {
 
     private InputConnection mProxy;
     private final StringBuilder mCallLevel;
 
-    private DebugGeckoInputConnection(View targetView,
-                                      GeckoEditableClient editable) {
+    private DebugGoannaInputConnection(View targetView,
+                                      GoannaEditableClient editable) {
         super(targetView, editable);
         mCallLevel = new StringBuilder();
     }
 
-    public static GeckoEditableListener create(View targetView,
-                                               GeckoEditableClient editable) {
+    public static GoannaEditableListener create(View targetView,
+                                               GoannaEditableClient editable) {
         final Class<?>[] PROXY_INTERFACES = { InputConnection.class,
                 InputConnectionHandler.class,
-                GeckoEditableListener.class };
-        DebugGeckoInputConnection dgic =
-                new DebugGeckoInputConnection(targetView, editable);
+                GoannaEditableListener.class };
+        DebugGoannaInputConnection dgic =
+                new DebugGoannaInputConnection(targetView, editable);
         dgic.mProxy = (InputConnection)Proxy.newProxyInstance(
-                GeckoInputConnection.class.getClassLoader(),
+                GoannaInputConnection.class.getClassLoader(),
                 PROXY_INTERFACES, dgic);
-        return (GeckoEditableListener)dgic.mProxy;
+        return (GoannaEditableListener)dgic.mProxy;
     }
 
     @Override
@@ -1035,13 +1035,13 @@ final class DebugGeckoInputConnection
             for (Object arg : args) {
                 // translate argument values to constant names
                 if ("notifyIME".equals(method.getName()) && arg == args[0]) {
-                    log.append(GeckoEditable.getConstantName(
-                        GeckoEditableListener.class, "NOTIFY_IME_", arg));
+                    log.append(GoannaEditable.getConstantName(
+                        GoannaEditableListener.class, "NOTIFY_IME_", arg));
                 } else if ("notifyIMEContext".equals(method.getName()) && arg == args[0]) {
-                    log.append(GeckoEditable.getConstantName(
-                        GeckoEditableListener.class, "IME_STATE_", arg));
+                    log.append(GoannaEditable.getConstantName(
+                        GoannaEditableListener.class, "IME_STATE_", arg));
                 } else {
-                    GeckoEditable.debugAppend(log, arg);
+                    GoannaEditable.debugAppend(log, arg);
                 }
                 log.append(", ");
             }
@@ -1062,7 +1062,7 @@ final class DebugGeckoInputConnection
         log.setLength(mCallLevel.length());
         log.append("< ").append(method.getName());
         if (!method.getReturnType().equals(Void.TYPE)) {
-            GeckoEditable.debugAppend(log.append(": "), ret);
+            GoannaEditable.debugAppend(log.append(": "), ret);
         }
         Log.d(LOGTAG, log.toString());
         return ret;

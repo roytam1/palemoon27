@@ -8,13 +8,13 @@ used Mozilla applications, such as Firefox or B2G emulator.
 """
 
 from .application import get_app_context
-from .base import DeviceRunner, GeckoRuntimeRunner
+from .base import DeviceRunner, GoannaRuntimeRunner
 from .devices import Emulator, Device
 
 
 def Runner(*args, **kwargs):
     """
-    Create a generic GeckoRuntime runner.
+    Create a generic GoannaRuntime runner.
 
     :param binary: Path to binary.
     :param cmdargs: Arguments to pass into binary.
@@ -24,9 +24,9 @@ def Runner(*args, **kwargs):
     :param process_class: Class used to launch the binary.
     :param process_args: Arguments to pass into process_class.
     :param symbols_path: Path to symbol files used for crash analysis.
-    :returns: A generic GeckoRuntimeRunner.
+    :returns: A generic GoannaRuntimeRunner.
     """
-    return GeckoRuntimeRunner(*args, **kwargs)
+    return GoannaRuntimeRunner(*args, **kwargs)
 
 
 def FirefoxRunner(*args, **kwargs):
@@ -41,10 +41,10 @@ def FirefoxRunner(*args, **kwargs):
     :param process_class: Class used to launch the binary.
     :param process_args: Arguments to pass into process_class.
     :param symbols_path: Path to symbol files used for crash analysis.
-    :returns: A GeckoRuntimeRunner for Firefox.
+    :returns: A GoannaRuntimeRunner for Firefox.
     """
     kwargs['app_ctx'] = get_app_context('firefox')()
-    return GeckoRuntimeRunner(*args, **kwargs)
+    return GoannaRuntimeRunner(*args, **kwargs)
 
 
 def ThunderbirdRunner(*args, **kwargs):
@@ -59,10 +59,10 @@ def ThunderbirdRunner(*args, **kwargs):
     :param process_class: Class used to launch the binary.
     :param process_args: Arguments to pass into process_class.
     :param symbols_path: Path to symbol files used for crash analysis.
-    :returns: A GeckoRuntimeRunner for Thunderbird.
+    :returns: A GoannaRuntimeRunner for Thunderbird.
     """
     kwargs['app_ctx'] = get_app_context('thunderbird')()
-    return GeckoRuntimeRunner(*args, **kwargs)
+    return GoannaRuntimeRunner(*args, **kwargs)
 
 
 def MetroRunner(*args, **kwargs):
@@ -77,10 +77,10 @@ def MetroRunner(*args, **kwargs):
     :param process_class: Class used to launch the binary.
     :param process_args: Arguments to pass into process_class.
     :param symbols_path: Path to symbol files used for crash analysis.
-    :returns: A GeckoRuntimeRunner for metro Firefox.
+    :returns: A GoannaRuntimeRunner for metro Firefox.
     """
     kwargs['app_ctx'] = get_app_context('metro')()
-    return GeckoRuntimeRunner(*args, **kwargs)
+    return GoannaRuntimeRunner(*args, **kwargs)
 
 
 def B2GDesktopRunner(*args, **kwargs):
@@ -95,7 +95,7 @@ def B2GDesktopRunner(*args, **kwargs):
     :param process_class: Class used to launch the binary.
     :param process_args: Arguments to pass into process_class.
     :param symbols_path: Path to symbol files used for crash analysis.
-    :returns: A GeckoRuntimeRunner for b2g desktop.
+    :returns: A GoannaRuntimeRunner for b2g desktop.
     """
     # There is no difference between a generic and b2g desktop runner,
     # but expose a separate entry point for clarity.

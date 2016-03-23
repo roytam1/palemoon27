@@ -383,7 +383,7 @@ setUpdateTrackingId();
   let geckoPrefName = 'toolkit.telemetry.enabled';
   SettingsListener.observe(gaiaSettingName, null, function(value) {
     if (value !== null) {
-      // Gaia setting has been set; update Gecko pref to that.
+      // Gaia setting has been set; update Goanna pref to that.
       Services.prefs.setBoolPref(geckoPrefName, value);
       return;
     }

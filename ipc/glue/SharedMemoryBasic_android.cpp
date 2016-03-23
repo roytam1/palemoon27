@@ -31,7 +31,7 @@ namespace ipc {
 static void
 LogError(const char* what)
 {
-  __android_log_print(ANDROID_LOG_ERROR, "Gecko",
+  __android_log_print(ANDROID_LOG_ERROR, "Goanna",
                       "%s: %s (%d)", what, strerror(errno), errno);
 }
 

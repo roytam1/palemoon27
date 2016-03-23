@@ -14,7 +14,7 @@ actual XPCOM service is implemented in the
 :ref:`data_reporting_service`.
 
 The core types can actually be instantiated multiple times and used to
-power multiple data submission services within a single Gecko
+power multiple data submission services within a single Goanna
 application. In other words, everything in this directory is effectively
 a reusable library. However, the terminology and some of the features
 are very specific to what the Firefox Health Report feature requires.

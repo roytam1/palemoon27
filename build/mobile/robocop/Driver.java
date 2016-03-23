@@ -24,10 +24,10 @@ public interface Driver {
     int getPageHeight();
     int getScrollHeight();
     int getHeight();
-    int getGeckoTop();
-    int getGeckoLeft();
-    int getGeckoWidth();
-    int getGeckoHeight();
+    int getGoannaTop();
+    int getGoannaLeft();
+    int getGoannaWidth();
+    int getGoannaHeight();
 
     void startFrameRecording();
     int stopFrameRecording();

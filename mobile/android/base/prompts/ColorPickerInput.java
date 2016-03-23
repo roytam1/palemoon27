@@ -16,7 +16,7 @@ import android.view.View;
 
 public class ColorPickerInput extends PromptInput {
     public static final String INPUT_TYPE = "color";
-    public static final String LOGTAG = "GeckoColorPickerInput";
+    public static final String LOGTAG = "GoannaColorPickerInput";
 
     private final boolean mShowAdvancedButton = true;
     private final int mInitialColor;

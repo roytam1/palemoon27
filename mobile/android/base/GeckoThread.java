@@ -5,9 +5,9 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.gecko.mozglue.GoannaLoader;
 import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONObject;
@@ -24,23 +24,23 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class GeckoThread extends Thread implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoThread";
+public class GoannaThread extends Thread implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaThread";
 
     @RobocopTarget
     public enum LaunchState {
         Launching,
         WaitForDebugger,
         Launched,
-        GeckoRunning,
-        GeckoExiting,
-        GeckoExited
+        GoannaRunning,
+        GoannaExiting,
+        GoannaExited
     }
 
     private static final AtomicReference<LaunchState> sLaunchState =
                                             new AtomicReference<LaunchState>(LaunchState.Launching);
 
-    private static GeckoThread sGeckoThread;
+    private static GoannaThread sGoannaThread;
 
     private final String mArgs;
     private final String mAction;
@@ -50,7 +50,7 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         ThreadUtils.assertOnUiThread();
         if (isCreated())
             return false;
-        sGeckoThread = new GeckoThread(sArgs, sAction, sUri);
+        sGoannaThread = new GoannaThread(sArgs, sAction, sUri);
         return true;
     }
 
@@ -70,27 +70,27 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         sUri = uri;
     }
 
-    GeckoThread(String args, String action, String uri) {
+    GoannaThread(String args, String action, String uri) {
         mArgs = args;
         mAction = action;
         mUri = uri;
-        setName("Gecko");
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "Gecko:Ready");
+        setName("Goanna");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "Goanna:Ready");
     }
 
     public static boolean isCreated() {
-        return sGeckoThread != null;
+        return sGoannaThread != null;
     }
 
     public static void createAndStart() {
         if (ensureInit())
-            sGeckoThread.start();
+            sGoannaThread.start();
     }
 
-    private String initGeckoEnvironment() {
+    private String initGoannaEnvironment() {
         final Locale locale = Locale.getDefault();
 
-        final Context context = GeckoAppShell.getContext();
+        final Context context = GoannaAppShell.getContext();
         final Resources res = context.getResources();
         if (locale.toString().equalsIgnoreCase("zh_hk")) {
             final Locale mappedLocale = Locale.TRADITIONAL_CHINESE;
@@ -103,24 +103,24 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         String resourcePath = "";
         String[] pluginDirs = null;
         try {
-            pluginDirs = GeckoAppShell.getPluginDirectories();
+            pluginDirs = GoannaAppShell.getPluginDirectories();
         } catch (Exception e) {
             Log.w(LOGTAG, "Caught exception getting plugin dirs.", e);
         }
 
         resourcePath = context.getPackageResourcePath();
-        GeckoLoader.setupGeckoEnvironment(context, pluginDirs, context.getFilesDir().getPath());
+        GoannaLoader.setupGoannaEnvironment(context, pluginDirs, context.getFilesDir().getPath());
 
-        GeckoLoader.loadSQLiteLibs(context, resourcePath);
-        GeckoLoader.loadNSSLibs(context, resourcePath);
-        GeckoLoader.loadGeckoLibs(context, resourcePath);
-        GeckoJavaSampler.setLibsLoaded();
+        GoannaLoader.loadSQLiteLibs(context, resourcePath);
+        GoannaLoader.loadNSSLibs(context, resourcePath);
+        GoannaLoader.loadGoannaLibs(context, resourcePath);
+        GoannaJavaSampler.setLibsLoaded();
 
         return resourcePath;
     }
 
     private String getTypeFromAction(String action) {
-        if (GeckoApp.ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
+        if (GoannaApp.ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
             return "-bookmark";
         }
         return null;
@@ -129,8 +129,8 @@ public class GeckoThread extends Thread implements GeckoEventListener {
     private String addCustomProfileArg(String args) {
         String profileArg = "";
         String guestArg = "";
-        if (GeckoAppShell.getGeckoInterface() != null) {
-            final GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
+        if (GoannaAppShell.getGoannaInterface() != null) {
+            final GoannaProfile profile = GoannaAppShell.getGoannaInterface().getProfile();
 
             if (profile.inGuestMode()) {
                 try {
@@ -142,9 +142,9 @@ public class GeckoThread extends Thread implements GeckoEventListener {
                 if (args == null || !args.contains(BrowserApp.GUEST_BROWSING_ARG)) {
                     guestArg = " " + BrowserApp.GUEST_BROWSING_ARG;
                 }
-            } else if (!GeckoProfile.sIsUsingCustomProfile) {
+            } else if (!GoannaProfile.sIsUsingCustomProfile) {
                 // If nothing was passed in the intent, make sure the default profile exists and
-                // force Gecko to use the default profile for this activity
+                // force Goanna to use the default profile for this activity
                 profileArg = " -P " + profile.forceCreate().getName();
             }
         }
@@ -155,38 +155,38 @@ public class GeckoThread extends Thread implements GeckoEventListener {
     @Override
     public void run() {
         Looper.prepare();
-        ThreadUtils.sGeckoThread = this;
-        ThreadUtils.sGeckoHandler = new Handler();
-        ThreadUtils.sGeckoQueue = Looper.myQueue();
+        ThreadUtils.sGoannaThread = this;
+        ThreadUtils.sGoannaHandler = new Handler();
+        ThreadUtils.sGoannaQueue = Looper.myQueue();
 
-        String path = initGeckoEnvironment();
+        String path = initGoannaEnvironment();
 
-        // This can only happen after the call to initGeckoEnvironment
+        // This can only happen after the call to initGoannaEnvironment
         // above, because otherwise the JNI code hasn't been loaded yet.
         ThreadUtils.postToUiThread(new Runnable() {
             @Override public void run() {
-                GeckoAppShell.registerJavaUiThread();
+                GoannaAppShell.registerJavaUiThread();
             }
         });
 
-        Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - runGecko");
+        Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - runGoanna");
 
         String args = addCustomProfileArg(mArgs);
         String type = getTypeFromAction(mAction);
 
         if (!AppConstants.MOZILLA_OFFICIAL) {
-            Log.i(LOGTAG, "RunGecko - args = " + args);
+            Log.i(LOGTAG, "RunGoanna - args = " + args);
         }
         // and then fire us up
-        GeckoAppShell.runGecko(path, args, mUri, type);
+        GoannaAppShell.runGoanna(path, args, mUri, type);
     }
 
     @Override
     public void handleMessage(String event, JSONObject message) {
-        if ("Gecko:Ready".equals(event)) {
-            EventDispatcher.getInstance().unregisterGeckoThreadListener(this, event);
-            setLaunchState(LaunchState.GeckoRunning);
-            GeckoAppShell.sendPendingEventsToGecko();
+        if ("Goanna:Ready".equals(event)) {
+            EventDispatcher.getInstance().unregisterGoannaThreadListener(this, event);
+            setLaunchState(LaunchState.GoannaRunning);
+            GoannaAppShell.sendPendingEventsToGoanna();
         }
     }
 

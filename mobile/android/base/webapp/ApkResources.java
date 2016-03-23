@@ -21,7 +21,7 @@ import android.os.Environment;
 import android.util.Log;
 
 public class ApkResources {
-    private static final String LOGTAG = "GeckoWebappApkResources";
+    private static final String LOGTAG = "GoannaWebappApkResources";
     private final String mPackageName;
     private final ApplicationInfo mInfo;
     private final Context mContext;

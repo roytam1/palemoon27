@@ -19,7 +19,7 @@ function run_test() {
   }, "platform");
 
   test(function() {
-    assert_equals(navigator.product, "Gecko");
+    assert_equals(navigator.product, "Goanna");
   }, "product");
 
   test(function() {

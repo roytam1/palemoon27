@@ -19,7 +19,7 @@ import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.mozglue.JNITarget;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.accounts.Account;
@@ -33,8 +33,8 @@ import android.net.Uri;
 import android.os.Handler;
 import android.util.Log;
 
-public class Tabs implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoTabs";
+public class Tabs implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaTabs";
 
     // mOrder and mTabs are always of the same cardinality, and contain the same values.
     private final CopyOnWriteArrayList<Tab> mOrder = new CopyOnWriteArrayList<Tab>();
@@ -78,7 +78,7 @@ public class Tabs implements GeckoEventListener {
 
         public PersistTabsRunnable(final Context context, Iterable<Tab> tabsInOrder) {
             this.context = context;
-            this.db = GeckoProfile.get(context).getDB();
+            this.db = GoannaProfile.get(context).getDB();
             this.tabs = tabsInOrder;
         }
 
@@ -95,7 +95,7 @@ public class Tabs implements GeckoEventListener {
     };
 
     private Tabs() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Tab:Added",
             "Tab:Close",
             "Tab:Select",
@@ -143,13 +143,13 @@ public class Tabs implements GeckoEventListener {
 
         if (mBookmarksContentObserver != null) {
             // It's safe to use the db here since we aren't doing any I/O.
-            final GeckoProfile profile = GeckoProfile.get(context);
+            final GoannaProfile profile = GoannaProfile.get(context);
             profile.getDB().registerBookmarkObserver(getContentResolver(), mBookmarksContentObserver);
         }
 
         if (mReadingListContentObserver != null) {
             // It's safe to use the db here since we aren't doing any I/O.
-            final GeckoProfile profile = GeckoProfile.get(context);
+            final GoannaProfile profile = GoannaProfile.get(context);
             profile.getDB().getReadingListAccessor().registerContentObserver(
                     mAppContext, mReadingListContentObserver);
         }
@@ -201,7 +201,7 @@ public class Tabs implements GeckoEventListener {
             };
 
             // It's safe to use the db here since we aren't doing any I/O.
-            final GeckoProfile profile = GeckoProfile.get(mAppContext);
+            final GoannaProfile profile = GoannaProfile.get(mAppContext);
             profile.getDB().registerBookmarkObserver(getContentResolver(), mBookmarksContentObserver);
         }
     }
@@ -219,7 +219,7 @@ public class Tabs implements GeckoEventListener {
             };
 
             // It's safe to use the db here since we aren't doing any I/O.
-            final GeckoProfile profile = GeckoProfile.get(mAppContext);
+            final GoannaProfile profile = GoannaProfile.get(mAppContext);
             profile.getDB().getReadingListAccessor().registerContentObserver(
                     mAppContext, mReadingListContentObserver);
         }
@@ -276,8 +276,8 @@ public class Tabs implements GeckoEventListener {
             notifyListeners(oldTab, TabEvents.UNSELECTED);
         }
 
-        // Pass a message to Gecko to update tab state in BrowserApp.
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Selected", String.valueOf(tab.getId())));
+        // Pass a message to Goanna to update tab state in BrowserApp.
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Selected", String.valueOf(tab.getId())));
         return tab;
     }
 
@@ -312,7 +312,7 @@ public class Tabs implements GeckoEventListener {
      * Gets the selected tab.
      *
      * The selected tab can be null if we're doing a session restore after a
-     * crash and Gecko isn't ready yet.
+     * crash and Goanna isn't ready yet.
      *
      * @return the selected tab, or null if no tabs exist
      */
@@ -381,8 +381,8 @@ public class Tabs implements GeckoEventListener {
             Log.e(LOGTAG, "Error building Tab:Closed arguments: " + e);
         }
 
-        // Pass a message to Gecko to update tab state in BrowserApp
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Closed", args.toString()));
+        // Pass a message to Goanna to update tab state in BrowserApp
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Closed", args.toString()));
     }
 
     /** Return the tab that will be selected by default after this one is closed */
@@ -421,12 +421,12 @@ public class Tabs implements GeckoEventListener {
     }
 
     /**
-     * @return the current GeckoApp instance, or throws if
+     * @return the current GoannaApp instance, or throws if
      *         we aren't correctly initialized.
      */
     private synchronized Context getAppContext() {
         if (mAppContext == null) {
-            throw new IllegalStateException("Tabs not initialized with a GeckoApp instance.");
+            throw new IllegalStateException("Tabs not initialized with a GoannaApp instance.");
         }
         return mAppContext;
     }
@@ -445,7 +445,7 @@ public class Tabs implements GeckoEventListener {
        return Tabs.TabsInstanceHolder.INSTANCE;
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
     @Override
     public void handleMessage(String event, JSONObject message) {
         Log.d(LOGTAG, "handleMessage: " + event);
@@ -498,12 +498,12 @@ public class Tabs implements GeckoEventListener {
                 notifyListeners(tab, TabEvents.SECURITY_CHANGE);
             } else if (event.equals("Content:StateChange")) {
                 int state = message.getInt("state");
-                if ((state & GeckoAppShell.WPL_STATE_IS_NETWORK) != 0) {
-                    if ((state & GeckoAppShell.WPL_STATE_START) != 0) {
+                if ((state & GoannaAppShell.WPL_STATE_IS_NETWORK) != 0) {
+                    if ((state & GoannaAppShell.WPL_STATE_START) != 0) {
                         boolean restoring = message.getBoolean("restoring");
                         tab.handleDocumentStart(restoring, message.getString("uri"));
                         notifyListeners(tab, Tabs.TabEvents.START);
-                    } else if ((state & GeckoAppShell.WPL_STATE_STOP) != 0) {
+                    } else if ((state & GoannaAppShell.WPL_STATE_STOP) != 0) {
                         tab.handleDocumentStop(message.getBoolean("success"));
                         notifyListeners(tab, Tabs.TabEvents.STOP);
                     }
@@ -572,7 +572,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     public void refreshThumbnails() {
-        final BrowserDB db = GeckoProfile.get(mAppContext).getDB();
+        final BrowserDB db = GoannaProfile.get(mAppContext).getDB();
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
@@ -839,7 +839,7 @@ public class Tabs implements GeckoEventListener {
                 int tabId = getNextTabId();
                 args.put("tabID", tabId);
 
-                // The URL is updated for the tab once Gecko responds with the
+                // The URL is updated for the tab once Goanna responds with the
                 // Tab:Added message. We can preliminarily set the tab's URL as
                 // long as it's a valid URI.
                 String tabUrl = (url != null && Uri.parse(url).getScheme() != null) ? url : null;
@@ -854,7 +854,7 @@ public class Tabs implements GeckoEventListener {
             Log.w(LOGTAG, "Error building JSON arguments for loadUrl.", e);
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Load", args.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Load", args.toString()));
 
         if (added == null) {
             return null;

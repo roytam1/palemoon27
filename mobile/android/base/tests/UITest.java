@@ -8,12 +8,12 @@ import org.mozilla.gecko.Actions;
 import org.mozilla.gecko.Assert;
 import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.Driver;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.tests.components.AboutHomeComponent;
 import org.mozilla.gecko.tests.components.AppMenuComponent;
 import org.mozilla.gecko.tests.components.BaseComponent;
-import org.mozilla.gecko.tests.components.GeckoViewComponent;
+import org.mozilla.gecko.tests.components.GoannaViewComponent;
 import org.mozilla.gecko.tests.components.ToolbarComponent;
 import org.mozilla.gecko.tests.helpers.HelperInitializer;
 
@@ -39,7 +39,7 @@ abstract class UITest extends BaseRobocopTest
 
     protected AboutHomeComponent mAboutHome;
     protected AppMenuComponent mAppMenu;
-    protected GeckoViewComponent mGeckoView;
+    protected GoannaViewComponent mGoannaView;
     protected ToolbarComponent mToolbar;
 
     @Override
@@ -60,7 +60,7 @@ abstract class UITest extends BaseRobocopTest
         try {
             mAsserter.endTest();
             // request a force quit of the browser and wait for it to take effect
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Robocop:Quit", null));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Robocop:Quit", null));
             mSolo.sleep(120000);
             // if still running, finish activities as recommended by Robotium
             mSolo.finishOpenedActivities();
@@ -91,7 +91,7 @@ abstract class UITest extends BaseRobocopTest
     private void initComponents() {
         mAboutHome = new AboutHomeComponent(this);
         mAppMenu = new AppMenuComponent(this);
-        mGeckoView = new GeckoViewComponent(this);
+        mGoannaView = new GoannaViewComponent(this);
         mToolbar = new ToolbarComponent(this);
     }
 
@@ -139,7 +139,7 @@ abstract class UITest extends BaseRobocopTest
                 return mAppMenu;
 
             case GECKOVIEW:
-                return mGeckoView;
+                return mGoannaView;
 
             case TOOLBAR:
                 return mToolbar;

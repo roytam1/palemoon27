@@ -8,7 +8,7 @@
     <!--
         Base application theme.
     -->
-    <style name="GeckoBase" parent="@android:style/Theme.Material.Light">
+    <style name="GoannaBase" parent="@android:style/Theme.Material.Light">
         <item name="android:colorPrimary">@color/primary</item>
         <item name="android:colorPrimaryDark">@color/background_tabs</item>
         <item name="android:windowNoTitle">true</item>

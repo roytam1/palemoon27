@@ -706,7 +706,7 @@ ContentParent::StartUp()
     // child process
     sCanLaunchSubprocesses = true;
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
         return;
     }
 
@@ -753,7 +753,7 @@ ContentParent::JoinProcessesIOThread(const nsTArray<ContentParent*>* aProcesses,
 {
     const nsTArray<ContentParent*>& processes = *aProcesses;
     for (uint32_t i = 0; i < processes.Length(); ++i) {
-        if (GeckoChildProcessHost* process = processes[i]->mSubprocess) {
+        if (GoannaChildProcessHost* process = processes[i]->mSubprocess) {
             process->Join();
         }
     }
@@ -1014,7 +1014,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
     }
 
     ProcessPriority initialPriority = GetInitialProcessPriority(aFrameElement);
-    bool isInContentProcess = (XRE_GetProcessType() != GeckoProcessType_Default);
+    bool isInContentProcess = (XRE_GetProcessType() != GoannaProcessType_Default);
     TabId tabId;
 
     nsIDocShell* docShell = GetOpenerDocShellHelper(aFrameElement);
@@ -1484,7 +1484,7 @@ ContentParent::SetPriorityAndCheckIsAlive(ProcessPriority aPriority)
     //
     // Bug 943174: use waitid() with WNOWAIT so that, if the process
     // did exit, we won't consume its zombie and confuse the
-    // GeckoChildProcessHost dtor.  Also, if the process isn't a
+    // GoannaChildProcessHost dtor.  Also, if the process isn't a
     // direct child because of Nuwa this will fail with ECHILD, and we
     // need to assume the child is alive in that case rather than
     // assuming it's dead (as is otherwise a reasonable fallback).
@@ -1658,7 +1658,7 @@ ContentParent::OnChannelError()
 
 void
 ContentParent::OnBeginSyncTransaction() {
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (XRE_GetProcessType() == GoannaProcessType_Default) {
         nsCOMPtr<nsIConsoleService> console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
         JSContext *cx = nsContentUtils::GetCurrentJSContext();
         if (console && cx) {
@@ -1768,11 +1768,11 @@ ContentParent::RecvDeallocateLayerTreeId(const uint64_t& aId)
 namespace {
 
 void
-DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
+DelayedDeleteSubprocess(GoannaChildProcessHost* aSubprocess)
 {
     XRE_GetIOMessageLoop()
         ->PostTask(FROM_HERE,
-                   new DeleteTask<GeckoChildProcessHost>(aSubprocess));
+                   new DeleteTask<GoannaChildProcessHost>(aSubprocess));
 }
 
 // This runnable only exists to delegate ownership of the
@@ -2078,7 +2078,7 @@ ContentParent::ContentParent(mozIApplication* aApp,
     ChildPrivileges privs = aIsNuwaProcess
         ? base::PRIVILEGES_INHERIT
         : base::PRIVILEGES_DEFAULT;
-    mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content, privs);
+    mSubprocess = new GoannaChildProcessHost(GoannaProcessType_Content, privs);
 
     IToplevelProtocol::SetTransport(mSubprocess->GetChannel());
 
@@ -2150,7 +2150,7 @@ ContentParent::ContentParent(ContentParent* aTemplate,
     const FileDescriptor* fd = FindFdProtocolFdMapping(aFds, GetProtocolId());
 
     NS_ASSERTION(fd != nullptr, "IPC Channel for PContent is necessary!");
-    mSubprocess = new GeckoExistingProcessHost(GeckoProcessType_Content,
+    mSubprocess = new GoannaExistingProcessHost(GoannaProcessType_Content,
                                                aPid,
                                                *fd);
 
@@ -2555,7 +2555,7 @@ ContentParent::RecvGetShowPasswordSetting(bool* showPassword)
 #ifdef MOZ_WIDGET_ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nullptr, "AndroidBridge is not available");
 
-    *showPassword = mozilla::widget::GeckoAppShell::GetShowPasswordSetting();
+    *showPassword = mozilla::widget::GoannaAppShell::GetShowPasswordSetting();
 #endif
     return true;
 }
@@ -4541,7 +4541,7 @@ ContentParent::AllocateTabId(const TabId& aOpenerTabId,
                              const ContentParentId& aCpId)
 {
     TabId tabId;
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (XRE_GetProcessType() == GoannaProcessType_Default) {
         ContentProcessManager *cpm = ContentProcessManager::GetSingleton();
         tabId = cpm->AllocateTabId(aOpenerTabId, aContext, aCpId);
     }
@@ -4558,7 +4558,7 @@ ContentParent::AllocateTabId(const TabId& aOpenerTabId,
 ContentParent::DeallocateTabId(const TabId& aTabId,
                                const ContentParentId& aCpId)
 {
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (XRE_GetProcessType() == GoannaProcessType_Default) {
         ContentProcessManager::GetSingleton()->DeallocateTabId(aCpId,
                                                                aTabId);
     }

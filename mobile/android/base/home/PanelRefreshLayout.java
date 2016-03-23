@@ -7,12 +7,12 @@ package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.R;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.home.PanelLayout.DatasetBacked;
 import org.mozilla.gecko.home.PanelLayout.FilterManager;
-import org.mozilla.gecko.widget.GeckoSwipeRefreshLayout;
-import org.mozilla.gecko.widget.GeckoSwipeRefreshLayout.OnRefreshListener;
+import org.mozilla.gecko.widget.GoannaSwipeRefreshLayout;
+import org.mozilla.gecko.widget.GoannaSwipeRefreshLayout.OnRefreshListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -29,8 +29,8 @@ import android.view.View;
  * This view acts as a decorator to forward the {@code DatasetBacked} methods to the child view
  * while providing the refresh gesture support on top of it.
  */
-class PanelRefreshLayout extends GeckoSwipeRefreshLayout implements DatasetBacked {
-    private static final String LOGTAG = "GeckoPanelRefreshLayout";
+class PanelRefreshLayout extends GoannaSwipeRefreshLayout implements DatasetBacked {
+    private static final String LOGTAG = "GoannaPanelRefreshLayout";
 
     private static final String JSON_KEY_PANEL_ID = "panelId";
     private static final String JSON_KEY_VIEW_INDEX = "viewIndex";
@@ -87,9 +87,9 @@ class PanelRefreshLayout extends GeckoSwipeRefreshLayout implements DatasetBacke
                 return;
             }
 
-            final GeckoEvent event =
-                GeckoEvent.createBroadcastEvent("HomePanels:RefreshView", response.toString());
-            GeckoAppShell.sendEventToGecko(event);
+            final GoannaEvent event =
+                GoannaEvent.createBroadcastEvent("HomePanels:RefreshView", response.toString());
+            GoannaAppShell.sendEventToGoanna(event);
         }
     }
 }

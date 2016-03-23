@@ -125,7 +125,7 @@ public class testBookmarkFolders extends AboutHomeTest {
 
     // Add a bookmark in the Desktop folder so we can check the folder navigation in the bookmarks page
     private void setUpDesktopBookmarks() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Get the folder id of the StringHelper.DESKTOP_FOLDER_LABEL folder
         Long desktopFolderId = mDatabaseHelper.getFolderIdFromGuid("toolbar");

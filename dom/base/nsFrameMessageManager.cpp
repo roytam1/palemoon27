@@ -809,7 +809,7 @@ NS_IMETHODIMP
 nsFrameMessageManager::Dump(const nsAString& aStr)
 {
 #ifdef ANDROID
-  __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", NS_ConvertUTF16toUTF8(aStr).get());
+  __android_log_print(ANDROID_LOG_INFO, "Goanna", "%s", NS_ConvertUTF16toUTF8(aStr).get());
 #endif
 #ifdef XP_WIN
   if (IsDebuggerPresent()) {
@@ -824,7 +824,7 @@ nsFrameMessageManager::Dump(const nsAString& aStr)
 NS_IMETHODIMP
 nsFrameMessageManager::PrivateNoteIntentionalCrash()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     mozilla::NoteIntentionalCrash("tab");
     return NS_OK;
   } else {
@@ -1402,7 +1402,7 @@ MessageManagerReporter::CollectReports(nsIMemoryReporterCallback* aCb,
 {
   nsresult rv;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     nsCOMPtr<nsIMessageBroadcaster> globalmm =
       do_GetService("@mozilla.org/globalmessagemanager;1");
     if (globalmm) {
@@ -1438,7 +1438,7 @@ MessageManagerReporter::CollectReports(nsIMemoryReporterCallback* aCb,
 nsresult
 NS_NewGlobalMessageManager(nsIMessageBroadcaster** aResult)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default,
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default,
                  NS_ERROR_NOT_AVAILABLE);
   nsFrameMessageManager* mm = new nsFrameMessageManager(nullptr,
                                                         nullptr,
@@ -1981,7 +1981,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
                "Re-creating sChildProcessManager");
 
   MessageManagerCallback* cb;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     cb = new SameChildProcessMessageManagerCallback();
   } else {
     cb = new ChildProcessMessageManagerCallback();

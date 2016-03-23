@@ -7,7 +7,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -24,9 +24,9 @@ import android.util.Log;
  * Helper class to send Android Ordered Broadcasts.
  */
 public final class OrderedBroadcastHelper
-             implements GeckoEventListener
+             implements GoannaEventListener
 {
-    public static final String LOGTAG = "GeckoOrdBroadcast";
+    public static final String LOGTAG = "GoannaOrdBroadcast";
 
     public static final String SEND_EVENT = "OrderedBroadcast:Send";
 
@@ -37,19 +37,19 @@ public final class OrderedBroadcastHelper
 
         EventDispatcher dispatcher = EventDispatcher.getInstance();
         if (dispatcher == null) {
-            Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
+            Log.e(LOGTAG, "Goanna event dispatcher must not be null", new RuntimeException());
             return;
         }
-        dispatcher.registerGeckoThreadListener(this, SEND_EVENT);
+        dispatcher.registerGoannaThreadListener(this, SEND_EVENT);
     }
 
     public synchronized void uninit() {
         EventDispatcher dispatcher = EventDispatcher.getInstance();
         if (dispatcher == null) {
-            Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
+            Log.e(LOGTAG, "Goanna event dispatcher must not be null", new RuntimeException());
             return;
         }
-        dispatcher.unregisterGeckoThreadListener(this, SEND_EVENT);
+        dispatcher.unregisterGoannaThreadListener(this, SEND_EVENT);
     }
 
     @Override
@@ -101,8 +101,8 @@ public final class OrderedBroadcastHelper
                             return;
                         }
 
-                        GeckoEvent event = GeckoEvent.createBroadcastEvent(responseEvent, res.toString());
-                        GeckoAppShell.sendEventToGecko(event);
+                        GoannaEvent event = GoannaEvent.createBroadcastEvent(responseEvent, res.toString());
+                        GoannaAppShell.sendEventToGoanna(event);
                     }
                 }
             };

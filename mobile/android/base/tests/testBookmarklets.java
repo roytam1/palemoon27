@@ -20,7 +20,7 @@ public class testBookmarklets extends AboutHomeTest {
         final String js = "javascript:alert(12 + .34)";
         boolean alerted;
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // load a standard page so bookmarklets work
         inputAndLoadUrl(url);
@@ -48,8 +48,8 @@ public class testBookmarklets extends AboutHomeTest {
         ListView bookmarks = findListViewWithTag(HomePager.LIST_TAG_BOOKMARKS);
         mAsserter.is(waitForNonEmptyListToLoad(bookmarks), true, "list is properly loaded");
 
-        int width = mDriver.getGeckoWidth();
-        int height = mDriver.getGeckoHeight();
+        int width = mDriver.getGoannaWidth();
+        int height = mDriver.getGoannaHeight();
 
         // Scroll down so that the bookmarks list has more items on screen.
         mActions.drag(width / 2, width / 2, height - 10, height / 2);

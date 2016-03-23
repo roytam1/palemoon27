@@ -10,7 +10,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
 
-#include"GeckoProfiler.h"
+#include"GoannaProfiler.h"
 #include "OggWriter.h"
 #include "OpusTrackEncoder.h"
 

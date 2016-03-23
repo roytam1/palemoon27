@@ -23,14 +23,14 @@ public class testAddonManager extends PixelTest  {
         Actions.EventExpecter contentEventExpecter;
         final String aboutAddonsURL = StringHelper.ABOUT_ADDONS_URL;
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Use the menu to open the Addon Manger
         selectMenuItem(StringHelper.ADDONS_LABEL);
 
         // Set up listeners to catch the page load we're about to do
-        tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
-        contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
+        contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
 
         // Wait for the new tab and page to load
         tabEventExpecter.blockForEvent();
@@ -50,8 +50,8 @@ public class testAddonManager extends PixelTest  {
         verifyUrlBarTitle(aboutAddonsURL);
 
         // Setup wait for tab to spawn and load
-        tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
-        contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
+        contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
 
         // Open a new tab
         final String blankURL = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);

@@ -23,7 +23,7 @@ import android.util.Log;
 
 @RobocopTarget
 public class RestrictedProfiles {
-    private static final String LOGTAG = "GeckoRestrictedProfiles";
+    private static final String LOGTAG = "GoannaRestrictedProfiles";
 
     private static volatile Boolean inGuest = null;
 
@@ -37,18 +37,18 @@ public class RestrictedProfiles {
     }};
 
     /**
-     * This is a hack to allow non-GeckoApp activities to safely call into
-     * RestrictedProfiles without reworking this class or GeckoProfile.
+     * This is a hack to allow non-GoannaApp activities to safely call into
+     * RestrictedProfiles without reworking this class or GoannaProfile.
      *
      * It can be removed after Bug 1077590 lands.
      */
-    public static void initWithProfile(GeckoProfile profile) {
+    public static void initWithProfile(GoannaProfile profile) {
         inGuest = profile.inGuestMode();
     }
 
     private static boolean getInGuest() {
         if (inGuest == null) {
-            inGuest = GeckoAppShell.getGeckoInterface().getProfile().inGuestMode();
+            inGuest = GoannaAppShell.getGoannaInterface().getProfile().inGuestMode();
         }
 
         return inGuest;
@@ -154,7 +154,7 @@ public class RestrictedProfiles {
 
     @WrapElementForJNI
     public static boolean isUserRestricted() {
-        return isUserRestricted(GeckoAppShell.getContext());
+        return isUserRestricted(GoannaAppShell.getContext());
     }
 
     private static boolean isUserRestricted(final Context context) {
@@ -176,7 +176,7 @@ public class RestrictedProfiles {
 
     @WrapElementForJNI
     public static boolean isAllowed(int action, String url) {
-        return isAllowed(GeckoAppShell.getContext(), action, url);
+        return isAllowed(GoannaAppShell.getContext(), action, url);
     }
 
     private static boolean isAllowed(final Context context, int action, String url) {
@@ -205,7 +205,7 @@ public class RestrictedProfiles {
 
     @WrapElementForJNI
     public static String getUserRestrictions() {
-        return getUserRestrictions(GeckoAppShell.getContext());
+        return getUserRestrictions(GoannaAppShell.getContext());
     }
 
     private static String getUserRestrictions(final Context context) {

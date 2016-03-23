@@ -17,7 +17,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 public class SearchHistoryProvider extends SharedBrowserDatabaseProvider {
-    private static final String LOG_TAG = "GeckoSearchProvider";
+    private static final String LOG_TAG = "GoannaSearchProvider";
     private static final boolean DEBUG_ENABLED = false;
 
     /**

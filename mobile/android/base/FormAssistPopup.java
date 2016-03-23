@@ -7,7 +7,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.FloatSize;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.SwipeDismissListViewTouchListener;
 import org.mozilla.gecko.widget.SwipeDismissListViewTouchListener.OnDismissCallback;
@@ -40,7 +40,7 @@ import android.widget.TextView;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class FormAssistPopup extends RelativeLayout implements GeckoEventListener {
+public class FormAssistPopup extends RelativeLayout implements GoannaEventListener {
     private final Context mContext;
     private final Animation mAnimation;
 
@@ -70,7 +70,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     private static LayoutParams sValidationTextLayoutNormal;
     private static LayoutParams sValidationTextLayoutInverted;
 
-    private static final String LOGTAG = "GeckoFormAssistPopup";
+    private static final String LOGTAG = "GoannaFormAssistPopup";
 
     // The blocklist is so short that ArrayList is probably cheaper than HashSet.
     private static final Collection<String> sInputMethodBlocklist = Arrays.asList(
@@ -90,14 +90,14 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
 
         setFocusable(false);
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "FormAssist:AutoComplete",
             "FormAssist:ValidationMessage",
             "FormAssist:Hide");
     }
 
     void destroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "FormAssist:AutoComplete",
             "FormAssist:ValidationMessage",
             "FormAssist:Hide");
@@ -161,7 +161,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
                     // since they can be different.
                     TextView textView = (TextView) view;
                     String value = (String) textView.getTag();
-                    broadcastGeckoEvent("FormAssist:AutoComplete", value);
+                    broadcastGoannaEvent("FormAssist:AutoComplete", value);
                     hide();
                 }
             });
@@ -178,7 +178,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
                     Pair<String, String> item = adapter.getItem(position);
 
                     // Remove the item from form history.
-                    broadcastGeckoEvent("FormAssist:Remove", item.second);
+                    broadcastGoannaEvent("FormAssist:Remove", item.second);
 
                     // Update the list
                     adapter.remove(item);
@@ -202,7 +202,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
         adapter.populateSuggestionsList(suggestions);
         mAutoCompleteList.setAdapter(adapter);
 
-        if (setGeckoPositionData(rect, true)) {
+        if (setGoannaPositionData(rect, true)) {
             positionAndShowPopup();
         }
     }
@@ -232,12 +232,12 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
         // We need to set the text as selected for the marquee text to work.
         mValidationMessageText.setSelected(true);
 
-        if (setGeckoPositionData(rect, false)) {
+        if (setGoannaPositionData(rect, false)) {
             positionAndShowPopup();
         }
     }
 
-    private boolean setGeckoPositionData(JSONObject rect, boolean isAutoComplete) {
+    private boolean setGoannaPositionData(JSONObject rect, boolean isAutoComplete) {
         try {
             mX = rect.getDouble("x");
             mY = rect.getDouble("y");
@@ -255,7 +255,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     }
 
     private void positionAndShowPopup() {
-        positionAndShowPopup(GeckoAppShell.getLayerView().getViewportMetrics());
+        positionAndShowPopup(GoannaAppShell.getLayerView().getViewportMetrics());
     }
 
     private void positionAndShowPopup(ImmutableViewportMetrics aMetrics) {
@@ -374,13 +374,13 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     public void hide() {
         if (isShown()) {
             setVisibility(GONE);
-            broadcastGeckoEvent("FormAssist:Hidden", null);
+            broadcastGoannaEvent("FormAssist:Hidden", null);
         }
     }
 
     void onInputMethodChanged(String newInputMethod) {
         boolean blocklisted = sInputMethodBlocklist.contains(newInputMethod);
-        broadcastGeckoEvent("FormAssist:Blocklisted", String.valueOf(blocklisted));
+        broadcastGoannaEvent("FormAssist:Blocklisted", String.valueOf(blocklisted));
     }
 
     void onMetricsChanged(final ImmutableViewportMetrics aMetrics) {
@@ -396,8 +396,8 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
         });
     }
 
-    private static void broadcastGeckoEvent(String eventName, String eventData) {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(eventName, eventData));
+    private static void broadcastGoannaEvent(String eventName, String eventData) {
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(eventName, eventData));
     }
 
     private class AutoCompleteListAdapter extends ArrayAdapter<Pair<String, String>> {

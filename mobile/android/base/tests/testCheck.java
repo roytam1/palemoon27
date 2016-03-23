@@ -22,16 +22,16 @@ public class testCheck extends PixelTest {
     public void testCheck() {
         String url = getAbsoluteUrl("/startup_test/fennecmark/timecube.html");
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         loadAndPaint(url);
 
         mDriver.setupScrollHandling();
 
         // Setup scrolling coordinates.
-        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
-        int midX = mDriver.getGeckoWidth() / 2;
-        int height = mDriver.getGeckoHeight();
+        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGoannaLeft(), mDriver.getGoannaTop());
+        int midX = mDriver.getGoannaWidth() / 2;
+        int height = mDriver.getGoannaHeight();
         int topY = height / 8;
 
         mDriver.startCheckerboardRecording();

@@ -16,7 +16,7 @@ import android.util.Log;
  * Client for posting notifications through the NotificationService.
  */
 public class ServiceNotificationClient extends NotificationClient {
-    private static final String LOGTAG = "GeckoServiceNotificationClient";
+    private static final String LOGTAG = "GoannaServiceNotificationClient";
 
     private final ServiceConnection mConnection = new NotificationServiceConnection();
     private boolean mBound;

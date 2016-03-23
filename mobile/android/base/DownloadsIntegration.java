@@ -28,7 +28,7 @@ import android.util.Log;
 
 public class DownloadsIntegration implements NativeEventListener
 {
-    private static final String LOGTAG = "GeckoDownloadsIntegration";
+    private static final String LOGTAG = "GoannaDownloadsIntegration";
 
     @SuppressWarnings("serial")
     private static final List<String> UNKNOWN_MIME_TYPES = new ArrayList<String>(3) {{
@@ -40,7 +40,7 @@ public class DownloadsIntegration implements NativeEventListener
     private static final String DOWNLOAD_REMOVE = "Download:Remove";
 
     private DownloadsIntegration() {
-        EventDispatcher.getInstance().registerGeckoThreadListener((NativeEventListener)this, DOWNLOAD_REMOVE);
+        EventDispatcher.getInstance().registerGoannaThreadListener((NativeEventListener)this, DOWNLOAD_REMOVE);
     }
 
     private static DownloadsIntegration sInstance;
@@ -98,7 +98,7 @@ public class DownloadsIntegration implements NativeEventListener
 
         int state = PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
         try {
-            state = GeckoAppShell.getContext().getPackageManager().getApplicationEnabledSetting("com.android.providers.downloads");
+            state = GoannaAppShell.getContext().getPackageManager().getApplicationEnabledSetting("com.android.providers.downloads");
         } catch (IllegalArgumentException e) {
             // Download Manager package does not exist
             return false;
@@ -121,7 +121,7 @@ public class DownloadsIntegration implements NativeEventListener
         if (TextUtils.isEmpty(mimeType)) {
             final int extPosition = aFile.lastIndexOf(".");
             if (extPosition > 0 && extPosition < aFile.length() - 1) {
-                mimeType = GeckoAppShell.getMimeTypeFromExtension(aFile.substring(extPosition+1));
+                mimeType = GoannaAppShell.getMimeTypeFromExtension(aFile.substring(extPosition+1));
             }
         }
 
@@ -137,7 +137,7 @@ public class DownloadsIntegration implements NativeEventListener
 
         if (useSystemDownloadManager()) {
             final File f = new File(aFile);
-            final DownloadManager dm = (DownloadManager) GeckoAppShell.getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            final DownloadManager dm = (DownloadManager) GoannaAppShell.getContext().getSystemService(Context.DOWNLOAD_SERVICE);
             dm.addCompletedDownload(f.getName(),
                     f.getName(),
                     true, // Media scanner should scan this
@@ -146,8 +146,8 @@ public class DownloadsIntegration implements NativeEventListener
                     Math.max(1, f.length()), // Some versions of Android require downloads to be at least length 1
                     false); // Don't show a notification.
         } else {
-            final Context context = GeckoAppShell.getContext();
-            final GeckoMediaScannerClient client = new GeckoMediaScannerClient(context, aFile, mimeType);
+            final Context context = GoannaAppShell.getContext();
+            final GoannaMediaScannerClient client = new GoannaMediaScannerClient(context, aFile, mimeType);
             client.connect();
         }
     }
@@ -157,7 +157,7 @@ public class DownloadsIntegration implements NativeEventListener
             return;
         }
 
-        final DownloadManager dm = (DownloadManager) GeckoAppShell.getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+        final DownloadManager dm = (DownloadManager) GoannaAppShell.getContext().getSystemService(Context.DOWNLOAD_SERVICE);
 
         Cursor c = null;
         try {
@@ -180,12 +180,12 @@ public class DownloadsIntegration implements NativeEventListener
         }
     }
 
-    private static final class GeckoMediaScannerClient implements MediaScannerConnectionClient {
+    private static final class GoannaMediaScannerClient implements MediaScannerConnectionClient {
         private final String mFile;
         private final String mMimeType;
         private MediaScannerConnection mScanner;
 
-        public GeckoMediaScannerClient(Context context, String file, String mimeType) {
+        public GoannaMediaScannerClient(Context context, String file, String mimeType) {
             mFile = file;
             mMimeType = mimeType;
             mScanner = new MediaScannerConnection(context, this);

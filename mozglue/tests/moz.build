@@ -6,6 +6,6 @@
 
 DISABLE_STL_WRAPPING = True
 
-GeckoCppUnitTests([
+GoannaCppUnitTests([
     'ShowSSEConfig',
 ], linkage=None)

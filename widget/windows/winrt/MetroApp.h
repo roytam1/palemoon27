@@ -46,7 +46,7 @@ public:
   void ActivateBaseView();
 
   // Set when gecko enters xpcom shutdown.
-  static bool sGeckoShuttingDown;
+  static bool sGoannaShuttingDown;
 
   // Shared pointers between framework and widget
   void SetWidget(MetroWidget* aPtr);

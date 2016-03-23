@@ -11,13 +11,13 @@ import org.mozilla.gecko.Element;
 import org.mozilla.gecko.R;
 
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONObject;
 
 import com.jayway.android.robotium.solo.Condition;
 
-public class testFindInPage extends JavascriptTest implements GeckoEventListener {
+public class testFindInPage extends JavascriptTest implements GoannaEventListener {
     private static final int WAIT_FOR_CONDITION_MS = 3000;
 
     protected Element next, close;
@@ -51,7 +51,7 @@ public class testFindInPage extends JavascriptTest implements GeckoEventListener
     public void setUp() throws Exception {
         super.setUp();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Test:FindInPage",
             "Test:CloseFindInPage");
     }
@@ -60,7 +60,7 @@ public class testFindInPage extends JavascriptTest implements GeckoEventListener
     public void tearDown() throws Exception {
         super.tearDown();
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "Test:FindInPage",
             "Test:CloseFindInPage");
     }

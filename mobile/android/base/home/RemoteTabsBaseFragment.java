@@ -16,15 +16,15 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.RemoteClientsDialogFragment.RemoteClientsListener;
 import org.mozilla.gecko.RemoteTabsExpandableListAdapter;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.RemoteClient;
 import org.mozilla.gecko.fxa.FirefoxAccounts;
-import org.mozilla.gecko.widget.GeckoSwipeRefreshLayout;
+import org.mozilla.gecko.widget.GoannaSwipeRefreshLayout;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -35,7 +35,7 @@ import java.util.List;
  */
 public abstract class RemoteTabsBaseFragment extends HomeFragment implements RemoteClientsListener {
     // Logging tag name.
-    private static final String LOGTAG = "GeckoRemoteTabsBaseFragment";
+    private static final String LOGTAG = "GoannaRemoteTabsBaseFragment";
 
     private static final String[] STAGES_TO_SYNC_ON_REFRESH = new String[] { "clients", "tabs" };
 
@@ -60,7 +60,7 @@ public abstract class RemoteTabsBaseFragment extends HomeFragment implements Rem
     protected CursorLoaderCallbacks mCursorLoaderCallbacks;
 
     // Child refresh layout view.
-    protected GeckoSwipeRefreshLayout mRefreshLayout;
+    protected GoannaSwipeRefreshLayout mRefreshLayout;
 
     // Sync listener that stops refreshing when a sync is completed.
     protected RemoteTabsSyncListener mSyncStatusListener;
@@ -74,7 +74,7 @@ public abstract class RemoteTabsBaseFragment extends HomeFragment implements Rem
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        mRefreshLayout = (GeckoSwipeRefreshLayout) view.findViewById(R.id.remote_tabs_refresh_layout);
+        mRefreshLayout = (GoannaSwipeRefreshLayout) view.findViewById(R.id.remote_tabs_refresh_layout);
         mRefreshLayout.setColorScheme(
                 R.color.swipe_refresh_orange, R.color.swipe_refresh_white,
                 R.color.swipe_refresh_orange, R.color.swipe_refresh_white);
@@ -94,7 +94,7 @@ public abstract class RemoteTabsBaseFragment extends HomeFragment implements Rem
         // instances will maintain the state for us. Since everything happens on
         // the UI thread, this doesn't even need to be volatile.
         if (sState == null) {
-            sState = new RemoteTabsExpandableListState(GeckoSharedPrefs.forProfile(getActivity()));
+            sState = new RemoteTabsExpandableListState(GoannaSharedPrefs.forProfile(getActivity()));
         }
     }
 
@@ -183,11 +183,11 @@ public abstract class RemoteTabsBaseFragment extends HomeFragment implements Rem
     protected abstract void updateUiFromClients(List<RemoteClient> clients, List<RemoteClient> hiddenClients);
 
     private static class RemoteTabsCursorLoader extends SimpleCursorLoader {
-        private final GeckoProfile mProfile;
+        private final GoannaProfile mProfile;
 
         public RemoteTabsCursorLoader(Context context) {
             super(context);
-            mProfile = GeckoProfile.get(context);
+            mProfile = GoannaProfile.get(context);
         }
 
         @Override
@@ -201,7 +201,7 @@ public abstract class RemoteTabsBaseFragment extends HomeFragment implements Rem
 
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            mDB = GeckoProfile.get(getActivity()).getDB();
+            mDB = GoannaProfile.get(getActivity()).getDB();
             return new RemoteTabsCursorLoader(getActivity());
         }
 
@@ -233,7 +233,7 @@ public abstract class RemoteTabsBaseFragment extends HomeFragment implements Rem
         }
     }
 
-    protected class RemoteTabsRefreshListener implements GeckoSwipeRefreshLayout.OnRefreshListener {
+    protected class RemoteTabsRefreshListener implements GoannaSwipeRefreshLayout.OnRefreshListener {
         @Override
         public void onRefresh() {
             if (FirefoxAccounts.firefoxAccountsExist(getActivity())) {

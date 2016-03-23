@@ -442,62 +442,62 @@ public:
     static jmethodID jGetTimeMethod;
 };
 
-class AndroidGeckoEvent : public WrappedJavaObject
+class AndroidGoannaEvent : public WrappedJavaObject
 {
 private:
-    AndroidGeckoEvent() {
+    AndroidGoannaEvent() {
     }
 
     void Init(JNIEnv *jenv, jobject jobj);
     void Init(int aType);
-    void Init(AndroidGeckoEvent *aResizeEvent);
+    void Init(AndroidGoannaEvent *aResizeEvent);
 
 public:
-    static void InitGeckoEventClass(JNIEnv *jEnv);
+    static void InitGoannaEventClass(JNIEnv *jEnv);
 
-    static AndroidGeckoEvent* MakeNativePoke() {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeNativePoke() {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(NATIVE_POKE);
         return event;
     }
 
-    static AndroidGeckoEvent* MakeIMEEvent(int aAction) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeIMEEvent(int aAction) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(IME_EVENT);
         event->mAction = aAction;
         return event;
     }
 
-    static AndroidGeckoEvent* MakeFromJavaObject(JNIEnv *jenv, jobject jobj) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeFromJavaObject(JNIEnv *jenv, jobject jobj) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(jenv, jobj);
         return event;
     }
 
-    static AndroidGeckoEvent* CopyResizeEvent(AndroidGeckoEvent *aResizeEvent) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* CopyResizeEvent(AndroidGoannaEvent *aResizeEvent) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(aResizeEvent);
         return event;
     }
 
-    static AndroidGeckoEvent* MakeBroadcastEvent(const nsCString& topic, const nsCString& data) {
-        AndroidGeckoEvent* event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeBroadcastEvent(const nsCString& topic, const nsCString& data) {
+        AndroidGoannaEvent* event = new AndroidGoannaEvent();
         event->Init(BROADCAST);
         CopyUTF8toUTF16(topic, event->mCharacters);
         CopyUTF8toUTF16(data, event->mCharactersExtra);
         return event;
     }
 
-    static AndroidGeckoEvent* MakeAddObserver(const nsAString &key, nsIObserver *observer) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeAddObserver(const nsAString &key, nsIObserver *observer) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(ADD_OBSERVER);
         event->mCharacters.Assign(key);
         event->mObserver = observer;
         return event;
     }
 
-    static AndroidGeckoEvent* MakeApzInputEvent(const MultiTouchInput& aInput, const mozilla::layers::ScrollableLayerGuid& aGuid, uint64_t aInputBlockId) {
-        AndroidGeckoEvent* event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeApzInputEvent(const MultiTouchInput& aInput, const mozilla::layers::ScrollableLayerGuid& aGuid, uint64_t aInputBlockId) {
+        AndroidGoannaEvent* event = new AndroidGoannaEvent();
         event->Init(APZ_INPUT_EVENT);
         event->mApzInput = aInput;
         event->mApzGuid = aGuid;
@@ -562,7 +562,7 @@ public:
     const nsTArray<float>& GamepadValues() { return mGamepadValues; }
     int RequestId() { return mCount; } // for convenience
     const AutoGlobalWrappedJavaObject& Object() { return mObject; }
-    bool CanCoalesceWith(AndroidGeckoEvent* ae);
+    bool CanCoalesceWith(AndroidGoannaEvent* ae);
     WidgetTouchEvent MakeTouchEvent(nsIWidget* widget);
     MultiTouchInput MakeMultiTouchInput(nsIWidget* widget);
     WidgetMouseEvent MakeMouseEvent(nsIWidget* widget);
@@ -635,7 +635,7 @@ protected:
     void ReadDataField(JNIEnv *jenv);
     void ReadStringFromJString(nsString &aString, JNIEnv *jenv, jstring s);
 
-    static jclass jGeckoEventClass;
+    static jclass jGoannaEventClass;
     static jfieldID jActionField;
     static jfieldID jTypeField;
     static jfieldID jAckNeededField;
@@ -752,10 +752,10 @@ public:
     };
 
     enum {
-        // Internal Gecko events
+        // Internal Goanna events
         IME_FLUSH_CHANGES = -2,
         IME_UPDATE_CONTEXT = -1,
-        // Events from Java to Gecko
+        // Events from Java to Goanna
         IME_SYNCHRONIZE = 0,
         IME_REPLACE_TEXT = 1,
         IME_SET_SELECTION = 2,

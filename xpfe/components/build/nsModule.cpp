@@ -31,7 +31,7 @@ static const mozilla::Module::ContractIDEntry kXPFEContracts[] = {
 };
 
 static const mozilla::Module::CategoryEntry kXPFECategories[] = {
-    { "Gecko-Content-Viewers", "application/http-index-format", "@mozilla.org/xpfe/http-index-format-factory-constructor" },
+    { "Goanna-Content-Viewers", "application/http-index-format", "@mozilla.org/xpfe/http-index-format-factory-constructor" },
     { nullptr }
 };
 

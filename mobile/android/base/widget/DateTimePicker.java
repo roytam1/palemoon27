@@ -42,7 +42,7 @@ import android.widget.NumberPicker;
 
 public class DateTimePicker extends FrameLayout {
     private static final boolean DEBUG = true;
-    private static final String LOGTAG = "GeckoDateTimePicker";
+    private static final String LOGTAG = "GoannaDateTimePicker";
     private static final int DEFAULT_START_YEAR = 1;
     private static final int DEFAULT_END_YEAR = 9999;
     // Minimal screen width (in inches) for which we can show the calendar;

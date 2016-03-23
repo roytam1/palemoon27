@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.gecko.util.GoannaJarReader;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -37,13 +37,13 @@ import android.util.Log;
  *   and definitionally all changes to the locale of the app must go through
  *   this.
  * * It's lazy.
- * * It has ties into the Gecko event system, because it has to tell Gecko when
+ * * It has ties into the Goanna event system, because it has to tell Goanna when
  *   to switch locale.
  * * It relies on using the SharedPreferences file owned by the browser (in
- *   Fennec's case, "GeckoApp") for performance.
+ *   Fennec's case, "GoannaApp") for performance.
  */
 public class BrowserLocaleManager implements LocaleManager {
-    private static final String LOG_TAG = "GeckoLocales";
+    private static final String LOG_TAG = "GoannaLocales";
 
     private static final String EVENT_LOCALE_CHANGED = "Locale:Changed";
     private static final String PREF_LOCALE = "locale";
@@ -192,8 +192,8 @@ public class BrowserLocaleManager implements LocaleManager {
     }
 
     /**
-     * Gecko needs to know the OS locale to compute a useful Accept-Language
-     * header. If it changed since last time, send a message to Gecko and
+     * Goanna needs to know the OS locale to compute a useful Accept-Language
+     * header. If it changed since last time, send a message to Goanna and
      * persist the new value. If unchanged, returns immediately.
      *
      * @param prefs the SharedPreferences instance to use. Cannot be null.
@@ -215,11 +215,11 @@ public class BrowserLocaleManager implements LocaleManager {
         // Store the Java-native form.
         prefs.edit().putString("osLocale", osLocaleString).apply();
 
-        // The value we send to Gecko should be a language tag, not
+        // The value we send to Goanna should be a language tag, not
         // a Java locale string.
         final String osLanguageTag = Locales.getLanguageTag(osLocale);
-        final GeckoEvent localeOSEvent = GeckoEvent.createBroadcastEvent("Locale:OS", osLanguageTag);
-        GeckoAppShell.sendEventToGecko(localeOSEvent);
+        final GoannaEvent localeOSEvent = GoannaEvent.createBroadcastEvent("Locale:OS", osLanguageTag);
+        GoannaAppShell.sendEventToGoanna(localeOSEvent);
     }
 
     @Override
@@ -232,7 +232,7 @@ public class BrowserLocaleManager implements LocaleManager {
             return null;
         }
 
-        // Note that we don't tell Gecko about this. We notify Gecko when the
+        // Note that we don't tell Goanna about this. We notify Goanna when the
         // locale is set, not when we update Java.
         final String resultant = updateLocale(context, localeCode);
 
@@ -249,22 +249,22 @@ public class BrowserLocaleManager implements LocaleManager {
     /**
      * Returns the set locale if it changed.
      *
-     * Always persists and notifies Gecko.
+     * Always persists and notifies Goanna.
      */
     @Override
     public String setSelectedLocale(Context context, String localeCode) {
         final String resultant = updateLocale(context, localeCode);
 
-        // We always persist and notify Gecko, even if nothing seemed to
+        // We always persist and notify Goanna, even if nothing seemed to
         // change. This might happen if you're picking a locale that's the same
         // as the current OS locale. The OS locale might change next time we
-        // launch, and we need the Gecko pref and persisted locale to have been
+        // launch, and we need the Goanna pref and persisted locale to have been
         // set by the time that happens.
         persistLocale(context, localeCode);
 
-        // Tell Gecko.
-        GeckoEvent ev = GeckoEvent.createBroadcastEvent(EVENT_LOCALE_CHANGED, Locales.getLanguageTag(getCurrentLocale(context)));
-        GeckoAppShell.sendEventToGecko(ev);
+        // Tell Goanna.
+        GoannaEvent ev = GoannaEvent.createBroadcastEvent(EVENT_LOCALE_CHANGED, Locales.getLanguageTag(getCurrentLocale(context)));
+        GoannaAppShell.sendEventToGoanna(ev);
 
         return resultant;
     }
@@ -278,9 +278,9 @@ public class BrowserLocaleManager implements LocaleManager {
         // Apply the system locale.
         updateLocale(context, systemLocale);
 
-        // Tell Gecko.
-        GeckoEvent ev = GeckoEvent.createBroadcastEvent(EVENT_LOCALE_CHANGED, "");
-        GeckoAppShell.sendEventToGecko(ev);
+        // Tell Goanna.
+        GoannaEvent ev = GoannaEvent.createBroadcastEvent(EVENT_LOCALE_CHANGED, "");
+        GoannaAppShell.sendEventToGoanna(ev);
     }
 
     /**
@@ -300,7 +300,7 @@ public class BrowserLocaleManager implements LocaleManager {
     }
 
     private SharedPreferences getSharedPreferences(Context context) {
-        return GeckoSharedPrefs.forApp(context);
+        return GoannaSharedPrefs.forApp(context);
     }
 
     /**
@@ -339,7 +339,7 @@ public class BrowserLocaleManager implements LocaleManager {
      *
      * Returns the persisted locale if it differed.
      *
-     * Does not notify Gecko.
+     * Does not notify Goanna.
      *
      * @param localeCode a locale string in Java format: "en_US".
      * @return if it differed, a locale string in Java format: "en_US".
@@ -398,11 +398,11 @@ public class BrowserLocaleManager implements LocaleManager {
      */
     public static Collection<String> getPackagedLocaleTags(final Context context) {
         final String resPath = "res/multilocale.json";
-        final String jarURL = GeckoJarReader.getJarURL(context, resPath);
+        final String jarURL = GoannaJarReader.getJarURL(context, resPath);
 
-        final String contents = GeckoJarReader.getText(jarURL);
+        final String contents = GoannaJarReader.getText(jarURL);
         if (contents == null) {
-            // GeckoJarReader logs and swallows exceptions.
+            // GoannaJarReader logs and swallows exceptions.
             return null;
         }
 

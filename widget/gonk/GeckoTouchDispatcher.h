@@ -41,12 +41,12 @@ class CompositorVsyncObserver;
 // this sample time, we extrapolate the last two touch events to the sample
 // time. The magic numbers defined as constants are taken from android
 // InputTransport.cpp.
-class GeckoTouchDispatcher
+class GoannaTouchDispatcher
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GeckoTouchDispatcher)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GoannaTouchDispatcher)
 
 public:
-  GeckoTouchDispatcher();
+  GoannaTouchDispatcher();
   void NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime);
   void DispatchTouchEvent(MultiTouchInput aMultiTouch);
   void DispatchTouchMoveEvents(TimeStamp aVsyncTime);

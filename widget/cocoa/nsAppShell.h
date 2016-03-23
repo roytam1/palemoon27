@@ -5,7 +5,7 @@
 
 /*
  * Runs the main native Cocoa run loop, interrupting it as needed to process
- * Gecko events.
+ * Goanna events.
  */
 
 #ifndef nsAppShell_h_
@@ -16,10 +16,10 @@ class nsCocoaWindow;
 #include "nsBaseAppShell.h"
 #include "nsTArray.h"
 
-// GeckoNSApplication
+// GoannaNSApplication
 //
 // Subclass of NSApplication for filtering out certain events.
-@interface GeckoNSApplication : NSApplication
+@interface GoannaNSApplication : NSApplication
 {
 }
 @end
@@ -52,7 +52,7 @@ protected:
   virtual void ScheduleNativeEventCallback();
   virtual bool ProcessNextNativeEvent(bool aMayWait);
 
-  static void ProcessGeckoEvents(void* aInfo);
+  static void ProcessGoannaEvents(void* aInfo);
 
 protected:
   CFMutableArrayRef  mAutoreleasePools;

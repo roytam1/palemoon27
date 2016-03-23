@@ -110,7 +110,7 @@ public final class JavascriptBridge {
     public JavascriptBridge(final Object target) {
         mTarget = target;
         mMethods = target.getClass().getMethods();
-        mExpecter = sActions.expectGeckoEvent(EVENT_TYPE);
+        mExpecter = sActions.expectGoannaEvent(EVENT_TYPE);
         // The JS here is unrelated to a test harness, so we
         // have our message parser end on assertion failure.
         mLogParser = new JavascriptMessageParser(sAsserter, true);
@@ -242,7 +242,7 @@ public final class JavascriptBridge {
         } catch (final JSONException e) {
             throw new IllegalStateException("Unable to create JSON message", e);
         }
-        sActions.sendGeckoEvent(EVENT_TYPE, message.toString());
+        sActions.sendGoannaEvent(EVENT_TYPE, message.toString());
     }
 
     private MessageStatus processMessage(JSONObject message) {

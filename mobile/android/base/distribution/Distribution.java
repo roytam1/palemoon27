@@ -37,9 +37,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.FileUtils;
@@ -54,11 +54,11 @@ import android.util.Log;
 
 /**
  * Handles distribution file loading and fetching,
- * and the corresponding hand-offs to Gecko.
+ * and the corresponding hand-offs to Goanna.
  */
 @RobocopTarget
 public class Distribution {
-    private static final String LOGTAG = "GeckoDistribution";
+    private static final String LOGTAG = "GoannaDistribution";
 
     private static final int STATE_UNKNOWN = 0;
     private static final int STATE_NONE = 1;
@@ -216,7 +216,7 @@ public class Distribution {
             public void run() {
                 boolean distributionSet = distribution.doInit();
                 if (distributionSet) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Set", ""));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Distribution:Set", ""));
                 }
             }
         });
@@ -226,7 +226,7 @@ public class Distribution {
 
     /**
      * Initializes distribution if it hasn't already been initialized. Sends
-     * messages to Gecko as appropriate.
+     * messages to Goanna as appropriate.
      *
      * @param packagePath where to look for the distribution directory.
      */
@@ -316,7 +316,7 @@ public class Distribution {
         runLateReadyQueue();
 
         // Make sure that changes to search defaults are applied immediately.
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Changed", ""));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Distribution:Changed", ""));
     }
 
     /**
@@ -471,10 +471,10 @@ public class Distribution {
 
             // If the Search Activity starts, and we handle the referrer intent, this'll return
             // null. Recover gracefully in this case.
-            final GeckoAppShell.GeckoInterface geckoInterface = GeckoAppShell.getGeckoInterface();
+            final GoannaAppShell.GoannaInterface geckoInterface = GoannaAppShell.getGoannaInterface();
             final String ua;
             if (geckoInterface == null) {
-                // Fall back to GeckoApp's default implementation.
+                // Fall back to GoannaApp's default implementation.
                 ua = HardwareUtils.isTablet() ? AppConstants.USER_AGENT_FENNEC_TABLET :
                                                 AppConstants.USER_AGENT_FENNEC_MOBILE;
             } else {
@@ -904,7 +904,7 @@ public class Distribution {
     private SharedPreferences getSharedPreferences() {
         final SharedPreferences settings;
         if (prefsBranch == null) {
-            settings = GeckoSharedPrefs.forApp(context);
+            settings = GoannaSharedPrefs.forApp(context);
         } else {
             settings = context.getSharedPreferences(prefsBranch, Activity.MODE_PRIVATE);
         }

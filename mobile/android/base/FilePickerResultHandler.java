@@ -33,7 +33,7 @@ import android.text.format.Time;
 import android.util.Log;
 
 class FilePickerResultHandler implements ActivityResultHandler {
-    private static final String LOGTAG = "GeckoFilePickerResultHandler";
+    private static final String LOGTAG = "GoannaFilePickerResultHandler";
     private static final String UPLOADS_DIR = "uploads";
 
     private final FilePicker.ResultHandler handler;
@@ -88,7 +88,7 @@ class FilePickerResultHandler implements ActivityResultHandler {
             return;
         }
 
-        final FragmentActivity fa = (FragmentActivity) GeckoAppShell.getGeckoInterface().getActivity();
+        final FragmentActivity fa = (FragmentActivity) GoannaAppShell.getGoannaInterface().getActivity();
         final LoaderManager lm = fa.getSupportLoaderManager();
         // Finally, Video pickers and some file pickers may return a content provider.
         Cursor cursor = null;
@@ -128,7 +128,7 @@ class FilePickerResultHandler implements ActivityResultHandler {
 
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            final FragmentActivity fa = (FragmentActivity) GeckoAppShell.getGeckoInterface().getActivity();
+            final FragmentActivity fa = (FragmentActivity) GoannaAppShell.getGoannaInterface().getActivity();
             return new CursorLoader(fa,
                                     uri,
                                     new String[] { MediaStore.Video.Media.DATA },
@@ -156,7 +156,7 @@ class FilePickerResultHandler implements ActivityResultHandler {
         }
 
         private void tryFileLoaderCallback() {
-            final FragmentActivity fa = (FragmentActivity) GeckoAppShell.getGeckoInterface().getActivity();
+            final FragmentActivity fa = (FragmentActivity) GoannaAppShell.getGoannaInterface().getActivity();
             final LoaderManager lm = fa.getSupportLoaderManager();
             lm.initLoader(uri.hashCode(), null, new FileLoaderCallbacks(uri, cacheDir, tabId));
         }
@@ -183,7 +183,7 @@ class FilePickerResultHandler implements ActivityResultHandler {
 
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            final FragmentActivity fa = (FragmentActivity) GeckoAppShell.getGeckoInterface().getActivity();
+            final FragmentActivity fa = (FragmentActivity) GoannaAppShell.getGoannaInterface().getActivity();
             return new CursorLoader(fa,
                                     uri,
                                     new String[] { OpenableColumns.DISPLAY_NAME },
@@ -201,13 +201,13 @@ class FilePickerResultHandler implements ActivityResultHandler {
                 String fileExt;
                 int period;
 
-                final FragmentActivity fa = (FragmentActivity) GeckoAppShell.getGeckoInterface().getActivity();
+                final FragmentActivity fa = (FragmentActivity) GoannaAppShell.getGoannaInterface().getActivity();
                 final ContentResolver cr = fa.getContentResolver();
 
                 // Generate an extension if we don't already have one
                 if (name == null || (period = name.lastIndexOf('.')) == -1) {
                     String mimeType = cr.getType(uri);
-                    fileExt = "." + GeckoAppShell.getExtensionFromMimeType(mimeType);
+                    fileExt = "." + GoannaAppShell.getExtensionFromMimeType(mimeType);
                 } else {
                     fileExt = name.substring(period);
                     fileName += name.substring(0, period);

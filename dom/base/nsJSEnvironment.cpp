@@ -87,7 +87,7 @@
 #include "mozilla/ContentEvents.h"
 
 #include "nsCycleCollectionNoteRootCallback.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

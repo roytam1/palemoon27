@@ -6,15 +6,15 @@
 package org.mozilla.gecko.toolbar;
 
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.GeckoPopupMenu;
+import org.mozilla.gecko.widget.GoannaPopupMenu;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -43,7 +43,7 @@ public class PageActionLayout extends LinearLayout implements NativeEventListene
     private final LinearLayout mLayout;
     private final List<PageAction> mPageActionList;
 
-    private GeckoPopupMenu mPageActionsMenu;
+    private GoannaPopupMenu mPageActionsMenu;
 
     // By default it's two, can be changed by calling setNumberShown(int)
     private int mMaxVisiblePageActions;
@@ -57,7 +57,7 @@ public class PageActionLayout extends LinearLayout implements NativeEventListene
         setNumberShown(DEFAULT_PAGE_ACTIONS_SHOWN);
         refreshPageActionIcons();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "PageActions:Add",
             "PageActions:Remove");
     }
@@ -75,14 +75,14 @@ public class PageActionLayout extends LinearLayout implements NativeEventListene
     }
 
     public void onDestroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "PageActions:Add",
             "PageActions:Remove");
     }
 
     @Override
     public void handleMessage(final String event, final NativeJSObject message, final EventCallback callback) {
-        // NativeJSObject cannot be used off of the Gecko thread, so convert it to a Bundle.
+        // NativeJSObject cannot be used off of the Goanna thread, so convert it to a Bundle.
         final Bundle bundle = message.toBundle();
 
         ThreadUtils.postToUiThread(new Runnable() {
@@ -105,12 +105,12 @@ public class PageActionLayout extends LinearLayout implements NativeEventListene
             addPageAction(id, title, imageURL, new OnPageActionClickListeners() {
                 @Override
                 public void onClick(String id) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("PageActions:Clicked", id));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("PageActions:Clicked", id));
                 }
 
                 @Override
                 public boolean onLongClick(String id) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("PageActions:LongClicked", id));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("PageActions:LongClicked", id));
                     return true;
                 }
             }, important);
@@ -269,9 +269,9 @@ public class PageActionLayout extends LinearLayout implements NativeEventListene
         ThreadUtils.assertOnUiThread();
 
         if (mPageActionsMenu == null) {
-            mPageActionsMenu = new GeckoPopupMenu(pageActionButton.getContext(), pageActionButton);
+            mPageActionsMenu = new GoannaPopupMenu(pageActionButton.getContext(), pageActionButton);
             mPageActionsMenu.inflate(0);
-            mPageActionsMenu.setOnMenuItemClickListener(new GeckoPopupMenu.OnMenuItemClickListener() {
+            mPageActionsMenu.setOnMenuItemClickListener(new GoannaPopupMenu.OnMenuItemClickListener() {
                 @Override
                 public boolean onMenuItemClick(MenuItem item) {
                     int id = item.getItemId();

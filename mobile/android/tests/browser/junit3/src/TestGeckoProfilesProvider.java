@@ -15,7 +15,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.RemoteException;
 
-public class TestGeckoProfilesProvider extends BrowserTestCase {
+public class TestGoannaProfilesProvider extends BrowserTestCase {
     private static final String[] NAME_AND_PATH = new String[] { BrowserContract.Profiles.NAME, BrowserContract.Profiles.PATH };
 
     /**

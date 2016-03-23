@@ -23,7 +23,7 @@ public class testPrivateBrowsing extends ContentContextMenuTest {
         String blank1Url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
         String blank2Url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_02_URL);
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         inputAndLoadUrl(StringHelper.ABOUT_BLANK_URL);
 
@@ -38,7 +38,7 @@ public class testPrivateBrowsing extends ContentContextMenuTest {
         mAsserter.ok(!mSolo.searchText(StringHelper.CONTEXT_MENU_ITEMS_IN_NORMAL_TAB[0]), "Checking that 'Open Link in New Tab' is not displayed in the context menu", "'Open Link in New Tab' is not displayed in the context menu");
 
         // Open the link in a new private tab and check that it is private
-        Actions.EventExpecter privateTabEventExpector = mActions.expectGeckoEvent("Tab:Added");
+        Actions.EventExpecter privateTabEventExpector = mActions.expectGoannaEvent("Tab:Added");
         mSolo.clickOnText(StringHelper.CONTEXT_MENU_ITEMS_IN_PRIVATE_TAB[0]);
         String eventData = privateTabEventExpector.blockForEventData();
         privateTabEventExpector.unregisterListener();

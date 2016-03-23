@@ -61,7 +61,7 @@ typedef struct _nsCocoaWindowList {
 // need to be persisted across window destruction and reconstruction, i.e. when
 // switching to and from fullscreen mode.
 // We don't save shadow, transparency mode or background color because it's not
-// worth the hassle - Gecko will reset them anyway as soon as the window is
+// worth the hassle - Goanna will reset them anyway as soon as the window is
 // resized.
 @interface BaseWindow : NSWindow
 {
@@ -188,15 +188,15 @@ typedef struct _nsCocoaWindowList {
 @interface WindowDelegate : NSObject
 #endif
 {
-  nsCocoaWindow* mGeckoWindow; // [WEAK] (we are owned by the window)
+  nsCocoaWindow* mGoannaWindow; // [WEAK] (we are owned by the window)
   // Used to avoid duplication when we send NS_ACTIVATE and
-  // NS_DEACTIVATE to Gecko for toplevel widgets.  Starts out
+  // NS_DEACTIVATE to Goanna for toplevel widgets.  Starts out
   // false.
   bool mToplevelActiveState;
   BOOL mHasEverBeenZoomed;
 }
 + (void)paintMenubarForWindow:(NSWindow*)aWindow;
-- (id)initWithGeckoWindow:(nsCocoaWindow*)geckoWind;
+- (id)initWithGoannaWindow:(nsCocoaWindow*)geckoWind;
 - (void)windowDidResize:(NSNotification*)aNotification;
 - (nsCocoaWindow*)geckoWidget;
 - (bool)toplevelActiveState;
@@ -330,7 +330,7 @@ public:
 
     void DispatchSizeModeEvent();
 
-    // be notified that a some form of drag event needs to go into Gecko
+    // be notified that a some form of drag event needs to go into Goanna
     virtual bool DragEvent(unsigned int aMessage, Point aMouseGlobal, UInt16 aKeyModifiers);
 
     bool HasModalDescendents() { return mNumModalDescendents > 0; }

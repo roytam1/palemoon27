@@ -7,7 +7,7 @@
 #ifndef GECKO_TASK_TRACER_IMPL_H
 #define GECKO_TASK_TRACER_IMPL_H
 
-#include "GeckoTaskTracer.h"
+#include "GoannaTaskTracer.h"
 #include "mozilla/Mutex.h"
 #include "nsTArray.h"
 

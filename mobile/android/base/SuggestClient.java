@@ -26,10 +26,10 @@ import android.util.Log;
  * Use network-based search suggestions.
  */
 public class SuggestClient {
-    private static final String LOGTAG = "GeckoSuggestClient";
+    private static final String LOGTAG = "GoannaSuggestClient";
 
-    // This should go through GeckoInterface to get the UA, but the search activity
-    // doesn't use a GeckoView yet. Until it does, get the UA directly.
+    // This should go through GoannaInterface to get the UA, but the search activity
+    // doesn't use a GoannaView yet. Until it does, get the UA directly.
     private static final String USER_AGENT = HardwareUtils.isTablet() ?
         AppConstants.USER_AGENT_FENNEC_TABLET : AppConstants.USER_AGENT_FENNEC_MOBILE;
 

@@ -5,9 +5,9 @@
 
 <resources xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Theme level attributes -->
-    <declare-styleable name="GeckoTheme">
+    <declare-styleable name="GoannaTheme">
 
-        <!-- Style for GeckoMenu ListView -->
+        <!-- Style for GoannaMenu ListView -->
         <attr name="geckoMenuListViewStyle" format="reference"/>
 
         <!-- Style for MenuItemActionBar -->
@@ -147,7 +147,7 @@
         <attr name="state_open" format="boolean"/>
     </declare-styleable>
 
-    <declare-styleable name="GeckoView">
+    <declare-styleable name="GoannaView">
         <attr name="url" format="string"/>
         <attr name="doinit" format="boolean"/>
     </declare-styleable>

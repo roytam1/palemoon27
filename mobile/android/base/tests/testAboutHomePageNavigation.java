@@ -7,7 +7,7 @@ package org.mozilla.gecko.tests;
 import org.mozilla.gecko.home.HomeConfig;
 import org.mozilla.gecko.home.HomeConfig.PanelType;
 import org.mozilla.gecko.tests.helpers.DeviceHelper;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.GoannaHelper;
 
 /**
  * Tests functionality related to navigating between the various about:home panels.
@@ -19,7 +19,7 @@ public class testAboutHomePageNavigation extends UITest {
     // enum for both phone and tablet, then swiping through the panels. This will also
     // benefit having a HomePager with custom panels.
     public void testAboutHomePageNavigation() {
-        GeckoHelper.blockForDelayedStartup();
+        GoannaHelper.blockForDelayedStartup();
 
         mAboutHome.assertVisible()
                   .assertCurrentPanel(PanelType.TOP_SITES);
@@ -92,8 +92,8 @@ public class testAboutHomePageNavigation extends UITest {
         ViewPager pager = (ViewPager)mSolo.getView(ViewPager.class, 0);
         mAsserter.is(pager.getCurrentItem(), 0, "All pages is selected");
 
-        int width = mDriver.getGeckoWidth() / 2;
-        int y = mDriver.getGeckoHeight() / 2;
+        int width = mDriver.getGoannaWidth() / 2;
+        int y = mDriver.getGoannaHeight() / 2;
         mActions.drag(width, 0, y, y);
         mAsserter.is(pager.getCurrentItem(), 1, "Bookmarks page is selected");
 

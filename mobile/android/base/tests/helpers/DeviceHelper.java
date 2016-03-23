@@ -6,7 +6,7 @@ package org.mozilla.gecko.tests.helpers;
 
 import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertTrue;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.tests.UITestContext;
 
 import android.app.Activity;
@@ -75,7 +75,7 @@ public final class DeviceHelper {
     }
 
     private static void setDeviceType() {
-        sDeviceType = (GeckoAppShell.isTablet() ? Type.TABLET : Type.PHONE);
+        sDeviceType = (GoannaAppShell.isTablet() ? Type.TABLET : Type.PHONE);
     }
 
     public static int getScreenHeight() {

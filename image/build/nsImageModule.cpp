@@ -67,17 +67,17 @@ static const mozilla::Module::ContractIDEntry kImageContracts[] = {
 };
 
 static const mozilla::Module::CategoryEntry kImageCategories[] = {
-  { "Gecko-Content-Viewers", IMAGE_GIF, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_JPEG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_PJPEG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_JPG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_ICO, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_ICO_MS, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_BMP, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_BMP_MS, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_ICON_MS, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_PNG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_X_PNG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_GIF, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_JPEG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_PJPEG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_JPG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_ICO, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_ICO_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_BMP, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_BMP_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_ICON_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_PNG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_X_PNG, "@mozilla.org/content/document-loader-factory;1" },
   { "content-sniffing-services", "@mozilla.org/image/loader;1", "@mozilla.org/image/loader;1" },
   { nullptr }
 };

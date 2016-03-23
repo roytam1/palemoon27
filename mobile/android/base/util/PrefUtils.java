@@ -17,7 +17,7 @@ import android.util.Log;
 
 
 public class PrefUtils {
-    private static final String LOGTAG = "GeckoPrefUtils";
+    private static final String LOGTAG = "GoannaPrefUtils";
 
     // Cross version compatible way to get a string set from a pref
     public static Set<String> getStringSet(final SharedPreferences prefs,

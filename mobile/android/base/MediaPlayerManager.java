@@ -27,8 +27,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-/* Manages a list of GeckoMediaPlayers methods (i.e. Chromecast/Miracast). Routes messages
- * from Gecko to the correct caster based on the id of the display
+/* Manages a list of GoannaMediaPlayers methods (i.e. Chromecast/Miracast). Routes messages
+ * from Goanna to the correct caster based on the id of the display
  */
 public class MediaPlayerManager extends Fragment implements NativeEventListener {
     /**
@@ -40,7 +40,7 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
         return new MediaPlayerManager();
     }
 
-    private static final String LOGTAG = "GeckoMediaPlayerManager";
+    private static final String LOGTAG = "GoannaMediaPlayerManager";
 
     @JNITarget
     public static final String MEDIA_PLAYER_TAG = "MPManagerFragment";
@@ -60,12 +60,12 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
     }
 
     private MediaRouter mediaRouter = null;
-    private final Map<String, GeckoMediaPlayer> displays = new HashMap<String, GeckoMediaPlayer>();
+    private final Map<String, GoannaMediaPlayer> displays = new HashMap<String, GoannaMediaPlayer>();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
                 "MediaPlayer:Load",
                 "MediaPlayer:Start",
                 "MediaPlayer:Stop",
@@ -80,7 +80,7 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
     @JNITarget
     public void onDestroy() {
         super.onDestroy();
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
                                                                     "MediaPlayer:Load",
                                                                     "MediaPlayer:Start",
                                                                     "MediaPlayer:Stop",
@@ -91,12 +91,12 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
                                                                     "MediaPlayer:Message");
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
     @Override
     public void handleMessage(String event, final NativeJSObject message, final EventCallback callback) {
         debug(event);
 
-        final GeckoMediaPlayer display = displays.get(message.getString("id"));
+        final GoannaMediaPlayer display = displays.get(message.getString("id"));
         if (display == null) {
             Log.e(LOGTAG, "Couldn't find a display for this id: " + message.getString("id") + " for message: " + event);
             if (callback != null) {
@@ -133,7 +133,7 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
             public void onRouteRemoved(MediaRouter router, RouteInfo route) {
                 debug("onRouteRemoved: route=" + route);
                 displays.remove(route.getId());
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(
                         "MediaPlayer:Removed", route.getId()));
             }
 
@@ -157,19 +157,19 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
             @Override
             public void onRouteAdded(MediaRouter router, MediaRouter.RouteInfo route) {
                 debug("onRouteAdded: route=" + route);
-                final GeckoMediaPlayer display = getMediaPlayerForRoute(route);
+                final GoannaMediaPlayer display = getMediaPlayerForRoute(route);
                 saveAndNotifyOfDisplay("MediaPlayer:Added", route, display);
             }
 
             @Override
             public void onRouteChanged(MediaRouter router, MediaRouter.RouteInfo route) {
                 debug("onRouteChanged: route=" + route);
-                final GeckoMediaPlayer display = displays.get(route.getId());
+                final GoannaMediaPlayer display = displays.get(route.getId());
                 saveAndNotifyOfDisplay("MediaPlayer:Changed", route, display);
             }
 
             private void saveAndNotifyOfDisplay(final String eventName,
-                    MediaRouter.RouteInfo route, final GeckoMediaPlayer display) {
+                    MediaRouter.RouteInfo route, final GoannaMediaPlayer display) {
                 if (display == null) {
                     return;
                 }
@@ -180,12 +180,12 @@ public class MediaPlayerManager extends Fragment implements NativeEventListener 
                 }
 
                 displays.put(route.getId(), display);
-                final GeckoEvent event = GeckoEvent.createBroadcastEvent(eventName, json.toString());
-                GeckoAppShell.sendEventToGecko(event);
+                final GoannaEvent event = GoannaEvent.createBroadcastEvent(eventName, json.toString());
+                GoannaAppShell.sendEventToGoanna(event);
             }
         };
 
-    private GeckoMediaPlayer getMediaPlayerForRoute(MediaRouter.RouteInfo route) {
+    private GoannaMediaPlayer getMediaPlayerForRoute(MediaRouter.RouteInfo route) {
         try {
             if (route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)) {
                 return new ChromeCast(getActivity(), route);

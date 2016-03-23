@@ -11,7 +11,7 @@
 // source files.
 
 #include "BackgroundChildImpl.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "IDBCursor.h"
 #include "IDBDatabase.h"
 #include "IDBIndex.h"

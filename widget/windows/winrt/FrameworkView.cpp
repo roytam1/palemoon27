@@ -112,7 +112,7 @@ FrameworkView::Run()
   // off normal browser execution / event dispatching.
   mMetroApp->Run();
 
-  // Gecko is completely shut down at this point.
+  // Goanna is completely shut down at this point.
   WinUtils::Log("Exiting FrameworkView::Run()");
 
   WindowsDeleteString(sActivationURI);

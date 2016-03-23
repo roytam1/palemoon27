@@ -492,7 +492,7 @@ MetroInput::OnPointerNonTouch(UI::Input::IPointerPoint* aPoint) {
                          WidgetMouseEvent::eNormal);
   event->button = button;
   aPoint->get_PointerId(&event->pointerId);
-  InitGeckoMouseEventFromPointerPoint(event, aPoint);
+  InitGoannaMouseEventFromPointerPoint(event, aPoint);
   DispatchAsyncEventIgnoreStatus(event);
 }
 
@@ -748,7 +748,7 @@ MetroInput::TransformRefPoint(const Foundation::Point& aPosition, LayoutDeviceIn
   if (HitTestChrome(aRefPointOut)) {
     return true;
   }
-  mWidget->ApzTransformGeckoCoordinate(spt, &aRefPointOut);
+  mWidget->ApzTransformGoannaCoordinate(spt, &aRefPointOut);
   return false;
 }
 
@@ -763,7 +763,7 @@ MetroInput::TransformTouchEvent(WidgetTouchEvent* aEvent)
       ScreenIntPoint spt;
       spt.x = touch->mRefPoint.x;
       spt.y = touch->mRefPoint.y;
-      mWidget->ApzTransformGeckoCoordinate(spt, &lpt);
+      mWidget->ApzTransformGoannaCoordinate(spt, &lpt);
       touch->mRefPoint.x = lpt.x;
       touch->mRefPoint.y = lpt.y;
     }
@@ -771,11 +771,11 @@ MetroInput::TransformTouchEvent(WidgetTouchEvent* aEvent)
 }
 
 void
-MetroInput::InitGeckoMouseEventFromPointerPoint(
+MetroInput::InitGoannaMouseEventFromPointerPoint(
                                   WidgetMouseEvent* aEvent,
                                   UI::Input::IPointerPoint* aPointerPoint)
 {
-  NS_ASSERTION(aPointerPoint, "InitGeckoMouseEventFromPointerPoint "
+  NS_ASSERTION(aPointerPoint, "InitGoannaMouseEventFromPointerPoint "
                               "called with null PointerPoint!");
 
   WRL::ComPtr<UI::Input::IPointerPointProperties> props;
@@ -841,7 +841,7 @@ MetroInput::OnPointerEntered(UI::Core::ICoreWindow* aSender,
       new WidgetMouseEvent(true, NS_MOUSE_ENTER, mWidget.Get(),
                            WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
     UpdateInputLevel(LEVEL_PRECISE);
-    InitGeckoMouseEventFromPointerPoint(event, currentPoint.Get());
+    InitGoannaMouseEventFromPointerPoint(event, currentPoint.Get());
     DispatchAsyncEventIgnoreStatus(event);
     return S_OK;
   }
@@ -876,7 +876,7 @@ MetroInput::OnPointerExited(UI::Core::ICoreWindow* aSender,
                            WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
     event->exit = WidgetMouseEvent::eTopLevel;
     UpdateInputLevel(LEVEL_PRECISE);
-    InitGeckoMouseEventFromPointerPoint(event, currentPoint.Get());
+    InitGoannaMouseEventFromPointerPoint(event, currentPoint.Get());
     DispatchAsyncEventIgnoreStatus(event);
     return S_OK;
   }
@@ -884,7 +884,7 @@ MetroInput::OnPointerExited(UI::Core::ICoreWindow* aSender,
   return S_OK;
 }
 
-// Gecko expects a "finished" event to be sent that has the cumulative
+// Goanna expects a "finished" event to be sent that has the cumulative
 // changes since the gesture began.  The idea is that consumers could hook
 // only this last event and still effectively support magnification and
 // rotation. We accomplish sending this "finished" event by calling our

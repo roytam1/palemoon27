@@ -29,7 +29,7 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 
 public class BasicColorPicker extends ListView {
-    private final static String LOGTAG = "GeckoBasicColorPicker";
+    private final static String LOGTAG = "GoannaBasicColorPicker";
     private final static List<Integer> DEFAULT_COLORS = Arrays.asList(Color.rgb(215,57,32),
                                                                       Color.rgb(255,134,5),
                                                                       Color.rgb(255,203,19),

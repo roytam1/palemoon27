@@ -11,7 +11,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.home.HomePager;
 
 import android.widget.ImageView;
@@ -35,16 +35,16 @@ public class testAddSearchEngine extends AboutHomeTest {
         String blankPageURL = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
         String searchEngineURL = getAbsoluteUrl(StringHelper.ROBOCOP_SEARCH_URL);
 
-        blockForGeckoReady();
-        int height = mDriver.getGeckoTop() + 150;
-        int width = mDriver.getGeckoLeft() + 150;
+        blockForGoannaReady();
+        int height = mDriver.getGoannaTop() + 150;
+        int width = mDriver.getGoannaLeft() + 150;
 
         inputAndLoadUrl(blankPageURL);
         waitForText(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE);
 
-        // Get the searchengine data by clicking the awesomebar - this causes Gecko to send Java the list
+        // Get the searchengine data by clicking the awesomebar - this causes Goanna to send Java the list
         // of search engines.
-        Actions.EventExpecter searchEngineDataEventExpector = mActions.expectGeckoEvent("SearchEngines:Data");
+        Actions.EventExpecter searchEngineDataEventExpector = mActions.expectGoannaEvent("SearchEngines:Data");
         focusUrlBar();
         mActions.sendKeys(SEARCH_TEXT);
         String eventData = searchEngineDataEventExpector.blockForEventData();
@@ -55,7 +55,7 @@ public class testAddSearchEngine extends AboutHomeTest {
             // Parse the data to get the number of searchengines.
             searchEngines = getSearchEnginesNames(eventData);
         } catch (JSONException e) {
-            mAsserter.ok(false, "Fatal exception in testAddSearchEngine while decoding JSON search engine string from Gecko prior to addition of new engine.", e.toString());
+            mAsserter.ok(false, "Fatal exception in testAddSearchEngine while decoding JSON search engine string from Goanna prior to addition of new engine.", e.toString());
             return;
         }
         final int initialNumSearchEngines = searchEngines.size();
@@ -89,7 +89,7 @@ public class testAddSearchEngine extends AboutHomeTest {
         waitForText(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE);
 
         // Load search engines again and check that the quantity of engines has increased by 1.
-        searchEngineDataEventExpector = mActions.expectGeckoEvent("SearchEngines:Data");
+        searchEngineDataEventExpector = mActions.expectGoannaEvent("SearchEngines:Data");
         focusUrlBar();
         mActions.sendKeys(SEARCH_TEXT);
         eventData = searchEngineDataEventExpector.blockForEventData();
@@ -98,7 +98,7 @@ public class testAddSearchEngine extends AboutHomeTest {
             // Parse the data to get the number of searchengines
             searchEngines = getSearchEnginesNames(eventData);
         } catch (JSONException e) {
-            mAsserter.ok(false, "Fatal exception in testAddSearchEngine while decoding JSON search engine string from Gecko after adding of new engine.", e.toString());
+            mAsserter.ok(false, "Fatal exception in testAddSearchEngine while decoding JSON search engine string from Goanna after adding of new engine.", e.toString());
             return;
         }
 
@@ -111,13 +111,13 @@ public class testAddSearchEngine extends AboutHomeTest {
 
         // Verify that the search plugin XML file for the new engine ended up where we expected it to.
         // This file name is created in nsSearchService.js based on the name of the new engine.
-        final File f = GeckoProfile.get(getActivity()).getFile("searchplugins/robocop-search-engine.xml");
+        final File f = GoannaProfile.get(getActivity()).getFile("searchplugins/robocop-search-engine.xml");
         mAsserter.ok(f.exists(), "Checking that new search plugin file exists", "");
     }
 
     /**
      * Helper method to decode a list of search engine names from the provided search engine information
-     * JSON string sent from Gecko.
+     * JSON string sent from Goanna.
      * @param searchEngineData The JSON string representing the search engine array to process
      * @return An ArrayList<String> containing the names of all the search engines represented in
      *         the provided JSON message.

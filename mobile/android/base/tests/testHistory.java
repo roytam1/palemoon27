@@ -16,7 +16,7 @@ public class testHistory extends AboutHomeTest {
     private View mFirstChild;
 
     public void testHistory() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         String url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
         String url2 = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_02_URL);

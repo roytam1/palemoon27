@@ -486,7 +486,7 @@ AudioManager::AudioManager()
   lock->Get("audio.volume.telephony", callback);
   lock->Get("audio.volume.bt_sco", callback);
 
-  // Gecko only control stream volume not master so set to default value
+  // Goanna only control stream volume not master so set to default value
   // directly.
   AudioSystem::setMasterVolume(1.0);
   AudioSystem::setErrorCallback(BinderDeadCallback);
@@ -546,7 +546,7 @@ already_AddRefed<AudioManager>
 AudioManager::GetInstance()
 {
   // Avoid createing AudioManager from content process.
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     MOZ_CRASH("Non-chrome processes should not get here.");
   }
 

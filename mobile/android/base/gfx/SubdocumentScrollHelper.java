@@ -5,10 +5,10 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -17,8 +17,8 @@ import android.graphics.PointF;
 import android.os.Handler;
 import android.util.Log;
 
-class SubdocumentScrollHelper implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoSubdocScroll";
+class SubdocumentScrollHelper implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaSubdocScroll";
 
     private static final String MESSAGE_PANNING_OVERRIDE = "Panning:Override";
     private static final String MESSAGE_CANCEL_OVERRIDE = "Panning:CancelOverride";
@@ -54,14 +54,14 @@ class SubdocumentScrollHelper implements GeckoEventListener {
         mPendingDisplacement = new PointF();
 
         mEventDispatcher = eventDispatcher;
-        mEventDispatcher.registerGeckoThreadListener(this,
+        mEventDispatcher.registerGoannaThreadListener(this,
             MESSAGE_PANNING_OVERRIDE,
             MESSAGE_CANCEL_OVERRIDE,
             MESSAGE_SCROLL_ACK);
     }
 
     void destroy() {
-        mEventDispatcher.unregisterGeckoThreadListener(this,
+        mEventDispatcher.unregisterGoannaThreadListener(this,
             MESSAGE_PANNING_OVERRIDE,
             MESSAGE_CANCEL_OVERRIDE,
             MESSAGE_SCROLL_ACK);
@@ -86,7 +86,7 @@ class SubdocumentScrollHelper implements GeckoEventListener {
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error forming subwindow scroll message: ", e);
         }
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(MESSAGE_SCROLL, json.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(MESSAGE_SCROLL, json.toString()));
 
         mOverrideScrollAck = false;
         mOverrideScrollPending = false;
@@ -110,11 +110,11 @@ class SubdocumentScrollHelper implements GeckoEventListener {
         return mScrollSucceeded;
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
 
     @Override
     public void handleMessage(final String event, final JSONObject message) {
-        // This comes in on the Gecko thread; hand off the handling to the UI thread.
+        // This comes in on the Goanna thread; hand off the handling to the UI thread.
         mUiHandler.post(new Runnable() {
             @Override
             public void run() {

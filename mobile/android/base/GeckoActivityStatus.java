@@ -4,7 +4,7 @@
 
 package org.mozilla.gecko;
 
-public interface GeckoActivityStatus {
-    public boolean isGeckoActivityOpened();
+public interface GoannaActivityStatus {
+    public boolean isGoannaActivityOpened();
     public boolean isFinishing();  // typically from android.app.Activity
 };

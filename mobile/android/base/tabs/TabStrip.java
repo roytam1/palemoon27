@@ -24,7 +24,7 @@ import org.mozilla.gecko.widget.ThemedLinearLayout;
 
 public class TabStrip extends ThemedLinearLayout
                       implements Refreshable {
-    private static final String LOGTAG = "GeckoTabStrip";
+    private static final String LOGTAG = "GoannaTabStrip";
 
     private final TabStripView tabStripView;
     private final ThemedImageButton addTabButton;

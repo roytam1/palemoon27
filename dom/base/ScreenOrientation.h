@@ -9,7 +9,7 @@ namespace mozilla {
 namespace dom {
 
 // Make sure that any change here is also made in
-// * mobile/android/base/GeckoScreenOrientationListener.java
+// * mobile/android/base/GoannaScreenOrientationListener.java
 typedef uint32_t ScreenOrientation;
 
 static const ScreenOrientation eScreenOrientation_None               = 0;

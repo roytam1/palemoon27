@@ -39,8 +39,8 @@ public class Telemetry {
     // Define new histograms in:
     // toolkit/components/telemetry/Histograms.json
     public static void addToHistogram(String name, int value) {
-        GeckoEvent event = GeckoEvent.createTelemetryHistogramAddEvent(name, value);
-        GeckoAppShell.sendEventToGecko(event);
+        GoannaEvent event = GoannaEvent.createTelemetryHistogramAddEvent(name, value);
+        GoannaAppShell.sendEventToGoanna(event);
     }
 
     public abstract static class Timer {
@@ -115,9 +115,9 @@ public class Telemetry {
         final String sessionName = getSessionName(session, sessionNameSuffix);
 
         Log.d(LOGTAG, "StartUISession: " + sessionName);
-        final GeckoEvent geckoEvent =
-                GeckoEvent.createTelemetryUISessionStartEvent(sessionName, realtime());
-        GeckoAppShell.sendEventToGecko(geckoEvent);
+        final GoannaEvent geckoEvent =
+                GoannaEvent.createTelemetryUISessionStartEvent(sessionName, realtime());
+        GoannaAppShell.sendEventToGoanna(geckoEvent);
     }
 
     public static void startUISession(final Session session) {
@@ -129,9 +129,9 @@ public class Telemetry {
         final String sessionName = getSessionName(session, sessionNameSuffix);
 
         Log.d(LOGTAG, "StopUISession: " + sessionName + ", reason=" + reason);
-        final GeckoEvent geckoEvent = GeckoEvent.createTelemetryUISessionStopEvent(
+        final GoannaEvent geckoEvent = GoannaEvent.createTelemetryUISessionStopEvent(
                 sessionName, reason.toString(), realtime());
-        GeckoAppShell.sendEventToGecko(geckoEvent);
+        GoannaAppShell.sendEventToGoanna(geckoEvent);
     }
 
     public static void stopUISession(final Session session, final Reason reason) {
@@ -165,9 +165,9 @@ public class Telemetry {
 
         Log.d(LOGTAG, "SendUIEvent: event = " + eventName + " method = " + method +
                 " timestamp = " + timestamp + " extras = " + extras);
-        final GeckoEvent geckoEvent = GeckoEvent.createTelemetryUIEvent(
+        final GoannaEvent geckoEvent = GoannaEvent.createTelemetryUIEvent(
                 eventName, method.toString(), timestamp, extras);
-        GeckoAppShell.sendEventToGecko(geckoEvent);
+        GoannaAppShell.sendEventToGoanna(geckoEvent);
     }
 
     public static void sendUIEvent(final Event event, final Method method, final long timestamp,

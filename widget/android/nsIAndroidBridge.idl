@@ -67,7 +67,7 @@ interface nsIAndroidDisplayport : nsISupports {
 [scriptable, uuid(1beb70d3-70f3-4742-98cc-a3d301b26c0c)]
 interface nsIAndroidBridge : nsISupports
 {
-  [implicit_jscontext] void handleGeckoMessage(in jsval message);
+  [implicit_jscontext] void handleGoannaMessage(in jsval message);
   attribute nsIAndroidBrowserApp browserApp;
   nsIAndroidDisplayport getDisplayPort(in boolean aPageSizeUpdate, in boolean isBrowserContentDisplayed, in int32_t tabId, in nsIAndroidViewport metrics);
   void contentDocumentChanged();

@@ -19,7 +19,7 @@ import android.preference.PreferenceManager;
 import android.util.Log;
 
 /**
- * {@code GeckoSharedPrefs} provides scoped SharedPreferences instances.
+ * {@code GoannaSharedPrefs} provides scoped SharedPreferences instances.
  * You should use this API instead of using Context.getSharedPreferences()
  * directly. There are three methods to get scoped SharedPreferences instances:
  *
@@ -30,7 +30,7 @@ import android.util.Log;
  * forProfileName()
  *     Use it to fetch and store keys from/for a specific profile.
  *
- * {@code GeckoSharedPrefs} has a notion of migrations. Migrations can used to
+ * {@code GoannaSharedPrefs} has a notion of migrations. Migrations can used to
  * migrate keys from one scope to another. You can trigger a new migration by
  * incrementing PREFS_VERSION and updating migrateIfNecessary() accordingly.
  *
@@ -38,17 +38,17 @@ import android.util.Log;
  *     1: Move all PreferenceManager keys to app/profile scopes
  */
 @RobocopTarget
-public final class GeckoSharedPrefs {
-    private static final String LOGTAG = "GeckoSharedPrefs";
+public final class GoannaSharedPrefs {
+    private static final String LOGTAG = "GoannaSharedPrefs";
 
     // Increment it to trigger a new migration
     public static final int PREFS_VERSION = 1;
 
     // Name for app-scoped prefs
-    public static final String APP_PREFS_NAME = "GeckoApp";
+    public static final String APP_PREFS_NAME = "GoannaApp";
 
     // Used when fetching profile-scoped prefs.
-    public static final String PROFILE_PREFS_NAME_PREFIX = "GeckoProfile-";
+    public static final String PROFILE_PREFS_NAME_PREFIX = "GoannaProfile-";
 
     // The prefs key that holds the current migration
     private static final String PREFS_VERSION_KEY = "gecko_shared_prefs_migration";
@@ -96,7 +96,7 @@ public final class GeckoSharedPrefs {
      * flag.
      */
     public static SharedPreferences forProfile(Context context, EnumSet<Flags> flags) {
-        String profileName = GeckoProfile.get(context).getName();
+        String profileName = GoannaProfile.get(context).getName();
         if (profileName == null) {
             throw new IllegalStateException("Could not get current profile name");
         }
@@ -180,7 +180,7 @@ public final class GeckoSharedPrefs {
         // multiple profiles.
         final String defaultProfileName;
         try {
-            defaultProfileName = GeckoProfile.getDefaultProfileName(context);
+            defaultProfileName = GoannaProfile.getDefaultProfileName(context);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to get default profile name for migration");
         }

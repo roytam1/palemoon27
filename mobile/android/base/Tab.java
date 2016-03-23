@@ -38,7 +38,7 @@ import android.view.View;
 import android.widget.Toast;
 
 public class Tab {
-    private static final String LOGTAG = "GeckoTab";
+    private static final String LOGTAG = "GoannaTab";
 
     private static Pattern sColorPattern;
     private final int mId;
@@ -109,7 +109,7 @@ public class Tab {
 
     public Tab(Context context, int id, String url, boolean external, int parentId, String title) {
         mAppContext = context.getApplicationContext();
-        mDB = GeckoProfile.get(context).getDB();
+        mDB = GoannaProfile.get(context).getDB();
         mId = id;
         mUrl = url;
         mBaseDomain = "";
@@ -220,7 +220,7 @@ public class Tab {
         }
 
         if (mThumbnailBitmap == null) {
-            Bitmap.Config config = (GeckoAppShell.getScreenDepth() == 24) ?
+            Bitmap.Config config = (GoannaAppShell.getScreenDepth() == 24) ?
                 Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
             mThumbnailBitmap = Bitmap.createBitmap(width, height, config);
         }
@@ -605,8 +605,8 @@ public class Tab {
     }
 
     public void doReload() {
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", "");
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createBroadcastEvent("Session:Reload", "");
+        GoannaAppShell.sendEventToGoanna(e);
     }
 
     // Our version of nsSHistory::GetCanGoBack
@@ -618,14 +618,14 @@ public class Tab {
         if (!canDoBack())
             return false;
 
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Back", "");
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createBroadcastEvent("Session:Back", "");
+        GoannaAppShell.sendEventToGoanna(e);
         return true;
     }
 
     public void doStop() {
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Stop", "");
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createBroadcastEvent("Session:Stop", "");
+        GoannaAppShell.sendEventToGoanna(e);
     }
 
     // Our version of nsSHistory::GetCanGoForward
@@ -637,8 +637,8 @@ public class Tab {
         if (!canDoForward())
             return false;
 
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Forward", "");
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createBroadcastEvent("Session:Forward", "");
+        GoannaAppShell.sendEventToGoanna(e);
         return true;
     }
 
@@ -822,12 +822,12 @@ public class Tab {
 
     /** Parses and sets a new color for the background. */
     public void setBackgroundColor(String newColor) {
-        setBackgroundColor(parseColorFromGecko(newColor));
+        setBackgroundColor(parseColorFromGoanna(newColor));
     }
 
     // Parses a color from an RGB triple of the form "rgb([0-9]+, [0-9]+, [0-9]+)". If the color
     // cannot be parsed, returns white.
-    private static int parseColorFromGecko(String string) {
+    private static int parseColorFromGoanna(String string) {
         if (sColorPattern == null) {
             sColorPattern = Pattern.compile("rgb\\((\\d+),\\s*(\\d+),\\s*(\\d+)\\)");
         }

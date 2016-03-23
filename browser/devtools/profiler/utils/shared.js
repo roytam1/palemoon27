@@ -126,7 +126,7 @@ ProfilerConnection.prototype = {
    */
   _connectMiscActors: function() {
     // Only initialize the framerate front if the respective actor is available.
-    // Older Gecko versions don't have an existing implementation, in which case
+    // Older Goanna versions don't have an existing implementation, in which case
     // all the methods we need can be easily mocked.
     if (this._target.form && this._target.form.framerateActor) {
       this._framerate = new FramerateFront(this._target.client, this._target.form);
@@ -325,7 +325,7 @@ ProfilerConnection.prototype = {
    * should *never* happen while there's a consumer (i.e. "toolbox") available,
    * treat this notification as being unexpected.
    *
-   * This may happen, for example, if the Gecko Profiler add-on is installed
+   * This may happen, for example, if the Goanna Profiler add-on is installed
    * (and isn't using the profiler actor over the remote protocol). There's no
    * way to prevent it from stopping the profiler and affecting our tool.
    */
@@ -432,7 +432,7 @@ ProfilerFront.prototype = {
     entries: 1000000,
     interval: 1,
     features: ["js"],
-    threadFilters: ["GeckoMain"]
+    threadFilters: ["GoannaMain"]
   }
 };
 

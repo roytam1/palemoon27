@@ -10,7 +10,7 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 @RobocopTarget
 public interface NativeEventListener {
     /**
-     * Handles a message sent from Gecko.
+     * Handles a message sent from Goanna.
      *
      * @param event    The name of the event being sent.
      * @param message  The message data.

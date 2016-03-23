@@ -17,14 +17,14 @@ public class testUITelemetry extends JavascriptTest {
 
     @Override
     public void testJavascript() throws Exception {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // We can't run these tests unless telemetry is turned on --
         // the events will be dropped on the floor.
-        Log.i("GeckoTest", "Enabling telemetry.");
+        Log.i("GoannaTest", "Enabling telemetry.");
         PrefsHelper.setPref(AppConstants.TELEMETRY_PREF_NAME, true);
 
-        Log.i("GeckoTest", "Adding telemetry events.");
+        Log.i("GoannaTest", "Adding telemetry events.");
         try {
             Telemetry.sendUIEvent(Event._TEST1, Method._TEST1);
             Telemetry.startUISession(Session._TEST_STARTED_TWICE);
@@ -46,10 +46,10 @@ public class testUITelemetry extends JavascriptTest {
             // Method defaults to Method.NONE
             Telemetry.sendUIEvent(Event._TEST1);
         } catch (Exception e) {
-            Log.e("GeckoTest", "Oops.", e);
+            Log.e("GoannaTest", "Oops.", e);
         }
 
-        Log.i("GeckoTest", "Running remaining JS test code.");
+        Log.i("GoannaTest", "Running remaining JS test code.");
         super.testJavascript();
     }
 }

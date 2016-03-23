@@ -174,7 +174,7 @@ SelectionPrototype.prototype = {
 
   /*
    * Selection Changed notification listener. This allows us to respond to selection changes
-   * introduced programmatically by Gecko events, target-page support code, etc.
+   * introduced programmatically by Goanna events, target-page support code, etc.
    */
   notifySelectionChanged: function notifySelectionChanged(aDocument, aSelection, aReason) {
     // Ignore user generated selectionChange notifications during monocle/marker movement.

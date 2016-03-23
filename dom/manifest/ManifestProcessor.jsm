@@ -206,7 +206,7 @@ this.ManifestProcessor.prototype.process = function({
     }
     return result;
 
-    //Converts a URL to a Gecko URI
+    //Converts a URL to a Goanna URI
     function makeURI(webURL) {
       return imports.Services.io.newURI(webURL.toString(), null, null);
     }

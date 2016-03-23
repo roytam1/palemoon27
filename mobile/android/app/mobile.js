@@ -713,7 +713,7 @@ pref("media.stagefright.omxcodec.flags", 0);
 pref("dom.event.touch.coalescing.enabled", false);
 
 // default orientation for the app, default to undefined
-// the java GeckoScreenOrientationListener needs this to be defined
+// the java GoannaScreenOrientationListener needs this to be defined
 pref("app.orientation.default", "");
 
 // On memory pressure, release dirty but unused pages held by jemalloc

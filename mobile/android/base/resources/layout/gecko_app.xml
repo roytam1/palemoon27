@@ -14,7 +14,7 @@
               android:layout_width="match_parent"
               android:layout_height="match_parent"/>
 
-   <view class="org.mozilla.gecko.GeckoApp$MainLayout"
+   <view class="org.mozilla.gecko.GoannaApp$MainLayout"
          android:id="@+id/main_layout"
          android:layout_width="match_parent"
          android:layout_height="match_parent"
@@ -117,7 +117,7 @@
                 <org.mozilla.gecko.ActionModeCompatView android:id="@+id/actionbar"
                                                         android:layout_height="match_parent"
                                                         android:layout_width="match_parent"
-                                                        style="@style/GeckoActionBar"/>
+                                                        style="@style/GoannaActionBar"/>
 
             </org.mozilla.gecko.toolbar.ActionBarViewFlipper>
 

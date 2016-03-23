@@ -156,7 +156,7 @@
 
 #endif
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "gfxPlatform.h"
 #include "Layers.h"
 #include "LayerTreeInvalidation.h"
@@ -182,7 +182,7 @@
 #endif
 
 #ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
+#include "GoannaTaskTracer.h"
 using namespace mozilla::tasktracer;
 #endif
 
@@ -4934,7 +4934,7 @@ PresShell::RenderDocument(const nsRect& aRect, uint32_t aFlags,
       // taking snapshots.
       if (layerManager &&
           (!layerManager->AsClientLayerManager() ||
-           XRE_GetProcessType() == GeckoProcessType_Default)) {
+           XRE_GetProcessType() == GoannaProcessType_Default)) {
         flags |= nsLayoutUtils::PAINT_WIDGET_LAYERS;
       }
     }
@@ -5500,7 +5500,7 @@ void PresShell::UpdateCanvasBackground()
   if (!FrameConstructor()->GetRootElementFrame()) {
     mCanvasBackgroundColor = GetDefaultBackgroundColorToDraw();
   }
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     if (TabChild* tabChild = TabChild::GetFrom(this)) {
       tabChild->SetBackgroundColor(mCanvasBackgroundColor);
     }
@@ -6196,7 +6196,7 @@ public:
   }
   ~AutoUpdateHitRegion()
   {
-    if (XRE_GetProcessType() != GeckoProcessType_Content ||
+    if (XRE_GetProcessType() != GoannaProcessType_Content ||
         !mFrame || !mShell) {
       return;
     }
@@ -11139,7 +11139,7 @@ nsIPresShell::RecomputeFontSizeInflationEnabled()
         mFontSizeInflationEnabled = false;
         return;
       }
-    } else if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    } else if (XRE_GetProcessType() == GoannaProcessType_Default) {
       // We're in the master process.  Cancel inflation if it's been
       // explicitly disabled.
       if (FontSizeInflationDisabledInMasterProcess()) {
@@ -11159,7 +11159,7 @@ nsIPresShell::RecomputeFontSizeInflationEnabled()
   // have any metadata about the width and/or height. On mobile, the screen size
   // and the size of the content area are very close, or the same value.
   // In XUL fennec, the content area is the size of the <browser> widget, but
-  // in native fennec, the content area is the size of the Gecko LayerView
+  // in native fennec, the content area is the size of the Goanna LayerView
   // object.
 
   // TODO:

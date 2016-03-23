@@ -5,7 +5,7 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
@@ -44,8 +44,8 @@ import javax.microedition.khronos.egl.EGLConfig;
  * The layer renderer implements the rendering logic for a layer view.
  */
 public class LayerRenderer implements Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "GeckoLayerRenderer";
-    private static final String PROFTAG = "GeckoLayerRendererProf";
+    private static final String LOGTAG = "GoannaLayerRenderer";
+    private static final String PROFTAG = "GoannaLayerRendererProf";
 
     /*
      * The amount of time a frame is allowed to take to render before we declare it a dropped
@@ -250,7 +250,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     }
 
     // Deactivates the shader program. This must be done to avoid crashes after returning to the
-    // Gecko C++ compositor from Java.
+    // Goanna C++ compositor from Java.
     public void deactivateDefaultProgram() {
         GLES20.glDisableVertexAttribArray(mTextureHandle);
         GLES20.glDisableVertexAttribArray(mPositionHandle);
@@ -578,7 +578,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             if ((rootLayer != null) &&
                 (mProfileRender || PanningPerfAPI.isRecordingCheckerboard())) {
                 // Calculate the incompletely rendered area of the page
-                float checkerboard =  1.0f - GeckoAppShell.computeRenderIntegrity();
+                float checkerboard =  1.0f - GoannaAppShell.computeRenderIntegrity();
 
                 PanningPerfAPI.recordCheckerboard(checkerboard);
                 if (checkerboard < 0.0f || checkerboard > 1.0f) {
@@ -657,7 +657,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 }
             }
 
-            // Remove background color once we've painted. GeckoLayerClient is
+            // Remove background color once we've painted. GoannaLayerClient is
             // responsible for setting this flag before current document is
             // composited.
             if (mView.getPaintState() == LayerView.PAINT_BEFORE_FIRST) {

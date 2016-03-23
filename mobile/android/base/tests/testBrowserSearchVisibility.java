@@ -17,7 +17,7 @@ import com.jayway.android.robotium.solo.Condition;
  */
 public class testBrowserSearchVisibility extends BaseTest {
     public void testSearchSuggestions() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         focusUrlBar();
 

@@ -21,7 +21,7 @@ import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.home.HomeConfig.PanelConfig;
 import org.mozilla.gecko.home.PanelInfoManager.PanelInfo;
 import org.mozilla.gecko.home.PanelInfoManager.RequestCallback;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.ContentResolver;
@@ -29,7 +29,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.util.Log;
 
-public class HomePanelsManager implements GeckoEventListener {
+public class HomePanelsManager implements GoannaEventListener {
     public static final String LOGTAG = "HomePanelsManager";
 
     private static final HomePanelsManager sInstance = new HomePanelsManager();
@@ -85,7 +85,7 @@ public class HomePanelsManager implements GeckoEventListener {
         mContext = context;
         mHomeConfig = HomeConfig.getDefault(context);
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             EVENT_HOMEPANELS_INSTALL,
             EVENT_HOMEPANELS_UNINSTALL,
             EVENT_HOMEPANELS_UPDATE,
@@ -185,7 +185,7 @@ public class HomePanelsManager implements GeckoEventListener {
 
 
     /**
-     * Handles a dataset refresh request from Gecko. This is usually
+     * Handles a dataset refresh request from Goanna. This is usually
      * triggered by a HomeStorage.save() call in an add-on.
      *
      * Runs in the gecko thread.

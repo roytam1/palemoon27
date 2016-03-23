@@ -10,7 +10,7 @@ import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
 import org.mozilla.gecko.gfx.PointUtils;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONException;
@@ -37,8 +37,8 @@ import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 
 public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChangedListener,
-        LayerView.ZoomedViewListener, GeckoEventListener {
-    private static final String LOGTAG = "Gecko" + ZoomedView.class.getSimpleName();
+        LayerView.ZoomedViewListener, GoannaEventListener {
+    private static final String LOGTAG = "Goanna" + ZoomedView.class.getSimpleName();
 
     private static final int DEFAULT_ZOOM_FACTOR = 3;
     private static final int W_CAPTURED_VIEW_IN_PERCENT = 80;
@@ -87,8 +87,8 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
                 if (dragged) {
                     dragged = false;
                 } else {
-                    GeckoEvent eClickInZoomedView = GeckoEvent.createBroadcastEvent("Gesture:ClickInZoomedView", "");
-                    GeckoAppShell.sendEventToGecko(eClickInZoomedView);
+                    GoannaEvent eClickInZoomedView = GoannaEvent.createBroadcastEvent("Gesture:ClickInZoomedView", "");
+                    GoannaAppShell.sendEventToGoanna(eClickInZoomedView);
                     layerView.dispatchTouchEvent(actionDownEvent);
                     actionDownEvent.recycle();
                     PointF convertedPosition = getUnzoomedPositionFromPointInZoomedView(event.getX(), event.getY());
@@ -149,13 +149,13 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
                 requestZoomedViewRender();
             }
         };
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "Gesture:nothingDoneOnLongPress",
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "Gesture:nothingDoneOnLongPress",
                 "Gesture:clusteredLinksClicked", "Window:Resize", "Content:LocationChange");
     }
 
     void destroy() {
         ThreadUtils.removeCallbacksFromUiThread(requestRenderRunnable);
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "Gesture:nothingDoneOnLongPress",
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "Gesture:nothingDoneOnLongPress",
                 "Gesture:clusteredLinksClicked", "Window:Resize", "Content:LocationChange");
     }
 
@@ -316,10 +316,10 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
     }
 
     private Bitmap.Config getBitmapConfig() {
-        return (GeckoAppShell.getScreenDepth() == 24) ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
+        return (GoannaAppShell.getScreenDepth() == 24) ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
     }
 
-    private void startZoomDisplay(LayerView aLayerView, final int leftFromGecko, final int topFromGecko) {
+    private void startZoomDisplay(LayerView aLayerView, final int leftFromGoanna, final int topFromGoanna) {
         if (layerView == null) {
             layerView = aLayerView;
             layerView.addZoomedViewListener(this);
@@ -329,7 +329,7 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
         }
         startTimeReRender = 0;
         shouldSetVisibleOnUpdate = true;
-        moveUsingGeckoPosition(leftFromGecko, topFromGecko);
+        moveUsingGoannaPosition(leftFromGoanna, topFromGoanna);
     }
 
     private void stopZoomDisplay() {
@@ -354,7 +354,7 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
                         int left = clickPosition.getInt("x");
                         int top = clickPosition.getInt("y");
                         // Start to display inside the zoomedView
-                        LayerView geckoAppLayerView = GeckoAppShell.getLayerView();
+                        LayerView geckoAppLayerView = GoannaAppShell.getLayerView();
                         if (geckoAppLayerView != null) {
                             startZoomDisplay(geckoAppLayerView, left, top);
                         }
@@ -371,16 +371,16 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
         });
     }
 
-    private void moveUsingGeckoPosition(int leftFromGecko, int topFromGecko) {
+    private void moveUsingGoannaPosition(int leftFromGoanna, int topFromGoanna) {
         ImmutableViewportMetrics metrics = layerView.getViewportMetrics();
-        PointF convertedPosition = getZoomedViewTopLeftPositionFromTouchPosition((leftFromGecko * metrics.zoomFactor),
-                (topFromGecko * metrics.zoomFactor));
+        PointF convertedPosition = getZoomedViewTopLeftPositionFromTouchPosition((leftFromGoanna * metrics.zoomFactor),
+                (topFromGoanna * metrics.zoomFactor));
         moveZoomedView(metrics, convertedPosition.x, convertedPosition.y);
     }
 
     @Override
     public void onMetricsChanged(final ImmutableViewportMetrics viewport) {
-        // It can be called from a Gecko thread (forceViewportMetrics in GeckoLayerClient).
+        // It can be called from a Goanna thread (forceViewportMetrics in GoannaLayerClient).
         // Post to UI Thread to avoid Exception:
         //    "Only the original thread that created a view hierarchy can touch its views."
         ThreadUtils.postToUiThread(new Runnable() {
@@ -420,7 +420,7 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
     }
 
     private void updateBufferSize() {
-        int pixelSize = (GeckoAppShell.getScreenDepth() == 24) ? 4 : 2;
+        int pixelSize = (GoannaAppShell.getScreenDepth() == 24) ? 4 : 2;
         int capacity = viewWidth * viewHeight * pixelSize;
         if (buffer == null || buffer.capacity() != capacity) {
             buffer = DirectBufferAllocator.free(buffer);
@@ -444,7 +444,7 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
         // remove pending runnable
         ThreadUtils.removeCallbacksFromUiThread(requestRenderRunnable);
 
-        // "requestZoomedViewRender" can be called very often by Gecko (endDrawing in LayerRender) without
+        // "requestZoomedViewRender" can be called very often by Goanna (endDrawing in LayerRender) without
         // any thing changed in the zoomed area (useless calls from the "zoomed area" point of view).
         // "requestZoomedViewRender" can take time to re-render the zoomed view, it depends of the complexity
         // of the html on this area.
@@ -484,9 +484,9 @@ public class ZoomedView extends FrameLayout implements LayerView.OnMetricsChange
         final int xPos = (int) (origin.x - offset.x) + lastPosition.x;
         final int yPos = (int) (origin.y - offset.y) + lastPosition.y;
 
-        GeckoEvent e = GeckoEvent.createZoomedViewEvent(tabId, xPos, yPos, viewWidth,
+        GoannaEvent e = GoannaEvent.createZoomedViewEvent(tabId, xPos, yPos, viewWidth,
                 viewHeight, zoomFactor * metrics.zoomFactor, buffer);
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaAppShell.sendEventToGoanna(e);
     }
 
 }

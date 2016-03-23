@@ -75,7 +75,7 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/LookAndFeel.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #ifdef DEBUG
 #undef NOISY_REFLOW

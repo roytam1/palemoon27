@@ -120,7 +120,7 @@ protected:
 
 private:
   HRESULT GetModifiedText(bool aGetInsertedText, IA2TextSegment *aNewText);
-  AccessibleTextBoundary GetGeckoTextBoundary(enum IA2TextBoundaryType coordinateType);
+  AccessibleTextBoundary GetGoannaTextBoundary(enum IA2TextBoundaryType coordinateType);
 };
 
 } // namespace a11y

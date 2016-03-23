@@ -48,7 +48,7 @@ import android.util.Log;
  */
 @SuppressWarnings("javadoc")
 public abstract class AbstractTransactionalProvider extends ContentProvider {
-    private static final String LOGTAG = "GeckoTransProvider";
+    private static final String LOGTAG = "GoannaTransProvider";
 
     private static final boolean logDebug = Log.isLoggable(LOGTAG, Log.DEBUG);
     private static final boolean logVerbose = Log.isLoggable(LOGTAG, Log.VERBOSE);

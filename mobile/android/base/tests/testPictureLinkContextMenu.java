@@ -17,7 +17,7 @@ public class testPictureLinkContextMenu extends ContentContextMenuTest {
     private static final String imageTitle = "^Image$";
 
     public void testPictureLinkContextMenu() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         PICTURE_PAGE_URL=getAbsoluteUrl(StringHelper.ROBOCOP_PICTURE_LINK_URL);
         BLANK_PAGE_URL=getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_02_URL);

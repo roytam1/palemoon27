@@ -6,7 +6,7 @@
 package org.mozilla.gecko.widget;
 
 import android.view.Menu;
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
@@ -29,7 +29,7 @@ import android.text.TextUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class GeckoActionProvider {
+public class GoannaActionProvider {
     private static final int MAX_HISTORY_SIZE_DEFAULT = 2;
 
     /**
@@ -54,7 +54,7 @@ public class GeckoActionProvider {
 
     private final Callbacks mCallbacks = new Callbacks();
 
-    private static final HashMap<String, GeckoActionProvider> mProviders = new HashMap<String, GeckoActionProvider>();
+    private static final HashMap<String, GoannaActionProvider> mProviders = new HashMap<String, GoannaActionProvider>();
 
     private static String getFilenameFromMimeType(String mimeType) {
         String[] mime = mimeType.split("/");
@@ -68,9 +68,9 @@ public class GeckoActionProvider {
     }
 
     // Gets the action provider for a particular mimetype
-    public static GeckoActionProvider getForType(String mimeType, Context context) {
+    public static GoannaActionProvider getForType(String mimeType, Context context) {
         if (!mProviders.keySet().contains(mimeType)) {
-            GeckoActionProvider provider = new GeckoActionProvider(context);
+            GoannaActionProvider provider = new GoannaActionProvider(context);
 
             // For empty types, we just return a default provider
             if (TextUtils.isEmpty(mimeType)) {
@@ -83,7 +83,7 @@ public class GeckoActionProvider {
         return mProviders.get(mimeType);
     }
 
-    public GeckoActionProvider(Context context) {
+    public GoannaActionProvider(Context context) {
         mContext = context;
     }
 
@@ -232,7 +232,7 @@ public class GeckoActionProvider {
                         // Share image downloads the image before sharing it.
                         String type = launchIntent.getType();
                         if (Intent.ACTION_SEND.equals(launchIntent.getAction()) && type != null && type.startsWith("image/")) {
-                            GeckoAppShell.downloadImageForIntent(launchIntent);
+                            GoannaAppShell.downloadImageForIntent(launchIntent);
                         }
 
                         launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET);

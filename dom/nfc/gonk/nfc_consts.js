@@ -22,7 +22,7 @@ this.DEBUG_ALL = false;
 this.DEBUG_CONTENT_HELPER = DEBUG_ALL || false;
 this.DEBUG_NFC = DEBUG_ALL || false;
 
-// Gecko specific error codes
+// Goanna specific error codes
 this.NFC_GECKO_ERROR_P2P_REG_INVALID = 1;
 this.NFC_GECKO_ERROR_SEND_FILE_FAILED = 2;
 

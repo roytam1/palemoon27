@@ -911,10 +911,10 @@ void nsBaseWidget::CreateCompositor()
   CreateCompositor(rect.width, rect.height);
 }
 
-already_AddRefed<GeckoContentController>
+already_AddRefed<GoannaContentController>
 nsBaseWidget::CreateRootContentController()
 {
-  nsRefPtr<GeckoContentController> controller = new ChromeProcessController(this, mAPZEventState);
+  nsRefPtr<GoannaContentController> controller = new ChromeProcessController(this, mAPZEventState);
   return controller.forget();
 }
 
@@ -966,7 +966,7 @@ void nsBaseWidget::ConfigureAPZCTreeManager()
       new ChromeProcessContentReceivedInputBlockCallback(mAPZC));
   mSetTargetAPZCCallback = new ChromeProcessSetTargetAPZCCallback(mAPZC);
 
-  nsRefPtr<GeckoContentController> controller = CreateRootContentController();
+  nsRefPtr<GoannaContentController> controller = CreateRootContentController();
   if (controller) {
     CompositorParent::SetControllerForLayerTree(rootLayerTreeId, controller);
   }

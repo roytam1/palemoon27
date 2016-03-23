@@ -18,7 +18,7 @@ import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.gfx.InputConnectionHandler;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
 
@@ -39,16 +39,16 @@ import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 
 /*
-   GeckoEditable implements only some functions of Editable
+   GoannaEditable implements only some functions of Editable
    The field mText contains the actual underlying
    SpannableStringBuilder/Editable that contains our text.
 */
-final class GeckoEditable
+final class GoannaEditable
         implements InvocationHandler, Editable,
-                   GeckoEditableClient, GeckoEditableListener, GeckoEventListener {
+                   GoannaEditableClient, GoannaEditableListener, GoannaEventListener {
 
     private static final boolean DEBUG = false;
-    private static final String LOGTAG = "GeckoEditable";
+    private static final String LOGTAG = "GoannaEditable";
 
     // Filters to implement Editable's filtering functionality
     private InputFilter[] mFilters;
@@ -58,27 +58,27 @@ final class GeckoEditable
     private final Editable mProxy;
     private final ActionQueue mActionQueue;
 
-    // mIcRunHandler is the Handler that currently runs Gecko-to-IC Runnables
-    // mIcPostHandler is the Handler to post Gecko-to-IC Runnables to
+    // mIcRunHandler is the Handler that currently runs Goanna-to-IC Runnables
+    // mIcPostHandler is the Handler to post Goanna-to-IC Runnables to
     // The two can be different when switching from one handler to another
     private Handler mIcRunHandler;
     private Handler mIcPostHandler;
 
-    private GeckoEditableListener mListener;
+    private GoannaEditableListener mListener;
     private int mSavedSelectionStart;
-    private volatile int mGeckoUpdateSeqno;
+    private volatile int mGoannaUpdateSeqno;
     private int mIcUpdateSeqno;
     private int mLastIcUpdateSeqno;
-    private boolean mUpdateGecko;
+    private boolean mUpdateGoanna;
     private boolean mFocused; // Used by IC thread
-    private boolean mGeckoFocused; // Used by Gecko thread
+    private boolean mGoannaFocused; // Used by Goanna thread
     private volatile boolean mSuppressCompositions;
     private volatile boolean mSuppressKeyUp;
 
     /* An action that alters the Editable
 
-       Each action corresponds to a Gecko event. While the Gecko event is being sent to the Gecko
-       thread, the action stays on top of mActions queue. After the Gecko event is processed and
+       Each action corresponds to a Goanna event. While the Goanna event is being sent to the Goanna
+       thread, the action stays on top of mActions queue. After the Goanna event is processed and
        replied, the action is removed from the queue
     */
     private static final class Action {
@@ -88,7 +88,7 @@ final class GeckoEditable
         static final int TYPE_REPLACE_TEXT = 1;
         /* For Editable.setSpan(Selection...) call; use with IME_SYNCHRONIZE
            Note that we don't use this with IME_SET_SELECTION because we don't want to update the
-           Gecko selection at the point of this action. The Gecko selection is updated only after
+           Goanna selection at the point of this action. The Goanna selection is updated only after
            IC has updated its selection (during IME_SYNCHRONIZE reply) */
         static final int TYPE_SET_SELECTION = 2;
         // For Editable.setSpan() call; use with IME_SYNCHRONIZE
@@ -181,8 +181,8 @@ final class GeckoEditable
         }
     }
 
-    /* Queue of editing actions sent to Gecko thread that
-       the Gecko thread has not responded to yet */
+    /* Queue of editing actions sent to Goanna thread that
+       the Goanna thread has not responded to yet */
     private final class ActionQueue {
         private final ConcurrentLinkedQueue<Action> mActions;
         private final Semaphore mActionsActive;
@@ -204,13 +204,13 @@ final class GeckoEditable
             if (action.mType != Action.TYPE_EVENT &&
                 action.mType != Action.TYPE_ACKNOWLEDGE_FOCUS &&
                 action.mType != Action.TYPE_SET_HANDLER) {
-                action.mShouldUpdate = mUpdateGecko;
+                action.mShouldUpdate = mUpdateGoanna;
             }
             if (mActions.isEmpty()) {
                 mActionsActive.acquireUninterruptibly();
                 mActions.offer(action);
             } else synchronized(this) {
-                // tryAcquire here in case Gecko thread has just released it
+                // tryAcquire here in case Goanna thread has just released it
                 mActionsActive.tryAcquire();
                 mActions.offer(action);
             }
@@ -221,26 +221,26 @@ final class GeckoEditable
             case Action.TYPE_SET_SPAN:
             case Action.TYPE_REMOVE_SPAN:
             case Action.TYPE_SET_HANDLER:
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
-                        GeckoEvent.ImeAction.IME_SYNCHRONIZE));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEEvent(
+                        GoannaEvent.ImeAction.IME_SYNCHRONIZE));
                 break;
 
             case Action.TYPE_COMPOSE_TEXT:
                 // Send different event for composing text.
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEComposeEvent(
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEComposeEvent(
                         action.mStart, action.mEnd, action.mSequence.toString()));
                 return;
 
             case Action.TYPE_REPLACE_TEXT:
                 // try key events first
                 sendCharKeyEvents(action);
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEReplaceEvent(
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEReplaceEvent(
                         action.mStart, action.mEnd, action.mSequence.toString()));
                 break;
 
             case Action.TYPE_ACKNOWLEDGE_FOCUS:
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
-                        GeckoEvent.ImeAction.IME_ACKNOWLEDGE_FOCUS));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEEvent(
+                        GoannaEvent.ImeAction.IME_ACKNOWLEDGE_FOCUS));
                 break;
 
             default:
@@ -293,13 +293,13 @@ final class GeckoEditable
                 if (DEBUG) {
                     Log.d(LOGTAG, "sending: " + event);
                 }
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEKeyEvent(event));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEKeyEvent(event));
             }
         }
 
         void poll() {
             if (DEBUG) {
-                ThreadUtils.assertOnGeckoThread();
+                ThreadUtils.assertOnGoannaThread();
             }
             if (mActions.isEmpty()) {
                 throw new IllegalStateException("empty actions queue");
@@ -315,7 +315,7 @@ final class GeckoEditable
 
         Action peek() {
             if (DEBUG) {
-                ThreadUtils.assertOnGeckoThread();
+                ThreadUtils.assertOnGoannaThread();
             }
             if (mActions.isEmpty()) {
                 throw new IllegalStateException("empty actions queue");
@@ -323,19 +323,19 @@ final class GeckoEditable
             return mActions.peek();
         }
 
-        void syncWithGecko() {
+        void syncWithGoanna() {
             if (DEBUG) {
                 assertOnIcThread();
             }
             if (mFocused && !mActions.isEmpty()) {
                 if (DEBUG) {
-                    Log.d(LOGTAG, "syncWithGecko blocking on thread " +
+                    Log.d(LOGTAG, "syncWithGoanna blocking on thread " +
                                   Thread.currentThread().getName());
                 }
                 mActionsActive.acquireUninterruptibly();
                 mActionsActive.release();
             } else if (DEBUG && !mFocused) {
-                Log.d(LOGTAG, "skipped syncWithGecko (no focus)");
+                Log.d(LOGTAG, "skipped syncWithGoanna (no focus)");
             }
         }
 
@@ -344,10 +344,10 @@ final class GeckoEditable
         }
     }
 
-    GeckoEditable() {
+    GoannaEditable() {
         mActionQueue = new ActionQueue();
         mSavedSelectionStart = -1;
-        mUpdateGecko = true;
+        mUpdateGoanna = true;
 
         mText = new SpannableStringBuilder();
         mChangedText = new SpannableStringBuilder();
@@ -357,8 +357,8 @@ final class GeckoEditable
                 Editable.class.getClassLoader(),
                 PROXY_INTERFACES, this);
 
-        LayerView v = GeckoAppShell.getLayerView();
-        mListener = GeckoInputConnection.create(v, this);
+        LayerView v = GoannaAppShell.getLayerView();
+        mListener = GoannaInputConnection.create(v, this);
 
         mIcRunHandler = mIcPostHandler = ThreadUtils.getUiHandler();
     }
@@ -375,18 +375,18 @@ final class GeckoEditable
         mIcPostHandler.post(runnable);
     }
 
-    private void geckoUpdateGecko(final boolean force) {
-        /* We do not increment the seqno here, but only check it, because geckoUpdateGecko is a
-           request for update. If we incremented the seqno here, geckoUpdateGecko would have
+    private void geckoUpdateGoanna(final boolean force) {
+        /* We do not increment the seqno here, but only check it, because geckoUpdateGoanna is a
+           request for update. If we incremented the seqno here, geckoUpdateGoanna would have
            prevented other updates from occurring */
-        final int seqnoWhenPosted = mGeckoUpdateSeqno;
+        final int seqnoWhenPosted = mGoannaUpdateSeqno;
 
         geckoPostToIc(new Runnable() {
             @Override
             public void run() {
-                mActionQueue.syncWithGecko();
-                if (seqnoWhenPosted == mGeckoUpdateSeqno) {
-                    icUpdateGecko(force);
+                mActionQueue.syncWithGoanna();
+                if (seqnoWhenPosted == mGoannaUpdateSeqno) {
+                    icUpdateGoanna(force);
                 }
             }
         });
@@ -400,22 +400,22 @@ final class GeckoEditable
         }
     }
 
-    private void icUpdateGecko(boolean force) {
+    private void icUpdateGoanna(boolean force) {
 
         // Skip if receiving a repeated request, or
         // if suppressing compositions during text selection.
         if ((!force && mIcUpdateSeqno == mLastIcUpdateSeqno) ||
             mSuppressCompositions) {
             if (DEBUG) {
-                Log.d(LOGTAG, "icUpdateGecko() skipped");
+                Log.d(LOGTAG, "icUpdateGoanna() skipped");
             }
             return;
         }
         mLastIcUpdateSeqno = mIcUpdateSeqno;
-        mActionQueue.syncWithGecko();
+        mActionQueue.syncWithGoanna();
 
         if (DEBUG) {
-            Log.d(LOGTAG, "icUpdateGecko()");
+            Log.d(LOGTAG, "icUpdateGoanna()");
         }
 
         final int selStart = mText.getSpanStart(Selection.SELECTION_START);
@@ -436,28 +436,28 @@ final class GeckoEditable
         }
         if (composingStart >= composingEnd) {
             if (selStart >= 0 && selEnd >= 0) {
-                GeckoAppShell.sendEventToGecko(
-                        GeckoEvent.createIMESelectEvent(selStart, selEnd));
+                GoannaAppShell.sendEventToGoanna(
+                        GoannaEvent.createIMESelectEvent(selStart, selEnd));
             } else {
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
-                        GeckoEvent.ImeAction.IME_REMOVE_COMPOSITION));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEEvent(
+                        GoannaEvent.ImeAction.IME_REMOVE_COMPOSITION));
             }
             return;
         }
 
         if (selEnd >= composingStart && selEnd <= composingEnd) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createIMERangeEvent(
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMERangeEvent(
                     selEnd - composingStart, selEnd - composingStart,
-                    GeckoEvent.IME_RANGE_CARETPOSITION, 0, 0, false, 0, 0, 0));
+                    GoannaEvent.IME_RANGE_CARETPOSITION, 0, 0, false, 0, 0, 0));
         }
         int rangeStart = composingStart;
         TextPaint tp = new TextPaint();
         TextPaint emptyTp = new TextPaint();
         // set initial foreground color to 0, because we check for tp.getColor() == 0
-        // below to decide whether to pass a foreground color to Gecko
+        // below to decide whether to pass a foreground color to Goanna
         emptyTp.setColor(0);
         do {
-            int rangeType, rangeStyles = 0, rangeLineStyle = GeckoEvent.IME_RANGE_LINE_NONE;
+            int rangeType, rangeStyles = 0, rangeLineStyle = GoannaEvent.IME_RANGE_LINE_NONE;
             boolean rangeBoldLine = false;
             int rangeForeColor = 0, rangeBackColor = 0, rangeLineColor = 0;
             int rangeEnd = mText.nextSpanTransition(rangeStart, composingEnd, Object.class);
@@ -477,12 +477,12 @@ final class GeckoEditable
 
             if (styleSpans.length == 0) {
                 rangeType = (selStart == rangeStart && selEnd == rangeEnd)
-                            ? GeckoEvent.IME_RANGE_SELECTEDRAWTEXT
-                            : GeckoEvent.IME_RANGE_RAWINPUT;
+                            ? GoannaEvent.IME_RANGE_SELECTEDRAWTEXT
+                            : GoannaEvent.IME_RANGE_RAWINPUT;
             } else {
                 rangeType = (selStart == rangeStart && selEnd == rangeEnd)
-                            ? GeckoEvent.IME_RANGE_SELECTEDCONVERTEDTEXT
-                            : GeckoEvent.IME_RANGE_CONVERTEDTEXT;
+                            ? GoannaEvent.IME_RANGE_SELECTEDCONVERTEDTEXT
+                            : GoannaEvent.IME_RANGE_CONVERTEDTEXT;
                 tp.set(emptyTp);
                 for (CharacterStyle span : styleSpans) {
                     span.updateDrawState(tp);
@@ -496,31 +496,31 @@ final class GeckoEditable
                     tpUnderlineThickness = (Float)getField(tp, "underlineThickness", 0.0f);
                 }
                 if (tpUnderlineColor != 0) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_UNDERLINE | GeckoEvent.IME_RANGE_LINECOLOR;
+                    rangeStyles |= GoannaEvent.IME_RANGE_UNDERLINE | GoannaEvent.IME_RANGE_LINECOLOR;
                     rangeLineColor = tpUnderlineColor;
-                    // Approximately translate underline thickness to what Gecko understands
+                    // Approximately translate underline thickness to what Goanna understands
                     if (tpUnderlineThickness <= 0.5f) {
-                        rangeLineStyle = GeckoEvent.IME_RANGE_LINE_DOTTED;
+                        rangeLineStyle = GoannaEvent.IME_RANGE_LINE_DOTTED;
                     } else {
-                        rangeLineStyle = GeckoEvent.IME_RANGE_LINE_SOLID;
+                        rangeLineStyle = GoannaEvent.IME_RANGE_LINE_SOLID;
                         if (tpUnderlineThickness >= 2.0f) {
                             rangeBoldLine = true;
                         }
                     }
                 } else if (tp.isUnderlineText()) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_UNDERLINE;
-                    rangeLineStyle = GeckoEvent.IME_RANGE_LINE_SOLID;
+                    rangeStyles |= GoannaEvent.IME_RANGE_UNDERLINE;
+                    rangeLineStyle = GoannaEvent.IME_RANGE_LINE_SOLID;
                 }
                 if (tp.getColor() != 0) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_FORECOLOR;
+                    rangeStyles |= GoannaEvent.IME_RANGE_FORECOLOR;
                     rangeForeColor = tp.getColor();
                 }
                 if (tp.bgColor != 0) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_BACKCOLOR;
+                    rangeStyles |= GoannaEvent.IME_RANGE_BACKCOLOR;
                     rangeBackColor = tp.bgColor;
                 }
             }
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createIMERangeEvent(
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMERangeEvent(
                     rangeStart - composingStart, rangeEnd - composingStart,
                     rangeType, rangeStyles, rangeLineStyle, rangeBoldLine,
                     rangeForeColor, rangeBackColor, rangeLineColor));
@@ -534,27 +534,27 @@ final class GeckoEditable
             }
         } while (rangeStart < composingEnd);
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createIMECompositionEvent(
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMECompositionEvent(
                 composingStart, composingEnd));
     }
 
-    // GeckoEditableClient interface
+    // GoannaEditableClient interface
 
     @Override
-    public void sendEvent(final GeckoEvent event) {
+    public void sendEvent(final GoannaEvent event) {
         if (DEBUG) {
             assertOnIcThread();
             Log.d(LOGTAG, "sendEvent(" + event + ")");
         }
         /*
-           We are actually sending two events to Gecko here,
+           We are actually sending two events to Goanna here,
            1. Event from the event parameter (key event, etc.)
            2. Sync event from the mActionQueue.offer call
-           The first event is a normal GeckoEvent that does not reply back to us,
+           The first event is a normal GoannaEvent that does not reply back to us,
            the second sync event will have a reply, during which we see that there is a pending
            event-type action, and update the selection/composition/etc. accordingly.
         */
-        GeckoAppShell.sendEventToGecko(event);
+        GoannaAppShell.sendEventToGoanna(event);
         mActionQueue.offer(new Action(Action.TYPE_EVENT));
     }
 
@@ -571,18 +571,18 @@ final class GeckoEditable
     }
 
     @Override
-    public void setUpdateGecko(boolean update, boolean force) {
+    public void setUpdateGoanna(boolean update, boolean force) {
         if (!onIcThread()) {
             // Android may be holding an old InputConnection; ignore
             if (DEBUG) {
-                Log.i(LOGTAG, "setUpdateGecko() called on non-IC thread");
+                Log.i(LOGTAG, "setUpdateGoanna() called on non-IC thread");
             }
             return;
         }
         if (update) {
-            icUpdateGecko(force);
+            icUpdateGoanna(force);
         }
-        mUpdateGecko = update;
+        mUpdateGoanna = update;
     }
 
     @Override
@@ -614,20 +614,20 @@ final class GeckoEditable
         if (DEBUG) {
             assertOnIcThread();
         }
-        // There are three threads at this point: Gecko thread, old IC thread, and new IC
+        // There are three threads at this point: Goanna thread, old IC thread, and new IC
         // thread, and we want to safely switch from old IC thread to new IC thread.
-        // We first send a TYPE_SET_HANDLER action to the Gecko thread; this ensures that
-        // the Gecko thread is stopped at a known point. At the same time, the old IC
+        // We first send a TYPE_SET_HANDLER action to the Goanna thread; this ensures that
+        // the Goanna thread is stopped at a known point. At the same time, the old IC
         // thread blocks on the action; this ensures that the old IC thread is stopped at
-        // a known point. Finally, inside the Gecko thread, we post a Runnable to the old
+        // a known point. Finally, inside the Goanna thread, we post a Runnable to the old
         // IC thread; this Runnable switches from old IC thread to new IC thread. We
         // switch IC thread on the old IC thread to ensure any pending Runnables on the
-        // old IC thread are processed before we switch over. Inside the Gecko thread, we
+        // old IC thread are processed before we switch over. Inside the Goanna thread, we
         // also post a Runnable to the new IC thread; this Runnable blocks until the
         // switch is complete; this ensures that the new IC thread won't accept
         // InputConnection calls until after the switch.
         mActionQueue.offer(Action.newSetHandler(handler));
-        mActionQueue.syncWithGecko();
+        mActionQueue.syncWithGoanna();
         return true;
     }
 
@@ -662,12 +662,12 @@ final class GeckoEditable
         });
     }
 
-    // GeckoEditableListener interface
+    // GoannaEditableListener interface
 
     private void geckoActionReply() {
         if (DEBUG) {
-            // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            // GoannaEditableListener methods should all be called from the Goanna thread
+            ThreadUtils.assertOnGoannaThread();
         }
         final Action action = mActionQueue.peek();
 
@@ -692,7 +692,7 @@ final class GeckoEditable
             geckoPostToIc(new Runnable() {
                 @Override
                 public void run() {
-                    mActionQueue.syncWithGecko();
+                    mActionQueue.syncWithGoanna();
                     final int start = Selection.getSelectionStart(mText);
                     final int end = Selection.getSelectionEnd(mText);
                     if (selStart == start && selEnd == end) {
@@ -717,19 +717,19 @@ final class GeckoEditable
             break;
         }
         if (action.mShouldUpdate) {
-            geckoUpdateGecko(false);
+            geckoUpdateGoanna(false);
         }
     }
 
     @Override
     public void notifyIME(final int type) {
         if (DEBUG) {
-            // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            // GoannaEditableListener methods should all be called from the Goanna thread
+            ThreadUtils.assertOnGoannaThread();
             // NOTIFY_IME_REPLY_EVENT is logged separately, inside geckoActionReply()
             if (type != NOTIFY_IME_REPLY_EVENT) {
                 Log.d(LOGTAG, "notifyIME(" +
-                              getConstantName(GeckoEditableListener.class, "NOTIFY_IME_", type) +
+                              getConstantName(GoannaEditableListener.class, "NOTIFY_IME_", type) +
                               ")");
             }
         }
@@ -756,55 +756,55 @@ final class GeckoEditable
                     mFocused = false;
                 } else if (type == NOTIFY_IME_OF_FOCUS) {
                     mFocused = true;
-                    // Unmask events on the Gecko side
+                    // Unmask events on the Goanna side
                     mActionQueue.offer(new Action(Action.TYPE_ACKNOWLEDGE_FOCUS));
                 }
                 // Make sure there are no other things going on. If we sent
-                // GeckoEvent.IME_ACKNOWLEDGE_FOCUS, this line also makes us
-                // wait for Gecko to update us on the newly focused content
-                mActionQueue.syncWithGecko();
+                // GoannaEvent.IME_ACKNOWLEDGE_FOCUS, this line also makes us
+                // wait for Goanna to update us on the newly focused content
+                mActionQueue.syncWithGoanna();
                 mListener.notifyIME(type);
             }
         });
 
-        // Register/unregister Gecko-side text selection listeners
-        // and update the mGeckoFocused flag.
-        if (type == NOTIFY_IME_OF_BLUR && mGeckoFocused) {
-            // Check for focus here because Gecko may send us a blur before a focus in some
+        // Register/unregister Goanna-side text selection listeners
+        // and update the mGoannaFocused flag.
+        if (type == NOTIFY_IME_OF_BLUR && mGoannaFocused) {
+            // Check for focus here because Goanna may send us a blur before a focus in some
             // cases, and we don't want to unregister an event that was not registered.
-            mGeckoFocused = false;
+            mGoannaFocused = false;
             mSuppressCompositions = false;
             EventDispatcher.getInstance().
-                unregisterGeckoThreadListener(this, "TextSelection:DraggingHandle");
+                unregisterGoannaThreadListener(this, "TextSelection:DraggingHandle");
         } else if (type == NOTIFY_IME_OF_FOCUS) {
-            mGeckoFocused = true;
+            mGoannaFocused = true;
             mSuppressCompositions = false;
             EventDispatcher.getInstance().
-                registerGeckoThreadListener(this, "TextSelection:DraggingHandle");
+                registerGoannaThreadListener(this, "TextSelection:DraggingHandle");
         }
     }
 
     @Override
     public void notifyIMEContext(final int state, final String typeHint,
                           final String modeHint, final String actionHint) {
-        // Because we want to be able to bind GeckoEditable to the newest LayerView instance,
-        // this can be called from the Java IC thread in addition to the Gecko thread.
+        // Because we want to be able to bind GoannaEditable to the newest LayerView instance,
+        // this can be called from the Java IC thread in addition to the Goanna thread.
         if (DEBUG) {
             Log.d(LOGTAG, "notifyIMEContext(" +
-                          getConstantName(GeckoEditableListener.class, "IME_STATE_", state) +
+                          getConstantName(GoannaEditableListener.class, "IME_STATE_", state) +
                           ", \"" + typeHint + "\", \"" + modeHint + "\", \"" + actionHint + "\")");
         }
         geckoPostToIc(new Runnable() {
             @Override
             public void run() {
                 // Make sure there are no other things going on
-                mActionQueue.syncWithGecko();
+                mActionQueue.syncWithGoanna();
                 // Set InputConnectionHandler in notifyIMEContext because
-                // GeckoInputConnection.notifyIMEContext calls restartInput() which will invoke
+                // GoannaInputConnection.notifyIMEContext calls restartInput() which will invoke
                 // InputConnectionHandler.onCreateInputConnection
-                LayerView v = GeckoAppShell.getLayerView();
+                LayerView v = GoannaAppShell.getLayerView();
                 if (v != null) {
-                    mListener = GeckoInputConnection.create(v, GeckoEditable.this);
+                    mListener = GoannaInputConnection.create(v, GoannaEditable.this);
                     v.setInputConnectionHandler((InputConnectionHandler)mListener);
                     mListener.notifyIMEContext(state, typeHint, modeHint, actionHint);
                 }
@@ -815,8 +815,8 @@ final class GeckoEditable
     @Override
     public void onSelectionChange(final int start, final int end) {
         if (DEBUG) {
-            // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            // GoannaEditableListener methods should all be called from the Goanna thread
+            ThreadUtils.assertOnGoannaThread();
             Log.d(LOGTAG, "onSelectionChange(" + start + ", " + end + ")");
         }
         if (start < 0 || start > mText.length() || end < 0 || end > mText.length()) {
@@ -824,7 +824,7 @@ final class GeckoEditable
                   start + " to " + end + ", length: " + mText.length());
             throw new IllegalArgumentException("invalid selection notification range");
         }
-        final int seqnoWhenPosted = ++mGeckoUpdateSeqno;
+        final int seqnoWhenPosted = ++mGoannaUpdateSeqno;
 
         /* An event (keypress, etc.) has potentially changed the selection,
            synchronize the selection here. There is not a race with the IC thread
@@ -838,19 +838,19 @@ final class GeckoEditable
         geckoPostToIc(new Runnable() {
             @Override
             public void run() {
-                mActionQueue.syncWithGecko();
+                mActionQueue.syncWithGoanna();
                 /* check to see there has not been another action that potentially changed the
                    selection. If so, we can skip this update because we know there is another
                    update right after this one that will replace the effect of this update */
-                if (mGeckoUpdateSeqno == seqnoWhenPosted) {
-                    /* In this case, Gecko's selection has changed and it's notifying us to change
+                if (mGoannaUpdateSeqno == seqnoWhenPosted) {
+                    /* In this case, Goanna's selection has changed and it's notifying us to change
                        Java's selection. In the normal case, whenever Java's selection changes,
-                       we go back and set Gecko's selection as well. However, in this case,
-                       since Gecko's selection is already up-to-date, we skip this step. */
-                    boolean oldUpdateGecko = mUpdateGecko;
-                    mUpdateGecko = false;
+                       we go back and set Goanna's selection as well. However, in this case,
+                       since Goanna's selection is already up-to-date, we skip this step. */
+                    boolean oldUpdateGoanna = mUpdateGoanna;
+                    mUpdateGoanna = false;
                     Selection.setSelection(mProxy, start, end);
-                    mUpdateGecko = oldUpdateGecko;
+                    mUpdateGoanna = oldUpdateGoanna;
                 }
             }
         });
@@ -867,8 +867,8 @@ final class GeckoEditable
     public void onTextChange(final CharSequence text, final int start,
                       final int unboundedOldEnd, final int unboundedNewEnd) {
         if (DEBUG) {
-            // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            // GoannaEditableListener methods should all be called from the Goanna thread
+            ThreadUtils.assertOnGoannaThread();
             StringBuilder sb = new StringBuilder("onTextChange(");
             debugAppend(sb, text);
             sb.append(", ").append(start).append(", ")
@@ -881,7 +881,7 @@ final class GeckoEditable
                   start + " to " + unboundedOldEnd);
             throw new IllegalArgumentException("invalid text notification range");
         }
-        /* For the "end" parameters, Gecko can pass in a large
+        /* For the "end" parameters, Goanna can pass in a large
            number to denote "end of the text". Fix that here */
         final int oldEnd = unboundedOldEnd > mText.length() ? mText.length() : unboundedOldEnd;
         // new end should always match text
@@ -893,10 +893,10 @@ final class GeckoEditable
         final int newEnd = start + text.length();
 
         /* Text changes affect the selection as well, and we may not receive another selection
-           update as a result of selection notification masking on the Gecko side; therefore,
+           update as a result of selection notification masking on the Goanna side; therefore,
            in order to prevent previous stale selection notifications from occurring, we need
            to increment the seqno here as well */
-        ++mGeckoUpdateSeqno;
+        ++mGoannaUpdateSeqno;
 
         mChangedText.clearSpans();
         mChangedText.replace(0, mChangedText.length(), text);
@@ -922,7 +922,7 @@ final class GeckoEditable
                 geckoReplaceText(start, oldEnd, mChangedText);
 
                 // delete/insert above might have moved our selection to somewhere else
-                // this happens when the Gecko text change covers a larger range than
+                // this happens when the Goanna text change covers a larger range than
                 // the original replacement action. Fix selection here
                 if (selStart >= start && selStart <= oldEnd) {
                     selStart = selStart < action.mStart ? selStart :
@@ -970,8 +970,8 @@ final class GeckoEditable
     static StringBuilder debugAppend(StringBuilder sb, Object obj) {
         if (obj == null) {
             sb.append("null");
-        } else if (obj instanceof GeckoEditable) {
-            sb.append("GeckoEditable");
+        } else if (obj instanceof GoannaEditable) {
+            sb.append("GoannaEditable");
         } else if (Proxy.isProxyClass(obj.getClass())) {
             debugAppend(sb, Proxy.getInvocationHandler(obj));
         } else if (obj instanceof CharSequence) {
@@ -1000,9 +1000,9 @@ final class GeckoEditable
             // Method alters the Editable; route calls to our implementation
             target = this;
         } else {
-            // Method queries the Editable; must sync with Gecko first
+            // Method queries the Editable; must sync with Goanna first
             // then call on the inner Editable itself
-            mActionQueue.syncWithGecko();
+            mActionQueue.syncWithGoanna();
             target = mText;
         }
         Object ret;
@@ -1010,7 +1010,7 @@ final class GeckoEditable
             ret = method.invoke(target, args);
         } catch (InvocationTargetException e) {
             // Bug 817386
-            // Most likely Gecko has changed the text while GeckoInputConnection is
+            // Most likely Goanna has changed the text while GoannaInputConnection is
             // trying to access the text. If we pass through the exception here, Fennec
             // will crash due to a lack of exception handler. Log the exception and
             // return an empty value instead.
@@ -1019,7 +1019,7 @@ final class GeckoEditable
                 // as other exceptions might signal other bugs
                 throw e;
             }
-            Log.w(LOGTAG, "Exception in GeckoEditable." + method.getName(), e.getCause());
+            Log.w(LOGTAG, "Exception in GoannaEditable." + method.getName(), e.getCause());
             Class<?> retClass = method.getReturnType();
             if (retClass == Character.TYPE) {
                 ret = '\0';
@@ -1112,7 +1112,7 @@ final class GeckoEditable
     @Override
     public void clearSpans() {
         /* XXX this clears the selection spans too,
-           but there is no way to clear the corresponding selection in Gecko */
+           but there is no way to clear the corresponding selection in Goanna */
         Log.w(LOGTAG, "selection cleared with clearSpans()");
         mText.clearSpans();
     }
@@ -1131,7 +1131,7 @@ final class GeckoEditable
             text = text.subSequence(start, end);
         }
         if (mFilters != null) {
-            // Filter text before sending the request to Gecko
+            // Filter text before sending the request to Goanna
             for (int i = 0; i < mFilters.length; ++i) {
                 final CharSequence cs = mFilters[i].filter(
                         text, 0, text.length(), mProxy, st, en);
@@ -1179,9 +1179,9 @@ final class GeckoEditable
 
     @Override
     public void getChars(int start, int end, char[] dest, int destoff) {
-        /* overridden Editable interface methods in GeckoEditable must not be called directly
-           outside of GeckoEditable. Instead, the call must go through mProxy, which ensures
-           that Java is properly synchronized with Gecko */
+        /* overridden Editable interface methods in GoannaEditable must not be called directly
+           outside of GoannaEditable. Instead, the call must go through mProxy, which ensures
+           that Java is properly synchronized with Goanna */
         throw new UnsupportedOperationException("method must be called through mProxy");
     }
 
@@ -1235,7 +1235,7 @@ final class GeckoEditable
         throw new UnsupportedOperationException("method must be called through mProxy");
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
 
     @Override
     public void handleMessage(String event, JSONObject message) {

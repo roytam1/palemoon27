@@ -11,10 +11,10 @@ import android.text.Editable;
 /**
  * Interface for the IC thread.
  */
-interface GeckoEditableClient {
-    void sendEvent(GeckoEvent event);
+interface GoannaEditableClient {
+    void sendEvent(GoannaEvent event);
     Editable getEditable();
-    void setUpdateGecko(boolean update, boolean force);
+    void setUpdateGoanna(boolean update, boolean force);
     void setSuppressKeyUp(boolean suppress);
     Handler getInputConnectionHandler();
     boolean setInputConnectionHandler(Handler handler);

@@ -8,27 +8,27 @@ package org.mozilla.gecko.prompts;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.Context;
 import android.util.Log;
 
-public class PromptService implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoPromptService";
+public class PromptService implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaPromptService";
 
     private final Context mContext;
 
     public PromptService(Context context) {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Prompt:Show",
             "Prompt:ShowTop");
         mContext = context;
     }
 
     public void destroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "Prompt:Show",
             "Prompt:ShowTop");
     }
@@ -46,7 +46,7 @@ public class PromptService implements GeckoEventListener {
         });
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
     @Override
     public void handleMessage(String event, final JSONObject message) {
         // The dialog must be created on the UI thread.

@@ -34,7 +34,7 @@ import java.util.List;
  */
 public class RemoteTabsSplitPlaneFragment extends RemoteTabsBaseFragment {
     // Logging tag name.
-    private static final String LOGTAG = "GeckoSplitPlaneFragment";
+    private static final String LOGTAG = "GoannaSplitPlaneFragment";
 
     private ArrayAdapter<RemoteTab> mTabsAdapter;
     private ArrayAdapter<RemoteClient> mClientsAdapter;

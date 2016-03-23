@@ -8,7 +8,7 @@ package org.mozilla.gecko.gfx;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.util.FloatUtils;
 
@@ -23,7 +23,7 @@ import android.view.View;
  * a particular axis.
  */
 abstract class Axis {
-    private static final String LOGTAG = "GeckoAxis";
+    private static final String LOGTAG = "GoannaAxis";
 
     private static final String PREF_SCROLLING_FRICTION_SLOW = "ui.scrolling.friction_slow";
     private static final String PREF_SCROLLING_FRICTION_FAST = "ui.scrolling.friction_fast";
@@ -148,7 +148,7 @@ abstract class Axis {
         FRICTION_SLOW = getFloatPref(prefs, PREF_SCROLLING_FRICTION_SLOW, 850);
         FRICTION_FAST = getFloatPref(prefs, PREF_SCROLLING_FRICTION_FAST, 970);
         VELOCITY_THRESHOLD = 10 / FRAMERATE_MULTIPLIER;
-        MAX_EVENT_ACCELERATION = getFloatPref(prefs, PREF_SCROLLING_MAX_EVENT_ACCELERATION, GeckoAppShell.getDpi() > 300 ? 100 : 40);
+        MAX_EVENT_ACCELERATION = getFloatPref(prefs, PREF_SCROLLING_MAX_EVENT_ACCELERATION, GoannaAppShell.getDpi() > 300 ? 100 : 40);
         OVERSCROLL_DECEL_RATE = getFloatPref(prefs, PREF_SCROLLING_OVERSCROLL_DECEL_RATE, 40);
         SNAP_LIMIT = getFloatPref(prefs, PREF_SCROLLING_OVERSCROLL_SNAP_LIMIT, 300);
         MIN_SCROLLABLE_DISTANCE = getFloatPref(prefs, PREF_SCROLLING_MIN_SCROLLABLE_DISTANCE, 500);
@@ -292,8 +292,8 @@ abstract class Axis {
     }
 
     void updateWithTouchAt(float pos, float timeDelta) {
-        float curveVelocityThreshold = FLING_CURVE_THRESHOLD_VELOCITY * GeckoAppShell.getDpi() * MS_PER_FRAME;
-        float maxVelocity = FLING_CURVE_MAXIMUM_VELOCITY * GeckoAppShell.getDpi() * MS_PER_FRAME;
+        float curveVelocityThreshold = FLING_CURVE_THRESHOLD_VELOCITY * GoannaAppShell.getDpi() * MS_PER_FRAME;
+        float maxVelocity = FLING_CURVE_MAXIMUM_VELOCITY * GoannaAppShell.getDpi() * MS_PER_FRAME;
 
         float newVelocity = (mTouchPos - pos) / timeDelta * MS_PER_FRAME;
 

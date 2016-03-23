@@ -5,8 +5,8 @@
 
 package org.mozilla.gecko.widget;
 
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.menu.GeckoMenuInflater;
+import org.mozilla.gecko.menu.GoannaMenu;
+import org.mozilla.gecko.menu.GoannaMenuInflater;
 import org.mozilla.gecko.menu.MenuPanel;
 import org.mozilla.gecko.menu.MenuPopup;
 
@@ -17,15 +17,15 @@ import android.view.MenuItem;
 import android.view.View;
 
 /**
- * A PopupMenu that uses the custom GeckoMenu. This menu is
+ * A PopupMenu that uses the custom GoannaMenu. This menu is
  * usually tied to an anchor, and show as a dropdrown from the anchor.
  */
-public class GeckoPopupMenu implements GeckoMenu.Callback,
-                                       GeckoMenu.MenuPresenter {
+public class GoannaPopupMenu implements GoannaMenu.Callback,
+                                       GoannaMenu.MenuPresenter {
 
     // An interface for listeners for dismissal.
     public static interface OnDismissListener {
-        public boolean onDismiss(GeckoMenu menu);
+        public boolean onDismiss(GoannaMenu menu);
     }
 
     // An interface for listeners for menu item click events.
@@ -43,18 +43,18 @@ public class GeckoPopupMenu implements GeckoMenu.Callback,
     private MenuPopup mMenuPopup;
     private MenuPanel mMenuPanel;
 
-    private GeckoMenu mMenu;
-    private GeckoMenuInflater mMenuInflater;
+    private GoannaMenu mMenu;
+    private GoannaMenuInflater mMenuInflater;
 
     private OnDismissListener mDismissListener;
     private OnMenuItemClickListener mClickListener;
     private OnMenuItemLongClickListener mLongClickListener;
 
-    public GeckoPopupMenu(Context context) {
+    public GoannaPopupMenu(Context context) {
         initialize(context, null);
     }
 
-    public GeckoPopupMenu(Context context, View anchor) {
+    public GoannaPopupMenu(Context context, View anchor) {
         initialize(context, anchor);
     }
 
@@ -63,10 +63,10 @@ public class GeckoPopupMenu implements GeckoMenu.Callback,
      * If an anchor is supplied, it is stored as well.
      */
     private void initialize(Context context, View anchor) {
-        mMenu = new GeckoMenu(context, null);
+        mMenu = new GoannaMenu(context, null);
         mMenu.setCallback(this);
         mMenu.setMenuPresenter(this);
-        mMenuInflater = new GeckoMenuInflater(context);
+        mMenuInflater = new GoannaMenuInflater(context);
 
         mMenuPopup = new MenuPopup(context);
         mMenuPanel = new MenuPanel(context, null);

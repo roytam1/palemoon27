@@ -33,7 +33,7 @@ import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.widget.TwoWayView;
 
 public class TabStripView extends TwoWayView {
-    private static final String LOGTAG = "GeckoTabStrip";
+    private static final String LOGTAG = "GoannaTabStrip";
 
     private static final int ANIM_TIME_MS = 200;
     private static final DecelerateInterpolator ANIM_INTERPOLATOR =

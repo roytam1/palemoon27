@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "ProfilerBacktrace.h"
 #include "ProfilerMarkers.h"
 #include "gfxASurface.h"

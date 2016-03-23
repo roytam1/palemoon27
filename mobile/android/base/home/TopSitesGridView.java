@@ -21,7 +21,7 @@ import android.widget.GridView;
  * Each cell in the grid is a TopSitesGridItemView.
  */
 public class TopSitesGridView extends GridView {
-    private static final String LOGTAG = "GeckoTopSitesGridView";
+    private static final String LOGTAG = "GoannaTopSitesGridView";
 
     // Listener for editing pinned sites.
     public static interface OnEditPinnedSiteListener {

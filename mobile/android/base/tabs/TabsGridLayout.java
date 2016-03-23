@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.tabs.TabsPanel.TabsLayout;
@@ -45,7 +45,7 @@ import com.nineoldandroids.animation.ValueAnimator;
 class TabsGridLayout extends GridView
                      implements TabsLayout,
                                 Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "Gecko" + TabsGridLayout.class.getSimpleName();
+    private static final String LOGTAG = "Goanna" + TabsGridLayout.class.getSimpleName();
 
     private static final int ANIM_TIME_MS = 200;
     public static final int ANIM_DELAY_MULTIPLE_MS = 20;
@@ -204,7 +204,7 @@ class TabsGridLayout extends GridView
     public void hide() {
         setVisibility(View.GONE);
         Tabs.unregisterOnTabsChangedListener(this);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Screenshot:Cancel",""));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Screenshot:Cancel",""));
         mTabsAdapter.clear();
     }
 

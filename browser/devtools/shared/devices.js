@@ -45,7 +45,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 570,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -53,7 +53,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; ALCATELOneTouch4012X; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; ALCATELOneTouch4012X; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -61,7 +61,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Mobile; ALCATELOneTouch4012X; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; ALCATELOneTouch4012X; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -69,7 +69,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -77,7 +77,7 @@ Devices.FirefoxOS = {
       width: 360,
       height: 640,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -85,7 +85,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -93,7 +93,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; LG-D300; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; LG-D300; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -101,7 +101,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -109,7 +109,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -117,7 +117,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -125,7 +125,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; ZTEOPEN; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; ZTEOPEN; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -133,7 +133,7 @@ Devices.FirefoxOS = {
       width: 320,
       height: 450,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Mobile; OPENC; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; OPENC; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
   ],
@@ -143,7 +143,7 @@ Devices.FirefoxOS = {
       width: 1280,
       height: 800,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
     {
@@ -151,7 +151,7 @@ Devices.FirefoxOS = {
       width: 1024,
       height: 600,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Gecko/28.0 Firefox/28.0",
+      userAgent: "Mozilla/5.0 (Mobile; rv:28.0) Goanna/28.0 Firefox/28.0",
       touch: true,
     },
   ],
@@ -228,7 +228,7 @@ Devices.Others = {
       width: 320,
       height: 480,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_2_1 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8C148 Safari/6533.18.5",
+      userAgent: "Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_2_1 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Goanna) Version/5.0.2 Mobile/8C148 Safari/6533.18.5",
       touch: true,
     },
     {
@@ -236,7 +236,7 @@ Devices.Others = {
       width: 320,
       height: 480,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_2_1 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8C148 Safari/6533.18.5",
+      userAgent: "Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_2_1 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Goanna) Version/5.0.2 Mobile/8C148 Safari/6533.18.5",
       touch: true,
     },
     {
@@ -244,7 +244,7 @@ Devices.Others = {
       width: 320,
       height: 568,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 7_0 like Mac OS X; en-us) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11A465 Safari/9537.53",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 7_0 like Mac OS X; en-us) AppleWebKit/537.51.1 (KHTML, like Goanna) Version/7.0 Mobile/11A465 Safari/9537.53",
       touch: true,
     },
     {
@@ -252,7 +252,7 @@ Devices.Others = {
       width: 375,
       height: 667,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.3 (KHTML, like Gecko) Version/8.0 Mobile/12A4345d Safari/600.1.4",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.3 (KHTML, like Goanna) Version/8.0 Mobile/12A4345d Safari/600.1.4",
       touch: true,
     },
     {
@@ -260,7 +260,7 @@ Devices.Others = {
       width: 414,
       height: 736,
       pixelRatio: 3,
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.3 (KHTML, like Gecko) Version/8.0 Mobile/12A4345d Safari/600.1.4",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.3 (KHTML, like Goanna) Version/8.0 Mobile/12A4345d Safari/600.1.4",
       touch: true,
     },
     {
@@ -268,7 +268,7 @@ Devices.Others = {
       width: 384,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (BB10; Touch) AppleWebKit/537.10+ (KHTML, like Gecko) Version/10.0.9.2372 Mobile Safari/537.10+",
+      userAgent: "Mozilla/5.0 (BB10; Touch) AppleWebKit/537.10+ (KHTML, like Goanna) Version/10.0.9.2372 Mobile Safari/537.10+",
       touch: true,
     },
     {
@@ -276,7 +276,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (BB10; Touch) AppleWebKit/537.10+ (KHTML, like Gecko) Version/10.0.9.2372 Mobile Safari/537.10+",
+      userAgent: "Mozilla/5.0 (BB10; Touch) AppleWebKit/537.10+ (KHTML, like Goanna) Version/10.0.9.2372 Mobile Safari/537.10+",
       touch: true,
     },
     {
@@ -284,7 +284,7 @@ Devices.Others = {
       width: 384,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.2.1; en-us; Nexus 4 Build/JOP40D) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.166 Mobile Safari/535.19",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.2.1; en-us; Nexus 4 Build/JOP40D) AppleWebKit/535.19 (KHTML, like Goanna) Chrome/18.0.1025.166 Mobile Safari/535.19",
       touch: true,
     },
     {
@@ -292,7 +292,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 3,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.2.1; en-us; Nexus 5 Build/JOP40D) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.166 Mobile Safari/535.19",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.2.1; en-us; Nexus 5 Build/JOP40D) AppleWebKit/535.19 (KHTML, like Goanna) Chrome/18.0.1025.166 Mobile Safari/535.19",
       touch: true,
     },
     {
@@ -300,7 +300,7 @@ Devices.Others = {
       width: 320,
       height: 533,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3.4; en-us; Nexus S Build/GRJ22) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3.4; en-us; Nexus S Build/GRJ22) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -308,7 +308,7 @@ Devices.Others = {
       width: 320,
       height: 533,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; Sprint APA9292KT Build/FRF91) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; Sprint APA9292KT Build/FRF91) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -316,7 +316,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.0.3; HTC One X Build/IML74K) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.0.3; HTC One X Build/IML74K) AppleWebKit/535.19 (KHTML, like Goanna) Chrome/18.0.1025.133 Mobile Safari/535.19",
       touch: true,
     },
     {
@@ -324,7 +324,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 4.0.3; en-us; HTC Sensation Build/IML74K) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 4.0.3; en-us; HTC Sensation Build/IML74K) AppleWebKit/534.30 (KHTML, like Goanna) Version/4.0 Mobile Safari/534.30",
       touch: true,
     },
     {
@@ -332,7 +332,7 @@ Devices.Others = {
       width: 320,
       height: 533,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; LG-P990/V08c Build/FRG83) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1 MMS/LG-Android-MMS-V1.0/1.2",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; LG-P990/V08c Build/FRG83) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1 MMS/LG-Android-MMS-V1.0/1.2",
       touch: true,
     },
     {
@@ -340,7 +340,7 @@ Devices.Others = {
       width: 384,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.0; LG-E975 Build/IMM76L) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.166 Mobile Safari/535.19",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.0; LG-E975 Build/IMM76L) AppleWebKit/535.19 (KHTML, like Goanna) Chrome/18.0.1025.166 Mobile Safari/535.19",
       touch: true,
     },
     {
@@ -348,7 +348,7 @@ Devices.Others = {
       width: 424,
       height: 753,
       pixelRatio: 1.7,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; LG-P930 Build/GRJ90) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; LG-P930 Build/GRJ90) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -356,7 +356,7 @@ Devices.Others = {
       width: 213,
       height: 320,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2.1; en-us; LG-MS690 Build/FRG83) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2.1; en-us; LG-MS690 Build/FRG83) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -364,7 +364,7 @@ Devices.Others = {
       width: 320,
       height: 569,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.0; en-us; Milestone Build/ SHOLS_U2_01.03.1) AppleWebKit/530.17 (KHTML, like Gecko) Version/4.0 Mobile Safari/530.17",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.0; en-us; Milestone Build/ SHOLS_U2_01.03.1) AppleWebKit/530.17 (KHTML, like Goanna) Version/4.0 Mobile Safari/530.17",
       touch: true,
     },
     {
@@ -372,7 +372,7 @@ Devices.Others = {
       width: 540,
       height: 960,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; Droid Build/FRG22D) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; Droid Build/FRG22D) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -380,7 +380,7 @@ Devices.Others = {
       width: 720,
       height: 1280,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; DROID RAZR 4G Build/6.5.1-73_DHD-11_M1-29) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; DROID RAZR 4G Build/6.5.1-73_DHD-11_M1-29) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -388,7 +388,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 1,
-      userAgent: "NokiaN97/21.1.107 (SymbianOS/9.4; Series60/5.0 Mozilla/5.0; Profile/MIDP-2.1 Configuration/CLDC-1.1) AppleWebkit/525 (KHTML, like Gecko) BrowserNG/7.1.4",
+      userAgent: "NokiaN97/21.1.107 (SymbianOS/9.4; Series60/5.0 Mozilla/5.0; Profile/MIDP-2.1 Configuration/CLDC-1.1) AppleWebkit/525 (KHTML, like Goanna) BrowserNG/7.1.4",
       touch: true,
     },
     {
@@ -404,7 +404,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 3,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 4.3; en-us; SM-N900T Build/JSS15J) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 4.3; en-us; SM-N900T Build/JSS15J) AppleWebKit/534.30 (KHTML, like Goanna) Version/4.0 Mobile Safari/534.30",
       touch: true,
     },
     {
@@ -412,7 +412,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 4.1; en-us; GT-N7100 Build/JRO03C) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 4.1; en-us; GT-N7100 Build/JRO03C) AppleWebKit/534.30 (KHTML, like Goanna) Version/4.0 Mobile Safari/534.30",
       touch: true,
     },
     {
@@ -420,7 +420,7 @@ Devices.Others = {
       width: 400,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; SAMSUNG-SGH-I717 Build/GINGERBREAD) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; SAMSUNG-SGH-I717 Build/GINGERBREAD) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -428,7 +428,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 4.0; en-us; GT-I9300 Build/IMM76D) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 4.0; en-us; GT-I9300 Build/IMM76D) AppleWebKit/534.30 (KHTML, like Goanna) Version/4.0 Mobile Safari/534.30",
       touch: true,
     },
     {
@@ -436,7 +436,7 @@ Devices.Others = {
       width: 320,
       height: 533,
       pixelRatio: 1.5,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.1; en-us; GT-I9000 Build/ECLAIR) AppleWebKit/525.10+ (KHTML, like Gecko) Version/3.0.4 Mobile Safari/523.12.2",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.1; en-us; GT-I9000 Build/ECLAIR) AppleWebKit/525.10+ (KHTML, like Goanna) Version/3.0.4 Mobile Safari/523.12.2",
       touch: true,
     },
     {
@@ -444,7 +444,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 3,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.2.2; GT-I9505 Build/JDQ39) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.59 Mobile Safari/537.36",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.2.2; GT-I9505 Build/JDQ39) AppleWebKit/537.36 (KHTML, like Goanna) Chrome/31.0.1650.59 Mobile Safari/537.36",
       touch: true,
     },
     {
@@ -452,7 +452,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 4.0; en-us; LT28at Build/6.1.C.1.111) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 4.0; en-us; LT28at Build/6.1.C.1.111) AppleWebKit/534.30 (KHTML, like Goanna) Version/4.0 Mobile Safari/534.30",
       touch: true,
     },
     {
@@ -460,7 +460,7 @@ Devices.Others = {
       width: 480,
       height: 854,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; SonyEricssonST25i Build/6.0.B.1.564) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.3; en-us; SonyEricssonST25i Build/6.0.B.1.564) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -468,7 +468,7 @@ Devices.Others = {
       width: 360,
       height: 640,
       pixelRatio: 3,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 4.2; en-us; SonyC6903 Build/14.1.G.1.518) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 4.2; en-us; SonyC6903 Build/14.1.G.1.518) AppleWebKit/534.30 (KHTML, like Goanna) Version/4.0 Mobile Safari/534.30",
       touch: true,
     },
   ],
@@ -478,7 +478,7 @@ Devices.Others = {
       width: 1920,
       height: 1200,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; U; en-us; KFTHWI Build/JDQ39) AppleWebKit/535.19 (KHTML, like Gecko) Silk/3.13 Safari/535.19 Silk-Accelerated=true",
+      userAgent: "Mozilla/5.0 (Linux; U; en-us; KFTHWI Build/JDQ39) AppleWebKit/535.19 (KHTML, like Goanna) Silk/3.13 Safari/535.19 Silk-Accelerated=true",
       touch: true,
     },
     {
@@ -486,7 +486,7 @@ Devices.Others = {
       width: 2560,
       height: 1600,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; U; en-us; KFAPWI Build/JDQ39) AppleWebKit/535.19 (KHTML, like Gecko) Silk/3.13 Safari/535.19 Silk-Accelerated=true",
+      userAgent: "Mozilla/5.0 (Linux; U; en-us; KFAPWI Build/JDQ39) AppleWebKit/535.19 (KHTML, like Goanna) Silk/3.13 Safari/535.19 Silk-Accelerated=true",
       touch: true,
     },
     {
@@ -494,7 +494,7 @@ Devices.Others = {
       width: 1024,
       height: 600,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_3; en-us; Silk/1.0.141.16-Gen4_11004310) AppleWebkit/533.16 (KHTML, like Gecko) Version/5.0 Safari/533.16 Silk-Accelerated=true",
+      userAgent: "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_3; en-us; Silk/1.0.141.16-Gen4_11004310) AppleWebkit/533.16 (KHTML, like Goanna) Version/5.0 Safari/533.16 Silk-Accelerated=true",
       touch: true,
     },
     {
@@ -502,7 +502,7 @@ Devices.Others = {
       width: 1024,
       height: 768,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (iPad; CPU OS 4_3_5 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8L1 Safari/6533.18.5",
+      userAgent: "Mozilla/5.0 (iPad; CPU OS 4_3_5 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Goanna) Version/5.0.2 Mobile/8L1 Safari/6533.18.5",
       touch: true,
     },
     {
@@ -510,7 +510,7 @@ Devices.Others = {
       width: 1024,
       height: 768,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (iPad; CPU OS 7_0 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11A465 Safari/9537.53",
+      userAgent: "Mozilla/5.0 (iPad; CPU OS 7_0 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Goanna) Version/7.0 Mobile/11A465 Safari/9537.53",
       touch: true,
     },
     {
@@ -518,7 +518,7 @@ Devices.Others = {
       width: 1024,
       height: 600,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (PlayBook; U; RIM Tablet OS 2.1.0; en-US) AppleWebKit/536.2+ (KHTML like Gecko) Version/7.2.1.0 Safari/536.2+",
+      userAgent: "Mozilla/5.0 (PlayBook; U; RIM Tablet OS 2.1.0; en-US) AppleWebKit/536.2+ (KHTML like Goanna) Version/7.2.1.0 Safari/536.2+",
       touch: true,
     },
     {
@@ -526,7 +526,7 @@ Devices.Others = {
       width: 1280,
       height: 800,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.3; Nexus 10 Build/JSS15Q) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.72 Safari/537.36",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.3; Nexus 10 Build/JSS15Q) AppleWebKit/537.36 (KHTML, like Goanna) Chrome/29.0.1547.72 Safari/537.36",
       touch: true,
     },
     {
@@ -534,7 +534,7 @@ Devices.Others = {
       width: 960,
       height: 600,
       pixelRatio: 2,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.3; Nexus 7 Build/JSS15Q) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.72 Safari/537.36",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.3; Nexus 7 Build/JSS15Q) AppleWebKit/537.36 (KHTML, like Goanna) Chrome/29.0.1547.72 Safari/537.36",
       touch: true,
     },
     {
@@ -542,7 +542,7 @@ Devices.Others = {
       width: 966,
       height: 604,
       pixelRatio: 1.325,
-      userAgent: "Mozilla/5.0 (Linux; Android 4.3; Nexus 7 Build/JSS15Q) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.72 Safari/537.36",
+      userAgent: "Mozilla/5.0 (Linux; Android 4.3; Nexus 7 Build/JSS15Q) AppleWebKit/537.36 (KHTML, like Goanna) Chrome/29.0.1547.72 Safari/537.36",
       touch: true,
     },
     {
@@ -550,7 +550,7 @@ Devices.Others = {
       width: 1280,
       height: 800,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 3.0; en-us; Xoom Build/HRI39) AppleWebKit/525.10 (KHTML, like Gecko) Version/3.0.4 Mobile Safari/523.12.2",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 3.0; en-us; Xoom Build/HRI39) AppleWebKit/525.10 (KHTML, like Goanna) Version/3.0.4 Mobile Safari/523.12.2",
       touch: true,
     },
     {
@@ -558,7 +558,7 @@ Devices.Others = {
       width: 1280,
       height: 800,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; SCH-I800 Build/FROYO) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; SCH-I800 Build/FROYO) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
     {
@@ -566,7 +566,7 @@ Devices.Others = {
       width: 1024,
       height: 600,
       pixelRatio: 1,
-      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; SCH-I800 Build/FROYO) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
+      userAgent: "Mozilla/5.0 (Linux; U; Android 2.2; en-us; SCH-I800 Build/FROYO) AppleWebKit/533.1 (KHTML, like Goanna) Version/4.0 Mobile Safari/533.1",
       touch: true,
     },
   ],

@@ -15,7 +15,7 @@ import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
  * be kept as independent as possible).
  */
 public class ParcelableClientRecord implements Parcelable {
-    private static final String LOGTAG = "GeckoParcelableClientRecord";
+    private static final String LOGTAG = "GoannaParcelableClientRecord";
 
     public final String name;
     public final String type;

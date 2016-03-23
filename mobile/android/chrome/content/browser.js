@@ -147,7 +147,7 @@ let lazilyLoadedObserverScripts = [
   ["FeedHandler", ["Feeds:Subscribe"], "chrome://browser/content/FeedHandler.js"],
   ["Feedback", ["Feedback:Show"], "chrome://browser/content/Feedback.js"],
   ["SelectionHandler", ["TextSelection:Get"], "chrome://browser/content/SelectionHandler.js"],
-  ["EmbedRT", ["GeckoView:ImportScript"], "chrome://browser/content/EmbedRT.js"],
+  ["EmbedRT", ["GoannaView:ImportScript"], "chrome://browser/content/EmbedRT.js"],
   ["Reader", ["Reader:FetchContent", "Reader:Added", "Reader:Removed"], "chrome://browser/content/Reader.js"],
 ];
 if (AppConstants.MOZ_WEBRTC) {
@@ -304,7 +304,7 @@ XPCOMUtils.defineLazyGetter(this, "ContentAreaUtils", function() {
 XPCOMUtils.defineLazyModuleGetter(this, "Rect", "resource://gre/modules/Geometry.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Point", "resource://gre/modules/Geometry.jsm");
 
-function resolveGeckoURI(aURI) {
+function resolveGoannaURI(aURI) {
   if (!aURI)
     throw "Can't resolve an empty uri";
 
@@ -369,7 +369,7 @@ var BrowserApp = {
       try {
         BrowserApp.deck.removeEventListener("DOMContentLoaded", BrowserApp_delayedStartup, false);
         Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
-        Messaging.sendRequest({ type: "Gecko:DelayedStartup" });
+        Messaging.sendRequest({ type: "Goanna:DelayedStartup" });
 
         // Queue up some other performance-impacting initializations
         Services.tm.mainThread.dispatch(function() {
@@ -541,8 +541,8 @@ var BrowserApp = {
     let mm = window.getGroupMessageManager("browsers");
     mm.loadFrameScript("chrome://browser/content/content.js", true);
 
-    // Notify Java that Gecko has loaded.
-    Messaging.sendRequest({ type: "Gecko:Ready" });
+    // Notify Java that Goanna has loaded.
+    Messaging.sendRequest({ type: "Goanna:Ready" });
   },
 
   get _startupStatus() {
@@ -1389,7 +1389,7 @@ var BrowserApp = {
         continue;
       }
 
-      // Some Gecko preferences use integers or strings to reference
+      // Some Goanna preferences use integers or strings to reference
       // state instead of directly representing the value.
       // Since the Java UI uses the type to determine which ui elements
       // to show and how to handle them, we need to normalize these
@@ -1872,7 +1872,7 @@ var BrowserApp = {
         console.log("New OS locale.");
 
         // Ensure that this choice is immediately persisted, because
-        // Gecko won't be told again if it forgets.
+        // Goanna won't be told again if it forgets.
         Services.prefs.setCharPref("intl.locale.os", aData);
         Services.prefs.savePrefFile(null);
 
@@ -1884,7 +1884,7 @@ var BrowserApp = {
       case "Locale:Changed":
         if (aData) {
           // The value provided to Locale:Changed should be a BCP47 language tag
-          // understood by Gecko -- for example, "es-ES" or "de".
+          // understood by Goanna -- for example, "es-ES" or "de".
           console.log("Locale:Changed: " + aData);
 
           // We always write a localized pref, even though sometimes the value is a char pref.
@@ -1899,7 +1899,7 @@ var BrowserApp = {
         Services.prefs.setBoolPref("intl.locale.matchOS", !aData);
 
         // Ensure that this choice is immediately persisted, because
-        // Gecko won't be told again if it forgets.
+        // Goanna won't be told again if it forgets.
         Services.prefs.savePrefFile(null);
 
         // Blow away the string cache so that future lookups get the
@@ -2145,7 +2145,7 @@ var NativeWindow = {
         if (aOptions.button.icon) {
           // If the caller specified a button, make sure we convert any chrome urls
           // to jar:jar urls so that the frontend can show them
-          msg.button.icon = resolveGeckoURI(aOptions.button.icon);
+          msg.button.icon = resolveGoannaURI(aOptions.button.icon);
         };
 
         this._callbacks[msg.button.id] = aOptions.button.callback;
@@ -3061,17 +3061,17 @@ var LightWeightThemeWebInstaller = {
 var DesktopUserAgent = {
   DESKTOP_UA: null,
   TCO_DOMAIN: "t.co",
-  TCO_REPLACE: / Gecko.*/,
+  TCO_REPLACE: / Goanna.*/,
 
   init: function ua_init() {
     Services.obs.addObserver(this, "DesktopMode:Change", false);
     UserAgentOverrides.addComplexOverride(this.onRequest.bind(this));
 
-    // See https://developer.mozilla.org/en/Gecko_user_agent_string_reference
+    // See https://developer.mozilla.org/en/Goanna_user_agent_string_reference
     this.DESKTOP_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
                         .getService(Ci.nsIHttpProtocolHandler).userAgent
                         .replace(/Android; [a-zA-Z]+/, "X11; Linux x86_64")
-                        .replace(/Gecko\/[0-9\.]+/, "Gecko/20100101");
+                        .replace(/Goanna\/[0-9\.]+/, "Goanna/20100101");
   },
 
   onRequest: function(channel, defaultUA) {
@@ -3080,7 +3080,7 @@ var DesktopUserAgent = {
       channel.referrer = channel.URI;
 
       // Send a bot-like UA to t.co to get a real redirect. We strip off the
-      // "Gecko/x.y Firefox/x.y" part
+      // "Goanna/x.y Firefox/x.y" part
       return defaultUA.replace(this.TCO_REPLACE, "");
     }
 
@@ -3380,10 +3380,10 @@ Tab.prototype = {
     } catch (e) {}
 
     // When the tab is stubbed from Java, there's a window between the stub
-    // creation and the tab creation in Gecko where the stub could be removed
+    // creation and the tab creation in Goanna where the stub could be removed
     // or the selected tab can change (which is easiest to hit during startup).
     // To prevent these races, we need to differentiate between tab stubs from
-    // Java and new tabs from Gecko.
+    // Java and new tabs from Goanna.
     let stub = false;
 
     if (!aParams.zombifying) {
@@ -3866,7 +3866,7 @@ Tab.prototype = {
        * send updates regardless of page size; we'll zoom to fit the content as needed.
        *
        * In the check below, we floor the viewport size because there might be slight rounding errors
-       * introduced in the CSS page size due to the conversion to and from app units in Gecko. The
+       * introduced in the CSS page size due to the conversion to and from app units in Goanna. The
        * error should be no more than one app unit so doing the floor is overkill, but safe in the
        * sense that the extra page size updates that get sent as a result will be mostly harmless.
        */
@@ -4107,7 +4107,7 @@ Tab.prototype = {
           let json = {
             type: "Link:Favicon",
             tabID: this.id,
-            href: resolveGeckoURI(target.href),
+            href: resolveGoannaURI(target.href),
             size: maxSize,
             mime: target.getAttribute("type") || ""
           };
@@ -4545,7 +4545,7 @@ Tab.prototype = {
     // notifications using nsBrowserStatusFilter.
   },
 
-  _getGeckoZoom: function() {
+  _getGoannaZoom: function() {
     let res = {x: {}, y: {}};
     let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     cwu.getResolution(res.x, res.y);
@@ -4562,7 +4562,7 @@ Tab.prototype = {
     let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
 
     if (this._restoreZoom && cwu.isResolutionSet) {
-      return this._getGeckoZoom();
+      return this._getGoannaZoom();
     }
     return null;
   },
@@ -5900,7 +5900,7 @@ var FormAssistant = {
 };
 
 /**
- * An object to watch for Gecko status changes -- add-on installs, pref changes
+ * An object to watch for Goanna status changes -- add-on installs, pref changes
  * -- and reflect them back to Java.
  */
 let HealthReportStatusListener = {

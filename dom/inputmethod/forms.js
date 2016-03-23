@@ -857,7 +857,7 @@ function getJSON(element, focusCounter) {
     }
   }
 
-  // Gecko has some support for @inputmode but behind a preference and
+  // Goanna has some support for @inputmode but behind a preference and
   // it is disabled by default.
   // Gaia is then using @x-inputmode has its proprietary way to set
   // inputmode for fields. This shouldn't be used outside of pre-installed

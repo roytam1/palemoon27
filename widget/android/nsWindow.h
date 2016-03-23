@@ -19,7 +19,7 @@
 struct ANPEvent;
 
 namespace mozilla {
-    class AndroidGeckoEvent;
+    class AndroidGoannaEvent;
 
     namespace layers {
         class CompositorParent;
@@ -42,18 +42,18 @@ public:
 
     NS_DECL_ISUPPORTS_INHERITED
 
-    static void OnGlobalAndroidEvent(mozilla::AndroidGeckoEvent *ae);
+    static void OnGlobalAndroidEvent(mozilla::AndroidGoannaEvent *ae);
     static gfxIntSize GetAndroidScreenBounds();
     static nsWindow* TopWindow();
 
     nsWindow* FindWindowForPoint(const nsIntPoint& pt);
 
-    void OnContextmenuEvent(mozilla::AndroidGeckoEvent *ae);
-    bool OnMultitouchEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnNativeGestureEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnMouseEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnKeyEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnIMEEvent(mozilla::AndroidGeckoEvent *ae);
+    void OnContextmenuEvent(mozilla::AndroidGoannaEvent *ae);
+    bool OnMultitouchEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnNativeGestureEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnMouseEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnKeyEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnIMEEvent(mozilla::AndroidGoannaEvent *ae);
 
     void OnSizeChanged(const gfxIntSize& aSize);
 
@@ -173,7 +173,7 @@ protected:
     void FlushIMEChanges();
 
     void ConfigureAPZCTreeManager() override;
-    already_AddRefed<GeckoContentController> CreateRootContentController() override;
+    already_AddRefed<GoannaContentController> CreateRootContentController() override;
 
     // Call this function when the users activity is the direct cause of an
     // event (like a keypress or mouse click).
@@ -196,7 +196,7 @@ protected:
     int32_t mIMEMaskEventsCount; // Mask events when > 0
     nsRefPtr<mozilla::TextRangeArray> mIMERanges;
     bool mIMEUpdatingContext;
-    nsAutoTArray<mozilla::AndroidGeckoEvent, 8> mIMEKeyEvents;
+    nsAutoTArray<mozilla::AndroidGoannaEvent, 8> mIMEKeyEvents;
 
     struct IMEChange {
         int32_t mStart, mOldEnd, mNewEnd;
@@ -235,11 +235,11 @@ protected:
 
 private:
     void InitKeyEvent(mozilla::WidgetKeyboardEvent& event,
-                      mozilla::AndroidGeckoEvent& key,
+                      mozilla::AndroidGoannaEvent& key,
                       ANPEvent* pluginEvent);
     void DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
                               const mozilla::LayoutDeviceIntPoint &refPoint, uint64_t time);
-    void HandleSpecialKey(mozilla::AndroidGeckoEvent *ae);
+    void HandleSpecialKey(mozilla::AndroidGoannaEvent *ae);
     void CreateLayerManager(int aCompositorWidth, int aCompositorHeight);
     void RedrawAll();
 

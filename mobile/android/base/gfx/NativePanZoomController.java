@@ -5,11 +5,11 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoThread;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaThread;
 import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONObject;
 
@@ -18,31 +18,31 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
-class NativePanZoomController implements PanZoomController, GeckoEventListener {
+class NativePanZoomController implements PanZoomController, GoannaEventListener {
     private final PanZoomTarget mTarget;
     private final EventDispatcher mDispatcher;
 
     NativePanZoomController(PanZoomTarget target, View view, EventDispatcher dispatcher) {
         mTarget = target;
         mDispatcher = dispatcher;
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+        if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             init();
         } else {
-            mDispatcher.registerGeckoThreadListener(this, "Gecko:Ready");
+            mDispatcher.registerGoannaThreadListener(this, "Goanna:Ready");
         }
     }
 
     @Override
     public void handleMessage(String event, JSONObject message) {
-        if ("Gecko:Ready".equals(event)) {
-            mDispatcher.unregisterGeckoThreadListener(this, "Gecko:Ready");
+        if ("Goanna:Ready".equals(event)) {
+            mDispatcher.unregisterGoannaThreadListener(this, "Goanna:Ready");
             init();
         }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        GeckoEvent wrapped = GeckoEvent.createMotionEvent(event, true);
+        GoannaEvent wrapped = GoannaEvent.createMotionEvent(event, true);
         return handleTouchEvent(wrapped);
     }
 
@@ -85,8 +85,8 @@ class NativePanZoomController implements PanZoomController, GeckoEventListener {
     public native void abortAnimation();
 
     private native void init();
-    private native boolean handleTouchEvent(GeckoEvent event);
-    private native void handleMotionEvent(GeckoEvent event);
+    private native boolean handleTouchEvent(GoannaEvent event);
+    private native void handleMotionEvent(GoannaEvent event);
 
     @Override
     public native void destroy();

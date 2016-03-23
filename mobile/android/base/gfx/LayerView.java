@@ -12,9 +12,9 @@ import java.util.ArrayList;
 import org.mozilla.gecko.AndroidGamepadManager;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAccessibility;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAccessibility;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
@@ -49,9 +49,9 @@ import android.widget.FrameLayout;
  * A view rendered by the layer compositor.
  */
 public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "GeckoLayerView";
+    private static final String LOGTAG = "GoannaLayerView";
 
-    private GeckoLayerClient mLayerClient;
+    private GoannaLayerClient mLayerClient;
     private PanZoomController mPanZoomController;
     private LayerMarginsAnimator mMarginsAnimator;
     private final GLController mGLController;
@@ -68,7 +68,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
     private Listener mListener;
 
     private PointF mInitialTouchPoint;
-    private boolean mGeckoIsReady;
+    private boolean mGoannaIsReady;
 
     /* This should only be modified on the Java UI thread. */
     private final Overscroll mOverscroll;
@@ -122,7 +122,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
     }
 
     public void initializeView(EventDispatcher eventDispatcher) {
-        mLayerClient = new GeckoLayerClient(getContext(), this, eventDispatcher);
+        mLayerClient = new GoannaLayerClient(getContext(), this, eventDispatcher);
         if (mOverscroll != null) {
             mLayerClient.setOverscrollHandler(mOverscroll);
         }
@@ -136,8 +136,8 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         setFocusable(true);
         setFocusableInTouchMode(true);
 
-        GeckoAccessibility.setDelegate(this);
-        GeckoAccessibility.setAccessibilityStateChangeListener(getContext());
+        GoannaAccessibility.setDelegate(this);
+        GoannaAccessibility.setAccessibilityStateChangeListener(getContext());
     }
 
     /**
@@ -158,18 +158,18 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         PrefsHelper.getPref("gfx.android.rgb16.force", new PrefsHelper.PrefHandlerBase() {
             @Override public void prefValue(String pref, boolean force16bit) {
                 if (force16bit) {
-                    GeckoAppShell.setScreenDepthOverride(16);
+                    GoannaAppShell.setScreenDepthOverride(16);
                 }
             }
         });
 
-        mLayerClient.notifyGeckoReady();
+        mLayerClient.notifyGoannaReady();
         mInitialTouchPoint = null;
-        mGeckoIsReady = true;
+        mGoannaIsReady = true;
     }
 
-    private boolean sendEventToGecko(MotionEvent event) {
-        if (!mGeckoIsReady) {
+    private boolean sendEventToGoanna(MotionEvent event) {
+        if (!mGoannaIsReady) {
             return false;
         }
 
@@ -192,7 +192,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
             }
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event, false));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createMotionEvent(event, false));
         return true;
     }
 
@@ -238,12 +238,12 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         if (mPanZoomController != null && mPanZoomController.onTouchEvent(event)) {
             return true;
         }
-        return sendEventToGecko(event);
+        return sendEventToGoanna(event);
     }
 
     @Override
     public boolean onHoverEvent(MotionEvent event) {
-        return sendEventToGecko(event);
+        return sendEventToGoanna(event);
     }
 
     @Override
@@ -287,8 +287,8 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         }
     }
 
-    // Don't expose GeckoLayerClient to things outside this package; only expose it as an Object
-    GeckoLayerClient getLayerClient() { return mLayerClient; }
+    // Don't expose GoannaLayerClient to things outside this package; only expose it as an Object
+    GoannaLayerClient getLayerClient() { return mLayerClient; }
     public Object getLayerClientObject() { return mLayerClient; }
 
     public PanZoomController getPanZoomController() { return mPanZoomController; }
@@ -474,7 +474,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
      *
      * The second phase is the SurfaceView size change. At this point, the
      * backing GL surface is resized and another synchronous draw is performed.
-     * Gecko is also sent the new window size, and this will likely cause an
+     * Goanna is also sent the new window size, and this will likely cause an
      * extra draw a few frames later, after it's re-rendered and caught up.
      *
      * In the case that there is no valid GL surface (for example, when
@@ -522,7 +522,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
     @WrapElementForJNI(allowMultithread = true, stubName = "RegisterCompositorWrapper")
     public static GLController registerCxxCompositor() {
         try {
-            LayerView layerView = GeckoAppShell.getLayerView();
+            LayerView layerView = GoannaAppShell.getLayerView();
             GLController controller = layerView.getGLController();
             controller.compositorCreated();
             return controller;
@@ -532,10 +532,10 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         }
     }
 
-    //This method is called on the Gecko main thread.
+    //This method is called on the Goanna main thread.
     @WrapElementForJNI(allowMultithread = true, stubName = "updateZoomedView")
     public static void updateZoomedView(ByteBuffer data) {
-        LayerView layerView = GeckoAppShell.getLayerView();
+        LayerView layerView = GoannaAppShell.getLayerView();
         if (layerView != null) {
             LayerRenderer layerRenderer = layerView.getRenderer();
             if (layerRenderer != null) {
@@ -646,7 +646,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
     @Override
     public void onFocusChanged (boolean gainFocus, int direction, Rect previouslyFocusedRect) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
-        GeckoAccessibility.onLayerViewFocusChanged(this, gainFocus);
+        GoannaAccessibility.onLayerViewFocusChanged(this, gainFocus);
     }
 
     public void setFullScreenState(FullScreenState state) {

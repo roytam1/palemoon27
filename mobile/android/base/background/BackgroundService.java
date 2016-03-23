@@ -80,8 +80,8 @@ public abstract class BackgroundService extends IntentService {
 
   /**
    * To avoid tight coupling to Fennec, we use reflection to find
-   * <code>GeckoPreferences</code>, invoking the same code path that
-   * <code>GeckoApp</code> uses on startup to send the <i>other</i>
+   * <code>GoannaPreferences</code>, invoking the same code path that
+   * <code>GoannaApp</code> uses on startup to send the <i>other</i>
    * notification to which we listen.
    *
    * Invoke this to handle one of the system intents to which we listen to

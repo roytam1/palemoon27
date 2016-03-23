@@ -8,10 +8,10 @@ import java.io.File;
 import java.util.HashMap;
 
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.GeckoThread;
+import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.gecko.GoannaThread;
 import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.gecko.mozglue.GoannaLoader;
 import org.mozilla.gecko.sqlite.SQLiteBridge;
 import org.mozilla.gecko.sqlite.SQLiteBridgeException;
 
@@ -32,7 +32,7 @@ import android.util.Log;
  *  public abstract String getTable(Uri uri);
  *  public abstract String getSortOrder(Uri uri, String aRequested);
  *  public abstract void setupDefaults(Uri uri, ContentValues values);
- *  public abstract void initGecko();
+ *  public abstract void initGoanna();
  */
 
 public abstract class SQLiteBridgeContentProvider extends ContentProvider {
@@ -124,8 +124,8 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
         boolean dbNeedsSetup = true;
         try {
             String resourcePath = context.getPackageResourcePath();
-            GeckoLoader.loadSQLiteLibs(context, resourcePath);
-            GeckoLoader.loadNSSLibs(context, resourcePath);
+            GoannaLoader.loadSQLiteLibs(context, resourcePath);
+            GoannaLoader.loadNSSLibs(context, resourcePath);
             bridge = SQLiteBridge.openDatabase(databasePath, null, 0);
             int version = bridge.getVersion();
             dbNeedsSetup = version != getDBVersion();
@@ -136,24 +136,24 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
             }
 
             // this will throw if the database can't be found
-            // we should attempt to set it up if Gecko is running
+            // we should attempt to set it up if Goanna is running
             dbNeedsSetup = true;
             Log.e(mLogTag, "Error getting version ", ex);
 
-            // if Gecko is not running, we should bail out. Otherwise we try to
-            // let Gecko build the database for us
-            if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-                Log.e(mLogTag, "Can not set up database. Gecko is not running");
+            // if Goanna is not running, we should bail out. Otherwise we try to
+            // let Goanna build the database for us
+            if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
+                Log.e(mLogTag, "Can not set up database. Goanna is not running");
                 return null;
             }
         }
 
         // If the database is not set up yet, or is the wrong schema version, we send an initialize
-        // call to Gecko. Gecko will handle building the database file correctly, as well as any
+        // call to Goanna. Goanna will handle building the database file correctly, as well as any
         // migrations that are necessary
         if (dbNeedsSetup) {
             bridge = null;
-            initGecko();
+            initGoanna();
         }
         return bridge;
     }
@@ -168,8 +168,8 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
      *
      */
     private String getDatabasePathForProfile(String profile, String dbName) {
-        // Depends on the vagaries of GeckoProfile.get, so null check for safety.
-        File profileDir = GeckoProfile.get(mContext, profile).getDir();
+        // Depends on the vagaries of GoannaProfile.get, so null check for safety.
+        File profileDir = GoannaProfile.get(mContext, profile).getDir();
         if (profileDir == null) {
             return null;
         }
@@ -188,7 +188,7 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
      */
     private SQLiteBridge getDatabaseForProfile(String profile) {
         if (TextUtils.isEmpty(profile)) {
-            profile = GeckoProfile.get(mContext).getName();
+            profile = GoannaProfile.get(mContext).getName();
             Log.d(mLogTag, "No profile provided, using '" + profile + "'");
         }
 
@@ -311,7 +311,7 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
         final SQLiteBridge db = getDatabase(uri);
 
         // If we can not get a SQLiteBridge instance, its likely that the database
-        // has not been set up and Gecko is not running. We return null and expect
+        // has not been set up and Goanna is not running. We return null and expect
         // callers to try again later
         if (db == null) {
             return null;
@@ -349,7 +349,7 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
     public int bulkInsert(Uri uri, ContentValues[] allValues) {
         final SQLiteBridge db = getDatabase(uri);
         // If we can not get a SQLiteBridge instance, its likely that the database
-        // has not been set up and Gecko is not running. We return 0 and expect
+        // has not been set up and Goanna is not running. We return 0 and expect
         // callers to try again later
         if (db == null) {
             return 0;
@@ -391,7 +391,7 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
         final SQLiteBridge db = getDatabase(uri);
 
         // If we can not get a SQLiteBridge instance, its likely that the database
-        // has not been set up and Gecko is not running. We return null and expect
+        // has not been set up and Goanna is not running. We return null and expect
         // callers to try again later
         if (db == null) {
             return updated;
@@ -416,7 +416,7 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
         final SQLiteBridge db = getDatabase(uri);
 
         // If we can not get a SQLiteBridge instance, its likely that the database
-        // has not been set up and Gecko is not running. We return null and expect
+        // has not been set up and Goanna is not running. We return null and expect
         // callers to try again later
         if (db == null) {
             return cursor;
@@ -464,7 +464,7 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
 
     protected abstract void setupDefaults(Uri uri, ContentValues values);
 
-    protected abstract void initGecko();
+    protected abstract void initGoanna();
 
     protected abstract void onPreInsert(ContentValues values, Uri uri, SQLiteBridge db);
 

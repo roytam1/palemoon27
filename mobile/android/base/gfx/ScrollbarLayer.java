@@ -17,7 +17,7 @@ import java.nio.FloatBuffer;
 import java.nio.ByteBuffer;
 
 public class ScrollbarLayer extends TileLayer {
-    private static final String LOGTAG = "GeckoScrollbarLayer";
+    private static final String LOGTAG = "GoannaScrollbarLayer";
 
     public static final long FADE_DELAY = 500; // milliseconds before fade-out starts
     private static final float FADE_AMOUNT = 0.03f; // how much (as a percent) the scrollbar should fade per frame

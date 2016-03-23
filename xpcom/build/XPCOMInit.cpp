@@ -135,7 +135,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports*, REFNSIID, void**);
 #include "mozilla/SystemMemoryReporter.h"
 #include "mozilla/UniquePtr.h"
 
-#include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/GoannaChildProcessHost.h"
 
 #ifdef MOZ_VISUAL_EVENT_TRACER
 #include "mozilla/VisualEventTracer.h"
@@ -155,7 +155,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports*, REFNSIID, void**);
 #include "nestegg/nestegg.h"
 #endif
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "jsapi.h"
 
@@ -533,13 +533,13 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
 
   if (!MessageLoop::current()) {
     sMessageLoop = new MessageLoopForUI(MessageLoop::TYPE_MOZILLA_UI);
-    sMessageLoop->set_thread_name("Gecko");
+    sMessageLoop->set_thread_name("Goanna");
     // Set experimental values for main thread hangs:
     // 512ms for transient hangs and 8192ms for permanent hangs
     sMessageLoop->set_hang_timeouts(512, 8192);
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default &&
+  if (XRE_GetProcessType() == GoannaProcessType_Default &&
       !BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO)) {
     UniquePtr<BrowserProcessSubThread> ioThread = MakeUnique<BrowserProcessSubThread>(BrowserProcessSubThread::IO);
 
@@ -737,7 +737,7 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
   // We only want the SystemMemoryReporter running in one process, because it
   // profiles the entire system.  The main process is the obvious place for
   // it.
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     mozilla::SystemMemoryReporter::Init();
   }
 
@@ -972,7 +972,7 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
   // On Windows XP debug, there are intermittent failures in
   // dom/media/tests/mochitest/test_peerConnection_basicH264Video.html
   // if we don't exit early in a child process. See bug 1073310.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
       NS_WARNING("Exiting child process early!");
       exit(0);
   }
@@ -1060,7 +1060,7 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
   // checking working on Linux.
   // On debug B2G, the child process crashes very late.  Instead, just
   // give up so at least we exit cleanly. See bug 1071866.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
       NS_WARNING("Exiting child process early!");
       exit(0);
   }

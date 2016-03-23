@@ -211,7 +211,7 @@ public:
   bool ApzHitTest(mozilla::ScreenIntPoint& pt);
   // Transforms a coord so that it properly targets gecko content based
   // on apzc transforms currently applied.
-  void ApzTransformGeckoCoordinate(const mozilla::ScreenIntPoint& pt,
+  void ApzTransformGoannaCoordinate(const mozilla::ScreenIntPoint& pt,
                                    mozilla::LayoutDeviceIntPoint* aRefPointOut);
   // send ContentRecievedTouch calls to the apz with appropriate preventDefault params
   void ApzContentConsumingTouch(uint64_t aInputBlockId);
@@ -244,7 +244,7 @@ protected:
 
   // nsBaseWidget
   void ConfigureAPZCTreeManager() override;
-  already_AddRefed<GeckoContentController> NewRootContentController() override;
+  already_AddRefed<GoannaContentController> NewRootContentController() override;
 
   void SetSubclass();
   void RemoveSubclass();

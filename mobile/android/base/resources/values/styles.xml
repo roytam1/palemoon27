@@ -80,7 +80,7 @@
         <item name="android:minWidth">@dimen/doorhanger_input_width</item>
     </style>
 
-    <style name="Widget.GeckoMenuListView" parent="Widget.ListView">
+    <style name="Widget.GoannaMenuListView" parent="Widget.ListView">
         <item name="android:divider">#FFC9D3DC</item>
     </style>
 
@@ -281,10 +281,10 @@
 
     <!--
         TextAppearance
-        Note: Gecko uses light theme as default, while Android uses dark.
+        Note: Goanna uses light theme as default, while Android uses dark.
         If Android convention has to be followd, the list of colors specified 
         in themes.xml would be inverse, and things would get confusing.
-        Hence, Gecko's TextAppearance is based on text over light theme and
+        Hence, Goanna's TextAppearance is based on text over light theme and
         TextAppearance.Inverse is based on text over dark theme.
     -->
     <style name="TextAppearance">
@@ -655,11 +655,11 @@
         <item name="android:textColor">#ff222222</item>
     </style>
 
-    <style name="GeckoDialogTitle">
+    <style name="GoannaDialogTitle">
         <item name="android:textAppearance">@android:style/TextAppearance.DialogWindowTitle</item>
     </style>
 
-    <style name="GeckoDialogTitle.SubTitle" />
+    <style name="GoannaDialogTitle.SubTitle" />
 
     <style name="CrashReporter" />
 
@@ -744,11 +744,11 @@
         <item name="android:textStyle">bold</item>
     </style>
 
-    <style name="GeckoActionBar">
+    <style name="GoannaActionBar">
         <item name="android:background">@drawable/ab_background</item>
     </style>
 
-    <style name="GeckoActionBar.Title">
+    <style name="GoannaActionBar.Title">
         <item name="android:gravity">center_vertical</item>
         <item name="android:minWidth">0dp</item>
         <item name="android:background">@android:color/transparent</item>
@@ -759,18 +759,18 @@
         <item name="android:contentDescription">@string/actionbar_done</item>
     </style>
 
-    <style name="GeckoActionBar.Button" parent="Widget.MenuItemActionBar">
+    <style name="GoannaActionBar.Button" parent="Widget.MenuItemActionBar">
         <item name="android:padding">8dp</item>
     </style>
 
-    <style name="GeckoActionBar.Button.MenuButton">
+    <style name="GoannaActionBar.Button.MenuButton">
         <item name="android:scaleType">center</item>
         <item name="android:src">@drawable/menu_light</item>
         <item name="android:contentDescription">@string/actionbar_menu</item>
         <item name="android:background">@android:color/transparent</item>
     </style>
 
-    <style name="GeckoActionBar.Buttons">
+    <style name="GoannaActionBar.Buttons">
         <item name="android:background">@android:color/transparent</item>
         <item name="android:textColor">@color/text_color_primary</item>
         <item name="android:gravity">right</item>
@@ -815,7 +815,7 @@
     </style>
 
     <!-- Make the share overlay activity appear like an overlay. -->
-    <style name="ShareOverlayActivity" parent="Gecko">
+    <style name="ShareOverlayActivity" parent="Goanna">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsTranslucent">true</item>

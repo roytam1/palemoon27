@@ -11,7 +11,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 public class Dispatcher extends Activity {
-    private static final String LOGTAG = "GeckoWebappDispatcher";
+    private static final String LOGTAG = "GoannaWebappDispatcher";
 
     @Override
     protected void onCreate(Bundle bundle) {

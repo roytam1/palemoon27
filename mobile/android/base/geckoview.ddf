@@ -1,7 +1,7 @@
 # This is a Classycle dependency definition file that asserts that the contents
-# of the GeckoView library (Classycle set [lib]) is a dependency (but does not
+# of the GoannaView library (Classycle set [lib]) is a dependency (but does not
 # depend) on Fennec (Classycle set [main]).  The additional Classycle set
-# [middle] consists of classes referenced by GeckoView that probably should not
+# [middle] consists of classes referenced by GoannaView that probably should not
 # be referenced.  We want this middle set to shrink over time.
 
 show allResults
@@ -13,25 +13,25 @@ show allResults
   org.mozilla.gecko.util.* \
   org.mozilla.gecko.AndroidGamepadManager \
   org.mozilla.gecko.AppConstants \
-  org.mozilla.gecko.BaseGeckoInterface \
+  org.mozilla.gecko.BaseGoannaInterface \
   org.mozilla.gecko.ContextGetter \
   org.mozilla.gecko.CrashHandler \
   org.mozilla.gecko.EventDispatcher \
-  org.mozilla.gecko.GeckoAccessibility \
-  org.mozilla.gecko.GeckoAppShell \
-  org.mozilla.gecko.GeckoBatteryManager \
-  org.mozilla.gecko.GeckoEditable \
-  org.mozilla.gecko.GeckoEditableClient \
-  org.mozilla.gecko.GeckoEditableListener \
-  org.mozilla.gecko.GeckoEvent \
-  org.mozilla.gecko.GeckoInputConnection \
-  org.mozilla.gecko.GeckoJavaSampler \
-  org.mozilla.gecko.GeckoNetworkManager \
-  org.mozilla.gecko.GeckoProfile \
-  org.mozilla.gecko.GeckoScreenOrientation \
-  org.mozilla.gecko.GeckoSharedPrefs \
-  org.mozilla.gecko.GeckoThread \
-  org.mozilla.gecko.GeckoView \
+  org.mozilla.gecko.GoannaAccessibility \
+  org.mozilla.gecko.GoannaAppShell \
+  org.mozilla.gecko.GoannaBatteryManager \
+  org.mozilla.gecko.GoannaEditable \
+  org.mozilla.gecko.GoannaEditableClient \
+  org.mozilla.gecko.GoannaEditableListener \
+  org.mozilla.gecko.GoannaEvent \
+  org.mozilla.gecko.GoannaInputConnection \
+  org.mozilla.gecko.GoannaJavaSampler \
+  org.mozilla.gecko.GoannaNetworkManager \
+  org.mozilla.gecko.GoannaProfile \
+  org.mozilla.gecko.GoannaScreenOrientation \
+  org.mozilla.gecko.GoannaSharedPrefs \
+  org.mozilla.gecko.GoannaThread \
+  org.mozilla.gecko.GoannaView \
   org.mozilla.gecko.GlobalHistory \
   org.mozilla.gecko.InputMethods \
   org.mozilla.gecko.NSSBridge \
@@ -48,9 +48,9 @@ show allResults
   org.mozilla.gecko.prompts.* \
   org.mozilla.gecko.AlertNotification \
   org.mozilla.gecko.FormAssistPopup \
-  org.mozilla.gecko.GeckoActivity \
-  org.mozilla.gecko.GeckoApp \
-  org.mozilla.gecko.GeckoProfileDirectories \
+  org.mozilla.gecko.GoannaActivity \
+  org.mozilla.gecko.GoannaApp \
+  org.mozilla.gecko.GoannaProfileDirectories \
   org.mozilla.gecko.GuestSession \
   org.mozilla.gecko.R \
   org.mozilla.gecko.Tab \
@@ -75,5 +75,5 @@ check sets [lib] [middle] [main]
 # processing is useless without this check.
 # check [lib] directlyIndependentOf [main]
 
-# This fails; if this passed, GeckoView would be ready to extract from Fennec.
+# This fails; if this passed, GoannaView would be ready to extract from Fennec.
 # check [lib] independentOf [middle]

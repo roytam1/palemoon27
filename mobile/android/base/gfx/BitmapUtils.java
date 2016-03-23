@@ -11,9 +11,9 @@ import java.lang.reflect.Field;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.gecko.util.GoannaJarReader;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UIAsyncTask;
 import org.mozilla.gecko.Tab;
@@ -34,7 +34,7 @@ import android.util.Base64;
 import android.util.Log;
 
 public final class BitmapUtils {
-    private static final String LOGTAG = "GeckoBitmapUtils";
+    private static final String LOGTAG = "GoannaBitmapUtils";
 
     private BitmapUtils() {}
 
@@ -86,12 +86,12 @@ public final class BitmapUtils {
                 public Drawable doInBackground() {
                     try {
                         if (data.startsWith("jar:jar")) {
-                            return GeckoJarReader.getBitmapDrawable(context.getResources(), data);
+                            return GoannaJarReader.getBitmapDrawable(context.getResources(), data);
                         }
 
                         // Don't attempt to validate the JAR signature when loading an add-on icon
                         if (data.startsWith("jar:file")) {
-                            return GeckoJarReader.getBitmapDrawable(context.getResources(), Uri.decode(data));
+                            return GoannaJarReader.getBitmapDrawable(context.getResources(), Uri.decode(data));
                         }
 
                         final URL url = new URL(data);

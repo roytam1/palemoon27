@@ -25,7 +25,7 @@ import android.widget.TextView;
 
 public class TabsLayoutItemView extends LinearLayout
                                 implements Checkable {
-    private static final String LOGTAG = "Gecko" + TabsLayoutItemView.class.getSimpleName();
+    private static final String LOGTAG = "Goanna" + TabsLayoutItemView.class.getSimpleName();
     private static final int[] STATE_CHECKED = { android.R.attr.state_checked };
     private boolean mChecked;
 

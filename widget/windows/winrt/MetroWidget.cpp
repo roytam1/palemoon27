@@ -1036,7 +1036,7 @@ MetroWidget::ConfigureAPZCTreeManager()
   }
 }
 
-already_AddRefed<GeckoContentController>
+already_AddRefed<GoannaContentController>
 MetroWidget::CreateRootContentController()
 {
   MOZ_ASSERT(!mController);
@@ -1100,13 +1100,13 @@ MetroWidget::ApzHitTest(ScreenIntPoint& pt)
 }
 
 void
-MetroWidget::ApzTransformGeckoCoordinate(const ScreenIntPoint& aPoint,
+MetroWidget::ApzTransformGoannaCoordinate(const ScreenIntPoint& aPoint,
                                          LayoutDeviceIntPoint* aRefPointOut)
 {
   if (!mController) {
     return;
   }
-  mController->TransformCoordinateToGecko(aPoint, aRefPointOut);
+  mController->TransformCoordinateToGoanna(aPoint, aRefPointOut);
 }
 
 nsEventStatus

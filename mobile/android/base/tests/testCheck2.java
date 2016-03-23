@@ -26,7 +26,7 @@ public class testCheck2 extends PixelTest {
             mAsserter.ok(false, "exception in testCheck2", ex.toString());
         }
 
-        blockForGeckoReady();
+        blockForGoannaReady();
         loadAndPaint(url);
 
         mDriver.setupScrollHandling();
@@ -45,8 +45,8 @@ public class testCheck2 extends PixelTest {
          * overall performance, but doesn't really allow identifying which part is slow.
          */
 
-        MotionEventReplayer mer = new MotionEventReplayer(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop(),
-                mDriver.getGeckoWidth(), mDriver.getGeckoHeight());
+        MotionEventReplayer mer = new MotionEventReplayer(getInstrumentation(), mDriver.getGoannaLeft(), mDriver.getGoannaTop(),
+                mDriver.getGoannaWidth(), mDriver.getGoannaHeight());
 
         float completeness = 0.0f;
         mDriver.startCheckerboardRecording();

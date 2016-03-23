@@ -23,7 +23,7 @@
 #include "nsThreadUtils.h"
 #include "mozilla/Mutex.h"
 
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 #include "MediaConduitInterface.h"
 #include "AudioConduit.h"
 #include "VideoConduit.h"
@@ -88,7 +88,7 @@ private:
   virtual int32_t SetRates_g(uint32_t aNewBitRate,
                              uint32_t aFrameRate);
 
-  nsCOMPtr<mozIGeckoMediaPluginService> mMPS;
+  nsCOMPtr<mozIGoannaMediaPluginService> mMPS;
   nsCOMPtr<nsIThread> mGMPThread;
   GMPVideoEncoderProxy* mGMP;
   GMPVideoHost* mHost;
@@ -160,7 +160,7 @@ private:
                            const webrtc::CodecSpecificInfo* aCodecSpecificInfo,
                            int64_t aRenderTimeMs);
 
-  nsCOMPtr<mozIGeckoMediaPluginService> mMPS;
+  nsCOMPtr<mozIGoannaMediaPluginService> mMPS;
   nsCOMPtr<nsIThread> mGMPThread;
   GMPVideoDecoderProxy* mGMP; // Addref is held for us
   GMPVideoHost* mHost;

@@ -1783,7 +1783,7 @@ PluginInstanceParent::SubclassPluginWindow(HWND aWnd)
         return;
     }
 
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    if (XRE_GetProcessType() == GoannaProcessType_Content) {
         if (!aWnd) {
             NS_WARNING("PluginInstanceParent::SubclassPluginWindow unexpected null window");
             return;
@@ -1813,7 +1813,7 @@ PluginInstanceParent::SubclassPluginWindow(HWND aWnd)
 void
 PluginInstanceParent::UnsubclassPluginWindow()
 {
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    if (XRE_GetProcessType() == GoannaProcessType_Content) {
         if (mPluginHWND) {
             // Remove 'this' from the plugin list safely
             nsAutoPtr<PluginInstanceParent> tmp;

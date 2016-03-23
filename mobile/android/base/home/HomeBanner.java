@@ -8,14 +8,14 @@ package org.mozilla.gecko.home;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.PropertyAnimator.Property;
 import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.EllipsisTextView;
 
@@ -32,8 +32,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 
 public class HomeBanner extends LinearLayout
-                        implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoHomeBanner";
+                        implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaHomeBanner";
 
     // Used for tracking scroll length
     private float mTouchY = -1;
@@ -101,7 +101,7 @@ public class HomeBanner extends LinearLayout
                 HomeBanner.this.dismiss();
 
                 // Send the current message id back to JS.
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomeBanner:Dismiss", (String) getTag()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("HomeBanner:Dismiss", (String) getTag()));
             }
         });
 
@@ -111,18 +111,18 @@ public class HomeBanner extends LinearLayout
                 HomeBanner.this.dismiss();
 
                 // Send the current message id back to JS.
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomeBanner:Click", (String) getTag()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("HomeBanner:Click", (String) getTag()));
             }
         });
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "HomeBanner:Data");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "HomeBanner:Data");
     }
 
     @Override
     public void onDetachedFromWindow() {
         super.onDetachedFromWindow();
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "HomeBanner:Data");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "HomeBanner:Data");
     }
 
     @Override
@@ -160,7 +160,7 @@ public class HomeBanner extends LinearLayout
      * Sends a message to gecko to request a new banner message. UI is updated in handleMessage.
      */
     public void update() {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomeBanner:Get", null));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("HomeBanner:Get", null));
     }
 
     @Override
@@ -195,7 +195,7 @@ public class HomeBanner extends LinearLayout
                     }
                 });
 
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomeBanner:Shown", id));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("HomeBanner:Shown", id));
 
                 // Enable the banner after a message is set.
                 setEnabled(true);

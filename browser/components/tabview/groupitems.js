@@ -407,7 +407,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     else if (container.hasClass("appTabTrayContainerTruncated"))
       container.removeClass("appTabTrayContainerTruncated");
 
-    // Need to drop the -moz- prefix when Gecko makes it obsolete.
+    // Need to drop the -moz- prefix when Goanna makes it obsolete.
     // See bug 629452.
     if (parseInt(this.$appTabTray.css("-moz-column-count")) != columns)
       this.$appTabTray.css("-moz-column-count", columns);

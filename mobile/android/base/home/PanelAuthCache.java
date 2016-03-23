@@ -10,7 +10,7 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.util.Log;
 
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaSharedPrefs;
 
 /**
  * Cache used to store authentication state of dynamic panels. The values
@@ -21,7 +21,7 @@ import org.mozilla.gecko.GeckoSharedPrefs;
  * changes in authentication state.
  */
 class PanelAuthCache {
-    private static final String LOGTAG = "GeckoPanelAuthCache";
+    private static final String LOGTAG = "GoannaPanelAuthCache";
 
     // Keep this in sync with the constant defined in Home.jsm
     private static final String PREFS_PANEL_AUTH_PREFIX = "home_panels_auth_";
@@ -39,7 +39,7 @@ class PanelAuthCache {
     }
 
     private SharedPreferences getSharedPreferences() {
-        return GeckoSharedPrefs.forProfile(mContext);
+        return GoannaSharedPrefs.forProfile(mContext);
     }
 
     private String getPanelAuthKey(String panelId) {

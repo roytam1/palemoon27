@@ -4,7 +4,7 @@
 
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.gfx.LayerView;
 
 import android.app.Instrumentation;
@@ -27,7 +27,7 @@ class MotionEventHelper {
         mInstrumentation = inst;
         mSurfaceOffsetX = surfaceOffsetX;
         mSurfaceOffsetY = surfaceOffsetY;
-        layerView = GeckoAppShell.getLayerView();
+        layerView = GoannaAppShell.getLayerView();
         Log.i(LOGTAG, "Initialized using offset (" + mSurfaceOffsetX + "," + mSurfaceOffsetY + ")");
     }
 

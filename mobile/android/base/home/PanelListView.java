@@ -25,7 +25,7 @@ import android.widget.AdapterView;
 public class PanelListView extends HomeListView
                            implements DatasetBacked, PanelView {
 
-    private static final String LOGTAG = "GeckoPanelListView";
+    private static final String LOGTAG = "GoannaPanelListView";
 
     private final ViewConfig viewConfig;
     private final PanelViewAdapter adapter;

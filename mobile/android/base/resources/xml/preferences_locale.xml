@@ -9,7 +9,7 @@
                   android:enabled="false">
     <PreferenceCategory android:title="@string/pref_browser_locale">
         <!-- No title set here. We set the title to the current locale in
-             GeckoPreferences. -->
+             GoannaPreferences. -->
         <org.mozilla.gecko.preferences.LocaleListPreference
             android:key="locale"
             android:persistent="true"

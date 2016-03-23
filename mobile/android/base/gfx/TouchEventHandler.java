@@ -20,7 +20,7 @@ import java.util.Queue;
 
 /**
  * This class handles incoming touch events from the user and sends them to
- * listeners in Gecko and/or performs the "default action" (asynchronous pan/zoom
+ * listeners in Goanna and/or performs the "default action" (asynchronous pan/zoom
  * behaviour. EVERYTHING IN THIS CLASS MUST RUN ON THE UI THREAD.
  *
  * In the following code/comments, a "block" of events refers to a contiguous
@@ -31,7 +31,7 @@ import java.util.Queue;
  * which at our level of abstraction just means sending it off to the gesture
  * detectors and the pan/zoom controller.
  *
- * If an event is "default-prevented" that means one or more listeners in Gecko
+ * If an event is "default-prevented" that means one or more listeners in Goanna
  * has called preventDefault() on the event, which means that the default action
  * for that event should not occur. Usually we care about a "block" of events being
  * default-prevented, which means that the DOWN/POINTER_DOWN event that started
@@ -39,7 +39,7 @@ import java.util.Queue;
  *
  * A "default-prevented notification" is when we here in Java-land receive a notification
  * from gecko as to whether or not a block of events was default-prevented. This happens
- * at some point after the first or second event in the block is processed in Gecko.
+ * at some point after the first or second event in the block is processed in Goanna.
  * This code assumes we get EXACTLY ONE default-prevented notification for each block
  * of events.
  *
@@ -49,7 +49,7 @@ import java.util.Queue;
  * and fix issues like bug 749384.
  */
 final class TouchEventHandler implements Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "GeckoTouchEventHandler";
+    private static final String LOGTAG = "GoannaTouchEventHandler";
 
     // The time limit for listeners to respond with preventDefault on touchevents
     // before we begin panning the page
@@ -75,7 +75,7 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     private boolean mHoldInQueue;
 
     // false if the current event block has been default-prevented. In this case,
-    // we still pass the event to both Gecko and the pan/zoom controller, but the
+    // we still pass the event to both Goanna and the pan/zoom controller, but the
     // latter will not use it to scroll content. It may still use the events for
     // other things, such as making the dynamic toolbar visible.
     private boolean mAllowDefaultAction;

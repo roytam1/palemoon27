@@ -17,7 +17,7 @@ import android.view.WindowManager;
 // Utility methods for entering/exiting guest mode.
 public class GuestSession {
     public static final String NOTIFICATION_INTENT = "org.mozilla.gecko.GUEST_SESSION_INPROGRESS";
-    private static final String LOGTAG = "GeckoGuestSession";
+    private static final String LOGTAG = "GoannaGuestSession";
 
     /* Returns true if you should be in guest mode. This can be because a secure keyguard
      * is locked, or because the user has explicitly started guest mode via a dialog. If the
@@ -31,7 +31,7 @@ public class GuestSession {
         }
 
         // Otherwise, is there a locked guest mode profile?
-        final GeckoProfile profile = GeckoProfile.getGuestProfile(context);
+        final GoannaProfile profile = GoannaProfile.getGuestProfile(context);
         if (profile == null) {
             return false;
         }

@@ -21,7 +21,7 @@ from cuddlefish.prefs import DEFAULT_NO_CONNECTIONS_PREFS
 from cuddlefish.prefs import DEFAULT_TEST_PREFS
 
 # Used to remove noise from ADB output
-CLEANUP_ADB = re.compile(r'^(I|E)/(stdout|stderr|GeckoConsole)\s*\(\s*\d+\):\s*(.*)$')
+CLEANUP_ADB = re.compile(r'^(I|E)/(stdout|stderr|GoannaConsole)\s*\(\s*\d+\):\s*(.*)$')
 # Used to filter only messages send by `console` module
 FILTER_ONLY_CONSOLE_FROM_ADB = re.compile(r'^I/(stdout|stderr)\s*\(\s*\d+\):\s*((info|warning|error|debug): .*)$')
 
@@ -605,7 +605,7 @@ def run_app(harness_root_dir, manifest_rdf, harness_options,
         outf.close()
 
         # Then we simply display stdout of `adb logcat`
-        p = subprocess.Popen([binary, "logcat", "stderr:V stdout:V GeckoConsole:V *:S"], stdout=subprocess.PIPE)
+        p = subprocess.Popen([binary, "logcat", "stderr:V stdout:V GoannaConsole:V *:S"], stdout=subprocess.PIPE)
         while True:
             line = p.stdout.readline()
             if line == '':

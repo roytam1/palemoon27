@@ -6,7 +6,7 @@
 #ifndef mozilla_layers_ChromeProcessController_h
 #define mozilla_layers_ChromeProcessController_h
 
-#include "mozilla/layers/GeckoContentController.h"
+#include "mozilla/layers/GoannaContentController.h"
 #include "nsCOMPtr.h"
 #include "nsRefPtr.h"
 
@@ -26,7 +26,7 @@ class CompositorParent;
 
 // A ChromeProcessController is attached to the root of a compositor's layer
 // tree.
-class ChromeProcessController : public mozilla::layers::GeckoContentController
+class ChromeProcessController : public mozilla::layers::GoannaContentController
 {
   typedef mozilla::layers::FrameMetrics FrameMetrics;
   typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
@@ -35,7 +35,7 @@ public:
   explicit ChromeProcessController(nsIWidget* aWidget, APZEventState* aAPZEventState);
   virtual void Destroy() override;
 
-  // GeckoContentController interface
+  // GoannaContentController interface
   virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics) override;
   virtual void PostDelayedTask(Task* aTask, int aDelayMs) override;
   virtual void AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,

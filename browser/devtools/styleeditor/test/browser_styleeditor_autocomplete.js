@@ -214,7 +214,7 @@ function cleanup() {
 
 /**
  * Returns a list of all property names and a map of property name vs possible
- * CSS values provided by the Gecko engine.
+ * CSS values provided by the Goanna engine.
  *
  * @return {Object} An object with following properties:
  *         - CSSProperties {Array} Array of string containing all the possible

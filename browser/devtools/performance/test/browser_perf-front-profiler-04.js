@@ -4,7 +4,7 @@
 /**
  * Tests if the built-in profiler module is not reactivated if no other
  * consumer was using it over the remote debugger protocol, and ensures
- * that the actor will work properly even in such cases (e.g. the Gecko Profiler
+ * that the actor will work properly even in such cases (e.g. the Goanna Profiler
  * addon was installed and automatically activated the profiler module).
  */
 

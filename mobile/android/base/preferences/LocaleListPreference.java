@@ -27,7 +27,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 
 public class LocaleListPreference extends ListPreference {
-    private static final String LOG_TAG = "GeckoLocaleList";
+    private static final String LOG_TAG = "GoannaLocaleList";
 
     /**
      * With thanks to <http://stackoverflow.com/a/22679283/22003> for the

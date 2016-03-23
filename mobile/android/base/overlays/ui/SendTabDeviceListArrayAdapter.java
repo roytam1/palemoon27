@@ -24,7 +24,7 @@ import android.widget.TextView;
 
 public class SendTabDeviceListArrayAdapter extends ArrayAdapter<ParcelableClientRecord> {
     @SuppressWarnings("unused")
-    private static final String LOGTAG = "GeckoSendTabAdapter";
+    private static final String LOGTAG = "GoannaSendTabAdapter";
 
     private State currentState;
 

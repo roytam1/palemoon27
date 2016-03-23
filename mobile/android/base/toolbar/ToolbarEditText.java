@@ -9,7 +9,7 @@ import org.mozilla.gecko.ActivityHandlerHelper;
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.CustomEditText;
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.InputMethods;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.toolbar.BrowserToolbar.OnCommitListener;
@@ -58,7 +58,7 @@ import java.util.List;
 public class ToolbarEditText extends CustomEditText
                              implements AutocompleteHandler {
 
-    private static final String LOGTAG = "GeckoToolbarEditText";
+    private static final String LOGTAG = "GoannaToolbarEditText";
     private static final NoCopySpan AUTOCOMPLETE_SPAN = new NoCopySpan.Concrete();
 
     private final Context mContext;
@@ -500,7 +500,7 @@ public class ToolbarEditText extends CustomEditText
     private void launchVoiceRecognizer() {
         final Intent intent = createVoiceRecognizerIntent();
 
-        Activity activity = GeckoAppShell.getGeckoInterface().getActivity();
+        Activity activity = GoannaAppShell.getGoannaInterface().getActivity();
         ActivityHandlerHelper.startIntentForActivity(activity, intent, new ActivityResultHandler() {
             @Override
             public void onActivityResult(int resultCode, Intent data) {

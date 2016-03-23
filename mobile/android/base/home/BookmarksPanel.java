@@ -7,7 +7,7 @@ package org.mozilla.gecko.home;
 
 import java.util.List;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserDB;
@@ -34,7 +34,7 @@ import android.widget.TextView;
  * A page in about:home that displays a ListView of bookmarks.
  */
 public class BookmarksPanel extends HomeFragment {
-    public static final String LOGTAG = "GeckoBookmarksPanel";
+    public static final String LOGTAG = "GoannaBookmarksPanel";
 
     // Cursor loader ID for list of bookmarks.
     private static final int LOADER_ID_BOOKMARKS_LIST = 0;
@@ -187,7 +187,7 @@ public class BookmarksPanel extends HomeFragment {
             super(context);
             mFolderInfo = folderInfo;
             mRefreshType = refreshType;
-            mDB = GeckoProfile.get(context).getDB();
+            mDB = GoannaProfile.get(context).getDB();
         }
 
         @Override

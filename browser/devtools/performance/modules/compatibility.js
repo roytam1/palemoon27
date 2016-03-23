@@ -68,7 +68,7 @@ function createMockAllocations () {
  * Takes a TabTarget, and checks through all methods that are needed
  * on the server's memory actor to determine if a mock or real MemoryActor
  * should be used. The last of the methods added to MemoryActor
- * landed in Gecko 35, so previous versions will fail this. Setting the `target`'s
+ * landed in Goanna 35, so previous versions will fail this. Setting the `target`'s
  * TEST_MOCK_MEMORY_ACTOR property to true will cause this function to indicate that
  * the memory actor is not supported.
  *
@@ -83,9 +83,9 @@ function memoryActorSupported (target) {
   }
 
   // We need to test that both the root actor has `memoryActorAllocations`,
-  // which is in Gecko 38+, and also that the target has a memory actor. There
+  // which is in Goanna 38+, and also that the target has a memory actor. There
   // are scenarios, like addon debugging, where memoryActorAllocations is available,
-  // but no memory actor (like addon debugging in Gecko 38+)
+  // but no memory actor (like addon debugging in Goanna 38+)
   return !!target.getTrait("memoryActorAllocations") && target.hasActor("memory");
 }
 exports.memoryActorSupported = Task.async(memoryActorSupported);

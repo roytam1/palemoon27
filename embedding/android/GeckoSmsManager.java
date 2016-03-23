@@ -82,7 +82,7 @@ class Envelope
     mId = aId;
     mMessageId = -1;
     mMessageTimestamp = 0;
-    mError = GeckoSmsManager.kNoError;
+    mError = GoannaSmsManager.kNoError;
 
     int size = Envelope.SubParts.values().length;
     mRemainingParts = new int[size];
@@ -99,7 +99,7 @@ class Envelope
 
     if (mRemainingParts[SubParts.SENT_PART.ordinal()] >
         mRemainingParts[SubParts.DELIVERED_PART.ordinal()]) {
-      Log.e("GeckoSmsManager", "Delivered more parts than we sent!?");
+      Log.e("GoannaSmsManager", "Delivered more parts than we sent!?");
     }
   }
 
@@ -177,13 +177,13 @@ class Postman
 
   public Envelope getEnvelope(int aId) {
     if (aId < 0 || mEnvelopes.size() <= aId) {
-      Log.e("GeckoSmsManager", "Trying to get an unknown Envelope!");
+      Log.e("GoannaSmsManager", "Trying to get an unknown Envelope!");
       return null;
     }
 
     Envelope envelope = mEnvelopes.get(aId);
     if (envelope == null) {
-      Log.e("GeckoSmsManager", "Trying to get an empty Envelope!");
+      Log.e("GoannaSmsManager", "Trying to get an empty Envelope!");
     }
 
     return envelope;
@@ -191,12 +191,12 @@ class Postman
 
   public void destroyEnvelope(int aId) {
     if (aId < 0 || mEnvelopes.size() <= aId) {
-      Log.e("GeckoSmsManager", "Trying to destroy an unknown Envelope!");
+      Log.e("GoannaSmsManager", "Trying to destroy an unknown Envelope!");
       return;
     }
 
     if (mEnvelopes.set(aId, null) == null) {
-      Log.e("GeckoSmsManager", "Trying to destroy an empty Envelope!");
+      Log.e("GoannaSmsManager", "Trying to destroy an empty Envelope!");
     }
   }
 }
@@ -249,13 +249,13 @@ class MessagesListManager
 
   public Cursor get(int aId) {
     if (aId < 0 || mCursors.size() <= aId) {
-      Log.e("GeckoSmsManager", "Trying to get an unknown list!");
+      Log.e("GoannaSmsManager", "Trying to get an unknown list!");
       return null;
     }
 
     Cursor cursor = mCursors.get(aId);
     if (cursor == null) {
-      Log.e("GeckoSmsManager", "Trying to get an empty list!");
+      Log.e("GoannaSmsManager", "Trying to get an empty list!");
     }
 
     return cursor;
@@ -263,13 +263,13 @@ class MessagesListManager
 
   public void remove(int aId) {
     if (aId < 0 || mCursors.size() <= aId) {
-      Log.e("GeckoSmsManager", "Trying to destroy an unknown list!");
+      Log.e("GoannaSmsManager", "Trying to destroy an unknown list!");
       return;
     }
 
     Cursor cursor = mCursors.set(aId, null);
     if (cursor == null) {
-      Log.e("GeckoSmsManager", "Trying to destroy an empty list!");
+      Log.e("GoannaSmsManager", "Trying to destroy an empty list!");
       return;
     }
 
@@ -288,7 +288,7 @@ class MessagesListManager
   }
 }
 
-public class GeckoSmsManager
+public class GoannaSmsManager
   extends BroadcastReceiver
   implements ISmsManager
 {
@@ -364,17 +364,17 @@ public class GeckoSmsManager
 
   private final static String[] kRequiredMessageRows = new String[] { "_id", "address", "body", "date", "type", "status" };
 
-  public GeckoSmsManager() {
+  public GoannaSmsManager() {
     SmsIOThread.getInstance().start();
   }
 
   public void start() {
     IntentFilter smsFilter = new IntentFilter();
-    smsFilter.addAction(GeckoSmsManager.ACTION_SMS_RECEIVED);
-    smsFilter.addAction(GeckoSmsManager.ACTION_SMS_SENT);
-    smsFilter.addAction(GeckoSmsManager.ACTION_SMS_DELIVERED);
+    smsFilter.addAction(GoannaSmsManager.ACTION_SMS_RECEIVED);
+    smsFilter.addAction(GoannaSmsManager.ACTION_SMS_SENT);
+    smsFilter.addAction(GoannaSmsManager.ACTION_SMS_DELIVERED);
 
-    GeckoApp.mAppContext.registerReceiver(this, smsFilter);
+    GoannaApp.mAppContext.registerReceiver(this, smsFilter);
   }
 
   @Override
@@ -397,9 +397,9 @@ public class GeckoSmsManager
       for (int i=0; i<pdus.length; ++i) {
         SmsMessage msg = SmsMessage.createFromPdu((byte[])pdus[i]);
 
-        GeckoAppShell.notifySmsReceived(msg.getDisplayOriginatingAddress(),
+        GoannaAppShell.notifySmsReceived(msg.getDisplayOriginatingAddress(),
                                         msg.getDisplayMessageBody(),
-                                        getGeckoMessageClass(msg.getMessageClass()),
+                                        getGoannaMessageClass(msg.getMessageClass()),
                                         System.currentTimeMillis());
       }
 
@@ -413,7 +413,7 @@ public class GeckoSmsManager
       if (bundle == null || !bundle.containsKey("envelopeId") ||
           !bundle.containsKey("number") || !bundle.containsKey("message") ||
           !bundle.containsKey("requestId")) {
-        Log.e("GeckoSmsManager", "Got an invalid ACTION_SMS_SENT/ACTION_SMS_DELIVERED!");
+        Log.e("GoannaSmsManager", "Got an invalid ACTION_SMS_SENT/ACTION_SMS_DELIVERED!");
         return;
       }
 
@@ -422,7 +422,7 @@ public class GeckoSmsManager
 
       Envelope envelope = postman.getEnvelope(envelopeId);
       if (envelope == null) {
-        Log.e("GeckoSmsManager", "Got an invalid envelope id (or Envelope has been destroyed)!");
+        Log.e("GoannaSmsManager", "Got an invalid envelope id (or Envelope has been destroyed)!");
         return;
       }
 
@@ -447,7 +447,7 @@ public class GeckoSmsManager
             break;
         }
         envelope.markAsFailed(part);
-        Log.i("GeckoSmsManager", "SMS part sending failed!");
+        Log.i("GoannaSmsManager", "SMS part sending failed!");
       }
 
       if (envelope.arePartsRemaining(part)) {
@@ -456,16 +456,16 @@ public class GeckoSmsManager
 
       if (envelope.isFailing(part)) {
         if (part == Envelope.SubParts.SENT_PART) {
-          GeckoAppShell.notifySmsSendFailed(envelope.getError(),
+          GoannaAppShell.notifySmsSendFailed(envelope.getError(),
                                             bundle.getInt("requestId"));
-          Log.i("GeckoSmsManager", "SMS sending failed!");
+          Log.i("GoannaSmsManager", "SMS sending failed!");
         } else {
-          GeckoAppShell.notifySmsDelivery(envelope.getMessageId(),
+          GoannaAppShell.notifySmsDelivery(envelope.getMessageId(),
                                           kDeliveryStatusError,
                                           bundle.getString("number"),
                                           bundle.getString("message"),
                                           envelope.getMessageTimestamp());
-          Log.i("GeckoSmsManager", "SMS delivery failed!");
+          Log.i("GoannaSmsManager", "SMS delivery failed!");
         }
       } else {
         if (part == Envelope.SubParts.SENT_PART) {
@@ -475,20 +475,20 @@ public class GeckoSmsManager
 
           int id = saveSentMessage(number, message, timestamp);
 
-          GeckoAppShell.notifySmsSent(id, number, message, timestamp,
+          GoannaAppShell.notifySmsSent(id, number, message, timestamp,
                                       bundle.getInt("requestId"));
 
           envelope.setMessageId(id);
           envelope.setMessageTimestamp(timestamp);
 
-          Log.i("GeckoSmsManager", "SMS sending was successfull!");
+          Log.i("GoannaSmsManager", "SMS sending was successfull!");
         } else {
-          GeckoAppShell.notifySmsDelivery(envelope.getMessageId(),
+          GoannaAppShell.notifySmsDelivery(envelope.getMessageId(),
                                           kDeliveryStatusSuccess,
                                           bundle.getString("number"),
                                           bundle.getString("message"),
                                           envelope.getMessageTimestamp());
-          Log.i("GeckoSmsManager", "SMS succesfully delivered!");
+          Log.i("GoannaSmsManager", "SMS succesfully delivered!");
         }
       }
 
@@ -535,12 +535,12 @@ public class GeckoSmsManager
          * generated by GetPendingIntentUID().
          */
         PendingIntent sentPendingIntent =
-          PendingIntent.getBroadcast(GeckoApp.mAppContext,
+          PendingIntent.getBroadcast(GoannaApp.mAppContext,
                                      PendingIntentUID.generate(), sentIntent,
                                      PendingIntent.FLAG_CANCEL_CURRENT);
 
         PendingIntent deliveredPendingIntent =
-          PendingIntent.getBroadcast(GeckoApp.mAppContext,
+          PendingIntent.getBroadcast(GoannaApp.mAppContext,
                                      PendingIntentUID.generate(), deliveredIntent,
                                      PendingIntent.FLAG_CANCEL_CURRENT);
 
@@ -561,13 +561,13 @@ public class GeckoSmsManager
 
         for (int i=0; i<parts.size(); ++i) {
           sentPendingIntents.add(
-            PendingIntent.getBroadcast(GeckoApp.mAppContext,
+            PendingIntent.getBroadcast(GoannaApp.mAppContext,
                                        PendingIntentUID.generate(), sentIntent,
                                        PendingIntent.FLAG_CANCEL_CURRENT)
           );
 
           deliveredPendingIntents.add(
-            PendingIntent.getBroadcast(GeckoApp.mAppContext,
+            PendingIntent.getBroadcast(GoannaApp.mAppContext,
                                        PendingIntentUID.generate(), deliveredIntent,
                                        PendingIntent.FLAG_CANCEL_CURRENT)
           );
@@ -577,13 +577,13 @@ public class GeckoSmsManager
                                     deliveredPendingIntents);
       }
     } catch (Exception e) {
-      Log.e("GeckoSmsManager", "Failed to send an SMS: ", e);
+      Log.e("GoannaSmsManager", "Failed to send an SMS: ", e);
 
       if (envelopeId != Postman.kUnknownEnvelopeId) {
         Postman.getInstance().destroyEnvelope(envelopeId);
       }
 
-      GeckoAppShell.notifySmsSendFailed(kUnknownError, aRequestId);
+      GoannaAppShell.notifySmsSendFailed(kUnknownError, aRequestId);
     }
   }
 
@@ -596,7 +596,7 @@ public class GeckoSmsManager
       // Always 'PENDING' because we always request status report.
       values.put("status", kInternalDeliveryStatusPending);
 
-      ContentResolver cr = GeckoApp.mAppContext.getContentResolver();
+      ContentResolver cr = GoannaApp.mAppContext.getContentResolver();
       Uri uri = cr.insert(kSmsSentContentUri, values);
 
       long id = ContentUris.parseId(uri);
@@ -609,10 +609,10 @@ public class GeckoSmsManager
 
       return (int)id;
     } catch (IdTooHighException e) {
-      Log.e("GeckoSmsManager", "The id we received is higher than the higher allowed value.");
+      Log.e("GoannaSmsManager", "The id we received is higher than the higher allowed value.");
       return -1;
     } catch (Exception e) {
-      Log.e("GeckoSmsManager", "Something went wrong when trying to write a sent message: " + e);
+      Log.e("GoannaSmsManager", "Something went wrong when trying to write a sent message: " + e);
       return -1;
     }
   }
@@ -632,7 +632,7 @@ public class GeckoSmsManager
         Cursor cursor = null;
 
         try {
-          ContentResolver cr = GeckoApp.mAppContext.getContentResolver();
+          ContentResolver cr = GoannaApp.mAppContext.getContentResolver();
           Uri message = ContentUris.withAppendedId(kSmsContentUri, mMessageId);
 
           cursor = cr.query(message, kRequiredMessageRows, null, null, null);
@@ -659,34 +659,34 @@ public class GeckoSmsManager
             deliveryStatus = kDeliveryStatusSuccess;
             sender = cursor.getString(cursor.getColumnIndex("address"));
           } else if (type == kSmsTypeSentbox) {
-            deliveryStatus = getGeckoDeliveryStatus(cursor.getInt(cursor.getColumnIndex("status")));
+            deliveryStatus = getGoannaDeliveryStatus(cursor.getInt(cursor.getColumnIndex("status")));
             receiver = cursor.getString(cursor.getColumnIndex("address"));
           } else {
             throw new InvalidTypeException();
           }
 
-          GeckoAppShell.notifyGetSms(cursor.getInt(cursor.getColumnIndex("_id")),
+          GoannaAppShell.notifyGetSms(cursor.getInt(cursor.getColumnIndex("_id")),
                                      deliveryStatus,
                                      receiver, sender,
                                      cursor.getString(cursor.getColumnIndex("body")),
                                      cursor.getLong(cursor.getColumnIndex("date")),
                                      mRequestId);
         } catch (NotFoundException e) {
-          Log.i("GeckoSmsManager", "Message id " + mMessageId + " not found");
-          GeckoAppShell.notifyGetSmsFailed(kNotFoundError, mRequestId);
+          Log.i("GoannaSmsManager", "Message id " + mMessageId + " not found");
+          GoannaAppShell.notifyGetSmsFailed(kNotFoundError, mRequestId);
         } catch (UnmatchingIdException e) {
-          Log.e("GeckoSmsManager", "Requested message id (" + mMessageId +
+          Log.e("GoannaSmsManager", "Requested message id (" + mMessageId +
                                    ") is different from the one we got.");
-          GeckoAppShell.notifyGetSmsFailed(kUnknownError, mRequestId);
+          GoannaAppShell.notifyGetSmsFailed(kUnknownError, mRequestId);
         } catch (TooManyResultsException e) {
-          Log.e("GeckoSmsManager", "Get too many results for id " + mMessageId);
-          GeckoAppShell.notifyGetSmsFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Get too many results for id " + mMessageId);
+          GoannaAppShell.notifyGetSmsFailed(kUnknownError, mRequestId);
         } catch (InvalidTypeException e) {
-          Log.i("GeckoSmsManager", "Message has an invalid type, we ignore it.");
-          GeckoAppShell.notifyGetSmsFailed(kNotFoundError, mRequestId);
+          Log.i("GoannaSmsManager", "Message has an invalid type, we ignore it.");
+          GoannaAppShell.notifyGetSmsFailed(kNotFoundError, mRequestId);
         } catch (Exception e) {
-          Log.e("GeckoSmsManager", "Error while trying to get message: " + e);
-          GeckoAppShell.notifyGetSmsFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Error while trying to get message: " + e);
+          GoannaAppShell.notifyGetSmsFailed(kUnknownError, mRequestId);
         } finally {
           if (cursor != null) {
             cursor.close();
@@ -696,8 +696,8 @@ public class GeckoSmsManager
     }
 
     if (!SmsIOThread.getInstance().execute(new GetMessageRunnable(aMessageId, aRequestId))) {
-      Log.e("GeckoSmsManager", "Failed to add GetMessageRunnable to the SmsIOThread");
-      GeckoAppShell.notifyGetSmsFailed(kUnknownError, aRequestId);
+      Log.e("GoannaSmsManager", "Failed to add GetMessageRunnable to the SmsIOThread");
+      GoannaAppShell.notifyGetSmsFailed(kUnknownError, aRequestId);
     }
   }
 
@@ -714,7 +714,7 @@ public class GeckoSmsManager
       @Override
       public void run() {
         try {
-          ContentResolver cr = GeckoApp.mAppContext.getContentResolver();
+          ContentResolver cr = GoannaApp.mAppContext.getContentResolver();
           Uri message = ContentUris.withAppendedId(kSmsContentUri, mMessageId);
 
           int count = cr.delete(message, null, null);
@@ -723,20 +723,20 @@ public class GeckoSmsManager
             throw new TooManyResultsException();
           }
 
-          GeckoAppShell.notifySmsDeleted(count == 1, mRequestId);
+          GoannaAppShell.notifySmsDeleted(count == 1, mRequestId);
         } catch (TooManyResultsException e) {
-          Log.e("GeckoSmsManager", "Delete more than one message? " + e);
-          GeckoAppShell.notifySmsDeleteFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Delete more than one message? " + e);
+          GoannaAppShell.notifySmsDeleteFailed(kUnknownError, mRequestId);
         } catch (Exception e) {
-          Log.e("GeckoSmsManager", "Error while trying to delete a message: " + e);
-          GeckoAppShell.notifySmsDeleteFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Error while trying to delete a message: " + e);
+          GoannaAppShell.notifySmsDeleteFailed(kUnknownError, mRequestId);
         }
       }
     }
 
     if (!SmsIOThread.getInstance().execute(new DeleteMessageRunnable(aMessageId, aRequestId))) {
-      Log.e("GeckoSmsManager", "Failed to add GetMessageRunnable to the SmsIOThread");
-      GeckoAppShell.notifySmsDeleteFailed(kUnknownError, aRequestId);
+      Log.e("GoannaSmsManager", "Failed to add GetMessageRunnable to the SmsIOThread");
+      GoannaAppShell.notifySmsDeleteFailed(kUnknownError, aRequestId);
     }
   }
 
@@ -804,12 +804,12 @@ public class GeckoSmsManager
             restrictionText += " AND " + restrictions.get(i);
           }
 
-          ContentResolver cr = GeckoApp.mAppContext.getContentResolver();
+          ContentResolver cr = GoannaApp.mAppContext.getContentResolver();
           cursor = cr.query(kSmsContentUri, kRequiredMessageRows, restrictionText, null,
                             mReverse ? "date DESC" : "date ASC");
 
           if (cursor.getCount() == 0) {
-            GeckoAppShell.notifyNoMessageInList(mRequestId);
+            GoannaAppShell.notifyNoMessageInList(mRequestId);
             return;
           }
 
@@ -824,7 +824,7 @@ public class GeckoSmsManager
             deliveryStatus = kDeliveryStatusSuccess;
             sender = cursor.getString(cursor.getColumnIndex("address"));
           } else if (type == kSmsTypeSentbox) {
-            deliveryStatus = getGeckoDeliveryStatus(cursor.getInt(cursor.getColumnIndex("status")));
+            deliveryStatus = getGoannaDeliveryStatus(cursor.getInt(cursor.getColumnIndex("status")));
             receiver = cursor.getString(cursor.getColumnIndex("address"));
           } else {
             throw new UnexpectedDeliveryStateException();
@@ -832,7 +832,7 @@ public class GeckoSmsManager
 
           int listId = MessagesListManager.getInstance().add(cursor);
           closeCursor = false;
-          GeckoAppShell.notifyListCreated(listId,
+          GoannaAppShell.notifyListCreated(listId,
                                           cursor.getInt(cursor.getColumnIndex("_id")),
                                           deliveryStatus,
                                           receiver, sender,
@@ -840,11 +840,11 @@ public class GeckoSmsManager
                                           cursor.getLong(cursor.getColumnIndex("date")),
                                           mRequestId);
         } catch (UnexpectedDeliveryStateException e) {
-          Log.e("GeckoSmsManager", "Unexcepted delivery state type: " + e);
-          GeckoAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Unexcepted delivery state type: " + e);
+          GoannaAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
         } catch (Exception e) {
-          Log.e("GeckoSmsManager", "Error while trying to create a message list cursor: " + e);
-          GeckoAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Error while trying to create a message list cursor: " + e);
+          GoannaAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
         } finally {
           // Close the cursor if MessagesListManager isn't taking care of it.
           // We could also just check if it is in the MessagesListManager list but
@@ -857,8 +857,8 @@ public class GeckoSmsManager
     }
 
     if (!SmsIOThread.getInstance().execute(new CreateMessageListRunnable(aStartDate, aEndDate, aNumbers, aNumbersCount, aDeliveryState, aReverse, aRequestId))) {
-      Log.e("GeckoSmsManager", "Failed to add CreateMessageListRunnable to the SmsIOThread");
-      GeckoAppShell.notifyReadingMessageListFailed(kUnknownError, aRequestId);
+      Log.e("GoannaSmsManager", "Failed to add CreateMessageListRunnable to the SmsIOThread");
+      GoannaAppShell.notifyReadingMessageListFailed(kUnknownError, aRequestId);
     }
   }
 
@@ -879,7 +879,7 @@ public class GeckoSmsManager
 
           if (!cursor.moveToNext()) {
             MessagesListManager.getInstance().remove(mListId);
-            GeckoAppShell.notifyNoMessageInList(mRequestId);
+            GoannaAppShell.notifyNoMessageInList(mRequestId);
             return;
           }
 
@@ -892,32 +892,32 @@ public class GeckoSmsManager
             deliveryStatus = kDeliveryStatusSuccess;
             sender = cursor.getString(cursor.getColumnIndex("address"));
           } else if (type == kSmsTypeSentbox) {
-            deliveryStatus = getGeckoDeliveryStatus(cursor.getInt(cursor.getColumnIndex("status")));
+            deliveryStatus = getGoannaDeliveryStatus(cursor.getInt(cursor.getColumnIndex("status")));
             receiver = cursor.getString(cursor.getColumnIndex("address"));
           } else {
             throw new UnexpectedDeliveryStateException();
           }
 
           int listId = MessagesListManager.getInstance().add(cursor);
-          GeckoAppShell.notifyGotNextMessage(cursor.getInt(cursor.getColumnIndex("_id")),
+          GoannaAppShell.notifyGotNextMessage(cursor.getInt(cursor.getColumnIndex("_id")),
                                              deliveryStatus,
                                              receiver, sender,
                                              cursor.getString(cursor.getColumnIndex("body")),
                                              cursor.getLong(cursor.getColumnIndex("date")),
                                              mRequestId);
         } catch (UnexpectedDeliveryStateException e) {
-          Log.e("GeckoSmsManager", "Unexcepted delivery state type: " + e);
-          GeckoAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Unexcepted delivery state type: " + e);
+          GoannaAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
         } catch (Exception e) {
-          Log.e("GeckoSmsManager", "Error while trying to get the next message of a list: " + e);
-          GeckoAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
+          Log.e("GoannaSmsManager", "Error while trying to get the next message of a list: " + e);
+          GoannaAppShell.notifyReadingMessageListFailed(kUnknownError, mRequestId);
         }
       }
     }
 
     if (!SmsIOThread.getInstance().execute(new GetNextMessageInListRunnable(aListId, aRequestId))) {
-      Log.e("GeckoSmsManager", "Failed to add GetNextMessageInListRunnable to the SmsIOThread");
-      GeckoAppShell.notifyReadingMessageListFailed(kUnknownError, aRequestId);
+      Log.e("GoannaSmsManager", "Failed to add GetNextMessageInListRunnable to the SmsIOThread");
+      GoannaAppShell.notifyReadingMessageListFailed(kUnknownError, aRequestId);
     }
   }
 
@@ -926,7 +926,7 @@ public class GeckoSmsManager
   }
 
   public void stop() {
-    GeckoApp.mAppContext.unregisterReceiver(this);
+    GoannaApp.mAppContext.unregisterReceiver(this);
   }
 
   public void shutdown() {
@@ -934,7 +934,7 @@ public class GeckoSmsManager
     MessagesListManager.getInstance().clear();
   }
 
-  private int getGeckoDeliveryStatus(int aDeliveryStatus) {
+  private int getGoannaDeliveryStatus(int aDeliveryStatus) {
     if (aDeliveryStatus == kInternalDeliveryStatusNone) {
       return kDeliveryStatusNotApplicable;
     }
@@ -947,7 +947,7 @@ public class GeckoSmsManager
     return kDeliveryStatusSuccess;
   }
 
-  private int getGeckoMessageClass(MessageClass aMessageClass) {
+  private int getGoannaMessageClass(MessageClass aMessageClass) {
     switch (aMessageClass) {
       case UNKNOWN:
         return kMessageClassNormal;

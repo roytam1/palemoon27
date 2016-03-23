@@ -36,7 +36,7 @@
 # include <android/log.h>
 # include "AndroidBridge.h"
 #endif
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 struct nsCSSValueSharedList;
 
@@ -942,8 +942,8 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   mLayerManager->GetCompositor()->SetScreenRenderOffset(offset);
 
   // Handle transformations for asynchronous panning and zooming. We determine the
-  // zoom used by Gecko from the transformation set on the root layer, and we
-  // determine the scroll offset used by Gecko from the frame metrics of the
+  // zoom used by Goanna from the transformation set on the root layer, and we
+  // determine the scroll offset used by Goanna from the frame metrics of the
   // primary scrollable layer. We compare this to the user zoom and scroll
   // offset in the view transform we obtained from Java in order to compute the
   // transformation we need to apply.
@@ -1021,12 +1021,12 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
   //
   // Attempt to apply an async content transform to any layer that has
   // an async pan zoom controller (which means that it is rendered
-  // async using Gecko). If this fails, fall back to transforming the
+  // async using Goanna). If this fails, fall back to transforming the
   // primary scrollable layer.  "Failing" here means that we don't
   // find a frame that is async scrollable.  Note that the fallback
   // code also includes Fennec which is rendered async.  Fennec uses
   // its own platform-specific async rendering that is done partially
-  // in Gecko and partially in Java.
+  // in Goanna and partially in Java.
   wantNextFrame |= SampleAPZAnimations(LayerMetricsWrapper(root), aCurrentFrame);
   if (!ApplyAsyncContentTransformToTree(root)) {
     nsAutoTArray<Layer*,1> scrollableLayers;

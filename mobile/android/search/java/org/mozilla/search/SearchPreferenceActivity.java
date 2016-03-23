@@ -4,7 +4,7 @@
 
 package org.mozilla.search;
 
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
@@ -44,7 +44,7 @@ public class SearchPreferenceActivity extends PreferenceActivity {
         Locales.initializeLocale(getApplicationContext());
         super.onCreate(savedInstanceState);
 
-        getPreferenceManager().setSharedPreferencesName(GeckoSharedPrefs.APP_PREFS_NAME);
+        getPreferenceManager().setSharedPreferencesName(GoannaSharedPrefs.APP_PREFS_NAME);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             if (getActionBar() != null) {

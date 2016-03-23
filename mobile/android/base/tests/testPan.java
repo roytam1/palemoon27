@@ -19,16 +19,16 @@ public class testPan extends PixelTest {
     public void testPan() {
         String url = getAbsoluteUrl("/startup_test/fennecmark/wikipedia.html");
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         loadAndPaint(url);
 
         mDriver.setupScrollHandling();
 
         // Setup scrolling coordinates.
-        int midX = mDriver.getGeckoLeft() + mDriver.getGeckoWidth()/2;
-        int midY = mDriver.getGeckoTop() + mDriver.getGeckoHeight()/2;
-        int endY = mDriver.getGeckoTop() + mDriver.getGeckoHeight()/10;
+        int midX = mDriver.getGoannaLeft() + mDriver.getGoannaWidth()/2;
+        int midY = mDriver.getGoannaTop() + mDriver.getGoannaHeight()/2;
+        int endY = mDriver.getGoannaTop() + mDriver.getGoannaHeight()/10;
 
         mDriver.startFrameRecording();
 

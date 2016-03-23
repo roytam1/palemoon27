@@ -85,7 +85,7 @@ public:
    * XXX This method will not do the right thing for frames with continuations.
    * It really needs all the continuations to have been reflowed before being
    * called, but we currently call it on each continuation as its overflow
-   * rects are set during the reflow of each particular continuation. Gecko's
+   * rects are set during the reflow of each particular continuation. Goanna's
    * current reflow architecture does not allow us to set the overflow rects
    * for a whole chain of continuations for a given element at the point when
    * the last continuation is reflowed. See:

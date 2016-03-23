@@ -24,7 +24,7 @@ public class testClearPrivateData extends PixelTest {
     private final int TEST_WAIT_MS = 10000;
 
     public void testClearPrivateData() {
-        blockForGeckoReady();
+        blockForGoannaReady();
         clearHistory();
         clearSiteSettings();
         clearPassword();

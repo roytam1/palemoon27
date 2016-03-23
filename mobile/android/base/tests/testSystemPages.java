@@ -10,7 +10,7 @@ public class testSystemPages extends PixelTest {
     private static final int AFTER_BACK_SLEEP_MS = 500;
 
     public void testSystemPages() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         final String urls [] = { StringHelper.ABOUT_FIREFOX_URL, StringHelper.ABOUT_RIGHTS_URL,
                 StringHelper.ABOUT_ADDONS_URL, StringHelper.ABOUT_DOWNLOADS_URL,
@@ -67,8 +67,8 @@ public class testSystemPages extends PixelTest {
             expectedTabCount++;
 
             // Set up listeners to catch the page load we're about to do
-            tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
-            contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+            tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
+            contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
             selectMenuItemByPath(pathToItem);
 
             // Wait for the new tab and page to load

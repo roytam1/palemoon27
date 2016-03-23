@@ -39,7 +39,7 @@ import android.util.Log;
  * MatrixCursor is all private, so we entirely duplicate it here.
  */
 public class MatrixBlobCursor extends AbstractCursor {
-    private static final String LOGTAG = "GeckoMatrixCursor";
+    private static final String LOGTAG = "GoannaMatrixCursor";
 
     private final String[] columnNames;
     private final int columnCount;

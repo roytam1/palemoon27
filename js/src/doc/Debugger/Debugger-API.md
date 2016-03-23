@@ -23,7 +23,7 @@ patch-and-continue, and so on.
   JavaScript effective on the web can be brought to bear in crafting tools
   for developers. As is expected of JavaScript APIs, `Debugger` is a
   *sound* interface: using (or even misusing) `Debugger` should never cause
-  Gecko to crash. Errors throw proper JavaScript exceptions.
+  Goanna to crash. Errors throw proper JavaScript exceptions.
 
 - It is an *intra-thread* debugging API. Both the debuggee and the code
   using `Debugger` to observe it must run in the same thread. Cross-thread,
@@ -32,7 +32,7 @@ patch-and-continue, and so on.
   communication themselves. (Firefox's builtin tools have a
   [protocol][protocol] defined for this purpose.)
 
-In Gecko, the `Debugger` API is available to chrome code only. By design,
+In Goanna, the `Debugger` API is available to chrome code only. By design,
 it ought not to introduce security holes, so in principle it could be made
 available to content as well; but it is hard to justify the security risks
 of the additional attack surface.
@@ -111,12 +111,12 @@ features:
 - [Showing how many objects different call paths allocate.][tut alloc log]
 
 
-## Gecko-specific features
+## Goanna-specific features
 
 While the `Debugger` core API deals only with concepts common to any
-JavaScript implementation, it also includes some Gecko-specific features:
+JavaScript implementation, it also includes some Goanna-specific features:
 
 - [Global tracking][global] supports debugging all the code running in a
-  Gecko instance at once---the 'chrome debugging' model.
+  Goanna instance at once---the 'chrome debugging' model.
 - [Object wrapper][wrapper] functions help manipulate object references
   that cross privilege boundaries.

@@ -109,7 +109,7 @@ public class testReadingListProvider extends ContentProviderTest {
 
         // Ensure browser initialization is complete before completing test,
         // so that the minidumps directory is consistently created.
-        blockForGeckoReady();
+        blockForGoannaReady();
     }
 
     /**

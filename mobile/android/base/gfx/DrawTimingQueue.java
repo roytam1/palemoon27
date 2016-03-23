@@ -24,7 +24,7 @@ import android.os.SystemClock;
  * since the range itself will not shrink.
  */
 final class DrawTimingQueue {
-    private static final String LOGTAG = "GeckoDrawTimingQueue";
+    private static final String LOGTAG = "GoannaDrawTimingQueue";
     private static final int BUFFER_SIZE = 16;
 
     private final DisplayPortMetrics[] mMetrics;

@@ -32,7 +32,7 @@ public:
 
   // We're overriding these methods because we want to read/write with GTK objects,
   // not local variables. This allows a simpler settings implementation between
-  // Gecko and GTK.
+  // Goanna and GTK.
 
   GtkPageSetup* GetGtkPageSetup() { return mPageSetup; };
   void SetGtkPageSetup(GtkPageSetup *aPageSetup);
@@ -122,7 +122,7 @@ protected:
   virtual nsresult _Clone(nsIPrintSettings **_retval) override;
   virtual nsresult _Assign(nsIPrintSettings *aPS) override;
 
-  GtkUnit GetGTKUnit(int16_t aGeckoUnit);
+  GtkUnit GetGTKUnit(int16_t aGoannaUnit);
   void SaveNewPageSize();
 
   /**

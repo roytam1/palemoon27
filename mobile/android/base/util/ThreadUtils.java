@@ -31,23 +31,23 @@ public final class ThreadUtils {
 
     private static volatile Thread sBackgroundThread;
 
-    // Referenced directly from GeckoAppShell in highly performance-sensitive code (The extra
+    // Referenced directly from GoannaAppShell in highly performance-sensitive code (The extra
     // function call of the getter was harming performance. (Bug 897123))
     // Once Bug 709230 is resolved we should reconsider this as ProGuard should be able to optimise
     // this out at compile time.
-    public static Handler sGeckoHandler;
-    public static MessageQueue sGeckoQueue;
-    public static volatile Thread sGeckoThread;
+    public static Handler sGoannaHandler;
+    public static MessageQueue sGoannaQueue;
+    public static volatile Thread sGoannaThread;
 
-    // Delayed Runnable that resets the Gecko thread priority.
+    // Delayed Runnable that resets the Goanna thread priority.
     private static final Runnable sPriorityResetRunnable = new Runnable() {
         @Override
         public void run() {
-            resetGeckoPriority();
+            resetGoannaPriority();
         }
     };
 
-    private static boolean sIsGeckoPriorityReduced;
+    private static boolean sIsGoannaPriorityReduced;
 
     @SuppressWarnings("serial")
     public static class UiThreadBlockedException extends RuntimeException {
@@ -109,11 +109,11 @@ public final class ThreadUtils {
     }
 
     public static Handler getBackgroundHandler() {
-        return GeckoBackgroundThread.getHandler();
+        return GoannaBackgroundThread.getHandler();
     }
 
     public static void postToBackgroundThread(Runnable runnable) {
-        GeckoBackgroundThread.post(runnable);
+        GoannaBackgroundThread.post(runnable);
     }
 
     public static void assertOnUiThread(final AssertBehavior assertBehavior) {
@@ -129,16 +129,16 @@ public final class ThreadUtils {
     }
 
     @RobocopTarget
-    public static void assertOnGeckoThread() {
-        assertOnThread(sGeckoThread, AssertBehavior.THROW);
+    public static void assertOnGoannaThread() {
+        assertOnThread(sGoannaThread, AssertBehavior.THROW);
     }
 
-    public static void assertNotOnGeckoThread() {
-        if (sGeckoThread == null) {
-            // Cannot be on Gecko thread if Gecko thread is not live yet.
+    public static void assertNotOnGoannaThread() {
+        if (sGoannaThread == null) {
+            // Cannot be on Goanna thread if Goanna thread is not live yet.
             return;
         }
-        assertNotOnThread(sGeckoThread, AssertBehavior.THROW);
+        assertNotOnThread(sGoannaThread, AssertBehavior.THROW);
     }
 
     public static void assertOnBackgroundThread() {
@@ -186,9 +186,9 @@ public final class ThreadUtils {
         }
     }
 
-    public static boolean isOnGeckoThread() {
-        if (sGeckoThread != null) {
-            return isOnThread(sGeckoThread);
+    public static boolean isOnGoannaThread() {
+        if (sGoannaThread != null) {
+            return isOnThread(sGoannaThread);
         }
         return false;
     }
@@ -212,7 +212,7 @@ public final class ThreadUtils {
     }
 
     /**
-     * Reduces the priority of the Gecko thread, allowing other operations
+     * Reduces the priority of the Goanna thread, allowing other operations
      * (such as those related to the UI and database) to take precedence.
      *
      * Note that there are no guards in place to prevent multiple calls
@@ -220,28 +220,28 @@ public final class ThreadUtils {
      *
      * @param timeout Timeout in ms after which the priority will be reset
      */
-    public static void reduceGeckoPriority(long timeout) {
+    public static void reduceGoannaPriority(long timeout) {
         if (Runtime.getRuntime().availableProcessors() > 1) {
             // Don't reduce priority for multicore devices. We use availableProcessors()
             // for its fast performance. It may give false negatives (i.e. multicore
             // detected as single-core), but we can tolerate this behavior.
             return;
         }
-        if (!sIsGeckoPriorityReduced && sGeckoThread != null) {
-            sIsGeckoPriorityReduced = true;
-            sGeckoThread.setPriority(Thread.MIN_PRIORITY);
+        if (!sIsGoannaPriorityReduced && sGoannaThread != null) {
+            sIsGoannaPriorityReduced = true;
+            sGoannaThread.setPriority(Thread.MIN_PRIORITY);
             getUiHandler().postDelayed(sPriorityResetRunnable, timeout);
         }
     }
 
     /**
      * Resets the priority of a thread whose priority has been reduced
-     * by reduceGeckoPriority.
+     * by reduceGoannaPriority.
      */
-    public static void resetGeckoPriority() {
-        if (sIsGeckoPriorityReduced) {
-            sIsGeckoPriorityReduced = false;
-            sGeckoThread.setPriority(Thread.NORM_PRIORITY);
+    public static void resetGoannaPriority() {
+        if (sIsGoannaPriorityReduced) {
+            sIsGoannaPriorityReduced = false;
+            sGoannaThread.setPriority(Thread.NORM_PRIORITY);
             getUiHandler().removeCallbacks(sPriorityResetRunnable);
         }
     }

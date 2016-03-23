@@ -1,8 +1,8 @@
 package org.mozilla.gecko.prompts;
 
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.widget.GeckoActionProvider;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.widget.GoannaActionProvider;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -18,7 +18,7 @@ import java.util.ArrayList;
 
 // This class should die and be replaced with normal menu items
 public class PromptListItem {
-    private static final String LOGTAG = "GeckoPromptListItem";
+    private static final String LOGTAG = "GoannaPromptListItem";
     public final String label;
     public final boolean isGroup;
     public final boolean inGroup;
@@ -32,7 +32,7 @@ public class PromptListItem {
     public Drawable mIcon;
 
     PromptListItem(JSONObject aObject) {
-        Context context = GeckoAppShell.getContext();
+        Context context = GoannaAppShell.getContext();
         label = aObject.isNull("label") ? "" : aObject.optString("label");
         isGroup = aObject.optBoolean("isGroup");
         inGroup = aObject.optBoolean("inGroup");
@@ -44,10 +44,10 @@ public class PromptListItem {
         if (obj != null) {
             showAsActions = true;
             String uri = obj.isNull("uri") ? "" : obj.optString("uri");
-            String type = obj.isNull("type") ? GeckoActionProvider.DEFAULT_MIME_TYPE :
-                                               obj.optString("type", GeckoActionProvider.DEFAULT_MIME_TYPE);
+            String type = obj.isNull("type") ? GoannaActionProvider.DEFAULT_MIME_TYPE :
+                                               obj.optString("type", GoannaActionProvider.DEFAULT_MIME_TYPE);
 
-            mIntent = GeckoAppShell.getShareIntent(context, uri, type, "");
+            mIntent = GoannaAppShell.getShareIntent(context, uri, type, "");
             isParent = true;
         } else {
             mIntent = null;

@@ -13,7 +13,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.mozglue.ContextUtils.SafeIntent;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import android.app.PendingIntent;
 import android.content.Context;
@@ -23,11 +23,11 @@ import android.net.Uri;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
-public final class NotificationHelper implements GeckoEventListener {
+public final class NotificationHelper implements GoannaEventListener {
     public static final String HELPER_BROADCAST_ACTION = AppConstants.ANDROID_PACKAGE_NAME + ".helperBroadcastAction";
 
     public static final String NOTIFICATION_ID = "NotificationHelper_ID";
-    private static final String LOGTAG = "GeckoNotificationHelper";
+    private static final String LOGTAG = "GoannaNotificationHelper";
     private static final String HELPER_NOTIFICATION = "helperNotif";
 
     // Attributes mandatory to be used while sending a notification from js.
@@ -64,7 +64,7 @@ public final class NotificationHelper implements GeckoEventListener {
     private final Context mContext;
 
     // Holds a list of notifications that should be cleared if the Fennec Activity is shut down.
-    // Will not include ongoing or persistent notifications that are tied to Gecko's lifecycle.
+    // Will not include ongoing or persistent notifications that are tied to Goanna's lifecycle.
     private HashMap<String, String> mClearableNotifications;
 
     private boolean mInitialized;
@@ -76,7 +76,7 @@ public final class NotificationHelper implements GeckoEventListener {
 
     public void init() {
         mClearableNotifications = new HashMap<String, String>();
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Notification:Show",
             "Notification:Hide");
         mInitialized = true;
@@ -123,9 +123,9 @@ public final class NotificationHelper implements GeckoEventListener {
         // In case the user swiped out the notification, we empty the id set.
         if (CLEARED_EVENT.equals(notificationType)) {
             mClearableNotifications.remove(id);
-            // If Gecko isn't running, we throw away events where the notification was cancelled.
+            // If Goanna isn't running, we throw away events where the notification was cancelled.
             // i.e. Don't bug the user if they're just closing a bunch of notifications.
-            if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+            if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
                 return;
             }
         }
@@ -148,7 +148,7 @@ public final class NotificationHelper implements GeckoEventListener {
             }
 
             Log.i(LOGTAG, "Send " + args.toString());
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Notification:Event", args.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Notification:Event", args.toString()));
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error building JSON notification arguments.", e);
         }
@@ -192,7 +192,7 @@ public final class NotificationHelper implements GeckoEventListener {
         notificationIntent.setData(dataUri);
         notificationIntent.putExtra(HELPER_NOTIFICATION, true);
         notificationIntent.putExtra(COOKIE_ATTR, message.optString(COOKIE_ATTR));
-        notificationIntent.setClass(mContext, GeckoAppShell.getGeckoInterface().getActivity().getClass());
+        notificationIntent.setClass(mContext, GoannaAppShell.getGoannaInterface().getActivity().getClass());
         return notificationIntent;
     }
 
@@ -302,7 +302,7 @@ public final class NotificationHelper implements GeckoEventListener {
         PendingIntent deletePendingIntent = buildNotificationPendingIntent(message, CLEARED_EVENT);
         builder.setDeleteIntent(deletePendingIntent);
 
-        GeckoAppShell.notificationClient.add(id.hashCode(), builder.build());
+        GoannaAppShell.notificationClient.add(id.hashCode(), builder.build());
 
         boolean persistent = message.optBoolean(PERSISTENT_ATTR);
         // We add only not persistent notifications to the list since we want to purge only
@@ -336,14 +336,14 @@ public final class NotificationHelper implements GeckoEventListener {
             args.put(COOKIE_ATTR, cookie);
             args.put(EVENT_TYPE_ATTR, CLOSED_EVENT);
             Log.i(LOGTAG, "Send " + args.toString());
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Notification:Event", args.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Notification:Event", args.toString()));
         } catch (JSONException ex) {
             Log.e(LOGTAG, "sendNotificationWasClosed: error building JSON notification arguments.", ex);
         }
     }
 
     private void closeNotification(String id, String handlerKey, String cookie) {
-        GeckoAppShell.notificationClient.remove(id.hashCode());
+        GoannaAppShell.notificationClient.remove(id.hashCode());
         sendNotificationWasClosed(id, handlerKey, cookie);
     }
 

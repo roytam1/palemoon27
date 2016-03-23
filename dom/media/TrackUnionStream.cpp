@@ -26,7 +26,7 @@
 #include "AudioNodeExternalInputStream.h"
 #include <algorithm>
 #include "DOMMediaStream.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/unused.h"
 #ifdef MOZ_WEBRTC
 #include "AudioOutputObserver.h"

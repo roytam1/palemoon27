@@ -22,7 +22,7 @@ import android.content.Context;
  * Construct a HealthReport environment from the current running system.
  */
 public class EnvironmentBuilder {
-  private static final String LOG_TAG = "GeckoEnvBuilder";
+  private static final String LOG_TAG = "GoannaEnvBuilder";
 
   public static ContentProviderClient getContentProviderClient(Context context) {
     ContentResolver cr = context.getContentResolver();
@@ -102,10 +102,10 @@ public class EnvironmentBuilder {
 
     e.profileCreation = (int) (info.getProfileCreationTime() / GlobalConstants.MILLISECONDS_PER_DAY);
 
-    // Corresponds to Gecko pref "extensions.blocklist.enabled".
+    // Corresponds to Goanna pref "extensions.blocklist.enabled".
     e.isBlocklistEnabled = (info.isBlocklistEnabled() ? 1 : 0);
 
-    // Corresponds to Gecko pref "toolkit.telemetry.enabled".
+    // Corresponds to Goanna pref "toolkit.telemetry.enabled".
     e.isTelemetryEnabled = (info.isTelemetryEnabled() ? 1 : 0);
 
     e.extensionCount = 0;

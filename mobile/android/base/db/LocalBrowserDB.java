@@ -41,7 +41,7 @@ import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.gecko.util.GoannaJarReader;
 import org.mozilla.gecko.util.StringUtils;
 
 import android.content.ContentProviderOperation;
@@ -64,7 +64,7 @@ import static org.mozilla.gecko.util.IOUtils.ConsumedInputStream;
 import static org.mozilla.gecko.favicons.LoadFaviconTask.DEFAULT_FAVICON_BUFFER_SIZE;
 
 public class LocalBrowserDB implements BrowserDB {
-    private static final String LOGTAG = "GeckoLocalBrowserDB";
+    private static final String LOGTAG = "GoannaLocalBrowserDB";
 
     // Calculate this once, at initialization. isLoggable is too expensive to
     // have in-line in each log call.
@@ -482,8 +482,8 @@ public class LocalBrowserDB implements BrowserDB {
             return null;
         }
 
-        final String bitmapPath = GeckoJarReader.getJarURL(context, context.getString(faviconId));
-        final InputStream iStream = GeckoJarReader.getStream(bitmapPath);
+        final String bitmapPath = GoannaJarReader.getJarURL(context, context.getString(faviconId));
+        final InputStream iStream = GoannaJarReader.getStream(bitmapPath);
 
         return IOUtils.readFully(iStream, DEFAULT_FAVICON_BUFFER_SIZE);
     }

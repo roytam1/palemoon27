@@ -51,7 +51,7 @@
 # define LOGE_IF(cond, ...) \
      ( (CONDITION(cond)) \
      ? ((void)__android_log_print(ANDROID_LOG_ERROR, \
-       "Gecko:MozillaRntimeMain", __VA_ARGS__)) \
+       "Goanna:MozillaRntimeMain", __VA_ARGS__)) \
      : (void)0 )
 
 #endif
@@ -176,7 +176,7 @@ content_process_main(int argc, char* argv[])
     // For plugins, this is done in PluginProcessChild::Init, as we need to
     // avoid it for unsupported plugins.  See PluginProcessChild::Init for
     // the details.
-    if (XRE_GetProcessType() != GeckoProcessType_Plugin) {
+    if (XRE_GetProcessType() != GoannaProcessType_Plugin) {
         mozilla::SanitizeEnvironmentVariables();
         SetDllDirectory(L"");
     }
@@ -204,7 +204,7 @@ content_process_main(int argc, char* argv[])
     // On desktop, the GMPLoader lives in plugin-container, so that its
     // code can be covered by an EME/GMP vendor's voucher.
     nsAutoPtr<mozilla::gmp::SandboxStarter> starter(MakeSandboxStarter());
-    if (XRE_GetProcessType() == GeckoProcessType_GMPlugin) {
+    if (XRE_GetProcessType() == GoannaProcessType_GMPlugin) {
         loader = mozilla::gmp::CreateGMPLoader(starter);
     }
 #endif

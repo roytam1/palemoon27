@@ -195,7 +195,7 @@ public class StumblerService extends PersistentIntentService
         if (hasFilesWaiting) {
             // non-empty on startup, schedule an upload
             // This is the only upload trigger in Firefox mode
-            // Firefox triggers this ~4 seconds after startup (after Gecko is loaded), add a small delay to avoid
+            // Firefox triggers this ~4 seconds after startup (after Goanna is loaded), add a small delay to avoid
             // clustering with other operations that are triggered at this time.
             final long lastAttemptedTime = Prefs.getInstance(this).getLastAttemptedUploadTime();
             final long timeNow = System.currentTimeMillis();

@@ -110,7 +110,7 @@ gecko process.
 Using a device runner
 ---------------------
 
-The previous examples used a GeckoRuntimeRunner. If you want to control a
+The previous examples used a GoannaRuntimeRunner. If you want to control a
 gecko process on a remote device, you need to use a DeviceRunner. The api is
 nearly identical except you don't pass in a binary, instead you create a device
 object. For example, for B2G (Firefox OS) emulators you might do:
@@ -147,9 +147,9 @@ BaseRunner
 .. autoclass:: mozrunner.base.BaseRunner
    :members:
 
-GeckoRuntimeRunner
+GoannaRuntimeRunner
 ~~~~~~~~~~~~~~~~~~
-.. autoclass:: mozrunner.base.GeckoRuntimeRunner
+.. autoclass:: mozrunner.base.GoannaRuntimeRunner
    :show-inheritance:
    :members:
 

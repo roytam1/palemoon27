@@ -11,7 +11,7 @@ import java.util.List;
 
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
@@ -22,7 +22,7 @@ import org.mozilla.gecko.animation.PropertyAnimator.PropertyAnimationListener;
 import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.lwt.LightweightTheme;
 import org.mozilla.gecko.lwt.LightweightThemeDrawable;
-import org.mozilla.gecko.menu.GeckoMenu;
+import org.mozilla.gecko.menu.GoannaMenu;
 import org.mozilla.gecko.menu.MenuPopup;
 import org.mozilla.gecko.tabs.TabHistoryController;
 import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.OnStopListener;
@@ -73,8 +73,8 @@ import android.widget.PopupWindow;
 */
 public abstract class BrowserToolbar extends ThemedRelativeLayout
                                      implements Tabs.OnTabsChangedListener,
-                                                GeckoMenu.ActionItemBarPresenter {
-    private static final String LOGTAG = "GeckoToolbar";
+                                                GoannaMenu.ActionItemBarPresenter {
+    private static final String LOGTAG = "GoannaToolbar";
 
     private static final int LIGHTWEIGHT_THEME_INVERT_ALPHA = 34; // 255 - alpha = invert_alpha
 
@@ -515,7 +515,7 @@ public abstract class BrowserToolbar extends ThemedRelativeLayout
 
     private void updateProgressVisibility() {
         final Tab selectedTab = Tabs.getInstance().getSelectedTab();
-        // The selected tab may be null if GeckoApp (and thus the
+        // The selected tab may be null if GoannaApp (and thus the
         // selected tab) are not yet initialized (bug 1090287).
         if (selectedTab != null) {
             updateProgressVisibility(selectedTab, selectedTab.getLoadProgress());
@@ -863,7 +863,7 @@ public abstract class BrowserToolbar extends ThemedRelativeLayout
             });
         }
 
-        GeckoAppShell.getGeckoInterface().invalidateOptionsMenu();
+        GoannaAppShell.getGoannaInterface().invalidateOptionsMenu();
         if (!menuPopup.isShowing()) {
             menuPopup.showAsDropDown(menuButton);
         }

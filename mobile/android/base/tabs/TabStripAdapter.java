@@ -19,7 +19,7 @@ import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 
 class TabStripAdapter extends BaseAdapter {
-    private static final String LOGTAG = "GeckoTabStripAdapter";
+    private static final String LOGTAG = "GoannaTabStripAdapter";
 
     private final Context context;
     private List<Tab> tabs;

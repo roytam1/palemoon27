@@ -206,26 +206,26 @@ static inline void profiler_log(const char *fmt, va_list args) {}
 
 #else
 
-#include "GeckoProfilerImpl.h"
+#include "GoannaProfilerImpl.h"
 
 #endif
 
-class GeckoProfilerInitRAII {
+class GoannaProfilerInitRAII {
 public:
-  explicit GeckoProfilerInitRAII(void* stackTop) {
+  explicit GoannaProfilerInitRAII(void* stackTop) {
     profiler_init(stackTop);
   }
-  ~GeckoProfilerInitRAII() {
+  ~GoannaProfilerInitRAII() {
     profiler_shutdown();
   }
 };
 
-class GeckoProfilerSleepRAII {
+class GoannaProfilerSleepRAII {
 public:
-  GeckoProfilerSleepRAII() {
+  GoannaProfilerSleepRAII() {
     profiler_sleep_start();
   }
-  ~GeckoProfilerSleepRAII() {
+  ~GoannaProfilerSleepRAII() {
     profiler_sleep_end();
   }
 };

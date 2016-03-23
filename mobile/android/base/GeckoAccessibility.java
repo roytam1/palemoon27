@@ -32,8 +32,8 @@ import android.view.accessibility.AccessibilityNodeProvider;
 import com.googlecode.eyesfree.braille.selfbraille.SelfBrailleClient;
 import com.googlecode.eyesfree.braille.selfbraille.WriteData;
 
-public class GeckoAccessibility {
-    private static final String LOGTAG = "GeckoAccessibility";
+public class GoannaAccessibility {
+    private static final String LOGTAG = "GoannaAccessibility";
     private static final int VIRTUAL_ENTRY_POINT_BEFORE = 1;
     private static final int VIRTUAL_CURSOR_PREVIOUS = 2;
     private static final int VIRTUAL_CURSOR_POSITION = 3;
@@ -77,7 +77,7 @@ public class GeckoAccessibility {
                                 break;
                         }
                         if (Versions.feature16Plus && sEnabled && sSelfBrailleClient == null) {
-                            sSelfBrailleClient = new SelfBrailleClient(GeckoAppShell.getContext(), false);
+                            sSelfBrailleClient = new SelfBrailleClient(GoannaAppShell.getContext(), false);
                         }
                     }
 
@@ -87,21 +87,21 @@ public class GeckoAccessibility {
                         Log.e(LOGTAG, "Error building JSON arguments for Accessibility:Settings:", ex);
                     }
 
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:Settings",
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:Settings",
                                                                                    ret.toString()));
                     return null;
                 }
 
                 @Override
                 public void onPostExecute(Void args) {
-                    boolean isGeckoApp = false;
+                    boolean isGoannaApp = false;
                     try {
-                        isGeckoApp = context instanceof GeckoApp;
+                        isGoannaApp = context instanceof GoannaApp;
                     } catch (NoClassDefFoundError ex) {}
-                    if (isGeckoApp) {
+                    if (isGoannaApp) {
                         // Disable the dynamic toolbar when enabling accessibility.
                         // These features tend not to interact well.
-                        ((GeckoApp) context).setAccessibilityEnabled(sEnabled);
+                        ((GoannaApp) context).setAccessibilityEnabled(sEnabled);
                     }
                 }
             }.execute();
@@ -138,11 +138,11 @@ public class GeckoAccessibility {
 
     private static void sendDirectAccessibilityEvent(int eventType, JSONObject message) {
         final AccessibilityEvent accEvent = AccessibilityEvent.obtain(eventType);
-        accEvent.setClassName(GeckoAccessibility.class.getName());
-        accEvent.setPackageName(GeckoAppShell.getContext().getPackageName());
+        accEvent.setClassName(GoannaAccessibility.class.getName());
+        accEvent.setPackageName(GoannaAppShell.getContext().getPackageName());
         populateEventFromJSON(accEvent, message);
         AccessibilityManager accessibilityManager =
-            (AccessibilityManager) GeckoAppShell.getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
+            (AccessibilityManager) GoannaAppShell.getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
         try {
             accessibilityManager.sendAccessibilityEvent(accEvent);
         } catch (IllegalStateException e) {
@@ -181,7 +181,7 @@ public class GeckoAccessibility {
         } else {
             // In Jelly Bean we populate an AccessibilityNodeInfo with the minimal amount of data to have
             // it work with TalkBack.
-            final LayerView view = GeckoAppShell.getLayerView();
+            final LayerView view = GoannaAppShell.getLayerView();
             if (view == null)
                 return;
 
@@ -264,7 +264,7 @@ public class GeckoAccessibility {
     public static void setDelegate(LayerView layerview) {
         // Only use this delegate in Jelly Bean.
         if (Versions.feature16Plus) {
-            layerview.setAccessibilityDelegate(new GeckoAccessibilityDelegate());
+            layerview.setAccessibilityDelegate(new GoannaAccessibilityDelegate());
             layerview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         }
     }
@@ -285,11 +285,11 @@ public class GeckoAccessibility {
 
     public static void onLayerViewFocusChanged(LayerView layerview, boolean gainFocus) {
         if (sEnabled)
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:Focus",
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:Focus",
                                                                            gainFocus ? "true" : "false"));
     }
 
-    public static class GeckoAccessibilityDelegate extends View.AccessibilityDelegate {
+    public static class GoannaAccessibilityDelegate extends View.AccessibilityDelegate {
         AccessibilityNodeProvider mAccessibilityNodeProvider;
 
         @Override
@@ -335,7 +335,7 @@ public class GeckoAccessibility {
                                 info.setParent(host);
                                 info.setSource(host, virtualDescendantId);
                                 info.setVisibleToUser(host.isShown());
-                                info.setPackageName(GeckoAppShell.getContext().getPackageName());
+                                info.setPackageName(GoannaAppShell.getContext().getPackageName());
                                 info.setClassName(host.getClass().getName());
                                 info.setEnabled(true);
                                 info.addAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS);
@@ -358,31 +358,31 @@ public class GeckoAccessibility {
                                 // The accessibility focus is permanently on the middle node, VIRTUAL_CURSOR_POSITION.
                                 // When accessibility focus is requested on one of its siblings we move the virtual cursor
                                 // either forward or backward depending on which sibling was selected.
-                                // When we enter the view forward or backward we just ask Gecko to get focus, keeping the current position.
+                                // When we enter the view forward or backward we just ask Goanna to get focus, keeping the current position.
 
                                 switch (virtualViewId) {
                                 case VIRTUAL_CURSOR_PREVIOUS:
-                                    GeckoAppShell.
-                                        sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:PreviousObject", null));
+                                    GoannaAppShell.
+                                        sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:PreviousObject", null));
                                     return true;
                                 case VIRTUAL_CURSOR_NEXT:
-                                    GeckoAppShell.
-                                        sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:NextObject", null));
+                                    GoannaAppShell.
+                                        sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:NextObject", null));
                                     return true;
                                 case VIRTUAL_ENTRY_POINT_BEFORE:
                                 case VIRTUAL_ENTRY_POINT_AFTER:
-                                    GeckoAppShell.
-                                        sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:Focus", "true"));
+                                    GoannaAppShell.
+                                        sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:Focus", "true"));
                                 default:
                                     break;
                                 }
                             } else if (action == AccessibilityNodeInfo.ACTION_CLICK && virtualViewId == VIRTUAL_CURSOR_POSITION) {
-                                GeckoAppShell.
-                                    sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:ActivateObject", null));
+                                GoannaAppShell.
+                                    sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:ActivateObject", null));
                                 return true;
                             } else if (action == AccessibilityNodeInfo.ACTION_LONG_CLICK && virtualViewId == VIRTUAL_CURSOR_POSITION) {
-                                GeckoAppShell.
-                                    sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:LongPress", null));
+                                GoannaAppShell.
+                                    sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:LongPress", null));
                                 return true;
                             } else if (action == AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY &&
                                        virtualViewId == VIRTUAL_CURSOR_POSITION) {
@@ -397,8 +397,8 @@ public class GeckoAccessibility {
                                     } catch (JSONException e) {
                                         return true;
                                     }
-                                    GeckoAppShell.
-                                        sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:ActivateObject", activationData.toString()));
+                                    GoannaAppShell.
+                                        sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:ActivateObject", activationData.toString()));
                                 } else {
                                     JSONObject movementData = new JSONObject();
                                     try {
@@ -407,8 +407,8 @@ public class GeckoAccessibility {
                                     } catch (JSONException e) {
                                         return true;
                                     }
-                                    GeckoAppShell.
-                                        sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:MoveByGranularity", movementData.toString()));
+                                    GoannaAppShell.
+                                        sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:MoveByGranularity", movementData.toString()));
                                 }
                                 return true;
                             } else if (action == AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY &&
@@ -420,8 +420,8 @@ public class GeckoAccessibility {
                                 } catch (JSONException e) {
                                     return true;
                                 }
-                                GeckoAppShell.
-                                    sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:MoveByGranularity", movementData.toString()));
+                                GoannaAppShell.
+                                    sendEventToGoanna(GoannaEvent.createBroadcastEvent("Accessibility:MoveByGranularity", movementData.toString()));
                                 return true;
                             }
                             return host.performAccessibilityAction(action, arguments);

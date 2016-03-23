@@ -13,7 +13,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.RelativeLayout;
 
 public class AnimatedHeightLayout extends RelativeLayout {
-    private static final String LOGTAG = "GeckoAnimatedHeightLayout";
+    private static final String LOGTAG = "GoannaAnimatedHeightLayout";
     private static final int ANIMATION_DURATION = 100;
     private boolean mAnimating;
 

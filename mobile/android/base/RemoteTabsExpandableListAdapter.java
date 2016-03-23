@@ -167,7 +167,7 @@ public class RemoteTabsExpandableListAdapter extends BaseExpandableListAdapter {
 
         // It's OK to access the DB on the main thread here, as we're just
         // getting a string.
-        final GeckoProfile profile = GeckoProfile.get(context);
+        final GoannaProfile profile = GoannaProfile.get(context);
         holder.lastModifiedView.setText(this.getLastSyncedString(context, now, client.lastModified));
 
         // These views exists only in some of our group views: they are present

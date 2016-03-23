@@ -71,7 +71,7 @@
 //// BEGIN externally visible functions (WINDOWS and OSX STUBS)
 
 // On Windows and OSX this will all need reworking.
-// GeckoProfilerImpl.h will ensure these functions are never actually
+// GoannaProfilerImpl.h will ensure these functions are never actually
 // called, so just provide no-op stubs for now.
 
 void uwt__init()

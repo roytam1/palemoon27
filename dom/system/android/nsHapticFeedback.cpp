@@ -14,6 +14,6 @@ NS_IMPL_ISUPPORTS(nsHapticFeedback, nsIHapticFeedback)
 NS_IMETHODIMP
 nsHapticFeedback::PerformSimpleAction(int32_t aType)
 {
-    widget::GeckoAppShell::PerformHapticFeedback(aType == LongPress);
+    widget::GoannaAppShell::PerformHapticFeedback(aType == LongPress);
     return NS_OK;
 }

@@ -14,7 +14,7 @@ import android.net.Uri;
 
 // Holds metadata info about urls. Supports some helper functions for getting back a HashMap of key value data.
 public class URLMetadataTable extends BaseTable {
-    private static final String LOGTAG = "GeckoURLMetadataTable";
+    private static final String LOGTAG = "GoannaURLMetadataTable";
 
     private static final String TABLE = "metadata"; // Name of the table in the db
     private static final int TABLE_ID_NUMBER = 1200;

@@ -30,34 +30,34 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 
 /**
  * We're not allowed to hold on to most events given to us
- * so we save the parts of the events we want to use in GeckoEvent.
+ * so we save the parts of the events we want to use in GoannaEvent.
  * Fields have different meanings depending on the event type.
  */
 @JNITarget
-public class GeckoEvent {
-    private static final String LOGTAG = "GeckoEvent";
+public class GoannaEvent {
+    private static final String LOGTAG = "GoannaEvent";
 
     private static final int EVENT_FACTORY_SIZE = 5;
 
-    // Maybe we're probably better to just make mType non final, and just store GeckoEvents in here...
-    private static final SparseArray<ArrayBlockingQueue<GeckoEvent>> mEvents = new SparseArray<ArrayBlockingQueue<GeckoEvent>>();
+    // Maybe we're probably better to just make mType non final, and just store GoannaEvents in here...
+    private static final SparseArray<ArrayBlockingQueue<GoannaEvent>> mEvents = new SparseArray<ArrayBlockingQueue<GoannaEvent>>();
 
-    public static GeckoEvent get(NativeGeckoEvent type) {
+    public static GoannaEvent get(NativeGoannaEvent type) {
         synchronized (mEvents) {
-            ArrayBlockingQueue<GeckoEvent> events = mEvents.get(type.value);
+            ArrayBlockingQueue<GoannaEvent> events = mEvents.get(type.value);
             if (events != null && events.size() > 0) {
                 return events.poll();
             }
         }
 
-        return new GeckoEvent(type);
+        return new GoannaEvent(type);
     }
 
     public void recycle() {
         synchronized (mEvents) {
-            ArrayBlockingQueue<GeckoEvent> events = mEvents.get(mType);
+            ArrayBlockingQueue<GoannaEvent> events = mEvents.get(mType);
             if (events == null) {
-                events = new ArrayBlockingQueue<GeckoEvent>(EVENT_FACTORY_SIZE);
+                events = new ArrayBlockingQueue<GoannaEvent>(EVENT_FACTORY_SIZE);
                 mEvents.put(mType, events);
             }
 
@@ -66,9 +66,9 @@ public class GeckoEvent {
     }
 
     // Make sure to keep these values in sync with the enum in
-    // AndroidGeckoEvent in widget/android/AndroidJavaWrappers.h
+    // AndroidGoannaEvent in widget/android/AndroidJavaWrappers.h
     @JNITarget
-    private enum NativeGeckoEvent {
+    private enum NativeGoannaEvent {
         NATIVE_POKE(0),
         KEY_EVENT(1),
         MOTION_EVENT(2),
@@ -110,7 +110,7 @@ public class GeckoEvent {
 
         public final int value;
 
-        private NativeGeckoEvent(int value) {
+        private NativeGoannaEvent(int value) {
             this.value = value;
         }
     }
@@ -227,41 +227,41 @@ public class GeckoEvent {
 
     private Object mObject;
 
-    private GeckoEvent(NativeGeckoEvent event) {
+    private GoannaEvent(NativeGoannaEvent event) {
         mType = event.value;
     }
 
-    public static GeckoEvent createAppBackgroundingEvent() {
-        return GeckoEvent.get(NativeGeckoEvent.APP_BACKGROUNDING);
+    public static GoannaEvent createAppBackgroundingEvent() {
+        return GoannaEvent.get(NativeGoannaEvent.APP_BACKGROUNDING);
     }
 
-    public static GeckoEvent createAppForegroundingEvent() {
-        return GeckoEvent.get(NativeGeckoEvent.APP_FOREGROUNDING);
+    public static GoannaEvent createAppForegroundingEvent() {
+        return GoannaEvent.get(NativeGoannaEvent.APP_FOREGROUNDING);
     }
 
-    public static GeckoEvent createNoOpEvent() {
-        return GeckoEvent.get(NativeGeckoEvent.NOOP);
+    public static GoannaEvent createNoOpEvent() {
+        return GoannaEvent.get(NativeGoannaEvent.NOOP);
     }
 
-    public static GeckoEvent createKeyEvent(KeyEvent k, int metaState) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.KEY_EVENT);
+    public static GoannaEvent createKeyEvent(KeyEvent k, int metaState) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.KEY_EVENT);
         event.initKeyEvent(k, metaState);
         return event;
     }
 
-    public static GeckoEvent createCompositorCreateEvent(int width, int height) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.COMPOSITOR_CREATE);
+    public static GoannaEvent createCompositorCreateEvent(int width, int height) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.COMPOSITOR_CREATE);
         event.mWidth = width;
         event.mHeight = height;
         return event;
     }
 
-    public static GeckoEvent createCompositorPauseEvent() {
-        return GeckoEvent.get(NativeGeckoEvent.COMPOSITOR_PAUSE);
+    public static GoannaEvent createCompositorPauseEvent() {
+        return GoannaEvent.get(NativeGoannaEvent.COMPOSITOR_PAUSE);
     }
 
-    public static GeckoEvent createCompositorResumeEvent() {
-        return GeckoEvent.get(NativeGeckoEvent.COMPOSITOR_RESUME);
+    public static GoannaEvent createCompositorResumeEvent() {
+        return GoannaEvent.get(NativeGoannaEvent.COMPOSITOR_RESUME);
     }
 
     private void initKeyEvent(KeyEvent k, int metaState) {
@@ -277,7 +277,7 @@ public class GeckoEvent {
         mScanCode = k.getScanCode();
         mUnicodeChar = k.getUnicodeChar(mMetaState);
         // e.g. for Ctrl+A, Android returns 0 for mUnicodeChar,
-        // but Gecko expects 'a', so we return that in mBaseUnicodeChar
+        // but Goanna expects 'a', so we return that in mBaseUnicodeChar
         mBaseUnicodeChar = k.getUnicodeChar(0);
         mRepeatCount = k.getRepeatCount();
         mCharacters = k.getCharacters();
@@ -340,18 +340,18 @@ public class GeckoEvent {
         }
     }
 
-    public static GeckoEvent createNativeGestureEvent(int action, PointF pt, double size) {
+    public static GoannaEvent createNativeGestureEvent(int action, PointF pt, double size) {
         try {
-            GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.NATIVE_GESTURE_EVENT);
+            GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.NATIVE_GESTURE_EVENT);
             event.mAction = action;
             event.mCount = 1;
             event.mPoints = new Point[1];
 
             PointF geckoPoint = new PointF(pt.x, pt.y);
-            geckoPoint = GeckoAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
+            geckoPoint = GoannaAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
 
             if (geckoPoint == null) {
-                // This could happen if Gecko isn't ready yet.
+                // This could happen if Goanna isn't ready yet.
                 return null;
             }
 
@@ -361,29 +361,29 @@ public class GeckoEvent {
             event.mTime = System.currentTimeMillis();
             return event;
         } catch (Exception e) {
-            // This can happen if Gecko isn't ready yet
+            // This can happen if Goanna isn't ready yet
             return null;
         }
     }
 
     /**
-     * Creates a GeckoEvent that contains the data from the MotionEvent.
+     * Creates a GoannaEvent that contains the data from the MotionEvent.
      * The keepInViewCoordinates parameter can be set to false to convert from the Java
      * coordinate system (device pixels relative to the LayerView) to a coordinate system
      * relative to gecko's coordinate system (CSS pixels relative to gecko scroll position).
      */
-    public static GeckoEvent createMotionEvent(MotionEvent m, boolean keepInViewCoordinates) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.MOTION_EVENT);
+    public static GoannaEvent createMotionEvent(MotionEvent m, boolean keepInViewCoordinates) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.MOTION_EVENT);
         event.initMotionEvent(m, keepInViewCoordinates);
         return event;
     }
 
     /**
-     * Creates a GeckoEvent that contains the data from the LongPressEvent, to be
+     * Creates a GoannaEvent that contains the data from the LongPressEvent, to be
      * dispatched in CSS pixels relative to gecko's scroll position.
      */
-    public static GeckoEvent createLongPressEvent(MotionEvent m) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.LONG_PRESS);
+    public static GoannaEvent createLongPressEvent(MotionEvent m) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.LONG_PRESS);
         event.initMotionEvent(m, false);
         return event;
     }
@@ -433,7 +433,7 @@ public class GeckoEvent {
         try {
             PointF geckoPoint = new PointF(event.getX(eventIndex), event.getY(eventIndex));
             if (!keepInViewCoordinates) {
-                geckoPoint = GeckoAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
+                geckoPoint = GoannaAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
             }
 
             mPoints[index] = new Point(Math.round(geckoPoint.x), Math.round(geckoPoint.y));
@@ -465,7 +465,7 @@ public class GeckoEvent {
             if (!keepInViewCoordinates) {
                 // If we are converting to gecko CSS pixels, then we should adjust the
                 // radii as well
-                float zoom = GeckoAppShell.getLayerView().getViewportMetrics().zoomFactor;
+                float zoom = GoannaAppShell.getLayerView().getViewportMetrics().zoomFactor;
                 mPointRadii[index].x /= zoom;
                 mPointRadii[index].y /= zoom;
             }
@@ -483,26 +483,26 @@ public class GeckoEvent {
     private static int HalSensorAccuracyFor(int androidAccuracy) {
         switch (androidAccuracy) {
         case SensorManager.SENSOR_STATUS_UNRELIABLE:
-            return GeckoHalDefines.SENSOR_ACCURACY_UNRELIABLE;
+            return GoannaHalDefines.SENSOR_ACCURACY_UNRELIABLE;
         case SensorManager.SENSOR_STATUS_ACCURACY_LOW:
-            return GeckoHalDefines.SENSOR_ACCURACY_LOW;
+            return GoannaHalDefines.SENSOR_ACCURACY_LOW;
         case SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM:
-            return GeckoHalDefines.SENSOR_ACCURACY_MED;
+            return GoannaHalDefines.SENSOR_ACCURACY_MED;
         case SensorManager.SENSOR_STATUS_ACCURACY_HIGH:
-            return GeckoHalDefines.SENSOR_ACCURACY_HIGH;
+            return GoannaHalDefines.SENSOR_ACCURACY_HIGH;
         }
-        return GeckoHalDefines.SENSOR_ACCURACY_UNKNOWN;
+        return GoannaHalDefines.SENSOR_ACCURACY_UNKNOWN;
     }
 
-    public static GeckoEvent createSensorEvent(SensorEvent s) {
+    public static GoannaEvent createSensorEvent(SensorEvent s) {
         int sensor_type = s.sensor.getType();
-        GeckoEvent event = null;
+        GoannaEvent event = null;
 
         switch(sensor_type) {
 
         case Sensor.TYPE_ACCELEROMETER:
-            event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_ACCELERATION;
+            event = GoannaEvent.get(NativeGoannaEvent.SENSOR_EVENT);
+            event.mFlags = GoannaHalDefines.SENSOR_ACCELERATION;
             event.mMetaState = HalSensorAccuracyFor(s.accuracy);
             event.mX = s.values[0];
             event.mY = s.values[1];
@@ -510,8 +510,8 @@ public class GeckoEvent {
             break;
 
         case 10 /* Requires API Level 9, so just use the raw value - Sensor.TYPE_LINEAR_ACCELEROMETER*/ :
-            event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_LINEAR_ACCELERATION;
+            event = GoannaEvent.get(NativeGoannaEvent.SENSOR_EVENT);
+            event.mFlags = GoannaHalDefines.SENSOR_LINEAR_ACCELERATION;
             event.mMetaState = HalSensorAccuracyFor(s.accuracy);
             event.mX = s.values[0];
             event.mY = s.values[1];
@@ -519,8 +519,8 @@ public class GeckoEvent {
             break;
 
         case Sensor.TYPE_ORIENTATION:
-            event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_ORIENTATION;
+            event = GoannaEvent.get(NativeGoannaEvent.SENSOR_EVENT);
+            event.mFlags = GoannaHalDefines.SENSOR_ORIENTATION;
             event.mMetaState = HalSensorAccuracyFor(s.accuracy);
             event.mX = s.values[0];
             event.mY = s.values[1];
@@ -528,8 +528,8 @@ public class GeckoEvent {
             break;
 
         case Sensor.TYPE_GYROSCOPE:
-            event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_GYROSCOPE;
+            event = GoannaEvent.get(NativeGoannaEvent.SENSOR_EVENT);
+            event.mFlags = GoannaHalDefines.SENSOR_GYROSCOPE;
             event.mMetaState = HalSensorAccuracyFor(s.accuracy);
             event.mX = Math.toDegrees(s.values[0]);
             event.mY = Math.toDegrees(s.values[1]);
@@ -537,8 +537,8 @@ public class GeckoEvent {
             break;
 
         case Sensor.TYPE_PROXIMITY:
-            event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_PROXIMITY;
+            event = GoannaEvent.get(NativeGoannaEvent.SENSOR_EVENT);
+            event.mFlags = GoannaHalDefines.SENSOR_PROXIMITY;
             event.mMetaState = HalSensorAccuracyFor(s.accuracy);
             event.mX = s.values[0];
             event.mY = 0;
@@ -546,8 +546,8 @@ public class GeckoEvent {
             break;
 
         case Sensor.TYPE_LIGHT:
-            event = GeckoEvent.get(NativeGeckoEvent.SENSOR_EVENT);
-            event.mFlags = GeckoHalDefines.SENSOR_LIGHT;
+            event = GoannaEvent.get(NativeGoannaEvent.SENSOR_EVENT);
+            event.mFlags = GoannaHalDefines.SENSOR_LIGHT;
             event.mMetaState = HalSensorAccuracyFor(s.accuracy);
             event.mX = s.values[0];
             break;
@@ -555,41 +555,41 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createObjectEvent(final int action, final Object object) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.PROCESS_OBJECT);
+    public static GoannaEvent createObjectEvent(final int action, final Object object) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.PROCESS_OBJECT);
         event.mAction = action;
         event.mObject = object;
         return event;
     }
 
-    public static GeckoEvent createLocationEvent(Location l) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.LOCATION_EVENT);
+    public static GoannaEvent createLocationEvent(Location l) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.LOCATION_EVENT);
         event.mLocation = l;
         return event;
     }
 
-    public static GeckoEvent createIMEEvent(ImeAction action) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.IME_EVENT);
+    public static GoannaEvent createIMEEvent(ImeAction action) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.IME_EVENT);
         event.mAction = action.value;
         return event;
     }
 
-    public static GeckoEvent createIMEKeyEvent(KeyEvent k) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.IME_KEY_EVENT);
+    public static GoannaEvent createIMEKeyEvent(KeyEvent k) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.IME_KEY_EVENT);
         event.initKeyEvent(k, 0);
         return event;
     }
 
-    public static GeckoEvent createIMEReplaceEvent(int start, int end, String text) {
+    public static GoannaEvent createIMEReplaceEvent(int start, int end, String text) {
         return createIMETextEvent(false, start, end, text);
     }
 
-    public static GeckoEvent createIMEComposeEvent(int start, int end, String text) {
+    public static GoannaEvent createIMEComposeEvent(int start, int end, String text) {
         return createIMETextEvent(true, start, end, text);
     }
 
-    private static GeckoEvent createIMETextEvent(boolean compose, int start, int end, String text) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.IME_EVENT);
+    private static GoannaEvent createIMETextEvent(boolean compose, int start, int end, String text) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.IME_EVENT);
         event.mAction = (compose ? ImeAction.IME_COMPOSE_TEXT : ImeAction.IME_REPLACE_TEXT).value;
         event.mStart = start;
         event.mEnd = end;
@@ -597,23 +597,23 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createIMESelectEvent(int start, int end) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.IME_EVENT);
+    public static GoannaEvent createIMESelectEvent(int start, int end) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.IME_EVENT);
         event.mAction = ImeAction.IME_SET_SELECTION.value;
         event.mStart = start;
         event.mEnd = end;
         return event;
     }
 
-    public static GeckoEvent createIMECompositionEvent(int start, int end) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.IME_EVENT);
+    public static GoannaEvent createIMECompositionEvent(int start, int end) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.IME_EVENT);
         event.mAction = ImeAction.IME_UPDATE_COMPOSITION.value;
         event.mStart = start;
         event.mEnd = end;
         return event;
     }
 
-    public static GeckoEvent createIMERangeEvent(int start,
+    public static GoannaEvent createIMERangeEvent(int start,
                                                  int end, int rangeType,
                                                  int rangeStyles,
                                                  int rangeLineStyle,
@@ -621,7 +621,7 @@ public class GeckoEvent {
                                                  int rangeForeColor,
                                                  int rangeBackColor,
                                                  int rangeLineColor) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.IME_EVENT);
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.IME_EVENT);
         event.mAction = ImeAction.IME_ADD_COMPOSITION_RANGE.value;
         event.mStart = start;
         event.mEnd = end;
@@ -635,8 +635,8 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createSizeChangedEvent(int w, int h, int screenw, int screenh) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.SIZE_CHANGED);
+    public static GoannaEvent createSizeChangedEvent(int w, int h, int screenw, int screenh) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.SIZE_CHANGED);
         event.mPoints = new Point[2];
         event.mPoints[0] = new Point(w, h);
         event.mPoints[1] = new Point(screenw, screenh);
@@ -644,15 +644,15 @@ public class GeckoEvent {
     }
 
     @RobocopTarget
-    public static GeckoEvent createBroadcastEvent(String subject, String data) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.BROADCAST);
+    public static GoannaEvent createBroadcastEvent(String subject, String data) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.BROADCAST);
         event.mCharacters = subject;
         event.mCharactersExtra = data;
         return event;
     }
 
-    public static GeckoEvent createViewportEvent(ImmutableViewportMetrics metrics, DisplayPortMetrics displayPort) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.VIEWPORT);
+    public static GoannaEvent createViewportEvent(ImmutableViewportMetrics metrics, DisplayPortMetrics displayPort) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.VIEWPORT);
         event.mCharacters = "Viewport:Change";
         StringBuilder sb = new StringBuilder(256);
         sb.append("{ \"x\" : ").append(metrics.viewportRectLeft)
@@ -668,36 +668,36 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createURILoadEvent(String uri) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.LOAD_URI);
+    public static GoannaEvent createURILoadEvent(String uri) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.LOAD_URI);
         event.mCharacters = uri;
         event.mCharactersExtra = "";
         return event;
     }
 
-    public static GeckoEvent createBookmarkLoadEvent(String uri) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.LOAD_URI);
+    public static GoannaEvent createBookmarkLoadEvent(String uri) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.LOAD_URI);
         event.mCharacters = uri;
         event.mCharactersExtra = "-bookmark";
         return event;
     }
 
-    public static GeckoEvent createVisitedEvent(String data) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.VISITED);
+    public static GoannaEvent createVisitedEvent(String data) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.VISITED);
         event.mCharacters = data;
         return event;
     }
 
-    public static GeckoEvent createNetworkEvent(int connectionType, boolean isWifi, int DHCPGateway) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.NETWORK_CHANGED);
+    public static GoannaEvent createNetworkEvent(int connectionType, boolean isWifi, int DHCPGateway) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.NETWORK_CHANGED);
         event.mConnectionType = connectionType;
         event.mIsWifi = isWifi;
         event.mDHCPGateway = DHCPGateway;
         return event;
     }
 
-    public static GeckoEvent createThumbnailEvent(int tabId, int bufw, int bufh, ByteBuffer buffer) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.THUMBNAIL);
+    public static GoannaEvent createThumbnailEvent(int tabId, int bufw, int bufh, ByteBuffer buffer) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.THUMBNAIL);
         event.mPoints = new Point[1];
         event.mPoints[0] = new Point(bufw, bufh);
         event.mMetaState = tabId;
@@ -705,8 +705,8 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createZoomedViewEvent(int tabId, int x, int y, int bufw, int bufh, float scaleFactor, ByteBuffer buffer) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.ZOOMEDVIEW);
+    public static GoannaEvent createZoomedViewEvent(int tabId, int x, int y, int bufw, int bufh, float scaleFactor, ByteBuffer buffer) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.ZOOMEDVIEW);
         event.mPoints = new Point[2];
         event.mPoints[0] = new Point(x, y);
         event.mPoints[1] = new Point(bufw, bufh);
@@ -716,86 +716,86 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createScreenOrientationEvent(short aScreenOrientation) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.SCREENORIENTATION_CHANGED);
+    public static GoannaEvent createScreenOrientationEvent(short aScreenOrientation) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.SCREENORIENTATION_CHANGED);
         event.mScreenOrientation = aScreenOrientation;
         return event;
     }
 
-    public static GeckoEvent createCallObserverEvent(String observerKey, String topic, String data) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.CALL_OBSERVER);
+    public static GoannaEvent createCallObserverEvent(String observerKey, String topic, String data) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.CALL_OBSERVER);
         event.mCharacters = observerKey;
         event.mCharactersExtra = topic;
         event.mData = data;
         return event;
     }
 
-    public static GeckoEvent createRemoveObserverEvent(String observerKey) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.REMOVE_OBSERVER);
+    public static GoannaEvent createRemoveObserverEvent(String observerKey) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.REMOVE_OBSERVER);
         event.mCharacters = observerKey;
         return event;
     }
 
     @RobocopTarget
-    public static GeckoEvent createPreferencesObserveEvent(int requestId, String[] prefNames) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.PREFERENCES_OBSERVE);
+    public static GoannaEvent createPreferencesObserveEvent(int requestId, String[] prefNames) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.PREFERENCES_OBSERVE);
         event.mCount = requestId;
         event.mPrefNames = prefNames;
         return event;
     }
 
     @RobocopTarget
-    public static GeckoEvent createPreferencesGetEvent(int requestId, String[] prefNames) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.PREFERENCES_GET);
+    public static GoannaEvent createPreferencesGetEvent(int requestId, String[] prefNames) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.PREFERENCES_GET);
         event.mCount = requestId;
         event.mPrefNames = prefNames;
         return event;
     }
 
     @RobocopTarget
-    public static GeckoEvent createPreferencesRemoveObserversEvent(int requestId) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.PREFERENCES_REMOVE_OBSERVERS);
+    public static GoannaEvent createPreferencesRemoveObserversEvent(int requestId) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.PREFERENCES_REMOVE_OBSERVERS);
         event.mCount = requestId;
         return event;
     }
 
-    public static GeckoEvent createLowMemoryEvent(int level) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.LOW_MEMORY);
+    public static GoannaEvent createLowMemoryEvent(int level) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.LOW_MEMORY);
         event.mMetaState = level;
         return event;
     }
 
-    public static GeckoEvent createNetworkLinkChangeEvent(String status) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.NETWORK_LINK_CHANGE);
+    public static GoannaEvent createNetworkLinkChangeEvent(String status) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.NETWORK_LINK_CHANGE);
         event.mCharacters = status;
         return event;
     }
 
-    public static GeckoEvent createTelemetryHistogramAddEvent(String histogram,
+    public static GoannaEvent createTelemetryHistogramAddEvent(String histogram,
                                                               int value) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.TELEMETRY_HISTOGRAM_ADD);
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.TELEMETRY_HISTOGRAM_ADD);
         event.mCharacters = histogram;
         event.mCount = value;
         return event;
     }
 
-    public static GeckoEvent createTelemetryUISessionStartEvent(String session, long timestamp) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.TELEMETRY_UI_SESSION_START);
+    public static GoannaEvent createTelemetryUISessionStartEvent(String session, long timestamp) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.TELEMETRY_UI_SESSION_START);
         event.mCharacters = session;
         event.mTime = timestamp;
         return event;
     }
 
-    public static GeckoEvent createTelemetryUISessionStopEvent(String session, String reason, long timestamp) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.TELEMETRY_UI_SESSION_STOP);
+    public static GoannaEvent createTelemetryUISessionStopEvent(String session, String reason, long timestamp) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.TELEMETRY_UI_SESSION_STOP);
         event.mCharacters = session;
         event.mCharactersExtra = reason;
         event.mTime = timestamp;
         return event;
     }
 
-    public static GeckoEvent createTelemetryUIEvent(String action, String method, long timestamp, String extras) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.TELEMETRY_UI_EVENT);
+    public static GoannaEvent createTelemetryUIEvent(String action, String method, long timestamp, String extras) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.TELEMETRY_UI_EVENT);
         event.mData = action;
         event.mCharacters = method;
         event.mCharactersExtra = extras;
@@ -803,8 +803,8 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createGamepadAddRemoveEvent(int id, boolean added) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.GAMEPAD_ADDREMOVE);
+    public static GoannaEvent createGamepadAddRemoveEvent(int id, boolean added) {
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.GAMEPAD_ADDREMOVE);
         event.mID = id;
         event.mAction = added ? ACTION_GAMEPAD_ADDED : ACTION_GAMEPAD_REMOVED;
         return event;
@@ -820,11 +820,11 @@ public class GeckoEvent {
         return bits;
     }
 
-    public static GeckoEvent createGamepadButtonEvent(int id,
+    public static GoannaEvent createGamepadButtonEvent(int id,
                                                       int which,
                                                       boolean pressed,
                                                       float value) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.GAMEPAD_DATA);
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.GAMEPAD_DATA);
         event.mID = id;
         event.mAction = ACTION_GAMEPAD_BUTTON;
         event.mGamepadButton = which;
@@ -833,9 +833,9 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createGamepadAxisEvent(int id, boolean[] valid,
+    public static GoannaEvent createGamepadAxisEvent(int id, boolean[] valid,
                                                     float[] values) {
-        GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.GAMEPAD_DATA);
+        GoannaEvent event = GoannaEvent.get(NativeGoannaEvent.GAMEPAD_DATA);
         event.mID = id;
         event.mAction = ACTION_GAMEPAD_AXES;
         event.mFlags = boolArrayToBitfield(valid);

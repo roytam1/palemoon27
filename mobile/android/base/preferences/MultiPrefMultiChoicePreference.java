@@ -6,7 +6,7 @@
 package org.mozilla.gecko.preferences;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.AlertDialog;
@@ -20,11 +20,11 @@ import android.util.Log;
 
 import java.util.Set;
 
-/* Provides backwards compatibility for some old multi-choice pref types used by Gecko.
+/* Provides backwards compatibility for some old multi-choice pref types used by Goanna.
  * This will import the old data from the old prefs the first time it is run.
  */
 class MultiPrefMultiChoicePreference extends MultiChoicePreference {
-    private static final String LOGTAG = "GeckoMultiPrefPreference";
+    private static final String LOGTAG = "GoannaMultiPrefPreference";
     private static final String IMPORT_SUFFIX = "_imported_";
     private final CharSequence[] keys;
 
@@ -54,7 +54,7 @@ class MultiPrefMultiChoicePreference extends MultiChoicePreference {
         super.loadPersistedValues();
 
         // First check if we've already done the import the old data. If so, nothing to load.
-        final SharedPreferences prefs = GeckoSharedPrefs.forApp(getContext());
+        final SharedPreferences prefs = GoannaSharedPrefs.forApp(getContext());
         final boolean imported = getPersistedBoolean(prefs, getKey() + IMPORT_SUFFIX, false);
         if (imported) {
             return;

@@ -14,7 +14,7 @@ import android.util.Log;
 // BaseTable provides a basic implementation of a Table for tables that don't require advanced operations during
 // insert, delete, update, or query operations. Implementors must still provide onCreate and onUpgrade operations.
 public abstract class BaseTable implements Table {
-    private static final String LOGTAG = "GeckoBaseTable";
+    private static final String LOGTAG = "GoannaBaseTable";
 
     private static final boolean DEBUG = false;
 

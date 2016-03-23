@@ -319,7 +319,7 @@ APZCCallbackHelper::ApplyCallbackTransform(const CSSPoint& aInput,
 {
     // First, scale inversely by the pres shell resolution to cancel the
     // scale-to-resolution transform that the compositor adds to the layer with
-    // the pres shell resolution. The points sent to Gecko by APZ don't have
+    // the pres shell resolution. The points sent to Goanna by APZ don't have
     // this transform unapplied (unlike other compositor-side transforms)
     // because APZ doesn't know about it.
     CSSPoint input = aInput / aPresShellResolution;

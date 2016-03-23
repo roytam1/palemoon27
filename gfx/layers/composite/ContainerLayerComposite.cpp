@@ -35,7 +35,7 @@
 #include "nsTArray.h"                   // for nsAutoTArray
 #include "TextRenderer.h"               // for TextRenderer
 #include <vector>
-#include "GeckoProfiler.h"              // for GeckoProfiler
+#include "GoannaProfiler.h"              // for GoannaProfiler
 #ifdef MOZ_ENABLE_PROFILER_SPS
 #include "ProfilerMarkers.h"            // for ProfilerMarkers
 #endif

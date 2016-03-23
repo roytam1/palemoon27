@@ -35,7 +35,7 @@ public class testJavascriptBridge extends UITest {
     }
 
     public void testJavascriptBridge() {
-        GeckoHelper.blockForReady();
+        GoannaHelper.blockForReady();
         NavigationHelper.enterAndLoadUrl(StringHelper.getHarnessUrlForJavascript(TEST_JS));
         js.syncCall("check_js_int_arg", 1);
     }

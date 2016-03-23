@@ -9,7 +9,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.mozilla.gecko.GeckoSharedPrefs.Flags;
+import org.mozilla.gecko.GoannaSharedPrefs.Flags;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -18,12 +18,12 @@ import android.preference.PreferenceManager;
 import android.test.RenamingDelegatingContext;
 
 /**
- * Test GeckoSharedPrefs migrations.
+ * Test GoannaSharedPrefs migrations.
  */
-public class TestGeckoSharedPrefs extends BrowserTestCase {
+public class TestGoannaSharedPrefs extends BrowserTestCase {
 
     private static class TestContext extends RenamingDelegatingContext {
-        private static final String PREFIX = "TestGeckoSharedPrefs-";
+        private static final String PREFIX = "TestGoannaSharedPrefs-";
 
         private final Set<String> usedPrefs;
 
@@ -57,39 +57,39 @@ public class TestGeckoSharedPrefs extends BrowserTestCase {
 
     protected void tearDown() {
         context.clearUsedPrefs();
-        GeckoSharedPrefs.reset();
+        GoannaSharedPrefs.reset();
     }
 
     public void testDisableMigrations() {
         // Version is 0 before any migration
-        assertEquals(0, GeckoSharedPrefs.getVersion(context));
+        assertEquals(0, GoannaSharedPrefs.getVersion(context));
 
         // Get prefs with migrations disabled
-        GeckoSharedPrefs.forApp(context, disableMigrations);
-        GeckoSharedPrefs.forProfile(context, disableMigrations);
-        GeckoSharedPrefs.forProfileName(context, "someProfile", disableMigrations);
+        GoannaSharedPrefs.forApp(context, disableMigrations);
+        GoannaSharedPrefs.forProfile(context, disableMigrations);
+        GoannaSharedPrefs.forProfileName(context, "someProfile", disableMigrations);
 
         // Version should still be 0
-        assertEquals(0, GeckoSharedPrefs.getVersion(context));
+        assertEquals(0, GoannaSharedPrefs.getVersion(context));
     }
 
     public void testPrefsVersion() {
         // Version is 0 before any migration
-        assertEquals(0, GeckoSharedPrefs.getVersion(context));
+        assertEquals(0, GoannaSharedPrefs.getVersion(context));
 
         // Trigger migration by getting a SharedPreferences instance
-        GeckoSharedPrefs.forApp(context);
+        GoannaSharedPrefs.forApp(context);
 
         // Version should be current after migration
-        assertEquals(GeckoSharedPrefs.PREFS_VERSION, GeckoSharedPrefs.getVersion(context));
+        assertEquals(GoannaSharedPrefs.PREFS_VERSION, GoannaSharedPrefs.getVersion(context));
     }
 
     public void testMigrateFromPreferenceManager() {
-        SharedPreferences appPrefs = GeckoSharedPrefs.forApp(context, disableMigrations);
+        SharedPreferences appPrefs = GoannaSharedPrefs.forApp(context, disableMigrations);
         assertTrue(appPrefs.getAll().isEmpty());
         final Editor appEditor = appPrefs.edit();
 
-        SharedPreferences profilePrefs = GeckoSharedPrefs.forProfileName(context, GeckoProfile.DEFAULT_PROFILE, disableMigrations);
+        SharedPreferences profilePrefs = GoannaSharedPrefs.forProfileName(context, GoannaProfile.DEFAULT_PROFILE, disableMigrations);
         assertTrue(profilePrefs.getAll().isEmpty());
         final Editor profileEditor = profilePrefs.edit();
 
@@ -119,7 +119,7 @@ public class TestGeckoSharedPrefs extends BrowserTestCase {
         assertEquals(6, pmPrefs.getAll().size());
 
         // Perform actual migration with the given editors
-        pmEditor = GeckoSharedPrefs.migrateFromPreferenceManager(context, appEditor,
+        pmEditor = GoannaSharedPrefs.migrateFromPreferenceManager(context, appEditor,
                 profileEditor, Arrays.asList(profileKeys));
 
         // Commit changes applied during the migration

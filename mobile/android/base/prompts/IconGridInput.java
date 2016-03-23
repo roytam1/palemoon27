@@ -11,7 +11,7 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.gfx.BitmapUtils;
 
@@ -32,7 +32,7 @@ import android.widget.TextView;
 
 public class IconGridInput extends PromptInput implements OnItemClickListener {
     public static final String INPUT_TYPE = "icongrid";
-    public static final String LOGTAG = "GeckoIconGridInput";
+    public static final String LOGTAG = "GoannaIconGridInput";
 
     private ArrayAdapter<IconGridItem> mAdapter; // An adapter holding a list of items to show in the grid
 
@@ -55,7 +55,7 @@ public class IconGridInput extends PromptInput implements OnItemClickListener {
         }
 
         if (mIconSize < 0) {
-            mIconSize = GeckoAppShell.getPreferredIconSize();
+            mIconSize = GoannaAppShell.getPreferredIconSize();
         }
 
         if (mMaxColumns < 0) {

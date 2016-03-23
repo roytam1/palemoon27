@@ -39,7 +39,7 @@ class FontSizePreference extends DialogPreference {
 
     private final String[] mFontTwipValues;
     private final String[] mFontSizeNames; // Ex: "Small".
-    /** Index into the above arrays for the saved preference value (from Gecko). */
+    /** Index into the above arrays for the saved preference value (from Goanna). */
     private int mSavedFontIndex = DEFAULT_FONT_INDEX;
     /** Index into the above arrays for the currently displayed font size (the preview). */
     private int mPreviewFontIndex = mSavedFontIndex;
@@ -118,7 +118,7 @@ class FontSizePreference extends DialogPreference {
         final String twipVal = mFontTwipValues[mSavedFontIndex];
         final OnPreferenceChangeListener prefChangeListener = getOnPreferenceChangeListener();
         if (prefChangeListener == null) {
-            Log.e(LOGTAG, "PreferenceChangeListener is null. FontSizePreference will not be saved to Gecko.");
+            Log.e(LOGTAG, "PreferenceChangeListener is null. FontSizePreference will not be saved to Goanna.");
             return;
         }
         prefChangeListener.onPreferenceChange(this, twipVal);
@@ -145,7 +145,7 @@ class FontSizePreference extends DialogPreference {
      */
     private void updatePreviewFontSize(String twip) {
         float pt = convertTwipStrToPT(twip);
-        // Android will not render a font size of 0 pt but for Gecko, 0 twip turns off font
+        // Android will not render a font size of 0 pt but for Goanna, 0 twip turns off font
         // inflation. Thus we special case 0 twip to display a renderable font size.
         if (pt == 0) {
             // Android adds an inexplicable extra margin on the smallest font size so to get around

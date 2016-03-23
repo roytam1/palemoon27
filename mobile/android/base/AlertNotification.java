@@ -20,7 +20,7 @@ import java.text.NumberFormat;
 public class AlertNotification
     extends Notification
 {
-    private static final String LOGTAG = "GeckoAlertNotification";
+    private static final String LOGTAG = "GoannaAlertNotification";
 
     private final int mId;
     private final int mIcon;

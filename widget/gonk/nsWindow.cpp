@@ -305,7 +305,7 @@ nsWindow::DispatchTouchEventForAPZ(const MultiTouchInput& aInput,
     MOZ_ASSERT(NS_IsMainThread());
     UserActivity();
 
-    // Convert it to an event we can send to Gecko
+    // Convert it to an event we can send to Goanna
     WidgetTouchEvent event = aInput.ToWidgetTouchEvent(this);
 
     // If there is an event capturing child process, send it directly there.

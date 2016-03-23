@@ -21,25 +21,25 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.AbsoluteLayout;
 
-public class BaseGeckoInterface implements GeckoAppShell.GeckoInterface {
-    // Bug 908744: Implement GeckoEventListener
+public class BaseGoannaInterface implements GoannaAppShell.GoannaInterface {
+    // Bug 908744: Implement GoannaEventListener
     // Bug 908752: Implement SensorEventListener
     // Bug 908755: Implement LocationListener
     // Bug 908756: Implement Tabs.OnTabsChangedListener
-    // Bug 908760: Implement GeckoEventResponder
+    // Bug 908760: Implement GoannaEventResponder
 
     private final Context mContext;
-    private GeckoProfile mProfile;
+    private GoannaProfile mProfile;
 
-    public BaseGeckoInterface(Context context) {
+    public BaseGoannaInterface(Context context) {
         mContext = context;
     }
 
     @Override
-    public GeckoProfile getProfile() {
+    public GoannaProfile getProfile() {
         // Fall back to default profile if we didn't load a specific one
         if (mProfile == null) {
-            mProfile = GeckoProfile.get(mContext);
+            mProfile = GoannaProfile.get(mContext);
         }
         return mProfile;
     }
@@ -105,11 +105,11 @@ public class BaseGeckoInterface implements GeckoAppShell.GeckoInterface {
 
     // Bug 908786: Implement this
     @Override
-    public void addAppStateListener(GeckoAppShell.AppStateListener listener) {}
+    public void addAppStateListener(GoannaAppShell.AppStateListener listener) {}
 
     // Bug 908787: Implement this
     @Override
-    public void removeAppStateListener(GeckoAppShell.AppStateListener listener) {}
+    public void removeAppStateListener(GoannaAppShell.AppStateListener listener) {}
 
     // Bug 908788: Implement this
     @Override
@@ -140,7 +140,7 @@ public class BaseGeckoInterface implements GeckoAppShell.GeckoInterface {
 
     @Override
     public void notifyCheckUpdateResult(String result) {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Update:CheckResult", result));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Update:CheckResult", result));
     }
 
     @Override

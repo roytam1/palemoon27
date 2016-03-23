@@ -16,7 +16,7 @@ const promise = Cu.import("resource://gre/modules/Promise.jsm");
  *  - CSS Selectors
  *  - Some other known CSS keywords
  *
- * Gecko provides a list of both property names and their corresponding values.
+ * Goanna provides a list of both property names and their corresponding values.
  * We take out a list of matching selectors using the Inspector actor's
  * `getSuggestionsForQuery` method. Now the only thing is to parse the CSS being
  * edited by the user, figure out what token or word is being written and last
@@ -39,7 +39,7 @@ const promise = Cu.import("resource://gre/modules/Promise.jsm");
  *  - If the state is "value", the corresponding property name
  *
  * In case of "value" and "property" states, we simply use the information
- * provided by Gecko to filter out the possible suggestions.
+ * provided by Goanna to filter out the possible suggestions.
  * For "selector" state, we request the Inspector actor to query the page DOM
  * and filter out the possible suggestions.
  * For "media" and "keyframes" state, the only possible suggestions for now are
@@ -1157,7 +1157,7 @@ CSSCompleter.prototype = {
 
 /**
  * Returns a list of all property names and a map of property name vs possible
- * CSS values provided by the Gecko engine.
+ * CSS values provided by the Goanna engine.
  *
  * @return {Object} An object with following properties:
  *         - propertyNames {Array} Array of string containing all the possible

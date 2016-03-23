@@ -32,7 +32,7 @@
 #endif
 
 #ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
+#include "GoannaTaskTracer.h"
 using namespace mozilla::tasktracer;
 #endif
 
@@ -218,7 +218,7 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage* aMessage,
       if (child) {
         child->GetProcessName(appName);
       } else {
-        appName = "GeckoConsole";
+        appName = "GoannaConsole";
       }
 
       uint32_t logLevel = 0;

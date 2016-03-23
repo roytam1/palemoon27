@@ -224,7 +224,7 @@ nsClipboard::TransferableFromPasteboard(nsITransferable *aTransferable, NSPasteb
       bool successfullyConverted = CGImageDestinationFinalize(dest);
 
       if (successfullyConverted) {
-        // Put the converted data in a form Gecko can understand
+        // Put the converted data in a form Goanna can understand
         nsCOMPtr<nsIInputStream> byteStream;
         NS_NewByteInputStream(getter_AddRefs(byteStream), (const char*)[encodedData bytes],
                                    [encodedData length], NS_ASSIGNMENT_COPY);

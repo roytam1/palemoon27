@@ -131,7 +131,7 @@ public class NotificationHandler {
     }
 
     /**
-     * Determines whether a notification should hold a foreground service to keep Gecko alive
+     * Determines whether a notification should hold a foreground service to keep Goanna alive
      *
      * @param notificationID the id of the notification to check
      * @return               whether the notification is ongoing
@@ -142,7 +142,7 @@ public class NotificationHandler {
     }
 
     /**
-     * Determines whether a notification should hold a foreground service to keep Gecko alive
+     * Determines whether a notification should hold a foreground service to keep Goanna alive
      *
      * @param notification   the notification to check
      * @return               whether the notification is ongoing

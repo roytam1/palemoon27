@@ -4,8 +4,8 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.widget.GeckoPopupMenu;
-import org.mozilla.gecko.menu.GeckoMenuItem;
+import org.mozilla.gecko.widget.GoannaPopupMenu;
+import org.mozilla.gecko.menu.GoannaMenuItem;
 
 import android.view.Gravity;
 import android.view.Menu;
@@ -13,10 +13,10 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
 
-class ActionModeCompat implements GeckoPopupMenu.OnMenuItemClickListener,
-                                  GeckoPopupMenu.OnMenuItemLongClickListener,
+class ActionModeCompat implements GoannaPopupMenu.OnMenuItemClickListener,
+                                  GoannaPopupMenu.OnMenuItemLongClickListener,
                                   View.OnClickListener {
-    private final String LOGTAG = "GeckoActionModeCompat";
+    private final String LOGTAG = "GoannaActionModeCompat";
 
     private final Callback mCallback;
     private final ActionModeCompatView mView;
@@ -88,7 +88,7 @@ class ActionModeCompat implements GeckoPopupMenu.OnMenuItemClickListener,
         mView.invalidate();
     }
 
-    /* GeckoPopupMenu.OnMenuItemClickListener */
+    /* GoannaPopupMenu.OnMenuItemClickListener */
     @Override
     public boolean onMenuItemClick(MenuItem item) {
         if (mCallback != null) {
@@ -97,10 +97,10 @@ class ActionModeCompat implements GeckoPopupMenu.OnMenuItemClickListener,
         return false;
     }
 
-    /* GeckoPopupMenu.onMenuItemLongClickListener */
+    /* GoannaPopupMenu.onMenuItemLongClickListener */
     @Override
     public boolean onMenuItemLongClick(MenuItem item) {
-        showTooltip((GeckoMenuItem) item);
+        showTooltip((GoannaMenuItem) item);
         return true;
     }
 
@@ -110,7 +110,7 @@ class ActionModeCompat implements GeckoPopupMenu.OnMenuItemClickListener,
         mPresenter.endActionModeCompat();
     }
 
-    private void showTooltip(GeckoMenuItem item) {
+    private void showTooltip(GoannaMenuItem item) {
         // Computes the tooltip toast screen position (shown when long-tapping the menu item) with regards to the
         // menu item's position (i.e below the item and slightly to the left)
         int[] location = new int[2];

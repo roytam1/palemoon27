@@ -21,7 +21,7 @@
 
 #define LOG(args...) __android_log_print(ANDROID_LOG_INFO, MOZ_APP_NAME, args)
 
-// We need to put Gecko on a even more separate thread, because
+// We need to put Goanna on a even more separate thread, because
 // otherwise this JNI method never returns; this leads to problems
 // with local references overrunning the local refs table, among
 // other things, since GC can't ever run on them.
@@ -42,7 +42,7 @@ struct AutoAttachJavaThread {
 };
 
 extern "C" NS_EXPORT void
-GeckoStart(void *data, const nsXREAppData *appData)
+GoannaStart(void *data, const nsXREAppData *appData)
 {
 #ifdef MOZ_CRASHREPORTER
     const struct mapping_info *info = getLibraryMapping();
@@ -58,7 +58,7 @@ GeckoStart(void *data, const nsXREAppData *appData)
         return;
 
     if (!data) {
-        LOG("Failed to get arguments for GeckoStart\n");
+        LOG("Failed to get arguments for GoannaStart\n");
         return;
     }
 
@@ -75,7 +75,7 @@ GeckoStart(void *data, const nsXREAppData *appData)
     if (result)
         LOG("XRE_main returned %d", result);
 
-    mozilla::widget::GeckoAppShell::NotifyXreExit();
+    mozilla::widget::GoannaAppShell::NotifyXreExit();
 
     free(targs[0]);
     nsMemory::Free(data);

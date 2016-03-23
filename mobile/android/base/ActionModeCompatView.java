@@ -5,8 +5,8 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.animation.AnimationUtils;
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.widget.GeckoPopupMenu;
+import org.mozilla.gecko.menu.GoannaMenu;
+import org.mozilla.gecko.widget.GoannaPopupMenu;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -21,15 +21,15 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 
-class ActionModeCompatView extends LinearLayout implements GeckoMenu.ActionItemBarPresenter {
-    private final String LOGTAG = "GeckoActionModeCompatPresenter";
+class ActionModeCompatView extends LinearLayout implements GoannaMenu.ActionItemBarPresenter {
+    private final String LOGTAG = "GoannaActionModeCompatPresenter";
 
     private static final int SPEC = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
 
     private Button mTitleView;
     private ImageButton mMenuButton;
     private ViewGroup mActionButtonBar;
-    private GeckoPopupMenu mPopupMenu;
+    private GoannaPopupMenu mPopupMenu;
 
     // Maximum number of items to show as actions
     private static final int MAX_ACTION_ITEMS = 4;
@@ -58,8 +58,8 @@ class ActionModeCompatView extends LinearLayout implements GeckoMenu.ActionItemB
         mMenuButton = (ImageButton) findViewById(R.id.actionbar_menu);
         mActionButtonBar = (ViewGroup) findViewById(R.id.actionbar_buttons);
 
-        mPopupMenu = new GeckoPopupMenu(getContext(), mMenuButton);
-        ((GeckoMenu) mPopupMenu.getMenu()).setActionItemBarPresenter(this);
+        mPopupMenu = new GoannaPopupMenu(getContext(), mMenuButton);
+        ((GoannaMenu) mPopupMenu.getMenu()).setActionItemBarPresenter(this);
 
         mMenuButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -100,7 +100,7 @@ class ActionModeCompatView extends LinearLayout implements GeckoMenu.ActionItemB
         super.invalidate();
     }
 
-    /* GeckoMenu.ActionItemBarPresenter */
+    /* GoannaMenu.ActionItemBarPresenter */
     @Override
     public boolean addActionItem(View actionItem) {
         final int count = mActionButtonBar.getChildCount();
@@ -144,7 +144,7 @@ class ActionModeCompatView extends LinearLayout implements GeckoMenu.ActionItemB
         return false;
     }
 
-    /* GeckoMenu.ActionItemBarPresenter */
+    /* GoannaMenu.ActionItemBarPresenter */
     @Override
     public void removeActionItem(View actionItem) {
         actionItem.measure(SPEC, SPEC);

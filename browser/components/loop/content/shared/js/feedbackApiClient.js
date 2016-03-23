@@ -22,7 +22,7 @@ loop.FeedbackAPIClient = (function($, _) {
    * - {String} platform   Platform name, eg. "Windows 8", "Android", "Linux"
    * - {String} version    Product version, eg. "22b2", "1.1"
    * - {String} channel    Product channel, eg. "stable", "beta"
-   * - {String} user_agent eg. Mozilla/5.0 (Mobile; rv:18.0) Gecko/18.0 Firefox/18.0
+   * - {String} user_agent eg. Mozilla/5.0 (Mobile; rv:18.0) Goanna/18.0 Firefox/18.0
    *
    * @link  http://fjord.readthedocs.org/en/latest/api.html
    */

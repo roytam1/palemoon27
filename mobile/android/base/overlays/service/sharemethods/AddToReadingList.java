@@ -7,7 +7,7 @@ package org.mozilla.gecko.overlays.service.sharemethods;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.LocalBrowserDB;
 import org.mozilla.gecko.db.ReadingListProvider;
@@ -21,7 +21,7 @@ import static org.mozilla.gecko.db.BrowserContract.ReadingListItems;
  * Inserts the given URL/title pair into the reading list database.
  */
 public class AddToReadingList extends ShareMethod {
-    private static final String LOGTAG = "GeckoAddToReadingList";
+    private static final String LOGTAG = "GoannaAddToReadingList";
 
     @Override
     public Result handle(ShareData shareData) {
@@ -33,7 +33,7 @@ public class AddToReadingList extends ShareMethod {
         values.put(ReadingListItems.ADDED_ON, System.currentTimeMillis());
         values.put(ReadingListItems.ADDED_BY, ReadingListProvider.PLACEHOLDER_THIS_DEVICE);
 
-        new LocalBrowserDB(GeckoProfile.DEFAULT_PROFILE).getReadingListAccessor().addReadingListItem(resolver, values);
+        new LocalBrowserDB(GoannaProfile.DEFAULT_PROFILE).getReadingListAccessor().addReadingListItem(resolver, values);
 
         return Result.SUCCESS;
     }

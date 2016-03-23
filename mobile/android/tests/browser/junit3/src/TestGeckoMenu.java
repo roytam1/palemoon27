@@ -5,10 +5,10 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.menu.GeckoMenu;
+import org.mozilla.gecko.menu.GoannaMenu;
 import org.mozilla.gecko.util.ThreadUtils;
 
-public class TestGeckoMenu extends BrowserTestCase {
+public class TestGoannaMenu extends BrowserTestCase {
 
     private volatile Exception exception;
     private void setException(Exception e) {
@@ -16,7 +16,7 @@ public class TestGeckoMenu extends BrowserTestCase {
     }
 
     public void testMenuThreading() throws InterruptedException {
-        final GeckoMenu menu = new GeckoMenu(getActivity());
+        final GoannaMenu menu = new GoannaMenu(getActivity());
         final Object semaphore = new Object();
 
         ThreadUtils.postToUiThread(new Runnable() {

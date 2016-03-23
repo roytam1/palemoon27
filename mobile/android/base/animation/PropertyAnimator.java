@@ -21,7 +21,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 
 public class PropertyAnimator implements Runnable {
-    private static final String LOGTAG = "GeckoPropertyAnimator";
+    private static final String LOGTAG = "GoannaPropertyAnimator";
 
     public static enum Property {
         ALPHA,

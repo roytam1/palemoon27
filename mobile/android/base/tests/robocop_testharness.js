@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 function sendMessageToJava(message) {
-  SpecialPowers.Services.androidBridge.handleGeckoMessage(message);
+  SpecialPowers.Services.androidBridge.handleGoannaMessage(message);
 }
 
 function _evalURI(uri, sandbox) {

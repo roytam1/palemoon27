@@ -18,7 +18,7 @@ import android.app.Activity;
 public class testAboutPage extends PixelTest {
 
     public void testAboutPage() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Load the about: page and verify its title.
         String url = StringHelper.ABOUT_SCHEME;
@@ -34,8 +34,8 @@ public class testAboutPage extends PixelTest {
         verifyUrlBarTitle(url);
 
         // Set up listeners to catch the page load we're about to do.
-        Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
-        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        Actions.EventExpecter tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
+        Actions.EventExpecter contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
 
         selectSettingsItem(StringHelper.MOZILLA_SECTION_LABEL, StringHelper.ABOUT_LABEL);
 

@@ -11,8 +11,8 @@ import java.util.List;
 import org.mozilla.gecko.animation.PropertyAnimator.Property;
 import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.tabs.TabsPanel.TabsLayout;
@@ -34,7 +34,7 @@ import android.widget.Button;
 class TabsListLayout extends TwoWayView
                      implements TabsLayout,
                                 Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "Gecko" + TabsListLayout.class.getSimpleName();
+    private static final String LOGTAG = "Goanna" + TabsListLayout.class.getSimpleName();
 
     private final Context mContext;
     private TabsPanel mTabsPanel;
@@ -140,7 +140,7 @@ class TabsListLayout extends TwoWayView
     public void hide() {
         setVisibility(View.GONE);
         Tabs.unregisterOnTabsChangedListener(this);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Screenshot:Cancel",""));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Screenshot:Cancel",""));
         mTabsAdapter.clear();
     }
 

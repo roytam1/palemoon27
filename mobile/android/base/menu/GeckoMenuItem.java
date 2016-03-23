@@ -6,7 +6,7 @@ package org.mozilla.gecko.menu;
 
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.widget.GeckoActionProvider;
+import org.mozilla.gecko.widget.GoannaActionProvider;
 
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
@@ -17,7 +17,7 @@ import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
 
-public class GeckoMenuItem implements MenuItem {
+public class GoannaMenuItem implements MenuItem {
     private static final int SECONDARY_ACTION_BAR_HISTORY_SIZE = 0;
     private static final int QUICK_SHARE_ACTION_BAR_HISTORY_SIZE = 3;
 
@@ -31,13 +31,13 @@ public class GeckoMenuItem implements MenuItem {
     // A View that can show a MenuItem should be able to initialize from
     // the properties of the MenuItem.
     public static interface Layout {
-        public void initialize(GeckoMenuItem item);
+        public void initialize(GoannaMenuItem item);
         public void setShowIcon(boolean show);
     }
 
     public static interface OnShowAsActionChangedListener {
         public boolean hasActionItemBar();
-        public void onShowAsActionChanged(GeckoMenuItem item);
+        public void onShowAsActionChanged(GoannaMenuItem item);
     }
 
     private final int mId;
@@ -52,23 +52,23 @@ public class GeckoMenuItem implements MenuItem {
     private boolean mEnabled = true;
     private Drawable mIcon;
     private int mIconRes;
-    private GeckoActionProvider mActionProvider;
-    private GeckoSubMenu mSubMenu;
+    private GoannaActionProvider mActionProvider;
+    private GoannaSubMenu mSubMenu;
     private MenuItem.OnMenuItemClickListener mMenuItemClickListener;
-    final GeckoMenu mMenu;
+    final GoannaMenu mMenu;
     OnShowAsActionChangedListener mShowAsActionChangedListener;
 
     private volatile boolean mShouldDispatchChanges = true;
     private volatile boolean mDidChange;
 
-    public GeckoMenuItem(GeckoMenu menu, int id, int order, int titleRes) {
+    public GoannaMenuItem(GoannaMenu menu, int id, int order, int titleRes) {
         mMenu = menu;
         mId = id;
         mOrder = order;
         mTitle = mMenu.getResources().getString(titleRes);
     }
 
-    public GeckoMenuItem(GeckoMenu menu, int id, int order, CharSequence title) {
+    public GoannaMenuItem(GoannaMenu menu, int id, int order, CharSequence title) {
         mMenu = menu;
         mId = id;
         mOrder = order;
@@ -128,7 +128,7 @@ public class GeckoMenuItem implements MenuItem {
         return mActionEnum;
     }
 
-    public GeckoActionProvider getGeckoActionProvider() {
+    public GoannaActionProvider getGoannaActionProvider() {
         return mActionProvider;
     }
 
@@ -142,10 +142,10 @@ public class GeckoMenuItem implements MenuItem {
         if (mActionProvider != null) {
             if (getActionEnum() == MenuItem.SHOW_AS_ACTION_IF_ROOM) {
                 return mActionProvider.onCreateActionView(SECONDARY_ACTION_BAR_HISTORY_SIZE,
-                        GeckoActionProvider.ActionViewType.DEFAULT);
+                        GoannaActionProvider.ActionViewType.DEFAULT);
             } else {
                 return mActionProvider.onCreateActionView(QUICK_SHARE_ACTION_BAR_HISTORY_SIZE,
-                        GeckoActionProvider.ActionViewType.QUICK_SHARE_ICON);
+                        GoannaActionProvider.ActionViewType.QUICK_SHARE_ICON);
             }
         }
 
@@ -256,16 +256,16 @@ public class GeckoMenuItem implements MenuItem {
         return this;
     }
 
-    public MenuItem setActionProvider(GeckoActionProvider actionProvider) {
+    public MenuItem setActionProvider(GoannaActionProvider actionProvider) {
         mActionProvider = actionProvider;
         if (mActionProvider != null) {
-            actionProvider.setOnTargetSelectedListener(new GeckoActionProvider.OnTargetSelectedListener() {
+            actionProvider.setOnTargetSelectedListener(new GoannaActionProvider.OnTargetSelectedListener() {
                 @Override
                 public void onTargetSelected() {
                     mMenu.close();
 
                     // Refresh the menu item to show the high frequency apps.
-                    mShowAsActionChangedListener.onShowAsActionChanged(GeckoMenuItem.this);
+                    mShowAsActionChangedListener.onShowAsActionChanged(GoannaMenuItem.this);
                 }
             });
         }
@@ -424,7 +424,7 @@ public class GeckoMenuItem implements MenuItem {
         return this;
     }
 
-    public MenuItem setSubMenu(GeckoSubMenu subMenu) {
+    public MenuItem setSubMenu(GoannaSubMenu subMenu) {
         mSubMenu = subMenu;
         return this;
     }

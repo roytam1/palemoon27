@@ -8,7 +8,7 @@ and the Chai Assertion Library's [BDD interface][2].
 
 Aim your browser at the index.html in this directory on your localhost using
 a file: or HTTP URL to run the tests.  Alternately, from the top-level of your
-Gecko source directory, execute:
+Goanna source directory, execute:
 
 ```
 ./mach marionette-test browser/components/loop/test/manifest.ini

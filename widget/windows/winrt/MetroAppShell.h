@@ -22,7 +22,7 @@ public:
   }
 
   nsresult Init();
-  void DoProcessMoreGeckoEvents();
+  void DoProcessMoreGoannaEvents();
   void NativeCallback();
 
   static LRESULT CALLBACK EventWindowProc(HWND, UINT, WPARAM, LPARAM);
@@ -35,7 +35,7 @@ protected:
 
   virtual void ScheduleNativeEventCallback();
   virtual bool ProcessNextNativeEvent(bool mayWait);
-  static void DispatchAllGeckoEvents();
+  static void DispatchAllGoannaEvents();
   virtual ~MetroAppShell();
 
   HWND mEventWnd;

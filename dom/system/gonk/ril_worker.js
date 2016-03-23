@@ -3974,7 +3974,7 @@ RilObject.prototype = {
         continue;
       }
 
-      this._setDataCallGeckoState(updatedDataCall);
+      this._setDataCallGoannaState(updatedDataCall);
       if (updatedDataCall.state != currentDataCall.state) {
         if (updatedDataCall.state == GECKO_NETWORK_STATE_DISCONNECTED) {
           delete this.currentDataCalls[currentDataCall.cid];
@@ -4024,7 +4024,7 @@ RilObject.prototype = {
       }
 
       this.currentDataCalls[newDataCall.cid] = newDataCall;
-      this._setDataCallGeckoState(newDataCall);
+      this._setDataCallGoannaState(newDataCall);
 
       newDataCall.radioTech = newDataCallOptions.radioTech;
       newDataCall.apn = newDataCallOptions.apn;
@@ -4039,7 +4039,7 @@ RilObject.prototype = {
     }
   },
 
-  _setDataCallGeckoState: function(datacall) {
+  _setDataCallGoannaState: function(datacall) {
     switch (datacall.active) {
       case DATACALL_INACTIVE:
         datacall.state = GECKO_NETWORK_STATE_DISCONNECTED;

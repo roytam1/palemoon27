@@ -2369,7 +2369,7 @@ SET_JITINFO(JSFunction * func, const JSJitInfo* info)
 
 /*
  * Engine-internal extensions of jsid.  This code is here only until we
- * eliminate Gecko's dependencies on it!
+ * eliminate Goanna's dependencies on it!
  */
 
 static MOZ_ALWAYS_INLINE jsid
@@ -2604,7 +2604,7 @@ typedef long
 // This would be wrong if there was an outer __try block that expected to handle
 // the fault, but this is not generally allowed.
 //
-// Gecko must call SetJitExceptionFilter before any JIT code is compiled and
+// Goanna must call SetJitExceptionFilter before any JIT code is compiled and
 // only once per process.
 extern JS_FRIEND_API(void)
 SetJitExceptionHandler(JitExceptionHandler handler);

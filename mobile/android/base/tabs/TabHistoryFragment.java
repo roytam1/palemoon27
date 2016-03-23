@@ -7,8 +7,8 @@ package org.mozilla.gecko.tabs;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
 import org.mozilla.gecko.R;
 
 import android.content.Context;
@@ -86,7 +86,7 @@ public class TabHistoryFragment extends Fragment implements OnItemClickListener,
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         String index = String.valueOf(toIndex - position);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Navigate", index));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Session:Navigate", index));
         dismiss();
     }
 

@@ -17,7 +17,7 @@
 #include "prprf.h"
 #include "mozilla/storage.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #define BOOKMARKS_TO_KEYWORDS_INITIAL_CACHE_LENGTH 32
 

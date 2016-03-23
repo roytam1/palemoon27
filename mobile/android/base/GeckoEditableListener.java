@@ -6,11 +6,11 @@
 package org.mozilla.gecko;
 
 /**
- * Interface for the Editable to listen on the Gecko thread, as well as for the IC thread to listen
+ * Interface for the Editable to listen on the Goanna thread, as well as for the IC thread to listen
  * to the Editable.
  */
-interface GeckoEditableListener {
-    // IME notification type for notifyIME(), corresponding to NotificationToIME enum in Gecko
+interface GoannaEditableListener {
+    // IME notification type for notifyIME(), corresponding to NotificationToIME enum in Goanna
     int NOTIFY_IME_OPEN_VKB = -2;
     int NOTIFY_IME_REPLY_EVENT = -1;
     int NOTIFY_IME_OF_FOCUS = 1;

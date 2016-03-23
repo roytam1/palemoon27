@@ -3,7 +3,7 @@
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:process=":@ANDROID_PACKAGE_NAME@.Webapp@APPNUM@"
-                  android:theme="@style/Gecko.App"
+                  android:theme="@style/Goanna.App"
                   android:launchMode="singleTop"
                   android:exported="true"
         />

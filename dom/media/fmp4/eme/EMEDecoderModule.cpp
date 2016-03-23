@@ -8,7 +8,7 @@
 #include "EMEAudioDecoder.h"
 #include "EMEVideoDecoder.h"
 #include "MediaDataDecoderProxy.h"
-#include "mozIGeckoMediaPluginService.h"
+#include "mozIGoannaMediaPluginService.h"
 #include "mozilla/CDMProxy.h"
 #include "mozilla/unused.h"
 #include "nsServiceManagerUtils.h"
@@ -220,7 +220,7 @@ EMEDecoderModule::~EMEDecoderModule()
 static already_AddRefed<MediaDataDecoderProxy>
 CreateDecoderWrapper(MediaDataDecoderCallback* aCallback, CDMProxy* aProxy, FlushableMediaTaskQueue* aTaskQueue)
 {
-  nsCOMPtr<mozIGeckoMediaPluginService> gmpService = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
+  nsCOMPtr<mozIGoannaMediaPluginService> gmpService = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   if (!gmpService) {
     return nullptr;
   }

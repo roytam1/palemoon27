@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DoorHanger extends LinearLayout {
-    private static final String LOGTAG = "GeckoDoorHanger";
+    private static final String LOGTAG = "GoannaDoorHanger";
 
     private static int sInputPadding = -1;
     private static int sSpinnerTextColor = -1;

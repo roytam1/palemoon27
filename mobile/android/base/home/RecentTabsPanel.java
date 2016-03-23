@@ -13,9 +13,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.AboutPages;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.SessionParser;
 import org.mozilla.gecko.Telemetry;
@@ -49,7 +49,7 @@ public class RecentTabsPanel extends HomeFragment
                              implements NativeEventListener {
     // Logging tag name
     @SuppressWarnings("unused")
-    private static final String LOGTAG = "GeckoRecentTabsPanel";
+    private static final String LOGTAG = "GoannaRecentTabsPanel";
 
     // Cursor loader ID for the loader that loads recent tabs
     private static final int LOADER_ID_RECENT_TABS = 0;
@@ -77,7 +77,7 @@ public class RecentTabsPanel extends HomeFragment
             Log.e(LOGTAG, "JSON error", e);
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:RestoreRecentTabs", json.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Session:RestoreRecentTabs", json.toString()));
     }
 
     private static final class ClosedTab {
@@ -159,8 +159,8 @@ public class RecentTabsPanel extends HomeFragment
 
         registerForContextMenu(mList);
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "ClosedTabs:Data");
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("ClosedTabs:StartNotifications", null));
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "ClosedTabs:Data");
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("ClosedTabs:StartNotifications", null));
     }
 
     @Override
@@ -169,8 +169,8 @@ public class RecentTabsPanel extends HomeFragment
         mList = null;
         mEmptyView = null;
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "ClosedTabs:Data");
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("ClosedTabs:StopNotifications", null));
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "ClosedTabs:Data");
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("ClosedTabs:StopNotifications", null));
     }
 
     @Override
@@ -308,7 +308,7 @@ public class RecentTabsPanel extends HomeFragment
                 }
             }
 
-            final String jsonString = GeckoProfile.get(context).readSessionFile(true);
+            final String jsonString = GoannaProfile.get(context).readSessionFile(true);
             if (jsonString == null) {
                 // No previous session data
                 return c;

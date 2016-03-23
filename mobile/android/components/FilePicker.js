@@ -243,7 +243,7 @@ FilePicker.prototype = {
   },
 
   sendMessageToJava: function(aMsg) {
-    Services.androidBridge.handleGeckoMessage(aMsg);
+    Services.androidBridge.handleGoannaMessage(aMsg);
   },
 
   observe: function(aSubject, aTopic, aData) {

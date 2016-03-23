@@ -25,7 +25,7 @@ import android.widget.TextView;
 
 public class TabInput extends PromptInput implements AdapterView.OnItemClickListener {
     public static final String INPUT_TYPE = "tabs";
-    public static final String LOGTAG = "GeckoTabInput";
+    public static final String LOGTAG = "GoannaTabInput";
 
     /* Keeping the order of this in sync with the JSON is important. */
     final private LinkedHashMap<String, PromptListItem[]> mTabs;

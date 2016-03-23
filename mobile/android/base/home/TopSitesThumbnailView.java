@@ -25,7 +25,7 @@ import android.widget.ImageView;
  * A height constrained ImageView to show thumbnails of top and pinned sites.
  */
 public class TopSitesThumbnailView extends ImageView {
-    private static final String LOGTAG = "GeckoTopSitesThumbnailView";
+    private static final String LOGTAG = "GoannaTopSitesThumbnailView";
 
     // 27.34% opacity filter for the dominant color.
     private static final int COLOR_FILTER = 0x46FFFFFF;

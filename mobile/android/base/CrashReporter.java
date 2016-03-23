@@ -41,7 +41,7 @@ import android.widget.EditText;
 
 public class CrashReporter extends Activity
 {
-    private static final String LOGTAG = "GeckoCrashReporter";
+    private static final String LOGTAG = "GoannaCrashReporter";
 
     private static final String PASSED_MINI_DUMP_KEY = "minidumpPath";
     private static final String MINI_DUMP_PATH_KEY = "upload_file_minidump";
@@ -135,10 +135,10 @@ public class CrashReporter extends Activity
 
         // Set the flag that indicates we were stopped as expected, as
         // we will send a crash report, so it is not a silent OOM crash.
-        SharedPreferences prefs = GeckoSharedPrefs.forApp(this);
+        SharedPreferences prefs = GoannaSharedPrefs.forApp(this);
         SharedPreferences.Editor editor = prefs.edit();
-        editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, true);
-        editor.putBoolean(GeckoApp.PREFS_CRASHED, true);
+        editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, true);
+        editor.putBoolean(GoannaApp.PREFS_CRASHED, true);
         editor.apply();
 
         final CheckBox allowContactCheckBox = (CheckBox) findViewById(R.id.allow_contact);
@@ -233,7 +233,7 @@ public class CrashReporter extends Activity
     }
 
     private void savePrefs() {
-        SharedPreferences.Editor editor = GeckoSharedPrefs.forApp(this).edit();
+        SharedPreferences.Editor editor = GoannaSharedPrefs.forApp(this).edit();
                   
         final boolean allowContact = ((CheckBox) findViewById(R.id.allow_contact)).isChecked();
         final boolean includeUrl   = ((CheckBox) findViewById(R.id.include_url)).isChecked();

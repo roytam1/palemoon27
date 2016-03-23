@@ -49,7 +49,7 @@ At the time of writing, there are three main sub-modules: *app*, *base*, and
 *thirdparty*, and several smaller sub-modules.
 
 *app* is the Fennec wrapper; it generates the **org.mozilla.fennec.R** resource
-package.  *base* is the Gecko code; it generates the **org.mozilla.gecko.R**
+package.  *base* is the Goanna code; it generates the **org.mozilla.gecko.R**
 resource package.  Together, *app* and *base* address the "two package
 namespaces" that has plagued Fennec from day one.
 

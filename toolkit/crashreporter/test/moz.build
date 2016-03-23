@@ -17,7 +17,7 @@ UNIFIED_SOURCES += [
     'nsTestCrasher.cpp',
 ]
 
-GeckoSharedLibrary('testcrasher')
+GoannaSharedLibrary('testcrasher')
 
 EXTRA_JS_MODULES += [
     'CrashTestUtils.jsm',

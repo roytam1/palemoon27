@@ -27,7 +27,7 @@ import android.widget.ListAdapter;
  */
 public class BookmarksListView extends HomeListView
                                implements AdapterView.OnItemClickListener{
-    public static final String LOGTAG = "GeckoBookmarksListView";
+    public static final String LOGTAG = "GoannaBookmarksListView";
 
     public BookmarksListView(Context context) {
         this(context, null);

@@ -18,7 +18,7 @@ public class testAdobeFlash extends PixelTest {
     public void testLoad() {
         // This test only works on ICS and higher
         if (Build.VERSION.SDK_INT < 15) {
-            blockForGeckoReady();
+            blockForGoannaReady();
             return;
         }
 
@@ -33,7 +33,7 @@ public class testAdobeFlash extends PixelTest {
             mAsserter.ok(false, "exception in testAdobeFlash", ex.toString());
         }
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         String url = getAbsoluteUrl(StringHelper.ROBOCOP_ADOBE_FLASH_URL);
         PaintedSurface painted = loadAndGetPainted(url);

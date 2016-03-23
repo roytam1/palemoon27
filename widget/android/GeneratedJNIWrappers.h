@@ -43,23 +43,23 @@ public:
 
 };
 
-class GeckoAppShell : public mozilla::jni::Class<GeckoAppShell> {
+class GoannaAppShell : public mozilla::jni::Class<GoannaAppShell> {
 
 public:
-    typedef mozilla::jni::Ref<GeckoAppShell> Ref;
-    typedef mozilla::jni::LocalRef<GeckoAppShell> LocalRef;
-    typedef mozilla::jni::GlobalRef<GeckoAppShell> GlobalRef;
-    typedef const typename mozilla::jni::Param<GeckoAppShell>::Type& Param;
+    typedef mozilla::jni::Ref<GoannaAppShell> Ref;
+    typedef mozilla::jni::LocalRef<GoannaAppShell> LocalRef;
+    typedef mozilla::jni::GlobalRef<GoannaAppShell> GlobalRef;
+    typedef const typename mozilla::jni::Param<GoannaAppShell>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/GeckoAppShell";
+            "org/mozilla/gecko/GoannaAppShell";
 
 protected:
-    GeckoAppShell(jobject instance) : Class(instance) {}
+    GoannaAppShell(jobject instance) : Class(instance) {}
 
 public:
     struct AcknowledgeEvent_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "acknowledgeEvent";
@@ -74,7 +74,7 @@ public:
 
 public:
     struct AddPluginViewWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "addPluginView";
@@ -89,7 +89,7 @@ public:
 
 public:
     struct AlertsProgressListener_OnProgress_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "alertsProgressListener_OnProgress";
@@ -104,7 +104,7 @@ public:
 
 public:
     struct CancelVibrate_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "cancelVibrate";
@@ -119,7 +119,7 @@ public:
 
 public:
     struct CheckURIVisited_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "checkUriVisited";
@@ -134,7 +134,7 @@ public:
 
 public:
     struct ClearMessageList_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "clearMessageList";
@@ -149,7 +149,7 @@ public:
 
 public:
     struct CloseCamera_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "closeCamera";
@@ -164,7 +164,7 @@ public:
 
 public:
     struct CloseNotification_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "closeNotification";
@@ -179,7 +179,7 @@ public:
 
 public:
     struct ConnectionGetMimeType_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::String::LocalRef ReturnType;
         typedef mozilla::jni::String::Param SetterType;
         static constexpr char name[] = "connectionGetMimeType";
@@ -194,7 +194,7 @@ public:
 
 public:
     struct CreateInputStream_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "createInputStream";
@@ -209,7 +209,7 @@ public:
 
 public:
     struct CreateMessageListWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "createMessageList";
@@ -224,7 +224,7 @@ public:
 
 public:
     struct CreateShortcut_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "createShortcut";
@@ -239,7 +239,7 @@ public:
 
 public:
     struct DeleteMessageWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "deleteMessage";
@@ -254,7 +254,7 @@ public:
 
 public:
     struct DisableBatteryNotifications_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "disableBatteryNotifications";
@@ -269,7 +269,7 @@ public:
 
 public:
     struct DisableNetworkNotifications_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "disableNetworkNotifications";
@@ -284,7 +284,7 @@ public:
 
 public:
     struct DisableScreenOrientationNotifications_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "disableScreenOrientationNotifications";
@@ -299,7 +299,7 @@ public:
 
 public:
     struct DisableSensor_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "disableSensor";
@@ -314,7 +314,7 @@ public:
 
 public:
     struct EnableBatteryNotifications_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "enableBatteryNotifications";
@@ -329,7 +329,7 @@ public:
 
 public:
     struct EnableLocation_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "enableLocation";
@@ -344,7 +344,7 @@ public:
 
 public:
     struct EnableLocationHighAccuracy_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "enableLocationHighAccuracy";
@@ -359,7 +359,7 @@ public:
 
 public:
     struct EnableNetworkNotifications_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "enableNetworkNotifications";
@@ -374,7 +374,7 @@ public:
 
 public:
     struct EnableScreenOrientationNotifications_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "enableScreenOrientationNotifications";
@@ -389,7 +389,7 @@ public:
 
 public:
     struct EnableSensor_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "enableSensor";
@@ -404,7 +404,7 @@ public:
 
 public:
     struct GamepadAdded_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "gamepadAdded";
@@ -419,7 +419,7 @@ public:
 
 public:
     struct GetConnection_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "getConnection";
@@ -434,7 +434,7 @@ public:
 
 public:
     struct GetContext_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "getContext";
@@ -449,7 +449,7 @@ public:
 
 public:
     struct GetCurrentBatteryInformationWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::DoubleArray::LocalRef ReturnType;
         typedef mozilla::jni::DoubleArray::Param SetterType;
         static constexpr char name[] = "getCurrentBatteryInformation";
@@ -464,7 +464,7 @@ public:
 
 public:
     struct GetCurrentNetworkInformationWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::DoubleArray::LocalRef ReturnType;
         typedef mozilla::jni::DoubleArray::Param SetterType;
         static constexpr char name[] = "getCurrentNetworkInformation";
@@ -479,7 +479,7 @@ public:
 
 public:
     struct GetDensity_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef float ReturnType;
         typedef float SetterType;
         static constexpr char name[] = "getDensity";
@@ -494,7 +494,7 @@ public:
 
 public:
     struct GetDpiWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef int32_t ReturnType;
         typedef int32_t SetterType;
         static constexpr char name[] = "getDpi";
@@ -509,7 +509,7 @@ public:
 
 public:
     struct GetExtensionFromMimeTypeWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::String::LocalRef ReturnType;
         typedef mozilla::jni::String::Param SetterType;
         static constexpr char name[] = "getExtensionFromMimeType";
@@ -524,7 +524,7 @@ public:
 
 public:
     struct GetExternalPublicDirectory_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::String::LocalRef ReturnType;
         typedef mozilla::jni::String::Param SetterType;
         static constexpr char name[] = "getExternalPublicDirectory";
@@ -539,7 +539,7 @@ public:
 
 public:
     struct GetHandlersForMimeTypeWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::ObjectArray::LocalRef ReturnType;
         typedef mozilla::jni::ObjectArray::Param SetterType;
         static constexpr char name[] = "getHandlersForMimeType";
@@ -554,7 +554,7 @@ public:
 
 public:
     struct GetHandlersForURLWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::ObjectArray::LocalRef ReturnType;
         typedef mozilla::jni::ObjectArray::Param SetterType;
         static constexpr char name[] = "getHandlersForURL";
@@ -569,7 +569,7 @@ public:
 
 public:
     struct GetIconForExtensionWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::ByteArray::LocalRef ReturnType;
         typedef mozilla::jni::ByteArray::Param SetterType;
         static constexpr char name[] = "getIconForExtension";
@@ -584,7 +584,7 @@ public:
 
 public:
     struct GetMessageWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "getMessage";
@@ -599,7 +599,7 @@ public:
 
 public:
     struct GetMimeTypeFromExtensionsWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::String::LocalRef ReturnType;
         typedef mozilla::jni::String::Param SetterType;
         static constexpr char name[] = "getMimeTypeFromExtensions";
@@ -614,7 +614,7 @@ public:
 
 public:
     struct GetNextMessageInListWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "getNextMessageInList";
@@ -629,7 +629,7 @@ public:
 
 public:
     struct GetProxyForURIWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::String::LocalRef ReturnType;
         typedef mozilla::jni::String::Param SetterType;
         static constexpr char name[] = "getProxyForURI";
@@ -644,7 +644,7 @@ public:
 
 public:
     struct GetScreenDepthWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef int32_t ReturnType;
         typedef int32_t SetterType;
         static constexpr char name[] = "getScreenDepth";
@@ -659,7 +659,7 @@ public:
 
 public:
     struct GetScreenOrientationWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef int16_t ReturnType;
         typedef int16_t SetterType;
         static constexpr char name[] = "getScreenOrientation";
@@ -674,7 +674,7 @@ public:
 
 public:
     struct GetShowPasswordSetting_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "getShowPasswordSetting";
@@ -689,7 +689,7 @@ public:
 
 public:
     struct GetSystemColoursWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::IntArray::LocalRef ReturnType;
         typedef mozilla::jni::IntArray::Param SetterType;
         static constexpr char name[] = "getSystemColors";
@@ -703,11 +703,11 @@ public:
     static mozilla::jni::IntArray::LocalRef GetSystemColoursWrapper();
 
 public:
-    struct HandleGeckoMessageWrapper_t {
-        typedef GeckoAppShell Owner;
+    struct HandleGoannaMessageWrapper_t {
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
-        static constexpr char name[] = "handleGeckoMessage";
+        static constexpr char name[] = "handleGoannaMessage";
         static constexpr char signature[] =
                 "(Lorg/mozilla/gecko/util/NativeJSContainer;)V";
         static const bool isStatic = true;
@@ -715,11 +715,11 @@ public:
         static const mozilla::jni::ExceptionMode exceptionMode = mozilla::jni::ExceptionMode::ABORT;
     };
 
-    static void HandleGeckoMessageWrapper(mozilla::jni::Object::Param);
+    static void HandleGoannaMessageWrapper(mozilla::jni::Object::Param);
 
 public:
     struct HandleUncaughtException_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "handleUncaughtException";
@@ -734,7 +734,7 @@ public:
 
 public:
     struct HideProgressDialog_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "hideProgressDialog";
@@ -749,7 +749,7 @@ public:
 
 public:
     struct InitCameraWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::IntArray::LocalRef ReturnType;
         typedef mozilla::jni::IntArray::Param SetterType;
         static constexpr char name[] = "initCamera";
@@ -764,7 +764,7 @@ public:
 
 public:
     struct IsNetworkLinkKnown_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "isNetworkLinkKnown";
@@ -779,7 +779,7 @@ public:
 
 public:
     struct IsNetworkLinkUp_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "isNetworkLinkUp";
@@ -794,7 +794,7 @@ public:
 
 public:
     struct IsTablet_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "isTablet";
@@ -809,7 +809,7 @@ public:
 
 public:
     struct KillAnyZombies_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "killAnyZombies";
@@ -824,7 +824,7 @@ public:
 
 public:
     struct LoadPluginClass_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef mozilla::jni::ClassObject::LocalRef ReturnType;
         typedef mozilla::jni::ClassObject::Param SetterType;
         static constexpr char name[] = "loadPluginClass";
@@ -839,7 +839,7 @@ public:
 
 public:
     struct LockScreenOrientation_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "lockScreenOrientation";
@@ -854,7 +854,7 @@ public:
 
 public:
     struct MarkURIVisited_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "markUriVisited";
@@ -869,7 +869,7 @@ public:
 
 public:
     struct MoveTaskToBack_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "moveTaskToBack";
@@ -884,7 +884,7 @@ public:
 
 public:
     struct NetworkLinkType_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef int32_t ReturnType;
         typedef int32_t SetterType;
         static constexpr char name[] = "networkLinkType";
@@ -899,7 +899,7 @@ public:
 
 public:
     struct NotifyDefaultPrevented_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "notifyDefaultPrevented";
@@ -914,7 +914,7 @@ public:
 
 public:
     struct NotifyIME_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "notifyIME";
@@ -929,7 +929,7 @@ public:
 
 public:
     struct NotifyIMEChange_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "notifyIMEChange";
@@ -944,7 +944,7 @@ public:
 
 public:
     struct NotifyIMEContext_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "notifyIMEContext";
@@ -959,7 +959,7 @@ public:
 
 public:
     struct NotifyWakeLockChanged_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "notifyWakeLockChanged";
@@ -974,7 +974,7 @@ public:
 
 public:
     struct NotifyXreExit_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "onXreExit";
@@ -989,7 +989,7 @@ public:
 
 public:
     struct OpenUriExternal_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "openUriExternal";
@@ -1004,7 +1004,7 @@ public:
 
 public:
     struct PerformHapticFeedback_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "performHapticFeedback";
@@ -1019,7 +1019,7 @@ public:
 
 public:
     struct PumpMessageLoop_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "pumpMessageLoop";
@@ -1034,7 +1034,7 @@ public:
 
 public:
     struct RegisterSurfaceTextureFrameListener_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "registerSurfaceTextureFrameListener";
@@ -1049,7 +1049,7 @@ public:
 
 public:
     struct RemovePluginView_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "removePluginView";
@@ -1064,7 +1064,7 @@ public:
 
 public:
     struct RequestUiThreadCallback_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "requestUiThreadCallback";
@@ -1079,7 +1079,7 @@ public:
 
 public:
     struct ScheduleRestart_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "scheduleRestart";
@@ -1094,7 +1094,7 @@ public:
 
 public:
     struct SendMessageWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "sendMessage";
@@ -1109,7 +1109,7 @@ public:
 
 public:
     struct SetFullScreen_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "setFullScreen";
@@ -1124,7 +1124,7 @@ public:
 
 public:
     struct SetKeepScreenOn_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "setKeepScreenOn";
@@ -1139,7 +1139,7 @@ public:
 
 public:
     struct SetURITitle_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "setUriTitle";
@@ -1154,7 +1154,7 @@ public:
 
 public:
     struct ShowAlertNotificationWrapper_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "showAlertNotification";
@@ -1169,7 +1169,7 @@ public:
 
 public:
     struct ShowInputMethodPicker_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "showInputMethodPicker";
@@ -1184,7 +1184,7 @@ public:
 
 public:
     struct StartMonitoringGamepad_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "startMonitoringGamepad";
@@ -1199,7 +1199,7 @@ public:
 
 public:
     struct StopMonitoringGamepad_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "stopMonitoringGamepad";
@@ -1214,7 +1214,7 @@ public:
 
 public:
     struct UnlockProfile_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "unlockProfile";
@@ -1229,7 +1229,7 @@ public:
 
 public:
     struct UnlockScreenOrientation_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "unlockScreenOrientation";
@@ -1244,7 +1244,7 @@ public:
 
 public:
     struct UnregisterSurfaceTextureFrameListener_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "unregisterSurfaceTextureFrameListener";
@@ -1259,7 +1259,7 @@ public:
 
 public:
     struct Vibrate1_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "vibrate";
@@ -1274,7 +1274,7 @@ public:
 
 public:
     struct VibrateA_t {
-        typedef GeckoAppShell Owner;
+        typedef GoannaAppShell Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "vibrate";
@@ -1289,23 +1289,23 @@ public:
 
 };
 
-class GeckoJavaSampler : public mozilla::jni::Class<GeckoJavaSampler> {
+class GoannaJavaSampler : public mozilla::jni::Class<GoannaJavaSampler> {
 
 public:
-    typedef mozilla::jni::Ref<GeckoJavaSampler> Ref;
-    typedef mozilla::jni::LocalRef<GeckoJavaSampler> LocalRef;
-    typedef mozilla::jni::GlobalRef<GeckoJavaSampler> GlobalRef;
-    typedef const typename mozilla::jni::Param<GeckoJavaSampler>::Type& Param;
+    typedef mozilla::jni::Ref<GoannaJavaSampler> Ref;
+    typedef mozilla::jni::LocalRef<GoannaJavaSampler> LocalRef;
+    typedef mozilla::jni::GlobalRef<GoannaJavaSampler> GlobalRef;
+    typedef const typename mozilla::jni::Param<GoannaJavaSampler>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/GeckoJavaSampler";
+            "org/mozilla/gecko/GoannaJavaSampler";
 
 protected:
-    GeckoJavaSampler(jobject instance) : Class(instance) {}
+    GoannaJavaSampler(jobject instance) : Class(instance) {}
 
 public:
     struct GetFrameNameJavaProfilingWrapper_t {
-        typedef GeckoJavaSampler Owner;
+        typedef GoannaJavaSampler Owner;
         typedef mozilla::jni::String::LocalRef ReturnType;
         typedef mozilla::jni::String::Param SetterType;
         static constexpr char name[] = "getFrameName";
@@ -1320,7 +1320,7 @@ public:
 
 public:
     struct GetSampleTimeJavaProfiling_t {
-        typedef GeckoJavaSampler Owner;
+        typedef GoannaJavaSampler Owner;
         typedef double ReturnType;
         typedef double SetterType;
         static constexpr char name[] = "getSampleTime";
@@ -1335,7 +1335,7 @@ public:
 
 public:
     struct GetThreadNameJavaProfilingWrapper_t {
-        typedef GeckoJavaSampler Owner;
+        typedef GoannaJavaSampler Owner;
         typedef mozilla::jni::String::LocalRef ReturnType;
         typedef mozilla::jni::String::Param SetterType;
         static constexpr char name[] = "getThreadName";
@@ -1350,7 +1350,7 @@ public:
 
 public:
     struct PauseJavaProfiling_t {
-        typedef GeckoJavaSampler Owner;
+        typedef GoannaJavaSampler Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "pause";
@@ -1365,7 +1365,7 @@ public:
 
 public:
     struct StartJavaProfiling_t {
-        typedef GeckoJavaSampler Owner;
+        typedef GoannaJavaSampler Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "start";
@@ -1380,7 +1380,7 @@ public:
 
 public:
     struct StopJavaProfiling_t {
-        typedef GeckoJavaSampler Owner;
+        typedef GoannaJavaSampler Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "stop";
@@ -1395,7 +1395,7 @@ public:
 
 public:
     struct UnpauseJavaProfiling_t {
-        typedef GeckoJavaSampler Owner;
+        typedef GoannaJavaSampler Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "unpause";
@@ -1693,23 +1693,23 @@ public:
 
 };
 
-class GeckoLayerClient : public mozilla::jni::Class<GeckoLayerClient> {
+class GoannaLayerClient : public mozilla::jni::Class<GoannaLayerClient> {
 
 public:
-    typedef mozilla::jni::Ref<GeckoLayerClient> Ref;
-    typedef mozilla::jni::LocalRef<GeckoLayerClient> LocalRef;
-    typedef mozilla::jni::GlobalRef<GeckoLayerClient> GlobalRef;
-    typedef const typename mozilla::jni::Param<GeckoLayerClient>::Type& Param;
+    typedef mozilla::jni::Ref<GoannaLayerClient> Ref;
+    typedef mozilla::jni::LocalRef<GoannaLayerClient> LocalRef;
+    typedef mozilla::jni::GlobalRef<GoannaLayerClient> GlobalRef;
+    typedef const typename mozilla::jni::Param<GoannaLayerClient>::Type& Param;
 
     static constexpr char name[] =
-            "org/mozilla/gecko/gfx/GeckoLayerClient";
+            "org/mozilla/gecko/gfx/GoannaLayerClient";
 
 protected:
-    GeckoLayerClient(jobject instance) : Class(instance) {}
+    GoannaLayerClient(jobject instance) : Class(instance) {}
 
 public:
     struct ActivateProgram_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "activateProgram";
@@ -1724,7 +1724,7 @@ public:
 
 public:
     struct ContentDocumentChanged_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "contentDocumentChanged";
@@ -1739,7 +1739,7 @@ public:
 
 public:
     struct CreateFrame_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "createFrame";
@@ -1754,7 +1754,7 @@ public:
 
 public:
     struct DeactivateProgramAndRestoreState_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "deactivateProgramAndRestoreState";
@@ -1769,7 +1769,7 @@ public:
 
 public:
     struct GetDisplayPort_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "getDisplayPort";
@@ -1784,7 +1784,7 @@ public:
 
 public:
     struct IsContentDocumentDisplayed_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef bool ReturnType;
         typedef bool SetterType;
         static constexpr char name[] = "isContentDocumentDisplayed";
@@ -1799,7 +1799,7 @@ public:
 
 public:
     struct ProgressiveUpdateCallback_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "progressiveUpdateCallback";
@@ -1814,7 +1814,7 @@ public:
 
 public:
     struct SetFirstPaintViewport_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "setFirstPaintViewport";
@@ -1829,7 +1829,7 @@ public:
 
 public:
     struct SetPageRect_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef void ReturnType;
         typedef void SetterType;
         static constexpr char name[] = "setPageRect";
@@ -1844,7 +1844,7 @@ public:
 
 public:
     struct SyncFrameMetrics_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "syncFrameMetrics";
@@ -1859,7 +1859,7 @@ public:
 
 public:
     struct SyncViewportInfo_t {
-        typedef GeckoLayerClient Owner;
+        typedef GoannaLayerClient Owner;
         typedef mozilla::jni::Object::LocalRef ReturnType;
         typedef mozilla::jni::Object::Param SetterType;
         static constexpr char name[] = "syncViewportInfo";

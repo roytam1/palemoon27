@@ -7,7 +7,7 @@ package org.mozilla.gecko.db;
 import java.io.File;
 import java.util.HashMap;
 
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.GoannaProfile;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -48,7 +48,7 @@ public class PerProfileDatabases<T extends SQLiteOpenHelper> {
     }
 
     public String getDatabasePathForProfile(String profile) {
-        final File profileDir = GeckoProfile.get(mContext, profile).getDir();
+        final File profileDir = GoannaProfile.get(mContext, profile).getDir();
         if (profileDir == null) {
             return null;
         }
@@ -63,7 +63,7 @@ public class PerProfileDatabases<T extends SQLiteOpenHelper> {
     public T getDatabaseHelperForProfile(String profile, boolean isTest) {
         // Always fall back to default profile if none has been provided.
         if (TextUtils.isEmpty(profile)) {
-            profile = GeckoProfile.get(mContext).getName();
+            profile = GoannaProfile.get(mContext).getName();
         }
 
         synchronized (this) {

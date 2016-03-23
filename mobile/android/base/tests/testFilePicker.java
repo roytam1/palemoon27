@@ -7,14 +7,14 @@ package org.mozilla.gecko.tests;
 import static org.mozilla.gecko.tests.helpers.AssertionHelper.fFail;
 
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class testFilePicker extends JavascriptTest implements GeckoEventListener {
+public class testFilePicker extends JavascriptTest implements GoannaEventListener {
     private static final String TEST_FILENAME = "/mnt/sdcard/my-favorite-martian.png";
 
     public testFilePicker() {
@@ -32,7 +32,7 @@ public class testFilePicker extends JavascriptTest implements GeckoEventListener
                 fFail("Can't add filename to message " + TEST_FILENAME);
             }
 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FilePicker:Result", message.toString()));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FilePicker:Result", message.toString()));
         }
     }
 
@@ -40,13 +40,13 @@ public class testFilePicker extends JavascriptTest implements GeckoEventListener
     public void setUp() throws Exception {
         super.setUp();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "FilePicker:Show");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "FilePicker:Show");
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "FilePicker:Show");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "FilePicker:Show");
     }
 }

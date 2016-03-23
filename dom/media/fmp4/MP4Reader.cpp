@@ -316,7 +316,7 @@ bool MP4Reader::IsWaitingOnCDMResource() {
       return true;
     }
   }
-  // We'll keep waiting if the CDM hasn't informed Gecko of its capabilities.
+  // We'll keep waiting if the CDM hasn't informed Goanna of its capabilities.
   {
     CDMCaps::AutoLock caps(proxy->Capabilites());
     LOG("capsKnown=%d", caps.AreCapsKnown());

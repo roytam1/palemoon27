@@ -4,8 +4,8 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.GeckoRequest;
+import org.mozilla.gecko.util.GoannaEventListener;
+import org.mozilla.gecko.util.GoannaRequest;
 import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -26,8 +26,8 @@ import android.widget.CheckedTextView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnClickListener, GeckoEventListener  {
-    private static final String LOGTAG = "GeckoFindInPageBar";
+public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnClickListener, GoannaEventListener  {
+    private static final String LOGTAG = "GoannaFindInPageBar";
     private static final String REQUEST_ID = "FindInPageBar";
 
     // Will be removed by Bug 1113297.
@@ -80,7 +80,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         mStatusText = (TextView) content.findViewById(R.id.find_status);
 
         mInflated = true;
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "TextSelection:Data");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "TextSelection:Data");
     }
 
     public void show() {
@@ -91,8 +91,8 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         mFindText.requestFocus();
 
         // handleMessage() receives response message and determines initial state of softInput
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:Get", REQUEST_ID));
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Opened", null));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("TextSelection:Get", REQUEST_ID));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FindInPage:Opened", null));
     }
 
     public void hide() {
@@ -101,7 +101,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
 
         setVisibility(GONE);
         getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Closed", null));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FindInPage:Closed", null));
     }
 
     private InputMethodManager getInputMethodManager(View view) {
@@ -113,7 +113,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         if (!mInflated) {
             return;
         }
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "TextSelection:Data");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "TextSelection:Data");
     }
 
     // TextWatcher implementation
@@ -166,7 +166,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         }
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
 
     @Override
     public void handleMessage(String event, JSONObject message) {
@@ -219,7 +219,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
             return;
         }
 
-        GeckoAppShell.sendRequestToGecko(new GeckoRequest(request, json) {
+        GoannaAppShell.sendRequestToGoanna(new GoannaRequest(request, json) {
             @Override
             public void onResponse(NativeJSObject nativeJSObject) {
                 final int total = nativeJSObject.optInt("total", 0);
@@ -239,8 +239,8 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
 
             @Override
             public void onError(NativeJSObject error) {
-                // Gecko didn't respond due to state change, javascript error, etc.
-                Log.d(LOGTAG, "No response from Gecko on request to match string: [" +
+                // Goanna didn't respond due to state change, javascript error, etc.
+                Log.d(LOGTAG, "No response from Goanna on request to match string: [" +
                     searchString + "]");
                 updateResult("");
             }

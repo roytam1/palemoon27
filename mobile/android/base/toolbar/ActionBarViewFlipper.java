@@ -7,7 +7,7 @@ package org.mozilla.gecko.toolbar;
 
 import org.mozilla.gecko.NewTabletUI;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.widget.GeckoViewFlipper;
+import org.mozilla.gecko.widget.GoannaViewFlipper;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -19,7 +19,7 @@ import android.view.ViewGroup;
  * Note that this view should be removed when the old tablet is removed and replaced with using
  * browser_toolbar_height directly.
  */
-public class ActionBarViewFlipper extends GeckoViewFlipper {
+public class ActionBarViewFlipper extends GoannaViewFlipper {
 
     public ActionBarViewFlipper(final Context context, final AttributeSet attrs) {
         super(context, attrs);

@@ -7,13 +7,13 @@ package org.mozilla.gecko.favicons;
 
 import android.graphics.drawable.Drawable;
 import org.mozilla.gecko.AboutPages;
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GoannaAppShell;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.cache.FaviconCache;
-import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.gecko.util.GoannaJarReader;
 import org.mozilla.gecko.util.NonEvictingLruCache;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -39,7 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Favicons {
-    private static final String LOGTAG = "GeckoFavicons";
+    private static final String LOGTAG = "GoannaFavicons";
 
     // A magic URL representing the app's own favicon, used for about: pages.
     private static final String BUILT_IN_FAVICON_URL = "about:favicon";
@@ -437,11 +437,11 @@ public class Favicons {
     }
 
     /**
-     * Called by GeckoApp on startup to pass this class a reference to the GeckoApp object used as
+     * Called by GoannaApp on startup to pass this class a reference to the GoannaApp object used as
      * the application's Context.
-     * Consider replacing with references to a staticly held reference to the GeckoApp object.
+     * Consider replacing with references to a staticly held reference to the GoannaApp object.
      *
-     * @param context A reference to the GeckoApp instance.
+     * @param context A reference to the GoannaApp instance.
      */
     public static void initializeWithContext(Context context) throws IllegalStateException {
         // Prevent multiple-initialisation.
@@ -490,11 +490,11 @@ public class Favicons {
      * "jar:jar:file:///data/app/org.mozilla.firefox-1.apk!/assets/omni.ja!/chrome/chrome/content/branding/favicon64.png"
      */
     private static String getBrandingBitmapPath(Context context, String name) {
-        return GeckoJarReader.getJarURL(context, "chrome/chrome/content/branding/" + name);
+        return GoannaJarReader.getJarURL(context, "chrome/chrome/content/branding/" + name);
     }
 
     private static Bitmap loadBrandingBitmap(Context context, String name) {
-        Bitmap b = GeckoJarReader.getBitmap(context.getResources(),
+        Bitmap b = GoannaJarReader.getBitmap(context.getResources(),
                                             getBrandingBitmapPath(context, name));
         if (b == null) {
             throw new IllegalStateException("Bitmap " + name + " missing from JAR!");
@@ -577,7 +577,7 @@ public class Favicons {
      * @param onFaviconLoadedListener listener to call back with the result.
      */
     public static void getPreferredSizeFaviconForPage(Context context, String url, OnFaviconLoadedListener onFaviconLoadedListener) {
-        int preferredSize = GeckoAppShell.getPreferredIconSize();
+        int preferredSize = GoannaAppShell.getPreferredIconSize();
         loadUncachedFavicon(context, url, null, 0, preferredSize, onFaviconLoadedListener);
     }
 }

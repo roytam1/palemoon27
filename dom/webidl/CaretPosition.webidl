@@ -13,7 +13,7 @@ interface CaretPosition {
 };
 
 /**
- * Gecko specific methods and properties for CaretPosition.
+ * Goanna specific methods and properties for CaretPosition.
  */
 partial interface CaretPosition {
   DOMRect? getClientRect();

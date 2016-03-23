@@ -1889,8 +1889,8 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
         gRollupListener = aListener;
         // real grab is only done when there is no dragging
         if (!nsWindow::DragInProgress()) {
-            // This widget grab ensures that a Gecko GtkWidget receives mouse
-            // events even when embedded in non-Gecko-owned GtkWidgets.
+            // This widget grab ensures that a Goanna GtkWidget receives mouse
+            // events even when embedded in non-Goanna-owned GtkWidgets.
             // The grab is placed on the toplevel GtkWindow instead of the
             // MozContainer to avoid double dispatch of keyboard events
             // (bug 707623).
@@ -2516,14 +2516,14 @@ nsWindow::OnEnterNotifyEvent(GdkEventCrossing *aEvent)
 {
     // This skips NotifyVirtual and NotifyNonlinearVirtual enter notify events
     // when the pointer enters a child window.  If the destination window is a
-    // Gecko window then we'll catch the corresponding event on that window,
+    // Goanna window then we'll catch the corresponding event on that window,
     // but we won't notice when the pointer directly enters a foreign (plugin)
-    // child window without passing over a visible portion of a Gecko window.
+    // child window without passing over a visible portion of a Goanna window.
     if (aEvent->subwindow != nullptr)
         return;
 
     // Check before is_parent_ungrab_enter() as the button state may have
-    // changed while a non-Gecko ancestor window had a pointer grab.
+    // changed while a non-Goanna ancestor window had a pointer grab.
     DispatchMissedButtonReleases(aEvent);
 
     if (is_parent_ungrab_enter(aEvent))
@@ -2562,12 +2562,12 @@ nsWindow::OnLeaveNotifyEvent(GdkEventCrossing *aEvent)
 {
     // This ignores NotifyVirtual and NotifyNonlinearVirtual leave notify
     // events when the pointer leaves a child window.  If the destination
-    // window is a Gecko window then we'll catch the corresponding event on
+    // window is a Goanna window then we'll catch the corresponding event on
     // that window.
     //
     // XXXkt However, we will miss toplevel exits when the pointer directly
     // leaves a foreign (plugin) child window without passing over a visible
-    // portion of a Gecko window.
+    // portion of a Goanna window.
     if (aEvent->subwindow != nullptr)
         return;
 
@@ -2668,17 +2668,17 @@ nsWindow::OnMotionNotifyEvent(GdkEventMotion *aEvent)
 
 // If the automatic pointer grab on ButtonPress has deactivated before
 // ButtonRelease, and the mouse button is released while the pointer is not
-// over any a Gecko window, then the ButtonRelease event will not be received.
+// over any a Goanna window, then the ButtonRelease event will not be received.
 // (A similar situation exists when the pointer is grabbed with owner_events
 // True as the ButtonRelease may be received on a foreign [plugin] window).
 // Use this method to check for released buttons when the pointer returns to a
-// Gecko window.
+// Goanna window.
 void
 nsWindow::DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent)
 {
     guint changed = aGdkEvent->state ^ gButtonState;
     // Only consider button releases.
-    // (Ignore button presses that occurred outside Gecko.)
+    // (Ignore button presses that occurred outside Goanna.)
     guint released = changed & gButtonState;
     gButtonState = aGdkEvent->state;
 
@@ -2706,7 +2706,7 @@ nsWindow::DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent)
             LOG(("Synthesized button %u release on %p\n",
                  guint(buttonType + 1), (void *)this));
 
-            // Dispatch a synthesized button up event to tell Gecko about the
+            // Dispatch a synthesized button up event to tell Goanna about the
             // change in state.  This event is marked as synthesized so that
             // it is not dispatched as a DOM event, because we don't know the
             // position, widget, modifiers, or time/order.
@@ -6062,10 +6062,10 @@ nsWindow::NotifyIMEInternal(const IMENotification& aIMENotification)
         case REQUEST_TO_CANCEL_COMPOSITION:
             return mIMModule->EndIMEComposition(this);
         case NOTIFY_IME_OF_FOCUS:
-            mIMModule->OnFocusChangeInGecko(true);
+            mIMModule->OnFocusChangeInGoanna(true);
             return NS_OK;
         case NOTIFY_IME_OF_BLUR:
-            mIMModule->OnFocusChangeInGecko(false);
+            mIMModule->OnFocusChangeInGoanna(false);
             return NS_OK;
         case NOTIFY_IME_OF_COMPOSITION_UPDATE:
             mIMModule->OnUpdateComposition();
@@ -6123,11 +6123,11 @@ nsWindow::ExecuteNativeKeyBindingRemapped(NativeKeyBindingsType aType,
                                           const WidgetKeyboardEvent& aEvent,
                                           DoCommandCallback aCallback,
                                           void* aCallbackData,
-                                          uint32_t aGeckoKeyCode,
+                                          uint32_t aGoannaKeyCode,
                                           uint32_t aNativeKeyCode)
 {
     WidgetKeyboardEvent modifiedEvent(aEvent);
-    modifiedEvent.keyCode = aGeckoKeyCode;
+    modifiedEvent.keyCode = aGoannaKeyCode;
     static_cast<GdkEventKey*>(modifiedEvent.mNativeKeyEvent)->keyval =
         aNativeKeyCode;
 

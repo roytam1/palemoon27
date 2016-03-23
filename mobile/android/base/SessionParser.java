@@ -18,7 +18,7 @@ import org.json.JSONObject;
 import android.util.Log;
 
 public abstract class SessionParser {
-    private static final String LOGTAG = "GeckoSessionParser";
+    private static final String LOGTAG = "GoannaSessionParser";
 
     public class SessionTab {
         final private String mTitle;

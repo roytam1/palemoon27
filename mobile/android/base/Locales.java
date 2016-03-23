@@ -82,13 +82,13 @@ public class Locales {
     }
 
     /**
-     * Gecko uses locale codes like "es-ES", whereas a Java {@link Locale}
+     * Goanna uses locale codes like "es-ES", whereas a Java {@link Locale}
      * stringifies as "es_ES".
      *
      * This method approximates the Java 7 method
      * <code>Locale#toLanguageTag()</code>.
      *
-     * @return a locale string suitable for passing to Gecko.
+     * @return a locale string suitable for passing to Goanna.
      */
     public static String getLanguageTag(final Locale locale) {
         // If this were Java 7:

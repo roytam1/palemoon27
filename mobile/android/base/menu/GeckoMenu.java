@@ -8,7 +8,7 @@ import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
-import org.mozilla.gecko.widget.GeckoActionProvider;
+import org.mozilla.gecko.widget.GoannaActionProvider;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -33,11 +33,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GeckoMenu extends ListView 
+public class GoannaMenu extends ListView 
                        implements Menu,
                                   AdapterView.OnItemClickListener,
-                                  GeckoMenuItem.OnShowAsActionChangedListener {
-    private static final String LOGTAG = "GeckoMenu";
+                                  GoannaMenuItem.OnShowAsActionChangedListener {
+    private static final String LOGTAG = "GoannaMenu";
 
     /**
      * Controls whether off-UI-thread method calls in this class cause an
@@ -89,19 +89,19 @@ public class GeckoMenu extends ListView
     protected static final int NO_ID = 0;
 
     // List of all menu items.
-    private final List<GeckoMenuItem> mItems;
+    private final List<GoannaMenuItem> mItems;
 
     // Quick lookup array used to make a fast path in findItem.
     private final SparseArray<MenuItem> mItemsById;
 
     // Map of "always" action-items in action-bar and their views.
-    private final Map<GeckoMenuItem, View> mPrimaryActionItems;
+    private final Map<GoannaMenuItem, View> mPrimaryActionItems;
 
     // Map of "ifRoom" action-items in action-bar and their views.
-    private final Map<GeckoMenuItem, View> mSecondaryActionItems;
+    private final Map<GoannaMenuItem, View> mSecondaryActionItems;
 
     // Map of "collapseActionView" action-items in action-bar and their views.
-    private final Map<GeckoMenuItem, View> mQuickShareActionItems;
+    private final Map<GoannaMenuItem, View> mQuickShareActionItems;
 
     // Reference to a callback for menu events.
     private Callback mCallback;
@@ -124,15 +124,15 @@ public class GeckoMenu extends ListView
     // Show/hide icons in the list.
     boolean mShowIcons;
 
-    public GeckoMenu(Context context) {
+    public GoannaMenu(Context context) {
         this(context, null);
     }
 
-    public GeckoMenu(Context context, AttributeSet attrs) {
+    public GoannaMenu(Context context, AttributeSet attrs) {
         this(context, attrs, R.attr.geckoMenuListViewStyle);
     }
 
-    public GeckoMenu(Context context, AttributeSet attrs, int defStyle) {
+    public GoannaMenu(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
 
         setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT,
@@ -143,11 +143,11 @@ public class GeckoMenu extends ListView
         setAdapter(mAdapter);
         setOnItemClickListener(this);
 
-        mItems = new ArrayList<GeckoMenuItem>();
+        mItems = new ArrayList<GoannaMenuItem>();
         mItemsById = new SparseArray<MenuItem>();
-        mPrimaryActionItems = new HashMap<GeckoMenuItem, View>();
-        mSecondaryActionItems = new HashMap<GeckoMenuItem, View>();
-        mQuickShareActionItems = new HashMap<GeckoMenuItem, View>();
+        mPrimaryActionItems = new HashMap<GoannaMenuItem, View>();
+        mSecondaryActionItems = new HashMap<GoannaMenuItem, View>();
+        mQuickShareActionItems = new HashMap<GoannaMenuItem, View>();
 
         mPrimaryActionItemBar = (DefaultActionItemBar) LayoutInflater.from(context).inflate(R.layout.menu_action_bar, null);
         mSecondaryActionItemBar = (DefaultActionItemBar) LayoutInflater.from(context).inflate(R.layout.menu_secondary_action_bar, null);
@@ -160,40 +160,40 @@ public class GeckoMenu extends ListView
 
     @Override
     public MenuItem add(CharSequence title) {
-        GeckoMenuItem menuItem = new GeckoMenuItem(this, NO_ID, 0, title);
+        GoannaMenuItem menuItem = new GoannaMenuItem(this, NO_ID, 0, title);
         addItem(menuItem);
         return menuItem;
     }
 
     @Override
     public MenuItem add(int groupId, int itemId, int order, int titleRes) {
-        GeckoMenuItem menuItem = new GeckoMenuItem(this, itemId, order, titleRes);
+        GoannaMenuItem menuItem = new GoannaMenuItem(this, itemId, order, titleRes);
         addItem(menuItem);
         return menuItem;
     }
 
     @Override
     public MenuItem add(int titleRes) {
-        GeckoMenuItem menuItem = new GeckoMenuItem(this, NO_ID, 0, titleRes);
+        GoannaMenuItem menuItem = new GoannaMenuItem(this, NO_ID, 0, titleRes);
         addItem(menuItem);
         return menuItem;
     }
 
     @Override
     public MenuItem add(int groupId, int itemId, int order, CharSequence title) {
-        GeckoMenuItem menuItem = new GeckoMenuItem(this, itemId, order, title);
+        GoannaMenuItem menuItem = new GoannaMenuItem(this, itemId, order, title);
         addItem(menuItem);
         return menuItem;
     }
 
-    private void addItem(GeckoMenuItem menuItem) {
+    private void addItem(GoannaMenuItem menuItem) {
         assertOnUiThread();
         menuItem.setOnShowAsActionChangedListener(this);
         mAdapter.addMenuItem(menuItem);
         mItems.add(menuItem);
     }
 
-    private boolean addActionItem(final GeckoMenuItem menuItem) {
+    private boolean addActionItem(final GoannaMenuItem menuItem) {
         assertOnUiThread();
         menuItem.setOnShowAsActionChangedListener(this);
 
@@ -201,7 +201,7 @@ public class GeckoMenu extends ListView
         final int actionEnum = menuItem.getActionEnum();
         boolean added = false;
 
-        if (actionEnum == GeckoMenuItem.SHOW_AS_ACTION_ALWAYS) {
+        if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_ALWAYS) {
             if (mPrimaryActionItems.size() == 0 &&
                 mPrimaryActionItemBar instanceof DefaultActionItemBar) {
                 // Reset the adapter before adding the header view to a list.
@@ -214,7 +214,7 @@ public class GeckoMenu extends ListView
                 mPrimaryActionItems.put(menuItem, actionView);
                 mItems.add(menuItem);
             }
-        } else if (actionEnum == GeckoMenuItem.SHOW_AS_ACTION_IF_ROOM) {
+        } else if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_IF_ROOM) {
             if (mSecondaryActionItems.size() == 0) {
                 // Reset the adapter before adding the header view to a list.
                 setAdapter(null);
@@ -226,7 +226,7 @@ public class GeckoMenu extends ListView
                 mSecondaryActionItems.put(menuItem, actionView);
                 mItems.add(menuItem);
             }
-        } else if (actionEnum == GeckoMenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW) {
+        } else if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW) {
             if (actionView instanceof MenuItemActionView) {
                 final MenuItemActionView quickShareView = (MenuItemActionView) actionView;
 
@@ -310,11 +310,11 @@ public class GeckoMenu extends ListView
     }
 
     private SubMenu addSubMenu(MenuItem menuItem) {
-        GeckoSubMenu subMenu = new GeckoSubMenu(getContext());
+        GoannaSubMenu subMenu = new GoannaSubMenu(getContext());
         subMenu.setMenuItem(menuItem);
         subMenu.setCallback(mCallback);
         subMenu.setMenuPresenter(mMenuPresenter);
-        ((GeckoMenuItem) menuItem).setSubMenu(subMenu);
+        ((GoannaMenuItem) menuItem).setSubMenu(subMenu);
         return subMenu;
     }
 
@@ -342,7 +342,7 @@ public class GeckoMenu extends ListView
     @Override
     public void clear() {
         assertOnUiThread();
-        for (GeckoMenuItem menuItem : mItems) {
+        for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.hasSubMenu()) {
                 SubMenu sub = menuItem.getSubMenu();
                 if (sub == null) {
@@ -414,7 +414,7 @@ public class GeckoMenu extends ListView
             return quickItem;
         }
 
-        for (GeckoMenuItem menuItem : mItems) {
+        for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.getItemId() == id) {
                 mItemsById.put(id, menuItem);
                 return menuItem;
@@ -443,7 +443,7 @@ public class GeckoMenu extends ListView
     @Override
     public boolean hasVisibleItems() {
         assertOnUiThread();
-        for (GeckoMenuItem menuItem : mItems) {
+        for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.isVisible() &&
                 !mPrimaryActionItems.containsKey(menuItem) &&
                 !mSecondaryActionItems.containsKey(menuItem) &&
@@ -476,7 +476,7 @@ public class GeckoMenu extends ListView
     @Override
     public void removeItem(int id) {
         assertOnUiThread();
-        GeckoMenuItem item = (GeckoMenuItem) findItem(id);
+        GoannaMenuItem item = (GoannaMenuItem) findItem(id);
         if (item == null)
             return;
 
@@ -484,7 +484,7 @@ public class GeckoMenu extends ListView
         mItemsById.remove(id);
 
         // Remove it from any sub-menu.
-        for (GeckoMenuItem menuItem : mItems) {
+        for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.hasSubMenu()) {
                 SubMenu subMenu = menuItem.getSubMenu();
                 if (subMenu != null && subMenu.findItem(id) != null) {
@@ -571,7 +571,7 @@ public class GeckoMenu extends ListView
     }
 
     @Override
-    public void onShowAsActionChanged(GeckoMenuItem item) {
+    public void onShowAsActionChanged(GoannaMenuItem item) {
         removeItem(item.getItemId());
 
         if (item.isActionItem() && addActionItem(item)) {
@@ -581,14 +581,14 @@ public class GeckoMenu extends ListView
         addItem(item);
     }
 
-    public void onItemChanged(GeckoMenuItem item) {
+    public void onItemChanged(GoannaMenuItem item) {
         assertOnUiThread();
         if (item.isActionItem()) {
             final View actionView;
             final int actionEnum = item.getActionEnum();
-            if (actionEnum == GeckoMenuItem.SHOW_AS_ACTION_ALWAYS) {
+            if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_ALWAYS) {
                 actionView = mPrimaryActionItems.get(item);
-            } else if (actionEnum == GeckoMenuItem.SHOW_AS_ACTION_IF_ROOM) {
+            } else if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_IF_ROOM) {
                 actionView = mSecondaryActionItems.get(item);
             } else {
                 actionView = mQuickShareActionItems.get(item);
@@ -616,11 +616,11 @@ public class GeckoMenu extends ListView
         // We might be showing headers. Account them while using the position.
         position -= getHeaderViewsCount();
 
-        GeckoMenuItem item = mAdapter.getItem(position);
+        GoannaMenuItem item = mAdapter.getItem(position);
         handleMenuItemClick(item);
     }
 
-    void handleMenuItemClick(GeckoMenuItem item) {
+    void handleMenuItemClick(GoannaMenuItem item) {
         if (!item.isEnabled())
             return;
 
@@ -628,16 +628,16 @@ public class GeckoMenu extends ListView
             close();
         } else if (item.hasSubMenu()) {
             // Refresh the submenu for the provider.
-            GeckoActionProvider provider = item.getGeckoActionProvider();
+            GoannaActionProvider provider = item.getGoannaActionProvider();
             if (provider != null) {
-                GeckoSubMenu subMenu = new GeckoSubMenu(getContext());
+                GoannaSubMenu subMenu = new GoannaSubMenu(getContext());
                 subMenu.setShowIcons(true);
                 provider.onPrepareSubMenu(subMenu);
                 item.setSubMenu(subMenu);
             }
 
             // Show the submenu.
-            GeckoSubMenu subMenu = (GeckoSubMenu) item.getSubMenu();
+            GoannaSubMenu subMenu = (GoannaSubMenu) item.getSubMenu();
             showMenu(subMenu);
         } else {
             close();
@@ -645,7 +645,7 @@ public class GeckoMenu extends ListView
         }
     }
 
-    void handleMenuItemLongClick(GeckoMenuItem item) {
+    void handleMenuItemLongClick(GoannaMenuItem item) {
         if(!item.isEnabled()) {
             return;
         }
@@ -667,9 +667,9 @@ public class GeckoMenu extends ListView
         mCallback = callback;
 
         // Update the submenus just in case this changes on the fly.
-        for (GeckoMenuItem menuItem : mItems) {
+        for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.hasSubMenu()) {
-                GeckoSubMenu subMenu = (GeckoSubMenu) menuItem.getSubMenu();
+                GoannaSubMenu subMenu = (GoannaSubMenu) menuItem.getSubMenu();
                 subMenu.setCallback(mCallback);
             }
         }
@@ -679,9 +679,9 @@ public class GeckoMenu extends ListView
         mMenuPresenter = presenter;
 
         // Update the submenus just in case this changes on the fly.
-        for (GeckoMenuItem menuItem : mItems) {
+        for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.hasSubMenu()) {
-                GeckoSubMenu subMenu = (GeckoSubMenu) menuItem.getSubMenu();
+                GoannaSubMenu subMenu = (GoannaSubMenu) menuItem.getSubMenu();
                 subMenu.setMenuPresenter(mMenuPresenter);
             }
         }
@@ -756,10 +756,10 @@ public class GeckoMenu extends ListView
         private static final int VIEW_TYPE_DEFAULT = 0;
         private static final int VIEW_TYPE_ACTION_MODE = 1;
 
-        private final List<GeckoMenuItem> mItems;
+        private final List<GoannaMenuItem> mItems;
 
         public MenuItemsAdapter() {
-            mItems = new ArrayList<GeckoMenuItem>();
+            mItems = new ArrayList<GoannaMenuItem>();
         }
 
         @Override
@@ -768,7 +768,7 @@ public class GeckoMenu extends ListView
                 return 0;
 
             int visibleCount = 0;
-            for (GeckoMenuItem item : mItems) {
+            for (GoannaMenuItem item : mItems) {
                 if (item.isVisible())
                     visibleCount++;
             }
@@ -777,8 +777,8 @@ public class GeckoMenu extends ListView
         }
 
         @Override
-        public GeckoMenuItem getItem(int position) {
-            for (GeckoMenuItem item : mItems) {
+        public GoannaMenuItem getItem(int position) {
+            for (GoannaMenuItem item : mItems) {
                 if (item.isVisible()) {
                     position--;
 
@@ -797,14 +797,14 @@ public class GeckoMenu extends ListView
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            GeckoMenuItem item = getItem(position);
-            GeckoMenuItem.Layout view = null;
+            GoannaMenuItem item = getItem(position);
+            GoannaMenuItem.Layout view = null;
 
             // Try to re-use the view.
             if (convertView == null && getItemViewType(position) == VIEW_TYPE_DEFAULT) {
                 view = new MenuItemDefault(parent.getContext(), null);
             } else {
-                view = (GeckoMenuItem.Layout) convertView;
+                view = (GoannaMenuItem.Layout) convertView;
             }
 
             if (view == null || view instanceof MenuItemActionView) {
@@ -820,7 +820,7 @@ public class GeckoMenu extends ListView
                 ((MenuItemActionView) view).setMenuItemClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        GeckoMenu listView = GeckoMenu.this;
+                        GoannaMenu listView = GoannaMenu.this;
                         listView.performItemClick(actionView, pos + listView.getHeaderViewsCount(), id);
                     }
                 });
@@ -834,7 +834,7 @@ public class GeckoMenu extends ListView
 
         @Override
         public int getItemViewType(int position) {
-            return getItem(position).getGeckoActionProvider() == null ? VIEW_TYPE_DEFAULT : VIEW_TYPE_ACTION_MODE;
+            return getItem(position).getGoannaActionProvider() == null ? VIEW_TYPE_DEFAULT : VIEW_TYPE_ACTION_MODE;
         }
 
         @Override
@@ -861,13 +861,13 @@ public class GeckoMenu extends ListView
             return true;
         }
 
-        public void addMenuItem(GeckoMenuItem menuItem) {
+        public void addMenuItem(GoannaMenuItem menuItem) {
             if (mItems.contains(menuItem))
                 return;
 
             // Insert it in proper order.
             int index = 0;
-            for (GeckoMenuItem item : mItems) {
+            for (GoannaMenuItem item : mItems) {
                 if (item.getOrder() > menuItem.getOrder()) {
                     mItems.add(index, menuItem);
                     notifyDataSetChanged();
@@ -882,7 +882,7 @@ public class GeckoMenu extends ListView
             notifyDataSetChanged();
         }
 
-        public void removeMenuItem(GeckoMenuItem menuItem) {
+        public void removeMenuItem(GoannaMenuItem menuItem) {
             // Remove it from the list.
             mItems.remove(menuItem);
             notifyDataSetChanged();
@@ -894,8 +894,8 @@ public class GeckoMenu extends ListView
             notifyDataSetChanged();
         }
 
-        public GeckoMenuItem getMenuItem(int id) {
-            for (GeckoMenuItem item : mItems) {
+        public GoannaMenuItem getMenuItem(int id) {
+            for (GoannaMenuItem item : mItems) {
                 if (item.getItemId() == id)
                     return item;
             }

@@ -20,12 +20,12 @@ import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.BrowserLocaleManager;
 import org.mozilla.gecko.DataReportingNotification;
 import org.mozilla.gecko.EventDispatcher;
-import org.mozilla.gecko.GeckoActivityStatus;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoApplication;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.GeckoSharedPrefs;
+import org.mozilla.gecko.GoannaActivityStatus;
+import org.mozilla.gecko.GoannaAppShell;
+import org.mozilla.gecko.GoannaApplication;
+import org.mozilla.gecko.GoannaEvent;
+import org.mozilla.gecko.GoannaProfile;
+import org.mozilla.gecko.GoannaSharedPrefs;
 import org.mozilla.gecko.GuestSession;
 import org.mozilla.gecko.LocaleManager;
 import org.mozilla.gecko.Locales;
@@ -40,7 +40,7 @@ import org.mozilla.gecko.background.healthreport.HealthReportConstants;
 import org.mozilla.gecko.db.BrowserContract.SuggestedSites;
 import org.mozilla.gecko.updater.UpdateService;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GoannaEventListener;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.FloatingHintEditText;
@@ -84,15 +84,15 @@ import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
 
-public class GeckoPreferences
+public class GoannaPreferences
 extends PreferenceActivity
 implements
-GeckoActivityStatus,
-GeckoEventListener,
+GoannaActivityStatus,
+GoannaEventListener,
 OnPreferenceChangeListener,
 OnSharedPreferenceChangeListener
 {
-    private static final String LOGTAG = "GeckoPreferences";
+    private static final String LOGTAG = "GoannaPreferences";
 
     // We have a white background, which makes transitions on
     // some devices look bad. Don't use transitions on those
@@ -129,7 +129,7 @@ OnSharedPreferenceChangeListener
 
     private static final String ACTION_STUMBLER_UPLOAD_PREF = AppConstants.ANDROID_PACKAGE_NAME + ".STUMBLER_PREF";
 
-    // This isn't a Gecko pref, even if it looks like one.
+    // This isn't a Goanna pref, even if it looks like one.
     private static final String PREFS_BROWSER_LOCALE = "locale";
 
     public static final String PREFS_RESTORE_SESSION = NON_PREF_PREFIX + "restoreSession3";
@@ -301,7 +301,7 @@ OnSharedPreferenceChangeListener
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Make sure RestrictedProfiles is ready.
-        RestrictedProfiles.initWithProfile(GeckoProfile.get(this));
+        RestrictedProfiles.initWithProfile(GoannaProfile.get(this));
 
         // Apply the current user-selected locale, if necessary.
         checkLocale();
@@ -349,8 +349,8 @@ OnSharedPreferenceChangeListener
         // Fragments because of an Android bug in ActionBar (described in bug 866352 and
         // fixed in bug 833625).
         if (Versions.preHC) {
-            // Write prefs to our custom GeckoSharedPrefs file.
-            getPreferenceManager().setSharedPreferencesName(GeckoSharedPrefs.APP_PREFS_NAME);
+            // Write prefs to our custom GoannaSharedPrefs file.
+            getPreferenceManager().setSharedPreferencesName(GoannaSharedPrefs.APP_PREFS_NAME);
 
             int res = 0;
             if (intentExtras != null && intentExtras.containsKey(INTENT_EXTRA_RESOURCES)) {
@@ -377,7 +377,7 @@ OnSharedPreferenceChangeListener
             addPreferencesFromResource(res);
         }
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
             "Sanitize:Finished");
 
         // Add handling for long-press click.
@@ -454,13 +454,13 @@ OnSharedPreferenceChangeListener
         }
 
         // Build fragment intent.
-        intent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT, GeckoPreferenceFragment.class.getName());
+        intent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT, GoannaPreferenceFragment.class.getName());
         intent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS, fragmentArgs);
     }
 
     @Override
     public boolean isValidFragment(String fragmentName) {
-        return GeckoPreferenceFragment.class.getName().equals(fragmentName);
+        return GoannaPreferenceFragment.class.getName().equals(fragmentName);
     }
 
     @Override
@@ -508,7 +508,7 @@ OnSharedPreferenceChangeListener
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
             "Sanitize:Finished");
         if (mPrefsRequestId > 0) {
             PrefsHelper.removeObserver(mPrefsRequestId);
@@ -516,7 +516,7 @@ OnSharedPreferenceChangeListener
 
         // The intent extras will be null if this is the top-level settings
         // activity. In that case, we want to end the SETTINGS telmetry session.
-        // For HC+ versions of Android this is handled in GeckoPreferenceFragment.
+        // For HC+ versions of Android this is handled in GoannaPreferenceFragment.
         if (Versions.preHC && getIntent().getExtras() == null) {
             Telemetry.stopUISession(TelemetryContract.Session.SETTINGS);
         }
@@ -527,15 +527,15 @@ OnSharedPreferenceChangeListener
         // Symmetric with onResume.
         if (Versions.feature11Plus) {
             if (isMultiPane()) {
-                SharedPreferences prefs = GeckoSharedPrefs.forApp(this);
+                SharedPreferences prefs = GoannaSharedPrefs.forApp(this);
                 prefs.unregisterOnSharedPreferenceChangeListener(this);
             }
         }
 
         super.onPause();
 
-        if (getApplication() instanceof GeckoApplication) {
-            ((GeckoApplication) getApplication()).onActivityPause(this);
+        if (getApplication() instanceof GoannaApplication) {
+            ((GoannaApplication) getApplication()).onActivityPause(this);
         }
     }
 
@@ -543,8 +543,8 @@ OnSharedPreferenceChangeListener
     public void onResume() {
         super.onResume();
 
-        if (getApplication() instanceof GeckoApplication) {
-            ((GeckoApplication) getApplication()).onActivityResume(this);
+        if (getApplication() instanceof GoannaApplication) {
+            ((GoannaApplication) getApplication()).onActivityResume(this);
         }
 
         if (Versions.feature11Plus) {
@@ -552,7 +552,7 @@ OnSharedPreferenceChangeListener
             // See documentation for onSharedPreferenceChange for more.
             // Inexplicably only needed on tablet.
             if (isMultiPane()) {
-                SharedPreferences prefs = GeckoSharedPrefs.forApp(this);
+                SharedPreferences prefs = GoannaSharedPrefs.forApp(this);
                 prefs.registerOnSharedPreferenceChangeListener(this);
             }
         }
@@ -627,27 +627,27 @@ OnSharedPreferenceChangeListener
     }
 
     /**
-      * Initialize all of the preferences (native of Gecko ones) for this screen.
+      * Initialize all of the preferences (native of Goanna ones) for this screen.
       *
       * @param prefs The android.preference.PreferenceGroup to initialize
       * @return The integer id for the PrefsHelper.PrefHandlerBase listener added
-      *         to monitor changes to Gecko prefs.
+      *         to monitor changes to Goanna prefs.
       */
     public int setupPreferences(PreferenceGroup prefs) {
         ArrayList<String> list = new ArrayList<String>();
         setupPreferences(prefs, list);
-        return getGeckoPreferences(prefs, list);
+        return getGoannaPreferences(prefs, list);
     }
 
     /**
       * Recursively loop through a PreferenceGroup. Initialize native Android prefs,
-      * and build a list of Gecko preferences in the passed in prefs array
+      * and build a list of Goanna preferences in the passed in prefs array
       *
       * @param preferences The android.preference.PreferenceGroup to initialize
-      * @param prefs An ArrayList to fill with Gecko preferences that need to be
+      * @param prefs An ArrayList to fill with Goanna preferences that need to be
       *        initialized
       * @return The integer id for the PrefsHelper.PrefHandlerBase listener added
-      *         to monitor changes to Gecko prefs.
+      *         to monitor changes to Goanna prefs.
       */
     private void setupPreferences(PreferenceGroup preferences, ArrayList<String> prefs) {
         for (int i = 0; i < preferences.getPreferenceCount(); i++) {
@@ -728,7 +728,7 @@ OnSharedPreferenceChangeListener
                            PREFS_BROWSER_LOCALE.equals(key)) {
                     // Set the summary string to the current entry. The summary
                     // for other list prefs will be set in the PrefsHelper
-                    // callback, but since this pref doesn't live in Gecko, we
+                    // callback, but since this pref doesn't live in Goanna, we
                     // need to handle it separately.
                     ListPreference listPref = (ListPreference) pref;
                     CharSequence selectedEntry = listPref.getEntry();
@@ -744,7 +744,7 @@ OnSharedPreferenceChangeListener
                     pref.setOnPreferenceClickListener(new OnPreferenceClickListener() {
                         @Override
                         public boolean onPreferenceClick(Preference preference) {
-                            GeckoPreferences.this.restoreDefaultSearchEngines();
+                            GoannaPreferences.this.restoreDefaultSearchEngines();
                             Telemetry.sendUIEvent(TelemetryContract.Event.SEARCH_RESTORE_DEFAULTS, Method.LIST_ITEM);
                             return true;
                         }
@@ -769,15 +769,15 @@ OnSharedPreferenceChangeListener
                 // "Clear private data" requires a key for its state to be
                 // saved when the orientation changes. It uses the
                 // "android.not_a_preference.privacy.clear" key - which doesn't
-                // exist in Gecko - to satisfy this requirement.
-                if (isGeckoPref(key)) {
+                // exist in Goanna - to satisfy this requirement.
+                if (isGoannaPref(key)) {
                     prefs.add(key);
                 }
             }
         }
     }
 
-    private boolean isGeckoPref(String key) {
+    private boolean isGoannaPref(String key) {
         if (TextUtils.isEmpty(key)) {
             return false;
         }
@@ -794,13 +794,13 @@ OnSharedPreferenceChangeListener
     }
 
     /**
-     * Restore default search engines in Gecko and retrigger a search engine refresh.
+     * Restore default search engines in Goanna and retrigger a search engine refresh.
      */
     protected void restoreDefaultSearchEngines() {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:RestoreDefaults", null));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SearchEngines:RestoreDefaults", null));
 
-        // Send message to Gecko to get engines. SearchPreferenceCategory listens for the response.
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:GetVisible", null));
+        // Send message to Goanna to get engines. SearchPreferenceCategory listens for the response.
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SearchEngines:GetVisible", null));
     }
 
     @Override
@@ -852,17 +852,17 @@ OnSharedPreferenceChangeListener
                                            final boolean value) {
         final Intent intent = new Intent(action)
                 .putExtra("pref", pref)
-                .putExtra("branch", GeckoSharedPrefs.APP_PREFS_NAME)
+                .putExtra("branch", GoannaSharedPrefs.APP_PREFS_NAME)
                 .putExtra("enabled", value);
         broadcastAction(context, intent);
     }
 
     private static void fillIntentWithProfileInfo(final Context context, final Intent intent) {
-        // There is a race here, but GeckoProfile returns the default profile
-        // when Gecko is not explicitly running for a different profile.  In a
+        // There is a race here, but GoannaProfile returns the default profile
+        // when Goanna is not explicitly running for a different profile.  In a
         // multi-profile world, this will need to be updated (possibly to
         // broadcast settings for all profiles).  See Bug 882182.
-        GeckoProfile profile = GeckoProfile.get(context);
+        GoannaProfile profile = GoannaProfile.get(context);
         if (profile != null) {
             intent.putExtra("profileName", profile.getName())
                   .putExtra("profilePath", profile.getDir().getAbsolutePath());
@@ -901,11 +901,11 @@ OnSharedPreferenceChangeListener
     public static void broadcastStumblerPref(final Context context, final boolean value) {
        Intent intent = new Intent(ACTION_STUMBLER_UPLOAD_PREF)
                 .putExtra("pref", PREFS_GEO_REPORTING)
-                .putExtra("branch", GeckoSharedPrefs.APP_PREFS_NAME)
+                .putExtra("branch", GoannaSharedPrefs.APP_PREFS_NAME)
                 .putExtra("enabled", value)
                 .putExtra("moz_mozilla_api_key", AppConstants.MOZ_MOZILLA_API_KEY);
-       if (GeckoAppShell.getGeckoInterface() != null) {
-           intent.putExtra("user_agent", GeckoAppShell.getGeckoInterface().getDefaultUAString());
+       if (GoannaAppShell.getGoannaInterface() != null) {
+           intent.putExtra("user_agent", GoannaAppShell.getGoannaInterface().getDefaultUAString());
        }
        broadcastAction(context, intent);
     }
@@ -932,7 +932,7 @@ OnSharedPreferenceChangeListener
      * @return        the value of the preference, or the default.
      */
     public static boolean getBooleanPref(final Context context, final String name, boolean def) {
-        final SharedPreferences prefs = GeckoSharedPrefs.forApp(context);
+        final SharedPreferences prefs = GoannaSharedPrefs.forApp(context);
         return prefs.getBoolean(name, def);
     }
 
@@ -940,13 +940,13 @@ OnSharedPreferenceChangeListener
      * Immediately handle the user's selection of a browser locale.
      *
      * Earlier locale-handling code did this with centralized logic in
-     * GeckoApp, delegating to LocaleManager for persistence and refreshing
+     * GoannaApp, delegating to LocaleManager for persistence and refreshing
      * the activity as necessary.
      *
-     * We no longer handle this by sending a message to GeckoApp, for
+     * We no longer handle this by sending a message to GoannaApp, for
      * several reasons:
      *
-     * * GeckoApp might not be running. Activities don't always stick around.
+     * * GoannaApp might not be running. Activities don't always stick around.
      *   A Java bridge message might not be handled.
      * * We need to adapt the preferences UI to the locale ourselves.
      * * The user might not hit Back (or Up) -- they might hit Home and never
@@ -1079,7 +1079,7 @@ OnSharedPreferenceChangeListener
             UpdateServiceHelper.setUpdateUrl(this, (String) newValue);
         } else if (PREFS_HEALTHREPORT_UPLOAD_ENABLED.equals(prefName)) {
             // The healthreport pref only lives in Android, so we do not persist
-            // to Gecko, but we do broadcast intent to the health report
+            // to Goanna, but we do broadcast intent to the health report
             // background uploader service, which will start or stop the
             // repeated background upload attempts.
             broadcastHealthReportUploadPref(this, (Boolean) newValue);
@@ -1092,8 +1092,8 @@ OnSharedPreferenceChangeListener
             handler.onChange(this, preference, newValue);
         }
 
-        // Send Gecko-side pref changes to Gecko
-        if (isGeckoPref(prefName)) {
+        // Send Goanna-side pref changes to Goanna
+        if (isGoannaPref(prefName)) {
             PrefsHelper.setPref(prefName, newValue);
         }
 
@@ -1200,8 +1200,8 @@ OnSharedPreferenceChangeListener
                                     jsonPref.put("type", "string");
                                     jsonPref.put("value", input1.getText().toString());
 
-                                    GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
-                                    GeckoAppShell.sendEventToGecko(event);
+                                    GoannaEvent event = GoannaEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+                                    GoannaAppShell.sendEventToGoanna(event);
                                 } catch(Exception ex) {
                                     Log.e(LOGTAG, "Error setting master password", ex);
                                 }
@@ -1269,8 +1269,8 @@ OnSharedPreferenceChangeListener
         return dialog;
     }
 
-    // Initialize preferences by requesting the preference values from Gecko
-    private int getGeckoPreferences(final PreferenceGroup screen, ArrayList<String> prefs) {
+    // Initialize preferences by requesting the preference values from Goanna
+    private int getGoannaPreferences(final PreferenceGroup screen, ArrayList<String> prefs) {
         return PrefsHelper.getPrefs(prefs, new PrefsHelper.PrefHandlerBase() {
             private Preference getField(String prefName) {
                 return screen.findPreference(prefName);
@@ -1371,7 +1371,7 @@ OnSharedPreferenceChangeListener
     }
 
     @Override
-    public boolean isGeckoActivityOpened() {
+    public boolean isGoannaActivityOpened() {
         return false;
     }
 
@@ -1394,7 +1394,7 @@ OnSharedPreferenceChangeListener
         if (Versions.preHC) {
             intent.putExtra("resource", resource);
         } else {
-            intent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT, GeckoPreferenceFragment.class.getName());
+            intent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT, GoannaPreferenceFragment.class.getName());
 
             Bundle fragmentArgs = new Bundle();
             fragmentArgs.putString("resource", resource);

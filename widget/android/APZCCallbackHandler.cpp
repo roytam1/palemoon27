@@ -41,7 +41,7 @@ APZCCallbackHandler::NotifyDefaultPrevented(uint64_t aInputBlockId,
 {
     if (!AndroidBridge::IsJavaUiThread()) {
         // The notification must reach the APZ on the Java UI thread (aka the
-        // APZ "controller" thread) but we get it from the Gecko thread, so we
+        // APZ "controller" thread) but we get it from the Goanna thread, so we
         // have to throw it onto the other thread.
         AndroidBridge::Bridge()->PostTaskToUiThread(NewRunnableMethod(
             this, &APZCCallbackHandler::NotifyDefaultPrevented,
@@ -116,7 +116,7 @@ APZCCallbackHandler::HandleDoubleTap(const CSSPoint& aPoint,
 {
     CSSIntPoint point = RoundedToInt(aPoint);
     nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", point.x, point.y);
-    nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
+    nsAppShell::gAppShell->PostEvent(AndroidGoannaEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:DoubleTap"), data));
 }
 
@@ -125,10 +125,10 @@ APZCCallbackHandler::HandleSingleTap(const CSSPoint& aPoint,
                                      int32_t aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
-    // FIXME Send the modifier data to Gecko for use in mouse events.
+    // FIXME Send the modifier data to Goanna for use in mouse events.
     CSSIntPoint point = RoundedToInt(aPoint);
     nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", point.x, point.y);
-    nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
+    nsAppShell::gAppShell->PostEvent(AndroidGoannaEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:SingleTap"), data));
 }
 
@@ -141,7 +141,7 @@ APZCCallbackHandler::HandleLongTap(const CSSPoint& aPoint,
     // TODO send content response back to APZC
     CSSIntPoint point = RoundedToInt(aPoint);
     nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", point.x, point.y);
-    nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
+    nsAppShell::gAppShell->PostEvent(AndroidGoannaEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:LongPress"), data));
 }
 

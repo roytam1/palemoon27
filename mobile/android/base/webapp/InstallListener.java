@@ -11,7 +11,7 @@ import java.io.IOException;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.Assert;
-import org.mozilla.gecko.GeckoThread;
+import org.mozilla.gecko.GoannaThread;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -22,7 +22,7 @@ import android.util.Log;
 
 public class InstallListener extends BroadcastReceiver {
 
-    private static final String LOGTAG = "GeckoWebappInstallListener";
+    private static final String LOGTAG = "GoannaWebappInstallListener";
     private final JSONObject mData;
     private final String mManifestUrl;
     private boolean mReceived;
@@ -79,7 +79,7 @@ public class InstallListener extends BroadcastReceiver {
         }
 
 
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+        if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             InstallHelper installHelper = new InstallHelper(context, apkResources, null);
             try {
                 JSONObject dataObject = new JSONObject();

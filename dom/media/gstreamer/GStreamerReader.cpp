@@ -1216,8 +1216,16 @@ GStreamerReader::PlayElementAddedCb(GstBin *aBin, GstElement *aElement,
 
   // Attach this callback to uridecodebin, child of playbin.
   if (!strncmp(name, sUriDecodeBinPrefix, sizeof(sUriDecodeBinPrefix) - 1)) {
+  #if GST_CHECK_VERSION(1,2,3)
+    g_signal_connect(G_OBJECT(aElement), "autoplug-select",
+	                 G_CALLBACK(GStreamerReader::AutoplugSelectCb), aUserData);
+  #else
+	/* autoplug-select is broken in older GStreamer versions. We can (ab)use
+     * autoplug-sort to achieve the same effect.
+	 */
     g_signal_connect(G_OBJECT(aElement), "autoplug-sort",
                      G_CALLBACK(GStreamerReader::AutoplugSortCb), aUserData);
+  #endif
   }
 
   g_free(name);
@@ -1245,6 +1253,20 @@ GStreamerReader::ShouldAutoplugFactory(GstElementFactory* aFactory, GstCaps* aCa
  * candidate factories to continue decoding the stream. We apply the blacklist
  * here, disallowing known-crashy plugins.
  */
+#if GST_CHECK_VERSION(1,2,3)
+GstAutoplugSelectResult
+GStreamerReader::AutoplugSelectCb(GstElement* aDecodeBin, GstPad* aPad,
+                                  GstCaps* aCaps, GstElementFactory* aFactory,
+								  void* aGroup)
+{
+  if (!ShouldAutoplugFactory(aFactory, aCaps)) {
+	/* We don't support this factory. Skip it to stop decoding this (sub)stream. */
+  return GST_AUTOPLUG_SELECT_SKIP;
+  }
+
+  return GST_AUTOPLUG_SELECT_TRY;
+}
+#else
 GValueArray*
 GStreamerReader::AutoplugSortCb(GstElement* aElement, GstPad* aPad,
                                 GstCaps* aCaps, GValueArray* aFactories)
@@ -1269,6 +1291,7 @@ GStreamerReader::AutoplugSortCb(GstElement* aElement, GstPad* aPad,
    */
   return nullptr;
 }
+#endif
 
 /**
  * If this is an MP3 stream, pass any new data we get to the MP3 frame parser

@@ -179,7 +179,7 @@ GstCaps* GStreamerReader::BuildAudioSinkCaps()
   gst_caps_set_simple(caps,
       "width", G_TYPE_INT, width,
       "endianness", G_TYPE_INT, endianness,
-      NULL);
+      nullptr);
 
   return caps;
 }

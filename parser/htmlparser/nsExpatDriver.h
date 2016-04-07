@@ -37,7 +37,7 @@ public:
                               const char16_t *aBase,
                               const char16_t *aSystemId,
                               const char16_t *aPublicId);
-  nsresult HandleStartElement(const char16_t *aName, const char16_t **aAtts);
+  void HandleStartElement(const char16_t *aName, const char16_t **aAtts);
   nsresult HandleEndElement(const char16_t *aName);
   nsresult HandleCharacterData(const char16_t *aCData, const uint32_t aLength);
   nsresult HandleComment(const char16_t *aName);
@@ -119,6 +119,8 @@ private:
   // Whether we're sure that we won't be getting more buffers to parse from
   // Necko
   bool             mIsFinalChunk;
+
+  PRUint8          mTagDepth;
 
   nsresult         mInternalState;
 

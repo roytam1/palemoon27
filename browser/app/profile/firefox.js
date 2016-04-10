@@ -1816,12 +1816,12 @@ pref("ui.key.menuAccessKeyFocuses", true);
 pref("browser.eme.ui.enabled", false);
 
 #if !defined(MOZ_UPDATE_CHANNEL) || MOZ_UPDATE_CHANNEL != esr
-pref("media.eme.enabled", true);
-pref("media.eme.apiVisible", true);
+pref("media.eme.enabled", false);
+pref("media.eme.apiVisible", false);
 
 #ifdef XP_WIN
-pref("media.gmp-eme-adobe.enabled", true);
-pref("browser.eme.ui.enabled", true);
+pref("media.gmp-eme-adobe.enabled", false);
+pref("browser.eme.ui.enabled", false);
 #endif
 
 #else // MOZ_UPDATE_CHANNEL == esr

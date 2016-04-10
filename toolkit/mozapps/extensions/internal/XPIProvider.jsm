@@ -6744,8 +6744,12 @@ function AddonWrapper(aAddon) {
         }
       }
 
-      if (result == null)
-        [result, ] = chooseValue(aAddon.selectedLocale, aProp);
+      if (result == null) {
+        if (typeof aAddon.selectedLocale[aProp] == "string" && aAddon.selectedLocale[aProp].length)
+          [result, ] = chooseValue(aAddon.selectedLocale, aProp);
+        else
+          [result, ] = chooseValue(aAddon.defaultLocale, aProp);
+      }
 
       if (aProp == "creator")
         return result ? new AddonManagerPrivate.AddonAuthor(result) : null;
@@ -6774,8 +6778,12 @@ function AddonWrapper(aAddon) {
         }
       }
 
-      if (results == null)
-        [results, usedRepository] = chooseValue(aAddon.selectedLocale, aProp);
+      if (results == null) {
+        if (aAddon.selectedLocale[aProp] instanceof Array && aAddon.selectedLocale[aProp].length)
+          [results, usedRepository] = chooseValue(aAddon.selectedLocale, aProp);
+        else
+          [results, usedRepository] = chooseValue(aAddon.defaultLocale, aProp);
+      }
 
       if (results && !usedRepository) {
         results = results.map(function mapResult(aResult) {

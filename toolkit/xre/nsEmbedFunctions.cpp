@@ -395,18 +395,18 @@ XRE_InitChildProcess(int aArgc,
   }
 #endif
 
-  SetupErrorHandling(aArgv[0]);  
+  SetupErrorHandling(aArgv[0]);
 
 #if defined(MOZ_CRASHREPORTER)
   if (aArgc < 1)
     return NS_ERROR_FAILURE;
   const char* const crashReporterArg = aArgv[--aArgc];
-  
+
 #  if defined(XP_WIN) || defined(XP_MACOSX)
   // on windows and mac, |crashReporterArg| is the named pipe on which the
   // server is listening for requests, or "-" if crash reporting is
   // disabled.
-  if (0 != strcmp("-", crashReporterArg) && 
+  if (0 != strcmp("-", crashReporterArg) &&
       !XRE_SetRemoteExceptionHandler(crashReporterArg)) {
     // Bug 684322 will add better visibility into this condition
     NS_WARNING("Could not setup crash reporting\n");
@@ -414,21 +414,21 @@ XRE_InitChildProcess(int aArgc,
 #  elif defined(OS_LINUX)
   // on POSIX, |crashReporterArg| is "true" if crash reporting is
   // enabled, false otherwise
-  if (0 != strcmp("false", crashReporterArg) && 
+  if (0 != strcmp("false", crashReporterArg) &&
       !XRE_SetRemoteExceptionHandler(nullptr)) {
     // Bug 684322 will add better visibility into this condition
     NS_WARNING("Could not setup crash reporting\n");
   }
 #  else
 #    error "OOP crash reporting unsupported on this platform"
-#  endif   
+#  endif
 #endif // if defined(MOZ_CRASHREPORTER)
 
   gArgv = aArgv;
   gArgc = aArgc;
 
-#if defined(MOZ_WIDGET_GTK)
-  g_thread_init(nullptr);
+#if MOZ_WIDGET_GTK == 2
+  XRE_GlibInit();
 #endif
 
 #if defined(MOZ_WIDGET_QT)
@@ -551,7 +551,7 @@ XRE_InitChildProcess(int aArgc,
       case GoannaProcessType_IPDLUnitTest:
 #ifdef MOZ_IPDL_TESTS
         process = new IPDLUnitTestProcessChild(parentHandle);
-#else 
+#else
         NS_RUNTIMEABORT("rebuild with --enable-ipdl-tests");
 #endif
         break;
@@ -611,7 +611,7 @@ public:
                        void* aData)
   : mFunction(aFunction),
     mData(aData)
-  { 
+  {
     NS_ASSERTION(aFunction, "Don't give me a null pointer!");
   }
 
@@ -708,7 +708,7 @@ XRE_RunAppShell()
       // Cocoa nsAppShell impl, however, implements its own Run()
       // that's unaware of MessagePump.  That's all rather suboptimal,
       // but oddly enough not a problem... usually.
-      // 
+      //
       // The problem with this setup comes during startup.
       // XPCOM-in-subprocesses depends on IPC, e.g. to init the pref
       // service, so we have to init IPC first.  But, IPC also
@@ -724,7 +724,7 @@ XRE_RunAppShell()
       // run], because it's not aware that MessagePump has work that
       // needs to be processed; that was supposed to be signaled by
       // nsIRunnable(s).
-      // 
+      //
       // So instead of hacking Cocoa nsAppShell or rewriting the
       // event-loop system, we compromise here by processing any tasks
       // that might have been enqueued on MessagePump, *before*

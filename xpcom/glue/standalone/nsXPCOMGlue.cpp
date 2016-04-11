@@ -431,7 +431,6 @@ XPCOMGlueEnablePreload()
 #endif
 
 ifdef MOZ_GSLICE_INIT
-#include <glib.h>
 
 class GSliceInit {
 public:

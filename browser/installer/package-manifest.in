@@ -243,6 +243,9 @@
 #ifdef MOZ_GAMEPAD
 @RESPATH@/components/dom_gamepad.xpt
 #endif
+#ifdef MOZ_PAY
+@RESPATH@/components/dom_payment.xpt
+#endif
 @RESPATH@/components/dom_presentation.xpt
 @RESPATH@/components/downloads.xpt
 @RESPATH@/components/editor.xpt
@@ -587,6 +590,12 @@
 @RESPATH@/components/ActivityRequestHandler.js
 @RESPATH@/components/ActivityWrapper.js
 @RESPATH@/components/ActivityMessageConfigurator.js
+#endif
+
+#ifdef MOZ_PAY
+@RESPATH@/components/Payment.js
+@RESPATH@/components/PaymentFlowInfo.js
+@RESPATH@/components/Payment.manifest
 #endif
 
 #ifdef MOZ_WEBRTC

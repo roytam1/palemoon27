@@ -430,7 +430,7 @@ XPCOMGlueEnablePreload()
 #define MOZ_GSLICE_INIT
 #endif
 
-ifdef MOZ_GSLICE_INIT
+#ifdef MOZ_GSLICE_INIT
 
 class GSliceInit {
 public:

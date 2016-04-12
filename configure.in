@@ -4682,21 +4682,30 @@ MOZ_ARG_ENABLE_STRING(ui-locale,
 AC_SUBST(MOZ_UI_LOCALE)
 
 dnl ========================================================
+dnl = Vendor override
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(official-vendor,
+[  --disable-official-vendor   Disable the use of official vendor.],
+    MC_OFFICIAL=,
+    MC_OFFICIAL=1)
+
+dnl ========================================================
 dnl = Trademarked Branding
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(official-branding,
 [  --enable-official-branding
-                          Enable Official mozilla.org Branding
+                          Enable official branding
                           Do not distribute builds with
                           --enable-official-branding unless you have
-                          permission to use trademarks per
-                          http://www.mozilla.org/foundation/trademarks/ .],
+                          permission to use the name/logo per
+                          http://www.palemoon.org/redist.shtml .],
 [
   if test -z "$MOZ_OFFICIAL_BRANDING_DIRECTORY"; then
     AC_MSG_ERROR([You must specify MOZ_OFFICIAL_BRANDING_DIRECTORY to use --enable-official-branding.])
   else
     MOZ_BRANDING_DIRECTORY=${MOZ_OFFICIAL_BRANDING_DIRECTORY}
     MOZ_OFFICIAL_BRANDING=1
+    MC_OFFICIAL=1
   fi
 ], MOZ_OFFICIAL_BRANDING=)
 
@@ -7109,6 +7118,19 @@ Android|WINNT|Darwin)
 esac
 
 dnl ========================================================
+dnl = Enable full jemalloc lib
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(jemalloc-lib,
+[  --enable-jemalloc-lib       Use the full jemalloc lib],
+    MOZ_JEMALLOC3=1,
+    MOZ_JEMALLOC3= )
+
+if test -n "$MOZ_JEMALLOC3" -a -z "$MOZ_MEMORY"; then
+    dnl We need jemalloc enabled to use jemalloc3
+    AC_MSG_ERROR([--enable-jemalloc-lib requires --enable-jemalloc])
+fi
+
+dnl ========================================================
 dnl = Enable dynamic replacement of malloc implementation
 dnl ========================================================
 if test -n "$NIGHTLY_BUILD" -a -n "$MOZ_MEMORY"; then
@@ -7482,6 +7504,22 @@ if test -n "$MOZ_DISABLE_STARTUPCACHE"; then
   AC_DEFINE(MOZ_DISABLE_STARTUPCACHE)
 fi
 AC_SUBST(MOZ_DISABLE_STARTUPCACHE)
+
+dnl ========================================================
+dnl = Don't precompile the startup cache
+dnl ========================================================
+MOZ_DISABLE_PRECOMPILED_STARTUPCACHE=
+
+MOZ_ARG_DISABLE_BOOL(precompiled-startupcache,
+[  --disable-precompiled-startupcache      Don't precompile the startup cache ],
+    MOZ_DISABLE_PRECOMPILED_STARTUPCACHE=1,
+	MOZ_DISABLE_PRECOMPILED_STARTUPCACHE= )
+
+if test -n "$MOZ_DISABLE_PRECOMPILED_STARTUPCACHE"; then
+  AC_DEFINE(MOZ_DISABLE_PRECOMPILED_STARTUPCACHE)
+fi
+
+AC_SUBST(MOZ_DISABLE_PRECOMPILED_STARTUPCACHE)
 
 dnl ========================================================
 dnl = Enable Radio Interface for B2G (Gonk usually)

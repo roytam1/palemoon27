@@ -26,7 +26,7 @@ of the License or (at your option) any later version.
 */
 #pragma once
 
-#include <cstdio>
+#include <stdio.h>
 
 #include "graphite2/Font.h"
 
@@ -87,7 +87,7 @@ public:
     const FeatureRef  * feature(uint16 index) const;
 
     // Glyph related
-    uint16 getGlyphMetric(uint16 gid, uint8 metric) const;
+    int32  getGlyphMetric(uint16 gid, uint8 metric) const;
     uint16 findPseudo(uint32 uid) const;
 
     // Errors

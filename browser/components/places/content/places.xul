@@ -89,7 +89,7 @@
     <!-- Instantiation Keys -->
     <key id="placesKey_close" key="&cmd.close.key;" modifiers="accel"
          oncommand="close();"/>
-         
+
     <!-- Command Keys -->
     <key id="placesKey_find:all"
          command="OrganizerCommand_find:all"
@@ -358,6 +358,38 @@
     </tree>
     <splitter collapse="none" persist="state"></splitter>
     <vbox id="contentView" flex="4">
+      <toolbox id="searchModifiers" hidden="true">
+        <toolbar id="organizerScopeBar" class="chromeclass-toolbar" align="center">
+          <label id="scopeBarTitle" value="&search.in.label;"/>
+          <toolbarbutton id="scopeBarAll" class="small-margin"
+                         type="radio" group="scopeBar"
+                         oncommand="PlacesQueryBuilder.onScopeSelected(this);"
+                         label="&search.scopeBookmarks.label;"
+                         accesskey="&search.scopeBookmarks.accesskey;"/>
+          <toolbarbutton id="scopeBarHistory" class="small-margin"
+                         type="radio" group="scopeBar"
+                         oncommand="PlacesQueryBuilder.onScopeSelected(this);"
+                         label="&search.scopeHistory.label;"
+                         accesskey="&search.scopeHistory.accesskey;"/>
+          <toolbarbutton id="scopeBarDownloads" class="small-margin"
+                         type="radio" group="scopeBar"
+                         oncommand="PlacesQueryBuilder.onScopeSelected(this);"
+                         label="&search.scopeDownloads.label;"
+                         accesskey="&search.scopeDownloads.accesskey;"/>
+          <toolbarbutton id="scopeBarFolder" class="small-margin"
+                         type="radio" group="scopeBar"
+                         oncommand="PlacesQueryBuilder.onScopeSelected(this);"
+                         accesskey="&search.scopeFolder.accesskey;"
+                         emptytitle="&search.scopeFolder.label;" flex="1"/>
+          <!-- The folder scope button should flex but not take up more room
+               than its label needs. The only simple way to do that is to
+               set a really big flex on the spacer, e.g., 2^31 - 1. -->
+          <spacer flex="2147483647"/>
+          <button id="saveSearch" class="small-margin"
+                  label="&saveSearch.label;" accesskey="&saveSearch.accesskey;"
+                  command="OrganizerCommand_search:save"/>
+        </toolbar>
+      </toolbox>
       <deck id="placesViewsDeck"
             selectedIndex="0"
             flex="1">
@@ -375,7 +407,7 @@
               onkeypress="ContentTree.onKeyPress(event);"
               onopenflatcontainer="PlacesOrganizer.openFlatContainer(aContainer);">
           <treecols id="placeContentColumns" context="placesColumnsContext">
-            <treecol label="&col.name.label;" id="placesContentTitle" anonid="title" flex="5" primary="true" ordinal="1" 
+            <treecol label="&col.name.label;" id="placesContentTitle" anonid="title" flex="5" primary="true" ordinal="1"
                       persist="width hidden ordinal sortActive sortDirection"/>
             <splitter class="tree-splitter"/>
             <treecol label="&col.tags.label;" id="placesContentTags" anonid="tags" flex="2"

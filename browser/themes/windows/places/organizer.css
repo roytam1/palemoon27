@@ -85,8 +85,8 @@
 }
 
 /* organize, view and maintenance buttons icons */
-#organizeButton, 
-#viewMenu, 
+#organizeButton,
+#viewMenu,
 #maintenanceButton {
   list-style-image: url("chrome://browser/skin/places/libraryToolbar.png");
 }
@@ -131,6 +131,37 @@
 
 #infoBoxExpanderLabel {
   -moz-padding-start: 2px;
+}
+
+#organizerScopeBar {
+  padding: 2px 0;
+  -moz-padding-end: 3px;
+}
+
+#organizerScopeBar > toolbarbutton {
+  -moz-appearance: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 0 !important;
+  margin: 0 1px;
+}
+
+#organizerScopeBar > toolbarbutton > .toolbarbutton-icon {
+  padding: 0;
+  margin: 0;
+}
+
+#organizerScopeBar > toolbarbutton > .toolbarbutton-text {
+  margin: 0;
+  padding: 2px 5px;
+}
+
+#organizerScopeBar > toolbarbutton:not([disabled="true"]):not([checked="true"]):hover {
+  border-color: ThreeDShadow;
+}
+
+#organizerScopeBar > toolbarbutton[checked="true"] {
+  border-color: ThreeDDarkShadow !important;
 }
 
 #searchFilter {

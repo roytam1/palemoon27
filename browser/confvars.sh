@@ -9,15 +9,15 @@ MOZ_UPDATER=1
 MOZ_PHOENIX=1
 
 if test "$OS_ARCH" = "WINNT"; then
-  MOZ_MAINTENANCE_SERVICE=1
-  MOZ_VERIFY_MAR_SIGNATURE=1
+  MOZ_MAINTENANCE_SERVICE=
+  MOZ_VERIFY_MAR_SIGNATURE=
   if ! test "$HAVE_64BIT_BUILD"; then
     if test "$MOZ_UPDATE_CHANNEL" = "nightly" -o \
             "$MOZ_UPDATE_CHANNEL" = "aurora" -o \
             "$MOZ_UPDATE_CHANNEL" = "beta" -o \
             "$MOZ_UPDATE_CHANNEL" = "release"; then
       if ! test "$MOZ_DEBUG"; then
-        MOZ_STUB_INSTALLER=1
+        MOZ_STUB_INSTALLER=
       fi
     fi
   fi

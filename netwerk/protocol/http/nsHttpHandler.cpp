@@ -94,6 +94,9 @@ extern PRThread *gSocketThread;
 
 #define NS_HTTP_PROTOCOL_FLAGS (URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP | URI_LOADABLE_BY_ANYONE)
 
+// Firefox compatibility version we claim in our UA
+#define MOZILLA_COMPATVERSION "38.9"
+
 //-----------------------------------------------------------------------------
 
 namespace mozilla {
@@ -283,9 +286,14 @@ nsHttpHandler::Init()
         PrefsChanged(prefBranch, nullptr);
     }
 
+    if (mCompatFirefoxEnabled) {
+      mMisc.AssignLiteral("rv:" MOZILLA_COMPATVERSION);
+    } else {
     mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
+    }
 
-    mCompatFirefox.AssignLiteral("Firefox/" MOZILLA_UAVERSION);
+    mCompatGecko.AssignLiteral("Gecko/20100101");
+    mCompatFirefox.AssignLiteral("Firefox/" MOZILLA_COMPATVERSION);
 
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");
@@ -318,8 +326,16 @@ nsHttpHandler::Init()
 #ifdef ANDROID
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
 #else
-    mProductSub.AssignLiteral("20100101");
+    if (mCompatFirefoxEnabled) {
+      mProductSub.AssignLiteral(MOZILLA_UAVERSION);
+    } else {
+      mProductSub.AssignLiteral(MOZ_UA_BUILDID);
+    }
 #endif
+    if (mProductSub.IsEmpty() && appInfo)
+        appInfo->GetPlatformBuildID(mProductSub);
+    if (mProductSub.Length() > 8)
+        mProductSub.SetLength(8);
 
 #if DEBUG
     // dump user agent prefs
@@ -333,6 +349,7 @@ nsHttpHandler::Init()
     LOG(("> app-name = %s\n", mAppName.get()));
     LOG(("> app-version = %s\n", mAppVersion.get()));
     LOG(("> compat-firefox = %s\n", mCompatFirefox.get()));
+    LOG(("> compat-gecko = %s\n", mCompatGecko.get()));
     LOG(("> user-agent = %s\n", UserAgent().get()));
 #endif
 
@@ -614,10 +631,11 @@ nsHttpHandler::BuildUserAgent()
                            mProductSub.Length() +
                            mAppName.Length() +
                            mAppVersion.Length() +
+                           mCompatGecko.Length() +
                            mCompatFirefox.Length() +
                            mCompatDevice.Length() +
                            mDeviceModelId.Length() +
-                           13);
+                           14);
 
     // Application portion
     mUserAgent.Assign(mLegacyAppName);
@@ -648,6 +666,12 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += mMisc;
     mUserAgent += ')';
 
+    if (mCompatGeckoEnabled) {
+        // Provide frozen Gecko/20100101 (compatibility) slice
+        mUserAgent += ' ';
+        mUserAgent += mCompatGecko;
+    }
+
     // Product portion
     mUserAgent += ' ';
     mUserAgent += mProduct;
@@ -656,7 +680,7 @@ nsHttpHandler::BuildUserAgent()
 
     bool isFirefox = mAppName.EqualsLiteral("Firefox");
     if (isFirefox || mCompatFirefoxEnabled) {
-        // "Firefox/x.y" (compatibility) app token
+        // Provide "Firefox/x.y" (compatibility) app token
         mUserAgent += ' ';
         mUserAgent += mCompatFirefox;
     }
@@ -850,9 +874,33 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     bool cVar = false;
 
+    // compatibility mode prefs
+    if (PREF_CHANGED(UA_PREF("compatMode.gecko"))) {
+        rv = prefs->GetBoolPref(UA_PREF("compatMode.gecko"), &cVar);
+        mCompatGeckoEnabled = (NS_SUCCEEDED(rv) && cVar);
+        mUserAgentIsDirty = true;
+    }
     if (PREF_CHANGED(UA_PREF("compatMode.firefox"))) {
         rv = prefs->GetBoolPref(UA_PREF("compatMode.firefox"), &cVar);
         mCompatFirefoxEnabled = (NS_SUCCEEDED(rv) && cVar);
+        
+        // Update UA components as-needed for this change:
+        // Compatmode on ->  rv:{FF-appversion}  Goanna/{Goanna-version}
+        // Compatmode off -> rv:{Goanna-version} Goanna/{BuildID}
+        if (mCompatFirefoxEnabled) {
+          mMisc.AssignLiteral("rv:" MOZILLA_COMPATVERSION);
+          mProductSub.AssignLiteral(MOZILLA_UAVERSION);          
+        } else {
+          mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
+          mProductSub.AssignLiteral(MOZ_UA_BUILDID);
+        }
+        nsCOMPtr<nsIXULAppInfo> appInfo = 
+            do_GetService("@mozilla.org/xre/app-info;1");
+        if (mProductSub.IsEmpty() && appInfo)
+          appInfo->GetPlatformBuildID(mProductSub);
+        if (mProductSub.Length() > 8)
+          mProductSub.SetLength(8);
+          
         mUserAgentIsDirty = true;
     }
 

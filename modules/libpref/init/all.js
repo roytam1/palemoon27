@@ -62,7 +62,7 @@ pref("browser.cache.disk.free_space_soft_limit", 5120); // 5MB
 pref("browser.cache.disk.free_space_hard_limit", 1024); // 1MB
 // Max-size (in KB) for entries in disk cache. Set to -1 for no limit.
 // (Note: entries bigger than 1/8 of disk-cache are never cached)
-pref("browser.cache.disk.max_entry_size",    51200);  // 50 MB
+pref("browser.cache.disk.max_entry_size",    8192);  // 8 MB
 pref("browser.cache.memory.enable",         true);
 // -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
 //pref("browser.cache.memory.capacity",     -1);
@@ -105,8 +105,7 @@ pref("offline-apps.quota.warn",        51200);
 // 0 => disable compression
 // 1 => best speed
 // 9 => best compression
-// cache compression turned off for now - see bug #715198
-pref("browser.cache.compression_level", 0);
+pref("browser.cache.compression_level", 3);
 
 // Whether or not MozAbortablePromise is enabled.
 pref("dom.abortablepromise.enabled", false);
@@ -188,7 +187,7 @@ pref("dom.compartment_per_addon", false);
 
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
-pref("browser.sessionhistory.max_total_viewers", -1);
+pref("browser.sessionhistory.max_total_viewers", 2);
 
 pref("ui.use_native_colors", true);
 pref("ui.click_hold_context_menus", false);

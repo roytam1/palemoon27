@@ -41,10 +41,6 @@ public:
     mResult = NS_OK;
 
 #ifdef DEBUG
-    // ErrorResult is extremely performance-sensitive code, where literally
-    // every machine instruction matters. Initialize mMessage only to suppress
-    // a debug-only warning from gcc 4.6.
-    mMessage = nullptr;
     mMightHaveUnreportedJSException = false;
 #endif
   }

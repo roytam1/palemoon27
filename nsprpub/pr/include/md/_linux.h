@@ -151,8 +151,7 @@ extern PRInt32 _PR_ppc_AtomicSet(PRInt32 *val, PRInt32 newval);
 #endif
 
 #if defined(__powerpc64__)
-#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-/* Use GCC built-in functions */
+#if (__GNUC__)
 #define _PR_HAVE_ATOMIC_OPS
 #define _MD_INIT_ATOMIC()
 #define _MD_ATOMIC_INCREMENT(ptr) __sync_add_and_fetch(ptr, 1)

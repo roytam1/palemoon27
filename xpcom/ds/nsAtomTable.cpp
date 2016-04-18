@@ -26,12 +26,8 @@
 
 using namespace mozilla;
 
-#if defined(__clang__)
+#if defined(__clang__) || defined(__GNUC__)
 #  pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
-#elif MOZ_IS_GCC
-#  if MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
-#    pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
-#  endif
 #endif
 
 /**

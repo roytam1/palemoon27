@@ -52,4 +52,4 @@ packages for popular Linux distributions. ``configure`` will typically
 detect missing dependencies and inform you how to disable features to
 work around unsatisfied dependencies.
 
-Clang 3.3 or GCC 4.4 is required to build the tree.
+Clang 3.3 or GCC 4.7 is required to build the tree.

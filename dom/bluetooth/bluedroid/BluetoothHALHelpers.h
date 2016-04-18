@@ -19,7 +19,7 @@
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "nsThreadUtils.h"
 
-#if MOZ_IS_GCC && MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
+#if MOZ_IS_GCC
 /* use designated array initializers if supported */
 #define CONVERT(in_, out_) \
   [in_] = out_

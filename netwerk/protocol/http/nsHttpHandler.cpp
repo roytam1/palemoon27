@@ -329,7 +329,7 @@ nsHttpHandler::Init()
     if (mCompatFirefoxEnabled) {
       mProductSub.AssignLiteral(MOZILLA_UAVERSION);
     } else {
-      mProductSub.AssignLiteral("20100101");
+      mProductSub.AssignLiteral(MOZ_UA_BUILDID);
     }
 #endif
     if (mProductSub.IsEmpty() && appInfo)
@@ -892,7 +892,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
           mProductSub.AssignLiteral(MOZILLA_UAVERSION);          
         } else {
           mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
-          mProductSub.AssignLiteral("20100101");
+          mProductSub.AssignLiteral(MOZ_UA_BUILDID);
         }
         nsCOMPtr<nsIXULAppInfo> appInfo = 
             do_GetService("@mozilla.org/xre/app-info;1");

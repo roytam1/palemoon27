@@ -4,16 +4,22 @@
 
 pref("security.tls.version.min", 1);
 pref("security.tls.version.max", 3);
+
+/* The lowest protocol version the handshake may insecurely fall back to
+   Disabled by default (only fall back to highest = no fallback) but
+   can be lowered to 1 if environments require this */
 pref("security.tls.version.fallback-limit", 3);
+
 pref("security.tls.insecure_fallback_hosts", "");
 pref("security.tls.insecure_fallback_hosts.use_static_list", true);
-pref("security.tls.unrestricted_rc4_fallback", true);
+
+pref("security.tls.unrestricted_rc4_fallback", false);
 
 pref("security.ssl.treat_unsafe_negotiation_as_broken", false);
 pref("security.ssl.require_safe_negotiation",  false);
 pref("security.ssl.warn_missing_rfc5746",  1);
 pref("security.ssl.enable_ocsp_stapling", true);
-pref("security.ssl.enable_false_start", true);
+pref("security.ssl.enable_false_start", false);
 pref("security.ssl.false_start.require-npn", false);
 pref("security.ssl.enable_npn", true);
 pref("security.ssl.enable_alpn", true);

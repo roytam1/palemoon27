@@ -1,0 +1,512 @@
+From ec48ccc34fe6c17ef9ce6437667e325361bd6198 Mon Sep 17 00:00:00 2001
+From: Pale Moon <git-repo@palemoon.org>
+Date: Wed, 7 Oct 2015 20:07:09 +0200
+Subject: [PATCH] Implement 128-bit Camellia-GCM ciphers (ECC+RSA)
+
+---
+ netwerk/base/public/security-prefs.js       |  2 +
+ security/manager/ssl/src/nsNSSComponent.cpp |  5 ++
+ security/nss/lib/pk11wrap/debug_module.c    |  1 +
+ security/nss/lib/pk11wrap/pk11mech.c        |  2 +
+ security/nss/lib/pk11wrap/pk11slot.c        |  1 +
+ security/nss/lib/softoken/pkcs11.c          |  1 +
+ security/nss/lib/ssl/ssl3con.c              | 80 +++++++++++++++++++++--------
+ security/nss/lib/ssl/ssl3ecc.c              |  4 ++
+ security/nss/lib/ssl/sslenum.c              |  2 +
+ security/nss/lib/ssl/sslimpl.h              |  7 ++-
+ security/nss/lib/ssl/sslinfo.c              |  3 ++
+ security/nss/lib/ssl/sslproto.h             |  3 ++
+ security/nss/lib/ssl/sslt.h                 |  3 +-
+ security/nss/lib/util/pkcs11t.h             |  1 +
+ security/nss/tests/ssl/sslcov.txt           |  3 ++
+ 15 files changed, 95 insertions(+), 23 deletions(-)
+
+diff --git a/netwerk/base/public/security-prefs.js b/netwerk/base/public/security-prefs.js
+index 9d2b635..5a57429 100644
+--- a/netwerk/base/public/security-prefs.js
++++ b/netwerk/base/public/security-prefs.js
+@@ -19,6 +19,8 @@ pref("security.ssl.allow_unsafe_ocsp_response", false);
+ // Cipher suites enabled by default
+ pref("security.ssl3.ecdhe_rsa_aes_128_gcm_sha256", true);
+ pref("security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256", true);
++pref("security.ssl3.ecdhe_rsa_camellia_128_gcm_sha256", true);
++pref("security.ssl3.ecdhe_ecdsa_camellia_128_gcm_sha256", true);
+ pref("security.ssl3.ecdhe_rsa_aes_128_sha", true);
+ pref("security.ssl3.ecdhe_ecdsa_aes_128_sha", true);
+ pref("security.ssl3.ecdhe_rsa_aes_256_sha", true);
+diff --git a/security/manager/ssl/src/nsNSSComponent.cpp b/security/manager/ssl/src/nsNSSComponent.cpp
+index da45961..e186f8f 100644
+--- a/security/manager/ssl/src/nsNSSComponent.cpp
++++ b/security/manager/ssl/src/nsNSSComponent.cpp
+@@ -833,6 +833,11 @@ static const CipherPref CipherPrefs[] = {
+    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, true },
+  { "security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256",
+    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, true },
++   
++ { "security.ssl3.ecdhe_rsa_camellia_128_gcm_sha256",
++   TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256, true },
++ { "security.ssl3.ecdhe_ecdsa_camellia_128_gcm_sha256",
++   TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256, true },
+ 
+  { "security.ssl3.ecdhe_ecdsa_aes_256_sha",
+    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, true },
+diff --git a/security/nss/lib/pk11wrap/debug_module.c b/security/nss/lib/pk11wrap/debug_module.c
+index 89ebacc..2ea1145 100644
+--- a/security/nss/lib/pk11wrap/debug_module.c
++++ b/security/nss/lib/pk11wrap/debug_module.c
+@@ -370,6 +370,7 @@ static void print_mechanism(CK_MECHANISM_PTR m)
+     CASE(CKM_CAMELLIA_KEY_GEN);
+     CASE(CKM_CAMELLIA_MAC);
+     CASE(CKM_CAMELLIA_MAC_GENERAL);
++    CASE(CKM_CAMELLIA_GCM);
+     CASE(CKM_CDMF_CBC);
+     CASE(CKM_CDMF_CBC_PAD);
+     CASE(CKM_CDMF_ECB);
+diff --git a/security/nss/lib/pk11wrap/pk11mech.c b/security/nss/lib/pk11wrap/pk11mech.c
+index b7a7296..d8b8227 100644
+--- a/security/nss/lib/pk11wrap/pk11mech.c
++++ b/security/nss/lib/pk11wrap/pk11mech.c
+@@ -218,6 +218,7 @@ PK11_GetKeyType(CK_MECHANISM_TYPE type,unsigned long len)
+     case CKM_CAMELLIA_MAC_GENERAL:
+     case CKM_CAMELLIA_CBC_PAD:
+     case CKM_CAMELLIA_KEY_GEN:
++    case CKM_CAMELLIA_GCM:
+ 	return CKK_CAMELLIA;
+     case CKM_AES_ECB:
+     case CKM_AES_CBC:
+@@ -428,6 +429,7 @@ PK11_GetKeyGenWithSize(CK_MECHANISM_TYPE type, int size)
+     case CKM_CAMELLIA_MAC_GENERAL:
+     case CKM_CAMELLIA_CBC_PAD:
+     case CKM_CAMELLIA_KEY_GEN:
++    case CKM_CAMELLIA_GCM:
+ 	return CKM_CAMELLIA_KEY_GEN;
+     case CKM_AES_ECB:
+     case CKM_AES_CBC:
+diff --git a/security/nss/lib/pk11wrap/pk11slot.c b/security/nss/lib/pk11wrap/pk11slot.c
+index 1f6597b..ff144fd 100644
+--- a/security/nss/lib/pk11wrap/pk11slot.c
++++ b/security/nss/lib/pk11wrap/pk11slot.c
+@@ -832,6 +832,7 @@ PK11_GetSlotList(CK_MECHANISM_TYPE type)
+ 	return &pk11_seedSlotList;
+     case CKM_CAMELLIA_CBC:
+     case CKM_CAMELLIA_ECB:
++    case CKM_CAMELLIA_GCM:
+ 	return &pk11_camelliaSlotList;
+     case CKM_AES_CBC:
+     case CKM_AES_CCM:
+diff --git a/security/nss/lib/softoken/pkcs11.c b/security/nss/lib/softoken/pkcs11.c
+index bd7c4bd..aaca2e9 100644
+--- a/security/nss/lib/softoken/pkcs11.c
++++ b/security/nss/lib/softoken/pkcs11.c
+@@ -363,6 +363,7 @@ static const struct mechanismList mechanisms[] = {
+      {CKM_CAMELLIA_MAC, 	{16, 32, CKF_SN_VR},            PR_TRUE},
+      {CKM_CAMELLIA_MAC_GENERAL,	{16, 32, CKF_SN_VR},            PR_TRUE},
+      {CKM_CAMELLIA_CBC_PAD,	{16, 32, CKF_EN_DE_WR_UN},      PR_TRUE},
++     {CKM_CAMELLIA_GCM, 	{16, 32, CKF_EN_DE},            PR_TRUE},
+      /* ------------------------- SEED Operations --------------------------- */
+      {CKM_SEED_KEY_GEN,		{16, 16, CKF_GENERATE},		PR_TRUE},
+      {CKM_SEED_ECB,		{16, 16, CKF_EN_DE_WR_UN},	PR_TRUE},
+diff --git a/security/nss/lib/ssl/ssl3con.c b/security/nss/lib/ssl/ssl3con.c
+index 2ead4fe..d33a642 100644
+--- a/security/nss/lib/ssl/ssl3con.c
++++ b/security/nss/lib/ssl/ssl3con.c
+@@ -68,11 +68,11 @@ static SECStatus Null_Cipher(void *ctx, unsigned char *output, int *outputLen,
+ 			     int maxOutputLen, const unsigned char *input,
+ 			     int inputLen);
+ #ifndef NO_PKCS11_BYPASS
+-static SECStatus ssl3_AESGCMBypass(ssl3KeyMaterial *keys, PRBool doDecrypt,
++static SECStatus ssl3_CipherGCMBypass(ssl3KeyMaterial *keys, PRBool doDecrypt,
+ 				   unsigned char *out, int *outlen, int maxout,
+ 				   const unsigned char *in, int inlen,
+ 				   const unsigned char *additionalData,
+-				   int additionalDataLen);
++				   int additionalDataLen, SSLCipherAlgorithm calg);
+ #endif
+ 
+ #define MAX_SEND_BUF_LENGTH 32000 /* watch for 16-bit integer overflow */
+@@ -92,6 +92,8 @@ static ssl3CipherSuiteCfg cipherSuites[ssl_V3_SUITES_IMPLEMENTED] = {
+ #ifndef NSS_DISABLE_ECC
+  { TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, SSL_ALLOWED, PR_FALSE, PR_FALSE},
+  { TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,   SSL_ALLOWED, PR_FALSE, PR_FALSE},
++ { TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256, SSL_ALLOWED, PR_FALSE, PR_FALSE},
++ { TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256,   SSL_ALLOWED, PR_FALSE, PR_FALSE},
+    /* TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA is out of order to work around
+     * bug 946147.
+     */
+@@ -281,6 +283,7 @@ static const ssl3BulkCipherDef bulk_cipher_defs[] = {
+     {cipher_camellia_256, calg_camellia,    32,32, type_block, 16,16, 0, 0},
+     {cipher_seed,         calg_seed,        16,16, type_block, 16,16, 0, 0},
+     {cipher_aes_128_gcm,  calg_aes_gcm,     16,16, type_aead,   4, 0,16, 8},
++    {cipher_camellia_128_gcm, calg_camellia_gcm,    16,16, type_aead,   4, 0,16, 8},
+     {cipher_missing,      calg_null,         0, 0, type_stream, 0, 0, 0, 0},
+ };
+ 
+@@ -407,6 +410,8 @@ static const ssl3CipherSuiteDef cipher_suite_defs[] =
+     {TLS_RSA_WITH_AES_128_GCM_SHA256, cipher_aes_128_gcm, mac_aead, kea_rsa},
+     {TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, cipher_aes_128_gcm, mac_aead, kea_ecdhe_rsa},
+     {TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, cipher_aes_128_gcm, mac_aead, kea_ecdhe_ecdsa},
++    {TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256, cipher_camellia_128_gcm, mac_aead, kea_ecdhe_rsa},
++    {TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256, cipher_camellia_128_gcm, mac_aead, kea_ecdhe_ecdsa},
+ 
+ #ifndef NSS_DISABLE_ECC
+     {TLS_ECDH_ECDSA_WITH_NULL_SHA,        cipher_null, mac_sha, kea_ecdh_ecdsa},
+@@ -472,6 +477,7 @@ static const SSLCipher2Mech alg2Mech[] = {
+     { calg_camellia , CKM_CAMELLIA_CBC			},
+     { calg_seed     , CKM_SEED_CBC			},
+     { calg_aes_gcm  , CKM_AES_GCM			},
++    { calg_camellia_gcm , CKM_CAMELLIA_GCM      },
+ /*  { calg_init     , (CK_MECHANISM_TYPE)0x7fffffffL    }  */
+ };
+ 
+@@ -512,6 +518,7 @@ const char * const ssl3_cipherName[] = {
+     "Camellia-256",
+     "SEED-CBC",
+     "AES-128-GCM",
++    "Camellia-128-GCM",
+     "missing"
+ };
+ 
+@@ -640,7 +647,9 @@ ssl3_CipherSuiteAllowedForVersionRange(
+     case TLS_DHE_RSA_WITH_AES_256_CBC_SHA256:
+     case TLS_RSA_WITH_AES_256_CBC_SHA256:
+     case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256:
++    case TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256:
+     case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256:
++    case TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256:
+     case TLS_DHE_RSA_WITH_AES_128_CBC_SHA256:
+     case TLS_RSA_WITH_AES_128_CBC_SHA256:
+     case TLS_RSA_WITH_AES_128_GCM_SHA256:
+@@ -1643,13 +1652,13 @@ ssl3_InitPendingContextsBypass(sslSocket *ss)
+ 
+     calg = cipher_def->calg;
+ 
+-    if (calg == ssl_calg_aes_gcm) {
++    if (cipher_def->type == type_aead) {
+ 	pwSpec->encode = NULL;
+ 	pwSpec->decode = NULL;
+ 	pwSpec->destroy = NULL;
+ 	pwSpec->encodeContext = NULL;
+ 	pwSpec->decodeContext = NULL;
+-	pwSpec->aead = ssl3_AESGCMBypass;
++	pwSpec->aead = ssl3_CipherGCMBypass;
+ 	ssl3_InitCompressionContext(pwSpec);
+ 	return SECSuccess;
+     }
+@@ -1864,7 +1873,7 @@ ssl3_BuildRecordPseudoHeader(unsigned char *out,
+ }
+ 
+ static SECStatus
+-ssl3_AESGCM(ssl3KeyMaterial *keys,
++ssl3_CipherGCM(ssl3KeyMaterial *keys,
+ 	    PRBool doDecrypt,
+ 	    unsigned char *out,
+ 	    int *outlen,
+@@ -1872,13 +1881,15 @@ ssl3_AESGCM(ssl3KeyMaterial *keys,
+ 	    const unsigned char *in,
+ 	    int inlen,
+ 	    const unsigned char *additionalData,
+-	    int additionalDataLen)
++	    int additionalDataLen,
++	    SSLCipherAlgorithm calg)
+ {
+     SECItem            param;
+     SECStatus          rv = SECFailure;
+     unsigned char      nonce[12];
+     unsigned int       uOutLen;
+     CK_GCM_PARAMS      gcmParams;
++    CK_MECHANISM_TYPE  mechanism;
+ 
+     static const int   tagSize = 16;
+     static const int   explicitNonceLen = 8;
+@@ -1912,12 +1923,21 @@ ssl3_AESGCM(ssl3KeyMaterial *keys,
+     gcmParams.pAAD = (unsigned char *)additionalData;  /* const cast */
+     gcmParams.ulAADLen = additionalDataLen;
+     gcmParams.ulTagBits = tagSize * 8;
++    
++    switch (calg) {
++      case calg_aes_gcm:
++        mechanism = CKM_AES_GCM;
++        break;
++      case calg_camellia_gcm:
++        mechanism = CKM_CAMELLIA_GCM;
++        break;
++    }
+ 
+     if (doDecrypt) {
+-	rv = PK11_Decrypt(keys->write_key, CKM_AES_GCM, &param, out, &uOutLen,
++	rv = PK11_Decrypt(keys->write_key, mechanism, &param, out, &uOutLen,
+ 			  maxout, in, inlen);
+     } else {
+-	rv = PK11_Encrypt(keys->write_key, CKM_AES_GCM, &param, out, &uOutLen,
++	rv = PK11_Encrypt(keys->write_key, mechanism, &param, out, &uOutLen,
+ 			  maxout, in, inlen);
+     }
+     *outlen += (int) uOutLen;
+@@ -1927,7 +1947,7 @@ ssl3_AESGCM(ssl3KeyMaterial *keys,
+ 
+ #ifndef NO_PKCS11_BYPASS
+ static SECStatus
+-ssl3_AESGCMBypass(ssl3KeyMaterial *keys,
++ssl3_CipherGCMBypass(ssl3KeyMaterial *keys,
+ 		  PRBool doDecrypt,
+ 		  unsigned char *out,
+ 		  int *outlen,
+@@ -1935,12 +1955,12 @@ ssl3_AESGCMBypass(ssl3KeyMaterial *keys,
+ 		  const unsigned char *in,
+ 		  int inlen,
+ 		  const unsigned char *additionalData,
+-		  int additionalDataLen)
++		  int additionalDataLen,
++		  SSLCipherAlgorithm calg)
+ {
+     SECStatus          rv = SECFailure;
+     unsigned char      nonce[12];
+     unsigned int       uOutLen;
+-    AESContext        *cx;
+     CK_GCM_PARAMS      gcmParams;
+ 
+     static const int   tagSize = 16;
+@@ -1978,8 +1998,28 @@ ssl3_AESGCMBypass(ssl3KeyMaterial *keys,
+     gcmParams.ulAADLen = additionalDataLen;
+     gcmParams.ulTagBits = tagSize * 8;
+ 
+-    cx = (AESContext *)keys->cipher_context;
+-    rv = AES_InitContext(cx, keys->write_key_item.data,
++    void *cx = keys->cipher_context;
++    BLapiInitContextFunc initFn = (BLapiInitContextFunc)NULL;
++    SSLCipher encode = (SSLCipher)NULL;
++    SSLCipher decode = (SSLCipher)NULL;
++    SSLDestroy destroy = (SSLDestroy)NULL;
++
++    switch (calg) {
++        case calg_aes_gcm:
++            initFn = (BLapiInitContextFunc)AES_InitContext;
++            encode  = (SSLCipher) AES_Encrypt;
++            decode  = (SSLCipher) AES_Decrypt;
++            destroy = (SSLDestroy) AES_DestroyContext;
++            break;
++        case calg_camellia_gcm:
++            initFn = (BLapiInitContextFunc)Camellia_InitContext;
++            encode  = (SSLCipher) Camellia_Encrypt;
++            decode  = (SSLCipher) Camellia_Decrypt;
++            destroy = (SSLDestroy) Camellia_DestroyContext;
++            break;
++    }
++
++    rv = (*initFn)(cx, keys->write_key_item.data,
+ 			 keys->write_key_item.len,
+ 			 (unsigned char *)&gcmParams, NSS_AES_GCM, !doDecrypt,
+ 			 AES_BLOCK_SIZE);
+@@ -1987,11 +2027,11 @@ ssl3_AESGCMBypass(ssl3KeyMaterial *keys,
+ 	return rv;
+     }
+     if (doDecrypt) {
+-	rv = AES_Decrypt(cx, out, &uOutLen, maxout, in, inlen);
++	rv = (*decode)(cx, out, &uOutLen, maxout, in, inlen);
+     } else {
+-	rv = AES_Encrypt(cx, out, &uOutLen, maxout, in, inlen);
++	rv = (*encode)(cx, out, &uOutLen, maxout, in, inlen);
+     }
+-    AES_DestroyContext(cx, PR_FALSE);
++    (*destroy)(cx, PR_FALSE);
+     *outlen += (int) uOutLen;
+ 
+     return rv;
+@@ -2031,13 +2071,13 @@ ssl3_InitPendingContextsPKCS11(sslSocket *ss)
+     pwSpec->client.write_mac_context = NULL;
+     pwSpec->server.write_mac_context = NULL;
+ 
+-    if (calg == calg_aes_gcm) {
++    if (cipher_def->type == type_aead) {
+ 	pwSpec->encode = NULL;
+ 	pwSpec->decode = NULL;
+ 	pwSpec->destroy = NULL;
+ 	pwSpec->encodeContext = NULL;
+ 	pwSpec->decodeContext = NULL;
+-	pwSpec->aead = ssl3_AESGCM;
++	pwSpec->aead = ssl3_CipherGCM;
+ 	return SECSuccess;
+     }
+ 
+@@ -2611,7 +2651,7 @@ ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
+ 		&cipherBytes,                               /* out len */
+ 		wrBuf->space - headerLen,                   /* max out */
+ 		pIn, contentLen,                            /* input   */
+-		pseudoHeader, pseudoHeaderLen);
++		pseudoHeader, pseudoHeaderLen, cipher_def->calg);
+ 	if (rv != SECSuccess) {
+ 	    PORT_SetError(SSL_ERROR_ENCRYPTION_FAILURE);
+ 	    return SECFailure;
+@@ -11493,7 +11533,7 @@ ssl3_HandleRecord(sslSocket *ss, SSL3Ciphertext *cText, sslBuffer *databuf)
+ 		plaintext->space,                 /* maxout */
+ 		cText->buf->buf,                  /* in */
+ 		cText->buf->len,                  /* inlen */
+-		header, headerLen);
++		header, headerLen, cipher_def->calg);
+ 	if (rv != SECSuccess) {
+ 	    good = 0;
+ 	}
+diff --git a/security/nss/lib/ssl/ssl3ecc.c b/security/nss/lib/ssl/ssl3ecc.c
+index aca2b74..f30ee85 100644
+--- a/security/nss/lib/ssl/ssl3ecc.c
++++ b/security/nss/lib/ssl/ssl3ecc.c
+@@ -914,6 +914,7 @@ static const ssl3CipherSuite ecdhe_ecdsa_suites[] = {
+     TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+     TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+     TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
++    TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256,
+     TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+     TLS_ECDHE_ECDSA_WITH_NULL_SHA,
+     TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+@@ -925,6 +926,7 @@ static const ssl3CipherSuite ecdhe_rsa_suites[] = {
+     TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+     TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+     TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
++    TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256,
+     TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+     TLS_ECDHE_RSA_WITH_NULL_SHA,
+     TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+@@ -937,6 +939,7 @@ static const ssl3CipherSuite ecSuites[] = {
+     TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+     TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+     TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
++    TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256,
+     TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+     TLS_ECDHE_ECDSA_WITH_NULL_SHA,
+     TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+@@ -944,6 +947,7 @@ static const ssl3CipherSuite ecSuites[] = {
+     TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+     TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+     TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
++    TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256,
+     TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+     TLS_ECDHE_RSA_WITH_NULL_SHA,
+     TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+diff --git a/security/nss/lib/ssl/sslenum.c b/security/nss/lib/ssl/sslenum.c
+index 09ce43f..2e3957b 100644
+--- a/security/nss/lib/ssl/sslenum.c
++++ b/security/nss/lib/ssl/sslenum.c
+@@ -50,6 +50,8 @@ const PRUint16 SSL_ImplementedCiphers[] = {
+ #ifndef NSS_DISABLE_ECC
+     TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+     TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
++    TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256,
++    TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256,
+     /* TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA must appear before
+      * TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA to work around bug 946147.
+      */
+diff --git a/security/nss/lib/ssl/sslimpl.h b/security/nss/lib/ssl/sslimpl.h
+index 1b38a52..af6014d 100644
+--- a/security/nss/lib/ssl/sslimpl.h
++++ b/security/nss/lib/ssl/sslimpl.h
+@@ -55,6 +55,7 @@ typedef SSLSignType     SSL3SignType;
+ #define calg_camellia	ssl_calg_camellia
+ #define calg_seed	ssl_calg_seed
+ #define calg_aes_gcm    ssl_calg_aes_gcm
++#define calg_camellia_gcm    ssl_calg_camellia_gcm
+ 
+ #define mac_null	ssl_mac_null
+ #define mac_md5 	ssl_mac_md5
+@@ -289,7 +290,7 @@ typedef struct {
+ } ssl3CipherSuiteCfg;
+ 
+ #ifndef NSS_DISABLE_ECC
+-#define ssl_V3_SUITES_IMPLEMENTED 61
++#define ssl_V3_SUITES_IMPLEMENTED 63
+ #else
+ #define ssl_V3_SUITES_IMPLEMENTED 37
+ #endif /* NSS_DISABLE_ECC */
+@@ -467,6 +468,7 @@ typedef enum {
+     cipher_camellia_256,
+     cipher_seed,
+     cipher_aes_128_gcm,
++    cipher_camellia_128_gcm,
+     cipher_missing              /* reserved for no such supported cipher */
+     /* This enum must match ssl3_cipherName[] in ssl3con.c.  */
+ } SSL3BulkCipher;
+@@ -528,7 +530,8 @@ typedef SECStatus (*SSLAEADCipher)(
+ 			       const unsigned char *in,
+ 			       int                  inlen,
+ 			       const unsigned char *additionalData,
+-			       int                  additionalDataLen);
++			       int                  additionalDataLen,
++			       SSLCipherAlgorithm   calg);
+ typedef SECStatus (*SSLCompressor)(void *               context,
+                                    unsigned char *      out,
+                                    int *                outlen,
+diff --git a/security/nss/lib/ssl/sslinfo.c b/security/nss/lib/ssl/sslinfo.c
+index 00f2f38..e4fe02d 100644
+--- a/security/nss/lib/ssl/sslinfo.c
++++ b/security/nss/lib/ssl/sslinfo.c
+@@ -110,6 +110,7 @@ SSL_GetChannelInfo(PRFileDesc *fd, SSLChannelInfo *info, PRUintn len)
+ #define C_NULL  "NULL", calg_null
+ #define C_SJ 	"SKIPJACK", calg_sj
+ #define C_AESGCM "AES-GCM", calg_aes_gcm
++#define C_CAMELLIAGCM "CAMELLIA-GCM", calg_camellia_gcm
+ 
+ #define B_256	256, 256, 256
+ #define B_128	128, 128, 128
+@@ -174,7 +175,9 @@ static const SSLCipherSuiteInfo suiteInfo[] = {
+ #ifndef NSS_DISABLE_ECC
+ /* ECC cipher suites */
+ {0,CS(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256), S_RSA, K_ECDHE, C_AESGCM, B_128, M_AEAD_128, 1, 0, 0, },
++{0,CS(TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256), S_RSA, K_ECDHE, C_AESGCM, B_128, M_AEAD_128, 1, 0, 0, },
+ {0,CS(TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256), S_ECDSA, K_ECDHE, C_AESGCM, B_128, M_AEAD_128, 1, 0, 0, },
++{0,CS(TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256), S_ECDSA, K_ECDHE, C_AESGCM, B_128, M_AEAD_128, 1, 0, 0, },
+ 
+ {0,CS(TLS_ECDH_ECDSA_WITH_NULL_SHA),          S_ECDSA, K_ECDH, C_NULL, B_0, M_SHA, 0, 0, 0, },
+ {0,CS(TLS_ECDH_ECDSA_WITH_RC4_128_SHA),       S_ECDSA, K_ECDH, C_RC4, B_128, M_SHA, 0, 0, 0, },
+diff --git a/security/nss/lib/ssl/sslproto.h b/security/nss/lib/ssl/sslproto.h
+index e02442c..53e231a 100644
+--- a/security/nss/lib/ssl/sslproto.h
++++ b/security/nss/lib/ssl/sslproto.h
+@@ -258,6 +258,9 @@
+ #define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256   0xC02F
+ #define TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256    0xC031
+ 
++#define TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256 0xC086
++#define TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256   0xC08A
++
+ /* Netscape "experimental" cipher suites. */
+ #define SSL_RSA_OLDFIPS_WITH_3DES_EDE_CBC_SHA   0xffe0
+ #define SSL_RSA_OLDFIPS_WITH_DES_CBC_SHA        0xffe1
+diff --git a/security/nss/lib/ssl/sslt.h b/security/nss/lib/ssl/sslt.h
+index 1d28feb..d40782e 100644
+--- a/security/nss/lib/ssl/sslt.h
++++ b/security/nss/lib/ssl/sslt.h
+@@ -81,7 +81,8 @@ typedef enum {
+     ssl_calg_aes      = 7,
+     ssl_calg_camellia = 8,
+     ssl_calg_seed     = 9,
+-    ssl_calg_aes_gcm  = 10
++    ssl_calg_aes_gcm  = 10,
++    ssl_calg_camellia_gcm = 11
+ } SSLCipherAlgorithm;
+ 
+ typedef enum { 
+diff --git a/security/nss/lib/util/pkcs11t.h b/security/nss/lib/util/pkcs11t.h
+index b003461..64e6ac5 100644
+--- a/security/nss/lib/util/pkcs11t.h
++++ b/security/nss/lib/util/pkcs11t.h
+@@ -907,6 +907,7 @@ typedef CK_ULONG          CK_MECHANISM_TYPE;
+ #define CKM_CAMELLIA_CBC_PAD           0x00000555
+ #define CKM_CAMELLIA_ECB_ENCRYPT_DATA  0x00000556
+ #define CKM_CAMELLIA_CBC_ENCRYPT_DATA  0x00000557
++#define CKM_CAMELLIA_GCM               0x00000558
+ 
+ #define CKM_SEED_KEY_GEN	       0x00000650    
+ #define CKM_SEED_ECB		       0x00000651
+diff --git a/security/nss/tests/ssl/sslcov.txt b/security/nss/tests/ssl/sslcov.txt
+index c4fee16..d214bba 100644
+--- a/security/nss/tests/ssl/sslcov.txt
++++ b/security/nss/tests/ssl/sslcov.txt
+@@ -159,3 +159,6 @@
+    ECC   TLS12  :C027 TLS12_ECDHE_RSA_WITH_AES_128_CBC_SHA256
+    ECC   TLS12  :C02B TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    ECC   TLS12  :C02F TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256
++   ECC   TLS12  :C086 TLS12_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256
++   ECC   TLS12  :C08A TLS12_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256
++   
+-- 
+1.9.5.msysgit.0
+

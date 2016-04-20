@@ -55,6 +55,7 @@ typedef SSLSignType     SSL3SignType;
 #define calg_camellia	ssl_calg_camellia
 #define calg_seed	ssl_calg_seed
 #define calg_aes_gcm    ssl_calg_aes_gcm
+#define calg_camellia_gcm    ssl_calg_camellia_gcm
 
 #define mac_null	ssl_mac_null
 #define mac_md5 	ssl_mac_md5
@@ -298,7 +299,7 @@ typedef struct {
 } ssl3CipherSuiteCfg;
 
 #ifndef NSS_DISABLE_ECC
-#define ssl_V3_SUITES_IMPLEMENTED 61
+#define ssl_V3_SUITES_IMPLEMENTED 63
 #else
 #define ssl_V3_SUITES_IMPLEMENTED 37
 #endif /* NSS_DISABLE_ECC */
@@ -476,6 +477,7 @@ typedef enum {
     cipher_camellia_256,
     cipher_seed,
     cipher_aes_128_gcm,
+    cipher_camellia_128_gcm,
     cipher_missing              /* reserved for no such supported cipher */
     /* This enum must match ssl3_cipherName[] in ssl3con.c.  */
 } SSL3BulkCipher;
@@ -537,7 +539,8 @@ typedef SECStatus (*SSLAEADCipher)(
 			       const unsigned char *in,
 			       int                  inlen,
 			       const unsigned char *additionalData,
-			       int                  additionalDataLen);
+			       int                  additionalDataLen,
+			       SSLCipherAlgorithm   calg);
 typedef SECStatus (*SSLCompressor)(void *               context,
                                    unsigned char *      out,
                                    int *                outlen,

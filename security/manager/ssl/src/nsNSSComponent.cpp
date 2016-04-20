@@ -632,32 +632,42 @@ typedef struct {
 } CipherPref;
 
 // Update the switch statement in HandshakeCallback in nsNSSCallbacks.cpp when
-// you add/remove cipher suites here.
+// you add/remove cipher suites here. (Telemetry)
 static const CipherPref sCipherPrefs[] = {
  { "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256",
    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, true },
  { "security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256",
    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, true },
- { "security.ssl3.ecdhe_rsa_aes_128_sha",
-   TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, true },
- { "security.ssl3.ecdhe_ecdsa_aes_128_sha",
-   TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, true },
+   
+ { "security.ssl3.ecdhe_rsa_camellia_128_gcm_sha256",
+   TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256, true },
+ { "security.ssl3.ecdhe_ecdsa_camellia_128_gcm_sha256",
+   TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256, true },
 
  { "security.ssl3.ecdhe_rsa_aes_256_sha",
    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, true },
  { "security.ssl3.ecdhe_ecdsa_aes_256_sha",
    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, true },
 
- { "security.ssl3.dhe_rsa_aes_128_sha",
-   TLS_DHE_RSA_WITH_AES_128_CBC_SHA, true },
+ { "security.ssl3.ecdhe_rsa_aes_128_sha",
+   TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, true },
+ { "security.ssl3.ecdhe_ecdsa_aes_128_sha",
+   TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, true },
 
  { "security.ssl3.dhe_rsa_aes_256_sha",
    TLS_DHE_RSA_WITH_AES_256_CBC_SHA, true },
+ { "security.ssl3.dhe_rsa_camellia_256_sha", 
+   TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA, true}, 
+
+ { "security.ssl3.dhe_rsa_aes_128_sha",
+   TLS_DHE_RSA_WITH_AES_128_CBC_SHA, true },
+ { "security.ssl3.dhe_rsa_camellia_128_sha", 
+   TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA, true },
 
  { "security.ssl3.ecdhe_rsa_rc4_128_sha",
-   TLS_ECDHE_RSA_WITH_RC4_128_SHA, true, true }, // deprecated (RC4)
+   TLS_ECDHE_RSA_WITH_RC4_128_SHA, false, true }, // deprecated (RC4)
  { "security.ssl3.ecdhe_ecdsa_rc4_128_sha",
-   TLS_ECDHE_ECDSA_WITH_RC4_128_SHA, true, true }, // deprecated (RC4)
+   TLS_ECDHE_ECDSA_WITH_RC4_128_SHA, false, true }, // deprecated (RC4)
 
  { "security.ssl3.rsa_aes_128_sha",
    TLS_RSA_WITH_AES_128_CBC_SHA, true }, // deprecated (RSA key exchange)
@@ -667,9 +677,9 @@ static const CipherPref sCipherPrefs[] = {
    TLS_RSA_WITH_3DES_EDE_CBC_SHA, true }, // deprecated (RSA key exchange, 3DES)
 
  { "security.ssl3.rsa_rc4_128_sha",
-   TLS_RSA_WITH_RC4_128_SHA, true, true }, // deprecated (RSA key exchange, RC4)
+   TLS_RSA_WITH_RC4_128_SHA, false, true }, // deprecated (RSA key exchange, RC4)
  { "security.ssl3.rsa_rc4_128_md5",
-   TLS_RSA_WITH_RC4_128_MD5, true, true }, // deprecated (RSA key exchange, RC4, HMAC-MD5)
+   TLS_RSA_WITH_RC4_128_MD5, false, true }, // deprecated (RSA key exchange, RC4, HMAC-MD5)
 
  // All the rest are disabled by default
 

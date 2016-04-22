@@ -590,10 +590,10 @@ pref("gfx.perf-warnings.enabled", false);
 
 // 0 = Off, 1 = Full, 2 = Tagged Images Only.
 // See eCMSMode in gfx/thebes/gfxPlatform.h
-pref("gfx.color_management.mode", 2);
+pref("gfx.color_management.mode", 1);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
-pref("gfx.color_management.enablev4", false);
+pref("gfx.color_management.enablev4", true);
 
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
@@ -790,7 +790,7 @@ pref("toolkit.identity.debug", false);
 pref("toolkit.asyncshutdown.timeout.crash", 60000);
 
 // Enable deprecation warnings.
-pref("devtools.errorconsole.deprecation_warnings", true);
+pref("devtools.errorconsole.deprecation_warnings", false);
 
 // Disable debugging chrome
 #ifdef MOZ_DEV_EDITION
@@ -1061,7 +1061,7 @@ pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_compartment", true);
 pref("javascript.options.mem.gc_incremental", true);
-pref("javascript.options.mem.gc_incremental_slice_ms", 10);
+pref("javascript.options.mem.gc_incremental_slice_ms", 20);
 pref("javascript.options.mem.gc_compacting", true);
 pref("javascript.options.mem.log", false);
 pref("javascript.options.mem.notify", false);
@@ -1100,7 +1100,7 @@ pref("security.fileuri.strict_origin_policy", true);
 // Allow necko to do A/B testing. Will generally only happen if
 // telemetry is also enabled as otherwise there is no way to report
 // the results
-pref("network.allow-experiments", true);
+pref("network.allow-experiments", false);
 
 // Allow the network changed event to get sent when a network topology or
 // setup change is noticed while running.
@@ -1192,7 +1192,7 @@ pref("network.http.response.timeout", 300);
 // Note: the socket transport service will clamp the number below 256 if the OS
 // cannot allocate that many FDs, and it also always tries to reserve up to 250
 // file descriptors for things other than sockets.
-pref("network.http.max-connections", 256);
+pref("network.http.max-connections", 48);
 
 // If NOT connecting via a proxy, then
 // a new connection will only be attempted if the number of active persistent
@@ -1202,7 +1202,7 @@ pref("network.http.max-persistent-connections-per-server", 6);
 // If connecting via a proxy, then a
 // new connection will only be attempted if the number of active persistent
 // connections to the proxy is less then max-persistent-connections-per-proxy.
-pref("network.http.max-persistent-connections-per-proxy", 32);
+pref("network.http.max-persistent-connections-per-proxy", 16);
 
 // amount of time (in seconds) to suspend pending requests, before spawning a
 // new connection, once the limit on the number of persistent connections per
@@ -1223,7 +1223,7 @@ pref("network.http.referer.trimmingPolicy", 0);
 // 0=always send, 1=send iff base domains match, 2=send iff hosts match
 pref("network.http.referer.XOriginPolicy", 0);
 
-// Controls whether we send HTTPS referres to other HTTPS sites.
+// Controls whether we send HTTPS referrers to other HTTPS sites.
 // By default this is enabled for compatibility (see bug 141641)
 pref("network.http.sendSecureXSiteReferrer", true);
 
@@ -1235,17 +1235,17 @@ pref("network.http.redirection-limit", 20);
 // NOTE: separate values with comma+space (", "): see bug 576033
 pref("network.http.accept-encoding", "gzip, deflate");
 
-pref("network.http.pipelining"      , false);
-pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
+pref("network.http.pipelining"      , true);
+pref("network.http.pipelining.ssl"  , true); // disable pipelining over SSL
 pref("network.http.pipelining.abtest", false);
 pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
-pref("network.http.pipelining.maxrequests" , 32);
+pref("network.http.pipelining.maxrequests" , 4);
 
 // An optimistic request is one pipelined when policy might allow a new
 // connection instead
-pref("network.http.pipelining.max-optimistic-requests" , 4);
+pref("network.http.pipelining.max-optimistic-requests" , 2);
 
 pref("network.http.pipelining.aggressive", false);
 pref("network.http.pipelining.maxsize" , 300000);
@@ -1254,7 +1254,7 @@ pref("network.http.pipelining.reschedule-timeout", 1500);
 
 // The read-timeout is a ms timer that causes the transaction to be completely
 // restarted without pipelining.
-pref("network.http.pipelining.read-timeout", 30000);
+pref("network.http.pipelining.read-timeout", 5000);
 
 // Prompt for redirects resulting in unsafe HTTP requests
 pref("network.http.prompt-temp-redirect", false);
@@ -1313,7 +1313,7 @@ pref("network.http.spdy.enabled.v3-1", true);
 pref("network.http.spdy.enabled.http2draft", true);
 pref("network.http.spdy.enabled.http2", true);
 pref("network.http.spdy.enabled.deps", true);
-pref("network.http.spdy.enforce-tls-profile", true);
+pref("network.http.spdy.enforce-tls-profile", false);
 pref("network.http.spdy.chunk-size", 16000);
 pref("network.http.spdy.timeout", 180);
 pref("network.http.spdy.coalesce-hostnames", true);
@@ -1560,20 +1560,20 @@ pref("network.dns.ipv4OnlyDomains", "");
 pref("network.dns.disableIPv6", false);
 
 // This is the number of dns cache entries allowed
-pref("network.dnsCacheEntries", 400);
+pref("network.dnsCacheEntries", 256);
 
 // In the absence of OS TTLs, the DNS cache TTL value
-pref("network.dnsCacheExpiration", 60);
+pref("network.dnsCacheExpiration", 600);
 
 // Get TTL; not supported on all platforms; nop on the unsupported ones.
 pref("network.dns.get-ttl", false);
 
 // The grace period allows the DNS cache to use expired entries, while kicking off
 // a revalidation in the background.
-pref("network.dnsCacheExpirationGracePeriod", 60);
+pref("network.dnsCacheExpirationGracePeriod", 300);
 
 // This preference can be used to turn off DNS prefetch.
-pref("network.dns.disablePrefetch", false);
+pref("network.dns.disablePrefetch", true);
 
 // This preference controls whether or not URLs with UTF-8 characters are
 // escaped.  Set this preference to TRUE for strict RFC2396 conformance.
@@ -1593,10 +1593,10 @@ pref("network.ftp.idleConnectionTimeout", 300);
 pref("network.dir.format", 2);
 
 // enables the prefetch service (i.e., prefetching of <link rel="next"> URLs).
-pref("network.prefetch-next", true);
+pref("network.prefetch-next", false);
 
 // enables the predictive service
-pref("network.predictor.enabled", true);
+pref("network.predictor.enabled", false);
 pref("network.predictor.enable-hover-on-ssl", false);
 pref("network.predictor.page-degradation.day", 0);
 pref("network.predictor.page-degradation.week", 5);
@@ -1809,7 +1809,7 @@ pref("security.checkloaduri", true);
 pref("security.xpconnect.plugin.unrestricted", true);
 // security-sensitive dialogs should delay button enabling. In milliseconds.
 pref("security.dialog_enable_delay", 1000);
-pref("security.notification_enable_delay", 500);
+pref("security.notification_enable_delay", 300);
 
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);

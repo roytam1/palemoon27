@@ -435,7 +435,8 @@ protected:
       ACTION_SCROLL,
       ACTION_HISTORY,
       ACTION_ZOOM,
-      ACTION_LAST = ACTION_ZOOM
+      ACTION_HSCROLL,
+      ACTION_LAST = ACTION_HSCROLL
     };
     Action ComputeActionFor(WidgetWheelEvent* aEvent);
 

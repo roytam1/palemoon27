@@ -94,15 +94,15 @@ if CONFIG['GNU_CXX']:
         '-Wno-unknown-pragmas',
         '-Wno-unreachable-code',
     ]
-    if CONFIG['CLANG_CXX']:
+if CONFIG['GNU_CXX'] and not CONFIG['CLANG_CXX']:
+    CXXFLAGS += [
+	    '-Wno-shadow-compatible-local',
+		'-Wno-shadow-local',
+	]
+if CONFIG['CLANG_CXX']:
         CXXFLAGS += [
             '-Wno-inconsistent-missing-override',
             '-Wno-unused-private-field',
-        ]
-    else:
-        CXXFLAGS += [
-            '-Wno-shadow-compatible-local',
-            '-Wno-shadow-local',
         ]
 
 if CONFIG['MOZ_DIRECTX_SDK_PATH'] and not CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:

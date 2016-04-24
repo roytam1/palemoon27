@@ -107,4 +107,7 @@ if CONFIG['CLANG_CL'] or not CONFIG['_MSC_VER']:
 
 # Suppress warnings in third-party code.
 if CONFIG['GNU_CC']:
-    CFLAGS += ['-Wno-sign-compare']
+    CFLAGS += [
+	    '-Wno-sign-compare',
+	    '-Wno-unused-function',
+	]

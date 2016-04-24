@@ -216,12 +216,13 @@ if CONFIG['GNU_CC']:
         '-Wno-missing-field-initializers',
         '-Wno-conversion',
     ]
-    if CONFIG['CLANG_CXX']:
-        CFLAGS += [
-            '-Wno-incompatible-pointer-types',
-            '-Wno-tautological-compare',
-            '-Wno-tautological-constant-out-of-range-compare',
-        ]
+if CONFIG['CLANG_CXX']:
+    CFLAGS += [
+        '-Wno-incompatible-pointer-types',
+        '-Wno-tautological-compare',
+        '-Wno-tautological-constant-out-of-range-compare',
+        '-Wno-error=uninitialized',
+    ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
     CFLAGS += CONFIG['MOZ_QT_CFLAGS']

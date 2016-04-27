@@ -3159,9 +3159,11 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
 
   if (mPresContext->BidiEnabled() &&
       (!mPresContext->IsVisualMode() || !lineWM.IsBidiLTR())) {
+    nscoord containerISize = lineWM.IsVertical() ?
+      ContainerHeight() : ContainerWidth();
     nsBidiPresUtils::ReorderFrames(psd->mFirstFrame->mFrame,
                                    aLine->GetChildCount(),
-                                   lineWM, mContainerSize,
+                                   lineWM, containerISize,
                                    psd->mIStart + mTextIndent + dx);
     if (dx) {
       aLine->IndentBy(dx, ContainerWidth());

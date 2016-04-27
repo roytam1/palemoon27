@@ -1222,11 +1222,11 @@ nsBidiPresUtils::ResolveParagraphWithinBlock(nsBlockFrame* aBlockFrame,
 }
 
 void
-nsBidiPresUtils::ReorderFrames(nsIFrame*     aFirstFrameOnLine,
-                               int32_t       aNumFramesOnLine,
-                               WritingMode   aLineWM,
-                               const nsSize& aContainerSize,
-                               nscoord       aStart)
+nsBidiPresUtils::ReorderFrames(nsIFrame* aFirstFrameOnLine,
+                               int32_t aNumFramesOnLine,
+                               WritingMode aLineWM,
+                               nscoord aContainerISize,
+                               nscoord aStart)
 {
   // If this line consists of a line frame, reorder the line frame's children.
   if (aFirstFrameOnLine->GetType() == nsGkAtoms::lineFrame) {
@@ -1240,7 +1240,7 @@ nsBidiPresUtils::ReorderFrames(nsIFrame*     aFirstFrameOnLine,
 
   BidiLineData bld(aFirstFrameOnLine, aNumFramesOnLine);
   RepositionInlineFrames(&bld, aFirstFrameOnLine, aLineWM,
-                         aContainerSize, aStart);
+                         aContainerISize, aStart);
 }
 
 nsIFrame*
@@ -1280,11 +1280,11 @@ nsBidiPresUtils::GetFrameBaseLevel(nsIFrame* aFrame)
 }
 
 void
-nsBidiPresUtils::IsFirstOrLast(nsIFrame*             aFrame,
-                               nsContinuationStates* aContinuationStates,
-                               bool                  aSpanDirMatchesLineDir,
-                               bool&                 aIsFirst /* out */,
-                               bool&                 aIsLast /* out */)
+nsBidiPresUtils::IsFirstOrLast(nsIFrame* aFrame,
+                               const nsContinuationStates* aContinuationStates,
+                               bool aSpanDirMatchesLineDir,
+                               bool& aIsFirst /* out */,
+                               bool& aIsLast /* out */)
 {
   /*
    * Since we lay out frames in the line's direction, visiting a frame with
@@ -1396,12 +1396,12 @@ nsBidiPresUtils::IsFirstOrLast(nsIFrame*             aFrame,
 }
 
 void
-nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
-                                 bool                  aIsEvenLevel,
-                                 nscoord&              aStart,
-                                 nsContinuationStates* aContinuationStates,
-                                 WritingMode           aContainerWM,
-                                 const nsSize&         aContainerSize)
+nsBidiPresUtils::RepositionFrame(nsIFrame* aFrame,
+                                 bool aIsEvenLevel,
+                                 nscoord& aStart,
+                                 const nsContinuationStates* aContinuationStates,
+                                 WritingMode aContainerWM,
+                                 nscoord aContainerISize)
 {
   if (!aFrame)
     return;
@@ -1466,7 +1466,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
                       iCoord,
                       aContinuationStates,
                       frameWM,
-                      aFrame->GetSize());
+                      aFrame->ISize());
       index++;
       frame = reverseOrder ?
                 childList[childList.Length() - index - 1] :
@@ -1482,12 +1482,11 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
   // in vertical writing modes with right-to-left direction (Bug 1131451).
   // This does the correct calculation ad hoc pending the fix for that.
   nsRect rect = aFrame->GetRect();
-  nscoord lineSize = aContainerWM.IsVertical()
-    ? aContainerSize.height : aContainerSize.width;
-  NS_ASSERTION(aContainerWM.IsBidiLTR() || lineSize != NS_UNCONSTRAINEDSIZE,
+  NS_ASSERTION(aContainerWM.IsBidiLTR() || aContainerISize != NS_UNCONSTRAINEDSIZE,
                "Unconstrained inline line size in bidi frame reordering");
 
-  nscoord frameIStart = aContainerWM.IsBidiLTR() ? start : lineSize - aStart;
+  nscoord frameIStart =
+    aContainerWM.IsBidiLTR() ? start : aContainerISize - aStart;
   nscoord frameISize = aStart - start;
 
   (aContainerWM.IsVertical() ? rect.y : rect.x) = frameIStart;
@@ -1522,7 +1521,7 @@ void
 nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
                                         nsIFrame* aFirstChild,
                                         WritingMode aLineWM,
-                                        const nsSize& aContainerSize,
+                                        nscoord aContainerISize,
                                         nscoord aStart)
 {
   nscoord start = aStart;
@@ -1555,7 +1554,7 @@ nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
                     start,
                     &continuationStates,
                     aLineWM,
-                    aContainerSize);
+                    aContainerISize);
   }
 }
 

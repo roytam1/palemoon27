@@ -17,7 +17,7 @@ UNIFIED_SOURCES += [
     'Surface.cpp',
 ]
 
-
+# Suppress warnings in third-party code.
 if CONFIG['GNU_CXX']:
     CXXFLAGS += [
         '-Wno-attributes',
@@ -26,16 +26,16 @@ if CONFIG['GNU_CXX']:
         '-Wno-unknown-pragmas',
         '-Wno-unreachable-code',
     ]
-    if CONFIG['CLANG_CXX']:
-        CXXFLAGS += [
-            '-Wno-inconsistent-missing-override',
-            '-Wno-unused-private-field',
-        ]
-    else:
-        CXXFLAGS += [
-            '-Wno-shadow-compatible-local',
-            '-Wno-shadow-local',
-        ]
+if CONFIG['GNU_CXX'] and not CONFIG['CLANG_CXX']:
+    CXXFLAGS += [
+        '-Wno-shadow-compatible-local',
+        '-Wno-shadow-local',
+    ]
+if CONFIG['CLANG_CXX']:
+    CXXFLAGS += [
+        '-Wno-inconsistent-missing-override',
+        '-Wno-unused-private-field',
+    ]
 
 if CONFIG['MOZ_DIRECTX_SDK_PATH'] and not CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:
     CXXFLAGS += ['-I\'%s/include/\'' % CONFIG['MOZ_DIRECTX_SDK_PATH']]

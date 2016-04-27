@@ -7,6 +7,9 @@
 /* rendering object for CSS "display: ruby-base-container" */
 
 #include "nsRubyBaseContainerFrame.h"
+#include "nsRubyTextContainerFrame.h"
+#include "nsRubyBaseFrame.h"
+#include "nsRubyTextFrame.h"
 #include "nsContentUtils.h"
 #include "nsLineLayout.h"
 #include "nsPresContext.h"

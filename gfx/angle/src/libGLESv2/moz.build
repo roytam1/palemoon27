@@ -189,11 +189,6 @@ if CONFIG['GNU_CXX']:
         '-Wno-unknown-pragmas',
         '-Wno-unreachable-code',
     ]
-if CONFIG['GNU_CXX'] and not CONFIG['CLANG_CXX']:
-    CXXFLAGS += [
-        '-Wno-shadow-compatible-local',
-        '-Wno-shadow-local',
-    ]
 if CONFIG['CLANG_CXX']:
     CXXFLAGS += [
         '-Wno-inconsistent-missing-override',

@@ -266,9 +266,10 @@ CompositorChild::RecvDidComposite(const uint64_t& aId, const uint64_t& aTransact
 {
   if (mLayerManager) {
     MOZ_ASSERT(aId == 0);
-    mLayerManager->DidComposite(aTransactionId);
+    RefPtr<ClientLayerManager> m = mLayerManager;
+    m->DidComposite(aTransactionId, aCompositeStart, aCompositeEnd);
   } else if (aId != 0) {
-    dom::TabChild *child = dom::TabChild::GetFrom(aId);
+    RefPtr<dom::TabChild> child = dom::TabChild::GetFrom(aId);
     if (child) {
       child->DidComposite(aTransactionId);
     }

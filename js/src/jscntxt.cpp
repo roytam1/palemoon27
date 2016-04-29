@@ -285,10 +285,10 @@ js_ReportOutOfMemory(ExclusiveContext* cxArg)
 
     JSContext* cx = cxArg->asJSContext();
     cx->runtime()->hadOutOfMemory = true;
+    AutoSuppressGC suppressGC(cx);
 
     /* Report the oom. */
     if (JS::OutOfMemoryCallback oomCallback = cx->runtime()->oomCallback) {
-        AutoSuppressGC suppressGC(cx);
         oomCallback(cx, cx->runtime()->oomCallbackData);
     }
 
@@ -309,7 +309,6 @@ js_ReportOutOfMemory(ExclusiveContext* cxArg)
 
     /* Report the error. */
     if (JSErrorReporter onError = cx->runtime()->errorReporter) {
-        AutoSuppressGC suppressGC(cx);
         onError(cx, msg, &report);
     }
 

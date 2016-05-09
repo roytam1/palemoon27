@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<!DOCTYPE window [
+<!ENTITY % toolboxDTD SYSTEM "chrome://browser/locale/devtools/toolbox.dtd" >
+ %toolboxDTD;
+]>
+<?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/content/devtools/framework/toolbox.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/skin/devtools/common.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/skin/devtools/toolbox.css" type="text/css"?>
+<?xul-overlay href="chrome://global/content/editMenuOverlay.xul"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
+
+  <commandset id="editMenuCommands"/>
+  <keyset id="editMenuKeys"/>
+  <keyset id="toolbox-keyset">
+    <key id="toolbox-options-key"
+         key="&toolboxOptionsButton.key;"
+         oncommand="void(0);"
+         modifiers="shift, accel"/>
+  </keyset>
+
+  <notificationbox id="toolbox-notificationbox" flex="1">
+    <toolbar class="devtools-tabbar">
+#ifdef XP_MACOSX
+      <hbox id="toolbox-controls">
+        <toolbarbutton id="toolbox-close"
+                       class="devtools-closebutton"
+                       tooltiptext="&toolboxCloseButton.tooltip;"/>
+        <hbox id="toolbox-dock-buttons"/>
+      </hbox>
+#endif
+      <hbox id="toolbox-tabs" flex="1">
+      </hbox>
+      <hbox id="toolbox-buttons" pack="end"/>
+#ifndef XP_MACOSX
+      <vbox id="toolbox-controls-separator"/>
+      <hbox id="toolbox-controls">
+        <hbox id="toolbox-dock-buttons"/>
+        <toolbarbutton id="toolbox-close"
+                       class="devtools-closebutton"
+                       tooltiptext="&toolboxCloseButton.tooltip;"/>
+      </hbox>
+#endif
+    </toolbar>
+    <deck id="toolbox-deck" flex="1">
+    </deck>
+  </notificationbox>
+</window>

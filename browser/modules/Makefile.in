@@ -1,0 +1,42 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH   = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH   = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+include $(topsrcdir)/config/config.mk
+
+EXTRA_JS_MODULES = \
+	BrowserNewTabPreloader.jsm \
+	openLocationLastURL.jsm \
+	NetworkPrioritizer.jsm \
+	offlineAppCache.jsm \
+	webappsUI.jsm \
+	webrtcUI.jsm \
+	SharedFrame.jsm \
+	$(NULL)
+
+EXTRA_PP_JS_MODULES = \
+	AboutHomeUtils.jsm \
+	RecentWindow.jsm \
+	$(NULL)
+
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+EXTRA_JS_MODULES += \
+	Windows8WindowFrameColor.jsm \
+	WindowsJumpLists.jsm \
+	WindowsPreviewPerTab.jsm \
+	$(NULL)
+endif
+
+ifdef MOZILLA_OFFICIAL
+DEFINES += -DMOZILLA_OFFICIAL=1
+endif
+
+include $(topsrcdir)/config/rules.mk

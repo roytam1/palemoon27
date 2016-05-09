@@ -1,0 +1,47 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!-- Menu items -->
+<!ENTITY palemoon.sendLinkCmd.label            "Send Link…">
+<!ENTITY palemoon.sendLinkCmd.accesskey        "d">
+<!ENTITY palemoon.sendPageCmd.label            "Send Page Link…">
+<!ENTITY palemoon.sendPageCmd.accesskey        "e">
+
+<!ENTITY palemoon.menu.statusBar.label               "Status Bar">
+<!ENTITY palemoon.menu.statusBar.accesskey           "S">
+<!ENTITY palemoon.menu.allBookmarks.label            "Organize Bookmarks">
+
+<!-- Preferences -->
+<!ENTITY toolkit.classic.download.window.label       "Use the classic downloads window">
+
+<!ENTITY palemoon.showTabBar.label                   "Always show the tab bar">
+<!ENTITY palemoon.showTabBar.accesskey               "b">
+<!ENTITY palemoon.insertRelatedAfterCurrent.label    "Insert related tabs next to the current tab">
+<!ENTITY palemoon.contextLoadInBackground.label      "When performing a context search, switch to the new tab immediately">
+<!ENTITY palemoon.closeWindowWithLastTab.label       "Close the window when the last tab is closed">
+<!ENTITY palemoon.newtabPage.label                   "When opening a new tab, show:">
+<!ENTITY palemoon.newtabPage.blank.label             "A blank page">
+<!ENTITY palemoon.newtabPage.home.label              "The Pale Moon start page">
+<!ENTITY palemoon.newtabPage.quickdial.label         "The Quickdial page">
+
+<!ENTITY palemoon.loadImages.label            "Load images:">
+<!ENTITY palemoon.loadImages.always           "Automatically">
+<!ENTITY palemoon.loadImages.never            "Never">
+<!ENTITY palemoon.loadImages.no3rdparty       "Originating server only">
+
+<!ENTITY palemoon.firefoxCompatGroup.label    "Firefox Compatibility">
+<!ENTITY palemoon.firefoxCompat.label         "Use Firefox Compatibility mode">
+
+<!ENTITY palemoon.scrollparamTab.label               "Scrolling">
+<!ENTITY palemoon.smoothscroll.explain.label         "The parameters below only have an effect if smooth scrolling is enabled overall with the checkbox above.">
+<!ENTITY palemoon.smoothscroll.to                    "to">
+<!ENTITY palemoon.smoothscroll.params.label          "Smooth scrolling parameters">
+<!ENTITY palemoon.smoothscroll.mousewheel.label      "Smooth scroll with mouse wheel">
+<!ENTITY palemoon.smoothscroll.mousewheel.duration   "Mouse wheel scroll duration:">
+<!ENTITY palemoon.smoothscroll.arrowkeys.label       "Smooth scroll with arrow keys">
+<!ENTITY palemoon.smoothscroll.arrowkeys.duration    "Arrow keys scroll duration:">
+<!ENTITY palemoon.smoothscroll.pagekeys.label        "Smooth scroll page up/down">
+<!ENTITY palemoon.smoothscroll.pagekeys.duration     "Page up/down scroll duration:">
+<!ENTITY palemoon.smoothscroll.scrollbar.label       "Smooth scroll with scrollbars">
+<!ENTITY palemoon.smoothscroll.scrollbar.duration    "Scrollbar smooth scroll duration:">

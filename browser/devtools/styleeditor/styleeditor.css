@@ -1,0 +1,89 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.stylesheet-error-message {
+  display: none;
+}
+
+li.error > .stylesheet-info > .stylesheet-more  > .stylesheet-error-message {
+  display: block;
+}
+
+.splitview-nav > li,
+.stylesheet-info,
+.stylesheet-more {
+  display: -moz-box;
+}
+
+.splitview-nav > li {
+  -moz-box-orient: horizontal;
+}
+
+.splitview-nav > li > hgroup {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+  -moz-box-flex: 1;
+}
+
+.stylesheet-info > h1 {
+  -moz-box-flex: 1;
+}
+
+.stylesheet-name > label {
+  display: inline;
+  cursor: pointer;
+}
+
+.splitview-nav > li > hgroup.stylesheet-info {
+  -moz-box-pack: center;
+}
+
+.stylesheet-name {
+  white-space: nowrap;
+}
+
+li.unsaved > hgroup > h1 > .stylesheet-name:before {
+  content: "*";
+}
+
+.stylesheet-enabled {
+  display: -moz-box;
+}
+
+.stylesheet-saveButton {
+  display: none;
+}
+
+.stylesheet-rule-count,
+li.splitview-active > hgroup > .stylesheet-more > h3 > .stylesheet-saveButton,
+li:hover > hgroup > .stylesheet-more > h3 > .stylesheet-saveButton {
+  display: -moz-box;
+}
+
+.stylesheet-more > spacer {
+  -moz-box-flex: 1;
+}
+
+/* portrait mode */
+@media (max-width: 550px) {
+  li.splitview-active > hgroup > .stylesheet-more > .stylesheet-rule-count,
+  li:hover > hgroup > .stylesheet-more > .stylesheet-rule-count {
+    display: none;
+  }
+
+  .stylesheet-more {
+    -moz-box-flex: 1;
+    -moz-box-pack: end;
+  }
+
+  .splitview-nav > li > hgroup.stylesheet-info {
+    -moz-box-orient: horizontal;
+    -moz-box-flex: 1;
+  }
+
+  .stylesheet-more > spacer {
+    -moz-box-flex: 0;
+  }
+}

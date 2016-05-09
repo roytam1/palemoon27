@@ -1,0 +1,59 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* BreacrumbsWidget */
+
+.breadcrumbs-widget-item {
+  direction: ltr;
+}
+
+.breadcrumbs-widget-item {
+  -moz-user-focus: normal;
+}
+
+/* SideMenuWidget */
+
+.side-menu-widget-container {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.side-menu-widget-item-contents {
+  -moz-user-focus: normal;
+}
+
+/* VariablesView */
+
+.variables-view-container {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.variables-view-element-details:not([open]) {
+  display: none;
+}
+
+.variables-view-scope,
+.variable-or-property {
+  -moz-user-focus: normal;
+}
+
+.variables-view-scope > .title,
+.variable-or-property > .title {
+  overflow: hidden;
+}
+
+.variables-view-scope[non-header] > .title,
+.variable-or-property[non-header] > .title,
+.variable-or-property[non-match] > .title {
+  display: none;
+}
+
+.variable-or-property:not([safe-getter]) > tooltip > label[value=WebIDL],
+.variable-or-property:not([non-extensible]) > tooltip > label[value=extensible],
+.variable-or-property:not([frozen]) > tooltip > label[value=frozen],
+.variable-or-property:not([sealed]) > tooltip > label[value=sealed] {
+  display: none;
+}

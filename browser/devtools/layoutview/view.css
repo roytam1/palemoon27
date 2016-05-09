@@ -1,0 +1,187 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+body, html {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+#header {
+  box-sizing: border-box;
+  font: 12px/16px monospace;
+  width: 100%;
+  padding: 6px 9px;
+  display: -moz-box;
+  vertical-align: top;
+}
+
+#header:-moz-dir(rtl) {
+  -moz-box-direction: reverse;
+}
+
+#header > span {
+  display: -moz-box;
+}
+
+#element-size {
+  -moz-box-flex: 1;
+}
+
+#element-size:-moz-dir(rtl) {
+  -moz-box-pack: end;
+}
+
+#main {
+  margin: 0 10px 10px 10px;
+  box-sizing: border-box;
+  width: calc(100% - 2 * 10px);
+  position: absolute;
+  border-width: 1px;
+  font: 10px/12px monospace;
+}
+
+@media (min-width: 320px) {
+  body {
+    position: absolute;
+    width: 320px;
+    left: -160px;
+    margin-left: 50%;
+  }
+}
+
+
+#margins {
+  padding: 28px;
+}
+
+#content {
+  height: 20px;
+  border-width: 1px;
+}
+
+#padding {
+  border-width: 25px;
+}
+
+#borders {
+  border-width: 2px;
+  box-shadow: 0 0 16px black;
+}
+
+#main > p {
+  position: absolute;
+  pointer-events: none;
+}
+
+#main > p {
+  margin: 0;
+  text-align: center;
+}
+
+#main > p > span {
+  vertical-align: middle;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.border.top {
+  left: 0; top: 23px;
+  width: 98px;
+}
+
+.border.bottom {
+  right: 0; bottom: 22px;
+  width: 98px;
+  top: auto;
+}
+
+.border.left {
+  top: 42px; left: 0;
+  width: 56px;
+}
+
+.border.right{
+  bottom: 42px; right: 0;
+  width: 56px;
+  top: auto;
+}
+
+.top, .bottom {
+  width: calc(100% - 2px);
+  text-align: center;
+}
+
+.margin.top {
+  top: 8px;
+}
+
+.margin.bottom {
+  bottom: 6px;
+}
+
+.padding.top {
+  top: 35px;
+}
+
+.padding.bottom {
+  bottom: 35px;
+}
+
+.size,
+.margin.left,
+.margin.right,
+.padding.left,
+.padding.right {
+  top: 0;
+  line-height: 132px;
+}
+
+.size {
+  width: calc(100% - 2px);
+}
+
+.margin.right,
+.margin.left {
+  width: 28px;
+}
+
+.padding.right,
+.padding.left {
+  width: 25px;
+}
+
+.margin.right {
+  right: 0;
+}
+
+.margin.left {
+  left: 0;
+}
+
+.padding.left {
+  left: 30px;
+}
+
+.padding.right {
+  right: 30px;
+}
+
+.tooltip {
+  position: absolute;
+  bottom: 0;
+  right: 2px;
+  pointer-events: none;
+}
+
+body.dim > #main > p,
+body.dim > #main > .tooltip {
+  visibility: hidden;
+}
+

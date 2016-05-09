@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<!DOCTYPE html [
+<!ENTITY % layoutviewDTD SYSTEM "chrome://browser/locale/devtools/layoutview.dtd" >
+ %layoutviewDTD;
+]>
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <head>
+    <title>&title;</title>
+
+    <script id="script-theme" type="application/javascript;version=1.8" src="chrome://browser/content/devtools/theme-switching.js"/>
+
+    <script type="application/javascript;version=1.8" src="view.js"></script>
+    <script type="application/javascript;version=1.8">
+    <![CDATA[
+      let elts;
+      let tooltip;
+
+      const Ci = Components.interfaces;
+      const Cc = Components.classes;
+
+      window.setPanel = function(panel) {
+        this.layoutview = new LayoutView(panel, window);
+
+        // Tooltip mechanism
+        elts = document.querySelectorAll("*[tooltip]");
+        tooltip = document.querySelector(".tooltip");
+        for (let i = 0; i < elts.length; i++) {
+          let elt = elts[i];
+          elt.addEventListener("mouseover", onmouseover, true);
+          elt.addEventListener("mouseout", onmouseout, true);
+        }
+
+        // Mark document as RTL or LTR:
+        let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
+          getService(Ci.nsIXULChromeRegistry);
+        let dir = chromeReg.isLocaleRTL("global");
+        document.body.setAttribute("dir", dir ? "rtl" : "ltr");
+
+        window.parent.postMessage("layoutview-ready", "*");
+      }
+
+      window.onunload = function() {
+        this.layoutview.destroy();
+        if (elts) {
+          for (let i = 0; i < elts.length; i++) {
+            let elt = elts[i];
+            elt.removeEventListener("mouseover", onmouseover, true);
+            elt.removeEventListener("mouseout", onmouseout, true);
+          }
+        }
+      }
+
+      function onmouseover(e) {
+        tooltip.textContent = e.target.getAttribute("tooltip");
+      }
+
+      function onmouseout(e) {
+        tooltip.textContent = "";
+      }
+    ]]>
+    </script>
+
+    <link rel="stylesheet" href="chrome://browser/skin/devtools/layoutview.css" type="text/css"/>
+    <link rel="stylesheet" href="view.css" type="text/css"/>
+
+  </head>
+  <body class="theme-body">
+
+    <p id="header">
+        <span id="element-size"></span>
+    </p>
+
+    <div id="main">
+
+      <div id="margins" tooltip="&margins.tooltip;">
+        <div id="borders" tooltip="&borders.tooltip;">
+          <div id="padding" tooltip="&padding.tooltip;">
+            <div id="content" tooltip="&content.tooltip;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="border top"><span tooltip="border-top"></span></p>
+      <p class="border right"><span tooltip="border-right"></span></p>
+      <p class="border bottom"><span tooltip="border-bottom"></span></p>
+      <p class="border left"><span tooltip="border-left"></span></p>
+
+      <p class="margin top"><span tooltip="margin-top"></span></p>
+      <p class="margin right"><span tooltip="margin-right"></span></p>
+      <p class="margin bottom"><span tooltip="margin-bottom"></span></p>
+      <p class="margin left"><span tooltip="margin-left"></span></p>
+
+      <p class="padding top"><span tooltip="padding-top"></span></p>
+      <p class="padding right"><span tooltip="padding-right"></span></p>
+      <p class="padding bottom"><span tooltip="padding-bottom"></span></p>
+      <p class="padding left"><span tooltip="padding-left"></span></p>
+
+      <p class="size"><span tooltip="&content.tooltip;"></span></p>
+
+      <span class="tooltip"></span>
+
+    </div>
+
+  </body>
+</html>

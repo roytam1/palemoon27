@@ -2,15 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH      = @DEPTH@
-topsrcdir  = @top_srcdir@
-srcdir     = @srcdir@
-VPATH      = @srcdir@
-
-CHROMEDIR = $(call core_abspath,$(FINAL_TARGET))/chrome
-
-include $(DEPTH)/config/autoconf.mk
-
 include $(topsrcdir)/config/rules.mk
 
 exclude_files = \
@@ -29,6 +20,5 @@ libs:: $(FINAL_TARGET)/chrome/pdfjs.manifest
 	  $(srcdir)/pdfjs \
           $(foreach exclude,$(exclude_files), -X $(srcdir)/pdfjs/$(exclude)) \
           $(FINAL_TARGET)/chrome
-	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py \
-	  $(FINAL_TARGET)/chrome.manifest "manifest chrome/pdfjs.manifest"
+	$(call py_action,buildlist,$(FINAL_TARGET)/chrome.manifest "manifest chrome/pdfjs.manifest")
 

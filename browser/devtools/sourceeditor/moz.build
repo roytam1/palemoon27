@@ -5,3 +5,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
+EXTRA_JS_MODULES += [
+    'source-editor-orion.jsm',
+    'source-editor-ui.jsm',
+    'source-editor.jsm',
+]

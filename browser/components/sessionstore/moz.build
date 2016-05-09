@@ -4,12 +4,28 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DIRS += ['src']
+JAR_MANIFESTS += ['jar.mn']
 
 XPIDL_SOURCES += [
     'nsISessionStartup.idl',
     'nsISessionStore.idl',
 ]
 
-MODULE = 'sessionstore'
+XPIDL_MODULE = 'sessionstore'
 
+EXTRA_COMPONENTS += [
+    'nsSessionStartup.js',
+    'nsSessionStore.js',
+    'nsSessionStore.manifest',
+]
+
+EXTRA_JS_MODULES.sessionstore = [
+    '_SessionFile.jsm',
+    'DocumentUtils.jsm',
+    'SessionStorage.jsm',
+    'XPathGenerator.jsm',
+]
+
+EXTRA_PP_JS_MODULES.sessionstore += [
+    'SessionStore.jsm',
+]

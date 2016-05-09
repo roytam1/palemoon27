@@ -3,14 +3,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH		= @DEPTH@
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
-relativesrcdir = @relativesrcdir@
-
-include $(DEPTH)/config/autoconf.mk
-
 include $(topsrcdir)/config/config.mk
 
 vpath %.xml @srcdir@/en-US/searchplugins
@@ -52,7 +44,10 @@ RETRIEVE_WINDOWS_INSTALLER = 1
 
 MOZ_LANGPACK_EID=langpack-$(AB_CD)@firefox.mozilla.org
 
-PREF_JS_EXPORTS = $(call MERGE_FILE,firefox-l10n.js)
+L10N_PREF_JS_EXPORTS = $(call MERGE_FILE,firefox-l10n.js)
+L10N_PREF_JS_EXPORTS_PATH = $(FINAL_TARGET)/$(PREF_DIR)
+L10N_PREF_JS_EXPORTS_FLAGS = $(PREF_PPFLAGS) --silence-missing-directive-warnings
+PP_TARGETS += L10N_PREF_JS_EXPORTS
 
 ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
 MOZ_PKG_MAC_DSSTORE=$(_ABS_DIST)/branding/dsstore
@@ -105,11 +100,11 @@ NO_JA_JP_MAC_AB_CD := $(if $(filter ja-JP-mac, $(AB_CD)),ja,$(AB_CD))
 
 %/defaults/profile/bookmarks.html: bookmarks.inc generic/profile/bookmarks.html.in
 	$(SYSINSTALL) -D $(dir $@)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+	$(call py_action,preprocessor, \
 	  -I $< \
 	  -DAB_CD=$(NO_JA_JP_MAC_AB_CD) \
 	  $(srcdir)/generic/profile/bookmarks.html.in \
-	  > $@
+	  -o $@)
 
 libs:: $(FINAL_TARGET)/defaults/profile/bookmarks.html ;
 
@@ -197,12 +192,12 @@ ifeq ($(OS_ARCH),WINNT)
 	cat $< $(srcdir)/../installer/windows/nsis/updater_append.ini | \
 	  sed -e "s/^InfoText=/Info=/" -e "s/^TitleText=/Title=/" | \
 	  sed -e "s/%MOZ_APP_DISPLAYNAME%/$(MOZ_APP_DISPLAYNAME)/" > \
-	  $(DIST)/bin/updater.ini
+	  $(FINAL_TARGET)/../bin/updater.ini
 else
 	cat $< | \
 	  sed -e "s/^InfoText=/Info=/" -e "s/^TitleText=/Title=/" | \
 	  sed -e "s/%MOZ_APP_DISPLAYNAME%/$(MOZ_APP_DISPLAYNAME)/" > \
-	  $(DIST)/bin/updater.ini
+	  $(FINAL_TARGET)/../bin/updater.ini
 endif
 endif
 

@@ -1,0 +1,44 @@
+dnl -*- Mode: Autoconf; tab-width: 2; indent-tabs-mode: nil; -*-
+dnl vi: set tabstop=2 shiftwidth=2 expandtab:
+dnl This Source Code Form is subject to the terms of the Mozilla Public
+dnl License, v. 2.0. If a copy of the MPL was not distributed with this
+dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+dnl Things we need to carry from confvars.sh
+
+
+dnl Optional parts of the build.
+
+dnl ========================================================
+dnl = Enable Mozilla DevTools (/browser only)
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(devtools,
+[  --disable-devtools           Disable Mozilla Developer Tools],
+    MOZ_DEVTOOLS=,
+    MOZ_DEVTOOLS=1)
+
+if test -n "$MOZ_DEVTOOLS"; then
+    AC_DEFINE(MOZ_DEVTOOLS)
+fi
+
+AC_SUBST(MOZ_DEVTOOLS)
+
+
+dnl ========================================================
+dnl Web App Runtime
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(webapp-runtime,
+[  --enable-webapp-runtime  Enable building of the Web App Runtime],
+    MOZ_WEBAPP_RUNTIME=1,
+    MOZ_WEBAPP_RUNTIME=)
+if test "$MOZ_WIDGET_TOOLKIT" != "windows" -a "$MOZ_WIDGET_TOOLKIT" != "cocoa" -a "$MOZ_WIDGET_TOOLKIT" != "gtk2"; then
+    MOZ_WEBAPP_RUNTIME=
+fi
+if test "$OS_ARCH" = "WINNT" -a -z "$MAKENSISU" -a -n "$CROSS_COMPILE"; then
+    MOZ_WEBAPP_RUNTIME=
+fi
+AC_SUBST(MOZ_WEBAPP_RUNTIME)
+if test "$MOZ_WEBAPP_RUNTIME"; then
+    AC_DEFINE(MOZ_WEBAPP_RUNTIME)
+fi
+

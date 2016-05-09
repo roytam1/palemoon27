@@ -1,0 +1,34 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH      = @DEPTH@
+topsrcdir  = @top_srcdir@
+srcdir     = @srcdir@
+VPATH      = @srcdir@
+
+CHROMEDIR = $(call core_abspath,$(FINAL_TARGET))/chrome
+
+include $(DEPTH)/config/autoconf.mk
+
+include $(topsrcdir)/config/rules.mk
+
+exclude_files = \
+  test \
+  install.rdf \
+  bootstrap.js \
+  icon.png \
+  icon64.png \
+  $(NULL)
+
+$(FINAL_TARGET)/chrome/pdfjs.manifest: $(GLOBAL_DEPS)
+	printf "manifest pdfjs/chrome.manifest" > $@
+
+libs:: $(FINAL_TARGET)/chrome/pdfjs.manifest
+	$(PYTHON) $(topsrcdir)/config/nsinstall.py \
+	  $(srcdir)/pdfjs \
+          $(foreach exclude,$(exclude_files), -X $(srcdir)/pdfjs/$(exclude)) \
+          $(FINAL_TARGET)/chrome
+	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py \
+	  $(FINAL_TARGET)/chrome.manifest "manifest chrome/pdfjs.manifest"
+

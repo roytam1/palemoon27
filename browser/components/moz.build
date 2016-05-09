@@ -1,0 +1,43 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+PARALLEL_DIRS += [
+    'about',
+    'certerror',
+    'dirprovider',
+    'downloads',
+    'feeds',
+    'places',
+    'preferences',
+    'privatebrowsing',
+    'search',
+    'sessionstore',
+    'shell',
+    'sidebar',
+    'migration',
+]
+
+if CONFIG['MOZ_SAFE_BROWSING']:
+    PARALLEL_DIRS += ['safebrowsing']
+
+DIRS += ['build']
+
+XPIDL_SOURCES += [
+    'nsIBrowserGlue.idl',
+    'nsIBrowserHandler.idl',
+]
+
+XPIDL_MODULE = 'browsercompsbase'
+
+MODULE = 'browsercomps'
+
+EXTRA_COMPONENTS += [
+    'BrowserComponents.manifest',
+]
+EXTRA_PP_COMPONENTS += [
+    'nsBrowserContentHandler.js',
+    'nsBrowserGlue.js',
+]

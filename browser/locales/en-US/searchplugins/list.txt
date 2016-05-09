@@ -1,0 +1,7 @@
+duckduckgo-palemoon
+bing
+google
+ecosia
+twitter
+wikipedia
+yahoo

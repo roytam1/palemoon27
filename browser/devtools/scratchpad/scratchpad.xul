@@ -1,0 +1,301 @@
+<?xml version="1.0"?>
+#ifdef 0
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+#endif
+<!DOCTYPE window [
+<!ENTITY % scratchpadDTD SYSTEM "chrome://browser/locale/devtools/scratchpad.dtd" >
+ %scratchpadDTD;
+]>
+<?xml-stylesheet href="chrome://global/skin/global.css"?>
+<?xml-stylesheet href="chrome://browser/skin/devtools/common.css"?>
+<?xml-stylesheet href="chrome://browser/skin/devtools/scratchpad.css"?>
+<?xul-overlay href="chrome://global/content/editMenuOverlay.xul"?>
+<?xul-overlay href="chrome://browser/content/devtools/source-editor-overlay.xul"?>
+
+<window id="main-window"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        title="&window.title;"
+        windowtype="devtools:scratchpad"
+        macanimationtype="document"
+        fullscreenbutton="true"
+        screenX="4" screenY="4"
+        width="640" height="480"
+        persist="screenX screenY width height sizemode">
+
+<script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
+<script type="application/javascript" src="chrome://browser/content/devtools/scratchpad.js"/>
+
+<commandset id="editMenuCommands"/>
+<commandset id="sourceEditorCommands"/>
+
+<commandset id="sp-commandset">
+  <command id="sp-cmd-newWindow" oncommand="Scratchpad.openScratchpad();"/>
+  <command id="sp-cmd-openFile" oncommand="Scratchpad.openFile();"/>
+  <command id="sp-cmd-clearRecentFiles" oncommand="Scratchpad.clearRecentFiles();"/>
+  <command id="sp-cmd-save" oncommand="Scratchpad.saveFile();"/>
+  <command id="sp-cmd-saveas" oncommand="Scratchpad.saveFileAs();"/>
+  <command id="sp-cmd-revert" oncommand="Scratchpad.promptRevert();" disabled="true"/>
+
+  <!-- TODO: bug 650340 - implement printFile()
+  <command id="sp-cmd-printFile" oncommand="Scratchpad.printFile();" disabled="true"/>
+ -->
+
+  <command id="sp-cmd-close" oncommand="Scratchpad.close();"/>
+  <command id="sp-cmd-run" oncommand="Scratchpad.run();"/>
+  <command id="sp-cmd-inspect" oncommand="Scratchpad.inspect();"/>
+  <command id="sp-cmd-display" oncommand="Scratchpad.display();"/>
+  <command id="sp-cmd-contentContext" oncommand="Scratchpad.setContentContext();"/>
+  <command id="sp-cmd-browserContext" oncommand="Scratchpad.setBrowserContext();" disabled="true"/>
+  <command id="sp-cmd-reloadAndRun" oncommand="Scratchpad.reloadAndRun();"/>
+  <command id="sp-cmd-resetContext" oncommand="Scratchpad.resetContext();"/>
+  <command id="sp-cmd-errorConsole" oncommand="Scratchpad.openErrorConsole();" disabled="true"/>
+  <command id="sp-cmd-webConsole" oncommand="Scratchpad.openWebConsole();"/>
+  <command id="sp-cmd-documentationLink" oncommand="Scratchpad.openDocumentationPage();"/>
+  <command id="sp-cmd-hideSidebar" oncommand="Scratchpad.sidebar.hide();"/>
+</commandset>
+
+<keyset id="sourceEditorKeys"/>
+
+<keyset id="sp-keyset">
+  <key id="sp-key-window"
+       key="&newWindowCmd.commandkey;"
+       command="sp-cmd-newWindow"
+       modifiers="accel"/>
+  <key id="sp-key-open"
+       key="&openFileCmd.commandkey;"
+       command="sp-cmd-openFile"
+       modifiers="accel"/>
+  <key id="sp-key-save"
+       key="&saveFileCmd.commandkey;"
+       command="sp-cmd-save"
+       modifiers="accel"/>
+  <key id="sp-key-close"
+       key="&closeCmd.key;"
+       command="sp-cmd-close"
+       modifiers="accel"/>
+
+  <!-- TODO: bug 650340 - implement printFile
+  <key id="sp-key-printFile"
+       key="&printCmd.commandkey;"
+       command="sp-cmd-printFile"
+       modifiers="accel"/>
+  -->
+
+  <key id="sp-key-run"
+       key="&run.key;"
+       command="sp-cmd-run"
+       modifiers="accel"/>
+  <key id="sp-key-inspect"
+       key="&inspect.key;"
+       command="sp-cmd-inspect"
+       modifiers="accel"/>
+  <key id="sp-key-display"
+       key="&display.key;"
+       command="sp-cmd-display"
+       modifiers="accel"/>
+  <key id="sp-key-reloadAndRun"
+       key="&reloadAndRun.key;"
+       command="sp-cmd-reloadAndRun"
+       modifiers="accel,shift"/>
+  <key id="sp-key-errorConsole"
+       key="&errorConsoleCmd.commandkey;"
+       command="sp-cmd-errorConsole"
+       modifiers="accel,shift"/>
+  <key id="sp-key-hideSidebar"
+       keycode="VK_ESCAPE"
+       command="sp-cmd-hideSidebar"/>
+  <key id="key_openHelp"
+       keycode="VK_F1"
+       command="sp-cmd-documentationLink"/>
+</keyset>
+
+
+<menubar id="sp-menubar">
+  <menu id="sp-file-menu" label="&fileMenu.label;"
+        accesskey="&fileMenu.accesskey;">
+    <menupopup id="sp-menu-filepopup">
+      <menuitem id="sp-menu-newscratchpad"
+                label="&newWindowCmd.label;"
+                accesskey="&newWindowCmd.accesskey;"
+                key="sp-key-window"
+                command="sp-cmd-newWindow"/>
+      <menuseparator/>
+      <menuitem id="sp-menu-open"
+                label="&openFileCmd.label;"
+                command="sp-cmd-openFile"
+                key="sp-key-open"
+                accesskey="&openFileCmd.accesskey;"/>
+      <menu id="sp-open_recent-menu" label="&openRecentMenu.label;"
+            accesskey="&openRecentMenu.accesskey;"
+            disabled="true">
+        <menupopup id="sp-menu-open_recentPopup"/>
+      </menu>
+      <menuitem id="sp-menu-save"
+                label="&saveFileCmd.label;"
+                accesskey="&saveFileCmd.accesskey;"
+                key="sp-key-save"
+                command="sp-cmd-save"/>
+      <menuitem id="sp-menu-saveas"
+                label="&saveFileAsCmd.label;"
+                accesskey="&saveFileAsCmd.accesskey;"
+                command="sp-cmd-saveas"/>
+      <menuitem id="sp-menu-revert"
+                label="&revertCmd.label;"
+                accesskey="&revertCmd.accesskey;"
+                command="sp-cmd-revert"/>
+      <menuseparator/>
+
+      <!-- TODO: bug 650340 - implement printFile
+      <menuitem id="sp-menu-print"
+                label="&printCmd.label;"
+                accesskey="&printCmd.accesskey;"
+                command="sp-cmd-printFile"/>
+      <menuseparator/>
+      -->
+
+      <menuitem id="sp-menu-close"
+                label="&closeCmd.label;"
+                key="sp-key-close"
+                accesskey="&closeCmd.accesskey;"
+                command="sp-cmd-close"/>
+    </menupopup>
+  </menu>
+
+  <menu id="sp-edit-menu" label="&editMenu.label;"
+        accesskey="&editMenu.accesskey;">
+    <menupopup id="sp-menu_editpopup"
+               onpopupshowing="goUpdateSourceEditorMenuItems()">
+      <menuitem id="se-menu-undo"/>
+      <menuitem id="se-menu-redo"/>
+      <menuseparator/>
+      <menuitem id="se-menu-cut"/>
+      <menuitem id="se-menu-copy"/>
+      <menuitem id="se-menu-paste"/>
+      <menuseparator/>
+      <menuitem id="se-menu-selectAll"/>
+      <menuseparator/>
+      <menuitem id="se-menu-find"/>
+      <menuitem id="se-menu-findAgain"/>
+      <menuseparator/>
+      <menuitem id="se-menu-gotoLine"/>
+    </menupopup>
+  </menu>
+
+  <menu id="sp-execute-menu" label="&executeMenu.label;"
+        accesskey="&executeMenu.accesskey;">
+    <menupopup id="sp-menu_executepopup">
+      <menuitem id="sp-text-run"
+                label="&run.label;"
+                accesskey="&run.accesskey;"
+                key="sp-key-run"
+                command="sp-cmd-run"/>
+      <menuitem id="sp-text-inspect"
+                label="&inspect.label;"
+                accesskey="&inspect.accesskey;"
+                key="sp-key-inspect"
+                command="sp-cmd-inspect"/>
+      <menuitem id="sp-text-display"
+                label="&display.label;"
+                accesskey="&display.accesskey;"
+                key="sp-key-display"
+                command="sp-cmd-display"/>
+      <menuseparator/>
+      <menuitem id="sp-text-reloadAndRun"
+                label="&reloadAndRun.label;"
+                key="sp-key-reloadAndRun"
+                accesskey="&reloadAndRun.accesskey;"
+                command="sp-cmd-reloadAndRun"/>
+      <menuitem id="sp-text-resetContext"
+                label="&resetContext2.label;"
+                accesskey="&resetContext2.accesskey;"
+                command="sp-cmd-resetContext"/>
+    </menupopup>
+  </menu>
+
+  <menu id="sp-environment-menu"
+        label="&environmentMenu.label;"
+        accesskey="&environmentMenu.accesskey;"
+        hidden="true">
+    <menupopup id="sp-menu-environment">
+      <menuitem id="sp-menu-content"
+                label="&contentContext.label;"
+                accesskey="&contentContext.accesskey;"
+                command="sp-cmd-contentContext"
+                checked="true"
+                type="radio"/>
+      <menuitem id="sp-menu-browser"
+                command="sp-cmd-browserContext"
+                label="&browserContext.label;"
+                accesskey="&browserContext.accesskey;"
+                type="radio"/>
+    </menupopup>
+  </menu>
+
+#ifdef XP_WIN
+  <menu id="sp-help-menu"
+        label="&helpMenu.label;"
+        accesskey="&helpMenuWin.accesskey;">
+#else
+  <menu id="sp-help-menu"
+        label="&helpMenu.label;"
+        accesskey="&helpMenu.accesskey;">
+#endif
+    <menupopup id="sp-menu-help">
+      <menuitem id="sp-menu-documentation"
+                label="&documentationLink.label;"
+                accesskey="&documentationLink.accesskey;"
+                command="sp-cmd-documentationLink"
+                key="key_openHelp"/>
+    </menupopup>
+  </menu>
+</menubar>
+
+<popupset id="scratchpad-popups">
+  <menupopup id="scratchpad-text-popup"
+             onpopupshowing="goUpdateSourceEditorMenuItems()">
+    <menuitem id="se-cMenu-cut"/>
+    <menuitem id="se-cMenu-copy"/>
+    <menuitem id="se-cMenu-paste"/>
+    <menuitem id="se-cMenu-delete"/>
+    <menuseparator/>
+    <menuitem id="se-cMenu-selectAll"/>
+    <menuseparator/>
+    <menuitem id="sp-text-run"
+              label="&run.label;"
+              accesskey="&run.accesskey;"
+              key="sp-key-run"
+              command="sp-cmd-run"/>
+    <menuitem id="sp-text-inspect"
+              label="&inspect.label;"
+              accesskey="&inspect.accesskey;"
+              key="sp-key-inspect"
+              command="sp-cmd-inspect"/>
+    <menuitem id="sp-text-display"
+              label="&display.label;"
+              accesskey="&display.accesskey;"
+              key="sp-key-display"
+              command="sp-cmd-display"/>
+    <menuseparator/>
+    <menuitem id="sp-text-resetContext"
+              label="&resetContext2.label;"
+              accesskey="&resetContext2.accesskey;"
+              command="sp-cmd-resetContext"/>
+  </menupopup>
+</popupset>
+
+<notificationbox id="scratchpad-notificationbox" flex="1">
+  <hbox flex="1">
+    <vbox id="scratchpad-editor" flex="1"/>
+    <splitter class="devtools-side-splitter"/>
+    <tabbox id="scratchpad-sidebar" class="devtools-sidebar-tabs"
+                                    width="300"
+                                    hidden="true">
+      <tabs/>
+      <tabpanels flex="1"/>
+    </tabbox>
+  </hbox>
+</notificationbox>
+
+</window>

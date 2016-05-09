@@ -6,7 +6,7 @@
 
 CONFIGURE_SUBST_FILES += ['installer/Makefile']
 
-PARALLEL_DIRS += [
+DIRS += [
     'base',
     'components',
     'fuel',
@@ -26,3 +26,5 @@ DIRS += [
 if CONFIG['MAKENSISU']:
     DIRS += ['installer/windows']
 
+DIST_SUBDIR = 'browser'
+export('DIST_SUBDIR')

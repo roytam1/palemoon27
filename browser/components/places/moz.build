@@ -4,9 +4,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DIRS += ['src']
+JAR_MANIFESTS += ['jar.mn']
 
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/browser/components/',
+EXTRA_COMPONENTS += [
+    'BrowserPlaces.manifest',
+    'PlacesProtocolHandler.js',
 ]
 
+EXTRA_PP_JS_MODULES += [
+    'PlacesUIUtils.jsm',
+]

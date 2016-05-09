@@ -757,7 +757,7 @@ var gPluginHandler = {
         callback: function() { browser.reload(); },
       }];
 
-      let notification = notificationBox.appendNotification(messageString, "plugin-crashed",
+      notification = notificationBox.appendNotification(messageString, "plugin-crashed",
                                                             iconURL, priority, buttons);
 
       // Add the "learn more" link.

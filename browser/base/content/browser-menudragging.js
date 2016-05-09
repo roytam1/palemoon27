@@ -237,7 +237,7 @@ var browserMenuDragging = {
 
       // If we have not moved to a valid new target clear the drop indicator
       // this happens when moving out of the popup.
-      let target = event.relatedTarget;
+      target = event.relatedTarget;
       if (!target)
         this._indicatorBar.hidden = true;
 

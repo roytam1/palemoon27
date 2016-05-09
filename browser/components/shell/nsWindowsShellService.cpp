@@ -5,6 +5,8 @@
 
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/RefPtr.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIImageLoadingContent.h"
@@ -27,6 +29,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
+#include "mozilla/WindowsVersion.h"
 
 #include "windows.h"
 #include "shellapi.h"
@@ -53,7 +56,11 @@
 
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
 
-NS_IMPL_ISUPPORTS2(nsWindowsShellService, nsIWindowsShellService, nsIShellService)
+using mozilla::IsWin8OrLater;
+using namespace mozilla;
+using namespace mozilla::gfx;
+
+NS_IMPL_ISUPPORTS(nsWindowsShellService, nsIWindowsShellService, nsIShellService)
 
 static nsresult
 OpenKeyForReading(HKEY aKeyRoot, const nsAString& aKeyName, HKEY* aKey)
@@ -116,7 +123,7 @@ OpenKeyForReading(HKEY aKeyRoot, const nsAString& aKeyName, HKEY* aKey)
 //
 // - Windows Start Menu (XP SP1 and newer)
 //   -------------------------------------------------
-//   The following keys are set to make Firefox appear in the Start Menu as the
+//   The following keys are set to make PaleMoon appear in the Start Menu as the
 //   browser:
 //   
 //   HKCU\SOFTWARE\Clients\StartMenuInternet\FIREFOX.EXE\
@@ -154,14 +161,18 @@ typedef struct {
   PREFIX MID
 
 // The DefaultIcon registry key value should never be used when checking if
-// Firefox is the default browser for file handlers since other applications
+// PaleMoon is the default browser for file handlers since other applications
 // (e.g. MS Office) may modify the DefaultIcon registry key value to add Icon
 // Handlers. see http://msdn2.microsoft.com/en-us/library/aa969357.aspx for
 // more info. The FTP protocol is not checked so advanced users can set the FTP
-// handler to another application and still have Firefox check if it is the
+// handler to another application and still have PaleMoon check if it is the
 // default HTTP and HTTPS handler.
+// *** Do not add additional checks here unless you skip them when aForAllTypes
+// is false below***.
 static SETTING gSettings[] = {
   // File Handler Class
+  // ***keep this as the first entry because when aForAllTypes is not set below
+  // it will skip over this check.***
   { MAKE_KEY_NAME1("PaleMoonHTML", SOC), VAL_OPEN, OLD_VAL_OPEN },
 
   // Protocol Handler Class - for Vista and above
@@ -175,7 +186,7 @@ static SETTING gSettings[] = {
 };
 
 // The settings to disable DDE are separate from the default browser settings
-// since they are only checked when Firefox is the default browser and if they
+// since they are only checked when PaleMoon is the default browser and if they
 // are incorrect they are fixed without notifying the user.
 static SETTING gDDESettings[] = {
   // File Handler Class
@@ -223,8 +234,8 @@ LaunchHelper(nsAutoString& aPath)
   STARTUPINFOW si = {sizeof(si), 0};
   PROCESS_INFORMATION pi = {0};
 
-  if (!CreateProcessW(NULL, (LPWSTR)aPath.get(), NULL, NULL, FALSE, 0, NULL,
-                      NULL, &si, &pi)) {
+  if (!CreateProcessW(nullptr, (LPWSTR)aPath.get(), nullptr, nullptr, FALSE,
+                      0, nullptr, nullptr, &si, &pi)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -311,16 +322,6 @@ nsWindowsShellService::ShortcutMaintenance()
 }
 
 static bool
-IsWin8OrLater()
-{
-  OSVERSIONINFOW osInfo;
-  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
-  GetVersionExW(&osInfo);
-  return osInfo.dwMajorVersion > 6 || 
-         (osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2);
-}
-
-static bool
 IsAARDefaultHTTP(IApplicationAssociationRegistration* pAAR,
                  bool* aIsDefaultBrowser)
 {
@@ -355,13 +356,19 @@ IsAARDefaultHTML(IApplicationAssociationRegistration* pAAR,
   return SUCCEEDED(hr);
 }
 
+/*
+ * Query's the AAR for the default status.
+ * This only checks for PaleMoonURL and if aCheckAllTypes is set, then
+ * it also checks for PaleMoonHTML.  Note that those ProgIDs are shared
+ * by all PaleMoon browsers.
+*/
 bool
 nsWindowsShellService::IsDefaultBrowserVista(bool aCheckAllTypes,
                                              bool* aIsDefaultBrowser)
 {
   IApplicationAssociationRegistration* pAAR;
   HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistration,
-                                NULL,
+                                nullptr,
                                 CLSCTX_INPROC,
                                 IID_IApplicationAssociationRegistration,
                                 (void**)&pAAR);
@@ -403,23 +410,16 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   if (aStartupCheck)
     mCheckedThisSession = true;
 
-  // Check if we only care about a lightweight check, and make sure this
-  // only has an effect on Win8 and later.
-  if (!aForAllTypes && IsWin8OrLater()) {
-    return IsDefaultBrowserVista(false,
-                                 aIsDefaultBrowser) ? NS_OK : NS_ERROR_FAILURE;
-  }
-
   // Assume we're the default unless one of the several checks below tell us
   // otherwise.
   *aIsDefaultBrowser = true;
 
-  PRUnichar exePath[MAX_BUF];
+  wchar_t exePath[MAX_BUF];
   if (!::GetModuleFileNameW(0, exePath, MAX_BUF))
     return NS_ERROR_FAILURE;
 
   // Convert the path to a long path since GetModuleFileNameW returns the path
-  // that was used to launch Firefox which is not necessarily a long path.
+  // that was used to launch PaleMoon which is not necessarily a long path.
   if (!::GetLongPathNameW(exePath, exePath, MAX_BUF))
     return NS_ERROR_FAILURE;
 
@@ -428,12 +428,17 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   HKEY theKey;
   DWORD res;
   nsresult rv;
-  PRUnichar currValue[MAX_BUF];
+  wchar_t currValue[MAX_BUF];
 
-  SETTING* settings;
+  SETTING* settings = gSettings;
+  if (!aForAllTypes && IsWin8OrLater()) {
+    // Skip over the file handler check
+    settings++;
+  }
+
   SETTING* end = gSettings + sizeof(gSettings) / sizeof(SETTING);
 
-  for (settings = gSettings; settings < end; ++settings) {
+  for (; settings < end; ++settings) {
     NS_ConvertUTF8toUTF16 keyName(settings->keyName);
     NS_ConvertUTF8toUTF16 valueData(settings->valueData);
     int32_t offset = valueData.Find("%APPPATH%");
@@ -447,17 +452,18 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
 
     ::ZeroMemory(currValue, sizeof(currValue));
     DWORD len = sizeof currValue;
-    res = ::RegQueryValueExW(theKey, L"", NULL, NULL, (LPBYTE)currValue, &len);
+    res = ::RegQueryValueExW(theKey, L"", nullptr, nullptr,
+                             (LPBYTE)currValue, &len);
     // Close the key that was opened.
     ::RegCloseKey(theKey);
     if (REG_FAILED(res) ||
-        !valueData.Equals(currValue, CaseInsensitiveCompare)) {
+        _wcsicmp(valueData.get(), currValue)) {
       // Key wasn't set or was set to something other than our registry entry.
       NS_ConvertUTF8toUTF16 oldValueData(settings->oldValueData);
       offset = oldValueData.Find("%APPPATH%");
       oldValueData.Replace(offset, 9, appLongPath);
       // The current registry value doesn't match the current or the old format.
-      if (!oldValueData.Equals(currValue, CaseInsensitiveCompare)) {
+      if (_wcsicmp(oldValueData.get(), currValue)) {
         *aIsDefaultBrowser = false;
         return NS_OK;
       }
@@ -466,7 +472,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
                             0, KEY_SET_VALUE, &theKey);
       if (REG_FAILED(res)) {
         // If updating the open command fails try to update it using the helper
-        // application when setting Firefox as the default browser.
+        // application when setting PaleMoon as the default browser.
         *aIsDefaultBrowser = false;
         return NS_OK;
       }
@@ -474,30 +480,30 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
       const nsString &flatValue = PromiseFlatString(valueData);
       res = ::RegSetValueExW(theKey, L"", 0, REG_SZ,
                              (const BYTE *) flatValue.get(),
-                             (flatValue.Length() + 1) * sizeof(PRUnichar));
+                             (flatValue.Length() + 1) * sizeof(char16_t));
       // Close the key that was created.
       ::RegCloseKey(theKey);
       if (REG_FAILED(res)) {
         // If updating the open command fails try to update it using the helper
-        // application when setting Firefox as the default browser.
+        // application when setting PaleMoon as the default browser.
         *aIsDefaultBrowser = false;
         return NS_OK;
       }
     }
   }
 
-  // Only check if Firefox is the default browser on Vista and above if the
-  // previous checks show that Firefox is the default browser.
+  // Only check if PaleMoon is the default browser on Vista and above if the
+  // previous checks show that PaleMoon is the default browser.
   if (*aIsDefaultBrowser) {
-    IsDefaultBrowserVista(true, aIsDefaultBrowser);
+    IsDefaultBrowserVista(aForAllTypes, aIsDefaultBrowser);
   }
 
   // To handle the case where DDE isn't disabled due for a user because there
-  // account didn't perform a Firefox update this will check if Firefox is the
+  // account didn't perform a PaleMoon update this will check if PaleMoon is the
   // default browser and if dde is disabled for each handler
-  // and if it isn't disable it. When Firefox is not the default browser the
+  // and if it isn't disable it. When PaleMoon is not the default browser the
   // helper application will disable dde for each handler.
-  if (*aIsDefaultBrowser) {
+  if (*aIsDefaultBrowser && aForAllTypes) {
     // Check ftp settings
 
     end = gDDESettings + sizeof(gDDESettings) / sizeof(SETTING);
@@ -509,39 +515,39 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
       if (NS_FAILED(rv)) {
         ::RegCloseKey(theKey);
         // If disabling DDE fails try to disable it using the helper
-        // application when setting Firefox as the default browser.
+        // application when setting PaleMoon as the default browser.
         *aIsDefaultBrowser = false;
         return NS_OK;
       }
 
       ::ZeroMemory(currValue, sizeof(currValue));
       DWORD len = sizeof currValue;
-      res = ::RegQueryValueExW(theKey, L"", NULL, NULL, (LPBYTE)currValue,
-                               &len);
+      res = ::RegQueryValueExW(theKey, L"", nullptr, nullptr,
+                               (LPBYTE)currValue, &len);
       // Close the key that was opened.
       ::RegCloseKey(theKey);
-      if (REG_FAILED(res) || PRUnichar('\0') != *currValue) {
+      if (REG_FAILED(res) || char16_t('\0') != *currValue) {
         // Key wasn't set or was set to something other than our registry entry.
         // Delete the key along with all of its childrean and then recreate it.
         const nsString &flatName = PromiseFlatString(keyName);
         ::SHDeleteKeyW(HKEY_CURRENT_USER, flatName.get());
-        res = ::RegCreateKeyExW(HKEY_CURRENT_USER, flatName.get(), 0, NULL,
-                                REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL,
-                                &theKey, NULL);
+        res = ::RegCreateKeyExW(HKEY_CURRENT_USER, flatName.get(), 0, nullptr,
+                                REG_OPTION_NON_VOLATILE, KEY_SET_VALUE,
+                                nullptr, &theKey, nullptr);
         if (REG_FAILED(res)) {
           // If disabling DDE fails try to disable it using the helper
-          // application when setting Firefox as the default browser.
+          // application when setting PaleMoon as the default browser.
           *aIsDefaultBrowser = false;
           return NS_OK;
         }
 
         res = ::RegSetValueExW(theKey, L"", 0, REG_SZ, (const BYTE *) L"",
-                               sizeof(PRUnichar));
+                               sizeof(char16_t));
         // Close the key that was created.
         ::RegCloseKey(theKey);
         if (REG_FAILED(res)) {
           // If disabling DDE fails try to disable it using the helper
-          // application when setting Firefox as the default browser.
+          // application when setting PaleMoon as the default browser.
           *aIsDefaultBrowser = false;
           return NS_OK;
         }
@@ -564,13 +570,13 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
 
     ::ZeroMemory(currValue, sizeof(currValue));
     DWORD len = sizeof currValue;
-    res = ::RegQueryValueExW(theKey, L"", NULL, NULL, (LPBYTE)currValue,
+    res = ::RegQueryValueExW(theKey, L"", nullptr, nullptr, (LPBYTE)currValue,
                              &len);
 
     // Don't update the FTP protocol handler's shell open command when the
     // current registry value doesn't exist or matches the old format.
     if (REG_FAILED(res) ||
-        !oldValueOpen.Equals(currValue, CaseInsensitiveCompare)) {
+        _wcsicmp(oldValueOpen.get(), currValue)) {
       ::RegCloseKey(theKey);
       return NS_OK;
     }
@@ -580,11 +586,11 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
     const nsString &flatValue = PromiseFlatString(valueData);
     res = ::RegSetValueExW(theKey, L"", 0, REG_SZ,
                            (const BYTE *) flatValue.get(),
-                           (flatValue.Length() + 1) * sizeof(PRUnichar));
+                           (flatValue.Length() + 1) * sizeof(char16_t));
     // Close the key that was created.
     ::RegCloseKey(theKey);
     // If updating the FTP protocol handlers shell open command fails try to
-    // update it using the helper application when setting Firefox as the
+    // update it using the helper application when setting PaleMoon as the
     // default browser.
     if (REG_FAILED(res)) {
       *aIsDefaultBrowser = false;
@@ -604,29 +610,26 @@ nsWindowsShellService::GetCanSetDesktopBackground(bool* aResult)
 static nsresult
 DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
 {
-  typedef HRESULT (WINAPI * SHOpenWithDialogPtr)(HWND hwndParent,
-                                                 const OPENASINFO *poainfo);
-  static SHOpenWithDialogPtr SHOpenWithDialogFn = NULL;
-  if (!SHOpenWithDialogFn) {
-    // shell32.dll is in the knownDLLs list so will always be loaded from the
-    // system32 directory.
-    static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
-    HMODULE shellDLL = ::LoadLibraryW(kSehllLibraryName);
-    if (!shellDLL) {
-      return NS_ERROR_FAILURE;
-    }
-
-    SHOpenWithDialogFn =
-      (SHOpenWithDialogPtr)GetProcAddress(shellDLL, "SHOpenWithDialog");
-    FreeLibrary(shellDLL);
-
-    if (!SHOpenWithDialogFn) {
-      return NS_ERROR_FAILURE;
-    }
+  // shell32.dll is in the knownDLLs list so will always be loaded from the
+  // system32 directory.
+  static const wchar_t kSehllLibraryName[] =  L"shell32.dll";
+  HMODULE shellDLL = ::LoadLibraryW(kSehllLibraryName);
+  if (!shellDLL) {
+    return NS_ERROR_FAILURE;
   }
 
-  return SUCCEEDED(SHOpenWithDialogFn(hwndParent, poainfo)) ? NS_OK :
-                                                              NS_ERROR_FAILURE;
+  decltype(SHOpenWithDialog)* SHOpenWithDialogFn =
+    (decltype(SHOpenWithDialog)*) GetProcAddress(shellDLL, "SHOpenWithDialog");
+
+  if (!SHOpenWithDialogFn) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = 
+    SUCCEEDED(SHOpenWithDialogFn(hwndParent, poainfo)) ? NS_OK :
+                                                         NS_ERROR_FAILURE;
+  FreeLibrary(shellDLL);
+  return rv;
 }
 
 nsresult
@@ -650,8 +653,8 @@ nsWindowsShellService::LaunchControlPanelDefaultPrograms()
   si.dwFlags = STARTF_USESHOWWINDOW;
   si.wShowWindow = SW_SHOWDEFAULT;
   PROCESS_INFORMATION pi = {0};
-  if (!CreateProcessW(controlEXEPath, params, NULL, NULL, FALSE, 0, NULL,
-                      NULL, &si, &pi)) {
+  if (!CreateProcessW(controlEXEPath, params, nullptr, nullptr, FALSE,
+                      0, nullptr, nullptr, &si, &pi)) {
     return NS_ERROR_FAILURE;
   }
   CloseHandle(pi.hProcess);
@@ -665,11 +668,11 @@ nsWindowsShellService::LaunchHTTPHandlerPane()
 {
   OPENASINFO info;
   info.pcszFile = L"http";
-  info.pcszClass = NULL;
+  info.pcszClass = nullptr;
   info.oaifInFlags = OAIF_FORCE_REGISTRATION | 
                      OAIF_URL_PROTOCOL |
                      OAIF_REGISTER_EXT;
-  return DynSHOpenWithDialog(NULL, &info);
+  return DynSHOpenWithDialog(nullptr, &info);
 }
 
 NS_IMETHODIMP
@@ -750,22 +753,25 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
 {
   nsresult rv;
 
-  nsRefPtr<gfxASurface> surface;
-  aImage->GetFrame(imgIContainer::FRAME_FIRST,
-                   imgIContainer::FLAG_SYNC_DECODE,
-                   getter_AddRefs(surface));
+  RefPtr<SourceSurface> surface =
+    aImage->GetFrame(imgIContainer::FRAME_FIRST,
+                     imgIContainer::FLAG_SYNC_DECODE);
   NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
 
-  nsRefPtr<gfxImageSurface> image(surface->GetAsReadableARGB32ImageSurface());
-  NS_ENSURE_TRUE(image, NS_ERROR_FAILURE);
+  // For either of the following formats we want to set the biBitCount member
+  // of the BITMAPINFOHEADER struct to 32, below. For that value the bitmap
+  // format defines that the A8/X8 WORDs in the bitmap byte stream be ignored
+  // for the BI_RGB value we use for the biCompression member.
+  MOZ_ASSERT(surface->GetFormat() == SurfaceFormat::B8G8R8A8 ||
+             surface->GetFormat() == SurfaceFormat::B8G8R8X8);
 
-  int32_t width = image->Width();
-  int32_t height = image->Height();
+  RefPtr<DataSourceSurface> dataSurface = surface->GetDataSurface();
+  NS_ENSURE_TRUE(dataSurface, NS_ERROR_FAILURE);
 
-  uint8_t* bits = image->Data();
-  uint32_t length = image->GetDataSize();
-  uint32_t bpr = uint32_t(image->Stride());
-  int32_t bitCount = bpr/width;
+  int32_t width = dataSurface->GetSize().width;
+  int32_t height = dataSurface->GetSize().height;
+  int32_t bytesPerPixel = 4 * sizeof(uint8_t);
+  uint32_t bytesPerRow = bytesPerPixel * width;
 
   // initialize these bitmap structs which we will later
   // serialize directly to the head of the bitmap file
@@ -774,9 +780,9 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
   bmi.biWidth = width;
   bmi.biHeight = height;
   bmi.biPlanes = 1;
-  bmi.biBitCount = (WORD)bitCount*8;
+  bmi.biBitCount = (WORD)bytesPerPixel*8;
   bmi.biCompression = BI_RGB;
-  bmi.biSizeImage = length;
+  bmi.biSizeImage = bytesPerRow * height;
   bmi.biXPelsPerMeter = 0;
   bmi.biYPelsPerMeter = 0;
   bmi.biClrUsed = 0;
@@ -794,6 +800,11 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
   rv = NS_NewLocalFileOutputStream(getter_AddRefs(stream), aFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  DataSourceSurface::MappedSurface map;
+  if (!dataSurface->Map(DataSourceSurface::MapType::READ, &map)) {
+    return NS_ERROR_FAILURE;
+  }
+
   // write the bitmap headers and rgb pixel data to the file
   rv = NS_ERROR_FAILURE;
   if (stream) {
@@ -804,11 +815,11 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
       if (written == sizeof(BITMAPINFOHEADER)) {
         // write out the image data backwards because the desktop won't
         // show bitmaps with negative heights for top-to-bottom
-        uint32_t i = length;
+        uint32_t i = map.mStride * height;
         do {
-          i -= bpr;
-          stream->Write(((const char*)bits) + i, bpr, &written);
-          if (written == bpr) {
+          i -= map.mStride;
+          stream->Write(((const char*)map.mData) + i, bytesPerRow, &written);
+          if (written == bytesPerRow) {
             rv = NS_OK;
           } else {
             rv = NS_ERROR_FAILURE;
@@ -820,6 +831,8 @@ WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
 
     stream->Close();
   }
+
+  dataSurface->Unmap();
 
   return rv;
 }
@@ -866,7 +879,7 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
   // e.g. "Desktop Background.bmp"
   nsString fileLeafName;
   rv = shellBundle->GetStringFromName
-                      (NS_LITERAL_STRING("desktopBackgroundLeafNameWin").get(),
+                      (MOZ_UTF16("desktopBackgroundLeafNameWin"),
                        getter_Copies(fileLeafName));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -876,7 +889,7 @@ nsWindowsShellService::SetDesktopBackground(nsIDOMElement* aElement,
                               getter_AddRefs(file));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // eventually, the path is "%APPDATA%\Mozilla\Firefox\Desktop Background.bmp"
+  // eventually, the path is "%APPDATA%\Mozilla\PaleMoon\Desktop Background.bmp"
   rv = file->Append(fileLeafName);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -965,7 +978,7 @@ nsWindowsShellService::OpenApplication(int32_t aApplication)
   if (NS_FAILED(rv))
     return rv;
 
-  PRUnichar buf[MAX_BUF];
+  wchar_t buf[MAX_BUF];
   DWORD type, len = sizeof buf;
   DWORD res = ::RegQueryValueExW(theKey, EmptyString().get(), 0,
                                  &type, (LPBYTE)&buf, &len);
@@ -1028,8 +1041,8 @@ nsWindowsShellService::OpenApplication(int32_t aApplication)
   ::ZeroMemory(&si, sizeof(STARTUPINFOW));
   ::ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
 
-  BOOL success = ::CreateProcessW(NULL, (LPWSTR)path.get(), NULL,
-                                  NULL, FALSE, 0, NULL,  NULL,
+  BOOL success = ::CreateProcessW(nullptr, (LPWSTR)path.get(), nullptr,
+                                  nullptr, FALSE, 0, nullptr,  nullptr,
                                   &si, &pi);
   if (!success)
     return NS_ERROR_FAILURE;
@@ -1066,7 +1079,7 @@ nsWindowsShellService::SetDesktopBackgroundColor(uint32_t aColor)
                       nsIWindowsRegKey::ACCESS_SET_VALUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRUnichar rgb[12];
+  wchar_t rgb[12];
   _snwprintf(rgb, 12, L"%u %u %u", r, g, b);
 
   rv = regKey->WriteStringValue(NS_LITERAL_STRING("Background"),

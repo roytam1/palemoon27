@@ -27,7 +27,7 @@
 namespace mozilla {
 namespace browser {
 
-NS_IMPL_ISUPPORTS2(DirectoryProvider,
+NS_IMPL_ISUPPORTS(DirectoryProvider,
                    nsIDirectoryServiceProvider,
                    nsIDirectoryServiceProvider2)
 
@@ -125,12 +125,11 @@ static void
 AppendDistroSearchDirs(nsIProperties* aDirSvc, nsCOMArray<nsIFile> &array)
 {
   nsCOMPtr<nsIFile> searchPlugins;
-  nsresult rv = aDirSvc->Get(XRE_EXECUTABLE_FILE,
+  nsresult rv = aDirSvc->Get(XRE_APP_DISTRIBUTION_DIR,
                              NS_GET_IID(nsIFile),
                              getter_AddRefs(searchPlugins));
   if (NS_FAILED(rv))
     return;
-  searchPlugins->SetNativeLeafName(NS_LITERAL_CSTRING("distribution"));
   searchPlugins->AppendNative(NS_LITERAL_CSTRING("searchplugins"));
 
   bool exists;
@@ -254,7 +253,7 @@ DirectoryProvider::GetFiles(const char *aKey, nsISimpleEnumerator* *aResult)
   return NS_ERROR_FAILURE;
 }
 
-NS_IMPL_ISUPPORTS1(DirectoryProvider::AppendingEnumerator, nsISimpleEnumerator)
+NS_IMPL_ISUPPORTS(DirectoryProvider::AppendingEnumerator, nsISimpleEnumerator)
 
 NS_IMETHODIMP
 DirectoryProvider::AppendingEnumerator::HasMoreElements(bool *aResult)

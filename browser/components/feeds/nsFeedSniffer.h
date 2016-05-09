@@ -9,7 +9,7 @@
 #include "nsStringAPI.h"
 #include "mozilla/Attributes.h"
 
-class nsFeedSniffer MOZ_FINAL : public nsIContentSniffer,
+class nsFeedSniffer final : public nsIContentSniffer,
                                        nsIStreamListener
 {
 public:
@@ -26,6 +26,8 @@ public:
                                          uint32_t* writeCount);
 
 protected:
+  ~nsFeedSniffer() {}
+
   nsresult ConvertEncodedData(nsIRequest* request, const uint8_t* data,
                               uint32_t length);
 

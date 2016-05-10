@@ -737,7 +737,8 @@ NewObjectMetadata(ExclusiveContext* cxArg, JSObject** pmetadata)
     MOZ_ASSERT(!*pmetadata);
     if (JSContext* cx = cxArg->maybeJSContext()) {
         if (MOZ_UNLIKELY((size_t)cx->compartment()->hasObjectMetadataCallback()) &&
-            !cx->zone()->types.activeAnalysis)
+            !cx->zone()->types.activeAnalysis &&
+            !cx->zone()->usedByExclusiveThread)
         {
             // Use AutoEnterAnalysis to prohibit both any GC activity under the
             // callback, and any reentering of JS via Invoke() etc.

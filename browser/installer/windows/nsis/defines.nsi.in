@@ -15,7 +15,7 @@
 !define AppRegName            "Pale Moon"
 
 !define BrandShortName        "@MOZ_APP_DISPLAYNAME@"
-!define BrandFullName         "${BrandFullNameInternal}${PreReleaseSuffix}"
+!define BrandFullName         "${BrandFullNameInternal}"
 
 !define NO_UNINSTALL_SURVEY
 

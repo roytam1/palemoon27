@@ -817,7 +817,8 @@ var gBrowserInit = {
         var arrayArgComponents = window.arguments[1].split("=");
         if (arrayArgComponents) {
           //we should "inherit" the charset menu setting in a new window
-          getMarkupDocumentViewer().defaultCharacterSet = arrayArgComponents[1];
+          //TFE FIXME: this is now a wrappednative and can't be set this way.
+          //getMarkupDocumentViewer().defaultCharacterSet = arrayArgComponents[1];
         }
       }
     }

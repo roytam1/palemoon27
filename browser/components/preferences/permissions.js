@@ -314,7 +314,7 @@ var gPermissionManager = {
     this._view._rowCount = this._permissions.length;
 
     // sort and display the table
-    this._tree.treeBoxObject.view = this._view;
+    this._tree.view = this._view;
     this.onPermissionSort("rawHost", false);
 
     // disable "remove all" button if there are none

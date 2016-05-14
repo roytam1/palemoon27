@@ -144,7 +144,7 @@ PlacesTreeView.prototype = {
     // A node is removed form the view either if it has no parent or if its
     // root-ancestor is not the root node (in which case that's the node
     // for which nodeRemoved was called).
-    let ancestors = [x for each (x in PlacesUtils.nodeAncestors(aNode))];
+    let ancestors = [x for (x of PlacesUtils.nodeAncestors(aNode))];
     if (ancestors.length == 0 ||
         ancestors[ancestors.length - 1] != this._rootNode) {
       throw new Error("Removed node passed to _getRowForNode");
@@ -406,7 +406,7 @@ PlacesTreeView.prototype = {
       // However, if any of the node's ancestor is closed, the node is
       // invisible.
       let ancestors = PlacesUtils.nodeAncestors(aOldNode);
-      for (let ancestor in ancestors) {
+      for (let ancestor of ancestors) {
         if (!ancestor.containerOpen)
           return -1;
       }
@@ -452,7 +452,7 @@ PlacesTreeView.prototype = {
     for (let i = 0; i < aNodesInfo.length; i++) {
       let nodeInfo = aNodesInfo[i];
       let row = this._getNewRowForRemovedNode(aUpdatedContainer,
-                                              aNodesInfo[i].node);
+                                              nodeInfo.node);
       // Select the found node, if any.
       if (row != -1) {
         selection.rangedSelect(row, row, true);
@@ -465,9 +465,11 @@ PlacesTreeView.prototype = {
     // select the node at its old row, if any.
     if (aNodesInfo.length == 1 && selection.count == 0) {
       let row = Math.min(aNodesInfo[0].oldRow, this._rows.length - 1);
-      selection.rangedSelect(row, row, true);
-      if (aNodesInfo[0].wasVisible && scrollToRow == -1)
-        scrollToRow = aNodesInfo[0].oldRow;
+      if (row != -1) {
+        selection.rangedSelect(row, row, true);
+        if (aNodesInfo[0].wasVisible && scrollToRow == -1)
+          scrollToRow = aNodesInfo[0].oldRow;
+      }
     }
 
     if (scrollToRow != -1)
@@ -711,7 +713,8 @@ PlacesTreeView.prototype = {
 
     // Restore selection.
     let rowToSelect = Math.min(oldRow, this._rows.length - 1);
-    this.selection.rangedSelect(rowToSelect, rowToSelect, true);
+    if (rowToSelect != -1)
+      this.selection.rangedSelect(rowToSelect, rowToSelect, true);
   },
 
   nodeMoved:

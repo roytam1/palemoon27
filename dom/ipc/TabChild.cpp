@@ -3066,7 +3066,7 @@ TabChild::DidComposite(uint64_t aTransactionId)
   MOZ_ASSERT(mWidget->GetLayerManager());
   MOZ_ASSERT(mWidget->GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_CLIENT);
 
-  RefPtr<ClientLayerManager> manager =
+  nsRefPtr<ClientLayerManager> manager =
     static_cast<ClientLayerManager*>(mWidget->GetLayerManager());
     
   manager->DidComposite(aTransactionId);

@@ -43,3 +43,9 @@ addEventListener("DOMAutoComplete", function(event) {
 addEventListener("blur", function(event) {
   LoginManagerContent.onUsernameInput(event);
 });
+
+// Lazily load the finder code
+addMessageListener("Finder:Initialize", function () {
+  let {RemoteFinderListener} = Cu.import("resource://gre/modules/RemoteFinder.jsm", {});
+  new RemoteFinderListener(global);
+});

@@ -2632,6 +2632,13 @@
         </getter>
       </property>
 
+      <field name="_lastSearchString">null</field>
+      <field name="_lastSearchHighlight">false</field>
+
+      <property name="finder"
+                onget="return this.mCurrentBrowser.finder"
+                readonly="true"/>
+
       <property name="docShell"
                 onget="return this.mCurrentBrowser.docShell"
                 readonly="true"/>

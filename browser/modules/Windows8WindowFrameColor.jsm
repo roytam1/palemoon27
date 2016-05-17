@@ -34,7 +34,7 @@ const Windows8WindowFrameColor = {
     let windowFrameColorArray = windowFrameColorHex.match(/../g);
     let [unused, fgR, fgG, fgB] = windowFrameColorArray.map(function(val) parseInt(val, 16));
     let windowFrameColorBalance = WindowsRegistry.readRegKey(HKCU, dwmKey,
-                                                             "ColorizationColorBalance") || 0.5;
+                                                             "ColorizationColorBalance") || 78;
     // Window frame base color when Color Intensity is at 0.
     let frameBaseColor = 217;
     let alpha = windowFrameColorBalance / 100;

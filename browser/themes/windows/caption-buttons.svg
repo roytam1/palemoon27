@@ -50,8 +50,8 @@
   </style>
   
   <g id="close">
-    <line x1="1" y1="1" x2="11" y2="11"/>
-    <line x1="11" y1="1" x2="1" y2="11"/>
+    <line x1="1" y1="1" x2="11" y2="11" stroke-width="1.5px"/>
+    <line x1="11" y1="1" x2="1" y2="11" stroke-width="1.5px"/>
   </g>
   <g id="maximize">
     <rect x="1.5" y="1.5" width="9" height="9"/>

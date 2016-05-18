@@ -74,7 +74,6 @@ private:
 
   void GetDeviceInfo();
   void GetSelectedCityInfo();
-  void AddCrashReportAnnotations();
 
   nsString mAdapterRAMString;
   nsString mDeviceID;

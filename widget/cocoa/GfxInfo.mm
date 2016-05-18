@@ -119,8 +119,6 @@ GfxInfo::Init()
 
   GetSelectedCityInfo();
 
-  AddCrashReportAnnotations();
-
   mOSXVersion = nsCocoaFeatures::OSXVersion();
 
   return rv;
@@ -285,11 +283,6 @@ GfxInfo::GetCountryCode(nsAString & aCountryCode)
 {
   aCountryCode = mCountryCode;
   return NS_OK;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
 }
 
 // We don't support checking driver versions on Mac.

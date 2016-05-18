@@ -543,8 +543,6 @@ GfxInfo::Init()
     mAdapterDeviceID.AssignASCII(spoofedDevice);
   }
 
-  AddCrashReportAnnotations();
-
   GetCountryCode();
 
   return rv;
@@ -703,11 +701,6 @@ GfxInfo::GetCountryCode(nsAString& aCountryCode)
 {
   aCountryCode = mCountryCode;
   return NS_OK;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
 }
 
 void

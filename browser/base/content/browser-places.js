@@ -1160,11 +1160,14 @@ let BookmarkingUI = {
     }
   },
 
-  updateStarState: function BUI_updateStarState() {
-    if (!this.star || (this._uri && gBrowser.currentURI.equals(this._uri))) {
+  onLocationChange: function BUI_onLocationChange() {
+    if (this._uri && gBrowser.currentURI.equals(this._uri)) {
       return;
     }
+    this.updateStarState();
+  },
 
+  updateStarState: function BUI_updateStarState() {
     // Reset tracked values.
     this._uri = gBrowser.currentURI;
     this._itemIds = [];
@@ -1179,7 +1182,7 @@ let BookmarkingUI = {
       return;
     }
 
-    this._pendingStmt = PlacesUtils.asyncGetBookmarkIds(this._uri, function (aItemIds, aURI) {
+    this._pendingStmt = PlacesUtils.asyncGetBookmarkIds(this._uri, (aItemIds, aURI) => {
       // Safety check that the bookmarked URI equals the tracked one.
       if (!aURI.equals(this._uri)) {
         Components.utils.reportError("BookmarkingUI did not receive current URI");

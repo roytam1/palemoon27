@@ -74,7 +74,6 @@ private:
   bool mHasTextureFromPixmap;
   int mGLMajorVersion, mMajorVersion, mMinorVersion, mRevisionVersion;
 
-  void AddCrashReportAnnotations();
 };
 
 } // namespace widget

@@ -82,8 +82,6 @@ protected:
 
 private:
 
-  void AddCrashReportAnnotations();
-
   bool mInitialized;
 
   class GLStrings;

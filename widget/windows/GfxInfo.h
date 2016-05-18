@@ -68,7 +68,6 @@ protected:
 
 private:
 
-  void AddCrashReportAnnotations();
   void GetCountryCode();
 
   nsString mCountryCode;

@@ -194,8 +194,6 @@ GfxInfo::EnsureInitialized()
                                    mGLStrings->Renderer().get(),
                                    mGLStrings->Version().get());
 
-  AddCrashReportAnnotations();
-
   mInitialized = true;
 }
 
@@ -340,11 +338,6 @@ GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
 {
   EnsureInitialized();
   return NS_ERROR_FAILURE;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
 }
 
 const nsTArray<GfxDriverInfo>&

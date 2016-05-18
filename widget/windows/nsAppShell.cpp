@@ -93,14 +93,6 @@ UINT nsAppShell::GetTaskbarButtonCreatedMessage() {
 	return sTaskbarButtonCreatedMsg;
 }
 
-namespace mozilla {
-namespace crashreporter {
-void LSPAnnotate();
-} // namespace crashreporter
-} // namespace mozilla
-
-using mozilla::crashreporter::LSPAnnotate;
-
 //-------------------------------------------------------------------------
 
 /*static*/ LRESULT CALLBACK

@@ -182,8 +182,8 @@ XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
 
 XPCOMUtils.defineLazyGetter(this, "PageMenu", function() {
   let tmp = {};
-  Cu.import("resource://gre/modules/PageMenu.jsm", tmp);
-  return new tmp.PageMenuParent();
+  Cu.import("resource:///modules/PageMenu.jsm", tmp);
+  return new tmp.PageMenu();
 });
 
 /**

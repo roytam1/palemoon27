@@ -49,10 +49,6 @@
 #include "nsIXULRuntime.h"
 #include "nsJSPrincipals.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
 using namespace mozilla;
 using namespace xpc;
 using namespace JS;
@@ -769,11 +765,6 @@ XPCJSRuntime::GCSliceCallback(JSRuntime* rt,
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if (!self)
         return;
-
-#ifdef MOZ_CRASHREPORTER
-    CrashReporter::SetGarbageCollecting(progress == JS::GC_CYCLE_BEGIN ||
-                                        progress == JS::GC_SLICE_BEGIN);
-#endif
 
     if (self->mPrevGCSliceCallback)
         (*self->mPrevGCSliceCallback)(rt, progress, desc);

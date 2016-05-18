@@ -180,12 +180,6 @@ public class testSettingsMenuItems extends PixelTest {
             settingsMap.get(PATH_CUSTOMIZE).add(autoUpdateUi);
         }
 
-        // Crash reporter
-        if (AppConstants.MOZ_CRASHREPORTER) {
-            String[] crashReporterUi = { "Crash Reporter", StringHelper.BRAND_NAME + " submits crash reports to help Mozilla make your browser more stable and secure" };
-            settingsMap.get(PATH_MOZILLA).add(crashReporterUi);
-        }
-
         // Telemetry
         if (AppConstants.MOZ_TELEMETRY_REPORTING) {
             String[] telemetryUi = { "Telemetry", "Shares performance, usage, hardware and customization data about your browser with Mozilla to help us make " + StringHelper.BRAND_NAME + " better" };

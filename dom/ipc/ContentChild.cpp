@@ -622,11 +622,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
     SendBackUpXResources(FileDescriptor(xSocketFd));
 #endif
 
-#ifdef MOZ_CRASHREPORTER
-    SendPCrashReporterConstructor(CrashReporter::CurrentThreadId(),
-                                  XRE_GetProcessType());
-#endif
-
     GetCPOWManager();
 
     SendGetProcessAttributes(&mID, &mIsForApp, &mIsForBrowser);
@@ -1380,11 +1375,7 @@ PCrashReporterChild*
 ContentChild::AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
                                        const uint32_t& processType)
 {
-#ifdef MOZ_CRASHREPORTER
-    return new CrashReporterChild();
-#else
     return nullptr;
-#endif
 }
 
 bool
@@ -1858,16 +1849,6 @@ ContentChild::ProcessingError(Result aCode, const char* aReason)
             NS_RUNTIMEABORT("not reached");
     }
 
-#if defined(MOZ_CRASHREPORTER) && !defined(MOZ_B2G)
-    if (ManagedPCrashReporterChild().Length() > 0) {
-        CrashReporterChild* crashReporter =
-            static_cast<CrashReporterChild*>(ManagedPCrashReporterChild()[0]);
-            nsDependentCString reason(aReason);
-            crashReporter->SendAnnotateCrashReport(
-                NS_LITERAL_CSTRING("ipc_channel_error"),
-                reason);
-    }
-#endif
     NS_RUNTIMEABORT("Content child abort due to IPC error");
 }
 

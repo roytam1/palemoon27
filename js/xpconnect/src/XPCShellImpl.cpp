@@ -52,11 +52,6 @@
 #include <unistd.h>     /* for isatty() */
 #endif
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#include "nsICrashReporter.h"
-#endif
-
 using namespace mozilla;
 using namespace JS;
 
@@ -1348,18 +1343,6 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
         argv += 2;
     }
 
-#ifdef MOZ_CRASHREPORTER
-    const char* val = getenv("MOZ_CRASHREPORTER");
-    if (val && *val) {
-        rv = CrashReporter::SetExceptionHandler(greDir, true);
-        if (NS_FAILED(rv)) {
-            printf("CrashReporter::SetExceptionHandler failed!\n");
-            return 1;
-        }
-        MOZ_ASSERT(CrashReporter::GetEnabled());
-    }
-#endif
-
     {
         if (argc > 1 && !strcmp(argv[1], "--greomni")) {
             nsCOMPtr<nsIFile> greOmni;
@@ -1549,12 +1532,6 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
     dirprovider.ClearAppDir();
     dirprovider.ClearPluginDir();
     dirprovider.ClearAppFile();
-
-#ifdef MOZ_CRASHREPORTER
-    // Shut down the crashreporter service to prevent leaking some strings it holds.
-    if (CrashReporter::GetEnabled())
-        CrashReporter::UnsetExceptionHandler();
-#endif
 
     NS_LogTerm();
 

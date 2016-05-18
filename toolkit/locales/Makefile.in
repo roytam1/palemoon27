@@ -33,11 +33,5 @@ libs:: update.locale
 	sed -e 's/%AB_CD%/$(AB_CD)/' $< > $(FINAL_TARGET)/update.locale
 endif
 
-ifdef MOZ_CRASHREPORTER
-libs:: crashreporter.ini
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/crashreporter.app/Contents/Resources
-else
 	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)
-endif
 endif

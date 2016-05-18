@@ -22,18 +22,6 @@ if CONFIG['OS_TARGET'] != 'Android':
         'http_upload.cc',
     ]
 
-if CONFIG['MOZ_CRASHREPORTER']:
-    HostLibrary('host_breakpad_linux_common_s')
-    HOST_SOURCES += [
-        'dump_symbols.cc',
-        'elf_symbols_to_module.cc',
-        'elfutils.cc',
-        'file_id.cc',
-        'guid_creator.cc',
-        'linux_libc_support.cc',
-        'memory_mapped_file.cc',
-    ]
-
 Library('breakpad_linux_common_s')
 
 FINAL_LIBRARY = 'xul'

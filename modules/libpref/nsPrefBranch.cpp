@@ -25,10 +25,6 @@
 
 #include "prefapi_private_data.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-
 #include "nsIConsoleService.h"
 
 #ifdef DEBUG
@@ -331,16 +327,6 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
       // some addons, see bug 836263.
       nsAutoString wdata;
       if (!AppendUTF8toUTF16(utf8String, wdata, mozilla::fallible)) {
-#ifdef MOZ_CRASHREPORTER
-        nsCOMPtr<nsICrashReporter> cr =
-          do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-        if (cr) {
-          cr->AnnotateCrashReport(NS_LITERAL_CSTRING("bug836263-size"),
-                                  nsPrintfCString("%x", utf8String.Length()));
-          cr->RegisterAppMemory(uint64_t(utf8String.BeginReading()),
-                                std::min(0x1000U, utf8String.Length()));
-        }
-#endif
         NS_RUNTIMEABORT("bug836263");
       }
       theString->SetData(wdata);

@@ -222,39 +222,8 @@ SYMBOL_INDEX_NAME = \
   $(MOZ_APP_NAME)-$(MOZ_APP_VERSION)-$(OS_TARGET)-$(BUILDID)-$(CPU_ARCH)$(EXTRA_BUILDID)-symbols.txt
 
 buildsymbols:
-ifdef MOZ_CRASHREPORTER
-	echo building symbol store
-	$(RM) -r $(DIST)/crashreporter-symbols
-	$(RM) '$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip'
-	$(RM) '$(DIST)/$(SYMBOL_FULL_ARCHIVE_BASENAME).zip'
-	$(NSINSTALL) -D $(DIST)/crashreporter-symbols
-	OBJCOPY='$(OBJCOPY)' \
-	$(PYTHON) $(topsrcdir)/toolkit/crashreporter/tools/symbolstore.py \
-	  $(MAKE_SYM_STORE_ARGS)                                          \
-	  $(foreach dir,$(SYM_STORE_SOURCE_DIRS),-s $(dir))               \
-	  $(DUMP_SYMS_BIN)                                                \
-	  $(DIST)/crashreporter-symbols                                   \
-	  $(MAKE_SYM_STORE_PATH) | grep -iv test >                        \
-	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
-	echo packing symbols
-	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
-	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D '../$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip' . -x '*test*' -x '*Test*'
-	cd $(DIST)/crashreporter-symbols && \
-	grep 'sym' $(SYMBOL_INDEX_NAME) > $(SYMBOL_INDEX_NAME).tmp && \
-	  mv $(SYMBOL_INDEX_NAME).tmp $(SYMBOL_INDEX_NAME)
-	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D '../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip' . -i '*.sym' -i '*.txt'  -x '*test*' -x '*Test*'
-endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
-ifdef MOZ_CRASHREPORTER
-ifdef SOCORRO_SYMBOL_UPLOAD_TOKEN_FILE
-	$(PYTHON) -u $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.py '$(DIST)/$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip'
-else
-	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh $(SYMBOL_INDEX_NAME) '$(DIST)/$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip'
-endif
-endif
 
 # MOZ_SOURCE_STAMP is defined in package-name.mk with a deferred assignment.
 # exporting it makes make run its $(shell) command for each invoked submake,

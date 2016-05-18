@@ -3,8 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ifneq (WINNT,$(OS_TARGET))
-ifdef MOZ_CRASHREPORTER
-endif
 endif
 
 ifeq ($(OS_TARGET),Android)

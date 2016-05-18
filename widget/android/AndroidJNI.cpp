@@ -24,11 +24,6 @@
 #include "mozilla/Services.h"
 #include "nsThreadUtils.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#include "nsExceptionHandler.h"
-#endif
-
 #include "mozilla/unused.h"
 #include "mozilla/UniquePtr.h"
 
@@ -129,15 +124,6 @@ Java_org_mozilla_goanna_GoannaAppShell_onResume(JNIEnv *jenv, jclass jc)
 NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_GoannaAppShell_reportJavaCrash(JNIEnv *jenv, jclass, jstring jStackTrace)
 {
-#ifdef MOZ_CRASHREPORTER
-    const nsJNICString stackTrace(jStackTrace, jenv);
-    if (NS_WARN_IF(NS_FAILED(CrashReporter::AnnotateCrashReport(
-            NS_LITERAL_CSTRING("JavaStackTrace"), stackTrace)))) {
-        // Only crash below if crash reporter is initialized and annotation succeeded.
-        // Otherwise try other means of reporting the crash in Java.
-        return;
-    }
-#endif // MOZ_CRASHREPORTER
     MOZ_CRASH("Uncaught Java exception");
 }
 

@@ -117,18 +117,6 @@ X11Error(Display *display, XErrorEvent *event) {
     }
   }
 
-#ifdef MOZ_CRASHREPORTER
-  switch (XRE_GetProcessType()) {
-  case GoannaProcessType_Default:
-  case GoannaProcessType_Plugin:
-  case GoannaProcessType_Content:
-    CrashReporter::AppendAppNotesToCrashReport(notes);
-    break;
-  default: 
-    ; // crash report notes not supported.
-  }
-#endif
-
 #ifdef DEBUG
   // The resource id is unlikely to be useful in a crash report without
   // context of other ids, but add it to the debug console output.

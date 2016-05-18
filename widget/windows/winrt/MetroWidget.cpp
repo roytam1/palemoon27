@@ -29,9 +29,6 @@
 #include "Windows.Graphics.Display.h"
 #include "DisplayInfo_sdk81.h"
 #include "nsNativeDragTarget.h"
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
 #include "UIABridgePrivate.h"
 #include "WinMouseScrollHandler.h"
 #include "InputData.h"
@@ -1164,16 +1161,6 @@ MetroWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
         mLayerManager = new BasicLayerManager(this);
         mTempBasicLayerInUse = true;
       } else {
-#ifdef MOZ_CRASHREPORTER
-        if (FAILED(hr)) {
-          char errorBuf[10];
-          errorBuf[0] = '\0';
-          _snprintf_s(errorBuf, sizeof(errorBuf), _TRUNCATE, "%X", hr);
-          CrashReporter::
-            AnnotateCrashReport(NS_LITERAL_CSTRING("HRESULT"),
-                                nsDependentCString(errorBuf));
-        }
-#endif
         NS_RUNTIMEABORT("Couldn't create layer manager");
       }
     }

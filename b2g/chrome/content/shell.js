@@ -83,25 +83,13 @@ function debug(str) {
   dump(' -*- Shell.js: ' + str + '\n');
 }
 
-#ifdef MOZ_CRASHREPORTER
-function debugCrashReport(aStr) {
-  dump('Crash reporter : ' + aStr);
-}
-#else
 function debugCrashReport(aStr) {}
-#endif
 
 var shell = {
 
   get CrashSubmit() {
     delete this.CrashSubmit;
-#ifdef MOZ_CRASHREPORTER
-    Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
-    return this.CrashSubmit;
-#else
-    dump('Crash reporter : disabled at build time.');
     return this.CrashSubmit = null;
-#endif
   },
 
   onlineForCrashReport: function shell_onlineForCrashReport() {

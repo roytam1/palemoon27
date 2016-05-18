@@ -17,10 +17,5 @@ XPIDL_SOURCES += [
     'nsIXULRuntime.idl',
 ]
 
-if CONFIG['MOZ_CRASHREPORTER']:
-    XPIDL_SOURCES += [
-        'nsICrashReporter.idl',
-    ]
-
 XPIDL_MODULE = 'xpcom_system'
 

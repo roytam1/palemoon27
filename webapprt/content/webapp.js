@@ -14,12 +14,6 @@ Cu.import("resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyGetter(this, "gAppBrowser",
                             function() document.getElementById("content"));
 
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "gCrashReporter",
-                                   "@mozilla.org/toolkit/crash-reporter;1",
-                                   "nsICrashReporter");
-#endif
-
 function isSameOrigin(url) {
   let origin = Services.io.newURI(url, null, null).prePath;
   return (origin == WebappRT.config.app.origin);
@@ -198,21 +192,6 @@ function updateEditUIVisibility() {
 }
 
 function updateCrashReportURL(aURI) {
-#ifdef MOZ_CRASHREPORTER
-  if (!gCrashReporter.enabled)
-    return;
-
-  let uri = aURI.clone();
-  // uri.userPass throws on protocols without the concept of authentication,
-  // like about:, which tests can load, so we catch and ignore an exception.
-  try {
-    if (uri.userPass != "") {
-      uri.userPass = "";
-    }
-  } catch (e) {}
-
-  gCrashReporter.annotateCrashReport("URL", uri.spec);
-#endif
 }
 
 // Context menu handling code.

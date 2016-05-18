@@ -825,27 +825,6 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/maintenanceservice_installer.exe
 #endif
 
-; [Crash Reporter]
-;
-#ifdef MOZ_CRASHREPORTER
-@BINPATH@/components/CrashService.manifest
-@BINPATH@/components/CrashService.js
-@BINPATH@/components/toolkit_crashservice.xpt
-#ifdef XP_MACOSX
-@BINPATH@/crashreporter.app/
-#else
-@BINPATH@/crashreporter@BIN_SUFFIX@
-@BINPATH@/crashreporter.ini
-#ifdef XP_UNIX
-@BINPATH@/Throbber-small.gif
-#endif
-#endif
-@BINPATH@/browser/crashreporter-override.ini
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-@BINPATH@/breakpadinjector.dll
-#endif
-#endif
-
 #ifdef MOZ_WEBAPP_RUNTIME
 [WebappRuntime]
 #ifdef XP_WIN

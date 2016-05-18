@@ -821,22 +821,6 @@ bin/libfreebl_32int64_3.so
 #endif
 #endif
 
-; [Crash Reporter]
-;
-#ifdef MOZ_CRASHREPORTER
-#ifdef XP_MACOSX
-@BINPATH@/crashreporter.app/
-#else
-@BINPATH@/crashreporter@BIN_SUFFIX@
-@BINPATH@/crashreporter.crt
-@BINPATH@/crashreporter.ini
-#ifdef XP_UNIX
-@BINPATH@/Throbber-small.gif
-#endif
-#endif
-@BINPATH@/crashreporter-override.ini
-#endif
-
 [b2g]
 #ifndef MOZ_WIDGET_GONK
 #ifdef XP_WIN32

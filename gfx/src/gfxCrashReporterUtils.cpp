@@ -5,10 +5,6 @@
 
 #include "gfxCrashReporterUtils.h"
 
-#if defined(MOZ_CRASHREPORTER)
-#define MOZ_GFXFEATUREREPORTER 1
-#endif
-
 #ifdef MOZ_GFXFEATUREREPORTER
 #include "gfxCrashReporterUtils.h"
 #include <string.h>                     // for strcmp

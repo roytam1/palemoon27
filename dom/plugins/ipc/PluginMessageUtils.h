@@ -22,9 +22,6 @@
 #include "nsTArray.h"
 #include "prlog.h"
 #include "nsHashKeys.h"
-#ifdef MOZ_CRASHREPORTER
-#  include "nsExceptionHandler.h"
-#endif
 #ifdef XP_MACOSX
 #include "PluginInterposeOSX.h"
 #else

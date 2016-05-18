@@ -73,10 +73,6 @@
 #include "SurfaceCache.h"
 #include "gfxPrefs.h"
 
-#if defined(MOZ_CRASHREPORTER)
-#include "nsExceptionHandler.h"
-#endif
-
 #include "VsyncSource.h"
 
 using namespace mozilla;
@@ -1688,15 +1684,9 @@ bool DoesD3D11DeviceWork(ID3D11Device *device)
     gfxWindowsPlatform::GetDLLVersion(L"dlumd32.dll", displayLinkModuleVersionString);
     uint64_t displayLinkModuleVersion;
     if (!ParseDriverVersion(displayLinkModuleVersionString, &displayLinkModuleVersion)) {
-#if defined(MOZ_CRASHREPORTER)
-      CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("DisplayLink: could not parse version\n"));
-#endif
       return false;
     }
     if (displayLinkModuleVersion <= V(8,6,1,36484)) {
-#if defined(MOZ_CRASHREPORTER)
-      CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("DisplayLink: too old version\n"));
-#endif
       return false;
     }
   }
@@ -1729,9 +1719,6 @@ bool DoesD3D11TextureSharingWork(ID3D11Device *device)
       gfxInfo->GetAdapterVendorID(vendorID);
       gfxInfo->GetAdapterVendorID2(vendorID2);
       if (vendorID.EqualsLiteral("0x8086") && vendorID2.IsEmpty()) {
-#if defined(MOZ_CRASHREPORTER)
-        CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("Unexpected Intel/AMD dual-GPU setup\n"));
-#endif
         return false;
       }
     }
@@ -1784,9 +1771,6 @@ bool DoesD3D11TextureSharingWork(ID3D11Device *device)
 
   // This if(FAILED()) is the one that actually fails on systems affected by bug 1083071.
   if (FAILED(device->CreateShaderResourceView(sharedTexture, NULL, byRef(sharedView)))) {
-#if defined(MOZ_CRASHREPORTER)
-    CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("CreateShaderResourceView failed\n"));
-#endif
     return false;
   }
 

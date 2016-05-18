@@ -57,9 +57,6 @@ DIRS += [
     'xulstore'
 ]
 
-if CONFIG['MOZ_CRASHREPORTER']:
-    DIRS += ['crashes']
-
 if CONFIG['MOZ_SOCIAL']:
     DIRS += ['social']
 

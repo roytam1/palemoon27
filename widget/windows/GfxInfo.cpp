@@ -17,12 +17,6 @@
 #include "mozilla/Preferences.h"
 #include "nsPrintfCString.h"
 
-#if defined(MOZ_CRASHREPORTER)
-#include "nsExceptionHandler.h"
-#include "nsICrashReporter.h"
-#define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
-#endif
-
 using namespace mozilla;
 using namespace mozilla::widget;
 
@@ -702,23 +696,6 @@ GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
   return NS_OK;
 }
 
-#if defined(MOZ_CRASHREPORTER)
-/* Cisco's VPN software can cause corruption of the floating point state.
- * Make a note of this in our crash reports so that some weird crashes
- * make more sense */
-static void
-CheckForCiscoVPN() {
-  LONG result;
-  HKEY key;
-  /* This will give false positives, but hopefully no false negatives */
-  result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Cisco Systems\\VPN Client", 0, KEY_QUERY_VALUE, &key);
-  if (result == ERROR_SUCCESS) {
-    RegCloseKey(key);
-    CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("Cisco VPN\n"));
-  }
-}
-#endif
-
 /* interface nsIGfxInfo2 */
 /* readonly attribute DOMString countryCode; */
 NS_IMETHODIMP
@@ -731,82 +708,6 @@ GfxInfo::GetCountryCode(nsAString& aCountryCode)
 void
 GfxInfo::AddCrashReportAnnotations()
 {
-#if defined(MOZ_CRASHREPORTER)
-  CheckForCiscoVPN();
-
-  if (mHasDriverVersionMismatch) {
-    CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("DriverVersionMismatch\n"));
-  }
-
-  nsString deviceID, vendorID, driverVersion, subsysID;
-  nsCString narrowDeviceID, narrowVendorID, narrowDriverVersion, narrowSubsysID;
-
-  GetAdapterDeviceID(deviceID);
-  CopyUTF16toUTF8(deviceID, narrowDeviceID);
-  GetAdapterVendorID(vendorID);
-  CopyUTF16toUTF8(vendorID, narrowVendorID);
-  GetAdapterDriverVersion(driverVersion);
-  CopyUTF16toUTF8(driverVersion, narrowDriverVersion);
-  GetAdapterSubsysID(subsysID);
-  CopyUTF16toUTF8(subsysID, narrowSubsysID);
-
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterVendorID"),
-                                     narrowVendorID);
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDeviceID"),
-                                     narrowDeviceID);
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDriverVersion"),
-                                     narrowDriverVersion);
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterSubsysID"),
-                                     narrowSubsysID);
-
-  /* Add an App Note for now so that we get the data immediately. These
-   * can go away after we store the above in the socorro db */
-  nsAutoCString note;
-  /* AppendPrintf only supports 32 character strings, mrghh. */
-  note.AppendLiteral("AdapterVendorID: ");
-  note.Append(narrowVendorID);
-  note.AppendLiteral(", AdapterDeviceID: ");
-  note.Append(narrowDeviceID);
-  note.AppendLiteral(", AdapterSubsysID: ");
-  note.Append(narrowSubsysID);
-  note.AppendLiteral(", AdapterDriverVersion: ");
-  note.Append(NS_LossyConvertUTF16toASCII(driverVersion));
-
-  if (vendorID == GfxDriverInfo::GetDeviceVendor(VendorAll)) {
-    /* if we didn't find a valid vendorID lets append the mDeviceID string to try to find out why */
-    note.AppendLiteral(", ");
-    LossyAppendUTF16toASCII(mDeviceID, note);
-    note.AppendLiteral(", ");
-    LossyAppendUTF16toASCII(mDeviceKeyDebug, note);
-    LossyAppendUTF16toASCII(mDeviceKeyDebug, note);
-  }
-  note.Append("\n");
-
-  if (mHasDualGPU) {
-    nsString deviceID2, vendorID2, subsysID2;
-    nsAutoString adapterDriverVersionString2;
-    nsCString narrowDeviceID2, narrowVendorID2, narrowSubsysID2;
-
-    note.AppendLiteral("Has dual GPUs. GPU #2: ");
-    GetAdapterDeviceID2(deviceID2);
-    CopyUTF16toUTF8(deviceID2, narrowDeviceID2);
-    GetAdapterVendorID2(vendorID2);
-    CopyUTF16toUTF8(vendorID2, narrowVendorID2);
-    GetAdapterDriverVersion2(adapterDriverVersionString2);
-    GetAdapterSubsysID(subsysID2);
-    CopyUTF16toUTF8(subsysID2, narrowSubsysID2);
-    note.AppendLiteral("AdapterVendorID2: ");
-    note.Append(narrowVendorID2);
-    note.AppendLiteral(", AdapterDeviceID2: ");
-    note.Append(narrowDeviceID2);
-    note.AppendLiteral(", AdapterSubsysID2: ");
-    note.Append(narrowSubsysID2);
-    note.AppendLiteral(", AdapterDriverVersion2: ");
-    note.Append(NS_LossyConvertUTF16toASCII(adapterDriverVersionString2));
-  }
-  CrashReporter::AppendAppNotesToCrashReport(note);
-
-#endif
 }
 
 void

@@ -26,17 +26,6 @@
 class nsILineInputStream;
 class nsIThread;
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-
-namespace mozilla {
-namespace dom {
-class PCrashReporterParent;
-class CrashReporterParent;
-}
-}
-#endif
-
 namespace mozilla {
 namespace gmp {
 
@@ -148,10 +137,6 @@ private:
   nsRefPtr<GoannaMediaPluginService> mService;
   bool EnsureProcessLoaded();
   nsresult ReadGMPMetaData();
-#ifdef MOZ_CRASHREPORTER
-  void WriteExtraDataForMinidump(CrashReporter::AnnotationTable& notes);
-  void GetCrashID(nsString& aResult);
-#endif
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 
   virtual PCrashReporterParent* AllocPCrashReporterParent(const NativeThreadId& aThread) override;

@@ -532,10 +532,6 @@ gbjar.generated_sources = [] # Keep it this way.
 gbjar.extra_jars += [
     'constants.jar'
 ]
-if CONFIG['MOZ_CRASHREPORTER']:
-    gbjar.sources += [ 'CrashReporter.java' ]
-    ANDROID_RES_DIRS += [ SRCDIR + '/crashreporter/res' ]
-
 if CONFIG['MOZ_ANDROID_SHARE_OVERLAY']:
     gbjar.sources += [
         'overlays/OverlayConstants.java',
@@ -862,20 +858,6 @@ for d in ['app', 'chrome', 'components', 'locales', 'modules', 'themes']:
 # The omnijar is included in the Fennec APK (although it's empty,
 # having no resources, assets, or Java code).
 main.included_projects += ['../' + omnijar.name]
-
-if CONFIG['MOZ_CRASHREPORTER']:
-    crashreporter = add_android_eclipse_library_project('FennecResourcesCrashReporter')
-    crashreporter.package_name = 'org.mozilla.goanna.crashreporter'
-    crashreporter.res = SRCDIR + '/crashreporter/res'
-    crashreporter.recursive_make_targets += generated_recursive_make_targets
-
-    # layout/crash_reporter.xml references strings and other resources, and
-    # therefore depends on other resource projects.
-    crashreporter.included_projects += ['../' + static.name, '../' + generated.name]
-    crashreporter.referenced_projects += ['../' + static.name, '../' + generated.name]
-
-    resources.included_projects += ['../' + crashreporter.name]
-    resources.referenced_projects += ['../' + crashreporter.name]
 
 if CONFIG['MOZ_ANDROID_MLS_STUMBLER']:
     main.included_projects += ['../FennecStumbler']

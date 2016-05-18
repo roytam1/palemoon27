@@ -21,10 +21,6 @@
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
 #ifdef XP_WIN
 #include <windows.h>
 #endif
@@ -111,11 +107,6 @@ Crash()
   if (::IsDebuggerPresent()) {
     return;
   }
-#endif
-
-#ifdef MOZ_CRASHREPORTER
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Hang"),
-                                     NS_LITERAL_CSTRING("1"));
 #endif
 
   NS_RUNTIMEABORT("HangMonitor triggered");

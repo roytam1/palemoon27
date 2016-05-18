@@ -68,11 +68,6 @@ SOURCES += [
     'WinMouseScrollHandler.cpp',
 ]
 
-if CONFIG['MOZ_CRASHREPORTER']:
-    UNIFIED_SOURCES += [
-        'LSPAnnotator.cpp',
-    ]
-
 if CONFIG['NS_PRINTING']:
     UNIFIED_SOURCES += [
         'nsDeviceContextSpecWin.cpp',

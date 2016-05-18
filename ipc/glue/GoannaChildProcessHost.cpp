@@ -257,11 +257,6 @@ uint32_t GoannaChildProcessHost::GetSupportedArchitecturesForProcessType(GoannaP
 void
 GoannaChildProcessHost::PrepareLaunch()
 {
-#ifdef MOZ_CRASHREPORTER
-  if (CrashReporter::GetEnabled()) {
-    CrashReporter::OOPInit();
-  }
-#endif
 
 #ifdef XP_WIN
   if (mProcessType == GoannaProcessType_Plugin) {
@@ -685,26 +680,6 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
 
   childArgv.push_back(pidstring);
 
-#if defined(MOZ_CRASHREPORTER)
-#  if defined(OS_LINUX) || defined(OS_BSD)
-  int childCrashFd, childCrashRemapFd;
-  if (!CrashReporter::CreateNotificationPipeForChild(
-        &childCrashFd, &childCrashRemapFd))
-    return false;
-  if (0 <= childCrashFd) {
-    mFileMap.push_back(std::pair<int,int>(childCrashFd, childCrashRemapFd));
-    // "true" == crash reporting enabled
-    childArgv.push_back("true");
-  }
-  else {
-    // "false" == crash reporting disabled
-    childArgv.push_back("false");
-  }
-#  elif defined(MOZ_WIDGET_COCOA)
-  childArgv.push_back(CrashReporter::GetChildNotificationPipe());
-#  endif  // OS_LINUX
-#endif
-
 #ifdef MOZ_WIDGET_COCOA
   // Add a mach port to the command line so the child can communicate its
   // 'task_t' back to the parent.
@@ -869,11 +844,6 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
 
   // Process id
   cmdLine.AppendLooseValue(UTF8ToWide(pidstring));
-
-#if defined(MOZ_CRASHREPORTER)
-  cmdLine.AppendLooseValue(
-    UTF8ToWide(CrashReporter::GetChildNotificationPipe()));
-#endif
 
   // Process type
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));

@@ -816,10 +816,6 @@ PluginModuleChild::AnswerPCrashReporterConstructor(
         mozilla::dom::NativeThreadId* id,
         uint32_t* processType)
 {
-#ifdef MOZ_CRASHREPORTER
-    *id = CrashReporter::CurrentThreadId();
-    *processType = XRE_GetProcessType();
-#endif
     return true;
 }
 

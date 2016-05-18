@@ -108,8 +108,6 @@ public:
 
 #include "nsIWidget.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "ScopedGLHelpers.h"
 #include "GLBlitHelper.h"
 

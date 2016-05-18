@@ -8,7 +8,6 @@
 #include "AccessCheck.h"
 #include "CanvasUtils.h"
 #include "gfxContext.h"
-#include "gfxCrashReporterUtils.h"
 #include "gfxPattern.h"
 #include "gfxPrefs.h"
 #include "gfxUtils.h"
@@ -872,7 +871,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
 
     // Alright, now let's start trying.
     bool forceEnabled = Preferences::GetBool("webgl.force-enabled", false);
-    ScopedGfxFeatureReporter reporter("WebGL", forceEnabled);
 
     if (!CreateOffscreenGL(forceEnabled)) {
         GenerateWarning("WebGL creation failed.");
@@ -938,7 +936,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     AssertCachedBindings();
     AssertCachedState();
 
-    reporter.SetSuccessful();
     return NS_OK;
 }
 

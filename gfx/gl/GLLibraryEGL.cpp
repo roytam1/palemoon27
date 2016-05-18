@@ -4,7 +4,6 @@
 
 #include "GLLibraryEGL.h"
 
-#include "gfxCrashReporterUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Assertions.h"
 #include "nsDirectoryServiceDefs.h"
@@ -117,8 +116,6 @@ GLLibraryEGL::EnsureInitialized()
     if (mInitialized) {
         return true;
     }
-
-    mozilla::ScopedGfxFeatureReporter reporter("EGL");
 
 #ifdef MOZ_B2G
     if (!sCurrentContext.init())
@@ -413,7 +410,6 @@ GLLibraryEGL::EnsureInitialized()
     }
 
     mInitialized = true;
-    reporter.SetSuccessful();
     return true;
 }
 

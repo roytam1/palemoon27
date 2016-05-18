@@ -14,7 +14,6 @@
 #include "GLBlitHelper.h"
 #include "GLReadTexImageHelper.h"
 
-#include "gfxCrashReporterUtils.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
 #include "GLTextureImage.h"
@@ -344,10 +343,7 @@ ClearSymbols(GLLibraryLoader::SymLoadStruct *symbols)
 bool
 GLContext::InitWithPrefix(const char *prefix, bool trygl)
 {
-    ScopedGfxFeatureReporter reporter("GL Context");
-
     if (mInitialized) {
-        reporter.SetSuccessful();
         return true;
     }
 
@@ -1512,7 +1508,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                                  true);
         }
 
-        reporter.SetSuccessful();
     } else {
         // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
         mSymbols.Zero();

@@ -9,6 +9,7 @@ EXTRA_JS_MODULES += [
     'NetworkPrioritizer.jsm',
     'offlineAppCache.jsm',
     'openLocationLastURL.jsm',
+    'PageMenu.jsm',
     'SharedFrame.jsm',
     'webappsUI.jsm',
     'webrtcUI.jsm'

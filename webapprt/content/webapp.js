@@ -60,7 +60,6 @@ let progressListener = {
     if (aRequest instanceof Ci.nsIChannel &&
         aFlags & Ci.nsIWebProgressListener.STATE_START &&
         aFlags & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT) {
-      updateCrashReportURL(aRequest.URI);
     }
   }
 };
@@ -189,9 +188,6 @@ function updateEditUIVisibility() {
     goSetCommandEnabled("cmd_switchTextDirection", true);
   }
 #endif
-}
-
-function updateCrashReportURL(aURI) {
 }
 
 // Context menu handling code.

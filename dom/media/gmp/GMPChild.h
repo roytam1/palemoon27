@@ -60,9 +60,6 @@ private:
   virtual bool RecvSetNodeId(const nsCString& aNodeId) override;
   virtual bool RecvStartPlugin() override;
 
-  virtual PCrashReporterChild* AllocPCrashReporterChild(const NativeThreadId& aThread) override;
-  virtual bool DeallocPCrashReporterChild(PCrashReporterChild*) override;
-
   virtual PGMPVideoDecoderChild* AllocPGMPVideoDecoderChild() override;
   virtual bool DeallocPGMPVideoDecoderChild(PGMPVideoDecoderChild* aActor) override;
   virtual bool RecvPGMPVideoDecoderConstructor(PGMPVideoDecoderChild* aActor) override;

@@ -73,7 +73,6 @@ _IS_CYGWIN = False
 #expand _CERTS_SRC_DIR = __CERTS_SRC_DIR__
 #expand _IS_TEST_BUILD = __IS_TEST_BUILD__
 #expand _IS_DEBUG_BUILD = __IS_DEBUG_BUILD__
-#expand _CRASHREPORTER = __CRASHREPORTER__ == 1
 #expand _IS_ASAN = __IS_ASAN__ == 1
 
 
@@ -148,7 +147,6 @@ class Automation(object):
   CERTS_SRC_DIR = _CERTS_SRC_DIR
   IS_TEST_BUILD = _IS_TEST_BUILD
   IS_DEBUG_BUILD = _IS_DEBUG_BUILD
-  CRASHREPORTER = _CRASHREPORTER
   IS_ASAN = _IS_ASAN
 
   # timeout, in seconds
@@ -461,7 +459,7 @@ class Automation(object):
     os.unlink(pwfilePath)
     return 0
 
-  def environment(self, env=None, xrePath=None, crashreporter=True, debugger=False, dmdPath=None, lsanPath=None):
+  def environment(self, env=None, xrePath=None, debugger=False, dmdPath=None, lsanPath=None):
     if xrePath == None:
       xrePath = self.DIST_BIN
     if env == None:
@@ -489,12 +487,6 @@ class Automation(object):
 
     if dmdPath and dmdLibrary and preloadEnvVar:
       env[preloadEnvVar] = os.path.join(dmdPath, dmdLibrary)
-
-    if crashreporter and not debugger:
-      env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
-      env['MOZ_CRASHREPORTER'] = '1'
-    else:
-      env['MOZ_CRASHREPORTER_DISABLE'] = '1'
 
     # Crash on non-local network connections by default.
     # MOZ_DISABLE_NONLOCAL_CONNECTIONS can be set to "0" to temporarily
@@ -642,20 +634,6 @@ class Automation(object):
 
   def killAndGetStackNoScreenshot(self, processPID, utilityPath, debuggerInfo):
     """Kill the process, preferrably in a way that gets us a stack trace."""
-    if self.CRASHREPORTER and not debuggerInfo:
-      if not self.IS_WIN32:
-        # ABRT will get picked up by Breakpad's signal handler
-        os.kill(processPID, signal.SIGABRT)
-        return
-      else:
-        # We should have a "crashinject" program in our utility path
-        crashinject = os.path.normpath(os.path.join(utilityPath, "crashinject.exe"))
-        if os.path.exists(crashinject):
-          status = subprocess.Popen([crashinject, str(processPID)]).wait()
-          automationutils.printstatus(status, "crashinject")
-          if status == 0:
-            return
-    self.log.info("Can't trigger Breakpad, just killing process")
     self.killPid(processPID)
 
   def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsPath):
@@ -849,8 +827,7 @@ class Automation(object):
 
     self.lastTestSeen = "automation.py"
     proc = self.Process([cmd] + args,
-                 env = self.environment(env, xrePath = xrePath,
-                                   crashreporter = not debuggerInfo),
+                 env = self.environment(env, xrePath = xrePath),
                  stdout = outputPipe,
                  stderr = subprocess.STDOUT)
     self.log.info("INFO | automation.py | Application pid: %d", proc.pid)

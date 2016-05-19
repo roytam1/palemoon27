@@ -86,15 +86,8 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
         '/docshell/base',
         '/ipc/chromium/src',
         '/mozglue/linker',
-        '/toolkit/crashreporter/google-breakpad/src',
         '/xpcom/base',
     ]
-
-    # We need access to Breakpad's getcontext(3) which is suitable for Android
-    if CONFIG['OS_TARGET'] == 'Android':
-        LOCAL_INCLUDES += [
-            '/toolkit/crashreporter/google-breakpad/src/common/android/include',
-        ]
 
     if CONFIG['ANDROID_CPU_ARCH'] == 'armeabi':
         DEFINES['ARCH_ARMV6'] = True

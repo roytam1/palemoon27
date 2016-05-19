@@ -65,13 +65,6 @@ buildapp
    For desktop Firefox, this is ``browser``. For Fennec, it's
    ``mobile/android``. For B2G, it's ``b2g``.
 
-crashreporter
-   Whether the crash reporter is enabled for this build.
-
-   Values are ``true`` and ``false``.
-
-   Always defined.
-
 datareporting
    Whether data reporting (MOZ_DATA_REPORTING) is enabled for this build.
 

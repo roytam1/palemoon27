@@ -160,10 +160,6 @@ for var in ('MOZ_CHILD_PROCESS_NAME', 'MOZ_CHILD_PROCESS_BUNDLE',
             'DLL_PREFIX', 'DLL_SUFFIX'):
     DEFINES[var] = '"%s"' % CONFIG[var]
 
-LOCAL_INCLUDES += [
-    '/toolkit/crashreporter',
-]
-
 if CONFIG['OS_ARCH'] == 'WINNT':
     LOCAL_INCLUDES += [
         '/security/sandbox/win/src/sandboxbroker',

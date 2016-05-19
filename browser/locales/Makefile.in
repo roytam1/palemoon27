@@ -9,13 +9,6 @@ vpath %.xml @srcdir@/en-US/searchplugins
 vpath %.xml $(LOCALE_SRCDIR)/searchplugins
 
 ifdef LOCALE_MERGEDIR
-vpath crashreporter%.ini $(LOCALE_MERGEDIR)/browser/crashreporter
-endif
-vpath crashreporter%.ini $(LOCALE_SRCDIR)/crashreporter
-ifdef LOCALE_MERGEDIR
-vpath crashreporter%.ini @srcdir@/en-US/crashreporter
-endif
-ifdef LOCALE_MERGEDIR
 vpath book%.inc $(LOCALE_MERGEDIR)/browser/profile
 endif
 vpath book%.inc $(LOCALE_SRCDIR)/profile

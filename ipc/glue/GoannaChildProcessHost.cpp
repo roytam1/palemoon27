@@ -21,8 +21,6 @@
 #include "prenv.h"
 #include "nsXPCOMPrivate.h"
 
-#include "nsExceptionHandler.h"
-
 #include "nsDirectoryServiceDefs.h"
 #include "nsIFile.h"
 
@@ -50,9 +48,8 @@ using mozilla::MonitorAutoLock;
 using mozilla::ipc::GoannaChildProcessHost;
 
 #ifdef ANDROID
-// Like its predecessor in nsExceptionHandler.cpp, this is
-// the magic number of a file descriptor remapping we must
-// preserve for the child process.
+// This is the magic number of a file descriptor
+// remapping we must preserve for the child process.
 static const int kMagicAndroidSystemPropFd = 5;
 #endif
 

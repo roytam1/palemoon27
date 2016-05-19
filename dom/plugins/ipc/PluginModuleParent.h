@@ -27,11 +27,6 @@
 class nsPluginTag;
 
 namespace mozilla {
-namespace dom {
-class PCrashReporterParent;
-class CrashReporterParent;
-}
-
 namespace plugins {
 //-----------------------------------------------------------------------------
 
@@ -66,8 +61,6 @@ class PluginModuleParent
 {
 protected:
     typedef mozilla::PluginLibrary PluginLibrary;
-    typedef mozilla::dom::PCrashReporterParent PCrashReporterParent;
-    typedef mozilla::dom::CrashReporterParent CrashReporterParent;
 
     PPluginInstanceParent*
     AllocPPluginInstanceParent(const nsCString& aMimeType,
@@ -137,12 +130,6 @@ protected:
 
     virtual bool
     RecvPluginHideWindow(const uint32_t& aWindowId) override;
-
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                              uint32_t* processType) override;
-    virtual bool
-    DeallocPCrashReporterParent(PCrashReporterParent* actor) override;
 
     virtual bool
     RecvSetCursor(const NSCursorInfo& aCursorInfo) override;
@@ -284,7 +271,6 @@ protected:
     bool
     GetPluginDetails(nsACString& aPluginName, nsACString& aPluginVersion);
 
-    friend class mozilla::dom::CrashReporterParent;
     friend class mozilla::plugins::PluginAsyncSurrogate;
 
     bool              mIsStartingAsync;
@@ -384,12 +370,6 @@ private:
 
     virtual bool ShouldContinueFromReplyTimeout() override;
 
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                              uint32_t* processType) override;
-    virtual bool
-    DeallocPCrashReporterParent(PCrashReporterParent* actor) override;
-
     PluginProcessParent* Process() const { return mSubprocess; }
     base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
 
@@ -407,8 +387,6 @@ private:
 
     // aFilePath is UTF8, not native!
     explicit PluginModuleChromeParent(const char* aFilePath, uint32_t aPluginId);
-
-    CrashReporterParent* CrashReporter();
 
     void CleanupFromTimeout(const bool aByHangUI);
 
@@ -462,7 +440,6 @@ private:
     FinishHangUI();
 #endif
 
-    friend class mozilla::dom::CrashReporterParent;
     friend class mozilla::plugins::PluginAsyncSurrogate;
 
     void OnProcessLaunched(const bool aSucceeded);

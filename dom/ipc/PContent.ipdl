@@ -13,7 +13,6 @@ include protocol PCellBroadcast;
 include protocol PCompositor;
 include protocol PContentBridge;
 include protocol PCycleCollectWithLogs;
-include protocol PCrashReporter;
 include protocol PDocAccessible;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
@@ -69,7 +68,6 @@ using mozilla::dom::asmjscache::OpenMode from "mozilla/dom/asmjscache/AsmJSCache
 using mozilla::dom::asmjscache::WriteParams from "mozilla/dom/asmjscache/AsmJSCache.h";
 using mozilla::dom::AudioChannel from "mozilla/dom/AudioChannelBinding.h";
 using mozilla::dom::AudioChannelState from "AudioChannelCommon.h";
-using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
 using mozilla::dom::quota::PersistenceType from "mozilla/dom/quota/PersistenceType.h";
 using mozilla::hal::ProcessPriority from "mozilla/HalTypes.h";
 using gfxIntSize from "nsSize.h";
@@ -356,7 +354,6 @@ prio(normal upto urgent) sync protocol PContent
     manages PBluetooth;
     manages PBrowser;
     manages PCellBroadcast;
-    manages PCrashReporter;
     manages PCycleCollectWithLogs;
     manages PDocAccessible;
     manages PDeviceStorageRequest;
@@ -620,8 +617,6 @@ parent:
     PDeviceStorageRequest(DeviceStorageParams params);
 
     PFileSystemRequest(FileSystemParams params);
-
-    sync PCrashReporter(NativeThreadId tid, uint32_t processType);
 
     sync GetRandomValues(uint32_t length)
         returns (uint8_t[] randomValues);

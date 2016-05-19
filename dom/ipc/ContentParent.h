@@ -268,14 +268,6 @@ public:
 
     virtual void OnBeginSyncTransaction() override;
 
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(const NativeThreadId& tid,
-                              const uint32_t& processType) override;
-    virtual bool
-    RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                  const NativeThreadId& tid,
-                                  const uint32_t& processType) override;
-
     virtual PNeckoParent* AllocPNeckoParent() override;
     virtual bool RecvPNeckoConstructor(PNeckoParent* aActor) override {
         return PContentParent::RecvPNeckoConstructor(aActor);
@@ -518,8 +510,6 @@ private:
     virtual PBlobParent* AllocPBlobParent(const BlobConstructorParams& aParams)
                                           override;
     virtual bool DeallocPBlobParent(PBlobParent* aActor) override;
-
-    virtual bool DeallocPCrashReporterParent(PCrashReporterParent* crashreporter) override;
 
     virtual bool RecvGetRandomValues(const uint32_t& length,
                                      InfallibleTArray<uint8_t>* randomValues) override;
@@ -825,8 +815,6 @@ private:
     bool mCalledCloseWithError;
     bool mCalledKillHard;
     bool mCreatedPairedMinidumps;
-
-    friend class CrashReporterParent;
 
     nsRefPtr<nsConsoleService>  mConsoleService;
     nsConsoleService* GetConsoleService();

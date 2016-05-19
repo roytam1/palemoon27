@@ -139,9 +139,6 @@ private:
   nsresult ReadGMPMetaData();
   virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 
-  virtual PCrashReporterParent* AllocPCrashReporterParent(const NativeThreadId& aThread) override;
-  virtual bool DeallocPCrashReporterParent(PCrashReporterParent* aCrashReporter) override;
-
   virtual PGMPVideoDecoderParent* AllocPGMPVideoDecoderParent() override;
   virtual bool DeallocPGMPVideoDecoderParent(PGMPVideoDecoderParent* aActor) override;
 

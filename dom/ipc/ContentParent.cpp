@@ -27,7 +27,6 @@
 #include "AppProcessChecker.h"
 #include "AudioChannelService.h"
 #include "BlobParent.h"
-#include "CrashReporterParent.h"
 #include "IHistory.h"
 #include "mozIApplication.h"
 #ifdef ACCESSIBILITY
@@ -3192,29 +3191,6 @@ ContentParent::FriendlyName(nsAString& aName, bool aAnonymize)
     } else {
         aName.AssignLiteral("???");
     }
-}
-
-PCrashReporterParent*
-ContentParent::AllocPCrashReporterParent(const NativeThreadId& tid,
-                                         const uint32_t& processType)
-{
-    return nullptr;
-}
-
-bool
-ContentParent::RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                             const NativeThreadId& tid,
-                                             const uint32_t& processType)
-{
-    static_cast<CrashReporterParent*>(actor)->SetChildData(tid, processType);
-    return true;
-}
-
-bool
-ContentParent::DeallocPCrashReporterParent(PCrashReporterParent* crashreporter)
-{
-    delete crashreporter;
-    return true;
 }
 
 hal_sandbox::PHalParent*

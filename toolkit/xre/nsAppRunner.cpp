@@ -949,12 +949,6 @@ nsXULAppInfo::GetReplacedLockTime(PRTime *aReplacedLockTime)
 }
 
 NS_IMETHODIMP
-nsXULAppInfo::GetLastRunCrashID(nsAString &aLastRunCrashID)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
 nsXULAppInfo::GetIsReleaseBuild(bool* aResult)
 {
 #ifdef RELEASE_BUILD

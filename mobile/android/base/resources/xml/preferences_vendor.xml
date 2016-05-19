@@ -30,11 +30,6 @@
                             android:title="@string/datareporting_telemetry_title"
                             android:summary="@string/datareporting_telemetry_summary" />
 
-        <CheckBoxPreference android:key="datareporting.crashreporter.submitEnabled"
-                            android:title="@string/datareporting_crashreporter_title_short"
-                            android:summary="@string/datareporting_crashreporter_summary"
-                            android:defaultValue="false" />
-
         <CheckBoxPreference android:key="android.not_a_preference.app.geo.reportdata"
                             android:title="@string/datareporting_wifi_title"
                             android:summary="@string/datareporting_wifi_geolocation_summary" />

@@ -79,15 +79,11 @@ class B2GRemoteAutomation(Automation):
             Automation.installExtension(self, extensionSource, profileDir, extensionID)
 
     # Set up what we need for the remote environment
-    def environment(self, env=None, xrePath=None, crashreporter=True, debugger=False):
+    def environment(self, env=None, xrePath=None, debugger=False):
         # Because we are running remote, we don't want to mimic the local env
         # so no copying of os.environ
         if env is None:
             env = {}
-
-        if crashreporter:
-            env['MOZ_CRASHREPORTER'] = '1'
-            env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
 
         # We always hide the results table in B2G; it's much slower if we don't.
         env['MOZ_HIDE_RESULTS_TABLE'] = '1'

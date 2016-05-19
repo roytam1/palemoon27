@@ -150,8 +150,6 @@ int main()
       TestHook("ntdll.dll", "NtWriteFile") &&
       TestHook("ntdll.dll", "NtWriteFileGather") &&
       TestHook("ntdll.dll", "NtQueryFullAttributesFile") &&
-      // Bug 733892: toolkit/crashreporter/nsExceptionHandler.cpp
-      TestHook("kernel32.dll", "SetUnhandledExceptionFilter") &&
 #ifdef _M_IX86
       // Bug 670967: xpcom/base/AvailableMemoryTracker.cpp
       TestHook("kernel32.dll", "VirtualAlloc") &&

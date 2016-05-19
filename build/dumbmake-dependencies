@@ -59,7 +59,6 @@ browser/app
   toolkit/components
   toolkit/components/jsdownloads
   toolkit/content
-  toolkit/crashreporter
   toolkit/devtools
   toolkit/forgetaboutsite
   toolkit/identity

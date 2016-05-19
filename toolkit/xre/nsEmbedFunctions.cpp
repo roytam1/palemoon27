@@ -35,7 +35,6 @@
 #include "nsAppRunner.h"
 #include "nsAutoRef.h"
 #include "nsDirectoryServiceDefs.h"
-#include "nsExceptionHandler.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsJSUtils.h"

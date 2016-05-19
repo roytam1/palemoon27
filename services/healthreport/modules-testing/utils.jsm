@@ -92,8 +92,6 @@ this.updateAppInfo = function (obj) {
  * Currently, we just create a dummy file. A more robust implementation would
  * create something that actually resembles a crash report file.
  *
- * This is very similar to code in crashreporter/tests/browser/head.js.
- *
  * FUTURE consolidate code in a shared JSM.
  */
 this.createFakeCrash = function (submitted=false, date=new Date()) {

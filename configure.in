@@ -6025,69 +6025,6 @@ AC_SUBST(MOZ_GAMEPAD)
 AC_SUBST(MOZ_GAMEPAD_BACKEND)
 
 dnl ========================================================
-dnl = Breakpad crash reporting (on by default on supported platforms)
-dnl ========================================================
-
-case $target in
-i?86-*-mingw*|x86_64-*-mingw*)
-  MOZ_CRASHREPORTER=1
-  ;;
-i?86-apple-darwin*|x86_64-apple-darwin*)
-  MOZ_CRASHREPORTER=1
-  ;;
-i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
-  if test "$MOZ_ENABLE_GTK"; then
-    MOZ_CRASHREPORTER=1
-  fi
-  ;;
-*-android*|*-linuxandroid*)
-  MOZ_CRASHREPORTER=1
-  ;;
-*solaris*)
-  MOZ_CRASHREPORTER=1
-  ;;
-esac
-
-MOZ_ARG_DISABLE_BOOL(crashreporter,
-[  --disable-crashreporter Disable breakpad crash reporting],
-    [MOZ_CRASHREPORTER=],
-    [MOZ_CRASHREPORTER=F # Force enable breakpad])
-
-if test "$OS_ARCH" != "$HOST_OS_ARCH" -a "$OS_ARCH" != "WINNT"; then
-  if test "$MOZ_CRASHREPORTER" = F; then
-    AC_MSG_ERROR([Cannot --enable-crashreporter, as breakpad tools do not support compiling on $HOST_OS_ARCH while targeting $OS_ARCH.])
-  fi
-  MOZ_CRASHREPORTER=
-fi
-
-if test -n "$MOZ_CRASHREPORTER"; then
-   AC_DEFINE(MOZ_CRASHREPORTER)
-
-  if test "$OS_TARGET" = "Linux" -o "$OS_ARCH" = "SunOS" && \
-    test -z "$SKIP_LIBRARY_CHECKS"; then
-    PKG_CHECK_MODULES(MOZ_GTHREAD, gthread-2.0)
-  fi
-
-  if test "$OS_ARCH" = "WINNT"; then
-    if test -z "$HAVE_64BIT_BUILD"; then
-      MOZ_CRASHREPORTER_INJECTOR=1
-      AC_DEFINE(MOZ_CRASHREPORTER_INJECTOR)
-    fi
-  fi
-fi
-
-MOZ_ARG_WITH_STRING(crashreporter-enable-percent,
-[  --with-crashreporter-enable-percent=NN
-                          Enable sending crash reports by default on NN% of users. (default=100)],
-[ val=`echo $withval | sed 's/[^0-9]//g'`
-    MOZ_CRASHREPORTER_ENABLE_PERCENT="$val"])
-
-if test -z "$MOZ_CRASHREPORTER_ENABLE_PERCENT"; then
-   MOZ_CRASHREPORTER_ENABLE_PERCENT=100
-fi
-AC_DEFINE_UNQUOTED(MOZ_CRASHREPORTER_ENABLE_PERCENT, $MOZ_CRASHREPORTER_ENABLE_PERCENT)
-
-dnl ========================================================
 dnl = libjpeg-turbo configuration
 dnl ========================================================
 MOZ_LIBJPEG_TURBO=
@@ -8467,9 +8404,6 @@ AC_SUBST(ACCESSIBILITY)
 AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_ANDROID_APZ)
 AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
-AC_SUBST(MOZ_CRASHREPORTER)
-AC_SUBST(MOZ_CRASHREPORTER_INJECTOR)
-AC_SUBST(MOZ_CRASHREPORTER_UPLOAD_FULL_SYMBOLS)
 AC_SUBST(MOZ_MAINTENANCE_SERVICE)
 AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
@@ -8589,8 +8523,7 @@ AC_SUBST(MOZ_CHILD_PROCESS_BUNDLE)
 # profile name and remoting. If not set, defaults to MOZ_APP_NAME.
 # - MOZ_APP_PROFILE: When set, used for application.ini's
 # "Profile" field, which controls profile location.
-# - MOZ_APP_ID: When set, used for application.ini's "ID" field, and
-# crash reporter server url.
+# - MOZ_APP_ID: When set, used for application.ini's "ID" field.
 # - MOZ_PROFILE_MIGRATOR: When set, enables profile migrator.
 
 if test -z "$MOZ_APP_NAME"; then
@@ -8676,7 +8609,7 @@ fi
 dnl If we have any service that uploads data (and requires data submission
 dnl policy alert), set MOZ_DATA_REPORTING.
 dnl We need SUBST for build system and DEFINE for xul preprocessor.
-if test -n "$MOZ_TELEMETRY_REPORTING" || test -n "$MOZ_SERVICES_HEALTHREPORT" || test -n "$MOZ_CRASHREPORTER"; then
+if test -n "$MOZ_TELEMETRY_REPORTING" || test -n "$MOZ_SERVICES_HEALTHREPORT"; then
   MOZ_DATA_REPORTING=1
   AC_DEFINE(MOZ_DATA_REPORTING)
   AC_SUBST(MOZ_DATA_REPORTING)

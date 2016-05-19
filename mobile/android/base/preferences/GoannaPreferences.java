@@ -112,7 +112,6 @@ OnSharedPreferenceChangeListener
     private static final String PREFS_SEARCH_RESTORE_DEFAULTS = NON_PREF_PREFIX + "search.restore_defaults";
     private static final String PREFS_DATA_REPORTING_PREFERENCES = NON_PREF_PREFIX + "datareporting.preferences";
     private static final String PREFS_TELEMETRY_ENABLED = "toolkit.telemetry.enabled";
-    private static final String PREFS_CRASHREPORTER_ENABLED = "datareporting.crashreporter.submitEnabled";
     private static final String PREFS_MENU_CHAR_ENCODING = "browser.menu.showCharacterEncoding";
     private static final String PREFS_MP_ENABLED = "privacy.masterpassword.enabled";
     private static final String PREFS_UPDATER_AUTODOWNLOAD = "app.update.autodownload";
@@ -704,11 +703,6 @@ OnSharedPreferenceChangeListener
                 } else if (!AppConstants.MOZ_SERVICES_HEALTHREPORT &&
                            (PREFS_HEALTHREPORT_UPLOAD_ENABLED.equals(key) ||
                             PREFS_HEALTHREPORT_LINK.equals(key))) {
-                    preferences.removePreference(pref);
-                    i--;
-                    continue;
-                } else if (!AppConstants.MOZ_CRASHREPORTER &&
-                           PREFS_CRASHREPORTER_ENABLED.equals(key)) {
                     preferences.removePreference(pref);
                     i--;
                     continue;

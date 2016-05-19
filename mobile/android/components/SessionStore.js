@@ -313,7 +313,6 @@ SessionStore.prototype = {
 
     if (!aNoNotification)
       this.saveStateDelayed();
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabRemove: function ss_onTabRemove(aWindow, aBrowser, aNoNotification) {
@@ -389,7 +388,6 @@ SessionStore.prototype = {
     this._collectTabData(aWindow, aBrowser, data);
     this.saveStateDelayed();
 
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabSelect: function ss_onTabSelect(aWindow, aBrowser) {
@@ -410,7 +408,6 @@ SessionStore.prototype = {
     }
 
     this.saveStateDelayed();
-    this._updateCrashReportURL(aWindow);
 
     // If the selected tab has changed while listening for closed tab
     // notifications, we may have switched between different private browsing
@@ -676,12 +673,6 @@ SessionStore.prototype = {
     return Promise.resolve();
   },
 
-  _updateCrashReportURL: function ss_updateCrashReportURL(aWindow) {
-    let crashReporterBuilt = "nsICrashReporter" in Ci && Services.appinfo instanceof Ci.nsICrashReporter;
-    if (!crashReporterBuilt) {
-      return;
-    }
-
     if (!aWindow.BrowserApp.selectedBrowser) {
       return;
     }
@@ -692,13 +683,6 @@ SessionStore.prototype = {
       try {
         currentURI.userPass = "";
       } catch (ex) { } // ignore failures on about: URIs
-
-      Services.appinfo.annotateCrashReport("URL", currentURI.spec);
-    } catch (ex) {
-      // don't make noise when crashreporter is built but not enabled
-      if (ex.result != Cr.NS_ERROR_NOT_INITIALIZED) {
-        Cu.reportError("SessionStore:" + ex);
-      }
     }
   },
 

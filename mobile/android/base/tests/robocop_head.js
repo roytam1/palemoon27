@@ -65,25 +65,6 @@ try {
 }
 catch (e) { }
 
-// Enable crash reporting, if possible
-// We rely on the Python harness to set MOZ_CRASHREPORTER_NO_REPORT
-// and handle checking for minidumps.
-// Note that if we're in a child process, we don't want to init the
-// crashreporter component.
-try { // nsIXULRuntime is not available in some configurations.
-  if (runningInParent &&
-      "@mozilla.org/toolkit/crash-reporter;1" in Components.classes) {
-    // Remember to update </toolkit/crashreporter/test/unit/test_crashreporter.js>
-    // too if you change this initial setting.
-    let crashReporter =
-          Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
-          .getService(Components.interfaces.nsICrashReporter);
-    crashReporter.enabled = true;
-    crashReporter.minidumpPath = do_get_cwd();
-  }
-}
-catch (e) { }
-
 /**
  * Date.now() is not necessarily monotonically increasing (insert sob story
  * about times not being the right tool to use for measuring intervals of time,

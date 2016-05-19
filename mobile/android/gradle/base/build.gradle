@@ -34,19 +34,10 @@ android {
             java {
                 exclude 'org/mozilla/goanna/tests/**'
                 exclude 'org/mozilla/goanna/resources/**'
-                if (!mozconfig.substs.MOZ_CRASHREPORTER) {
-                    exclude 'org/mozilla/goanna/CrashReporter.java'
-                }
-            }
-
-            res {
-                if (mozconfig.substs.MOZ_CRASHREPORTER) {
-                    srcDir "src/crashreporter/res"
                 }
             }
         }
     }
-}
 
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])

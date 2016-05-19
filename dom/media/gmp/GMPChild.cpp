@@ -17,13 +17,10 @@
 #include "gmp-video-decode.h"
 #include "gmp-video-encode.h"
 #include "GMPPlatform.h"
-#include "mozilla/dom/CrashReporterChild.h"
 #ifdef XP_WIN
 #include "nsCRT.h"
 #endif
 #include <fstream>
-
-using mozilla::dom::CrashReporterChild;
 
 static const int MAX_VOUCHER_LENGTH = 500000;
 
@@ -491,19 +488,6 @@ bool
 GMPChild::DeallocPGMPAudioDecoderChild(PGMPAudioDecoderChild* aActor)
 {
   delete aActor;
-  return true;
-}
-
-mozilla::dom::PCrashReporterChild*
-GMPChild::AllocPCrashReporterChild(const NativeThreadId& aThread)
-{
-  return new CrashReporterChild();
-}
-
-bool
-GMPChild::DeallocPCrashReporterChild(PCrashReporterChild* aCrashReporter)
-{
-  delete aCrashReporter;
   return true;
 }
 

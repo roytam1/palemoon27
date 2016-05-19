@@ -163,12 +163,6 @@ public:
                                         override;
     virtual bool DeallocPBlobChild(PBlobChild* aActor) override;
 
-    virtual PCrashReporterChild*
-    AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
-                             const uint32_t& processType) override;
-    virtual bool
-    DeallocPCrashReporterChild(PCrashReporterChild*) override;
-
     virtual PHalChild* AllocPHalChild() override;
     virtual bool DeallocPHalChild(PHalChild*) override;
 

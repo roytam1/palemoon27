@@ -15,7 +15,6 @@
 #include "ContentChild.h"
 
 #include "BlobChild.h"
-#include "CrashReporterChild.h"
 #include "GoannaProfiler.h"
 #include "TabChild.h"
 
@@ -30,7 +29,6 @@
 #include "mozilla/dom/ContentBridgeParent.h"
 #include "mozilla/dom/DOMStorageIPC.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
-#include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/ProcessGlobal.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
@@ -1369,20 +1367,6 @@ ContentChild::SendPBlobConstructor(PBlobChild* aActor,
                                    const BlobConstructorParams& aParams)
 {
     return PContentChild::SendPBlobConstructor(aActor, aParams);
-}
-
-PCrashReporterChild*
-ContentChild::AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
-                                       const uint32_t& processType)
-{
-    return nullptr;
-}
-
-bool
-ContentChild::DeallocPCrashReporterChild(PCrashReporterChild* crashreporter)
-{
-    delete crashreporter;
-    return true;
 }
 
 PHalChild*

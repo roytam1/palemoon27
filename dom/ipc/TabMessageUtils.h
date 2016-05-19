@@ -23,9 +23,6 @@ struct RemoteDOMEvent
 bool ReadRemoteEvent(const IPC::Message* aMsg, void** aIter,
                      mozilla::dom::RemoteDOMEvent* aResult);
 
-// unused in this case
-typedef int32_t NativeThreadId;
-
 }
 }
 

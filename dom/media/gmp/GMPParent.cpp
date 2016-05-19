@@ -22,9 +22,6 @@
 #include "mozilla/SandboxInfo.h"
 #endif
 
-#include "mozilla/dom/CrashReporterParent.h"
-using mozilla::dom::CrashReporterParent;
-
 #include "mozilla/Telemetry.h"
 
 namespace mozilla {
@@ -654,21 +651,6 @@ GMPParent::ActorDestroy(ActorDestroyReason aWhy)
     // Note: final destruction will be Dispatched to ourself
     mService->ReAddOnGMPThread(self);
   }
-}
-
-mozilla::dom::PCrashReporterParent*
-GMPParent::AllocPCrashReporterParent(const NativeThreadId& aThread)
-{
-  CrashReporterParent* cr = new CrashReporterParent();
-  cr->SetChildData(aThread, GoannaProcessType_GMPlugin);
-  return cr;
-}
-
-bool
-GMPParent::DeallocPCrashReporterParent(PCrashReporterParent* aCrashReporter)
-{
-  delete aCrashReporter;
-  return true;
 }
 
 PGMPVideoDecoderParent*

@@ -75,7 +75,6 @@ GLXLibrary::EnsureInitialized()
 
     if (!mOGLLibrary) {
         const char* libGLfilename = nullptr;
-        bool forceFeatureReport = false;
 
         // see e.g. bug 608526: it is intrinsically interesting to know whether we have dynamically linked to libGL.so.1
         // because at least the NVIDIA implementation requires an executable stack, which causes mprotect calls,

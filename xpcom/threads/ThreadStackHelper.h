@@ -23,27 +23,6 @@
 #include <mach/mach.h>
 #endif
 
-// Support pseudostack on these platforms.
-#if defined(XP_LINUX) || defined(XP_WIN) || defined(XP_MACOSX)
-#  ifdef MOZ_ENABLE_PROFILER_SPS
-#    define MOZ_THREADSTACKHELPER_PSEUDO
-#  endif
-#endif
-
-#ifdef MOZ_THREADSTACKHELPER_PSEUDO
-#  define MOZ_THREADSTACKHELPER_NATIVE
-#  if defined(__i386__) || defined(_M_IX86)
-#    define MOZ_THREADSTACKHELPER_X86
-#  elif defined(__x86_64__) || defined(_M_X64)
-#    define MOZ_THREADSTACKHELPER_X64
-#  elif defined(__arm__) || defined(_M_ARM)
-#    define MOZ_THREADSTACKHELPER_ARM
-#  else
-     // Unsupported architecture
-#    undef MOZ_THREADSTACKHELPER_NATIVE
-#  endif
-#endif
-
 namespace mozilla {
 
 /**
@@ -63,29 +42,18 @@ public:
 
 private:
   Stack* mStackToFill;
-#ifdef MOZ_THREADSTACKHELPER_PSEUDO
+#ifdef MOZ_ENABLE_PROFILER_SPS
   const PseudoStack* const mPseudoStack;
-#ifdef MOZ_THREADSTACKHELPER_NATIVE
-  class CodeModulesProvider;
-  class ThreadContext;
-  // Set to non-null if GetStack should get the thread context.
-  ThreadContext* mContextToFill;
-  intptr_t mThreadStackBase;
-#endif
   size_t mMaxStackSize;
   size_t mMaxBufferSize;
 #endif
 
   bool PrepareStackBuffer(Stack& aStack);
   void FillStackBuffer();
-  void FillThreadContext(void* aContext = nullptr);
-#ifdef MOZ_THREADSTACKHELPER_PSEUDO
+#ifdef MOZ_ENABLE_PROFILER_SPS
   const char* AppendJSEntry(const volatile StackEntry* aEntry,
                             intptr_t& aAvailableBufferSize,
                             const char* aPrevLabel);
-#endif
-#ifdef MOZ_THREADSTACKHELPER_NATIVE
-  void GetThreadStackBase();
 #endif
 
 public:
@@ -112,14 +80,6 @@ public:
    * @param aStack Stack instance to be filled.
    */
   void GetStack(Stack& aStack);
-
-  /**
-   * Retrieve the current native stack of the thread associated
-   * with this ThreadStackHelper.
-   *
-   * @param aNativeStack Stack instance to be filled.
-   */
-  void GetNativeStack(Stack& aStack);
 
 #if defined(XP_LINUX)
 private:

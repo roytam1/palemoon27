@@ -264,7 +264,7 @@
       <stack id="allTabs-stack">
         <vbox id="allTabs-container"><hbox/></vbox>
         <toolbarbutton id="allTabs-tab-close-button"
-                       class="tabs-closebutton"
+                       class="tabs-closebutton close-icon"
                        oncommand="allTabs.closeTab(event);"
                        tooltiptext="&closeCmd.label;"
                        style="visibility:hidden"/>
@@ -808,7 +808,7 @@
       </toolbarbutton>
 
       <toolbarbutton id="tabs-closebutton"
-                     class="close-button tabs-closebutton"
+                     class="close-button tabs-closebutton close-icon"
                      command="cmd_close"
                      label="&closeTab.label;"
                      tooltiptext="&closeTab.label;"/>
@@ -929,7 +929,7 @@
       <sidebarheader id="sidebar-header" align="center">
         <label id="sidebar-title" persist="value" flex="1" crop="end" control="sidebar"/>
         <image id="sidebar-throbber"/>
-        <toolbarbutton class="tabs-closebutton" tooltiptext="&sidebarCloseButton.tooltip;" oncommand="toggleSidebar();"/>
+        <toolbarbutton class="tabs-closebutton close-icon" tooltiptext="&sidebarCloseButton.tooltip;" oncommand="toggleSidebar();"/>
       </sidebarheader>
       <browser id="sidebar" flex="1" autoscroll="false" disablehistory="true"
                 style="min-width: 14em; width: 18em; max-width: 36em;"/>
@@ -1009,6 +1009,7 @@
              customizable="true"
              key="key_toggleAddonBar">
       <toolbarbutton id="addonbar-closebutton"
+                     class="close-icon"
                      tooltiptext="&addonBarCloseButton.tooltip;"
                      oncommand="setToolbarVisibility(this.parentNode, false);"/>
       <statusbar id="status-bar" ordinal="1000"/>

@@ -243,7 +243,7 @@ menuitem.bookmark-item {
     list-style-image: url("chrome://browser/skin/Toolbar.png");
 }
 
-.toolbarbutton-1:-moz-lwtheme-brighttext {
+toolbar[brighttext] .toolbarbutton-1 {
     list-style-image: url("chrome://browser/skin/Toolbar-inverted.png");
 }
 
@@ -260,8 +260,8 @@ menuitem.bookmark-item {
     list-style-image: url("chrome://browser/skin/toolbarbutton-dropdown-arrow.png");
 }
 
-.toolbarbutton-1 > .toolbarbutton-menu-dropmarker:-moz-lwtheme-brighttext,
-.toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker:-moz-lwtheme-brighttext {
+toolbar[brighttext] .toolbarbutton-1 > .toolbarbutton-menu-dropmarker,
+toolbar[brighttext] .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
     list-style-image: url("chrome://browser/skin/toolbarbutton-dropdown-arrow-inverted.png");
 }
 
@@ -589,7 +589,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 #home-button.bookmark-item {
     list-style-image: url("chrome://browser/skin/Toolbar.png");
 }
-#home-button.bookmark-item:-moz-lwtheme-brighttext {
+toolbar[brighttext] #home-button.bookmark-item {
     list-style-image: url("chrome://browser/skin/Toolbar-inverted.png");
 }
 
@@ -615,7 +615,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
     list-style-image: url("chrome://browser/skin/Toolbar.png");
 }
 
-#bookmarks-menu-button.bookmark-item:-moz-lwtheme-brighttext {
+toolbar[brighttext] #bookmarks-menu-button.bookmark-item {
     list-style-image: url("chrome://browser/skin/Toolbar-inverted.png");
 }
 
@@ -1477,8 +1477,8 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
     background-origin: border-box;
 }
 
-.tabbrowser-arrowscrollbox > .scrollbutton-up:-moz-lwtheme-brighttext,
-.tabbrowser-arrowscrollbox > .scrollbutton-down:-moz-lwtheme-brighttext {
+toolbar[brighttext] .tabbrowser-arrowscrollbox > .scrollbutton-up,
+toolbar[brighttext] .tabbrowser-arrowscrollbox > .scrollbutton-down {
     list-style-image: url(chrome://browser/skin/tabbrowser/tab-arrow-left-inverted.png);
 }
 
@@ -1521,8 +1521,8 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
 }
 
 .tabs-newtab-button:-moz-lwtheme-brighttext,
-#TabsToolbar > #new-tab-button:-moz-lwtheme-brighttext,
-#TabsToolbar > toolbarpaletteitem > #new-tab-button:-moz-lwtheme-brighttext {
+toolbar[brighttext] #TabsToolbar > #new-tab-button,
+toolbar[brighttext] #TabsToolbar > toolbarpaletteitem > #new-tab-button {
     list-style-image: url(chrome://browser/skin/tabbrowser/newtab-inverted.png);
 }
 
@@ -1544,11 +1544,11 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
     -moz-image-region: auto;
 }
 
-#alltabs-button:-moz-lwtheme-brighttext {
+toolbar[brighttext] #alltabs-button {
     list-style-image: url("chrome://browser/skin/tabbrowser/alltabs-inverted.png");
 }
 
-#alltabs-button[type="menu"]:-moz-lwtheme-brighttext {
+toolbar[brighttext] #alltabs-button[type="menu"] {
     list-style-image: url("chrome://browser/skin/toolbarbutton-dropdown-arrow-inverted.png");
 }
 
@@ -1586,12 +1586,12 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
     border: none;
 }
 
-.tabs-closebutton:-moz-lwtheme-brighttext {
+toolbar[brighttext] .tabs-closebutton {
     list-style-image: url("chrome://global/skin/icons/close-inverted.png");
 }
 
 @media (min-resolution: 2dppx) {
-    .tabs-closebutton:-moz-lwtheme-brighttext {
+    toolbar[brighttext] .tabs-closebutton {
         list-style-image: url("chrome://global/skin/icons/close-inverted@2x.png");
     }
 }
@@ -2194,12 +2194,12 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
     -moz-appearance: none;
 }
 
-#addonbar-closebutton:-moz-lwtheme-brighttext {
+toolbar[brighttext] #addonbar-closebutton {
     list-style-image: url("chrome://global/skin/icons/close-inverted.png");
 }
 
 @media (min-resolution: 2dppx) {
-    #addonbar-closebutton:-moz-lwtheme-brighttext {
+    toolbar[brighttext] #addonbar-closebutton {
         list-style-image: url("chrome://global/skin/icons/close-inverted@2x.png");
     }
 }

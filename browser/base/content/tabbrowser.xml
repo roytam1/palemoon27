@@ -2638,7 +2638,7 @@
       <property name="finder"
                 onget="return this.mCurrentBrowser.finder"
                 readonly="true"/>
-
+      
       <property name="docShell"
                 onget="return this.mCurrentBrowser.docShell"
                 readonly="true"/>
@@ -4433,7 +4433,7 @@
                      role="presentation"/>
           <xul:toolbarbutton anonid="close-button"
                              xbl:inherits="fadein,pinned,selected"
-                             class="tab-close-button"/>
+                             class="tab-close-button close-icon"/>
         </xul:hbox>
       </xul:stack>
     </content>

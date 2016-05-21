@@ -53,7 +53,6 @@
 #newtab-undo-close-button {
   padding: 0;
   border: none;
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
   -moz-user-focus: normal;
 }
 

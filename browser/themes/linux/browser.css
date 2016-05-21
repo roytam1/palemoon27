@@ -1598,7 +1598,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .panel-promo-closebutton {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -1796,7 +1795,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tab-close-button {
   padding: 0;
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
   margin-top: -1px;
   margin-bottom: -1px;
   -moz-margin-end: -1px;
@@ -1811,10 +1809,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 /* Tabstrip close button */
-.tabs-closebutton {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
-}
-
 .tabs-closebutton > .toolbarbutton-icon {
   /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
      use evil CSS to give the impression of smaller content */
@@ -2064,10 +2058,6 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 #status-bar > statusbarpanel {
   border-width: 0;
   -moz-appearance: none;
-}
-
-#addonbar-closebutton {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
 #addonbar-closebutton > .toolbarbutton-icon {

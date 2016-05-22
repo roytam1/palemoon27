@@ -815,7 +815,7 @@ public:
     CreateNamedPropertiesObject(JSContext *aCx, JS::Handle<JSObject*> aProto);
 
   nsGlobalWindow* Window();
-  nsIDOMWindow* GetSelf(mozilla::ErrorResult& aError);
+  nsGlobalWindow* Self();
   nsIDocument* GetDocument()
   {
     return GetDoc();

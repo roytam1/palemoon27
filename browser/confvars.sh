@@ -26,11 +26,10 @@ MOZ_WEBM_ENCODER=1
 JSGC_USE_EXACT_ROOTING=1
 JSGC_GENERATIONAL=1
 
+MOZ_PHOENIX_EXTENSIONS=1
 
 #Switched off because they will need to be upgraded
 #MOZ_DEVTOOLS=1
-#Switched off because it doesn't exist and may never will
-#MOZ_MULTI_GUID=1
 # MOZ_APP_DISPLAYNAME will be set by branding/configure.sh
 # Changing MOZ_*BRANDING_DIRECTORY requires a clobber to ensure correct results,
 # because branding dependencies are broken.

@@ -192,12 +192,12 @@ ifeq ($(OS_ARCH),WINNT)
 	cat $< $(srcdir)/../installer/windows/nsis/updater_append.ini | \
 	  sed -e "s/^InfoText=/Info=/" -e "s/^TitleText=/Title=/" | \
 	  sed -e "s/%MOZ_APP_DISPLAYNAME%/$(MOZ_APP_DISPLAYNAME)/" > \
-	  $(FINAL_TARGET)/../bin/updater.ini
+	  $(FINAL_TARGET)/../updater.ini
 else
 	cat $< | \
 	  sed -e "s/^InfoText=/Info=/" -e "s/^TitleText=/Title=/" | \
 	  sed -e "s/%MOZ_APP_DISPLAYNAME%/$(MOZ_APP_DISPLAYNAME)/" > \
-	  $(FINAL_TARGET)/../bin/updater.ini
+	  $(FINAL_TARGET)/../updater.ini
 endif
 endif
 

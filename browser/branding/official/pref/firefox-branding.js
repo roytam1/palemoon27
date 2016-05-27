@@ -62,36 +62,36 @@ pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%bl
 // ****************** domain-specific UAs ******************
 
 // Required for domains that have proven unresponsive to requests from users
-pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
-pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
-pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
-pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
-pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Goanna/2.0 Firefox/45.9 PaleMoon/26.0");
-pref("general.useragent.override.googlevideos.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
-pref("general.useragent.override.gstatic.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
-pref("general.useragent.override.youtube.com","Mozilla/5.0 (Windows NT 5.1; rv:42.0) Gecko/20100101 Firefox/42.0 PaleMoon/26.0");
-pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:26.0) Gecko/20100101 Firefox/31.9");
-pref("general.useragent.override.calendar.yahoo.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.0) Gecko/20100101 Firefox/45.0 (Pale Moon)");
+pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9 (Pale Moon)");
+pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9 (Pale Moon)");
+pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9 (Pale Moon)");
+pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9 (Pale Moon)");
+pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Goanna/3.0 Firefox/45.9 PaleMoon/27.0");
+pref("general.useragent.override.googlevideos.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/3.0 Firefox/38.9 PaleMoon/27.0");
+pref("general.useragent.override.gstatic.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/3.0 Firefox/31.9 PaleMoon/27.0");
+pref("general.useragent.override.youtube.com","Mozilla/5.0 (Windows NT 6.1; rv:42.0) Gecko/20100101 Firefox/42.0 PaleMoon/27.0");
+pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Firefox/38.9");
+pref("general.useragent.override.calendar.yahoo.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9 (Pale Moon)");
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
-pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
-pref("general.useragent.override.fbcdn.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
-pref("general.useragent.override.chase.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
+pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Goanna/3.0 Firefox/45.9 PaleMoon/27.0");
+pref("general.useragent.override.fbcdn.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Goanna/3.0 Firefox/45.9 PaleMoon/27.0");
+pref("general.useragent.override.chase.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9");
 // Citi requires native mode. Or it blocks.. "too old firefox"
-pref("general.useragent.override.citi.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:2.0) Goanna/20160101 PaleMoon/26.0");
+pref("general.useragent.override.citi.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:2.0) Goanna/20160101 PaleMoon/27.0");
 // Yuku fora don't like the Goanna slice (result: broken mobile site)
-pref("general.useragent.override.yuku.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Firefox/38.9 PaleMoon/26.0");
+pref("general.useragent.override.yuku.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9 PaleMoon/27.0");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
-pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
-pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
-pref("general.useragent.override.icloud.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.0) Gecko/20100101 Firefox/45.0 (Pale Moon)");
+pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+pref("general.useragent.override.icloud.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.0) Gecko/20100101 Firefox/45.0 (Pale Moon)");
 
 // UA-sniffing domains that are "app/vendor-specific" and don't like Pale Moon
 pref("general.useragent.override.web.whatsapp.com","Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36");
 
 // The following domains don't like the Goanna slice
-pref("general.useragent.override.hitbox.tv","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
+pref("general.useragent.override.hitbox.tv","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Firefox/45.9");
 
 // Enable Firefox compatibility mode globally?
 pref("general.useragent.compatMode.firefox", true);

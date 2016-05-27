@@ -65,9 +65,6 @@
 # platforms.
 
 # Common File Removals
-# This is located under the "distribution/" directory and it was added before
-# Firefox 27
-@DIR_MACOS@distribution/extensions/testpilot@labs.mozilla.com.xpi
 
 # Some users are ending up with unpacked chrome instead of omni.ja. This
 # causes updates to break badly, see bug 1063052. Removing the toplevel
@@ -79,17 +76,7 @@
   #endif
 #endif
 
-# Mac OS X v2 signing removals
-#ifdef XP_MACOSX
-  @DIR_MACOS@active-update.xml
-  @DIR_MACOS@update-settings.ini
-  @DIR_MACOS@updates.xml
-  @DIR_MACOS@defaults/*
-  @DIR_MACOS@updates/*
-#endif
-
 # Common Directory removals
-@DIR_MACOS@chrome/
 #ifdef XP_UNIX
   #ifndef XP_MACOSX
     chrome/icons/
@@ -122,5 +109,4 @@
   @DIR_MACOS@plugins/MRJPlugin.plugin/*
   Contents/Plug-Ins/PrintPDE.plugin/*
 #endif
-@DIR_MACOS@searchplugins/*
 @DIR_MACOS@webapprt/components/

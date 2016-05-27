@@ -41,12 +41,12 @@ public:
   typedef Telemetry::HangStack Stack;
 
 private:
-  Stack* mStackToFill;
 #ifdef MOZ_ENABLE_PROFILER_SPS
   const PseudoStack* const mPseudoStack;
+#endif
+  Stack* mStackToFill;
   size_t mMaxStackSize;
   size_t mMaxBufferSize;
-#endif
 
   bool PrepareStackBuffer(Stack& aStack);
   void FillStackBuffer();

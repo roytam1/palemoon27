@@ -26,4 +26,3 @@ libs:: update.locale
 endif
 
 	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)
-endif

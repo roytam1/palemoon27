@@ -22,6 +22,7 @@
 #include "Units.h"
 #include "WritingModes.h"
 #include "js/TypeDecls.h"
+#include "TabMessageUtils.h"
 
 class nsFrameLoader;
 class nsIFrameLoader;

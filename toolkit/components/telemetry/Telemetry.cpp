@@ -65,9 +65,6 @@
 #include "mozilla/PoisonIOInterposer.h"
 #include "mozilla/StartupTimeline.h"
 #include "mozilla/HangMonitor.h"
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-#include "shared-libraries.h"
-#endif
 
 #define EXPIRED_ID "__expired__"
 
@@ -650,13 +647,6 @@ public:
   static void ShutdownTelemetry();
   static void RecordSlowStatement(const nsACString &sql, const nsACString &dbName,
                                   uint32_t delay);
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-  static void RecordChromeHang(uint32_t aDuration,
-                               Telemetry::ProcessedStack &aStack,
-                               int32_t aSystemUptime,
-                               int32_t aFirefoxUptime,
-                               UniquePtr<HangAnnotations> aAnnotations);
-#endif
   static void RecordThreadHangStats(Telemetry::ThreadHangStats& aStats);
   static nsresult GetHistogramEnumId(const char *name, Telemetry::ID *id);
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
@@ -3130,31 +3120,6 @@ TelemetryImpl::RecordSlowStatement(const nsACString &sql,
   StoreSlowSQL(fullSQL, delay, Unsanitized);
 }
 
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-void
-TelemetryImpl::RecordChromeHang(uint32_t aDuration,
-                                Telemetry::ProcessedStack &aStack,
-                                int32_t aSystemUptime,
-                                int32_t aFirefoxUptime,
-                                UniquePtr<HangAnnotations> aAnnotations)
-{
-  if (!sTelemetry || !sTelemetry->mCanRecord)
-    return;
-
-  UniquePtr<HangAnnotations> annotations;
-  // We only pass aAnnotations if it is not empty.
-  if (aAnnotations && !aAnnotations->IsEmpty()) {
-    annotations = Move(aAnnotations);
-  }
-
-  MutexAutoLock hangReportMutex(sTelemetry->mHangReportsMutex);
-
-  sTelemetry->mHangReports.AddHang(aStack, aDuration,
-                                   aSystemUptime, aFirefoxUptime,
-                                   Move(annotations));
-}
-#endif
-
 void
 TelemetryImpl::RecordThreadHangStats(Telemetry::ThreadHangStats& aStats)
 {
@@ -3409,19 +3374,6 @@ void Init()
   MOZ_ASSERT(telemetryService);
 }
 
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-void RecordChromeHang(uint32_t duration,
-                      ProcessedStack &aStack,
-                      int32_t aSystemUptime,
-                      int32_t aFirefoxUptime,
-                      UniquePtr<HangAnnotations> aAnnotations)
-{
-  TelemetryImpl::RecordChromeHang(duration, aStack,
-                                  aSystemUptime, aFirefoxUptime,
-                                  Move(aAnnotations));
-}
-#endif
-
 void RecordThreadHangStats(ThreadHangStats& aStats)
 {
   TelemetryImpl::RecordThreadHangStats(aStats);
@@ -3481,18 +3433,6 @@ struct StackFrame
 };
 
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-static bool CompareByPC(const StackFrame &a, const StackFrame &b)
-{
-  return a.mPC < b.mPC;
-}
-
-static bool CompareByIndex(const StackFrame &a, const StackFrame &b)
-{
-  return a.mIndex < b.mIndex;
-}
-#endif
-
 ProcessedStack
 GetStackAndModules(const std::vector<uintptr_t>& aPCs)
 {
@@ -3505,60 +3445,6 @@ GetStackAndModules(const std::vector<uintptr_t>& aPCs)
     rawStack.push_back(Frame);
   }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  // Remove all modules not referenced by a PC on the stack
-  std::sort(rawStack.begin(), rawStack.end(), CompareByPC);
-
-  size_t moduleIndex = 0;
-  size_t stackIndex = 0;
-  size_t stackSize = rawStack.size();
-
-  SharedLibraryInfo rawModules = SharedLibraryInfo::GetInfoForSelf();
-  rawModules.SortByAddress();
-
-  while (moduleIndex < rawModules.GetSize()) {
-    const SharedLibrary& module = rawModules.GetEntry(moduleIndex);
-    uintptr_t moduleStart = module.GetStart();
-    uintptr_t moduleEnd = module.GetEnd() - 1;
-    // the interval is [moduleStart, moduleEnd)
-
-    bool moduleReferenced = false;
-    for (;stackIndex < stackSize; ++stackIndex) {
-      uintptr_t pc = rawStack[stackIndex].mPC;
-      if (pc >= moduleEnd)
-        break;
-
-      if (pc >= moduleStart) {
-        // If the current PC is within the current module, mark
-        // module as used
-        moduleReferenced = true;
-        rawStack[stackIndex].mPC -= moduleStart;
-        rawStack[stackIndex].mModIndex = moduleIndex;
-      } else {
-        // PC does not belong to any module. It is probably from
-        // the JIT. Use a fixed mPC so that we don't get different
-        // stacks on different runs.
-        rawStack[stackIndex].mPC =
-          std::numeric_limits<uintptr_t>::max();
-      }
-    }
-
-    if (moduleReferenced) {
-      ++moduleIndex;
-    } else {
-      // Remove module if no PCs within its address range
-      rawModules.RemoveEntries(moduleIndex, moduleIndex + 1);
-    }
-  }
-
-  for (;stackIndex < stackSize; ++stackIndex) {
-    // These PCs are past the last module.
-    rawStack[stackIndex].mPC = std::numeric_limits<uintptr_t>::max();
-  }
-
-  std::sort(rawStack.begin(), rawStack.end(), CompareByIndex);
-#endif
-
   // Copy the information to the return value.
   ProcessedStack Ret;
   for (std::vector<StackFrame>::iterator i = rawStack.begin(),
@@ -3567,28 +3453,6 @@ GetStackAndModules(const std::vector<uintptr_t>& aPCs)
     ProcessedStack::Frame frame = { rawFrame.mPC, rawFrame.mModIndex };
     Ret.AddFrame(frame);
   }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  for (unsigned i = 0, n = rawModules.GetSize(); i != n; ++i) {
-    const SharedLibrary &info = rawModules.GetEntry(i);
-    const std::string &name = info.GetName();
-    std::string basename = name;
-#ifdef XP_MACOSX
-    // FIXME: We want to use just the basename as the libname, but the
-    // current profiler addon needs the full path name, so we compute the
-    // basename in here.
-    size_t pos = name.rfind('/');
-    if (pos != std::string::npos) {
-      basename = name.substr(pos + 1);
-    }
-#endif
-    ProcessedStack::Module module = {
-      basename,
-      info.GetBreakpadId()
-    };
-    Ret.AddModule(module);
-  }
-#endif
 
   return Ret;
 }

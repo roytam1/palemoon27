@@ -2665,13 +2665,6 @@ WorkerThreadPrimaryRunnable::Run()
     }
 
     {
-#ifdef MOZ_ENABLE_PROFILER_SPS
-      PseudoStack* stack = mozilla_get_pseudo_stack();
-      if (stack) {
-        stack->sampleRuntime(rt);
-      }
-#endif
-
       {
         JSAutoRequest ar(cx);
 
@@ -2686,11 +2679,6 @@ WorkerThreadPrimaryRunnable::Run()
 
       BackgroundChild::CloseForCurrentThread();
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-      if (stack) {
-        stack->sampleRuntime(nullptr);
-      }
-#endif
     }
 
     // Destroy the main context.  This will unroot the main worker global and

@@ -81,9 +81,6 @@ ThreadStackHelper::Shutdown()
 
 ThreadStackHelper::ThreadStackHelper()
   :
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    mPseudoStack(mozilla_get_pseudo_stack()),
-#endif
     mStackToFill(nullptr)
   , mMaxStackSize(Stack::sMaxInlineStorage)
   , mMaxBufferSize(0)
@@ -176,169 +173,10 @@ ThreadStackHelper::GetStack(Stack& aStack)
 #endif
 }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-
-namespace {
-
-bool
-IsChromeJSScript(JSScript* aScript)
-{
-  // May be called from another thread or inside a signal handler.
-  // We assume querying the script is safe but we must not manipulate it.
-
-  nsIScriptSecurityManager* const secman =
-    nsScriptSecurityManager::GetScriptSecurityManager();
-  NS_ENSURE_TRUE(secman, false);
-
-  JSPrincipals* const principals = JS_GetScriptPrincipals(aScript);
-  return secman->IsSystemPrincipal(nsJSPrincipals::get(principals));
-}
-
-// Get the full path after the URI scheme, if the URI matches the scheme.
-// For example, GetFullPathForScheme("a://b/c/d/e", "a://") returns "b/c/d/e".
-template <size_t LEN>
-const char*
-GetFullPathForScheme(const char* filename, const char (&scheme)[LEN]) {
-  // Account for the null terminator included in LEN.
-  if (!strncmp(filename, scheme, LEN - 1)) {
-    return filename + LEN - 1;
-  }
-  return nullptr;
-}
-
-// Get the full path after a URI component, if the URI contains the component.
-// For example, GetPathAfterComponent("a://b/c/d/e", "/c/") returns "d/e".
-template <size_t LEN>
-const char*
-GetPathAfterComponent(const char* filename, const char (&component)[LEN]) {
-  const char* found = nullptr;
-  const char* next = strstr(filename, component);
-  while (next) {
-    // Move 'found' to end of the component, after the separator '/'.
-    // 'LEN - 1' accounts for the null terminator included in LEN,
-    found = next + LEN - 1;
-    // Resume searching before the separator '/'.
-    next = strstr(found - 1, component);
-  }
-  return found;
-}
-
-} // namespace
-
-const char*
-ThreadStackHelper::AppendJSEntry(const volatile StackEntry* aEntry,
-                                 intptr_t& aAvailableBufferSize,
-                                 const char* aPrevLabel)
-{
-  // May be called from another thread or inside a signal handler.
-  // We assume querying the script is safe but we must not manupulate it.
-  // Also we must not allocate any memory from heap.
-  MOZ_ASSERT(aEntry->isJs());
-  MOZ_ASSERT(aEntry->script());
-
-  const char* label;
-  if (IsChromeJSScript(aEntry->script())) {
-    const char* filename = JS_GetScriptFilename(aEntry->script());
-    const unsigned lineno = JS_PCToLineNumber(aEntry->script(), aEntry->pc());
-    MOZ_ASSERT(filename);
-
-    char buffer[128]; // Enough to fit longest js file name from the tree
-
-    // Some script names are in the form "foo -> bar -> baz".
-    // Here we find the origin of these redirected scripts.
-    const char* basename = GetPathAfterComponent(filename, " -> ");
-    if (basename) {
-      filename = basename;
-    }
-
-    basename = GetFullPathForScheme(filename, "chrome://");
-    if (!basename) {
-      basename = GetFullPathForScheme(filename, "resource://");
-    }
-    if (!basename) {
-      // If the (add-on) script is located under the {profile}/extensions
-      // directory, extract the path after the /extensions/ part.
-      basename = GetPathAfterComponent(filename, "/extensions/");
-    }
-    if (!basename) {
-      // Only keep the file base name for paths outside the above formats.
-      basename = strrchr(filename, '/');
-      basename = basename ? basename + 1 : filename;
-    }
-
-    size_t len = PR_snprintf(buffer, sizeof(buffer), "%s:%u", basename, lineno);
-    if (len < sizeof(buffer)) {
-      if (mStackToFill->IsSameAsEntry(aPrevLabel, buffer)) {
-        return aPrevLabel;
-      }
-
-      // Keep track of the required buffer size
-      aAvailableBufferSize -= (len + 1);
-      if (aAvailableBufferSize >= 0) {
-        // Buffer is big enough.
-        return mStackToFill->InfallibleAppendViaBuffer(buffer, len);
-      }
-      // Buffer is not big enough; fall through to using static label below.
-    }
-    // snprintf failed or buffer is not big enough.
-    label = "(chrome script)";
-  } else {
-    label = "(content script)";
-  }
-
-  if (mStackToFill->IsSameAsEntry(aPrevLabel, label)) {
-    return aPrevLabel;
-  }
-  mStackToFill->infallibleAppend(label);
-  return label;
-}
-
-#endif // MOZ_ENABLE_PROFILER_SPS
-
 void
 ThreadStackHelper::FillStackBuffer()
 {
   MOZ_ASSERT(mStackToFill->empty());
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  size_t reservedSize = mStackToFill->capacity();
-  size_t reservedBufferSize = mStackToFill->AvailableBufferSize();
-  intptr_t availableBufferSize = intptr_t(reservedBufferSize);
-
-  // Go from front to back
-  const volatile StackEntry* entry = mPseudoStack->mStack;
-  const volatile StackEntry* end = entry + mPseudoStack->stackSize();
-  // Deduplicate identical, consecutive frames
-  const char* prevLabel = nullptr;
-  for (; reservedSize-- && entry != end; entry++) {
-    /* We only accept non-copy labels, including js::RunScript,
-       because we only want static labels in the hang stack. */
-    if (entry->isCopyLabel()) {
-      continue;
-    }
-    if (entry->isJs()) {
-      prevLabel = AppendJSEntry(entry, availableBufferSize, prevLabel);
-      continue;
-    }
-    const char* const label = entry->label();
-    if (mStackToFill->IsSameAsEntry(prevLabel, label)) {
-      // Avoid duplicate labels to save space in the stack.
-      continue;
-    }
-    mStackToFill->infallibleAppend(label);
-    prevLabel = label;
-  }
-
-  // end != entry if we exited early due to not enough reserved frames.
-  // Expand the number of reserved frames for next time.
-  mMaxStackSize = mStackToFill->capacity() + (end - entry);
-
-  // availableBufferSize < 0 if we needed a larger buffer than we reserved.
-  // Calculate a new reserve size for next time.
-  if (availableBufferSize < 0) {
-    mMaxBufferSize = reservedBufferSize - availableBufferSize;
-  }
-#endif
 }
 
 } // namespace mozilla

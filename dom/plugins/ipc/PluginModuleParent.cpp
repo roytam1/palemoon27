@@ -40,11 +40,6 @@
 #include "PluginHangUIParent.h"
 #endif
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-#include "nsIProfiler.h"
-#include "nsIProfileSaveEvent.h"
-#endif
-
 #ifdef MOZ_WIDGET_GTK
 #include <glib.h>
 #elif XP_MACOSX
@@ -563,10 +558,6 @@ PluginModuleChromeParent::PluginModuleChromeParent(const char* aFilePath, uint32
 
     RegisterSettingsCallbacks();
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    InitPluginProfiling();
-#endif
-
     mozilla::HangMonitor::RegisterAnnotator(*this);
 }
 
@@ -575,10 +566,6 @@ PluginModuleChromeParent::~PluginModuleChromeParent()
     if (!OkToCleanup()) {
         NS_RUNTIMEABORT("unsafe destruction");
     }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    ShutdownPluginProfiling();
-#endif
 
     if (!mShutdown) {
         NS_WARNING("Plugin host deleted the module without shutting down.");
@@ -2238,75 +2225,3 @@ PluginModuleChromeParent::RecvNotifyContentModuleDestroyed()
     }
     return true;
 }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-class PluginProfilerObserver final : public nsIObserver,
-                                         public nsSupportsWeakReference
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
-
-    explicit PluginProfilerObserver(PluginModuleParent* pmp)
-      : mPmp(pmp)
-    {}
-
-private:
-    ~PluginProfilerObserver() {}
-    PluginModuleParent* mPmp;
-};
-
-NS_IMPL_ISUPPORTS(PluginProfilerObserver, nsIObserver, nsISupportsWeakReference)
-
-NS_IMETHODIMP
-PluginProfilerObserver::Observe(nsISupports *aSubject,
-                                const char *aTopic,
-                                const char16_t *aData)
-{
-    if (!strcmp(aTopic, "profiler-started")) {
-        nsCOMPtr<nsIProfilerStartParams> params(do_QueryInterface(aSubject));
-        uint32_t entries;
-        double interval;
-        params->GetEntries(&entries);
-        params->GetInterval(&interval);
-        const nsTArray<nsCString>& features = params->GetFeatures();
-        const nsTArray<nsCString>& threadFilterNames = params->GetThreadFilterNames();
-        unused << mPmp->SendStartProfiler(entries, interval, features, threadFilterNames);
-    } else if (!strcmp(aTopic, "profiler-stopped")) {
-        unused << mPmp->SendStopProfiler();
-    } else if (!strcmp(aTopic, "profiler-subprocess")) {
-        nsCOMPtr<nsIProfileSaveEvent> pse = do_QueryInterface(aSubject);
-        if (pse) {
-            nsCString result;
-            bool success = mPmp->CallGetProfile(&result);
-            if (success && !result.IsEmpty()) {
-                pse->AddSubProfile(result.get());
-            }
-        }
-    }
-    return NS_OK;
-}
-
-void
-PluginModuleChromeParent::InitPluginProfiling()
-{
-    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-    if (observerService) {
-        mProfilerObserver = new PluginProfilerObserver(this);
-        observerService->AddObserver(mProfilerObserver, "profiler-started", false);
-        observerService->AddObserver(mProfilerObserver, "profiler-stopped", false);
-        observerService->AddObserver(mProfilerObserver, "profiler-subprocess", false);
-    }
-}
-
-void
-PluginModuleChromeParent::ShutdownPluginProfiling()
-{
-    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-    if (observerService) {
-        observerService->RemoveObserver(mProfilerObserver, "profiler-started");
-        observerService->RemoveObserver(mProfilerObserver, "profiler-stopped");
-        observerService->RemoveObserver(mProfilerObserver, "profiler-subprocess");
-    }
-}
-#endif

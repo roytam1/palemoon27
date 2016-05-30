@@ -1674,12 +1674,6 @@ XPCJSRuntime::~XPCJSRuntime()
         mDetachedWrappedNativeProtoMap = nullptr;
     }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    // Tell the profiler that the runtime is gone
-    if (PseudoStack* stack = mozilla_get_pseudo_stack())
-        stack->sampleRuntime(nullptr);
-#endif
-
     Preferences::UnregisterCallback(ReloadPrefsCallback, JS_OPTIONS_DOT_STR, this);
 }
 
@@ -3405,10 +3399,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     JS_AddWeakPointerCallback(runtime, WeakPointerCallback, this);
     JS_SetWrapObjectCallbacks(runtime, &WrapObjectCallbacks);
     js::SetPreserveWrapperCallback(runtime, PreserveWrapper);
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    if (PseudoStack* stack = mozilla_get_pseudo_stack())
-        stack->sampleRuntime(runtime);
-#endif
     JS_SetAccumulateTelemetryCallback(runtime, AccumulateTelemetryCallback);
     js::SetDefaultJSContextCallback(runtime, DefaultJSContextCallback);
     js::SetActivityCallback(runtime, ActivityCallback, this);

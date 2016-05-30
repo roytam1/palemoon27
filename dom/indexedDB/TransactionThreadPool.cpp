@@ -33,36 +33,12 @@ const uint32_t kThreadLimit = 20;
 const uint32_t kIdleThreadLimit = 5;
 const uint32_t kIdleThreadTimeoutMs = 30000;
 
-#if defined(DEBUG) || defined(MOZ_ENABLE_PROFILER_SPS)
-#define BUILD_THREADPOOL_LISTENER
-#endif
-
 #ifdef DEBUG
 
 const int32_t kDEBUGThreadPriority = nsISupportsPriority::PRIORITY_NORMAL;
 const uint32_t kDEBUGThreadSleepMS = 0;
 
 #endif // DEBUG
-
-#ifdef BUILD_THREADPOOL_LISTENER
-
-class TransactionThreadPoolListener final
-  : public nsIThreadPoolListener
-{
-public:
-  TransactionThreadPoolListener()
-  { }
-
-  NS_DECL_THREADSAFE_ISUPPORTS
-
-private:
-  virtual ~TransactionThreadPoolListener()
-  { }
-
-  NS_DECL_NSITHREADPOOLLISTENER
-};
-
-#endif // BUILD_THREADPOOL_LISTENER
 
 } // anonymous namespace
 
@@ -1003,11 +979,6 @@ TransactionThreadPoolListener::OnThreadCreated()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  char aLocal;
-  profiler_register_thread("IndexedDB Transaction", &aLocal);
-#endif // MOZ_ENABLE_PROFILER_SPS
-
 #ifdef DEBUG
   if (kDEBUGThreadPriority != nsISupportsPriority::PRIORITY_NORMAL) {
       NS_WARNING("TransactionThreadPool thread debugging enabled, priority has "
@@ -1027,10 +998,6 @@ NS_IMETHODIMP
 TransactionThreadPoolListener::OnThreadShuttingDown()
 {
   MOZ_ASSERT(!NS_IsMainThread());
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  profiler_unregister_thread();
-#endif // MOZ_ENABLE_PROFILER_SPS
 
   return NS_OK;
 }

@@ -10,11 +10,6 @@
 #include "mozilla/layers/Compositor.h"
 #include "mozilla/layers/CompositorParent.h"
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-#include "GoannaProfiler.h"
-#include "ProfilerMarkers.h"
-#endif
-
 namespace mozilla {
 static bool sThreadAssertionsEnabled = true;
 
@@ -43,13 +38,6 @@ CompositorVsyncDispatcher::~CompositorVsyncDispatcher()
 void
 CompositorVsyncDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 {
-  // In vsync thread
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    if (profiler_is_active()) {
-        layers::CompositorParent::PostInsertVsyncProfilerMarker(aVsyncTimestamp);
-    }
-#endif
-
   MutexAutoLock lock(mCompositorObserverLock);
   if (mCompositorVsyncObserver) {
     mCompositorVsyncObserver->NotifyVsync(aVsyncTimestamp);

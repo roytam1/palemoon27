@@ -252,16 +252,10 @@ class IOInterposerInit
 public:
   IOInterposerInit()
   {
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-    IOInterposer::Init();
-#endif
   }
 
   ~IOInterposerInit()
   {
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-    IOInterposer::Clear();
-#endif
   }
 };
 

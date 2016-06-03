@@ -46,7 +46,6 @@ UNIFIED_SOURCES += [
     'nsThreadManager.cpp',
     'nsThreadPool.cpp',
     'nsTimerImpl.cpp',
-    'ThreadStackHelper.cpp',
     'TimerThread.cpp',
 ]
 

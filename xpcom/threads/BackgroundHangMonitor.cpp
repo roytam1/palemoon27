@@ -20,7 +20,6 @@
 
 #include "prinrval.h"
 #include "prthread.h"
-#include "ThreadStackHelper.h"
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "mozilla/Services.h"
@@ -158,8 +157,6 @@ public:
   bool mHanging;
   // Is the thread in a waiting state
   bool mWaiting;
-  // Platform-specific helper to get hang stacks
-  ThreadStackHelper mStackHelper;
   // Stack of current hang
   Telemetry::HangStack mHangStack;
   // Statistics for telemetry
@@ -513,7 +510,6 @@ BackgroundHangMonitor::Startup()
 
   if (!strcmp(NS_STRINGIFY(MOZ_UPDATE_CHANNEL), "beta")) {
     if (XRE_IsParentProcess()) { // cached ClientID hasn't been read yet
-      ThreadStackHelper::Startup();
       BackgroundHangThread::Startup();
       BackgroundHangManager::sInstance = new BackgroundHangManager();
 
@@ -527,7 +523,6 @@ BackgroundHangMonitor::Startup()
     }
   }
 
-  ThreadStackHelper::Startup();
   BackgroundHangThread::Startup();
   BackgroundHangManager::sInstance = new BackgroundHangManager();
 #endif
@@ -549,7 +544,6 @@ BackgroundHangMonitor::Shutdown()
      we don't want to hold the lock when it's being destroyed. */
   BackgroundHangManager::sInstance->Shutdown();
   BackgroundHangManager::sInstance = nullptr;
-  ThreadStackHelper::Shutdown();
   BackgroundHangManager::sDisabled = true;
 #endif
 }

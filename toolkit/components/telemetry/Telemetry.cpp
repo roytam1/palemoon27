@@ -3032,9 +3032,6 @@ TelemetryImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
     MutexAutoLock lock(mHangReportsMutex);
     n += mHangReports.SizeOfExcludingThis(aMallocSizeOf);
   }
-  { // Scope for mThreadHangStatsMutex lock
-    MutexAutoLock lock(mThreadHangStatsMutex);
-  }
 
   // It's a bit gross that we measure this other stuff that lives outside of
   // TelemetryImpl... oh well.

@@ -8,7 +8,6 @@
 #include "mozilla/BackgroundHangMonitor.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/Monitor.h"
-#include "mozilla/Move.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/ThreadLocal.h"
@@ -157,15 +156,13 @@ public:
   bool mHanging;
   // Is the thread in a waiting state
   bool mWaiting;
-  // Stack of current hang
-  Telemetry::HangStack mHangStack;
 
   BackgroundHangThread(const char* aName,
                        uint32_t aTimeoutMs,
                        uint32_t aMaxTimeoutMs);
 
   // Report a hang; aManager->mLock IS locked
-  void ReportHang(PRIntervalTime aHangTime);
+  void ReportHang(PRIntervalTime aHangTime) const;
   // Report a permanent hang; aManager->mLock IS locked
   void ReportPermaHang();
   // Called by BackgroundHangMonitor::NotifyActivity
@@ -291,7 +288,6 @@ BackgroundHangManager::RunMonitorThread()
       if (MOZ_LIKELY(!currentThread->mHanging)) {
         if (MOZ_UNLIKELY(hangTime >= currentThread->mTimeout)) {
           // A hang started
-          currentThread->mStackHelper.GetStack(currentThread->mHangStack);
           currentThread->mHangStart = interval;
           currentThread->mHanging = true;
         }
@@ -372,7 +368,7 @@ BackgroundHangThread::~BackgroundHangThread()
 }
 
 void
-BackgroundHangThread::ReportHang(PRIntervalTime aHangTime)
+BackgroundHangThread::ReportHang(PRIntervalTime aHangTime) const
 {
   // Recovered from a hang; called on the monitor thread
   // mManager->mLock IS locked
@@ -383,19 +379,6 @@ BackgroundHangThread::ReportHang(PRIntervalTime aHangTime)
       mHangStack.erase(f);
     }
   }
-
-  Telemetry::HangHistogram newHistogram(Move(mHangStack));
-  for (Telemetry::HangHistogram* oldHistogram = mStats.mHangs.begin();
-       oldHistogram != mStats.mHangs.end(); oldHistogram++) {
-    if (newHistogram == *oldHistogram) {
-      // New histogram matches old one
-      oldHistogram->Add(aHangTime);
-      return;
-    }
-  }
-  // Add new histogram
-  newHistogram.Add(aHangTime);
-  mStats.mHangs.append(Move(newHistogram));
 }
 
 void
@@ -420,7 +403,6 @@ BackgroundHangThread::NotifyActivity()
     mManager->Wakeup();
   } else {
     PRIntervalTime duration = intervalNow - mInterval;
-    mStats.mActivity.Add(duration);
     if (MOZ_UNLIKELY(duration >= mTimeout)) {
       /* Wake up the manager thread to tell it that a hang ended */
       mManager->Wakeup();

@@ -514,18 +514,6 @@ let Impl = {
     return ret;
   },
 
-  getThreadHangStats: function getThreadHangStats(stats) {
-    this._log.trace("getThreadHangStats");
-
-    stats.forEach((thread) => {
-      thread.activity = this.packHistogram(thread.activity);
-      thread.hangs.forEach((hang) => {
-        hang.histogram = this.packHistogram(hang.histogram);
-      });
-    });
-    return stats;
-  },
-
   /**
    * Descriptive metadata
    *
@@ -802,7 +790,6 @@ let Impl = {
       histograms: this.getHistograms(Telemetry.histogramSnapshots),
       keyedHistograms: this.getKeyedHistograms(),
       chromeHangs: Telemetry.chromeHangs,
-      threadHangStats: this.getThreadHangStats(Telemetry.threadHangStats),
       log: TelemetryLog.entries(),
     };
 

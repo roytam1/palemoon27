@@ -566,9 +566,7 @@ BackgroundHangMonitor::NotifyActivity()
     return;
   }
 
-  if (Telemetry::CanRecord()) {
-    mThread->NotifyActivity();
-  }
+  mThread->NotifyActivity();
 #endif
 }
 
@@ -583,9 +581,7 @@ BackgroundHangMonitor::NotifyWait()
     return;
   }
 
-  if (Telemetry::CanRecord()) {
-    mThread->NotifyWait();
-  }
+  mThread->NotifyWait();
 #endif
 }
 

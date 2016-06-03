@@ -13,7 +13,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MathAlgorithms.h"
 
 #include "base/histogram.h"
 #include "base/pickle.h"
@@ -3534,14 +3533,6 @@ SetProfileDir(nsIFile* aProfD)
   sTelemetryIOObserver->AddPath(profDirPath, NS_LITERAL_STRING("{profile}"));
 }
 
-void
-TimeHistogram::Add(PRIntervalTime aTime)
-{
-  uint32_t timeMs = PR_IntervalToMilliseconds(aTime);
-  size_t index = mozilla::FloorLog2(timeMs);
-  operator[](index)++;
-}
-
 const char*
 HangStack::InfallibleAppendViaBuffer(const char* aText, size_t aLength)
 {
@@ -3584,37 +3575,6 @@ HangStack::AppendViaBuffer(const char* aText, size_t aLength)
 
   return InfallibleAppendViaBuffer(aText, aLength);
 }
-
-uint32_t
-HangHistogram::GetHash(const HangStack& aStack)
-{
-  uint32_t hash = 0;
-  for (const char* const* label = aStack.begin();
-       label != aStack.end(); label++) {
-    /* If the string is within our buffer, we need to hash its content.
-       Otherwise, the string is statically allocated, and we only need
-       to hash the pointer instead of the content. */
-    if (aStack.IsInBuffer(*label)) {
-      hash = AddToHash(hash, HashString(*label));
-    } else {
-      hash = AddToHash(hash, *label);
-    }
-  }
-  return hash;
-}
-
-bool
-HangHistogram::operator==(const HangHistogram& aOther) const
-{
-  if (mHash != aOther.mHash) {
-    return false;
-  }
-  if (mStack.length() != aOther.mStack.length()) {
-    return false;
-  }
-  return mStack == aOther.mStack;
-}
-
 
 } // namespace Telemetry
 } // namespace mozilla

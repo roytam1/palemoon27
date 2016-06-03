@@ -15,7 +15,6 @@ XPIDL_MODULE = 'telemetry'
 EXPORTS.mozilla += [
     'ProcessedStack.h',
     'Telemetry.h',
-    'ThreadHangStats.h',
 ]
 
 SOURCES += [

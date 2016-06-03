@@ -12,7 +12,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/ThreadHangStats.h"
 #include "mozilla/ThreadLocal.h"
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"
@@ -145,6 +144,8 @@ public:
     (void)!sTlsKey.init();
   }
 
+  // Name of the thread
+  const nsAutoCString mThreadName;
   // Hang timeout in ticks
   const PRIntervalTime mTimeout;
   // PermaHang timeout in ticks
@@ -159,8 +160,6 @@ public:
   bool mWaiting;
   // Stack of current hang
   Telemetry::HangStack mHangStack;
-  // Statistics for telemetry
-  Telemetry::ThreadHangStats mStats;
 
   BackgroundHangThread(const char* aName,
                        uint32_t aTimeoutMs,
@@ -335,6 +334,7 @@ BackgroundHangThread::BackgroundHangThread(const char* aName,
                                            uint32_t aMaxTimeoutMs)
   : mManager(BackgroundHangManager::sInstance)
   , mThreadID(PR_GetCurrentThread())
+  , mThreadName(aName)
   , mTimeout(aTimeoutMs == BackgroundHangMonitor::kNoTimeout
              ? PR_INTERVAL_NO_TIMEOUT
              : PR_MillisecondsToInterval(aTimeoutMs))
@@ -345,7 +345,6 @@ BackgroundHangThread::BackgroundHangThread(const char* aName,
   , mHangStart(mInterval)
   , mHanging(false)
   , mWaiting(true)
-  , mStats(aName)
 {
   if (sTlsKey.initialized()) {
     sTlsKey.set(this);
@@ -630,35 +629,6 @@ BackgroundHangMonitor::Allow()
              "The background hang monitor is already initialized");
   BackgroundHangManager::sProhibited = false;
 #endif
-}
-
-
-/* Because we are iterating through the BackgroundHangThread linked list,
-   we need to take a lock. Using MonitorAutoLock as a base class makes
-   sure all of that is taken care of for us. */
-BackgroundHangMonitor::ThreadHangStatsIterator::ThreadHangStatsIterator()
-  : MonitorAutoLock(BackgroundHangManager::sInstance->mLock)
-  , mThread(BackgroundHangManager::sInstance ?
-            BackgroundHangManager::sInstance->mHangThreads.getFirst() :
-            nullptr)
-{
-#ifdef MOZ_ENABLE_BACKGROUND_HANG_MONITOR
-  MOZ_ASSERT(BackgroundHangManager::sInstance ||
-             BackgroundHangManager::sProhibited ||
-             BackgroundHangManager::sDisabled,
-             "Inconsistent state");
-#endif
-}
-
-Telemetry::ThreadHangStats*
-BackgroundHangMonitor::ThreadHangStatsIterator::GetNext()
-{
-  if (!mThread) {
-    return nullptr;
-  }
-  Telemetry::ThreadHangStats* stats = &mThread->mStats;
-  mThread = mThread->getNext();
-  return stats;
 }
 
 } // namespace mozilla

@@ -1566,28 +1566,9 @@ class Mochitest(MochitestUtilsMixin):
         if dump_screen:
             self.dumpScreen(utilityPath)
 
-        if mozinfo.info.get('crashreporter', True) and not debuggerInfo:
-            if mozinfo.isWin:
-                # We should have a "crashinject" program in our utility path
-                crashinject = os.path.normpath(
-                    os.path.join(
-                        utilityPath,
-                        "crashinject.exe"))
-                if os.path.exists(crashinject):
-                    status = subprocess.Popen(
-                        [crashinject, str(processPID)]).wait()
-                    printstatus(status, "crashinject")
-                    if status == 0:
-                        return
-            else:
-                try:
-                    os.kill(processPID, signal.SIGABRT)
-                except OSError:
-                    # https://bugzilla.mozilla.org/show_bug.cgi?id=921509
-                    self.log.info(
-                        "Can't trigger Breakpad, process no longer exists")
-                return
-        self.log.info("Can't trigger Breakpad, just killing process")
+        try:
+            os.kill(processPID, signal.SIGABRT)
+        return
         killPid(processPID, self.log)
 
     def checkForZombies(self, processLog, utilityPath, debuggerInfo):

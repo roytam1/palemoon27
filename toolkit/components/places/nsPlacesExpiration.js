@@ -54,6 +54,7 @@ const PREF_BRANCH = "places.history.expiration.";
 // a limit based on current hardware.
 const PREF_MAX_URIS = "max_pages";
 const PREF_MAX_URIS_NOTSET = -1; // Use our internally calculated limit.
+const PREF_MAX_URIS_FLOOR = 10000; // Never go below this value.
 
 // We save the current unique URIs limit to this pref, to make it available to
 // other components without having to duplicate the full logic.
@@ -789,7 +790,14 @@ nsPlacesExpiration.prototype = {
         DATABASE_MAX_SIZE
       );
 
-      this._urisLimit = Math.ceil(optimalDatabaseSize / URIENTRY_AVG_SIZE);
+      // Calculate the optimal number of entries for our hardware, but keep
+      // a sane minimum PREF_MAX_URIS_FLOOR for non-standard environments where
+      // available process memory or free disk space would otherwise expire
+      // too recent entries.
+      this._urisLimit = Math.max(
+        PREF_MAX_URIS_FLOOR,
+        Math.ceil(optimalDatabaseSize / URIENTRY_AVG_SIZE)
+      );
     }
 
     // Expose the calculated limit to other components.

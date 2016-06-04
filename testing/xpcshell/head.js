@@ -93,23 +93,6 @@ try {
 }
 catch (e) { }
 
-// Configure crash reporting, if possible
-// We rely on the Python harness to set MOZ_CRASHREPORTER,
-// MOZ_CRASHREPORTER_NO_REPORT, and handle checking for minidumps.
-// Note that if we're in a child process, we don't want to init the
-// crashreporter component.
-try {
-  if (runningInParent &&
-      "@mozilla.org/toolkit/crash-reporter;1" in Components.classes) {
-    let crashReporter =
-          Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
-          .getService(Components.interfaces.nsICrashReporter);
-    crashReporter.UpdateCrashEventsDir();
-    crashReporter.minidumpPath = do_get_minidumpdir();
-  }
-}
-catch (e) { }
-
 // Configure a console listener so messages sent to it are logged as part
 // of the test.
 try {

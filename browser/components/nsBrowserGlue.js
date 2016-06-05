@@ -64,6 +64,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
                                   "resource://gre/modules/PlacesBackups.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerParent",
+                                  "resource://gre/modules/LoginManagerParent.jsm");
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -428,7 +430,8 @@ BrowserGlue.prototype = {
     BrowserNewTabPreloader.init();
     PdfJs.init();
     webrtcUI.init();
-
+    LoginManagerParent.init();
+    
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 

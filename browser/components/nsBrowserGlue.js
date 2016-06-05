@@ -67,6 +67,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
 XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerParent",
                                   "resource://gre/modules/LoginManagerParent.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "FormValidationHandler",
+                                  "resource:///modules/FormValidationHandler.jsm");
+
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -430,6 +433,8 @@ BrowserGlue.prototype = {
     BrowserNewTabPreloader.init();
     PdfJs.init();
     webrtcUI.init();
+    FormValidationHandler.init();
+    
     LoginManagerParent.init();
     
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
@@ -536,6 +541,7 @@ BrowserGlue.prototype = {
     UserAgentOverrides.uninit();
     webappsUI.uninit();
     webrtcUI.uninit();
+    FormValidationHandler.uninit();
     this._dispose();
   },
 

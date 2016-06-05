@@ -9,10 +9,14 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
+  "resource://gre/modules/BrowserUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerContent",
   "resource://gre/modules/LoginManagerContent.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "InsecurePasswordUtils",
   "resource://gre/modules/InsecurePasswordUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "FormSubmitObserver",
+  "resource:///modules/FormSubmitObserver.jsm");
 
 // Bug 671101 - directly using webNavigation in this context
 // causes docshells to leak
@@ -25,6 +29,12 @@ addMessageListener("WebNavigation:LoadURI", function (message) {
 
   webNavigation.loadURI(message.json.uri, flags, null, null, null);
 });
+
+// TabChildGlobal
+var global = this;
+
+// Load the form validation popup handler
+var formSubmitObserver = new FormSubmitObserver(content, this);
 
 addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   // Hide session restore button on about:home

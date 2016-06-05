@@ -34,6 +34,9 @@ var security = {
 
     var isBroken =
       (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_BROKEN);
+    var isMixed =
+      (ui.state & (Components.interfaces.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT |
+                   Components.interfaces.nsIWebProgressListener.STATE_LOADED_MIXED_DISPLAY_CONTENT));
     var isInsecure = 
       (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_INSECURE);
     var isEV =
@@ -55,6 +58,7 @@ var security = {
         encryptionSuite : undefined,
         version: undefined,
         isBroken : isBroken,
+        isMixed : isMixed,
         isEV : isEV,
         cert : cert,
         fullLocation : gWindow.location
@@ -62,9 +66,9 @@ var security = {
 
       var version;
       try {
-        retval.encryptionAlgorithm = status.cipherName;
+        retval.encryptionAlgorithm = status.cipherName; //FIXME: contains suite.
         retval.encryptionStrength = status.secretKeyLength;
-        retval.encryptionSuite = status.cipherSuite;
+        retval.encryptionSuite = status.cipherName; //status.cipherSuite
         version = status.protocolVersion;
       }
       catch (e) {
@@ -95,6 +99,7 @@ var security = {
         encryptionSuite : "",
         version: "",
         isBroken : isBroken,
+        isMixed : isMixed,
         isEV : isEV,
         cert : null,
         fullLocation : gWindow.location        
@@ -263,29 +268,25 @@ function securityOnLoad() {
   var msg2;
 
   if (info.isBroken) {
+    if (info.isMixed) {
     hdr = pkiBundle.getString("pageInfo_MixedContent");
-    msg1 = pkiBundle.getString("pageInfo_Privacy_Mixed1");
+    } else {
+      hdr = pkiBundle.getFormattedString("pageInfo_BrokenEncryption",
+                                         [info.encryptionAlgorithm,
+                                          info.encryptionStrength + "",
+                                          info.version]);
+    }
+    msg1 = pkiBundle.getString("pageInfo_Privacy_Broken1");
     msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
   }
-  else if (info.encryptionStrength >= 128 && 
-           info.encryptionSuite.indexOf("RC4") == -1) {
-    //Anything >= 128-bits that isn't RC4 is considered strong
-    hdr = pkiBundle.getFormattedString("pageInfo_StrongEncryptionWithBits",
+  else if (info.encryptionStrength > 0) {
+    hdr = pkiBundle.getFormattedString("pageInfo_EncryptionWithBitsAndProtocol",
                                        [info.encryptionAlgorithm,
                                         info.encryptionStrength + "",
                                         info.version]);
-    msg1 = pkiBundle.getString("pageInfo_Privacy_Strong1");
-    msg2 = pkiBundle.getString("pageInfo_Privacy_Strong2");
+    msg1 = pkiBundle.getString("pageInfo_Privacy_Encrypted1");
+    msg2 = pkiBundle.getString("pageInfo_Privacy_Encrypted2");
     security._cert = info.cert;
-  }
-  else if (info.encryptionStrength > 0) {
-    //We have SOME encryption, but it's either <128-bits or RC4
-    hdr  = pkiBundle.getFormattedString("pageInfo_WeakEncryptionWithBits",
-                                        [info.encryptionAlgorithm,
-                                         info.encryptionStrength + "",
-                                         info.version]);
-    msg1 = pkiBundle.getFormattedString("pageInfo_Privacy_Weak1", [info.hostName]);
-    msg2 = pkiBundle.getString("pageInfo_Privacy_Weak2");
   }
   else {
     hdr = pkiBundle.getString("pageInfo_NoEncryption");
@@ -298,7 +299,6 @@ function securityOnLoad() {
   setText("security-technical-shortform", hdr);
   setText("security-technical-longform1", msg1);
   setText("security-technical-longform2", msg2); 
-  setText("general-security-privacy", hdr);
 }
 
 function setText(id, value)

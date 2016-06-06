@@ -71,11 +71,6 @@
 #include "nsThreadUtils.h"
 #include "TableTicker.h"
 #include "ThreadResponsiveness.h"
-#if defined(__ARM_EABI__) && defined(MOZ_WIDGET_GONK)
- // Should also work on other Android and ARM Linux, but not tested there yet.
-#define USE_EHABI_STACKWALK
-#include "EHABIStackWalk.h"
-#endif
 
 // Memory profile
 #include "nsMemoryReporterManager.h"
@@ -371,9 +366,6 @@ Sampler::~Sampler() {
 void Sampler::Start() {
   LOG("Sampler started");
 
-#ifdef USE_EHABI_STACKWALK
-  mozilla::EHABIStackWalkInit();
-#endif
   SamplerRegistry::AddActiveSampler(this);
 
   // Initialize signal handler communication

@@ -229,8 +229,6 @@ extern int     sUnwindStackScan;  /* max # of dubious frames allowed */
 
 extern int     sProfileEntries;   /* how many entries do we store? */
 
-void set_tls_stack_top(void* stackTop);
-
 // ----------------------------------------------------------------------------
 // Sampler
 //
@@ -340,7 +338,7 @@ class Sampler {
 
   static bool RegisterCurrentThread(const char* aName,
                                     PseudoStack* aPseudoStack,
-                                    bool aIsMainThread, void* stackTop);
+                                    bool aIsMainThread);
   static void UnregisterCurrentThread();
 
   static void Startup();
@@ -390,7 +388,7 @@ class Sampler {
 
 class ThreadInfo {
  public:
-  ThreadInfo(const char* aName, int aThreadId, bool aIsMainThread, PseudoStack* aPseudoStack, void* aStackTop);
+  ThreadInfo(const char* aName, int aThreadId, bool aIsMainThread, PseudoStack* aPseudoStack);
 
   virtual ~ThreadInfo();
 
@@ -404,7 +402,6 @@ class ThreadInfo {
   ThreadProfile* Profile() const { return mProfile; }
 
   PlatformData* GetPlatformData() const { return mPlatformData; }
-  void* StackTop() const { return mStackTop; }
 
   virtual void SetPendingDelete();
   bool IsPendingDelete() const { return mPendingDelete; }
@@ -424,7 +421,6 @@ class ThreadInfo {
   PseudoStack* mPseudoStack;
   PlatformData* mPlatformData;
   ThreadProfile* mProfile;
-  void* const mStackTop;
   nsCOMPtr<nsIThread> mThread;
   bool mPendingDelete;
 };
@@ -432,7 +428,7 @@ class ThreadInfo {
 // Just like ThreadInfo, but owns a reference to the PseudoStack.
 class StackOwningThreadInfo : public ThreadInfo {
  public:
-  StackOwningThreadInfo(const char* aName, int aThreadId, bool aIsMainThread, PseudoStack* aPseudoStack, void* aStackTop);
+  StackOwningThreadInfo(const char* aName, int aThreadId, bool aIsMainThread, PseudoStack* aPseudoStack);
   virtual ~StackOwningThreadInfo();
 
   virtual void SetPendingDelete();

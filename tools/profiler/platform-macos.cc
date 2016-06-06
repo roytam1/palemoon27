@@ -34,7 +34,6 @@
 
 #include "platform.h"
 #include "TableTicker.h"
-#include "UnwinderThread2.h"  /* uwt__register_thread_for_profiling */
 
 // Memory profile
 #include "nsMemoryReporterManager.h"

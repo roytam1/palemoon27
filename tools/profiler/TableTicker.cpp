@@ -10,7 +10,6 @@
 #include <sstream>
 #include "GoannaProfiler.h"
 #include "SaveProfileTask.h"
-#include "ProfileEntry.h"
 #include "SyncProfile.h"
 #include "platform.h"
 #include "nsThreadUtils.h"
@@ -35,7 +34,6 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
-#include "PlatformMacros.h"
 #include "nsTArray.h"
 
 #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
@@ -394,7 +392,7 @@ void addDynamicTag(ThreadProfile &aProfile, char aTagName, const char *aStr)
 
 static
 void addPseudoEntry(volatile StackEntry &entry, ThreadProfile &aProfile,
-                    PseudoStack *stack, void *lastpc)
+                    ProfileStack *stack, void *lastpc)
 {
   // Pseudo-frames with the BEGIN_PSEUDO_JS flag are just annotations
   // and should not be recorded in the profile.
@@ -478,9 +476,9 @@ struct AutoWalkJSStack {
 static
 void mergeStacksIntoProfile(ThreadProfile& aProfile, TickSample* aSample, NativeStack& aNativeStack)
 {
-  PseudoStack* pseudoStack = aProfile.GetPseudoStack();
-  volatile StackEntry *pseudoFrames = pseudoStack->mStack;
-  uint32_t pseudoCount = pseudoStack->stackSize();
+  ProfileStack* profileStack = aProfile.GetStack();
+  volatile StackEntry *pseudoFrames = profileStack->mStack;
+  uint32_t profileCount = profileStack->stackSize();
 
   // Make a copy of the JS stack into a JSFrame array. This is necessary since,
   // like the native stack, the JS stack is iterated youngest-to-oldest and we
@@ -827,7 +825,7 @@ namespace {
 
 SyncProfile* NewSyncProfile()
 {
-  PseudoStack* stack = tlsPseudoStack.get();
+  ProfileStack *stack = tlsStack.get();
   if (!stack) {
     MOZ_ASSERT(stack);
     return nullptr;
@@ -873,7 +871,7 @@ SyncProfile* TableTicker::GetBacktrace()
   return profile;
 }
 
-static void print_callback(const ProfileEntry& entry, const char* tagStringData)
+void print_callback(const ProfileEntry& entry, const char* tagStringData) {
 {
   switch (entry.getTagName()) {
     case 's':

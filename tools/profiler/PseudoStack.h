@@ -115,7 +115,7 @@ typedef struct _UnwinderThreadBuffer UnwinderThreadBuffer;
 /**
  * This struct is used to add a mNext field to UnwinderThreadBuffer objects for
  * use with ProfilerLinkedList. It is done this way so that UnwinderThreadBuffer
- * may continue to be opaque with respect to code outside of UnwinderThread2.cpp
+ * may continue to be opaque.
  */
 struct LinkedUWTBuffer
 {

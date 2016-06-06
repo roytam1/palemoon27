@@ -32,8 +32,6 @@
 #include "platform.h"
 #include "TableTicker.h"
 #include "ThreadResponsiveness.h"
-#include "ProfileEntry.h"
-#include "UnwinderThread2.h"
 
 // Memory profile
 #include "nsMemoryReporterManager.h"

@@ -26,9 +26,6 @@
 // OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 // SUCH DAMAGE.
 
-#ifndef TOOLS_PLATFORM_H_
-#define TOOLS_PLATFORM_H_
-
 #ifdef ANDROID
 #include <android/log.h>
 #else
@@ -45,7 +42,6 @@
 #include "mozilla/unused.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Mutex.h"
-#include "PlatformMacros.h"
 #include "ThreadResponsiveness.h"
 #include "v8-support.h"
 #include <vector>
@@ -62,16 +58,16 @@
 #  define ENABLE_ARM_LR_SAVING
 # endif
 # define LOG(text) \
-    __android_log_write(ANDROID_LOG_ERROR, "Profiler", text)
+    __android_log_write(ANDROID_LOG_ERROR, "profiler", text)
 # define LOGF(format, ...) \
-    __android_log_print(ANDROID_LOG_ERROR, "Profiler", format, __VA_ARGS__)
+    __android_log_print(ANDROID_LOG_ERROR, "profiler", format, __VA_ARGS__)
 #else
 extern bool moz_profiler_verbose();
 # define LOG(text) \
-    do { if (moz_profiler_verbose()) fprintf(stderr, "Profiler: %s\n", text); \
+    do { if (moz_profiler_verbose()) printf("Profiler: %s\n", text); \
     } while (0)
 # define LOGF(format, ...) \
-    do { if (moz_profiler_verbose()) fprintf(stderr, "Profiler: " format \
+    do { if (moz_profiler_verbose()) printf("Profiler: " format         \
                                              "\n", __VA_ARGS__);        \
     } while (0)
 
@@ -441,5 +437,3 @@ class StackOwningThreadInfo : public ThreadInfo {
 
   virtual void SetPendingDelete();
 };
-
-#endif /* ndef TOOLS_PLATFORM_H_ */

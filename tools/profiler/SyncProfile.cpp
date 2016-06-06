@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SyncProfile.h"
-#include "UnwinderThread2.h"
 
 SyncProfile::SyncProfile(ThreadInfo* aInfo, int aEntrySize)
   : ThreadProfile(aInfo, new ProfileBuffer(aEntrySize))

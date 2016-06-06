@@ -4,9 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 // IWYU pragma: private, include "GoannaProfiler.h"
 
-#ifndef TOOLS_SPS_SAMPLER_H_
-#define TOOLS_SPS_SAMPLER_H_
-
 #include <stdlib.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -41,7 +38,7 @@ namespace mozilla {
 class TimeStamp;
 }
 
-extern mozilla::ThreadLocal<PseudoStack *> tlsPseudoStack;
+extern mozilla::ThreadLocal<ProfileStack *> tlsStack;
 extern mozilla::ThreadLocal<TableTicker *> tlsTicker;
 extern mozilla::ThreadLocal<void *> tlsStackTop;
 extern bool stack_key_initialized;
@@ -169,11 +166,7 @@ const char** profiler_get_features()
 static inline
 void profiler_print_location()
 {
-  if (!sps_version2()) {
-    return mozilla_sampler_print_location1();
-  } else {
-    return mozilla_sampler_print_location2();
-  }
+  return mozilla_sampler_print_location();
 }
 
 static inline
@@ -215,7 +208,7 @@ void profiler_sleep_end()
 static inline
 void profiler_js_operation_callback()
 {
-  PseudoStack *stack = tlsPseudoStack.get();
+  ProfileStack *stack = tlsStack.get();
   if (!stack) {
     return;
   }
@@ -238,7 +231,7 @@ double profiler_time(const mozilla::TimeStamp& aTime)
 static inline
 bool profiler_in_privacy_mode()
 {
-  PseudoStack *stack = tlsPseudoStack.get();
+  ProfileStack *stack = tlsStack.get();
   if (!stack) {
     return false;
   }
@@ -418,11 +411,11 @@ private:
 
 } //mozilla
 
-inline PseudoStack* mozilla_get_pseudo_stack(void)
+inline ProfileStack* mozilla_profile_stack(void)
 {
   if (!stack_key_initialized)
     return nullptr;
-  return tlsPseudoStack.get();
+  return tlsStack.get();
 }
 
 inline void* mozilla_sampler_call_enter(const char *aInfo,
@@ -433,7 +426,7 @@ inline void* mozilla_sampler_call_enter(const char *aInfo,
   if (!stack_key_initialized)
     return nullptr;
 
-  PseudoStack *stack = tlsPseudoStack.get();
+  ProfileStack *stack = tlsStack.get();
   // we can't infer whether 'stack' has been initialized
   // based on the value of stack_key_intiailized because
   // 'stack' is only intialized when a thread is being
@@ -456,7 +449,7 @@ inline void mozilla_sampler_call_exit(void *aHandle)
   if (!aHandle)
     return;
 
-  PseudoStack *stack = (PseudoStack*)aHandle;
+  ProfileStack *stack = (ProfileStack*)aHandle;
   stack->popAndMaybeDelete();
 }
 
@@ -474,4 +467,3 @@ void profiler_log(const char *fmt, va_list args)
   mozilla_sampler_log(fmt, args);
 }
 
-#endif /* ndef TOOLS_SPS_SAMPLER_H_ */

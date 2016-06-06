@@ -7,8 +7,6 @@
 #ifndef __SYNCPROFILE_H
 #define __SYNCPROFILE_H
 
-#include "ProfileEntry.h"
-
 struct LinkedUWTBuffer;
 
 class SyncProfile : public ThreadProfile

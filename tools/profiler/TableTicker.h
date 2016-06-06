@@ -7,7 +7,6 @@
 #define TableTicker_h
 
 #include "platform.h"
-#include "ProfileEntry.h"
 #include "mozilla/Mutex.h"
 #include "IntelPowerGadget.h"
 #ifdef MOZ_TASK_TRACER
@@ -42,8 +41,6 @@ threadSelected(ThreadInfo* aInfo, char** aThreadNameFilters, uint32_t aFeatureCo
 extern mozilla::TimeStamp sLastTracerEvent;
 extern int sFrameNumber;
 extern int sLastFrameNumber;
-
-class BreakpadSampler;
 
 class TableTicker: public Sampler {
  public:

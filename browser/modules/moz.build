@@ -13,6 +13,7 @@ EXTRA_JS_MODULES += [
     'openLocationLastURL.jsm',
     'PageMenu.jsm',
     'SharedFrame.jsm',
+    'WebappManager.jsm',
     'webappsUI.jsm',
     'webrtcUI.jsm'
 ]

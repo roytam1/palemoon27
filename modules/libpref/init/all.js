@@ -262,6 +262,9 @@ pref("media.cache_readahead_limit", 999999);
 // Master HTML5 media volume scale.
 pref("media.volume_scale", "1.0");
 
+// Default media volume
+pref("media.default_volume", "1.0");
+
 // Timeout for wakelock release
 pref("media.wakelock_timeout", 2000);
 

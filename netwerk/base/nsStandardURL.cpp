@@ -683,7 +683,7 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
     }
     else {
         uint32_t leadingSlash = 0;
-        if (spec[mPath.mPos] != '/') {
+        if (spec[path.mPos] != '/') {
             LOG(("adding leading slash to path\n"));
             leadingSlash = 1;
             buf[i++] = '/';

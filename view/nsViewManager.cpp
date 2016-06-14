@@ -372,7 +372,7 @@ nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
     }
   }
   if (rootShell->GetViewManager() != this) {
-    return; // 'this' might have been destroyed
+    return; // presentation might have been torn down
   }
   if (aFlushDirtyRegion) {
     nsAutoScriptBlocker scriptBlocker;
@@ -416,7 +416,7 @@ nsViewManager::ProcessPendingUpdatesPaint(nsIWidget* aWidget)
   if (aWidget->NeedsPaint()) {
     // If an ancestor widget was hidden and then shown, we could
     // have a delayed resize to handle.
-    for (nsViewManager *vm = this; vm;
+    for (nsRefPtr<nsViewManager> vm = this; vm;
          vm = vm->mRootView->GetParent()
            ? vm->mRootView->GetParent()->GetViewManager()
            : nullptr) {
@@ -1069,6 +1069,7 @@ nsViewManager::ProcessPendingUpdates()
   if (mPresShell) {
     mPresShell->GetPresContext()->RefreshDriver()->RevokeViewManagerFlush();
 
+    nsRefPtr<nsViewManager> strongThis(this);
     CallWillPaintOnObservers();
 
     ProcessPendingUpdatesForView(mRootView, true);
@@ -1085,6 +1086,7 @@ nsViewManager::UpdateWidgetGeometry()
 
   if (mHasPendingWidgetGeometryChanges) {
     mHasPendingWidgetGeometryChanges = false;
+    nsRefPtr<nsViewManager> strongThis(this);
     ProcessPendingUpdatesForView(mRootView, false);
   }
 }

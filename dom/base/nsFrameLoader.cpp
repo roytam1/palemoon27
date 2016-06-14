@@ -155,7 +155,7 @@ NS_INTERFACE_MAP_END
 nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   : mOwnerContent(aOwner)
   , mAppIdSentToPermissionManager(nsIScriptSecurityManager::NO_APP_ID)
-  , mDetachedSubdocViews(nullptr)
+  , mDetachedSubdocFrame(nullptr)
   , mIsPrerendered(false)
   , mDepthTooGreat(false)
   , mIsTopLevelContent(false)
@@ -2507,18 +2507,18 @@ nsFrameLoader::SetRemoteBrowser(nsITabParent* aTabParent)
 }
 
 void
-nsFrameLoader::SetDetachedSubdocView(nsView* aDetachedViews,
-                                     nsIDocument* aContainerDoc)
+nsFrameLoader::SetDetachedSubdocFrame(nsIFrame* aDetachedFrame,
+                                      nsIDocument* aContainerDoc)
 {
-  mDetachedSubdocViews = aDetachedViews;
+  mDetachedSubdocFrame = aDetachedFrame;
   mContainerDocWhileDetached = aContainerDoc;
 }
 
-nsView*
-nsFrameLoader::GetDetachedSubdocView(nsIDocument** aContainerDoc) const
+nsIFrame*
+nsFrameLoader::GetDetachedSubdocFrame(nsIDocument** aContainerDoc) const
 {
   NS_IF_ADDREF(*aContainerDoc = mContainerDocWhileDetached);
-  return mDetachedSubdocViews;
+  return mDetachedSubdocFrame.GetFrame();
 }
 
 void

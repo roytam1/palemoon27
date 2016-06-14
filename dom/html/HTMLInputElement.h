@@ -721,7 +721,12 @@ public:
   HTMLInputElement* GetOwnerNumberControl();
 
   void StartNumberControlSpinnerSpin();
-  void StopNumberControlSpinnerSpin();
+  enum SpinnerStopState {
+    eAllowDispatchingEvents,
+    eDisallowDispatchingEvents
+  };
+  void StopNumberControlSpinnerSpin(SpinnerStopState aState =
+                                      eAllowDispatchingEvents);
   void StepNumberControlForUserEvent(int32_t aDirection);
 
   /**

@@ -1168,7 +1168,7 @@ HTMLInputElement::~HTMLInputElement()
     mFileList->Disconnect();
   }
   if (mNumberControlSpinnerIsSpinning) {
-    StopNumberControlSpinnerSpin();
+    StopNumberControlSpinnerSpin(eDisallowDispatchingEvents);
   }
   DestroyImageLoadingContent();
   FreeData();
@@ -3721,7 +3721,7 @@ HTMLInputElement::StartNumberControlSpinnerSpin()
 }
 
 void
-HTMLInputElement::StopNumberControlSpinnerSpin()
+HTMLInputElement::StopNumberControlSpinnerSpin(SpinnerStopState aState)
 {
   if (mNumberControlSpinnerIsSpinning) {
     if (nsIPresShell::GetCapturingContent() == this) {
@@ -3732,7 +3732,9 @@ HTMLInputElement::StopNumberControlSpinnerSpin()
 
     mNumberControlSpinnerIsSpinning = false;
 
-    FireChangeEventIfNeeded();
+    if (aState == eAllowDispatchingEvents) {
+      FireChangeEventIfNeeded();
+    }
 
     nsNumberControlFrame* numberControlFrame =
       do_QueryFrame(GetPrimaryFrame());

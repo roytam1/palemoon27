@@ -212,6 +212,8 @@ cairo-mask-extends-bug.patch: bug 918671, sometimes when building a mask we woul
 
 ft-no-subpixel-if-surface-disables.patch: bug 929451, don't use subpixel aa for ft fonts on surfaces that don't support it
 
+no-pixman-image-reuse-across-threads.patch, Don't reuse pixman images when not thread-safe
+
 ==== pixman patches ====
 
 pixman-android-cpu-detect.patch: Add CPU detection support for Android, where we can't reliably access /proc/self/auxv.

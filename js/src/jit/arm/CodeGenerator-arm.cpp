@@ -1116,7 +1116,7 @@ CodeGeneratorARM::emitTableSwitchDispatch(MTableSwitch* mir, Register index, Reg
     for (int32_t i = 0; i < cases; i++) {
         CodeLabel cl;
         masm.writeCodePointer(cl.dest());
-        ool->addCodeLabel(cl);
+        masm.propagateOOM(ool->addCodeLabel(cl));
     }
     addOutOfLineCode(ool, mir);
 }

@@ -324,10 +324,11 @@ WebContentConverterRegistrar.prototype = {
     // We also reject handlers registered from a different host (see bug 402287)
     // The pref allows us to test the feature
     var pb = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
-    if ((!pb.prefHasUserValue(PREF_ALLOW_DIFFERENT_HOST) ||
-         !pb.getBoolPref(PREF_ALLOW_DIFFERENT_HOST)) &&
-        aContentWindow.location.hostname != uri.host)
+    if (!pb.getBoolPref(PREF_ALLOW_DIFFERENT_HOST) &&
+        (!["http:", "https:"].includes(aContentWindow.location.protocol) ||
+         aContentWindow.location.hostname != uri.host)) {
       throw("Permission denied to add " + uri.spec + " as a content or protocol handler");
+    }
 
     // If the uri doesn't contain '%s', it won't be a good handler
     if (uri.spec.indexOf("%s") < 0)

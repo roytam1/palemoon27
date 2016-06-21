@@ -97,6 +97,15 @@ const gXPInstallObserver = {
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               action, null, options);
       break;
+    case "addon-install-origin-blocked": {
+      messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarningOrigin",
+                        [brandShortName]);
+
+      let popup = PopupNotifications.show(browser, notificationID,
+                                          messageString, anchorID,
+                                          null, null, options);
+      removeNotificationOnEnd(popup, installInfo.installs);
+      break; }
     case "addon-install-blocked":
       let originatingHost;
       try {

@@ -11,7 +11,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+let promise = Cu.import("resource:///modules/promise.js").Promise;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");

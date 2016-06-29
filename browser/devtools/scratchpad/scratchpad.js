@@ -27,7 +27,7 @@ Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+let promise = Cu.import("resource:///modules/promise.js").Promise;
 
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
                                   "resource:///modules/devtools/VariablesView.jsm");

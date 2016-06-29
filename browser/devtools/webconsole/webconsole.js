@@ -32,7 +32,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
                                   "resource://gre/modules/devtools/WebConsoleUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "promise",
-                                  "resource://gre/modules/commonjs/sdk/core/promise.js", "Promise");
+                                  "resource:///modules/promise.js", "Promise");
 
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
                                   "resource:///modules/devtools/VariablesView.jsm");

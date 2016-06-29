@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "promise",
-  "resource://gre/modules/commonjs/sdk/core/promise.js", "Promise");
+  "resource:///modules/promise.js", "Promise");
 
 this.NetMonitorPanel = function NetMonitorPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;

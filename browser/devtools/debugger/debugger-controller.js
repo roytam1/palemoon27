@@ -17,7 +17,7 @@ const CALL_STACK_PAGE_SIZE = 25; // frames
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+let promise = Cu.import("resource:///modules/promise.js").Promise;
 Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/BreadcrumbsWidget.jsm");

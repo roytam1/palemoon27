@@ -10,7 +10,7 @@ this.EXPORTED_SYMBOLS = ["StyleEditorPanel"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+let promise = Cu.import("resource:///modules/promise.js").Promise;
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource:///modules/devtools/StyleEditorDebuggee.jsm");
 Cu.import("resource:///modules/devtools/StyleEditorUI.jsm");

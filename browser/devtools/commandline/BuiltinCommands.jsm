@@ -13,7 +13,7 @@ this.EXPORTED_SYMBOLS = [ "CmdAddonFlags", "CmdCommands", "DEFAULT_DEBUG_PORT", 
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+let promise = Cu.import("resource:///modules/promise.js").Promise;
 Cu.import("resource://gre/modules/osfile.jsm");
 
 Cu.import("resource://gre/modules/devtools/gcli.jsm");

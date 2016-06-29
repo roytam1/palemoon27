@@ -11,7 +11,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "promise",
-    "resource://gre/modules/commonjs/sdk/core/promise.js", "Promise");
+    "resource:///modules/promise.js", "Promise");
 
 XPCOMUtils.defineLazyModuleGetter(this, "HUDService",
     "resource:///modules/HUDService.jsm");

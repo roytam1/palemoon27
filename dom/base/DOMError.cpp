@@ -30,10 +30,12 @@ DOMError::DOMError(nsPIDOMWindow* aWindow, nsresult aValue)
   : mWindow(aWindow)
 {
   nsCString name, message;
-  NS_GetNameAndMessageForDOMNSResult(aValue, name, message);
+  nsresult rv = NS_GetNameAndMessageForDOMNSResult(aValue, name, message);
 
-  CopyUTF8toUTF16(name, mName);
-  CopyUTF8toUTF16(message, mMessage);
+  if (rv == NS_OK) { 
+    CopyUTF8toUTF16(name, mName);
+    CopyUTF8toUTF16(message, mMessage);
+  }
 }
 
 DOMError::DOMError(nsPIDOMWindow* aWindow, const nsAString& aName)

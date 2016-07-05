@@ -467,7 +467,7 @@ exports["test Cu.import of toolkit/loader"] = (assert) => {
   const loader = Loader({
     paths: {
       "./": uri + "lib/",
-      // Can't just put `resource://gre/modules/commonjs/` as it
+      // Can't just put `resource://gre/modules/jetpack/` as it
       // won't take module overriding into account.
       "": toolkitLoaderURI.replace("toolkit/loader.js", "")
     },

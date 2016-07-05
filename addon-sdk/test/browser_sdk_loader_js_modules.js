@@ -23,7 +23,7 @@ function test () {
    * Absolute resource:// URI of JS
    */
 
-  let { has } = require("resource://gre/modules/commonjs/sdk/util/array");
+  let { has } = require("resource://gre/modules/jetpack/sdk/util/array");
   let testArray = ['rock', 'paper', 'scissors'];
 
   ok(has(testArray, 'rock'), "loads absolute resource:// URI of JS");

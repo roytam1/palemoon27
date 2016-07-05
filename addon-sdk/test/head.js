@@ -4,7 +4,7 @@
 
 const { utils: Cu } = Components;
 const { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
-const LoaderModule = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {}).Loader;
+const LoaderModule = Cu.import("resource://gre/modules/jetpack/toolkit/loader.js", {}).Loader;
 const { console } = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
 let {
   Loader, main, Module, Require, unload
@@ -28,7 +28,7 @@ registerCleanupFunction(() => {
 function makePaths (root) {
   return {
     './': CURRENT_DIR,
-    '': 'resource://gre/modules/commonjs/'
+    '': 'resource://gre/modules/jetpack/'
   };
 }
 

@@ -35,8 +35,8 @@ exports.isLoadedPath = function (val) {
 })();
 
 (function () {
-let { defer } = require('resource://gre/modules/commonjs/sdk/core/promise.js');
-let { defer: defer2 } = require('resource://gre/modules/commonjs/sdk/core/promise.js');
+let { defer } = require('resource://gre/modules/jetpack/sdk/core/promise.js');
+let { defer: defer2 } = require('resource://gre/modules/jetpack/sdk/core/promise.js');
 exports.isCachedJSAbsolute = defer === defer2;
 exports.isLoadedJSAbsolute = function (val) {
   let { promise, resolve } = defer();

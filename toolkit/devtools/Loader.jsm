@@ -17,7 +17,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil", "resource://gre/modules/NetUt
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils", "resource://gre/modules/FileUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 
-let loader = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {}).Loader;
+let loader = Cu.import("resource://gre/modules/jetpack/toolkit/loader.js", {}).Loader;
 let promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
 
 this.EXPORTED_SYMBOLS = ["DevToolsLoader", "devtools", "BuiltinProvider",
@@ -77,7 +77,7 @@ BuiltinProvider.prototype = {
       paths: {
         // When you add a line to this mapping, don't forget to make a
         // corresponding addition to the SrcdirProvider mapping below as well.
-        "": "resource://gre/modules/commonjs/",
+        "": "resource://gre/modules/jetpack/",
         "main": "resource:///modules/devtools/main.js",
         "devtools": "resource:///modules/devtools",
         "devtools/toolkit": "resource://gre/modules/devtools",
@@ -159,7 +159,7 @@ SrcdirProvider.prototype = {
       id: "fx-devtools",
       modules: loaderModules,
       paths: {
-        "": "resource://gre/modules/commonjs/",
+        "": "resource://gre/modules/jetpack/",
         "main": mainURI,
         "devtools": devtoolsURI,
         "devtools/toolkit": toolkitURI,

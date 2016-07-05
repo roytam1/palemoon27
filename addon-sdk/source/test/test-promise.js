@@ -7,7 +7,7 @@ const { Cc, Cu, Ci } = require('chrome');
 const { setTimeout } = require('sdk/timers');
 const { prefixURI, name } = require('@loader/options');
 const addonPromiseURI = prefixURI + name + '/lib/sdk/core/promise.js';
-const builtPromiseURI = 'resource://gre/modules/commonjs/sdk/core/promise.js';
+const builtPromiseURI = 'resource://gre/modules/jetpack/sdk/core/promise.js';
 let { Promise, defer, resolve, reject, all, promised } = require('sdk/core/promise');
 
 exports['test all observers are notified'] = function(assert, done) {
@@ -407,7 +407,7 @@ exports['test JSM Load and API'] = function (assert, done) {
   // Use addon URL when loading from cfx/local:
   // resource://90111c90-c31e-4dc7-ac35-b65947434435-at-jetpack/addon-sdk/lib/sdk/core/promise.js
   // Use built URL when testing on try, etc.
-  // resource://gre/modules/commonjs/sdk/core/promise.js
+  // resource://gre/modules/jetpack/sdk/core/promise.js
   try {
     var { Promise } = Cu.import(addonPromiseURI, {});
   } catch (e) {
@@ -426,7 +426,7 @@ exports['test mozIJSSubScriptLoader exporting'] = function (assert, done) {
   // Use addon URL when loading from cfx/local:
   // resource://90111c90-c31e-4dc7-ac35-b65947434435-at-jetpack/addon-sdk/lib/sdk/core/promise.js
   // Use built URL when testing on try, etc.
-  // resource://gre/modules/commonjs/sdk/core/promise.js
+  // resource://gre/modules/jetpack/sdk/core/promise.js
   try {
     loader.loadSubScript(addonPromiseURI, Promise);
   } catch (e) {

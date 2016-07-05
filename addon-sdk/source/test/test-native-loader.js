@@ -233,7 +233,7 @@ function getJSON (uri) {
 
 function makePaths (uri) {
   // Uses development SDK modules if overloaded in loader
-  let sdkPaths = testOptions.paths ? testOptions.paths[''] : 'resource://gre/modules/commonjs/';
+  let sdkPaths = testOptions.paths ? testOptions.paths[''] : 'resource://gre/modules/jetpack/';
   return {
     './': uri,
     'sdk/': sdkPaths + 'sdk/',

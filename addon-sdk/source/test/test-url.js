@@ -368,7 +368,7 @@ exports.testLocalURL = function(assert) {
   [
     'data:text/html;charset=utf-8,foo and bar',
     'data:text/plain,foo and bar',
-    'resource://gre/modules/commonjs/',
+    'resource://gre/modules/jetpack/',
     'chrome://browser/content/browser.xul'
   ].forEach(aUri => {
     assert.ok(isLocalURL(aUri), aUri + ' is a Local URL');

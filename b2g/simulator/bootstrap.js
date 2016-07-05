@@ -28,7 +28,7 @@ function startup(data, reason) {
   let uri = registerAddonResourceHandler(data);
 
   let loaderModule =
-    Cu.import('resource://gre/modules/commonjs/toolkit/loader.js').Loader;
+    Cu.import('resource://gre/modules/jetpack/toolkit/loader.js').Loader;
   let { Loader, Require, Main } = loaderModule;
 
   const { ConsoleAPI } = Cu.import("resource://gre/modules/devtools/Console.jsm");
@@ -36,7 +36,7 @@ function startup(data, reason) {
   let loader = Loader({
     paths: {
       "./": uri + "lib/",
-      "": "resource://gre/modules/commonjs/"
+      "": "resource://gre/modules/jetpack/"
     },
     globals: {
       console: new ConsoleAPI({

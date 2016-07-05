@@ -345,7 +345,7 @@ if (typeof Components === "object") {
       "PromiseDebugging": PromiseDebugging
     },
     paths: {
-      "": "resource://gre/modules/commonjs/",
+      "": "resource://gre/modules/jetpack/",
       "devtools": "resource:///modules/devtools",
       "devtools/server": "resource://gre/modules/devtools/server",
       "devtools/toolkit": "resource://gre/modules/devtools",

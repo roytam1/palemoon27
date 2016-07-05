@@ -9,7 +9,7 @@ const { Cc, Ci, Cu } = require("chrome");
 const { Promise: promise } = require("resource://gre/modules/Promise.jsm");
 
 const { OS } = Cu.import("resource://gre/modules/osfile.jsm", {});
-const { TextEncoder, TextDecoder } = Cu.import('resource://gre/modules/commonjs/toolkit/loader.js', {});
+const { TextEncoder, TextDecoder } = Cu.import('resource://gre/modules/jetpack/toolkit/loader.js', {});
 const gcli = require("gcli/index");
 
 loader.lazyGetter(this, "prefBranch", function() {

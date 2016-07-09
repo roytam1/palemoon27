@@ -489,6 +489,7 @@ nsContextMenu.prototype = {
     this.linkURL           = "";
     this.linkURI           = null;
     this.linkProtocol      = "";
+    this.linkDownload      = "";
     this.onMathML          = false;
     this.inFrame           = false;
     this.inSrcdocFrame     = false;
@@ -622,6 +623,18 @@ nsContextMenu.prototype = {
           this.linkProtocol = this.getLinkProtocol();
           this.onMailtoLink = (this.linkProtocol == "mailto");
           this.onSaveableLink = this.isLinkSaveable( this.link );
+          try {
+            if (elem.download) {
+              // Ignore download attribute on cross-origin links?
+              // This shoudn't be an issue because the download link presents
+              // the originating URL domain and protocol to help user understand
+              // from where file is downloaded and make right decision.
+              // If we decide we want this restriction:
+              // this.principal.checkMayLoad(this.linkURI, false, true);
+              this.linkDownload = elem.download;
+            }
+          }
+          catch (ex) {}          
         }
 
         // Background image?  Don't bother if we've already found a
@@ -1009,7 +1022,8 @@ nsContextMenu.prototype = {
 
   // Helper function to wait for appropriate MIME-type headers and
   // then prompt the user with a file picker
-  saveHelper: function(linkURL, linkText, dialogTitle, bypassCache, doc) {
+  saveHelper: function(linkURL, linkText, dialogTitle, bypassCache, doc,
+                       linkDownload) {
     // canonical def in nsURILoader.h
     const NS_ERROR_SAVE_LINK_AS_TIMEOUT = 0x805d0020;
 
@@ -1109,6 +1123,8 @@ nsContextMenu.prototype = {
     var ioService = Cc["@mozilla.org/network/io-service;1"].
                     getService(Ci.nsIIOService);
     var channel = ioService.newChannelFromURI(makeURI(linkURL));
+    if (linkDownload)
+      channel.contentDispositionFilename = linkDownload;
     if (channel instanceof Ci.nsIPrivateBrowsingChannel) {
       let docIsPrivate = PrivateBrowsingUtils.isWindowPrivate(doc.defaultView);
       channel.setPrivate(docIsPrivate);
@@ -1154,6 +1170,8 @@ nsContextMenu.prototype = {
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
 
     this.saveHelper(this.linkURL, linkText, null, true, doc);
+    this.saveHelper(this.linkURL, this.linkText, null, true, this.ownerDoc,
+                    this.linkDownload);
   },
 
   sendLink: function() {
@@ -1183,7 +1201,7 @@ nsContextMenu.prototype = {
     else if (this.onVideo || this.onAudio) {
       urlSecurityCheck(this.mediaURL, doc.nodePrincipal);
       var dialogTitle = this.onVideo ? "SaveVideoTitle" : "SaveAudioTitle";
-      this.saveHelper(this.mediaURL, null, dialogTitle, false, doc);
+      this.saveHelper(this.mediaURL, null, dialogTitle, false, doc, "");
     }
   },
 

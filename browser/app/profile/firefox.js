@@ -309,6 +309,9 @@ pref("browser.download.manager.quitBehavior", 2);
 pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
+// Enables the asynchronous Downloads API in the Downloads Panel.
+pref("browser.download.useJSTransfer", true);
+
 // This allows disabling the Downloads Panel in favor of the old interface.
 pref("browser.download.useToolkitUI", false);
 

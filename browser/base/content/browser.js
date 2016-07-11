@@ -1081,13 +1081,7 @@ var gBrowserInit = {
       try {
         let DownloadsCommon =
           Cu.import("resource:///modules/DownloadsCommon.jsm", {}).DownloadsCommon;
-        if (DownloadsCommon.useJSTransfer) {
-          // Open the data link without initalizing nsIDownloadManager.
-          DownloadsCommon.initializeAllDataLinks();
-        } else {
-          // Initalizing nsIDownloadManager will trigger the data link.
-          Services.downloads;
-        }
+        DownloadsCommon.initializeAllDataLinks();
         // TODO: fix taskbar-based download progress
         //let DownloadTaskbarProgress =
         //  Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;

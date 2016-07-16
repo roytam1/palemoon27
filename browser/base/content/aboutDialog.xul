@@ -42,7 +42,7 @@
     <hbox id="PMclientBox">
       <vbox id="PMleftBox" flex="1"/>
       <vbox id="PMrightBox" flex="1">
-#ifdef HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (x64)</label>
 #else
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (x86)</label>

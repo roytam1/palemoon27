@@ -187,7 +187,7 @@ gImageView.onPageMediaSort = function(columnname) {
   var treecol = tree.columns.getNamedColumn(columnname);
 
   var comparator;
-  if (treecol.index == COL_IMAGE_SIZE) {
+  if (treecol.index == COL_IMAGE_SIZE || treecol.index == COL_IMAGE_COUNT) {
     comparator = function numComparator(a, b) { return a - b; };
   } else {
     comparator = function textComparator(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); };
@@ -237,12 +237,14 @@ const nsICertificateDialogs = Components.interfaces.nsICertificateDialogs;
 const CERTIFICATEDIALOGS_CONTRACTID = "@mozilla.org/nsCertificateDialogs;1"
 
 // clipboard helper
-try {
-  const gClipboardHelper = Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
+function getClipboardHelper() {
+    try {
+        return Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
+    } catch(e) {
+        // do nothing, later code will handle the error
+    }
 }
-catch(e) {
-  // do nothing, later code will handle the error
-}
+const gClipboardHelper = getClipboardHelper();
 
 // Interface for image loading content
 const nsIImageLoadingContent = Components.interfaces.nsIImageLoadingContent;
@@ -471,7 +473,7 @@ function openCacheEntry(key, cb)
 {
   var checkCacheListener = {
     onCacheEntryCheck: function(entry, appCache) {
-      return nsICacheEntryOpenCallback.ENTRY_VALID;
+      return Components.interfaces.nsICacheEntryOpenCallback.ENTRY_WANTED;
     },
     onCacheEntryAvailable: function(entry, isNew, appCache, status) {
       cb(entry);

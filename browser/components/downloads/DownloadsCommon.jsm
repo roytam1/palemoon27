@@ -594,8 +594,8 @@ XPCOMUtils.defineLazyGetter(DownloadsCommon, "isWinVistaOrHigher", function () {
 
 /**
  * Returns true to indicate that we should hook the panel to the JavaScript API
- * for downloads instead of the nsIDownloadManager back-end.  The code
- * associated with nsIDownloadManager will be removed in bug 899110.
+ * for downloads instead of the nsIDownloadManager back-end.
+ * This is kept for compatibility/leftovers and should be removed later.
  */
 XPCOMUtils.defineLazyGetter(DownloadsCommon, "useJSTransfer", function () {
   return true;
@@ -669,20 +669,12 @@ DownloadsDataCtor.prototype = {
    */
   get canRemoveFinished()
   {
-    if (DownloadsCommon.useJSTransfer) {
-      for (let [, dataItem] of Iterator(this.dataItems)) {
-        if (dataItem && !dataItem.inProgress) {
-          return true;
-        }
-      }
-      return false;
-    } else {
-      if (this._isPrivate) {
-        return Services.downloads.canCleanUpPrivate;
-      } else {
-        return Services.downloads.canCleanUp;
+    for (let [, dataItem] of Iterator(this.dataItems)) {
+      if (dataItem && !dataItem.inProgress) {
+        return true;
       }
     }
+    return false;
   },
 
   /**
@@ -690,18 +682,10 @@ DownloadsDataCtor.prototype = {
    */
   removeFinished: function DD_removeFinished()
   {
-    if (DownloadsCommon.useJSTransfer) {
-      let promiseList = Downloads.getList(this._isPrivate ? Downloads.PRIVATE
-                                                          : Downloads.PUBLIC);
-      promiseList.then(list => list.removeFinished())
-                 .then(null, Cu.reportError);
-    } else {
-      if (this._isPrivate) {
-        Services.downloads.cleanUpPrivate();
-      } else {
-        Services.downloads.cleanUp();
-      }
-    }
+    let promiseList = Downloads.getList(this._isPrivate ? Downloads.PRIVATE
+                                                        : Downloads.PUBLIC);
+    promiseList.then(list => list.removeFinished())
+               .then(null, Cu.reportError);
   },
 
   //////////////////////////////////////////////////////////////////////////////

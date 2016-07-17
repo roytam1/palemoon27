@@ -331,9 +331,8 @@ Sanitizer.prototype = {
 
       get canClear()
       {
-        var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
-                              .getService(Components.interfaces.nsIDownloadManager);
-        return dlMgr.canCleanUp || dlMgr.canCleanUpPrivate;
+        //Clearing is always possible with JSTransfers
+        return true;
       }
     },
     

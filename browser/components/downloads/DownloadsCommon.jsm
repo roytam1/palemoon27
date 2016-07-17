@@ -53,16 +53,22 @@ XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadUIHelper",
+                                  "resource://gre/modules/DownloadUIHelper.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
                                   "resource://gre/modules/DownloadUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm")
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
+                                  "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
                                   "resource:///modules/RecentWindow.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadsLogger",
                                   "resource:///modules/DownloadsLogger.jsm");
 
@@ -586,6 +592,15 @@ XPCOMUtils.defineLazyGetter(DownloadsCommon, "isWinVistaOrHigher", function () {
   return parseFloat(sysInfo.getProperty("version")) >= 6;
 });
 
+/**
+ * Returns true to indicate that we should hook the panel to the JavaScript API
+ * for downloads instead of the nsIDownloadManager back-end.  The code
+ * associated with nsIDownloadManager will be removed in bug 899110.
+ */
+XPCOMUtils.defineLazyGetter(DownloadsCommon, "useJSTransfer", function () {
+  return true;
+});
+
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsData
 
@@ -649,6 +664,46 @@ DownloadsDataCtor.prototype = {
     return;
   },
 
+  /**
+   * True if there are finished downloads that can be removed from the list.
+   */
+  get canRemoveFinished()
+  {
+    if (DownloadsCommon.useJSTransfer) {
+      for (let [, dataItem] of Iterator(this.dataItems)) {
+        if (dataItem && !dataItem.inProgress) {
+          return true;
+        }
+      }
+      return false;
+    } else {
+      if (this._isPrivate) {
+        return Services.downloads.canCleanUpPrivate;
+      } else {
+        return Services.downloads.canCleanUp;
+      }
+    }
+  },
+
+  /**
+   * Asks the back-end to remove finished downloads from the list.
+   */
+  removeFinished: function DD_removeFinished()
+  {
+    if (DownloadsCommon.useJSTransfer) {
+      let promiseList = Downloads.getList(this._isPrivate ? Downloads.PRIVATE
+                                                          : Downloads.PUBLIC);
+      promiseList.then(list => list.removeFinished())
+                 .then(null, Cu.reportError);
+    } else {
+      if (this._isPrivate) {
+        Services.downloads.cleanUpPrivate();
+      } else {
+        Services.downloads.cleanUp();
+      }
+    }
+  },
+
   //////////////////////////////////////////////////////////////////////////////
   //// Integration with the asynchronous Downloads back-end
 
@@ -684,7 +739,7 @@ DownloadsDataCtor.prototype = {
       return;
     }
 
-    this._downloadToDataItemMap.remove(aDownload);
+    this._downloadToDataItemMap.delete(aDownload);
     this.dataItems[dataItem.downloadGuid] = null;
     for (let view of this._views) {
       view.onDataItemRemoved(dataItem);
@@ -696,6 +751,7 @@ DownloadsDataCtor.prototype = {
    */
   _updateDataItemState: function (aDataItem)
   {
+    let oldState = aDataItem.state;
     let wasInProgress = aDataItem.inProgress;
     let wasDone = aDataItem.done;
 
@@ -705,11 +761,35 @@ DownloadsDataCtor.prototype = {
       aDataItem.endTime = Date.now();
     }
 
-    for (let view of this._views) {
-      try {
-        view.getViewItem(aDataItem).onStateChange({});
-      } catch (ex) {
-        Cu.reportError(ex);
+    if (oldState != aDataItem.state) {
+      for (let view of this._views) {
+        try {
+          view.getViewItem(aDataItem).onStateChange(oldState);
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
+      }
+
+      // This state transition code should actually be located in a Downloads
+      // API module (bug 941009).  Moreover, the fact that state is stored as
+      // annotations should be ideally hidden behind methods of
+      // nsIDownloadHistory (bug 830415).
+      if (!this._isPrivate && !aDataItem.inProgress) {
+        try {
+          let downloadMetaData = { state: aDataItem.state,
+                                   endTime: aDataItem.endTime };
+          if (aDataItem.done) {
+            downloadMetaData.fileSize = aDataItem.maxBytes;
+          }
+
+          // RRR: Annotation service throws here. commented out for now.
+          /*PlacesUtils.annotations.setPageAnnotation(
+                        NetUtil.newURI(aDataItem.uri), "downloads/metaData",
+                        JSON.stringify(downloadMetaData), 0,
+                        PlacesUtils.annotations.EXPIRE_WITH_HISTORY);*/
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
       }
     }
 
@@ -1302,10 +1382,26 @@ DownloadsDataItem.prototype = {
     this.referrer = this._download.source.referrer;
     this.startTime = this._download.startTime;
     this.currBytes = this._download.currentBytes;
-    this.maxBytes = this._download.totalBytes;
     this.resumable = this._download.hasPartialData;
-    this.speed = 0;
+    this.speed = this._download.speed;
+
+    if (this._download.succeeded) {
+      // If the download succeeded, show the final size if available, otherwise
+      // use the last known number of bytes transferred.  The final size on disk
+      // will be available when bug 941063 is resolved.
+      this.maxBytes = this._download.hasProgress ?
+                             this._download.totalBytes :
+                             this._download.currentBytes;
+      this.percentComplete = 100;
+    } else if (this._download.hasProgress) {
+      // If the final size and progress are known, use them.
+      this.maxBytes = this._download.totalBytes;
     this.percentComplete = this._download.progress;
+    } else {
+      // The download final size and progress percentage is unknown.
+      this.maxBytes = -1;
+      this.percentComplete = -1;
+    }
   },
 
   /**

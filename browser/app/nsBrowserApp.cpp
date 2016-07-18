@@ -9,6 +9,7 @@
 #include "nsXPCOMGlue.h"
 #if defined(XP_WIN)
 #include <windows.h>
+#include <VersionHelpers.h>
 #include <stdlib.h>
 #include <io.h>
 #include <fcntl.h>
@@ -170,6 +171,11 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   nsresult rv;
   uint32_t mainFlags = 0;
 
+  if (!IsWindowsVistaOrGreater()) {
+    Output("Couldn't load valid PE image.\n");
+    return 255;
+  }
+  
   // Allow palemoon.exe to launch XULRunner apps via -app <application.ini>
   // Note that -app must be the *first* argument.
   const char *appDataFile = getenv("XUL_APP_FILE");

@@ -338,6 +338,10 @@ function onLoadPageInfo()
   Components.classes["@mozilla.org/observer-service;1"]
             .getService(Components.interfaces.nsIObserverService)
             .notifyObservers(window, "page-info-dialog-loaded", null);
+  
+  // Make sure the page info window gets focus even if a doorhanger might
+  // otherwise (async) steal it.
+  window.focus();
 }
 
 function loadPageInfo()

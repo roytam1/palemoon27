@@ -700,7 +700,7 @@ var allTabs = {
 
     tabPreviewPanelHelper.opening(this);
 
-    this.panel.popupBoxObject.setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_NO_CONSUME);
+    this.panel.popupBoxObject.setConsumeRollupEvent(PopupBoxObject.ROLLUP_NO_CONSUME);
     this.panel.openPopup(gBrowser, "overlap", 0, 0, false, true);
   },
 

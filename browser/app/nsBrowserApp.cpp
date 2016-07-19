@@ -8,7 +8,10 @@
 #include "application.ini.h"
 #include "nsXPCOMGlue.h"
 #if defined(XP_WIN)
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
 #include <windows.h>
+#include <winbase.h>
 #include <VersionHelpers.h>
 #include <stdlib.h>
 #include <io.h>
@@ -253,46 +256,6 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   return 255;
 }
 
-#ifdef XP_WIN
-
-/**
- * Used only when GetTickCount64 is not available on the platform.
- * Last result of GetTickCount call. Kept in [ms].
- */
-static DWORD sLastGTCResult = 0;
-
-/**
- *  Higher part of the 64-bit value of MozGetTickCount64,
- * incremented atomically.
- */
-static DWORD sLastGTCRollover = 0;
-
-/**
- * Function protecting GetTickCount result from rolling over. The original
- * code comes from the Windows implementation of the TimeStamp class minus the
- * locking harness which isn't needed here.
- *
- * @returns The current time in milliseconds
- */
-static ULONGLONG WINAPI
-MozGetTickCount64()
-{
-  DWORD GTC = ::GetTickCount();
-
-  /* Pull the rollover counter forward only if new value of GTC goes way
-   * down under the last saved result */
-  if ((sLastGTCResult > GTC) && ((sLastGTCResult - GTC) > (1UL << 30)))
-    ++sLastGTCRollover;
-
-  sLastGTCResult = GTC;
-  return (ULONGLONG)sLastGTCRollover << 32 | sLastGTCResult;
-}
-
-typedef ULONGLONG (WINAPI* GetTickCount64_t)();
-static GetTickCount64_t sGetTickCount64 = nullptr;
-
-#endif
-
 /**
  * Local TimeStamp::Now()-compatible implementation used to record timestamps
  * which will be passed to XRE_StartupTimelineRecord().
@@ -303,18 +266,7 @@ TimeStamp_Now()
 #ifdef XP_WIN
   LARGE_INTEGER freq;
   ::QueryPerformanceFrequency(&freq);
-
-  HMODULE kernelDLL = GetModuleHandleW(L"kernel32.dll");
-  sGetTickCount64 = reinterpret_cast<GetTickCount64_t>
-    (GetProcAddress(kernelDLL, "GetTickCount64"));
-
-  if (!sGetTickCount64) {
-    /* If the platform does not support the GetTickCount64 (Windows XP doesn't),
-     * then use our fallback implementation based on GetTickCount. */
-    sGetTickCount64 = MozGetTickCount64;
-  }
-
-  return sGetTickCount64() * freq.QuadPart;
+  return GetTickCount64() * freq.QuadPart;
 #elif defined(XP_MACOSX)
   return mach_absolute_time();
 #elif defined(HAVE_CLOCK_MONOTONIC)

@@ -969,11 +969,11 @@
               this.finder.mListeners.forEach(l => oldBrowser.finder.removeResultListener(l));
             }
 
-            var updatePageReport = false;
+            var updateBlockedPopups = false;
             if (!oldBrowser ||
-                (oldBrowser.pageReport && !newBrowser.pageReport) ||
-                (!oldBrowser.pageReport && newBrowser.pageReport))
-              updatePageReport = true;
+                (oldBrowser.blockedPopups && !newBrowser.blockedPopups) ||
+                (!oldBrowser.blockedPopups && newBrowser.blockedPopups))
+              updateBlockedPopups = true;
 
             newBrowser.setAttribute("type", "content-primary");
             newBrowser.docShellIsActive =
@@ -992,8 +992,8 @@
               });
             }
 
-            if (updatePageReport)
-              this.mCurrentBrowser.updatePageReport();
+            if (updateBlockedPopups)
+              this.mCurrentBrowser.updateBlockedPopups(false);
 
             // Update the URL bar.
             var loc = this.mCurrentBrowser.currentURI;
@@ -2626,10 +2626,6 @@
           }
         ]]></body>
       </method>
-
-      <property name="pageReport"
-                onget="return this.mCurrentBrowser.pageReport;"
-                readonly="true"/>
 
       <property name="currentURI"
                 onget="return this.mCurrentBrowser.currentURI;"

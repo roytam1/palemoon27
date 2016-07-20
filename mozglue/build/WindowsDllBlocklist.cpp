@@ -171,6 +171,9 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
 
   // Old version of WebcamMax crashes WebRTC, bug 1130061
   { "vwcsource.ax", MAKE_VERSION(1, 5, 0, 0) },
+  
+  // F-Secure DeepGuard, causes stack overflow crashes
+  { "fshook64.dll", ALL_VERSIONS },
 
   { nullptr, 0 }
 };

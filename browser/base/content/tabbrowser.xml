@@ -993,7 +993,7 @@
             }
 
             if (updateBlockedPopups)
-              this.mCurrentBrowser.updateBlockedPopups(false);
+              this.mCurrentBrowser.updateBlockedPopups();
 
             // Update the URL bar.
             var loc = this.mCurrentBrowser.currentURI;

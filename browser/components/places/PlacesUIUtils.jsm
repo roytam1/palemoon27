@@ -18,7 +18,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
 
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
-
+XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
+                                  "resource:///modules/RecentWindow.jsm");
+                                  
 XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
   Cu.import("resource://gre/modules/PlacesUtils.jsm");
   return PlacesUtils;
@@ -397,7 +399,7 @@ this.PlacesUIUtils = {
   },
 
   _getTopBrowserWin: function PUIU__getTopBrowserWin() {
-    return Services.wm.getMostRecentWindow("navigator:browser");
+    return RecentWindow.getMostRecentBrowserWindow();
   },
 
   /**
@@ -542,6 +544,10 @@ this.PlacesUIUtils = {
       // direct non-bookmark children of bookmark folders.
       return !PlacesUtils.nodeIsFolder(parentNode);
     }
+    
+    // Generally it's always possible to remove children of a query.
+    if (PlacesUtils.nodeIsQuery(parentNode))
+      return true;
 
     // Otherwise it has to be a child of an editable folder.
     return !this.isContentsReadOnly(parentNode);

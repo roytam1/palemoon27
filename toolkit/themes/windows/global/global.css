@@ -332,23 +332,3 @@ label[disabled="true"]:-moz-system-metric(windows-classic) {
 .close-icon:hover:active {
   -moz-image-region: rect(0, 48px, 16px, 32px);
 }
-
-%ifdef XP_WIN
-@media (-moz-windows-theme: luna-blue) {
-  .close-icon {
-    list-style-image: url("chrome://global/skin/icons/close-lunaBlue.png");
-  }
-}
-
-@media (-moz-windows-theme: luna-olive) {
-  .close-icon {
-    list-style-image: url("chrome://global/skin/icons/close-lunaOlive.png");
-  }
-}
-
-@media (-moz-windows-theme: luna-silver) {
-  .close-icon {
-    list-style-image: url("chrome://global/skin/icons/close-lunaSilver.png");
-  }
-}
-%endif

@@ -145,7 +145,7 @@ def config_status(topobjdir='.', topsrcdir='.',
     log_manager.add_terminal_logging(level=log_level)
     log_manager.enable_unstructured()
 
-    print('Reticulating splines...', file=sys.stderr)
+    print('Walking the dog...', file=sys.stderr)
     summary = the_backend.consume(definitions)
 
     for line in summary.summaries():

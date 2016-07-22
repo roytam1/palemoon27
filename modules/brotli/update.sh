@@ -11,9 +11,8 @@ COMMIT=`(cd ${MY_TEMP_DIR}/brotli && git log | head -n 1)`
 perl -p -i -e "s/\[commit [0-9a-f]{40}\]/[${COMMIT}]/" README.mozilla;
 
 rm -rf dec
+sleep 5000
 mv ${MY_TEMP_DIR}/brotli/dec dec
-rm -rf ${MY_TEMP_DIR}
-hg add dec
 
 echo "###"
 echo "### Updated brotli/dec to $COMMIT."

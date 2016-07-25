@@ -174,7 +174,7 @@
 /* ==== Windows 10 styling ==== */
 
   @media (-moz-os-version: windows-win10) {
-    /* Draw XUL caption buttons Win10 in lwthemes */
+    /* Draw XUL caption buttons on Win10 in lwthemes */
 
     #titlebar-buttonbox,
     .titlebar-button {

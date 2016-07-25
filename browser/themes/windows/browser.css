@@ -2123,6 +2123,10 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   padding: 0px;
 }
 
+.tab-close-button:not([selected]):not(:hover):not(:active) {
+  -moz-image-region: rect(0, 64px, 16px, 48px);
+}
+
 .tab-close-button:-moz-lwtheme-brighttext {
   list-style-image: url("chrome://global/skin/icons/close-inverted.png");
 }

@@ -209,19 +209,14 @@
       padding-right: 19px;
     }
 	
-    #titlebar-close {
-      list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
-      background-color: hsl(0, 86%, 49%) !important; 
-      opacity: 0;
-    }
-    
     #titlebar-close:hover {
-      opacity: 1;
-      transition: opacity linear 100ms;
+      list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
+      background-color: hsla(0, 86%, 49%, 1);
+      transition: background-color linear 160ms;
     }
 
     #titlebar-close:hover:active {
-      background-color: hsl(0, 86%, 42%) !important; 
+      background-color: hsla(0, 86%, 49%, 0.6); 
       transition: none;
     }
     
@@ -311,12 +306,12 @@
     }
 
     .titlebar-button:hover {
-      background-color: hsla(0, 0%, 0%, .12);
-      transition: background-color linear 100ms;
+      background-color: hsla(0, 0%, 0%, .17);
+      transition: background-color linear 160ms;
     }
 
     .titlebar-button:hover:active {
-      background-color: hsla(0, 0%, 0%, .22);
+      background-color: hsla(0, 0%, 0%, .27);
       transition: none;
     }
 
@@ -324,24 +319,35 @@
       opacity: 0.5;
     }
 
-    #titlebar-close:hover {
-      background-color: hsl(355, 86%, 49%);
+    /* dark persona */
+    .titlebar-button:-moz-lwtheme-brighttext:hover {
+      background-color: hsla(0, 0%, 100%, .27);
+      transition: background-color linear 180ms;
     }
 
-    #titlebar-close:hover:active {
-      background-color: hsl(355, 82%, 69%);
+    .titlebar-button:-moz-lwtheme-brighttext:hover:active {
+      background-color: hsla(0, 0%, 100%, .37);
+      transition: none;
     }
-          
-    /* dark persona/titlebar */
-    .titlebar-button:-moz-lwtheme-brighttext:hover,
-    #main-window[darkwindowframe="true"] .titlebar-button:hover {
-      background-color: hsla(0, 0%, 100%, .22);
-      transition: background-color linear 100ms;
+    
+    /* dark accent color */
+    #main-window[darkwindowframe="true"] .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
+      background-color: hsla(0, 0%, 100%, .17);
+      transition: background-color linear 180ms;
     }
 
-    .titlebar-button:-moz-lwtheme-brighttext:hover:active,
-    #main-window[darkwindowframe="true"] .titlebar-button:hover:active	{
-      background-color: hsla(0, 0%, 100%, .32);
+    #main-window[darkwindowframe="true"] .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
+      background-color: hsla(0, 0%, 100%, .27);
+      transition: none;
+    }
+    
+    #main-window[darkwindowframe="true"] #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
+      background-color: hsla(0, 86%, 49%, 1);
+      transition: background-color linear 120ms;
+    }
+
+    #main-window[darkwindowframe="true"] #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
+      background-color: hsla(0, 60%, 39%, 1);
       transition: none;
     }
       

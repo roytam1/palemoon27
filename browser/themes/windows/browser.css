@@ -2206,8 +2206,8 @@ toolbar[brighttext] .tabbrowser-arrowscrollbox > .scrollbutton-down {
 %endif
 
 .tabs-newtab-button:-moz-lwtheme-brighttext,
-toolbar[brighttext] #TabsToolbar > #new-tab-button,
-toolbar[brighttext] #TabsToolbar > toolbarpaletteitem > #new-tab-button {
+#TabsToolbar[brighttext] > #new-tab-button,
+#TabsToolbar[brighttext] > toolbarpaletteitem > #new-tab-button {
   list-style-image: url(chrome://browser/skin/tabbrowser/newtab-inverted.png);
 }
 

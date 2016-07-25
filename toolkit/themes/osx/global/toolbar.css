@@ -14,12 +14,20 @@ menubar:-moz-lwtheme,
 toolbar:-moz-lwtheme {
   -moz-appearance: none;
   background: none;
-  border-color: transparent;
+  border-style: none;
 }
 
 menubar {
   -moz-appearance: dialog; /* For content menubars, "toolbar" is too dark, so we use "dialog". */
   min-width: 1px;
+}
+
+.toolbar-holder {
+  min-width: 1px;
+}
+
+.toolbar-primary {
+  min-height: 24px;
 }
 
 toolbarseparator {

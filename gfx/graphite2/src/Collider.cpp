@@ -26,7 +26,11 @@ of the License or (at your option) any later version.
 */
 #include <algorithm>
 #include <limits>
+#if defined(__GNUC__) && (__GNUC__ >= 6)
+#include <cmath>
+#else
 #include <math.h>
+#endif
 #include <string>
 #include <functional>
 #include "inc/Collider.h"

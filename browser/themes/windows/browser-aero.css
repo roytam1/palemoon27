@@ -409,13 +409,9 @@
   }
 
 /* ==== Windows Vista/7 (true glass) styling ==== */
-/* Also apply this to Windows 8 because the system coloring the background
-   of #main-window is out of our control, and may kill readability */
 
   @media (-moz-os-version: windows-vista),
-         (-moz-os-version: windows-win7),
-         (-moz-os-version: windows-win8) {
-
+         (-moz-os-version: windows-win7) {
     #toolbar-menubar:not(:-moz-lwtheme),
     #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
     #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
@@ -431,12 +427,28 @@
     
   }
  
-/* ==== Adjust text for dark window frame colors ==== */
+/* ==== Windows 8/10 (flat color) styling ==== */
 
-  #main-window[darkwindowframe="true"] #toolbar-menubar:not(:-moz-lwtheme):not(:-moz-window-inactive),
-  #main-window[darkwindowframe="true"] #TabsToolbar:not(:-moz-lwtheme):not(:-moz-window-inactive) {
+  @media (-moz-os-version: windows-win8),
+         (-moz-os-version: windows-win10) {
+    /* On dark window frames, use a light text color instead of fog on Win8/10 */
+    #main-window[darkwindowframe=true] #toolbar-menubar:not(:-moz-lwtheme),
+    #main-window[darkwindowframe=true] #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
+    #main-window[darkwindowframe=true] #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
+    #main-window[darkwindowframe=true] #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
     color: white;
   }
+    
+    /* Prevent the dark window frame styles from disturbing native menu styling */
+    #main-window[darkwindowframe=true] #main-menubar > menu:not(:-moz-lwtheme) {
+      color: inherit;
+    }
+    
+    #main-window[darkwindowframe=true] #toolbar-menubar:not(:-moz-lwtheme):-moz-window-inactive {
+      color: ThreeDShadow;
+    }
+  }
+  
 /* ==== ==== */
 
   #main-window[sizemode=fullscreen]:not(:-moz-lwtheme) {

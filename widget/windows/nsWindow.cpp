@@ -3540,6 +3540,10 @@ nsWindow::EndRemoteDrawing()
 void
 nsWindow::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries)
 {
+  //We draw our own buttons on Win10 or later. Prevent the windows cutout for events.
+  if (IsWin10OrLater())
+    return;
+    
   nsIntRegion clearRegion;
   for (size_t i = 0; i < aThemeGeometries.Length(); i++) {
     if (aThemeGeometries[i].mType == nsNativeThemeWin::eThemeGeometryTypeWindowButtons &&
@@ -4498,6 +4502,9 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
   LRESULT dwmHitResult;
   if (mCustomNonClient &&
       nsUXThemeData::CheckForCompositor() &&
+      /* We don't do this for win10 glass with a custom titlebar,
+       * in order to avoid the caption buttons breaking. */
+      !(IsWin10OrLater() && HasGlass()) &&
       WinUtils::dwmDwmDefWindowProcPtr(mWnd, msg, wParam, lParam, &dwmHitResult)) {
     *aRetValue = dwmHitResult;
     return true;

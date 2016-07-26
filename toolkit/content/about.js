@@ -30,7 +30,7 @@ var BuildIDVal = Components.classes["@mozilla.org/xre/app-info;1"]
                            .getService(Components.interfaces.nsIXULAppInfo)
                            .appBuildID;
 var buildID = document.getElementById("buildID");
-buildID.textContent += " " + BuildIDVal;
+buildID.textContent += " " + BuildIDVal.slice(0,-6);
 
 // append user agent
 var ua = navigator.userAgent;

@@ -24,7 +24,6 @@
   <div id="aboutLogoContainer">
     <a id="vendorURL">
       <img src="about:logo" alt="&brandShortName;"/>
-      <p id="version">&about.version;</p>
     </a>
   </div>
 
@@ -33,7 +32,9 @@
     <li>&about.license.beforeTheLink;<a href="about:license">&about.license.linkTitle;</a>&about.license.afterTheLink;</li>
     <li hidden="true">&about.relnotes.beforeTheLink;<a id="releaseNotesURL">&about.relnotes.linkTitle;</a>&about.relnotes.afterTheLink;</li>
     <li>&about.buildconfig.beforeTheLink;<a href="about:buildconfig">&about.buildconfig.linkTitle;</a>&about.buildconfig.afterTheLink;</li>
+    <li id="version">&about.version;</li>
     <li id="buildID">&about.buildIdentifier;</li>
+    <li id="userAgent">&about.userAgent;</li>
     <script type="application/javascript" src="chrome://global/content/about.js"/>
   </ul>
 

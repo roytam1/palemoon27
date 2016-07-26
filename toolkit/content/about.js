@@ -25,8 +25,15 @@ var versionNum = Components.classes["@mozilla.org/xre/app-info;1"]
 var version = document.getElementById("version");
 version.textContent += " " + versionNum;
 
+// insert the buildid of the XUL application
+var BuildIDVal = Components.classes["@mozilla.org/xre/app-info;1"]
+                           .getService(Components.interfaces.nsIXULAppInfo)
+                           .appBuildID;
+var buildID = document.getElementById("buildID");
+buildID.textContent += " " + BuildIDVal;
+
 // append user agent
 var ua = navigator.userAgent;
 if (ua) {
-  document.getElementById("buildID").textContent += " " + ua;
+  document.getElementById("userAgent").textContent += " " + ua;
 }

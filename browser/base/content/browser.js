@@ -9,9 +9,11 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
+                                  "resource:///modules/CharsetMenu.jsm");
+
 const nsIWebNavigation = Ci.nsIWebNavigation;
 
-var gCharsetMenu = null;
 var gLastBrowserCharset = null;
 var gPrevCharset = null;
 var gProxyFavIcon = null;
@@ -5175,7 +5177,7 @@ function MultiplexHandler(event)
         SelectDetector(event, false);
     } else if (name == 'charsetGroup') {
         var charset = node.getAttribute('id');
-        charset = charset.substring('charset.'.length, charset.length)
+        charset = charset.substring(charset.indexOf('charset.') + 'charset.'.length);
         BrowserSetForcedCharacterSet(charset);
     } else if (name == 'charsetCustomize') {
         //do nothing - please remove this else statement, once the charset prefs moves to the pref window
@@ -5188,7 +5190,7 @@ function MultiplexHandler(event)
 function SelectDetector(event, doReload)
 {
     var uri =  event.target.getAttribute("id");
-    var prefvalue = uri.substring('chardet.'.length, uri.length);
+    var prefvalue = uri.substring(uri.indexOf('chardet.') + 'chardet.'.length);
     if ("off" == prefvalue) { // "off" is special value to turn off the detectors
         prefvalue = "";
     }
@@ -5264,17 +5266,10 @@ function UpdateMenus(event) {
   UpdateCharsetDetector(event.target);
 }
 
-function CreateMenu(node) {
-  Services.obs.notifyObservers(null, "charsetmenu-selected", node);
-}
-
 function charsetLoadListener() {
   var charset = window.content.document.characterSet;
 
   if (charset.length > 0 && (charset != gLastBrowserCharset)) {
-    if (!gCharsetMenu)
-      gCharsetMenu = Cc['@mozilla.org/rdf/datasource;1?name=charset-menu'].getService(Ci.nsICurrentCharsetListener);
-    gCharsetMenu.SetCurrentCharset(charset);
     gPrevCharset = gLastBrowserCharset;
     gLastBrowserCharset = charset;
   }

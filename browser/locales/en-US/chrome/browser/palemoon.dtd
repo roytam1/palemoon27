@@ -30,8 +30,11 @@
 <!ENTITY palemoon.loadImages.never            "Never">
 <!ENTITY palemoon.loadImages.no3rdparty       "Originating server only">
 
-<!ENTITY palemoon.firefoxCompatGroup.label    "Firefox Compatibility">
-<!ENTITY palemoon.firefoxCompat.label         "Use Firefox Compatibility mode">
+<!ENTITY palemoon.UACompatGroup.label    "Compatibility">
+<!ENTITY palemoon.UACompat.label         "User Agent Mode:">
+<!ENTITY palemoon.UACompat.Native        "Native">
+<!ENTITY palemoon.UACompat.Gecko         "Gecko Compatibility">
+<!ENTITY palemoon.UACompat.Firefox       "Firefox Compatibility">
 
 <!ENTITY palemoon.scrollparamTab.label               "Scrolling">
 <!ENTITY palemoon.smoothscroll.explain.label         "The parameters below only have an effect if smooth scrolling is enabled overall with the checkbox above.">

@@ -52,7 +52,7 @@
                   name="pref.general.disable_button.default_browser"
                   type="bool"/>
 #endif
-      <preference id="pref.general.compatmode.firefox" name="general.useragent.compatMode.firefox"        type="bool"/>
+      <preference id="pref.general.compatmode" name="general.useragent.compatMode"        type="int"/>
 
       <!-- Data Choices tab -->
 
@@ -184,10 +184,18 @@
             </hbox>
           </groupbox>
 #endif
-          <groupbox id="FirefoxCompatGroup" orient="vertical">
-            <caption label="&palemoon.firefoxCompatGroup.label;"/>
-            <checkbox id="palemoon.firefoxCompat.check" preference="pref.general.compatmode.firefox"
-                      label="&palemoon.firefoxCompat.label;" />
+          <groupbox id="UACompatGroup" orient="vertical">
+            <caption label="&palemoon.UACompatGroup.label;"/>
+            <hbox align="center">
+              	<label id="UACompat" control="UACompat-menu">&palemoon.UACompat.label;</label>
+                <menulist id="UACompat-menu" preference="pref.general.compatmode" sizetopopup="always">
+                    <menupopup>
+                        <menuitem label="&palemoon.UACompat.Native;"  value="0" />
+                        <menuitem label="&palemoon.UACompat.Gecko;"   value="1" />
+                        <menuitem label="&palemoon.UACompat.Firefox;" value="2" />
+                    </menupopup>
+                </menulist>
+            </hbox>
           </groupbox>
         </tabpanel>
 

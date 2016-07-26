@@ -23,8 +23,6 @@ pref("app.update.url.details", "http://www.palemoon.org/releasenotes.shtml");
 // Additional Update fixes - no SSL damnit, I don't have a cert (4.0)
 pref("app.update.cert.checkAttributes", false);
 pref("app.update.cert.requireBuiltIn", false);
-// Fix useragent for UA sniffing websites
-pref("general.useragent.compatMode.firefox", true);
 // Make sure we shortcut out of a11y to save walking unnecessary code
 pref("accessibility.force_disabled", 1);
 
@@ -62,9 +60,6 @@ pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%bl
 
 // ****************** domain-specific UAs ******************
 #include ../../common/uaoverrides.inc
-
-// Enable Firefox compatibility mode globally?
-pref("general.useragent.compatMode.firefox", false);
 
 // ****************** UI config ******************
 

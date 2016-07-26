@@ -64,9 +64,6 @@ pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%bl
 // ****************** domain-specific UAs ******************
 #include ../../common/uaoverrides.inc
 
-// Enable Firefox compatibility mode globally?
-pref("general.useragent.compatMode.firefox", true);
-
 // ****************** Extensions/plugins ******************
 
 pref("plugin.default.state", 2); //Allow plugins to run by default

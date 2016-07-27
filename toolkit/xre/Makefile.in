@@ -40,6 +40,8 @@ $(call errorIfEmpty,GRE_MILESTONE GRE_BUILDID)
 
 DEFINES += -DGRE_BUILDID=$(GRE_BUILDID)
 
+.PHONY: nsAppRunner.obj
+
 $(srcdir)/nsAppRunner.cpp: $(DEPTH)/config/buildid $(milestone_txt)
 
 platform.ini: FORCE

@@ -2373,8 +2373,8 @@ pref("dom.ipc.plugins.java.enabled", false);
 pref("dom.ipc.plugins.flash.disable-protected-mode", false);
 
 // How long we wait before unloading an idle plugin process.
-// Defaults to 30 seconds.
-pref("dom.ipc.plugins.unloadTimeoutSecs", 30);
+// Defaults to 1 minute.
+pref("dom.ipc.plugins.unloadTimeoutSecs", 60);
 
 pref("dom.ipc.plugins.asyncInit", false);
 

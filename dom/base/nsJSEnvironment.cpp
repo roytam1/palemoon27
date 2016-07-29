@@ -2337,6 +2337,7 @@ SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   bool enableCompartmentGC = Preferences::GetBool("javascript.options.mem.gc_per_compartment");
   bool enableIncrementalGC = Preferences::GetBool("javascript.options.mem.gc_incremental");
+  bool enableGenerationalGC = Preferences::GetBool("javascript.options.mem.gc_generational");
   JSGCMode mode;
   if (enableIncrementalGC) {
     mode = JSGC_MODE_INCREMENTAL;
@@ -2346,6 +2347,7 @@ SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
     mode = JSGC_MODE_GLOBAL;
   }
   JS_SetGCParameter(sRuntime, JSGC_MODE, mode);
+  JS_SetGGCMode(sRuntime, enableGenerationalGC);
 }
 
 static void
@@ -2625,6 +2627,9 @@ nsJSContext::EnsureStatics()
 
   Preferences::RegisterCallbackAndCall(SetMemoryGCSliceTimePrefChangedCallback,
                                        "javascript.options.mem.gc_incremental_slice_ms");
+
+  Preferences::RegisterCallbackAndCall(SetMemoryGCModePrefChangedCallback,
+                                       "javascript.options.mem.gc_generational");
 
   Preferences::RegisterCallbackAndCall(SetMemoryGCCompactingPrefChangedCallback,
                                        "javascript.options.mem.gc_compacting");

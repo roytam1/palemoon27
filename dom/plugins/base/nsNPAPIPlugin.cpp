@@ -275,19 +275,6 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 #endif
 #endif
 
-#ifdef XP_WIN
-  // On Windows Vista+, we force Flash to run in OOPP mode because Adobe
-  // doesn't test Flash in-process and there are known stability bugs.
-  if (aPluginTag->mIsFlashPlugin && IsVistaOrLater()) {
-#ifdef ACCESSIBILITY
-    if (!useA11yPref)
-      return true;
-#else
-    return true;
-#endif
-  }
-#endif
-
   nsIPrefBranch* prefs = Preferences::GetRootBranch();
   if (!prefs) {
     return false;
@@ -390,6 +377,20 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
     useA11yPref ? Preferences::GetBool("dom.ipc.plugins.enabled.a11y", false) :
 #endif
     Preferences::GetBool("dom.ipc.plugins.enabled", false);
+#endif
+
+#ifdef XP_WIN
+    // On Windows Vista+, we force Flash to run in OOPP mode when no specific
+    // override exists, because Adobe doesn't test Flash in-process and there
+    // are known stability bugs. (See also bug 769721)
+    if (aPluginTag->mIsFlashPlugin && IsVistaOrLater()) {
+#ifdef ACCESSIBILITY
+      if (!useA11yPref)
+        return true;
+#else
+      return true;
+#endif
+    }
 #endif
   }
 

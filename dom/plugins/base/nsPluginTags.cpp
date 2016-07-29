@@ -161,6 +161,7 @@ nsPluginTag::nsPluginTag(uint32_t aId,
     mCachedBlocklistStateValid(false),
     mIsFromExtension(aFromExtension)
 {
+  FixupVersion();
 }
 
 nsPluginTag::~nsPluginTag()
@@ -311,11 +312,10 @@ nsresult nsPluginTag::EnsureMembersAreUTF8()
 
 void nsPluginTag::FixupVersion()
 {
-#if defined(XP_LINUX)
-  if (mIsFlashPlugin) {
-    mVersion.ReplaceChar(',', '.');
-  }
-#endif
+  // Always replace commas with periods! Versions should never have a comma-
+  // separated version number, regardless of plugin or OS or locale.
+  // (I'm looking at you, Adobe)
+  mVersion.ReplaceChar(',', '.');
 }
 
 NS_IMETHODIMP

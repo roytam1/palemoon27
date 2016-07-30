@@ -253,9 +253,6 @@ JS_CallTenuredObjectTracer(JSTracer* trc, JS::TenuredHeap<JSObject*>* objp, cons
 extern JS_PUBLIC_API(void)
 JS_TraceChildren(JSTracer* trc, void* thing, JSGCTraceKind kind);
 
-extern JS_PUBLIC_API(void)
-JS_TraceRuntime(JSTracer* trc);
-
 namespace JS {
 typedef js::HashSet<Zone*, js::DefaultHasher<Zone*>, js::SystemAllocPolicy> ZoneSet;
 }

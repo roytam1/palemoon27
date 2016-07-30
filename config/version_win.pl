@@ -192,7 +192,6 @@ if ($milestone eq "") {
     $milestone = Moz::Milestone::getOfficialMilestone($MILESTONE_FILE);
 }
 
-$mfversion = $mpversion = $milestone;
 if ($appversion eq "") {
   $appversion = $milestone;
 }
@@ -213,14 +212,15 @@ if ($milestone =~ /[a-z]/) {
 }
 
 my @mstone = split(/\./,$milestone);
-$mstone[1] =~s/\D.*$//;
-if (!$mstone[2]) {
-    $mstone[2] = "0";
+for ($j = 1; $j < 4; $j++)
+{
+    if (!$mstone[$j]) {
+        $mstone[$j] = "0";
 }
 else {
-    $mstone[2] =~s/\D.*$//;
+        $mstone[$j] =~s/\D.*$//;
 }
-$fileversion = $productversion="$mstone[0],$mstone[1],$mstone[2],$daycount";
+}
 
 my @appver = split(/\./,$appversion);
 for ($j = 1; $j < 4; $j++)
@@ -233,10 +233,16 @@ for ($j = 1; $j < 4; $j++)
     }
 }
 my $winappversion = "$appver[0],$appver[1],$appver[2],$appver[3]";
+$fileversion = "$appver[0],$appver[1],$appver[2],$daycount"; 
+$mfversion = "$appver[0].$appver[1].$appver[2].$daycount";
+$productversion = "$appver[0],$appver[1],$appver[2],$appver[3]";
+$mpversion = "$appver[0].$appver[1].$appver[2].$appver[3]";
+my $platformversion = "$mstone[0].$mstone[1].$mstone[2].$daycount";
 
-my $copyright = "License: MPL 2";
-my $company = "Mozilla Foundation";
-my $trademarks = "Mozilla";
+
+my $copyright = "License: MPL 2.0";
+my $company = "Moonchild Productions";
+my $trademarks = "";
 my $productname = $displayname;
 
 
@@ -362,6 +368,7 @@ BEGIN
             VALUE "OriginalFilename", "$binary"
             VALUE "ProductName", "$productname"
             VALUE "BuildID", "$buildid"
+            VALUE "PlatformVersion", "$platformversion"
         END
     END
     BLOCK "VarFileInfo"

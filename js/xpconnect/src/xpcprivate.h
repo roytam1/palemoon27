@@ -632,8 +632,6 @@ public:
         mSlowScriptSecondHalf = false;
     }
 
-    nsTArray<nsXPCWrappedJS*>& WrappedJSToReleaseArray() { return mWrappedJSToReleaseArray; }
-
 private:
     XPCJSRuntime(); // no implementation
     explicit XPCJSRuntime(nsXPConnect* aXPConnect);
@@ -659,7 +657,6 @@ private:
     XPCWrappedNativeProtoMap* mDyingWrappedNativeProtoMap;
     XPCWrappedNativeProtoMap* mDetachedWrappedNativeProtoMap;
     bool mGCIsRunning;
-    nsTArray<nsXPCWrappedJS*> mWrappedJSToReleaseArray;
     nsTArray<nsISupports*> mNativesToReleaseArray;
     bool mDoingFinalization;
     XPCRootSetElem* mVariantRoots;

@@ -274,7 +274,7 @@ bool
 RootList::init()
 {
     SimpleEdgeVectorTracer tracer(cx, &edges, wantNames);
-    JS_TraceRuntime(&tracer);
+    js::TraceRuntime(&tracer);
     if (!tracer.okay)
         return false;
     noGC.emplace(cx->runtime());
@@ -287,7 +287,7 @@ RootList::init(ZoneSet& debuggees)
     SimpleEdgeVector allRootEdges(cx);
     SimpleEdgeVectorTracer tracer(cx, &allRootEdges, wantNames);
 
-    JS_TraceRuntime(&tracer);
+    js::TraceRuntime(&tracer);
     if (!tracer.okay)
         return false;
     JS_TraceIncomingCCWs(&tracer, debuggees);

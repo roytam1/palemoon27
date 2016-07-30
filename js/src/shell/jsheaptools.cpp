@@ -33,7 +33,7 @@ using mozilla::Move;
  * reference edges reversed.
  *
  * Unfortunately, it's not possible to build the results for findReferences
- * while visiting things solely in the order that JS_TraceRuntime and
+ * while visiting things solely in the order that js::TraceRuntime and
  * JS_TraceChildren reaches them. For example, as you work outward from the
  * roots, suppose an edge from thing T reaches a "gray" thing G --- G being gray
  * because you're still in the midst of traversing its descendants. At this
@@ -220,7 +220,7 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
     bool traverseEdge(void* cell, JSGCTraceKind kind);
 
     /*
-     * JS_TraceRuntime and JS_TraceChildren don't propagate error returns,
+     * js::TraceRuntime and JS_TraceChildren don't propagate error returns,
      * and out-of-memory errors, by design, don't establish an exception in
      * |context|, so traverseEdgeWithThis uses this to communicate the
      * result of the traversal to reverseHeap.
@@ -291,7 +291,7 @@ HeapReverser::reverseHeap()
     traversalStatus = true;
 
     /* Prime the work stack with the roots of collection. */
-    JS_TraceRuntime(this);
+    js::TraceRuntime(this);
     if (!traversalStatus)
         return false;
 

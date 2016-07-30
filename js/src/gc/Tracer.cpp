@@ -114,13 +114,6 @@ JS_TraceChildren(JSTracer* trc, void* thing, JSGCTraceKind kind)
 }
 
 JS_PUBLIC_API(void)
-JS_TraceRuntime(JSTracer* trc)
-{
-    AssertHeapIsIdle(trc->runtime());
-    TraceRuntime(trc);
-}
-
-JS_PUBLIC_API(void)
 JS_TraceIncomingCCWs(JSTracer* trc, const JS::ZoneSet& zones)
 {
     for (js::ZonesIter z(trc->runtime(), SkipAtoms); !z.done(); z.next()) {

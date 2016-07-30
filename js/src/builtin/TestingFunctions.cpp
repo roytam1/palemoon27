@@ -898,7 +898,7 @@ CountHeap(JSContext* cx, unsigned argc, jsval* vp)
     countTracer.recycleList = nullptr;
 
     if (startValue.isUndefined()) {
-        JS_TraceRuntime(&countTracer.base);
+        js::TraceRuntime(&countTracer.base);
     } else {
         JS_CallUnbarrieredValueTracer(&countTracer.base, startValue.address(), "root");
     }

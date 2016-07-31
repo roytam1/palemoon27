@@ -634,6 +634,9 @@ function isUsableAddon(aAddon) {
   if (aAddon.type == "theme" && aAddon.internalName == XPIProvider.defaultSkin)
     return true;
 
+  if (aAddon.jetsdk)
+    return false;
+
   if (aAddon.blocklistState == Blocklist.STATE_BLOCKED)
     return false;
 
@@ -1087,6 +1090,11 @@ function loadManifestFromZipReader(aZipReader) {
       addon.hasBinaryComponents = false;
     }
 
+    // Append a property with boolean value whether the .xpi
+    // archive contains files related to Jetpack and Add-on SDK
+    addon["jetsdk"] = aZipReader.hasEntry("package.json")
+                   || aZipReader.hasEntry("harness-options.json");
+    
     addon.appDisabled = !isUsableAddon(addon);
     return addon;
   }

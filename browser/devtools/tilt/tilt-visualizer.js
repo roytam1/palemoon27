@@ -1,4 +1,4 @@
-/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -272,10 +272,11 @@ TiltVisualizer.prototype = {
     }
     let nodeIndex = this.presenter._currentSelection;
     if (nodeIndex < 0) {
-      this.inspector.selection.setNode(null, "tilt");
+      this.inspector.selection.setNodeFront(null, "tilt");
     }
     let node = this.presenter._traverseData.nodes[nodeIndex];
-    this.inspector.selection.setNode(node, "tilt");
+    node = this.inspector.walker.frontForRawNode(node);
+    this.inspector.selection.setNodeFront(node, "tilt");
   },
 };
 

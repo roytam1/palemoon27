@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,7 +11,12 @@ const ENSURE_SELECTION_VISIBLE_DELAY = 50; // ms
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/DOMHelpers.jsm");
-Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString).data;
+const MAX_LABEL_LENGTH = 40;
+
+let promise = require("resource://gre/modules/Promise.jsm").Promise;
 
 const LOW_PRIORITY_ELEMENTS = {
   "HEAD": true,
@@ -24,6 +29,18 @@ const LOW_PRIORITY_ELEMENTS = {
   "STYLE": true,
   "TITLE": true,
 };
+
+function resolveNextTick(value) {
+  let deferred = promise.defer();
+  Services.tm.mainThread.dispatch(() => {
+    try {
+      deferred.resolve(value);
+    } catch(ex) {
+      console.error(ex);
+    }
+  }, Ci.nsIThread.DISPATCH_NORMAL);
+  return deferred.promise;
+}
 
 ///////////////////////////////////////////////////////////////////////////
 //// HTML Breadcrumbs
@@ -53,11 +70,26 @@ function HTMLBreadcrumbs(aInspector)
 exports.HTMLBreadcrumbs = HTMLBreadcrumbs;
 
 HTMLBreadcrumbs.prototype = {
+  get walker() this.inspector.walker,
+
   _init: function BC__init()
   {
     this.container = this.chromeDoc.getElementById("inspector-breadcrumbs");
+
+    // These separators are used for CSS purposes only, and are positioned
+    // off screen, but displayed with -moz-element.
+    this.separators = this.chromeDoc.createElement("box");
+    this.separators.className = "breadcrumb-separator-container";
+    this.separators.innerHTML =
+                      "<box id='breadcrumb-separator-before'></box>" +
+                      "<box id='breadcrumb-separator-after'></box>" +
+                      "<box id='breadcrumb-separator-normal'></box>";
+    this.container.parentNode.appendChild(this.separators);
+
     this.container.addEventListener("mousedown", this, true);
     this.container.addEventListener("keypress", this, true);
+    this.container.addEventListener("mouseover", this, true);
+    this.container.addEventListener("mouseleave", this, true);
 
     // We will save a list of already displayed nodes in this array.
     this.nodeHierarchy = [];
@@ -71,22 +103,49 @@ HTMLBreadcrumbs.prototype = {
     this.container._scrollButtonUp.collapsed = true;
     this.container._scrollButtonDown.collapsed = true;
 
-    this.onscrollboxreflow = function() {
+    this.onscrollboxreflow = () => {
       if (this.container._scrollButtonDown.collapsed)
         this.container.removeAttribute("overflows");
       else
         this.container.setAttribute("overflows", true);
-    }.bind(this);
+    };
 
     this.container.addEventListener("underflow", this.onscrollboxreflow, false);
     this.container.addEventListener("overflow", this.onscrollboxreflow, false);
 
     this.update = this.update.bind(this);
     this.updateSelectors = this.updateSelectors.bind(this);
-    this.selection.on("new-node", this.update);
+    this.selection.on("new-node-front", this.update);
     this.selection.on("pseudoclass", this.updateSelectors);
     this.selection.on("attribute-changed", this.updateSelectors);
+    this.inspector.on("markupmutation", this.update);
     this.update();
+  },
+
+  /**
+   * Include in a promise's then() chain to reject the chain
+   * when the breadcrumbs' selection has changed while the promise
+   * was outstanding.
+   */
+  selectionGuard: function() {
+    let selection = this.selection.nodeFront;
+    return (result) => {
+      if (selection != this.selection.nodeFront) {
+        return promise.reject("selection-changed");
+      }
+      return result;
+    }
+  },
+
+  /**
+   * Warn if rejection was caused by selection change, print an error otherwise.
+   */
+  selectionGuardEnd: function(err) {
+    if (err === "selection-changed") {
+      console.warn("Asynchronous operation was aborted as selection changed.");
+    } else {
+      console.error(err);
+    }
   },
 
   /**
@@ -98,17 +157,23 @@ HTMLBreadcrumbs.prototype = {
   prettyPrintNodeAsText: function BC_prettyPrintNodeText(aNode)
   {
     let text = aNode.tagName.toLowerCase();
+    if (aNode.isPseudoElement) {
+      text = aNode.isBeforePseudoElement ? "::before" : "::after";
+    }
+
     if (aNode.id) {
       text += "#" + aNode.id;
     }
-    for (let i = 0; i < aNode.classList.length; i++) {
-      text += "." + aNode.classList[i];
-    }
-    for (let i = 0; i < PSEUDO_CLASSES.length; i++) {
-      let pseudo = PSEUDO_CLASSES[i];
-      if (DOMUtils.hasPseudoClassLock(aNode, pseudo)) {
-        text += pseudo;
+
+    if (aNode.className) {
+      let classList = aNode.className.split(/\s+/);
+      for (let i = 0; i < classList.length; i++) {
+        text += "." + classList[i];
       }
+    }
+
+    for (let pseudo of aNode.pseudoClassLocks) {
+      text += pseudo;
     }
 
     return text;
@@ -140,19 +205,46 @@ HTMLBreadcrumbs.prototype = {
     let pseudosLabel = this.chromeDoc.createElement("label");
     pseudosLabel.className = "breadcrumbs-widget-item-pseudo-classes plain";
 
-    tagLabel.textContent = aNode.tagName.toLowerCase();
-    idLabel.textContent = aNode.id ? ("#" + aNode.id) : "";
-
-    let classesText = "";
-    for (let i = 0; i < aNode.classList.length; i++) {
-      classesText += "." + aNode.classList[i];
+    let tagText = aNode.tagName.toLowerCase();
+    if (aNode.isPseudoElement) {
+      tagText = aNode.isBeforePseudoElement ? "::before" : "::after";
     }
-    classesLabel.textContent = classesText;
+    let idText = aNode.id ? ("#" + aNode.id) : "";
+    let classesText = "";
 
-    let pseudos = PSEUDO_CLASSES.filter(function(pseudo) {
-      return DOMUtils.hasPseudoClassLock(aNode, pseudo);
-    }, this);
-    pseudosLabel.textContent = pseudos.join("");
+    if (aNode.className) {
+      let classList = aNode.className.split(/\s+/);
+      for (let i = 0; i < classList.length; i++) {
+        classesText += "." + classList[i];
+      }
+    }
+
+    // XXX: Until we have pseudoclass lock in the node.
+    for (let pseudo of aNode.pseudoClassLocks) {
+
+    }
+
+    // Figure out which element (if any) needs ellipsing.
+    // Substring for that element, then clear out any extras
+    // (except for pseudo elements).
+    let maxTagLength = MAX_LABEL_LENGTH;
+    let maxIdLength = MAX_LABEL_LENGTH - tagText.length;
+    let maxClassLength = MAX_LABEL_LENGTH - tagText.length - idText.length;
+
+    if (tagText.length > maxTagLength) {
+       tagText = tagText.substr(0, maxTagLength) + ELLIPSIS;
+       idText = classesText = "";
+    } else if (idText.length > maxIdLength) {
+       idText = idText.substr(0, maxIdLength) + ELLIPSIS;
+       classesText = "";
+    } else if (classesText.length > maxClassLength) {
+      classesText = classesText.substr(0, maxClassLength) + ELLIPSIS;
+    }
+
+    tagLabel.textContent = tagText;
+    idLabel.textContent = idText;
+    classesLabel.textContent = classesText;
+    pseudosLabel.textContent = aNode.pseudoClassLocks.join("");
 
     fragment.appendChild(tagLabel);
     fragment.appendChild(idLabel);
@@ -173,7 +265,7 @@ HTMLBreadcrumbs.prototype = {
     // We make sure that the targeted node is selected
     // because we want to use the nodemenu that only works
     // for inspector.selection
-    this.selection.setNode(aNode, "breadcrumbs");
+    this.selection.setNodeFront(aNode, "breadcrumbs");
 
     let title = this.chromeDoc.createElement("menuitem");
     title.setAttribute("label", this.inspector.strings.GetStringFromName("breadcrumbs.siblings"));
@@ -183,9 +275,11 @@ HTMLBreadcrumbs.prototype = {
 
     let items = [title, separator];
 
-    let nodes = aNode.parentNode.childNodes;
-    for (let i = 0; i < nodes.length; i++) {
-      if (nodes[i].nodeType == aNode.ELEMENT_NODE) {
+    this.walker.siblings(aNode, {
+      whatToShow: Ci.nsIDOMNodeFilter.SHOW_ELEMENT
+    }).then(siblings => {
+      let nodes = siblings.nodes;
+      for (let i = 0; i < nodes.length; i++) {
         let item = this.chromeDoc.createElement("menuitem");
         if (nodes[i] === aNode) {
           item.setAttribute("disabled", "true");
@@ -198,14 +292,14 @@ HTMLBreadcrumbs.prototype = {
         let selection = this.selection;
         item.onmouseup = (function(aNode) {
           return function() {
-            selection.setNode(aNode, "breadcrumbs");
+            selection.setNodeFront(aNode, "breadcrumbs");
           }
         })(nodes[i]);
 
         items.push(item);
+        this.inspector.showNodeMenu(aButton, "before_start", items);
       }
-    }
-    this.inspector.showNodeMenu(aButton, "before_start", items);
+    });
   },
 
   /**
@@ -252,35 +346,53 @@ HTMLBreadcrumbs.prototype = {
 
     if (event.type == "keypress" && this.selection.isElementNode()) {
       let node = null;
-      switch (event.keyCode) {
-        case this.chromeWin.KeyEvent.DOM_VK_LEFT:
-          if (this.currentIndex != 0) {
-            node = this.nodeHierarchy[this.currentIndex - 1].node;
+
+
+      this._keyPromise = this._keyPromise || promise.resolve(null);
+
+      this._keyPromise = (this._keyPromise || promise.resolve(null)).then(() => {
+        switch (event.keyCode) {
+          case this.chromeWin.KeyEvent.DOM_VK_LEFT:
+            if (this.currentIndex != 0) {
+              node = promise.resolve(this.nodeHierarchy[this.currentIndex - 1].node);
+            }
+            break;
+          case this.chromeWin.KeyEvent.DOM_VK_RIGHT:
+            if (this.currentIndex < this.nodeHierarchy.length - 1) {
+              node = promise.resolve(this.nodeHierarchy[this.currentIndex + 1].node);
+            }
+            break;
+          case this.chromeWin.KeyEvent.DOM_VK_UP:
+            node = this.walker.previousSibling(this.selection.nodeFront, {
+              whatToShow: Ci.nsIDOMNodeFilter.SHOW_ELEMENT
+            });
+            break;
+          case this.chromeWin.KeyEvent.DOM_VK_DOWN:
+            node = this.walker.nextSibling(this.selection.nodeFront, {
+              whatToShow: Ci.nsIDOMNodeFilter.SHOW_ELEMENT
+            });
+            break;
+        }
+
+        return node.then((node) => {
+          if (node) {
+            this.selection.setNodeFront(node, "breadcrumbs");
           }
-          break;
-        case this.chromeWin.KeyEvent.DOM_VK_RIGHT:
-          if (this.currentIndex < this.nodeHierarchy.length - 1) {
-            node = this.nodeHierarchy[this.currentIndex + 1].node;
-          }
-          break;
-        case this.chromeWin.KeyEvent.DOM_VK_UP:
-          node = this.selection.node.previousSibling;
-          while (node && (node.nodeType != node.ELEMENT_NODE)) {
-            node = node.previousSibling;
-          }
-          break;
-        case this.chromeWin.KeyEvent.DOM_VK_DOWN:
-          node = this.selection.node.nextSibling;
-          while (node && (node.nodeType != node.ELEMENT_NODE)) {
-            node = node.nextSibling;
-          }
-          break;
-      }
-      if (node) {
-        this.selection.setNode(node, "breadcrumbs");
-      }
+        });
+      });
       event.preventDefault();
       event.stopPropagation();
+    }
+
+    if (event.type == "mouseover") {
+      let target = event.originalTarget;
+      if (target.tagName == "button") {
+        target.onBreadcrumbsHover();
+      }
+    }
+
+    if (event.type == "mouseleave") {
+      this.inspector.toolbox.highlighterUtils.unhighlight();
     }
   },
 
@@ -289,15 +401,10 @@ HTMLBreadcrumbs.prototype = {
    */
   destroy: function BC_destroy()
   {
-    this.nodeHierarchy.forEach(function(crumb) {
-      if (LayoutHelpers.isNodeConnected(crumb.node)) {
-        DOMUtils.clearPseudoClassLocks(crumb.node);
-      }
-    });
-
-    this.selection.off("new-node", this.update);
+    this.selection.off("new-node-front", this.update);
     this.selection.off("pseudoclass", this.updateSelectors);
     this.selection.off("attribute-changed", this.updateSelectors);
+    this.inspector.off("markupmutation", this.update);
 
     this.container.removeEventListener("underflow", this.onscrollboxreflow, false);
     this.container.removeEventListener("overflow", this.onscrollboxreflow, false);
@@ -306,8 +413,16 @@ HTMLBreadcrumbs.prototype = {
     this.empty();
     this.container.removeEventListener("mousedown", this, true);
     this.container.removeEventListener("keypress", this, true);
+    this.container.removeEventListener("mouseover", this, true);
+    this.container.removeEventListener("mouseleave", this, true);
     this.container = null;
+
+    this.separators.remove();
+    this.separators = null;
+
     this.nodeHierarchy = null;
+
+    this.isDestroyed = true;
   },
 
   /**
@@ -318,16 +433,6 @@ HTMLBreadcrumbs.prototype = {
     while (this.container.hasChildNodes()) {
       this.container.removeChild(this.container.firstChild);
     }
-  },
-
-  /**
-   * Re-init the cache and remove all the buttons.
-   */
-  invalidateHierarchy: function BC_invalidateHierarchy()
-  {
-    this.inspector.hideNodeMenu();
-    this.nodeHierarchy = [];
-    this.empty();
   },
 
   /**
@@ -400,9 +505,13 @@ HTMLBreadcrumbs.prototype = {
         button.click();
     }
 
-    button.onBreadcrumbsClick = function onBreadcrumbsClick() {
-      this.selection.setNode(aNode, "breadcrumbs");
-    }.bind(this);
+    button.onBreadcrumbsClick = () => {
+      this.selection.setNodeFront(aNode, "breadcrumbs");
+    };
+
+    button.onBreadcrumbsHover = () => {
+      this.inspector.toolbox.highlighterUtils.highlightNodeFront(aNode);
+    };
 
     button.onclick = (function _onBreadcrumbsRightClick(event) {
       button.focus();
@@ -432,12 +541,14 @@ HTMLBreadcrumbs.prototype = {
       if (originalLength > 0) {
         stopNode = this.nodeHierarchy[originalLength - 1].node;
       }
-      while (toAppend && toAppend.tagName && toAppend != stopNode) {
-        let button = this.buildButton(toAppend);
-        fragment.insertBefore(button, lastButtonInserted);
-        lastButtonInserted = button;
-        this.nodeHierarchy.splice(originalLength, 0, {node: toAppend, button: button});
-        toAppend = this.DOMHelpers.getParentObject(toAppend);
+      while (toAppend && toAppend != stopNode) {
+        if (toAppend.tagName) {
+          let button = this.buildButton(toAppend);
+          fragment.insertBefore(button, lastButtonInserted);
+          lastButtonInserted = button;
+          this.nodeHierarchy.splice(originalLength, 0, {node: toAppend, button: button});
+        }
+        toAppend = toAppend.parentNode();
       }
       this.container.appendChild(fragment, this.container.firstChild);
   },
@@ -451,23 +562,36 @@ HTMLBreadcrumbs.prototype = {
    */
   getInterestingFirstNode: function BC_getInterestingFirstNode(aNode)
   {
-    let nextChild = this.DOMHelpers.getChildObject(aNode, 0);
-    let fallback = null;
+    let deferred = promise.defer();
 
-    while (nextChild) {
-      if (nextChild.nodeType == aNode.ELEMENT_NODE) {
-        if (!(nextChild.tagName in LOW_PRIORITY_ELEMENTS)) {
-          return nextChild;
+    var fallback = null;
+
+    var moreChildren = () => {
+      this.walker.children(aNode, {
+        start: fallback,
+        maxNodes: 10,
+        whatToShow: Ci.nsIDOMNodeFilter.SHOW_ELEMENT
+      }).then(this.selectionGuard()).then(response => {
+        for (let node of response.nodes) {
+          if (!(node.tagName in LOW_PRIORITY_ELEMENTS)) {
+            deferred.resolve(node);
+            return;
+          }
+          if (!fallback) {
+            fallback = node;
+          }
         }
-        if (!fallback) {
-          fallback = nextChild;
+        if (response.hasLast) {
+          deferred.resolve(fallback);
+          return;
+        } else {
+          moreChildren();
         }
-      }
-      nextChild = this.DOMHelpers.getNextSibling(nextChild);
+      }).then(null, this.selectionGuardEnd);
     }
-    return fallback;
+    moreChildren();
+    return deferred.promise;
   },
-
 
   /**
    * Find the "youngest" ancestor of a node which is already in the breadcrumbs.
@@ -483,7 +607,7 @@ HTMLBreadcrumbs.prototype = {
       if (idx > -1) {
         return idx;
       } else {
-        node = this.DOMHelpers.getParentObject(node);
+        node = node.parentNode();
       }
     }
     return -1;
@@ -498,13 +622,16 @@ HTMLBreadcrumbs.prototype = {
     // If the last displayed node is the selected node
     if (this.currentIndex == this.nodeHierarchy.length - 1) {
       let node = this.nodeHierarchy[this.currentIndex].node;
-      let child = this.getInterestingFirstNode(node);
-      // If the node has a child
-      if (child) {
-        // Show this child
-        this.expand(child);
-      }
+      return this.getInterestingFirstNode(node).then(child => {
+        // If the node has a child and we've not been destroyed in the meantime
+        if (child && !this.isDestroyed) {
+          // Show this child
+          this.expand(child);
+        }
+      });
     }
+
+    return resolveNextTick(true);
   },
 
   /**
@@ -527,6 +654,10 @@ HTMLBreadcrumbs.prototype = {
 
   updateSelectors: function BC_updateSelectors()
   {
+    if (this.isDestroyed) {
+      return;
+    }
+
     for (let i = this.nodeHierarchy.length - 1; i >= 0; i--) {
       let crumb = this.nodeHierarchy[i];
       let button = crumb.button;
@@ -542,9 +673,15 @@ HTMLBreadcrumbs.prototype = {
   /**
    * Update the breadcrumbs display when a new node is selected.
    */
-  update: function BC_update()
+  update: function BC_update(reason)
   {
-    this.inspector.hideNodeMenu();
+    if (this.isDestroyed) {
+      return;
+    }
+
+    if (reason !== "markupmutation") {
+      this.inspector.hideNodeMenu();
+    }
 
     let cmdDispatcher = this.chromeDoc.commandDispatcher;
     this.hadFocus = (cmdDispatcher.focusedElement &&
@@ -560,10 +697,11 @@ HTMLBreadcrumbs.prototype = {
       return;
     }
 
-    let idx = this.indexOf(this.selection.node);
+    let idx = this.indexOf(this.selection.nodeFront);
 
     // Is the node already displayed in the breadcrumbs?
-    if (idx > -1) {
+    // (and there are no mutations that need re-display of the crumbs)
+    if (idx > -1 && reason !== "markupmutation") {
       // Yes. We select it.
       this.setCursor(idx);
     } else {
@@ -571,26 +709,40 @@ HTMLBreadcrumbs.prototype = {
       if (this.nodeHierarchy.length > 0) {
         // No. We drop all the element that are not direct ancestors
         // of the selection
-        let parent = this.DOMHelpers.getParentObject(this.selection.node);
+        let parent = this.selection.nodeFront.parentNode();
         let idx = this.getCommonAncestor(parent);
         this.cutAfter(idx);
       }
       // we append the missing button between the end of the breadcrumbs display
       // and the current node.
-      this.expand(this.selection.node);
+      this.expand(this.selection.nodeFront);
 
       // we select the current node button
-      idx = this.indexOf(this.selection.node);
+      idx = this.indexOf(this.selection.nodeFront);
       this.setCursor(idx);
     }
-    // Add the first child of the very last node of the breadcrumbs if possible.
-    this.ensureFirstChild();
-    this.updateSelectors();
 
-    // Make sure the selected node and its neighbours are visible.
-    this.scroll();
-  },
-}
+    let doneUpdating = this.inspector.updating("breadcrumbs");
+    // Add the first child of the very last node of the breadcrumbs if possible.
+    this.ensureFirstChild().then(this.selectionGuard()).then(() => {
+      if (this.isDestroyed) {
+        return;
+      }
+
+      this.updateSelectors();
+
+      // Make sure the selected node and its neighbours are visible.
+      this.scroll();
+      return resolveNextTick().then(() => {
+        this.inspector.emit("breadcrumbs-updated", this.selection.nodeFront);
+        doneUpdating();
+      });
+    }).then(null, err => {
+      doneUpdating(this.selection.nodeFront);
+      this.selectionGuardEnd(err);
+    });
+  }
+};
 
 XPCOMUtils.defineLazyGetter(this, "DOMUtils", function () {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);

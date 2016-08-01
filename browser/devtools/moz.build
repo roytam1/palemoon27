@@ -5,21 +5,45 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 DIRS += [
-    'inspector',
-    'markupview',
-    'webconsole',
+    'animationinspector',
+    'app-manager',
+    'canvasdebugger',
     'commandline',
+    'debugger',
+    'eyedropper',
+    'fontinspector',
+    'framework',
+    'inspector',
+    'layoutview',
+    'markupview',
+    'netmonitor',
+    'profiler',
+    'projecteditor',
+    'responsivedesign',
+    'scratchpad',
+    'shadereditor',
+    'shared',
     'sourceeditor',
+    'storage',
     'styleeditor',
     'styleinspector',
     'tilt',
-    'scratchpad',
-    'debugger',
-    'netmonitor',
-    'layoutview',
-    'shared',
-    'responsivedesign',
-    'framework',
-    'fontinspector',
+    'timeline',
+    'webaudioeditor',
+    'webconsole',
+    'webide',
+]
 
+if CONFIG['MOZ_DEVTOOLS_PERFTOOLS']:
+  DIRS += ['performance']
+
+EXTRA_COMPONENTS += [
+    'devtools-clhandler.js',
+    'devtools-clhandler.manifest',
+]
+
+JAR_MANIFESTS += ['jar.mn']
+
+EXTRA_JS_MODULES.devtools += [
+    'main.js',
 ]

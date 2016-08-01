@@ -36,7 +36,7 @@ this.SplitView = function SplitView(aRoot)
   this._mql = aRoot.ownerDocument.defaultView.matchMedia(LANDSCAPE_MEDIA_QUERY);
 
   // items list focus and search-on-type handling
-  this._nav.addEventListener("keydown", function onKeyCatchAll(aEvent) {
+  this._nav.addEventListener("keydown", (aEvent) => {
     function getFocusedItemWithin(nav) {
       let node = nav.ownerDocument.activeElement;
       while (node && node.parentNode != nav) {
@@ -77,7 +77,7 @@ this.SplitView = function SplitView(aRoot)
       }
       return false;
     }
-  }.bind(this), false);
+  }, false);
 }
 
 SplitView.prototype = {
@@ -196,18 +196,15 @@ SplitView.prototype = {
 
     this._nav.appendChild(aSummary);
 
-    aSummary.addEventListener("click", function onSummaryClick(aEvent) {
+    aSummary.addEventListener("click", (aEvent) => {
       aEvent.stopPropagation();
       this.activeSummary = aSummary;
-    }.bind(this), false);
+    }, false);
 
     this._side.appendChild(aDetails);
 
     if (binding.onCreate) {
-      // queue onCreate handler
-      this._root.ownerDocument.defaultView.setTimeout(function () {
-        binding.onCreate(aSummary, aDetails, binding.data);
-      }, 0);
+      binding.onCreate(aSummary, aDetails, binding.data);
     }
   },
 

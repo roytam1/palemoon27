@@ -4,21 +4,47 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* Sources search view */
+/* Side pane views */
 
-#globalsearch {
-  overflow: auto;
+#sources-pane > tabpanels > tabpanel,
+#instruments-pane > tabpanels > tabpanel {
+  -moz-box-orient: vertical;
 }
 
-/* Watch expressions view */
-
-#expressions {
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-/* Toolbar */
+/* Toolbar controls */
 
 .devtools-toolbarbutton:not([label]) > .toolbarbutton-text {
   display: none;
+}
+
+/* Horizontal vs. vertical layout */
+
+#body[layout=vertical] #debugger-widgets {
+  -moz-box-orient: vertical;
+}
+
+#body[layout=vertical] #sources-pane {
+  -moz-box-flex: 1;
+}
+
+#body[layout=vertical] #instruments-pane {
+  -moz-box-flex: 2;
+}
+
+#body[layout=vertical] #instruments-pane-toggle {
+  display: none;
+}
+
+#body[layout=vertical] #sources-and-editor-splitter,
+#body[layout=vertical] #editor-and-instruments-splitter {
+  display: none;
+}
+
+#body[layout=horizontal] #vertical-layout-splitter,
+#body[layout=horizontal] #vertical-layout-panes-container {
+  display: none;
+}
+
+#body[layout=vertical] #stackframes {
+  visibility: hidden;
 }

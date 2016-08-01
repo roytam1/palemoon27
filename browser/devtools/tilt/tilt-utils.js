@@ -1,4 +1,4 @@
-/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,7 +9,7 @@ const {Cc, Ci, Cu} = require("chrome");
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 
 const STACK_THICKNESS = 15;
 
@@ -405,8 +405,9 @@ TiltUtils.DOM = {
    */
   getNodePosition: function TUD_getNodePosition(aContentWindow, aNode,
                                                 aParentPosition) {
+    let lh = new LayoutHelpers(aContentWindow);
     // get the x, y, width and height coordinates of the node
-    let coord = LayoutHelpers.getRect(aNode, aContentWindow);
+    let coord = lh.getRect(aNode, aContentWindow);
     if (!coord) {
       return null;
     }

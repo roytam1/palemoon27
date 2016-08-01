@@ -165,6 +165,8 @@ const gXPInstallObserver = {
         let error = (host || install.error == 0) ? "addonError" : "addonLocalError";
         if (install.error != 0)
           error += install.error;
+        else if (install.addon.jetsdk)
+          error += "JetSDK";
         else if (install.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
           error += "Blocklisted";
         else

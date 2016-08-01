@@ -1090,10 +1090,10 @@ function loadManifestFromZipReader(aZipReader) {
       addon.hasBinaryComponents = false;
     }
 
-    // Append a property with boolean value whether the .xpi
-    // archive contains files related to Jetpack and Add-on SDK
-    addon["jetsdk"] = aZipReader.hasEntry("package.json")
-                   || aZipReader.hasEntry("harness-options.json");
+    // Set a boolean value whether the .xpi archive
+    // contains files related to Jetpack and Add-on SDK
+    addon.jetsdk = aZipReader.hasEntry("package.json")
+                || aZipReader.hasEntry("harness-options.json");
     
     addon.appDisabled = !isUsableAddon(addon);
     return addon;
@@ -6655,7 +6655,7 @@ function AddonWrapper(aAddon) {
    "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
    "softDisabled", "skinnable", "size", "foreignInstall", "hasBinaryComponents",
    "strictCompatibility", "compatibilityOverrides", "updateURL",
-   "getDataDirectory", "multiprocessCompatible"].forEach(function(aProp) {
+   "getDataDirectory", "multiprocessCompatible", "jetsdk"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function AddonWrapper_propertyGetter() aAddon[aProp]);
   }, this);
 

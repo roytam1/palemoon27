@@ -1010,7 +1010,27 @@ pref("services.sync.prefs.sync.spellchecker.dictionary", true);
 pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 #endif
 
-// Disable the error console
+// Developer edition preferences
+#ifdef MOZ_DEV_EDITION
+pref("browser.devedition.theme.enabled", true);
+pref("browser.devedition.theme.showCustomizeButton", true);
+#else
+pref("browser.devedition.theme.enabled", false);
+pref("browser.devedition.theme.showCustomizeButton", false);
+#endif
+
+// Developer edition promo preferences
+pref("devtools.devedition.promo.shown", false);
+pref("devtools.devedition.promo.url", "https://www.mozilla.org/firefox/developer/?utm_source=firefox-dev-tools&utm_medium=firefox-browser&utm_content=betadoorhanger");
+
+// Only potentially show in beta release
+#if MOZ_UPDATE_CHANNEL == beta
+  pref("devtools.devedition.promo.enabled", true);
+#else
+  pref("devtools.devedition.promo.enabled", false);
+#endif
+
+// Enable the error console
 pref("devtools.errorconsole.enabled", true);
 
 #ifdef MOZ_DEVTOOLS
@@ -1020,25 +1040,59 @@ pref("devtools.toolbar.visible", false);
 pref("devtools.gcli.allowSet", false);
 pref("devtools.commands.dir", "");
 
+// Enable the app manager
+pref("devtools.appmanager.enabled", true);
+pref("devtools.appmanager.lastTab", "help");
+pref("devtools.appmanager.manifestEditor.enabled", true);
+
+// Enable DevTools WebIDE by default
+pref("devtools.webide.enabled", true);
+
 // Toolbox preferences
 pref("devtools.toolbox.footer.height", 250);
 pref("devtools.toolbox.sidebar.width", 500);
 pref("devtools.toolbox.host", "bottom");
 pref("devtools.toolbox.selectedTool", "webconsole");
-pref("devtools.toolbox.toolbarSpec", '["paintflashing toggle","tilt toggle","scratchpad","resize toggle"]');
+pref("devtools.toolbox.toolbarSpec", '["splitconsole", "paintflashing toggle","tilt toggle","scratchpad","resize toggle","eyedropper","screenshot --fullpage"]');
 pref("devtools.toolbox.sideEnabled", true);
+pref("devtools.toolbox.zoomValue", "1");
+pref("devtools.toolbox.splitconsoleEnabled", false);
+pref("devtools.toolbox.splitconsoleHeight", 100);
 
+// Toolbox Button preferences
+pref("devtools.command-button-pick.enabled", true);
+pref("devtools.command-button-frames.enabled", false);
+pref("devtools.command-button-splitconsole.enabled", true);
+pref("devtools.command-button-paintflashing.enabled", false);
+pref("devtools.command-button-tilt.enabled", false);
+pref("devtools.command-button-scratchpad.enabled", false);
+pref("devtools.command-button-responsive.enabled", true);
+pref("devtools.command-button-eyedropper.enabled", false);
+pref("devtools.command-button-screenshot.enabled", false);
+
+// Inspector preferences
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
+// What was the last active sidebar in the inspector
 pref("devtools.inspector.activeSidebar", "ruleview");
+// Enable the markup preview
 pref("devtools.inspector.markupPreview", false);
+pref("devtools.inspector.remote", false);
+// Expand pseudo-elements by default in the rule-view
+pref("devtools.inspector.show_pseudo_elements", true);
+// The default size for image preview tooltips in the rule-view/computed-view/markup-view
+pref("devtools.inspector.imagePreviewTooltipSize", 300);
+// Enable user agent style inspection in rule-view
+pref("devtools.inspector.showUserAgentStyles", false);
+// Show all native anonymous content (like controls in <video> tags)
+pref("devtools.inspector.showAllAnonymousContent", false);
 
-// Enable the Layout View
-pref("devtools.layoutview.enabled", true);
-pref("devtools.layoutview.open", false);
+// DevTools default color unit
+pref("devtools.defaultColorUnit", "hex");
 
 // Enable the Responsive UI tool
 pref("devtools.responsiveUI.enabled", true);
+pref("devtools.responsiveUI.no-reload-notification", false);
 
 // Enable the Debugger
 pref("devtools.debugger.enabled", true);
@@ -1048,7 +1102,12 @@ pref("devtools.debugger.chrome-debugging-port", 6080);
 pref("devtools.debugger.remote-host", "localhost");
 pref("devtools.debugger.remote-timeout", 20000);
 pref("devtools.debugger.pause-on-exceptions", false);
+pref("devtools.debugger.ignore-caught-exceptions", true);
 pref("devtools.debugger.source-maps-enabled", true);
+pref("devtools.debugger.pretty-print-enabled", true);
+pref("devtools.debugger.auto-pretty-print", false);
+pref("devtools.debugger.auto-black-box", true);
+pref("devtools.debugger.tracer", false);
 
 // The default Debugger UI settings
 pref("devtools.debugger.ui.panes-sources-width", 200);
@@ -1058,12 +1117,47 @@ pref("devtools.debugger.ui.variables-sorting-enabled", true);
 pref("devtools.debugger.ui.variables-only-enum-visible", false);
 pref("devtools.debugger.ui.variables-searchbox-visible", false);
 
+// Enable the Profiler
+pref("devtools.profiler.enabled", true);
+
+// Timeline panel settings
+pref("devtools.timeline.enabled", false);
+pref("devtools.timeline.hiddenMarkers", "[]");
+
+// Enable perftools via build command
+#ifdef MOZ_DEVTOOLS_PERFTOOLS
+  pref("devtools.performance_dev.enabled", true);
+#else
+  pref("devtools.performance_dev.enabled", false);
+#endif
+
+// The default Profiler UI settings
+// TODO remove `devtools.profiler.ui.` branches when performance
+// tool lands (bug 1075567)
+pref("devtools.profiler.ui.flatten-tree-recursion", true);
+pref("devtools.profiler.ui.show-platform-data", false);
+pref("devtools.profiler.ui.show-idle-blocks", true);
+
+// The default Performance UI settings
+pref("devtools.performance.ui.invert-call-tree", true);
+pref("devtools.performance.ui.invert-flame-graph", false);
+pref("devtools.performance.ui.flatten-tree-recursion", true);
+pref("devtools.performance.ui.show-platform-data", false);
+pref("devtools.performance.ui.show-idle-blocks", true);
+pref("devtools.performance.ui.enable-memory", false);
+pref("devtools.performance.ui.enable-framerate", true);
+
+// The default cache UI setting
+pref("devtools.cache.disabled", false);
+
 // Enable the Network Monitor
 pref("devtools.netmonitor.enabled", true);
 
 // The default Network Monitor UI settings
-pref("devtools.netmonitor.panes-network-details-width", 450);
+pref("devtools.netmonitor.panes-network-details-width", 550);
 pref("devtools.netmonitor.panes-network-details-height", 450);
+pref("devtools.netmonitor.statistics", true);
+pref("devtools.netmonitor.filters", "[\"all\"]");
 
 // Enable the Tilt inspector
 pref("devtools.tilt.enabled", true);
@@ -1077,13 +1171,35 @@ pref("devtools.scratchpad.enabled", true);
 // Setting this preference to 0 will not clear any recent files, but rather hide
 // the 'Open Recent'-menu.
 pref("devtools.scratchpad.recentFilesMax", 10);
+pref("devtools.scratchpad.showTrailingSpace", false);
+pref("devtools.scratchpad.enableAutocompletion", true);
+
+// Enable the Storage Inspector
+pref("devtools.storage.enabled", false);
 
 // Enable the Style Editor.
 pref("devtools.styleeditor.enabled", true);
+pref("devtools.styleeditor.source-maps-enabled", true);
+pref("devtools.styleeditor.autocompletion-enabled", true);
+pref("devtools.styleeditor.showMediaSidebar", true);
+pref("devtools.styleeditor.mediaSidebarWidth", 238);
+pref("devtools.styleeditor.navSidebarWidth", 245);
 pref("devtools.styleeditor.transitions", true);
 
 // Enable tools for Chrome development.
 pref("devtools.chrome.enabled", false);
+
+// Enable the Shader Editor.
+pref("devtools.shadereditor.enabled", false);
+
+// Enable the Canvas Debugger.
+pref("devtools.canvasdebugger.enabled", false);
+
+// Enable the Web Audio Editor
+pref("devtools.webaudioeditor.enabled", false);
+
+// Web Audio Editor Inspector Width should be a preference
+pref("devtools.webaudioeditor.inspectorWidth", 300);
 
 // Default theme ("dark" or "light")
 pref("devtools.theme", "light");
@@ -1094,14 +1210,22 @@ pref("devtools.gcli.hideIntro", false);
 // How eager are we to show help: never=1, sometimes=2, always=3
 pref("devtools.gcli.eagerHelper", 2);
 
+// Alias to the script URLs for inject command.
+pref("devtools.gcli.jquerySrc", "https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js");
+pref("devtools.gcli.lodashSrc", "https://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js");
+pref("devtools.gcli.underscoreSrc", "https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.7.0/underscore-min.js");
+
 // Remember the Web Console filters
 pref("devtools.webconsole.filter.network", true);
-pref("devtools.webconsole.filter.networkinfo", true);
+pref("devtools.webconsole.filter.networkinfo", false);
+pref("devtools.webconsole.filter.netwarn", true);
+pref("devtools.webconsole.filter.netxhr", false);
 pref("devtools.webconsole.filter.csserror", true);
-pref("devtools.webconsole.filter.cssparser", true);
+pref("devtools.webconsole.filter.cssparser", false);
+pref("devtools.webconsole.filter.csslog", false);
 pref("devtools.webconsole.filter.exception", true);
 pref("devtools.webconsole.filter.jswarn", true);
-pref("devtools.webconsole.filter.jslog", true);
+pref("devtools.webconsole.filter.jslog", false);
 pref("devtools.webconsole.filter.error", true);
 pref("devtools.webconsole.filter.warn", true);
 pref("devtools.webconsole.filter.info", true);
@@ -1111,9 +1235,12 @@ pref("devtools.webconsole.filter.secwarn", true);
 
 // Remember the Browser Console filters
 pref("devtools.browserconsole.filter.network", true);
-pref("devtools.browserconsole.filter.networkinfo", true);
+pref("devtools.browserconsole.filter.networkinfo", false);
+pref("devtools.browserconsole.filter.netwarn", true);
+pref("devtools.browserconsole.filter.netxhr", false);
 pref("devtools.browserconsole.filter.csserror", true);
-pref("devtools.browserconsole.filter.cssparser", true);
+pref("devtools.browserconsole.filter.cssparser", false);
+pref("devtools.browserconsole.filter.csslog", false);
 pref("devtools.browserconsole.filter.exception", true);
 pref("devtools.browserconsole.filter.jswarn", true);
 pref("devtools.browserconsole.filter.jslog", true);
@@ -1132,6 +1259,11 @@ pref("devtools.webconsole.fontSize", 0);
 // be cleared each time page navigation happens.
 pref("devtools.webconsole.persistlog", false);
 
+// Web Console timestamp: |true| if you want the logs and instructions
+// in the Web Console to display a timestamp, or |false| to not display
+// any timestamps.
+pref("devtools.webconsole.timestampMessages", false);
+
 // The number of lines that are displayed in the web console for the Net,
 // CSS, JS and Web Developer categories.
 pref("devtools.hud.loglimit.network", 200);
@@ -1139,24 +1271,31 @@ pref("devtools.hud.loglimit.cssparser", 200);
 pref("devtools.hud.loglimit.exception", 200);
 pref("devtools.hud.loglimit.console", 200);
 
+// By how many times eyedropper will magnify pixels
+pref("devtools.eyedropper.zoom", 6);
+
 // The developer tools editor configuration:
 // - tabsize: how many spaces to use when a Tab character is displayed.
 // - expandtab: expand Tab characters to spaces.
+// - keymap: which keymap to use (can be 'default', 'emacs' or 'vim')
+// - autoclosebrackets: whether to permit automatic bracket/quote closing.
+// - detectindentation: whether to detect the indentation from the file
 pref("devtools.editor.tabsize", 4);
 pref("devtools.editor.expandtab", true);
-
-// Tells which component you want to use for source editing in developer tools.
-//
-// Available components:
-//   "orion" - this is the Orion source code editor from the Eclipse project. It
-//   provides programmer-specific editor features such as syntax highlighting,
-//   indenting and bracket recognition.
-pref("devtools.editor.component", "orion");
+pref("devtools.editor.keymap", "default");
+pref("devtools.editor.autoclosebrackets", true);
+pref("devtools.editor.detectindentation", true);
+pref("devtools.editor.enableCodeFolding", true);
+pref("devtools.editor.autocomplete", true);
 
 // Enable the Font Inspector
 pref("devtools.fontinspector.enabled", true);
 
-#endif
+// Pref to store the browser version at the time of a telemetry ping for an
+// opened developer tool. This allows us to ping telemetry just once per browser
+// version for each user.
+pref("devtools.telemetry.tools.opened.version", "{}");
+#endif //MOZ_DEVTOOLS
 
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.

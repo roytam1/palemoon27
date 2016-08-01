@@ -2,22 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-body, html {
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-}
-
 body {
-  margin: 0;
+  max-width: 320px;
+  position: relative;
+  margin: 0px auto;
   padding: 0;
 }
 
 #header {
   box-sizing: border-box;
-  font: 12px/16px monospace;
   width: 100%;
-  padding: 6px 9px;
+  padding: 4px 13px;
   display: -moz-box;
   vertical-align: top;
 }
@@ -39,40 +34,30 @@ body {
 }
 
 #main {
-  margin: 0 10px 10px 10px;
+  margin: 0 14px 10px 14px;
   box-sizing: border-box;
-  width: calc(100% - 2 * 10px);
+  width: calc(100% - 2 * 14px);
   position: absolute;
   border-width: 1px;
-  font: 10px/12px monospace;
 }
 
-@media (min-width: 320px) {
-  body {
-    position: absolute;
-    width: 320px;
-    left: -160px;
-    margin-left: 50%;
-  }
-}
-
-
-#margins {
-  padding: 28px;
+#content,
+#borders {
+  border-width: 1px;
 }
 
 #content {
-  height: 20px;
-  border-width: 1px;
+  height: 25px;
 }
 
+#margins,
 #padding {
+  border-style: solid;
   border-width: 25px;
 }
 
 #borders {
-  border-width: 2px;
-  box-shadow: 0 0 16px black;
+  padding: 25px;
 }
 
 #main > p {
@@ -88,58 +73,54 @@ body {
 #main > p > span {
   vertical-align: middle;
   pointer-events: auto;
+}
+
+.size > span {
   cursor: default;
 }
 
-.border.top {
-  left: 0; top: 23px;
-  width: 98px;
+.editable {
+  -moz-user-select: text;
 }
 
-.border.bottom {
-  right: 0; bottom: 22px;
-  width: 98px;
-  top: auto;
-}
-
-.border.left {
-  top: 42px; left: 0;
-  width: 56px;
-}
-
-.border.right{
-  bottom: 42px; right: 0;
-  width: 56px;
-  top: auto;
-}
-
-.top, .bottom {
+.top,
+.bottom {
   width: calc(100% - 2px);
   text-align: center;
 }
 
+.padding.top {
+  top: 55px;
+}
+
+.padding.bottom {
+  bottom: 57px;
+}
+
+.border.top {
+  top: 30px;
+}
+
+.border.bottom {
+  bottom: 31px;
+}
+
 .margin.top {
-  top: 8px;
+  top: 5px;
 }
 
 .margin.bottom {
   bottom: 6px;
 }
 
-.padding.top {
-  top: 35px;
-}
-
-.padding.bottom {
-  bottom: 35px;
-}
-
 .size,
 .margin.left,
 .margin.right,
+.border.left,
+.border.right,
 .padding.left,
 .padding.right {
-  top: 0;
+  top: 22px;
   line-height: 132px;
 }
 
@@ -148,13 +129,28 @@ body {
 }
 
 .margin.right,
-.margin.left {
-  width: 28px;
-}
-
+.margin.left,
+.border.left,
+.border.right,
 .padding.right,
 .padding.left {
   width: 25px;
+}
+
+.padding.left {
+  left: 52px;
+}
+
+.padding.right {
+  right: 51px;
+}
+
+.border.left {
+  left: 26px;
+}
+
+.border.right {
+  right: 26px;
 }
 
 .margin.right {
@@ -165,12 +161,12 @@ body {
   left: 0;
 }
 
-.padding.left {
-  left: 30px;
+.rotate.left:not(.editing) {
+  transform: rotate(-90deg);
 }
 
-.padding.right {
-  right: 30px;
+.rotate.right:not(.editing) {
+  transform: rotate(90deg);
 }
 
 .tooltip {
@@ -180,8 +176,88 @@ body {
   pointer-events: none;
 }
 
+body.dim > #header > #element-position,
 body.dim > #main > p,
 body.dim > #main > .tooltip {
   visibility: hidden;
 }
 
+@media (max-height: 228px) {
+  #header {
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 10px;
+    margin-bottom: 8px;
+  }
+
+  #margins,
+  #padding {
+    border-width: 21px;
+  }
+  #borders {
+    padding: 21px;
+  }
+
+  #content {
+    height: 21px;
+  }
+
+  .padding.top {
+    top: 46px;
+  }
+
+  .padding.bottom {
+    bottom: 46px;
+  }
+
+  .border.top {
+    top: 25px;
+  }
+
+  .border.bottom {
+    bottom: 25px;
+  }
+
+  .margin.top {
+    top: 4px;
+  }
+
+  .margin.bottom {
+    bottom: 4px;
+  }
+
+  .size,
+  .margin.left,
+  .margin.right,
+  .border.left,
+  .border.right,
+  .padding.left,
+  .padding.right {
+    line-height: 106px;
+  }
+
+  .margin.right,
+  .margin.left,
+  .border.left,
+  .border.right,
+  .padding.right,
+  .padding.left {
+    width: 21px;
+  }
+
+  .padding.left {
+    left: 43px;
+  }
+
+  .padding.right {
+    right: 43px;
+  }
+
+  .border.left {
+    left: 22px;
+  }
+
+  .border.right {
+    right: 22px;
+  }
+}

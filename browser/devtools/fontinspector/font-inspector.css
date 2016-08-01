@@ -6,11 +6,20 @@
 .font:not(.has-code) .font-css-code,
 .font-is-local,
 .font-is-remote,
-.font.is-local .font-format-url {
+.font.is-local .font-format-url,
+#template {
   display: none;
 }
 
 .font.is-remote .font-is-remote,
 .font.is-local .font-is-local {
   display: inline;
+}
+
+.font-format::before {
+  content: "(";
+}
+
+.font-format::after {
+  content: ")";
 }

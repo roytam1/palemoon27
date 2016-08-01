@@ -1,4 +1,4 @@
-/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,7 +10,8 @@ const {Cu} = require("chrome");
 let {TiltVisualizer} = require("devtools/tilt/tilt-visualizer");
 let TiltGL = require("devtools/tilt/tilt-gl");
 let TiltUtils = require("devtools/tilt/tilt-utils");
-let EventEmitter = require("devtools/shared/event-emitter");
+let EventEmitter = require("devtools/toolkit/event-emitter");
+let Telemetry = require("devtools/shared/telemetry");
 
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -94,6 +95,8 @@ function Tilt(aWindow)
   EventEmitter.decorate(this);
 
   this.setup();
+
+  this._telemetry = new Telemetry();
 }
 
 Tilt.prototype = {
@@ -115,7 +118,10 @@ Tilt.prototype = {
     // if the visualizer for the current tab is already open, destroy it now
     if (this.visualizers[id]) {
       this.destroy(id, true);
+      this._telemetry.toolClosed("tilt");
       return;
+    } else {
+      this._telemetry.toolOpened("tilt");
     }
 
     // create a visualizer instance for the current tab
@@ -138,7 +144,8 @@ Tilt.prototype = {
     }
 
     this.lastInstanceId = id;
-    this.emit("change", this.chromeWindow.gBrowser.selectedTab);
+    // E10S: We should be using target here. See bug 1028234
+    this.emit("change", { tab: this.chromeWindow.gBrowser.selectedTab });
     Services.obs.notifyObservers(contentWindow, TILT_NOTIFICATIONS.INITIALIZING, null);
   },
 
@@ -195,7 +202,8 @@ Tilt.prototype = {
 
     this._isDestroying = false;
     this.chromeWindow.gBrowser.selectedBrowser.focus();
-    this.emit("change", this.chromeWindow.gBrowser.selectedTab);
+    // E10S: We should be using target here. See bug 1028234
+    this.emit("change", { tab: this.chromeWindow.gBrowser.selectedTab });
     Services.obs.notifyObservers(contentWindow, TILT_NOTIFICATIONS.DESTROYED, null);
   },
 

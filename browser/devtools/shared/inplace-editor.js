@@ -1,4 +1,4 @@
-/* -*- Mode: javascript; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 
 /**
@@ -11,7 +11,7 @@
  *
  * editableField({
  *   element: spanToEdit,
- *   done: function(value, commit) {
+ *   done: function(value, commit, direction) {
  *     if (commit) {
  *       spanToEdit.textContent = value;
  *     }
@@ -24,15 +24,23 @@
 
 "use strict";
 
-const {Ci, Cu} = require("chrome");
+const {Ci, Cu, Cc} = require("chrome");
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
+const CONTENT_TYPES = {
+  PLAIN_TEXT: 0,
+  CSS_VALUE: 1,
+  CSS_MIXED: 2,
+  CSS_PROPERTY: 3,
+};
+const MAX_POPUP_ENTRIES = 10;
 
 const FOCUS_FORWARD = Ci.nsIFocusManager.MOVEFOCUS_FORWARD;
 const FOCUS_BACKWARD = Ci.nsIFocusManager.MOVEFOCUS_BACKWARD;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/devtools/event-emitter.js");
 
 /**
  * Mark a span editable.  |editableField| will listen for the span to
@@ -54,9 +62,11 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
  *       with the current value of the text input.
  *    {function} done:
  *       Called when input is committed or blurred.  Called with
- *       current value and a boolean telling the caller whether to
- *       commit the change.  This function is called before the editor
- *       has been torn down.
+ *       current value, a boolean telling the caller whether to
+ *       commit the change, and the direction of the next element to be
+ *       selected. Direction may be one of nsIFocusManager.MOVEFOCUS_FORWARD,
+ *       nsIFocusManager.MOVEFOCUS_BACKWARD, or null (no movement).
+ *       This function is called before the editor has been torn down.
  *    {function} destroy:
  *       Called when the editor is destroyed and has been torn down.
  *    {string} advanceChars:
@@ -64,6 +74,12 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
  *       to the next element.
  *    {boolean} stopOnReturn:
  *       If true, the return key will not advance the editor to the next
+ *       focusable element.
+ *    {boolean} stopOnTab:
+ *       If true, the tab key will not advance the editor to the next
+ *       focusable element.
+ *    {boolean} stopOnShiftTab:
+ *       If true, shift tab will not advance the editor to the previous
  *       focusable element.
  *    {string} trigger: The DOM event that should trigger editing,
  *      defaults to "click"
@@ -89,18 +105,21 @@ exports.editableField = editableField;
  *      defaults to "click"
  * @param {function} aCallback
  *        Called when the editor is activated.
+ * @return {function} function which calls aCallback
  */
 function editableItem(aOptions, aCallback)
 {
   let trigger = aOptions.trigger || "click"
   let element = aOptions.element;
   element.addEventListener(trigger, function(evt) {
-    let win = this.ownerDocument.defaultView;
-    let selection = win.getSelection();
-    if (trigger != "click" || selection.isCollapsed) {
-      aCallback(element, evt);
+    if (evt.target.nodeName !== "a") {
+      let win = this.ownerDocument.defaultView;
+      let selection = win.getSelection();
+      if (trigger != "click" || selection.isCollapsed) {
+        aCallback(element, evt);
+      }
+      evt.stopPropagation();
     }
-    evt.stopPropagation();
   }, false);
 
   // If focused by means other than a click, start editing by
@@ -117,19 +136,28 @@ function editableItem(aOptions, aCallback)
   // to an ugly flash of the focus ring before showing the editor.
   // So hide the focus ring while the mouse is down.
   element.addEventListener("mousedown", function(evt) {
-    let cleanup = function() {
-      element.style.removeProperty("outline-style");
-      element.removeEventListener("mouseup", cleanup, false);
-      element.removeEventListener("mouseout", cleanup, false);
-    };
-    element.style.setProperty("outline-style", "none");
-    element.addEventListener("mouseup", cleanup, false);
-    element.addEventListener("mouseout", cleanup, false);
+    if (evt.target.nodeName !== "a") {
+      let cleanup = function() {
+        element.style.removeProperty("outline-style");
+        element.removeEventListener("mouseup", cleanup, false);
+        element.removeEventListener("mouseout", cleanup, false);
+      };
+      element.style.setProperty("outline-style", "none");
+      element.addEventListener("mouseup", cleanup, false);
+      element.addEventListener("mouseout", cleanup, false);
+    }
   }, false);
 
   // Mark the element editable field for tab
   // navigation while editing.
   element._editable = true;
+
+  // Save the trigger type so we can dispatch this later
+  element._trigger = trigger;
+
+  return function turnOnEditMode() {
+    aCallback(element);
+  }
 }
 
 exports.editableItem = this.editableItem;
@@ -159,7 +187,12 @@ function InplaceEditor(aOptions, aEvent)
   this.destroy = aOptions.destroy;
   this.initial = aOptions.initial ? aOptions.initial : this.elt.textContent;
   this.multiline = aOptions.multiline || false;
+  this.stopOnShiftTab = !!aOptions.stopOnShiftTab;
+  this.stopOnTab = !!aOptions.stopOnTab;
   this.stopOnReturn = !!aOptions.stopOnReturn;
+  this.contentType = aOptions.contentType || CONTENT_TYPES.PLAIN_TEXT;
+  this.property = aOptions.property;
+  this.popup = aOptions.popup;
 
   this._onBlur = this._onBlur.bind(this);
   this._onKeyPress = this._onKeyPress.bind(this);
@@ -168,6 +201,7 @@ function InplaceEditor(aOptions, aEvent)
 
   this._createInput();
   this._autosize();
+  this.inputCharWidth = this._getInputCharWidth();
 
   // Pull out character codes for advanceChars, listing the
   // characters that should trigger a blur.
@@ -187,26 +221,35 @@ function InplaceEditor(aOptions, aEvent)
   }
   this.input.focus();
 
+  if (this.contentType == CONTENT_TYPES.CSS_VALUE && this.input.value == "") {
+    this._maybeSuggestCompletion(true);
+  }
+
   this.input.addEventListener("blur", this._onBlur, false);
   this.input.addEventListener("keypress", this._onKeyPress, false);
   this.input.addEventListener("input", this._onInput, false);
-  this.input.addEventListener("mousedown", function(aEvt) {
-                                             aEvt.stopPropagation();
-                                           }, false);
 
-  this.warning = aOptions.warning;
+  this.input.addEventListener("dblclick",
+    (e) => { e.stopPropagation(); }, false);
+  this.input.addEventListener("mousedown",
+    (e) => { e.stopPropagation(); }, false);
+
   this.validate = aOptions.validate;
 
-  if (this.warning && this.validate) {
+  if (this.validate) {
     this.input.addEventListener("keyup", this._onKeyup, false);
   }
 
   if (aOptions.start) {
     aOptions.start(this, aEvent);
   }
+
+  EventEmitter.decorate(this);
 }
 
 exports.InplaceEditor = InplaceEditor;
+
+InplaceEditor.CONTENT_TYPES = CONTENT_TYPES;
 
 InplaceEditor.prototype = {
   _createInput: function InplaceEditor_createEditor()
@@ -239,15 +282,15 @@ InplaceEditor.prototype = {
     this.elt.style.display = this.originalDisplay;
     this.elt.focus();
 
-    if (this.destroy) {
-      this.destroy();
-    }
-
     this.elt.parentNode.removeChild(this.input);
     this.input = null;
 
     delete this.elt.inplaceEditor;
     delete this.elt;
+
+    if (this.destroy) {
+      this.destroy();
+    }
   },
 
   /**
@@ -315,6 +358,18 @@ InplaceEditor.prototype = {
     this.input.style.width = width + "px";
   },
 
+  /**
+   * Get the width of a single character in the input to properly position the
+   * autocompletion popup.
+   */
+  _getInputCharWidth: function InplaceEditor_getInputCharWidth()
+  {
+    // Just make the text content to be 'x' to get the width of any character in
+    // a monospace font.
+    this._measurement.textContent = "x";
+    return this._measurement.offsetWidth;
+  },
+
    /**
    * Increment property values in rule view.
    *
@@ -337,6 +392,12 @@ InplaceEditor.prototype = {
 
     this.input.value = newValue.value;
     this.input.setSelectionRange(newValue.start, newValue.end);
+    this._doValidation();
+
+    // Call the user's change handler if available.
+    if (this.change) {
+      this.change(this.input.value.trim());
+    }
 
     return true;
   },
@@ -427,7 +488,7 @@ InplaceEditor.prototype = {
    */
    _parseCSSValue: function InplaceEditor_parseCSSValue(value, offset)
   {
-    const reSplitCSS = /(url\("?[^"\)]+"?\)?)|(rgba?\([^)]*\)?)|(hsla?\([^)]*\)?)|(#[\dA-Fa-f]+)|(-?\d+(\.\d+)?(%|[a-z]{1,4})?)|"([^"]*)"?|'([^']*)'?|([^,\s\/!\(\)]+)|(!(.*)?)/;
+    const reSplitCSS = /(url\("?[^"\)]+"?\)?)|(rgba?\([^)]*\)?)|(hsla?\([^)]*\)?)|(#[\dA-Fa-f]+)|(-?\d*\.?\d+(%|[a-z]{1,4})?)|"([^"]*)"?|'([^']*)'?|([^,\s\/!\(\)]+)|(!(.*)?)/;
     let start = 0;
     let m;
 
@@ -671,9 +732,54 @@ InplaceEditor.prototype = {
   },
 
   /**
+   * Cycle through the autocompletion suggestions in the popup.
+   *
+   * @param {boolean} aReverse
+   *        true to select previous item from the popup.
+   * @param {boolean} aNoSelect
+   *        true to not select the text after selecting the newly selectedItem
+   *        from the popup.
+   */
+  _cycleCSSSuggestion:
+  function InplaceEditor_cycleCSSSuggestion(aReverse, aNoSelect)
+  {
+    // selectedItem can be null when nothing is selected in an empty editor.
+    let {label, preLabel} = this.popup.selectedItem || {label: "", preLabel: ""};
+    if (aReverse) {
+      this.popup.selectPreviousItem();
+    } else {
+      this.popup.selectNextItem();
+    }
+    this._selectedIndex = this.popup.selectedIndex;
+    let input = this.input;
+    let pre = "";
+    if (input.selectionStart < input.selectionEnd) {
+      pre = input.value.slice(0, input.selectionStart);
+    }
+    else {
+      pre = input.value.slice(0, input.selectionStart - label.length +
+                                 preLabel.length);
+    }
+    let post = input.value.slice(input.selectionEnd, input.value.length);
+    let item = this.popup.selectedItem;
+    let toComplete = item.label.slice(item.preLabel.length);
+    input.value = pre + toComplete + post;
+    if (!aNoSelect) {
+      input.setSelectionRange(pre.length, pre.length + toComplete.length);
+    }
+    else {
+      input.setSelectionRange(pre.length + toComplete.length,
+                              pre.length + toComplete.length);
+    }
+    this._updateSize();
+    // This emit is mainly for the purpose of making the test flow simpler.
+    this.emit("after-suggest");
+  },
+
+  /**
    * Call the client's done handler and clear out.
    */
-  _apply: function InplaceEditor_apply(aEvent)
+  _apply: function InplaceEditor_apply(aEvent, direction)
   {
     if (this._applied) {
       return;
@@ -683,7 +789,7 @@ InplaceEditor.prototype = {
 
     if (this.done) {
       let val = this.input.value.trim();
-      return this.done(this.cancelled ? this.initial : val, !this.cancelled);
+      return this.done(this.cancelled ? this.initial : val, !this.cancelled, direction);
     }
 
     return null;
@@ -694,6 +800,50 @@ InplaceEditor.prototype = {
    */
   _onBlur: function InplaceEditor_onBlur(aEvent, aDoNotClear)
   {
+    if (aEvent && this.popup && this.popup.isOpen &&
+        this.popup.selectedIndex >= 0) {
+      let label, preLabel;
+      if (this._selectedIndex === undefined) {
+        ({label, preLabel}) = this.popup.getItemAtIndex(this.popup.selectedIndex);
+      }
+      else {
+        ({label, preLabel}) = this.popup.getItemAtIndex(this._selectedIndex);
+      }
+      let input = this.input;
+      let pre = "";
+      if (input.selectionStart < input.selectionEnd) {
+        pre = input.value.slice(0, input.selectionStart);
+      }
+      else {
+        pre = input.value.slice(0, input.selectionStart - label.length +
+                                   preLabel.length);
+      }
+      let post = input.value.slice(input.selectionEnd, input.value.length);
+      let item = this.popup.selectedItem;
+      this._selectedIndex = this.popup.selectedIndex;
+      let toComplete = item.label.slice(item.preLabel.length);
+      input.value = pre + toComplete + post;
+      input.setSelectionRange(pre.length + toComplete.length,
+                              pre.length + toComplete.length);
+      this._updateSize();
+      // Wait for the popup to hide and then focus input async otherwise it does
+      // not work.
+      let onPopupHidden = () => {
+        this.popup._panel.removeEventListener("popuphidden", onPopupHidden);
+        this.doc.defaultView.setTimeout(()=> {
+          input.focus();
+          this.emit("after-suggest");
+        }, 0);
+      };
+      this.popup._panel.addEventListener("popuphidden", onPopupHidden);
+      this.popup.hidePopup();
+      // Content type other than CSS_MIXED is used in rule-view where the values
+      // are live previewed. So we apply the value before returning.
+      if (this.contentType != CONTENT_TYPES.CSS_MIXED) {
+        this._apply();
+      }
+      return;
+    }
     this._apply();
     if (!aDoNotClear) {
       this._clear();
@@ -732,9 +882,27 @@ InplaceEditor.prototype = {
       increment *= smallIncrement;
     }
 
+    let cycling = false;
     if (increment && this._incrementValue(increment) ) {
       this._updateSize();
       prevent = true;
+      cycling = true;
+    } else if (increment && this.popup && this.popup.isOpen) {
+      cycling = true;
+      prevent = true;
+      this._cycleCSSSuggestion(increment > 0);
+      this._doValidation();
+    }
+
+    if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_BACK_SPACE ||
+        aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_DELETE ||
+        aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_LEFT ||
+        aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RIGHT) {
+      if (this.popup && this.popup.isOpen) {
+        this.popup.hidePopup();
+      }
+    } else if (!cycling && !aEvent.metaKey && !aEvent.altKey && !aEvent.ctrlKey) {
+      this._maybeSuggestCompletion();
     }
 
     if (this.multiline &&
@@ -749,16 +917,50 @@ InplaceEditor.prototype = {
       let direction = FOCUS_FORWARD;
       if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB &&
           aEvent.shiftKey) {
-        this.cancelled = true;
-        direction = FOCUS_BACKWARD;
+        if (this.stopOnShiftTab) {
+          direction = null;
+        } else {
+          direction = FOCUS_BACKWARD;
+        }
       }
-      if (this.stopOnReturn && aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
+      if ((this.stopOnReturn &&
+           aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN) ||
+          (this.stopOnTab && aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB)) {
         direction = null;
+      }
+
+      // Now we don't want to suggest anything as we are moving out.
+      this._preventSuggestions = true;
+      // But we still want to show suggestions for css values. i.e. moving out
+      // of css property input box in forward direction
+      if (this.contentType == CONTENT_TYPES.CSS_PROPERTY &&
+          direction == FOCUS_FORWARD) {
+        this._preventSuggestions = false;
       }
 
       let input = this.input;
 
-      this._apply();
+      if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB &&
+          this.contentType == CONTENT_TYPES.CSS_MIXED) {
+        if (this.popup && input.selectionStart < input.selectionEnd) {
+          aEvent.preventDefault();
+          input.setSelectionRange(input.selectionEnd, input.selectionEnd);
+          this.emit("after-suggest");
+          return;
+        }
+        else if (this.popup && this.popup.isOpen) {
+          aEvent.preventDefault();
+          this._cycleCSSSuggestion(aEvent.shiftKey, true);
+          return;
+        }
+      }
+
+      this._apply(aEvent, direction);
+
+      // Close the popup if open
+      if (this.popup && this.popup.isOpen) {
+        this.popup.hidePopup();
+      }
 
       if (direction !== null && focusManager.focusedElement === input) {
         // If the focused element wasn't changed by the done callback,
@@ -766,15 +968,23 @@ InplaceEditor.prototype = {
         let next = moveFocus(this.doc.defaultView, direction);
 
         // If the next node to be focused has been tagged as an editable
-        // node, send it a click event to trigger
+        // node, trigger editing using the configured event
         if (next && next.ownerDocument === this.doc && next._editable) {
-          next.click();
+          let e = this.doc.createEvent('Event');
+          e.initEvent(next._trigger, true, true);
+          next.dispatchEvent(e);
         }
       }
 
       this._clear();
     } else if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE) {
       // Cancel and blur ourselves.
+      // Now we don't want to suggest anything as we are moving out.
+      this._preventSuggestions = true;
+      // Close the popup if open
+      if (this.popup && this.popup.isOpen) {
+        this.popup.hidePopup();
+      }
       prevent = true;
       this.cancelled = true;
       this._apply();
@@ -796,10 +1006,7 @@ InplaceEditor.prototype = {
    * Handle the input field's keyup event.
    */
   _onKeyup: function(aEvent) {
-    // Validate the entered value.
-    this.warning.hidden = this.validate(this.input.value);
     this._applied = false;
-    this._onBlur(null, true);
   },
 
   /**
@@ -808,9 +1015,7 @@ InplaceEditor.prototype = {
   _onInput: function InplaceEditor_onInput(aEvent)
   {
     // Validate the entered value.
-    if (this.warning && this.validate) {
-      this.warning.hidden = this.validate(this.input.value);
-    }
+    this._doValidation();
 
     // Update size if we're autosizing.
     if (this._measurement) {
@@ -821,6 +1026,168 @@ InplaceEditor.prototype = {
     if (this.change) {
       this.change(this.input.value.trim());
     }
+  },
+
+  /**
+   * Fire validation callback with current input
+   */
+  _doValidation: function()
+  {
+    if (this.validate && this.input) {
+      this.validate(this.input.value);
+    }
+  },
+
+  /**
+   * Handles displaying suggestions based on the current input.
+   *
+   * @param {boolean} aNoAutoInsert
+   *        true if you don't want to automatically insert the first suggestion
+   */
+  _maybeSuggestCompletion: function(aNoAutoInsert) {
+    // Input can be null in cases when you intantaneously switch out of it.
+    if (!this.input) {
+      return;
+    }
+    let preTimeoutQuery = this.input.value;
+    // Since we are calling this method from a keypress event handler, the
+    // |input.value| does not include currently typed character. Thus we perform
+    // this method async.
+    this.doc.defaultView.setTimeout(() => {
+      if (this._preventSuggestions) {
+        this._preventSuggestions = false;
+        return;
+      }
+      if (this.contentType == CONTENT_TYPES.PLAIN_TEXT) {
+        return;
+      }
+      if (!this.input) {
+        return;
+      }
+      let input = this.input;
+      // The length of input.value should be increased by 1
+      if (input.value.length - preTimeoutQuery.length > 1) {
+        return;
+      }
+      let query = input.value.slice(0, input.selectionStart);
+      let startCheckQuery = query;
+      if (query == null) {
+        return;
+      }
+      // If nothing is selected and there is a non-space character after the
+      // cursor, do not autocomplete.
+      if (input.selectionStart == input.selectionEnd &&
+          input.selectionStart < input.value.length &&
+          input.value.slice(input.selectionStart)[0] != " ") {
+        // This emit is mainly to make the test flow simpler.
+        this.emit("after-suggest", "nothing to autocomplete");
+        return;
+      }
+      let list = [];
+      if (this.contentType == CONTENT_TYPES.CSS_PROPERTY) {
+        list = CSSPropertyList;
+      } else if (this.contentType == CONTENT_TYPES.CSS_VALUE) {
+        // Get the last query to be completed before the caret.
+        let match = /([^\s,.\/]+$)/.exec(query);
+        if (match) {
+          startCheckQuery = match[0];
+        } else {
+          startCheckQuery = "";
+        }
+
+        list =
+          ["!important", ...domUtils.getCSSValuesForProperty(this.property.name)];
+
+        if (query == "") {
+          // Do not suggest '!important' without any manually typed character.
+          list.splice(0, 1);
+        }
+      } else if (this.contentType == CONTENT_TYPES.CSS_MIXED &&
+                 /^\s*style\s*=/.test(query)) {
+        // Detecting if cursor is at property or value;
+        let match = query.match(/([:;"'=]?)\s*([^"';:=]+)?$/);
+        if (match && match.length >= 2) {
+          if (match[1] == ":") { // We are in CSS value completion
+            let propertyName =
+              query.match(/[;"'=]\s*([^"';:= ]+)\s*:\s*[^"';:=]*$/)[1];
+            list =
+              ["!important;", ...domUtils.getCSSValuesForProperty(propertyName)];
+            let matchLastQuery = /([^\s,.\/]+$)/.exec(match[2] || "");
+            if (matchLastQuery) {
+              startCheckQuery = matchLastQuery[0];
+            } else {
+              startCheckQuery = "";
+            }
+            if (!match[2]) {
+              // Don't suggest '!important' without any manually typed character
+              list.splice(0, 1);
+            }
+          } else if (match[1]) { // We are in CSS property name completion
+            list = CSSPropertyList;
+            startCheckQuery = match[2];
+          }
+          if (startCheckQuery == null) {
+            // This emit is mainly to make the test flow simpler.
+            this.emit("after-suggest", "nothing to autocomplete");
+            return;
+          }
+        }
+      }
+      if (!aNoAutoInsert) {
+        list.some(item => {
+          if (startCheckQuery != null && item.startsWith(startCheckQuery)) {
+            input.value = query + item.slice(startCheckQuery.length) +
+                          input.value.slice(query.length);
+            input.setSelectionRange(query.length, query.length + item.length -
+                                                  startCheckQuery.length);
+            this._updateSize();
+            return true;
+          }
+        });
+      }
+
+      if (!this.popup) {
+        // This emit is mainly to make the test flow simpler.
+        this.emit("after-suggest", "no popup");
+        return;
+      }
+      let finalList = [];
+      let length = list.length;
+      for (let i = 0, count = 0; i < length && count < MAX_POPUP_ENTRIES; i++) {
+        if (startCheckQuery != null && list[i].startsWith(startCheckQuery)) {
+          count++;
+          finalList.push({
+            preLabel: startCheckQuery,
+            label: list[i]
+          });
+        }
+        else if (count > 0) {
+          // Since count was incremented, we had already crossed the entries
+          // which would have started with query, assuming that list is sorted.
+          break;
+        }
+        else if (startCheckQuery != null && list[i][0] > startCheckQuery[0]) {
+          // We have crossed all possible matches alphabetically.
+          break;
+        }
+      }
+
+      if (finalList.length > 1) {
+        // Calculate the offset for the popup to be opened.
+        let x = (this.input.selectionStart - startCheckQuery.length) *
+                this.inputCharWidth;
+        this.popup.setItems(finalList);
+        this.popup.openPopup(this.input, x);
+        if (aNoAutoInsert) {
+          this.popup.selectedIndex = -1;
+        }
+      } else {
+        this.popup.hidePopup();
+      }
+      // This emit is mainly for the purpose of making the test flow simpler.
+      this.emit("after-suggest");
+      this._doValidation();
+    }, 0);
   }
 };
 
@@ -848,4 +1215,12 @@ function moveFocus(aWin, aDirection)
 
 XPCOMUtils.defineLazyGetter(this, "focusManager", function() {
   return Services.focus;
+});
+
+XPCOMUtils.defineLazyGetter(this, "CSSPropertyList", function() {
+  return domUtils.getCSSPropertyNames(domUtils.INCLUDE_ALIASES).sort();
+});
+
+XPCOMUtils.defineLazyGetter(this, "domUtils", function() {
+  return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
 });

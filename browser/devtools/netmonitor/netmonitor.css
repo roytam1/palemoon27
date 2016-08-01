@@ -8,7 +8,12 @@
 }
 
 #details-pane-toggle[disabled] {
+  /* Don't use display: none; to avoid collapsing #requests-menu-toolbar */
   visibility: hidden;
+}
+
+#custom-pane {
+  overflow: auto;
 }
 
 #response-content-image-box {
@@ -19,50 +24,23 @@
   display: none; /* This doesn't work yet. */
 }
 
+#network-statistics-charts {
+  overflow: auto;
+}
+
+.cropped-textbox .textbox-input {
+  /* workaround for textbox not supporting the @crop attribute */
+  text-overflow: ellipsis;
+}
+
 /* Responsive sidebar */
 @media (max-width: 700px) {
   #toolbar-spacer,
   #details-pane-toggle,
   #details-pane[pane-collapsed],
   .requests-menu-waterfall,
-  .requests-menu-footer-label {
+  .requests-menu-footer-label,
+  .requests-menu-status-code {
     display: none;
-  }
-}
-
-@media (min-width: 701px) and (max-width: 1024px) {
-  #body:not([pane-collapsed]) .requests-menu-footer-button,
-  #body:not([pane-collapsed]) .requests-menu-footer-spacer {
-    display: none;
-  }
-}
-
-@media (min-width: 701px) {
-  #requests-menu-spacer-start {
-    display: none;
-  }
-
-  #network-table[waterfall-overflows] .requests-menu-waterfall {
-    display: none;
-  }
-
-  #network-table[size-overflows] .requests-menu-size {
-    display: none;
-  }
-
-  #network-table[type-overflows] .requests-menu-type {
-    display: none;
-  }
-
-  #network-table[domain-overflows] .requests-menu-domain {
-    display: none;
-  }
-
-  #network-table[type-overflows] .requests-menu-domain {
-    -moz-box-flex: 1;
-  }
-
-  #network-table[domain-overflows] .requests-menu-file {
-    -moz-box-flex: 1;
   }
 }

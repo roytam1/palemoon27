@@ -2263,7 +2263,6 @@ toolbar[brighttext] #addonbar-closebutton {
 
 %ifdef MOZ_DEVTOOLS
 %include ../shared/devtools/responsivedesign.inc.css
-%include ../shared/devtools/highlighter.inc.css
 %include ../shared/devtools/commandline.inc.css
 %endif
 %include ../shared/plugin-doorhanger.inc.css

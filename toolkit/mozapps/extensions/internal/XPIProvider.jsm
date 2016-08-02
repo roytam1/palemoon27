@@ -3435,6 +3435,9 @@ this.XPIProvider = {
                         changed;
             }
             else {
+              changed = updateMetadata(installLocation, aOldAddon, xpiState) ||
+                        changed;
+              
               changed = updateVisibilityAndCompatibility(installLocation,
                                                          aOldAddon, xpiState) ||
                         changed;

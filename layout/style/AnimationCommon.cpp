@@ -261,6 +261,10 @@ CommonAnimationManager::AddStyleUpdatesTo(RestyleTracker& aTracker)
       static_cast<AnimationPlayerCollection*>(next);
     next = PR_NEXT_LINK(next);
 
+    if (!collection->mNeedsRefreshes) {
+      continue;
+    }
+
     collection->EnsureStyleRuleFor(now, EnsureStyleRule_IsNotThrottled);
 
     dom::Element* elementToRestyle = collection->GetElementToRestyle();

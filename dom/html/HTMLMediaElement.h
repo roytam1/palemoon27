@@ -1364,6 +1364,10 @@ protected:
   };
 
   ElementInTreeState mElementInTreeState;
+  
+  // Indicates if user has interacted with the media element.
+  // Used to block autoplay of media.
+  bool mHasUserInteraction;
 
 public:
   // Helper class to measure times for MSE telemetry stats

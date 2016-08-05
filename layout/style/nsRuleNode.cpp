@@ -5906,6 +5906,10 @@ struct BackgroundItemComputer<nsCSSValuePairList, nsStyleBackground::Repeat>
       aComputedValue.mYRepeat = NS_STYLE_BG_REPEAT_REPEAT;
       break;
     default:
+      NS_ASSERTION(value == NS_STYLE_BG_REPEAT_NO_REPEAT ||
+                   value == NS_STYLE_BG_REPEAT_REPEAT ||
+                   value == NS_STYLE_BG_REPEAT_SPACE ||
+                   value == NS_STYLE_BG_REPEAT_ROUND, "Unexpected value");
       aComputedValue.mXRepeat = value;
       hasContraction = false;
       break;
@@ -5924,7 +5928,9 @@ struct BackgroundItemComputer<nsCSSValuePairList, nsStyleBackground::Repeat>
     case eCSSUnit_Enumerated:
       value = aSpecifiedValue->mYValue.GetIntValue();
       NS_ASSERTION(value == NS_STYLE_BG_REPEAT_NO_REPEAT ||
-                   value == NS_STYLE_BG_REPEAT_REPEAT, "Unexpected value");
+                   value == NS_STYLE_BG_REPEAT_REPEAT ||
+                   value == NS_STYLE_BG_REPEAT_SPACE ||
+                   value == NS_STYLE_BG_REPEAT_ROUND, "Unexpected value");
       aComputedValue.mYRepeat = value;
       break;
     default:

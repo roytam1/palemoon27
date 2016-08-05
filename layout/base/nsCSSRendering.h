@@ -209,7 +209,8 @@ public:
                             const nsRect&        aDest,
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
-                            const nsRect&        aDirty);
+                            const nsRect&        aDirty,
+                            const nsSize&        aRepeatSize);
 
   /**
    * Draw the image to a single component of a border-image style rendering.
@@ -255,10 +256,11 @@ private:
                   const nsRect&        aDest,
                   const nsRect&        aFill,
                   const nsPoint&       aAnchor,
+                  const nsSize&        aRepeatSize,
                   const mozilla::CSSIntRect& aSrc);
 
   /**
-   * Helper method for creating a gfxDrawable from mPaintServerFrame or 
+   * Helper method for creating a gfxDrawable from mPaintServerFrame or
    * mImageElementSurface.
    * Requires mType is eStyleImageType_Element.
    * Returns null if we cannot create the drawable.
@@ -312,6 +314,11 @@ struct nsBackgroundLayerState {
    * PrepareBackgroundLayer.
    */
   nsPoint mAnchor;
+  /**
+   * The repeat size computed as a result of using the background-repeat property
+   * 'space' keyword, which is the image size plus spacing.
+   */
+  nsSize mRepeatSize;
   /**
    * The compositing operation that the image should use
    */

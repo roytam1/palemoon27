@@ -301,6 +301,9 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_BG_REPEAT_REPEAT_X                 0x01
 #define NS_STYLE_BG_REPEAT_REPEAT_Y                 0x02
 #define NS_STYLE_BG_REPEAT_REPEAT                   0x03
+#define NS_STYLE_BG_REPEAT_ROUND                    0x04
+#define NS_STYLE_BG_REPEAT_SPACE                    0x05
+
 
 // See nsStyleBackground
 #define NS_STYLE_BG_SIZE_CONTAIN  0

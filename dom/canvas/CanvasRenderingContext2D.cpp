@@ -1627,9 +1627,9 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
   
   bool PoisonData = Preferences::GetBool("canvas.poisondata",false);
   if (PoisonData) {
-    srand(time(NULL));
+    srand(time(nullptr));
     // Image buffer is always a packed BGRA array (BGRX -> BGR[FF])
-    // so always 4-byte pixels.
+    // so always 4-value pixels.
     // GetImageBuffer => SurfaceToPackedBGRA [=> ConvertBGRXToBGRA]
     for (int32_t j = 0; j < mWidth * mHeight * 4; ++j) {
       if (imageBuffer[j] !=0 && imageBuffer[j] != 255)
@@ -4931,7 +4931,7 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
   
   bool PoisonData = Preferences::GetBool("canvas.poisondata",false);
   if (PoisonData)
-    srand(time(NULL));
+    srand(time(nullptr));
 
   CheckedInt<uint32_t> len = CheckedInt<uint32_t>(aWidth) * aHeight * 4;
   if (!len.isValid()) {

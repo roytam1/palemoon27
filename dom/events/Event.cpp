@@ -976,9 +976,21 @@ Event::GetOffsetCoords(nsPresContext* aPresContext,
                        LayoutDeviceIntPoint aPoint,
                        CSSIntPoint aDefaultPoint)
 {
-  if (!aEvent->mFlags.mIsBeingDispatched) {
+  // XXX: Known spec bug (WD 3 August 2016):
+  // The behavior in the spec doesn't do "during and after the dispatch".
+  // It just does "during the dispatch", and goes back to "pageX" after the
+  // dispatch. This is not expected (and cf. implemented) behavior, so we
+  // don't follow the spec here to align the property with all other browsers.
+  // Spec-compliant would be:
+  //   if (!aEvent->mFlags.mIsBeingDispatched) {
+  //     return GetPageCoords(aPresContext, aEvent, aPoint, aDefaultPoint);
+  //   }
+  // See also:
+  // https://www.w3.org/Bugs/Public/show_bug.cgi?id=16673
+  if (!aEvent->target) {
     return GetPageCoords(aPresContext, aEvent, aPoint, aDefaultPoint);
   }
+  
   nsCOMPtr<nsIContent> content = do_QueryInterface(aEvent->target);
   if (!content) {
     return CSSIntPoint(0, 0);

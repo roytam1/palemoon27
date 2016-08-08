@@ -137,6 +137,14 @@ nsClipboard::SetData(nsITransferable *aTransferable,
         return NS_OK;
     }
 
+    nsresult rv;
+    if (!mPrivacyHandler) {
+        rv = NS_NewClipboardPrivacyHandler(getter_AddRefs(mPrivacyHandler));
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+    rv = mPrivacyHandler->PrepareDataForClipboard(aTransferable);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     // Clear out the clipboard in order to set the new data
     EmptyClipboard(aWhichClipboard);
 
@@ -146,8 +154,7 @@ nsClipboard::SetData(nsITransferable *aTransferable,
     // Get the types of supported flavors
     nsCOMPtr<nsISupportsArray> flavors;
 
-    nsresult rv =
-        aTransferable->FlavorsTransferableCanExport(getter_AddRefs(flavors));
+    rv = aTransferable->FlavorsTransferableCanExport(getter_AddRefs(flavors));
     if (!flavors || NS_FAILED(rv))
         return NS_ERROR_FAILURE;
 

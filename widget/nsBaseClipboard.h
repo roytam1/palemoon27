@@ -8,6 +8,8 @@
 
 #include "nsIClipboard.h"
 #include "nsITransferable.h"
+#include "nsClipboardPrivacyHandler.h"
+#include "nsAutoPtr.h"
 
 class nsITransferable;
 class nsDataObj;
@@ -40,6 +42,7 @@ protected:
   bool                mIgnoreEmptyNotification;
   nsIClipboardOwner * mClipboardOwner;
   nsITransferable   * mTransferable;
+  nsRefPtr<nsClipboardPrivacyHandler> mPrivacyHandler;
 
 };
 

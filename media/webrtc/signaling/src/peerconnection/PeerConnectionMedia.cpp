@@ -153,6 +153,11 @@ OnProxyAvailable(nsICancelable *request,
                  nsIChannel *aChannel,
                  nsIProxyInfo *proxyinfo,
                  nsresult result) {
+  if (!pcm_->mProxyRequest) {
+    // PeerConnectionMedia is no longer waiting
+    return NS_OK;
+  }
+
   CSFLogInfo(logTag, "%s: Proxy Available: %d", __FUNCTION__, (int)result);
 
   if (NS_SUCCEEDED(result) && proxyinfo) {
@@ -187,6 +192,7 @@ OnProxyAvailable(nsICancelable *request,
   if (result != NS_ERROR_ABORT) {
     // NS_ERROR_ABORT means that the PeerConnectionMedia is no longer waiting
     pcm_->mProxyResolveCompleted = true;
+    pcm_->mProxyRequest = nullptr;
     pcm_->FlushIceCtxOperationQueueIfReady();
   }
 
@@ -697,6 +703,7 @@ PeerConnectionMedia::SelfDestruct()
 
   if (mProxyRequest) {
     mProxyRequest->Cancel(NS_ERROR_ABORT);
+    mProxyRequest = nullptr;
   }
 
   // Shutdown the transport (async)

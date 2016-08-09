@@ -2483,6 +2483,13 @@ Assembler::nextLink(BufferOffset b, BufferOffset* next)
 void
 Assembler::bind(Label* label, BufferOffset boff)
 {
+    if (oom()) {
+        // Ensure we always bind the label. This matches what we do on
+        // x86/x64 and silences the assert in ~Label.
+        label->bind(0);
+        return;
+    }
+
     if (label->used()) {
         bool more;
         // If our caller didn't give us an explicit target to bind to then we
@@ -2505,6 +2512,7 @@ Assembler::bind(Label* label, BufferOffset boff)
         } while (more);
     }
     label->bind(nextOffset().getOffset());
+    MOZ_ASSERT(!oom());
 }
 
 void

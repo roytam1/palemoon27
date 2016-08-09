@@ -459,11 +459,9 @@ IsAboutToBeFinalizedFromAnyThread(T** thingp)
         return false;
 
     Nursery& nursery = rt->gc.nursery;
-    MOZ_ASSERT_IF(!rt->isHeapMinorCollecting(), !IsInsideNursery(thing));
-    if (rt->isHeapMinorCollecting()) {
-        if (IsInsideNursery(thing))
-            return !nursery.getForwardedPointer(thingp);
-        return false;
+    if (IsInsideNursery(thing)) {
+        MOZ_ASSERT(rt->isHeapMinorCollecting());
+        return !nursery.getForwardedPointer(thingp);
     }
 
     Zone* zone = thing->asTenured().zoneFromAnyThread();

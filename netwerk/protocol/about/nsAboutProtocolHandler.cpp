@@ -34,7 +34,7 @@ static bool IsSafeToLinkForUntrustedContent(nsIAboutModule *aModule, nsIURI *aUR
   nsresult rv = aModule->GetURIFlags(aURI, &flags);
   NS_ENSURE_SUCCESS(rv, false);
 
-  return (flags & nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT) && !(flags & nsIAboutModule::MAKE_UNLINKABLE);
+  return (flags & nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT) && (flags & nsIAboutModule::MAKE_LINKABLE);
 }
 ////////////////////////////////////////////////////////////////////////////////
 

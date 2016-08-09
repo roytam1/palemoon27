@@ -682,12 +682,20 @@ DataTransfer::MozSetDataAt(const nsAString& aFormat, nsIVariant* aData,
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  // don't allow non-chrome to add file data
-  // XXX perhaps this should also limit any non-string type as well
-  if ((aFormat.EqualsLiteral("application/x-moz-file-promise") ||
-       aFormat.EqualsLiteral("application/x-moz-file")) &&
-       !nsContentUtils::IsCallerChrome()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
+  // Don't allow non-chrome to add non-string or file data. We block file
+  // promises as well which are used internally for drags to the desktop.
+  if (!nsContentUtils::IsCallerChrome()) {
+    if (aFormat.EqualsLiteral("application/x-moz-file-promise") ||
+        aFormat.EqualsLiteral("application/x-moz-file")) {
+      return NS_ERROR_DOM_SECURITY_ERR;
+    }
+
+    uint16_t type;
+    aData->GetDataType(&type);
+    if (type == nsIDataType::VTYPE_INTERFACE ||
+        type == nsIDataType::VTYPE_INTERFACE_IS) {
+      return NS_ERROR_DOM_SECURITY_ERR;
+    }
   }
 
   return SetDataWithPrincipal(aFormat, aData, aIndex,

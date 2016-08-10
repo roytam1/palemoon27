@@ -85,8 +85,14 @@ MessagePump::Run(MessagePump::Delegate* aDelegate)
   MOZ_ASSERT(NS_IsMainThread(),
              "Use mozilla::ipc::MessagePumpForNonMainThreads instead!");
 
-  mThread = NS_GetCurrentThread();
-  MOZ_ASSERT(mThread);
+  nsIThread* thisThread = NS_GetCurrentThread();
+  MOZ_ASSERT(thisThread);
+
+  if (!NS_IsMainThread()) {
+    // Don't write to mThread if we don't have to. It can cause a race if
+    // ScheduleWork runs on another thread.
+    mThread = thisThread;
+  }
 
   mDelayedWorkTimer = do_CreateInstance(kNS_TIMER_CID);
   MOZ_ASSERT(mDelayedWorkTimer);
@@ -96,7 +102,7 @@ MessagePump::Run(MessagePump::Delegate* aDelegate)
   for (;;) {
     autoReleasePool.Recycle();
 
-    bool did_work = NS_ProcessNextEvent(mThread, false) ? true : false;
+    bool did_work = NS_ProcessNextEvent(thisThread, false) ? true : false;
     if (!keep_running_)
       break;
 
@@ -137,7 +143,7 @@ if (did_work && delayed_work_time_.is_null()
       continue;
 
     // This will either sleep or process an event.
-    NS_ProcessNextEvent(mThread, true);
+    NS_ProcessNextEvent(thisThread, true);
   }
 
 #ifdef MOZ_NUWA_PROCESS

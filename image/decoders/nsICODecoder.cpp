@@ -125,61 +125,66 @@ nsICODecoder::FillBitmapFileHeaderBuffer(int8_t* bfh)
   return true;
 }
 
-// A BMP inside of an ICO has *2 height because of the AND mask
-// that follows the actual bitmap.  The BMP shouldn't know about
-// this difference though.
 bool
 nsICODecoder::FixBitmapHeight(int8_t* bih)
 {
-  // Get the height from the BMP file information header
+  // Get the height from the BMP file information header. This is signed,
+  // but in this case negative values are meaningful; see below.
   int32_t height;
   memcpy(&height, bih + 8, sizeof(height));
   NativeEndian::swapFromLittleEndianInPlace(&height, 1);
+  if (height == 0) {
+    return false;
+  }
+  
   // BMPs can be stored inverted by having a negative height
   height = abs(height);
 
-  // The bitmap height is by definition * 2 what it should be to account for
-  // the 'AND mask'. It is * 2 even if the `AND mask` is not present.
+  // The height field is double the actual height of the image to account for
+  // the AND mask. This is true even if the AND mask is not present.
   height /= 2;
 
   if (height > 256) {
     return false;
   }
 
-  // We should always trust the height from the bitmap itself instead of
-  // the ICO height.  So fix the ICO height.
-  if (height == 256) {
-    mDirEntry.mHeight = 0;
-  } else {
-    mDirEntry.mHeight = (int8_t)height;
-  }
-
-  // Fix the BMP height in the BIH so that the BMP decoder can work properly
-  NativeEndian::swapToLittleEndianInPlace(&height, 1);
-  memcpy(bih + 8, &height, sizeof(height));
-  return true;
-}
-
-// We should always trust the contained resource for the width
-// information over our own information.
-bool
-nsICODecoder::FixBitmapWidth(int8_t* bih)
-{
-  // Get the width from the BMP file information header
-  int32_t width;
-  memcpy(&width, bih + 4, sizeof(width));
-  NativeEndian::swapFromLittleEndianInPlace(&width, 1);
-  if (width > 256) {
+  // Verify that the BMP height matches the height we got from the ICO directory
+  // entry. If not, decoding fails, because if we were to allow it to continue
+  // the intrinsic size of the image wouldn't match the size of the decoded
+  // surface.
+  int32_t realHeight = GetRealHeight();
+  if (height != realHeight) {
     return false;
   }
 
-  // We should always trust the width  from the bitmap itself instead of
-  // the ICO width.
-  if (width == 256) {
-    mDirEntry.mWidth = 0;
-  } else {
-    mDirEntry.mWidth = (int8_t)width;
+  // Fix the BMP height in the BIH so that the BMP decoder can work properly
+  NativeEndian::swapToLittleEndianInPlace(&realHeight, 1);
+  memcpy(bih + 8, &realHeight, sizeof(realHeight));
+  return true;
+}
+
+bool
+nsICODecoder::FixBitmapWidth(int8_t* bih)
+{
+  // Get the width from the BMP file information header.
+  // This is (unintuitively) a signed integer; see the documentation at:
+  //   https://msdn.microsoft.com/en-us/library/windows/desktop/dd183376(v=vs.85).aspx
+  // However, we reject negative widths since they aren't meaningful.
+  int32_t width;
+  memcpy(&width, bih + 4, sizeof(width));
+  NativeEndian::swapFromLittleEndianInPlace(&width, 1);
+  if (width <=0 || width > 256) {
+    return false;
   }
+
+  // Verify that the BMP width matches the width we got from the ICO directory
+  // entry. If not, decoding fails, because if we were to allow it to continue
+  // the intrinsic size of the image wouldn't match the size of the decoded
+  // surface.
+  if (width != int32_t(GetRealWidth())) {
+    return false;
+  }
+
   return true;
 }
 

@@ -2542,7 +2542,7 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
             Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
             if (arr->lengthIsWritable()) {
                 NativeObject::EnsureDenseResult res =
-                    arr->ensureDenseElements(cx, arr->length(), itemCount - actualDeleteCount);
+                    arr->ensureDenseElements(cx, len, itemCount - actualDeleteCount);
                 if (res == NativeObject::ED_FAILED)
                     return false;
             }

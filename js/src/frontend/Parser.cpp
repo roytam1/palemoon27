@@ -384,6 +384,9 @@ ParseContext<ParseHandler>::generateFunctionBindings(ExclusiveContext* cx, Token
     if (UINT32_MAX - args_.length() <= vars_.length() + bodyLevelLexicals_.length())
         return ts.reportError(JSMSG_TOO_MANY_LOCALS);
 
+    if (blockScopeDepth >= Bindings::BLOCK_SCOPED_LIMIT)
+        return ts.reportError(JSMSG_TOO_MANY_LOCALS);
+
     // Fix up the slots of body-level lets to come after the vars now that we
     // know how many vars there are.
     for (size_t i = 0; i < bodyLevelLexicals_.length(); i++) {

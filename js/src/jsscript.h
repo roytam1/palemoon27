@@ -233,6 +233,8 @@ class Bindings
 
   public:
 
+    static const uint32_t BLOCK_SCOPED_LIMIT = UINT16_LIMIT;
+
     Binding* bindingArray() const {
         return reinterpret_cast<Binding*>(bindingArrayAndFlag_ & ~TEMPORARY_STORAGE_BIT);
     }

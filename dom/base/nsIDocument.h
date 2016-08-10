@@ -2522,6 +2522,8 @@ public:
   mozilla::dom::FontFaceSet* GetFonts(mozilla::ErrorResult& aRv);
 
   bool DidFireDOMContentLoaded() const { return mDidFireDOMContentLoaded; }
+  
+  bool HasScriptsBlockedBySandbox();
 
 private:
   uint64_t mDeprecationWarnedAbout;

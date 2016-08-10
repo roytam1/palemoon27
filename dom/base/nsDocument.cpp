@@ -8328,7 +8328,7 @@ nsDocument::IsScriptEnabled()
 {
   // If this document is sandboxed without 'allow-scripts'
   // script is not enabled
-  if (mSandboxFlags & SANDBOXED_SCRIPTS) {
+  if (HasScriptsBlockedBySandbox()) {
     return false;
   }
 
@@ -12768,6 +12768,12 @@ nsDocument::Evaluate(const nsAString& aExpression, nsIDOMNode* aContextNode,
 {
   return XPathEvaluator()->Evaluate(aExpression, aContextNode, aResolver, aType,
                                     aInResult, aResult);
+}
+
+bool
+nsIDocument::HasScriptsBlockedBySandbox()
+{
+  return mSandboxFlags & SANDBOXED_SCRIPTS;
 }
 
 XPathEvaluator*

@@ -52,6 +52,7 @@
 #include "mozilla/StaticMutex.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/CheckedInt.h"
 
 #include "plbase64.h"
 #include "prmem.h"
@@ -1491,9 +1492,13 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
     LOG(("WebSocketChannel::ProcessInput: payload %lld avail %lu\n",
          payloadLength64, avail));
 
-    if (payloadLength64 + mFragmentAccumulator > mMaxMessageSize) {
+    CheckedInt<int64_t> payloadLengthChecked(payloadLength64);
+    payloadLengthChecked += mFragmentAccumulator;
+    if (!payloadLengthChecked.isValid() || payloadLengthChecked.value() >
+        mMaxMessageSize) {
       return NS_ERROR_FILE_TOO_BIG;
     }
+
     uint32_t payloadLength = static_cast<uint32_t>(payloadLength64);
 
     if (avail < payloadLength)

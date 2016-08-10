@@ -6,6 +6,8 @@
 
 
 // Original author: ekr@rtfm.com
+// Contributors:
+//   Moonchild <moonchild@palemoon.org>
 
 // Some of this code is cut-and-pasted from nICEr. Copyright is:
 
@@ -523,6 +525,11 @@ void NrIceCtx::internal_DeinitializeGlobal() {
 
 NrIceCtx::~NrIceCtx() {
   MOZ_MTLOG(ML_DEBUG, "Destroying ICE ctx '" << name_ <<"'");
+  for (auto stream = streams_.begin(); stream != streams_.end(); stream++) {
+    if (*stream) {
+      (*stream)->Close();
+    }
+  }
   nr_ice_peer_ctx_destroy(&peer_);
   nr_ice_ctx_destroy(&ctx_);
   delete ice_handler_vtbl_;

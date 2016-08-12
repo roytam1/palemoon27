@@ -63,4 +63,5 @@ if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
 
 USE_LIBS += [
     'brotli',
+    'woff2',
 ]

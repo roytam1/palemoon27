@@ -1,0 +1,17 @@
+This is the woff2 library located at: https://github.com/google/woff2.
+
+Upstream code can be viewed at
+  https://github.com/google/woff2/tree/master/src
+
+and cloned by
+  git clone https://github.com/google/woff2
+
+The in-tree copy can be updated by running
+  sh update.sh
+from within the modules/woff2 directory.
+
+Current version: [commit cd3078d6d72333ea963bfbe6bc6e97ccdb031a5c].
+
+redefine-unique_ptr.patch redefines the class std::unique_ptr to workaround a
+build issue with missing C++11 features.
+See BMO bug #1227058

@@ -18,9 +18,6 @@
 #include "nsInterfaceHashtable.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#ifdef MOZ_EME
-#include "mozilla/dom/MediaKeySystemAccessManager.h"
-#endif
 
 class nsPluginArray;
 class nsMimeTypeArray;
@@ -329,15 +326,6 @@ public:
   // GetWindowFromGlobal returns the inner window for this global, if
   // any, else null.
   static already_AddRefed<nsPIDOMWindow> GetWindowFromGlobal(JSObject* aGlobal);
-
-#ifdef MOZ_EME
-  already_AddRefed<Promise>
-  RequestMediaKeySystemAccess(const nsAString& aKeySystem,
-                              const Optional<Sequence<MediaKeySystemOptions>>& aOptions,
-                              ErrorResult& aRv);
-private:
-  nsRefPtr<MediaKeySystemAccessManager> mMediaKeySystemAccessManager;
-#endif
 
 private:
   virtual ~Navigator();

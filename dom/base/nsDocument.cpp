@@ -4554,32 +4554,6 @@ nsDocument::SetScopeObject(nsIGlobalObject* aGlobal)
   }
 }
 
-#ifdef MOZ_EME
-static void
-CheckIfContainsEMEContent(nsISupports* aSupports, void* aContainsEME)
-{
-  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aSupports));
-  if (domMediaElem) {
-    nsCOMPtr<nsIContent> content(do_QueryInterface(domMediaElem));
-    MOZ_ASSERT(content, "aSupports is not a content");
-    HTMLMediaElement* mediaElem = static_cast<HTMLMediaElement*>(content.get());
-    bool* contains = static_cast<bool*>(aContainsEME);
-    if (mediaElem->GetMediaKeys()) {
-      *contains = true;
-    }
-  }
-}
-
-bool
-nsDocument::ContainsEMEContent()
-{
-  bool containsEME = false;
-  EnumerateActivityObservers(CheckIfContainsEMEContent,
-                             static_cast<void*>(&containsEME));
-  return containsEME;
-}
-#endif // MOZ_EME
-
 static void
 CheckIfContainsMSEContent(nsISupports* aSupports, void* aContainsMSE)
 {
@@ -8854,14 +8828,6 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     }
   }
 #endif // MOZ_WEBRTC
-
-#ifdef MOZ_EME
-  // Don't save presentations for documents containing EME content, so that
-  // CDMs reliably shutdown upon user navigation.
-  if (ContainsEMEContent()) {
-    return false;
-  }
-#endif
 
   // Don't save presentations for documents containing MSE content, to
   // reduce memory usage.

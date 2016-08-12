@@ -143,10 +143,6 @@ public:
   // Set the duration of the attached mediasource element.
   void SetMediaSourceDuration(double aDuration /* seconds */);
 
-#ifdef MOZ_EME
-  nsresult SetCDMProxy(CDMProxy* aProxy);
-#endif
-
   virtual bool IsAsync() const override {
     return (!GetAudioReader() || GetAudioReader()->IsAsync()) &&
            (!GetVideoReader() || GetVideoReader()->IsAsync());
@@ -245,10 +241,6 @@ private:
   {
     return aType == MediaData::AUDIO_DATA ? mAudioWaitPromise : mVideoWaitPromise;
   }
-
-#ifdef MOZ_EME
-  nsRefPtr<CDMProxy> mCDMProxy;
-#endif
 
   // These are read and written on the decode task queue threads.
   int64_t mLastAudioTime;

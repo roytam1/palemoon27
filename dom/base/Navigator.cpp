@@ -112,10 +112,6 @@
 
 #include "mozilla/dom/FeatureList.h"
 
-#ifdef MOZ_EME
-#include "mozilla/EMEUtils.h"
-#endif
-
 namespace mozilla {
 namespace dom {
 
@@ -200,9 +196,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCachedResolveResults)
-#ifdef MOZ_EME
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMediaKeySystemAccessManager)
-#endif
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -317,12 +310,6 @@ Navigator::Invalidate()
 
   mServiceWorkerContainer = nullptr;
 
-#ifdef MOZ_EME
-  if (mMediaKeySystemAccessManager) {
-    mMediaKeySystemAccessManager->Shutdown();
-    mMediaKeySystemAccessManager = nullptr;
-  }
-#endif
 }
 
 //*****************************************************************************
@@ -2629,28 +2616,6 @@ Navigator::GetUserAgent(nsPIDOMWindow* aWindow, nsIURI* aURI,
 
   return siteSpecificUA->GetUserAgentForURIAndWindow(aURI, aWindow, aUserAgent);
 }
-
-#ifdef MOZ_EME
-already_AddRefed<Promise>
-Navigator::RequestMediaKeySystemAccess(const nsAString& aKeySystem,
-                                       const Optional<Sequence<MediaKeySystemOptions>>& aOptions,
-                                       ErrorResult& aRv)
-{
-  nsCOMPtr<nsIGlobalObject> go = do_QueryInterface(mWindow);
-  nsRefPtr<Promise> promise = Promise::Create(go, aRv);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
-
-  if (!mMediaKeySystemAccessManager) {
-    mMediaKeySystemAccessManager = new MediaKeySystemAccessManager(mWindow);
-  }
-
-  mMediaKeySystemAccessManager->Request(promise, aKeySystem, aOptions);
-  return promise.forget();
-}
-
-#endif
 
 } // namespace dom
 } // namespace mozilla

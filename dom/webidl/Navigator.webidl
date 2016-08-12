@@ -412,15 +412,6 @@ partial interface Navigator {
   readonly attribute TVManager? tv;
 };
 
-#ifdef MOZ_EME
-partial interface Navigator {
-  [Pref="media.eme.apiVisible", NewObject]
-  Promise<MediaKeySystemAccess>
-  requestMediaKeySystemAccess(DOMString keySystem,
-                              optional sequence<MediaKeySystemOptions> supportedConfigurations);
-};
-#endif
-
 #ifdef NIGHTLY_BUILD
 partial interface Navigator {
   [Func="Navigator::IsE10sEnabled"]

@@ -44,7 +44,6 @@ UNIFIED_SOURCES += [
     'prep.cc',
     'vhea.cc',
     'vmtx.cc',
-    'woff2.cc',
 ]
 
 MSVC_ENABLE_PGO = True

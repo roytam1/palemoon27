@@ -22,10 +22,6 @@
 #include "SharedDecoderManager.h"
 #include <algorithm>
 
-#ifdef MOZ_EME
-#include "mozilla/CDMProxy.h"
-#endif
-
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
@@ -263,34 +259,6 @@ MP4Reader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-#ifdef MOZ_EME
-class DispatchKeyNeededEvent : public nsRunnable {
-public:
-  DispatchKeyNeededEvent(AbstractMediaDecoder* aDecoder,
-                         nsTArray<uint8_t>& aInitData,
-                         const nsString& aInitDataType)
-    : mDecoder(aDecoder)
-    , mInitData(aInitData)
-    , mInitDataType(aInitDataType)
-  {
-  }
-  NS_IMETHOD Run() {
-    // Note: Null check the owner, as the decoder could have been shutdown
-    // since this event was dispatched.
-    MediaDecoderOwner* owner = mDecoder->GetOwner();
-    if (owner) {
-      owner->DispatchEncrypted(mInitData, mInitDataType);
-    }
-    mDecoder = nullptr;
-    return NS_OK;
-  }
-private:
-  nsRefPtr<AbstractMediaDecoder> mDecoder;
-  nsTArray<uint8_t> mInitData;
-  nsString mInitDataType;
-};
-#endif
-
 void MP4Reader::RequestCodecResource() {
   if (mVideo.mDecoder) {
     mVideo.mDecoder->AllocateMediaResources();
@@ -302,29 +270,8 @@ bool MP4Reader::IsWaitingOnCodecResource() {
 }
 
 bool MP4Reader::IsWaitingOnCDMResource() {
-#ifdef MOZ_EME
-  nsRefPtr<CDMProxy> proxy;
-  {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    if (!mIsEncrypted) {
-      // Not encrypted, no need to wait for CDMProxy.
-      return false;
-    }
-    proxy = mDecoder->GetCDMProxy();
-    if (!proxy) {
-      // We're encrypted, we need a CDMProxy to decrypt file.
-      return true;
-    }
-  }
-  // We'll keep waiting if the CDM hasn't informed Goanna of its capabilities.
-  {
-    CDMCaps::AutoLock caps(proxy->Capabilites());
-    LOG("capsKnown=%d", caps.AreCapsKnown());
-    return !caps.AreCapsKnown();
-  }
-#else
+  // EME Stub
   return false;
-#endif
 }
 
 bool MP4Reader::IsWaitingMediaResources()
@@ -411,42 +358,8 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
   }
 
   if (mDemuxer->Crypto().valid) {
-#ifdef MOZ_EME
-    // We have encrypted audio or video. We'll need a CDM to decrypt and
-    // possibly decode this. Wait until we've received a CDM from the
-    // JavaScript player app. Note: we still go through the motions here
-    // even if EME is disabled, so that if script tries and fails to create
-    // a CDM, we can detect that and notify chrome and show some UI explaining
-    // that we failed due to EME being disabled.
-    nsRefPtr<CDMProxy> proxy;
-    nsTArray<uint8_t> initData;
-    ExtractCryptoInitData(initData);
-    if (initData.Length() == 0) {
-      return NS_ERROR_FAILURE;
-    }
-    if (!mInitDataEncountered.Contains(initData)) {
-      mInitDataEncountered.AppendElement(initData);
-      NS_DispatchToMainThread(new DispatchKeyNeededEvent(mDecoder, initData, NS_LITERAL_STRING("cenc")));
-    }
-    if (IsWaitingMediaResources()) {
-      return NS_OK;
-    }
-    MOZ_ASSERT(!IsWaitingMediaResources());
-
-    {
-      ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      proxy = mDecoder->GetCDMProxy();
-    }
-    MOZ_ASSERT(proxy);
-
-    mPlatform = PlatformDecoderModule::CreateCDMWrapper(proxy,
-                                                        HasAudio(),
-                                                        HasVideo());
-    NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);
-#else
     // EME not supported.
     return NS_ERROR_FAILURE;
-#endif
   } else {
     mPlatform = PlatformDecoderModule::Create();
     NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);

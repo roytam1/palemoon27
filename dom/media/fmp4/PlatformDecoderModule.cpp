@@ -25,10 +25,6 @@
 #include "GMPDecoderModule.h"
 
 #include "mozilla/Preferences.h"
-#ifdef MOZ_EME
-#include "EMEDecoderModule.h"
-#include "mozilla/CDMProxy.h"
-#endif
 #include "SharedThreadPool.h"
 #include "MediaTaskQueue.h"
 
@@ -80,40 +76,6 @@ PlatformDecoderModule::Init()
   AppleDecoderModule::Init();
 #endif
 }
-
-#ifdef MOZ_EME
-/* static */
-already_AddRefed<PlatformDecoderModule>
-PlatformDecoderModule::CreateCDMWrapper(CDMProxy* aProxy,
-                                        bool aHasAudio,
-                                        bool aHasVideo)
-{
-  bool cdmDecodesAudio;
-  bool cdmDecodesVideo;
-  {
-    CDMCaps::AutoLock caps(aProxy->Capabilites());
-    cdmDecodesAudio = caps.CanDecryptAndDecodeAudio();
-    cdmDecodesVideo = caps.CanDecryptAndDecodeVideo();
-  }
-
-  nsRefPtr<PlatformDecoderModule> pdm;
-  if ((!cdmDecodesAudio && aHasAudio) || (!cdmDecodesVideo && aHasVideo)) {
-    // The CDM itself can't decode. We need to wrap a PDM to decode the
-    // decrypted output of the CDM.
-    pdm = Create();
-    if (!pdm) {
-      return nullptr;
-    }
-  }
-
-  nsRefPtr<PlatformDecoderModule> emepdm(
-    new AVCCDecoderModule(new EMEDecoderModule(aProxy,
-                                               pdm,
-                                               cdmDecodesAudio,
-                                               cdmDecodesVideo)));
-  return emepdm.forget();
-}
-#endif
 
 /* static */
 already_AddRefed<PlatformDecoderModule>

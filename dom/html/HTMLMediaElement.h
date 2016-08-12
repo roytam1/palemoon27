@@ -20,9 +20,6 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/TextTrackManager.h"
 #include "MediaDecoder.h"
-#ifdef MOZ_EME
-#include "mozilla/dom/MediaKeys.h"
-#endif
 #include "nsGkAtoms.h"
 
 // X.h on Linux #defines CurrentTime as 0L, so we have to #undef it here.
@@ -552,28 +549,6 @@ public:
 
   // XPCOM MozPreservesPitch() is OK
 
-#ifdef MOZ_EME
-  MediaKeys* GetMediaKeys() const;
-
-  already_AddRefed<Promise> SetMediaKeys(MediaKeys* mediaKeys,
-                                         ErrorResult& aRv);
-
-  mozilla::dom::EventHandlerNonNull* GetOnencrypted();
-  void SetOnencrypted(mozilla::dom::EventHandlerNonNull* listener);
-
-  void DispatchEncrypted(const nsTArray<uint8_t>& aInitData,
-                         const nsAString& aInitDataType) override;
-
-
-  bool IsEventAttributeName(nsIAtom* aName) override;
-
-  // Returns the principal of the "top level" document; the origin displayed
-  // in the URL bar of the browser window.
-  already_AddRefed<nsIPrincipal> GetTopLevelPrincipal();
-
-  bool ContainsRestrictedContent();
-#endif // MOZ_EME
-
   bool MozAutoplayEnabled() const
   {
     return mAutoplayEnabled;
@@ -982,9 +957,6 @@ protected:
     return isPaused;
   }
 
-#ifdef MOZ_EME
-  void ReportEMETelemetry();
-#endif
   void ReportMSETelemetry();
 
   // Check the permissions for audiochannel.
@@ -1189,11 +1161,6 @@ protected:
 
   // Timer used for updating progress events
   nsCOMPtr<nsITimer> mProgressTimer;
-
-#ifdef MOZ_EME
-  // Encrypted Media Extension media keys.
-  nsRefPtr<MediaKeys> mMediaKeys;
-#endif
 
   // Stores the time at the start of the current 'played' range.
   double mCurrentPlayRangeStart;

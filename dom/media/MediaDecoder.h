@@ -196,9 +196,6 @@ destroying the MediaDecoder object.
 #include "MediaStreamGraph.h"
 #include "AbstractMediaDecoder.h"
 #include "necko-config.h"
-#ifdef MOZ_EME
-#include "mozilla/CDMProxy.h"
-#endif
 
 class nsIStreamListener;
 class nsIPrincipal;
@@ -853,14 +850,6 @@ public:
   // The decoder monitor must be held.
   bool IsLogicallyPlaying();
 
-#ifdef MOZ_EME
-  // This takes the decoder monitor.
-  virtual nsresult SetCDMProxy(CDMProxy* aProxy) override;
-
-  // Decoder monitor must be held.
-  virtual CDMProxy* GetCDMProxy() override;
-#endif
-
 #ifdef MOZ_RAW
   static bool IsRawEnabled();
 #endif
@@ -1116,10 +1105,6 @@ private:
   // to |Wait| on this monitor will block the thread until the next state
   // change.  Explicitly private for force access via GetReentrantMonitor.
   ReentrantMonitor mReentrantMonitor;
-
-#ifdef MOZ_EME
-  nsRefPtr<CDMProxy> mProxy;
-#endif
 
 protected:
   // Data about MediaStreams that are being fed by this decoder.

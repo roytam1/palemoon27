@@ -31,9 +31,6 @@ DIRS += ['gmp']
 if CONFIG['MOZ_WMF']:
     DIRS += [ 'wmf' ];
 
-if CONFIG['MOZ_EME']:
-    DIRS += ['eme']
-
 if CONFIG['MOZ_FFMPEG']:
     EXPORTS += [
         'ffmpeg/FFmpegRuntimeLinker.h',

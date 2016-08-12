@@ -25,9 +25,6 @@ class ReentrantMonitor;
 class VideoFrameContainer;
 class TimedMetadata;
 class MediaDecoderOwner;
-#ifdef MOZ_EME
-class CDMProxy;
-#endif
 
 typedef nsDataHashtable<nsCStringHashKey, nsCString> MetadataTags;
 
@@ -159,10 +156,6 @@ public:
     AbstractMediaDecoder* mDecoder;
   };
 
-#ifdef MOZ_EME
-  virtual nsresult SetCDMProxy(CDMProxy* aProxy) { return NS_ERROR_NOT_IMPLEMENTED; }
-  virtual CDMProxy* GetCDMProxy() { return nullptr; }
-#endif
 };
 
 class MetadataContainer

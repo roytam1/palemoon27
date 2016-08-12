@@ -74,18 +74,6 @@ public:
   // This is called on the decode task queue.
   virtual nsresult Startup() { return NS_OK; };
 
-#ifdef MOZ_EME
-  // Creates a PlatformDecoderModule that uses a CDMProxy to decrypt or
-  // decrypt-and-decode EME encrypted content. If the CDM only decrypts and
-  // does not decode, we create a PDM and use that to create MediaDataDecoders
-  // that we use on on aTaskQueue to decode the decrypted stream.
-  // This is called on the decode task queue.
-  static already_AddRefed<PlatformDecoderModule>
-  CreateCDMWrapper(CDMProxy* aProxy,
-                   bool aHasAudio,
-                   bool aHasVideo);
-#endif
-
   // Creates an H.264 decoder. The layers backend is passed in so that
   // decoders can determine whether hardware accelerated decoding can be used.
   // Asynchronous decoding of video should be done in runnables dispatched

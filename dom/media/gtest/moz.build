@@ -15,11 +15,6 @@ SOURCES += [
     'TestWebMBuffered.cpp',
 ]
 
-if CONFIG['MOZ_EME']:
-    SOURCES += [
-        'TestEME.cpp',
-    ]
-
 if CONFIG['MOZ_WEBM_ENCODER']:
     SOURCES += [
         'TestVideoTrackEncoder.cpp',

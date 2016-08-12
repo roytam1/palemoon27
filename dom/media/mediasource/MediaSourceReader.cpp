@@ -702,9 +702,6 @@ MediaSourceReader::CreateSubDecoder(const nsACString& aType, int64_t aTimestampO
   MSE_DEBUG("subdecoder %p subreader %p",
             decoder.get(), reader.get());
   decoder->SetReader(reader);
-#ifdef MOZ_EME
-  decoder->SetCDMProxy(mCDMProxy);
-#endif
   return decoder.forget();
 }
 
@@ -1232,22 +1229,6 @@ MediaSourceReader::GetMozDebugReaderData(nsAString& aString)
   }
   aString += NS_ConvertUTF8toUTF16(result);
 }
-
-#ifdef MOZ_EME
-nsresult
-MediaSourceReader::SetCDMProxy(CDMProxy* aProxy)
-{
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-
-  mCDMProxy = aProxy;
-  for (size_t i = 0; i < mTrackBuffers.Length(); i++) {
-    nsresult rv = mTrackBuffers[i]->SetCDMProxy(aProxy);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-}
-#endif
 
 bool
 MediaSourceReader::IsActiveReader(MediaDecoderReader* aReader)

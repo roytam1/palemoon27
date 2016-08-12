@@ -16,6 +16,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsIGfxInfo.h"
 #include "GfxDriverInfo.h"
+#include "nsServiceManagerUtils.h"      // for do_GetService
 
 namespace mozilla {
 

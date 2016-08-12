@@ -869,31 +869,6 @@ TrackBuffer::Decoders()
   return mInitializedDecoders;
 }
 
-#ifdef MOZ_EME
-nsresult
-TrackBuffer::SetCDMProxy(CDMProxy* aProxy)
-{
-  ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-
-  for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
-    nsresult rv = mDecoders[i]->SetCDMProxy(aProxy);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  for (uint32_t i = 0; i < mWaitingDecoders.Length(); ++i) {
-    CDMCaps::AutoLock caps(aProxy->Capabilites());
-    caps.CallOnMainThreadWhenCapsAvailable(
-      NS_NewRunnableMethodWithArg<SourceBufferDecoder*>(this,
-                                                        &TrackBuffer::QueueInitializeDecoder,
-                                                        mWaitingDecoders[i]));
-  }
-
-  mWaitingDecoders.Clear();
-
-  return NS_OK;
-}
-#endif
-
 #if defined(DEBUG)
 void
 TrackBuffer::Dump(const char* aPath)

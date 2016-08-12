@@ -72,10 +72,6 @@ public:
   // registered TrackBuffers essential for initialization.
   void PrepareReaderInitialization();
 
-#ifdef MOZ_EME
-  virtual nsresult SetCDMProxy(CDMProxy* aProxy) override;
-#endif
-
   MediaSourceReader* GetReader() { return mReader; }
 
   // Returns true if aReader is a currently active audio or video

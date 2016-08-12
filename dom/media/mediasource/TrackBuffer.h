@@ -110,10 +110,6 @@ public:
   // currently not playable.
   bool HasOnlyIncompleteMedia();
 
-#ifdef MOZ_EME
-  nsresult SetCDMProxy(CDMProxy* aProxy);
-#endif
-
 #if defined(DEBUG)
   void Dump(const char* aPath);
 #endif

@@ -285,7 +285,7 @@
         <body><![CDATA[
           if (uri) {
             let size = Math.round(16 * window.devicePixelRatio);
-            if (!uri.contains("#"))
+            if (!uri.includes("#"))
               uri += "#-moz-resolution=" + size + "," + size;
           }
           element.setAttribute("src", uri);

@@ -240,7 +240,7 @@ ContactDB.prototype = {
           objectStore = aTransaction.objectStore(STORE_NAME);
         }
         // Delete old tel index.
-        if (objectStore.indexNames.contains("tel")) {
+        if (objectStore.indexNames.includes("tel")) {
           objectStore.deleteIndex("tel");
         }
 
@@ -273,7 +273,7 @@ ContactDB.prototype = {
         }
 
         // Delete old email index.
-        if (objectStore.indexNames.contains("email")) {
+        if (objectStore.indexNames.includes("email")) {
           objectStore.deleteIndex("email");
         }
 
@@ -380,7 +380,7 @@ ContactDB.prototype = {
         }
 
         // Delete old tel index (not on the right field).
-        if (objectStore.indexNames.contains("tel")) {
+        if (objectStore.indexNames.includes("tel")) {
           objectStore.deleteIndex("tel");
         }
 
@@ -473,7 +473,7 @@ ContactDB.prototype = {
         if (!objectStore) {
           objectStore = aTransaction.objectStore(STORE_NAME);
         }
-        if (!objectStore.indexNames.contains("telMatch")) {
+        if (!objectStore.indexNames.includes("telMatch")) {
           objectStore.createIndex("telMatch", "search.parsedTel", {multiEntry: true});
         }
         objectStore.openCursor().onsuccess = function(event) {
@@ -697,7 +697,7 @@ ContactDB.prototype = {
 
         // an earlier version of this code could have run, so checking whether
         // the index exists
-        if (!objectStore.indexNames.contains("name")) {
+        if (!objectStore.indexNames.includes("name")) {
           objectStore.createIndex("name", "properties.name", { multiEntry: true });
           objectStore.createIndex("nameLowerCase", "search.name", { multiEntry: true });
         }
@@ -1229,7 +1229,7 @@ ContactDB.prototype = {
     if (DEBUG) debug("ContactDB:find val:" + aOptions.filterValue + " by: " + aOptions.filterBy + " op: " + aOptions.filterOp);
     let self = this;
     this.newTxn("readonly", STORE_NAME, function (txn, store) {
-      let filterOps = ["equals", "contains", "match", "startsWith"];
+      let filterOps = ["equals", "includes", "match", "startsWith"];
       if (aOptions && (filterOps.indexOf(aOptions.filterOp) >= 0)) {
         self._findWithIndex(txn, store, aOptions);
       } else {
@@ -1331,9 +1331,9 @@ ContactDB.prototype = {
 
         request = index.mozGetAll(normalized, limit);
       } else {
-        // XXX: "contains" should be handled separately, this is "startsWith"
-        if (options.filterOp === 'contains' && key !== 'tel') {
-          dump("ContactDB: 'contains' only works for 'tel'. Falling back " +
+        // XXX: "includes" should be handled separately, this is "startsWith"
+        if (options.filterOp === 'includes' && key !== 'tel') {
+          dump("ContactDB: 'includes' only works for 'tel'. Falling back " +
                "to 'startsWith'.\n");
         }
         // not case sensitive

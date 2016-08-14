@@ -5477,7 +5477,7 @@ var ErrorPageEventHandler = {
           // The event came from a button on a malware/phishing block page
           // First check whether it's malware or phishing, so that we can
           // use the right strings/links
-          let isMalware = errorDoc.documentURI.contains("e=malwareBlocked");
+          let isMalware = errorDoc.documentURI.includes("e=malwareBlocked");
           let bucketName = isMalware ? "WARNING_MALWARE_PAGE_" : "WARNING_PHISHING_PAGE_";
           let nsISecTel = Ci.nsISecurityUITelemetry;
           let isIframe = (errorDoc.defaultView.parent === errorDoc.defaultView);
@@ -5796,7 +5796,7 @@ var FormAssistant = {
       else if (item.text)
         label = item.text;
 
-      if (filter && !(label.toLowerCase().contains(lowerFieldValue)) )
+      if (filter && !(label.toLowerCase().includes(lowerFieldValue)) )
         continue;
       suggestions.push({ label: label, value: item.value });
     }

@@ -714,8 +714,8 @@ DownloadElementShell.prototype = {
     if (!aTerm)
       return true;
     aTerm = aTerm.toLowerCase();
-    return this.getDownloadMetaData().displayName.toLowerCase().contains(aTerm) ||
-           this.downloadURI.toLowerCase().contains(aTerm);
+    return this.getDownloadMetaData().displayName.toLowerCase().includes(aTerm) ||
+           this.downloadURI.toLowerCase().includes(aTerm);
   },
 
   // Handles return kepress on the element (the keypress listener is

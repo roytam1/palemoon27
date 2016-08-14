@@ -109,7 +109,7 @@ let AnimationPlayerActor = ActorClass({
     }
 
     // If there's only one name.
-    if (names.contains(",") === -1) {
+    if (names.includes(",") === -1) {
       return 0;
     }
 

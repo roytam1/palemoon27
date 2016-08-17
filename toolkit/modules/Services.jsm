@@ -36,6 +36,18 @@ XPCOMUtils.defineLazyGetter(Services, "dirsvc", function () {
            .QueryInterface(Ci.nsIProperties);
 });
 
+XPCOMUtils.defineLazyGetter(Services, "mm", () => {
+  return Cc["@mozilla.org/globalmessagemanager;1"]
+           .getService(Ci.nsIMessageBroadcaster)
+           .QueryInterface(Ci.nsIFrameScriptLoader);
+});
+
+XPCOMUtils.defineLazyGetter(Services, "ppmm", () => {
+  return Cc["@mozilla.org/parentprocessmessagemanager;1"]
+           .getService(Ci.nsIMessageBroadcaster)
+           .QueryInterface(Ci.nsIProcessScriptLoader);
+});
+
 let initTable = [
 #ifdef MOZ_WIDGET_ANDROID
   ["androidBridge", "@mozilla.org/android/bridge;1", "nsIAndroidBridge"],
@@ -43,11 +55,13 @@ let initTable = [
   ["appShell", "@mozilla.org/appshell/appShellService;1", "nsIAppShellService"],
   ["cache", "@mozilla.org/network/cache-service;1", "nsICacheService"],
   ["cache2", "@mozilla.org/netwerk/cache-storage-service;1", "nsICacheStorageService"],
+  ["cpmm", "@mozilla.org/childprocessmessagemanager;1", "nsIMessageSender"],
   ["console", "@mozilla.org/consoleservice;1", "nsIConsoleService"],
   ["contentPrefs", "@mozilla.org/content-pref/service;1", "nsIContentPrefService"],
   ["cookies", "@mozilla.org/cookiemanager;1", "nsICookieManager2"],
   ["downloads", "@mozilla.org/download-manager;1", "nsIDownloadManager"],
   ["droppedLinkHandler", "@mozilla.org/content/dropped-link-handler;1", "nsIDroppedLinkHandler"],
+  ["els", "@mozilla.org/eventlistenerservice;1", "nsIEventListenerService"],
   ["eTLD", "@mozilla.org/network/effective-tld-service;1", "nsIEffectiveTLDService"],
   ["io", "@mozilla.org/network/io-service;1", "nsIIOService2"],
   ["locale", "@mozilla.org/intl/nslocaleservice;1", "nsILocaleService"],

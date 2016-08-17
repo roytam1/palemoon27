@@ -23,9 +23,7 @@ let ClickEventHandler = {
     this._screenY = null;
     this._lastFrame = null;
 
-    Cc["@mozilla.org/eventlistenerservice;1"]
-      .getService(Ci.nsIEventListenerService)
-      .addSystemEventListener(global, "mousedown", this, true);
+    Services.els.addSystemEventListener(global, "mousedown", this, true);
 
     addMessageListener("Autoscroll:Stop", this);
   },
@@ -127,9 +125,7 @@ let ClickEventHandler = {
       return;
     }
 
-    Cc["@mozilla.org/eventlistenerservice;1"]
-      .getService(Ci.nsIEventListenerService)
-      .addSystemEventListener(global, "mousemove", this, true);
+    Services.els.addSystemEventListener(global, "mousemove", this, true);
     addEventListener("pagehide", this, true);
 
     this._ignoreMouseEvents = true;
@@ -148,9 +144,7 @@ let ClickEventHandler = {
     if (this._scrollable) {
       this._scrollable = null;
 
-      Cc["@mozilla.org/eventlistenerservice;1"]
-        .getService(Ci.nsIEventListenerService)
-        .removeSystemEventListener(global, "mousemove", this, true);
+      Services.els.removeSystemEventListener(global, "mousemove", this, true);
       removeEventListener("pagehide", this, true);
     }
   },

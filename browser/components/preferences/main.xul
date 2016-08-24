@@ -159,9 +159,12 @@
                label="&alwaysAsk.label;"
                accesskey="&alwaysAsk.accesskey;"/>
       </radiogroup>
+#if 0
+<!-- Disabled for now -- ToolkitUI DM is nonfunctional. -->
       <checkbox id="classicDownloadWindow"
                 preference="browser.download.useToolkitUI"
                 label="&toolkit.classic.download.window.label;" />
+#endif
     </groupbox>
 
   </prefpane>

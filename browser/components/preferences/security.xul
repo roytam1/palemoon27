@@ -43,7 +43,9 @@
       <preference id="signon.rememberSignons" name="signon.rememberSignons" type="bool"/>
       
       <!-- XSS Filter -->
+      <!--
       <preference id="security.xssfilter.enable" name="security.xssfilter.enable" type="bool"/>
+      -->
 
     </preferences>
     
@@ -114,6 +116,7 @@
     </groupbox>
 
     <!-- XSS Filter -->
+    <!--
     <groupbox id="XSSFiltGroup">
       <caption label="&XSSFilt.label;"/>
     
@@ -125,6 +128,7 @@
       </hbox>
 
     </groupbox>
+    -->
 
   </prefpane>
 

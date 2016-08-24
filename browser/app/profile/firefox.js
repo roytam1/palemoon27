@@ -309,9 +309,6 @@ pref("browser.download.manager.quitBehavior", 2);
 pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
-// This allows disabling the Downloads Panel in favor of the old interface.
-pref("browser.download.useToolkitUI", false);
-
 // This records whether or not the panel has been shown at least once.
 pref("browser.download.panel.shown", false);
 
@@ -1400,4 +1397,3 @@ pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; r
 #else
 pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.9) Gecko/20100101 Firefox/24.9 (Pale Moon)");
 #endif
-

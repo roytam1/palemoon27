@@ -243,9 +243,13 @@ this.DownloadsCommon = {
    */
   get useToolkitUI()
   {
-    try {
-      return Services.prefs.getBoolPref("browser.download.useToolkitUI");
-    } catch (ex) { }
+    /* Toolkit UI is currently incompatible.
+     * FIXME: Either fix the toolkitUI (make DBConnection work) or remove
+     * the unused code altogether
+     */
+    //try {
+    //  return Services.prefs.getBoolPref("browser.download.useToolkitUI");
+    //} catch (ex) { }
     return false;
   },
 

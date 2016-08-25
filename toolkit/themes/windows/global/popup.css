@@ -64,8 +64,7 @@ panel[type="arrow"][side="right"] {
 }
 
 %ifdef XP_WIN
-@media (-moz-os-version: windows-xp),
-       (-moz-os-version: windows-vista),
+@media (-moz-os-version: windows-vista),
        (-moz-os-version: windows-win7) {
 %endif
 /* < Win8 */

@@ -208,13 +208,11 @@ toolbar#ToolbarMode .toolbarbutton-text {
 }
 
 %ifdef XP_WIN
-@media not all and (-moz-os-version: windows-xp) {
-  #ToolbarMode {
-    -moz-appearance: -moz-win-browsertabbar-toolbox;
-  }
+#ToolbarMode {
+  -moz-appearance: -moz-win-browsertabbar-toolbox;
+}
 
-  #ToolbarEval {
-    -moz-appearance: toolbox;
-  }
+#ToolbarEval {
+  -moz-appearance: toolbox;
 }
 %endif

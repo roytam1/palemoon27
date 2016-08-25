@@ -211,3 +211,5 @@ toolkit.jar:
         skin/classic/global/tree/twisty-open-rtl.png             (tree/twisty-open-rtl.png)
         skin/classic/global/tree/twisty-open-hover.png           (tree/twisty-open-hover.png)
         skin/classic/global/tree/twisty-open-hover-rtl.png       (tree/twisty-open-hover-rtl.png)
+        skin/classic/global/tree/twisty.svg                      (tree/twisty.svg)
+        skin/classic/global/tree/twisty-10.svg                   (tree/twisty-10.svg)

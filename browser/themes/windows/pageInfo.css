@@ -123,7 +123,7 @@ groupbox.collapsable caption .caption-icon {
   background-position: center;
   -moz-margin-start: 2px;
   -moz-margin-end: 2px;
-  background-image: url("chrome://global/skin/tree/twisty-open.png");
+  background-image: url("chrome://global/skin/tree/twisty.svg#open");
 }
 
 groupbox.collapsable[closed="true"] {
@@ -133,7 +133,7 @@ groupbox.collapsable[closed="true"] {
 }
 
 groupbox.collapsable[closed="true"] caption .caption-icon { 
-  background-image: url("chrome://global/skin/tree/twisty-clsd.png");
+  background-image: url("chrome://global/skin/tree/twisty.svg#clsd");
 }
 
 groupbox tree { 
@@ -148,6 +148,16 @@ groupbox tree {
 #general-security-identity {
   white-space: pre-wrap;
   line-height: 2em;
+}
+
+@media (-moz-os-version: windows-win10) {
+  groupbox.collapsable caption .caption-icon {
+    background-image: url("chrome://global/skin/tree/twisty-10.svg#open");
+  }
+  
+  groupbox.collapsable[closed="true"] caption .caption-icon { 
+    background-image: url("chrome://global/skin/tree/twisty-10.svg#clsd");
+  }
 }
 
 /* Media Tab */

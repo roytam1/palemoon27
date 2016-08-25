@@ -1021,11 +1021,7 @@ pref("devtools.devedition.promo.shown", false);
 pref("devtools.devedition.promo.url", "https://www.mozilla.org/firefox/developer/?utm_source=firefox-dev-tools&utm_medium=firefox-browser&utm_content=betadoorhanger");
 
 // Only potentially show in beta release
-#if MOZ_UPDATE_CHANNEL == beta
-  pref("devtools.devedition.promo.enabled", true);
-#else
-  pref("devtools.devedition.promo.enabled", false);
-#endif
+pref("devtools.devedition.promo.enabled", false);
 
 // Enable the error console
 pref("devtools.errorconsole.enabled", true);
@@ -1034,7 +1030,6 @@ pref("devtools.errorconsole.enabled", true);
 // Developer toolbar and GCLI preferences
 pref("devtools.toolbar.enabled", true);
 pref("devtools.toolbar.visible", false);
-pref("devtools.gcli.allowSet", false);
 pref("devtools.commands.dir", "");
 
 // Enable the app manager
@@ -1059,12 +1054,12 @@ pref("devtools.toolbox.splitconsoleHeight", 100);
 // Toolbox Button preferences
 pref("devtools.command-button-pick.enabled", true);
 pref("devtools.command-button-frames.enabled", false);
-pref("devtools.command-button-splitconsole.enabled", true);
+pref("devtools.command-button-splitconsole.enabled", false);
 pref("devtools.command-button-paintflashing.enabled", false);
-pref("devtools.command-button-tilt.enabled", false);
-pref("devtools.command-button-scratchpad.enabled", false);
-pref("devtools.command-button-responsive.enabled", true);
-pref("devtools.command-button-eyedropper.enabled", false);
+pref("devtools.command-button-tilt.enabled", true);
+pref("devtools.command-button-scratchpad.enabled", true);
+pref("devtools.command-button-responsive.enabled", false);
+pref("devtools.command-button-eyedropper.enabled", true);
 pref("devtools.command-button-screenshot.enabled", false);
 
 // Inspector preferences
@@ -1088,7 +1083,6 @@ pref("devtools.inspector.showAllAnonymousContent", false);
 pref("devtools.defaultColorUnit", "hex");
 
 // Enable the Responsive UI tool
-pref("devtools.responsiveUI.enabled", true);
 pref("devtools.responsiveUI.no-reload-notification", false);
 
 // Enable the Debugger
@@ -1115,18 +1109,13 @@ pref("devtools.debugger.ui.variables-only-enum-visible", false);
 pref("devtools.debugger.ui.variables-searchbox-visible", false);
 
 // Enable the Profiler
-pref("devtools.profiler.enabled", true);
+pref("devtools.profiler.enabled", false);
 
 // Timeline panel settings
 pref("devtools.timeline.enabled", false);
 pref("devtools.timeline.hiddenMarkers", "[]");
 
-// Enable perftools via build command
-#ifdef MOZ_DEVTOOLS_PERFTOOLS
-  pref("devtools.performance_dev.enabled", true);
-#else
-  pref("devtools.performance_dev.enabled", false);
-#endif
+pref("devtools.performance_dev.enabled", false);
 
 // The default Profiler UI settings
 // TODO remove `devtools.profiler.ui.` branches when performance
@@ -1161,12 +1150,14 @@ pref("devtools.tilt.enabled", true);
 pref("devtools.tilt.intro_transition", true);
 pref("devtools.tilt.outro_transition", true);
 
-// Enable the Scratchpad tool.
-pref("devtools.scratchpad.enabled", true);
-
-// The maximum number of recently-opened files stored.
-// Setting this preference to 0 will not clear any recent files, but rather hide
-// the 'Open Recent'-menu.
+// Scratchpad settings
+// - recentFileMax: The maximum number of recently-opened files
+//                  stored. Setting this preference to 0 will not
+//                  clear any recent files, but rather hide the
+//                  'Open Recent'-menu.
+// - showTrailingSpace: Whether to highlight trailing space or not.
+// - enableCodeFolding: Whether to enable code folding or not.
+// - enableAutocompletion: Whether to enable JavaScript autocompletion.
 pref("devtools.scratchpad.recentFilesMax", 10);
 pref("devtools.scratchpad.showTrailingSpace", false);
 pref("devtools.scratchpad.enableAutocompletion", true);
@@ -1182,9 +1173,6 @@ pref("devtools.styleeditor.showMediaSidebar", true);
 pref("devtools.styleeditor.mediaSidebarWidth", 238);
 pref("devtools.styleeditor.navSidebarWidth", 245);
 pref("devtools.styleeditor.transitions", true);
-
-// Enable tools for Chrome development.
-pref("devtools.chrome.enabled", false);
 
 // Enable the Shader Editor.
 pref("devtools.shadereditor.enabled", false);
@@ -1232,7 +1220,7 @@ pref("devtools.webconsole.filter.secwarn", true);
 
 // Remember the Browser Console filters
 pref("devtools.browserconsole.filter.network", true);
-pref("devtools.browserconsole.filter.networkinfo", false);
+pref("devtools.browserconsole.filter.networkinfo", true);
 pref("devtools.browserconsole.filter.netwarn", true);
 pref("devtools.browserconsole.filter.netxhr", false);
 pref("devtools.browserconsole.filter.csserror", true);
@@ -1277,7 +1265,7 @@ pref("devtools.eyedropper.zoom", 6);
 // - keymap: which keymap to use (can be 'default', 'emacs' or 'vim')
 // - autoclosebrackets: whether to permit automatic bracket/quote closing.
 // - detectindentation: whether to detect the indentation from the file
-pref("devtools.editor.tabsize", 4);
+pref("devtools.editor.tabsize", 2);
 pref("devtools.editor.expandtab", true);
 pref("devtools.editor.keymap", "default");
 pref("devtools.editor.autoclosebrackets", true);

@@ -1685,7 +1685,9 @@ var Scratchpad = {
       if (state) {
         state = JSON.parse(state);
         this.setState(state);
-        initialText = state.text;
+        if ("text" in state) {
+          initialText = state.text;
+        }
       }
     } else {
       this._instanceId = ScratchpadManager.createUid();

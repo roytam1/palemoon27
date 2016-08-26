@@ -15,9 +15,8 @@
 }
 
 #warningTitle {
-  font-weight: lighter;
   line-height: 1.2;
-  color: #333;
+  color: #600;
   margin: 0;
   margin-bottom: .5em;
 }
@@ -32,12 +31,16 @@
 
 #filterRow {
   margin-top: 4px;
-  -moz-margin-start: 4px;
+  -moz-margin-start: 5px;
 }
 
 #configTree {
   margin-top: 4px;
   margin-bottom: 4px;
+}
+
+#configTreeBody::-moz-tree-row {
+  min-height: 1.1em;
 }
 
 #configTreeBody::-moz-tree-cell-text(user) {
@@ -46,4 +49,14 @@
 
 #configTreeBody::-moz-tree-cell-text(locked) {
   font-style: italic;
+}
+
+#configTreeBody::-moz-tree-row(hover) {
+  background-color: rgba(32,65,221,0.25);
+  color: #000;
+}
+
+#configTreeBody::-moz-tree-row(selected) {
+  background-color: #4051dd;
+  color: #fff;
 }

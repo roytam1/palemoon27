@@ -76,32 +76,6 @@ GST_FUNC(LIBGSTREAMER, gst_structure_get_value)
 GST_FUNC(LIBGSTREAMER, gst_structure_new)
 GST_FUNC(LIBGSTREAMER, gst_util_uint64_scale)
 
-#if GST_VERSION_MAJOR == 0
-GST_FUNC(LIBGSTAPP, gst_app_sink_pull_buffer)
-GST_FUNC(LIBGSTREAMER, gst_buffer_copy_metadata)
-GST_FUNC(LIBGSTREAMER, gst_buffer_new_and_alloc)
-GST_FUNC(LIBGSTREAMER, gst_caps_unref)
-GST_FUNC(LIBGSTREAMER, gst_element_factory_get_klass)
-GST_FUNC(LIBGSTREAMER, gst_element_get_pad)
-GST_FUNC(LIBGSTREAMER, gst_event_parse_new_segment)
-GST_FUNC(LIBGSTREAMER, gst_mini_object_get_type)
-GST_FUNC(LIBGSTREAMER, gst_mini_object_new)
-GST_FUNC(LIBGSTREAMER, gst_pad_add_event_probe)
-GST_FUNC(LIBGSTREAMER, gst_pad_alloc_buffer)
-GST_FUNC(LIBGSTREAMER, gst_pad_get_negotiated_caps)
-GST_FUNC(LIBGSTREAMER, gst_pad_set_bufferalloc_function)
-GST_FUNC(LIBGSTREAMER, gst_plugin_feature_get_name)
-GST_FUNC(LIBGSTREAMER, gst_registry_get_default)
-GST_FUNC(LIBGSTREAMER, gst_segment_set_newsegment)
-GST_FUNC(LIBGSTVIDEO, gst_video_format_get_component_height)
-GST_FUNC(LIBGSTVIDEO, gst_video_format_get_component_offset)
-GST_FUNC(LIBGSTVIDEO, gst_video_format_get_component_width)
-GST_FUNC(LIBGSTVIDEO, gst_video_format_get_pixel_stride)
-GST_FUNC(LIBGSTVIDEO, gst_video_format_get_row_stride)
-GST_FUNC(LIBGSTVIDEO, gst_video_format_parse_caps)
-GST_FUNC(LIBGSTVIDEO, gst_video_parse_caps_pixel_aspect_ratio)
-#else
-
 GST_FUNC(LIBGSTAPP, gst_app_sink_pull_sample)
 GST_FUNC(LIBGSTREAMER, _gst_caps_any)
 GST_FUNC(LIBGSTREAMER, gst_allocator_get_type)
@@ -153,8 +127,6 @@ GST_FUNC(LIBGSTVIDEO, gst_video_meta_api_get_type)
 GST_FUNC(LIBGSTVIDEO, gst_video_meta_map)
 GST_FUNC(LIBGSTVIDEO, gst_video_meta_unmap)
 
-#endif
-
 /*
  * Functions that have been defined in the header file. We replace them so that
  * they don't try to use the global gstreamer functions.
@@ -163,11 +135,8 @@ GST_FUNC(LIBGSTVIDEO, gst_video_meta_unmap)
 REPLACE_FUNC(gst_buffer_ref);
 REPLACE_FUNC(gst_buffer_unref);
 REPLACE_FUNC(gst_message_unref);
-
-#if GST_VERSION_MAJOR == 1
 REPLACE_FUNC(gst_caps_unref);
 REPLACE_FUNC(gst_sample_unref);
-#endif
 #endif
 
 #endif // !defined(__APPLE__)

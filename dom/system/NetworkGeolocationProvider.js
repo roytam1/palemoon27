@@ -220,9 +220,20 @@ WifiGeoCoordsObject.prototype = {
   QueryInterface:  XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionCoords])
 };
 
-function WifiGeoPositionObject(lat, lng, acc) {
+function WifiGeoPositionObject(lat, lng, acc, cc, tz, zip, city, rc, region, country, isp, org, as) {
   this.coords = new WifiGeoCoordsObject(lat, lng, acc, 0, 0);
   this.address = null;
+  this.countrycode = cc;
+  this.timezone = tz;
+  this.zipcode = zip;
+  this.postalcode = zip;
+  this.city = city;
+  this.regioncode = rc;
+  this.region = region;
+  this.country = country;
+  this.isp = isp;
+  this.org = org;
+  this.as = as;
   this.timestamp = Date.now();
 }
 
@@ -495,32 +506,43 @@ WifiGeoPositionProvider.prototype = {
     this.notifyListener("locationUpdatePending");
 
     try {
-      xhr.open("POST", url, true);
+      xhr.open("GET", url, true);
     } catch (e) {
       this.notifyListener("notifyError",
                           [POSITION_UNAVAILABLE]);
       return;
     }
-    xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
     xhr.responseType = "json";
     xhr.mozBackgroundRequest = true;
     xhr.channel.loadFlags = Ci.nsIChannel.LOAD_ANONYMOUS;
+    
     xhr.onerror = (function() {
       this.notifyListener("notifyError",
                           [POSITION_UNAVAILABLE]);
     }).bind(this);
+    
     xhr.onload = (function() {
       LOG("server returned status: " + xhr.status + " --> " +  JSON.stringify(xhr.response));
       if ((xhr.channel instanceof Ci.nsIHttpChannel && xhr.status != 200) ||
-          !xhr.response || !xhr.response.location) {
+          !xhr.response || !xhr.response.location || xhr.response.status == 'fail') {
         this.notifyListener("notifyError",
                             [POSITION_UNAVAILABLE]);
         return;
       }
 
-      let newLocation = new WifiGeoPositionObject(xhr.response.location.lat,
-                                                  xhr.response.location.lng,
-                                                  xhr.response.accuracy);
+      let newLocation = new WifiGeoPositionObject(xhr.response.lat,
+                                                  xhr.response.lon,
+                                                  null, //accuracy not provided
+                                                  xhr.response.countryCode,
+                                                  xhr.response.timezone,
+                                                  xhr.response.zip,
+                                                  xhr.response.city,
+                                                  xhr.response.region,
+                                                  xhr.response.regionName,
+                                                  xhr.response.country,
+                                                  xhr.response.isp,
+                                                  xhr.response.org,
+                                                  xhr.response.as);
 
       this.notifyListener("update", [newLocation]);
       gCachedRequest = new CachedRequest(newLocation, data.cellTowers, data.wifiAccessPoints);

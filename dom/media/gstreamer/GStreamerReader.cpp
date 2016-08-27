@@ -10,9 +10,7 @@
 #include "AbstractMediaDecoder.h"
 #include "MediaResource.h"
 #include "GStreamerReader.h"
-#if GST_VERSION_MAJOR >= 1
 #include "GStreamerAllocator.h"
-#endif
 #include "GStreamerFormatHelper.h"
 #include "VideoUtils.h"
 #include "mozilla/dom/TimeRanges.h"
@@ -71,10 +69,8 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
   mDataOffset(0),
   mUseParserDuration(false),
   mLastParserDuration(-1),
-#if GST_VERSION_MAJOR >= 1
   mAllocator(nullptr),
   mBufferPool(nullptr),
-#endif
   mPlayBin(nullptr),
   mBus(nullptr),
   mSource(nullptr),
@@ -88,9 +84,7 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
   mGstThreadsMonitor("media.gst.threads"),
   mReachedAudioEos(false),
   mReachedVideoEos(false),
-#if GST_VERSION_MAJOR >= 1
   mConfigureAlignment(true),
-#endif
   fpsNum(0),
   fpsDen(0)
 {
@@ -102,12 +96,7 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
 
   mSinkCallbacks.eos = GStreamerReader::EosCb;
   mSinkCallbacks.new_preroll = GStreamerReader::NewPrerollCb;
-#if GST_VERSION_MAJOR >= 1
   mSinkCallbacks.new_sample = GStreamerReader::NewBufferCb;
-#else
-  mSinkCallbacks.new_buffer = GStreamerReader::NewBufferCb;
-  mSinkCallbacks.new_buffer_list = nullptr;
-#endif
 
   gst_segment_init(&mVideoSegment, GST_FORMAT_UNDEFINED);
   gst_segment_init(&mAudioSegment, GST_FORMAT_UNDEFINED);
@@ -123,18 +112,12 @@ nsresult GStreamerReader::Init(MediaDecoderReader* aCloneDonor)
 {
   GStreamerFormatHelper::Instance();
 
-#if GST_VERSION_MAJOR >= 1
   mAllocator = static_cast<GstAllocator*>(g_object_new(GST_TYPE_MOZ_GFX_MEMORY_ALLOCATOR, nullptr));
   moz_gfx_memory_allocator_set_reader(mAllocator, this);
 
   mBufferPool = static_cast<GstBufferPool*>(g_object_new(GST_TYPE_MOZ_GFX_BUFFER_POOL, nullptr));
-#endif
 
-#if GST_VERSION_MAJOR >= 1
   mPlayBin = gst_element_factory_make("playbin", nullptr);
-#else
-  mPlayBin = gst_element_factory_make("playbin2", nullptr);
-#endif
   if (!mPlayBin) {
     LOG(PR_LOG_ERROR, "couldn't create playbin");
     return NS_ERROR_FAILURE;
@@ -144,11 +127,7 @@ nsresult GStreamerReader::Init(MediaDecoderReader* aCloneDonor)
 
   mVideoSink = gst_parse_bin_from_description("capsfilter name=filter ! "
       "appsink name=videosink sync=false max-buffers=1 "
-#if GST_VERSION_MAJOR >= 1
       "caps=video/x-raw,format=I420"
-#else
-      "caps=video/x-raw-yuv,format=(fourcc)I420"
-#endif
       , TRUE, nullptr);
   mVideoAppSink = GST_APP_SINK(gst_bin_get_by_name(GST_BIN(mVideoSink),
         "videosink"));
@@ -200,10 +179,8 @@ GStreamerReader::Shutdown()
     mAudioAppSink = nullptr;
     gst_object_unref(mBus);
     mBus = nullptr;
-#if GST_VERSION_MAJOR >= 1
     g_object_unref(mAllocator);
     g_object_unref(mBufferPool);
-#endif
   }
 
   return MediaDecoderReader::Shutdown();
@@ -482,14 +459,8 @@ nsresult GStreamerReader::ReadMetadata(MediaInfo* aInfo,
   } else {
     LOG(PR_LOG_DEBUG, "querying duration");
     // Otherwise use the gstreamer duration.
-#if GST_VERSION_MAJOR >= 1
     if (gst_element_query_duration(GST_ELEMENT(mPlayBin),
           GST_FORMAT_TIME, &duration)) {
-#else
-    GstFormat format = GST_FORMAT_TIME;
-    if (gst_element_query_duration(GST_ELEMENT(mPlayBin),
-      &format, &duration) && format == GST_FORMAT_TIME) {
-#endif
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
       LOG(PR_LOG_DEBUG, "have duration %" GST_TIME_FORMAT, GST_TIME_ARGS(duration));
       duration = GST_TIME_AS_USECONDS (duration);
@@ -507,11 +478,7 @@ nsresult GStreamerReader::ReadMetadata(MediaInfo* aInfo,
   *aTags = nullptr;
 
   // Watch the pipeline for fatal errors
-#if GST_VERSION_MAJOR >= 1
   gst_bus_set_sync_handler(mBus, GStreamerReader::ErrorCb, this, nullptr);
-#else
-  gst_bus_set_sync_handler(mBus, GStreamerReader::ErrorCb, this);
-#endif
 
   /* set the pipeline to PLAYING so that it starts decoding and queueing data in
    * the appsinks */
@@ -528,14 +495,8 @@ GStreamerReader::IsMediaSeekable()
   }
 
   gint64 duration;
-#if GST_VERSION_MAJOR >= 1
   if (gst_element_query_duration(GST_ELEMENT(mPlayBin), GST_FORMAT_TIME,
                                  &duration)) {
-#else
-  GstFormat format = GST_FORMAT_TIME;
-  if (gst_element_query_duration(GST_ELEMENT(mPlayBin), &format, &duration) &&
-      format == GST_FORMAT_TIME) {
-#endif
     return true;
   }
 
@@ -561,9 +522,7 @@ nsresult GStreamerReader::CheckSupportedFormats()
     switch(res) {
       case GST_ITERATOR_OK:
       {
-#if GST_VERSION_MAJOR >= 1
         element = GST_ELEMENT (g_value_get_object (&value));
-#endif
         GstElementFactory* factory = gst_element_get_factory(element);
         if (factory) {
           const char* klass = gst_element_factory_get_klass(factory);
@@ -571,11 +530,7 @@ nsresult GStreamerReader::CheckSupportedFormats()
           if (pad) {
             GstCaps* caps;
 
-#if GST_VERSION_MAJOR >= 1
             caps = gst_pad_get_current_caps(pad);
-#else
-            caps = gst_pad_get_negotiated_caps(pad);
-#endif
 
             if (caps) {
               /* check for demuxers but ignore elements like id3demux */
@@ -590,11 +545,7 @@ nsresult GStreamerReader::CheckSupportedFormats()
           }
         }
 
-#if GST_VERSION_MAJOR >= 1
         g_value_unset (&value);
-#else
-        gst_object_unref(element);
-#endif
         done = unsupported;
         break;
       }
@@ -632,9 +583,7 @@ nsresult GStreamerReader::ResetDecode()
   mAudioSinkBufferCount = 0;
   mReachedAudioEos = false;
   mReachedVideoEos = false;
-#if GST_VERSION_MAJOR >= 1
   mConfigureAlignment = true;
-#endif
 
   LOG(PR_LOG_DEBUG, "reset decode done");
 
@@ -676,13 +625,9 @@ bool GStreamerReader::DecodeAudioData()
       }
     }
 
-#if GST_VERSION_MAJOR >= 1
     GstSample *sample = gst_app_sink_pull_sample(mAudioAppSink);
     buffer = gst_buffer_ref(gst_sample_get_buffer(sample));
     gst_sample_unref(sample);
-#else
-    buffer = gst_app_sink_pull_buffer(mAudioAppSink);
-#endif
 
     mAudioSinkBufferCount--;
   }
@@ -717,9 +662,7 @@ bool GStreamerReader::DecodeAudioData()
                        GstCopy(data,
                                size,
                                mInfo.mAudio.mChannels));
-#if GST_VERSION_MAJOR >= 1
   gst_buffer_unmap(buffer, &info);
-#endif
 
   gst_buffer_unref(buffer);
 
@@ -764,13 +707,9 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
 
     mDecoder->NotifyDecodedFrames(0, 1, 0);
 
-#if GST_VERSION_MAJOR >= 1
     GstSample *sample = gst_app_sink_pull_sample(mVideoAppSink);
     buffer = gst_buffer_ref(gst_sample_get_buffer(sample));
     gst_sample_unref(sample);
-#else
-    buffer = gst_app_sink_pull_buffer(mVideoAppSink);
-#endif
     mVideoSinkBufferCount--;
   }
 
@@ -811,7 +750,6 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
     /* no more frames */
     return true;
 
-#if GST_VERSION_MAJOR >= 1
   if (mConfigureAlignment && buffer->pool) {
     GstStructure *config = gst_buffer_pool_get_config(buffer->pool);
     GstVideoAlignment align;
@@ -820,7 +758,6 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
     gst_structure_free(config);
     mConfigureAlignment = false;
   }
-#endif
 
   nsRefPtr<PlanarYCbCrImage> image = GetImageFromBuffer(buffer);
   if (!image) {
@@ -878,9 +815,6 @@ nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered)
     return NS_OK;
   }
 
-#if GST_VERSION_MAJOR == 0
-  GstFormat format = GST_FORMAT_TIME;
-#endif
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
   nsTArray<MediaByteRange> ranges;
   resource->GetCachedRanges(ranges);
@@ -906,21 +840,12 @@ nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered)
     int64_t endOffset = ranges[index].mEnd;
     gint64 startTime, endTime;
 
-#if GST_VERSION_MAJOR >= 1
     if (!gst_element_query_convert(GST_ELEMENT(mPlayBin), GST_FORMAT_BYTES,
       startOffset, GST_FORMAT_TIME, &startTime))
       continue;
     if (!gst_element_query_convert(GST_ELEMENT(mPlayBin), GST_FORMAT_BYTES,
       endOffset, GST_FORMAT_TIME, &endTime))
       continue;
-#else
-    if (!gst_element_query_convert(GST_ELEMENT(mPlayBin), GST_FORMAT_BYTES,
-      startOffset, &format, &startTime) || format != GST_FORMAT_TIME)
-      continue;
-    if (!gst_element_query_convert(GST_ELEMENT(mPlayBin), GST_FORMAT_BYTES,
-      endOffset, &format, &endTime) || format != GST_FORMAT_TIME)
-      continue;
-#endif
 
     double start = (double) GST_TIME_AS_USECONDS (startTime) / GST_MSECOND;
     double end = (double) GST_TIME_AS_USECONDS (endTime) / GST_MSECOND;
@@ -941,13 +866,9 @@ void GStreamerReader::ReadAndPushData(guint aLength)
   nsresult rv = NS_OK;
 
   GstBuffer* buffer = gst_buffer_new_and_alloc(aLength);
-#if GST_VERSION_MAJOR >= 1
   GstMapInfo info;
   gst_buffer_map(buffer, &info, GST_MAP_WRITE);
   guint8 *data = info.data;
-#else
-  guint8* data = GST_BUFFER_DATA(buffer);
-#endif
   uint32_t size = 0, bytesRead = 0;
   while(bytesRead < aLength) {
     rv = resource->Read(reinterpret_cast<char*>(data + bytesRead),
@@ -961,12 +882,8 @@ void GStreamerReader::ReadAndPushData(guint aLength)
   int64_t offset2 = resource->Tell();
   unused << offset2;
 
-#if GST_VERSION_MAJOR >= 1
   gst_buffer_unmap(buffer, &info);
   gst_buffer_set_size(buffer, bytesRead);
-#else
-  GST_BUFFER_SIZE(buffer) = bytesRead;
-#endif
 
   GstFlowReturn ret = gst_app_src_push_buffer(mSource, gst_buffer_ref(buffer));
   if (ret != GST_FLOW_OK) {
@@ -1073,11 +990,7 @@ void GStreamerReader::AudioPreroll()
   /* The first audio buffer has reached the audio sink. Get rate and channels */
   LOG(PR_LOG_DEBUG, "Audio preroll");
   GstPad* sinkpad = gst_element_get_static_pad(GST_ELEMENT(mAudioAppSink), "sink");
-#if GST_VERSION_MAJOR >= 1
   GstCaps *caps = gst_pad_get_current_caps(sinkpad);
-#else
-  GstCaps* caps = gst_pad_get_negotiated_caps(sinkpad);
-#endif
   GstStructure* s = gst_caps_get_structure(caps, 0);
   mInfo.mAudio.mRate = mInfo.mAudio.mChannels = 0;
   gst_structure_get_int(s, "rate", (gint*) &mInfo.mAudio.mRate);
@@ -1097,7 +1010,6 @@ void GStreamerReader::VideoPreroll()
   LOG(PR_LOG_DEBUG, "Video preroll");
   GstPad* sinkpad = gst_element_get_static_pad(GST_ELEMENT(mVideoAppSink), "sink");
   int PARNumerator, PARDenominator;
-#if GST_VERSION_MAJOR >= 1
   GstCaps* caps = gst_pad_get_current_caps(sinkpad);
   memset (&mVideoInfo, 0, sizeof (mVideoInfo));
   gst_video_info_from_caps(&mVideoInfo, caps);
@@ -1106,14 +1018,6 @@ void GStreamerReader::VideoPreroll()
   mPicture.height = mVideoInfo.height;
   PARNumerator = GST_VIDEO_INFO_PAR_N(&mVideoInfo);
   PARDenominator = GST_VIDEO_INFO_PAR_D(&mVideoInfo);
-#else
-  GstCaps* caps = gst_pad_get_negotiated_caps(sinkpad);
-  gst_video_format_parse_caps(caps, &mFormat, &mPicture.width, &mPicture.height);
-  if (!gst_video_parse_caps_pixel_aspect_ratio(caps, &PARNumerator, &PARDenominator)) {
-    PARNumerator = 1;
-    PARDenominator = 1;
-  }
-#endif
   NS_ASSERTION(mPicture.width && mPicture.height, "invalid video resolution");
 
   // Calculate display size according to pixel aspect ratio.
@@ -1322,7 +1226,6 @@ void GStreamerReader::NotifyDataArrived(const char *aBuffer,
   }
 }
 
-#if GST_VERSION_MAJOR >= 1
 GstCaps* GStreamerReader::BuildAudioSinkCaps()
 {
   GstCaps* caps = gst_caps_from_string("audio/x-raw, channels={1,2}");
@@ -1513,7 +1416,6 @@ void GStreamerReader::CopyIntoImageBuffer(GstBuffer* aBuffer,
       (GstBufferCopyFlags)(GST_BUFFER_COPY_METADATA), 0, -1);
   image = GetImageFromBuffer(*aOutBuffer);
 }
-#endif
 
 } // namespace mozilla
 

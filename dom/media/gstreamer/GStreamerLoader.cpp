@@ -41,9 +41,7 @@ void gst_buffer_unref_impl(GstBuffer *buf);
 void gst_message_unref_impl(GstMessage *msg);
 void gst_caps_unref_impl(GstCaps *caps);
 
-#if GST_VERSION_MAJOR == 1
 void gst_sample_unref_impl(GstSample *sample);
-#endif
 
 bool
 load_gstreamer()
@@ -128,13 +126,11 @@ gst_message_unref_impl(GstMessage *msg)
   gst_mini_object_unref(GST_MINI_OBJECT_CAST(msg));
 }
 
-#if GST_VERSION_MAJOR == 1
 void
 gst_sample_unref_impl(GstSample *sample)
 {
   gst_mini_object_unref(GST_MINI_OBJECT_CAST(sample));
 }
-#endif
 
 void
 gst_caps_unref_impl(GstCaps *caps)

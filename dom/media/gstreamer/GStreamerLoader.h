@@ -22,10 +22,8 @@
 #include <gst/video/video.h>
 #pragma GCC diagnostic pop
 
-#if GST_VERSION_MAJOR == 1
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
-#endif
 
 namespace mozilla {
 

@@ -513,12 +513,8 @@ nsresult GStreamerReader::CheckSupportedFormats()
     GstIteratorResult res;
     GstElement* element;
 
-#if GST_VERSION_MAJOR >= 1
     GValue value = {0,};
     res = gst_iterator_next(it, &value);
-#else
-    res = gst_iterator_next(it, (void **) &element);
-#endif
     switch(res) {
       case GST_ITERATOR_OK:
       {
@@ -642,15 +638,10 @@ bool GStreamerReader::DecodeAudioData()
 
   int64_t offset = GST_BUFFER_OFFSET(buffer);
   guint8* data;
-#if GST_VERSION_MAJOR >= 1
   GstMapInfo info;
   gst_buffer_map(buffer, &info, GST_MAP_READ);
   unsigned int size = info.size;
   data = info.data;
-#else
-  unsigned int size = GST_BUFFER_SIZE(buffer);
-  data = GST_BUFFER_DATA(buffer);
-#endif
   int32_t frames = (size / sizeof(AudioDataValue)) / mInfo.mAudio.mChannels;
 
   typedef AudioCompactor::NativeCopy GstCopy;

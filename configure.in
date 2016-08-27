@@ -5580,30 +5580,18 @@ WINNT|Darwin|Android)
     ;;
 *)
     MOZ_GSTREAMER=1
-    GST_API_VERSION=0.10
     ;;
 esac
 
-MOZ_ARG_ENABLE_STRING(gstreamer,
-[  --enable-gstreamer[=0.10]           Enable GStreamer support],
-[ MOZ_GSTREAMER=1
-  # API version, eg 0.10, 1.0 etc
-  if test -z "$enableval" -o "$enableval" = "yes"; then
-    GST_API_VERSION=0.10
-  elif test "$enableval" = "no"; then
-    MOZ_GSTREAMER=
-  else
-    GST_API_VERSION=$enableval
-  fi],
-)
+MOZ_ARG_ENABLE_BOOL(gstreamer,
+[ --enable-gstreamer                  Enable GStreamer support],
+MOZ_GSTREAMER=1,
+MOZ_GSTREAMER=)
 
-if test -n "$MOZ_GSTREAMER"; then
+if test "$MOZ_GSTREAMER"; then
+    GST_API_VERSION=1.0
     # core/base release number
-    if test "$GST_API_VERSION" = "1.0"; then
       GST_VERSION=1.0
-    else
-      GST_VERSION=0.10.25
-    fi
 
     PKG_CHECK_MODULES(GSTREAMER,
                       gstreamer-$GST_API_VERSION >= $GST_VERSION

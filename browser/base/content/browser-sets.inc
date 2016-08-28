@@ -95,6 +95,8 @@
     <command id="Tools:DevToolbox" oncommand="gDevToolsBrowser.toggleToolboxCommand(gBrowser);"/>
     <command id="Tools:DevToolbar" oncommand="DeveloperToolbar.toggle();" disabled="true" hidden="true"/>
     <command id="Tools:DevToolbarFocus" oncommand="DeveloperToolbar.focusToggle();" disabled="true"/>
+    <command id="Tools:DevAppMgr" oncommand="gDevToolsBrowser.openAppManager(gBrowser);" disabled="true" hidden="true"/>
+    <command id="Tools:WebIDE" oncommand="gDevToolsBrowser.openWebIDE();" disabled="true" hidden="true"/>
     <command id="Tools:ChromeDebugger" oncommand="BrowserDebuggerProcess.init();" disabled="true" hidden="true"/>
     <command id="Tools:BrowserConsole" oncommand="HUDService.openBrowserConsoleOrFocus();"/>
     <command id="Tools:Scratchpad" oncommand="Scratchpad.openScratchpad();" disabled="true" hidden="true"/>
@@ -178,6 +180,13 @@
                  type="checkbox" autocheck="false"
                  command="Tools:DevToolbar"
                  key="key_devToolbar"/>
+    <broadcaster id="devtoolsMenuBroadcaster_DevAppMgr"
+                 label="&devAppMgrMenu.label;"
+                 command="Tools:DevAppMgr"/>
+    <broadcaster id="devtoolsMenuBroadcaster_webide"
+                 label="&webide.label;"
+                 command="Tools:WebIDE"
+                 key="key_webide"/>
     <broadcaster id="devtoolsMenuBroadcaster_ChromeDebugger"
                  label="&chromeDebuggerMenu.label;"
                  command="Tools:ChromeDebugger"/>

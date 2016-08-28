@@ -2776,10 +2776,12 @@ let SessionStoreInternal = {
     this.restoreHistoryPrecursor(aWindow, tabs, winData.tabs,
       (aOverwriteTabs ? (parseInt(winData.selected) || 1) : 0), 0, 0);
 
+#ifdef MOZ_DEVTOOLS
     if (aState.scratchpads) {
       ScratchpadManager.restoreSession(aState.scratchpads);
     }
 
+#endif
     // set smoothScroll back to the original value
     tabstrip.smoothScroll = smoothScroll;
 

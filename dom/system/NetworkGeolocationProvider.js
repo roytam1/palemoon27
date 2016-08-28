@@ -524,7 +524,7 @@ WifiGeoPositionProvider.prototype = {
     xhr.onload = (function() {
       LOG("server returned status: " + xhr.status + " --> " +  JSON.stringify(xhr.response));
       if ((xhr.channel instanceof Ci.nsIHttpChannel && xhr.status != 200) ||
-          !xhr.response || !xhr.response.location || xhr.response.status == 'fail') {
+          !xhr.response || !xhr.response.status || xhr.response.status == 'fail') {
         this.notifyListener("notifyError",
                             [POSITION_UNAVAILABLE]);
         return;

@@ -26,8 +26,9 @@ MOZ_WEBM_ENCODER=1
 
 MOZ_PHOENIX_EXTENSIONS=1
 
-#Switched off because they will need to be upgraded
+#Enabled by default on desktop.
 MOZ_DEVTOOLS=1
+
 # MOZ_APP_DISPLAYNAME will be set by branding/configure.sh
 # Changing MOZ_*BRANDING_DIRECTORY requires a clobber to ensure correct results,
 # because branding dependencies are broken.

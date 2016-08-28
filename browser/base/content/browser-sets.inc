@@ -99,6 +99,7 @@
     <command id="Tools:BrowserConsole" oncommand="HUDService.openBrowserConsoleOrFocus();"/>
     <command id="Tools:Scratchpad" oncommand="Scratchpad.openScratchpad();" disabled="true" hidden="true"/>
     <command id="Tools:ResponsiveUI" oncommand="ResponsiveUI.toggle();" disabled="true" hidden="true"/>
+    <command id="Tools:Eyedropper" oncommand="openEyedropper();"/>
 #endif
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
     <command id="Tools:ErrorConsole" oncommand="toJavaScriptConsole()" disabled="true" hidden="true"/>
@@ -193,6 +194,10 @@
                  type="checkbox" autocheck="false"
                  command="Tools:ResponsiveUI"
                  key="key_responsiveUI"/>
+    <broadcaster id="devtoolsMenuBroadcaster_Eyedropper"
+                 label="&eyedropper.label;"
+                 type="checkbox" autocheck="false"
+                 command="Tools:Eyedropper"/>
 #endif
     <broadcaster id="devtoolsMenuBroadcaster_PageSource"
                  label="&pageSourceCmd.label;"

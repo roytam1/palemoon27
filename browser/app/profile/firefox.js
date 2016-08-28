@@ -1083,6 +1083,7 @@ pref("devtools.inspector.showAllAnonymousContent", false);
 pref("devtools.defaultColorUnit", "hex");
 
 // Enable the Responsive UI tool
+pref("devtools.responsiveUI.enabled", false);
 pref("devtools.responsiveUI.no-reload-notification", false);
 
 // Enable the Debugger
@@ -1158,6 +1159,7 @@ pref("devtools.tilt.outro_transition", true);
 // - showTrailingSpace: Whether to highlight trailing space or not.
 // - enableCodeFolding: Whether to enable code folding or not.
 // - enableAutocompletion: Whether to enable JavaScript autocompletion.
+pref("devtools.scratchpad.enabled", true);
 pref("devtools.scratchpad.recentFilesMax", 10);
 pref("devtools.scratchpad.showTrailingSpace", false);
 pref("devtools.scratchpad.enableAutocompletion", true);

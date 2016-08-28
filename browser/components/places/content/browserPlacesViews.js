@@ -955,7 +955,7 @@ PlacesToolbar.prototype = {
     else {
       button = document.createElement("toolbarbutton");
       button.className = "bookmark-item";
-      button.setAttribute("label", aChild.title);
+      button.setAttribute("label", aChild.title || "");
       let icon = aChild.icon;
       if (icon)
         button.setAttribute("image", icon);

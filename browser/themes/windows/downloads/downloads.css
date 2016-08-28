@@ -20,8 +20,14 @@
 
 #downloadsHistory {
   background: transparent;
-  color: -moz-nativehyperlinktext;
   cursor: pointer;
+}
+
+@media (-moz-os-version: windows-vista),
+       (-moz-os-version: windows-win7) {
+  #downloadsHistory {
+    color: -moz-nativehyperlinktext;
+  }
 }
 
 #downloadsPanel[keyfocus] > #downloadsFooter > #downloadsHistory:focus {
@@ -34,12 +40,37 @@
   margin: 1em;
 }
 
-@media (-moz-windows-default-theme) {
-  #downloadsPanel[hasdownloads] > #downloadsFooter {
-    background-color: #f1f5fb;
-    box-shadow: 0px 1px 2px rgb(204,214,234) inset;
-    border-bottom-left-radius: 3px;
-    border-bottom-right-radius: 3px;
+#downloadsPanel[hasdownloads] > #downloadsFooter {
+  background-color: hsla(210,4%,10%,.04);
+  box-shadow: 0 1px 0 hsla(210,4%,10%,.08) inset;
+  transition-duration: 150ms;
+  transition-property: background-color;
+}
+
+#downloadsPanel[hasdownloads] > #downloadsFooter:hover {
+  background-color: hsla(210,4%,10%,.05);
+}
+
+#downloadsPanel[hasdownloads] > #downloadsFooter:hover:active {
+  background-color: hsla(210,4%,10%,.1);
+  box-shadow: 0 2px 0 0 hsla(210,4%,10%,.1) inset;
+}
+
+@media (-moz-os-version: windows-vista),
+       (-moz-os-version: windows-win7) {
+  @media (-moz-windows-default-theme) {
+    #downloadsPanel[hasdownloads] > #downloadsFooter {
+      border-bottom-left-radius: 3px;
+      border-bottom-right-radius: 3px;
+      transition-duration: 0s;
+    }
+
+    #downloadsPanel[hasdownloads] > #downloadsFooter,
+    #downloadsPanel[hasdownloads] > #downloadsFooter:hover,
+    #downloadsPanel[hasdownloads] > #downloadsFooter:hover:active {
+      background-color: #f1f5fb;
+      box-shadow: 0px 1px 2px rgb(204,214,234) inset;
+    }
   }
 }
 
@@ -79,7 +110,8 @@ richlistitem[type="download"] {
   padding: 8px;
 }
 
-@media (-moz-windows-default-theme) {
+@media (-moz-windows-default-theme) and (-moz-os-version: windows-vista),
+       (-moz-windows-default-theme) and (-moz-os-version: windows-win7) {
   richlistitem[type="download"] {
     border: 1px solid transparent;
     border-bottom: 1px solid hsl(213,40%,90%);
@@ -170,15 +202,38 @@ richlistitem[type="download"]:first-child {
 /*** Highlighted list items ***/
 
 #downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"][exists]:hover {
-  border-radius: 3px;
-  border-top: 1px solid hsla(0,0%,100%,.2);
-  border-bottom: 1px solid hsla(0,0%,0%,.2);
-  background-color: Highlight;
-  color: HighlightText;
+  background-color: hsla(210,4%,10%,.08);
+  outline: 1px solid hsla(210,4%,10%,.1);
+  outline-offset: -1px;
   cursor: pointer;
 }
 
-@media (-moz-windows-default-theme) {
+#downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"][exists]:hover:active {
+  background-color: hsla(210,4%,10%,.15);
+  outline: 1px solid hsla(210,4%,10%,.15);
+  box-shadow: 0 1px 0 0 hsla(210,4%,10%,.05) inset;
+}
+
+@media (-moz-os-version: windows-vista),
+       (-moz-os-version: windows-win7) {
+  #downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"][exists]:hover {
+    border-radius: 3px;
+    outline: 0;
+    border-top: 1px solid hsla(0,0%,100%,.2);
+    border-bottom: 1px solid hsla(0,0%,0%,.2);
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  #downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"][exists]:hover:active {
+    background-color: Highlight;
+    outline: 0;
+    box-shadow: none;
+  }
+}
+
+@media (-moz-windows-default-theme) and (-moz-os-version: windows-vista),
+       (-moz-windows-default-theme) and (-moz-os-version: windows-win7) {
   #downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"][exists]:hover {
     border: 1px solid hsl(213,45%,65%);
     box-shadow: 0 0 0 1px hsla(0,0%,100%,.5) inset,

@@ -96,7 +96,8 @@ richlistitem.download:hover > .downloadButton.downloadRetry:active {
   -moz-image-region: rect(32px, 64px, 48px, 48px);
 }
 
-@media (-moz-windows-default-theme) {
+@media (-moz-os-version: windows-vista) and (-moz-windows-default-theme),
+       (-moz-os-version: windows-win7) and (-moz-windows-default-theme) {
   /*
   -moz-appearance: menuitem is almost right, but the hover effect is not
   transparent and is lighter than desired.

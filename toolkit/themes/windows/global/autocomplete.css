@@ -40,11 +40,12 @@ panel[type="autocomplete-richlistbox"],
 .autocomplete-history-popup {
   -moz-appearance: none;
   border-width: 1px;
-  -moz-border-top-colors: ThreeDDarkShadow;
-  -moz-border-right-colors: ThreeDDarkShadow;
-  -moz-border-bottom-colors: ThreeDDarkShadow;
-  -moz-border-left-colors: ThreeDDarkShadow;
+  -moz-border-top-colors: ThreeDShadow;
+  -moz-border-right-colors: ThreeDShadow;
+  -moz-border-bottom-colors: ThreeDShadow;
+  -moz-border-left-colors: ThreeDShadow;
   padding: 0;
+  color: -moz-FieldText;
   background-color: -moz-Field;
 }
 
@@ -106,11 +107,8 @@ treechildren.autocomplete-treebody::-moz-tree-cell-text(selected) {
 }
 
 %ifdef XP_WIN
-@media (-moz-windows-default-theme) {
-  /*
-  -moz-appearance: menuitem is almost right, but the hover effect is not
-  transparent and is lighter than desired.
-  */
+@media (-moz-os-version: windows-vista) and (-moz-windows-default-theme),
+       (-moz-os-version: windows-win7) and (-moz-windows-default-theme) {
   .autocomplete-richlistitem[selected="true"] {
     color: inherit;
     background-color: transparent;
@@ -227,4 +225,3 @@ toolbarpaletteitem > toolbaritem > textbox > hbox > hbox > html|*.textbox-input 
 toolbarpaletteitem > toolbaritem > * > textbox > hbox > hbox > html|*.textbox-input {
   visibility: hidden;
 }
-

@@ -270,26 +270,6 @@ richlistitem[type="download"]:hover > stack > .downloadButton.downloadShow:hover
 richlistitem[type="download"]:hover > stack > .downloadButton.downloadShow:active {
   -moz-image-region: rect(16px, 64px, 32px, 48px);
 }
-%ifndef WINDOWS_AERO
-#downloadsPanel[keyfocus] > #downloadsListBox > richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow {
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
-}
-#downloadsPanel[keyfocus] > #downloadsListBox > richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow:hover {
-  -moz-image-region: rect(16px, 48px, 32px, 32px);
-}
-#downloadsPanel[keyfocus] > #downloadsListBox > richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow:active {
-  -moz-image-region: rect(16px, 64px, 32px, 48px);
-}
-#downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow {
-  -moz-image-region: rect(16px, 96px, 32px, 80px);
-}
-#downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow:hover {
-  -moz-image-region: rect(16px, 112px, 32px, 96px);
-}
-#downloadsPanel:not([keyfocus]) > #downloadsListBox > richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow:active {
-  -moz-image-region: rect(16px, 128px, 32px, 112px);
-}
-%endif
 
 .downloadButton.downloadRetry {
   -moz-image-region: rect(32px, 16px, 48px, 0px);

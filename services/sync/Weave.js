@@ -102,7 +102,7 @@ WeaveService.prototype = {
    *
    * @return bool
    *
-   * This functions is currently always returning false because we don't support
+   * This function is currently always returning false because we don't support
    * the use of FxA/Sync-1.5 but do want to keep the code "just in case".
    */
   get fxAccountsEnabled() {

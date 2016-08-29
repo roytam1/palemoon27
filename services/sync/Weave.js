@@ -101,8 +101,14 @@ WeaveService.prototype = {
    * Whether Firefox Accounts is enabled.
    *
    * @return bool
+   *
+   * This functions is currently always returning false because we don't support
+   * the use of FxA/Sync-1.5 but do want to keep the code "just in case".
    */
   get fxAccountsEnabled() {
+    // Early exit: FxA not supported.
+    return false;
+    
     try {
       // Old sync guarantees '@' will never appear in the username while FxA
       // uses the FxA email address - so '@' is the flag we use.

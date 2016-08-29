@@ -124,7 +124,6 @@
 #appmenu-button {
   -moz-appearance: none;
   background-clip: padding-box;
-  border-radius: 0 0 4px 4px;
   border: 1px solid;
   border-top: none;
   color: white;
@@ -133,6 +132,13 @@
   font-weight: bold;
   padding: 0 1.5em .05em;
   margin: 0 0 2px;
+}
+
+@media (-moz-os-version: windows-vista),
+       (-moz-os-version: windows-win7) {
+  #appmenu-button {
+    border-radius: 0 0 4px 4px;
+  }
 }
 
 @media (-moz-windows-classic) {

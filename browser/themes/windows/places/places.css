@@ -25,11 +25,6 @@
 }
 
 @media (-moz-windows-default-theme) {
-  #bookmarksPanel,
-  #history-panel {
-    background-color: #EEF3FA;
-  }
-
   .sidebar-placesTree {
     background-color: transparent;
     border-top: none;
@@ -37,6 +32,14 @@
 
   .sidebar-placesTreechildren::-moz-tree-cell-text(leaf, hover) {
     text-decoration: none;
+  }
+
+  @media (-moz-os-version: windows-vista),
+         (-moz-os-version: windows-win7) {
+    #bookmarksPanel,
+    #history-panel {
+      background-color: #EEF3FA;
+    }
   }
 }
 

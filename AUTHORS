@@ -4,7 +4,12 @@ here, you may add your name and, optionally, email address in the
 appropriate place.
 
 For a full list of the people who are credited with making a
-contribution to Mozilla, see http://www.mozilla.org/credits/ .
+contribution to Mozilla, see http://www.mozilla.org/credits/
+
+This list contains additional credits of people who have contributed
+to this Mozilla fork and that are not listed on the abovementioned
+credits page. Both resources should be considered when assessing
+full credit for the code base which lives in this repository.
 
 <1010mozilla@Ostermiller.com>
 Aaron Boodman <aa@google.com>
@@ -649,6 +654,7 @@ Mark Mentovai <mark@moxienet.com>
 Mark Pilgrim <pilgrim@gmail.com>
 Mark Smith <mcs@pearlcrescent.com>
 Mark Steele <mwsteele@gmail.com>
+Mark Straver <moonchild@palemoon.org>
 Markus G. Kuhn <mkuhn@acm.org>
 Markus Stange <mstange@themasta.com>
 Martijn Pieters <mj@digicool.com>

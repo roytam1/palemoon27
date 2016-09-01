@@ -30,6 +30,7 @@
 #include "nsBMPDecoder.h"
 #include "nsICODecoder.h"
 #include "nsIconDecoder.h"
+#include "nsWEBPDecoder.h"
 
 #include "gfxContext.h"
 
@@ -1339,6 +1340,9 @@ RasterImage::CreateDecoder(const Maybe<nsIntSize>& aSize, uint32_t aFlags)
       break;
     case eDecoderType_icon:
       decoder = new nsIconDecoder(this);
+      break;
+    case eDecoderType_webp:
+      decoder = new nsWEBPDecoder(this);
       break;
     default:
       MOZ_ASSERT_UNREACHABLE("Unknown decoder type");

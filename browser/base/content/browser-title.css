@@ -124,28 +124,9 @@
 }
 
 
-/* Windows XP Blue/Olive */
+/* Generic other themes */
 
-@media all and (-moz-windows-theme: luna-blue), all and (-moz-windows-theme: luna-olive) {
-
-  #main-window::after {
-    font-family: trebuchet MS;
-    font-size: 13px;
-    text-shadow: 1px 1px rgba(0, 0, 0, .6);
-    top: -9px;
-    background-position: 2px 17px;
-  }
-
-  #main-window:-moz-window-inactive::after {
-    text-shadow: none;
-  }
-
-}
-
-
-/* Windows XP Silver, Royale, Zune, generic other themes */
-
-@media all and (-moz-windows-theme: luna-silver), all and (-moz-windows-theme: royale), all and (-moz-windows-theme: zune), all and (-moz-windows-theme: generic) {
+@media all and (-moz-windows-theme: generic) {
 
   #main-window::after {
     font-family: trebuchet MS;

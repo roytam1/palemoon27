@@ -1,8 +1,15 @@
-#Pale Moon "Tycho" web browser
+#Pale Moon web browser
 
-Re-base of the Pale Moon web-browser, code-named "Tycho".  
-This is a work in progress, currently at the alpha stage of development.  
+This is the source code for the Pale Moon web browser, an independent
+browser derived from Firefox/Mozilla community code. The source tree is
+mostly laid out like Mozilla-based products.
 
-**Important**: This repo is kept for commit history. Any contributions
-to this code should be made to the main Pale Moon repository in the
-appropriate branch(es)
+An explanation of the Mozilla Source Code Directory Structure and links to
+project pages with documentation can be found at:
+
+https://developer.mozilla.org/en/Mozilla_Source_Code_Directory_Structure
+
+For information on how to build Pale Moon yourself from this source code, see:
+
+http://forum.palemoon.org/viewtopic.php?f=19&t=4166
+

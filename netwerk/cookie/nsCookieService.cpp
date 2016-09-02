@@ -2879,8 +2879,16 @@ nsCookieService::SetCookieInternal(nsIURI                        *aHostURI,
     return newCookie;
   }
 
-  if (cookieAttributes.name.FindChar('\t') != kNotFound) {
-    COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, savedCookieHeader, "invalid name character");
+  // Note: For now we allow 0x20 (Space) in cookie names.
+  // Some websites apparently use cookie names with spaces in them, and the RFC
+  // doesn't exactly specify what to do in that case, so it's better to keep
+  // wider compatibility.
+  const char illegalNameCharacters[] = { 
+      0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+      0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+      0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, /* 0x20, */ 0x00 };
+  if (cookieAttributes.name.FindCharInSet(illegalNameCharacters, 0) != -1) {
+    COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, savedCookieHeader, "invalid cookie name character");
     return newCookie;
   }
 
@@ -2891,6 +2899,31 @@ nsCookieService::SetCookieInternal(nsIURI                        *aHostURI,
   }
   if (!CheckPath(cookieAttributes, aHostURI)) {
     COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, savedCookieHeader, "failed the path tests");
+    return newCookie;
+  }
+
+  // Reject cookie if value contains an RFC 6265 disallowed character.
+  // See RFC 6265 section 4.1.1
+  // XXX: For now we allow for web compatibility (see issue #357):
+  // 0x20 (Space)
+  // 0x22 (DQUOTE)
+  // 0x2C (Comma)
+  // 0x5C (Backslash)
+  //
+  // FIXME: Before removing DQUOTE from the exceptions list:
+  // DQUOTE *cookie-octet DQUOTE is permitted and would fail if just removed.
+  // This needs better checking for first and last character allowing
+  // DQUOTE but not in the actual value.
+  //
+  // This only applies to cookies set via the Set-Cookie header, since
+  // document.cookie is defined to be UTF-8.
+  const char illegalCharacters[] = { 
+      0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+      0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+      0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, /* 0x20, 0x22, */
+      /* 0x2C, */ 0x3B, /* 0x5C, */ 0x7F, 0x00 };
+  if (aFromHttp && (cookieAttributes.value.FindCharInSet(illegalCharacters, 0) != -1)) {
+    COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, savedCookieHeader, "illegal character in cookie");
     return newCookie;
   }
 

@@ -1465,16 +1465,6 @@ html|*.urlbar-input:-moz-lwtheme::-moz-placeholder,
   background-position: left;
 }
 
-#identity-box.verifiedIdentity:not(:-moz-lwtheme) {
-  background-color: rgb(224,247,224);
-  box-shadow: inset 0 0 1px rgb(0,168,0);
-}
-
-#identity-box.verifiedDomain:not(:-moz-lwtheme) {
-  background-color: rgb(224,234,247);
-  box-shadow: inset 0 0 1px rgb(0,79,168);
-}
-
 #identity-box:-moz-focusring {
   outline: 1px dotted #000;
   outline-offset: -3px;
@@ -1489,30 +1479,46 @@ html|*.urlbar-input:-moz-lwtheme::-moz-placeholder,
 
 #urlbar[https_color="all"][security_level="broken"],
 #urlbar[https_color="all"][security_level="low"] {
-  box-shadow: inset 0 0 4px rgb(168,0,0);
+  box-shadow: inset 0 0 2px rgb(168,0,0);
 }
 
 #urlbar[https_color="all"][security_level="mixed"],
 #urlbar[https_color="secure-mixed"][security_level="mixed"] {
-  box-shadow: inset 0 0 4px rgb(168,79,0);
+  box-shadow: inset 0 0 2px rgb(168,79,0);
 }
 
 #urlbar[https_color="all"][security_level="high"],
 #urlbar[https_color="secure-mixed"][security_level="high"],
 #urlbar[https_color="secure-only"][security_level="high"] {
-  box-shadow: inset 0 0 4px rgb(0,79,168);
+  box-shadow: inset 0 0 2px rgb(0,79,168);
 }
 
 #urlbar[https_color="all"][security_level="ev"],
 #urlbar[https_color="secure-mixed"][security_level="ev"],
 #urlbar[https_color="secure-only"][security_level="ev"] {
-  box-shadow: inset 0 0 4px rgb(0,168,0);
+  box-shadow: inset 0 0 2px rgb(0,168,0);
 }
 
-#urlbar[https_color="all"]:-moz-lwtheme-darktext,
-#urlbar[https_color="secure-mixed"]:-moz-lwtheme-darktext,
-#urlbar[https_color="secure-only"]:-moz-lwtheme-darktext {
-  box-shadow: inset 0 0 2px;
+#urlbar[https_color="all"][security_level="broken"]:not(:-moz-lwtheme),
+#urlbar[https_color="all"][security_level="low"]:not(:-moz-lwtheme) {
+  box-shadow: inset 0 0 3px rgba(168,0,0,0.8);
+}
+
+#urlbar[https_color="all"][security_level="mixed"]:not(:-moz-lwtheme),
+#urlbar[https_color="secure-mixed"][security_level="mixed"]:not(:-moz-lwtheme) {
+  box-shadow: inset 0 0 3px rgba(168,79,0,0.8);
+}
+
+#urlbar[https_color="all"][security_level="high"]:not(:-moz-lwtheme),
+#urlbar[https_color="secure-mixed"][security_level="high"]:not(:-moz-lwtheme),
+#urlbar[https_color="secure-only"][security_level="high"]:not(:-moz-lwtheme) {
+  box-shadow: inset 0 0 3px rgba(0,79,168,0.8);
+}
+
+#urlbar[https_color="all"][security_level="ev"]:not(:-moz-lwtheme),
+#urlbar[https_color="secure-mixed"][security_level="ev"]:not(:-moz-lwtheme),
+#urlbar[https_color="secure-only"][security_level="ev"]:not(:-moz-lwtheme) {
+  box-shadow: inset 0 0 3px rgba(0,168,0,0.8);
 }
 
 /* Location bar dropmarker */

@@ -38,6 +38,9 @@ if CONFIG['MOZ_VPX'] and not CONFIG['MOZ_NATIVE_LIBVPX']:
 if not CONFIG['MOZ_NATIVE_PNG']:
     external_dirs += ['media/libpng']
 
+if not CONFIG['MOZ_NATIVE_WEBP']:
+    external_dirs += ['media/libwebp']
+
 external_dirs += [
     'media/kiss_fft',
     'media/libcubeb',

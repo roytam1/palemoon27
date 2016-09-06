@@ -73,7 +73,7 @@ interface nsITLSServerSocket : nsIServerSocket
  * method of the security observer has been called (see
  * |nsITLSServerSecurityObserver| below).
  */
-[scriptable, uuid(19668ea4-e5ad-4182-9698-7e890d48f327)]
+[scriptable, uuid(205e273d-2439-449b-bfc5-fc555c87dbc4)]
 interface nsITLSClientStatus : nsISupports
 {
   /**
@@ -103,11 +103,19 @@ interface nsITLSClientStatus : nsISupports
   /**
    * cipherName
    *
+   * Name of the symetric cipher used, such as
+   * "AES-GCM" or "CAMELLIA".
+   */
+  readonly attribute ACString cipherName;
+
+  /**
+   * cipherSuite
+   *
    * Name of the cipher suite used, such as
    * "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256".
    * See security/nss/lib/ssl/sslinfo.c for the possible values.
    */
-  readonly attribute ACString cipherName;
+  readonly attribute ACString cipherSuite;
 
   /**
    * keyLength

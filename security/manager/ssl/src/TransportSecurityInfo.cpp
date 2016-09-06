@@ -301,8 +301,8 @@ TransportSecurityInfo::GetInterface(const nsIID & uuid, void * *result)
 // of the previous value. This is so when older versions attempt to
 // read a newer serialized TransportSecurityInfo, they will actually
 // fail and return NS_ERROR_FAILURE instead of silently failing.
-#define TRANSPORTSECURITYINFOMAGIC { 0xa9863a23, 0x1faa, 0x4169, \
-  { 0xb0, 0xd2, 0x81, 0x29, 0xec, 0x7c, 0xb1, 0xde } }
+#define TRANSPORTSECURITYINFOMAGIC { 0xa9863a23, 0xa940, 0x4002, \
+  { 0x94, 0x3c, 0x43, 0xc4, 0x67, 0x38, 0x8f, 0x3d } }
 static NS_DEFINE_CID(kTransportSecurityInfoMagic, TRANSPORTSECURITYINFOMAGIC);
 
 NS_IMETHODIMP

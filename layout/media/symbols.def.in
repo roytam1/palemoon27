@@ -253,6 +253,21 @@ jpeg_abort
 jpeg_abort_decompress
 jpeg_read_raw_data
 #endif
+#ifndef MOZ_NATIVE_WEBP
+WebPInitDecBufferInternal
+WebPFreeDecBuffer
+WebPINewDecoder
+WebPIDelete
+WebPIAppend
+WebPIDecGetRGB
+WebPConfigInitInternal
+WebPMemoryWriterInit
+WebPMemoryWrite
+WebPPictureInitInternal
+WebPPictureAlloc
+WebPPictureFree
+WebPEncode
+#endif
 qcms_enable_iccv4
 qcms_data_from_unicode_path
 qcms_data_from_path

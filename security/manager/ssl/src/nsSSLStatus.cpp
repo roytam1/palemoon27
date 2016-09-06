@@ -72,7 +72,24 @@ nsSSLStatus::GetCipherName(nsACString& aCipherName)
     return NS_ERROR_FAILURE;
   }
 
-  aCipherName.Assign(cipherInfo.cipherSuiteName);
+  aCipherName.Assign(cipherInfo.symCipherName);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSSLStatus::GetCipherSuite(nsACString& aCipherSuite)
+{
+  if (!mHaveCipherSuiteAndProtocol) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  SSLCipherSuiteInfo cipherInfo;
+  if (SSL_GetCipherSuiteInfo(mCipherSuite, &cipherInfo,
+                             sizeof(cipherInfo)) != SECSuccess) {
+    return NS_ERROR_FAILURE;
+  }
+
+  aCipherSuite.Assign(cipherInfo.cipherSuiteName);
   return NS_OK;
 }
 

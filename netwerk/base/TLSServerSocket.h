@@ -68,6 +68,7 @@ private:
   nsCOMPtr<nsIX509Cert>                  mPeerCert;
   int16_t                                mTlsVersionUsed;
   nsCString                              mCipherName;
+  nsCString                              mCipherSuite;
   uint32_t                               mKeyLength;
   uint32_t                               mMacLength;
   // lock protects access to mSecurityObserver

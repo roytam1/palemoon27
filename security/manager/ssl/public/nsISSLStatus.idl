@@ -8,11 +8,12 @@
 
 interface nsIX509Cert;
 
-[scriptable, uuid(fa9ba95b-ca3b-498a-b889-7c79cf28fee8)]
+[scriptable, uuid(7504f4c1-1a74-445b-bfc5-fc555c87dbc4)]
 interface nsISSLStatus : nsISupports {
   readonly attribute nsIX509Cert serverCert;
 
   readonly attribute ACString cipherName;
+  readonly attribute ACString cipherSuite;
   readonly attribute unsigned long keyLength;
   readonly attribute unsigned long secretKeyLength;
 

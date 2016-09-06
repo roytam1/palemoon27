@@ -120,17 +120,11 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
   if (IsSizeDecode())
     return;
 
-  uint32_t imagelength;
   // First incremental Image data chunk. Special handling required.
   if (mLastLine == 0 && lastLineRead > 0) {
-    imgFrame* aFrame;
-    nsresult res = mImage.EnsureFrame(0, 0, 0, width, height,
-                                       gfxASurface::ImageFormatARGB32,
-                                       (uint8_t**)&mImageData, &imagelength, &aFrame);
-    if (NS_FAILED(res) || !mImageData) {
-      PostDecoderError(NS_ERROR_FAILURE);
-      return;
-    }
+    Decoder::NeedNewFrame(0, 0, 0, width, height,
+                          gfx::SurfaceFormat::B8G8R8A8);
+    Decoder::AllocateFrame();
   }
 
   if (!mImageData) {
@@ -138,6 +132,7 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
     return;
   }
 
+  // Transfer from mData to mImageData
   if (lastLineRead > mLastLine) {
     for (int line = mLastLine; line < lastLineRead; line++) {
       uint32_t *cptr32 = (uint32_t*)(mImageData + (line * width));
@@ -146,7 +141,7 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 	// if((cptr8[3] != 0) && (cptr8[0] != 0) && (cptr8[1] != 0) && (cptr8[2] != 0))
 	   *cptr32++ = gfxPackedPixel(cptr8[3], cptr8[0], cptr8[1], cptr8[2]);
       }
-    }
+    } 
 
     // Invalidate
     nsIntRect r(0, mLastLine, width, lastLineRead);

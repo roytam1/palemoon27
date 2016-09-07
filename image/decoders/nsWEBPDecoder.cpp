@@ -135,11 +135,13 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
   // Transfer from mData to mImageData
   if (lastLineRead > mLastLine) {
     for (int line = mLastLine; line < lastLineRead; line++) {
-      uint32_t *cptr32 = (uint32_t*)(mImageData + (line * width));
-      uint8_t *cptr8 = mData + (line * stride);
-      for (int pix = 0; pix < width; pix++, cptr8 += 4) {
-	// if((cptr8[3] != 0) && (cptr8[0] != 0) && (cptr8[1] != 0) && (cptr8[2] != 0))
-	   *cptr32++ = gfxPackedPixel(cptr8[3], cptr8[0], cptr8[1], cptr8[2]);
+      for (int pix = 0; pix < width; pix++) {
+        // RGBA -> BGRA
+        uint32_t DataOffset = 4 * (line * width + pix);
+        mImageData[DataOffset+0] = mData[DataOffset+2];
+        mImageData[DataOffset+1] = mData[DataOffset+1];
+        mImageData[DataOffset+2] = mData[DataOffset+0];
+        mImageData[DataOffset+3] = mData[DataOffset+3];
       }
     } 
 

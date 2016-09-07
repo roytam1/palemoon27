@@ -3764,7 +3764,7 @@ pref("image.cache.timeweight", 500);
 pref("image.downscale-during-decode.enabled", false);
 
 // The default Accept header sent for images loaded over HTTP(S)
-pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
+pref("image.http.accept", "image/webp,image/png,image/*;q=0.8,*/*;q=0.5");
 
 pref("image.high_quality_downscaling.enabled", true);
 

@@ -325,6 +325,7 @@
 @RESPATH@/components/captivedetect.xpt
 #endif
 @RESPATH@/browser/components/shellservice.xpt
+@RESPATH@/browser/components/status4evar.xpt
 @RESPATH@/components/shistory.xpt
 @RESPATH@/components/spellchecker.xpt
 @RESPATH@/components/storage.xpt
@@ -485,6 +486,8 @@
 @RESPATH@/browser/components/ProfileMigrator.js
 @RESPATH@/browser/components/ChromeProfileMigrator.js
 @RESPATH@/browser/components/FirefoxProfileMigrator.js
+@RESPATH@/browser/components/status4evar.js
+@RESPATH@/browser/components/status4evar.manifest
 #ifdef XP_WIN
 @RESPATH@/browser/components/IEProfileMigrator.js
 @RESPATH@/browser/components/SafariProfileMigrator.js

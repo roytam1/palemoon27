@@ -1,0 +1,67 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIDOMWindow;
+
+[scriptable, uuid(13b3595e-7bb5-4cfe-bbfa-82c900a4d7bf)]
+interface nsIStatus4Evar : nsISupports
+{
+	readonly attribute boolean   addonbarBorderStyle;
+	readonly attribute boolean   addonbarCloseButton;
+	readonly attribute boolean   addonbarLegacyShim;
+	readonly attribute boolean   addonbarWindowGripper;
+
+	readonly attribute boolean   advancedStatusDetectFullScreen;
+	readonly attribute boolean   advancedStatusDetectVideo;
+	readonly attribute boolean   advancedUrlbarForceBinding;
+
+	readonly attribute long      downloadButtonAction;
+	readonly attribute ACString  downloadButtonActionCommand;
+	readonly attribute ACString  downloadColorActive;
+	readonly attribute ACString  downloadColorPaused;
+	readonly attribute boolean   downloadForce;
+	readonly attribute long      downloadLabel;
+	readonly attribute boolean   downloadLabelForce;
+	readonly attribute boolean   downloadNotifyAnimate;
+	readonly attribute long      downloadNotifyTimeout;
+	readonly attribute long      downloadProgress;
+	readonly attribute long      downloadTooltip;
+
+	readonly attribute boolean   firstRun;
+	readonly attribute boolean   firstRunAustralis;
+
+	readonly attribute ACString  progressToolbarCSS;
+	readonly attribute boolean   progressToolbarForce;
+	readonly attribute boolean   progressToolbarStyle;
+	readonly attribute boolean   progressToolbarStyleAdvanced;
+
+	readonly attribute ACString  progressUrlbar;
+	readonly attribute ACString  progressUrlbarCSS;
+	readonly attribute boolean   progressUrlbarStyle;
+	readonly attribute boolean   progressUrlbarStyleAdvanced;
+
+	readonly attribute long      status;
+	readonly attribute boolean   statusDefault;
+	readonly attribute boolean   statusNetwork;
+	readonly attribute boolean   statusNetworkXHR;
+	readonly attribute long      statusTimeout;
+	readonly attribute long      statusLinkOver;
+	readonly attribute long      statusLinkOverDelayShow;
+	readonly attribute long      statusLinkOverDelayHide;
+
+	readonly attribute long      statusToolbarMaxLength;
+
+	readonly attribute ACString  statusUrlbarAlign;
+	readonly attribute ACString  statusUrlbarColor;
+	readonly attribute long      statusUrlbarPosition;
+
+	readonly attribute boolean   statusUrlbarInvertMirror;
+	readonly attribute boolean   statusUrlbarMouseMirror;
+
+	void resetPrefs();
+	void updateWindow(in nsIDOMWindow win);
+};
+

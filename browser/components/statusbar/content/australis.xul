@@ -1,0 +1,40 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE overlay SYSTEM "chrome://browser/locale/statusbar/statusbar-overlay.dtd">
+
+<?xml-stylesheet href="chrome://browser/skin/statusbar/australis.css" type="text/css" ?>
+<?xml-stylesheet href="chrome://browser/skin/statusbar/australis.css" type="text/css" ?>
+
+<overlay id="status4evar-australis-overlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+	<script type="application/javascript" src="chrome://browser/content/statusbar/australis.js"/>
+
+	<toolbarpalette id="BrowserToolbarPalette">
+		<toolbaritem id="status4evar-throbber-widget"
+		             title="&status4evar.throbber.widget.title;"
+		             removable="true">
+			<vbox pack="center">
+				<image/>
+			</vbox>
+		</toolbaritem>
+	</toolbarpalette>
+
+	<vbox id="browser-bottombox">
+		<toolbar id="status4evar-status-bar"
+			toolbarname="&status4evar.status.toolbar.title;"
+			accesskey="&status4evar.status.toolbar.accessKey;"
+			customizable="true"
+			class="toolbar-primary"
+			context="toolbar-context-menu"
+			mode="icons"
+			iconsize="small"
+			ordinal="100"
+			toolboxid="navigator-toolbox">
+		</toolbar>
+	</vbox>
+</overlay>
+

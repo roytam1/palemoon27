@@ -124,7 +124,9 @@
       <li><a href="about:license#skia">Skia License</a></li>
       <li><a href="about:license#snappy">Snappy License</a></li>
       <li><a href="about:license#sparkle">Sparkle License</a></li>
+#ifdef MOZ_PHOENIX
       <li><a href="about:license#statusbar">Status Bar code License</a></li>
+#endif
 #ifdef USE_STLPORT
       <li><a href="about:license#stlport">STLport License</a></li>
 #endif
@@ -3981,6 +3983,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
     <hr>
 
+#ifdef MOZ_PHOENIX
     <h1><a id="statusbar"></a>Status Bar code License</h1>
 
     <p>This license applies to certain files in the directory
@@ -4005,6 +4008,7 @@ code Copyright (C) 2013-2016 Moonchild (M.C. Straver BASc).
 
     <hr>
     
+#endif
 #ifdef USE_STLPORT
     <h1><a id="stlport"></a>STLport License</h1>
 

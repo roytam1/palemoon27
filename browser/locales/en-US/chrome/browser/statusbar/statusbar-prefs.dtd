@@ -1,23 +1,23 @@
-<!ENTITY status4evar.window.title "Status-4-Evar Preferences">
+<!ENTITY status4evar.window.title "Pale Moon status bar preferences">
 
 <!ENTITY status4evar.pane.status "Status">
 <!ENTITY status4evar.pane.progress "Progress">
 <!ENTITY status4evar.pane.download "Download">
-<!ENTITY status4evar.pane.addonbar "Add-on Bar">
+<!ENTITY status4evar.pane.addonbar "Status Bar">
 <!ENTITY status4evar.pane.statusbar "Status Bar">
 <!ENTITY status4evar.pane.advanced "Advanced">
 
 <!ENTITY status4evar.tab.general "General">
-<!ENTITY status4evar.tab.toolbar "Toolbar">
-<!ENTITY status4evar.tab.urlbar "Location Bar">
-<!ENTITY status4evar.tab.popup "Popup">
+<!ENTITY status4evar.tab.toolbar "Status Bar">
+<!ENTITY status4evar.tab.urlbar "Address Bar">
+<!ENTITY status4evar.tab.popup "Pop-up">
 <!ENTITY status4evar.tab.tabs "Tabs">
 
 <!ENTITY status4evar.option.none "None">
 <!ENTITY status4evar.option.nothing "Nothing">
-<!ENTITY status4evar.option.toolbar "Toolbar">
-<!ENTITY status4evar.option.urlbar "Location Bar">
-<!ENTITY status4evar.option.popup "Popup">
+<!ENTITY status4evar.option.toolbar "Status Bar">
+<!ENTITY status4evar.option.urlbar "Address Bar">
+<!ENTITY status4evar.option.popup "Pop-up">
 <!ENTITY status4evar.option.tooltip "Tooltip">
 <!ENTITY status4evar.option.bottom "Bottom">
 <!ENTITY status4evar.option.top "Top">
@@ -38,7 +38,7 @@
 <!ENTITY status4evar.option.no-repeat "No Repeat">
 <!ENTITY status4evar.option.space "Space">
 <!ENTITY status4evar.option.round "Round">
-<!ENTITY status4evar.option.firefoxdefault "Firefox default">
+<!ENTITY status4evar.option.firefoxdefault "Pale Moon default">
 <!ENTITY status4evar.option.download.library "Library">
 <!ENTITY status4evar.option.download.tab "Tab">
 <!ENTITY status4evar.option.download.thirdparty "3rd Party">
@@ -47,11 +47,9 @@
 <!ENTITY status4evar.unit.seconds "seconds">
 <!ENTITY status4evar.unit.px "px">
 
-
-
 <!ENTITY status4evar.status.general.status.caption "Status Text">
 <!ENTITY status4evar.status.label "Show status in:">
-<!ENTITY status4evar.status.timeout.label "Delay before clearing status messages:">
+<!ENTITY status4evar.status.timeout.label "Hide the status after:">
 <!ENTITY status4evar.status.default.label "Show default status">
 <!ENTITY status4evar.status.network.label "Show network status">
 <!ENTITY status4evar.status.network.xhr.label "Show background network status">
@@ -69,21 +67,19 @@
 <!ENTITY status4evar.status.currentUrl "Current Location">
 <!ENTITY status4evar.status.statusText "Status Text">
 
-<!ENTITY status4evar.status.urlbar.firefox.builtin.caption "Firefox features">
+<!ENTITY status4evar.status.urlbar.firefox.builtin.caption "Firefox compatibility features">
 <!ENTITY browser.urlbar.formatting.enabled.label "Enable domain highlighting">
 <!ENTITY browser.urlbar.trimming.enabled.label "Enable protocol hiding (http:// and ftp://)">
 
 <!ENTITY status4evar.status.popup.invertMirror.label "Default to the right side">
 <!ENTITY status4evar.status.popup.mouseMirror.label "Swap sides when moused over">
 
-
-
 <!ENTITY status4evar.progress.style.label "Use a custom style">
 
-<!ENTITY status4evar.progress.urlbar.enable.label "Show progress in the Location Bar">
+<!ENTITY status4evar.progress.urlbar.enable.label "Show progress in the Address Bar">
 <!ENTITY status4evar.progress.urlbar.line.label "Line style:">
 
-<!ENTITY status4evar.progress.toolbar.force.label "Always show the toolbar item">
+<!ENTITY status4evar.progress.toolbar.force.label "Always show the status bar item">
 
 <!ENTITY status4evar.editor.label "Editor:">
 <!ENTITY status4evar.editor.css.color.label "Color:">
@@ -95,10 +91,10 @@
 
 
 <!ENTITY status4evar.download.button.action.label "Download status button action:">
-<!ENTITY status4evar.download.force.label "Always show the Download Status button">
-<!ENTITY status4evar.download.label.force.label "Show button text in icons-only mode">
-<!ENTITY status4evar.download.label.label "Download status button text:">
-<!ENTITY status4evar.download.tooltip.label "Download status button tooltip:">
+<!ENTITY status4evar.download.force.label "Always show the Download Status indicator">
+<!ENTITY status4evar.download.label.force.label "Always show the indicator text">
+<!ENTITY status4evar.download.label.label "Download status indicator text:">
+<!ENTITY status4evar.download.tooltip.label "Download status indicator tooltip:">
 <!ENTITY status4evar.download.progress.label "Show download progress on the button">
 <!ENTITY status4evar.download.progress.average.label "Show average download completion">
 <!ENTITY status4evar.download.progress.max.label "Show most complete download">
@@ -108,22 +104,15 @@
 <!ENTITY status4evar.download.notify.animate.label "Animate button when download completes">
 <!ENTITY status4evar.download.notify.timeout.label "Highlight button when download completes:">
 
-
-
 <!ENTITY status4evar.addonbar.borderStyle "Use alternate toolbar borders">
 <!ENTITY status4evar.addonbar.windowGripper "Show the window re-size gripper">
 <!ENTITY status4evar.addonbar.closeButton "Show the close button">
 <!ENTITY status4evar.addonbar.legacyShim "Enable legacy status bar panel support">
 
+<!ENTITY status4evar.advanced.warning "These advanced settings may cause issues with Pale Moon or other extensions. Modify at your own risk.">
 
-
-<!ENTITY status4evar.advanced.warning "These advanced settings may cause issues with Status-4-Evar or other extensions. Modify at your own risk.">
-
-<!ENTITY status4evar.advanced.urlbar.forceBinding "Attempt to force the the Location Bar XBL binding.">
-<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Only select this if you have problems with the Location Bar progress or status text being displaying correctly. This will potentially break other extensions that try to set an XBL binding on the Location Bar.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding "Attempt to force the the Address Bar XBL binding.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Only select this if you have problems with the Address Bar progress or status text being displaying correctly. This will potentially break other extensions that try to set an XBL binding on the Address Bar.">
 
 <!ENTITY status4evar.advanced.status.detectFullScreen "Detect full-screen mode and show links/status appropriately.">
 <!ENTITY status4evar.advanced.status.detectVideo "Hide status popup in full-screen HTML5 video.">
-
-<!ENTITY toolkit.classic.download.window.label "Use classic download window">
-

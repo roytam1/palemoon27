@@ -147,32 +147,29 @@ Status4Evar.prototype =
 
 	launchOptions: function(currentWindow)
 	{
-		AddonManager.getAddonByID("status4evar@caligonstudios.com", function(aAddon)
+		let optionsURL = "chrome://browser/content/statusbar/prefs.xul";
+		let windows = Services.wm.getEnumerator(null);
+		while (windows.hasMoreElements())
 		{
-			let optionsURL = aAddon.optionsURL;
-			let windows = Services.wm.getEnumerator(null);
-			while (windows.hasMoreElements())
+			let win = windows.getNext();
+			if (win.document.documentURI == optionsURL)
 			{
-				let win = windows.getNext();
-				if (win.document.documentURI == optionsURL)
-				{
-					win.focus();
-					return;
-				}
+				win.focus();
+				return;
 			}
-
-			let features = "chrome,titlebar,toolbar,centerscreen";
-			try
-			{
-				let instantApply = Services.prefs.getBoolPref("browser.preferences.instantApply");
-				features += instantApply ? ",dialog=no" : ",modal";
-			}
-			catch(e)
-			{
-				features += ",modal";
-			}
-			currentWindow.openDialog(optionsURL, "", features);
-		});
+		}
+		
+		let features = "chrome,titlebar,toolbar,centerscreen";
+		try
+		{
+			let instantApply = Services.prefs.getBoolPref("browser.preferences.instantApply");
+			features += instantApply ? ",dialog=no" : ",modal";
+		}
+		catch(e)
+		{
+			features += ",modal";
+		}
+		currentWindow.openDialog(optionsURL, "", features);
 	}
 
 };

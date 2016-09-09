@@ -9,6 +9,8 @@ JAR_MANIFESTS += ['jar.mn']
 EXTRA_COMPONENTS += [
     'BrowserPlaces.manifest',
     'PlacesProtocolHandler.js',
-    'PlacesUIUtils.jsm',
 ]
 
+EXTRA_PP_JS_MODULES += [
+    'PlacesUIUtils.jsm',
+]

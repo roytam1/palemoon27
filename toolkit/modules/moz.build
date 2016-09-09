@@ -23,7 +23,6 @@ EXTRA_JS_MODULES += [
     'FileUtils.jsm',
     'Finder.jsm',
     'Geometry.jsm',
-    'GMPUtils.jsm',
     'Http.jsm',
     'InlineSpellChecker.jsm',
     'InlineSpellCheckerContent.jsm',
@@ -65,6 +64,7 @@ EXTRA_JS_MODULES += [
 EXTRA_PP_JS_MODULES += [
     'CertUtils.jsm',
     'GMPInstallManager.jsm',
+    'GMPUtils.jsm',
     'ResetProfile.jsm',
     'secondscreen/RokuApp.jsm',
     'Services.jsm',

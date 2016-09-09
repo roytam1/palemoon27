@@ -401,7 +401,6 @@
 			<preference id="status4evar-pref-advanced-status-detectFullScreen" name="status4evar.advanced.status.detectFullScreen" type="bool" />
 			<preference id="status4evar-pref-advanced-status-detectVideo"      name="status4evar.advanced.status.detectVideo"      type="bool" />
 			<preference id="status4evar-pref-advanced-urlbar-forceBinding"     name="status4evar.advanced.urlbar.forceBinding"     type="bool" />
-			<preference id="toolkit-pref-classic-download-window"              name="browser.download.useToolkitUI"                type="bool" />
 		</preferences>
 
 		<commandset id="status4evar-commandset-advanced">
@@ -439,12 +438,6 @@
 
 					<checkbox id="status4evar-advanced-status-detectFullScreen-check" preference="status4evar-pref-advanced-status-detectFullScreen" label="&status4evar.advanced.status.detectFullScreen;" />
 					<checkbox id="status4evar-advanced-status-detectVideo-check" preference="status4evar-pref-advanced-status-detectVideo" label="&status4evar.advanced.status.detectVideo;" />
-				</groupbox>
-
-				<groupbox id="status4evar-advanced-download">
-					<caption label="&status4evar.pane.download;" />
-
-					<checkbox id="toolkit-classic-download-window-check" preference="toolkit-pref-classic-download-window" label="&toolkit.classic.download.window.label;" />
 				</groupbox>
 			</vbox>
 		</deck>

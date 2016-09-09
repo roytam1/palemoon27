@@ -32,6 +32,16 @@
 		</hbox>
 	</popupset>
 
+    <menupopup id="menu_ToolsPopup">
+      <menuitem id="statusbar-options-fx" command="S4E:Options"
+        label="&status4evar.menu.options.label;"/>
+    </menupopup>
+    
+    <menupopup id="appmenu_customizeMenu">
+          <menuitem id="statusbar-options-app" command="S4E:Options"
+        label="&status4evar.menu.options.label;"/>
+    </menupopup>
+    
 	<toolbarpalette id="BrowserToolbarPalette">
 		<toolbaritem id="status4evar-status-widget"
 		             title="&status4evar.status.widget.title;"

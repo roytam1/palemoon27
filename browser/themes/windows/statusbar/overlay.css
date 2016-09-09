@@ -1,0 +1,79 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+%include ../../shared/statusbar/overlay.css
+
+/*
+ * General
+ */
+
+#status4evar-status-text,
+#status4evar-progress-bar
+{
+	margin: 0px 3px;
+}
+
+/*
+ * Download status
+ */
+
+#status4evar-download-progress-bar
+{
+	height: 4px;
+}
+
+#status4evar-download-button #status4evar-download-icon
+{
+	min-width: 18px;
+	min-height: 18px;
+}
+
+toolbar[mode="icons"] #status4evar-download-button[forcelabel="true"] > label
+{
+	-moz-margin-start: 5px !important;
+}
+
+/*
+ * Splitter
+ */
+
+splitter.status4evar-status-splitter
+{
+	width: 6px;
+	margin: 0px -3px;
+}
+
+/*
+ * Location bar
+ */
+
+#urlbar-progress-alt
+{
+	-moz-margin-end: -2px;
+}
+
+/*
+ * Status bar
+ */
+
+#browser-bottombox[s4eboarder="true"] :-moz-any(#status4evar-status-bar, #addon-bar)
+{
+	-moz-appearance: none;
+}
+
+#browser-bottombox[s4eboarder="true"] > *:not([hidden="true"]):not([collapsed="true"])
+{
+	box-shadow: none !important;
+	border: none !important;
+	border-top: 2px solid !important;
+	-moz-border-top-colors: ThreeDShadow ThreeDHighlight !important;
+}
+
+#browser-bottombox[s4eboarder="true"] > *:not([hidden="true"]):not([collapsed="true"]) ~ *
+{
+	border: none !important;
+}
+

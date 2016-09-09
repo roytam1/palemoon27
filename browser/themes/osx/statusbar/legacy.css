@@ -1,0 +1,39 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+%include ../../shared/statusbar/legacy.css
+
+#status-bar
+{
+	padding-right: 0px;
+}
+
+#browser-bottombox > #addon-bar:last-child
+{
+	padding-right: 16px;
+}
+
+#status4evar-download-button #status4evar-download-icon
+{
+	background: -moz-image-rect(url("chrome://browser/skin/Toolbar.png"), 0, 140, 20, 120) center no-repeat;
+	min-width: 20px;
+	min-height: 20px;
+}
+
+@media (min-resolution: 2dppx)
+{
+	#status4evar-download-button #status4evar-download-icon
+	{
+		background-image: -moz-image-rect(url("chrome://browser/skin/Toolbar@2x.png"), 0, 280, 40, 240);
+		background-size: 20px;
+	}
+
+	#status4evar-download-button[attention] #status4evar-download-icon
+	{
+		background-image: url("chrome://browser/skin/downloads/download-glow@2x.png");
+	}
+}
+

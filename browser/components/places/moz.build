@@ -10,7 +10,5 @@ EXTRA_COMPONENTS += [
     'BrowserPlaces.manifest',
     'PlacesProtocolHandler.js',
 ]
+EXTRA_JS_MODULES += [ 'PlacesUIUtils.jsm' ]
 
-EXTRA_PP_JS_MODULES += [
-    'PlacesUIUtils.jsm',
-]

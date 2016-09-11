@@ -504,11 +504,7 @@ struct AtomicIntrinsics<T*, Order> : public IntrinsicMemoryOps<T*, Order>,
 
 /*
  * Windows comes with a full complement of atomic operations.
- * Unfortunately, most of those aren't available for Windows XP (even if
- * the compiler supports intrinsics for them), which is the oldest
- * version of Windows we support.  Therefore, we only provide operations
- * on 32-bit datatypes for 32-bit Windows versions; for 64-bit Windows
- * versions, we support 64-bit datatypes as well.
+ * We'll provide as much as we can for Vista and above.
  */
 
 #  include <intrin.h>
@@ -586,7 +582,7 @@ struct PrimitiveIntrinsics<4>
   {
     /*
      * _InterlockedExchangeSubtract isn't available before Windows 7,
-     * and we must support Windows XP.
+     * and we must support Windows Vista.
      */
     return _InterlockedExchangeAdd(aPtr, -aVal);
   }
@@ -621,8 +617,6 @@ struct PrimitiveIntrinsics<4>
     return _InterlockedCompareExchange(aPtr, aNewVal, aOldVal) == aOldVal;
   }
 };
-
-#  if defined(_M_X64)
 
 #    pragma intrinsic(_InterlockedExchangeAdd64)
 #    pragma intrinsic(_InterlockedOr64)
@@ -679,8 +673,6 @@ struct PrimitiveIntrinsics<8>
     return _InterlockedCompareExchange64(aPtr, aNewVal, aOldVal) == aOldVal;
   }
 };
-
-#  endif
 
 #  pragma intrinsic(_ReadWriteBarrier)
 

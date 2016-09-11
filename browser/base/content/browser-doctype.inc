@@ -3,8 +3,6 @@
 %brandDTD;
 <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd" >
 %browserDTD;
-<!ENTITY % palemoonDTD SYSTEM "chrome://browser/locale/palemoon.dtd" >
-%palemoonDTD;
 <!ENTITY % baseMenuDTD SYSTEM "chrome://browser/locale/baseMenuOverlay.dtd" >
 %baseMenuDTD;
 <!ENTITY % charsetDTD SYSTEM "chrome://browser/locale/charsetMenu.dtd" >

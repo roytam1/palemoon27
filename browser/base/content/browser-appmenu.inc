@@ -212,7 +212,7 @@
                      popupsinherittooltip="true">
             <menuitem id="appmenu_showAllBookmarks"
                       class="menuitem-iconic"
-                      label="&palemoon.menu.allBookmarks.label;"
+                      label="&organizeBookmarks.label;"
                       command="Browser:ShowAllBookmarks"
                       context=""
                       key="manBookmarkKb"/>

@@ -10,8 +10,6 @@
   <!ENTITY % contentDTD SYSTEM "chrome://browser/locale/preferences/content.dtd">
   %brandDTD;
   %contentDTD;
-  <!ENTITY % palemoonDTD SYSTEM "chrome://browser/locale/palemoon.dtd">
-  %palemoonDTD; 
 ]>
 
 <overlay id="ContentPaneOverlay"
@@ -61,12 +59,12 @@
           </row>
           <row id="enableImagesRow">
             <hbox align="center">
-              	<label id="loadImages" control="loadImages-menu">&palemoon.loadImages.label;</label>
+              	<label id="loadImages" control="loadImages-menu">&loadImages.label;</label>
 					<menulist id="loadImages-menu" preference="permissions.default.image" sizetopopup="always">
 						<menupopup>
-							<menuitem label="&palemoon.loadImages.always;" value="1" />
-							<menuitem label="&palemoon.loadImages.never;" value="2" />
-							<menuitem label="&palemoon.loadImages.no3rdparty;" value="3" />
+							<menuitem label="&loadImages.always;" value="1" />
+							<menuitem label="&loadImages.never;" value="2" />
+							<menuitem label="&loadImages.no3rdparty;" value="3" />
 						</menupopup>
 					</menulist>
             </hbox>

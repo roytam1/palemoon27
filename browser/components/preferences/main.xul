@@ -9,11 +9,9 @@
   <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
   <!ENTITY % mainDTD SYSTEM "chrome://browser/locale/preferences/main.dtd">
   <!ENTITY % aboutHomeDTD SYSTEM "chrome://browser/locale/aboutHome.dtd">
-  <!ENTITY % palemoonDTD SYSTEM "chrome://browser/locale/palemoon.dtd">
   %brandDTD;
   %mainDTD;
   %aboutHomeDTD;
-  %palemoonDTD;
 ]>
 
 <overlay id="MainPaneOverlay"

@@ -10,8 +10,6 @@
 %brandDTD;
 <!ENTITY % tabsDTD SYSTEM "chrome://browser/locale/preferences/tabs.dtd">
 %tabsDTD;
-<!ENTITY % palemoonDTD SYSTEM "chrome://browser/locale/palemoon.dtd">
-%palemoonDTD;
 ]>
 
 <overlay id="TabsPaneOverlay"
@@ -59,8 +57,8 @@
       <checkbox id="warnOpenMany" label="&warnOpenManyTabs.label;"
                 accesskey="&warnOpenManyTabs.accesskey;"
                 preference="browser.tabs.warnOnOpen"/>
-      <checkbox id="showTabBar" label="&palemoon.showTabBar.label;"
-                accesskey="&palemoon.showTabBar.accesskey;"
+      <checkbox id="showTabBar" label="&showTabBar.label;"
+                accesskey="&showTabBar.accesskey;"
                 preference="browser.tabs.autoHide"/>
       <checkbox id="restoreOnDemand" label="&restoreTabsOnDemand.label;"
                 accesskey="&restoreTabsOnDemand.accesskey;"
@@ -74,19 +72,19 @@
                 preference="browser.taskbar.previews.enable"/>
 #endif
 <!-- Pale Moon additions -->
-      <checkbox id="insertRelatedAfterCurrent" label="&palemoon.insertRelatedAfterCurrent.label;"
+      <checkbox id="insertRelatedAfterCurrent" label="&insertRelatedAfterCurrent.label;"
                 preference="browser.tabs.insertRelatedAfterCurrent"/>
-      <checkbox id="contextLoadInBackground" label="&palemoon.contextLoadInBackground.label;"
+      <checkbox id="contextLoadInBackground" label="&contextLoadInBackground.label;"
                 preference="browser.search.context.loadInBackground"/>
-      <checkbox id="closeWindowWithLastTab" label="&palemoon.closeWindowWithLastTab.label;"
+      <checkbox id="closeWindowWithLastTab" label="&closeWindowWithLastTab.label;"
                 preference="browser.tabs.closeWindowWithLastTab"/>
       <hbox align="center">
-        <label value="&palemoon.newtabPage.label;"/>
+        <label value="&newtabPage.label;"/>
         <menulist id="newtabPage" preference="browser.newtab.url">
           <menupopup>
-            <menuitem label="&palemoon.newtabPage.blank.label;"     value="about:logopage" id="newtabPageBlank"/>
-            <menuitem label="&palemoon.newtabPage.home.label;"      value="http://start.palemoon.org/" id="newtabPageHome"/>
-            <menuitem label="&palemoon.newtabPage.quickdial.label;" value="about:newtab" id="newtabPageQuickdial"/>
+            <menuitem label="&newtabPage.blank.label;"     value="about:logopage" id="newtabPageBlank"/>
+            <menuitem label="&newtabPage.home.label;"      value="https://start.palemoon.org/" id="newtabPageHome"/>
+            <menuitem label="&newtabPage.quickdial.label;" value="about:newtab" id="newtabPageQuickdial"/>
           </menupopup>
         </menulist>
       </hbox>

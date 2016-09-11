@@ -34,3 +34,5 @@
 <!ENTITY chooseFolderMac.accesskey    "e">
 <!ENTITY alwaysAsk.label "Always ask me where to save files">
 <!ENTITY alwaysAsk.accesskey "A">
+
+<!ENTITY toolkit.classic.download.window.label       "Use the classic downloads window">

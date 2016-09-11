@@ -17,7 +17,6 @@
     locale/browser/aboutSyncTabs.dtd               (%chrome/browser/aboutSyncTabs.dtd)
 #endif
     locale/browser/browser.dtd                     (%chrome/browser/browser.dtd)
-    locale/browser/palemoon.dtd                    (%chrome/browser/palemoon.dtd)
     locale/browser/baseMenuOverlay.dtd             (%chrome/browser/baseMenuOverlay.dtd)
     locale/browser/charsetOverlay.dtd              (%chrome/browser/charsetOverlay.dtd)
     locale/browser/browser.properties              (%chrome/browser/browser.properties)

@@ -562,7 +562,7 @@
 #ifndef XP_MACOSX
                     class="menuitem-iconic"
 #endif
-                    label="&palemoon.menu.allBookmarks.label;"
+                    label="&organizeBookmarks.label;"
                     command="Browser:ShowAllBookmarks"
                     key="manBookmarkKb"/>
           <menuseparator/>
@@ -1000,7 +1000,7 @@
 #endif
 
     <toolbar id="addon-bar"
-             toolbarname="&palemoon.menu.statusBar.label;" accesskey="&palemoon.menu.statusBar.accesskey;"
+             toolbarname="&statusBar.label;" accesskey="&statusBar.accesskey;"
              collapsed="true"
              class="toolbar-primary chromeclass-toolbar"
              context="toolbar-context-menu" toolboxid="navigator-toolbox"

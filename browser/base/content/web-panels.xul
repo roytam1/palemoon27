@@ -12,8 +12,6 @@
 <!DOCTYPE page [
 <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
 %browserDTD;
-<!ENTITY % palemoonDTD SYSTEM "chrome://browser/locale/palemoon.dtd" >
-%palemoonDTD;
 <!ENTITY % textcontextDTD SYSTEM "chrome://global/locale/textcontext.dtd">
 %textcontextDTD;
 ]>

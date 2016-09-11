@@ -430,7 +430,7 @@
 #ifndef XP_MACOSX
                 class="menuitem-iconic"
 #endif
-                label="&palemoon.menu.allBookmarks.label;"
+                label="&organizeBookmarks.label;"
                 command="Browser:ShowAllBookmarks"
                 key="manBookmarkKb"/>
       <menuseparator id="organizeBookmarksSeparator"/>

@@ -4310,13 +4310,11 @@ mozilla::BrowserTabsRemoteAutostart()
 void
 SetupErrorHandling(const char* progname)
 {
-#ifdef XP_WIN
-  /* On Windows XPSP3 and Windows Vista if DEP is configured off-by-default
+#ifdef XP_WIN32
+  /* On Windows x86 only, if DEP is configured off-by-default
      we still want DEP protection: enable it explicitly and programmatically.
-
-     This function is not available on WinXPSP2 so we dynamically load it.
+     This function is not exposed by default so we dynamically load it.
   */
-
   HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
   SetProcessDEPPolicyFunc _SetProcessDEPPolicy =
     (SetProcessDEPPolicyFunc) GetProcAddress(kernel32, "SetProcessDEPPolicy");

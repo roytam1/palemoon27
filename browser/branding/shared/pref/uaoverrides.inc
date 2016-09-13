@@ -1,3 +1,5 @@
+// ===| Site Specific User Agent Overrides |===================================
+
 #define GUAO_PREF general.useragent.override
 
 #define GRE_VERSION 3.0
@@ -35,8 +37,10 @@ pref("@GUAO_PREF@.netflix.com","Mozilla/5.0 (@OS_SLICE@ rv:38.9) @GK_SLICE@ Fire
 pref("@GUAO_PREF@.facebook.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");
 pref("@GUAO_PREF@.fbcdn.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");
 pref("@GUAO_PREF@.chase.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@");
+
 // Citi requires native mode. Or it blocks.. "too old firefox"
 pref("@GUAO_PREF@.citi.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
+
 // Yuku fora don't like the Goanna slice (result: broken mobile site)
 pref("@GUAO_PREF@.yuku.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ @PM_SLICE@");
 
@@ -51,3 +55,4 @@ pref("@GUAO_PREF@.web.whatsapp.com","Mozilla/5.0 (Windows NT 6.3; Win64; x64) Ap
 // The following domains don't like the Goanna slice
 pref("@GUAO_PREF@.hitbox.tv","Mozilla/5.0 (@OS_SLICE@; rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@");
 
+// ============================================================================

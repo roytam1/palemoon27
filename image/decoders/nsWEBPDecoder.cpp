@@ -106,6 +106,14 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 
   mData = WebPIDecGetRGB(mDecoder, &lastLineRead, &width, &height, &stride);
 
+  // The only valid format for WebP decoding for both alpha and non-alpha
+  // images is BGRA, where Opaque images have an A of 255.
+  // Assume transparency for all images.
+  // XXX: This could be compositor-optimized by doing a one-time check for
+  // all-255 alpha pixels, but that might interfere with progressive
+  // decoding. Probably not worth it?
+  PostHasTransparency();
+  
   if (lastLineRead == -1 || !mData)
     return;
 

@@ -7,11 +7,12 @@
 
   body {
     color: #eee;
-    background-image: url("chrome://global/skin/media/imagedoc-darknoise.png");
+    /* background-image: url("chrome://global/skin/media/imagedoc-darknoise.png"); */
+    background: #2E3B41;
   }
 
   img.transparent {
-    background: hsl(0,0%,90%) url("chrome://global/skin/media/imagedoc-lightnoise.png");
-    color: #222;
+    /* background: hsl(0,0%,90%) url("chrome://global/skin/media/imagedoc-lightnoise.png"); */
+    /* color: #222; */
   }
 }

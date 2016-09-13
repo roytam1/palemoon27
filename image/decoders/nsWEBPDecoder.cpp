@@ -120,13 +120,6 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
   if (IsSizeDecode())
     return;
 
-  // First incremental Image data chunk. Special handling required.
-  if (mLastLine == 0 && lastLineRead > 0) {
-    Decoder::NeedNewFrame(0, 0, 0, width, height,
-                          gfx::SurfaceFormat::B8G8R8A8);
-    Decoder::AllocateFrame();
-  }
-
   if (!mImageData) {
     PostDecoderError(NS_ERROR_FAILURE);
     return;

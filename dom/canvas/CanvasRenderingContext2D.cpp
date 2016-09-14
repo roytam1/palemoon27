@@ -1631,7 +1631,10 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     // Image buffer is always a packed BGRA array (BGRX -> BGR[FF])
     // so always 4-value pixels.
     // GetImageBuffer => SurfaceToPackedBGRA [=> ConvertBGRXToBGRA]
-    for (int32_t j = 0; j < mWidth * mHeight * 4; ++j) {
+    int32_t dataSize = mWidth * mHeight * 4;
+#pragma loop(ivdep)
+#pragma loop(hint_parallel(0))
+    for (int32_t j = 0; j < dataSize; ++j) {
       if (imageBuffer[j] !=0 && imageBuffer[j] != 255)
         imageBuffer[j] += rand() % 3 - 1;
     }

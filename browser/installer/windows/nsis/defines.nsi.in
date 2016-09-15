@@ -34,14 +34,6 @@
 !define UpdateChannel "@MOZ_UPDATE_CHANNEL@"
 !endif
 
-# Due to official and beta using the same branding this is needed to
-# differentiante between the url used by the stub for downloading.
-!if "@MOZ_UPDATE_CHANNEL@" == "beta"
-!define BETA_UPDATE_CHANNEL
-!endif
-
-!define BaseURLStubPing "http://download-stats.mozilla.org/stub"
-
 # ARCH is used when it is necessary to differentiate the x64 registry keys from
 # the x86 registry keys (e.g. the uninstall registry key).
 #ifdef HAVE_64BIT_BUILD
@@ -65,10 +57,6 @@ VIAddVersionKey "FileVersion"     "${AppVersion}"
 VIAddVersionKey "ProductVersion"  "${AppVersion}"
 # Comments is not used but left below commented out for future reference
 # VIAddVersionKey "Comments"        "Comments"
-
-# It isn't possible to get the size of the installation prior to downloading
-# so the stub installer uses an estimate.
-!define APPROXIMATE_REQUIRED_SPACE_MB "42.2"
 
 # Control positions in Dialog Units so they are placed correctly with
 # non-default DPI settings

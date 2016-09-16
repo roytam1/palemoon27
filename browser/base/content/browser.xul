@@ -22,7 +22,6 @@
 <?xul-overlay href="chrome://browser/content/places/placesOverlay.xul"?>
 
 <?xul-overlay href="chrome://browser/content/statusbar/overlay.xul"?>
-<?xul-overlay href="chrome://browser/content/statusbar/legacy.xul"?>
 
 # Padlock feature
 <?xul-overlay href="chrome://browser/content/padlock.xul"?>

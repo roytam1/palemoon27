@@ -78,9 +78,6 @@ if CONFIG['MOZ_XUL']:
 if CONFIG['MOZ_TOOLKIT_SEARCH']:
     DIRS += ['search']
 
-if CONFIG['MOZ_URL_CLASSIFIER']:
-    DIRS += ['url-classifier']
-
 if CONFIG['MOZ_CAPTIVEDETECT']:
     DIRS += ['captivedetect']
 

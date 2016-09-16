@@ -125,11 +125,6 @@ XPCOMUtils.defineLazyGetter(this, "BrowserDebuggerProcess", function() {
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
   "resource://gre/modules/PageThumbs.jsm");
 
-#ifdef MOZ_SAFE_BROWSING
-XPCOMUtils.defineLazyModuleGetter(this, "SafeBrowsing",
-  "resource://gre/modules/SafeBrowsing.jsm");
-#endif
-
 XPCOMUtils.defineLazyModuleGetter(this, "gBrowserNewTabPreloader",
   "resource:///modules/BrowserNewTabPreloader.jsm", "BrowserNewTabPreloader");
 
@@ -154,9 +149,6 @@ let gInitialPages = [
 #include browser-fullZoom.js
 #include browser-places.js
 #include browser-plugins.js
-#ifdef MOZ_SAFE_BROWSING
-#include browser-safebrowsing.js
-#endif
 #include browser-tabPreviews.js
 #include browser-thumbnails.js
 #include browser-webrtcUI.js
@@ -983,11 +975,6 @@ var gBrowserInit = {
       else
         loadOneOrMoreURIs(uriToLoad);
     }
-
-#ifdef MOZ_SAFE_BROWSING
-    // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
-    setTimeout(function() { SafeBrowsing.init(); }, 2000);
-#endif
 
     Services.obs.addObserver(gSessionHistoryObserver, "browser:purge-session-history", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-disabled", false);
@@ -2374,11 +2361,6 @@ let BrowserOnClick = {
     if (ownerDoc.documentURI.startsWith("about:certerror")) {
       this.onAboutCertError(originalTarget, ownerDoc);
     }
-#ifdef MOZ_SAFE_BROWSING
-    else if (ownerDoc.documentURI.startsWith("about:blocked")) {
-      this.onAboutBlocked(originalTarget, ownerDoc);
-    }
-#endif
     else if (ownerDoc.documentURI.startsWith("about:neterror")) {
       this.onAboutNetError(originalTarget, ownerDoc);
     }
@@ -2427,115 +2409,6 @@ let BrowserOnClick = {
 
     }
   },
-
-#ifdef MOZ_SAFE_BROWSING
-  onAboutBlocked: function BrowserOnClick_onAboutBlocked(aTargetElm, aOwnerDoc) {
-    let elmId = aTargetElm.getAttribute("id");
-
-    // The event came from a button on a malware/phishing block page
-    // First check whether it's malware or phishing, so that we can
-    // use the right strings/links
-    let isMalware = /e=malwareBlocked/.test(aOwnerDoc.documentURI);
-    let bucketName = isMalware ? "WARNING_MALWARE_PAGE_":"WARNING_PHISHING_PAGE_";
-    let nsISecTel = Ci.nsISecurityUITelemetry;
-    let isIframe = (aOwnerDoc.defaultView.parent === aOwnerDoc.defaultView);
-    bucketName += isIframe ? "TOP_" : "FRAME_";
-
-    switch (elmId) {
-      case "getMeOutButton":
-        getMeOutOfHere();
-        break;
-
-      case "reportButton":
-        // This is the "Why is this site blocked" button.  For malware,
-        // we can fetch a site-specific report, for phishing, we redirect
-        // to the generic page describing phishing protection.
-
-        if (isMalware) {
-          // Get the stop badware "why is this blocked" report url,
-          // append the current url, and go there.
-          try {
-            let reportURL = formatURL("browser.safebrowsing.malware.reportURL", true);
-            reportURL += aOwnerDoc.location.href;
-            content.location = reportURL;
-          } catch (e) {
-            Components.utils.reportError("Couldn't get malware report URL: " + e);
-          }
-        }
-        else { // It's a phishing site, not malware
-          try {
-            content.location = formatURL("browser.safebrowsing.warning.infoURL", true);
-          } catch (e) {
-            Components.utils.reportError("Couldn't get phishing info URL: " + e);
-          }
-        }
-        break;
-
-      case "ignoreWarningButton":
-        this.ignoreWarningButton(isMalware);
-        break;
-    }
-  },
-
-  ignoreWarningButton: function BrowserOnClick_ignoreWarningButton(aIsMalware) {
-    // Allow users to override and continue through to the site,
-    // but add a notify bar as a reminder, so that they don't lose
-    // track after, e.g., tab switching.
-    gBrowser.loadURIWithFlags(content.location.href,
-                              nsIWebNavigation.LOAD_FLAGS_BYPASS_CLASSIFIER,
-                              null, null, null);
-
-    Services.perms.add(makeURI(content.location.href), "safe-browsing",
-                       Ci.nsIPermissionManager.ALLOW_ACTION,
-                       Ci.nsIPermissionManager.EXPIRE_SESSION);
-
-    let buttons = [{
-      label: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.label"),
-      accessKey: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.accessKey"),
-      callback: function() { getMeOutOfHere(); }
-    }];
-
-    let title;
-    if (aIsMalware) {
-      title = gNavigatorBundle.getString("safebrowsing.reportedAttackSite");
-      buttons[1] = {
-        label: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.label"),
-        accessKey: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.accessKey"),
-        callback: function() {
-          openUILinkIn(gSafeBrowsing.getReportURL('MalwareError'), 'tab');
-        }
-      };
-    } else {
-      title = gNavigatorBundle.getString("safebrowsing.reportedWebForgery");
-      buttons[1] = {
-        label: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.label"),
-        accessKey: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.accessKey"),
-        callback: function() {
-          openUILinkIn(gSafeBrowsing.getReportURL('Error'), 'tab');
-        }
-      };
-    }
-
-    let notificationBox = gBrowser.getNotificationBox();
-    let value = "blocked-badware-page";
-
-    let previousNotification = notificationBox.getNotificationWithValue(value);
-    if (previousNotification) {
-      notificationBox.removeNotification(previousNotification);
-    }
-
-    let notification = notificationBox.appendNotification(
-      title,
-      value,
-      "chrome://global/skin/icons/blacklist_favicon.png",
-      notificationBox.PRIORITY_CRITICAL_HIGH,
-      buttons
-    );
-    // Persist the notification until the user removes so it
-    // doesn't get removed on redirects.
-    notification.persistence = -1;
-  },
-#endif
 
   onAboutNetError: function BrowserOnClick_onAboutNetError(aTargetElm, aOwnerDoc) {
     let elmId = aTargetElm.getAttribute("id");

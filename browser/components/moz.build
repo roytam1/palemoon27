@@ -23,9 +23,6 @@ DIRS += [
 if CONFIG['MOZ_BROWSER_SIDEBAR']:
     DIRS += ['sidebar']
 
-if CONFIG['MOZ_SAFE_BROWSING']:
-    DIRS += ['safebrowsing']
-
 DIRS += ['build']
 
 XPIDL_SOURCES += [

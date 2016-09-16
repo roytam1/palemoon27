@@ -16,8 +16,6 @@ MOZ_OFFICIAL_BRANDING_DIRECTORY=mobile/android/branding/official
 # See the --enable-android-min-sdk and --enable-android-max-sdk arguments in configure.in.
 MOZ_ANDROID_MIN_SDK_VERSION=9
 
-MOZ_SAFE_BROWSING=1
-
 MOZ_NO_SMART_CARDS=1
 
 # Enable getUserMedia

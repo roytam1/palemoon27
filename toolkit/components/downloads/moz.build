@@ -30,12 +30,6 @@ SOURCES += [
     'SQLFunctions.cpp',
 ]
 
-if CONFIG['MOZ_URL_CLASSIFIER']:
-    UNIFIED_SOURCES += [
-        'ApplicationReputation.cpp',
-        'csd.pb.cc'
-    ]
-
 if CONFIG['OS_ARCH'] == 'WINNT':
     # Can't build unified because we need CreateEvent which some IPC code
     # included in LoadContext ends up undefining.

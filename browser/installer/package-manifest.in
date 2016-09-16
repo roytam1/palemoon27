@@ -635,15 +635,6 @@
 @RESPATH@/browser/modules/*
 @RESPATH@/modules/*
 
-; Safe Browsing
-#ifdef MOZ_URL_CLASSIFIER
-@RESPATH@/components/nsURLClassifier.manifest
-@RESPATH@/components/nsUrlClassifierHashCompleter.js
-@RESPATH@/components/nsUrlClassifierListManager.js
-@RESPATH@/components/nsUrlClassifierLib.js
-@RESPATH@/components/url-classifier.xpt
-#endif
-
 ; ANGLE GLES-on-D3D rendering library
 #ifdef MOZ_ANGLE_RENDERER
 @BINPATH@/libEGL.dll

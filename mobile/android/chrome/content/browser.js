@@ -57,11 +57,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerParent",
 XPCOMUtils.defineLazyModuleGetter(this, "Task", "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 
-if (AppConstants.MOZ_SAFE_BROWSING) {
-  XPCOMUtils.defineLazyModuleGetter(this, "SafeBrowsing",
-                                    "resource://gre/modules/SafeBrowsing.jsm");
-}
-
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
@@ -380,11 +375,6 @@ var BrowserApp = {
           // Spin up some features which impact performance.
           CastingApps.init();
           DownloadNotifications.init();
-
-          if (AppConstants.MOZ_SAFE_BROWSING) {
-            // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
-            SafeBrowsing.init();
-          };
 
           // Delay this a minute because there's no rush
           setTimeout(() => {

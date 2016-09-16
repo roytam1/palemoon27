@@ -66,18 +66,6 @@
                 accesskey="&addonExceptions.accesskey;"
                 oncommand="gSecurityPane.showAddonExceptions();"/>
       </hbox>
-
-#ifdef MOZ_SAFE_BROWSING
-      <separator class="thin"/>
-      <checkbox id="blockAttackSites"
-                label="&blockAttackSites.label;"
-                accesskey="&blockAttackSites.accesskey;"
-                preference="browser.safebrowsing.malware.enabled" />
-      <checkbox id="blockWebForgeries"
-                label="&blockWebForgeries.label;"
-                accesskey="&blockWebForgeries.accesskey;"
-                preference="browser.safebrowsing.enabled" />
-#endif
     </groupbox>
 
     <!-- Passwords -->

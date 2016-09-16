@@ -28,7 +28,7 @@
  */
 #if !defined(WINVER) || (WINVER < 0x0500)
 #undef WINVER
-#define WINVER 0x0500
+#define WINVER 0x0600
 #endif
 #if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
 #undef _WIN32_WINNT

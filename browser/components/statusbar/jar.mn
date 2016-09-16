@@ -3,18 +3,14 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 browser.jar:
-% overlay chrome://browser/content/browser.xul                  chrome://browser/content/statusbar/legacy.xul
+% overlay chrome://browser/content/browser.xul                  chrome://browser/content/statusbar/overlay.xul
 % style chrome://global/content/customizeToolbar.xul            chrome://browser/content/statusbar/overlay.css
-        content/browser/statusbar/australis.js                  (content/australis.js)
         content/browser/statusbar/overlay.js                    (content/overlay.js)
         content/browser/statusbar/prefs.js                      (content/prefs.js)
         content/browser/statusbar/prefs.xml                     (content/prefs.xml)
         content/browser/statusbar/tabbrowser.xml                (content/tabbrowser.xml)
         content/browser/statusbar/urlbarBindings.xml            (content/urlbarBindings.xml)
-        content/browser/statusbar/australis.xul                 (content/australis.xul)
-        content/browser/statusbar/legacy.xul                    (content/legacy.xul)
         content/browser/statusbar/overlay.xul                   (content/overlay.xul)
         content/browser/statusbar/prefs.xul                     (content/prefs.xul)
-        content/browser/statusbar/prefsLegacy.xul               (content/prefsLegacy.xul)
         content/browser/statusbar/overlay.css                   (content/overlay.css)
         content/browser/statusbar/prefs.css                     (content/prefs.css)

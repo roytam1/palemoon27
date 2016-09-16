@@ -382,15 +382,12 @@
 		<preferences>
 			<preference id="status4evar-pref-addonbar-borderStyle"   name="status4evar.addonbar.borderStyle"   type="bool" />
 			<preference id="status4evar-pref-addonbar-closeButton"   name="status4evar.addonbar.closeButton"   type="bool" />
-			<preference id="status4evar-pref-addonbar-legacyShim"    name="status4evar.addonbar.legacyShim"    type="bool" />
 			<preference id="status4evar-pref-addonbar-windowGripper" name="status4evar.addonbar.windowGripper" type="bool" />
 		</preferences>
 
 		<checkbox id="status4evar-addonbar-borderStyle-check" preference="status4evar-pref-addonbar-borderStyle" label="&status4evar.addonbar.borderStyle;" />
 
 		<checkbox id="status4evar-addonbar-closeButton-check" preference="status4evar-pref-addonbar-closeButton" label="&status4evar.addonbar.closeButton;" />
-
-		<checkbox id="status4evar-addonbar-legacyShim-check" preference="status4evar-pref-addonbar-legacyShim" label="&status4evar.addonbar.legacyShim;" />
 
 		<checkbox id="status4evar-addonbar-windowGripper-check" preference="status4evar-pref-addonbar-windowGripper" label="&status4evar.addonbar.windowGripper;" />
 	</prefpane>

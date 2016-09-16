@@ -53,12 +53,9 @@ Status4Evar.prototype =
 
 	setup: function()
 	{
-		if(Services.vc.compare("28.*", Services.appinfo.version) >= 0)
-		{
-			this._toolbox.addEventListener("beforecustomization", this, false);
-			this._toolbox.addEventListener("aftercustomization", this, false);
-		}
-
+    this._toolbox.addEventListener("beforecustomization", this, false);
+    this._toolbox.addEventListener("aftercustomization", this, false);
+    
 		this.toolbars.setup();
 		this.updateWindow();
 

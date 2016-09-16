@@ -3,7 +3,6 @@
 <!ENTITY status4evar.pane.status "Status">
 <!ENTITY status4evar.pane.progress "Progress">
 <!ENTITY status4evar.pane.download "Download">
-<!ENTITY status4evar.pane.addonbar "Status Bar">
 <!ENTITY status4evar.pane.statusbar "Status Bar">
 <!ENTITY status4evar.pane.advanced "Advanced">
 
@@ -107,7 +106,6 @@
 <!ENTITY status4evar.addonbar.borderStyle "Use alternate toolbar borders">
 <!ENTITY status4evar.addonbar.windowGripper "Show the window re-size gripper">
 <!ENTITY status4evar.addonbar.closeButton "Show the close button">
-<!ENTITY status4evar.addonbar.legacyShim "Enable legacy status bar panel support">
 
 <!ENTITY status4evar.advanced.warning "These advanced settings may cause issues with Pale Moon or other extensions. Modify at your own risk.">
 

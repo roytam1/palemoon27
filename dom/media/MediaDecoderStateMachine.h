@@ -608,7 +608,7 @@ protected:
 
   void StartWaitForResources();
 
-  // Dispatches a task to the decode task queue to begin decoding metadata.
+  // Dispatches a task to the state machine thread to begin decoding content.
   // This is threadsafe and can be called on any thread.
   // The decoder monitor must be held.
   nsresult EnqueueDecodeMetadataTask();
@@ -655,6 +655,7 @@ protected:
   // to idle mode. This is threadsafe, and can be called from any thread.
   // The decoder monitor must be held.
   void DispatchDecodeTasksIfNeeded();
+  void AcquireMonitorAndInvokeDispatchDecodeTasksIfNeeded();
 
   // Returns the "media time". This is the absolute time which the media
   // playback has reached. i.e. this returns values in the range
@@ -682,7 +683,7 @@ protected:
   // Wraps the call to DecodeMetadata(), signals a DecodeError() on failure.
   void CallDecodeMetadata();
 
-  // Initiate first content decoding. Called on the decode thread.
+  // Initiate first content decoding. Called on the state machine thread.
   // The decoder monitor must be held with exactly one lock count.
   nsresult DecodeFirstFrame();
 

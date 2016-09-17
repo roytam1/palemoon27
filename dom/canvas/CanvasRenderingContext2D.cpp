@@ -1632,8 +1632,11 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     // so always 4-value pixels.
     // GetImageBuffer => SurfaceToPackedBGRA [=> ConvertBGRXToBGRA]
     int32_t dataSize = mWidth * mHeight * 4;
+#if defined(_MSC_VER)
+// Parallelizing pragmas are MSVC-only
 #pragma loop(ivdep)
 #pragma loop(hint_parallel(0))
+#endif
     for (int32_t j = 0; j < dataSize; ++j) {
       if (imageBuffer[j] !=0 && imageBuffer[j] != 255)
         imageBuffer[j] += rand() % 3 - 1;

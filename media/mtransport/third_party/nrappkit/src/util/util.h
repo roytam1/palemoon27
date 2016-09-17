@@ -66,7 +66,11 @@ int nr_reg_uint8_fetch_and_check(NR_registry key, UINT8 min, UINT8 max, int log_
 
 #ifdef WIN32
 int snprintf(char *buffer, size_t n, const char *format, ...);
+// When using Windows Vista+ header files, inet_ntop is already defined 
+// with a different type modifier, so we don't redefine it
+#if defined(WIN_VER) && WIN_VER <0x0600 
 const char *inet_ntop(int af, const void *src, char *dst, size_t size);
+#endif
 #endif
 
 #endif

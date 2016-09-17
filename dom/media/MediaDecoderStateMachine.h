@@ -426,9 +426,6 @@ public:
   // Resets all state related to decoding, emptying all buffers etc.
   void ResetDecode();
 
-private:
-  void AcquireMonitorAndInvokeDecodeError();
-
 protected:
   virtual ~MediaDecoderStateMachine();
 

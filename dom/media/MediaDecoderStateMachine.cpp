@@ -1544,9 +1544,6 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
     mSeekTarget.Reset();
     mCurrentSeekTarget.Reset();
     SetState(DECODER_STATE_DORMANT);
-    if (IsPlaying()) {
-      StopPlayback();
-    }
     StopAudioThread();
     FlushDecoding();
     // Now that those threads are stopped, there's no possibility of

@@ -753,6 +753,11 @@ protected:
   // Called by the AudioSink to signal errors.
   void OnAudioSinkError();
 
+  void DispatchOnAudioSinkError()
+  {
+    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkError));
+  }
+
   // The state machine may move into DECODING_METADATA if we are in
   // DECODER_STATE_WAIT_FOR_RESOURCES.
   void DoNotifyWaitingForResourcesStatusChanged();

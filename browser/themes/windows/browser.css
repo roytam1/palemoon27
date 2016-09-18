@@ -2878,6 +2878,49 @@ toolbar[brighttext] #addonbar-closebutton {
   font-size: 120%;
 }
 
+/* Status bar options button */
+
+#status4evar-options-button {
+  list-style-image: url("chrome://browser/skin/statusbar/pms24.png");
+}
+
+toolbar[iconsize="small"] #status4evar-options-button {
+  list-style-image: url("chrome://browser/skin/statusbar/pms16.png");
+}
+
+/* Status bar download status button */
+
+toolbar[mode="icons"] #status4evar-download-button[forcelabel="true"],
+toolbar[mode="text"] #status4evar-download-button {
+  -moz-box-orient: horizontal !important;
+}
+
+toolbar[mode="icons"] #status4evar-download-button[forcelabel="true"] > label {
+  display: -moz-box !important;
+}
+
+#status4evar-download-button #status4evar-download-icon {
+  background: -moz-image-rect(url("chrome://browser/skin/Toolbar.png"), 0, 108, 18, 90) center no-repeat;
+}
+
+#status4evar-download-button:-moz-lwtheme-brighttext #status4evar-download-icon {
+  background: -moz-image-rect(url("chrome://browser/skin/Toolbar-inverted.png"), 0, 108, 18, 90) center no-repeat;
+}
+
+#status4evar-download-button[attention] #status4evar-download-icon {
+  background-image: url("chrome://browser/skin/downloads/download-glow.png");
+}
+
+#wrapper-status4evar-progress-widget progressmeter,
+#wrapper-status4evar-download-button toolbarbutton {
+  visibility: visible;
+}
+
+#wrapper-status4evar-status-widget toolbaritem label {
+  background-color: rgba(0,0,0,0.2);
+  padding: 2px 4px;
+}
+
 %ifdef MOZ_DEVTOOLS
 %include ../shared/devtools/responsivedesign.inc.css
 %include ../shared/devtools/commandline.inc.css

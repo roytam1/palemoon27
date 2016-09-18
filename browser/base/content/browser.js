@@ -1068,13 +1068,10 @@ var gBrowserInit = {
     // downloads will start right away, and getting the service again won't hurt.
     setTimeout(function() {
       try {
-        let DownloadsCommon =
-          Cu.import("resource:///modules/DownloadsCommon.jsm", {}).DownloadsCommon;
-        DownloadsCommon.initializeAllDataLinks();
-        // TODO: fix taskbar-based download progress
-        //let DownloadTaskbarProgress =
-        //  Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;
-        //DownloadTaskbarProgress.onBrowserWindowLoad(window);
+		Cu.import("resource:///modules/DownloadsCommon.jsm", {})
+          .DownloadsCommon.initializeAllDataLinks();
+        Cu.import("resource:///modules/DownloadsTaskbar.jsm", {})
+          .DownloadsTaskbar.registerIndicator(window);
       } catch(ex) {
         Cu.reportError(ex);
       }

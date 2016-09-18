@@ -1068,7 +1068,7 @@ var gBrowserInit = {
     // downloads will start right away, and getting the service again won't hurt.
     setTimeout(function() {
       try {
-		Cu.import("resource:///modules/DownloadsCommon.jsm", {})
+        Cu.import("resource:///modules/DownloadsCommon.jsm", {})
           .DownloadsCommon.initializeAllDataLinks();
         Cu.import("resource:///modules/DownloadsTaskbar.jsm", {})
           .DownloadsTaskbar.registerIndicator(window);

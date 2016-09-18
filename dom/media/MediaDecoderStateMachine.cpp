@@ -1156,10 +1156,7 @@ nsresult MediaDecoderStateMachine::Init(MediaDecoderStateMachine* aCloneDonor)
 
 void MediaDecoderStateMachine::StopPlayback()
 {
-  // Needed because DecodeSeek runs on the decode thread.
-  // Once bug 1135170 lands, this becomes state-machine only, and we can invoke
-  // DispatchDecodeTasksIfNeeded directly.
-  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
+  MOZ_ASSERT(OnStateMachineThread());
   DECODER_LOG("StopPlayback()");
 
   AssertCurrentThreadInMonitor();
@@ -1176,9 +1173,7 @@ void MediaDecoderStateMachine::StopPlayback()
   NS_ASSERTION(!IsPlaying(), "Should report not playing at end of StopPlayback()");
   mDecoder->UpdateStreamBlockingForStateMachinePlaying();
 
-  nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &MediaDecoderStateMachine::AcquireMonitorAndInvokeDispatchDecodeTasksIfNeeded);
-  GetStateMachineThread()->Dispatch(event, NS_DISPATCH_NORMAL);
+  DispatchDecodeTasksIfNeeded();
 }
 
 void MediaDecoderStateMachine::SetSyncPointForMediaStream()
@@ -1258,9 +1253,7 @@ void MediaDecoderStateMachine::MaybeStartPlayback()
 
 void MediaDecoderStateMachine::UpdatePlaybackPositionInternal(int64_t aTime)
 {
-  // Needed because DecodeSeek runs on the decode thread.
-  // Once bug 1135170 lands, this becomes state-machine only.
-  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
+  MOZ_ASSERT(OnStateMachineThread());
   SAMPLE_LOG("UpdatePlaybackPositionInternal(%lld) (mStartTime=%lld)", aTime, mStartTime);
   AssertCurrentThreadInMonitor();
 
@@ -1681,9 +1674,7 @@ void MediaDecoderStateMachine::PlayInternal()
 
 void MediaDecoderStateMachine::ResetPlayback()
 {
-  // Needed because DecodeSeek runs on the decode thread.
-  // Once bug 1135170 lands, this becomes state-machine only.
-  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
+  MOZ_ASSERT(OnStateMachineThread());
 
   // We should be reseting because we're seeking, shutting down, or
   // entering dormant state. We could also be in the process of going dormant,
@@ -1803,9 +1794,7 @@ MediaDecoderStateMachine::EnqueueStartQueuedSeekTask()
 
 void MediaDecoderStateMachine::StopAudioThread()
 {
-  // Needed because DecodeSeek runs on the decode thread.
-  // Once bug 1135170 lands, this becomes state-machine only.
-  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
+  MOZ_ASSERT(OnStateMachineThread());
   AssertCurrentThreadInMonitor();
 
   if (mStopAudioThread) {
@@ -1864,14 +1853,6 @@ MediaDecoderStateMachine::SetReaderIdle()
   MOZ_ASSERT(OnDecodeThread());
   DECODER_LOG("Invoking SetReaderIdle()");
   mReader->SetIdle();
-}
-
-void
-MediaDecoderStateMachine::AcquireMonitorAndInvokeDispatchDecodeTasksIfNeeded()
-{
-  MOZ_ASSERT(OnStateMachineThread());
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  DispatchDecodeTasksIfNeeded();
 }
 
 void
@@ -2502,10 +2483,7 @@ MediaDecoderStateMachine::OnSeekCompleted(int64_t aTime)
   // the new stream time. So dispatch tasks to do that.
   mDecodeToSeekTarget = true;
 
-  // This can become a direct call once bug 1135170 lands.
-  nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &MediaDecoderStateMachine::AcquireMonitorAndInvokeDispatchDecodeTasksIfNeeded);
-  GetStateMachineThread()->Dispatch(event, NS_DISPATCH_NORMAL);
+  DispatchDecodeTasksIfNeeded();
 }
 
 void

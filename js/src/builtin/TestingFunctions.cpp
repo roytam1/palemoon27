@@ -1878,8 +1878,8 @@ static bool
 DumpObject(JSContext* cx, unsigned argc, jsval* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject obj(cx, ToObject(cx, args.get(0)));
-    if (!obj)
+    RootedObject obj(cx);
+    if (!JS_ConvertArguments(cx, args, "o", obj.address()))
         return false;
 
     js_DumpObject(obj);
@@ -2213,19 +2213,11 @@ static bool
 EvalReturningScope(JSContext* cx, unsigned argc, jsval* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "evalReturningScope", 1))
-        return false;
 
-    RootedString str(cx, ToString(cx, args[0]));
-    if (!str)
-        return false;
-
+    RootedString str(cx);
     RootedObject global(cx);
-    if (args.hasDefined(1)) {
-        global = ToObject(cx, args[1]);
-        if (!global)
-            return false;
-    }
+    if (!JS_ConvertArguments(cx, args, "S/o", str.address(), global.address()))
+        return false;
 
     AutoStableStringChars strChars(cx);
     if (!strChars.initTwoByte(cx, str))
@@ -2287,15 +2279,10 @@ static bool
 ShellCloneAndExecuteScript(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "cloneAndExecuteScript", 2))
-        return false;
 
-    RootedString str(cx, ToString(cx, args[0]));
-    if (!str)
-        return false;
-
-    RootedObject global(cx, ToObject(cx, args[1]));
-    if (!global)
+    RootedString str(cx);
+    RootedObject global(cx);
+    if (!JS_ConvertArguments(cx, args, "So", str.address(), global.address()))
         return false;
 
     AutoStableStringChars strChars(cx);

@@ -369,11 +369,8 @@ BuildDate(JSContext* cx, unsigned argc, jsval* vp)
 static bool
 Quit(JSContext* cx, unsigned argc, jsval* vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
     gExitCode = 0;
-    if (!ToInt32(cx, args.get(0), &gExitCode))
-        return false;
+    JS_ConvertArguments(cx, JS::CallArgsFromVp(argc, vp),"/ i", &gExitCode);
 
     gQuitting = true;
 //    exit(0);

@@ -732,12 +732,6 @@ public:
   // to buffer, given the current download and playback rates.
   bool CanPlayThrough();
 
-  // Make the decoder state machine update the playback position. Called by
-  // the reader on the decoder thread (Assertions for this checked by
-  // mDecoderStateMachine). This must be called with the decode monitor
-  // held.
-  void UpdatePlaybackPosition(int64_t aTime) final override;
-
   void SetAudioChannel(dom::AudioChannel aChannel) { mAudioChannel = aChannel; }
   dom::AudioChannel GetAudioChannel() { return mAudioChannel; }
 

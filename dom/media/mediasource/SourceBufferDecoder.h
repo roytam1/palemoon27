@@ -61,7 +61,6 @@ public:
   virtual void SetMediaEndTime(int64_t aTime) final override;
   virtual void SetMediaSeekable(bool aMediaSeekable) final override;
   virtual void UpdateEstimatedMediaDuration(int64_t aDuration) final override;
-  virtual void UpdatePlaybackPosition(int64_t aTime) final override;
   virtual bool HasInitializationData() final override;
 
   // SourceBufferResource specific interface below.

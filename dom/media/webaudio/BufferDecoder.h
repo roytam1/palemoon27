@@ -71,8 +71,6 @@ public:
 
   virtual void SetMediaEndTime(int64_t aTime) final override;
 
-  virtual void UpdatePlaybackPosition(int64_t aTime) final override;
-
   virtual void OnReadMetadataCompleted() final override;
 
   virtual MediaDecoderOwner* GetOwner() final override;

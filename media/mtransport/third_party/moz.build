@@ -6,6 +6,10 @@
 
 include('/build/gyp.mozbuild')
 
+# nICEr is ancient code and uses deprecated APIs that spout tons of warnings
+# unless disabled, so we disable the warnings.
+DEFINES['_WINSOCK_DEPRECATED_NO_WARNINGS'] = 1
+
 GYP_DIRS += [
     'nICEr',
     'nrappkit',

@@ -3860,7 +3860,7 @@ else
   MOZ_FMP4=
 fi
 MOZ_FFMPEG=
-MOZ_WEBRTC=1
+MOZ_WEBRTC=
 MOZ_PEERCONNECTION=
 MOZ_SRTP=
 MOZ_WEBRTC_SIGNALING=
@@ -5060,7 +5060,7 @@ dnl the master list above.
 if test -n "$MOZ_WEBRTC"; then
     case "$target" in
     *-linux*|*-mingw*|*-darwin*|*-android*|*-linuxandroid*|*-dragonfly*|*-freebsd*|*-netbsd*|*-openbsd*)
-        dnl Leave enabled
+        dnl Leave as default setting in master list
         ;;
     *)
         dnl default to disabled for all others
@@ -5093,12 +5093,12 @@ x86_64 | arm | x86 | ppc* | ia64)
 esac
 
 dnl ========================================================
-dnl = Disable WebRTC code
+dnl = Enable WebRTC code
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(webrtc,
-[  --disable-webrtc        Disable support for WebRTC],
-    MOZ_WEBRTC=,
-    MOZ_WEBRTC=1)
+MOZ_ARG_ENABLE_BOOL(webrtc,
+[  --enable-webrtc        Enable support for WebRTC],
+    MOZ_WEBRTC=1,
+    MOZ_WEBRTC=)
 
 if test -n "$MOZ_WEBRTC"; then
     AC_DEFINE(MOZ_WEBRTC)

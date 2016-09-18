@@ -92,7 +92,8 @@ SOURCES += [
 ]
 SOURCES['nsDebugImpl.cpp'].no_pgo = True
 
-UNIFIED_SOURCES += [
+# UNIFIED_SOURCES += [
+SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
     'CycleCollectedJSRuntime.cpp',

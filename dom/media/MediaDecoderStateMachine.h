@@ -1032,7 +1032,7 @@ protected:
   }
   uint32_t VideoPrerollFrames() const 
   {
-    return IsRealTime() ? 0 : GetAmpleVideoFrames() / 2;
+    return IsRealTime() ? 0 : mAmpleVideoFrames / 2;
   }
 
   bool DonePrerollingAudio()

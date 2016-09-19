@@ -1544,8 +1544,8 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
     mPendingSeek.RejectIfExists(__func__);
     mCurrentSeek.RejectIfExists(__func__);
     SetState(DECODER_STATE_DORMANT);
-    StopAudioThread();
-    FlushDecoding();
+
+    Reset();
 
     // Note that we do not wait for the decode task queue to go idle before
     // queuing the ReleaseMediaResources task - instead, we disconnect promises,
@@ -1666,38 +1666,6 @@ void MediaDecoderStateMachine::PlayInternal()
   }
 
   ScheduleStateMachine();
-}
-
-void MediaDecoderStateMachine::ResetPlayback()
-{
-  MOZ_ASSERT(OnStateMachineThread());
-
-  // We should be reseting because we're seeking, shutting down, or
-  // entering dormant state. We could also be in the process of going dormant,
-  // and have just switched to exiting dormant before we finished entering
-  // dormant, hence the DECODING_NONE case below.
-  AssertCurrentThreadInMonitor();
-  MOZ_ASSERT(mState == DECODER_STATE_SEEKING ||
-             mState == DECODER_STATE_SHUTDOWN ||
-             mState == DECODER_STATE_DORMANT ||
-             mState == DECODER_STATE_DECODING_NONE);
-
-  // Audio thread should've been stopped at the moment. Otherwise, AudioSink
-  // might be accessing AudioQueue outside of the decoder monitor while we
-  // are clearing the queue and causes crash for no samples to be popped.
-  MOZ_ASSERT(!mAudioSink);
-
-  mVideoFrameEndTime = -1;
-  mDecodedVideoEndTime = -1;
-  mAudioStartTime = -1;
-  mAudioEndTime = -1;
-  mDecodedAudioEndTime = -1;
-  mAudioCompleted = false;
-  AudioQueue().Reset();
-  VideoQueue().Reset();
-  mFirstVideoFrameAfterSeek = nullptr;
-  mDropAudioUntilNextDiscontinuity = true;
-  mDropVideoUntilNextDiscontinuity = true;
 }
 
 void MediaDecoderStateMachine::NotifyDataArrived(const char* aBuffer,
@@ -1940,14 +1908,8 @@ MediaDecoderStateMachine::InitiateSeek()
         mCurrentSeek.mTarget.mEventVisibility);
   NS_DispatchToMainThread(startEvent, NS_DISPATCH_NORMAL);
 
-  // The seek target is different than the current playback position,
-  // we'll need to seek the playback position, so shutdown our decode
-  // thread and audio sink.
-  StopAudioThread();
-  ResetPlayback();
-
-  // Put a reset in the pipe before seek.
-  ResetDecode();
+  // Reset our state machine and decoding pipeline before seeking.
+  Reset();
 
   // Do the seek.
   mSeekRequest.Begin(ProxyMediaCall(DecodeTaskQueue(), mReader.get(), __func__,
@@ -2649,8 +2611,7 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
         StopPlayback();
       }
 
-      StopAudioThread();
-      FlushDecoding();
+      Reset();
 
       // Put a task in the decode queue to shutdown the reader.
       // the queue to spin down.
@@ -2822,27 +2783,38 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
 }
 
 void
-MediaDecoderStateMachine::FlushDecoding()
+MediaDecoderStateMachine::Reset()
 {
   MOZ_ASSERT(OnStateMachineThread());
   AssertCurrentThreadInMonitor();
+  DECODER_LOG("MediaDecoderStateMachine::Reset");
 
-  // Put a task in the decode queue to abort any decoding operations.
-  // The reader is not supposed to put any tasks to deliver samples into
-  // the queue after this runs (unless we request another sample from it).
-  ResetDecode();
+  // We should be resetting because we're seeking, shutting down, or entering
+  // dormant state. We could also be in the process of going dormant, and have
+  // just switched to exiting dormant before we finished entering dormant,
+  // hence the DECODING_NONE case below.
+  MOZ_ASSERT(mState == DECODER_STATE_SEEKING ||
+             mState == DECODER_STATE_SHUTDOWN ||
+             mState == DECODER_STATE_DORMANT ||
+             mState == DECODER_STATE_DECODING_NONE);
 
-  // We must reset playback so that all references to frames queued
-  // in the state machine are dropped, else subsequent calls to Shutdown()
-  // or ReleaseMediaResources() can fail on B2G.
-  ResetPlayback();
-}
+  // Stop the audio thread. Otherwise, AudioSink might be accessing AudioQueue
+  // outside of the decoder monitor while we are clearing the queue and causes
+  // crash for no samples to be popped.
+  StopAudioThread();
 
-void
-MediaDecoderStateMachine::ResetDecode()
-{
-  MOZ_ASSERT(OnStateMachineThread());
-  AssertCurrentThreadInMonitor();
+  mVideoFrameEndTime = -1;
+  mDecodedVideoEndTime = -1;
+  mAudioStartTime = -1;
+  mAudioEndTime = -1;
+  mDecodedAudioEndTime = -1;
+  mAudioCompleted = false;
+  AudioQueue().Reset();
+  VideoQueue().Reset();
+  mFirstVideoFrameAfterSeek = nullptr;
+  mDropAudioUntilNextDiscontinuity = true;
+  mDropVideoUntilNextDiscontinuity = true;
+  mDecodeToSeekTarget = false;
 
   mMetadataRequest.DisconnectIfExists();
   mAudioDataRequest.DisconnectIfExists();
@@ -2850,8 +2822,6 @@ MediaDecoderStateMachine::ResetDecode()
   mVideoDataRequest.DisconnectIfExists();
   mVideoWaitRequest.DisconnectIfExists();
   mSeekRequest.DisconnectIfExists();
-
-  mDecodeToSeekTarget = false;
 
   RefPtr<nsRunnable> resetTask =
     NS_NewRunnableMethod(mReader, &MediaDecoderReader::ResetDecode);

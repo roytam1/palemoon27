@@ -47,6 +47,7 @@ TrackBuffer::TrackBuffer(MediaSourceDecoder* aParentDecoder, const nsACString& a
   , mLastStartTimestamp(0)
   , mLastTimestampOffset(0)
   , mAdjustedTimestamp(0)
+  , mIsWaitingOnCDM(false)
   , mShutdown(false)
 {
   MOZ_COUNT_CTOR(TrackBuffer);
@@ -645,8 +646,7 @@ TrackBuffer::InitializeDecoder(SourceBufferDecoder* aDecoder)
   }
 
   if (NS_SUCCEEDED(rv) && reader->IsWaitingOnCDMResource()) {
-    mWaitingDecoders.AppendElement(aDecoder);
-    return;
+    mIsWaitingOnCDM = true;
   }
 
   aDecoder->SetTaskQueue(nullptr);
@@ -805,6 +805,12 @@ TrackBuffer::IsReady()
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
   MOZ_ASSERT((mInfo.HasAudio() || mInfo.HasVideo()) || mInitializedDecoders.IsEmpty());
   return mInfo.HasAudio() || mInfo.HasVideo();
+}
+
+bool
+TrackBuffer::IsWaitingOnCDMResource()
+{
+  return mIsWaitingOnCDM;
 }
 
 bool

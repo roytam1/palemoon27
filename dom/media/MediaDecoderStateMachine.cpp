@@ -1320,6 +1320,7 @@ static const char* const gMachineStateStr[] = {
   "NONE",
   "DECODING_METADATA",
   "WAIT_FOR_RESOURCES",
+  "WAIT_FOR_RESOURCES",
   "DECODING_FIRSTFRAME",
   "DORMANT",
   "DECODING",
@@ -1627,13 +1628,17 @@ void MediaDecoderStateMachine::DoNotifyWaitingForResourcesStatusChanged()
 {
   NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  if (mState != DECODER_STATE_WAIT_FOR_RESOURCES) {
-    return;
-  }
   DECODER_LOG("DoNotifyWaitingForResourcesStatusChanged");
-  // The reader is no longer waiting for resources (say a hardware decoder),
-  // we can now proceed to decode metadata.
-  SetState(DECODER_STATE_DECODING_NONE);
+
+  if (mState == DECODER_STATE_WAIT_FOR_RESOURCES) {
+    // The reader is no longer waiting for resources (say a hardware decoder),
+    // we can now proceed to decode metadata.
+    SetState(DECODER_STATE_DECODING_NONE);
+  } else if (mState == DECODER_STATE_WAIT_FOR_CDM &&
+             !mReader->IsWaitingOnCDMResource()) {
+    SetState(DECODER_STATE_DECODING_FIRSTFRAME);
+    EnqueueDecodeFirstFrameTask();
+  }
   ScheduleStateMachine();
 }
 
@@ -2300,6 +2305,13 @@ nsresult MediaDecoderStateMachine::DecodeMetadata()
   }
 
   if (mState == DECODER_STATE_DECODING_METADATA) {
+    if (mReader->IsWaitingOnCDMResource()) {
+      // Metadata parsing was successful but we're still waiting for CDM caps
+      // to become available so that we can build the correct decryptor/decoder.
+      SetState(DECODER_STATE_WAIT_FOR_CDM);
+      return NS_OK;
+    }
+
     SetState(DECODER_STATE_DECODING_FIRSTFRAME);
     res = EnqueueDecodeFirstFrameTask();
     if (NS_FAILED(res)) {
@@ -2717,6 +2729,7 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
       return NS_OK;
     }
 
+    case DECODER_STATE_WAIT_FOR_CDM:
     case DECODER_STATE_WAIT_FOR_RESOURCES: {
       return NS_OK;
     }

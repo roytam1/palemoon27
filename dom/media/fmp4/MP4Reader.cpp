@@ -151,6 +151,7 @@ MP4Reader::MP4Reader(AbstractMediaDecoder* aDecoder)
   , mDemuxerInitialized(false)
   , mFoundSPSForTelemetry(false)
   , mIsEncrypted(false)
+  , mAreDecodersSetup(false)
   , mIndexReady(false)
   , mLastSeenEnd(-1)
   , mDemuxerMonitor("MP4 Demuxer")
@@ -265,22 +266,13 @@ void MP4Reader::RequestCodecResource() {
   }
 }
 
-bool MP4Reader::IsWaitingOnCodecResource() {
+bool MP4Reader::IsWaitingMediaResources() {
   return mVideo.mDecoder && mVideo.mDecoder->IsWaitingMediaResources();
 }
 
 bool MP4Reader::IsWaitingOnCDMResource() {
   // EME Stub
   return false;
-}
-
-bool MP4Reader::IsWaitingMediaResources()
-{
-  // IsWaitingOnCDMResource() *must* come first, because we don't know whether
-  // we can create a decoder until the CDM is initialized and it has told us
-  // whether *it* will decode, or whether we need to create a PDM to do the
-  // decoding
-  return IsWaitingOnCDMResource() || IsWaitingOnCodecResource();
 }
 
 void
@@ -344,7 +336,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     {
       MonitorAutoUnlock unlock(mDemuxerMonitor);
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mInfo.mIsEncrypted = mIsEncrypted = mDemuxer->Crypto().valid;
+      mInfo.mCrypto.mIsEncrypted = mIsEncrypted = mCrypto.valid;
     }
 
     // Remember that we've initialized the demuxer, so that if we're decoding
@@ -357,62 +349,33 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     return NS_OK;
   }
 
-  if (mDemuxer->Crypto().valid) {
-    // EME not supported.
-    return NS_ERROR_FAILURE;
-  } else {
-    mPlatform = PlatformDecoderModule::Create();
-    NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);
-  }
-
   if (HasAudio()) {
     const AudioDecoderConfig& audio = mDemuxer->AudioConfig();
-    if (mInfo.mAudio.mHasAudio && !IsSupportedAudioMimeType(audio.mime_type)) {
-      return NS_ERROR_FAILURE;
-    }
     mInfo.mAudio.mRate = audio.samples_per_second;
     mInfo.mAudio.mChannels = audio.channel_count;
     mAudio.mCallback = new DecoderCallback(this, kAudio);
-    mAudio.mDecoder = mPlatform->CreateAudioDecoder(audio,
-                                                    mAudio.mTaskQueue,
-                                                    mAudio.mCallback);
-    NS_ENSURE_TRUE(mAudio.mDecoder != nullptr, NS_ERROR_FAILURE);
-    nsresult rv = mAudio.mDecoder->Init();
-    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (HasVideo()) {
     const VideoDecoderConfig& video = mDemuxer->VideoConfig();
-    if (mInfo.mVideo.mHasVideo && !IsSupportedVideoMimeType(video.mime_type)) {
-      return NS_ERROR_FAILURE;
-    }
     mInfo.mVideo.mDisplay =
       nsIntSize(video.display_width, video.display_height);
     mVideo.mCallback = new DecoderCallback(this, kVideo);
-    if (mSharedDecoderManager && mPlatform->SupportsSharedDecoders(video)) {
-      mVideo.mDecoder =
-        mSharedDecoderManager->CreateVideoDecoder(mPlatform,
-                                                  video,
-                                                  mLayersBackendType,
-                                                  mDecoder->GetImageContainer(),
-                                                  mVideo.mTaskQueue,
-                                                  mVideo.mCallback);
-    } else {
-      mVideo.mDecoder = mPlatform->CreateVideoDecoder(video,
-                                                      mLayersBackendType,
-                                                      mDecoder->GetImageContainer(),
-                                                      mVideo.mTaskQueue,
-                                                      mVideo.mCallback);
-    }
-    NS_ENSURE_TRUE(mVideo.mDecoder != nullptr, NS_ERROR_FAILURE);
-    nsresult rv = mVideo.mDecoder->Init();
-    NS_ENSURE_SUCCESS(rv, rv);
-    mInfo.mVideo.mIsHardwareAccelerated = mVideo.mDecoder->IsHardwareAccelerated();
 
     // Collect telemetry from h264 AVCC SPS.
     if (!mFoundSPSForTelemetry) {
       mFoundSPSForTelemetry = AccumulateSPSTelemetry(video.extra_data);
     }
+  }
+
+  if (mIsEncrypted) {
+    nsTArray<uint8_t> initData;
+    ExtractCryptoInitData(initData);
+    if (initData.Length() == 0) {
+      return NS_ERROR_FAILURE;
+    }
+    mInfo.mCrypto.mInitData = initData;
+    mInfo.mCrypto.mType = NS_LITERAL_STRING("cenc");
   }
 
   // Get the duration, and report it to the decoder if we have it.
@@ -429,10 +392,69 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
   *aInfo = mInfo;
   *aTags = nullptr;
 
+  if (!IsWaitingMediaResources() && !IsWaitingOnCDMResource()) {
+    NS_ENSURE_TRUE(EnsureDecodersSetup(), NS_ERROR_FAILURE);
+  }
+
   MonitorAutoLock mon(mDemuxerMonitor);
   UpdateIndex();
 
   return NS_OK;
+}
+
+bool
+MP4Reader::EnsureDecodersSetup()
+{
+  if (mAreDecodersSetup) {
+    return !!mPlatform;
+  }
+
+  if (mIsEncrypted) {
+    // EME not supported.
+    return false;
+  } else {
+    mPlatform = PlatformDecoderModule::Create();
+    NS_ENSURE_TRUE(mPlatform, false);
+  }
+
+  if (HasAudio()) {
+    NS_ENSURE_TRUE(IsSupportedAudioMimeType(mDemuxer->AudioConfig().mime_type),
+                  false);
+
+    mAudio.mDecoder = mPlatform->CreateAudioDecoder(mDemuxer->AudioConfig(),
+                                                    mAudio.mTaskQueue,
+                                                    mAudio.mCallback);
+    NS_ENSURE_TRUE(mAudio.mDecoder != nullptr, false);
+    nsresult rv = mAudio.mDecoder->Init();
+    NS_ENSURE_SUCCESS(rv, false);
+  }
+
+  if (HasVideo()) {
+    NS_ENSURE_TRUE(IsSupportedVideoMimeType(mDemuxer->VideoConfig().mime_type),
+                   false);
+
+    if (mSharedDecoderManager && mPlatform->SupportsSharedDecoders(mDemuxer->VideoConfig())) {
+      mVideo.mDecoder =
+        mSharedDecoderManager->CreateVideoDecoder(mPlatform,
+                                                  mDemuxer->VideoConfig(),
+                                                  mLayersBackendType,
+                                                  mDecoder->GetImageContainer(),
+                                                  mVideo.mTaskQueue,
+                                                  mVideo.mCallback);
+    } else {
+      mVideo.mDecoder = mPlatform->CreateVideoDecoder(mDemuxer->VideoConfig(),
+                                                      mLayersBackendType,
+                                                      mDecoder->GetImageContainer(),
+                                                      mVideo.mTaskQueue,
+                                                      mVideo.mCallback);
+    }
+    NS_ENSURE_TRUE(mVideo.mDecoder != nullptr, false);
+    nsresult rv = mVideo.mDecoder->Init();
+    NS_ENSURE_SUCCESS(rv, false);
+  }
+
+  mAreDecodersSetup = true;
+  return true;
 }
 
 void
@@ -522,6 +544,11 @@ MP4Reader::RequestVideoData(bool aSkipToNextKeyframe,
   MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
   VLOG("skip=%d time=%lld", aSkipToNextKeyframe, aTimeThreshold);
 
+  if (!EnsureDecodersSetup()) {
+    NS_WARNING("Error constructing MP4 decoders");
+    return VideoDataPromise::CreateAndReject(DECODE_ERROR, __func__);
+  }
+
   if (mShutdown) {
     NS_WARNING("RequestVideoData on shutdown MP4Reader!");
     return VideoDataPromise::CreateAndReject(CANCELED, __func__);
@@ -557,6 +584,12 @@ MP4Reader::RequestAudioData()
 {
   MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
   VLOG("");
+
+  if (!EnsureDecodersSetup()) {
+    NS_WARNING("Error constructing MP4 decoders");
+    return AudioDataPromise::CreateAndReject(DECODE_ERROR, __func__);
+  }
+
   if (mShutdown) {
     NS_WARNING("RequestAudioData on shutdown MP4Reader!");
     return AudioDataPromise::CreateAndReject(CANCELED, __func__);

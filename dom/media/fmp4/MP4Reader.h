@@ -101,6 +101,8 @@ private:
   bool InitDemuxer();
   void ReturnOutput(MediaData* aData, TrackType aTrack);
 
+  bool EnsureDecodersSetup();
+
   // Sends input to decoder for aTrack, and output to the state machine,
   // if necessary.
   void Update(TrackType aTrack);
@@ -133,7 +135,6 @@ private:
   bool IsSupportedVideoMimeType(const nsACString& aMimeType);
   void NotifyResourcesStatusChanged();
   void RequestCodecResource();
-  bool IsWaitingOnCodecResource();
   virtual bool IsWaitingOnCDMResource() override;
 
   Microseconds GetNextKeyframeTime();
@@ -280,6 +281,8 @@ private:
 
   // Synchronized by decoder monitor.
   bool mIsEncrypted;
+
+  bool mAreDecodersSetup;
 
   bool mIndexReady;
   int64_t mLastSeenEnd;

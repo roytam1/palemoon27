@@ -30,6 +30,29 @@ toolbar[iconsize="small"] #status4evar-download-progress-bar
 	height: 4px;
 }
 
+#status4evar-download-button[attention] #status4evar-download-icon
+{
+	background-image: url("chrome://browser/skin/downloads/download-glow.png");
+}
+
+#status4evar-download-button #status4evar-download-icon
+{
+	background: -moz-image-rect(url("chrome://browser/skin/Toolbar.png"), 0, 24, 24, 0) center no-repeat;
+	min-width: 24px;
+	min-height: 24px;
+}
+
+toolbar[iconsize="small"] #status4evar-download-button #status4evar-download-icon
+{
+	background: -moz-image-rect(url("chrome://browser/skin/Toolbar-small.png"), 0, 16, 16, 0) center no-repeat;
+	min-width: 16px;
+	min-height: 16px;
+}
+
+toolbar[iconsize="small"] > #status4evar-download-button[attention] #status4evar-download-icon {
+	background-image: url("chrome://browser/skin/downloads/download-glow-small.png");
+}
+
 toolbar[mode="icons"] #status4evar-download-button[forcelabel="true"] > label
 {
 	margin: 0px 2px !important;

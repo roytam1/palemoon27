@@ -2647,6 +2647,7 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
           ->RefableThen(TaskQueue(), __func__, this,
                         &MediaDecoderStateMachine::OnMetadataRead,
                         &MediaDecoderStateMachine::OnMetadataNotRead));
+      }
       return NS_OK;
     }
 

@@ -476,8 +476,6 @@ protected:
 
   nsresult FinishDecodeFirstFrame();
 
-  nsAutoPtr<MetadataTags> mMetadataTags;
-
   // True if our buffers of decoded audio are not full, and we should
   // decode more.
   bool NeedToDecodeAudio();
@@ -601,8 +599,6 @@ protected:
   // decode thread.
   void DecodeError();
 
-  void StartWaitForResources();
-
   // Dispatches a task to the state machine thread to begin decoding content.
   // This is threadsafe and can be called on any thread.
   // The decoder monitor must be held.
@@ -670,12 +666,9 @@ protected:
   // must be held when calling this. Called on the decode thread.
   int64_t GetDecodedAudioDuration();
 
-  // Load metadata. Called on the decode thread. The decoder monitor
-  // must be held with exactly one lock count.
-  nsresult DecodeMetadata();
-
-  // Wraps the call to DecodeMetadata(), signals a DecodeError() on failure.
-  void CallDecodeMetadata();
+  // Promise callbacks for metadata reading.
+  void OnMetadataRead(MetadataHolder* aMetadata);
+  void OnMetadataNotRead(ReadMetadataFailureReason aReason);
 
   // Initiate first content decoding. Called on the state machine thread.
   // The decoder monitor must be held with exactly one lock count.
@@ -1206,9 +1199,14 @@ protected:
   // we were at before the seek.
   int64_t mCurrentTimeBeforeSeek;
 
+  // Track our request for metadata from the reader.
+  MediaPromiseConsumerHolder<MediaDecoderReader::MetadataPromise> mMetadataRequest;
+
   // Stores presentation info required for playback. The decoder monitor
   // must be held when accessing this.
   MediaInfo mInfo;
+
+  nsAutoPtr<MetadataTags> mMetadataTags;
 
   mozilla::MediaMetadataManager mMetadataManager;
 

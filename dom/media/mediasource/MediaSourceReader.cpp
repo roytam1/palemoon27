@@ -90,6 +90,7 @@ MediaSourceReader::IsWaitingMediaResources()
   return !mHasEssentialTrackBuffers;
 }
 
+bool
 MediaSourceReader::IsWaitingOnCDMResource()
 {
   // EME not supported

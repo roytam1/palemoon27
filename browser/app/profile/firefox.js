@@ -196,6 +196,17 @@ pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://
 pref("xpinstall.whitelist.add", "addons.mozilla.org,www.palemoon.org,addons.palemoon.org");
 pref("xpinstall.whitelist.add.36", "");
 pref("xpinstall.whitelist.add.180", "");
+pref("xpinstall.whitelist.required", false);
+// Allow installing XPI add-ons by direct URL requests (no referrer)
+pref("xpinstall.whitelist.directRequest", true);
+// Allow installing XPI add-ons from file referrers (chrome/file)
+pref("xpinstall.whitelist.fileRequest", true);
+
+pref("extensions.install.requireBuiltInCerts", false);
+// Only allow installation of extensions from https, chrome or file schemes
+pref("extensions.install.requireSecureOrigin", false);
+// Allow installation of distribution/bundles extensions
+pref("extensions.installDistroAddons", true);
 
 pref("lightweightThemes.update.enabled", true);
 pref("lightweightThemes.animation.enabled", false);

@@ -25,13 +25,13 @@ interface nsIDOMNode;
  * |gBrowser.tabContainer| such as e.g. |gBrowser.selectedTab|.
  */
 
-[scriptable, uuid(59bfaf00-e3d8-4728-b4f0-cc0b9dfb4806)]
+[scriptable, uuid(43ec216b-f002-4424-bfc5-fc555c87dbc4)]
 interface nsISessionStore : nsISupports
 {
   /**
    * Initialize the service
    */
-  void init(in nsIDOMWindow aWindow);
+  jsval init(in nsIDOMWindow aWindow);
 
   /**
    * Is it possible to restore the previous session. Will always be false when

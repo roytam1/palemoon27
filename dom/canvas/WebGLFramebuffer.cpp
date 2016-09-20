@@ -970,10 +970,15 @@ WebGLFramebuffer::FinalizeAttachments() const
         ColorAttachment(i).FinalizeAttachment(gl, LOCAL_GL_COLOR_ATTACHMENT0+i);
     }
 
-    DepthAttachment().FinalizeAttachment(gl, LOCAL_GL_DEPTH_ATTACHMENT);
-    StencilAttachment().FinalizeAttachment(gl, LOCAL_GL_STENCIL_ATTACHMENT);
-    DepthStencilAttachment().FinalizeAttachment(gl,
-                                                LOCAL_GL_DEPTH_STENCIL_ATTACHMENT);
+    if (DepthAttachment().IsDefined())
+      DepthAttachment().FinalizeAttachment(gl, LOCAL_GL_DEPTH_ATTACHMENT);
+      
+    if (StencilAttachment().IsDefined())
+      StencilAttachment().FinalizeAttachment(gl, LOCAL_GL_STENCIL_ATTACHMENT);
+      
+    if (DepthStencilAttachment().IsDefined())
+      DepthStencilAttachment().FinalizeAttachment(gl,
+                                                  LOCAL_GL_DEPTH_STENCIL_ATTACHMENT);
 
     FinalizeDrawAndReadBuffers(gl, ColorAttachment(0).IsDefined());
 }

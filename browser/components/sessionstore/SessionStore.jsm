@@ -77,7 +77,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 Cu.import("resource://gre/modules/debug.js", this);
 Cu.import("resource://gre/modules/osfile.jsm", this);
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm", this);
-Cu.import("resource:///modules/promise.js", this);
+Cu.import("resource://gre/modules/Promise.jsm", this);
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSessionStartup",
   "@mozilla.org/browser/sessionstartup;1", "nsISessionStartup");
@@ -135,7 +135,7 @@ this.SessionStore = {
   },
 
   init: function ss_init(aWindow) {
-    SessionStoreInternal.init(aWindow);
+    return SessionStoreInternal.init(aWindow);
   },
 
   getBrowserState: function ss_getBrowserState() {
@@ -334,9 +334,6 @@ let SessionStoreInternal = {
   },
 
   set canRestoreLastSession(val) {
-    // Cheat a bit; only allow false.
-    if (val)
-      return;
     this._lastSessionState = null;
   },
 
@@ -355,7 +352,7 @@ let SessionStoreInternal = {
 
     this._initPrefs();
 
-    this._disabledForMultiProcess = this._prefBranch.getBoolPref("tabs.remote");
+    this._disabledForMultiProcess = false;
 
     // this pref is only read at startup, so no need to observe it
     this._sessionhistory_max_entries =
@@ -519,7 +516,7 @@ let SessionStoreInternal = {
   init: function ssi_init(aWindow) {
     let self = this;
     this.initService();
-    this._promiseInitialization.promise.then(
+    return this._promiseInitialization.promise.then(
       function onSuccess() {
         self._initWindow(aWindow);
       }

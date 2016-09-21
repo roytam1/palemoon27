@@ -113,7 +113,7 @@ class nsCSPParser {
     void            directive();
     nsCSPDirective* directiveName();
     void            directiveValue(nsTArray<nsCSPBaseSrc*>& outSrcs);
-    void            referrerDirectiveValue();
+    void            referrerDirectiveValue(nsCSPDirective* aDir);
     void            sourceList(nsTArray<nsCSPBaseSrc*>& outSrcs);
     nsCSPBaseSrc*   sourceExpression();
     nsCSPSchemeSrc* schemeSource();

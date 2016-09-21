@@ -108,7 +108,7 @@
       <description id="emptyDownloads"
                    mousethrough="always">
            &downloadsPanelEmpty.label;
-	      </description>
+      </description>
 
       <vbox id="downloadsFooter">
         <hbox id="downloadsSummary"

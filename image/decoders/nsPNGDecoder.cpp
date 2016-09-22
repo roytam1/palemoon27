@@ -676,6 +676,15 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
     }
   }
 
+#ifdef PNG_APNG_SUPPORTED
+  /* Reject any ancillary chunk after IDAT with a bad CRC.
+   * This may cause issues with poorly encoded PNG files with CRC errors
+   * in chunks but implements the strong recommendation for APNGs to
+   * reject files with such errors, following the spec.
+   */
+  png_set_crc_action(png_ptr, PNG_CRC_NO_CHANGE, PNG_CRC_ERROR_QUIT);
+#endif
+
   if (decoder->NeedsNewFrame()) {
     // We know that we need a new frame, so pause input so the decoder
     // infrastructure can give it to us.
@@ -831,6 +840,11 @@ nsPNGDecoder::frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
   y_offset = png_get_next_frame_y_offset(png_ptr, decoder->mInfo);
   width = png_get_next_frame_width(png_ptr, decoder->mInfo);
   height = png_get_next_frame_height(png_ptr, decoder->mInfo);
+
+  if (width == 0)
+    png_error(png_ptr, "Frame width must not be 0");
+  if (height == 0)
+    png_error(png_ptr, "Frame height must not be 0");
 
   decoder->CreateFrame(x_offset, y_offset, width, height, decoder->format);
 

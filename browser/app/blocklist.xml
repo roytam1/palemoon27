@@ -2517,6 +2517,11 @@ lastupdate="1473424629000">
       </versionRange>
       <prefs></prefs>
     </emItem>
+    <emItem blockID="pm104" id="ext-promises@palemoon.org">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>    
   </emItems>
   <pluginItems>
     <pluginItem blockID="p26">

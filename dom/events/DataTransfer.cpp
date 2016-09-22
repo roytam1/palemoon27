@@ -326,25 +326,8 @@ DataTransfer::GetFiles(nsIDOMFileList** aFileList)
 already_AddRefed<DOMStringList>
 DataTransfer::Types()
 {
-  nsRefPtr<DOMStringList> types = new DOMStringList();
-  if (mItems.Length()) {
-    bool addFile = false;
-    const nsTArray<TransferItem>& item = mItems[0];
-    for (uint32_t i = 0; i < item.Length(); i++) {
-      const nsString& format = item[i].mFormat;
-      types->Add(format);
-      if (!addFile) {
-        addFile = format.EqualsASCII(kFileMime) ||
-                  format.EqualsASCII("application/x-moz-file-promise");
-      }
-    }
-
-    if (addFile) {
-      types->Add(NS_LITERAL_STRING("Files"));
-    }
-  }
-
-  return types.forget();
+  ErrorResult rv;
+  return MozTypesAt(0, rv);
 }
 
 NS_IMETHODIMP
@@ -524,7 +507,7 @@ DataTransfer::GetMozSourceNode(nsIDOMNode** aSourceNode)
 }
 
 already_AddRefed<DOMStringList>
-DataTransfer::MozTypesAt(uint32_t aIndex, ErrorResult& aRv)
+DataTransfer::MozTypesAt(uint32_t aIndex, ErrorResult& aRv) const
 {
   // Only the first item is valid for clipboard events
   if (aIndex > 0 &&
@@ -535,10 +518,28 @@ DataTransfer::MozTypesAt(uint32_t aIndex, ErrorResult& aRv)
 
   nsRefPtr<DOMStringList> types = new DOMStringList();
   if (aIndex < mItems.Length()) {
+    bool addFile = false;
     // note that you can retrieve the types regardless of their principal
-    nsTArray<TransferItem>& item = mItems[aIndex];
-    for (uint32_t i = 0; i < item.Length(); i++)
-      types->Add(item[i].mFormat);
+    const nsTArray<TransferItem>& item = mItems[aIndex];
+    for (uint32_t i = 0; i < item.Length(); i++) {
+      const nsString& format = item[i].mFormat;
+      types->Add(format);
+      if (!addFile) {
+        addFile = format.EqualsASCII(kFileMime);
+      }
+    }
+
+    if (addFile) {
+      // If this is a content caller, and a file is in the data transfer, remove
+      // the non-file types. This prevents alternate text forms of the file
+      // from being returned.
+      if (!nsContentUtils::IsCallerChrome()) {
+        types->Clear();
+        types->Add(NS_LITERAL_STRING(kFileMime));
+      }
+
+      types->Add(NS_LITERAL_STRING("Files"));
+    }
   }
 
   return types.forget();
@@ -572,11 +573,22 @@ DataTransfer::MozGetDataAt(const nsAString& aFormat, uint32_t aIndex,
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-
   nsAutoString format;
   GetRealFormat(aFormat, format);
 
   nsTArray<TransferItem>& item = mItems[aIndex];
+
+  // If this is a content caller, and a file is in the data transfer, only
+  // return the file type.
+  if (!format.EqualsLiteral(kFileMime) &&
+      !nsContentUtils::IsSystemPrincipal(nsContentUtils::SubjectPrincipal())) {
+    uint32_t count = item.Length();
+    for (uint32_t i = 0; i < count; i++) {
+      if (item[i].mFormat.EqualsLiteral(kFileMime)) {
+        return NS_OK;
+      }
+    }
+  }
 
   // Check if the caller is allowed to access the drag data. Callers with
   // chrome privileges can always read the data. During the
@@ -685,8 +697,8 @@ DataTransfer::MozSetDataAt(const nsAString& aFormat, nsIVariant* aData,
   // Don't allow non-chrome to add non-string or file data. We block file
   // promises as well which are used internally for drags to the desktop.
   if (!nsContentUtils::IsCallerChrome()) {
-    if (aFormat.EqualsLiteral("application/x-moz-file-promise") ||
-        aFormat.EqualsLiteral("application/x-moz-file")) {
+    if (aFormat.EqualsLiteral(kFilePromiseMime) ||
+        aFormat.EqualsLiteral(kFileMime)) {
       return NS_ERROR_DOM_SECURITY_ERR;
     }
 

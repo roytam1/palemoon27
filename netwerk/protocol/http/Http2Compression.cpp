@@ -406,6 +406,13 @@ Http2Decompressor::OutputHeader(const nsACString &name, const nsACString &value)
     }
   }
   if(isColonHeader) {
+    // RFC 7540 states that :status is the only pseudo-header field allowed
+    // in received HEADERS. Only Push allows the other pseudo-header fields.
+    // Check for invalid headers and error out if so.
+    if (!name.EqualsLiteral(":status") && !mIsPush) {
+      LOG(("HTTP Decompressor found illegal response pseudo-header %s", name.BeginReading()));
+      return NS_ERROR_ILLEGAL_VALUE;
+    }
     if (mSeenNonColonHeader) {
       LOG(("HTTP Decompressor found illegal : header %s", name.BeginReading()));
       return NS_ERROR_ILLEGAL_VALUE;

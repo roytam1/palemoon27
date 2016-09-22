@@ -967,7 +967,8 @@ WebGLFramebuffer::FinalizeAttachments() const
     gl::GLContext* gl = mContext->gl;
 
     for (size_t i = 0; i < ColorAttachmentCount(); i++) {
-        ColorAttachment(i).FinalizeAttachment(gl, LOCAL_GL_COLOR_ATTACHMENT0+i);
+        if (ColorAttachment(i).IsDefined())
+          ColorAttachment(i).FinalizeAttachment(gl, LOCAL_GL_COLOR_ATTACHMENT0+i);
     }
 
     if (DepthAttachment().IsDefined())

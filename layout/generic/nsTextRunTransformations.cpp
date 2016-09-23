@@ -308,6 +308,10 @@ nsCaseTransformTextRunFactory::TransformString(
   mozilla::GreekCasing::State greekState;
   mozilla::IrishCasing::State irishState;
   uint32_t irishMark = uint32_t(-1); // location of possible prefix letter(s)
+                                     // in the output string
+  uint32_t irishMarkSrc = uint32_t(-1); // corresponding location in source
+                                        // string (may differ from output due to
+                                        // expansions like eszet -> 'SS')
 
   for (uint32_t i = 0; i < length; ++i) {
     uint32_t ch = str[i];
@@ -326,6 +330,7 @@ nsCaseTransformTextRunFactory::TransformString(
         greekState.Reset();
         irishState.Reset();
         irishMark = uint32_t(-1);
+        irishMarkSrc = uint32_t(-1);
       }
     }
 
@@ -457,6 +462,7 @@ nsCaseTransformTextRunFactory::TransformString(
         ch = mozilla::IrishCasing::UpperCase(ch, irishState, mark, action);
         if (mark) {
           irishMark = aConvertedString.Length();
+          irishMarkSrc = i;
           break;
         } else if (action) {
           nsString& str = aConvertedString; // shorthand
@@ -467,6 +473,7 @@ nsCaseTransformTextRunFactory::TransformString(
                          "bad irishMark!");
             str.SetCharAt(ToLowerCase(str[irishMark]), irishMark);
             irishMark = uint32_t(-1);
+            irishMarkSrc = uint32_t(-1);
             break;
           case 2:
             // lowercase two prefix letters (immediately before current pos)
@@ -475,14 +482,18 @@ nsCaseTransformTextRunFactory::TransformString(
             str.SetCharAt(ToLowerCase(str[irishMark]), irishMark);
             str.SetCharAt(ToLowerCase(str[irishMark + 1]), irishMark + 1);
             irishMark = uint32_t(-1);
+            irishMarkSrc = uint32_t(-1);
             break;
           case 3:
             // lowercase one prefix letter, and delete following hyphen
             // (which must be the immediately-preceding char)
             NS_ASSERTION(str.Length() >= 2 && irishMark == str.Length() - 2,
                          "bad irishMark!");
+            MOZ_ASSERT((irishMark == uint32_t(-1)) ==
+                       (irishMarkSrc == uint32_t(-1)),
+                       "irishMark and irishMarkSrc initialization out of sync");
             str.Replace(irishMark, 2, ToLowerCase(str[irishMark]));
-            aDeletedCharsArray[irishMark + 1] = true;
+            aDeletedCharsArray[irishMarkSrc + 1] = true;
             // Remove the trailing entries (corresponding to the deleted hyphen)
             // from the auxiliary arrays.
             aCharsToMergeArray.SetLength(aCharsToMergeArray.Length() - 1);
@@ -493,6 +504,7 @@ nsCaseTransformTextRunFactory::TransformString(
             }
             mergeNeeded = true;
             irishMark = uint32_t(-1);
+            irishMarkSrc = uint32_t(-1);
             break;
           }
           // ch has been set to the uppercase for current char;

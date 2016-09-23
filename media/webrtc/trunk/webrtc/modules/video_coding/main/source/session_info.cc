@@ -164,7 +164,6 @@ int VCMSessionInfo::InsertBuffer(uint8_t* frame_buffer,
       return 0;
     }
 
-    }
     ShiftSubsequentPackets(packet_it, required_length);
     nalu_ptr = packet_buffer + kH264NALHeaderLengthInBytes;
     uint8_t* frame_buffer_ptr = frame_buffer + offset;

@@ -166,6 +166,9 @@ FFmpegH264Decoder<LIBAV_VER>::ReleaseBufferCb(AVCodecContext* aCodecContext,
       if (image) {
         image->Release();
       }
+      for (uint32_t i = 0; i < AV_NUM_DATA_POINTERS; i++) {
+        aFrame->data[i] = nullptr;
+      }
       break;
     }
     default:

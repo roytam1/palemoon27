@@ -386,6 +386,11 @@ public:
      * is shown.
      */
      eIntID_PhysicalHomeButton,
+     
+    /**
+     * Return the appropriate UnixThemeIdentifier for the current theme.
+     */
+     eIntID_UnixThemeIdentifier,
 
      /*
       * Controls whether overlay scrollbars display when the user moves
@@ -415,6 +420,12 @@ public:
     eWindowsTheme_AeroLite
   };
 
+  enum UnixThemeIdentifier {
+    eUnixThemeGTK2 = 0,
+    eUnixThemeGTK3, // not yet
+    eUnixThemeQt4,
+  };
+
   /**
    * Operating system versions.
    */
@@ -424,6 +435,9 @@ public:
     eOperatingSystemVersion_Windows7,
     eOperatingSystemVersion_Windows8,
     eOperatingSystemVersion_Windows10,
+    eOperatingSystemVersion_GNULinux,
+    eOperatingSystemVersion_BSD,
+    eOperatingSystemVersion_MacOSX,
     eOperatingSystemVersion_Unknown
   };
 

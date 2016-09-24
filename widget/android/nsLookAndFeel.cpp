@@ -403,6 +403,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
 
         case eIntID_WindowsDefaultTheme:
         case eIntID_WindowsThemeIdentifier:
+        case eIntID_UnixThemeIdentifier:
         case eIntID_OperatingSystemVersionIdentifier:
             aResult = 0;
             rv = NS_ERROR_NOT_IMPLEMENTED;

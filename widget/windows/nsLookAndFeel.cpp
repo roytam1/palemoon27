@@ -406,6 +406,10 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     case eIntID_WindowsThemeIdentifier:
         aResult = nsUXThemeData::GetNativeThemeId();
         break;
+    case eIntID_UnixThemeIdentifier:
+        aResult = 0;
+        res = NS_ERROR_NOT_IMPLEMENTED;
+        break;
 
     case eIntID_OperatingSystemVersionIdentifier:
     {

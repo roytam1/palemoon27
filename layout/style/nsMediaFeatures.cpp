@@ -49,21 +49,53 @@ const WindowsThemeName themeStrings[] = {
     { LookAndFeel::eWindowsTheme_Zune,       L"zune" },
     { LookAndFeel::eWindowsTheme_Generic,    L"generic" }
 };
+#else
+struct UnixThemeName {
+    LookAndFeel::UnixThemeIdentifier id;
+    const PRUnichar* name;
+};
+
+const UnixThemeName unixThemeStrings[] = {
+#if defined(MOZ_WIDGET_GTK2)
+    { LookAndFeel::eUnixThemeGTK2, (const PRUnichar *)u"gtk-2" },
+#endif
+#if defined(MOZ_WIDGET_QT)
+    { LookAndFeel::eUnixThemeQt4,  (const PRUnichar *)u"qt4" },
+#endif
+};
+#endif
 
 struct OperatingSystemVersionInfo {
     LookAndFeel::OperatingSystemVersion id;
+#ifdef XP_WIN
     const wchar_t* name;
+#else
+	const PRUnichar* name;
+#endif
 };
 
+#define INTERNAL_OS_VERSION_OK
 // Os version identities used in the -moz-os-version media query.
 const OperatingSystemVersionInfo osVersionStrings[] = {
+#ifdef XP_WIN
     { LookAndFeel::eOperatingSystemVersion_WindowsXP,     L"windows-xp" },
     { LookAndFeel::eOperatingSystemVersion_WindowsVista,  L"windows-vista" },
     { LookAndFeel::eOperatingSystemVersion_Windows7,      L"windows-win7" },
     { LookAndFeel::eOperatingSystemVersion_Windows8,      L"windows-win8" },
     { LookAndFeel::eOperatingSystemVersion_Windows10,     L"windows-win10" }
-};
+  // check for `__linux__`, as *BSD version can use GTK+2 too
+#elif defined(__linux__) && (__linux__ == 1)
+# define INTERNAL_OS_VERSION_OK
+    { LookAndFeel::eOperatingSystemVersion_GNULinux,      (const PRUnichar *)u"gnu-linux" },
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+# define INTERNAL_OS_VERSION_OK
+    { LookAndFeel::eOperatingSystemVersion_BSD,           (const PRUnichar *)u"bsd" },
+#elif XP_MACOSX
+    { LookAndFeel::eOperatingSystemVersion_MacOSX,        (const PRUnichar *)u"macos-x" },
+#else
+# undef INTERNAL_OS_VERSION_OK
 #endif
+};
 
 // A helper for four features below
 static nsSize
@@ -342,11 +374,34 @@ GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
 }
 
 static nsresult
+GetUnixTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
+                nsCSSValue& aResult)
+{
+    aResult.Reset();
+#if !defined(XP_WIN) && !defined(XP_MACOSX)
+    int32_t metricResult;
+    if (NS_SUCCEEDED(
+        LookAndFeel::GetInt(LookAndFeel::eIntID_UnixThemeIdentifier,
+                            &metricResult)))
+    {
+        for (size_t i = 0; i < ArrayLength(unixThemeStrings); ++i) {
+            if (metricResult == unixThemeStrings[i].id) {
+                aResult.SetStringValue(nsDependentString(unixThemeStrings[i].name),
+                                       eCSSUnit_Ident);
+                break;
+            }
+        }
+    }
+#endif
+    return NS_OK;
+}
+
+static nsresult
 GetOperatinSystemVersion(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
                          nsCSSValue& aResult)
 {
     aResult.Reset();
-#ifdef XP_WIN
+#ifdef INTERNAL_OS_VERSION_OK
     int32_t metricResult;
     if (NS_SUCCEEDED(
           LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
@@ -628,6 +683,13 @@ nsMediaFeatures::features[] = {
         nsMediaFeature::eIdent,
         { nullptr },
         GetWindowsTheme
+    },
+    {
+        &nsGkAtoms::_moz_unix_theme,
+        nsMediaFeature::eMinMaxNotAllowed,
+        nsMediaFeature::eIdent,
+        { nullptr },
+        GetUnixTheme
     },
     {
         &nsGkAtoms::_moz_os_version,

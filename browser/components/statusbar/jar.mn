@@ -4,7 +4,7 @@
 
 browser.jar:
 % overlay chrome://browser/content/browser.xul                  chrome://browser/content/statusbar/overlay.xul
-% style chrome://global/content/customizeToolbar.xul            chrome://browser/content/statusbar/overlay.css
+% style chrome://global/content/customizeToolbar.xul            chrome://browser/skin/statusbar/overlay.css
         content/browser/statusbar/overlay.js                    (content/overlay.js)
         content/browser/statusbar/prefs.js                      (content/prefs.js)
         content/browser/statusbar/prefs.xml                     (content/prefs.xml)

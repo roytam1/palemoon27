@@ -2153,10 +2153,6 @@ GK_ATOM(windows_theme_royale, "windows-theme-royale")
 GK_ATOM(windows_theme_zune, "windows-theme-zune")
 GK_ATOM(windows_theme_generic, "windows-theme-generic")
 
-GK_ATOM(nixlike_version_linux, "nixlike-version-gnu-linux")
-GK_ATOM(nixlike_version_bsd, "nixlike-version-bsd")
-GK_ATOM(nixlike_version_macosx, "nixlike-version-macos-x")
-
 // And the same again, as media query keywords.
 GK_ATOM(_moz_color_picker_available, "-moz-color-picker-available")
 GK_ATOM(_moz_scrollbar_start_backward, "-moz-scrollbar-start-backward")
@@ -2175,7 +2171,6 @@ GK_ATOM(_moz_windows_compositor, "-moz-windows-compositor")
 GK_ATOM(_moz_windows_classic, "-moz-windows-classic")
 GK_ATOM(_moz_windows_glass, "-moz-windows-glass")
 GK_ATOM(_moz_windows_theme, "-moz-windows-theme")
-GK_ATOM(_moz_unix_theme, "-moz-unix-theme")
 GK_ATOM(_moz_os_version, "-moz-os-version")
 GK_ATOM(_moz_touch_enabled, "-moz-touch-enabled")
 GK_ATOM(_moz_menubar_drag, "-moz-menubar-drag")

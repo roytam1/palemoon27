@@ -393,12 +393,9 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     case eIntID_WindowsDefaultTheme:
     case eIntID_TouchEnabled:
     case eIntID_WindowsThemeIdentifier:
-    case eIntID_UnixThemeIdentifier:
+    case eIntID_OperatingSystemVersionIdentifier:
       aResult = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
-      break;
-    case eIntID_OperatingSystemVersionIdentifier:
-      aResult = LookAndFeel::eOperatingSystemVersion_MacOSX;
       break;
     case eIntID_MacGraphiteTheme:
       aResult = [NSColor currentControlTint] == NSGraphiteControlTint;

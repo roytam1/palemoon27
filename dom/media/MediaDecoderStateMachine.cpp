@@ -1112,6 +1112,7 @@ MediaDecoderStateMachine::IsVideoDecoding()
 void
 MediaDecoderStateMachine::CheckIfDecodeComplete()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   if (IsShutdown() ||
       mState == DECODER_STATE_SEEKING ||
@@ -1333,6 +1334,7 @@ static const char* const gMachineStateStr[] = {
 
 void MediaDecoderStateMachine::SetState(State aState)
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   if (mState == aState) {
     return;

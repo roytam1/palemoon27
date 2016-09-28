@@ -646,7 +646,7 @@ protected:
    *
    * @see ProcessInvalidationList
    */
-  nsTArray<nsIContent*> mInvalidationList;
+  nsTArray<nsRefPtr<nsIContent>> mInvalidationList;
 
   /**
    * Used to process notification from core and accessible events.

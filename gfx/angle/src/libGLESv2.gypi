@@ -341,7 +341,7 @@
                 'GL_APICALL=',
                 'GL_GLEXT_PROTOTYPES=',
                 'EGLAPI=',
-                'ANGLE_PRELOADED_D3DCOMPILER_MODULE_NAMES={ "d3dcompiler_46.dll", "d3dcompiler_43.dll" }',
+                'ANGLE_PRELOADED_D3DCOMPILER_MODULE_NAMES={ "d3dcompiler_46.dll", "d3dcompiler_47.dll" }',
             ],
             'direct_dependent_settings':
             {
@@ -356,7 +356,7 @@
                     'GL_APICALL=',
                     'GL_GLEXT_PROTOTYPES=',
                     'EGLAPI=',
-                    'ANGLE_PRELOADED_D3DCOMPILER_MODULE_NAMES={ "d3dcompiler_46.dll", "d3dcompiler_43.dll" }',
+                    'ANGLE_PRELOADED_D3DCOMPILER_MODULE_NAMES={ "d3dcompiler_46.dll", "d3dcompiler_47.dll" }',
                 ],
             },
             'conditions':

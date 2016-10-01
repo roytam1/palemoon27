@@ -90,13 +90,34 @@ public:
 class TrackConfig
 {
 public:
-  TrackConfig() : mTrackId(0), duration(0), media_time(0) {}
+  enum TrackType {
+    kUndefinedTrack,
+    kAudioTrack,
+    kVideoTrack,
+  };
+  explicit TrackConfig(TrackType aType)
+    : mTrackId(0)
+    , duration(0)
+    , media_time(0)
+    , mType(aType)
+  {
+  }
+
   nsAutoCString mime_type;
   uint32_t mTrackId;
   int64_t duration;
   int64_t media_time;
   CryptoTrack crypto;
+  TrackType mType;
 
+  bool IsAudioConfig() const
+  {
+    return mType == kAudioTrack;
+  }
+  bool IsVideoConfig() const
+  {
+    return mType == kVideoTrack;
+  }
   void Update(stagefright::sp<stagefright::MetaData>& aMetaData,
               const char* aMimeType);
 };
@@ -105,7 +126,8 @@ class AudioDecoderConfig : public TrackConfig
 {
 public:
   AudioDecoderConfig()
-    : channel_count(0)
+    : TrackConfig(kAudioTrack)
+    , channel_count(0)
     , bits_per_sample(0)
     , samples_per_second(0)
     , frequency_index(0)
@@ -137,7 +159,8 @@ class VideoDecoderConfig : public TrackConfig
 {
 public:
   VideoDecoderConfig()
-    : display_width(0)
+    : TrackConfig(kVideoTrack)
+    , display_width(0)
     , display_height(0)
     , image_width(0)
     , image_height(0)

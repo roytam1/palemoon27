@@ -14,6 +14,11 @@ SOURCES += [
     'kiss_fftr.c',
 ]
 
+# kiss_fft causes OOM error with some 32bit versions of GCC when using -O2
+if '64' not in CONFIG['OS_TEST']:
+    if CONFIG['GNU_CC']:
+        CFLAGS += ['-Os']
+
 if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
     NO_VISIBILITY_FLAGS = True
 

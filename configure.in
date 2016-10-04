@@ -5396,7 +5396,7 @@ if test -n "$MOZ_VPX"; then
         dnl === libvpx Version check ===
         dnl ============================
         dnl Check to see if we have a system libvpx package.
-        PKG_CHECK_MODULES(MOZ_LIBVPX, vpx >= 1.3.0)
+        PKG_CHECK_MODULES(MOZ_LIBVPX, vpx >= 1.4.0)
 
         CFLAGS="$CFLAGS $MOZ_LIBVPX_CFLAGS"
         LIBS="$LIBS $MOZ_LIBVPX_LIBS"
@@ -5406,13 +5406,6 @@ if test -n "$MOZ_VPX"; then
 
         AC_CHECK_LIB(vpx, vpx_codec_dec_init_ver, [],
          [AC_MSG_ERROR([--with-system-libvpx requested but symbol vpx_codec_dec_init_ver not found])])
-
-        MOZ_CHECK_HEADER([vpx_mem/vpx_mem.h],
-         [AC_CHECK_FUNC(vpx_mem_set_functions)])
-        if test "$ac_cv_header_vpx_mem_vpx_mem_h" = no -o \
-                "$ac_cv_func_vpx_mem_set_functions" = no; then
-            AC_DEFINE(MOZ_VPX_NO_MEM_REPORTING)
-        fi
     fi
     CFLAGS=$_SAVE_CFLAGS
     LIBS=$_SAVE_LIBS

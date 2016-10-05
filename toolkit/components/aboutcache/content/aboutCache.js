@@ -38,6 +38,9 @@ function navigate()
     context += 'i' + $('appid').value + ',';
   if ($('priv').checked)
     context += 'p,';
+    
+  if (storage == null)
+    storage = '';
 
   window.location.href = 'about:cache?storage=' + storage + '&context=' + context;
 }

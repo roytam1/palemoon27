@@ -3846,7 +3846,7 @@ dnl ========================================================
 
 MOZ_ARG_HEADER(Application)
 
-ENABLE_TESTS=1
+ENABLE_TESTS=
 MOZ_DISABLE_PARENTAL_CONTROLS=1
 ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
@@ -6300,12 +6300,12 @@ MOZ_ARG_ENABLE_BOOL(update-packaging,
 AC_SUBST(MOZ_UPDATE_PACKAGING)
 
 dnl ========================================================
-dnl build the tests by default
+dnl Do not build the tests by default
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(tests,
-[  --disable-tests         Do not build test libraries & programs],
-    ENABLE_TESTS=,
-    ENABLE_TESTS=1 )
+MOZ_ARG_ENABLE_BOOL(tests,
+[  --enable-tests         Build test libraries & programs],
+    ENABLE_TESTS=1,
+    ENABLE_TESTS= )
 
 if test -n "$ENABLE_TESTS"; then
     GTEST_HAS_RTTI=0

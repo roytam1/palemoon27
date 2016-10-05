@@ -3935,7 +3935,7 @@ MOZ_ANDROID_SEARCH_ACTIVITY=
 MOZ_ANDROID_DOWNLOADS_INTEGRATION=
 MOZ_ANDROID_MLS_STUMBLER=
 MOZ_ANDROID_SHARE_OVERLAY=
-ACCESSIBILITY=1
+ACCESSIBILITY=
 MOZ_TIME_MANAGER=
 MOZ_PAY=
 MOZ_AUDIO_CHANNEL_MANAGER=
@@ -5037,12 +5037,12 @@ MOZ_ARG_DISABLE_BOOL(dbm,
     NSS_DISABLE_DBM=)
 
 dnl ========================================================
-dnl accessibility support on by default on all platforms
+dnl accessibility support off by default on all platforms
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(accessibility,
-[  --disable-accessibility Disable accessibility support],
-    ACCESSIBILITY=,
-    ACCESSIBILITY=1 )
+MOZ_ARG_ENABLE_BOOL(accessibility,
+[  --enable-accessibility Enable accessibility support],
+    ACCESSIBILITY=1,
+    ACCESSIBILITY= )
 if test "$ACCESSIBILITY"; then
     case "$target" in
     *-mingw*)

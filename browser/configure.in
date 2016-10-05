@@ -12,10 +12,10 @@ dnl Optional parts of the build.
 dnl ========================================================
 dnl = Enable Mozilla DevTools (/browser only)
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(devtools,
-[  --disable-devtools           Disable Mozilla Developer Tools],
-    MOZ_DEVTOOLS=,
-    MOZ_DEVTOOLS=1)
+MOZ_ARG_ENABLE_BOOL(devtools,
+[  --enable-devtools           Enable Mozilla DevTools],
+    MOZ_DEVTOOLS=1,
+    MOZ_DEVTOOLS=)
 
 if test -n "$MOZ_DEVTOOLS"; then
     AC_DEFINE(MOZ_DEVTOOLS)

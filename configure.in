@@ -501,8 +501,11 @@ case "$target" in
         if test "$_CC_MAJOR_VERSION" = "18" -a "$_CC_BUILD_VERSION" -ge "30723"; then
             _CC_SUITE=12
             MSVS_VERSION=2013
+            MSVC_REDIST_CRT_DIR=Microsoft.VC120.CRT
             MSVC_C_RUNTIME_DLL=msvcr120.dll
             MSVC_CXX_RUNTIME_DLL=msvcp120.dll
+            MSVC_REDIST_OPENMP_DIR=Microsoft.VC120.OPENMP
+            MSVC_OPENMP_DLL=vcomp120.dll
         elif test "$_CC_MAJOR_VERSION" = "19"; then
             _CC_SUITE=14
             MSVS_VERSION=2015
@@ -527,8 +530,11 @@ You must install Visual C++ 2013 Update 3 or newer in order to build.
 See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         fi
         AC_SUBST(MSVS_VERSION)
+        AC_SUBST(MSVC_REDIST_CRT_DIR)
         AC_SUBST(MSVC_C_RUNTIME_DLL)
         AC_SUBST(MSVC_CXX_RUNTIME_DLL)
+        AC_SUBST(MSVC_REDIST_OPENMP_DIR)
+        AC_SUBST(MSVC_OPENMP_DLL)
         AC_SUBST(MSVC_APPCRT_DLL)
         AC_SUBST(MSVC_DESKTOPCRT_DLL)
 
@@ -544,6 +550,10 @@ See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         if test -n "$WIN32_REDIST_DIR"; then
           if test ! -d "$WIN32_REDIST_DIR"; then
             AC_MSG_ERROR([Invalid Win32 Redist directory: ${WIN32_REDIST_DIR}])
+          fi
+          
+          if test -f "$WIN32_REDIST_DIR/$MSVC_C_RUNTIME_DLL"; then
+            AC_MSG_ERROR([The Win32 Redist directory must be set to the directory above Microsoft.VCXX0.CRT])
           fi
           WIN32_REDIST_DIR=`cd "$WIN32_REDIST_DIR" && pwd`
         fi

@@ -31,16 +31,12 @@
 
 #filterRow {
   margin-top: 4px;
-  -moz-margin-start: 5px;
+  -moz-margin-start: 4px;
 }
 
 #configTree {
   margin-top: 4px;
   margin-bottom: 4px;
-}
-
-#configTreeBody::-moz-tree-row {
-  min-height: 1.1em;
 }
 
 #configTreeBody::-moz-tree-cell-text(user) {

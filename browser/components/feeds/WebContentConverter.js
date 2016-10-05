@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -308,7 +308,8 @@ WebContentConverterRegistrar.prototype = {
   function WCCR_checkAndGetURI(aURIString, aContentWindow)
   {
     try {
-      var uri = this._makeURI(aURIString);
+      let baseURI = aContentWindow.document.baseURIObject;
+      var uri = this._makeURI(aURIString, null, baseURI);
     } catch (ex) {
       // not supposed to throw according to spec
       return; 
@@ -369,6 +370,13 @@ WebContentConverterRegistrar.prototype = {
   function WCCR_registerProtocolHandler(aProtocol, aURIString, aTitle, aContentWindow) {
     LOG("registerProtocolHandler(" + aProtocol + "," + aURIString + "," + aTitle + ")");
 
+    var uri = this._checkAndGetURI(aURIString, aContentWindow);
+
+    // If the protocol handler is already registered, just return early.
+    if (this._protocolHandlerRegistered(aProtocol, uri.spec)) {
+      return;
+    }
+
     var browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);    
     if (PrivateBrowsingUtils.isWindowPrivate(browserWindow)) {
       // Inside the private browsing mode, we don't want to alert the user to save
@@ -406,25 +414,18 @@ WebContentConverterRegistrar.prototype = {
       throw("Not allowed to register a protocol handler for " + aProtocol);
     }
 
-    var uri = this._checkAndGetURI(aURIString, aContentWindow);
+    // Now Ask the user and provide the proper callback
+    var message = this._getFormattedString("addProtocolHandler",
+                                           [aTitle, uri.host, aProtocol]);
 
-    var buttons, message;
-    if (this._protocolHandlerRegistered(aProtocol, uri.spec))
-      message = this._getFormattedString("protocolHandlerRegistered",
-                                         [aTitle, aProtocol]);
-    else {
-      // Now Ask the user and provide the proper callback
-      message = this._getFormattedString("addProtocolHandler",
-                                         [aTitle, uri.host, aProtocol]);
+    var notificationIcon = uri.prePath + "/favicon.ico";
+    var notificationValue = "Protocol Registration: " + aProtocol;
+    var addButton = {
+      label: this._getString("addProtocolHandlerAddButton"),
+      accessKey: this._getString("addHandlerAddButtonAccesskey"),
+      protocolInfo: { protocol: aProtocol, uri: uri.spec, name: aTitle },
 
-      var notificationIcon = uri.prePath + "/favicon.ico";
-      var notificationValue = "Protocol Registration: " + aProtocol;
-      var addButton = {
-        label: this._getString("addProtocolHandlerAddButton"),
-        accessKey: this._getString("addHandlerAddButtonAccesskey"),
-        protocolInfo: { protocol: aProtocol, uri: uri.spec, name: aTitle },
-
-        callback:
+      callback:
         function WCCR_addProtocolHandlerButtonCallback(aNotification, aButtonInfo) {
           var protocol = aButtonInfo.protocolInfo.protocol;
           var uri      = aButtonInfo.protocolInfo.uri;
@@ -450,18 +451,14 @@ WebContentConverterRegistrar.prototype = {
                    getService(Ci.nsIHandlerService);
           hs.store(handlerInfo);
         }
-      };
-      buttons = [addButton];
-    }
-
-
+    };
     var browserElement = this._getBrowserForContentWindow(browserWindow, aContentWindow);
-    var notificationBox = browserWindow.getBrowser().getNotificationBox(browserElement);
+    var notificationBox = browserWindow.gBrowser.getNotificationBox(browserElement);
     notificationBox.appendNotification(message,
                                        notificationValue,
                                        notificationIcon,
                                        notificationBox.PRIORITY_INFO_LOW,
-                                       buttons);
+                                       [addButton]);
   },
 
   /**
@@ -485,7 +482,7 @@ WebContentConverterRegistrar.prototype = {
   
       var browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);
       var browserElement = this._getBrowserForContentWindow(browserWindow, aContentWindow);
-      var notificationBox = browserWindow.getBrowser().getNotificationBox(browserElement);
+      var notificationBox = browserWindow.gBrowser.getNotificationBox(browserElement);
       this._appendFeedReaderNotification(uri, aTitle, notificationBox);
     }
     else
@@ -520,7 +517,7 @@ WebContentConverterRegistrar.prototype = {
   function WCCR__getBrowserForContentWindow(aBrowserWindow, aContentWindow) {
     // This depends on pseudo APIs of browser.js and tabbrowser.xml
     aContentWindow = aContentWindow.top;
-    var browsers = aBrowserWindow.getBrowser().browsers;
+    var browsers = aBrowserWindow.gBrowser.browsers;
     for (var i = 0; i < browsers.length; ++i) {
       if (browsers[i].contentWindow == aContentWindow)
         return browsers[i];
@@ -878,12 +875,6 @@ WebContentConverterRegistrar.prototype = {
   },
 
   classID: WCCR_CLASSID,
-  classInfo: XPCOMUtils.generateCI({classID: WCCR_CLASSID,
-                                    contractID: WCCR_CONTRACTID,
-                                    interfaces: [Ci.nsIWebContentConverterService,
-                                                 Ci.nsIWebContentHandlerRegistrar,
-                                                 Ci.nsIObserver, Ci.nsIFactory],
-                                    flags: Ci.nsIClassInfo.DOM_OBJECT}),
 
   /**
    * See nsISupports

@@ -6193,22 +6193,8 @@ if test "$OS_ARCH" = "WINNT"; then
 fi
 
 dnl ========================================================
-dnl Web App Runtime
+dnl GNU tar and wget
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(webapp-runtime,
-[  --disable-webapp-runtime  Disable Web App Runtime],
-    MOZ_WEBAPP_RUNTIME=,
-    MOZ_WEBAPP_RUNTIME=1)
-if test "$MOZ_WIDGET_TOOLKIT" != "windows" -a "$MOZ_WIDGET_TOOLKIT" != "cocoa" -a -z "$MOZ_WIDGET_GTK" ; then
-    MOZ_WEBAPP_RUNTIME=
-fi
-if test "$OS_ARCH" = "WINNT" -a -z "$MAKENSISU" -a -n "$CROSS_COMPILE"; then
-    MOZ_WEBAPP_RUNTIME=
-fi
-AC_SUBST(MOZ_WEBAPP_RUNTIME)
-if test "$MOZ_WEBAPP_RUNTIME"; then
-    AC_DEFINE(MOZ_WEBAPP_RUNTIME)
-fi
 
 AC_CHECK_PROGS(TAR, gnutar gtar tar, "")
 if test -z "$TAR"; then

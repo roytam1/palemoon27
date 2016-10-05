@@ -3847,6 +3847,7 @@ dnl ========================================================
 MOZ_ARG_HEADER(Application)
 
 ENABLE_TESTS=1
+MOZ_DISABLE_PARENTAL_CONTROLS=1
 ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
@@ -6327,11 +6328,11 @@ fi
 dnl ========================================================
 dnl parental controls (for Windows Vista)
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(parental-controls,
-[  --disable-parental-controls
-                          Do not build parental controls],
-   MOZ_DISABLE_PARENTAL_CONTROLS=1,
-   MOZ_DISABLE_PARENTAL_CONTROLS=)
+MOZ_ARG_ENABLE_BOOL(parental-controls,
+[  --enable-parental-controls
+                          Build parental controls],
+   MOZ_DISABLE_PARENTAL_CONTROLS=,
+   MOZ_DISABLE_PARENTAL_CONTROLS=1)
 if test -n "$MOZ_DISABLE_PARENTAL_CONTROLS"; then
     AC_DEFINE(MOZ_DISABLE_PARENTAL_CONTROLS)
 fi

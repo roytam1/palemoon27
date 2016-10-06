@@ -61,6 +61,13 @@ exports.items = [
             manual: gcli.lookup("screenshotDelayManual")
           },
           {
+            name: "dpr",
+            type: { name: "number", min: 0, allowFloat: true },
+            defaultValue: 0,
+            description: gcli.lookup("screenshotDPRDesc"),
+            manual: gcli.lookup("screenshotDPRManual")
+          },
+          {
             name: "fullpage",
             type: "boolean",
             description: gcli.lookup("screenshotFullPageDesc"),
@@ -95,9 +102,9 @@ exports.items = [
       }
 
       return this.grabScreen(document, args.filename, args.clipboard,
-                             args.fullpage, args.selector);
+                             args.fullpage, args.selector, args.dpr);
     },
-    grabScreen: function(document, filename, clipboard, fullpage, node) {
+    grabScreen: function(document, filename, clipboard, fullpage, node, dpr) {
       return Task.spawn(function() {
         let window = document.defaultView;
         let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
@@ -137,9 +144,11 @@ exports.items = [
         width -= scrollbarWidth.value;
         height -= scrollbarHeight.value;
 
-        canvas.width = width;
-        canvas.height = height;
         let ctx = canvas.getContext("2d");
+        let ratio = dpr ? dpr : window.devicePixelRatio;
+        canvas.width = width * ratio;
+        canvas.height = height * ratio;
+        ctx.scale(ratio, ratio);
         ctx.drawWindow(window, left, top, width, height, "#fff");
         let data = canvas.toDataURL("image/png", "");
 

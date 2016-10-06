@@ -2820,7 +2820,7 @@ dnl ========================================================
 
 MOZ_ARG_HEADER(Application)
 
-ENABLE_TESTS=1
+ENABLE_TESTS=
 
 USE_ARM_KUSER=
 
@@ -2858,12 +2858,12 @@ MOZ_ARG_ENABLE_STRING(ui-locale,
 AC_SUBST(MOZ_UI_LOCALE)
 
 dnl ========================================================
-dnl build the tests by default
+dnl Do not build the tests by default
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(tests,
-[  --disable-tests         Do not build test libraries & programs],
-    ENABLE_TESTS=,
-    ENABLE_TESTS=1 )
+MOZ_ARG_ENABLE_BOOL(tests,
+[  --enable-tests         Build test libraries & programs],
+    ENABLE_TESTS=1,
+    ENABLE_TESTS= )
 
 dnl ========================================================
 dnl =

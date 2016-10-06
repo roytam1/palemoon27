@@ -21,7 +21,9 @@
 <?xul-overlay href="chrome://browser/content/baseMenuOverlay.xul"?>
 <?xul-overlay href="chrome://browser/content/places/placesOverlay.xul"?>
 
+#ifdef MOZ_BROWSER_STATUSBAR
 <?xul-overlay href="chrome://browser/content/statusbar/overlay.xul"?>
+#endif
 
 # Padlock feature
 <?xul-overlay href="chrome://browser/content/padlock.xul"?>

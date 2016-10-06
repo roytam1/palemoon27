@@ -29,13 +29,21 @@ exports.items = [
   {
     name: "restart",
     description: gcli.lookupFormat("restartBrowserDesc", [ BRAND_SHORT_NAME ]),
-    params: [
-      {
-        name: "nocache",
-        type: "boolean",
-        description: gcli.lookup("restartBrowserNocacheDesc")
-      }
-    ],
+    params: [{
+      group: gcli.lookup("restartBrowserGroupOptions"),
+      params: [
+        {
+          name: "nocache",
+          type: "boolean",
+          description: gcli.lookup("restartBrowserNocacheDesc")
+        },
+        {
+          name: "safemode",
+          type: "boolean",
+          description: gcli.lookup("restartBrowserSafemodeDesc")
+        }
+      ]
+    }],
     returnType: "string",
     exec: function Restart(args, context) {
       let canceled = Cc["@mozilla.org/supports-PRBool;1"]
@@ -50,10 +58,17 @@ exports.items = [
         Services.appinfo.invalidateCachesOnRestart();
       }
 
-      // restart
-      Cc["@mozilla.org/toolkit/app-startup;1"]
-          .getService(Ci.nsIAppStartup)
-          .quit(Ci.nsIAppStartup.eAttemptQuit | Ci.nsIAppStartup.eRestart);
+      const appStartup = Cc["@mozilla.org/toolkit/app-startup;1"]
+                           .getService(Ci.nsIAppStartup);
+
+      if (args.safemode) {
+        // restart in safemode
+        appStartup.restartInSafeMode(Ci.nsIAppStartup.eAttemptQuit);
+      } else {
+        // restart normally
+        appStartup.quit(Ci.nsIAppStartup.eAttemptQuit | Ci.nsIAppStartup.eRestart);
+      }
+
       return gcli.lookupFormat("restartBrowserRestarting", [ BRAND_SHORT_NAME ]);
     }
   }

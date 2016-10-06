@@ -126,7 +126,7 @@ exports.items = [
           showOnly: args.region
         });
         exports.highlighters.push(highlighter);
-        i ++;
+        i++;
       }
 
       let highlightText = nodesSelected.GetStringFromName("highlightOutputConfirm2");

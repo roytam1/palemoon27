@@ -22,6 +22,7 @@ const commandModules = [
   "gcli/commands/media",
   "gcli/commands/pagemod",
   "gcli/commands/paintflashing",
+  "gcli/commands/qsa",
   "gcli/commands/restart",
   "gcli/commands/screenshot",
   "gcli/commands/tools",

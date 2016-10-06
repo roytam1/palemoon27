@@ -26,8 +26,8 @@ AC_SUBST(MOZ_DEVTOOLS)
 dnl ========================================================
 dnl = Disable the status bar code
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(statusbar,
-[  --disable-stausbar           Disable Browser Status bar],
+MOZ_ARG_DISABLE_BOOL(browser-statusbar,
+[  --disable-browser-stausbar           Disable Browser Status bar],
     MOZ_BROWSER_STATUSBAR=,
     MOZ_BROWSER_STATUSBAR=1)
 

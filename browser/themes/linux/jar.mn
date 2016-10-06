@@ -102,6 +102,7 @@ browser.jar:
 * skin/classic/browser/preferences/preferences.css    (preferences/preferences.css)
   skin/classic/browser/preferences/applications.css   (preferences/applications.css)
   skin/classic/browser/preferences/aboutPermissions.css (preferences/aboutPermissions.css)
+#ifdef MOZ_BROWSER_STATUSBAR
   skin/classic/browser/statusbar/dynamic.css                   (../shared/statusbar/dynamic.css)
 * skin/classic/browser/statusbar/overlay.css                   (statusbar/overlay.css)
 * skin/classic/browser/statusbar/prefs.css                     (statusbar/prefs.css)
@@ -112,6 +113,7 @@ browser.jar:
   skin/classic/browser/statusbar/throbberStatic.png            (../shared/statusbar/throbberStatic.png)
   skin/classic/browser/statusbar/urlbar-over-link-arrow.png    (../shared/statusbar/urlbar-over-link-arrow.png)
   skin/classic/browser/statusbar/urlbar-over-link-arrow-rtl.png (../shared/statusbar/urlbar-over-link-arrow-rtl.png)
+#endif
   skin/classic/browser/tabbrowser/alltabs.png         (tabbrowser/alltabs.png)
   skin/classic/browser/tabbrowser/connecting.png      (tabbrowser/connecting.png)
   skin/classic/browser/tabbrowser/loading.png         (tabbrowser/loading.png)

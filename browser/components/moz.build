@@ -16,9 +16,11 @@ DIRS += [
     'search',
     'sessionstore',
     'shell',
-    'statusbar',
     'migration',
 ]
+
+if CONFIG['MOZ_BROWSER_STATUSBAR']:
+    DIRS += ['statusbar]
 
 if CONFIG['MOZ_BROWSER_SIDEBAR']:
     DIRS += ['sidebar']

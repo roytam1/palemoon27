@@ -589,19 +589,12 @@ let gDevToolsBrowser = {
     let appMgrEnabled = Services.prefs.getBoolPref("devtools.appmanager.enabled");
     toggleCmd("Tools:DevAppMgr", !webIDEEnabled && appMgrEnabled);
 
-    // Enable Browser Toolbox?
-    let chromeEnabled = Services.prefs.getBoolPref("devtools.chrome.enabled");
-    let devtoolsRemoteEnabled = Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
-    let remoteEnabled = chromeEnabled && devtoolsRemoteEnabled &&
-                        Services.prefs.getBoolPref("devtools.debugger.chrome-enabled");
-    toggleCmd("Tools:BrowserToolbox", remoteEnabled);
-    toggleCmd("Tools:BrowserContentToolbox", remoteEnabled && win.gMultiProcessBrowser);
-
     // Enable Error Console?
     let consoleEnabled = Services.prefs.getBoolPref("devtools.errorconsole.enabled");
     toggleCmd("Tools:ErrorConsole", consoleEnabled);
 
     // Enable DevTools connection screen, if the preference allows this.
+    let devtoolsRemoteEnabled = Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
     toggleCmd("Tools:DevToolsConnect", devtoolsRemoteEnabled);
   },
 
@@ -735,15 +728,6 @@ let gDevToolsBrowser = {
     });
 
     return deferred.promise;
-  },
-
-  openContentProcessToolbox: function () {
-    this._getContentProcessTarget()
-        .then(target => {
-          // Display a new toolbox, in a new window, with debugger by default
-          return gDevTools.showToolbox(target, "jsdebugger",
-                                       devtools.Toolbox.HostType.WINDOW);
-        });
   },
 
   /**
@@ -1181,16 +1165,6 @@ let gDevToolsBrowser = {
   },
 
   /**
-   * Connects to the SPS profiler when the developer tools are open. This is
-   * necessary because of the WebConsole's `profile` and `profileEnd` methods.
-   */
-  _connectToProfiler: function DT_connectToProfiler(event, toolbox) {
-    let SharedProfilerUtils = devtools.require("devtools/profiler/shared");
-    let connection = SharedProfilerUtils.getProfilerConnection(toolbox);
-    connection.open();
-  },
-
-  /**
    * Remove the menuitem for a tool to all open browser windows.
    *
    * @param {string} toolId
@@ -1267,7 +1241,6 @@ let gDevToolsBrowser = {
    * All browser windows have been closed, tidy up remaining objects.
    */
   destroy: function() {
-    gDevTools.off("toolbox-ready", gDevToolsBrowser._connectToProfiler);
     Services.prefs.removeObserver("devtools.", gDevToolsBrowser);
     Services.obs.removeObserver(gDevToolsBrowser.destroy, "quit-application");
   },
@@ -1288,7 +1261,6 @@ gDevTools.on("tool-unregistered", function(ev, toolId) {
 });
 
 gDevTools.on("toolbox-ready", gDevToolsBrowser._updateMenuCheckbox);
-gDevTools.on("toolbox-ready", gDevToolsBrowser._connectToProfiler);
 gDevTools.on("toolbox-destroyed", gDevToolsBrowser._updateMenuCheckbox);
 
 Services.obs.addObserver(gDevToolsBrowser.destroy, "quit-application", false);

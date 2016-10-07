@@ -1606,6 +1606,7 @@ Toolbox.prototype = {
     this._target.off("frame-update", this._updateFrames);
     this.off("select", this._refreshHostTitle);
     this.off("host-changed", this._refreshHostTitle);
+    this.off("ready", this._showDevEditionPromo);
 
     gDevTools.off("tool-registered", this._toolRegistered);
     gDevTools.off("tool-unregistered", this._toolUnregistered);

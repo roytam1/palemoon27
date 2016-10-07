@@ -108,7 +108,8 @@
 <!ENTITY offlineAppRemove.confirm        "Remove offline data">
 
 <!ENTITY certificateTab.label            "Certificates">
-<!ENTITY certGroup.label                 "When a server requests my personal certificate:">
+<!ENTITY certGroup.label                 "Personal Certificate">
+<!ENTITY certSelection.description       "When a server requests my personal certificate:">
 <!ENTITY certs.auto                      "Select one automatically">
 <!ENTITY certs.auto.accesskey            "l">
 <!ENTITY certs.ask                       "Ask me every time">
@@ -117,7 +118,7 @@
 <!ENTITY enableOCSP.label                "Use OCSP to confirm the current validity of certificates">
 <!ENTITY enableOCSP.accesskey            "U">
 <!ENTITY requireOCSP.label               "When an OCSP server connection fails, treat the certificate as invalid">
-<!ENTITY requireOCSP.accesskey           "W">
+<!ENTITY requireOCSP.accesskey           "f">
 <!ENTITY viewCerts.label                 "View Certificates">
 <!ENTITY viewCerts.accesskey             "s">
 <!ENTITY viewSecurityDevices.label       "Security Devices">

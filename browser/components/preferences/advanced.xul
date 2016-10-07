@@ -344,6 +344,7 @@
             
             <groupbox>
                 <caption label="&certGroup.label;"/>
+                <description id="CertSelectionDesc" control="certSelection">&certSelection.description;</description>
                 <radiogroup id="certSelection" orient="horizontal" preftype="string"
                             preference="security.default_personal_cert"
                             aria-labelledby="CertSelectionDesc">

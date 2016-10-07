@@ -423,7 +423,7 @@ OptionsPanel.prototype = {
    */
   _isDevEditionThemeOn: function() {
     let win = Services.wm.getMostRecentWindow("navigator:browser");
-    return !!(win && win.DevEdition.styleSheet);
+    return !!(win && win.DevEdition && win.DevEdition.styleSheet);
   },
 
   /**

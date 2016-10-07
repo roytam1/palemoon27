@@ -72,7 +72,7 @@ this.StorageUI = function StorageUI(front, target, panelWin) {
     highlightUpdated: true,
   });
   this.displayObjectSidebar = this.displayObjectSidebar.bind(this);
-  this.table.on(TableWidget.EVENTS.ROW_SELECTED, this.displayObjectSidebar)
+  this.table.on(TableWidget.EVENTS.ROW_SELECTED, this.displayObjectSidebar);
 
   this.sidebar = this._panelDoc.getElementById("storage-sidebar");
   this.sidebar.setAttribute("width", "300");
@@ -81,7 +81,7 @@ this.StorageUI = function StorageUI(front, target, panelWin) {
 
   this.front.listStores().then(storageTypes => {
     this.populateStorageTree(storageTypes);
-  }).then(null, Cu.reportError);
+  }).then(null, console.error);
   this.onUpdate = this.onUpdate.bind(this);
   this.front.on("stores-update", this.onUpdate);
 
@@ -90,7 +90,7 @@ this.StorageUI = function StorageUI(front, target, panelWin) {
 
   this._telemetry = new Telemetry();
   this._telemetry.toolOpened("storage");
-}
+};
 
 exports.StorageUI = StorageUI;
 
@@ -123,14 +123,12 @@ StorageUI.prototype = {
     if (this.table.isSelected(name)) {
       if (this.table.selectedIndex == 0) {
         this.table.selectNextRow()
-      }
-      else {
+      } else {
         this.table.selectPreviousRow();
       }
       this.table.remove(name);
       this.displayObjectSidebar();
-    }
-    else {
+    } else {
       this.table.remove(name);
     }
   },
@@ -172,8 +170,7 @@ StorageUI.prototype = {
             }
 
             this.tree.remove([type, host]);
-          }
-          else if (this.tree.isSelected([type, host])) {
+          } else if (this.tree.isSelected([type, host])) {
             for (let name of deleted[type][host]) {
               try {
                 // trying to parse names in case its for indexedDB
@@ -185,12 +182,10 @@ StorageUI.prototype = {
                     this.table.clear();
                     this.hideSidebar();
                   }
-                }
-                else if (this.tree.isSelected([type, host, names[0], names[1]])) {
+                } else if (this.tree.isSelected([type, host, names[0], names[1]])) {
                   this.removeItemFromTable(names[2]);
                 }
-              }
-              catch (ex) {
+              } catch (ex) {
                 this.removeItemFromTable(name);
               }
             }
@@ -237,8 +232,7 @@ StorageUI.prototype = {
               }
             }
             this.fetchStorageObjects(type, host, toUpdate, 2);
-          }
-          catch (ex) {
+          } catch (ex) {
             this.fetchStorageObjects(type, host, changed[type][host], 2);
           }
         }
@@ -289,7 +283,16 @@ StorageUI.prototype = {
   populateStorageTree: function(storageTypes) {
     this.storageTypes = {};
     for (let type in storageTypes) {
-      let typeLabel = L10N.getStr("tree.labels." + type);
+      // Ignore `from` field, which is just a protocol.js implementation artifact
+      if (type === "from") {
+        continue;
+      }
+      let typeLabel = type;
+      try {
+        typeLabel = L10N.getStr("tree.labels." + type);
+      } catch(e) {
+        console.error("Unable to localize tree label type:" + type);
+      }
       this.tree.add([{id: type, label: typeLabel, type: "store"}]);
       if (storageTypes[type].hosts) {
         this.storageTypes[type] = storageTypes[type];
@@ -384,11 +387,10 @@ StorageUI.prototype = {
    *        The string to be parsed into an object
    */
   parseItemValue: function(name, value) {
-    let json = null
+    let json = null;
     try {
       json = JSON.parse(value);
-    }
-    catch (ex) {
+    } catch (ex) {
       json = null;
     }
 
@@ -508,7 +510,12 @@ StorageUI.prototype = {
       if (!uniqueKey) {
         this.table.uniqueId = uniqueKey = key;
       }
-      columns[key] = L10N.getStr("table.headers." + type + "." + key);
+      columns[key] = key;
+      try {
+        columns[key] = L10N.getStr("table.headers." + type + "." + key);
+      } catch(e) {
+        console.error("Unable to localize table header type:" + type + " key:" + key);
+      }
     }
     this.table.setColumns(columns, null, HIDDEN_COLUMNS);
     this.shouldResetColumns = false;
@@ -544,8 +551,7 @@ StorageUI.prototype = {
       }
       if (reason < 2) {
         this.table.push(item, reason == 0);
-      }
-      else {
+      } else {
         this.table.update(item);
         if (item == this.table.selectedRow && !this.sidebar.hidden) {
           this.displayObjectSidebar();
@@ -568,4 +574,4 @@ StorageUI.prototype = {
       event.preventDefault();
     }
   }
-}
+};

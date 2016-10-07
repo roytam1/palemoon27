@@ -50,6 +50,7 @@ static RedirEntry kRedirMap[] = {
     "chrome://global/content/aboutRights-unbranded.xhtml",
 #endif
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+    nsIAboutModule::MAKE_LINKABLE |
     nsIAboutModule::ALLOW_SCRIPT },
   { "palemoon", "chrome://global/content/palemoon.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |

@@ -48,7 +48,6 @@ loader.lazyGetter(this, "toolboxStrings", () => {
 loader.lazyGetter(this, "Selection", () => require("devtools/framework/selection").Selection);
 loader.lazyGetter(this, "InspectorFront", () => require("devtools/server/actors/inspector").InspectorFront);
 loader.lazyRequireGetter(this, "DevToolsUtils", "devtools/toolkit/DevToolsUtils");
-loader.lazyRequireGetter(this, "getPerformanceActorsConnection", "devtools/performance/front", true);
 
 // White-list buttons that can be toggled to prevent adding prefs for
 // addons that have manually inserted toolbarbuttons into DOM.
@@ -294,85 +293,6 @@ Toolbox.prototype = {
   /**
    * Open the toolbox
    */
-// TODO
-// https://hg.mozilla.org/mozilla-central/diff/963ca422f7c5/browser/devtools/framework/toolbox.js
-/*
-  open: function () {
-    return Task.spawn(function*() {
-      let iframe = yield this._host.create();
-      let domReady = promise.defer();
-
-      // Load the toolbox-level actor fronts and utilities now
-      yield this._target.makeRemote();
-      iframe.setAttribute("src", this._URL);
-      iframe.setAttribute("aria-label", toolboxStrings("toolbox.label"));
-      let domHelper = new DOMHelpers(iframe.contentWindow);
-      domHelper.onceDOMReady(() => domReady.resolve());
-
-      yield domReady.promise;
-
-      this.isReady = true;
-      let framesPromise = this._listFrames();
-
-      this.closeButton = this.doc.getElementById("toolbox-close");
-      this.closeButton.addEventListener("command", this.destroy, true);
-
-      gDevTools.on("pref-changed", this._prefChanged);
-
-      let framesMenu = this.doc.getElementById("command-button-frames");
-      framesMenu.addEventListener("command", this.selectFrame, true);
-
-      this._buildDockButtons();
-      this._buildOptions();
-      this._buildTabs();
-      this._applyCacheSettings();
-      this._applyServiceWorkersTestingSettings();
-      this._addKeysToWindow();
-      this._addReloadKeys();
-      this._addHostListeners();
-      if (this._hostOptions && this._hostOptions.zoom === false) {
-        this._disableZoomKeys();
-      } else {
-        this._addZoomKeys();
-        this._loadInitialZoom();
-      }
-
-      this.webconsolePanel = this.doc.querySelector("#toolbox-panel-webconsole");
-      this.webconsolePanel.height = Services.prefs.getIntPref(SPLITCONSOLE_HEIGHT_PREF);
-      this.webconsolePanel.addEventListener("resize", this._saveSplitConsoleHeight);
-
-      let buttonsPromise = this._buildButtons();
-
-      this._pingTelemetry();
-
-      let panel = yield this.selectTool(this._defaultToolId);
-
-      // Wait until the original tool is selected so that the split
-      // console input will receive focus.
-      let splitConsolePromise = promise.resolve();
-      if (Services.prefs.getBoolPref(SPLITCONSOLE_ENABLED_PREF)) {
-        splitConsolePromise = this.openSplitConsole();
-      }
-
-      yield promise.all([
-        splitConsolePromise,
-        buttonsPromise,
-        framesPromise
-      ]);
-
-      let profilerReady = this._connectProfiler();
-
-      // Only wait for the profiler initialization during tests. Otherwise,
-      // lazily load this. This is to intercept console.profile calls; the performance
-      // tools will explicitly wait for the connection opening when opened.
-      if (gDevTools.testing) {
-        yield profilerReady;
-      }
-
-      this.emit("ready");
-    }.bind(this)).then(null, console.error.bind(console));
-  },
-*/
   open: function() {
     let deferred = promise.defer();
 
@@ -1686,7 +1606,6 @@ Toolbox.prototype = {
     this._target.off("frame-update", this._updateFrames);
     this.off("select", this._refreshHostTitle);
     this.off("host-changed", this._refreshHostTitle);
-    this.off("ready", this._showDevEditionPromo);
 
     gDevTools.off("tool-registered", this._toolRegistered);
     gDevTools.off("tool-unregistered", this._toolUnregistered);
@@ -1728,9 +1647,6 @@ Toolbox.prototype = {
         this._pickerButton = null;
       }
     }));
-
-    // Destroy the profiler connection
-    outstanding.push(this._disconnectProfiler());
 
     // We need to grab a reference to win before this._host is destroyed.
     let win = this.frame.ownerGlobal;
@@ -1812,39 +1728,5 @@ Toolbox.prototype = {
     }
     let window = this.frame.contentWindow;
     showDoorhanger({ window, type: "deveditionpromo" });
-  },
-
-  getPerformanceActorsConnection: function() {
-    if (!this._performanceConnection) {
-      this._performanceConnection = getPerformanceActorsConnection(this.target);
-    }
-    return this._performanceConnection;
-  },
-
-  /**
-   * Connects to the SPS profiler when the developer tools are open. This is
-   * necessary because of the WebConsole's `profile` and `profileEnd` methods.
-   */
-  _connectProfiler: Task.async(function*() {
-    // If target does not have profiler actor (addons), do not
-    // even register the shared performance connection.
-    if (!this.target.hasActor("profiler")) {
-      return;
-    }
-
-    yield this.getPerformanceActorsConnection().open();
-    // Emit an event when connected, but don't wait on startup for this.
-    this.emit("profiler-connected");
-  }),
-
-  /**
-   * Disconnects the underlying Performance Actor Connection.
-   */
-  _disconnectProfiler: Task.async(function*() {
-    if (!this._performanceConnection) {
-      return;
-    }
-    yield this._performanceConnection.destroy();
-    this._performanceConnection = null;
-  }),
+  }
 };

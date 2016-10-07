@@ -1235,13 +1235,8 @@ var gBrowserInit = {
     }
 
     ssPromise.then(() =>{
-      // Bail out if the window has been closed in the meantime.
-      if (window.closed) {
-        return;
-      }
-      if ("TabView" in window) {
-        TabView.init();
-      }
+      TabView.init();
+      SocialUI.init();
       // XXX: do we still need this?...
       setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
     });
@@ -1339,9 +1334,6 @@ var gBrowserInit = {
       gPrefService.removeObserver(ctrlTab.prefName, ctrlTab);
       gPrefService.removeObserver(allTabs.prefName, allTabs);
       ctrlTab.uninit();
-      if ("TabView" in window) {
-        TabView.uninit();
-      }
       gBrowserThumbnails.uninit();
       FullZoom.destroy();
 
@@ -6892,21 +6884,6 @@ XPCOMUtils.defineLazyGetter(ResponsiveUI, "ResponsiveUIManager", function() {
   let tmp = {};
   Cu.import("resource:///modules/devtools/responsivedesign.jsm", tmp);
   return tmp.ResponsiveUIManager;
-});
-
-function openEyedropper() {
-  var eyedropper = new this.Eyedropper(this, { context: "menu",
-                                               copyOnSelect: true });
-  eyedropper.open();
-}
-
-Object.defineProperty(this, "Eyedropper", {
-  get: function() {
-    let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-    return devtools.require("devtools/eyedropper/eyedropper").Eyedropper;
-  },
-  configurable: true,
-  enumerable: true
 });
 #endif
 

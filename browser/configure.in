@@ -36,23 +36,3 @@ if test -n "$MOZ_BROWSER_STATUSBAR"; then
 fi
 
 AC_SUBST(MOZ_BROWSER_STATUSBAR)
-
-
-dnl ========================================================
-dnl Web App Runtime
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(webapp-runtime,
-[  --enable-webapp-runtime  Enable building of the Web App Runtime],
-    MOZ_WEBAPP_RUNTIME=1,
-    MOZ_WEBAPP_RUNTIME=)
-if test "$MOZ_WIDGET_TOOLKIT" != "windows" -a "$MOZ_WIDGET_TOOLKIT" != "cocoa" -a "$MOZ_WIDGET_TOOLKIT" != "gtk2"; then
-    MOZ_WEBAPP_RUNTIME=
-fi
-if test "$OS_ARCH" = "WINNT" -a -z "$MAKENSISU" -a -n "$CROSS_COMPILE"; then
-    MOZ_WEBAPP_RUNTIME=
-fi
-AC_SUBST(MOZ_WEBAPP_RUNTIME)
-if test "$MOZ_WEBAPP_RUNTIME"; then
-    AC_DEFINE(MOZ_WEBAPP_RUNTIME)
-fi
-

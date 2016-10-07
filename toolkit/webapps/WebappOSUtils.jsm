@@ -201,28 +201,6 @@ this.WebappOSUtils = {
     return execFile.parent.path;
 #endif
 
-#elifdef MOZ_WEBAPP_RUNTIME
-    // Webapp runtime
-
-#ifdef XP_WIN
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#elifdef XP_MACOSX
-    let [ bundleID, path ] = this.getLaunchTarget(aApp);
-    return path;
-#elifdef XP_UNIX
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#endif
-
 #endif
     // Anything unsupported, like Metro
     throw new Error("Unsupported apps platform");

@@ -25,9 +25,7 @@ struct RedirEntry
   URI_SAFE_FOR_UNTRUSTED_CONTENT in the third argument to each map item below
   unless your about: page really needs chrome privileges. Security review is
   required before adding new map entries without
-  URI_SAFE_FOR_UNTRUSTED_CONTENT.  Also note, however, that adding
-  URI_SAFE_FOR_UNTRUSTED_CONTENT will allow random web sites to link to that
-  URI.  Perhaps we should separate the two concepts out...
+  URI_SAFE_FOR_UNTRUSTED_CONTENT.
  */
 static RedirEntry kRedirMap[] = {
   {
@@ -36,8 +34,9 @@ static RedirEntry kRedirMap[] = {
   },
   { "about", "chrome://global/content/aboutAbout.xhtml", 0 },
   {
-    "credits", "http://www.mozilla.org/credits/",
-    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT
+    "credits", "http://www.palemoon.org/Contributors.shtml",
+    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+    nsIAboutModule::MAKE_LINKABLE
   },
   {
     "mozilla", "chrome://global/content/mozilla.xhtml",
@@ -56,7 +55,8 @@ static RedirEntry kRedirMap[] = {
   },
   {
     "license", "chrome://global/content/license.html",
-    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT
+    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+    nsIAboutModule::MAKE_LINKABLE
   },
   {
     "neterror", "chrome://global/content/netError.xhtml",
@@ -80,7 +80,7 @@ static RedirEntry kRedirMap[] = {
   {
     "newaddon", "chrome://mozapps/content/extensions/newaddon.xul",
     nsIAboutModule::ALLOW_SCRIPT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT
+    nsIAboutModule::HIDE_FROM_ABOUTABOUT
   },
   {
     "support", "chrome://global/content/aboutSupport.xhtml",
@@ -103,9 +103,9 @@ static RedirEntry kRedirMap[] = {
   {
     "srcdoc", "about:blank",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT |
-      // Needs to be linkable so content can touch its own srcdoc frames
-      nsIAboutModule::MAKE_LINKABLE
+    nsIAboutModule::HIDE_FROM_ABOUTABOUT |
+    // Needs to be linkable so content can touch its own srcdoc frames
+    nsIAboutModule::MAKE_LINKABLE
   }
 };
 static const int kRedirTotal = mozilla::ArrayLength(kRedirMap);

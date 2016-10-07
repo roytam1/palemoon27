@@ -76,7 +76,7 @@
 
       <preference id="browser.search.update"           name="browser.search.update"           type="bool"/>
 
-      <!-- Encryption tab -->
+      <!-- Certificates tab -->
       <preference id="security.default_personal_cert"  name="security.default_personal_cert"  type="string"/>
 
       <preference id="security.disable_button.openCertManager"
@@ -85,6 +85,13 @@
       <preference id="security.disable_button.openDeviceManager"
                   name="security.disable_button.openDeviceManager"
                   type="bool"/>
+      <preference id="security.OCSP.enabled"
+                  name="security.OCSP.enabled"
+                  type="int"/>
+      <preference id="security.OCSP.require"
+                  name="security.OCSP.require"
+                  type="bool"/>
+
       <!-- Pale Moon: smooth scrolling tab -->
       <preference id="general.smoothScroll.lines"                    name="general.smoothScroll.lines"                    type="bool"/>
       <preference id="general.smoothScroll.lines.durationMinMS"      name="general.smoothScroll.lines.durationMinMS"      type="int"/>
@@ -329,36 +336,48 @@
         <!-- Certificates -->
         <tabpanel id="encryptionPanel" orient="vertical">
 
-            <description id="CertSelectionDesc" control="certSelection">&certSelection.description;</description>
-
             <!--
               The values on these radio buttons may look like l12y issues, but
               they're not - this preference uses *those strings* as its values.
               I KID YOU NOT.
             -->
-            <radiogroup id="certSelection" orient="horizontal" preftype="string"
-                        preference="security.default_personal_cert"
-                        aria-labelledby="CertSelectionDesc">
-              <radio label="&certs.auto;" accesskey="&certs.auto.accesskey;"
-                     value="Select Automatically"/>
-              <radio label="&certs.ask;" accesskey="&certs.ask.accesskey;"
-                     value="Ask Every Time"/>
-            </radiogroup>
+            
+            <groupbox>
+                <caption label="&certGroup.label;"/>
+                <radiogroup id="certSelection" orient="horizontal" preftype="string"
+                            preference="security.default_personal_cert"
+                            aria-labelledby="CertSelectionDesc">
+                  <radio label="&certs.auto;" accesskey="&certs.auto.accesskey;"
+                         value="Select Automatically"/>
+                  <radio label="&certs.ask;" accesskey="&certs.ask.accesskey;"
+                         value="Ask Every Time"/>
+                </radiogroup>
+            </groupbox>
+            <groupbox>
+                <caption label="&ocspGroup.label;"/>
+                <checkbox id="enableOCSP"
+                          label="&enableOCSP.label;"
+                          accesskey="&enableOCSP.accesskey;"
+                          onsyncfrompreference="return gAdvancedPane.readEnableOCSP();"
+                          onsynctopreference="return gAdvancedPane.writeEnableOCSP();"
+                          preference="security.OCSP.enabled"/>
+                <checkbox id="requireOCSP"
+                          label="&requireOCSP.label;"
+                          accesskey="&requireOCSP.accesskey;"
+                          preference="security.OCSP.require"/>
+            </groupbox>
 
             <separator/>
 
             <hbox>
-              <button id="viewCertificatesButton"
-                      label="&viewCerts.label;" accesskey="&viewCerts.accesskey;"
-                      oncommand="gAdvancedPane.showCertificates();"
-                      preference="security.disable_button.openCertManager"/>
-              <button id="verificationButton"
-                      label="&verify2.label;" accesskey="&verify2.accesskey;"
-                      oncommand="gAdvancedPane.showOCSP();"/>
-              <button id="viewSecurityDevicesButton"
-                      label="&viewSecurityDevices.label;" accesskey="&viewSecurityDevices.accesskey;"
-                      oncommand="gAdvancedPane.showSecurityDevices();"
-                      preference="security.disable_button.openDeviceManager"/>
+                <button id="viewCertificatesButton"
+                        label="&viewCerts.label;" accesskey="&viewCerts.accesskey;"
+                        oncommand="gAdvancedPane.showCertificates();"
+                        preference="security.disable_button.openCertManager"/>
+                <button id="viewSecurityDevicesButton"
+                        label="&viewSecurityDevices.label;" accesskey="&viewSecurityDevices.accesskey;"
+                        oncommand="gAdvancedPane.showSecurityDevices();"
+                        preference="security.disable_button.openDeviceManager"/>
             </hbox>
         </tabpanel>
 

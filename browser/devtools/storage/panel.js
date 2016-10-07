@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
 const {Cc, Ci, Cu, Cr} = require("chrome");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -28,7 +26,7 @@ this.StoragePanel = function StoragePanel(panelWin, toolbox) {
   this._panelWin = panelWin;
 
   this.destroy = this.destroy.bind(this);
-};
+}
 
 exports.StoragePanel = StoragePanel;
 
@@ -57,7 +55,7 @@ StoragePanel.prototype = {
       this.isReady = true;
       this.emit("ready");
       return this;
-    }).catch(this.destroy);
+    }, console.error);
   },
 
   /**
@@ -66,16 +64,14 @@ StoragePanel.prototype = {
   destroy: function() {
     if (!this._destroyed) {
       this.UI.destroy();
-      this.UI = null;
       // Destroy front to ensure packet handler is removed from client
       this._front.destroy();
-      this._front = null;
       this._destroyed = true;
 
       this._target.off("close", this.destroy);
       this._target = null;
       this._toolbox = null;
-      this._panelWin = null;
+      this._panelDoc = null;
     }
 
     return Promise.resolve(null);

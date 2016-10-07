@@ -14,7 +14,7 @@ try {
     // we don't use it there anyway.
 }
 const {async} = require("devtools/async-utils");
-const {Arg, Option, method, RetVal, types} = protocol;
+const {Arg, method, RetVal, types} = protocol;
 const {LongStringActor, ShortLongString} = require("devtools/server/actors/string");
 
 Cu.import("resource://gre/modules/Promise.jsm");
@@ -224,12 +224,14 @@ StorageActors.defaults = function(typeName, observationTopic, storeObjectType) {
     },
 
     destroy: function() {
-      this.hostVsStores = null;
       if (observationTopic) {
         Services.obs.removeObserver(this, observationTopic, false);
       }
       events.off(this.storageActor, "window-ready", this.onWindowReady);
       events.off(this.storageActor, "window-destroyed", this.onWindowDestroyed);
+
+      this.hostVsStores.clear();
+      this.storageActor = null;
     },
 
     getNamesForHost: function(host) {
@@ -363,23 +365,20 @@ StorageActors.defaults = function(typeName, observationTopic, storeObjectType) {
           // In this case, toReturn.data is an empty array.
           toReturn.offset = toReturn.total;
           toReturn.data = [];
-        }
-        else {
-          toReturn.data = toReturn.data.sort((a,b) => {
+        } else {
+          toReturn.data = toReturn.data.sort((a, b) => {
             return a[sortOn] - b[sortOn];
           }).slice(offset, offset + size).map(a => this.toStoreObject(a));
         }
-      }
-      else {
+      } else {
         let total = yield this.getValuesForHost(host);
         toReturn.total = total.length;
         if (offset > toReturn.total) {
           // In this case, toReturn.data is an empty array.
           toReturn.offset = offset = toReturn.total;
           toReturn.data = [];
-        }
-        else {
-          toReturn.data = total.sort((a,b) => {
+        } else {
+          toReturn.data = total.sort((a, b) => {
             return a[sortOn] - b[sortOn];
           }).slice(offset, offset + size)
             .map(object => this.toStoreObject(object));
@@ -414,7 +413,7 @@ StorageActors.defaults = function(typeName, observationTopic, storeObjectType) {
  *         - storeObjectType {string}
  *                           The RetVal type of the store object of this actor.
  * @param {object} overrides
- *        All the methods which you want to be differnt from the ones in
+ *        All the methods which you want to be different from the ones in
  *        StorageActors.defaults method plus the required ones described there.
  */
 StorageActors.createActor = function(options = {}, overrides = {}) {
@@ -428,7 +427,7 @@ StorageActors.createActor = function(options = {}, overrides = {}) {
   }
 
   let actor = protocol.ActorClass(actorObject);
-  let front = protocol.FrontClass(actor, {
+  protocol.FrontClass(actor, {
     form: function(form, detail) {
       if (detail === "actorid") {
         this.actorID = form;
@@ -465,11 +464,12 @@ StorageActors.createActor({
   },
 
   destroy: function() {
-    this.hostVsStores = null;
+    this.hostVsStores.clear();
     Services.obs.removeObserver(this, "cookie-changed", false);
     Services.obs.removeObserver(this, "http-on-response-set-cookie", false);
     events.off(this.storageActor, "window-ready", this.onWindowReady);
     events.off(this.storageActor, "window-destroyed", this.onWindowDestroyed);
+    this.storageActor = null;
   },
 
   /**
@@ -506,11 +506,12 @@ StorageActors.createActor({
       return host == null;
     }
     if (cookie.host.startsWith(".")) {
-      return host.endsWith(cookie.host);
+      return ("." + host).endsWith(cookie.host);
     }
-    else {
-      return cookie.host == host;
+    if (cookie.host === "") {
+      return host.startsWith("file://" + cookie.path);
     }
+    return cookie.host == host;
   },
 
   toStoreObject: function(cookie) {
@@ -529,7 +530,7 @@ StorageActors.createActor({
       isDomain: cookie.isDomain,
       isSecure: cookie.isSecure,
       isHttpOnly: cookie.isHttpOnly
-    }
+    };
   },
 
   populateStoresForHost: function(host) {
@@ -700,7 +701,12 @@ StorageActors.createActor({
         break;
 
       case "cleared":
-        this.storageActor.update("cleared", "cookies", hosts);
+        if (hosts.length) {
+          for (let host of hosts) {
+            data[host] = [];
+          }
+          this.storageActor.update("cleared", "cookies", data);
+        }
         break;
 
       case "reload":
@@ -722,13 +728,20 @@ function getObjectForLocalOrSessionStorage(type) {
   return {
     getNamesForHost: function(host) {
       let storage = this.hostVsStores.get(host);
-      return Object.keys(storage);
+      return storage ? Object.keys(storage) : [];
     },
 
     getValuesForHost: function(host, name) {
       let storage = this.hostVsStores.get(host);
+      if (!storage) {
+        return [];
+      }
       if (name) {
-        return [{name: name, value: storage.getItem(name)}];
+        let value = storage ? storage.getItem(name) : null;
+        return [{ name, value }];
+      }
+      if (!storage) {
+        return [];
       }
       return Object.keys(storage).map(name => {
         return {
@@ -749,7 +762,7 @@ function getObjectForLocalOrSessionStorage(type) {
       try {
         this.hostVsStores.set(host, window[type]);
       } catch(ex) {
-        // Exceptions happen when local or session storage is inaccessible
+        console.warn(`Failed to enumerate ${type} for host ${host}: ${ex}`);
       }
       return null;
     },
@@ -780,11 +793,9 @@ function getObjectForLocalOrSessionStorage(type) {
       let action = "changed";
       if (subject.key == null) {
         return this.storageActor.update("cleared", type, [host]);
-      }
-      else if (subject.oldValue == null) {
+      } else if (subject.oldValue == null) {
         action = "added";
-      }
-      else if (subject.newValue == null) {
+      } else if (subject.newValue == null) {
         action = "deleted";
       }
       let updateData = {};
@@ -797,6 +808,9 @@ function getObjectForLocalOrSessionStorage(type) {
      */
     getSchemaAndHost: function(url) {
       let uri = Services.io.newURI(url, null, null);
+      if (!uri.host) {
+        return uri.spec;
+      }
       return uri.scheme + "://" + uri.hostPort;
     },
 
@@ -946,7 +960,7 @@ StorageActors.createActor({
   },
 
   destroy: function() {
-    this.hostVsStores = null;
+    this.hostVsStores.clear();
     this.objectsSize = null;
     events.off(this.storageActor, "window-ready", this.onWindowReady);
     events.off(this.storageActor, "window-destroyed", this.onWindowDestroyed);
@@ -970,8 +984,12 @@ StorageActors.createActor({
   getNamesForHost: function(host) {
     let names = [];
     for (let [dbName, metaData] of this.hostVsStores.get(host)) {
-      for (let objectStore of metaData.objectStores.keys()) {
-        names.push(JSON.stringify([dbName, objectStore]));
+      if (objectStores.size) {
+        for (let objectStore of metaData.objectStores.keys()) {
+          names.push(JSON.stringify([dbName, objectStore]));
+        }
+      } else {
+        names.push(JSON.stringify([dbName]));
       }
     }
     return names;
@@ -1022,8 +1040,7 @@ StorageActors.createActor({
 
         if (!offset) {
           offset = 0;
-        }
-        else if (offset > count) {
+        } else if (offset > count) {
           db.close();
           success.resolve([]);
           return;
@@ -1086,24 +1103,21 @@ StorageActors.createActor({
       // This is the case where specific entries from an object store were
       // requested
       return names.length;
-    }
-    else if (parsedName.length == 2) {
+    } else if (parsedName.length == 2) {
       // This is the case where all entries from an object store are requested.
       let index = options.index;
       let [db, objectStore] = parsedName;
       if (this.objectsSize[host + db + objectStore + index]) {
         return this.objectsSize[host + db + objectStore + index];
       }
-    }
-    else if (parsedName.length == 1) {
+    } else if (parsedName.length == 1) {
       // This is the case where details of all object stores in a db are
       // requested.
       if (this.hostVsStores.has(host) &&
           this.hostVsStores.get(host).has(parsedName[0])) {
         return this.hostVsStores.get(host).get(parsedName[0]).objectStores.size;
       }
-    }
-    else if (!parsedName || !parsedName.length) {
+    } else if (!parsedName || !parsedName.length) {
       // This is the case were details of all dbs in a host are requested.
       if (this.hostVsStores.has(host)) {
         return this.hostVsStores.get(host).size;
@@ -1289,8 +1303,7 @@ StorageActors.createActor({
           return null;
         });
       });
-    }
-    finally {
+    } finally {
       dirIterator.close();
     }
     return names;
@@ -1504,8 +1517,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
         this.isIncludedInTopLevelWindow(subject)) {
       this.childWindowPool.add(subject);
       events.emit(this, "window-ready", subject);
-    }
-    else if (topic == "inner-window-destroyed") {
+    } else if (topic == "inner-window-destroyed") {
       let window = this.getWindowFromInnerWindowID(subject);
       if (window) {
         this.childWindowPool.delete(window);
@@ -1534,8 +1546,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     let window = target.defaultView;
     if (type == "pagehide" && this.childWindowPool.delete(window)) {
       events.emit(this, "window-destroyed", window)
-    }
-    else if (type == "pageshow" && persisted  && window.location.href &&
+    } else if (type == "pageshow" && persisted  && window.location.href &&
              window.location.href != "about:blank" &&
              this.isIncludedInTopLevelWindow(window)) {
       this.childWindowPool.add(window);
@@ -1630,15 +1641,13 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
       // added somehow, dont send the deleted or changed update.
       this.removeNamesFromUpdateList("deleted", storeType, data);
       this.removeNamesFromUpdateList("changed", storeType, data);
-    }
-    else if (action == "changed" && this.boundUpdate.added &&
+    } else if (action == "changed" && this.boundUpdate.added &&
              this.boundUpdate.added[storeType]) {
       // If something got added and changed at the same time, then remove those
       // items from changed instead.
       this.removeNamesFromUpdateList("changed", storeType,
                                      this.boundUpdate.added[storeType]);
-    }
-    else if (action == "deleted") {
+    } else if (action == "deleted") {
       // If any item got delete, or a host got delete, no point in sending
       // added or changed update
       this.removeNamesFromUpdateList("added", storeType, data);

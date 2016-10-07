@@ -195,9 +195,6 @@ if CONFIG['CLANG_CXX']:
         '-Wno-unused-private-field',
     ]
 
-if CONFIG['MOZ_DIRECTX_SDK_PATH'] and not CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:
-    CXXFLAGS += ['-I\'%s/include/\'' % CONFIG['MOZ_DIRECTX_SDK_PATH']]
-
 DEFINES['NOMINMAX'] = True
 DEFINES['_CRT_SECURE_NO_DEPRECATE'] = True
 DEFINES['_HAS_EXCEPTIONS'] = 0
@@ -226,11 +223,6 @@ LOCAL_INCLUDES += [ '../../include', '../../src' ]
 
 if CONFIG['MOZ_HAS_WINSDK_WITH_D3D']:
   OS_LIBS += [ 'd3d9', 'dxguid' ]
-else:
-  EXTRA_DSO_LDOPTS += [
-    '\'%s/lib/%s/d3d9.lib\'' % (CONFIG['MOZ_DIRECTX_SDK_PATH'], CONFIG['MOZ_D3D_CPU_SUFFIX']),
-    '\'%s/lib/%s/dxguid.lib\'' % (CONFIG['MOZ_DIRECTX_SDK_PATH'], CONFIG['MOZ_D3D_CPU_SUFFIX']),
-  ]
 
 GoannaSharedLibrary('libGLESv2', linkage=None)
 

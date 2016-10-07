@@ -992,7 +992,7 @@ Event::GetOffsetCoords(nsPresContext* aPresContext,
   }
   
   nsCOMPtr<nsIContent> content = do_QueryInterface(aEvent->target);
-  if (!content) {
+  if (!content || !aPresContext) {
     return CSSIntPoint(0, 0);
   }
   nsCOMPtr<nsIPresShell> shell = aPresContext->GetPresShell();

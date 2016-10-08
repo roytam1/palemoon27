@@ -1169,8 +1169,7 @@ nsContextMenu.prototype = {
       linkText = this.linkText();
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
 
-    this.saveHelper(this.linkURL, linkText, null, true, doc);
-    this.saveHelper(this.linkURL, this.linkText, null, true, this.ownerDoc,
+    this.saveHelper(this.linkURL, linkText, null, true, doc,
                     this.linkDownload);
   },
 

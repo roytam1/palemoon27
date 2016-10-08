@@ -19,8 +19,6 @@ EXTRA_JS_MODULES += [
     'PageMenu.jsm',
     'PopupNotifications.jsm',
     'SharedFrame.jsm',
-    'WebappManager.jsm',
-    'webappsUI.jsm',
     'webrtcUI.jsm'
 ]
 

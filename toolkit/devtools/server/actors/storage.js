@@ -885,7 +885,7 @@ StorageActors.createActor({
   getNamesForHost: function(host) {
     let names = [];
     for (let [dbName, metaData] of this.hostVsStores.get(host)) {
-      if (objectStores.size) {
+      if (metaData.objectStores.size) {
         for (let objectStore of metaData.objectStores.keys()) {
           names.push(JSON.stringify([dbName, objectStore]));
         }

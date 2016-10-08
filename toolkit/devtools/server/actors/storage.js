@@ -456,7 +456,6 @@ StorageActors.createActor({
 
     this.populateStoresForHosts();
     Services.obs.addObserver(this, "cookie-changed", false);
-    Services.obs.addObserver(this, "http-on-response-set-cookie", false);
     this.onWindowReady = this.onWindowReady.bind(this);
     this.onWindowDestroyed = this.onWindowDestroyed.bind(this);
     events.on(this.storageActor, "window-ready", this.onWindowReady);
@@ -466,7 +465,6 @@ StorageActors.createActor({
   destroy: function() {
     this.hostVsStores.clear();
     Services.obs.removeObserver(this, "cookie-changed", false);
-    Services.obs.removeObserver(this, "http-on-response-set-cookie", false);
     events.off(this.storageActor, "window-ready", this.onWindowReady);
     events.off(this.storageActor, "window-destroyed", this.onWindowDestroyed);
     this.storageActor = null;
@@ -546,69 +544,9 @@ StorageActors.createActor({
   },
 
   /**
-   * Converts the raw cookie string returned in http request's response header
-   * to a nsICookie compatible object.
-   *
-   * @param {string} cookieString
-   *        The raw cookie string coming from response header.
-   * @param {string} domain
-   *        The domain of the url of the nsiChannel the cookie corresponds to.
-   *        This will be used when the cookie string does not have a domain.
-   *
-   * @returns {[object]}
-   *          An array of nsICookie like objects representing the cookies.
-   */
-  parseCookieString: function(cookieString, domain) {
-    /**
-     * Takes a date string present in raw cookie string coming from http
-     * request's response headers and returns the number of milliseconds elapsed
-     * since epoch. If the date string is undefined, its probably a session
-     * cookie so return 0.
-     */
-    let parseDateString = dateString => {
-      return dateString ? new Date(dateString.replace(/-/g, " ")).getTime(): 0;
-    };
-
-    let cookies = [];
-    for (let string of cookieString.split("\n")) {
-      let keyVals = {}, name = null;
-      for (let keyVal of string.split(/;\s*/)) {
-        let tokens = keyVal.split(/\s*=\s*/);
-        if (!name) {
-          name = tokens[0];
-        }
-        else {
-          tokens[0] = tokens[0].toLowerCase();
-        }
-        keyVals[tokens.splice(0, 1)[0]] = tokens.join("=");
-      }
-      let expiresTime = parseDateString(keyVals.expires);
-      keyVals.domain = keyVals.domain || domain;
-      cookies.push({
-        name: name,
-        value: keyVals[name] || "",
-        path: keyVals.path,
-        host: keyVals.domain,
-        expires: expiresTime/1000, // seconds, to match with nsiCookie.expires
-        lastAccessed: expiresTime * 1000,
-        // microseconds, to match with nsiCookie.lastAccessed
-        creationTime: expiresTime * 1000,
-        // microseconds, to match with nsiCookie.creationTime
-        isHttpOnly: true,
-        isSecure: keyVals.secure != null,
-        isDomain: keyVals.domain.startsWith("."),
-      });
-    }
-    return cookies;
-  },
-
-  /**
-   * Notification observer for topics "http-on-response-set-cookie" and
-   * "cookie-change".
+   * Notification observer for topics "cookie-change".
    *
    * @param subject
-   *        {nsiChannel} The channel associated to the SET-COOKIE response
-   *        header in case of "http-on-response-set-cookie" topic.
    *        {nsiCookie|[nsiCookie]} A single nsiCookie object or a list of it
    *        depending on the action. Array is only in case of "batch-deleted"
    *        action.
@@ -616,41 +554,9 @@ StorageActors.createActor({
    *        The topic of the notification.
    * @param {string} action
    *        Additional data associated with the notification. Its the type of
-   *        cookie change in case of "cookie-change" topic and the cookie string
-   *        in case of "http-on-response-set-cookie" topic.
+   *        cookie change in the "cookie-change" topic.
    */
   observe: function(subject, topic, action) {
-    if (topic == "http-on-response-set-cookie") {
-      // Some cookies got created as a result of http response header SET-COOKIE
-      // subject here is an nsIChannel object referring to the http request.
-      // We get the requestor of this channel and thus the content window.
-      let channel = subject.QueryInterface(Ci.nsIChannel);
-      let requestor = channel.notificationCallbacks ||
-                      channel.loadGroup.notificationCallbacks;
-      // requester can be null sometimes.
-      let window = requestor ? requestor.getInterface(Ci.nsIDOMWindow): null;
-      // Proceed only if this window is present on the currently targetted tab
-      if (window && this.storageActor.isIncludedInTopLevelWindow(window)) {
-        let host = this.getHostName(window.location);
-        if (this.hostVsStores.has(host)) {
-          let cookies = this.parseCookieString(action, channel.URI.host);
-          let data = {};
-          data[host] =  [];
-          for (let cookie of cookies) {
-            if (this.hostVsStores.get(host).has(cookie.name)) {
-              continue;
-            }
-            this.hostVsStores.get(host).set(cookie.name, cookie);
-            data[host].push(cookie.name);
-          }
-          if (data[host]) {
-            this.storageActor.update("added", "cookies", data);
-          }
-        }
-      }
-      return null;
-    }
-
     if (topic != "cookie-changed") {
       return null;
     }

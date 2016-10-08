@@ -21,6 +21,7 @@ Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
+const { setTimeout, clearTimeout } = require("sdk/timers");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Sqlite",
   "resource://gre/modules/Sqlite.jsm");
@@ -34,9 +35,9 @@ let global = this;
 // Maximum number of cookies/local storage key-value-pairs that can be sent
 // over the wire to the client in one request.
 const MAX_STORE_OBJECT_COUNT = 50;
-// Interval for the batch job that sends the accumilated update packets to the
-// client.
-const UPDATE_INTERVAL = 500; // ms
+// Delay for the batch job that sends the accumulated update packets to the
+// client (ms).
+const BATCH_DELAY = 200;
 
 // A RegExp for characters that cannot appear in a file/directory name. This is
 // used to sanitize the host name for indexed db to lookup whether the file is
@@ -71,16 +72,13 @@ function getRegisteredTypes() {
  *        The wait Ttme in milliseconds.
  */
 function sleep(time) {
-  let wait = Promise.defer();
-  let updateTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-  updateTimer.initWithCallback({
-    notify: function() {
-      updateTimer.cancel();
-      updateTimer = null;
-      wait.resolve(null);
-    }
-  } , time, Ci.nsITimer.TYPE_ONE_SHOT);
-  return wait.promise;
+  let deferred = promise.defer();
+
+  setTimeout(() => {
+    deferred.resolve(null);
+  }, time);
+
+  return deferred.promise;
 }
 
 // Cookies store object
@@ -1328,16 +1326,12 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     Services.obs.addObserver(this, "content-document-global-created", false);
     Services.obs.addObserver(this, "inner-window-destroyed", false);
     this.onPageChange = this.onPageChange.bind(this);
-    tabActor.browser.addEventListener("pageshow", this.onPageChange, true);
-    tabActor.browser.addEventListener("pagehide", this.onPageChange, true);
+    let handler = tabActor.chromeEventHandler;
+    handler.addEventListener("pageshow", this.onPageChange, true);
+    handler.addEventListener("pagehide", this.onPageChange, true);
 
     this.destroyed = false;
     this.boundUpdate = {};
-    // The time which periodically flushes and transfers the updated store
-    // objects.
-    this.updateTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    this.updateTimer.initWithCallback(this , UPDATE_INTERVAL,
-      Ci.nsITimer.TYPE_REPEATING_PRECISE_CAN_SKIP);
 
     // Layout helper for window.parent and window.top helper methods that work
     // accross devices.
@@ -1345,8 +1339,8 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   },
 
   destroy: function() {
-    this.updateTimer.cancel();
-    this.updateTimer = null;
+    clearTimeout(this.batchTimer);
+    this.batchTimer = null;
     this.layoutHelper = null;
     // Remove observers
     Services.obs.removeObserver(this, "content-document-global-created", false);
@@ -1483,22 +1477,9 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   }),
 
   /**
-   * Notifies the client front with the updates in stores at regular intervals.
-   */
-  notify: function() {
-    if (!this.updatePending || this.updatingUpdateObject) {
-      return null;
-    }
-    events.emit(this, "stores-update", this.boundUpdate);
-    this.boundUpdate = {};
-    this.updatePending = false;
-    return null;
-  },
-
-  /**
    * This method is called by the registered storage types so as to tell the
    * Storage Actor that there are some changes in the stores. Storage Actor then
-   * notifies the client front about these changes at regular (UPDATE_INTERVAL)
+   * notifies the client front about these changes at regular (BATCH_DELAY)
    * interval.
    *
    * @param {string} action
@@ -1525,14 +1506,15 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
       return null;
     }
 
-    this.updatingUpdateObject = true;
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer);
+    }
     if (!this.boundUpdate[action]) {
       this.boundUpdate[action] = {};
     }
     if (!this.boundUpdate[action][storeType]) {
       this.boundUpdate[action][storeType] = {};
     }
-    this.updatePending = true;
     for (let host in data) {
       if (!this.boundUpdate[action][storeType][host] || action == "deleted") {
         this.boundUpdate[action][storeType][host] = data[host];
@@ -1571,7 +1553,13 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
         }
       }
     }
-    this.updatingUpdateObject = false;
+
+    this.batchTimer = setTimeout(() => {
+      clearTimeout(this.batchTimer);
+      events.emit(this, "stores-update", this.boundUpdate);
+      this.boundUpdate = {};
+    }, BATCH_DELAY);
+
     return null;
   },
 

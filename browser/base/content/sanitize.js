@@ -8,8 +8,14 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
                                   "resource://gre/modules/FormHistory.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
+                                  "resource://gre/modules/Downloads.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource:///modules/promise.js");
+XPCOMUtils.defineLazyModuleGetter(this, "Task",
+                                  "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "console",
+                                  "resource://gre/modules/devtools/Console.jsm");
 
 function Sanitizer() {}
 Sanitizer.prototype = {
@@ -81,7 +87,7 @@ Sanitizer.prototype = {
               item.clear();
           } catch(er) {
             seenError = true;
-            Cu.reportError("Error sanitizing " + itemName + ": " + er + "\n");
+            console.error("Error sanitizing " + itemName + ": " + er + "\n");
           }
           onItemComplete();
         };
@@ -291,43 +297,23 @@ Sanitizer.prototype = {
     },
     
     downloads: {
-      clear: function ()
-      {
-        var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
-                              .getService(Components.interfaces.nsIDownloadManager);
-
-        var dlsToRemove = [];
-        if (this.range) {
-          // First, remove the completed/cancelled downloads
-          dlMgr.removeDownloadsByTimeframe(this.range[0], this.range[1]);
-
-          // Queue up any active downloads that started in the time span as well
-          for (let dlsEnum of [dlMgr.activeDownloads, dlMgr.activePrivateDownloads]) {
-            while (dlsEnum.hasMoreElements()) {
-              var dl = dlsEnum.next();
-              if (dl.startTime >= this.range[0])
-                dlsToRemove.push(dl);
-            }
+      clear: Task.async(function* (range) {
+        let refObj = {};
+        try {
+          let filterByTime = null;
+          if (range) {
+            // Convert microseconds back to milliseconds for date comparisons.
+            let rangeBeginMs = range[0] / 1000;
+            let rangeEndMs = range[1] / 1000;
+            filterByTime = download => download.startTime >= rangeBeginMs &&
+                                       download.startTime <= rangeEndMs;
           }
-        }
-        else {
+
           // Clear all completed/cancelled downloads
-          dlMgr.cleanUp();
-          dlMgr.cleanUpPrivate();
-          
-          // Queue up all active ones as well
-          for (let dlsEnum of [dlMgr.activeDownloads, dlMgr.activePrivateDownloads]) {
-            while (dlsEnum.hasMoreElements()) {
-              dlsToRemove.push(dlsEnum.next());
-            }
-          }
-        }
-
-        // Remove any queued up active downloads
-        dlsToRemove.forEach(function (dl) {
-          dl.remove();
-        });
-      },
+          let list = yield Downloads.getList(Downloads.ALL);
+          list.removeFinished(filterByTime);
+        } finally {}
+      }),
 
       get canClear()
       {

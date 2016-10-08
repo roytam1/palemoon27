@@ -221,8 +221,8 @@ var gAdvancedPane = {
       expected: 0,
       sum: 0,
       QueryInterface: function listener_qi(iid) {
-        if (iid.equals(Ci.nsISupports) ||
-            iid.equals(Ci.nsICacheStorageVisitor)) {
+        if (iid.equals(Components.interfaces.nsISupports) ||
+            iid.equals(Components.interfaces.nsICacheStorageVisitor)) {
           return this;
         }
         throw Components.results.NS_ERROR_NO_INTERFACE;

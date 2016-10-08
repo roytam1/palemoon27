@@ -8,10 +8,10 @@ const {Cu, Cc, Ci} = require("chrome");
 const events = require("sdk/event/core");
 const protocol = require("devtools/server/protocol");
 try {
-    const { indexedDB } = require("sdk/indexed-db");
+  const { indexedDB } = require("sdk/indexed-db");
 } catch (e) {
-    // In xpcshell tests, we can't actually have indexedDB, which is OK:
-    // we don't use it there anyway.
+  // In xpcshell tests, we can't actually have indexedDB, which is OK:
+  // we don't use it there anyway.
 }
 const {async} = require("devtools/async-utils");
 const {Arg, method, RetVal, types} = protocol;
@@ -69,7 +69,7 @@ function getRegisteredTypes() {
  * An async method equivalent to setTimeout but using Promises
  *
  * @param {number} time
- *        The wait Ttme in milliseconds.
+ *        The wait time in milliseconds.
  */
 function sleep(time) {
   let deferred = promise.defer();
@@ -322,7 +322,8 @@ StorageActors.defaults = function(typeName, observationTopic, storeObjectType) {
      *        Array containing the names of required store objects. Empty if all
      *        items are required.
      * @param {object} options
-     *        Additional options for the request containing following properties:
+     *        Additional options for the request containing following
+     *        properties:
      *         - offset {number} : The begin index of the returned array amongst
      *                  the total values
      *         - size {number} : The number of values required.
@@ -492,12 +493,6 @@ StorageActors.createActor({
    * that host.
    */
   isCookieAtHost: function(cookie, host) {
-    try {
-      cookie = cookie.QueryInterface(Ci.nsICookie)
-                     .QueryInterface(Ci.nsICookie2);
-    } catch(ex) {
-      return false;
-    }
     if (cookie.host == null) {
       return host == null;
     }
@@ -531,10 +526,15 @@ StorageActors.createActor({
 
   populateStoresForHost: function(host) {
     this.hostVsStores.set(host, new Map());
+
+    // Local files have no host.
+    if (host.startsWith("file:///")) {
+      host = "";
+    }
+
     let cookies = Services.cookies.getCookiesFromHost(host);
     while (cookies.hasMoreElements()) {
-      let cookie = cookies.getNext().QueryInterface(Ci.nsICookie)
-                          .QueryInterface(Ci.nsICookie2);
+      let cookie = cookies.getNext().QueryInterface(Ci.nsICookie2);
       if (this.isCookieAtHost(cookie, host)) {
         this.hostVsStores.get(host).set(cookie.name, cookie);
       }
@@ -555,7 +555,9 @@ StorageActors.createActor({
    *        cookie change in the "cookie-change" topic.
    */
   observe: function(subject, topic, action) {
-    if (topic != "cookie-changed") {
+    if (topic !== "cookie-changed" ||
+        !this.storageActor ||
+        !this.storageActor.windows) {
       return null;
     }
 
@@ -566,8 +568,6 @@ StorageActors.createActor({
       case "added":
       case "changed":
         if (hosts.length) {
-          subject = subject.QueryInterface(Ci.nsICookie)
-                           .QueryInterface(Ci.nsICookie2);
           for (let host of hosts) {
             this.hostVsStores.get(host).set(subject.name, subject);
             data[host] = [subject.name];
@@ -578,8 +578,6 @@ StorageActors.createActor({
 
       case "deleted":
         if (hosts.length) {
-          subject = subject.QueryInterface(Ci.nsICookie)
-                           .QueryInterface(Ci.nsICookie2);
           for (let host of hosts) {
             this.hostVsStores.get(host).delete(subject.name);
             data[host] = [subject.name];
@@ -593,8 +591,6 @@ StorageActors.createActor({
           for (let host of hosts) {
             let stores = [];
             for (let cookie of subject) {
-              cookie = cookie.QueryInterface(Ci.nsICookie)
-                             .QueryInterface(Ci.nsICookie2);
               this.hostVsStores.get(host).delete(cookie.name);
               stores.push(cookie.name);
             }
@@ -647,10 +643,10 @@ function getObjectForLocalOrSessionStorage(type) {
       if (!storage) {
         return [];
       }
-      return Object.keys(storage).map(name => {
+      return Object.keys(storage).map(key => {
         return {
-          name: name,
-          value: storage.getItem(name)
+          name: key,
+          value: storage.getItem(key)
         };
       });
     },
@@ -675,7 +671,8 @@ function getObjectForLocalOrSessionStorage(type) {
       this.hostVsStores = new Map();
       try {
         for (let window of this.windows) {
-          this.hostVsStores.set(this.getHostName(window.location), window[type]);
+          this.hostVsStores.set(this.getHostName(window.location),
+                                window[type]);
         }
       } catch(ex) {
         // Exceptions happen when local or session storage is inaccessible
@@ -868,6 +865,7 @@ StorageActors.createActor({
     this.objectsSize = null;
     events.off(this.storageActor, "window-ready", this.onWindowReady);
     events.off(this.storageActor, "window-destroyed", this.onWindowDestroyed);
+    this.storageActor = null;
   },
 
   getHostName: function(location) {
@@ -882,8 +880,7 @@ StorageActors.createActor({
    * cannot be performed synchronously. Thus, the preListStores method exists to
    * do the same task asynchronously.
    */
-  populateStoresForHosts: function() {
-  },
+  populateStoresForHosts: function() {},
 
   getNamesForHost: function(host) {
     let names = [];
@@ -1304,7 +1301,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     }
   },
 
-  initialize: function (conn, tabActor) {
+  initialize: function(conn, tabActor) {
     protocol.Actor.prototype.initialize.call(this, null);
 
     this.conn = conn;
@@ -1358,11 +1355,12 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     }
     this.childActorPool.clear();
     this.childWindowPool.clear();
-    this.childWindowPool = this.childActorPool = null;
+    this.childWindowPool = this.childActorPool = this.conn = this.parentActor =
+      this.boundUpdate = null;
   },
 
   /**
-   * Given a docshell, recursively find otu all the child windows from it.
+   * Given a docshell, recursively find out all the child windows from it.
    *
    * @param {nsIDocShell} item
    *        The docshell from which all inner windows need to be extracted.
@@ -1408,7 +1406,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
    * Event handler for any docshell update. This lets us figure out whenever
    * any new window is added, or an existing window is removed.
    */
-  observe: function(subject, topic, data) {
+  observe: function(subject, topic) {
     if (subject.location &&
         (!subject.location.href || subject.location.href == "about:blank")) {
       return null;
@@ -1501,7 +1499,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   update: function(action, storeType, data) {
     if (action == "cleared" || action == "reloaded") {
       let toSend = {};
-      toSend[storeType] = data
+      toSend[storeType] = data;
       events.emit(this, "stores-" + action, toSend);
       return null;
     }

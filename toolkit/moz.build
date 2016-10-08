@@ -21,7 +21,6 @@ DIRS += [
     'obsolete',
     'profile',
     'themes',
-    'webapps',
 ]
 
 DIRS += ['mozapps/update']

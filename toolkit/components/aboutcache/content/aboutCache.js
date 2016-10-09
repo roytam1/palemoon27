@@ -9,6 +9,10 @@ var searchParams = new URLSearchParams(search ? search[1] : '');
 var storage = searchParams.get('storage');
 var context = searchParams.get('context');
 
+if (context == null) {
+  context = "";
+}
+
 // The context is in a format as used by the HTTP cache v2 back end
 var [context, isAnon, isInBrowser, appId, isPrivate] = context.match(/(a,)?(b,)?(i\d+,)?(p,)?/);
 if (appId)

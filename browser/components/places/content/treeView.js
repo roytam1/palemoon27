@@ -888,11 +888,10 @@ PlacesTreeView.prototype = {
       if (queryOptions.excludeItems) {
         return;
       }
-
-      PlacesUtils.livemarks.getLivemark({ id: aNode.itemId },
-        function (aStatus, aLivemark) {
-          if (Components.isSuccessCode(aStatus)) {
-            let shouldInvalidate = 
+      if (aNode.itemId != -1) { // run when there's a valid node id
+        PlacesUtils.livemarks.getLivemark({ id: aNode.itemId })
+          .then(aLivemark => {
+            let shouldInvalidate =
               !this._controller.hasCachedLivemarkInfo(aNode);
             this._controller.cacheLivemarkInfo(aNode, aLivemark);
             if (aNewState == Components.interfaces.nsINavHistoryContainerResultNode.STATE_OPENED) {
@@ -906,9 +905,8 @@ PlacesTreeView.prototype = {
             else {
               aLivemark.unregisterForUpdates(aNode);
             }
-          }
-        }.bind(this)
-      );
+          }, () => undefined);
+      }
     }
   },
 

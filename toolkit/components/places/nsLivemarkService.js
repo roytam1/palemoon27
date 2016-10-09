@@ -176,7 +176,7 @@ LivemarkService.prototype = {
         !(aLivemarkInfo.feedURI instanceof Ci.nsIURI) ||
         (aLivemarkInfo.siteURI && !(aLivemarkInfo.siteURI instanceof Ci.nsIURI)) ||
         (aLivemarkInfo.guid && !/^[a-zA-Z0-9\-_]{12}$/.test(aLivemarkInfo.guid))) {
-      throw Cr.NS_ERROR_INVALID_ARG;
+      throw new Components.Exception("Invalid arguments", Cr.NS_ERROR_INVALID_ARG);
     }
 
     if (aLivemarkCallback) {
@@ -194,7 +194,7 @@ LivemarkService.prototype = {
     try {
       // Disallow adding a livemark inside another livemark.
       if (aLivemarkInfo.parentId in this._livemarks) {
-        throw new Components.Exception("", Cr.NS_ERROR_INVALID_ARG);
+        throw new Components.Exception("Cannot create a livemark inside a livemark", Cr.NS_ERROR_INVALID_ARG);
       }
 
       // Don't pass unexpected input data to the livemark constructor.
@@ -258,7 +258,7 @@ LivemarkService.prototype = {
   removeLivemark: function LS_removeLivemark(aLivemarkInfo, aLivemarkCallback)
   {
     if (!aLivemarkInfo) {
-      throw Cr.NS_ERROR_INVALID_ARG;
+      throw new Components.Exception("Invalid arguments", Cr.NS_ERROR_INVALID_ARG);
     }
 
     // Accept either a guid or an id.
@@ -266,7 +266,7 @@ LivemarkService.prototype = {
     if (("guid" in aLivemarkInfo && !/^[a-zA-Z0-9\-_]{12}$/.test(aLivemarkInfo.guid)) ||
         ("id" in aLivemarkInfo && aLivemarkInfo.id < 1) ||
         !id) {
-      throw Cr.NS_ERROR_INVALID_ARG;
+      throw new Components.Exception("Invalid arguments", Cr.NS_ERROR_INVALID_ARG);
     }
 
     if (aLivemarkCallback) {
@@ -284,7 +284,7 @@ LivemarkService.prototype = {
     let removeLivemarkEx = null;
     try {
       if (!(id in this._livemarks)) {
-        throw new Components.Exception("", Cr.NS_ERROR_INVALID_ARG);
+        throw new Components.Exception("Invalid arguments", Cr.NS_ERROR_INVALID_ARG);
       }
       this._livemarks[id].remove();
     }
@@ -357,14 +357,14 @@ LivemarkService.prototype = {
   getLivemark: function LS_getLivemark(aLivemarkInfo, aLivemarkCallback)
   {
     if (!aLivemarkInfo) {
-      throw Cr.NS_ERROR_INVALID_ARG;
+      throw new Components.Exception("Invalid arguments", Cr.NS_ERROR_INVALID_ARG);
     }
     // Accept either a guid or an id.
     let id = aLivemarkInfo.guid || aLivemarkInfo.id;
     if (("guid" in aLivemarkInfo && !/^[a-zA-Z0-9\-_]{12}$/.test(aLivemarkInfo.guid)) ||
         ("id" in aLivemarkInfo && aLivemarkInfo.id < 1) ||
         !id) {
-      throw Cr.NS_ERROR_INVALID_ARG;
+      throw new Components.Exception("Invalid arguments", Cr.NS_ERROR_INVALID_ARG);
     }
 
     if (aLivemarkCallback) {
@@ -955,7 +955,7 @@ LivemarkLoadListener.prototype = {
   onStartRequest: function LLL_onStartRequest(aRequest, aContext)
   {
     if (this._isAborted) {
-      throw Cr.NS_ERROR_UNEXPECTED;
+      throw new Components.Exception("", Cr.NS_ERROR_UNEXPECTED);
     }
 
     let channel = aRequest.QueryInterface(Ci.nsIChannel);

@@ -11,9 +11,9 @@ var gPluginHandler = {
   PLUGIN_SCRIPTED_STATE_FIRED: 1,
   PLUGIN_SCRIPTED_STATE_DONE: 2,
 
-  getPluginUI: function (plugin, className) {
+  getPluginUI: function (plugin, anonid) {
     return plugin.ownerDocument.
-           getAnonymousElementByAttribute(plugin, "class", className);
+           getAnonymousElementByAttribute(plugin, "anonid", anonid);
   },
 
   _getPluginInfo: function (pluginElement) {
@@ -166,7 +166,7 @@ var gPluginHandler = {
       // The plugin binding fires this event when it is created.
       // As an untrusted event, ensure that this object actually has a binding
       // and make sure we don't handle it twice
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      let overlay = this.getPluginUI(plugin, "main");
       if (!overlay || overlay._bindingHandled) {
         return;
       }
@@ -198,22 +198,22 @@ var gPluginHandler = {
         break;
 
       case "PluginVulnerableUpdatable":
-        let updateLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "checkForUpdatesLink");
+        let updateLink = this.getPluginUI(plugin, "checkForUpdatesLink");
         this.addLinkClickCallback(updateLink, "openPluginUpdatePage");
         /* FALLTHRU */
 
       case "PluginVulnerableNoUpdate":
       case "PluginClickToPlay":
         this._handleClickToPlayEvent(plugin);
-        let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+        let overlay = this.getPluginUI(plugin, "main");
         let pluginName = this._getPluginInfo(plugin).pluginName;
         let messageString = gNavigatorBundle.getFormattedString("PluginClickToActivate", [pluginName]);
-        let overlayText = doc.getAnonymousElementByAttribute(plugin, "class", "msg msgClickToPlay");
+        let overlayText = this.getPluginUI(plugin, "clickToPlay");
         overlayText.textContent = messageString;
         if (eventType == "PluginVulnerableUpdatable" ||
             eventType == "PluginVulnerableNoUpdate") {
           let vulnerabilityString = gNavigatorBundle.getString(eventType);
-          let vulnerabilityText = doc.getAnonymousElementByAttribute(plugin, "anonid", "vulnerabilityStatus");
+          let vulnerabilityText = this.getPluginUI(plugin, "vulnerabilityStatus");
           vulnerabilityText.textContent = vulnerabilityString;
         }
         shouldShowNotification = true;
@@ -224,7 +224,7 @@ var gPluginHandler = {
         break;
 
       case "PluginDisabled":
-        let manageLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "managePluginsLink");
+        let manageLink = this.getPluginUI(plugin, "managePluginsLink");
         this.addLinkClickCallback(manageLink, "managePlugins");
         shouldShowNotification = true;
         break;
@@ -240,11 +240,24 @@ var gPluginHandler = {
         break;
     }
 
-    // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
+    // Show the in-content UI if it's not too big. The crashed plugin handler already did this.
     if (eventType != "PluginCrashed" && eventType != "PluginRemoved") {
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-      if (overlay != null && this.isTooSmall(plugin, overlay))
-        overlay.style.visibility = "hidden";
+      let overlay = this.getPluginUI(plugin, "main");
+      if (overlay != null) {
+        if (!this.isTooSmall(plugin, overlay)) {
+          overlay.style.visibility = "visible";
+        }
+        plugin.addEventListener("overflow", function(event) {
+          overlay.style.visibility = "hidden";
+        });
+        plugin.addEventListener("underflow", function(event) {
+          // this is triggered if only one dimension underflows,
+          // the other dimension might still overflow
+          if (!gPluginHandler.isTooSmall(plugin, overlay)) {
+            overlay.style.visibility = "visible";
+          }
+        });
+      }
     }
 
     // Only show the notification after we've done the isTooSmall check, so
@@ -287,7 +300,7 @@ var gPluginHandler = {
   },
 
   hideClickToPlayOverlay: function(aPlugin) {
-    let overlay = aPlugin.ownerDocument.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
+    let overlay = this.getPluginUI(aPlugin, "main");
     if (overlay)
       overlay.style.visibility = "hidden";
   },
@@ -338,7 +351,7 @@ var gPluginHandler = {
     let principal = doc.defaultView.top.document.nodePrincipal;
     let pluginPermission = Services.perms.testPermissionFromPrincipal(principal, permissionString);
 
-    let overlay = doc.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
+    let overlay = this.getPluginUI(aPlugin, "main");
 
     if (pluginPermission == Ci.nsIPermissionManager.DENY_ACTION) {
       if (overlay)
@@ -348,7 +361,7 @@ var gPluginHandler = {
 
     if (overlay) {
       overlay.addEventListener("click", gPluginHandler._overlayClickListener, true);
-      let closeIcon = doc.getAnonymousElementByAttribute(aPlugin, "anonid", "closeIcon");
+      let closeIcon = gPluginHandler.getPluginUI(aPlugin, "closeIcon");
       closeIcon.addEventListener("click", function(aEvent) {
         if (aEvent.button == 0 && aEvent.isTrusted)
           gPluginHandler.hideClickToPlayOverlay(aPlugin);
@@ -391,7 +404,7 @@ var gPluginHandler = {
     let pluginInfo = this._getPluginInfo(aPlugin);
     let playPreviewInfo = pluginHost.getPlayPreviewInfo(pluginInfo.mimetype);
 
-    let previewContent = doc.getAnonymousElementByAttribute(aPlugin, "class", "previewPluginContent");
+    let previewContent = this.getPluginUI(aPlugin, "previewPluginContent");
     let iframe = previewContent.getElementsByClassName("previewPluginContentFrame")[0];
     if (!iframe) {
       // lazy initialization of the iframe
@@ -434,7 +447,7 @@ var gPluginHandler = {
     let doc = contentWindow.document;
     let plugins = cwu.plugins;
     for (let plugin of plugins) {
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      let overlay = doc.getAnonymousElementByAttribute(plugin, "anonid", "main");
       if (overlay)
         overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
       let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
@@ -628,7 +641,7 @@ var gPluginHandler = {
         break;
       }
       if (fallbackType == plugin.PLUGIN_CLICK_TO_PLAY) {
-        let overlay = contentDoc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+        let overlay = contentDoc.getAnonymousElementByAttribute(plugin, "anonid", "main");
         if (!overlay || overlay.style.visibility == 'hidden') {
           icon = 'alert-plugins-notification-icon';
         }

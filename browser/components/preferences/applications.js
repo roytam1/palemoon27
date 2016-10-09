@@ -1030,7 +1030,6 @@ var gApplicationsPane = {
 
   _loadData: function() {
     this._loadFeedHandler();
-    this._loadInternalHandlers();
     this._loadPluginHandlers();
     this._loadApplicationHandlers();
   },

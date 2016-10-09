@@ -734,8 +734,8 @@ pref("goanna.handlerService.schemes.ircs.3.uriTemplate", "chrome://browser-regio
 // By default, we don't want protocol/content handlers to be registered from a different host, see bug 402287
 pref("goanna.handlerService.allowRegisterFromDifferentHost", false);
 
-pref("browser.geolocation.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/geolocation/");
 pref("browser.mixedcontent.warning.infoURL", "http://support.mozilla.org/1/%APP%/%VERSION%/%OS%/%LOCALE%/mixed-content/");
+pref("browser.geolocation.warning.infoURL", "http://www.palemoon.org/info-url/geolocation.shtml");
 
 pref("browser.EULA.version", 3);
 pref("browser.rights.version", 3);

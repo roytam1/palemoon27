@@ -1777,12 +1777,14 @@ ContentPermissionPrompt.prototype = {
       });
     }
 
-    var options = {
-                    learnMoreURL: Services.urlFormatter.formatURLPref("browser.geolocation.warning.infoURL"),
-                  };
+    var requestingWindow = aRequest.window.top;
+    var chromeWin = this._getChromeWindow(requestingWindow).wrappedJSObject;
+    var link = chromeWin.document.getElementById("geolocation-learnmore-link");
+    link.value = browserBundle.GetStringFromName("geolocation.learnMore");
+    link.href = Services.urlFormatter.formatURLPref("browser.geolocation.warning.infoURL");
 
     this._showPrompt(aRequest, message, "geo", actions, "geolocation",
-                     "geo-notification-icon", options);
+                     "geo-notification-icon", null);
   },
 
   _promptWebNotifications : function(aRequest) {

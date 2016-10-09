@@ -2011,11 +2011,6 @@ public:
    */
   static void XPCOMShutdown();
 
-  /**
-   * Checks if internal PDF viewer is enabled.
-   */
-  static bool IsPDFJSEnabled();
-
   enum ContentViewerType
   {
       TYPE_UNSUPPORTED,

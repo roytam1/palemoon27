@@ -39,7 +39,6 @@ class TestManifest(unittest.TestCase):
             'skin global classic/1.0 content/skin/classic/ application=foo' +
             ' os=WINNT',
             '',
-            'manifest pdfjs/chrome.manifest',
             'resource gre-resources toolkit/res/',
             'override chrome://global/locale/netError.dtd' +
             ' chrome://browser/locale/netError.dtd',
@@ -70,7 +69,6 @@ class TestManifest(unittest.TestCase):
             ManifestSkin('', 'global', 'classic/1.0', 'content/skin/classic/'),
             ManifestSkin('', 'global', 'classic/1.0', 'content/skin/classic/',
                          'application=foo', 'os=WINNT'),
-            Manifest('', 'pdfjs/chrome.manifest'),
             ManifestResource('', 'gre-resources', 'toolkit/res/'),
             ManifestOverride('', 'chrome://global/locale/netError.dtd',
                              'chrome://browser/locale/netError.dtd'),

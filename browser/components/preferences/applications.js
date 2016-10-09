@@ -22,10 +22,6 @@ Components.utils.import('resource://gre/modules/Services.jsm');
 const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_MAYBE_VIDEO_FEED = "application/vnd.mozilla.maybe.video.feed";
 const TYPE_MAYBE_AUDIO_FEED = "application/vnd.mozilla.maybe.audio.feed";
-const TYPE_PDF = "application/pdf";
-
-const PREF_PDFJS_DISABLED = "pdfjs.disabled";
-const TOPIC_PDFJS_HANDLER_CHANGED = "pdfjs:handlerChanged";
 
 const PREF_DISABLED_PLUGIN_TYPES = "plugin.disable_full_page_plugin_for_types";
 
@@ -846,16 +842,6 @@ InternalHandlerInfoWrapper.prototype = {
   }
 };
 
-var pdfHandlerInfo = {
-  __proto__: new InternalHandlerInfoWrapper(TYPE_PDF),
-  _handlerChanged: TOPIC_PDFJS_HANDLER_CHANGED,
-  _appPrefLabel: "portableDocumentFormat",
-  get enabled() {
-    return !Services.prefs.getBoolPref(PREF_PDFJS_DISABLED);
-  },
-};
-
-
 //****************************************************************************//
 // Prefpane Controller
 
@@ -1058,19 +1044,6 @@ var gApplicationsPane = {
 
     this._handledTypes[TYPE_MAYBE_AUDIO_FEED] = audioFeedHandlerInfo;
     audioFeedHandlerInfo.handledOnlyByPlugin = false;
-  },
-
-  /**
-   * Load higher level internal handlers so they can be turned on/off in the
-   * applications menu.
-   */
-  _loadInternalHandlers: function() {
-    var internalHandlers = [pdfHandlerInfo];
-    for (let internalHandler of internalHandlers) {
-      if (internalHandler.enabled) {
-        this._handledTypes[internalHandler.type] = internalHandler;
-      }
-    }
   },
 
   /**

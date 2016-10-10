@@ -228,7 +228,24 @@ nsUnknownContentTypeDialog.prototype = {
       // because the original one is definitely gone (and nsIFilePicker doesn't like
       // a null parent):
       gDownloadLastDir = this._mDownloadDir;
-      parent = Services.wm.getMostRecentWindow("");
+      let windowsEnum = Services.wm.getEnumerator("");
+      while (windowsEnum.hasMoreElements()) {
+        let checkedWin = windowsEnum.getNext();
+        // We need to make sure we don't attach the file picker window to the
+        // application helper dialog itself, because this will go away when clicking
+        // Save. This can happen due to delays keeping the dialog open while this
+        // save request is fired asynchronously.
+        // If the window goes away, then the Windows file picker will close as well
+        // because it won't operate without being attached to a parent, by design.
+        if (checkedWin != this.mDialog) {
+          parent = checkedWin;
+          break;
+        }
+      }
+      if (!parent) {
+        Cu.reportError("No parent windows were found for the Save filepicker. " +
+                       "This should never happen.");
+      }
     }
 
     Task.spawn(function() {

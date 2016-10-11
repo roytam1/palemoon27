@@ -2049,40 +2049,6 @@ WriteStatusFile(int status)
   WriteStatusFile(text);
 }
 
-#ifdef MOZ_MAINTENANCE_SERVICE
-/*
- * Read the update.status file and sets isPendingService to true if
- * the status is set to pending-service.
- *
- * @param  isPendingService Out parameter for specifying if the status
- *         is set to pending-service or not.
- * @return true if the information was retrieved and it is pending
- *         or pending-service.
-*/
-static bool
-IsUpdateStatusPendingService()
-{
-  NS_tchar filename[MAXPATHLEN];
-  NS_tsnprintf(filename, sizeof(filename)/sizeof(filename[0]),
-               NS_T("%s/update.status"), gPatchDirPath);
-
-  AutoFile file(NS_tfopen(filename, NS_T("rb")));
-  if (file == nullptr)
-    return false;
-
-  char buf[32] = { 0 };
-  fread(buf, sizeof(buf), 1, file);
-
-  const char kPendingService[] = "pending-service";
-  const char kAppliedService[] = "applied-service";
-
-  return (strncmp(buf, kPendingService,
-                  sizeof(kPendingService) - 1) == 0) ||
-         (strncmp(buf, kAppliedService,
-                  sizeof(kAppliedService) - 1) == 0);
-}
-#endif
-
 #ifdef XP_WIN
 /*
  * Read the update.status file and sets isSuccess to true if
@@ -2539,16 +2505,6 @@ int NS_main(int argc, NS_tchar **argv)
   bool testOnlyFallbackKeyExists = false;
   bool noServiceFallback = getenv("MOZ_NO_SERVICE_FALLBACK") != nullptr;
   putenv(const_cast<char*>("MOZ_NO_SERVICE_FALLBACK="));
-
-  // We never want the service to be used unless we build with
-  // the maintenance service.
-#ifdef MOZ_MAINTENANCE_SERVICE
-  useService = IsUpdateStatusPendingService();
-  // Our tests run with a different apply directory for each test.
-  // We use this registry key on our test slaves to store the
-  // allowed name/issuers.
-  testOnlyFallbackKeyExists = DoesFallbackKeyExist();
-#endif
 
   // Remove everything except close window from the context menu
   {

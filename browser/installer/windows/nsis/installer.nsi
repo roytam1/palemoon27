@@ -1018,6 +1018,25 @@ Function .onInit
     WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" State  "1"
   ${EndUnless}
 
+  ; Setup the components.ini file for the Components Page
+  WriteINIStr "$PLUGINSDIR\components.ini" "Settings" NumFields "2"
+
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Type   "label"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Text   "$(OPTIONAL_COMPONENTS_DESC)"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Left   "0"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Top    "5"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Bottom "25"
+
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Type   "checkbox"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Text   "$(MAINTENANCE_SERVICE_CHECKBOX_DESC)"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Left   "0"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Top    "27"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Bottom "37"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" State  "1"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Flags  "GROUP"
+
   ; There must always be a core directory.
   ${GetSize} "$EXEDIR\core\" "/S=0K" $R5 $R7 $R8
   SectionSetSize ${APP_IDX} $R5

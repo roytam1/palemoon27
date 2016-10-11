@@ -53,6 +53,9 @@ const PREF_APP_UPDATE_STAGING_ENABLED     = "app.update.staging.enabled";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
+const PREF_APP_UPDATE_SERVICE_ENABLED     = "app.update.service.enabled";
+const PREF_APP_UPDATE_SERVICE_ERRORS      = "app.update.service.errors";
+const PREF_APP_UPDATE_SERVICE_MAX_ERRORS  = "app.update.service.maxErrors";
 const PREF_APP_UPDATE_SOCKET_ERRORS       = "app.update.socket.maxErrors";
 const PREF_APP_UPDATE_RETRY_TIMEOUT       = "app.update.socket.retryTimeout";
 
@@ -166,6 +169,10 @@ const DOWNLOAD_BACKGROUND_INTERVAL  = 600;    // seconds
 const DOWNLOAD_FOREGROUND_INTERVAL  = 0;
 
 const UPDATE_WINDOW_NAME      = "Update:Wizard";
+
+// The number of consecutive failures when updating using the service before
+// setting the app.update.service.enabled preference to false.
+const DEFAULT_SERVICE_MAX_ERRORS = 10;
 
 // The number of consecutive socket errors to allow before falling back to
 // downloading a different MAR file or failing if already downloading the full.
@@ -715,6 +722,15 @@ function getCanStageUpdates() {
   }
 #endif
 
+#ifdef MOZ_WIDGET_GONK
+  // For Gonk, the updater will remount the /system partition to move staged
+  // files into place.
+  if (getPref("getBoolPref", PREF_APP_UPDATE_SERVICE_ENABLED, false)) {
+    LOG("getCanStageUpdates - able to stage updates because this is gonk");
+    return true;
+  }
+#endif
+
   if (!hasUpdateMutex()) {
     LOG("getCanStageUpdates - unable to apply updates because another " +
         "instance of the application is already handling updates for this " +
@@ -1143,7 +1159,12 @@ function releaseSDCardMountLock() {
  * @return  true if the service should be used for updates.
  */
 function shouldUseService() {
+#ifdef MOZ_MAINTENANCE_SERVICE
+  return getPref("getBoolPref",
+                 PREF_APP_UPDATE_SERVICE_ENABLED, false);
+#else
   return false;
+#endif
 }
 
 /**
@@ -1495,6 +1516,24 @@ function handleUpdateFailure(update, errorCode) {
       update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER ||
       update.errorCode == SERVICE_COULD_NOT_COPY_UPDATER ||
       update.errorCode == SERVICE_INSTALLDIR_ERROR) {
+
+    var failCount = getPref("getIntPref",
+                            PREF_APP_UPDATE_SERVICE_ERRORS, 0);
+    var maxFail = getPref("getIntPref",
+                          PREF_APP_UPDATE_SERVICE_MAX_ERRORS,
+                          DEFAULT_SERVICE_MAX_ERRORS);
+
+    // As a safety, when the service reaches maximum failures, it will
+    // disable itself and fallback to using the normal update mechanism
+    // without the service.
+    if (failCount >= maxFail) {
+      Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
+      Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ERRORS);
+    } else {
+      failCount++;
+      Services.prefs.setIntPref(PREF_APP_UPDATE_SERVICE_ERRORS,
+                                failCount);
+    }
 
     writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
     try {
@@ -2578,6 +2617,14 @@ UpdateService.prototype = {
                                     "UPDATER_UPDATES_AUTOMATIC");
     this._sendBoolPrefTelemetryPing(PREF_APP_UPDATE_STAGING_ENABLED,
                                     "UPDATER_STAGE_ENABLED");
+
+#ifdef XP_WIN
+    this._sendBoolPrefTelemetryPing(PREF_APP_UPDATE_SERVICE_ENABLED,
+                                    "UPDATER_SERVICE_ENABLED");
+    this._sendIntPrefTelemetryPing(PREF_APP_UPDATE_SERVICE_ERRORS,
+                                   "UPDATER_SERVICE_ERRORS");
+    this._sendServiceInstalledTelemetryPing();
+#endif
 
     this._checkForBackgroundUpdates(true);
   },

@@ -40,6 +40,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
   "resource://gre/modules/FileUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "console",
+  "resource://gre/modules/devtools/Console.jsm");
 
 // An encoder to UTF-8.
 XPCOMUtils.defineLazyGetter(this, "gEncoder", function () {
@@ -107,7 +109,7 @@ const TaskUtils = {
     return promise.then(
       null,
       function onError(reason) {
-        Cu.reportError("Uncaught asynchronous error: " + reason + " at\n" + reason.stack);
+        console.error("Uncaught asynchronous error:", reason);
         throw reason;
       }
     );
@@ -162,7 +164,7 @@ let SessionFileInternal = {
       // Ignore exceptions about non-existent files.
     } catch (ex) {
       // Any other error.
-      Cu.reportError(ex);
+      console.error("Uncaught error:", ex);
     } finally {
       return text;
     }
@@ -209,7 +211,8 @@ let SessionFileInternal = {
       } catch (ex if self._isNoSuchFile(ex)) {
         // Ignore exceptions about non-existent files.
       } catch (ex) {
-        Cu.reportError(ex);
+        // Any other error.
+        console.error("Uncaught error - with the file: " + self.path, ex);
       }
       throw new Task.Result(text);
     });
@@ -257,8 +260,7 @@ let SessionFileInternal = {
         let promise = OS.File.writeAtomic(self.path, bytes, {tmpPath: self.path + ".tmp"});
         yield promise;
       } catch (ex) {
-        Cu.reportError("Could not write session state file " + self.path
-                       + ": " + aReason);
+        console.error("Could not write session state file: " + self.path, ex);
       }
     });
   },
@@ -274,7 +276,7 @@ let SessionFileInternal = {
       } catch (ex if self._isNoSuchFile(ex)) {
         // Ignore exceptions about non-existent files.
       } catch (ex) {
-        Cu.reportError("Could not backup session state file: " + ex);
+        console.error("Could not backup session state file: " + self.path, ex);
         throw ex;
       }
     });
@@ -288,7 +290,7 @@ let SessionFileInternal = {
       } catch (ex if self._isNoSuchFile(ex)) {
         // Ignore exceptions about non-existent files.
       } catch (ex) {
-        Cu.reportError("Could not remove session state file: " + ex);
+        console.error("Could not remove session state file: " + self.path, ex);
         throw ex;
       }
 
@@ -297,7 +299,7 @@ let SessionFileInternal = {
       } catch (ex if self._isNoSuchFile(ex)) {
         // Ignore exceptions about non-existent files.
       } catch (ex) {
-        Cu.reportError("Could not remove session state backup file: " + ex);
+        console.error("Could not remove session state backup file: " + self.path, ex);
         throw ex;
       }
     });

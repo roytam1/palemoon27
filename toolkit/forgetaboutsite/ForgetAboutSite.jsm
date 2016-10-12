@@ -90,12 +90,20 @@ this.ForgetAboutSite = {
     const FLAG_CLEAR_ALL = phInterface.FLAG_CLEAR_ALL;
     let ph = Cc["@mozilla.org/plugin/host;1"].getService(phInterface);
     let tags = ph.getPluginTags();
+    let promises = [];
     for (let i = 0; i < tags.length; i++) {
-      try {
-        ph.clearSiteData(tags[i], aDomain, FLAG_CLEAR_ALL, -1);
-      } catch (e) {
-        // Ignore errors from the plugin
-      }
+      let promise = new Promise(resolve => {
+        let tag = tags[i];
+        try {
+          ph.clearSiteData(tags[i], aDomain, FLAG_CLEAR_ALL, -1, function(rv) {
+            resolve();
+          });
+        } catch (e) {
+          // Ignore errors from the plugin, but resolve the promise
+          resolve();
+        }
+      });
+      promises.push(promise);
     }
 
     // Downloads
@@ -173,7 +181,11 @@ this.ForgetAboutSite = {
     }
     // XXXehsan: is there a better way to do this rather than this
     // hacky comparison?
-    catch (ex if ex.message.indexOf("User canceled Master Password entry") != -1) { }
+    catch (ex) {
+      if (ex.message.indexOf("User canceled Master Password entry") == -1) {
+        throw ex;
+      }
+    }
 
     // Clear any "do not save for this site" for this domain
     let disabledHosts = lm.getAllDisabledHosts();
@@ -224,5 +236,7 @@ this.ForgetAboutSite = {
     let np = Cc["@mozilla.org/network/predictor;1"].
              getService(Ci.nsINetworkPredictor);
     np.reset();
+
+    return Promise.all(promises);
   }
 };

@@ -10251,10 +10251,6 @@ nsDocShell::InternalLoad2(nsIURI* aURI,
 
       SetDocCurrentStateObj(mOSHE);
 
-      // Inform the favicon service that the favicon for oldURI also
-      // applies to aURI.
-      CopyFavicon(currentURI, aURI, mInPrivateBrowsing);
-
       nsRefPtr<nsGlobalWindow> win = mScriptGlobal ?
         mScriptGlobal->GetCurrentInnerWindowInternal() : nullptr;
 
@@ -10295,6 +10291,10 @@ nsDocShell::InternalLoad2(nsIURI* aURI,
           win->DispatchAsyncHashchange(currentURI, aURI);
         }
       }
+
+      // Inform the favicon service that the favicon for oldURI also
+      // applies to aURI.
+      CopyFavicon(currentURI, aURI, mInPrivateBrowsing);
 
       return NS_OK;
     }

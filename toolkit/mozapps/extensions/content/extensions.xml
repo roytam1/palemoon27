@@ -1310,6 +1310,8 @@
                                                   [this.mAddon.name], 1);
             } else {
               this.removeAttribute("notification");
+              if (this.mAddon.type == "extension")
+                this.setAttribute("native", this.mAddon.native);
             }
           }
 

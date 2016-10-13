@@ -6395,9 +6395,13 @@ AddonInternal.prototype = {
     if (!aPlatformVersion)
       aPlatformVersion = Services.appinfo.platformVersion;
 
+    this.native = false;
+  
     let version;
-    if (app.id == Services.appinfo.ID)
+    if (app.id == Services.appinfo.ID) {
       version = aAppVersion;
+      this.native = true;
+    }
 #ifdef MOZ_PHOENIX_EXTENSIONS
     else if (app.id == FIREFOX_ID) {
      version = FIREFOX_APPCOMPATVERSION;
@@ -6658,7 +6662,7 @@ function AddonWrapper(aAddon) {
    "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
    "softDisabled", "skinnable", "size", "foreignInstall", "hasBinaryComponents",
    "strictCompatibility", "compatibilityOverrides", "updateURL",
-   "getDataDirectory", "multiprocessCompatible", "jetsdk"].forEach(function(aProp) {
+   "getDataDirectory", "multiprocessCompatible", "jetsdk", "native"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function AddonWrapper_propertyGetter() aAddon[aProp]);
   }, this);
 

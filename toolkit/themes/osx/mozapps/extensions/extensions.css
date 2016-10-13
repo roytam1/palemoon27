@@ -652,6 +652,20 @@
   color: #686A6B;
 }
 
+.addon[native] .name-container::after {
+  content: " •";
+  font-size: 150%;
+  line-height: 75%;
+}
+
+.addon[native="true"] .name-container::after {
+  color: #3366FF;
+}
+
+.addon[native="false"] .name-container::after {
+  color: #FF6600;
+}
+
 .addon-view[notification="warning"] {
   background-image: url("chrome://mozapps/skin/extensions/stripes-warning.png"),
                     linear-gradient(rgba(255, 255, 0, 0.04),

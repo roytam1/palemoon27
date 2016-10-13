@@ -553,20 +553,36 @@ this.DownloadIntegration = {
    * @return true if files should be marked
    */
   _shouldSaveZoneInformation: function() {
-    let key = Cc["@mozilla.org/windows-registry-key;1"]
-                .createInstance(Ci.nsIWindowsRegKey);
+  
     try {
-      key.open(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
-               "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Attachments",
-               Ci.nsIWindowsRegKey.ACCESS_QUERY_VALUE);
-      try {
-        return key.readIntValue("SaveZoneInformation") != 1;
-      } finally {
-        key.close();
-      }
+      let zonePref = Services.prefs.getIntPref("browser.download.saveZoneInformation");
     } catch (ex) {
-      // If the key is not present, files should be marked by default.
-      return true;
+      let zonePref = 2;
+    }
+    
+    switch (zonePref) {
+      case 0: // Never
+              return false;
+      case 1: // Always
+              return true;
+      case 2: // System-defined
+              let key = Cc["@mozilla.org/windows-registry-key;1"]
+                       .createInstance(Ci.nsIWindowsRegKey);
+              try {
+                key.open(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
+                         "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Attachments",
+                         Ci.nsIWindowsRegKey.ACCESS_QUERY_VALUE);
+                try {
+                  return key.readIntValue("SaveZoneInformation") != 1;
+                } finally {
+                  key.close();
+                }
+              } catch (ex) {
+                // If the key is not present, files should be marked by default.
+                return true;
+              }
+      default: // Invalid pref value defaults marking files.
+               return true;
     }
   },
 #endif

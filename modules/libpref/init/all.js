@@ -106,6 +106,14 @@ pref("offline-apps.quota.warn",        51200);
 // 9 => best compression
 pref("browser.cache.compression_level", 3);
 
+#ifdef XP_WIN
+// Save internet zone information on downloaded files:
+// 0 => Never
+// 1 => Always
+// 2 => Use system setting
+pref("browser.download.saveZoneInformation", 2);
+#endif
+
 // Whether or not MozAbortablePromise is enabled.
 pref("dom.abortablepromise.enabled", false);
 

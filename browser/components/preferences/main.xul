@@ -66,6 +66,9 @@
                   onchange="gMainPane.displayDownloadDirPref();"/>
       <preference id="browser.download.folderList"        name="browser.download.folderList"        type="int"/>
       <preference id="browser.download.useToolkitUI"      name="browser.download.useToolkitUI"      type="bool" />
+#ifdef XP_WIN
+      <preference id="browser.download.saveZoneInformation" name="browser.download.saveZoneInformation" type="int" />
+#endif
 
     </preferences>
     
@@ -162,6 +165,20 @@
       <checkbox id="classicDownloadWindow"
                 preference="browser.download.useToolkitUI"
                 label="&toolkit.classic.download.window.label;" />
+#endif
+#ifdef XP_WIN
+      <hbox align="center">
+        <label id="zoneInfoLabel" control="zoneInfo-menu">&zoneInfo.label;</label>
+        <menulist id="zoneInfo-menu"
+                  preference="browser.download.saveZoneInformation"
+                  sizetopopup="always">
+          <menupopup>
+            <menuitem label="&zoneInfo.never;" value="0" />
+            <menuitem label="&zoneInfo.always;" value="1" />
+            <menuitem label="&zoneInfo.system;" value="2" />
+          </menupopup>
+        </menulist>
+      </hbox>
 #endif
     </groupbox>
 

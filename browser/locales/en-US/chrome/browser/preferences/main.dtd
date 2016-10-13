@@ -36,3 +36,9 @@
 <!ENTITY alwaysAsk.accesskey "A">
 
 <!ENTITY toolkit.classic.download.window.label       "Use the classic downloads window">
+
+<!ENTITY zoneInfo.label       "Saved files have zone information:">
+<!ENTITY zoneInfo.never       "Never">
+<!ENTITY zoneInfo.always      "Always">
+<!ENTITY zoneInfo.system      "Use system setting">
+

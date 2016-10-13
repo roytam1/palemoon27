@@ -190,25 +190,6 @@ HTMLStyleElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                                             aNotify);
 }
 
-nsresult
-HTMLStyleElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                            bool aNotify)
-{
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
-                                                aNotify);
-  if (NS_SUCCEEDED(rv) && aNameSpaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::title ||
-        aAttribute == nsGkAtoms::media ||
-        aAttribute == nsGkAtoms::type) {
-      UpdateStyleSheetInternal(nullptr, nullptr, true);
-    } else if (aAttribute == nsGkAtoms::scoped) {
-      UpdateStyleSheetScopedness(false);
-    }
-  }
-
-  return rv;
-}
-
 NS_IMETHODIMP
 HTMLStyleElement::GetInnerHTML(nsAString& aInnerHTML)
 {

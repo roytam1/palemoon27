@@ -399,6 +399,9 @@ PlacesTreeView.prototype = {
    */
   _getNewRowForRemovedNode:
   function PTV__getNewRowForRemovedNode(aUpdatedContainer, aOldNode) {
+    if (!aOldNode) {
+      return -1;
+    }
     let parent = aOldNode.parent;
     if (parent) {
       // If the node's parent is still set, the node is not obsolete

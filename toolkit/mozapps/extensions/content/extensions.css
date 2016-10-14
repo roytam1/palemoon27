@@ -259,3 +259,16 @@ richlistitem:not([selected]) * {
 .addon[type="experiment"][status="installing"] .experiment-state {
   display: none;
 }
+
+/* Indicator style for extension target application */
+.addon[native] .name-container::after {
+  content: " •";
+  font-size: 150%;
+  line-height: 75%;
+}
+.addon[native="true"] .name-container::after {
+  color: #3366FF;
+}
+.addon[native="false"] .name-container::after {
+  color: #FF6600;
+}

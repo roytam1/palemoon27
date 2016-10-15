@@ -44,6 +44,8 @@ typedef unsigned __int64 uint64_t;
 #include <stdint.h>
 #endif
 
+#include <sys/types.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -179,7 +181,7 @@ enum TableAction {
   TABLE_ACTION_DROP      // Drop the table
 };
 
-class OTSContext {
+class OTS_API OTSContext {
   public:
     OTSContext() {}
     virtual ~OTSContext() {}

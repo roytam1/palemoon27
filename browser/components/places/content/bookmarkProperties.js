@@ -471,7 +471,6 @@ var BookmarkPropertiesPanel = {
     // The order here is important! We have to uninit the panel first, otherwise
     // late changes could force it to commit more transactions.
     gEditItemOverlay.uninitPanel(true);
-    gEditItemOverlay = null;
     this._endBatch();
     window.arguments[0].performed = true;
   },
@@ -481,7 +480,6 @@ var BookmarkPropertiesPanel = {
     // changes done as part of Undo may change the panel contents and by
     // that force it to commit more transactions.
     gEditItemOverlay.uninitPanel(true);
-    gEditItemOverlay = null;
     this._endBatch();
     PlacesUtils.transactionManager.undoTransaction();
     window.arguments[0].performed = false;

@@ -2521,7 +2521,12 @@ lastupdate="1473424629000">
       <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
-    </emItem>    
+    </emItem>
+    <emItem blockID="pm105" id="ClassicThemeRestorer@ArisT2Noia4dev">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
   </emItems>
   <pluginItems>
     <pluginItem blockID="p26">

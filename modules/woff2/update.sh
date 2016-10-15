@@ -11,10 +11,11 @@ COMMIT=`(cd ${MY_TEMP_DIR}/woff2 && git log | head -n 1)`
 perl -p -i -e "s/\[commit [0-9a-f]{40}\]/[${COMMIT}]/" README.mcp;
 
 rm -rf src
-mv ${MY_TEMP_DIR}/woff2/src src
+mkdir src
+cp -R ${MY_TEMP_DIR}/woff2/src/* src/
 patch -p3 < redefine-unique_ptr.patch
 rm -rf ${MY_TEMP_DIR}
-hg add src
+# hg add src
 
 echo "###"
 echo "### Updated woff2/src to $COMMIT."

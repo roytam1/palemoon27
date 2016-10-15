@@ -554,11 +554,10 @@ this.DownloadIntegration = {
    */
   _shouldSaveZoneInformation: function() {
   
+    let zonePref = 2;
     try {
-      let zonePref = Services.prefs.getIntPref("browser.download.saveZoneInformation");
-    } catch (ex) {
-      let zonePref = 2;
-    }
+      zonePref = Services.prefs.getIntPref("browser.download.saveZoneInformation");
+    } catch (ex) {}
     
     switch (zonePref) {
       case 0: // Never

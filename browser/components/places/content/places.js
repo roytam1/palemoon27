@@ -95,7 +95,7 @@ var PlacesOrganizer = {
         aIID.equals(Components.interfaces.nsISupports))
       return this;
 
-    throw Components.results.NS_NOINTERFACE;
+    throw new Components.Exception("", Components.results.NS_NOINTERFACE);
   },
 
   handleEvent: function PO_handleEvent(aEvent) {
@@ -880,7 +880,8 @@ var PlacesSearchBox = {
         }
         break;
       default:
-        throw "Invalid filterCollection on search";
+        throw new Components.Exception("Invalid filterCollection on search",
+                                       Components.results.NS_ERROR_INVALID_ARG);
     }
 
     PlacesSearchBox.showSearchUI();
@@ -1022,7 +1023,8 @@ var PlacesQueryBuilder = {
         this.setScope("bookmarks");
         break;
       default:
-        throw "Invalid search scope button ID";
+        throw new Components.Exception("Invalid search scope button ID",
+                                       Components.results.NS_ERROR_INVALID_ARG);
         break;
     }
   },
@@ -1071,7 +1073,8 @@ var PlacesQueryBuilder = {
         scopeButtonId = "scopeBarDownloads";
         break;
       default:
-        throw "Invalid search scope";
+        throw new Components.Exception("Invalid search scope",
+                                       Components.results.NS_ERROR_INVALID_ARG);
         break;
     }
 
@@ -1171,6 +1174,14 @@ var ViewMenu = {
     var columns = content.columns;
     for (var i = 0; i < columns.count; ++i) {
       var column = columns.getColumnAt(i).element;
+      if (popup.parentNode && (popup.parentNode.id == "viewSort")) {
+        switch (column.id) {
+          case "placesContentParentFolder":
+            continue;
+          case "placesContentParentFolderPath":
+            continue;
+        }
+      }
       var menuitem = document.createElement("menuitem");
       menuitem.id = "menucol_" + column.id;
       menuitem.column = column;
@@ -1336,7 +1347,8 @@ var ViewMenu = {
 
     // Make sure we have a valid column.
     if (!colLookupTable.hasOwnProperty(columnId))
-      throw("Invalid column");
+      throw new Components.Exception("Invalid column",
+                                     Components.results.NS_ERROR_INVALID_ARG);
 
     // Use a default sort direction if none has been specified.  If aDirection
     // is invalid, result.sortingMode will be undefined, which has the effect
@@ -1402,7 +1414,8 @@ let ContentArea = {
   function CA_setContentViewForQueryString(aQueryString, aView, aOptions) {
     if (!aQueryString ||
         typeof aView != "object" && typeof aView != "function")
-      throw new Error("Invalid arguments");
+      throw new Components.Exception("Invalid arguments",
+                                     Components.results.NS_ERROR_INVALID_ARG);
 
     this._specialViews.set(aQueryString, { view: aView,
                                            options: aOptions || new Object() });

@@ -15,7 +15,7 @@ loader.lazyRequireGetter(this, "AuthenticationResult",
   "devtools/toolkit/security/auth", true);
 
 DevToolsUtils.defineLazyGetter(this, "bundle", () => {
-  const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
+  const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger-backend.properties";
   return Services.strings.createBundle(DBG_STRINGS_URI);
 });
 

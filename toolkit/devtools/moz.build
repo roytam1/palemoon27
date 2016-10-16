@@ -4,6 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MOCHITEST_CHROME_MANIFESTS += ['tests/mochitest/chrome.ini']
+XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
+
 DIRS += [
     'acorn',
     'apps',
@@ -23,8 +26,42 @@ DIRS += [
     'webconsole',
 ]
 
-MOCHITEST_CHROME_MANIFESTS += ['tests/mochitest/chrome.ini']
-XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
+if CONFIG['MOZ_DEVTOOLS']:
+    DIRS += [
+        'animationinspector',
+        'app-manager',
+        'canvasdebugger',
+        'commandline',
+        'debugger',
+        'eyedropper',
+        'fontinspector',
+        'framework',
+        'inspector',
+        'layoutview',
+        'markupview',
+        'netmonitor',
+        'profiler',
+        'projecteditor',
+        'responsivedesign',
+        'scratchpad',
+        'shadereditor',
+        'sourceeditor',
+        'storage',
+        'styleeditor',
+        'tilt',
+        'timeline',
+        'webaudioeditor',
+        'webconsole',
+        'webide',
+    ]
+
+    if CONFIG['MOZ_DEVTOOLS_PERFTOOLS']:
+      DIRS += ['performance']
+
+    EXTRA_COMPONENTS += [
+        'devtools-clhandler.js',
+        'devtools-clhandler.manifest',
+    ]
 
 EXTRA_JS_MODULES.devtools += [
     'async-utils.js',
@@ -48,6 +85,15 @@ EXTRA_JS_MODULES.devtools += [
     'Require.jsm',
 ]
 
+if CONFIG['MOZ_DEVTOOLS']:
+    EXTRA_JS_MODULES.devtools += [
+        'main.js',
+    ]
+
 EXTRA_JS_MODULES.devtools.server.actors += [
     'server/actors/highlighter.css'
 ]
+
+if CONFIG['MOZ_DEVTOOLS']:
+    JAR_MANIFESTS += ['jar.mn']
+

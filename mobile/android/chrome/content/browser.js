@@ -82,11 +82,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
 XPCOMUtils.defineLazyModuleGetter(this, "SimpleServiceDiscovery",
                                   "resource://gre/modules/SimpleServiceDiscovery.jsm");
 
-if (AppConstants.NIGHTLY_BUILD) {
-  XPCOMUtils.defineLazyModuleGetter(this, "ShumwayUtils",
-                                    "resource://shumway/ShumwayUtils.jsm");
-}
-
 XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
                                   "resource://gre/modules/WebappManager.jsm");
 
@@ -480,9 +475,6 @@ var BrowserApp = {
     SearchEngines.init();
     if (AppConstants.ACCESSIBILITY) {
       AccessFu.attach(window);
-    }
-    if (AppConstants.NIGHTLY_BUILD) {
-      ShumwayUtils.init();
     }
 
     let url = null;

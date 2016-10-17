@@ -23,7 +23,6 @@ DIRS += [
     'app',
     'fonts',
     'goannaview_library',
-    'extensions',
 ]
 
 if not CONFIG['LIBXUL_SDK']:

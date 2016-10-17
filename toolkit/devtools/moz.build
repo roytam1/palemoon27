@@ -51,7 +51,6 @@ if CONFIG['MOZ_DEVTOOLS']:
         'tilt',
         'timeline',
         'webaudioeditor',
-        'webconsole',
         'webide',
     ]
 

@@ -10,7 +10,7 @@ var XPCOMUtils = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUti
 XPCOMUtils.defineLazyModuleGetter(this, "console",
                                   "resource://gre/modules/devtools/Console.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CommandUtils",
-                                  "resource:///modules/devtools/DeveloperToolbar.jsm");
+                                  "resource://gre/modules/devtools/DeveloperToolbar.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "Requisition", function() {
   return require("gcli/cli").Requisition;

@@ -5,8 +5,8 @@
 
 const Cu = Components.utils;
 
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-Cu.import("resource:///modules/devtools/Graphs.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/Graphs.jsm");
 const promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
 const {Task} = Cu.import("resource://gre/modules/Task.jsm", {});
 const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});

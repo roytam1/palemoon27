@@ -10,7 +10,7 @@ const Cu = Components.utils;
 
 const ENSURE_SELECTION_VISIBLE_DELAY = 50; // ms
 
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 Cu.import("resource://gre/modules/devtools/event-emitter.js");
 
 this.EXPORTED_SYMBOLS = ["BreadcrumbsWidget"];

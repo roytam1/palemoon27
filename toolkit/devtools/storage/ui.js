@@ -17,9 +17,9 @@ XPCOMUtils.defineLazyGetter(this, "TableWidget",
 XPCOMUtils.defineLazyModuleGetter(this, "EventEmitter",
   "resource://gre/modules/devtools/event-emitter.js");
 XPCOMUtils.defineLazyModuleGetter(this, "ViewHelpers",
-  "resource:///modules/devtools/ViewHelpers.jsm");
+  "resource://gre/modules/devtools/ViewHelpers.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
-  "resource:///modules/devtools/VariablesView.jsm");
+  "resource://gre/modules/devtools/VariablesView.jsm");
 
 let Telemetry = require("devtools/shared/telemetry");
 

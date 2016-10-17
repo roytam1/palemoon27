@@ -7,7 +7,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 
 devtools.lazyRequireGetter(this, "Services");
 devtools.lazyRequireGetter(this, "promise");
@@ -36,13 +36,13 @@ devtools.lazyImporter(this, "FileUtils",
 devtools.lazyImporter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
 devtools.lazyImporter(this, "LineGraphWidget",
-  "resource:///modules/devtools/Graphs.jsm");
+  "resource://gre/modules/devtools/Graphs.jsm");
 devtools.lazyImporter(this, "BarGraphWidget",
-  "resource:///modules/devtools/Graphs.jsm");
+  "resource://gre/modules/devtools/Graphs.jsm");
 devtools.lazyImporter(this, "CanvasGraphUtils",
-  "resource:///modules/devtools/Graphs.jsm");
+  "resource://gre/modules/devtools/Graphs.jsm");
 devtools.lazyImporter(this, "SideMenuWidget",
-  "resource:///modules/devtools/SideMenuWidget.jsm");
+  "resource://gre/modules/devtools/SideMenuWidget.jsm");
 
 const RECORDING_DATA_DISPLAY_DELAY = 10; // ms
 const FRAMERATE_CALC_INTERVAL = 16; // ms

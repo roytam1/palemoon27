@@ -2,7 +2,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 let tempScope = {};
-let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+let {gDevTools} = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let TargetFactory = devtools.TargetFactory;
 

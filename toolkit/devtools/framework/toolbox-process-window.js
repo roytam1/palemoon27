@@ -5,13 +5,13 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-let { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+let { gDevTools } = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 let { DebuggerClient } =
   Cu.import("resource://gre/modules/devtools/dbg-client.jsm", {});
 let { ViewHelpers } =
-  Cu.import("resource:///modules/devtools/ViewHelpers.jsm", {});
+  Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm", {});
 let { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
 
 /**

@@ -9,7 +9,7 @@ var gDebuggee;
 var gClient;
 var gThreadClient;
 
-Components.utils.import('resource:///modules/devtools/SourceMap.jsm');
+Components.utils.import('resource://gre/modules/devtools/SourceMap.jsm');
 
 // Deep in the complicated labyrinth of code that this test invokes, beneath
 // debugger callbacks, sandboxes and nested event loops, lies an exception.

@@ -7,7 +7,7 @@
  */
 
 function test() {
-  let { Parser } = Cu.import("resource:///modules/devtools/Parser.jsm", {});
+  let { Parser } = Cu.import("resource://gre/modules/devtools/Parser.jsm", {});
 
   let source = [
     "let a = [];",

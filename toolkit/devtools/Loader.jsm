@@ -78,7 +78,7 @@ BuiltinProvider.prototype = {
         // When you add a line to this mapping, don't forget to make a
         // corresponding addition to the SrcdirProvider mapping below as well.
         "": "resource://gre/modules/jetpack/",
-        "main": "resource:///modules/devtools/main.js",
+        "main": "resource://gre/modules/devtools/main.js",
         "devtools": "resource:///modules/devtools",
         "devtools/toolkit": "resource://gre/modules/devtools",
         "devtools/server": "resource://gre/modules/devtools/server",
@@ -94,7 +94,7 @@ BuiltinProvider.prototype = {
         "devtools/async-utils": "resource://gre/modules/devtools/async-utils",
         "devtools/content-observer": "resource://gre/modules/devtools/content-observer",
         "gcli": "resource://gre/modules/devtools/gcli",
-        "projecteditor": "resource:///modules/devtools/projecteditor",
+        "projecteditor": "resource://gre/modules/devtools/projecteditor",
         "acorn": "resource://gre/modules/devtools/acorn",
         "acorn/util/walk": "resource://gre/modules/devtools/acorn/walk.js",
         "tern": "resource://gre/modules/devtools/tern",

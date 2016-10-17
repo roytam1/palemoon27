@@ -8,7 +8,7 @@ const { Cc, Ci, Cu } = require("chrome");
 const TargetFactory = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.TargetFactory;
 const gcli = require("gcli/index");
 
-loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
+loader.lazyImporter(this, "gDevTools", "resource://gre/modules/devtools/gDevTools.jsm");
 
 loader.lazyGetter(this, "Debugger", () => {
   let global = Cu.getGlobalForObject({});

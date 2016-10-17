@@ -5,8 +5,8 @@
  * Tests that the treeview expander arrow doesn't react to dblclick events.
  */
 
-let { AbstractTreeItem } = Cu.import("resource:///modules/devtools/AbstractTreeItem.jsm", {});
-let { Heritage } = Cu.import("resource:///modules/devtools/ViewHelpers.jsm", {});
+let { AbstractTreeItem } = Cu.import("resource://gre/modules/devtools/AbstractTreeItem.jsm", {});
+let { Heritage } = Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm", {});
 
 function spawnTest () {
   let container = document.createElement("vbox");

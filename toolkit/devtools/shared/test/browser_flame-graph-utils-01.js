@@ -4,7 +4,7 @@
 // Tests that text metrics and data conversion from profiler samples
 // widget work properly in the flame graph.
 
-let {FlameGraphUtils} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
+let {FlameGraphUtils} = Cu.import("resource://gre/modules/devtools/FlameGraph.jsm", {});
 
 add_task(function*() {
   yield promiseTab("about:blank");

@@ -5,12 +5,12 @@
 "use strict";
 
 const Cu = Components.utils;
-const {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+const {gDevTools} = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 const TargetFactory = devtools.TargetFactory;
 const {console} = Components.utils.import("resource://gre/modules/devtools/Console.jsm", {});
-const {ViewHelpers} = Cu.import("resource:///modules/devtools/ViewHelpers.jsm", {});
+const {ViewHelpers} = Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm", {});
 
 // All tests are asynchronous
 waitForExplicitFinish();

@@ -7,8 +7,8 @@ const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
 
 const devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
 const { require } = devtools;
@@ -24,7 +24,7 @@ const L10N = new ViewHelpers.L10N(STRINGS_URI);
 const Telemetry = require("devtools/shared/telemetry");
 const telemetry = new Telemetry();
 devtools.lazyImporter(this, "LineGraphWidget",
-  "resource:///modules/devtools/Graphs.jsm");
+  "resource://gre/modules/devtools/Graphs.jsm");
 
 // `AUDIO_NODE_DEFINITION` defined in the controller's initialization,
 // which describes all the properties of an AudioNode

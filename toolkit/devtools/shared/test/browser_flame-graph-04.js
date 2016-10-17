@@ -6,8 +6,8 @@
 let HTML_NS = "http://www.w3.org/1999/xhtml";
 let FLAME_GRAPH_BLOCK_TEXT_FONT_SIZE = 8; // px
 let FLAME_GRAPH_BLOCK_TEXT_FONT_FAMILY = "sans-serif";
-let {ViewHelpers} = Cu.import("resource:///modules/devtools/ViewHelpers.jsm", {});
-let {FlameGraph} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
+let {ViewHelpers} = Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm", {});
+let {FlameGraph} = Cu.import("resource://gre/modules/devtools/FlameGraph.jsm", {});
 let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
 
 let L10N = new ViewHelpers.L10N();

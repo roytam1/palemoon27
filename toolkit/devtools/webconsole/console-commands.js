@@ -5,7 +5,7 @@
 "use strict";
 
 const gcli = require("gcli/index");
-const { gDevTools } = require("resource:///modules/devtools/gDevTools.jsm");
+const { gDevTools } = require("resource://gre/modules/devtools/gDevTools.jsm");
 
 exports.items = [
   {

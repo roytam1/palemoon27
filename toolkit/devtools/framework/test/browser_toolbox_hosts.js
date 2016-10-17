@@ -3,7 +3,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 let temp = {}
-Cu.import("resource:///modules/devtools/gDevTools.jsm", temp);
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm", temp);
 let DevTools = temp.DevTools;
 
 Cu.import("resource://gre/modules/devtools/Loader.jsm", temp);

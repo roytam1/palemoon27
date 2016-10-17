@@ -7,7 +7,7 @@
 
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const { Cu, Ci } = require("chrome");
-const { ViewHelpers } = Cu.import("resource:///modules/devtools/ViewHelpers.jsm", {});
+const { ViewHelpers } = Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm", {});
 
 /**
  * A list menu widget that attempts to be very fast.

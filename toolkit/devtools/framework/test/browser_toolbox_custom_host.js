@@ -5,7 +5,7 @@
 function test() {
   Cu.import("resource://gre/modules/Services.jsm");
   let temp = {}
-  Cu.import("resource:///modules/devtools/gDevTools.jsm", temp);
+  Cu.import("resource://gre/modules/devtools/gDevTools.jsm", temp);
   let DevTools = temp.DevTools;
   Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm", temp);
   let LayoutHelpers = temp.LayoutHelpers;

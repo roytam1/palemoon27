@@ -3,7 +3,7 @@
 
 // Tests that flame graph widget works properly.
 
-let {FlameGraph} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
+let {FlameGraph} = Cu.import("resource://gre/modules/devtools/FlameGraph.jsm", {});
 let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
 
 add_task(function*() {

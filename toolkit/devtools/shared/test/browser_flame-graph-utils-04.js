@@ -3,7 +3,7 @@
 
 // Tests if (idle) nodes are added when necessary in the flame graph data.
 
-let {FlameGraphUtils} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
+let {FlameGraphUtils} = Cu.import("resource://gre/modules/devtools/FlameGraph.jsm", {});
 let {FrameNode} = devtools.require("devtools/shared/profiler/tree-model");
 
 add_task(function*() {

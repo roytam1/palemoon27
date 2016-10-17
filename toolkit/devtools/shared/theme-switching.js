@@ -103,7 +103,7 @@
   const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
   Cu.import("resource://gre/modules/Services.jsm");
-  Cu.import("resource:///modules/devtools/gDevTools.jsm");
+  Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
   const {devtools} = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
   const StylesheetUtils = devtools.require("sdk/stylesheet/utils");
 

@@ -5,7 +5,7 @@
 
 const Cu = Components.utils;
 
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 const promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
 const {Task} = Cu.import("resource://gre/modules/Task.jsm", {});
 const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});
@@ -23,7 +23,7 @@ this.EXPORTED_SYMBOLS = [
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 const GRAPH_SRC = "chrome://global/content/devtools/graphs-frame.xhtml";
-const WORKER_URL = "resource:///modules/devtools/GraphsWorker.js";
+const WORKER_URL = "resource://gre/modules/devtools/GraphsWorker.js";
 const L10N = new ViewHelpers.L10N();
 
 // Generic constants.

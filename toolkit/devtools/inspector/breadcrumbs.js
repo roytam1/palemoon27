@@ -10,9 +10,9 @@ const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
 const ENSURE_SELECTION_VISIBLE_DELAY = 50; // ms
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/DOMHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/DOMHelpers.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString).data;
 const MAX_LABEL_LENGTH = 40;
 

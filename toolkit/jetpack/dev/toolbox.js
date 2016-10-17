@@ -14,7 +14,7 @@ const { Disposable, setup } = require("../sdk/core/disposable");
 const { contract, validate } = require("../sdk/util/contract");
 const { each, pairs, values } = require("../sdk/util/sequence");
 
-const { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+const { gDevTools } = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 
 // This is temporary workaround to allow loading of the developer tools client - volcan
 // into a toolbox panel, this hack won't be necessary as soon as devtools patch will be

@@ -106,7 +106,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
 
 #ifdef MOZ_DEVTOOLS
 XPCOMUtils.defineLazyModuleGetter(this, "ScratchpadManager",
-  "resource:///modules/devtools/scratchpad-manager.jsm");
+  "resource://gre/modules/devtools/scratchpad-manager.jsm");
 #endif  
   
 XPCOMUtils.defineLazyModuleGetter(this, "DocumentUtils",

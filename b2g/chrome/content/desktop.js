@@ -115,7 +115,7 @@ function checkDebuggerPort() {
 
 
 function initResponsiveDesign() {
-  Cu.import('resource:///modules/devtools/responsivedesign.jsm');
+  Cu.import('resource://gre/modules/devtools/responsivedesign.jsm');
   ResponsiveUIManager.on('on', function(event, {tab:tab}) {
     let responsive = ResponsiveUIManager.getResponsiveUIForTab(tab);
     let document = tab.ownerDocument;
@@ -161,7 +161,7 @@ function openDevtools() {
   Services.prefs.setIntPref('devtools.toolbox.sidebar.width',
                             browserWindow.outerWidth - 550);
   Services.prefs.setCharPref('devtools.toolbox.host', 'side');
-  let {gDevTools} = Cu.import('resource:///modules/devtools/gDevTools.jsm', {});
+  let {gDevTools} = Cu.import('resource://gre/modules/devtools/gDevTools.jsm', {});
   let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
   let target = devtools.TargetFactory.forTab(browserWindow.gBrowser.selectedTab);
   gDevTools.showToolbox(target);

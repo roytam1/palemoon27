@@ -10,20 +10,6 @@ dnl Things we need to carry from confvars.sh
 dnl Optional parts of the build.
 
 dnl ========================================================
-dnl = Enable Mozilla DevTools (/browser only)
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(devtools,
-[  --enable-devtools           Enable Mozilla DevTools],
-    MOZ_DEVTOOLS=1,
-    MOZ_DEVTOOLS=)
-
-if test -n "$MOZ_DEVTOOLS"; then
-    AC_DEFINE(MOZ_DEVTOOLS)
-fi
-
-AC_SUBST(MOZ_DEVTOOLS)
-
-dnl ========================================================
 dnl = Disable the status bar code
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(browser-statusbar,

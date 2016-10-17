@@ -5,7 +5,7 @@
 "use strict";
 
 const { Cu } = require("chrome");
-const { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+const { gDevTools } = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 const { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 
 const { getActiveTab } = require("../sdk/tabs/utils");

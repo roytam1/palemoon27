@@ -178,13 +178,13 @@
 }
 
 .ruleview-bezierswatch {
-  background: url("chrome://browser/skin/devtools/cubic-bezier-swatch.png");
+  background: url("chrome://global/skin/devtools/cubic-bezier-swatch.png");
   background-size: 1em;
 }
 
 @media (min-resolution: 2dppx) {
   .ruleview-bezierswatch {
-    background: url("chrome://browser/skin/devtools/cubic-bezier-swatch@2x.png");
+    background: url("chrome://global/skin/devtools/cubic-bezier-swatch@2x.png");
     background-size: 1em;
   }
 }

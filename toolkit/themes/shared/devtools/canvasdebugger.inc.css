@@ -61,11 +61,11 @@
 }
 
 #record-snapshot {
-  list-style-image: url("chrome://browser/skin/devtools/profiler-stopwatch.svg");
+  list-style-image: url("chrome://global/skin/devtools/profiler-stopwatch.svg");
 }
 
 #record-snapshot[checked] {
-  list-style-image: url("chrome://browser/skin/devtools/profiler-stopwatch-checked.svg");
+  list-style-image: url("chrome://global/skin/devtools/profiler-stopwatch-checked.svg");
 }
 
 /* Snapshots items */

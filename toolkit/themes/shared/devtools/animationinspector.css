@@ -68,7 +68,7 @@ body {
   left: 50%;
   top: 50%;
   margin: -8px 0 0 -8px;
-  background-image: url("chrome://browser/skin/devtools/command-pick.png");
+  background-image: url("chrome://global/skin/devtools/command-pick.png");
 }
 
 #toggle-all::before {
@@ -86,7 +86,7 @@ body {
 
 @media (min-resolution: 2dppx) {
   #element-picker::before {
-    background-image: url("chrome://browser/skin/devtools/command-pick@2x.png");
+    background-image: url("chrome://global/skin/devtools/command-pick@2x.png");
     background-size: 64px;
   }
 

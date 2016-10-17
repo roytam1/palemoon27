@@ -22,9 +22,6 @@ DIRS += [
 if CONFIG['MOZ_BROWSER_STATUSBAR']:
     DIRS += ['statusbar']
 
-if CONFIG['MOZ_BROWSER_SIDEBAR']:
-    DIRS += ['sidebar']
-
 DIRS += ['build']
 
 XPIDL_SOURCES += [

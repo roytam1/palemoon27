@@ -8,8 +8,8 @@ const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
 
 devtools.lazyRequireGetter(this, "promise");
 devtools.lazyRequireGetter(this, "EventEmitter",
@@ -27,7 +27,7 @@ devtools.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
   "devtools/shared/timeline/global", true);
 
 devtools.lazyImporter(this, "CanvasGraphUtils",
-  "resource:///modules/devtools/Graphs.jsm");
+  "resource://gre/modules/devtools/Graphs.jsm");
 
 devtools.lazyImporter(this, "PluralForm",
   "resource://gre/modules/PluralForm.jsm");

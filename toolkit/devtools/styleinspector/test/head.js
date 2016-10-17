@@ -5,7 +5,7 @@
 "use strict";
 
 const Cu = Components.utils;
-let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+let {gDevTools} = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let TargetFactory = devtools.TargetFactory;
 let {CssHtmlTree} = devtools.require("devtools/styleinspector/computed-view");

@@ -28,10 +28,10 @@ loader.lazyGetter(this, "Messages",
                   () => require("devtools/webconsole/console-output").Messages);
 loader.lazyImporter(this, "EnvironmentClient", "resource://gre/modules/devtools/dbg-client.jsm");
 loader.lazyImporter(this, "ObjectClient", "resource://gre/modules/devtools/dbg-client.jsm");
-loader.lazyImporter(this, "VariablesView", "resource:///modules/devtools/VariablesView.jsm");
-loader.lazyImporter(this, "VariablesViewController", "resource:///modules/devtools/VariablesViewController.jsm");
+loader.lazyImporter(this, "VariablesView", "resource://gre/modules/devtools/VariablesView.jsm");
+loader.lazyImporter(this, "VariablesViewController", "resource://gre/modules/devtools/VariablesViewController.jsm");
 loader.lazyImporter(this, "PluralForm", "resource://gre/modules/PluralForm.jsm");
-loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
+loader.lazyImporter(this, "gDevTools", "resource://gre/modules/devtools/gDevTools.jsm");
 
 const STRINGS_URI = "chrome://global/locale/devtools/webconsole.properties";
 let l10n = new WebConsoleUtils.l10n(STRINGS_URI);

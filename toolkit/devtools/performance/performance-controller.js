@@ -8,7 +8,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
 Cu.import("resource://gre/modules/devtools/Console.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 
 devtools.lazyRequireGetter(this, "Services");
 devtools.lazyRequireGetter(this, "promise");
@@ -43,15 +43,15 @@ devtools.lazyRequireGetter(this, "OptionsView",
   "devtools/shared/options-view", true);
 
 devtools.lazyImporter(this, "CanvasGraphUtils",
-  "resource:///modules/devtools/Graphs.jsm");
+  "resource://gre/modules/devtools/Graphs.jsm");
 devtools.lazyImporter(this, "LineGraphWidget",
-  "resource:///modules/devtools/Graphs.jsm");
+  "resource://gre/modules/devtools/Graphs.jsm");
 devtools.lazyImporter(this, "FlameGraphUtils",
-  "resource:///modules/devtools/FlameGraph.jsm");
+  "resource://gre/modules/devtools/FlameGraph.jsm");
 devtools.lazyImporter(this, "FlameGraph",
-  "resource:///modules/devtools/FlameGraph.jsm");
+  "resource://gre/modules/devtools/FlameGraph.jsm");
 devtools.lazyImporter(this, "SideMenuWidget",
-  "resource:///modules/devtools/SideMenuWidget.jsm");
+  "resource://gre/modules/devtools/SideMenuWidget.jsm");
 
 const BRANCH_NAME = "devtools.performance.ui.";
 

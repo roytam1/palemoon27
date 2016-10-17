@@ -21,7 +21,7 @@ loader.lazyRequireGetter(this, "compatibility",
   "devtools/performance/compatibility");
 
 loader.lazyImporter(this, "gDevTools",
-  "resource:///modules/devtools/gDevTools.jsm");
+  "resource://gre/modules/devtools/gDevTools.jsm");
 loader.lazyImporter(this, "setTimeout",
   "resource://gre/modules/Timer.jsm");
 loader.lazyImporter(this, "clearTimeout",

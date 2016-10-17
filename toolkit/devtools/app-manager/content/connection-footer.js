@@ -5,7 +5,7 @@
 const Cu = Components.utils;
 const Ci = Components.interfaces;
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
 
 const {Simulator} = Cu.import("resource://gre/modules/devtools/Simulator.jsm")
 const {Devices} = Cu.import("resource://gre/modules/devtools/Devices.jsm");

@@ -10,7 +10,7 @@ var gClient;
 var gThreadClient;
 var gTabClient;
 
-Components.utils.import("resource:///modules/devtools/SourceMap.jsm");
+Components.utils.import("resource://gre/modules/devtools/SourceMap.jsm");
 
 function run_test()
 {

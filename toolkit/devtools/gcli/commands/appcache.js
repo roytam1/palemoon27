@@ -6,7 +6,7 @@
 
 const gcli = require("gcli/index");
 
-loader.lazyImporter(this, "AppCacheUtils", "resource:///modules/devtools/AppCacheUtils.jsm");
+loader.lazyImporter(this, "AppCacheUtils", "resource://gre/modules/devtools/AppCacheUtils.jsm");
 
 exports.items = [
   {

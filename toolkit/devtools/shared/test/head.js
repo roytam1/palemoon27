@@ -5,8 +5,8 @@
 let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let {TargetFactory, require} = devtools;
 let {console} = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
-let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
-const {DOMHelpers} = Cu.import("resource:///modules/devtools/DOMHelpers.jsm", {});
+let {gDevTools} = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
+const {DOMHelpers} = Cu.import("resource://gre/modules/devtools/DOMHelpers.jsm", {});
 const {Hosts} = require("devtools/framework/toolbox-hosts");
 
 gDevTools.testing = true;

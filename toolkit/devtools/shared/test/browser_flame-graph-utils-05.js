@@ -3,7 +3,7 @@
 
 // Tests that flame graph data is cached, and that the cache may be cleared.
 
-let {FlameGraphUtils} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
+let {FlameGraphUtils} = Cu.import("resource://gre/modules/devtools/FlameGraph.jsm", {});
 
 add_task(function*() {
   yield promiseTab("about:blank");

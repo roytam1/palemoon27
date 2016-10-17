@@ -8,7 +8,7 @@ const {Cc, Ci, Cu} = require("chrome");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
 
 Object.defineProperty(exports, "Toolbox", {
   get: () => require("devtools/framework/toolbox").Toolbox

@@ -109,10 +109,10 @@ const ACTIVITY_TYPE = {
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
-Cu.import("resource:///modules/devtools/VariablesView.jsm");
-Cu.import("resource:///modules/devtools/VariablesViewController.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/SideMenuWidget.jsm");
+Cu.import("resource://gre/modules/devtools/VariablesView.jsm");
+Cu.import("resource://gre/modules/devtools/VariablesViewController.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 
 const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 const promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
@@ -122,13 +122,13 @@ const {Tooltip} = require("devtools/shared/widgets/Tooltip");
 const {ToolSidebar} = require("devtools/framework/sidebar");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Chart",
-  "resource:///modules/devtools/Chart.jsm");
+  "resource://gre/modules/devtools/Chart.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Curl",
-  "resource:///modules/devtools/Curl.jsm");
+  "resource://gre/modules/devtools/Curl.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "CurlUtils",
-  "resource:///modules/devtools/Curl.jsm");
+  "resource://gre/modules/devtools/Curl.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");

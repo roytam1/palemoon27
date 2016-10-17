@@ -9,9 +9,9 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
 Cu.import("resource://gre/modules/devtools/event-emitter.js");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 let { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
                                   "resource://gre/modules/SystemAppProxy.jsm");
@@ -143,7 +143,7 @@ function ResponsiveUI(aWindow, aTab)
   this.mm.addMessageListener("ResponsiveMode:Start:Done", childOn);
 
   let requiresFloatingScrollbars = !this.mainWindow.matchMedia("(-moz-overlay-scrollbars)").matches;
-  this.mm.loadFrameScript("resource:///modules/devtools/responsivedesign-child.js", true);
+  this.mm.loadFrameScript("resource://gre/modules/devtools/responsivedesign-child.js", true);
   this.mm.addMessageListener("ResponsiveMode:ChildScriptReady", () => {
     this.mm.sendAsyncMessage("ResponsiveMode:Start", {
       requiresFloatingScrollbars: requiresFloatingScrollbars

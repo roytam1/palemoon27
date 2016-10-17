@@ -14,7 +14,7 @@ let {EPSILON, TiltMath, vec3, mat4, quat4} = require("devtools/tilt/tilt-math");
 let {TargetFactory} = require("devtools/framework/target");
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
 
 const ELEMENT_MIN_SIZE = 4;
 const INVISIBLE_ELEMENTS = {
@@ -54,8 +54,8 @@ const ARCBALL_ZOOM_MAX = 500;
 const ARCBALL_RESET_SPHERICAL_FACTOR = 0.1;
 const ARCBALL_RESET_LINEAR_FACTOR = 0.01;
 
-const TILT_CRAFTER = "resource:///modules/devtools/tilt/TiltWorkerCrafter.js";
-const TILT_PICKER = "resource:///modules/devtools/tilt/TiltWorkerPicker.js";
+const TILT_CRAFTER = "resource://gre/modules/devtools/tilt/TiltWorkerCrafter.js";
+const TILT_PICKER = "resource://gre/modules/devtools/tilt/TiltWorkerPicker.js";
 
 
 /**

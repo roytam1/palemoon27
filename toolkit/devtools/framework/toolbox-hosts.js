@@ -8,7 +8,7 @@ const {Cu} = require("chrome");
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const {Promise: promise} = require("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/devtools/DOMHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/DOMHelpers.jsm");
 
 /**
  * A toolbox host represents an object that contains a toolbox (e.g. the

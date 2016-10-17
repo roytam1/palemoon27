@@ -14,9 +14,9 @@ loader.lazyRequireGetter(this, "L10N",
   "devtools/shared/timeline/global", true);
 
 loader.lazyImporter(this, "setNamedTimeout",
-  "resource:///modules/devtools/ViewHelpers.jsm");
+  "resource://gre/modules/devtools/ViewHelpers.jsm");
 loader.lazyImporter(this, "clearNamedTimeout",
-  "resource:///modules/devtools/ViewHelpers.jsm");
+  "resource://gre/modules/devtools/ViewHelpers.jsm");
 loader.lazyRequireGetter(this, "EventEmitter",
   "devtools/toolkit/event-emitter");
 

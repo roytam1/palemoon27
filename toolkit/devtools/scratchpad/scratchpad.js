@@ -51,19 +51,19 @@ const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {})
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
+Cu.import("resource://gre/modules/devtools/scratchpad-manager.jsm");
 Cu.import("resource://gre/modules/jsdebugger.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/devtools/ViewHelpers.jsm");
 Cu.import("resource://gre/modules/reflect.jsm");
 Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
-  "resource:///modules/devtools/VariablesView.jsm");
+  "resource://gre/modules/devtools/VariablesView.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesViewController",
-  "resource:///modules/devtools/VariablesViewController.jsm");
+  "resource://gre/modules/devtools/VariablesViewController.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "EnvironmentClient",
   "resource://gre/modules/devtools/dbg-client.jsm");

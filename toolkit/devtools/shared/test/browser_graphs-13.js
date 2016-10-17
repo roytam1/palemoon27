@@ -3,7 +3,7 @@
 
 // Tests that graph widgets may have a fixed width or height.
 
-let {LineGraphWidget} = Cu.import("resource:///modules/devtools/Graphs.jsm", {});
+let {LineGraphWidget} = Cu.import("resource://gre/modules/devtools/Graphs.jsm", {});
 let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
 
 add_task(function*() {

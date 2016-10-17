@@ -13,7 +13,7 @@ const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 const {EventEmitter} = require("devtools/toolkit/event-emitter");
 const {OutputParser} = require("devtools/output-parser");
 const {PrefObserver, PREF_ORIG_SOURCES} = require("devtools/styleeditor/utils");
-const {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
+const {gDevTools} = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 const overlays = require("devtools/styleinspector/style-inspector-overlays");
 
 Cu.import("resource://gre/modules/Services.jsm");

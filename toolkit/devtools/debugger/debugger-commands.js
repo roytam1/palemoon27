@@ -7,7 +7,7 @@
 const { Cc, Ci, Cu } = require("chrome");
 const gcli = require("gcli/index");
 
-loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
+loader.lazyImporter(this, "gDevTools", "resource://gre/modules/devtools/gDevTools.jsm");
 
 /**
  * The commands and converters that are exported to GCLI

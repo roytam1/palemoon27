@@ -8,7 +8,7 @@ const {Cu, Cc, Ci} = require("chrome");
 const Services = require("Services");
 const promise = require("promise");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "gDevTools", "resource://gre/modules/devtools/gDevTools.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CustomizeMode", "resource:///modules/CustomizeMode.jsm");
 const kDeveditionChangedNotification = "devedition-theme-state-changed";
 const DEVEDITION_THEME_PREF = "browser.devedition.theme.enabled";

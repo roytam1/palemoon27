@@ -17,7 +17,7 @@ loader.lazyRequireGetter(this, "DevToolsUtils",
   "devtools/toolkit/DevToolsUtils");
 
 loader.lazyImporter(this, "gDevTools",
-  "resource:///modules/devtools/gDevTools.jsm");
+  "resource://gre/modules/devtools/gDevTools.jsm");
 
 /**
  * A cache of all ProfilerConnection instances. The keys are Toolbox objects.

@@ -133,7 +133,7 @@ function Eyedropper(chromeWindow, opts = { copyOnSelect: true, context: "other" 
   };
 
   let mm = this._contentTab.linkedBrowser.messageManager;
-  mm.loadFrameScript("resource:///modules/devtools/eyedropper/eyedropper-child.js", true);
+  mm.loadFrameScript("resource://gre/modules/devtools/eyedropper/eyedropper-child.js", true);
 
   // record if this was opened via the picker or standalone
   var telemetry = new Telemetry();

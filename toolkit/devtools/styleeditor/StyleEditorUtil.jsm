@@ -20,7 +20,7 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-const PROPERTIES_URL = "chrome://browser/locale/devtools/styleeditor.properties";
+const PROPERTIES_URL = "chrome://global/locale/devtools/styleeditor.properties";
 
 const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 const console = require("resource://gre/modules/devtools/Console.jsm").console;

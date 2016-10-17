@@ -201,7 +201,7 @@ function WindowHost() {
 WindowHost.prototype = {
   type: "window",
 
-  WINDOW_URL: "chrome://browser/content/devtools/framework/toolbox-window.xul",
+  WINDOW_URL: "chrome://global/content/devtools/framework/toolbox-window.xul",
 
   /**
    * Create a new xul window to contain the toolbox.

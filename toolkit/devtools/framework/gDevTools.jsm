@@ -30,7 +30,7 @@ const EventEmitter = devtools.require("devtools/toolkit/event-emitter");
 const FORBIDDEN_IDS = new Set(["toolbox", ""]);
 const MAX_ORDINAL = 99;
 
-const bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
+const bundle = Services.strings.createBundle("chrome://global/locale/devtools/toolbox.properties");
 
 /**
  * DevTools is a class that represents a set of developer tools, it holds a
@@ -662,7 +662,7 @@ let gDevToolsBrowser = {
    * Open a tab to allow connects to a remote browser
    */
   openConnectScreen: function(gBrowser) {
-    gBrowser.selectedTab = gBrowser.addTab("chrome://browser/content/devtools/connect.xhtml");
+    gBrowser.selectedTab = gBrowser.addTab("chrome://global/content/devtools/connect.xhtml");
   },
 
   /**

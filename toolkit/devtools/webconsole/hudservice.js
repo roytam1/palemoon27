@@ -21,7 +21,7 @@ loader.lazyImporter(this, "DebuggerServer", "resource://gre/modules/devtools/dbg
 loader.lazyImporter(this, "DebuggerClient", "resource://gre/modules/devtools/dbg-client.jsm");
 loader.lazyGetter(this, "showDoorhanger", () => require("devtools/shared/doorhanger").showDoorhanger);
 
-const STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
+const STRINGS_URI = "chrome://global/locale/devtools/webconsole.properties";
 let l10n = new WebConsoleUtils.l10n(STRINGS_URI);
 
 const BROWSER_CONSOLE_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";

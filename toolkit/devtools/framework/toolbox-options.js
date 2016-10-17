@@ -16,7 +16,7 @@ const DEVEDITION_THEME_PREF = "browser.devedition.theme.enabled";
 exports.OptionsPanel = OptionsPanel;
 
 XPCOMUtils.defineLazyGetter(this, "l10n", function() {
-  let bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
+  let bundle = Services.strings.createBundle("chrome://global/locale/devtools/toolbox.properties");
   let l10n = function(aName, ...aArgs) {
     try {
       if (aArgs.length == 0) {

@@ -38,19 +38,19 @@ loader.lazyGetter(this, "StoragePanel", () => require("devtools/storage/panel").
 loader.lazyGetter(this, "ScratchpadPanel", () => require("devtools/scratchpad/scratchpad-panel").ScratchpadPanel);
 
 // Strings
-const toolboxProps = "chrome://browser/locale/devtools/toolbox.properties";
-const inspectorProps = "chrome://browser/locale/devtools/inspector.properties";
-const webConsoleProps = "chrome://browser/locale/devtools/webconsole.properties";
-const debuggerProps = "chrome://browser/locale/devtools/debugger.properties";
-const styleEditorProps = "chrome://browser/locale/devtools/styleeditor.properties";
-const shaderEditorProps = "chrome://browser/locale/devtools/shadereditor.properties";
-const canvasDebuggerProps = "chrome://browser/locale/devtools/canvasdebugger.properties";
-const webAudioEditorProps = "chrome://browser/locale/devtools/webaudioeditor.properties";
-const profilerProps = "chrome://browser/locale/devtools/profiler.properties";
-const timelineProps = "chrome://browser/locale/devtools/timeline.properties";
-const netMonitorProps = "chrome://browser/locale/devtools/netmonitor.properties";
-const storageProps = "chrome://browser/locale/devtools/storage.properties";
-const scratchpadProps = "chrome://browser/locale/devtools/scratchpad.properties";
+const toolboxProps = "chrome://global/locale/devtools/toolbox.properties";
+const inspectorProps = "chrome://global/locale/devtools/inspector.properties";
+const webConsoleProps = "chrome://global/locale/devtools/webconsole.properties";
+const debuggerProps = "chrome://global/locale/devtools/debugger.properties";
+const styleEditorProps = "chrome://global/locale/devtools/styleeditor.properties";
+const shaderEditorProps = "chrome://global/locale/devtools/shadereditor.properties";
+const canvasDebuggerProps = "chrome://global/locale/devtools/canvasdebugger.properties";
+const webAudioEditorProps = "chrome://global/locale/devtools/webaudioeditor.properties";
+const profilerProps = "chrome://global/locale/devtools/profiler.properties";
+const timelineProps = "chrome://global/locale/devtools/timeline.properties";
+const netMonitorProps = "chrome://global/locale/devtools/netmonitor.properties";
+const storageProps = "chrome://global/locale/devtools/storage.properties";
+const scratchpadProps = "chrome://global/locale/devtools/scratchpad.properties";
 
 loader.lazyGetter(this, "toolboxStrings", () => Services.strings.createBundle(toolboxProps));
 loader.lazyGetter(this, "profilerStrings",() => Services.strings.createBundle(profilerProps));
@@ -73,8 +73,8 @@ exports.Tools = Tools;
 Tools.options = {
   id: "options",
   ordinal: 0,
-  url: "chrome://browser/content/devtools/framework/toolbox-options.xul",
-  icon: "chrome://browser/skin/devtools/tool-options.svg",
+  url: "chrome://global/content/devtools/framework/toolbox-options.xul",
+  icon: "chrome://global/skin/devtools/tool-options.svg",
   invertIconForLightTheme: true,
   bgTheme: "theme-body",
   label: l10n("options.label", toolboxStrings),
@@ -98,9 +98,9 @@ Tools.inspector = {
   key: l10n("inspector.commandkey", inspectorStrings),
   ordinal: 1,
   modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
-  icon: "chrome://browser/skin/devtools/tool-inspector.svg",
+  icon: "chrome://global/skin/devtools/tool-inspector.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/inspector/inspector.xul",
+  url: "chrome://global/content/devtools/inspector/inspector.xul",
   label: l10n("inspector.label", inspectorStrings),
   panelLabel: l10n("inspector.panelLabel", inspectorStrings),
   tooltip: l10n("inspector.tooltip", inspectorStrings),
@@ -131,9 +131,9 @@ Tools.webConsole = {
   accesskey: l10n("webConsoleCmd.accesskey", webConsoleStrings),
   modifiers: Services.appinfo.OS == "Darwin" ? "accel,alt" : "accel,shift",
   ordinal: 2,
-  icon: "chrome://browser/skin/devtools/tool-webconsole.svg",
+  icon: "chrome://global/skin/devtools/tool-webconsole.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/webconsole.xul",
+  url: "chrome://global/content/devtools/webconsole.xul",
   label: l10n("ToolboxTabWebconsole.label", webConsoleStrings),
   menuLabel: l10n("MenuWebconsole.label", webConsoleStrings),
   panelLabel: l10n("ToolboxWebConsole.panelLabel", webConsoleStrings),
@@ -164,10 +164,10 @@ Tools.jsdebugger = {
   accesskey: l10n("debuggerMenu.accesskey", debuggerStrings),
   modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
   ordinal: 3,
-  icon: "chrome://browser/skin/devtools/tool-debugger.svg",
+  icon: "chrome://global/skin/devtools/tool-debugger.svg",
   invertIconForLightTheme: true,
-  highlightedicon: "chrome://browser/skin/devtools/tool-debugger-paused.svg",
-  url: "chrome://browser/content/devtools/debugger.xul",
+  highlightedicon: "chrome://global/skin/devtools/tool-debugger-paused.svg",
+  url: "chrome://global/content/devtools/debugger.xul",
   label: l10n("ToolboxDebugger.label", debuggerStrings),
   panelLabel: l10n("ToolboxDebugger.panelLabel", debuggerStrings),
   tooltip: l10n("ToolboxDebugger.tooltip", debuggerStrings),
@@ -189,9 +189,9 @@ Tools.styleEditor = {
   ordinal: 4,
   accesskey: l10n("open.accesskey", styleEditorStrings),
   modifiers: "shift",
-  icon: "chrome://browser/skin/devtools/tool-styleeditor.svg",
+  icon: "chrome://global/skin/devtools/tool-styleeditor.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/styleeditor.xul",
+  url: "chrome://global/content/devtools/styleeditor.xul",
   label: l10n("ToolboxStyleEditor.label", styleEditorStrings),
   panelLabel: l10n("ToolboxStyleEditor.panelLabel", styleEditorStrings),
   tooltip: l10n("ToolboxStyleEditor.tooltip2", styleEditorStrings),
@@ -211,9 +211,9 @@ Tools.shaderEditor = {
   id: "shadereditor",
   ordinal: 5,
   visibilityswitch: "devtools.shadereditor.enabled",
-  icon: "chrome://browser/skin/devtools/tool-styleeditor.svg",
+  icon: "chrome://global/skin/devtools/tool-styleeditor.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/shadereditor.xul",
+  url: "chrome://global/content/devtools/shadereditor.xul",
   label: l10n("ToolboxShaderEditor.label", shaderEditorStrings),
   panelLabel: l10n("ToolboxShaderEditor.panelLabel", shaderEditorStrings),
   tooltip: l10n("ToolboxShaderEditor.tooltip", shaderEditorStrings),
@@ -231,9 +231,9 @@ Tools.canvasDebugger = {
   id: "canvasdebugger",
   ordinal: 6,
   visibilityswitch: "devtools.canvasdebugger.enabled",
-  icon: "chrome://browser/skin/devtools/tool-styleeditor.svg",
+  icon: "chrome://global/skin/devtools/tool-styleeditor.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/canvasdebugger.xul",
+  url: "chrome://global/content/devtools/canvasdebugger.xul",
   label: l10n("ToolboxCanvasDebugger.label", canvasDebuggerStrings),
   panelLabel: l10n("ToolboxCanvasDebugger.panelLabel", canvasDebuggerStrings),
   tooltip: l10n("ToolboxCanvasDebugger.tooltip", canvasDebuggerStrings),
@@ -256,9 +256,9 @@ Tools.jsprofiler = {
   ordinal: 7,
   modifiers: "shift",
   visibilityswitch: "devtools.profiler.enabled",
-  icon: "chrome://browser/skin/devtools/tool-profiler.svg",
+  icon: "chrome://global/skin/devtools/tool-profiler.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/profiler.xul",
+  url: "chrome://global/content/devtools/profiler.xul",
   label: l10n("profiler.label2", profilerStrings),
   panelLabel: l10n("profiler.panelLabel2", profilerStrings),
   tooltip: l10n("profiler.tooltip2", profilerStrings),
@@ -278,9 +278,9 @@ Tools.jsprofiler = {
 Tools.performance = {
   id: "performance",
   ordinal: 19,
-  icon: "chrome://browser/skin/devtools/tool-profiler.svg",
+  icon: "chrome://global/skin/devtools/tool-profiler.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/performance.xul",
+  url: "chrome://global/content/devtools/performance.xul",
   // TODO bug 1082695 audit the Performance tools labels
   label: "Performance++", //l10n("profiler.label2", profilerStrings),
   panelLabel: "Performance++", //l10n("profiler.panelLabel2", profilerStrings),
@@ -303,9 +303,9 @@ Tools.timeline = {
   id: "timeline",
   ordinal: 8,
   visibilityswitch: "devtools.timeline.enabled",
-  icon: "chrome://browser/skin/devtools/tool-network.svg",
+  icon: "chrome://global/skin/devtools/tool-network.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/timeline/timeline.xul",
+  url: "chrome://global/content/devtools/timeline/timeline.xul",
   label: l10n("timeline.label", timelineStrings),
   panelLabel: l10n("timeline.panelLabel", timelineStrings),
   tooltip: l10n("timeline.tooltip", timelineStrings),
@@ -327,9 +327,9 @@ Tools.netMonitor = {
   ordinal: 9,
   modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
   visibilityswitch: "devtools.netmonitor.enabled",
-  icon: "chrome://browser/skin/devtools/tool-network.svg",
+  icon: "chrome://global/skin/devtools/tool-network.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/netmonitor.xul",
+  url: "chrome://global/content/devtools/netmonitor.xul",
   label: l10n("netmonitor.label", netMonitorStrings),
   panelLabel: l10n("netmonitor.panelLabel", netMonitorStrings),
   tooltip: l10n("netmonitor.tooltip", netMonitorStrings),
@@ -351,9 +351,9 @@ Tools.storage = {
   accesskey: l10n("storage.accesskey", storageStrings),
   modifiers: "shift",
   visibilityswitch: "devtools.storage.enabled",
-  icon: "chrome://browser/skin/devtools/tool-storage.svg",
+  icon: "chrome://global/skin/devtools/tool-storage.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/storage.xul",
+  url: "chrome://global/content/devtools/storage.xul",
   label: l10n("storage.label", storageStrings),
   menuLabel: l10n("storage.menuLabel", storageStrings),
   panelLabel: l10n("storage.panelLabel", storageStrings),
@@ -375,9 +375,9 @@ Tools.webAudioEditor = {
   id: "webaudioeditor",
   ordinal: 11,
   visibilityswitch: "devtools.webaudioeditor.enabled",
-  icon: "chrome://browser/skin/devtools/tool-webaudio.svg",
+  icon: "chrome://global/skin/devtools/tool-webaudio.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/webaudioeditor.xul",
+  url: "chrome://global/content/devtools/webaudioeditor.xul",
   label: l10n("ToolboxWebAudioEditor1.label", webAudioEditorStrings),
   panelLabel: l10n("ToolboxWebAudioEditor1.panelLabel", webAudioEditorStrings),
   tooltip: l10n("ToolboxWebAudioEditor1.tooltip", webAudioEditorStrings),
@@ -395,9 +395,9 @@ Tools.scratchpad = {
   id: "scratchpad",
   ordinal: 12,
   visibilityswitch: "devtools.scratchpad.enabled",
-  icon: "chrome://browser/skin/devtools/tool-scratchpad.svg",
+  icon: "chrome://global/skin/devtools/tool-scratchpad.svg",
   invertIconForLightTheme: true,
-  url: "chrome://browser/content/devtools/scratchpad.xul",
+  url: "chrome://global/content/devtools/scratchpad.xul",
   label: l10n("scratchpad.label", scratchpadStrings),
   panelLabel: l10n("scratchpad.panelLabel", scratchpadStrings),
   tooltip: l10n("scratchpad.tooltip", scratchpadStrings),
@@ -449,7 +449,7 @@ Tools.darkTheme = {
   id: "dark",
   label: l10n("options.darkTheme.label", toolboxStrings),
   ordinal: 1,
-  stylesheets: ["chrome://browser/skin/devtools/dark-theme.css"],
+  stylesheets: ["chrome://global/skin/devtools/dark-theme.css"],
   classList: ["theme-dark"],
 };
 
@@ -457,7 +457,7 @@ Tools.lightTheme = {
   id: "light",
   label: l10n("options.lightTheme.label", toolboxStrings),
   ordinal: 2,
-  stylesheets: ["chrome://browser/skin/devtools/light-theme.css"],
+  stylesheets: ["chrome://global/skin/devtools/light-theme.css"],
   classList: ["theme-light"],
 };
 

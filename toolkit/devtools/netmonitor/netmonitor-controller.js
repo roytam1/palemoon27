@@ -7,7 +7,7 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-const NET_STRINGS_URI = "chrome://browser/locale/devtools/netmonitor.properties";
+const NET_STRINGS_URI = "chrome://global/locale/devtools/netmonitor.properties";
 const PKI_STRINGS_URI = "chrome://pippki/locale/pippki.properties";
 const LISTENERS = [ "NetworkActivity" ];
 const NET_PREFS = { "NetworkMonitor.saveRequestAndResponseBodies": true };

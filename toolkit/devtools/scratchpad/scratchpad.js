@@ -30,7 +30,7 @@ const MAXIMUM_FONT_SIZE = 96;
 const MINIMUM_FONT_SIZE = 6;
 const NORMAL_FONT_SIZE = 12;
 
-const SCRATCHPAD_L10N = "chrome://browser/locale/devtools/scratchpad.properties";
+const SCRATCHPAD_L10N = "chrome://global/locale/devtools/scratchpad.properties";
 const DEVTOOLS_CHROME_ENABLED = "devtools.chrome.enabled";
 const PREF_RECENT_FILES_MAX = "devtools.scratchpad.recentFilesMax";
 const SHOW_TRAILING_SPACE = "devtools.scratchpad.showTrailingSpace";
@@ -38,7 +38,7 @@ const ENABLE_AUTOCOMPLETION = "devtools.scratchpad.enableAutocompletion";
 const TAB_SIZE = "devtools.editor.tabsize";
 const FALLBACK_CHARSET_LIST = "intl.fallbackCharsetList.ISO-8859-1";
 
-const VARIABLES_VIEW_URL = "chrome://browser/content/devtools/widgets/VariablesView.xul";
+const VARIABLES_VIEW_URL = "chrome://global/content/devtools/widgets/VariablesView.xul";
 
 const require   = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 

@@ -96,7 +96,7 @@ function addProjectEditorTabForTempDirectory(opts = {}) {
   }
   let customOpts = {
     name: "Test",
-    iconUrl: "chrome://browser/skin/devtools/tool-options.svg",
+    iconUrl: "chrome://global/skin/devtools/tool-options.svg",
     projectOverviewURL: SAMPLE_WEBAPP_URL
   };
 
@@ -109,7 +109,7 @@ function addProjectEditorTabForTempDirectory(opts = {}) {
 }
 
 function addProjectEditorTab(opts = {}) {
-  return addTab("chrome://browser/content/devtools/projecteditor-test.xul").then(() => {
+  return addTab("chrome://global/content/devtools/projecteditor-test.xul").then(() => {
     let iframe = content.document.getElementById("projecteditor-iframe");
     if (opts.menubar !== false) {
       opts.menubar = content.document.querySelector("menubar");

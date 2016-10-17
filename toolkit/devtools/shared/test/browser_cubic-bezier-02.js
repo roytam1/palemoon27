@@ -6,7 +6,7 @@
 
 // Tests the CubicBezierWidget events
 
-const TEST_URI = "chrome://browser/content/devtools/cubic-bezier-frame.xhtml";
+const TEST_URI = "chrome://global/content/devtools/cubic-bezier-frame.xhtml";
 const {CubicBezierWidget, PREDEFINED} =
   devtools.require("devtools/shared/widgets/CubicBezierWidget");
 

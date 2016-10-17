@@ -326,26 +326,26 @@ InspectorPanel.prototype = {
     this.sidebar.on("select", this._setDefaultSidebar);
 
     this.sidebar.addTab("ruleview",
-                        "chrome://browser/content/devtools/cssruleview.xhtml",
+                        "chrome://global/content/devtools/cssruleview.xhtml",
                         "ruleview" == defaultTab);
 
     this.sidebar.addTab("computedview",
-                        "chrome://browser/content/devtools/computedview.xhtml",
+                        "chrome://global/content/devtools/computedview.xhtml",
                         "computedview" == defaultTab);
 
     if (Services.prefs.getBoolPref("devtools.fontinspector.enabled") && this.canGetUsedFontFaces) {
       this.sidebar.addTab("fontinspector",
-                          "chrome://browser/content/devtools/fontinspector/font-inspector.xhtml",
+                          "chrome://global/content/devtools/fontinspector/font-inspector.xhtml",
                           "fontinspector" == defaultTab);
     }
 
     this.sidebar.addTab("layoutview",
-                        "chrome://browser/content/devtools/layoutview/view.xhtml",
+                        "chrome://global/content/devtools/layoutview/view.xhtml",
                         "layoutview" == defaultTab);
 
     if (this.target.form.animationsActor) {
       this.sidebar.addTab("animationinspector",
-                          "chrome://browser/content/devtools/animationinspector/animation-inspector.xhtml",
+                          "chrome://global/content/devtools/animationinspector/animation-inspector.xhtml",
                           "animationinspector" == defaultTab);
     }
 
@@ -741,7 +741,7 @@ InspectorPanel.prototype = {
 
     this._markupBox.setAttribute("collapsed", true);
     this._markupBox.appendChild(this._markupFrame);
-    this._markupFrame.setAttribute("src", "chrome://browser/content/devtools/markup-view.xhtml");
+    this._markupFrame.setAttribute("src", "chrome://global/content/devtools/markup-view.xhtml");
     this._markupFrame.setAttribute("aria-label", this.strings.GetStringFromName("inspector.panelLabel.markupView"));
   },
 
@@ -998,7 +998,7 @@ InspectorPanel.prototype = {
 loader.lazyGetter(InspectorPanel.prototype, "strings",
   function () {
     return Services.strings.createBundle(
-            "chrome://browser/locale/devtools/inspector.properties");
+            "chrome://global/locale/devtools/inspector.properties");
   });
 
 loader.lazyGetter(this, "clipboardHelper", function() {

@@ -16,7 +16,7 @@ const AUTO_CLOSE  = "devtools.editor.autoclosebrackets";
 const AUTOCOMPLETE  = "devtools.editor.autocomplete";
 const DETECT_INDENT = "devtools.editor.detectindentation";
 const DETECT_INDENT_MAX_LINES = 500;
-const L10N_BUNDLE = "chrome://browser/locale/devtools/sourceeditor.properties";
+const L10N_BUNDLE = "chrome://global/locale/devtools/sourceeditor.properties";
 const XUL_NS      = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const VALID_KEYMAPS = new Set(["emacs", "vim", "sublime"]);
 
@@ -41,36 +41,36 @@ const L10N = Services.strings.createBundle(L10N_BUNDLE);
 // order to initialize a CodeMirror instance.
 
 const CM_STYLES   = [
-  "chrome://browser/skin/devtools/common.css",
-  "chrome://browser/content/devtools/codemirror/codemirror.css",
-  "chrome://browser/content/devtools/codemirror/dialog.css",
-  "chrome://browser/content/devtools/codemirror/mozilla.css"
+  "chrome://global/skin/devtools/common.css",
+  "chrome://global/content/devtools/codemirror/codemirror.css",
+  "chrome://global/content/devtools/codemirror/dialog.css",
+  "chrome://global/content/devtools/codemirror/mozilla.css"
 ];
 
 const CM_SCRIPTS  = [
-  "chrome://browser/content/devtools/theme-switching.js",
-  "chrome://browser/content/devtools/codemirror/codemirror.js",
-  "chrome://browser/content/devtools/codemirror/dialog.js",
-  "chrome://browser/content/devtools/codemirror/searchcursor.js",
-  "chrome://browser/content/devtools/codemirror/search.js",
-  "chrome://browser/content/devtools/codemirror/matchbrackets.js",
-  "chrome://browser/content/devtools/codemirror/closebrackets.js",
-  "chrome://browser/content/devtools/codemirror/comment.js",
-  "chrome://browser/content/devtools/codemirror/javascript.js",
-  "chrome://browser/content/devtools/codemirror/xml.js",
-  "chrome://browser/content/devtools/codemirror/css.js",
-  "chrome://browser/content/devtools/codemirror/htmlmixed.js",
-  "chrome://browser/content/devtools/codemirror/clike.js",
-  "chrome://browser/content/devtools/codemirror/activeline.js",
-  "chrome://browser/content/devtools/codemirror/trailingspace.js",
-  "chrome://browser/content/devtools/codemirror/emacs.js",
-  "chrome://browser/content/devtools/codemirror/vim.js",
-  "chrome://browser/content/devtools/codemirror/sublime.js",
-  "chrome://browser/content/devtools/codemirror/foldcode.js",
-  "chrome://browser/content/devtools/codemirror/brace-fold.js",
-  "chrome://browser/content/devtools/codemirror/comment-fold.js",
-  "chrome://browser/content/devtools/codemirror/xml-fold.js",
-  "chrome://browser/content/devtools/codemirror/foldgutter.js"
+  "chrome://global/content/devtools/theme-switching.js",
+  "chrome://global/content/devtools/codemirror/codemirror.js",
+  "chrome://global/content/devtools/codemirror/dialog.js",
+  "chrome://global/content/devtools/codemirror/searchcursor.js",
+  "chrome://global/content/devtools/codemirror/search.js",
+  "chrome://global/content/devtools/codemirror/matchbrackets.js",
+  "chrome://global/content/devtools/codemirror/closebrackets.js",
+  "chrome://global/content/devtools/codemirror/comment.js",
+  "chrome://global/content/devtools/codemirror/javascript.js",
+  "chrome://global/content/devtools/codemirror/xml.js",
+  "chrome://global/content/devtools/codemirror/css.js",
+  "chrome://global/content/devtools/codemirror/htmlmixed.js",
+  "chrome://global/content/devtools/codemirror/clike.js",
+  "chrome://global/content/devtools/codemirror/activeline.js",
+  "chrome://global/content/devtools/codemirror/trailingspace.js",
+  "chrome://global/content/devtools/codemirror/emacs.js",
+  "chrome://global/content/devtools/codemirror/vim.js",
+  "chrome://global/content/devtools/codemirror/sublime.js",
+  "chrome://global/content/devtools/codemirror/foldcode.js",
+  "chrome://global/content/devtools/codemirror/brace-fold.js",
+  "chrome://global/content/devtools/codemirror/comment-fold.js",
+  "chrome://global/content/devtools/codemirror/xml-fold.js",
+  "chrome://global/content/devtools/codemirror/foldgutter.js"
 ];
 
 const CM_IFRAME   =

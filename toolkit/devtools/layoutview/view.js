@@ -21,7 +21,7 @@ const {InplaceEditor, editableItem} = devtools.require("devtools/shared/inplace-
 const {parseDeclarations} = devtools.require("devtools/styleinspector/css-parsing-utils");
 const {ReflowFront} = devtools.require("devtools/server/actors/layout");
 
-const SHARED_L10N = new ViewHelpers.L10N("chrome://browser/locale/devtools/shared.properties");
+const SHARED_L10N = new ViewHelpers.L10N("chrome://global/locale/devtools/shared.properties");
 const NUMERIC = /^-?[\d\.]+$/;
 const LONG_TEXT_ROTATE_LIMIT = 3;
 

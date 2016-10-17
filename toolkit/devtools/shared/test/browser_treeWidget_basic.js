@@ -5,8 +5,8 @@
 // Tests that the tree widget api works fine
 
 const TEST_URI = "data:text/html;charset=utf-8,<head><link rel='stylesheet' " +
-  "type='text/css' href='chrome://browser/skin/devtools/common.css'><link " +
-  "rel='stylesheet' type='text/css' href='chrome://browser/skin/devtools/widg" +
+  "type='text/css' href='chrome://global/skin/devtools/common.css'><link " +
+  "rel='stylesheet' type='text/css' href='chrome://global/skin/devtools/widg" +
   "ets.css'></head><body><div></div><span></span></body>";
 const {TreeWidget} = devtools.require("devtools/shared/widgets/TreeWidget");
 

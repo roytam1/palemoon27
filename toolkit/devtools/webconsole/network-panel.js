@@ -14,7 +14,7 @@ loader.lazyServiceGetter(this, "mimeService", "@mozilla.org/mime;1", "nsIMIMESer
 
 let WebConsoleUtils = require("devtools/toolkit/webconsole/utils").Utils;
 
-const STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
+const STRINGS_URI = "chrome://global/locale/devtools/webconsole.properties";
 let l10n = new WebConsoleUtils.l10n(STRINGS_URI);
 
 
@@ -50,7 +50,7 @@ function NetworkPanel(aParent, aHttpActivity, aWebConsoleFrame)
 
   // Create the iframe that displays the NetworkPanel XHTML.
   this.iframe = createAndAppendElement(this.panel, "iframe", {
-    src: "chrome://browser/content/devtools/NetworkPanel.xhtml",
+    src: "chrome://global/content/devtools/NetworkPanel.xhtml",
     type: "content",
     flex: "1"
   });

@@ -22,7 +22,7 @@ this.EXPORTED_SYMBOLS = [
 ];
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
-const GRAPH_SRC = "chrome://browser/content/devtools/graphs-frame.xhtml";
+const GRAPH_SRC = "chrome://global/content/devtools/graphs-frame.xhtml";
 const WORKER_URL = "resource:///modules/devtools/GraphsWorker.js";
 const L10N = new ViewHelpers.L10N();
 

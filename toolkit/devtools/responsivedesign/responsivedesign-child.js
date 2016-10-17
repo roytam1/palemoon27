@@ -4,7 +4,7 @@
 
 const Ci = Components.interfaces;
 const gDeviceSizeWasPageSize = docShell.deviceSizeIsPageSize;
-const gFloatingScrollbarsStylesheet = Services.io.newURI("chrome://browser/skin/devtools/floating-scrollbars.css", null, null);
+const gFloatingScrollbarsStylesheet = Services.io.newURI("chrome://global/skin/devtools/floating-scrollbars.css", null, null);
 let gRequiresFloatingScrollbars;
 
 let active = false;

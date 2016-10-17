@@ -33,7 +33,7 @@ loader.lazyImporter(this, "VariablesViewController", "resource:///modules/devtoo
 loader.lazyImporter(this, "PluralForm", "resource://gre/modules/PluralForm.jsm");
 loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
 
-const STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
+const STRINGS_URI = "chrome://global/locale/devtools/webconsole.properties";
 let l10n = new WebConsoleUtils.l10n(STRINGS_URI);
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
@@ -48,7 +48,7 @@ const WEAK_SIGNATURE_ALGORITHM_LEARN_MORE = "https://developer.mozilla.org/docs/
 
 const HELP_URL = "https://developer.mozilla.org/docs/Tools/Web_Console/Helpers";
 
-const VARIABLES_VIEW_URL = "chrome://browser/content/devtools/widgets/VariablesView.xul";
+const VARIABLES_VIEW_URL = "chrome://global/content/devtools/widgets/VariablesView.xul";
 
 const CONSOLE_DIR_VIEW_HEIGHT = 0.6;
 

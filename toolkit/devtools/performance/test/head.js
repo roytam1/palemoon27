@@ -19,7 +19,7 @@ let nsIProfilerModule = Cc["@mozilla.org/tools/profiler;1"].getService(Ci.nsIPro
 let TargetFactory = devtools.TargetFactory;
 let mm = null;
 
-const FRAME_SCRIPT_UTILS_URL = "chrome://browser/content/devtools/frame-script-utils.js"
+const FRAME_SCRIPT_UTILS_URL = "chrome://global/content/devtools/frame-script-utils.js"
 const EXAMPLE_URL = "http://example.com/browser/browser/devtools/performance/test/";
 const SIMPLE_URL = EXAMPLE_URL + "doc_simple-test.html";
 

@@ -148,7 +148,7 @@ var LocalStore = Class({
     }
     this._refreshDeferred = promise.defer();
 
-    let worker = this.worker = new ChromeWorker("chrome://browser/content/devtools/readdir.js");
+    let worker = this.worker = new ChromeWorker("chrome://global/content/devtools/readdir.js");
     let start = Date.now();
 
     worker.onmessage = evt => {

@@ -32,7 +32,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "console",
   "resource://gre/modules/devtools/Console.jsm");
 
 const MAX_LONG_STRING_LENGTH = 200000;
-const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
+const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
 
 this.EXPORTED_SYMBOLS = ["VariablesViewController", "StackFrameUtils"];
 

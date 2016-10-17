@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#ifdef MOZ_DEVTOOLS
 toolkit.jar:
     content/global/devtools/widgets.css                               (shared/widgets/widgets.css)
     content/global/devtools/widgets/VariablesView.xul                 (shared/widgets/VariablesView.xul)
@@ -148,3 +149,4 @@ toolkit.jar:
     content/global/devtools/eyedropper/nocursor.css                   (eyedropper/nocursor.css)
     content/global/devtools/timeline/timeline.xul                     (timeline/timeline.xul)
     content/global/devtools/timeline/timeline.js                      (timeline/timeline.js)
+#endif

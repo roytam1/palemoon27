@@ -6,7 +6,7 @@
 "use strict";
 
 const {Cu} = require("chrome");
-const STORAGE_STRINGS = "chrome://browser/locale/devtools/storage.properties";
+const STORAGE_STRINGS = "chrome://global/locale/devtools/storage.properties";
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");

@@ -26,7 +26,7 @@ let TargetFactory = devtools.TargetFactory;
 let Toolbox = devtools.Toolbox;
 let mm = null
 
-const FRAME_SCRIPT_UTILS_URL = "chrome://browser/content/devtools/frame-script-utils.js";
+const FRAME_SCRIPT_UTILS_URL = "chrome://global/content/devtools/frame-script-utils.js";
 const EXAMPLE_URL = "http://example.com/browser/browser/devtools/canvasdebugger/test/";
 const SIMPLE_CANVAS_URL = EXAMPLE_URL + "doc_simple-canvas.html";
 const SIMPLE_BITMASKS_URL = EXAMPLE_URL + "doc_simple-canvas-bitmasks.html";

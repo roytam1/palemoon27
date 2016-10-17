@@ -70,8 +70,8 @@ const EVENTS = {
 };
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
-const STRINGS_URI = "chrome://browser/locale/devtools/canvasdebugger.properties";
-const SHARED_STRINGS_URI = "chrome://browser/locale/devtools/shared.properties";
+const STRINGS_URI = "chrome://global/locale/devtools/canvasdebugger.properties";
+const SHARED_STRINGS_URI = "chrome://global/locale/devtools/shared.properties";
 
 const SNAPSHOT_START_RECORDING_DELAY = 10; // ms
 const SNAPSHOT_DATA_EXPORT_MAX_BLOCK = 1000; // ms

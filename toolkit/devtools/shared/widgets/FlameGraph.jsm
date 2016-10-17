@@ -17,7 +17,7 @@ this.EXPORTED_SYMBOLS = [
 ];
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
-const GRAPH_SRC = "chrome://browser/content/devtools/graphs-frame.xhtml";
+const GRAPH_SRC = "chrome://global/content/devtools/graphs-frame.xhtml";
 const L10N = new ViewHelpers.L10N();
 
 const GRAPH_RESIZE_EVENTS_DRAIN = 100; // ms

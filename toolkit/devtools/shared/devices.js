@@ -6,7 +6,7 @@
 
 const { Ci, Cc } = require("chrome");
 const { Services } = require("resource://gre/modules/Services.jsm");
-const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/device.properties");
+const Strings = Services.strings.createBundle("chrome://global/locale/devtools/device.properties");
 
 /* `Devices` is a catalog of existing devices and their properties, intended
  * for (mobile) device emulation tools and features.

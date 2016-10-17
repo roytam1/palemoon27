@@ -21,7 +21,7 @@ devtools.lazyRequireGetter(this, "AnimationsFront",
 
 const require = devtools.require;
 
-const STRINGS_URI = "chrome://browser/locale/devtools/animationinspector.properties";
+const STRINGS_URI = "chrome://global/locale/devtools/animationinspector.properties";
 const L10N = new ViewHelpers.L10N(STRINGS_URI);
 
 // Global toolbox/inspector, set when startup is called.

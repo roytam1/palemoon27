@@ -85,7 +85,7 @@ let UI = {
     if (Services.appinfo.OS == "Darwin") {
       return;
     }
-    let scrollbarsUrl = Services.io.newURI("chrome://browser/skin/devtools/floating-scrollbars-light.css", null, null);
+    let scrollbarsUrl = Services.io.newURI("chrome://global/skin/devtools/floating-scrollbars-light.css", null, null);
     let winUtils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     winUtils.loadSheet(scrollbarsUrl, winUtils.AGENT_SHEET);
     let computedStyle = window.getComputedStyle(document.documentElement);

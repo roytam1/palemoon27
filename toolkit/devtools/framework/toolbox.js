@@ -31,7 +31,7 @@ loader.lazyGetter(this, "Hosts", () => require("devtools/framework/toolbox-hosts
 loader.lazyImporter(this, "CommandUtils", "resource:///modules/devtools/DeveloperToolbar.jsm");
 
 loader.lazyGetter(this, "toolboxStrings", () => {
-  let bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
+  let bundle = Services.strings.createBundle("chrome://global/locale/devtools/toolbox.properties");
   return (name, ...args) => {
     try {
       if (!args.length) {
@@ -148,7 +148,7 @@ Toolbox.HostType = {
 };
 
 Toolbox.prototype = {
-  _URL: "chrome://browser/content/devtools/framework/toolbox.xul",
+  _URL: "chrome://global/content/devtools/framework/toolbox.xul",
 
   _prefs: {
     LAST_HOST: "devtools.toolbox.host",

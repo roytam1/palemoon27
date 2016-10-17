@@ -9,11 +9,11 @@ const ProjectEditor = require("projecteditor/projecteditor");
 const SAMPLE_PATH = buildTempDirectoryStructure();
 const SAMPLE_NAME = "DevTools Content Application Name";
 const SAMPLE_PROJECT_URL = "data:text/html;charset=utf-8,<body><h1>Project Overview</h1></body>";
-const SAMPLE_ICON = "chrome://browser/skin/devtools/tool-debugger.svg";
+const SAMPLE_ICON = "chrome://global/skin/devtools/tool-debugger.svg";
 
 /**
  * Create a workspace for working on projecteditor, available at
- * chrome://browser/content/devtools/projecteditor-loader.xul.
+ * chrome://global/content/devtools/projecteditor-loader.xul.
  * This emulates the integration points that the app manager uses.
  */
 let appManagerEditor;

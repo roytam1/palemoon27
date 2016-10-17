@@ -18,7 +18,7 @@ const {getTargetForApp, launchApp, closeApp}
 const DeviceStore = require("devtools/app-manager/device-store");
 const WebappsStore = require("devtools/app-manager/webapps-store");
 const promise = require("devtools/toolkit/deprecated-sync-thenables");
-const DEFAULT_APP_ICON = "chrome://browser/skin/devtools/app-manager/default-app-icon.png";
+const DEFAULT_APP_ICON = "chrome://global/skin/devtools/app-manager/default-app-icon.png";
 
 window.addEventListener("message", function(event) {
   try {
@@ -71,7 +71,7 @@ let UI = {
     if (window.parent == window) {
       // We're alone. Let's add a footer.
       footer.removeAttribute("hidden");
-      footer.src = "chrome://browser/content/devtools/app-manager/connection-footer.xhtml";
+      footer.src = "chrome://global/content/devtools/app-manager/connection-footer.xhtml";
     } else {
       footer.setAttribute("hidden", "true");
     }

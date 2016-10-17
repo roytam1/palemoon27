@@ -35,11 +35,11 @@ loader.lazyGetter(this, "XULRuntime", function() {
 });
 
 loader.lazyGetter(this, "l10n", () => Services.strings
-  .createBundle("chrome://browser/locale/devtools/eyedropper.properties"));
+  .createBundle("chrome://global/locale/devtools/eyedropper.properties"));
 
-const EYEDROPPER_URL = "chrome://browser/content/devtools/eyedropper.xul";
-const CROSSHAIRS_URL = "chrome://browser/content/devtools/eyedropper/crosshairs.css";
-const NOCURSOR_URL = "chrome://browser/content/devtools/eyedropper/nocursor.css";
+const EYEDROPPER_URL = "chrome://global/content/devtools/eyedropper.xul";
+const CROSSHAIRS_URL = "chrome://global/content/devtools/eyedropper/crosshairs.css";
+const NOCURSOR_URL = "chrome://global/content/devtools/eyedropper/nocursor.css";
 
 const ZOOM_PREF = "devtools.eyedropper.zoom";
 const FORMAT_PREF = "devtools.defaultColorUnit";

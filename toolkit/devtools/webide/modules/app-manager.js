@@ -26,12 +26,12 @@ const {NetUtil} = Cu.import("resource://gre/modules/NetUtil.jsm", {});
 const Telemetry = require("devtools/shared/telemetry");
 const {ProjectBuilding} = require("./build");
 
-const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
+const Strings = Services.strings.createBundle("chrome://global/locale/devtools/webide.properties");
 
 let AppManager = exports.AppManager = {
 
   // FIXME: will break when devtools/app-manager will be removed:
-  DEFAULT_PROJECT_ICON: "chrome://browser/skin/devtools/app-manager/default-app-icon.png",
+  DEFAULT_PROJECT_ICON: "chrome://global/skin/devtools/app-manager/default-app-icon.png",
   DEFAULT_PROJECT_NAME: "--",
 
   init: function() {

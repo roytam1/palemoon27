@@ -7,7 +7,7 @@ const {Cu} = require("chrome");
 const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm");
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const {Services} = Cu.import("resource://gre/modules/Services.jsm");
-const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
+const Strings = Services.strings.createBundle("chrome://global/locale/devtools/webide.properties");
 
 let ConfigView;
 

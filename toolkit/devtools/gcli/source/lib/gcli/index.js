@@ -139,7 +139,7 @@ exports.hiddenByChromePref = function() {
 try {
   var Services = Cu.import('resource://gre/modules/Services.jsm', {}).Services;
   var stringBundle = Services.strings.createBundle(
-          'chrome://browser/locale/devtools/gclicommands.properties');
+          'chrome://global/locale/devtools/gclicommands.properties');
 
   /**
    * Lookup a string in the GCLI string bundle

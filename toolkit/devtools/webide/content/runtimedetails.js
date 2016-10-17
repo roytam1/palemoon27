@@ -8,7 +8,7 @@ const {require} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).de
 const {AppManager} = require("devtools/webide/app-manager");
 const {Connection} = require("devtools/client/connection-manager");
 const {RuntimeTypes} = require("devtools/webide/runtimes");
-const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
+const Strings = Services.strings.createBundle("chrome://global/locale/devtools/webide.properties");
 
 const UNRESTRICTED_HELP_URL = "https://developer.mozilla.org/docs/Tools/WebIDE#Unrestricted_app_debugging_%28including_certified_apps.2C_main_process.2C_etc.%29";
 

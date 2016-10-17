@@ -37,8 +37,8 @@ const GRADIENT_RE = /\b(repeating-)?(linear|radial)-gradient\(((rgb|hsl)a?\(.+?\
 const BORDERCOLOR_RE = /^border-[-a-z]*color$/ig;
 const BORDER_RE = /^border(-(top|bottom|left|right))?$/ig;
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
-const SPECTRUM_FRAME = "chrome://browser/content/devtools/spectrum-frame.xhtml";
-const CUBIC_BEZIER_FRAME = "chrome://browser/content/devtools/cubic-bezier-frame.xhtml";
+const SPECTRUM_FRAME = "chrome://global/content/devtools/spectrum-frame.xhtml";
+const CUBIC_BEZIER_FRAME = "chrome://global/content/devtools/cubic-bezier-frame.xhtml";
 const ESCAPE_KEYCODE = Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE;
 const RETURN_KEYCODE = Ci.nsIDOMKeyEvent.DOM_VK_RETURN;
 const POPUP_EVENTS = ["shown", "hidden", "showing", "hiding"];
@@ -1172,7 +1172,7 @@ EventTooltip.prototype = {
       if (!listener.hide.debugger) {
         let debuggerIcon = doc.createElement("image");
         debuggerIcon.className = "event-tooltip-debugger-icon";
-        debuggerIcon.setAttribute("src", "chrome://browser/skin/devtools/tool-debugger.svg");
+        debuggerIcon.setAttribute("src", "chrome://global/skin/devtools/tool-debugger.svg");
         let openInDebugger = l10n.strings.GetStringFromName("eventsTooltip.openInDebugger");
         debuggerIcon.setAttribute("tooltiptext", openInDebugger);
         header.appendChild(debuggerIcon);
@@ -1485,5 +1485,5 @@ let l10n = new L10N();
 
 loader.lazyGetter(L10N.prototype, "strings", () => {
   return Services.strings.createBundle(
-    "chrome://browser/locale/devtools/inspector.properties");
+    "chrome://global/locale/devtools/inspector.properties");
 });

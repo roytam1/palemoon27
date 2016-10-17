@@ -2516,7 +2516,7 @@ function parseAttributeValues(attr, doc) {
 }
 
 loader.lazyGetter(MarkupView.prototype, "strings", () => Services.strings.createBundle(
-  "chrome://browser/locale/devtools/inspector.properties"
+  "chrome://global/locale/devtools/inspector.properties"
 ));
 
 XPCOMUtils.defineLazyGetter(this, "clipboardHelper", function() {

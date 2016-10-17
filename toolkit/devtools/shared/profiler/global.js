@@ -10,7 +10,7 @@ Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 /**
  * Localization convenience methods.
  */
-const STRINGS_URI = "chrome://browser/locale/devtools/profiler.properties";
+const STRINGS_URI = "chrome://global/locale/devtools/profiler.properties";
 const L10N = new ViewHelpers.L10N(STRINGS_URI);
 
 /**

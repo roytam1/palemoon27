@@ -568,11 +568,6 @@ pref("media.fragmented-mp4.android-media-codec.preferred", true);
 // optimize images memory usage
 pref("image.mem.decodeondraw", true);
 
-#ifdef NIGHTLY_BUILD
-// Shumway component (SWF player) is disabled by default. Also see bug 904346.
-pref("shumway.disabled", true);
-#endif
-
 // enable touch events interfaces
 pref("dom.w3c_touch_events.enabled", 1);
 

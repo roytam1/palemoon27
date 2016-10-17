@@ -346,7 +346,7 @@ if (typeof Components === "object") {
     },
     paths: {
       "": "resource://gre/modules/jetpack/",
-      "devtools": "resource:///modules/devtools",
+      "devtools": "resource://gre/modules/devtools",
       "devtools/server": "resource://gre/modules/devtools/server",
       "devtools/toolkit": "resource://gre/modules/devtools",
       "source-map": "resource://gre/modules/devtools/source-map",

@@ -79,7 +79,7 @@ BuiltinProvider.prototype = {
         // corresponding addition to the SrcdirProvider mapping below as well.
         "": "resource://gre/modules/jetpack/",
         "main": "resource://gre/modules/devtools/main.js",
-        "devtools": "resource:///modules/devtools",
+        "devtools": "resource://gre/modules/devtools",
         "devtools/toolkit": "resource://gre/modules/devtools",
         "devtools/server": "resource://gre/modules/devtools/server",
         "devtools/toolkit/webconsole": "resource://gre/modules/devtools/toolkit/webconsole",

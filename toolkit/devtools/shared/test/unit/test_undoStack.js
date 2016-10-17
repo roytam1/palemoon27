@@ -9,7 +9,7 @@ let {Loader} = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {}
 let loader = new Loader.Loader({
   paths: {
     "": "resource://gre/modules/commonjs/",
-    "devtools": "resource:///modules/devtools",
+    "devtools": "resource://gre/modules/devtools",
   },
   globals: {},
 });

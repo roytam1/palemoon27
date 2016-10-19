@@ -6185,23 +6185,6 @@ if test -n "$MOZ_SIGN_CMD"; then
 fi
 
 dnl ========================================================
-dnl Maintenance Service
-dnl ========================================================
-
-MOZ_ARG_ENABLE_BOOL(maintenance-service,
-[  --enable-maintenance-service       Enable building of maintenanceservice],
-    MOZ_MAINTENANCE_SERVICE=1,
-    MOZ_MAINTENANCE_SERVICE= )
-
-if test -n "$MOZ_MAINTENANCE_SERVICE"; then
-  if test "$OS_ARCH" = "WINNT"; then
-    AC_DEFINE(MOZ_MAINTENANCE_SERVICE)
-  else
-    AC_MSG_ERROR([Can only build with --enable-maintenance-service with a Windows target])
-  fi
-fi
-
-dnl ========================================================
 dnl Bundled fonts on desktop platforms
 dnl ========================================================
 
@@ -8277,7 +8260,6 @@ AC_SUBST(ACCESSIBILITY)
 AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_ANDROID_APZ)
 AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
-AC_SUBST(MOZ_MAINTENANCE_SERVICE)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
 AC_SUBST(MOZ_ENABLE_SIGNMAR)
 AC_SUBST(MOZ_UPDATER)

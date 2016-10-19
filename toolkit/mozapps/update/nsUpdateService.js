@@ -2091,7 +2091,7 @@ UpdateService.prototype = {
       // that state to "applying" and we just wait and hope for the best.
       // If it's "applying", we know that we've already been here once, so
       // we really want to start from a clean state.
-      if (update && (update.state == STATE_PENDING)) {
+      if (update && update.state == STATE_PENDING) {
         LOG("UpdateService:_postUpdateProcessing - patch found in applying " +
             "state for the first time");
         update.state = STATE_APPLYING;

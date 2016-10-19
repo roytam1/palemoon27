@@ -579,6 +579,7 @@ hb_font_create
 hb_font_destroy
 hb_font_funcs_create
 hb_font_funcs_set_glyph_contour_point_func
+hb_font_funcs_set_glyph_extents_func
 hb_font_funcs_set_glyph_func
 hb_font_funcs_set_glyph_h_advance_func
 hb_font_funcs_set_glyph_h_kerning_func

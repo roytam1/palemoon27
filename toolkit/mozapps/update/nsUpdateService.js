@@ -53,9 +53,6 @@ const PREF_APP_UPDATE_STAGING_ENABLED     = "app.update.staging.enabled";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
-const PREF_APP_UPDATE_SERVICE_ENABLED     = "app.update.service.enabled";
-const PREF_APP_UPDATE_SERVICE_ERRORS      = "app.update.service.errors";
-const PREF_APP_UPDATE_SERVICE_MAX_ERRORS  = "app.update.service.maxErrors";
 const PREF_APP_UPDATE_SOCKET_ERRORS       = "app.update.socket.maxErrors";
 const PREF_APP_UPDATE_RETRY_TIMEOUT       = "app.update.socket.retryTimeout";
 
@@ -111,11 +108,9 @@ const FILE_UPDATE_LOCALE  = "update.locale";
 const STATE_NONE            = "null";
 const STATE_DOWNLOADING     = "downloading";
 const STATE_PENDING         = "pending";
-const STATE_PENDING_SVC     = "pending-service";
 const STATE_APPLYING        = "applying";
 const STATE_APPLIED         = "applied";
 const STATE_APPLIED_OS      = "applied-os";
-const STATE_APPLIED_SVC     = "applied-service";
 const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
 const STATE_FAILED          = "failed";
@@ -124,19 +119,6 @@ const STATE_FAILED          = "failed";
 const WRITE_ERROR        = 7;
 // const UNEXPECTED_ERROR   = 8; // Replaced with errors 38-42
 const ELEVATION_CANCELED = 9;
-
-// Windows service specific errors
-const SERVICE_UPDATER_COULD_NOT_BE_STARTED = 24;
-const SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS = 25;
-const SERVICE_UPDATER_SIGN_ERROR           = 26;
-const SERVICE_UPDATER_COMPARE_ERROR        = 27;
-const SERVICE_UPDATER_IDENTITY_ERROR       = 28;
-const SERVICE_STILL_APPLYING_ON_SUCCESS    = 29;
-const SERVICE_STILL_APPLYING_ON_FAILURE    = 30;
-const SERVICE_UPDATER_NOT_FIXED_DRIVE      = 31;
-const SERVICE_COULD_NOT_LOCK_UPDATER       = 32;
-const SERVICE_INSTALLDIR_ERROR             = 33;
-const SERVICE_COULD_NOT_COPY_UPDATER       = 49;
 
 const WRITE_ERROR_ACCESS_DENIED                     = 35;
 // const WRITE_ERROR_SHARING_VIOLATION                 = 36; // Replaced with errors 46-48
@@ -591,71 +573,62 @@ function getCanApplyUpdates() {
     }
   }
 
-  let useService = false;
-  if (shouldUseService() && isServiceInstalled()) {
-    // No need to perform directory write checks, the maintenance service will
-    // be able to write to all directories.
-    LOG("getCanApplyUpdates - bypass the write checks because we'll use the service");
-    useService = true;
-  }
-
-  if (!useService) {
-    try {
-      var updateTestFile = getUpdateFile([FILE_PERMS_TEST]);
-      LOG("getCanApplyUpdates - testing write access " + updateTestFile.path);
-      testWriteAccess(updateTestFile, false);
+  try {
+    var updateTestFile = getUpdateFile([FILE_PERMS_TEST]);
+    LOG("getCanApplyUpdates - testing write access " + updateTestFile.path);
+    testWriteAccess(updateTestFile, false);
 #ifdef XP_MACOSX
-      // Check that the application bundle can be written to.
-      var appDirTestFile = getAppBaseDir();
-      appDirTestFile.append(FILE_PERMS_TEST);
-      LOG("getCanApplyUpdates - testing write access " + appDirTestFile.path);
-      if (appDirTestFile.exists()) {
-        appDirTestFile.remove(false)
-      }
-      appDirTestFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
-      appDirTestFile.remove(false);
+    // Check that the application bundle can be written to.
+    var appDirTestFile = getAppBaseDir();
+    appDirTestFile.append(FILE_PERMS_TEST);
+    LOG("getCanApplyUpdates - testing write access " + appDirTestFile.path);
+    if (appDirTestFile.exists()) {
+      appDirTestFile.remove(false)
+    }
+    appDirTestFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+    appDirTestFile.remove(false);
 #elifdef XP_WIN
-      var sysInfo = Cc["@mozilla.org/system-info;1"].
-                    getService(Ci.nsIPropertyBag2);
+    var sysInfo = Cc["@mozilla.org/system-info;1"].
+                  getService(Ci.nsIPropertyBag2);
 
-      // Example windowsVersion:  Windows XP == 5.1
-      var windowsVersion = sysInfo.getProperty("version");
-      LOG("getCanApplyUpdates - windowsVersion = " + windowsVersion);
+    // Example windowsVersion:  Windows XP == 5.1
+    var windowsVersion = sysInfo.getProperty("version");
+    LOG("getCanApplyUpdates - windowsVersion = " + windowsVersion);
+
+  /**
+#    For Vista, updates can be performed to a location requiring admin
+#    privileges by requesting elevation via the UAC prompt when launching
+#    updater.exe if the appDir is under the Program Files directory
+#    (e.g. C:\Program Files\) and UAC is turned on and  we can elevate
+#    (e.g. user has a split token).
+#
+#    Note: this does note attempt to handle the case where UAC is turned on
+#    and the installation directory is in a restricted location that
+#    requires admin privileges to update other than Program Files.
+   */
+    var userCanElevate = false;
+
+    if (parseFloat(windowsVersion) >= 6) {
+      try {
+        var fileLocator = Cc["@mozilla.org/file/directory_service;1"].
+                          getService(Ci.nsIProperties);
+        // KEY_UPDROOT will fail and throw an exception if
+        // appDir is not under the Program Files, so we rely on that
+        var dir = fileLocator.get(KEY_UPDROOT, Ci.nsIFile);
+        // appDir is under Program Files, so check if the user can elevate
+        userCanElevate = Services.appinfo.QueryInterface(Ci.nsIWinAppHelper).
+                         userCanElevate;
+        LOG("getCanApplyUpdates - on Vista, userCanElevate: " + userCanElevate);
+      }
+      catch (ex) {
+        // When the installation directory is not under Program Files,
+        // fall through to checking if write access to the
+        // installation directory is available.
+        LOG("getCanApplyUpdates - on Vista, appDir is not under Program Files");
+      }
+    }
 
     /**
-  #    For Vista, updates can be performed to a location requiring admin
-  #    privileges by requesting elevation via the UAC prompt when launching
-  #    updater.exe if the appDir is under the Program Files directory
-  #    (e.g. C:\Program Files\) and UAC is turned on and  we can elevate
-  #    (e.g. user has a split token).
-  #
-  #    Note: this does note attempt to handle the case where UAC is turned on
-  #    and the installation directory is in a restricted location that
-  #    requires admin privileges to update other than Program Files.
-     */
-      var userCanElevate = false;
-
-      if (parseFloat(windowsVersion) >= 6) {
-        try {
-          var fileLocator = Cc["@mozilla.org/file/directory_service;1"].
-                            getService(Ci.nsIProperties);
-          // KEY_UPDROOT will fail and throw an exception if
-          // appDir is not under the Program Files, so we rely on that
-          var dir = fileLocator.get(KEY_UPDROOT, Ci.nsIFile);
-          // appDir is under Program Files, so check if the user can elevate
-          userCanElevate = Services.appinfo.QueryInterface(Ci.nsIWinAppHelper).
-                           userCanElevate;
-          LOG("getCanApplyUpdates - on Vista, userCanElevate: " + userCanElevate);
-        }
-        catch (ex) {
-          // When the installation directory is not under Program Files,
-          // fall through to checking if write access to the
-          // installation directory is available.
-          LOG("getCanApplyUpdates - on Vista, appDir is not under Program Files");
-        }
-      }
-
-      /**
 #      On Windows, we no longer store the update under the app dir.
 #
 #      If we are on Windows (including Vista, if we can't elevate) we need to
@@ -674,26 +647,25 @@ function getCanApplyUpdates() {
 #         (e.g. the user does not have a split token)
 #      4) UAC is turned on and the user is already elevated, so they can't be
 #         elevated again
-       */
-      if (!userCanElevate) {
-        // if we're unable to create the test file this will throw an exception.
-        var appDirTestFile = getAppBaseDir();
-        appDirTestFile.append(FILE_PERMS_TEST);
-        LOG("getCanApplyUpdates - testing write access " + appDirTestFile.path);
-        if (appDirTestFile.exists())
-          appDirTestFile.remove(false)
-        appDirTestFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
-        appDirTestFile.remove(false);
-      }
+     */
+    if (!userCanElevate) {
+      // if we're unable to create the test file this will throw an exception.
+      var appDirTestFile = getAppBaseDir();
+      appDirTestFile.append(FILE_PERMS_TEST);
+      LOG("getCanApplyUpdates - testing write access " + appDirTestFile.path);
+      if (appDirTestFile.exists())
+        appDirTestFile.remove(false)
+      appDirTestFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+      appDirTestFile.remove(false);
+    }
 #endif //XP_WIN
-    }
-    catch (e) {
-       LOG("getCanApplyUpdates - unable to apply updates. Exception: " + e);
-      // No write privileges to install directory
-      submitHasPermissionsTelemetryPing(false);
-      return false;
-    }
-  } // if (!useService)
+  }
+  catch (e) {
+     LOG("getCanApplyUpdates - unable to apply updates. Exception: " + e);
+    // No write privileges to install directory
+    submitHasPermissionsTelemetryPing(false);
+    return false;
+  }
 
   LOG("getCanApplyUpdates - able to apply updates");
   submitHasPermissionsTelemetryPing(true);
@@ -712,15 +684,6 @@ function getCanStageUpdates() {
         PREF_APP_UPDATE_STAGING_ENABLED);
     return false;
   }
-
-#ifdef XP_WIN
-  if (isServiceInstalled() && shouldUseService()) {
-    // No need to perform directory write checks, the maintenance service will
-    // be able to write to all directories.
-    LOG("getCanStageUpdates - able to stage updates because we'll use the service");
-    return true;
-  }
-#endif
 
 #ifdef MOZ_WIDGET_GONK
   // For Gonk, the updater will remount the /system partition to move staged
@@ -1152,49 +1115,6 @@ function releaseSDCardMountLock() {
 }
 
 /**
- * Determines if the service should be used to attempt an update
- * or not.  For now this is only when PREF_APP_UPDATE_SERVICE_ENABLED
- * is true and we have Firefox.
- *
- * @return  true if the service should be used for updates.
- */
-function shouldUseService() {
-#ifdef MOZ_MAINTENANCE_SERVICE
-  return getPref("getBoolPref",
-                 PREF_APP_UPDATE_SERVICE_ENABLED, false);
-#else
-  return false;
-#endif
-}
-
-/**
- * Determines if the service is is installed and enabled or not.
- *
- * @return  true if the service should be used for updates,
- *          is installed and enabled.
- */
-function isServiceInstalled() {
-#ifdef XP_WIN
-  let installed = 0;
-  try {
-    let wrk = Cc["@mozilla.org/windows-registry-key;1"].
-              createInstance(Ci.nsIWindowsRegKey);
-    wrk.open(wrk.ROOT_KEY_LOCAL_MACHINE,
-             "SOFTWARE\\Mozilla\\MaintenanceService",
-             wrk.ACCESS_READ | wrk.WOW64_64);
-    installed = wrk.readIntValue("Installed");
-    wrk.close();
-  } catch(e) {
-  }
-  installed = installed == 1;  // convert to bool
-  LOG("isServiceInstalled = " + installed);
-  return installed;
-#else
-  return false;
-#endif
-}
-
-/**
 #  Writes the update's application version to a file in the patch directory. If
 #  the update doesn't provide application version information via the
 #  appVersion attribute the string "null" will be written to the file.
@@ -1505,53 +1425,6 @@ function handleUpdateFailure(update, errorCode) {
     return true;
   }
 
-  if (update.errorCode == SERVICE_UPDATER_COULD_NOT_BE_STARTED ||
-      update.errorCode == SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS ||
-      update.errorCode == SERVICE_UPDATER_SIGN_ERROR ||
-      update.errorCode == SERVICE_UPDATER_COMPARE_ERROR ||
-      update.errorCode == SERVICE_UPDATER_IDENTITY_ERROR ||
-      update.errorCode == SERVICE_STILL_APPLYING_ON_SUCCESS ||
-      update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE ||
-      update.errorCode == SERVICE_UPDATER_NOT_FIXED_DRIVE ||
-      update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER ||
-      update.errorCode == SERVICE_COULD_NOT_COPY_UPDATER ||
-      update.errorCode == SERVICE_INSTALLDIR_ERROR) {
-
-    var failCount = getPref("getIntPref",
-                            PREF_APP_UPDATE_SERVICE_ERRORS, 0);
-    var maxFail = getPref("getIntPref",
-                          PREF_APP_UPDATE_SERVICE_MAX_ERRORS,
-                          DEFAULT_SERVICE_MAX_ERRORS);
-
-    // As a safety, when the service reaches maximum failures, it will
-    // disable itself and fallback to using the normal update mechanism
-    // without the service.
-    if (failCount >= maxFail) {
-      Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
-      Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ERRORS);
-    } else {
-      failCount++;
-      Services.prefs.setIntPref(PREF_APP_UPDATE_SERVICE_ERRORS,
-                                failCount);
-    }
-
-    writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-    try {
-      Services.telemetry.getHistogramById("UPDATER_SERVICE_ERROR_CODE").
-        add(update.errorCode);
-    }
-    catch (e) {
-      Cu.reportError(e);
-    }
-    return true;
-  }
-
-  try {
-    Services.telemetry.getHistogramById("UPDATER_SERVICE_ERROR_CODE").add(0);
-  }
-  catch (e) {
-    Cu.reportError(e);
-  }
   return false;
 }
 
@@ -2218,8 +2091,7 @@ UpdateService.prototype = {
       // that state to "applying" and we just wait and hope for the best.
       // If it's "applying", we know that we've already been here once, so
       // we really want to start from a clean state.
-      if (update &&
-          (update.state == STATE_PENDING || update.state == STATE_PENDING_SVC)) {
+      if (update && (update.state == STATE_PENDING)) {
         LOG("UpdateService:_postUpdateProcessing - patch found in applying " +
             "state for the first time");
         update.state = STATE_APPLYING;
@@ -2336,44 +2208,6 @@ UpdateService.prototype = {
       Cu.reportError(e);
     }
   },
-
-#ifdef XP_WIN
-  /**
-   * Submit a telemetry ping with a boolean value which indicates if the service
-   * is installed.
-   * Also submits a telemetry ping with a boolean value which indicates if the
-   * service was at some point installed, but is now uninstalled.
-   */
-  _sendServiceInstalledTelemetryPing: function AUS__svcInstallTelemetryPing() {
-    let installed = isServiceInstalled(); // Is the service installed?
-    let attempted = 0;
-    try {
-      let wrk = Cc["@mozilla.org/windows-registry-key;1"].
-                createInstance(Ci.nsIWindowsRegKey);
-      wrk.open(wrk.ROOT_KEY_LOCAL_MACHINE,
-               "SOFTWARE\\Mozilla\\MaintenanceService",
-               wrk.ACCESS_READ | wrk.WOW64_64);
-      // Was the service at some point installed, but is now uninstalled?
-      attempted = wrk.readIntValue("Attempted");
-      wrk.close();
-    } catch(e) {
-    }
-    try {
-      let h = Services.telemetry.getHistogramById("UPDATER_SERVICE_INSTALLED");
-      h.add(Number(installed));
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Cu.reportError(e);
-    }
-    try {
-      let h = Services.telemetry.getHistogramById("UPDATER_SERVICE_MANUALLY_UNINSTALLED");
-      h.add(!installed && attempted ? 1 : 0);
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Cu.reportError(e);
-    }
-  },
-#endif
 
   /**
    * Submit a telemetry ping with the int value of a pref for a histogram
@@ -2617,15 +2451,6 @@ UpdateService.prototype = {
                                     "UPDATER_UPDATES_AUTOMATIC");
     this._sendBoolPrefTelemetryPing(PREF_APP_UPDATE_STAGING_ENABLED,
                                     "UPDATER_STAGE_ENABLED");
-
-#ifdef XP_WIN
-    this._sendBoolPrefTelemetryPing(PREF_APP_UPDATE_SERVICE_ENABLED,
-                                    "UPDATER_SERVICE_ENABLED");
-    this._sendIntPrefTelemetryPing(PREF_APP_UPDATE_SERVICE_ERRORS,
-                                   "UPDATER_SERVICE_ERRORS");
-    this._sendServiceInstalledTelemetryPing();
-#endif
-
     this._checkForBackgroundUpdates(true);
   },
 
@@ -3522,8 +3347,7 @@ UpdateManager.prototype = {
       for (let i = updates.length - 1; i >= 0; --i) {
         let state = updates[i].state;
         if (state == STATE_NONE || state == STATE_DOWNLOADING ||
-            state == STATE_APPLIED || state == STATE_APPLIED_SVC ||
-            state == STATE_PENDING || state == STATE_PENDING_SVC) {
+            state == STATE_APPLIED || state == STATE_PENDING) {
           updates.splice(i, 1);
         }
       }
@@ -3548,14 +3372,11 @@ UpdateManager.prototype = {
         handleFallbackToCompleteUpdate(update, true);
       }
     }
-    if (update.state == STATE_APPLIED && shouldUseService()) {
-      writeStatusFile(getUpdatesDir(), update.state = STATE_APPLIED_SVC);
-    }
     var um = Cc["@mozilla.org/updates/update-manager;1"].
              getService(Ci.nsIUpdateManager);
     um.saveUpdates();
 
-    if (update.state != STATE_PENDING && update.state != STATE_PENDING_SVC) {
+    if (update.state != STATE_PENDING) {
       // Destroy the updates directory, since we're done with it.
       // Make sure to not do this when the updater has fallen back to
       // non-staged updates.
@@ -3589,8 +3410,7 @@ UpdateManager.prototype = {
       return;
     }
 
-    if (update.state == STATE_APPLIED || update.state == STATE_APPLIED_SVC ||
-        update.state == STATE_PENDING || update.state == STATE_PENDING_SVC) {
+    if (update.state == STATE_APPLIED || update.state == STATE_PENDING) {
       // Notify the user that an update has been staged and is ready for
       // installation (i.e. that they should restart the application).
       var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
@@ -3974,8 +3794,7 @@ Downloader.prototype = {
     // Note that if we decide to download and apply new updates after another
     // update has been successfully applied in the background, we need to stop
     // checking for the APPLIED state here.
-    return readState == STATE_PENDING || readState == STATE_PENDING_SVC ||
-           readState == STATE_APPLIED || readState == STATE_APPLIED_SVC;
+    return readState == STATE_PENDING || readState == STATE_APPLIED;
   },
 
   /**
@@ -4084,7 +3903,6 @@ Downloader.prototype = {
         LOG("Downloader:_selectPatch - already downloaded and staged");
         return null;
 #else
-      case STATE_PENDING_SVC:
       case STATE_PENDING:
         LOG("Downloader:_selectPatch - already downloaded and staged");
         return null;
@@ -4450,7 +4268,7 @@ Downloader.prototype = {
                                 UpdaterHealthReportFields.PARTIAL_SUCCESS, 0);
 
       if (this._verifyDownload()) {
-        state = shouldUseService() ? STATE_PENDING_SVC : STATE_PENDING;
+        state = STATE_PENDING;
         if (this.background) {
           shouldShowPrompt = !getCanStageUpdates();
         }
@@ -4602,7 +4420,7 @@ Downloader.prototype = {
       return;
     }
 
-    if (state == STATE_PENDING || state == STATE_PENDING_SVC) {
+    if (state == STATE_PENDING) {
       if (getCanStageUpdates()) {
         LOG("Downloader:onStopRequest - attempting to stage update: " +
             this._update.name);

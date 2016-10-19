@@ -2669,7 +2669,7 @@ int NS_main(int argc, NS_tchar **argv)
   // when write access is denied to the installation directory.
   HANDLE updateLockFileHandle = INVALID_HANDLE_VALUE;
   NS_tchar elevatedLockFilePath[MAXPATHLEN] = {NS_T('\0')};
-  if ((argc > callbackIndex || sStagedUpdate || sReplaceRequest)) {
+  if (argc > callbackIndex || sStagedUpdate || sReplaceRequest) {
     NS_tchar updateLockFilePath[MAXPATHLEN];
     if (sStagedUpdate) {
       // When staging an update, the lock file is:

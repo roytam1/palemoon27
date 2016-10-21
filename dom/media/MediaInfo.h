@@ -187,17 +187,17 @@ public:
     return mDisplay.width > 0 && mDisplay.height > 0;
   }
 
-  virtual VideoInfo* GetAsVideoInfo()
+  virtual VideoInfo* GetAsVideoInfo() override
   {
     return this;
   }
 
-  virtual const VideoInfo* GetAsVideoInfo() const
+  virtual const VideoInfo* GetAsVideoInfo() const override
   {
     return this;
   }
 
-  virtual UniquePtr<TrackInfo> Clone() const
+  virtual UniquePtr<TrackInfo> Clone() const override
   {
     return MakeUnique<VideoInfo>(*this);
   }
@@ -249,17 +249,17 @@ public:
     return mChannels > 0 && mRate > 0;
   }
 
-  virtual AudioInfo* GetAsAudioInfo()
+  virtual AudioInfo* GetAsAudioInfo() override
   {
     return this;
   }
 
-  virtual const AudioInfo* GetAsAudioInfo() const
+  virtual const AudioInfo* GetAsAudioInfo() const override
   {
     return this;
   }
 
-  virtual UniquePtr<TrackInfo> Clone() const
+  virtual UniquePtr<TrackInfo> Clone() const override
   {
     return MakeUnique<AudioInfo>(*this);
   }

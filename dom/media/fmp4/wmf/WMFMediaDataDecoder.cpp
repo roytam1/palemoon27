@@ -95,10 +95,10 @@ WMFMediaDataDecoder::ProcessReleaseDecoder()
 
 // Inserts data into the decoder's pipeline.
 nsresult
-WMFMediaDataDecoder::Input(mp4_demuxer::MP4Sample* aSample)
+WMFMediaDataDecoder::Input(MediaRawData* aSample)
 {
   MonitorAutoLock mon(mMonitor);
-  mInput.push(nsAutoPtr<mp4_demuxer::MP4Sample>(aSample));
+  mInput.push(aSample);
   EnsureDecodeTaskDispatched();
   return NS_OK;
 }
@@ -107,7 +107,7 @@ void
 WMFMediaDataDecoder::Decode()
 {
   while (true) {
-    nsAutoPtr<mp4_demuxer::MP4Sample> input;
+    nsRefPtr<MediaRawData> input;
     {
       MonitorAutoLock mon(mMonitor);
       MOZ_ASSERT(mIsDecodeTaskDispatched);
@@ -137,7 +137,7 @@ WMFMediaDataDecoder::Decode()
       continue; // complete flush if flushing
     }
 
-    mLastStreamOffset = input->byte_offset;
+    mLastStreamOffset = aSample->mOffset;
 
     ProcessOutput();
   }

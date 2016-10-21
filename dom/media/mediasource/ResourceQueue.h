@@ -41,7 +41,7 @@ namespace mozilla {
 // timepoint.
 
 struct ResourceItem {
-  explicit ResourceItem(LargeDataBuffer* aData)
+  explicit ResourceItem(MediaLargeByteBuffer* aData)
   : mData(aData)
   {
   }
@@ -56,7 +56,7 @@ struct ResourceItem {
     return size;
   }
 
-  nsRefPtr<LargeDataBuffer> mData;
+  nsRefPtr<MediaLargeByteBuffer> mData;
 };
 
 class ResourceQueueDeallocator : public nsDequeFunctor {
@@ -103,7 +103,7 @@ public:
     }
   }
 
-  void AppendItem(LargeDataBuffer* aData) {
+  void AppendItem(MediaLargeByteBuffer* aData) {
     mLogicalLength += aData->Length();
     Push(new ResourceItem(aData));
   }

@@ -488,7 +488,7 @@ MediaRawData::MediaRawData()
   : MediaData(RAW_DATA)
   , mData(nullptr)
   , mSize(0)
-  , mBuffer(new LargeDataBuffer(RAW_DATA_DEFAULT_SIZE))
+  , mBuffer(new MediaLargeByteBuffer(RAW_DATA_DEFAULT_SIZE))
   , mPadding(0)
 {
 }
@@ -497,7 +497,7 @@ MediaRawData::MediaRawData(const uint8_t* aData, size_t aSize)
   : MediaData(RAW_DATA)
   , mData(nullptr)
   , mSize(0)
-  , mBuffer(new LargeDataBuffer(RAW_DATA_DEFAULT_SIZE))
+  , mBuffer(new MediaLargeByteBuffer(RAW_DATA_DEFAULT_SIZE))
   , mPadding(0)
 {
   if (!EnsureCapacity(aSize)) {

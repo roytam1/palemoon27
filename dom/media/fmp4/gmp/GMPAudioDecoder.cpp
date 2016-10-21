@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GMPAudioDecoder.h"
-#include "mp4_demuxer/DecoderData.h"
+#include "MediaInfo.h"
 
 namespace mozilla {
 
@@ -148,13 +148,13 @@ GMPAudioDecoder::Init()
   MOZ_ASSERT(mGMP);
 
   nsTArray<uint8_t> codecSpecific;
-  codecSpecific.AppendElements(mConfig.audio_specific_config->Elements(),
-                               mConfig.audio_specific_config->Length());
+  codecSpecific.AppendElements(mConfig.mCodecSpecificConfig->Elements(),
+                               mConfig.mCodecSpecificConfig->Length());
 
   rv = mGMP->InitDecode(kGMPAudioCodecAAC,
-                        mConfig.channel_count,
-                        mConfig.bits_per_sample,
-                        mConfig.samples_per_second,
+                        mConfig.mChannels,
+                        mConfig.mBitDepth,
+                        mConfig.mRate,
                         codecSpecific,
                         mAdapter);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -175,7 +175,7 @@ GMPAudioDecoder::Input(MediaRawData* aSample)
 
   mAdapter->SetLastStreamOffset(sample->mOffset);
 
-  gmp::GMPAudioSamplesImpl samples(sample, mConfig.channel_count, mConfig.samples_per_second);
+  gmp::GMPAudioSamplesImpl samples(sample, mConfig.mChannels, mConfig.mRate);
   nsresult rv = mGMP->Decode(samples);
   if (NS_FAILED(rv)) {
     mCallback->Error();

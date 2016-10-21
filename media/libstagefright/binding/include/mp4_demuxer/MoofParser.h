@@ -220,6 +220,7 @@ public:
   void ParseSinf(Box& aBox);
 
   bool BlockingReadNextMoof();
+  bool HasMetadata();
 
   mozilla::MediaByteRange mInitRange;
   nsRefPtr<Stream> mSource;

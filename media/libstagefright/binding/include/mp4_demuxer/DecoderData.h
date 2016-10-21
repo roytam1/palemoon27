@@ -17,7 +17,6 @@ namespace stagefright
 {
 template <typename T> class sp;
 class MetaData;
-class MediaBuffer;
 }
 
 namespace mp4_demuxer
@@ -189,10 +188,7 @@ public:
   MP4Sample();
   virtual ~MP4Sample();
   MP4Sample* Clone() const;
-  void Update(int64_t& aMediaTime);
   bool Pad(size_t aPaddingBytes);
-
-  stagefright::MediaBuffer* mMediaBuffer;
 
   Microseconds decode_timestamp;
   Microseconds composition_timestamp;

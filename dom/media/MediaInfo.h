@@ -168,6 +168,7 @@ public:
     , mDisplay(nsIntSize(aWidth, aHeight))
     , mStereoMode(StereoMode::MONO)
     , mImage(nsIntSize(aWidth, aHeight))
+    , mCodecSpecificConfig(new MediaByteBuffer)
     , mExtraData(new MediaByteBuffer)
   {
   }
@@ -211,7 +212,7 @@ public:
 
   // Size in pixels of decoded video's image.
   nsIntSize mImage;
-
+  nsRefPtr<MediaByteBuffer> mCodecSpecificConfig;
   nsRefPtr<MediaByteBuffer> mExtraData;
 
   bool mIsHardwareAccelerated;

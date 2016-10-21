@@ -68,9 +68,9 @@ private:
 
 static inline void
 ConvertIndex(nsTArray<Index::Indice>& aDest,
-             const stagefright::Vector<stagefright::MediaSource::Indice>& aIndex)
+             const nsTArray<stagefright::MediaSource::Indice>& aIndex)
 {
-  for (size_t i = 0; i < aIndex.size(); i++) {
+  for (size_t i = 0; i < aIndex.Length(); i++) {
     Index::Indice indice;
     const stagefright::MediaSource::Indice& s_indice = aIndex[i];
     indice.start_offset = s_indice.start_offset;

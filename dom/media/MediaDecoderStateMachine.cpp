@@ -410,7 +410,7 @@ void MediaDecoderStateMachine::SendStreamData()
 
     if (!stream->mStreamInitialized) {
       if (mInfo.HasAudio()) {
-        TrackID audioTrackId = mInfo.mAudio.mTrackInfo.mOutputId;
+        TrackID audioTrackId = mInfo.mAudio.mTrackId;
         AudioSegment* audio = new AudioSegment();
         mediaStream->AddAudioTrack(audioTrackId, mInfo.mAudio.mRate, 0, audio,
                                    SourceMediaStream::ADDTRACK_QUEUED);
@@ -419,7 +419,7 @@ void MediaDecoderStateMachine::SendStreamData()
         stream->mNextAudioTime = mStartTime + stream->mInitialTime;
       }
       if (mInfo.HasVideo()) {
-        TrackID videoTrackId = mInfo.mVideo.mTrackInfo.mOutputId;
+        TrackID videoTrackId = mInfo.mVideo.mTrackId;
         VideoSegment* video = new VideoSegment();
         mediaStream->AddTrack(videoTrackId, 0, video,
                               SourceMediaStream::ADDTRACK_QUEUED);
@@ -438,7 +438,7 @@ void MediaDecoderStateMachine::SendStreamData()
 
     if (mInfo.HasAudio()) {
       MOZ_ASSERT(stream->mNextAudioTime != -1, "Should've been initialized");
-      TrackID audioTrackId = mInfo.mAudio.mTrackInfo.mOutputId;
+      TrackID audioTrackId = mInfo.mAudio.mTrackId;
       nsAutoTArray<nsRefPtr<AudioData>,10> audio;
       // It's OK to hold references to the AudioData because AudioData
       // is ref-counted.
@@ -464,7 +464,7 @@ void MediaDecoderStateMachine::SendStreamData()
 
     if (mInfo.HasVideo()) {
       MOZ_ASSERT(stream->mNextVideoTime != -1, "Should've been initialized");
-      TrackID videoTrackId = mInfo.mVideo.mTrackInfo.mOutputId;
+      TrackID videoTrackId = mInfo.mVideo.mTrackId;
       nsAutoTArray<nsRefPtr<VideoData>,10> video;
       // It's OK to hold references to the VideoData because VideoData
       // is ref-counted.
@@ -575,7 +575,7 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs)
 
   if (stream && stream->mStreamInitialized && !stream->mHaveSentFinishAudio) {
     MOZ_ASSERT(mInfo.HasAudio());
-    TrackID audioTrackId = mInfo.mAudio.mTrackInfo.mOutputId;
+    TrackID audioTrackId = mInfo.mAudio.mTrackId;
     if (!stream->mStream->HaveEnoughBuffered(audioTrackId)) {
       return false;
     }
@@ -598,7 +598,7 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedVideo()
 
   if (stream && stream->mStreamInitialized && !stream->mHaveSentFinishVideo) {
     MOZ_ASSERT(mInfo.HasVideo());
-    TrackID videoTrackId = mInfo.mVideo.mTrackInfo.mOutputId;
+    TrackID videoTrackId = mInfo.mVideo.mTrackId;
     if (!stream->mStream->HaveEnoughBuffered(videoTrackId)) {
       return false;
     }

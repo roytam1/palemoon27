@@ -13,15 +13,12 @@
 #include "mozilla/RefPtr.h"
 #include <queue>
 
-namespace mp4_demuxer {
-class TrackConfig;
-class VideoDecoderConfig;
-class AudioDecoderConfig;
-}
-
 class nsIThreadPool;
 
 namespace mozilla {
+class TrackInfo;
+class AudioInfo;
+class VideoInfo;
 class MediaRawData;
 class DataBuffer;
 
@@ -79,7 +76,7 @@ public:
   // Creates a decoder.
   // See CreateVideoDecoder and CreateAudioDecoder for implementation details.
   virtual already_AddRefed<MediaDataDecoder>
-  CreateDecoder(const mp4_demuxer::TrackConfig& aConfig,
+  CreateDecoder(const TrackInfo& aConfig,
                 FlushableMediaTaskQueue* aTaskQueue,
                 MediaDataDecoderCallback* aCallback,
                 layers::LayersBackend aLayersBackend = layers::LayersBackend::LAYERS_NONE,
@@ -99,11 +96,11 @@ public:
   // Indicates that the decoder requires a specific format.
   // The PlatformDecoderModule will convert the demuxed data accordingly before
   // feeding it to MediaDataDecoder::Input.
-  virtual ConversionRequired DecoderNeedsConversion(const mp4_demuxer::TrackConfig& aConfig) const = 0;
+  virtual ConversionRequired DecoderNeedsConversion(const TrackInfo& aConfig) const = 0;
 
   virtual void DisableHardwareAcceleration() {}
 
-  virtual bool SupportsSharedDecoders(const mp4_demuxer::VideoDecoderConfig& aConfig) const {
+  virtual bool SupportsSharedDecoders(const VideoInfo& aConfig) const {
     return true;
   }
 
@@ -124,7 +121,7 @@ protected:
   // It is safe to store a reference to aConfig.
   // This is called on the decode task queue.
   virtual already_AddRefed<MediaDataDecoder>
-  CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+  CreateVideoDecoder(const VideoInfo& aConfig,
                      layers::LayersBackend aLayersBackend,
                      layers::ImageContainer* aImageContainer,
                      FlushableMediaTaskQueue* aVideoTaskQueue,
@@ -141,7 +138,7 @@ protected:
   // It is safe to store a reference to aConfig.
   // This is called on the decode task queue.
   virtual already_AddRefed<MediaDataDecoder>
-  CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
+  CreateAudioDecoder(const AudioInfo& aConfig,
                      FlushableMediaTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) = 0;
 
@@ -253,9 +250,9 @@ public:
 
   // ConfigurationChanged will be called to inform the video or audio decoder
   // that the format of the next input sample is about to change.
-  // If video decoder, aConfig will be a VideoDecoderConfig object.
-  // If audio decoder, aConfig will be a AudioDecoderConfig object.
-  virtual nsresult ConfigurationChanged(const mp4_demuxer::TrackConfig& aConfig)
+  // If video decoder, aConfig will be a VideoInfo object.
+  // If audio decoder, aConfig will be a AudioInfo object.
+  virtual nsresult ConfigurationChanged(const TrackInfo& aConfig)
   {
     return NS_OK;
   }

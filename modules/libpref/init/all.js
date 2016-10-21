@@ -2399,11 +2399,7 @@ pref("layout.css.convertFromNode.enabled", true);
 #endif
 
 // Is support for unicode-range enabled?
-#ifdef RELEASE_BUILD
-pref("layout.css.unicode-range.enabled", false);
-#else
 pref("layout.css.unicode-range.enabled", true);
-#endif
 
 // Is support for CSS "text-align: true X" enabled?
 pref("layout.css.text-align-true-value.enabled", false);

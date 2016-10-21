@@ -380,7 +380,7 @@ public:
   size_t mSize;
 
   CryptoSample mCrypto;
-  nnsRefPtr<MediaByteBuffer> mExtraData;
+  nsRefPtr<MediaByteBuffer> mExtraData;
 
   // Return a deep copy or nullptr if out of memory.
   virtual already_AddRefed<MediaRawData> Clone() const;

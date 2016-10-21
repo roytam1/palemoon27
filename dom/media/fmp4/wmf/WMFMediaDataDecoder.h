@@ -105,7 +105,7 @@ private:
   int64_t mLastStreamOffset;
 
   Monitor mMonitor;
-  std::queue<nsAutoPtr<mp4_demuxer::MP4Sample>> mInput;
+  std::queue<nsRefPtr<MediaRawData>> mInput;
   bool mIsDecodeTaskDispatched;
   bool mIsFlushing;
 };

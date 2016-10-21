@@ -184,7 +184,7 @@ H264Converter::CreateDecoder()
 nsresult
 H264Converter::CreateDecoderAndInit(MediaRawData* aSample)
 {
-  nsRefPtr<DataBuffer> extra_data =
+  nsRefPtr<MediaByteBuffer> extra_data =
     mp4_demuxer::AnnexB::ExtractExtraData(aSample);
   if (!mp4_demuxer::AnnexB::HasSPS(extra_data)) {
     return NS_ERROR_NOT_INITIALIZED;
@@ -199,7 +199,7 @@ H264Converter::CreateDecoderAndInit(MediaRawData* aSample)
 nsresult
 H264Converter::CheckForSPSChange(MediaRawData* aSample)
 {
-  nsRefPtr<DataBuffer> extra_data =
+  nsRefPtr<MediaByteBuffer> extra_data =
     mp4_demuxer::AnnexB::ExtractExtraData(aSample);
   if (!mp4_demuxer::AnnexB::HasSPS(extra_data) ||
       mp4_demuxer::AnnexB::CompareExtraData(extra_data,
@@ -219,7 +219,7 @@ H264Converter::CheckForSPSChange(MediaRawData* aSample)
 }
 
 void
-H264Converter::UpdateConfigFromExtraData(DataBuffer* aExtraData)
+H264Converter::UpdateConfigFromExtraData(MediaByteBuffer* aExtraData)
 {
   mp4_demuxer::SPSData spsdata;
   if (mp4_demuxer::H264::DecodeSPSFromExtraData(aExtraData, spsdata) &&

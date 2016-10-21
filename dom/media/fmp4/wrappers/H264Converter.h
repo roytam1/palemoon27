@@ -50,7 +50,7 @@ private:
   nsresult CreateDecoder();
   nsresult CreateDecoderAndInit(MediaRawData* aSample);
   nsresult CheckForSPSChange(MediaRawData* aSample);
-  void UpdateConfigFromExtraData(DataBuffer* aExtraData);
+  void UpdateConfigFromExtraData(MediaByteBuffer* aExtraData);
 
   nsRefPtr<PlatformDecoderModule> mPDM;
   VideoInfo mCurrentConfig;

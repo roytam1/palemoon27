@@ -102,23 +102,17 @@ private:
 class VideoInfo : public TrackInfo {
 public:
   VideoInfo()
-    : VideoInfo(0, 0, false)
+    : VideoInfo(-1, -1)
   {
   }
 
   VideoInfo(int32_t aWidth, int32_t aHeight)
-    : VideoInfo(aWidth, aHeight, true)
-  {
-  }
-
-  VideoInfo(int32_t aWidth, int32_t aHeight, bool aHasVideo)
     : TrackInfo(kVideoTrack, NS_LITERAL_STRING("2"), NS_LITERAL_STRING("main"),
                 EmptyString(), EmptyString(), true, 2)
     , mDisplay(nsIntSize(aWidth, aHeight))
     , mStereoMode(StereoMode::MONO)
     , mImage(nsIntSize(aWidth, aHeight))
     , mExtraData(new DataBuffer)
-    , mHasVideo(aHasVideo)
   {
   }
 
@@ -139,9 +133,6 @@ public:
 
   nsRefPtr<DataBuffer> mExtraData;
 
-  // True if we have an active video bitstream.
-  bool mHasVideo;
-
   bool mIsHardwareAccelerated;
 };
 
@@ -157,7 +148,6 @@ public:
     , mExtendedProfile(0)
     , mCodecSpecificConfig(new DataBuffer)
     , mExtraData(new DataBuffer)
-    , mHasAudio(false)
   {
   }
 
@@ -183,9 +173,6 @@ public:
   {
     return mChannels > 0 && mRate > 0;
   }
-
-  // True if we have an active audio bitstream.
-  bool mHasAudio;
 };
 
 class EncryptionInfo {
@@ -206,12 +193,12 @@ class MediaInfo {
 public:
   bool HasVideo() const
   {
-    return mVideo.mHasVideo;
+    return mVideo.IsValid();
   }
 
   bool HasAudio() const
   {
-    return mAudio.mHasAudio;
+    return mAudio.IsValid();
   }
 
   bool IsEncrypted() const

@@ -43,7 +43,8 @@ browser.jar:
         skin/classic/browser/notification-64.png
         skin/classic/browser/pageInfo.css
         skin/classic/browser/pageInfo.png
-        skin/classic/browser/page-livemarks.png                      (feeds/feedIcon16.png)
+        skin/classic/browser/page-livemarks.png
+        skin/classic/browser/page-livemarks@2x.png
         skin/classic/browser/pointerLock-16.png
         skin/classic/browser/pointerLock-64.png
         skin/classic/browser/Privacy-16.png
@@ -98,16 +99,22 @@ browser.jar:
         skin/classic/browser/places/editBookmark.png                 (places/editBookmark.png)
         skin/classic/browser/places/bookmark.png                     (places/bookmark.png)
         skin/classic/browser/places/query.png                        (places/query.png)
+        skin/classic/browser/places/query@2x.png                     (places/query@2x.png)
         skin/classic/browser/places/bookmarksMenu.png                (places/bookmarksMenu.png)
         skin/classic/browser/places/bookmarksToolbar.png             (places/bookmarksToolbar.png)
+        skin/classic/browser/places/bookmarksToolbar@2x.png          (places/bookmarksToolbar@2x.png)
         skin/classic/browser/places/calendar.png                     (places/calendar.png)
+        skin/classic/browser/places/folderDropArrow.png              (places/folderDropArrow.png)
+        skin/classic/browser/places/folderDropArrow@2x.png           (places/folderDropArrow@2x.png)
         skin/classic/browser/places/toolbarDropMarker.png            (places/toolbarDropMarker.png)
         skin/classic/browser/places/editBookmarkOverlay.css          (places/editBookmarkOverlay.css)
         skin/classic/browser/places/libraryToolbar.png               (places/libraryToolbar.png)
         skin/classic/browser/places/starred48.png                    (places/starred48.png)
         skin/classic/browser/places/unstarred48.png                  (places/unstarred48.png)
         skin/classic/browser/places/tag.png                          (places/tag.png)
+        skin/classic/browser/places/tag@2x.png                       (places/tag@2x.png)
         skin/classic/browser/places/history.png                      (places/history.png)
+        skin/classic/browser/places/history@2x.png                   (places/history@2x.png)
         skin/classic/browser/places/allBookmarks.png                 (places/allBookmarks.png)
         skin/classic/browser/places/unsortedBookmarks.png            (places/unsortedBookmarks.png)
         skin/classic/browser/places/downloads.png                    (places/downloads.png)

@@ -132,109 +132,243 @@
     display: none;
 }
 
+/* ::::: bookmark toolbar ::::: */
+
+#personal-bookmarks {
+  min-height: 17px; /* 16px button height + 1px margin-bottom */
+}
+
+toolbarbutton.chevron {
+  list-style-image: url("chrome://global/skin/icons/chevron.png");
+  margin: 1px 0 0;
+  padding: 0;
+}
+
+toolbarbutton.chevron > .toolbarbutton-text {
+  display: none;
+}
+
+toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
+  display: -moz-box; /* display chevron icon in text mode */
+}
+
+toolbarbutton.chevron:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+  transform: scaleX(-1);
+}
+
+@media (min-resolution: 2dppx) {
+  toolbarbutton.chevron {
+    list-style-image: url("chrome://global/skin/icons/chevron@2x.png");
+  }
+
+  toolbarbutton.chevron > .toolbarbutton-icon {
+    width: 13px;
+  }
+}
+
 /* ::::: bookmark buttons ::::: */
 
 toolbarbutton.bookmark-item {
-    color: #222;
-    border: 0;
-    border-radius: 10000px;
-    padding: 1px 8px;
-    margin: 0 0 1px;
+  color: #222;
+  border: 0;
+  border-radius: 10000px;
+  padding: 1px 8px;
+  margin: 0 0 1px;
+}
+
+.bookmark-item > .toolbarbutton-menu-dropmarker {
+  list-style-image: url("chrome://browser/skin/places/folderDropArrow.png");
+  -moz-image-region: rect(0, 7px, 5px, 0);
+  margin-top: 1px;
+  -moz-margin-start: 3px;
+  -moz-margin-end: -2px;
+}
+
+@media (min-resolution: 2dppx) {
+  .bookmark-item > .toolbarbutton-menu-dropmarker {
+    list-style-image: url("chrome://browser/skin/places/folderDropArrow@2x.png");
+    -moz-image-region: rect(0, 14px, 10px, 0);
+  }
+
+  .bookmark-item > .toolbarbutton-menu-dropmarker > .dropmarker-icon {
+    width: 7px;
+  }
+}
+
+.bookmark-item > .toolbarbutton-text {
+  display: -moz-box !important; /* prevent [mode="icons"] from hiding the label */
+  margin: 0 !important;
 }
 
 toolbarbutton.bookmark-item:hover,
 toolbarbutton.bookmark-item[open="true"] {
-    background-color: rgba(0, 0, 0, .205);
+  background-color: rgba(0, 0, 0, .205);
 }
 
-.bookmark-item:not(#bookmarks-menu-button) > .toolbarbutton-icon {
-    width: 16px;
-    height: 16px;
+toolbarbutton.bookmark-item:hover,
+toolbarbutton.bookmark-item[open="true"] {
+  color: #FFF !important;
+  text-shadow: 0 1px rgba(0, 0, 0, .4) !important;
 }
 
-/* Prevent [mode="icons"] from hiding the label */
-.bookmark-item > .toolbarbutton-text {
-    display: -moz-box !important;
+.bookmark-item:hover > .toolbarbutton-menu-dropmarker,
+.bookmark-item[open="true"] > .toolbarbutton-menu-dropmarker {
+  -moz-image-region: rect(5px, 7px, 10px, 0);
 }
 
-#wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
-    background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat center;
+@media (min-resolution: 2dppx) {
+  .bookmark-item:hover > .toolbarbutton-menu-dropmarker,
+  .bookmark-item[open="true"] > .toolbarbutton-menu-dropmarker {
+    -moz-image-region: rect(10px, 14px, 20px, 0);
+  }
 }
 
-.bookmarks-toolbar-customize {
-    max-width: 15em !important;
-    list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;
+toolbarbutton.bookmark-item:active:hover,
+toolbarbutton.bookmark-item[open="true"] {
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.4), 0 1px rgba(255, 255, 255, 0.4);
+  background-color: rgba(0, 0, 0, .5);
 }
 
-/* ::::: bookmark menus ::::: */
-
-menu.bookmark-item,
-menuitem.bookmark-item {
-    min-width: 0;
-    max-width: 32em;
+toolbarbutton.bookmark-item > menupopup {
+  margin-top: 2px;
+  -moz-margin-start: 3px;
 }
 
-.bookmark-item > .menu-iconic-left {
-    margin-top: 0;
-    margin-bottom: 0;
+.bookmark-item > .toolbarbutton-icon {
+  width: 16px;
+  min-height: 16px;
+  max-height: 16px;
 }
 
-.bookmark-item > .menu-iconic-left > .menu-iconic-icon {
-    -moz-padding-start: 0px;
-}
-
-/* ::::: bookmark items ::::: */
-
-.bookmark-item  {
-    list-style-image: url("chrome://mozapps/skin/places/defaultFavicon.png");
+.bookmark-item > .toolbarbutton-icon[label]:not([label=""]),
+.bookmark-item > .toolbarbutton-icon[type="menu"] {
+  -moz-margin-end: 5px;
 }
 
 .bookmark-item[container] {
-    list-style-image: url("chrome://global/skin/tree/folder.png");
+  list-style-image: url("chrome://global/skin/tree/folder.png");
 }
 
-
 .bookmark-item[container][livemark] {
-    list-style-image: url("chrome://browser/skin/livemark-folder.png");
+  list-style-image: url("chrome://browser/skin/page-livemarks.png");
 }
 
 .bookmark-item[container][livemark] .bookmark-item {
-    list-style-image: url("chrome://browser/skin/places/livemark-item.png");
-    -moz-image-region: rect(0px, 16px, 16px, 0px);
+  list-style-image: url("chrome://browser/skin/places/livemark-item.png");
+  -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
 
 .bookmark-item[container][livemark] .bookmark-item[visited] {
-    -moz-image-region: rect(0px, 32px, 16px, 16px);
+  -moz-image-region: rect(0px, 32px, 16px, 16px);
 }
 
 .bookmark-item[container][query] {
-    list-style-image: url("chrome://browser/skin/places/query.png");
+  list-style-image: url("chrome://browser/skin/places/query.png");
 }
 
 .bookmark-item[query][tagContainer] {
-    list-style-image: url("chrome://browser/skin/places/tag.png");
+  list-style-image: url("chrome://browser/skin/places/tag.png");
 }
 
 .bookmark-item[query][dayContainer] {
-    list-style-image: url("chrome://browser/skin/places/history.png");
+  list-style-image: url("chrome://browser/skin/places/history.png");
 }
 
 .bookmark-item[query][hostContainer] {
-    list-style-image: url("chrome://global/skin/tree/folder.png");
+  list-style-image: url("chrome://global/skin/tree/folder.png");
 }
 
 .bookmark-item[query][hostContainer][open] {
-    list-style-image: url("chrome://global/skin/tree/folder.png");
+  list-style-image: url("chrome://global/skin/tree/folder.png");
+}
+
+@media (min-resolution: 2dppx) {
+  .bookmark-item[container] {
+    list-style-image: url("chrome://global/skin/tree/folder@2x.png");
+  }
+
+  .bookmark-item[container][livemark] {
+    list-style-image: url("chrome://browser/skin/page-livemarks@2x.png");
+  }
+
+  .bookmark-item[container][livemark] .bookmark-item {
+    list-style-image: url("chrome://browser/skin/places/livemark-item.png");
+  }
+
+  .bookmark-item[container][query] {
+    list-style-image: url("chrome://browser/skin/places/query@2x.png");
+  }
+
+  .bookmark-item[query][tagContainer] {
+    list-style-image: url("chrome://browser/skin/places/tag@2x.png");
+  }
+
+  .bookmark-item[query][dayContainer] {
+    list-style-image: url("chrome://browser/skin/places/history@2x.png");
+  }
+
+  .bookmark-item[query][hostContainer] {
+    list-style-image: url("chrome://global/skin/tree/folder@2x.png");
+  }
+
+  .bookmark-item[query][hostContainer][open] {
+    list-style-image: url("chrome://global/skin/tree/folder@2x.png");
+  }
+}
+
+/* Workaround for native menubar inheritance */
+.openintabs-menuitem,
+.openlivemarksite-menuitem,
+.livemarkstatus-menuitem {
+  list-style-image: none;
 }
 
 .bookmark-item[cutting] > .toolbarbutton-icon,
 .bookmark-item[cutting] > .menu-iconic-left > .menu-iconic-icon {
-    opacity: 0.5;
+  opacity: 0.5;
 }
 
 .bookmark-item[cutting] > .toolbarbutton-text,
 .bookmark-item[cutting] > .menu-iconic-left > .menu-iconic-text {
-    opacity: 0.7;
+  opacity: 0.7;
+}
+
+@media (min-resolution: 2dppx) {
+  .bookmark-item > .toolbarbutton-icon,
+  .bookmark-item > .menu-iconic-left > .menu-iconic-icon {
+    image-rendering: -moz-crisp-edges;
+  }
+}
+
+#wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
+  background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat center;
+}
+
+.bookmarks-toolbar-customize {
+  max-width: 15em !important;
+  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;
+}
+
+@media (min-resolution: 2dppx) {
+  #wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
+    background-image: url("chrome://browser/skin/places/bookmarksToolbar@2x.png");
+    background-size: 16px;
+  }
+
+  .bookmarks-toolbar-customize {
+    list-style-image: url("chrome://browser/skin/places/bookmarksToolbar@2x.png") !important;
+  }
+
+  .bookmarks-toolbar-customize > .toolbarbutton-icon {
+    width: 16px;
+  }
+}
+
+/* ::::: bookmark menus ::::: */
+
+.bookmark-item > .menu-iconic-left > .menu-iconic-icon {
+  width: 16px;
+  height: 16px;
 }
 
 /* ::::: primary toolbar buttons ::::: */
@@ -1602,29 +1736,6 @@ toolbar[brighttext] .tabs-closebutton {
     -moz-padding-start: 2px !important;
 }
 
-toolbarbutton.chevron {
-    list-style-image: url("chrome://global/skin/icons/chevron.png");
-    margin: 1px 0 0;
-    padding: 0;
-}
-
-toolbarbutton.chevron:-moz-locale-dir(rtl) > .toolbarbutton-icon {
-    transform: scaleX(-1);
-}
-
-toolbarbutton.chevron > .toolbarbutton-text,
-toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
-    display: none;
-}
-
-toolbarbutton.chevron > .toolbarbutton-icon {
-    margin: 0;
-}
-
-toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
-    display: -moz-box; /* display chevron icon in text mode */
-}
-
 #sidebar-throbber[loading="true"] {
     list-style-image: url("chrome://global/skin/icons/loading_16.png");
     -moz-margin-end: 4px;
@@ -2007,6 +2118,14 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 #BMB_bookmarksToolbar {
     list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
     -moz-image-region: auto;
+}
+
+@media (min-resolution: 2dppx) {
+  #bookmarksToolbarFolderMenu,
+  #BMB_bookmarksToolbar {
+    list-style-image: url("chrome://browser/skin/places/bookmarksToolbar@2x.png");
+    -moz-image-region: auto;
+  }
 }
 
 #appmenu_unsortedBookmarks,

@@ -463,8 +463,9 @@ pref("media.mediasource.enabled", true);
 pref("media.mediasource.enabled", false);
 #endif
 
+// We support both H.264 and WebM VP8/VP9 over MSE out-of-the-box
 pref("media.mediasource.mp4.enabled", true);
-pref("media.mediasource.webm.enabled", false);
+pref("media.mediasource.webm.enabled", true);
 
 #ifdef MOZ_WEBSPEECH
 pref("media.webspeech.recognition.enable", false);

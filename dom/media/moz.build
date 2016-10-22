@@ -93,6 +93,7 @@ EXPORTS += [
     'EncodedBufferCache.h',
     'FileBlockCache.h',
     'GraphDriver.h',
+    'Intervals.h',
     'Latency.h',
     'MediaCache.h',
     'MediaData.h',

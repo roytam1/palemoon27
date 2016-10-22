@@ -32,6 +32,20 @@ var gContentPane = {
     return undefined;
   },
 
+  /**
+   * Utility function to enable/disable the checkboxes for MSE formats depending
+   * on the value of media.mediasource.enabled.
+   */
+  updateMSE: function ()
+  {
+    var checkboxMSEMP4 = document.getElementById('videoMSEMP4');
+    var checkboxMSEWebM = document.getElementById('videoMSEWebM');
+    var preference = document.getElementById('media.mediasource.enabled');
+    checkboxMSEMP4.disabled = preference.value != true;
+    checkboxMSEWebM.disabled = preference.value != true;
+    return undefined;
+  },
+
   // BEGIN UI CODE
 
   /*

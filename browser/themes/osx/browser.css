@@ -1467,17 +1467,46 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
     -moz-appearance: none;
     background: @toolbarShadowOnTab@, @bgTabTexture@,
         linear-gradient(-moz-dialog, -moz-dialog);
-    background-origin: border-box;
-    background-position: 1px 2px;
-    background-size: calc(100% - 2px) calc(100% - 2px);
-    background-repeat: no-repeat;
-    margin: 0;
-    padding: 2px 0 4px;
-    border-width: 4px 3px 0;
-    border-style: solid;
-    border-image: url(tabbrowser/tab.png) 4 3 0 fill repeat stretch;
-    border-radius: 0;
+    background-clip: padding-box;
+    padding: 3px 1px 4px;
+    /* Setting a transparent outer border allows us to have a 1px gap
+       between the tabs and the top edge of the screen, even when the
+       tabs have a top margin of 0, which is important for Fitts' law
+       compliance */
+    border: 2px solid;
+    border-bottom: none;
+    border-radius: 6px 6px 0px 0px;
+    -moz-border-top-colors: transparent #929292;
+    -moz-border-left-colors: transparent #929292;
+    -moz-border-right-colors: transparent #929292;
+    /* Hide the transparent top border by default */
+    margin-top: -1px;
+    /* Reduce the gap between the tabs */
+    -moz-margin-start: -1px;
+    box-shadow: inset 0.5px 1px 1px rgba(255,255,255,.7);
 }
+
+.tabbrowser-tab {
+    -moz-padding-end: 3px;
+}
+
+/* Override the default (globally-set) tab width values; increase
+   by 2px to compensate for the transparent outer border of the tabs */
+.tabbrowser-tab:not([pinned]) {
+    max-width: 252px;
+    min-width: 102px;
+}
+
+/* When the tabs are on top and the window is maximized or in full-
+   screen mode, unhide the transparent top border of the tabs so we
+   have a 1px gap between the tabs and the top edge of the screen */
+#main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-tab,
+#main-window[sizemode="maximized"][tabsontop=true] .tabs-newtab-button,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabs-newtab-button {
+    margin-top: 0px;
+}
+
 /* make the tab text colors match those of the Windows client */
 @media (-moz-mac-lion-theme) {
     tab {
@@ -1513,12 +1542,24 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
     opacity: 0.9;
 }
 
+/* Remove highlight fuzz on dark themes */
+.tabbrowser-tab:-moz-lwtheme-brighttext,
+.tabs-newtab-button:-moz-lwtheme-brighttext {
+    box-shadow:none;
+    -moz-border-top-colors: transparent #707070;
+    -moz-border-left-colors: transparent #707070;
+    -moz-border-right-colors: transparent #707070;
+}
+
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
     background-image: linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,.8) 50%);
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
     background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, rgba(32,32,32,.8) 100%);
+    -moz-border-top-colors: transparent #D0D0D0;
+    -moz-border-left-colors: transparent #D0D0D0;
+    -moz-border-right-colors: transparent #D0D0D0;
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),

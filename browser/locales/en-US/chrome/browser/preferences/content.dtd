@@ -29,3 +29,13 @@
 <!ENTITY  chooseLanguage.label        "Choose your preferred language for displaying pages">
 <!ENTITY  chooseButton.label          "Choose…">
 <!ENTITY  chooseButton.accesskey      "o">
+
+<!ENTITY  video.label                 "Video">
+<!ENTITY  videoMSE.label              "Enable Media Source Extensions (MSE)">
+<!ENTITY  videoMSE.accesskey          "M">
+<!ENTITY  videoMSEMP4.label           "Enable MSE for MP4 video">
+<!ENTITY  videoMSEMP4.accesskey       "4">
+<!ENTITY  videoMSEWebM.label          "Enable MSE for WebM video">
+<!ENTITY  videoMSEWebM.accesskey      "W">
+
+

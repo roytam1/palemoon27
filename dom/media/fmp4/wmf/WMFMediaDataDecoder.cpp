@@ -137,7 +137,7 @@ WMFMediaDataDecoder::Decode()
       continue; // complete flush if flushing
     }
 
-    mLastStreamOffset = aSample->mOffset;
+    mLastStreamOffset = input->mOffset;
 
     ProcessOutput();
   }

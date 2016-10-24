@@ -1152,13 +1152,13 @@ var gBrowserInit = {
     }
 #endif
 
-// Enable Error Console?
-let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
-if (consoleEnabled) {
-  let cmd = document.getElementById("Tools:ErrorConsole");
-  cmd.removeAttribute("disabled");
-  cmd.removeAttribute("hidden");
-}
+    // Enable Error Console?
+    let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
+    if (consoleEnabled) {
+      let cmd = document.getElementById("Tools:ErrorConsole");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
+    }
 
 #ifdef MENUBAR_CAN_AUTOHIDE
     // If the user (or the locale) hasn't enabled the top-level "Character

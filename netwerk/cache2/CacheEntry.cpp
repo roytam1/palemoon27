@@ -82,6 +82,7 @@ CacheEntry::Callback::Callback(CacheEntry* aEntry,
 , mCallback(aCallback)
 , mTargetThread(do_GetCurrentThread())
 , mReadOnly(aReadOnly)
+, mRevalidating(false)
 , mCheckOnAnyThread(aCheckOnAnyThread)
 , mRecheckAfterWrite(false)
 , mNotWanted(false)
@@ -100,6 +101,7 @@ CacheEntry::Callback::Callback(CacheEntry::Callback const &aThat)
 , mCallback(aThat.mCallback)
 , mTargetThread(aThat.mTargetThread)
 , mReadOnly(aThat.mReadOnly)
+, mRevalidating(aThat.mRevalidating)
 , mCheckOnAnyThread(aThat.mCheckOnAnyThread)
 , mRecheckAfterWrite(aThat.mRecheckAfterWrite)
 , mNotWanted(aThat.mNotWanted)
@@ -677,6 +679,8 @@ bool CacheEntry::InvokeCallback(Callback & aCallback)
             checkResult = ENTRY_NOT_WANTED;
         }
 
+        aCallback.mRevalidating = checkResult == ENTRY_NEEDS_REVALIDATION;
+
         switch (checkResult) {
         case ENTRY_WANTED:
           // Nothing more to do here, the consumer is responsible to handle
@@ -791,7 +795,8 @@ void CacheEntry::InvokeAvailableCallback(Callback const & aCallback)
     return;
   }
 
-  if (aCallback.mReadOnly) {
+  // Read-Only callbacks may do revalidation, so let them fall through
+  if (aCallback.mReadOnly && !aCallback.mRevalidating) {
     LOG(("  r/o and not ready, notifying OCEA with NS_ERROR_CACHE_KEY_NOT_FOUND"));
     aCallback.mCallback->OnCacheEntryAvailable(
       nullptr, false, nullptr, NS_ERROR_CACHE_KEY_NOT_FOUND);

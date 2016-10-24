@@ -1132,20 +1132,6 @@ var gBrowserInit = {
     });
 
 #ifdef MOZ_DEVTOOLS
-    // Enable developer toolbar?
-    let devToolbarEnabled = gPrefService.getBoolPref("devtools.toolbar.enabled");
-    if (devToolbarEnabled) {
-      let cmd = document.getElementById("Tools:DevToolbar");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
-      document.getElementById("Tools:DevToolbarFocus").removeAttribute("disabled");
-
-      // Show the toolbar if it was previously visible
-      if (gPrefService.getBoolPref("devtools.toolbar.visible")) {
-        DeveloperToolbar.show(false);
-      }
-    }
-
     // Enable Chrome Debugger?
     let chromeEnabled = gPrefService.getBoolPref("devtools.chrome.enabled");
     let remoteEnabled = chromeEnabled &&
@@ -1156,29 +1142,11 @@ var gBrowserInit = {
       cmd.removeAttribute("disabled");
       cmd.removeAttribute("hidden");
     }
-#endif
 
-    // Enable Error Console?
-    let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
-    if (consoleEnabled) {
-      let cmd = document.getElementById("Tools:ErrorConsole");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
-    }
-
-#ifdef MOZ_DEVTOOLS
     // Enable Scratchpad in the UI, if the preference allows this.
     let scratchpadEnabled = gPrefService.getBoolPref(Scratchpad.prefEnabledName);
     if (scratchpadEnabled) {
       let cmd = document.getElementById("Tools:Scratchpad");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
-    }
-
-    // Enable DevTools connection screen, if the preference allows this.
-    let devtoolsRemoteEnabled = gPrefService.getBoolPref("devtools.debugger.remote-enabled");
-    if (devtoolsRemoteEnabled) {
-      let cmd = document.getElementById("Tools:DevToolsConnect");
       cmd.removeAttribute("disabled");
       cmd.removeAttribute("hidden");
     }

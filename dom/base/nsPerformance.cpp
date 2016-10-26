@@ -467,7 +467,11 @@ nsPerformance::Navigation()
 DOMHighResTimeStamp
 nsPerformance::Now()
 {
-  return GetDOMTiming()->TimeStampToDOMHighRes(TimeStamp::Now());
+  double nowTimeMs = GetDOMTiming()->TimeStampToDOMHighRes(TimeStamp::Now());
+  // Clamp the resolution of performance.now() calls to 10us, because otherwise
+  // we allow various timing attacks that depend on high accuracy timers.
+  const double maxResolutionMs = 0.010;
+  return floor(nowTimeMs / maxResolutionMs) * maxResolutionMs;
 }
 
 JSObject*

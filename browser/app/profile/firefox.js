@@ -67,6 +67,9 @@ pref("extensions.autoDisableScopes", 15);
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
 
+// Get More Tools link URL
+pref("browser.getdevtools.url","https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/");
+
 // The minimum delay in seconds for the timer to fire.
 // default=2 minutes
 pref("app.update.timerMinimumDelay", 120);

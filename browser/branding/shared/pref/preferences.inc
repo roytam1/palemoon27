@@ -6,20 +6,7 @@
 
 // ===| General |==============================================================
 
-// Homepage
-#if MOZ_BRANDING_DIRECTORY == BRANDING_DIRECTORY_UNSTABLE
-pref("startup.homepage_override_url","http://www.palemoon.org/unstable/releasenotes.shtml");
-#else
-pref("startup.homepage_override_url","http://www.palemoon.org/releasenotes.shtml");
-#endif
 pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
-
-// Release notes and vendor urls
-#if MOZ_BRANDING_DIRECTORY == BRANDING_DIRECTORY_UNSTABLE
-pref("app.releaseNotesURL", "http://www.palemoon.org/unstable/releasenotes.shtml");
-#else
-pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes.shtml");
-#endif
 
 pref("app.vendorURL", "http://www.palemoon.org/");
 pref("app.support.baseURL", "http://www.palemoon.org/support/");

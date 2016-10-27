@@ -217,7 +217,7 @@
                  command="Tools:ErrorConsole"/>
     <broadcaster id="devtoolsMenuBroadcaster_GetMoreTools"
                  label="&getMoreDevtoolsCmd.label;"
-                 oncommand="openUILinkIn('https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/', 'tab');"/>
+                 oncommand="openUILinkIn(gPrefService.getCharPref('browser.getdevtools.url'), 'tab');"/>
 #ifdef MOZ_DEVTOOLS
     <broadcaster id="devtoolsMenuBroadcaster_connect"
                  label="&devtoolsConnect.label;"

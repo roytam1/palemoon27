@@ -1,6 +1,9 @@
 #define BRANDING_DIRECTORY_OFFICIAL browser/branding/official
 #define BRANDING_DIRECTORY_UNSTABLE browser/branding/unstable
 
+#define APO_AM_URL addons.palemoon.org/integration/addon-manager
+#define APO_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
+
 // ===| General |==============================================================
 
 // Homepage
@@ -20,10 +23,7 @@ pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes.shtml");
 
 pref("app.vendorURL", "http://www.palemoon.org/");
 pref("app.support.baseURL", "http://www.palemoon.org/support/");
-pref("browser.mixedcontent.warning.infoURL", "http://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/mixed-content/");
-
-// Geolocation info URL
-pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
+pref("browser.getdevtools.url","https://@APO_AM_URL@/external/devtools");
 
 // User Interface
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style
@@ -102,9 +102,6 @@ pref("app.update.cert.requireBuiltIn", false);
 // ============================================================================
 
 // ===| Add-ons Manager |======================================================
-
-#define APO_AM_URL addons.palemoon.org/integration/addon-manager
-#define APO_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
 
 // Add-on window fixes
 pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/firefox");

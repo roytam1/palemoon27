@@ -127,10 +127,10 @@ already_AddRefed<MediaRawData> SampleIterator::GetNext()
       return nullptr;
     }
     ByteReader reader(cenc);
-    sample->mCrypto.valid = true;
-    sample->mCrypto.iv_size = ivSize;
+    writer->mCrypto.valid = true;
+    writer->mCrypto.iv_size = ivSize;
 
-    if (!reader.ReadArray(sample->mCrypto.iv, ivSize)) {
+    if (!reader.ReadArray(writer->mCrypto.iv, ivSize)) {
       return nullptr;
     }
 
@@ -142,13 +142,13 @@ already_AddRefed<MediaRawData> SampleIterator::GetNext()
       }
 
       for (size_t i = 0; i < count; i++) {
-        sample->mCrypto.plain_sizes.AppendElement(reader.ReadU16());
-        sample->mCrypto.encrypted_sizes.AppendElement(reader.ReadU32());
+        writer->mCrypto.plain_sizes.AppendElement(reader.ReadU16());
+        writer->mCrypto.encrypted_sizes.AppendElement(reader.ReadU32());
       }
     } else {
       // No subsample information means the entire sample is encrypted.
-      sample->mCrypto.plain_sizes.AppendElement(0);
-      sample->mCrypto.encrypted_sizes.AppendElement(sample->mSize);
+      writer->mCrypto.plain_sizes.AppendElement(0);
+      writer->mCrypto.encrypted_sizes.AppendElement(sample->mSize);
     }
   }
 

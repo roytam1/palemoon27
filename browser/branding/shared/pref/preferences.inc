@@ -165,31 +165,6 @@ pref("image.mem.decode_bytes_at_a_time", 65536); //larger chunks
 
 // ============================================================================
 
-// ===| Security |=============================================================
-
-// Known embedding domains that do NOT do things properly and should provide
-// a filter-disabling header, but don't.
-pref("security.xssfilter.srcwhitelist", "googleusercontent.com,embed.ly,embedly.com,msads.net");
-
-// Known embedded target domains that do things properly (no XSS vulnerability)
-pref("security.xssfilter.whitelist", "paypalobjects.com,yimg.com");
-
-// ============================================================================
-
-// ===| Javascript |===========================================================
-
-// Improve memory handling for js
-pref("javascript.options.mem.gc_per_compartment", true);
-pref("javascript.options.mem.high_water_mark", 64);
-pref("javascript.options.mem.max", -1);
-pref("javascript.options.gc_on_memory_pressure", true);
-pref("javascript.options.mem.disable_explicit_compartment_gc", true);
-//a dd IGC and adjust time slice
-pref("javascript.options.mem.gc_incremental",true);
-pref("javascript.options.mem.gc_incremental_slice_ms",20);
-
-// ============================================================================
-
 // ===| Misc. |================================================================
 
 // store sessions less frequently to prevent redundant mem usage by storing too much

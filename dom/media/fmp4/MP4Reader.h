@@ -273,8 +273,6 @@ private:
 
   layers::LayersBackend mLayersBackendType;
 
-  nsTArray<nsTArray<uint8_t>> mInitDataEncountered;
-
   // For use with InvokeAndRetry as an already_refed can't be converted to bool
   nsRefPtr<MediaRawData> DemuxVideoSample();
   nsRefPtr<MediaRawData> DemuxAudioSample();

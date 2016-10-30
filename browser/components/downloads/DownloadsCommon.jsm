@@ -447,7 +447,7 @@ this.DownloadsCommon = {
   {
     // We apply an algorithm similar to the DownloadUtils.getTimeLeft function,
     // though tailored to a single time estimation for all downloads.  We never
-    // apply sommothing if the new value is less than half the previous value.
+    // apply something if the new value is less than half the previous value.
     let shouldApplySmoothing = aLastSeconds >= 0 &&
                                aSeconds > aLastSeconds / 2;
     if (shouldApplySmoothing) {
@@ -551,7 +551,7 @@ this.DownloadsCommon = {
   },
 
   /**
-   * Show a donwloaded file in the system file manager.
+   * Show a downloaded file in the system file manager.
    * If you have a dataItem, use dataItem.showLocalFile.
    *
    * @param aFile
@@ -1383,7 +1383,7 @@ DownloadsDataItem.prototype = {
     } else if (this._download.hasProgress) {
       // If the final size and progress are known, use them.
       this.maxBytes = this._download.totalBytes;
-    this.percentComplete = this._download.progress;
+      this.percentComplete = this._download.progress;
     } else {
       // The download final size and progress percentage is unknown.
       this.maxBytes = -1;

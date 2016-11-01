@@ -381,7 +381,7 @@
               <radio id="indexedDB#2" command="cmd_indexedDBToggle" label="&permBlock;"/>
             </radiogroup>
           </hbox>
-          <hbox id="permIndexedDBBox2">
+          <hbox id="permIndexedDBExtras">
             <spacer flex="1"/>
             <vbox id="permIndexedDBStatusBox" pack="center">
               <label id="indexedDBStatus" control="indexedDBClear" hidden="true"/>

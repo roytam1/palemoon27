@@ -555,7 +555,8 @@ StorageActors.createActor({
    *        cookie change in the "cookie-change" topic.
    */
   observe: function(subject, topic, action) {
-    if (topic !== "cookie-changed" ||
+    if (!subject ||
+        topic !== "cookie-changed" ||
         !this.storageActor ||
         !this.storageActor.windows) {
       return null;

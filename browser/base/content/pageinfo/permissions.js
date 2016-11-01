@@ -193,10 +193,6 @@ function onRadioClick(aPartId)
   } else {
     permissionManager.add(gPermURI, aPartId, permission);
   }
-  if (aPartId == "indexedDB" &&
-      (permission == ALLOW || permission == BLOCK)) {
-    permissionManager.remove(gPermURI.host, "indexedDB-unlimited");
-  }
 }
 
 function setRadioState(aPartId, aValue)
@@ -207,6 +203,11 @@ function setRadioState(aPartId, aValue)
 
 function initIndexedDBRow()
 {
+  let row = document.getElementById("permIndexedDBRow");
+  let extras = document.getElementById("permIndexedDBExtras");
+
+  row.appendChild(extras);
+
   var quotaManager = Components.classes["@mozilla.org/dom/quota/manager;1"]
                                .getService(nsIQuotaManager);
   gUsageRequest =
@@ -228,7 +229,7 @@ function onIndexedDBClear()
 
   var permissionManager = Components.classes[PERMISSION_CONTRACTID]
                                     .getService(nsIPermissionManager);
-  permissionManager.remove(gPermURI.host, "indexedDB-unlimited");
+  permissionManager.remove(gPermURI.host, "indexedDB");
   initIndexedDBRow();
 }
 

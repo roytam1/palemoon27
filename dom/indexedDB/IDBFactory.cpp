@@ -134,8 +134,10 @@ IDBFactory::CreateForWindow(nsPIDOMWindow* aWindow,
 
   if (!(NS_SUCCEEDED(rv) && nsContentUtils::IsSystemPrincipal(principal)) &&
       NS_WARN_IF(!Preferences::GetBool(kPrefIndexedDBEnabled, false))) {
+    // IndexedDB is disabled and the caller is content.
+    NS_WARNING("An attempt to use IndexedDB was made, but it is not enabled.");
     *aFactory = nullptr;
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+    return NS_OK;
   }
 
   if (rv == NS_ERROR_DOM_NOT_SUPPORTED_ERR) {

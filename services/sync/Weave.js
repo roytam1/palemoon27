@@ -72,10 +72,12 @@ WeaveService.prototype = {
                                          Ci.nsISupportsWeakReference]),
 
   ensureLoaded: function () {
+    // XXX: We don't support FxA, so prevent migrator calls
+    // to the Sync server from this module! Don't load it.
     // If we are loaded and not using FxA, load the migration module.
-    if (!this.fxAccountsEnabled) {
-      Cu.import("resource://services-sync/FxaMigrator.jsm");
-    }
+    //if (!this.fxAccountsEnabled) {
+    //  Cu.import("resource://services-sync/FxaMigrator.jsm");
+    //}
 
     Components.utils.import("resource://services-sync/main.js");
 

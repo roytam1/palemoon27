@@ -633,6 +633,11 @@ Engine.prototype = {
   },
 
   get enabled() {
+    // XXX: Disable non-functional add-ons syncing for the time being
+    // This check can go away when add-on syncing is addressed
+    if (this.prefName == "addons")
+      return false;
+
     return Svc.Prefs.get("engine." + this.prefName, false);
   },
 

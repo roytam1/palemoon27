@@ -372,10 +372,10 @@
         <row>
           <label value="&syncMy.label;" />
           <vbox>
-            <checkbox label="&engine.addons.label;"
+<!--            <checkbox label="&engine.addons.label;"
                       accesskey="&engine.addons.accesskey;"
                       id="engine.addons"
-                      checked="true"/>
+                      checked="false"/> -->
             <checkbox label="&engine.bookmarks.label;"
                       accesskey="&engine.bookmarks.accesskey;"
                       id="engine.bookmarks"

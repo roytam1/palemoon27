@@ -550,6 +550,11 @@ var gSyncSetup = {
       for (let i = 0;i < prefs.length;i++) {
         Weave.Svc.Prefs.set(prefs[i], isChecked(prefs[i]));
       }
+      
+      // XXX: Addons syncing is currently not operational; 
+      // Make doubly-sure to always disable addons syncing pref
+      Weave.Svc.Prefs.set("engine.addons", false);
+      
       this._handleNoScript(false);
       if (Weave.Svc.Prefs.get("firstSync", "") == "notReady")
         Weave.Svc.Prefs.reset("firstSync");

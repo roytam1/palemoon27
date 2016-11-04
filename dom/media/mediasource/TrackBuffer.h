@@ -118,6 +118,7 @@ public:
 
 private:
   friend class DecodersToInitialize;
+  friend class MetadataRecipient;
   ~TrackBuffer();
 
   // Create a new decoder, set mCurrentDecoder to the new decoder and
@@ -162,6 +163,13 @@ private:
 
   // Remove all empty decoders from the provided list;
   void RemoveEmptyDecoders(nsTArray<SourceBufferDecoder*>& aDecoders);
+
+  void OnMetadataRead(MetadataHolder* aMetadata,
+                      SourceBufferDecoder* aDecoder,
+                      bool aWasEnded);
+
+  void OnMetadataNotRead(ReadMetadataFailureReason aReason,
+                         SourceBufferDecoder* aDecoder);
 
   nsAutoPtr<ContainerParser> mParser;
 
@@ -213,7 +221,8 @@ private:
   bool mShutdown;
 
   MediaPromiseHolder<TrackBufferAppendPromise> mInitializationPromise;
-
+  // Track our request for metadata from the reader.
+  MediaPromiseConsumerHolder<MediaDecoderReader::MetadataPromise> mMetadataRequest;
 };
 
 } // namespace mozilla

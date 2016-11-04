@@ -1305,9 +1305,9 @@ Sync11Service.prototype = {
       // the server.
       // If we have no clusterURL, we are probably doing a node reassignment
       // so don't attempt to get it in that case.
-      if (this.clusterURL) {
-        this.identity.prefetchMigrationSentinel(this);
-      }
+      //if (this.clusterURL) {
+      //  this.identity.prefetchMigrationSentinel(this);
+      //}
 
       // Now let's update our declined engines.
       let meta = this.recordManager.get(this.metaURL);

@@ -88,12 +88,16 @@ LightweightThemeConsumer.prototype = {
   },
 
   destroy: function () {
+/* XXX: If we want to disable LWTs for PB mode, this would be needed.
     if (!PrivateBrowsingUtils.isWindowPrivate(this._win) ||
         PrivateBrowsingUtils.permanentPrivateBrowsing) {
       Services.obs.removeObserver(this, "lightweight-theme-styling-update");
 
       this._win.removeEventListener("resize", this);
-    }
+    } */
+
+    Services.obs.removeObserver(this, "lightweight-theme-styling-update");
+    this._win.removeEventListener("resize", this);
 
     this._win = this._doc = null;
   },

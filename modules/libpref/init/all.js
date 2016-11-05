@@ -2317,7 +2317,7 @@ pref("bidi.edit.caret_movement_style", 2);
 // expose it for bidi-associated system locales.
 pref("bidi.browser.ui", false);
 
-// used for double-click word selection behavior. Win will override.
+// used for double-click word selection behavior.
 pref("layout.word_select.eat_space_to_next_word", false);
 pref("layout.word_select.stop_at_punctuation", true);
 
@@ -3199,7 +3199,7 @@ pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 15);
 pref("ui.key.menuAccessKeyFocuses", true);
 
 // override double-click word selection behavior.
-pref("layout.word_select.eat_space_to_next_word", true);
+pref("layout.word_select.eat_space_to_next_word", false);
 
 // scrollbar snapping region
 pref("slider.snapMultiplier", 6);

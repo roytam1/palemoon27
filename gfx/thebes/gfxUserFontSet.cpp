@@ -184,8 +184,13 @@ public:
         : mUserFontEntry(aUserFontEntry) {}
 
     virtual ots::TableAction GetTableAction(uint32_t aTag) override {
-        // preserve Graphite, color glyph and SVG tables
-        if (aTag == TRUETYPE_TAG('S', 'i', 'l', 'f') ||
+        // Preserve Graphite, color glyph and SVG tables
+        // Also allow OT Layout tables (GDEF/GPOS/GSUB) through
+        // unchecked, and rely on harfbuzz to handle them safely.
+        if (aTag == TRUETYPE_TAG('G', 'D', 'E', 'F') ||
+            aTag == TRUETYPE_TAG('G', 'P', 'O', 'S') ||
+            aTag == TRUETYPE_TAG('G', 'S', 'U', 'B') ||
+            aTag == TRUETYPE_TAG('S', 'i', 'l', 'f') ||
             aTag == TRUETYPE_TAG('S', 'i', 'l', 'l') ||
             aTag == TRUETYPE_TAG('G', 'l', 'o', 'c') ||
             aTag == TRUETYPE_TAG('G', 'l', 'a', 't') ||

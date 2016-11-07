@@ -1344,7 +1344,7 @@ MediaCodecReader::CreateMediaCodec(sp<ALooper>& aLooper,
 #endif
     }
 
-    if (!aAsync) {
+    if (!aAsync && aTrack.mCodec->AskMediaCodecAndWait()) {
       // Pending configure() and start() to codecReserved() if the creation
       // should be asynchronous.
       if (!aTrack.mCodec->allocated() || !ConfigureMediaCodec(aTrack)){
@@ -1352,6 +1352,10 @@ MediaCodecReader::CreateMediaCodec(sp<ALooper>& aLooper,
         DestroyMediaCodec(aTrack);
         return false;
       }
+    } else if (aAsync && !aTrack.mCodec->AsyncAskMediaCodec()) {
+      NS_WARNING("Couldn't request MediaCodec asynchronously");
+      DestroyMediaCodec(aTrack);
+      return false;
     }
   }
 
@@ -1876,8 +1880,7 @@ MediaCodecReader::EnsureCodecFormatParsed(Track& aTrack)
         NS_WARNING("Couldn't get output buffers from MediaCodec");
         return false;
       }
-    } else if (status != -EAGAIN && status != INVALID_OPERATION){
-      // FIXME: let INVALID_OPERATION pass?
+    } else if (status != -EAGAIN) {
       return false; // something wrong!!!
     }
 
@@ -1928,7 +1931,7 @@ MediaCodecReader::VideoCodecCanceled()
   if (mVideoTrack.mTaskQueue) {
     RefPtr<nsIRunnable> task =
       NS_NewRunnableMethod(this, &MediaCodecReader::ReleaseCriticalResources);
-    mVideoTrack.mTaskQueue->Dispatch(task);
+    mVideoTrack.mTaskQueue->Dispatch(task.forget());
   }
 }
 

@@ -40,13 +40,9 @@ public:
                           nsRefPtr<MediaData>& aOutput) = 0;
 
   // Flush the queued sample.
-  // It this function is overrided by subclass, this functino should be called
+  // It this function is overrided by subclass, this function should be called
   // in the overrided function.
   virtual nsresult Flush();
-
-  virtual void AllocateMediaResources() {}
-
-  virtual void ReleaseMediaResources() {}
 
   // It should be called in MediaTash thread.
   bool HasQueuedSample() {
@@ -99,12 +95,6 @@ public:
   virtual nsresult Shutdown() override;
 
   virtual bool IsWaitingMediaResources() override;
-
-  virtual bool IsDormantNeeded() { return true;}
-
-  virtual void AllocateMediaResources() override;
-
-  virtual void ReleaseMediaResources() override;
 
 private:
 

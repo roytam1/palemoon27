@@ -1342,7 +1342,7 @@ MediaCodecReader::CreateMediaCodec(sp<ALooper>& aLooper,
 
     const char* mime;
     if (sourceFormat->findCString(kKeyMIMEType, &mime)) {
-      aTrack.mCodec = MediaCodecProxy::CreateByType(aLooper, mime, false, aAsync, aListener);
+      aTrack.mCodec = MediaCodecProxy::CreateByType(aLooper, mime, false, aListener);
     }
 
     if (aTrack.mCodec == nullptr) {

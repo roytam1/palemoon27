@@ -1870,6 +1870,7 @@ MediaCodecReader::EnsureCodecFormatParsed(Track& aTrack)
   size_t size = 0;
   int64_t timeUs = INT64_C(0);
   uint32_t flags = 0;
+  FillCodecInputData(aTrack);
   while ((status = aTrack.mCodec->dequeueOutputBuffer(&index, &offset, &size,
                      &timeUs, &flags)) != INFO_FORMAT_CHANGED) {
     if (status == OK) {
@@ -1884,12 +1885,7 @@ MediaCodecReader::EnsureCodecFormatParsed(Track& aTrack)
       return false; // something wrong!!!
     }
 
-    status = FillCodecInputData(aTrack);
-    if (status == INFO_FORMAT_CHANGED) {
-      break;
-    } else if (status != OK) {
-      return false;
-    }
+    FillCodecInputData(aTrack);
   }
   return aTrack.mCodec->getOutputFormat(&format) == OK;
 }

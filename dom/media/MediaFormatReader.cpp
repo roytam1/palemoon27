@@ -1207,7 +1207,6 @@ MediaFormatReader::GetBuffered(dom::TimeRanges* aBuffered)
     audioti.ToTimeRanges(aBuffered);
   } else if (HasVideo()) {
     videoti.ToTimeRanges(aBuffered);
-    }
   }
 
   return NS_OK;

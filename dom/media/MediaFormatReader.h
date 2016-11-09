@@ -145,7 +145,6 @@ private:
   bool IsSupportedAudioMimeType(const nsACString& aMimeType);
   bool IsSupportedVideoMimeType(const nsACString& aMimeType);
   void NotifyResourcesStatusChanged();
-  virtual bool IsWaitingOnCDMResource() override;
 
   bool ShouldSkip(bool aSkipToNextKeyframe, media::TimeUnit aTimeThreshold);
 

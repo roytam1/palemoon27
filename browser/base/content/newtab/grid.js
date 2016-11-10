@@ -12,7 +12,7 @@ let gGrid = {
    * The DOM node of the grid.
    */
   _node: null,
-  get node() this._node,
+  get node() { return this._node; },
 
   /**
    * The cached DOM fragment for sites.
@@ -23,15 +23,15 @@ let gGrid = {
    * All cells contained in the grid.
    */
   _cells: null,
-  get cells() this._cells,
+  get cells() { return this._cells; },
 
   /**
    * All sites contained in the grid's cells. Sites may be empty.
    */
-  get sites() [cell.site for each (cell in this.cells)],
+  get sites() { return [for (cell of this.cells) cell.site]; },
 
   // Tells whether the grid has already been initialized.
-  get ready() !!this._node,
+  get ready() { return !!this._node; },
 
   /**
    * Initializes the grid.

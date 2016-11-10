@@ -36,6 +36,8 @@ pref("@GUAO_PREF@.youtube.com","Mozilla/5.0 (@OS_SLICE@ rv:42.0) @GK_SLICE@ @GRE
 pref("@GUAO_PREF@.gaming.youtube.com","Mozilla/5.0 (@OS_SLICE@ rv:42.0) @GK_SLICE@ Firefox/42.0");
 pref("@GUAO_PREF@.netflix.com","Mozilla/5.0 (@OS_SLICE@ rv:38.9) @GK_SLICE@ Firefox/38.9");
 
+pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
+
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
 pref("@GUAO_PREF@.facebook.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");
 pref("@GUAO_PREF@.fbcdn.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");
@@ -44,18 +46,16 @@ pref("@GUAO_PREF@.chase.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE
 // Citi requires native mode. Or it blocks.. "too old firefox"
 pref("@GUAO_PREF@.citi.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
 
-// Yuku fora don't like the Goanna slice (result: broken mobile site)
-pref("@GUAO_PREF@.yuku.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ @PM_SLICE@");
-
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("@GUAO_PREF@.icloud.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ (Pale Moon)");
 pref("@GUAO_PREF@.humblebundle.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ (Pale Moon)");
 pref("@GUAO_PREF@.privat24.ua","Mozilla/5.0 (@OS_SLICE@ rv:38.0) @GK_SLICE@ Firefox/38.0");
 
-// UA-sniffing domains that are "app/vendor-specific" and don't like Pale Moon
+// UA-sniffing domains that are "app/vendor-specific" and do not like Pale Moon
 pref("@GUAO_PREF@.web.whatsapp.com","Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36");
 
-// The following domains don't like the Goanna slice
+// The following domains do not like the Goanna slice
 pref("@GUAO_PREF@.hitbox.tv","Mozilla/5.0 (@OS_SLICE@; rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@");
+pref("@GUAO_PREF@.yuku.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ @PM_SLICE@");
 
 // ============================================================================

@@ -70,7 +70,7 @@ function initTreeView() {
       };
     });
     gTreeData.push(winState);
-    for each (var tab in winState.tabs)
+    for (let tab of winState.tabs)
       gTreeData.push(tab);
   }, this);
 
@@ -193,7 +193,7 @@ function toggleRowChecked(aIx) {
 
   if (treeView.isContainer(aIx)) {
     // (un)check all tabs of this window as well
-    for each (var tab in item.tabs) {
+    for (let tab of item.tabs) {
       tab.checked = item.checked;
       treeView.treeBox.invalidateRow(gTreeData.indexOf(tab));
     }

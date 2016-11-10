@@ -342,8 +342,6 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
   } else if (mPlatform && !IsWaitingMediaResources()) {
     *aInfo = mInfo;
     *aTags = nullptr;
-    NS_ENSURE_TRUE(EnsureDecodersSetup(), NS_ERROR_FAILURE);
-    return NS_OK;
   }
 
   if (HasAudio()) {
@@ -397,24 +395,42 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
   return NS_OK;
 }
 
+bool MP4Reader::CheckIfDecoderSetup()
+{
+  if (!mDemuxerInitialized) {
+    return false;
+  }
+
+  if (HasAudio() && !mAudio.mDecoder) {
+    return false;
+  }
+
+  if (HasVideo() && !mVideo.mDecoder) {
+    return false;
+  }
+
+  return true;
+}
+
 bool
 MP4Reader::EnsureDecodersSetup()
 {
-  MOZ_ASSERT(mDemuxerInitialized);
+  if (CheckIfDecoderSetup()) {
+    return true;
+  }
 
-  if (!mPlatform) {
-    if (mIsEncrypted) {
-      // EME not supported.
-      return false;
-    } else {
+  if (mIsEncrypted) {
+    // EME not supported.
+    return false;
+  } else {
+    // mPlatform doesn't need to be recreated when resuming from dormant.
+    if (!mPlatform) {
       mPlatform = PlatformDecoderModule::Create();
       NS_ENSURE_TRUE(mPlatform, false);
     }
   }
 
-  MOZ_ASSERT(mPlatform);
-
-  if (HasAudio() && !mAudio.mDecoder) {
+  if (HasAudio()) {
     NS_ENSURE_TRUE(IsSupportedAudioMimeType(mDemuxer->AudioConfig().mMimeType),
                   false);
 
@@ -427,7 +443,7 @@ MP4Reader::EnsureDecodersSetup()
     NS_ENSURE_SUCCESS(rv, false);
   }
 
-  if (HasVideo() && !mVideo.mDecoder) {
+  if (HasVideo()) {
     NS_ENSURE_TRUE(IsSupportedVideoMimeType(mDemuxer->VideoConfig().mMimeType),
                    false);
 

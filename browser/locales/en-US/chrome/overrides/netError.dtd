@@ -14,7 +14,7 @@
 <!ENTITY connectionFailure.longDesc "&sharedLongDesc;">
 
 <!ENTITY deniedPortAccess.title "This address is restricted">
-<!ENTITY deniedPortAccess.longDesc "">
+<!ENTITY deniedPortAccess.longDesc "<p>The requested address specified a port (e.g. <q>mozilla.org:80</q> for port 80 on mozilla.org) normally used for purposes <em>other</em> than Web browsing. The browser has canceled the request for your protection and security.</p>">
 
 <!ENTITY dnsNotFound.title "Server not found">
 <!ENTITY dnsNotFound.longDesc "

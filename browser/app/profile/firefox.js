@@ -32,7 +32,7 @@ pref("extensions.strictCompatibility", false);
 
 // Specifies a minimum maxVersion an addon needs to say it's compatible with
 // for it to be compatible by default.
-pref("extensions.minCompatibleAppVersion", "4.0");
+pref("extensions.minCompatibleAppVersion", "1.5");
 
 // Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", true);

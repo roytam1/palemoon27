@@ -10,7 +10,6 @@
 #include "SoftwareWebMVideoDecoder.h"
 #include "WebMReader.h"
 #include "WebMBufferedParser.h"
-#include "mozilla/dom/TimeRanges.h"
 #include "VorbisUtils.h"
 #include "gfx2DGlue.h"
 #include "Layers.h"
@@ -1102,21 +1101,21 @@ nsresult WebMReader::SeekInternal(int64_t aTarget)
   return NS_OK;
 }
 
-nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
+media::TimeIntervals WebMReader::GetBuffered()
 {
   MOZ_ASSERT(mStartTime != -1, "Need to finish metadata decode first");
-  if (aBuffered->Length() != 0) {
-    return NS_ERROR_FAILURE;
-  }
-
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
 
+  media::TimeIntervals buffered;
   // Special case completely cached files.  This also handles local files.
   if (mContext && resource->IsDataCachedToEndOfResource(0)) {
     uint64_t duration = 0;
     if (nestegg_duration(mContext, &duration) == 0) {
-      aBuffered->Add(0, duration / NS_PER_S);
-      return NS_OK;
+      buffered +=
+        media::TimeInterval(media::TimeUnit::FromSeconds(0),
+                            media::TimeUnit::FromSeconds(duration / NS_PER_S));
+      return buffered;
+     }
     }
   }
 
@@ -1124,7 +1123,7 @@ nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
   // the WebM bitstream.
   nsTArray<MediaByteRange> ranges;
   nsresult res = resource->GetCachedRanges(ranges);
-  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_SUCCESS(res, media::TimeIntervals::Invalid());
 
   for (uint32_t index = 0; index < ranges.Length(); index++) {
     uint64_t start, end;
@@ -1150,11 +1149,12 @@ nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
         }
       }
 
-      aBuffered->Add(startTime, endTime);
+      buffered += media::TimeInterval(media::TimeUnit::FromSeconds(startTime),
+                                      media::TimeUnit::FromSeconds(endTime));
     }
   }
 
-  return NS_OK;
+  return buffered;
 }
 
 void WebMReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength,

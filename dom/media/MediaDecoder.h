@@ -197,15 +197,10 @@ destroying the MediaDecoder object.
 #include "MediaStreamGraph.h"
 #include "AbstractMediaDecoder.h"
 #include "necko-config.h"
+#include "TimeUnits.h"
 
 class nsIStreamListener;
 class nsIPrincipal;
-
-namespace mozilla {
-namespace dom {
-class TimeRanges;
-}
-}
 
 namespace mozilla {
 namespace layers {
@@ -625,7 +620,7 @@ public:
   virtual bool IsTransportSeekable() override;
 
   // Return the time ranges that can be seeked into.
-  virtual nsresult GetSeekable(dom::TimeRanges* aSeekable);
+  virtual media::TimeIntervals GetSeekable();
 
   // Set the end time of the media resource. When playback reaches
   // this point the media pauses. aTime is in seconds.
@@ -680,7 +675,7 @@ public:
 
   // Constructs the time ranges representing what segments of the media
   // are buffered and playable.
-  virtual nsresult GetBuffered(dom::TimeRanges* aBuffered);
+  virtual media::TimeIntervals GetBuffered();
 
   // Returns the size, in bytes, of the heap memory used by the currently
   // queued decoded video and audio data.

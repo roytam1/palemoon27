@@ -162,8 +162,8 @@ MediaDecoderReader::SetStartTime(int64_t aStartTime)
   mStartTime = aStartTime;
 }
 
-nsresult
-MediaDecoderReader::GetBuffered(mozilla::dom::TimeRanges* aBuffered)
+media::TimeIntervals
+MediaDecoderReader::GetBuffered()
 {
   AutoPinned<MediaResource> stream(mDecoder->GetResource());
   int64_t durationUs = 0;
@@ -171,8 +171,7 @@ MediaDecoderReader::GetBuffered(mozilla::dom::TimeRanges* aBuffered)
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     durationUs = mDecoder->GetMediaDuration();
   }
-  GetEstimatedBufferedTimeRanges(stream, durationUs, aBuffered);
-  return NS_OK;
+  return GetEstimatedBufferedTimeRanges(stream, durationUs);
 }
 
 int64_t

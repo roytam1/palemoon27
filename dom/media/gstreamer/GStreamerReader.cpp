@@ -13,7 +13,6 @@
 #include "GStreamerAllocator.h"
 #include "GStreamerFormatHelper.h"
 #include "VideoUtils.h"
-#include "mozilla/dom/TimeRanges.h"
 #include "mozilla/Endian.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
@@ -804,10 +803,11 @@ GStreamerReader::Seek(int64_t aTarget, int64_t aEndTime)
   return SeekPromise::CreateAndResolve(aTarget, __func__);
 }
 
-nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered)
+media::TimeIntervals GStreamerReader::GetBuffered()
 {
+  media::TimeIntervals buffered;
   if (!mInfo.HasValidMedia()) {
-    return NS_OK;
+    return buffered;
   }
 
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
@@ -823,11 +823,12 @@ nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered)
       duration = mDecoder->GetMediaDuration();
     }
 
-    double end = (double) duration / GST_MSECOND;
     LOG(PR_LOG_DEBUG, "complete range [0, %f] for [0, %li]",
-          end, GetDataLength());
-    aBuffered->Add(0, end);
-    return NS_OK;
+        (double) duration / GST_MSECOND, GetDataLength());
+    buffered +=
+      media::TimeInterval(media::TimeUnit::FromMicroseconds(0),
+                          media::TimeUnit::FromMicroseconds(duration));
+    return buffered;
   }
 
   for(uint32_t index = 0; index < ranges.Length(); index++) {
@@ -842,14 +843,16 @@ nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered)
       endOffset, GST_FORMAT_TIME, &endTime))
       continue;
 
-    double start = (double) GST_TIME_AS_USECONDS (startTime) / GST_MSECOND;
-    double end = (double) GST_TIME_AS_USECONDS (endTime) / GST_MSECOND;
     LOG(PR_LOG_DEBUG, "adding range [%f, %f] for [%li %li] size %li",
-          start, end, startOffset, endOffset, GetDataLength());
-    aBuffered->Add(start, end);
+        (double) GST_TIME_AS_USECONDS (startTime) / GST_MSECOND,
+        (double) GST_TIME_AS_USECONDS (endTime) / GST_MSECOND,
+        startOffset, endOffset, GetDataLength());
+    buffered +=
+      media::TimeInterval(media::TimeUnit::FromMicroseconds(GST_TIME_AS_USECONDS(startTime)),
+                          media::TimeUnit::FromMicroseconds(GST_TIME_AS_USECONDS(endTime)));
   }
 
-  return NS_OK;
+  return buffered;
 }
 
 void GStreamerReader::ReadAndPushData(guint aLength)

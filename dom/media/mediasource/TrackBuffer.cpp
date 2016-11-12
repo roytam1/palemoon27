@@ -870,8 +870,7 @@ bool
 TrackBuffer::ContainsTime(int64_t aTime, int64_t aTolerance)
 {
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-  for (uint32_t i = 0; i < mInitializedDecoders.Length(); ++i) {
-    media::TimeUnit time{media::TimeUnit::FromMicroseconds(aTime)};
+  media::TimeUnit time{media::TimeUnit::FromMicroseconds(aTime)};
   for (auto& decoder : mInitializedDecoders) {
     media::TimeIntervals r = decoder->GetBuffered();
     r.SetFuzz(media::TimeUnit::FromMicroseconds(aTolerance));

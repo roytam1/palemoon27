@@ -68,7 +68,7 @@ MediaSourceDecoder::Load(nsIStreamListener**, MediaDecoder*)
 }
 
 media::TimeIntervals
-MMediaSourceDecoder::GetSeekable()
+MediaSourceDecoder::GetSeekable()
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (!mMediaSource) {

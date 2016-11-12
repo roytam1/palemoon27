@@ -1115,7 +1115,6 @@ media::TimeIntervals WebMReader::GetBuffered()
         media::TimeInterval(media::TimeUnit::FromSeconds(0),
                             media::TimeUnit::FromSeconds(duration / NS_PER_S));
       return buffered;
-     }
     }
   }
 

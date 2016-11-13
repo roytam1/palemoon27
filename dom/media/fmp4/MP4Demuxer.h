@@ -85,6 +85,7 @@ private:
   friend class MP4Demuxer;
   void NotifyDataArrived();
   void UpdateSamples(nsTArray<nsRefPtr<MediaRawData>>& aSamples);
+  void SetNextKeyFrameTime();
   nsRefPtr<MP4Demuxer> mParent;
   nsRefPtr<mp4_demuxer::Index> mIndex;
   UniquePtr<mp4_demuxer::SampleIterator> mIterator;

@@ -524,12 +524,13 @@ public:
   }
 
   // Shift all values by aOffset.
-  void Shift(const T& aOffset)
+  SelfType& Shift(const T& aOffset)
   {
     for (auto& interval : mIntervals) {
       interval.mStart = interval.mStart + aOffset;
       interval.mEnd = interval.mEnd + aOffset;
     }
+    return *this;
   }
 
   void SetFuzz(const T& aFuzz) {

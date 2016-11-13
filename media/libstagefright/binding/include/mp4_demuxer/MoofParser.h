@@ -222,6 +222,7 @@ public:
 
   bool BlockingReadNextMoof();
   bool HasMetadata();
+  already_AddRefed<mozilla::MediaByteBuffer> Metadata();
 
   mozilla::MediaByteRange mInitRange;
   nsRefPtr<Stream> mSource;
@@ -235,6 +236,8 @@ public:
   Monitor* mMonitor;
   nsTArray<Moof>& Moofs() { mMonitor->AssertCurrentThreadOwns(); return mMoofs; }
 private:
+  void ScanForMetadata(mozilla::MediaByteRange& aFtyp,
+                       mozilla::MediaByteRange& aMoov);
   nsTArray<Moof> mMoofs;
   bool mIsAudio;
 };

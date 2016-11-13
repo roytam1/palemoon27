@@ -244,7 +244,7 @@ TrackBuffer::AppendData(MediaLargeByteBuffer* aData, int64_t aTimestampOffset)
 
   // Tell our reader that we have more data to ensure that playback starts if
   // required when data is appended.
-  mParentDecoder->GetReader()->MaybeNotifyHaveData();
+  NotifyTimeRangesChanged();
 
   mInitializationPromise.Resolve(gotMedia, __func__);
   return p;
@@ -266,9 +266,18 @@ TrackBuffer::AppendDataToCurrentResource(MediaLargeByteBuffer* aData, uint32_t a
   mCurrentDecoder->NotifyDataArrived(reinterpret_cast<const char*>(aData->Elements()),
                                      aData->Length(), appendOffset);
   mParentDecoder->NotifyBytesDownloaded();
-  mParentDecoder->NotifyTimeRangesChanged();
+  NotifyTimeRangesChanged();
 
   return true;
+}
+
+void
+TrackBuffer::NotifyTimeRangesChanged()
+{
+  RefPtr<nsIRunnable> task =
+    NS_NewRunnableMethod(mParentDecoder->GetReader(),
+                         &MediaSourceReader::NotifyTimeRangesChanged);
+  mParentDecoder->GetReader()->GetTaskQueue()->Dispatch(task.forget());
 }
 
 class DecoderSorter
@@ -436,7 +445,7 @@ TrackBuffer::EvictData(double aPlaybackTime,
   }
 
   if (evicted) {
-    mParentDecoder->NotifyTimeRangesChanged();
+    NotifyTimeRangesChanged();
   }
 
   return evicted;
@@ -504,7 +513,7 @@ TrackBuffer::EvictBefore(double aTime)
       mInitializedDecoders[i]->GetReader()->NotifyDataRemoved();
     }
   }
-  mParentDecoder->NotifyTimeRangesChanged();
+  NotifyTimeRangesChanged();
 }
 
 media::TimeIntervals
@@ -781,7 +790,7 @@ TrackBuffer::CompleteInitializeDecoder(SourceBufferDecoder* aDecoder)
 
   // Tell our reader that we have more data to ensure that playback starts if
   // required when data is appended.
-  mParentDecoder->GetReader()->MaybeNotifyHaveData();
+  NotifyTimeRangesChanged();
 
   MSE_DEBUG("Reader %p activated",
             aDecoder->GetReader());
@@ -823,7 +832,7 @@ TrackBuffer::RegisterDecoder(SourceBufferDecoder* aDecoder)
     return false;
   }
   mInitializedDecoders.AppendElement(aDecoder);
-  mParentDecoder->NotifyTimeRangesChanged();
+  NotifyTimeRangesChanged();
   return true;
 }
 
@@ -1084,7 +1093,7 @@ TrackBuffer::RangeRemoval(media::TimeUnit aStart,
 
   RemoveEmptyDecoders(decoders);
 
-  mParentDecoder->NotifyTimeRangesChanged();
+  NotifyTimeRangesChanged();
   return true;
 }
 

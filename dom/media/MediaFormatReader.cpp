@@ -648,6 +648,7 @@ MediaFormatReader::NeedInput(DecoderData& aDecoder)
   return
     !aDecoder.mError &&
     aDecoder.HasPromise() &&
+    !aDecoder.mDemuxRequest.Exists() &&
     aDecoder.mOutput.IsEmpty() &&
     (aDecoder.mInputExhausted || !aDecoder.mQueuedSamples.IsEmpty() ||
      aDecoder.mNumSamplesInput - aDecoder.mNumSamplesOutput < aDecoder.mDecodeAhead);
@@ -696,13 +697,16 @@ MediaFormatReader::UpdateReceivedNewData(TrackType aTrack)
     decoder.mDemuxEOSServiced = false;
   }
 
-  if (!decoder.mError && decoder.HasWaitingPromise()) {
+  if (decoder.mError) {
+    return false;
+  }
+  if (decoder.HasWaitingPromise()) {
     MOZ_ASSERT(!decoder.HasPromise());
     LOG("We have new data. Resolving WaitingPromise");
     decoder.mWaitingPromise.Resolve(decoder.mType, __func__);
     return true;
   }
-  if (!decoder.mError && !mSeekPromise.IsEmpty()) {
+  if (!mSeekPromise.IsEmpty()) {
     MOZ_ASSERT(!decoder.HasPromise());
     if (mVideoSeekRequest.Exists() || mAudioSeekRequest.Exists()) {
       // Already waiting for a seek to complete. Nothing more to do.
@@ -720,16 +724,13 @@ MediaFormatReader::RequestDemuxSamples(TrackType aTrack)
 {
   MOZ_ASSERT(OnTaskQueue());
   auto& decoder = GetDecoderData(aTrack);
+  MOZ_ASSERT(!decoder.mDemuxRequest.Exists());
 
   if (!decoder.mQueuedSamples.IsEmpty()) {
     // No need to demux new samples.
     return;
   }
 
-  if (decoder.mDemuxRequest.Exists()) {
-    // We are already in the process of demuxing.
-    return;
-  }
   if (decoder.mDemuxEOS) {
     // Nothing left to demux.
     return;
@@ -775,10 +776,6 @@ MediaFormatReader::Update(TrackType aTrack)
     return;
   }
 
-  // Record number of frames decoded and parsed. Automatically update the
-  // stats counters using the AutoNotifyDecoded stack-based class.
-  AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
-
   bool needInput = false;
   bool needOutput = false;
   auto& decoder = GetDecoderData(aTrack);
@@ -805,10 +802,10 @@ MediaFormatReader::Update(TrackType aTrack)
     return;
   }
 
-  if (NeedInput(decoder)) {
-    needInput = true;
-    decoder.mInputExhausted = false;
-  }
+  // Record number of frames decoded and parsed. Automatically update the
+  // stats counters using the AutoNotifyDecoded stack-based class.
+  AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
+
   if (aTrack == TrackInfo::kVideoTrack) {
     uint64_t delta =
       decoder.mNumSamplesOutput - mLastReportedNumDecodedFrames;
@@ -829,17 +826,20 @@ MediaFormatReader::Update(TrackType aTrack)
     }
   }
 
-  LOGV("Update(%s) ni=%d no=%d", TrackTypeToStr(aTrack), needInput, needOutput);
-
   if (decoder.mDemuxEOS && !decoder.mDemuxEOSServiced) {
     decoder.mOutputRequested = true;
     decoder.mDecoder->Drain();
     decoder.mDemuxEOSServiced = true;
-  }
-
-  if (!needInput) {
+    LOGV("Requesting decoder to drain");
     return;
   }
+
+  if (!NeedInput(decoder)) {
+    return;
+  }
+
+  needInput = true;
+  decoder.mInputExhausted = false;
 
   // Demux samples if we don't have some.
   RequestDemuxSamples(aTrack);
@@ -947,7 +947,7 @@ MediaFormatReader::Output(TrackType aTrack, MediaData* aSample)
   }
 
   RefPtr<nsIRunnable> task =
-    NS_NewRunnableMethodWithArgs<TrackType, StorensRefPtrPassByPtr<MediaData>>(
+    NS_NewRunnableMethodWithArgs<TrackType, MediaData*>(
       this, &MediaFormatReader::NotifyNewOutput, aTrack, aSample);
   GetTaskQueue()->Dispatch(task);
 }

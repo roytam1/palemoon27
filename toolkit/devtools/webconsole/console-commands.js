@@ -41,12 +41,11 @@ exports.items = [
       let toolbox = gDevTools.getToolbox(target);
 
       if (!toolbox) {
-        return gDevTools.showToolbox(target, "inspector").then((toolbox) => {
-          toolbox.toggleSplitConsole();
+        return gDevTools.showToolbox(target, "inspector").then((newToolbox) => {
+          newToolbox.toggleSplitConsole();
         });
-      } else {
-        toolbox.toggleSplitConsole();
       }
+      return toolbox.toggleSplitConsole();
     }
   },
   {
@@ -60,12 +59,12 @@ exports.items = [
     exec: function(args, context) {
       let toolbox = gDevTools.getToolbox(context.environment.target);
       if (toolbox == null) {
-        return;
+        return null;
       }
 
       let panel = toolbox.getPanel("webconsole");
       if (panel == null) {
-        return;
+        return null;
       }
 
       panel.hud.jsterm.clearOutput();
@@ -75,14 +74,16 @@ exports.items = [
     name: "console close",
     description: gcli.lookup("consolecloseDesc"),
     exec: function(args, context) {
-      return gDevTools.closeToolbox(context.environment.target);
+      // Don't return a value to GCLI
+      return gDevTools.closeToolbox(context.environment.target).then(() => {});
     }
   },
   {
     name: "console open",
     description: gcli.lookup("consoleopenDesc"),
     exec: function(args, context) {
-      return gDevTools.showToolbox(context.environment.target, "webconsole");
+      // Don't return a value to GCLI
+      return gDevTools.showToolbox(context.environment.target, "webconsole").then(() => {});
     }
   }
 ];

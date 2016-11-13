@@ -432,6 +432,10 @@ TrackBuffer::EvictData(double aPlaybackTime,
     }
   }
 
+  if (evicted) {
+    mParentDecoder->NotifyTimeRangesChanged();
+  }
+
   return evicted;
 }
 
@@ -496,6 +500,7 @@ TrackBuffer::EvictBefore(double aTime)
       mInitializedDecoders[i]->GetResource()->EvictBefore(endOffset);
     }
   }
+  mParentDecoder->NotifyTimeRangesChanged();
 }
 
 media::TimeIntervals
@@ -1073,6 +1078,7 @@ TrackBuffer::RangeRemoval(media::TimeUnit aStart,
 
   RemoveEmptyDecoders(decoders);
 
+  mParentDecoder->NotifyTimeRangesChanged();
   return true;
 }
 

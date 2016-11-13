@@ -315,7 +315,7 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
       mMainThreadDemuxer->GetTrackDemuxer(TrackInfo::kAudioTrack, 0);
     if (!mAudioTrackDemuxer) {
       mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-      returm;
+      return;
     }
   }
 

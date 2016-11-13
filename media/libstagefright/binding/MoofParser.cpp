@@ -149,7 +149,7 @@ MoofParser::HasMetadata()
   return !!ftyp.Length() && !!moov.Length();
 }
 
-already_AddRefed<mozilla::MediaByteBuffer>
+already_AddRefed<mozilla::MediaLargeByteBuffer>
 MoofParser::Metadata()
 {
   MediaByteRange ftyp;
@@ -158,8 +158,8 @@ MoofParser::Metadata()
   if (!ftyp.Length() || !moov.Length()) {
     return nullptr;
   }
-  nsRefPtr<MediaByteBuffer> metadata = new MediaByteBuffer();
-  if (!metadata->SetLength(ftyp.Length() + moov.Length(), fallible)) {
+  nsRefPtr<MediaLargeByteBuffer> metadata = new MediaLargeByteBuffer();
+  if (!metadata->SetLength(ftyp.Length() + moov.Length())) {
     // OOM
     return nullptr;
   }

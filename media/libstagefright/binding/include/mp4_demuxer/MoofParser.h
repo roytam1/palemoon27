@@ -222,7 +222,7 @@ public:
 
   bool BlockingReadNextMoof();
   bool HasMetadata();
-  already_AddRefed<mozilla::MediaByteBuffer> Metadata();
+  already_AddRefed<mozilla::MediaLargeByteBuffer> Metadata();
 
   mozilla::MediaByteRange mInitRange;
   nsRefPtr<Stream> mSource;

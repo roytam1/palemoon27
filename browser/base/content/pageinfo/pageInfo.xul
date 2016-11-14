@@ -328,6 +328,7 @@
             <radiogroup id="cookieRadioGroup" orient="horizontal">
               <radio id="cookie#1" command="cmd_cookieToggle" label="&permAllow;"/>
               <radio id="cookie#8" command="cmd_cookieToggle" label="&permAllowSession;"/>
+              <radio id="cookie#9" command="cmd_cookieToggle" label="&permAllowFirstPartyOnly;"/>              
               <radio id="cookie#2" command="cmd_cookieToggle" label="&permBlock;"/>
             </radiogroup>
           </hbox>

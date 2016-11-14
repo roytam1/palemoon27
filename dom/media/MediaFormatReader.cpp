@@ -1237,15 +1237,6 @@ MediaFormatReader::GetBuffered()
     }
     intervals = mCachedTimeRanges;
   } else {
-    if (OnTaskQueue()) {
-      // Ensure we have up to date buffered time range.
-      if (HasVideo()) {
-        UpdateReceivedNewData(TrackType::kVideoTrack);
-      }
-      if (HasAudio()) {
-        UpdateReceivedNewData(TrackType::kAudioTrack);
-      }
-    }
     if (HasVideo()) {
       MonitorAutoLock lock(mVideo.mMonitor);
       videoti = mVideo.mTimeRanges;

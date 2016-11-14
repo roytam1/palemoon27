@@ -259,24 +259,24 @@ let PermissionDefaults = {
     Services.prefs.setBoolPref("signon.rememberSignons", value);
   },
 
-  IMAGE_ALWAYS: 1,
-  IMAGE_NEVER: 2,
-  IMAGE_NO3RDPARTY: 3,
+  IMAGE_ALLOW: 1,
+  IMAGE_DENY: 2,
+  IMAGE_ALLOW_FIRST_PARTY_ONLY: 3,
 
   get image() {
-    if (Services.prefs.getIntPref("permissions.default.image") == this.IMAGE_NEVER) {
-      return this.IMAGE_NEVER;
-    } else if (Services.prefs.getIntPref("permissions.default.image") == this.IMAGE_NO3RDPARTY) {
-      return this.IMAGE_NO3RDPARTY;
+    if (Services.prefs.getIntPref("permissions.default.image") == this.IMAGE_DENY) {
+      return this.IMAGE_DENY;
+    } else if (Services.prefs.getIntPref("permissions.default.image") == this.IMAGE_ALLOW_FIRST_PARTY_ONLY) {
+      return this.IMAGE_ALLOW_FIRST_PARTY_ONLY;
     }
-    return this.IMAGE_ALWAYS;
+    return this.IMAGE_ALLOW;
   },
   set image(aValue) {
-    let value = this.IMAGE_ALWAYS; 
-    if (aValue == this.IMAGE_NEVER) {
-      value = this.IMAGE_NEVER;
-    } else if (aValue == this.IMAGE_NO3RDPARTY) {
-      value = this.IMAGE_NO3RDPARTY;
+    let value = this.IMAGE_ALLOW; 
+    if (aValue == this.IMAGE_DENY) {
+      value = this.IMAGE_DENY;
+    } else if (aValue == this.IMAGE_ALLOW_FIRST_PARTY_ONLY) {
+      value = this.IMAGE_ALLOW_FIRST_PARTY_ONLY;
     }
     Services.prefs.setIntPref("permissions.default.image", value);
   },
@@ -817,7 +817,7 @@ let AboutPermissions = {
       // If there is no selected site, we are updating the default permissions interface.
       permissionValue = PermissionDefaults[aType];
       if (aType == "image") {
-        // image-3 corresponds to NO3RDPARTY, which is reserved
+        // image-3 corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
         // for site-specific preferences only.
 	      document.getElementById("image-3").hidden = false;
       } else if (aType == "cookie") {

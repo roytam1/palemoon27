@@ -26,10 +26,14 @@
 <!ENTITY password.label                  "Store Passwords">
 <!ENTITY password.manage                 "Manage Passwords…">
 
+<!ENTITY image.label                     "Load Images">
+
 <!ENTITY cookie.label                    "Set Cookies">
 <!ENTITY cookie.remove                   "Remove Cookies">
 <!ENTITY cookie.manage                   "Manage Cookies…">
 <!ENTITY cookie.removeAll                "Remove All Cookies">
+
+<!ENTITY install.label                   "Install Extensions or Themes">
 
 <!ENTITY geo.label                       "Share Location">
 
@@ -42,3 +46,5 @@
 <!ENTITY popup.label                     "Open Pop-up Windows">
 
 <!ENTITY fullscreen.label                "Fullscreen">
+
+<!ENTITY pointerLock.label               "Hide the Mouse Pointer">

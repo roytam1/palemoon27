@@ -38,6 +38,8 @@ public:
 
   virtual media::TimeIntervals GetBuffered() override;
 
+  virtual int64_t GetEvictionOffset(media::TimeUnit aTime) override;
+
   virtual void BreakCycles() override;
 
 private:

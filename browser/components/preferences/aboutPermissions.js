@@ -178,6 +178,28 @@ Site.prototype = {
   },
 
   /**
+   * Gets logins stored for the site.
+   *
+   * @return An array of the logins stored for the site.
+   */
+  get logins() {
+    let httpLogins = Services.logins.findLogins({}, this.httpURI.prePath, "", "");
+    let httpsLogins = Services.logins.findLogins({}, this.httpsURI.prePath, "", "");
+    return httpLogins.concat(httpsLogins);
+  },
+
+  get loginSavingEnabled() {
+    // Only say that login saving is blocked if it is blocked for both http and https.
+    return Services.logins.getLoginSavingEnabled(this.httpURI.prePath) &&
+           Services.logins.getLoginSavingEnabled(this.httpsURI.prePath);
+  },
+
+  set loginSavingEnabled(isEnabled) {
+    Services.logins.setLoginSavingEnabled(this.httpURI.prePath, isEnabled);
+    Services.logins.setLoginSavingEnabled(this.httpsURI.prePath, isEnabled);
+  },
+
+  /**
    * Gets cookies stored for the site. This does not return cookies stored
    * for the base domain, only the exact hostname stored for the site.
    *
@@ -204,28 +226,6 @@ Site.prototype = {
     this.cookies.forEach(function(aCookie) {
       Services.cookies.remove(aCookie.host, aCookie.name, aCookie.path, false);
     });
-  },
-
-  /**
-   * Gets logins stored for the site.
-   *
-   * @return An array of the logins stored for the site.
-   */
-  get logins() {
-    let httpLogins = Services.logins.findLogins({}, this.httpURI.prePath, "", "");
-    let httpsLogins = Services.logins.findLogins({}, this.httpsURI.prePath, "", "");
-    return httpLogins.concat(httpsLogins);
-  },
-
-  get loginSavingEnabled() {
-    // Only say that login saving is blocked if it is blocked for both http and https.
-    return Services.logins.getLoginSavingEnabled(this.httpURI.prePath) &&
-           Services.logins.getLoginSavingEnabled(this.httpsURI.prePath);
-  },
-
-  set loginSavingEnabled(isEnabled) {
-    Services.logins.setLoginSavingEnabled(this.httpURI.prePath, isEnabled);
-    Services.logins.setLoginSavingEnabled(this.httpsURI.prePath, isEnabled);
   },
 
   /**
@@ -259,6 +259,40 @@ let PermissionDefaults = {
     Services.prefs.setBoolPref("signon.rememberSignons", value);
   },
 
+  IMAGE_ALWAYS: 1,
+  IMAGE_NEVER: 2,
+  IMAGE_NO3RDPARTY: 3,
+
+  get image() {
+    if (Services.prefs.getIntPref("permissions.default.image") == this.IMAGE_NEVER) {
+      return this.IMAGE_NEVER;
+    } else if (Services.prefs.getIntPref("permissions.default.image") == this.IMAGE_NO3RDPARTY) {
+      return this.IMAGE_NO3RDPARTY;
+    }
+    return this.IMAGE_ALWAYS;
+  },
+  set image(aValue) {
+    let value = this.IMAGE_ALWAYS; 
+    if (aValue == this.IMAGE_NEVER) {
+      value = this.IMAGE_NEVER;
+    }
+    if (aValue == this.IMAGE_NO3RDPARTY) {
+      value = this.IMAGE_NO3RDPARTY;
+    }
+    Services.prefs.setIntPref("permissions.default.image", value);
+  },
+
+  get popup() {
+    if (Services.prefs.getBoolPref("dom.disable_open_during_load")) {
+      return this.DENY;
+    }
+    return this.ALLOW;
+  },
+  set popup(aValue) {
+    let value = (aValue == this.DENY);
+    Services.prefs.setBoolPref("dom.disable_open_during_load", value);
+  },
+
   // For use with network.cookie.* prefs.
   COOKIE_ACCEPT: 0,
   COOKIE_DENY: 2,
@@ -282,6 +316,23 @@ let PermissionDefaults = {
     let lifetimeValue = aValue == this.SESSION ? this.COOKIE_SESSION :
                                                  this.COOKIE_NORMAL;
     Services.prefs.setIntPref("network.cookie.lifetimePolicy", lifetimeValue);
+  },
+
+  get install() {
+    // Default to enabled if the preference does not exist
+    switch (Services.prefs.getPrefType("xpinstall.enabled")) {
+      case Ci.nsIPrefBranch.PREF_INVALID:
+        return this.ALLOW;
+      default:
+        if (!Services.prefs.getBoolPref("xpinstall.enabled")) {
+          return this.DENY;
+        }
+        return this.ALLOW;
+    }
+  },
+  set install(aValue) {
+    let value = (aValue != this.DENY);
+    Services.prefs.setBoolPref("xpinstall.enabled", value);
   },
 
   get geo() {
@@ -310,17 +361,6 @@ let PermissionDefaults = {
     Services.prefs.setBoolPref("dom.indexedDB.enabled", value);
   },
 
-  get popup() {
-    if (Services.prefs.getBoolPref("dom.disable_open_during_load")) {
-      return this.DENY;
-    }
-    return this.ALLOW;
-  },
-  set popup(aValue) {
-    let value = (aValue == this.DENY);
-    Services.prefs.setBoolPref("dom.disable_open_during_load", value);
-  },
-
   get plugins() {
     if (Services.prefs.getBoolPref("plugins.click_to_play")) {
       return this.UNKNOWN;
@@ -341,7 +381,20 @@ let PermissionDefaults = {
   set fullscreen(aValue) {
     let value = (aValue != this.DENY);
     Services.prefs.setBoolPref("full-screen-api.enabled", value);
-  }
+  },
+
+  get pointerLock() {
+    if (!Services.prefs.getBoolPref("full-screen-api.pointer-lock.enabled")) {
+      return this.DENY;
+    }
+    // We always ask for permission to hide the mouse pointer
+    // with a specific site, so there is no global ALLOW.
+    return this.UNKNOWN;
+  },
+  set pointerLock(aValue) {
+    let value = (aValue != this.DENY);
+    Services.prefs.setBoolPref("full-screen-api.pointer-lock.enabled", value);
+  },
 }
 
 /**
@@ -380,12 +433,12 @@ let AboutPermissions = {
    *
    * Potential future additions: "sts/use", "sts/subd"
    */
-  _supportedPermissions: ["password", "cookie", "geo", "indexedDB", "popup", "plugins", "fullscreen"],
+  _supportedPermissions: ["password", "image", "popup", "cookie", "install", "geo", "indexedDB", "plugins", "fullscreen", "pointerLock"],
 
   /**
    * Permissions that don't have a global "Allow" option.
    */
-  _noGlobalAllow: ["geo", "indexedDB", "fullscreen"],
+  _noGlobalAllow: ["geo", "indexedDB", "fullscreen", "pointerLock"],
 
   /**
    * Permissions that don't have a global "Deny" option.
@@ -408,12 +461,15 @@ let AboutPermissions = {
 
     // Attach observers in case data changes while the page is open.
     Services.prefs.addObserver("signon.rememberSignons", this, false);
+    Services.prefs.addObserver("permissions.default.image", this, false);
+    Services.prefs.addObserver("dom.disable_open_during_load", this, false);
     Services.prefs.addObserver("network.cookie.", this, false);
+    Services.prefs.addObserver("xpinstall.enabled", this, false);
     Services.prefs.addObserver("geo.enabled", this, false);
     Services.prefs.addObserver("dom.indexedDB.enabled", this, false);
-    Services.prefs.addObserver("dom.disable_open_during_load", this, false);
     Services.prefs.addObserver("plugins.click_to_play", this, false);
     Services.prefs.addObserver("full-screen-api.enabled", this, false);
+    Services.prefs.addObserver("full-screen-api.pointer-lock.enabled", this, false);
 
     Services.obs.addObserver(this, "perm-changed", false);
     Services.obs.addObserver(this, "passwordmgr-storage-changed", false);
@@ -430,12 +486,15 @@ let AboutPermissions = {
   cleanUp: function() {
     if (this._observersInitialized) {
       Services.prefs.removeObserver("signon.rememberSignons", this, false);
+      Services.prefs.removeObserver("permissions.default.image", this, false);
+      Services.prefs.removeObserver("dom.disable_open_during_load", this, false);
       Services.prefs.removeObserver("network.cookie.", this, false);
+      Services.prefs.removeObserver("xpinstall.enabled", this, false);
       Services.prefs.removeObserver("geo.enabled", this, false);
       Services.prefs.removeObserver("dom.indexedDB.enabled", this, false);
-      Services.prefs.removeObserver("dom.disable_open_during_load", this, false);
       Services.prefs.removeObserver("plugins.click_to_play", this, false);
       Services.prefs.removeObserver("full-screen-api.enabled", this, false);
+      Services.prefs.removeObserver("full-screen-api.pointer-lock.enabled", this, false);
 
       Services.obs.removeObserver(this, "perm-changed");
       Services.obs.removeObserver(this, "passwordmgr-storage-changed");
@@ -758,23 +817,33 @@ let AboutPermissions = {
     if (!this._selectedSite) {
       // If there is no selected site, we are updating the default permissions interface.
       permissionValue = PermissionDefaults[aType];
-      if (aType == "plugins")
+      if (aType == "image") {
+        // image-3 corresponds to NO3RDPARTY, which is reserved
+        // for site-specific preferences only.
+	      document.getElementById("image-3").hidden = false;
+      } else if (aType == "cookie") {
+        // cookie-9 corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
+        // for site-specific preferences only.
+	      document.getElementById("cookie-9").hidden = true;
+      } else if (aType == "plugins") {
         document.getElementById("plugins-pref-item").hidden = false;
-      else if (aType == "cookie")
-	// cookie-9 corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
-	// for site-specific preferences only.
-	document.getElementById("cookie-9").hidden = true;
+      }
     } else {
-      if (aType == "plugins") {
+      if (aType == "image") {
+	      document.getElementById("image-3").hidden = true;
+      } else if (aType == "cookie") {
+        document.getElementById("cookie-9").hidden = false;
+      } else if (aType == "plugins") {
         document.getElementById("plugins-pref-item").hidden =
           !Services.prefs.getBoolPref("plugins.click_to_play");
         return;
       }
-      if (aType == "cookie")
-        document.getElementById("cookie-9").hidden = false;
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?
                         result.value : PermissionDefaults[aType];
+      if ((aType == "image") && (permissionValue == 3)) {
+	      permissionValue = 1;
+      }
     }
 
     permissionMenulist.selectedItem = document.getElementById(aType + "-" + permissionValue);

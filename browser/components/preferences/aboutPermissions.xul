@@ -92,21 +92,41 @@
         </vbox>
       </hbox>
 
-      <!-- Geolocation -->
-      <hbox id="geo-pref-item"
+      <!-- Image Blocking -->
+      <hbox id="image-pref-item"
             class="pref-item" align="top">
-        <image class="pref-icon" type="geo"/>
+        <image class="pref-icon" type="image"/>
         <vbox>
-          <label class="pref-title" value="&geo.label;"/>
+          <label class="pref-title" value="&image.label;"/>
           <hbox>
-            <menulist id="geo-menulist"
+            <menulist id="image-menulist"
                       class="pref-menulist"
-                      type="geo"
+                      type="image"
                       oncommand="AboutPermissions.onPermissionCommand(event);">
               <menupopup>
-                <menuitem id="geo-0" value="0" label="&permission.alwaysAsk;"/>
-                <menuitem id="geo-1" value="1" label="&permission.allow;"/>
-                <menuitem id="geo-2" value="2" label="&permission.block;"/>
+                <menuitem id="image-1" value="1" label="&permission.allow;"/>
+                <menuitem id="image-2" value="2" label="&permission.block;"/>
+                <menuitem id="image-3" value="3" label="&permission.allowFirstPartyOnly;"/>
+              </menupopup>
+            </menulist>
+          </hbox>
+        </vbox>
+      </hbox>
+
+      <!-- Pop-up Blocking -->
+      <hbox id="popup-pref-item"
+            class="pref-item" align="top">
+        <image class="pref-icon" type="popup"/>
+        <vbox>
+          <label class="pref-title" value="&popup.label;"/>
+          <hbox>
+            <menulist id="popup-menulist"
+                      class="pref-menulist"
+                      type="popup"
+                      oncommand="AboutPermissions.onPermissionCommand(event);">
+              <menupopup>
+                <menuitem id="popup-1" value="1" label="&permission.allow;"/>
+                <menuitem id="popup-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
           </hbox>
@@ -150,20 +170,41 @@
         </vbox>
       </hbox>
 
-      <!-- Pop-up Blocking -->
-      <hbox id="popup-pref-item"
+      <!-- Addons Blocking -->
+      <hbox id="install-pref-item"
             class="pref-item" align="top">
-        <image class="pref-icon" type="popup"/>
+        <image class="pref-icon" type="install"/>
         <vbox>
-          <label class="pref-title" value="&popup.label;"/>
+          <label class="pref-title" value="&install.label;"/>
           <hbox>
-            <menulist id="popup-menulist"
+            <menulist id="install-menulist"
                       class="pref-menulist"
-                      type="popup"
+                      type="install"
                       oncommand="AboutPermissions.onPermissionCommand(event);">
               <menupopup>
-                <menuitem id="popup-1" value="1" label="&permission.allow;"/>
-                <menuitem id="popup-2" value="2" label="&permission.block;"/>
+                <menuitem id="install-1" value="1" label="&permission.allow;"/>
+                <menuitem id="install-2" value="2" label="&permission.block;"/>
+              </menupopup>
+            </menulist>
+          </hbox>
+        </vbox>
+      </hbox>
+
+      <!-- Geolocation -->
+      <hbox id="geo-pref-item"
+            class="pref-item" align="top">
+        <image class="pref-icon" type="geo"/>
+        <vbox>
+          <label class="pref-title" value="&geo.label;"/>
+          <hbox>
+            <menulist id="geo-menulist"
+                      class="pref-menulist"
+                      type="geo"
+                      oncommand="AboutPermissions.onPermissionCommand(event);">
+              <menupopup>
+                <menuitem id="geo-0" value="0" label="&permission.alwaysAsk;"/>
+                <menuitem id="geo-1" value="1" label="&permission.allow;"/>
+                <menuitem id="geo-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
           </hbox>
@@ -233,6 +274,27 @@
         </vbox>
       </hbox>      
       
+      <!-- PointerLock -->
+      <hbox id="pointerLock-pref-item"
+            class="pref-item" align="top">
+        <image class="pref-icon" type="pointerLock"/>
+        <vbox>
+          <label class="pref-title" value="&pointerLock.label;"/>
+          <hbox>
+            <menulist id="pointerLock-menulist"
+                      class="pref-menulist"
+                      type="pointerLock"
+                      oncommand="AboutPermissions.onPermissionCommand(event);">
+              <menupopup>
+                <menuitem id="pointerLock-0" value="0" label="&permission.alwaysAsk;"/>
+                <menuitem id="pointerLock-1" value="1" label="&permission.allow;"/>
+                <menuitem id="pointerLock-2" value="2" label="&permission.block;"/>
+              </menupopup>
+            </menulist>
+          </hbox>
+        </vbox>
+      </hbox>
+
     </vbox>
   </hbox>
 

@@ -275,8 +275,7 @@ let PermissionDefaults = {
     let value = this.IMAGE_ALWAYS; 
     if (aValue == this.IMAGE_NEVER) {
       value = this.IMAGE_NEVER;
-    }
-    if (aValue == this.IMAGE_NO3RDPARTY) {
+    } else if (aValue == this.IMAGE_NO3RDPARTY) {
       value = this.IMAGE_NO3RDPARTY;
     }
     Services.prefs.setIntPref("permissions.default.image", value);
@@ -842,7 +841,7 @@ let AboutPermissions = {
       permissionValue = this._selectedSite.getPermission(aType, result) ?
                         result.value : PermissionDefaults[aType];
       if ((aType == "image") && (permissionValue == 3)) {
-	      permissionValue = 1;
+        permissionValue = 1;
       }
     }
 

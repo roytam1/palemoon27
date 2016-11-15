@@ -101,7 +101,7 @@ this.BookmarkJSONUtils = Object.freeze({
           throw new Error("Cannot restore from nonexisting json file");
 
         let importer = new BookmarkImporter(aReplace);
-        if (aFilePath.endsWith("jsonlz4")) {
+        if (aFilePath.toLowerCase().endsWith("jsonlz4")) {
           yield importer.importFromCompressedFile(aFilePath);
         } else {
           yield importer.importFromURL(OS.Path.toFileURI(aFilePath));

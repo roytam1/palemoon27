@@ -12,6 +12,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "BookmarkJSONUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
                                   "resource://gre/modules/PlacesBackups.jsm");
 
+const RESTORE_FILEPICKER_FILTER_EXT = "*.json;*.jsonlz4";
+
 var PlacesOrganizer = {
   _places: null,
 
@@ -449,7 +451,7 @@ var PlacesOrganizer = {
     fp.init(window, PlacesUIUtils.getString("bookmarksRestoreTitle"),
             Ci.nsIFilePicker.modeOpen);
     fp.appendFilter(PlacesUIUtils.getString("bookmarksRestoreFilterName"),
-                    PlacesUIUtils.getString("bookmarksRestoreFilterExtension"));
+                    RESTORE_FILEPICKER_FILTER_EXT);
     fp.appendFilters(Ci.nsIFilePicker.filterAll);
     fp.displayDirectory = backupsDir;
     fp.open(fpCallback);
@@ -460,7 +462,9 @@ var PlacesOrganizer = {
    */
   restoreBookmarksFromFile: function PO_restoreBookmarksFromFile(aFile) {
     // check file extension
-    if (!aFile.leafName.match(/\.json$/)) {
+    let filePath = aFile.path;
+    if (!filePath.toLowerCase().endsWith("json") &&
+        !filePath.toLowerCase().endsWith("jsonlz4"))  {
       this._showErrorAlert(PlacesUIUtils.getString("bookmarksRestoreFormatError"));
       return;
     }
@@ -510,7 +514,7 @@ var PlacesOrganizer = {
     fp.init(window, PlacesUIUtils.getString("bookmarksBackupTitle"),
             Ci.nsIFilePicker.modeSave);
     fp.appendFilter(PlacesUIUtils.getString("bookmarksRestoreFilterName"),
-                    PlacesUIUtils.getString("bookmarksRestoreFilterExtension"));
+                    RESTORE_FILEPICKER_FILTER_EXT);
     fp.defaultString = PlacesBackups.getFilenameForDate();
     fp.displayDirectory = backupsDir;
     fp.open(fpCallback);

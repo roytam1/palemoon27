@@ -7096,8 +7096,10 @@ Parser<ParseHandler>::generatorComprehensionLambda(GeneratorKind comprehensionKi
      * kid and could be removed from pc->sc.
      */
     genFunbox->anyCxFlags = outerpc->sc->anyCxFlags;
-    if (outerpc->sc->isFunctionBox())
-        genFunbox->funCxFlags = outerpc->sc->asFunctionBox()->funCxFlags;
+    if (outerpc->sc->isFunctionBox()) {
+        genFunbox->funCxFlags =
+            outerpc->sc->asFunctionBox()->flagsForNestedGeneratorComprehensionLambda();
+    }
 
     MOZ_ASSERT(genFunbox->generatorKind() == comprehensionKind);
     genFunbox->inGenexpLambda = true;

@@ -2615,7 +2615,8 @@ nsEditor::SplitNodeImpl(nsIContent& aExistingRightNode,
   NS_ENSURE_TRUE(parent, NS_ERROR_NULL_POINTER);
 
   ErrorResult rv;
-  parent->InsertBefore(aNewLeftNode, &aExistingRightNode, rv);
+  nsCOMPtr<nsINode> refNode = &aExistingRightNode;
+  parent->InsertBefore(aNewLeftNode, refNode, rv);
   NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
 
   // Split the children between the two nodes.  At this point,

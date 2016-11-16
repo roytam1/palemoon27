@@ -448,7 +448,8 @@ UndoContentInsert::RedoTransaction()
   }
 
   ErrorResult error;
-  mContent->InsertBefore(*mChild, mNextNode, error);
+  nsCOMPtr<nsIContent> refNode = mNextNode;
+  mContent->InsertBefore(*mChild, refNode, error);
   return NS_OK;
 }
 
@@ -542,7 +543,8 @@ UndoContentRemove::UndoTransaction()
   }
 
   ErrorResult error;
-  mContent->InsertBefore(*mChild, mNextNode, error);
+  nsCOMPtr<nsIContent> refNode = mNextNode;
+  mContent->InsertBefore(*mChild, refNode, error);
   return NS_OK;
 }
 

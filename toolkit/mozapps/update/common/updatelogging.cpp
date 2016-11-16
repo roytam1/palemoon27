@@ -38,7 +38,7 @@ void UpdateLog::Init(NS_tchar* sourcePath,
       (dstFilePathLen <
          static_cast<int>(sizeof(mDstFilePath)/sizeof(mDstFilePath[0])))) {
     if (append) {
-      MoveFileExW(mDstFilePath, mTmpFilePath, MOVEFILE_REPLACE_EXISTING);
+      CopyFileW(mDstFilePath, mTmpFilePath, FALSE);
     }
     logFP = NS_tfopen(mTmpFilePath, append ? NS_T("a") : NS_T("w"));
 

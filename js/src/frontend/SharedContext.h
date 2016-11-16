@@ -126,6 +126,16 @@ class FunctionContextFlags
     //
     bool definitelyNeedsArgsObj:1;
 
+    FunctionContextFlags flagsForNestedGeneratorComprehensionLambda() const {
+        FunctionContextFlags flags;
+        flags.mightAliasLocals = mightAliasLocals;
+        flags.hasExtensibleScope = false;
+        flags.needsDeclEnvObject = false;
+        flags.argumentsHasLocalBinding = false;
+        flags.definitelyNeedsArgsObj = false;
+        return flags;
+    }
+
   public:
     FunctionContextFlags()
      :  mightAliasLocals(false),
@@ -298,6 +308,10 @@ class FunctionBox : public ObjectBox, public SharedContext
     void setArgumentsHasLocalBinding()     { funCxFlags.argumentsHasLocalBinding = true; }
     void setDefinitelyNeedsArgsObj()       { MOZ_ASSERT(funCxFlags.argumentsHasLocalBinding);
                                              funCxFlags.definitelyNeedsArgsObj   = true; }
+
+    FunctionContextFlags flagsForNestedGeneratorComprehensionLambda() const {
+        return funCxFlags.flagsForNestedGeneratorComprehensionLambda();
+    }
 
     bool hasDefaults() const {
         return length != function()->nargs() - function()->hasRest();

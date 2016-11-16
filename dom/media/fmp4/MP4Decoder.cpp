@@ -15,6 +15,7 @@
 
 #ifdef XP_WIN
 #include "mozilla/WindowsVersion.h"
+#include "WMFDecoderModule.h"
 #endif
 #ifdef MOZ_WIDGET_ANDROID
 #include "nsIGfxInfo.h"

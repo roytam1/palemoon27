@@ -3361,18 +3361,20 @@ Element::InsertAdjacentHTML(const nsAString& aPosition, const nsAString& aText,
     case eBeforeBegin:
       destination->InsertBefore(*fragment, this, aError);
       break;
-    case eAfterBegin:
+    case eAfterBegin: {
       nsCOMPtr<nsINode> refChild = GetFirstChild();
       static_cast<nsINode*>(this)->InsertBefore(*fragment, refChild,
                                                 aError);
       break;
+    }
     case eBeforeEnd:
       static_cast<nsINode*>(this)->AppendChild(*fragment, aError);
       break;
-    case eAfterEnd:
+    case eAfterEnd: {
       nsCOMPtr<nsINode> refChild = GetNextSibling();
       destination->InsertBefore(*fragment, refChild, aError);
       break;
+    }
   }
 }
 

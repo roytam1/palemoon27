@@ -13,6 +13,7 @@ import org.mozilla.goanna.AppConstants.Versions;
 import org.mozilla.goanna.BrowserApp;
 import org.mozilla.goanna.GoannaAppShell;
 import org.mozilla.goanna.R;
+import org.mozilla.goanna.SiteIdentity;
 import org.mozilla.goanna.Tab;
 import org.mozilla.goanna.Tabs;
 import org.mozilla.goanna.Telemetry;
@@ -794,6 +795,11 @@ public abstract class BrowserToolbar extends ThemedRelativeLayout
      * @return the url that was entered
      */
     public String commitEdit() {
+        Tab tab = Tabs.getInstance().getSelectedTab();
+        if (tab != null) {
+            tab.resetSiteIdentity();
+        }
+
         final String url = stopEditing();
         if (!TextUtils.isEmpty(url)) {
             setTitle(url);

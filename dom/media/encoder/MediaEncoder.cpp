@@ -77,7 +77,9 @@ MediaEncoder::NotifyEvent(MediaStreamGraph* aGraph,
 
 /* static */
 already_AddRefed<MediaEncoder>
-MediaEncoder::CreateEncoder(const nsAString& aMIMEType, uint8_t aTrackTypes)
+MediaEncoder::CreateEncoder(const nsAString& aMIMEType, uint32_t aAudioBitrate,
+                            uint32_t aVideoBitrate, uint32_t aBitrate,
+                            uint8_t aTrackTypes)
 {
 #ifdef PR_LOGGING
   if (!gMediaEncoderLog) {
@@ -150,8 +152,15 @@ MediaEncoder::CreateEncoder(const nsAString& aMIMEType, uint8_t aTrackTypes)
   LOG(PR_LOG_DEBUG, ("Create encoder result:a[%d] v[%d] w[%d] mimeType = %s.",
                       audioEncoder != nullptr, videoEncoder != nullptr,
                       writer != nullptr, mimeType.get()));
+  if (videoEncoder && aVideoBitrate != 0) {
+    videoEncoder->SetBitrate(aVideoBitrate);
+  }
+  if (audioEncoder && aAudioBitrate != 0) {
+    audioEncoder->SetBitrate(aAudioBitrate);
+  }
   encoder = new MediaEncoder(writer.forget(), audioEncoder.forget(),
-                             videoEncoder.forget(), mimeType);
+                             videoEncoder.forget(), mimeType, aAudioBitrate,
+                             aVideoBitrate, aBitrate);
   return encoder.forget();
 }
 

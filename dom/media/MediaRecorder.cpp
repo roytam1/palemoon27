@@ -934,7 +934,7 @@ MediaRecorder::Constructor(const GlobalObject& aGlobal,
   }
 
   nsRefPtr<MediaRecorder> object = new MediaRecorder(aStream, ownerWindow);
-  object->SetMimeType(aInitDict.mMimeType);
+  object->SetOptions(aInitDict);
   return object.forget();
 }
 
@@ -970,8 +970,20 @@ MediaRecorder::Constructor(const GlobalObject& aGlobal,
   nsRefPtr<MediaRecorder> object = new MediaRecorder(aSrcAudioNode,
                                                      aSrcOutput,
                                                      ownerWindow);
-  object->SetMimeType(aInitDict.mMimeType);
+  object->SetOptions(aInitDict);
   return object.forget();
+}
+
+void
+MediaRecorder::SetOptions(const MediaRecorderOptions& aInitDict)
+{
+  SetMimeType(aInitDict.mMimeType);
+  mAudioBitsPerSecond = aInitDict.mAudioBitsPerSecond.WasPassed() ?
+                        aInitDict.mAudioBitsPerSecond.Value() : 0;
+  mVideoBitsPerSecond = aInitDict.mVideoBitsPerSecond.WasPassed() ?
+                        aInitDict.mVideoBitsPerSecond.Value() : 0;
+  mBitsPerSecond = aInitDict.mBitsPerSecond.WasPassed() ?
+                   aInitDict.mBitsPerSecond.Value() : 0;
 }
 
 nsresult

@@ -189,6 +189,10 @@ OpusTrackEncoder::Init(int aChannels, int aSamplingRate)
 
   mInitialized = (error == OPUS_OK);
 
+  if (mAudioBitrate) {
+    opus_encoder_ctl(mEncoder, OPUS_SET_BITRATE(static_cast<int>(mAudioBitrate)));
+  }
+
   mReentrantMonitor.NotifyAll();
 
   return error == OPUS_OK ? NS_OK : NS_ERROR_FAILURE;

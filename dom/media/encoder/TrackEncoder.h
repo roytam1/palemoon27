@@ -84,6 +84,8 @@ public:
     mReentrantMonitor.NotifyAll();
   }
 
+  virtual void SetBitrate(const uint32_t aBitrate) {}
+
 protected:
   /**
    * Notifies track encoder that we have reached the end of source stream, and
@@ -143,6 +145,7 @@ public:
     : TrackEncoder()
     , mChannels(0)
     , mSamplingRate(0)
+    , mAudioBitrate(0)
   {}
 
   virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
@@ -171,6 +174,10 @@ public:
   */
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
+  virtual void SetBitrate(const uint32_t aBitrate) override
+  {
+    mAudioBitrate = aBitrate;
+  }
 protected:
   /**
    * Number of samples per channel in a pcm buffer. This is also the value of
@@ -219,6 +226,8 @@ protected:
    * A segment queue of audio track data, protected by mReentrantMonitor.
    */
   AudioSegment mRawSegment;
+
+  uint32_t mAudioBitrate;
 };
 
 class VideoTrackEncoder : public TrackEncoder
@@ -232,6 +241,7 @@ public:
     , mDisplayHeight(0)
     , mTrackRate(0)
     , mTotalFrameDuration(0)
+    , mVideoBitrate(0)
   {}
 
   /**
@@ -247,6 +257,10 @@ public:
   */
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
+  virtual void SetBitrate(const uint32_t aBitrate) override
+  {
+    mVideoBitrate = aBitrate;
+  }
 protected:
   /**
    * Initialized the video encoder. In order to collect the value of width and
@@ -312,6 +326,8 @@ protected:
    * A segment queue of audio track data, protected by mReentrantMonitor.
    */
   VideoSegment mRawSegment;
+
+  uint32_t mVideoBitrate;
 };
 
 }

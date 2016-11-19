@@ -159,56 +159,56 @@
     <=, "zu", __VA_ARGS__)
 
 #define	assert_d32_eq(a, b, ...)	assert_cmp(int32_t, a, b, ==,	\
-    !=, PRId32, __VA_ARGS__)
+    !=, FMTd32, __VA_ARGS__)
 #define	assert_d32_ne(a, b, ...)	assert_cmp(int32_t, a, b, !=,	\
-    ==, PRId32, __VA_ARGS__)
+    ==, FMTd32, __VA_ARGS__)
 #define	assert_d32_lt(a, b, ...)	assert_cmp(int32_t, a, b, <,	\
-    >=, PRId32, __VA_ARGS__)
+    >=, FMTd32, __VA_ARGS__)
 #define	assert_d32_le(a, b, ...)	assert_cmp(int32_t, a, b, <=,	\
-    >, PRId32, __VA_ARGS__)
+    >, FMTd32, __VA_ARGS__)
 #define	assert_d32_ge(a, b, ...)	assert_cmp(int32_t, a, b, >=,	\
-    <, PRId32, __VA_ARGS__)
+    <, FMTd32, __VA_ARGS__)
 #define	assert_d32_gt(a, b, ...)	assert_cmp(int32_t, a, b, >,	\
-    <=, PRId32, __VA_ARGS__)
+    <=, FMTd32, __VA_ARGS__)
 
 #define	assert_u32_eq(a, b, ...)	assert_cmp(uint32_t, a, b, ==,	\
-    !=, PRIu32, __VA_ARGS__)
+    !=, FMTu32, __VA_ARGS__)
 #define	assert_u32_ne(a, b, ...)	assert_cmp(uint32_t, a, b, !=,	\
-    ==, PRIu32, __VA_ARGS__)
+    ==, FMTu32, __VA_ARGS__)
 #define	assert_u32_lt(a, b, ...)	assert_cmp(uint32_t, a, b, <,	\
-    >=, PRIu32, __VA_ARGS__)
+    >=, FMTu32, __VA_ARGS__)
 #define	assert_u32_le(a, b, ...)	assert_cmp(uint32_t, a, b, <=,	\
-    >, PRIu32, __VA_ARGS__)
+    >, FMTu32, __VA_ARGS__)
 #define	assert_u32_ge(a, b, ...)	assert_cmp(uint32_t, a, b, >=,	\
-    <, PRIu32, __VA_ARGS__)
+    <, FMTu32, __VA_ARGS__)
 #define	assert_u32_gt(a, b, ...)	assert_cmp(uint32_t, a, b, >,	\
-    <=, PRIu32, __VA_ARGS__)
+    <=, FMTu32, __VA_ARGS__)
 
 #define	assert_d64_eq(a, b, ...)	assert_cmp(int64_t, a, b, ==,	\
-    !=, PRId64, __VA_ARGS__)
+    !=, FMTd64, __VA_ARGS__)
 #define	assert_d64_ne(a, b, ...)	assert_cmp(int64_t, a, b, !=,	\
-    ==, PRId64, __VA_ARGS__)
+    ==, FMTd64, __VA_ARGS__)
 #define	assert_d64_lt(a, b, ...)	assert_cmp(int64_t, a, b, <,	\
-    >=, PRId64, __VA_ARGS__)
+    >=, FMTd64, __VA_ARGS__)
 #define	assert_d64_le(a, b, ...)	assert_cmp(int64_t, a, b, <=,	\
-    >, PRId64, __VA_ARGS__)
+    >, FMTd64, __VA_ARGS__)
 #define	assert_d64_ge(a, b, ...)	assert_cmp(int64_t, a, b, >=,	\
-    <, PRId64, __VA_ARGS__)
+    <, FMTd64, __VA_ARGS__)
 #define	assert_d64_gt(a, b, ...)	assert_cmp(int64_t, a, b, >,	\
-    <=, PRId64, __VA_ARGS__)
+    <=, FMTd64, __VA_ARGS__)
 
 #define	assert_u64_eq(a, b, ...)	assert_cmp(uint64_t, a, b, ==,	\
-    !=, PRIu64, __VA_ARGS__)
+    !=, FMTu64, __VA_ARGS__)
 #define	assert_u64_ne(a, b, ...)	assert_cmp(uint64_t, a, b, !=,	\
-    ==, PRIu64, __VA_ARGS__)
+    ==, FMTu64, __VA_ARGS__)
 #define	assert_u64_lt(a, b, ...)	assert_cmp(uint64_t, a, b, <,	\
-    >=, PRIu64, __VA_ARGS__)
+    >=, FMTu64, __VA_ARGS__)
 #define	assert_u64_le(a, b, ...)	assert_cmp(uint64_t, a, b, <=,	\
-    >, PRIu64, __VA_ARGS__)
+    >, FMTu64, __VA_ARGS__)
 #define	assert_u64_ge(a, b, ...)	assert_cmp(uint64_t, a, b, >=,	\
-    <, PRIu64, __VA_ARGS__)
+    <, FMTu64, __VA_ARGS__)
 #define	assert_u64_gt(a, b, ...)	assert_cmp(uint64_t, a, b, >,	\
-    <=, PRIu64, __VA_ARGS__)
+    <=, FMTu64, __VA_ARGS__)
 
 #define	assert_b_eq(a, b, ...) do {					\
 	bool a_ = (a);							\
@@ -311,6 +311,9 @@ label_test_end:								\
 #define	test(...)							\
 	p_test(__VA_ARGS__, NULL)
 
+#define	test_no_malloc_init(...)					\
+	p_test_no_malloc_init(__VA_ARGS__, NULL)
+
 #define	test_skip_if(e) do {						\
 	if (e) {							\
 		test_skip("%s:%s:%d: Test skipped: (%s)",		\
@@ -319,11 +322,12 @@ label_test_end:								\
 	}								\
 } while (0)
 
-void	test_skip(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
-void	test_fail(const char *format, ...) JEMALLOC_ATTR(format(printf, 1, 2));
+void	test_skip(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
+void	test_fail(const char *format, ...) JEMALLOC_FORMAT_PRINTF(1, 2);
 
 /* For private use by macros. */
 test_status_t	p_test(test_t *t, ...);
+test_status_t	p_test_no_malloc_init(test_t *t, ...);
 void	p_test_init(const char *name);
 void	p_test_fini(void);
 void	p_test_fail(const char *prefix, const char *message);

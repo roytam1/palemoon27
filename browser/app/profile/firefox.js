@@ -351,6 +351,9 @@ pref("browser.search.openintab", false);
 // context menu searches open in the foreground
 pref("browser.search.context.loadInBackground", false);
 
+// if no result, add the search term so that the panel of the new UI is shown anyway
+pref("browser.search.showOneOffButtons", true);
+
 // send ping to the server to update
 pref("browser.search.update", true);
 

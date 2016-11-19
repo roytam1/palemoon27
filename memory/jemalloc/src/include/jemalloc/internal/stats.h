@@ -103,6 +103,14 @@ struct arena_stats_s {
 	size_t		mapped;
 
 	/*
+	 * Number of bytes currently retained as a side effect of munmap() being
+	 * disabled/bypassed.  Retained bytes are technically mapped (though
+	 * always decommitted or purged), but they are excluded from the mapped
+	 * statistic (above).
+	 */
+	size_t		retained;
+
+	/*
 	 * Total number of purge sweeps, total number of madvise calls made,
 	 * and total pages purged in order to keep dirty unused memory under
 	 * control.
@@ -110,6 +118,13 @@ struct arena_stats_s {
 	uint64_t	npurge;
 	uint64_t	nmadvise;
 	uint64_t	purged;
+
+	/*
+	 * Number of bytes currently mapped purely for metadata purposes, and
+	 * number of bytes currently allocated for internal metadata.
+	 */
+	size_t		metadata_mapped;
+	size_t		metadata_allocated; /* Protected via atomic_*_z(). */
 
 	/* Per-size-category statistics. */
 	size_t		allocated_large;
@@ -126,21 +141,6 @@ struct arena_stats_s {
 
 	/* One element for each huge size class. */
 	malloc_huge_stats_t	*hstats;
-};
-
-struct chunk_stats_s {
-	/* Number of chunks that were allocated. */
-	uint64_t	nchunks;
-
-	/* High-water mark for number of chunks allocated. */
-	size_t		highchunks;
-
-	/*
-	 * Current number of chunks allocated.  This value isn't maintained for
-	 * any other purpose, so keep track of it in order to be able to set
-	 * highchunks.
-	 */
-	size_t		curchunks;
 };
 
 #endif /* JEMALLOC_H_STRUCTS */
@@ -175,15 +175,25 @@ stats_cactive_get(void)
 JEMALLOC_INLINE void
 stats_cactive_add(size_t size)
 {
+	UNUSED size_t cactive;
 
-	atomic_add_z(&stats_cactive, size);
+	assert(size > 0);
+	assert((size & chunksize_mask) == 0);
+
+	cactive = atomic_add_z(&stats_cactive, size);
+	assert(cactive - size < cactive);
 }
 
 JEMALLOC_INLINE void
 stats_cactive_sub(size_t size)
 {
+	UNUSED size_t cactive;
 
-	atomic_sub_z(&stats_cactive, size);
+	assert(size > 0);
+	assert((size & chunksize_mask) == 0);
+
+	cactive = atomic_sub_z(&stats_cactive, size);
+	assert(cactive + size > cactive);
 }
 #endif
 

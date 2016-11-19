@@ -61,10 +61,18 @@
 #undef JEMALLOC_HAVE_MADVISE
 
 /*
+ * Defined if os_unfair_lock_*() functions are available, as provided by Darwin.
+ */
+#undef JEMALLOC_OS_UNFAIR_LOCK
+
+/*
  * Defined if OSSpin*() functions are available, as provided by Darwin, and
  * documented in the spinlock(3) manual page.
  */
 #undef JEMALLOC_OSSPIN
+
+/* Defined if syscall(2) is available. */
+#undef JEMALLOC_HAVE_SYSCALL
 
 /*
  * Defined if secure_getenv(3) is available.
@@ -75,6 +83,21 @@
  * Defined if issetugid(2) is available.
  */
 #undef JEMALLOC_HAVE_ISSETUGID
+
+/*
+ * Defined if clock_gettime(CLOCK_MONOTONIC_COARSE, ...) is available.
+ */
+#undef JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE
+
+/*
+ * Defined if clock_gettime(CLOCK_MONOTONIC, ...) is available.
+ */
+#undef JEMALLOC_HAVE_CLOCK_MONOTONIC
+
+/*
+ * Defined if mach_absolute_time() is available.
+ */
+#undef JEMALLOC_HAVE_MACH_ABSOLUTE_TIME
 
 /*
  * Defined if _malloc_thread_cleanup() exists.  At least in the case of
@@ -170,6 +193,15 @@
 #undef LG_PAGE
 
 /*
+ * If defined, adjacent virtual memory mappings with identical attributes
+ * automatically coalesce, and they fragment when changes are made to subranges.
+ * This is the normal order of things for mmap()/munmap(), but on Windows
+ * VirtualAlloc()/VirtualFree() operations must be precisely matched, i.e.
+ * mappings do *not* coalesce/fragment.
+ */
+#undef JEMALLOC_MAPS_COALESCE
+
+/*
  * If defined, use munmap() to unmap freed chunks, rather than storing them for
  * later reuse.  This is disabled by default on Linux because common sequences
  * of mmap()/munmap() calls will cause virtual memory map holes.
@@ -180,9 +212,16 @@
 #undef JEMALLOC_TLS
 
 /*
- * ffs()/ffsl() functions to use for bitmapping.  Don't use these directly;
- * instead, use jemalloc_ffs() or jemalloc_ffsl() from util.h.
+ * Used to mark unreachable code to quiet "end of non-void" compiler warnings.
+ * Don't use this directly; instead use unreachable() from util.h
  */
+#undef JEMALLOC_INTERNAL_UNREACHABLE
+
+/*
+ * ffs*() functions to use for bitmapping.  Don't use these directly; instead,
+ * use ffs_*() from util.h.
+ */
+#undef JEMALLOC_INTERNAL_FFSLL
 #undef JEMALLOC_INTERNAL_FFSL
 #undef JEMALLOC_INTERNAL_FFS
 
@@ -193,10 +232,25 @@
 #undef JEMALLOC_IVSALLOC
 
 /*
+ * If defined, explicitly attempt to more uniformly distribute large allocation
+ * pointer alignments across all cache indices.
+ */
+#undef JEMALLOC_CACHE_OBLIVIOUS
+
+/*
  * Darwin (OS X) uses zones to work around Mach-O symbol override shortcomings.
  */
 #undef JEMALLOC_ZONE
 #undef JEMALLOC_ZONE_VERSION
+
+/*
+ * Methods for determining whether the OS overcommits.
+ * JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY: Linux's
+ *                                         /proc/sys/vm.overcommit_memory file.
+ * JEMALLOC_SYSCTL_VM_OVERCOMMIT: FreeBSD's vm.overcommit sysctl.
+ */
+#undef JEMALLOC_SYSCTL_VM_OVERCOMMIT
+#undef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
 
 /*
  * Methods for purging unused pages differ between operating systems.
@@ -226,6 +280,9 @@
 /* sizeof(long) == 2^LG_SIZEOF_LONG. */
 #undef LG_SIZEOF_LONG
 
+/* sizeof(long long) == 2^LG_SIZEOF_LONG_LONG. */
+#undef LG_SIZEOF_LONG_LONG
+
 /* sizeof(intmax_t) == 2^LG_SIZEOF_INTMAX_T. */
 #undef LG_SIZEOF_INTMAX_T
 
@@ -237,5 +294,14 @@
 
 /* Adaptive mutex support in pthreads. */
 #undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
+
+/*
+ * If defined, jemalloc symbols are not exported (doesn't work when
+ * JEMALLOC_PREFIX is not defined).
+ */
+#undef JEMALLOC_EXPORT
+
+/* config.malloc_conf options string. */
+#undef JEMALLOC_CONFIG_MALLOC_CONF
 
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */

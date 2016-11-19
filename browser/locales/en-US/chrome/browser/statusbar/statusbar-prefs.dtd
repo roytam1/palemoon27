@@ -66,7 +66,7 @@
 <!ENTITY status4evar.status.currentUrl "Current Location">
 <!ENTITY status4evar.status.statusText "Status Text">
 
-<!ENTITY status4evar.status.urlbar.firefox.builtin.caption "Firefox compatibility features">
+<!ENTITY status4evar.status.urlbar.firefox.builtin.caption "Pale Moon compatibility features">
 <!ENTITY browser.urlbar.formatting.enabled.label "Enable domain highlighting">
 <!ENTITY browser.urlbar.trimming.enabled.label "Enable protocol hiding (http:// and ftp://)">
 

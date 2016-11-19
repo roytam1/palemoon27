@@ -16,7 +16,6 @@ pref("browser.getdevtools.url","https://@APO_AM_URL@/external/devtools");
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style
 pref("browser.download.useDownloadDir", false); //don't use default download location as standard. ASK.
 pref("browser.search.context.loadInBackground", true); //don't swap focus to the context search tab.
-pref("browser.search.showOneOffButtons", true); //if no result, add the search term so that the panel of the new UI is shown anyway.
 pref("browser.ctrlTab.previews", true);
 pref("browser.allTabs.previews", true);
 pref("browser.urlbar.trimURLs", false); //stop being a derp, Mozilla!

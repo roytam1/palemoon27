@@ -83,6 +83,11 @@
     chrome/icons/default/
   #endif
 #endif
+
+# Remove previously-bundled ruby/s4e extensions
+@DIR_MACOS@distribution/bundles/statusbar@palemoon.org/*
+@DIR_MACOS@distribution/bundles/{3ff46564-d77c-491c-bfc5-fc555c87dbc4}/*
+
 @DIR_MACOS@chrome/overlayinfo/
 @DIR_MACOS@components/
 @DIR_MACOS@defaults/autoconfig/

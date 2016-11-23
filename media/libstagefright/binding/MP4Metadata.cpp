@@ -80,6 +80,7 @@ ConvertIndex(FallibleTArray<Index::Indice>& aDest,
     indice.end_offset = s_indice.end_offset;
     indice.start_composition = s_indice.start_composition;
     indice.end_composition = s_indice.end_composition;
+    indice.start_decode = s_indice.start_decode;
     indice.sync = s_indice.sync;
     MOZ_ALWAYS_TRUE(aDest.AppendElement(indice));
   }

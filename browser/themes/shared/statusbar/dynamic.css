@@ -9,13 +9,13 @@
 #urlbar[s4estyle="true"] > #urlbar-progress-alt > .progress-bar
 {
 	-moz-appearance: none;
-	background: #33FF33;
+	background: #333399;
 }
 
 #status4evar-progress-bar[s4estyle="true"] > .progress-bar
 {
 	-moz-appearance: none;
-	background: #33FF33;
+	background: #333399;
 	border-radius: 3px;
 }
 
@@ -26,7 +26,7 @@
 
 #status4evar-download-progress-bar[pmType^="active"] > .progress-bar
 {
-	background-color: #33FF33;
+	background-color: #333399;
 }
 
 #status4evar-download-progress-bar[pmType^="paused"] > .progress-bar

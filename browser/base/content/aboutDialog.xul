@@ -37,13 +37,13 @@
         >
 
   <script type="application/javascript" src="chrome://browser/content/aboutDialog.js"/>
-
+a
   <vbox id="aboutPMDialogContainer">
     <hbox id="PMclientBox">
       <vbox id="PMleftBox" flex="1"/>
       <vbox id="PMrightBox" flex="1">
 #if defined(__alpha__)
-#ifdef HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Alpha 64-bit)</label>
 #else
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Alpha 32-bit)</label>
@@ -59,25 +59,25 @@
 #elif defined(__m68k__)
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Motorola M68k)</label>
 #elif defined(__mips__)
-#ifdef HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (MIPS 64-bit)</label>
 #else
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (MIPS 32-bit)</label>
 #endif
 #elif defined(__powerpc__) || defined(__ppc__)
-#ifdef HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (PowerPC 64-bit)</label>
 #else
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (PowerPC 32-bit)</label>
 #endif
 #elif defined(__sparc__)
-#ifdef HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SPARC 64-bit)</label>
 #else
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SPARC 32-bit)</label>
 #endif
 #elif defined(__sh__)
-#ifdef HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SuperH 64-bit)</label>
 #else
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SuperH 32-bit)</label>
@@ -89,7 +89,7 @@
 #elif defined(__x86_64__)
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Intel x86, 64-bit)</label>
 #else
-#ifdef HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (64-bit)</label>
 #else
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (32-bit)</label>

@@ -178,8 +178,8 @@
 					this._status = aURL;
 
 					// Hide the over-link immediately if necessary.
-					if((!aURL && (XULBrowserWindow.hideOverLinkImmediately
-					   || this._hideOverLinkImmediately)) || this.focused)
+					if(!aURL && (XULBrowserWindow.hideOverLinkImmediately
+					   || this._hideOverLinkImmediately))
 					{
 						this._setOverLinkState(null);
 						return;

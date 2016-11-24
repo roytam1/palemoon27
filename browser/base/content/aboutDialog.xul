@@ -42,10 +42,58 @@
     <hbox id="PMclientBox">
       <vbox id="PMleftBox" flex="1"/>
       <vbox id="PMrightBox" flex="1">
-#ifdef HAVE_64BIT_BUILD
-#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (x64)</label>
+#if defined(__alpha__)
+#ifdef HAVE_64BIT_OS
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Alpha 64-bit)</label>
 #else
-#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (x86)</label>
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Alpha 32-bit)</label>
+#endif
+#elif defined(__arm__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (ARM 32-bit)</label>
+#elif defined(__aarch64__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (ARM 64-bit)</label>
+#elif defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Intel x86, 32-bit)</label>
+#elif defined(__ia64__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Intel IA-64)</label>
+#elif defined(__m68k__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Motorola M68k)</label>
+#elif defined(__mips__)
+#ifdef HAVE_64BIT_OS
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (MIPS 64-bit)</label>
+#else
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (MIPS 32-bit)</label>
+#endif
+#elif defined(__powerpc__) || defined(__ppc__)
+#ifdef HAVE_64BIT_OS
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (PowerPC 64-bit)</label>
+#else
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (PowerPC 32-bit)</label>
+#endif
+#elif defined(__sparc__)
+#ifdef HAVE_64BIT_OS
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SPARC 64-bit)</label>
+#else
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SPARC 32-bit)</label>
+#endif
+#elif defined(__sh__)
+#ifdef HAVE_64BIT_OS
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SuperH 64-bit)</label>
+#else
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (SuperH 32-bit)</label>
+#endif
+#elif defined(__s390__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (S390)</label>
+#elif defined(__s390x__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (S390x)</label>
+#elif defined(__x86_64__)
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Intel x86, 64-bit)</label>
+#else
+#ifdef HAVE_64BIT_OS
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (64-bit)</label>
+#else
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (32-bit)</label>
+#endif
 #endif
         <label id="distribution" class="text-blurb"/>
         <label id="distributionId" class="text-blurb"/>

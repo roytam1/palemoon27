@@ -44,6 +44,8 @@ pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/
 pref("@GUAO_PREF@.facebook.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");
 pref("@GUAO_PREF@.fbcdn.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");
 pref("@GUAO_PREF@.chase.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@");
+// For Amazon Prime videos
+pref("@GUAO_PREF@.www.amazon.com","Mozilla/5.0 (@OS_SLICE@ rv:45.9) @GK_SLICE@ Firefox/45.9 (Pale Moon)");
 
 // Citi requires native mode. Or it blocks.. "too old firefox"
 pref("@GUAO_PREF@.citi.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");

@@ -37,7 +37,7 @@ Adts::ConvertSample(uint16_t aChannelCount, int8_t aFrequencyIndex,
 {
   static const int kADTSHeaderSize = 7;
 
-  size_t newSize = aSample->mSize + kADTSHeaderSize;
+  size_t newSize = aSample->Size() + kADTSHeaderSize;
 
   // ADTS header uses 13 bits for packet size.
   if (newSize >= (1 << 13) || aChannelCount > 15 ||
@@ -63,7 +63,7 @@ Adts::ConvertSample(uint16_t aChannelCount, int8_t aFrequencyIndex,
   if (aSample->mCrypto.valid) {
     if (aSample->mCrypto.plain_sizes.Length() == 0) {
       writer->mCrypto.plain_sizes.AppendElement(kADTSHeaderSize);
-      writer->mCrypto.encrypted_sizes.AppendElement(aSample->mSize - kADTSHeaderSize);
+      writer->mCrypto.encrypted_sizes.AppendElement(aSample->Size() - kADTSHeaderSize);
     } else {
       writer->mCrypto.plain_sizes[0] += kADTSHeaderSize;
     }

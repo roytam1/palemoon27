@@ -109,8 +109,8 @@ GonkAudioDecoderManager::Init(MediaDataDecoderCallback* aCallback)
 status_t
 GonkAudioDecoderManager::SendSampleToOMX(MediaRawData* aSample)
 {
-  return mDecoder->Input(reinterpret_cast<const uint8_t*>(aSample->mData),
-                         aSample->mSize,
+  return mDecoder->Input(reinterpret_cast<const uint8_t*>(aSample->Data()),
+                         aSample->Size(),
                          aSample->mTime,
                          0);
 }

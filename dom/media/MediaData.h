@@ -368,7 +368,6 @@ private:
   explicit MediaRawDataWriter(MediaRawData* aMediaRawData);
   bool EnsureSize(size_t aSize);
   MediaRawData* mTarget;
-  nsRefPtr<MediaLargeByteBuffer> mBuffer;
 };
 
 class MediaRawData : public MediaData {
@@ -377,15 +376,9 @@ public:
   MediaRawData(const uint8_t* aData, size_t mSize);
 
   // Pointer to data or null if not-yet allocated
-  const uint8_t* Data() const
-  {
-    return mData;
-  }
+  const uint8_t* Data() const { return mData; }
   // Size of buffer.
-  size_t Size() const
-  {
-    return mSize;
-  }
+  size_t Size() const { return mSize; }
 
   const CryptoSample& mCrypto;
   nsRefPtr<MediaByteBuffer> mExtraData;
@@ -410,9 +403,9 @@ private:
   bool EnsureCapacity(size_t aSize);
   uint8_t* mData;
   size_t mSize;
-  nsRefPtr<MediaLargeByteBuffer> mBuffer;
+  nsAutoArrayPtr<uint8_t> mBuffer;
+  uint32_t mCapacity;
   CryptoSample mCryptoInternal;
-  uint32_t mPadding;
   MediaRawData(const MediaRawData&); // Not implemented
 };
 

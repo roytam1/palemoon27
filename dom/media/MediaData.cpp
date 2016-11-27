@@ -564,12 +564,12 @@ MediaRawData::~MediaRawData()
 size_t
 MediaRawData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 {
-  size += aMallocSizeOf(mBuffer.get());
+  size_t size = aMallocSizeOf(this);
 
   if (mExtraData) {
-    size += mExtraData->SizeOfIncludingThis(aMallocSizeOf);
+    size += aMallocSizeOf(mExtraData.get());
   }
-  size += mBuffer->SizeOfIncludingThis(aMallocSizeOf);
+  size += aMallocSizeOf(mBuffer.get());
   return size;
 }
 

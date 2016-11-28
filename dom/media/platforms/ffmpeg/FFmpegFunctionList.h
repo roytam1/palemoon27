@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* libavformat */
-AV_FUNC(av_register_all, 0)
-
 /* libavcodec */
 AV_FUNC(avcodec_align_dimensions2, 0)
 AV_FUNC(avcodec_get_frame_defaults, 0)
@@ -21,6 +18,7 @@ AV_FUNC(avcodec_open2, 0)
 AV_FUNC(av_init_packet, 0)
 AV_FUNC(av_dict_get, 0)
 AV_FUNC(avcodec_version, 0)
+AV_FUNC(avcodec_register_all, 0)
 
 /* libavutil */
 AV_FUNC(av_image_fill_linesizes, 0)

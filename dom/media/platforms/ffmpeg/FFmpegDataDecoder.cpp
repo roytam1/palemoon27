@@ -135,7 +135,9 @@ nsresult
 FFmpegDataDecoder<LIBAV_VER>::Flush()
 {
   mTaskQueue->Flush();
-  avcodec_flush_buffers(mCodecContext);
+  if (mCodecContext) {
+    avcodec_flush_buffers(mCodecContext);
+  }
   return NS_OK;
 }
 

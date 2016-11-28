@@ -146,7 +146,7 @@ FFmpegDataDecoder<LIBAV_VER>::Shutdown()
 {
   StaticMutexAutoLock mon(sMonitor);
 
-  if (sFFmpegInitDone) {
+  if (sFFmpegInitDone && mCodecContext) {
     avcodec_close(mCodecContext);
     av_freep(&mCodecContext);
 #if LIBAVCODEC_VERSION_MAJOR >= 55

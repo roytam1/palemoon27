@@ -30,6 +30,8 @@ FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   : FFmpegDataDecoder(aTaskQueue, GetCodecId(aConfig.mMimeType))
   , mCallback(aCallback)
   , mImageContainer(aImageContainer)
+  , mPictureWidth(aConfig.mImage.width)
+  , mPictureHeight(aConfig.mImage.height)
   , mDisplayWidth(aConfig.mDisplay.width)
   , mDisplayHeight(aConfig.mDisplay.height)
 {
@@ -47,6 +49,8 @@ FFmpegH264Decoder<LIBAV_VER>::Init()
 
   mCodecContext->get_buffer = AllocateBufferCb;
   mCodecContext->release_buffer = ReleaseBufferCb;
+  mCodecContext->width = mPictureWidth;
+  mCodecContext->height = mPictureHeight;
 
   return NS_OK;
 }

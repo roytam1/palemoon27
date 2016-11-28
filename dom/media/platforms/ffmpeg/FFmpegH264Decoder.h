@@ -63,6 +63,8 @@ private:
 
   MediaDataDecoderCallback* mCallback;
   nsRefPtr<ImageContainer> mImageContainer;
+  uint32_t mPictureWidth;
+  uint32_t mPictureHeight;
   uint32_t mDisplayWidth;
   uint32_t mDisplayHeight;
 };

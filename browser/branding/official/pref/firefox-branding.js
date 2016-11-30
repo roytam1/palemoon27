@@ -5,3 +5,6 @@
 
 pref("startup.homepage_override_url","http://www.palemoon.org/releasenotes.shtml");
 pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes.shtml");
+
+// Enable Firefox compatmode by default.
+pref("general.useragent.compatMode", 2);

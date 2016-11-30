@@ -17,7 +17,7 @@ toolkit.jar:
         skin/classic/global/checkbox.css
         skin/classic/global/colorpicker.css
         skin/classic/global/commonDialog.css
-        skin/classic/global/config.css                           (../../shared/config.css)
+        skin/classic/global/config.css
         skin/classic/global/customizeToolbar.css
         skin/classic/global/datetimepicker.css
         skin/classic/global/dialog.css

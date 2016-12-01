@@ -128,7 +128,7 @@ const PREFIX_NS_EM                    = "http://www.mozilla.org/2004/em-rdf#";
 const TOOLKIT_ID                      = "toolkit@mozilla.org";
 #ifdef MOZ_PHOENIX_EXTENSIONS
 const FIREFOX_ID                      = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
-const FIREFOX_APPCOMPATVERSION        = "24.9"
+const FIREFOX_APPCOMPATVERSION        = "27.9"
 #endif
 
 // The value for this is in Makefile.in

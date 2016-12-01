@@ -30,10 +30,8 @@ FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   : FFmpegDataDecoder(aTaskQueue, GetCodecId(aConfig.mMimeType))
   , mCallback(aCallback)
   , mImageContainer(aImageContainer)
-  , mPictureWidth(aConfig.mImage.width)
-  , mPictureHeight(aConfig.mImage.height)
-  , mDisplayWidth(aConfig.mDisplay.width)
-  , mDisplayHeight(aConfig.mDisplay.height)
+  , mDisplay(aConfig.mDisplay)
+  , mImage(aConfig.mImage)
 {
   MOZ_COUNT_CTOR(FFmpegH264Decoder);
   // Use a new MediaByteBuffer as the object will be modified during initialization.
@@ -49,8 +47,8 @@ FFmpegH264Decoder<LIBAV_VER>::Init()
 
   mCodecContext->get_buffer = AllocateBufferCb;
   mCodecContext->release_buffer = ReleaseBufferCb;
-  mCodecContext->width = mPictureWidth;
-  mCodecContext->height = mPictureHeight;
+  mCodecContext->width = mImage.width;
+  mCodecContext->height = mImage.height;
 
   return NS_OK;
 }
@@ -114,7 +112,7 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
                pts, mCodecContext->reordered_opaque);
 
     VideoInfo info;
-    info.mDisplay = nsIntSize(mDisplayWidth, mDisplayHeight);
+    info.mDisplay = mDisplay;
 
     VideoData::YCbCrBuffer b;
     b.mPlanes[0].mData = mFrame->data[0];
@@ -143,7 +141,7 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
                                               b,
                                               aSample->mKeyframe,
                                               -1,
-                                              gfx::IntRect(0, 0, mCodecContext->width, mCodecContext->height));
+                                              mImage);
     if (!v) {
       NS_WARNING("image allocation error.");
       mCallback->Error();

@@ -293,8 +293,6 @@ this.DebuggerClient = function (aTransport)
  * @param aPacketSkeleton
  *        The form of the packet to send. Can specify fields to be filled from
  *        the parameters by using the |args| function.
- * @param telemetry
- *        The unique suffix of the telemetry histogram id.
  * @param before
  *        The function to call before sending the packet. Is passed the packet,
  *        and the return value is used as the new packet. The |this| context is
@@ -306,18 +304,8 @@ this.DebuggerClient = function (aTransport)
  *        the client object we are defining a method for.
  */
 DebuggerClient.requester = function (aPacketSkeleton,
-                                     { telemetry, before, after }) {
+                                     { before, after }) {
   return DevToolsUtils.makeInfallible(function (...args) {
-    let histogram, startTime;
-    if (telemetry) {
-      let transportType = this._transport.onOutputStreamReady === undefined
-        ? "LOCAL_"
-        : "REMOTE_";
-      let histogramId = "DEVTOOLS_DEBUGGER_RDP_"
-        + transportType + telemetry + "_MS";
-      histogram = Services.telemetry.getHistogramById(histogramId);
-      startTime = +new Date;
-    }
     let outgoingPacket = {
       to: aPacketSkeleton.to || this.actor
     };
@@ -350,10 +338,6 @@ DebuggerClient.requester = function (aPacketSkeleton,
       let thisCallback = args[maxPosition + 1];
       if (thisCallback) {
         thisCallback(aResponse);
-      }
-
-      if (histogram) {
-        histogram.add(+new Date - startTime);
       }
     }, "DebuggerClient.requester request callback"));
 
@@ -648,9 +632,7 @@ DebuggerClient.prototype = {
   release: DebuggerClient.requester({
     to: args(0),
     type: "release"
-  }, {
-    telemetry: "RELEASE"
-  }),
+  }, { }),
 
   /**
    * Send a request to the debugging server.
@@ -1263,8 +1245,7 @@ TabClient.prototype = {
     after: function (aResponse) {
       this.client.unregisterClient(this);
       return aResponse;
-    },
-    telemetry: "TABDETACH"
+    }
   }),
 
   /**
@@ -1280,9 +1261,7 @@ TabClient.prototype = {
   _reload: DebuggerClient.requester({
     type: "reload",
     options: args(0)
-  }, {
-    telemetry: "RELOAD"
-  }),
+  }, { }),
 
   /**
    * Navigate to another URL.
@@ -1293,9 +1272,7 @@ TabClient.prototype = {
   navigateTo: DebuggerClient.requester({
     type: "navigateTo",
     url: args(0)
-  }, {
-    telemetry: "NAVIGATETO"
-  }),
+  }, { }),
 
   /**
    * Reconfigure the tab actor.
@@ -1308,9 +1285,7 @@ TabClient.prototype = {
   reconfigure: DebuggerClient.requester({
     type: "reconfigure",
     options: args(0)
-  }, {
-    telemetry: "RECONFIGURETAB"
-  }),
+  }, { }),
 };
 
 eventSource(TabClient.prototype);
@@ -1341,8 +1316,7 @@ AddonClient.prototype = {
       }
       this._client.unregisterClient(this);
       return aResponse;
-    },
-    telemetry: "ADDONDETACH"
+    }
   })
 };
 
@@ -1383,7 +1357,7 @@ RootClient.prototype = {
    *        Called with the response packet.
    */
   listTabs: DebuggerClient.requester({ type: "listTabs" },
-                                     { telemetry: "LISTTABS" }),
+                                     { }),
 
   /**
    * List the installed addons.
@@ -1392,7 +1366,7 @@ RootClient.prototype = {
    *        Called with the response packet.
    */
   listAddons: DebuggerClient.requester({ type: "listAddons" },
-                                       { telemetry: "LISTADDONS" }),
+                                       { }),
 
   /**
    * List the running processes.
@@ -1401,7 +1375,7 @@ RootClient.prototype = {
    *        Called with the response packet.
    */
   listProcesses: DebuggerClient.requester({ type: "listProcesses" },
-                                       { telemetry: "LISTPROCESSES" }),
+                                          { }),
 
   /**
    * Description of protocol's actors and methods.
@@ -1410,7 +1384,7 @@ RootClient.prototype = {
    *        Called with the response packet.
    */
    protocolDescription: DebuggerClient.requester({ type: "protocolDescription" },
-                                                 { telemetry: "PROTOCOLDESCRIPTION" }),
+                                                 { }),
 
   /*
    * Methods constructed by DebuggerClient.requester require these forwards
@@ -1502,8 +1476,7 @@ ThreadClient.prototype = {
         this._state = "paused";
       }
       return aResponse;
-    },
-    telemetry: "RESUME"
+    }
   }),
 
   /**
@@ -1517,9 +1490,7 @@ ThreadClient.prototype = {
   reconfigure: DebuggerClient.requester({
     type: "reconfigure",
     options: args(0)
-  }, {
-    telemetry: "RECONFIGURETHREAD"
-  }),
+  }, { }),
 
   /**
    * Resume a paused thread.
@@ -1576,9 +1547,7 @@ ThreadClient.prototype = {
    */
   interrupt: DebuggerClient.requester({
     type: "interrupt"
-  }, {
-    telemetry: "INTERRUPT"
-  }),
+  }, { }),
 
   /**
    * Enable or disable pausing when an exception is thrown.
@@ -1675,8 +1644,7 @@ ThreadClient.prototype = {
         this._state = "paused";
       }
       return aResponse;
-    },
-    telemetry: "CLIENTEVALUATE"
+    }
   }),
 
   /**
@@ -1692,8 +1660,7 @@ ThreadClient.prototype = {
       this.client.unregisterClient(this);
       this._parent.thread = null;
       return aResponse;
-    },
-    telemetry: "THREADDETACH"
+    }
   }),
 
   /**
@@ -1707,9 +1674,7 @@ ThreadClient.prototype = {
   releaseMany: DebuggerClient.requester({
     type: "releaseMany",
     actors: args(0),
-  }, {
-    telemetry: "RELEASEMANY"
-  }),
+  }, { }),
 
   /**
    * Promote multiple pause-lifetime object actors to thread-lifetime ones.
@@ -1720,9 +1685,7 @@ ThreadClient.prototype = {
   threadGrips: DebuggerClient.requester({
     type: "threadGrips",
     actors: args(0)
-  }, {
-    telemetry: "THREADGRIPS"
-  }),
+  }, { }),
 
   /**
    * Return the event listeners defined on the page.
@@ -1732,9 +1695,7 @@ ThreadClient.prototype = {
    */
   eventListeners: DebuggerClient.requester({
     type: "eventListeners"
-  }, {
-    telemetry: "EVENTLISTENERS"
-  }),
+  }, { }),
 
   /**
    * Request the loaded sources for the current thread.
@@ -1744,9 +1705,7 @@ ThreadClient.prototype = {
    */
   getSources: DebuggerClient.requester({
     type: "sources"
-  }, {
-    telemetry: "SOURCES"
-  }),
+  }, { }),
 
   /**
    * Clear the thread's source script cache. A scriptscleared event
@@ -1775,9 +1734,7 @@ ThreadClient.prototype = {
     type: "frames",
     start: args(0),
     count: args(1)
-  }, {
-    telemetry: "FRAMES"
-  }),
+  }, { }),
 
   /**
    * An array of cached frames. Clients can observe the framesadded and
@@ -1985,9 +1942,7 @@ ThreadClient.prototype = {
   getPrototypesAndProperties: DebuggerClient.requester({
     type: "prototypesAndProperties",
     actors: args(0)
-  }, {
-    telemetry: "PROTOTYPESANDPROPERTIES"
-  })
+  }, { })
 };
 
 eventSource(ThreadClient.prototype);
@@ -2028,8 +1983,7 @@ TraceClient.prototype = {
     after: function (aResponse) {
       this._client.unregisterClient(this);
       return aResponse;
-    },
-    telemetry: "TRACERDETACH"
+    }
   }),
 
   /**
@@ -2061,8 +2015,7 @@ TraceClient.prototype = {
       this._activeTraces.add(aResponse.name);
 
       return aResponse;
-    },
-    telemetry: "STARTTRACE"
+    }
   }),
 
   /**
@@ -2087,8 +2040,7 @@ TraceClient.prototype = {
       this._activeTraces.delete(aResponse.name);
 
       return aResponse;
-    },
-    telemetry: "STOPTRACE"
+    }
   })
 };
 
@@ -2144,8 +2096,7 @@ ObjectClient.prototype = {
         throw new Error("getParameterNames is only valid for function grips.");
       }
       return aPacket;
-    },
-    telemetry: "PARAMETERNAMES"
+    }
   }),
 
   /**
@@ -2156,9 +2107,7 @@ ObjectClient.prototype = {
    */
   getOwnPropertyNames: DebuggerClient.requester({
     type: "ownPropertyNames"
-  }, {
-    telemetry: "OWNPROPERTYNAMES"
-  }),
+  }, { }),
 
   /**
    * Request the prototype and own properties of the object.
@@ -2167,9 +2116,7 @@ ObjectClient.prototype = {
    */
   getPrototypeAndProperties: DebuggerClient.requester({
     type: "prototypeAndProperties"
-  }, {
-    telemetry: "PROTOTYPEANDPROPERTIES"
-  }),
+  }, { }),
 
   /**
    * Request the property descriptor of the object's specified property.
@@ -2180,9 +2127,7 @@ ObjectClient.prototype = {
   getProperty: DebuggerClient.requester({
     type: "property",
     name: args(0)
-  }, {
-    telemetry: "PROPERTY"
-  }),
+  }, { }),
 
   /**
    * Request the prototype of the object.
@@ -2191,9 +2136,7 @@ ObjectClient.prototype = {
    */
   getPrototype: DebuggerClient.requester({
     type: "prototype"
-  }, {
-    telemetry: "PROTOTYPE"
-  }),
+  }, { }),
 
   /**
    * Request the display string of the object.
@@ -2202,9 +2145,7 @@ ObjectClient.prototype = {
    */
   getDisplayString: DebuggerClient.requester({
     type: "displayString"
-  }, {
-    telemetry: "DISPLAYSTRING"
-  }),
+  }, { }),
 
   /**
    * Request the scope of the object.
@@ -2219,8 +2160,7 @@ ObjectClient.prototype = {
         throw new Error("scope is only valid for function grips.");
       }
       return aPacket;
-    },
-    telemetry: "SCOPE"
+    }
   })
 };
 
@@ -2261,9 +2201,7 @@ LongStringClient.prototype = {
     type: "substring",
     start: args(0),
     end: args(1)
-  }, {
-    telemetry: "SUBSTRING"
-  }),
+  }, { }),
 };
 
 /**
@@ -2299,7 +2237,6 @@ SourceClient.prototype = {
   blackBox: DebuggerClient.requester({
     type: "blackbox"
   }, {
-    telemetry: "BLACKBOX",
     after: function (aResponse) {
       if (!aResponse.error) {
         this._isBlackBoxed = true;
@@ -2320,7 +2257,6 @@ SourceClient.prototype = {
   unblackBox: DebuggerClient.requester({
     type: "unblackbox"
   }, {
-    telemetry: "UNBLACKBOX",
     after: function (aResponse) {
       if (!aResponse.error) {
         this._isBlackBoxed = false;
@@ -2541,9 +2477,7 @@ BreakpointClient.prototype = {
    */
   remove: DebuggerClient.requester({
     type: "delete"
-  }, {
-    telemetry: "DELETE"
-  }),
+  }, { }),
 
   /**
    * Determines if this breakpoint has a condition
@@ -2646,9 +2580,7 @@ EnvironmentClient.prototype = {
    */
   getBindings: DebuggerClient.requester({
     type: "bindings"
-  }, {
-    telemetry: "BINDINGS"
-  }),
+  }, { }),
 
   /**
    * Changes the value of the identifier whose name is name (a string) to that
@@ -2658,9 +2590,7 @@ EnvironmentClient.prototype = {
     type: "assign",
     name: args(0),
     value: args(1)
-  }, {
-    telemetry: "ASSIGN"
-  })
+  }, { })
 };
 
 eventSource(EnvironmentClient.prototype);

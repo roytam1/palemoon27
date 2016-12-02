@@ -56,8 +56,7 @@ let ChildActor = protocol.ActorClass({
     return str;
   }, {
     request: { str: Arg(0) },
-    response: { str: RetVal("string") },
-    telemetry: "ECHO"
+    response: { str: RetVal("string") }
   }),
 
   getDetail1: method(function() {

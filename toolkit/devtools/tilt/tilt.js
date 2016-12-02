@@ -11,7 +11,6 @@ let {TiltVisualizer} = require("devtools/tilt/tilt-visualizer");
 let TiltGL = require("devtools/tilt/tilt-gl");
 let TiltUtils = require("devtools/tilt/tilt-utils");
 let EventEmitter = require("devtools/toolkit/event-emitter");
-let Telemetry = require("devtools/shared/telemetry");
 
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -95,8 +94,6 @@ function Tilt(aWindow)
   EventEmitter.decorate(this);
 
   this.setup();
-
-  this._telemetry = new Telemetry();
 }
 
 Tilt.prototype = {
@@ -118,10 +115,7 @@ Tilt.prototype = {
     // if the visualizer for the current tab is already open, destroy it now
     if (this.visualizers[id]) {
       this.destroy(id, true);
-      this._telemetry.toolClosed("tilt");
       return;
-    } else {
-      this._telemetry.toolOpened("tilt");
     }
 
     // create a visualizer instance for the current tab

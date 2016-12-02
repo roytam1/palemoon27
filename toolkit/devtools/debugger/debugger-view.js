@@ -393,10 +393,6 @@ let DebuggerView = {
     if (this._editorSource.actor == aSource.actor && !aFlags.force) {
       return this._editorSource.promise;
     }
-    let transportType = gClient.localTransport ? "_LOCAL" : "_REMOTE";
-    let histogramId = "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE" + transportType + "_MS";
-    let histogram = Services.telemetry.getHistogramById(histogramId);
-    let startTime = Date.now();
 
     let deferred = promise.defer();
 
@@ -418,8 +414,6 @@ let DebuggerView = {
       DebuggerView.Sources.selectedValue = aSource.actor;
       DebuggerController.Breakpoints.updateEditorBreakpoints();
       DebuggerController.HitCounts.updateEditorHitCounts();
-
-      histogram.add(Date.now() - startTime);
 
       // Resolve and notify that a source file was shown.
       window.emit(EVENTS.SOURCE_SHOWN, aSource);

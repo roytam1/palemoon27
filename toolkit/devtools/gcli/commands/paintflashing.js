@@ -7,9 +7,6 @@
 const { Cc, Ci, Cu } = require("chrome");
 const TargetFactory = require("resource://gre/modules/devtools/Loader.jsm").devtools.TargetFactory;
 
-const Telemetry = require("devtools/shared/telemetry");
-const telemetry = new Telemetry();
-
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const eventEmitter = new EventEmitter();
 
@@ -30,11 +27,6 @@ function onPaintFlashingChanged(context) {
   let window = context.environment.window;
   let wUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
                      .getInterface(Ci.nsIDOMWindowUtils);
-  if (wUtils.paintFlashing) {
-    telemetry.toolOpened("paintflashing");
-  } else {
-    telemetry.toolClosed("paintflashing");
-  }
 }
 
 exports.items = [

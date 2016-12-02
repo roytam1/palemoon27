@@ -54,13 +54,9 @@ const Strings = Services.strings.createBundle("chrome://global/locale/devtools/w
  *
  * Each |Runtime| must support the following API:
  *
- * |type| field
- *   The |type| must be one of the values from the |RuntimeTypes| object.  This
- *   is used for Telemetry and to support displaying sets of |Runtime|s
- *   categorized by type.
  * |id| field
- *   An identifier that is unique in the set of all runtimes with the same
- *   |type|.  WebIDE tries to save the last used runtime via type + id, and
+ *   An identifier that is unique in the set of all runtimes.
+ *   WebIDE tries to save the last used runtime via type + id, and
  *   tries to locate it again in the next session, so this value should attempt
  *   to be stable across Firefox sessions.
  * |name| field
@@ -377,17 +373,6 @@ RuntimeScanners.add(StaticScanner);
 
 /* RUNTIMES */
 
-// These type strings are used for logging events to Telemetry.
-// You must update Histograms.json if new types are added.
-let RuntimeTypes = exports.RuntimeTypes = {
-  USB: "USB",
-  WIFI: "WIFI",
-  SIMULATOR: "SIMULATOR",
-  REMOTE: "REMOTE",
-  LOCAL: "LOCAL",
-  OTHER: "OTHER"
-};
-
 /**
  * TODO: Remove this comaptibility layer in the future (bug 1085393)
  * This runtime exists to support the ADB Helper add-on below version 0.7.0.
@@ -399,7 +384,6 @@ function DeprecatedUSBRuntime(id) {
 }
 
 DeprecatedUSBRuntime.prototype = {
-  type: RuntimeTypes.USB,
   get device() {
     return Devices.getByName(this._id);
   },
@@ -445,7 +429,6 @@ function WiFiRuntime(deviceName) {
 }
 
 WiFiRuntime.prototype = {
-  type: RuntimeTypes.WIFI,
   connect: function(connection) {
     let service = discovery.getRemoteService("devtools", this.deviceName);
     if (!service) {
@@ -547,7 +530,6 @@ function SimulatorRuntime(simulator) {
 }
 
 SimulatorRuntime.prototype = {
-  type: RuntimeTypes.SIMULATOR,
   connect: function(connection) {
     return this.simulator.launch().then(port => {
       connection.host = "localhost";
@@ -569,7 +551,6 @@ SimulatorRuntime.prototype = {
 exports._SimulatorRuntime = SimulatorRuntime;
 
 let gLocalRuntime = {
-  type: RuntimeTypes.LOCAL,
   connect: function(connection) {
     if (!DebuggerServer.initialized) {
       DebuggerServer.init();
@@ -592,7 +573,6 @@ let gLocalRuntime = {
 exports._gLocalRuntime = gLocalRuntime;
 
 let gRemoteRuntime = {
-  type: RuntimeTypes.REMOTE,
   connect: function(connection) {
     let win = Services.wm.getMostRecentWindow("devtools:webide");
     if (!win) {

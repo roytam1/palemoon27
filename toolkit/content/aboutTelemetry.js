@@ -460,11 +460,13 @@ let ThreadHangStats = {
     clearDivData(div);
 
     let stats = Telemetry.threadHangStats;
-    stats.forEach((thread) => {
-      div.appendChild(this.renderThread(thread));
-    });
-    if (stats.length) {
-      setHasData("thread-hang-stats-section", true);
+    if (stats) {
+      stats.forEach((thread) => {
+        div.appendChild(this.renderThread(thread));
+      });
+      if (stats.length) {
+        setHasData("thread-hang-stats-section", true);
+      }
     }
   },
 

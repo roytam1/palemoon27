@@ -21,7 +21,6 @@ const {Devices} = Cu.import("resource://gre/modules/devtools/Devices.jsm");
 const {GetAvailableAddons} = require("devtools/webide/addons");
 const {GetTemplatesJSON, GetAddonsJSON} = require("devtools/webide/remote-resources");
 const utils = require("devtools/webide/utils");
-const Telemetry = require("devtools/shared/telemetry");
 const {RuntimeScanners, WiFiScanner} = require("devtools/webide/runtimes");
 const {showDoorhanger} = require("devtools/shared/doorhanger");
 
@@ -53,9 +52,6 @@ window.addEventListener("unload", function onUnload() {
 
 let UI = {
   init: function() {
-    this._telemetry = new Telemetry();
-    this._telemetry.toolOpened("webide");
-
     AppManager.init();
 
     this.onMessage = this.onMessage.bind(this);
@@ -115,7 +111,6 @@ let UI = {
     AppManager.uninit();
     window.removeEventListener("message", this.onMessage);
     this.updateConnectionTelemetry();
-    this._telemetry.toolClosed("webide");
   },
 
   canCloseProject: function() {
@@ -493,7 +488,6 @@ let UI = {
     if (!this._actionsToLog.has(action)) {
       return;
     }
-    this.logActionState(action, true);
     this._actionsToLog.delete(action);
   },
 
@@ -502,16 +496,7 @@ let UI = {
    * actions as having not occurred.
    */
   updateConnectionTelemetry: function() {
-    for (let action of this._actionsToLog.values()) {
-      this.logActionState(action, false);
-    }
     this._actionsToLog.clear();
-  },
-
-  logActionState: function(action, state) {
-    let histogramId = "DEVTOOLS_WEBIDE_CONNECTION_" +
-                      action.toUpperCase() + "_USED";
-    this._telemetry.log(histogramId, state);
   },
 
   /********** PROJECTS **********/

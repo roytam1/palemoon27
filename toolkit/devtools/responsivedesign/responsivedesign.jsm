@@ -17,7 +17,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
                                   "resource://gre/modules/SystemAppProxy.jsm");
 
 var require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-let Telemetry = require("devtools/shared/telemetry");
 let {showDoorhanger} = require("devtools/shared/doorhanger");
 let {TouchEventHandler} = require("devtools/touch-events");
 
@@ -133,7 +132,6 @@ function ResponsiveUI(aWindow, aTab)
   this.chromeDoc = aWindow.document;
   this.container = aWindow.gBrowser.getBrowserContainer(this.browser);
   this.stack = this.container.querySelector(".browserStack");
-  this._telemetry = new Telemetry();
   this.e10s = !this.browser.contentWindow;
 
   let childOn = () => {
@@ -217,8 +215,6 @@ function ResponsiveUI(aWindow, aTab)
 
   ActiveTabs.set(aTab, this);
 
-  this._telemetry.toolOpened("responsive");
-
   if (!this.e10s) {
     // Touch events support
     this.touchEnableBefore = false;
@@ -298,7 +294,6 @@ ResponsiveUI.prototype = {
     if (!this.e10s && this.touchEventHandler) {
       this.touchEventHandler.stop();
     }
-    this._telemetry.toolClosed("responsive");
     let childOff = () => {
       this.mm.removeMessageListener("ResponsiveMode:Stop:Done", childOff);
       ResponsiveUIManager.emit("off", { tab: this.tab });

@@ -37,8 +37,6 @@ XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function () {
   return Services.strings.createBundle("chrome://global/locale/devtools/toolbox.properties");
 });
 
-const Telemetry = require("devtools/shared/telemetry");
-
 // This lazy getter is needed to prevent a require loop
 XPCOMUtils.defineLazyGetter(this, "gcli", () => {
   try {
@@ -259,7 +257,6 @@ this.DeveloperToolbar = function DeveloperToolbar(aChromeWindow, aToolbarElement
   this._element.hidden = true;
   this._doc = this._element.ownerDocument;
 
-  this._telemetry = new Telemetry();
   this._errorsCount = {};
   this._warningsCount = {};
   this._errorListeners = {};
@@ -391,8 +388,6 @@ DeveloperToolbar.prototype.show = function(focus) {
   this._showPromise = waitPromise.then(() => {
     Services.prefs.setBoolPref("devtools.toolbar.visible", true);
 
-    this._telemetry.toolOpened("developertoolbar");
-
     this._notify(NOTIFICATIONS.LOAD);
 
     this._input = this._doc.querySelector(".gclitoolbar-input-node");
@@ -486,7 +481,6 @@ DeveloperToolbar.prototype.hide = function() {
     this._doc.getElementById("Tools:DevToolbar").setAttribute("checked", "false");
     this.destroy();
 
-    this._telemetry.toolClosed("developertoolbar");
     this._notify(NOTIFICATIONS.HIDE);
 
     this._hidePromise = null;

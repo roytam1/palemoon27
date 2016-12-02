@@ -18,9 +18,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "DevToolsLoader",
 XPCOMUtils.defineLazyModuleGetter(this, "devtools",
   "resource://gre/modules/devtools/Loader.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "Telemetry", function () {
-  return devtools.require("devtools/shared/telemetry");
-});
 XPCOMUtils.defineLazyGetter(this, "EventEmitter", function () {
   return devtools.require("devtools/toolkit/event-emitter");
 });
@@ -70,8 +67,6 @@ this.BrowserToolboxProcess = function BrowserToolboxProcess(aOnClose, aOnRun, aO
     }
     this._options = aOptions || {};
   }
-
-  this._telemetry = new Telemetry();
 
   this.close = this.close.bind(this);
   Services.obs.addObserver(this.close, "quit-application", false);
@@ -218,8 +213,6 @@ BrowserToolboxProcess.prototype = {
 
     process.runwAsync(args, args.length, { observe: () => this.close() });
 
-    this._telemetry.toolOpened("jsbrowserdebugger");
-
     dumpn("Chrome toolbox is now running...");
     this.emit("run", this);
   },
@@ -239,7 +232,6 @@ BrowserToolboxProcess.prototype = {
       this._dbgProcess.kill();
     }
 
-    this._telemetry.toolClosed("jsbrowserdebugger");
     if (this.debuggerServer) {
       this.debuggerServer.destroy();
     }

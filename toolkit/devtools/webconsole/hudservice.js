@@ -11,7 +11,6 @@ const {Cc, Ci, Cu} = require("chrome");
 let WebConsoleUtils = require("devtools/toolkit/webconsole/utils").Utils;
 let Heritage = require("sdk/core/heritage");
 
-loader.lazyGetter(this, "Telemetry", () => require("devtools/shared/telemetry"));
 loader.lazyGetter(this, "WebConsoleFrame", () => require("devtools/webconsole/webconsole").WebConsoleFrame);
 loader.lazyImporter(this, "promise", "resource://gre/modules/Promise.jsm", "Promise");
 loader.lazyImporter(this, "gDevTools", "resource://gre/modules/devtools/gDevTools.jsm");
@@ -692,7 +691,6 @@ WebConsole.prototype = {
 function BrowserConsole()
 {
   WebConsole.apply(this, arguments);
-  this._telemetry = new Telemetry();
 }
 
 BrowserConsole.prototype = Heritage.extend(WebConsole.prototype,
@@ -731,8 +729,6 @@ BrowserConsole.prototype = Heritage.extend(WebConsole.prototype,
     // Make sure Ctrl-W closes the Browser Console window.
     window.document.getElementById("cmd_close").removeAttribute("disabled");
 
-    this._telemetry.toolOpened("browserconsole");
-
     // Create an onFocus handler just to display the dev edition promo.
     // This is to prevent race conditions in some environments.
     // Hook to display promotional Developer Edition doorhanger. Only displayed once.
@@ -756,8 +752,6 @@ BrowserConsole.prototype = Heritage.extend(WebConsole.prototype,
     if (this._bc_destroyer) {
       return this._bc_destroyer.promise;
     }
-
-    this._telemetry.toolClosed("browserconsole");
 
     this._bc_destroyer = promise.defer();
 

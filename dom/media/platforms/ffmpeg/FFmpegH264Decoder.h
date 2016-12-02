@@ -63,8 +63,10 @@ private:
 
   MediaDataDecoderCallback* mCallback;
   nsRefPtr<ImageContainer> mImageContainer;
-  nsIntSize mDisplay;
-  nsIntRect mImage;
+  uint32_t mPictureWidth;
+  uint32_t mPictureHeight;
+  uint32_t mDisplayWidth;
+  uint32_t mDisplayHeight;
 };
 
 } // namespace mozilla

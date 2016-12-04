@@ -86,11 +86,17 @@ let DomStorage = {
       let uri = Services.io.newURI(host, null, null);
       let principal = Services.scriptSecurityManager.getDocShellCodebasePrincipal(uri, aDocShell);
       let storageManager = aDocShell.QueryInterface(Components.interfaces.nsIDOMStorageManager);
+      let window = aDocShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                            .getInterface(Components.interfaces.nsIDOMWindow);
 
       // There is no need to pass documentURI, it's only used to fill documentURI property of
-			// domstorage event, which in this case has no consumer.  Prevention of events in case
-			// of missing documentURI will be solved in a followup bug to bug 600307.
-      let storage = storageManager.createStorage(principal, "", aDocShell.usePrivateBrowsing);
+      // domstorage event, which in this case has no consumer.  Prevention of events in case
+      // of missing documentURI will be solved in a followup bug to bug 600307.
+      try {
+        let storage = storageManager.createStorage(window, principal, "", aDocShell.usePrivateBrowsing);
+      } catch(e) {
+        Cu.reportError(e);
+      }
 
       for (let [key, value] in Iterator(data)) {
         try {

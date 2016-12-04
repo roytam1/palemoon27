@@ -35,6 +35,8 @@ public:
   virtual nsresult Drain() override = 0;
   virtual nsresult Shutdown() override;
 
+  static AVCodec* FindAVCodec(AVCodecID aCodec);
+
 protected:
   AVFrame*        PrepareFrame();
 

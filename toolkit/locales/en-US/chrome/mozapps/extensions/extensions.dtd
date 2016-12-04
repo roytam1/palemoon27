@@ -210,6 +210,9 @@
 <!ENTITY addon.loadingReleaseNotes.label      "Loading…">
 <!ENTITY addon.errorLoadingReleaseNotes.label "Sorry, but there was an error loading the release notes.">
 
+<!ENTITY addon.nativeAddon                    "This add-on directly targeting Pale Moon">
+<!ENTITY addon.compatAddon                    "This add-on targeting Firefox, but compatible with Pale Moon">
+
 <!ENTITY addon.createdBy.label                "By ">
 
 <!ENTITY eula.title                           "End-User License Agreement">

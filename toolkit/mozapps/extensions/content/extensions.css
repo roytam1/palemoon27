@@ -148,6 +148,8 @@ setting[type="menulist"] {
 .addon:not([notification="info"]) .info,
 .addon:not([pending]) .pending,
 .addon:not([upgrade="true"]) .update-postfix,
+.addon:not([native="true"]) .nativeAddon,
+.addon:not([native="false"]) .compatAddon,
 .addon[active="true"] .disabled-postfix,
 .addon[pending="install"] .update-postfix,
 .addon[pending="install"] .disabled-postfix,
@@ -261,14 +263,17 @@ richlistitem:not([selected]) * {
 }
 
 /* Indicator style for extension target application */
-.addon[native] .name-container::after {
-  content: " •";
-  font-size: 150%;
-  line-height: 75%;
+.addon[native] .nativeIndicator {
+  font-size: 120%;
+  margin-top: -5pt;
+  margin-bottom: 1pt;
 }
-.addon[native="true"] .name-container::after {
+.addon[native][active="false"] .nativeIndicator {
+  opacity: 0.4;
+}
+.addon[native] .nativeAddon {
   color: #3366FF;
 }
-.addon[native="false"] .name-container::after {
+.addon[native] .compatAddon {
   color: #FF6600;
 }

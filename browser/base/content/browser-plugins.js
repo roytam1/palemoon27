@@ -182,6 +182,8 @@ var gPluginHandler = {
 
     let shouldShowNotification = false;
     let browser = gBrowser.getBrowserForDocument(doc.defaultView.top.document);
+    if (!browser)
+      return;
 
     switch (eventType) {
       case "PluginCrashed":

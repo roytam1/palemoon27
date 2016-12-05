@@ -2401,7 +2401,12 @@ pref("layout.css.convertFromNode.enabled", true);
 #endif
 
 // Is support for unicode-range enabled?
+// Currently *nix support isn't working, so only enable on Windows.
+#ifdef XP_WIN
 pref("layout.css.unicode-range.enabled", true);
+#else
+pref("layout.css.unicode-range.enabled", false);
+#endif
 
 // Is support for CSS "text-align: true X" enabled?
 pref("layout.css.text-align-true-value.enabled", false);

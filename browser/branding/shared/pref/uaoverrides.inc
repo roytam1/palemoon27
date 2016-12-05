@@ -40,6 +40,12 @@ pref("@GUAO_PREF@.netflximg.net","Mozilla/5.0 (@OS_SLICE@ rv:27.0) @GK_SLICE@ Fi
 
 pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
 
+#ifdef XP_UNIX
+// Google Fonts forces unicode ranges unless it is being told the browser is Firefox 43 or below.
+// They do NOT test for unicode-ranges CSS support.
+pref("@GUAO_PREF@.fonts.googleapis.com","Mozilla/5.0 (@OS_SLICE@ rv:43.0) @GK_SLICE@ Firefox/43.0");
+#endif
+
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
 pref("@GUAO_PREF@.facebook.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");
 pref("@GUAO_PREF@.fbcdn.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @GRE_VERSION_SLICE@ @FX_SLICE@ @PM_SLICE@");

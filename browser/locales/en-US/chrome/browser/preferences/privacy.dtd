@@ -16,13 +16,13 @@
 
 <!ENTITY  locationBar.label             "Location Bar">
 
-<!ENTITY  locbar.pre.label              "When using the location bar, suggest:">
-<!ENTITY  locbar.pre.accessKey          "u">
-<!ENTITY  locbar.post.label             "">
-<!ENTITY  locbar.both.label             "History and Bookmarks">
+<!ENTITY  locbar.suggest.label          "When using the location bar, suggest:">
 <!ENTITY  locbar.history.label          "History">
+<!ENTITY  locbar.history.accesskey      "H">
 <!ENTITY  locbar.bookmarks.label        "Bookmarks">
-<!ENTITY  locbar.nothing.label          "Nothing">
+<!ENTITY  locbar.bookmarks.accesskey    "k">
+<!ENTITY  locbar.openpage.label         "Open tabs">
+<!ENTITY  locbar.openpage.accesskey     "O">
 
 <!ENTITY  acceptCookies.label           "Accept cookies from sites">
 <!ENTITY  acceptCookies.accesskey       "A">

@@ -125,8 +125,8 @@ function populateTable() {
  * Test if the nodes are inserted correctly in the table.
  */
 function testTreeItemInsertedCorrectly() {
-  is(table.tbody.children.length, 4*2 /* double because splitters */,
-     "4 columns exist");
+  // double because splitters
+  is(table.tbody.children.length, 4 * 2, "4 columns exist");
 
   // Test firstColumn option and check if the nodes are inserted correctly
   is(table.tbody.children[0].firstChild.children.length, 9 + 1 /* header */,
@@ -135,7 +135,8 @@ function testTreeItemInsertedCorrectly() {
      "Correct column header value");
 
   for (let i = 1; i < 4; i++) {
-    is(table.tbody.children[i * 2].firstChild.children.length, 9 + 1 /* header */,
+    // header
+    is(table.tbody.children[i * 2].firstChild.children.length, 9 + 1,
        "Correct rows in column " + i);
     is(table.tbody.children[i * 2].firstChild.firstChild.value, "Column " + i,
        "Correct column header value");
@@ -189,7 +190,7 @@ function testAPI() {
   is(node2.getAttribute("data-id"), "id7", "Correct node selected");
 
   // test if selectedIRow getter works
-  is(table.selectedRow["col1"], "id7", "Correct result of selectedRow getter");
+  is(table.selectedRow.col1, "id7", "Correct result of selectedRow getter");
 
   // test if isSelected works
   ok(table.isSelected("id7"), "isSelected with column id works");
@@ -209,7 +210,7 @@ function testAPI() {
   is(node3.getAttribute("data-id"), "id4", "Correct node selected");
 
   // test if selectedRow getter works
-  is(table.selectedRow["col1"], "id4", "Correct result of selectedRow getter");
+  is(table.selectedRow.col1, "id4", "Correct result of selectedRow getter");
 
   // test if clear selection works
   table.clearSelection();
@@ -280,10 +281,12 @@ function testAPI() {
 
   // testing if clear works
   table.clear();
-  is(table.tbody.children.length, 4*2 /* double because splitters */,
+  // double because splitters
+  is(table.tbody.children.length, 4 * 2,
      "4 columns exist even after clear");
   for (let i = 0; i < 4; i++) {
-    is(table.tbody.children[i*2].firstChild.children.length, 1 /* header */,
+    // header
+    is(table.tbody.children[i*2].firstChild.children.length, 1,
        "Only header in the column " + i + " after clear call");
     is(table.tbody.children[i*2].firstChild.firstChild.value, "Column " + (i + 1),
        "Correct column header value");
@@ -295,7 +298,8 @@ function testAPI() {
     col2: "Testing"
   });
 
-  is(table.tbody.children.length, 2*2 /* double because splitters */,
+  // double because splitters
+  is(table.tbody.children.length, 2 * 2,
      "2 columns exist after setColumn call");
   is(table.tbody.children[0].firstChild.firstChild.value, "Foobar",
      "Correct column header value for first column");
@@ -308,7 +312,8 @@ function testAPI() {
     col3: "Column 3",
     col4: "Column 4"
   });
-  is(table.tbody.children.length, 4*2 /* double because splitters */,
+  // double because splitters
+  is(table.tbody.children.length, 4 * 2,
      "4 columns exist after second setColumn call");
 
   populateTable();

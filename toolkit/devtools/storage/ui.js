@@ -444,8 +444,8 @@ StorageUI.prototype = {
         let p = separators[j];
         let regex = new RegExp("^([^" + kv + p + "]*" + kv + "+[^" + kv + p +
                                "]*" + p + "*)+$", "g");
-        if (value.match(regex) && value.contains(kv) &&
-            (value.contains(p) || value.split(kv).length == 2)) {
+        if (value.match && value.match(regex) && value.includes(kv) &&
+            (value.includes(p) || value.split(kv).length == 2)) {
           return makeObject(kv, p);
         }
       }
@@ -454,7 +454,7 @@ StorageUI.prototype = {
     for (let i = 0; i < separators.length; i++) {
       let p = separators[i];
       let regex = new RegExp("^[^" + p + "]+(" + p + "+[^" + p + "]*)+$", "g");
-      if (value.match(regex)) {
+      if (value.match && value.match(regex)) {
         return value.split(p.replace(/\\*/g, ""));
       }
     }
@@ -534,14 +534,14 @@ StorageUI.prototype = {
       }
       if (item.expires != null) {
         item.expires = item.expires
-          ? new Date(item.expires).toLocaleString()
+          ? new Date(item.expires).toUTCString()
           : L10N.getStr("label.expires.session");
       }
       if (item.creationTime != null) {
-        item.creationTime = new Date(item.creationTime).toLocaleString();
+        item.creationTime = new Date(item.creationTime).toUTCString();
       }
       if (item.lastAccessed != null) {
-        item.lastAccessed = new Date(item.lastAccessed).toLocaleString();
+        item.lastAccessed = new Date(item.lastAccessed).toUTCString();
       }
       if (reason < 2) {
         this.table.push(item, reason == 0);

@@ -120,8 +120,7 @@ function waitForValue(aOptions)
     if (successful) {
       ok(true, aOptions.name);
       successFn(aOptions, lastValue);
-    }
-    else {
+    } else {
       setTimeout(function() wait(validatorFn, successFn, failureFn), 100);
     }
   }
@@ -130,7 +129,7 @@ function waitForValue(aOptions)
 }
 
 function oneTimeObserve(name, callback) {
-  var func = function() {
+  let func = function() {
     Services.obs.removeObserver(func, name);
     callback();
   };
@@ -158,10 +157,10 @@ let createHost = Task.async(function*(type = "bottom", src = "data:text/html;cha
  * @param {String} toolId
  */
 function* openAndCloseToolbox(nbOfTimes, usageTime, toolId) {
-  for (let i = 0; i < nbOfTimes; i ++) {
+  for (let i = 0; i < nbOfTimes; i++) {
     info("Opening toolbox " + (i + 1));
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-    yield gDevTools.showToolbox(target, toolId)
+    yield gDevTools.showToolbox(target, toolId);
 
     // We use a timeout to check the toolbox's active time
     yield new Promise(resolve => setTimeout(resolve, usageTime));

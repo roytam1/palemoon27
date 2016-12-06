@@ -146,7 +146,7 @@ let testMouseInteraction = Task.async(function*() {
   ok(node.classList.contains("theme-selected"), "Node has selected class after click");
   is(id, "id1", "Correct row was selected");
 
-  info("clicking on third row to select it");
+  info("clicking on second row to select it");
   event = table.once(TableWidget.EVENTS.ROW_SELECTED);
   let node2 = table.tbody.firstChild.firstChild.children[3];
   // node should not have selected class
@@ -156,7 +156,7 @@ let testMouseInteraction = Task.async(function*() {
   id = yield event;
   ok(node2.classList.contains("theme-selected"),
      "New node has selected class after clicking");
-  is(id, "id3", "Correct table path is emitted for new node")
+  is(id, "id3", "Correct table path is emitted for new node");
   isnot(node, node2, "Old and new node are different");
   ok(!node.classList.contains("theme-selected"),
      "Old node should not have selected class after the click on new node");

@@ -818,11 +818,13 @@ Column.prototype = {
    * for sorting.
    */
   onClick: function(event) {
-    if (event.originalTarget == this.column) {
+    let target = event.originalTarget;
+
+    if (target.nodeType !== target.ELEMENT_NODE || target == this.column) {
       return;
     }
 
-    if (event.button == 0 && event.originalTarget == this.header) {
+    if (event.button == 0 && target == this.header) {
       return this.table.sortBy(this.id);
     }
   },
@@ -831,22 +833,20 @@ Column.prototype = {
    * Mousedown event handler for the column. Used to select rows.
    */
   onMousedown: function(event) {
-    if (event.originalTarget == this.column ||
-        event.originalTarget == this.header) {
+    let target = event.originalTarget;
+
+    if (target.nodeType !== target.ELEMENT_NODE ||
+        target == this.column ||
+        target == this.header) {
       return;
     }
     if (event.button == 0) {
-      let target = event.originalTarget;
-      let dataid = null;
-
-      while (target) {
-        dataid = target.getAttribute("data-id");
-        if (dataid) {
-          break;
-        }
-        target = target.parentNode;
+      let closest = target.closest("[data-id]");
+      if (!closest) {
+        return;
       }
 
+      let dataid = closest.getAttribute("data-id");
       this.table.emit(EVENTS.ROW_SELECTED, dataid);
     }
   },
@@ -962,7 +962,7 @@ Cell.prototype = {
   },
 
   /**
-   * Flashes the cell for a brief time. This when done for ith cells in all
+   * Flashes the cell for a brief time. This when done for with cells in all
    * columns, makes it look like the row is being highlighted/flashed.
    */
   flash: function() {

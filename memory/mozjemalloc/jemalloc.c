@@ -435,7 +435,9 @@ static const bool isthreaded = true;
 #define JEMALLOC_USES_MAP_ALIGN	 /* Required on Solaris 10. Might improve performance elsewhere. */
 #endif
 
+#ifndef __DECONST
 #define __DECONST(type, var) ((type)(uintptr_t)(const void *)(var))
+#endif
 
 #ifdef MOZ_MEMORY_WINDOWS
    /* MSVC++ does not support C99 variable-length arrays. */

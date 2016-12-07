@@ -47,6 +47,7 @@ public:
 private:
   void DecodeFrame(MediaRawData* aSample);
   DecodeResult DoDecodeFrame(MediaRawData* aSample);
+  DecodeResult DoDecodeFrame(MediaRawData* aSample, uint8_t* aData, int aSize);
   void DoDrain();
   void OutputDelayedFrames();
 
@@ -68,6 +69,7 @@ private:
   uint32_t mPictureHeight;
   uint32_t mDisplayWidth;
   uint32_t mDisplayHeight;
+  AVCodecParserContext* mCodecParser;
 
   class PtsCorrectionContext {
   public:

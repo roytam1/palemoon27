@@ -4966,7 +4966,7 @@ arena_new(arena_t *arena)
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
-		bin->reg_size = (1U << (TINY_MIN_2POW + i));
+		bin->reg_size = (1ULL << (TINY_MIN_2POW + i));
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 

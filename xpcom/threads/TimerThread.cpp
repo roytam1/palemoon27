@@ -30,8 +30,7 @@ TimerThread::TimerThread() :
   mShutdown(false),
   mWaiting(false),
   mNotified(false),
-  mSleeping(false),
-  mLastTimerEventLoopRun(TimeStamp::Now())
+  mSleeping(false)
 {
 }
 
@@ -244,7 +243,6 @@ TimerThread::Run()
     } else {
       waitFor = PR_INTERVAL_NO_TIMEOUT;
       TimeStamp now = TimeStamp::Now();
-      mLastTimerEventLoopRun = now;
       nsTimerImpl* timer = nullptr;
 
       if (!mTimers.IsEmpty()) {
@@ -497,9 +495,8 @@ TimerThread::ReleaseTimerInternal(nsTimerImpl* aTimer)
 void
 TimerThread::DoBeforeSleep()
 {
-  // Mainthread
+  // Main thread
   MonitorAutoLock lock(mMonitor);
-  mLastTimerEventLoopRun = TimeStamp::Now();
   mSleeping = true;
 }
 
@@ -507,29 +504,11 @@ TimerThread::DoBeforeSleep()
 void
 TimerThread::DoAfterSleep()
 {
-  // Mainthread
-  TimeStamp now = TimeStamp::Now();
-
+  // Main thread
   MonitorAutoLock lock(mMonitor);
-
-  // an over-estimate of time slept, usually small
-  TimeDuration slept = now - mLastTimerEventLoopRun;
-
-  // Adjust all old timers to expire roughly similar times in the future
-  // compared to when we went to sleep, by adding the time we slept to the
-  // target time. It's slightly possible a few will end up slightly in the
-  // past and fire immediately, but ordering should be preserved.  All
-  // timers retain the exact same order (and relative times) as before
-  // going to sleep.
-  for (uint32_t i = 0; i < mTimers.Length(); i ++) {
-    nsTimerImpl* timer = mTimers[i];
-    timer->mTimeout += slept;
-  }
   mSleeping = false;
-  mLastTimerEventLoopRun = now;
-
-  // Wake up the timer thread to process the updated array
-  mNotified = true;
+  // Wake up the timer thread to re-process the array of timers, to
+  // ensure the sleep delay is correct and fire any expired timers.
   mMonitor.Notify();
 }
 

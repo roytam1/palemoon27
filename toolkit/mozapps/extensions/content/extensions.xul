@@ -6,6 +6,7 @@
 <?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
 <?xml-stylesheet href="chrome://mozapps/content/extensions/extensions.css"?>
 <?xml-stylesheet href="chrome://mozapps/skin/extensions/extensions.css"?>
+<?xml-stylesheet href="chrome://mozapps/skin/extensions/about.css"?>
 
 <!DOCTYPE page [
 <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd" >
@@ -533,6 +534,7 @@
                       <spacer flex="5000"/> <!-- Necessary to allow the name to wrap -->
                     </hbox>
                     <label id="detail-creator" class="creator"/>
+                    <label id="detail-translators" class="translators"/>
                   </vbox>
                   <hbox id="detail-experiment-container">
                     <svg width="8" height="8" viewBox="0 0 8 8" version="1.1"

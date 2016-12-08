@@ -39,6 +39,10 @@ xhtml|link {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#creator-link");
 }
 
+.translators {
+  -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#translators-list");
+}
+
 .meta-rating {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#rating");
 }
@@ -276,4 +280,10 @@ richlistitem:not([selected]) * {
 }
 .addon[native] .compatAddon {
   color: #FF6600;
+}
+
+/* Translators for Language Pack details */
+.translators > label {
+  -moz-margin-start: 0px;
+  -moz-margin-end: 0px;
 }

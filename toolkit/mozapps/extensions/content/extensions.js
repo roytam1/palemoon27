@@ -2777,6 +2777,7 @@ var gDetailView = {
     var icon = aAddon.icon64URL ? aAddon.icon64URL : aAddon.iconURL;
     document.getElementById("detail-icon").src = icon ? icon : "";
     document.getElementById("detail-creator").setCreator(aAddon.creator, aAddon.homepageURL);
+    document.getElementById("detail-translators").setTranslators(aAddon.translators, aAddon.type);
 
     var version = document.getElementById("detail-version");
     if (shouldShowVersionNumber(aAddon)) {

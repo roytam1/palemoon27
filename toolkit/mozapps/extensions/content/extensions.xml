@@ -7,6 +7,8 @@
 <!DOCTYPE page [
 <!ENTITY % extensionsDTD SYSTEM "chrome://mozapps/locale/extensions/extensions.dtd">
 %extensionsDTD;
+<!ENTITY % aboutDTD SYSTEM "chrome://mozapps/locale/extensions/about.dtd">
+%aboutDTD;
 ]>
 
 <bindings id="addonBindings"
@@ -481,6 +483,52 @@
           }
           this._creatorLink.hidden = !showLink;
           this._creatorName.hidden = showLink;
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
+
+  <!-- Translators list - Names of a translators of Language Pack. -->
+  <binding id="translators-list">
+    <content>
+      <xul:label anonid="label" value="&translators.label;" class="sectionTitle"/>
+      <xul:vbox flex="1" anonid="translatorsBox" class="boxIndent"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        if (this.hasAttribute("nameonly") &&
+            this.getAttribute("nameonly") == "true") {
+          this._label.hidden = true;
+        }
+      ]]></constructor>
+
+      <field name="_label">
+        document.getAnonymousElementByAttribute(this, "anonid", "label");
+      </field>
+      <field name="_translatorsBox">
+        document.getAnonymousElementByAttribute(this, "anonid", "translatorsBox");
+      </field>
+
+      <method name="setTranslators">
+        <parameter name="aTranslators"/>
+        <parameter name="aType"/>
+        <body><![CDATA[
+          if (aType != "locale" || !aTranslators || aTranslators.length == 0) {
+            this.collapsed = true;
+            return;
+          }
+          this.collapsed = false;
+          while (this._translatorsBox.firstChild) {
+            this._translatorsBox.removeChild(this._translatorsBox.firstChild);
+          }
+          for (let currentItem of aTranslators) {
+            var label = document.createElement("label");
+            label.textContent = currentItem;
+            label.setAttribute("class", "contributor");
+            this._translatorsBox.appendChild(label);
+          }
         ]]></body>
       </method>
     </implementation>

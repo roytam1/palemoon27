@@ -45,6 +45,7 @@ protected:
   AVFrame*        mFrame;
   nsRefPtr<MediaByteBuffer> mExtraData;
   AVCodecID mCodecID;
+  AVCodecParserContext* mCodecParser;
 
 private:
   static bool sFFmpegInitDone;

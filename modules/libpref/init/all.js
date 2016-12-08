@@ -90,7 +90,7 @@ pref("browser.cache.frecency_half_life_hours", 6);
 
 pref("browser.cache.offline.enable",           true);
 // enable offline apps by default, disable prompt
-pref("offline-apps.allow_by_default",          true);
+pref("offline-apps.allow_by_default",          false);
 
 // offline cache capacity in kilobytes
 pref("browser.cache.offline.capacity",         512000);

@@ -416,6 +416,8 @@ var status4evarPrefs =
 
 	advancedShowPrefs: function()
 	{
+		this.advancedShowWarningPref.value = this.advancedShowWarningCheck.checked;
+		Services.prefs.setBoolPref(this.advancedShowWarningPref.getAttribute("name"), this.advancedShowWarningPref.value);
 		this.advancedDeck.selectedIndex = 1;
 	},
 
@@ -462,10 +464,6 @@ var status4evarPrefs =
 
 	onPrefWindowUnLoad: function()
 	{
-		if(this.advancedDeck.selectedIndex == 1 && this.advancedShowWarningPref.value)
-		{
-			this.advancedShowWarningPref.value = this.advancedShowWarningCheck.checked;
-		}
 	}
 }
 

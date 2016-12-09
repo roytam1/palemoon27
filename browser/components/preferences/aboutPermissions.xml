@@ -68,8 +68,7 @@
                                  .getService(Components.interfaces.nsIBlocklistService);
           let mimeType = this.getAttribute("mimeType");
           let tags = pluginHost.getPluginTags();
-          let blocklistState = Components.interfaces
-              .nsIBlocklistService.STATE_NOT_BLOCKED;
+          let blocklistState = Components.interfaces.nsIBlocklistService.STATE_NOT_BLOCKED;
           for (let plugin of tags) {
             if (plugin.getMimeTypes()[0] == mimeType) {
               blocklistState = blocklistService.getPluginBlocklistState(plugin);

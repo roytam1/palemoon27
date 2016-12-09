@@ -3,7 +3,11 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<!DOCTYPE bindings>
+<!DOCTYPE bindings [
+<!ENTITY % aboutPermissionsDTD SYSTEM "chrome://browser/locale/preferences/aboutPermissions.dtd" >
+%aboutPermissionsDTD;
+]>
+
 <bindings xmlns="http://www.mozilla.org/xbl"
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
           xmlns:xbl="http://www.mozilla.org/xbl">
@@ -14,5 +18,69 @@
         <xul:label xbl:inherits="value,selected" class="site-domain" crop="end" flex="1"/>
       </xul:hbox>
     </content>
+  </binding>
+
+  <binding id="pluginPermission">
+    <content>
+      <xul:hbox flex="1" align="baseline">
+        <xul:label xbl:inherits="value=label"/>
+        <xul:spacer flex="1"/>
+        <xul:menulist anonid="plugins-menulist"
+                      class="pref-menulist"
+                      oncommand="AboutPermissions.onPermissionCommand(event);">
+          <xul:menupopup>
+            <xul:menuitem anonid="ask" value="0" label="&permission.alwaysAsk;"/>
+            <xul:menuitem anonid="allow" value="1" label="&permission.allow;"/>
+            <xul:menuitem anonid="block" value="2" label="&permission.block;"/>
+          </xul:menupopup>
+        </xul:menulist>
+      </xul:hbox>
+    </content>
+    <implementation>
+      <constructor><![CDATA[
+        let permString = this.getAttribute("permString");
+        let menulist = document.getAnonymousElementByAttribute(this, "anonid", "plugins-menulist");
+        menulist.setAttribute("id", permString + "-menulist");
+        menulist.setAttribute("type", permString);
+        let askitem = document.getAnonymousElementByAttribute(this, "anonid", "ask");
+        askitem.setAttribute("id", permString + "-0")
+        let allowitem = document.getAnonymousElementByAttribute(this, "anonid", "allow");
+        allowitem.setAttribute("id", permString + "-1")
+        let blockitem = document.getAnonymousElementByAttribute(this, "anonid", "block");
+        blockitem.setAttribute("id", permString + "-2")
+        ]]>
+      </constructor>
+      <method name="isClickToPlay">
+        <body><![CDATA[
+          let pluginHost = Components.classes["@mozilla.org/plugin/host;1"]
+              .getService(Components.interfaces.nsIPluginHost);
+          let mimeType = this.getAttribute("mimeType");
+          return (pluginHost.getStateForType(mimeType)
+              == Components.interfaces.nsIPluginTag.STATE_CLICKTOPLAY);
+        ]]>
+        </body>
+      </method>
+      <method name="isBlocklisted">
+        <body><![CDATA[
+          let pluginHost = Components.classes["@mozilla.org/plugin/host;1"]
+                           .getService(Components.interfaces.nsIPluginHost);
+          let blocklistService = Components.classes["@mozilla.org/extensions/blocklist;1"]
+                                 .getService(Components.interfaces.nsIBlocklistService);
+          let mimeType = this.getAttribute("mimeType");
+          let tags = pluginHost.getPluginTags();
+          let blocklistState = Components.interfaces
+              .nsIBlocklistService.STATE_NOT_BLOCKED;
+          for (let plugin of tags) {
+            if (plugin.getMimeTypes()[0] == mimeType) {
+              blocklistState = blocklistService.getPluginBlocklistState(plugin);
+              break;
+            }
+          }
+          return (blocklistState == Components.interfaces.nsIBlocklistService.STATE_VULNERABLE_UPDATE_AVAILABLE ||
+                  blocklistState == Components.interfaces.nsIBlocklistService.STATE_VULNERABLE_NO_UPDATE);
+        ]]>
+        </body>
+      </method>
+    </implementation>
   </binding>
 </bindings>

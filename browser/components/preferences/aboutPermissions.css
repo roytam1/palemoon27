@@ -5,3 +5,7 @@
 .site {
   -moz-binding: url("chrome://browser/content/preferences/aboutPermissions.xml#site");
 }
+
+.pluginPermission {
+  -moz-binding: url("chrome://browser/content/preferences/aboutPermissions.xml#pluginPermission");
+}

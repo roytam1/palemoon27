@@ -520,8 +520,7 @@ let AboutPermissions = {
       permissionEntries.push(permissionEntry);
       this._supportedPermissions.push(permString);
       this._noGlobalDeny.push(permString);
-      Object.defineProperty(PermissionDefaults, permString,
-      {
+      Object.defineProperty(PermissionDefaults, permString, {
         get: function() {
                return this.isClickToPlay()
                       ? PermissionDefaults.UNKNOWN

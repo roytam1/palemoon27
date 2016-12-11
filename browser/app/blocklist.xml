@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist"
-lastupdate="1473424629000">
+lastupdate="1481490478000">
   <emItems>
     <emItem blockID="i58" id="webmaster@buzzzzvideos.info">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
@@ -3741,6 +3741,10 @@ lastupdate="1473424629000">
       <os>WINNT 6.1</os>
       <vendor>0x1002</vendor>
       <devices>
+        <device>0x68e1</device>
+        <device>0x68e4</device>
+        <device>0x68e5</device>
+        <device>0x68f9</device>
         <device>0x9802</device>
         <device>0x9803</device>
         <device>0x9803</device>

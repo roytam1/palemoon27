@@ -2579,6 +2579,10 @@ pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_child_script_run_time", 10);
 pref("dom.max_script_run_time", 10);
 
+// Stop all scripts in a compartment when the "Stop script" button on the
+// "Unresponsive script" dialog is used.
+pref("dom.global_stop_unresponsive_script", true);
+
 // If true, ArchiveReader will be enabled
 pref("dom.archivereader.enabled", false);
 

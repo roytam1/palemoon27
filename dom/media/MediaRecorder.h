@@ -145,6 +145,9 @@ protected:
   // Hold the sessions reference and clean it when the DestroyRunnable for a
   // session is running.
   nsTArray<nsRefPtr<Session> > mSessions;
+  
+  nsCOMPtr<nsIDocument> mDocument;
+  
   // It specifies the container format as well as the audio and video capture formats.
   nsString mMimeType;
 

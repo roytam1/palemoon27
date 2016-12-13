@@ -2524,6 +2524,8 @@ public:
   bool DidFireDOMContentLoaded() const { return mDidFireDOMContentLoaded; }
   
   bool HasScriptsBlockedBySandbox();
+  
+  bool InlineScriptAllowedByCSP();
 
 private:
   uint64_t mDeprecationWarnedAbout;

@@ -806,6 +806,10 @@ protected:
                                     int32_t & aMarginLeft,
                                     int32_t & aMarginTop);
 
+  bool IsInObservedSubtree(nsIDocument* aDocument,
+                           nsIContent* aContainer,
+                           nsIContent* aChild);
+
   /* PACKED BOOLEANS FOR RESIZING, ABSOLUTE POSITIONING AND */
   /* INLINE TABLE EDITING */
 

@@ -246,6 +246,11 @@
           if (document.hasScriptsBlockedBySandbox) {
             return true;
           }
+          // attribute event handlers should only be added if the
+          // document's CSP allows it.
+          if (!document.inlineScriptAllowedByCSP) {
+            return true;
+          }
 
           if (this._ignoreNextCall)
             return this._ignoreNextCall = false;

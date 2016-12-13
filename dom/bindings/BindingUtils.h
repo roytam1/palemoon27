@@ -2412,6 +2412,22 @@ AddStringToIDVector(JSContext* cx, JS::AutoIdVector& vector, const char* name)
          InternJSString(cx, *(vector[vector.length() - 1]).address(), name);
 }
 
+// We use one constructor JSNative to represent all DOM interface objects (so
+// we can easily detect when we need to wrap them in an Xray wrapper). We store
+// the real JSNative in the mNative member of a JSNativeHolder in the
+// CONSTRUCTOR_NATIVE_HOLDER_RESERVED_SLOT slot of the JSFunction object for a
+// specific interface object. We also store the NativeProperties in the
+// JSNativeHolder.
+// Note that some interface objects are not yet a JSFunction but a normal
+// JSObject with a DOMJSClass, those do not use these slots.
+
+enum {
+  CONSTRUCTOR_NATIVE_HOLDER_RESERVED_SLOT = 0
+};
+
+bool
+Constructor(JSContext* cx, unsigned argc, JS::Value* vp);
+
 // Implementation of the bits that XrayWrapper needs
 
 /**
@@ -2480,6 +2496,9 @@ XrayGetNativeProto(JSContext* cx, JS::Handle<JSObject*> obj,
       } else {
         protop.set(JS_GetObjectPrototype(cx, global));
       }
+    } else if (JS_ObjectIsFunction(cx, obj)) {
+      MOZ_ASSERT(JS_IsNativeFunction(obj, Constructor));
+      protop.set(JS_GetFunctionPrototype(cx, global));
     } else {
       const js::Class* clasp = js::GetObjectClass(obj);
       MOZ_ASSERT(IsDOMIfaceAndProtoClass(clasp));
@@ -2493,22 +2512,6 @@ XrayGetNativeProto(JSContext* cx, JS::Handle<JSObject*> obj,
 }
 
 extern NativePropertyHooks sWorkerNativePropertyHooks;
-
-// We use one constructor JSNative to represent all DOM interface objects (so
-// we can easily detect when we need to wrap them in an Xray wrapper). We store
-// the real JSNative in the mNative member of a JSNativeHolder in the
-// CONSTRUCTOR_NATIVE_HOLDER_RESERVED_SLOT slot of the JSFunction object for a
-// specific interface object. We also store the NativeProperties in the
-// JSNativeHolder.
-// Note that some interface objects are not yet a JSFunction but a normal
-// JSObject with a DOMJSClass, those do not use these slots.
-
-enum {
-  CONSTRUCTOR_NATIVE_HOLDER_RESERVED_SLOT = 0
-};
-
-bool
-Constructor(JSContext* cx, unsigned argc, JS::Value* vp);
 
 inline bool
 UseDOMXray(JSObject* obj)
@@ -2526,7 +2529,7 @@ HasConstructor(JSObject* obj)
   return JS_IsNativeFunction(obj, Constructor) ||
          js::GetObjectClass(obj)->construct;
 }
- #endif
+#endif
  
 template<class T, bool hasCallback=NativeHasMember<T>::JSBindingFinalized>
 struct JSBindingFinalized

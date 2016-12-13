@@ -109,8 +109,22 @@ private:
 };
 NS_IMPL_ISUPPORTS(MediaRecorderReporter, nsIMemoryReporter);
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED(MediaRecorder, DOMEventTargetHelper,
-                                   mDOMStream, mAudioNode)
+NS_IMPL_CYCLE_COLLECTION_CLASS(MediaRecorder)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(MediaRecorder,
+                                                  DOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDOMStream)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAudioNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MediaRecorder,
+                                                DOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDOMStream)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAudioNode)
+  tmp->UnRegisterActivityObserver();
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MediaRecorder)
   NS_INTERFACE_MAP_ENTRY(nsIDocumentActivity)
@@ -784,9 +798,9 @@ MediaRecorder::RegisterActivityObserver()
 {
   nsPIDOMWindow* window = GetOwner();
   if (window) {
-    nsIDocument* doc = window->GetExtantDoc();
-    if (doc) {
-      doc->RegisterActivityObserver(
+    mDocument = window->GetExtantDoc();
+    if (mDocument) {
+      mDocument->RegisterActivityObserver(
         NS_ISUPPORTS_CAST(nsIDocumentActivity*, this));
     }
   }
@@ -795,13 +809,9 @@ MediaRecorder::RegisterActivityObserver()
 void
 MediaRecorder::UnRegisterActivityObserver()
 {
-  nsPIDOMWindow* window = GetOwner();
-  if (window) {
-    nsIDocument* doc = window->GetExtantDoc();
-    if (doc) {
-      doc->UnregisterActivityObserver(
-        NS_ISUPPORTS_CAST(nsIDocumentActivity*, this));
-    }
+  if (mDocument) {
+    mDocument->UnregisterActivityObserver(
+      NS_ISUPPORTS_CAST(nsIDocumentActivity*, this));
   }
 }
 

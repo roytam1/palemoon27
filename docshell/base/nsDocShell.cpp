@@ -8856,6 +8856,8 @@ nsDocShell::RestoreFromHistory()
     nsSubDocumentFrame* subDocFrame =
       do_QueryFrame(container->GetPrimaryFrame());
     rootViewParent = subDocFrame ? subDocFrame->EnsureInnerView() : nullptr;
+  } else {
+    rootViewParent = nullptr;
   }
   if (sibling &&
       sibling->GetShell() &&

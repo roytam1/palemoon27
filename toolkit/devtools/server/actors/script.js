@@ -5450,7 +5450,7 @@ ThreadSources.prototype = {
 
     let fetching = fetch(aAbsSourceMapURL, { loadFromCache: false })
       .then(({ content }) => {
-        let map = new SourceMapConsumer(content);
+        let map = new SourceMapConsumer(content, aAbsSourceMapURL);
         this._setSourceMapRoot(map, aAbsSourceMapURL, aSourceURL);
         return map;
       })

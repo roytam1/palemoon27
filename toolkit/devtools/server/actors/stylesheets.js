@@ -645,7 +645,7 @@ let StyleSheetActor = protocol.ActorClass({
 
       let map = fetch(url, { loadFromCache: false, window: this.window })
         .then(({content}) => {
-          let map = new SourceMapConsumer(content);
+          let map = new SourceMapConsumer(content, url);
           this._setSourceMapRoot(map, url, this.href);
           this._sourceMap = promise.resolve(map);
 

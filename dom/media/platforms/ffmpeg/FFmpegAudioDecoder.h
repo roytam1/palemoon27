@@ -28,6 +28,7 @@ public:
   virtual nsresult Init() override;
   virtual nsresult Input(MediaRawData* aSample) override;
   virtual nsresult Drain() override;
+  void InitCodecContext() override;
   static AVCodecID GetCodecId(const nsACString& aMimeType);
 
 private:

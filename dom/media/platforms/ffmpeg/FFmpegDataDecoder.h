@@ -38,6 +38,7 @@ public:
   static AVCodec* FindAVCodec(AVCodecID aCodec);
 
 protected:
+  virtual void InitCodecContext() {}
   AVFrame*        PrepareFrame();
 
   FlushableMediaTaskQueue* mTaskQueue;
@@ -45,7 +46,6 @@ protected:
   AVFrame*        mFrame;
   nsRefPtr<MediaByteBuffer> mExtraData;
   AVCodecID mCodecID;
-  AVCodecParserContext* mCodecParser;
 
 private:
   static bool sFFmpegInitDone;

@@ -467,8 +467,8 @@
       }
     } else if (needsSpaceAfter(token, lastToken)) {
       write(" ",
-              token.loc.start.line,
-              token.loc.start.column);
+              lastToken.loc.start.line,
+              lastToken.loc.start.column);
     }
   }
 

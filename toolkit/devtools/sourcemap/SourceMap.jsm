@@ -68,9 +68,14 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
       try {
         sourceMap = JSON.parse(_sourceMap);
       } catch (e) {
+        var _contentMaxChars = 1024;
+        var _content = (_sourceMap.length > _contentMaxChars)
+                           ? _sourceMap.slice(0, _contentMaxChars - 1) + "\n[...]"
+                           : _sourceMap;
         var _error = e.name + ": " + e.message + "\n\n" +
                      (aUrl ? "URL:\n" + aUrl + "\n\n" : "") +
-                     "Content:\n" + _sourceMap;
+                     "Content (the first " + _contentMaxChars + " characters):\n" +
+                     _content + "\n";
         throw new Error(_error);
       }
     }

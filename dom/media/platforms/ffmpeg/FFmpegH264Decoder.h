@@ -42,6 +42,7 @@ public:
   virtual nsresult Input(MediaRawData* aSample) override;
   virtual nsresult Drain() override;
   virtual nsresult Flush() override;
+  void InitCodecContext() override;
   static AVCodecID GetCodecId(const nsACString& aMimeType);
 
 private:
@@ -66,6 +67,9 @@ private:
   uint32_t mPictureHeight;
   uint32_t mDisplayWidth;
   uint32_t mDisplayHeight;
+
+  // Parser used for VP8 and VP9 decoding.
+  AVCodecParserContext* mCodecParser;
 
   class PtsCorrectionContext {
   public:

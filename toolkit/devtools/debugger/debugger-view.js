@@ -257,6 +257,10 @@ let DebuggerView = {
         }
       }
     });
+
+    this.editor.on("cursorActivity", () => {
+      this.clickedLine = null;
+    });
   },
 
   /**

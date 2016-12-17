@@ -628,6 +628,9 @@ BrowserWindow.prototype = {
     let palette = toolbox.palette;
     palette.appendChild(node);
 
+/*
+    // Pale Moon have no CustomizableUI (Australis)
+
     let { CustomizableUI } = this.window;
     let { id } = node;
 
@@ -643,6 +646,66 @@ BrowserWindow.prototype = {
 
     CustomizableUI.addWidgetToArea(id, placement.area, placement.position);
     CustomizableUI.ensureWidgetPlacedInWindow(id, this.window);
+*/
+
+    // Let's restore pre Australis code
+
+    // Search for widget toolbar by reading toolbar's currentset attribute
+    let container = null;
+    let toolbars = this.doc.getElementsByTagName("toolbar");
+    let id = node.getAttribute("id");
+    for (let i = 0, l = toolbars.length; i < l; i++) {
+      let toolbar = toolbars[i];
+      if (toolbar.getAttribute("currentset").indexOf(id) == -1)
+        continue;
+      container = toolbar;
+    }
+
+    // if widget isn't in any toolbar, add it to the addon-bar
+    let needToPropagateCurrentset = false;
+    if (!container) {
+      if (haveInserted(node.id)) {
+        return;
+      }
+      container = this.doc.getElementById("addon-bar");
+      saveInserted(node.id);
+      needToPropagateCurrentset = true;
+      // TODO: find a way to make the following code work when we use "cfx run":
+      // http://mxr.mozilla.org/mozilla-central/source/browser/base/content/browser.js#8586
+      // until then, force display of addon bar directly from sdk code
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=627484
+      if (container.collapsed)
+        this.window.toggleAddonBar();
+    }
+
+    // Now retrieve a reference to the next toolbar item
+    // by reading currentset attribute on the toolbar
+    let nextNode = null;
+    let currentSet = container.getAttribute("currentset");
+    let ids = (currentSet == "__empty") ? [] : currentSet.split(",");
+    let idx = ids.indexOf(id);
+    if (idx != -1) {
+      for (let i = idx; i < ids.length; i++) {
+        nextNode = this.doc.getElementById(ids[i]);
+        if (nextNode)
+          break;
+      }
+    }
+
+    // Finally insert our widget in the right toolbar and in the right position
+    container.insertItem(id, nextNode, null, false);
+
+    // Update DOM in order to save position: which toolbar, and which position
+    // in this toolbar. But only do this the first time we add it to the toolbar
+    // Otherwise, this code will collide with other instance of Widget module
+    // during Firefox startup. See bug 685929.
+    if (ids.indexOf(id) == -1) {
+      let set = container.currentSet;
+      container.setAttribute("currentset", set);
+      // Save DOM attribute in order to save position on new window opened
+      this.window.document.persist(container.id, "currentset");
+      browserManager.propagateCurrentset(container.id, set);
+    }
   }
 }
 
@@ -754,6 +817,9 @@ WidgetChrome.prototype.fill = function WC_fill() {
   label.setAttribute("flex", "1");
   node.appendChild(label);
 
+/* 
+  // Requires different solution for Pale Moon 27, safe to disable until then
+
   // This toolbarbutton is created to provide a more consistent user experience
   // during customization, see:
   // https://bugzilla.mozilla.org/show_bug.cgi?id=959640
@@ -762,6 +828,7 @@ WidgetChrome.prototype.fill = function WC_fill() {
   button.setAttribute("crop", "right");
   button.className = "toolbarbutton-1 chromeclass-toolbar-additional";
   node.appendChild(button);
+*/
 
   // add event handlers
   this.addEventHandlers();

@@ -1010,7 +1010,7 @@ let MenuWrapper = Class({
       }
 
       let mainWindow = event.target.ownerDocument.defaultView;
-      this.contextMenuContentData = mainWindow.gContextMenuContentData
+      this.contextMenuContentData = mainWindow.gContextMenuContentData;
       let addonInfo = this.contextMenuContentData.addonInfo[self.id];
       if (!addonInfo) {
         console.warn("No context menu state data was provided.");

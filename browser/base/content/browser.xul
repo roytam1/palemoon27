@@ -217,7 +217,7 @@
     <menupopup id="contentAreaContextMenu" pagemenu="start"
                onpopupshowing="if (event.target != this)
                                  return true;
-                               gContextMenu = new nsContextMenu(this, event.shiftKey);
+                               gContextMenu = new nsContextMenu(this, event.shiftKey, event);
                                if (gContextMenu.shouldDisplay)
                                  updateEditUIVisibility();
                                return gContextMenu.shouldDisplay;"

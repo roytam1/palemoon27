@@ -72,7 +72,7 @@ nsContextMenu.prototype = {
                                          nsISupportsCString).data;
         }
       } catch (e) {
-        Components.utils.reportError(e);
+        // Failure to get type and content-disposition off the image is non-fatal
       }
     }
 

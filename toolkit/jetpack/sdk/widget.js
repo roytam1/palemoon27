@@ -692,6 +692,11 @@ BrowserWindow.prototype = {
       }
     }
 
+    // Don't try to insert widget after status4evar gripper
+    if (container.id == "addon-bar" && nextNode === null) {
+      nextNode = this.doc.getElementById("status-bar");
+    }
+
     // Finally insert our widget in the right toolbar and in the right position
     container.insertItem(id, nextNode, null, false);
 

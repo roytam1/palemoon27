@@ -38,6 +38,7 @@
 #include "nsIFrame.h"
 #include "nsIURI.h"
 #include "nsISimpleEnumerator.h"
+#include "nsIFormControl.h"
 
 // image copy stuff
 #include "nsIImageLoadingContent.h"
@@ -583,8 +584,14 @@ nsCopySupport::CanCopy(nsIDocument* aDocument)
 }
 
 bool
-nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPresShell* aPresShell, nsISelection* aSelection)
+nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPresShell* aPresShell,
+                                  nsISelection* aSelection, bool* aActionTaken)
 {
+  // Keep track of action taken or not to pass up the chain.
+  if (aActionTaken) {
+    *aActionTaken = false;
+  }
+
   NS_ASSERTION(aType == NS_CUT || aType == NS_COPY || aType == NS_PASTE,
                "Invalid clipboard event type");
 
@@ -609,14 +616,6 @@ nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPres
   // retrieve the event target node from the start of the selection
   nsresult rv;
   if (sel) {
-    // Only cut or copy when there is an uncollapsed selection
-    if (aType == NS_CUT || aType == NS_COPY) {
-      bool isCollapsed;
-      sel->GetIsCollapsed(&isCollapsed);
-      if (isCollapsed)
-        return false;
-    }
-
     nsCOMPtr<nsIDOMRange> range;
     rv = sel->GetRangeAt(0, getter_AddRefs(range));
     if (NS_SUCCEEDED(rv) && range) {
@@ -670,7 +669,9 @@ nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPres
       clipboardData->ClearAll();
       clipboardData->SetReadOnly();
     }
-
+    if (aActionTaken) {
+      *aActionTaken = true;
+    }
     return doDefault;
   }
 
@@ -684,15 +685,38 @@ nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPres
   // use the data added to the data transfer and copy that instead.
   uint32_t count = 0;
   if (doDefault) {
-    // get the data from the selection if any
-    bool isCollapsed;
-    sel->GetIsCollapsed(&isCollapsed);
-    if (isCollapsed) {
-      return false;
+    // find the focused node
+    nsCOMPtr<nsIContent> srcNode = content;
+    if (content->IsInNativeAnonymousSubtree()) {
+      srcNode = content->FindFirstNonChromeOnlyAccessContent();
     }
-    // call the copy code
-    rv = HTMLCopy(sel, doc, aClipboardType);
-    if (NS_FAILED(rv)) {
+
+    // check if we are looking at a password input
+    nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(srcNode);
+    if (formControl) {
+      if (formControl->GetType() == NS_FORM_INPUT_PASSWORD) {
+        return false;
+      }
+    }
+
+    // when cutting non-editable content, do nothing
+    // XXX this may be the wrong editable flag to check
+    if (aType != NS_CUT || content->IsEditable()) {
+      // get the data from the selection if any
+      bool isCollapsed;
+      sel->GetIsCollapsed(&isCollapsed);
+      if (isCollapsed) {
+        if (aActionTaken) {
+          *aActionTaken = true;
+        }
+        return false;
+      }
+      // call the copy code
+      rv = HTMLCopy(sel, doc, aClipboardType);
+      if (NS_FAILED(rv)) {
+        return false;
+      }
+    } else {
       return false;
     }
   } else if (clipboardData) {
@@ -720,6 +744,9 @@ nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPres
   if (doDefault || count) {
     piWindow->UpdateCommands(NS_LITERAL_STRING("clipboard"), nullptr, 0);
   }
-
+  if (aActionTaken) {
+    *aActionTaken = true;
+  }
+  
   return doDefault;
 }

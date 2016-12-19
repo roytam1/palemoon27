@@ -115,10 +115,10 @@ XPCOMUtils.defineLazyGetter(this, "DeveloperToolbar", function() {
   return new tmp.DeveloperToolbar(window, document.getElementById("developer-toolbar"));
 });
 
-XPCOMUtils.defineLazyGetter(this, "BrowserDebuggerProcess", function() {
+XPCOMUtils.defineLazyGetter(this, "BrowserToolboxProcess", function() {
   let tmp = {};
-  Cu.import("resource://gre/modules/devtools/DebuggerProcess.jsm", tmp);
-  return tmp.BrowserDebuggerProcess;
+  Cu.import("resource://gre/modules/devtools/ToolboxProcess.jsm", tmp);
+  return tmp.BrowserToolboxProcess;
 });
 #endif
 

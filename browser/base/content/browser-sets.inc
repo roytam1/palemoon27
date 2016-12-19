@@ -97,7 +97,7 @@
     <command id="Tools:DevToolbarFocus" oncommand="DeveloperToolbar.focusToggle();" disabled="true"/>
     <command id="Tools:DevAppMgr" oncommand="gDevToolsBrowser.openAppManager(gBrowser);" disabled="true" hidden="true"/>
     <command id="Tools:WebIDE" oncommand="gDevToolsBrowser.openWebIDE();" disabled="true" hidden="true"/>
-    <command id="Tools:ChromeDebugger" oncommand="BrowserDebuggerProcess.init();" disabled="true" hidden="true"/>
+    <command id="Tools:ChromeDebugger" oncommand="BrowserToolboxProcess.init();" disabled="true" hidden="true"/>
     <command id="Tools:BrowserConsole" oncommand="HUDService.openBrowserConsoleOrFocus();"/>
     <command id="Tools:Scratchpad" oncommand="Scratchpad.openScratchpad();" disabled="true" hidden="true"/>
     <command id="Tools:ResponsiveUI" oncommand="ResponsiveUI.toggle();" disabled="true" hidden="true"/>

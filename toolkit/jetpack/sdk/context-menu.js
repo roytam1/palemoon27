@@ -686,21 +686,22 @@ function remoteItemRequest({ target: { messageManager } }) {
   if (items.length == 0)
     return;
 
-  messageManager.sendAsyncMessage("sdk/contextmenu/createitems", {
-    items,
-    addon: ADDON,
-  });
-}
-
 // Context menu support in e10s via https://bugzilla.mozilla.org/show_bug.cgi?id=1060138
 // led to the TypeError in FF38 - https://bugzilla.mozilla.org/show_bug.cgi?id=1130830
 // In FF39+ context-menu.js was rewritten from scratch with processes, but it's not our way.
-// Let's disable it for now, it looks safe, though to rollback #1060138 would be better.
+// Let's do extra check it for now, though to rollback #1060138 would be better.
 
-//MessageManager.addMessageListener('sdk/contextmenu/requestitems', remoteItemRequest);
+  if (messageManager && messageManager.sendAsyncMessage && messageManager.sendAsyncMessage typeof "function") {
+    messageManager.sendAsyncMessage("sdk/contextmenu/createitems", {
+      items,
+      addon: ADDON,
+    });
+  }
+}
+MessageManager.addMessageListener('sdk/contextmenu/requestitems', remoteItemRequest);
 
 when(function() {
-//  MessageManager.removeMessageListener('sdk/contextmenu/requestitems', remoteItemRequest);
+  MessageManager.removeMessageListener('sdk/contextmenu/requestitems', remoteItemRequest);
   contentContextMenu.destroy();
 });
 

@@ -691,7 +691,7 @@ function remoteItemRequest({ target: { messageManager } }) {
 // In FF39+ context-menu.js was rewritten from scratch with processes, but it's not our way.
 // Let's do extra check it for now, though to rollback #1060138 would be better.
 
-  if (messageManager && messageManager.sendAsyncMessage && messageManager.sendAsyncMessage typeof "function") {
+  if (messageManager && messageManager.sendAsyncMessage && typeof messageManager.sendAsyncMessage === "function") {
     messageManager.sendAsyncMessage("sdk/contextmenu/createitems", {
       items,
       addon: ADDON,

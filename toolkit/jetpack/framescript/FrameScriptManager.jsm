@@ -22,14 +22,4 @@ function enableTabEvents() {
   globalMM.loadFrameScript(PATH + 'tab-events.js', true);
 }
 
-let loadedCMEvents = false;
-
-function enableCMEvents() {
-  if (loadedCMEvents)
-    return;
-
-  loadedCMEvents = true;
-  globalMM.loadFrameScript(PATH + 'contextmenu-events.js', true);
-}
-
-const EXPORTED_SYMBOLS = ['enableTabEvents', 'enableCMEvents'];
+const EXPORTED_SYMBOLS = ['enableTabEvents'];

@@ -163,7 +163,6 @@ EXTRA_JS_MODULES.jetpack.diffpatcher.test += [
 
 EXTRA_JS_MODULES.jetpack.framescript += [
     'framescript/context-menu.js',
-    'framescript/contextmenu-events.js',
     'framescript/FrameScriptManager.jsm',
     'framescript/LoaderHelper.jsm',
     'framescript/manager.js',
@@ -232,7 +231,6 @@ EXTRA_JS_MODULES.jetpack.sdk.console += [
 EXTRA_JS_MODULES.jetpack.sdk.content += [
     'sdk/content/content-worker.js',
     'sdk/content/content.js',
-    'sdk/content/context-menu.js',
     'sdk/content/events.js',
     'sdk/content/loader.js',
     'sdk/content/mod.js',

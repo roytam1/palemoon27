@@ -4,16 +4,14 @@
 
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-var gContextMenuContentData = null;
-
-function nsContextMenu(aXulMenu, aIsShift, aEvent) {
+function nsContextMenu(aXulMenu, aIsShift) {
   this.shouldDisplay = true;
-  this.initMenu(aXulMenu, aIsShift, aEvent);
+  this.initMenu(aXulMenu, aIsShift);
 }
 
 // Prototype for nsContextMenu "class."
 nsContextMenu.prototype = {
-  initMenu: function CM_initMenu(aXulMenu, aIsShift, aEvent) {
+  initMenu: function CM_initMenu(aXulMenu, aIsShift) {
     // Get contextual info.
     this.setTarget(document.popupNode, document.popupRangeParent,
                    document.popupRangeOffset);
@@ -38,62 +36,9 @@ nsContextMenu.prototype = {
 
     // Initialize (disable/remove) menu items.
     this.initItems();
-
-    // Initialize gContextMenuContentData.
-    if (aEvent)
-      this.initContentData(aEvent);
-  },
-
-  initContentData: function(aEvent) {
-    var addonInfo = {};
-    var subject = {
-      event: aEvent,
-      addonInfo: addonInfo,
-    };
-    subject.wrappedJSObject = subject;
-    // Notifies the Addon-SDK which then populates addonInfo.
-    Services.obs.notifyObservers(subject, "content-contextmenu", null);
-
-    var popupNode = this.target;
-    var doc = popupNode.ownerDocument;
-
-    var contentType = null;
-    var contentDisposition = null;
-    if (this.onImage) {
-      try {
-        let imageCache = Components.classes["@mozilla.org/image/tools;1"]
-                                   .getService(Components.interfaces.imgITools)
-                                   .getImgCacheForDocument(doc)
-        let props = imageCache.findEntryProperties(popupNode.currentURI);
-        if (props) {
-          let nsISupportsCString = Components.interfaces.nsISupportsCString;
-          contentType = props.get("type", nsISupportsCString).data;
-          contentDisposition = props.get("content-disposition",
-                                         nsISupportsCString).data;
-        }
-      } catch (e) {
-        // Failure to get type and content-disposition off the image is non-fatal
-      }
-    }
-
-    gContextMenuContentData = {
-      isRemote: false,
-      event: aEvent,
-      popupNode: popupNode,
-      browser: this.browser,
-      addonInfo: addonInfo,
-      documentURIObject: doc.documentURIObject,
-      docLocation: doc.location.href,
-      charSet: doc.characterSet,
-      referrer: doc.referrer,
-      referrerPolicy: doc.referrerPolicy,
-      contentType: contentType,
-      contentDisposition: contentDisposition,
-    };
   },
 
   hiding: function CM_hiding() {
-    gContextMenuContentData = null;
     InlineSpellCheckerUI.clearSuggestionsFromMenu();
     InlineSpellCheckerUI.clearDictionaryListFromMenu();
     InlineSpellCheckerUI.uninit();

@@ -4440,21 +4440,23 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
   pctTotal += pctOutsideISize;
 
   nscoord w;
-  if (GetAbsoluteCoord(styleISize, w) ||
-      GetIntrinsicCoord(styleISize, aRenderingContext, aFrame,
-                        PROP_WIDTH, w)) {
-    result = AddPercents(aType, w + coordOutsideISize, pctOutsideISize);
-  }
-  else if (aType == MIN_ISIZE &&
-           // The only cases of coord-percent-calc() units that
-           // GetAbsoluteCoord didn't handle are percent and calc()s
-           // containing percent.
-           styleISize.IsCoordPercentCalcUnit() &&
-           aFrame->IsFrameOfType(nsIFrame::eReplaced)) {
-    // A percentage width on replaced elements means they can shrink to 0.
+  if (aType == MIN_ISIZE &&
+      (((styleISize.HasPercent() || styleMaxISize.HasPercent()) &&
+        aFrame->IsFrameOfType(nsIFrame::eReplacedSizing)) ||
+       (styleISize.HasPercent() &&
+        aFrame->GetType() == nsGkAtoms::textInputFrame))) {
+    // A percentage width or max-width on replaced elements means they
+    // can shrink to 0.
+    // This is also true for percentage widths (but not max-widths) on
+    // text inputs.
+    // Note that if this is max-width, this overrides the fixed-width
+    // rule in the next condition.
     result = 0; // let |min| handle padding/border/margin
-  }
-  else {
+  } else if (GetAbsoluteCoord(styleISize, w) ||
+             GetIntrinsicCoord(styleISize, aRenderingContext, aFrame,
+                               PROP_WIDTH, w)) {
+    result = AddPercents(aType, w + coordOutsideISize, pctOutsideISize);
+  } else {
     // NOTE: We could really do a lot better for percents and for some
     // cases of calc() containing percent (certainly including any where
     // the coefficient on the percent is positive and there are no max()

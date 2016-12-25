@@ -36,7 +36,9 @@ public:
   {
     // nsLeafFrame is already eReplacedContainsBlock, but that's somewhat bogus
     return nsLeafFrame::IsFrameOfType(aFlags &
-      ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
+      ~(nsIFrame::eReplaced |
+        nsIFrame::eReplacedSizing |
+        nsIFrame::eReplacedContainsBlock));
   }
 
   virtual void Init(nsIContent*       aContent,

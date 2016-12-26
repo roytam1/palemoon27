@@ -9,7 +9,7 @@ const { defer } = require("../lang/functional");
 const { has } = require("../util/array");
 const { each } = require("../util/object");
 const { EVENTS } = require("./events");
-const { getThumbnailURIForWindow } = require("../content/thumbnail");
+const { getThumbnailURIForWindow, BLANK } = require("../content/thumbnail");
 const { getFaviconURIForLocation } = require("../io/data");
 const { activateTab, getOwnerWindow, getBrowserForTab, getTabTitle,
         setTabTitle, getTabContentDocument, getTabURL, setTabURL,
@@ -21,7 +21,9 @@ const { deprecateUsage } = require('../util/deprecate');
 const { getURL } = require('../url/utils');
 const { viewFor } = require('../view/core');
 const { observer } = require('./observer');
-const { when: unload } = require('../system/unload');
+const { when: unload } = require("../system/unload");
+
+require('../../framescript/FrameScriptManager.jsm').enableTabEvents();
 
 // Array of the inner instances of all the wrapped tabs.
 const TABS = [];
@@ -41,9 +43,6 @@ const TabTrait = Trait.compose(EventEmitter, {
    */
   window: null,
   constructor: function Tab(options) {
-    this._onReady = this._onReady.bind(this);
-    this._onLoad = this._onLoad.bind(this);
-    this._onPageShow = this._onPageShow.bind(this);
     this._tab = options.tab;
     // TODO: Remove this dependency
     let window = this.window = options.window || require('../windows').BrowserWindow({ window: getOwnerWindow(this._tab) });
@@ -61,9 +60,12 @@ const TabTrait = Trait.compose(EventEmitter, {
 
     this.on(EVENTS.close.name, this.destroy.bind(this));
 
-    this._browser.addEventListener(EVENTS.ready.dom, this._onReady, true);
-    this._browser.addEventListener(EVENTS.load.dom, this._onLoad, true);
-    this._browser.addEventListener(EVENTS.pageshow.dom, this._onPageShow, true);
+    this._onContentEvent = this._onContentEvent.bind(this);
+    this._window.messageManager.addMessageListener('sdk/tab/event', this._onContentEvent);
+
+    // bug 1024632 - first tab inNewWindow gets events from the synthetic 
+    // about:blank document. ignore them unless that is the actual target url.
+    this._skipBlankEvents = options.inNewWindow && options.url !== 'about:blank';
 
     if (options.isPinned)
       this.pin();
@@ -83,49 +85,30 @@ const TabTrait = Trait.compose(EventEmitter, {
   destroy: function destroy() {
     this._removeAllListeners();
     if (this._tab) {
-      let browser = this._browser;
-      // The tab may already be removed from DOM -or- not yet added
-      if (browser) {
-        browser.removeEventListener(EVENTS.ready.dom, this._onReady, true);
-        browser.removeEventListener(EVENTS.load.dom, this._onLoad, true);
-        browser.removeEventListener(EVENTS.pageshow.dom, this._onPageShow, true);
-      }
+      this._window.messageManager.removeMessageListener('sdk/tab/event', this._onContentEvent);
       this._tab = null;
       TABS.splice(TABS.indexOf(this), 1);
     }
   },
 
   /**
-   * Internal listener that emits public event 'ready' when the page of this
-   * tab is loaded, from DOMContentLoaded
+   * internal message listener emits public events (ready, load and pageshow)
+   * forwarded from content frame script tab-event.js
    */
-  _onReady: function _onReady(event) {
-    // IFrames events will bubble so we need to ignore those.
-    if (event.target == this._contentDocument)
-      this._emit(EVENTS.ready.name, this._public);
+  _onContentEvent: function({ target, data }) {
+    if (target !== this._browser)
+      return;
+
+    // bug 1024632 - skip initial events from synthetic about:blank document
+    if (this._skipBlankEvents && this.window.tabs.length === 1 && this.url === 'about:blank')
+      return;
+
+    // first time we don't skip blank events, disable further skipping
+    this._skipBlankEvents = false;
+
+    this._emit(data.type, this._public, data.persisted);
   },
 
-  /**
-   * Internal listener that emits public event 'load' when the page of this
-   * tab is loaded, for triggering on non-HTML content, bug #671305
-   */
-  _onLoad: function _onLoad(event) {
-    // IFrames events will bubble so we need to ignore those.
-    if (event.target == this._contentDocument) {
-      this._emit(EVENTS.load.name, this._public);
-    }
-  },
-
-  /**
-   * Internal listener that emits public event 'pageshow' when the page of this
-   * tab is loaded from cache, bug #671305
-   */
-  _onPageShow: function _onPageShow(event) {
-    // IFrames events will bubble so we need to ignore those.
-    if (event.target == this._contentDocument) {
-      this._emit(EVENTS.pageshow.name, this._public, event.persisted);
-    }
-  },
   /**
    * Internal tab event router. Window will emit tab related events for all it's
    * tabs, this listener will propagate all the events for this tab to it's
@@ -217,8 +200,15 @@ const TabTrait = Trait.compose(EventEmitter, {
    * Thumbnail data URI of the page currently loaded in this tab.
    * @type {String}
    */
-  getThumbnail: function getThumbnail()
-    this._tab ? getThumbnailURIForWindow(this._contentWindow) : undefined,
+  getThumbnail() {
+    if (!this._tab)
+      return undefined;
+    if (this._tab.getAttribute('remote')) {
+      console.error('This method is not supported with E10S');
+      return BLANK;
+    }
+    return getThumbnailURIForWindow(this._contentWindow);
+  },
   /**
    * Whether or not tab is pinned (Is an app-tab).
    * @type {Boolean}

@@ -1020,7 +1020,7 @@ function Loader(options) {
 
   const builtinModuleExports = modules;
   modules = {};
-  for (let id of Object.keys(builtinModuleExports)) {
+  Object.keys(builtinModuleExports).forEach(id => {
     // We resolve `uri` from `id` since modules are cached by `uri`.
     let uri = resolveURI(id, mapping);
     // In native loader, the mapping will not contain values for
@@ -1039,7 +1039,7 @@ function Loader(options) {
     });
 
     modules[uri] = freeze(module);
-  }
+  });
 
   let sharedGlobalSandbox;
   if (sharedGlobal) {

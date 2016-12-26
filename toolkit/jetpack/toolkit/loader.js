@@ -307,7 +307,7 @@ const load = iced(function load(loader, module) {
     sandbox = new loader.sharedGlobalSandbox.Object();
     // Inject all expected globals in the scope object
     getOwnIdentifiers(globals).forEach(function(name) {
-      descriptors[name] = getOwnPropertyDescriptor(globals, name)
+      descriptors[name] = getOwnPropertyDescriptor(globals, name);
     });
     define(sandbox, descriptors);
   }
@@ -842,7 +842,7 @@ function Loader(options) {
     globals: {
       get console() {
         // Import Console.jsm from here to prevent loading it until someone uses it
-        let { ConsoleAPI } = Cu.import("resource://gre/modules/Console.jsm");
+        let { ConsoleAPI } = Cu.import("resource://gre/modules/devtools/Console.jsm");
         let console = new ConsoleAPI({
           consoleID: options.id ? "addon/" + options.id : ""
         });

@@ -209,19 +209,22 @@ function serializeStack(frames) {
 }
 Loader.serializeStack = serializeStack;
 
-class DefaultMap extends Map {
-  constructor(createItem, items = undefined) {
-    super(items);
+function DefaultMap(createItem) {
+  this.createItem = createItem;
+  this._map = new Map();
+}
 
-    this.createItem = createItem;
-  }
-
-  get(key) {
-    if (!this.has(key)) {
-      this.set(key, this.createItem(key));
+DefaultMap.prototype = {
+  get: function(key) {
+    if (!this._map.has(key)) {
+      this._map.set(key, this.createItem(key));
     }
 
-    return super.get(key);
+    return this._map.get(key);
+  },
+
+  clear: function() {
+    this._map.clear();
   }
 }
 

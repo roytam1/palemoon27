@@ -111,8 +111,8 @@ FFmpegRuntimeLinker::Bind(const char* aLibName)
       version = AV_FUNC_55;
       break;
     case 57:
-      if (micro != 100) {
-        // A micro version of 100 indicates that it's FFmpeg (as opposed to LibAV).
+      if (micro < 100) {
+        // A micro version >= 100 indicates that it's FFmpeg (as opposed to LibAV).
         // Due to current AVCodecContext binary incompatibility we can only
         // support FFmpeg at this point.
         return false;

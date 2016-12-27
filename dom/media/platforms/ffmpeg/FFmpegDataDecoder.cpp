@@ -8,7 +8,6 @@
 #include <unistd.h>
 
 #include "MediaTaskQueue.h"
-#include "FFmpegLibs.h"
 #include "FFmpegLog.h"
 #include "FFmpegDataDecoder.h"
 #include "prsystem.h"

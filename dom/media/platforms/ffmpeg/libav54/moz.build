@@ -15,6 +15,11 @@ LOCAL_INCLUDES += [
     'include',
 ]
 
+if CONFIG['CLANG_CXX']:
+  CXXFLAGS += [
+    '-Wno-unknown-attributes',
+  ]
+
 FINAL_LIBRARY = 'xul'
 
 FAIL_ON_WARNINGS = True

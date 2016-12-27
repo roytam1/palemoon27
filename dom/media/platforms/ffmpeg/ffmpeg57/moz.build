@@ -14,6 +14,12 @@ LOCAL_INCLUDES += [
     '..',
     'include',
 ]
-CXXFLAGS += [ '-Wno-deprecated-declarations' ]
+
+if CONFIG['GNU_CXX']:
+  CXXFLAGS += [ '-Wno-deprecated-declarations' ]
+if CONFIG['CLANG_CXX']:
+  CXXFLAGS += [
+    '-Wno-unknown-attributes',
+  ]
 
 FINAL_LIBRARY = 'xul'

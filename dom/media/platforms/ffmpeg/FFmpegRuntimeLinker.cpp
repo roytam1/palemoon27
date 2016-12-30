@@ -104,8 +104,6 @@ FFmpegRuntimeLinker::Bind(const char* aLibName)
     // Refuse any libavcodec version prior to 54.35.1.
     // (Unless media.libavcodec.allow-obsolete==true)
     Unlink();
-    LogToBrowserConsole(NS_LITERAL_STRING(
-      "libavcodec may be vulnerable or is not supported, and should be updated to play video."));
     return false;
   }
 

@@ -1102,6 +1102,8 @@ function loadManifestFromZipReader(aZipReader) {
       } else {
         addon.wrongSDK = true;
       }
+    } else {
+      addon.wrongSDK = false;
     }
     
     addon.appDisabled = !isUsableAddon(addon);

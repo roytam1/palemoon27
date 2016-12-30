@@ -448,15 +448,7 @@ pref("media.webvtt.regions.enabled", false);
 pref("media.track.enabled", false);
 
 // Whether to enable MediaSource support.
-// We want to enable on non-release  builds and on release windows and mac
-// but on release builds restrict to YouTube. We don't enable for other
-// configurations because code for those platforms isn't ready yet.
-#if defined(XP_WIN) || defined(XP_MACOSX)
 pref("media.mediasource.enabled", true);
-#else
-pref("media.mediasource.enabled", false);
-#endif
-
 pref("media.mediasource.mp4.enabled", true);
 pref("media.mediasource.webm.enabled", false);
 

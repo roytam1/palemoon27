@@ -118,8 +118,7 @@ function getPref(name) {
 
 // Check whether we should expect the new MP4Reader-based support to work.
 function IsMP4ReaderAvailable() {
-  var prefs = getPref("media.fragmented-mp4.enabled") &&
-              getPref("media.fragmented-mp4.exposed");
+  var prefs = getPref("media.fragmented-mp4.enabled");
   return prefs && (IsWindowsVistaOrLater() || IsMacOSSnowLeopardOrLater());
 }
 

@@ -163,9 +163,6 @@ user_pref("media.mediasource.enabled", true);
 user_pref("media.mediasource.mp4.enabled", true);
 user_pref("media.mediasource.webm.enabled", true);
 
-// Enable fragmented MP4 parser for testing
-user_pref("media.fragmented-mp4.exposed", true);
-
 #if defined(LINUX)
 user_pref("media.fragmented-mp4.ffmpeg.enabled", true);
 #endif

@@ -358,8 +358,7 @@ IsMP4SupportedType(const nsACString& aType,
   return false;
 #else
   bool haveAAC, haveMP3, haveH264;
-  return Preferences::GetBool("media.fragmented-mp4.exposed", false) &&
-         MP4Decoder::CanHandleMediaType(aType, aCodecs, haveAAC, haveH264, haveMP3);
+  return MP4Decoder::CanHandleMediaType(aType, aCodecs, haveAAC, haveH264, haveMP3);
 #endif
 }
 #endif
@@ -479,8 +478,7 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
   }
 #endif
 #ifdef MOZ_WMF
-  if (!Preferences::GetBool("media.fragmented-mp4.exposed", false) &&
-      IsWMFSupportedType(nsDependentCString(aMIMEType))) {
+  if (IsWMFSupportedType(nsDependentCString(aMIMEType))) {
     if (!aHaveRequestedCodecs) {
       return CANPLAY_MAYBE;
     }

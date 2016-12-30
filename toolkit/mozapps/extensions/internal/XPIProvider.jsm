@@ -634,7 +634,7 @@ function isUsableAddon(aAddon) {
   if (aAddon.type == "theme" && aAddon.internalName == XPIProvider.defaultSkin)
     return true;
 
-  if (aAddon.jetsdk)
+  if (aAddon.wrongSDK)
     return false;
 
   if (aAddon.blocklistState == Blocklist.STATE_BLOCKED)
@@ -1090,10 +1090,19 @@ function loadManifestFromZipReader(aZipReader) {
       addon.hasBinaryComponents = false;
     }
 
-    // Set a boolean value whether the .xpi archive
-    // contains files related to Jetpack and Add-on SDK
-    addon.jetsdk = aZipReader.hasEntry("package.json")
-                || aZipReader.hasEntry("harness-options.json");
+    // Set a boolean value whether the .xpi archive contains file related to old
+    // Mozilla Add-on SDK or contains file related to PMkit (or new Mozilla SDK),
+    // but extension is not directly targeting Pale Moon
+    if (aZipReader.hasEntry("harness-options.json")) {
+      addon.wrongSDK = true;
+    } else if (aZipReader.hasEntry("package.json")) {
+      let app = addon.matchingTargetApplication;
+      if (app && app.id == Services.appinfo.ID) {
+        addon.wrongSDK = false;
+      } else {
+        addon.wrongSDK = true;
+      }
+    }
     
     addon.appDisabled = !isUsableAddon(addon);
     return addon;
@@ -6662,7 +6671,7 @@ function AddonWrapper(aAddon) {
    "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
    "softDisabled", "skinnable", "size", "foreignInstall", "hasBinaryComponents",
    "strictCompatibility", "compatibilityOverrides", "updateURL",
-   "getDataDirectory", "multiprocessCompatible", "jetsdk", "native"].forEach(function(aProp) {
+   "getDataDirectory", "multiprocessCompatible", "wrongSDK", "native"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function AddonWrapper_propertyGetter() aAddon[aProp]);
   }, this);
 

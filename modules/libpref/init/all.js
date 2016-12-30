@@ -306,6 +306,9 @@ pref("media.fragmented-mp4.exposed", false);
 // decoder works on all platforms.
 pref("media.fragmented-mp4.use-blank-decoder", false);
 #endif
+#if defined(MOZ_FFMPEG)
+pref("media.libavcodec.allow-obsolete", false);
+#endif
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
 #endif

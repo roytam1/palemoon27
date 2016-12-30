@@ -306,3 +306,6 @@ user_pref("dom.ipc.tabs.shutdownTimeoutSecs", 0);
 
 // Avoid performing Readinglist Intro during tests.
 user_pref("browser.readinglist.introShown", true);
+
+// Don't block old libavcodec libraries when testing.
+user_pref("media.libavcodec.allow-obsolete", true);

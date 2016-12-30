@@ -22,6 +22,10 @@
 #include "AndroidBridge.h"
 #endif
 
+#ifdef MOZ_FFMPEG
+#include "FFmpegRuntimeLinker.h"
+#endif
+
 namespace mozilla {
 
 MediaDecoderStateMachine* MP4Decoder::CreateStateMachine()
@@ -156,7 +160,8 @@ IsFFmpegAvailable()
 #ifndef MOZ_FFMPEG
   return false;
 #else
-  return Preferences::GetBool("media.fragmented-mp4.ffmpeg.enabled", false);
+  nsRefPtr<PlatformDecoderModule> m = FFmpegRuntimeLinker::CreateDecoderModule();
+  return !!m;
 #endif
 }
 

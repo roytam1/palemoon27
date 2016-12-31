@@ -38,9 +38,11 @@
     </content>
     <implementation>
       <constructor><![CDATA[
+        let mimeType = this.getAttribute("mimeType");
         let permString = this.getAttribute("permString");
         let menulist = document.getAnonymousElementByAttribute(this, "anonid", "plugins-menulist");
         menulist.setAttribute("id", permString + "-menulist");
+        menulist.setAttribute("mimeType", mimeType);
         menulist.setAttribute("type", permString);
         let askitem = document.getAnonymousElementByAttribute(this, "anonid", "ask");
         askitem.setAttribute("id", permString + "-0")

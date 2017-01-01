@@ -284,25 +284,25 @@ pref("media.play-stand-alone", true);
 pref("media.decoder.heuristic.dormant.enabled", true);
 pref("media.decoder.heuristic.dormant.timeout", 60000);
 
-#ifdef MOZ_WMF
-pref("media.windows-media-foundation.enabled", true);
-pref("media.windows-media-foundation.use-dxva", true);
-#endif
 #ifdef MOZ_DIRECTSHOW
 pref("media.directshow.enabled", true);
 #endif
 #ifdef MOZ_FMP4
-pref("media.fragmented-mp4.enabled", true);
-pref("media.fragmented-mp4.ffmpeg.enabled", true);
-pref("media.fragmented-mp4.gmp.enabled", false);
-// Specifies whether the fragmented MP4 parser uses a test decoder that
+pref("media.mp4.enabled", true);
+#endif
+// Specifies whether the PDM can create a test decoder that
 // just outputs blank frames/audio instead of actually decoding. The blank
 // decoder works on all platforms.
-pref("media.fragmented-mp4.use-blank-decoder", false);
+pref("media.use-blank-decoder", false);
+#ifdef MOZ_WMF
+pref("media.windows-media-foundation.enabled", true);
+pref("media.windows-media-foundation.use-dxva", true);
 #endif
 #if defined(MOZ_FFMPEG)
+pref("media.ffmpeg.enabled", true);
 pref("media.libavcodec.allow-obsolete", false);
 #endif
+pref("media.gmp.decoder.enabled", false);
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
 #endif

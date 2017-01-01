@@ -49,7 +49,7 @@ IsSupportedAudioCodec(const nsAString& aCodec,
                     aCodec.EqualsASCII("mp4a.40.5");
   if (aOutContainsAAC) {
 #ifdef XP_WIN
-    if (!Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") &&
+    if (!Preferences::GetBool("media.use-blank-decoder") &&
         !WMFDecoderModule::HasAAC()) {
       return false;
     }
@@ -77,7 +77,7 @@ IsSupportedH264Codec(const nsAString& aCodec)
   }
 
 #ifdef XP_WIN
-  if (!Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") &&
+  if (!Preferences::GetBool("media.use-blank-decoder") &&
       !WMFDecoderModule::HasH264()) {
     return false;
   }
@@ -190,19 +190,19 @@ IsAndroidAvailable()
 static bool
 IsGonkMP4DecoderAvailable()
 {
-  return Preferences::GetBool("media.fragmented-mp4.gonk.enabled", false);
+  return Preferences::GetBool("media.gonk.enabled", false);
 }
 
 static bool
 IsGMPDecoderAvailable()
 {
-  return Preferences::GetBool("media.fragmented-mp4.gmp.enabled", false);
+  return Preferences::GetBool("media.gmp.decoder.enabled", false);
 }
 
 static bool
 HavePlatformMPEGDecoders()
 {
-  return Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") ||
+  return Preferences::GetBool("media.use-blank-decoder") ||
 #ifdef XP_WIN
          // We have H.264/AAC platform decoders on Windows Vista and up.
          IsVistaOrLater() ||
@@ -220,7 +220,7 @@ HavePlatformMPEGDecoders()
 bool
 MP4Decoder::IsEnabled()
 {
-  return Preferences::GetBool("media.fragmented-mp4.enabled") &&
+  return Preferences::GetBool("media.mp4.enabled") &&
          HavePlatformMPEGDecoders();
 }
 

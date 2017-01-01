@@ -163,10 +163,6 @@ user_pref("media.mediasource.enabled", true);
 user_pref("media.mediasource.mp4.enabled", true);
 user_pref("media.mediasource.webm.enabled", true);
 
-#if defined(LINUX)
-user_pref("media.fragmented-mp4.ffmpeg.enabled", true);
-#endif
-
 // Enable mozContacts
 user_pref("dom.mozContacts.enabled", true);
 

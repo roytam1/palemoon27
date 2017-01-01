@@ -142,12 +142,18 @@ protected:
                      FlushableMediaTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) = 0;
 
-  // Caches pref media.use-blank-decoder
+  // PDM pref caches...
   static bool sUseBlankDecoder;
+#ifdef MOZ_FFMPEG
   static bool sFFmpegDecoderEnabled;
+#endif
+#ifdef MOZ_GONK_MEDIACODEC
   static bool sGonkDecoderEnabled;
+#endif
+#ifdef MOZ_WIDGET_ANDROID
   static bool sAndroidMCDecoderPreferred;
   static bool sAndroidMCDecoderEnabled;
+#endif
   static bool sGMPDecoderEnabled;
 };
 

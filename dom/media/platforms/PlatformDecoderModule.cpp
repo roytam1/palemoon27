@@ -35,10 +35,16 @@ namespace mozilla {
 extern already_AddRefed<PlatformDecoderModule> CreateBlankDecoderModule();
 
 bool PlatformDecoderModule::sUseBlankDecoder = false;
+#ifdef MOZ_FFMPEG
 bool PlatformDecoderModule::sFFmpegDecoderEnabled = false;
+#endif
+#ifdef MOZ_GONK_MEDIACODEC
 bool PlatformDecoderModule::sGonkDecoderEnabled = false;
+#endif
+#ifdef MOZ_WIDGET_ANDROID
 bool PlatformDecoderModule::sAndroidMCDecoderEnabled = false;
 bool PlatformDecoderModule::sAndroidMCDecoderPreferred = false;
+#endif
 bool PlatformDecoderModule::sGMPDecoderEnabled = false;
 
 /* static */
@@ -54,9 +60,10 @@ PlatformDecoderModule::Init()
 
   Preferences::AddBoolVarCache(&sUseBlankDecoder,
                                "media.use-blank-decoder");
+#ifdef MOZ_FFMPEG
   Preferences::AddBoolVarCache(&sFFmpegDecoderEnabled,
                                "media.ffmpeg.enabled", false);
-
+#endif
 #ifdef MOZ_GONK_MEDIACODEC
   Preferences::AddBoolVarCache(&sGonkDecoderEnabled,
                                "media.gonk.enabled", false);

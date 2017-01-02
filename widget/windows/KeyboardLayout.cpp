@@ -142,6 +142,7 @@ static_assert(sizeof(kVirtualKeyName) / sizeof(const char*) == 0x100,
 // Unique id counter associated with a keydown / keypress events. Used in
 // identifing keypress events for removal from async event dispatch queue
 // in metrofx after preventDefault is called on keydown events.
+// XXX: Do we still need this?
 static uint32_t sUniqueKeyEventId = 0;
 
 struct DeadKeyEntry
@@ -295,11 +296,6 @@ ModifierKeyState::InitMouseEvent(WidgetInputEvent& aMouseEvent) const
                aMouseEvent.mClass == eDragEventClass ||
                aMouseEvent.mClass == eSimpleGestureEventClass,
                "called with non-mouse event");
-
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    // Buttons for immersive mode are handled in MetroInput.
-    return;
-  }
 
   WidgetMouseEventBase& mouseEvent = *aMouseEvent.AsMouseEventBase();
   mouseEvent.buttons = 0;

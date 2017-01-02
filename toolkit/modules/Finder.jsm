@@ -501,7 +501,11 @@ Finder.prototype = {
   },
 
   _getWindow: function () {
-    return this._docShell.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindow);
+    try {
+      return this._docShell.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindow);
+    } catch(e) {
+      Cu.reportError(e);
+    }
   },
 
   /**

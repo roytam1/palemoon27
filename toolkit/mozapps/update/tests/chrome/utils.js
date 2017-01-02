@@ -181,7 +181,6 @@ var gCloseWindowTimeoutCounter = 0;
 // The following vars are for restoring previous preference values (if present)
 // when the test finishes.
 var gAppUpdateEnabled;            // app.update.enabled
-var gAppUpdateMetroEnabled;       // app.update.metro.enabled
 var gAppUpdateServiceEnabled;     // app.update.service.enabled
 var gAppUpdateStagingEnabled;     // app.update.staging.enabled
 var gAppUpdateURLDefault;         // app.update.url (default prefbranch)
@@ -898,11 +897,6 @@ function setupPrefs() {
   }
   Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true);
 
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
-    gAppUpdateMetroEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_METRO_ENABLED);
-  }
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_METRO_ENABLED, true);
-
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SERVICE_ENABLED)) {
     gAppUpdateServiceEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED);
   }
@@ -981,13 +975,6 @@ function resetPrefs() {
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_ENABLED);
-  }
-
-  if (gAppUpdateMetroEnabled !== undefined) {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_METRO_ENABLED, gAppUpdateMetroEnabled);
-  }
-  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_METRO_ENABLED);
   }
 
   if (gAppUpdateServiceEnabled !== undefined) {

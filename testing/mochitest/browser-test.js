@@ -51,7 +51,6 @@ function b2gStart() {
 function testInit() {
   gConfig = readConfig();
   if (gConfig.testRoot == "browser" ||
-      gConfig.testRoot == "metro" ||
       gConfig.testRoot == "webapprtChrome") {
     // Make sure to launch the test harness for the first opened window only
     var prefs = Services.prefs;

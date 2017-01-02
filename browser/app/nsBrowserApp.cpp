@@ -231,39 +231,32 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
     return result;
   }
 
-  bool metroOnDesktop = false;
-
   // Desktop browser launch
-  if (mainFlags != XRE_MAIN_FLAG_USE_METRO && !metroOnDesktop) {
-    ScopedAppData appData(&sAppData);
-    nsCOMPtr<nsIFile> exeFile;
-    rv = mozilla::BinaryPath::GetFile(argv[0], getter_AddRefs(exeFile));
-    if (NS_FAILED(rv)) {
-      Output("Couldn't find the application directory.\n");
-      return 255;
-    }
-
-    nsCOMPtr<nsIFile> greDir;
-    exeFile->GetParent(getter_AddRefs(greDir));
-#ifdef XP_MACOSX
-    nsCOMPtr<nsIFile> parent;
-    greDir->GetParent(getter_AddRefs(parent));
-    greDir = parent.forget();
-    greDir->AppendNative(NS_LITERAL_CSTRING(kOSXResourcesFolder));
-#endif
-    nsCOMPtr<nsIFile> appSubdir;
-    greDir->Clone(getter_AddRefs(appSubdir));
-    appSubdir->Append(NS_LITERAL_STRING(kDesktopFolder));
-
-    SetStrongPtr(appData.directory, static_cast<nsIFile*>(appSubdir.get()));
-    // xreDirectory already has a refcount from NS_NewLocalFile
-    appData.xreDirectory = xreDirectory;
-
-    return XRE_main(argc, argv, &appData, mainFlags);
+  ScopedAppData appData(&sAppData);
+  nsCOMPtr<nsIFile> exeFile;
+  rv = mozilla::BinaryPath::GetFile(argv[0], getter_AddRefs(exeFile));
+  if (NS_FAILED(rv)) {
+    Output("Couldn't find the application directory.\n");
+    return 255;
   }
 
-  NS_NOTREACHED("browser do_main failed to pickup proper initialization");
-  return 255;
+  nsCOMPtr<nsIFile> greDir;
+  exeFile->GetParent(getter_AddRefs(greDir));
+#ifdef XP_MACOSX
+  nsCOMPtr<nsIFile> parent;
+  greDir->GetParent(getter_AddRefs(parent));
+  greDir = parent.forget();
+  greDir->AppendNative(NS_LITERAL_CSTRING(kOSXResourcesFolder));
+#endif
+  nsCOMPtr<nsIFile> appSubdir;
+  greDir->Clone(getter_AddRefs(appSubdir));
+  appSubdir->Append(NS_LITERAL_STRING(kDesktopFolder));
+
+  SetStrongPtr(appData.directory, static_cast<nsIFile*>(appSubdir.get()));
+  // xreDirectory already has a refcount from NS_NewLocalFile
+  appData.xreDirectory = xreDirectory;
+
+  return XRE_main(argc, argv, &appData, mainFlags);
 }
 
 /**

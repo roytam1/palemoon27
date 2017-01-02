@@ -18,4 +18,4 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-Clobber required for libvpx 1.4 update
+Clobber required for removing metro browser platform code.

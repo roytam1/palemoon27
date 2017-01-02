@@ -667,9 +667,10 @@ class Automation(object):
         stackFixerFunction = lambda line: stackFixerModule.fixSymbols(line)
         del sys.path[0]
 
-      # With metro browser runs this script launches the metro test harness which launches the browser.
-      # The metro test harness hands back the real browser process id via log output which we need to
+      # With indirect browser runs, this script launches the test harness which launches the browser.
+      # The test harness hands back the real browser process id via log output which we need to
       # pick up on and parse out. This variable tracks the real browser process id if we find it.
+      # XXX: Previously used by metro. Do we still need this?
       browserProcessId = -1
 
       (line, didTimeout) = self.readWithTimeout(logsource, timeout)
@@ -683,12 +684,6 @@ class Automation(object):
           self.dumpScreen(utilityPath)
 
         (line, didTimeout) = self.readWithTimeout(logsource, timeout)
-
-        if "METRO_BROWSER_PROCESS" in line:
-          index = line.find("=")
-          if index:
-            browserProcessId = line[index+1:].rstrip()
-            self.log.info("INFO | automation.py | metro browser sub process id detected: %s", browserProcessId)
 
         if not hitMaxTime and maxTime and datetime.now() - startTime > timedelta(seconds = maxTime):
           # Kill the application.

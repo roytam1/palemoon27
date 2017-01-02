@@ -223,7 +223,7 @@ HavePlatformMPEGDecoders()
 bool
 MP4Decoder::IsEnabled()
 {
-  return Preferences::GetBool("media.mp4.enabled") &&
+  return Preferences::GetBool("media.fragmented-mp4.enabled") &&
          HavePlatformMPEGDecoders();
 }
 

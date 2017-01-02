@@ -160,6 +160,9 @@ IsFFmpegAvailable()
 #ifndef MOZ_FFMPEG
   return false;
 #else
+  if (!Preferences::GetBool("media.ffmpeg.enabled", false)) {
+    return false;
+  }
   nsRefPtr<PlatformDecoderModule> m = FFmpegRuntimeLinker::CreateDecoderModule();
   return !!m;
 #endif

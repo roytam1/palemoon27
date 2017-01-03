@@ -1090,10 +1090,21 @@ function loadManifestFromZipReader(aZipReader) {
       addon.hasBinaryComponents = false;
     }
 
-    // Set a boolean value whether the .xpi archive
-    // contains files related to Jetpack and Add-on SDK
-    addon.jetsdk = aZipReader.hasEntry("package.json")
-                || aZipReader.hasEntry("harness-options.json");
+    // Set a boolean value whether the .xpi archive contains file related to old
+    // Mozilla Add-on SDK or contains file related to PMkit (or new Mozilla SDK),
+    // but extension is not directly targeting Pale Moon
+    if (aZipReader.hasEntry("harness-options.json")) {
+      addon.jetsdk = true;
+    } else if (aZipReader.hasEntry("package.json")) {
+      let app = addon.matchingTargetApplication;
+      if (app && app.id == Services.appinfo.ID) {
+        addon.jetsdk = false;
+      } else {
+        addon.jetsdk = true;
+      }
+    } else {
+      addon.jetsdk = false;
+    }
     
     addon.appDisabled = !isUsableAddon(addon);
     return addon;

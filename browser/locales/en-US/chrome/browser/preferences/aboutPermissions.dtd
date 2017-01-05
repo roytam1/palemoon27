@@ -33,6 +33,8 @@
 <!ENTITY cookie.manage                   "Manage Cookies…">
 <!ENTITY cookie.removeAll                "Remove All Cookies">
 
+<!ENTITY desktop-notification.label      "Show Notifications">
+
 <!ENTITY install.label                   "Install Extensions or Themes">
 
 <!ENTITY geo.label                       "Share Location">

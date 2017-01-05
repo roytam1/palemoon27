@@ -340,6 +340,7 @@
             <checkbox id="desktop-notificationDef" command="cmd_desktop-notificationDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="desktop-notificationRadioGroup" orient="horizontal">
+              <radio id="desktop-notification#0" command="cmd_desktop-notificationToggle" label="&permAskAlways;"/>
               <radio id="desktop-notification#1" command="cmd_desktop-notificationToggle" label="&permAllow;"/>
               <radio id="desktop-notification#2" command="cmd_desktop-notificationToggle" label="&permBlock;"/>
             </radiogroup>

@@ -759,9 +759,9 @@ Notification::GetPermissionInternal(nsISupports* aGlobal, ErrorResult& aRv)
   nsCOMPtr<nsIPermissionManager> permissionManager =
     services::GetPermissionManager();
 
-  permissionManager->TestPermissionFromPrincipal(principal,
-                                                 "desktop-notification",
-                                                 &permission);
+  permissionManager->TestExactPermissionFromPrincipal(principal,
+                                                      "desktop-notification",
+                                                      &permission);
 
   // Convert the result to one of the enum types.
   switch (permission) {

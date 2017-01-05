@@ -4,8 +4,13 @@
 
 const UNKNOWN = nsIPermissionManager.UNKNOWN_ACTION;   // 0
 const ALLOW = nsIPermissionManager.ALLOW_ACTION;       // 1
-const BLOCK = nsIPermissionManager.DENY_ACTION;        // 2
+const DENY = nsIPermissionManager.DENY_ACTION;         // 2
 const SESSION = nsICookiePermission.ACCESS_SESSION;    // 8
+
+const IMAGE_DENY = 2;
+
+const COOKIE_DENY = 2;
+const COOKIE_SESSION = 2;
 
 const nsIQuotaManager = Components.interfaces.nsIQuotaManager;
 
@@ -16,45 +21,54 @@ var gUsageRequest;
 var gPermObj = {
   image: function getImageDefaultPermission()
   {
-    if (gPrefs.getIntPref("permissions.default.image") == 2)
-      return BLOCK;
+    if (gPrefs.getIntPref("permissions.default.image") == IMAGE_DENY) {
+      return DENY;
+    }
+    return ALLOW;
+  },
+  popup: function getPopupDefaultPermission()
+  {
+    if (gPrefs.getBoolPref("dom.disable_open_during_load")) {
+      return DENY;
+    }
     return ALLOW;
   },
   cookie: function getCookieDefaultPermission()
   {
-    if (gPrefs.getIntPref("network.cookie.cookieBehavior") == 2)
-      return BLOCK;
-
-    if (gPrefs.getIntPref("network.cookie.lifetimePolicy") == 2)
+    if (gPrefs.getIntPref("network.cookie.cookieBehavior") == COOKIE_DENY) {
+      return DENY;
+    }
+    if (gPrefs.getIntPref("network.cookie.lifetimePolicy") == COOKIE_SESSION) {
       return SESSION;
+    }
     return ALLOW;
   },
   "desktop-notification": function getNotificationDefaultPermission()
   {
-    return BLOCK;
-  },
-  popup: function getPopupDefaultPermission()
-  {
-    if (gPrefs.getBoolPref("dom.disable_open_during_load"))
-      return BLOCK;
-    return ALLOW;
+    if (!gPrefs.getBoolPref("dom.webnotifications.enabled")) {
+      return DENY;
+    }
+    return UNKNOWN;
   },
   install: function getInstallDefaultPermission()
   {
-    try {
-      if (!gPrefs.getBoolPref("xpinstall.whitelist.required"))
-        return ALLOW;
+    if (Services.prefs.getBoolPref("xpinstall.whitelist.required")) {
+      return DENY;
     }
-    catch (e) {
-    }
-    return BLOCK;
+    return ALLOW;
   },
   geo: function getGeoDefaultPermissions()
   {
-    return BLOCK;
+    if (!gPrefs.getBoolPref("geo.enabled")) {
+      return DENY;
+    }
+    return ALLOW;
   },
   indexedDB: function getIndexedDBDefaultPermissions()
   {
+    if (!gPrefs.getBoolPref("dom.indexedDB.enabled")) {
+      return DENY;
+    }
     return UNKNOWN;
   },
   plugins: function getPluginsDefaultPermissions()
@@ -63,11 +77,17 @@ var gPermObj = {
   },
   fullscreen: function getFullscreenDefaultPermissions()
   {
+    if (!gPrefs.getBoolPref("full-screen-api.enabled")) {
+      return DENY;
+    }
     return UNKNOWN;  
   },
   pointerLock: function getPointerLockPermissions()
   {
-    return BLOCK;
+    if (!gPrefs.getBoolPref("full-screen-api.pointer-lock.enabled")) {
+      return DENY;
+    }
+    return ALLOW;
   },
 };
 

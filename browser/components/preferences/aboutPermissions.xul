@@ -170,6 +170,27 @@
         </vbox>
       </hbox>
 
+      <!-- Desktop Notifications -->
+      <hbox id="desktop-notification-pref-item"
+            class="pref-item" align="top">
+        <image class="pref-icon" type="desktop-notification"/>
+        <vbox>
+          <label class="pref-title" value="&desktop-notification.label;"/>
+          <hbox>
+            <menulist id="desktop-notification-menulist"
+                      class="pref-menulist"
+                      type="desktop-notification"
+                      oncommand="AboutPermissions.onPermissionCommand(event);">
+              <menupopup>
+                <menuitem id="desktop-notification-0" value="0" label="&permission.alwaysAsk;"/>
+                <menuitem id="desktop-notification-1" value="1" label="&permission.allow;"/>
+                <menuitem id="desktop-notification-2" value="2" label="&permission.block;"/>
+              </menupopup>
+            </menulist>
+          </hbox>
+        </vbox>
+      </hbox>
+
       <!-- Addons Blocking -->
       <hbox id="install-pref-item"
             class="pref-item" align="top">

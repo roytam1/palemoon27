@@ -1,12 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * PMkit shim for 'sdk/ui/button', (c) JustOff, 2017 */
 'use strict';
 
 module.metadata = {
   'stability': 'experimental',
   'engines': {
-    'Firefox': '> 28'
+    'Firefox': '> 27'
   }
 };
 
@@ -19,64 +20,19 @@ const { isObject, isNil } = require('../../lang/type');
 
 const { getMostRecentBrowserWindow } = require('../../window/utils');
 const { ignoreWindow } = require('../../private-browsing/utils');
-const { CustomizableUI } = Cu.import('resource:///modules/CustomizableUI.jsm', {});
-const { AREA_PANEL, AREA_NAVBAR } = CustomizableUI;
+const { buttons } = require('../buttons');
 
 const { events: viewEvents } = require('./view/events');
 
 const XUL_NS = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
 
 const views = new Map();
-const customizedWindows = new WeakMap();
-
-const buttonListener = {
-  onCustomizeStart: window => {
-    for (let [id, view] of views) {
-      setIcon(id, window, view.icon);
-      setLabel(id, window, view.label);
-    }
-
-    customizedWindows.set(window, true);
-  },
-  onCustomizeEnd: window => {
-    customizedWindows.delete(window);
-
-    for (let [id, ] of views) {
-      let placement = CustomizableUI.getPlacementOfWidget(id);
-
-      if (placement)
-        emit(viewEvents, 'data', { type: 'update', target: id, window: window });
-    }
-  },
-  onWidgetAfterDOMChange: (node, nextNode, container) => {
-    let { id } = node;
-    let view = views.get(id);
-    let window = node.ownerDocument.defaultView;
-
-    if (view) {
-      emit(viewEvents, 'data', { type: 'update', target: id, window: window });
-    }
-  }
-};
-
-CustomizableUI.addListener(buttonListener);
-
-require('../../system/unload').when( _ =>
-  CustomizableUI.removeListener(buttonListener)
-);
 
 function getNode(id, window) {
   return !views.has(id) || ignoreWindow(window)
     ? null
-    : CustomizableUI.getWidget(id).forWindow(window).node
+    : buttons.getNode(id, window);
 };
-
-function isInToolbar(id) {
-  let placement = CustomizableUI.getPlacementOfWidget(id);
-
-  return placement && CustomizableUI.getAreaType(placement.area) === 'toolbar';
-}
-
 
 function getImage(icon, isInToolbar, pixelRatio) {
   let targetSize = (isInToolbar ? 18 : 32) * pixelRatio;
@@ -109,7 +65,7 @@ function getImage(icon, isInToolbar, pixelRatio) {
 }
 
 function nodeFor(id, window=getMostRecentBrowserWindow()) {
-  return customizedWindows.has(window) ? null : getNode(id, window);
+  return getNode(id, window);
 };
 exports.nodeFor = nodeFor;
 
@@ -119,14 +75,10 @@ function create(options) {
   if (views.has(id))
     throw new Error('The ID "' + id + '" seems already used.');
 
-  CustomizableUI.createWidget({
+  buttons.createButton({
     id: id,
-    type: 'custom',
-    removable: true,
-    defaultArea: AREA_NAVBAR,
-    allowedAreas: [ AREA_PANEL, AREA_NAVBAR ],
 
-    onBuild: function(document) {
+    onBuild: function(document, _id) {
       let window = document.defaultView;
 
       let node = document.createElementNS(XUL_NS, 'toolbarbutton');
@@ -136,16 +88,14 @@ function create(options) {
       if (ignoreWindow(window))
         node.style.display = 'none';
 
-      node.setAttribute('id', this.id);
+      node.setAttribute('id', _id);
       node.setAttribute('class', 'toolbarbutton-1 chromeclass-toolbar-additional badged-button');
       node.setAttribute('type', type);
       node.setAttribute('label', label);
       node.setAttribute('tooltiptext', label);
       node.setAttribute('image', image);
-      node.setAttribute('sdk-button', 'true');
 
       views.set(id, {
-        area: this.currentArea,
         icon: icon,
         label: label
       });
@@ -171,7 +121,7 @@ function dispose(id) {
   if (!views.has(id)) return;
 
   views.delete(id);
-  CustomizableUI.destroyWidget(id);
+  buttons.destroyButton(id);
 }
 exports.dispose = dispose;
 
@@ -179,8 +129,7 @@ function setIcon(id, window, icon) {
   let node = getNode(id, window);
 
   if (node) {
-    icon = customizedWindows.has(window) ? views.get(id).icon : icon;
-    let image = getImage(icon, isInToolbar(id), window.devicePixelRatio);
+    let image = getImage(icon, true, window.devicePixelRatio);
 
     node.setAttribute('image', image);
   }

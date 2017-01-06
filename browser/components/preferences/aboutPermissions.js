@@ -39,7 +39,7 @@ let gVisitStmt = gPlacesDatabase.createAsyncStatement(
  * Permission types that should be tested with testExactPermission, as opposed
  * to testPermission. This is based on what consumers use to test these permissions.
  */
-let TEST_EXACT_PERM_TYPES = ["desktop-notification", "geo"];
+let TEST_EXACT_PERM_TYPES = ["desktop-notification", "geo", "pointerLock"];
 
 /**
  * Site object represents a single site, uniquely identified by a host.
@@ -456,8 +456,11 @@ let AboutPermissions = {
    */
   _noGlobalDeny: [],
 
-  _stringBundle: Services.strings.
-                 createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
+  _stringBundleBrowser: Services.strings.
+      createBundle("chrome://browser/locale/browser.properties"),
+
+  _stringBundleAboutPermissions: Services.strings.
+      createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
 
   /**
    * Called on page load.
@@ -977,7 +980,9 @@ let AboutPermissions = {
         let pluginPermissionEntry = document.getElementById(aType + "-entry");
         if (pluginPermissionEntry.isBlocklisted()) {
           permissionMenulist.disabled = true;
-          permissionMenulist.setAttribute("tooltiptext", AboutPermissions._stringBundle.GetStringFromName("pluginBlocklisted"));
+          permissionMenulist.setAttribute("tooltiptext",
+              AboutPermissions._stringBundleAboutPermissions
+              .GetStringFromName("pluginBlocklisted"));
         } else {
           permissionMenulist.disabled = false;
           permissionMenulist.removeAttribute("tooltiptext");
@@ -991,6 +996,14 @@ let AboutPermissions = {
         document.getElementById(aType + "-9").hidden = false;
       } else if (aType.startsWith("plugin")) {
         document.getElementById(aType + "-0").disabled = false;
+        let pluginPermissionEntry = document.getElementById(aType + "-entry");
+        let permString = pluginPermissionEntry.getAttribute("permString");
+        let name = pluginPermissionEntry.getAttribute("label");
+        if (permString.startsWith("plugin-vulnerable:")) {
+          name += " \u2014 " + AboutPermissions._stringBundleBrowser
+                  .GetStringFromName("pluginActivateVulnerable.label");
+          pluginPermissionEntry.setAttribute("label", name);
+        }
       }
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?
@@ -1056,7 +1069,8 @@ let AboutPermissions = {
 
   updateVisitCount: function() {
     this._selectedSite.getVisitCount(function(aCount) {
-      let visitForm = AboutPermissions._stringBundle.GetStringFromName("visitCount");
+      let visitForm = AboutPermissions._stringBundleAboutPermissions
+                      .GetStringFromName("visitCount");
       let visitLabel = PluralForm.get(aCount, visitForm)
                                   .replace("#1", aCount);
       document.getElementById("site-visit-count").value = visitLabel;
@@ -1071,7 +1085,8 @@ let AboutPermissions = {
     }
 
     let passwordsCount = this._selectedSite.logins.length;
-    let passwordsForm = this._stringBundle.GetStringFromName("passwordsCount");
+    let passwordsForm = this._stringBundleAboutPermissions
+                        .GetStringFromName("passwordsCount");
     let passwordsLabel = PluralForm.get(passwordsCount, passwordsForm)
                                    .replace("#1", passwordsCount);
 
@@ -1109,7 +1124,8 @@ let AboutPermissions = {
     }
 
     let cookiesCount = this._selectedSite.cookies.length;
-    let cookiesForm = this._stringBundle.GetStringFromName("cookiesCount");
+    let cookiesForm = this._stringBundleAboutPermissions
+                      .GetStringFromName("cookiesCount");
     let cookiesLabel = PluralForm.get(cookiesCount, cookiesForm)
                                  .replace("#1", cookiesCount);
 

@@ -154,9 +154,9 @@ function initRow(aPartId)
 
   var checkbox = document.getElementById(aPartId + "Def");
   var command  = document.getElementById("cmd_" + aPartId + "Toggle");
-  // Geolocation and PointerLock permission consumers use testExactPermission, not testPermission.
+  // Desktop Notification, Geolocation and PointerLock permission consumers use testExactPermission, not testPermission.
   var perm;
-  if (aPartId == "geo" || aPartId == "pointerLock")
+  if (aPartId == "desktop-notification" || aPartId == "geo" || aPartId == "pointerLock")
     perm = permissionManager.testExactPermission(gPermURI, aPartId);
   else
     perm = permissionManager.testPermission(gPermURI, aPartId);
@@ -343,7 +343,7 @@ function initPluginsRow() {
 
   let entries = [{name: item[1], permission: item[0]} for (item of permissionMap)];
   entries.sort(function(a, b) {
-    return a.name < b.name ? -1 : (a.name == b.name ? 0 : 1);
+    return ((a.name < b.name) ? -1 : (a.name == b.name ? 0 : 1));
   });
 
   let permissionEntries = [

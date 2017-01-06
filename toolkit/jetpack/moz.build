@@ -87,7 +87,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
     ]
 
     EXTRA_JS_MODULES.jetpack.sdk.ui += [
-        'sdk/ui/component.js',
+        'sdk/ui/buttons.js',
         'sdk/ui/frame.js',
         'sdk/ui/id.js',
         'sdk/ui/sidebar.js',
@@ -179,7 +179,6 @@ EXTRA_JS_MODULES.jetpack.sdk += [
     'sdk/base64.js',
     'sdk/clipboard.js',
     'sdk/context-menu.js',
-    'sdk/context-menu@2.js',
     'sdk/hotkeys.js',
     'sdk/indexed-db.js',
     'sdk/l10n.js',
@@ -236,12 +235,6 @@ EXTRA_JS_MODULES.jetpack.sdk.content += [
     'sdk/content/utils.js',
     'sdk/content/worker-child.js',
     'sdk/content/worker.js',
-]
-
-EXTRA_JS_MODULES.jetpack.sdk['context-menu'] += [
-    'sdk/context-menu/context.js',
-    'sdk/context-menu/core.js',
-    'sdk/context-menu/readers.js',
 ]
 
 EXTRA_JS_MODULES.jetpack.sdk.core += [

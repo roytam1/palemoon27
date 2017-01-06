@@ -456,11 +456,11 @@ let AboutPermissions = {
    */
   _noGlobalDeny: [],
 
-  _stringBundleBrowser: Services.strings.
-      createBundle("chrome://browser/locale/browser.properties"),
+  _stringBundleBrowser: Services.strings
+      .createBundle("chrome://browser/locale/browser.properties"),
 
-  _stringBundleAboutPermissions: Services.strings.
-      createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
+  _stringBundleAboutPermissions: Services.strings
+      .createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
 
   /**
    * Called on page load.

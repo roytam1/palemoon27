@@ -39,20 +39,10 @@ function check(expr, expected=expr) {
             Function("o", "undef", "function myfunc() { return o + undef; }\n" + statement),
             // Let definitions in a block
             Function("{ let o, undef;\n" + statement + "}"),
-            // Let block
-            Function("let (o, undef) { " + statement + " }"),
-            // Let block with some other variables
-            Function("var v1, v2; let (o, undef) { " + statement + " }"),
-            // Shadowed let block
-            Function("o", "undef", "let (o, undef) { " + statement + " }"),
             // Let in a switch
             Function("var x = 4; switch (x) { case 4: let o, undef;" + statement + "\ncase 6: break;}"),
-            // The more lets the merrier
-            Function("let (x=4, y=5) { x + y; }\nlet (a, b, c) { a + b - c; }\nlet (o, undef) {" + statement + " }"),
-            // Let destructuring
-            Function("o", "undef", "let ([] = []) {} let (o, undef) { " + statement + " }"),
             // Try-catch blocks
-            Function("o", "undef", "try { let q = 4; try { let p = 4; } catch (e) {} } catch (e) {} let (o, undef) { " + statement + " }")
+            Function("o", "undef", "try { let q = 4; try { let p = 4; } catch (e) {} } catch (e) {} { let o, undef; " + statement + " }")
         ];
 
         try {
@@ -113,7 +103,7 @@ check_one("Array.prototype.reverse.call(...)", (function () { Array.prototype.re
 check_one(`(intermediate value)[Symbol.iterator](...).next(...).value`,
           function () { var [{ x }] = [null, {}]; }, " is null");
 check_one(`(intermediate value)[Symbol.iterator](...).next(...).value`,
-          function () { ieval("let (x) { var [a, b, [c0, c1]] = [x, x, x]; }") }, " is undefined");
+          function () { ieval("{ let x; var [a, b, [c0, c1]] = [x, x, x]; }") }, " is undefined");
 
 // Check fallback behavior
 assertThrowsInstanceOf(function () { for (let x of undefined) {} }, TypeError);

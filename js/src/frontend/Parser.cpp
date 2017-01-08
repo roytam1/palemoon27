@@ -3644,13 +3644,13 @@ Parser<ParseHandler>::deprecatedLetBlock()
 
     MUST_MATCH_TOKEN(TOK_LC, JSMSG_CURLY_BEFORE_LET);
 
-    Node expr = statements(yieldHandling);
+    Node expr = statements();
     if (!expr)
         return null();
     MUST_MATCH_TOKEN(TOK_RC, JSMSG_CURLY_AFTER_LET);
 
     addTelemetry(JSCompartment::DeprecatedLetBlock);
-    if (!report(ParseWarning, pc->sc->strict(), expr, JSMSG_DEPRECATED_LET_BLOCK))
+    if (!report(ParseWarning, pc->sc->strict, expr, JSMSG_DEPRECATED_LET_BLOCK))
         return null();
 
     handler.setLexicalScopeBody(block, expr);

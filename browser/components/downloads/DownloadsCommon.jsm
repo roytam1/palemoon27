@@ -354,6 +354,35 @@ this.DownloadsCommon = {
   _privateSummary: null,
 
   /**
+   * Returns the legacy state integer value for the provided Download object.
+   */
+  stateOfDownload(download) {
+    // Collapse state using the correct priority.
+    if (!download.stopped) {
+      return nsIDM.DOWNLOAD_DOWNLOADING;
+    }
+    if (download.succeeded) {
+      return nsIDM.DOWNLOAD_FINISHED;
+    }
+    if (download.error) {
+      if (download.error.becauseBlockedByParentalControls) {
+        return nsIDM.DOWNLOAD_BLOCKED_PARENTAL;
+      }
+      if (download.error.becauseBlockedByReputationCheck) {
+        return nsIDM.DOWNLOAD_DIRTY;
+      }
+      return nsIDM.DOWNLOAD_FAILED;
+    }
+    if (download.canceled) {
+      if (download.hasPartialData) {
+        return nsIDM.DOWNLOAD_PAUSED;
+      }
+      return nsIDM.DOWNLOAD_CANCELED;
+    }
+    return nsIDM.DOWNLOAD_NOTSTARTED;
+  },
+
+  /**
    * Given an iterable collection of DownloadDataItems, generates and returns
    * statistics about that collection.
    *

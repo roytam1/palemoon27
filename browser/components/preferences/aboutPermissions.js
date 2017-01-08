@@ -531,6 +531,7 @@ let AboutPermissions = {
       let permString = pluginHost.getPermissionStringForType(mimeType);
       let permissionEntry = document.createElementNS(XUL_NS, "box");
       permissionEntry.setAttribute("label", this.makeNicePluginName(plugin.name));
+      permissionEntry.setAttribute("vulnerable", "");
       permissionEntry.setAttribute("mimeType", mimeType);
       permissionEntry.setAttribute("permString", permString);
       permissionEntry.setAttribute("class", "pluginPermission");
@@ -978,6 +979,7 @@ let AboutPermissions = {
           document.getElementById(aType + "-0").disabled = true;
         }
         let pluginPermissionEntry = document.getElementById(aType + "-entry");
+        pluginPermissionEntry.setAttribute("vulnerable", "");
         if (pluginPermissionEntry.isBlocklisted()) {
           permissionMenulist.disabled = true;
           permissionMenulist.setAttribute("tooltiptext",
@@ -998,12 +1000,14 @@ let AboutPermissions = {
         document.getElementById(aType + "-0").disabled = false;
         let pluginPermissionEntry = document.getElementById(aType + "-entry");
         let permString = pluginPermissionEntry.getAttribute("permString");
-        let name = pluginPermissionEntry.getAttribute("label");
         if (permString.startsWith("plugin-vulnerable:")) {
-          name += " \u2014 " + AboutPermissions._stringBundleBrowser
-                  .GetStringFromName("pluginActivateVulnerable.label");
-          pluginPermissionEntry.setAttribute("label", name);
+          let nameVulnerable = " \u2014 "
+              + AboutPermissions._stringBundleBrowser
+                .GetStringFromName("pluginActivateVulnerable.label");
+          pluginPermissionEntry.setAttribute("vulnerable", nameVulnerable);
         }
+        permissionMenulist.disabled = false;
+        permissionMenulist.removeAttribute("tooltiptext");
       }
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?

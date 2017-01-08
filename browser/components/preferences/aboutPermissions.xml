@@ -23,7 +23,8 @@
   <binding id="pluginPermission">
     <content>
       <xul:hbox flex="1" align="baseline">
-        <xul:label xbl:inherits="value=label"/>
+        <xul:label xbl:inherits="value=label" class="plugins-label"/>
+        <xul:label xbl:inherits="value=vulnerable" class="plugins-vulnerable"/>
         <xul:spacer flex="1"/>
         <xul:menulist anonid="plugins-menulist"
                       class="pref-menulist"

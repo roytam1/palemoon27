@@ -3227,6 +3227,12 @@ nsHTMLDocument::ExecCommand(const nsAString& commandID,
   // Special case for cut and copy.
   // Cut/copy are allowed in non-editable documents.
   if (isCutCopy) {
+    // Emit a security error if the user explicitly disabled cut and copy.
+    if (nsContentUtils::IsCutCopyRestricted() && !nsContentUtils::IsCallerChrome()) {
+      rv = NS_ERROR_DOM_SECURITY_ERR;
+      return false;
+    }
+    
     if (!nsContentUtils::IsCutCopyAllowed()) {
       return false;
     }

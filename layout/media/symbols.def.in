@@ -252,6 +252,30 @@ jpeg_abort
 jpeg_abort_decompress
 jpeg_read_raw_data
 #endif
+#ifdef MOZ_JXR
+ImageStrDecGetInfo
+CalcThumbnailSize
+GetIndexTable
+SetCurrentSubbandUpperLimit
+PixelFormatLookup
+PKImageDecode_Create_WMP
+PKFormatConverter_InitializeConvert
+PKCodecFactory_CreateFormatConverter
+JXR_BeginDecodingMBRows
+JXR_DecodeNextMBRow
+JXR_EndDecodingMBRows
+JXR_BeginDecodingMBRows_Alpha
+JXR_DecodeNextMBRow_Alpha
+JXR_EndDecodingMBRows_Alpha
+PKAllocAligned
+PKFreeAligned
+CreateWS_List
+StartDecodingSubband
+EndDecodingSubband
+BGR24_RGB24
+BGRA32_RGBA32
+SetCurrentTileRow
+#endif
 #ifndef MOZ_NATIVE_WEBP
 WebPInitDecBufferInternal
 WebPFreeDecBuffer

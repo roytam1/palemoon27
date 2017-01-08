@@ -5146,6 +5146,21 @@ fi
 AC_SUBST(MOZ_WEBSPEECH)
 
 dnl ========================================================
+dnl = Enable JPEG-XR (JXR) decoder support
+dnl ========================================================
+MOZ_JXR=1
+
+MOZ_ARG_ENABLE_BOOL(jxr,
+[  --disable-jxr           Disable support for JPEG-XR (JXR) image format],
+    MOZ_JXR=)
+
+if test -n "$MOZ_JXR"; then
+    AC_DEFINE(MOZ_JXR)
+fi
+
+AC_SUBST(MOZ_JXR)
+
+dnl ========================================================
 dnl = Enable Raw Codecs
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(raw,

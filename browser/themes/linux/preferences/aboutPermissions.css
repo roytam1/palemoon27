@@ -114,3 +114,13 @@
   margin-left: 6px;
   margin-right: 6px;
 }
+
+.plugins-label {
+  margin-right: 0;
+  padding-right: 0;
+}
+
+.plugins-vulnerable {
+  margin-left: 0;
+  padding-left: 0;
+}

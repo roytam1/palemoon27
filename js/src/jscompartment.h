@@ -546,7 +546,7 @@ struct JSCompartment
         DeprecatedLegacyGenerator = 2,      // JS 1.7+
         DeprecatedExpressionClosure = 3,    // Added in JS 1.8
         DeprecatedLetBlock = 4,             // Added in JS 1.7
-        DeprecatedLetExpression = 5,        // Added in JS 1.7
+        // No longer using 5 (was: let expressions)
         DeprecatedNoSuchMethod = 6,         // JS 1.7+
         DeprecatedLanguageExtensionCount
     };

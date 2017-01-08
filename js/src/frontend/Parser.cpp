@@ -3612,55 +3612,6 @@ Parser<SyntaxParseHandler>::pushLetScope(HandleStaticBlockObject blockObj, StmtI
     return SyntaxParseHandler::NodeFailure;
 }
 
-/*
- * Parse a let block statement.
- * In both cases, bindings are not hoisted to the top of the enclosing block
- * and thus must be carefully injected between variables() and the let body.
- */
-template <typename ParseHandler>
-typename ParseHandler::Node
-Parser<ParseHandler>::deprecatedLetBlock()
-{
-    MOZ_ASSERT(tokenStream.isCurrentTokenType(TOK_LET));
-
-    RootedStaticBlockObject blockObj(context, StaticBlockObject::create(context));
-    if (!blockObj)
-        return null();
-
-    uint32_t begin = pos().begin;
-
-    MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_LET);
-
-    Node vars = variables(PNK_LET, nullptr, blockObj, DontHoistVars);
-    if (!vars)
-        return null();
-
-    MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_LET);
-
-    StmtInfoPC stmtInfo(context);
-    Node block = pushLetScope(blockObj, &stmtInfo);
-    if (!block)
-        return null();
-
-    MUST_MATCH_TOKEN(TOK_LC, JSMSG_CURLY_BEFORE_LET);
-
-    Node expr = statements();
-    if (!expr)
-        return null();
-    MUST_MATCH_TOKEN(TOK_RC, JSMSG_CURLY_AFTER_LET);
-
-    addTelemetry(JSCompartment::DeprecatedLetBlock);
-    if (!report(ParseWarning, pc->sc->strict, expr, JSMSG_DEPRECATED_LET_BLOCK))
-        return null();
-
-    handler.setLexicalScopeBody(block, expr);
-    PopStatementPC(tokenStream, pc);
-
-    TokenPos letPos(begin, pos().end);
-
-    return handler.newLetBlock(vars, block, letPos);
-}
-
 template <typename ParseHandler>
 static bool
 PushBlocklikeStatement(TokenStream& ts, StmtInfoPC* stmt, StmtType type,
@@ -4030,45 +3981,6 @@ Parser<FullParseHandler>::lexicalDeclaration(bool isConst)
 template <>
 SyntaxParseHandler::Node
 Parser<SyntaxParseHandler>::lexicalDeclaration(bool)
-{
-    JS_ALWAYS_FALSE(abortIfSyntaxParser());
-    return SyntaxParseHandler::NodeFailure;
-}
-
-template <>
-ParseNode*
-Parser<FullParseHandler>::letDeclarationOrBlock()
-{
-    handler.disableSyntaxParser();
-
-    /* Check for a let statement. */
-    TokenKind tt;
-    if (!tokenStream.peekToken(&tt))
-        return null();
-    if (tt == TOK_LP) {
-        ParseNode* node = deprecatedLetBlock();
-        if (!node)
-            return nullptr;
-
-        MOZ_ASSERT(node->isKind(PNK_LETBLOCK));
-        MOZ_ASSERT(node->isArity(PN_BINARY));
-        return node;
-    }
-
-    ParseNode* decl = lexicalDeclaration(/* isConst = */ false);
-    if (!decl)
-        return nullptr;
-
-    // let-declarations at global scope are currently treated as plain old var.
-    // See bug 589199.
-    MOZ_ASSERT(decl->isKind(PNK_LET) || decl->isKind(PNK_VAR));
-    MOZ_ASSERT(decl->isArity(PN_LIST));
-    return decl;
-}
-
-template <>
-SyntaxParseHandler::Node
-Parser<SyntaxParseHandler>::letDeclarationOrBlock()
 {
     JS_ALWAYS_FALSE(abortIfSyntaxParser());
     return SyntaxParseHandler::NodeFailure;
@@ -5733,6 +5645,11 @@ Parser<ParseHandler>::statement(bool canHaveDirectives)
       case TOK_LC:
         return blockStatement();
 
+      case TOK_LET:
+        if (!abortIfSyntaxParser())
+            return null();
+        return lexicalDeclaration(/* isConst = */ false);
+        
       case TOK_CONST:
         if (!abortIfSyntaxParser())
             return null();
@@ -5751,8 +5668,6 @@ Parser<ParseHandler>::statement(bool canHaveDirectives)
         return pn;
       }
 
-      case TOK_LET:
-        return letDeclarationOrBlock();
       case TOK_IMPORT:
         return importDeclaration();
       case TOK_EXPORT:

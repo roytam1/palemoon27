@@ -995,11 +995,7 @@ TokenStream::checkForKeyword(const KeywordInfo* kw, TokenKind* ttp)
             return reportError(JSMSG_RESERVED_ID, kw->chars);
         }
 
-        // The keyword is not in this version. Treat it as an identifier, unless
-        // it is let which we treat as TOK_STRICT_RESERVED by falling through to
-        // the code below (ES5 forbids it in strict mode).
-        if (kw->tokentype != TOK_LET)
-            return true;
+        return true;
     }
 
     // Strict reserved word.

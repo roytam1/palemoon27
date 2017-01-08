@@ -24,9 +24,6 @@ function test()
   let (x = [].map(function () {})) { x; }
   reportCompare(expect, actual, summary + ': 1');
 
-  let (x = [].map(function () {})) 3
-    reportCompare(expect, actual, summary + ': 2');
-
   var g = function() {};
   (function() { let x = [].map(function () {}); g(x); })()
     reportCompare(expect, actual, summary + ': 3');

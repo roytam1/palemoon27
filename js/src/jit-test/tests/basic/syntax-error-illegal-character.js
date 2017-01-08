@@ -962,22 +962,6 @@ test_fun_arg("...a @");
 
 // ==== Legacy ====
 
-// let statement
-
-test("let ( @");
-test("let ( x @");
-test("let ( x = @");
-test("let ( x = 1 @");
-test("let ( x = 1, @");
-test("let ( x = 1, y @");
-test("let ( x = 1, y = @");
-test("let ( x = 1, y = 2 @");
-test("let ( x = 1, y = 2 ) @");
-test("let ( x = 1, y = 2 ) { @");
-test("let ( x = 1, y = 2 ) { x @");
-test("let ( x = 1, y = 2 ) { x; @");
-test("let ( x = 1, y = 2 ) { x; } @");
-
 // Expression closures
 
 test("function f() 1 @");

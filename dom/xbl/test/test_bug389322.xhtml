@@ -118,7 +118,7 @@ function report(testName, success) {
     eval("let x = 1;");
     var success = true;
   }
-  catch (e) { success = true; }
+  catch (e) { success = false; }
   is(success, true, "let should work in versionless HTML script tags");
 ]]></script>
 </pre>

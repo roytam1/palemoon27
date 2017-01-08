@@ -13,22 +13,21 @@
 /* Function prototypes for non-inline static functions. */
 
 static quarantine_t	*quarantine_grow(tsd_t *tsd, quarantine_t *quarantine);
-static void	quarantine_drain_one(tsdn_t *tsdn, quarantine_t *quarantine);
-static void	quarantine_drain(tsdn_t *tsdn, quarantine_t *quarantine,
+static void	quarantine_drain_one(tsd_t *tsd, quarantine_t *quarantine);
+static void	quarantine_drain(tsd_t *tsd, quarantine_t *quarantine,
     size_t upper_bound);
 
 /******************************************************************************/
 
 static quarantine_t *
-quarantine_init(tsdn_t *tsdn, size_t lg_maxobjs)
+quarantine_init(tsd_t *tsd, size_t lg_maxobjs)
 {
 	quarantine_t *quarantine;
-	size_t size;
 
-	size = offsetof(quarantine_t, objs) + ((ZU(1) << lg_maxobjs) *
-	    sizeof(quarantine_obj_t));
-	quarantine = (quarantine_t *)iallocztm(tsdn, size, size2index(size),
-	    false, NULL, true, arena_get(TSDN_NULL, 0, true), true);
+	assert(tsd_nominal(tsd));
+
+	quarantine = (quarantine_t *)imalloc(tsd, offsetof(quarantine_t, objs) +
+	    ((ZU(1) << lg_maxobjs) * sizeof(quarantine_obj_t)));
 	if (quarantine == NULL)
 		return (NULL);
 	quarantine->curbytes = 0;
@@ -47,7 +46,7 @@ quarantine_alloc_hook_work(tsd_t *tsd)
 	if (!tsd_nominal(tsd))
 		return;
 
-	quarantine = quarantine_init(tsd_tsdn(tsd), LG_MAXOBJS_INIT);
+	quarantine = quarantine_init(tsd, LG_MAXOBJS_INIT);
 	/*
 	 * Check again whether quarantine has been initialized, because
 	 * quarantine_init() may have triggered recursive initialization.
@@ -55,7 +54,7 @@ quarantine_alloc_hook_work(tsd_t *tsd)
 	if (tsd_quarantine_get(tsd) == NULL)
 		tsd_quarantine_set(tsd, quarantine);
 	else
-		idalloctm(tsd_tsdn(tsd), quarantine, NULL, true, true);
+		idalloc(tsd, quarantine);
 }
 
 static quarantine_t *
@@ -63,9 +62,9 @@ quarantine_grow(tsd_t *tsd, quarantine_t *quarantine)
 {
 	quarantine_t *ret;
 
-	ret = quarantine_init(tsd_tsdn(tsd), quarantine->lg_maxobjs + 1);
+	ret = quarantine_init(tsd, quarantine->lg_maxobjs + 1);
 	if (ret == NULL) {
-		quarantine_drain_one(tsd_tsdn(tsd), quarantine);
+		quarantine_drain_one(tsd, quarantine);
 		return (quarantine);
 	}
 
@@ -87,18 +86,18 @@ quarantine_grow(tsd_t *tsd, quarantine_t *quarantine)
 		memcpy(&ret->objs[ncopy_a], quarantine->objs, ncopy_b *
 		    sizeof(quarantine_obj_t));
 	}
-	idalloctm(tsd_tsdn(tsd), quarantine, NULL, true, true);
+	idalloc(tsd, quarantine);
 
 	tsd_quarantine_set(tsd, ret);
 	return (ret);
 }
 
 static void
-quarantine_drain_one(tsdn_t *tsdn, quarantine_t *quarantine)
+quarantine_drain_one(tsd_t *tsd, quarantine_t *quarantine)
 {
 	quarantine_obj_t *obj = &quarantine->objs[quarantine->first];
-	assert(obj->usize == isalloc(tsdn, obj->ptr, config_prof));
-	idalloctm(tsdn, obj->ptr, NULL, false, true);
+	assert(obj->usize == isalloc(obj->ptr, config_prof));
+	idalloc(tsd, obj->ptr);
 	quarantine->curbytes -= obj->usize;
 	quarantine->curobjs--;
 	quarantine->first = (quarantine->first + 1) & ((ZU(1) <<
@@ -106,24 +105,24 @@ quarantine_drain_one(tsdn_t *tsdn, quarantine_t *quarantine)
 }
 
 static void
-quarantine_drain(tsdn_t *tsdn, quarantine_t *quarantine, size_t upper_bound)
+quarantine_drain(tsd_t *tsd, quarantine_t *quarantine, size_t upper_bound)
 {
 
 	while (quarantine->curbytes > upper_bound && quarantine->curobjs > 0)
-		quarantine_drain_one(tsdn, quarantine);
+		quarantine_drain_one(tsd, quarantine);
 }
 
 void
 quarantine(tsd_t *tsd, void *ptr)
 {
 	quarantine_t *quarantine;
-	size_t usize = isalloc(tsd_tsdn(tsd), ptr, config_prof);
+	size_t usize = isalloc(ptr, config_prof);
 
 	cassert(config_fill);
 	assert(opt_quarantine);
 
 	if ((quarantine = tsd_quarantine_get(tsd)) == NULL) {
-		idalloctm(tsd_tsdn(tsd), ptr, NULL, false, true);
+		idalloc(tsd, ptr);
 		return;
 	}
 	/*
@@ -133,7 +132,7 @@ quarantine(tsd_t *tsd, void *ptr)
 	if (quarantine->curbytes + usize > opt_quarantine) {
 		size_t upper_bound = (opt_quarantine >= usize) ? opt_quarantine
 		    - usize : 0;
-		quarantine_drain(tsd_tsdn(tsd), quarantine, upper_bound);
+		quarantine_drain(tsd, quarantine, upper_bound);
 	}
 	/* Grow the quarantine ring buffer if it's full. */
 	if (quarantine->curobjs == (ZU(1) << quarantine->lg_maxobjs))
@@ -158,11 +157,11 @@ quarantine(tsd_t *tsd, void *ptr)
 			    && usize <= SMALL_MAXCLASS)
 				arena_quarantine_junk_small(ptr, usize);
 			else
-				memset(ptr, JEMALLOC_FREE_JUNK, usize);
+				memset(ptr, 0x5a, usize);
 		}
 	} else {
 		assert(quarantine->curbytes == 0);
-		idalloctm(tsd_tsdn(tsd), ptr, NULL, false, true);
+		idalloc(tsd, ptr);
 	}
 }
 
@@ -176,8 +175,8 @@ quarantine_cleanup(tsd_t *tsd)
 
 	quarantine = tsd_quarantine_get(tsd);
 	if (quarantine != NULL) {
-		quarantine_drain(tsd_tsdn(tsd), quarantine, 0);
-		idalloctm(tsd_tsdn(tsd), quarantine, NULL, true, true);
+		quarantine_drain(tsd, quarantine, 0);
+		idalloc(tsd, quarantine);
 		tsd_quarantine_set(tsd, NULL);
 	}
 }

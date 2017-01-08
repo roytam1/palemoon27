@@ -676,8 +676,6 @@ class NodeBuilder
     bool generatorExpression(HandleValue body, NodeVector& blocks, HandleValue filter,
                              bool isLegacy, TokenPos* pos, MutableHandleValue dst);
 
-    bool letExpression(NodeVector& head, HandleValue expr, TokenPos* pos, MutableHandleValue dst);
-
     /*
      * declarations
      */
@@ -1471,24 +1469,6 @@ NodeBuilder::generatorExpression(HandleValue body, NodeVector& blocks, HandleVal
 }
 
 bool
-NodeBuilder::letExpression(NodeVector& head, HandleValue expr, TokenPos* pos,
-                           MutableHandleValue dst)
-{
-    RootedValue array(cx);
-    if (!newArray(head, &array))
-        return false;
-
-    RootedValue cb(cx, callbacks[AST_LET_EXPR]);
-    if (!cb.isNull())
-        return callback(cb, array, expr, pos, dst);
-
-    return newNode(AST_LET_EXPR, pos,
-                   "head", array,
-                   "body", expr,
-                   dst);
-}
-
-bool
 NodeBuilder::letStatement(NodeVector& head, HandleValue stmt, TokenPos* pos, MutableHandleValue dst)
 {
     RootedValue array(cx);
@@ -1747,7 +1727,7 @@ class ASTSerializer
     bool declaration(ParseNode* pn, MutableHandleValue dst);
     bool variableDeclaration(ParseNode* pn, bool lexical, MutableHandleValue dst);
     bool variableDeclarator(ParseNode* pn, MutableHandleValue dst);
-    bool let(ParseNode* pn, bool expr, MutableHandleValue dst);
+    bool letBlock(ParseNode* pn, MutableHandleValue dst);
     bool importDeclaration(ParseNode* pn, MutableHandleValue dst);
     bool importSpecifier(ParseNode* pn, MutableHandleValue dst);
     bool exportDeclaration(ParseNode* pn, MutableHandleValue dst);
@@ -2088,7 +2068,7 @@ ASTSerializer::variableDeclarator(ParseNode* pn, MutableHandleValue dst)
 }
 
 bool
-ASTSerializer::let(ParseNode* pn, bool expr, MutableHandleValue dst)
+ASTSerializer::letBlock(ParseNode* pn, MutableHandleValue dst)
 {
     MOZ_ASSERT(pn->pn_pos.encloses(pn->pn_left->pn_pos));
     MOZ_ASSERT(pn->pn_pos.encloses(pn->pn_right->pn_pos));
@@ -2112,11 +2092,8 @@ ASTSerializer::let(ParseNode* pn, bool expr, MutableHandleValue dst)
     }
 
     RootedValue v(cx);
-    return expr
-           ? expression(letBody->pn_expr, &v) &&
-             builder.letExpression(dtors, v, &pn->pn_pos, dst)
-           : statement(letBody->pn_expr, &v) &&
-             builder.letStatement(dtors, v, &pn->pn_pos, dst);
+    return statement(letBody->pn_expr, &v) &&
+           builder.letStatement(dtors, v, &pn->pn_pos, dst);
 }
 
 bool
@@ -2369,7 +2346,7 @@ ASTSerializer::statement(ParseNode* pn, MutableHandleValue dst)
         return declaration(pn, dst);
 
       case PNK_LETBLOCK:
-        return let(pn, false, dst);
+        return letBlock(pn, dst);
 
       case PNK_LET:
       case PNK_CONST:
@@ -3045,9 +3022,6 @@ ASTSerializer::expression(ParseNode* pn, MutableHandleValue dst)
         /* NB: it's no longer the case that pn_count could be 2. */
         LOCAL_ASSERT(pn->pn_count == 1);
         return comprehension(pn->pn_head, dst);
-
-      case PNK_LETEXPR:
-        return let(pn, true, dst);
 
       default:
         LOCAL_NOT_REACHED("unexpected expression type");

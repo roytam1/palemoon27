@@ -8,3 +8,8 @@ pref("app.releaseNotesURL", "http://www.palemoon.org/unstable/releasenotes.shtml
 
 // Enable Firefox compatmode by default.
 pref("general.useragent.compatMode", 2);
+
+// Enable auto-updates for this channel
+pref("app.update.auto", true);
+pref("app.update.interval", 86400);
+pref("app.update.promptWaitTime", 10800);

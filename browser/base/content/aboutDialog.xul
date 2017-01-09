@@ -106,7 +106,7 @@
       <hbox pack="center">
         <label class="text-link bottom-link" href="about:license">Licensing information</label>
         <label class="text-link bottom-link" href="about:rights">End-user rights</label>
-        <label class="text-link bottom-link" href="http://www.palemoon.org/releasenotes-ng.shtml">Release notes</label>
+        <label class="text-link bottom-link" id="releaseNotesURL">Release notes</label>
       </hbox>
       <description id="PMtrademark">&trademarkInfo.part1;</description>
     </vbox>

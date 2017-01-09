@@ -56,6 +56,15 @@ function init(aEvent)
   window.sizeToContent();
   window.moveTo((screen.availWidth / 2) - (window.outerWidth / 2), screen.availHeight / 5);
 #endif
+
+// get release notes URL from prefs
+  var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                            .getService(Components.interfaces.nsIURLFormatter);
+  var releaseNotesURL = formatter.formatURLPref("app.releaseNotesURL");
+  if (releaseNotesURL != "about:blank") {
+    var relnotes = document.getElementById("releaseNotesURL");
+    relnotes.setAttribute("href", releaseNotesURL);
+  }
 }
 
 #ifdef MOZ_UPDATER

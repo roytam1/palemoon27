@@ -13,12 +13,12 @@ EXTRA_JS_MODULES.sdk.system += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
-    EXTRA_JS_MODULES.jetpack.method.test += [
+    EXTRA_JS_MODULES.commonjs.method.test += [
         'method/test/browser.js',
         'method/test/common.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.deprecated += [
+    EXTRA_JS_MODULES.commonjs.sdk.deprecated += [
         'sdk/deprecated/api-utils.js',
         'sdk/deprecated/cortex.js',
         'sdk/deprecated/errors.js',
@@ -35,17 +35,17 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/deprecated/window-utils.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.frame += [
+    EXTRA_JS_MODULES.commonjs.sdk.frame += [
         'sdk/frame/hidden-frame.js',
         'sdk/frame/utils.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.panel += [
+    EXTRA_JS_MODULES.commonjs.sdk.panel += [
         'sdk/panel/events.js',
         'sdk/panel/utils.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.places += [
+    EXTRA_JS_MODULES.commonjs.sdk.places += [
         'sdk/places/bookmarks.js',
         'sdk/places/contract.js',
         'sdk/places/events.js',
@@ -54,13 +54,13 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/places/utils.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.places.host += [
+    EXTRA_JS_MODULES.commonjs.sdk.places.host += [
         'sdk/places/host/host-bookmarks.js',
         'sdk/places/host/host-query.js',
         'sdk/places/host/host-tags.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.tabs += [
+    EXTRA_JS_MODULES.commonjs.sdk.tabs += [
         'sdk/tabs/common.js',
         'sdk/tabs/events.js',
         'sdk/tabs/helpers.js',
@@ -74,7 +74,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/tabs/worker.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.test += [
+    EXTRA_JS_MODULES.commonjs.sdk.test += [
         'sdk/test/assert.js',
         'sdk/test/harness.js',
         'sdk/test/httpd.js',
@@ -86,7 +86,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/test/utils.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.ui += [
+    EXTRA_JS_MODULES.commonjs.sdk.ui += [
         'sdk/ui/buttons.js',
         'sdk/ui/frame.js',
         'sdk/ui/id.js',
@@ -95,14 +95,14 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/ui/toolbar.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.ui.button += [
+    EXTRA_JS_MODULES.commonjs.sdk.ui.button += [
         'sdk/ui/button/action.js',
         'sdk/ui/button/contract.js',
         'sdk/ui/button/toggle.js',
         'sdk/ui/button/view.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.ui.sidebar += [
+    EXTRA_JS_MODULES.commonjs.sdk.ui.sidebar += [
         'sdk/ui/sidebar/actions.js',
         'sdk/ui/sidebar/contract.js',
         'sdk/ui/sidebar/namespace.js',
@@ -110,7 +110,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/ui/sidebar/view.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.window += [
+    EXTRA_JS_MODULES.commonjs.sdk.window += [
         'sdk/window/browser.js',
         'sdk/window/events.js',
         'sdk/window/helpers.js',
@@ -118,7 +118,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/window/utils.js',
     ]
 
-    EXTRA_JS_MODULES.jetpack.sdk.windows += [
+    EXTRA_JS_MODULES.commonjs.sdk.windows += [
         'sdk/windows/dom.js',
         'sdk/windows/fennec.js',
         'sdk/windows/firefox.js',
@@ -127,12 +127,12 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/windows/tabs-firefox.js',
     ]
 
-EXTRA_JS_MODULES.jetpack += [
+EXTRA_JS_MODULES.commonjs += [
     'index.js',
     'test.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.dev += [
+EXTRA_JS_MODULES.commonjs.dev += [
     'dev/debuggee.js',
     'dev/frame-script.js',
     'dev/panel.js',
@@ -142,18 +142,18 @@ EXTRA_JS_MODULES.jetpack.dev += [
     'dev/volcan.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.dev.panel += [
+EXTRA_JS_MODULES.commonjs.dev.panel += [
     'dev/panel/view.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.diffpatcher += [
+EXTRA_JS_MODULES.commonjs.diffpatcher += [
     'diffpatcher/diff.js',
     'diffpatcher/index.js',
     'diffpatcher/patch.js',
     'diffpatcher/rebase.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.diffpatcher.test += [
+EXTRA_JS_MODULES.commonjs.diffpatcher.test += [
     'diffpatcher/test/common.js',
     'diffpatcher/test/diff.js',
     'diffpatcher/test/index.js',
@@ -161,21 +161,21 @@ EXTRA_JS_MODULES.jetpack.diffpatcher.test += [
     'diffpatcher/test/tap.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.framescript += [
+EXTRA_JS_MODULES.commonjs.framescript += [
     'framescript/FrameScriptManager.jsm',
     'framescript/LoaderHelper.jsm',
     'framescript/tab-events.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.method += [
+EXTRA_JS_MODULES.commonjs.method += [
     'method/core.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.node += [
+EXTRA_JS_MODULES.commonjs.node += [
     'node/os.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk += [
+EXTRA_JS_MODULES.commonjs.sdk += [
     'sdk/base64.js',
     'sdk/clipboard.js',
     'sdk/context-menu.js',
@@ -205,7 +205,7 @@ EXTRA_JS_MODULES.jetpack.sdk += [
     'sdk/windows.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.addon += [
+EXTRA_JS_MODULES.commonjs.sdk.addon += [
     'sdk/addon/bootstrap.js',
     'sdk/addon/events.js',
     'sdk/addon/host.js',
@@ -215,16 +215,16 @@ EXTRA_JS_MODULES.jetpack.sdk.addon += [
     'sdk/addon/window.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.browser += [
+EXTRA_JS_MODULES.commonjs.sdk.browser += [
     'sdk/browser/events.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.console += [
+EXTRA_JS_MODULES.commonjs.sdk.console += [
     'sdk/console/plain-text.js',
     'sdk/console/traceback.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.content += [
+EXTRA_JS_MODULES.commonjs.sdk.content += [
     'sdk/content/content-worker.js',
     'sdk/content/content.js',
     'sdk/content/events.js',
@@ -237,7 +237,7 @@ EXTRA_JS_MODULES.jetpack.sdk.content += [
     'sdk/content/worker.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.core += [
+EXTRA_JS_MODULES.commonjs.sdk.core += [
     'sdk/core/disposable.js',
     'sdk/core/heritage.js',
     'sdk/core/namespace.js',
@@ -246,23 +246,23 @@ EXTRA_JS_MODULES.jetpack.sdk.core += [
     'sdk/core/reference.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.deprecated.events += [
+EXTRA_JS_MODULES.commonjs.sdk.deprecated.events += [
     'sdk/deprecated/events/assembler.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.deprecated.traits += [
+EXTRA_JS_MODULES.commonjs.sdk.deprecated.traits += [
     'sdk/deprecated/traits/core.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.dom += [
+EXTRA_JS_MODULES.commonjs.sdk.dom += [
     'sdk/dom/events.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.dom.events += [
+EXTRA_JS_MODULES.commonjs.sdk.dom.events += [
     'sdk/dom/events/keys.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.event += [
+EXTRA_JS_MODULES.commonjs.sdk.event += [
     'sdk/event/chrome.js',
     'sdk/event/core.js',
     'sdk/event/dom.js',
@@ -270,11 +270,11 @@ EXTRA_JS_MODULES.jetpack.sdk.event += [
     'sdk/event/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.fs += [
+EXTRA_JS_MODULES.commonjs.sdk.fs += [
     'sdk/fs/path.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.input += [
+EXTRA_JS_MODULES.commonjs.sdk.input += [
     'sdk/input/browser.js',
     'sdk/input/customizable-ui.js',
     'sdk/input/frame.js',
@@ -282,7 +282,7 @@ EXTRA_JS_MODULES.jetpack.sdk.input += [
     'sdk/input/window.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.io += [
+EXTRA_JS_MODULES.commonjs.sdk.io += [
     'sdk/io/buffer.js',
     'sdk/io/byte-streams.js',
     'sdk/io/data.js',
@@ -292,13 +292,13 @@ EXTRA_JS_MODULES.jetpack.sdk.io += [
     'sdk/io/text-streams.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.keyboard += [
+EXTRA_JS_MODULES.commonjs.sdk.keyboard += [
     'sdk/keyboard/hotkeys.js',
     'sdk/keyboard/observer.js',
     'sdk/keyboard/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.l10n += [
+EXTRA_JS_MODULES.commonjs.sdk.l10n += [
     'sdk/l10n/core.js',
     'sdk/l10n/html.js',
     'sdk/l10n/loader.js',
@@ -307,73 +307,73 @@ EXTRA_JS_MODULES.jetpack.sdk.l10n += [
     'sdk/l10n/prefs.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.l10n.json += [
+EXTRA_JS_MODULES.commonjs.sdk.l10n.json += [
     'sdk/l10n/json/core.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.l10n.properties += [
+EXTRA_JS_MODULES.commonjs.sdk.l10n.properties += [
     'sdk/l10n/properties/core.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.lang += [
+EXTRA_JS_MODULES.commonjs.sdk.lang += [
     'sdk/lang/functional.js',
     'sdk/lang/type.js',
     'sdk/lang/weak-set.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.lang.functional += [
+EXTRA_JS_MODULES.commonjs.sdk.lang.functional += [
     'sdk/lang/functional/concurrent.js',
     'sdk/lang/functional/core.js',
     'sdk/lang/functional/helpers.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.loader += [
+EXTRA_JS_MODULES.commonjs.sdk.loader += [
     'sdk/loader/cuddlefish.js',
     'sdk/loader/sandbox.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.model += [
+EXTRA_JS_MODULES.commonjs.sdk.model += [
     'sdk/model/core.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.net += [
+EXTRA_JS_MODULES.commonjs.sdk.net += [
     'sdk/net/url.js',
     'sdk/net/xhr.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.output += [
+EXTRA_JS_MODULES.commonjs.sdk.output += [
     'sdk/output/system.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk['page-mod'] += [
+EXTRA_JS_MODULES.commonjs.sdk['page-mod'] += [
     'sdk/page-mod/match-pattern.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.passwords += [
+EXTRA_JS_MODULES.commonjs.sdk.passwords += [
     'sdk/passwords/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.platform += [
+EXTRA_JS_MODULES.commonjs.sdk.platform += [
     'sdk/platform/xpcom.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.preferences += [
+EXTRA_JS_MODULES.commonjs.sdk.preferences += [
     'sdk/preferences/event-target.js',
     'sdk/preferences/native-options.js',
     'sdk/preferences/service.js',
     'sdk/preferences/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk['private-browsing'] += [
+EXTRA_JS_MODULES.commonjs.sdk['private-browsing'] += [
     'sdk/private-browsing/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.stylesheet += [
+EXTRA_JS_MODULES.commonjs.sdk.stylesheet += [
     'sdk/stylesheet/style.js',
     'sdk/stylesheet/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.system += [
+EXTRA_JS_MODULES.commonjs.sdk.system += [
     'sdk/system/child_process.js',
     'sdk/system/environment.js',
     'sdk/system/events.js',
@@ -385,44 +385,44 @@ EXTRA_JS_MODULES.jetpack.sdk.system += [
     'sdk/system/xul-app.jsm',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.system.child_process += [
+EXTRA_JS_MODULES.commonjs.sdk.system.child_process += [
     'sdk/system/child_process/subprocess.js',
     'sdk/system/child_process/subprocess_worker_unix.js',
     'sdk/system/child_process/subprocess_worker_win.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.tab += [
+EXTRA_JS_MODULES.commonjs.sdk.tab += [
     'sdk/tab/events.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.ui.button.view += [
+EXTRA_JS_MODULES.commonjs.sdk.ui.button.view += [
     'sdk/ui/button/view/events.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.ui.frame += [
+EXTRA_JS_MODULES.commonjs.sdk.ui.frame += [
     'sdk/ui/frame/model.js',
     'sdk/ui/frame/view.html',
     'sdk/ui/frame/view.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.ui.state += [
+EXTRA_JS_MODULES.commonjs.sdk.ui.state += [
     'sdk/ui/state/events.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.ui.toolbar += [
+EXTRA_JS_MODULES.commonjs.sdk.ui.toolbar += [
     'sdk/ui/toolbar/model.js',
     'sdk/ui/toolbar/view.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.uri += [
+EXTRA_JS_MODULES.commonjs.sdk.uri += [
     'sdk/uri/resource.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.url += [
+EXTRA_JS_MODULES.commonjs.sdk.url += [
     'sdk/url/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.util += [
+EXTRA_JS_MODULES.commonjs.sdk.util += [
     'sdk/util/array.js',
     'sdk/util/bond.js',
     'sdk/util/collection.js',
@@ -437,19 +437,19 @@ EXTRA_JS_MODULES.jetpack.sdk.util += [
     'sdk/util/uuid.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.view += [
+EXTRA_JS_MODULES.commonjs.sdk.view += [
     'sdk/view/core.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.worker += [
+EXTRA_JS_MODULES.commonjs.sdk.worker += [
     'sdk/worker/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.sdk.zip += [
+EXTRA_JS_MODULES.commonjs.sdk.zip += [
     'sdk/zip/utils.js',
 ]
 
-EXTRA_JS_MODULES.jetpack.toolkit += [
+EXTRA_JS_MODULES.commonjs.toolkit += [
     'toolkit/loader.js',
     'toolkit/require.js',
 ]

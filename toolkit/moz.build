@@ -10,7 +10,7 @@ DIRS += [
     'devtools',
     'forgetaboutsite',
     'identity',
-    'jetpack',
+    'commonjs',
     'locales',
     'modules',
     'mozapps/downloads',

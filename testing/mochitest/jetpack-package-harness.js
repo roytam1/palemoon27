@@ -167,7 +167,7 @@ function testInit() {
       setPrefs("extensions." + TEST_ID + ".sdk", options);
 
       // Override the SDK modules if necessary
-      let sdkpath = "resource://gre/modules/jetpack/";
+      let sdkpath = "resource://gre/modules/commonjs/";
       try {
         let sdklibs = Services.prefs.getCharPref("extensions.sdk.path");
         // sdkpath is a file path, make it a URI and map a resource URI to it

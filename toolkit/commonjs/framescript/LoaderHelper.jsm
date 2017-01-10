@@ -4,7 +4,7 @@
 "use strict";
 
 const { utils: Cu, classes: Cc, interfaces: Ci } = Components;
-const { Loader } = Cu.import('resource://gre/modules/jetpack/toolkit/loader.js', {});
+const { Loader } = Cu.import('resource://gre/modules/commonjs/toolkit/loader.js', {});
 const cpmm = Cc['@mozilla.org/childprocessmessagemanager;1'].getService(Ci.nsISyncMessageSender);
 
 // one Loader instance per addon (per @loader/options to be precise)

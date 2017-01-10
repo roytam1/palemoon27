@@ -19,7 +19,7 @@ module.metadata = {
 
 const { Cu } = require('chrome');
 const { isNumber } = require('sdk/lang/type');
-const { TextEncoder, TextDecoder } = Cu.import('resource://gre/modules/jetpack/toolkit/loader.js', {});
+const { TextEncoder, TextDecoder } = Cu.import('resource://gre/modules/commonjs/toolkit/loader.js', {});
 
 exports.TextEncoder = TextEncoder;
 exports.TextDecoder = TextDecoder;

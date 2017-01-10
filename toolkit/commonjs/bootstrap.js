@@ -128,7 +128,7 @@ function startup(data, reasonCode) {
       // Relative modules resolve to add-on package lib
       './': prefixURI + name + '/lib/',
       './tests/': prefixURI + name + '/tests/',
-      '': 'resource://gre/modules/jetpack/'
+      '': 'resource://gre/modules/commonjs/'
     };
 
     // Maps addon lib and tests ressource folders for each package
@@ -196,7 +196,7 @@ function startup(data, reasonCode) {
 
     // Import `cuddlefish.js` module using a Sandbox and bootstrap loader.
     let cuddlefishPath = 'loader/cuddlefish.js';
-    let cuddlefishURI = 'resource://gre/modules/jetpack/sdk/' + cuddlefishPath;
+    let cuddlefishURI = 'resource://gre/modules/commonjs/sdk/' + cuddlefishPath;
     if (paths['sdk/']) { // sdk folder has been overloaded
                          // (from pref, or cuddlefish is still in the xpi)
       cuddlefishURI = paths['sdk/'] + cuddlefishPath;

@@ -9,7 +9,7 @@ const { utils: Cu, interfaces: Ci, classes: Cc } = Components;
 const { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 const { defer } = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
 
-const { XulApp } = Cu.import("resource://gre/modules/jetpack/sdk/system/xul-app.jsm", {});
+const { XulApp } = Cu.import("resource://gre/modules/commonjs/sdk/system/xul-app.jsm", {});
 
 const appStartupSrv = Cc["@mozilla.org/toolkit/app-startup;1"]
                        .getService(Ci.nsIAppStartup);

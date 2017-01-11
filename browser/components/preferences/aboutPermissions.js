@@ -524,47 +524,55 @@ let AboutPermissions = {
     let pluginHost = Cc["@mozilla.org/plugin/host;1"]
                      .getService(Ci.nsIPluginHost);
     let tags = pluginHost.getPluginTags();
+
+    let permissionMap = new Map();
+
     let permissionEntries = [];
     let XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     for (let plugin of tags) {
-      let mimeType = plugin.getMimeTypes()[0];
-      let permString = pluginHost.getPermissionStringForType(mimeType);
-      let permissionEntry = document.createElementNS(XUL_NS, "box");
-      permissionEntry.setAttribute("label", this.makeNicePluginName(plugin.name)
-                                   + " " + plugin.version);
-      permissionEntry.setAttribute("tooltiptext", plugin.description);
-      permissionEntry.setAttribute("vulnerable", "");
-      permissionEntry.setAttribute("mimeType", mimeType);
-      permissionEntry.setAttribute("permString", permString);
-      permissionEntry.setAttribute("class", "pluginPermission");
-      permissionEntry.setAttribute("id", permString + "-entry");
-      // If the plugin is disabled, it makes no sense to change its
-      // click-to-play status, so don't add it.
-      // If the click-to-play pref is not set and the plugin is not
-      // click-to-play blocklisted, again click-to-play doesn't apply,
-      // so don't add it.
-      if (plugin.disabled ||
-          (!Services.prefs.getBoolPref("plugins.click_to_play") &&
-           pluginHost.getStateForType(mimeType)
-               != Ci.nsIPluginTag.STATE_CLICKTOPLAY)) {
-        permissionEntry.hidden = true;
-      } else {
-        permissionEntry.hidden = false;
+      for (let mimeType of plugin.getMimeTypes()) {
+        let permString = pluginHost.getPermissionStringForType(mimeType);
+        if (!permissionMap.has(permString)) {
+          let permissionEntry = document.createElementNS(XUL_NS, "box");
+          permissionEntry.setAttribute("label",
+                                       this.makeNicePluginName(plugin.name)
+                                       + " " + plugin.version);
+          permissionEntry.setAttribute("tooltiptext", plugin.description);
+          permissionEntry.setAttribute("vulnerable", "");
+          permissionEntry.setAttribute("mimeType", mimeType);
+          permissionEntry.setAttribute("permString", permString);
+          permissionEntry.setAttribute("class", "pluginPermission");
+          permissionEntry.setAttribute("id", permString + "-entry");
+          // If the plugin is disabled, it makes no sense to change its
+          // click-to-play status, so don't add it.
+          // If the click-to-play pref is not set and the plugin is not
+          // click-to-play blocklisted, again click-to-play doesn't apply,
+          // so don't add it.
+          if (plugin.disabled ||
+              (!Services.prefs.getBoolPref("plugins.click_to_play") &&
+               pluginHost.getStateForType(mimeType)
+                   != Ci.nsIPluginTag.STATE_CLICKTOPLAY)) {
+            permissionEntry.hidden = true;
+          } else {
+            permissionEntry.hidden = false;
+          }
+          permissionEntries.push(permissionEntry);
+          this._supportedPermissions.push(permString);
+          this._noGlobalDeny.push(permString);
+          Object.defineProperty(PermissionDefaults, permString, {
+            get: function() {
+                   return this.isClickToPlay()
+                          ? PermissionDefaults.UNKNOWN
+                          : PermissionDefaults.ALLOW;
+                 }.bind(permissionEntry),
+            set: function(aValue) {
+                   this.clicktoplay = (aValue == PermissionDefaults.UNKNOWN);
+                 }.bind(plugin),
+            configurable: true
+          });
+          permissionMap.set(permString, "");
+        }
       }
-      permissionEntries.push(permissionEntry);
-      this._supportedPermissions.push(permString);
-      this._noGlobalDeny.push(permString);
-      Object.defineProperty(PermissionDefaults, permString, {
-        get: function() {
-               return this.isClickToPlay()
-                      ? PermissionDefaults.UNKNOWN
-                      : PermissionDefaults.ALLOW;
-             }.bind(permissionEntry),
-        set: function(aValue) {
-               this.clicktoplay = (aValue == PermissionDefaults.UNKNOWN);
-             }.bind(plugin),
-        configurable: true
-      });
     }
 
     if (permissionEntries.length > 0) {

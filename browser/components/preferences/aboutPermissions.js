@@ -521,8 +521,8 @@ let AboutPermissions = {
   },
 
   initPluginList: function() {
-    let pluginHost = Components.classes["@mozilla.org/plugin/host;1"]
-                     .getService(Components.interfaces.nsIPluginHost);
+    let pluginHost = Cc["@mozilla.org/plugin/host;1"]
+                     .getService(Ci.nsIPluginHost);
     let tags = pluginHost.getPluginTags();
     let permissionEntries = [];
     let XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
@@ -530,7 +530,9 @@ let AboutPermissions = {
       let mimeType = plugin.getMimeTypes()[0];
       let permString = pluginHost.getPermissionStringForType(mimeType);
       let permissionEntry = document.createElementNS(XUL_NS, "box");
-      permissionEntry.setAttribute("label", this.makeNicePluginName(plugin.name));
+      permissionEntry.setAttribute("label", this.makeNicePluginName(plugin.name)
+                                   + " " + plugin.version);
+      permissionEntry.setAttribute("tooltiptext", plugin.description);
       permissionEntry.setAttribute("vulnerable", "");
       permissionEntry.setAttribute("mimeType", mimeType);
       permissionEntry.setAttribute("permString", permString);
@@ -544,7 +546,7 @@ let AboutPermissions = {
       if (plugin.disabled ||
           (!Services.prefs.getBoolPref("plugins.click_to_play") &&
            pluginHost.getStateForType(mimeType)
-               != Components.interfaces.nsIPluginTag.STATE_CLICKTOPLAY)) {
+               != Ci.nsIPluginTag.STATE_CLICKTOPLAY)) {
         permissionEntry.hidden = true;
       } else {
         permissionEntry.hidden = false;
@@ -1030,8 +1032,8 @@ let AboutPermissions = {
   },
 
   onPermissionCommand: function(event) {
-    let pluginHost = Components.classes["@mozilla.org/plugin/host;1"] 
-                     .getService(Components.interfaces.nsIPluginHost);
+    let pluginHost = Cc["@mozilla.org/plugin/host;1"] 
+                     .getService(Ci.nsIPluginHost);
     let permissionMimeType = event.currentTarget.getAttribute("mimeType");
     let permissionType = event.currentTarget.getAttribute("type");
     let permissionValue = event.target.value;
@@ -1048,20 +1050,16 @@ let AboutPermissions = {
             break;
         }
 
-        let plugin = pluginHost.getPluginTagForType(permissionMimeType);
-        if (plugin) {
-          let pluginName = plugin.name;
-          AddonManager.getAddonsByTypes(["plugin"], function(addons) {
-            for (let addon of addons) {
-              if (addon.name.toLowerCase() == pluginName.toLowerCase()) {
+        AddonManager.getAddonsByTypes(["plugin"], function(addons) {
+          for (let addon of addons) {
+            for (let type of addon.pluginMimeTypes) {
+              if (type.type.toLowerCase() == permissionMimeType.toLowerCase()) {
                 addon.userDisabled = addonValue;
                 return;
               }
             }
-            // no addons
-            next();
-          });
-        }
+          }
+        });
       } else {
         // If there is no selected site, we are setting the default permission.
         PermissionDefaults[permissionType] = permissionValue;

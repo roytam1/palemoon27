@@ -289,11 +289,12 @@ function makeNicePluginName(aName) {
   return newName;
 }
 
-function fillInPluginPermissionTemplate(aPluginName, aPermissionString) {
+function fillInPluginPermissionTemplate(aPermissionString, aPluginObject) {
   let permPluginTemplate = document.getElementById("permPluginTemplate").cloneNode(true);
   permPluginTemplate.setAttribute("permString", aPermissionString);
+  permPluginTemplate.setAttribute("tooltiptext", aPluginObject.description);
   let attrs = [
-    [ ".permPluginTemplateLabel", "value", aPluginName ],
+    [ ".permPluginTemplateLabel", "value", aPluginObject.name ],
     [ ".permPluginTemplateRadioGroup", "id", aPermissionString + "RadioGroup" ],
     [ ".permPluginTemplateRadioDefault", "id", aPermissionString + "#0" ],
     [ ".permPluginTemplateRadioAsk", "id", aPermissionString + "#3" ],
@@ -312,6 +313,7 @@ function clearPluginPermissionTemplate() {
   let permPluginTemplate = document.getElementById("permPluginTemplate");
   permPluginTemplate.hidden = true;
   permPluginTemplate.removeAttribute("permString");
+  permPluginTemplate.removeAttribute("tooltiptext");
   document.querySelector(".permPluginTemplateLabel").removeAttribute("value");
   document.querySelector(".permPluginTemplateRadioGroup").removeAttribute("id");
   document.querySelector(".permPluginTemplateRadioAsk").removeAttribute("id");
@@ -332,22 +334,31 @@ function initPluginsRow() {
     for (let mimeType of plugin.getMimeTypes()) {
       let permString = pluginHost.getPermissionStringForType(mimeType);
       if (!permissionMap.has(permString)) {
-        var name = makeNicePluginName(plugin.name);
+        var name = makeNicePluginName(plugin.name) + " " + plugin.version;
         if (permString.startsWith("plugin-vulnerable:")) {
           name += " \u2014 " + vulnerableLabel;
         }
-        permissionMap.set(permString, name);
+        permissionMap.set(permString, {
+          "name": name,
+          "description": plugin.description,
+        });
       }
     }
   }
 
-  let entries = [{name: item[1], permission: item[0]} for (item of permissionMap)];
+  let entries = [
+    {
+      "permission": item[0],
+      "obj": item[1],
+    }
+    for (item of permissionMap)
+  ];
   entries.sort(function(a, b) {
     return ((a.name < b.name) ? -1 : (a.name == b.name ? 0 : 1));
   });
 
   let permissionEntries = [
-    fillInPluginPermissionTemplate(p.name, p.permission) for (p of entries)
+    fillInPluginPermissionTemplate(p.permission, p.obj) for (p of entries)
   ];
 
   let permPluginsRow = document.getElementById("permPluginsRow");

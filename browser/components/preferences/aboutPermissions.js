@@ -989,7 +989,7 @@ let AboutPermissions = {
               .GetStringFromName("pluginBlocklisted"));
         } else {
           permissionMenulist.disabled = false;
-          permissionMenulist.removeAttribute("tooltiptext");
+          permissionMenulist.setAttribute("tooltiptext", "");
         }
       }
     } else {
@@ -1009,7 +1009,7 @@ let AboutPermissions = {
           pluginPermissionEntry.setAttribute("vulnerable", nameVulnerable);
         }
         permissionMenulist.disabled = false;
-        permissionMenulist.removeAttribute("tooltiptext");
+        permissionMenulist.setAttribute("tooltiptext", "");
       }
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?

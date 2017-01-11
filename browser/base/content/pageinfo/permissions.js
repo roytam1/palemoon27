@@ -95,7 +95,8 @@ var permissionObserver = {
   observe: function (aSubject, aTopic, aData)
   {
     if (aTopic == "perm-changed") {
-      var permission = aSubject.QueryInterface(Components.interfaces.nsIPermission);
+      var permission = aSubject.QueryInterface(
+                       Components.interfaces.nsIPermission);
       if (permission.host == gPermURI.host) {
         if (permission.type in gPermObj)
           initRow(permission.type);
@@ -154,7 +155,8 @@ function initRow(aPartId)
 
   var checkbox = document.getElementById(aPartId + "Def");
   var command  = document.getElementById("cmd_" + aPartId + "Toggle");
-  // Desktop Notification, Geolocation and PointerLock permission consumers use testExactPermission, not testPermission.
+  // Desktop Notification, Geolocation and PointerLock permission consumers
+  // use testExactPermission, not testPermission.
   var perm;
   if (aPartId == "desktop-notification" || aPartId == "geo" || aPartId == "pointerLock")
     perm = permissionManager.testExactPermission(gPermURI, aPartId);
@@ -290,7 +292,8 @@ function makeNicePluginName(aName) {
 }
 
 function fillInPluginPermissionTemplate(aPermissionString, aPluginObject) {
-  let permPluginTemplate = document.getElementById("permPluginTemplate").cloneNode(true);
+  let permPluginTemplate = document.getElementById("permPluginTemplate")
+                           .cloneNode(true);
   permPluginTemplate.setAttribute("permString", aPermissionString);
   permPluginTemplate.setAttribute("tooltiptext", aPluginObject.description);
   let attrs = [
@@ -322,12 +325,15 @@ function clearPluginPermissionTemplate() {
 }
 
 function initPluginsRow() {
-  let vulnerableLabel = document.getElementById("browserBundle").getString("pluginActivateVulnerable.label");
-  let pluginHost = Components.classes["@mozilla.org/plugin/host;1"].getService(Components.interfaces.nsIPluginHost);
+  let vulnerableLabel = document.getElementById("browserBundle")
+                        .getString("pluginActivateVulnerable.label");
+  let pluginHost = Components.classes["@mozilla.org/plugin/host;1"]
+                   .getService(Components.interfaces.nsIPluginHost);
+  let tags = pluginHost.getPluginTags();
 
   let permissionMap = new Map();
 
-  for (let plugin of pluginHost.getPluginTags()) {
+  for (let plugin of tags) {
     if (plugin.disabled) {
       continue;
     }

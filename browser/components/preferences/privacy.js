@@ -20,9 +20,22 @@ var gPrivacyPane = {
   /**
    * Sets up the UI for the number of days of history to keep, and updates the
    * label of the "Clear Now..." button.
+   * Also restores the previously selected tab or tab index passed as argument.
    */
   init: function ()
   {
+    this._inited = true;
+    var privacyPrefs = document.getElementById("privacyPrefs");
+
+    var extraArgs = window.arguments[1];
+    if (extraArgs && extraArgs["privacyTab"]){
+      privacyPrefs.selectedTab = document.getElementById(extraArgs["privacyTab"]);
+    } else {
+      var preference = document.getElementById("browser.preferences.privacy.selectedTabIndex");
+      if (preference.value !== null)
+        privacyPrefs.selectedIndex = preference.value;
+    }
+  
     this._updateSanitizeSettingsButton();
     this.initializeHistoryMode();
     this.updateHistoryModePane();
@@ -30,6 +43,19 @@ var gPrivacyPane = {
     this.initAutoStartPrivateBrowsingReverter();
   },
 
+  /**
+   * Stores the identity of the current tab in preferences so that the selected
+   * tab can be persisted between openings of the preferences window.
+   */
+  tabSelectionChanged: function ()
+  {
+    if (!this._inited)
+      return;
+    var privacyPrefs = document.getElementById("privacyPrefs");
+    var preference = document.getElementById("browser.preferences.privacy.selectedTabIndex");
+    preference.valueFromPreferences = privacyPrefs.selectedIndex;
+  },
+  
   // HISTORY MODE
 
   /**

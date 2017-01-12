@@ -672,7 +672,7 @@ js::intrinsic_TypedArrayLength(JSContext* cx, unsigned argc, Value* vp)
 }
 
 bool
-CallSelfHostedNonGenericMethod(JSContext* cx, CallArgs args)
+CallSelfHostedNonGenericMethod(JSContext* cx, const CallArgs& args)
 {
     // This function is called when a self-hosted method is invoked on a
     // wrapper object, like a CrossCompartmentWrapper. The last argument is

@@ -483,7 +483,7 @@ class TypedArrayMethods
   public:
     /* subarray(start[, end]) */
     static bool
-    subarray(JSContext* cx, CallArgs args)
+    subarray(JSContext* cx, const CallArgs& args)
     {
         MOZ_ASSERT(SomeTypedArray::is(args.thisv()));
 
@@ -570,7 +570,7 @@ class TypedArrayMethods
     /* copyWithin(target, start[, end]) */
     // ES6 draft rev 26, 22.2.3.5
     static bool
-    copyWithin(JSContext* cx, CallArgs args)
+    copyWithin(JSContext* cx, const CallArgs& args)
     {
         MOZ_ASSERT(SomeTypedArray::is(args.thisv()));
 
@@ -657,7 +657,7 @@ class TypedArrayMethods
 
     /* set(array[, offset]) */
     static bool
-    set(JSContext* cx, CallArgs args)
+    set(JSContext* cx, const CallArgs& args)
     {
         MOZ_ASSERT(SomeTypedArray::is(args.thisv()));
 

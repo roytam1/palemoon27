@@ -116,7 +116,8 @@ using js::frontend::Parser;
 #endif
 
 bool
-JS::CallArgs::requireAtLeast(JSContext* cx, const char* fnname, unsigned required) {
+JS::CallArgs::requireAtLeast(JSContext* cx, const char* fnname, unsigned required) const
+{
     if (length() < required) {
         char numArgsStr[40];
         JS_snprintf(numArgsStr, sizeof numArgsStr, "%u", required - 1);

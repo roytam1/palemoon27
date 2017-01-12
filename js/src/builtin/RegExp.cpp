@@ -151,8 +151,8 @@ js::ExecuteRegExpLegacy(JSContext* cx, RegExpStatics* res, RegExpObject& reobj,
  *       flags := ToString(flags) if defined(flags) else ''
  */
 static bool
-CompileRegExpObject(JSContext* cx, RegExpObjectBuilder& builder, CallArgs args,
-                    RegExpStaticsUse staticsUse)
+CompileRegExpObject(JSContext* cx, RegExpObjectBuilder& builder,
+                    const CallArgs& args, RegExpStaticsUse staticsUse)
 {
     if (args.length() == 0) {
         MOZ_ASSERT(staticsUse == UseRegExpStatics);
@@ -269,7 +269,7 @@ IsRegExp(HandleValue v)
 }
 
 MOZ_ALWAYS_INLINE bool
-regexp_compile_impl(JSContext* cx, CallArgs args)
+regexp_compile_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsRegExp(args.thisv()));
     RegExpObjectBuilder builder(cx, &args.thisv().toObject().as<RegExpObject>());
@@ -322,7 +322,7 @@ js::regexp_construct_no_statics(JSContext* cx, unsigned argc, Value* vp)
 }
 
 MOZ_ALWAYS_INLINE bool
-regexp_toString_impl(JSContext* cx, CallArgs args)
+regexp_toString_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsRegExp(args.thisv()));
 
@@ -404,7 +404,7 @@ regexp_flags(JSContext* cx, unsigned argc, JS::Value* vp)
 
 /* ES6 draft rev32 21.2.5.4. */
 MOZ_ALWAYS_INLINE bool
-regexp_global_impl(JSContext* cx, CallArgs args)
+regexp_global_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsRegExp(args.thisv()));
     Rooted<RegExpObject*> reObj(cx, &args.thisv().toObject().as<RegExpObject>());
@@ -424,7 +424,7 @@ regexp_global(JSContext* cx, unsigned argc, JS::Value* vp)
 
 /* ES6 draft rev32 21.2.5.5. */
 MOZ_ALWAYS_INLINE bool
-regexp_ignoreCase_impl(JSContext* cx, CallArgs args)
+regexp_ignoreCase_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsRegExp(args.thisv()));
     Rooted<RegExpObject*> reObj(cx, &args.thisv().toObject().as<RegExpObject>());
@@ -444,7 +444,7 @@ regexp_ignoreCase(JSContext* cx, unsigned argc, JS::Value* vp)
 
 /* ES6 draft rev32 21.2.5.7. */
 MOZ_ALWAYS_INLINE bool
-regexp_multiline_impl(JSContext* cx, CallArgs args)
+regexp_multiline_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsRegExp(args.thisv()));
     Rooted<RegExpObject*> reObj(cx, &args.thisv().toObject().as<RegExpObject>());
@@ -464,7 +464,7 @@ regexp_multiline(JSContext* cx, unsigned argc, JS::Value* vp)
 
 /* ES6 draft rev32 21.2.5.12. */
 MOZ_ALWAYS_INLINE bool
-regexp_sticky_impl(JSContext* cx, CallArgs args)
+regexp_sticky_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsRegExp(args.thisv()));
     Rooted<RegExpObject*> reObj(cx, &args.thisv().toObject().as<RegExpObject>());
@@ -742,7 +742,7 @@ js::ExecuteRegExp(JSContext* cx, HandleObject regexp, HandleString string,
 
 /* ES5 15.10.6.2 (and 15.10.6.3, which calls 15.10.6.2). */
 static RegExpRunStatus
-ExecuteRegExp(JSContext* cx, CallArgs args, MatchPairs* matches)
+ExecuteRegExp(JSContext* cx, const CallArgs& args, MatchPairs* matches)
 {
     /* Step 1 (a) was performed by CallNonGenericMethod. */
     RootedObject regexp(cx, &args.thisv().toObject());
@@ -776,7 +776,7 @@ regexp_exec_impl(JSContext* cx, HandleObject regexp, HandleString string,
 }
 
 static bool
-regexp_exec_impl(JSContext* cx, CallArgs args)
+regexp_exec_impl(JSContext* cx, const CallArgs& args)
 {
     RootedObject regexp(cx, &args.thisv().toObject());
     RootedString string(cx, ToString<CanGC>(cx, args.get(0)));
@@ -821,7 +821,7 @@ js::regexp_exec_no_statics(JSContext* cx, unsigned argc, Value* vp)
 
 /* ES5 15.10.6.3. */
 static bool
-regexp_test_impl(JSContext* cx, CallArgs args)
+regexp_test_impl(JSContext* cx, const CallArgs& args)
 {
     RegExpRunStatus status = ExecuteRegExp(cx, args, nullptr);
     args.rval().setBoolean(status == RegExpRunStatus_Success);

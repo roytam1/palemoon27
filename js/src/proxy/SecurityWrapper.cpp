@@ -24,7 +24,7 @@ SecurityWrapper<Base>::enter(JSContext* cx, HandleObject wrapper, HandleId id,
 template <class Base>
 bool
 SecurityWrapper<Base>::nativeCall(JSContext* cx, IsAcceptableThis test, NativeImpl impl,
-                                  CallArgs args) const
+                                  const CallArgs& args) const
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     return false;

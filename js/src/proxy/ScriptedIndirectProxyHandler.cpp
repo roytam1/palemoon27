@@ -348,7 +348,7 @@ ScriptedIndirectProxyHandler::getOwnEnumerablePropertyKeys(JSContext* cx, Handle
 
 bool
 ScriptedIndirectProxyHandler::nativeCall(JSContext* cx, IsAcceptableThis test, NativeImpl impl,
-                                         CallArgs args) const
+                                         const CallArgs& args) const
 {
     return BaseProxyHandler::nativeCall(cx, test, impl, args);
 }

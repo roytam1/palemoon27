@@ -462,7 +462,7 @@ struct AutoGCIfRequested
  * when done.  Then push the return value.
  */
 bool
-js::Invoke(JSContext* cx, CallArgs args, MaybeConstruct construct)
+js::Invoke(JSContext* cx, const CallArgs& args, MaybeConstruct construct)
 {
     MOZ_ASSERT(args.length() <= ARGS_LENGTH_MAX);
     MOZ_ASSERT(!cx->zone()->types.activeAnalysis);
@@ -559,7 +559,7 @@ js::Invoke(JSContext* cx, const Value& thisv, const Value& fval, unsigned argc, 
 }
 
 bool
-js::InvokeConstructor(JSContext* cx, CallArgs args)
+js::InvokeConstructor(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(!JSFunction::class_.construct);
 

@@ -211,7 +211,7 @@ IsWeakMap(HandleValue v)
 }
 
 MOZ_ALWAYS_INLINE bool
-WeakMap_has_impl(JSContext* cx, CallArgs args)
+WeakMap_has_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsWeakMap(args.thisv()));
 
@@ -240,7 +240,7 @@ js::WeakMap_has(JSContext* cx, unsigned argc, Value* vp)
 }
 
 MOZ_ALWAYS_INLINE bool
-WeakMap_clear_impl(JSContext* cx, CallArgs args)
+WeakMap_clear_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsWeakMap(args.thisv()));
 
@@ -261,7 +261,7 @@ js::WeakMap_clear(JSContext* cx, unsigned argc, Value* vp)
 }
 
 MOZ_ALWAYS_INLINE bool
-WeakMap_get_impl(JSContext* cx, CallArgs args)
+WeakMap_get_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsWeakMap(args.thisv()));
 
@@ -290,7 +290,7 @@ js::WeakMap_get(JSContext* cx, unsigned argc, Value* vp)
 }
 
 MOZ_ALWAYS_INLINE bool
-WeakMap_delete_impl(JSContext* cx, CallArgs args)
+WeakMap_delete_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsWeakMap(args.thisv()));
 
@@ -383,7 +383,7 @@ SetWeakMapEntryInternal(JSContext* cx, Handle<WeakMapObject*> mapObj,
 }
 
 MOZ_ALWAYS_INLINE bool
-WeakMap_set_impl(JSContext* cx, CallArgs args)
+WeakMap_set_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsWeakMap(args.thisv()));
 

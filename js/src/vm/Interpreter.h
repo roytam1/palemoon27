@@ -64,7 +64,7 @@ ValueToCallable(JSContext* cx, HandleValue v, int numToSkip = -1,
  * VM stack.
  */
 extern bool
-Invoke(JSContext* cx, CallArgs args, MaybeConstruct construct = NO_CONSTRUCT);
+Invoke(JSContext* cx, const CallArgs& args, MaybeConstruct construct = NO_CONSTRUCT);
 
 /*
  * This Invoke overload places the least requirements on the caller: it may be
@@ -88,7 +88,7 @@ InvokeGetterOrSetter(JSContext* cx, JSObject* obj, Value fval, unsigned argc, Va
  * (e.g. 'new') handling the the creation of the new 'this' object.
  */
 extern bool
-InvokeConstructor(JSContext* cx, CallArgs args);
+InvokeConstructor(JSContext* cx, const CallArgs& args);
 
 /* See the fval overload of Invoke. */
 extern bool
@@ -192,12 +192,12 @@ class ExecuteState : public RunState
 // Data to invoke a function.
 class InvokeState : public RunState
 {
-    CallArgs& args_;
+    const CallArgs& args_;
     InitialFrameFlags initial_;
     bool createSingleton_;
 
   public:
-    InvokeState(JSContext* cx, CallArgs& args, InitialFrameFlags initial)
+    InvokeState(JSContext* cx, const CallArgs& args, InitialFrameFlags initial)
       : RunState(cx, Invoke, args.callee().as<JSFunction>().nonLazyScript()),
         args_(args),
         initial_(initial),
@@ -208,7 +208,7 @@ class InvokeState : public RunState
     void setCreateSingleton() { createSingleton_ = true; }
 
     bool constructing() const { return InitialFrameFlagsAreConstructing(initial_); }
-    CallArgs& args() const { return args_; }
+    const CallArgs& args() const { return args_; }
 
     virtual InterpreterFrame* pushInterpreterFrame(JSContext* cx);
 

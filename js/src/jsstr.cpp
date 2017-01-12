@@ -72,7 +72,7 @@ using mozilla::UniquePtr;
 using JS::AutoCheckCannotGC;
 
 static JSLinearString*
-ArgToRootedString(JSContext* cx, CallArgs& args, unsigned argno)
+ArgToRootedString(JSContext* cx, const CallArgs& args, unsigned argno)
 {
     if (argno >= args.length())
         return cx->names().undefined;
@@ -475,7 +475,7 @@ IsString(HandleValue v)
 #if JS_HAS_TOSOURCE
 
 MOZ_ALWAYS_INLINE bool
-str_toSource_impl(JSContext* cx, CallArgs args)
+str_toSource_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsString(args.thisv()));
 
@@ -508,7 +508,7 @@ str_toSource(JSContext* cx, unsigned argc, Value* vp)
 #endif /* JS_HAS_TOSOURCE */
 
 MOZ_ALWAYS_INLINE bool
-str_toString_impl(JSContext* cx, CallArgs args)
+str_toString_impl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsString(args.thisv()));
 
@@ -2053,7 +2053,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
     { }
 
     /* init must succeed in order to call tryFlatMatch or normalizeRegExp. */
-    bool init(JSContext* cx, CallArgs args, bool convertVoid = false)
+    bool init(JSContext* cx, const CallArgs& args, bool convertVoid = false)
     {
         if (args.length() != 0 && IsObjectWithClass(args[0], ESClass_RegExp, cx))
             return init(cx, &args[0].toObject());
@@ -2131,7 +2131,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
     }
 
     /* If the pattern is not already a regular expression, make it so. */
-    bool normalizeRegExp(JSContext* cx, bool flat, unsigned optarg, CallArgs args)
+    bool normalizeRegExp(JSContext* cx, bool flat, unsigned optarg, const CallArgs& args)
     {
         if (re_.initialized())
             return true;
@@ -2194,7 +2194,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
 } /* anonymous namespace */
 
 static bool
-DoMatchLocal(JSContext* cx, CallArgs args, RegExpStatics* res, HandleLinearString input,
+DoMatchLocal(JSContext* cx, const CallArgs& args, RegExpStatics* res, HandleLinearString input,
              RegExpShared& re)
 {
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
@@ -2220,8 +2220,8 @@ DoMatchLocal(JSContext* cx, CallArgs args, RegExpStatics* res, HandleLinearStrin
 
 /* ES5 15.5.4.10 step 8. */
 static bool
-DoMatchGlobal(JSContext* cx, CallArgs args, RegExpStatics* res, HandleLinearString input,
-              StringRegExpGuard& g)
+DoMatchGlobal(JSContext* cx, const CallArgs& args, RegExpStatics* res,
+              HandleLinearString input, StringRegExpGuard& g)
 {
     // Step 8a.
     //
@@ -2321,7 +2321,8 @@ DoMatchGlobal(JSContext* cx, CallArgs args, RegExpStatics* res, HandleLinearStri
 }
 
 static bool
-BuildFlatMatchArray(JSContext* cx, HandleString textstr, const FlatMatch& fm, CallArgs* args)
+BuildFlatMatchArray(JSContext* cx, HandleString textstr, const FlatMatch& fm,
+                    const CallArgs* args)
 {
     if (fm.match() < 0) {
         args->rval().setNull();
@@ -3280,7 +3281,7 @@ StrReplaceRegExp(JSContext* cx, ReplaceData& rdata, MutableHandleValue rval)
 }
 
 static inline bool
-str_replace_regexp(JSContext* cx, CallArgs args, ReplaceData& rdata)
+str_replace_regexp(JSContext* cx, const CallArgs& args, ReplaceData& rdata)
 {
     if (!rdata.g.normalizeRegExp(cx, true, 2, args))
         return false;
@@ -3356,7 +3357,8 @@ js::str_replace_string_raw(JSContext* cx, HandleString string, HandleString patt
 }
 
 static inline bool
-str_replace_flat_lambda(JSContext* cx, CallArgs outerArgs, ReplaceData& rdata, const FlatMatch& fm)
+str_replace_flat_lambda(JSContext* cx, const CallArgs& outerArgs, ReplaceData& rdata,
+                        const FlatMatch& fm)
 {
     RootedString matchStr(cx, NewDependentString(cx, rdata.str, fm.match(), fm.patternLength()));
     if (!matchStr)

@@ -52,6 +52,8 @@ pref("@GUAO_PREF@.fbcdn.com","Mozilla/5.0 (@OS_SLICE@ rv:38.9) @GK_SLICE@ @GRE_V
 pref("@GUAO_PREF@.chase.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@");
 // For Amazon Prime videos
 pref("@GUAO_PREF@.www.amazon.com","Mozilla/5.0 (@OS_SLICE@ rv:45.9) @GK_SLICE@ Firefox/45.9 (Pale Moon)");
+// Soundcloud uses Firefox-exclusive combinations of code. Never pass Firefox slice.
+pref("@GUAO_PREF@.soundcloud.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
 
 // Citi requires native mode. Or it blocks.. "too old firefox"
 pref("@GUAO_PREF@.citi.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");

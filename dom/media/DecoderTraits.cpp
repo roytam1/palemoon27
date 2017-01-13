@@ -370,7 +370,7 @@ static bool
 IsMP3SupportedType(const nsACString& aType,
                    const nsAString& aCodecs = EmptyString())
 {
-  return aType.EqualsASCII("audio/mpeg") && MP3Decoder::IsEnabled();
+  return MP3Decoder::CanHandleMediaType(aType, aCodecs);
 }
 
 #ifdef MOZ_APPLEMEDIA

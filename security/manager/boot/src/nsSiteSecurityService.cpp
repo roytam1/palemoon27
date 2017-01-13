@@ -215,6 +215,7 @@ SiteHPKPState::ToString(nsCString& aString)
 nsSiteSecurityService::nsSiteSecurityService()
   : mUsePreloadList(true)
   , mPreloadListTimeOffset(0)
+  , mUseStsService(true)
 {
 }
 
@@ -242,6 +243,8 @@ nsSiteSecurityService::Init()
 
   mUsePreloadList = mozilla::Preferences::GetBool(
     "network.stricttransportsecurity.preloadlist", true);
+  mUseStsService = mozilla::Preferences::GetBool(
+    "network.stricttransportsecurity.enabled", true);
   mozilla::Preferences::AddStrongObserver(this,
     "network.stricttransportsecurity.preloadlist");
   mProcessPKPHeadersFromNonBuiltInRoots = mozilla::Preferences::GetBool(
@@ -819,6 +822,13 @@ nsSiteSecurityService::IsSecureURI(uint32_t aType, nsIURI* aURI,
   nsAutoCString hostname;
   nsresult rv = GetHost(aURI, hostname);
   NS_ENSURE_SUCCESS(rv, rv);
+  
+  // Exit early if STS not enabled
+  if (!mUseStsService) {
+    *aResult = false;
+    return NS_OK;
+  }
+
   /* An IP address never qualifies as a secure URI. */
   if (HostIsIPAddress(hostname.get())) {
     *aResult = false;
@@ -867,6 +877,11 @@ nsSiteSecurityService::IsSecureHost(uint32_t aType, const char* aHost,
 
   // set default in case if we can't find any STS information
   *aResult = false;
+  
+  // Exit early if STS not enabled
+  if (!mUseStsService) {
+    return NS_OK;
+  }
 
   /* An IP address never qualifies as a secure URI. */
   if (HostIsIPAddress(aHost)) {

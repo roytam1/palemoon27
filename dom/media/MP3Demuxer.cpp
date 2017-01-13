@@ -14,8 +14,8 @@
 #include "VideoUtils.h"
 #include "TimeUnits.h"
 
-using media::TimeUnit;
-using media::TimeIntervals;
+using mozilla::media::TimeUnit;
+using mozilla::media::TimeIntervals;
 
 namespace mozilla {
 namespace mp3 {

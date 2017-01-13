@@ -304,8 +304,8 @@ MP3TrackDemuxer::Duration(int64_t aNumFrames) const {
 
 MediaByteRange
 MP3TrackDemuxer::FindNextFrame() {
-  static const int BUFFER_SIZE = 4096;
-  static const int MAX_SKIPPED_BYTES = 10 * BUFFER_SIZE;
+  static const int BUFFER_SIZE = 64;
+  static const int MAX_SKIPPED_BYTES = 1024 * BUFFER_SIZE;
 
   uint8_t buffer[BUFFER_SIZE];
   int32_t read = 0;

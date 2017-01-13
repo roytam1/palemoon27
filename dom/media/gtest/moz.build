@@ -9,6 +9,7 @@ SOURCES += [
     'TestAudioCompactor.cpp',
     'TestGMPCrossOrigin.cpp',
     'TestIntervalSet.cpp',
+    'TestMP3Demuxer.cpp',
     'TestMP4Demuxer.cpp',
     'TestMP4Reader.cpp',
     'TestTrackEncoder.cpp',
@@ -28,6 +29,8 @@ TEST_HARNESS_FILES.gtest += [
     '../test/gizmo.mp4',
     'dash_dashinit.mp4',
     'mediasource_test.mp4',
+    'noise.mp3',
+    'noise_vbr.mp3',
     'test.webm',
 ]
 

@@ -206,11 +206,11 @@ IsWebMType(const nsACString& aType)
 static bool
 IsGStreamerSupportedType(const nsACString& aMimeType)
 {
-  if (!MediaDecoder::IsGStreamerEnabled())
+  if (DecoderTraits::IsWebMType(aMimeType))
     return false;
 
 #ifdef MOZ_WEBM
-  if (IsWebMType(aMimeType) && !Preferences::GetBool("media.prefer-gstreamer", false))
+  if (!MediaDecoder::IsGStreamerEnabled())
     return false;
 #endif
   if (IsOggType(aMimeType) && !Preferences::GetBool("media.prefer-gstreamer", false))

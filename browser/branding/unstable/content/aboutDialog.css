@@ -25,6 +25,10 @@
   margin-right: 30px;
 }
 
+#detailsBox > description > .text-link {
+  color: #CDC36F;
+}
+
 #PMbottomBox {
   padding: 15px 10px 0;
   background-color: rgba(240,240,255,.7);

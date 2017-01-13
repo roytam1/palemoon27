@@ -61,7 +61,7 @@ public:
     // The ID3 flags field.
     uint8_t Flags() const;
 
-    // The derived size based on the provides size fields.
+    // The derived size based on the provided size fields.
     uint32_t Size() const;
 
     // Returns whether the parsed data is a valid ID3 header up to the given
@@ -310,7 +310,7 @@ private:
 // MPEG streams.
 class MP3TrackDemuxer : public MediaTrackDemuxer {
 public:
-  // Constructor, expecing a valid media resource.
+  // Constructor, expecting a valid media resource.
   explicit MP3TrackDemuxer(MediaResource* aSource);
 
   // Initializes the track demuxer by reading the first frame for meta data.

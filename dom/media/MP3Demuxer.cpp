@@ -918,6 +918,9 @@ ID3Parser::ID3Header::Flags() const {
 
 uint32_t
 ID3Parser::ID3Header::Size() const {
+  if (!IsValid()) {
+    return 0;
+  }
   return mSize;
 }
 

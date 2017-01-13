@@ -157,7 +157,6 @@ public:
   }
 
   MediaByteRange Extents(const MediaByteRange& aByteRange) const {
-  {
     if (IsNull()) {
       return aByteRange;
     }

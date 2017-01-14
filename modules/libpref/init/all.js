@@ -318,7 +318,7 @@ pref("media.webm.intel_decoder.enabled", false);
 #endif
 #endif
 #ifdef MOZ_GSTREAMER
-pref("media.gstreamer.enabled", true);
+pref("media.gstreamer.enabled", false);
 pref("media.gstreamer.enable-blacklist", true);
 #endif
 #ifdef MOZ_APPLEMEDIA

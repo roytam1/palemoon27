@@ -243,10 +243,12 @@ nsSiteSecurityService::Init()
 
   mUsePreloadList = mozilla::Preferences::GetBool(
     "network.stricttransportsecurity.preloadlist", true);
+  mozilla::Preferences::AddStrongObserver(this,
+    "network.stricttransportsecurity.preloadlist");
   mUseStsService = mozilla::Preferences::GetBool(
     "network.stricttransportsecurity.enabled", true);
   mozilla::Preferences::AddStrongObserver(this,
-    "network.stricttransportsecurity.preloadlist");
+    "network.stricttransportsecurity.enabled");
   mProcessPKPHeadersFromNonBuiltInRoots = mozilla::Preferences::GetBool(
     "security.cert_pinning.process_headers_from_non_builtin_roots", false);
   mozilla::Preferences::AddStrongObserver(this,
@@ -331,6 +333,12 @@ nsSiteSecurityService::SetHSTSState(uint32_t aType,
     return RemoveState(aType, aSourceURI, flags);
   }
 
+  // If HSTS has been user-disabled, don't bother checking or writing 
+  // the security state; exit early without doing any work.
+  if (!mUseStsService) {
+    return NS_OK;
+  }
+  
   int64_t expiretime = ExpireTimeFromMaxAge(maxage);
   SiteHSTSState siteState(expiretime, SecurityPropertySet, includeSubdomains);
   nsAutoCString stateString;

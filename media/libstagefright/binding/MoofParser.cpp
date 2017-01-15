@@ -48,7 +48,7 @@ MoofParser::RebuildFragmentedIndex(BoxContext& aContext)
       mInitRange = MediaByteRange(0, box.Range().mEnd);
       ParseMoov(box);
     } else if (box.IsType("moof")) {
-      Moof moof(box, mTrex, mMvhd, mMdhd, mEdts, mSinf, mIsAudio);
+      Moof moof(box, mTrex, mMdhd, mEdts, mSinf, mIsAudio);
 
       if (!moof.IsValid() && !box.Next().IsAvailable()) {
         // Moof isn't valid abort search for now.
@@ -205,9 +205,7 @@ void
 MoofParser::ParseMoov(Box& aBox)
 {
   for (Box box = aBox.FirstChild(); box.IsAvailable(); box = box.Next()) {
-    if (box.IsType("mvhd")) {
-      mMvhd = Mvhd(box);
-    } else if (box.IsType("trak")) {
+    if (box.IsType("trak")) {
       ParseTrak(box);
     } else if (box.IsType("mvex")) {
       ParseMvex(box);
@@ -226,8 +224,7 @@ MoofParser::ParseTrak(Box& aBox)
       if (!mTrex.mTrackId || tkhd.mTrackId == mTrex.mTrackId) {
         ParseMdia(box, tkhd);
       }
-    } else if (box.IsType("edts") &&
-               (!mTrex.mTrackId || tkhd.mTrackId == mTrex.mTrackId)) {
+    } else if (box.IsType("edts")) {
       mEdts = Edts(box);
     }
   }
@@ -305,13 +302,13 @@ MoofParser::ParseEncrypted(Box& aBox)
   }
 }
 
-Moof::Moof(Box& aBox, Trex& aTrex, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio)
+Moof::Moof(Box& aBox, Trex& aTrex, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio)
   : mRange(aBox.Range())
   , mMaxRoundingError(35000)
 {
   for (Box box = aBox.FirstChild(); box.IsAvailable(); box = box.Next()) {
     if (box.IsType("traf")) {
-      ParseTraf(box, aTrex, aMvhd, aMdhd, aEdts, aSinf, aIsAudio);
+      ParseTraf(box, aTrex, aMdhd, aEdts, aSinf, aIsAudio);
     }
   }
   if (IsValid()) {
@@ -384,7 +381,7 @@ Moof::ProcessCenc()
 }
 
 void
-Moof::ParseTraf(Box& aBox, Trex& aTrex, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio)
+Moof::ParseTraf(Box& aBox, Trex& aTrex, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio)
 {
   Tfhd tfhd(aTrex);
   Tfdt tfdt;
@@ -412,7 +409,7 @@ Moof::ParseTraf(Box& aBox, Trex& aTrex, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, S
   uint64_t decodeTime = tfdt.mBaseMediaDecodeTime;
   for (Box box = aBox.FirstChild(); box.IsAvailable(); box = box.Next()) {
     if (box.IsType("trun")) {
-      if (ParseTrun(box, tfhd, aMvhd, aMdhd, aEdts, &decodeTime, aIsAudio)) {
+      if (ParseTrun(box, tfhd, aMdhd, aEdts, &decodeTime, aIsAudio)) {
         mValid = true;
         } else {
           mValid = false;
@@ -445,12 +442,11 @@ public:
 };
 
 bool
-Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, uint64_t* aDecodeTime, bool aIsAudio)
+Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Mdhd& aMdhd, Edts& aEdts, uint64_t* aDecodeTime, bool aIsAudio)
 {
-  if (!aTfhd.IsValid() || !aMvhd.IsValid() || !aMdhd.IsValid() ||
-      !aEdts.IsValid()) {
-    LOG(Moof, "Invalid dependencies: aTfhd(%d) aMvhd(%d) aMdhd(%d) aEdts(%d)",
-        aTfhd.IsValid(), aMvhd.IsValid(), aMdhd.IsValid(), !aEdts.IsValid());
+  if (!aTfhd.IsValid() || !aMdhd.IsValid() || !aEdts.IsValid()) {
+    LOG(Moof, "Invalid dependencies: aTfhd(%d) aMdhd(%d) aEdts(%d)",
+        aTfhd.IsValid(), aMdhd.IsValid(), !aEdts.IsValid());
     return false;
   }
 
@@ -522,8 +518,8 @@ Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, u
 
     sample.mDecodeTime = aMdhd.ToMicroseconds(decodeTime);
     sample.mCompositionRange = Interval<Microseconds>(
-      aMdhd.ToMicroseconds((int64_t)decodeTime + ctsOffset - aEdts.mMediaStart) + aMvhd.ToMicroseconds(aEdts.mEmptyOffset),
-      aMdhd.ToMicroseconds((int64_t)decodeTime + ctsOffset + sampleDuration - aEdts.mMediaStart) + aMvhd.ToMicroseconds(aEdts.mEmptyOffset));
+      aMdhd.ToMicroseconds((int64_t)decodeTime + ctsOffset - aEdts.mMediaStart),
+      aMdhd.ToMicroseconds((int64_t)decodeTime + ctsOffset + sampleDuration - aEdts.mMediaStart));
     decodeTime += sampleDuration;
 
     // Sometimes audio streams don't properly mark their samples as keyframes,
@@ -589,7 +585,7 @@ Tkhd::Tkhd(Box& aBox)
   mValid = true;
 }
 
-Mvhd::Mvhd(Box& aBox)
+Mdhd::Mdhd(Box& aBox)
 {
   BoxReader reader(aBox);
   if (!reader->CanReadType<uint32_t>()) {
@@ -599,9 +595,9 @@ Mvhd::Mvhd(Box& aBox)
   uint32_t flags = reader->ReadU32();
   uint8_t version = flags >> 24;
   size_t need =
-    3*(version ? sizeof(int64_t) : sizeof(int32_t)) + sizeof(uint32_t);
+    3*(version ? sizeof(int64_t) : sizeof(int32_t)) + 2*sizeof(uint32_t);
   if (reader->Remaining() < need) {
-    LOG(Mvhd, "Incomplete Box (have:%lld need:%lld)",
+    LOG(Mdhd, "Incomplete Box (have:%lld need:%lld)",
         (uint64_t)reader->Remaining(), (uint64_t)need);
     return;
   }
@@ -616,18 +612,12 @@ Mvhd::Mvhd(Box& aBox)
     mModificationTime = reader->ReadU64();
     mTimescale = reader->ReadU32();
     mDuration = reader->ReadU64();
-    } else {
-    reader->DiscardRemaining();
-    return;
   }
-  // More stuff that we don't care about
-  reader->DiscardRemaining();
-  mValid = true;
-}
-
-Mdhd::Mdhd(Box& aBox)
-  : Mvhd(aBox)
-{
+  // language and pre_defined=0
+  reader->ReadU32();
+  if (mTimescale) {
+    mValid = true;
+  }
 }
 
 Trex::Trex(Box& aBox)
@@ -716,7 +706,6 @@ Tfdt::Tfdt(Box& aBox)
 
 Edts::Edts(Box& aBox)
   : mMediaStart(0)
-  , mEmptyOffset(0)
 {
   Box child = aBox.FirstChild();
   if (!child.IsType("elst")) {
@@ -737,31 +726,22 @@ Edts::Edts(Box& aBox)
         (uint64_t)reader->Remaining(), (uint64_t)need);
     return;
   }
-  bool emptyEntry = false;
   uint32_t entryCount = reader->ReadU32();
-  for (uint32_t i = 0; i < entryCount; i++) {
-    uint64_t segment_duration;
-    int64_t media_time;
-    if (version == 1) {
-      segment_duration = reader->ReadU64();
-      media_time = reader->Read64();
-    } else {
-      segment_duration = reader->ReadU32();
-      media_time = reader->Read32();
-    }
-    if (media_time == -1 && i) {
-      LOG(Edts, "Multiple empty edit, not handled");
-    } else if (media_time == -1) {
-      mEmptyOffset = segment_duration;
-      emptyEntry = true;
-    } else if (i > 1 || (i > 0 && !emptyEntry)) {
-      LOG(Edts, "More than one edit entry, not handled. A/V sync will be wrong");
-      break;
-    } else {
-      mMediaStart = media_time;
-    }
-    reader->ReadU32(); // media_rate_integer and media_rate_fraction
+  NS_ASSERTION(entryCount == 1, "Can't handle videos with multiple edits");
+  if (entryCount != 1) {
+    reader->DiscardRemaining();
+    return;
   }
+
+  uint64_t segment_duration;
+  if (version == 1) {
+    segment_duration = reader->ReadU64();
+    mMediaStart = reader->Read64();
+  } else {
+    segment_duration = reader->ReadU32();
+    mMediaStart = reader->Read32();
+  }
+  reader->DiscardRemaining();
 }
 
 Saiz::Saiz(Box& aBox, AtomType aDefaultType)

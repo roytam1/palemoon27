@@ -18,17 +18,35 @@ class Box;
 class BoxContext;
 class Moof;
 
-class Mvhd : public Atom
+class Tkhd : public Atom
 {
 public:
-  Mvhd()
+  Tkhd()
+    : mCreationTime(0)
+    , mModificationTime(0)
+    , mTrackId(0)
+    , mDuration(0)
+  {
+  }
+  explicit Tkhd(Box& aBox);
+
+  uint64_t mCreationTime;
+  uint64_t mModificationTime;
+  uint32_t mTrackId;
+  uint64_t mDuration;
+};
+
+class Mdhd : public Atom
+{
+public:
+  Mdhd()
     : mCreationTime(0)
     , mModificationTime(0)
     , mTimescale(0)
     , mDuration(0)
   {
   }
-  explicit Mvhd(Box& aBox);
+  explicit Mdhd(Box& aBox);
 
   Microseconds ToMicroseconds(int64_t aTimescaleUnits)
   {
@@ -40,26 +58,6 @@ public:
   uint32_t mTimescale;
   uint64_t mDuration;
 };
-
-class Tkhd : public Mvhd
-{
-public:
-  Tkhd()
-    : mTrackId(0)
-  {
-  }
-  explicit Tkhd(Box& aBox);
-
-  uint32_t mTrackId;
-};
-
-class Mdhd : public Mvhd
-{
-public:
-  Mdhd() = default;
-  explicit Mdhd(Box& aBox);
-};
-
 
 class Trex : public Atom
 {
@@ -115,7 +113,6 @@ class Edts : public Atom
 public:
   Edts()
     : mMediaStart(0)
-    , mEmptyOffset(0)
   {
   }
   explicit Edts(Box& aBox);
@@ -126,7 +123,6 @@ public:
   }
 
   int64_t mMediaStart;
-  int64_t mEmptyOffset;
 };
 
 struct Sample
@@ -172,7 +168,7 @@ private:
 class Moof : public Atom
 {
 public:
-  Moof(Box& aBox, Trex& aTrex, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio);
+  Moof(Box& aBox, Trex& aTrex, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio);
   bool GetAuxInfo(AtomType aType, nsTArray<MediaByteRange>* aByteRanges);
   void FixRounding(const Moof& aMoof);
 
@@ -185,9 +181,9 @@ public:
   nsTArray<Saio> mSaios;
 
 private:
-  void ParseTraf(Box& aBox, Trex& aTrex, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio);
+  void ParseTraf(Box& aBox, Trex& aTrex, Mdhd& aMdhd, Edts& aEdts, Sinf& aSinf, bool aIsAudio);
   // aDecodeTime is updated to the end of the parsed TRUN on return.
-  bool ParseTrun(Box& aBox, Tfhd& aTfhd, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, uint64_t* aDecodeTime, bool aIsAudio);
+  bool ParseTrun(Box& aBox, Tfhd& aTfhd, Mdhd& aMdhd, Edts& aEdts, uint64_t* aDecodeTime, bool aIsAudio);
   void ParseSaiz(Box& aBox);
   void ParseSaio(Box& aBox);
   bool ProcessCenc();
@@ -232,7 +228,6 @@ public:
   nsRefPtr<Stream> mSource;
   uint64_t mOffset;
   nsTArray<uint64_t> mMoofOffsets;
-  Mvhd mMvhd;
   Mdhd mMdhd;
   Trex mTrex;
   Tfdt mTfdt;

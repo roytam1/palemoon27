@@ -202,7 +202,7 @@ AudioSink::AudioLoop()
     }
     int64_t endTime = GetEndTime();
     if (endTime != -1) {
-      mStateMachine->DispatchOnAudioEndTimeUpdate(endTime);
+      mStateMachine->OnAudioEndTimeUpdate(endTime);
     }
   }
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
@@ -256,7 +256,7 @@ AudioSink::Cleanup()
   AssertCurrentThreadInMonitor();
   nsRefPtr<AudioStream> audioStream;
   audioStream.swap(mAudioStream);
-  mStateMachine->DispatchOnAudioSinkComplete();
+  mStateMachine->OnAudioSinkComplete();
 
   ReentrantMonitorAutoExit exit(GetReentrantMonitor());
   audioStream->Shutdown();
@@ -340,7 +340,7 @@ AudioSink::PlayFromAudioQueue()
   StartAudioStreamPlaybackIfNeeded();
 
   if (audio->mOffset != -1) {
-    mStateMachine->DispatchOnPlaybackOffsetUpdate(audio->mOffset);
+    mStateMachine->OnPlaybackOffsetUpdate(audio->mOffset);
   }
   return audio->mFrames;
 }

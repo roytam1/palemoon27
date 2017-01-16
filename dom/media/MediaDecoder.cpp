@@ -1549,7 +1549,7 @@ void MediaDecoder::SetLoadInBackground(bool aLoadInBackground)
 
 void MediaDecoder::UpdatePlaybackOffset(int64_t aOffset)
 {
-  GetReentrantMonitor().AssertCurrentThreadIn();
+  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   mPlaybackPosition = aOffset;
 }
 

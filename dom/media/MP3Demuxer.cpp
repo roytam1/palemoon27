@@ -366,7 +366,8 @@ MP3TrackDemuxer::GetNextFrame(const MediaByteRange& aRange) {
     return nullptr;
   }
 
-  const uint32_t read = Read(frameWriter->Data(), frame->mOffset, frame->Size());
+  const uint32_t read = BlockingRead(frameWriter->Data(), frame->mOffset,
+                                     frame->Size());
 
   if (read != aRange.Length()) {
     return nullptr;
@@ -418,12 +419,37 @@ MP3TrackDemuxer::UpdateState(const MediaByteRange& aRange) {
 }
 
 int32_t
-MP3TrackDemuxer::Read(uint8_t* aBuffer, int64_t aOffset, int32_t aSize) {
+MP3TrackDemuxer::ClampReadSize(int64_t aOffset, int32_t aSize) const {
   const int64_t streamLen = StreamLength();
   if (mInfo && streamLen > 0) {
     // Prevent blocking reads after successful initialization.
     aSize = std::min<int64_t>(aSize, streamLen - aOffset);
   }
+  return aSize;
+}
+
+int32_t
+MP3TrackDemuxer::BlockingRead(uint8_t* aBuffer, int64_t aOffset, int32_t aSize) {
+  aSize = ClampReadSize(aOffset, aSize);
+
+  int32_t readTotal = 0;
+  while (readTotal < aSize) {
+    const int32_t read = Read(aBuffer + readTotal, aOffset + readTotal,
+                              aSize - readTotal);
+    readTotal += read;
+
+    if (!read) {
+      // The media resource is guaranteed to return a cached block or force
+      // a blocking read, we should never receive a zero-byte range.
+      break;
+    }
+  }
+  return readTotal;
+}
+
+int32_t
+MP3TrackDemuxer::Read(uint8_t* aBuffer, int64_t aOffset, int32_t aSize) {
+  aSize = ClampReadSize(aOffset, aSize);
 
   uint32_t read = 0;
   const nsresult rv = mSource->ReadAt(aOffset, reinterpret_cast<char*>(aBuffer),

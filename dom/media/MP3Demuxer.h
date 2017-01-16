@@ -379,7 +379,15 @@ private:
   // Updates post-read meta data.
   void UpdateState(const MediaByteRange& aRange);
 
-  // Reads aSize bytes into aBuffer from the source starting at aOffset.
+  // Restricts the read size aSize to prevent blocking reads past stream length.
+  // Returns the clamped read size.
+  int32_t ClampReadSize(int64_t aOffset, int32_t aSize) const;
+
+  // Reads exactly aSize bytes into aBuffer from the source starting at aOffset.
+  // Returns the actual size read.
+  int32_t BlockingRead(uint8_t* aBuffer, int64_t aOffset, int32_t aSize);
+
+  // Reads at most aSize bytes into aBuffer from the source starting at aOffset.
   // Returns the actual size read.
   int32_t Read(uint8_t* aBuffer, int64_t aOffset, int32_t aSize);
 

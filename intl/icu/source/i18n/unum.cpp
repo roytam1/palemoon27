@@ -1,6 +1,8 @@
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
+// License & terms of use: http://www.unicode.org/copyright.html
 /*
 *******************************************************************************
-*   Copyright (C) 1996-2013, International Business Machines
+*   Copyright (C) 1996-2015, International Business Machines
 *   Corporation and others.  All Rights Reserved.
 *******************************************************************************
 * Modification History:
@@ -20,11 +22,13 @@
 #include "unicode/numfmt.h"
 #include "unicode/decimfmt.h"
 #include "unicode/rbnf.h"
+#include "unicode/compactdecimalformat.h"
 #include "unicode/ustring.h"
 #include "unicode/fmtable.h"
 #include "unicode/dcfmtsym.h"
 #include "unicode/curramt.h"
 #include "unicode/localpointer.h"
+#include "unicode/udisplaycontext.h"
 #include "uassert.h"
 #include "cpputils.h"
 #include "cstring.h"
@@ -51,6 +55,11 @@ unum_open(  UNumberFormatStyle    style,
     case UNUM_CURRENCY:
     case UNUM_PERCENT:
     case UNUM_SCIENTIFIC:
+    case UNUM_CURRENCY_ISO:
+    case UNUM_CURRENCY_PLURAL:
+    case UNUM_CURRENCY_ACCOUNTING:
+    case UNUM_CASH_CURRENCY:
+    case UNUM_CURRENCY_STANDARD:
         retVal = NumberFormat::createInstance(Locale(locale), style, *status);
         break;
 
@@ -108,6 +117,14 @@ unum_open(  UNumberFormatStyle    style,
         retVal = new RuleBasedNumberFormat(URBNF_NUMBERING_SYSTEM, Locale(locale), *status);
         break;
 #endif
+
+    case UNUM_DECIMAL_COMPACT_SHORT:
+        retVal = CompactDecimalFormat::createInstance(Locale(locale), UNUM_SHORT, *status);
+        break;
+
+    case UNUM_DECIMAL_COMPACT_LONG:
+        retVal = CompactDecimalFormat::createInstance(Locale(locale), UNUM_LONG, *status);
+        break;
 
     default:
         *status = U_UNSUPPORTED_ERROR;
@@ -783,6 +800,25 @@ unum_getLocaleByType(const UNumberFormat *fmt,
     return ((const Format*)fmt)->getLocaleID(type, *status);
 }
 
+U_CAPI void U_EXPORT2
+unum_setContext(UNumberFormat* fmt, UDisplayContext value, UErrorCode* status)
+{
+    if (U_FAILURE(*status)) {
+        return;
+    }
+    ((NumberFormat*)fmt)->setContext(value, *status);
+    return;
+}
+
+U_CAPI UDisplayContext U_EXPORT2
+unum_getContext(const UNumberFormat *fmt, UDisplayContextType type, UErrorCode* status)
+{
+    if (U_FAILURE(*status)) {
+        return (UDisplayContext)0;
+    }
+    return ((const NumberFormat*)fmt)->getContext(type, *status);
+}
+
 U_INTERNAL UFormattable * U_EXPORT2
 unum_parseToUFormattable(const UNumberFormat* fmt,
                          UFormattable *result,
@@ -835,6 +871,34 @@ unum_formatUFormattable(const UNumberFormat* fmt,
         pos->beginIndex = fp.getBeginIndex();
         pos->endIndex = fp.getEndIndex();
     }
+
+    return res.extract(result, resultLength, *status);
+}
+
+U_CAPI int32_t U_EXPORT2
+unum_formatDoubleForFields(const UNumberFormat* format,
+                           double number,
+                           UChar* result,
+                           int32_t resultLength,
+                           UFieldPositionIterator* fpositer,
+                           UErrorCode* status)
+{
+    if (U_FAILURE(*status))
+        return -1;
+
+    if (result == NULL ? resultLength != 0 : resultLength < 0) {
+        *status = U_ILLEGAL_ARGUMENT_ERROR;
+        return -1;
+    }
+
+    UnicodeString res;
+    if (result != NULL) {
+        // NULL destination for pure preflighting: empty dummy string
+        // otherwise, alias the destination buffer
+        res.setTo(result, 0, resultLength);
+    }
+
+    ((const NumberFormat*)format)->format(number, res, (FieldPositionIterator*)fpositer, *status);
 
     return res.extract(result, resultLength, *status);
 }

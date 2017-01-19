@@ -108,19 +108,19 @@ bool isInIgnoredNamespace(const Decl *decl) {
   const auto& name = ND->getName();
 
   // namespace std and icu are ignored for now
-  return name == "std" ||              // standard C++ lib
-         name == "__gnu_cxx" ||        // gnu C++ lib
-         name == "boost" ||            // boost
-         name == "webrtc" ||           // upstream webrtc
-         name == "icu_52" ||           // icu
-         name == "google" ||           // protobuf
-         name == "google_breakpad" ||  // breakpad
-         name == "soundtouch" ||       // libsoundtouch
-         name == "stagefright" ||      // libstagefright
-         name == "MacFileUtilities" || // MacFileUtilities
-         name == "dwarf2reader" ||     // dwarf2reader
-         name == "arm_ex_to_module" || // arm_ex_to_module
-         name == "testing";            // gtest
+  return name == "std" ||               // standard C++ lib
+         name == "__gnu_cxx" ||         // gnu C++ lib
+         name == "boost" ||             // boost
+         name == "webrtc" ||            // upstream webrtc
+         name.substr(0, 4) == "icu_" || // icu
+         name == "google" ||            // protobuf
+         name == "google_breakpad" ||   // breakpad
+         name == "soundtouch" ||        // libsoundtouch
+         name == "stagefright" ||       // libstagefright
+         name == "MacFileUtilities" ||  // MacFileUtilities
+         name == "dwarf2reader" ||      // dwarf2reader
+         name == "arm_ex_to_module" ||  // arm_ex_to_module
+         name == "testing";             // gtest
 }
 
 bool isIgnoredPath(const Decl *decl) {

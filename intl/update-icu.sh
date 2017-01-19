@@ -6,7 +6,7 @@
 set -e
 
 # Usage: update-icu.sh <URL of ICU SVN with release>
-# E.g., for ICU 52.1: update-icu.sh http://source.icu-project.org/repos/icu/icu/tags/release-52-1/
+# E.g., for ICU 58.2: update-icu.sh https://ssl.icu-project.org/repos/icu/tags/release-58-2/icu4c/
 
 if [ $# -lt 1 ]; then
   echo "Usage: update-icu.sh <URL of ICU SVN with release>"
@@ -17,20 +17,23 @@ fi
 # so that this script's behavior is consistent when run from any time zone.
 export TZ=UTC
 
+# Also ensure SVN-INFO is consistently English.
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
 icu_dir=`dirname $0`/icu
 
 # Remove intl/icu/source, then replace it with a clean export.
 rm -rf ${icu_dir}/source
 svn export $1/source/ ${icu_dir}/source
 
-# remove layout, tests, and samples, but leave makefiles in place
-find ${icu_dir}/source/layout -name '*Makefile.in' -prune -or -type f -print | xargs rm
+# remove layoutex, tests, and samples, but leave makefiles in place
 find ${icu_dir}/source/layoutex -name '*Makefile.in' -prune -or -type f -print | xargs rm
 find ${icu_dir}/source/test -name '*Makefile.in' -prune -or -type f -print | xargs rm
 find ${icu_dir}/source/samples -name '*Makefile.in' -prune -or -type f -print | xargs rm
 
 # remove data that we currently don't need
-rm ${icu_dir}/source/data/brkitr/*
+rm -rf ${icu_dir}/source/data/brkitr/*
 rm ${icu_dir}/source/data/lang/*.mk
 rm ${icu_dir}/source/data/lang/*.txt
 rm ${icu_dir}/source/data/mappings/*.mk
@@ -42,6 +45,8 @@ rm ${icu_dir}/source/data/rbnf/*
 rm ${icu_dir}/source/data/region/*.mk
 rm ${icu_dir}/source/data/region/*.txt
 rm ${icu_dir}/source/data/translit/*
+rm ${icu_dir}/source/data/unit/*.mk
+rm ${icu_dir}/source/data/unit/*.txt
 
 # Record `svn info`, eliding the line that changes every time the entire ICU
 # repository (not just the path within it we care about) receives a commit.
@@ -50,12 +55,20 @@ rm ${icu_dir}/source/data/translit/*
 # the tree.)
 svn info $1 | grep -v '^Revision: [[:digit:]]\+$' > ${icu_dir}/SVN-INFO
 
-patch -d ${icu_dir}/../../ -p1 < ${icu_dir}/../icu-patches/bug-724533
-patch -d ${icu_dir}/../../ -p1 < ${icu_dir}/../icu-patches/bug-899722-4
-patch -d ${icu_dir}/../../ -p1 < ${icu_dir}/../icu-patches/bug-915735
-patch -d ${icu_dir}/../../ -p1 < ${icu_dir}/../icu-patches/genrb-omitCollationRules.diff
-patch -d ${icu_dir}/../../ -p1 < ${icu_dir}/../icu-patches/qualify-uinitonce-windows.diff
-patch -d ${icu_dir}/../../ -p1 < ${icu_dir}/../icu-patches/suppress-warnings.diff
-patch -d ${icu_dir}/../../ -p1 < ${icu_dir}/../icu-patches/clang-cl.diff
+for patch in \
+ bug-915735 \
+ suppress-warnings.diff \
+ bug-1172609-timezone-recreateDefault.diff \
+ bug-1198952-workaround-make-3.82-bug.diff \
+ bug-1228227-bug-1263325-libc++-gcc_hidden.diff \
+ bug-1325858-close-key.diff \
+ ucol_getKeywordValuesForLocale-ulist_resetList.diff \
+ unum_formatDoubleForFields.diff \
+; do
+  echo "Applying local patch $patch"
+  patch -d ${icu_dir}/../../ -p1 --no-backup-if-mismatch < ${icu_dir}/../icu-patches/$patch
+done
 
-hg addremove ${icu_dir}
+# NOTE: If you're updating this script for a new ICU version, you have to rerun
+# js/src/tests/ecma_6/String/make-normalize-generateddata-input.py for any
+# normalization changes the new ICU implements.

@@ -94,6 +94,7 @@ MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
   const bool isMP4Audio = aMIMETypeExcludingCodecs.EqualsASCII("audio/mp4") ||
                           aMIMETypeExcludingCodecs.EqualsASCII("audio/x-m4a");
   const bool isMP4Video = aMIMETypeExcludingCodecs.EqualsASCII("video/mp4") ||
+                          aMIMETypeExcludingCodecs.EqualsASCII("video/quicktime") ||
                           aMIMETypeExcludingCodecs.EqualsASCII("video/x-m4v");
   if (!isMP4Audio && !isMP4Video) {
     return false;

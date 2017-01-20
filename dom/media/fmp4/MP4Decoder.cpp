@@ -12,6 +12,7 @@
 #include "mozilla/Preferences.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentTypeParser.h"
+#include "VideoUtils.h"
 #include "prlog.h"
 
 #ifdef XP_WIN
@@ -41,35 +42,7 @@ MediaDecoderStateMachine* MP4Decoder::CreateStateMachine()
 }
 
 static bool
-IsSupportedAudioCodec(const nsAString& aCodec,
-                      bool& aOutContainsAAC,
-                      bool& aOutContainsMP3)
-{
-  // AAC-LC or HE-AAC in M4A.
-  aOutContainsAAC = aCodec.EqualsASCII("mp4a.40.2") ||
-                    aCodec.EqualsASCII("mp4a.40.5");
-  if (aOutContainsAAC) {
-#ifdef XP_WIN
-    if (!Preferences::GetBool("media.use-blank-decoder") &&
-        !WMFDecoderModule::HasAAC()) {
-      return false;
-    }
-#endif
-    return true;
-  }
-#ifndef MOZ_GONK_MEDIACODEC // B2G doesn't support MP3 in MP4 yet.
-  aOutContainsMP3 = aCodec.EqualsASCII("mp3");
-  if (aOutContainsMP3) {
-    return true;
-  }
-#else
-  aOutContainsMP3 = false;
-#endif
-  return false;
-}
-
-static bool
-IsSupportedH264Codec(const nsAString& aCodec)
+IsWhitelistedH264Codec(const nsAString& aCodec)
 {
   int16_t profile = 0, level = 0;
 
@@ -108,45 +81,74 @@ IsSupportedH264Codec(const nsAString& aCodec)
 
 /* static */
 bool
-MP4Decoder::CanHandleMediaType(const nsACString& aType,
-                               const nsAString& aCodecs,
-                               bool& aOutContainsAAC,
-                               bool& aOutContainsH264,
-                               bool& aOutContainsMP3)
+MP4Decoder::CanHandleMediaType(const nsACString& aMIMETypeExcludingCodecs,
+                               const nsAString& aCodecs)
 {
   if (!IsEnabled()) {
     return false;
   }
 
-  if (aType.EqualsASCII("audio/mp4") || aType.EqualsASCII("audio/x-m4a")) {
-    return aCodecs.IsEmpty() ||
-           IsSupportedAudioCodec(aCodecs,
-                                 aOutContainsAAC,
-                                 aOutContainsMP3);
-  }
-
-  if (!aType.EqualsASCII("video/mp4")) {
+  // Whitelist MP4 types, so they explicitly match what we encounter on
+  // the web, as opposed to what we use internally (i.e. what our demuxers
+  // etc output).
+  if (!aMIMETypeExcludingCodecs.EqualsASCII("audio/mp4") &&
+      !aMIMETypeExcludingCodecs.EqualsASCII("audio/x-m4a") &&
+      !aMIMETypeExcludingCodecs.EqualsASCII("video/mp4") &&
+      !aMIMETypeExcludingCodecs.EqualsASCII("video/x-m4v")) {
     return false;
   }
 
-  // Verify that all the codecs specifed are ones that we expect that
-  // we can play.
-  nsTArray<nsString> codecs;
-  if (!ParseCodecsString(aCodecs, codecs)) {
+  #ifdef MOZ_GONK_MEDIACODEC
+  if (aMIMETypeExcludingCodecs.EqualsASCII(VIDEO_3GPP)) {
+    return Preferences::GetBool("media.gonk.enabled", false);
+  }
+#endif
+
+  nsTArray<nsCString> codecMimes;
+  if (aCodecs.IsEmpty()) {
+    // No codecs specified. Assume AAC/H.264
+    if (aMIMETypeExcludingCodecs.EqualsLiteral("audio/mp4") ||
+        aMIMETypeExcludingCodecs.EqualsLiteral("audio/x-m4a")) {
+      codecMimes.AppendElement(NS_LITERAL_CSTRING("audio/mp4a-latm"));
+    } else if (aMIMETypeExcludingCodecs.EqualsLiteral("video/mp4") ||
+               aMIMETypeExcludingCodecs.EqualsLiteral("video/x-m4v")) {
+      codecMimes.AppendElement(NS_LITERAL_CSTRING("video/avc"));
+    }
+  } else {
+    // Verify that all the codecs specified are ones that we expect that
+    // we can play.
+    nsTArray<nsString> codecs;
+    if (!ParseCodecsString(aCodecs, codecs)) {
+      return false;
+    }
+    for (const nsString& codec : codecs) {
+      if (IsAACCodecString(codec)) {
+        codecMimes.AppendElement(NS_LITERAL_CSTRING("audio/mp4a-latm"));
+        continue;
+      }
+      if (codec.EqualsLiteral("mp3")) {
+        codecMimes.AppendElement(NS_LITERAL_CSTRING("audio/mpeg"));
+        continue;
+      }
+      if (IsWhitelistedH264Codec(codec)) {
+        codecMimes.AppendElement(NS_LITERAL_CSTRING("video/avc"));
+        continue;
+      }
+      // Some unsupported codec.
+      return false;
+    }
+  }
+
+  // Verify that we have a PDM that supports the whitelisted types.
+  PlatformDecoderModule::Init();
+  nsRefPtr<PlatformDecoderModule> platform = PlatformDecoderModule::Create();
+  if (!platform) {
     return false;
   }
-  for (const nsString& codec : codecs) {
-    if (IsSupportedAudioCodec(codec,
-                              aOutContainsAAC,
-                              aOutContainsMP3)) {
-      continue;
+  for (const nsCString& codecMime : codecMimes) {
+    if (!platform->SupportsMimeType(codecMime)) {
+      return false;
     }
-    if (IsSupportedH264Codec(codec)) {
-      aOutContainsH264 = true;
-      continue;
-    }
-    // Some unsupported codec.
-    return false;
   }
 
   return true;
@@ -164,10 +166,7 @@ MP4Decoder::CanHandleMediaType(const nsAString& aContentType)
   nsString codecs;
   parser.GetParameter("codecs", codecs);
 
-  bool ignoreAAC, ignoreH264, ignoreMP3;
-  return CanHandleMediaType(NS_ConvertUTF16toUTF8(mimeType),
-                            codecs,
-                            ignoreAAC, ignoreH264, ignoreMP3);
+  return CanHandleMediaType(NS_ConvertUTF16toUTF8(mimeType), codecs);
 }
 
 static bool

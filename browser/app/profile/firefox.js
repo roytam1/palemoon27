@@ -835,6 +835,13 @@ pref("places.frecency.unvisitedTypedBonus", 200);
 // 2 - pre-populate site URL and pre-fetch certificate
 pref("browser.ssl_override_behavior", 2);
 
+// Controls the behavior of data storage for offline apps
+// 0 - Deny storage of offline app data without prompting (breaks sites!)
+// 1 - Ask the user if a website wants to store offline app data
+// 2 - Allow storage of offline app data without prompting (default)
+pref("offline-apps.permissions", 2);
+// True if storage of offline app data is allowed without prompting.
+pref("offline-apps.allow_by_default", true);
 // True if the user should be prompted when a web application supports
 // offline apps.
 pref("browser.offline-apps.notify", true);

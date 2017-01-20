@@ -5898,7 +5898,7 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
 
 int32_t
 WorkerPrivate::SetTimeout(JSContext* aCx,
-                          Function* aHandler,
+                          dom::Function* aHandler,
                           const nsAString& aStringHandler,
                           int32_t aTimeout,
                           const Sequence<JS::Value>& aArguments,

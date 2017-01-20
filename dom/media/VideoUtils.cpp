@@ -13,8 +13,11 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Base64.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/Function.h"
 #include "nsIRandomGenerator.h"
 #include "nsIServiceManager.h"
+#include "nsCharSeparatedTokenizer.h"
+#include "nsContentTypeParser.h"
 #include "MediaTaskQueue.h"
 
 #include <stdint.h>
@@ -339,6 +342,80 @@ CreateFlushableMediaDecodeTaskQueue()
   nsresult rv = NS_DispatchToMainThread(t, NS_DISPATCH_SYNC);
   NS_ENSURE_SUCCESS(rv, nullptr);
   return t->mTaskQueue.forget();
+}
+
+bool
+ParseCodecsString(const nsAString& aCodecs, nsTArray<nsString>& aOutCodecs)
+{
+  aOutCodecs.Clear();
+  bool expectMoreTokens = false;
+  nsCharSeparatedTokenizer tokenizer(aCodecs, ',');
+  while (tokenizer.hasMoreTokens()) {
+    const nsSubstring& token = tokenizer.nextToken();
+    expectMoreTokens = tokenizer.separatorAfterCurrentToken();
+    aOutCodecs.AppendElement(token);
+  }
+  if (expectMoreTokens) {
+    // Last codec name was empty
+    return false;
+  }
+  return true;
+}
+
+static bool
+CheckContentType(const nsAString& aContentType,
+                 mozilla::Function<bool(const nsAString&)> aSubtypeFilter,
+                 mozilla::Function<bool(const nsAString&)> aCodecFilter)
+{
+  nsContentTypeParser parser(aContentType);
+  nsAutoString mimeType;
+  nsresult rv = parser.GetType(mimeType);
+  if (NS_FAILED(rv) || !aSubtypeFilter(mimeType)) {
+    return false;
+  }
+
+  nsString codecsStr;
+  parser.GetParameter("codecs", codecsStr);
+  nsTArray<nsString> codecs;
+  if (!ParseCodecsString(codecsStr, codecs)) {
+    return false;
+  }
+  for (const nsString& codec : codecs) {
+    if (!aCodecFilter(codec)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool
+IsH264ContentType(const nsAString& aContentType)
+{
+  return CheckContentType(aContentType,
+    [](const nsAString& type) {
+      return type.EqualsLiteral("video/mp4");
+    },
+    [](const nsAString& codec) {
+      int16_t profile = 0;
+      int16_t level = 0;
+      return ExtractH264CodecDetails(codec, profile, level);
+    }
+  );
+}
+
+bool
+IsAACContentType(const nsAString& aContentType)
+{
+  return CheckContentType(aContentType,
+    [](const nsAString& type) {
+      return type.EqualsLiteral("audio/mp4") ||
+             type.EqualsLiteral("audio/x-m4a");
+    },
+    [](const nsAString& codec) {
+      return codec.EqualsLiteral("mp4a.40.2") || // MPEG4 AAC-LC
+             codec.EqualsLiteral("mp4a.40.5") || // MPEG4 HE-AAC
+             codec.EqualsLiteral("mp4a.67");     // MPEG2 AAC-LC
+    });
 }
 
 } // end namespace mozilla

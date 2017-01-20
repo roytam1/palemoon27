@@ -183,6 +183,7 @@ IsFFmpegAvailable()
   if (!Preferences::GetBool("media.ffmpeg.enabled", false)) {
     return false;
   }
+  PlatformDecoderModule::Init();
   nsRefPtr<PlatformDecoderModule> m = FFmpegRuntimeLinker::CreateDecoderModule();
   return !!m;
 #endif

@@ -44,6 +44,7 @@ var gAdvancedPane = {
 #ifdef MOZ_UPDATER
     this.updateReadPrefs();
 #endif
+    this.updateOfflineAppsPermissions();
     this.updateOfflineApps();
 
     this.updateActualCacheSize();
@@ -334,14 +335,31 @@ var gAdvancedPane = {
     this.updateOfflineApps();
   },
 
-  readOfflineNotify: function()
+  updateOfflineAppsPermissions: function()
   {
-    var pref = document.getElementById("browser.offline-apps.notify");
+    var permPref = document.getElementById("offline-apps.permissions");
+    var allowPref = document.getElementById("offline-apps.allow_by_default");
+    var notifyPref = document.getElementById("browser.offline-apps.notify");
+    switch (permPref.value) {
+      case 0: allowPref.value = false;
+              notifyPref.value = false;
+              break;
+      case 1: allowPref.value = false;
+              notifyPref.value = true;
+              break;
+      case 2: allowPref.value = true;
+              notifyPref.value = true;
+              break;
+      default: console.error("Preference error: Invalid value ",permPref.value," for offline app permissions - resetting to default.");
+               permPref.value = 2;
+               allowPref.value = true;
+               notifyPref.value = true;
+    }
+    // Set state of "Exceptions" button accordingly.
     var button = document.getElementById("offlineNotifyExceptions");
-    button.disabled = !pref.value;
-    return pref.value;
+    button.disabled = !allowPref.value && !notifyPref.value;
   },
-
+      
   showOfflineExceptions: function()
   {
     var bundlePreferences = document.getElementById("bundlePreferences");

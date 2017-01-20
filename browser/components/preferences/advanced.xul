@@ -56,12 +56,16 @@
 
       <!-- Network tab -->
       <preference id="browser.cache.disk.capacity"     name="browser.cache.disk.capacity"     type="int"/>
-      <preference id="browser.offline-apps.notify"     name="browser.offline-apps.notify"     type="bool"/>
 
       <preference id="browser.cache.disk.smart_size.enabled"
                   name="browser.cache.disk.smart_size.enabled"
                   inverted="true"
                   type="bool"/>
+
+      <preference id="offline-apps.permissions"        name="offline-apps.permissions"        type="int"
+                  onchange="gAdvancedPane.updateOfflineAppsPermissions()"/>
+      <preference id="browser.offline-apps.notify"     name="browser.offline-apps.notify"     type="bool"/>
+      <preference id="offline-apps.allow_by_default"   name="offline-apps.allow_by_default"   type="bool"/>
 
      <!-- Update tab -->
 #ifdef MOZ_UPDATER
@@ -257,11 +261,16 @@
                       label="&clearOfflineAppCacheNow.label;" accesskey="&clearOfflineAppCacheNow.accesskey;"
                       oncommand="gAdvancedPane.clearOfflineAppCache();"/>
             </hbox>
+            <label id="offlineAppsPermsLabel">&offlineAppsPermissions.label;</label>
             <hbox align="center">
-              <checkbox id="offlineNotify" flex="1"
-                        label="&offlineNotify.label;" accesskey="&offlineNotify.accesskey;"
-                        preference="browser.offline-apps.notify"
-                        onsyncfrompreference="return gAdvancedPane.readOfflineNotify();"/>
+              <menulist id="offlineAppsPerms-menu" preference="offline-apps.permissions" sizetopopup="always">
+                <menupopup>
+                  <menuitem label="&offlineAppsPermissions.Allow;"  value="2" />
+                  <menuitem label="&offlineAppsPermissions.Ask;"    value="1" />
+                  <menuitem label="&offlineAppsPermissions.Deny;"   value="0" />
+                </menupopup>
+              </menulist>
+              <spacer flex="1"/>
               <button id="offlineNotifyExceptions"
                       label="&offlineNotifyExceptions.label;"
                       accesskey="&offlineNotifyExceptions.accesskey;"

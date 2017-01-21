@@ -5579,7 +5579,7 @@ case "$OS_TARGET" in
 WINNT|Darwin|Android)
     ;;
 *)
-    MOZ_GSTREAMER=1
+    MOZ_GSTREAMER=
     ;;
 esac
 

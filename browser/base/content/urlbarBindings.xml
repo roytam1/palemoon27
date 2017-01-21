@@ -741,6 +741,13 @@
                .getService(Ci.nsIClipboard)
                .supportsSelectionClipboard())
           return;
+        
+        // Check if this selection was actually user-generated, and exit if not
+        // to prevent copying the selection (e.g autofill) to clipboard/primary
+        if (!window.QueryInterface(Ci.nsIInterfaceRequestor)
+                   .getInterface(Ci.nsIDOMWindowUtils)
+                   .isHandlingUserInput)
+          return;
 
         var val = this._getSelectedValueForClipboard();
         if (!val)

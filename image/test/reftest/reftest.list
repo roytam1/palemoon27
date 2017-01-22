@@ -37,6 +37,9 @@ include apng/reftest.list
 # WebP tests
 skip-if(Android||B2G) include webp/reftest.list
 
+# JPEG-XR tests
+skip-if(Android||B2G) include jxr/reftest.list
+
 # Icon tests
 include icon/win/reftest.list
 

@@ -124,8 +124,8 @@ devtoolsCommandlineHandler.prototype = {
     }
   },
 
-  helpInfo : "  --jsconsole        Open the Browser Console.\n" +
-             "  --jsdebugger       Open the Browser Toolbox.\n" +
+  helpInfo : "  --jsconsole             Open the Browser Console.\n" +
+             "  --jsdebugger            Open the Browser Toolbox.\n" +
              "  --start-debugger-server [port|path] " +
              "Start the debugger server on a TCP port or " +
              "Unix domain socket path.  Defaults to TCP port 6000.\n",

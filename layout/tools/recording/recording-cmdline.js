@@ -67,7 +67,7 @@ RecordingCmdLineHandler.prototype =
         cmdLine.preventDefault = true;
     },
 
-    helpInfo : "  --recording <file> Record drawing for a given URL.\n" +
+    helpInfo : "  --recording        <file> Record drawing for a given URL.\n" +
                "  --recording-output <file> Specify destination file for a drawing recording.\n"
 };
 

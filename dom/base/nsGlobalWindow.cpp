@@ -10688,7 +10688,7 @@ nsGlobalWindow::GetLocalStorage(ErrorResult& aError)
   }
 
   if (!mLocalStorage) {
-    if (!DOMStorage::CanUseStorage()) {
+    if (!DOMStorage::CanUseStorage(this)) {
       aError.Throw(NS_ERROR_DOM_SECURITY_ERR);
       return nullptr;
     }

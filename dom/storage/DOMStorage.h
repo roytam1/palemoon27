@@ -114,14 +114,13 @@ public:
 
   void Clear(ErrorResult& aRv);
 
-  // The method checks whether the caller can use a storage.
+  // This method checks whether the caller can use storage.
   // CanUseStorage is called before any DOM initiated operation
-  // on a storage is about to happen and ensures that the storage's
+  // on storage is about to happen and ensures that the storage's
   // session-only flag is properly set according the current settings.
-  // It is an optimization since the privileges check and session only
-  // state determination are complex and share the code (comes hand in
-  // hand together).
-  static bool CanUseStorage(DOMStorage* aStorage = nullptr);
+  // It is an optimization, since the privileges check and session-only
+  // state determination are complex and share code (goes hand in hand).
+  static bool CanUseStorage(nsIDOMWindow* aWindow, DOMStorage* aStorage = nullptr);
 
   bool IsPrivate() const { return mIsPrivate; }
   bool IsSessionOnly() const { return mIsSessionOnly; }

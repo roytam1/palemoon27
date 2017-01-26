@@ -12,6 +12,7 @@
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
 #include "nsICookiePermission.h"
+#include "mozIThirdPartyUtil.h"
 
 #include "mozilla/dom/StorageBinding.h"
 #include "mozilla/dom/StorageEvent.h"
@@ -68,7 +69,7 @@ DOMStorage::WrapObject(JSContext* aCx)
 uint32_t
 DOMStorage::GetLength(ErrorResult& aRv)
 {
-  if (!CanUseStorage(this)) {
+  if (!CanUseStorage(mWindow, this)) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return 0;
   }
@@ -81,7 +82,7 @@ DOMStorage::GetLength(ErrorResult& aRv)
 void
 DOMStorage::Key(uint32_t aIndex, nsAString& aResult, ErrorResult& aRv)
 {
-  if (!CanUseStorage(this)) {
+  if (!CanUseStorage(mWindow, this)) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return;
   }
@@ -92,7 +93,7 @@ DOMStorage::Key(uint32_t aIndex, nsAString& aResult, ErrorResult& aRv)
 void
 DOMStorage::GetItem(const nsAString& aKey, nsAString& aResult, ErrorResult& aRv)
 {
-  if (!CanUseStorage(this)) {
+  if (!CanUseStorage(mWindow, this)) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return;
   }
@@ -104,7 +105,7 @@ void
 DOMStorage::SetItem(const nsAString& aKey, const nsAString& aData,
                     ErrorResult& aRv)
 {
-  if (!CanUseStorage(this)) {
+  if (!CanUseStorage(mWindow, this)) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return;
   }
@@ -137,7 +138,7 @@ DOMStorage::SetItem(const nsAString& aKey, const nsAString& aData,
 void
 DOMStorage::RemoveItem(const nsAString& aKey, ErrorResult& aRv)
 {
-  if (!CanUseStorage(this)) {
+  if (!CanUseStorage(mWindow, this)) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return;
   }
@@ -156,7 +157,7 @@ DOMStorage::RemoveItem(const nsAString& aKey, ErrorResult& aRv)
 void
 DOMStorage::Clear(ErrorResult& aRv)
 {
-  if (!CanUseStorage(this)) {
+  if (!CanUseStorage(mWindow, this)) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return;
   }
@@ -229,7 +230,13 @@ DOMStorage::BroadcastChangeNotification(const nsSubstring& aKey,
 
 static const uint32_t ASK_BEFORE_ACCEPT = 1;
 static const uint32_t ACCEPT_SESSION = 2;
-static const uint32_t BEHAVIOR_REJECT = 2;
+
+// Behavior pref constants taken from nsCookieService.cpp
+static const uint32_t BEHAVIOR_ACCEPT        = 0; // allow all cookies
+static const uint32_t BEHAVIOR_REJECTFOREIGN = 1; // reject all third-party cookies
+static const uint32_t BEHAVIOR_REJECT        = 2; // reject all cookies
+static const uint32_t BEHAVIOR_LIMITFOREIGN  = 3; // reject third-party cookies unless the
+                                                  // eTLD already has at least one cookie
 
 static const char kPermissionType[] = "cookie";
 static const char kStorageEnabled[] = "dom.storage.enabled";
@@ -238,7 +245,7 @@ static const char kCookiesLifetimePolicy[] = "network.cookie.lifetimePolicy";
 
 // static, public
 bool
-DOMStorage::CanUseStorage(DOMStorage* aStorage)
+DOMStorage::CanUseStorage(nsIDOMWindow* aWindow, DOMStorage* aStorage)
 {
   // This method is responsible for correct setting of mIsSessionOnly.
   // It doesn't work with mIsPrivate flag at all, since it is checked
@@ -285,6 +292,22 @@ DOMStorage::CanUseStorage(DOMStorage* aStorage)
       return false;
     }
 
+    // Reject storage from 3rd party embedded content.
+    // If we don't have a window, then we can assume that the content is not
+    // originated from a 3rd party, because storage was not obtained through
+    // the window object.
+    if (aWindow && cookieBehavior == BEHAVIOR_REJECTFOREIGN) {
+      nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
+        do_GetService(THIRDPARTYUTIL_CONTRACTID);
+      MOZ_ASSERT(thirdPartyUtil);
+
+      bool thirdPartyWindow = false;
+      if (NS_SUCCEEDED(thirdPartyUtil->IsThirdPartyWindow(
+            aWindow, nullptr, &thirdPartyWindow)) && thirdPartyWindow) {
+        return false;
+      }
+    }
+
     if (lifetimePolicy == ACCEPT_SESSION && aStorage) {
       aStorage->mIsSessionOnly = true;
     }
@@ -328,7 +351,7 @@ DOMStorage::CanAccess(nsIPrincipal* aPrincipal)
 void
 DOMStorage::GetSupportedNames(unsigned, nsTArray<nsString>& aKeys)
 {
-  if (!CanUseStorage(this)) {
+  if (!CanUseStorage(mWindow, this)) {
     // return just an empty array
     aKeys.Clear();
     return;

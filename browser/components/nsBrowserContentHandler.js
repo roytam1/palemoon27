@@ -757,9 +757,9 @@ nsDefaultCommandLineHandler.prototype = {
       Components.utils.reportError(e);
     }
 
-    count = cmdLine.length;
+    let count = cmdLine.length;
 
-    for (i = 0; i < count; ++i) {
+    for (let i = 0; i < count; ++i) {
       var curarg = cmdLine.getArgument(i);
       if (curarg.match(/^-/)) {
         Components.utils.reportError("Warning: unrecognized command line flag " + curarg + "\n");

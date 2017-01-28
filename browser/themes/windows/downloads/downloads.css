@@ -302,6 +302,16 @@ richlistitem[type="download"]:hover > stack > .downloadButton.downloadRetry:acti
   position: relative;
 }
 
+#navigator-toolbox[iconsize=large][mode=icons] > #nav-bar[brighttext] #downloads-indicator-anchor {
+  /* Use a dark download button when appropriate to improve text legibility */
+  background: hsla(94,56%,18%,.3) padding-box;
+  background-image: linear-gradient(hsla(0,0%,0%,.1), hsla(0,0%,0%,.4));
+  border-color: hsla(29,12%,90%,.2) hsla(29,12%,90%,.2) hsla(29,12%,90%,.2);
+  box-shadow: 0 1px hsla(0,0%,0%,.05) inset,
+              0 1px hsla(29,12%,90%,.05),
+              0 0 2px hsla(29,12%,90%,.05);
+}
+
 /*** Main indicator icon ***/
 
 #downloads-indicator-icon {

@@ -206,10 +206,10 @@ var padlock_PadLock =
     } catch(e) {}
 
     var lockenabled = padlock_PadLock.prefbranch.getBoolPref("shown");
-    if (lockenabled)
+    var padshow = "";
+    if (lockenabled) {
       padshow = position;
-    else
-      padshow = "";
+    }
 
     try { // URL bar may be hidden
       document.getElementById("padlock-ib").setAttribute("padshow", padshow);

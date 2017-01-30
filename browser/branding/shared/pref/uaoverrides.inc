@@ -40,6 +40,10 @@ pref("@GUAO_PREF@.netflximg.net","Mozilla/5.0 (@OS_SLICE@ rv:27.0) @GK_SLICE@ Fi
 
 pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
 
+// The never-ending Facebook debacle... We've gone native!
+pref("@GUAO_PREF@.facebook.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
+pref("@GUAO_PREF@.fbcdn.net","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
+
 #ifdef XP_UNIX
 // Google Fonts forces unicode ranges unless it is being told the browser is Firefox 43 or below.
 // They do NOT test for unicode-ranges CSS support.
@@ -47,8 +51,6 @@ pref("@GUAO_PREF@.fonts.googleapis.com","Mozilla/5.0 (@OS_SLICE@ rv:43.0) @GK_SL
 #endif
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
-pref("@GUAO_PREF@.facebook.com","Mozilla/5.0 (@OS_SLICE@ rv:38.9) @GK_SLICE@ @GRE_VERSION_SLICE@ Firefox/38.9 @PM_SLICE@");
-pref("@GUAO_PREF@.fbcdn.com","Mozilla/5.0 (@OS_SLICE@ rv:38.9) @GK_SLICE@ @GRE_VERSION_SLICE@ Firefox/38.9 @PM_SLICE@");
 pref("@GUAO_PREF@.chase.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@");
 // For Amazon Prime videos
 pref("@GUAO_PREF@.www.amazon.com","Mozilla/5.0 (@OS_SLICE@ rv:45.9) @GK_SLICE@ Firefox/45.9 (Pale Moon)");

@@ -1201,7 +1201,7 @@ Navigator::SendBeacon(const nsAString& aUrl,
                                                                principal,
                                                                true);
 
-  rv = cors->Init(channel, true);
+  rv = cors->Init(channel, DataURIHandling::Allow);
   NS_ENSURE_SUCCESS(rv, false);
 
   // Start a preflight if cross-origin and content type is not whitelisted

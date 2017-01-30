@@ -1525,7 +1525,7 @@ bool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
       bool withCredentials = aCORSMode == imgIRequest::CORS_USE_CREDENTIALS;
       nsRefPtr<nsCORSListenerProxy> corsproxy =
         new nsCORSListenerProxy(listener, aLoadingPrincipal, withCredentials);
-      rv = corsproxy->Init(newChannel);
+      rv = corsproxy->Init(newChannel, DataURIHandling::Allow);
       if (NS_FAILED(rv)) {
         return false;
       }
@@ -2071,7 +2071,7 @@ nsresult imgLoader::LoadImage(nsIURI *aURI,
 
       nsRefPtr<nsCORSListenerProxy> corsproxy =
         new nsCORSListenerProxy(pl, aLoadingPrincipal, withCredentials);
-      rv = corsproxy->Init(newChannel);
+      rv = corsproxy->Init(newChannel, DataURIHandling::Allow);
       if (NS_FAILED(rv)) {
         PR_LOG(GetImgLog(), PR_LOG_DEBUG,
                ("[this=%p] imgLoader::LoadImage -- nsCORSListenerProxy "

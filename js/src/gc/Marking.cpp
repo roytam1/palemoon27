@@ -150,6 +150,17 @@ template <> bool ThingIsPermanentAtom<JSAtom>(JSAtom* atom) { return atom->isPer
 template <> bool ThingIsPermanentAtom<PropertyName>(PropertyName* name) { return name->isPermanent(); }
 template <> bool ThingIsPermanentAtom<JS::Symbol>(JS::Symbol* sym) { return sym->isWellKnownSymbol(); }
 
+template <typename T>
+static inline bool
+IsOwnedByOtherRuntime(JSTracer* trc, T thing)
+{
+    bool other = thing->runtimeFromAnyThread() != trc->runtime();
+    MOZ_ASSERT_IF(other,
+                  ThingIsPermanentAtomOrWellKnownSymbol(thing) ||
+                  thing->zoneFromAnyThread()->isSelfHostingZone());
+    return other;
+}
+
 template<typename T>
 static inline void
 CheckMarkedThing(JSTracer* trc, T** thingp)
@@ -171,10 +182,10 @@ CheckMarkedThing(JSTracer* trc, T** thingp)
                   !IsForwarded(*thingp));
 
     /*
-     * Permanent atoms are not associated with this runtime, but will be ignored
-     * during marking.
+     * Permanent atoms and things in the self-hosting zone are not associated
+     * with this runtime, but will be ignored during marking.
      */
-    if (ThingIsPermanentAtom(thing))
+    if (IsOwnedByOtherRuntime(trc, thing))
         return;
 
     Zone* zone = thing->zoneFromAnyThread();

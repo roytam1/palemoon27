@@ -738,6 +738,13 @@ CreateLazyScriptsForCompartment(JSContext* cx)
         }
 
         JSFunction* fun = &obj->as<JSFunction>();
+        
+        // This creates a new reference to an object that an ongoing incremental
+        // GC may find to be unreachable. Treat as if we're reading a weak
+        // reference and trigger the read barrier.
+        if (cx->zone()->needsIncrementalBarrier())
+            fun->readBarrier(fun);
+
         if (fun->isInterpretedLazy()) {
             LazyScript* lazy = fun->lazyScriptOrNull();
             if (lazy && lazy->sourceObject() && !lazy->maybeScript() &&

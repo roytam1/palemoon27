@@ -156,7 +156,16 @@ txExecutionState::end(nsresult aResult)
     return mOutputHandler->endDocument(aResult);
 }
 
-
+void
+txExecutionState::popAndDeleteEvalContextUntil(txIEvalContext* aContext)
+{
+  auto ctx = popEvalContext();
+  while (ctx && ctx != aContext) {
+    MOZ_RELEASE_ASSERT(ctx != mInitialEvalContext);
+    delete ctx;
+    ctx = popEvalContext();
+  }
+}
 
 nsresult
 txExecutionState::getVariable(int32_t aNamespace, nsIAtom* aLName,
@@ -224,14 +233,19 @@ txExecutionState::getVariable(int32_t aNamespace, nsIAtom* aLName,
         rv = var->mExpr->evaluate(getEvalContext(), &aResult);
         mLocalVariables = oldVars;
 
-        NS_ENSURE_SUCCESS(rv, rv);
+        if (NS_FAILED(rv)) {
+          popAndDeleteEvalContextUntil(mInitialEvalContext);
+          return rv;
+        }
     }
     else {
         nsAutoPtr<txRtfHandler> rtfHandler(new txRtfHandler);
-        NS_ENSURE_TRUE(rtfHandler, NS_ERROR_OUT_OF_MEMORY);
 
         rv = pushResultHandler(rtfHandler);
-        NS_ENSURE_SUCCESS(rv, rv);
+        if (NS_FAILED(rv)) {
+          popAndDeleteEvalContextUntil(mInitialEvalContext);
+          return rv;
+        }
         
         rtfHandler.forget();
 
@@ -239,18 +253,27 @@ txExecutionState::getVariable(int32_t aNamespace, nsIAtom* aLName,
         // set return to nullptr to stop execution
         mNextInstruction = nullptr;
         rv = runTemplate(var->mFirstInstruction);
-        NS_ENSURE_SUCCESS(rv, rv);
+        if (NS_FAILED(rv)) {
+          popAndDeleteEvalContextUntil(mInitialEvalContext);
+          return rv;
+        }
 
         pushTemplateRule(nullptr, txExpandedName(), nullptr);
         rv = txXSLTProcessor::execute(*this);
-        NS_ENSURE_SUCCESS(rv, rv);
+        if (NS_FAILED(rv)) {
+          popAndDeleteEvalContextUntil(mInitialEvalContext);
+          return rv;
+        }
 
         popTemplateRule();
 
         mNextInstruction = prevInstr;
         rtfHandler = (txRtfHandler*)popResultHandler();
         rv = rtfHandler->getAsRTF(&aResult);
-        NS_ENSURE_SUCCESS(rv, rv);
+        if (NS_FAILED(rv)) {
+          popAndDeleteEvalContextUntil(mInitialEvalContext);
+          return rv;
+        }
     }
     popEvalContext();
 

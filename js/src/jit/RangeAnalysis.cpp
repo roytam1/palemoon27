@@ -156,11 +156,8 @@ RangeAnalysis::addBetaNodes()
 
         MCompare* compare = test->getOperand(0)->toCompare();
 
-        if (compare->compareType() == MCompare::Compare_Unknown ||
-            compare->compareType() == MCompare::Compare_Value)
-        {
+        if (!compare->isNumericComparison())
             continue;
-        }
 
         // TODO: support unsigned comparisons
         if (compare->compareType() == MCompare::Compare_UInt32)

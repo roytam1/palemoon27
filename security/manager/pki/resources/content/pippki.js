@@ -81,11 +81,20 @@ function exportToFile(parent, cert)
            createInstance(nsIFilePicker);
   fp.init(parent, bundle.getString("SaveCertAs"),
           nsIFilePicker.modeSave);
+
   var filename = cert.commonName;
-  if (!filename.length)
+  if (!filename)
     filename = cert.windowTitle;
-  // remove all whitespace from the default filename
-  fp.defaultString = filename.replace(/\s*/g,'');
+  // Remove undesired characters and whitespace from the default filename
+  fp.defaultString = filename.replace(/\s/g, "")
+                             .replace(/\./g, "")
+                             .replace(/\\/g, "")
+                             .replace(/\//g, "")
+                             + ".crt";
+  // nsIFilePicker.defaultExtension is more of a suggestion to some filepicker
+  // implementations, so we include the extension in the file name as well. This
+  // is what the documentation for nsIFilePicker.defaultString says we should do
+  // anyway.
   fp.defaultExtension = "crt";
   fp.appendFilter(bundle.getString("CertFormatBase64"), "*.crt; *.pem");
   fp.appendFilter(bundle.getString("CertFormatBase64Chain"), "*.crt; *.pem");

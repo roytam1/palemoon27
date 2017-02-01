@@ -3346,6 +3346,15 @@ IsCacheableGetPropCall(JSContext* cx, JSObject* obj, JSObject* holder, Shape* sh
         return false;
 
     JSFunction* func = &shape->getterObject()->as<JSFunction>();
+
+    if (IsInnerObject(obj)) {
+        if (!func->isNative())
+            return false;
+
+        if (!func->jitInfo() || func->jitInfo()->needsOuterizedThisObject())
+            return false;
+    }
+
     if (func->isNative()) {
         *isScripted = false;
         return true;
@@ -3460,6 +3469,14 @@ IsCacheableSetPropCall(JSContext* cx, JSObject* obj, JSObject* holder, Shape* sh
         return false;
 
     JSFunction* func = &shape->setterObject()->as<JSFunction>();
+
+    if (IsInnerObject(obj)) {
+        if (!func->isNative())
+            return false;
+
+        if (!func->jitInfo() || func->jitInfo()->needsOuterizedThisObject())
+            return false;
+    }
 
     if (func->isNative()) {
         *isScripted = false;

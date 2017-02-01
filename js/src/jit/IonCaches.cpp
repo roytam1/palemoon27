@@ -2058,9 +2058,20 @@ IsCacheableSetPropCallNative(HandleObject obj, HandleObject holder, HandleShape 
     if (!shape || !IsCacheableProtoChainForIon(obj, holder))
         return false;
 
-    return shape->hasSetterValue() && shape->setterObject() &&
-           shape->setterObject()->is<JSFunction>() &&
-           shape->setterObject()->as<JSFunction>().isNative();
+    if (!shape->hasSetterValue())
+        return false;
+
+    if (!shape->setterObject() || !shape->setterObject()->is<JSFunction>())
+        return false;
+
+    JSFunction& setter = shape->setterObject()->as<JSFunction>();
+    if (!setter.isNative())
+        return false;
+
+    if (setter.jitInfo() && !setter.jitInfo()->needsOuterizedThisObject())
+        return true;
+
+    return !IsInnerObject(obj);
 }
 
 static bool
@@ -2069,6 +2080,9 @@ IsCacheableSetPropCallScripted(HandleObject obj, HandleObject holder, HandleShap
     MOZ_ASSERT(obj->isNative());
 
     if (!shape || !IsCacheableProtoChainForIon(obj, holder))
+        return false;
+
+    if (IsInnerObject(obj))
         return false;
 
     return shape->hasSetterValue() && shape->setterObject() &&

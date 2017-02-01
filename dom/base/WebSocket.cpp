@@ -78,6 +78,7 @@ public:
 
   explicit WebSocketImpl(WebSocket* aWebSocket)
   : mWebSocket(aWebSocket)
+  , mSecure(false)
   , mOnCloseScheduled(false)
   , mFailed(false)
   , mDisconnectingOrDisconnected(false)

@@ -2576,17 +2576,7 @@ Navigator::GetUserAgent(nsPIDOMWindow* aWindow, nsIURI* aURI,
                         nsAString& aUserAgent)
 {
   MOZ_ASSERT(NS_IsMainThread());
-/*
-  if (!aIsCallerChrome) {
-    const nsAdoptingString& override =
-      mozilla::Preferences::GetString("general.useragent.override");
 
-    if (override) {
-      aUserAgent = override;
-      return NS_OK;
-    }
-  }
-*/
   nsresult rv;
   nsCOMPtr<nsIHttpProtocolHandler>
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));

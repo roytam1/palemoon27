@@ -2460,24 +2460,6 @@ toolbar[brighttext] #addonbar-closebutton {
     -moz-margin-end: 0;
 }
 
-.toolbarbutton-badge[badge=""] {
-    display: none;
-}
-.toolbarbutton-badge[badge]:not([badge=""])::after {
-    /* The |content| property is set in the content stylesheet. */
-    font-size: 9px;
-    font-weight: bold;
-    padding: 0 1px;
-    color: #fff;
-    background-color: rgb(240,61,37);
-    border: 1px solid rgb(216,55,34);
-    border-radius: 2px;
-    box-shadow: 0 1px 0 rgba(0,39,121,0.77);
-    position: absolute;
-    top: 0;
-    right: 0;
-}
-
 @navbarLargeIcons@ *|* > .toolbarbutton-badge[badge]:not([badge=""])::after {
     top: 1px;
     right: 1px;

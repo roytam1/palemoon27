@@ -3421,7 +3421,7 @@ void
 Element::InsertAdjacentText(
   const nsAString& aWhere, const nsAString& aData, ErrorResult& aError)
 {
-  RefPtr<nsTextNode> textNode = OwnerDoc()->CreateTextNode(aData);
+  nsRefPtr<nsTextNode> textNode = OwnerDoc()->CreateTextNode(aData);
   InsertAdjacent(aWhere, textNode, aError);
 }
 

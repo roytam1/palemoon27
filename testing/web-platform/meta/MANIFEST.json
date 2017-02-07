@@ -18221,6 +18221,18 @@
             "timeout": "long",
             "url": "/content-security-policy/object-src/object-src-2_2.html"
           }
+        ],
+        "dom/nodes/Element-insertAdjacentElement.html": [
+          {
+            "path": "dom/nodes/Element-insertAdjacentElement.html",
+            "url": "/dom/nodes/Element-insertAdjacentElement.html"
+          }
+        ],
+        "dom/nodes/Element-insertAdjacentText.html": [
+          {
+            "path": "dom/nodes/Element-insertAdjacentText.html",
+            "url": "/dom/nodes/Element-insertAdjacentText.html"
+          }
         ]
       }
     }

@@ -155,9 +155,9 @@ SourceBufferDecoder::GetReentrantMonitor()
 }
 
 bool
-SourceBufferDecoder::OnStateMachineThread() const
+SourceBufferDecoder::OnStateMachineTaskQueue() const
 {
-  return mParentDecoder->OnStateMachineThread();
+  return mParentDecoder->OnStateMachineTaskQueue();
 }
 
 bool

@@ -156,8 +156,8 @@ IsOwnedByOtherRuntime(JSTracer* trc, T thing)
 {
     bool other = thing->runtimeFromAnyThread() != trc->runtime();
     MOZ_ASSERT_IF(other,
-                  ThingIsPermanentAtomOrWellKnownSymbol(thing) ||
-                  thing->zoneFromAnyThread()->isSelfHostingZone());
+                  ThingIsPermanentAtom(thing) ||
+                  thing->runtimeFromAnyThread()->isSelfHostingZone(thing->zoneFromAnyThread()));
     return other;
 }
 

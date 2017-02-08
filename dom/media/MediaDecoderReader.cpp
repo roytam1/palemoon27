@@ -193,7 +193,7 @@ MediaDecoderReader::AsyncReadMetadata()
 {
   typedef ReadMetadataFailureReason Reason;
 
-  MOZ_ASSERT(OnDecodeThread());
+  MOZ_ASSERT(OnTaskQueue());
   mDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
   DECODER_LOG("MediaDecoderReader::AsyncReadMetadata");
 
@@ -370,7 +370,7 @@ MediaDecoderReader::BreakCycles()
 nsRefPtr<ShutdownPromise>
 MediaDecoderReader::Shutdown()
 {
-  MOZ_ASSERT(OnDecodeThread());
+  MOZ_ASSERT(OnTaskQueue());
   mShutdown = true;
 
   mBaseAudioPromise.RejectIfExists(END_OF_STREAM, __func__);

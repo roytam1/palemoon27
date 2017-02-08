@@ -327,6 +327,9 @@ private:
   DECL_GFX_PREF(Live, "layout.display-list.dump",              LayoutDumpDisplayList, bool, false);
   DECL_GFX_PREF(Live, "layout.event-regions.enabled",          LayoutEventRegionsEnabled, bool, false);
   DECL_GFX_PREF(Once, "layout.paint_rects_separately",         LayoutPaintRectsSeparately, bool, true);
+#ifdef MOZ_JXR
+  DECL_GFX_PREF(Live, "media.jxr.enabled",                     MediaJXREnabled, bool, false);
+#endif MOZ_JXR
 
   DECL_GFX_PREF(Live, "nglayout.debug.widget_update_flashing", WidgetUpdateFlashing, bool, false);
 

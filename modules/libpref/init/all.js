@@ -284,6 +284,25 @@ pref("media.play-stand-alone", true);
 pref("media.decoder.heuristic.dormant.enabled", true);
 pref("media.decoder.heuristic.dormant.timeout", 60000);
 
+#ifdef MOZ_JXR
+// Enables/disables JXR support at runtime. Only enable this for testing as the
+// code has not been properly reviewed yet.
+pref("media.jxr.enabled", false);
+// Determines whether toggling "media.jxr.enabled" will amend the contents of
+// "image.http.accept" and thus the appearance of the HTTP Accept header field
+// for image requests. Leave this as 'true' for conditional JXR serving to work;
+// set this to 'false' if you don't want it meddling with the Accept field in
+// your HTTP headers for privacy or whatever other reasons.
+// NOTE: If you set this to 'false', it will be your responsibility to
+//       make/revert any changes to "http.image.accept".
+pref("media.jxr.autoaccept", true);
+// The MIME type that should be advertised in the Accept field of image HTTP
+// requets; the two choices are "image/jxr" and "image/vnd.ms-photo". If
+// "media.jxr.autoaccept" is 'true', "http.image.accept" will be automatically
+// updated with the new type. This pref is mainly for testing and should be
+// removed once the preferred type (most likely "image/jxr") has been chosen.
+pref("media.jxr.advertised_mime_type", "image/jxr");
+#endif
 #ifdef MOZ_DIRECTSHOW
 pref("media.directshow.enabled", true);
 #endif

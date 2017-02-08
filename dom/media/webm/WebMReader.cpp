@@ -330,7 +330,7 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
 {
   // We can't use OnTaskQueue() here because of the wacky initialization task
   // queue that TrackBuffer uses.
-  MOZ_ASSERT(mDecoder->OnDecodeThread());
+  MOZ_ASSERT(mDecoder->OnDecodeTaskQueue());
 
   nestegg_io io;
   io.read = webm_read;

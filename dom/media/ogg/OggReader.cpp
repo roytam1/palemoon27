@@ -168,7 +168,7 @@ nsresult OggReader::ResetDecode()
 
 nsresult OggReader::ResetDecode(bool start)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   nsresult res = NS_OK;
 
   if (NS_FAILED(MediaDecoderReader::ResetDecode())) {
@@ -380,7 +380,7 @@ void OggReader::SetupMediaTracksInfo(const nsTArray<uint32_t>& aSerials)
 nsresult OggReader::ReadMetadata(MediaInfo* aInfo,
                                  MetadataTags** aTags)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   // We read packets until all bitstreams have read all their header packets.
   // We record the offset of the first non-header page so that we know
@@ -682,7 +682,7 @@ nsresult OggReader::DecodeOpus(ogg_packet* aPacket) {
 
 bool OggReader::DecodeAudioData()
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   DebugOnly<bool> haveCodecState = mVorbisState != nullptr ||
                                    mOpusState != nullptr;
   NS_ASSERTION(haveCodecState, "Need audio codec state to decode audio");
@@ -904,7 +904,7 @@ nsresult OggReader::DecodeTheora(ogg_packet* aPacket, int64_t aTimeThreshold)
 bool OggReader::DecodeVideoFrame(bool &aKeyframeSkip,
                                      int64_t aTimeThreshold)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
@@ -950,7 +950,7 @@ bool OggReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
 bool OggReader::ReadOggPage(ogg_page* aPage)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   int ret = 0;
   while((ret = ogg_sync_pageseek(&mOggState, aPage)) <= 0) {
@@ -984,7 +984,7 @@ bool OggReader::ReadOggPage(ogg_page* aPage)
 
 ogg_packet* OggReader::NextOggPacket(OggCodecState* aCodecState)
 {
-  MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   if (!aCodecState || !aCodecState->mActive) {
     return nullptr;
@@ -1027,7 +1027,7 @@ GetChecksum(ogg_page* page)
 
 int64_t OggReader::RangeStartTime(int64_t aOffset)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   MediaResource* resource = mDecoder->GetResource();
   NS_ENSURE_TRUE(resource != nullptr, 0);
   nsresult res = resource->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
@@ -1049,8 +1049,7 @@ struct nsAutoOggSyncState {
 
 int64_t OggReader::RangeEndTime(int64_t aEndOffset)
 {
-  NS_ASSERTION(mDecoder->OnStateMachineTaskQueue() || mDecoder->OnDecodeThread(),
-               "Should be on state machine or decode taks queue");
+  MOZ_ASSERT(OnTaskQueue() || mDecoder->OnStateMachineTaskQueue());
 
   MediaResource* resource = mDecoder->GetResource();
   NS_ENSURE_TRUE(resource != nullptr, -1);
@@ -1190,7 +1189,7 @@ int64_t OggReader::RangeEndTime(int64_t aStartOffset,
 
 nsresult OggReader::GetSeekRanges(nsTArray<SeekRange>& aRanges)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
   nsTArray<MediaByteRange> cached;
   nsresult res = resource->GetCachedRanges(cached);
@@ -1230,7 +1229,7 @@ OggReader::SelectSeekRange(const nsTArray<SeekRange>& ranges,
                              int64_t aEndTime,
                              bool aExact)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   int64_t so = 0;
   int64_t eo = mDecoder->GetResource()->GetLength();
   int64_t st = aStartTime;
@@ -1446,7 +1445,7 @@ OggReader::Seek(int64_t aTarget, int64_t aEndTime)
 
 nsresult OggReader::SeekInternal(int64_t aTarget, int64_t aEndTime)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   if (mIsChained)
     return NS_ERROR_FAILURE;
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lld", mDecoder, aTarget));
@@ -1603,7 +1602,7 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
                                     const SeekRange& aRange,
                                     uint32_t aFuzz)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   nsresult res;
   MediaResource* resource = mDecoder->GetResource();
 
@@ -1978,8 +1977,7 @@ media::TimeIntervals OggReader::GetBuffered()
 
 VideoData* OggReader::FindStartTime(int64_t& aOutStartTime)
 {
-  NS_ASSERTION(mDecoder->OnStateMachineTaskQueue() || mDecoder->OnDecodeThread(),
-               "Should be on state machine or decode task queue");
+  MOZ_ASSERT(OnTaskQueue() || mDecoder->OnStateMachineTaskQueue());
 
   // Extract the start times of the bitstreams in order to calculate
   // the duration.

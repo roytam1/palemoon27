@@ -653,7 +653,7 @@ nsresult
 MediaCodecReader::ReadMetadata(MediaInfo* aInfo,
                                MetadataTags** aTags)
 {
-  MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   if (!ReallocateResources()) {
     return NS_ERROR_FAILURE;
@@ -1024,7 +1024,7 @@ MediaCodecReader::DecodeVideoFrameSync(int64_t aTimeThreshold)
 nsRefPtr<MediaDecoderReader::SeekPromise>
 MediaCodecReader::Seek(int64_t aTime, int64_t aEndTime)
 {
-  MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   mVideoTrack.mSeekTimeUs = aTime;
   mAudioTrack.mSeekTimeUs = aTime;

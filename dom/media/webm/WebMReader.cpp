@@ -328,7 +328,9 @@ void WebMReader::Cleanup()
 nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
                                   MetadataTags** aTags)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  // We can't use OnTaskQueue() here because of the wacky initialization task
+  // queue that TrackBuffer uses.
+  MOZ_ASSERT(mDecoder->OnDecodeThread());
 
   nestegg_io io;
   io.read = webm_read;
@@ -580,7 +582,7 @@ bool WebMReader::InitOpusDecoder()
 
 bool WebMReader::DecodeAudioPacket(nestegg_packet* aPacket, int64_t aOffset)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   int r = 0;
   unsigned int count = 0;
@@ -928,7 +930,7 @@ nsReturnRef<NesteggPacketHolder> WebMReader::NextPacket(TrackType aTrackType)
 
 bool WebMReader::DecodeAudioData()
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   nsAutoRef<NesteggPacketHolder> holder(NextPacket(AUDIO));
   if (!holder) {
@@ -1061,7 +1063,7 @@ WebMReader::Seek(int64_t aTarget, int64_t aEndTime)
 
 nsresult WebMReader::SeekInternal(int64_t aTarget)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   if (mVideoDecoder) {
     nsresult rv = mVideoDecoder->Flush();
     NS_ENSURE_SUCCESS(rv, rv);

@@ -438,6 +438,11 @@ static nsDefaultMimeTypeEntry defaultMimeEntries [] =
   { TEXT_CSS, "css" },
   { IMAGE_JPEG, "jpeg" },
   { IMAGE_JPEG, "jpg" },
+#ifdef MOZ_JXR
+  { IMAGE_JXR, "jxr" },
+  { IMAGE_JXR, "hdp" },
+  { IMAGE_JXR, "wdp" },
+#endif
   { IMAGE_SVG_XML, "svg" },
   { TEXT_HTML, "html" },
   { TEXT_HTML, "htm" },
@@ -512,6 +517,10 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { IMAGE_GIF, "gif", "GIF Image" },
   { IMAGE_ICO, "ico,cur", "ICO Image" },
   { IMAGE_JPEG, "jpeg,jpg,jfif,pjpeg,pjp", "JPEG Image" },
+#ifdef MOZ_JXR
+  { IMAGE_JXR, "jxr", "JPEG XR Image" },
+  { IMAGE_MS_PHOTO, "jxr", "JPEG XR Image" },
+#endif
   { IMAGE_PNG, "png", "PNG Image" },
   { IMAGE_TIFF, "tiff,tif", "TIFF Image" },
   { IMAGE_XBM, "xbm", "XBM Image" },

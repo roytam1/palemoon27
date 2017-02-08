@@ -32,7 +32,12 @@ public:
     eDecoderType_ico     = 4,
     eDecoderType_icon    = 5,
     eDecoderType_webp    = 6,
+#ifdef MOZ_JXR
+    eDecoderType_jxr     = 7,
+    eDecoderType_unknown = 8
+#else
     eDecoderType_unknown = 7
+#endif
   };
   static eDecoderType GetDecoderType(const char* aMimeType);
 

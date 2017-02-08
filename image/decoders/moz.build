@@ -37,6 +37,9 @@ SOURCES += [
     'nsWEBPDecoder.cpp',
 ]
 
+if CONFIG['MOZ_JXR']:
+    SOURCES += ['nsJXRDecoder.cpp']
+
 FAIL_ON_WARNINGS = True
 
 SOURCES += [

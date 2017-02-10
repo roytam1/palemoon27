@@ -29,8 +29,6 @@ RUN yum install -y epel-release && \
   glibc-devel.i686 \
   glibc-static \
   glibc-static \
-  gstreamer-devel \
-  gstreamer-plugins-base-devel \
   gtk2-devel \
   install \
   iw \

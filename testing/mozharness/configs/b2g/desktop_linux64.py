@@ -95,8 +95,7 @@ config = {
                       'mesa-libGL-devel', 'gnome-vfs2-devel', 'mpfr',
                       'xorg-x11-font', 'imake', 'ccache', 'wget',
                       'freetype-2.3.11-6.el6_2.9',
-                      'freetype-devel-2.3.11-6.el6_2.9', 'gstreamer-devel',
-                      'gstreamer-plugins-base-devel'],
+                      'freetype-devel-2.3.11-6.el6_2.9'],
     'src_mozconfig': 'b2g/config/mozconfigs/linux64_goanna/nightly',
     'tooltool_manifest_src': "b2g/config/tooltool-manifests/linux64/releng.manifest",
     #########################################################################

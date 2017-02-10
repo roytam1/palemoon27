@@ -38,8 +38,6 @@ apt-get install -y                  \
   libdbus-1-dev                     \
   libdbus-glib-1-dev                \
   libgconf2-dev                     \
-  libgstreamer0.10-dev              \
-  libgstreamer-plugins-base0.10-dev \
   libgtk2.0-dev                     \
   libiw-dev                         \
   libnotify-dev                     \
@@ -64,11 +62,9 @@ apt-get install -y \
         bluez-alsa \
         bluez-alsa:i386 \
         bluez-cups \
-        bluez-gstreamer \
         g++-multilib \
         gcc-multilib \
         gir1.2-gnomebluetooth-1.0 \
-        gstreamer0.10-alsa \
         libasound2-plugins:i386 \
         libcanberra-pulse \
         libdrm-intel1:i386 \

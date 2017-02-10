@@ -85,8 +85,7 @@ config = {
         'gcc45_0moz3', 'gcc454_0moz1', 'gcc472_0moz1', 'gcc473_0moz1',
         'yasm', 'ccache',
         ###
-        'pulseaudio-libs-devel', 'gstreamer-devel',
-        'gstreamer-plugins-base-devel', 'freetype-2.3.11-6.el6_1.8.x86_64',
+        'pulseaudio-libs-devel', 'freetype-2.3.11-6.el6_1.8.x86_64',
         'freetype-devel-2.3.11-6.el6_1.8.x86_64'
     ],
     'mock_files': [

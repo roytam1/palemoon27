@@ -120,7 +120,6 @@ var haveMp4 = (getPref("media.windows-media-foundation.enabled") && IsWindowsVis
                IsMacOSSnowLeopardOrLater() ||
                IsJellyBeanOrLater() ||
                getPref("media.omx.enabled") ||
-               getPref("media.gstreamer.enabled") ||
                getPref("media.ffmpeg.enabled");
              
 check_mp4(document.getElementById('v'), haveMp4);
@@ -128,7 +127,6 @@ check_mp4(document.getElementById('v'), haveMp4);
 var haveMp3 = getPref("media.directshow.enabled") ||
               (getPref("media.windows-media-foundation.enabled") && IsWindowsVistaOrLater()) ||
                getPref("media.omx.enabled") ||
-               getPref("media.gstreamer.enabled") ||
                getPref("media.ffmpeg.enabled") ||
                getPref("media.apple.mp3.enabled");
 check_mp3(document.getElementById('v'), haveMp3);

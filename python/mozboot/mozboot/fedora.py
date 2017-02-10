@@ -31,8 +31,6 @@ class FedoraBootstrapper(BaseBootstrapper):
             'alsa-lib-devel',
             'gcc-c++',
             'glibc-static',
-            'gstreamer-devel',
-            'gstreamer-plugins-base-devel',
             'libstdc++-static',
             'libXt-devel',
             'mesa-libGL-devel',

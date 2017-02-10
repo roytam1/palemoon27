@@ -95,10 +95,6 @@
 #include "WMFDecoder.h"
 #endif
 
-#ifdef MOZ_GSTREAMER
-#include "GStreamerFormatHelper.h"
-#endif
-
 #ifdef MOZ_FFMPEG
 #include "FFmpegRuntimeLinker.h"
 #endif
@@ -371,10 +367,6 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_ANDROID_OMX
   AndroidMediaPluginHost::Shutdown();
-#endif
-
-#ifdef MOZ_GSTREAMER
-  GStreamerFormatHelper::Shutdown();
 #endif
 
 #ifdef MOZ_FFMPEG

@@ -25,7 +25,6 @@ class OpenBSDBootstrapper(BaseBootstrapper):
             'yasm',
             'gtk+2',
             'dbus-glib',
-            'gstreamer-plugins-base',
             'pulseaudio',
         ]
 

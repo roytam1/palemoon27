@@ -27,6 +27,7 @@
 This file adds the necessary compatibility tricks to avoid symbols with
 version GLIBCXX_3.4.11 and bigger, keeping binary compatibility with
 libstdc++ 4.3.
+
 */
 
 #define GLIBCXX_VERSION(a, b, c) (((a) << 16) | ((b) << 8) | (c))
@@ -50,8 +51,8 @@ namespace std {
 #endif /* (__GNUC__ == 4) && (__GNUC_MINOR__ >= 5) */
 #if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 16)
     /* Instantiate these templates to avoid GLIBCXX_3.4.16 symbol versions
-	 * depending on compiler optimizations */
-	template int string::_S_compare(size_type, size_type);
+     * depending on compiler optimizations */
+    template int string::_S_compare(size_type, size_type);
 #endif
 }
 
@@ -173,13 +174,13 @@ __cxa_throw_bad_array_new_length()
 
 #if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 21)
 /* While we generally don't build with exceptions, we have some host tools
-* that do use them. libstdc++ from GCC 5.0 added exception constructors with
-* char const* argument. Older versions only have a constructor with
-* std::string. */
+ * that do use them. libstdc++ from GCC 5.0 added exception constructors with
+ * char const* argument. Older versions only have a constructor with
+ * std::string. */
 namespace std {
-	runtime_error::runtime_error(char const* s)
-	: runtime_error(std::string(s))
-	{
-	}
+    runtime_error::runtime_error(char const* s)
+    : runtime_error(std::string(s))
+    {
+    }
 }
 #endif

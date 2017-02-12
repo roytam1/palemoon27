@@ -147,6 +147,7 @@ nsJXRDecoder::nsJXRDecoder(RasterImage* aImage, bool hasBeenDecoded) : Decoder(a
     m_numAvailableBands(0),
     m_currentTileRow(0),
     m_currentSubBand(0),
+    m_startedDecodingSubband(false),
     m_skippedTileRows(false),
     m_alphaBitDepth(0),
     m_outPixelFormat(pfNone),

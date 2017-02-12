@@ -127,20 +127,34 @@ namespace image {
 // one would not have to do progressive decoding (in case of frequency mode) or fail-safe row-by-row decoding (in case of spatial mode)
 // which are both rather expensive (fail-safe decoding does a lot of memory copying to save and restore coding contexts).
 nsJXRDecoder::nsJXRDecoder(RasterImage* aImage, bool hasBeenDecoded) : Decoder(aImage),
+    m_pDecoder(nullptr),
+    m_pConverter(nullptr),
+    m_pStream(nullptr),
+    m_mbRowBuf(nullptr),
+    m_mbRowBufStride(0),
     m_decodeAtEnd(hasBeenDecoded),
-    m_totalReceived(0),
-    m_pDecoder(nullptr), m_pConverter(nullptr), m_pStream(nullptr),
-    m_decoderInitialized(false),
-    m_startedDecodingMBRows(false), m_startedDecodingMBRows_Alpha(false),
+    m_startedDecodingMBRows(false),
+    m_startedDecodingMBRows_Alpha(false),
+    m_mainPlaneFinished(false),
     m_decodingAlpha(false),
-    m_mbRowBuf(nullptr), m_mbRowBufStride(0),
-    m_currLine(0), m_scale(1),
-    m_numAvailableBands(0), m_currentTileRow(0), m_currentSubBand(0),
-    m_mainPlaneFinished(false), m_progressiveDecoding(false),
-    m_tileRowBandInfos(nullptr), m_tileRowInfos(nullptr),
-    m_outPixelFormat(pfNone), m_inProfile(nullptr), m_transform(nullptr), m_xfBuf(nullptr), m_xfBufRowStride(0), m_xfPixelFormat(pfNone),
+    m_scale(1),
+    m_totalReceived(0),
+    m_decoderInitialized(false),
+    m_currLine(0),
+    m_progressiveDecoding(false),
+    m_tileRowBandInfos(nullptr),
+    m_tileRowInfos(nullptr),
+    m_numAvailableBands(0),
+    m_currentTileRow(0),
+    m_currentSubBand(0),
     m_skippedTileRows(false),
-    m_alphaBitDepth(0)
+    m_alphaBitDepth(0),
+    m_outPixelFormat(pfNone),
+    m_inProfile(nullptr),
+    m_transform(nullptr),
+    m_xfBuf(nullptr),
+    m_xfBufRowStride(0),
+    m_xfPixelFormat(pfNone)
 {
 #ifdef USE_CHAIN_BUFFER
     m_chainBuf.SetMemAllocProc(MyAlloc, MyFree);
@@ -339,6 +353,10 @@ uint32_t nsJXRDecoder::GetPixFmtBitsPP(PixelFormat pixFmt)
 
     case pfCMYKA80:
         return 80;
+    default:
+        // A NOP to silence a compiler warning until this is rewritten.
+        // [rhinoduck]
+        break;
     }
 
     return 0;
@@ -451,6 +469,10 @@ void nsJXRDecoder::AllocateMBRowBuffer(size_t width, bool decodeAlpha)
         case pfRGB24:
             outFmt = GUID_PKPixelFormat24bppBGR;
             m_outPixelFormat = pfBGR24;
+            break;
+        default:
+            // A NOP to silence a compiler warning until this is rewritten.
+            // [rhinoduck]
             break;
         }
 
@@ -1180,6 +1202,12 @@ void nsJXRDecoder::UpdateImage(size_t top, size_t width, size_t height)
             }
         }
         break;
+    default:
+        {
+            // A NOP to silence a compiler warning until this is rewritten.
+            // [rhinoduck]
+        }
+        break;
     }
 }
 
@@ -1792,6 +1820,10 @@ void nsJXRDecoder::ConvertAndTransform(uint8_t *pDecoded, size_t width, size_t n
 
         cmyk = true;
         break;
+    default:
+        // A NOP to silence a compiler warning until this is rewritten.
+        // [rhinoduck]
+        break;
     }
 
     if (cmyk)
@@ -1835,6 +1867,10 @@ void nsJXRDecoder::ConvertAndTransform(uint8_t *pDecoded, size_t width, size_t n
                 BGRA32_RGBA32(nullptr, &cr, pDecoded, m_mbRowBufStride);
                 outPixFmt = m_xfPixelFormat;
                 break;
+            default:
+                // A NOP to silence a compiler warning until this is rewritten.
+                // [rhinoduck]
+                break;
             }
 
             uint8_t *pLine = pDecoded;
@@ -1847,6 +1883,11 @@ void nsJXRDecoder::ConvertAndTransform(uint8_t *pDecoded, size_t width, size_t n
             }
         }
     }
+
+    // To silence compiler warnings until this is rewritten. These variables
+    // actually really are not used, only assigned to. Sigh. [rhinoduck]
+    (void)outPixFmt;
+    (void)outRowStride;
 }
 
 bool nsJXRDecoder::DecodeNextMBRow(bool invalidate, bool output)
@@ -1862,7 +1903,9 @@ bool nsJXRDecoder::DecodeNextMBRow(bool invalidate, bool output)
 
     size_t numLinesDecoded;
     Bool finished;
-    ERR err = JXR_DecodeNextMBRow(m_pDecoder, m_mbRowBuf, m_mbRowBufStride, &numLinesDecoded, &finished);
+    /*ERR err =*/ JXR_DecodeNextMBRow(m_pDecoder, m_mbRowBuf, m_mbRowBufStride, &numLinesDecoded, &finished);
+    // ^ Just continue overlooking errors until this is rewritten. But without
+    // a compiler warning. [rhinoduck]
 
     if (0 == numLinesDecoded)
         return false;
@@ -1897,7 +1940,9 @@ bool nsJXRDecoder::DecodeNextMBRow_Alpha(bool invalidate)
 
     size_t numLinesDecoded;
     Bool finished;
-    ERR err = JXR_DecodeNextMBRow_Alpha(m_pDecoder, m_mbRowBuf, m_mbRowBufStride, &numLinesDecoded, &finished);
+    /*ERR err =*/ JXR_DecodeNextMBRow_Alpha(m_pDecoder, m_mbRowBuf, m_mbRowBufStride, &numLinesDecoded, &finished);
+    // ^ Just continue overlooking errors until this is rewritten. But without
+    // a compiler warning. [rhinoduck]
 
     if (0 == numLinesDecoded)
         return false;
@@ -1934,7 +1979,9 @@ bool nsJXRDecoder::DecodeNextMBRowWithAlpha()
 
     size_t numLinesDecoded, numLinesDecoded1;
     Bool finished;
-    ERR err = JXR_DecodeNextMBRow(m_pDecoder, m_mbRowBuf, m_mbRowBufStride, &numLinesDecoded, &finished);
+    /*ERR err =*/ JXR_DecodeNextMBRow(m_pDecoder, m_mbRowBuf, m_mbRowBufStride, &numLinesDecoded, &finished);
+    // ^ Just continue overlooking errors until this is rewritten. But without
+    // a compiler warning. [rhinoduck]
     JXR_DecodeNextMBRow_Alpha(m_pDecoder, m_mbRowBuf, m_mbRowBufStride, &numLinesDecoded1, &finished);
 
     if (0 == numLinesDecoded || numLinesDecoded != numLinesDecoded1)
@@ -2477,6 +2524,10 @@ void nsJXRDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
             case O_RCW_FLIPVH:  //  1    1     1
                 angle = Angle::D270;
                 //flip = Flip::Unflipped;
+                break;
+            default:
+                // A NOP to silence a compiler warning until this is rewritten.
+                // [rhinoduck]
                 break;
             }
 

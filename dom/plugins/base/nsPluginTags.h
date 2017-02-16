@@ -83,6 +83,8 @@ public:
 
   bool HasSameNameAndMimes(const nsPluginTag *aPluginTag) const;
   nsCString GetNiceFileName();
+  
+  nsCString Name() const { return mName; }
 
   bool IsFromExtension() const;
 

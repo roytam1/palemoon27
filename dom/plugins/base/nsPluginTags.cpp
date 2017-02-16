@@ -201,7 +201,11 @@ void nsPluginTag::InitMime(const char* const* aMimeTypes,
         mIsJavaPlugin = true;
         break;
       case nsPluginHost::eSpecialType_Flash:
-        mIsFlashPlugin = true;
+        // VLC sometimes claims to implement the Flash MIME type, and we want
+        // to allow users to control that separately from Adobe Flash.
+        if (Name().EqualsLiteral("Shockwave Flash")) {
+          mIsFlashPlugin = true;
+        }  
         break;
       case nsPluginHost::eSpecialType_None:
       default:

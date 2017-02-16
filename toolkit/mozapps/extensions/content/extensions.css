@@ -268,9 +268,8 @@ richlistitem:not([selected]) * {
 
 /* Indicator style for extension target application */
 .addon[native] .nativeIndicator {
-  font-size: 150%;
-  margin-top: -5pt;
-  margin-bottom: -1pt;
+  margin-left: 5pt;
+  padding-bottom: 1pt;
 }
 .addon[native][active="false"] .nativeIndicator {
   opacity: 0.4;

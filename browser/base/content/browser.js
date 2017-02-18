@@ -4359,6 +4359,37 @@ function setToolbarVisibility(toolbar, isVisible) {
   toolbar.setAttribute(hidingAttribute, !isVisible);
   document.persist(toolbar.id, hidingAttribute);
 
+  // Customizable toolbars - persist the hiding attribute.
+  if (toolbar.hasAttribute("customindex")) {
+    var toolbox = toolbar.parentNode;
+    var name = toolbar.getAttribute("toolbarname").replace(" ", "_");
+    var toolbarInfoSep1 = ":";
+    var toolbarInfoSep2 = "-";
+    if (toolbox.toolbarset) {
+      try {
+        // Checking all attributes starting with "toolbar".
+        Array.prototype.slice.call(toolbox.toolbarset.attributes, 0)
+            .find(x => {
+              if (x.name.startsWith("toolbar")) {
+                var toolbarInfo = x.value;
+                var infoSplit = toolbarInfo.split(toolbarInfoSep1);
+                if (infoSplit[0] == name) {
+                  infoSplit[1] = [
+                    infoSplit[1].split(toolbarInfoSep2, 1), !isVisible
+                  ].join(toolbarInfoSep2);
+                  toolbox.toolbarset.setAttribute(
+                      x.name, infoSplit.join(toolbarInfoSep1));
+                  document.persist(toolbox.toolbarset.id, x.name);
+                }
+              }
+            });
+      } catch (e) {
+        Components.utils.reportError(
+            "Customizable toolbars - persist the hiding attribute: " + e);
+      }
+    }
+  }
+
   PlacesToolbarHelper.init();
   BookmarkingUI.onToolbarVisibilityChange();
   gBrowser.updateWindowResizers();

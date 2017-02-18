@@ -753,6 +753,7 @@ pref("accessibility.typeaheadfind.autostart", true);
 //     1 - "always" (case-sensitive)
 // other - "auto"   (case-sensitive for mixed-case input, insensitive otherwise)
 pref("accessibility.typeaheadfind.casesensitive", 0);
+pref("accessibility.typeaheadfind.highlightallbydefault", true);
 pref("accessibility.typeaheadfind.linksonly", true);
 pref("accessibility.typeaheadfind.startlinksonly", false);
 pref("accessibility.typeaheadfind.timeout", 4000);

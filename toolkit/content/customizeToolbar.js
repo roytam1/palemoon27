@@ -172,9 +172,22 @@ function persistCurrentSets()
         // Remove custom toolbars whose contents have been removed.
         gToolbox.removeChild(toolbar);
       } else if (gToolbox.toolbarset) {
+        var hidingAttribute = toolbar.getAttribute("type") == "menubar" ?
+                              "autohide" : "collapsed";
         // Persist custom toolbar info on the <toolbarset/>
+        // Attributes:
+        // Names: "toolbarX" (X - the number of the toolbar)
+        // Values: "Name:HidingAttributeName-HidingAttributeValue:CurrentSet"
+        var toolbarInfoSep1 = ":";
+        var toolbarInfoSep2 = "-";
         gToolbox.toolbarset.setAttribute("toolbar"+(++customCount),
-                                         toolbar.toolbarName + ":" + currentSet);
+                                         toolbar.toolbarName
+                                         + toolbarInfoSep1
+                                         + hidingAttribute
+                                         + toolbarInfoSep2
+                                         + toolbar.getAttribute(hidingAttribute)
+                                         + toolbarInfoSep1
+                                         + currentSet);
         gToolboxDocument.persist(gToolbox.toolbarset.id, "toolbar"+customCount);
       }
     }
@@ -505,7 +518,7 @@ function addNewToolbar()
     message = stringBundle.getFormattedString("enterToolbarDup", [name.value]);
   }
 
-  gToolbox.appendCustomToolbar(name.value, "");
+  gToolbox.appendCustomToolbar(name.value, "", [null, null]);
 
   toolboxChanged();
 

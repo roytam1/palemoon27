@@ -4359,18 +4359,6 @@ function setToolbarVisibility(toolbar, isVisible) {
   toolbar.setAttribute(hidingAttribute, !isVisible);
   document.persist(toolbar.id, hidingAttribute);
 
-  if (toolbar.hasAttribute("customindex")) {
-    var toolbox = toolbar.parentNode;
-    var name = toolbar.getAttribute("toolbarname").replace(" ", "_");
-    var attrs = ["collapsed"];
-    for (let i = 0, attrsLength = attrs.length; i < attrsLength; i++) {
-      let attr = "toolbar_" + name + "_" + attrs[i];
-      let value = toolbar.getAttribute(attrs[i]);
-      toolbox.toolbarset.setAttribute(attr, value);
-      document.persist(toolbox.toolbarset.id, attr);
-    }
-  }
-
   PlacesToolbarHelper.init();
   BookmarkingUI.onToolbarVisibilityChange();
   gBrowser.updateWindowResizers();

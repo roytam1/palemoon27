@@ -60,7 +60,18 @@
             while (toolbarset.hasAttribute("toolbar"+(++index))) {
               var toolbarInfo = toolbarset.getAttribute("toolbar"+index);
               var infoSplit = toolbarInfo.split(":");
-              this.appendCustomToolbar(infoSplit[0], infoSplit[1]);
+              var name = infoSplit[0];
+              var currentSet = infoSplit[1];
+              var attrsIn = ["collapsed"];
+              var attrsOut = [];
+              for (let i = 0, attrsInLength = attrsIn.length; i < attrsInLength; i++) {
+                let attr = "toolbar_" + name + "_" + attrsIn[i];
+                let value = toolbarset.getAttribute(attr);
+                if (value) {
+                  attrsOut.push({ "name": attrsIn[i], "value": value });
+                }
+              }
+              this.appendCustomToolbar(name, currentSet, attrsOut);
             }
           }
         ]]>
@@ -69,6 +80,7 @@
       <method name="appendCustomToolbar">
         <parameter name="aName"/>
         <parameter name="aCurrentSet"/>
+        <parameter name="aAttrsOut"/>
         <body>
           <![CDATA[            
             if (!this.toolbarset)
@@ -84,7 +96,11 @@
             toolbar.setAttribute("iconsize", this.getAttribute("iconsize"));
             toolbar.setAttribute("context", this.toolbarset.getAttribute("context"));
             toolbar.setAttribute("class", "chromeclass-toolbar");
-            
+            for (let i = 0, aAttrsOutLength = aAttrsOut.length; i < aAttrsOutLength; i++) {
+              let attr = aAttrsOut[i];
+              toolbar.setAttribute(attr.name, attr.value);
+            }
+
             this.insertBefore(toolbar, this.toolbarset);
             return toolbar;
           ]]>

@@ -505,7 +505,7 @@ function addNewToolbar()
     message = stringBundle.getFormattedString("enterToolbarDup", [name.value]);
   }
 
-  gToolbox.appendCustomToolbar(name.value, "");
+  gToolbox.appendCustomToolbar(name.value, "", []);
 
   toolboxChanged();
 

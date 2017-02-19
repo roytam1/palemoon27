@@ -4363,6 +4363,7 @@ function setToolbarVisibility(toolbar, isVisible) {
   if (toolbar.hasAttribute("customindex")) {
     var toolbox = toolbar.parentNode;
     var name = toolbar.getAttribute("toolbarname").replace(" ", "_");
+    // "toolbarInfoSepX" - it is used in multiple places of a code.
     var toolbarInfoSep1 = ":";
     var toolbarInfoSep2 = "-";
     if (toolbox.toolbarset) {

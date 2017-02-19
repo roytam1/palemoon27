@@ -178,6 +178,7 @@ function persistCurrentSets()
         // Attributes:
         // Names: "toolbarX" (X - the number of the toolbar)
         // Values: "Name:HidingAttributeName-HidingAttributeValue:CurrentSet"
+        // "toolbarInfoSepX" - it is used in multiple places of a code.
         var toolbarInfoSep1 = ":";
         var toolbarInfoSep2 = "-";
         gToolbox.toolbarset.setAttribute("toolbar"+(++customCount),
@@ -497,7 +498,9 @@ function addNewToolbar()
       continue;
     }
 
-    if (name.value.includes(":")) {
+    // "toolbarInfoSepX" - it is used in multiple places of a code.
+    var toolbarInfoSep1 = ":";
+    if (name.value.includes(toolbarInfoSep1)) {
       message = stringBundle.getFormattedString("enterToolbarIllegalChars", [name.value]);
       continue;
     }

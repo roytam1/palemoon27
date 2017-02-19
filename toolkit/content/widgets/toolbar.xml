@@ -57,6 +57,7 @@
           if (this.toolbarset) {
             // Create each toolbar described by the toolbarset.
             var index = 0;
+            // "toolbarInfoSepX" - it is used in multiple places of a code.
             var toolbarInfoSep1 = ":";
             var toolbarInfoSep2 = "-";
             while (toolbarset.hasAttribute("toolbar"+(++index))) {

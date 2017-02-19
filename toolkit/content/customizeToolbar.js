@@ -497,6 +497,11 @@ function addNewToolbar()
       continue;
     }
 
+    if (name.value.includes(":")) {
+      message = stringBundle.getFormattedString("enterToolbarIllegalChars", [name.value]);
+      continue;
+    }
+
     var dupeFound = false;
 
      // Check for an existing toolbar with the same display name

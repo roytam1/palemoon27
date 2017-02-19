@@ -322,9 +322,6 @@
             case "accessibility.typeaheadfind.casesensitive":
               this._self._setCaseSensitivity(prefsvc.getIntPref(aPrefName));
               break;
-            case "accessibility.typeaheadfind.highlightallbydefault":
-              this._self._typeAheadHighlightAllByDefault = prefsvc.getBoolPref(aPrefName);
-              break;
           }
         }
       })]]></field>
@@ -359,8 +356,6 @@
                             this._observer, false);
         prefsvc.addObserver("accessibility.typeaheadfind.casesensitive",
                             this._observer, false);
-        prefsvc.addObserver("accessibility.typeaheadfind.highlightallbydefault",
-                            this._observer, false);
 
         this._useTypeAheadFind =
           prefsvc.getBoolPref("accessibility.typeaheadfind");
@@ -368,8 +363,6 @@
           prefsvc.getBoolPref("accessibility.typeaheadfind.linksonly");
         this._typeAheadCaseSensitive =
           prefsvc.getIntPref("accessibility.typeaheadfind.casesensitive");
-        this._typeAheadHighlightAllByDefault =
-          prefsvc.getBoolPref("accessibility.typeaheadfind.highlightallbydefault");
 
         // Convenience
         this.nsITypeAheadFind = Components.interfaces.nsITypeAheadFind;
@@ -407,8 +400,6 @@
           prefsvc.removeObserver("accessibility.typeaheadfind.linksonly",
                                  this._observer);
           prefsvc.removeObserver("accessibility.typeaheadfind.casesensitive",
-                                 this._observer);
-          prefsvc.removeObserver("accessibility.typeaheadfind.highlightallbydefault",
                                  this._observer);
 
           // Clear all timers that might still be running.
@@ -907,10 +898,6 @@
           this.getElement("find-next").hidden =
             this.getElement("find-previous").hidden = showMinimalUI;
           this._updateCaseSensitivity();
-          
-          if (this._typeAheadHighlightAllByDefault)
-            this.getElement("highlight").checked = true;
-          this.toggleHighlight(this.getElement("highlight").checked);
 
           if (showMinimalUI)
             this._findField.classList.add("minimal");

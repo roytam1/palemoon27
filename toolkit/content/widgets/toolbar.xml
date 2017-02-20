@@ -49,6 +49,7 @@
 
       <constructor>
         <![CDATA[
+          this.toolbarInfoSeparators = ["|", "-"];
           // Look to see if there is a toolbarset.
           this.toolbarset = this.firstChild;
           while (this.toolbarset && this.toolbarset.localName != "toolbarset")
@@ -57,14 +58,11 @@
           if (this.toolbarset) {
             // Create each toolbar described by the toolbarset.
             var index = 0;
-            // "toolbarInfoSepX" - it is used in multiple places of a code.
-            var toolbarInfoSep1 = ":";
-            var toolbarInfoSep2 = "-";
             while (toolbarset.hasAttribute("toolbar"+(++index))) {
               var toolbarInfo = toolbarset.getAttribute("toolbar"+index);
-              var infoSplit = toolbarInfo.split(toolbarInfoSep1);
+              var infoSplit = toolbarInfo.split(this.toolbarInfoSeparators[0]);
               var infoName = infoSplit[0];
-              var infoHidingAttribute = infoSplit[1].split(toolbarInfoSep2);
+              var infoHidingAttribute = infoSplit[1].split(this.toolbarInfoSeparators[1]);
               var infoCurrentSet = infoSplit[2];
 
               this.appendCustomToolbar(infoName, infoCurrentSet, infoHidingAttribute);

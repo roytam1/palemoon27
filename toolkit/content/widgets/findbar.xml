@@ -422,6 +422,16 @@
 
           // Clear all timers that might still be running.
           this._cancelTimers();
+          
+          // If the "highlight all" option state should be remembered,
+          // then the preference to highlight all by default gets
+          // overwritten with the current state, just before destroying
+          // which usually happens while closing a browser window
+          if (this._typeAheadHighlightAllRemember) {
+            let pref = "accessibility.typeaheadfind.highlightallbydefault";
+            let state = this.getElement("highlight").checked;
+            prefsvc.setBoolPref(pref, state);
+          }
         ]]></body>
       </method>
 

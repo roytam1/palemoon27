@@ -323,7 +323,7 @@
               this._self._setCaseSensitivity(prefsvc.getIntPref(aPrefName));
               break;
             case "accessibility.typeaheadfind.highlightallbydefault":
-                this._self._typeAheadHighlightAllByDefault = prefsvc.getBoolPref(aPrefName);
+              this._self._typeAheadHighlightAllByDefault = prefsvc.getBoolPref(aPrefName);
               break;
             case "accessibility.typeaheadfind.highlightallremember":
               this._self._typeAheadHighlightAllRemember = prefsvc.getBoolPref(aPrefName);

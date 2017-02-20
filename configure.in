@@ -3536,7 +3536,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
 if test -n "$_USE_SYSTEM_NSS"; then
     dnl NSS capabilities are out of sync with upstream (Camellia-GCM). Don't allow.
     AC_MSG_ERROR([Using a system-provided NSS library is currently not supported.])
-    AM_PATH_NSS(3.19.5, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.19.5.1, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then

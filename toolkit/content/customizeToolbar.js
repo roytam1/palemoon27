@@ -2,6 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+const gToolbarInfoSeparators = ["|", "-"];
+
 var gToolboxDocument = null;
 var gToolbox = null;
 var gCurrentDragOverItem = null;
@@ -178,16 +180,13 @@ function persistCurrentSets()
         // Attributes:
         // Names: "toolbarX" (X - the number of the toolbar)
         // Values: "Name:HidingAttributeName-HidingAttributeValue:CurrentSet"
-        // "toolbarInfoSepX" - it is used in multiple places of a code.
-        var toolbarInfoSep1 = ":";
-        var toolbarInfoSep2 = "-";
         gToolbox.toolbarset.setAttribute("toolbar"+(++customCount),
                                          toolbar.toolbarName
-                                         + toolbarInfoSep1
+                                         + gToolbarInfoSeparators[0]
                                          + hidingAttribute
-                                         + toolbarInfoSep2
+                                         + gToolbarInfoSeparators[1]
                                          + toolbar.getAttribute(hidingAttribute)
-                                         + toolbarInfoSep1
+                                         + gToolbarInfoSeparators[0]
                                          + currentSet);
         gToolboxDocument.persist(gToolbox.toolbarset.id, "toolbar"+customCount);
       }
@@ -498,9 +497,7 @@ function addNewToolbar()
       continue;
     }
 
-    // "toolbarInfoSepX" - it is used in multiple places of a code.
-    var toolbarInfoSep1 = ":";
-    if (name.value.includes(toolbarInfoSep1)) {
+    if (name.value.includes(gToolbarInfoSeparators[0])) {
       message = stringBundle.getFormattedString("enterToolbarIllegalChars", [name.value]);
       continue;
     }

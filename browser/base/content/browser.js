@@ -13,6 +13,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
                                   "resource:///modules/CharsetMenu.jsm");
 
 const nsIWebNavigation = Ci.nsIWebNavigation;
+const gToolbarInfoSeparators = ["|", "-"];
 
 var gLastBrowserCharset = null;
 var gPrevCharset = null;
@@ -4362,10 +4363,7 @@ function setToolbarVisibility(toolbar, isVisible) {
   // Customizable toolbars - persist the hiding attribute.
   if (toolbar.hasAttribute("customindex")) {
     var toolbox = toolbar.parentNode;
-    var name = toolbar.getAttribute("toolbarname").replace(" ", "_");
-    // "toolbarInfoSepX" - it is used in multiple places of a code.
-    var toolbarInfoSep1 = ":";
-    var toolbarInfoSep2 = "-";
+    var name = toolbar.getAttribute("toolbarname");
     if (toolbox.toolbarset) {
       try {
         // Checking all attributes starting with "toolbar".
@@ -4373,13 +4371,13 @@ function setToolbarVisibility(toolbar, isVisible) {
             .find(x => {
               if (x.name.startsWith("toolbar")) {
                 var toolbarInfo = x.value;
-                var infoSplit = toolbarInfo.split(toolbarInfoSep1);
+                var infoSplit = toolbarInfo.split(gToolbarInfoSeparators[0]);
                 if (infoSplit[0] == name) {
                   infoSplit[1] = [
-                    infoSplit[1].split(toolbarInfoSep2, 1), !isVisible
-                  ].join(toolbarInfoSep2);
+                    infoSplit[1].split(gToolbarInfoSeparators[1], 1), !isVisible
+                  ].join(gToolbarInfoSeparators[1]);
                   toolbox.toolbarset.setAttribute(
-                      x.name, infoSplit.join(toolbarInfoSep1));
+                      x.name, infoSplit.join(gToolbarInfoSeparators[0]));
                   document.persist(toolbox.toolbarset.id, x.name);
                 }
               }

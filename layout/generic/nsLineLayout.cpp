@@ -1170,6 +1170,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   }
   else {
     PushFrame(aFrame);
+    aPushedFrame = true;
   }
   
 #ifdef REALLY_NOISY_REFLOW

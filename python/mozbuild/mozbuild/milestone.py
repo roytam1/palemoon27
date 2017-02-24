@@ -43,6 +43,12 @@ def get_milestone_major(milestone):
 
     return milestone.split('.')[0]
 
+def get_milestone_minor(milestone):
+    """
+    Returns the minor (second) part of the milestone.
+    """
+
+    return milestone.split('.')[1]
 
 def main(args):
     parser = argparse.ArgumentParser()
@@ -56,9 +62,9 @@ def main(args):
     milestone = get_official_milestone(milestone_file)
 
     if options.uaversion:
-        # Only expose the major milestone in the UA string, hide the patch
-        # level (bugs 572659 and 870868).
-        uaversion = "%s.0" % (get_milestone_major(milestone),)
+        # Expose the major.minor milestone in the UA string.
+        uaversion = "%s.%s" % (get_milestone_major(milestone),
+                               get_milestone_minor(milestone))
         print(uaversion)
 
     elif options.symbolversion:

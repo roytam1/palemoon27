@@ -189,7 +189,7 @@ private:
   // aborted and another AppendData queued.
   uint32_t mUpdateID;
 
-  MediaPromiseRequestHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;
+  MediaPromiseConsumerHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;
   const nsCString mType;
 };
 

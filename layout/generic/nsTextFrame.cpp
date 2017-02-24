@@ -8716,30 +8716,37 @@ nsTextFrame::RecomputeOverflow(const nsHTMLReflowState& aBlockReflowState)
   return result;
 }
 
-static char16_t TransformChar(const nsStyleText* aStyle, gfxTextRun* aTextRun,
-                               uint32_t aSkippedOffset, char16_t aChar)
+static void TransformChars(nsTextFrame* aFrame, const nsStyleText* aStyle,
+                           gfxTextRun* aTextRun, uint32_t aSkippedOffset,
+                           const nsTextFragment* aFrag, int32_t aFragOffset,
+                           int32_t aFragLen, nsAString& aOut)
 {
-  if (aChar == '\n') {
-    return aStyle->NewlineIsSignificant() ? aChar : ' ';
+  aOut.SetLength(aOut.Length() + aFragLen);
+  char16_t* out = aOut.EndWriting() - aFragLen;
+  for (int32_t i = 0; i < aFragLen; ++i) {
+    char16_t ch = aFrag->CharAt(aFragOffset + i);
+    if ((ch == '\n' && !aStyle->NewlineIsSignificant()) ||
+        (ch == '\t' && !aStyle->TabIsSignificant())) {
+      ch = ' ';
+    }
+    out[i] = ch;
   }
-  if (aChar == '\t') {
-    return aStyle->TabIsSignificant() ? aChar : ' ';
-  }
+
   switch (aStyle->mTextTransform) {
   case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
-    aChar = ToLowerCase(aChar);
+    ToLowerCase(out, out, aFragLen);
     break;
   case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
-    aChar = ToUpperCase(aChar);
+    ToUpperCase(out, out, aFragLen);
     break;
   case NS_STYLE_TEXT_TRANSFORM_CAPITALIZE:
-    if (aTextRun->CanBreakLineBefore(aSkippedOffset)) {
-      aChar = ToTitleCase(aChar);
+    for (int32_t i = 0; i < aFragLen; ++i) {
+      if (aTextRun->CanBreakLineBefore(aSkippedOffset + i)) {
+        out[i] = ToTitleCase(out[i]);
+      }
     }
     break;
   }
-
-  return aChar;
 }
 
 static bool
@@ -8860,18 +8867,24 @@ nsTextFrame::GetRenderedText(uint32_t aStartOffset,
     const nsStyleText* textStyle = textFrame->StyleText();
     iter.SetOriginalOffset(trimmedOffsets.mStart);
     while (iter.GetOriginalOffset() < trimmedOffsets.GetEnd()) {
-      char16_t ch = textFrag->CharAt(iter.GetOriginalOffset());
-      if (iter.IsOriginalCharSkipped()) {
-        if (ch == CH_SHY) {
-          // We should preserve soft hyphens. They can't be transformed.
-          result.mString.Append(ch);
+      int32_t runLength;
+      bool isSkipped = iter.IsOriginalCharSkipped(&runLength);
+      runLength = std::min(runLength,
+                           trimmedOffsets.GetEnd() - iter.GetOriginalOffset());
+      if (isSkipped) {
+        for (int32_t i = 0; i < runLength; ++i) {
+          char16_t ch = textFrag->CharAt(iter.GetOriginalOffset() + i);
+          if (ch == CH_SHY) {
+            // We should preserve soft hyphens. They can't be transformed.
+            result.mString.Append(ch);
+          }
         }
       } else {
-        result.mString.Append(
-              TransformChar(textStyle, textFrame->mTextRun,
-                            iter.GetSkippedOffset(), ch));
+        TransformChars(textFrame, textStyle, textFrame->mTextRun,
+                       iter.GetSkippedOffset(), textFrag,
+                       iter.GetOriginalOffset(), runLength, result.mString);
       }
-      iter.AdvanceOriginal(1);
+      iter.AdvanceOriginal(runLength);
     }
 
     if (trimmedSignificantNewline && GetContentEnd() <= endOffset) {

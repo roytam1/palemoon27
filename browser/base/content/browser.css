@@ -679,3 +679,8 @@ html|*#gcli-output-frame,
 toolbarbutton[type="badged"] {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#toolbarbutton-badged");
 }
+
+/* Strict icon size for PMkit 'ui/button' */
+toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-container > .toolbarbutton-icon {
+  width: 16px;
+}

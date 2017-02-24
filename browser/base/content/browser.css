@@ -683,4 +683,5 @@ toolbarbutton[type="badged"] {
 /* Strict icon size for PMkit 'ui/button' */
 toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-container > .toolbarbutton-icon {
   width: 16px;
+  height: 16px;
 }

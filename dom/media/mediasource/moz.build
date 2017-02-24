@@ -9,6 +9,7 @@ EXPORTS += [
     'AsyncEventRunner.h',
     'MediaSourceDecoder.h',
     'MediaSourceReader.h',
+    'SourceBufferContentManager.h',
 ]
 
 EXPORTS.mozilla.dom += [
@@ -24,6 +25,7 @@ UNIFIED_SOURCES += [
     'MediaSourceReader.cpp',
     'MediaSourceUtils.cpp',
     'SourceBuffer.cpp',
+    'SourceBufferContentManager.cpp',
     'SourceBufferDecoder.cpp',
     'SourceBufferList.cpp',
     'SourceBufferResource.cpp',

@@ -119,7 +119,9 @@
 
 #else /* Unix */
 
-#if (__GNUC__)
+/* GCC 3.3 and later support the visibility attribute. */
+#if (__GNUC__ >= 4) || \
+    (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)
 #define PR_VISIBILITY_DEFAULT __attribute__((visibility("default")))
 #else
 #define PR_VISIBILITY_DEFAULT

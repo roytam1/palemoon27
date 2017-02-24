@@ -94,6 +94,7 @@ function create(options) {
       node.setAttribute('label', label);
       node.setAttribute('tooltiptext', label);
       node.setAttribute('image', image);
+      node.setAttribute('pmkit-button', 'true');
 
       views.set(id, {
         icon: icon,

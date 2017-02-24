@@ -518,7 +518,7 @@ this.CryptoUtils = {
  * These values map directly onto the values defined
  * in netwerk/base/nsICryptoHash.idl.
  */
-let shaX = ["1", "256", "384", "512"];
+let shaX = ["1", "256", "384", "512", "224"];
 
 for (let shaIdx = 0, shaIdxLen = shaX.length; shaIdx < shaIdxLen; shaIdx++) {
   let shaXIdx = shaX[shaIdx];

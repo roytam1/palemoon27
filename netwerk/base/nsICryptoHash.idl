@@ -10,7 +10,7 @@ interface nsIInputStream;
  * This interface provides crytographic hashing algorithms.
  */
 
-[scriptable, uuid(1e5b7c43-4688-45ce-92e1-77ed931e3bbe)]
+[scriptable, uuid(0a248513-dfa7-4474-8777-8c452d60dd04)]
 interface nsICryptoHash : nsISupports
 {
     /**
@@ -25,6 +25,7 @@ interface nsICryptoHash : nsISupports
     const short SHA256 = 4;  /* String value: "sha256" */
     const short SHA384 = 5;  /* String value: "sha384" */
     const short SHA512 = 6;  /* String value: "sha512" */
+    const short SHA224 = 7;  /* String value: "sha224" */
 
     /**
      * Initialize the hashing object. This method may be

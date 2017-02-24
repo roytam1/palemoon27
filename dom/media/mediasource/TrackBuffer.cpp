@@ -143,14 +143,14 @@ TrackBuffer::ContinueShutdown()
   mShutdownPromise.Resolve(true, __func__);
 }
 
-nsRefPtr<TrackBufferAppendPromise>
+nsRefPtr<TrackBuffer::AppendPromise>
 TrackBuffer::AppendData(MediaLargeByteBuffer* aData, int64_t aTimestampOffset)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mInitializationPromise.IsEmpty());
 
   DecodersToInitialize decoders(this);
-  nsRefPtr<TrackBufferAppendPromise> p = mInitializationPromise.Ensure(__func__);
+  nsRefPtr<AppendPromise> p = mInitializationPromise.Ensure(__func__);
   bool hadInitData = mParser->HasInitData();
   bool hadCompleteInitData = mParser->HasCompleteInitData();
   nsRefPtr<MediaLargeByteBuffer> oldInit = mParser->InitData();
@@ -246,7 +246,7 @@ TrackBuffer::AppendData(MediaLargeByteBuffer* aData, int64_t aTimestampOffset)
   // required when data is appended.
   NotifyTimeRangesChanged();
 
-  mInitializationPromise.Resolve(gotMedia, __func__);
+  mInitializationPromise.Resolve(HasInitSegment(), __func__);
   return p;
 }
 
@@ -300,7 +300,7 @@ public:
   }
 };
 
-bool
+TrackBuffer::EvictDataResult
 TrackBuffer::EvictData(double aPlaybackTime,
                        uint32_t aThreshold,
                        double* aBufferStartTime)
@@ -308,15 +308,15 @@ TrackBuffer::EvictData(double aPlaybackTime,
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
 
-  if (!mCurrentDecoder) {
-    return false;
+  if (!mCurrentDecoder || mInitializedDecoders.IsEmpty()) {
+    return EvictDataResult::CANT_EVICT;
   }
 
   int64_t totalSize = GetSize();
 
   int64_t toEvict = totalSize - aThreshold;
-  if (toEvict <= 0 || mInitializedDecoders.IsEmpty()) {
-    return false;
+  if (toEvict <= 0) {
+    return EvictDataResult::NO_DATA_EVICTED;
   }
 
   // Get a list of initialized decoders.
@@ -448,7 +448,9 @@ TrackBuffer::EvictData(double aPlaybackTime,
     NotifyTimeRangesChanged();
   }
 
-  return evicted;
+  return evicted ?
+    EvictDataResult::DATA_EVICTED :
+    (HasOnlyIncompleteMedia() ? EvictDataResult::CANT_EVICT : EvictDataResult::NO_DATA_EVICTED);
 }
 
 void
@@ -794,7 +796,7 @@ TrackBuffer::CompleteInitializeDecoder(SourceBufferDecoder* aDecoder)
 
   MSE_DEBUG("Reader %p activated",
             aDecoder->GetReader());
-  mInitializationPromise.ResolveIfExists(aDecoder->GetRealMediaDuration() > 0, __func__);
+  mInitializationPromise.ResolveIfExists(true, __func__);
 }
 
 bool

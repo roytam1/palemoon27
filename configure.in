@@ -47,13 +47,13 @@ _SUBDIR_HOST_CXXFLAGS="$HOST_CXXFLAGS"
 _SUBDIR_HOST_LDFLAGS="$HOST_LDFLAGS"
 _SUBDIR_CONFIG_ARGS="$ac_configure_args"
 
-dnl Set the version number of the libs included with mozilla
+dnl Set the version number of the libs included in-tree
 dnl ========================================================
 MOZJPEG=62
 MOZPNG=10616
 MOZWEBP=043
 NSPR_VERSION=4
-NSPR_MINVER=4.10.10
+NSPR_MINVER=4.13.0
 NSS_VERSION=3
 
 dnl Set the minimum version of toolkit libs used by mozilla
@@ -3534,9 +3534,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    dnl NSS capabilities are out of sync with upstream (Camellia-GCM). Don't allow.
-    AC_MSG_ERROR([Using a system-provided NSS library is currently not supported.])
-    AM_PATH_NSS(3.19.5.1, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.28.3, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then

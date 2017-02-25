@@ -643,7 +643,12 @@ static const CipherPref sCipherPrefs[] = {
    TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, true },
  { "security.ssl3.ecdhe_rsa_chacha20_poly1305_sha256",
    TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, true },
-   
+
+ { "security.ssl3.ecdhe_ecdsa_aes_256_gcm_sha384",
+   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, false },  // disabled for performance
+ { "security.ssl3.ecdhe_rsa_aes_256_gcm_sha384",
+   TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, false },    // disabled for performance
+
  { "security.ssl3.ecdhe_rsa_aes_256_sha",
    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, true },
  { "security.ssl3.ecdhe_ecdsa_aes_256_sha",
@@ -668,9 +673,6 @@ static const CipherPref sCipherPrefs[] = {
    TLS_RSA_WITH_AES_128_CBC_SHA, true }, // deprecated (RSA key exchange)
  { "security.ssl3.rsa_aes_256_sha",
    TLS_RSA_WITH_AES_256_CBC_SHA, true }, // deprecated (RSA key exchange)
- { "security.ssl3.rsa_des_ede3_sha",
-   TLS_RSA_WITH_3DES_EDE_CBC_SHA, true }, // deprecated (RSA key exchange, 3DES)
-
 
  // All the rest are disabled by default
  // As per RFC
@@ -690,6 +692,8 @@ static const CipherPref sCipherPrefs[] = {
  {"security.ssl3.rsa_fips_des_ede3_sha", SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA, false, true },
  {"security.ssl3.dhe_dss_camellia_256_sha", TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA, false, false },
  {"security.ssl3.dhe_dss_camellia_128_sha", TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA, false, false },
+ {"security.ssl3.rsa_des_ede3_sha", TLS_RSA_WITH_3DES_EDE_CBC_SHA, false, true }, // (3DES)
+
  // Non-ephemeral
  {"security.ssl3.ecdh_ecdsa_aes_256_sha", TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA, false, false },
  {"security.ssl3.ecdh_ecdsa_aes_128_sha", TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA, false, false },

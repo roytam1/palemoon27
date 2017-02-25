@@ -710,8 +710,8 @@ static const CipherPref sCipherPrefs[] = {
 // Bit flags indicating what weak ciphers are enabled.
 // The bit index will correspond to the index in sCipherPrefs.
 // Wrtten by the main thread, read from any threads.
-static Atomic<uint32_t> sEnabledWeakCiphers;
-static_assert(MOZ_ARRAY_LENGTH(sCipherPrefs) - 1 <= sizeof(uint32_t) * CHAR_BIT,
+static uint64_t sEnabledWeakCiphers;
+static_assert(MOZ_ARRAY_LENGTH(sCipherPrefs) - 1 <= sizeof(uint64_t) * CHAR_BIT,
               "too many cipher suites");
 
 /*static*/ bool
@@ -723,10 +723,10 @@ nsNSSComponent::AreAnyWeakCiphersEnabled()
 /*static*/ void
 nsNSSComponent::UseWeakCiphersOnSocket(PRFileDesc* fd)
 {
-  const uint32_t enabledWeakCiphers = sEnabledWeakCiphers;
+  const uint64_t enabledWeakCiphers = sEnabledWeakCiphers;
   const CipherPref* const cp = sCipherPrefs;
   for (size_t i = 0; cp[i].pref; ++i) {
-    if (enabledWeakCiphers & ((uint32_t)1 << i)) {
+    if (enabledWeakCiphers & ((uint64_t)1 << i)) {
       SSL_CipherPrefSet(fd, cp[i].id, true);
     }
   }
@@ -855,9 +855,9 @@ CipherSuiteChangeObserver::Observe(nsISupports* aSubject,
           // Only the main thread will change sEnabledWeakCiphers.
           uint32_t enabledWeakCiphers = sEnabledWeakCiphers;
           if (cipherEnabled) {
-            enabledWeakCiphers |= ((uint32_t)1 << i);
+            enabledWeakCiphers |= ((uint64_t)1 << i);
           } else {
-            enabledWeakCiphers &= ~((uint32_t)1 << i);
+            enabledWeakCiphers &= ~((uint64_t)1 << i);
           }
           sEnabledWeakCiphers = enabledWeakCiphers;
         } else {
@@ -1709,7 +1709,7 @@ InitializeCipherSuite()
   }
 
   // Now only set SSL/TLS ciphers we knew about at compile time
-  uint32_t enabledWeakCiphers = 0;
+  uint64_t enabledWeakCiphers = 0;
   const CipherPref* const cp = sCipherPrefs;
   for (size_t i = 0; cp[i].pref; ++i) {
     bool cipherEnabled = Preferences::GetBool(cp[i].pref,
@@ -1718,7 +1718,7 @@ InitializeCipherSuite()
       // Weak ciphers are not used by default. See the comment
       // in CipherSuiteChangeObserver::Observe for details.
       if (cipherEnabled) {
-        enabledWeakCiphers |= ((uint32_t)1 << i);
+        enabledWeakCiphers |= ((uint64_t)1 << i);
       }
     } else {
       SSL_CipherPrefSetDefault(cp[i].id, cipherEnabled);

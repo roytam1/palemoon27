@@ -631,13 +631,18 @@ typedef struct {
   bool weak;
 } CipherPref;
 
-// Update the switch statement in HandshakeCallback in nsNSSCallbacks.cpp when
-// you add/remove cipher suites here. (Telemetry)
+// Update the switch statement in AccumulateCipherSuite in nsNSSCallbacks.cpp
+// when you add/remove cipher suites here. (Telemetry)
 static const CipherPref sCipherPrefs[] = {
  { "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256",
    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, true },
  { "security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256",
    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, true },
+
+ { "security.ssl3.ecdhe_ecdsa_chacha20_poly1305_sha256",
+   TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, true },
+ { "security.ssl3.ecdhe_rsa_chacha20_poly1305_sha256",
+   TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, true },
    
  { "security.ssl3.ecdhe_rsa_aes_256_sha",
    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, true },

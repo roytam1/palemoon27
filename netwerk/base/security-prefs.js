@@ -29,6 +29,8 @@ pref("security.ssl3.ecdhe_rsa_aes_128_gcm_sha256", true);
 pref("security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256", true);
 pref("security.ssl3.ecdhe_ecdsa_chacha20_poly1305_sha256", true);
 pref("security.ssl3.ecdhe_rsa_chacha20_poly1305_sha256", true);
+pref("security.ssl3.ecdhe_ecdsa_aes_256_gcm_sha384", true);
+pref("security.ssl3.ecdhe_rsa_aes_256_gcm_sha384", true);
 pref("security.ssl3.ecdhe_rsa_aes_128_sha", true);
 pref("security.ssl3.ecdhe_ecdsa_aes_128_sha", true);
 pref("security.ssl3.ecdhe_rsa_aes_256_sha", true);
@@ -43,8 +45,6 @@ pref("security.ssl3.rsa_aes_256_sha", true);
 pref("security.ssl3.rsa_camellia_256_sha", true);
 
 // Cipher suites disabled by default                   //Reason:
-pref("security.ssl3.ecdhe_ecdsa_aes_256_gcm_sha384", false);  // performance
-pref("security.ssl3.ecdhe_rsa_aes_256_gcm_sha384", false);    // performance
 pref("security.ssl3.ecdhe_rsa_des_ede3_sha", false);   //3DES
 pref("security.ssl3.ecdhe_rsa_rc4_128_sha", false);    //RC4
 pref("security.ssl3.ecdhe_ecdsa_rc4_128_sha", false);  //RC4

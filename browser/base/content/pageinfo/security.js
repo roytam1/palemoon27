@@ -66,9 +66,9 @@ var security = {
 
       var version;
       try {
-        retval.encryptionAlgorithm = status.cipherName; //FIXME: contains suite.
+        retval.encryptionAlgorithm = status.cipherName;
         retval.encryptionStrength = status.secretKeyLength;
-        retval.encryptionSuite = status.cipherName; //status.cipherSuite
+        retval.encryptionSuite = status.cipherSuite;
         version = status.protocolVersion;
       }
       catch (e) {

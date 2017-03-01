@@ -938,8 +938,6 @@ MediaFormatReader::ResetDecode()
 {
   MOZ_ASSERT(OnTaskQueue());
 
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-
   mAudioSeekRequest.DisconnectIfExists();
   mVideoSeekRequest.DisconnectIfExists();
   mSeekPromise.RejectIfExists(NS_OK, __func__);

@@ -23,7 +23,9 @@
 #include "nsIGfxInfo.h"
 #include "AndroidBridge.h"
 #endif
-
+#ifdef MOZ_APPLEMEDIA
+#include "AppleDecoderModule.h"
+#endif
 #ifdef MOZ_FFMPEG
 #include "FFmpegRuntimeLinker.h"
 #endif

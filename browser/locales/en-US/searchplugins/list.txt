@@ -1,5 +1,4 @@
 duckduckgo-palemoon
-yandex-ru
 bing
 ecosia
 twitter

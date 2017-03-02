@@ -3840,6 +3840,7 @@ MOZ_NATIVE_LIBWEBP=
 MOZ_VPX=
 MOZ_VPX_ERROR_CONCEALMENT=
 MOZ_WEBSPEECH=1
+MOZ_JXR=1
 VPX_AS=
 VPX_ASFLAGS=
 VPX_AS_DASH_C_FLAG=
@@ -5143,13 +5144,13 @@ fi
 AC_SUBST(MOZ_WEBSPEECH)
 
 dnl ========================================================
-dnl = Enable JPEG-XR (JXR) decoder support
+dnl = Disable JPEG-XR (JXR) decoder support
 dnl ========================================================
-MOZ_JXR=1
 
-MOZ_ARG_ENABLE_BOOL(jxr,
+MOZ_ARG_DISABLE_BOOL(jxr,
 [  --disable-jxr           Disable support for JPEG-XR (JXR) image format],
-    MOZ_JXR=)
+    MOZ_JXR=,
+    MOZ_JXR=1)
 
 if test -n "$MOZ_JXR"; then
     AC_DEFINE(MOZ_JXR)

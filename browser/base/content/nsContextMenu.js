@@ -4,6 +4,8 @@
 
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
+Components.utils.importGlobalProperties(["URL"]);
+
 function nsContextMenu(aXulMenu, aIsShift) {
   this.shouldDisplay = true;
   this.initMenu(aXulMenu, aIsShift);
@@ -904,18 +906,26 @@ nsContextMenu.prototype = {
   viewMedia: function(e) {
     var viewURL;
 
-    if (this.onCanvas)
-      viewURL = this.target.toDataURL();
-    else {
+    if (this.onCanvas) {
+      var target = this.target;
+      new Promise.resolve({then: function (resolve) {
+        target.toBlob((blob) => {
+          resolve(URL.createObjectURL(blob));
+        })
+      }}).then(function (blobURL) {
+        let doc = target.ownerDocument;
+        openUILink(blobURL, e, { disallowInheritPrincipal: true,
+                                 referrerURI: doc.documentURIObject });
+      }, Components.utils.reportError);
+    } else {
       viewURL = this.mediaURL;
       urlSecurityCheck(viewURL,
                        this.browser.contentPrincipal,
                        Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
+      let doc = this.target.ownerDocument;
+      openUILink(viewURL, e, { disallowInheritPrincipal: true,
+                               referrerURI: doc.documentURIObject });
     }
-
-    var doc = this.target.ownerDocument;
-    openUILink(viewURL, e, { disallowInheritPrincipal: true,
-                             referrerURI: doc.documentURIObject });
   },
 
   saveVideoFrameAsImage: function () {
@@ -1188,16 +1198,21 @@ nsContextMenu.prototype = {
   saveMedia: function() {
     var doc =  this.target.ownerDocument;
     if (this.onCanvas) {
-      // Bypass cache, since it's a data: URL.
-      saveImageURL(this.target.toDataURL(), "canvas.png", "SaveImageTitle",
-                   true, false, doc.documentURIObject, doc);
-    }
-    else if (this.onImage) {
+      // Bypass cache, since it's a blob: URL.
+      var target = this.target;
+      new Promise.resolve({then: function (resolve) {
+        target.toBlob((blob) => {
+          resolve(URL.createObjectURL(blob));
+        })
+      }}).then(function (blobURL) {
+        saveImageURL(blobURL, "canvas.png", "SaveImageTitle", true,
+                     false, doc.documentURIObject, doc);
+      }, Components.utils.reportError);
+    } else if (this.onImage) {
       urlSecurityCheck(this.mediaURL, doc.nodePrincipal);
       saveImageURL(this.mediaURL, null, "SaveImageTitle", false,
                    false, doc.documentURIObject, doc);
-    }
-    else if (this.onVideo || this.onAudio) {
+    } else if (this.onVideo || this.onAudio) {
       urlSecurityCheck(this.mediaURL, doc.nodePrincipal);
       var dialogTitle = this.onVideo ? "SaveVideoTitle" : "SaveAudioTitle";
       this.saveHelper(this.mediaURL, null, dialogTitle, false, doc, "");

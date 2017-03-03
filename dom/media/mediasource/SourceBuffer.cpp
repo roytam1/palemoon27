@@ -451,7 +451,7 @@ SourceBuffer::AppendData(MediaLargeByteBuffer* aData, TimeUnit aTimestampOffset,
   }
 
   mPendingAppend.Begin(mContentManager->AppendData(aData, aTimestampOffset)
-                       ->RefableThen(NS_GetCurrentThread(), __func__, this,
+                       ->RefableThen(AbstractThread::MainThread(), __func__, this,
                                      &SourceBuffer::AppendDataCompletedWithSuccess,
                                      &SourceBuffer::AppendDataErrored));
 }

@@ -512,7 +512,7 @@ function openTroubleshootingPage()
  */
 function openFeedbackPage()
 {
-  openUILinkIn("http://forum.palemoon.org", "tab");
+  openUILinkIn(Services.prefs.getCharPref("browser.feedback.url"), "tab");
 }
 
 function buildHelpMenu()

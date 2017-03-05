@@ -489,7 +489,7 @@ BrowserGlue.prototype = {
         label:     win.gNavigatorBundle.getString("slowStartup.helpButton.label"),
         accessKey: win.gNavigatorBundle.getString("slowStartup.helpButton.accesskey"),
         callback: function () {
-          win.openUILinkIn("https://support.mozilla.org/kb/reset-firefox-easily-fix-most-problems", "tab");
+          win.openUILinkIn(Services.prefs.getCharPref("browser.slowstartup.help.url"), "tab");
         }
       },
       {

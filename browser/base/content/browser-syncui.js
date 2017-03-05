@@ -355,7 +355,10 @@ let gSyncUI = {
       buttons.push(new Weave.NotificationButton(
         this._stringBundle.GetStringFromName("error.sync.needUpdate.label"),
         this._stringBundle.GetStringFromName("error.sync.needUpdate.accesskey"),
-        function() { window.openUILinkIn("http://www.palemoon.org/sync/update/", "tab"); return true; }
+        function() {
+          window.openUILinkIn(Services.prefs.getCharPref("services.sync.outdated.url"), "tab");
+          return true;
+        }
       ));
     }
     else if (Weave.Status.sync == Weave.OVER_QUOTA) {

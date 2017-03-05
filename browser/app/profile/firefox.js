@@ -70,6 +70,12 @@ pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/f
 // Get More Tools link URL
 pref("browser.getdevtools.url","https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/");
 
+// Feedback URL
+pref("browser.feedback.url", "https://forum.palemoon.org");
+
+// Help button in slow startup dialog
+pref("browser.slowstartup.help.url", "http://www.palemoon.org/support/slowstartup.shtml");
+
 // The minimum delay in seconds for the timer to fire.
 // default=2 minutes
 pref("app.update.timerMinimumDelay", 120);
@@ -909,6 +915,8 @@ pref("browser.taskbar.lists.refreshInSeconds", 120);
 #endif
 
 #ifdef MOZ_SERVICES_SYNC
+// Info when outdated sync detected
+pref("services.sync.outdated.url", "http://www.palemoon.org/sync/update/");
 // The sync engines to use.
 pref("services.sync.registerEngines", "Bookmarks,Form,History,Password,Prefs,Tab,Addons");
 // Preferences to be synced by default

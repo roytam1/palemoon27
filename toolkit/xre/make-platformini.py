@@ -24,7 +24,7 @@ if options.print_timestamp:
     sys.exit(0)
 
 if options.print_buildid:
-    print datetime.now().strftime('%Y%m%d%H%M%S')
+    print datetime.utcnow().strftime('%Y%m%d%H%M%S')
     sys.exit(0)
 
 if not options.buildid:

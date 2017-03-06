@@ -268,7 +268,7 @@ nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconStat
       !docShell->GetHasMixedDisplayContentLoaded() &&
       !docShell->GetHasMixedActiveContentBlocked() &&
       !docShell->GetHasMixedDisplayContentBlocked()) {
-    *aState = STATE_IS_SECURE;
+    *aState = STATE_IS_SECURE | STATE_SECURE_HIGH;
     if (ev) {
       *aState |= nsIWebProgressListener::STATE_IDENTITY_EV_TOPLEVEL;
     }

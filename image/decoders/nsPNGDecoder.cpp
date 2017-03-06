@@ -44,9 +44,16 @@ GetPNGDecoderAccountingLog()
 }
 #endif
 
-// Limit image dimensions (bug #251381, #591822, and #967656)
-#ifndef MOZ_PNG_MAX_DIMENSION
-#  define MOZ_PNG_MAX_DIMENSION 32767
+// Limit image dimensions. See also pnglibconf.h
+#ifndef MOZ_PNG_MAX_WIDTH
+#  define MOZ_PNG_MAX_WIDTH 65535
+#endif
+#ifndef MOZ_PNG_MAX_HEIGHT
+#  define MOZ_PNG_MAX_HEIGHT 65535
+#endif
+// Maximum area supported in pixels (W*H)
+#ifndef MOZ_PNG_MAX_PIX
+#  define MOZ_PNG_MAX_PIX 268435456 // 256 Mpix = 16Ki x 16Ki
 #endif
 
 // For size decodes
@@ -354,8 +361,8 @@ nsPNGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
       uint32_t width = png_get_uint_32(mSizeBytes);
       uint32_t height = png_get_uint_32(mSizeBytes + 4);
 
-      // Too big?
-      if ((width > MOZ_PNG_MAX_DIMENSION) || (height > MOZ_PNG_MAX_DIMENSION)) {
+      // Check sizes against cap limits
+      if ((width > MOZ_PNG_MAX_WIDTH) || (height > MOZ_PNG_MAX_HEIGHT)) {
         PostDataError();
         return;
       }
@@ -530,8 +537,10 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
   png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type,
                &interlace_type, &compression_type, &filter_type);
 
-  // Are we too big?
-  if (width > MOZ_PNG_MAX_DIMENSION || height > MOZ_PNG_MAX_DIMENSION) {
+  // Check sizes against cap limits and W*H
+  if ((width > MOZ_PNG_MAX_WIDTH) ||
+      (height > MOZ_PNG_MAX_HEIGHT) ||
+      (width * height > MOZ_PNG_MAX_PIX)) {
     png_longjmp(decoder->mPNG, 1);
   }
 

@@ -261,7 +261,19 @@ nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconStat
   }
 
   // Has a Mixed Content Load initiated in nsMixedContentBlocker?
-  // If so, the state should be broken; overriding the previous state
+  // * If not, the state should not be broken because no actual mixed-content
+  // load has occurred, overriding the previous state if it was flagged as mixed.
+  if (lock == lis_mixed_security &&
+      !docShell->GetHasMixedActiveContentLoaded() &&
+      !docShell->GetHasMixedDisplayContentLoaded() &&
+      !docShell->GetHasMixedActiveContentBlocked() &&
+      !docShell->GetHasMixedDisplayContentBlocked()) {
+    *aState = STATE_IS_SECURE;
+    if (ev) {
+      *aState |= nsIWebProgressListener::STATE_IDENTITY_EV_TOPLEVEL;
+    }
+  }  
+  // * If so, the state should be broken; overriding the previous state
   // set by the lock parameter.
   if (docShell->GetHasMixedActiveContentLoaded() &&
       docShell->GetHasMixedDisplayContentLoaded()) {

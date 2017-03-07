@@ -204,6 +204,18 @@
         ]]></getter>
       </property>
 
+      <field name="_outerWindowID">null</field>
+      <property name="outerWindowID"
+                onget="return this._outerWindowID"
+                readonly="true"/>
+
+      <field name="_innerWindowID">null</field>
+      <property name="innerWindowID">
+        <getter><![CDATA[
+          return this._innerWindowID;
+        ]]></getter>
+      </property>
+
       <property name="autoCompletePopup"
                 onget="return document.getElementById(this.getAttribute('autocompletepopup'))"
                 readonly="true"/>
@@ -289,6 +301,7 @@
           let data = aMessage.data;
           switch (aMessage.name) {
             case "Browser:Init":
+              this._outerWindowID = data.outerWindowID;
               let result = {};
               result.useGlobalHistory = !this.hasAttribute("disableglobalhistory");
               result.initPopup = this.autoCompletePopup != null;

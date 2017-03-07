@@ -57,11 +57,26 @@ let WebProgressListener = {
   },
 
   _setupJSON: function setupJSON(aWebProgress, aRequest) {
+    let innerWindowID = null;
     if (aWebProgress) {
+      let domWindowID = null;
+      try {
+        let utils = aWebProgress.DOMWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindowUtils);
+        domWindowID = utils.outerWindowID;
+        innerWindowID = utils.currentInnerWindowID;
+      } catch (e) {
+        // If nsDocShell::Destroy has already been called, then we'll
+        // get NS_NOINTERFACE when trying to get the DOM window.
+        // If there is no current inner window, we'll get
+        // NS_ERROR_NOT_AVAILABLE.
+      }
+
       aWebProgress = {
         isTopLevel: aWebProgress.isTopLevel,
         isLoadingDocument: aWebProgress.isLoadingDocument,
-        loadType: aWebProgress.loadType
+        loadType: aWebProgress.loadType,
+        DOMWindowID: domWindowID
       };
     }
 
@@ -69,7 +84,8 @@ let WebProgressListener = {
       webProgress: aWebProgress || null,
       requestURI: this._requestSpec(aRequest, "URI"),
       originalRequestURI: this._requestSpec(aRequest, "originalURI"),
-      documentContentType: content.document && content.document.contentType
+      documentContentType: content.document && content.document.contentType,
+      innerWindowID,
     };
   },
 
@@ -583,7 +599,10 @@ let AutoCompletePopup = {
 
 // We may not get any responses to Browser:Init if the browser element
 // is torn down too quickly.
-let initData = sendSyncMessage("Browser:Init");
+let outerWindowID = content.QueryInterface(Ci.nsIInterfaceRequestor)
+                           .getInterface(Ci.nsIDOMWindowUtils)
+                           .outerWindowID;
+let initData = sendSyncMessage("Browser:Init", {outerWindowID: outerWindowID});
 if (initData.length) {
   docShell.useGlobalHistory = initData[0].useGlobalHistory;
   if (initData[0].initPopup) {

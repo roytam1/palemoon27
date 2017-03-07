@@ -109,6 +109,9 @@
       <field name="mIsBusy">
         false
       </field>
+      <field name="_outerWindowIDBrowserMap">
+        new Map();
+      </field>
       <field name="arrowKeysShouldWrap" readonly="true">
 #ifdef XP_MACOSX
         true
@@ -295,6 +298,15 @@
           <![CDATA[
             var tab = this._getTabForContentWindow(aDocument.defaultView);
             return tab ? tab.linkedBrowser : null;
+          ]]>
+        </body>
+      </method>
+
+      <method name="getBrowserForOuterWindowID">
+        <parameter name="aID"/>
+        <body>
+          <![CDATA[
+            return this._outerWindowIDBrowserMap.get(aID);
           ]]>
         </body>
       </method>
@@ -1437,6 +1449,14 @@
             browserSidebarContainer.appendChild(browserContainer);
             browserSidebarContainer.setAttribute("flex", "1");
 
+            // A remote browser doesn't initially have the outerWindowID
+            // set. Once a remote browser initializes, it sends the Browser:Init
+            // message, and we map the browser at that point.
+            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
+                !Services.prefs.getBoolPref("browser.tabs.remote")) {
+              this._outerWindowIDBrowserMap.set(b.outerWindowID, b);
+            }
+
             // Add the Message and the Browser to the box
             var notificationbox = document.createElementNS(NS_XUL,
                                                            "notificationbox");
@@ -1900,6 +1920,7 @@
             this.mTabListeners.splice(aTab._tPos, 1);
 
             var browser = this.getBrowserForTab(aTab);
+            this._outerWindowIDBrowserMap.delete(browser.outerWindowID);
 
             // Because of the way XBL works (fields just set JS
             // properties on the element) and the code we have in place
@@ -2972,8 +2993,12 @@
               "-moz-default-background-color" :
               Services.prefs.getCharPref("browser.display.background_color");
 
-          if (Services.prefs.getBoolPref("browser.tabs.remote"))
+          if (Services.prefs.getBoolPref("browser.tabs.remote")) {
             messageManager.addMessageListener("DOMTitleChanged", this);
+          } else {
+            this._outerWindowIDBrowserMap.set(this.mCurrentBrowser.outerWindowID,
+                                              this.mCurrentBrowser);
+          }
         ]]>
       </constructor>
 

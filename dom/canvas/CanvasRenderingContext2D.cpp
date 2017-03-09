@@ -2440,9 +2440,9 @@ ValidateRect(double& aX, double& aY, double& aWidth, double& aHeight)
     aY -= aHeight;
   }
   return true;
- }
+}
  
- void
+void
 CanvasRenderingContext2D::ClearRect(double x, double y, double w,
                                     double h)
 {

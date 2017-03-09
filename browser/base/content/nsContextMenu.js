@@ -1210,7 +1210,7 @@ nsContextMenu.prototype = {
       var win = doc.defaultView;
       if (!win) {
         Components.utils.reportError(
-            "View Image (on the <canvas> element):\n" +
+            "Save Image As (on the <canvas> element):\n" +
             "This feature cannot be used, because it hasn't found " + 
             "an appropriate window.");
       } else {

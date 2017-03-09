@@ -905,18 +905,25 @@ nsContextMenu.prototype = {
   // Change current window to the URL of the image, video, or audio.
   viewMedia: function(e) {
     var viewURL;
-
+    var doc = this.target.ownerDocument;
     if (this.onCanvas) {
       var target = this.target;
-      new Promise.resolve({then: function (resolve) {
-        target.toBlob((blob) => {
-          resolve(URL.createObjectURL(blob));
-        })
-      }}).then(function (blobURL) {
-        let doc = target.ownerDocument;
-        openUILink(blobURL, e, { disallowInheritPrincipal: true,
-                                 referrerURI: doc.documentURIObject });
-      }, Components.utils.reportError);
+      var win = doc.defaultView;
+      if (!win) {
+        Components.utils.reportError(
+            "View Image (on the <canvas> element):\n" +
+            "This feature cannot be used, because it hasn't found " + 
+            "an appropriate window.");
+      } else {
+        new Promise.resolve({then: function (resolve) {
+          target.toBlob((blob) => {
+            resolve(win.URL.createObjectURL(blob));
+          })
+        }}).then(function (blobURL) {
+          openUILink(blobURL, e, { disallowInheritPrincipal: true,
+                                   referrerURI: doc.documentURIObject });
+        }, Components.utils.reportError);
+      }
     } else {
       viewURL = this.mediaURL;
       urlSecurityCheck(viewURL,
@@ -1196,18 +1203,26 @@ nsContextMenu.prototype = {
 
   // Save URL of the clicked upon image, video, or audio.
   saveMedia: function() {
-    var doc =  this.target.ownerDocument;
+    var doc = this.target.ownerDocument;
     if (this.onCanvas) {
       // Bypass cache, since it's a blob: URL.
       var target = this.target;
-      new Promise.resolve({then: function (resolve) {
-        target.toBlob((blob) => {
-          resolve(URL.createObjectURL(blob));
+      var win = doc.defaultView;
+      if (!win) {
+        Components.utils.reportError(
+            "View Image (on the <canvas> element):\n" +
+            "This feature cannot be used, because it hasn't found " + 
+            "an appropriate window.");
+      } else {
+        new Promise.resolve({then: function (resolve) {
+          target.toBlob((blob) => {
+          resolve(win.URL.createObjectURL(blob));
         })
-      }}).then(function (blobURL) {
-        saveImageURL(blobURL, "canvas.png", "SaveImageTitle", true,
-                     false, doc.documentURIObject, doc);
-      }, Components.utils.reportError);
+        }}).then(function (blobURL) {
+          saveImageURL(blobURL, "canvas.png", "SaveImageTitle", true,
+                       false, doc.documentURIObject, doc);
+        }, Components.utils.reportError);
+      }
     } else if (this.onImage) {
       urlSecurityCheck(this.mediaURL, doc.nodePrincipal);
       saveImageURL(this.mediaURL, null, "SaveImageTitle", false,

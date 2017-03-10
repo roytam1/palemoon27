@@ -1886,26 +1886,16 @@ let SessionStoreInternal = {
                                                   aFullData, aTab.pinned, browser.__SS_hostSchemeData);
           tabData.entries.push(entry);
         }
-        // If we make it through the for loop, then we're ok and we should clear
-        // any indicator of brokenness.
-        delete aTab.__SS_broken_history;
       }
       catch (ex) {
         // In some cases, getEntryAtIndex will throw. This seems to be due to
         // history.count being higher than it should be. By doing this in a
         // try-catch, we'll update history to where it breaks, assert for
-        // non-release builds, and still save sessionstore.js. We'll track if
-        // we've shown the assert for this tab so we only show it once.
-        // cf. bug 669196.
-        if (!aTab.__SS_broken_history) {
-          // First Focus the window & tab we're having trouble with.
-          aTab.ownerDocument.defaultView.focus();
-          aTab.ownerDocument.defaultView.gBrowser.selectedTab = aTab;
-          NS_ASSERT(false, "SessionStore failed gathering complete history " +
-                           "for the focused window/tab. See bug 669196.");
-          aTab.__SS_broken_history = true;
-        }
+        // non-release builds, and still save sessionstore.js.
+        NS_ASSERT(false, "SessionStore failed gathering complete history " +
+                         "for the focused window/tab. See bug 669196.");
       }
+
       // Set the one-based index of the currently active tab,
       // ensuring it isn't out of bounds if an exception was thrown above.
       tabData.index = Math.min(history.index - oldest + 1, tabData.entries.length);

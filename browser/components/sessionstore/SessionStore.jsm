@@ -1861,19 +1861,27 @@ let SessionStoreInternal = {
     }
     catch (ex) { } // this could happen if we catch a tab during (de)initialization
 
-    // XXXzeniko anchor navigation doesn't reset __SS_data, so we could reuse
-    //           data even when we shouldn't (e.g. Back, different anchor)
-    if (history && browser.__SS_data &&
-        browser.__SS_data.entries[history.index] &&
-        browser.__SS_data.entries[history.index].url == browser.currentURI.spec &&
-        history.index < this._sessionhistory_max_entries - 1 && !aFullData) {
-      tabData = browser.__SS_data;
-      tabData.index = history.index + 1;
-    }
-    else if (history && history.count > 0) {
+    if (history && history.count > 0) {
       browser.__SS_hostSchemeData = [];
+
+      let oldest;
+      let maxSerializeBack = this._prefBranch.getIntPref("sessionstore.max_serialize_back");
+      if (maxSerializeBack >= 0) {
+        oldest = Math.max(0, history.index - maxSerializeBack);
+      } else { // History.getEntryAtIndex(0, ...) is the oldest.
+        oldest = 0;
+      }
+
+      let newest;
+      let maxSerializeFwd = this._prefBranch.getIntPref("sessionstore.max_serialize_forward");
+      if (maxSerializeFwd >= 0) {
+        newest = Math.min(history.count - 1, history.index + maxSerializeFwd);
+      } else { // History.getEntryAtIndex(history.count - 1, ...) is the newest.
+        newest = history.count - 1;
+      }
+
       try {
-        for (var j = 0; j < history.count; j++) {
+        for (var j = oldest; j <= newest; j++) {
           let entry = this._serializeHistoryEntry(history.getEntryAtIndex(j, false),
                                                   aFullData, aTab.pinned, browser.__SS_hostSchemeData);
           tabData.entries.push(entry);
@@ -1898,7 +1906,9 @@ let SessionStoreInternal = {
           aTab.__SS_broken_history = true;
         }
       }
-      tabData.index = history.index + 1;
+      // Set the one-based index of the currently active tab,
+      // ensuring it isn't out of bounds if an exception was thrown above.
+      tabData.index = Math.min(history.index - oldest + 1, tabData.entries.length);
 
       // make sure not to cache privacy sensitive data which shouldn't get out
       if (!aFullData)

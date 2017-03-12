@@ -167,6 +167,7 @@ protected:
   MediaTaskQueue* mQueue;
   };
 
+  friend class TaskDispatcher;
   TaskDispatcher* mTailDispatcher;
 
   // True if we've dispatched an event to the pool to execute events from

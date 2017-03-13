@@ -934,7 +934,8 @@ nsHttpChannel::CallOnStartRequest()
 
     LOG(("  calling mListener->OnStartRequest\n"));
     if (mListener) {
-        rv = mListener->OnStartRequest(this, mListenerContext);
+        nsCOMPtr<nsIStreamListener> guard(mListener);
+        rv = guard->OnStartRequest(this, mListenerContext);
         if (NS_FAILED(rv))
             return rv;
     } else {

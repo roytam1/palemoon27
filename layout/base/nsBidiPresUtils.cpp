@@ -633,7 +633,11 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
     nsBlockInFlowLineIterator lineIter(block, block->begin_lines());
     bpd.ResetForNewBlock();
     TraverseFrames(aBlockFrame, &lineIter, block->GetFirstPrincipalChild(), &bpd);
-    // XXX what about overflow lines?
+    nsBlockFrame::FrameLines* overflowLines = block->GetOverflowLines();
+    if (overflowLines) {
+      nsBlockInFlowLineIterator lineIter(block, overflowLines->mLines.begin(), true);
+      TraverseFrames(aBlockFrame, &lineIter, block->PrincipalChildList().FirstChild(), &bpd);
+    }
   }
 
   if (ch != 0) {

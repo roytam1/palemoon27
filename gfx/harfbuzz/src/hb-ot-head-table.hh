@@ -45,21 +45,25 @@ struct head
 {
   static const hb_tag_t tableTag	= HB_OT_TAG_head;
 
-  inline unsigned int get_upem (void) const {
+  inline unsigned int get_upem (void) const
+  {
     unsigned int upem = unitsPerEm;
     /* If no valid head table found, assume 1000, which matches typical Type1 usage. */
     return 16 <= upem && upem <= 16384 ? upem : 1000;
   }
 
-  inline bool sanitize (hb_sanitize_context_t *c) {
+  inline bool sanitize (hb_sanitize_context_t *c) const
+  {
     TRACE_SANITIZE (this);
-    return TRACE_RETURN (c->check_struct (this) && likely (version.major == 1));
+    return_trace (c->check_struct (this) &&
+		  version.major == 1 &&
+		  magicNumber == 0x5F0F3CF5u);
   }
 
   protected:
-  FixedVersion	version;		/* Version of the head table--currently
+  FixedVersion<>version;		/* Version of the head table--currently
 					 * 0x00010000u for version 1.0. */
-  FixedVersion	fontRevision;		/* Set by font manufacturer. */
+  FixedVersion<>fontRevision;		/* Set by font manufacturer. */
   ULONG		checkSumAdjustment;	/* To compute: set it to 0, sum the
 					 * entire font as ULONG, then store
 					 * 0xB1B0AFBAu - sum. */
@@ -136,9 +140,10 @@ struct head
 					 * 2: Like 1 but also contains neutrals;
 					 * -1: Only strongly right to left;
 					 * -2: Like -1 but also contains neutrals. */
+  public:
   SHORT		indexToLocFormat;	/* 0 for short offsets, 1 for long. */
   SHORT		glyphDataFormat;	/* 0 for current format. */
-  public:
+
   DEFINE_SIZE_STATIC (54);
 };
 

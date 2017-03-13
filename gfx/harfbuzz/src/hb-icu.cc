@@ -36,6 +36,7 @@
 #include <unicode/uchar.h>
 #include <unicode/unorm.h>
 #include <unicode/ustring.h>
+#include <unicode/utf16.h>
 #include <unicode/uversion.h>
 
 
@@ -363,10 +364,8 @@ hb_icu_get_unicode_funcs (void)
   if (!hb_atomic_ptr_get (&normalizer)) {
     UErrorCode icu_err = U_ZERO_ERROR;
     /* We ignore failure in getNFCInstace(). */
-    hb_atomic_ptr_cmpexch (&normalizer, NULL, unorm2_getNFCInstance (&icu_err));
+    (void) hb_atomic_ptr_cmpexch (&normalizer, NULL, unorm2_getNFCInstance (&icu_err));
   }
 #endif
   return const_cast<hb_unicode_funcs_t *> (&_hb_icu_unicode_funcs);
 }
-
-

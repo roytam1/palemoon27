@@ -4461,7 +4461,6 @@ Zone::findOutgoingEdges(ComponentFinder<JS::Zone>& finder)
         if (r.front()->isGCMarking())
             finder.addEdgeTo(r.front());
     }
-    gcZoneGroupEdges.clear();
 }
 
 bool
@@ -4499,6 +4498,9 @@ GCRuntime::findZoneGroups()
     zoneGroups = finder.getResultsList();
     currentZoneGroup = zoneGroups;
     zoneGroupIndex = 0;
+
+    for (GCZonesIter zone(rt); !zone.done(); zone.next())
+        zone->gcZoneGroupEdges.clear();
 
     for (Zone* head = currentZoneGroup; head; head = head->nextGroup()) {
         for (Zone* zone = head; zone; zone = zone->nextNodeInGroup())

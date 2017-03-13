@@ -49,13 +49,14 @@ struct _hea
   static const hb_tag_t hheaTag	= HB_OT_TAG_hhea;
   static const hb_tag_t vheaTag	= HB_OT_TAG_vhea;
 
-  inline bool sanitize (hb_sanitize_context_t *c) {
+  inline bool sanitize (hb_sanitize_context_t *c) const
+  {
     TRACE_SANITIZE (this);
-    return TRACE_RETURN (c->check_struct (this) && likely (version.major == 1));
+    return_trace (c->check_struct (this) && likely (version.major == 1));
   }
 
   public:
-  FixedVersion	version;		/* 0x00010000u for version 1.0. */
+  FixedVersion<>version;		/* 0x00010000u for version 1.0. */
   FWORD		ascender;		/* Typographic ascent. */
   FWORD		descender;		/* Typographic descent. */
   FWORD		lineGap;		/* Typographic line gap. */

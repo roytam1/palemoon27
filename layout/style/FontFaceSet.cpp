@@ -1342,7 +1342,7 @@ FontFaceSet::CheckLoadingStarted()
     mStatus = FontFaceSetLoadStatus::Loading;
     mDispatchedLoadingEvent = true;
     (new AsyncEventDispatcher(this, NS_LITERAL_STRING("loading"),
-                              false))->RunDOMEventWhenSafe();
+                              false))->PostDOMEvent();
   }
 
   if (mReadyIsResolved && PrefEnabled()) {
@@ -1483,7 +1483,7 @@ FontFaceSet::DispatchLoadingFinishedEvent(
   }
   nsRefPtr<CSSFontFaceLoadEvent> event =
     CSSFontFaceLoadEvent::Constructor(this, aType, init);
-  (new AsyncEventDispatcher(this, event))->RunDOMEventWhenSafe();
+  (new AsyncEventDispatcher(this, event))->PostDOMEvent();
 }
 
 // nsIDOMEventListener

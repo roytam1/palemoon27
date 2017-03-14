@@ -93,12 +93,11 @@ public:
     return rv;
   }
 
-  nsresult WaitUntilDone() {
+  void WaitUntilDone() {
     MonitorAutoLock mon(mMonitor);
     while (!mDone) {
       mon.Wait();
     }
-    return NS_OK;
   }
 private:
   RefPtr<nsIRunnable> mRunnable;
@@ -106,12 +105,11 @@ private:
   bool mDone;
 };
 
-nsresult
+void
 MediaTaskQueue::SyncDispatch(TemporaryRef<nsIRunnable> aRunnable) {
   RefPtr<MediaTaskQueueSyncRunnable> task(new MediaTaskQueueSyncRunnable(aRunnable));
-  nsresult rv = Dispatch(task);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return task->WaitUntilDone();
+  Dispatch(task);
+  task->WaitUntilDone();
 }
 
 void

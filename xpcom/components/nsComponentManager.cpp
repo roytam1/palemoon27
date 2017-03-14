@@ -611,10 +611,6 @@ DoRegisterManifest(NSLocationType aType,
   if (NS_SUCCEEDED(rv)) {
     buf[len] = '\0';
     ParseManifest(aType, aFile, buf, aChromeOnly, aXPTOnly);
-  } else if (NS_BOOTSTRAPPED_LOCATION != aType) {
-    nsCString uri;
-    aFile.GetURIString(uri);
-    LogMessage("Could not read chrome manifest '%s'.", uri.get());
   }
 }
 

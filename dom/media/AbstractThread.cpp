@@ -11,6 +11,7 @@
 
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/unused.h"
 
 namespace mozilla {
 
@@ -20,11 +21,15 @@ class XPCOMThreadWrapper : public AbstractThread
 {
 public:
   explicit XPCOMThreadWrapper(nsIThread* aTarget) : mTarget(aTarget) {}
-  virtual nsresult Dispatch(already_AddRefed<nsIRunnable> aRunnable) override
+
+  virtual void Dispatch(already_AddRefed<nsIRunnable> aRunnable,
+                        DispatchFailureHandling aFailureHandling = AssertDispatchSuccess) override
   {
     MediaTaskQueue::AssertInTailDispatchIfNeeded();
     nsCOMPtr<nsIRunnable> r = aRunnable;
-    return mTarget->Dispatch(r, NS_DISPATCH_NORMAL);
+    nsresult rv = mTarget->Dispatch(r, NS_DISPATCH_NORMAL);
+    MOZ_DIAGNOSTIC_ASSERT(aFailureHandling == DontAssertDispatchSuccess || NS_SUCCEEDED(rv));
+    unused << rv;
   }
 
   virtual bool IsCurrentThreadIn() override
@@ -40,15 +45,13 @@ private:
 
 void
 AbstractThread::MaybeTailDispatch(already_AddRefed<nsIRunnable> aRunnable,
-                                  bool aAssertDispatchSuccess)
+                                  DispatchFailureHandling aFailureHandling)
 {
   MediaTaskQueue* currentQueue = MediaTaskQueue::GetCurrentQueue();
-  if (currentQueue && currentQueue->RequiresTailDispatch()) {
+  currentQueue->TailDispatcher().AddTask(this, Move(aRunnable), aFailureHandling);
     currentQueue->TailDispatcher().AddTask(this, Move(aRunnable), aAssertDispatchSuccess);
   } else {
-    nsresult rv = Dispatch(Move(aRunnable));
-    MOZ_DIAGNOSTIC_ASSERT(!aAssertDispatchSuccess || NS_SUCCEEDED(rv));
-    unused << rv;
+    Dispatch(Move(aRunnable), aFailureHandling);
   }
 }
 

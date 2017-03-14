@@ -279,7 +279,7 @@ MediaStreamGraphImpl::UpdateBufferSufficiencyState(SourceMediaStream* aStream)
 
   for (uint32_t i = 0; i < runnables.Length(); ++i) {
     nsCOMPtr<nsIRunnable> r = runnables[i].mRunnable;
-    runnables[i].mTarget->MaybeTailDispatch(r.forget(), /* aAssertDispatchSuccess = */ false);
+    runnables[i].mTarget->MaybeTailDispatch(r.forget(), AbstractThread::DontAssertDispatchSuccess);
   }
 }
 

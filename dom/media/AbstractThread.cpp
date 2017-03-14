@@ -48,8 +48,8 @@ AbstractThread::MaybeTailDispatch(already_AddRefed<nsIRunnable> aRunnable,
                                   DispatchFailureHandling aFailureHandling)
 {
   MediaTaskQueue* currentQueue = MediaTaskQueue::GetCurrentQueue();
-  currentQueue->TailDispatcher().AddTask(this, Move(aRunnable), aFailureHandling);
-    currentQueue->TailDispatcher().AddTask(this, Move(aRunnable), aAssertDispatchSuccess);
+  if (currentQueue && currentQueue->RequiresTailDispatch()) {
+    currentQueue->TailDispatcher().AddTask(this, Move(aRunnable), aFailureHandling);
   } else {
     Dispatch(Move(aRunnable), aFailureHandling);
   }

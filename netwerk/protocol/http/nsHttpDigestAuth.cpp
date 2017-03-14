@@ -546,7 +546,7 @@ nsHttpDigestAuth::ParseChallenge(const char * challenge,
     return NS_ERROR_INVALID_ARG;
   }
   
-  const char *p = challenge + 7; // first 7 characters are "Digest "
+  const char *p = challenge + 6; // first 6 characters are "Digest"
 
   *stale = false;
   *algorithm = ALGO_MD5; // default is MD5

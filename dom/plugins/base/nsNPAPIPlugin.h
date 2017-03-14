@@ -24,7 +24,9 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGININIT) (const NPNetscapeFuncs* 
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks, NPPluginFuncs* fCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) ();
 
-class nsNPAPIPlugin : public nsISupports
+// nsNPAPIPlugin is held alive both by active nsPluginTag instances and
+// by active nsNPAPIPluginInstance.
+class nsNPAPIPlugin final
 {
 private:
   typedef mozilla::PluginLibrary PluginLibrary;
@@ -32,7 +34,7 @@ private:
 public:
   nsNPAPIPlugin();
 
-  NS_DECL_ISUPPORTS
+  NS_INLINE_DECL_REFCOUNTING(nsNPAPIPlugin)
 
   // Constructs and initializes an nsNPAPIPlugin object. A nullptr file path
   // will prevent this from calling NP_Initialize.
@@ -59,9 +61,10 @@ public:
 
   static nsresult RetainStream(NPStream *pstream, nsISupports **aRetainedPeer);
 
-protected:
-  virtual ~nsNPAPIPlugin();
+private:
+  ~nsNPAPIPlugin();
 
+protected:
   NPPluginFuncs mPluginFuncs;
   PluginLibrary* mLibrary;
 };

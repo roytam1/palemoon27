@@ -29,6 +29,7 @@ class SharedPluginTexture;
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/PluginLibrary.h"
+#include "nsRefPtr.h"
 
 class nsPluginStreamListenerPeer; // browser-initiated stream class
 class nsNPAPIPluginStreamListener; // plugin-initiated stream class
@@ -357,7 +358,7 @@ public:
   nsXPIDLCString mFakeURL;
 
 private:
-  nsNPAPIPlugin* mPlugin;
+  nsRefPtr<nsNPAPIPlugin> mPlugin;
 
   nsTArray<nsNPAPIPluginStreamListener*> mStreamListeners;
 

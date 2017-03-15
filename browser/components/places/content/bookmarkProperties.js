@@ -69,6 +69,8 @@ const LIVEMARK_CONTAINER = 2;
 const ACTION_EDIT = 0;
 const ACTION_ADD = 1;
 
+var elementsHeight = new Map();
+
 var BookmarkPropertiesPanel = {
 
   /** UI Text Strings */
@@ -312,6 +314,43 @@ var BookmarkPropertiesPanel = {
     var acceptButton = document.documentElement.getButton("accept");
     acceptButton.label = this._getAcceptLabel();
 
+    // Do not use sizeToContent, otherwise, due to bug 90276, the dialog will
+    // grow at every opening.
+    // Since elements can be uncollapsed asynchronously, we must observe their
+    // mutations and resize the dialog using a cached element size.
+    this._height = window.outerHeight;
+    this._mutationObserver = new MutationObserver(mutations => {
+      for (let mutation of mutations) {
+        let target = mutation.target;
+        let id = target.id;
+        if (!/^editBMPanel_.*(Row|Checkbox)$/.test(id))
+          continue;
+
+        let collapsed = target.getAttribute("collapsed") === "true";
+        let wasCollapsed = mutation.oldValue === "true";
+        if (collapsed == wasCollapsed)
+          continue;
+
+        if (collapsed) {
+          this._height -= elementsHeight.get(id);
+          elementsHeight.delete(id);
+        } else {
+          elementsHeight.set(id, target.boxObject.height);
+          this._height += elementsHeight.get(id);
+        }
+        window.resizeTo(window.outerWidth, this._height);
+      }
+    });
+
+    this._mutationObserver.observe(document,
+                                   { subtree: true,
+                                     attributeOldValue: true,
+                                     attributeFilter: ["collapsed"] });
+
+    // Some controls are flexible and we want to update their cached size when
+    // the dialog is resized.
+    window.addEventListener("resize", this);
+
     this._beginBatch();
 
     switch (this._action) {
@@ -326,20 +365,6 @@ var BookmarkPropertiesPanel = {
         if (this._itemType == BOOKMARK_ITEM)
           acceptButton.disabled = !this._inputIsValid();
         break;
-    }
-
-    // When collapsible elements change their collapsed attribute we must
-    // resize the dialog.
-    // sizeToContent is not usable due to bug 90276, so we'll use resizeTo
-    // instead and cache the element size. See WSucks in the legacy
-    // UI code (addBookmark2.js).
-    if (!this._element("tagsRow").collapsed) {
-      this._element("tagsSelectorRow")
-          .addEventListener("DOMAttrModified", this, false);
-    }
-    if (!this._element("folderRow").collapsed) {
-      this._element("folderTreeRow")
-          .addEventListener("DOMAttrModified", this, false);
     }
 
     if (!this._readOnly) {
@@ -359,12 +384,9 @@ var BookmarkPropertiesPanel = {
             .addEventListener("input", this, false);
       }
     }
-
-    window.sizeToContent();
   },
 
   // nsIDOMEventListener
-  _elementsHeight: [],
   handleEvent: function BPP_handleEvent(aEvent) {
     var target = aEvent.target;
     switch (aEvent.type) {
@@ -378,24 +400,11 @@ var BookmarkPropertiesPanel = {
                   .getButton("accept").disabled = !this._inputIsValid();
         }
         break;
-
-      case "DOMAttrModified":
-        // this is called when collapsing a node, but also its direct children,
-        // we only need to resize when the original node changes.
-        if ((target.id == "editBMPanel_tagsSelectorRow" ||
-             target.id == "editBMPanel_folderTreeRow") &&
-            aEvent.attrName == "collapsed" &&
-            target == aEvent.originalTarget) {
-          var id = target.id;
-          var newHeight = window.outerHeight;
-          if (aEvent.newValue) // is collapsed
-            newHeight -= this._elementsHeight[id];
-          else {
-            this._elementsHeight[id] = target.boxObject.height;
-            newHeight += this._elementsHeight[id];
-          }
-
-          window.resizeTo(window.outerWidth, newHeight);
+      case "resize":
+        for (let [id, oldHeight] of elementsHeight) {
+          let newHeight = document.getElementById(id).boxObject.height;
+          this._height += - oldHeight + newHeight;
+          elementsHeight.set(id, newHeight);
         }
         break;
     }
@@ -451,12 +460,13 @@ var BookmarkPropertiesPanel = {
 
   onDialogUnload: function BPP_onDialogUnload() {
     // gEditItemOverlay does not exist anymore here, so don't rely on it.
+    this._mutationObserver.disconnect();
+    delete this._mutationObserver;
+
+    window.removeEventListener("resize", this);
+
     // Calling removeEventListener with arguments which do not identify any
     // currently registered EventListener on the EventTarget has no effect.
-    this._element("tagsSelectorRow")
-        .removeEventListener("DOMAttrModified", this, false);
-    this._element("folderTreeRow")
-        .removeEventListener("DOMAttrModified", this, false);
     this._element("locationField")
         .removeEventListener("input", this, false);
     this._element("feedLocationField")

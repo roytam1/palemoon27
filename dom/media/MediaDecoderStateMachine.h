@@ -328,22 +328,6 @@ public:
 
   void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
 
-  // Returns the tail dispatcher associated with TaskQueue(), which will fire
-  // its tasks when the current task completes. May only be called when running
-  // in TaskQueue().
-  TaskDispatcher& TailDispatcher()
-  {
-    MOZ_ASSERT(OnTaskQueue());
-    return TaskQueue()->TailDispatcher();
-  }
-
-  // Convenience method to perform a tail dispatch.
-  void TailDispatch(AbstractThread* aThread,
-                    already_AddRefed<nsIRunnable> aTask)
-  {
-    TailDispatcher().AddTask(aThread, Move(aTask));
-  }
-
   // Returns the state machine task queue.
   MediaTaskQueue* TaskQueue() const { return mTaskQueue; }
 
@@ -805,7 +789,7 @@ protected:
         mRequest.Begin(mMediaTimer->WaitUntil(mTarget, __func__)->RefableThen(
           mSelf->TaskQueue(), __func__, mSelf,
           &MediaDecoderStateMachine::OnDelayedSchedule,
-          &MediaDecoderStateMachine::NotReached, mSelf->TailDispatcher()));
+          &MediaDecoderStateMachine::NotReached));
       }
 
       void CompleteRequest()
@@ -895,17 +879,17 @@ protected:
     return mTarget.IsValid();
   }
 
-  void Resolve(bool aAtEnd, const char* aCallSite, TaskDispatcher& aDispatcher)
+  void Resolve(bool aAtEnd, const char* aCallSite)
   {
     mTarget.Reset();
     MediaDecoder::SeekResolveValue val(aAtEnd, mTarget.mEventVisibility);
-    mPromise.Resolve(val, aCallSite, aDispatcher);
+    mPromise.Resolve(val, aCallSite);
   }
 
-  void RejectIfExists(const char* aCallSite, TaskDispatcher& aDispatcher)
+  void RejectIfExists(const char* aCallSite)
   {
     mTarget.Reset();
-    mPromise.RejectIfExists(true, aCallSite, aDispatcher);
+    mPromise.RejectIfExists(true, aCallSite);
   }
 
   ~SeekJob()

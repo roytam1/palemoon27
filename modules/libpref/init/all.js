@@ -285,9 +285,8 @@ pref("media.decoder.heuristic.dormant.enabled", true);
 pref("media.decoder.heuristic.dormant.timeout", 60000);
 
 #ifdef MOZ_JXR
-// Enables/disables JXR support at runtime. Only enable this for testing as the
-// code has not been properly reviewed yet.
-pref("media.jxr.enabled", false);
+// Enables/disables JXR support at runtime.
+pref("media.jxr.enabled", true);
 // Determines whether toggling "media.jxr.enabled" will amend the contents of
 // "image.http.accept" and thus the appearance of the HTTP Accept header field
 // for image requests. Leave this as 'true' for conditional JXR serving to work;

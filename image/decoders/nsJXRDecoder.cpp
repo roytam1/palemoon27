@@ -1097,6 +1097,11 @@ void nsJXRDecoder::UpdateImage(size_t top, size_t width, size_t height)
             const uint8_t *sl = src;
             uint32_t *dl = dest;
             const uint32_t srcBPP = pfRGB24 == pixFmt ? 3 : 4;
+            // Not making everything opaque if we are expecting transparency
+            // values to still be updated later prevents some ugliness.
+            // [rhinoduck]
+            const uint8_t alpha =
+                (pixFmt == pfRGB32 && HasPlanarAlpha() ? 0x00 : 0xFF);
 
             for (size_t i = 0; i < height; ++i)
             {
@@ -1106,7 +1111,6 @@ void nsJXRDecoder::UpdateImage(size_t top, size_t width, size_t height)
                 {
                     const RGB &sp = *(const RGB *)s;
                     s += srcBPP;
-                    const uint8_t alpha = 0xFF;
                     dl[j] = gfxPackedPixelNoPreMultiply(alpha, sp.r, sp.g, sp.b);
                 }
 
@@ -1156,6 +1160,11 @@ void nsJXRDecoder::UpdateImage(size_t top, size_t width, size_t height)
             const uint8_t *sl = src;
             uint32_t *dl = dest;
             const uint32_t srcBPP = pfBGR24 == pixFmt ? 3 : 4;
+            // Not making everything opaque if we are expecting transparency
+            // values to still be updated later prevents some ugliness.
+            // [rhinoduck]
+            const uint8_t alpha =
+                (pixFmt == pfBGR32 && HasPlanarAlpha() ? 0x00 : 0xFF);
 
             for (size_t i = 0; i < height; ++i)
             {
@@ -1165,7 +1174,6 @@ void nsJXRDecoder::UpdateImage(size_t top, size_t width, size_t height)
                 {
                     const BGR &sp = *(const BGR *)s;
                     s += srcBPP;
-                    const uint8_t alpha = 0xFF;
                     dl[j] = gfxPackedPixelNoPreMultiply(alpha, sp.r, sp.g, sp.b);
                 }
 

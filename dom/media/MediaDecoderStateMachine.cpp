@@ -1902,12 +1902,10 @@ MediaDecoderStateMachine::EnsureAudioDecodeTaskQueued()
              AudioQueue().GetSize(), mReader->SizeOfAudioQueueInFrames());
 
   mAudioDataRequest.Begin(ProxyMediaCall(DecodeTaskQueue(), mReader.get(),
-                                         __func__, &MediaDecoderReader::RequestAudioData,
-                                         TailDispatcher())
+                                         __func__, &MediaDecoderReader::RequestAudioData)
     ->RefableThen(TaskQueue(), __func__, this,
                   &MediaDecoderStateMachine::OnAudioDecoded,
-                  &MediaDecoderStateMachine::OnAudioNotDecoded,
-                  TailDispatcher()));
+                  &MediaDecoderStateMachine::OnAudioNotDecoded));
 
   return NS_OK;
 }

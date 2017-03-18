@@ -111,6 +111,7 @@ private:
     bool m_skippedTileRows;
 
     uint32_t m_alphaBitDepth;
+    bool m_planarAlphaIsPremultiplied;
 
 private:
 

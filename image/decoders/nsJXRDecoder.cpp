@@ -150,6 +150,7 @@ nsJXRDecoder::nsJXRDecoder(RasterImage* aImage, bool hasBeenDecoded) : Decoder(a
     m_startedDecodingSubband(false),
     m_skippedTileRows(false),
     m_alphaBitDepth(0),
+    m_planarAlphaIsPremultiplied(false),
     m_outPixelFormat(pfNone),
     m_inProfile(nullptr),
     m_transform(nullptr),
@@ -1228,20 +1229,38 @@ void nsJXRDecoder::UpdateImage_AlphaOnly(size_t top, size_t width, size_t height
     const uint8_t *sl = src;
     uint32_t *dl = dest;
 
-    for (size_t i = 0; i < height; ++i)
-    {
-        const uint8_t *s = sl;
+    if (m_planarAlphaIsPremultiplied) {
+      for (size_t i = 0; i < height; ++i)
+      {
+          const uint8_t *s = sl;
 
-        for (size_t j = 0; j < width; ++j)
-        {
-            uint8_t a = *s;
-            ++s;
-            uint32_t dp = dl[j];
-            dl[j] = gfxPackedPixel(a, (dp & 0x00FF0000) >> 16, (dp & 0x0000FF00) >> 8, (dp & 0x000000FF));
-        }
+          for (size_t j = 0; j < width; ++j)
+          {
+              uint8_t a = *s;
+              ++s;
+              uint32_t dp = dl[j];
+              dl[j] = gfxPackedPixelNoPreMultiply(a, (dp & 0x00FF0000) >> 16, (dp & 0x0000FF00) >> 8, (dp & 0x000000FF));
+          }
 
-        dl += width;
-        sl += srcRowStride;
+          dl += width;
+          sl += srcRowStride;
+      }
+    } else {
+      for (size_t i = 0; i < height; ++i)
+      {
+          const uint8_t *s = sl;
+
+          for (size_t j = 0; j < width; ++j)
+          {
+              uint8_t a = *s;
+              ++s;
+              uint32_t dp = dl[j];
+              dl[j] = gfxPackedPixel(a, (dp & 0x00FF0000) >> 16, (dp & 0x0000FF00) >> 8, (dp & 0x000000FF));
+          }
+
+          dl += width;
+          sl += srcRowStride;
+      }
     }
 }
 
@@ -1413,6 +1432,24 @@ void nsJXRDecoder::StartDecodingMBRows_Alpha()
     {
         PostDecoderError(NS_ERROR_FAILURE);
         return;
+    }
+
+    PKPixelFormatGUID srcFmtGUID;
+
+    if (WMP_errSuccess != m_pDecoder->GetPixelFormat(m_pDecoder, &srcFmtGUID)) {
+      PostDecoderError(NS_ERROR_FAILURE);
+      return;
+    }
+
+    // Since the jxrlib conversion to RGB32 does not unmultiply alpha, we need
+    // to keep track of whether alpha was pre-multiplied or straight so that we
+    // can apply the proper pixel construction function in
+    // UpdateImage_AlphaOnly(). [rhinoduck]
+    if (IsEqualGUID(GUID_PKPixelFormat32bppPRGBA, srcFmtGUID) ||
+        IsEqualGUID(GUID_PKPixelFormat32bppPBGRA, srcFmtGUID) ||
+        IsEqualGUID(GUID_PKPixelFormat64bppPRGBA, srcFmtGUID) ||
+        IsEqualGUID(GUID_PKPixelFormat128bppPRGBAFloat, srcFmtGUID)) {
+      m_planarAlphaIsPremultiplied = true;
     }
 
     m_pDecoder->WMP.wmiSCP.uAlphaMode = 0; // it does not matter for planar alpha

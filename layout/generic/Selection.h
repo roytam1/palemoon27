@@ -64,6 +64,8 @@ public:
   NS_DECL_NSISELECTION
   NS_DECL_NSISELECTIONPRIVATE
 
+  virtual Selection* AsSelection() override { return this; }
+
   nsIDocument* GetParentObject() const;
 
   // utility methods for scrolling the selection into view

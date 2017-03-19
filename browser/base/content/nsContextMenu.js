@@ -4,8 +4,6 @@
 
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-Components.utils.importGlobalProperties(["URL"]);
-
 function nsContextMenu(aXulMenu, aIsShift) {
   this.shouldDisplay = true;
   this.initMenu(aXulMenu, aIsShift);

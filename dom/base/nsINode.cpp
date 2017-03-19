@@ -1300,11 +1300,18 @@ nsINode::GetContextForEventHandlers(nsresult* aRv)
 }
 
 nsIDOMWindow*
-nsINode::GetOwnerGlobal()
+nsINode::GetOwnerGlobalForBindings()
 {
   bool dummy;
   return nsPIDOMWindow::GetOuterFromCurrentInner(
     static_cast<nsGlobalWindow*>(OwnerDoc()->GetScriptHandlingObject(dummy)));
+}
+
+nsIGlobalObject*
+nsINode::GetOwnerGlobal() const
+{
+  bool dummy;
+  return OwnerDoc()->GetScriptHandlingObject(dummy);
 }
 
 bool

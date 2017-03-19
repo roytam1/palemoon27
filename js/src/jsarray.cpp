@@ -1933,7 +1933,6 @@ js::array_sort(JSContext* cx, unsigned argc, Value* vp)
         undefs = 0;
         bool allStrings = true;
         bool allInts = true;
-        bool extraIndexed = ObjectMayHaveExtraIndexedProperties(obj);
         RootedValue v(cx);
         for (uint32_t i = 0; i < len; i++) {
             if (!CheckForInterrupt(cx))
@@ -1966,9 +1965,7 @@ js::array_sort(JSContext* cx, unsigned argc, Value* vp)
         }
 
         /* Here len == n + undefs + number_of_holes. */
-        bool defaultOrMatch;
         if (fval.isNull()) {
-            defaultOrMatch = true;
             /*
              * Sort using the default comparator converting all elements to
              * strings.
@@ -1992,7 +1989,6 @@ js::array_sort(JSContext* cx, unsigned argc, Value* vp)
             if (comp == Match_Failure)
                 return false;
 
-            defaultOrMatch = comp != Match_None;
             if (comp != Match_None) {
                 if (allInts) {
                     JS_ALWAYS_TRUE(vec.resize(n * 2));
@@ -2013,10 +2009,7 @@ js::array_sort(JSContext* cx, unsigned argc, Value* vp)
             }
         }
 
-        ShouldUpdateTypes updateTypes = !extraIndexed && (allStrings || allInts) && defaultOrMatch
-                                        ? ShouldUpdateTypes::DontUpdateTypes
-                                        : ShouldUpdateTypes::UpdateTypes;
-        if (!InitArrayElements(cx, obj, 0, uint32_t(n), vec.begin(), updateTypes))
+        if (!InitArrayElements(cx, obj, 0, uint32_t(n), vec.begin(), DontUpdateTypes))
             return false;
     }
 

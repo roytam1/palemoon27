@@ -15,6 +15,7 @@
 #include "nsContentUtils.h"
 #include "jsfriendapi.h"
 #include "js/StructuredClone.h"
+#include "mozilla/dom/WindowBinding.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "mozilla/Preferences.h"
@@ -2719,6 +2720,13 @@ nsXPCComponents_Utils::ImportGlobalProperties(HandleValue aPropertyList,
 {
     RootedObject global(cx, CurrentGlobalOrNull(cx));
     MOZ_ASSERT(global);
+
+    // Don't allow doing this if the global is a Window
+    nsGlobalWindow* win;
+    if (NS_SUCCEEDED(UNWRAP_OBJECT(Window, global, win))) {
+        return NS_ERROR_NOT_AVAILABLE;
+    }
+
     GlobalProperties options;
     NS_ENSURE_TRUE(aPropertyList.isObject(), NS_ERROR_INVALID_ARG);
     RootedObject propertyList(cx, &aPropertyList.toObject());

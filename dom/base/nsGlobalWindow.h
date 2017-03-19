@@ -402,13 +402,22 @@ public:
                                 bool aUseCapture,
                                 const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                                 mozilla::ErrorResult& aRv) override;
-  virtual nsIDOMWindow* GetOwnerGlobal() override
+  virtual nsIDOMWindow* GetOwnerGlobalForBindings() override
   {
     if (IsOuterWindow()) {
       return this;
     }
 
     return GetOuterFromCurrentInner(this);
+  }
+
+  virtual nsIGlobalObject* GetOwnerGlobal() const override
+  {
+    if (IsOuterWindow()) {
+      return GetCurrentInnerWindowInternal();
+    }
+
+    return const_cast<nsGlobalWindow*>(this);
   }
 
   // nsPIDOMWindow
@@ -1550,7 +1559,7 @@ protected:
   nsRefPtr<nsDOMWindowUtils>    mWindowUtils;
   nsString                      mStatus;
   nsString                      mDefaultStatus;
-  nsGlobalWindowObserver*       mObserver; // Inner windows only.
+  nsRefPtr<nsGlobalWindowObserver> mObserver; // Inner windows only.
   nsRefPtr<mozilla::dom::Crypto>  mCrypto;
   nsRefPtr<mozilla::dom::Console> mConsole;
   // We need to store an nsISupports pointer to this object because the

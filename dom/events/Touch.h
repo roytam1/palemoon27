@@ -56,7 +56,7 @@ public:
 
   virtual JSObject* WrapObject(JSContext* aCx) override;
 
-  EventTarget* GetParentObject();
+  nsIGlobalObject* GetParentObject();
 
   // WebIDL
   int32_t Identifier() const { return mIdentifier; }

@@ -1396,6 +1396,9 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
   }
 #endif
 
+  // XXX For better performance, we should try to get rid of the
+  // Selection object here. See BMO bug 1245883
+  
   // also consider ourselves in a text widget if we can't find an html document
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
   if (!(htmlDoc && mDocument->IsHTML())) {
@@ -1423,7 +1426,10 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
     rv = PromoteRange(myRange);
     NS_ENSURE_SUCCESS(rv, rv);
     
-    rv = mSelection->AddRange(myRange);
+    ErrorResult result;
+    nsRange* r = static_cast<nsRange*>(myRange.get());
+    mSelection->AsSelection()->AddRangeInternal(*r, mDocument, result);
+    rv = result.StealNSResult();
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

@@ -298,6 +298,8 @@ nsCopySupport::GetTransferableForNode(nsINode* aNode,
 {
   nsCOMPtr<nsISelection> selection;
   // Make a temporary selection with aNode in a single range.
+  // XXX For better performance, we should try to get rid of the
+  // Selection object here. See BMO bug 1245883
   nsresult rv = NS_NewDomSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode);
@@ -305,7 +307,9 @@ nsCopySupport::GetTransferableForNode(nsINode* aNode,
   nsRefPtr<nsRange> range = new nsRange(aNode);
   rv = range->SelectNode(node);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = selection->AddRange(range);
+  ErrorResult result;
+  selection->AsSelection()->AddRangeInternal(*range, aDoc, result);
+  rv = result.StealNSResult();
   NS_ENSURE_SUCCESS(rv, rv);
   // It's not the primary selection - so don't skip invisible content.
   uint32_t flags = 0;

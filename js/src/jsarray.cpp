@@ -1965,7 +1965,9 @@ js::array_sort(JSContext* cx, unsigned argc, Value* vp)
         }
 
         /* Here len == n + undefs + number_of_holes. */
+        bool defaultOrMatch;
         if (fval.isNull()) {
+            defaultOrMatch = true;
             /*
              * Sort using the default comparator converting all elements to
              * strings.
@@ -1989,6 +1991,7 @@ js::array_sort(JSContext* cx, unsigned argc, Value* vp)
             if (comp == Match_Failure)
                 return false;
 
+            defaultOrMatch = comp != Match_None;
             if (comp != Match_None) {
                 if (allInts) {
                     JS_ALWAYS_TRUE(vec.resize(n * 2));
@@ -2009,7 +2012,10 @@ js::array_sort(JSContext* cx, unsigned argc, Value* vp)
             }
         }
 
-        if (!InitArrayElements(cx, obj, 0, uint32_t(n), vec.begin(), DontUpdateTypes))
+        ShouldUpdateTypes updateTypes = (allStrings || allInts) && defaultOrMatch
+                                        ? ShouldUpdateTypes::DontUpdateTypes
+                                        : ShouldUpdateTypes::UpdateTypes;
+        if (!InitArrayElements(cx, obj, 0, uint32_t(n), vec.begin(), updateTypes))
             return false;
     }
 

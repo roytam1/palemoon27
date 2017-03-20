@@ -5,12 +5,6 @@
 #include "ImageLogging.h"
 #include "nsWEBPDecoder.h"
 
-#include "nsIInputStream.h"
-
-#include "nspr.h"
-#include "nsCRT.h"
-#include "gfxColor.h"
-
 #include "gfxPlatform.h"
 
 namespace mozilla {
@@ -28,6 +22,8 @@ static PRLogModuleInfo *gWEBPDecoderAccountingLog =
 nsWEBPDecoder::nsWEBPDecoder(RasterImage* aImage)
  : Decoder(aImage)
  , mDecoder(nullptr)
+ , mData(nullptr)
+ , mPreviousLastLine(0)
 {
   PR_LOG(gWEBPDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsWEBPDecoder::nsWEBPDecoder: Creating WEBP decoder %p",
@@ -53,7 +49,7 @@ nsWEBPDecoder::InitInternal()
     PostDecoderError(NS_ERROR_FAILURE);
     return;
   }
-  mLastLine = 0;
+
   mDecBuf.colorspace = MODE_rgbA;
   mDecoder = WebPINewDecoder(&mDecBuf);
   if (!mDecoder) {
@@ -137,8 +133,8 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
   }
 
   // Transfer from mData to mImageData
-  if (lastLineRead > mLastLine) {
-    for (int line = mLastLine; line < lastLineRead; line++) {
+  if (lastLineRead > mPreviousLastLine) {
+    for (int line = mPreviousLastLine; line < lastLineRead; line++) {
       for (int pix = 0; pix < width; pix++) {
         // RGBA -> BGRA
         uint32_t DataOffset = 4 * (line * width + pix);
@@ -147,7 +143,7 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
         mImageData[DataOffset+2] = mData[DataOffset+0];
         mImageData[DataOffset+3] = mData[DataOffset+3];
       }
-    } 
+    }
 
     // Invalidate
     nsIntRect r(0,
@@ -157,10 +153,9 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
     PostInvalidation(r);
   }
 
-  mLastLine = lastLineRead;
+  mPreviousLastLine = lastLineRead;
   return;
 }
 
 } // namespace imagelib
 } // namespace mozilla
-

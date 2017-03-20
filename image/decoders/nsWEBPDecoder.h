@@ -7,8 +7,6 @@
 
 #include "Decoder.h"
 
-#include "nsCOMPtr.h"
-
 extern "C" {
 #include "webp/decode.h"
 }
@@ -24,16 +22,16 @@ class nsWEBPDecoder : public Decoder
 {
 public:
   nsWEBPDecoder(RasterImage* aImage);
-  virtual ~nsWEBPDecoder();
+  ~nsWEBPDecoder() override;
 
-  virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
-  virtual void FinishInternal();
+  void InitInternal() override;
+  void WriteInternal(const char* aBuffer, uint32_t aCount) override;
+  void FinishInternal() override;
 private:
-  WebPDecBuffer mDecBuf;   
-  WebPIDecoder *mDecoder;  
+  WebPDecBuffer mDecBuf;
+  WebPIDecoder *mDecoder;
   uint8_t *mData;          // Pointer to WebP-decoded data.
-  int mLastLine;           // Last image scan-line read so far.
+  int mPreviousLastLine;   // Last image scan-line read so far.
 
 };
 
@@ -41,4 +39,3 @@ private:
 } // namespace mozilla
 
 #endif // nsWEBPDecoder_h__
-

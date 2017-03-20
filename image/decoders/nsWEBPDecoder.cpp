@@ -36,24 +36,19 @@ nsWEBPDecoder::~nsWEBPDecoder()
          ("nsWEBPDecoder::~nsWEBPDecoder: Destroying WEBP decoder %p",
           this));
 
-  // Flush the Decoder and let it free the output image buffer.
+  // It is safe to pass nullptr to WebPIDelete().
   WebPIDelete(mDecoder);
-  WebPFreeDecBuffer(&mDecBuf);
 }
 
 
 void
 nsWEBPDecoder::InitInternal()
 {
-  if (!WebPInitDecBuffer(&mDecBuf)) {
-    PostDecoderError(NS_ERROR_FAILURE);
-    return;
-  }
+  mDecoder = WebPINewRGB(MODE_rgbA, nullptr, 0, 0);
 
-  mDecBuf.colorspace = MODE_rgbA;
-  mDecoder = WebPINewDecoder(&mDecBuf);
   if (!mDecoder) {
     PostDecoderError(NS_ERROR_FAILURE);
+    return;
   }
 }
 

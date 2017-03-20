@@ -28,7 +28,6 @@ public:
   void WriteInternal(const char* aBuffer, uint32_t aCount) override;
   void FinishInternal() override;
 private:
-  WebPDecBuffer mDecBuf;
   WebPIDecoder *mDecoder;
   uint8_t *mData;          // Pointer to WebP-decoded data.
   int mPreviousLastLine;   // Last image scan-line read so far.

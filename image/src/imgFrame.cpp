@@ -838,7 +838,7 @@ imgFrame::LockImageData()
 
   double imgPixelSize = mSize.width * mSize.height;
   if (imgPixelSize < (8092 * 8092)) {
-    // We should be safe to Deoptimize at this size (16Mpix)
+    // We should be safe to Deoptimize at this size (<64Mpix)
     return Deoptimize();
   }
   

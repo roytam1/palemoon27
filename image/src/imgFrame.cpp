@@ -836,7 +836,13 @@ imgFrame::LockImageData()
     return NS_OK;
   }
 
-  return Deoptimize();
+  double imgPixelSize = mSize.width * mSize.height;
+  if (imgPixelSize < (8092 * 8092)) {
+    // We should be safe to Deoptimize at this size (16Mpix)
+    return Deoptimize();
+  }
+  
+  return NS_ERROR_FAILURE;
 }
 
 nsresult

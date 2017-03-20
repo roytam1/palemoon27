@@ -27,6 +27,7 @@ static PRLogModuleInfo *gWEBPDecoderAccountingLog =
 
 nsWEBPDecoder::nsWEBPDecoder(RasterImage* aImage)
  : Decoder(aImage)
+ , mDecoder(nullptr)
 {
   PR_LOG(gWEBPDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsWEBPDecoder::nsWEBPDecoder: Creating WEBP decoder %p",
@@ -38,6 +39,10 @@ nsWEBPDecoder::~nsWEBPDecoder()
   PR_LOG(gWEBPDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsWEBPDecoder::~nsWEBPDecoder: Destroying WEBP decoder %p",
           this));
+
+  // Flush the Decoder and let it free the output image buffer.
+  WebPIDelete(mDecoder);
+  WebPFreeDecBuffer(&mDecBuf);
 }
 
 
@@ -59,9 +64,7 @@ nsWEBPDecoder::InitInternal()
 void
 nsWEBPDecoder::FinishInternal()
 {
-  // Flush the Decoder and let it free the output image buffer.
-  WebPIDelete(mDecoder);
-  WebPFreeDecBuffer(&mDecBuf);
+  MOZ_ASSERT(!HasError(), "Shouldn't call FinishInternal after error!");
 
   // We should never make multiple frames
   MOZ_ASSERT(GetFrameCount() <= 1, "Multiple WebP frames?");

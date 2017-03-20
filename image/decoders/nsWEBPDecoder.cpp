@@ -150,7 +150,10 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
     } 
 
     // Invalidate
-    nsIntRect r(0, mLastLine, width, lastLineRead);
+    nsIntRect r(0,
+                mPreviousLastLine,
+                width,
+                lastLineRead - mPreviousLastLine + 1);
     PostInvalidation(r);
   }
 

@@ -29,7 +29,7 @@ public:
   virtual void InitInternal();
   virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
   virtual void FinishInternal();
-public:
+private:
   WebPDecBuffer mDecBuf;   
   WebPIDecoder *mDecoder;  
   uint8_t *mData;          // Pointer to WebP-decoded data.

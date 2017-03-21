@@ -1927,6 +1927,14 @@ public:
     return sEncodeDecodeURLHash;
   }
 
+  /*
+   * Returns true if URL getters should percent decode the value of the segment
+   */
+  static bool GettersDecodeURLHash()
+  {
+    return sGettersDecodeURLHash && sEncodeDecodeURLHash;
+  }
+
   /**
    * Returns true if the doc tree branch which contains aDoc contains any
    * plugins which we don't control event dispatch for, i.e. do any plugins
@@ -2402,6 +2410,7 @@ private:
   static bool sIsUserTimingLoggingEnabled;
   static bool sIsExperimentalAutocompleteEnabled;
   static bool sEncodeDecodeURLHash;
+  static bool sGettersDecodeURLHash;
 
   static nsHtml5StringParser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;

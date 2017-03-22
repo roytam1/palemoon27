@@ -30,7 +30,7 @@
       </field>
 
       <field name="externalToolbars">
-       []
+        []
       </field>
 
       <!-- Set by customizeToolbar.js -->
@@ -50,6 +50,7 @@
       <constructor>
         <![CDATA[
           this.toolbarInfoSeparators = ["|", "-"];
+          this.toolbarInfoLegacySeparator = ":";
           // Look to see if there is a toolbarset.
           this.toolbarset = this.firstChild;
           while (this.toolbarset && this.toolbarset.localName != "toolbarset")
@@ -58,19 +59,45 @@
           if (this.toolbarset) {
             // Create each toolbar described by the toolbarset.
             var index = 0;
-            while (toolbarset.hasAttribute("toolbar"+(++index))) {
-              var toolbarInfo = toolbarset.getAttribute("toolbar"+index);
-              var infoSplit = toolbarInfo.split(this.toolbarInfoSeparators[0]);
-              var infoName = infoSplit[0];
-              var infoHidingAttribute = infoSplit[1].split(this.toolbarInfoSeparators[1]);
-              var infoCurrentSet = infoSplit[2];
-
-              this.appendCustomToolbar(infoName, infoCurrentSet, infoHidingAttribute);
+            while (toolbarset.hasAttribute("toolbar" + (++index))) {
+              let hiddingAttribute =
+                  toolbarset.getAttribute("type") == "menubar"
+                      ? "autohide" : "collapsed";
+              let toolbarInfo = toolbarset.getAttribute("toolbar" + index);
+              let infoSplit = toolbarInfo.split(this.toolbarInfoSeparators[0]);
+              if (infoSplit.length == 1) {
+                infoSplit = toolbarInfo.split(this.toolbarInfoLegacySeparator);
+              }
+              let infoName = infoSplit[0];
+              let infoHidingAttribute = [null, null];
+              let infoCurrentSet = "";
+              let infoSplitLen = infoSplit.length;
+              switch (infoSplitLen) {
+                case 3:
+                  // Pale Moon 27.2+
+                  infoHidingAttribute = infoSplit[1]
+                      .split(this.toolbarInfoSeparators[1]);
+                  infoCurrentSet = infoSplit[2];
+                  break;
+                case 2:
+                  // Legacy - toolbars from Pale Moon 27.0 - 27.1.x
+                  // The previous value (hiddingAttribute) isn't stored.
+                  infoHidingAttribute = [hiddingAttribute, "false"];
+                  infoCurrentSet = infoSplit[1];
+                  break;
+                default:
+                  Components.utils.reportError(
+                      "Customizable toolbars - an invalid value:" + "\n"
+                      + '"toolbar' + index + '" = "' + toolbarInfo + '"');
+                  break;
+              }
+              this.appendCustomToolbar(
+                  infoName, infoCurrentSet, infoHidingAttribute);
             }
           }
         ]]>
       </constructor>
-      
+
       <method name="appendCustomToolbar">
         <parameter name="aName"/>
         <parameter name="aCurrentSet"/>

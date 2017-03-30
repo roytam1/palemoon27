@@ -1231,6 +1231,9 @@ pref("print.print_edge_bottom", 0);
 // in a document.
 pref("extensions.spellcheck.inline.max-misspellings", 500);
 
+// Predefined convenience pref for overriding the dictionary
+pref("spellchecker.dictionary.override", "");
+
 // Prefs used by libeditor. Prefs specific to seamonkey composer
 // belong in comm-central/editor/ui/composer.js
 

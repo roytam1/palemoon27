@@ -1337,6 +1337,10 @@ nsXMLHttpRequest::GetAllResponseHeaders(nsCString& aResponseHeaders)
     return;
   }
 
+  if (mErrorLoad) {
+    return;
+  }
+
   if (nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel()) {
     nsRefPtr<nsHeaderVisitor> visitor = new nsHeaderVisitor(this, httpChannel);
     if (NS_SUCCEEDED(httpChannel->VisitResponseHeaders(visitor))) {

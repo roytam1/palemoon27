@@ -5515,6 +5515,16 @@
       },
       {
         "ref_type": "==",
+        "ref_url": "/html/rendering/non-replaced-elements/lists/ol-type-unsupported-ref.html",
+        "url": "/html/rendering/non-replaced-elements/lists/ol-type-unsupported-invalid.html"
+      },
+      {
+        "ref_type": "==",
+        "ref_url": "/html/rendering/non-replaced-elements/lists/ul-type-unsupported-ref.html",
+        "url": "/html/rendering/non-replaced-elements/lists/ul-type-unsupported-invalid.html"
+      },
+      {
+        "ref_type": "==",
         "ref_url": "/html/rendering/non-replaced-elements/tables/table-border-1-ref.html",
         "url": "/html/rendering/non-replaced-elements/tables/table-border-1.html"
       },

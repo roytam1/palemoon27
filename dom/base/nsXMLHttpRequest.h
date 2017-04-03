@@ -675,6 +675,8 @@ protected:
 
   nsCString mResponseCharset;
 
+  void MatchCharsetAndDecoderToResponseDocument();
+
   enum ResponseTypeEnum {
     XML_HTTP_RESPONSE_TYPE_DEFAULT,
     XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER,
@@ -738,6 +740,7 @@ protected:
   void HandleTimeoutCallback();
 
   bool mErrorLoad;
+  bool mErrorParsingXML;
   bool mWaitingForOnStopRequest;
   bool mProgressTimerIsActive;
   bool mIsHtml;

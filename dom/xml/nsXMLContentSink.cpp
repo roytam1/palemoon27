@@ -1340,8 +1340,7 @@ nsXMLContentSink::ReportError(const char16_t* aErrorText,
   mDocument->RemoveObserver(this);
   mIsDocumentObserver = false;
 
-  // Clear the current content and
-  // prepare to set <parsererror> as the document root
+  // Clear the current content
   nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mDocument));
   if (node) {
     for (;;) {
@@ -1369,6 +1368,12 @@ nsXMLContentSink::ReportError(const char16_t* aErrorText,
   mContentStack.Clear();
   mNotifyLevel = 0;
 
+  // return leaving the document empty if we're asked to not add a <parsererror> root node
+  if (mDocument->SuppressParserErrorElement()) {
+    return NS_OK;
+  }
+
+  // prepare to set <parsererror> as the document root
   rv = HandleProcessingInstruction(MOZ_UTF16("xml-stylesheet"),
                                    MOZ_UTF16("href=\"chrome://global/locale/intl.css\" type=\"text/css\""));
   NS_ENSURE_SUCCESS(rv, rv);

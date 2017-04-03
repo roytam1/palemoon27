@@ -2684,7 +2684,11 @@ var gCSSProperties = {
     inherited: false,
     type: CSS_TYPE_LONGHAND,
     /* FIXME: test zero, and test calc clamping */
-    initial_values: [ " auto" ],
+    initial_values: [ " auto",
+      // these four keywords compute to the initial value when the
+      // writing mode is horizontal, and that's the context we're testing in
+      "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
+    ],
     /* computed value tests for height test more with display:block */
     prerequisites: { "display": "block" },
     other_values: [ "15px", "3em", "15%",
@@ -2694,7 +2698,7 @@ var gCSSProperties = {
       "calc(25px*3)",
       "calc(3*25px + 50%)",
     ],
-    invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ],
+    invalid_values: [ "none" ],
     quirks_values: { "5": "5px" },
   },
   "ime-mode": {
@@ -2943,7 +2947,11 @@ var gCSSProperties = {
     inherited: false,
     type: CSS_TYPE_LONGHAND,
     prerequisites: { "display": "block" },
-    initial_values: [ "none" ],
+    initial_values: [ "none",
+      // these four keywords compute to the initial value when the
+      // writing mode is horizontal, and that's the context we're testing in
+      "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
+    ],
     other_values: [ "30px", "50%", "0",
       "calc(2px)",
       "calc(-2px)",
@@ -2953,7 +2961,7 @@ var gCSSProperties = {
       "calc(25px*3)",
       "calc(3*25px + 50%)",
     ],
-    invalid_values: [ "auto", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ],
+    invalid_values: [ "auto" ],
     quirks_values: { "5": "5px" },
   },
   "max-width": {
@@ -2962,7 +2970,11 @@ var gCSSProperties = {
     type: CSS_TYPE_LONGHAND,
     prerequisites: { "display": "block" },
     initial_values: [ "none" ],
-    other_values: [ "30px", "50%", "0", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
+    other_values: [ "30px", "50%", "0",
+      // these four keywords compute to the initial value only when the
+      // writing mode is vertical, and we're testing with a horizontal
+      // writing mode
+      "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
       "calc(2px)",
       "calc(-2px)",
       "calc(0px)",
@@ -2979,7 +2991,11 @@ var gCSSProperties = {
     inherited: false,
     type: CSS_TYPE_LONGHAND,
     prerequisites: { "display": "block" },
-    initial_values: [ "auto", "0", "calc(0em)", "calc(-2px)", "calc(-1%)" ],
+    initial_values: [ "auto", "0", "calc(0em)", "calc(-2px)", "calc(-1%)",
+      // these four keywords compute to the initial value when the
+      // writing mode is horizontal, and that's the context we're testing in
+      "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
+    ],
     other_values: [ "30px", "50%",
       "calc(2px)",
       "calc(50%)",
@@ -2987,7 +3003,7 @@ var gCSSProperties = {
       "calc(25px*3)",
       "calc(3*25px + 50%)",
     ],
-    invalid_values: ["none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ],
+    invalid_values: ["none"],
     quirks_values: { "5": "5px" },
   },
   "min-width": {
@@ -2996,7 +3012,11 @@ var gCSSProperties = {
     type: CSS_TYPE_LONGHAND,
     prerequisites: { "display": "block" },
     initial_values: [ "auto", "0", "calc(0em)", "calc(-2px)", "calc(-1%)" ],
-    other_values: [ "30px", "50%", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
+    other_values: [ "30px", "50%",
+      // these four keywords compute to the initial value only when the
+      // writing mode is vertical, and we're testing with a horizontal
+      // writing mode
+      "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
       "calc(2px)",
       "calc(50%)",
       "calc(3*25px)",
@@ -3541,7 +3561,15 @@ var gCSSProperties = {
     prerequisites: { "display": "block" },
     initial_values: [ " auto" ],
     /* XXX these have prerequisites */
-    other_values: [ "15px", "3em", "15%", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
+    other_values: [ "15px", "3em", "15%",
+      // these three keywords compute to the initial value only when the
+      // writing mode is vertical, and we're testing with a horizontal
+      // writing mode
+      "-moz-max-content", "-moz-min-content", "-moz-fit-content",
+      // whether -moz-available computes to the initial value depends on
+      // the container size, and for the container size we're testing
+      // with, it does
+      // "-moz-available",
       "3e1px", "3e+1px", "3e0px", "3e+0px", "3e-0px", "3e-1px",
       "3.2e1px", "3.2e+1px", "3.2e0px", "3.2e+0px", "3.2e-0px", "3.2e-1px",
       "3e1%", "3e+1%", "3e0%", "3e+0%", "3e-0%", "3e-1%",
@@ -4749,7 +4777,7 @@ if (SpecialPowers.getBoolPref("layout.css.vertical-text.enabled")) {
         "calc(25px*3)",
         "calc(3*25px + 50%)",
       ],
-      invalid_values: [ "none" ],
+      invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ],
     },
     "border-block-end-color": {
       domProp: "borderBlockEndColor",
@@ -4955,6 +4983,14 @@ if (SpecialPowers.getBoolPref("layout.css.vertical-text.enabled")) {
       initial_values: [ "auto" ],
       prerequisites: { "display": "block" },
       other_values: [ "15px", "3em", "15%",
+        // these three keywords compute to the initial value only when the
+        // writing mode is vertical, and we're testing with a horizontal
+        // writing mode
+        "-moz-max-content", "-moz-min-content", "-moz-fit-content",
+        // whether -moz-available computes to the initial value depends on
+        // the container size, and for the container size we're testing
+        // with, it does
+        // "-moz-available",
         "calc(2px)",
         "calc(50%)",
         "calc(3*25px)",
@@ -5051,7 +5087,7 @@ if (SpecialPowers.getBoolPref("layout.css.vertical-text.enabled")) {
         "calc(25px*3)",
         "calc(3*25px + 50%)",
       ],
-      invalid_values: [ "auto", "5" ]
+      invalid_values: [ "auto", "5", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ]
     },
     "max-inline-size": {
       domProp: "maxInlineSize",
@@ -5063,6 +5099,10 @@ if (SpecialPowers.getBoolPref("layout.css.vertical-text.enabled")) {
       prerequisites: { "display": "block" },
       initial_values: [ "none" ],
       other_values: [ "30px", "50%",
+        // these four keywords compute to the initial value only when the
+        // writing mode is vertical, and we're testing with a horizontal
+        // writing mode
+        "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
         "calc(2px)",
         "calc(50%)",
         "calc(3*25px)",
@@ -5087,7 +5127,7 @@ if (SpecialPowers.getBoolPref("layout.css.vertical-text.enabled")) {
         "calc(25px*3)",
         "calc(3*25px + 50%)",
       ],
-      invalid_values: [ "none", "5" ]
+      invalid_values: [ "none", "5", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ]
     },
     "min-inline-size": {
       domProp: "minInlineSize",
@@ -5099,6 +5139,10 @@ if (SpecialPowers.getBoolPref("layout.css.vertical-text.enabled")) {
       prerequisites: { "display": "block" },
       initial_values: [ "auto", "0", "calc(0em)", "calc(-2px)", "calc(-1%)" ],
       other_values: [ "30px", "50%",
+        // these four keywords compute to the initial value only when the
+        // writing mode is vertical, and we're testing with a horizontal
+        // writing mode
+        "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
         "calc(2px)",
         "calc(50%)",
         "calc(3*25px)",

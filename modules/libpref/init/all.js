@@ -2439,7 +2439,7 @@ pref("layout.css.scope-pseudo.enabled", true);
 pref("layout.css.background-blend-mode.enabled", true);
 
 // Is support for CSS vertical text enabled?
-pref("layout.css.vertical-text.enabled", false);
+pref("layout.css.vertical-text.enabled", true);
 
 // Is support for CSS text-combine-upright (tate-chu-yoko) enabled?
 pref("layout.css.text-combine-upright.enabled", false);

@@ -800,6 +800,9 @@ pref("browser.sessionstore.restore_hidden_tabs", false);
 // When set to true, this pref overrides that behavior, and pinned tabs will only
 // be restored when they are focused.
 pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
+// Pale Moon: Allow the user to bypass cached versions of pages when restoring
+// tabs from a previous session
+pref("browser.sessionstore.force_bypass_cache", false);
 // Pale Moon: Allow exact positioning of windows to previous locations, even
 // if they would be outside of the screen bounds
 pref("browser.sessionstore.exactPos", false);

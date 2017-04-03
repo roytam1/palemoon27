@@ -290,6 +290,9 @@ let SessionStoreInternal = {
   // max number of tabs to restore concurrently
   _maxConcurrentTabRestores: DEFAULT_MAX_CONCURRENT_TAB_RESTORES,
   
+  // whether restored tabs should bypass the cached versions and force a reload
+  _forceBypassCache: false,
+  
   // The state from the previous session (after restoring pinned tabs). This
   // state is persisted and passed through to the next session during an app
   // restart to make the third party add-on warning not trash the deferred
@@ -484,13 +487,15 @@ let SessionStoreInternal = {
     this._max_windows_undo = this._prefBranch.getIntPref("sessionstore.max_windows_undo");
     this._prefBranch.addObserver("sessionstore.max_windows_undo", this, true);
     
-    // Straight-up collect the following one-time pref(s)
+    // Straight-up collect the following one-time prefs
     this._maxConcurrentTabRestores = 
          Services.prefs.getIntPref("browser.sessionstore.max_concurrent_tabs");
     // ensure a sane value for concurrency, ignore and set default otherwise
     if (this._maxConcurrentTabRestores < 1 || this._maxConcurrentTabRestores > 10) {
       this._maxConcurrentTabRestores = DEFAULT_MAX_CONCURRENT_TAB_RESTORES;
     }
+    this._forceBypassCache =
+         Services.prefs.getBoolPref("browser.sessionstore.force_bypass_cache");
     
   },
 
@@ -3192,6 +3197,12 @@ let SessionStoreInternal = {
         // instead of gotoIndex. See bug 597315.
         browser.webNavigation.sessionHistory.getEntryAtIndex(activeIndex, true);
         browser.webNavigation.sessionHistory.reloadCurrentEntry();
+        // If the user prefers it, bypass cache and always load from the network.
+        if this._forceBypassCache {
+          let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY |
+                      Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
+          browser.webNavigation.reload(flags);
+        }
       }
       catch (ex) {
         // ignore page load errors

@@ -11,7 +11,7 @@
 #include "nsTHashtable.h"
 #include "nsAutoPtr.h" 
 #include "mozilla/Likely.h"
-#include "mozilla/WritingModes.h" 
+#include "WritingModes.h" 
 #include <algorithm>
 
 class nsIScrollableFrame;

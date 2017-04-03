@@ -518,7 +518,7 @@ this.MigrationUtils = Object.freeze({
    *
    * @param [optional] aOpener
    *        the window that asks to open the wizard.
-   * @param [optioanl] aParams
+   * @param [optional] aParams
    *        arguments for the migration wizard, in the form of an nsIArray.
    *        This is passed as-is for the params argument of
    *        nsIWindowWatcher.openWindow.
@@ -561,14 +561,16 @@ this.MigrationUtils = Object.freeze({
    *        migrator for it, or with the first option selected as a fallback
    *        (The first option is hardcoded to be the most common browser for
    *         the OS we run on.  See migration.xul).
+   * @param [optional] aProfileToMigrate
+   *        If set, the migration wizard will import from the profile indicated.
    *          
    * @throws if aMigratorKey is invalid or if it points to a non-existent
    *         source.
    */
   startupMigration:
-  function MU_startupMigrator(aProfileStartup, aMigratorKey) {
+  function MU_startupMigrator(aProfileStartup, aMigratorKey, aProfileToMigrate) {
     if (!aProfileStartup) {
-      throw new Error("an profile-startup instance is required for startup-migration");
+      throw new Error("a profile-startup instance is required for startup-migration");
     }
     gProfileStartup = aProfileStartup;
 
@@ -619,6 +621,7 @@ this.MigrationUtils = Object.freeze({
     params.appendElement(migrator, false);
     params.appendElement(aProfileStartup, false);
     params.appendElement(skipImportSourcePageBool, false);
+    params.appendElement(aProfileToMigrate, false);
 
     this.showMigrationWizard(null, params);
   },

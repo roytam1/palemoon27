@@ -189,7 +189,6 @@ public:
   NS_IMETHOD GetLastModifiedTime(PRTime* lastModifiedTime) override;
   NS_IMETHOD ForceNoIntercept() override;
   NS_IMETHOD GetTopWindowURI(nsIURI **aTopWindowURI) override;
-  NS_IMETHOD ContinueBeginConnect() override;
   NS_IMETHOD GetProxyURI(nsIURI **proxyURI) override;
 
   inline void CleanRedirectCacheChainIfNecessary()

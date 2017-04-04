@@ -4716,6 +4716,11 @@ nsHttpChannel::GetSecurityInfo(nsISupports **securityInfo)
     return NS_OK;
 }
 
+// If any of the functions that AsyncOpen calls returns immediately an error
+// AsyncAbort(which calls onStart/onStopRequest) does not need to be call.
+// To be sure that they are not call ReleaseListeners() is called.
+// If AsyncOpen returns NS_OK, after that point AsyncAbort must be called on
+// any error.
 NS_IMETHODIMP
 nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
 {
@@ -4781,6 +4786,11 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     return rv;
 }
 
+// BeginConnect() will not call AsyncAbort() on an error and if AsyncAbort needs
+// to be called the function calling BeginConnect will need to call AsyncAbort.
+// If BeginConnect is called from AsyncOpen, AsyncnAbort doesn't need to be
+// called. If it is called form another function (e.g. the function is called
+// from OnProxyAvailable) that function should call AsyncOpen.
 nsresult
 nsHttpChannel::BeginConnect()
 {
@@ -4977,29 +4987,42 @@ nsHttpChannel::BeginConnect()
         }
         mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
     }
+
+    // We may have been cancelled already, either by on-modify-request
+    // listeners or load group observers; in that case, we should not send the
+    // request to the server
+    if (mCanceled) {
+        return mStatus;
+    }
+
     if (!(mLoadFlags & LOAD_CLASSIFY_URI)) {
-        return ContinueBeginConnect();
+        ContinueBeginConnect();
+        return NS_OK;
     }
     // mLocalBlocklist is true only if tracking protection is enabled and the
     // URI is a tracking domain, it makes no guarantees about phishing or
     // malware, so if LOAD_CLASSIFY_URI is true we must call
     // nsChannelClassifier to catch phishing and malware URIs.
     bool callContinueBeginConnect = true;
-    if (mCanceled || !mLocalBlocklist) {
-       rv = ContinueBeginConnect();
-       if (NS_FAILED(rv)) {
-           return rv;
-       }
-       callContinueBeginConnect = false;
+    if (!mLocalBlocklist) {
+        // Here we call ContinueBeginConnectWithResult and not
+        // ContinueBeginConnect so that in the case of an error we do not start
+        // channelClassifier.
+        rv = ContinueBeginConnectWithResult();
+        if (NS_FAILED(rv)) {
+            return rv;
+        }
+        callContinueBeginConnect = false;
     }
     // nsChannelClassifier calls ContinueBeginConnect if it has not already
     // been called, after optionally cancelling the channel once we have a
     // remote verdict. We call a concrete class instead of an nsI* that might
     // be overridden.
-    if (!mCanceled) {
-        LOG(("nsHttpChannel::Starting nsChannelClassifier %p [this=%p]",
-           channelClassifier.get(), this));
-        channelClassifier->Start(this, callContinueBeginConnect);
+    LOG(("nsHttpChannel::Starting nsChannelClassifier %p [this=%p]",
+         channelClassifier.get(), this));
+    channelClassifier->Start(this);
+    if (callContinueBeginConnect) {
+        ContinueBeginConnect();
     }
     return NS_OK;
 }
@@ -5037,28 +5060,39 @@ nsHttpChannel::SetPriority(int32_t value)
     return NS_OK;
 }
 
-//-----------------------------------------------------------------------------
-// nsHttpChannel::nsIHttpChannelInternal
-//-----------------------------------------------------------------------------
-NS_IMETHODIMP
-nsHttpChannel::ContinueBeginConnect()
+nsresult
+nsHttpChannel::ContinueBeginConnectWithResult()
 {
-    LOG(("nsHttpChannel::ContinueBeginConnect [this=%p]", this));
+    LOG(("nsHttpChannel::ContinueBeginConnectWithResult [this=%p]", this));
+    NS_PRECONDITION(!mCallOnResume, "How did that happen?");
+
     nsresult rv;
-    // We may have been cancelled already, either by on-modify-request
-    // listeners or load group observers or nsChannelClassifier; in that case,
-    // we should not send the request to the server
-    if (mCanceled) {
+
+    if (mSuspendCount) {
+        LOG(("Waiting until resume to do async connect [this=%p]\n", this));
+        mCallOnResume = &nsHttpChannel::ContinueBeginConnect;
+        rv = NS_OK;
+    } else if (mCanceled) {
+        // We may have been cancelled already, by nsChannelClassifier in that
+        // case, we should not send the request to the server
         rv = mStatus;
     } else {
         rv = Connect();
     }
+
+    LOG(("nsHttpChannel::ContinueBeginConnectWithResult result [this=%p rv=%x "
+         "mCanceled=%i]\n", this, rv, mCanceled));
+    return rv;
+}
+
+void
+nsHttpChannel::ContinueBeginConnect()
+{
+    nsresult rv = ContinueBeginConnectWithResult();
     if (NS_FAILED(rv)) {
-        LOG(("Calling AsyncAbort [rv=%x mCanceled=%i]\n", rv, mCanceled));
         CloseCacheEntry(true);
         AsyncAbort(rv);
     }
-    return rv;
 }
 
 //-----------------------------------------------------------------------------
@@ -5117,15 +5151,8 @@ nsHttpChannel::OnProxyAvailable(nsICancelable *request, nsIChannel *channel,
     }
 
     if (NS_FAILED(rv)) {
+        AsyncAbort(rv);
         Cancel(rv);
-        // Calling OnStart/OnStop synchronously here would mean doing it before
-        // returning from AsyncOpen which is a contract violation. Do it async.
-        nsRefPtr<nsRunnableMethod<HttpBaseChannel> > event =
-            NS_NewRunnableMethod(this, &nsHttpChannel::DoNotifyListener);
-        rv = NS_DispatchToCurrentThread(event);
-        if (NS_FAILED(rv)) {
-            NS_WARNING("Failed To Dispatch DoNotifyListener");
-        }
     }
     return rv;
 }

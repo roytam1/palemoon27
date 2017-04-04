@@ -291,7 +291,7 @@ let SessionStoreInternal = {
   _maxConcurrentTabRestores: DEFAULT_MAX_CONCURRENT_TAB_RESTORES,
   
   // whether restored tabs load cached versions or force a reload
-  _cacheBehavior: false,
+  _cacheBehavior: 0,
   
   // The state from the previous session (after restoring pinned tabs). This
   // state is persisted and passed through to the next session during an app
@@ -3198,14 +3198,14 @@ let SessionStoreInternal = {
         browser.webNavigation.sessionHistory.getEntryAtIndex(activeIndex, true);
         browser.webNavigation.sessionHistory.reloadCurrentEntry();
         // If the user prefers it, bypass cache and always load from the network.
+        let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
         switch (this._cacheBehavior) {
           case 2: // hard refresh
-            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY |
-                        Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
+            flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY |
+                    Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
             browser.webNavigation.reload(flags);
             break;
           case 1: // soft refresh
-            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_IS_REFRESH;
             browser.webNavigation.reload(flags);
             break;
           default: // 0 or other: use cache, so do nothing.

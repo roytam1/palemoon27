@@ -1449,14 +1449,6 @@
             browserSidebarContainer.appendChild(browserContainer);
             browserSidebarContainer.setAttribute("flex", "1");
 
-            // A remote browser doesn't initially have the outerWindowID
-            // set. Once a remote browser initializes, it sends the Browser:Init
-            // message, and we map the browser at that point.
-            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
-                !Services.prefs.getBoolPref("browser.tabs.remote")) {
-              this._outerWindowIDBrowserMap.set(b.outerWindowID, b);
-            }
-
             // Add the Message and the Browser to the box
             var notificationbox = document.createElementNS(NS_XUL,
                                                            "notificationbox");
@@ -1538,6 +1530,21 @@
             // We start our browsers out as inactive, and then maintain
             // activeness in the tab switcher.
             b.docShellIsActive = false;
+
+            // When addTab() is called with an URL that is not "about:blank" we
+            // set the "nodefaultsrc" attribute that prevents a frameLoader
+            // from being created as soon as the linked <browser> is inserted
+            // into the DOM. We thus have to register the new outerWindowID
+            // for non-remote browsers after we have called browser.loadURI().
+            //
+            // Note: Only do this of we still have a docShell. The TabOpen
+            // event was dispatched above and a gBrowser.removeTab() call from
+            // one of its listeners could cause us to fail here.
+            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
+               !Services.prefs.getBoolPref("browser.tabs.remote")
+               && b.docShell) {
+              this._outerWindowIDBrowserMap.set(b.outerWindowID, b);
+            }
 
             // Check if we're opening a tab related to the current tab and
             // move it to after the current tab.
@@ -2168,9 +2175,20 @@
             // Make sure to unregister any open URIs.
             this._swapRegisteredOpenURIs(ourBrowser, aOtherBrowser);
 
+            // Unmap old outerWindowIDs.
+            this._outerWindowIDBrowserMap.delete(ourBrowser.outerWindowID);
+            let remoteBrowser = aOtherBrowser.ownerDocument.defaultView.gBrowser;
+            if (remoteBrowser) {
+              remoteBrowser._outerWindowIDBrowserMap.delete(aOtherBrowser.outerWindowID);
+            }
             // Swap the docshells
             ourBrowser.swapDocShells(aOtherBrowser);
 
+            // Register new outerWindowIDs.
+            this._outerWindowIDBrowserMap.set(ourBrowser.outerWindowID, ourBrowser);
+            if (remoteBrowser) {
+              remoteBrowser._outerWindowIDBrowserMap.set(aOtherBrowser.outerWindowID, aOtherBrowser);
+            }
             // Restore the progress listener
             this.mTabListeners[index] = tabListener =
               this.mTabProgressListener(aOurTab, ourBrowser, false);

@@ -24,6 +24,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "ctypes",
 XPCOMUtils.defineLazyModuleGetter(this, "WindowsRegistry",
                                   "resource://gre/modules/WindowsRegistry.jsm");
 
+Cu.importGlobalProperties(["File"]);
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Helpers.
 
@@ -406,7 +408,7 @@ Cookies.prototype = {
         aCallback(success);
       }
     }).bind(this), false);
-    fileReader.readAsText(File(aFile));
+    fileReader.readAsText(new File(aFile));
   },
 
   /**
@@ -440,6 +442,7 @@ Cookies.prototype = {
 
       let hostLen = hostpath.indexOf("/");
       let host = hostpath.substr(0, hostLen);
+      let path = hostpath.substr(hostLen);
 
       // For a non-null domain, assume it's what Mozilla considers
       // a domain cookie.  See bug 222343.
@@ -451,7 +454,6 @@ Cookies.prototype = {
           host = "." + host;
       }
 
-      let path = hostpath.substr(hostLen);
       let expireTime = CtypesHelpers.fileTimeToDate(Number(expireTimeHi),
                                                     Number(expireTimeLo));
       Services.cookies.add(host,
@@ -527,12 +529,12 @@ Settings.prototype = {
               yesNoToBoolean);
     this._set("Software\\Microsoft\\Internet Explorer\\Settings",
               "Always Use My Colors",
-              "browser.display.use_document_colors",
-              function (v) !Boolean(v));
+              "browser.display.document_color_use",
+              function (v) !Boolean(v) ? 0 : 2);
     this._set("Software\\Microsoft\\Internet Explorer\\Settings",
               "Always Use My Font Face",
               "browser.display.use_document_fonts",
-              function (v) !Boolean(v));
+              function (v) !Boolean(v) ? 1 : 2);
     this._set(kMainKey,
               "SmoothScroll",
               "general.smoothScroll",
@@ -569,21 +571,40 @@ Settings.prototype = {
     if (value === undefined)
       return;
 
-    if (aTransformFn)
+    if (aTransformFn) {
       value = aTransformFn(value);
+      if (typeof(value) == "object") {
+        try {
+          value = value.toString();
+        } catch (e) {
+          throw e;
+        }
+      }
+    }
 
-    switch (typeof(value)) {
-      case "string":
-        Services.prefs.setCharPref(aPref, value);
-        break;
-      case "number":
-        Services.prefs.setIntPref(aPref, value);
-        break;
-      case "boolean":
-        Services.prefs.setBoolPref(aPref, value);
-        break;
-      default:
-        throw new Error("Unexpected value type: " + typeof(value));
+    let _json = {
+      "path": aPath,
+      "key": aKey,
+      "pref": aPref,
+      "value": value,
+    };
+    try {
+      switch (typeof(value)) {
+        case "string":
+          Services.prefs.setCharPref(aPref, value);
+          break;
+        case "number":
+          Services.prefs.setIntPref(aPref, value);
+          break;
+        case "boolean":
+          Services.prefs.setBoolPref(aPref, value);
+          break;
+        default:
+          throw new Error("Unexpected value type: " + typeof(value));
+      }
+    } catch (e if e.result == Cr.NS_ERROR_UNEXPECTED) {
+      throw new Error(
+          "The value:" + "\n" + JSON.stringify(_json) + "\n" + e);
     }
   }
 };

@@ -956,22 +956,43 @@ nsSVGOuterSVGAnonChildFrame::GetType() const
 }
 
 bool
-nsSVGOuterSVGAnonChildFrame::HasChildrenOnlyTransform(gfx::Matrix *aTransform) const
+nsSVGOuterSVGAnonChildFrame::IsSVGTransformed(Matrix* aOwnTransform,
+                                              Matrix* aFromParentTransform) const
 {
-  // We must claim our nsSVGOuterSVGFrame's children-only transforms as our own
-  // so that the children we are used to wrap are transformed properly.
+  // Our elements 'transform' attribute is applied to our nsSVGOuterSVGFrame
+  // parent, and the element's children-only transforms are applied to us, the
+  // anonymous child frame. Since we are the child frame, we apply the
+  // children-only transforms as if they are our own transform.
 
-  SVGSVGElement *content = static_cast<SVGSVGElement*>(mContent);
+  SVGSVGElement* content = static_cast<SVGSVGElement*>(mContent);
 
-  bool hasTransform = content->HasChildrenOnlyTransform();
-
-  if (hasTransform && aTransform) {
-    // Outer-<svg> doesn't use x/y, so we can pass eChildToUserSpace here.
-    gfxMatrix identity;
-    *aTransform = gfx::ToMatrix(
-      content->PrependLocalTransformsTo(identity,
-                                        nsSVGElement::eChildToUserSpace));
+  if (!content->HasChildrenOnlyTransform()) {
+    return false;
   }
 
-  return hasTransform;
+  // Outer-<svg> doesn't use x/y, so we can pass eChildToUserSpace here.
+  gfxMatrix ownMatrix =
+    content->PrependLocalTransformsTo(gfxMatrix(), nsSVGElement::eChildToUserSpace);
+
+  if (ownMatrix.IsIdentity()) {
+    return false;
+  }
+
+  if (aOwnTransform) {
+    if (ownMatrix.HasNonTranslation()) {
+      // Note: viewBox, currentScale and currentTranslate should only
+      // produce a rectilinear transform.
+      // The nsDisplayTransform code will apply this transform to our frame,
+      // including to our frame position.  We don't want our frame position to
+      // be scaled though, so we need to correct for that in the transform.
+      CSSPoint pos = CSSPixel::FromAppUnits(GetPosition());
+      CSSPoint scaledPos = CSSPoint(ownMatrix._11 * pos.x, ownMatrix._22 * pos.y);
+      CSSPoint deltaPos = scaledPos - pos;
+      ownMatrix *= gfxMatrix::Translation(-deltaPos.x, -deltaPos.y);
+    }
+
+    *aOwnTransform = gfx::ToMatrix(ownMatrix);
+  }
+
+  return true;
 }

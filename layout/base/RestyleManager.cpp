@@ -3020,8 +3020,15 @@ ElementRestyler::ComputeRestyleResultFromNewContext(nsIFrame* aSelf,
 
   if (oldContext->IsInlineDescendantOfRuby() !=
         aNewContext->IsInlineDescendantOfRuby()) {
-    LOG_RESTYLE_CONTINUE("NS_STYLE_IS_INLINE_DESCENDANT_OF_RUBY differes"
+    LOG_RESTYLE_CONTINUE("NS_STYLE_IS_INLINE_DESCENDANT_OF_RUBY differs"
                          "between old and new style contexts");
+    return eRestyleResult_Continue;
+  }
+
+  if (oldContext->IsInDisplayNoneSubtree() !=
+        aNewContext->IsInDisplayNoneSubtree()) {
+    LOG_RESTYLE_CONTINUE("NS_STYLE_IN_DISPLAY_NONE_SUBTREE differs between old"
+                         " and new style contexts");
     return eRestyleResult_Continue;
   }
 

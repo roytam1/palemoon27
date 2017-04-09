@@ -624,6 +624,7 @@ TrackBuffer::InitializeDecoder(SourceBufferDecoder* aDecoder)
 
   if (mCurrentDecoder != aDecoder) {
     MSE_DEBUG("append was cancelled. Aborting initialization.");
+    RemoveDecoder(aDecoder);
     // If we reached this point, the SourceBuffer would have disconnected
     // the promise. So no need to reject it.
     return;
@@ -669,6 +670,7 @@ TrackBuffer::InitializeDecoder(SourceBufferDecoder* aDecoder)
   }
   if (mCurrentDecoder != aDecoder) {
     MSE_DEBUG("append was cancelled. Aborting initialization.");
+    RemoveDecoder(aDecoder);
     return;
   }
 
@@ -767,6 +769,7 @@ TrackBuffer::CompleteInitializeDecoder(SourceBufferDecoder* aDecoder)
     MSE_DEBUG("append was cancelled. Aborting initialization.");
     // If we reached this point, the SourceBuffer would have disconnected
     // the promise. So no need to reject it.
+    RemoveDecoder(aDecoder);
     return;
   }
 

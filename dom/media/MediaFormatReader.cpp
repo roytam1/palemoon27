@@ -1156,7 +1156,6 @@ MediaFormatReader::OnVideoSeekCompleted(media::TimeUnit aTime)
 
   if (HasAudio()) {
     MOZ_ASSERT(mPendingSeekTime.isSome());
-    mPendingSeekTime.ref() = aTime;
     DoAudioSeek();
   } else {
     mPendingSeekTime.reset();

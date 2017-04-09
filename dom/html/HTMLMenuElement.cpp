@@ -227,6 +227,8 @@ HTMLMenuElement::TraverseContent(nsIContent* aContent,
       aBuilder->AddItemFor(menuitem, CanLoadIcon(child, icon));
 
       aSeparator = ST_FALSE;
+    } else if (child->IsHTML(nsGkAtoms::hr)) {
+      aBuilder->AddSeparator();
     } else if (tag == nsGkAtoms::menu && !element->IsHidden()) {
       if (child->HasAttr(kNameSpaceID_None, nsGkAtoms::label)) {
         nsAutoString label;

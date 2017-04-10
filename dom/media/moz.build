@@ -122,6 +122,7 @@ EXPORTS += [
     'SelfRef.h',
     'SharedBuffer.h',
     'SharedThreadPool.h',
+    'StateMirroring.h',
     'StateWatching.h',
     'StreamBuffer.h',
     'TaskDispatcher.h',

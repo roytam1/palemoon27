@@ -131,7 +131,7 @@ protected:
 
     ~AutoTaskGuard()
     {
-      DrainDirectTasks()
+      DrainDirectTasks();
 
       MOZ_ASSERT(mQueue->mRunningThread == NS_GetCurrentThread());
       mQueue->mRunningThread = nullptr;

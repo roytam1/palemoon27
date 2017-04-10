@@ -20,6 +20,7 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/TextTrackManager.h"
 #include "MediaDecoder.h"
+#include "StateWatching.h"
 #include "nsGkAtoms.h"
 
 // X.h on Linux #defines CurrentTime as 0L, so we have to #undef it here.
@@ -621,6 +622,17 @@ protected:
   class StreamListener;
   class StreamSizeListener;
 
+  void SetDecoder(MediaDecoder* aDecoder)
+  {
+    if (mDecoder) {
+      mReadyStateUpdater->Unwatch(mDecoder->ReadyStateWatchTarget());
+    }
+    mDecoder = aDecoder;
+    if (mDecoder) {
+      mReadyStateUpdater->Watch(mDecoder->ReadyStateWatchTarget());
+    }
+  }
+
   virtual void GetItemValueText(DOMString& text) override;
   virtual void SetItemValueText(const nsAString& text) override;
 
@@ -983,6 +995,9 @@ protected:
   // MediaElement doesn't yet have one then it will create it.
   TextTrackManager* GetOrCreateTextTrackManager();
 
+  // Recomputes ready state and fires events as necessary based on current state.
+  void UpdateReadyStateInternal();
+
   class nsAsyncEventRunner;
   using nsGenericHTMLElement::DispatchEvent;
   // For nsAsyncEventRunner.
@@ -1060,10 +1075,12 @@ protected:
   // Media loading flags. See:
   //   http://www.whatwg.org/specs/web-apps/current-work/#video)
   nsMediaNetworkState mNetworkState;
-  nsMediaReadyState mReadyState;
+  Watchable<nsMediaReadyState> mReadyState;
+
+  WatcherHolder mReadyStateUpdater;
 
   // Last value passed from codec or stream source to UpdateReadyStateForData.
-  NextFrameStatus mLastNextFrameStatus;
+  Watchable<NextFrameStatus> mNextFrameStatus;
 
   enum LoadAlgorithmState {
     // No load algorithm instance is waiting for a source to be added to the
@@ -1288,7 +1305,7 @@ protected:
   bool mIsEncrypted;
 
   // True if the media's channel's download has been suspended.
-  bool mDownloadSuspendedByCache;
+  Watchable<bool> mDownloadSuspendedByCache;
 
   // Audio Channel.
   AudioChannel mAudioChannel;

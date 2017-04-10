@@ -196,6 +196,7 @@ destroying the MediaDecoder object.
 #include "mozilla/ReentrantMonitor.h"
 #include "MediaStreamGraph.h"
 #include "AbstractMediaDecoder.h"
+#include "StateWatching.h"
 #include "necko-config.h"
 #include "TimeUnits.h"
 
@@ -1022,6 +1023,8 @@ public:
     GetFrameStatistics().NotifyDecodedFrames(aParsed, aDecoded, aDropped);
   }
 
+  WatchTarget& ReadyStateWatchTarget() { return *mReadyStateWatchTarget; }
+
 protected:
   virtual ~MediaDecoder();
   void SetStateMachineParameters();
@@ -1036,6 +1039,8 @@ protected:
 
   // Return true if the decoder has reached the end of playback
   bool IsEnded() const;
+
+  WatcherHolder mReadyStateWatchTarget;
 
   /******
    * The following members should be accessed with the decoder lock held.
@@ -1117,7 +1122,7 @@ protected:
   // OR on the main thread.
   // Any change to the state on the main thread must call NotifyAll on the
   // monitor so the decode thread can wake up.
-  PlayState mPlayState;
+  Watchable<PlayState> mPlayState;
 
   // The state to change to after a seek or load operation.
   // This can only be changed on the main thread while holding the decoder

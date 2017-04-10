@@ -619,9 +619,14 @@ MediaDecoder::MediaDecoder() :
   }
   EnsureStateWatchingLog();
 #endif
+
+  mNextFrameStatus.Init(AbstractThread::MainThread(), MediaDecoderOwner::NEXT_FRAME_UNINITIALIZED,
+                        "MediaDecoder::mNextFrameStatus (Mirror)");
+
   mAudioChannel = AudioChannelService::GetDefaultAudioChannel();
 
   mReadyStateWatchTarget->Watch(mPlayState);
+  mReadyStateWatchTarget->Watch(mNextFrameStatus);
 }
 
 bool MediaDecoder::Init(MediaDecoderOwner* aOwner)
@@ -1045,7 +1050,7 @@ void MediaDecoder::PlaybackEnded()
   ChangeState(PLAY_STATE_ENDED);
   InvalidateWithFlags(VideoFrameContainer::INVALIDATE_FORCE);
 
-  UpdateReadyStateForData();
+  mReadyStateWatchTarget->Notify(); // - Still necessary?
   if (mOwner)  {
     mOwner->PlaybackEnded();
   }
@@ -1207,17 +1212,6 @@ void MediaDecoder::NotifyBytesConsumed(int64_t aBytes, int64_t aOffset)
   mDecoderPosition = aOffset + aBytes;
 }
 
-void MediaDecoder::UpdateReadyStateForData()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  if (!mOwner || mShuttingDown || !mDecoderStateMachine) {
-    return;
-  }
-  MediaDecoderOwner::NextFrameStatus frameStatus =
-    mDecoderStateMachine->GetNextFrameStatus();
-  mOwner->UpdateReadyStateForData(frameStatus);
-}
-
 void MediaDecoder::OnSeekResolved(SeekResolveValue aVal)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -1250,7 +1244,7 @@ void MediaDecoder::OnSeekResolved(SeekResolveValue aVal)
   PlaybackPositionChanged(aVal.mEventVisibility);
 
   if (mOwner) {
-    UpdateReadyStateForData();
+    mReadyStateWatchTarget->Notify(); // - Still necessary?
     if (!seekWasAborted && (aVal.mEventVisibility != MediaDecoderEventVisibility::Suppressed)) {
       mOwner->SeekCompleted();
       if (fireEnded) {
@@ -1267,7 +1261,7 @@ void MediaDecoder::SeekingStarted(MediaDecoderEventVisibility aEventVisibility)
     return;
 
   if (mOwner) {
-    UpdateReadyStateForData();
+    mReadyStateWatchTarget->Notify(); // - Still necessary?
     if (aEventVisibility != MediaDecoderEventVisibility::Suppressed) {
       mOwner->SeekStarted();
     }
@@ -1593,6 +1587,12 @@ MediaDecoder::SetStateMachine(MediaDecoderStateMachine* aStateMachine)
 {
   MOZ_ASSERT_IF(aStateMachine, !mDecoderStateMachine);
   mDecoderStateMachine = aStateMachine;
+
+  if (mDecoderStateMachine) {
+    mNextFrameStatus.Connect(mDecoderStateMachine->CanonicalNextFrameStatus());
+  } else {
+    mNextFrameStatus.DisconnectIfConnected();
+  }
 }
 
 ReentrantMonitor& MediaDecoder::GetReentrantMonitor() {
@@ -1643,7 +1643,7 @@ void MediaDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int6
   if (mDecoderStateMachine) {
     mDecoderStateMachine->NotifyDataArrived(aBuffer, aLength, aOffset);
   }
-  UpdateReadyStateForData();
+  mReadyStateWatchTarget->Notify(); // - Still necessary?
 }
 
 // Provide access to the state machine object

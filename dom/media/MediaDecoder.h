@@ -194,8 +194,10 @@ destroying the MediaDecoder object.
 #include "mozilla/dom/AudioChannelBinding.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/ReentrantMonitor.h"
+#include "MediaDecoderOwner.h"
 #include "MediaStreamGraph.h"
 #include "AbstractMediaDecoder.h"
+#include "StateMirroring.h"
 #include "StateWatching.h"
 #include "necko-config.h"
 #include "TimeUnits.h"
@@ -210,7 +212,6 @@ class Image;
 
 class VideoFrameContainer;
 class MediaDecoderStateMachine;
-class MediaDecoderOwner;
 
 // GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
 // GetTickCount() and conflicts with MediaDecoder::GetCurrentTime implementation.
@@ -815,10 +816,6 @@ public:
   // This must be called on the main thread only.
   virtual void PlaybackPositionChanged(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
 
-  // Calls mElement->UpdateReadyStateForData, telling it whether we have
-  // data for the next frame and if we're buffering. Main thread only.
-  virtual void UpdateReadyStateForData();
-
   // Find the end of the cached data starting at the current decoder
   // position.
   int64_t GetDownloadPosition();
@@ -1025,6 +1022,8 @@ public:
 
   WatchTarget& ReadyStateWatchTarget() { return *mReadyStateWatchTarget; }
 
+  virtual MediaDecoderOwner::NextFrameStatus NextFrameStatus() { return mNextFrameStatus; }
+
 protected:
   virtual ~MediaDecoder();
   void SetStateMachineParameters();
@@ -1041,6 +1040,9 @@ protected:
   bool IsEnded() const;
 
   WatcherHolder mReadyStateWatchTarget;
+
+  // NextFrameStatus, mirrored from the state machine.
+  Mirror<MediaDecoderOwner::NextFrameStatus>::Holder mNextFrameStatus;
 
   /******
    * The following members should be accessed with the decoder lock held.

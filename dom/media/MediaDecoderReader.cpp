@@ -34,12 +34,21 @@ extern PRLogModuleInfo* gMediaDecoderLog;
   DECODER_WARN_HELPER(0, (nsPrintfCString("Decoder=%p " x, mDecoder, ##__VA_ARGS__).get()))
 
 PRLogModuleInfo* gMediaPromiseLog;
+PRLogModuleInfo* gStateWatchingLog;
 
 void
 EnsureMediaPromiseLog()
 {
   if (!gMediaPromiseLog) {
     gMediaPromiseLog = PR_NewLogModule("MediaPromise");
+  }
+}
+
+void
+EnsureStateWatchingLog()
+{
+  if (!gStateWatchingLog) {
+    gStateWatchingLog = PR_NewLogModule("StateWatching");
   }
 }
 
@@ -87,6 +96,7 @@ MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
 {
   MOZ_COUNT_CTOR(MediaDecoderReader);
   EnsureMediaPromiseLog();
+  EnsureStateWatchingLog();
 }
 
 MediaDecoderReader::~MediaDecoderReader()

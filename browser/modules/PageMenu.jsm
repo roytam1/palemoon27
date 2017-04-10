@@ -13,13 +13,11 @@ PageMenu.prototype = {
 
   _popup: null,
 
-  // Only one of builder or browser will end up getting set.
+  // Only one of builder will end up getting set.
   _builder: null,
-  _browser: null,
 
   // Given a target node, get the context menu for it or its ancestor.
   getContextMenu: function(aTarget) {
-    let pageMenu = null;
     let target = aTarget;
     while (target) {
       let contextMenu = target.contextMenu;
@@ -85,7 +83,6 @@ PageMenu.prototype = {
       insertionPoint.appendChild(fragment);
     }
 
-    this._browser = aBrowser;
     this._popup = aPopup;
 
     this._popup.addEventListener("command", this);
@@ -161,10 +158,6 @@ PageMenu.prototype = {
       if (this._builder) {
         this._builder.click(target.getAttribute(this.GENERATEDITEMID_ATTR));
       }
-      else if (this._browser) {
-        this._browser.messageManager.sendAsyncMessage("ContextMenu:DoCustomCommand",
-          target.getAttribute(this.GENERATEDITEMID_ATTR));
-      }
     } else if (type == "popuphidden" && this._popup == target) {
       this.removeGeneratedContent(this._popup);
 
@@ -173,7 +166,6 @@ PageMenu.prototype = {
 
       this._popup = null;
       this._builder = null;
-      this._browser = null;
     }
   },
 

@@ -701,8 +701,8 @@ nsresult MediaDecoder::Load(nsIStreamListener** aStreamListener,
   nsresult rv = OpenResource(aStreamListener);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mDecoderStateMachine = CreateStateMachine();
-  NS_ENSURE_TRUE(mDecoderStateMachine, NS_ERROR_FAILURE);
+  SetStateMachine(CreateStateMachine());
+  NS_ENSURE_TRUE(GetStateMachine(), NS_ERROR_FAILURE);
 
   return InitializeStateMachine(aCloneDonor);
 }
@@ -1585,6 +1585,13 @@ bool MediaDecoder::OnDecodeTaskQueue() const {
   return mDecoderStateMachine ? mDecoderStateMachine->OnDecodeTaskQueue() : false;
 }
 
+void
+MediaDecoder::SetStateMachine(MediaDecoderStateMachine* aStateMachine)
+{
+  MOZ_ASSERT_IF(aStateMachine, !mDecoderStateMachine);
+  mDecoderStateMachine = aStateMachine;
+}
+
 ReentrantMonitor& MediaDecoder::GetReentrantMonitor() {
   return mReentrantMonitor;
 }
@@ -1659,7 +1666,7 @@ bool MediaDecoder::IsShutdown() const {
 
 // Drop reference to state machine.  Only called during shutdown dance.
 void MediaDecoder::BreakCycles() {
-  mDecoderStateMachine = nullptr;
+  SetStateMachine(nullptr);
 }
 
 MediaDecoderOwner* MediaDecoder::GetMediaOwner() const

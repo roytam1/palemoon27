@@ -108,16 +108,16 @@ MediaOmxCommonDecoder::PauseStateMachine()
     return;
   }
 
-  if (!mDecoderStateMachine) {
+  if (!GetStateMachine()) {
     return;
   }
   // enter dormant state
   RefPtr<nsRunnable> event =
     NS_NewRunnableMethodWithArg<bool>(
-      mDecoderStateMachine,
+      GetStateMachine(),
       &MediaDecoderStateMachine::SetDormant,
       true);
-  mDecoderStateMachine->TaskQueue()->Dispatch(event);
+  GetStateMachine()->TaskQueue()->Dispatch(event);
 }
 
 void
@@ -132,7 +132,7 @@ MediaOmxCommonDecoder::ResumeStateMachine()
     return;
   }
 
-  if (!mDecoderStateMachine) {
+  if (!GetStateMachine()) {
     return;
   }
 
@@ -148,10 +148,10 @@ MediaOmxCommonDecoder::ResumeStateMachine()
   // exit dormant state
   RefPtr<nsRunnable> event =
     NS_NewRunnableMethodWithArg<bool>(
-      mDecoderStateMachine,
+      GetStateMachine(),
       &MediaDecoderStateMachine::SetDormant,
       false);
-  mDecoderStateMachine->TaskQueue()->Dispatch(event);
+  GetStateMachine()->TaskQueue()->Dispatch(event);
 }
 
 void

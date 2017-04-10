@@ -28,6 +28,7 @@ nsBaseAppShell::nsBaseAppShell()
   , mSwitchTime(0)
   , mLastNativeEventTime(0)
   , mEventloopNestingState(eEventloopNone)
+  , mRunningSyncSections(false)
   , mRunning(false)
   , mExiting(false)
   , mBlockNativeEvent(false)
@@ -341,6 +342,11 @@ nsBaseAppShell::RunSyncSectionsInternal(bool aStable,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mSyncSections.IsEmpty(), "Nothing to do!");
 
+  // We don't support re-entering sync sections. This effectively means that
+  // sync sections may not spin the event loop.
+  MOZ_RELEASE_ASSERT(!mRunningSyncSections);
+  mRunningSyncSections = true;
+
   // We've got synchronous sections. Run all of them that are are awaiting a
   // stable state if aStable is true (i.e. we really are in a stable state).
   // Also run the synchronous sections that are simply waiting for the right
@@ -368,6 +374,7 @@ nsBaseAppShell::RunSyncSectionsInternal(bool aStable,
   }
 
   mSyncSections.SwapElements(pendingSyncSections);
+  mRunningSyncSections = false;
 }
 
 void

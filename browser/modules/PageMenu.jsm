@@ -12,8 +12,6 @@ PageMenu.prototype = {
   GENERATEDITEMID_ATTR: "generateditemid",
 
   _popup: null,
-
-  // Only one of builder will end up getting set.
   _builder: null,
 
   // Given a target node, get the context menu for it or its ancestor.

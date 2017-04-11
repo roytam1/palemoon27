@@ -25,38 +25,6 @@ extern PRLogModuleInfo* gMediaDecoderLog;
 #define SINK_LOG_V(msg, ...)
 #endif
 
-AudioSink::OnAudioEndTimeUpdateTask::OnAudioEndTimeUpdateTask(
-                                     MediaDecoderStateMachine* aStateMachine)
-  : mMutex("OnAudioEndTimeUpdateTask")
-  , mEndTime(0)
-  , mStateMachine(aStateMachine)
-{
-}
-
-NS_IMETHODIMP
-AudioSink::OnAudioEndTimeUpdateTask::Run() {
-  MutexAutoLock lock(mMutex);
-  if (mStateMachine) {
-    mStateMachine->OnAudioEndTimeUpdate(mEndTime);
-  }
-  return NS_OK;
-}
-
-void
-AudioSink::OnAudioEndTimeUpdateTask::Dispatch(int64_t aEndTime) {
-  MutexAutoLock lock(mMutex);
-  if (mStateMachine) {
-    mEndTime = aEndTime;
-    mStateMachine->TaskQueue()->Dispatch(this);
-  }
-}
-
-void
-AudioSink::OnAudioEndTimeUpdateTask::Cancel() {
-  MutexAutoLock lock(mMutex);
-  mStateMachine = nullptr;
-}
-
 // The amount of audio frames that is used to fuzz rounding errors.
 static const int64_t AUDIO_FUZZ_FRAMES = 1;
 
@@ -78,7 +46,6 @@ AudioSink::AudioSink(MediaDecoderStateMachine* aStateMachine,
   , mPlaying(true)
 {
   NS_ASSERTION(mStartTime != -1, "Should have audio start time by now");
-  mOnAudioEndTimeUpdateTask = new OnAudioEndTimeUpdateTask(aStateMachine);
 }
 
 nsresult
@@ -141,7 +108,6 @@ AudioSink::PrepareToShutdown()
 void
 AudioSink::Shutdown()
 {
-  mOnAudioEndTimeUpdateTask->Cancel();
   mThread->Shutdown();
   mThread = nullptr;
   MOZ_ASSERT(!mAudioStream);
@@ -216,8 +182,7 @@ AudioSink::AudioLoop()
     CheckedInt64 sampleTime = UsecsToFrames(AudioQueue().PeekFront()->mTime, mInfo.mRate);
 
     // Calculate the number of frames that have been pushed onto the audio hardware.
-    CheckedInt64 playedFrames = UsecsToFrames(mStartTime, mInfo.mRate) +
-                                static_cast<int64_t>(mWritten);
+    CheckedInt64 playedFrames = UsecsToFrames(mStartTime, mInfo.mRate) + mWritten;
 
     CheckedInt64 missingFrames = sampleTime - playedFrames;
     if (!missingFrames.isValid() || !sampleTime.isValid()) {
@@ -237,7 +202,7 @@ AudioSink::AudioLoop()
     }
     int64_t endTime = GetEndTime();
     if (endTime != -1) {
-      mOnAudioEndTimeUpdateTask->Dispatch(endTime);
+      mStateMachine->OnAudioEndTimeUpdate(endTime);
     }
   }
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
@@ -291,10 +256,7 @@ AudioSink::Cleanup()
   AssertCurrentThreadInMonitor();
   nsRefPtr<AudioStream> audioStream;
   audioStream.swap(mAudioStream);
-  // Suppress the callback when the stop is requested by MediaDecoderStateMachine.
-  if (!mStopAudioThread) {
-    mStateMachine->DispatchOnAudioSinkComplete();
-  }
+  mStateMachine->OnAudioSinkComplete();
 
   ReentrantMonitorAutoExit exit(GetReentrantMonitor());
   audioStream->Shutdown();
@@ -378,7 +340,7 @@ AudioSink::PlayFromAudioQueue()
   StartAudioStreamPlaybackIfNeeded();
 
   if (audio->mOffset != -1) {
-    mStateMachine->DispatchOnPlaybackOffsetUpdate(audio->mOffset);
+    mStateMachine->OnPlaybackOffsetUpdate(audio->mOffset);
   }
   return audio->mFrames;
 }

@@ -9,7 +9,6 @@
 #include "nsISupportsImpl.h"
 #include "MediaDecoderReader.h"
 #include "mozilla/dom/AudioChannelBinding.h"
-#include "mozilla/Atomics.h"
 
 namespace mozilla {
 
@@ -119,7 +118,7 @@ private:
   int64_t mStartTime;
 
   // PCM frames written to the stream so far.
-  Atomic<int64_t> mWritten;
+  int64_t mWritten;
 
   // Keep the last good position returned from the audio stream. Used to ensure
   // position returned by GetPosition() is mono-increasing in spite of audio
@@ -141,23 +140,6 @@ private:
   bool mSetPreservesPitch;
 
   bool mPlaying;
-
-  class OnAudioEndTimeUpdateTask : public nsRunnable {
-  public:
-    explicit OnAudioEndTimeUpdateTask(MediaDecoderStateMachine* aStateMachine);
-
-    NS_IMETHOD Run() override;
-
-    void Dispatch(int64_t aEndTime);
-    void Cancel();
-
-  private:
-    Mutex mMutex;
-    int64_t mEndTime;
-    nsRefPtr<MediaDecoderStateMachine> mStateMachine;
-  };
-
-  nsRefPtr<OnAudioEndTimeUpdateTask> mOnAudioEndTimeUpdateTask;
 };
 
 } // namespace mozilla

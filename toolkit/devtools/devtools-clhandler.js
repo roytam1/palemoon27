@@ -11,23 +11,28 @@ const kDebuggerPrefs = [
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Services", "resource://gre/modules/Services.jsm");
 
-function devtoolsCommandlineHandler() {
-}
+function devtoolsCommandlineHandler() {}
+
 devtoolsCommandlineHandler.prototype = {
   handle: function(cmdLine) {
-    let consoleFlag = cmdLine.handleFlag("jsconsole", false);
+    let consoleFlag = cmdLine.handleFlag("browserconsole", false);
     let debuggerFlag = cmdLine.handleFlag("jsdebugger", false);
+    let devtoolsFlag = cmdLine.handleFlag("devtools", false);
+
     if (consoleFlag) {
       this.handleConsoleFlag(cmdLine);
     }
     if (debuggerFlag) {
       this.handleDebuggerFlag(cmdLine);
     }
+    if (devtoolsFlag) {
+      this.handleDevToolsFlag();
+    }
     let debuggerServerFlag;
     try {
       debuggerServerFlag =
         cmdLine.handleFlagWithParam("start-debugger-server", false);
-    } catch(e) {
+    } catch (e) {
       // We get an error if the option is given but not followed by a value.
       // By catching and trying again, the value is effectively optional.
       debuggerServerFlag = cmdLine.handleFlag("start-debugger-server", false);
@@ -40,14 +45,17 @@ devtoolsCommandlineHandler.prototype = {
   handleConsoleFlag: function(cmdLine) {
     let window = Services.wm.getMostRecentWindow("devtools:webconsole");
     if (!window) {
-      let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+      let devtools = Cu.import(
+          "resource://gre/modules/devtools/Loader.jsm", {}).devtools;
       // Load the browser devtools main module as the loader's main module.
       Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
       let hudservice = devtools.require("devtools/webconsole/hudservice");
-      let console = Cu.import("resource://gre/modules/devtools/Console.jsm", {}).console;
+      let console = Cu.import(
+          "resource://gre/modules/devtools/Console.jsm", {}).console;
       hudservice.toggleBrowserConsole().then(null, console.error);
     } else {
-      window.focus(); // the Browser Console was already open
+      // The Browser Console was already open.
+      window.focus();
     }
 
     if (cmdLine.state == Ci.nsICommandLine.STATE_REMOTE_AUTO) {
@@ -55,17 +63,33 @@ devtoolsCommandlineHandler.prototype = {
     }
   },
 
+  // Open the toolbox on the selected tab once the browser starts up.
+  handleDevToolsFlag: function() {
+    Services.obs.addObserver(function onStartup(window) {
+      Services.obs.removeObserver(onStartup,
+                                  "browser-delayed-startup-finished");
+      const {gDevTools} = Cu.import(
+          "resource://gre/modules/devtools/gDevTools.jsm", {});
+      const {devtools} = Cu.import(
+          "resource://gre/modules/devtools/Loader.jsm", {});
+      let target = devtools.TargetFactory.forTab(window.gBrowser.selectedTab);
+      gDevTools.showToolbox(target);
+    }, "browser-delayed-startup-finished", false);
+  },
+
   _isRemoteDebuggingEnabled() {
     let remoteDebuggingEnabled = false;
     try {
-      remoteDebuggingEnabled = kDebuggerPrefs.every((pref) => Services.prefs.getBoolPref(pref));
-    } catch (ex) {
-      Cu.reportError(ex);
+      remoteDebuggingEnabled = kDebuggerPrefs.every(pref => {
+        return Services.prefs.getBoolPref(pref);
+      });
+    } catch (e) {
+      Cu.reportError(e);
       return false;
     }
     if (!remoteDebuggingEnabled) {
-      let errorMsg = "Could not run chrome debugger! You need the following prefs " +
-                     "to be set to true: " + kDebuggerPrefs.join(", ");
+      let errorMsg = "Could not run chrome debugger! You need the following " +
+                     "prefs to be set to true: " + kDebuggerPrefs.join(", ");
       Cu.reportError(errorMsg);
       // Dump as well, as we're doing this from a commandline, make sure people
       // don't miss it:
@@ -115,8 +139,11 @@ devtoolsCommandlineHandler.prototype = {
       listener.portOrPath = portOrPath;
       listener.open();
       dump("Started debugger server on " + portOrPath + "\n");
-    } catch(e) {
-      dump("Unable to start debugger server on " + portOrPath + ": " + e);
+    } catch (e) {
+      let _error = "Unable to start debugger server on " + portOrPath + ": "
+          + e;
+      Cu.reportError(_error);
+      dump(_error + "\n");
     }
 
     if (cmdLine.state == Ci.nsICommandLine.STATE_REMOTE_AUTO) {
@@ -124,14 +151,15 @@ devtoolsCommandlineHandler.prototype = {
     }
   },
 
-  helpInfo : "  --jsconsole             Open the Browser Console.\n" +
-             "  --jsdebugger            Open the Browser Toolbox.\n" +
-             "  --start-debugger-server [port|path] " +
-             "Start the debugger server on a TCP port or " +
-             "Unix domain socket path.  Defaults to TCP port 6000.\n",
+  helpInfo : "  -browserconsole                     Open the Browser Console.\n" +
+             "  -jsdebugger                         Open the Browser Toolbox.\n" +
+             "  -devtools                           Open DevTools on initial load.\n" +
+             "  -start-debugger-server [port|path]  Start the debugger server on a TCP port or Unix domain socket path.\n" +
+             "                                      Defaults to TCP port 6000.\n",
 
   classID: Components.ID("{9e9a9283-0ce9-4e4a-8f1c-ba129a032c32}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsICommandLineHandler]),
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([devtoolsCommandlineHandler]);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory(
+    [devtoolsCommandlineHandler]);

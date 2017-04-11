@@ -518,16 +518,16 @@ nsBrowserContentHandler.prototype = {
 #endif
   },
 
-  helpInfo : "  -browser                  Open a browser window.\n" +
-             "  -new-window         <url> Open <url> in a new window.\n" +
-             "  -new-tab            <url> Open <url> in a new tab.\n" +
-             "  -private-window     <url> Open <url> in a new private window.\n" +
+  helpInfo : "  -browser                            Open a browser window.\n" +
+             "  -new-window <url>                   Open <url> in a new window.\n" +
+             "  -new-tab <url>                      Open <url> in a new tab.\n" +
+             "  -private-window <url>               Open <url> in a new private window.\n" +
 #ifdef XP_WIN
-             "  -preferences              Open Options dialog.\n" +
+             "  -preferences                        Open Options dialog.\n" +
 #else
-             "  -preferences              Open Preferences dialog.\n" +
+             "  -preferences                        Open Preferences dialog.\n" +
 #endif
-             "  -search            <term> Search <term> with your default search engine.\n",
+             "  -search <term>                      Search <term> with your default search engine.\n",
 
   /* nsIBrowserHandler */
 

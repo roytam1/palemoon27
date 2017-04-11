@@ -22,7 +22,7 @@ nsSetDefaultBrowser.prototype = {
     }
   },
 
-  helpInfo: "  -setDefaultBrowser        Set this app as the default browser.\n",
+  helpInfo: "  -setDefaultBrowser                  Set this app as the default browser.\n",
 
   classID: Components.ID("{F57899D0-4E2C-4ac6-9E29-50C736103B0C}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsICommandLineHandler]),

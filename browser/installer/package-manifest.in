@@ -414,6 +414,10 @@
 @RESPATH@/components/crypto-SDR.js
 @RESPATH@/components/jsconsole-clhandler.manifest
 @RESPATH@/components/jsconsole-clhandler.js
+#ifdef MOZ_DEVTOOLS
+@RESPATH@/components/devtools-clhandler.manifest
+@RESPATH@/components/devtools-clhandler.js
+#endif
 @RESPATH@/components/webvtt.xpt
 @RESPATH@/components/WebVTT.manifest
 @RESPATH@/components/WebVTTParserWrapper.js

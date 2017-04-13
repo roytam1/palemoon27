@@ -4876,6 +4876,9 @@ pref("gfx.vsync.compositor", false);
 pref("gfx.vsync.refreshdriver", false);
 #endif
 
+// Enable <details> and <summary> tags.
+pref("dom.details_element.enabled", true);
+
 // Secure Element API
 #ifdef MOZ_SECUREELEMENT
 pref("dom.secureelement.enabled", false);

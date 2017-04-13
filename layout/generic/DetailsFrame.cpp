@@ -53,10 +53,7 @@ DetailsFrame::SetInitialChildList(ChildListID aListID, nsFrameList& aChildList)
     if (isOpen) {
       // If details is open, the first summary needs to be rendered as if it is
       // the first child.
-      // nsFrameList child;
-      // for (nsFrameList& child = aChildList; child; child = child->GetNextSibling()) {
       for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
-        // nsIFrame* child = e.get();
         auto* realFrame = nsPlaceholderFrame::GetRealFrameFor(e.get());
         auto* cif = realFrame->GetContentInsertionFrame();
         if (cif && cif->GetType() == nsGkAtoms::summaryFrame) {

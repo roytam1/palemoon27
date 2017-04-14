@@ -5964,6 +5964,10 @@ function BrowserOpenAddonsMgr(aView) {
   }
 }
 
+function BrowserOpenPermissionsMgr() {
+  switchToTabHavingURI("about:permissions", true);
+}
+
 function AddKeywordForSearchField() {
   var node = document.popupNode;
 

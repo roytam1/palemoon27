@@ -4,6 +4,13 @@
 
 @import url("chrome://global/skin/inContentUI.css");
 
+/* header */
+
+#permissions-pagetitle {
+  font-size: 200%;
+  font-weight: bold;
+  padding-bottom: 0.5em;
+}
 
 /* sites box */
 

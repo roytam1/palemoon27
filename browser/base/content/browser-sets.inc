@@ -104,6 +104,7 @@
     <command id="Tools:Eyedropper" oncommand="openEyedropper();"/>
 #endif
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
+    <command id="Tools:Permissions" oncommand="BrowserOpenPermissionsMgr();"/>
     <command id="Tools:ErrorConsole" oncommand="toJavaScriptConsole()" disabled="true" hidden="true"/>
 #ifdef MOZ_DEVTOOLS
     <command id="Tools:DevToolsConnect" oncommand="gDevToolsBrowser.openConnectScreen(gBrowser)" disabled="true" hidden="true"/>

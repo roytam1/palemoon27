@@ -196,6 +196,8 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY addons.label                 "Add-ons">
 <!ENTITY addons.accesskey             "A">
 <!ENTITY addons.commandkey            "A">
+<!ENTITY permissions.label            "Permissions">
+<!ENTITY permissions.accesskey        "P">
 
 <!ENTITY webDeveloperMenu.label       "Web Developer">
 <!ENTITY webDeveloperMenu.accesskey   "W">

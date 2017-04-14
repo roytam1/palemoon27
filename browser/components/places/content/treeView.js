@@ -168,14 +168,13 @@ PlacesTreeView.prototype = {
 
     let row = -1;
     let useNodeIndex = typeof(aNodeIndex) == "number";
-    if (parent == this._rootNode)
+    if (parent == this._rootNode) {
       row = useNodeIndex ? aNodeIndex : this._rootNode.getChildIndex(aNode);
-    else if (useNodeIndex && typeof(aParentRow) == "number") {
+    } else if (useNodeIndex && typeof(aParentRow) == "number") {
       // If we have both the row of the parent node, and the node's index, we
       // can avoid searching the rows array if the parent is a plain container.
       row = aParentRow + aNodeIndex + 1;
-    }
-    else {
+    } else {
       // Look for the node in the nodes array.  Start the search at the parent
       // row.  If the parent row isn't passed, we'll pass undefined to indexOf,
       // which is fine.
@@ -862,8 +861,7 @@ PlacesTreeView.prototype = {
           if (Components.isSuccessCode(aStatus)) {
             this._controller.cacheLivemarkInfo(aNode, aLivemark);
             let properties = this._cellProperties.get(aNode);
-            this._cellProperties.set(aNode, properties += " livemark ");
-
+            this._cellProperties.set(aNode, properties += " livemark");
             // The livemark attribute is set as a cell property on the title cell.
             this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
           }
@@ -1186,7 +1184,8 @@ PlacesTreeView.prototype = {
               function (aStatus, aLivemark) {
                 if (Components.isSuccessCode(aStatus)) {
                   this._controller.cacheLivemarkInfo(node, aLivemark);
-                  properties += " livemark";
+                  let props = this._cellProperties.get(node);
+                  this._cellProperties.set(node, props += " livemark");
                   // The livemark attribute is set as a cell property on the title cell.
                   this._invalidateCellValue(node, this.COLUMN_TYPE_TITLE);
                 }

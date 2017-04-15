@@ -306,6 +306,7 @@ toolkit.jar:
         skin/classic/global/icons/Question.png                   (icons/Question.png)
         skin/classic/global/icons/question-16.png                (icons/question-16.png)
         skin/classic/global/icons/question-24.png                (icons/question-24.png)
+        skin/classic/global/icons/question-32.png                (icons/question-32.png)
         skin/classic/global/icons/question-48.png                (icons/question-48.png)
         skin/classic/global/icons/question-64.png                (icons/question-64.png)
         skin/classic/global/icons/resizer.png                    (icons/resizer.png)

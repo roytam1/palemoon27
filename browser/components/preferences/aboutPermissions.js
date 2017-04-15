@@ -531,6 +531,9 @@ let AboutPermissions = {
     let XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     for (let plugin of tags) {
       for (let mimeType of plugin.getMimeTypes()) {
+        if (mimeType == "application/x-shockwave-flash" && plugin.name != "Shockwave Flash") {
+          continue;
+        }
         let permString = pluginHost.getPermissionStringForType(mimeType);
         if (!permissionMap.has(permString)) {
           let permissionEntry = document.createElementNS(XUL_NS, "box");
@@ -1061,6 +1064,9 @@ let AboutPermissions = {
         AddonManager.getAddonsByTypes(["plugin"], function(addons) {
           for (let addon of addons) {
             for (let type of addon.pluginMimeTypes) {
+              if (type.type == "application/x-shockwave-flash" && addon.name != "Shockwave Flash") {
+                continue;
+              }
               if (type.type.toLowerCase() == permissionMimeType.toLowerCase()) {
                 addon.userDisabled = addonValue;
                 return;

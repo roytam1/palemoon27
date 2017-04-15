@@ -196,7 +196,8 @@ var PluginProvider = {
       if (!(tag.description in seenPlugins[tag.name])) {
         let plugin = {
           id: getIDHashForString(tag.name + tag.description),
-          name: tag.name,
+          // XXX Flash name substitution like in browser-plugins.js, aboutPermissions.js, permissions.js
+          name: tag.name == "Shockwave Flash" ? "Adobe Flash" : tag.name,
           description: tag.description,
           tags: [tag]
         };

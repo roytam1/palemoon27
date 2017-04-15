@@ -6387,9 +6387,6 @@ var gIdentityHandler = {
    * Return the eTLD+1 version of the current hostname
    */
   getEffectiveHost : function() {
-    if (!this._IDNService)
-      this._IDNService = Cc["@mozilla.org/network/idn-service;1"]
-                         .getService(Ci.nsIIDNService);
     try {
       let baseDomain =
         Services.eTLD.getBaseDomainFromHost(this._lastLocation.hostname);
@@ -6434,17 +6431,31 @@ var gIdentityHandler = {
     let icon_country_label = "";
     let icon_labels_dir = "ltr";
 
+    if (!this._IDNService)
+      this._IDNService = Cc["@mozilla.org/network/idn-service;1"]
+                         .getService(Ci.nsIIDNService);
+    let punyID = gPrefService.getIntPref("browser.identity.display_punycode", 1);
+
     switch (newMode) {
     case this.IDENTITY_MODE_DOMAIN_VERIFIED: {
       let iData = this.getIdentityData();
+      
+      let label_display = "";
 
       //Pale Moon: honor browser.identity.ssl_domain_display!
       switch (gPrefService.getIntPref("browser.identity.ssl_domain_display")) {
         case 2 : // Show full domain
-          icon_label = this._lastLocation.hostname;
+          label_display = this._lastLocation.hostname;
           break;
         case 1 : // Show eTLD.
-          icon_label = this.getEffectiveHost();
+          label_display = this.getEffectiveHost();
+      }
+
+      if (punyID >= 1) {
+        // Display punycode version in identity panel
+        icon_label = this._IDNService.convertUTF8toACE(label_display);
+      } else {
+        icon_label = label_display;
       }
 
       // Verifier is either the CA Org, for a normal cert, or a special string
@@ -6488,6 +6499,13 @@ var gIdentityHandler = {
       break;
     default:
       tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
+      if (punyID == 2) {
+        // Check for IDN and display if so...
+        let rawHost = this._IDNService.convertUTF8toACE(this._lastLocation.hostname);
+        if (this._IDNService.isACE(rawHost)) {
+          icon_label = rawHost;
+        }
+      }
     }
 
     // Push the appropriate strings out to the UI

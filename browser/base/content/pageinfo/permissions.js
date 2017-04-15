@@ -338,6 +338,9 @@ function initPluginsRow() {
       continue;
     }
     for (let mimeType of plugin.getMimeTypes()) {
+      if (mimeType == "application/x-shockwave-flash" && plugin.name != "Shockwave Flash") {
+        continue;
+      }
       let permString = pluginHost.getPermissionStringForType(mimeType);
       if (!permissionMap.has(permString)) {
         var name = makeNicePluginName(plugin.name) + " " + plugin.version;

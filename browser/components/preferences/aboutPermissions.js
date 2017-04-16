@@ -1051,13 +1051,13 @@ let AboutPermissions = {
         _elementDefault.setAttribute("value", "*");
       }
     } else {
-      let _elementVisibility;
+      let _elementDefaultVisibility;
       if (!this._selectedSite || (permissionValue == permissionDefault)) {
-        _elementVisibility = false;
+        _elementDefaultVisibility = false;
       } else {
-        _elementVisibility = true;
+        _elementDefaultVisibility = true;
       }
-      pluginPermissionEntry.setVisibility(_elementVisibility);
+      pluginPermissionEntry.setDefaultVisibility(_elementDefaultVisibility);
     }
 
     permissionMenulist.selectedItem = document.getElementById(aType + "-" + permissionValue);

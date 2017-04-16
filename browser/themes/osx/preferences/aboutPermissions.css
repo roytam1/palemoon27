@@ -123,7 +123,7 @@
 }
 
 .pref-default {
-  margin-left: 1ex;
+  margin-left: 0.5em;
   padding-left: 0;
 }
 
@@ -146,8 +146,8 @@
 }
 
 .plugins-default {
-  margin-left: 1ex;
+  margin-left: 0.5em;
   padding-left: 0;
-  margin-right: 2ex;
+  margin-right: 1em;
   padding-right: 0;
 }

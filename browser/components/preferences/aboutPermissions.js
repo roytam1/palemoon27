@@ -21,9 +21,6 @@ let gPlacesDatabase = Cc["@mozilla.org/browser/nav-history-service;1"].
                       DBConnection.
                       clone(true);
 
-let gTLDService = Cc["@mozilla.org/network/effective-tld-service;1"].
-                  getService(Ci.nsIEffectiveTLDService);
-
 let gSitesStmt = gPlacesDatabase.createAsyncStatement(
                   "SELECT get_unreversed_host(rev_host) AS host " +
                   "FROM moz_places " +
@@ -1158,7 +1155,7 @@ let AboutPermissions = {
   domainFromHost: function(aHost) {
     let domain = aHost;
     try {
-      domain = gTLDService.getBaseDomainFromHost(aHost);
+      domain = Services.eTLD.getBaseDomainFromHost(aHost);
     } catch (e) {
       // getBaseDomainFromHost will fail if the host is an IP address or is empty
     }

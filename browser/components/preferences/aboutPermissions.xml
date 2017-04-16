@@ -53,11 +53,11 @@
         let blockitem = document.getAnonymousElementByAttribute(this, "anonid", "block");
         blockitem.setAttribute("id", permString + "-2");
         let _default = document.getAnonymousElementByAttribute(this, "anonid", "plugins-default");
-        this.setVisibility(false);
+        this.setDefaultVisibility(false);
         _default.setAttribute("value", "*");
       ]]>
       </constructor>
-      <method name="setVisibility">
+      <method name="setDefaultVisibility">
         <parameter name="visibility" />
         <body><![CDATA[
           let _default = document.getAnonymousElementByAttribute(this, "anonid", "plugins-default");

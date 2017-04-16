@@ -21,6 +21,9 @@ let gPlacesDatabase = Cc["@mozilla.org/browser/nav-history-service;1"].
                       DBConnection.
                       clone(true);
 
+let gTLDService = Cc["@mozilla.org/network/effective-tld-service;1"].
+                  getService(Ci.nsIEffectiveTLDService);
+
 let gSitesStmt = gPlacesDatabase.createAsyncStatement(
                   "SELECT get_unreversed_host(rev_host) AS host " +
                   "FROM moz_places " +
@@ -1152,14 +1155,12 @@ let AboutPermissions = {
     }
   },
 
-  domainFromHost: function(aHost, aFirstDot) {
-    let _dot = ".";
+  domainFromHost: function(aHost) {
     let domain = aHost;
-    // 1 = the localhost or something similar
-    if (aHost.split(_dot).length != 1) {
-      let domainParts = aHost.split(_dot);
-      domainParts.shift();
-      domain = (aFirstDot ? _dot : "") + domainParts.join(_dot);
+    try {
+      domain = gTLDService.getBaseDomainFromHost(aHost);
+    } catch (e) {
+      // getBaseDomainFromHost will fail if the host is an IP address or is empty
     }
 
     return domain;
@@ -1207,7 +1208,7 @@ let AboutPermissions = {
     let selectedDomain = "";
     if (this._selectedSite) {
       selectedHost = this._selectedSite.host;
-      selectedDomain = this.domainFromHost(selectedHost, false);
+      selectedDomain = this.domainFromHost(selectedHost);
     }
 
     let win = Services.wm.getMostRecentWindow("Browser:Cookies");

@@ -71,7 +71,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="password"/>
         <vbox>
-          <label class="pref-title" value="&password.label;"/>
+          <hbox>
+            <label class="pref-title" value="&password.label;"/>
+            <label id="password-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox align="center">
             <menulist id="password-menulist"
                       class="pref-menulist"
@@ -100,7 +103,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="image"/>
         <vbox>
-          <label class="pref-title" value="&image.label;"/>
+          <hbox>
+            <label class="pref-title" value="&image.label;"/>
+            <label id="image-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox>
             <menulist id="image-menulist"
                       class="pref-menulist"
@@ -121,7 +127,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="popup"/>
         <vbox>
-          <label class="pref-title" value="&popup.label;"/>
+          <hbox>
+            <label class="pref-title" value="&popup.label;"/>
+            <label id="popup-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox>
             <menulist id="popup-menulist"
                       class="pref-menulist"
@@ -141,7 +150,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="cookie"/>
         <vbox>
-          <label class="pref-title" value="&cookie.label;"/>
+          <hbox>
+            <label class="pref-title" value="&cookie.label;"/>
+            <label id="cookie-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox align="center">
             <menulist id="cookie-menulist"
                       class="pref-menulist"
@@ -178,7 +190,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="desktop-notification"/>
         <vbox>
-          <label class="pref-title" value="&desktop-notification.label;"/>
+          <hbox>
+            <label class="pref-title" value="&desktop-notification.label;"/>
+            <label id="desktop-notification-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox>
             <menulist id="desktop-notification-menulist"
                       class="pref-menulist"
@@ -199,7 +214,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="install"/>
         <vbox>
-          <label class="pref-title" value="&install.label;"/>
+          <hbox>
+            <label class="pref-title" value="&install.label;"/>
+            <label id="install-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox>
             <menulist id="install-menulist"
                       class="pref-menulist"
@@ -219,7 +237,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="geo"/>
         <vbox>
-          <label class="pref-title" value="&geo.label;"/>
+          <hbox>
+            <label class="pref-title" value="&geo.label;"/>
+            <label id="geo-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox>
             <menulist id="geo-menulist"
                       class="pref-menulist"
@@ -240,7 +261,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="indexedDB"/>
         <vbox>
-          <label class="pref-title" value="&indexedDB.label;"/>
+          <hbox>
+            <label class="pref-title" value="&indexedDB.label;"/>
+            <label id="indexedDB-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox>
             <menulist id="indexedDB-menulist"
                       class="pref-menulist"
@@ -271,7 +295,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="fullscreen"/>
         <vbox>
-          <label class="pref-title" value="&fullscreen.label;"/>
+          <hbox>
+            <label class="pref-title" value="&fullscreen.label;"/>
+            <label id="fullscreen-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox align="center">
             <menulist id="fullscreen-menulist"
                       class="pref-menulist"
@@ -292,7 +319,10 @@
             class="pref-item" align="top">
         <image class="pref-icon" type="pointerLock"/>
         <vbox>
-          <label class="pref-title" value="&pointerLock.label;"/>
+          <hbox>
+            <label class="pref-title" value="&pointerLock.label;"/>
+            <label id="pointerLock-default" class="pref-default" value="*"/>
+          </hbox>
           <hbox>
             <menulist id="pointerLock-menulist"
                       class="pref-menulist"

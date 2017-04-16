@@ -115,6 +115,13 @@
   font-size: 125%;
   margin-bottom: 0;
   font-weight: bold;
+  margin-right: 0;
+  padding-right: 0;
+}
+
+.pref-default {
+  margin-left: 1ex;
+  padding-left: 0;
 }
 
 .pref-menulist {
@@ -130,4 +137,13 @@
 .plugins-vulnerable {
   margin-left: 0;
   padding-left: 0;
+  margin-right: 0;
+  padding-right: 0;
+}
+
+.plugins-default {
+  margin-left: 1ex;
+  padding-left: 0;
+  margin-right: 2ex;
+  padding-right: 0;
 }

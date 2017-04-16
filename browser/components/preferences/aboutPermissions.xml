@@ -25,6 +25,7 @@
       <xul:hbox flex="1" align="baseline">
         <xul:label xbl:inherits="value=label" class="plugins-label"/>
         <xul:label xbl:inherits="value=vulnerable" class="plugins-vulnerable"/>
+        <xul:label xbl:inherits="value=default" anonid="plugins-default" class="plugins-default"/>
         <xul:spacer flex="1"/>
         <xul:menulist anonid="plugins-menulist"
                       class="pref-menulist"
@@ -46,13 +47,28 @@
         menulist.setAttribute("mimeType", mimeType);
         menulist.setAttribute("type", permString);
         let askitem = document.getAnonymousElementByAttribute(this, "anonid", "ask");
-        askitem.setAttribute("id", permString + "-0")
+        askitem.setAttribute("id", permString + "-0");
         let allowitem = document.getAnonymousElementByAttribute(this, "anonid", "allow");
-        allowitem.setAttribute("id", permString + "-1")
+        allowitem.setAttribute("id", permString + "-1");
         let blockitem = document.getAnonymousElementByAttribute(this, "anonid", "block");
-        blockitem.setAttribute("id", permString + "-2")
-        ]]>
+        blockitem.setAttribute("id", permString + "-2");
+        let _default = document.getAnonymousElementByAttribute(this, "anonid", "plugins-default");
+        this.setVisibility(false);
+        _default.setAttribute("value", "*");
+      ]]>
       </constructor>
+      <method name="setVisibility">
+        <parameter name="visibility" />
+        <body><![CDATA[
+          let _default = document.getAnonymousElementByAttribute(this, "anonid", "plugins-default");
+          if (visibility) {
+            _default.style.visibility = "visible";
+          } else {
+            _default.style.visibility = "hidden";
+          }
+        ]]>
+        </body>
+      </method>
       <method name="isClickToPlay">
         <body><![CDATA[
           let pluginHost = Components.classes["@mozilla.org/plugin/host;1"]

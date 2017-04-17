@@ -159,6 +159,11 @@ MediaTaskQueue::AwaitShutdownAndIdle()
 nsRefPtr<ShutdownPromise>
 MediaTaskQueue::BeginShutdown()
 {
+  // Make sure there are no tasks for this queue waiting in the caller's tail
+  // dispatcher.
+  MOZ_ASSERT_IF(AbstractThread::GetCurrent(),
+                !AbstractThread::GetCurrent()->TailDispatcher().HasTasksFor(this));
+
   MonitorAutoLock mon(mQueueMonitor);
   mIsShutdown = true;
   nsRefPtr<ShutdownPromise> p = mShutdownPromise.Ensure(__func__);

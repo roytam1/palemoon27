@@ -1047,7 +1047,6 @@ void MediaDecoder::PlaybackEnded()
   ChangeState(PLAY_STATE_ENDED);
   InvalidateWithFlags(VideoFrameContainer::INVALIDATE_FORCE);
 
-  mReadyStateWatchTarget->Notify(); // - Still necessary?
   if (mOwner)  {
     mOwner->PlaybackEnded();
   }
@@ -1241,7 +1240,6 @@ void MediaDecoder::OnSeekResolved(SeekResolveValue aVal)
   PlaybackPositionChanged(aVal.mEventVisibility);
 
   if (mOwner) {
-    mReadyStateWatchTarget->Notify(); // - Still necessary?
     if (!seekWasAborted && (aVal.mEventVisibility != MediaDecoderEventVisibility::Suppressed)) {
       mOwner->SeekCompleted();
       if (fireEnded) {
@@ -1258,7 +1256,6 @@ void MediaDecoder::SeekingStarted(MediaDecoderEventVisibility aEventVisibility)
     return;
 
   if (mOwner) {
-    mReadyStateWatchTarget->Notify(); // - Still necessary?
     if (aEventVisibility != MediaDecoderEventVisibility::Suppressed) {
       mOwner->SeekStarted();
     }
@@ -1640,7 +1637,6 @@ void MediaDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int6
   if (mDecoderStateMachine) {
     mDecoderStateMachine->NotifyDataArrived(aBuffer, aLength, aOffset);
   }
-  mReadyStateWatchTarget->Notify(); // - Still necessary?
 }
 
 // Provide access to the state machine object

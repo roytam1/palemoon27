@@ -203,6 +203,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
                                                    MediaDecoderReader* aReader,
                                                    bool aRealTime) :
   mDecoder(aDecoder),
+  mWatchManager(this),
   mRealTime(aRealTime),
   mDispatchedStateMachine(false),
   mDelayedScheduler(this),
@@ -211,7 +212,6 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mStartTime(-1),
   mEndTime(-1),
   mDurationSet(false),
-  mNextFrameStatusUpdater("MediaDecoderStateMachine::mNextFrameStatusUpdater"),
   mFragmentEndTime(-1),
   mReader(aReader),
   mCurrentFrameTime(0),
@@ -267,11 +267,8 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mNextPlayState.Init(mTaskQueue, MediaDecoder::PLAY_STATE_PAUSED, "MediaDecoderStateMachine::mNextPlayState (Mirror)",
                   aDecoder->CanonicalNextPlayState());
 
-  // Skip the initial notification we get when we Watch the value, since we're
-  // not on the right thread yet.
-  mNextFrameStatusUpdater->Watch(mState);
-  mNextFrameStatusUpdater->Watch(mAudioCompleted);
-  mNextFrameStatusUpdater->AddWeakCallback(this, &MediaDecoderStateMachine::UpdateNextFrameStatus);
+  mWatchManager.Watch(mState, &MediaDecoderStateMachine::UpdateNextFrameStatus);
+  mWatchManager.Watch(mAudioCompleted, &MediaDecoderStateMachine::UpdateNextFrameStatus);
 
   static bool sPrefCacheInit = false;
   if (!sPrefCacheInit) {

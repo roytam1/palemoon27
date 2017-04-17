@@ -206,11 +206,12 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mRealTime(aRealTime),
   mDispatchedStateMachine(false),
   mDelayedScheduler(this),
-  mState(DECODER_STATE_DECODING_NONE),
+  mState(DECODER_STATE_DECODING_NONE, "MediaDecoderStateMachine::mState"),
   mPlayDuration(0),
   mStartTime(-1),
   mEndTime(-1),
   mDurationSet(false),
+  mNextFrameStatusUpdater("MediaDecoderStateMachine::mNextFrameStatusUpdater"),
   mFragmentEndTime(-1),
   mReader(aReader),
   mCurrentFrameTime(0),
@@ -230,7 +231,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mIsVideoPrerolling(false),
   mAudioCaptured(false),
   mPositionChangeQueued(false),
-  mAudioCompleted(false),
+  mAudioCompleted(false, "MediaDecoderStateMachine::mAudioCompleted"),
   mGotDurationFromMetaData(false),
   mDispatchedEventToDecode(false),
   mStopAudioThread(true),
@@ -265,6 +266,12 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
                   aDecoder->CanonicalPlayState());
   mNextPlayState.Init(mTaskQueue, MediaDecoder::PLAY_STATE_PAUSED, "MediaDecoderStateMachine::mNextPlayState (Mirror)",
                   aDecoder->CanonicalNextPlayState());
+
+  // Skip the initial notification we get when we Watch the value, since we're
+  // not on the right thread yet.
+  mNextFrameStatusUpdater->Watch(mState, /* aSkipInitialNotify = */ true);
+  mNextFrameStatusUpdater->Watch(mAudioCompleted, /* aSkipInitialNotify = */ true);
+  mNextFrameStatusUpdater->AddWeakCallback(this, &MediaDecoderStateMachine::UpdateNextFrameStatus);
 
   static bool sPrefCacheInit = false;
   if (!sPrefCacheInit) {
@@ -1326,8 +1333,6 @@ void MediaDecoderStateMachine::SetState(State aState)
               gMachineStateStr[mState], gMachineStateStr[aState]);
 
   mState = aState;
-
-  UpdateNextFrameStatus();
 
   // Clear state-scoped state.
   mSentPlaybackEndedEvent = false;
@@ -3190,7 +3195,7 @@ void MediaDecoderStateMachine::SetStartTime(int64_t aStartTimeUsecs)
 
 void MediaDecoderStateMachine::UpdateNextFrameStatus() {
   MOZ_ASSERT(OnTaskQueue());
-  AssertCurrentThreadInMonitor();
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
   MediaDecoderOwner::NextFrameStatus status;
   const char* statusString;
@@ -3432,7 +3437,6 @@ void MediaDecoderStateMachine::OnAudioSinkComplete()
   }
   ResyncAudioClock();
   mAudioCompleted = true;
-  UpdateNextFrameStatus();
   // Kick the decode thread; it may be sleeping waiting for this to finish.
   mDecoder->GetReentrantMonitor().NotifyAll();
 }

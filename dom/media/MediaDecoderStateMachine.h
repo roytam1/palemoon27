@@ -910,7 +910,7 @@ public:
 
   // The status of our next frame. Mirrored on the main thread and used to
   // compute ready state.
-  Canonical<NextFrameStatus>::Holder mNextFrameStatus;
+  Canonical<NextFrameStatus> mNextFrameStatus;
 public:
   AbstractCanonical<NextFrameStatus>* CanonicalNextFrameStatus() { return &mNextFrameStatus; }
 protected:

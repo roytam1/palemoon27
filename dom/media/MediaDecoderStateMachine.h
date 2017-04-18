@@ -310,7 +310,6 @@ public:
     return mReader->GetBuffered();
   }
 
-  void SetPlaybackRate(double aPlaybackRate);
   void SetPreservesPitch(bool aPreservesPitch);
 
   size_t SizeOfVideoQueue() {
@@ -449,6 +448,7 @@ protected:
   already_AddRefed<VideoData> PopVideo();
 
   void VolumeChanged();
+  void LogicalPlaybackRateChanged();
 
   class WakeDecoderRunnable : public nsRunnable {
   public:
@@ -1014,9 +1014,13 @@ protected:
   // Volume of playback. 0.0 = muted. 1.0 = full volume.
   Mirror<double> mVolume;
 
-  // Playback rate. 1.0 : normal speed, 0.5 : two times slower. Synchronized via
-  // decoder monitor.
+  // Playback rate. 1.0 : normal speed, 0.5 : two times slower.
+  //
+  // The separation between mPlaybackRate and mLogicalPlaybackRate is a mess
+  // to preserve existing fragile logic while converting this setup to state-
+  // mirroring. This should be cleaned up in the future.
   double mPlaybackRate;
+  Mirror<double> mLogicalPlaybackRate;
 
   // Pitch preservation for the playback rate. Synchronized via decoder monitor.
   bool mPreservesPitch;

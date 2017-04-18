@@ -316,6 +316,7 @@ MediaDecoderStateMachine::InitializationTask()
 }
 
 bool MediaDecoderStateMachine::HasFutureAudio() {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   NS_ASSERTION(HasAudio(), "Should only call HasFutureAudio() when we have audio");
   // We've got audio ready to play if:
@@ -330,6 +331,7 @@ bool MediaDecoderStateMachine::HasFutureAudio() {
 }
 
 bool MediaDecoderStateMachine::HaveNextFrameData() {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   return (!HasAudio() || HasFutureAudio()) &&
          (!HasVideo() || VideoQueue().GetSize() > 0);
@@ -569,6 +571,7 @@ void MediaDecoderStateMachine::SendStreamData()
 MediaDecoderStateMachine::WakeDecoderRunnable*
 MediaDecoderStateMachine::GetWakeDecoderRunnable()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
 
   if (!mPendingWakeDecoder.get()) {
@@ -579,6 +582,7 @@ MediaDecoderStateMachine::GetWakeDecoderRunnable()
 
 bool MediaDecoderStateMachine::HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs)
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
 
   if (AudioQueue().GetSize() == 0 ||
@@ -606,6 +610,7 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs)
 
 bool MediaDecoderStateMachine::HaveEnoughDecodedVideo()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
 
   if (static_cast<uint32_t>(VideoQueue().GetSize()) < mAmpleVideoFrames * mPlaybackRate) {
@@ -630,6 +635,7 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedVideo()
 bool
 MediaDecoderStateMachine::NeedToDecodeVideo()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   return IsVideoDecoding() &&
          ((mState == DECODER_STATE_SEEKING && mDecodeToSeekTarget) ||
@@ -641,6 +647,7 @@ MediaDecoderStateMachine::NeedToDecodeVideo()
 bool
 MediaDecoderStateMachine::NeedToSkipToNextKeyframe()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   if (mState == DECODER_STATE_DECODING_FIRSTFRAME) {
     return false;
@@ -689,6 +696,7 @@ MediaDecoderStateMachine::NeedToSkipToNextKeyframe()
 bool
 MediaDecoderStateMachine::NeedToDecodeAudio()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   SAMPLE_LOG("NeedToDecodeAudio() isDec=%d decToTar=%d minPrl=%d seek=%d enufAud=%d",
              IsAudioDecoding(), mDecodeToSeekTarget, mMinimizePreroll,
@@ -707,6 +715,7 @@ MediaDecoderStateMachine::NeedToDecodeAudio()
 bool
 MediaDecoderStateMachine::IsAudioSeekComplete()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   SAMPLE_LOG("IsAudioSeekComplete() curTarVal=%d mAudDis=%d aqFin=%d aqSz=%d",
     mCurrentSeek.Exists(), mDropAudioUntilNextDiscontinuity, AudioQueue().IsFinished(), AudioQueue().GetSize());
@@ -720,6 +729,7 @@ MediaDecoderStateMachine::IsAudioSeekComplete()
 bool
 MediaDecoderStateMachine::IsVideoSeekComplete()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   SAMPLE_LOG("IsVideoSeekComplete() curTarVal=%d mVidDis=%d vqFin=%d vqSz=%d",
     mCurrentSeek.Exists(), mDropVideoUntilNextDiscontinuity, VideoQueue().IsFinished(), VideoQueue().GetSize());
@@ -1142,6 +1152,7 @@ MediaDecoderStateMachine::CheckIfSeekComplete()
 bool
 MediaDecoderStateMachine::IsAudioDecoding()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   return HasAudio() && !AudioQueue().IsFinished();
 }
@@ -1149,6 +1160,7 @@ MediaDecoderStateMachine::IsAudioDecoding()
 bool
 MediaDecoderStateMachine::IsVideoDecoding()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   return HasVideo() && !VideoQueue().IsFinished();
 }
@@ -1746,6 +1758,7 @@ void MediaDecoderStateMachine::StopAudioThread()
 nsresult
 MediaDecoderStateMachine::EnqueueDecodeFirstFrameTask()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   MOZ_ASSERT(mState == DECODER_STATE_DECODING_FIRSTFRAME);
 
@@ -2032,6 +2045,7 @@ MediaDecoderStateMachine::StartAudioThread()
 
 int64_t MediaDecoderStateMachine::AudioDecodedUsecs()
 {
+  MOZ_ASSERT(OnTaskQueue());
   NS_ASSERTION(HasAudio(),
                "Should only call AudioDecodedUsecs() when we have audio");
   // The amount of audio we have decoded is the amount of audio data we've
@@ -2049,6 +2063,7 @@ int64_t MediaDecoderStateMachine::AudioDecodedUsecs()
 
 bool MediaDecoderStateMachine::HasLowDecodedData(int64_t aAudioUsecs)
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   MOZ_ASSERT(mReader->UseBufferingHeuristics());
   // We consider ourselves low on decoded data if we're low on audio,
@@ -2062,6 +2077,7 @@ bool MediaDecoderStateMachine::HasLowDecodedData(int64_t aAudioUsecs)
 
 bool MediaDecoderStateMachine::OutOfDecodedAudio()
 {
+    MOZ_ASSERT(OnTaskQueue());
     return IsAudioDecoding() && !AudioQueue().IsFinished() &&
            AudioQueue().GetSize() == 0 &&
            (!mAudioSink || !mAudioSink->HasUnplayedFrames());
@@ -2069,11 +2085,13 @@ bool MediaDecoderStateMachine::OutOfDecodedAudio()
 
 bool MediaDecoderStateMachine::HasLowUndecodedData()
 {
+  MOZ_ASSERT(OnTaskQueue());
   return HasLowUndecodedData(mLowDataThresholdUsecs);
 }
 
 bool MediaDecoderStateMachine::HasLowUndecodedData(int64_t aUsecs)
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   NS_ASSERTION(mState > DECODER_STATE_DECODING_FIRSTFRAME,
                "Must have loaded first frame for GetBuffered() to work");
@@ -2142,9 +2160,9 @@ MediaDecoderStateMachine::DecodeError()
 void
 MediaDecoderStateMachine::OnMetadataRead(MetadataHolder* aMetadata)
 {
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   MOZ_ASSERT(OnTaskQueue());
   MOZ_ASSERT(mState == DECODER_STATE_DECODING_METADATA);
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   mMetadataRequest.Complete();
 
   mDecoder->SetMediaSeekable(mReader->IsMediaSeekable());
@@ -2185,9 +2203,9 @@ MediaDecoderStateMachine::OnMetadataRead(MetadataHolder* aMetadata)
 void
 MediaDecoderStateMachine::OnMetadataNotRead(ReadMetadataFailureReason aReason)
 {
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   MOZ_ASSERT(OnTaskQueue());
   MOZ_ASSERT(mState == DECODER_STATE_DECODING_METADATA);
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   mMetadataRequest.Complete();
 
   if (aReason == ReadMetadataFailureReason::WAITING_FOR_RESOURCES) {
@@ -2298,8 +2316,8 @@ MediaDecoderStateMachine::DecodeFirstFrame()
 nsresult
 MediaDecoderStateMachine::FinishDecodeFirstFrame()
 {
-  AssertCurrentThreadInMonitor();
   MOZ_ASSERT(OnTaskQueue());
+  AssertCurrentThreadInMonitor();
   DECODER_LOG("FinishDecodeFirstFrame");
 
   if (IsShutdown()) {
@@ -2374,8 +2392,8 @@ MediaDecoderStateMachine::FinishDecodeFirstFrame()
 void
 MediaDecoderStateMachine::OnSeekCompleted(int64_t aTime)
 {
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   MOZ_ASSERT(OnTaskQueue());
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   mSeekRequest.Complete();
 
   // We must decode the first samples of active streams, so we can determine
@@ -2388,8 +2406,8 @@ MediaDecoderStateMachine::OnSeekCompleted(int64_t aTime)
 void
 MediaDecoderStateMachine::OnSeekFailed(nsresult aResult)
 {
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   MOZ_ASSERT(OnTaskQueue());
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   mSeekRequest.Complete();
   MOZ_ASSERT(NS_FAILED(aResult), "Cancels should also disconnect mSeekRequest");
   DecodeError();
@@ -2837,6 +2855,7 @@ void MediaDecoderStateMachine::RenderVideoFrame(VideoData* aData,
 
 void MediaDecoderStateMachine::ResyncAudioClock()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   if (IsPlaying()) {
     SetPlayStartTime(TimeStamp::Now());
@@ -2847,6 +2866,7 @@ void MediaDecoderStateMachine::ResyncAudioClock()
 int64_t
 MediaDecoderStateMachine::GetAudioClock() const
 {
+  MOZ_ASSERT(OnTaskQueue());
   // We must hold the decoder monitor while using the audio stream off the
   // audio sink to ensure that it doesn't get destroyed on the audio sink
   // while we're using it.
@@ -2873,6 +2893,7 @@ int64_t MediaDecoderStateMachine::GetVideoStreamPosition() const
 
 int64_t MediaDecoderStateMachine::GetClock() const
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
 
   // Determine the clock time. If we've got audio, and we've not reached
@@ -3050,6 +3071,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
 nsresult
 MediaDecoderStateMachine::DropVideoUpToSeekTarget(VideoData* aSample)
 {
+  MOZ_ASSERT(OnTaskQueue());
   nsRefPtr<VideoData> video(aSample);
   MOZ_ASSERT(video);
   DECODER_LOG("DropVideoUpToSeekTarget() frame [%lld, %lld] dup=%d",
@@ -3101,6 +3123,7 @@ MediaDecoderStateMachine::DropVideoUpToSeekTarget(VideoData* aSample)
 nsresult
 MediaDecoderStateMachine::DropAudioUpToSeekTarget(AudioData* aSample)
 {
+  MOZ_ASSERT(OnTaskQueue());
   nsRefPtr<AudioData> audio(aSample);
   MOZ_ASSERT(audio &&
              mCurrentSeek.Exists() &&
@@ -3200,7 +3223,8 @@ void MediaDecoderStateMachine::SetStartTime(int64_t aStartTimeUsecs)
   DECODER_LOG("Set media start time to %lld", mStartTime);
 }
 
-void MediaDecoderStateMachine::UpdateNextFrameStatus() {
+void MediaDecoderStateMachine::UpdateNextFrameStatus()
+{
   MOZ_ASSERT(OnTaskQueue());
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
@@ -3229,6 +3253,7 @@ void MediaDecoderStateMachine::UpdateNextFrameStatus() {
 
 bool MediaDecoderStateMachine::JustExitedQuickBuffering()
 {
+  MOZ_ASSERT(OnTaskQueue());
   return !mDecodeStartTime.IsNull() &&
     mQuickBuffering &&
     (TimeStamp::Now() - mDecodeStartTime) < TimeDuration::FromMicroseconds(QUICK_BUFFER_THRESHOLD_USECS);
@@ -3286,7 +3311,9 @@ void MediaDecoderStateMachine::SetPlayStartTime(const TimeStamp& aTimeStamp)
   }
 }
 
-void MediaDecoderStateMachine::ScheduleStateMachineWithLockAndWakeDecoder() {
+void MediaDecoderStateMachine::ScheduleStateMachineWithLockAndWakeDecoder()
+{
+  MOZ_ASSERT(OnTaskQueue());
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   DispatchAudioDecodeTaskIfNeeded();
   DispatchVideoDecodeTaskIfNeeded();

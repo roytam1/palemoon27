@@ -310,8 +310,6 @@ public:
     return mReader->GetBuffered();
   }
 
-  void SetPreservesPitch(bool aPreservesPitch);
-
   size_t SizeOfVideoQueue() {
     if (mReader) {
       return mReader->SizeOfVideoQueueInBytes();
@@ -449,6 +447,7 @@ protected:
 
   void VolumeChanged();
   void LogicalPlaybackRateChanged();
+  void PreservesPitchChanged();
 
   class WakeDecoderRunnable : public nsRunnable {
   public:
@@ -1022,8 +1021,8 @@ protected:
   double mPlaybackRate;
   Mirror<double> mLogicalPlaybackRate;
 
-  // Pitch preservation for the playback rate. Synchronized via decoder monitor.
-  bool mPreservesPitch;
+  // Pitch preservation for the playback rate.
+  Mirror<bool> mPreservesPitch;
 
   // Time at which we started decoding. Synchronised via decoder monitor.
   TimeStamp mDecodeStartTime;

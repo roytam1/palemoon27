@@ -2425,10 +2425,6 @@ let BrowserOnClick = {
         PlacesCommandHook.showPlacesOrganizer("History");
         break;
 
-      case "apps":
-        openUILinkIn("https://marketplace.mozilla.org/", "tab");
-        break;
-
       case "addons":
         BrowserOpenAddonsMgr();
         break;

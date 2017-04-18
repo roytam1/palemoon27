@@ -112,8 +112,12 @@ template<typename T>
 class Canonical
 {
 public:
-  Canonical() {}
-  ~Canonical() { MOZ_DIAGNOSTIC_ASSERT(mImpl, "Should have initialized me"); }
+  Canonical(AbstractThread* aThread, const T& aInitialValue, const char* aName)
+  {
+    mImpl = new Impl(aThread, aInitialValue, aName);
+  }
+
+  ~Canonical() {}
 
 private:
   class Impl : public AbstractCanonical<T>, public WatchTarget
@@ -231,13 +235,6 @@ private:
   };
 public:
 
-  // NB: Because mirror-initiated disconnection can race with canonical-
-  // initiated disconnection, a canonical should never be reinitialized.
-  void Init(AbstractThread* aThread, const T& aInitialValue, const char* aName)
-  {
-    mImpl = new Impl(aThread, aInitialValue, aName);
-  }
-
   // Forward control operations to the Impl.
   void DisconnectAll() { return mImpl->DisconnectAll(); }
 
@@ -272,10 +269,14 @@ template<typename T>
 class Mirror
 {
 public:
-  Mirror() {}
+  Mirror(AbstractThread* aThread, const T& aInitialValue, const char* aName,
+         AbstractCanonical<T>* aCanonical = nullptr)
+  {
+    mImpl = new Impl(aThread, aInitialValue, aName, aCanonical);
+  }
+
   ~Mirror()
   {
-    MOZ_DIAGNOSTIC_ASSERT(mImpl, "Should have initialized me");
     if (mImpl->OwnerThread()->IsCurrentThreadIn()) {
       mImpl->DisconnectIfConnected();
     } else {
@@ -370,14 +371,6 @@ private:
     nsRefPtr<AbstractCanonical<T>> mCanonical;
   };
 public:
-
-  // NB: Because mirror-initiated disconnection can race with canonical-
-  // initiated disconnection, a mirror should never be reinitialized.
-  void Init(AbstractThread* aThread, const T& aInitialValue, const char* aName,
-            AbstractCanonical<T>* aCanonical = nullptr)
-  {
-    mImpl = new Impl(aThread, aInitialValue, aName, aCanonical);
-  }
 
   // Forward control operations to the Impl<T>.
   void Connect(AbstractCanonical<T>* aCanonical) { mImpl->Connect(aCanonical); }

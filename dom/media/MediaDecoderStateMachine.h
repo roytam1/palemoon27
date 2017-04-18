@@ -157,9 +157,6 @@ public:
     return mState;
   }
 
-  // Set the audio volume. The decoder monitor must be obtained before
-  // calling this.
-  void SetVolume(double aVolume);
   void SetAudioCaptured();
 
   // Check if the decoder needs to become dormant state.
@@ -450,6 +447,8 @@ protected:
   // remove the audio thread in bug 750596.
   already_AddRefed<AudioData> PopAudio();
   already_AddRefed<VideoData> PopVideo();
+
+  void VolumeChanged();
 
   class WakeDecoderRunnable : public nsRunnable {
   public:
@@ -1012,10 +1011,8 @@ protected:
   // on decoded video data.
   int64_t mDecodedVideoEndTime;
 
-  // Volume of playback. 0.0 = muted. 1.0 = full volume. Read/Written
-  // from the state machine and main threads. Synchronised via decoder
-  // monitor.
-  double mVolume;
+  // Volume of playback. 0.0 = muted. 1.0 = full volume.
+  Mirror<double> mVolume;
 
   // Playback rate. 1.0 : normal speed, 0.5 : two times slower. Synchronized via
   // decoder monitor.

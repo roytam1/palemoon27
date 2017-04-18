@@ -227,7 +227,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mDecodedAudioEndTime(-1),
   mVideoFrameEndTime(-1),
   mDecodedVideoEndTime(-1),
-  mVolume(1.0),
+  mVolume(mTaskQueue, 1.0, "MediaDecoderStateMachine::mVolume (Mirror)"),
   mPlaybackRate(1.0),
   mPreservesPitch(true),
   mAmpleVideoFrames(MIN_VIDEO_QUEUE_SIZE),
@@ -309,10 +309,13 @@ MediaDecoderStateMachine::InitializationTask()
   // Connect mirrors.
   mPlayState.Connect(mDecoder->CanonicalPlayState());
   mNextPlayState.Connect(mDecoder->CanonicalNextPlayState());
+  mVolume.Connect(mDecoder->CanonicalVolume());
 
   // Initialize watchers.
   mWatchManager.Watch(mState, &MediaDecoderStateMachine::UpdateNextFrameStatus);
   mWatchManager.Watch(mAudioCompleted, &MediaDecoderStateMachine::UpdateNextFrameStatus);
+  mWatchManager.Watch(mVolume, &MediaDecoderStateMachine::VolumeChanged);
+
 }
 
 bool MediaDecoderStateMachine::HasFutureAudio() {
@@ -1354,11 +1357,10 @@ void MediaDecoderStateMachine::SetState(State aState)
   mSentPlaybackEndedEvent = false;
 }
 
-void MediaDecoderStateMachine::SetVolume(double volume)
+void MediaDecoderStateMachine::VolumeChanged()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
+  MOZ_ASSERT(OnTaskQueue());
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  mVolume = volume;
   if (mAudioSink) {
     mAudioSink->SetVolume(mVolume);
   }
@@ -2545,6 +2547,7 @@ MediaDecoderStateMachine::FinishShutdown()
   // Disconnect canonicals and mirrors before shutting down our task queue.
   mPlayState.DisconnectIfConnected();
   mNextPlayState.DisconnectIfConnected();
+  mVolume.DisconnectIfConnected();
   mNextFrameStatus.DisconnectAll();
 
   // Shut down the watch manager before shutting down our task queue.

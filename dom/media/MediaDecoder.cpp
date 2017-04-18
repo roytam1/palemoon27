@@ -116,10 +116,21 @@ public:
 
 StaticRefPtr<MediaMemoryTracker> MediaMemoryTracker::sUniqueInstance;
 
+PRLogModuleInfo* gStateWatchingLog;
+PRLogModuleInfo* gMediaPromiseLog;
+PRLogModuleInfo* gMediaTimerLog;
+
 void
 MediaDecoder::InitStatics()
 {
   AbstractThread::InitStatics();
+
+  // Log modules.
+#ifdef PR_LOGGING
+  gMediaDecoderLog = PR_NewLogModule("MediaDecoder");
+#endif
+  gMediaPromiseLog = PR_NewLogModule("MediaPromise");
+  gStateWatchingLog = PR_NewLogModule("StateWatching");
 }
 
 NS_IMPL_ISUPPORTS(MediaMemoryTracker, nsIMemoryReporter)
@@ -611,12 +622,6 @@ MediaDecoder::MediaDecoder() :
   MOZ_COUNT_CTOR(MediaDecoder);
   MOZ_ASSERT(NS_IsMainThread());
   MediaMemoryTracker::AddMediaDecoder(this);
-#ifdef PR_LOGGING
-  if (!gMediaDecoderLog) {
-    gMediaDecoderLog = PR_NewLogModule("MediaDecoder");
-  }
-  EnsureStateWatchingLog();
-#endif
 
   // Initialize canonicals.
   mPlayState.Init(AbstractThread::MainThread(), PLAY_STATE_LOADING, "MediaDecoder::mPlayState (Canonical)");

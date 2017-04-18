@@ -2081,7 +2081,6 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
   if (!gMediaElementEventsLog) {
     gMediaElementEventsLog = PR_NewLogModule("nsMediaElementEvents");
   }
-  EnsureStateWatchingLog();
 #endif
   ErrorResult rv;
 

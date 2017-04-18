@@ -203,6 +203,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
                                                    MediaDecoderReader* aReader,
                                                    bool aRealTime) :
   mDecoder(aDecoder),
+  mTaskQueue(new MediaTaskQueue(GetMediaThreadPool(), /* aAssertTailDispatch = */ true)),
   mWatchManager(this),
   mRealTime(aRealTime),
   mDispatchedStateMachine(false),
@@ -251,11 +252,6 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
 {
   MOZ_COUNT_CTOR(MediaDecoderStateMachine);
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-
-  // Set up our task queue.
-  RefPtr<SharedThreadPool> pool(GetMediaThreadPool());
-  MOZ_DIAGNOSTIC_ASSERT(pool);
-  mTaskQueue = new MediaTaskQueue(pool.forget(), /* aAssertTailDispatch = */ true);
 
   // Initialize canonicals.
   mNextFrameStatus.Init(mTaskQueue, MediaDecoderOwner::NEXT_FRAME_UNINITIALIZED,

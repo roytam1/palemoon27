@@ -2282,11 +2282,6 @@ function PageProxyClickHandler(aEvent)
  */
 function BrowserOnAboutPageLoad(doc) {
   if (doc.documentURI.toLowerCase() == "about:home") {
-    // XXX bug 738646 - when Marketplace is launched, remove this statement and
-    // the hidden attribute set on the apps button in aboutHome.xhtml
-    if (getBoolPref("browser.aboutHome.apps", false))
-      doc.getElementById("apps").removeAttribute("hidden");
-
     let ss = Components.classes["@mozilla.org/browser/sessionstore;1"].
              getService(Components.interfaces.nsISessionStore);
     if (ss.canRestoreLastSession &&

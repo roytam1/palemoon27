@@ -19,7 +19,7 @@
 
 <!ENTITY permissions.forgetSite          "Forget About This Site">
 
-<!ENTITY permission.default              "Set a default value">
+<!ENTITY permission.default              "Use Default">
 
 <!ENTITY permission.alwaysAsk            "Always Ask">
 <!ENTITY permission.allow                "Allow">

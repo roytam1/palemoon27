@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var Cc = Components.classes;
-var Ci = Components.interfaces;
-var Cu = Components.utils;
+let Cc = Components.classes;
+let Ci = Components.interfaces;
+let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -14,15 +14,15 @@ Cu.import("resource://gre/modules/ForgetAboutSite.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 
-var gFaviconService = Cc["@mozilla.org/browser/favicon-service;1"].
+let gFaviconService = Cc["@mozilla.org/browser/favicon-service;1"].
                       getService(Ci.nsIFaviconService);
 
-var gPlacesDatabase = Cc["@mozilla.org/browser/nav-history-service;1"].
+let gPlacesDatabase = Cc["@mozilla.org/browser/nav-history-service;1"].
                       getService(Ci.nsPIPlacesDatabase).
                       DBConnection.
                       clone(true);
 
-var gSitesStmt = gPlacesDatabase.createAsyncStatement(
+let gSitesStmt = gPlacesDatabase.createAsyncStatement(
                  "SELECT get_unreversed_host(rev_host) AS host " +
                  "FROM moz_places " +
                  "WHERE rev_host > '.' " +
@@ -31,12 +31,12 @@ var gSitesStmt = gPlacesDatabase.createAsyncStatement(
                  "ORDER BY MAX(frecency) DESC " +
                  "LIMIT :limit");
 
-var gVisitStmt = gPlacesDatabase.createAsyncStatement(
+let gVisitStmt = gPlacesDatabase.createAsyncStatement(
                  "SELECT SUM(visit_count) AS count " +
                  "FROM moz_places " +
                  "WHERE rev_host = :rev_host");
 
-var gFlash = {
+let gFlash = {
   name: "Shockwave Flash",
   betterName: "Adobe Flash",
   type: "application/x-shockwave-flash",
@@ -47,7 +47,7 @@ var gFlash = {
  * to testPermission. This is based on what consumers use to test these
  * permissions.
  */
-var TEST_EXACT_PERM_TYPES = ["desktop-notification", "geo", "pointerLock"];
+const TEST_EXACT_PERM_TYPES = ["desktop-notification", "geo", "pointerLock"];
 
 /**
  * Site object represents a single site, uniquely identified by a host.
@@ -80,11 +80,11 @@ Site.prototype = {
     }
 
     // Try to find favicon for both URIs, but always prefer the https favicon.
-    gFaviconService.getFaviconURLForPage(this.httpsURI, function (aURI) {
+    gFaviconService.getFaviconURLForPage(this.httpsURI, function(aURI) {
       if (aURI) {
         invokeCallback(aURI);
       } else {
-        gFaviconService.getFaviconURLForPage(this.httpURI, function (aURI) {
+        gFaviconService.getFaviconURLForPage(this.httpURI, function(aURI) {
           if (aURI) {
             invokeCallback(aURI);
           }
@@ -103,7 +103,7 @@ Site.prototype = {
     let rev_host = this.host.split("").reverse().join("") + ".";
     gVisitStmt.params.rev_host = rev_host;
     gVisitStmt.executeAsync({
-      handleResult: function (aResults) {
+      handleResult: function(aResults) {
         let row = aResults.getNextRow();
         let count = row.getResultByName("count") || 0;
         try {
@@ -112,10 +112,10 @@ Site.prototype = {
           Cu.reportError("AboutPermissions: " + e);
         }
       },
-      handleError: function (aError) {
+      handleError: function(aError) {
         Cu.reportError("AboutPermissions: " + aError);
       },
-      handleCompletion: function (aReason) {
+      handleCompletion: function(aReason) {
       }
     });
   },
@@ -125,7 +125,7 @@ Site.prototype = {
    *
    * @param aType
    *        The permission type string stored in permission manager.
-   *        e.g. "image", "popup", "cookie", "geo", "indexedDB"
+   *        e.g. "cookie", "geo", "indexedDB", "popup", "image"
    * @param aResultObj
    *        An object that stores the permission value set for aType.
    *
@@ -164,7 +164,7 @@ Site.prototype = {
    *
    * @param aType
    *        The permission type string stored in permission manager.
-   *        e.g. "image", "popup", "cookie", "geo", "indexedDB"
+   *        e.g. "cookie", "geo", "indexedDB", "popup", "image"
    * @param aPerm
    *        The permission value to set for the permission type. This should
    *        be one of the constants defined in nsIPermissionManager.
@@ -193,7 +193,7 @@ Site.prototype = {
    *
    * @param aType
    *        The permission type string stored in permission manager.
-   *        e.g. "image", "popup", "cookie", "geo", "indexedDB"
+   *        e.g. "cookie", "geo", "indexedDB", "popup", "image"
    */
   clearPermission: function Site_clearPermission(aType) {
     Services.perms.remove(this.host, aType);
@@ -248,7 +248,7 @@ Site.prototype = {
    * Removes a set of specific cookies from the browser.
    */
   clearCookies: function Site_clearCookies() {
-    this.cookies.forEach(function (aCookie) {
+    this.cookies.forEach(function(aCookie) {
       Services.cookies.remove(aCookie.host, aCookie.name, aCookie.path, false);
     });
   },
@@ -267,7 +267,7 @@ Site.prototype = {
  *
  * Inspired by pageinfo/permissions.js
  */
-var PermissionDefaults = {
+let PermissionDefaults = {
   UNKNOWN: Ci.nsIPermissionManager.UNKNOWN_ACTION,   // 0
   ALLOW: Ci.nsIPermissionManager.ALLOW_ACTION,       // 1
   DENY: Ci.nsIPermissionManager.DENY_ACTION,         // 2
@@ -426,7 +426,7 @@ var PermissionDefaults = {
 /**
  * AboutPermissions manages the about:permissions page.
  */
-var AboutPermissions = {
+let AboutPermissions = {
  /**
   * Maximum number of sites to return from the places database.
   */  
@@ -480,7 +480,7 @@ var AboutPermissions = {
   _stringBundleAboutPermissions: Services.strings.createBundle(
       "chrome://browser/locale/preferences/aboutPermissions.properties"),
 
-  _initPart1: function () {
+  _initPart1: function() {
     this.initPluginList();
     this.cleanupPluginList();
 
@@ -490,8 +490,8 @@ var AboutPermissions = {
     setTimeout(this.enumerateServicesDriver.bind(this), this.LIST_BUILD_DELAY);
   },
 
-  _initPart2: function () {
-    this._supportedPermissions.forEach(function (aType) {
+  _initPart2: function() {
+    this._supportedPermissions.forEach(function(aType) {
       this.updatePermission(aType);
     }, this);
   },
@@ -499,7 +499,7 @@ var AboutPermissions = {
   /**
    * Called on page load.
    */
-  init: function () {
+  init: function() {
     this.sitesList = document.getElementById("sites-list");
 
     this._initPart1();
@@ -532,8 +532,8 @@ var AboutPermissions = {
     this._initPart2();
   },
 
-  sitesReload: function () {
-    Object.getOwnPropertyNames(this._sites).forEach(function (prop) {
+  sitesReload: function() {
+    Object.getOwnPropertyNames(this._sites).forEach(function(prop) {
       AboutPermissions.deleteFromSitesList(prop);
     });
     this._initPart1();
@@ -542,7 +542,7 @@ var AboutPermissions = {
 
   // XXX copied this from browser-plugins.js - is there a way to share?
   // Map the plugin's name to a filtered version more suitable for user UI.
-  makeNicePluginName: function (aName) {
+  makeNicePluginName: function(aName) {
     if (aName == gFlash.name) {
       return gFlash.betterName;
     }
@@ -557,7 +557,7 @@ var AboutPermissions = {
     return newName;
   },
 
-  initPluginList: function () {
+  initPluginList: function() {
     let pluginHost = Cc["@mozilla.org/plugin/host;1"]
                      .getService(Ci.nsIPluginHost);
     let tags = pluginHost.getPluginTags();
@@ -601,12 +601,12 @@ var AboutPermissions = {
           this._supportedPermissions.push(permString);
           this._noGlobalDeny.push(permString);
           Object.defineProperty(PermissionDefaults, permString, {
-            get: function () {
+            get: function() {
                    return this.isClickToPlay()
                           ? PermissionDefaults.UNKNOWN
                           : PermissionDefaults.ALLOW;
                  }.bind(permissionEntry),
-            set: function (aValue) {
+            set: function(aValue) {
                    this.clicktoplay = (aValue == PermissionDefaults.UNKNOWN);
                  }.bind(plugin),
             configurable: true
@@ -617,7 +617,7 @@ var AboutPermissions = {
     }
 
     if (permissionEntries.length > 0) {
-      permissionEntries.sort(function (entryA, entryB) {
+      permissionEntries.sort(function(entryA, entryB) {
         let labelA = entryA.getAttribute("label");
         let labelB = entryB.getAttribute("label");
         return ((labelA < labelB) ? -1 : (labelA == labelB ? 0 : 1));
@@ -633,7 +633,7 @@ var AboutPermissions = {
     }
   },
 
-  cleanupPluginList: function () {
+  cleanupPluginList: function() {
     let pluginsPrefItem = document.getElementById("plugins-pref-item");
     let pluginsBox = document.getElementById("plugins-box");
     let pluginsBoxEmpty = true;
@@ -655,7 +655,7 @@ var AboutPermissions = {
   /**
    * Called on page unload.
    */
-  cleanUp: function () {
+  cleanUp: function() {
     if (this._observersInitialized) {
       Services.prefs.removeObserver("signon.rememberSignons", this, false);
       Services.prefs.removeObserver("permissions.default.image", this, false);
@@ -684,8 +684,8 @@ var AboutPermissions = {
     gPlacesDatabase.asyncClose(null);
   },
 
-  observe: function (aSubject, aTopic, aData) {
-    switch (aTopic) {
+  observe: function(aSubject, aTopic, aData) {
+    switch(aTopic) {
       case "perm-changed":
         // Permissions changes only affect individual sites.
         if (!this._selectedSite) {
@@ -693,7 +693,7 @@ var AboutPermissions = {
         }
         // aSubject is null when nsIPermisionManager::removeAll() is called.
         if (!aSubject) {
-          this._supportedPermissions.forEach(function (aType) {
+          this._supportedPermissions.forEach(function(aType) {
             this.updatePermission(aType);
           }, this);
           break;
@@ -718,7 +718,7 @@ var AboutPermissions = {
         if (plugin) {
           this.initPluginList();
         }
-        this._supportedPermissions.forEach(function (aType) {
+        this._supportedPermissions.forEach(function(aType) {
           if (!plugin || (plugin && aType.startsWith("plugin"))) {
             this.updatePermission(aType);
           }
@@ -745,7 +745,7 @@ var AboutPermissions = {
       case "plugin-list-updated":
       case "blocklist-updated":
         this.initPluginList();
-        this._supportedPermissions.forEach(function (aType) {
+        this._supportedPermissions.forEach(function(aType) {
           if (aType.startsWith("plugin")) {
             this.updatePermission(aType);
           }
@@ -760,7 +760,7 @@ var AboutPermissions = {
    * and stores them in _sites.
    * The number of sites created is controlled by _placesSitesLimit.
    */
-  getSitesFromPlaces: function () {
+  getSitesFromPlaces: function() {
     let _placesSitesLimit = Services.prefs.getIntPref(
         "permissions.places-sites-limit");
     if (_placesSitesLimit <= 0) {
@@ -772,7 +772,7 @@ var AboutPermissions = {
 
     gSitesStmt.params.limit = _placesSitesLimit;
     gSitesStmt.executeAsync({
-      handleResult: function (aResults) {
+      handleResult: function(aResults) {
         AboutPermissions.startSitesListBatch();
         let row;
         while (row = aResults.getNextRow()) {
@@ -781,10 +781,10 @@ var AboutPermissions = {
         }
         AboutPermissions.endSitesListBatch();
       },
-      handleError: function (aError) {
+      handleError: function(aError) {
         Cu.reportError("AboutPermissions: " + aError);
       },
-      handleCompletion: function (aReason) {
+      handleCompletion: function(aReason) {
         // Notify oberservers for testing purposes.
         AboutPermissions._initPlacesDone = true;
         if (AboutPermissions._initServicesDone) {
@@ -798,7 +798,7 @@ var AboutPermissions = {
   /**
    * Drives getEnumerateServicesGenerator to work in intervals.
    */
-  enumerateServicesDriver: function () {
+  enumerateServicesDriver: function() {
     if (this.enumerateServicesGenerator.next()) {
       // Build top sitesList items faster so that the list never seems sparse
       let delay = Math.min(this.sitesList.itemCount * 5, this.LIST_BUILD_DELAY);
@@ -817,11 +817,11 @@ var AboutPermissions = {
    * Finds sites that have non-default permissions and creates Site objects
    * for them if they are not already stored in _sites.
    */
-  getEnumerateServicesGenerator: function () {
+  getEnumerateServicesGenerator: function() {
     let itemCnt = 1;
 
     let logins = Services.logins.getAllLogins();
-    logins.forEach(function (aLogin) {
+    logins.forEach(function(aLogin) {
       if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
         yield true;
       }
@@ -837,7 +837,7 @@ var AboutPermissions = {
     }, this);
 
     let disabledHosts = Services.logins.getAllDisabledHosts();
-    disabledHosts.forEach(function (aHostname) {
+    disabledHosts.forEach(function(aHostname) {
       if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
         yield true;
       }
@@ -873,7 +873,7 @@ var AboutPermissions = {
    * @param aHost
    *        A host string.
    */
-  addHost: function (aHost) {
+  addHost: function(aHost) {
     if (aHost in this._sites) {
       return;
     }
@@ -888,12 +888,12 @@ var AboutPermissions = {
    * @param aSite
    *        A Site object.
    */
-  addToSitesList: function (aSite) {
+  addToSitesList: function(aSite) {
     let item = document.createElement("richlistitem");
     item.setAttribute("class", "site");
     item.setAttribute("value", aSite.host);
 
-    aSite.getFavicon(function (aURL) {
+    aSite.getFavicon(function(aURL) {
       item.setAttribute("favicon", aURL);
     });
     aSite.listitem = item;
@@ -906,12 +906,12 @@ var AboutPermissions = {
     (this._listFragment || this.sitesList).appendChild(item);
   },
 
-  startSitesListBatch: function () {
+  startSitesListBatch: function() {
     if (!this._listFragment)
       this._listFragment = document.createDocumentFragment();
   },
 
-  endSitesListBatch: function () {
+  endSitesListBatch: function() {
     if (this._listFragment) {
       this.sitesList.appendChild(this._listFragment);
       this._listFragment = null;
@@ -921,7 +921,7 @@ var AboutPermissions = {
   /**
    * Hides sites in richlistbox based on search text in sites-filter textbox.
    */
-  filterSitesList: function () {
+  filterSitesList: function() {
     let siteItems = this.sitesList.children;
     let filterValue =
         document.getElementById("sites-filter").value.toLowerCase();
@@ -943,7 +943,7 @@ var AboutPermissions = {
    * Removes all evidence of the selected site. The "forget this site" observer
    * will call deleteFromSitesList to update the UI.
    */
-  forgetSite: function () {
+  forgetSite: function() {
     this._selectedSite.forgetSite();
   },
 
@@ -954,7 +954,7 @@ var AboutPermissions = {
    * @param aHost
    *        The host string corresponding to the site to delete.
    */
-  deleteFromSitesList: function (aHost) {
+  deleteFromSitesList: function(aHost) {
     for (let host in this._sites) {
       let site = this._sites[host];
       if (site.host.hasRootDomain(aHost)) {
@@ -973,7 +973,7 @@ var AboutPermissions = {
   /**
    * Shows interface for managing site-specific permissions.
    */
-  onSitesListSelect: function (event) {
+  onSitesListSelect: function(event) {
     if (event.target.selectedItem.id == "all-sites-item") {
       // Clear the header label value from the previously selected site.
       document.getElementById("site-label").value = "";
@@ -995,7 +995,7 @@ var AboutPermissions = {
    * Shows interface for managing default permissions. This corresponds to
    * the "All Sites" list item.
    */
-  manageDefaultPermissions: function () {
+  manageDefaultPermissions: function() {
     this._selectedSite = null;
 
     document.getElementById("header-deck").selectedPanel =
@@ -1007,8 +1007,8 @@ var AboutPermissions = {
   /**
    * Updates permissions interface based on selected site.
    */
-  updatePermissionsBox: function () {
-    this._supportedPermissions.forEach(function (aType) {
+  updatePermissionsBox: function() {
+    this._supportedPermissions.forEach(function(aType) {
       this.updatePermission(aType);
     }, this);
 
@@ -1024,7 +1024,7 @@ var AboutPermissions = {
    *        The permission type string stored in permission manager.
    *        e.g. "cookie", "geo", "indexedDB", "popup", "image"
    */
-  updatePermission: function (aType) {
+  updatePermission: function(aType) {
     let allowItem = document.getElementById(
         aType + "-" + PermissionDefaults.ALLOW);
     allowItem.hidden = !this._selectedSite &&
@@ -1138,7 +1138,7 @@ var AboutPermissions = {
         aType + "-" + permissionValue);
   },
 
-  onPermissionCommand: function (event, _default) {
+  onPermissionCommand: function(event, _default) {
     let pluginHost = Cc["@mozilla.org/plugin/host;1"] 
                      .getService(Ci.nsIPluginHost);
     let permissionMimeType = event.currentTarget.getAttribute("mimeType");
@@ -1148,7 +1148,7 @@ var AboutPermissions = {
     if (!this._selectedSite) {
       if (permissionType.startsWith("plugin")) {
         let addonValue = AddonManager.STATE_ASK_TO_ACTIVATE;
-        switch (permissionValue) {
+        switch(permissionValue) {
           case "1":
             addonValue = false;
             break;
@@ -1157,7 +1157,7 @@ var AboutPermissions = {
             break;
         }
 
-        AddonManager.getAddonsByTypes(["plugin"], function (addons) {
+        AddonManager.getAddonsByTypes(["plugin"], function(addons) {
           for (let addon of addons) {
             for (let type of addon.pluginMimeTypes) {
               if ((type.type == gFlash.type) && (addon.name != gFlash.name)) {
@@ -1183,8 +1183,8 @@ var AboutPermissions = {
     }
   },
 
-  updateVisitCount: function () {
-    this._selectedSite.getVisitCount(function (aCount) {
+  updateVisitCount: function() {
+    this._selectedSite.getVisitCount(function(aCount) {
       let visitForm = AboutPermissions._stringBundleAboutPermissions
                       .GetStringFromName("visitCount");
       let visitLabel = PluralForm.get(aCount, visitForm)
@@ -1193,7 +1193,7 @@ var AboutPermissions = {
     });  
   },
 
-  updatePasswordsCount: function () {
+  updatePasswordsCount: function() {
     if (!this._selectedSite) {
       document.getElementById("passwords-count").hidden = true;
       document.getElementById("passwords-manage-all-button").hidden = false;
@@ -1216,7 +1216,7 @@ var AboutPermissions = {
   /**
    * Opens password manager dialog.
    */
-  managePasswords: function () {
+  managePasswords: function() {
     let selectedHost = "";
     if (this._selectedSite) {
       selectedHost = this._selectedSite.host;
@@ -1233,7 +1233,7 @@ var AboutPermissions = {
     }
   },
 
-  domainFromHost: function (aHost) {
+  domainFromHost: function(aHost) {
     let domain = aHost;
     try {
       domain = Services.eTLD.getBaseDomainFromHost(aHost);
@@ -1245,7 +1245,7 @@ var AboutPermissions = {
     return domain;
   },
 
-  updateCookiesCount: function () {
+  updateCookiesCount: function() {
     if (!this._selectedSite) {
       document.getElementById("cookies-count").hidden = true;
       document.getElementById("cookies-clear-all-button").hidden = false;
@@ -1272,7 +1272,7 @@ var AboutPermissions = {
   /**
    * Clears cookies for the selected site.
    */
-  clearCookies: function () {
+  clearCookies: function() {
     if (!this._selectedSite) {
       return;
     }
@@ -1284,7 +1284,7 @@ var AboutPermissions = {
   /**
    * Opens cookie manager dialog.
    */
-  manageCookies: function () {
+  manageCookies: function() {
     let selectedHost = "";
     let selectedDomain = "";
     if (this._selectedSite) {

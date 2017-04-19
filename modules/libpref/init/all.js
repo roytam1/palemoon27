@@ -1962,6 +1962,7 @@ pref("network.automatic-ntlm-auth.allow-non-fqdn", false);
 pref("network.automatic-ntlm-auth.trusted-uris", "");
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
+pref("permissions.places-sites-limit",      50); // 0 - max. 100 - currently
 
 pref("network.proxy.type",                  5);
 pref("network.proxy.ftp",                   "");

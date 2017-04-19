@@ -31,6 +31,9 @@
   <hbox flex="1" id="permissions-content" class="main-content">
 
     <vbox id="sites-box">
+      <button id="sites-reload"
+              label="&permissions.sitesReload;"
+              oncommand="AboutPermissions.sitesReload();"/>
       <textbox id="sites-filter"
                emptytext="&sites.search;"
                oncommand="AboutPermissions.filterSitesList();"
@@ -56,7 +59,11 @@
           <spacer flex="1"/>
           <button id="forget-site-button"
                   label="&permissions.forgetSite;"
-                  oncommand="AboutPermissions.forgetSite();"/>
+                  oncommand="if (Services.prompt.confirm(null,
+                      this.getAttribute('label'),
+                      AboutPermissions._stringBundleAboutPermissions
+                      .GetStringFromName('permissionsConfirm')))
+                      { AboutPermissions.forgetSite(); }"/>
         </hbox>
 
         <hbox id="defaults-header" class="pref-item" align="center">
@@ -79,12 +86,17 @@
             <menulist id="password-menulist"
                       class="pref-menulist"
                       type="password"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="password-1" value="1" label="&permission.allow;"/>
                 <menuitem id="password-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="password-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="password"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
             <button id="passwords-manage-all-button"
                     label="&password.manage;"
                     oncommand="AboutPermissions.managePasswords();"/>
@@ -111,13 +123,18 @@
             <menulist id="image-menulist"
                       class="pref-menulist"
                       type="image"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="image-1" value="1" label="&permission.allow;"/>
                 <menuitem id="image-2" value="2" label="&permission.block;"/>
                 <menuitem id="image-3" value="3" label="&permission.allowFirstPartyOnly;"/>
               </menupopup>
             </menulist>
+            <button id="image-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="image"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>
@@ -135,12 +152,17 @@
             <menulist id="popup-menulist"
                       class="pref-menulist"
                       type="popup"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="popup-1" value="1" label="&permission.allow;"/>
                 <menuitem id="popup-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="popup-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="popup"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>
@@ -158,7 +180,7 @@
             <menulist id="cookie-menulist"
                       class="pref-menulist"
                       type="cookie"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="cookie-1" value="1" label="&permission.allow;"/>
                 <menuitem id="cookie-8" value="8" label="&permission.allowForSession;"/>
@@ -166,9 +188,18 @@
                 <menuitem id="cookie-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="cookie-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="cookie"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
             <button id="cookies-clear-all-button"
                     label="&cookie.removeAll;"
-                    oncommand="Services.cookies.removeAll();"/>
+                    oncommand="if (Services.prompt.confirm(null,
+                        this.getAttribute('label'),
+                        AboutPermissions._stringBundleAboutPermissions
+                        .GetStringFromName('permissionsConfirm')))
+                        { Services.cookies.removeAll(); }"/>
             <button id="cookies-manage-all-button"
                     label="&cookie.manage;"
                     oncommand="AboutPermissions.manageCookies();"/>
@@ -177,7 +208,11 @@
             <label id="cookies-label"/>
             <button id="cookies-clear-button"
                     label="&cookie.remove;"
-                    oncommand="AboutPermissions.clearCookies();"/>
+                    oncommand="if (Services.prompt.confirm(null,
+                        event.target.getAttribute('label'),
+                        AboutPermissions._stringBundleAboutPermissions
+                        .GetStringFromName('permissionsConfirm')))
+                        { AboutPermissions.clearCookies(); }"/>
             <button id="cookies-manage-button"
                     label="&cookie.manage;"
                     oncommand="AboutPermissions.manageCookies();"/>
@@ -198,13 +233,18 @@
             <menulist id="desktop-notification-menulist"
                       class="pref-menulist"
                       type="desktop-notification"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="desktop-notification-0" value="0" label="&permission.alwaysAsk;"/>
                 <menuitem id="desktop-notification-1" value="1" label="&permission.allow;"/>
                 <menuitem id="desktop-notification-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="desktop-notification-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="desktop-notification"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>
@@ -222,12 +262,17 @@
             <menulist id="install-menulist"
                       class="pref-menulist"
                       type="install"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="install-1" value="1" label="&permission.allow;"/>
                 <menuitem id="install-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="install-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="install"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>
@@ -245,13 +290,18 @@
             <menulist id="geo-menulist"
                       class="pref-menulist"
                       type="geo"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="geo-0" value="0" label="&permission.alwaysAsk;"/>
                 <menuitem id="geo-1" value="1" label="&permission.allow;"/>
                 <menuitem id="geo-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="geo-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="geo"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>
@@ -269,13 +319,18 @@
             <menulist id="indexedDB-menulist"
                       class="pref-menulist"
                       type="indexedDB"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="indexedDB-0" value="0" label="&permission.alwaysAsk;"/>
                 <menuitem id="indexedDB-1" value="1" label="&permission.allow;"/>
                 <menuitem id="indexedDB-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="indexedDB-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="indexedDB"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>
@@ -303,13 +358,18 @@
             <menulist id="fullscreen-menulist"
                       class="pref-menulist"
                       type="fullscreen"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="fullscreen-0" value="0" label="&permission.alwaysAsk;"/>
                 <menuitem id="fullscreen-1" value="1" label="&permission.allow;"/>
                 <menuitem id="fullscreen-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="fullscreen-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="fullscreen"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>      
@@ -327,13 +387,18 @@
             <menulist id="pointerLock-menulist"
                       class="pref-menulist"
                       type="pointerLock"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
               <menupopup>
                 <menuitem id="pointerLock-0" value="0" label="&permission.alwaysAsk;"/>
                 <menuitem id="pointerLock-1" value="1" label="&permission.allow;"/>
                 <menuitem id="pointerLock-2" value="2" label="&permission.block;"/>
               </menupopup>
             </menulist>
+            <button id="pointerLock-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    type="pointerLock"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
           </hbox>
         </vbox>
       </hbox>

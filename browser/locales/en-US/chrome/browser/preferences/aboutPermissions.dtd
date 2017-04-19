@@ -15,7 +15,11 @@
 
 <!ENTITY header.defaults                 "Default Permissions for All Sites">
 
+<!ENTITY permissions.sitesReload         "Reload list of sites">
+
 <!ENTITY permissions.forgetSite          "Forget About This Site">
+
+<!ENTITY permission.default              "Set a default value">
 
 <!ENTITY permission.alwaysAsk            "Always Ask">
 <!ENTITY permission.allow                "Allow">

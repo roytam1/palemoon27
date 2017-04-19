@@ -292,15 +292,8 @@ HTMLButtonElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
                NS_KEY_PRESS == aVisitor.mEvent->message) ||
               (keyEvent->keyCode == NS_VK_SPACE &&
                NS_KEY_UP == aVisitor.mEvent->message)) {
-            nsEventStatus status = nsEventStatus_eIgnore;
-
-            WidgetMouseEvent event(aVisitor.mEvent->mFlags.mIsTrusted,
-                                   NS_MOUSE_CLICK, nullptr,
-                                   WidgetMouseEvent::eReal);
-            event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
-            EventDispatcher::Dispatch(static_cast<nsIContent*>(this),
-                                      aVisitor.mPresContext, &event, nullptr,
-                                      &status);
+            DispatchSimulatedClick(this, aVisitor.mEvent->mFlags.mIsTrusted,
+                                   aVisitor.mPresContext);
             aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
           }
         }

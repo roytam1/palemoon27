@@ -255,18 +255,6 @@ public:
     mOnFailure.swap(aOnFailure);
   }
 
-  ~DeviceSuccessCallbackRunnable()
-  {
-    if (!NS_IsMainThread()) {
-      // This can happen if the main thread processes the runnable before
-      // GetUserMediaDevicesTask::Run returns.
-      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-
-      NS_ProxyRelease(mainThread, mOnSuccess);
-      NS_ProxyRelease(mainThread, mOnFailure);
-    }
-  }
-
   NS_IMETHOD
   Run()
   {
@@ -312,6 +300,18 @@ public:
   {
     mOnSuccess.swap(aOnSuccess);
     mOnFailure.swap(aOnFailure);
+  }
+
+  ~DeviceSuccessCallbackRunnable()
+  {
+    if (!NS_IsMainThread()) {
+      // This can happen if the main thread processes the runnable before
+      // GetUserMediaDevicesTask::Run returns.
+      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+
+      NS_ProxyRelease(mainThread, mOnSuccess);
+      NS_ProxyRelease(mainThread, mOnFailure);
+    }
   }
 
   NS_IMETHOD

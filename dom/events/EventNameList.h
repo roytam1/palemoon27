@@ -408,6 +408,10 @@ EVENT(timeupdate,
       NS_TIMEUPDATE,
       EventNameType_HTML,
       eBasicEventClass)
+EVENT(toggle,
+      NS_TOGGLE,
+      EventNameType_HTML,
+      eBasicEventClass)
 EVENT(volumechange,
       NS_VOLUMECHANGE,
       EventNameType_HTML,

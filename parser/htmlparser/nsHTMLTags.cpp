@@ -79,6 +79,8 @@ static const char16_t sHTMLTagUnicodeName_dd[] =
   {'d', 'd', '\0'};
 static const char16_t sHTMLTagUnicodeName_del[] =
   {'d', 'e', 'l', '\0'};
+static const char16_t sHTMLTagUnicodeName_details[] =
+  {'d', 'e', 't', 'a', 'i', 'l', 's', '\0'};
 static const char16_t sHTMLTagUnicodeName_dfn[] =
   {'d', 'f', 'n', '\0'};
 static const char16_t sHTMLTagUnicodeName_dir[] =
@@ -245,6 +247,8 @@ static const char16_t sHTMLTagUnicodeName_style[] =
   {'s', 't', 'y', 'l', 'e', '\0'};
 static const char16_t sHTMLTagUnicodeName_sub[] =
   {'s', 'u', 'b', '\0'};
+static const char16_t sHTMLTagUnicodeName_summary[] =
+  {'s', 'u', 'm', 'm', 'a', 'r', 'y', '\0'};
 static const char16_t sHTMLTagUnicodeName_sup[] =
   {'s', 'u', 'p', '\0'};
 static const char16_t sHTMLTagUnicodeName_table[] =

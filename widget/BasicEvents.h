@@ -117,7 +117,7 @@
 #define NS_FORM_SELECTED                (NS_FORM_EVENT_START + 3)
 #define NS_FORM_INVALID                 (NS_FORM_EVENT_START + 4)
 
-//Need separate focus/blur notifications for non-native widgets
+// Need separate focus/blur notifications for non-native widgets
 #define NS_FOCUS_EVENT_START            1300
 #define NS_FOCUS_CONTENT                (NS_FOCUS_EVENT_START)
 #define NS_BLUR_CONTENT                 (NS_FOCUS_EVENT_START + 1)
@@ -168,7 +168,7 @@
 
 #define NS_USER_DEFINED_EVENT         2000
  
-// composition events
+// Composition events
 #define NS_COMPOSITION_EVENT_START    2200
 #define NS_COMPOSITION_START          (NS_COMPOSITION_EVENT_START)
 // NS_COMPOSITION_END is the message for DOM compositionend event.
@@ -201,12 +201,12 @@
 
 // UI events
 #define NS_UI_EVENT_START          2500
-// this is not to be confused with NS_ACTIVATE!
+// This is not to be confused with NS_ACTIVATE!
 #define NS_UI_ACTIVATE             (NS_UI_EVENT_START)
 #define NS_UI_FOCUSIN              (NS_UI_EVENT_START + 1)
 #define NS_UI_FOCUSOUT             (NS_UI_EVENT_START + 2)
 
-// pagetransition events
+// Pagetransition events
 #define NS_PAGETRANSITION_START    2700
 #define NS_PAGE_SHOW               (NS_PAGETRANSITION_START + 1)
 #define NS_PAGE_HIDE               (NS_PAGETRANSITION_START + 2)
@@ -289,7 +289,7 @@
 #define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
 #define NS_NEED_KEY            (NS_MEDIA_EVENT_START+20)
 
-// paint notification events
+// Paint notification events
 #define NS_NOTIFYPAINT_START    3400
 #define NS_AFTERPAINT           (NS_NOTIFYPAINT_START)
 
@@ -411,7 +411,7 @@
 #define NS_WHEEL_START               (NS_WHEEL_EVENT_START + 1)
 #define NS_WHEEL_STOP                (NS_WHEEL_EVENT_START + 2)
 
-//System time is changed
+// System time is changed
 #define NS_MOZ_TIME_CHANGE_EVENT     5500
 
 // Network packet events.
@@ -441,9 +441,13 @@
 #define NS_GAMEPAD_END           (NS_GAMEPAD_START+4)
 #endif
 
-// input and beforeinput events.
+// Input and beforeinput events.
 #define NS_EDITOR_EVENT_START    6100
 #define NS_EDITOR_INPUT          (NS_EDITOR_EVENT_START)
+
+// Details and Summary events.
+#define NS_DETAILS_SUMMARY_EVENT_START    6200
+#define NS_TOGGLE                         (NS_DETAILS_SUMMARY_EVENT_START)
 
 namespace IPC {
 template<typename T>

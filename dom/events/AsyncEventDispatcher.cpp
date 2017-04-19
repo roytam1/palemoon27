@@ -22,7 +22,6 @@ using namespace dom;
 AsyncEventDispatcher::AsyncEventDispatcher(EventTarget* aTarget,
                                            WidgetEvent& aEvent)
   : mTarget(aTarget)
-  , mDispatchChromeOnly(false)
 {
   MOZ_ASSERT(mTarget);
   EventDispatcher::CreateEvent(aTarget, nullptr, &aEvent, EmptyString(),
@@ -35,6 +34,9 @@ AsyncEventDispatcher::AsyncEventDispatcher(EventTarget* aTarget,
 NS_IMETHODIMP
 AsyncEventDispatcher::Run()
 {
+  if (mCanceled) {
+    return NS_OK;
+  }
   if (mEvent) {
     if (mDispatchChromeOnly) {
       MOZ_ASSERT(mEvent->InternalDOMEvent()->IsTrusted());
@@ -73,6 +75,13 @@ AsyncEventDispatcher::Run()
     }
   }
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AsyncEventDispatcher::Cancel()
+{
+  mCanceled = true;
   return NS_OK;
 }
 

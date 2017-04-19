@@ -29,13 +29,18 @@
         <xul:spacer flex="1"/>
         <xul:menulist anonid="plugins-menulist"
                       class="pref-menulist"
-                      oncommand="AboutPermissions.onPermissionCommand(event);">
+                      oncommand="AboutPermissions.onPermissionCommand(event, false);">
           <xul:menupopup>
             <xul:menuitem anonid="ask" value="0" label="&permission.alwaysAsk;"/>
             <xul:menuitem anonid="allow" value="1" label="&permission.allow;"/>
             <xul:menuitem anonid="block" value="2" label="&permission.block;"/>
           </xul:menupopup>
         </xul:menulist>
+        <xul:button xbl:inherits="value=set-default"
+                    anonid="plugins-set-default"
+                    class="pref-set-default"
+                    label="&permission.default;"
+                    oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
       </xul:hbox>
     </content>
     <implementation>
@@ -55,6 +60,10 @@
         let _default = document.getAnonymousElementByAttribute(this, "anonid", "plugins-default");
         this.setDefaultVisibility(false);
         _default.setAttribute("value", "*");
+        let _setDefault = document.getAnonymousElementByAttribute(this, "anonid", "plugins-set-default");
+        _setDefault.setAttribute("id", permString + "-set-default");
+        _setDefault.setAttribute("class", "pref-set-default");
+        _setDefault.setAttribute("type", permString);
       ]]>
       </constructor>
       <method name="setDefaultVisibility">

@@ -4,27 +4,31 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/HTMLSummaryElement.h"
+#include "mozilla/dom/HTMLSummaryElementBinding.h"
 
 #include "mozilla/dom/HTMLDetailsElement.h"
-#include "mozilla/dom/HTMLElementBinding.h"
-#include "mozilla/dom/HTMLUnknownElement.h"
+#include "mozilla/dom/HTMLDetailsElementBinding.h"
+
+#include "nsIPresShell.h"
+#include "nsPresContext.h"
+#include "nsIDOMEvent.h"
+#include "mozilla/ContentEvents.h"
+#include "mozilla/EventDispatcher.h"
+#include "mozilla/EventStateManager.h"
+#include "mozilla/EventStates.h"
 #include "mozilla/MouseEvents.h"
-#include "mozilla/Preferences.h"
+#include "mozilla/TextEvents.h"
+#include "nsPresState.h"
 
-// Expand NS_IMPL_NS_NEW_HTML_ELEMENT(Summary) to add pref check.
-nsGenericHTMLElement*
-NS_NewHTMLSummaryElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
-                         mozilla::dom::FromParser aFromParser)
-{
-  if (!mozilla::dom::HTMLDetailsElement::IsDetailsEnabled()) {
-    return new mozilla::dom::HTMLUnknownElement(aNodeInfo);
-  }
-
-  return new mozilla::dom::HTMLSummaryElement(aNodeInfo);
-}
+NS_IMPL_NS_NEW_HTML_ELEMENT(Summary)
 
 namespace mozilla {
 namespace dom {
+
+HTMLSummaryElement::HTMLSummaryElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  : nsGenericHTMLElement(aNodeInfo)
+{
+}
 
 HTMLSummaryElement::~HTMLSummaryElement()
 {
@@ -92,7 +96,7 @@ HTMLSummaryElement::GetDetails() const
 JSObject*
 HTMLSummaryElement::WrapNode(JSContext* aCx)
 {
-  return HTMLElementBinding::Wrap(aCx, this);
+  return HTMLSummaryElementBinding::Wrap(aCx, this);
 }
 
 } // namespace dom

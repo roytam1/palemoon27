@@ -4,14 +4,12 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * The origin of this IDL file is
- * https://html.spec.whatwg.org/multipage/forms.html#the-details-element
+ * https://html.spec.whatwg.org/multipage/forms.html#the-summary-element
  *
  * © Copyright 2004-2011 Apple Computer, Inc., Mozilla Foundation, and
  * Opera Software ASA. You are granted a license to use, reproduce
  * and create derivative works of this document.
  */
 
-interface HTMLDetailsElement : HTMLElement {
-  [SetterThrows]
-  attribute boolean open;
+interface HTMLSummaryElement : HTMLElement {
 };

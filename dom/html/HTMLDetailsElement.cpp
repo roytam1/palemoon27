@@ -4,39 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/HTMLDetailsElement.h"
-
 #include "mozilla/dom/HTMLDetailsElementBinding.h"
-#include "mozilla/dom/HTMLUnknownElement.h"
-#include "mozilla/Preferences.h"
 
-// Expand NS_IMPL_NS_NEW_HTML_ELEMENT(Details) to add pref check.
-nsGenericHTMLElement*
-NS_NewHTMLDetailsElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
-                         mozilla::dom::FromParser aFromParser)
-{
-  if (!mozilla::dom::HTMLDetailsElement::IsDetailsEnabled()) {
-    return new mozilla::dom::HTMLUnknownElement(aNodeInfo);
-  }
-
-  return new mozilla::dom::HTMLDetailsElement(aNodeInfo);
-}
+NS_IMPL_NS_NEW_HTML_ELEMENT(Details)
 
 namespace mozilla {
 namespace dom {
 
-bool
-HTMLDetailsElement::IsDetailsEnabled()
+HTMLDetailsElement::HTMLDetailsElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  : nsGenericHTMLElement(aNodeInfo)
 {
-  static bool isDetailsEnabled = false;
-  static bool added = false;
-
-  if (!added) {
-    Preferences::AddBoolVarCache(&isDetailsEnabled,
-                                 "dom.details_element.enabled");
-    added = true;
-  }
-
-  return isDetailsEnabled;
 }
 
 HTMLDetailsElement::~HTMLDetailsElement()
@@ -69,6 +46,26 @@ HTMLDetailsElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
   }
   return hint;
+}
+
+nsresult
+HTMLDetailsElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                                  const nsAttrValueOrString* aValue,
+                                  bool aNotify)
+{
+  if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::open) {
+    bool setOpen = aValue != nullptr;
+    if (Open() != setOpen) {
+      if (mToggleEventDispatcher) {
+        mToggleEventDispatcher->Cancel();
+      }
+      mToggleEventDispatcher = new ToggleEventDispatcher(this);
+      mToggleEventDispatcher->PostDOMEvent();
+    }
+  }
+
+  return nsGenericHTMLElement::BeforeSetAttr(aNameSpaceID, aName, aValue,
+                                             aNotify);
 }
 
 JSObject*

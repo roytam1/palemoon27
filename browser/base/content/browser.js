@@ -3816,7 +3816,8 @@ var XULBrowserWindow = {
           gFindBar.close();
         }
         
-        if (gPrefService.getIntPref("accessibility.typeaheadfind.highlightAllBehavior") == 0) {
+        if (!(gPrefService.getBoolPref("accessibility.typeaheadfind.highlightallremember") ||
+              gPrefService.getBoolPref("accessibility.typeaheadfind.highlightallbydefault"))) {
             // fix bug 253793 - turn off highlight when page changes
             gFindBar.getElement("highlight").checked = false;
         }

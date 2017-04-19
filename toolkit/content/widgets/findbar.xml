@@ -322,8 +322,11 @@
             case "accessibility.typeaheadfind.casesensitive":
               this._self._setCaseSensitivity(prefsvc.getIntPref(aPrefName));
               break;
-            case "accessibility.typeaheadfind.highlightAllBehavior":
-              this._self._typeAheadHighlightAllBehavior = prefsvc.getIntPref(aPrefName);
+            case "accessibility.typeaheadfind.highlightallbydefault":
+              this._self._typeAheadHighlightAllByDefault = prefsvc.getBoolPref(aPrefName);
+              break;
+            case "accessibility.typeaheadfind.highlightallremember":
+              this._self._typeAheadHighlightAllRemember = prefsvc.getBoolPref(aPrefName);
               break;
           }
         }
@@ -359,7 +362,9 @@
                             this._observer, false);
         prefsvc.addObserver("accessibility.typeaheadfind.casesensitive",
                             this._observer, false);
-        prefsvc.addObserver("accessibility.typeaheadfind.highlightAllBehavior",
+        prefsvc.addObserver("accessibility.typeaheadfind.highlightallbydefault",
+                            this._observer, false);
+        prefsvc.addObserver("accessibility.typeaheadfind.highlightallremember",
                             this._observer, false);
 
         this._useTypeAheadFind =
@@ -368,8 +373,10 @@
           prefsvc.getBoolPref("accessibility.typeaheadfind.linksonly");
         this._typeAheadCaseSensitive =
           prefsvc.getIntPref("accessibility.typeaheadfind.casesensitive");
-        this._typeAheadHighlightAllBehavior =
-          prefsvc.getIntPref("accessibility.typeaheadfind.highlightAllBehavior");
+        this._typeAheadHighlightAllByDefault =
+          prefsvc.getBoolPref("accessibility.typeaheadfind.highlightallbydefault");
+        this._typeAheadHighlightAllRemember =
+          prefsvc.getBoolPref("accessibility.typeaheadfind.highlightallremember");
 
         // Convenience
         this.nsITypeAheadFind = Components.interfaces.nsITypeAheadFind;
@@ -408,20 +415,22 @@
                                  this._observer);
           prefsvc.removeObserver("accessibility.typeaheadfind.casesensitive",
                                  this._observer);
-          prefsvc.removeObserver("accessibility.typeaheadfind.highlightAllBehavior",
+          prefsvc.removeObserver("accessibility.typeaheadfind.highlightallbydefault",
+                                 this._observer);
+          prefsvc.removeObserver("accessibility.typeaheadfind.highlightallremember",
                                  this._observer);
 
           // Clear all timers that might still be running.
           this._cancelTimers();
           
           // If the "highlight all" option state should be remembered,
-          // then the preference gets overwritten with the current
-          // state (on = 2, off = 3), just before destroying which
-          // usually happens while closing a browser window
-          if (this._typeAheadHighlightAllBehavior > 1) {
-            let pref = "accessibility.typeaheadfind.highlightAllBehavior";
-            let state = this.getElement("highlight").checked ? 2 : 3;
-            prefsvc.setIntPref(pref, state);
+          // then the preference to highlight all by default gets
+          // overwritten with the current state, just before destroying
+          // which usually happens while closing a browser window
+          if (this._typeAheadHighlightAllRemember) {
+            let pref = "accessibility.typeaheadfind.highlightallbydefault";
+            let state = this.getElement("highlight").checked;
+            prefsvc.setBoolPref(pref, state);
           }
         ]]></body>
       </method>
@@ -662,14 +671,14 @@
           this.toggleHighlight(false);
           
           // If the "highlight all" option state should be remembered,
-          // then the preference gets overwritten with the current
-          // state (on = 2, off = 3), just before closing
-          if (this._typeAheadHighlightAllBehavior > 1) {
+          // then the preference to highlight all by default gets
+          // overwritten with the current state, just before closing
+          if (this._typeAheadHighlightAllRemember) {
             let prefsvc = Components.classes["@mozilla.org/preferences-service;1"]
                          .getService(Components.interfaces.nsIPrefBranch);
-            let pref = "accessibility.typeaheadfind.highlightAllBehavior";
-            let state = this.getElement("highlight").checked ? 2 : 3;
-            prefsvc.setIntPref(pref, state);
+            let pref = "accessibility.typeaheadfind.highlightallbydefault";
+            let state = this.getElement("highlight").checked;
+            prefsvc.setBoolPref(pref, state);
           }
 
           this._findFailedString = null;
@@ -928,13 +937,9 @@
             this.getElement("find-previous").hidden = showMinimalUI;
           this._updateCaseSensitivity();
           
-          if (this._typeAheadHighlightAllBehavior == 1 ||
-              this._typeAheadHighlightAllBehavior == 2) {
-            this.getElement("highlight").checked = true;
+          this.getElement("highlight").checked = this._typeAheadHighlightAllByDefault;
+          if (this._typeAheadHighlightAllByDefault)
             this.toggleHighlight(true);
-          } else {
-            this.getElement("highlight").checked = false;
-          }
 
           if (showMinimalUI)
             this._findField.classList.add("minimal");

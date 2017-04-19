@@ -1176,9 +1176,10 @@ var AboutPermissions = {
       }
     } else {
       if (_default) {
-        permissionValue = PermissionDefaults[permissionType];
+        this._selectedSite.clearPermission(permissionType);
+      } else {
+        this._selectedSite.setPermission(permissionType, permissionValue);
       }
-      this._selectedSite.setPermission(permissionType, permissionValue);
     }
   },
 

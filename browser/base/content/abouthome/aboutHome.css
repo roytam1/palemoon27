@@ -290,28 +290,6 @@ body[narrow] #restorePreviousSession::before {
   width: 32px;
 }
 
-#aboutMozilla {
-  display: block;
-  position: relative; /* pin wordmark to edge of document, not of viewport */
-  -moz-box-ordinal-group: 0;
-  opacity: .5;
-  transition: opacity 150ms;
-}
-
-#aboutMozilla:hover {
-  opacity: 1;
-}
-
-#aboutMozilla::before {
-  content: url("chrome://browser/content/abouthome/mozilla.png");
-  display: block;
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 69px;
-  height: 19px;
-}
-
 /* [HiDPI]
  * At resolutions above 1dppx, prefer downscaling the 2x Retina graphics
  * rather than upscaling the original-size ones (bug 818940).
@@ -321,8 +299,7 @@ body[narrow] #restorePreviousSession::before {
     background-image: url("chrome://branding/content/about-logo@2x.png");
   }
 
-  .launchButton::before,
-  #aboutMozilla::before {
+  .launchButton::before {
     transform: scale(.5);
     transform-origin: 0 0;
   }
@@ -357,10 +334,6 @@ body[narrow] #restorePreviousSession::before {
 
   body[narrow] #restorePreviousSession::before {
     content: url("chrome://browser/content/abouthome/restore@2x.png");
-  }
-
-  #aboutMozilla::before {
-    content: url("chrome://browser/content/abouthome/mozilla@2x.png");
   }
 }
 

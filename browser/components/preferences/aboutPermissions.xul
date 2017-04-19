@@ -61,6 +61,7 @@
                   label="&permissions.forgetSite;"
                   oncommand="if (Services.prompt.confirm(null,
                       this.getAttribute('label'),
+                      this.getAttribute('label') + '\n\n' +
                       AboutPermissions._stringBundleAboutPermissions
                       .GetStringFromName('permissionsConfirm')))
                       { AboutPermissions.forgetSite(); }"/>
@@ -197,6 +198,7 @@
                     label="&cookie.removeAll;"
                     oncommand="if (Services.prompt.confirm(null,
                         this.getAttribute('label'),
+                        this.getAttribute('label') + '\n\n' +
                         AboutPermissions._stringBundleAboutPermissions
                         .GetStringFromName('permissionsConfirm')))
                         { Services.cookies.removeAll(); }"/>
@@ -209,7 +211,8 @@
             <button id="cookies-clear-button"
                     label="&cookie.remove;"
                     oncommand="if (Services.prompt.confirm(null,
-                        event.target.getAttribute('label'),
+                        this.getAttribute('label'),
+                        this.getAttribute('label') + '\n\n' +
                         AboutPermissions._stringBundleAboutPermissions
                         .GetStringFromName('permissionsConfirm')))
                         { AboutPermissions.clearCookies(); }"/>

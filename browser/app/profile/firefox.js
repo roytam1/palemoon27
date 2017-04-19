@@ -1049,6 +1049,11 @@ pref("full-screen-api.enabled", true);
 // approval.
 pref("full-screen-api.approval-required", true);
 
+// about:permissions
+// Maximum number of sites to return from the places database.
+// 0-100 (currently)
+pref("permissions.places-sites-limit", 50);
+
 // Startup Crash Tracking
 // number of startup crashes that can occur before starting into safe mode automatically
 // (this pref has no effect if more than 6 hours have passed since the last crash)

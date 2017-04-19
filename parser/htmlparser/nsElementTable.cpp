@@ -483,7 +483,7 @@ const nsHTMLElement gHTMLElements[] = {
     /*tag*/         eHTMLTag_summary,
     /*parent,leaf*/ kBlock, false
   },
-  {    /*tag*/         eHTMLTag_sup,
+  { /*tag*/         eHTMLTag_sup,
     /*parent,leaf*/ kSpecial, false
   },
   {

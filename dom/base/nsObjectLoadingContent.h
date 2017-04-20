@@ -504,6 +504,30 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      */
     nsPluginFrame* GetExistingFrame();
 
+    /**
+     * Used to try to rewrite a youtube flash embed to HTML5 player
+     *
+     * aRewrittenURI is filled with the result of rewriting
+     * if plugin.rewrite_youtube_embeds pref is true and
+     * the element this nsObjectLoadingContent instance represents:
+     *
+     * - is an embed or object node
+     * - has a URL pointing at the youtube.com domain, using "/v/" style video
+     *   path reference, and without enablejsapi=1 in the path
+     *
+     * Having the enablejsapi flag means the document that contains the element
+     * could possibly be manipulating the youtube video elsewhere on the page
+     * via javascript. We can't rewrite these kinds of elements without possibly
+     * breaking content, which we want to avoid.
+     *
+     * If we can rewrite the URL, we change the "/v/" to "/embed/", and change
+     * our type to eType_Document so that we render similarly to an iframe
+     * embed.
+     */
+    void MaybeRewriteYoutubeEmbed(nsIURI* aURI,
+                                  nsIURI* aBaseURI,
+                                  nsIURI** aRewrittenURI);
+
     // Helper class for SetupProtoChain
     class SetupProtoChainRunner final : public nsIRunnable
     {

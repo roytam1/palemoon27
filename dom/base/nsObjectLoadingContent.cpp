@@ -38,6 +38,7 @@
 #include "nsIBlocklistService.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAppShell.h"
+#include "nsIScriptError.h"
 
 #include "nsError.h"
 
@@ -101,6 +102,7 @@
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 static const char *kPrefJavaMIME = "plugin.java.mime";
+static const char *kPrefYoutubeRewrite = "plugins.rewrite_youtube_embeds";
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1471,6 +1473,113 @@ nsObjectLoadingContent::CheckJavaCodebase()
   return true;
 }
 
+void
+nsObjectLoadingContent::MaybeRewriteYoutubeEmbed(nsIURI* aURI, nsIURI* aBaseURI, nsIURI** aOutURI)
+{
+  nsCOMPtr<nsIContent> thisContent =
+    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  NS_ASSERTION(thisContent, "Must be an instance of content");
+
+  // We're only interested in switching out embed and object tags
+  if (!thisContent->NodeInfo()->Equals(nsGkAtoms::embed) &&
+      !thisContent->NodeInfo()->Equals(nsGkAtoms::object)) {
+    return;
+  }
+  nsCOMPtr<nsIEffectiveTLDService> tldService =
+    do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID);
+  // If we can't analyze the URL, just pass on through.
+  if(!tldService) {
+    NS_WARNING("Could not get TLD service!");
+    return;
+  }
+
+  nsAutoCString currentBaseDomain;
+  bool ok = NS_SUCCEEDED(tldService->GetBaseDomain(aURI, 0, currentBaseDomain));
+  if (!ok) {
+    // Data URIs (commonly used for things like svg embeds) won't parse
+    // correctly, so just fail silently here.
+    return;
+  }
+
+  // See if URL is referencing youtube
+  if (!currentBaseDomain.EqualsLiteral("youtube.com")) {
+    return;
+  }
+
+  // We should only rewrite URLs with paths starting with "/v/", as we shouldn't
+  // touch object nodes with "/embed/" urls that already do that right thing.
+  nsAutoCString path;
+  aURI->GetPath(path);
+  if (!StringBeginsWith(path, NS_LITERAL_CSTRING("/v/"))) {
+    return;
+  }
+
+  // See if requester is planning on using the JS API.
+  nsAutoCString uri;
+  aURI->GetSpec(uri);
+  if (uri.Find("enablejsapi=1", true, 0, -1) != kNotFound) {
+    return;
+  }
+
+  // Some YouTube urls have parameters in path components, e.g.
+  // http://youtube.com/embed/7LcUOEP7Brc&start=35. These URLs work with flash,
+  // but break iframe/object embedding. If this situation occurs with rewritten
+  // URLs, convert the parameters to query in order to make the video load
+  // correctly as an iframe. In either case, warn about it in the
+  // developer console.
+  int32_t ampIndex = uri.FindChar('&', 0);
+  bool replaceQuery = false;
+  if (ampIndex != -1) {
+    int32_t qmIndex = uri.FindChar('?', 0);
+    if (qmIndex == -1 ||
+        qmIndex > ampIndex) {
+      replaceQuery = true;
+    }
+  }
+ 
+  // If we're pref'd off, return after telemetry has been logged.
+  if (!Preferences::GetBool(kPrefYoutubeRewrite)) {
+    return;
+  }
+
+  nsAutoString utf16OldURI = NS_ConvertUTF8toUTF16(uri);
+  // If we need to convert the URL, it means an ampersand comes first.
+  // Use the index we found earlier.
+  if (replaceQuery) {
+    // Replace question marks with ampersands.
+    uri.ReplaceChar('?', '&');
+    // Replace the first ampersand with a question mark.
+    uri.SetCharAt('?', ampIndex);
+  }
+  // Switch out video access url formats, which should possibly allow HTML5
+  // video loading.
+  uri.ReplaceSubstring(NS_LITERAL_CSTRING("/v/"),
+                       NS_LITERAL_CSTRING("/embed/"));
+  nsAutoString utf16URI = NS_ConvertUTF8toUTF16(uri);
+  nsresult rv = nsContentUtils::NewURIWithDocumentCharset(aOutURI,
+                                                          utf16URI,
+                                                          thisContent->OwnerDoc(),
+                                                          aBaseURI);
+  if (NS_FAILED(rv)) {
+    return;
+  }
+  const char16_t* params[] = { utf16OldURI.get(), utf16URI.get() };
+  const char* msgName;
+  // If there's no query to rewrite, just notify in the developer console
+  // that we're changing the embed.
+  if (!replaceQuery) {
+    msgName = "RewriteYoutubeEmbed";
+  } else {
+    msgName = "RewriteYoutubeEmbedInvalidQuery";
+  }
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                  NS_LITERAL_CSTRING("Plugins"),
+                                  thisContent->OwnerDoc(),
+                                  nsContentUtils::eDOM_PROPERTIES,
+                                  msgName,
+                                  params, ArrayLength(params));
+}
+
 bool
 nsObjectLoadingContent::CheckLoadPolicy(int16_t *aContentPolicy)
 {
@@ -1722,6 +1831,15 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
                                                    uriStr,
                                                    thisContent->OwnerDoc(),
                                                    newBaseURI);
+    nsCOMPtr<nsIURI> rewrittenURI;
+    MaybeRewriteYoutubeEmbed(newURI,
+                             newBaseURI,
+                             getter_AddRefs(rewrittenURI));
+    if (rewrittenURI) {
+      newURI = rewrittenURI;
+      newMime = NS_LITERAL_CSTRING("text/html");
+    }
+
     if (NS_SUCCEEDED(rv)) {
       NS_TryToSetImmutable(newURI);
     } else {
@@ -1885,9 +2003,9 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
     newType = eType_Null;
     newMime.Truncate();
   } else if (newChannel) {
-      // If newChannel is set above, we considered it in setting newMime
-      newType = GetTypeOfContent(newMime);
-      LOG(("OBJLC [%p]: Using channel type", this));
+    // If newChannel is set above, we considered it in setting newMime
+    newType = GetTypeOfContent(newMime);
+    LOG(("OBJLC [%p]: Using channel type", this));
   } else if (((caps & eAllowPluginSkipChannel) || !newURI) &&
              GetTypeOfContent(newMime) == eType_Plugin) {
     newType = eType_Plugin;

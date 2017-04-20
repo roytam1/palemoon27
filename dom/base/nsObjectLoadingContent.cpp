@@ -1537,7 +1537,7 @@ nsObjectLoadingContent::MaybeRewriteYoutubeEmbed(nsIURI* aURI, nsIURI* aBaseURI,
     }
   }
  
-  // If we're pref'd off, return after telemetry has been logged.
+  // If we're pref'd off, just return.
   if (!Preferences::GetBool(kPrefYoutubeRewrite)) {
     return;
   }

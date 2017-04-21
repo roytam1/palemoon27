@@ -24,6 +24,7 @@
 #include "nsISSLStatusProvider.h"
 #endif
 #include "mozilla/Attributes.h"
+#include "mozilla/CheckedInt.h"
 
 namespace mozilla {
 namespace net {
@@ -434,7 +435,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
     else {
         // decode challenge; skip past "NTLM " to the start of the base64
         // encoded data.
-        int len = strlen(challenge);
+        unsigned int len = strlen(challenge);
         if (len < 6)
             return NS_ERROR_UNEXPECTED; // bogus challenge
         challenge += 5;
@@ -444,6 +445,10 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
         while (challenge[len - 1] == '=')
           len--;
 
+        if (len > UINT32_MAX/4) {
+            // challenges this long are unacceptable
+            return NS_ERROR_UNEXPECTED;
+        }
         // decode into the input secbuffer
         inBufLen = (len * 3)/4;      // sufficient size (see plbase64.h)
         inBuf = nsMemory::Alloc(inBufLen);
@@ -459,15 +464,19 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
     rv = module->GetNextToken(inBuf, inBufLen, &outBuf, &outBufLen);
     if (NS_SUCCEEDED(rv)) {
         // base64 encode data in output buffer and prepend "NTLM "
-        int credsLen = 5 + ((outBufLen + 2)/3)*4;
-        *creds = (char *) nsMemory::Alloc(credsLen + 1);
-        if (!*creds)
-            rv = NS_ERROR_OUT_OF_MEMORY;
-        else {
-            memcpy(*creds, "NTLM ", 5);
-            PL_Base64Encode((char *) outBuf, outBufLen, *creds + 5);
-            (*creds)[credsLen] = '\0'; // null terminate
+        CheckedUint32 credsLen = ((CheckedUint32(outBufLen) + 2) / 3) * 4;
+        credsLen += 5; // "NTLM "
+        credsLen += 1; // null terminate
+
+        if (!credsLen.isValid()) {
+          rv = NS_ERROR_FAILURE;
+        } else {
+          *creds = (char *) moz_xmalloc(credsLen.value());
+          memcpy(*creds, "NTLM ", 5);
+          PL_Base64Encode((char *) outBuf, outBufLen, *creds + 5);
+          (*creds)[credsLen.value() - 1] = '\0'; // null terminate
         }
+
         // OK, we are done with |outBuf|
         nsMemory::Free(outBuf);
     }

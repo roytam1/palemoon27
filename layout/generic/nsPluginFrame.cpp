@@ -1723,8 +1723,10 @@ nsPluginFrame::HandleEvent(nsPresContext* aPresContext,
   }
   else if (anEvent->message == NS_PLUGIN_FOCUS) {
     nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm)
-      return fm->FocusPlugin(GetContent());
+    if (fm) {
+      nsCOMPtr<nsIContent> content = GetContent();
+      return fm->FocusPlugin(content);
+    }
   }
 
   if (mInstanceOwner->SendNativeEvents() &&

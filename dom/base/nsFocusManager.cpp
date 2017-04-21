@@ -1516,7 +1516,7 @@ nsFocusManager::CheckIfFocusable(nsIContent* aContent, uint32_t aFlags)
 
   // this is a special case for some XUL elements where an anonymous child is
   // actually focusable and not the element itself.
-  nsIContent* redirectedFocus = GetRedirectedFocus(aContent);
+  nsCOMPtr<nsIContent> redirectedFocus = GetRedirectedFocus(aContent);
   if (redirectedFocus)
     return CheckIfFocusable(redirectedFocus, aFlags);
 

@@ -2,17 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let Cc = Components.classes;
 let Ci = Components.interfaces;
+let Cc = Components.classes;
 let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
-
-Cu.import("resource://gre/modules/AddonManager.jsm");
-Cu.import("resource://gre/modules/DownloadUtils.jsm");
-Cu.import("resource://gre/modules/ForgetAboutSite.jsm");
-Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
+Cu.import("resource://gre/modules/DownloadUtils.jsm");
+Cu.import("resource://gre/modules/AddonManager.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://gre/modules/ForgetAboutSite.jsm");
 
 let gFaviconService = Cc["@mozilla.org/browser/favicon-service;1"].
                       getService(Ci.nsIFaviconService);
@@ -23,18 +22,18 @@ let gPlacesDatabase = Cc["@mozilla.org/browser/nav-history-service;1"].
                       clone(true);
 
 let gSitesStmt = gPlacesDatabase.createAsyncStatement(
-                 "SELECT get_unreversed_host(rev_host) AS host " +
-                 "FROM moz_places " +
-                 "WHERE rev_host > '.' " +
-                 "AND visit_count > 0 " +
-                 "GROUP BY rev_host " +
-                 "ORDER BY MAX(frecency) DESC " +
-                 "LIMIT :limit");
+                  "SELECT get_unreversed_host(rev_host) AS host " +
+                  "FROM moz_places " +
+                  "WHERE rev_host > '.' " +
+                  "AND visit_count > 0 " +
+                  "GROUP BY rev_host " +
+                  "ORDER BY MAX(frecency) DESC " +
+                  "LIMIT :limit");
 
 let gVisitStmt = gPlacesDatabase.createAsyncStatement(
-                 "SELECT SUM(visit_count) AS count " +
-                 "FROM moz_places " +
-                 "WHERE rev_host = :rev_host");
+                  "SELECT SUM(visit_count) AS count " +
+                  "FROM moz_places " +
+                  "WHERE rev_host = :rev_host");
 
 let gFlash = {
   name: "Shockwave Flash",

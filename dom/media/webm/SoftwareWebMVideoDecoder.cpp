@@ -13,6 +13,7 @@
 #include "TimeUnits.h"
 #include "VorbisUtils.h"
 #include "WebMBufferedParser.h"
+#include "prsystem.h"
 
 #include <algorithm>
 
@@ -55,6 +56,8 @@ SoftwareWebMVideoDecoder::Create(WebMReader* aReader)
 nsresult
 SoftwareWebMVideoDecoder::Init(unsigned int aWidth, unsigned int aHeight)
 {
+  int decode_threads = 2; //Default to 2 threads for small sizes or VP8
+   
   vpx_codec_iface_t* dx = nullptr;
   switch(mReader->GetVideoCodec()) {
     case NESTEGG_CODEC_VP8:
@@ -62,9 +65,23 @@ SoftwareWebMVideoDecoder::Init(unsigned int aWidth, unsigned int aHeight)
       break;
     case NESTEGG_CODEC_VP9:
       dx = vpx_codec_vp9_dx();
+      if (aWidth >= 2048) {
+        decode_threads = 8;
+      } else if (aWidth >= 1024) {
+        decode_threads = 4;
+      }      
       break;
   }
-  if (!dx || vpx_codec_dec_init(&mVPX, dx, nullptr, 0)) {
+  
+  // Never exceed the number of system cores!
+  decode_threads = std::min(decode_threads, PR_GetNumberOfProcessors());
+
+  vpx_codec_dec_cfg_t config;
+  config.threads = decode_threads;
+  config.w = aWidth;
+  config.h = aHeight;
+
+  if (!dx || vpx_codec_dec_init(&mVPX, dx, &config, 0)) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;

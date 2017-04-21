@@ -69,8 +69,10 @@ NS_INTERFACE_MAP_BEGIN(nsExtProtocolChannel)
    NS_INTERFACE_MAP_ENTRY(nsIRequest)
 NS_INTERFACE_MAP_END_THREADSAFE
 
-nsExtProtocolChannel::nsExtProtocolChannel() : mStatus(NS_OK), 
-                                               mWasOpened(false)
+nsExtProtocolChannel::nsExtProtocolChannel()
+  : mStatus(NS_OK)
+  , mLoadFlags(nsIRequest::LOAD_NORMAL)
+  , mWasOpened(false)
 {
 }
 

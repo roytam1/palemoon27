@@ -230,6 +230,10 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
         while (challenge[len - 1] == '=')
             len--;
 
+        if (len > UINT32_MAX/4) {
+            // challenges this long are unacceptable
+            return (NS_ERROR_UNEXPECTED);
+        }
         inTokenLen = (len * 3)/4;
         inToken = malloc(inTokenLen);
         if (!inToken)

@@ -25,6 +25,7 @@
 #endif
 #include "gfx2DGlue.h"
 #include "mozilla/gfx/2D.h"
+#include "mozilla/CheckedInt.h"
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
@@ -391,8 +392,15 @@ PlanarYCbCrImage::CopyData(const Data& aData)
   mData = aData;
 
   // update buffer size
-  size_t size = mData.mCbCrStride * mData.mCbCrSize.height * 2 +
-                mData.mYStride * mData.mYSize.height;
+  // Use uint32_t throughout to match AllocateBuffer's param and mBufferSize
+  const auto checkedSize =
+    CheckedInt<uint32_t>(mData.mCbCrStride) * mData.mCbCrSize.height * 2 +
+    CheckedInt<uint32_t>(mData.mYStride) * mData.mYSize.height;
+
+  if (!checkedSize.isValid())
+    return;
+
+  const auto size = checkedSize.value();
 
   // get new buffer
   mBuffer = AllocateBuffer(size);

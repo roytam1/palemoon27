@@ -59,12 +59,7 @@
           <spacer flex="1"/>
           <button id="forget-site-button"
                   label="&permissions.forgetSite;"
-                  oncommand="if (Services.prompt.confirm(null,
-                      this.getAttribute('label'),
-                      this.getAttribute('label') + '\n\n' +
-                      AboutPermissions._stringBundleAboutPermissions
-                      .GetStringFromName('permissionsConfirm')))
-                      { AboutPermissions.forgetSite(); }"/>
+                  oncommand="AboutPermissions.forgetSite();"/>
         </hbox>
 
         <hbox id="defaults-header" class="pref-item" align="center">
@@ -196,12 +191,7 @@
                     oncommand="AboutPermissions.onPermissionCommand(event, true);"/>
             <button id="cookies-clear-all-button"
                     label="&cookie.removeAll;"
-                    oncommand="if (Services.prompt.confirm(null,
-                        this.getAttribute('label'),
-                        this.getAttribute('label') + '\n\n' +
-                        AboutPermissions._stringBundleAboutPermissions
-                        .GetStringFromName('permissionsConfirm')))
-                        { Services.cookies.removeAll(); }"/>
+                    oncommand="Services.cookies.removeAll();"/>
             <button id="cookies-manage-all-button"
                     label="&cookie.manage;"
                     oncommand="AboutPermissions.manageCookies();"/>
@@ -210,12 +200,7 @@
             <label id="cookies-label"/>
             <button id="cookies-clear-button"
                     label="&cookie.remove;"
-                    oncommand="if (Services.prompt.confirm(null,
-                        this.getAttribute('label'),
-                        this.getAttribute('label') + '\n\n' +
-                        AboutPermissions._stringBundleAboutPermissions
-                        .GetStringFromName('permissionsConfirm')))
-                        { AboutPermissions.clearCookies(); }"/>
+                    oncommand="AboutPermissions.clearCookies();"/>
             <button id="cookies-manage-button"
                     label="&cookie.manage;"
                     oncommand="AboutPermissions.manageCookies();"/>

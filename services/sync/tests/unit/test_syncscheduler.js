@@ -517,7 +517,7 @@ add_task(function test_autoconnect_mp_locked() {
   delete Service.identity.syncKey;
   Service.identity.__defineGetter__("syncKey", function() {
     _("Faking Master Password entry cancelation.");
-    throw "User canceled Master Password entry";
+    throw "User canceled master password entry";
   });
 
   let deferred = Promise.defer();

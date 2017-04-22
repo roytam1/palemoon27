@@ -4691,7 +4691,7 @@ SessionStoreSHistoryListener.prototype = {
   }
 }
 
-// see nsPrivateBrowsingService.js
+// See toolkit/forgetaboutsite/ForgetAboutSite.jsm
 String.prototype.hasRootDomain = function hasRootDomain(aDomain) {
   let index = this.indexOf(aDomain);
   if (index == -1)

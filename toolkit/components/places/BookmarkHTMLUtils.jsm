@@ -1030,7 +1030,12 @@ BookmarkExporter.prototype = {
   },
 
   _writeLine: function (aText) {
-    this._write(aText + "\n");
+    if (Services.sysinfo.getProperty("name") == "Windows_NT") {
+      // Write CRLF line endings on Windows
+      this._write(aText + "\r\n");
+    } else {
+      this._write(aText + "\n");
+    }
   },
 
   _writeHeader: function () {

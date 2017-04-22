@@ -41,6 +41,9 @@ let gFlash = {
   type: "application/x-shockwave-flash",
 };
 
+// XXX: is there a better way to do this rather than this hacky comparison?
+const MASTER_PASSWORD_MESSAGE = "User canceled master password entry";
+
 /**
  * Permission types that should be tested with testExactPermission, as opposed
  * to testPermission. This is based on what consumers use to test these
@@ -204,23 +207,43 @@ Site.prototype = {
    * @return An array of the logins stored for the site.
    */
   get logins() {
-    let httpLogins = Services.logins.findLogins(
-        {}, this.httpURI.prePath, "", "");
-    let httpsLogins = Services.logins.findLogins(
-        {}, this.httpsURI.prePath, "", "");
-    return httpLogins.concat(httpsLogins);
+    try {
+      let httpLogins = Services.logins.findLogins(
+          {}, this.httpURI.prePath, "", "");
+      let httpsLogins = Services.logins.findLogins(
+          {}, this.httpsURI.prePath, "", "");
+      return httpLogins.concat(httpsLogins);
+    } catch (e) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
+        Cu.reportError("AboutPermissions: " + e);
+      }
+      return [];
+    }
   },
 
   get loginSavingEnabled() {
     // Only say that login saving is blocked if it is blocked for both
     // http and https.
-    return Services.logins.getLoginSavingEnabled(this.httpURI.prePath) &&
-           Services.logins.getLoginSavingEnabled(this.httpsURI.prePath);
+    try {
+      return Services.logins.getLoginSavingEnabled(this.httpURI.prePath) &&
+             Services.logins.getLoginSavingEnabled(this.httpsURI.prePath);
+    } catch (e) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
+        Cu.reportError("AboutPermissions: " + e);
+      }
+      return false;
+    }
   },
 
   set loginSavingEnabled(isEnabled) {
-    Services.logins.setLoginSavingEnabled(this.httpURI.prePath, isEnabled);
-    Services.logins.setLoginSavingEnabled(this.httpsURI.prePath, isEnabled);
+    try {
+      Services.logins.setLoginSavingEnabled(this.httpURI.prePath, isEnabled);
+      Services.logins.setLoginSavingEnabled(this.httpsURI.prePath, isEnabled);
+    } catch (e) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
+        Cu.reportError("AboutPermissions: " + e);
+      }
+    }
   },
 
   /**
@@ -850,9 +873,7 @@ let AboutPermissions = {
         itemCnt++;
       }, this);
     } catch (e) {
-      // XXX: is there a better way to do this rather than this
-      // hacky comparison?
-      if (e.message.indexOf("User canceled master password entry") == -1) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
         Cu.reportError("AboutPermissions: " + e);
       }
     }

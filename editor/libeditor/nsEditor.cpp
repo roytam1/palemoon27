@@ -861,7 +861,7 @@ nsEditor::BeginTransaction()
   BeginUpdateViewBatch();
 
   if (mTxnMgr) {
-    RefPtr<nsTransactionManager> txnMgr = mTxnMgr;
+    nsRefPtr<nsTransactionManager> txnMgr = mTxnMgr;
     txnMgr->BeginBatch(nullptr);
   }
 
@@ -872,7 +872,7 @@ NS_IMETHODIMP
 nsEditor::EndTransaction()
 {
   if (mTxnMgr) {
-    RefPtr<nsTransactionManager> txnMgr = mTxnMgr;
+    nsRefPtr<nsTransactionManager> txnMgr = mTxnMgr;
     txnMgr->EndBatch(false);
   }
 

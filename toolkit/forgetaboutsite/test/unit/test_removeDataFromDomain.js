@@ -322,33 +322,33 @@ function preference_exists(aURI)
 //// Test Functions
 
 // History
-function test_history_cleared_with_direct_match()
+function* test_history_cleared_with_direct_match()
 {
   const TEST_URI = uri("http://mozilla.org/foo");
   do_check_false(yield promiseIsURIVisited(TEST_URI));
   yield PlacesTestUtils.addVisits(TEST_URI);
   do_check_true(yield promiseIsURIVisited(TEST_URI));
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   do_check_false(yield promiseIsURIVisited(TEST_URI));
 }
 
-function test_history_cleared_with_subdomain()
+function* test_history_cleared_with_subdomain()
 {
   const TEST_URI = uri("http://www.mozilla.org/foo");
   do_check_false(yield promiseIsURIVisited(TEST_URI));
   yield PlacesTestUtils.addVisits(TEST_URI);
   do_check_true(yield promiseIsURIVisited(TEST_URI));
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   do_check_false(yield promiseIsURIVisited(TEST_URI));
 }
 
-function test_history_not_cleared_with_uri_contains_domain()
+function* test_history_not_cleared_with_uri_contains_domain()
 {
   const TEST_URI = uri("http://ilovemozilla.org/foo");
   do_check_false(yield promiseIsURIVisited(TEST_URI));
   yield PlacesTestUtils.addVisits(TEST_URI);
   do_check_true(yield promiseIsURIVisited(TEST_URI));
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   do_check_true(yield promiseIsURIVisited(TEST_URI));
 
   // Clear history since we left something there from this test.
@@ -356,32 +356,32 @@ function test_history_not_cleared_with_uri_contains_domain()
 }
 
 // Cookie Service
-function test_cookie_cleared_with_direct_match()
+function* test_cookie_cleared_with_direct_match()
 {
   const TEST_DOMAIN = "mozilla.org";
   add_cookie(TEST_DOMAIN);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_cookie_exists(TEST_DOMAIN, false);
 }
 
-function test_cookie_cleared_with_subdomain()
+function* test_cookie_cleared_with_subdomain()
 {
   const TEST_DOMAIN = "www.mozilla.org";
   add_cookie(TEST_DOMAIN);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_cookie_exists(TEST_DOMAIN, false);
 }
 
-function test_cookie_not_cleared_with_uri_contains_domain()
+function* test_cookie_not_cleared_with_uri_contains_domain()
 {
   const TEST_DOMAIN = "ilovemozilla.org";
   add_cookie(TEST_DOMAIN);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_cookie_exists(TEST_DOMAIN, true);
 }
 
 // Download Manager
-function test_download_history_cleared_with_direct_match()
+function* test_download_history_cleared_with_direct_match()
 {
   if (oldDownloadManagerDisabled()) {
     return;
@@ -389,11 +389,11 @@ function test_download_history_cleared_with_direct_match()
 
   const TEST_URI = "http://mozilla.org/foo";
   add_download(TEST_URI, false);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_downloaded(TEST_URI, false);
 }
 
-function test_download_history_cleared_with_subdomain()
+function* test_download_history_cleared_with_subdomain()
 {
   if (oldDownloadManagerDisabled()) {
     return;
@@ -401,11 +401,11 @@ function test_download_history_cleared_with_subdomain()
 
   const TEST_URI = "http://www.mozilla.org/foo";
   add_download(TEST_URI, false);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_downloaded(TEST_URI, false);
 }
 
-function test_download_history_not_cleared_with_active_direct_match()
+function* test_download_history_not_cleared_with_active_direct_match()
 {
   if (oldDownloadManagerDisabled()) {
     return;
@@ -414,7 +414,7 @@ function test_download_history_not_cleared_with_active_direct_match()
   // Tests that downloads marked as active in the db are not deleted from the db
   const TEST_URI = "http://mozilla.org/foo";
   add_download(TEST_URI, true);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_downloaded(TEST_URI, true);
 
   // Reset state
@@ -426,27 +426,27 @@ function test_download_history_not_cleared_with_active_direct_match()
 }
 
 // Login Manager
-function test_login_manager_disabled_hosts_cleared_with_direct_match()
+function* test_login_manager_disabled_hosts_cleared_with_direct_match()
 {
   const TEST_HOST = "http://mozilla.org";
   add_disabled_host(TEST_HOST);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_disabled_host(TEST_HOST, false);
 }
 
-function test_login_manager_disabled_hosts_cleared_with_subdomain()
+function* test_login_manager_disabled_hosts_cleared_with_subdomain()
 {
   const TEST_HOST = "http://www.mozilla.org";
   add_disabled_host(TEST_HOST);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_disabled_host(TEST_HOST, false);
 }
 
-function test_login_manager_disabled_hosts_not_cleared_with_uri_contains_domain()
+function* test_login_manager_disabled_hosts_not_cleared_with_uri_contains_domain()
 {
   const TEST_HOST = "http://ilovemozilla.org";
   add_disabled_host(TEST_HOST);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_disabled_host(TEST_HOST, true);
 
   // Reset state
@@ -456,19 +456,19 @@ function test_login_manager_disabled_hosts_not_cleared_with_uri_contains_domain(
   check_disabled_host(TEST_HOST, false);
 }
 
-function test_login_manager_logins_cleared_with_direct_match()
+function* test_login_manager_logins_cleared_with_direct_match()
 {
   const TEST_HOST = "http://mozilla.org";
   add_login(TEST_HOST);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_login_exists(TEST_HOST, false);
 }
 
-function test_login_manager_logins_cleared_with_subdomain()
+function* test_login_manager_logins_cleared_with_subdomain()
 {
   const TEST_HOST = "http://www.mozilla.org";
   add_login(TEST_HOST);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_login_exists(TEST_HOST, false);
 }
 
@@ -476,7 +476,7 @@ function tets_login_manager_logins_not_cleared_with_uri_contains_domain()
 {
   const TEST_HOST = "http://ilovemozilla.org";
   add_login(TEST_HOST);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_login_exists(TEST_HOST, true);
 
   let lm = Cc["@mozilla.org/login-manager;1"].
@@ -486,27 +486,27 @@ function tets_login_manager_logins_not_cleared_with_uri_contains_domain()
 }
 
 // Permission Manager
-function test_permission_manager_cleared_with_direct_match()
+function* test_permission_manager_cleared_with_direct_match()
 {
   const TEST_URI = uri("http://mozilla.org");
   add_permission(TEST_URI);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_permission_exists(TEST_URI, false);
 }
 
-function test_permission_manager_cleared_with_subdomain()
+function* test_permission_manager_cleared_with_subdomain()
 {
   const TEST_URI = uri("http://www.mozilla.org");
   add_permission(TEST_URI);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_permission_exists(TEST_URI, false);
 }
 
-function test_permission_manager_not_cleared_with_uri_contains_domain()
+function* test_permission_manager_not_cleared_with_uri_contains_domain()
 {
   const TEST_URI = uri("http://ilovemozilla.org");
   add_permission(TEST_URI);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   check_permission_exists(TEST_URI, true);
 
   // Reset state
@@ -537,46 +537,46 @@ function waitForPurgeNotification() {
 }
 
 // Content Preferences
-function test_content_preferences_cleared_with_direct_match()
+function* test_content_preferences_cleared_with_direct_match()
 {
   const TEST_URI = uri("http://mozilla.org");
   do_check_false(yield preference_exists(TEST_URI));
   yield add_preference(TEST_URI);
   do_check_true(yield preference_exists(TEST_URI));
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   yield waitForPurgeNotification();
   do_check_false(yield preference_exists(TEST_URI));
 }
 
-function test_content_preferences_cleared_with_subdomain()
+function* test_content_preferences_cleared_with_subdomain()
 {
   const TEST_URI = uri("http://www.mozilla.org");
   do_check_false(yield preference_exists(TEST_URI));
   yield add_preference(TEST_URI);
   do_check_true(yield preference_exists(TEST_URI));
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   yield waitForPurgeNotification();
   do_check_false(yield preference_exists(TEST_URI));
 }
 
-function test_content_preferences_not_cleared_with_uri_contains_domain()
+function* test_content_preferences_not_cleared_with_uri_contains_domain()
 {
   const TEST_URI = uri("http://ilovemozilla.org");
   do_check_false(yield preference_exists(TEST_URI));
   yield add_preference(TEST_URI);
   do_check_true(yield preference_exists(TEST_URI));
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   yield waitForPurgeNotification();
   do_check_true(yield preference_exists(TEST_URI));
 
   // Reset state
-  ForgetAboutSite.removeDataFromDomain("ilovemozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("ilovemozilla.org");
   yield waitForPurgeNotification();
   do_check_false(yield preference_exists(TEST_URI));
 }
 
 // Cache
-function test_cache_cleared()
+function* test_cache_cleared()
 {
   // Because this test is asynchronous, it should be the last test
   do_check_true(tests[tests.length - 1] == arguments.callee);
@@ -598,11 +598,11 @@ function test_cache_cleared()
     }
   };
   os.addObserver(observer, "cacheservice:empty-cache", false);
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   do_test_pending();
 }
 
-function test_storage_cleared()
+function* test_storage_cleared()
 {
   function getStorageForURI(aURI)
   {
@@ -628,7 +628,7 @@ function test_storage_cleared()
     do_check_eq(storage.getItem("test"), "value" + i);
   }
 
-  ForgetAboutSite.removeDataFromDomain("mozilla.org");
+  yield ForgetAboutSite.removeDataFromDomain("mozilla.org");
   yield waitForPurgeNotification();
 
   do_check_eq(s[0].getItem("test"), null);

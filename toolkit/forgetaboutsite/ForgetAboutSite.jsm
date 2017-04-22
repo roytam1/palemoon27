@@ -200,8 +200,9 @@ this.ForgetAboutSite = {
         }
       }
     }).catch(ex => {
-      // XXXehsan: is there a better way to do this rather than this
-      // hacky comparison?
+      // XXX:
+      // Is there a better way to do this rather than this hacky comparison?
+      // Copied this from toolkit/components/passwordmgr/crypto-SDR.js
       if (!ex.message.includes("User canceled master password entry")) {
         throw new Error("Exception occured in clearing passwords: " + ex);
       }

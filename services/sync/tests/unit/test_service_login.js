@@ -206,7 +206,7 @@ add_test(function test_login_on_sync() {
     _("Old passphrase function is " + oldGetter);
     Service.identity.__defineGetter__("syncKey",
                            function() {
-                             throw "User canceled Master Password entry";
+                             throw "User canceled master password entry";
                            });
 
     let oldClearSyncTriggers = Service.scheduler.clearSyncTriggers;

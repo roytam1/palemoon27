@@ -818,36 +818,44 @@ let AboutPermissions = {
   getEnumerateServicesGenerator: function() {
     let itemCnt = 1;
 
-    let logins = Services.logins.getAllLogins();
-    logins.forEach(function(aLogin) {
-      if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
-        yield true;
-      }
-      try {
-        // aLogin.hostname is a string in origin URL format
-        // (e.g. "http://foo.com").
-        let uri = NetUtil.newURI(aLogin.hostname);
-        this.addHost(uri.host);
-      } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs. 
-      }
-      itemCnt++;
-    }, this);
+    try {
+      let logins = Services.logins.getAllLogins();
+      logins.forEach(function(aLogin) {
+        if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
+          yield true;
+        }
+        try {
+          // aLogin.hostname is a string in origin URL format
+          // (e.g. "http://foo.com").
+          let uri = NetUtil.newURI(aLogin.hostname);
+          this.addHost(uri.host);
+        } catch (e) {
+          // newURI will throw for add-ons logins stored in chrome:// URIs. 
+        }
+        itemCnt++;
+      }, this);
 
-    let disabledHosts = Services.logins.getAllDisabledHosts();
-    disabledHosts.forEach(function(aHostname) {
-      if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
-        yield true;
+      let disabledHosts = Services.logins.getAllDisabledHosts();
+      disabledHosts.forEach(function(aHostname) {
+        if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
+          yield true;
+        }
+        try {
+          // aHostname is a string in origin URL format (e.g. "http://foo.com").
+          let uri = NetUtil.newURI(aHostname);
+          this.addHost(uri.host);
+        } catch (e) {
+          // newURI will throw for add-ons logins stored in chrome:// URIs. 
+        }
+        itemCnt++;
+      }, this);
+    } catch (e) {
+      // XXX: is there a better way to do this rather than this
+      // hacky comparison?
+      if (e.message.indexOf("User canceled master password entry") == -1) {
+        Cu.reportError("AboutPermissions: " + e);
       }
-      try {
-        // aHostname is a string in origin URL format (e.g. "http://foo.com").
-        let uri = NetUtil.newURI(aHostname);
-        this.addHost(uri.host);
-      } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs. 
-      }
-      itemCnt++;
-    }, this);
+    }
 
     let enumerator = Services.perms.enumerator;
     while (enumerator.hasMoreElements()) {

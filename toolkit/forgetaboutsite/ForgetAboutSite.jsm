@@ -254,7 +254,7 @@ this.ForgetAboutSite = {
           // Notify other consumers, including extensions
           Services.obs.notifyObservers(null, "browser:purge-domain-data", aDomain);
           if (reason === cps2.COMPLETE_ERROR) {
-            throw new Error("Exception occured while clearing content preferences.");
+            throw new Error("Exception occured while clearing content preferences");
           }
         },
         handleError() {}

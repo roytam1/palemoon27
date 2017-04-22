@@ -41,7 +41,9 @@ let gFlash = {
   type: "application/x-shockwave-flash",
 };
 
-// XXX: is there a better way to do this rather than this hacky comparison?
+// XXX:
+// Is there a better way to do this rather than this hacky comparison?
+// Copied this from toolkit/components/passwordmgr/crypto-SDR.js
 const MASTER_PASSWORD_MESSAGE = "User canceled master password entry";
 
 /**

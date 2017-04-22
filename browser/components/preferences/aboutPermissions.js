@@ -224,21 +224,19 @@ Site.prototype = {
   },
 
   /**
-   * Gets cookies stored for the site. This does not return cookies stored
-   * for the base domain, only the exact hostname stored for the site.
+   * Gets cookies stored for the site and base domain.
    *
-   * @return An array of the cookies set for the site.
+   * @return An array of the cookies set for the site and base domain.
    */
   get cookies() {
     let cookies = [];
-    let enumerator = Services.cookies.getCookiesFromHost(this.host);
+    let enumerator = Services.cookies.enumerator;
     while (enumerator.hasMoreElements()) {
       let cookie = enumerator.getNext().QueryInterface(Ci.nsICookie2);
-      // getCookiesFromHost returns cookies for base domain, but we only want
-      // the cookies for the exact domain.
-      // if (cookie.rawHost == this.host) {
+      if (cookie.host.hasRootDomain(
+          AboutPermissions.domainFromHost(this.host))) {
         cookies.push(cookie);
-      // }
+      }
     }
     return cookies;
   },
@@ -1269,7 +1267,7 @@ let AboutPermissions = {
   },
 
   /**
-   * Clears cookies for the selected site.
+   * Clears cookies for the selected site and base domain.
    */
   clearCookies: function() {
     if (!this._selectedSite) {

@@ -254,7 +254,8 @@ Site.prototype = {
    * Removes all data from the browser corresponding to the site.
    */
   forgetSite: function Site_forgetSite() {
-    ForgetAboutSite.removeDataFromDomain(this.host);
+    ForgetAboutSite.removeDataFromDomain(this.host)
+                   .catch(Cu.reportError);
   }
 }
 

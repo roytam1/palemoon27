@@ -249,10 +249,6 @@ nsSiteSecurityService::Init()
     "network.stricttransportsecurity.enabled", true);
   mozilla::Preferences::AddStrongObserver(this,
     "network.stricttransportsecurity.enabled");
-  mProcessPKPHeadersFromNonBuiltInRoots = mozilla::Preferences::GetBool(
-    "security.cert_pinning.process_headers_from_non_builtin_roots", false);
-  mozilla::Preferences::AddStrongObserver(this,
-    "security.cert_pinning.process_headers_from_non_builtin_roots");
   mPreloadListTimeOffset = mozilla::Preferences::GetInt(
     "test.currentTimeOffsetSeconds", 0);
   mozilla::Preferences::AddStrongObserver(this,
@@ -706,10 +702,6 @@ nsSiteSecurityService::ProcessPKPHeader(nsIURI* aSourceURI,
     return NS_ERROR_FAILURE;
   }
 
-  if (!isBuiltIn && !mProcessPKPHeadersFromNonBuiltInRoots) {
-    return NS_OK;
-  }
-
   // if maxAge == 0 we must delete all state, for now no hole-punching
   if (maxAge == 0) {
     return RemoveState(aType, aSourceURI, aFlags);
@@ -1128,8 +1120,6 @@ nsSiteSecurityService::Observe(nsISupports *subject,
       "network.stricttransportsecurity.preloadlist", true);
     mPreloadListTimeOffset =
       mozilla::Preferences::GetInt("test.currentTimeOffsetSeconds", 0);
-    mProcessPKPHeadersFromNonBuiltInRoots = mozilla::Preferences::GetBool(
-      "security.cert_pinning.process_headers_from_non_builtin_roots", false);
   }
 
   return NS_OK;

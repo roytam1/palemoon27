@@ -477,8 +477,7 @@ void MediaDecoder::UpdateStreamBlockingForStateMachinePlaying()
     return;
   }
   bool blockForStateMachineNotPlaying =
-    mDecoderStateMachine && !mDecoderStateMachine->IsPlaying() &&
-    mDecoderStateMachine->GetState() != MediaDecoderStateMachine::DECODER_STATE_COMPLETED;
+    mDecoderStateMachine && !mDecoderStateMachine->IsPlaying();
   if (blockForStateMachineNotPlaying != mDecodedStream->mHaveBlockedForStateMachineNotPlaying) {
     mDecodedStream->mHaveBlockedForStateMachineNotPlaying = blockForStateMachineNotPlaying;
     int32_t delta = blockForStateMachineNotPlaying ? 1 : -1;

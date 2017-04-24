@@ -32,12 +32,6 @@
       <preference id="xpinstall.whitelist.required"
                   name="xpinstall.whitelist.required"
                   type="bool"/>
-      <preference id="browser.safebrowsing.malware.enabled"
-                  name="browser.safebrowsing.malware.enabled"
-                  type="bool"/>
-      <preference id="browser.safebrowsing.enabled"
-                  name="browser.safebrowsing.enabled"
-                  type="bool"/>
 
       <!-- Passwords -->
       <preference id="signon.rememberSignons" name="signon.rememberSignons" type="bool"/>

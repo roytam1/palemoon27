@@ -37,6 +37,12 @@
 <!ENTITY  savedPasswords.label            "Saved Passwords…">
 <!ENTITY  savedPasswords.accesskey        "P">
 
+<!ENTITY  SecProto.label             "Security Protocols">
+<!ENTITY  enableHSTS.label           "Enable Strict Transport Security (HSTS)">
+<!ENTITY  enableHSTS.accesskey       "S">
+<!ENTITY  enableHPKP.label           "Enable Certificate Key Pinning (HPKP)">
+<!ENTITY  enableHPKP.accesskey       "C">
+
 <!ENTITY  XSSFilt.label              "XSS Filter">
 <!ENTITY  enableXSSFilt.label        "Enable XSS filter">
 <!ENTITY  enableXSSFilt.accesskey    "f">

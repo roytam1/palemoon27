@@ -2119,8 +2119,8 @@ pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; 
 pref("security.mixed_content.block_active_content", false);
 pref("security.mixed_content.block_display_content", false);
 
-// Disable pinning checks by default.
-pref("security.cert_pinning.enforcement_level", 0);
+// Enable pinning checks by default.
+pref("security.cert_pinning.enforcement_level", 2);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.

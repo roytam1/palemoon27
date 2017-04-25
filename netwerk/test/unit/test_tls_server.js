@@ -62,7 +62,13 @@ function startServer(cert) {
 
       equal(status.tlsVersionUsed, Ci.nsITLSClientStatus.TLS_VERSION_1_2,
             "Using TLS 1.2");
-      equal(status.cipherName, "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+      let expectedCipher;
+      if (expectedVersion >= 772) {
+        expectedCipher = "TLS_AES_128_GCM_SHA256";
+      } else {
+        expectedCipher = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256";
+      }
+      equal(status.cipherName, expectedCipher,
             "Using expected cipher");
       equal(status.keyLength, 128, "Using 128-bit key");
       equal(status.macLength, 128, "Using 128-bit MAC");

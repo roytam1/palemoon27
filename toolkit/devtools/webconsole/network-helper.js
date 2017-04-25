@@ -515,7 +515,7 @@ let NetworkHelper = {
    *          If state == broken:
    *            - errorMessage: full error message from nsITransportSecurityInfo.
    *          If state == secure:
-   *            - protocolVersion: one of SSLv3, TLSv1, TLSv1.1, TLSv1.2.
+   *            - protocolVersion: one of SSLv3, TLSv1, TLSv1.1, TLSv1.2, TLSv1.3.
    *            - cipherSuite: the cipher suite used in this connection.
    *            - cert: information about certificate used in this connection.
    *                    See parseCertificateInfo for the contents.
@@ -689,8 +689,8 @@ let NetworkHelper = {
    * @param Number version
    *        One of nsISSLStatus version constants.
    * @return string
-   *         One of SSLv3, TLSv1, TLSv1.1, TLSv1.2 if @param version is valid,
-   *         Unknown otherwise.
+   *         One of SSLv3, TLSv1, TLSv1.1, TLSv1.2, TLSv1.3 if @param version
+   *         is valid, Unknown otherwise.
    */
   formatSecurityProtocol: function NH_formatSecurityProtocol(version) {
     switch (version) {
@@ -702,6 +702,8 @@ let NetworkHelper = {
         return "TLSv1.1";
       case Ci.nsISSLStatus.TLS_VERSION_1_2:
         return "TLSv1.2";
+      case Ci.nsISSLStatus.TLS_VERSION_1_3:
+        return "TLSv1.3";
       default:
         DevToolsUtils.reportException("NetworkHelper.formatSecurityProtocol",
           "protocolVersion " + version + " is unknown.");

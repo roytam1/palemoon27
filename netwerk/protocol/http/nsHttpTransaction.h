@@ -158,6 +158,8 @@ public:
     mozilla::TimeStamp GetResponseStart();
     mozilla::TimeStamp GetResponseEnd();
 
+    bool Do0RTT() override;
+    nsresult Finish0RTT(bool aRestart) override;
 private:
     friend class DeleteHttpTransaction;
     virtual ~nsHttpTransaction();
@@ -438,6 +440,10 @@ public:
 
 private:
     nsRefPtr<ASpdySession> mTunnelProvider;
+
+    bool                            m0RTTInProgress;
+
+    nsresult                        mTransportStatus;
 };
 
 }} // namespace mozilla::net

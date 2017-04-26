@@ -2247,6 +2247,7 @@ nsHttpTransaction::Do0RTT()
 nsresult
 nsHttpTransaction::Finish0RTT(bool aRestart)
 {
+    LOG(("nsHttpTransaction::Finish0RTT %p %d\n", this, aRestart));
     MOZ_ASSERT(m0RTTInProgress);
     m0RTTInProgress = false;
     if (aRestart) {
@@ -2258,6 +2259,10 @@ nsHttpTransaction::Finish0RTT(bool aRestart)
         } else {
             return NS_ERROR_FAILURE;
         }
+    } else if (!mConnected) {
+        // this is code that was skipped in ::ReadSegments while in 0RTT
+        mConnected = true;
+        mConnection->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
     }
     return NS_OK;
 }

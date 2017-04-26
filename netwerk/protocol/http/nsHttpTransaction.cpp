@@ -137,6 +137,8 @@ nsHttpTransaction::nsHttpTransaction()
     , mAppId(NECKO_NO_APP_ID)
     , mIsInBrowser(false)
     , mClassOfService(0)
+    , m0RTTInProgress(false)
+    , mTransportStatus(NS_OK)
 {
     LOG(("Creating nsHttpTransaction @%p\n", this));
     gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
@@ -509,6 +511,50 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
     LOG(("nsHttpTransaction::OnSocketStatus [this=%p status=%x progress=%lld]\n",
         this, status, progress));
 
+    // A transaction can given to multiple HalfOpen sockets (this is a bug in
+    // nsHttpConnectionMgr). We are going to fix it here as a work around to be
+    // able to uplift it.
+    switch(status) {
+    case NS_NET_STATUS_RESOLVING_HOST:
+        if (mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    case NS_NET_STATUS_RESOLVED_HOST:
+        if (mTransportStatus != NS_NET_STATUS_RESOLVING_HOST &&
+            mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    case NS_NET_STATUS_CONNECTING_TO:
+        if (mTransportStatus != NS_NET_STATUS_RESOLVING_HOST &&
+            mTransportStatus != NS_NET_STATUS_RESOLVED_HOST  &&
+            mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    case NS_NET_STATUS_CONNECTED_TO:
+        if (mTransportStatus != NS_NET_STATUS_RESOLVING_HOST &&
+            mTransportStatus != NS_NET_STATUS_RESOLVED_HOST &&
+            mTransportStatus != NS_NET_STATUS_CONNECTING_TO &&
+            mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    default:
+        LOG(("nsHttpTransaction::OnSocketStatus - a new event"));
+    }
+
+    mTransportStatus = status;
+
     // If the timing is enabled, and we are not using a persistent connection
     // then the requestStart timestamp will be null, so we mark the timestamps
     // for domainLookupStart/End and connectStart/End
@@ -522,7 +568,9 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
         } else if (status == NS_NET_STATUS_CONNECTING_TO) {
             SetConnectStart(TimeStamp::Now());
         } else if (status == NS_NET_STATUS_CONNECTED_TO) {
-            SetConnectEnd(TimeStamp::Now());
+            SetConnectEnd(TimeStamp::Now(), true);
+        } else if (status == NS_NET_STATUS_TLS_HANDSHAKE_ENDED) {
+            SetConnectEnd(TimeStamp::Now(), false);
         }
     }
 
@@ -663,7 +711,7 @@ nsHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
         return mStatus;
     }
 
-    if (!mConnected) {
+    if (!mConnected && !m0RTTInProgress) {
         mConnected = true;
         mConnection->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
     }
@@ -1169,6 +1217,8 @@ nsHttpTransaction::Restart()
         }
     }
     mForceRestart = false;
+
+    mTransportStatus = NS_OK;
 
     return gHttpHandler->InitiateTransaction(this, mPriority);
 }
@@ -2182,6 +2232,34 @@ nsHttpTransaction::RestartVerifier::Set(int64_t contentLength,
 
         mSetup = true;
     }
+}
+
+bool
+nsHttpTransaction::Do0RTT()
+{
+   if (mRequestHead->IsSafeMethod() &&
+       !mConnection->IsProxyConnectInProgress()) {
+     m0RTTInProgress = true;
+   }
+   return m0RTTInProgress;
+}
+
+nsresult
+nsHttpTransaction::Finish0RTT(bool aRestart)
+{
+    MOZ_ASSERT(m0RTTInProgress);
+    m0RTTInProgress = false;
+    if (aRestart) {
+        // Reset request headers to be sent again.
+        nsCOMPtr<nsISeekableStream> seekable =
+            do_QueryInterface(mRequestStream);
+        if (seekable) {
+            seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
+        } else {
+            return NS_ERROR_FAILURE;
+        }
+    }
+    return NS_OK;
 }
 
 } // namespace mozilla::net

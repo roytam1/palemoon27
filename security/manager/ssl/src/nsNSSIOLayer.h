@@ -53,6 +53,7 @@ public:
                 const nsNSSShutDownPreventionLock& proofOfLock);
 
   void SetNegotiatedNPN(const char* value, uint32_t length);
+  void SetEarlyDataAccepted(bool aAccepted);
 
   void SetHandshakeCompleted();
   void NoteTimeUntilReady();
@@ -141,6 +142,7 @@ private:
 
   nsCString mNegotiatedNPN;
   bool      mNPNCompleted;
+  bool      mEarlyDataAccepted;
   bool      mFalseStartCallbackCalled;
   bool      mFalseStarted;
   bool      mIsFullHandshake;

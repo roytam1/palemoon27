@@ -3124,7 +3124,7 @@ nsComputedDOMStyle::CreateTextAlignValue(uint8_t aAlign, bool aAlignTrue,
   }
 
   nsROCSSPrimitiveValue* first = new nsROCSSPrimitiveValue;
-  first->SetIdent(eCSSKeyword_true);
+  first->SetIdent(eCSSKeyword_unsafe);
 
   nsDOMCSSValueList* valueList = GetROCSSValueList(false);
   valueList->AppendCSSValue(first);

@@ -6466,7 +6466,7 @@ if (SpecialPowers.getBoolPref("layout.css.unset-value.enabled")) {
   if (SpecialPowers.getBoolPref("layout.css.filters.enabled")) {
     gCSSProperties["filter"].invalid_values.push("drop-shadow(unset, 2px 2px)", "drop-shadow(2px 2px, unset)");
   }
-  if (SpecialPowers.getBoolPref("layout.css.text-align-true-value.enabled")) {
+  if (SpecialPowers.getBoolPref("layout.css.text-align-unsafe-value.enabled")) {
     gCSSProperties["text-align"].other_values.push("true left");
   } else {
     gCSSProperties["text-align"].invalid_values.push("true left");

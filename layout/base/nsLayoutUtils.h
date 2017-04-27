@@ -2206,7 +2206,7 @@ public:
    * Checks whether support for the CSS text-align (and -moz-text-align-last)
    * 'true' value is enabled.
    */
-  static bool IsTextAlignTrueValueEnabled();
+  static bool IsTextAlignUnsafeValueEnabled();
 
   /**
    * Checks if CSS variables are currently enabled.

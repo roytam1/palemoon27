@@ -18,4 +18,4 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-Clobber required for gamepad disable (WebIDL change)
+Clobber required for TLS 1.3 addition

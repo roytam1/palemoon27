@@ -122,6 +122,12 @@ var padlock_PadLock =
   },
   prefbranch : null,
   onLoad: function() {
+    if (typeof gBrowser === "undefined") {
+      var prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+      prefBranch.clearUserPref("general.useragent.locale");
+      return;
+    }
+
     gBrowser.addProgressListener(padlock_PadLock);
     
     var prefService = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefService);

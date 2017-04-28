@@ -2158,6 +2158,16 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     mResponseXML->SetChromeXHRDocURI(chromeXHRDocURI);
     mResponseXML->SetChromeXHRDocBaseURI(chromeXHRDocBaseURI);
 
+    // suppress parsing failure messages to console for statuses which
+    // can have empty bodies (see bugs 884693 + 1329365).
+    uint32_t responseStatus;
+    if (NS_SUCCEEDED(GetStatus(&responseStatus)) &&
+        (responseStatus == 201 || responseStatus == 202 ||
+         responseStatus == 204 || responseStatus == 205 ||
+         responseStatus == 304)) {
+      mResponseXML->SetSuppressParserErrorConsoleMessages(true);
+    }
+
     if (nsContentUtils::IsSystemPrincipal(mPrincipal)) {
       mResponseXML->ForceEnableXULXBL();
     }

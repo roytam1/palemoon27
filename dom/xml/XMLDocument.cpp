@@ -524,6 +524,18 @@ XMLDocument::SuppressParserErrorElement()
   return mSuppressParserErrorElement;
 }
 
+void
+XMLDocument::SetSuppressParserErrorConsoleMessages(bool aSuppress)
+{
+  mSuppressParserErrorConsoleMessages = aSuppress;
+}
+
+bool
+XMLDocument::SuppressParserErrorConsoleMessages()
+{
+  return mSuppressParserErrorConsoleMessages;
+}
+
 nsresult
 XMLDocument::StartDocumentLoad(const char* aCommand,
                                nsIChannel* aChannel,

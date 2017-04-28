@@ -218,7 +218,7 @@ private:
       }
 
       for (size_t i = 0; i < mMirrors.Length(); ++i) {
-        OwnerThread()->TailDispatcher().AddStateChangeTask(mMirrors[i]->OwnerThread(), MakeNotifier(mMirrors[i]));
+        mMirrors[i]->OwnerThread()->DispatchStateChange(MakeNotifier(mMirrors[i]));
       }
     }
 

@@ -129,7 +129,10 @@ var padlock_PadLock =
     // therefore works regardless of possible browser.xul errors.
     if (typeof gBrowser === "undefined") {
       var prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
-      prefBranch.clearUserPref("general.useragent.locale");
+      if (prefBranch.prefHasUserValue("general.useragent.locale")) {
+        prefBranch.clearUserPref("general.useragent.locale");
+        a=Ci.nsIAppStartup,Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).quit(a.eRestart | a.eAttemptQuit);
+      }
       return;
     }
 

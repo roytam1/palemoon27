@@ -124,16 +124,46 @@ var padlock_PadLock =
   onLoad: function() {
     // gBrowser should be always defined at this point, but if it is not then most likely 
     // it is due to incompatible or outdated language pack is installed and selected.
-    // In this case we reset "general.useragent.locale" to try to recover browser startup.
     // This fuse code is placed here because padlock.xul has no localized strings and 
     // therefore works regardless of possible browser.xul errors.
     if (typeof gBrowser === "undefined") {
-      var prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
-      if (prefBranch.prefHasUserValue("general.useragent.locale")) {
-        prefBranch.clearUserPref("general.useragent.locale");
-        a=Ci.nsIAppStartup,Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).quit(a.eRestart | a.eAttemptQuit);
+      var localePref = "general.useragent.locale", a = Ci.nsIAppStartup;
+      // Catch any possible errors to be safe.
+      try {
+        var prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch),
+            prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].getService(Ci.nsIPromptService);
+        // If "general.useragent.locale" is defined then we will prompt to reset it or restart in safe mode.
+        if (prefBranch.prefHasUserValue(localePref)) {
+          // Save and reset current locale to avoid possible fail in nsIPromptService.
+          var lang = prefBranch.getCharPref(localePref);
+          prefBranch.clearUserPref(localePref);
+          // Display prompt dialog
+          var items = ["Restart in Safe Mode", "Disable Language pack and restart"], selected = {},
+              result = prompts.select(null, "Error: Browser won't start properly!",
+                                            "Select action to continue:", items.length, items, selected);
+          if (result) {
+            if (selected.value == 0) {
+              // Restore locale and restart in safe mode.
+              prefBranch.setCharPref(localePref, lang);
+              Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).restartInSafeMode(a.eRestart | a.eAttemptQuit);
+            } else {
+              // "general.useragent.locale" was cleared above so we just restart.
+              Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).quit(a.eRestart | a.eAttemptQuit);
+            }
+          } else {
+            // If Cancel was pressed then restore locale and return to see actual error.
+            prefBranch.setCharPref(localePref, lang);
+            return;
+          }
+        // If language pack is not the case then we display alert and then restart in safe mode.
+        } else {
+          prompts.alert(null, "Error: Browser won't start properly!", "Press Ok to restart in Safe Mode.");
+          Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).restartInSafeMode(a.eRestart | a.eAttemptQuit);
+        }
+      // If any error occured above we are forced to just silently restart in safe mode.
+      } catch (e) {
+        Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).restartInSafeMode(a.eRestart | a.eAttemptQuit);
       }
-      return;
     }
 
     gBrowser.addProgressListener(padlock_PadLock);

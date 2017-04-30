@@ -4861,17 +4861,16 @@ pref("reader.toolbar.vertical", true);
 
 #if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
 // Whether to allow, on a Linux system that doesn't support the necessary sandboxing
-// features, loading Goanna Media Plugins unsandboxed.  However, EME CDMs will not be
-// loaded without sandboxing even if this pref is changed.
+// features, loading Goanna Media Plugins unsandboxed.
 pref("media.gmp.insecure.allow", false);
 #endif
 
-// Use vsync aligned rendering. b2g prefs are in b2g.js
+// Use vsync aligned rendering.
 // Only supported on windows, os x, and b2g
 #if defined(XP_WIN) || defined(XP_MACOSX)
-pref("gfx.vsync.hw-vsync.enabled", false);
+pref("gfx.vsync.hw-vsync.enabled", true);
 pref("gfx.vsync.compositor", false);
-pref("gfx.vsync.refreshdriver", false);
+pref("gfx.vsync.refreshdriver", true);
 #endif
 
 // Secure Element API

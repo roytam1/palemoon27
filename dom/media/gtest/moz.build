@@ -9,6 +9,7 @@ SOURCES += [
     'TestAudioCompactor.cpp',
     'TestGMPCrossOrigin.cpp',
     'TestIntervalSet.cpp',
+    'TestMediaPromise.cpp',
     'TestMP3Demuxer.cpp',
     'TestMP4Demuxer.cpp',
     'TestMP4Reader.cpp',

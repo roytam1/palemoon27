@@ -675,10 +675,10 @@ TrackBuffer::InitializeDecoder(SourceBufferDecoder* aDecoder)
   }
 
   mMetadataRequest.Begin(promise
-                           ->RefableThen(reader->GetTaskQueue(), __func__,
-                                         recipient.get(),
-                                         &MetadataRecipient::OnMetadataRead,
-                                         &MetadataRecipient::OnMetadataNotRead));
+                           ->Then(reader->GetTaskQueue(), __func__,
+                                  recipient.get(),
+                                  &MetadataRecipient::OnMetadataRead,
+                                  &MetadataRecipient::OnMetadataNotRead));
 }
 
 void

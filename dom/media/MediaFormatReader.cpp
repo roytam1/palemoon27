@@ -237,10 +237,10 @@ MediaFormatReader::AsyncReadMetadata()
   nsRefPtr<MetadataPromise> p = mMetadataPromise.Ensure(__func__);
 
   mDemuxerInitRequest.Begin(mDemuxer->Init()
-                       ->RefableThen(GetTaskQueue(), __func__,
-                                     this,
-                                     &MediaFormatReader::OnDemuxerInitDone,
-                                     &MediaFormatReader::OnDemuxerInitFailed));
+                       ->Then(GetTaskQueue(), __func__,
+                              this,
+                              &MediaFormatReader::OnDemuxerInitDone,
+                              &MediaFormatReader::OnDemuxerInitFailed));
   return p;
 }
 
@@ -536,9 +536,9 @@ MediaFormatReader::DoDemuxVideo()
 {
   // TODO Use DecodeAhead value rather than 1.
   mVideo.mDemuxRequest.Begin(mVideo.mTrackDemuxer->GetSamples(1)
-                      ->RefableThen(GetTaskQueue(), __func__, this,
-                                    &MediaFormatReader::OnVideoDemuxCompleted,
-                                    &MediaFormatReader::OnVideoDemuxFailed));
+                      ->Then(GetTaskQueue(), __func__, this,
+                             &MediaFormatReader::OnVideoDemuxCompleted,
+                             &MediaFormatReader::OnVideoDemuxFailed));
 }
 
 void
@@ -591,9 +591,9 @@ MediaFormatReader::DoDemuxAudio()
 {
   // TODO Use DecodeAhead value rather than 1.
   mAudio.mDemuxRequest.Begin(mAudio.mTrackDemuxer->GetSamples(1)
-                      ->RefableThen(GetTaskQueue(), __func__, this,
-                                    &MediaFormatReader::OnAudioDemuxCompleted,
-                                    &MediaFormatReader::OnAudioDemuxFailed));
+                      ->Then(GetTaskQueue(), __func__, this,
+                             &MediaFormatReader::OnAudioDemuxCompleted,
+                             &MediaFormatReader::OnAudioDemuxFailed));
 }
 
 void
@@ -1043,9 +1043,9 @@ MediaFormatReader::SkipVideoDemuxToNextKeyFrame(media::TimeUnit aTimeThreshold)
   }
 
   mSkipRequest.Begin(mVideo.mTrackDemuxer->SkipToNextRandomAccessPoint(aTimeThreshold)
-                          ->RefableThen(GetTaskQueue(), __func__, this,
-                                        &MediaFormatReader::OnVideoSkipCompleted,
-                                        &MediaFormatReader::OnVideoSkipFailed));
+                          ->Then(GetTaskQueue(), __func__, this,
+                                 &MediaFormatReader::OnVideoSkipCompleted,
+                                 &MediaFormatReader::OnVideoSkipFailed));
   return;
 }
 
@@ -1143,9 +1143,9 @@ MediaFormatReader::DoVideoSeek()
   MOZ_ASSERT(mPendingSeekTime.isSome());
   media::TimeUnit seekTime = mPendingSeekTime.ref();
   mVideoSeekRequest.Begin(mVideo.mTrackDemuxer->Seek(seekTime)
-                          ->RefableThen(GetTaskQueue(), __func__, this,
-                                        &MediaFormatReader::OnVideoSeekCompleted,
-                                        &MediaFormatReader::OnVideoSeekFailed));
+                          ->Then(GetTaskQueue(), __func__, this,
+                                 &MediaFormatReader::OnVideoSeekCompleted,
+                                 &MediaFormatReader::OnVideoSeekFailed));
 }
 
 void
@@ -1169,9 +1169,9 @@ MediaFormatReader::DoAudioSeek()
   MOZ_ASSERT(mPendingSeekTime.isSome());
   media::TimeUnit seekTime = mPendingSeekTime.ref();
   mAudioSeekRequest.Begin(mAudio.mTrackDemuxer->Seek(seekTime)
-                         ->RefableThen(GetTaskQueue(), __func__, this,
-                                       &MediaFormatReader::OnAudioSeekCompleted,
-                                       &MediaFormatReader::OnAudioSeekFailed));
+                         ->Then(GetTaskQueue(), __func__, this,
+                                &MediaFormatReader::OnAudioSeekCompleted,
+                                &MediaFormatReader::OnAudioSeekFailed));
 }
 
 void

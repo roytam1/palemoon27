@@ -142,9 +142,9 @@ MediaSourceReader::RequestAudioData()
     case SOURCE_NEW:
       GetAudioReader()->ResetDecode();
       mAudioSeekRequest.Begin(GetAudioReader()->Seek(GetReaderAudioTime(mLastAudioTime), 0)
-                              ->RefableThen(GetTaskQueue(), __func__, this,
-                                            &MediaSourceReader::CompleteAudioSeekAndDoRequest,
-                                            &MediaSourceReader::CompleteAudioSeekAndRejectPromise));
+                              ->Then(GetTaskQueue(), __func__, this,
+                                     &MediaSourceReader::CompleteAudioSeekAndDoRequest,
+                                     &MediaSourceReader::CompleteAudioSeekAndRejectPromise));
       break;
     case SOURCE_NONE:
       if (!mLastAudioTime) {
@@ -167,9 +167,9 @@ MediaSourceReader::RequestAudioData()
 void MediaSourceReader::DoAudioRequest()
 {
   mAudioRequest.Begin(GetAudioReader()->RequestAudioData()
-                      ->RefableThen(GetTaskQueue(), __func__, this,
-                                    &MediaSourceReader::OnAudioDecoded,
-                                    &MediaSourceReader::OnAudioNotDecoded));
+                      ->Then(GetTaskQueue(), __func__, this,
+                             &MediaSourceReader::OnAudioDecoded,
+                             &MediaSourceReader::OnAudioNotDecoded));
 }
 
 void
@@ -190,9 +190,9 @@ MediaSourceReader::OnAudioDecoded(AudioData* aSample)
       MSE_DEBUG("mTime=%lld < mTimeThreshold=%lld",
                 ourTime, mTimeThreshold);
       mAudioRequest.Begin(GetAudioReader()->RequestAudioData()
-                          ->RefableThen(GetTaskQueue(), __func__, this,
-                                        &MediaSourceReader::OnAudioDecoded,
-                                        &MediaSourceReader::OnAudioNotDecoded));
+                          ->Then(GetTaskQueue(), __func__, this,
+                                 &MediaSourceReader::OnAudioDecoded,
+                                 &MediaSourceReader::OnAudioNotDecoded));
       return;
     }
     mDropAudioBeforeThreshold = false;
@@ -260,9 +260,9 @@ MediaSourceReader::OnAudioNotDecoded(NotDecodedReason aReason)
   if (result == SOURCE_NEW) {
     GetAudioReader()->ResetDecode();
     mAudioSeekRequest.Begin(GetAudioReader()->Seek(GetReaderAudioTime(mLastAudioTime), 0)
-                            ->RefableThen(GetTaskQueue(), __func__, this,
-                                          &MediaSourceReader::CompleteAudioSeekAndDoRequest,
-                                          &MediaSourceReader::CompleteAudioSeekAndRejectPromise));
+                            ->Then(GetTaskQueue(), __func__, this,
+                                   &MediaSourceReader::CompleteAudioSeekAndDoRequest,
+                                   &MediaSourceReader::CompleteAudioSeekAndRejectPromise));
     return;
   }
 
@@ -315,9 +315,9 @@ MediaSourceReader::RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThres
     case SOURCE_NEW:
       GetVideoReader()->ResetDecode();
       mVideoSeekRequest.Begin(GetVideoReader()->Seek(GetReaderVideoTime(mLastVideoTime), 0)
-                             ->RefableThen(GetTaskQueue(), __func__, this,
-                                           &MediaSourceReader::CompleteVideoSeekAndDoRequest,
-                                           &MediaSourceReader::CompleteVideoSeekAndRejectPromise));
+                             ->Then(GetTaskQueue(), __func__, this,
+                                    &MediaSourceReader::CompleteVideoSeekAndDoRequest,
+                                    &MediaSourceReader::CompleteVideoSeekAndRejectPromise));
       break;
     case SOURCE_NONE:
       if (!mLastVideoTime) {
@@ -342,9 +342,9 @@ void
 MediaSourceReader::DoVideoRequest()
 {
   mVideoRequest.Begin(GetVideoReader()->RequestVideoData(mDropVideoBeforeThreshold, GetReaderVideoTime(mTimeThreshold))
-                      ->RefableThen(GetTaskQueue(), __func__, this,
-                                    &MediaSourceReader::OnVideoDecoded,
-                                    &MediaSourceReader::OnVideoNotDecoded));
+                      ->Then(GetTaskQueue(), __func__, this,
+                             &MediaSourceReader::OnVideoDecoded,
+                             &MediaSourceReader::OnVideoNotDecoded));
 }
 
 void
@@ -412,9 +412,9 @@ MediaSourceReader::OnVideoNotDecoded(NotDecodedReason aReason)
   if (result == SOURCE_NEW) {
     GetVideoReader()->ResetDecode();
     mVideoSeekRequest.Begin(GetVideoReader()->Seek(GetReaderVideoTime(mLastVideoTime), 0)
-                           ->RefableThen(GetTaskQueue(), __func__, this,
-                                         &MediaSourceReader::CompleteVideoSeekAndDoRequest,
-                                         &MediaSourceReader::CompleteVideoSeekAndRejectPromise));
+                           ->Then(GetTaskQueue(), __func__, this,
+                                  &MediaSourceReader::CompleteVideoSeekAndDoRequest,
+                                  &MediaSourceReader::CompleteVideoSeekAndRejectPromise));
     return;
   }
 
@@ -901,9 +901,9 @@ MediaSourceReader::DoAudioSeek()
   }
   GetAudioReader()->ResetDecode();
   mAudioSeekRequest.Begin(GetAudioReader()->Seek(GetReaderAudioTime(seekTime), 0)
-                         ->RefableThen(GetTaskQueue(), __func__, this,
-                                       &MediaSourceReader::OnAudioSeekCompleted,
-                                       &MediaSourceReader::OnAudioSeekFailed));
+                         ->Then(GetTaskQueue(), __func__, this,
+                                &MediaSourceReader::OnAudioSeekCompleted,
+                                &MediaSourceReader::OnAudioSeekFailed));
   MSE_DEBUG("reader=%p", GetAudioReader());
 }
 
@@ -973,9 +973,9 @@ MediaSourceReader::DoVideoSeek()
   }
   GetVideoReader()->ResetDecode();
   mVideoSeekRequest.Begin(GetVideoReader()->Seek(GetReaderVideoTime(seekTime), 0)
-                          ->RefableThen(GetTaskQueue(), __func__, this,
-                                        &MediaSourceReader::OnVideoSeekCompleted,
-                                        &MediaSourceReader::OnVideoSeekFailed));
+                          ->Then(GetTaskQueue(), __func__, this,
+                                 &MediaSourceReader::OnVideoSeekCompleted,
+                                 &MediaSourceReader::OnVideoSeekFailed));
   MSE_DEBUG("reader=%p", GetVideoReader());
 }
 

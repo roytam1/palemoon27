@@ -842,7 +842,7 @@ public:
   private:
     MediaDecoderStateMachine* mSelf;
     nsRefPtr<MediaTimer> mMediaTimer;
-    MediaPromiseConsumerHolder<mozilla::MediaTimerPromise> mRequest;
+    MediaPromiseRequestHolder<mozilla::MediaTimerPromise> mRequest;
     TimeStamp mTarget;
 
   } mDelayedScheduler;
@@ -1143,8 +1143,8 @@ protected:
   // Only one of a given pair of ({Audio,Video}DataPromise, WaitForDataPromise)
   // should exist at any given moment.
 
-  MediaPromiseConsumerHolder<MediaDecoderReader::AudioDataPromise> mAudioDataRequest;
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise> mAudioWaitRequest;
+  MediaPromiseRequestHolder<MediaDecoderReader::AudioDataPromise> mAudioDataRequest;
+  MediaPromiseRequestHolder<MediaDecoderReader::WaitForDataPromise> mAudioWaitRequest;
   const char* AudioRequestStatus()
   {
     if (mAudioDataRequest.Exists()) {
@@ -1156,8 +1156,8 @@ protected:
     return "idle";
   }
 
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise> mVideoWaitRequest;
-  MediaPromiseConsumerHolder<MediaDecoderReader::VideoDataPromise> mVideoDataRequest;
+  MediaPromiseRequestHolder<MediaDecoderReader::WaitForDataPromise> mVideoWaitRequest;
+  MediaPromiseRequestHolder<MediaDecoderReader::VideoDataPromise> mVideoDataRequest;
   const char* VideoRequestStatus()
   {
     if (mVideoDataRequest.Exists()) {
@@ -1169,7 +1169,7 @@ protected:
     return "idle";
   }
 
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise>& WaitRequestRef(MediaData::Type aType)
+  MediaPromiseRequestHolder<MediaDecoderReader::WaitForDataPromise>& WaitRequestRef(MediaData::Type aType)
   {
     return aType == MediaData::AUDIO_DATA ? mAudioWaitRequest : mVideoWaitRequest;
   }
@@ -1244,7 +1244,7 @@ protected:
   bool mDecodeToSeekTarget;
 
   // Track the current seek promise made by the reader.
-  MediaPromiseConsumerHolder<MediaDecoderReader::SeekPromise> mSeekRequest;
+  MediaPromiseRequestHolder<MediaDecoderReader::SeekPromise> mSeekRequest;
 
   // We record the playback position before we seek in order to
   // determine where the seek terminated relative to the playback position
@@ -1252,7 +1252,7 @@ protected:
   int64_t mCurrentTimeBeforeSeek;
 
   // Track our request for metadata from the reader.
-  MediaPromiseConsumerHolder<MediaDecoderReader::MetadataPromise> mMetadataRequest;
+  MediaPromiseRequestHolder<MediaDecoderReader::MetadataPromise> mMetadataRequest;
 
   // Stores presentation info required for playback. The decoder monitor
   // must be held when accessing this.

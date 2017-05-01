@@ -231,7 +231,7 @@ private:
 
     // Queued demux samples waiting to be decoded.
     nsTArray<nsRefPtr<MediaRawData>> mQueuedSamples;
-    MediaPromiseConsumerHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
+    MediaPromiseRequestHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
     MediaPromiseHolder<WaitForDataPromise> mWaitingPromise;
 
     bool HasWaitingPromise()
@@ -324,7 +324,7 @@ private:
   // Demuxer objects.
   void OnDemuxerInitDone(nsresult);
   void OnDemuxerInitFailed(DemuxerFailureReason aFailure);
-  MediaPromiseConsumerHolder<MediaDataDemuxer::InitPromise> mDemuxerInitRequest;
+  MediaPromiseRequestHolder<MediaDataDemuxer::InitPromise> mDemuxerInitRequest;
   void OnDemuxFailed(TrackType aTrack, DemuxerFailureReason aFailure);
 
   void DoDemuxVideo();
@@ -342,7 +342,7 @@ private:
   }
 
   void SkipVideoDemuxToNextKeyFrame(media::TimeUnit aTimeThreshold);
-  MediaPromiseConsumerHolder<MediaTrackDemuxer::SkipAccessPointPromise> mSkipRequest;
+  MediaPromiseRequestHolder<MediaTrackDemuxer::SkipAccessPointPromise> mSkipRequest;
   void OnVideoSkipCompleted(uint32_t aSkipped);
   void OnVideoSkipFailed(MediaTrackDemuxer::SkipFailureHolder aFailure);
 
@@ -390,8 +390,8 @@ private:
   }
   // Temporary seek information while we wait for the data
   Maybe<media::TimeUnit> mPendingSeekTime;
-  MediaPromiseConsumerHolder<MediaTrackDemuxer::SeekPromise> mVideoSeekRequest;
-  MediaPromiseConsumerHolder<MediaTrackDemuxer::SeekPromise> mAudioSeekRequest;
+  MediaPromiseRequestHolder<MediaTrackDemuxer::SeekPromise> mVideoSeekRequest;
+  MediaPromiseRequestHolder<MediaTrackDemuxer::SeekPromise> mAudioSeekRequest;
   MediaPromiseHolder<SeekPromise> mSeekPromise;
 
   nsRefPtr<SharedDecoderManager> mSharedDecoderManager;

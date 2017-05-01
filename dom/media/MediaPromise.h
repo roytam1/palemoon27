@@ -153,8 +153,8 @@ public:
     bool IsResolve() const { return mResolveValue.isSome(); }
     bool IsReject() const { return mRejectValue.isSome(); }
     bool IsNothing() const { return mResolveValue.isNothing() && mRejectValue.isNothing(); }
-    ResolveValueType& ResolveValue() { return mResolveValue.ref(); }
-    RejectValueType& RejectValue() { return mRejectValue.ref(); }
+    const ResolveValueType& ResolveValue() const { return mResolveValue.ref(); }
+    const RejectValueType& RejectValue() const { return mRejectValue.ref(); }
 
   private:
     Maybe<ResolveValueType> mResolveValue;
@@ -231,9 +231,12 @@ protected:
     class ResolveOrRejectRunnable : public nsRunnable
     {
     public:
-      ResolveOrRejectRunnable(ThenValueBase* aThenValue, ResolveOrRejectValue& aValue)
+      ResolveOrRejectRunnable(ThenValueBase* aThenValue, MediaPromise* aPromise)
         : mThenValue(aThenValue)
-        , mValue(aValue) {}
+        , mPromise(aPromise)
+      {
+        MOZ_DIAGNOSTIC_ASSERT(!mPromise->IsPending());
+      }
 
       ~ResolveOrRejectRunnable()
       {
@@ -243,14 +246,15 @@ protected:
       NS_IMETHODIMP Run()
       {
         PROMISE_LOG("ResolveOrRejectRunnable::Run() [this=%p]", this);
-        mThenValue->DoResolveOrReject(mValue);
+        mThenValue->DoResolveOrReject(mPromise->Value());
         mThenValue = nullptr;
+        mPromise = nullptr;
         return NS_OK;
       }
 
     private:
       nsRefPtr<ThenValueBase> mThenValue;
-      ResolveOrRejectValue mValue;
+      nsRefPtr<MediaPromise> mPromise;
     };
 
     explicit ThenValueBase(AbstractThread* aResponseTarget, const char* aCallSite)
@@ -272,7 +276,7 @@ protected:
       MOZ_ASSERT(!aPromise->IsPending());
 
       nsRefPtr<nsRunnable> runnable =
-        static_cast<nsRunnable*>(new (typename ThenValueBase::ResolveOrRejectRunnable)(this, aPromise->mValue));
+        static_cast<nsRunnable*>(new (typename ThenValueBase::ResolveOrRejectRunnable)(this, aPromise));
       PROMISE_LOG("%s Then() call made from %s [Runnable=%p, Promise=%p, ThenValue=%p]",
                   aPromise->mValue.IsResolve() ? "Resolving" : "Rejecting", ThenValueBase::mCallSite,
                   runnable.get(), aPromise, this);
@@ -298,9 +302,9 @@ protected:
     }
 
   protected:
-    virtual already_AddRefed<MediaPromise> DoResolveOrRejectInternal(ResolveOrRejectValue& aValue) = 0;
+    virtual already_AddRefed<MediaPromise> DoResolveOrRejectInternal(const ResolveOrRejectValue& aValue) = 0;
 
-    void DoResolveOrReject(ResolveOrRejectValue& aValue)
+    void DoResolveOrReject(const ResolveOrRejectValue& aValue)
     {
       Request::mComplete = true;
       if (Request::mDisconnected) {
@@ -405,7 +409,7 @@ protected:
   }
 
   protected:
-    virtual already_AddRefed<MediaPromise> DoResolveOrRejectInternal(ResolveOrRejectValue& aValue) override
+    virtual already_AddRefed<MediaPromise> DoResolveOrRejectInternal(const ResolveOrRejectValue& aValue) override
     {
       nsRefPtr<MediaPromise> completion;
       if (aValue.IsResolve()) {
@@ -457,7 +461,7 @@ protected:
   }
 
   protected:
-    virtual already_AddRefed<MediaPromise> DoResolveOrRejectInternal(ResolveOrRejectValue& aValue) override
+    virtual already_AddRefed<MediaPromise> DoResolveOrRejectInternal(const ResolveOrRejectValue& aValue) override
     {
       // Note: The usage of InvokeCallbackMethod here requires that
       // ResolveFunction/RejectFunction are capture-lambdas (i.e. anonymous
@@ -541,7 +545,15 @@ public:
   }
 
 protected:
-  bool IsPending() { return mValue.IsNothing(); }
+  bool IsPending() const { return mValue.IsNothing(); }
+  const ResolveOrRejectValue& Value() const
+  {
+    // This method should only be called once the value has stabilized. As
+    // such, we don't need to acquire the lock here.
+    MOZ_DIAGNOSTIC_ASSERT(!IsPending());
+    return mValue;
+  }
+
   void DispatchAll()
   {
     mMutex.AssertCurrentThreadOwns();

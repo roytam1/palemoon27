@@ -192,7 +192,7 @@ public:
   {
     nsRefPtr<typename MediaPromise::Private> p = new MediaPromise::Private(aResolveSite);
     p->Resolve(Forward<ResolveValueType_>(aResolveValue), aResolveSite);
-    return Move(p);
+    return p.forget();
   }
 
   template<typename RejectValueType_>
@@ -201,7 +201,7 @@ public:
   {
     nsRefPtr<typename MediaPromise::Private> p = new MediaPromise::Private(aRejectSite);
     p->Reject(Forward<RejectValueType_>(aRejectValue), aRejectSite);
-    return Move(p);
+    return p.forget();
   }
 
   typedef MediaPromise<nsTArray<ResolveValueType>, RejectValueType, IsExclusive> AllPromiseType;
@@ -931,7 +931,7 @@ ProxyInternal(AbstractThread* aTarget, MethodCallBase<PromiseType>* aMethodCall,
   nsRefPtr<ProxyRunnable<PromiseType>> r = new ProxyRunnable<PromiseType>(p, aMethodCall);
   MOZ_ASSERT(aTarget->IsDispatchReliable());
   aTarget->Dispatch(r.forget());
-  return Move(p);
+  return p.forget();
 }
 
 } // namespace detail

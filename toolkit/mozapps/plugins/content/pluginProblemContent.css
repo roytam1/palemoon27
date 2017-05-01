@@ -111,6 +111,10 @@ html|applet:not([height]), html|applet[height=""] {
 :-moz-handler-blocked .msgBlocked,
 :-moz-handler-crashed .msgCrashed {
   display: block;
+  position: relative;
+  left: 0;
+  top: 0;
+  z-index: 9999;
 }
 
 .submitStatus[status] {

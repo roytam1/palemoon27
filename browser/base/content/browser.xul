@@ -25,6 +25,8 @@
 <?xul-overlay href="chrome://browser/content/padlock.xul"?>
 # Improve bookmark menu dragging
 <?xul-overlay href="chrome://browser/content/browser-menudragging.xul"?>
+# Automatic browser recovery
+<?xul-overlay href="chrome://browser/content/autorecovery.xul"?>
 
  
 # All DTD information is stored in a separate file so that it can be shared by

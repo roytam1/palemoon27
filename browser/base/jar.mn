@@ -45,6 +45,8 @@ browser.jar:
         content/browser/abouthome/restore-large@2x.png (content/abouthome/restore-large@2x.png)
         content/browser/aboutRobots-icon.png          (content/aboutRobots-icon.png)
         content/browser/aboutRobots-widget-left.png   (content/aboutRobots-widget-left.png)
+        content/browser/autorecovery.js               (content/autorecovery.js)
+        content/browser/autorecovery.xul              (content/autorecovery.xul)
 *       content/browser/browser.css                   (content/browser.css)
         content/browser/browser-menudragging.xul      (content/browser-menudragging.xul)
         content/browser/browser-menudragging.js       (content/browser-menudragging.js)

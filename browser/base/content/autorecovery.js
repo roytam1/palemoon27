@@ -20,6 +20,9 @@ Cu.import("resource://gre/modules/Services.jsm");
 var browser_autoRecovery =
 {
   onLoad: function() {
+  
+    var nsIAS = Ci.nsIAppStartup; // Application startup interface
+    
     if (typeof gBrowser === "undefined") {
       // gBrowser should always be defined at this point, but if it is not, then most likely 
       // it is due to an incompatible or outdated language pack being installed and selected.
@@ -27,19 +30,28 @@ var browser_autoRecovery =
       if (Services.prefs.prefHasUserValue("general.useragent.locale")) {
         // Restart automatically in en-US.
         Services.prefs.clearUserPref("general.useragent.locale");
-        a=Ci.nsIAppStartup,Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).quit(a.eRestart | a.eAttemptQuit);
+        Cc["@mozilla.org/toolkit/app-startup;1"].getService(nsIAS).quit(nsIAS.eRestart | nsIAS.eAttemptQuit);
       } else if (!Services.appinfo.inSafeMode) {
         // gBrowser isn't defined, and we're not using a custom locale. Most likely
         // a user-installed add-on causes issues here, so we restart in Safe Mode.
-        Services.prompt.alert(null, "Error",
+        let RISM = Services.prompt.confirm(null, "Error",
                               "The Browser didn't start properly!\n"+
-                              "This is usually caused by an add-on or misconfiguration.\n"+
-                              "Restarting in Safe Mode...");        
-        a=Ci.nsIAppStartup,Cc["@mozilla.org/toolkit/app-startup;1"].getService(a).restartInSafeMode(a.eRestart | a.eAttemptQuit);
+                              "This is usually caused by an add-on or misconfiguration.\n\n"+
+                              "Restart in Safe Mode?");
+        if (RISM) {
+          Cc["@mozilla.org/toolkit/app-startup;1"].getService(nsIAS).restartInSafeMode(nsIAS.eRestart | nsIAS.eAttemptQuit);
+        } else {
+          // Force quit application
+          Cc["@mozilla.org/toolkit/app-startup;1"].getService(nsIAS).quit(nsIAS.eForceQuit);
+        }
       }
       // Something else caused this issue and we're already in Safe Mode, so we return
       // without doing anything else, and let normal error handling take place.
-    }
+      return;
+    } // gBrowser undefined
+    
+    // Other checks than gBrowser undefined can go here!
+    
     // Remove our listener, since we don't want this to fire on every load.
     window.removeEventListener("load", browser_autoRecovery.onLoad, false);
   }

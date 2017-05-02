@@ -2688,8 +2688,8 @@ pref("dom.ipc.processCount", 1);
 pref("svg.path-caching.enabled", true);
 
 // Enable the use of display-lists for SVG hit-testing and painting.
-pref("svg.display-lists.hit-testing.enabled", true);
-pref("svg.display-lists.painting.enabled", true);
+pref("svg.display-lists.hit-testing.enabled", false);
+pref("svg.display-lists.painting.enabled", false);
 
 // Is support for the SVG 2 paint-order property enabled?
 pref("svg.paint-order.enabled", true);

@@ -937,15 +937,15 @@ MediaDecoderStateMachine::OnNotDecoded(MediaData::Type aType,
     WaitRequestRef(aType).Begin(ProxyMediaCall(DecodeTaskQueue(), mReader.get(), __func__,
                                                &MediaDecoderReader::WaitForData, aType)
       ->Then(TaskQueue(), __func__,
-              [self] (MediaData::Type aType) -> void {
-                ReentrantMonitorAutoEnter mon(self->mDecoder->GetReentrantMonitor());
-                self->WaitRequestRef(aType).Complete();
-                self->DispatchDecodeTasksIfNeeded();
-              },
-              [self] (WaitForDataRejectValue aRejection) -> void {
-                ReentrantMonitorAutoEnter mon(self->mDecoder->GetReentrantMonitor());
-                self->WaitRequestRef(aRejection.mType).Complete();
-              }));
+             [self] (MediaData::Type aType) -> void {
+               ReentrantMonitorAutoEnter mon(self->mDecoder->GetReentrantMonitor());
+               self->WaitRequestRef(aType).Complete();
+               self->DispatchDecodeTasksIfNeeded();
+             },
+             [self] (WaitForDataRejectValue aRejection) -> void {
+               ReentrantMonitorAutoEnter mon(self->mDecoder->GetReentrantMonitor());
+               self->WaitRequestRef(aRejection.mType).Complete();
+             }));
     return;
   }
 

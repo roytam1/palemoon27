@@ -1320,7 +1320,7 @@ void MediaDecoder::ApplyStateToStateMachine(PlayState aState)
                                           mDecoderStateMachine.get(), __func__,
                                           &MediaDecoderStateMachine::Seek, mRequestedSeekTarget)
           ->Then(AbstractThread::MainThread(), __func__, this,
-                        &MediaDecoder::OnSeekResolved, &MediaDecoder::OnSeekRejected));
+                 &MediaDecoder::OnSeekResolved, &MediaDecoder::OnSeekRejected));
         mRequestedSeekTarget.Reset();
         break;
       default:

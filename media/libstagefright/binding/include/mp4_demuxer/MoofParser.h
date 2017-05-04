@@ -229,6 +229,7 @@ public:
   bool HasMetadata();
   already_AddRefed<mozilla::MediaLargeByteBuffer> Metadata();
   MediaByteRange FirstCompleteMediaSegment();
+  MediaByteRange FirstCompleteMediaHeader();
 
   mozilla::MediaByteRange mInitRange;
   nsRefPtr<Stream> mSource;

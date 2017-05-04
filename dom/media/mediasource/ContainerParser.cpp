@@ -370,7 +370,9 @@ public:
 
     mCompleteMediaHeaderRange = mParser->FirstCompleteMediaHeader();
     mCompleteMediaSegmentRange = mParser->FirstCompleteMediaSegment();
-    mResource->EvictData(mParser->mOffset, mParser->mOffset);
+    if (HasCompleteInitData()) {
+      mResource->EvictData(mParser->mOffset, mParser->mOffset);
+    }
 
     if (compositionRange.IsNull()) {
       return false;

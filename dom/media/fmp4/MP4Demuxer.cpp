@@ -207,7 +207,7 @@ MP4TrackDemuxer::MP4TrackDemuxer(MP4Demuxer* aParent,
   , mIterator(MakeUnique<mp4_demuxer::SampleIterator>(mIndex))
   , mNeedReIndex(true)
 {
-  NotifyDataArrived(); // Force update of index
+  EnsureUpToDateIndex(); // Force update of index
 }
 
 UniquePtr<TrackInfo>
@@ -255,6 +255,7 @@ MP4TrackDemuxer::Seek(media::TimeUnit aTime)
 nsRefPtr<MP4TrackDemuxer::SamplesPromise>
 MP4TrackDemuxer::GetSamples(int32_t aNumSamples)
 {
+  EnsureUpToDateIndex();
   nsRefPtr<SamplesHolder> samples = new SamplesHolder;
   if (!aNumSamples) {
     return SamplesPromise::CreateAndReject(DemuxerFailureReason::DEMUXER_ERROR, __func__);

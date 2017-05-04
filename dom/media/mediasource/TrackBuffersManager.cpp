@@ -692,13 +692,22 @@ void
 TrackBuffersManager::InitializationSegmentReceived()
 {
   MOZ_ASSERT(mParser->HasCompleteInitData());
+
+  int64_t endInit = mParser->InitSegmentRange().mEnd;
+  if (mInputBuffer->Length() > mProcessedInput ||
+      int64_t(mProcessedInput - mInputBuffer->Length()) > endInit) {
+    // Something is not quite right with the data appended. Refuse it.
+    RejectAppend(NS_ERROR_FAILURE, __func__);
+    return;
+  }
+
   mCurrentInputBuffer = new SourceBufferResource(mType);
   mCurrentInputBuffer->AppendData(mParser->InitData());
-  uint32_t length =
-    mParser->InitSegmentRange().mEnd - (mProcessedInput - mInputBuffer->Length());
+  uint32_t length = endInit - (mProcessedInput - mInputBuffer->Length());
   if (mInputBuffer->Length() == length) {
     mInputBuffer = nullptr;
   } else {
+    MOZ_RELEASE_ASSERT(length <= mInputBuffer->Length());
     mInputBuffer->RemoveElementsAt(0, length);
   }
   CreateDemuxerforMIMEType();

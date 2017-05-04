@@ -9,6 +9,7 @@
 #include "nsISupportsImpl.h"
 #include "MediaDecoderReader.h"
 #include "mozilla/dom/AudioChannelBinding.h"
+#include "mozilla/Atomics.h"
 
 namespace mozilla {
 
@@ -118,7 +119,7 @@ private:
   int64_t mStartTime;
 
   // PCM frames written to the stream so far.
-  int64_t mWritten;
+  Atomic<int64_t> mWritten;
 
   // Keep the last good position returned from the audio stream. Used to ensure
   // position returned by GetPosition() is mono-increasing in spite of audio

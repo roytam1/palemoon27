@@ -46,7 +46,7 @@ TrackBuffersManager::TrackBuffersManager(dom::SourceBuffer* aParent, MediaSource
   , mParser(ContainerParser::CreateForMIMEType(aType))
   , mProcessedInput(0)
   , mAppendRunning(false)
-  , mTaskQueue(new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK)))
+  , mTaskQueue(new MediaTaskQueue(GetMediaThreadPool()))
   , mParent(new nsMainThreadPtrHolder<dom::SourceBuffer>(aParent, false /* strict */))
   , mParentDecoder(new nsMainThreadPtrHolder<MediaSourceDecoder>(aParentDecoder, false /* strict */))
   , mAbort(false)

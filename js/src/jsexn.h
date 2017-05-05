@@ -116,4 +116,18 @@ ExnTypeFromProtoKey(JSProtoKey key)
     return type;
 }
 
+class AutoClearPendingException
+{
+    JSContext *cx;
+
+  public:
+    explicit AutoClearPendingException(JSContext *cxArg)
+      : cx(cxArg)
+    { }
+
+    ~AutoClearPendingException() {
+        cx->clearPendingException();
+    }
+};
+
 #endif /* jsexn_h */

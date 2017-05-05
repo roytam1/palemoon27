@@ -52,8 +52,6 @@ interface ExceptionMembers
   // this was only ever usefully available to chrome JS.
   [ChromeOnly]
   readonly attribute StackFrame?             location;
-  // An inner exception that triggered this, if available.
-  readonly attribute nsISupports?            inner;
 
   // Arbitary data for the implementation.
   readonly attribute nsISupports?            data;

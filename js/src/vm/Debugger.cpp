@@ -5578,7 +5578,7 @@ CheckThisFrame(JSContext* cx, const CallArgs& args, const char* fnname, bool che
     THIS_FRAME_THISOBJ(cx, argc, vp, fnname, args, thisobj);                   \
     AbstractFramePtr frame = AbstractFramePtr::FromRaw(thisobj->getPrivate()); \
     if (frame.isScriptFrameIterData()) {                                       \
-        ScriptFrameIter iter(*(ScriptFrameIter::Data*)(frame.raw()));         \
+        ScriptFrameIter iter(*(ScriptFrameIter::Data*)(frame.raw()));          \
         frame = iter.abstractFramePtr();                                       \
     }
 
@@ -5588,10 +5588,11 @@ CheckThisFrame(JSContext* cx, const CallArgs& args, const char* fnname, bool che
     {                                                                          \
         AbstractFramePtr f = AbstractFramePtr::FromRaw(thisobj->getPrivate()); \
         if (f.isScriptFrameIterData()) {                                       \
-            maybeIter.emplace(*(ScriptFrameIter::Data*)(f.raw()));            \
+            maybeIter.emplace(*(ScriptFrameIter::Data*)(f.raw()));             \
         } else {                                                               \
             maybeIter.emplace(cx, ScriptFrameIter::ALL_CONTEXTS,               \
-                              ScriptFrameIter::GO_THROUGH_SAVED);              \
+                              ScriptFrameIter::GO_THROUGH_SAVED,               \
+                              ScriptFrameIter::IGNORE_DEBUGGER_EVAL_PREV_LINK); \
             ScriptFrameIter& iter = *maybeIter;                                \
             while (!iter.hasUsableAbstractFramePtr() || iter.abstractFramePtr() != f) \
                 ++iter;                                                        \
@@ -6294,7 +6295,7 @@ DebuggerObject_checkThis(JSContext* cx, const CallArgs& args, const char* fnname
     RootedObject obj(cx, DebuggerObject_checkThis(cx, args, fnname));         \
     if (!obj)                                                                 \
         return false;                                                         \
-    obj = (JSObject*) obj->as<NativeObject>().getPrivate();                  \
+    obj = (JSObject*) obj->as<NativeObject>().getPrivate();                   \
     MOZ_ASSERT(obj)
 
 #define THIS_DEBUGOBJECT_OWNER_REFERENT(cx, argc, vp, fnname, args, dbg, obj) \
@@ -6303,7 +6304,7 @@ DebuggerObject_checkThis(JSContext* cx, const CallArgs& args, const char* fnname
    if (!obj)                                                                  \
        return false;                                                          \
    Debugger* dbg = Debugger::fromChildJSObject(obj);                          \
-   obj = (JSObject*) obj->as<NativeObject>().getPrivate();                   \
+   obj = (JSObject*) obj->as<NativeObject>().getPrivate();                    \
    MOZ_ASSERT(obj)
 
 static bool
@@ -7227,7 +7228,7 @@ DebuggerEnv_checkThis(JSContext* cx, const CallArgs& args, const char* fnname,
     NativeObject* envobj = DebuggerEnv_checkThis(cx, args, fnname);           \
     if (!envobj)                                                              \
         return false;                                                         \
-    Rooted<Env*> env(cx, static_cast<Env*>(envobj->getPrivate()));           \
+    Rooted<Env*> env(cx, static_cast<Env*>(envobj->getPrivate()));            \
     MOZ_ASSERT(env);                                                          \
     MOZ_ASSERT(!env->is<ScopeObject>())
  

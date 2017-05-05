@@ -12,7 +12,7 @@
 
 [ptr] native JSContext(JSContext);
 
-[scriptable, uuid(4ed5cd87-401a-425a-8d8d-c28fbc1e88b2)]
+[scriptable, uuid(4371b5bf-6845-487f-8d9d-3f1e4a9badd2)]
 interface nsIStackFrame : nsISupports
 {
     // see nsIProgrammingLanguage for list of language consts
@@ -69,8 +69,6 @@ interface nsIException : nsISupports
 
     // A stack trace, if available.
     readonly attribute nsIStackFrame           location;
-    // An inner exception that triggered this, if available.
-    readonly attribute nsIException            inner;
 
     // Arbitary data for the implementation.
     readonly attribute nsISupports             data;

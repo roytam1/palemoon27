@@ -1138,6 +1138,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   // New script entry point required, due to the "Create a script" sub-step of
   // http://www.whatwg.org/specs/web-apps/current-work/#execute-the-script-block
   AutoEntryScript entryScript(globalObject, true, context->GetNativeContext());
+  entryScript.TakeOwnershipOfErrorReporting();
   JS::Rooted<JSObject*> global(entryScript.cx(),
                                globalObject->GetGlobalJSObject());
 

@@ -83,8 +83,6 @@ public:
 
   already_AddRefed<nsIStackFrame> GetLocation() const;
 
-  already_AddRefed<nsISupports> GetInner() const;
-
   already_AddRefed<nsISupports> GetData() const;
 
   void GetStack(nsAString& aStack, ErrorResult& aRv) const;
@@ -110,7 +108,6 @@ protected:
   nsCOMPtr<nsISupports> mData;
   nsString        mFilename;
   int             mLineNumber;
-  nsCOMPtr<nsIException> mInner;
   bool            mInitialized;
 
   bool mHoldingJSVal;

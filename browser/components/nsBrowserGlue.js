@@ -895,8 +895,8 @@ BrowserGlue.prototype = {
   /**
    * Initialize Places
    * - imports the bookmarks html file if bookmarks database is empty, try to
-   *   restore bookmarks from a JSON backup if the backend indicates that the
-   *   database was corrupt.
+   *   restore bookmarks from a JSON/JSONLZ4 backup if the backend indicates
+   *   that the database was corrupt.
    *
    * These prefs can be set up by the frontend:
    *
@@ -948,12 +948,12 @@ BrowserGlue.prototype = {
       } catch(ex) {}
 
       // If the user did not require to restore default bookmarks, or import
-      // from bookmarks.html, we will try to restore from JSON
+      // from bookmarks.html, we will try to restore from JSON/JSONLZ4
       if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
-        // get latest JSON backup
-        var bookmarksBackupFile = PlacesBackups.getMostRecent("json");
+        // get latest JSON/JSONLZ4 backup
+        var bookmarksBackupFile = yield PlacesBackups.getMostRecentBackup();
         if (bookmarksBackupFile) {
-          // restore from JSON backup
+          // restore from JSON/JSONLZ4 backup
           yield BookmarkJSONUtils.importFromFile(bookmarksBackupFile, true);
           importBookmarks = false;
         }
@@ -1039,13 +1039,6 @@ BrowserGlue.prototype = {
         else {
           Cu.reportError("Unable to find bookmarks.html file.");
         }
-
-        // Reset preferences, so we won't try to import again at next run
-        if (importBookmarksHTML)
-          Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
-        if (restoreDefaultBookmarks)
-          Services.prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
-                                     false);
       }
 
       // Initialize bookmark archiving on idle.
@@ -1054,9 +1047,25 @@ BrowserGlue.prototype = {
         this._idleService.addIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
         this._isIdleObserver = true;
       }
-
+    
+      return [importBookmarksHTML, restoreDefaultBookmarks];
+    
+    }.bind(this)).catch(ex => {
+      Cu.reportError(ex);
+    }).then(result => {
+      // Reset preferences, so we won't try to import again at next run
+      if (result[0]) {
+        Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
+      }
+      if (result[1]) {
+        // XXX: If it is omitted, it works.
+        Services.prefs.setBoolPref(
+            "browser.bookmarks.restore_default_bookmarks", false);
+      }
+      // NB: deliberately after the catch so that we always do this, even if
+      // we threw halfway through initializing in the Task above.
       Services.obs.notifyObservers(null, "places-browser-init-complete", "");
-    }.bind(this));
+    });
   },
 
   /**
@@ -1094,9 +1103,9 @@ BrowserGlue.prototype = {
     // If this fails to get the preference value, we don't export.
     if (Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML")) {
       // Exceptionally, since this is a non-default setting and HTML format is
-      // discouraged in favor of the JSON backups, we spin the event loop on
-      // shutdown, to wait for the export to finish.  We cannot safely spin
-      // the event loop on shutdown until we include a watchdog to prevent
+      // discouraged in favor of the JSON/JSONLZ4 backups, we spin the event
+      // loop on shutdown, to wait for the export to finish.  We cannot safely
+      // spin the event loop on shutdown until we include a watchdog to prevent
       // potential hangs (bug 518683).  The asynchronous shutdown operations
       // will then be handled by a shutdown service (bug 435058).
       waitingForHTMLExportToComplete = false;

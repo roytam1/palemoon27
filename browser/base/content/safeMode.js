@@ -74,9 +74,16 @@ function deleteLocalstore() {
   const nsIProperties = Components.interfaces.nsIProperties;
   var directoryService =  Components.classes[nsIDirectoryServiceContractID]
                                     .getService(nsIProperties);
+  // Local store file
   var localstoreFile = directoryService.get("LStoreS", Components.interfaces.nsIFile);
+  // XUL store file
+  var xulstoreFile = directoryService.get("ProfD", Components.interfaces.nsIFile);
+  xulstoreFile.append("xulstore.json");
   try {
-    localstoreFile.remove(false);
+    xulstoreFile.remove(false);
+    if (!localstoreFile.exists()) {
+      localstoreFile.remove(false);
+    }
   } catch(e) {
     Components.utils.reportError(e);
   }

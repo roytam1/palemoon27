@@ -81,7 +81,7 @@ function deleteLocalstore() {
   xulstoreFile.append("xulstore.json");
   try {
     xulstoreFile.remove(false);
-    if (!localstoreFile.exists()) {
+    if (localstoreFile.exists()) {
       localstoreFile.remove(false);
     }
   } catch(e) {

@@ -1039,6 +1039,25 @@ BrowserGlue.prototype = {
         else {
           Cu.reportError("Unable to find bookmarks.html file.");
         }
+
+        // See #1083:
+        // "Delete all bookmarks except for backups" in Safe Mode doesn't work
+        var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+        let observer = {
+          "observe": function() {
+            delete observer.timer;
+            // Reset preferences, so we won't try to import again at next run
+            if (importBookmarksHTML) {
+              Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
+            }
+            if (restoreDefaultBookmarks) {
+              Services.prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
+                                         false);
+            }
+          },
+          "timer": timer,
+        };
+        timer.init(observer, 100, Ci.nsITimer.TYPE_ONE_SHOT);
       }
 
       // Initialize bookmark archiving on idle.
@@ -1047,21 +1066,10 @@ BrowserGlue.prototype = {
         this._idleService.addIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
         this._isIdleObserver = true;
       }
-    
-      return [importBookmarksHTML, restoreDefaultBookmarks];
-    
+
     }.bind(this)).catch(ex => {
       Cu.reportError(ex);
     }).then(result => {
-      // Reset preferences, so we won't try to import again at next run
-      if (result[0]) {
-        Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
-      }
-      if (result[1]) {
-        // XXX: If it is omitted, it works.
-        Services.prefs.setBoolPref(
-            "browser.bookmarks.restore_default_bookmarks", false);
-      }
       // NB: deliberately after the catch so that we always do this, even if
       // we threw halfway through initializing in the Task above.
       Services.obs.notifyObservers(null, "places-browser-init-complete", "");

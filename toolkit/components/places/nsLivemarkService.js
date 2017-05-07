@@ -430,7 +430,7 @@ LivemarkService.prototype = {
       if (this._itemAdded && this._itemAdded.id == aItemId) {
         this._itemAdded.lastModified = aLastModified;
       }
-      if (aItemId in this._livemarks) {
+      if (this._livemark && (aItemId in this._livemarks)) {
         if (aProperty == "title") {
           this._livemarks[aItemId].title = aValue;
         }

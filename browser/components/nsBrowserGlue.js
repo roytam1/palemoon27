@@ -982,8 +982,12 @@ BrowserGlue.prototype = {
       if (!importBookmarks) {
         // Now apply distribution customized bookmarks.
         // This should always run after Places initialization.
-        this._distributionCustomizer.applyBookmarks();
-        this.ensurePlacesDefaultQueriesInitialized();
+        try {
+          this._distributionCustomizer.applyBookmarks();
+          this.ensurePlacesDefaultQueriesInitialized();
+        } catch (e) {
+          Cu.reportError(e);
+        }
       }
       else {
         // An import operation is about to run.
@@ -1020,24 +1024,31 @@ BrowserGlue.prototype = {
           try {
             BookmarkHTMLUtils.importFromURL(bookmarksURI.spec, true).then(null,
               function onFailure() {
-                Cu.reportError("Bookmarks.html file could be corrupt.");
+                Cu.reportError(
+                    new Error("Bookmarks.html file could be corrupt."));
               }
             ).then(
               function onComplete() {
-                // Now apply distribution customized bookmarks.
-                // This should always run after Places initialization.
-                this._distributionCustomizer.applyBookmarks();
-                // Ensure that smart bookmarks are created once the operation is
-                // complete.
-                this.ensurePlacesDefaultQueriesInitialized();
+                try {
+                  // Now apply distribution customized bookmarks.
+                  // This should always run after Places initialization.
+                  this._distributionCustomizer.applyBookmarks();
+                  // Ensure that smart bookmarks are created once the operation
+                  // is complete.
+                  this.ensurePlacesDefaultQueriesInitialized();
+                } catch (e) {
+                  Cu.reportError(e);
+                }
               }.bind(this)
             );
-          } catch (err) {
-            Cu.reportError("Bookmarks.html file could be corrupt. " + err);
+          } catch (e) {
+            Cu.reportError(
+                new Error("Bookmarks.html file could be corrupt." + "\n" +
+                e.message));
           }
         }
         else {
-          Cu.reportError("Unable to find bookmarks.html file.");
+          Cu.reportError(new Error("Unable to find bookmarks.html file."));
         }
 
         // See #1083:

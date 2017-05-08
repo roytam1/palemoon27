@@ -74,7 +74,8 @@ static const char* CSPStrDirectives[] = {
   "reflected-xss",   // REFLECTED_XSS_DIRECTIVE
   "base-uri",        // BASE_URI_DIRECTIVE
   "form-action",     // FORM_ACTION_DIRECTIVE
-  "referrer"         // REFERRER_DIRECTIVE
+  "referrer",        // REFERRER_DIRECTIVE
+  "child-src"        // CHILD_SRC_DIRECTIVE
 };
 
 inline const char* CSP_CSPDirectiveToString(CSPDirective aDir)

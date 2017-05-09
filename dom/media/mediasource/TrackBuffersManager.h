@@ -21,6 +21,7 @@ namespace mozilla {
 class ContainerParser;
 class MediaLargeByteBuffer;
 class MediaRawData;
+class MediaSourceDemuxer;
 class SourceBuffer;
 class SourceBufferResource;
 
@@ -262,6 +263,7 @@ private:
   // Strong references to external objects.
   nsMainThreadPtrHandle<dom::SourceBuffer> mParent;
   nsMainThreadPtrHandle<MediaSourceDecoder> mParentDecoder;
+  nsRefPtr<MediaSourceDemuxer> mMediaSourceDemuxer;
 
   // Set to true if abort is called.
   Atomic<bool> mAbort;

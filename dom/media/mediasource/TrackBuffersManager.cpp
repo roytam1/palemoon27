@@ -7,6 +7,7 @@
 #include "TrackBuffersManager.h"
 #include "SourceBufferResource.h"
 #include "SourceBuffer.h"
+#include "MediaSourceDemuxer.h"
 
 #ifdef MOZ_FMP4
 #include "MP4Demuxer.h"
@@ -46,9 +47,10 @@ TrackBuffersManager::TrackBuffersManager(dom::SourceBuffer* aParent, MediaSource
   , mParser(ContainerParser::CreateForMIMEType(aType))
   , mProcessedInput(0)
   , mAppendRunning(false)
-  , mTaskQueue(new MediaTaskQueue(GetMediaThreadPool()))
+  , mTaskQueue(aParentDecoder->GetDemuxer()->GetTaskQueue())
   , mParent(new nsMainThreadPtrHolder<dom::SourceBuffer>(aParent, false /* strict */))
   , mParentDecoder(new nsMainThreadPtrHolder<MediaSourceDecoder>(aParentDecoder, false /* strict */))
+  , mMediaSourceDemuxer(mParentDecoder->GetDemuxer())
   , mAbort(false)
   , mMonitor("TrackBuffersManager")
 {
@@ -511,6 +513,9 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
 
   // Update our reported total size.
   mSizeSourceBuffer = mVideoTracks.mSizeBuffer + mAudioTracks.mSizeBuffer;
+
+  // Tell our demuxer that data was removed.
+  mMediaSourceDemuxer->NotifyTimeRangesChanged();
 
   return dataRemoved;
 }
@@ -1094,6 +1099,9 @@ TrackBuffersManager::CompleteCodedFrameProcessing()
   // 7. Set append state to WAITING_FOR_SEGMENT.
   SetAppendState(AppendState::WAITING_FOR_SEGMENT);
 
+  // Tell our demuxer that data was added.
+  mMediaSourceDemuxer->NotifyTimeRangesChanged();
+
   // 8. Jump to the loop top step above.
   ResolveProcessing(false, __func__);
 }
@@ -1452,8 +1460,6 @@ TrackBuffersManager::RestartGroupStartTimestamp()
 
 TrackBuffersManager::~TrackBuffersManager()
 {
-  mTaskQueue->BeginShutdown();
-  mTaskQueue = nullptr;
 }
 
 MediaInfo

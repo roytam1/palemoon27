@@ -792,6 +792,9 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
     aA.mParsed += decoder.mQueuedSamples.Length();
   }
   decoder.mQueuedSamples.Clear();
+
+  // We have serviced the decoder's request for more data.
+  decoder.mInputExhausted = false;
 }
 
 void
@@ -866,7 +869,6 @@ MediaFormatReader::Update(TrackType aTrack)
   }
 
   needInput = true;
-  decoder.mInputExhausted = false;
 
   // Demux samples if we don't have some.
   RequestDemuxSamples(aTrack);

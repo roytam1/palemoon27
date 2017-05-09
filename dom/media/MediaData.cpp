@@ -518,6 +518,7 @@ MediaRawData::Clone() const
   s->mKeyframe = mKeyframe;
   s->mExtraData = mExtraData;
   s->mCryptoInternal = mCryptoInternal;
+  s->mTrackInfo = mTrackInfo;
   if (mSize) {
     if (!s->EnsureCapacity(mSize)) {
       return nullptr;
@@ -566,9 +567,6 @@ MediaRawData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 {
   size_t size = aMallocSizeOf(this);
 
-  if (mExtraData) {
-    size += aMallocSizeOf(mExtraData.get());
-  }
   size += aMallocSizeOf(mBuffer.get());
   return size;
 }

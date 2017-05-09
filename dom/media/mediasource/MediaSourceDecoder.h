@@ -112,10 +112,9 @@ private:
   bool mIsUsingFormatReader;
   nsRefPtr<MediaSourceDemuxer> mDemuxer;
 
-  Atomic<bool> mEnded;
-
   // Protected by GetReentrantMonitor()
   double mMediaSourceDuration;
+  Atomic<bool> mEnded;
 };
 
 } // namespace mozilla

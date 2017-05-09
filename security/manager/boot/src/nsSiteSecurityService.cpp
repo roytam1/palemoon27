@@ -214,8 +214,8 @@ SiteHPKPState::ToString(nsCString& aString)
 
 nsSiteSecurityService::nsSiteSecurityService()
   : mUsePreloadList(true)
-  , mPreloadListTimeOffset(0)
   , mUseStsService(true)
+  , mPreloadListTimeOffset(0)
 {
 }
 

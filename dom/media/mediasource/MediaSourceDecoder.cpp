@@ -33,8 +33,8 @@ class SourceBufferDecoder;
 
 MediaSourceDecoder::MediaSourceDecoder(dom::HTMLMediaElement* aElement)
   : mMediaSource(nullptr)
-  , mMediaSourceDuration(UnspecifiedNaN<double>())
   , mIsUsingFormatReader(Preferences::GetBool("media.mediasource.format-reader", false))
+  , mMediaSourceDuration(UnspecifiedNaN<double>())
   , mEnded(false)
 {
   Init(aElement);

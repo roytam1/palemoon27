@@ -104,6 +104,11 @@ public:
 
   int64_t ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio) override;
 
+  bool UseBufferingHeuristics() override
+  {
+    return mTrackDemuxersMayBlock;
+  }
+
 private:
 
   bool InitDemuxer();
@@ -372,6 +377,9 @@ private:
   // TODO handle change of encryption half-way. The above assumption will then
   // become incorrect.
   bool mIsEncrypted;
+
+  // Set to true if any of our track buffers may be blocking.
+  bool mTrackDemuxersMayBlock;
 
   // Seeking objects.
   bool IsSeeking() const { return mPendingSeekTime.isSome(); }

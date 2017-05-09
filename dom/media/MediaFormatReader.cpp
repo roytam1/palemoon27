@@ -1399,4 +1399,13 @@ MediaFormatReader::NotifyDataRemoved()
   GetTaskQueue()->Dispatch(task);
 }
 
+int64_t
+MediaFormatReader::ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio)
+{
+  if (mDemuxer->ShouldComputeStartTime()) {
+    return MediaDecoderReader::ComputeStartTime(aVideo, aAudio);
+  }
+  return 0;
+}
+
 } // namespace mozilla

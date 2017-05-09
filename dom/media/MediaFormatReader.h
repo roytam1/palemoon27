@@ -137,6 +137,7 @@ private:
   void NotifyDrainComplete(TrackType aTrack);
   void NotifyError(TrackType aTrack);
   void NotifyWaitingForData(TrackType aTrack);
+  void NotifyEndOfStream(TrackType aTrack);
 
   void ExtractCryptoInitData(nsTArray<uint8_t>& aInitData);
 
@@ -211,6 +212,7 @@ private:
       , mNumSamplesInput(0)
       , mNumSamplesOutput(0)
       , mSizeOfQueue(0)
+      , mLastStreamSourceID(UINT32_MAX)
       , mMonitor(aType == MediaData::AUDIO_DATA ? "audio decoder data"
                                                 : "video decoder data")
     {}
@@ -236,6 +238,9 @@ private:
     bool mReceivedNewData;
     bool mDiscontinuity;
 
+    // Pending seek.
+    MediaPromiseRequestHolder<MediaTrackDemuxer::SeekPromise> mSeekRequest;
+
     // Queued demux samples waiting to be decoded.
     nsTArray<nsRefPtr<MediaRawData>> mQueuedSamples;
     MediaPromiseRequestHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
@@ -252,6 +257,10 @@ private:
     bool mInputExhausted;
     bool mError;
     bool mDrainComplete;
+    // If set, all decoded samples prior mTimeThreshold will be dropped.
+    // Used for internal seeking when a change of stream is detected.
+    Maybe<media::TimeUnit> mTimeThreshold;
+
     // Decoded samples returned my mDecoder awaiting being returned to
     // state machine upon request.
     nsTArray<nsRefPtr<MediaData>> mOutput;
@@ -283,6 +292,7 @@ private:
       mOutputRequested = false;
       mInputExhausted = false;
       mDrainComplete = false;
+      mTimeThreshold.reset();
       mOutput.Clear();
       mNumSamplesInput = 0;
       mNumSamplesOutput = 0;
@@ -290,10 +300,13 @@ private:
 
     // Used by the MDSM for logging purposes.
     Atomic<size_t> mSizeOfQueue;
+    // Sample format monitoring.
+    uint32_t mLastStreamSourceID;
     // Monitor that protects all non-threadsafe state; the primitives
     // that follow.
     Monitor mMonitor;
     media::TimeIntervals mTimeRanges;
+    nsRefPtr<SharedTrackInfo> mInfo;
   };
 
   template<typename PromiseType>
@@ -400,8 +413,6 @@ private:
   }
   // Temporary seek information while we wait for the data
   Maybe<media::TimeUnit> mPendingSeekTime;
-  MediaPromiseRequestHolder<MediaTrackDemuxer::SeekPromise> mVideoSeekRequest;
-  MediaPromiseRequestHolder<MediaTrackDemuxer::SeekPromise> mAudioSeekRequest;
   MediaPromiseHolder<SeekPromise> mSeekPromise;
 
   nsRefPtr<SharedDecoderManager> mSharedDecoderManager;

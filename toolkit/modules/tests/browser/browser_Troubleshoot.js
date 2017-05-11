@@ -96,6 +96,10 @@ const SNAPSHOT_SCHEMA = {
           required: true,
           type: "string",
         },
+        osVersion: {
+          required: true,
+          type: "string",
+        },
         vendor: {
           type: "string",
         },
@@ -114,6 +118,9 @@ const SNAPSHOT_SCHEMA = {
         },
         numRemoteWindows: {
           type: "number",
+        },
+        safeMode: {
+          type: "boolean",
         },
       },
     },

@@ -13,6 +13,8 @@ Cu.import("resource://gre/modules/ResetProfile.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesDBUtils",
+                                  "resource://gre/modules/PlacesDBUtils.jsm");
 
 window.addEventListener("load", function onload(event) {
   try {
@@ -36,6 +38,7 @@ let snapshotFormatters = {
   application: function application(data) {
     $("application-box").textContent = data.name;
     $("useragent-box").textContent = data.userAgent;
+    $("os-box").textContent = data.osVersion;
     $("supportLink").href = data.supportURL;
     let version = data.version;
     if (data.vendor)
@@ -47,6 +50,8 @@ let snapshotFormatters = {
 
     $("multiprocess-box").textContent = stringBundle().formatStringFromName("multiProcessStatus",
       [data.numRemoteWindows, data.numTotalWindows, data.remoteAutoStart], 3);
+
+    $("safemode-box").textContent = data.safeMode;
   },
 
   extensions: function extensions(data) {
@@ -629,16 +634,25 @@ function populateActionBox() {
   }
 }
 
-// Prompt user to restart the browser in safe mode
-function safeModeRestart() {
+// Prompt user to restart the browser
+function restart(safeMode) {
   let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
                      .createInstance(Ci.nsISupportsPRBool);
   Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
 
-  if (!cancelQuit.data) {
-    Services.startup.restartInSafeMode(Ci.nsIAppStartup.eAttemptQuit);
+  if (cancelQuit.data) {
+    return;
+  }
+
+  let flags = Ci.nsIAppStartup.eAttemptQuit;
+
+  if (safeMode) {
+    Services.startup.restartInSafeMode(flags);
+  } else {
+    Services.startup.quit(flags | Ci.nsIAppStartup.eRestart);
   }
 }
+
 /**
  * Set up event listeners for buttons.
  */
@@ -666,7 +680,18 @@ function setupEventListeners(){
       Services.obs.notifyObservers(null, "restart-in-safe-mode", "");
     }
     else {
-      safeModeRestart();
+      restart(true);
     }
+  });
+  $("restart-button").addEventListener("click", function (event) {
+    restart(false);
+  });
+  $("verify-place-integrity-button").addEventListener("click", function(event) {
+    PlacesDBUtils.checkAndFixDatabase(function(aLog) {
+      let msg = aLog.join("\n");
+      $("verify-place-result").style.display = "block";
+      $("verify-place-result").classList.remove("no-copy");
+      $("verify-place-result").textContent = msg;
+    });
   });
 }

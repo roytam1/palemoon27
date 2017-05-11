@@ -91,6 +91,10 @@ td {
   width: 30%;
 }
 
+#contents {
+  clear: right;
+}
+
 #action-box,
 #reset-box,
 #safe-mode-box {

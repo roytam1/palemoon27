@@ -42,6 +42,12 @@
           &aboutSupport.restartInSafeMode.label;
         </button>
       </div>
+      <div id="restart-box">
+        <h3>&aboutSupport.restartTitle;</h3>
+        <button id="restart-button">
+          &aboutSupport.restartNormal.label;
+        </button>
+      </div>
 
     </div>
     <h1>
@@ -130,6 +136,15 @@
             </td>
           </tr>
 
+          <tr>
+            <th class="column">
+              &aboutSupport.appBasicsOS;
+           </th>
+
+           <td id="os-box">
+           </td>
+          </tr>
+
           <tr id="profile-row" class="no-copy">
             <th class="column">
 #ifdef XP_WIN
@@ -194,6 +209,15 @@
             </th>
 
             <td id="multiprocess-box">
+            </td>
+          </tr>
+
+          <tr>
+            <th class="column">
+              &aboutSupport.appBasicsSafeMode;
+            </th>
+
+            <td id="safemode-box">
             </td>
           </tr>
 
@@ -289,6 +313,27 @@
 
         <tbody id="locked-prefs-tbody">
         </tbody>
+      </table>
+
+      <!-- - - - - - - - - - - - - - - - - - - - - -->
+
+      <h2 class="major-section">
+        &aboutSupport.placeDatabaseTitle;
+      </h2>
+
+      <table>
+        <tr class="no-copy">
+          <th class="column">
+            &aboutSupport.placeDatabaseIntegrity;
+          </th>
+
+          <td>
+            <button id="verify-place-integrity-button">
+              &aboutSupport.placeDatabaseVerifyIntegrity;
+            </button>
+            <pre id="verify-place-result" class="hidden no-copy"></pre>
+          </td>
+        </tr>
       </table>
 
       <!-- - - - - - - - - - - - - - - - - - - - - -->

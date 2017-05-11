@@ -140,13 +140,19 @@ this.Troubleshoot = {
 let dataProviders = {
 
   application: function application(done) {
+
+    let sysInfo = Cc["@mozilla.org/system-info;1"].
+                  getService(Ci.nsIPropertyBag2);
+
     let data = {
       name: Services.appinfo.name,
+      osVersion: sysInfo.getProperty("name") + " " + sysInfo.getProperty("version"),
       version: Services.appinfo.version,
       buildID: Services.appinfo.appBuildID,
       userAgent: Cc["@mozilla.org/network/protocol;1?name=http"].
                  getService(Ci.nsIHttpProtocolHandler).
                  userAgent,
+      safeMode: Services.appinfo.inSafeMode,
     };
 
 #ifdef MOZ_UPDATER

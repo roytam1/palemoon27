@@ -86,7 +86,7 @@ pref("app.update.timerMinimumDelay", 120);
 // App-specific update preferences
 
 // The interval to check for updates (app.update.interval) is defined in
-// firefox-branding.js
+// palemoon-branding.js
 
 // Alternative windowtype for an application update user interface window. When
 // a window with this windowtype is open the application update service won't

@@ -52,7 +52,7 @@
 @RESPATH@/browser/defaults/profile/mimeTypes.rdf
 @RESPATH@/dictionaries/*
 @RESPATH@/hyphenation/*
-@RESPATH@/browser/@PREF_DIR@/firefox-l10n.js
+@RESPATH@/browser/@PREF_DIR@/palemoon-l10n.js
 @RESPATH@/browser/searchplugins/*
 #ifdef XP_WIN32
 @RESPATH@/uninstall/helper.exe
@@ -685,8 +685,8 @@
 
 ; [Default Preferences]
 ; All the pref files must be part of base to prevent migration bugs
-@RESPATH@/browser/@PREF_DIR@/firefox.js
-@RESPATH@/browser/@PREF_DIR@/firefox-branding.js
+@RESPATH@/browser/@PREF_DIR@/palemoon.js
+@RESPATH@/browser/@PREF_DIR@/palemoon-branding.js
 @RESPATH@/greprefs.js
 @RESPATH@/defaults/autoconfig/platform.js
 @RESPATH@/defaults/autoconfig/prefcalls.js

@@ -634,7 +634,7 @@ function populateActionBox() {
   }
 }
 
-// Prompt user to restart the browser
+// Restart the browser
 function restart(safeMode) {
   let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
                      .createInstance(Ci.nsISupportsPRBool);

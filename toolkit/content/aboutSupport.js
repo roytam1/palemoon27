@@ -620,12 +620,12 @@ Serializer.prototype = {
   _nodeText: function (node, endline) {
     let whiteChars = /\s+/g
     let whiteCharsButNoEndline = /(?!\n)[\s]+/g;
-    if (node.firstElementChild &&
-        node.firstElementChild.parentNode &&
-        (node.firstElementChild.nodeName.toLowerCase() == "button")) {
-      node.firstElementChild.parentNode.removeChild(node.firstElementChild);
+    let _node = node.cloneNode(true);
+    if (_node.firstElementChild &&
+        (_node.firstElementChild.nodeName.toLowerCase() == "button")) {
+      _node.removeChild(_node.firstElementChild);
     }
-    return node.textContent.replace(
+    return _node.textContent.replace(
         endline ? whiteCharsButNoEndline : whiteChars, " ");
   },
 };

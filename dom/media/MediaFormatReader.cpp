@@ -668,7 +668,7 @@ MediaFormatReader::NotifyError(TrackType aTrack)
 {
   MOZ_ASSERT(OnTaskQueue());
   auto& decoder = GetDecoderData(aTrack);
-  decoder.mError = true
+  decoder.mError = true;
   decoder.mNeedDraining = true;
   ScheduleUpdate(aTrack);
 }

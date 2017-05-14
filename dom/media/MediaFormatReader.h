@@ -210,6 +210,7 @@ private:
       , mInputExhausted(false)
       , mError(false)
       , mNeedDraining(false)
+      , mDraining(false)
       , mDrainComplete(false)
       , mNumSamplesInput(0)
       , mNumSamplesOutput(0)
@@ -258,6 +259,7 @@ private:
     bool mInputExhausted;
     bool mError;
     bool mNeedDraining;
+    bool mDraining;
     bool mDrainComplete;
     // If set, all decoded samples prior mTimeThreshold will be dropped.
     // Used for internal seeking when a change of stream is detected.
@@ -293,6 +295,7 @@ private:
       mOutputRequested = false;
       mInputExhausted = false;
       mNeedDraining = false;
+      mDraining = false;
       mDrainComplete = false;
       mTimeThreshold.reset();
       mOutput.Clear();

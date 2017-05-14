@@ -298,12 +298,14 @@ private:
       mOutput.Clear();
       mNumSamplesInput = 0;
       mNumSamplesOutput = 0;
+      mNextStreamSourceID.reset();
     }
 
     // Used by the MDSM for logging purposes.
     Atomic<size_t> mSizeOfQueue;
     // Sample format monitoring.
     uint32_t mLastStreamSourceID;
+    Maybe<uint32_t> mNextStreamSourceID;
     // Monitor that protects all non-threadsafe state; the primitives
     // that follow.
     Monitor mMonitor;

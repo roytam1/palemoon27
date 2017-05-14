@@ -677,7 +677,6 @@ MediaFormatReader::NotifyWaitingForData(TrackType aTrack)
   MOZ_ASSERT(OnTaskQueue());
   auto& decoder = GetDecoderData(aTrack);
   decoder.mWaitingForData = true;
-  decoder.mNeedDraining = true;
   ScheduleUpdate(aTrack);
 }
 
@@ -925,6 +924,12 @@ MediaFormatReader::Update(TrackType aTrack)
     return;
   }
 
+  if (!decoder.HasPromise() && decoder.mWaitingForData) {
+    // Nothing more we can do at present.
+    LOGV("Still waiting for data.");
+    return;
+  }
+
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
   AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
@@ -964,11 +969,12 @@ MediaFormatReader::Update(TrackType aTrack)
       } else if (decoder.mWaitingForData) {
         LOG("Waiting For Data");
         decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+        return;
       }
     }
   }
 
-  if (decoder.mError || decoder.mDemuxEOS || decoder.mWaitingForData) {
+  if (decoder.mNeedDraining) {
     DrainDecoder(aTrack);
     return;
   }

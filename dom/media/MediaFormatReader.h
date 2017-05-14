@@ -132,6 +132,8 @@ private:
   // Decode any pending already demuxed samples.
   void DecodeDemuxedSamples(TrackType aTrack,
                             AbstractMediaDecoder::AutoNotifyDecoded& aA);
+  // Drain the current decoder.
+  void DrainDecoder(TrackType aTrack);
   void NotifyNewOutput(TrackType aTrack, MediaData* aSample);
   void NotifyInputExhausted(TrackType aTrack);
   void NotifyDrainComplete(TrackType aTrack);
@@ -201,13 +203,13 @@ private:
       , mDecodeAhead(aDecodeAhead)
       , mUpdateScheduled(false)
       , mDemuxEOS(false)
-      , mDemuxEOSServiced(false)
       , mWaitingForData(false)
       , mReceivedNewData(false)
       , mDiscontinuity(true)
       , mOutputRequested(false)
       , mInputExhausted(false)
       , mError(false)
+      , mNeedDraining(false)
       , mDrainComplete(false)
       , mNumSamplesInput(0)
       , mNumSamplesOutput(0)
@@ -233,7 +235,6 @@ private:
     uint32_t mDecodeAhead;
     bool mUpdateScheduled;
     bool mDemuxEOS;
-    bool mDemuxEOSServiced;
     bool mWaitingForData;
     bool mReceivedNewData;
     bool mDiscontinuity;
@@ -256,6 +257,7 @@ private:
     bool mOutputRequested;
     bool mInputExhausted;
     bool mError;
+    bool mNeedDraining;
     bool mDrainComplete;
     // If set, all decoded samples prior mTimeThreshold will be dropped.
     // Used for internal seeking when a change of stream is detected.
@@ -284,13 +286,13 @@ private:
     {
       MOZ_ASSERT(mOwner->OnTaskQueue());
       mDemuxEOS = false;
-      mDemuxEOSServiced = false;
       mWaitingForData = false;
       mReceivedNewData = false;
       mDiscontinuity = true;
       mQueuedSamples.Clear();
       mOutputRequested = false;
       mInputExhausted = false;
+      mNeedDraining = false;
       mDrainComplete = false;
       mTimeThreshold.reset();
       mOutput.Clear();

@@ -914,9 +914,12 @@ MediaFormatReader::DrainDecoder(TrackType aTrack)
   if (!decoder.mNeedDraining || decoder.mDraining) {
     return;
   }
+  decoder.mNeedDraining = false;
+  if (!decoder.mDecoder) {
+    return;
+  }
   decoder.mOutputRequested = true;
   decoder.mDecoder->Drain();
-  decoder.mNeedDraining = false;
   decoder.mDraining = true;
   LOG("Requesting %s decoder to drain", TrackTypeToStr(aTrack));
 }
@@ -982,11 +985,14 @@ MediaFormatReader::Update(TrackType aTrack)
         return;
       } else if (decoder.mDemuxEOS) {
         decoder.RejectPromise(END_OF_STREAM, __func__);
-      } else if (decoder.mWaitingForData) {
-        LOG("Waiting For Data");
-        decoder.RejectPromise(WAITING_FOR_DATA, __func__);
-        return;
       }
+    } else if (decoder.mError && !decoder.mDecoder) {
+      decoder.RejectPromise(DECODE_ERROR, __func__);
+      return;
+    } else if (decoder.mWaitingForData) {
+      LOG("Waiting For Data");
+      decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+      return;
     }
   }
 

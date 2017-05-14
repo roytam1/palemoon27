@@ -1214,10 +1214,10 @@ static nsresult pref_InitInitialObjects()
   nsresult rv;
 
   // In omni.jar case, we load the following prefs:
-  // - jar:$gre/omni.jar!/greprefs.js
+  // - jar:$gre/omni.jar!/goanna.js
   // - jar:$gre/omni.jar!/defaults/pref/*.js
   // In non omni.jar case, we load:
-  // - $gre/greprefs.js
+  // - $gre/goanna.js
   //
   // In both cases, we also load:
   // - $gre/defaults/pref/*.js
@@ -1244,8 +1244,8 @@ static nsresult pref_InitInitialObjects()
 
   nsRefPtr<nsZipArchive> jarReader = mozilla::Omnijar::GetReader(mozilla::Omnijar::GRE);
   if (jarReader) {
-    // Load jar:$gre/omni.jar!/greprefs.js
-    rv = pref_ReadPrefFromJar(jarReader, "greprefs.js");
+    // Load jar:$gre/omni.jar!/goanna.js
+    rv = pref_ReadPrefFromJar(jarReader, "goanna.js");
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Load jar:$gre/omni.jar!/defaults/pref/*.js
@@ -1264,12 +1264,12 @@ static nsresult pref_InitInitialObjects()
         NS_WARNING("Error parsing preferences.");
     }
   } else {
-    // Load $gre/greprefs.js
+    // Load $gre/goanna.js
     nsCOMPtr<nsIFile> greprefsFile;
     rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(greprefsFile));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = greprefsFile->AppendNative(NS_LITERAL_CSTRING("greprefs.js"));
+    rv = greprefsFile->AppendNative(NS_LITERAL_CSTRING("goanna.js"));
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = openPrefFile(greprefsFile);

@@ -61,8 +61,6 @@ const PREF_APP_DISTRIBUTION_VERSION       = "distribution.version";
 
 const PREF_APP_B2G_VERSION                = "b2g.version";
 
-const PREF_EM_HOTFIX_ID                   = "extensions.hotfix.id";
-
 const URI_UPDATE_PROMPT_DIALOG  = "chrome://mozapps/content/update/updates.xul";
 const URI_UPDATE_HISTORY_DIALOG = "chrome://mozapps/content/update/history.xul";
 const URI_BRAND_PROPERTIES      = "chrome://branding/locale/brand.properties";
@@ -2748,11 +2746,6 @@ UpdateService.prototype = {
   },
 
   _checkAddonCompatibility: function AUS__checkAddonCompatibility() {
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     // Get all the installed add-ons
     var self = this;
     AddonManager.getAllAddons(function(addons) {
@@ -2777,13 +2770,11 @@ UpdateService.prototype = {
         // incompatible. If an addon's type equals plugin it is skipped since
         // checking plugins compatibility information isn't supported and
         // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787). The hotfix add-on is also ignored as it shouldn't
-        // block the user from upgrading.
+        // (see bug 566787).
         try {
-          if (addon.type != "plugin" && addon.id != hotfixID &&
+          if (addon.type != "plugin" && addon.isCompatible &&
               !addon.appDisabled && !addon.userDisabled &&
               addon.scope != AddonManager.SCOPE_APPLICATION &&
-              addon.isCompatible &&
               !addon.isCompatibleWith(self._update.appVersion,
                                       self._update.platformVersion))
             self._incompatibleAddons.push(addon);

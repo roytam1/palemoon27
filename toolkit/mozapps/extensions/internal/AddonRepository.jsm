@@ -625,9 +625,6 @@ this.AddonRepository = {
     let allAddons = yield new Promise((resolve, reject) =>
       AddonManager.getAllAddons(resolve));
 
-    // Filter the hotfix out of our list of add-ons
-    allAddons = [a for (a of allAddons) if (a.id != AddonManager.hotfixID)];
-
     // Completely remove cache if caching is not enabled
     if (!this.cacheEnabled) {
       logger.debug("Clearing cache because it is disabled");

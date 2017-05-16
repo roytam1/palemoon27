@@ -33,11 +33,6 @@ const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
 const PREF_EM_UPDATE_BACKGROUND_URL   = "extensions.update.background.url";
 const PREF_APP_UPDATE_ENABLED         = "app.update.enabled";
 const PREF_APP_UPDATE_AUTO            = "app.update.auto";
-const PREF_EM_HOTFIX_ID               = "extensions.hotfix.id";
-const PREF_EM_HOTFIX_LASTVERSION      = "extensions.hotfix.lastVersion";
-const PREF_EM_HOTFIX_URL              = "extensions.hotfix.url";
-const PREF_EM_CERT_CHECKATTRIBUTES    = "extensions.hotfix.cert.checkAttributes";
-const PREF_EM_HOTFIX_CERTS            = "extensions.hotfix.certs.";
 const PREF_MATCH_OS_LOCALE            = "intl.locale.matchOS";
 const PREF_SELECTED_LOCALE            = "general.useragent.locale";
 const UNKNOWN_XPCOM_ABI               = "unknownABI";
@@ -629,7 +624,6 @@ var gCheckUpdateSecurityDefault = true;
 var gCheckUpdateSecurity = gCheckUpdateSecurityDefault;
 var gUpdateEnabled = true;
 var gAutoUpdateDefault = true;
-var gHotfixID = null;
 var gShutdownBarrier = null;
 var gRepoShutdownState = "";
 var gShutdownInProgress = false;
@@ -900,11 +894,6 @@ var AddonManagerInternal = {
         gAutoUpdateDefault = Services.prefs.getBoolPref(PREF_EM_AUTOUPDATE_DEFAULT);
       } catch (e) {}
       Services.prefs.addObserver(PREF_EM_AUTOUPDATE_DEFAULT, this, false);
-
-      try {
-        gHotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-      } catch (e) {}
-      Services.prefs.addObserver(PREF_EM_HOTFIX_ID, this, false);
 
       let defaultProvidersEnabled = true;
       try {
@@ -1183,7 +1172,6 @@ var AddonManagerInternal = {
     Services.prefs.removeObserver(PREF_EM_CHECK_UPDATE_SECURITY, this);
     Services.prefs.removeObserver(PREF_EM_UPDATE_ENABLED, this);
     Services.prefs.removeObserver(PREF_EM_AUTOUPDATE_DEFAULT, this);
-    Services.prefs.removeObserver(PREF_EM_HOTFIX_ID, this);
 
     let savedError = null;
     // Only shut down providers if they've been started.
@@ -1301,14 +1289,6 @@ var AddonManagerInternal = {
         this.callManagerListeners("onUpdateModeChanged");
         break;
       }
-      case PREF_EM_HOTFIX_ID: {
-        try {
-          gHotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-        } catch(e) {
-          gHotfixID = null;
-        }
-        break;
-      }
     }
   },
 
@@ -1401,12 +1381,6 @@ var AddonManagerInternal = {
                                  Cr.NS_ERROR_NOT_INITIALIZED);
 
     let buPromise = Task.spawn(function* backgroundUpdateTask() {
-      let hotfixID = this.hotfixID;
-
-      let checkHotfix = hotfixID &&
-                        Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED) &&
-                        Services.prefs.getBoolPref(PREF_APP_UPDATE_AUTO);
-
       logger.debug("Background update check beginning");
 
       Services.obs.notifyObservers(null, "addons-background-update-start", null);
@@ -1426,10 +1400,6 @@ var AddonManagerInternal = {
         let updates = [];
 
         for (let addon of allAddons) {
-          if (addon.id == hotfixID) {
-            continue;
-          }
-
           // Check all add-ons for updates so that any compatibility updates will
           // be applied
           updates.push(new Promise((resolve, reject) => {
@@ -1452,92 +1422,6 @@ var AddonManagerInternal = {
           }));
         }
         yield Promise.all(updates);
-      }
-
-      if (checkHotfix) {
-        var hotfixVersion = "";
-        try {
-          hotfixVersion = Services.prefs.getCharPref(PREF_EM_HOTFIX_LASTVERSION);
-        }
-        catch (e) { }
-
-        let url = null;
-        if (Services.prefs.getPrefType(PREF_EM_HOTFIX_URL) == Ci.nsIPrefBranch.PREF_STRING)
-          url = Services.prefs.getCharPref(PREF_EM_HOTFIX_URL);
-        else
-          url = Services.prefs.getCharPref(PREF_EM_UPDATE_BACKGROUND_URL);
-
-        // Build the URI from a fake add-on data.
-        url = AddonManager.escapeAddonURI({
-          id: hotfixID,
-          version: hotfixVersion,
-          userDisabled: false,
-          appDisabled: false
-        }, url);
-
-        Components.utils.import("resource://gre/modules/addons/AddonUpdateChecker.jsm");
-        let update = null;
-        try {
-          let foundUpdates = yield new Promise((resolve, reject) => {
-            AddonUpdateChecker.checkForUpdates(hotfixID, null, url, {
-              onUpdateCheckComplete: resolve,
-              onUpdateCheckError: reject
-            });
-          });
-          update = AddonUpdateChecker.getNewestCompatibleUpdate(foundUpdates);
-        } catch (e) {
-          // AUC.checkForUpdates already logged the error
-        }
-
-        // Check that we have a hotfix update, and it's newer than the one we already
-        // have installed (if any)
-        if (update) {
-          if (Services.vc.compare(hotfixVersion, update.version) < 0) {
-            logger.debug("Downloading hotfix version " + update.version);
-            let aInstall = yield new Promise((resolve, reject) =>
-              AddonManager.getInstallForURL(update.updateURL, resolve,
-                "application/x-xpinstall", update.updateHash, null,
-                null, update.version));
-
-            aInstall.addListener({
-              onDownloadEnded: function BUC_onDownloadEnded(aInstall) {
-                try {
-                  if (!Services.prefs.getBoolPref(PREF_EM_CERT_CHECKATTRIBUTES))
-                    return;
-                }
-                catch (e) {
-                  // By default don't do certificate checks.
-                  return;
-                }
-
-                try {
-                  CertUtils.validateCert(aInstall.certificate,
-                                         CertUtils.readCertPrefs(PREF_EM_HOTFIX_CERTS));
-                }
-                catch (e) {
-                  logger.warn("The hotfix add-on was not signed by the expected " +
-                       "certificate and so will not be installed.", e);
-                  aInstall.cancel();
-                }
-              },
-
-              onInstallEnded: function BUC_onInstallEnded(aInstall) {
-                // Remember the last successfully installed version.
-                Services.prefs.setCharPref(PREF_EM_HOTFIX_LASTVERSION,
-                                           aInstall.version);
-              },
-
-              onInstallCancelled: function BUC_onInstallCancelled(aInstall) {
-                // Revert to the previous version if the installation was
-                // cancelled.
-                Services.prefs.setCharPref(PREF_EM_HOTFIX_LASTVERSION,
-                                           hotfixVersion);
-              }
-            });
-
-            aInstall.install();
-          }
-        }
       }
 
       logger.debug("Background update check complete");
@@ -2614,10 +2498,6 @@ var AddonManagerInternal = {
       Services.prefs.setBoolPref(PREF_EM_UPDATE_ENABLED, aValue);
     return aValue;
   },
-
-  get hotfixID() {
-    return gHotfixID;
-  },
 };
 
 /**
@@ -2649,11 +2529,7 @@ this.AddonManagerPrivate = {
 
   backgroundUpdateTimerHandler() {
     // Don't call through to the real update check if no checks are enabled.
-    let checkHotfix = AddonManagerInternal.hotfixID &&
-                      Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED) &&
-                      Services.prefs.getBoolPref(PREF_APP_UPDATE_AUTO);
-
-    if (!AddonManagerInternal.updateEnabled && !checkHotfix) {
+    if (!AddonManagerInternal.updateEnabled) {
       logger.info("Skipping background update check");
       return;
     }
@@ -3129,10 +3005,6 @@ this.AddonManager = {
 
   set autoUpdateDefault(aValue) {
     AddonManagerInternal.autoUpdateDefault = aValue;
-  },
-
-  get hotfixID() {
-    return AddonManagerInternal.hotfixID;
   },
 
   escapeAddonURI: function AM_escapeAddonURI(aAddon, aUri, aAppVersion) {

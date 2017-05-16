@@ -157,14 +157,13 @@ const PREF_APP_UPDATE_LASTUPDATETIME = "app.update.lastUpdateTime.background-upd
 // Preference for storing add-ons that are disabled by the tests to prevent them
 // from interefering with the tests.
 const PREF_DISABLEDADDONS = "app.update.test.disabledAddons";
-const PREF_EM_HOTFIX_ID = "extensions.hotfix.id";
 const PREF_EM_SILENT = "app.update.silent";
 const TEST_ADDONS = [ "appdisabled_1", "appdisabled_2",
                       "compatible_1", "compatible_2",
                       "noupdate_1", "noupdate_2",
                       "updatecompatibility_1", "updatecompatibility_2",
                       "updateversion_1", "updateversion_2",
-                      "userdisabled_1", "userdisabled_2", "hotfix" ];
+                      "userdisabled_1", "userdisabled_2" ];
 
 var gURLData = URL_HOST + "/" + REL_PATH_DATA + "/";
 
@@ -917,7 +916,6 @@ function setupPrefs() {
   Services.prefs.setIntPref(PREF_APP_UPDATE_IDLETIME, 0);
   Services.prefs.setIntPref(PREF_APP_UPDATE_PROMPTWAITTIME, 0);
   Services.prefs.setBoolPref(PREF_EXTENSIONS_STRICT_COMPAT, true);
-  Services.prefs.setCharPref(PREF_EM_HOTFIX_ID, "hotfix" + ADDON_ID_SUFFIX);
   Services.prefs.setBoolPref(PREF_EM_SILENT, false);
 }
 
@@ -1067,10 +1065,6 @@ function resetPrefs() {
 
   if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_STRICT_COMPAT)) {
 		Services.prefs.clearUserPref(PREF_EXTENSIONS_STRICT_COMPAT);
-  }
-
-  if (Services.prefs.prefHasUserValue(PREF_EM_HOTFIX_ID)) {
-    Services.prefs.clearUserPref(PREF_EM_HOTFIX_ID);
   }
 
   if (Services.prefs.prefHasUserValue(PREF_EM_SILENT)) {

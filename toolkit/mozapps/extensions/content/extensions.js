@@ -2918,7 +2918,7 @@ var gDetailView = {
       downloadsRow.value = null;
     }
 
-    var canUpdate = !aIsRemote && hasPermission(aAddon, "upgrade") && aAddon.id != AddonManager.hotfixID;
+    var canUpdate = !aIsRemote && hasPermission(aAddon, "upgrade");
     document.getElementById("detail-updates-row").hidden = !canUpdate;
 
     if ("applyBackgroundUpdates" in aAddon) {

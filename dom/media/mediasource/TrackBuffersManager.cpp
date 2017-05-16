@@ -1367,13 +1367,13 @@ TrackBuffersManager::ProcessFrame(MediaRawData* aSample,
         data.RemoveElementAt(i);
 
         if (trackBuffer.mNextGetSampleIndex.isSome()) {
-+          if (trackBuffer.mNextGetSampleIndex.ref() == i) {
-+            MSE_DEBUG("Next sample to be played got evicted");
-+            trackBuffer.mNextGetSampleIndex.reset();
-+          } else if (trackBuffer.mNextGetSampleIndex.ref() > i) {
-+            trackBuffer.mNextGetSampleIndex.ref()--;
-+          }
-+        }
+          if (trackBuffer.mNextGetSampleIndex.ref() == i) {
+            MSE_DEBUG("Next sample to be played got evicted");
+           trackBuffer.mNextGetSampleIndex.reset();
+          } else if (trackBuffer.mNextGetSampleIndex.ref() > i) {
+            trackBuffer.mNextGetSampleIndex.ref()--;
+          }
+        }
       } else {
         i++;
       }

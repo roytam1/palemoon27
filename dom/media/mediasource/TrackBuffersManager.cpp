@@ -415,11 +415,11 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
   TimeUnit duration{TimeUnit::FromSeconds(mediaSourceDuration)};
 
   MSE_DEBUG("duration:%.2f", duration.ToSeconds());
-  if (HasAudio()) {
+  if (HasVideo()) {
     MSE_DEBUG("before video ranges=%s",
               DumpTimeRanges(mVideoTracks.mBufferedRanges).get());
   }
-  if (HasVideo()) {
+  if (HasAudio()) {
     MSE_DEBUG("before audio ranges=%s",
               DumpTimeRanges(mAudioTracks.mBufferedRanges).get());
   }
@@ -505,11 +505,11 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
     mAudioBufferedRanges = mAudioTracks.mBufferedRanges;
   }
 
-  if (HasAudio()) {
+  if (HasVideo()) {
     MSE_DEBUG("after video ranges=%s",
               DumpTimeRanges(mVideoTracks.mBufferedRanges).get());
   }
-  if (HasVideo()) {
+  if (HasAudio()) {
     MSE_DEBUG("after audio ranges=%s",
               DumpTimeRanges(mAudioTracks.mBufferedRanges).get());
   }

@@ -473,6 +473,12 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
         }
         track->mSizeBuffer -= sizeof(*frame) + frame->Size();
         data.RemoveElementAt(i);
+        MOZ_ASSERT(track->mNextInsertionIndex.isNothing() ||
+                   track->mNextInsertionIndex.ref() != i);
+        if (track->mNextInsertionIndex.isSome() &&
+            track->mNextInsertionIndex.ref() > i) {
+          track->mNextInsertionIndex.ref()--;
+        }
       } else {
         i++;
       }
@@ -493,6 +499,13 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
         track->mSizeBuffer -= sizeof(*sample) + sample->Size();
       }
       data.RemoveElementsAt(start, end - start);
+      MOZ_ASSERT(track->mNextInsertionIndex.isNothing() ||
+                 track->mNextInsertionIndex.ref() <= start ||
+                 track->mNextInsertionIndex.ref() >= end);
+      if (track->mNextInsertionIndex.isSome() &&
+          track->mNextInsertionIndex.ref() >= end) {
+        track->mNextInsertionIndex.ref() -= end - start;
+      }
 
       MSE_DEBUG("Removing undecodable frames from:%u (frames:%d) ([%f, %f))",
                 start, end - start,
@@ -528,10 +541,6 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
 
   // Update our reported total size.
   mSizeSourceBuffer = mVideoTracks.mSizeBuffer + mAudioTracks.mSizeBuffer;
-
-  // Reset our insertion indexes as they are now invalid.
-  mAudioTracks.mNextInsertionIndex.reset();
-  mVideoTracks.mNextInsertionIndex.reset();
 
   // Tell our demuxer that data was removed.
   mMediaSourceDemuxer->NotifyTimeRangesChanged();

@@ -287,21 +287,16 @@ TrackBuffersManager::CompleteResetParserState()
   MOZ_ASSERT(!mAppendRunning);
   MSE_DEBUG("");
 
-  for (auto track : GetTracksList()) {
+  for (auto& track : GetTracksList()) {
     // 2. Unset the last decode timestamp on all track buffers.
-    track->mLastDecodeTimestamp.reset();
     // 3. Unset the last frame duration on all track buffers.
-    track->mLastFrameDuration.reset();
     // 4. Unset the highest end timestamp on all track buffers.
-    track->mHighestEndTimestamp.reset();
     // 5. Set the need random access point flag on all track buffers to true.
-    track->mNeedRandomAccessPoint = true;
+    track->ResetAppendState();
 
     // if we have been aborted, we may have pending frames that we are going
     // to discard now.
     track->mQueuedSamples.Clear();
-    track->mLongestFrameDuration.reset();
-    track->mNextInsertionIndex.reset();
   }
   // 6. Remove all bytes from the input buffer.
   mIncomingBuffers.Clear();
@@ -452,6 +447,9 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
         }
       }
     }
+
+    bool removeCurrentCodedFrameGroup = false;
+
     // 3. Remove all media data, from this track buffer, that contain starting
     // timestamps greater than or equal to start and less than the remove end timestamp.
     TimeInterval removedInterval;
@@ -473,9 +471,11 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
         }
         track->mSizeBuffer -= sizeof(*frame) + frame->Size();
         data.RemoveElementAt(i);
-        MOZ_ASSERT(track->mNextInsertionIndex.isNothing() ||
-                   track->mNextInsertionIndex.ref() != i);
-        if (track->mNextInsertionIndex.isSome() &&
+        removeCurrentCodedFrameGroup |=
+          track->mNextInsertionIndex.isSome() &&
+          track->mNextInsertionIndex.ref() == i;
+        if (!removeCurrentCodedFrameGroup &&
+            track->mNextInsertionIndex.isSome() &&
             track->mNextInsertionIndex.ref() > i) {
           track->mNextInsertionIndex.ref()--;
         }
@@ -499,10 +499,12 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
         track->mSizeBuffer -= sizeof(*sample) + sample->Size();
       }
       data.RemoveElementsAt(start, end - start);
-      MOZ_ASSERT(track->mNextInsertionIndex.isNothing() ||
-                 track->mNextInsertionIndex.ref() <= start ||
-                 track->mNextInsertionIndex.ref() >= end);
-      if (track->mNextInsertionIndex.isSome() &&
+      removeCurrentCodedFrameGroup |=
+        track->mNextInsertionIndex.isSome() &&
+        track->mNextInsertionIndex.ref() >= start &&
+        track->mNextInsertionIndex.ref() < end;
+      if (!removeCurrentCodedFrameGroup &&
+          track->mNextInsertionIndex.isSome() &&
           track->mNextInsertionIndex.ref() >= end) {
         track->mNextInsertionIndex.ref() -= end - start;
       }
@@ -512,6 +514,9 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
                 removedInterval.mStart.ToSeconds(), removedInterval.mEnd.ToSeconds());
       track->mBufferedRanges -= removedInterval;
       dataRemoved = true;
+      if (removeCurrentCodedFrameGroup) {
+        track->ResetAppendState();
+      }
     }
 
     // 5. If this object is in activeSourceBuffers, the current playback position
@@ -1256,16 +1261,10 @@ TrackBuffersManager::ProcessFrame(MediaRawData* aSample,
     }
     for (auto& track : tracks) {
       // 2. Unset the last decode timestamp on all track buffers.
-      track->mLastDecodeTimestamp.reset();
       // 3. Unset the last frame duration on all track buffers.
-      track->mLastFrameDuration.reset();
       // 4. Unset the highest end timestamp on all track buffers.
-      track->mHighestEndTimestamp.reset();
       // 5. Set the need random access point flag on all track buffers to true.
-      track->mNeedRandomAccessPoint = true;
-
-      track->mLongestFrameDuration.reset();
-      track->mNextInsertionIndex.reset();
+      track->ResetAppendState();
     }
 
     MSE_DEBUG("Discontinuity detected. Restarting process");

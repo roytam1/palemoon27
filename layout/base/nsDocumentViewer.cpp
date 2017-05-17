@@ -1164,7 +1164,7 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
                                                "OnBeforeUnloadTitle",
                                                title);
       nsresult tmp = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                               "OnBeforeUnloadMessage",
+                                               "OnBeforeUnloadPreMessage",
                                                message);
       if (NS_FAILED(tmp)) {
         rv = tmp;

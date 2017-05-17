@@ -1159,7 +1159,7 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
                                      isTabModalPromptAllowed);
       }
 
-      nsXPIDLString title, message, stayLabel, leaveLabel;
+      nsXPIDLString title, message, emptyMessage, stayLabel, leaveLabel;
       rv  = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                "OnBeforeUnloadTitle",
                                                title);
@@ -1169,6 +1169,26 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
       if (NS_FAILED(tmp)) {
         rv = tmp;
       }
+      tmp = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                               "OnBeforeUnloadEmptyMessage",
+                                               emptyMessage);
+      if (NS_FAILED(tmp)) {
+        rv = tmp;
+      }
+      // Limit the length of the text the page can inject into this
+      // dialogue to 500 characters. If there is no supplied text,
+      // insert the default (locale-determined) string.
+      uint32_t len = std::min(int32_t(text.Length()), 500);
+
+      // XXX: Should we only use our default for actually empty strings?
+      // Currently this is set to a minimum length (8 ch) that is considered
+      // required to convey something meaningful as a message.
+      if (len < 8) {
+        message = message + NS_LITERAL_STRING("\n\n") + emptyMessage;
+      } else {
+        message = message + NS_LITERAL_STRING("\n\n") + StringHead(text, len);
+      } 
+
       tmp = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                "OnBeforeUnloadLeaveButton",
                                                leaveLabel);

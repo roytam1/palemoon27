@@ -54,6 +54,9 @@ TrackBuffersManager::TrackBuffersManager(dom::SourceBuffer* aParent, MediaSource
   , mParentDecoder(new nsMainThreadPtrHolder<MediaSourceDecoder>(aParentDecoder, false /* strict */))
   , mMediaSourceDemuxer(mParentDecoder->GetDemuxer())
   , mAbort(false)
+  , mEvictionThreshold(Preferences::GetUint("media.mediasource.eviction_threshold",
+                                            100 * (1 << 20)))
+  , mEvictionOccurred(false)
   , mMonitor("TrackBuffersManager")
 {
   MOZ_ASSERT(NS_IsMainThread(), "Must be instantiated on the main thread");
@@ -169,6 +172,11 @@ TrackBuffersManager::EvictData(TimeUnit aPlaybackTime,
     // Don't bother evicting less than 512KB.
     return EvictDataResult::CANT_EVICT;
   }
+
+  if (mBufferFull && mEvictionOccurred) {
+    return EvictDataResult::BUFFER_FULL;
+  }
+
   MSE_DEBUG("Reaching our size limit, schedule eviction of %lld bytes", toEvict);
 
   nsCOMPtr<nsIRunnable> task =
@@ -565,9 +573,7 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
     // This will be done by the MDSM during playback.
     // TODO properly, so it works even if paused.
   }
-  // 4. If buffer full flag equals true and this object is ready to accept more bytes, then set the buffer full flag to false.
-  // TODO.
-  mBufferFull = false;
+
   {
     MonitorAutoLock mon(mMonitor);
     mVideoBufferedRanges = mVideoTracks.mBufferedRanges;
@@ -585,6 +591,12 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
 
   // Update our reported total size.
   mSizeSourceBuffer = mVideoTracks.mSizeBuffer + mAudioTracks.mSizeBuffer;
+
+  // 4. If buffer full flag equals true and this object is ready to accept more bytes, then set the buffer full flag to false.
+  if (mBufferFull && mSizeSourceBuffer < mEvictionThreshold) {
+    mBufferFull = false;
+  }
+  mEvictionOccurred = true;
 
   // Tell our demuxer that data was removed.
   mMediaSourceDemuxer->NotifyTimeRangesChanged();
@@ -1182,8 +1194,10 @@ TrackBuffersManager::CompleteCodedFrameProcessing()
 
   // Return to step 6.4 of Segment Parser Loop algorithm
   // 4. If this SourceBuffer is full and cannot accept more media data, then set the buffer full flag to true.
-  // TODO
-  mBufferFull = false;
+  if (mSizeSourceBuffer >= mEvictionThreshold) {
+    mBufferFull = true;
+    mEvictionOccurred = false;
+  }
 
   // 5. If the input buffer does not contain a complete media segment, then jump to the need more data step below.
   if (mParser->MediaSegmentRange().IsNull()) {

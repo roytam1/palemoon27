@@ -169,7 +169,9 @@ PlacesTreeView.prototype = {
     let row = -1;
     let useNodeIndex = typeof(aNodeIndex) == "number";
     if (parent == this._rootNode) {
-      row = useNodeIndex ? aNodeIndex : this._rootNode.getChildIndex(aNode);
+      if (aNode instanceof Ci.nsINavHistoryResultNode) {
+        row = useNodeIndex ? aNodeIndex : this._rootNode.getChildIndex(aNode);
+      }
     } else if (useNodeIndex && typeof(aParentRow) == "number") {
       // If we have both the row of the parent node, and the node's index, we
       // can avoid searching the rows array if the parent is a plain container.

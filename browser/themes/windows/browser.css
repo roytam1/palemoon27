@@ -1297,20 +1297,6 @@ toolbar[brighttext] #bookmarks-menu-button.bookmark-item {
   clip-path: url("chrome://browser/content/browser.xul#windows-urlbar-back-button-clip-path");
 }
 
-@conditionalForwardWithUrlbar@[forwarddisabled] + #urlbar-container > #urlbar {
-/*  margin-left: -@conditionalForwardWithUrlbarWidth@px; */
-}
-
-@conditionalForwardWithUrlbar@[forwarddisabled]:hover:not([switchingtabs]) + #urlbar-container > #urlbar {
-  /* delay the hiding of the forward button when hovered to avoid accidental clicks on the url bar */
-  transition-delay: 100s;
-}
-
-@conditionalForwardWithUrlbar@[forwarddisabled]:not(:hover) + #urlbar-container > #urlbar {
-  /* when not hovered anymore, trigger a new transition to hide the forward button immediately */
-/*  margin-left: -@conditionalForwardWithUrlbarWidth@.01px; */
-}
-
 @conditionalForwardWithUrlbar@ + #urlbar-container:-moz-locale-dir(rtl),
 @conditionalForwardWithUrlbar@ + #urlbar-container > #urlbar:-moz-locale-dir(rtl) {
   /* let windows-urlbar-back-button-mask clip the urlbar's right side for RTL */
@@ -1412,31 +1398,6 @@ html|*.urlbar-input:-moz-lwtheme::-moz-placeholder,
 
 @conditionalForwardWithUrlbar@ + #urlbar-container > #urlbar > #identity-box {
   border-radius: 0;
-}
-
-@conditionalForwardWithUrlbar@[forwarddisabled] + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box:-moz-locale-dir(ltr) {
-  padding-left: 5px;
-  transition: padding-left;
-}
-
-@conditionalForwardWithUrlbar@[forwarddisabled] + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box:-moz-locale-dir(rtl) {
-  padding-right: 5px;
-  transition: padding-right;
-}
-
-@conditionalForwardWithUrlbar@[forwarddisabled]:hover:not([switchingtabs]) + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box {
-  /* forward button hiding is delayed when hovered */
-  transition-delay: 100s;
-}
-
-@conditionalForwardWithUrlbar@[forwarddisabled]:not(:hover) + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box:-moz-locale-dir(ltr) {
-  /* when not hovered anymore, trigger a new non-delayed transition to react to the forward button hiding */
-  padding-left: 5.01px;
-}
-
-@conditionalForwardWithUrlbar@[forwarddisabled]:not(:hover) + #urlbar-container > #urlbar > #notification-popup-box[hidden] + #identity-box:-moz-locale-dir(rtl) {
-  /* when not hovered anymore, trigger a new non-delayed transition to react to the forward button hiding */
-  padding-right: 5.01px;
 }
 
 #urlbar[pageproxystate="valid"] > #identity-box.verifiedIdentity {

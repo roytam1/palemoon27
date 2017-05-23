@@ -1323,7 +1323,7 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
     }
 
     samplesRange += sampleInterval;
-    sizeNewSamples += sizeof(*sample) + sample->mSize;
+    sizeNewSamples += sizeof(*sample) + sample->Size();
     sample->mTime = sampleInterval.mStart.ToMicroseconds();
     sample->mTimecode = decodeTimestamp.ToMicroseconds();
     sample->mTrackInfo = trackBuffer.mLastInfo;
@@ -1515,7 +1515,7 @@ TrackBuffersManager::RemoveFrames(const TimeIntervals& aIntervals,
       TimeInterval(TimeUnit::FromMicroseconds(sample->mTime),
                    TimeUnit::FromMicroseconds(sample->GetEndTime()));
     removedIntervals += sampleInterval;
-    aTrackData.mSizeBuffer -= sizeof(*sample) + sample->mSize;
+    aTrackData.mSizeBuffer -= sizeof(*sample) + sample->Size();
   }
 
   MSE_DEBUG("Removing frames from:%u (frames:%u) ([%f, %f))",

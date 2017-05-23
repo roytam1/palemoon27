@@ -1508,6 +1508,7 @@ TrackBuffersManager::RemoveFrames(const TimeIntervals& aIntervals,
     lastRemovedIndex = i;
   }
 
+  int64_t maxSampleDuration = 0;
   TimeIntervals removedIntervals;
   for (uint32_t i = firstRemovedIndex.ref(); i <= lastRemovedIndex; i++) {
     MediaRawData* sample = data[i].get();
@@ -1515,8 +1516,13 @@ TrackBuffersManager::RemoveFrames(const TimeIntervals& aIntervals,
       TimeInterval(TimeUnit::FromMicroseconds(sample->mTime),
                    TimeUnit::FromMicroseconds(sample->GetEndTime()));
     removedIntervals += sampleInterval;
+    if (sample->mDuration > maxSampleDuration) {
+      maxSampleDuration = sample->mDuration;
+    }
     aTrackData.mSizeBuffer -= sizeof(*sample) + sample->Size();
   }
+
+  removedIntervals.SetFuzz(TimeUnit::FromMicroseconds(maxSampleDuration));
 
   MSE_DEBUG("Removing frames from:%u (frames:%u) ([%f, %f))",
             firstRemovedIndex.ref(),

@@ -441,6 +441,7 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
   }
   TimeUnit duration{TimeUnit::FromSeconds(mediaSourceDuration)};
 
+#if DEBUG
   MSE_DEBUG("duration:%.2f", duration.ToSeconds());
   if (HasVideo()) {
     MSE_DEBUG("before video ranges=%s",
@@ -450,6 +451,7 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
     MSE_DEBUG("before audio ranges=%s",
               DumpTimeRanges(mAudioTracks.mBufferedRanges).get());
   }
+#endif
 
   // 1. Let start be the starting presentation timestamp for the removal range.
   TimeUnit start = aInterval.mStart;
@@ -516,6 +518,7 @@ TrackBuffersManager::UpdateBufferedRanges()
   mVideoBufferedRanges = mVideoTracks.mBufferedRanges;
   mAudioBufferedRanges = mAudioTracks.mBufferedRanges;
 
+#if DEBUG
   if (HasVideo()) {
     MSE_DEBUG("after video ranges=%s",
               DumpTimeRanges(mVideoTracks.mBufferedRanges).get());
@@ -524,6 +527,8 @@ TrackBuffersManager::UpdateBufferedRanges()
     MSE_DEBUG("after audio ranges=%s",
               DumpTimeRanges(mAudioTracks.mBufferedRanges).get());
   }
+#endif
+
 }
 
 nsRefPtr<TrackBuffersManager::AppendPromise>

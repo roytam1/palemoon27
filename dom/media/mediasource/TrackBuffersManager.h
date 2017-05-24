@@ -23,8 +23,11 @@ class ContainerParser;
 class MediaLargeByteBuffer;
 class MediaRawData;
 class MediaSourceDemuxer;
-class SourceBuffer;
 class SourceBufferResource;
+
+namespace dom {
+  class SourceBufferAttributes;
+}
 
 using media::TimeUnit;
 using media::TimeInterval;
@@ -38,7 +41,9 @@ public:
   typedef MediaData::Type MediaType;
   typedef nsTArray<nsRefPtr<MediaRawData>> TrackBuffer;
 
-  TrackBuffersManager(dom::SourceBuffer* aParent, MediaSourceDecoder* aParentDecoder, const nsACString& aType);
+  TrackBuffersManager(dom::SourceBufferAttributes* aAttributes,
+                      MediaSourceDecoder* aParentDecoder,
+                      const nsACString& aType);
 
   bool AppendData(MediaLargeByteBuffer* aData, TimeUnit aTimestampOffset) override;
 
@@ -306,7 +311,7 @@ private:
   void RestoreCachedVariables();
 
   // Strong references to external objects.
-  nsMainThreadPtrHandle<dom::SourceBuffer> mParent;
+  nsRefPtr<dom::SourceBufferAttributes> mSourceBufferAttributes;
   nsMainThreadPtrHandle<MediaSourceDecoder> mParentDecoder;
   nsRefPtr<MediaSourceDemuxer> mMediaSourceDemuxer;
 

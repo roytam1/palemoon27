@@ -39,7 +39,9 @@ AppendStateToStr(TrackBuffersManager::AppendState aState)
 
 static Atomic<uint32_t> sStreamSourceID(0u);
 
-TrackBuffersManager::TrackBuffersManager(dom::SourceBuffer* aParent, MediaSourceDecoder* aParentDecoder, const nsACString& aType)
+TrackBuffersManager::TrackBuffersManager(dom::SourceBufferAttributes* aAttributes,
+                                         MediaSourceDecoder* aParentDecoder,
+                                         const nsACString& aType)
   : mInputBuffer(new MediaLargeByteBuffer)
   , mAppendState(AppendState::WAITING_FOR_SEGMENT)
   , mBufferFull(false)
@@ -50,7 +52,7 @@ TrackBuffersManager::TrackBuffersManager(dom::SourceBuffer* aParent, MediaSource
   , mProcessedInput(0)
   , mAppendRunning(false)
   , mTaskQueue(aParentDecoder->GetDemuxer()->GetTaskQueue())
-  , mParent(new nsMainThreadPtrHolder<dom::SourceBuffer>(aParent, false /* strict */))
+  , mSourceBufferAttributes(aAttributes)
   , mParentDecoder(new nsMainThreadPtrHolder<MediaSourceDecoder>(aParentDecoder, false /* strict */))
   , mMediaSourceDemuxer(mParentDecoder->GetDemuxer())
   , mAbort(false)
@@ -563,8 +565,8 @@ TrackBuffersManager::AppendIncomingBuffers()
   mIncomingBuffers.Clear();
 
   mAppendWindow =
-    TimeInterval(TimeUnit::FromSeconds(mParent->AppendWindowStart()),
-                 TimeUnit::FromSeconds(mParent->AppendWindowEnd()));
+    TimeInterval(TimeUnit::FromSeconds(mSourceBufferAttributes->GetAppendWindowStart()),
+                 TimeUnit::FromSeconds(mSourceBufferAttributes->GetAppendWindowEnd()));
 }
 
 void
@@ -1165,7 +1167,7 @@ TrackBuffersManager::ResolveProcessing(bool aResolveValue, const char* aName)
 void
 TrackBuffersManager::CheckSequenceDiscontinuity()
 {
-  if (mParent->mAppendMode == SourceBufferAppendMode::Sequence &&
+  if (mSourceBufferAttributes->GetAppendMode() == SourceBufferAppendMode::Sequence &&
       mGroupStartTimestamp.isSome()) {
     mTimestampOffset = mGroupStartTimestamp.ref();
     mGroupEndTimestamp = mGroupStartTimestamp.ref();
@@ -1240,13 +1242,13 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
     // 4. If timestampOffset is not 0, then run the following steps:
 
     TimeInterval sampleInterval =
-      mParent->mGenerateTimestamps
+      mSourceBufferAttributes->mGenerateTimestamps
         ? TimeInterval(mTimestampOffset,
                        mTimestampOffset + TimeUnit::FromMicroseconds(sample->mDuration))
         : TimeInterval(TimeUnit::FromMicroseconds(sample->mTime) + mTimestampOffset,
                        TimeUnit::FromMicroseconds(sample->GetEndTime()) + mTimestampOffset);
     TimeUnit decodeTimestamp =
-      mParent->mGenerateTimestamps
+      mSourceBufferAttributes->mGenerateTimestamps
         ? mTimestampOffset
         : TimeUnit::FromMicroseconds(sample->mTimecode) + mTimestampOffset;
 
@@ -1258,13 +1260,15 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
         (decodeTimestamp < trackBuffer.mLastDecodeTimestamp.ref() ||
          decodeTimestamp - trackBuffer.mLastDecodeTimestamp.ref() > 2*trackBuffer.mLongestFrameDuration.ref())) {
       MSE_DEBUG("Discontinuity detected.");
+      SourceBufferAppendMode appendMode = mSourceBufferAttributes->GetAppendMode();
+
       // 1a. If mode equals "segments":
-      if (mParent->mAppendMode == SourceBufferAppendMode::Segments) {
+      if (appendMode == SourceBufferAppendMode::Segments) {
         // Set group end timestamp to presentation timestamp.
         mGroupEndTimestamp = sampleInterval.mStart;
       }
       // 1b. If mode equals "sequence":
-      if (mParent->mAppendMode == SourceBufferAppendMode::Sequence) {
+      if (appendMode == SourceBufferAppendMode::Sequence) {
         // Set group start timestamp equal to the group end timestamp.
         mGroupStartTimestamp = Some(mGroupEndTimestamp);
       }
@@ -1284,17 +1288,17 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
       if (!sample->mKeyframe) {
         continue;
       }
-      if (mParent->mAppendMode == SourceBufferAppendMode::Sequence) {
+      if (appendMode == SourceBufferAppendMode::Sequence) {
         // mTimestampOffset was modified during CheckSequenceDiscontinuity.
         // We need to update our variables.
         sampleInterval =
-          mParent->mGenerateTimestamps
+          mSourceBufferAttributes->mGenerateTimestamps
             ? TimeInterval(mTimestampOffset,
                            mTimestampOffset + TimeUnit::FromMicroseconds(sample->mDuration))
             : TimeInterval(TimeUnit::FromMicroseconds(sample->mTime) + mTimestampOffset,
                            TimeUnit::FromMicroseconds(sample->GetEndTime()) + mTimestampOffset);
         decodeTimestamp =
-          mParent->mGenerateTimestamps
+          mSourceBufferAttributes->mGenerateTimestamps
             ? mTimestampOffset
             : TimeUnit::FromMicroseconds(sample->mTimecode) + mTimestampOffset;
       }
@@ -1354,7 +1358,7 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
       mGroupEndTimestamp = sampleInterval.mEnd;
     }
     // 21. If generate timestamps flag equals true, then set timestampOffset equal to frame end timestamp.
-    if (mParent->mGenerateTimestamps) {
+    if (mSourceBufferAttributes->mGenerateTimestamps) {
       mTimestampOffset = sampleInterval.mEnd;
     }
   }
@@ -1596,12 +1600,7 @@ TrackBuffersManager::RestoreCachedVariables()
 {
   MOZ_ASSERT(OnTaskQueue());
   if (mTimestampOffset != mLastTimestampOffset) {
-    nsRefPtr<TrackBuffersManager> self = this;
-    nsCOMPtr<nsIRunnable> task =
-      NS_NewRunnableFunction([self] {
-        self->mParent->SetTimestampOffset(self->mTimestampOffset);
-      });
-    AbstractThread::MainThread()->Dispatch(task.forget());
+    mSourceBufferAttributes->SetTimestampOffset(mTimestampOffset);
   }
 }
 

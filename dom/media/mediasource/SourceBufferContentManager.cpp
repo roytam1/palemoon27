@@ -11,7 +11,7 @@
 namespace mozilla {
 
 already_AddRefed<SourceBufferContentManager>
-SourceBufferContentManager::CreateManager(dom::SourceBuffer* aParent,
+SourceBufferContentManager::CreateManager(dom::SourceBufferAttributes* aAttributes,
                                           MediaSourceDecoder* aParentDecoder,
                                           const nsACString &aType)
 {
@@ -19,7 +19,7 @@ SourceBufferContentManager::CreateManager(dom::SourceBuffer* aParent,
   bool useFormatReader =
     Preferences::GetBool("media.mediasource.format-reader", false);
   if (useFormatReader) {
-    manager = new TrackBuffersManager(aParent, aParentDecoder, aType);
+    manager = new TrackBuffersManager(aAttributes, aParentDecoder, aType);
   } else {
     manager = new TrackBuffer(aParentDecoder, aType);
   }

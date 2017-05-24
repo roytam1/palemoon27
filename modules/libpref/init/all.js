@@ -4872,8 +4872,8 @@ pref("media.gmp.insecure.allow", false);
 // Use vsync aligned rendering.
 // Only supported on windows, os x, and b2g
 #if defined(XP_WIN) || defined(XP_MACOSX)
-pref("gfx.vsync.hw-vsync.enabled", true);
-pref("gfx.vsync.compositor", false);
+pref("gfx.vsync.hw-vsync.enabled", false);
+pref("gfx.vsync.compositor", true);
 pref("gfx.vsync.refreshdriver", true);
 #endif
 

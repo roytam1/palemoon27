@@ -313,7 +313,6 @@ private:
   // Strong references to external objects.
   nsRefPtr<dom::SourceBufferAttributes> mSourceBufferAttributes;
   nsMainThreadPtrHandle<MediaSourceDecoder> mParentDecoder;
-  nsRefPtr<MediaSourceDemuxer> mMediaSourceDemuxer;
 
   // Set to true if abort is called.
   Atomic<bool> mAbort;

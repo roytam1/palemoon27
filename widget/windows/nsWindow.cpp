@@ -3540,12 +3540,20 @@ nsWindow::EndRemoteDrawing()
 void
 nsWindow::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries)
 {
-  //No glass or compositor -> classic metrics, so return.
-  if (!HasGlass() || !nsUXThemeData::CheckForCompositor()) {
+  nsRefPtr<LayerManager> layerManager = GetLayerManager();
+  if (!layerManager) {
     return;
   }
-
+    
   nsIntRegion clearRegion;
+  // No glass or compositor -> classic metrics, so return.
+  if (!HasGlass() || !nsUXThemeData::CheckForCompositor()) {
+    // Make sure and clear old regions we've set previously. Note HasGlass can be false
+    // for glass desktops if the window we are rendering to doesn't make use of glass
+    // (e.g. fullscreen browsing).
+    layerManager->SetRegionToClear(clearRegion);  
+    return;
+  }
 
   // On Win10, force show the top border on normal windows:
   if (IsWin10OrLater() && mCustomNonClient && mSizeMode == nsSizeMode_Normal) {
@@ -3567,10 +3575,7 @@ nsWindow::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries)
     }
   }
 
-  nsRefPtr<LayerManager> layerManager = GetLayerManager();
-  if (layerManager) {
-    layerManager->SetRegionToClear(clearRegion);
-  }
+  layerManager->SetRegionToClear(clearRegion);
 }
 
 uint32_t

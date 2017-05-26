@@ -955,13 +955,13 @@ public:
   void SetInnerWidth(int32_t aInnerWidth, mozilla::ErrorResult& aError);
   int32_t GetInnerHeight(mozilla::ErrorResult& aError);
   void SetInnerHeight(int32_t aInnerHeight, mozilla::ErrorResult& aError);
-  int32_t GetScrollX(mozilla::ErrorResult& aError);
-  int32_t GetPageXOffset(mozilla::ErrorResult& aError)
+  double GetScrollX(mozilla::ErrorResult& aError);
+  double GetPageXOffset(mozilla::ErrorResult& aError)
   {
     return GetScrollX(aError);
   }
-  int32_t GetScrollY(mozilla::ErrorResult& aError);
-  int32_t GetPageYOffset(mozilla::ErrorResult& aError)
+  double GetScrollY(mozilla::ErrorResult& aError);
+  double GetPageYOffset(mozilla::ErrorResult& aError)
   {
     return GetScrollY(aError);
   }
@@ -1313,7 +1313,7 @@ public:
   // If aDoFlush is true, we'll flush our own layout; otherwise we'll try to
   // just flush our parent and only flush ourselves if we think we need to.
   // Outer windows only.
-  mozilla::CSSIntPoint GetScrollXY(bool aDoFlush);
+  mozilla::CSSPoint GetScrollXY(bool aDoFlush);
 
   void GetScrollMaxXY(int32_t* aScrollMaxX, int32_t* aScrollMaxY,
                       mozilla::ErrorResult& aError);

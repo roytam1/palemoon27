@@ -17,6 +17,8 @@
  Constructor(DOMString url, optional DOMString base = "about:blank"),
  Exposed=(Window,Worker)]
 interface URL {
+  [Throws]
+  USVString toJSON();
 };
 URL implements URLUtils;
 URL implements URLUtilsSearchParams;

@@ -335,5 +335,11 @@
     a.href = url;
     ok(a.origin, 'http://mochi.test:8888', "The 'a' element has the correct origin");
   </script>
+
+  <script>
+    var u = new URL('http://www.example.org');
+    ok(u.toJSON(), 'http://www.example.org', "URL.toJSON()");
+    is(JSON.stringify(u), "\"http://www.example.org/\"", "JSON.stringify(u) works");
+  </script>
 </body>
 </html>

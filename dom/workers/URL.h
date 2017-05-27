@@ -116,6 +116,12 @@ public:
     GetHref(aRetval, aRv);
   }
 
+  void
+  ToJSON(nsString& aResult, ErrorResult& aRv) const
+  {
+    GetHref(aResult, aRv);
+  }
+
   // IURLSearchParamsObserver
   void URLSearchParamsUpdated(URLSearchParams* aSearchParams) override;
 

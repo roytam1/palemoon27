@@ -930,6 +930,9 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
     mInfo = info;
   }
 
+  // We now have a valid init data ; we can store it for later use.
+  mInitData = mParser->InitData();
+
   // 3. Remove the initialization segment bytes from the beginning of the input buffer.
   // This step has already been done in InitializationSegmentReceived when we
   // transferred the content into mCurrentInputBuffer.

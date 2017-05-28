@@ -750,6 +750,7 @@ void
 ClientLayerManager::GetBackendName(nsAString& aName)
 {
   switch (mForwarder->GetCompositorBackendType()) {
+    case LayersBackend::LAYERS_NONE: aName.AssignLiteral("None"); return;
     case LayersBackend::LAYERS_BASIC: aName.AssignLiteral("Basic"); return;
     case LayersBackend::LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
     case LayersBackend::LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;
@@ -764,6 +765,8 @@ ClientLayerManager::GetBackendName(nsAString& aName)
 #endif
       return;
     }
+    case LayersBackend::LAYERS_CLIENT:
+    case LayersBackend::LAYERS_LAST: aName.AssignLiteral("Reserved"); return;
     default: NS_RUNTIMEABORT("Invalid backend");
   }
 }

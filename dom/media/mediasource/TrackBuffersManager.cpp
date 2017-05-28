@@ -1087,7 +1087,7 @@ TrackBuffersManager::CompleteCodedFrameProcessing()
     const auto& track = mVideoTracks.mBuffers.LastElement();
     MOZ_ASSERT(track.IsEmpty() || track[0]->mKeyframe);
     for (uint32_t i = 1; i < track.Length(); i++) {
-      MOZ_ASSERT((track[i-1]->mTrackInfo->GetID() == track[i]->mTrackInfo->GetID() && track[i-1]->mTimecode < track[i]->mTimecode) ||
+      MOZ_ASSERT((track[i-1]->mTrackInfo->GetID() == track[i]->mTrackInfo->GetID() && track[i-1]->mTimecode <= track[i]->mTimecode) ||
                  track[i]->mKeyframe);
     }
   }
@@ -1101,7 +1101,7 @@ TrackBuffersManager::CompleteCodedFrameProcessing()
     const auto& track = mAudioTracks.mBuffers.LastElement();
     MOZ_ASSERT(track.IsEmpty() || track[0]->mKeyframe);
     for (uint32_t i = 1; i < track.Length(); i++) {
-      MOZ_ASSERT((track[i-1]->mTrackInfo->GetID() == track[i]->mTrackInfo->GetID() && track[i-1]->mTimecode < track[i]->mTimecode) ||
+      MOZ_ASSERT((track[i-1]->mTrackInfo->GetID() == track[i]->mTrackInfo->GetID() && track[i-1]->mTimecode <= track[i]->mTimecode) ||
                  track[i]->mKeyframe);
     }
   }

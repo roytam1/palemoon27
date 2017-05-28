@@ -105,6 +105,7 @@ public:
 
   virtual void SetGroupStartTimestamp(const TimeUnit& aGroupStartTimestamp) {}
   virtual void RestartGroupStartTimestamp() {}
+  virtual TimeUnit GroupEndTimestamp() = 0;
 
 #if defined(DEBUG)
   virtual void Dump(const char* aPath) { }

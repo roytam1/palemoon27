@@ -532,6 +532,7 @@ TrackBuffersManager::UpdateBufferedRanges()
   }
 #endif
 
+  mOfficialGroupEndTimestamp = mGroupEndTimestamp;
 }
 
 nsRefPtr<TrackBuffersManager::AppendPromise>
@@ -1639,6 +1640,13 @@ TrackBuffersManager::RestartGroupStartTimestamp()
   }
   MOZ_ASSERT(OnTaskQueue());
   mGroupStartTimestamp = Some(mGroupEndTimestamp);
+}
+
+TimeUnit
+TrackBuffersManager::GroupEndTimestamp()
+{
+  MonitorAutoLock mon(mMonitor);
+  return mOfficialGroupEndTimestamp;
 }
 
 MediaInfo

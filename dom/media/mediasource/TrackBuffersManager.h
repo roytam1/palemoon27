@@ -75,6 +75,7 @@ public:
 
   void SetGroupStartTimestamp(const TimeUnit& aGroupStartTimestamp) override;
   void RestartGroupStartTimestamp() override;
+  TimeUnit GroupEndTimestamp() override;
 
   // Interface for MediaSourceDemuxer
   MediaInfo GetMetadata();
@@ -330,6 +331,7 @@ private:
   // Stable audio and video track time ranges.
   TimeIntervals mVideoBufferedRanges;
   TimeIntervals mAudioBufferedRanges;
+  TimeUnit mOfficialGroupEndTimestamp;
   // MediaInfo of the first init segment read.
   MediaInfo mInfo;
 };

@@ -67,6 +67,11 @@ public:
 
   void Detach() override;
 
+  TimeUnit GroupEndTimestamp() override
+  {
+    return Buffered().GetEnd();
+  }
+
   // Mark the current decoder's resource as ended, clear mCurrentDecoder and
   // reset mLast{Start,End}Timestamp.  Main thread only.
   void DiscardCurrentDecoder();

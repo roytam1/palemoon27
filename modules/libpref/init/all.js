@@ -469,8 +469,7 @@ pref("media.mediasource.mp4.enabled", true);
 pref("media.mediasource.webm.enabled", false);
 
 // Enable new MediaSource architecture.
-// NOTE: This is an on-going WIP and should not be enabled yet.
-pref("media.mediasource.format-reader", false);
+pref("media.mediasource.format-reader", true);
 
 // Enable the MediaFormatReader architecture for MP4 + MSE.
 pref("media.mediasource.format-reader.mp4", true);

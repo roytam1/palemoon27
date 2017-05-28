@@ -326,14 +326,13 @@ TrackBuffersManager::CompleteResetParserState()
   // during the next Segment Parser Loop and a new demuxer will be created and
   // initialized.
   if (mFirstInitializationSegmentReceived) {
-    nsRefPtr<MediaLargeByteBuffer> initData = mParser->InitData();
-    MOZ_ASSERT(initData->Length(), "we must have an init segment");
+    MOZ_ASSERT(mInitData && mInitData->Length(), "we must have an init segment");
     // The aim here is really to destroy our current demuxer.
     CreateDemuxerforMIMEType();
     // Recreate our input buffer. We can't directly assign the initData buffer
     // to mInputBuffer as it will get modified in the Segment Parser Loop.
     mInputBuffer = new MediaLargeByteBuffer;
-    MOZ_ALWAYS_TRUE(mInputBuffer->AppendElements(*initData));
+    mInputBuffer->AppendElements(*mInitData);
   }
   RecreateParser();
 
@@ -596,6 +595,11 @@ TrackBuffersManager::SegmentParserLoop()
     if (mAppendState == AppendState::WAITING_FOR_SEGMENT) {
       if (mParser->IsInitSegmentPresent(mInputBuffer)) {
         SetAppendState(AppendState::PARSING_INIT_SEGMENT);
+        if (mFirstInitializationSegmentReceived) {
+          // This is a new initialization segment. Obsolete the old one.
+          mInitData = nullptr;
+          RecreateParser();
+        }
         continue;
       }
       if (mParser->IsMediaSegmentPresent(mInputBuffer)) {
@@ -725,6 +729,7 @@ void
 TrackBuffersManager::InitializationSegmentReceived()
 {
   MOZ_ASSERT(mParser->HasCompleteInitData());
+  mInitData = mParser->InitData();
 
   int64_t endInit = mParser->InitSegmentRange().mEnd;
   if (mInputBuffer->Length() > mProcessedInput ||
@@ -735,7 +740,7 @@ TrackBuffersManager::InitializationSegmentReceived()
   }
 
   mCurrentInputBuffer = new SourceBufferResource(mType);
-  mCurrentInputBuffer->AppendData(mParser->InitData());
+  mCurrentInputBuffer->AppendData(mInitData);
   uint32_t length = endInit - (mProcessedInput - mInputBuffer->Length());
   if (mInputBuffer->Length() == length) {
     mInputBuffer = nullptr;
@@ -1582,12 +1587,11 @@ TrackBuffersManager::RecreateParser()
   // as it has parsed the entire InputBuffer provided.
   // Once the old TrackBuffer/MediaSource implementation is removed
   // we can optimize this part. TODO
-  nsRefPtr<MediaLargeByteBuffer> initData = mParser->InitData();
   mParser = ContainerParser::CreateForMIMEType(mType);
-  if (initData) {
+  if (mInitData) {
     int64_t start, end;
-    mParser->ParseStartAndEndTimestamps(initData, start, end);
-    mProcessedInput = initData->Length();
+    mParser->ParseStartAndEndTimestamps(mInitData, start, end);
+    mProcessedInput = mInitData->Length();
   } else {
     mProcessedInput = 0;
   }

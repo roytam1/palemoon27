@@ -829,7 +829,7 @@ MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
             info->GetID());
         decoder.mNeedDraining = true;
         decoder.mNextStreamSourceID = Some(info->GetID());
-        DrainDecoder(aTrack);
+        ScheduleUpdate(aTrack);
         return;
       }
 

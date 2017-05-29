@@ -53,7 +53,6 @@ public:
   void AttachSourceBuffer(TrackBuffersManager* aSourceBuffer);
   void DetachSourceBuffer(TrackBuffersManager* aSourceBuffer);
   MediaTaskQueue* GetTaskQueue() { return mTaskQueue; }
-  void NotifyTimeRangesChanged();
 
 private:
   ~MediaSourceDemuxer();
@@ -112,10 +111,6 @@ public:
     return false;
   }
 
-  // Called by TrackBuffersManager to indicate that new frames were added or
-  // removed.
-  void NotifyTimeRangesChanged();
-
 private:
   nsRefPtr<SeekPromise> DoSeek(media::TimeUnit aTime);
   nsRefPtr<SamplesPromise> DoGetSamples(int32_t aNumSamples);
@@ -127,7 +122,6 @@ private:
   nsRefPtr<MediaSourceDemuxer> mParent;
   nsRefPtr<TrackBuffersManager> mManager;
   TrackInfo::TrackType mType;
-  media::TimeIntervals mBufferedRanges;
   // Monitor protecting members below accessed from multiple threads.
   Monitor mMonitor;
   media::TimeUnit mNextRandomAccessPoint;

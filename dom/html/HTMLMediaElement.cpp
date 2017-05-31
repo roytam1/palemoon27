@@ -1205,6 +1205,7 @@ nsresult HTMLMediaElement::LoadResource()
       // TODO: Handle failure: run "If the media data cannot be fetched at
       // all, due to network errors, causing the user agent to give up
       // trying to fetch the resource" section of resource fetch algorithm.
+      decoder->Shutdown();
       return NS_ERROR_FAILURE;
     }
     mMediaSource = source.forget();

@@ -970,18 +970,20 @@ MediaFormatReader::Update(TrackType aTrack)
     needOutput = true;
     if (!decoder.mOutput.IsEmpty()) {
       // We have a decoded sample ready to be returned.
-      nsRefPtr<MediaData> output = decoder.mOutput[0];
-      decoder.mOutput.RemoveElementAt(0);
-      decoder.mSizeOfQueue -= 1;
-      if (decoder.mTimeThreshold.isNothing() ||
-          media::TimeUnit::FromMicroseconds(output->mTime) >= decoder.mTimeThreshold.ref()) {
-        ReturnOutput(output, aTrack);
-        decoder.mTimeThreshold.reset();
-      } else {
-        LOGV("Internal Seeking: Dropping frame time:%f wanted:%f (kf:%d)",
-             media::TimeUnit::FromMicroseconds(output->mTime).ToSeconds(),
-             decoder.mTimeThreshold.ref().ToSeconds(),
-             output->mKeyframe);
+      while (decoder.mOutput.Length()) {
+        nsRefPtr<MediaData> output = decoder.mOutput[0];
+        decoder.mOutput.RemoveElementAt(0);
+        decoder.mSizeOfQueue -= 1;
+        if (decoder.mTimeThreshold.isNothing() ||
+            media::TimeUnit::FromMicroseconds(output->mTime) >= decoder.mTimeThreshold.ref()) {
+          ReturnOutput(output, aTrack);
+          decoder.mTimeThreshold.reset();
+        } else {
+          LOGV("Internal Seeking: Dropping frame time:%f wanted:%f (kf:%d)",
+               media::TimeUnit::FromMicroseconds(output->mTime).ToSeconds(),
+               decoder.mTimeThreshold.ref().ToSeconds(),
+               output->mKeyframe);
+        }
       }
     } else if (decoder.mDrainComplete) {
       decoder.mDrainComplete = false;

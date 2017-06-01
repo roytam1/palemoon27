@@ -325,7 +325,7 @@ public:
       { return marginIStart + borderBoxISize + marginIEnd; }
   };
   static ReplacedElementISizeToClear
-    ISizeToClearPastFloats(nsBlockReflowState& aState,
+    ISizeToClearPastFloats(const nsBlockReflowState& aState,
                            const mozilla::LogicalRect& aFloatAvailableSpace,
                            nsIFrame* aFrame);
 

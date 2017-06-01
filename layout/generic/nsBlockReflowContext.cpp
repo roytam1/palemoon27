@@ -136,6 +136,10 @@ nsBlockReflowContext::ComputeCollapsedBStartMargin(const nsHTMLReflowState& aRS,
             line->SetHasClearance();
             line->MarkDirty();
             dirtiedLine = true;
+            if (!setBlockIsEmpty && aBlockIsEmpty) {
+              setBlockIsEmpty = true;
+              *aBlockIsEmpty = false;
+            }
             goto done;
           }
           // Here is where we recur. Now that we have determined that a
@@ -251,6 +255,10 @@ nsBlockReflowContext::ReflowBlock(const LogicalRect&  aSpace,
     if (NS_UNCONSTRAINEDSIZE != aFrameRS.AvailableBSize()) {
       aFrameRS.AvailableBSize() -= mBStartMargin.get() + aClearance;
     }
+  } else {
+    // nsBlockFrame::ReflowBlock might call us multiple times with
+    // *different* values of aApplyBStartMargin.
+    mBStartMargin.Zero();
   }
 
   nscoord tI = 0, tB = 0;

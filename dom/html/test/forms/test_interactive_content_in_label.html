@@ -33,12 +33,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=229925
     <textarea id="yes13" cols="1" rows="1"></textarea>
     <video id="yes14" controls></video>
 
-    <audio id="no1"></audio>
-    <img id="no2" src="data:image/png,">
-    <input id="no3" type="hidden">
-    <object id="no4">object</object>
-    <video id="no5"></video>
-    <span id="no6" tabindex="1">tabindex</span>
+    <a id="no1">a</a>
+    <audio id="no2"></audio>
+    <img id="no3" src="data:image/png,">
+    <input id="no4" type="hidden">
+    <object id="no5">object</object>
+    <video id="no6"></video>
+    <span id="no7" tabindex="1">tabindex</span>
   </label>
 </form>
 <script class="testbody" type="text/javascript">
@@ -72,6 +73,7 @@ var no_nodes = [
   document.getElementById("no4"),
   document.getElementById("no5"),
   document.getElementById("no6"),
+  document.getElementById("no7"),
 ];
 
 var target_clicked = false;

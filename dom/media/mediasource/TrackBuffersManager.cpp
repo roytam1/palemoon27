@@ -261,11 +261,13 @@ TrackBuffersManager::Detach()
   MOZ_ASSERT(NS_IsMainThread());
   MSE_DEBUG("");
 
-  // Clear our sourcebuffer
+  nsRefPtr<TrackBuffersManager> self = this;
   nsCOMPtr<nsIRunnable> task =
-    NS_NewRunnableMethodWithArg<TimeInterval>(
-      this, &TrackBuffersManager::CodedFrameRemoval,
-      TimeInterval(TimeUnit::FromSeconds(0), TimeUnit::FromInfinity()));
+    NS_NewRunnableFunction([self] () {
+      // Clear our sourcebuffer
+      self->CodedFrameRemoval(TimeInterval(TimeUnit::FromSeconds(0),
+                                           TimeUnit::FromInfinity()));
+    });
   GetTaskQueue()->Dispatch(task.forget());
 }
 

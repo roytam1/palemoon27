@@ -159,6 +159,7 @@ private:
   nsAutoPtr<ContainerParser> mParser;
 
   // Demuxer objects and methods.
+  void AppendDataToCurrentInputBuffer(MediaByteBuffer* aData);
   nsRefPtr<MediaLargeByteBuffer> mInitData;
   nsRefPtr<SourceBufferResource> mCurrentInputBuffer;
   nsRefPtr<MediaDataDemuxer> mInputDemuxer;

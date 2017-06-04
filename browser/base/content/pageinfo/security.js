@@ -302,6 +302,7 @@ function securityOnLoad() {
   setText("security-technical-shortform", hdr);
   setText("security-technical-longform1", msg1);
   setText("security-technical-longform2", msg2); 
+  setText("general-security-privacy", hdr);
 }
 
 function setText(id, value)

@@ -1487,11 +1487,14 @@ TrackBuffersManager::InsertFrames(TrackBuffer& aSamples,
                           TimeUnit::FromMicroseconds(aSamples[0]->mTime));
 
   // Adjust our demuxing index if necessary.
-  if (trackBuffer.mNextGetSampleIndex.isSome() &&
-      (trackBuffer.mNextInsertionIndex.ref() < trackBuffer.mNextGetSampleIndex.ref() ||
-       (trackBuffer.mNextInsertionIndex.ref() == trackBuffer.mNextGetSampleIndex.ref() &&
-        aIntervals.GetEnd() < trackBuffer.mNextSampleTime))) {
-    trackBuffer.mNextGetSampleIndex.ref() += aSamples.Length();
+  if (trackBuffer.mNextGetSampleIndex.isSome()) {
+    if (trackBuffer.mNextInsertionIndex.ref() == trackBuffer.mNextGetSampleIndex.ref() &&
+        aIntervals.GetEnd() >= trackBuffer.mNextSampleTime) {
+      MSE_DEBUG("Next sample to be played got overwritten");
+      trackBuffer.mNextGetSampleIndex.reset();
+    } else if (trackBuffer.mNextInsertionIndex.ref() <= trackBuffer.mNextGetSampleIndex.ref()) {
+      trackBuffer.mNextGetSampleIndex.ref() += aSamples.Length();
+    }
   }
 
   TrackBuffer& data = trackBuffer.mBuffers.LastElement();

@@ -85,7 +85,9 @@ public:
   {
     return mEnded;
   }
-  TimeUnit Seek(TrackInfo::TrackType aTrack, const TimeUnit& aTime);
+  TimeUnit Seek(TrackInfo::TrackType aTrack,
+                const TimeUnit& aTime,
+                const TimeUnit& aFuzz);
   uint32_t SkipToNextRandomAccessPoint(TrackInfo::TrackType aTrack,
                                        const TimeUnit& aTimeThreadshold,
                                        bool& aFound);
@@ -274,6 +276,9 @@ private:
   void RemoveFrames(const TimeIntervals& aIntervals,
                     TrackData& aTrackData,
                     uint32_t aStartIndex);
+  // Find index of sample. Return a negative value if not found.
+  uint32_t FindSampleIndex(const TrackBuffer& aTrackBuffer,
+                           const TimeInterval& aInterval);
   void UpdateBufferedRanges();
   void RejectProcessing(nsresult aRejectValue, const char* aName);
   void ResolveProcessing(bool aResolveValue, const char* aName);

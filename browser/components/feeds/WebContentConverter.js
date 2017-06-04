@@ -20,8 +20,24 @@ const WCCR_CLASSID = Components.ID("{792a7e82-06a0-437c-af63-b2d12e808acc}");
 const WCC_CLASSID = Components.ID("{db7ebf28-cc40-415f-8a51-1b111851df1e}");
 const WCC_CLASSNAME = "Web Service Handler";
 
-const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_ANY = "*/*";
+const TYPE_BLACKLIST = [
+        "application/x-www-form-urlencoded",
+        "application/xhtml+xml",
+        "application/xml",
+        "image/gif",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/jxr",
+        "image/svg+xml",
+        "multipart/x-mixed-replace",
+        "text/cache-manifest",
+        "text/css",
+        "text/html",
+        "text/ping",
+        "text/plain",
+        "text/xml"];
 
 const PREF_CONTENTHANDLERS_AUTO = "browser.contentHandlers.auto.";
 const PREF_CONTENTHANDLERS_BRANCH = "browser.contentHandlers.types.";
@@ -470,12 +486,16 @@ WebContentConverterRegistrar.prototype = {
   function WCCR_registerContentHandler(aContentType, aURIString, aTitle, aContentWindow) {
     LOG("registerContentHandler(" + aContentType + "," + aURIString + "," + aTitle + ")");
 
-    // We only support feed types at present.
+    // Check against the type blacklist.
     // XXX this should be a "security exception" according to spec, but that
     // isn't defined yet.
     var contentType = this._resolveContentType(aContentType);
-    if (contentType != TYPE_MAYBE_FEED)
-      return;
+    for (let blacklistType of TYPE_BLACKLIST) {
+      if (contentType == blacklistType) {
+        console.error("Unable to register content handler for prohibited MIME type %s.", contentType);
+        return;
+      }
+    }
 
     if (aContentWindow) {
       var uri = this._checkAndGetURI(aURIString, aContentWindow);

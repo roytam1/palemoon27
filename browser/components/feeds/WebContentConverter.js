@@ -20,6 +20,7 @@ const WCCR_CLASSID = Components.ID("{792a7e82-06a0-437c-af63-b2d12e808acc}");
 const WCC_CLASSID = Components.ID("{db7ebf28-cc40-415f-8a51-1b111851df1e}");
 const WCC_CLASSNAME = "Web Service Handler";
 
+const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_ANY = "*/*";
 const TYPE_BLACKLIST = [
         "application/x-www-form-urlencoded",

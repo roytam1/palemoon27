@@ -2421,16 +2421,11 @@ PlacesRemoveLivemarkTransaction.prototype = {
 
   doTransaction: function RLTXN_doTransaction()
   {
-    PlacesUtils.livemarks.getLivemark({
-      id: this.item.id,
-      parentId: this.item.parentId,
-    })
+    PlacesUtils.livemarks.getLivemark({ id: this.item.id })
       .then(aLivemark => {
-        if (aLivemark) {
-          this.item.feedURI = aLivemark.feedURI;
-          this.item.siteURI = aLivemark.siteURI;
-          PlacesUtils.bookmarks.removeItem(this.item.id);
-        }
+        this.item.feedURI = aLivemark.feedURI;
+        this.item.siteURI = aLivemark.siteURI;
+        PlacesUtils.bookmarks.removeItem(this.item.id);
       }, Cu.reportError);
   },
 

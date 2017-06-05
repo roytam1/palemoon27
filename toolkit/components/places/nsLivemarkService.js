@@ -392,21 +392,9 @@ LivemarkService.prototype = {
         if (aLivemarkCallback) {
           try {
             aLivemarkCallback.onCompletion(Cr.NS_ERROR_INVALID_ARG, null);
-          } catch (ex) {}
+          } catch (ex) { }
         } else {
-          let parentIdExists = true;
-          try {
-            let index = PlacesUtils.bookmarks.getItemIndex(
-                aLivemarkInfo.parentId);
-            if (index == -1) {
-              parentIdExists = false;
-            }
-          } catch (ex) {}
-          if (parentIdExists) {
-            deferred.reject(Components.Exception("", Cr.NS_ERROR_INVALID_ARG));
-          } else {
-            deferred.resolve(null);
-          }
+          deferred.reject(Components.Exception("", Cr.NS_ERROR_INVALID_ARG));
         }
       }
     });

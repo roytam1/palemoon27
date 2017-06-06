@@ -16,7 +16,7 @@ function test() {
     RequestsMenu.lazyUpdate = false;
     NetworkDetails._params.lazyEmpty = false;
 
-    Task.spawn(function () {
+    Task.spawn(function*() {
       yield waitForNetworkEvents(aMonitor, 0, 6);
 
       EventUtils.sendMouseEvent({ type: "mousedown" },

@@ -14,6 +14,7 @@ const COLLAPSE_ATTRIBUTE_LENGTH = 120;
 const COLLAPSE_DATA_URL_REGEX = /^data.+base64/;
 const COLLAPSE_DATA_URL_LENGTH = 60;
 const NEW_SELECTION_HIGHLIGHTER_TIMER = 1000;
+const AUTOCOMPLETE_POPUP_PANEL_ID = "markupview_autoCompletePopup";
 
 const {UndoStack} = require("devtools/shared/undo");
 const {editableField, InplaceEditor} = require("devtools/shared/inplace-editor");
@@ -77,7 +78,10 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
   // Creating the popup to be used to show CSS suggestions.
   let options = {
     autoSelect: true,
-    theme: "auto"
+    theme: "auto",
+    // panelId option prevents the markupView autocomplete popup from
+    // sharing XUL elements with other views, such as ruleView (see Bug 1191093)
+    panelId: AUTOCOMPLETE_POPUP_PANEL_ID
   };
   this.popup = new AutocompletePopup(this.doc.defaultView.parent.document, options);
 

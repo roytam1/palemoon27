@@ -842,18 +842,20 @@ var PageStyleActor = protocol.ActorClass({
     let style = this.styleElement;
     let sheet = style.sheet;
     let rawNode = node.rawNode;
+    let cssRules = sheet.cssRules;
+    let classes = [...rawNode.classList];
 
     let selector;
     if (rawNode.id) {
-      selector = "#" + rawNode.id;
-    } else if (rawNode.className) {
-      selector = "." + rawNode.className.split(" ")[0];
+      selector = "#" + CSS.escape(rawNode.id);
+    } else if (classes.length > 0) {
+      selector = "." + classes.map(c => CSS.escape(c)).join(".");
     } else {
       selector = rawNode.tagName.toLowerCase();
     }
 
-    let index = sheet.insertRule(selector + " {}", sheet.cssRules.length);
-    let ruleActor = this._styleRef(sheet.cssRules[index]);
+    let index = sheet.insertRule(selector + " {}", cssRules.length);
+    let ruleActor = this._styleRef(cssRules[index]);
     return this.getAppliedProps(node, [{ rule: ruleActor }],
       { matchedSelectors: true });
   }, {

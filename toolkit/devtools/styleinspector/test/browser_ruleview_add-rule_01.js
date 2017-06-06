@@ -16,14 +16,22 @@ let PAGE_CONTENT = [
   '<div id="testid" class="testclass">Styled Node</div>',
   '<span class="testclass2">This is a span</span>',
   '<span class="class1 class2">Multiple classes</span>',
-  '<p>Empty<p>'
+  '<p>Empty<p>',
+  '<h1 class="asd@@@@a!!!!:::@asd">Invalid characters in class</h1>',
+  '<h2 id="asd@@@a!!2a">Invalid characters in id</h2>',
+  '<svg viewBox="0 0 10 10">',
+  '  <circle cx="5" cy="5" r="5" fill="blue"></circle>',
+  '</svg>'
 ].join("\n");
 
 const TEST_DATA = [
   { node: "#testid", expected: "#testid" },
   { node: ".testclass2", expected: ".testclass2" },
   { node: ".class1.class2", expected: ".class1" },
-  { node: "p", expected: "p" }
+  { node: "p", expected: "p" },
+  { node: "h1", expected: ".asd\\@\\@\\@\\@a\\!\\!\\!\\!\\:\\:\\:\\@asd" },
+  { node: "h2", expected: "#asd\\@\\@\\@a\\!\\!2a" },
+  { node: "circle", expected: "circle" }
 ];
 
 add_task(function*() {

@@ -42,7 +42,16 @@ let TEST_URL = "data:text/html;charset=utf-8,<h1 style='color: red'>Filename: " 
 add_task(function*() {
   yield addTab(TEST_URL);
   let {toolbox, inspector, view} = yield openRuleView();
+ 
+  info("Test autocompletion after 1st page load");
+  yield runAutocompletionTest(toolbox, inspector, view);
 
+  info("Test autocompletion after page navigation");
+  yield reloadPage(inspector);
+  yield runAutocompletionTest(toolbox, inspector, view);
+});
+
+function* runAutocompletionTest(toolbox, inspector, view) {
   info("Selecting the test node");
   yield selectNode("h1", inspector);
 
@@ -51,13 +60,13 @@ add_task(function*() {
   let editor = yield focusEditableField(value);
 
   info("Starting to test for css property completion");
-  for (let i = 0; i < testData.length; i ++) {
+  for (let i = 0; i < testData.length; i++) {
     // Re-define the editor at each iteration, because the focus may have moved
     // from property to value and back
     editor = inplaceEditor(view.doc.activeElement);
     yield testCompletion(testData[i], editor, view);
   }
-});
+}
 
 function* testCompletion([key, modifiers, completion, index, total], editor, view) {
   info("Pressing key " + key);

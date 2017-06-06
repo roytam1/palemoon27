@@ -10,11 +10,13 @@ let { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 let { gDevTools } = Cu.import("resource://gre/modules/devtools/gDevTools.jsm", {});
 let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let { CurlUtils } = Cu.import("resource://gre/modules/devtools/Curl.jsm", {});
+let NetworkHelper = devtools.require("devtools/toolkit/webconsole/network-helper");
 let TargetFactory = devtools.TargetFactory;
 let Toolbox = devtools.Toolbox;
 
 const EXAMPLE_URL = "http://example.com/browser/browser/devtools/netmonitor/test/";
 
+const API_CALLS_URL = EXAMPLE_URL + "html_api-calls-test-page.html";
 const SIMPLE_URL = EXAMPLE_URL + "html_simple-test-page.html";
 const NAVIGATE_URL = EXAMPLE_URL + "html_navigate-test-page.html";
 const CONTENT_TYPE_URL = EXAMPLE_URL + "html_content-type-test-page.html";
@@ -272,8 +274,9 @@ function verifyRequestItemTarget(aRequestItem, aMethod, aUrl, aData = {}) {
   let { attachment, target } = aRequestItem
 
   let uri = Services.io.newURI(aUrl, null, null).QueryInterface(Ci.nsIURL);
-  let name = uri.fileName || "/";
-  let query = uri.query;
+  let unicodeUrl = NetworkHelper.convertToUnicode(unescape(aUrl));
+  let name = NetworkHelper.convertToUnicode(unescape(uri.fileName || uri.filePath || "/"));
+  let query = NetworkHelper.convertToUnicode(unescape(uri.query));
   let hostPort = uri.hostPort;
 
   if (fuzzyUrl) {
@@ -290,13 +293,13 @@ function verifyRequestItemTarget(aRequestItem, aMethod, aUrl, aData = {}) {
   if (fuzzyUrl) {
     ok(target.querySelector(".requests-menu-file").getAttribute("value").startsWith(
       name + (query ? "?" + query : "")), "The displayed file is incorrect.");
-    ok(target.querySelector(".requests-menu-file").getAttribute("tooltiptext").startsWith(
-      name + (query ? "?" + query : "")), "The tooltip file is incorrect.");
+    ok(target.querySelector(".requests-menu-file").getAttribute("tooltiptext").startsWith(unicodeUrl),
+      "The tooltip file is correct.");
   } else {
     is(target.querySelector(".requests-menu-file").getAttribute("value"),
       name + (query ? "?" + query : ""), "The displayed file is incorrect.");
     is(target.querySelector(".requests-menu-file").getAttribute("tooltiptext"),
-      name + (query ? "?" + query : ""), "The tooltip file is incorrect.");
+      unicodeUrl, "The tooltip file is correct.");
   }
 
   is(target.querySelector(".requests-menu-domain").getAttribute("value"),

@@ -1211,21 +1211,21 @@
 }
 
 .table-widget-column-header[sorted] {
-  background-position: right 6px center !important;
+  background-position: right 6px center;
 }
 
 .table-widget-column-header[sorted]:-moz-locale-dir(rtl) {
-  background-position: left 6px center !important;
+  background-position: left 6px center;
 }
 
 .table-widget-column-header[sorted=ascending] {
-  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#descending") !important;
-  background-repeat: no-repeat !important;
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#descending");
+  background-repeat: no-repeat;
 }
 
 .table-widget-column-header[sorted=descending] {
-  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#ascending") !important;
-  background-repeat: no-repeat !important;
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#ascending");
+  background-repeat: no-repeat;
 }
 
 /* Cells */

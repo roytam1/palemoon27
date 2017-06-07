@@ -86,41 +86,41 @@
 }
 
 .requests-menu-header-button:hover {
-  background: rgba(0,0,0,0.10);
+  background-color: rgba(0,0,0,0.10);
 }
 
 .requests-menu-header-button:hover:active {
-  background: rgba(0,0,0,0.25);
+  background-color: rgba(0,0,0,0.25);
 }
 
 .requests-menu-header-button:not(:active)[sorted] {
-  background: rgba(0,0,0,0.15);
+  background-color: rgba(0,0,0,0.15);
 }
 
 .requests-menu-header-button[sorted] {
-  background-position: right 6px center !important;
+  background-position: right 6px center;
 }
 
 .requests-menu-header-button[sorted]:-moz-locale-dir(rtl) {
-  background-position: left 6px center !important;
+  background-position: left 6px center;
 }
 
 .requests-menu-status[sorted] {
-  background-position: right 1px top 1px !important;
+  background-position: right 1px top 1px;
 }
 
 .requests-menu-status[sorted]:-moz-locale-dir(rtl) {
-  background-position: left 1px top 1px !important;
+  background-position: left 1px top 1px;
 }
 
 .requests-menu-header-button[sorted=ascending] {
-  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#ascending") !important;
-  background-repeat: no-repeat !important;
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#ascending");
+  background-repeat: no-repeat;
 }
  
 .requests-menu-header-button[sorted=descending] {
-  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#descending") !important;
-  background-repeat: no-repeat !important;
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#descending");
+  background-repeat: no-repeat;
 }
 
 /* Network requests table: specific column dimensions */

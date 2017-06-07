@@ -1210,19 +1210,22 @@
   background-image: linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.15));
 }
 
-.table-widget-column-header:not(:active)[sorted=ascending] {
-  background-image: radial-gradient(farthest-side at center top, hsla(200,100%,70%,.7), hsla(200,100%,70%,0.3)),
-                    linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.15));
-  background-size: 100% 1px, auto;
-  background-repeat: no-repeat, repeat;
+.table-widget-column-header[sorted] {
+  background-position: right 6px center !important;
 }
 
-.table-widget-column-header:not(:active)[sorted=descending] {
-  background-image: radial-gradient(farthest-side at center bottom, hsla(200,100%,70%,.7), hsla(200,100%,70%,0.3)),
-                    linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.15));
-  background-size: 100% 1px, auto;
-  background-repeat: no-repeat, repeat;
-  background-position: bottom;
+.table-widget-column-header[sorted]:-moz-locale-dir(rtl) {
+  background-position: left 6px center !important;
+}
+
+.table-widget-column-header[sorted=ascending] {
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#descending") !important;
+  background-repeat: no-repeat !important;
+}
+
+.table-widget-column-header[sorted=descending] {
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#ascending") !important;
+  background-repeat: no-repeat !important;
 }
 
 /* Cells */

@@ -26,19 +26,36 @@ const TYPE_BLACKLIST = [
         "application/x-www-form-urlencoded",
         "application/xhtml+xml",
         "application/xml",
+        "application/mathml+xml",
+        "application/xslt+xml",
+        "application/x-xpinstall",
         "image/gif",
+        "image/jpg",
         "image/jpeg",
         "image/png",
+        "image/x-png",
         "image/webp",
+#ifdef MOZ_JXR
         "image/jxr",
+        "image/vnd.ms-photo",
+#endif
         "image/svg+xml",
+        "image/bmp",
+        "image/x-ms-bmp",
+        "image/icon",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
         "multipart/x-mixed-replace",
+        "multipart/form-data",
         "text/cache-manifest",
         "text/css",
+        "text/xsl",
         "text/html",
         "text/ping",
         "text/plain",
-        "text/xml"];
+        "text/xml",
+        "text/javascript",  // To prevent malicious intent blocking scripting.
+        "text/ecmascript"];
 
 const PREF_CONTENTHANDLERS_AUTO = "browser.contentHandlers.auto.";
 const PREF_CONTENTHANDLERS_BRANCH = "browser.contentHandlers.types.";

@@ -97,17 +97,30 @@
   background: rgba(0,0,0,0.15);
 }
 
-.requests-menu-header-button:not(:active)[sorted=ascending] {
-  background-image: radial-gradient(farthest-side at center top, hsla(200,100%,70%,.7), hsla(200,100%,70%,0.3));
-  background-size: 100% 1px;
-  background-repeat: no-repeat;
+.requests-menu-header-button[sorted] {
+  background-position: right 6px center !important;
 }
 
-.requests-menu-header-button:not(:active)[sorted=descending] {
-  background-image: radial-gradient(farthest-side at center bottom, hsla(200,100%,70%,.7), hsla(200,100%,70%,0.3));
-  background-size: 100% 1px;
-  background-repeat: no-repeat;
-  background-position: bottom;
+.requests-menu-header-button[sorted]:-moz-locale-dir(rtl) {
+  background-position: left 6px center !important;
+}
+
+.requests-menu-status[sorted] {
+  background-position: right 1px top 1px !important;
+}
+
+.requests-menu-status[sorted]:-moz-locale-dir(rtl) {
+  background-position: left 1px top 1px !important;
+}
+
+.requests-menu-header-button[sorted=ascending] {
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#ascending") !important;
+  background-repeat: no-repeat !important;
+}
+ 
+.requests-menu-header-button[sorted=descending] {
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#descending") !important;
+  background-repeat: no-repeat !important;
 }
 
 /* Network requests table: specific column dimensions */

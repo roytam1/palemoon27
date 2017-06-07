@@ -150,6 +150,7 @@ toolkit.jar:
 * skin/classic/global/devtools/profiler.css                (devtools/profiler.css)
 * skin/classic/global/devtools/performance.css             (devtools/performance.css)
 * skin/classic/global/devtools/timeline.css                (devtools/timeline.css)
+  skin/classic/global/devtools/sort-arrows.svg             (../../shared/devtools/images/sort-arrows.svg)
   skin/classic/global/devtools/timeline-filter.svg         (../../shared/devtools/images/timeline-filter.svg)
 * skin/classic/global/devtools/scratchpad.css              (devtools/scratchpad.css)
 * skin/classic/global/devtools/shadereditor.css            (devtools/shadereditor.css)

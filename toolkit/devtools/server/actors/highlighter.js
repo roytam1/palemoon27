@@ -1369,8 +1369,14 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
       pseudos += ":" + pseudo;
     }
 
-    let rect = this._getOuterQuad("border").bounds;
-    let dim = Math.ceil(rect.width) + " \u00D7 " + Math.ceil(rect.height);
+    // We want to display the original `width` and `height`, instead of the ones affected
+    // by any zoom. Since the infobar can be displayed also for text nodes, we can't
+    // access the computed style for that, and this is why we recalculate them here.
+    let zoom = LayoutHelpers.getCurrentZoom(node);
+    let { width, height } = this._getOuterQuad("border").bounds;
+    let dim = parseFloat((width / zoom).toPrecision(6)) +
+              " \u00D7 " +
+              parseFloat((height / zoom).toPrecision(6));
 
     let elementId = this.ID_CLASS_PREFIX + "nodeinfobar-";
     this.markup.setTextContentForElement(elementId + "tagname", tagName);

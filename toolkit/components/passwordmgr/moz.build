@@ -40,6 +40,7 @@ EXTRA_JS_MODULES += [
     'LoginHelper.jsm',
     'LoginManagerContent.jsm',
     'LoginManagerParent.jsm',
+    'OSCrypto.jsm',
 ]
 
 if CONFIG['OS_TARGET'] == 'Android':
@@ -53,6 +54,11 @@ else:
     EXTRA_JS_MODULES += [
         'LoginImport.jsm',
         'LoginStore.jsm',
+    ]
+
+if CONFIG['OS_TARGET'] == 'WINNT':
+    EXTRA_JS_MODULES += [
+        'OSCrypto_win.js',
     ]
 
 JAR_MANIFESTS += ['jar.mn']

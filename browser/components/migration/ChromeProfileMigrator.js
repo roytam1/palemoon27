@@ -6,7 +6,10 @@
 
 "use strict";
 
-const { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
 const FILE_INPUT_STREAM_CID = "@mozilla.org/network/file-input-stream;1";
 

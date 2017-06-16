@@ -32,6 +32,7 @@ extern PRLogModuleInfo* GetMediaSourceLog();
 #define MSE_DEBUGV(name, arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG + 1, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
 #else
 #define MSE_DEBUG(...)
+#define MSE_DEBUGV(...)
 #endif
 
 namespace mozilla {

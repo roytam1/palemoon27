@@ -351,6 +351,13 @@ protected:
    */
   void UpdateDragDataTransfer(WidgetDragEvent* dragEvent);
 
+  static nsresult InitAndDispatchClickEvent(WidgetMouseEvent* aEvent,
+                                            nsEventStatus* aStatus,
+                                            uint32_t aType,
+                                            nsIPresShell* aPresShell,
+                                            nsIContent* aMouseTarget,
+                                            nsWeakFrame aCurrentTarget,
+                                            bool aNoContentDispatch);
   nsresult SetClickCount(nsPresContext* aPresContext,
                          WidgetMouseEvent* aEvent,
                          nsEventStatus* aStatus);
@@ -940,6 +947,7 @@ private:
 #define NS_EVENT_NEEDS_FRAME(event) \
     (!(event)->HasPluginActivationEventMessage() && \
      (event)->message != NS_MOUSE_CLICK && \
-     (event)->message != NS_MOUSE_DOUBLECLICK)
+     (event)->message != NS_MOUSE_DOUBLECLICK && \
+     (event)->message != NS_MOUSE_AUXCLICK)
 
 #endif // mozilla_EventStateManager_h_

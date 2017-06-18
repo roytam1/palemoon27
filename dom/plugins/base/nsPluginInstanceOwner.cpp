@@ -2062,6 +2062,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
       NS_ASSERTION(anEvent.message == NS_MOUSE_BUTTON_DOWN ||
                    anEvent.message == NS_MOUSE_BUTTON_UP ||
                    anEvent.message == NS_MOUSE_DOUBLECLICK ||
+                   anEvent.message == NS_MOUSE_AUXCLICK ||
                    anEvent.message == NS_MOUSE_ENTER_SYNTH ||
                    anEvent.message == NS_MOUSE_EXIT_SYNTH ||
                    anEvent.message == NS_MOUSE_MOVE,
@@ -2122,6 +2123,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
           {
           case NS_MOUSE_CLICK:
           case NS_MOUSE_DOUBLECLICK:
+          case NS_MOUSE_AUXCLICK:
             // Button up/down events sent instead.
             return rv;
           }
@@ -2322,6 +2324,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
           {
           case NS_MOUSE_CLICK:
           case NS_MOUSE_DOUBLECLICK:
+          case NS_MOUSE_AUXCLICK:
             // Button up/down events sent instead.
             return rv;
           }

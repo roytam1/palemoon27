@@ -268,7 +268,7 @@ private:
     }
   };
 
-  void CheckSequenceDiscontinuity();
+  void CheckSequenceDiscontinuity(const TimeUnit& aPresentationTime);
   void ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData);
   bool CheckNextInsertionIndex(TrackData& aTrackData,
                                const TimeUnit& aSampleTime);

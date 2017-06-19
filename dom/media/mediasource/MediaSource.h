@@ -19,6 +19,7 @@
 #include "nsID.h"
 #include "nsISupports.h"
 #include "nscore.h"
+#include "TimeUnits.h"
 
 struct JSContext;
 class JSObject;
@@ -64,6 +65,10 @@ public:
   void RemoveSourceBuffer(SourceBuffer& aSourceBuffer, ErrorResult& aRv);
 
   void EndOfStream(const Optional<MediaSourceEndOfStreamError>& aError, ErrorResult& aRv);
+
+  void SetLiveSeekableRange(double aStart, double aEnd, ErrorResult& aRv);
+  void ClearLiveSeekableRange(ErrorResult& aRv);
+
   static bool IsTypeSupported(const GlobalObject&, const nsAString& aType);
 
   static bool Enabled(JSContext* cx, JSObject* aGlobal);
@@ -118,6 +123,12 @@ public:
   // buffered data. Used for debugging purposes.
   void GetMozDebugReaderData(nsAString& aString);
 
+  bool HasLiveSeekableRange() const { return mLiveSeekableRange.isSome(); }
+  media::TimeInterval LiveSeekableRange() const
+  {
+    return mLiveSeekableRange.value();
+  }
+
 private:
   // MediaSourceDecoder uses DurationChange to set the duration
   // without hitting the checks in SetDuration.
@@ -154,6 +165,8 @@ private:
   nsRefPtr<nsIPrincipal> mPrincipal;
 
   MediaSourceReadyState mReadyState;
+  
+  Maybe<media::TimeInterval> mLiveSeekableRange;
 
   bool mFirstSourceBufferInitialized;
 };

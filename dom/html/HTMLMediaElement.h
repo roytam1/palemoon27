@@ -651,6 +651,8 @@ protected:
     nsCOMPtr<nsITimer> mTimer;
   };
 
+  nsresult PlayInternal(bool aCallerIsChrome);
+
   /** Use this method to change the mReadyState member, so required
    * events can be fired.
    */
@@ -859,6 +861,13 @@ protected:
     PRELOAD_ENOUGH = 3     // preload enough data to allow uninterrupted
                            // playback
   };
+
+  /**
+   * The guts of Load(). Load() acts as a wrapper around this which sets
+   * mIsDoingExplicitLoad to true so that when script calls 'load()'
+   * preload-none will be automatically upgraded to preload-metadata.
+   */
+  void DoLoad();
 
   /**
    * Suspends the load of mLoadingSrc, so that it can be resumed later
@@ -1235,6 +1244,10 @@ protected:
   // True if we're running the "load()" method.
   bool mIsRunningLoadMethod;
 
+  // True if we're running or waiting to run queued tasks due to an explicit
+  // call to "load()".
+  bool mIsDoingExplicitLoad;
+
   // True if we're loading the resource from the child source elements.
   bool mIsLoadingFromSourceChildren;
 
@@ -1306,6 +1319,11 @@ protected:
   // enough if we ever expand the ability of supporting multi-tracks video
   // playback.
   bool mDisableVideo;
+
+  // True if we blocked either a play() call or autoplay because the
+  // media's owner doc was not visible. Only enforced when the pref
+  // media.block-play-until-visible=true.
+  bool mPlayBlockedBecauseHidden;
 
   // An agent used to join audio channel service.
   nsCOMPtr<nsIAudioChannelAgent> mAudioChannelAgent;

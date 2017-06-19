@@ -81,7 +81,7 @@ SourceBuffer::SetMode(SourceBufferAppendMode aMode, ErrorResult& aRv)
   }
   if (mIsUsingFormatReader && mAttributes->mGenerateTimestamps &&
       aMode == SourceBufferAppendMode::Segments) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return;
   }
   MOZ_ASSERT(mMediaSource->ReadyState() != MediaSourceReadyState::Closed);
@@ -155,7 +155,7 @@ SourceBuffer::SetAppendWindowStart(double aAppendWindowStart, ErrorResult& aRv)
   }
   if (aAppendWindowStart < 0 ||
       aAppendWindowStart >= mAttributes->GetAppendWindowEnd()) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return;
   }
   mAttributes->SetAppendWindowStart(aAppendWindowStart);
@@ -172,7 +172,7 @@ SourceBuffer::SetAppendWindowEnd(double aAppendWindowEnd, ErrorResult& aRv)
   }
   if (IsNaN(aAppendWindowEnd) ||
       aAppendWindowEnd <= mAttributes->GetAppendWindowStart()) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return;
   }
   mAttributes->SetAppendWindowEnd(aAppendWindowEnd);
@@ -243,7 +243,7 @@ SourceBuffer::Remove(double aStart, double aEnd, ErrorResult& aRv)
   if (IsNaN(mMediaSource->Duration()) ||
       aStart < 0 || aStart > mMediaSource->Duration() ||
       aEnd <= aStart || IsNaN(aEnd)) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return;
   }
   if (mMediaSource->ReadyState() == MediaSourceReadyState::Ended) {

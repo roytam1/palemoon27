@@ -11,6 +11,7 @@
 #include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
 #include "gfxUtils.h"                   // for gfxUtils
+#include "mozilla/CheckedInt.h"         // for bounds checks
 #include "mozilla/mozalloc.h"           // for operator delete[], etc
 #include "nsAutoPtr.h"                  // for nsRefPtr, nsAutoArrayPtr
 #include "nsAutoRef.h"                  // for nsCountedRef
@@ -119,7 +120,13 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
 
   gfxImageFormat iFormat = gfx::SurfaceFormatToImageFormat(format);
   mStride = gfxASurface::FormatStrideForWidth(iFormat, size.width);
-  mDecodedBuffer = AllocateBuffer(size.height * mStride);
+  mozilla::CheckedInt32 requiredBytes =
+    mozilla::CheckedInt32(size.height) * mozilla::CheckedInt32(mStride);
+  if (!requiredBytes.isValid()) {
+    // invalid size
+    return false;
+  }
+  mDecodedBuffer = AllocateBuffer(requiredBytes.value());  
   if (!mDecodedBuffer) {
     // out of memory
     return;

@@ -124,7 +124,7 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
     mozilla::CheckedInt32(size.height) * mozilla::CheckedInt32(mStride);
   if (!requiredBytes.isValid()) {
     // invalid size
-    return false;
+    return;
   }
   mDecodedBuffer = AllocateBuffer(requiredBytes.value());  
   if (!mDecodedBuffer) {

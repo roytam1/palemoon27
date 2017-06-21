@@ -11953,8 +11953,8 @@ OpenDatabaseOp::SendResults()
 
   mMaybeBlockedDatabases.Clear();
 
-  // Only needed if we're being called from within NoteDatabaseDone() since this
-  // OpenDatabaseOp is only held alive by the gLiveDatabaseHashtable.
+  // Only needed if we're being called from within NoteDatabaseClosed() since
+  // this OpenDatabaseOp is only held alive by the gLiveDatabaseHashtable.
   nsRefPtr<OpenDatabaseOp> kungFuDeathGrip;
 
   DatabaseActorInfo* info;
@@ -12728,6 +12728,11 @@ DeleteDatabaseOp::SendResults()
 {
   AssertIsOnOwningThread();
   MOZ_ASSERT(mState == State_SendingResults);
+
+  // Needed if we're being called from within NoteDatabaseClosed() since
+  // this DeleteDatabaseOp is only held alive by the gFactoryOps array and
+  // is about to be removed from the array in FinishSendResults().
+  RefPtr<DeleteDatabaseOp> kungFuDeathGrip = this;
 
   if (!IsActorDestroyed()) {
     FactoryRequestResponse response;

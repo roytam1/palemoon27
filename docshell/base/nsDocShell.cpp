@@ -5481,11 +5481,16 @@ nsDocShell::Reload(uint32_t aReloadFlags)
       }
     }
 
-    rv = InternalLoad2(mCurrentURI,
+    // Stack variables to ensure changes to the member variables don't affect
+    // the call.
+    nsCOMPtr<nsIURI> currentURI = mCurrentURI;
+    nsCOMPtr<nsIURI> referrerURI = mReferrerURI;
+    uint32_t referrerPolicy = mReferrerPolicy;
+    rv = InternalLoad2(currentURI,
                        originalURI,
                        loadReplace,
-                       mReferrerURI,
-                       mReferrerPolicy,
+                       referrerURI,
+                       referrerPolicy,
                        principal,
                        flags,
                        nullptr,         // No window target

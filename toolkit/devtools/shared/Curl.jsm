@@ -109,7 +109,9 @@ this.Curl = {
 
     // Add http version.
     if (aData.httpVersion && aData.httpVersion != DEFAULT_HTTP_VERSION) {
-      command.push("--" + aData.httpVersion.split("/")[1]);
+      let version = aData.httpVersion.split("/")[1];
+      let major = version.split(".")[0];
+      command.push("--http" + (major == "2" ? major : version));
     }
 
     // Add request headers.

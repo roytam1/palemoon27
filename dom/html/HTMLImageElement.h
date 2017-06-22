@@ -21,6 +21,8 @@ namespace mozilla {
 class EventChainPreVisitor;
 namespace dom {
 
+class ImageLoadTask;
+
 class ResponsiveImageSelector;
 class HTMLImageElement final : public nsGenericHTMLElement,
                                    public nsImageLoadingContent,
@@ -259,7 +261,7 @@ protected:
   // algorithm (InResponsiveMode()) -- synchronous actions when just
   // using img.src will bypass this, and update source and kick off
   // image load synchronously.
-  void QueueImageLoadTask();
+  void QueueImageLoadTask(bool aAlwaysLoad);
 
   // True if we have a srcset attribute or a <picture> parent, regardless of if
   // any valid responsive sources were parsed from either.
@@ -271,7 +273,7 @@ protected:
 
   // Resolve and load the current mResponsiveSelector (responsive mode) or src
   // attr image.
-  nsresult LoadSelectedImage(bool aForce, bool aNotify);
+  nsresult LoadSelectedImage(bool aForce, bool aNotify, bool aAlwaysLoad);
 
   // True if this string represents a type we would support on <source type>
   static bool SupportedPictureSourceType(const nsAString& aType);
@@ -300,7 +302,9 @@ protected:
   // the existing mResponsiveSelector, meaning you need to update its
   // parameters as appropriate before calling (or null it out to force
   // recreation)
-  void UpdateResponsiveSource();
+  //
+  // Returns true if the source has changed, and false otherwise.
+  bool UpdateResponsiveSource();
 
   // Given a <source> node that is a previous sibling *or* ourselves, try to
   // create a ResponsiveSelector.
@@ -338,7 +342,8 @@ private:
   static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                                     nsRuleData* aData);
 
-  nsCOMPtr<nsIRunnable> mPendingImageLoadTask;
+  bool mInDocResponsiveContent;
+  nsRefPtr<ImageLoadTask> mPendingImageLoadTask;
 };
 
 } // namespace dom

@@ -1872,6 +1872,8 @@ nsPresContext::MediaFeatureValuesChanged(nsRestyleHint aRestyleHint,
     return;
   }
 
+  mDocument->NotifyMediaFeatureValuesChanged();
+
   MOZ_ASSERT(nsContentUtils::IsSafeToRunScript());
 
   // Media query list listeners should be notified from a queued task

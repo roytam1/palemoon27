@@ -84,7 +84,10 @@ class ImageLoadTask : public nsRunnable
 public:
   explicit ImageLoadTask(HTMLImageElement *aElement) :
     mElement(aElement)
-  {}
+  {
+    mDocument = aElement->OwnerDoc();
+    mDocument->BlockOnload();
+  }
 
   NS_IMETHOD Run()
   {
@@ -92,12 +95,14 @@ public:
       mElement->mPendingImageLoadTask = nullptr;
       mElement->LoadSelectedImage(true, true);
     }
+    mDocument->UnblockOnload(false);
     return NS_OK;
   }
 
 private:
   ~ImageLoadTask() {}
   nsRefPtr<HTMLImageElement> mElement;
+  nsCOMPtr<nsIDocument> mDocument;
 };
 
 HTMLImageElement::HTMLImageElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)

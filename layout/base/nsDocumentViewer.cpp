@@ -176,6 +176,8 @@ public:
                        }
 
   nsresult             Init(nsDocumentViewer *aDocViewer);
+  
+  void                 Disconnect() { mDocViewer = nullptr; }
 
 protected:
 
@@ -201,6 +203,8 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   nsresult             Init(nsDocumentViewer *aDocViewer);
+  
+  void                 Disconnect() { mDocViewer = nullptr; }
 
 protected:
   /** default destructor
@@ -356,7 +360,7 @@ protected:
   nsRefPtr<nsPresContext>  mPresContext;
   nsCOMPtr<nsIPresShell>   mPresShell;
 
-  nsCOMPtr<nsISelectionListener> mSelectionListener;
+  nsRefPtr<nsDocViewerSelectionListener> mSelectionListener;
   nsRefPtr<nsDocViewerFocusListener> mFocusListener;
 
   nsCOMPtr<nsIContentViewer> mPreviousViewer;
@@ -532,6 +536,14 @@ nsDocumentViewer::~nsDocumentViewer()
     mSHEntry = nullptr;
 
     Destroy();
+  }
+
+  if (mSelectionListener) {
+    mSelectionListener->Disconnect();
+  }
+
+  if (mFocusListener) {
+    mFocusListener->Disconnect();
   }
 
   // XXX(?) Revoke pending invalidate events
@@ -712,6 +724,9 @@ nsDocumentViewer::InitPresentationStuff(bool aDoInitialReflow)
 
   // Save old listener so we can unregister it
   nsRefPtr<nsDocViewerFocusListener> oldFocusListener = mFocusListener;
+  if (oldFocusListener) {
+    oldFocusListener->Disconnect();
+  }
 
   // focus listener
   //
@@ -1514,19 +1529,22 @@ nsDocumentViewer::Close(nsISHEntry *aSHEntry)
     mClosingWhilePrinting = true;
   } else
 #endif
-    {
-      // out of band cleanup of docshell
-      mDocument->SetScriptGlobalObject(nullptr);
+  {
+    // out of band cleanup of docshell
+    mDocument->SetScriptGlobalObject(nullptr);
 
-      if (!mSHEntry && mDocument)
-        mDocument->RemovedFromDocShell();
+    if (!mSHEntry && mDocument)
+      mDocument->RemovedFromDocShell();
+  }
+
+  if (mFocusListener) {
+    mFocusListener->Disconnect();
+    if (mDocument) {
+      mDocument->RemoveEventListener(NS_LITERAL_STRING("focus"), mFocusListener,
+                                     false);
+      mDocument->RemoveEventListener(NS_LITERAL_STRING("blur"), mFocusListener,
+                                     false);
     }
-
-  if (mFocusListener && mDocument) {
-    mDocument->RemoveEventListener(NS_LITERAL_STRING("focus"), mFocusListener,
-                                   false);
-    mDocument->RemoveEventListener(NS_LITERAL_STRING("blur"), mFocusListener,
-                                   false);
   }
 
   return NS_OK;
@@ -3562,7 +3580,9 @@ NS_IMETHODIMP nsDocumentViewer::GetInImage(bool* aInImage)
 
 NS_IMETHODIMP nsDocViewerSelectionListener::NotifySelectionChanged(nsIDOMDocument *, nsISelection *, int16_t aReason)
 {
-  NS_ASSERTION(mDocViewer, "Should have doc viewer!");
+  if (!mDocViewer) {
+    return NS_OK;
+  }
 
   // get the selection state
   nsRefPtr<mozilla::dom::Selection> selection = mDocViewer->GetDocumentSelection();

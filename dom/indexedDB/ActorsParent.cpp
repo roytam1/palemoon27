@@ -12732,7 +12732,7 @@ DeleteDatabaseOp::SendResults()
   // Needed if we're being called from within NoteDatabaseClosed() since
   // this DeleteDatabaseOp is only held alive by the gFactoryOps array and
   // is about to be removed from the array in FinishSendResults().
-  RefPtr<DeleteDatabaseOp> kungFuDeathGrip = this;
+  nsRefPtr<DeleteDatabaseOp> kungFuDeathGrip = this;
 
   if (!IsActorDestroyed()) {
     FactoryRequestResponse response;

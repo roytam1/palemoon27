@@ -205,6 +205,8 @@ public:
 
   virtual void DestroyContent() override;
 
+  void MediaFeatureValuesChanged();
+
   /**
    * Given a hypothetical <img> or <source> tag with the given parameters,
    * return what URI we would attempt to use, if any.  Used by the preloader to
@@ -331,6 +333,8 @@ protected:
   nsRefPtr<ResponsiveImageSelector> mResponsiveSelector;
 
 private:
+  bool SourceElementMatches(nsIContent* aSourceNode);
+
   static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                                     nsRuleData* aData);
 

@@ -199,6 +199,10 @@ extern const char XPC_SCRIPT_ERROR_CONTRACTID[];
 extern const char XPC_ID_CONTRACTID[];
 extern const char XPC_XPCONNECT_CONTRACTID[];
 
+// Duplicate WeakMapPtr declaration, this help mark WeakMapPtr symbols in
+// xpconnect as "visible" so as not to break libxul linking
+template class JS_PUBLIC_API(JS::WeakMapPtr)<JSObject*, JSObject*>;
+
 /***************************************************************************/
 // Useful macros...
 

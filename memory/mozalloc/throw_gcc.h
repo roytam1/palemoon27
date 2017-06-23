@@ -22,14 +22,14 @@
 // libc++ 4.0.0 and higher use C++11 [[noreturn]] attributes for the functions
 // below, and since clang does not allow mixing __attribute__((noreturn)) and
 // [[noreturn]], we have to explicitly use the latter here.  See bug 1329520.
-#if defined(__clang__)
-#  if __has_feature(cxx_attributes) && \
-      defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 4000
-#    define MOZ_THROW_NORETURN [[noreturn]]
-#  endif
+#if __has_feature(cxx_attributes) && \
+    defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 4000
+#  define MOZ_THROW_NORETURN [[noreturn]]
+#  define MOZ_THROW_EXPORT MOZALLOC_EXPORT
 #endif
 #ifndef MOZ_THROW_NORETURN
 #  define MOZ_THROW_NORETURN MOZ_NORETURN
+#  define MOZ_THROW_EXPORT
 #endif
 
 namespace std {
@@ -38,91 +38,91 @@ namespace std {
 // doing this after careful review because we want to define our own
 // exception throwing semantics.  Don't try this at home!
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_bad_exception(void)
 {
     mozalloc_abort("fatal: STL threw bad_exception");
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_bad_alloc(void)
 {
     mozalloc_abort("fatal: STL threw bad_alloc");
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_bad_cast(void)
 {
     mozalloc_abort("fatal: STL threw bad_cast");
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_bad_typeid(void)
 {
     mozalloc_abort("fatal: STL threw bad_typeid");
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_logic_error(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_domain_error(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_invalid_argument(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_length_error(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_out_of_range(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_runtime_error(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_range_error(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_overflow_error(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_underflow_error(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_ios_failure(const char* msg)
 {
     mozalloc_abort(msg);
 }
 
-MOZ_THROW_NORETURN MOZALLOC_EXPORT MOZ_ALWAYS_INLINE void
+MOZ_THROW_NORETURN MOZ_THROW_EXPORT MOZ_ALWAYS_INLINE void
 __throw_system_error(int err)
 {
     char error[128];

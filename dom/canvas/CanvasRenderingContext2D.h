@@ -622,7 +622,7 @@ protected:
     * The number of living nsCanvasRenderingContexts.  When this goes down to
     * 0, we free the premultiply and unpremultiply tables, if they exist.
     */
-  static uint32_t sNumLivingContexts;
+  static uintptr_t sNumLivingContexts;
 
   /**
     * Lookup table used to speed up GetImageData().

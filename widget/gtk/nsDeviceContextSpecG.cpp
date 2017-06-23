@@ -482,9 +482,9 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const char16_
       path = PR_GetEnv("HOME");
   
     if (path)
-      filename = nsPrintfCString("%s/mozilla.pdf", path);
+      filename = nsPrintfCString("%s/palemoon.pdf", path);
     else
-      filename.AssignLiteral("mozilla.pdf");
+      filename.AssignLiteral("palemoon.pdf");
   }  
   DO_PR_DEBUG_LOG(("Setting default filename to '%s'\n", filename.get()));
   aPrintSettings->SetToFileName(NS_ConvertUTF8toUTF16(filename).get());

@@ -22,10 +22,12 @@
 // libc++ 4.0.0 and higher use C++11 [[noreturn]] attributes for the functions
 // below, and since clang does not allow mixing __attribute__((noreturn)) and
 // [[noreturn]], we have to explicitly use the latter here.  See bug 1329520.
-#if __has_feature(cxx_attributes) && \
-    defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 4000
-#  define MOZ_THROW_NORETURN [[noreturn]]
-#  define MOZ_THROW_EXPORT MOZALLOC_EXPORT
+#if defined(__clang__)
+#  if __has_feature(cxx_attributes) && \
+      defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 4000
+#    define MOZ_THROW_NORETURN [[noreturn]]
+#    define MOZ_THROW_EXPORT MOZALLOC_EXPORT
+#  endif
 #endif
 #ifndef MOZ_THROW_NORETURN
 #  define MOZ_THROW_NORETURN MOZ_NORETURN

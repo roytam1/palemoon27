@@ -203,8 +203,8 @@ TrackBuffersManager::EvictBefore(TimeUnit aTime)
 
   nsCOMPtr<nsIRunnable> task =
     NS_NewRunnableMethodWithArg<TimeInterval>(
-        this, &TrackBuffersManager::CodedFrameRemoval,
-        TimeInterval(TimeUnit::FromSeconds(0), aTime));
+      this, &TrackBuffersManager::CodedFrameRemoval,
+      TimeInterval(TimeUnit::FromSeconds(0), aTime));
   GetTaskQueue()->Dispatch(task.forget());
 }
 
@@ -717,11 +717,13 @@ TrackBuffersManager::CreateDemuxerforMIMEType()
 {
   ShutdownDemuxers();
 
+#ifdef MOZ_WEBM
   if (mType.LowerCaseEqualsLiteral("video/webm") || mType.LowerCaseEqualsLiteral("audio/webm")) {
     NS_WARNING("Waiting on WebMDemuxer");
-  // mInputDemuxer = new WebMDemuxer(mCurrentInputBuffer);
+    //mInputDemuxer = new WebMDemuxer(mCurrentInputBuffer);
     return;
   }
+#endif
 
 #ifdef MOZ_FMP4
   if (mType.LowerCaseEqualsLiteral("video/mp4") || mType.LowerCaseEqualsLiteral("audio/mp4")) {
@@ -1118,8 +1120,8 @@ TrackBuffersManager::OnAudioDemuxCompleted(nsRefPtr<MediaTrackDemuxer::SamplesHo
 void
 TrackBuffersManager::CompleteCodedFrameProcessing()
 {
-  MSE_DEBUG("mAbort:%d", static_cast<bool>(mAbort));
   MOZ_ASSERT(OnTaskQueue());
+  MSE_DEBUG("mAbort:%d", static_cast<bool>(mAbort));
 
   // 1. For each coded frame in the media segment run the following steps:
   // Coded Frame Processing steps 1.1 to 1.21.
@@ -1153,7 +1155,7 @@ TrackBuffersManager::CompleteCodedFrameProcessing()
 
   UpdateBufferedRanges();
 
-   // Update our reported total size.
+  // Update our reported total size.
   mSizeSourceBuffer = mVideoTracks.mSizeBuffer + mAudioTracks.mSizeBuffer;
 
   // Return to step 6.4 of Segment Parser Loop algorithm
@@ -1455,7 +1457,7 @@ TrackBuffersManager::CheckNextInsertionIndex(TrackData& aTrackData,
   // We now need to find the first frame of the searched interval.
   // We will insert our new frames right before.
   for (uint32_t i = 0; i < data.Length(); i++) {
-   const nsRefPtr<MediaRawData>& sample = data[i];
+    const nsRefPtr<MediaRawData>& sample = data[i];
     if (sample->mTime >= target.mStart.ToMicroseconds() ||
         sample->GetEndTime() > target.mStart.ToMicroseconds()) {
       aTrackData.mNextInsertionIndex = Some(size_t(i));
@@ -1497,6 +1499,7 @@ TrackBuffersManager::InsertFrames(TrackBuffer& aSamples,
   // There is an ambiguity on how to remove frames, which was lodged with:
   // https://www.w3.org/Bugs/Public/show_bug.cgi?id=28710, implementing as per
   // bug description.
+
   // 15. Remove decoding dependencies of the coded frames removed in the previous step:
   // Remove all coded frames between the coded frames removed in the previous step and the next random access point after those removed frames.
   TimeIntervals intersection = trackBuffer.mBufferedRanges;

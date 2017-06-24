@@ -45,7 +45,8 @@ public:
                       MediaSourceDecoder* aParentDecoder,
                       const nsACString& aType);
 
-  bool AppendData(MediaLargeByteBuffer* aData, TimeUnit aTimestampOffset) override;
+  bool AppendData(MediaLargeByteBuffer* aData,
+                  TimeUnit aTimestampOffset) override;
 
   nsRefPtr<AppendPromise> BufferAppend() override;
 
@@ -53,10 +54,13 @@ public:
 
   void ResetParserState() override;
 
-  nsRefPtr<RangeRemovalPromise> RangeRemoval(TimeUnit aStart, TimeUnit aEnd) override;
+  nsRefPtr<RangeRemovalPromise> RangeRemoval(TimeUnit aStart,
+                                             TimeUnit aEnd) override;
 
   EvictDataResult
-  EvictData(TimeUnit aPlaybackTime, uint32_t aThreshold, TimeUnit* aBufferStartTime) override;
+  EvictData(TimeUnit aPlaybackTime,
+            uint32_t aThreshold,
+            TimeUnit* aBufferStartTime) override;
 
   void EvictBefore(TimeUnit aTime) override;
 
@@ -120,7 +124,8 @@ private:
   // current media segment.
   void FinishCodedFrameProcessing();
   void CompleteResetParserState();
-  nsRefPtr<RangeRemovalPromise> CodedFrameRemovalWithPromise(TimeInterval aInterval);
+  nsRefPtr<RangeRemovalPromise>
+    CodedFrameRemovalWithPromise(TimeInterval aInterval);
   bool CodedFrameRemoval(TimeInterval aInterval);
   void SetAppendState(AppendState aAppendState);
 
@@ -348,4 +353,5 @@ private:
 };
 
 } // namespace mozilla
+
 #endif /* MOZILLA_TRACKBUFFERSMANAGER_H_ */

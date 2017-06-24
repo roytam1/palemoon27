@@ -773,16 +773,13 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
       ch = SURROGATE_TO_UCS4(ch, *current++);
     }
 
-    // Check for restricted characters; aspirational scripts are permitted
+    // Check for restricted characters; aspirational scripts are NOT permitted,
+    // in anticipation of the category being merged into Limited-Use scripts
+    // in the upcoming (Unicode 10.0-based) revision of UAX #31.
+    // See: http://www.unicode.org/reports/tr31/#Aspirational_Use_Scripts
     XidmodType xm = GetIdentifierModification(ch);
-    int32_t script = GetScriptCode(ch);
-    if (xm > XIDMOD_RECOMMENDED &&
-        !(xm == XIDMOD_LIMITED_USE &&
-          (script == MOZ_SCRIPT_CANADIAN_ABORIGINAL ||
-           script == MOZ_SCRIPT_MIAO ||
-           script == MOZ_SCRIPT_MONGOLIAN ||
-           script == MOZ_SCRIPT_TIFINAGH ||
-           script == MOZ_SCRIPT_YI))) {
+    if (xm != XIDMOD_RECOMMENDED &&
+        xm != XIDMOD_INCLUSION) {
       return false;
     }
 

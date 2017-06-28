@@ -6,7 +6,11 @@
 
 const { Cc, Ci, Cu } = require("chrome");
 const gcli = require("gcli/index");
-const cookieMgr = Cc["@mozilla.org/cookiemanager;1"].getService(Ci.nsICookieManager2);
+const { XPCOMUtils } = require("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "cookieMgr", function() {
+  return Cc["@mozilla.org/cookiemanager;1"].getService(Ci.nsICookieManager2);
+});
 
 /**
  * Check host value and remove port part as it is not used
@@ -69,7 +73,7 @@ exports.items = [
 
       let cookies = [];
       while (enm.hasMoreElements()) {
-        let cookie = enm.getNext().QueryInterface(Ci.nsICookie);
+        let cookie = enm.getNext().QueryInterface(Ci.nsICookie2);
         if (isCookieAtHost(cookie, host)) {
           cookies.push({
             host: cookie.host,
@@ -77,9 +81,10 @@ exports.items = [
             value: cookie.value,
             path: cookie.path,
             expires: cookie.expires,
-            secure: cookie.secure,
-            httpOnly: cookie.httpOnly,
-            sameDomain: cookie.sameDomain
+            isDomain: cookie.isDomain,
+            isHttpOnly: cookie.isHttpOnly,
+            isSecure: cookie.isSecure,
+            isSession: cookie.isSession,
           });
         }
       }
@@ -103,7 +108,6 @@ exports.items = [
       host = sanitizeHost(host);
       let enm = cookieMgr.getCookiesFromHost(host);
 
-      let cookies = [];
       while (enm.hasMoreElements()) {
         let cookie = enm.getNext().QueryInterface(Ci.nsICookie);
         if (isCookieAtHost(cookie, host)) {
@@ -129,11 +133,14 @@ exports.items = [
       for (let cookie of cookies) {
         cookie.expires = translateExpires(cookie.expires);
 
-        let noAttrs = !cookie.secure && !cookie.httpOnly && !cookie.sameDomain;
-        cookie.attrs = (cookie.secure ? "secure" : " ") +
-                       (cookie.httpOnly ? "httpOnly" : " ") +
-                       (cookie.sameDomain ? "sameDomain" : " ") +
-                       (noAttrs ? gcli.lookup("cookieListOutNone") : " ");
+        let noAttrs = !cookie.isDomain && !cookie.isHttpOnly &&
+            !cookie.isSecure && !cookie.isSession;
+        cookie.attrs = ((cookie.isDomain ? "isDomain " : "") +
+                       (cookie.isHttpOnly ? "isHttpOnly " : "") +
+                       (cookie.isSecure ? "isSecure " : "") +
+                       (cookie.isSession ? "isSession " : "") +
+                       (noAttrs ? gcli.lookup("cookieListOutNone") : ""))
+                       .trim();
       }
 
       return context.createView({

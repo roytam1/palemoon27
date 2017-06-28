@@ -837,6 +837,15 @@ VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
   nsRefPtr<gfxDrawable> svgDrawable =
     new gfxCallbackDrawable(cb, ThebesIntSize(aParams.size));
 
+  // We take an early exit here without using the surface cache, because for
+  // vector images this can cause bad perf issues if large sizes are scaled
+  // repeatedly (a rather common scenario) that can quickly exhaust the
+  // cache.
+  return Show(svgDrawable, aParams);
+  
+// ***** Reference: Surface cache code if needed in the future ***** //
+// e.g. if we want to use the cache for specific (small) sizes
+#if 0
   bool bypassCache = bool(aParams.flags & FLAG_BYPASS_SURFACE_CACHE) ||
                      // Refuse to cache animated images:
                      // XXX(seth): We may remove this restriction in bug 922893.
@@ -877,6 +886,8 @@ VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
   nsRefPtr<gfxDrawable> drawable =
     new gfxSurfaceDrawable(surface, ThebesIntSize(aParams.size));
   Show(drawable, aParams);
+#endif
+// *****           End Reference: Surface cache code           ***** //
 }
 
 

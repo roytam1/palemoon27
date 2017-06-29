@@ -796,11 +796,11 @@ PlacesTreeView.prototype = {
   },
 
   _populateLivemarkContainer: function PTV__populateLivemarkContainer(aNode) {
-    PlacesUtils.livemarks.getLivemark({ id: aNode.itemId },
-      function (aStatus, aLivemark) {
+    PlacesUtils.livemarks.getLivemark({ id: aNode.itemId })
+      .then(aLivemark => {
         let placesNode = aNode;
         // Need to check containerOpen since getLivemark is async.
-        if (!Components.isSuccessCode(aStatus) || !placesNode.containerOpen)
+        if (!placesNode.containerOpen)
           return;
 
         let children = aLivemark.getNodesForContainer(placesNode);
@@ -808,7 +808,7 @@ PlacesTreeView.prototype = {
           let child = children[i];
           this.nodeInserted(placesNode, child, i);
         }
-      }.bind(this));
+      }, Components.utils.reportError);
   },
 
   nodeTitleChanged: function PTV_nodeTitleChanged(aNode, aNewTitle) {
@@ -857,18 +857,14 @@ PlacesTreeView.prototype = {
       this._invalidateCellValue(aNode, this.COLUMN_TYPE_DESCRIPTION);
     }
     else if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
-      PlacesUtils.livemarks.getLivemark(
-        { id: aNode.itemId },
-        function (aStatus, aLivemark) {
-          if (Components.isSuccessCode(aStatus)) {
-            this._controller.cacheLivemarkInfo(aNode, aLivemark);
-            let properties = this._cellProperties.get(aNode);
-            this._cellProperties.set(aNode, properties += " livemark");
-            // The livemark attribute is set as a cell property on the title cell.
-            this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
-          }
-        }.bind(this)
-      );
+      PlacesUtils.livemarks.getLivemark({ id: aNode.itemId })
+        .then(aLivemark => {
+          this._controller.cacheLivemarkInfo(aNode, aLivemark);
+          let properties = this._cellProperties.get(aNode);
+          this._cellProperties.set(aNode, properties += " livemark");
+          // The livemark attribute is set as a cell property on the title cell.
+          this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
+        }, Components.utils.reportError);
     }
   },
 
@@ -1181,18 +1177,14 @@ PlacesTreeView.prototype = {
             properties += " livemark";
           }
           else {
-            PlacesUtils.livemarks.getLivemark(
-              { id: node.itemId },
-              function (aStatus, aLivemark) {
-                if (Components.isSuccessCode(aStatus)) {
-                  this._controller.cacheLivemarkInfo(node, aLivemark);
-                  let props = this._cellProperties.get(node);
-                  this._cellProperties.set(node, props += " livemark");
-                  // The livemark attribute is set as a cell property on the title cell.
-                  this._invalidateCellValue(node, this.COLUMN_TYPE_TITLE);
-                }
-              }.bind(this)
-            );
+            PlacesUtils.livemarks.getLivemark({ id: node.itemId })
+              .then(aLivemark => {
+                this._controller.cacheLivemarkInfo(node, aLivemark);
+                let props = this._cellProperties.get(node); 
+                this._cellProperties.set(node, props += " livemark");
+                // The livemark attribute is set as a cell property on the title cell.
+                this._invalidateCellValue(node, this.COLUMN_TYPE_TITLE);
+              }, () => undefined);
           }
         }
 

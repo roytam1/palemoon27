@@ -100,7 +100,8 @@ EXPORT_XPCOM_API(nsresult)
 NS_InvokeByIndex(nsISupports* that, uint32_t methodIndex,
                    uint32_t paramCount, nsXPTCVariant* params)
 {
-    uint32_t result, n;
+    nsresult result;
+    uint32_t n;
 
     n = invoke_count_words(paramCount, params) * 4;
 

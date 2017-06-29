@@ -63,7 +63,7 @@ extern "C" {
             case nsXPTType::T_U64    : dp->val.u64 = *((uint64_t*)ap); ap++; break;
             case nsXPTType::T_FLOAT  : dp->val.f   = *((float*)   ap);       break;
             case nsXPTType::T_DOUBLE : dp->val.d   = *((double*)  ap); ap++; break;
-            case nsXPTType::T_BOOL   : dp->val.b   = *((uint32_t* ap);       break;
+            case nsXPTType::T_BOOL   : dp->val.b   = *((uint32_t*)ap);       break;
             case nsXPTType::T_CHAR   : dp->val.c   = *(((char*)   ap) + 3);  break;
             case nsXPTType::T_WCHAR  : dp->val.wc  = *((wchar_t*) ap);       break;
             default:

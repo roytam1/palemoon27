@@ -3160,6 +3160,10 @@
             return;
 
           var tab = this._getTabForContentWindow(contentWin);
+          if (!tab) {
+            return;
+          }
+
           var titleChanged = this.setTabTitle(tab);
           if (titleChanged && !tab.selected && !tab.hasAttribute("busy"))
             tab.setAttribute("titlechanged", "true");

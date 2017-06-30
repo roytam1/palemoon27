@@ -44,15 +44,15 @@ notification[type="critical"] {
 
 /* Default icons for notifications */
 
-.messageImage[type="info"] {
+notification[type="info"] .messageImage {
   list-style-image: url("moz-icon://stock/gtk-dialog-info?size=menu");
 }
 
-.messageImage[type="warning"] {
+notification[type="warning"] .messageImage {
   list-style-image: url("moz-icon://stock/gtk-dialog-warning?size=menu");
 }
 
-.messageImage[type="critical"] {
+notification[type="critical"] .messageImage {
   list-style-image: url("moz-icon://stock/gtk-dialog-error?size=menu");
 }
 

@@ -34,7 +34,9 @@
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "mozilla/dom/FileBinding.h"
 #include "mozilla/dom/PromiseBinding.h"
+#ifdef MOZ_WEBRTC
 #include "mozilla/dom/RTCIdentityProviderRegistrar.h"
+#endif
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
@@ -208,6 +210,7 @@ SandboxCreateCrypto(JSContext* cx, JS::HandleObject obj)
     return JS_DefineProperty(cx, obj, "crypto", wrapped, JSPROP_ENUMERATE);
 }
 
+#ifdef MOZ_WEBRTC
 static bool
 SandboxCreateRTCIdentityProvider(JSContext* cx, JS::HandleObject obj)
 {
@@ -221,6 +224,7 @@ SandboxCreateRTCIdentityProvider(JSContext* cx, JS::HandleObject obj)
     JS::RootedObject wrapped(cx, registrar->WrapObject(cx));
     return JS_DefineProperty(cx, obj, "rtcIdentityProvider", wrapped, JSPROP_ENUMERATE);
 }
+#endif
 
 static bool
 SandboxIsProxy(JSContext* cx, unsigned argc, jsval* vp)
@@ -791,8 +795,10 @@ xpc::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj)
             File = true;
         } else if (!strcmp(name.ptr(), "crypto")) {
             crypto = true;
+#ifdef MOZ_WEBRTC
         } else if (!strcmp(name.ptr(), "rtcIdentityProvider")) {
             rtcIdentityProvider = true;
+#endif
         } else {
             JS_ReportError(cx, "Unknown property name: %s", name.ptr());
             return false;
@@ -850,8 +856,10 @@ xpc::GlobalProperties::Define(JSContext* cx, JS::HandleObject obj)
     if (crypto && !SandboxCreateCrypto(cx, obj))
         return false;
 
+#ifdef MOZ_WEBRTC
     if (rtcIdentityProvider && !SandboxCreateRTCIdentityProvider(cx, obj))
         return false;
+#endif
 
     return true;
 }

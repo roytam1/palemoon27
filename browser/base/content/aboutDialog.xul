@@ -91,13 +91,11 @@
           Pale Moon is released by <label class="text-link" href="http://www.moonchildproductions.info">Moonchild Productions</label>.
         </description>
         <description class="text-pmcreds">
-          Testers and moral support: Jose Arellano, Cole Hughes, Tobias Olsson, Duco Quanjer, Gerardo Rubio, Daryl Sprint, Jason Sullivan.
-        </description>
-        <description class="text-pmcreds">
-          Special thanks to: Lee Brown, Jacob M. Ross, Phil Chan, Colin Moran, and all other supporters!
+          Special thanks to all our supporters and donors for making this browser possible!
         </description>
         <description class="text-blurb">
-          If you wish to contribute, please consider helping out by providing support to other users or becoming a beta tester on the <label class="text-link" href="http://forum.palemoon.org/">Pale Moon forum</label>
+          If you wish to contribute, please consider helping out by providing support to other users on the <label class="text-link" href="https://forum.palemoon.org/">Pale Moon forum</label>
+          or getting involved in our development by tackling some of the issues found in our GitHub issue tracker.
         </description>    
         </vbox>
       </vbox>

@@ -12,6 +12,7 @@
 
 #include <assert.h>  // assert
 #include <string.h>  // memset
+#include <stdint.h>  // UINT16_MAX
 
 #include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
 

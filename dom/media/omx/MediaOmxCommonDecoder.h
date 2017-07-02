@@ -28,8 +28,7 @@ public:
   virtual void ChangeState(PlayState aState);
   virtual void ApplyStateToStateMachine(PlayState aState);
   virtual void SetVolume(double aVolume);
-  virtual void PlaybackPositionChanged(MediaDecoderEventVisibility aEventVisibility =
-                                         MediaDecoderEventVisibility::Observable);
+  virtual int64_t CurrentPosition() override;
   virtual MediaDecoderOwner::NextFrameStatus NextFrameStatus() override;
   virtual void SetElementVisibility(bool aIsVisible);
   virtual void SetPlatformCanOffloadAudio(bool aCanOffloadAudio);
@@ -44,6 +43,8 @@ public:
 
   virtual MediaOmxCommonReader* CreateReader() = 0;
   virtual MediaDecoderStateMachine* CreateStateMachineFromReader(MediaOmxCommonReader* aReader) = 0;
+
+  void NotifyOffloadPlayerPositionChanged() { UpdateLogicalPosition(); }
 
 protected:
   virtual ~MediaOmxCommonDecoder();

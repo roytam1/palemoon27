@@ -42,6 +42,7 @@
 
 using namespace android;
 using namespace mozilla::layers;
+using namespace mozilla::media;
 
 namespace mozilla {
 
@@ -709,8 +710,7 @@ MediaCodecReader::ReadMetadata(MediaInfo* aInfo,
   }
   int64_t duration = audioDuration > videoDuration ? audioDuration : videoDuration;
   if (duration >= INT64_C(0)) {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    mDecoder->SetMediaDuration(duration);
+    mInfo.mMetadataDuration = Some(TimeUnit::FromMicroseconds(duration))
   }
 
   // Video track's frame sizes will not overflow. Activate the video track.

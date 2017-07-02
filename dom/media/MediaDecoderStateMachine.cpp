@@ -1419,9 +1419,13 @@ void MediaDecoderStateMachine::RecomputeDuration()
   MOZ_ASSERT(OnTaskQueue());
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
-  // This will do something more sensible in upcoming patches. This
-  // would be incorrect if we ever sent spurious state mirroring updates.
-  if (mNetworkDuration.Ref().isSome()) {
+  if (mInfo.mMetadataDuration.isSome()) {
+    SetDuration(mInfo.mMetadataDuration.ref().ToMicroseconds());
+  } else if (mInfo.mMetadataEndTime.isSome() && mStartTime >= 0) {
+    SetDuration((mInfo.mMetadataEndTime.ref() - TimeUnit::FromMicroseconds(mStartTime)).ToMicroseconds());
+  } else if (mNetworkDuration.Ref().isSome()) {
+    // This will do something more sensible in upcoming patches. This
+    // would be incorrect if we ever sent spurious state mirroring updates.
     SetDuration(mNetworkDuration.Ref().ref().ToMicroseconds());
   }
 }
@@ -1475,14 +1479,6 @@ void MediaDecoderStateMachine::UpdateEstimatedDuration(int64_t aDuration)
       NS_NewRunnableMethod(mDecoder, &MediaDecoder::DurationChanged);
     AbstractThread::MainThread()->Dispatch(event.forget());
   }
-}
-
-void MediaDecoderStateMachine::SetMediaEndTime(int64_t aEndTime)
-{
-  MOZ_ASSERT(OnDecodeTaskQueue());
-  AssertCurrentThreadInMonitor();
-
-  mEndTime = aEndTime;
 }
 
 void MediaDecoderStateMachine::SetFragmentEndTime(int64_t aEndTime)
@@ -2197,6 +2193,10 @@ MediaDecoderStateMachine::OnMetadataRead(MetadataHolder* aMetadata)
   mDecoder->SetMediaSeekable(mReader->IsMediaSeekable());
   mInfo = aMetadata->mInfo;
   mMetadataTags = aMetadata->mTags.forget();
+
+  if (mInfo.mMetadataDuration.isSome() || mInfo.mMetadataEndTime.isSome()) {
+    RecomputeDuration();
+  }
 
   if (HasVideo()) {
     mAmpleVideoFrames = (mReader->IsAsync() && mInfo.mVideo.mIsHardwareAccelerated)
@@ -3239,6 +3239,8 @@ void MediaDecoderStateMachine::SetStartTime(int64_t aStartTimeUsecs)
   // to ensure the audio starts at the correct time.
   mAudioStartTime = mStartTime;
   DECODER_LOG("Set media start time to %lld", mStartTime);
+
+  RecomputeDuration();
 }
 
 void MediaDecoderStateMachine::UpdateNextFrameStatus()

@@ -152,6 +152,7 @@ th_info_init
 th_packet_isheader
 th_packet_iskeyframe
 th_setup_free
+opus_custom_mode_create
 opus_decoder_create
 opus_decoder_destroy
 opus_decoder_ctl
@@ -641,3 +642,9 @@ hb_unicode_funcs_set_general_category_func
 hb_unicode_funcs_set_mirroring_func
 hb_unicode_funcs_set_script_func
 BrotliDecompressBuffer
+#ifdef MOZ_WEBRTC
+downmix_int
+run_analysis
+#endif
+
+

@@ -19,6 +19,7 @@
 #include "mozilla/net/RtspChannelChild.h"
 #endif
 using namespace mozilla::net;
+using namespace mozilla::media;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gRtspMediaResourceLog;
@@ -727,7 +728,7 @@ RtspMediaResource::OnConnected(uint8_t aTrackIdx,
     // Not live stream.
     mIsLiveStream = false;
     mDecoder->SetInfinite(false);
-    mDecoder->SetDuration((double)(durationUs) / USECS_PER_S);
+    mDecoder->SetNetworkDuration(TimeUnit::FromMicroseconds(durationUs));
   } else {
     // Live stream.
     // Check the preference "media.realtime_decoder.enabled".

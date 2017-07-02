@@ -598,7 +598,8 @@ public:
   // Set the duration of the media resource in units of seconds.
   // This is called via a channel listener if it can pick up the duration
   // from a content header. Must be called from the main thread only.
-  virtual void SetDuration(double aDuration);
+  void SetNetworkDuration(media::TimeUnit aDuration);
+  media::NullableTimeUnit NetworkDuration() { return mNetworkDuration; }
 
   // Sets the initial duration of the media. Called while the media metadata
   // is being read and the decode is being setup.
@@ -1125,6 +1126,12 @@ protected:
   // can be read on any thread while holding the monitor, or on the main thread
   // without holding the monitor.
   nsAutoPtr<DecodedStreamData> mDecodedStream;
+
+  // Media duration according to HTTP headers.
+  Canonical<media::NullableTimeUnit> mNetworkDuration;
+public:
+  AbstractCanonical<media::NullableTimeUnit>* CanonicalNetworkDuration() { return &mNetworkDuration; }
+protected:
 
   // Set to one of the valid play states.
   // This can only be changed on the main thread while holding the decoder

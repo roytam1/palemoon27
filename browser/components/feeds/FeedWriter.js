@@ -637,14 +637,20 @@ FeedWriter.prototype = {
         Cc["@mozilla.org/browser/feeds/result-service;1"].
         getService(Ci.nsIFeedResultService);
 
+    var result = null;
     try {
-      var result = 
+      result = 
         feedService.getFeedResult(this._getOriginalURI(this._window));
     }
     catch (e) {
-      LOG("Subscribe Preview: feed not available?!");
+      // Ignore.
     }
-    
+
+    if (!result) {
+      LOG("Subscribe Preview: feed not available?!");
+      return null;
+    }
+
     if (result.bozo) {
       LOG("Subscribe Preview: feed result is bozo?!");
     }

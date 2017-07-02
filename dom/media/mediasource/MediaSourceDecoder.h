@@ -107,9 +107,6 @@ private:
   nsRefPtr<MediaDecoderReader> mReader;
   bool mIsUsingFormatReader;
   nsRefPtr<MediaSourceDemuxer> mDemuxer;
-
-  // Protected by GetReentrantMonitor()
-  double mMediaSourceDuration;
   Atomic<bool> mEnded;
 };
 

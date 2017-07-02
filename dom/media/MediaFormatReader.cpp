@@ -20,6 +20,8 @@
 
 #include <algorithm>
 
+using namespace mozilla::media;
+
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
@@ -302,8 +304,7 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
 
   int64_t duration = std::max(videoDuration, audioDuration);
   if (duration != -1) {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    mDecoder->SetMediaDuration(duration);
+    mInfo.mMetadataDuration = Some(TimeUnit::FromMicroseconds(duration));
   }
 
   mSeekable = mDemuxer->IsSeekable();

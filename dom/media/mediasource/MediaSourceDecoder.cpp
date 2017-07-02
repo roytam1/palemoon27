@@ -36,9 +36,9 @@ class SourceBufferDecoder;
 MediaSourceDecoder::MediaSourceDecoder(dom::HTMLMediaElement* aElement)
   : mMediaSource(nullptr)
   , mIsUsingFormatReader(Preferences::GetBool("media.mediasource.format-reader", false))
-  , mMediaSourceDuration(UnspecifiedNaN<double>())
   , mEnded(false)
 {
+  SetExplicitDuration(UnspecifiedNaN<double>());
   Init(aElement);
 }
 
@@ -211,7 +211,7 @@ MediaSourceDecoder::SetInitialDuration(int64_t aDuration)
   // Only use the decoded duration if one wasn't already
   // set.
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  if (!mMediaSource || !IsNaN(mMediaSourceDuration)) {
+  if (!mMediaSource || !IsNaN(ExplicitDuration())) {
     return;
   }
   double duration = aDuration;
@@ -227,7 +227,7 @@ MediaSourceDecoder::SetMediaSourceDuration(double aDuration, MSRangeRemovalActio
 {
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  double oldDuration = mMediaSourceDuration;
+  double oldDuration = ExplicitDuration();
   if (aDuration >= 0) {
     int64_t checkedDuration;
     if (NS_FAILED(SecondsToUsecs(aDuration, checkedDuration))) {
@@ -235,16 +235,14 @@ MediaSourceDecoder::SetMediaSourceDuration(double aDuration, MSRangeRemovalActio
       // We want a very bigger number, but not infinity.
       checkedDuration = INT64_MAX - 1;
     }
-    GetStateMachine()->SetDuration(checkedDuration);
-    mMediaSourceDuration = aDuration;
+    SetExplicitDuration(aDuration);
   } else {
-    GetStateMachine()->SetDuration(INT64_MAX);
-    mMediaSourceDuration = PositiveInfinity<double>();
+    SetExplicitDuration(PositiveInfinity<double>());
   }
   if (!mIsUsingFormatReader && GetReader()) {
-    GetReader()->SetMediaSourceDuration(mMediaSourceDuration);
+    GetReader()->SetMediaSourceDuration(ExplicitDuration());
   }
-  MediaDecoder::DurationChanged(TimeUnit::FromSeconds(mMediaSourceDuration));
+  MediaDecoder::DurationChanged(TimeUnit::FromSeconds(ExplicitDuration()));
   if (mMediaSource && aAction != MSRangeRemovalAction::SKIP) {
     mMediaSource->DurationChange(oldDuration, aDuration);
   }
@@ -254,7 +252,7 @@ double
 MediaSourceDecoder::GetMediaSourceDuration()
 {
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  return mMediaSourceDuration;
+  return ExplicitDuration();
 }
 
 void
@@ -293,7 +291,7 @@ double
 MediaSourceDecoder::GetDuration()
 {
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  return mMediaSourceDuration;
+  return ExplicitDuration();
 }
 
 already_AddRefed<SourceBufferDecoder>

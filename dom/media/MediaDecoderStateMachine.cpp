@@ -202,8 +202,6 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mStartTime(-1),
   mEndTime(-1),
   mDurationSet(false),
-  mNetworkDuration(mTaskQueue, NullableTimeUnit(),
-                   "MediaDecoderStateMachine::mNetworkDuration (Mirror)"),
   mEstimatedDuration(mTaskQueue, NullableTimeUnit(),
                     "MediaDecoderStateMachine::EstimatedDuration (Mirror)"),
   mExplicitDuration(mTaskQueue, Maybe<double>(),
@@ -306,7 +304,6 @@ MediaDecoderStateMachine::InitializationTask()
   MOZ_ASSERT(OnTaskQueue());
 
   // Connect mirrors.
-  mNetworkDuration.Connect(mDecoder->CanonicalNetworkDuration());
   mEstimatedDuration.Connect(mDecoder->CanonicalEstimatedDuration());
   mExplicitDuration.Connect(mDecoder->CanonicalExplicitDuration());
   mPlayState.Connect(mDecoder->CanonicalPlayState());
@@ -322,7 +319,6 @@ MediaDecoderStateMachine::InitializationTask()
   mWatchManager.Watch(mVolume, &MediaDecoderStateMachine::VolumeChanged);
   mWatchManager.Watch(mLogicalPlaybackRate, &MediaDecoderStateMachine::LogicalPlaybackRateChanged);
   mWatchManager.Watch(mPreservesPitch, &MediaDecoderStateMachine::PreservesPitchChanged);
-  mWatchManager.Watch(mNetworkDuration, &MediaDecoderStateMachine::RecomputeDuration);
   mWatchManager.Watch(mEstimatedDuration, &MediaDecoderStateMachine::RecomputeDuration);
   mWatchManager.Watch(mExplicitDuration, &MediaDecoderStateMachine::RecomputeDuration);
   mWatchManager.Watch(mObservedDuration, &MediaDecoderStateMachine::RecomputeDuration);
@@ -1424,8 +1420,6 @@ void MediaDecoderStateMachine::RecomputeDuration()
     duration = mInfo.mMetadataDuration.ref();
   } else if (mInfo.mMetadataEndTime.isSome() && mStartTime >= 0) {
     duration = mInfo.mMetadataEndTime.ref() - TimeUnit::FromMicroseconds(mStartTime);
-  } else if (mNetworkDuration.Ref().isSome()) {
-    duration = mNetworkDuration.Ref().ref();
   } else {
     return;
   }
@@ -2522,7 +2516,6 @@ MediaDecoderStateMachine::FinishShutdown()
   mPendingWakeDecoder = nullptr;
 
   // Disconnect canonicals and mirrors before shutting down our task queue.
-  mNetworkDuration.DisconnectIfConnected();
   mEstimatedDuration.DisconnectIfConnected();
   mExplicitDuration.DisconnectIfConnected();
   mPlayState.DisconnectIfConnected();

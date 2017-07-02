@@ -222,7 +222,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
                    "MediaDecoderStateMachine::mNextFrameStatus (Canonical)"),
   mFragmentEndTime(-1),
   mReader(aReader),
-  mCurrentFrameTime(0),
+  mCurrentPosition(0),
   mAudioStartTime(-1),
   mAudioEndTime(-1),
   mDecodedAudioEndTime(-1),
@@ -1302,10 +1302,10 @@ void MediaDecoderStateMachine::UpdatePlaybackPositionInternal(int64_t aTime)
   AssertCurrentThreadInMonitor();
 
   NS_ASSERTION(mStartTime >= 0, "Should have positive mStartTime");
-  mCurrentFrameTime = aTime - mStartTime;
-  NS_ASSERTION(mCurrentFrameTime >= 0, "CurrentTime should be positive!");
+  mCurrentPosition = aTime - mStartTime;
+  NS_ASSERTION(mCurrentPosition >= 0, "CurrentTime should be positive!");
   if (aTime > mEndTime) {
-    NS_ASSERTION(mCurrentFrameTime > GetDuration(),
+    NS_ASSERTION(mCurrentPosition > GetDuration(),
                  "CurrentTime must be after duration if aTime > endTime!");
     DECODER_LOG("Setting new end time to %lld", aTime);
     mEndTime = aTime;
@@ -1388,12 +1388,12 @@ void MediaDecoderStateMachine::VolumeChanged()
 
 double MediaDecoderStateMachine::GetCurrentTime() const
 {
-  return static_cast<double>(mCurrentFrameTime) / static_cast<double>(USECS_PER_S);
+  return static_cast<double>(mCurrentPosition) / static_cast<double>(USECS_PER_S);
 }
 
 int64_t MediaDecoderStateMachine::GetCurrentTimeUs() const
 {
-  return mCurrentFrameTime;
+  return mCurrentPosition;
 }
 
 bool MediaDecoderStateMachine::IsRealTime() const {
@@ -1455,7 +1455,7 @@ void MediaDecoderStateMachine::SetDuration(int64_t aDuration)
 
   mEndTime = mStartTime + aDuration;
 
-  if (mDecoder && mEndTime >= 0 && mEndTime < mCurrentFrameTime) {
+  if (mDecoder && mEndTime >= 0 && mEndTime < mCurrentPosition) {
     // The current playback position is now past the end of the element duration
     // the user agent must also seek to the time of the end of the media
     // resource.
@@ -1528,7 +1528,7 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
       } else if (mCurrentSeek.Exists()) {
         mQueuedSeek.Steal(mCurrentSeek);
       } else {
-        mQueuedSeek.mTarget = SeekTarget(mCurrentFrameTime,
+        mQueuedSeek.mTarget = SeekTarget(mCurrentPosition,
                                          SeekTarget::Accurate,
                                          MediaDecoderEventVisibility::Suppressed);
         // Nobody is listening to this promise. Do we need to pass it
@@ -1536,7 +1536,7 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
         nsRefPtr<MediaDecoder::SeekPromise> unused = mQueuedSeek.mPromise.Ensure(__func__);
       }
     } else {
-      mQueuedSeek.mTarget = SeekTarget(mCurrentFrameTime,
+      mQueuedSeek.mTarget = SeekTarget(mCurrentPosition,
                                        SeekTarget::Accurate,
                                        MediaDecoderEventVisibility::Suppressed);
       // Nobody is listening to this promise. Do we need to pass it
@@ -1563,7 +1563,7 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
   } else if ((aDormant != true) && (mState == DECODER_STATE_DORMANT)) {
     mDecodingFrozenAtStateDecoding = true;
     ScheduleStateMachine();
-    mCurrentFrameTime = 0;
+    mCurrentPosition = 0;
     SetState(DECODER_STATE_DECODING_NONE);
     mDecoder->GetReentrantMonitor().NotifyAll();
   }
@@ -1892,7 +1892,7 @@ MediaDecoderStateMachine::InitiateSeek()
 
   // Stop playback now to ensure that while we're outside the monitor
   // dispatching SeekingStarted, playback doesn't advance and mess with
-  // mCurrentFrameTime that we've setting to seekTime here.
+  // mCurrentPosition that we've setting to seekTime here.
   StopPlayback();
   UpdatePlaybackPositionInternal(mCurrentSeek.mTarget.mTime);
 
@@ -2464,7 +2464,7 @@ MediaDecoderStateMachine::SeekCompleted()
   UpdatePlaybackPositionInternal(newCurrentTime);
 
   // Try to decode another frame to detect if we're at the end...
-  DECODER_LOG("Seek completed, mCurrentFrameTime=%lld", mCurrentFrameTime);
+  DECODER_LOG("Seek completed, mCurrentPosition=%lld", mCurrentPosition);
 
 
   // Reset quick buffering status. This ensures that if we began the

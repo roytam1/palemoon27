@@ -1536,7 +1536,6 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
   } else if ((aDormant != true) && (mState == DECODER_STATE_DORMANT)) {
     mDecodingFrozenAtStateDecoding = true;
     ScheduleStateMachine();
-    mCurrentPosition = 0;
     SetState(DECODER_STATE_DECODING_NONE);
     mDecoder->GetReentrantMonitor().NotifyAll();
   }

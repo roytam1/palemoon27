@@ -27,6 +27,8 @@ extern PRLogModuleInfo* GetMediaSourceLog();
 #define MSE_DEBUGV(...)
 #endif
 
+using namespace mozilla::media;
+
 namespace mozilla {
 
 class SourceBufferDecoder;
@@ -242,7 +244,7 @@ MediaSourceDecoder::SetMediaSourceDuration(double aDuration, MSRangeRemovalActio
   if (!mIsUsingFormatReader && GetReader()) {
     GetReader()->SetMediaSourceDuration(mMediaSourceDuration);
   }
-  MediaDecoder::DurationChanged();
+  MediaDecoder::DurationChanged(TimeUnit::FromSeconds(mMediaSourceDuration));
   if (mMediaSource && aAction != MSRangeRemovalAction::SKIP) {
     mMediaSource->DurationChange(oldDuration, aDuration);
   }

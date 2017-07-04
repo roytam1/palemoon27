@@ -651,43 +651,6 @@ var gMetadataTests = [
   },
 ];
 
-// Test files for Encrypted Media Extensions
-var gEMETests = [
-  {
-    name:"gizmo-frag-cencinit.mp4",
-    fragments: [ "gizmo-frag-cencinit.mp4", "gizmo-frag-cenc1.m4s", "gizmo-frag-cenc2.m4s" ],
-    type:"video/mp4; codecs=\"avc1.64000d,mp4a.40.2\"",
-    keys: {
-      // "keyid" : "key"
-      "7e571d037e571d037e571d037e571d03" : "7e5733337e5733337e5733337e573333",
-      "7e571d047e571d047e571d047e571d04" : "7e5744447e5744447e5744447e574444",
-    },
-    sessionType:"temporary",
-    duration:2.00,
-  },
-  {
-    name:"gizmo-frag-cencinit.mp4",
-    fragments: [ "gizmo-frag-cencinit.mp4", "gizmo-frag-cenc1.m4s", "gizmo-frag-cenc2.m4s" ],
-    type:"video/mp4; codecs=\"avc1.64000d,mp4a.40.2\"",
-    keys: {
-      // "keyid" : "key"
-      "7e571d037e571d037e571d037e571d03" : "7e5733337e5733337e5733337e573333",
-      "7e571d047e571d047e571d047e571d04" : "7e5744447e5744447e5744447e574444",
-    },
-    sessionType:"temporary",
-    duration:2.00,
-    crossOrigin:true,
-  },
-];
-
-var gEMENonFragmentedTests = [
-  {
-    name:"short-cenc.mp4",
-    type:"video/mp4; codecs=\"avc1.64000d,mp4a.40.2\"",
-    duration:0.47,
-  },
-];
-
 function checkMetadata(msg, e, test) {
   if (test.width) {
     is(e.videoWidth, test.width, msg + " video width");

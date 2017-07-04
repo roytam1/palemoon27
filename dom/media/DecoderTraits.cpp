@@ -187,8 +187,8 @@ static char const *const gWebMCodecs[7] = {
   nullptr
 };
 
-static bool
-IsWebMType(const nsACString& aType)
+/* static */ bool
+DecoderTraits::IsWebMType(const nsACString& aType)
 {
   if (!MediaDecoder::IsWebMEnabled()) {
     return false;
@@ -589,7 +589,7 @@ if (IsMP3SupportedType(aType)) {
   }
 #endif
 #ifdef MOZ_WEBM
-  if (IsWebMType(aType)) {
+  if (DecoderTraits::IsWebMType(aType)) {
     decoder = new WebMDecoder();
     return decoder.forget();
   }

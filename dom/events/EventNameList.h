@@ -353,6 +353,10 @@ EVENT(lostpointercapture,
       NS_POINTER_LOST_CAPTURE,
       EventNameType_All,
       ePointerEventClass)
+EVENT(selectstart,
+      NS_SELECT_START,
+      EventNameType_HTMLXUL,
+      eBasicEventClass)
 
 // Not supported yet; probably never because "wheel" is a better idea.
 // EVENT(mousewheel)
@@ -589,6 +593,10 @@ TOUCH_EVENT(touchcancel,
 
 DOCUMENT_ONLY_EVENT(readystatechange,
                     NS_READYSTATECHANGE,
+                    EventNameType_HTMLXUL,
+                    eBasicEventClass)
+DOCUMENT_ONLY_EVENT(selectionchange,
+                    NS_SELECTION_CHANGE,
                     EventNameType_HTMLXUL,
                     eBasicEventClass)
 

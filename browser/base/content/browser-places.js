@@ -424,18 +424,15 @@ var PlacesCommandHook = {
    *            A short description of the feed. Optional.
    */
   addLiveBookmark: function PCH_addLiveBookmark(url, feedTitle, feedSubtitle) {
-    var feedURI = makeURI(url);
-    
-    var doc = gBrowser.contentDocument;
-    var title = (arguments.length > 1) ? feedTitle : doc.title;
- 
-    var description;
-    if (arguments.length > 2)
-      description = feedSubtitle;
-    else
-      description = PlacesUIUtils.getDescriptionFromDocument(doc);
+    let toolbarIP = new InsertionPoint(PlacesUtils.toolbarFolderId, -1);
 
-    var toolbarIP = new InsertionPoint(PlacesUtils.toolbarFolderId, -1);
+    let feedURI = makeURI(url);
+    let title = feedTitle || gBrowser.contentTitle;
+    let description = feedSubtitle;
+    if (!description) {
+      description = PlacesUIUtils.getDescriptionFromDocument(gBrowser.contentDocument);
+    }
+
     PlacesUIUtils.showBookmarkDialog({ action: "add"
                                      , type: "livemark"
                                      , feedURI: feedURI

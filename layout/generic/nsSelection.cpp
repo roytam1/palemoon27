@@ -6198,7 +6198,9 @@ Selection::WrapObject(JSContext* aCx)
 
 // AutoHideSelectionChanges
 AutoHideSelectionChanges::AutoHideSelectionChanges(const nsFrameSelection* aFrame)
-  : AutoHideSelectionChanges(aFrame->GetSelection(nsISelectionController::SELECTION_NORMAL))
+  : AutoHideSelectionChanges(aFrame ?
+                             aFrame->GetSelection(nsISelectionController::SELECTION_NORMAL) :
+                             nullptr)
 {}
 
 // nsAutoCopyListener

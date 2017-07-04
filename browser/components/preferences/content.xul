@@ -160,9 +160,9 @@
       <checkbox id="videoMSE" preference="media.mediasource.enabled"
                 label="&videoMSE.label;" accesskey="&videoMSE.accesskey;"
                 onsyncfrompreference="return gContentPane.updateMSE();"/>
-      <checkbox id="videoMSEMP4" preference="media.mediasource.mp4.enabled"
+      <checkbox class="indent" id="videoMSEMP4" preference="media.mediasource.mp4.enabled"
                 label="&videoMSEMP4.label;" accesskey="&videoMSEMP4.accesskey;"/>
-      <checkbox id="videoMSEWebM" preference="media.mediasource.webm.enabled"
+      <checkbox class="indent" id="videoMSEWebM" preference="media.mediasource.webm.enabled"
                 label="&videoMSEWebM.label;" accesskey="&videoMSEWebM.accesskey;"/>
     </groupbox>
 

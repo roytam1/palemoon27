@@ -32,6 +32,7 @@
 #include "nsIDocumentEncoder.h"
 #include "nsTextFragment.h"
 #include <algorithm>
+#include "nsContentUtils.h"
 
 #include "nsGkAtoms.h"
 #include "nsIFrameTraversal.h"
@@ -832,7 +833,9 @@ nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
     }
   }
 
-  if (sSelectionEventsEnabled) {
+  nsIDocument* doc = aShell->GetDocument();
+  if (sSelectionEventsEnabled ||
+      (doc && nsContentUtils::IsSystemPrincipal(doc->NodePrincipal()))) {
     int8_t index =
       GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
     if (mDomSelections[index]) {
@@ -3656,8 +3659,13 @@ Selection::AddItem(nsRange* aItem, int32_t* aOutIndex, bool aNoStartSelect)
     nsAutoTArray<nsRefPtr<nsRange>, 4> rangesToAdd;
     *aOutIndex = -1;
 
+    nsIDocument* doc = GetParentObject();
+    bool selectEventsEnabled =
+      nsFrameSelection::sSelectionEventsEnabled ||
+      (doc && nsContentUtils::IsSystemPrincipal(doc->NodePrincipal()));
+
     if (!aNoStartSelect && mType == nsISelectionController::SELECTION_NORMAL &&
-        nsFrameSelection::sSelectionEventsEnabled && Collapsed() &&
+        selectEventsEnabled && Collapsed() &&
         !IsBlockingSelectionChangeEvents()) {
       // First, we generate the ranges to add with a scratch range, which is a
       // clone of the original range passed in. We do this seperately, because the
@@ -6334,6 +6342,12 @@ SelectionChangeListener::NotifySelectionChanged(nsIDOMDocument* aDoc,
   // This cast is valid as nsISelection is a builtinclass which is only
   // implemented by Selection.
   nsRefPtr<Selection> sel = static_cast<Selection*>(aSel);
+
+  nsIDocument* doc = sel->GetParentObject();
+  if (!(doc && nsContentUtils::IsSystemPrincipal(doc->NodePrincipal())) &&
+      !nsFrameSelection::sSelectionEventsEnabled) {
+    return NS_OK;
+  }
 
   // Check if the ranges have actually changed
   // Don't bother checking this if we are hiding changes.

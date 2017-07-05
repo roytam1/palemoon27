@@ -168,6 +168,7 @@ struct nsPrevNextBidiLevels
 namespace mozilla {
 namespace dom {
 class Selection;
+class SelectionChangeListener;
 }
 }
 class nsIScrollableFrame;
@@ -642,6 +643,7 @@ private:
   }
 
   friend class mozilla::dom::Selection;
+  friend class mozilla::dom::SelectionChangeListener;
   friend struct mozilla::AutoPrepareFocusRange;
 #ifdef DEBUG
   void printSelection();       // for debugging

@@ -722,15 +722,12 @@
           if (aTopic == "nsPref:changed") {
             switch (aData) {
               case "browser.search.suggest.enabled":
-                this._suggestEnabled =
-                  this._prefBranch.getBoolPref(aData);
-                this._suggestMenuItem.setAttribute(
-                  "checked", this._suggestEnabled);
+                this._suggestEnabled = this._prefBranch.getBoolPref(aData);
+                this._suggestMenuItem.setAttribute("checked", this._suggestEnabled);
                 break;
               case "browser.urlbar.clickSelectsAll":
-                this._clickSelectsAll =
-                  this._prefBranch.getBoolPref(aData);
-                  this.setAttribute("clickSelectsAll", this._clickSelectsAll);
+                this._clickSelectsAll = this._prefBranch.getBoolPref(aData);
+                this.setAttribute("clickSelectsAll", this._clickSelectsAll);
                 break;
             }
           }

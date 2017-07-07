@@ -6504,6 +6504,9 @@ AddonInternal.prototype = {
   },
 
   applyCompatibilityUpdate: function AddonInternal_applyCompatibilityUpdate(aUpdate, aSyncCompatibility) {
+    if (this.strictCompatibility) {
+      return;
+    }
     this.targetApplications.forEach(function(aTargetApp) {
       aUpdate.targetApplications.forEach(function(aUpdateTarget) {
         if (aTargetApp.id == aUpdateTarget.id && (aSyncCompatibility ||

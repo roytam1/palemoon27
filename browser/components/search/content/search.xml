@@ -653,6 +653,7 @@
       <field name="_prefBranch"/>
       <field name="_suggestMenuItem"/>
       <field name="_suggestEnabled"/>
+      <field name="_clickSelectsAll"/>
 
       <!--
         This overrides the searchParam property in autocomplete.xml.  We're

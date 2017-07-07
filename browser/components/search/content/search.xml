@@ -564,9 +564,10 @@
                             .getService(Components.interfaces.nsIPrefBranch);
         this._suggestEnabled =
             this._prefBranch.getBoolPref("browser.search.suggest.enabled");
+        this._clickSelectsAll =
+            this._prefBranch.getBoolPref("browser.urlbar.clickSelectsAll");
 
-        if (this._prefBranch.getBoolPref("browser.urlbar.clickSelectsAll"))
-          this.setAttribute("clickSelectsAll", true);
+        this.setAttribute("clickSelectsAll", this._clickSelectsAll);
 
         // Add items to context menu and attach controller to handle them
         var textBox = document.getAnonymousElementByAttribute(this,
@@ -632,12 +633,14 @@
         var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                             .getService(Components.interfaces.nsIPrefBranch);
         prefs.addObserver("browser.search.suggest.enabled", this, false);
+        prefs.addObserver("browser.urlbar.clickSelectsAll", this, false);
       ]]></constructor>
 
       <destructor><![CDATA[
           var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                               .getService(Components.interfaces.nsIPrefBranch);
           prefs.removeObserver("browser.search.suggest.enabled", this);
+          prefs.removeObserver("browser.urlbar.clickSelectsAll", this);
 
         // Because XBL and the customize toolbar code interacts poorly,
         // there may not be anything to remove here
@@ -716,9 +719,19 @@
         <parameter name="aData"/>
         <body><![CDATA[
           if (aTopic == "nsPref:changed") {
-            this._suggestEnabled =
-              this._prefBranch.getBoolPref("browser.search.suggest.enabled");
-            this._suggestMenuItem.setAttribute("checked", this._suggestEnabled);
+            switch (aData) {
+              case "browser.search.suggest.enabled":
+                this._suggestEnabled =
+                  this._prefBranch.getBoolPref(aData);
+                this._suggestMenuItem.setAttribute(
+                  "checked", this._suggestEnabled);
+                break;
+              case "browser.urlbar.clickSelectsAll":
+                this._clickSelectsAll =
+                  this._prefBranch.getBoolPref(aData);
+                  this.setAttribute("clickSelectsAll", this._clickSelectsAll);
+                break;
+            }
           }
         ]]></body>
       </method>

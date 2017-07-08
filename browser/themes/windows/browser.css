@@ -9,20 +9,14 @@
 
 %include ../shared/browser.inc
 %filter substitution
-%define toolbarHighlight rgba(255,255,255,.5)
-%define selectedTabHighlight rgba(255,255,255,.7)
 %define toolbarShadowColor rgba(10%,10%,10%,.4)
 %define toolbarShadowOnTab linear-gradient(to top, rgba(10%,10%,10%,.4) 1px, transparent 1px)
-%define bgTabTexture linear-gradient(transparent, hsla(0,0%,45%,.1) 1px, hsla(0,0%,32%,.2) 80%, hsla(0,0%,0%,.2))
-%define bgTabTextureHover linear-gradient(hsla(0,0%,100%,.3) 1px, hsla(0,0%,75%,.2) 80%, hsla(0,0%,60%,.2))
 %define navbarTextboxCustomBorder border-color: rgba(0,0,0,.32);
 %define navbarLargeIcons #navigator-toolbox[iconsize=large][mode=icons] > #nav-bar
 %define forwardTransitionLength 150ms
 %define conditionalForwardWithUrlbar window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar[currentset*="unified-back-forward-button"],#nav-bar:not([currentset])) > #unified-back-forward-button
 %define conditionalForwardWithUrlbar2 window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar[currentset*="unified-back-forward-button"]:not([currentset*="unified-back-forward-button,urlbar-container"]),#nav-bar:not([currentset])) > #unified-back-forward-button
 %define conditionalForwardWithUrlbarWidth 27
-%define customToolbarColor hsl(210,75%,92%)
-%define customToolbarColorWin10 hsl(210,0%,92%)
 %define glassActiveBorderColor rgb(37, 44, 51)
 %define glassInactiveBorderColor rgb(102, 102, 102)
 
@@ -35,6 +29,35 @@
 %define appMenuButtonBorderColor hsla(0,0%,100%,.5) hsla(210,59%,13%,.9)
 %endif
 %endif
+
+:root {
+  --toolbar-custom-color: hsl(210,75%,92%);
+  --toolbar-highlight-top: rgba(255,255,255,.5);
+  --toolbar-highlight-bottom: transparent;
+  
+  --toolbarbutton-background-color: hsla(210,32%,93%,.3);
+  --toolbarbutton-border-radius: 2.5px;
+  --toolbarbutton-border-color: hsla(210,54%,20%,.2);
+  
+  --tab-background: linear-gradient(transparent, hsla(0,0%,45%,.1) 1px, hsla(0,0%,32%,.2) 80%, hsla(0,0%,0%,.2));
+  --tab-background-hover: linear-gradient(hsla(0,0%,100%,.3) 1px, hsla(0,0%,75%,.2) 80%, hsla(0,0%,60%,.2));
+  --tab-border-radius: 6px;
+  --tab-box-shadow: inset 0.5px 1px 1px var(--tab-selected-highlight);
+  --tab-selected-highlight: rgba(255,255,255,.7);
+  
+  --window-text-color: inherit;
+}
+
+:root:-moz-lwtheme-brighttext {
+  --toolbar-highlight-top: rgba(32,32,32,.8);
+  --toolbar-highlight-bottom: rgba(32,32,32,0);
+}
+
+:root:-moz-lwtheme-darktext {
+  --toolbar-highlight-top: rgba(255,255,255,.8);
+  
+  --tab-selected-highlight: rgba(255,255,255,.6);
+}
 
 #menubar-items {
   -moz-box-orient: vertical; /* for flex hack */
@@ -89,22 +112,10 @@
   }
 }
 
-#nav-bar[tabsontop=true]:not(:-moz-lwtheme),
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):not(:-moz-lwtheme) + toolbar,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):not(:-moz-lwtheme) + #customToolbars + #PersonalToolbar {
-  background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
-}
-
-#nav-bar[tabsontop=true]:-moz-lwtheme,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + toolbar,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + #customToolbars + #PersonalToolbar {
-  background-image: linear-gradient(rgba(255,255,255,.8), rgba(255,255,255,0));
-}
-
-#nav-bar[tabsontop=true]:-moz-lwtheme-brighttext,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + toolbar,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + #customToolbars + #PersonalToolbar {
-  background-image: linear-gradient(rgba(32,32,32,.8), rgba(32,32,32,0));
+#nav-bar[tabsontop=true],
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + #customToolbars + #PersonalToolbar {
+  background-image: linear-gradient(var(--toolbar-highlight-top), var(--toolbar-highlight-bottom));
 }
 
 #personal-bookmarks {
@@ -810,12 +821,12 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
 @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
   padding: 2px 6px;
-  background: hsla(210,32%,93%,.3) padding-box;
+  background: var(--toolbarbutton-background-color) padding-box;
   background-image: linear-gradient(hsla(0,0%,100%,.4), hsla(0,0%,100%,.1));
   background-clip: padding-box;
-  border-radius: 2.5px;
+  border-radius: var(--toolbarbutton-border-radius);
   border: 1px solid;
-  border-color: hsla(210,54%,20%,.2) hsla(210,54%,20%,.2) hsla(210,54%,20%,.2);
+  border-color: var(--toolbarbutton-border-color) var(--toolbarbutton-border-color) var(--toolbarbutton-border-color);
   box-shadow: 0 1px hsla(0,0%,100%,.05) inset,
               0 1px hsla(210,54%,20%,.05),
               0 0 2px hsla(210,54%,20%,.05);
@@ -823,21 +834,8 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 
 @media (-moz-os-version: windows-win10) {
   /* Square is the new round, courtesy of microsoft */
-  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-icon,
-  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-badge-container,
-  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
-  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
-    border-radius: 0px;
-  }
-
-  @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(ltr) > .toolbarbutton-icon {
-    border-top-right-radius: 0px;
-    border-bottom-right-radius: 0px;
-  }
-
-  @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
-    border-top-left-radius: 0px;
-    border-bottom-left-radius: 0px;
+  :root {
+    --toolbarbutton-border-radius: 0px;
   }
 }
 
@@ -870,7 +868,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   width: 1px;
   height: 18px;
   -moz-margin-end: -1px;
-  background-image: linear-gradient(hsla(210,54%,20%,.2) 0, hsla(210,54%,20%,.2) 18px);
+  background-image: linear-gradient(var(--toolbarbutton-border-color) 0, var(--toolbarbutton-border-color) 18px);
   background-clip: padding-box;
   background-position: center;
   background-repeat: no-repeat;
@@ -917,7 +915,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   background-color: hsla(210,54%,20%,.15);
   border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
   box-shadow: 0 1px 1px hsla(210,54%,20%,.1) inset,
-              0 0 1px hsla(210,54%,20%,.2) inset,
+              0 0 1px var(--toolbarbutton-border-color) inset,
               /* allows windows-keyhole-forward-clip-path to be used for non-hover as well as hover: */
               0 1px 0 hsla(210,54%,20%,0),
               0 0 2px hsla(210,54%,20%,0);
@@ -947,7 +945,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 #TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled]):hover,
 .tabbrowser-arrowscrollbox > .scrollbutton-up:not([disabled]):hover,
 .tabbrowser-arrowscrollbox > .scrollbutton-down:not([disabled]):hover {
-  background-image: linear-gradient(rgba(255,255,255,0), rgba(255,255,255,.5)),
+  background-image: linear-gradient(var(--toolbar-highlight-bottom), var(--toolbar-highlight-top)),
                     linear-gradient(transparent, rgba(0,0,0,.25) 30%),
                     linear-gradient(transparent, rgba(0,0,0,.25) 30%);
   background-position: 1px -1px, 0 -1px, 100% -1px;
@@ -1011,13 +1009,13 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 
 @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(ltr) > .toolbarbutton-icon {
-  border-top-right-radius: 2.5px;
-  border-bottom-right-radius: 2.5px;
+  border-top-right-radius: var(--toolbarbutton-border-radius);
+  border-bottom-right-radius: var(--toolbarbutton-border-radius);
 }
 
 @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
-  border-top-left-radius: 2.5px;
-  border-bottom-left-radius: 2.5px;
+  border-top-left-radius: var(--toolbarbutton-border-radius);
+  border-bottom-left-radius: var(--toolbarbutton-border-radius);
 }
 
 @conditionalForwardWithUrlbar@ > #forward-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon {
@@ -1062,16 +1060,16 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 0 0 1px hsla(0,0%,100%,.3) inset,
               0 0 0 1px hsla(210,54%,20%,.3),
               0 1px 0 hsla(210,54%,20%,.4),
-              0 0 4px hsla(210,54%,20%,.2);
+              0 0 4px var(--toolbarbutton-border-color);
 }
 
 @conditionalForwardWithUrlbar@ > #back-button:not([disabled="true"]):hover:active > .toolbarbutton-icon,
 @conditionalForwardWithUrlbar@ > #back-button[open="true"] > .toolbarbutton-icon {
   background-color: hsla(210,54%,20%,.15);
   box-shadow: 0 1px 1px hsla(210,54%,20%,.1) inset,
-              0 0 1px hsla(210,54%,20%,.2) inset,
+              0 0 1px var(--toolbarbutton-border-color) inset,
               0 0 0 1px hsla(210,54%,20%,.4),
-              0 1px 0 hsla(210,54%,20%,.2);
+              0 1px 0 var(--toolbarbutton-border-color);
 }
 
 @conditionalForwardWithUrlbar@ > #back-button[disabled] > .toolbarbutton-icon {
@@ -1864,7 +1862,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 .tabbrowser-tab,
 .tabs-newtab-button {
   -moz-appearance: none;
-  background: @toolbarShadowOnTab@, @bgTabTexture@,
+  background: @toolbarShadowOnTab@, var(--tab-background),
               linear-gradient(-moz-dialog, -moz-dialog);
   background-clip: padding-box;
   padding: 3px 1px 4px;
@@ -1874,7 +1872,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
      compliance */
   border: 2px solid;
   border-bottom: none;
-  border-radius: 6px 6px 0px 0px;
+  border-radius: var(--tab-border-radius) var(--tab-border-radius) 0px 0px;
   -moz-border-top-colors: transparent #929292;
   -moz-border-left-colors: transparent #929292;
   -moz-border-right-colors: transparent #929292;
@@ -1882,7 +1880,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   margin-top: -1px;
   /* Reduce the gap between the tabs */
   -moz-margin-start: -1px;
-  box-shadow: inset 0.5px 1px 1px rgba(255,255,255,.7);
+  box-shadow: var(--tab-box-shadow);
 }
 
 .tabbrowser-tab {
@@ -1910,35 +1908,33 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   /* Square is the new round, courtesy of microsoft */
   /* We keep the hinting at round here because that's the hybrid in use
      on our other controls in the navigation toolbars */
-  .tabbrowser-tab,
-  .tabs-newtab-button {
-    border-radius: 3.5px 3.5px 0px 0px;
+  :root {
+    --tab-border-radius: 3.5px;
   }
 }
 
 @media (-moz-os-version: windows-win10) {
   /* Square is the new round, courtesy of microsoft */
-  .tabbrowser-tab,
-  .tabs-newtab-button {
-    border-radius: 0px;
-    box-shadow: none;
+  :root {
+    --tab-border-radius: 0px;
+    --tab-box-shadow: none;
   }
 }
 
 .tabbrowser-tab:hover,
 .tabs-newtab-button:hover {
-  background-image: @toolbarShadowOnTab@, @bgTabTextureHover@,
+  background-image: @toolbarShadowOnTab@, var(--tab-background-hover),
                     linear-gradient(-moz-dialog, -moz-dialog);
 }
 
 .tabbrowser-tab[selected="true"] {
-  background-image: linear-gradient(@selectedTabHighlight@, @toolbarHighlight@ 50%),
+  background-image: linear-gradient(var(--tab-selected-highlight), var(--toolbar-highlight-top) 50%),
                     linear-gradient(-moz-dialog, -moz-dialog);
 }
 
 #main-window[tabsontop=false]:not([disablechrome]) .tabbrowser-tab[selected=true]:not(:-moz-lwtheme) {
   background-image: @toolbarShadowOnTab@,
-                    linear-gradient(@selectedTabHighlight@, @toolbarHighlight@ 50%),
+                    linear-gradient(var(--tab-selected-highlight), var(--toolbar-highlight-top) 50%),
                     linear-gradient(-moz-dialog, -moz-dialog);
 }
 
@@ -1962,11 +1958,11 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
-  background-image: linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,.8) 50%);
+  background-image: linear-gradient(var(--tab-selected-highlight), var(--toolbar-highlight-top) 50%);
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
-  background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, rgba(32,32,32,.8) 100%);
+  background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, var(--toolbar-highlight-top) 100%);
   -moz-border-top-colors: transparent #D0D0D0;
   -moz-border-left-colors: transparent #D0D0D0;
   -moz-border-right-colors: transparent #D0D0D0;
@@ -2454,7 +2450,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   background-color: #fff;
   background-clip: padding-box;
   padding-left: 3px;
-  border-radius: 2.5px 0 0 2.5px;
+  border-radius: var(--toolbarbutton-border-radius) 0 0 var(--toolbarbutton-border-radius);
   border-width: 0 8px 0 0;
   border-style: solid;
   border-image: url("chrome://browser/skin/urlbar-arrow.png") 0 8 0 0 fill;
@@ -2955,76 +2951,51 @@ toolbar[brighttext] #addonbar-closebutton {
 }
 
 @media (-moz-windows-default-theme) {
- @media (-moz-os-version: windows-vista),
-        (-moz-os-version: windows-win7) {
   #navigator-toolbox > toolbar:not(:-moz-lwtheme),
   #browser-bottombox:not(:-moz-lwtheme) {
-    background-color: @customToolbarColor@;
+    background-color: var(--toolbar-custom-color);
   }
 
   .tabbrowser-tab:not(:-moz-lwtheme),
   .tabs-newtab-button:not(:-moz-lwtheme) {
-    background-image: @toolbarShadowOnTab@, @bgTabTexture@,
-                      linear-gradient(@customToolbarColor@, @customToolbarColor@);
+    background-image: @toolbarShadowOnTab@, var(--tab-background),
+                      linear-gradient(var(--toolbar-custom-color), var(--toolbar-custom-color));
   }
 
   .tabbrowser-tab:not(:-moz-lwtheme):hover,
   .tabs-newtab-button:not(:-moz-lwtheme):hover {
-    background-image: @toolbarShadowOnTab@, @bgTabTextureHover@,
-                      linear-gradient(@customToolbarColor@, @customToolbarColor@);
+    background-image: @toolbarShadowOnTab@, var(--tab-background-hover),
+                      linear-gradient(var(--toolbar-custom-color), var(--toolbar-custom-color));
   }
 
   .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
-    background-image: linear-gradient(#fff, @toolbarHighlight@ 50%),
-                      linear-gradient(@customToolbarColor@, @customToolbarColor@);
+    background-image: linear-gradient(#fff, var(--toolbar-highlight-top) 50%),
+                      linear-gradient(var(--toolbar-custom-color), var(--toolbar-custom-color));
   }
 
   #main-window[tabsontop=false]:not([disablechrome]) .tabbrowser-tab[selected=true]:not(:-moz-lwtheme) {
     background-image: @toolbarShadowOnTab@,
-                      linear-gradient(#fff, @toolbarHighlight@ 50%),
-                      linear-gradient(@customToolbarColor@, @customToolbarColor@);
+                      linear-gradient(#fff, var(--toolbar-highlight-top) 50%),
+                      linear-gradient(var(--toolbar-custom-color), var(--toolbar-custom-color));
+  }
+  
+  @media (-moz-os-version: windows-vista),
+         (-moz-os-version: windows-win7) {
+    #navigator-toolbox:not(:-moz-lwtheme)::after {
+      background-color: #aabccf;
+    }
   }
 
-  #navigator-toolbox:not(:-moz-lwtheme)::after {
-    background-color: #aabccf;
-  }
- }
+  @media (-moz-os-version: windows-win8),
+         (-moz-os-version: windows-win10) {
+    :root {
+      --toolbar-custom-color: hsl(210,0%,92%);
+    }
 
- @media (-moz-os-version: windows-win8),
-        (-moz-os-version: windows-win10) {
-  #navigator-toolbox > toolbar:not(:-moz-lwtheme),
-  #browser-bottombox:not(:-moz-lwtheme) {
-    background-color: @customToolbarColorWin10@;
+    #navigator-toolbox:not(:-moz-lwtheme)::after {
+      background-color: #bcbcbc;
+    }
   }
-
-  .tabbrowser-tab:not(:-moz-lwtheme),
-  .tabs-newtab-button:not(:-moz-lwtheme) {
-    background-image: @toolbarShadowOnTab@, @bgTabTexture@,
-                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
-  }
-
-  .tabbrowser-tab:not(:-moz-lwtheme):hover,
-  .tabs-newtab-button:not(:-moz-lwtheme):hover {
-    background-image: @toolbarShadowOnTab@, @bgTabTextureHover@,
-                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
-  }
-
-  .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
-    background-image: linear-gradient(#fff, @toolbarHighlight@ 50%),
-                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
-  }
-
-  #main-window[tabsontop=false]:not([disablechrome]) .tabbrowser-tab[selected=true]:not(:-moz-lwtheme) {
-    background-image: @toolbarShadowOnTab@,
-                      linear-gradient(#fff, @toolbarHighlight@ 50%),
-                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
-  }
-
-  #navigator-toolbox:not(:-moz-lwtheme)::after {
-    background-color: #bcbcbc;
-  }
- }
- 
  
   #navigator-toolbox[tabsontop=true] #urlbar:not(:-moz-lwtheme),
   #navigator-toolbox[tabsontop=true] .searchbar-textbox:not(:-moz-lwtheme) {
@@ -3066,8 +3037,7 @@ toolbar[brighttext] #addonbar-closebutton {
   .chatbar-button,
   chatbar > chatbox {
     border-color: #A9B7C9;
-  }
-  
+  } 
 }
 
 @media (-moz-windows-compositor) {
@@ -3333,13 +3303,14 @@ toolbar[brighttext] #addonbar-closebutton {
     #toolbar-menubar:not(:-moz-lwtheme),
     #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
     #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
+    #nav-bar[tabsontop=false]:not(:-moz-lwtheme) .toolbarbutton-text,
     #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
       text-shadow: 0 0 .5em white, 0 0 .5em white, 0 1px 0 rgba(255,255,255,.4);
     }
   
     #main-menubar:not(:-moz-lwtheme):not(:-moz-window-inactive) {
       background-color: rgba(255,255,255,.7);
-      border-radius: 2.5px;
+      border-radius: var(--toolbarbutton-border-radius);
       color: black;
     }
     
@@ -3350,20 +3321,18 @@ toolbar[brighttext] #addonbar-closebutton {
   @media (-moz-os-version: windows-win8),
          (-moz-os-version: windows-win10) {
     /* On dark window frames, use a light text color instead of fog on Win8/10 */
-    #main-window[darkwindowframe=true] #toolbar-menubar:not(:-moz-lwtheme),
-    #main-window[darkwindowframe=true] #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
-    #main-window[darkwindowframe=true] #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
-    #main-window[darkwindowframe=true] #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
-    color: white;
-  }
-    
-    /* Prevent the dark window frame styles from disturbing native menu styling */
-    #main-window[darkwindowframe=true] #main-menubar > menu:not(:-moz-lwtheme) {
+    :root[darkwindowframe="true"]:not(:-moz-lwtheme):not(:-moz-window-inactive) {
+      --window-text-color: white;
+    }
+
+    /* Allow menubar menus to be styled */
+    #main-menubar > menu:not(:-moz-lwtheme) {
       color: inherit;
     }
     
-    #main-window[darkwindowframe=true] #toolbar-menubar:not(:-moz-lwtheme):-moz-window-inactive {
-      color: ThreeDShadow;
+    /* Fade text stylings on window inactivity */
+    :root:not(:-moz-lwtheme):-moz-window-inactive {
+      --window-text-color: ThreeDShadow;
     }
   }
   
@@ -3377,9 +3346,10 @@ toolbar[brighttext] #addonbar-closebutton {
   #toolbar-menubar:not(:-moz-lwtheme),
   #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
   #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
+  #nav-bar[tabsontop=false]:not(:-moz-lwtheme) .toolbarbutton-text,
   #nav-bar + #customToolbars + #PersonalToolbar:-moz-any([collapsed=true],[moz-collapsed=true]) + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
     background-color: transparent !important;
-    color: black;
+    color: var(--window-text-color);
     border-left-style: none !important;
     border-right-style: none !important;
   }
@@ -3428,22 +3398,18 @@ toolbar[brighttext] #addonbar-closebutton {
   }
 }
 
-/* Round top corners on Vista/7/8, but now Win10 because it's flush against the window edge */
-@media (-moz-os-version: windows-vista),
-       (-moz-os-version: windows-win7),
-       (-moz-os-version: windows-win8) {
   #main-window[sizemode=normal][tabsontop=false] #PersonalToolbar:not(:-moz-lwtheme) {
-    border-top-left-radius: 2.5px;
-    border-top-right-radius: 2.5px;
+    border-top-left-radius: var(--toolbarbutton-border-radius);
+    border-top-right-radius: var(--toolbarbutton-border-radius);
   }
+
   #main-window[sizemode=normal] #nav-bar[tabsontop=true]:not(:-moz-lwtheme),
   #main-window[sizemode=normal] #nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + toolbar:not(:-moz-lwtheme),
   #main-window[sizemode=normal] #nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + #customToolbars + #PersonalToolbar:not(:-moz-lwtheme),
   #main-window[sizemode=normal][disablechrome] #navigator-toolbox[tabsontop=true]:not(:-moz-lwtheme)::after {
-    border-top-left-radius: 2.5px;
-    border-top-right-radius: 2.5px;
+    border-top-left-radius: var(--toolbarbutton-border-radius);
+    border-top-right-radius: var(--toolbarbutton-border-radius);
   }
-}
 
   /* Toolbar shadow behind tabs */
   /* This code is only needed for restored windows (i.e. sizemode=normal)
@@ -3470,7 +3436,7 @@ toolbar[brighttext] #addonbar-closebutton {
   #navigator-toolbox[tabsontop=false] > #PersonalToolbar:not(:-moz-lwtheme) {
     margin-top: 2px;
     border-top: 1px solid @toolbarShadowColor@;
-    background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
+    background-image: linear-gradient(var(--toolbar-highlight-top), var(--toolbar-highlight-bottom));
   }
   
   @media (-moz-os-version: windows-win10) {
@@ -3494,8 +3460,8 @@ toolbar[brighttext] #addonbar-closebutton {
   /* Rounded corners for when chrome is disabled */
   #main-window[sizemode=normal][disablechrome] #navigator-toolbox[tabsontop=true]:not(:-moz-lwtheme)::after {
     visibility: visible;
-    background-color: @customToolbarColor@;
-    background-image: linear-gradient(@toolbarHighlight@, @toolbarHighlight@);
+    background-color: var(--toolbar-custom-color);
+    background-image: linear-gradient(var(--toolbar-highlight-top), var(--toolbar-highlight-top));
     height: 4px;
   }
 

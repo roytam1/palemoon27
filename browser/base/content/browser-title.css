@@ -164,6 +164,13 @@
       #main-window::after {
         text-align: left;
       }
+      
+      @media (-moz-windows-accent-color-applies: 0) {
+        #main-window:not(:-moz-window-inactive):not(:-moz-lwtheme)::after {
+          /* Default Windows 10 styling is dark - apply a light text styling */
+          color: white;
+        }
+      }
     }
 
     #main-window[sizemode="maximized"]::after {

@@ -5,7 +5,9 @@
 
 #ifndef __nsLookAndFeel
 #define __nsLookAndFeel
+
 #include "nsXPLookAndFeel.h"
+#include "nsIWindowsRegKey.h"
 
 /*
  * Gesture System Metrics
@@ -34,6 +36,15 @@ public:
                            gfxFontStyle& aFontStyle,
                            float aDevPixPerCSSPixel);
   virtual char16_t GetPasswordCharacterImpl();
+private:
+  /**
+   * Fetches the Windows accent color from the Windows settings if
+   * the accent color is set to apply to the title bar, otherwise
+   * returns an error code.
+   */
+  nsresult GetAccentColor(nscolor& aColor);
+  
+  nsCOMPtr<nsIWindowsRegKey> mDwmKey;
 };
 
 #endif

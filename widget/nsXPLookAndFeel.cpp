@@ -226,6 +226,7 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.-moz-mac-menutextselect",
   "ui.-moz_mac_disabledtoolbartext",
   "ui.-moz-mac-secondaryhighlight",
+  "ui.-moz-win-accentcolor",
   "ui.-moz-win-mediatext",
   "ui.-moz-win-communicationstext",
   "ui.-moz-nativehyperlinktext",

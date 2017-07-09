@@ -4630,6 +4630,19 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
     }
     break;
 
+    case WM_SETTINGCHANGE:
+    {
+      if (lParam) {
+        auto lParamString = reinterpret_cast<const wchar_t*>(lParam);
+        if (!wcscmp(lParamString, L"ImmersiveColorSet")) {
+          // WM_SYSCOLORCHANGE is not dispatched for accent color changes
+          OnSysColorChanged();
+          break;
+        }
+      }
+    }
+    break;
+
     case WM_NCCALCSIZE:
     {
       if (mCustomNonClient) {

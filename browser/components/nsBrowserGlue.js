@@ -1128,7 +1128,7 @@ BrowserGlue.prototype = {
       // potential hangs (bug 518683).  The asynchronous shutdown operations
       // will then be handled by a shutdown service (bug 435058).
       waitingForHTMLExportToComplete = false;
-      BookmarkHTMLUtils.exportToFile(FileUtils.getFile("BMarks", [])).then(
+      BookmarkHTMLUtils.exportToFile(BookmarkHTMLUtils.defaultPath).then(
         function onSuccess() {
           waitingForHTMLExportToComplete = true;
         },

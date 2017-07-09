@@ -43,7 +43,16 @@ private:
    * returns an error code.
    */
   nsresult GetAccentColor(nscolor& aColor);
-  
+
+  /**
+   * If the Windows accent color from the Windows settings is set
+   * to apply to the title bar, this computes the color that should
+   * be used for text that is to be written over a background that has
+   * the accent color.  Otherwise, (if the accent color should not
+   * apply to the title bar) this returns an error code.
+   */
+  nsresult GetAccentColorText(nscolor& aColor);
+ 
   nsCOMPtr<nsIWindowsRegKey> mDwmKey;
 };
 

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<blocklist lastupdate="1499610600000"
+<blocklist lastupdate="1499641200000"
 xmlns="http://www.mozilla.org/2006/addons-blocklist">
   <emItems>
     <emItem blockID="i545" id="superlrcs@svenyor.net">
@@ -2473,11 +2473,6 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
     </emItem>
     <emItem blockID="pm106" id="tabutils@angrydroid.com">
       <versionRange minVersion="0" maxVersion="1.9" severity="3">
-      </versionRange>
-      <prefs></prefs>
-    </emItem>
-    <emItem blockID="pm107" id="tabutils@ithinc.cn">
-      <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
     </emItem>

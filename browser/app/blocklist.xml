@@ -2481,7 +2481,7 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
       </versionRange>
       <prefs></prefs>
     </emItem>
-    <emitem blockID="pm108" id="html5@encoding">
+    <emItem blockID="pm108" id="html5@encoding">
       <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>

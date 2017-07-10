@@ -42,6 +42,7 @@
 #include "nsPresShell.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
+#include "nsIContentIterator.h"
 #include "mozilla/dom/BeforeAfterKeyboardEvent.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/Event.h" // for Event::GetEventPopupControlState()
@@ -5087,8 +5088,7 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   nsIDocument* doc = startParent->GetCrossShadowCurrentDoc();
   if (startParent == doc || endParent == doc) {
     ancestorFrame = rootFrame;
-  }
-  else {
+  } else {
     nsINode* ancestor = nsContentUtils::GetCommonAncestor(startParent, endParent);
     NS_ASSERTION(!ancestor || ancestor->IsNodeOfType(nsINode::eCONTENT),
                  "common ancestor is not content");
@@ -5098,6 +5098,8 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
     nsIContent* ancestorContent = static_cast<nsIContent*>(ancestor);
     ancestorFrame = ancestorContent->GetPrimaryFrame();
 
+    // XXX deal with ancestorFrame being null due to display:contents
+
     // use the nearest ancestor frame that includes all continuations as the
     // root for building the display list
     while (ancestorFrame &&
@@ -5105,19 +5107,46 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
       ancestorFrame = ancestorFrame->GetParent();
   }
 
-  if (!ancestorFrame)
+  if (!ancestorFrame) {
     return nullptr;
-
-  info = new RangePaintInfo(range, ancestorFrame);
+  }
 
   // get a display list containing the range
+  info = new RangePaintInfo(range, ancestorFrame);
   info->mBuilder.SetIncludeAllOutOfFlows();
   if (aForPrimarySelection) {
     info->mBuilder.SetSelectedFramesOnly();
   }
   info->mBuilder.EnterPresShell(ancestorFrame);
-  ancestorFrame->BuildDisplayListForStackingContext(&info->mBuilder,
-      ancestorFrame->GetVisualOverflowRect(), &info->mList);
+
+  nsCOMPtr<nsIContentIterator> iter = NS_NewContentSubtreeIterator();
+  nsresult rv = iter->Init(range);
+  if (NS_FAILED(rv)) {
+    return nullptr;
+  }
+
+  auto BuildDisplayListForNode = [&] (nsINode* aNode) {
+    if (MOZ_UNLIKELY(!aNode->IsContent())) {
+      return;
+    }
+    nsIFrame* frame = aNode->AsContent()->GetPrimaryFrame();
+    // XXX deal with frame being null due to display:contents
+    for (; frame; frame = nsLayoutUtils::GetNextContinuationOrIBSplitSibling(frame)) {
+      frame->BuildDisplayListForStackingContext(&info->mBuilder,
+               frame->GetVisualOverflowRect(), &info->mList);
+    }
+  };
+  if (startParent->NodeType() == nsIDOMNode::TEXT_NODE) {
+    BuildDisplayListForNode(startParent);
+  }
+  for (; !iter->IsDone(); iter->Next()) {
+    nsCOMPtr<nsINode> node = iter->GetCurrentNode();
+    BuildDisplayListForNode(node);
+  }
+  if (endParent != startParent &&
+      endParent->NodeType() == nsIDOMNode::TEXT_NODE) {
+    BuildDisplayListForNode(endParent);
+  }
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {

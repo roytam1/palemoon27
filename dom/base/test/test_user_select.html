@@ -34,6 +34,9 @@ a { position:absolute; bottom: 0; right:0; }
 <div id="testB"><n><s>aaaa</s>aaa</n>bbbbbbbbccccccc</div>
 <div id="testC">aaaaaaabbbbbbbb<n>cc<s>c</s>cccc</n></div>
 <div id="testE">aaa<s id="testEc1">aaaa<a class="text">bbbb</a>dd<a>cccc</a>ddddddd</s>eeee</div>
+<div id="testF" style="white-space:pre">aaaa
+<div class="non-selectable">x</div><input>
+bbbbbbb</div>
 
 <iframe id="testD" src="data:text/html,<body>aaaa<span style='-moz-user-select:none'>bbbb</span>cccc"></iframe>
 
@@ -256,6 +259,17 @@ function test()
   checkRangeText('aaaaaabbbbbbbb', 0);
   checkText('aaaaaabbbbbbbb', e);
   checkRanges([[0,1,-1,1]], e);
+  doneTest(e);
+
+  clear();
+  e = document.getElementById('testF');
+  synthesizeMouse(e, 1, 1, {});
+  synthesizeMouse(e, 30, 90, { shiftKey: true });
+  synthesizeMouse(e, 50, 90, { shiftKey: true });
+  synthesizeMouse(e, 70, 90, { shiftKey: true });
+  checkText("aaaa bbb", e);
+  checkRanges([[0,0,-1,1],[-1,2,3,4]], e);
+
   doneTest(e);
 
   // ======================================================

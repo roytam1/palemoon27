@@ -369,7 +369,7 @@ var PlacesOrganizer = {
     let fpCallback = function fpCallback_done(aResult) {
       if (aResult != Ci.nsIFilePicker.returnCancel) {
         Components.utils.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
-        BookmarkHTMLUtils.exportToFile(fp.file.path)
+        BookmarkHTMLUtils.exportToFile(fp.file)
                          .then(null, Components.utils.reportError);
       }
     };

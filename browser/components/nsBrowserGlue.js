@@ -960,7 +960,10 @@ BrowserGlue.prototype = {
         else {
           // We have created a new database but we don't have any backup available
           importBookmarks = true;
-          if (yield OS.File.exists(BookmarkHTMLUtils.defaultPath)) {
+          var dirService = Cc["@mozilla.org/file/directory_service;1"].
+                           getService(Ci.nsIProperties);
+          var bookmarksHTMLFile = dirService.get("BMarks", Ci.nsILocalFile);
+          if (bookmarksHTMLFile.exists()) {
             // If bookmarks.html is available in current profile import it...
             importBookmarksHTML = true;
           }
@@ -1001,19 +1004,25 @@ BrowserGlue.prototype = {
         if (!autoExportHTML && smartBookmarksVersion != -1)
           Services.prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
-        var bookmarksUrl = null;
+        // Get bookmarks.html file location
+        var dirService = Cc["@mozilla.org/file/directory_service;1"].
+                         getService(Ci.nsIProperties);
+
+        var bookmarksURI = null;
         if (restoreDefaultBookmarks) {
           // User wants to restore bookmarks.html file from default profile folder
-          bookmarksUrl = "resource:///defaults/profile/bookmarks.html";
+          bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
         }
-        else if (yield OS.File.exists(BookmarkHTMLUtils.defaultPath)) {
-          bookmarksUrl = OS.Path.toFileURI(BookmarkHTMLUtils.defaultPath);
+        else {
+          var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
+          if (bookmarksFile.exists())
+            bookmarksURI = NetUtil.newURI(bookmarksFile);
         }
 
-        if (bookmarksUrl) {
+        if (bookmarksURI) {
           // Import from bookmarks.html file.
           try {
-            BookmarkHTMLUtils.importFromURL(bookmarksUrl, true).then(null,
+            BookmarkHTMLUtils.importFromURL(bookmarksURI.spec, true).then(null,
               function onFailure() {
                 Cu.reportError(
                     new Error("Bookmarks.html file could be corrupt."));

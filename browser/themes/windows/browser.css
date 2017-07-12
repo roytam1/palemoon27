@@ -3064,7 +3064,7 @@ toolbar[brighttext] #addonbar-closebutton {
       }
       
       :root:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        --window-text-color: #ffffff;
+        --window-text-color: white;
       }
       
       #titlebar-min:not(:-moz-window-inactive):not(:-moz-lwtheme) {
@@ -3085,7 +3085,6 @@ toolbar[brighttext] #addonbar-closebutton {
 
       .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
         background-color: hsla(0, 0%, 100%, .17);
-        transition: background-color linear 120ms;
       }
 
       .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
@@ -3095,37 +3094,10 @@ toolbar[brighttext] #addonbar-closebutton {
       
       #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
         background-color: hsla(0, 86%, 49%, 1);
-        transition: background-color linear 120ms;
       }
 
       #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
         background-color: hsla(0, 60%, 39%, 1);
-        transition: none;
-      }
-      
-      #titlebar-min:-moz-window-inactive:not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize);
-      }
-
-      #titlebar-max:-moz-window-inactive:not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize);
-      }
-
-      #main-window[sizemode="maximized"] #titlebar-max:-moz-window-inactive:not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore);
-      }
-
-      #titlebar-close:-moz-window-inactive:not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#close);
-      }
-      
-      .titlebar-button:-moz-window-inactive:not(:-moz-lwtheme):hover {
-        background-color: hsla(0, 0%, 0%, .17);
-        transition: background-color linear 160ms;
-      }
-
-      .titlebar-button:-moz-window-inactive:not(:-moz-lwtheme):hover:active {
-        background-color: hsla(0, 0%, 0%, .27);
         transition: none;
       }
     }
@@ -3158,7 +3130,6 @@ toolbar[brighttext] #addonbar-closebutton {
       
       .titlebar-button:hover {
         background-color: hsla(0, 0%, 0%, .17);
-        transition: background-color linear 160ms;
       }
 
       .titlebar-button:hover:active {
@@ -3167,25 +3138,8 @@ toolbar[brighttext] #addonbar-closebutton {
       }
       
       /* dark accent color */
-      #main-window[darkwindowframe="true"] #titlebar-min:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-highlight);
-      }
-
-      #main-window[darkwindowframe="true"] #titlebar-max:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize-highlight);
-      }
-
-      #main-window[darkwindowframe="true"][sizemode="maximized"] #titlebar-max:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore-highlight);
-      }
-      
-      #main-window[darkwindowframe="true"] #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
-      }
-
       #main-window[darkwindowframe="true"] .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
         background-color: hsla(0, 0%, 100%, .17);
-        transition: background-color linear 120ms;
       }
 
       #main-window[darkwindowframe="true"] .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
@@ -3195,7 +3149,6 @@ toolbar[brighttext] #addonbar-closebutton {
       
       #main-window[darkwindowframe="true"] #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
         background-color: hsla(0, 86%, 49%, 1);
-        transition: background-color linear 120ms;
       }
 
       #main-window[darkwindowframe="true"] #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
@@ -3217,6 +3170,7 @@ toolbar[brighttext] #addonbar-closebutton {
       border: none;
       margin: 0 !important;
       padding: 9px 17px;
+      transition: background-color linear 120ms;
     }
         
     #main-window[sizemode="maximized"][tabsontop=true] #tabbrowser-tabs {
@@ -3232,7 +3186,7 @@ toolbar[brighttext] #addonbar-closebutton {
       width: 12px;
       height: 12px;
     }
-    
+
     .titlebar-button:not(:hover) > .toolbarbutton-icon:-moz-window-inactive {
       opacity: 0.5;
     }
@@ -3256,7 +3210,43 @@ toolbar[brighttext] #addonbar-closebutton {
       transition: none;
     }
     
+    /* inactive window */
+
+    #titlebar-min:-moz-window-inactive:not(:-moz-lwtheme) {
+      list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-inactive);
+    }
+
+    #titlebar-max:-moz-window-inactive:not(:-moz-lwtheme) {
+      list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize-inactive);
+    }
+
+    #main-window[sizemode="maximized"] #titlebar-max:-moz-window-inactive:not(:-moz-lwtheme) {
+      list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore-inactive);
+    }
+
+    #titlebar-close:-moz-window-inactive:not(:-moz-lwtheme):not(:hover) {
+      list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-inactive);
+    }
+    
+    .titlebar-button:-moz-window-inactive:not(:-moz-lwtheme):hover {
+      background-color: hsla(0, 0%, 0%, .17);
+    }
+
+    .titlebar-button:-moz-window-inactive:not(:-moz-lwtheme):hover:active {
+      background-color: hsla(0, 0%, 0%, .27);
+      transition: none;
+    }
+    
     /* light persona */
+    
+    .titlebar-button:-moz-lwtheme-darktext:hover {
+      background-color: hsla(0, 0%, 0%, .17);
+    }
+
+    .titlebar-button:-moz-lwtheme-darktext:hover:active {
+      background-color: hsla(0, 0%, 0%, .27);
+      transition: none;
+    }
     
     #titlebar-min:-moz-lwtheme-darktext {
       list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-outline);
@@ -3281,7 +3271,6 @@ toolbar[brighttext] #addonbar-closebutton {
     
     .titlebar-button:-moz-lwtheme-brighttext:hover {
       background-color: hsla(0, 0%, 100%, .27);
-      transition: background-color linear 160ms;
     }
 
     .titlebar-button:-moz-lwtheme-brighttext:hover:active {

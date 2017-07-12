@@ -158,6 +158,11 @@
         font-size: 15px;
         text-align: center;
       }
+      
+      #main-window[darkwindowframe="true"]:not(:-moz-window-inactive):not(:-moz-lwtheme)::after {
+        /* Dark window frame/accent color on Win 8 */
+        color: white;
+      }
     }
     
     @media (-moz-os-version: windows-win10) {    
@@ -171,15 +176,17 @@
           color: white;
         }
       }
+      
+      @media (-moz-windows-accent-color-applies) {
+        #main-window:not(:-moz-window-inactive):not(:-moz-lwtheme)::after {
+          /* Accent color is applied - use the associated text styling */
+          color: -moz-win-accentcolortext;
+        }
+      }
     }
 
     #main-window[sizemode="maximized"]::after {
       top: -5px;
-    }
-    
-    #main-window[darkwindowframe="true"]:not(:-moz-window-inactive):not(:-moz-lwtheme)::after {
-      /* Dark window frame/accent color on Win 8/10 */
-      color: white;
     }
   }
   

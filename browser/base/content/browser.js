@@ -903,7 +903,7 @@ var gBrowserInit = {
                                 windowFrameColor[2] * 0.0722;
       let foregroundLuminance = 0; // Default to black for foreground text.
       let contrastRatio = (backgroundLuminance + 0.05) / (foregroundLuminance + 0.05);
-      if (contrastRatio < 9.5) { // Contrast ratio not at least 9.5:1 -- WCAG states minimum 7:1
+      if (contrastRatio < 7) { // Contrast ratio not at least 7:1 -- per WCAG
         document.documentElement.setAttribute("darkwindowframe", "true");
       }
     }

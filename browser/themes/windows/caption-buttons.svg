@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
   <style>
     g {
-      stroke: ButtonText;
+      stroke: -moz-win-accentcolortext;
       stroke-width: 0.9px;
       fill: none;
     }
@@ -19,6 +19,10 @@
 
     .highlight > g {
       stroke: HighlightText;
+    }
+
+    .inactive > g {
+      stroke: black;
     }
     
     .bolder {
@@ -110,4 +114,8 @@
   <use id="maximize-highlight" class="highlight" xlink:href="#maximize"/>
   <use id="minimize-highlight" class="highlight" xlink:href="#minimize"/>
   <use id="restore-highlight" class="highlight" xlink:href="#restore"/>
+  <use id="close-inactive" class="inactive" xlink:href="#close"/>
+  <use id="maximize-inactive" class="inactive" xlink:href="#maximize"/>
+  <use id="minimize-inactive" class="inactive" xlink:href="#minimize"/>
+  <use id="restore-inactive" class="inactive" xlink:href="#restore"/>
 </svg>

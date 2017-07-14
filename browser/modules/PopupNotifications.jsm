@@ -432,7 +432,9 @@ PopupNotifications.prototype = {
   _dismiss: function PopupNotifications_dismiss() {
     let browser = this.panel.firstChild &&
                   this.panel.firstChild.notification.browser;
-    this.panel.hidePopup();
+    if (typeof this.panel.hidePopup === "function") {
+      this.panel.hidePopup();
+    }
     if (browser)
       browser.focus();
   },
@@ -442,7 +444,9 @@ PopupNotifications.prototype = {
    */
   _hidePanel: function PopupNotifications_hide() {
     this._ignoreDismissal = true;
-    this.panel.hidePopup();
+    if (typeof this.panel.hidePopup === "function") {
+      this.panel.hidePopup();
+    }
     this._ignoreDismissal = false;
   },
 

@@ -186,17 +186,20 @@ static char const *const gWebMCodecs[7] = {
   "opus",
   nullptr
 };
+#endif
 
 /* static */ bool
 DecoderTraits::IsWebMType(const nsACString& aType)
 {
+#ifdef MOZ_WEBM
   if (!MediaDecoder::IsWebMEnabled()) {
     return false;
   }
 
   return CodecListContains(gWebMTypes, aType);
-}
 #endif
+  return false;
+}
 
 #ifdef MOZ_OMX_DECODER
 static const char* const gOmxTypes[] = {
@@ -343,6 +346,15 @@ IsMP4SupportedType(const nsACString& aType,
 }
 #endif
 
+/* static */ bool
+DecoderTraits::IsMP4Type(const nsACString& aType)
+{
+#ifdef MOZ_FMP4
+  return IsMP4SupportedType(aType);
+#endif
+  return false;
+}
+
 static bool
 IsMP3SupportedType(const nsACString& aType,
                    const nsAString& aCodecs = EmptyString())
@@ -400,47 +412,44 @@ bool DecoderTraits::ShouldHandleMediaType(const char* aMIMEType)
 
 /* static */
 CanPlayStatus
-DecoderTraits::CanHandleMediaType(const char* aMIMEType,
-                                  bool aHaveRequestedCodecs,
-                                  const nsAString& aRequestedCodecs)
+DecoderTraits::CanHandleCodecsType(const char* aMIMEType,
+                                   const nsAString& aRequestedCodecs)
 {
   char const* const* codecList = nullptr;
-  CanPlayStatus result = CANPLAY_NO;
 #ifdef MOZ_RAW
   if (IsRawType(nsDependentCString(aMIMEType))) {
     codecList = gRawCodecs;
-    result = CANPLAY_MAYBE;
   }
 #endif
   if (IsOggType(nsDependentCString(aMIMEType))) {
     codecList = MediaDecoder::IsOpusEnabled() ? gOggCodecsWithOpus : gOggCodecs;
-    result = CANPLAY_MAYBE;
   }
 #ifdef MOZ_WAVE
   if (IsWaveType(nsDependentCString(aMIMEType))) {
     codecList = gWaveCodecs;
-    result = CANPLAY_MAYBE;
   }
 #endif
-#if defined(MOZ_WEBM) && !defined(MOZ_OMX_WEBM_DECODER)
+#if !defined(MOZ_OMX_WEBM_DECODER)
   if (IsWebMType(nsDependentCString(aMIMEType))) {
     codecList = gWebMCodecs;
-    result = CANPLAY_MAYBE;
   }
 #endif
 #ifdef MOZ_FMP4
-  if (IsMP4SupportedType(nsDependentCString(aMIMEType),
-                                     aRequestedCodecs)) {
-    return aHaveRequestedCodecs ? CANPLAY_YES : CANPLAY_MAYBE;
+  if (IsMP4Type(nsDependentCString(aMIMEType))) {
+    if (IsMP4SupportedType(nsDependentCString(aMIMEType), aRequestedCodecs)) {
+      return CANPLAY_YES;
+    } else {
+      // We can only reach this position if a particular codec was requested,
+      // fmp4 is supported and working: the codec must be invalid.
+      return CANPLAY_NO;
+    }
   }
 #endif
-if (IsMP3SupportedType(nsDependentCString(aMIMEType),
-                                     aRequestedCodecs)) {
-    return aHaveRequestedCodecs ? CANPLAY_YES : CANPLAY_MAYBE;
+  if (IsMP3SupportedType(nsDependentCString(aMIMEType), aRequestedCodecs)) {
+    return CANPLAY_YES;
   }
 #ifdef MOZ_OMX_DECODER
   if (IsOmxSupportedType(nsDependentCString(aMIMEType))) {
-    result = CANPLAY_MAYBE;
     if (nsDependentCString(aMIMEType).EqualsASCII("audio/mpeg")) {
       codecList = gMpegAudioCodecs;
 #ifdef MOZ_OMX_WEBM_DECODER
@@ -454,39 +463,18 @@ if (IsMP3SupportedType(nsDependentCString(aMIMEType),
   }
 #endif
 #ifdef MOZ_DIRECTSHOW
-  // Note: DirectShow should come before WMF, so that we prefer DirectShow's
-  // MP3 support over WMF's.
-  if (DirectShowDecoder::GetSupportedCodecs(nsDependentCString(aMIMEType), &codecList)) {
-    result = CANPLAY_MAYBE;
-  }
-#endif
-#ifdef MOZ_WMF
-  if (IsWMFSupportedType(nsDependentCString(aMIMEType))) {
-    if (!aHaveRequestedCodecs) {
-      return CANPLAY_MAYBE;
-    }
-    return WMFDecoder::CanPlayType(nsDependentCString(aMIMEType),
-                                   aRequestedCodecs)
-           ? CANPLAY_YES : CANPLAY_NO;
-  }
+  DirectShowDecoder::GetSupportedCodecs(nsDependentCString(aMIMEType), &codecList);
 #endif
 #ifdef MOZ_APPLEMEDIA
-  if (IsAppleMediaSupportedType(nsDependentCString(aMIMEType), &codecList)) {
-    result = CANPLAY_MAYBE;
-  }
+  IsAppleMediaSupportedType(nsDependentCString(aMIMEType), &codecList);
 #endif
 #ifdef MOZ_ANDROID_OMX
-  if (MediaDecoder::IsAndroidMediaEnabled() &&
-      GetAndroidMediaPluginHost()->FindDecoder(nsDependentCString(aMIMEType), &codecList))
-    result = CANPLAY_MAYBE;
-#endif
-#ifdef NECKO_PROTOCOL_rtsp
-  if (IsRtspSupportedType(nsDependentCString(aMIMEType))) {
-    result = CANPLAY_MAYBE;
+  if (MediaDecoder::IsAndroidMediaEnabled()) {
+    GetAndroidMediaPluginHost()->FindDecoder(nsDependentCString(aMIMEType), &codecList);
   }
 #endif
-  if (result == CANPLAY_NO || !aHaveRequestedCodecs || !codecList) {
-    return result;
+  if (!codecList) {
+    return CANPLAY_MAYBE;
   }
 
   // See http://www.rfc-editor.org/rfc/rfc4281.txt for the description
@@ -506,7 +494,86 @@ if (IsMP3SupportedType(nsDependentCString(aMIMEType),
     // Last codec name was empty
     return CANPLAY_NO;
   }
+
   return CANPLAY_YES;
+}
+
+/* static */
+CanPlayStatus
+DecoderTraits::CanHandleMediaType(const char* aMIMEType,
+                                  bool aHaveRequestedCodecs,
+                                  const nsAString& aRequestedCodecs)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (aHaveRequestedCodecs) {
+    CanPlayStatus result = CanHandleCodecsType(aMIMEType, aRequestedCodecs);
+    if (result == CANPLAY_NO || result == CANPLAY_YES) {
+      return result;
+    }
+  }
+#ifdef MOZ_RAW
+  if (IsRawType(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+  if (IsOggType(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#ifdef MOZ_WAVE
+  if (IsWaveType(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+  if (IsMP4Type(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#if !defined(MOZ_OMX_WEBM_DECODER)
+  if (IsWebMType(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+  if (IsMP3SupportedType(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+#ifdef MOZ_OMX_DECODER
+  if (IsOmxSupportedType(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+#ifdef MOZ_DIRECTSHOW
+  if (DirectShowDecoder::GetSupportedCodecs(nsDependentCString(aMIMEType), nullptr)) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+#ifdef MOZ_WMF
+  if (IsWMFSupportedType(nsDependentCString(aMIMEType))) {
+    if (!aHaveRequestedCodecs) {
+      return CANPLAY_MAYBE;
+    }
+    return WMFDecoder::CanPlayType(nsDependentCString(aMIMEType),
+                                   aRequestedCodecs)
+           ? CANPLAY_YES : CANPLAY_NO;
+  }
+#endif
+#ifdef MOZ_APPLEMEDIA
+  if (IsAppleMediaSupportedType(nsDependentCString(aMIMEType), nullptr)) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+#ifdef MOZ_ANDROID_OMX
+  if (MediaDecoder::IsAndroidMediaEnabled() &&
+      EnsureAndroidMediaPluginHost()->FindDecoder(nsDependentCString(aMIMEType), nullptr)) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+#ifdef NECKO_PROTOCOL_rtsp
+  if (IsRtspSupportedType(nsDependentCString(aMIMEType))) {
+    return CANPLAY_MAYBE;
+  }
+#endif
+  return CANPLAY_NO;
 }
 
 // Instantiates but does not initialize decoder.
@@ -588,12 +655,10 @@ if (IsMP3SupportedType(aType)) {
     return decoder.forget();
   }
 #endif
-#ifdef MOZ_WEBM
   if (DecoderTraits::IsWebMType(aType)) {
     decoder = new WebMDecoder();
     return decoder.forget();
   }
-#endif
 #ifdef MOZ_DIRECTSHOW
   // Note: DirectShow should come before WMF, so that we prefer DirectShow's
   // MP3 support over WMF's.
@@ -679,11 +744,9 @@ if (IsMP3SupportedType(aType)) {
     decoderReader = new AndroidMediaReader(aDecoder, aType);
   } else
 #endif
-#ifdef MOZ_WEBM
   if (IsWebMType(aType)) {
     decoderReader = new WebMReader(aDecoder);
   } else
-#endif
 #ifdef MOZ_DIRECTSHOW
   // Note: DirectShowReader is preferred for MP3, but if it's disabled we
   // fallback to the WMFReader.
@@ -726,9 +789,7 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
     (IsOmxSupportedType(aType) &&
      !IsB2GSupportOnlyType(aType)) ||
 #endif
-#ifdef MOZ_WEBM
     IsWebMType(aType) ||
-#endif
 #ifdef MOZ_ANDROID_OMX
     (MediaDecoder::IsAndroidMediaEnabled() && IsAndroidMediaType(aType)) ||
 #endif

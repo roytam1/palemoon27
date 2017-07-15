@@ -850,8 +850,8 @@ VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
                      // The image is too big to fit in the cache:
                      !SurfaceCache::CanHold(aParams.size) ||
                      // Image x or y is larger than our cache cap:
-                     aParams.size.width > maxDimension ||
-                     aParams.size.height > maxDimension;
+                     unsigned(aParams.size.width) > maxDimension ||
+                     unsigned(aParams.size.height) > maxDimension;
   if (bypassCache)
     return Show(svgDrawable, aParams);
 

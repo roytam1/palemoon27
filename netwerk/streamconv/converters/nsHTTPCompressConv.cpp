@@ -508,11 +508,12 @@ NS_NewHTTPCompressConv(nsHTTPCompressConv **aHTTPCompressConv)
     if (!aHTTPCompressConv)
         return NS_ERROR_NULL_POINTER;
 
-    *aHTTPCompressConv = new nsHTTPCompressConv();
-
-    if (!*aHTTPCompressConv)
+    nsRefPtr<nsHTTPCompressConv> outVal =
+        new nsHTTPCompressConv();
+    if (!outVal) {
         return NS_ERROR_OUT_OF_MEMORY;
+    }
 
-    NS_ADDREF(*aHTTPCompressConv);
+    outVal.forget(aHTTPCompressConv);
     return NS_OK;
 }

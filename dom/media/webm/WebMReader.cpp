@@ -543,7 +543,7 @@ bool WebMReader::DecodeAudioPacket(NesteggPacketHolder* aHolder)
   return true;
 }
 
-already_AddRefed<NesteggPacketHolder> WebMReader::NextPacket(TrackType aTrackType)
+nsRefPtr<NesteggPacketHolder> WebMReader::NextPacket(TrackType aTrackType)
 {
   // The packet queue that packets will be pushed on if they
   // are not the type we are interested in.
@@ -580,18 +580,18 @@ already_AddRefed<NesteggPacketHolder> WebMReader::NextPacket(TrackType aTrackTyp
 
     if (hasOtherType && otherTrack == holder->Track()) {
       // Save the packet for when we want these packets
-      otherPackets.Push(holder.forget());
+      otherPackets.Push(holder);
       continue;
     }
 
     // The packet is for the track we want to play
     if (hasType && ourTrack == holder->Track()) {
-      return holder.forget();
+      return holder;
     }
   } while (true);
 }
 
-already_AddRefed<NesteggPacketHolder>
+nsRefPtr<NesteggPacketHolder>
 WebMReader::DemuxPacket()
 {
   nestegg_packet* packet;
@@ -635,7 +635,7 @@ WebMReader::DemuxPacket()
     return nullptr;
   }
 
-  return holder.forget();
+  return holder;
 }
 
 bool WebMReader::DecodeAudioData()
@@ -661,10 +661,10 @@ bool WebMReader::FilterPacketByTime(int64_t aEndTime, WebMPacketQueue& aOutput)
     }
     int64_t tstamp = holder->Timestamp();
     if (tstamp >= aEndTime) {
-      PushVideoPacket(holder.forget());
+      PushVideoPacket(holder);
       return true;
     } else {
-      aOutput.PushFront(holder.forget());
+      aOutput.PushFront(holder);
     }
   }
 
@@ -697,7 +697,7 @@ int64_t WebMReader::GetNextKeyframeTime(int64_t aTimeThreshold)
       keyframeTime = holder->Timestamp();
     }
 
-    skipPacketQueue.PushFront(holder.forget());
+    skipPacketQueue.PushFront(holder);
   }
 
   uint32_t size = skipPacketQueue.GetSize();
@@ -722,9 +722,9 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold)
   return mVideoDecoder->DecodeVideoFrame(aKeyframeSkip, aTimeThreshold);
 }
 
-void WebMReader::PushVideoPacket(already_AddRefed<NesteggPacketHolder> aItem)
+void WebMReader::PushVideoPacket(NesteggPacketHolder* aItem)
 {
-    mVideoPackets.PushFront(Move(aItem));
+    mVideoPackets.PushFront(aItem);
 }
 
 nsRefPtr<MediaDecoderReader::SeekPromise>

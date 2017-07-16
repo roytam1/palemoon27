@@ -879,16 +879,12 @@ var gBrowserInit = {
     ToolbarIconColor.init();
 
 #ifdef XP_WIN
-    if ((window.matchMedia("(-moz-os-version: windows-win8)").matches ||
-         window.matchMedia("(-moz-os-version: windows-win10)").matches) &&
+    if (window.matchMedia("(-moz-os-version: windows-win8)").matches &&
         window.matchMedia("(-moz-windows-default-theme)").matches) {
       let windows8WindowFrameColor = Cu.import("resource:///modules/Windows8WindowFrameColor.jsm", {}).Windows8WindowFrameColor;
       
       var windowFrameColor;
-      if (window.matchMedia("(-moz-os-version: windows-win10)").matches)
-        windowFrameColor = windows8WindowFrameColor.get_win10();
-      else
-        windowFrameColor = windows8WindowFrameColor.get_win8();
+      windowFrameColor = windows8WindowFrameColor.get_win8();
 
       // Formula from W3C's WCAG 2.0 spec's color ratio and relative luminance,
       // section 1.3.4, http://www.w3.org/TR/WCAG20/ .

@@ -419,7 +419,7 @@ nsHttpHandler::InitConnectionMgr()
 }
 
 nsresult
-nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request)
+nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request, bool isSecure)
 {
     nsresult rv;
 
@@ -440,7 +440,11 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request)
     }
 
     // Add the "Accept-Encoding" header
-    rv = request->SetHeader(nsHttp::Accept_Encoding, mAcceptEncodings);
+    if (isSecure) {
+        rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpsAcceptEncodings);
+    } else {
+        rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpAcceptEncodings);
+    }
     if (NS_FAILED(rv)) return rv;
 
     // Add the "Do-Not-Track" header
@@ -478,7 +482,7 @@ nsHttpHandler::AddConnectionHeader(nsHttpHeaderArray *request,
 }
 
 bool
-nsHttpHandler::IsAcceptableEncoding(const char *enc)
+nsHttpHandler::IsAcceptableEncoding(const char *enc, bool isSecure)
 {
     if (!enc)
         return false;
@@ -495,7 +499,10 @@ nsHttpHandler::IsAcceptableEncoding(const char *enc)
     if (!PL_strcasecmp(enc, "gzip") || !PL_strcasecmp(enc, "deflate"))
         return true;
 
-    return nsHttp::FindToken(mAcceptEncodings.get(), enc, HTTP_LWS ",") != nullptr;
+    if (isSecure) {
+        return nsHttp::FindToken(mHttpsAcceptEncodings.get(), enc, HTTP_LWS ",") != nullptr;
+    }
+    return nsHttp::FindToken(mHttpAcceptEncodings.get(), enc, HTTP_LWS ",") != nullptr;
 }
 
 nsresult
@@ -1168,8 +1175,18 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         nsXPIDLCString acceptEncodings;
         rv = prefs->GetCharPref(HTTP_PREF("accept-encoding"),
                                   getter_Copies(acceptEncodings));
-        if (NS_SUCCEEDED(rv))
-            SetAcceptEncodings(acceptEncodings);
+        if (NS_SUCCEEDED(rv)) {
+            SetAcceptEncodings(acceptEncodings, false);
+        }
+    }
+    
+    if (PREF_CHANGED(HTTP_PREF("accept-encoding.secure"))) {
+        nsXPIDLCString acceptEncodings;
+        rv = prefs->GetCharPref(HTTP_PREF("accept-encoding.secure"),
+                                  getter_Copies(acceptEncodings));
+        if (NS_SUCCEEDED(rv)) {
+            SetAcceptEncodings(acceptEncodings, true);
+        }
     }
 
     if (PREF_CHANGED(HTTP_PREF("use-cache"))) {
@@ -1734,9 +1751,17 @@ nsHttpHandler::SetAccept(const char *aAccept)
 }
 
 nsresult
-nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings)
+nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings, bool isSecure)
 {
-    mAcceptEncodings = aAcceptEncodings;
+    if (isSecure) {
+        mHttpsAcceptEncodings = aAcceptEncodings;
+    } else {
+        // use legacy list if a secure override is not specified
+        mHttpAcceptEncodings = aAcceptEncodings;
+        if (mHttpsAcceptEncodings.IsEmpty()) {
+            mHttpsAcceptEncodings = aAcceptEncodings;
+        }
+    }
     return NS_OK;
 }
 

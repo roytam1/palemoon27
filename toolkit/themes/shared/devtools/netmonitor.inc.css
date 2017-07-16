@@ -85,19 +85,13 @@
   transition: background-color 0.1s ease-in-out;
 }
 
-.requests-menu-header-button:hover {
+.requests-menu-header-button:not([sorted]):hover {
   background-color: rgba(0,0,0,0.10);
 }
 
-.requests-menu-header-button:hover:active {
-  background-color: rgba(0,0,0,0.25);
-}
-
-.requests-menu-header-button:not(:active)[sorted] {
-  background-color: rgba(0,0,0,0.15);
-}
-
 .requests-menu-header-button[sorted] {
+  background-color: var(--theme-selection-background);
+  color: var(--theme-selection-color);
   background-position: right 6px center;
 }
 

@@ -444,6 +444,14 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
           aResult = NS_SUCCEEDED(GetAccentColor(unused)) ? 1 : 0;
         }
         break;
+    case eIntID_WindowsAccentColorIsDark:
+        {
+          nscolor accentColor;
+          if (NS_SUCCEEDED(GetAccentColor(accentColor))) {
+            aResult = AccentColorIsDark(accentColor) ? 1 : 0;
+          }
+        }
+        break;
     case eIntID_WindowsGlass:
         // Aero Glass is only available prior to Windows 8 when DWM is used.
         aResult = (nsUXThemeData::CheckForCompositor() && !IsWin8OrLater());

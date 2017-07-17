@@ -1192,6 +1192,11 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::windows_accent_color_applies);
   }
 
+  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_WindowsAccentColorIsDark, &metricResult);
+  if (NS_SUCCEEDED(rv) && metricResult) {
+    sSystemMetrics->AppendElement(nsGkAtoms::windows_accent_color_is_dark);
+  }
+
   rv = LookAndFeel::GetInt(LookAndFeel::eIntID_DWMCompositor, &metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_compositor);

@@ -6682,6 +6682,11 @@ nsWindow::OnSysColorChanged()
     // so all presentations get notified properly.
     // See nsWindow::GlobalMsgWindowProc.
     NotifySysColorChanged();
+    // On Windows 10 only, we trigger a theme change to pick up changed media
+    // queries that are needed for accent color changes.
+    if (IsWin10OrLater()) {
+      NotifyThemeChanged();
+    }
   }
 }
 

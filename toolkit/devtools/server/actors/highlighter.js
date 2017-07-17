@@ -1791,6 +1791,7 @@ RectHighlighter.prototype = {
   },
 
   destroy: function() {
+    this.tabActor = null;
     this.markup.destroy();
   },
 

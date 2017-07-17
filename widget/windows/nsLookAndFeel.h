@@ -45,6 +45,11 @@ private:
   nsresult GetAccentColor(nscolor& aColor);
 
   /**
+   * check if the accent color is dark enough to need white text
+   **/
+  bool AccentColorIsDark(nscolor aColor);
+  
+  /**
    * If the Windows accent color from the Windows settings is set
    * to apply to the title bar, this computes the color that should
    * be used for text that is to be written over a background that has

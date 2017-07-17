@@ -469,7 +469,7 @@ CanvasFrameAnonymousContentHelper.prototype = {
     try {
       let doc = this.anonymousContentDocument;
       doc.removeAnonymousContent(this._content);
-    } catch (e) {console.error(e)}
+    } catch (e) {}
     events.off(this.tabActor, "navigate", this._onNavigate);
     this.tabActor = this.nodeBuilder = this._content = null;
     this.anonymousContentDocument = null;

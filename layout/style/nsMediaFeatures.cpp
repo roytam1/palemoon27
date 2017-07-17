@@ -590,6 +590,13 @@ nsMediaFeatures::features[] = {
       GetSystemMetric
     },
     {
+      &nsGkAtoms::_moz_windows_accent_color_is_dark,
+      nsMediaFeature::eMinMaxNotAllowed,
+      nsMediaFeature::eBoolInteger,
+      { &nsGkAtoms::windows_accent_color_is_dark },
+      GetSystemMetric
+    },
+    {
         &nsGkAtoms::_moz_windows_compositor,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,

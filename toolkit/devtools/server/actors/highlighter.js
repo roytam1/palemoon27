@@ -81,6 +81,8 @@ const register = (constructor, typeName=constructor.prototype.typeName) => {
 };
 exports.register = register;
 
+let layoutHelpersMap = new WeakMap();
+
 /**
  * The Highlighter is the server-side entry points for any tool that wishes to
  * highlight elements in some way in the content document.
@@ -630,7 +632,12 @@ AutoRefreshHighlighter.prototype = {
   },
 
   get layoutHelpers() {
-    return new LayoutHelpers(this.win);
+    let _layoutHelpersMap = layoutHelpersMap.get(this.win);
+    if (!_layoutHelpersMap) {
+      layoutHelpersMap.set(this.win, new LayoutHelpers(this.win));
+      _layoutHelpersMap = layoutHelpersMap.get(this.win);
+    }
+    return _layoutHelpersMap;
   },
 
   /**
@@ -1776,7 +1783,12 @@ RectHighlighter.prototype = {
   },
 
   get layoutHelpers() {
-    return new LayoutHelpers(this.win);
+    let _layoutHelpersMap = layoutHelpersMap.get(this.win);
+    if (!_layoutHelpersMap) {
+      layoutHelpersMap.set(this.win, new LayoutHelpers(this.win));
+      _layoutHelpersMap = layoutHelpersMap.get(this.win);
+    }
+    return _layoutHelpersMap;
   },
 
   _buildMarkup: function() {

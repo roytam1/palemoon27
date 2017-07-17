@@ -611,17 +611,28 @@ function AutoRefreshHighlighter(tabActor) {
 
   this.tabActor = tabActor;
   this.browser = tabActor.browser;
-  this.win = tabActor.window;
 
   this.currentNode = null;
   this.currentQuads = {};
-
-  this.layoutHelpers = new LayoutHelpers(this.win);
 
   this.update = this.update.bind(this);
 }
 
 AutoRefreshHighlighter.prototype = {
+  /**
+   * Window corresponding to the current tabActor
+   */
+  get win() {
+    if (!this.tabActor) {
+      return null;
+    }
+    return this.tabActor.window;
+  },
+
+  get layoutHelpers() {
+    return new LayoutHelpers(this.win);
+  },
+
   /**
    * Show the highlighter on a given node
    * @param {DOMNode} node
@@ -758,10 +769,8 @@ AutoRefreshHighlighter.prototype = {
     this.hide();
 
     this.tabActor = null;
-    this.win = null;
     this.browser = null;
     this.currentNode = null;
-    this.layoutHelpers = null;
   }
 };
 
@@ -1747,14 +1756,28 @@ exports.SelectorHighlighter = SelectorHighlighter;
  * there as long as it is shown.
  */
 function RectHighlighter(tabActor) {
-  this.win = tabActor.window;
-  this.layoutHelpers = new LayoutHelpers(this.win);
+  this.tabActor = tabActor;
+
   this.markup = new CanvasFrameAnonymousContentHelper(tabActor,
     this._buildMarkup.bind(this));
 }
 
 RectHighlighter.prototype = {
   typeName: "RectHighlighter",
+
+  /**
+   * Window corresponding to the current tabActor
+   */
+  get win() {
+    if (!this.tabActor) {
+      return null;
+    }
+    return this.tabActor.window;
+  },
+
+  get layoutHelpers() {
+    return new LayoutHelpers(this.win);
+  },
 
   _buildMarkup: function() {
     let doc = this.win.document;
@@ -1768,8 +1791,6 @@ RectHighlighter.prototype = {
   },
 
   destroy: function() {
-    this.win = null;
-    this.layoutHelpers = null;
     this.markup.destroy();
   },
 

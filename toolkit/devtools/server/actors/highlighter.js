@@ -19,6 +19,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 // FIXME: add ":visited" and ":link" after bug 713106 is fixed
 const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
+// Note that the order of items in this array is important because it is used
+// for drawing the BoxModelHighlighter's path elements correctly.
 const BOX_MODEL_REGIONS = ["margin", "border", "padding", "content"];
 const BOX_MODEL_SIDES = ["top", "right", "bottom", "left"];
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -26,7 +28,7 @@ const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const HIGHLIGHTER_STYLESHEET_URI = "resource://gre/modules/devtools/server/actors/highlighter.css";
 const HIGHLIGHTER_PICKED_TIMER = 1000;
 // How high is the nodeinfobar
-const NODE_INFOBAR_HEIGHT = 34; //px
+const NODE_INFOBAR_HEIGHT = 34; // px
 const NODE_INFOBAR_ARROW_SIZE = 9; // px
 // Width of boxmodelhighlighter guides
 const GUIDE_STROKE_WIDTH = 1;
@@ -70,11 +72,11 @@ exports.isTypeRegistered = isTypeRegistered;
  */
 const register = (constructor, typeName=constructor.prototype.typeName) => {
   if (!typeName) {
-    throw Error("No type's name found, or provided.")
+    throw Error("No type's name found, or provided.");
   }
 
   if (highlighterTypes.has(typeName)) {
-    throw Error(`${typeName} is already registered.`)
+    throw Error(`${typeName} is already registered.`);
   }
 
   highlighterTypes.set(typeName, constructor);
@@ -464,12 +466,13 @@ function CanvasFrameAnonymousContentHelper(tabActor, nodeBuilder) {
 
 CanvasFrameAnonymousContentHelper.prototype = {
   destroy: function() {
-    // If the current window isn't the one the content was inserted into, this
-    // will fail, but that's fine.
     try {
       let doc = this.anonymousContentDocument;
       doc.removeAnonymousContent(this._content);
-    } catch (e) {}
+    } catch (e) {
+      // If the current window isn't the one the content was inserted into, this
+      // will fail, but that's fine.
+    }
     events.off(this.tabActor, "navigate", this._onNavigate);
     this.tabActor = this.nodeBuilder = this._content = null;
     this.anonymousContentDocument = null;
@@ -580,8 +583,8 @@ CanvasFrameAnonymousContentHelper.prototype = {
 
     if (zoom !== 1) {
       value = "position:absolute;";
-      value += "transform-origin:top left;transform:scale(" + (1/zoom) + ");";
-      value += "width:" + (100*zoom) + "%;height:" + (100*zoom) + "%;";
+      value += "transform-origin:top left;transform:scale(" + (1 / zoom) + ");";
+      value += "width:" + (100 * zoom) + "%;height:" + (100 * zoom) + "%;";
     }
 
     this.setAttributeForElement(id, "style", value);
@@ -731,7 +734,7 @@ AutoRefreshHighlighter.prototype = {
   /**
    * Update the highlighter if the node has moved since the last update.
    */
-  update: function(e) {
+  update: function() {
     if (!isNodeValid(this.currentNode) || !this._hasMoved()) {
       return;
     }
@@ -1028,7 +1031,7 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
    * Show the highlighter on a given node
    */
   _show: function() {
-    if (BOX_MODEL_REGIONS.indexOf(this.options.region) == -1)  {
+    if (BOX_MODEL_REGIONS.indexOf(this.options.region) == -1) {
       this.options.region = "content";
     }
 
@@ -1367,8 +1370,8 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
       return;
     }
 
-    let {bindingElement:node, pseudo} =
-      CssLogic.getBindingElementAndPseudo(this.currentNode);
+    let {bindingElement: node, pseudo} =
+        CssLogic.getBindingElementAndPseudo(this.currentNode);
 
     // Update the tag, id, classes, pseudo-classes and dimensions
     let tagName = node.tagName;
@@ -1478,8 +1481,6 @@ CssTransformHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.proto
   ID_CLASS_PREFIX: "css-transform-",
 
   _buildMarkup: function() {
-    let doc = this.win.document;
-
     let container = createNode(this.win, {
       attributes: {
         "class": "highlighter-container"
@@ -1510,7 +1511,7 @@ CssTransformHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.proto
 
     // Add a marker tag to the svg root for the arrow tip
     this.markerId = "arrow-marker-" + MARKER_COUNTER;
-    MARKER_COUNTER ++;
+    MARKER_COUNTER++;
     let marker = createSVGNode(this.win, {
       nodeType: "marker",
       parent: svg,
@@ -1608,7 +1609,7 @@ CssTransformHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.proto
 
   _setPolygonPoints: function(quad, id) {
     let points = [];
-    for (let point of ["p1","p2", "p3", "p4"]) {
+    for (let point of ["p1", "p2", "p3", "p4"]) {
       points.push(quad[point].x + "," + quad[point].y);
     }
     this.markup.setAttributeForElement(this.ID_CLASS_PREFIX + id,
@@ -1720,7 +1721,10 @@ SelectorHighlighter.prototype = {
     let nodes = [];
     try {
       nodes = [...node.ownerDocument.querySelectorAll(options.selector)];
-    } catch (e) {}
+    } catch (e) {
+      // It's fine if the provided selector is invalid, nodes will be an empty
+      // array.
+    }
 
     delete options.selector;
 
@@ -1736,7 +1740,7 @@ SelectorHighlighter.prototype = {
       }
       highlighter.show(matchingNode, options);
       this._highlighters.push(highlighter);
-      i ++;
+      i++;
     }
   },
 
@@ -1909,7 +1913,7 @@ SimpleOutlineHighlighter.prototype = {
 
 function isNodeValid(node) {
   // Is it null or dead?
-  if(!node || Cu.isDeadWrapper(node)) {
+  if (!node || Cu.isDeadWrapper(node)) {
     return false;
   }
 
@@ -1937,7 +1941,7 @@ function isNodeValid(node) {
 /**
  * Inject a helper stylesheet in the window.
  */
-let installedHelperSheets = new WeakMap;
+let installedHelperSheets = new WeakMap();
 function installHelperSheet(win, source, type="agent") {
   if (installedHelperSheets.has(win.document)) {
     return;
@@ -2001,7 +2005,7 @@ function createNode(win, options) {
   for (let name in options.attributes || {}) {
     let value = options.attributes[name];
     if (options.prefix && (name === "class" || name === "id")) {
-      value = options.prefix + value
+      value = options.prefix + value;
     }
     node.setAttribute(name, value);
   }

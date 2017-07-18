@@ -886,20 +886,11 @@ var gBrowserInit = {
       var windowFrameColor;
       windowFrameColor = windows8WindowFrameColor.get_win8();
 
-      // Formula from W3C's WCAG 2.0 spec's color ratio and relative luminance,
-      // section 1.3.4, http://www.w3.org/TR/WCAG20/ .
-      windowFrameColor = windowFrameColor.map((color) => {
-        if (color <= 10) {
-          return color / 255 / 12.92;
-        }
-        return Math.pow(((color / 255) + 0.055) / 1.055, 2.4);
-      });
-      let backgroundLuminance = windowFrameColor[0] * 0.2126 +
-                                windowFrameColor[1] * 0.7152 +
-                                windowFrameColor[2] * 0.0722;
-      let foregroundLuminance = 0; // Default to black for foreground text.
-      let contrastRatio = (backgroundLuminance + 0.05) / (foregroundLuminance + 0.05);
-      if (contrastRatio < 7) { // Contrast ratio not at least 7:1 -- per WCAG
+      // Formula from Microsoft's UWP guideline.
+      let backgroundLuminance = (windowFrameColor[0] * 2 +
+                                 windowFrameColor[1] * 5 +
+                                 windowFrameColor[2]) / 8;
+      if (backgroundLuminance <= 128) {
         document.documentElement.setAttribute("darkwindowframe", "true");
       }
     }

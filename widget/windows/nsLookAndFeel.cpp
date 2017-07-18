@@ -752,11 +752,11 @@ nsLookAndFeel::GetAccentColor(nscolor& aColor)
 bool
 nsLookAndFeel::AccentColorIsDark(nscolor aColor)
 {
-  float luminance = 0.2125f * NS_GET_R(aColor) +
-                    0.7154f * NS_GET_G(aColor) +
-                    0.0721f * NS_GET_B(aColor);
+  float luminance = (NS_GET_R(aColor) * 2 +
+                     NS_GET_G(aColor) * 5 +
+                     NS_GET_B(aColor)) / 8;
   
-  return (luminance <= 110);
+  return (luminance <= 128);
 }
 
 /* static */ nsresult

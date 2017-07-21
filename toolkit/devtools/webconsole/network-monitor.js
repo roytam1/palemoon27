@@ -940,8 +940,23 @@ NetworkMonitor.prototype = {
 
     let response = {};
     response.httpVersion = statusLineArray.shift();
-    response.remoteAddress = aHttpActivity.channel.remoteAddress;
-    response.remotePort = aHttpActivity.channel.remotePort;
+    // XXX: 
+    // Sometimes, when using a proxy server (manual proxy configuration),
+    // throws an errors:
+    // 0x80040111 (NS_ERROR_NOT_AVAILABLE)
+    // [nsIHttpChannelInternal.remoteAddress]
+    response.remoteAddress = null;
+    try {
+      response.remoteAddress = aHttpActivity.channel.remoteAddress;
+    } catch (e) {
+      Cu.reportError(e);
+    }
+    response.remotePort = null;
+    try {
+      response.remotePort = aHttpActivity.channel.remotePort;
+    } catch (e) {
+      Cu.reportError(e);
+    }
     response.status = statusLineArray.shift();
     response.statusText = statusLineArray.join(" ");
     response.headersSize = aExtraStringData.length;

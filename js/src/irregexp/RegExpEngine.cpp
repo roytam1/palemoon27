@@ -4033,11 +4033,12 @@ class AlternativeGenerationList
         alt_gens_.reserve(count);
         for (size_t i = 0; i < count && i < kAFew; i++)
             alt_gens_.append(a_few_alt_gens_ + i);
-        for (size_t i = kAFew; i < count; i++)
+        for (size_t i = kAFew; i < count; i++) {
             AlternativeGeneration* gen = js_new<AlternativeGeneration>();
             if (!gen)
                 MOZ_CRASH("AlternativeGenerationList js_new");
             alt_gens_.append(gen);
+        }
     }
 
     ~AlternativeGenerationList() {

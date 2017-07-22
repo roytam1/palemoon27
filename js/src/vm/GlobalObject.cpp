@@ -388,7 +388,7 @@ GlobalObject::initSelfHostingBuiltins(JSContext* cx, Handle<GlobalObject*> globa
            InitBareBuiltinCtor(cx, global, JSProto_Uint8Array) &&
            InitBareBuiltinCtor(cx, global, JSProto_Uint32Array) &&
            InitBareWeakMapCtor(cx, global) &&
-           initStopIterationClass(cx, global) &&
+           js_InitStopIterationClass(cx, global) &&
            InitSelfHostingCollectionIteratorFunctions(cx, global) &&
            JS_DefineFunctions(cx, global, builtins);
 }

@@ -76,8 +76,8 @@
     real(SyntaxError,           16,     js_InitViaClassSpec,       ERROR_CLASP(JSEXN_SYNTAXERR)) \
     real(TypeError,             17,     js_InitViaClassSpec,       ERROR_CLASP(JSEXN_TYPEERR)) \
     real(URIError,              18,     js_InitViaClassSpec,       ERROR_CLASP(JSEXN_URIERR)) \
-    real(Iterator,              19,     js_InitIteratorClasses,    OCLASP(PropertyIterator)) \
-    real(StopIteration,         20,     js_InitIteratorClasses,    OCLASP(StopIteration)) \
+    real(Iterator,              19,     js_InitLegacyIteratorClass,OCLASP(PropertyIterator)) \
+    real(StopIteration,         20,     js_InitStopIterationClass, OCLASP(StopIteration)) \
     real(ArrayBuffer,           21,     js_InitArrayBufferClass,   &js::ArrayBufferObject::protoClass) \
     real(Int8Array,             22,     js_InitViaClassSpec,       TYPED_ARRAY_CLASP(Int8)) \
     real(Uint8Array,            23,     js_InitViaClassSpec,       TYPED_ARRAY_CLASP(Uint8)) \
@@ -97,7 +97,7 @@
 IF_SAB(real,imaginary)(SharedArrayBuffer,       37,     js_InitSharedArrayBufferClass, &js::SharedArrayBufferObject::protoClass) \
 IF_INTL(real,imaginary) (Intl,                  38,     js_InitIntlClass,          CLASP(Intl)) \
 IF_BDATA(real,imaginary)(TypedObject,           39,     js_InitTypedObjectModuleObject,   OCLASP(TypedObjectModule)) \
-    imaginary(GeneratorFunction,     40,     js_InitIteratorClasses, dummy) \
+    real(SavedFrame,            40,     js_InitViaClassSpec,       &js::SavedFrame::class_) \
 IF_BDATA(real,imaginary)(SIMD,                  41,     js_InitSIMDClass, OCLASP(SIMD)) \
     real(WeakSet,               42,     js_InitWeakSetClass,       OCLASP(WeakSet)) \
 IF_SAB(real,imaginary)(SharedInt8Array,         43,     js_InitViaClassSpec,       SHARED_TYPED_ARRAY_CLASP(Int8)) \
@@ -109,9 +109,9 @@ IF_SAB(real,imaginary)(SharedUint32Array,       48,     js_InitViaClassSpec,    
 IF_SAB(real,imaginary)(SharedFloat32Array,      49,     js_InitViaClassSpec,       SHARED_TYPED_ARRAY_CLASP(Float32)) \
 IF_SAB(real,imaginary)(SharedFloat64Array,      50,     js_InitViaClassSpec,       SHARED_TYPED_ARRAY_CLASP(Float64)) \
 IF_SAB(real,imaginary)(SharedUint8ClampedArray, 51,     js_InitViaClassSpec,       SHARED_TYPED_ARRAY_CLASP(Uint8Clamped)) \
-    real(TypedArray,            52,      js_InitViaClassSpec,      &js::TypedArrayObject::sharedTypedArrayPrototypeClass) \
+    real(TypedArray,            52,     js_InitViaClassSpec,       &js::TypedArrayObject::sharedTypedArrayPrototypeClass) \
 IF_SAB(real,imaginary)(Atomics,                 53,     js_InitAtomicsClass, OCLASP(Atomics)) \
-    real(SavedFrame,            54,      js_InitViaClassSpec,      &js::SavedFrame::class_) \
+
 
 
 #define JS_FOR_EACH_PROTOTYPE(macro) JS_FOR_PROTOTYPES(macro,macro)

@@ -423,11 +423,10 @@ already_AddRefed<nsIScriptTimeoutHandler>
 NS_CreateJSTimeoutHandler(JSContext* aCx, nsGlobalWindow *aWindow,
                           const nsAString& aExpression, ErrorResult& aError)
 {
-  ErrorResult rv;
   bool allowEval = false;
   nsRefPtr<nsJSScriptTimeoutHandler> handler =
-    new nsJSScriptTimeoutHandler(aCx, aWindow, aExpression, &allowEval, rv);
-  if (rv.Failed() || !allowEval) {
+    new nsJSScriptTimeoutHandler(aCx, aWindow, aExpression, &allowEval, aError);
+  if (aError.Failed() || !allowEval) {
     return nullptr;
   }
 

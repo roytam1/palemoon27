@@ -215,6 +215,9 @@ CreateItrResultObject(JSContext* cx, HandleValue value, bool done);
 } /* namespace js */
 
 extern JSObject*
-js_InitIteratorClasses(JSContext* cx, js::HandleObject obj);
+js_InitLegacyIteratorClass(JSContext* cx, js::HandleObject obj);
+
+extern JSObject*
+js_InitStopIterationClass(JSContext* cx, js::HandleObject obj);
 
 #endif /* jsiter_h */

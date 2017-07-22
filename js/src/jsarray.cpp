@@ -3273,6 +3273,7 @@ CreateArrayPrototype(JSContext* cx, JSProtoKey key)
                                                               gc::TenuredHeap, shape, group, 0));
     if (!arrayProto ||
         !JSObject::setSingleton(cx, arrayProto) ||
+        !arrayProto->setDelegate(cx) ||
         !AddLengthProperty(cx, arrayProto))
     {
         return nullptr;

@@ -12,6 +12,7 @@
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsnum.h"
+#include "jsiter.h"
 
 #include "builtin/RegExp.h"
 #include "js/Vector.h"
@@ -21,6 +22,9 @@
 
 extern JSObject*
 js_InitSharedArrayBufferClass(JSContext* cx, js::HandleObject obj);
+
+extern JSObject*
+js_InitStopIterationClass(JSContext* cx, js::HandleObject obj);
 
 namespace js {
 
@@ -89,11 +93,14 @@ class GlobalObject : public NativeObject
     static const unsigned FROM_BUFFER_UINT8CLAMPED = FROM_BUFFER_FLOAT64 + 1;
 
     /* One-off properties stored after slots for built-ins. */
-    static const unsigned ARRAY_ITERATOR_PROTO  = FROM_BUFFER_UINT8CLAMPED + 1;
+    static const unsigned ITERATOR_PROTO         = FROM_BUFFER_UINT8CLAMPED + 1;
+    static const unsigned ARRAY_ITERATOR_PROTO   = ITERATOR_PROTO + 1;
     static const unsigned STRING_ITERATOR_PROTO  = ARRAY_ITERATOR_PROTO + 1;
     static const unsigned LEGACY_GENERATOR_OBJECT_PROTO = STRING_ITERATOR_PROTO + 1;
     static const unsigned STAR_GENERATOR_OBJECT_PROTO = LEGACY_GENERATOR_OBJECT_PROTO + 1;
-    static const unsigned MAP_ITERATOR_PROTO      = STAR_GENERATOR_OBJECT_PROTO + 1;
+    static const unsigned STAR_GENERATOR_FUNCTION_PROTO = STAR_GENERATOR_OBJECT_PROTO + 1;
+    static const unsigned STAR_GENERATOR_FUNCTION = STAR_GENERATOR_FUNCTION_PROTO + 1;
+    static const unsigned MAP_ITERATOR_PROTO      = STAR_GENERATOR_FUNCTION + 1;
     static const unsigned SET_ITERATOR_PROTO      = MAP_ITERATOR_PROTO + 1;
     static const unsigned COLLATOR_PROTO          = SET_ITERATOR_PROTO + 1;
     static const unsigned NUMBER_FORMAT_PROTO     = COLLATOR_PROTO + 1;
@@ -454,7 +461,7 @@ class GlobalObject : public NativeObject
 
     TypedObjectModuleObject& getTypedObjectModule() const;
 
-    JSObject* getIteratorPrototype() {
+    JSObject* getLegacyIteratorPrototype() {
         return &getPrototype(JSProto_Iterator).toObject();
     }
 
@@ -501,59 +508,44 @@ class GlobalObject : public NativeObject
     static NativeObject* getOrCreateIteratorPrototype(JSContext* cx,
                                                       Handle<GlobalObject*> global)
     {
-        if (!ensureConstructor(cx, global, JSProto_Iterator))
-            return nullptr;
-        size_t slot = APPLICATION_SLOTS + JSProto_LIMIT + JSProto_Iterator;
-        return &global->getSlot(slot).toObject().as<NativeObject>();
+        return MaybeNativeObject(global->getOrCreateObject(cx, ITERATOR_PROTO, initIteratorProto));
     }
 
     static NativeObject* getOrCreateArrayIteratorPrototype(JSContext* cx,
                                                            Handle<GlobalObject*> global)
     {
-        if (!ensureConstructor(cx, global, JSProto_Iterator))
-            return nullptr;
-        return &global->getSlot(ARRAY_ITERATOR_PROTO).toObject().as<NativeObject>();
+        return MaybeNativeObject(global->getOrCreateObject(cx, ARRAY_ITERATOR_PROTO, initArrayIteratorProto));
     }
 
     static NativeObject* getOrCreateStringIteratorPrototype(JSContext* cx,
                                                             Handle<GlobalObject*> global)
     {
-        if (!ensureConstructor(cx, global, JSProto_Iterator))
-            return nullptr;
-        return &global->getSlot(STRING_ITERATOR_PROTO).toObject().as<NativeObject>();
+        return MaybeNativeObject(global->getOrCreateObject(cx, STRING_ITERATOR_PROTO, initStringIteratorProto));
     }
 
     static NativeObject* getOrCreateLegacyGeneratorObjectPrototype(JSContext* cx,
                                                                    Handle<GlobalObject*> global)
     {
-        if (!ensureConstructor(cx, global, JSProto_Iterator))
-            return nullptr;
-        return &global->getSlot(LEGACY_GENERATOR_OBJECT_PROTO).toObject().as<NativeObject>();
+        return MaybeNativeObject(global->getOrCreateObject(cx, LEGACY_GENERATOR_OBJECT_PROTO,
+                                                           initLegacyGeneratorProto));
     }
 
     static NativeObject* getOrCreateStarGeneratorObjectPrototype(JSContext* cx,
                                                                  Handle<GlobalObject*> global)
     {
-        if (!ensureConstructor(cx, global, JSProto_Iterator))
-            return nullptr;
-        return &global->getSlot(STAR_GENERATOR_OBJECT_PROTO).toObject().as<NativeObject>();
+        return MaybeNativeObject(global->getOrCreateObject(cx, STAR_GENERATOR_OBJECT_PROTO, initStarGenerators));
     }
 
     static NativeObject* getOrCreateStarGeneratorFunctionPrototype(JSContext* cx,
                                                                    Handle<GlobalObject*> global)
     {
-        if (!ensureConstructor(cx, global, JSProto_Iterator))
-            return nullptr;
-        size_t slot = APPLICATION_SLOTS + JSProto_LIMIT + JSProto_GeneratorFunction;
-        return &global->getSlot(slot).toObject().as<NativeObject>();
+        return MaybeNativeObject(global->getOrCreateObject(cx, STAR_GENERATOR_FUNCTION_PROTO, initStarGenerators));
     }
 
     static JSObject* getOrCreateStarGeneratorFunction(JSContext* cx,
                                                       Handle<GlobalObject*> global)
     {
-        if (!ensureConstructor(cx, global, JSProto_Iterator))
-            return nullptr;
-        return &global->getSlot(APPLICATION_SLOTS + JSProto_GeneratorFunction).toObject();
+        return global->getOrCreateObject(cx, STAR_GENERATOR_FUNCTION, initStarGenerators);
     }
 
     static JSObject* getOrCreateMapIteratorPrototype(JSContext* cx,
@@ -662,11 +654,13 @@ class GlobalObject : public NativeObject
     bool valueIsEval(Value val);
 
     // Implemented in jsiter.cpp.
-    static bool initIteratorClasses(JSContext* cx, Handle<GlobalObject*> global);
-    static bool initStopIterationClass(JSContext* cx, Handle<GlobalObject*> global);
+    static bool initIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
+    static bool initArrayIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
+    static bool initStringIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
 
     // Implemented in vm/GeneratorObject.cpp.
-    static bool initGeneratorClasses(JSContext* cx, Handle<GlobalObject*> global);
+    static bool initLegacyGeneratorProto(JSContext* cx, Handle<GlobalObject*> global);
+    static bool initStarGenerators(JSContext* cx, Handle<GlobalObject*> global);
 
     // Implemented in builtin/MapObject.cpp.
     static bool initMapIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
@@ -706,6 +700,11 @@ class GlobalObject : public NativeObject
         return &forOfPIC.toObject().as<NativeObject>();
     }
     static NativeObject* getOrCreateForOfPICObject(JSContext* cx, Handle<GlobalObject*> global);
+
+    // Returns either this global's star-generator function prototype, or null
+    // if that object was never created.  Dodgy; for use only in also-dodgy
+    // GlobalHelperThreadState::mergeParseTaskCompartment().
+    JSObject* getStarGeneratorFunctionPrototype();
 };
 
 template<>

@@ -131,7 +131,8 @@ class LinearSum
       : terms_(other.terms_.allocPolicy()),
         constant_(other.constant_)
     {
-        terms_.appendAll(other.terms_);
+        if (!terms_.appendAll(other.terms_))
+          MOZ_CRASH("LinearSum::LinearSum");
     }
 
     // These return false on an integer overflow, and afterwards the sum must

@@ -346,6 +346,8 @@ TraceLoggerThread::getOrCreateEventPayload(TraceLoggerTextId textId)
         return p->value();
 
     TraceLoggerEventPayload* payload = js_new<TraceLoggerEventPayload>(textId, (char*)nullptr);
+    if (!payload)
+        return nullptr;
 
     if (!extraTextId.add(p, textId, payload))
         return nullptr;

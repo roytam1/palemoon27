@@ -3665,7 +3665,7 @@ Zone::sweepCompartments(FreeOp* fop, bool keepAtleastOne, bool destroyingRuntime
             foundOne = true;
         }
     }
-    compartments.resize(write - compartments.begin());
+    compartments.shrinkTo(write - compartments.begin());
     MOZ_ASSERT_IF(keepAtleastOne, !compartments.empty());
 }
 
@@ -3709,7 +3709,7 @@ GCRuntime::sweepZones(FreeOp* fop, bool destroyingRuntime)
         }
         *write++ = zone;
     }
-    zones.resize(write - zones.begin());
+    zones.shrinkTo(write - zones.begin());
 }
 
 void

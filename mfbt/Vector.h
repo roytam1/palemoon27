@@ -507,6 +507,12 @@ public:
    */
   void shrinkBy(size_t aIncr);
 
+  /**
+   * Destroy elements in the range [aNewLength, end()). Does not deallocate
+   * or unreserve storage for those elements.
+   */
+  void shrinkTo(size_t aNewLength);
+
   /** Grow the vector by aIncr elements. */
   bool growBy(size_t aIncr);
 
@@ -887,13 +893,21 @@ VectorBase<T, N, AP, TV>::reserve(size_t aRequest)
 }
 
 template<typename T, size_t N, class AP, class TV>
-inline void
+MOZ_ALWAYS_INLINE void
 VectorBase<T, N, AP, TV>::shrinkBy(size_t aIncr)
 {
   MOZ_REENTRANCY_GUARD_ET_AL;
   MOZ_ASSERT(aIncr <= mLength);
   Impl::destroy(endNoCheck() - aIncr, endNoCheck());
   mLength -= aIncr;
+}
+
+template<typename T, size_t N, class AP, class TV>
+MOZ_ALWAYS_INLINE void
+VectorBase<T, N, AP, TV>::shrinkTo(size_t aNewLength)
+{
+  MOZ_ASSERT(aNewLength <= mLength);
+  shrinkBy(mLength - aNewLength);
 }
 
 template<typename T, size_t N, class AP, class TV>

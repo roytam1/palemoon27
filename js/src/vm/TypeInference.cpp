@@ -3606,7 +3606,10 @@ TypeNewScript::rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* g
     RootedFunction function(cx, this->function());
     Vector<uint32_t, 32> pcOffsets(cx);
     for (ScriptFrameIter iter(cx); !iter.done(); ++iter) {
-        pcOffsets.append(iter.script()->pcToOffset(iter.pc()));
+        {
+            if (!pcOffsets.append(iter.script()->pcToOffset(iter.pc())))
+                MOZ_CRASH("rollbackPartiallyInitializedObjects");
+        }
 
         if (!iter.isConstructing() || !iter.matchCallee(cx, function))
             continue;

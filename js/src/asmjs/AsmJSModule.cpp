@@ -1655,20 +1655,23 @@ AsmJSModule::changeHeap(Handle<ArrayBufferObject*> newHeap, JSContext* cx)
     return true;
 }
 
-void
-AsmJSModule::setProfilingEnabled(bool enabled, JSContext* cx)
+bool
+AsmJSModule::setProfilingEnabled(JSContext* cx, bool enabled)
 {
     MOZ_ASSERT(isDynamicallyLinked());
 
     if (profilingEnabled_ == enabled)
-        return;
+        return true;
 
     // When enabled, generate profiling labels for every name in names_ that is
     // the name of some Function CodeRange. This involves malloc() so do it now
     // since, once we start sampling, we'll be in a signal-handing context where
     // we cannot malloc.
     if (enabled) {
-        profilingLabels_.resize(names_.length());
+        if (!profilingLabels_.resize(names_.length())) {
+            js_ReportOutOfMemory(cx);
+            return false;
+        }
         const char* filename = scriptSource_->filename();
         JS::AutoCheckCannotGC nogc;
         for (size_t i = 0; i < codeRanges_.length(); i++) {
@@ -1677,10 +1680,18 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext* cx)
                 continue;
             unsigned lineno = cr.functionLineNumber();
             PropertyName* name = names_[cr.functionNameIndex()].name();
+            void* label = name->hasLatin1Chars()
+                ? JS_smprintf("%s (%s:%u)", name->latin1Chars(nogc), filename, lineno)
+                : JS_smprintf("%hs (%s:%u)", name->twoByteChars(nogc), filename, lineno);
+            if (!label) {
+                js_ReportOutOfMemory(cx);
+                return false;
+            }
+            // XXX: A link to the variable:
             profilingLabels_[cr.functionNameIndex()].reset(
                 name->hasLatin1Chars()
-                ? JS_smprintf("%s (%s:%u)", name->latin1Chars(nogc), filename, lineno)
-                : JS_smprintf("%hs (%s:%u)", name->twoByteChars(nogc), filename, lineno));
+                  ? JS_smprintf("%s (%s:%u)", name->latin1Chars(nogc), filename, lineno)
+                  : JS_smprintf("%hs (%s:%u)", name->twoByteChars(nogc), filename, lineno));
         }
     } else {
         profilingLabels_.clear();
@@ -1834,6 +1845,7 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext* cx)
     }
 
     profilingEnabled_ = enabled;
+    return true;
 }
 
 static bool

@@ -3879,8 +3879,8 @@ Debugger::setupTraceLogger(JSContext* cx, unsigned argc, Value* vp)
         if (!GetProperty(cx, obj, obj, ids[i], &v))
             return false;
 
-        textIds.append(textId);
-        values.append(ToBoolean(v));
+        textIds.infallibleAppend(textId);
+        values.infallibleAppend(ToBoolean(v));
     }
 
     MOZ_ASSERT(ids.length() == textIds.length());

@@ -1570,7 +1570,7 @@ class AsmJSModule
         MOZ_ASSERT(isDynamicallyLinked());
         return profilingEnabled_;
     }
-    void setProfilingEnabled(bool enabled, JSContext* cx);
+    MOZ_WARN_UNUSED_RESULT bool setProfilingEnabled(JSContext* cx, bool enabled);
     void setInterrupted(bool interrupted) {
         MOZ_ASSERT(isDynamicallyLinked());
         interrupted_ = interrupted;

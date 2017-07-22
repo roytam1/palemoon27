@@ -1502,7 +1502,7 @@ js_InitStopIterationClass(JSContext* cx, HandleObject obj)
         if (!GlobalObject::initBuiltinConstructor(cx, global, JSProto_StopIteration, proto, proto))
             return nullptr;
 
-         global->setConstructor(JSProto_StopIteration, ObjectValue(*proto));
+        global->setConstructor(JSProto_StopIteration, ObjectValue(*proto));
     }
 
     return &global->getPrototype(JSProto_StopIteration).toObject();

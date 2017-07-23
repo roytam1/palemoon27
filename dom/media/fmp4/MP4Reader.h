@@ -34,7 +34,7 @@ class MP4Reader final : public MediaDecoderReader
   typedef TrackInfo::TrackType TrackType;
 
 public:
-  explicit MP4Reader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue = nullptr);
+  explicit MP4Reader(AbstractMediaDecoder* aDecoder);
 
   virtual ~MP4Reader();
 

@@ -192,7 +192,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
                                                    bool aRealTime) :
   mDecoder(aDecoder),
   mTaskQueue(new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
-                                /* aSupportsTailDispatch = */ true)),
+                                /* aAssertTailDispatch = */ true)),
   mWatchManager(this, mTaskQueue),
   mRealTime(aRealTime),
   mDispatchedStateMachine(false),
@@ -1222,6 +1222,10 @@ bool MediaDecoderStateMachine::IsPlaying() const
 nsresult MediaDecoderStateMachine::Init(MediaDecoderStateMachine* aCloneDonor)
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+  if (NS_WARN_IF(!mReader->EnsureTaskQueue())) {
+    return NS_ERROR_FAILURE;
+  }
 
   MediaDecoderReader* cloneReader = nullptr;
   if (aCloneDonor) {

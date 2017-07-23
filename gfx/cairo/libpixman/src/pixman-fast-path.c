@@ -1256,7 +1256,6 @@ scaled_bilinear_scanline_8888_8888_OVER (uint32_t *       dst,
 	uint32_t br = src_bottom [pixman_fixed_to_int (vx) + 1];
 	uint32_t src;
 	uint32_t d;
-	uint32_t result;
 	d = *dst;
 	src = bilinear_interpolation (tl, tr,
 				      bl, br,

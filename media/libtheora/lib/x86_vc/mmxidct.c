@@ -303,7 +303,6 @@ static const OC_ALIGN16(ogg_uint16_t) OC_IDCT_CONSTS[(1+7)*4]={
 #define OC_8          OC_MID(OC_EIGHT_OFFSET,0)
 
 static void oc_idct8x8_slow(ogg_int16_t _y[64],ogg_int16_t _x[64]){
-  int i;
   /*This routine accepts an 8x8 matrix, but in partially transposed form.
     Every 4x4 block is transposed.*/
   __asm{

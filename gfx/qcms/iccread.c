@@ -1303,7 +1303,7 @@ void qcms_data_from_unicode_path(const wchar_t *path, void **mem, size_t *size)
 #define ICC_PROFILE_HEADER_LENGTH 128
 void qcms_data_create_rgb_with_gamma(qcms_CIE_xyY white_point, qcms_CIE_xyYTRIPLE primaries, float gamma, void **mem, size_t *size)
 {
-	uint32_t length, offset, index, xyz_count, trc_count;
+	uint32_t length, index, xyz_count, trc_count;
 	size_t tag_table_offset, tag_data_offset;
 	void *data;
 	struct matrix colorants;

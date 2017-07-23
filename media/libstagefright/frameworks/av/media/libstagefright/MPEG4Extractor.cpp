@@ -3370,7 +3370,6 @@ size_t MPEG4Source::parseNALSize(const uint8_t *data) const {
 
 status_t MPEG4Source::lookForMoof() {
     off64_t offset = 0;
-    off64_t size;
     while (true) {
         uint32_t hdr[2];
         auto x = mDataSource->readAt(offset, hdr, 8);

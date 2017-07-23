@@ -147,8 +147,8 @@ static void webm_log(nestegg * context,
 static bool sIsIntelDecoderEnabled = false;
 #endif
 
-WebMReader::WebMReader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue)
-  : MediaDecoderReader(aDecoder, aBorrowedTaskQueue)
+WebMReader::WebMReader(AbstractMediaDecoder* aDecoder)
+  : MediaDecoderReader(aDecoder)
   , mContext(nullptr)
   , mVideoTrack(0)
   , mAudioTrack(0)

@@ -30,8 +30,7 @@ class MediaFormatReader final : public MediaDecoderReader
 
 public:
   explicit MediaFormatReader(AbstractMediaDecoder* aDecoder,
-                             MediaDataDemuxer* aDemuxer,
-                             MediaTaskQueue* aBorrowedTaskQueue = nullptr);
+                               MediaDataDemuxer* aDemuxer);
 
   virtual ~MediaFormatReader();
 

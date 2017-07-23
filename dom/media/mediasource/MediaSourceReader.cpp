@@ -663,8 +663,7 @@ MediaSourceReader::ReleaseMediaResources()
 }
 
 MediaDecoderReader*
-CreateReaderForType(const nsACString& aType, AbstractMediaDecoder* aDecoder,
-                    MediaTaskQueue* aBorrowedTaskQueue)
+CreateReaderForType(const nsACString& aType, AbstractMediaDecoder* aDecoder)
 {
 #ifdef MOZ_FMP4
   // The MP4Reader that supports fragmented MP4 and uses
@@ -677,15 +676,15 @@ CreateReaderForType(const nsACString& aType, AbstractMediaDecoder* aDecoder,
     bool useFormatDecoder =
       Preferences::GetBool("media.mediasource.format-reader.mp4", true);
     MediaDecoderReader* reader = useFormatDecoder ?
-      static_cast<MediaDecoderReader*>(new MediaFormatReader(aDecoder, new MP4Demuxer(aDecoder->GetResource()), aBorrowedTaskQueue)) :
-      static_cast<MediaDecoderReader*>(new MP4Reader(aDecoder, aBorrowedTaskQueue));
+      static_cast<MediaDecoderReader*>(new MediaFormatReader(aDecoder, new MP4Demuxer(aDecoder->GetResource()))) :
+      static_cast<MediaDecoderReader*>(new MP4Reader(aDecoder));
     return reader;
   }
 #endif
 
 #ifdef MOZ_WEBM
   if (DecoderTraits::IsWebMType(aType)) {
-    return new WebMReader(aDecoder, aBorrowedTaskQueue);
+    return new WebMReader(aDecoder);
   }
 #endif
 
@@ -698,17 +697,10 @@ MediaSourceReader::CreateSubDecoder(const nsACString& aType, int64_t aTimestampO
   if (IsShutdown()) {
     return nullptr;
   }
-
-  // The task queue borrowing is icky. It would be nicer to just give each subreader
-  // its own task queue. Unfortunately though, Request{Audio,Video}Data implementations
-  // currently assert that they're on "the decode thread", and so having
-  // separate task queues makes MediaSource stuff unnecessarily cumbersome. We
-  // should remove the need for these assertions (which probably involves making
-  // all Request*Data implementations fully async), and then get rid of the
-  // borrowing.
+  MOZ_ASSERT(GetTaskQueue());
   nsRefPtr<SourceBufferDecoder> decoder =
     new SourceBufferDecoder(new SourceBufferResource(aType), mDecoder, aTimestampOffset);
-  nsRefPtr<MediaDecoderReader> reader(CreateReaderForType(aType, decoder, GetTaskQueue()));
+  nsRefPtr<MediaDecoderReader> reader(CreateReaderForType(aType, decoder));
   if (!reader) {
     return nullptr;
   }
@@ -720,6 +712,15 @@ MediaSourceReader::CreateSubDecoder(const nsACString& aType, int64_t aTimestampO
     ReentrantMonitorAutoEnter mon(decoder->GetReentrantMonitor());
     reader->SetStartTime(0);
   }
+
+  // This part is icky. It would be nicer to just give each subreader its own
+  // task queue. Unfortunately though, Request{Audio,Video}Data implementations
+  // currently assert that they're on "the decode thread", and so having
+  // separate task queues makes MediaSource stuff unnecessarily cumbersome. We
+  // should remove the need for these assertions (which probably involves making
+  // all Request*Data implementations fully async), and then get rid of the
+  // borrowing.
+  reader->SetBorrowedTaskQueue(GetTaskQueue());
 
 #ifdef MOZ_FMP4
   reader->SetSharedDecoderManager(mSharedDecoderManager);

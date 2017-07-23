@@ -210,6 +210,10 @@ MediaDecodeTask::CreateReader()
     return false;
   }
 
+  if (!mDecoderReader->EnsureTaskQueue()) {
+    return false;
+  }
+
   return true;
 }
 

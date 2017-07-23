@@ -6684,8 +6684,10 @@ nsWindow::OnSysColorChanged()
     NotifySysColorChanged();
     // On Windows 10 only, we trigger a theme change to pick up changed media
     // queries that are needed for accent color changes.
+    // We also set a temp pref to notify the FE that the colors have changed.
     if (IsWin10OrLater()) {
       NotifyThemeChanged();
+      Preferences::SetBool("ui.colorChanged", true);
     }
   }
 }

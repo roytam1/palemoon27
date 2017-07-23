@@ -521,7 +521,6 @@ _cairo_win32_surface_d3d9_lock_rect (cairo_win32_surface_t  *surface,
 				   cairo_image_surface_t **local_out)
 {
     cairo_image_surface_t *local;
-    cairo_int_status_t status;
 
     RECT rectin = { x, y, x+width, y+height };
     D3DLOCKED_RECT rectout;

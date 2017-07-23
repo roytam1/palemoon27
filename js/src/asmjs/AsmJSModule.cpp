@@ -1680,18 +1680,14 @@ AsmJSModule::setProfilingEnabled(JSContext* cx, bool enabled)
                 continue;
             unsigned lineno = cr.functionLineNumber();
             PropertyName* name = names_[cr.functionNameIndex()].name();
-            void* label = name->hasLatin1Chars()
+            UniqueChars label(name->hasLatin1Chars()
                 ? JS_smprintf("%s (%s:%u)", name->latin1Chars(nogc), filename, lineno)
-                : JS_smprintf("%hs (%s:%u)", name->twoByteChars(nogc), filename, lineno);
+                : JS_smprintf("%hs (%s:%u)", name->twoByteChars(nogc), filename, lineno));
             if (!label) {
                 js_ReportOutOfMemory(cx);
                 return false;
             }
-            // XXX: A link to the variable:
-            profilingLabels_[cr.functionNameIndex()].reset(
-                name->hasLatin1Chars()
-                  ? JS_smprintf("%s (%s:%u)", name->latin1Chars(nogc), filename, lineno)
-                  : JS_smprintf("%hs (%s:%u)", name->twoByteChars(nogc), filename, lineno));
+            profilingLabels_[cr.functionNameIndex()].reset(label.get());
         }
     } else {
         profilingLabels_.clear();

@@ -69,7 +69,7 @@ nsContentPolicy::~nsContentPolicy()
 
 #endif // defined(DEBUG)
 
-inline nsresult
+/*inline*/ nsresult
 nsContentPolicy::CheckPolicy(CPMethod          policyMethod,
                              SCPMethod         simplePolicyMethod,
                              uint32_t          contentType,

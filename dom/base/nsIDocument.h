@@ -2451,6 +2451,8 @@ public:
   already_AddRefed<nsDOMCaretPosition>
     CaretPositionFromPoint(float aX, float aY);
 
+  Element* GetScrollingElement();
+
   // QuerySelector and QuerySelectorAll already defined on nsINode
   nsINodeList* GetAnonymousNodes(Element& aElement);
   Element* GetAnonymousElementByAttribute(Element& aElement,

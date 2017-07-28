@@ -38,7 +38,6 @@ NS_NewContentPolicy(nsIContentPolicy **aResult)
 
 nsContentPolicy::nsContentPolicy()
     : mPolicies(NS_CONTENTPOLICY_CATEGORY)
-    , mSimplePolicies(NS_SIMPLECONTENTPOLICY_CATEGORY)
 {
 #ifdef PR_LOGGING
     if (! gConPolLog) {
@@ -71,7 +70,6 @@ nsContentPolicy::~nsContentPolicy()
 
 inline nsresult
 nsContentPolicy::CheckPolicy(CPMethod          policyMethod,
-                             SCPMethod         simplePolicyMethod,
                              uint32_t          contentType,
                              nsIURI           *contentLocation,
                              nsIURI           *requestingLocation,
@@ -135,53 +133,6 @@ nsContentPolicy::CheckPolicy(CPMethod          policyMethod,
         }
     }
 
-    nsCOMPtr<nsIDOMElement> topFrameElement;
-    bool isTopLevel = true;
-    nsCOMPtr<nsPIDOMWindow> window;
-    if (nsCOMPtr<nsINode> node = do_QueryInterface(requestingContext)) {
-        window = node->OwnerDoc()->GetWindow();
-    } else {
-        window = do_QueryInterface(requestingContext);
-    }
-
-    if (window) {
-        nsCOMPtr<nsIDocShell> docShell = window->GetDocShell();
-        nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
-        loadContext->GetTopFrameElement(getter_AddRefs(topFrameElement));
-
-        MOZ_ASSERT(window->IsOuterWindow());
-
-        if (topFrameElement) {
-            nsCOMPtr<nsIDOMWindow> topWindow;
-            window->GetScriptableTop(getter_AddRefs(topWindow));
-            isTopLevel = topWindow == static_cast<nsIDOMWindow*>(window);
-        } else {
-            // If we don't have a top frame element, then requestingContext is
-            // part of the top-level XUL document. Presumably it's the <browser>
-            // element that content is being loaded into, so we call it the
-            // topFrameElement.
-            topFrameElement = do_QueryInterface(requestingContext);
-            isTopLevel = true;
-        }
-    }
-
-    nsCOMArray<nsISimpleContentPolicy> simpleEntries;
-    mSimplePolicies.GetEntries(simpleEntries);
-    count = simpleEntries.Count();
-    for (int32_t i = 0; i < count; i++) {
-        /* check the appropriate policy */
-        rv = (simpleEntries[i]->*simplePolicyMethod)(contentType, contentLocation,
-                                                     requestingLocation,
-                                                     topFrameElement, isTopLevel,
-                                                     mimeType, extra, requestPrincipal,
-                                                     decision);
-
-        if (NS_SUCCEEDED(rv) && NS_CP_REJECTED(*decision)) {
-            /* policy says no, no point continuing to check */
-            return NS_OK;
-        }
-    }
-
     // everyone returned failure, or no policies: sanitize result
     *decision = nsIContentPolicy::ACCEPT;
     return NS_OK;
@@ -234,15 +185,7 @@ nsContentPolicy::ShouldLoad(uint32_t          contentType,
 {
     // ShouldProcess does not need a content location, but we do
     NS_PRECONDITION(contentLocation, "Must provide request location");
-    NS_PRECONDITION(decision, "Null out pointer");
-    if (!decision) {
-      // We have a null out pointer, meaning this is spinning its wheels
-      // and may crash.
-      return NS_OK;
-    }
-    nsresult rv = CheckPolicy(&nsIContentPolicy::ShouldLoad,
-                              &nsISimpleContentPolicy::ShouldLoad,
-                              contentType,
+    nsresult rv = CheckPolicy(&nsIContentPolicy::ShouldLoad, contentType,
                               contentLocation, requestingLocation,
                               requestingContext, mimeType, extra,
                               requestPrincipal, decision);
@@ -261,9 +204,7 @@ nsContentPolicy::ShouldProcess(uint32_t          contentType,
                                nsIPrincipal     *requestPrincipal,
                                int16_t          *decision)
 {
-    nsresult rv = CheckPolicy(&nsIContentPolicy::ShouldProcess,
-                              &nsISimpleContentPolicy::ShouldProcess,
-                              contentType,
+    nsresult rv = CheckPolicy(&nsIContentPolicy::ShouldProcess, contentType,
                               contentLocation, requestingLocation,
                               requestingContext, mimeType, extra,
                               requestPrincipal, decision);

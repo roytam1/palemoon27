@@ -75,6 +75,10 @@ pref("browser.feedback.url", "https://forum.palemoon.org");
 // Help button in slow startup dialog
 pref("browser.slowstartup.help.url", "http://www.palemoon.org/support/slowstartup.shtml");
 
+// Whether to escape to a content-less page if a user presses "Get me out of here"
+// on a network error page (e.g. cert error)
+pref("browser.escape_to_blank", false);
+
 // The minimum delay in seconds for the timer to fire.
 // default=2 minutes
 pref("app.update.timerMinimumDelay", 120);

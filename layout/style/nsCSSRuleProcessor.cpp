@@ -2164,6 +2164,7 @@ static bool SelectorMatches(Element* aElement,
         }
         break;
 
+      case nsCSSPseudoClasses::ePseudoClass_mozDir:
       case nsCSSPseudoClasses::ePseudoClass_dir:
         {
           if (aDependence) {
@@ -2179,8 +2180,8 @@ static bool SelectorMatches(Element* aElement,
           // exclusively LTR or RTL.
           //
           // However, in markup languages where there is no direction attribute
-          // we have to consider the possibility that neither -moz-dir(rtl) nor
-          // -moz-dir(ltr) matches.
+          // we have to consider the possibility that neither
+          // dir(rtl) (-moz-dir(rtl)) nor dir(ltr) (-moz-dir(ltr)) matches.
           EventStates state = aElement->StyleState();
           nsDependentString dirString(pseudoClass->u.mString);
 

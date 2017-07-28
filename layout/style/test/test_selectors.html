@@ -999,6 +999,7 @@ function run() {
     test_parseable(":-moz-dir(rTl)");
     test_parseable(":-moz-dir(LTR)");
     test_parseable(":-moz-dir(other)");
+    try {
     if (document.body.matches(":-moz-dir(ltr)")) {
         test_selector_in_html("a:-moz-dir(LTr)", single_a,
                               set_single, empty_set);
@@ -1018,6 +1019,9 @@ function run() {
         test_selector_in_html("a:-moz-dir(LTr)", single_a,
                               empty_set, set_single);
     }
+    } catch (e) {
+      // Ignore.
+    }
     test_selector_in_html("a:-moz-dir(other)", single_a,
                           empty_set, set_single);
 
@@ -1029,6 +1033,47 @@ function run() {
     test_balanced_unparseable(":-moz-dir(ltr, other)");
     test_balanced_unparseable(":-moz-dir(ltr other)");
     test_balanced_unparseable(":-moz-dir");
+
+    // Test :dir()
+    test_parseable(":dir(ltr)");
+    test_parseable(":dir(rtl)");
+    test_parseable(":dir(rTl)");
+    test_parseable(":dir(LTR)");
+    test_parseable(":dir(other)");
+    try {
+    if (document.body.matches(":dir(ltr)")) {
+        test_selector_in_html("a:dir(LTr)", single_a,
+                              set_single, empty_set);
+        test_selector_in_html("a:dir(ltR)", single_a,
+                              set_single, empty_set);
+        test_selector_in_html("a:dir(LTR)", single_a,
+                              set_single, empty_set);
+        test_selector_in_html("a:dir(RTl)", single_a,
+                              empty_set, set_single);
+    } else {
+        test_selector_in_html("a:dir(RTl)", single_a,
+                              set_single, empty_set);
+        test_selector_in_html("a:dir(rtL)", single_a,
+                              set_single, empty_set);
+        test_selector_in_html("a:dir(RTL)", single_a,
+                              set_single, empty_set);
+        test_selector_in_html("a:dir(LTr)", single_a,
+                              empty_set, set_single);
+    }
+    } catch (e) {
+      // Ignore.
+    }
+    test_selector_in_html("a:dir(other)", single_a,
+                          empty_set, set_single);
+
+    test_balanced_unparseable(":dir()");
+    test_balanced_unparseable(":dir(())");
+    test_balanced_unparseable(":dir(3())");
+    test_balanced_unparseable(":dir(f{})");
+    test_balanced_unparseable(":dir('ltr')");
+    test_balanced_unparseable(":dir(ltr, other)");
+    test_balanced_unparseable(":dir(ltr other)");
+    test_balanced_unparseable(":dir");
 
     // Test -moz-lwtheme and -moz-lwtheme-[darktext|brighttext]
     test_parseable(":-moz-lwtheme");

@@ -70,6 +70,7 @@ nsCSSPseudoClasses::HasStringArg(Type aType)
          aType == ePseudoClass_mozEmptyExceptChildrenWithLocalname ||
          aType == ePseudoClass_mozSystemMetric ||
          aType == ePseudoClass_mozLocaleDir ||
+         aType == ePseudoClass_mozDir ||
          aType == ePseudoClass_dir;
 }
 

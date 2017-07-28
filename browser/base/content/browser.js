@@ -2435,6 +2435,15 @@ let BrowserOnClick = {
  * when their own homepage is infected, we can get them somewhere safe.
  */
 function getMeOutOfHere() {
+  try {
+    let toBlank = Services.prefs.getBoolPref("browser.escape_to_blank");
+    if (toBlank) {
+      content.location = "about:logopage";
+      return;
+    }
+  } catch(e) {
+    Components.utils.reportError("Couldn't get escape pref: " + e);
+  }
   // Get the start page from the *default* pref branch, not the user's
   var prefs = Services.prefs.getDefaultBranch(null);
   var url = BROWSER_NEW_TAB_URL;

@@ -119,7 +119,7 @@
   <key id="sp-key-reloadAndRun"
        key="&reloadAndRun.key;"
        command="sp-cmd-reloadAndRun"
-       modifiers="accel,shift"/>
+       modifiers="accel,alt"/>
   <key id="sp-key-evalFunction"
        key="&evalFunction.key;"
        command="sp-cmd-evalFunction"

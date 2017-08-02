@@ -447,12 +447,16 @@
 #define NS_EDITOR_INPUT          (NS_EDITOR_EVENT_START)
 
 // Selection events
-#define NS_SELECT_EVENT_START    6150
+#define NS_SELECT_EVENT_START    6200
 #define NS_SELECT_START          (NS_SELECT_EVENT_START)
 #define NS_SELECTION_CHANGE      (NS_SELECT_EVENT_START + 1)
 
+// Selection events
+#define NS_VISIBILITY_START      6300
+#define NS_VISIBILITY_CHANGE     (NS_VISIBILITY_START + 1)
+
 // Details and Summary events.
-#define NS_DETAILS_SUMMARY_EVENT_START    6200
+#define NS_DETAILS_SUMMARY_EVENT_START    6400
 #define NS_TOGGLE                         (NS_DETAILS_SUMMARY_EVENT_START)
 
 namespace IPC {

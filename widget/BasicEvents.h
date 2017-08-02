@@ -451,7 +451,7 @@
 #define NS_SELECT_START          (NS_SELECT_EVENT_START)
 #define NS_SELECTION_CHANGE      (NS_SELECT_EVENT_START + 1)
 
-// Selection events
+// Visibility change
 #define NS_VISIBILITY_START      6300
 #define NS_VISIBILITY_CHANGE     (NS_VISIBILITY_START + 1)
 

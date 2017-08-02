@@ -599,6 +599,10 @@ DOCUMENT_ONLY_EVENT(selectionchange,
                     NS_SELECTION_CHANGE,
                     EventNameType_HTMLXUL,
                     eBasicEventClass)
+DOCUMENT_ONLY_EVENT(visibilitychange,
+                    NS_VISIBILITY_CHANGE,
+                    EventNameType_HTMLXUL,
+                    eBasicEventClass)
 
 NON_IDL_EVENT(MozMouseHittest,
               NS_MOUSE_MOZHITTEST,

@@ -7183,40 +7183,6 @@
   !verbose pop
 !macroend
 
-!macro IsUserAdmin
-  ; Copied from: http://nsis.sourceforge.net/IsUserAdmin
-  Function IsUserAdmin
-    Push $R0
-    Push $R1
-    Push $R2
-
-    ClearErrors
-    UserInfo::GetName
-    IfErrors Win9x
-    Pop $R1
-    UserInfo::GetAccountType
-    Pop $R2
-
-    StrCmp $R2 "Admin" 0 Continue
-    StrCpy $R0 "true"
-    Goto Done
-
-    Continue:
-
-    StrCmp $R2 "" Win9x
-    StrCpy $R0 "false"
-    Goto Done
-
-    Win9x:
-    StrCpy $R0 "true"
-
-    Done:
-    Pop $R2
-    Pop $R1
-    Exch $R0
-  FunctionEnd
-!macroend
-
 /**
  * Retrieve if present or generate and store a 64 bit hash of an install path
  * using the City Hash algorithm.  On return the resulting id is saved in the

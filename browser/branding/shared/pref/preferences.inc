@@ -157,7 +157,6 @@ pref("image.mem.decode_bytes_at_a_time", 65536); //larger chunks
 
 // store sessions less frequently to prevent redundant mem usage by storing too much
 pref("browser.sessionstore.interval",60000); //every minute instead of every 10 seconds
-pref("browser.sessionstore.privacy_level",1); //don't store session data (forms, etc) for secure sites
 
 // Make sure we shortcut out of a11y to save walking unnecessary code
 pref("accessibility.force_disabled", 1);

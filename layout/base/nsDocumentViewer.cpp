@@ -127,6 +127,7 @@ using namespace mozilla;
 using namespace mozilla::dom;
 
 #define BEFOREUNLOAD_DISABLED_PREFNAME "dom.disable_beforeunload"
+#define BEFOREUNLOAD_REQUIRES_INTERACTION_PREFNAME "dom.require_user_interaction_for_beforeunload"
 
 //-----------------------------------------------------
 // PR LOGGING
@@ -1095,12 +1096,15 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
   }
 
   static bool sIsBeforeUnloadDisabled;
-  static bool sBeforeUnloadPrefCached = false;
+  static bool sBeforeUnloadRequiresInteraction;
+  static bool sBeforeUnloadPrefsCached = false;
 
-  if (!sBeforeUnloadPrefCached ) {
-    sBeforeUnloadPrefCached = true;
+  if (!sBeforeUnloadPrefsCached ) {
+    sBeforeUnloadPrefsCached = true;
     Preferences::AddBoolVarCache(&sIsBeforeUnloadDisabled,
                                  BEFOREUNLOAD_DISABLED_PREFNAME);
+    Preferences::AddBoolVarCache(&sBeforeUnloadRequiresInteraction,
+                                 BEFOREUNLOAD_REQUIRES_INTERACTION_PREFNAME);
   }
 
   // First, get the script global object from the document...
@@ -1158,7 +1162,10 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
   nsAutoString text;
   beforeUnload->GetReturnValue(text);
 
-  if (!sIsBeforeUnloadDisabled && *aShouldPrompt &&
+  // NB: we nullcheck mDocument because it might now be dead as a result of
+  // the event being dispatched.
+  if (!sIsBeforeUnloadDisabled && *aShouldPrompt && mDocument &&
+      (!sBeforeUnloadRequiresInteraction || mDocument->UserHasInteracted()) &&
       (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
        !text.IsEmpty())) {
     // Ask the user if it's ok to unload the current page

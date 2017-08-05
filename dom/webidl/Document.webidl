@@ -392,6 +392,12 @@ partial interface Document {
   void removeAnonymousContent(AnonymousContent aContent);
 };
 
+// Extension to give chrome JS the ability to determine whether
+// the user has interacted with the document or not.
+partial interface Document {
+  [ChromeOnly] readonly attribute boolean userHasInteracted;
+};
+
 // Extension to give chrome and XBL JS the ability to determine whether
 // the document is sandboxed without permission to run scripts.
 partial interface Document {

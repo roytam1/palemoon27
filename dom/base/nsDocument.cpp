@@ -1559,7 +1559,8 @@ nsIDocument::nsIDocument()
     mIsBeingUsedAsImage(false),
     mHasLinksToUpdate(false),
     mPartID(0),
-    mDidFireDOMContentLoaded(true)
+    mDidFireDOMContentLoaded(true),
+    mUserHasInteracted(false)
 {
   SetInDocument();
 

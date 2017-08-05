@@ -10,6 +10,8 @@ const URL2 = MAIN_DOMAIN + "navigate-second.html";
 let events = require("sdk/event/core");
 let client;
 
+SpecialPowers.pushPrefEnv({"set": [["dom.require_user_interaction_for_beforeunload", false]]});
+
 // State machine to check events order
 let i = 0;
 function assertEvent(event, data) {

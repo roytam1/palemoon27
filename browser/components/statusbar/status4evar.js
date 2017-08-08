@@ -12,7 +12,7 @@ const CU = Components.utils;
 CU.import("resource://gre/modules/XPCOMUtils.jsm");
 CU.import("resource://gre/modules/Services.jsm");
 
-const CURRENT_MIGRATION = 7;
+const CURRENT_MIGRATION = 8;
 
 function Status_4_Evar(){}
 
@@ -488,7 +488,6 @@ Status_4_Evar.prototype =
 			{
 				case 5:
 					this.migrateBoolPref("status.detectFullScreen", "advanced.status.detectFullScreen");
-					break;
 				case 6:
 					let oldDownloadAction = this.prefs.getIntPref("download.button.action");
 					let newDownloadAction = 1;
@@ -510,7 +509,14 @@ Status_4_Evar.prototype =
 					{
 						this.prefs.setBoolPref("browser.download.useToolkitUI", true);
 					}
-					break;
+				case 7:
+				    let progressLocation = this.prefs.getIntPref("status");
+				    if (progressLocation == 2)
+				      this.prefs.setIntPref("status", 1);
+				    let linkOverLocation = this.prefs.getIntPref("status.linkOver");
+				    if (linkOverLocation == 2)
+				      this.prefs.setIntPref("status.linkOver", 1);
+				    break;
 				case CURRENT_MIGRATION:
 					break;
 			}

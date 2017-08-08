@@ -5,20 +5,6 @@
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 /*
- * Location bar progress
- */
-
-#urlbar
-{
-	-moz-binding: url("chrome://browser/content/statusbar/urlbarBindings.xml#urlbar");
-}
-
-#urlbar[s4eforce="true"]
-{
-	-moz-binding: url("chrome://browser/content/statusbar/urlbarBindings.xml#urlbar") !important;
-}
-
-/*
  * Status Popup
  */
 

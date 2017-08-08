@@ -149,152 +149,6 @@ var status4evarPrefs =
 	},
 
 //
-// Location bar status position
-//
-	get urlbarAlignPref()
-	{
-		delete this.urlbarAlignPref;
-		return this.urlbarAlignPref = document.getElementById("status4evar-pref-status-urlbar-align");
-	},
-
-	get urlbarPositionVbox()
-	{
-		delete this.urlbarPositionVbox;
-		return this.urlbarPositionVbox = document.getElementById("status4evar-status-urlbar-position-vbox");
-	},
-
-	urlbarAlignChanged: function()
-	{
-		this.urlbarPositionVbox.hidden = (this.urlbarAlignPref.value == 1);
-	},
-
-	urlbarAlignSync: function()
-	{
-		this.urlbarAlignChanged();
-		return undefined;
-	},	
-
-//
-// Progress line location management
-//
-	get progressUrlbar()
-	{
-		delete this.progressUrlbar;
-		return this.progressUrlbar = document.getElementById("urlbar");
-	},
-
-	get progressUrlbarProgress()
-	{
-		delete this.progressUrlbarProgress;
-		return this.progressUrlbarProgress = document.getElementById("urlbar-progress-alt");
-	},
-
-	get progressUrlbarPref()
-	{
-		delete this.progressUrlbarPref;
-		return this.progressUrlbarPref = document.getElementById("status4evar-pref-progress-urlbar");
-	},
-
-	get progressUrlbarCheckbox()
-	{
-		delete this.progressUrlbarCheckbox;
-		return this.progressUrlbarCheckbox = document.getElementById("status4evar-progress-urlbar-check");
-	},
-
-	progressUrlbarChanged: function()
-	{
-		if(this.progressUrlbarPref.value > 0)
-		{
-			this.progressUrlbarPref.disabled = false;
-			this.progressUrlbarCheckbox.checked = true;
-			switch(this.progressUrlbarPref.value)
-			{
-				case 1:
-					this.progressUrlbar.setAttribute("pmpack", "end");
-					break;
-				case 2:
-					this.progressUrlbar.setAttribute("pmpack", "begin");
-					break;
-				case 3:
-					this.progressUrlbar.setAttribute("pmpack", "center");
-					break;
-			}
-			this.progressUrlbarProgress.hidden = false;
-		}
-		else
-		{
-			this.progressUrlbarPref.disabled = true;
-			this.progressUrlbarCheckbox.checked = false;
-			this.progressUrlbarProgress.hidden = true;
-		}
-	},
-
-	progressUrlbarSync: function()
-	{
-		this.progressUrlbarChanged();
-		return undefined;
-	},
-
-	progressUrlbarToggle: function()
-	{
-		if(this.progressUrlbarPref.disabled == this.progressUrlbarCheckbox.checked)
-		{
-			if(this.progressUrlbarCheckbox.checked)
-			{
-				this.progressUrlbarPref.value = 1;
-			}
-			else
-			{
-				this.progressUrlbarPref.value = 0;
-			}
-		}
-	},
-
-//
-// Urlbar progress style management
-//
-	get progressUrlbarStylePref()
-	{
-		delete this.progressUrlbarStylePref;
-		return this.progressUrlbarStylePref = document.getElementById("status4evar-pref-progress-urlbar-style");
-	},
-
-	get progressUrlbarCSSPref()
-	{
-		delete this.progressUrlbarCSSPref;
-		return this.progressUrlbarCSSPref = document.getElementById("status4evar-pref-progress-urlbar-css");
-	},
-
-	progressUrlbarCSSChanged: function()
-	{
-		if(!this.progressUrlbarCSSPref.value)
-		{
-			this.progressUrlbarCSSPref.value = "#33FF33";
-		}
-		this.dynamicProgressStyle.cssRules[1].style.background = this.progressUrlbarCSSPref.value;
-	},
-
-	progressUrlbarStyleChanged: function()
-	{
-		this.progressUrlbarCSSChanged();
-		this.progressUrlbarCSSPref.disabled = !this.progressUrlbarStylePref.value;
-		if(this.progressUrlbarStylePref.value)
-		{
-			this.progressUrlbar.setAttribute("s4estyle", true);
-		}
-		else
-		{
-			this.progressUrlbar.removeAttribute("s4estyle");
-		}
-	},
-
-	progressUrlbarStyleSync: function()
-	{
-		this.progressUrlbarStyleChanged();
-		return undefined;
-	},
-
-//
 // Toolbar progress style management
 //
 	get progressToolbarStylePref()
@@ -424,12 +278,6 @@ var status4evarPrefs =
 //
 // Pref Window load
 //
-	get statusUrlbarPositionValue()
-	{
-		delete this.statusUrlbarPositionValue;
-		return this.statusUrlbarPositionValue = document.getElementById("status4evar-status-urlbar-position-value");
-	},
-
 	get downloadButtonActionCommandPref()
 	{
 		delete this.downloadButtonActionCommandPref;
@@ -449,11 +297,6 @@ var status4evarPrefs =
 		if(showWarning)
 		{
 			this.advancedContinueButton.focus();
-		}
-
-		if(window.getComputedStyle(this.statusUrlbarPositionValue).direction == "ltr")
-		{
-			this.statusUrlbarPositionValue.setAttribute("dir", "reverse");
 		}
 
 		if(!this.downloadButtonActionCommandPref.value)

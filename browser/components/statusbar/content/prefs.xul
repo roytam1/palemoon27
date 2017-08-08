@@ -46,10 +46,6 @@
 			<preference id="status4evar-pref-status-linkOver-delay-hide" name="status4evar.status.linkOver.delay.hide" type="int" />
 			<preference id="status4evar-pref-status-toolbar-maxLength"   name="status4evar.status.toolbar.maxLength"   type="int"
 			            onchange="status4evarPrefs.textLengthChanged();" />
-			<preference id="status4evar-pref-status-urlbar-align"        name="status4evar.status.urlbar.align"        type="int"
-			            onchange="status4evarPrefs.urlbarAlignChanged();" />
-			<preference id="status4evar-pref-status-urlbar-color"        name="status4evar.status.urlbar.color"        type="string" />
-			<preference id="status4evar-pref-status-urlbar-position"     name="status4evar.status.urlbar.position"     type="int" />
 			<preference id="status4evar-pref-status-popup-invertMirror"  name="status4evar.status.popup.invertMirror"  type="bool" />
 			<preference id="status4evar-pref-status-popup-mouseMirror"   name="status4evar.status.popup.mouseMirror"   type="bool" />
 			<preference id="toolkit-pref-dom-status-change"              name="dom.disable_window_status_change"       type="bool" inverted="true" />
@@ -65,7 +61,6 @@
 		<tabbox id="status4evar-tabbox-status" flex="1">
 			<tabs id="status4evar-tabs-status">
 				<tab id="status4evar-tab-status-general" label="&status4evar.tab.general;" />
-				<tab id="status4evar-tab-status-urlbar"  label="&status4evar.tab.urlbar;" />
 				<tab id="status4evar-tab-status-toolbar" label="&status4evar.tab.toolbar;" />
 				<tab id="status4evar-tab-status-popup"   label="&status4evar.tab.popup;" />
 			</tabs>
@@ -81,7 +76,6 @@
 								<menupopup>
 									<menuitem label="&status4evar.option.none;"    value="0" />
 									<menuitem label="&status4evar.option.toolbar;" value="1" />
-									<menuitem label="&status4evar.option.urlbar;"  value="2" />
 									<menuitem label="&status4evar.option.popup;"   value="3" />
 								</menupopup>
 							</menulist>
@@ -116,7 +110,6 @@
 								<menupopup>
 									<menuitem label="&status4evar.option.none;"    value="0" />
 									<menuitem label="&status4evar.option.toolbar;" value="1" />
-									<menuitem label="&status4evar.option.urlbar;"  value="2" />
 									<menuitem label="&status4evar.option.popup;"   value="3" />
 								</menupopup>
 							</menulist>
@@ -139,47 +132,6 @@
 						<caption label="&status4evar.status.urlbar.firefox.builtin.caption;" />
 
 						<checkbox id="browser-urlbar-trimming-enabled-ckeck" preference="browser-pref-urlbar-trimming-enabled" label="&browser.urlbar.trimming.enabled.label;" />
-					</groupbox>
-				</tabpanel>
-
-				<tabpanel id="status4evar-tabpanel-status-urlbar" orient="vertical">
-					<hbox align="center">
-						<label id="status4evar-status-urlbar-color-label">&status4evar.status.urlbar.color.label;</label>
-						<colorpicker id="status4evar-status-urlbar-color-picker" preference="status4evar-pref-status-urlbar-color" type="button" />
-					</hbox>
-
-					<hbox align="center">
-						<label id="status4evar-status-urlbar-align-label">&status4evar.status.urlbar.align.label;</label>
-						<menulist id="status4evar-status-urlbar-align-menu" preference="status4evar-pref-status-urlbar-align" sizetopopup="always"
-						          onsyncfrompreference="status4evarPrefs.urlbarAlignSync();">
-							<menupopup>
-								<menuitem label="&status4evar.option.left;"  value="1" />
-								<menuitem label="&status4evar.option.right;" value="0" />
-								<menuitem label="&status4evar.option.fixed;" value="2" />
-							</menupopup>
-						</menulist>
-					</hbox>
-
-					<vbox id="status4evar-status-urlbar-position-vbox">
-						<scale id="status4evar-status-urlbar-position-value" preference="status4evar-pref-status-urlbar-position" min="0" max="100"
-						       movetoclick="true" preference-editable="true" />
-
-						<hbox align="center">
-							<hbox pack="start" flex="1">
-								<label id="status4evar-status-urlbar-position-unit">&status4evar.status.currentUrl;</label>
-							</hbox>
-							<hbox pack="end" flex="1">
-								<label id="status4evar-status-urlbar-position-unit">&status4evar.status.statusText;</label>
-							</hbox>
-						</hbox>
-					</vbox>
-
-					<separator/>
-
-					<groupbox id="status4evar-status-urlbar-builtin">
-						<caption label="&status4evar.status.urlbar.firefox.builtin.caption;" />
-
-						<checkbox id="browser-urlbar-formatting-enabled-ckeck" preference="browser-pref-urlbar-formatting-enabled" label="&browser.urlbar.formatting.enabled.label;" />
 					</groupbox>
 				</tabpanel>
 
@@ -224,55 +176,10 @@
 
 		<tabbox id="status4evar-tabbox-progress" flex="1">
 			<tabs id="status4evar-tabs-progress">
-				<tab id="status4evar-tab-progress-urlbar"  label="&status4evar.tab.urlbar;" />
 				<tab id="status4evar-tab-progress-toolbar" label="&status4evar.tab.toolbar;" />
 			</tabs>
 
 			<tabpanels id="status4evar-tabpanels-progress" flex="1">
-				<tabpanel id="status4evar-tabpanel-progress-urlbar" orient="vertical">
-					<checkbox id="status4evar-progress-urlbar-check" label="&status4evar.progress.urlbar.enable.label;"
-					          command="status4evar-command-progress-urlbar" />
-
-					<hbox align="center" class="indent">
-						<label id="status4evar-progress-urlbar-label" control="status4evar-progress-urlbar-menu">&status4evar.progress.urlbar.line.label;</label>
-						<menulist id="status4evar-progress-urlbar-menu" preference="status4evar-pref-progress-urlbar" sizetopopup="always"
-						          onsyncfrompreference="return status4evarPrefs.progressUrlbarSync();">
-							<menupopup>
-								<menuitem label="&status4evar.option.none;"   value="0" />
-								<menuitem label="&status4evar.option.bottom;" value="1" />
-								<menuitem label="&status4evar.option.top;"    value="2" />
-								<menuitem label="&status4evar.option.fill;"   value="3" />
-							</menupopup>
-						</menulist>
-					</hbox>
-
-					<checkbox id="status4evar-progress-urlbar-style-check" preference="status4evar-pref-progress-urlbar-style" label="&status4evar.progress.style.label;"
-					          onsyncfrompreference="return status4evarPrefs.progressUrlbarStyleSync();" />
-
-					<vbox class="css-bg-editor" preference="status4evar-pref-progress-urlbar-css" preference-editable="true" flex="1">
-						<!-- Mock Nav Bar -->
-						<toolbox id="navigator-toolbox" flex="1">
-							<toolbar id="nav-bar" class="toolbar-primary chromeclass-toolbar" flex="1">
-								<toolbaritem id="urlbar-container" align="center" class="chromeclass-location" removable="false" flex="1">
-									<textbox id="urlbar" pmpack="end" flex="1">
-										<box id="identity-box" role="button" class="unknownIdentity">
-											<hbox id="identity-box-inner" align="center">
-												<stack id="page-proxy-stack">
-													<image id="page-proxy-favicon" validate="never" pageproxystate="valid"
-													       src="chrome://browser/skin/statusbar/s4e16.png" />
-												</stack>
-											</hbox>
-										</box>
-										<tooltip id="urlTooltip"/>
-										<!-- Progress bar preview -->
-										<progressmeter id="urlbar-progress-alt" mode="normal" value="75" />
-									</textbox>
-								</toolbaritem>
-							</toolbar>
-						</toolbox>
-					</vbox>
-				</tabpanel>
-
 				<tabpanel id="status4evar-tabpanel-progress-toolbar" orient="vertical">
 					<checkbox id="status4evar-progress-toolbar-force-check" preference="status4evar-pref-progress-toolbar-force" label="&status4evar.progress.toolbar.force.label;" />
 
@@ -397,7 +304,6 @@
 			<preference id="status4evar-pref-advanced-showWarning"             name="status4evar.advanced.showWarning"             type="bool" />
 			<preference id="status4evar-pref-advanced-status-detectFullScreen" name="status4evar.advanced.status.detectFullScreen" type="bool" />
 			<preference id="status4evar-pref-advanced-status-detectVideo"      name="status4evar.advanced.status.detectVideo"      type="bool" />
-			<preference id="status4evar-pref-advanced-urlbar-forceBinding"     name="status4evar.advanced.urlbar.forceBinding"     type="bool" />
 		</preferences>
 
 		<commandset id="status4evar-commandset-advanced">
@@ -421,15 +327,6 @@
 				<spacer flex="2" />
 			</vbox>
 			<vbox flex="1">
-				<groupbox id="status4evar-advanced-general">
-					<caption label="&status4evar.tab.general;" />
-
-					<checkbox id="status4evar-advanced-urlbar-forceBinding-check" preference="status4evar-pref-advanced-urlbar-forceBinding" label="&status4evar.advanced.urlbar.forceBinding;" />
-					<textbox id="status4evar-advanced-urlbar-forceBinding-desc" class="indent" tabindex="-1"
-					         multiline="true" readonly="true" onoverflow="this.height = this.inputField.scrollHeight;"
-					         value="&status4evar.advanced.urlbar.forceBinding.desc;" />
-				</groupbox>
-
 				<groupbox id="status4evar-advanced-status">
 					<caption label="&status4evar.pane.status;" />
 

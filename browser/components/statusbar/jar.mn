@@ -9,7 +9,6 @@ browser.jar:
         content/browser/statusbar/prefs.js                      (content/prefs.js)
         content/browser/statusbar/prefs.xml                     (content/prefs.xml)
         content/browser/statusbar/tabbrowser.xml                (content/tabbrowser.xml)
-        content/browser/statusbar/urlbarBindings.xml            (content/urlbarBindings.xml)
         content/browser/statusbar/overlay.xul                   (content/overlay.xul)
         content/browser/statusbar/prefs.xul                     (content/prefs.xul)
         content/browser/statusbar/overlay.css                   (content/overlay.css)

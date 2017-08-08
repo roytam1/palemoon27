@@ -18,7 +18,7 @@ function Status_4_Evar(){}
 
 Status_4_Evar.prototype =
 {
-	classID:        Components.ID("{13b3595e-7bb5-4cfe-bbfa-82c900a4d7bf}"),
+	classID:        Components.ID("{b418cd1b-b172-4ef5-bfc5-fc555c87dbc4}"),
 	QueryInterface: XPCOMUtils.generateQI([
 	                     CI.nsISupportsWeakReference,
 	                     CI.nsIObserver,
@@ -33,7 +33,6 @@ Status_4_Evar.prototype =
 
 	advancedStatusDetectFullScreen: true,
 	advancedStatusDetectVideo:      true,
-	advancedUrlbarForceBinding:     false,
 
 	downloadButtonAction:           1,
 	downloadButtonActionCommand:    "",
@@ -53,10 +52,6 @@ Status_4_Evar.prototype =
 	progressToolbarForce:           false,
 	progressToolbarStyle:           false,
 
-	progressUrlbar:                 1,
-	progressUrlbarCSS:              null,
-	progressUrlbarStyle:            true,
-
 	status:                         1,
 	statusDefault:                  true,
 	statusNetwork:                  true,
@@ -66,13 +61,6 @@ Status_4_Evar.prototype =
 	statusLinkOverDelayHide:        150,
 
 	statusToolbarMaxLength:         0,
-
-	statusUrlbarAlign:              null,
-	statusUrlbarColor:              null,
-	statusUrlbarPosition:           33,
-
-	statusUrlbarInvertMirror:       false,
-	statusUrlbarMouseMirror:        true,
 
 	pref_registry:
 	{
@@ -133,22 +121,6 @@ Status_4_Evar.prototype =
 			update: function()
 			{
 				this.advancedStatusDetectVideo = this.prefs.getBoolPref("advanced.status.detectVideo");
-			}
-		},
-
-		"advanced.urlbar.forceBinding":
-		{
-			update: function()
-			{
-				this.advancedUrlbarForceBinding = this.prefs.getBoolPref("advanced.urlbar.forceBinding");
-			},
-			updateWindow: function(win)
-			{
-				let urlbar = win.caligon.status4evar.getters.urlbar;
-				if(urlbar)
-				{
-					this.setBoolElementAttribute(urlbar, "s4eforce", this.advancedUrlbarForceBinding);
-				}
 			}
 		},
 
@@ -327,69 +299,6 @@ Status_4_Evar.prototype =
 			}
 		},
 
-		"progress.urlbar":
-		{
-			update: function()
-			{
-				switch(this.prefs.getIntPref("progress.urlbar"))
-				{
-					case 0:
-						this.progressUrlbar = null;
-						break;
-					case 1:
-						this.progressUrlbar = "end";
-						break;
-					case 2:
-						this.progressUrlbar = "begin";
-						break;
-					default:
-						this.progressUrlbar = "center";
-						break;
-				}
-			},
-			updateWindow: function(win)
-			{
-				let urlbar = win.caligon.status4evar.getters.urlbar;
-				let urlbar_progress = win.caligon.status4evar.getters.urlbarProgress;
-				if(urlbar && urlbar_progress)
-				{
-					if(this.progressUrlbar)
-					{
-						urlbar.pmpack = this.progressUrlbar;
-					}
-					urlbar_progress.hidden = !this.progressUrlbar;
-				}
-			}
-		},
-
-		"progress.urlbar.css":
-		{
-			update: function()
-			{
-				this.progressUrlbarCSS = this.prefs.getCharPref("progress.urlbar.css");
-			},
-			updateDynamicStyle: function(sheet)
-			{
-				sheet.cssRules[1].style.background = this.progressUrlbarCSS;
-			}
-		},
-
-		"progress.urlbar.style":
-		{
-			update: function()
-			{
-				this.progressUrlbarStyle = this.prefs.getBoolPref("progress.urlbar.style");
-			},
-			updateWindow: function(win)
-			{
-				let urlbar = win.caligon.status4evar.getters.urlbar;
-				if(urlbar)
-				{
-					this.setBoolElementAttribute(urlbar, "s4estyle", this.progressUrlbarStyle);
-				}
-			}
-		},
-
 		"status":
 		{
 			update: function()
@@ -464,38 +373,6 @@ Status_4_Evar.prototype =
 			}
 		},
 
-		"status.popup.invertMirror":
-		{
-			update: function()
-			{
-				this.statusUrlbarInvertMirror = this.prefs.getBoolPref("status.popup.invertMirror");
-			},
-			updateWindow: function(win)
-			{
-				let statusOverlay = win.caligon.status4evar.getters.statusOverlay;
-				if(statusOverlay)
-				{
-					statusOverlay.invertMirror = this.statusUrlbarInvertMirror;
-				}
-			}
-		},
-
-		"status.popup.mouseMirror":
-		{
-			update: function()
-			{
-				this.statusUrlbarMouseMirror = this.prefs.getBoolPref("status.popup.mouseMirror");
-			},
-			updateWindow: function(win)
-			{
-				let statusOverlay = win.caligon.status4evar.getters.statusOverlay;
-				if(statusOverlay)
-				{
-					statusOverlay.mouseMirror = this.statusUrlbarMouseMirror;
-				}
-			}
-		},
-
 		"status.timeout":
 		{
 			update: function()
@@ -522,73 +399,8 @@ Status_4_Evar.prototype =
 					status_widget.maxWidth = (this.statusToolbarMaxLength || "");
 				}
 			}
-		},
-
-		"status.urlbar.align":
-		{
-			update: function()
-			{
-				switch(this.prefs.getIntPref("status.urlbar.align"))
-				{
-					case 0:
-						this.statusUrlbarAlign = null;
-						break;
-					case 1:
-						this.statusUrlbarAlign = "left";
-						break;
-					default:
-						this.statusUrlbarAlign = "absolute";
-						break;
-				}
-			},
-			updateWindow: function(win)
-			{
-				let urlbar = win.caligon.status4evar.getters.urlbar;
-				if(urlbar)
-				{
-					urlbar.s4esalign = this.statusUrlbarAlign;
-					urlbar.updateOverLinkLayout();
-				}
-			}
-		},
-
-		"status.urlbar.color":
-		{
-			update: function()
-			{
-				this.statusUrlbarColor = this.prefs.getCharPref("status.urlbar.color");
-			},
-			updateDynamicStyle: function(sheet)
-			{
-				sheet.cssRules[3].style.color = this.statusUrlbarColor;
-			}
-		},
-
-		"status.urlbar.position":
-		{
-			update: function()
-			{
-				this.statusUrlbarPosition = this.prefs.getIntPref("status.urlbar.position");
-
-				if(this.statusUrlbarPosition < 10)
-				{
-					this.statusUrlbarPosition = 10;
-				}
-				else if(this.statusUrlbarPosition > 90)
-				{
-					this.statusUrlbarPosition = 90;
-				}
-			},
-			updateWindow: function(win)
-			{
-				let urlbar = win.caligon.status4evar.getters.urlbar;
-				if(urlbar)
-				{
-					urlbar.s4espos = this.statusUrlbarPosition;
-					urlbar.updateOverLinkLayout();
-				}
-			}
 		}
+
 	},
 
 	// nsIObserver

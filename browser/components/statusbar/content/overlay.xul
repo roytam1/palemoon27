@@ -77,10 +77,6 @@
 		               removable="true" command="S4E:Options" tooltiptext="&status4evar.options.widget.title;" />
 	</toolbarpalette>
 
-	<textbox id="urlbar" pmpack="end">
-		<progressmeter id="urlbar-progress-alt"  mode="normal" value="0" collapsed="true" />
-	</textbox>
-  
   <statusbar id="status-bar" ordinal="1" />
 </overlay>
 

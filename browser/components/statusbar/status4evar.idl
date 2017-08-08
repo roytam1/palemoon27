@@ -6,7 +6,7 @@
 
 interface nsIDOMWindow;
 
-[scriptable, uuid(13b3595e-7bb5-4cfe-bbfa-82c900a4d7bf)]
+[scriptable, uuid(b418cd1b-b172-4ef5-bfc5-fc555c87dbc4)]
 interface nsIStatus4Evar : nsISupports
 {
 	readonly attribute boolean   addonbarBorderStyle;
@@ -16,7 +16,6 @@ interface nsIStatus4Evar : nsISupports
 
 	readonly attribute boolean   advancedStatusDetectFullScreen;
 	readonly attribute boolean   advancedStatusDetectVideo;
-	readonly attribute boolean   advancedUrlbarForceBinding;
 
 	readonly attribute long      downloadButtonAction;
 	readonly attribute ACString  downloadButtonActionCommand;
@@ -38,11 +37,6 @@ interface nsIStatus4Evar : nsISupports
 	readonly attribute boolean   progressToolbarStyle;
 	readonly attribute boolean   progressToolbarStyleAdvanced;
 
-	readonly attribute ACString  progressUrlbar;
-	readonly attribute ACString  progressUrlbarCSS;
-	readonly attribute boolean   progressUrlbarStyle;
-	readonly attribute boolean   progressUrlbarStyleAdvanced;
-
 	readonly attribute long      status;
 	readonly attribute boolean   statusDefault;
 	readonly attribute boolean   statusNetwork;
@@ -53,13 +47,6 @@ interface nsIStatus4Evar : nsISupports
 	readonly attribute long      statusLinkOverDelayHide;
 
 	readonly attribute long      statusToolbarMaxLength;
-
-	readonly attribute ACString  statusUrlbarAlign;
-	readonly attribute ACString  statusUrlbarColor;
-	readonly attribute long      statusUrlbarPosition;
-
-	readonly attribute boolean   statusUrlbarInvertMirror;
-	readonly attribute boolean   statusUrlbarMouseMirror;
 
 	void resetPrefs();
 	void updateWindow(in nsIDOMWindow win);

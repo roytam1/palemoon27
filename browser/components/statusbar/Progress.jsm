@@ -37,15 +37,6 @@ S4EProgressService.prototype =
 			toolbar_progress.value = val;
 		}
 
-		if(this._service.progressUrlbar)
-		{
-			let urlbar_progress = this._getters.urlbarProgress;
-			if(urlbar_progress)
-			{
-				urlbar_progress.value = val;
-			}
-		}
-
 		let throbber_progress = this._getters.throbberProgress;
 		if(throbber_progress)
 		{
@@ -66,15 +57,6 @@ S4EProgressService.prototype =
 		if(toolbar_progress)
 		{
 			toolbar_progress.collapsed = val;
-		}
-
-		if(this._service.progressUrlbar)
-		{
-			let urlbar_progress = this._getters.urlbarProgress;
-			if(urlbar_progress)
-			{
-				urlbar_progress.collapsed = val;
-			}
 		}
 
 		let throbber_progress = this._getters.throbberProgress;

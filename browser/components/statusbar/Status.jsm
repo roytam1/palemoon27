@@ -102,11 +102,6 @@ S4EStatusService.prototype =
 		if(statusLinkOver)
 		{
 			link = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g, encodeURIComponent);
-			if(this._getters.urlbar && this._getters.urlbar._mayTrimURLs)
-			{
-				link = this._window.trimURL(link);
-			}
-
 			if(status == statusLinkOver)
 			{
 				this._overLink = { val: link, type: "overLink", anchor: aAnchor };
@@ -299,11 +294,6 @@ S4EStatusService.prototype =
 			status_label.value = "";
 		}
 
-		let urlbar = this._getters.urlbar;
-		if(urlbar)
-		{
-			urlbar.setStatus("");
-		}
 	},
 
 	setStatusField: function(location, text, allowTooltip)
@@ -337,12 +327,6 @@ S4EStatusService.prototype =
 				label = this._getters.statusWidgetLabel;
 				break;
 			case 2: // URL Bar
-				let urlbar = this._getters.urlbar;
-				if(urlbar)
-				{
-					urlbar.setStatusType(text.type);
-					urlbar.setStatus(text.val);
-				}
 				break;
 			case 3: // Popup
 			default:

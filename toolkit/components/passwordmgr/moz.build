@@ -39,7 +39,6 @@ EXTRA_JS_MODULES += [
     'InsecurePasswordUtils.jsm',
     'LoginHelper.jsm',
     'LoginManagerContent.jsm',
-    'LoginManagerParent.jsm',
     'OSCrypto.jsm',
 ]
 

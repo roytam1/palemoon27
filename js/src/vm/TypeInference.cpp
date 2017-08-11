@@ -1271,7 +1271,6 @@ js::FinishCompilation(JSContext* cx, HandleScript script, CompilerConstraintList
         // after any future changes to the stack type sets.
         if (entry.script->hasFreezeConstraints())
             continue;
-        entry.script->setHasFreezeConstraints();
 
         size_t count = TypeScript::NumTypeSets(entry.script);
 
@@ -1280,6 +1279,9 @@ js::FinishCompilation(JSContext* cx, HandleScript script, CompilerConstraintList
             if (!array[i].addConstraint(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeStack>(entry.script), false))
                 succeeded = false;
         }
+        
+        if (succeeded)
+            entry.script->setHasFreezeConstraints();
     }
 
     if (!succeeded || types.compilerOutputs->back().pendingInvalidation()) {

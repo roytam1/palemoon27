@@ -22,9 +22,13 @@
 #include "netCore.h"
 #include "nsIHttpAuthenticableChannel.h"
 #include "nsIURI.h"
+#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace net {
+
+#define MAX_DISPLAYED_USER_LENGTH 64
+#define MAX_DISPLAYED_HOST_LENGTH 64
 
 static void
 GetAppIdAndBrowserStatus(nsIChannel* aChan, uint32_t* aAppId, bool* aInBrowserElem)
@@ -1184,6 +1188,33 @@ nsHttpChannelAuthProvider::ConfirmAuth(const nsString &bundleKey,
         return true;
 
     NS_ConvertUTF8toUTF16 ucsHost(host), ucsUser(user);
+
+    size_t userLength = ucsUser.Length();
+    if (userLength > MAX_DISPLAYED_USER_LENGTH) {
+      size_t desiredLength = MAX_DISPLAYED_USER_LENGTH;
+      // Don't cut off right before a low surrogate. Just include it.
+      if (NS_IS_LOW_SURROGATE(ucsUser[desiredLength])) {
+        desiredLength++;
+      }
+      ucsUser.Replace(desiredLength, userLength - desiredLength,
+                      nsContentUtils::GetLocalizedEllipsis());
+    }
+
+    size_t hostLen = ucsHost.Length();
+    if (hostLen > MAX_DISPLAYED_HOST_LENGTH) {
+      size_t cutPoint = hostLen - MAX_DISPLAYED_HOST_LENGTH;
+      // Likewise, don't cut off right before a low surrogate here.
+      // Keep the low surrogate
+      if (NS_IS_LOW_SURROGATE(ucsHost[cutPoint])) {
+        cutPoint--;
+      }
+      // It's possible cutPoint was 1 and is now 0. Only insert the ellipsis
+      // if we're actually removing anything.
+      if (cutPoint > 0) {
+        ucsHost.Replace(0, cutPoint, nsContentUtils::GetLocalizedEllipsis());
+      }
+    }
+
     const char16_t *strs[2] = { ucsHost.get(), ucsUser.get() };
 
     nsXPIDLString msg;

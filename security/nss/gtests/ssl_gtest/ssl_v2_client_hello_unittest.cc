@@ -23,7 +23,7 @@ namespace nss_test {
 // Replaces the client hello with an SSLv2 version once.
 class SSLv2ClientHelloFilter : public PacketFilter {
  public:
-  SSLv2ClientHelloFilter(TlsAgent* client, uint16_t version)
+  SSLv2ClientHelloFilter(std::shared_ptr<TlsAgent>& client, uint16_t version)
       : replaced_(false),
         client_(client),
         version_(version),
@@ -121,7 +121,7 @@ class SSLv2ClientHelloFilter : public PacketFilter {
 
     // Update the client random so that the handshake succeeds.
     SECStatus rv = SSLInt_UpdateSSLv2ClientRandom(
-        client_->ssl_fd(), challenge.data(), challenge.size(),
+        client_.lock()->ssl_fd(), challenge.data(), challenge.size(),
         output->data() + hdr_len, output->len() - hdr_len);
     EXPECT_EQ(SECSuccess, rv);
 
@@ -130,7 +130,7 @@ class SSLv2ClientHelloFilter : public PacketFilter {
 
  private:
   bool replaced_;
-  TlsAgent* client_;
+  std::weak_ptr<TlsAgent> client_;
   uint16_t version_;
   uint8_t pad_len_;
   uint8_t reported_pad_len_;
@@ -141,14 +141,15 @@ class SSLv2ClientHelloFilter : public PacketFilter {
 
 class SSLv2ClientHelloTestF : public TlsConnectTestBase {
  public:
-  SSLv2ClientHelloTestF() : TlsConnectTestBase(STREAM, 0), filter_(nullptr) {}
+  SSLv2ClientHelloTestF()
+      : TlsConnectTestBase(ssl_variant_stream, 0), filter_(nullptr) {}
 
-  SSLv2ClientHelloTestF(Mode mode, uint16_t version)
-      : TlsConnectTestBase(mode, version), filter_(nullptr) {}
+  SSLv2ClientHelloTestF(SSLProtocolVariant variant, uint16_t version)
+      : TlsConnectTestBase(variant, version), filter_(nullptr) {}
 
   void SetUp() {
     TlsConnectTestBase::SetUp();
-    filter_ = new SSLv2ClientHelloFilter(client_, version_);
+    filter_ = std::make_shared<SSLv2ClientHelloFilter>(client_, version_);
     client_->SetPacketFilter(filter_);
   }
 
@@ -185,7 +186,7 @@ class SSLv2ClientHelloTestF : public TlsConnectTestBase {
   void SetSendEscape(bool send_escape) { filter_->SetSendEscape(send_escape); }
 
  private:
-  SSLv2ClientHelloFilter* filter_;
+  std::shared_ptr<SSLv2ClientHelloFilter> filter_;
 };
 
 // Parameterized version of SSLv2ClientHelloTestF we can
@@ -193,7 +194,8 @@ class SSLv2ClientHelloTestF : public TlsConnectTestBase {
 class SSLv2ClientHelloTest : public SSLv2ClientHelloTestF,
                              public ::testing::WithParamInterface<uint16_t> {
  public:
-  SSLv2ClientHelloTest() : SSLv2ClientHelloTestF(STREAM, GetParam()) {}
+  SSLv2ClientHelloTest()
+      : SSLv2ClientHelloTestF(ssl_variant_stream, GetParam()) {}
 };
 
 // Test negotiating TLS 1.0 - 1.2.
@@ -220,7 +222,7 @@ TEST_P(SSLv2ClientHelloTest, ConnectAfterEmptyV3Record) {
   // as the record length.
   SetPadding(255);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   EXPECT_EQ(SSL_ERROR_BAD_CLIENT, server_->error_code());
 }
 
@@ -233,7 +235,7 @@ TEST_F(SSLv2ClientHelloTestF, Connect13) {
   std::vector<uint16_t> cipher_suites = {TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256};
   SetAvailableCipherSuites(cipher_suites);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   EXPECT_EQ(SSL_ERROR_RX_MALFORMED_CLIENT_HELLO, server_->error_code());
 }
 
@@ -260,7 +262,7 @@ TEST_P(SSLv2ClientHelloTest, SendSecurityEscape) {
   // Set a big padding so that the server fails instead of timing out.
   SetPadding(255);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
 }
 
 // Invalid SSLv2 client hello padding must fail the handshake.
@@ -270,7 +272,7 @@ TEST_P(SSLv2ClientHelloTest, AddErroneousPadding) {
   // Append 5 bytes of padding but say it's only 4.
   SetPadding(5, 4);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   EXPECT_EQ(SSL_ERROR_RX_MALFORMED_CLIENT_HELLO, server_->error_code());
 }
 
@@ -281,7 +283,7 @@ TEST_P(SSLv2ClientHelloTest, AddErroneousPadding2) {
   // Append 5 bytes of padding but say it's 6.
   SetPadding(5, 6);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   EXPECT_EQ(SSL_ERROR_RX_MALFORMED_CLIENT_HELLO, server_->error_code());
 }
 
@@ -292,7 +294,7 @@ TEST_P(SSLv2ClientHelloTest, SmallClientRandom) {
   // Send a ClientRandom that's too small.
   SetClientRandomLength(15);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   EXPECT_EQ(SSL_ERROR_RX_MALFORMED_CLIENT_HELLO, server_->error_code());
 }
 
@@ -310,7 +312,7 @@ TEST_P(SSLv2ClientHelloTest, BigClientRandom) {
   // Send a ClientRandom that's too big.
   SetClientRandomLength(33);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   EXPECT_EQ(SSL_ERROR_RX_MALFORMED_CLIENT_HELLO, server_->error_code());
 }
 
@@ -319,7 +321,7 @@ TEST_P(SSLv2ClientHelloTest, BigClientRandom) {
 TEST_P(SSLv2ClientHelloTest, RequireSafeRenegotiation) {
   RequireSafeRenegotiation();
   SetAvailableCipherSuite(TLS_DHE_RSA_WITH_AES_128_CBC_SHA);
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
   EXPECT_EQ(SSL_ERROR_UNSAFE_NEGOTIATION, server_->error_code());
 }
 
@@ -361,7 +363,7 @@ TEST_F(SSLv2ClientHelloTestF, InappropriateFallbackSCSV) {
                                          TLS_FALLBACK_SCSV};
   SetAvailableCipherSuites(cipher_suites);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertInappropriateFallback);
   EXPECT_EQ(SSL_ERROR_INAPPROPRIATE_FALLBACK_ALERT, server_->error_code());
 }
 

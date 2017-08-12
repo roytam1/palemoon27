@@ -31,13 +31,6 @@
 
 #include <stdio.h>
 
-#ifndef PK11_SETATTRS
-#define PK11_SETATTRS(x, id, v, l) \
-    (x)->type = (id);              \
-    (x)->pValue = (v);             \
-    (x)->ulValueLen = (l);
-#endif
-
 SECStatus
 ssl_NamedGroup2ECParams(PLArenaPool *arena, const sslNamedGroupDef *ecGroup,
                         SECKEYECParams *params)
@@ -257,16 +250,6 @@ loser:
     return SECFailure;
 }
 
-/* This function returns the size of the key_exchange field in
- * the KeyShareEntry structure, i.e.:
- *     opaque point <1..2^8-1>; */
-unsigned int
-tls13_SizeOfECDHEKeyShareKEX(const SECKEYPublicKey *pubKey)
-{
-    PORT_Assert(pubKey->keyType == ecKey);
-    return pubKey->u.ec.publicValue.len;
-}
-
 /* This function encodes the key_exchange field in
  * the KeyShareEntry structure. */
 SECStatus
@@ -436,23 +419,19 @@ ssl_GetECGroupForServerSocket(sslSocket *ss)
         return NULL;
     }
 
-    if (cert->certType.authType == ssl_auth_rsa_sign) {
+    if (SSL_CERT_IS(cert, ssl_auth_rsa_sign) ||
+        SSL_CERT_IS(cert, ssl_auth_rsa_pss)) {
         certKeySize = SECKEY_PublicKeyStrengthInBits(cert->serverKeyPair->pubKey);
-        certKeySize =
-            SSL_RSASTRENGTH_TO_ECSTRENGTH(certKeySize);
-    } else if (cert->certType.authType == ssl_auth_ecdsa ||
-               cert->certType.authType == ssl_auth_ecdh_rsa ||
-               cert->certType.authType == ssl_auth_ecdh_ecdsa) {
-        const sslNamedGroupDef *groupDef = cert->certType.namedCurve;
-
+        certKeySize = SSL_RSASTRENGTH_TO_ECSTRENGTH(certKeySize);
+    } else if (SSL_CERT_IS_EC(cert)) {
         /* We won't select a certificate unless the named curve has been
          * negotiated (or supported_curves was absent), double check that. */
-        PORT_Assert(groupDef->keaType == ssl_kea_ecdh);
-        PORT_Assert(ssl_NamedGroupEnabled(ss, groupDef));
-        if (!ssl_NamedGroupEnabled(ss, groupDef)) {
+        PORT_Assert(cert->namedCurve->keaType == ssl_kea_ecdh);
+        PORT_Assert(ssl_NamedGroupEnabled(ss, cert->namedCurve));
+        if (!ssl_NamedGroupEnabled(ss, cert->namedCurve)) {
             return NULL;
         }
-        certKeySize = groupDef->bits;
+        certKeySize = cert->namedCurve->bits;
     } else {
         PORT_Assert(0);
         return NULL;

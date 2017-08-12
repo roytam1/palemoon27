@@ -63,7 +63,7 @@
             'NSS_SSL_ENABLE_ZLIB',
           ],
         }],
-        [ 'fuzz==1', {
+        [ 'fuzz_tls==1', {
           'defines': [
             'UNSAFE_FUZZER_MODE',
           ],
@@ -71,7 +71,6 @@
       ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports',
-        '<(DEPTH)/lib/freebl/freebl.gyp:freebl',
       ],
     },
     {
@@ -81,6 +80,7 @@
         'ssl',
         '<(DEPTH)/lib/nss/nss.gyp:nss3',
         '<(DEPTH)/lib/util/util.gyp:nssutil3',
+        '<(DEPTH)/lib/freebl/freebl.gyp:freebl',
       ],
       'variables': {
         'mapfile': 'ssl.def'

@@ -949,6 +949,73 @@ sec_pkcs12_convert_item_to_unicode(PLArenaPool *arena, SECItem *dest,
     return PR_TRUE;
 }
 
+PRBool
+sec_pkcs12_is_pkcs12_pbe_algorithm(SECOidTag algorithm)
+{
+    switch (algorithm) {
+        case SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_3KEY_TRIPLE_DES_CBC:
+        case SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_2KEY_TRIPLE_DES_CBC:
+        case SEC_OID_PKCS12_PBE_WITH_SHA1_AND_TRIPLE_DES_CBC:
+        case SEC_OID_PKCS12_PBE_WITH_SHA1_AND_40_BIT_RC2_CBC:
+        case SEC_OID_PKCS12_PBE_WITH_SHA1_AND_128_BIT_RC2_CBC:
+        case SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_128_BIT_RC2_CBC:
+        case SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_40_BIT_RC2_CBC:
+        case SEC_OID_PKCS12_PBE_WITH_SHA1_AND_40_BIT_RC4:
+        case SEC_OID_PKCS12_PBE_WITH_SHA1_AND_128_BIT_RC4:
+        case SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_128_BIT_RC4:
+        case SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_40_BIT_RC4:
+        /* those are actually PKCS #5 v1.5 PBEs, but we
+         * historically treat them in the same way as PKCS #12
+         * PBEs */
+        case SEC_OID_PKCS5_PBE_WITH_MD2_AND_DES_CBC:
+        case SEC_OID_PKCS5_PBE_WITH_SHA1_AND_DES_CBC:
+        case SEC_OID_PKCS5_PBE_WITH_MD5_AND_DES_CBC:
+            return PR_TRUE;
+        default:
+            return PR_FALSE;
+    }
+}
+
+/* this function decodes a password from Unicode if necessary,
+ * according to the PBE algorithm.
+ *
+ * we assume that the pwitem is already encoded in Unicode by the
+ * caller.  if the encryption scheme is not the one defined in PKCS
+ * #12, decode the pwitem back into UTF-8. */
+PRBool
+sec_pkcs12_decode_password(PLArenaPool *arena,
+                           SECItem *result,
+                           SECOidTag algorithm,
+                           const SECItem *pwitem)
+{
+    if (!sec_pkcs12_is_pkcs12_pbe_algorithm(algorithm))
+        return sec_pkcs12_convert_item_to_unicode(arena, result,
+                                                  (SECItem *)pwitem,
+                                                  PR_TRUE, PR_FALSE, PR_FALSE);
+
+    return SECITEM_CopyItem(arena, result, pwitem) == SECSuccess;
+}
+
+/* this function encodes a password into Unicode if necessary,
+ * according to the PBE algorithm.
+ *
+ * we assume that the pwitem holds a raw password.  if the encryption
+ * scheme is the one defined in PKCS #12, encode the password into
+ * BMPString. */
+PRBool
+sec_pkcs12_encode_password(PLArenaPool *arena,
+                           SECItem *result,
+                           SECOidTag algorithm,
+                           const SECItem *pwitem)
+{
+    if (sec_pkcs12_is_pkcs12_pbe_algorithm(algorithm))
+        return sec_pkcs12_convert_item_to_unicode(arena, result,
+                                                  (SECItem *)pwitem,
+                                                  PR_TRUE, PR_TRUE, PR_TRUE);
+
+    return SECITEM_CopyItem(arena, result, pwitem) == SECSuccess;
+}
+
 /* pkcs 12 templates */
 static const SEC_ASN1TemplateChooserPtr sec_pkcs12_shroud_chooser =
     sec_pkcs12_choose_shroud_type;

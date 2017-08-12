@@ -16,6 +16,8 @@ apt_packages+=('curl')
 apt_packages+=('npm')
 apt_packages+=('git')
 apt_packages+=('golang-1.6')
+apt_packages+=('libxml2-utils')
+apt_packages+=('locales')
 apt_packages+=('ninja-build')
 apt_packages+=('pkg-config')
 apt_packages+=('zlib1g-dev')
@@ -45,11 +47,19 @@ echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main" >
 apt-get -y update
 apt-get install -y --no-install-recommends ${apt_packages[@]}
 
-# 32-bit builds
-ln -s /usr/include/x86_64-linux-gnu/zconf.h /usr/include
+# Download clang.
+curl -LO http://releases.llvm.org/4.0.0/clang+llvm-4.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+curl -LO http://releases.llvm.org/4.0.0/clang+llvm-4.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz.sig
+# Verify the signature.
+gpg --keyserver pool.sks-keyservers.net --recv-keys B6C8F98282B944E3B0D5C2530FC3042E345AD05D
+gpg --verify *.tar.xz.sig
+# Install into /usr/local/.
+tar xJvf *.tar.xz -C /usr/local --strip-components=1
+# Cleanup.
+rm *.tar.xz*
 
-# Install clang-3.9 into /usr/local/.
-curl -L http://llvm.org/releases/3.9.0/clang+llvm-3.9.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJv -C /usr/local --strip-components=1
+# Install latest Rust (stable).
+su worker -c "curl https://sh.rustup.rs -sSf | sh -s -- -y"
 
 locale-gen en_US.UTF-8
 dpkg-reconfigure locales

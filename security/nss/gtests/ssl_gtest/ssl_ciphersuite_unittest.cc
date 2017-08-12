@@ -22,17 +22,17 @@ extern "C" {
 
 namespace nss_test {
 
-// mode, version, cipher suite
-typedef std::tuple<std::string, uint16_t, uint16_t, SSLNamedGroup,
+// variant, version, cipher suite
+typedef std::tuple<SSLProtocolVariant, uint16_t, uint16_t, SSLNamedGroup,
                    SSLSignatureScheme>
     CipherSuiteProfile;
 
 class TlsCipherSuiteTestBase : public TlsConnectTestBase {
  public:
-  TlsCipherSuiteTestBase(const std::string &mode, uint16_t version,
+  TlsCipherSuiteTestBase(SSLProtocolVariant variant, uint16_t version,
                          uint16_t cipher_suite, SSLNamedGroup group,
                          SSLSignatureScheme signature_scheme)
-      : TlsConnectTestBase(mode, version),
+      : TlsConnectTestBase(variant, version),
         cipher_suite_(cipher_suite),
         group_(group),
         signature_scheme_(signature_scheme),
@@ -128,16 +128,22 @@ class TlsCipherSuiteTestBase : public TlsConnectTestBase {
     Connect();
     SendReceive();
 
-    // Check that we used the right cipher suite.
+    // Check that we used the right cipher suite, auth type and kea type.
     uint16_t actual;
-    EXPECT_TRUE(client_->cipher_suite(&actual) && actual == cipher_suite_);
-    EXPECT_TRUE(server_->cipher_suite(&actual) && actual == cipher_suite_);
+    EXPECT_TRUE(client_->cipher_suite(&actual));
+    EXPECT_EQ(cipher_suite_, actual);
+    EXPECT_TRUE(server_->cipher_suite(&actual));
+    EXPECT_EQ(cipher_suite_, actual);
     SSLAuthType auth;
-    EXPECT_TRUE(client_->auth_type(&auth) && auth == auth_type_);
-    EXPECT_TRUE(server_->auth_type(&auth) && auth == auth_type_);
+    EXPECT_TRUE(client_->auth_type(&auth));
+    EXPECT_EQ(auth_type_, auth);
+    EXPECT_TRUE(server_->auth_type(&auth));
+    EXPECT_EQ(auth_type_, auth);
     SSLKEAType kea;
-    EXPECT_TRUE(client_->kea_type(&kea) && kea == kea_type_);
-    EXPECT_TRUE(server_->kea_type(&kea) && kea == kea_type_);
+    EXPECT_TRUE(client_->kea_type(&kea));
+    EXPECT_EQ(kea_type_, kea);
+    EXPECT_TRUE(server_->kea_type(&kea));
+    EXPECT_EQ(kea_type_, kea);
   }
 
   // Get the expected limit on the number of records that can be sent for the
@@ -252,14 +258,17 @@ TEST_P(TlsCipherSuiteTest, ReadLimit) {
   // authentication tag.
   static const uint8_t payload[18] = {6};
   DataBuffer record;
-  uint64_t epoch = 0;
-  if (mode_ == DGRAM) {
-    epoch++;
+  uint64_t epoch;
+  if (variant_ == ssl_variant_datagram) {
     if (version_ == SSL_LIBRARY_VERSION_TLS_1_3) {
-      epoch++;
+      epoch = 3;  // Application traffic keys.
+    } else {
+      epoch = 1;
     }
+  } else {
+    epoch = 0;
   }
-  TlsAgentTestBase::MakeRecord(mode_, kTlsApplicationDataType, version_,
+  TlsAgentTestBase::MakeRecord(variant_, kTlsApplicationDataType, version_,
                                payload, sizeof(payload), &record,
                                (epoch << 48) | record_limit());
   server_->adapter()->PacketReceived(record);
@@ -287,7 +296,7 @@ TEST_P(TlsCipherSuiteTest, WriteLimit) {
       k##name##Ciphers = ::testing::ValuesIn(k##name##CiphersArr);             \
   INSTANTIATE_TEST_CASE_P(                                                     \
       CipherSuite##name, TlsCipherSuiteTest,                                   \
-      ::testing::Combine(TlsConnectTestBase::kTlsModes##modes,                 \
+      ::testing::Combine(TlsConnectTestBase::kTlsVariants##modes,              \
                          TlsConnectTestBase::kTls##versions, k##name##Ciphers, \
                          groups, sigalgs));
 
@@ -396,7 +405,7 @@ class SecurityStatusTest
       public ::testing::WithParamInterface<SecStatusParams> {
  public:
   SecurityStatusTest()
-      : TlsCipherSuiteTestBase("TLS", GetParam().version,
+      : TlsCipherSuiteTestBase(ssl_variant_stream, GetParam().version,
                                GetParam().cipher_suite, ssl_grp_none,
                                ssl_sig_none) {}
 };

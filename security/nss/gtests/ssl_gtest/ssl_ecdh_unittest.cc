@@ -75,8 +75,8 @@ TEST_P(TlsConnectGeneric, ConnectEcdheP384Client) {
 // This causes a HelloRetryRequest in TLS 1.3.  Earlier versions don't care.
 TEST_P(TlsConnectGeneric, ConnectEcdheP384Server) {
   EnsureTlsSetup();
-  auto hrr_capture =
-      new TlsInspectorRecordHandshakeMessage(kTlsHandshakeHelloRetryRequest);
+  auto hrr_capture = std::make_shared<TlsInspectorRecordHandshakeMessage>(
+      kTlsHandshakeHelloRetryRequest);
   server_->SetPacketFilter(hrr_capture);
   const std::vector<SSLNamedGroup> groups = {ssl_grp_ec_secp384r1};
   server_->ConfigNamedGroups(groups);
@@ -223,11 +223,12 @@ class TlsKeyExchangeGroupCapture : public TlsHandshakeFilter {
 // P-256 is supported by the client (<= 1.2 only).
 TEST_P(TlsConnectGenericPre13, DropSupportedGroupExtensionP256) {
   EnsureTlsSetup();
-  client_->SetPacketFilter(new TlsExtensionDropper(ssl_supported_groups_xtn));
-  auto group_capture = new TlsKeyExchangeGroupCapture();
+  client_->SetPacketFilter(
+      std::make_shared<TlsExtensionDropper>(ssl_supported_groups_xtn));
+  auto group_capture = std::make_shared<TlsKeyExchangeGroupCapture>();
   server_->SetPacketFilter(group_capture);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertDecryptError);
   client_->CheckErrorCode(SSL_ERROR_DECRYPT_ERROR_ALERT);
   server_->CheckErrorCode(SSL_ERROR_BAD_HANDSHAKE_HASH_VALUE);
 
@@ -237,8 +238,9 @@ TEST_P(TlsConnectGenericPre13, DropSupportedGroupExtensionP256) {
 // Supported groups is mandatory in TLS 1.3.
 TEST_P(TlsConnectTls13, DropSupportedGroupExtension) {
   EnsureTlsSetup();
-  client_->SetPacketFilter(new TlsExtensionDropper(ssl_supported_groups_xtn));
-  ConnectExpectFail();
+  client_->SetPacketFilter(
+      std::make_shared<TlsExtensionDropper>(ssl_supported_groups_xtn));
+  ConnectExpectAlert(server_, kTlsAlertMissingExtension);
   client_->CheckErrorCode(SSL_ERROR_MISSING_EXTENSION_ALERT);
   server_->CheckErrorCode(SSL_ERROR_MISSING_SUPPORTED_GROUPS_EXTENSION);
 }
@@ -483,7 +485,7 @@ TEST_P(TlsConnectGeneric, P256ClientAndCurve25519Server) {
   client_->ConfigNamedGroups(client_groups);
   server_->ConfigNamedGroups(server_groups);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
   client_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
   server_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
 }
@@ -559,25 +561,25 @@ class ECCServerKEXFilter : public TlsHandshakeFilter {
 
 TEST_P(TlsConnectGenericPre13, ConnectECDHEmptyServerPoint) {
   // add packet filter
-  server_->SetPacketFilter(new ECCServerKEXFilter());
-  ConnectExpectFail();
+  server_->SetPacketFilter(std::make_shared<ECCServerKEXFilter>());
+  ConnectExpectAlert(client_, kTlsAlertIllegalParameter);
   client_->CheckErrorCode(SSL_ERROR_RX_MALFORMED_SERVER_KEY_EXCH);
 }
 
 TEST_P(TlsConnectGenericPre13, ConnectECDHEmptyClientPoint) {
   // add packet filter
-  client_->SetPacketFilter(new ECCClientKEXFilter());
-  ConnectExpectFail();
+  client_->SetPacketFilter(std::make_shared<ECCClientKEXFilter>());
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   server_->CheckErrorCode(SSL_ERROR_RX_MALFORMED_CLIENT_KEY_EXCH);
 }
 
 INSTANTIATE_TEST_CASE_P(KeyExchangeTest, TlsKeyExchangeTest,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesAll,
+                        ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
                                            TlsConnectTestBase::kTlsV11Plus));
 
 #ifndef NSS_DISABLE_TLS_1_3
 INSTANTIATE_TEST_CASE_P(KeyExchangeTest, TlsKeyExchangeTest13,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesAll,
+                        ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
                                            TlsConnectTestBase::kTlsV13));
 #endif
 

@@ -32,121 +32,55 @@
         '<(DEPTH)/exports.gyp:nss_exports'
       ]
     },
+    # For test builds, build a static freebl library so we can statically
+    # link it into the test build binary. This way we don't have to
+    # dlopen() the shared lib but can directly call freebl functions.
     {
-      'target_name': '<(freebl_name)',
-      'type': 'shared_library',
-      'sources': [
-        'aeskeywrap.c',
-        'alg2268.c',
-        'alghmac.c',
-        'arcfive.c',
-        'arcfour.c',
-        'camellia.c',
-        'chacha20poly1305.c',
-        'ctr.c',
-        'cts.c',
-        'des.c',
-        'desblapi.c',
-        'dh.c',
-        'drbg.c',
-        'dsa.c',
-        'ec.c',
-        'ecdecode.c',
-        'ecl/ec_naf.c',
-        'ecl/ecl.c',
-        'ecl/ecl_curve.c',
-        'ecl/ecl_gf.c',
-        'ecl/ecl_mult.c',
-        'ecl/ecp_25519.c',
-        'ecl/ecp_256.c',
-        'ecl/ecp_256_32.c',
-        'ecl/ecp_384.c',
-        'ecl/ecp_521.c',
-        'ecl/ecp_aff.c',
-        'ecl/ecp_jac.c',
-        'ecl/ecp_jm.c',
-        'ecl/ecp_mont.c',
-        'fipsfreebl.c',
-        'freeblver.c',
-        'gcm.c',
-        'hmacct.c',
-        'jpake.c',
-        'ldvector.c',
-        'md2.c',
-        'md5.c',
-        'mpi/mp_gf2m.c',
-        'mpi/mpcpucache.c',
-        'mpi/mpi.c',
-        'mpi/mplogic.c',
-        'mpi/mpmontg.c',
-        'mpi/mpprime.c',
-        'pqg.c',
-        'rawhash.c',
-        'rijndael.c',
-        'rsa.c',
-        'rsapkcs.c',
-        'seed.c',
-        'sha512.c',
-        'sha_fast.c',
-        'shvfy.c',
-        'sysrand.c',
-        'tlsprfalg.c'
+      'target_name': 'freebl_static',
+      'type': 'static_library',
+      'includes': [
+        'freebl_base.gypi',
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports',
       ],
       'conditions': [
         [ 'OS=="linux"', {
-          'sources': [
-            'nsslowhash.c',
-            'stubs.c',
+          'defines!': [
+            'FREEBL_NO_DEPEND',
+            'FREEBL_LOWHASH',
+            'USE_HW_AES',
+            'INTEL_GCM',
           ],
           'conditions': [
-            [ 'test_build==1', {
-              'dependencies': [
-                '<(DEPTH)/lib/util/util.gyp:nssutil3',
-              ],
-            }],
             [ 'target_arch=="x64"', {
-              'sources': [
-                'arcfour-amd64-gas.s',
+              # The AES assembler code doesn't work in static test builds.
+              # The linker complains about non-relocatable code, and I
+              # currently don't know how to fix this properly.
+              'sources!': [
                 'intel-aes.s',
                 'intel-gcm.s',
-                'mpi/mpi_amd64.c',
-                'mpi/mpi_amd64_gas.s',
-                'mpi/mp_comba.c',
-              ],
-              'dependencies': [
-                'intel-gcm-wrap_c_lib',
-              ],
-              'conditions': [
-                [ 'cc_is_clang==1', {
-                  'cflags': [
-                    '-no-integrated-as',
-                  ],
-                  'cflags_mozilla': [
-                    '-no-integrated-as',
-                  ],
-                  'asflags_mozilla': [
-                    '-no-integrated-as',
-                  ],
-                }],
-              ],
-            }],
-            [ 'target_arch=="ia32"', {
-              'sources': [
-                'mpi/mpi_x86.s',
-              ],
-            }],
-            [ 'target_arch=="arm"', {
-              'sources': [
-                'mpi/mpi_arm.c',
               ],
             }],
           ],
-        }, {
-          # not Linux
+        }],
+      ],
+    },
+    {
+      'target_name': '<(freebl_name)',
+      'type': 'shared_library',
+      'includes': [
+        'freebl_base.gypi',
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports',
+      ],
+      'conditions': [
+        [ 'OS!="linux" and OS!="android"', {
           'conditions': [
             [ 'moz_fold_libs==0', {
               'dependencies': [
-                '../util/util.gyp:nssutil3',
+                '<(DEPTH)/lib/util/util.gyp:nssutil3',
               ],
             }, {
               'libraries': [
@@ -154,96 +88,22 @@
               ],
             }],
           ],
+        }, 'target_arch=="x64"', {
+          'dependencies': [
+            'intel-gcm-wrap_c_lib',
+          ],
         }],
-        [ 'OS=="win"', {
+        [ 'OS=="win" and cc_is_clang==1', {
+          'dependencies': [
+            'intel-gcm-wrap_c_lib',
+          ],
+        }],
+        [ 'OS=="linux"', {
           'sources': [
-            #TODO: building with mingw should not need this.
-            'ecl/uint128.c',
-            #TODO: clang-cl needs -msse3 here
-            'intel-gcm-wrap.c',
-          ],
-          'libraries': [
-            'advapi32.lib',
-          ],
-          'conditions': [
-            [ 'target_arch=="x64"', {
-              'sources': [
-                'arcfour-amd64-masm.asm',
-                'mpi/mpi_amd64.c',
-                'mpi/mpi_amd64_masm.asm',
-                'mpi/mp_comba_amd64_masm.asm',
-                'intel-aes-x64-masm.asm',
-                'intel-gcm-x64-masm.asm',
-              ],
-            }, {
-              # not x64
-              'sources': [
-                'mpi/mpi_x86_asm.c',
-                'intel-aes-x86-masm.asm',
-                'intel-gcm-x86-masm.asm',
-              ],
-            }],
+            'nsslowhash.c',
+            'stubs.c',
           ],
         }],
-        ['target_arch=="ia32" or target_arch=="x64"', {
-          'sources': [
-            # All intel architectures get the 64 bit version
-            'ecl/curve25519_64.c',
-          ],
-        }, {
-          'sources': [
-            # All non intel architectures get the generic 32 bit implementation (slow!)
-            'ecl/curve25519_32.c',
-          ],
-        }],
-        #TODO uint128.c
-        [ 'disable_chachapoly==0', {
-          'conditions': [
-            [ 'OS!="win" and target_arch=="x64"', {
-              'sources': [
-                'chacha20_vec.c',
-                'poly1305-donna-x64-sse2-incremental-source.c',
-              ],
-            }, {
-              # not x64
-              'sources': [
-                'chacha20.c',
-                'poly1305.c',
-              ],
-            }],
-          ],
-        }],
-        [ 'fuzz==1', {
-          'sources': [
-            'det_rng.c',
-          ],
-          'defines': [
-            'UNSAFE_FUZZER_MODE',
-          ],
-        }],
-        [ 'test_build==1', {
-          'defines': [
-            'CT_VERIF',
-          ],
-        }],
-        [ 'OS=="mac"', {
-          'conditions': [
-            [ 'target_arch=="ia32"', {
-              'sources': [
-                'mpi/mpi_sse2.s',
-              ],
-              'defines': [
-                'MP_USE_UINT_DIGIT',
-                'MP_ASSEMBLY_MULTIPLY',
-                'MP_ASSEMBLY_SQUARE',
-                'MP_ASSEMBLY_DIV_2DX1D',
-              ],
-            }],
-          ],
-        }],
-      ],
-      'dependencies': [
-        '<(DEPTH)/exports.gyp:nss_exports',
       ],
       'variables': {
        'conditions': [
@@ -254,9 +114,6 @@
          }],
        ]
       },
-      'ldflags': [
-        '-Wl,-Bsymbolic'
-      ]
     },
   ],
   'conditions': [
@@ -301,8 +158,6 @@
           'VCCLCompilerTool': {
             #TODO: -Ox optimize flags
             'PreprocessorDefinitions': [
-              'NSS_X86_OR_X64',
-              'NSS_X86',
               'MP_ASSEMBLY_MULTIPLY',
               'MP_ASSEMBLY_SQUARE',
               'MP_ASSEMBLY_DIV_2DX1D',
@@ -319,9 +174,7 @@
           'VCCLCompilerTool': {
             #TODO: -Ox optimize flags
             'PreprocessorDefinitions': [
-              'NSS_USE_64',
-              'NSS_X86_OR_X64',
-              'NSS_X64',
+              # Should be copied to mingw defines below
               'MP_IS_LITTLE_ENDIAN',
               'NSS_BEVAND_ARCFOUR',
               'MPI_AMD64',
@@ -333,13 +186,21 @@
           },
         },
       }],
+      [ 'cc_use_gnu_ld==1 and OS=="win" and target_arch=="x64"', {
+        'defines': [
+          'MP_IS_LITTLE_ENDIAN',
+          'NSS_BEVAND_ARCFOUR',
+          'MPI_AMD64',
+          'MP_ASSEMBLY_MULTIPLY',
+          'NSS_USE_COMBA',
+          'USE_HW_AES',
+          'INTEL_GCM',
+         ],
+      }],
       [ 'OS!="win"', {
         'conditions': [
-          [ 'target_arch=="x64"', {
+          [ 'target_arch=="x64" or target_arch=="arm64" or target_arch=="aarch64"', {
             'defines': [
-              'NSS_USE_64',
-              'NSS_X86_OR_X64',
-              'NSS_X64',
               # The Makefile does version-tests on GCC, but we're not doing that here.
               'HAVE_INT128_SUPPORT',
             ],
@@ -348,24 +209,16 @@
               'ecl/uint128.c',
             ],
           }],
-          [ 'target_arch=="ia32"', {
-            'defines': [
-              'NSS_X86_OR_X64',
-              'NSS_X86',
-            ],
-          }],
         ],
       }],
       [ 'OS=="linux"', {
         'defines': [
           'FREEBL_LOWHASH',
+          'FREEBL_NO_DEPEND',
         ],
+      }],
+      [ 'OS=="linux" or OS=="android"', {
         'conditions': [
-          [ 'test_build==0', {
-            'defines': [
-              'FREEBL_NO_DEPEND',
-            ],
-          }],
           [ 'target_arch=="x64"', {
             'defines': [
               'MP_IS_LITTLE_ENDIAN',
@@ -375,7 +228,7 @@
               'NSS_USE_COMBA',
             ],
           }],
-          [ 'target_arch=="x64" and use_msan==0', {
+          [ 'target_arch=="x64"', {
             'defines': [
               'USE_HW_AES',
               'INTEL_GCM',
@@ -396,6 +249,7 @@
               'MP_ASSEMBLY_SQUARE',
               'MP_USE_UINT_DIGIT',
               'SHA_NO_LONG_LONG',
+              'ARMHF',
             ],
           }],
         ],

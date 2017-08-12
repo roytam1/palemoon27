@@ -54,6 +54,9 @@ struct TLSExtensionDataStr {
     PRUint16 advertised[SSL_MAX_EXTENSIONS];
     PRUint16 negotiated[SSL_MAX_EXTENSIONS];
 
+    /* Amount of padding we need to add. */
+    PRUint16 paddingLen;
+
     /* SessionTicket Extension related data. */
     PRBool ticketTimestampVerified;
     PRBool emptySessionTicket;
@@ -130,9 +133,8 @@ SECStatus ssl3_RegisterExtensionSender(const sslSocket *ss,
 PRInt32 ssl3_CallHelloExtensionSenders(sslSocket *ss, PRBool append, PRUint32 maxBytes,
                                        const ssl3HelloExtensionSender *sender);
 
-unsigned int ssl3_CalculatePaddingExtensionLength(unsigned int clientHelloLength);
-PRInt32 ssl3_AppendPaddingExtension(sslSocket *ss, unsigned int extensionLen,
-                                    PRUint32 maxBytes);
+void ssl3_CalculatePaddingExtLen(sslSocket *ss,
+                                 unsigned int clientHelloLength);
 
 /* Thunks to let us operate on const sslSocket* objects. */
 SECStatus ssl3_ExtAppendHandshake(const sslSocket *ss, const void *void_src,
@@ -145,12 +147,13 @@ SECStatus ssl3_ExtAppendHandshakeVariable(const sslSocket *ss,
 void ssl3_ExtSendAlert(const sslSocket *ss, SSL3AlertLevel level,
                        SSL3AlertDescription desc);
 void ssl3_ExtDecodeError(const sslSocket *ss);
-SECStatus ssl3_ExtConsumeHandshake(const sslSocket *ss, void *v, PRInt32 bytes,
+SECStatus ssl3_ExtConsumeHandshake(const sslSocket *ss, void *v, PRUint32 bytes,
                                    SSL3Opaque **b, PRUint32 *length);
-PRInt32 ssl3_ExtConsumeHandshakeNumber(const sslSocket *ss, PRInt32 bytes,
-                                       SSL3Opaque **b, PRUint32 *length);
+SECStatus ssl3_ExtConsumeHandshakeNumber(const sslSocket *ss, PRUint32 *num,
+                                         PRUint32 bytes, SSL3Opaque **b,
+                                         PRUint32 *length);
 SECStatus ssl3_ExtConsumeHandshakeVariable(const sslSocket *ss, SECItem *i,
-                                           PRInt32 bytes, SSL3Opaque **b,
+                                           PRUint32 bytes, SSL3Opaque **b,
                                            PRUint32 *length);
 
 #endif

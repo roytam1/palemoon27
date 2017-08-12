@@ -177,6 +177,8 @@ sec_pkcs12_decoder_get_decrypt_key(void *arg, SECAlgorithmID *algid)
     SEC_PKCS12DecoderContext *p12dcx = (SEC_PKCS12DecoderContext *)arg;
     PK11SlotInfo *slot;
     PK11SymKey *bulkKey;
+    SECItem pwitem = { 0 };
+    SECOidTag algorithm;
 
     if (!p12dcx) {
         return NULL;
@@ -189,8 +191,11 @@ sec_pkcs12_decoder_get_decrypt_key(void *arg, SECAlgorithmID *algid)
         slot = PK11_GetInternalKeySlot();
     }
 
-    bulkKey = PK11_PBEKeyGen(slot, algid, p12dcx->pwitem,
-                             PR_FALSE, p12dcx->wincx);
+    algorithm = SECOID_GetAlgorithmTag(algid);
+    if (!sec_pkcs12_decode_password(NULL, &pwitem, algorithm, p12dcx->pwitem))
+        return NULL;
+
+    bulkKey = PK11_PBEKeyGen(slot, algid, &pwitem, PR_FALSE, p12dcx->wincx);
     /* some tokens can't generate PBE keys on their own, generate the
      * key in the internal slot, and let the Import code deal with it,
      * (if the slot can't generate PBEs, then we need to use the internal
@@ -198,14 +203,17 @@ sec_pkcs12_decoder_get_decrypt_key(void *arg, SECAlgorithmID *algid)
     if (!bulkKey && !PK11_IsInternal(slot)) {
         PK11_FreeSlot(slot);
         slot = PK11_GetInternalKeySlot();
-        bulkKey = PK11_PBEKeyGen(slot, algid, p12dcx->pwitem,
-                                 PR_FALSE, p12dcx->wincx);
+        bulkKey = PK11_PBEKeyGen(slot, algid, &pwitem, PR_FALSE, p12dcx->wincx);
     }
     PK11_FreeSlot(slot);
 
     /* set the password data on the key */
     if (bulkKey) {
         PK11_SetSymKeyUserData(bulkKey, p12dcx->pwitem, NULL);
+    }
+
+    if (pwitem.data) {
+        SECITEM_ZfreeItem(&pwitem, PR_FALSE);
     }
 
     return bulkKey;
@@ -1335,11 +1343,23 @@ sec_pkcs12_decoder_verify_mac(SEC_PKCS12DecoderContext *p12dcx)
         case SEC_OID_MD2:
             integrityMech = CKM_NETSCAPE_PBE_MD2_HMAC_KEY_GEN;
             break;
+        case SEC_OID_SHA224:
+            integrityMech = CKM_NSS_PKCS12_PBE_SHA224_HMAC_KEY_GEN;
+            break;
+        case SEC_OID_SHA256:
+            integrityMech = CKM_NSS_PKCS12_PBE_SHA256_HMAC_KEY_GEN;
+            break;
+        case SEC_OID_SHA384:
+            integrityMech = CKM_NSS_PKCS12_PBE_SHA384_HMAC_KEY_GEN;
+            break;
+        case SEC_OID_SHA512:
+            integrityMech = CKM_NSS_PKCS12_PBE_SHA512_HMAC_KEY_GEN;
+            break;
         default:
             goto loser;
     }
 
-    symKey = PK11_KeyGen(NULL, integrityMech, params, 20, NULL);
+    symKey = PK11_KeyGen(NULL, integrityMech, params, 0, NULL);
     PK11_DestroyPBEParams(params);
     params = NULL;
     if (!symKey)
@@ -2440,13 +2460,25 @@ sec_pkcs12_add_key(sec_PKCS12SafeBag *key, SECKEYPublicKey *pubKey,
                                            nickName, publicValue, PR_TRUE, PR_TRUE,
                                            keyUsage, wincx);
             break;
-        case SEC_OID_PKCS12_V1_PKCS8_SHROUDED_KEY_BAG_ID:
+        case SEC_OID_PKCS12_V1_PKCS8_SHROUDED_KEY_BAG_ID: {
+            SECItem pwitem = { 0 };
+            SECAlgorithmID *algid =
+                &key->safeBagContent.pkcs8ShroudedKeyBag->algorithm;
+            SECOidTag algorithm = SECOID_GetAlgorithmTag(algid);
+
+            if (!sec_pkcs12_decode_password(NULL, &pwitem, algorithm,
+                                            key->pwitem))
+                return SECFailure;
             rv = PK11_ImportEncryptedPrivateKeyInfo(key->slot,
                                                     key->safeBagContent.pkcs8ShroudedKeyBag,
-                                                    key->pwitem, nickName, publicValue,
+                                                    &pwitem, nickName, publicValue,
                                                     PR_TRUE, PR_TRUE, keyType, keyUsage,
                                                     wincx);
+            if (pwitem.data) {
+                SECITEM_ZfreeItem(&pwitem, PR_FALSE);
+            }
             break;
+        }
         default:
             key->error = SEC_ERROR_PKCS12_UNSUPPORTED_VERSION;
             key->problem = PR_TRUE;

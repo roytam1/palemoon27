@@ -25,7 +25,7 @@ bogo_init()
   BORING=${BORING:=boringssl}
   if [ ! -d "$BORING" ]; then
     git clone -q https://boringssl.googlesource.com/boringssl "$BORING"
-    git -C "$BORING" checkout -q ea80f9d5df4c302de391e999395e1c87f9c786b3
+    git -C "$BORING" checkout -q bbfe603519bc54fbc4c8dd87efe1ed385df550b4
   fi
 
   SCRIPTNAME="bogo.sh"
@@ -38,9 +38,6 @@ bogo_cleanup()
   cd ${QADIR}
   . common/cleanup.sh
 }
-
-# Need to add go to the PATH.
-export PATH=$PATH:/usr/lib/go-1.6/bin
 
 cd "$(dirname "$0")"
 SOURCE_DIR="$PWD"/../..

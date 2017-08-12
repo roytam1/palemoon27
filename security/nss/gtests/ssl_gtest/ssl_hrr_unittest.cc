@@ -34,7 +34,8 @@ TEST_P(TlsConnectTls13, HelloRetryRequestAbortsZeroRtt) {
   ExpectResumption(RESUME_TICKET);
 
   // Send first ClientHello and send 0-RTT data
-  auto capture_early_data = new TlsExtensionCapture(ssl_tls13_early_data_xtn);
+  auto capture_early_data =
+      std::make_shared<TlsExtensionCapture>(ssl_tls13_early_data_xtn);
   client_->SetPacketFilter(capture_early_data);
   client_->Handshake();
   EXPECT_EQ(k0RttDataLen, PR_Write(client_->ssl_fd(), k0RttData,
@@ -42,8 +43,8 @@ TEST_P(TlsConnectTls13, HelloRetryRequestAbortsZeroRtt) {
   EXPECT_TRUE(capture_early_data->captured());
 
   // Send the HelloRetryRequest
-  auto hrr_capture =
-      new TlsInspectorRecordHandshakeMessage(kTlsHandshakeHelloRetryRequest);
+  auto hrr_capture = std::make_shared<TlsInspectorRecordHandshakeMessage>(
+      kTlsHandshakeHelloRetryRequest);
   server_->SetPacketFilter(hrr_capture);
   server_->Handshake();
   EXPECT_LT(0U, hrr_capture->buffer().len());
@@ -54,7 +55,8 @@ TEST_P(TlsConnectTls13, HelloRetryRequestAbortsZeroRtt) {
   EXPECT_EQ(PR_WOULD_BLOCK_ERROR, PORT_GetError());
 
   // Make a new capture for the early data.
-  capture_early_data = new TlsExtensionCapture(ssl_tls13_early_data_xtn);
+  capture_early_data =
+      std::make_shared<TlsExtensionCapture>(ssl_tls13_early_data_xtn);
   client_->SetPacketFilter(capture_early_data);
 
   // Complete the handshake successfully
@@ -63,6 +65,88 @@ TEST_P(TlsConnectTls13, HelloRetryRequestAbortsZeroRtt) {
   CheckConnected();
   SendReceive();
   EXPECT_FALSE(capture_early_data->captured());
+}
+
+// This filter only works for DTLS 1.3 where there is exactly one handshake
+// packet. If the record is split into two packets, or there are multiple
+// handshake packets, this will break.
+class CorrectMessageSeqAfterHrrFilter : public TlsRecordFilter {
+ protected:
+  PacketFilter::Action FilterRecord(const TlsRecordHeader& header,
+                                    const DataBuffer& record, size_t* offset,
+                                    DataBuffer* output) {
+    if (filtered_packets() > 0 || header.content_type() != content_handshake) {
+      return KEEP;
+    }
+
+    DataBuffer buffer(record);
+    TlsRecordHeader new_header = {header.version(), header.content_type(),
+                                  header.sequence_number() + 1};
+
+    // Correct message_seq.
+    buffer.Write(4, 1U, 2);
+
+    *offset = new_header.Write(output, *offset, buffer);
+    return CHANGE;
+  }
+};
+
+TEST_P(TlsConnectTls13, SecondClientHelloRejectEarlyDataXtn) {
+  static const std::vector<SSLNamedGroup> groups = {ssl_grp_ec_secp384r1,
+                                                    ssl_grp_ec_secp521r1};
+
+  SetupForZeroRtt();
+  ExpectResumption(RESUME_TICKET);
+
+  client_->ConfigNamedGroups(groups);
+  server_->ConfigNamedGroups(groups);
+  client_->Set0RttEnabled(true);
+  server_->Set0RttEnabled(true);
+
+  // A new client that tries to resume with 0-RTT but doesn't send the
+  // correct key share(s). The server will respond with an HRR.
+  auto orig_client =
+      std::make_shared<TlsAgent>(client_->name(), TlsAgent::CLIENT, variant_);
+  client_.swap(orig_client);
+  client_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_1,
+                           SSL_LIBRARY_VERSION_TLS_1_3);
+  client_->ConfigureSessionCache(RESUME_BOTH);
+  client_->Set0RttEnabled(true);
+  client_->StartConnect();
+
+  // Swap in the new client.
+  client_->SetPeer(server_);
+  server_->SetPeer(client_);
+
+  // Send the ClientHello.
+  client_->Handshake();
+  // Process the CH, send an HRR.
+  server_->Handshake();
+
+  // Swap the client we created manually with the one that successfully
+  // received a PSK, and try to resume with 0-RTT. The client doesn't know
+  // about the HRR so it will send the early_data xtn as well as 0-RTT data.
+  client_.swap(orig_client);
+  orig_client.reset();
+
+  // Correct the DTLS message sequence number after an HRR.
+  if (variant_ == ssl_variant_datagram) {
+    client_->SetPacketFilter(
+        std::make_shared<CorrectMessageSeqAfterHrrFilter>());
+  }
+
+  server_->SetPeer(client_);
+  client_->Handshake();
+
+  // Send 0-RTT data.
+  const char* k0RttData = "ABCDEF";
+  const PRInt32 k0RttDataLen = static_cast<PRInt32>(strlen(k0RttData));
+  PRInt32 rv = PR_Write(client_->ssl_fd(), k0RttData, k0RttDataLen);
+  EXPECT_EQ(k0RttDataLen, rv);
+
+  ExpectAlert(server_, kTlsAlertUnsupportedExtension);
+  Handshake();
+  client_->CheckErrorCode(SSL_ERROR_UNSUPPORTED_EXTENSION_ALERT);
 }
 
 class KeyShareReplayer : public TlsExtensionFilter {
@@ -94,11 +178,11 @@ class KeyShareReplayer : public TlsExtensionFilter {
 // server should reject this.
 TEST_P(TlsConnectTls13, RetryWithSameKeyShare) {
   EnsureTlsSetup();
-  client_->SetPacketFilter(new KeyShareReplayer());
+  client_->SetPacketFilter(std::make_shared<KeyShareReplayer>());
   static const std::vector<SSLNamedGroup> groups = {ssl_grp_ec_secp384r1,
                                                     ssl_grp_ec_secp521r1};
   server_->ConfigNamedGroups(groups);
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
   EXPECT_EQ(SSL_ERROR_BAD_2ND_CLIENT_HELLO, server_->error_code());
   EXPECT_EQ(SSL_ERROR_ILLEGAL_PARAMETER_ALERT, client_->error_code());
 }
@@ -109,7 +193,7 @@ TEST_F(TlsConnectDatagram13, DropClientSecondFlightWithHelloRetry) {
   static const std::vector<SSLNamedGroup> groups = {ssl_grp_ec_secp384r1,
                                                     ssl_grp_ec_secp521r1};
   server_->ConfigNamedGroups(groups);
-  server_->SetPacketFilter(new SelectiveDropFilter(0x2));
+  server_->SetPacketFilter(std::make_shared<SelectiveDropFilter>(0x2));
   Connect();
 }
 
@@ -169,16 +253,13 @@ TEST_F(TlsConnectTest, Select12AfterHelloRetryRequest) {
 
   // Here we replace the TLS server with one that does TLS 1.2 only.
   // This will happily send the client a TLS 1.2 ServerHello.
-  TlsAgent* replacement_server =
-      new TlsAgent(server_->name(), TlsAgent::SERVER, mode_);
-  delete server_;
-  server_ = replacement_server;
-  server_->Init();
+  server_.reset(new TlsAgent(server_->name(), TlsAgent::SERVER, variant_));
   client_->SetPeer(server_);
   server_->SetPeer(client_);
   server_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_2,
                            SSL_LIBRARY_VERSION_TLS_1_2);
   server_->StartConnect();
+  ExpectAlert(client_, kTlsAlertIllegalParameter);
   Handshake();
   EXPECT_EQ(SSL_ERROR_ILLEGAL_PARAMETER_ALERT, server_->error_code());
   EXPECT_EQ(SSL_ERROR_RX_MALFORMED_SERVER_HELLO, client_->error_code());
@@ -189,8 +270,6 @@ class HelloRetryRequestAgentTest : public TlsAgentTestClient {
   void SetUp() override {
     TlsAgentTestClient::SetUp();
     EnsureInit();
-    agent_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_3,
-                            SSL_LIBRARY_VERSION_TLS_1_3);
     agent_->StartConnect();
   }
 
@@ -232,6 +311,7 @@ TEST_P(HelloRetryRequestAgentTest, SendSecondHelloRetryRequest) {
   MakeGroupHrr(ssl_grp_ec_secp384r1, &hrr, 0);
   ProcessMessage(hrr, TlsAgent::STATE_CONNECTING);
   MakeGroupHrr(ssl_grp_ec_secp521r1, &hrr, 1);
+  ExpectAlert(kTlsAlertUnexpectedMessage);
   ProcessMessage(hrr, TlsAgent::STATE_ERROR,
                  SSL_ERROR_RX_UNEXPECTED_HELLO_RETRY_REQUEST);
 }
@@ -241,6 +321,7 @@ TEST_P(HelloRetryRequestAgentTest, SendSecondHelloRetryRequest) {
 TEST_P(HelloRetryRequestAgentTest, HandleBogusHelloRetryRequest) {
   DataBuffer hrr;
   MakeGroupHrr(ssl_grp_ec_curve25519, &hrr);
+  ExpectAlert(kTlsAlertIllegalParameter);
   ProcessMessage(hrr, TlsAgent::STATE_ERROR,
                  SSL_ERROR_RX_MALFORMED_HELLO_RETRY_REQUEST);
 }
@@ -248,6 +329,7 @@ TEST_P(HelloRetryRequestAgentTest, HandleBogusHelloRetryRequest) {
 TEST_P(HelloRetryRequestAgentTest, HandleNoopHelloRetryRequest) {
   DataBuffer hrr;
   MakeCannedHrr(nullptr, 0U, &hrr);
+  ExpectAlert(kTlsAlertDecodeError);
   ProcessMessage(hrr, TlsAgent::STATE_ERROR,
                  SSL_ERROR_RX_MALFORMED_HELLO_RETRY_REQUEST);
 }
@@ -265,7 +347,7 @@ TEST_P(HelloRetryRequestAgentTest, HandleHelloRetryRequestCookie) {
       0x13};
   DataBuffer hrr;
   MakeCannedHrr(canned_cookie_hrr, sizeof(canned_cookie_hrr), &hrr);
-  TlsExtensionCapture* capture = new TlsExtensionCapture(ssl_tls13_cookie_xtn);
+  auto capture = std::make_shared<TlsExtensionCapture>(ssl_tls13_cookie_xtn);
   agent_->SetPacketFilter(capture);
   ProcessMessage(hrr, TlsAgent::STATE_CONNECTING);
   const size_t cookie_pos = 2 + 2;  // cookie_xtn, extension len
@@ -275,10 +357,11 @@ TEST_P(HelloRetryRequestAgentTest, HandleHelloRetryRequestCookie) {
 }
 
 INSTANTIATE_TEST_CASE_P(HelloRetryRequestAgentTests, HelloRetryRequestAgentTest,
-                        TlsConnectTestBase::kTlsModesAll);
+                        ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
+                                           TlsConnectTestBase::kTlsV13));
 #ifndef NSS_DISABLE_TLS_1_3
 INSTANTIATE_TEST_CASE_P(HelloRetryRequestKeyExchangeTests, TlsKeyExchange13,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesAll,
+                        ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
                                            TlsConnectTestBase::kTlsV13));
 #endif
 

@@ -31,12 +31,13 @@ TEST_P(TlsConnectTls13, SharesForBothEcdheAndDhe) {
   EnsureTlsSetup();
   client_->ConfigNamedGroups(kAllDHEGroups);
 
-  auto groups_capture = new TlsExtensionCapture(ssl_supported_groups_xtn);
-  auto shares_capture = new TlsExtensionCapture(ssl_tls13_key_share_xtn);
-  std::vector<PacketFilter*> captures;
-  captures.push_back(groups_capture);
-  captures.push_back(shares_capture);
-  client_->SetPacketFilter(new ChainedPacketFilter(captures));
+  auto groups_capture =
+      std::make_shared<TlsExtensionCapture>(ssl_supported_groups_xtn);
+  auto shares_capture =
+      std::make_shared<TlsExtensionCapture>(ssl_tls13_key_share_xtn);
+  std::vector<std::shared_ptr<PacketFilter>> captures = {groups_capture,
+                                                         shares_capture};
+  client_->SetPacketFilter(std::make_shared<ChainedPacketFilter>(captures));
 
   Connect();
 
@@ -60,12 +61,13 @@ TEST_P(TlsConnectGeneric, ConnectFfdheClient) {
   EnableOnlyDheCiphers();
   EXPECT_EQ(SECSuccess, SSL_OptionSet(client_->ssl_fd(),
                                       SSL_REQUIRE_DH_NAMED_GROUPS, PR_TRUE));
-  auto groups_capture = new TlsExtensionCapture(ssl_supported_groups_xtn);
-  auto shares_capture = new TlsExtensionCapture(ssl_tls13_key_share_xtn);
-  std::vector<PacketFilter*> captures;
-  captures.push_back(groups_capture);
-  captures.push_back(shares_capture);
-  client_->SetPacketFilter(new ChainedPacketFilter(captures));
+  auto groups_capture =
+      std::make_shared<TlsExtensionCapture>(ssl_supported_groups_xtn);
+  auto shares_capture =
+      std::make_shared<TlsExtensionCapture>(ssl_tls13_key_share_xtn);
+  std::vector<std::shared_ptr<PacketFilter>> captures = {groups_capture,
+                                                         shares_capture};
+  client_->SetPacketFilter(std::make_shared<ChainedPacketFilter>(captures));
 
   Connect();
 
@@ -95,7 +97,7 @@ TEST_P(TlsConnectGenericPre13, ConnectFfdheServer) {
     Connect();
     CheckKeys(ssl_kea_dh, ssl_auth_rsa_sign);
   } else {
-    ConnectExpectFail();
+    ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
     client_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
     server_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
   }
@@ -126,9 +128,9 @@ TEST_P(TlsConnectGenericPre13, DamageServerKeyShare) {
   EnableOnlyDheCiphers();
   EXPECT_EQ(SECSuccess, SSL_OptionSet(client_->ssl_fd(),
                                       SSL_REQUIRE_DH_NAMED_GROUPS, PR_TRUE));
-  server_->SetPacketFilter(new TlsDheServerKeyExchangeDamager());
+  server_->SetPacketFilter(std::make_shared<TlsDheServerKeyExchangeDamager>());
 
-  ConnectExpectFail();
+  ConnectExpectAlert(client_, kTlsAlertIllegalParameter);
 
   client_->CheckErrorCode(SSL_ERROR_WEAK_SERVER_EPHEMERAL_DH_KEY);
   server_->CheckErrorCode(SSL_ERROR_ILLEGAL_PARAMETER_ALERT);
@@ -249,8 +251,9 @@ class TlsDheSkeChangeYServer : public TlsDheSkeChangeY {
 
 class TlsDheSkeChangeYClient : public TlsDheSkeChangeY {
  public:
-  TlsDheSkeChangeYClient(ChangeYTo change,
-                         const TlsDheSkeChangeYServer* server_filter)
+  TlsDheSkeChangeYClient(
+      ChangeYTo change,
+      std::shared_ptr<const TlsDheSkeChangeYServer> server_filter)
       : TlsDheSkeChangeY(change), server_filter_(server_filter) {}
 
  protected:
@@ -266,13 +269,14 @@ class TlsDheSkeChangeYClient : public TlsDheSkeChangeY {
   }
 
  private:
-  const TlsDheSkeChangeYServer* server_filter_;
+  std::shared_ptr<const TlsDheSkeChangeYServer> server_filter_;
 };
 
-/* This matrix includes: mode (stream/datagram), TLS version, what change to
+/* This matrix includes: variant (stream/datagram), TLS version, what change to
  * make to dh_Ys, whether the client will be configured to require DH named
  * groups.  Test all combinations. */
-typedef std::tuple<std::string, uint16_t, TlsDheSkeChangeY::ChangeYTo, bool>
+typedef std::tuple<SSLProtocolVariant, uint16_t, TlsDheSkeChangeY::ChangeYTo,
+                   bool>
     DamageDHYProfile;
 class TlsDamageDHYTest
     : public TlsConnectTestBase,
@@ -289,8 +293,14 @@ TEST_P(TlsDamageDHYTest, DamageServerY) {
                                         SSL_REQUIRE_DH_NAMED_GROUPS, PR_TRUE));
   }
   TlsDheSkeChangeY::ChangeYTo change = std::get<2>(GetParam());
-  server_->SetPacketFilter(new TlsDheSkeChangeYServer(change, true));
+  server_->SetPacketFilter(
+      std::make_shared<TlsDheSkeChangeYServer>(change, true));
 
+  if (change == TlsDheSkeChangeY::kYZeroPad) {
+    ExpectAlert(client_, kTlsAlertDecryptError);
+  } else {
+    ExpectAlert(client_, kTlsAlertIllegalParameter);
+  }
   ConnectExpectFail();
   if (change == TlsDheSkeChangeY::kYZeroPad) {
     // Zero padding Y only manifests in a signature failure.
@@ -314,14 +324,20 @@ TEST_P(TlsDamageDHYTest, DamageClientY) {
                                         SSL_REQUIRE_DH_NAMED_GROUPS, PR_TRUE));
   }
   // The filter on the server is required to capture the prime.
-  TlsDheSkeChangeYServer* server_filter =
-      new TlsDheSkeChangeYServer(TlsDheSkeChangeY::kYZero, false);
+  auto server_filter =
+      std::make_shared<TlsDheSkeChangeYServer>(TlsDheSkeChangeY::kYZero, false);
   server_->SetPacketFilter(server_filter);
 
   // The client filter does the damage.
   TlsDheSkeChangeY::ChangeYTo change = std::get<2>(GetParam());
-  client_->SetPacketFilter(new TlsDheSkeChangeYClient(change, server_filter));
+  client_->SetPacketFilter(
+      std::make_shared<TlsDheSkeChangeYClient>(change, server_filter));
 
+  if (change == TlsDheSkeChangeY::kYZeroPad) {
+    ExpectAlert(server_, kTlsAlertDecryptError);
+  } else {
+    ExpectAlert(server_, kTlsAlertHandshakeFailure);
+  }
   ConnectExpectFail();
   if (change == TlsDheSkeChangeY::kYZeroPad) {
     // Zero padding Y only manifests in a finished error.
@@ -343,13 +359,13 @@ static const bool kTrueFalseArr[] = {true, false};
 static ::testing::internal::ParamGenerator<bool> kTrueFalse =
     ::testing::ValuesIn(kTrueFalseArr);
 
-INSTANTIATE_TEST_CASE_P(DamageYStream, TlsDamageDHYTest,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesStream,
-                                           TlsConnectTestBase::kTlsV10ToV12,
-                                           kAllY, kTrueFalse));
+INSTANTIATE_TEST_CASE_P(
+    DamageYStream, TlsDamageDHYTest,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsStream,
+                       TlsConnectTestBase::kTlsV10ToV12, kAllY, kTrueFalse));
 INSTANTIATE_TEST_CASE_P(
     DamageYDatagram, TlsDamageDHYTest,
-    ::testing::Combine(TlsConnectTestBase::kTlsModesDatagram,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsDatagram,
                        TlsConnectTestBase::kTlsV11V12, kAllY, kTrueFalse));
 
 class TlsDheSkeMakePEven : public TlsHandshakeFilter {
@@ -378,9 +394,9 @@ class TlsDheSkeMakePEven : public TlsHandshakeFilter {
 // Even without requiring named groups, an even value for p is bad news.
 TEST_P(TlsConnectGenericPre13, MakeDhePEven) {
   EnableOnlyDheCiphers();
-  server_->SetPacketFilter(new TlsDheSkeMakePEven());
+  server_->SetPacketFilter(std::make_shared<TlsDheSkeMakePEven>());
 
-  ConnectExpectFail();
+  ConnectExpectAlert(client_, kTlsAlertIllegalParameter);
 
   client_->CheckErrorCode(SSL_ERROR_RX_MALFORMED_DHE_KEY_SHARE);
   server_->CheckErrorCode(SSL_ERROR_ILLEGAL_PARAMETER_ALERT);
@@ -409,9 +425,9 @@ class TlsDheSkeZeroPadP : public TlsHandshakeFilter {
 // Zero padding only causes signature failure.
 TEST_P(TlsConnectGenericPre13, PadDheP) {
   EnableOnlyDheCiphers();
-  server_->SetPacketFilter(new TlsDheSkeZeroPadP());
+  server_->SetPacketFilter(std::make_shared<TlsDheSkeZeroPadP>());
 
-  ConnectExpectFail();
+  ConnectExpectAlert(client_, kTlsAlertDecryptError);
 
   // In TLS 1.0 and 1.1, the client reports a device error.
   if (version_ < SSL_LIBRARY_VERSION_TLS_1_2) {
@@ -470,7 +486,7 @@ TEST_P(TlsConnectTls13, NamedGroupMismatch13) {
   server_->ConfigNamedGroups(server_groups);
   client_->ConfigNamedGroups(client_groups);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
   server_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
   client_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
 }
@@ -488,7 +504,7 @@ TEST_P(TlsConnectGenericPre13, RequireNamedGroupsMismatchPre13) {
   server_->ConfigNamedGroups(server_groups);
   client_->ConfigNamedGroups(client_groups);
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
   server_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
   client_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
 }
@@ -518,7 +534,7 @@ TEST_P(TlsConnectGenericPre13, MismatchDHE) {
   EXPECT_EQ(SECSuccess, SSL_DHEGroupPrefSet(client_->ssl_fd(), clientGroups,
                                             PR_ARRAY_SIZE(clientGroups)));
 
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
   server_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
   client_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
 }
@@ -533,11 +549,11 @@ TEST_P(TlsConnectTls13, ResumeFfdhe) {
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   EnableOnlyDheCiphers();
-  TlsExtensionCapture* clientCapture =
-      new TlsExtensionCapture(ssl_tls13_pre_shared_key_xtn);
+  auto clientCapture =
+      std::make_shared<TlsExtensionCapture>(ssl_tls13_pre_shared_key_xtn);
   client_->SetPacketFilter(clientCapture);
-  TlsExtensionCapture* serverCapture =
-      new TlsExtensionCapture(ssl_tls13_pre_shared_key_xtn);
+  auto serverCapture =
+      std::make_shared<TlsExtensionCapture>(ssl_tls13_pre_shared_key_xtn);
   server_->SetPacketFilter(serverCapture);
   ExpectResumption(RESUME_TICKET);
   Connect();
@@ -599,10 +615,10 @@ TEST_P(TlsConnectGenericPre13, InvalidDERSignatureFfdhe) {
   const std::vector<SSLNamedGroup> client_groups = {ssl_grp_ffdhe_2048};
   client_->ConfigNamedGroups(client_groups);
 
-  server_->SetPacketFilter(new TlsDheSkeChangeSignature(
+  server_->SetPacketFilter(std::make_shared<TlsDheSkeChangeSignature>(
       version_, kBogusDheSignature, sizeof(kBogusDheSignature)));
 
-  ConnectExpectFail();
+  ConnectExpectAlert(client_, kTlsAlertDecryptError);
   client_->CheckErrorCode(SSL_ERROR_BAD_HANDSHAKE_HASH_VALUE);
 }
 

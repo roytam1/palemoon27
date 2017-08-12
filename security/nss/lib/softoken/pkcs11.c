@@ -480,6 +480,10 @@ static const struct mechanismList mechanisms[] = {
     { CKM_NETSCAPE_PBE_SHA1_HMAC_KEY_GEN, { 20, 20, CKF_GENERATE }, PR_TRUE },
     { CKM_NETSCAPE_PBE_MD5_HMAC_KEY_GEN, { 16, 16, CKF_GENERATE }, PR_TRUE },
     { CKM_NETSCAPE_PBE_MD2_HMAC_KEY_GEN, { 16, 16, CKF_GENERATE }, PR_TRUE },
+    { CKM_NSS_PKCS12_PBE_SHA224_HMAC_KEY_GEN, { 28, 28, CKF_GENERATE }, PR_TRUE },
+    { CKM_NSS_PKCS12_PBE_SHA256_HMAC_KEY_GEN, { 32, 32, CKF_GENERATE }, PR_TRUE },
+    { CKM_NSS_PKCS12_PBE_SHA384_HMAC_KEY_GEN, { 48, 48, CKF_GENERATE }, PR_TRUE },
+    { CKM_NSS_PKCS12_PBE_SHA512_HMAC_KEY_GEN, { 64, 64, CKF_GENERATE }, PR_TRUE },
     /* ------------------ AES Key Wrap (also encrypt)  ------------------- */
     { CKM_NETSCAPE_AES_KEY_WRAP, { 16, 32, CKF_EN_DE_WR_UN }, PR_TRUE },
     { CKM_NETSCAPE_AES_KEY_WRAP_PAD, { 16, 32, CKF_EN_DE_WR_UN }, PR_TRUE },
@@ -3145,9 +3149,11 @@ nsc_CommonFinalize(CK_VOID_PTR pReserved, PRBool isFIPS)
      * this call doesn't force freebl to be reloaded. */
     BL_SetForkState(PR_FALSE);
 
+#ifndef NSS_TEST_BUILD
     /* unload freeBL shared library from memory. This may only decrement the
      * OS refcount if it's been loaded multiple times, eg. by libssl */
     BL_Unload();
+#endif
 
     /* clean up the default OID table */
     SECOID_Shutdown();
@@ -4757,7 +4763,7 @@ sftk_pruneSearch(CK_ATTRIBUTE *pTemplate, CK_ULONG ulCount,
 static CK_RV
 sftk_searchTokenList(SFTKSlot *slot, SFTKSearchResults *search,
                      CK_ATTRIBUTE *pTemplate, CK_ULONG ulCount,
-                     PRBool *tokenOnly, PRBool isLoggedIn)
+                     PRBool isLoggedIn)
 {
     CK_RV crv = CKR_OK;
     CK_RV crv2;
@@ -4792,7 +4798,6 @@ NSC_FindObjectsInit(CK_SESSION_HANDLE hSession,
     SFTKSearchResults *search = NULL, *freeSearch = NULL;
     SFTKSession *session = NULL;
     SFTKSlot *slot = sftk_SlotFromSessionHandle(hSession);
-    PRBool tokenOnly = PR_FALSE;
     CK_RV crv = CKR_OK;
     PRBool isLoggedIn;
 
@@ -4823,18 +4828,15 @@ NSC_FindObjectsInit(CK_SESSION_HANDLE hSession,
     search->array_size = NSC_SEARCH_BLOCK_SIZE;
     isLoggedIn = (PRBool)((!slot->needLogin) || slot->isLoggedIn);
 
-    crv = sftk_searchTokenList(slot, search, pTemplate, ulCount, &tokenOnly,
-                               isLoggedIn);
+    crv = sftk_searchTokenList(slot, search, pTemplate, ulCount, isLoggedIn);
     if (crv != CKR_OK) {
         goto loser;
     }
 
     /* build list of found objects in the session */
-    if (!tokenOnly) {
-        crv = sftk_searchObjectList(search, slot->sessObjHashTable,
-                                    slot->sessObjHashSize, slot->objectLock,
-                                    pTemplate, ulCount, isLoggedIn);
-    }
+    crv = sftk_searchObjectList(search, slot->sessObjHashTable,
+                                slot->sessObjHashSize, slot->objectLock,
+                                pTemplate, ulCount, isLoggedIn);
     if (crv != CKR_OK) {
         goto loser;
     }

@@ -39,7 +39,7 @@ TEST_P(TlsConnectGeneric, ConnectEcdsa) {
   CheckKeys(ssl_kea_ecdh, ssl_auth_ecdsa);
 }
 
-TEST_P(TlsConnectGenericPre13, CipherSuiteMismatch) {
+TEST_P(TlsConnectGeneric, CipherSuiteMismatch) {
   EnsureTlsSetup();
   if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
     client_->EnableSingleCipher(TLS_AES_128_GCM_SHA256);
@@ -48,9 +48,95 @@ TEST_P(TlsConnectGenericPre13, CipherSuiteMismatch) {
     client_->EnableSingleCipher(TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA);
     server_->EnableSingleCipher(TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA);
   }
-  ConnectExpectFail();
+  ConnectExpectAlert(server_, kTlsAlertHandshakeFailure);
   client_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
   server_->CheckErrorCode(SSL_ERROR_NO_CYPHER_OVERLAP);
+}
+
+class TlsAlertRecorder : public TlsRecordFilter {
+ public:
+  TlsAlertRecorder() : level_(255), description_(255) {}
+
+  PacketFilter::Action FilterRecord(const TlsRecordHeader& header,
+                                    const DataBuffer& input,
+                                    DataBuffer* output) override {
+    if (level_ != 255) {  // Already captured.
+      return KEEP;
+    }
+    if (header.content_type() != kTlsAlertType) {
+      return KEEP;
+    }
+
+    std::cerr << "Alert: " << input << std::endl;
+
+    TlsParser parser(input);
+    EXPECT_TRUE(parser.Read(&level_));
+    EXPECT_TRUE(parser.Read(&description_));
+    return KEEP;
+  }
+
+  uint8_t level() const { return level_; }
+  uint8_t description() const { return description_; }
+
+ private:
+  uint8_t level_;
+  uint8_t description_;
+};
+
+class HelloTruncator : public TlsHandshakeFilter {
+  PacketFilter::Action FilterHandshake(const HandshakeHeader& header,
+                                       const DataBuffer& input,
+                                       DataBuffer* output) override {
+    if (header.handshake_type() != kTlsHandshakeClientHello &&
+        header.handshake_type() != kTlsHandshakeServerHello) {
+      return KEEP;
+    }
+    output->Assign(input.data(), input.len() - 1);
+    return CHANGE;
+  }
+};
+
+// Verify that when NSS reports that an alert is sent, it is actually sent.
+TEST_P(TlsConnectGeneric, CaptureAlertServer) {
+  client_->SetPacketFilter(std::make_shared<HelloTruncator>());
+  auto alert_recorder = std::make_shared<TlsAlertRecorder>();
+  server_->SetPacketFilter(alert_recorder);
+
+  ConnectExpectAlert(server_, kTlsAlertIllegalParameter);
+  EXPECT_EQ(kTlsAlertFatal, alert_recorder->level());
+  EXPECT_EQ(kTlsAlertIllegalParameter, alert_recorder->description());
+}
+
+TEST_P(TlsConnectGenericPre13, CaptureAlertClient) {
+  server_->SetPacketFilter(std::make_shared<HelloTruncator>());
+  auto alert_recorder = std::make_shared<TlsAlertRecorder>();
+  client_->SetPacketFilter(alert_recorder);
+
+  ConnectExpectAlert(client_, kTlsAlertDecodeError);
+  EXPECT_EQ(kTlsAlertFatal, alert_recorder->level());
+  EXPECT_EQ(kTlsAlertDecodeError, alert_recorder->description());
+}
+
+// In TLS 1.3, the server can't read the client alert.
+TEST_P(TlsConnectTls13, CaptureAlertClient) {
+  server_->SetPacketFilter(std::make_shared<HelloTruncator>());
+  auto alert_recorder = std::make_shared<TlsAlertRecorder>();
+  client_->SetPacketFilter(alert_recorder);
+
+  server_->StartConnect();
+  client_->StartConnect();
+
+  client_->Handshake();
+  client_->ExpectSendAlert(kTlsAlertDecodeError);
+  server_->Handshake();
+  client_->Handshake();
+  if (variant_ == ssl_variant_stream) {
+    // DTLS just drops the alert it can't decrypt.
+    server_->ExpectSendAlert(kTlsAlertBadRecordMac);
+  }
+  server_->Handshake();
+  EXPECT_EQ(kTlsAlertFatal, alert_recorder->level());
+  EXPECT_EQ(kTlsAlertDecodeError, alert_recorder->description());
 }
 
 TEST_P(TlsConnectGenericPre13, ConnectFalseStart) {
@@ -141,7 +227,8 @@ TEST_P(TlsConnectGeneric, ConnectWithCompressionMaybe) {
   client_->EnableCompression();
   server_->EnableCompression();
   Connect();
-  EXPECT_EQ(client_->version() < SSL_LIBRARY_VERSION_TLS_1_3 && mode_ != DGRAM,
+  EXPECT_EQ(client_->version() < SSL_LIBRARY_VERSION_TLS_1_3 &&
+                variant_ != ssl_variant_datagram,
             client_->is_compressed());
   SendReceive();
 }
@@ -161,16 +248,15 @@ TEST_P(TlsConnectDatagram, TestDtlsHolddownExpiry) {
 class TlsPreCCSHeaderInjector : public TlsRecordFilter {
  public:
   TlsPreCCSHeaderInjector() {}
-  virtual PacketFilter::Action FilterRecord(const RecordHeader& record_header,
-                                            const DataBuffer& input,
-                                            size_t* offset,
-                                            DataBuffer* output) override {
+  virtual PacketFilter::Action FilterRecord(
+      const TlsRecordHeader& record_header, const DataBuffer& input,
+      size_t* offset, DataBuffer* output) override {
     if (record_header.content_type() != kTlsChangeCipherSpecType) return KEEP;
 
     std::cerr << "Injecting Finished header before CCS\n";
     const uint8_t hhdr[] = {kTlsHandshakeFinished, 0x00, 0x00, 0x0c};
     DataBuffer hhdr_buf(hhdr, sizeof(hhdr));
-    RecordHeader nhdr(record_header.version(), kTlsHandshakeType, 0);
+    TlsRecordHeader nhdr(record_header.version(), kTlsHandshakeType, 0);
     *offset = nhdr.Write(output, *offset, hhdr_buf);
     *offset = record_header.Write(output, *offset, input);
     return CHANGE;
@@ -178,24 +264,28 @@ class TlsPreCCSHeaderInjector : public TlsRecordFilter {
 };
 
 TEST_P(TlsConnectStreamPre13, ClientFinishedHeaderBeforeCCS) {
-  client_->SetPacketFilter(new TlsPreCCSHeaderInjector());
-  ConnectExpectFail();
+  client_->SetPacketFilter(std::make_shared<TlsPreCCSHeaderInjector>());
+  ConnectExpectAlert(server_, kTlsAlertUnexpectedMessage);
   client_->CheckErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT);
   server_->CheckErrorCode(SSL_ERROR_RX_UNEXPECTED_CHANGE_CIPHER);
 }
 
 TEST_P(TlsConnectStreamPre13, ServerFinishedHeaderBeforeCCS) {
-  server_->SetPacketFilter(new TlsPreCCSHeaderInjector());
+  server_->SetPacketFilter(std::make_shared<TlsPreCCSHeaderInjector>());
   client_->StartConnect();
   server_->StartConnect();
+  ExpectAlert(client_, kTlsAlertUnexpectedMessage);
   Handshake();
   EXPECT_EQ(TlsAgent::STATE_ERROR, client_->state());
   client_->CheckErrorCode(SSL_ERROR_RX_UNEXPECTED_CHANGE_CIPHER);
   EXPECT_EQ(TlsAgent::STATE_CONNECTED, server_->state());
+  server_->Handshake();  // Make sure alert is consumed.
 }
 
 TEST_P(TlsConnectTls13, UnknownAlert) {
   Connect();
+  server_->ExpectSendAlert(0xff, kTlsAlertWarning);
+  client_->ExpectReceiveAlert(0xff, kTlsAlertWarning);
   SSLInt_SendAlert(server_->ssl_fd(), kTlsAlertWarning,
                    0xff);  // Unknown value.
   client_->ExpectReadWriteError();
@@ -204,18 +294,12 @@ TEST_P(TlsConnectTls13, UnknownAlert) {
 
 TEST_P(TlsConnectTls13, AlertWrongLevel) {
   Connect();
+  server_->ExpectSendAlert(kTlsAlertUnexpectedMessage, kTlsAlertWarning);
+  client_->ExpectReceiveAlert(kTlsAlertUnexpectedMessage, kTlsAlertWarning);
   SSLInt_SendAlert(server_->ssl_fd(), kTlsAlertWarning,
                    kTlsAlertUnexpectedMessage);
   client_->ExpectReadWriteError();
   client_->WaitForErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT, 2000);
-}
-
-TEST_F(TlsConnectStreamTls13, NegotiateShortHeaders) {
-  client_->SetShortHeadersEnabled();
-  server_->SetShortHeadersEnabled();
-  client_->ExpectShortHeaders();
-  server_->ExpectShortHeaders();
-  Connect();
 }
 
 TEST_F(TlsConnectStreamTls13, Tls13FailedWriteSecondFlight) {
@@ -229,12 +313,21 @@ TEST_F(TlsConnectStreamTls13, Tls13FailedWriteSecondFlight) {
   client_->CheckErrorCode(SSL_ERROR_SOCKET_WRITE_FAILURE);
 }
 
-INSTANTIATE_TEST_CASE_P(GenericStream, TlsConnectGeneric,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesStream,
-                                           TlsConnectTestBase::kTlsVAll));
+TEST_F(TlsConnectStreamTls13, NegotiateShortHeaders) {
+  client_->SetShortHeadersEnabled();
+  server_->SetShortHeadersEnabled();
+  client_->ExpectShortHeaders();
+  server_->ExpectShortHeaders();
+  Connect();
+}
+
+INSTANTIATE_TEST_CASE_P(
+    GenericStream, TlsConnectGeneric,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsStream,
+                       TlsConnectTestBase::kTlsVAll));
 INSTANTIATE_TEST_CASE_P(
     GenericDatagram, TlsConnectGeneric,
-    ::testing::Combine(TlsConnectTestBase::kTlsModesDatagram,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsDatagram,
                        TlsConnectTestBase::kTlsV11Plus));
 
 INSTANTIATE_TEST_CASE_P(StreamOnly, TlsConnectStream,
@@ -242,33 +335,35 @@ INSTANTIATE_TEST_CASE_P(StreamOnly, TlsConnectStream,
 INSTANTIATE_TEST_CASE_P(DatagramOnly, TlsConnectDatagram,
                         TlsConnectTestBase::kTlsV11Plus);
 
-INSTANTIATE_TEST_CASE_P(Pre12Stream, TlsConnectPre12,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesStream,
-                                           TlsConnectTestBase::kTlsV10V11));
+INSTANTIATE_TEST_CASE_P(
+    Pre12Stream, TlsConnectPre12,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsStream,
+                       TlsConnectTestBase::kTlsV10V11));
 INSTANTIATE_TEST_CASE_P(
     Pre12Datagram, TlsConnectPre12,
-    ::testing::Combine(TlsConnectTestBase::kTlsModesDatagram,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsDatagram,
                        TlsConnectTestBase::kTlsV11));
 
 INSTANTIATE_TEST_CASE_P(Version12Only, TlsConnectTls12,
-                        TlsConnectTestBase::kTlsModesAll);
+                        TlsConnectTestBase::kTlsVariantsAll);
 #ifndef NSS_DISABLE_TLS_1_3
 INSTANTIATE_TEST_CASE_P(Version13Only, TlsConnectTls13,
-                        TlsConnectTestBase::kTlsModesAll);
+                        TlsConnectTestBase::kTlsVariantsAll);
 #endif
 
-INSTANTIATE_TEST_CASE_P(Pre13Stream, TlsConnectGenericPre13,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesStream,
-                                           TlsConnectTestBase::kTlsV10ToV12));
+INSTANTIATE_TEST_CASE_P(
+    Pre13Stream, TlsConnectGenericPre13,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsStream,
+                       TlsConnectTestBase::kTlsV10ToV12));
 INSTANTIATE_TEST_CASE_P(
     Pre13Datagram, TlsConnectGenericPre13,
-    ::testing::Combine(TlsConnectTestBase::kTlsModesDatagram,
+    ::testing::Combine(TlsConnectTestBase::kTlsVariantsDatagram,
                        TlsConnectTestBase::kTlsV11V12));
 INSTANTIATE_TEST_CASE_P(Pre13StreamOnly, TlsConnectStreamPre13,
                         TlsConnectTestBase::kTlsV10ToV12);
 
 INSTANTIATE_TEST_CASE_P(Version12Plus, TlsConnectTls12Plus,
-                        ::testing::Combine(TlsConnectTestBase::kTlsModesAll,
+                        ::testing::Combine(TlsConnectTestBase::kTlsVariantsAll,
                                            TlsConnectTestBase::kTlsV12Plus));
 
 }  // namespace nspr_test

@@ -169,20 +169,6 @@ printSecurityInfo(PRFileDesc *fd)
     }
 }
 
-void
-handshakeCallback(PRFileDesc *fd, void *client_data)
-{
-    const char *secondHandshakeName = (char *)client_data;
-    if (secondHandshakeName) {
-        SSL_SetURL(fd, secondHandshakeName);
-    }
-    printSecurityInfo(fd);
-    if (renegotiationsDone < renegotiationsToDo) {
-        SSL_ReHandshake(fd, (renegotiationsToDo < 2));
-        ++renegotiationsDone;
-    }
-}
-
 static void
 PrintUsageHeader(const char *progName)
 {
@@ -192,7 +178,8 @@ PrintUsageHeader(const char *progName)
             "[-n nickname] [-Bafosvx] [-c ciphers] [-Y] [-Z]\n"
             "[-V [min-version]:[max-version]] [-K] [-T] [-U]\n"
             "[-r N] [-w passwd] [-W pwfile] [-q [-t seconds]] [-I groups]\n"
-            "[-A requestfile] [-L totalconnections]",
+            "[-A requestfile] [-L totalconnections]\n"
+            "\n",
             progName);
 }
 
@@ -256,9 +243,7 @@ PrintParameterUsage(void)
     fprintf(stderr, "%-20s Enforce using an IPv6 destination address\n", "-6");
     fprintf(stderr, "%-20s (Options -4 and -6 cannot be combined.)\n", "");
     fprintf(stderr, "%-20s Enable the extended master secret extension [RFC7627]\n", "-G");
-    fprintf(stderr, "%-20s Require the use of FFDHE supported groups "
-                    "[I-D.ietf-tls-negotiated-ff-dhe]\n",
-            "-H");
+    fprintf(stderr, "%-20s Require the use of FFDHE supported groups [RFC7919]\n", "-H");
     fprintf(stderr, "%-20s Read from a file instead of stdin\n", "-A");
     fprintf(stderr, "%-20s Allow 0-RTT data (TLS 1.3 only)\n", "-Z");
     fprintf(stderr, "%-20s Disconnect and reconnect up to N times total\n", "-L");
@@ -889,6 +874,10 @@ restartHandshakeAfterServerCertIfNeeded(PRFileDesc *fd,
 
     if (SSL_AuthCertificateComplete(fd, error) != SECSuccess) {
         rv = SECFailure;
+    } else {
+        /* restore the original error code, which could be reset by
+         * SSL_AuthCertificateComplete */
+        PORT_SetError(error);
     }
 
     return rv;
@@ -923,13 +912,19 @@ PRUint16 portno = 443;
 int override = 0;
 char *requestString = NULL;
 PRInt32 requestStringLen = 0;
+PRBool requestSent = PR_FALSE;
 PRBool enableZeroRtt = PR_FALSE;
 
 static int
-writeBytesToServer(PRFileDesc *s, PRPollDesc *pollset, const char *buf, int nb)
+writeBytesToServer(PRFileDesc *s, const char *buf, int nb)
 {
     SECStatus rv;
     const char *bufp = buf;
+    PRPollDesc pollDesc;
+
+    pollDesc.in_flags = PR_POLL_WRITE | PR_POLL_EXCEPT;
+    pollDesc.out_flags = 0;
+    pollDesc.fd = s;
 
     FPRINTF(stderr, "%s: Writing %d bytes to server\n",
             progName, nb);
@@ -956,12 +951,12 @@ writeBytesToServer(PRFileDesc *s, PRPollDesc *pollset, const char *buf, int nb)
             return EXIT_CODE_HANDSHAKE_FAILED;
         }
 
-        pollset[SSOCK_FD].in_flags = PR_POLL_WRITE | PR_POLL_EXCEPT;
-        pollset[SSOCK_FD].out_flags = 0;
+        pollDesc.in_flags = PR_POLL_WRITE | PR_POLL_EXCEPT;
+        pollDesc.out_flags = 0;
         FPRINTF(stderr,
                 "%s: about to call PR_Poll on writable socket !\n",
                 progName);
-        cc = PR_Poll(pollset, 1, PR_INTERVAL_NO_TIMEOUT);
+        cc = PR_Poll(&pollDesc, 1, PR_INTERVAL_NO_TIMEOUT);
         if (cc < 0) {
             SECU_PrintError(progName,
                             "PR_Poll failed");
@@ -974,6 +969,36 @@ writeBytesToServer(PRFileDesc *s, PRPollDesc *pollset, const char *buf, int nb)
 
     return 0;
 }
+
+void
+handshakeCallback(PRFileDesc *fd, void *client_data)
+{
+    const char *secondHandshakeName = (char *)client_data;
+    if (secondHandshakeName) {
+        SSL_SetURL(fd, secondHandshakeName);
+    }
+    printSecurityInfo(fd);
+    if (renegotiationsDone < renegotiationsToDo) {
+        SSL_ReHandshake(fd, (renegotiationsToDo < 2));
+        ++renegotiationsDone;
+    }
+    if (requestString && requestSent) {
+        /* This data was sent in 0-RTT. */
+        SSLChannelInfo info;
+        SECStatus rv;
+
+        rv = SSL_GetChannelInfo(fd, &info, sizeof(info));
+        if (rv != SECSuccess)
+            return;
+
+        if (!info.earlyDataAccepted) {
+            FPRINTF(stderr, "Early data rejected. Re-sending\n");
+            writeBytesToServer(fd, requestString, requestStringLen);
+        }
+    }
+}
+
+#define REQUEST_WAITING (requestString && !requestSent)
 
 static int
 run_client(void)
@@ -988,7 +1013,8 @@ run_client(void)
     PRFileDesc *std_out;
     PRPollDesc pollset[2];
     PRBool wrStarted = PR_FALSE;
-    char *requestStringInt = requestString;
+
+    requestSent = PR_FALSE;
 
     /* Create socket */
     s = PR_OpenTCPSocket(addr.raw.family);
@@ -1245,7 +1271,7 @@ run_client(void)
     pollset[SSOCK_FD].in_flags = PR_POLL_EXCEPT |
                                  (clientSpeaksFirst ? 0 : PR_POLL_READ);
     pollset[STDIN_FD].fd = PR_GetSpecialFD(PR_StandardInput);
-    if (!requestStringInt) {
+    if (!REQUEST_WAITING) {
         pollset[STDIN_FD].in_flags = PR_POLL_READ;
         npds = 2;
     } else {
@@ -1295,7 +1321,7 @@ run_client(void)
     */
     FPRINTF(stderr, "%s: ready...\n", progName);
     while ((pollset[SSOCK_FD].in_flags | pollset[STDIN_FD].in_flags) ||
-           requestStringInt) {
+           REQUEST_WAITING) {
         char buf[4000]; /* buffer for stdin */
         int nb;         /* num bytes read from stdin. */
 
@@ -1333,13 +1359,12 @@ run_client(void)
                     "%s: PR_Poll returned 0x%02x for socket out_flags.\n",
                     progName, pollset[SSOCK_FD].out_flags);
         }
-        if (requestStringInt) {
-            error = writeBytesToServer(s, pollset,
-                                       requestStringInt, requestStringLen);
+        if (REQUEST_WAITING) {
+            error = writeBytesToServer(s, requestString, requestStringLen);
             if (error) {
                 goto done;
             }
-            requestStringInt = NULL;
+            requestSent = PR_TRUE;
             pollset[SSOCK_FD].in_flags = PR_POLL_READ;
         }
         if (pollset[STDIN_FD].out_flags & PR_POLL_READ) {
@@ -1356,7 +1381,7 @@ run_client(void)
                 /* EOF on stdin, stop polling stdin for read. */
                 pollset[STDIN_FD].in_flags = 0;
             } else {
-                error = writeBytesToServer(s, pollset, buf, nb);
+                error = writeBytesToServer(s, buf, nb);
                 if (error) {
                     goto done;
                 }
@@ -1487,7 +1512,7 @@ main(int argc, char **argv)
     /* XXX: 'B' was used in the past but removed in 3.28,
      *      please leave some time before resuing it. */
     optstate = PL_CreateOptState(argc, argv,
-                                 "46A:CDFGHI:KL:M:OR:STUV:WYZa:bc:d:fgh:m:n:op:qr:st:uvw:z");
+                                 "46A:CDFGHI:KL:M:OR:STUV:W:YZa:bc:d:fgh:m:n:op:qr:st:uvw:z");
     while ((optstatus = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
         switch (optstate->option) {
             case '?':
@@ -1588,6 +1613,7 @@ main(int argc, char **argv)
                 if (SECU_ParseSSLVersionRangeString(optstate->value,
                                                     enabledVersions, &enabledVersions) !=
                     SECSuccess) {
+                    fprintf(stderr, "Bad version specified.\n");
                     Usage(progName);
                 }
                 break;

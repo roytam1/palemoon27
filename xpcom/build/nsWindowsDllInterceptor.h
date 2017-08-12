@@ -246,21 +246,26 @@ public:
 #else
 #error "Unknown processor type"
 #endif
-      byteptr_t origBytes = *((byteptr_t*)p);
+      byteptr_t origBytes = (byteptr_t)DecodePointer(*((byteptr_t*)p));
       // ensure we can modify the original code
       DWORD op;
       if (!VirtualProtectEx(GetCurrentProcess(), origBytes, nBytes,
                             PAGE_EXECUTE_READWRITE, &op)) {
-        //printf ("VirtualProtectEx failed! %d\n", GetLastError());
         continue;
       }
       // Remove the hook by making the original function jump directly
       // in the trampoline.
       intptr_t dest = (intptr_t)(p + sizeof(void*));
 #if defined(_M_IX86)
+      // Ensure the JMP from CreateTrampoline is where we expect it to be.
+      if (origBytes[0] != 0xE9)
+        continue;
       *((intptr_t*)(origBytes + 1)) =
         dest - (intptr_t)(origBytes + 5); // target displacement
 #elif defined(_M_X64)
+      // Ensure the MOV R11 from CreateTrampoline is where we expect it to be.
+      if (origBytes[0] != 0x49 || origBytes[1] != 0xBB)
+        continue;
       *((intptr_t*)(origBytes + 2)) = dest;
 #else
 #error "Unknown processor type"
@@ -580,7 +585,7 @@ protected:
 
     // We keep the address of the original function in the first bytes of
     // the trampoline buffer
-    *((void**)tramp) = aOrigFunction;
+    *((void**)tramp) = EncodePointer(aOrigFunction);
     tramp += sizeof(void*);
 
     memcpy(tramp, aOrigFunction, nBytes);

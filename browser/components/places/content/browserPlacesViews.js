@@ -743,6 +743,12 @@ PlacesViewBase.prototype = {
       hasMultipleURIs = numURINodes > 1;
     }
 
+    let isLiveMark = false;
+    if (this.controller.hasCachedLivemarkInfo(aPopup._placesNode)) {
+      hasMultipleURIs = true;
+      isLiveMark = true;
+    }
+
     if (!hasMultipleURIs) {
       // We don't have to show any option.
       if (aPopup._endOptOpenAllInTabs) {
@@ -762,9 +768,15 @@ PlacesViewBase.prototype = {
       // Add the "Open All in Tabs" menuitem.
       aPopup._endOptOpenAllInTabs = document.createElement("menuitem");
       aPopup._endOptOpenAllInTabs.className = "openintabs-menuitem";
-      aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
-        "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event, " +
-                                               "PlacesUIUtils.getViewForNode(this));");
+      if (isLiveMark) {
+        aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
+          "PlacesUIUtils.openLiveMarkNodesInTabs(this.parentNode._placesNode, event, " +
+                                                 "PlacesUIUtils.getViewForNode(this));");
+      } else {
+        aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
+          "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event, " +
+                                                 "PlacesUIUtils.getViewForNode(this));");
+      }
       aPopup._endOptOpenAllInTabs.setAttribute("onclick",
         "checkForMiddleClick(this, event); event.stopPropagation();");
       aPopup._endOptOpenAllInTabs.setAttribute("label",

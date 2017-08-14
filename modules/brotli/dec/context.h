@@ -1,7 +1,16 @@
 /* Copyright 2013 Google Inc. All Rights Reserved.
 
-   Distributed under MIT license.
-   See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 */
 
 /* Lookup table to map the previous two bytes to a context id.
@@ -13,7 +22,7 @@
      CONTEXT_SIGNED: second-order context model tuned for signed integers.
 
    The context id for the UTF8 context model is calculated as follows. If p1
-   and p2 are the previous two bytes, we calculate the context as
+   and p2 are the previous two bytes, we calcualte the context as
 
      context = kContextLookup[p1] | kContextLookup[p2 + 256].
 
@@ -102,10 +111,10 @@
 #include "./types.h"
 
 enum ContextType {
-  CONTEXT_LSB6 = 0,
-  CONTEXT_MSB6 = 1,
-  CONTEXT_UTF8 = 2,
-  CONTEXT_SIGNED = 3
+  CONTEXT_LSB6         = 0,
+  CONTEXT_MSB6         = 1,
+  CONTEXT_UTF8         = 2,
+  CONTEXT_SIGNED       = 3
 };
 
 /* Common context lookup table for all context modes. */

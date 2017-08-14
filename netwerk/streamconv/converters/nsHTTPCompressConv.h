@@ -11,6 +11,11 @@
 
 #include "zlib.h"
 
+// brotli includes
+#undef assert
+#include "assert.h"
+#include "state.h"
+
 class nsIStringInputStream;
 
 #define NS_HTTPCOMPRESSCONVERTER_CID                \
@@ -28,15 +33,43 @@ class nsIStringInputStream;
 #define	HTTP_X_GZIP_TYPE	    "x-gzip"
 #define	HTTP_COMPRESS_TYPE	    "compress"
 #define	HTTP_X_COMPRESS_TYPE	"x-compress"
+#define	HTTP_BROTLI_TYPE        "br"
 #define	HTTP_IDENTITY_TYPE	    "identity"
 #define	HTTP_UNCOMPRESSED_TYPE	"uncompressed"
 
+namespace mozilla {
+namespace net {
+	
 typedef enum    {
         HTTP_COMPRESS_GZIP,
         HTTP_COMPRESS_DEFLATE,
         HTTP_COMPRESS_COMPRESS,
+        HTTP_COMPRESS_BROTLI,
         HTTP_COMPRESS_IDENTITY
     }   CompressMode;
+	
+class BrotliWrapper
+{
+public:
+    BrotliWrapper()
+        : mTotalOut(0)
+        , mStatus(NS_OK)
+    {
+        BrotliStateInit(&mState);
+    }
+    ~BrotliWrapper()
+    {
+        BrotliStateCleanup(&mState);
+    }
+  
+    BrotliState mState;
+    size_t       mTotalOut;
+    nsresult     mStatus;
+  
+    nsIRequest  *mRequest;
+    nsISupports *mContext;
+    uint64_t     mSourceOffset;
+};
 
 class nsHTTPCompressConv	: public nsIStreamConverter	{
 public:
@@ -64,9 +97,15 @@ private:
 
     uint32_t	mOutBufferLen;
     uint32_t	mInpBufferLen;
+
+    nsAutoPtr<BrotliWrapper> mBrotli;
 	
     nsCOMPtr<nsISupports>   mAsyncConvContext;
     nsCOMPtr<nsIStringInputStream>  mStream;
+
+    static NS_METHOD
+    BrotliHandler(nsIInputStream *stream, void *closure, const char *dataIn,
+                  uint32_t, uint32_t avail, uint32_t *countRead);
 
     nsresult do_OnDataAvailable (nsIRequest *request, nsISupports *aContext,
                                  uint64_t aSourceOffset, const char *buffer,
@@ -76,6 +115,7 @@ private:
     bool        mStreamEnded;
     bool        mStreamInitialized;
     bool        mDummyStreamInitialised;
+    bool        mFailUncleanStops;
 
     z_stream d_stream;
     unsigned mLen, hMode, mSkipCount, mFlags;
@@ -83,5 +123,7 @@ private:
     uint32_t check_header (nsIInputStream *iStr, uint32_t streamLen, nsresult *rv);
 };
 
+} // namespace net
+} // namespace mozilla
 
 #endif

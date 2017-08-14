@@ -12,6 +12,16 @@
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
 #include "nsComponentManagerUtils.h"
+#include "nsThreadUtils.h"
+#include "mozilla/Preferences.h"
+#include "nsIForcePendingChannel.h"
+
+// brotli headers
+#include "state.h"
+#include "decode.h"
+
+namespace mozilla {
+namespace net {
 
 // nsISupports implementation
 NS_IMPL_ISUPPORTS(nsHTTPCompressConv,
@@ -35,6 +45,12 @@ nsHTTPCompressConv::nsHTTPCompressConv()
     , mSkipCount(0)
     , mFlags(0)
 {
+    if (NS_IsMainThread()) {
+      mFailUncleanStops =
+        Preferences::GetBool("network.http.enforce-framing.http", false);
+    } else {
+        mFailUncleanStops = false;
+    }
 }
 
 nsHTTPCompressConv::~nsHTTPCompressConv()
@@ -70,6 +86,9 @@ nsHTTPCompressConv::AsyncConvertData(const char *aFromType,
     else if (!PL_strncasecmp(aFromType, HTTP_DEFLATE_TYPE, sizeof(HTTP_DEFLATE_TYPE)-1))
         mMode = HTTP_COMPRESS_DEFLATE;
 
+    else if (!PL_strncasecmp(aFromType, HTTP_BROTLI_TYPE, sizeof(HTTP_BROTLI_TYPE)-1))
+        mMode = HTTP_COMPRESS_BROTLI;
+	
     // hook ourself up with the receiving listener. 
     mListener = aListener;
     NS_ADDREF(mListener);
@@ -88,8 +107,98 @@ NS_IMETHODIMP
 nsHTTPCompressConv::OnStopRequest(nsIRequest* request, nsISupports *aContext, 
                                   nsresult aStatus)
 {
-    return mListener->OnStopRequest(request, aContext, aStatus);
+    nsresult status = aStatus;
+    
+    // Framing integrity is enforced for content-encoding: gzip, but not for
+    // content-encoding: deflate. Note that gzip vs deflate is NOT determined
+    // by content sniffing but only via header.
+    if (!mStreamEnded && NS_SUCCEEDED(status) &&
+        (mFailUncleanStops && (mMode == HTTP_COMPRESS_GZIP)) ) {
+        // This is not a clean end of gzip stream: the transfer is incomplete.
+        status = NS_ERROR_NET_PARTIAL_TRANSFER;
+    }
+    if (NS_SUCCEEDED(status) && mMode == HTTP_COMPRESS_BROTLI) {
+        uint32_t waste;
+        nsCOMPtr<nsIForcePendingChannel> fpChannel = do_QueryInterface(request);
+        bool isPending = false;
+        if (request) {
+            request->IsPending(&isPending);
+        }
+        if (fpChannel && !isPending) {
+            fpChannel->ForcePending(true);
+        }
+        status = BrotliHandler(nullptr, this, nullptr, 0, 0, &waste);
+        if (fpChannel && !isPending) {
+            fpChannel->ForcePending(false);
+        }
+    }
+    return mListener->OnStopRequest(request, aContext, status);
 } 
+
+// static
+NS_METHOD
+nsHTTPCompressConv::BrotliHandler(nsIInputStream *stream, void *closure, const char *dataIn,
+                                  uint32_t, uint32_t aAvail, uint32_t *countRead)
+{
+  nsHTTPCompressConv *self = static_cast<nsHTTPCompressConv *>(closure);
+  *countRead = 0;
+
+  const uint32_t kOutSize = 128 * 1024; // just a chunk size, we call in a loop
+  unsigned char outBuffer[kOutSize];
+  unsigned char *outPtr;
+  size_t outSize;
+  size_t avail = aAvail;
+  BrotliResult res;
+
+  if (!self->mBrotli) {
+    *countRead = aAvail;
+    return NS_OK;
+  }
+
+  do {
+    outSize = kOutSize;
+    outPtr = outBuffer;
+
+    // brotli api is documented in brotli/dec/decode.h
+    res = ::BrotliDecompressBufferStreaming(
+      &avail, reinterpret_cast<const unsigned char **>(&dataIn), stream ? 0 : 1,
+      &outSize, &outPtr, &self->mBrotli->mTotalOut, &self->mBrotli->mState);
+    outSize = kOutSize - outSize;
+
+    if (res == BROTLI_RESULT_ERROR) {
+      self->mBrotli->mStatus = NS_ERROR_INVALID_CONTENT_ENCODING;
+      return self->mBrotli->mStatus;
+    }
+
+    // in 'the current implementation' brotli consumes all input on success
+    MOZ_ASSERT(!avail);
+    if (avail) {
+      self->mBrotli->mStatus = NS_ERROR_UNEXPECTED;
+      return self->mBrotli->mStatus;
+    }
+    if (outSize > 0) {
+      nsresult rv = self->do_OnDataAvailable(self->mBrotli->mRequest,
+                                             self->mBrotli->mContext,
+                                             self->mBrotli->mSourceOffset,
+                                             reinterpret_cast<const char *>(outBuffer),
+                                             outSize);
+      if (NS_FAILED(rv)) {
+        self->mBrotli->mStatus = rv;
+        return self->mBrotli->mStatus;
+      }
+    }
+
+    if (res == BROTLI_RESULT_SUCCESS ||
+        res == BROTLI_RESULT_NEEDS_MORE_INPUT) {
+      *countRead = aAvail;
+      return NS_OK;
+    }
+    MOZ_ASSERT (res == BROTLI_RESULT_NEEDS_MORE_OUTPUT);
+  } while (res == BROTLI_RESULT_NEEDS_MORE_OUTPUT);
+
+  self->mBrotli->mStatus = NS_ERROR_UNEXPECTED;
+  return self->mBrotli->mStatus;
+}
 
 NS_IMETHODIMP
 nsHTTPCompressConv::OnDataAvailable(nsIRequest* request, 
@@ -301,7 +410,27 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
                 } /* for */
             } /* gzip */
             break;
-
+        case HTTP_COMPRESS_BROTLI:
+        {
+            if (!mBrotli) {
+                mBrotli = new BrotliWrapper();
+            }
+          
+            mBrotli->mRequest = request;
+            mBrotli->mContext = aContext;
+            mBrotli->mSourceOffset = aSourceOffset;
+          
+            uint32_t countRead;
+            rv = iStr->ReadSegments(BrotliHandler, this, streamLen, &countRead);
+            if (NS_SUCCEEDED(rv)) {
+                rv = mBrotli->mStatus;
+            }
+            if (NS_FAILED(rv)) {
+                return rv;
+            }
+        }
+            break;
+      
         default: 
             rv = mListener->OnDataAvailable(request, aContext, iStr, aSourceOffset, aCount);
             if (NS_FAILED (rv))
@@ -500,16 +629,19 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
     return streamLen;
 }
 
+} // namespace net
+} // namespace mozilla
+
 nsresult
-NS_NewHTTPCompressConv(nsHTTPCompressConv **aHTTPCompressConv)
+NS_NewHTTPCompressConv(mozilla::net::nsHTTPCompressConv **aHTTPCompressConv)
 {
     NS_PRECONDITION(aHTTPCompressConv != nullptr, "null ptr");
 
     if (!aHTTPCompressConv)
         return NS_ERROR_NULL_POINTER;
 
-    nsRefPtr<nsHTTPCompressConv> outVal =
-        new nsHTTPCompressConv();
+    nsRefPtr<mozilla::net::nsHTTPCompressConv> outVal =
+        new mozilla::net::nsHTTPCompressConv();
     if (!outVal) {
         return NS_ERROR_OUT_OF_MEMORY;
     }

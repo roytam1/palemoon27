@@ -296,6 +296,7 @@ protected:
   bool ShouldIntercept();
 
   friend class PrivateBrowsingChannel<HttpBaseChannel>;
+  friend class InterceptFailedOnStop;
 
   nsCOMPtr<nsIURI>                  mURI;
   nsCOMPtr<nsIURI>                  mOriginalURI;

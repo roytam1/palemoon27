@@ -408,7 +408,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsTXTToHTMLConv, Init)
 
 nsresult NS_NewMultiMixedConv (nsMultiMixedConv** result);
 nsresult MOZ_NewTXTToHTMLConv (mozTXTToHTMLConv** result);
-nsresult NS_NewHTTPCompressConv  (nsHTTPCompressConv ** result);
+nsresult NS_NewHTTPCompressConv  (mozilla::net::nsHTTPCompressConv ** result);
 nsresult NS_NewStreamConv(nsStreamConverterService **aStreamConv);
 
 #define FTP_TO_INDEX                 "?from=text/ftp-dir&to=application/http-index-format"
@@ -419,6 +419,7 @@ nsresult NS_NewStreamConv(nsStreamConverterService **aStreamConv);
 #define UNKNOWN_CONTENT              "?from=" UNKNOWN_CONTENT_TYPE "&to=*/*"
 #define GZIP_TO_UNCOMPRESSED         "?from=gzip&to=uncompressed"
 #define XGZIP_TO_UNCOMPRESSED        "?from=x-gzip&to=uncompressed"
+#define BROTLI_TO_UNCOMPRESSED       "?from=br&to=uncompressed"
 #define COMPRESS_TO_UNCOMPRESSED     "?from=compress&to=uncompressed"
 #define XCOMPRESS_TO_UNCOMPRESSED    "?from=x-compress&to=uncompressed"
 #define DEFLATE_TO_UNCOMPRESSED      "?from=deflate&to=uncompressed"
@@ -437,6 +438,7 @@ static const mozilla::Module::CategoryEntry kNeckoCategories[] = {
     { NS_ISTREAMCONVERTER_KEY, UNKNOWN_CONTENT, "" },
     { NS_ISTREAMCONVERTER_KEY, GZIP_TO_UNCOMPRESSED, "" },
     { NS_ISTREAMCONVERTER_KEY, XGZIP_TO_UNCOMPRESSED, "" },
+    { NS_ISTREAMCONVERTER_KEY, BROTLI_TO_UNCOMPRESSED, "" },
     { NS_ISTREAMCONVERTER_KEY, COMPRESS_TO_UNCOMPRESSED, "" },
     { NS_ISTREAMCONVERTER_KEY, XCOMPRESS_TO_UNCOMPRESSED, "" },
     { NS_ISTREAMCONVERTER_KEY, DEFLATE_TO_UNCOMPRESSED, "" },
@@ -560,7 +562,7 @@ CreateNewHTTPCompressConvFactory (nsISupports* aOuter, REFNSIID aIID, void **aRe
         *aResult = nullptr;                                           
         return NS_ERROR_NO_AGGREGATION;                              
     }   
-    nsHTTPCompressConv* inst = nullptr;
+    mozilla::net::nsHTTPCompressConv* inst = nullptr;
     nsresult rv = NS_NewHTTPCompressConv (&inst);
     if (NS_FAILED(rv)) {                                             
         *aResult = nullptr;                                           
@@ -1008,6 +1010,7 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_BINARYDETECTOR_CONTRACTID, &kNS_BINARYDETECTOR_CID },
     { NS_ISTREAMCONVERTER_KEY GZIP_TO_UNCOMPRESSED, &kNS_HTTPCOMPRESSCONVERTER_CID },
     { NS_ISTREAMCONVERTER_KEY XGZIP_TO_UNCOMPRESSED, &kNS_HTTPCOMPRESSCONVERTER_CID },
+    { NS_ISTREAMCONVERTER_KEY BROTLI_TO_UNCOMPRESSED, &kNS_HTTPCOMPRESSCONVERTER_CID },	
     { NS_ISTREAMCONVERTER_KEY COMPRESS_TO_UNCOMPRESSED, &kNS_HTTPCOMPRESSCONVERTER_CID },
     { NS_ISTREAMCONVERTER_KEY XCOMPRESS_TO_UNCOMPRESSED, &kNS_HTTPCOMPRESSCONVERTER_CID },
     { NS_ISTREAMCONVERTER_KEY DEFLATE_TO_UNCOMPRESSED, &kNS_HTTPCOMPRESSCONVERTER_CID },

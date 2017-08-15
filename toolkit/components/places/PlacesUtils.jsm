@@ -46,6 +46,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Bookmarks",
                                   "resource://gre/modules/Bookmarks.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "History",
                                   "resource://gre/modules/History.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUIUtils",
+                                  "resource:///modules/PlacesUIUtils.jsm");
 
 // The minimum amount of transactions before starting a batch. Usually we do
 // do incremental updates, a batch will cause views to completely
@@ -2627,8 +2629,11 @@ PlacesRemoveItemTransaction.prototype = {
     let contents =
       PlacesUtils.getFolderContents(this.item.id, false, false).root;
     for (let i = 0; i < contents.childCount; ++i) {
-      let txn = new PlacesRemoveItemTransaction(contents.getChild(i).itemId);
-      transactions.push(txn);
+      let childId = contents.getChild(i).itemId;
+      if (!PlacesUIUtils._isLivemark(childId)) {
+        let txn = new PlacesRemoveItemTransaction(childId);
+        transactions.push(txn);
+      }
     }
     contents.containerOpen = false;
     // Reverse transactions to preserve parent-child relationship.

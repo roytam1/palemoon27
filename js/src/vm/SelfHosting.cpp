@@ -145,8 +145,9 @@ static bool
 intrinsic_OwnPropertyKeys(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return GetOwnPropertyKeys(cx, args,
-                              JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS);
+    MOZ_ASSERT(args[0].isObject());
+    MOZ_ASSERT(args[1].isInt32());
+    return GetOwnPropertyKeys(cx, args, args[1].toInt32());
 }
 
 bool
@@ -823,6 +824,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("std_Number_valueOf",                  js_num_valueOf,               0,0),
 
     JS_FN("std_Object_create",                   obj_create,                   2,0),
+    JS_FN("std_Object_propertyIsEnumerable",     obj_propertyIsEnumerable,     1,0),
     JS_FN("std_Object_defineProperty",           obj_defineProperty,           3,0),
     JS_FN("std_Object_getPrototypeOf",           obj_getPrototypeOf,           1,0),
     JS_FN("std_Object_getOwnPropertyNames",      obj_getOwnPropertyNames,      1,0),

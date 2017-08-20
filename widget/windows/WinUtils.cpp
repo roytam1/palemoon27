@@ -950,9 +950,7 @@ WinUtils::GetIsMouseFromTouch(uint32_t aEventType)
 #define MOUSEEVENTF_FROMTOUCH 0xFF515700
   return (aEventType == NS_MOUSE_BUTTON_DOWN ||
           aEventType == NS_MOUSE_BUTTON_UP ||
-          aEventType == NS_MOUSE_MOVE ||
-          aEventType == NS_MOUSE_AUXCLICK ||
-          aEventType == NS_MOUSE_DOUBLECLICK) &&
+          aEventType == NS_MOUSE_MOVE) &&
           (GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH);
 }
 

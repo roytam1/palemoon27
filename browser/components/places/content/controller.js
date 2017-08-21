@@ -7,6 +7,8 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
+                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 // XXXmano: we should move most/all of these constants to PlacesUtils
 const ORGANIZER_ROOT_BOOKMARKS = "place:folder=BOOKMARKS_MENU&excludeItems=1&queryType=1";
@@ -159,6 +161,7 @@ PlacesController.prototype = {
       return false;
     case "placesCmd_open":
     case "placesCmd_open:window":
+    case "placesCmd_open:privatewindow":
     case "placesCmd_open:tab":
       var selectedNode = this._view.selectedNode;
       return selectedNode && PlacesUtils.nodeIsURI(selectedNode);
@@ -239,6 +242,9 @@ PlacesController.prototype = {
       break;
     case "placesCmd_open:window":
       PlacesUIUtils.openNodeIn(this._view.selectedNode, "window", this._view);
+      break;
+    case "placesCmd_open:privatewindow":
+      PlacesUIUtils.openNodeIn(this._view.selectedNode, "window", this._view, true);
       break;
     case "placesCmd_open:tab":
       PlacesUIUtils.openNodeIn(this._view.selectedNode, "tab", this._view);
@@ -595,7 +601,9 @@ PlacesController.prototype = {
         // point.
         var hideParentFolderItem = item.id == "placesContext_openParentFolder" &&
                                    (!/tree/i.test(this._view.localName) || ip);
-        item.hidden = hideIfNoIP || hideParentFolderItem ||
+        var hideIfPrivate = item.getAttribute("hideifprivatebrowsing") == "true" &&
+                            PrivateBrowsingUtils.isWindowPrivate(window);
+        item.hidden = hideIfNoIP || hideIfPrivate || hideParentFolderItem ||
                       !this._shouldShowMenuItem(item, metadata);
 
         if (!item.hidden) {
@@ -1834,6 +1842,7 @@ function goUpdatePlacesCommands() {
 
   updatePlacesCommand("placesCmd_open");
   updatePlacesCommand("placesCmd_open:window");
+  updatePlacesCommand("placesCmd_open:privatewindow");
   updatePlacesCommand("placesCmd_open:tab");
   updatePlacesCommand("placesCmd_new:folder");
   updatePlacesCommand("placesCmd_new:bookmark");

@@ -222,7 +222,7 @@ let NetMonitorView = {
         // populating the statistics view.
         // • The response mime type is used for categorization.
         yield whenDataAvailable(requestsView.attachments, [
-          "responseHeaders", "status", "contentSize", "mimeType", "totalTime"
+          "responseHeaders", "status", "contentSize", "transferredSize", "mimeType", "totalTime"
         ]);
       } catch (ex) {
         // Timed out while waiting for data. Continue with what we have.
@@ -1067,11 +1067,12 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       this._getOldestRequest(visibleItems).attachment.startedMillis;
 
     // https://developer.mozilla.org/en-US/docs/Localization_and_Plurals
-    let str = PluralForm.get(visibleRequestsCount, L10N.getStr("networkMenu.summary"));
+    let str = PluralForm.get(visibleRequestsCount, L10N.getStr("networkMenu.summary2"));
     this._summary.setAttribute("value", str
       .replace("#1", visibleRequestsCount)
-      .replace("#2", L10N.numberWithDecimals((totalBytes || 0) / 1024, CONTENT_SIZE_DECIMALS))
-      .replace("#3", L10N.numberWithDecimals((totalMillis || 0) / 1000, REQUEST_TIME_DECIMALS))
+      .replace("#2", L10N.numberWithDecimals((totalBytes.contentSize || 0) / 1024, CONTENT_SIZE_DECIMALS))
+      .replace("#3", L10N.numberWithDecimals((totalBytes.transferredSize || 0) / 1024, CONTENT_SIZE_DECIMALS))
+      .replace("#4", L10N.numberWithDecimals((totalMillis || 0) / 1000, REQUEST_TIME_DECIMALS))
     );
   },
 
@@ -1829,21 +1830,33 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
-   * Gets the total number of bytes representing the cumulated content size of
-   * a set of requests. Returns 0 for an empty set.
+   * Gets the total number of bytes representing the cumulated
+   * content and transferred size of a set of requests.
+   * Returns 0 for an empty set.
    *
    * @param array aItemsArray
-   * @return number
+   * @return object {contentSize: number, transferredSize: number}
    */
   _getTotalBytesOfRequests: function(aItemsArray) {
+    let contentSize = 0;
+    let transferredSize = 0;
+
+    let result = {
+      contentSize: contentSize,
+      transferredSize: transferredSize,
+    };
     if (!aItemsArray.length) {
-      return 0;
+      return result;
     }
 
-    let result = 0;
     aItemsArray.forEach(item => {
-      let size = item.attachment.contentSize;
-      result += (typeof size == "number") ? size : 0;
+      let size;
+      size = item.attachment.contentSize;
+      contentSize += (typeof size == "number") ? size : 0;
+      result.contentSize = contentSize;
+      size = item.attachment.transferredSize;
+      transferredSize += (typeof size == "number") ? size : 0;
+      result.transferredSize = transferredSize;
     });
 
     return result;
@@ -2972,27 +2985,35 @@ PerformanceStatisticsView.prototype = {
       let string = L10N.numberWithDecimals(value / 1024, CONTENT_SIZE_DECIMALS);
       return L10N.getFormatStr("charts.sizeKB", string);
     },
+    transferredSize: value => {
+      let string = L10N.numberWithDecimals(value / 1024, CONTENT_SIZE_DECIMALS);
+      return L10N.getFormatStr("charts.transferredSizeKB", string);
+    },
     time: value => {
       let string = L10N.numberWithDecimals(value / 1000, REQUEST_TIME_DECIMALS);
       return L10N.getFormatStr("charts.totalS", string);
     }
   },
   _commonChartTotals: {
+    cached: total => {
+      return L10N.getFormatStr("charts.totalCached", total);
+    },
+    count: total => {
+      return L10N.getFormatStr("charts.totalCount", total);
+    },
     size: total => {
       let string = L10N.numberWithDecimals(total / 1024, CONTENT_SIZE_DECIMALS);
       return L10N.getFormatStr("charts.totalSize", string);
+    },
+    transferredSize: total => {
+      let string = L10N.numberWithDecimals(total / 1024, CONTENT_SIZE_DECIMALS);
+      return L10N.getFormatStr("charts.totalTransferredSize", string);
     },
     time: total => {
       let seconds = total / 1000;
       let string = L10N.numberWithDecimals(seconds, REQUEST_TIME_DECIMALS);
       return PluralForm.get(seconds, L10N.getStr("charts.totalSeconds")).replace("#1", string);
     },
-    cached: total => {
-      return L10N.getFormatStr("charts.totalCached", total);
-    },
-    count: total => {
-      return L10N.getFormatStr("charts.totalCount", total);
-    }
   },
 
   /**
@@ -3015,6 +3036,14 @@ PerformanceStatisticsView.prototype = {
     let chart = Chart.PieTable(document, {
       diameter: NETWORK_ANALYSIS_PIE_CHART_DIAMETER,
       title: L10N.getStr(title),
+      header: {
+        cached: "",
+        count: "",
+        label: L10N.getStr("charts.type"),
+        size: L10N.getStr("charts.size"),
+        transferredSize: L10N.getStr("charts.transferred"),
+        time: L10N.getStr("charts.time")
+      },
       data: data,
       strings: strings,
       totals: totals,
@@ -3039,13 +3068,14 @@ PerformanceStatisticsView.prototype = {
    *        True if the cache is considered enabled, false for disabled.
    */
   _sanitizeChartDataSource: function(aItems, aEmptyCache) {
-    let data = [
+    const data = [
       "html", "css", "js", "xhr", "fonts", "images", "media", "flash", "other"
     ].map(e => ({
       cached: 0,
       count: 0,
       label: e,
       size: 0,
+      transferredSize: 0,
       time: 0
     }));
 
@@ -3077,6 +3107,7 @@ PerformanceStatisticsView.prototype = {
       if (aEmptyCache || !responseIsFresh(details)) {
         data[type].time += details.totalTime || 0;
         data[type].size += details.contentSize || 0;
+        data[type].transferredSize += details.transferredSize || 0;
       } else {
         data[type].cached++;
       }

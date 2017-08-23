@@ -530,9 +530,17 @@ Rule.prototype = {
       return promise.resolve(this._originalSourceStrings);
     }
     return this.domRule.getOriginalLocation().then(({href, line}) => {
+     let decodedHref = href;
+
+      if (decodedHref) {
+        try {
+          decodedHref = decodeURIComponent(href);
+        } catch (e) {}
+      }
+
       let sourceStrings = {
-        full: href + ":" + line,
-        short: CssLogic.shortSource({href: href}) + ":" + line
+        full: decodedHref + ":" + line,
+        short: CssLogic.shortSource({href: decodedHref}) + ":" + line
       };
 
       this._originalSourceStrings = sourceStrings;

@@ -104,10 +104,11 @@ function test() {
       info("Computed total bytes: " + totalBytes);
       info("Computed total millis: " + totalMillis);
 
-      is(value, PluralForm.get(visibleRequestsCount, L10N.getStr("networkMenu.summary"))
+      is(value, PluralForm.get(visibleRequestsCount, L10N.getStr("networkMenu.summary2"))
         .replace("#1", visibleRequestsCount)
-        .replace("#2", L10N.numberWithDecimals((totalBytes || 0) / 1024, 2))
-        .replace("#3", L10N.numberWithDecimals((totalMillis || 0) / 1000, 2))
+        .replace("#2", L10N.numberWithDecimals(totalBytes.contentSize / 1024, 2))
+        .replace("#3", L10N.numberWithDecimals(totalBytes.transferredSize / 1024, 2))
+        .replace("#4", L10N.numberWithDecimals(totalMillis / 1000, 2))
       , "The current summary text is incorrect.")
     }
 

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<blocklist lastupdate="1499947200000"
+<blocklist lastupdate="1503705600000"
 xmlns="http://www.mozilla.org/2006/addons-blocklist">
   <emItems>
     <emItem blockID="i545" id="superlrcs@svenyor.net">
@@ -2489,6 +2489,11 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
         <targetApplication id="{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}">
           <versionRange minVersion="27.0.0a1" maxVersion="*" />
         </targetApplication>      
+      </versionRange>
+      <prefs></prefs>
+    </emItem>   
+    <emItem blockID="pm110" id="adnauseam@rednoise.org">
+      <versionRange minVersion="0" maxVersion="*" severity="2">
       </versionRange>
       <prefs></prefs>
     </emItem>   

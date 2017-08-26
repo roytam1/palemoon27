@@ -75,18 +75,6 @@
     enabledplugins.appendChild(document.createTextNode(pluginsbundle.GetStringFromName(label)));
     fragment.appendChild(enabledplugins);
 
-    // "Find updates for installed plugins at " ...
-    var findpluginupdates = document.createElement("div");
-    findpluginupdates.setAttribute("id", "findpluginupdates");
-    findpluginupdates.appendChild(document.createTextNode(pluginsbundle.GetStringFromName("findpluginupdates_label") + " "));
-    fragment.appendChild(findpluginupdates);
-
-    // ... "mozilla.com/plugincheck"
-    var pluginupdates = document.createElement("a");
-    pluginupdates.setAttribute("href", regionbundle.GetStringFromName("pluginupdates_url"));
-    pluginupdates.appendChild(document.createTextNode(regionbundle.GetStringFromName("pluginupdates_label")));
-    findpluginupdates.appendChild(pluginupdates);
-
     fragment.appendChild(document.createElement("hr"));
 
     var stateNames = {};

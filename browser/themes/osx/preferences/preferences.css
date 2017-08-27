@@ -72,6 +72,11 @@ radio[pane=paneSync] {
   padding: 0;
 }
 
+#browserHomePage:-moz-locale-dir(rtl) input {
+  unicode-bidi: plaintext;
+  direction: rtl;
+}
+
 .contentPane {
   margin: 9px 8px 5px;
 }

@@ -1139,6 +1139,12 @@ let BookmarkingUI = {
     if (this.button && this.button._placesView) {
       this.button._placesView.uninit();
     }
+    // Also uninit the main menubar placesView, since it would have the same
+    // issues.
+    let menubar = document.getElementById("bookmarksMenu");
+    if (menubar && menubar._placesView) {
+      menubar._placesView.uninit();
+    }
   },
 
   customizeStart: function BUI_customizeStart() {

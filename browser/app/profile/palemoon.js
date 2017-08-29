@@ -50,6 +50,7 @@ pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.or
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
+pref("extensions.blocklist.level.updated", false);
 // Controls what level the blocklist switches from warning about items to forcibly
 // blocking them.
 pref("extensions.blocklist.level", 2);

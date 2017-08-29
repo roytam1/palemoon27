@@ -34,6 +34,7 @@
                   type="bool"/>
       <preference id="extensions.blocklist.level"
                   name="extensions.blocklist.level"
+                  onchange="gSecurityPane.addonLevelNeedsSync();"
                   type="int"/>
 
       <!-- Passwords -->

@@ -74,6 +74,24 @@ var gSecurityPane = {
       permissionType: "install"
     },
 
+  /**
+   * Ensures that the blocklist is enabled/disabled appropriately based on level
+   */
+  addonLevelNeedsSync: function()
+  {
+    Services.prefs.setBoolPref("extensions.blocklist.level.updated", true);
+  },
+  // called from preferences window onunload.
+  syncAddonSecurityLevel: function()
+  {
+    if (Services.prefs.getBoolPref("extensions.blocklist.level.updated") == true) {
+      Services.prefs.setBoolPref("extensions.blocklist.level.updated", false);
+      var secLevel = Services.prefs.getIntPref("extensions.blocklist.level");
+      Services.prefs.setBoolPref("extensions.blocklist.enabled",
+                                 !(secLevel == 99));
+    }
+  },
+    
   // PASSWORDS
 
   /*

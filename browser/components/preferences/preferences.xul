@@ -47,14 +47,15 @@
 #endif
             xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
 #ifdef USE_WIN_TITLE_STYLE
-            style="&prefWinMinSize.styleWin2;">
+            style="&prefWinMinSize.styleWin2;"
 #else
 #ifdef XP_MACOSX
-            style="&prefWinMinSize.styleMac;">
+            style="&prefWinMinSize.styleMac;"
 #else
-            style="&prefWinMinSize.styleGNOME;">
+            style="&prefWinMinSize.styleGNOME;"
 #endif
 #endif
+            onunload="gSecurityPane.syncAddonSecurityLevel();">
 
     <script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
 

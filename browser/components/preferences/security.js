@@ -9,7 +9,7 @@ var gSecurityPane = {
   _pane: null,
 
   /**
-   * Initializes master password UI.
+   * Initializes UI.
    */
   init: function ()
   {

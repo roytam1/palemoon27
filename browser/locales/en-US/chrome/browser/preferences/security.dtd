@@ -2,12 +2,19 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
+<!ENTITY  addons.label                  "Add-ons">
+
 <!ENTITY  warnAddonInstall.label        "Warn me when sites try to install add-ons">
 <!ENTITY  warnAddonInstall.accesskey    "W">
 
 <!ENTITY  addonExceptions.label         "Exceptions…">
 <!ENTITY  addonExceptions.accesskey     "E">
 
+<!ENTITY  addonSecuritylevel            "Add-on security level:">
+<!ENTITY  addonSecurityLevel_Off        "Off: No add-ons will be blocked (dangerous)">
+<!ENTITY  addonSecurityLevel_Low        "Low: Block only add-ons with severe security and stability issues">
+<!ENTITY  addonSecurityLevel_High       "Medium: Block all harmful add-ons (default, recommended)">
+<!ENTITY  addonSecurityLevel_Extreme    "High: Block all add-ons with known issues">
 
 <!ENTITY  passwords.label               "Passwords">
 

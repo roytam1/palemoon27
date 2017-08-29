@@ -32,6 +32,9 @@
       <preference id="xpinstall.whitelist.required"
                   name="xpinstall.whitelist.required"
                   type="bool"/>
+      <preference id="extensions.blocklist.level"
+                  name="extensions.blocklist.level"
+                  type="int"/>
 
       <!-- Passwords -->
       <preference id="signon.rememberSignons" name="signon.rememberSignons" type="bool"/>
@@ -57,7 +60,9 @@
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
 
     <!-- addons, forgery (phishing) UI -->
-    <groupbox id="addonsPhishingGroup">
+    <groupbox id="addonsSecurityGroup">
+      <caption label="&addons.label;"/>
+      
       <hbox id="addonInstallBox">
         <checkbox id="warnAddonInstall" flex="1"
                   label="&warnAddonInstall.label;"
@@ -68,6 +73,19 @@
                 label="&addonExceptions.label;"
                 accesskey="&addonExceptions.accesskey;"
                 oncommand="gSecurityPane.showAddonExceptions();"/>
+      </hbox>
+      <hbox id="addonSecuritySettingsBox" flex="1">
+       <vbox>
+        <label id="addonSecurity" control="addonsecurity-menu">&addonSecuritylevel;</label>
+		<menulist id="addonsecurity-menu" preference="extensions.blocklist.level" sizetopopup="always">
+		  <menupopup>
+		    <menuitem label="&addonSecurityLevel_Off;" value="99" />
+		    <menuitem label="&addonSecurityLevel_Low;" value="3" />
+		    <menuitem label="&addonSecurityLevel_High;" value="2" />
+		    <menuitem label="&addonSecurityLevel_Extreme;" value="1" />
+		  </menupopup>
+		</menulist>       
+       </vbox>
       </hbox>
     </groupbox>
 

@@ -15,7 +15,7 @@ let {Cc, Ci, Cu} = require("chrome");
 let {Promise: promise} = require("resource://gre/modules/Promise.jsm");
 let EventEmitter = require("devtools/toolkit/event-emitter");
 let {getHighlighterUtils} = require("devtools/framework/toolbox-highlighter-utils");
-let HUDService = require("devtools/webconsole/hudservice");
+let {HUDService} = require("devtools/webconsole/hudservice");
 let {showDoorhanger} = require("devtools/shared/doorhanger");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");

@@ -49,10 +49,10 @@ devtoolsCommandlineHandler.prototype = {
           "resource://gre/modules/devtools/Loader.jsm", {}).devtools;
       // Load the browser devtools main module as the loader's main module.
       Cu.import("resource://gre/modules/devtools/gDevTools.jsm");
-      let hudservice = devtools.require("devtools/webconsole/hudservice");
+      let {HUDService} = devtools.require("devtools/webconsole/hudservice");
       let console = Cu.import(
           "resource://gre/modules/devtools/Console.jsm", {}).console;
-      hudservice.toggleBrowserConsole().then(null, console.error);
+      HUDService.toggleBrowserConsole().then(null, console.error);
     } else {
       // The Browser Console was already open.
       window.focus();

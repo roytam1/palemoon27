@@ -6839,7 +6839,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "gDevToolsBrowser",
 Object.defineProperty(this, "HUDService", {
   get: function HUDService_getter() {
     let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-    return devtools.require("devtools/webconsole/hudservice");
+    return devtools.require("devtools/webconsole/hudservice").HUDService;
   },
   configurable: true,
   enumerable: true

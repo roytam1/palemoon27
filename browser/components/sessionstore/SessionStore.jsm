@@ -107,6 +107,15 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
 #ifdef MOZ_DEVTOOLS
 XPCOMUtils.defineLazyModuleGetter(this, "ScratchpadManager",
   "resource://gre/modules/devtools/scratchpad-manager.jsm");
+
+Object.defineProperty(this, "HUDService", {
+  get: function HUDService_getter() {
+    let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+    return devtools.require("devtools/webconsole/hudservice").HUDService;
+  },
+  configurable: true,
+  enumerable: true
+});
 #endif  
   
 XPCOMUtils.defineLazyModuleGetter(this, "DocumentUtils",
@@ -1735,8 +1744,14 @@ let SessionStoreInternal = {
     }
 
 #ifdef MOZ_DEVTOOLS
+    // Scratchpad
     if (lastSessionState.scratchpads) {
       ScratchpadManager.restoreSession(lastSessionState.scratchpads);
+    }
+
+    // The Browser Console
+    if (lastSessionState.browserConsole) {
+      HUDService.restoreBrowserConsoleSession();
     }
 #endif
 
@@ -2558,9 +2573,15 @@ let SessionStoreInternal = {
       recentCrashes: this._recentCrashes
     };
 
+    var scratchpads = null;
+    var browserConsole = null;
 #ifdef MOZ_DEVTOOLS
+    // Scratchpad
     // get open Scratchpad window states too
-    var scratchpads = ScratchpadManager.getSessionState();
+    scratchpads = ScratchpadManager.getSessionState();
+
+    // The Browser Console
+    browserConsole = HUDService.getBrowserConsoleSessionState();
 #endif
 
     return {
@@ -2569,7 +2590,8 @@ let SessionStoreInternal = {
       _closedWindows: lastClosedWindowsCopy,
 #ifdef MOZ_DEVTOOLS
       session: session,
-      scratchpads: scratchpads
+      scratchpads: scratchpads,
+      browserConsole: browserConsole
 #else
       session: session
 #endif
@@ -2796,6 +2818,11 @@ let SessionStoreInternal = {
 #ifdef MOZ_DEVTOOLS
     if (aState.scratchpads) {
       ScratchpadManager.restoreSession(aState.scratchpads);
+    }
+
+    // The Browser Console
+    if (aState.browserConsole) {
+      HUDService.restoreBrowserConsoleSession();
     }
 
 #endif

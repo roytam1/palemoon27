@@ -28,8 +28,6 @@ relativesrcdir toolkit/locales:
 # about:support
   locale/@AB_CD@/b2g-l10n/overrides/global/aboutSupport.dtd         (%chrome/global/aboutSupport.dtd)
   locale/@AB_CD@/b2g-l10n/overrides/global/aboutSupport.properties  (%chrome/global/aboutSupport.properties)
-#about:mozilla
-  locale/@AB_CD@/b2g-l10n/overrides/global/mozilla.dtd                (%chrome/global/mozilla.dtd)
 #about:telemetry
   locale/@AB_CD@/b2g-l10n/overrides/global/aboutTelemetry.dtd         (%chrome/global/aboutTelemetry.dtd)
   locale/@AB_CD@/b2g-l10n/overrides/global/aboutTelemetry.properties  (%chrome/global/aboutTelemetry.properties)
@@ -46,7 +44,6 @@ relativesrcdir toolkit/locales:
 % override chrome://mozapps/locale/update/updates.properties chrome://b2g-l10n/locale/overrides/update/updates.properties
 % override chrome://global/locale/aboutSupport.dtd chrome://b2g-l10n/locale/overrides/global/aboutSupport.dtd
 % override chrome://global/locale/aboutSupport.properties chrome://b2g-l10n/locale/overrides/global/aboutSupport.properties
-% override chrome://global/locale/mozilla.dtd chrome://b2g-l10n/locale/overrides/global/mozilla.dtd
 % override chrome://global/locale/aboutTelemetry.dtd chrome://b2g-l10n/locale/overrides/global/aboutTelemetry.dtd
 % override chrome://global/locale/aboutTelemetry.properties chrome://b2g-l10n/locale/overrides/global/aboutTelemetry.properties
 

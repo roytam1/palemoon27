@@ -6857,9 +6857,9 @@ function restart(safeMode)
     promptMessageString = "safeModeRestartPromptMessage";
     restartTextString = "safeModeRestartButton";
   } else {
-    promptTitleString = "restartNormalPromptTitle";
-    promptMessageString = "restartNormalPromptMessage";
-    restartTextString = "restartNormalButton";
+    promptTitleString = "restartPromptTitle";
+    promptMessageString = "restartPromptMessage";
+    restartTextString = "restartButton";
   }
 
   let flags = Ci.nsIAppStartup.eAttemptQuit;

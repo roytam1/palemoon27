@@ -6846,14 +6846,29 @@ Object.defineProperty(this, "HUDService", {
 });
 #endif
 
-// Prompt user to restart the browser in safe mode
-function safeModeRestart()
+// Prompt user to restart the browser in safe mode or normally
+function restart(safeMode)
 {
-  // prompt the user to confirm
-  let promptTitle = gNavigatorBundle.getString("safeModeRestartPromptTitle");
+  let promptTitleString = null;
+  let promptMessageString = null;
+  let restartTextString = null;
+  if (safeMode) {
+    promptTitleString = "safeModeRestartPromptTitle";
+    promptMessageString = "safeModeRestartPromptMessage";
+    restartTextString = "safeModeRestartButton";
+  } else {
+    promptTitleString = "restartNormalPromptTitle";
+    promptMessageString = "restartNormalPromptMessage";
+    restartTextString = "restartNormalButton";
+  }
+
+  let flags = Ci.nsIAppStartup.eAttemptQuit;
+
+  // Prompt the user to confirm
+  let promptTitle = gNavigatorBundle.getString(promptTitleString);
   let promptMessage =
-    gNavigatorBundle.getString("safeModeRestartPromptMessage");
-  let restartText = gNavigatorBundle.getString("safeModeRestartButton");
+    gNavigatorBundle.getString(promptMessageString);
+  let restartText = gNavigatorBundle.getString(restartTextString);
   let buttonFlags = (Services.prompt.BUTTON_POS_0 *
                      Services.prompt.BUTTON_TITLE_IS_STRING) +
                     (Services.prompt.BUTTON_POS_1 *
@@ -6863,8 +6878,13 @@ function safeModeRestart()
   let rv = Services.prompt.confirmEx(window, promptTitle, promptMessage,
                                      buttonFlags, restartText, null, null,
                                      null, {});
+
   if (rv == 0) {
-    Services.startup.restartInSafeMode(Ci.nsIAppStartup.eAttemptQuit);
+    if (safeMode) {    
+      Services.startup.restartInSafeMode(flags);
+    } else {
+      Services.startup.quit(flags | Ci.nsIAppStartup.eRestart);
+    }
   }
 }
 

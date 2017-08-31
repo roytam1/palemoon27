@@ -384,7 +384,10 @@
             <menuseparator/>
             <menuitem id="appmenu_safeMode"
                       label="&appMenuSafeMode.label;"
-                      oncommand="safeModeRestart();"/>
+                      oncommand="restart(true);"/>
+            <menuitem id="appmenu_restart"
+                      label="&appMenuRestart.label;"
+                      oncommand="restart(false);"/>
             <menuseparator/>
             <menuitem id="appmenu_about"
                       label="&aboutProduct.label;"

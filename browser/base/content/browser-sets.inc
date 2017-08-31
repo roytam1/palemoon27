@@ -34,6 +34,7 @@
     <command id="cmd_closeWindow" oncommand="BrowserTryToCloseWindow()"/>
     <command id="cmd_ToggleTabsOnTop" oncommand="TabsOnTop.toggle()"/>
     <command id="cmd_CustomizeToolbars" oncommand="BrowserCustomizeToolbar()"/>
+    <command id="cmd_restartApplication" oncommand="restart(false);"/>
     <command id="cmd_quitApplication" oncommand="goQuitApplication()"/>
 
 

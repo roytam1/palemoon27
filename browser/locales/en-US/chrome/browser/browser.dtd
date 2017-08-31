@@ -334,7 +334,6 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY appMenuWebDeveloper.label "Web Developer">
 <!ENTITY appMenuGettingStarted.label "Getting Started">
 <!ENTITY appMenuSafeMode.label "Restart with Add-ons Disabled…">
-<!ENTITY appMenuRestart.label "Restart normally…">
 
 <!ENTITY openCmd.commandkey           "l">
 <!ENTITY urlbar.placeholder2          "Search or enter address">
@@ -548,6 +547,9 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY zoomOutButton.tooltip          "Zoom out">
 <!ENTITY zoomInButton.tooltip           "Zoom in">
 <!ENTITY zoomControls.label             "Zoom Controls">
+
+<!ENTITY appMenuRestart.label           "Restart…">
+<!ENTITY appMenuRestart.accesskey       "R">
 
 <!ENTITY quitApplicationCmdWin.label       "Exit"> 
 <!ENTITY quitApplicationCmdWin.accesskey   "x">

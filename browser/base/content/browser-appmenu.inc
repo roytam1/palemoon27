@@ -188,7 +188,8 @@
       <menuitem id="appmenu_restart"
                 class="menuitem-iconic"
                 label="&appMenuRestart.label;"
-                command="cmd_restartApplication"/>
+                command="cmd_restartApplication"
+                key="key_restartApplication"/>
       <menuitem id="appmenu-quit"
                 class="menuitem-iconic"
 #ifdef XP_WIN

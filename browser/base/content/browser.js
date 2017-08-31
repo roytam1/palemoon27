@@ -6866,8 +6866,10 @@ function restart(safeMode)
 
   // Prompt the user to confirm
   let promptTitle = gNavigatorBundle.getString(promptTitleString);
+  let brandBundle = document.getElementById("bundle_brand");
+  let brandShortName = brandBundle.getString("brandShortName");
   let promptMessage =
-    gNavigatorBundle.getString(promptMessageString);
+    gNavigatorBundle.getFormattedString(promptMessageString, [brandShortName]);
   let restartText = gNavigatorBundle.getString(restartTextString);
   let buttonFlags = (Services.prompt.BUTTON_POS_0 *
                      Services.prompt.BUTTON_TITLE_IS_STRING) +

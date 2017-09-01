@@ -657,10 +657,12 @@ function populateActionBox() {
 
 // Restart the browser
 function restart(safeMode) {
+  // Notify all windows that an application quit has been requested.
   let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
                      .createInstance(Ci.nsISupportsPRBool);
   Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
 
+  // Something aborted the quit process.
   if (cancelQuit.data) {
     return;
   }

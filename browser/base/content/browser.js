@@ -6882,6 +6882,16 @@ function restart(safeMode)
                                      null, {});
 
   if (rv == 0) {
+    // Notify all windows that an application quit has been requested.
+    let cancelQuit = Components.classes["@mozilla.org/supports-PRBool;1"]
+                     .createInstance(Ci.nsISupportsPRBool);
+    Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
+
+    // Something aborted the quit process.
+    if (cancelQuit.data) {
+      return;
+    }
+
     if (safeMode) {    
       Services.startup.restartInSafeMode(flags);
     } else {

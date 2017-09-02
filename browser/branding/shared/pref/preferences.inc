@@ -14,8 +14,8 @@ pref("browser.getdevtools.url","https://@APO_AM_URL@/external/devtools");
 
 // User Interface
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style
-pref("browser.download.useDownloadDir", false); //don't use default download location as standard. ASK.
-pref("browser.search.context.loadInBackground", true); //don't swap focus to the context search tab.
+pref("browser.download.useDownloadDir", false); //don not use default download location as standard. ASK.
+pref("browser.search.context.loadInBackground", true); //don not swap focus to the context search tab.
 pref("browser.ctrlTab.previews", true);
 pref("browser.allTabs.previews", true);
 pref("browser.urlbar.trimURLs", false); //stop being a derp, Mozilla!
@@ -82,7 +82,7 @@ pref("app.update.download.backgroundInterval", 600);
 // Give the user x seconds to react before showing the big UI. default=48 hours
 pref("app.update.promptWaitTime", 172800);
 
-// Additional Update fixes - no SSL damnit, I don't have a cert (4.0)
+// Additional Update fixes
 pref("app.update.cert.checkAttributes", false);
 pref("app.update.cert.requireBuiltIn", false);
 

@@ -140,8 +140,6 @@ pref("dom.ipc.plugins.timeoutSecs", 20);
 
 // ===| Graphics |=============================================================
 
-pref("gfx.color_management.mode",2); //Use CMS for images with ICC profile.
-pref("gfx.color_management.enablev4", true); //Use "new" handler to prevent display issues for v4 ICC embedded profiles!
 pref("nglayout.initialpaint.delay", 300);
 
 // ============================================================================

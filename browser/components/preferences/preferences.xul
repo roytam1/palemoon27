@@ -55,7 +55,7 @@
             style="&prefWinMinSize.styleGNOME;"
 #endif
 #endif
-            onunload="gSecurityPane.syncAddonSecurityLevel();">
+            onunload="if (typeof gSecurityPane != 'undefined') gSecurityPane.syncAddonSecurityLevel();">
 
     <script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
 

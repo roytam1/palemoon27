@@ -13,6 +13,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h> // No longer implicitly included in later glibc
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>

@@ -32,7 +32,6 @@ ChooseValidatorCompileOptions(const ShBuiltInResources& resources,
 {
     int options = SH_VARIABLES |
                   SH_ENFORCE_PACKING_RESTRICTIONS |
-                  SH_INIT_VARYINGS_WITHOUT_STATIC_USE |
                   SH_OBJECT_CODE |
                   SH_LIMIT_CALL_STACK_DEPTH;
 
@@ -85,7 +84,7 @@ WebGLContext::CreateShaderValidator(GLenum shaderType) const
 
     ShShaderSpec spec = SH_WEBGL_SPEC;
     ShShaderOutput outputLanguage = gl->IsGLES() ? SH_ESSL_OUTPUT
-                                                 : SH_GLSL_OUTPUT;
+                                                 : SH_GLSL_COMPATIBILITY_OUTPUT;
 
     ShBuiltInResources resources;
     memset(&resources, 0, sizeof(resources));

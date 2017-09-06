@@ -2223,24 +2223,8 @@ NS_IMETHODIMP
 nsHTMLDocument::GetSelection(nsISelection** aReturn)
 {
   ErrorResult rv;
-  NS_IF_ADDREF(*aReturn = GetSelection(rv));
+  NS_IF_ADDREF(*aReturn = nsDocument::GetSelection(rv));
   return rv.ErrorCode();
-}
-
-Selection*
-nsHTMLDocument::GetSelection(ErrorResult& aRv)
-{
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetScopeObject());
-  if (!window) {
-    return nullptr;
-  }
-
-  NS_ASSERTION(window->IsInnerWindow(), "Should have inner window here!");
-  if (!window->IsCurrentInnerWindow()) {
-    return nullptr;
-  }
-
-  return static_cast<nsGlobalWindow*>(window.get())->GetSelection(aRv);
 }
 
 NS_IMETHODIMP

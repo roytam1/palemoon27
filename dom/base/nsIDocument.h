@@ -122,6 +122,7 @@ class GlobalObject;
 class NodeFilter;
 class NodeIterator;
 class ProcessingInstruction;
+class Selection;
 class StyleSheetList;
 class SVGDocument;
 class Touch;
@@ -722,6 +723,8 @@ public:
    * Return the root element for this document.
    */
   Element* GetRootElement() const;
+
+  mozilla::dom::Selection* GetSelection(mozilla::ErrorResult& aRv);
 
   virtual nsViewportInfo GetViewportInfo(const mozilla::ScreenIntSize& aDisplaySize) = 0;
 

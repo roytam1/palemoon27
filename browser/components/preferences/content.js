@@ -33,17 +33,38 @@ var gContentPane = {
   },
 
   /**
-   * Utility function to enable/disable the checkboxes for MSE formats depending
+   * Utility function to enable/disable the checkboxes for MSE options depending
    * on the value of media.mediasource.enabled.
    */
   updateMSE: function ()
   {
+    var checkboxMSENFR = document.getElementById('videoMSENFR');
     var checkboxMSEMP4 = document.getElementById('videoMSEMP4');
     var checkboxMSEWebM = document.getElementById('videoMSEWebM');
     var preference = document.getElementById('media.mediasource.enabled');
+    checkboxMSENFR.disabled = preference.value != true;
     checkboxMSEMP4.disabled = preference.value != true;
     checkboxMSEWebM.disabled = preference.value != true;
-    return undefined;
+    // Check and disable WebM if necessary
+    if (preference.value == true) {
+      this.updateMSEWebM();
+    }
+  },
+
+  /**
+   * Utility function to enable/disable the checkbox for MSE+WebM depending
+   * on the value of media.mediasource.format-reader.
+   */
+  updateMSEWebM: function ()
+  {
+    var checkboxMSEWebM = document.getElementById('videoMSEWebM');
+    var preference = document.getElementById('media.mediasource.format-reader');
+    checkboxMSEWebM.disabled = preference.value == true;
+    if (preference.value == true) {
+      // Switch off incompatible format
+      Services.prefs.setBoolPref('media.mediasource.webm.enabled', false);
+      checkboxMSEWebM.checked = false;
+    }
   },
 
   // BEGIN UI CODE

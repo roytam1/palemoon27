@@ -33,9 +33,12 @@
                   onchange="gContentPane._rebuildFonts();"/>
                   
       <!-- VIDEO -->
-      <preference id="media.mediasource.enabled"      name="media.mediasource.enabled"      type="bool"/>
-      <preference id="media.mediasource.mp4.enabled"  name="media.mediasource.mp4.enabled"  type="bool"/>
-      <preference id="media.mediasource.webm.enabled" name="media.mediasource.webm.enabled" type="bool"/>
+      <preference id="media.mediasource.enabled"       name="media.mediasource.enabled"       type="bool"
+        onchange="gContentPane.updateMSE();" />
+      <preference id="media.mediasource.format-reader" name="media.mediasource.format-reader" type="bool"
+        onchange="gContentPane.updateMSEWebM();" />
+      <preference id="media.mediasource.mp4.enabled"   name="media.mediasource.mp4.enabled"   type="bool"/>
+      <preference id="media.mediasource.webm.enabled"  name="media.mediasource.webm.enabled"  type="bool"/>
       
     </preferences>
     
@@ -154,17 +157,19 @@
     </groupbox>
 
     <!-- Video -->
-    <groupbox id="videoGroup">
-      <caption label="&video.label;"/>
-
-      <checkbox id="videoMSE" preference="media.mediasource.enabled"
-                label="&videoMSE.label;" accesskey="&videoMSE.accesskey;"
-                onsyncfrompreference="return gContentPane.updateMSE();"/>
-      <checkbox class="indent" id="videoMSEMP4" preference="media.mediasource.mp4.enabled"
-                label="&videoMSEMP4.label;" accesskey="&videoMSEMP4.accesskey;"/>
-      <checkbox class="indent" id="videoMSEWebM" preference="media.mediasource.webm.enabled"
-                label="&videoMSEWebM.label;" accesskey="&videoMSEWebM.accesskey;"/>
-    </groupbox>
+     <groupbox id="videoGroup">
+       <caption label="&video.label;"/>
+ 
+       <checkbox id="videoMSE" preference="media.mediasource.enabled"
+                 label="&videoMSE.label;" accesskey="&videoMSE.accesskey;"
+                 onsyncfrompreference="gContentPane.updateMSE();"/>
+       <checkbox class="indent" id="videoMSENFR" preference="media.mediasource.format-reader"
++                label="&videoMSENFR.label;" accesskey="&videoMSENFR.accesskey;"/>
+       <checkbox class="indent" id="videoMSEMP4" preference="media.mediasource.mp4.enabled"
+                 label="&videoMSEMP4.label;" accesskey="&videoMSEMP4.accesskey;"/>
+       <checkbox class="indent" id="videoMSEWebM" preference="media.mediasource.webm.enabled"
+                 label="&videoMSEWebM.label;" accesskey="&videoMSEWebM.accesskey;"/>
+     </groupbox>
 
   </prefpane>
 

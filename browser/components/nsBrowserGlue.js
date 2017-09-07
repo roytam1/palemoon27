@@ -432,6 +432,11 @@ BrowserGlue.prototype = {
     
     LoginManagerParent.init();
     
+    // Make sure conflicting MSE prefs don't coexist
+    if (Services.prefs.getBoolPref('media.mediasource.format-reader', true)) {
+      Services.prefs.setBoolPref('media.mediasource.webm.enabled', false);
+    }
+
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 

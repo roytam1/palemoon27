@@ -33,6 +33,8 @@
 <!ENTITY  video.label                 "Video">
 <!ENTITY  videoMSE.label              "Enable Media Source Extensions (MSE)">
 <!ENTITY  videoMSE.accesskey          "M">
+<!ENTITY  videoMSENFR.label           "Use MSE asynchronously">
+<!ENTITY  videoMSENFR.accesskey       "U">
 <!ENTITY  videoMSEMP4.label           "Enable MSE for MP4 video">
 <!ENTITY  videoMSEMP4.accesskey       "4">
 <!ENTITY  videoMSEWebM.label          "Enable MSE for WebM video">

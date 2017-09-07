@@ -164,7 +164,7 @@
                  label="&videoMSE.label;" accesskey="&videoMSE.accesskey;"
                  onsyncfrompreference="gContentPane.updateMSE();"/>
        <checkbox class="indent" id="videoMSENFR" preference="media.mediasource.format-reader"
-+                label="&videoMSENFR.label;" accesskey="&videoMSENFR.accesskey;"/>
+                 label="&videoMSENFR.label;" accesskey="&videoMSENFR.accesskey;"/>
        <checkbox class="indent" id="videoMSEMP4" preference="media.mediasource.mp4.enabled"
                  label="&videoMSEMP4.label;" accesskey="&videoMSEMP4.accesskey;"/>
        <checkbox class="indent" id="videoMSEWebM" preference="media.mediasource.webm.enabled"

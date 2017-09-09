@@ -2400,6 +2400,26 @@ nsresult imgLoader::GetMimeTypeFromContent(const char* aContents, uint32_t aLeng
     aContentType.AssignLiteral(IMAGE_JPEG);
   }
 
+  /* maybe a WEBP? */
+  /* WebP files are technically RIFF files. RIFF is a container format like TIFF.
+   * WebP files are RIFF files that contain a single WEBP chunk.
+   *
+   * To detect it, first check that the first 4 bytes are "RIFF",
+   * and then that bytes 8-11 are "WEBP".
+   */
+  else if (aLength >= 12 &&
+     ((unsigned char)aContents[0])==0x52 &&
+     ((unsigned char)aContents[1])==0x49 &&
+     ((unsigned char)aContents[2])==0x46 &&
+     ((unsigned char)aContents[3])==0x46 &&
+     ((unsigned char)aContents[8])==0x57 &&
+     ((unsigned char)aContents[9])==0x45 &&
+     ((unsigned char)aContents[10])==0x42 &&
+     ((unsigned char)aContents[11])==0x50)
+  {
+    aContentType.AssignLiteral(IMAGE_WEBP);
+  }
+
   /* or how about ART? */
   /* ART begins with JG (4A 47). Major version offset 2.
    * Minor version offset 3. Offset 4 must be nullptr.

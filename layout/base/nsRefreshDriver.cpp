@@ -1735,6 +1735,9 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     mPostRefreshObservers[i]->DidRefresh();
   }
 
+  // Check if we should exit high precision timer mode.
+  ConfigureHighPrecision();
+  
   NS_ASSERTION(mInRefresh, "Still in refresh");
 }
 

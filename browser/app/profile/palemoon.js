@@ -1116,10 +1116,8 @@ pref("status4evar.addonbar.closeButton", false);
 pref("status4evar.addonbar.legacyShim", true);
 pref("status4evar.addonbar.windowGripper", true);
 
-pref("status4evar.advanced.showWarning", true);
 pref("status4evar.advanced.status.detectFullScreen", false);
 pref("status4evar.advanced.status.detectVideo", true);
-pref("status4evar.advanced.urlbar.forceBinding", false);
 
 pref("status4evar.download.button.action", 1);
 pref("status4evar.download.button.action.command", "");
@@ -1135,19 +1133,10 @@ pref("status4evar.download.tooltip", 2);
 
 pref("status4evar.firstRun", true);
 
-//pref("status4evar.progress.tab", 1);
-//pref("status4evar.progress.tab.css", "#333399");
-//pref("status4evar.progress.tab.style", true);
-
 pref("status4evar.progress.toolbar.css", "#333399");
 pref("status4evar.progress.toolbar.force", false);
 pref("status4evar.progress.toolbar.style", false);
 pref("status4evar.progress.toolbar.style.advanced", false);
-
-pref("status4evar.progress.urlbar", 0);
-pref("status4evar.progress.urlbar.css", "#333399");
-pref("status4evar.progress.urlbar.style", false);
-pref("status4evar.progress.urlbar.style.advanced", false);
 
 pref("status4evar.status", 1);
 pref("status4evar.status.default", true);
@@ -1159,10 +1148,6 @@ pref("status4evar.status.linkOver.delay.show", 0);
 pref("status4evar.status.linkOver.delay.hide", 0);
 
 pref("status4evar.status.toolbar.maxLength", 0);
-
-pref("status4evar.status.urlbar.align", 0);
-pref("status4evar.status.urlbar.color", "GrayText");
-pref("status4evar.status.urlbar.position", 33);
 
 pref("status4evar.status.popup.invertMirror", false);
 pref("status4evar.status.popup.mouseMirror", true);

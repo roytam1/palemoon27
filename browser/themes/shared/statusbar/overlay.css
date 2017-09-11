@@ -133,197 +133,29 @@ splitter.status4evar-status-splitter:not(:hover)
 }
 
 /*
- * Location bar progress
- */
-
-#urlbar-progress-alt
-{
-	margin: 0px;
-	-moz-appearance: none;
-	min-height: 0px;
-	height: 3px;
-	border: none;
-	background-color: transparent;
-}
-
-#urlbar[pmpack="center"] #urlbar-progress-alt
-{
-	-moz-box-flex: 1;
-}
-
-#urlbar:not([pmpack="center"]) #urlbar-progress-alt > *
-{
-	border-top: 1px solid rgba(0,0,0,.1);
-	border-bottom: 1px solid rgba(0,0,0,.1);
-}
-
-#urlbar-container:not([combined]) #urlbar:not([pmpack="begin"]) #urlbar-progress-alt,
-#urlbar-container:not([combined]) #urlbar:not([pmpack="begin"]) #urlbar-progress-alt > *
-{
-	border-bottom-left-radius: 3px;
-	border-bottom-right-radius: 3px;
-}
-
-#urlbar-container:not([combined]) #urlbar:not([pmpack="end"]) #urlbar-progress-alt,
-#urlbar-container:not([combined]) #urlbar:not([pmpack="end"]) #urlbar-progress-alt > *
-{
-	border-top-left-radius: 3px;
-	border-top-right-radius: 3px;
-}
-
-/*
  * General progress
  */
 
-#urlbar-progress-alt > *,
 #status4evar-progress-bar[s4estyle="true"] > *
 {
 	border: none;
 }
 
-#urlbar-progress-alt > .progress-remainder,
 #status4evar-progress-bar > .progress-remainder
 {
 	background-image: none;
 	background-color: transparent;
 }
 
-#urlbar[s4estyle="true"] > #urlbar-progress-alt > .progress-bar,
 #status4evar-progress-bar[s4estyle="true"] > .progress-bar
 {
 	border-right: 1px solid rgba(0,0,0,.2);
 }
 
-#urlbar[s4estyle="true"] > #urlbar-progress-alt[value="0"] > .progress-bar,
-#urlbar[s4estyle="true"] > #urlbar-progress-alt[value="100"] > .progress-bar,
 #status4evar-progress-bar[s4estyle="true"][value="0"] > .progress-bar,
 #status4evar-progress-bar[s4estyle="true"][value="100"] > .progress-bar
 {
 	border-right: none;
-}
-
-/*
- * Location bar status transisions
- */
-
-#urlbar .urlbar-over-link-layer
-{
-	opacity: 0;
-}
-
-#urlbar .urlbar-input-layer[overlinkstate="fade-in"],
-#urlbar .urlbar-input-layer[overlinkstate="fade-in"] html|input.urlbar-input::-moz-placeholder
-{
-	-moz-transition-property: color;
-	-moz-transition-duration: 150ms;
-	color: transparent;
-}
-
-#urlbar .urlbar-input-layer[overlinkstate="fade-out"],
-#urlbar .urlbar-input-layer[overlinkstate="fade-out"] html|input.urlbar-input::-moz-placeholder
-{
-	-moz-transition-property: color;
-	-moz-transition-duration: 150ms;
-	-moz-transition-timing-function: cubic-bezier(0.0, 1.0, 1.0, 1.0);
-}
-
-#urlbar .urlbar-input-layer[overlinkstate="showing"],
-#urlbar .urlbar-input-layer[overlinkstate="showing"] html|input.urlbar-input::-moz-placeholder
-{
-	color: transparent;
-}
-
-#urlbar .urlbar-over-link-layer[overlinkstate="fade-in"]
-{
-	-moz-transition-property: opacity;
-	-moz-transition-duration: 150ms;
-	opacity: 1;
-}
-
-#urlbar .urlbar-over-link-layer[overlinkstate="fade-out"]
-{
-	-moz-transition-property: opacity;
-	-moz-transition-duration: 150ms;
-	-moz-transition-timing-function: cubic-bezier(0.0, 1.0, 1.0, 1.0);
-}
-
-#urlbar .urlbar-over-link-layer[overlinkstate="showing"]
-{
-	opacity: 1;
-}
-
-#urlbar .urlbar-input-layer-children[overlinkstate="fade-in"]
-{
-	-moz-transition-property: opacity;
-	-moz-transition-duration: 150ms;
-	opacity: 0;
-}
-
-#urlbar .urlbar-input-layer-children[overlinkstate="fade-out"]
-{
-	-moz-transition-property: opacity;
-	-moz-transition-duration: 150ms;
-	-moz-transition-timing-function: cubic-bezier(0.0, 1.0, 1.0, 1.0);
-}
-
-#urlbar .urlbar-input-layer-children[overlinkstate="showing"]
-{
-	opacity: 0;
-}
-
-/*
- * Location bar status layout
- */
-
-#urlbar[s4esalign="left"] .urlbar-origin-box
-{
-	display: none;
-}
-
-#urlbar .urlbar-origin-label,
-#urlbar .urlbar-over-link-host-label,
-#urlbar .urlbar-over-link-path-label
-{
-	padding: 0;
-	margin: 0;
-	border: none;
-}
-
-#urlbar .urlbar-origin-label
-{
-	-moz-padding-start: 1px;
-}
-
-#urlbar .urlbar-over-link-box:-moz-locale-dir(ltr)
-{
-	-moz-padding-start: 18px;
-	-moz-padding-end: 2px;
-}
-
-#urlbar .urlbar-over-link-box:-moz-locale-dir(rtl)
-{
-	-moz-padding-end: 18px;
-	-moz-padding-start: 2px;
-}
-
-#urlbar[s4esalign="left"] .urlbar-over-link-box:-moz-locale-dir(ltr)
-{
-	-moz-padding-start: 1px;
-}
-
-#urlbar[s4esalign="left"] .urlbar-over-link-box:-moz-locale-dir(rtl)
-{
-	-moz-padding-end: 1px;
-}
-
-#urlbar:not([s4esalign="left"]) .urlbar-over-link-box:-moz-locale-dir(ltr)
-{
-	background: url(chrome://browser/skin/statusbar/urlbar-over-link-arrow.png) no-repeat left center;
-}
-
-#urlbar:not([s4esalign="left"]) .urlbar-over-link-box:-moz-locale-dir(rtl)
-{
-	background: url(chrome://browser/skin/statusbar/urlbar-over-link-arrow-rtl.png) no-repeat right center;
 }
 
 /*

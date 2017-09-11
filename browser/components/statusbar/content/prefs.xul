@@ -5,8 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <!DOCTYPE prefwindow [
-	<!ENTITY % configDTD SYSTEM "chrome://global/locale/config.dtd">
-	%configDTD;
 	<!ENTITY % prefsDTD SYSTEM "chrome://browser/locale/statusbar/statusbar-prefs.dtd">
 	%prefsDTD;
 ]>
@@ -16,11 +14,9 @@
 
 <?xml-stylesheet href="chrome://browser/content/statusbar/overlay.css" type="text/css" ?>
 <?xml-stylesheet href="chrome://browser/skin/statusbar/overlay.css" type="text/css" ?>
-<?xml-stylesheet href="chrome://browser/skin/statusbar/overlay.css" type="text/css" ?>
 <?xml-stylesheet href="chrome://browser/skin/statusbar/dynamic.css" type="text/css" ?>
 
 <?xml-stylesheet href="chrome://browser/content/statusbar/prefs.css" type="text/css" ?>
-<?xml-stylesheet href="chrome://browser/skin/statusbar/prefs.css" type="text/css" ?>
 <?xml-stylesheet href="chrome://browser/skin/statusbar/prefs.css" type="text/css" ?>
 
 <prefwindow id="status4evar-prefs" title="&status4evar.window.title;"
@@ -49,8 +45,6 @@
 			<preference id="status4evar-pref-status-popup-invertMirror"  name="status4evar.status.popup.invertMirror"  type="bool" />
 			<preference id="status4evar-pref-status-popup-mouseMirror"   name="status4evar.status.popup.mouseMirror"   type="bool" />
 			<preference id="toolkit-pref-dom-status-change"              name="dom.disable_window_status_change"       type="bool" inverted="true" />
-			<preference id="browser-pref-urlbar-formatting-enabled"      name="browser.urlbar.formatting.enabled"      type="bool" />
-			<preference id="browser-pref-urlbar-trimming-enabled"        name="browser.urlbar.trimURLs"                type="bool" />
 		</preferences>
 
 		<commandset id="status4evar-commandset-status">
@@ -128,11 +122,6 @@
 						</hbox>
 					</groupbox>
 
-					<groupbox id="status4evar-status-urlbar-builtin">
-						<caption label="&status4evar.status.urlbar.firefox.builtin.caption;" />
-
-						<checkbox id="browser-urlbar-trimming-enabled-ckeck" preference="browser-pref-urlbar-trimming-enabled" label="&browser.urlbar.trimming.enabled.label;" />
-					</groupbox>
 				</tabpanel>
 
 				<tabpanel id="status4evar-tabpanel-status-toolbar" orient="vertical">
@@ -301,40 +290,25 @@
 
 	<prefpane id="status4evar-pane-advanced" label="&status4evar.pane.advanced;">
 		<preferences>
-			<preference id="status4evar-pref-advanced-showWarning"             name="status4evar.advanced.showWarning"             type="bool" />
 			<preference id="status4evar-pref-advanced-status-detectFullScreen" name="status4evar.advanced.status.detectFullScreen" type="bool" />
 			<preference id="status4evar-pref-advanced-status-detectVideo"      name="status4evar.advanced.status.detectVideo"      type="bool" />
+			<preference id="browser-pref-urlbar-trimming-enabled"        name="browser.urlbar.trimURLs"                type="bool" />
 		</preferences>
 
-		<commandset id="status4evar-commandset-advanced">
-			<command id="status4evar-command-advanced-continue" oncommand="status4evarPrefs.advancedShowPrefs();" />
-		</commandset>
+		<vbox flex="1">
+			<groupbox id="status4evar-status-urlbar-builtin">
+				<caption label="&status4evar.status.urlbar.firefox.builtin.caption;" />
 
-		<deck id="status4evar-pref-advanced-deck" flex="1">
-			<vbox flex="1" align="center">
-				<spacer flex="1" />
-				<hbox id="warningBox" align="top">
-					<image id="exclam" />
-					<vbox id="warningInnerBox" flex="1">
-						<label id="warningTitle">&aboutWarningTitle.label;</label>
-						<label id="warningText">&status4evar.advanced.warning;</label>
-						<checkbox id="showWarningNextTime" label="&aboutWarningCheckbox.label;" checked="true" />
-						<hbox pack="center">
-							<button id="warningButton" command="status4evar-command-advanced-continue" label="&aboutWarningButton.label;" />
-						</hbox>
-					</vbox>
-				</hbox>
-				<spacer flex="2" />
-			</vbox>
-			<vbox flex="1">
-				<groupbox id="status4evar-advanced-status">
-					<caption label="&status4evar.pane.status;" />
+				<checkbox id="browser-urlbar-trimming-enabled-ckeck" preference="browser-pref-urlbar-trimming-enabled" label="&browser.urlbar.trimming.enabled.label;" />
+			</groupbox>
 
-					<checkbox id="status4evar-advanced-status-detectFullScreen-check" preference="status4evar-pref-advanced-status-detectFullScreen" label="&status4evar.advanced.status.detectFullScreen;" />
-					<checkbox id="status4evar-advanced-status-detectVideo-check" preference="status4evar-pref-advanced-status-detectVideo" label="&status4evar.advanced.status.detectVideo;" />
-				</groupbox>
-			</vbox>
-		</deck>
+			<groupbox id="status4evar-advanced-status">
+				<caption label="&status4evar.pane.status;" />
+
+				<checkbox id="status4evar-advanced-status-detectFullScreen-check" preference="status4evar-pref-advanced-status-detectFullScreen" label="&status4evar.advanced.status.detectFullScreen;" />
+				<checkbox id="status4evar-advanced-status-detectVideo-check" preference="status4evar-pref-advanced-status-detectVideo" label="&status4evar.advanced.status.detectVideo;" />
+			</groupbox>
+		</vbox>
 	</prefpane>
 </prefwindow>
 

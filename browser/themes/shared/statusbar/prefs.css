@@ -35,17 +35,4 @@ radio[pane="status4evar-pane-advanced"]
 	-moz-image-region: rect(0px, 224px, 32px, 192px);
 }
 
-#status4evar-advanced-urlbar-forceBinding-desc
-{
-	-moz-appearance: none;
-	pointer-events: none;
-	background-color: transparent;
-	border: none;
-	padding: 0px;
-}
-
-#warningInnerBox
-{
-	max-width: 25em;
-}
 

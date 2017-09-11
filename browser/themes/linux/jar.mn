@@ -112,8 +112,6 @@ browser.jar:
   skin/classic/browser/statusbar/pms24.png                     (../shared/statusbar/pms24.png)
   skin/classic/browser/statusbar/throbber-idle.png             (../shared/statusbar/throbber-idle.png)
   skin/classic/browser/statusbar/throbberStatic.png            (../shared/statusbar/throbberStatic.png)
-  skin/classic/browser/statusbar/urlbar-over-link-arrow.png    (../shared/statusbar/urlbar-over-link-arrow.png)
-  skin/classic/browser/statusbar/urlbar-over-link-arrow-rtl.png (../shared/statusbar/urlbar-over-link-arrow-rtl.png)
 #endif
   skin/classic/browser/tabbrowser/alltabs.png         (tabbrowser/alltabs.png)
   skin/classic/browser/tabbrowser/connecting.png      (tabbrowser/connecting.png)

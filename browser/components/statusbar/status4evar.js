@@ -152,7 +152,7 @@ Status_4_Evar.prototype =
 			},
 			updateDynamicStyle: function(sheet)
 			{
-				sheet.cssRules[4].style.backgroundColor = this.downloadColorActive;
+				sheet.cssRules[2].style.backgroundColor = this.downloadColorActive;
 			}
 		},
 
@@ -164,7 +164,7 @@ Status_4_Evar.prototype =
 			},
 			updateDynamicStyle: function(sheet)
 			{
-				sheet.cssRules[5].style.backgroundColor = this.downloadColorPaused;
+				sheet.cssRules[3].style.backgroundColor = this.downloadColorPaused;
 			}
 		},
 
@@ -263,7 +263,7 @@ Status_4_Evar.prototype =
 			},
 			updateDynamicStyle: function(sheet)
 			{
-				sheet.cssRules[2].style.background = this.progressToolbarCSS;
+				sheet.cssRules[1].style.background = this.progressToolbarCSS;
 			}
 		},
 

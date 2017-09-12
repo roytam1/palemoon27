@@ -175,7 +175,7 @@ var status4evarPrefs =
 		{
 			this.progressToolbarCSSPref.value = "#33FF33";
 		}
-		this.dynamicProgressStyle.cssRules[2].style.background = this.progressToolbarCSSPref.value;
+		this.dynamicProgressStyle.cssRules[1].style.background = this.progressToolbarCSSPref.value;
 	},
 
 	progressToolbarStyleChanged: function()
@@ -209,8 +209,8 @@ var status4evarPrefs =
 
 	get downloadProgressPref()
 	{
-		delete this.downloadPRogressPref;
-		return this.downloadPRogressPref = document.getElementById("status4evar-pref-download-progress");
+		delete this.downloadProgressPref;
+		return this.downloadProgressPref = document.getElementById("status4evar-pref-download-progress");
 	},
 
 	get downloadProgressColorActivePref()

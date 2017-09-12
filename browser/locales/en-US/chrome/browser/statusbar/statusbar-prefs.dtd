@@ -8,14 +8,12 @@
 
 <!ENTITY status4evar.tab.general "General">
 <!ENTITY status4evar.tab.toolbar "Status Bar">
-<!ENTITY status4evar.tab.urlbar "Address Bar">
 <!ENTITY status4evar.tab.popup "Pop-up">
 <!ENTITY status4evar.tab.tabs "Tabs">
 
 <!ENTITY status4evar.option.none "None">
 <!ENTITY status4evar.option.nothing "Nothing">
 <!ENTITY status4evar.option.toolbar "Status Bar">
-<!ENTITY status4evar.option.urlbar "Address Bar">
 <!ENTITY status4evar.option.popup "Pop-up">
 <!ENTITY status4evar.option.tooltip "Tooltip">
 <!ENTITY status4evar.option.bottom "Bottom">
@@ -61,8 +59,6 @@
 
 <!ENTITY status4evar.status.toolbar.maxLength.label "Max status text length:">
 
-<!ENTITY status4evar.status.urlbar.align.label "Status alignment:">
-<!ENTITY status4evar.status.urlbar.color.label "Status color:">
 <!ENTITY status4evar.status.currentUrl "Current Location">
 <!ENTITY status4evar.status.statusText "Status Text">
 
@@ -74,9 +70,6 @@
 <!ENTITY status4evar.status.popup.mouseMirror.label "Swap sides when moused over">
 
 <!ENTITY status4evar.progress.style.label "Use a custom style">
-
-<!ENTITY status4evar.progress.urlbar.enable.label "Show progress in the Address Bar">
-<!ENTITY status4evar.progress.urlbar.line.label "Line style:">
 
 <!ENTITY status4evar.progress.toolbar.force.label "Always show the status bar item">
 

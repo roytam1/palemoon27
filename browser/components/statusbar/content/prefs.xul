@@ -148,19 +148,12 @@
 		<preferences>
 			<preference id="status4evar-pref-progress-toolbar-force"          name="status4evar.progress.toolbar.force"          type="bool" />
 			<preference id="status4evar-pref-progress-toolbar-style"          name="status4evar.progress.toolbar.style"          type="bool"
-			            onchange="status4evarPrefs.progressUrlbarStyleChanged();" />
+			            onchange="status4evarPrefs.progressToolbarStyleChanged();" />
 			<preference id="status4evar-pref-progress-toolbar-css"            name="status4evar.progress.toolbar.css"            type="string"
 			            onchange="status4evarPrefs.progressToolbarCSSChanged();" />
-			<preference id="status4evar-pref-progress-urlbar"                 name="status4evar.progress.urlbar"                 type="int"
-			            onchange="status4evarPrefs.progressUrlbarChanged();" />
-			<preference id="status4evar-pref-progress-urlbar-style"           name="status4evar.progress.urlbar.style"           type="bool"
-			            onchange="status4evarPrefs.progressToolbarStyleChanged();" />
-			<preference id="status4evar-pref-progress-urlbar-css"             name="status4evar.progress.urlbar.css"             type="string"
-			            onchange="status4evarPrefs.progressUrlbarCSSChanged();" />
 		</preferences>
 
 		<commandset id="status4evar-commandset-status">
-			<command id="status4evar-command-progress-urlbar"   oncommand="status4evarPrefs.progressUrlbarToggle();" />
 		</commandset>
 
 		<tabbox id="status4evar-tabbox-progress" flex="1">
@@ -292,7 +285,7 @@
 		<preferences>
 			<preference id="status4evar-pref-advanced-status-detectFullScreen" name="status4evar.advanced.status.detectFullScreen" type="bool" />
 			<preference id="status4evar-pref-advanced-status-detectVideo"      name="status4evar.advanced.status.detectVideo"      type="bool" />
-			<preference id="browser-pref-urlbar-trimming-enabled"        name="browser.urlbar.trimURLs"                type="bool" />
+			<preference id="browser-pref-urlbar-trimming-enabled"              name="browser.urlbar.trimURLs"                      type="bool" />
 		</preferences>
 
 		<vbox flex="1">

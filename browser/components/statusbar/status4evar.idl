@@ -6,7 +6,7 @@
 
 interface nsIDOMWindow;
 
-[scriptable, uuid(b418cd1b-b172-4ef5-bfc5-fc555c87dbc4)]
+[scriptable, uuid(33d0433d-07be-4dc4-87fd-954057310efd)]
 interface nsIStatus4Evar : nsISupports
 {
 	readonly attribute boolean   addonbarBorderStyle;
@@ -47,6 +47,9 @@ interface nsIStatus4Evar : nsISupports
 	readonly attribute long      statusLinkOverDelayHide;
 
 	readonly attribute long      statusToolbarMaxLength;
+
+	readonly attribute boolean   statusToolbarInvertMirror;
+	readonly attribute boolean   statusToolbarMouseMirror;
 
 	void resetPrefs();
 	void updateWindow(in nsIDOMWindow win);

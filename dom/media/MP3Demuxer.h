@@ -300,10 +300,8 @@ public:
   // Returns the currently parsed frame. Reset via Reset or EndFrameSession.
   const Frame& CurrentFrame() const;
 
-#ifdef ENABLE_TESTS
   // Returns the previously parsed frame. Reset via Reset.
   const Frame& PrevFrame() const;
-#endif
 
   // Returns the first parsed frame. Reset via Reset.
   const Frame& FirstFrame() const;
@@ -350,9 +348,7 @@ private:
   // previously parsed frame for debugging and the currently parsed frame.
   Frame mFirstFrame;
   Frame mFrame;
-#ifdef ENABLE_TESTS
   Frame mPrevFrame;
-#endif
 };
 
 // The MP3 demuxer used to extract MPEG frames and side information out of
@@ -376,11 +372,9 @@ public:
   // or a 0-duration if unknown.
   media::TimeUnit Duration(int64_t aNumFrames) const;
 
-#ifdef ENABLE_TESTS
   const FrameParser::Frame& LastFrame() const;
   nsRefPtr<MediaRawData> DemuxSample();
   media::TimeUnit SeekPosition() const;
-#endif
 
   const ID3Parser::ID3Header& ID3Header() const;
   const FrameParser::VBRHeader& VBRInfo() const;

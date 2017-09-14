@@ -95,6 +95,14 @@ MP3Demuxer::NotifyDataRemoved() {
 
 MP3TrackDemuxer::MP3TrackDemuxer(MediaResource* aSource)
   : mSource(aSource)
+  , mOffset(0)
+  , mFirstFrameOffset(0)
+  , mNumParsedFrames(0)
+  , mFrameIndex(0)
+  , mTotalFrameLen(0)
+  , mSamplesPerFrame(0)
+  , mSamplesPerSecond(0)
+  , mChannels(0)
 {
   Reset();
 }
@@ -159,37 +167,42 @@ MP3TrackDemuxer::GetInfo() const {
 
 nsRefPtr<MP3TrackDemuxer::SeekPromise>
 MP3TrackDemuxer::Seek(TimeUnit aTime) {
+  // Efficiently seek to the position.
+  FastSeek(aTime);
+  // Correct seek position by scanning the next frames.
   const TimeUnit seekTime = ScanUntil(aTime);
 
   return SeekPromise::CreateAndResolve(seekTime, __func__);
 }
 
 TimeUnit
-MP3TrackDemuxer::FastSeek(TimeUnit aTime) {
+MP3TrackDemuxer::FastSeek(const TimeUnit& aTime) {
+  const auto& vbr = mParser.VBRInfo();
   if (!aTime.ToMicroseconds()) {
     // Quick seek to the beginning of the stream.
     mOffset = mFirstFrameOffset;
-    mFrameIndex = 0;
-    mParser.EndFrameSession();
-    return TimeUnit();
+    } else if (vbr.IsTOCPresent()) {
+    // Use TOC for more precise seeking.
+    const float durationFrac = static_cast<float>(aTime.ToMicroseconds()) /
+                                                  Duration().ToMicroseconds();
+    mOffset = vbr.Offset(durationFrac);
+  } else if (AverageFrameLength() > 0) {
+    mOffset = mFirstFrameOffset + FrameIndexFromTime(aTime) *
+              AverageFrameLength();
   }
 
-  if (!mSamplesPerFrame || !mNumParsedFrames) {
-    return TimeUnit::FromMicroseconds(-1);
+  if (mOffset > mFirstFrameOffset && StreamLength() > 0) {
+    mOffset = std::min(StreamLength() - 1, mOffset);
   }
 
-  const int64_t numFrames = aTime.ToSeconds() *
-                            mSamplesPerSecond / mSamplesPerFrame;
-  mOffset = mFirstFrameOffset + numFrames * AverageFrameLength();
-  mFrameIndex = numFrames;
-
+  mFrameIndex = FrameIndexFromOffset(mOffset);
   mParser.EndFrameSession();
 
   return Duration(mFrameIndex);
 }
 
 TimeUnit
-MP3TrackDemuxer::ScanUntil(TimeUnit aTime) {
+MP3TrackDemuxer::ScanUntil(const TimeUnit& aTime) {
   if (!aTime.ToMicroseconds()) {
     return FastSeek(aTime);
   }
@@ -233,15 +246,7 @@ MP3TrackDemuxer::GetSamples(int32_t aNumSamples) {
 
 void
 MP3TrackDemuxer::Reset() {
-  mOffset = 0;
-  mFirstFrameOffset = 0;
-  mNumParsedFrames = 0;
-  mFrameIndex = 0;
-  mTotalFrameLen = 0;
-  mSamplesPerFrame = 0;
-  mSamplesPerSecond = 0;
-  mChannels = 0;
-
+  FastSeek(TimeUnit());
   mParser.Reset();
 }
 
@@ -403,6 +408,32 @@ MP3TrackDemuxer::GetNextFrame(const MediaByteRange& aRange) {
   return frame.forget();
 }
 
+int64_t
+MP3TrackDemuxer::FrameIndexFromOffset(int64_t aOffset) const {
+  int64_t frameIndex = 0;
+  const auto& vbr = mParser.VBRInfo();
+
+  if (vbr.NumBytes() && vbr.NumAudioFrames()) {
+    frameIndex = static_cast<float>(aOffset - mFirstFrameOffset) /
+                 vbr.NumBytes().value() * vbr.NumAudioFrames().value();
+    frameIndex = std::min<int64_t>(vbr.NumAudioFrames().value(), frameIndex);
+  } else if (AverageFrameLength() > 0) {
+    frameIndex = (aOffset - mFirstFrameOffset) / AverageFrameLength();
+  }
+
+  return std::max<int64_t>(0, frameIndex);
+}
+
+int64_t
+MP3TrackDemuxer::FrameIndexFromTime(const media::TimeUnit& aTime) const {
+  int64_t frameIndex = 0;
+  if (mSamplesPerSecond > 0 && mSamplesPerFrame > 0) {
+    frameIndex = aTime.ToSeconds() * mSamplesPerSecond / mSamplesPerFrame - 1;
+  }
+
+  return std::max<int64_t>(0, frameIndex);
+}
+
 void
 MP3TrackDemuxer::UpdateState(const MediaByteRange& aRange) {
   // Prevent overflow.
@@ -417,9 +448,13 @@ MP3TrackDemuxer::UpdateState(const MediaByteRange& aRange) {
   mOffset = aRange.mEnd;
 
   mTotalFrameLen += aRange.Length();
-  mSamplesPerFrame = mParser.CurrentFrame().Header().SamplesPerFrame();
-  mSamplesPerSecond = mParser.CurrentFrame().Header().SampleRate();
-  mChannels = mParser.CurrentFrame().Header().Channels();
+
+  if (!mSamplesPerFrame) {
+    mSamplesPerFrame = mParser.CurrentFrame().Header().SamplesPerFrame();
+    mSamplesPerSecond = mParser.CurrentFrame().Header().SampleRate();
+    mChannels = mParser.CurrentFrame().Header().Channels();
+  }
+
   ++mNumParsedFrames;
   ++mFrameIndex;
   MOZ_ASSERT(mFrameIndex > 0);
@@ -498,7 +533,6 @@ FrameParser::FrameParser()
 void
 FrameParser::Reset() {
   mID3Parser.Reset();
-  mFirstFrame.Reset();
   mFrame.Reset();
 }
 

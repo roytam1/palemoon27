@@ -112,7 +112,7 @@ MP3TrackDemuxer::Init() {
   Reset();
   FastSeek(TimeUnit());
   // Read the first frame to fetch sample rate and other meta data.
-  nsRefPtr<MediaRawData> frame(GetNextFrame(FindNextFrame()));
+  nsRefPtr<MediaRawData> frame(GetNextFrame(FindFirstFrame()));
   if (!frame) {
     return false;
   }
@@ -319,6 +319,38 @@ MP3TrackDemuxer::Duration(int64_t aNumFrames) const {
 
   const double usPerFrame = USECS_PER_S * mSamplesPerFrame / mSamplesPerSecond;
   return TimeUnit::FromMicroseconds(aNumFrames * usPerFrame);
+}
+
+MediaByteRange
+MP3TrackDemuxer::FindFirstFrame() {
+  static const int MIN_SUCCESSIVE_FRAMES = 4;
+
+  MediaByteRange candidateFrame = FindNextFrame();
+  int numSuccFrames = candidateFrame.Length() > 0;
+  MediaByteRange currentFrame = candidateFrame;
+
+  while (candidateFrame.Length() && numSuccFrames < MIN_SUCCESSIVE_FRAMES) {
+    mParser.EndFrameSession();
+    mOffset = currentFrame.mEnd;
+    const MediaByteRange prevFrame = currentFrame;
+
+    // FindNextFrame() here will only return frames consistent with our candidate frame.
+    currentFrame = FindNextFrame();
+    numSuccFrames += currentFrame.Length() > 0;
+    // Multiple successive false positives, which wouldn't be caught by the consistency
+    // checks alone, can be detected by wrong alignment (non-zero gap between frames).
+    const int64_t frameSeparation = currentFrame.mStart - prevFrame.mEnd;
+
+    if (!currentFrame.Length() || frameSeparation != 0) {
+      mParser.ResetFrameData();
+      mOffset = candidateFrame.mStart + 1;
+      candidateFrame = FindNextFrame();
+      numSuccFrames = candidateFrame.Length() > 0;
+      currentFrame = candidateFrame;
+    }
+  }
+
+  return candidateFrame;
 }
 
 static bool
@@ -585,6 +617,13 @@ void
 FrameParser::Reset() {
   mID3Parser.Reset();
   mFrame.Reset();
+}
+
+void
+FrameParser::ResetFrameData() {
+  mFrame.Reset();
+  mFirstFrame.Reset();
+  mPrevFrame.Reset();
 }
 
 void

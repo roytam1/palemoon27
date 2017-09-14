@@ -180,22 +180,22 @@ MP3TrackDemuxer::FastSeek(const TimeUnit& aTime) {
   const auto& vbr = mParser.VBRInfo();
   if (!aTime.ToMicroseconds()) {
     // Quick seek to the beginning of the stream.
-    mOffset = mFirstFrameOffset;
+    mFrameIndex = 0;
     } else if (vbr.IsTOCPresent()) {
     // Use TOC for more precise seeking.
     const float durationFrac = static_cast<float>(aTime.ToMicroseconds()) /
                                                   Duration().ToMicroseconds();
-    mOffset = vbr.Offset(durationFrac);
+    mFrameIndex = FrameIndexFromOffset(vbr.Offset(durationFrac));
   } else if (AverageFrameLength() > 0) {
-    mOffset = mFirstFrameOffset + FrameIndexFromTime(aTime) *
-              AverageFrameLength();
+    mFrameIndex = FrameIndexFromTime(aTime);
   }
+
+  mOffset = OffsetFromFrameIndex(mFrameIndex);
 
   if (mOffset > mFirstFrameOffset && StreamLength() > 0) {
     mOffset = std::min(StreamLength() - 1, mOffset);
   }
 
-  mFrameIndex = FrameIndexFromOffset(mOffset);
   mParser.EndFrameSession();
 
   return Duration(mFrameIndex);
@@ -436,6 +436,21 @@ MP3TrackDemuxer::GetNextFrame(const MediaByteRange& aRange) {
   }
 
   return frame.forget();
+}
+
+int64_t
+MP3TrackDemuxer::OffsetFromFrameIndex(int64_t aFrameIndex) const {
+  int64_t offset = 0;
+  const auto& vbr = mParser.VBRInfo();
+
+  if (vbr.NumBytes() && vbr.NumAudioFrames()) {
+    offset = mFirstFrameOffset + aFrameIndex * vbr.NumBytes().value() /
+             vbr.NumAudioFrames().value();
+  } else if (AverageFrameLength() > 0) {
+    offset = mFirstFrameOffset + aFrameIndex * AverageFrameLength();
+  }
+
+  return std::max<int64_t>(mFirstFrameOffset, offset);
 }
 
 int64_t

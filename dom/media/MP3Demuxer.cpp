@@ -211,12 +211,16 @@ MP3TrackDemuxer::ScanUntil(const TimeUnit& aTime) {
     FastSeek(aTime);
   }
 
+  if (Duration(mFrameIndex + 1) > aTime) {
+    return SeekPosition();
+  }
+
   MediaByteRange nextRange = FindNextFrame();
   while (SkipNextFrame(nextRange) && Duration(mFrameIndex + 1) < aTime) {
     nextRange = FindNextFrame();
   }
 
-  return Duration(mFrameIndex);
+  return SeekPosition();
 }
 
 nsRefPtr<MP3TrackDemuxer::SamplesPromise>

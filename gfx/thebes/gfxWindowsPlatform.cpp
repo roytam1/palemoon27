@@ -646,6 +646,12 @@ gfxWindowsPlatform::CreateDevice(nsRefPtr<IDXGIAdapter1> &adapter1,
 void
 gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
 {
+    // Check if fallback to unsupported D2D version is allowed when
+    // the Direct2D 1.1 feature set isn't available.
+    if (!Factory::SupportsD2D1() && !gfxPrefs::Direct2DAllowFallback()) {
+      return;
+    }
+    
 #ifdef CAIRO_HAS_D2D_SURFACE
     if (mD2DDevice) {
         ID3D10Device1 *device = cairo_d2d_device_get_device(mD2DDevice);

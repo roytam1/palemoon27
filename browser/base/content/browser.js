@@ -6346,9 +6346,6 @@ var gIdentityHandler = {
     if (PopupNotifications.getNotification("mixed-content-blocked", gBrowser.selectedBrowser))
       return;
 
-    let helplink = document.getElementById("mixed-content-blocked-helplink");
-    helplink.href = Services.urlFormatter.formatURLPref("browser.mixedcontent.warning.infoURL");
-
     let brandBundle = document.getElementById("bundle_brand");
     let brandShortName = brandBundle.getString("brandShortName");
     let messageString = gNavigatorBundle.getFormattedString("mixedContentBlocked.message", [brandShortName]);
@@ -6369,6 +6366,7 @@ var gIdentityHandler = {
     ];
     let options = {
       dismissed: true,
+      learnMoreURL: Services.urlFormatter.formatURLPref("browser.mixedcontent.warning.infoURL"),
     };
     PopupNotifications.show(gBrowser.selectedBrowser, "mixed-content-blocked",
                             messageString, "mixed-content-blocked-notification-icon",

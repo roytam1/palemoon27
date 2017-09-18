@@ -76,17 +76,9 @@
       </popupnotificationcontent>
     </popupnotification>
 
-    <popupnotification id="geolocation-notification" hidden="true">
-      <popupnotificationcontent orient="vertical" align="start">
-        <separator class="thin"/>
-        <label id="geolocation-learnmore-link" class="text-link"/>
-      </popupnotificationcontent>
-    </popupnotification>
-
     <popupnotification id="servicesInstall-notification" hidden="true">
       <popupnotificationcontent orient="vertical" align="start">
-        <separator class="thin"/>
-        <label id="servicesInstall-learnmore-link" class="text-link"/>
+        <!-- XXX bug 974146, tests are looking for this, can't remove yet. -->
       </popupnotificationcontent>
     </popupnotification>
 
@@ -101,8 +93,5 @@
       <popupnotificationcontent orient="vertical" align="start">
         <separator/>
         <description id="mixed-content-blocked-moreinfo">&mixedContentBlocked.moreinfo;</description>
-        <separator/>
-        <label id="mixed-content-blocked-helplink" class="text-link"
-               value="&mixedContentBlocked.helplink;"/>
       </popupnotificationcontent>
     </popupnotification>

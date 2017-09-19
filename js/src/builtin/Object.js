@@ -146,7 +146,7 @@ function ObjectEntries(O) {
     // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
     var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
 
-        // Steps 1-2.
+    // Steps 1-2.
     var object = ToObject(O);
 
     // Steps 3-4.

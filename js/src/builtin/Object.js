@@ -117,6 +117,9 @@ function ObjectLookupGetter(name) {
 
 // Draft proposal http://tc39.github.io/proposal-object-values-entries/#Object.values
 function ObjectValues(O) {
+    // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
+    var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
+
     // Steps 1-2.
     var object = ToObject(O);
 
@@ -131,8 +134,6 @@ function ObjectValues(O) {
             continue;
 
         var value = object[key];
-        // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
-        var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
         _DefineDataProperty(values, valuesCount++, value, attrs);
     }
 
@@ -142,7 +143,10 @@ function ObjectValues(O) {
 
 // Draft proposal http://tc39.github.io/proposal-object-values-entries/#Object.entries
 function ObjectEntries(O) {
-    // Steps 1-2.
+    // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
+    var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
+
+        // Steps 1-2.
     var object = ToObject(O);
 
     // Steps 3-4.
@@ -156,8 +160,6 @@ function ObjectEntries(O) {
             continue;
 
         var value = object[key];
-        // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
-        var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
         _DefineDataProperty(entries, entriesCount++, [key, value], attrs);
     }
 

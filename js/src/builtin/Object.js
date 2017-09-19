@@ -131,7 +131,9 @@ function ObjectValues(O) {
             continue;
 
         var value = object[key];
-        _DefineDataProperty(values, valuesCount++, value);
+        // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
+        var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
+        _DefineDataProperty(values, valuesCount++, value, attrs);
     }
 
     // Step 5.
@@ -154,7 +156,9 @@ function ObjectEntries(O) {
             continue;
 
         var value = object[key];
-        _DefineDataProperty(entries, entriesCount++, [key, value]);
+        // Until https://bugzilla.mozilla.org/show_bug.cgi?id=1170372 implemented
+        var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
+        _DefineDataProperty(entries, entriesCount++, [key, value], attrs);
     }
 
     // Step 5.

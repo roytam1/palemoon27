@@ -688,7 +688,10 @@ DownloadElementShell.prototype = {
       }
       case "cmd_delete": {
         if (this._dataItem)
-          this._dataItem.remove();
+          Downloads.getList(Downloads.ALL)
+                   .then(list => list.remove(this._dataItem._download))
+                   .then(() => this._dataItem._download.finalize(true))
+                   .catch(Cu.reportError);
         if (this._placesNode)
           PlacesUtils.bhistory.removePage(this._downloadURIObj);
         break;

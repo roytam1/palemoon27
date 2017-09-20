@@ -1478,7 +1478,10 @@ DownloadsViewItemController.prototype = {
   commands: {
     cmd_delete: function DVIC_cmd_delete()
     {
-      this.dataItem.remove();
+      Downloads.getList(Downloads.ALL)
+               .then(list => list.remove(this.dataItem._download))
+               .then(() => this.dataItem._download.finalize(true))
+               .catch(Cu.reportError);
       PlacesUtils.bhistory.removePage(NetUtil.newURI(this.dataItem.uri));
     },
 

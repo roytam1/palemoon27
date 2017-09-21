@@ -268,9 +268,11 @@ RasterImage::RasterImage(ProgressTracker* aProgressTracker,
   mHasSize(false),
   mDecodeOnDraw(false),
   mTransient(false),
+  mSyncLoad(false),
   mDiscardable(false),
   mHasSourceData(false),
   mHasBeenDecoded(false),
+  mDownscaleDuringDecode(false),
   mPendingAnimation(false),
   mAnimationFinished(false),
   mWantFullDecode(false)
@@ -321,6 +323,7 @@ RasterImage::Init(const char* aMimeType,
   mDecodeOnDraw = !!(aFlags & INIT_FLAG_DECODE_ON_DRAW);
   mTransient = !!(aFlags & INIT_FLAG_TRANSIENT);
   mDownscaleDuringDecode = !!(aFlags & INIT_FLAG_DOWNSCALE_DURING_DECODE);
+  mSyncLoad = !!(aFlags & INIT_FLAG_SYNC_LOAD);
 
 #ifndef MOZ_ENABLE_SKIA
   // Downscale-during-decode requires Skia.
@@ -333,10 +336,19 @@ RasterImage::Init(const char* aMimeType,
     SurfaceCache::LockImage(ImageKey(this));
   }
 
-  // Create the initial size decoder.
-  nsresult rv = Decode(Nothing(), DECODE_FLAGS_DEFAULT);
-  if (NS_FAILED(rv)) {
-    return NS_ERROR_FAILURE;
+  if (mSyncLoad) {
+    // We'll create a sync size decoder in OnImageDataComplete. For now, just
+    // verify that we *could* create such a decoder.
+    eDecoderType type = GetDecoderType(mSourceDataMimeType.get());
+    if (type == eDecoderType_unknown) {
+      return NS_ERROR_FAILURE;
+    }
+  } else {
+    // Create an async size decoder and verify that we succeed in doing so.
+    nsresult rv = Decode(Nothing(), DECODE_FLAGS_DEFAULT);
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
   // Mark us as initialized
@@ -1137,10 +1149,10 @@ RasterImage::OnImageDataComplete(nsIRequest*, nsISupports*, nsresult aStatus,
   // Let decoders know that there won't be any more data coming.
   mSourceBuffer->Complete(aStatus);
 
-  if (!mHasSize) {
-    // We need to guarantee that we've gotten the image's size, or at least
-    // determined that we won't be able to get it, before we deliver the load
-    // event. That means we have to do a synchronous size decode here.
+  if (mSyncLoad && !mHasSize) {
+    // We're loading this image synchronously, so it needs to be usable after
+    // this call returns.  Since we haven't gotten our size yet, we need to do a
+    // synchronous size decode here.
     Decode(Nothing(), FLAG_SYNC_DECODE);
   }
 
@@ -1156,12 +1168,28 @@ RasterImage::OnImageDataComplete(nsIRequest*, nsISupports*, nsresult aStatus,
     DoError();
   }
 
+  Progress loadProgress = LoadCompleteProgress(aLastPart, mError, finalStatus);
+
+  if (!mHasSize && !mError) {
+    // We don't have our size yet, so we'll fire the load event in SetSize().
+    MOZ_ASSERT(!mSyncLoad, "Firing load asynchronously but mSyncLoad is set?");
+    NotifyProgress(FLAG_ONLOAD_BLOCKED);
+    mLoadProgress = Some(loadProgress);
+    return finalStatus;
+  }
+
+  NotifyForLoadEvent(loadProgress);
+
+  return finalStatus;
+}
+
+void
+RasterImage::NotifyForLoadEvent(Progress aProgress)
+{
   MOZ_ASSERT(mHasSize || mError, "Need to know size before firing load event");
   MOZ_ASSERT(!mHasSize ||
              (mProgressTracker->GetProgress() & FLAG_SIZE_AVAILABLE),
              "Should have notified that the size is available if we have it");
-
-  Progress loadProgress = LoadCompleteProgress(aLastPart, mError, finalStatus);
 
   if (mDecodeOnDraw) {
     // For decode-on-draw images, we want to send notifications as if we've
@@ -1169,17 +1197,20 @@ RasterImage::OnImageDataComplete(nsIRequest*, nsISupports*, nsresult aStatus,
     // to draw. (We may have already sent some of these notifications from
     // NotifyForDecodeOnDrawOnly(), but ProgressTracker will ensure no duplicate
     // notifications get sent.)
-    loadProgress |= FLAG_ONLOAD_BLOCKED |
-                    FLAG_DECODE_STARTED |
-                    FLAG_FRAME_COMPLETE |
-                    FLAG_DECODE_COMPLETE |
-                    FLAG_ONLOAD_UNBLOCKED;
+    aProgress |= FLAG_ONLOAD_BLOCKED |
+                 FLAG_DECODE_STARTED |
+                 FLAG_FRAME_COMPLETE |
+                 FLAG_DECODE_COMPLETE |
+                 FLAG_ONLOAD_UNBLOCKED;
   }
-
+  
+  // If we encountered an error, make sure we notify for that as well.
+  if (mError) {
+    aProgress |= FLAG_HAS_ERROR;
+  }
+  
   // Notify our listeners, which will fire this image's load event.
-  NotifyProgress(loadProgress);
-
-  return finalStatus;
+  NotifyProgress(aProgress);
 }
 
 void
@@ -2058,6 +2089,13 @@ RasterImage::FinalizeDecoder(Decoder* aDecoder)
       DoError();
     } else if (wasSize && !mHasSize) {
       DoError();
+    }
+
+    // If we were waiting to fire the load event, go ahead and fire it now.
+    if (mLoadProgress && wasSize) {
+      NotifyForLoadEvent(*mLoadProgress);
+      mLoadProgress = Nothing();
+      NotifyProgress(FLAG_ONLOAD_UNBLOCKED);
     }
   }
 

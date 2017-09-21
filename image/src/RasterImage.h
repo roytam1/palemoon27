@@ -247,6 +247,7 @@ public:
                                        nsresult aStatus,
                                        bool aLastPart) override;
 
+  void NotifyForLoadEvent(Progress aProgress);
   void NotifyForDecodeOnDrawOnly();
 
   /**
@@ -356,10 +357,13 @@ private: // data
   nsIntSize                  mSize;
   Orientation                mOrientation;
 
-  nsCOMPtr<nsIProperties>   mProperties;
+  /// If this has a value, we're waiting for SetSize() to send the load event.
+  Maybe<Progress>            mLoadProgress;
+
+  nsCOMPtr<nsIProperties>    mProperties;
 
   /// If this image is animated, a FrameAnimator which manages its animation.
-  UniquePtr<FrameAnimator> mAnim;
+  UniquePtr<FrameAnimator>   mAnim;
 
   // Image locking.
   uint32_t                   mLockCount;
@@ -369,7 +373,7 @@ private: // data
 
   // How many times we've decoded this image.
   // This is currently only used for statistics
-  int32_t                        mDecodeCount;
+  int32_t                    mDecodeCount;
 
   // If the image contains multiple resolutions, a hint as to which one should be used
   nsIntSize                  mRequestedResolution;
@@ -382,7 +386,7 @@ private: // data
   WeakPtr<layers::ImageContainer> mImageContainer;
 
 #ifdef DEBUG
-  uint32_t                       mFramesNotified;
+  uint32_t                   mFramesNotified;
 #endif
 
   // The source data for this image.
@@ -395,6 +399,7 @@ private: // data
   bool                       mHasSize:1;       // Has SetSize() been called?
   bool                       mDecodeOnDraw:1;  // Decoding on draw?
   bool                       mTransient:1;     // Is the image short-lived?
+  bool                       mSyncLoad:1;      // Are we loading synchronously?
   bool                       mDiscardable:1;   // Is container discardable?
   bool                       mHasSourceData:1; // Do we have source data?
   bool                       mHasBeenDecoded:1; // Decoded at least once?

@@ -140,7 +140,7 @@ ImageFactory::CreateAnonymousImage(const nsCString& aMimeType)
 
   nsRefPtr<RasterImage> newImage = new RasterImage();
 
-  rv = newImage->Init(aMimeType.get(), Image::INIT_FLAG_NONE);
+  rv = newImage->Init(aMimeType.get(), Image::INIT_FLAG_SYNC_LOAD);
   NS_ENSURE_SUCCESS(rv, BadImage(newImage));
 
   return newImage.forget();

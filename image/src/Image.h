@@ -68,6 +68,7 @@ public:
   static const uint32_t INIT_FLAG_DECODE_ON_DRAW           = 0x2;
   static const uint32_t INIT_FLAG_TRANSIENT                = 0x4;
   static const uint32_t INIT_FLAG_DOWNSCALE_DURING_DECODE  = 0x8;
+  static const uint32_t INIT_FLAG_SYNC_LOAD                = 0x20;
 
   /**
    * Creates a new image container.

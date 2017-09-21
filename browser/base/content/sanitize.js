@@ -39,6 +39,7 @@ Sanitizer.prototype = {
   },
   
   prefDomain: "",
+  isShutDown: false,
   
   getNameFromPreference: function (aPreferenceName)
   {
@@ -74,6 +75,7 @@ Sanitizer.prototype = {
     for (var itemName in this.items) {
       let item = this.items[itemName];
       item.range = range;
+      item.isShutDown = this.isShutDown;
       if ("clear" in item && branch.getBoolPref(itemName)) {
         let clearCallback = (itemName, aCanClear) => {
           // Some of these clear() may raise exceptions (see bug #265028)
@@ -107,7 +109,7 @@ Sanitizer.prototype = {
   // pref to determine a range
   ignoreTimespan : true,
   range : null,
-  
+
   items: {
     cache: {
       clear: function ()
@@ -196,6 +198,10 @@ Sanitizer.prototype = {
       {
         Components.utils.import("resource:///modules/offlineAppCache.jsm");
         OfflineAppCacheHelper.clear();
+        if (!this.range || this.isShutDown) {
+          Components.utils.import("resource:///modules/QuotaManager.jsm");
+          QuotaManagerHelper.clear(this.isShutDown);
+        }
       },
 
       get canClear()
@@ -406,6 +412,8 @@ Sanitizer.TIMESPAN_2HOURS     = 2;
 Sanitizer.TIMESPAN_4HOURS     = 3;
 Sanitizer.TIMESPAN_TODAY      = 4;
 
+Sanitizer.IS_SHUTDOWN         = true;
+
 // Return a 2 element array representing the start and end times,
 // in the uSec-since-epoch format that PRTime likes.  If we should
 // clear everything, return null.  Use ts if it is defined; otherwise
@@ -484,11 +492,11 @@ Sanitizer.onStartup = function()
 Sanitizer.onShutdown = function() 
 {
   // we check if sanitization is needed and perform it
-  Sanitizer._checkAndSanitize();
+  Sanitizer._checkAndSanitize(Sanitizer.IS_SHUTDOWN);
 };
 
 // this is called on startup and shutdown, to perform pending sanitizations
-Sanitizer._checkAndSanitize = function() 
+Sanitizer._checkAndSanitize = function(isShutDown) 
 {
   const prefs = Sanitizer.prefs;
   if (prefs.getBoolPref(Sanitizer.prefShutdown) && 
@@ -496,6 +504,7 @@ Sanitizer._checkAndSanitize = function()
     // this is a shutdown or a startup after an unclean exit
     var s = new Sanitizer();
     s.prefDomain = "privacy.clearOnShutdown.";
+    s.isShutDown = isShutDown;
     s.sanitize().then(function() {
       prefs.setBoolPref(Sanitizer.prefDidShutdown, true);
     });

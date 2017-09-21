@@ -18,6 +18,7 @@ EXTRA_JS_MODULES += [
     'openLocationLastURL.jsm',
     'PageMenu.jsm',
     'PopupNotifications.jsm',
+    'QuotaManager.jsm',
     'SharedFrame.jsm',
     'webrtcUI.jsm'
 ]

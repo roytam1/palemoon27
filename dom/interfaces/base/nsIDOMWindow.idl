@@ -388,6 +388,8 @@ interface nsIDOMWindow : nsISupports
 
   /* The maximum offset that the window can be scrolled to
      (i.e., the document width/height minus the scrollport width/height) */
+  readonly attribute long                               scrollMinX;
+  readonly attribute long                               scrollMinY;
   readonly attribute long                               scrollMaxX;
   readonly attribute long                               scrollMaxY;
 

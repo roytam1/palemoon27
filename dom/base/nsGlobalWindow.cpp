@@ -5675,37 +5675,58 @@ nsGlobalWindow::GetPageYOffset(int32_t* aPageYOffset)
   return GetScrollY(aPageYOffset);
 }
 
-void
-nsGlobalWindow::GetScrollMaxXY(int32_t* aScrollMaxX, int32_t* aScrollMaxY,
-                               ErrorResult& aError)
+int32_t
+nsGlobalWindow::GetScrollBoundaryOuter(Side aSide)
+ {
+   MOZ_RELEASE_ASSERT(IsOuterWindow());
+ 
+   FlushPendingNotifications(Flush_Layout);
+  if (nsIScrollableFrame *sf = GetScrollFrame()) {
+    return nsPresContext::
+      AppUnitsToIntCSSPixels(sf->GetScrollRange().Edge(aSide));
+  }
+  return 0;
+}
+
+int32_t
+nsGlobalWindow::GetScrollMinX(ErrorResult& aError)
 {
-  FORWARD_TO_OUTER_OR_THROW(GetScrollMaxXY, (aScrollMaxX, aScrollMaxY, aError),
-                            aError, );
+  MOZ_ASSERT(IsInnerWindow());
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideLeft), aError, 0);
+}
 
-  FlushPendingNotifications(Flush_Layout);
-  nsIScrollableFrame *sf = GetScrollFrame();
-  if (!sf) {
-    return;
-  }
+NS_IMETHODIMP
+nsGlobalWindow::GetScrollMinX(int32_t* aScrollMinX)
+{
+  NS_ENSURE_ARG_POINTER(aScrollMinX);
+  ErrorResult rv;
+  *aScrollMinX = GetScrollMinX(rv);
 
-  nsRect scrollRange = sf->GetScrollRange();
+  return rv.ErrorCode();
+}
 
-  if (aScrollMaxX) {
-    *aScrollMaxX = std::max(0,
-      (int32_t)floor(nsPresContext::AppUnitsToFloatCSSPixels(scrollRange.XMost())));
-  }
-  if (aScrollMaxY) {
-    *aScrollMaxY = std::max(0,
-      (int32_t)floor(nsPresContext::AppUnitsToFloatCSSPixels(scrollRange.YMost())));
-  }
+int32_t
+nsGlobalWindow::GetScrollMinY(ErrorResult& aError)
+{
+  MOZ_ASSERT(IsInnerWindow());
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideTop), aError, 0);
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::GetScrollMinY(int32_t* aScrollMinY)
+{
+  NS_ENSURE_ARG_POINTER(aScrollMinY);
+  ErrorResult rv;
+  *aScrollMinY = GetScrollMinY(rv);
+
+  return rv.ErrorCode();
 }
 
 int32_t
 nsGlobalWindow::GetScrollMaxX(ErrorResult& aError)
 {
-  int32_t scrollMaxX = 0;
-  GetScrollMaxXY(&scrollMaxX, nullptr, aError);
-  return scrollMaxX;
+  MOZ_ASSERT(IsInnerWindow());
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideRight), aError, 0);
 }
 
 NS_IMETHODIMP
@@ -5721,9 +5742,8 @@ nsGlobalWindow::GetScrollMaxX(int32_t* aScrollMaxX)
 int32_t
 nsGlobalWindow::GetScrollMaxY(ErrorResult& aError)
 {
-  int32_t scrollMaxY = 0;
-  GetScrollMaxXY(nullptr, &scrollMaxY, aError);
-  return scrollMaxY;
+  MOZ_ASSERT(IsInnerWindow());
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideBottom), aError, 0);
 }
 
 NS_IMETHODIMP

@@ -120,8 +120,8 @@ exports.items = [
           // Bug 961832: GCLI screenshot shows fixed position element in wrong
           // position if we don't scroll to top
           window.scrollTo(0,0);
-          width = window.innerWidth + window.scrollMaxX;
-          height = window.innerHeight + window.scrollMaxY;
+          width = window.innerWidth + window.scrollMaxX - window.scrollMinX;
+          height = window.innerHeight + window.scrollMaxY - window.scrollMinY;
         } else if (node) {
           let lh = new LayoutHelpers(window);
           let rect = lh.getRect(node, window);

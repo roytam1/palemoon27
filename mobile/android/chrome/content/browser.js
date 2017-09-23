@@ -5304,7 +5304,8 @@ var BrowserEventHandler = {
        * - It's a select element showing multiple rows
        */
       if (checkElem) {
-        if ((elem.scrollTopMax > 0 || elem.scrollLeftMax > 0) &&
+        if ((elem.scrollTopMin != elem.scrollTopMax ||
+             elem.scrollLeftMin != elem.scrollLeftMax) &&
             (this._hasScrollableOverflow(elem) ||
              elem.matches("textarea")) ||
             (elem instanceof HTMLInputElement && elem.mozIsTextField(false)) ||

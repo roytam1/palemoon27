@@ -2,7 +2,7 @@
 
 #define GUAO_PREF general.useragent.override
 
-#define GRE_VERSION 3.2
+#define GRE_VERSION 3.4
 #define GRE_VERSION_SLICE Goanna/@GRE_VERSION@
 #define GRE_DATE_SLICE Goanna/20170101
 #define PM_SLICE PaleMoon/@MOZ_APP_VERSION@

@@ -28,7 +28,8 @@
             helpTopic="prefs-connection-settings">
 
     <preferences>
-      <preference id="network.proxy.type"         name="network.proxy.type"         type="int" onchange="gConnectionsDialog.proxyTypeChanged();"/>
+      <preference id="network.proxy.type"         name="network.proxy.type"         type="int"
+                                                                onchange="gConnectionsDialog.proxyTypeChanged();"/>
       <preference id="network.proxy.http"         name="network.proxy.http"         type="string"/>
       <preference id="network.proxy.http_port"    name="network.proxy.http_port"    type="int"/>
       <preference id="network.proxy.ftp"          name="network.proxy.ftp"          type="string"/>
@@ -37,17 +38,15 @@
       <preference id="network.proxy.ssl_port"     name="network.proxy.ssl_port"     type="int"/>
       <preference id="network.proxy.socks"        name="network.proxy.socks"        type="string"/>
       <preference id="network.proxy.socks_port"   name="network.proxy.socks_port"   type="int"/>
-      <preference id="network.proxy.socks_version"  name="network.proxy.socks_version"  type="int"/>
+      <preference id="network.proxy.socks_version"  name="network.proxy.socks_version"  type="int"
+                                                                onchange="gConnectionsDialog.updateDNSPref();"/>
+      <preference id="network.proxy.socks_remote_dns"  name="network.proxy.socks_remote_dns"  type="bool"/>
       <preference id="network.proxy.no_proxies_on"  name="network.proxy.no_proxies_on"  type="string"/>
       <preference id="network.proxy.autoconfig_url" name="network.proxy.autoconfig_url" type="string"/>
-      <preference id="network.proxy.share_proxy_settings"
-                  name="network.proxy.share_proxy_settings"
-                  type="bool"/>
-      
+      <preference id="network.proxy.share_proxy_settings" name="network.proxy.share_proxy_settings" type="bool"/>
+      <preference id="signon.autologin.proxy"       name="signon.autologin.proxy"       type="bool"/>
       <preference id="pref.advanced.proxies.disable_button.reload"
-                  name="pref.advanced.proxies.disable_button.reload"
-                  type="bool"/>
-
+                                                    name="pref.advanced.proxies.disable_button.reload" type="bool"/>
       <preference id="network.proxy.backup.ftp"          name="network.proxy.backup.ftp"          type="string"/>
       <preference id="network.proxy.backup.ftp_port"     name="network.proxy.backup.ftp_port"     type="int"/>
       <preference id="network.proxy.backup.ssl"          name="network.proxy.backup.ssl"          type="string"/>
@@ -55,7 +54,7 @@
       <preference id="network.proxy.backup.socks"        name="network.proxy.backup.socks"        type="string"/>
       <preference id="network.proxy.backup.socks_port"   name="network.proxy.backup.socks_port"   type="int"/>
     </preferences>
-    
+
     <script type="application/javascript" src="chrome://browser/content/preferences/connection.js"/>
 
     <stringbundle id="preferencesBundle" src="chrome://browser/locale/preferences/preferences.properties"/>
@@ -135,8 +134,8 @@
               <spacer/>
               <radiogroup id="networkProxySOCKSVersion" orient="horizontal"
                           preference="network.proxy.socks_version">
-                <radio id="networkProxySOCKSVersion4" value="4" label="&socks4.label;" accesskey="&socks4.accesskey;" />
-                <radio id="networkProxySOCKSVersion5" value="5" label="&socks5.label;" accesskey="&socks5.accesskey;" />
+                <radio id="networkProxySOCKSVersion4" value="4" label="&socks4.label;" accesskey="&socks4.accesskey;"/>
+                <radio id="networkProxySOCKSVersion5" value="5" label="&socks5.label;" accesskey="&socks5.accesskey;"/>
               </radiogroup>
             </row>
             <label value="&noproxy.label;" accesskey="&noproxy.accesskey;" control="networkProxyNone"/>
@@ -154,7 +153,12 @@
                   preference="pref.advanced.proxies.disable_button.reload"/>
         </hbox>
       </radiogroup>
+      <separator class="thin"/>
+      <checkbox id="autologinProxy" preference="signon.autologin.proxy"
+                label="&autologinproxy.label;" accesskey="&autologinproxy.accesskey;"
+                tooltiptext="&autologinproxy.tooltip;"/>
+      <checkbox id="networkProxySOCKSRemoteDNS" preference="network.proxy.socks_remote_dns"
+                label="&socksRemoteDNS.label;" accesskey="&socksRemoteDNS.accesskey;"/>
     </groupbox>
   </prefpane>
 </prefwindow>
-

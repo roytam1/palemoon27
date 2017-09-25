@@ -32,7 +32,7 @@
 <!ENTITY  socks4.accesskey              "K">
 <!ENTITY  socks5.label                  "SOCKS v5">
 <!ENTITY  socks5.accesskey              "v">
-<!ENTITY  socksRemoteDNS.label          "Send DNS queries through the proxy when using SOCKS v5">
+<!ENTITY  socksRemoteDNS.label          "Use proxy to perform DNS queries (SOCKS v5 only)">
 <!ENTITY  socksRemoteDNS.accesskey      "d">
 <!ENTITY  port.label                    "Port:">
 <!ENTITY  HTTPport.accesskey            "P">

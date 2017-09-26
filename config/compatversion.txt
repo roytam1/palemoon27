@@ -3,7 +3,7 @@
 #
 #    x.x
 #
-# Referenced by nsHttpHandler.cpp, branding.mozbuild.
+# Referenced by nsHttpHandler.cpp, uaoverrides.inc.
 #--------------------------------------------------------
 
 52.9

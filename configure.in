@@ -1888,6 +1888,14 @@ AC_DEFINE_UNQUOTED(MOZILLA_VERSION,"$MOZILLA_VERSION")
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION_U,$MOZILLA_VERSION)
 AC_DEFINE_UNQUOTED(MOZILLA_UAVERSION,"$MOZILLA_UAVERSION")
 AC_SUBST(MOZILLA_SYMBOLVERSION)
+AC_SUBST(MOZILLA_UAVERSION)
+
+dnl ========================================================
+dnl Get Firefox compatibility version we claim in our UA
+dnl ========================================================
+MOZILLA_COMPATVERSION=`tail -n 1 "$_topsrcdir"/config/compatversion.txt 2>/dev/null || tail -1 "$_topsrcdir"/config/compatversion.txt`
+AC_DEFINE_UNQUOTED(MOZILLA_COMPATVERSION,"$MOZILLA_COMPATVERSION")
+AC_SUBST(MOZILLA_COMPATVERSION)
 
 MOZ_DOING_LTO(lto_is_enabled)
 

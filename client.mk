@@ -310,6 +310,7 @@ CONFIG_STATUS_DEPS := \
   $(TOPSRCDIR)/CLOBBER \
   $(TOPSRCDIR)/nsprpub/configure \
   $(TOPSRCDIR)/config/milestone.txt \
+  $(TOPSRCDIR)/config/compatversion.txt \
   $(TOPSRCDIR)/browser/config/version.txt \
   $(TOPSRCDIR)/build/virtualenv_packages.txt \
   $(TOPSRCDIR)/python/mozbuild/mozbuild/virtualenv.py \

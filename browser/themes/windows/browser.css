@@ -3064,44 +3064,45 @@ toolbar[brighttext] #addonbar-closebutton {
     @media (-moz-windows-accent-color-applies: 0) {
       /* Default styling for when no accent color is applied */
       #main-window:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        background-color: hsl(239, 33%, 38%);
+        background-color: white;
       }
       
       :root:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        --window-text-color: white;
+        --window-text-color: black;
       }
       
       #titlebar-min:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-highlight);
+        list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize);
       }
 
       #titlebar-max:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize-highlight);
+        list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize);
       }
 
       #main-window[sizemode="maximized"] #titlebar-max:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore-highlight);
+        list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore);
       }
       
       #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme) {
-        list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
+        list-style-image: url(chrome://browser/skin/caption-buttons.svg#close);
       }
 
       .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
-        background-color: hsla(0, 0%, 100%, .17);
+        background-color: hsla(0, 0%, 0%, .17);
       }
 
       .titlebar-button:not(#titlebar-close):not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
-        background-color: hsla(0, 0%, 100%, .27);
+        background-color: hsla(0, 0%, 0%, .27);
         transition: none;
       }
       
       #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
+        list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
         background-color: hsla(0, 86%, 49%, 1);
       }
 
       #titlebar-close:not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
-        background-color: hsla(0, 60%, 39%, 1);
+        background-color: hsla(0, 60%, 49%, 0.6);
         transition: none;
       }
     }

@@ -172,8 +172,8 @@
       
       @media (-moz-windows-accent-color-applies: 0) {
         #main-window:not(:-moz-window-inactive):not(:-moz-lwtheme)::after {
-          /* Default Windows 10 styling is dark - apply a light text styling */
-          color: white;
+          /* Default Windows 10 styling is white - apply black text styling */
+          color: black;
         }
       }
       

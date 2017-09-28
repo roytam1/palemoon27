@@ -156,24 +156,14 @@
 		<commandset id="status4evar-commandset-status">
 		</commandset>
 
-		<tabbox id="status4evar-tabbox-progress" flex="1">
-			<tabs id="status4evar-tabs-progress">
-				<tab id="status4evar-tab-progress-toolbar" label="&status4evar.tab.toolbar;" />
-			</tabs>
+		<checkbox id="status4evar-progress-toolbar-force-check" preference="status4evar-pref-progress-toolbar-force" label="&status4evar.progress.toolbar.force.label;" />
 
-			<tabpanels id="status4evar-tabpanels-progress" flex="1">
-				<tabpanel id="status4evar-tabpanel-progress-toolbar" orient="vertical">
-					<checkbox id="status4evar-progress-toolbar-force-check" preference="status4evar-pref-progress-toolbar-force" label="&status4evar.progress.toolbar.force.label;" />
+		<checkbox id="status4evar-progress-toolbar-style-check" preference="status4evar-pref-progress-toolbar-style" label="&status4evar.progress.style.label;"
+							onsyncfrompreference="return status4evarPrefs.progressToolbarStyleSync();" />
 
-					<checkbox id="status4evar-progress-toolbar-style-check" preference="status4evar-pref-progress-toolbar-style" label="&status4evar.progress.style.label;"
-					          onsyncfrompreference="return status4evarPrefs.progressToolbarStyleSync();" />
-
-					<vbox class="css-bg-editor" preference="status4evar-pref-progress-toolbar-css" preference-editable="true" flex="1">
-						<progressmeter id="status4evar-progress-bar" value="75" flex="1" />
-					</vbox>
-				</tabpanel>
-			</tabpanels>
-		</tabbox>
+		<vbox class="css-bg-editor" preference="status4evar-pref-progress-toolbar-css" preference-editable="true" flex="1">
+			<progressmeter id="status4evar-progress-bar" value="75" flex="1" />
+		</vbox>
 	</prefpane>
 
 	<prefpane id="status4evar-pane-download" label="&status4evar.pane.download;">

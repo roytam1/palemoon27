@@ -18,13 +18,11 @@
 <!ENTITY status4evar.option.tooltip "Tooltip">
 <!ENTITY status4evar.option.bottom "Bottom">
 <!ENTITY status4evar.option.top "Top">
-<!ENTITY status4evar.option.fill "Fill">
 <!ENTITY status4evar.option.dlcount "Download count">
 <!ENTITY status4evar.option.dltime "Time remaining">
 <!ENTITY status4evar.option.both "Both">
 <!ENTITY status4evar.option.right "Right">
 <!ENTITY status4evar.option.left "Left">
-<!ENTITY status4evar.option.fixed "Fixed">
 <!ENTITY status4evar.option.simple "Simple">
 <!ENTITY status4evar.option.advanced "Advanced">
 <!ENTITY status4evar.option.browse "Browse">
@@ -59,9 +57,6 @@
 
 <!ENTITY status4evar.status.toolbar.maxLength.label "Max status text length:">
 
-<!ENTITY status4evar.status.currentUrl "Current Location">
-<!ENTITY status4evar.status.statusText "Status Text">
-
 <!ENTITY status4evar.status.urlbar.firefox.builtin.caption "Firefox compatibility features">
 <!ENTITY browser.urlbar.formatting.enabled.label "Enable domain highlighting">
 <!ENTITY browser.urlbar.trimming.enabled.label "Enable protocol hiding (http:// and ftp://)">
@@ -71,7 +66,7 @@
 
 <!ENTITY status4evar.progress.style.label "Use a custom style">
 
-<!ENTITY status4evar.progress.toolbar.force.label "Always show the status bar item">
+<!ENTITY status4evar.progress.toolbar.force.label "Always show progress meter">
 
 <!ENTITY status4evar.editor.label "Editor:">
 <!ENTITY status4evar.editor.css.color.label "Color:">

@@ -128,13 +128,13 @@ Sanitizer.prototype = {
           imageCache.clearCache(false); // true=chrome, false=content
         } catch(er) {}
       },
-      
+
       get canClear()
       {
         return true;
       }
     },
-    
+
     cookies: {
       clear: function ()
       {
@@ -145,7 +145,7 @@ Sanitizer.prototype = {
           var cookiesEnum = cookieMgr.enumerator;
           while (cookiesEnum.hasMoreElements()) {
             var cookie = cookiesEnum.getNext().QueryInterface(Ci.nsICookie2);
-            
+
             if (cookie.creationTime > this.range[0])
               // This cookie was created after our cutoff, clear it
               cookieMgr.remove(cookie.host, cookie.name, cookie.path, false);
@@ -217,14 +217,14 @@ Sanitizer.prototype = {
           PlacesUtils.history.removeVisitsByTimeframe(this.range[0], this.range[1]);
         else
           PlacesUtils.history.removeAllPages();
-        
+
         try {
           var os = Components.classes["@mozilla.org/observer-service;1"]
                              .getService(Components.interfaces.nsIObserverService);
           os.notifyObservers(null, "browser:purge-session-history", "");
         }
         catch (e) { }
-        
+
         // Clear last URL of the Open Web Location dialog
         var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                               .getService(Components.interfaces.nsIPrefBranch);
@@ -233,7 +233,7 @@ Sanitizer.prototype = {
         }
         catch (e) { }
       },
-      
+
       get canClear()
       {
         // bug 347231: Always allow clearing history due to dependencies on
@@ -241,7 +241,7 @@ Sanitizer.prototype = {
         return true;
       }
     },
-    
+
     formdata: {
       clear: function ()
       {
@@ -301,7 +301,7 @@ Sanitizer.prototype = {
         return false;
       }
     },
-    
+
     downloads: {
       clear: Task.async(function* (range) {
         let refObj = {};
@@ -327,7 +327,7 @@ Sanitizer.prototype = {
         return true;
       }
     },
-    
+
     passwords: {
       clear: function ()
       {
@@ -336,7 +336,7 @@ Sanitizer.prototype = {
         // Passwords are timeless, and don't respect the timeSpan setting
         pwmgr.removeAllLogins();
       },
-      
+
       get canClear()
       {
         var pwmgr = Components.classes["@mozilla.org/login-manager;1"]
@@ -345,7 +345,7 @@ Sanitizer.prototype = {
         return (count > 0);
       }
     },
-    
+
     sessions: {
       clear: function ()
       {
@@ -359,13 +359,13 @@ Sanitizer.prototype = {
                            .getService(Components.interfaces.nsIObserverService);
         os.notifyObservers(null, "net:clear-active-logins", null);
       },
-      
+
       get canClear()
       {
         return true;
       }
     },
-    
+
     siteSettings: {
       clear: function ()
       {
@@ -373,12 +373,12 @@ Sanitizer.prototype = {
         var pm = Components.classes["@mozilla.org/permissionmanager;1"]
                            .getService(Components.interfaces.nsIPermissionManager);
         pm.removeAll();
-        
+
         // Clear site-specific settings like page-zoom level
         var cps = Components.classes["@mozilla.org/content-pref/service;1"]
                             .getService(Components.interfaces.nsIContentPrefService2);
         cps.removeAllDomains(null);
-        
+
         // Clear "Never remember passwords for this site", which is not handled by
         // the permission manager
         var pwmgr = Components.classes["@mozilla.org/login-manager;1"]
@@ -388,7 +388,22 @@ Sanitizer.prototype = {
           pwmgr.setLoginSavingEnabled(host, true);
         }
       },
-      
+
+      get canClear()
+      {
+        return true;
+      }
+    },
+
+    connectivityData: {
+      clear: function ()
+      {
+        // Clear site security settings
+        var sss = Components.classes["@mozilla.org/ssservice;1"]
+                            .getService(Components.interfaces.nsISiteSecurityService);
+        sss.clearAll();
+      },
+
       get canClear()
       {
         return true;

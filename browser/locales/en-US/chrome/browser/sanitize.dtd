@@ -44,6 +44,8 @@ that require it.  -->
 <!ENTITY itemCache.accesskey               "A">
 <!ENTITY itemOfflineApps.label             "Offline Website Data">
 <!ENTITY itemOfflineApps.accesskey         "O">
+<!ENTITY itemConnectivityData.label        "Site Connectivity Data">
+<!ENTITY itemConnectivityData.accesskey    "N">
 <!ENTITY itemActiveLogins.label            "Active Logins">
 <!ENTITY itemActiveLogins.accesskey        "L">
 <!ENTITY itemSitePreferences.label         "Site Preferences">

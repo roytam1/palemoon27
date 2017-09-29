@@ -1,5 +1,11 @@
 
-Changes made to pristine libpng source by mozilla.org developers.
+Changes made to pristine libpng source by palemoon.org developers.
+
+2017/09/29  -- Enabled SSE2 support (issue #1381).
+
+2017/09/29  -- Synced with libpng-1.6.28 (issue #1381).
+
+-- Historical: Changes below were made by Mozilla developers --
 
 2014/12/22  -- Synced with libpng-1.6.16 (bug #1114360).
                Added arm.patch file.

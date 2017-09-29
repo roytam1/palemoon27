@@ -66,7 +66,7 @@
 
 <!ENTITY status4evar.progress.style.label "Use a custom style">
 
-<!ENTITY status4evar.progress.toolbar.force.label "Always show progress meter">
+<!ENTITY status4evar.progress.toolbar.force.label "Always show the progress meter">
 
 <!ENTITY status4evar.editor.label "Editor:">
 <!ENTITY status4evar.editor.css.color.label "Color:">

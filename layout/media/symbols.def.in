@@ -644,7 +644,7 @@ hb_unicode_funcs_set_script_func
 BrotliDecompressBuffer
 BrotliStateInit
 BrotliStateCleanup
-BrotliDecompressBufferStreaming
+BrotliDecompressStream
 #ifdef MOZ_WEBRTC
 downmix_int
 run_analysis

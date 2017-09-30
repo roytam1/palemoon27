@@ -1554,9 +1554,9 @@ pref("network.http.accept-encoding", "gzip, deflate");
 pref("network.http.accept-encoding.secure", "gzip, deflate, br");
 
 pref("network.http.pipelining"      , true);
-pref("network.http.pipelining.ssl"  , true); // disable pipelining over SSL
+pref("network.http.pipelining.ssl"  , true);
 pref("network.http.pipelining.abtest", false);
-pref("network.http.proxy.pipelining", false);
+pref("network.http.proxy.pipelining", false); // for old, broken proxies.
 
 // Max number of requests in the pipeline
 pref("network.http.pipelining.maxrequests" , 4);

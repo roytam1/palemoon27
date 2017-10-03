@@ -539,11 +539,6 @@ Status_4_Evar.prototype =
 							break;
 					}
 					this.prefs.setIntPref("download.button.action", newDownloadAction);
-
-					if(oldDownloadAction == 4 && Services.vc.compare("26.0", Services.appinfo.version) > 0)
-					{
-						this.prefs.setBoolPref("browser.download.useToolkitUI", true);
-					}
 				case 7:
 				    let progressLocation = this.prefs.getIntPref("status");
 				    if (progressLocation == 2)

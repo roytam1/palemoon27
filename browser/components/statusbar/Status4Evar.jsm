@@ -11,7 +11,9 @@ const CI = Components.interfaces;
 const CU = Components.utils;
 
 const s4e_service = CC["@caligonstudios.com/status4evar;1"].getService(CI.nsIStatus4Evar);
+#ifdef MOZ_DEBUG
 const uuidService = CC["@mozilla.org/uuid-generator;1"].getService(CI.nsIUUIDGenerator);
+#endif
 
 CU.import("resource://gre/modules/Services.jsm");
 CU.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -24,7 +26,9 @@ CU.import("resource:///modules/statusbar/Toolbars.jsm");
 
 function Status4Evar(window, gBrowser, toolbox)
 {
+#ifdef MOZ_DEBUG
 	this._id = uuidService.generateUUID();
+#endif
 	this._window = window;
 	this._toolbox = toolbox;
 
@@ -40,7 +44,9 @@ function Status4Evar(window, gBrowser, toolbox)
 
 Status4Evar.prototype =
 {
+#ifdef MOZ_DEBUG
 	_id: null,
+#endif
 	_window:  null,
 	_toolbox: null,
 
@@ -53,9 +59,9 @@ Status4Evar.prototype =
 
 	setup: function()
 	{
-    this._toolbox.addEventListener("beforecustomization", this, false);
-    this._toolbox.addEventListener("aftercustomization", this, false);
-    
+	this._toolbox.addEventListener("beforecustomization", this, false);
+	this._toolbox.addEventListener("aftercustomization", this, false);
+
 		this.toolbars.setup();
 		this.updateWindow();
 
@@ -70,11 +76,8 @@ Status4Evar.prototype =
 	destroy: function()
 	{
 		this._window.removeEventListener("unload", this, false);
-		if(Services.vc.compare("28.*", Services.appinfo.version) >= 0)
-		{
-			this._toolbox.removeEventListener("aftercustomization", this, false);
-			this._toolbox.removeEventListener("beforecustomization", this, false);
-		}
+		this._toolbox.removeEventListener("aftercustomization", this, false);
+		this._toolbox.removeEventListener("beforecustomization", this, false);
 
 		this.getters.destroy();
 		this.statusService.destroy();
@@ -108,8 +111,9 @@ Status4Evar.prototype =
 
 	beforeCustomization: function()
 	{
+#ifdef MOZ_DEBUG
 		Services.console.logStringMessage("S4E Calling beforeCustomization: " + this._id);
-
+#endif
 		this.toolbars.updateSplitters(false);
 		this.toolbars.updateWindowGripper(false);
 
@@ -125,8 +129,9 @@ Status4Evar.prototype =
 
 	updateWindow: function()
 	{
+#ifdef MOZ_DEBUG
 		Services.console.logStringMessage("S4E Calling updateWindow: " + this._id);
-
+#endif
 		this.statusService.setNoUpdate(false);
 		this.getters.resetGetters();
 		this.statusService.buildTextOrder();
@@ -287,4 +292,3 @@ SizeModeService.prototype =
 
 	QueryInterface: XPCOMUtils.generateQI([ CI.nsIDOMEventListener ])
 };
-

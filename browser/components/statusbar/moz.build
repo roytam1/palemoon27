@@ -19,6 +19,9 @@ EXTRA_JS_MODULES.statusbar = [
     'Downloads.jsm',
     'Progress.jsm',
     'Status.jsm',
-    'Status4Evar.jsm',
     'Toolbars.jsm',
+]
+
+EXTRA_PP_JS_MODULES.statusbar += [
+    'Status4Evar.jsm',
 ]

@@ -1071,6 +1071,7 @@ function loadManifestFromZipReader(aZipReader) {
     zis = aZipReader.getInputStream(FILE_INSTALL_MANIFEST);
   } catch (e) {
     let zws = aZipReader.getInputStream(FILE_WEBEXT_MANIFEST);
+    zws.close();
     throw {
       name: e.name,
       message: e.message,

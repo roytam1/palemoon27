@@ -980,7 +980,7 @@ ArrayJoinKernel(JSContext* cx, SeparatorOp sepOp, HandleObject obj, uint32_t len
             if (!CheckForInterrupt(cx))
                 return false;
 
-            const Value& elem = obj->as<ArrayObject>().getDenseElement(i);
+            Value elem = obj->as<ArrayObject>().getDenseElement(i);
 
             if (elem.isString()) {
                 if (!sb.append(elem.toString()))

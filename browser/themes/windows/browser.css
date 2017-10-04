@@ -3181,7 +3181,14 @@ toolbar[brighttext] #addonbar-closebutton {
     }
     
     #main-window:-moz-window-inactive:not(:-moz-lwtheme) {
-      background-color: hsl(0, 0%, 90%);
+      background-color: hsl(0, 0%, 95%);
+    }
+
+    /* If we don't have [chromemargin], it means the menubar is active; set the
+       window background to transparent in that case to match it with the dwm
+       color and prevent a drawing delay between title bar and UI region */
+    #main-window:not([chromemargin]):not(:-moz-lwtheme) {
+      background-color: transparent;
     }
 
     #titlebar-buttonbox,

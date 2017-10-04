@@ -80,7 +80,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro UnloadUAC
 !insertmacro WriteRegDWORD2
 !insertmacro WriteRegStr2
-!insertmacro CheckIfRegistryKeyExists
 
 !insertmacro un.ChangeMUIHeaderImage
 !insertmacro un.CheckForFilesInUse

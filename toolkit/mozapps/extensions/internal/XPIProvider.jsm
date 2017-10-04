@@ -106,6 +106,7 @@ const DIR_TRASH                       = "trash";
 const FILE_DATABASE                   = "extensions.json";
 const FILE_OLD_CACHE                  = "extensions.cache";
 const FILE_INSTALL_MANIFEST           = "install.rdf";
+const FILE_WEBEXT_MANIFEST            = "manifest.json";
 const FILE_XPI_ADDONS_LIST            = "extensions.ini";
 
 const KEY_PROFILEDIR                  = "ProfD";
@@ -1065,7 +1066,17 @@ function loadManifestFromDir(aDir) {
  * @throws if the XPI file does not contain a valid install manifest
  */
 function loadManifestFromZipReader(aZipReader) {
-  let zis = aZipReader.getInputStream(FILE_INSTALL_MANIFEST);
+  let zis;
+  try {
+    zis = aZipReader.getInputStream(FILE_INSTALL_MANIFEST);
+  } catch (e) {
+    let zws = aZipReader.getInputStream(FILE_WEBEXT_MANIFEST);
+    throw {
+      name: e.name,
+      message: e.message,
+      webext: true
+    };
+  }
   let bis = Cc["@mozilla.org/network/buffered-input-stream;1"].
             createInstance(Ci.nsIBufferedInputStream);
   bis.init(zis, 4096);
@@ -4979,9 +4990,14 @@ AddonInstall.prototype = {
       });
     }
     catch (e) {
-      logger.warn("Invalid XPI", e);
       this.state = AddonManager.STATE_DOWNLOAD_FAILED;
-      this.error = AddonManager.ERROR_CORRUPT_FILE;
+      if (e.webext) {
+        logger.warn("WebExtension XPI", e);
+        this.error = AddonManager.ERROR_WEBEXT_FILE;
+      } else {
+        logger.warn("Invalid XPI", e);
+        this.error = AddonManager.ERROR_CORRUPT_FILE;
+      }
       aCallback(this);
       return;
     }
@@ -5621,7 +5637,11 @@ AddonInstall.prototype = {
           });
         }
         catch (e) {
-          this.downloadFailed(AddonManager.ERROR_CORRUPT_FILE, e);
+          if (e.webext) {
+            this.downloadFailed(AddonManager.ERROR_WEBEXT_FILE, e);
+          } else {
+            this.downloadFailed(AddonManager.ERROR_CORRUPT_FILE, e);
+          }
         }
       }
       else {

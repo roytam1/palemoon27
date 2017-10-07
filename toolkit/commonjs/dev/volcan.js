@@ -138,7 +138,7 @@ var Client = Class({
           .then(this.onReady.bind(this, this.root), this.onFail);
     } else {
       var actor = this.get(packet.from) || this.root;
-      var event = actor.events[packet.type];
+      event = actor.events[packet.type];
       if (event) {
         var message = new MessageEvent(packet.type, {
           data: event.read(packet)

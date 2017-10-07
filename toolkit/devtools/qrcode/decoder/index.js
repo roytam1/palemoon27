@@ -19,7 +19,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-GridSampler = {};
+var GridSampler = {};
 
 GridSampler.checkAndNudgePoints = function(image, points) {
   var width = qrcode.width;
@@ -833,7 +833,7 @@ function BitMatrixParser(bitMatrix) {
   };
 }
 
-DataMask = {};
+var DataMask = {};
 
 DataMask.forReference = function(reference) {
   if (reference < 0 || reference > 7) {
@@ -975,9 +975,9 @@ function ReedSolomonDecoder(field) {
     var dataMatrix = false;
     var noError = true;
     for (var i = 0; i < twoS; i++) {
-      var eval = poly.evaluateAt(this.field.exp(dataMatrix ? i + 1 : i));
-      syndromeCoefficients[syndromeCoefficients.length - 1 - i] = eval;
-      if (eval != 0) {
+      var value = poly.evaluateAt(this.field.exp(dataMatrix ? i + 1 : i));
+      syndromeCoefficients[syndromeCoefficients.length - 1 - i] = value;
+      if (value != 0) {
         noError = false;
       }
     }
@@ -1303,7 +1303,7 @@ GF256.addOrSubtract = function(a, b) {
   return a ^ b;
 };
 
-Decoder = {};
+var Decoder = {};
 
 Decoder.rsDecoder = new ReedSolomonDecoder(GF256.QR_CODE_FIELD);
 

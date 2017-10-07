@@ -637,7 +637,7 @@ FeedWriter.prototype = {
         Cc["@mozilla.org/browser/feeds/result-service;1"].
         getService(Ci.nsIFeedResultService);
 
-    var result = null;
+    result = null;
     try {
       result = 
         feedService.getFeedResult(this._getOriginalURI(this._window));

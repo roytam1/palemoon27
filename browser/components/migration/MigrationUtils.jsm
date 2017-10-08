@@ -621,7 +621,9 @@ this.MigrationUtils = Object.freeze({
     params.appendElement(migrator, false);
     params.appendElement(aProfileStartup, false);
     params.appendElement(skipImportSourcePageBool, false);
-    params.appendElement(aProfileToMigrate, false);
+    if (aProfileToMigrate) {
+      params.appendElement(aProfileToMigrate, false);
+    }
 
     this.showMigrationWizard(null, params);
   },

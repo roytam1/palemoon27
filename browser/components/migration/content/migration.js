@@ -37,9 +37,9 @@ var MigrationWizard = {
                        window.arguments[1] : null;
       this._autoMigrate = window.arguments[2].QueryInterface(kIPStartup);
       this._skipImportSourcePage = window.arguments[3];
-      if (this._migrator && args[4]) {
+      if (this._migrator && window.arguments[4]) {
         let sourceProfiles = this._migrator.sourceProfiles;
-        this._selectedProfile = sourceProfiles.find(profile => profile.id == args[4]);
+        this._selectedProfile = sourceProfiles.find(profile => profile.id == window.arguments[4]);
       }
 
       if (this._autoMigrate) {

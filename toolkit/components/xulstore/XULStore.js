@@ -63,11 +63,21 @@ XULStore.prototype = {
   load: function () {
     Services.obs.addObserver(this, "profile-before-change", true);
 
-    this._storeFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+    let profileType = "ProfD";
+    try {
+      this._storeFile = Services.dirsvc.get(profileType, Ci.nsIFile);
+    } catch (ex) {
+      try {
+        profileType = "ProfDS";
+        this._storeFile = Services.dirsvc.get(profileType, Ci.nsIFile);
+      } catch (ex) {
+        throw new Error("Can't find profile directory.");
+      }
+    }
     this._storeFile.append(STOREDB_FILENAME);
 
     if (!this._storeFile.exists()) {
-      this.import();
+      this.import(profileType);
     } else {
       this.readFile();
     }
@@ -90,8 +100,8 @@ XULStore.prototype = {
     Services.console.logStringMessage("XULStore: " + message);
   },
 
-  import: function() {
-    let localStoreFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  import: function(profileType) {
+    let localStoreFile = Services.dirsvc.get(profileType || "ProfD", Ci.nsIFile);
 
     localStoreFile.append("localstore.rdf");
     if (!localStoreFile.exists()) {

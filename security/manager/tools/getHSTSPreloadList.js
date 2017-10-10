@@ -265,16 +265,15 @@ function output(sortedStatuses, currentList) {
     for (var status of sortedStatuses) {
 
       // If we've encountered an error for this entry (other than the site not
-      // sending an HSTS header), be safe and don't remove it from the list
-      // (given that it was already on the list).
+      // sending an HSTS header), be safe and remove it from the list
+      // (preventing stale entries from accumulating).
       if (status.error != ERROR_NONE &&
           status.error != ERROR_NO_HSTS_HEADER &&
           status.error != ERROR_MAX_AGE_TOO_LOW &&
           status.name in currentList) {
-        dump("INFO: error connecting to or processing " + status.name + " - using previous status on list\n");
+        dump("INFO: error connecting to or processing " + status.name + " - dropping from list\n");
         writeTo(status.name + ": " + errorToString(status) + "\n", eos);
-        status.maxAge = MINIMUM_REQUIRED_MAX_AGE;
-        status.includeSubdomains = currentList[status.name];
+        status.maxAge = 0;
       }
 
       if (status.maxAge >= MINIMUM_REQUIRED_MAX_AGE || status.forceInclude) {

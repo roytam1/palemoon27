@@ -73,6 +73,8 @@ class Element;
 class EventHandlerNonNull;
 class OnErrorEventHandlerNonNull;
 template<typename T> class Optional;
+class OwningNodeOrString;
+template<typename> class Sequence;
 class Text;
 class TextOrElementOrDocument;
 struct DOMPointInit;
@@ -265,8 +267,12 @@ public:
   typedef mozilla::dom::DOMPointInit DOMPointInit;
   typedef mozilla::dom::DOMQuad DOMQuad;
   typedef mozilla::dom::DOMRectReadOnly DOMRectReadOnly;
+  typedef mozilla::dom::OwningNodeOrString OwningNodeOrString;
   typedef mozilla::dom::TextOrElementOrDocument TextOrElementOrDocument;
   typedef mozilla::ErrorResult ErrorResult;
+
+  template<class T>
+  using Sequence = mozilla::dom::Sequence<T>;
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODE_IID)
 
@@ -1655,6 +1661,11 @@ public:
   // ChildNode methods
   mozilla::dom::Element* GetPreviousElementSibling() const;
   mozilla::dom::Element* GetNextElementSibling() const;
+
+  void Before(const Sequence<OwningNodeOrString>& aNodes, ErrorResult& aRv);
+  void After(const Sequence<OwningNodeOrString>& aNodes, ErrorResult& aRv);
+  void ReplaceWith(const Sequence<OwningNodeOrString>& aNodes,
+                   ErrorResult& aRv);
   /**
    * Remove this node from its parent, if any.
    */
@@ -1663,6 +1674,9 @@ public:
   // ParentNode methods
   mozilla::dom::Element* GetFirstElementChild() const;
   mozilla::dom::Element* GetLastElementChild() const;
+
+  void Prepend(const Sequence<OwningNodeOrString>& aNodes, ErrorResult& aRv);
+  void Append(const Sequence<OwningNodeOrString>& aNodes, ErrorResult& aRv);
 
   void GetBoxQuads(const BoxQuadOptions& aOptions,
                    nsTArray<nsRefPtr<DOMQuad> >& aResult,

@@ -3455,6 +3455,14 @@ class IDLAttribute(IDLInterfaceMember):
                                   "readonly attributes" % attr.value(),
                                   [attr.location, self.location])
             self._setDependsOn(attr.value())
+        elif identifier == "Unscopable":
+            if not attr.noArguments():
+                raise WebIDLError("[Unscopable] must take no arguments",
+                                  [attr.location])
+            if self.isStatic():
+                raise WebIDLError("[Unscopable] is only allowed on non-static "
+                                  "attributes and operations",
+                                  [attr.location, self.location])
         elif (identifier == "Pref" or
               identifier == "SetterThrows" or
               identifier == "Throws" or
@@ -4078,6 +4086,14 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
                 raise WebIDLError("[DependsOn] takes an identifier",
                                   [attr.location])
             self._setDependsOn(attr.value())
+        elif identifier == "Unscopable":
+            if not attr.noArguments():
+                raise WebIDLError("[Unscopable] must take no arguments",
+                                  [attr.location])
+            if self.isStatic():
+                raise WebIDLError("[Unscopable] is only allowed on non-static "
+                                  "attributes and operations",
+                                  [attr.location, self.location])
         elif (identifier == "Throws" or
               identifier == "NewObject" or
               identifier == "ChromeOnly" or

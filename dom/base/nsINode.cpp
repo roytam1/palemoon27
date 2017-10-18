@@ -1596,7 +1596,7 @@ GetNodeFromNodeOrString(const OwningNodeOrString& aNode,
                         nsIDocument* aDocument)
 {
   if (aNode.IsNode()) {
-    nsCOMPtr<nsINode> node = aNode.GetAsNode();
+    nsCOMPtr<nsINode> node = static_cast<nsCOMPtr<nsINode>>(aNode.GetAsNode());
     return node.forget();
   }
 

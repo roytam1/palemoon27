@@ -3469,7 +3469,7 @@ toolbar[brighttext] #addonbar-closebutton {
          (-moz-os-version: windows-win10) {
     /* Fade text stylings on window inactivity */
     :root:not(:-moz-lwtheme):-moz-window-inactive {
-      --window-text-color: ThreeDShadow;
+      --window-text-color: rgba(0, 0, 0, 0.5);
     }
   }
   

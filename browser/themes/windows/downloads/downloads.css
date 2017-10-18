@@ -302,7 +302,7 @@ richlistitem[type="download"]:hover > stack > .downloadButton.downloadRetry:acti
   position: relative;
 }
 
-#navigator-toolbox[iconsize=large][mode=icons] > #nav-bar[brighttext] #downloads-indicator-anchor {
+#navigator-toolbox[iconsize=large][mode=icons] > #nav-bar[brighttext] #downloads-indicator[counter] > #downloads-indicator-anchor {
   /* Use a dark download button when appropriate to improve text legibility */
   background: hsla(94,56%,18%,.3) padding-box;
   background-image: linear-gradient(hsla(0,0%,0%,.1), hsla(0,0%,0%,.4));
@@ -326,6 +326,13 @@ toolbar[brighttext] #downloads-indicator-icon {
                               0, 108, 18, 90) center no-repeat;
 }
 
+:-moz-any(#toolbar-menubar, #nav-bar[tabsontop=false]) #downloads-indicator-icon:not(:-moz-lwtheme),
+#TabsToolbar[tabsontop=true] #downloads-indicator-icon:not(:-moz-lwtheme),
+#nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child #downloads-indicator-icon:not(:-moz-lwtheme) {
+  background: -moz-image-rect(var(--toolbarbutton-glass-image),
+                              0, 108, 18, 90) center no-repeat;
+}
+
 #downloads-indicator[attention] > #downloads-indicator-anchor > #downloads-indicator-icon {
   background-image: url("chrome://browser/skin/downloads/download-glow.png");
 }
@@ -341,6 +348,13 @@ toolbar[brighttext] #downloads-indicator-icon {
 
 toolbar[brighttext] #downloads-indicator:not([counter]) > #downloads-indicator-anchor > #downloads-indicator-progress-area > #downloads-indicator-counter {
   background: -moz-image-rect(var(--toolbarbutton-inverted-image),
+                              0, 108, 18, 90) center no-repeat;
+}
+
+:-moz-any(#toolbar-menubar, #nav-bar[tabsontop=false]) #downloads-indicator:not([counter]) > #downloads-indicator-anchor > #downloads-indicator-progress-area > #downloads-indicator-counter:not(:-moz-lwtheme),
+#TabsToolbar[tabsontop=true] #downloads-indicator:not([counter]) > #downloads-indicator-anchor > #downloads-indicator-progress-area > #downloads-indicator-counter:not(:-moz-lwtheme),
+#nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child #downloads-indicator:not([counter]) > #downloads-indicator-anchor > #downloads-indicator-progress-area > #downloads-indicator-counter:not(:-moz-lwtheme) {
+  background: -moz-image-rect(var(--toolbarbutton-glass-image),
                               0, 108, 18, 90) center no-repeat;
 }
 

@@ -98,7 +98,7 @@ browser.jar:
         skin/classic/browser/newtab/controls.png                     (newtab/controls.png)
         skin/classic/browser/newtab/noise.png                        (newtab/noise.png)
         skin/classic/browser/places/places.css                       (places/places.css)
-*       skin/classic/browser/places/organizer.css                    (places/organizer.css)
+        skin/classic/browser/places/organizer.css                    (places/organizer.css)
         skin/classic/browser/places/editBookmark.png                 (places/editBookmark.png)
         skin/classic/browser/places/bookmark.png                     (places/bookmark.png)
         skin/classic/browser/places/query.png                        (places/query.png)

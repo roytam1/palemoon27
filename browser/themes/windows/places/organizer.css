@@ -2,10 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-%filter substitution
-%define toolbarHighlight rgba(255,255,255,.5)
-%define customToolbarColor hsl(210,75%,92%)
- 
+:root {
+  --toolbar-custom-color: hsl(210,75%,92%);
+  --toolbar-highlight-top: rgba(255,255,255,.5);
+  --toolbarbutton-image: url("chrome://browser/skin/Toolbar.png");
+}
+
 /* Toolbar */
 #placesToolbar {
   padding: 3px;
@@ -18,7 +20,7 @@
 
 #back-button,
 #forward-button {
-  list-style-image: url("chrome://browser/skin/Toolbar.png");
+  list-style-image: var(--toolbarbutton-image);
 }
 
 #back-button {
@@ -211,7 +213,7 @@
   }
 
   #placesToolbar {
-    background-image: linear-gradient(@toolbarHighlight@, transparent);
+    background-image: linear-gradient(var(--toolbar-highlight-top), transparent);
   }
 }
 
@@ -225,7 +227,7 @@
   }
 
   #placesToolbar {
-    background-color: @customToolbarColor@;
+    background-color: var(--toolbar-custom-color);
     color: black;
   }
 

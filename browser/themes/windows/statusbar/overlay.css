@@ -36,7 +36,7 @@
 	background: -moz-image-rect(var(--toolbarbutton-image), 0, 108, 18, 90) center no-repeat;
 }
 
-#status4evar-download-button:-moz-lwtheme-brighttext #status4evar-download-icon
+toolbar[brighttext] #status4evar-download-button #status4evar-download-icon
 {
 	background: -moz-image-rect(var(--toolbarbutton-inverted-image), 0, 108, 18, 90) center no-repeat;
 }

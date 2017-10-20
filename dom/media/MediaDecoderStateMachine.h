@@ -102,6 +102,7 @@ class VideoSegment;
 class MediaTaskQueue;
 class SharedThreadPool;
 class AudioSink;
+class DecodedStreamData;
 class MediaDecoderStateMachineScheduler;
 
 /*
@@ -122,10 +123,9 @@ class MediaDecoderStateMachine
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaDecoderStateMachine)
 public:
   typedef MediaDecoderOwner::NextFrameStatus NextFrameStatus;
-  typedef MediaDecoder::DecodedStreamData DecodedStreamData;
   MediaDecoderStateMachine(MediaDecoder* aDecoder,
-                               MediaDecoderReader* aReader,
-                               bool aRealTime = false);
+                           MediaDecoderReader* aReader,
+                           bool aRealTime = false);
 
   nsresult Init(MediaDecoderStateMachine* aCloneDonor);
 

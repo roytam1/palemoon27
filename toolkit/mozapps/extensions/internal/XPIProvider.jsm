@@ -1063,21 +1063,40 @@ function loadManifestFromDir(aDir) {
  * @param  aZipReader
  *         An open nsIZipReader for the add-on's files
  * @return an AddonInternal object
- * @throws if the XPI file does not contain a valid install manifest
+ * @throws if the XPI file does not contain a valid install manifest.
+ *         Throws with |webext:true| if a WebExtension manifest was found
+ *         to distinguish between WebExtensions and corrupt files.
  */
 function loadManifestFromZipReader(aZipReader) {
   let zis;
   try {
     zis = aZipReader.getInputStream(FILE_INSTALL_MANIFEST);
   } catch (e) {
-    let zws = aZipReader.getInputStream(FILE_WEBEXT_MANIFEST);
-    zws.close();
+    // We're going to throw here, but depending on whether we have a
+    // WebExtension manifest in the XPI, we'll throw with the webext flag.
+    try {
+      let zws = aZipReader.getInputStream(FILE_WEBEXT_MANIFEST);
+      zws.close();
+    } catch(e2) {
+      // We have neither an install manifest nor a WebExtension manifest;
+      // this means the extension file has a structural problem.
+      // Just pass the original error up the chain in that case.
+      throw {
+        name: e.name,
+        message: e.message
+      };
+    }
+    // If we get here, we have a WebExtension manifest but no install
+    // manifest. Pass the error up the chain with the webext flag.
     throw {
       name: e.name,
       message: e.message,
       webext: true
     };
   }
+  
+  // We found an install manifest, so it's either a regular or hybrid
+  // extension. Continue processing.
   let bis = Cc["@mozilla.org/network/buffered-input-stream;1"].
             createInstance(Ci.nsIBufferedInputStream);
   bis.init(zis, 4096);

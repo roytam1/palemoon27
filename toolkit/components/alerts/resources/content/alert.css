@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #alertBox[animate] {
-  animation-duration: 4s;
   animation-fill-mode: both;
   animation-name: alert-animation;
 }

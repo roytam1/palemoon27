@@ -85,7 +85,12 @@ function prefillAlertInfo() {
 }
 
 function onAlertLoad() {
-  const ALERT_DURATION_IMMEDIATE = 4000;
+  const ALERT_DURATION_IMMEDIATE_MIN = 4000;
+  const ALERT_DURATION_IMMEDIATE_MAX = 60000;
+  var alertDurationImmediate = Services.prefs.getIntPref("alerts.durationImmediate");
+  alertDurationImmediate = alertDurationImmediate >= ALERT_DURATION_IMMEDIATE_MIN
+      && alertDurationImmediate <= ALERT_DURATION_IMMEDIATE_MAX
+      ? alertDurationImmediate : ALERT_DURATION_IMMEDIATE_MIN;
   let alertTextBox = document.getElementById("alertTextBox");
   let alertImageBox = document.getElementById("alertImageBox");
   alertImageBox.style.minHeight = alertTextBox.scrollHeight + "px";
@@ -103,7 +108,7 @@ function onAlertLoad() {
   window.addEventListener("XULAlertClose", function() { window.close(); });
 
   if (Services.prefs.getBoolPref("alerts.disableSlidingEffect")) {
-    setTimeout(function() { window.close(); }, ALERT_DURATION_IMMEDIATE);
+    setTimeout(function() { window.close(); }, alertDurationImmediate);
     return;
   }
 
@@ -114,6 +119,7 @@ function onAlertLoad() {
       window.close();
     }
   }, false);
+  alertBox.style.animationDuration = Math.round(alertDurationImmediate / 1000).toString() + "s";
   alertBox.setAttribute("animate", true);
 
   if (gAlertListener) {

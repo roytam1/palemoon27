@@ -87,7 +87,7 @@ function prefillAlertInfo() {
 function onAlertLoad() {
   const ALERT_DURATION_IMMEDIATE_MIN = 4000;
   const ALERT_DURATION_IMMEDIATE_MAX = 60000;
-  var alertDurationImmediate = Services.prefs.getIntPref("alerts.durationImmediate");
+  let alertDurationImmediate = Services.prefs.getIntPref("alerts.durationImmediate", ALERT_DURATION_IMMEDIATE_MIN);
   alertDurationImmediate = alertDurationImmediate >= ALERT_DURATION_IMMEDIATE_MIN
       && alertDurationImmediate <= ALERT_DURATION_IMMEDIATE_MAX
       ? alertDurationImmediate : ALERT_DURATION_IMMEDIATE_MIN;

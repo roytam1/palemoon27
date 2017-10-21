@@ -1491,20 +1491,6 @@ function makeSafe(aFunction) {
 }
 
 /**
- * Record a bit of per-addon telemetry
- * @param aAddon the addon to record
- */
-function recordAddonTelemetry(aAddon) {
-  let locale = aAddon.defaultLocale;
-  if (locale) {
-    if (locale.name)
-      XPIProvider.setTelemetry(aAddon.id, "name", locale.name);
-    if (locale.creator)
-      XPIProvider.setTelemetry(aAddon.id, "creator", locale.creator);
-  }
-}
-
-/**
  * The on-disk state of an individual XPI, created from an Object
  * as stored in the 'extensions.xpiState' pref.
  */
@@ -1556,7 +1542,6 @@ XPIState.prototype = {
       logger.debug('getModTime: Recursive scan of ' + aId);
       let [modFile, modTime, items] = recursiveLastModifiedTime(aFile);
       XPIProvider._mostRecentlyModifiedFile[aId] = modFile;
-      XPIProvider.setTelemetry(aId, "scan_items", items);
       if (modTime != this.scanTime) {
         this.scanTime = modTime;
         changed = true;
@@ -1594,9 +1579,6 @@ XPIState.prototype = {
         this.scanTime = 0;
       }
     }
-    // Record duration of file-modified check
-    XPIProvider.setTelemetry(aId, "scan_MS", Math.round(Cu.now() - scanStarted));
-
     return changed;
   },
 
@@ -1728,7 +1710,6 @@ this.XPIStates = {
           }
           foundAddons.set(id, xpiState);
         }
-        XPIProvider.setTelemetry(id, "location", location.name);
       }
 
       // Anything left behind in oldState was removed from the file system.
@@ -1811,7 +1792,6 @@ this.XPIStates = {
     let xpiState = new XPIState({d: aAddon.descriptor});
     location.set(aAddon.id, xpiState);
     xpiState.syncWithDB(aAddon, true);
-    XPIProvider.setTelemetry(aAddon.id, "location", aAddon.location);
   },
 
   /**
@@ -1889,15 +1869,6 @@ this.XPIProvider = {
   _toolboxProcessLoaded: false,
   // Have we started shutting down bootstrap add-ons?
   _closing: false,
-
-  /*
-   * Set a value in the telemetry hash for a given ID
-   */
-  setTelemetry: function XPI_setTelemetry(aId, aName, aValue) {
-    if (!this._telemetryDetails[aId])
-      this._telemetryDetails[aId] = {};
-    this._telemetryDetails[aId][aName] = aValue;
-  },
 
   // Keep track of in-progress operations that support cancel()
   _inProgress: [],
@@ -2073,8 +2044,6 @@ this.XPIProvider = {
       this._telemetryDetails = {};
       // Clear the set of enabled experiments (experiments disabled by default).
       this._enabledExperiments = new Set();
-      // Register our details structure with AddonManager
-      AddonManagerPrivate.setTelemetryDetails("XPI", this._telemetryDetails);
 
       let hasRegistry = ("nsIWindowsRegKey" in Ci);
 
@@ -3445,23 +3414,6 @@ this.XPIProvider = {
             // in this block, the add-on is in both XPIStates and the DB
             seen.add(xpiState);
 
-            recordAddonTelemetry(aOldAddon);
-
-            // Check if the add-on has been changed outside the XPI provider
-            if (aOldAddon.updateDate != xpiState.mtime) {
-              // Did time change in the wrong direction?
-              if (xpiState.mtime < aOldAddon.updateDate) {
-                this.setTelemetry(aOldAddon.id, "olderFile", {
-                  name: this._mostRecentlyModifiedFile[aOldAddon.id],
-                  mtime: xpiState.mtime,
-                  oldtime: aOldAddon.updateDate
-                });
-              } else {
-                  this.setTelemetry(aOldAddon.id, "modifiedFile",
-                                    this._mostRecentlyModifiedFile[aOldAddon.id]);
-              }
-            }
-
             // The add-on has changed if the modification time has changed, or
             // we have an updated manifest for it. Also reload the metadata for
             // add-ons in the application directory when the application version
@@ -4525,7 +4477,6 @@ this.XPIProvider = {
           }
         }
       }
-      this.setTelemetry(aAddon.id, aMethod + "_MS", new Date() - timeStart);
     }
   },
 
@@ -5938,8 +5889,6 @@ AddonInstall.prototype = {
             XPIProvider.unloadBootstrapScope(this.addon.id);
           }
         }
-        XPIProvider.setTelemetry(this.addon.id, "unpacked", installedUnpacked);
-        recordAddonTelemetry(this.addon);
       }
     }).bind(this)).then(null, (e) => {
       logger.warn("Failed to install " + this.file.path + " from " + this.sourceURI.spec, e);

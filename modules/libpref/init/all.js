@@ -4380,6 +4380,8 @@ pref("dom.webnotifications.enabled", true);
 
 // Alert animation effect, name is disableSlidingEffect for backwards-compat.
 pref("alerts.disableSlidingEffect", false);
+// The immediate duration of the alert, in milliseconds.
+pref("alerts.durationImmediate", 20000);
 
 // DOM full-screen API.
 pref("full-screen-api.enabled", false);

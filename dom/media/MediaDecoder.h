@@ -423,7 +423,7 @@ public:
   DecodedStreamData* GetDecodedStream()
   {
     GetReentrantMonitor().AssertCurrentThreadIn();
-    return mDecodedStream;
+    return mDecodedStream.GetData();
   }
 
   // Add an output stream. All decoder output will be sent to the stream.
@@ -1005,7 +1005,7 @@ protected:
   // Only written on the main thread while holding the monitor. Therefore it
   // can be read on any thread while holding the monitor, or on the main thread
   // without holding the monitor.
-  nsAutoPtr<DecodedStreamData> mDecodedStream;
+  DecodedStream mDecodedStream;
 
   // Media duration according to the demuxer's current estimate.
   //

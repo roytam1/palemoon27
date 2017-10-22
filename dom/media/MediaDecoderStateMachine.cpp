@@ -3229,7 +3229,10 @@ void MediaDecoderStateMachine::UpdateNextFrameStatus()
 
   MediaDecoderOwner::NextFrameStatus status;
   const char* statusString;
-  if (IsBuffering()) {
+  if (mState <= DECODER_STATE_DECODING_FIRSTFRAME) {
+    status = MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE;
+    statusString = "NEXT_FRAME_UNAVAILABLE";
+  } else if (IsBuffering()) {
     status = MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_BUFFERING;
     statusString = "NEXT_FRAME_UNAVAILABLE_BUFFERING";
   } else if (IsSeeking()) {

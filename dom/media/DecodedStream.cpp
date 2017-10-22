@@ -158,11 +158,6 @@ private:
   nsRefPtr<MediaStream> mStream;
 };
 
-OutputStreamData::OutputStreamData()
-{
-  //
-}
-
 OutputStreamData::~OutputStreamData()
 {
   mListener->Forget();

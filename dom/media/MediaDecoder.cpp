@@ -314,40 +314,6 @@ void MediaDecoder::UpdateDecodedStream()
   }
 }
 
-void MediaDecoder::DestroyDecodedStream()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  GetReentrantMonitor().AssertCurrentThreadIn();
-
-  // Avoid the redundant blocking to output stream.
-  if (!GetDecodedStream()) {
-    return;
-  }
-
-  // All streams are having their SourceMediaStream disconnected, so they
-  // need to be explicitly blocked again.
-  auto& outputStreams = OutputStreams();
-  for (int32_t i = outputStreams.Length() - 1; i >= 0; --i) {
-    OutputStreamData& os = outputStreams[i];
-    // Explicitly remove all existing ports.
-    // This is not strictly necessary but it's good form.
-    MOZ_ASSERT(os.mPort, "Double-delete of the ports!");
-    os.mPort->Destroy();
-    os.mPort = nullptr;
-    // During cycle collection, nsDOMMediaStream can be destroyed and send
-    // its Destroy message before this decoder is destroyed. So we have to
-    // be careful not to send any messages after the Destroy().
-    if (os.mStream->IsDestroyed()) {
-      // Probably the DOM MediaStream was GCed. Clean up.
-      outputStreams.RemoveElementAt(i);
-    } else {
-      os.mStream->ChangeExplicitBlockerCount(1);
-    }
-  }
-
-  mDecodedStream = nullptr;
-}
-
 void MediaDecoder::UpdateStreamBlockingForStateMachinePlaying()
 {
   GetReentrantMonitor().AssertCurrentThreadIn();
@@ -376,8 +342,7 @@ void MediaDecoder::RecreateDecodedStream(int64_t aStartTimeUSecs)
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   DECODER_LOG("RecreateDecodedStream aStartTimeUSecs=%lld!", aStartTimeUSecs);
 
-  DestroyDecodedStream();
-
+  mDecodedStream.DestroyData();
   mDecodedStream.RecreateData(aStartTimeUSecs, MediaStreamGraph::GetInstance()->CreateSourceStream(nullptr));
 
   // Note that the delay between removing ports in DestroyDecodedStream
@@ -573,7 +538,7 @@ MediaDecoder::~MediaDecoder()
     // Don't destroy the decoded stream until destructor in order to keep the
     // invariant that the decoded stream is always available in capture mode.
     ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-    DestroyDecodedStream();
+    mDecodedStream.DestroyData();
   }
   MediaMemoryTracker::RemoveMediaDecoder(this);
   UnpinForSeek();

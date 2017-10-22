@@ -300,19 +300,6 @@ void MediaDecoder::SetVolume(double aVolume)
   mVolume = aVolume;
 }
 
-void MediaDecoder::ConnectDecodedStreamToOutputStream(OutputStreamData* aStream)
-{
-  NS_ASSERTION(!aStream->mPort, "Already connected?");
-
-  // The output stream must stay in sync with the decoded stream, so if
-  // either stream is blocked, we block the other.
-  aStream->mPort = aStream->mStream->AllocateInputPort(GetDecodedStream()->mStream,
-      MediaInputPort::FLAG_BLOCK_INPUT | MediaInputPort::FLAG_BLOCK_OUTPUT);
-  // Unblock the output stream now. While it's connected to mDecodedStream,
-  // mDecodedStream is responsible for controlling blocking.
-  aStream->mStream->ChangeExplicitBlockerCount(-1);
-}
-
 void MediaDecoder::UpdateDecodedStream()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -401,7 +388,7 @@ void MediaDecoder::RecreateDecodedStream(int64_t aStartTimeUSecs)
     OutputStreamData& os = outputStreams[i];
     MOZ_ASSERT(!os.mStream->IsDestroyed(),
         "Should've been removed in DestroyDecodedStream()");
-    ConnectDecodedStreamToOutputStream(&os);
+    mDecodedStream.Connect(&os);
   }
   UpdateStreamBlockingForStateMachinePlaying();
 
@@ -427,7 +414,7 @@ void MediaDecoder::AddOutputStream(ProcessedMediaStream* aStream,
     }
     OutputStreamData* os = OutputStreams().AppendElement();
     os->Init(&mDecodedStream, aStream);
-    ConnectDecodedStreamToOutputStream(os);
+    mDecodedStream.Connect(os);
     if (aFinishWhenEnded) {
       // Ensure that aStream finishes the moment mDecodedStream does.
       aStream->SetAutofinish(true);

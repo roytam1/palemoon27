@@ -2032,7 +2032,7 @@ pref("intl.accept_languages",               "chrome://global/locale/intl.propert
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.charset.detector",               "chrome://global/locale/intl.properties");
-pref("intl.charset.fallback.override",      "");
+pref("intl.charset.fallback.override",      "*"); // '*' to make sure the UI selects the proper entry for 'auto'
 pref("intl.charset.fallback.tld",           true);
 pref("intl.ellipsis",                       "chrome://global-platform/locale/intl.properties");
 pref("intl.locale.matchOS",                 false);

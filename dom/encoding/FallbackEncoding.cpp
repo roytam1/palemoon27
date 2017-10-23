@@ -53,8 +53,7 @@ FallbackEncoding::Get(nsACString& aFallback)
   // Don't let the user break things by setting the override to unreasonable
   // values via about:config
   if (!EncodingUtils::FindEncodingForLabel(override, mFallback) ||
-      !EncodingUtils::IsAsciiCompatible(mFallback) ||
-      mFallback.EqualsLiteral("UTF-8")) {
+      !EncodingUtils::IsAsciiCompatible(mFallback)) {
     mFallback.Truncate();
   }
 

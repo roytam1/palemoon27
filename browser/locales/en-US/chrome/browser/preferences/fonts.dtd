@@ -69,6 +69,7 @@
 <!ENTITY languages.customize.Fallback.desc        "This character encoding is used for legacy content that fails to declare its encoding.">
 
 <!ENTITY languages.customize.Fallback.auto        "Default for Current Locale">
+<!ENTITY languages.customize.Fallback.utf8        "UTF-8">
 <!-- LOCALIZATION NOTE (languages.customize.Fallback.arabic):
      Translate "Arabic" as an adjective for an encoding, not as the name of the language. -->
 <!ENTITY languages.customize.Fallback.arabic      "Arabic">

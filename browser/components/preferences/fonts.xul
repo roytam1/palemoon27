@@ -254,7 +254,8 @@
                control="DefaultCharsetList"/>
         <menulist id="DefaultCharsetList" preference="intl.charset.fallback.override">
           <menupopup>
-            <menuitem label="&languages.customize.Fallback.auto;"        value=""/>
+            <menuitem label="&languages.customize.Fallback.auto;"        value="*"/>
+            <menuitem label="&languages.customize.Fallback.utf8;"        value="UTF-8"/>
             <menuitem label="&languages.customize.Fallback.arabic;"      value="windows-1256"/>
             <menuitem label="&languages.customize.Fallback.baltic;"      value="windows-1257"/>
             <menuitem label="&languages.customize.Fallback.ceiso;"       value="ISO-8859-2"/>

@@ -7398,7 +7398,6 @@ nsBlockFrame::ISizeToClearPastFloats(const nsBlockReflowState& aState,
   LogicalMargin computedMargin =
     offsetState.ComputedLogicalMargin().ConvertTo(wm, frWM);
   result.marginIStart = computedMargin.IStart(wm);
-  result.marginIEnd = computedMargin.IEnd(wm);
   return result;
 }
  

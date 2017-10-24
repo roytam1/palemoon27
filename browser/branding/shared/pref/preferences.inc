@@ -1,6 +1,3 @@
-#define BRANDING_DIRECTORY_OFFICIAL browser/branding/official
-#define BRANDING_DIRECTORY_UNSTABLE browser/branding/unstable
-
 #define APO_AM_URL addons.palemoon.org/integration/addon-manager
 #define APO_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
 
@@ -36,46 +33,7 @@ pref("browser.altClickSave", true); //SBaD,M! (#2)
 // ===| Application Update Service |===========================================
 
 pref("app.update.auto", false);
-
-#if MOZ_BRANDING_DIRECTORY == BRANDING_DIRECTORY_OFFICIAL && defined(XP_WIN)
-// Updates enabled
-pref("app.update.enabled", true);
-pref("app.update.url", "https://www.palemoon.org/update/%VERSION%/%BUILD_TARGET%/update.xml");
-pref("app.update.cert.checkAttributes", true);
-
-// Interval: Time between checks for a new version (in seconds) -- 2 days for Pale Moon
-pref("app.update.interval", 172800);
-pref("app.update.promptWaitTime", 86400);
-
-// URL user can browse to manually if for some reason all update
-// installation attempts fail.
-pref("app.update.url.manual", "http://www.palemoon.org/");
-
-// A default value for the "More information about this update" link
-// supplied in the "An update is available" page of the update wizard. 
-pref("app.update.url.details", "http://www.palemoon.org/releasenotes.shtml");
-#elif MOZ_BRANDING_DIRECTORY == BRANDING_DIRECTORY_UNSTABLE && defined(XP_WIN)
-// Updates enabled
-pref("app.update.enabled", true);
-pref("app.update.url", "https://www.palemoon.org/unstable/update.xml");
-pref("app.update.cert.checkAttributes", true);
-
-// Interval: Time between checks for a new version (in seconds) -- 6 hours for unstable
-pref("app.update.interval", 21600);
-pref("app.update.promptWaitTime", 86400);
-
-// URL user can browse to manually if for some reason all update installation
-// attempts fail.
-pref("app.update.url.manual", "http://www.palemoon.org/unstable/");
-
-// A default value for the "More information about this update" link
-// supplied in the "An update is available" page of the update wizard. 
-pref("app.update.url.details", "http://www.palemoon.org/unstable/");
-#else
-// Updates disabled
-pref("app.update.enabled", false);
-pref("app.update.url", "");
-#endif
+pref("app.update.url", "https://aus.palemoon.org/?application=%PRODUCT%&version=%VERSION%&arch=%BUILD_TARGET%&buildid=%BUILD_ID%&channel=%CHANNEL%");
 
 // The time interval between the downloading of mar file chunks in the
 // background (in seconds)

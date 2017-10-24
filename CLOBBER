@@ -18,4 +18,4 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-Clobber required for Brotli/WOFF2 update
+Clobber required KISS-FFT build config change

@@ -342,9 +342,7 @@ void MediaDecoder::RecreateDecodedStream(int64_t aStartTimeUSecs)
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   DECODER_LOG("RecreateDecodedStream aStartTimeUSecs=%lld!", aStartTimeUSecs);
 
-  mDecodedStream.DestroyData();
-  mDecodedStream.RecreateData(aStartTimeUSecs, MediaStreamGraph::GetInstance()->CreateSourceStream(nullptr));
-
+  mDecodedStream.RecreateData(aStartTimeUSecs, MediaStreamGraph::GetInstance());
   UpdateStreamBlockingForStateMachinePlaying();
 
   GetDecodedStream()->mHaveBlockedForPlayState = mPlayState != PLAY_STATE_PLAYING;

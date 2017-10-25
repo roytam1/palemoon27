@@ -400,11 +400,6 @@ public:
    * Decoder monitor must be held.
    */
   void RecreateDecodedStream(int64_t aStartTimeUSecs);
-  /**
-   * Call this when mDecoderStateMachine or mDecoderStateMachine->IsPlaying() changes.
-   * Decoder monitor must be held.
-   */
-  void UpdateStreamBlockingForStateMachinePlaying();
 
   DecodedStreamData* GetDecodedStream()
   {

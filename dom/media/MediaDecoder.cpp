@@ -300,16 +300,17 @@ void MediaDecoder::SetVolume(double aVolume)
   mVolume = aVolume;
 }
 
-void MediaDecoder::UpdateDecodedStream()
+void MediaDecoder::UpdateStreamBlockingForPlayState()
 {
   MOZ_ASSERT(NS_IsMainThread());
   GetReentrantMonitor().AssertCurrentThreadIn();
 
-  if (GetDecodedStream()) {
+  auto s = GetDecodedStream();
+  if (s) {
     bool blockForPlayState = mPlayState != PLAY_STATE_PLAYING || mLogicallySeeking;
-    if (GetDecodedStream()->mHaveBlockedForPlayState != blockForPlayState) {
-      GetDecodedStream()->mStream->ChangeExplicitBlockerCount(blockForPlayState ? 1 : -1);
-      GetDecodedStream()->mHaveBlockedForPlayState = blockForPlayState;
+    if (s->mHaveBlockedForPlayState != blockForPlayState) {
+      s->mStream->ChangeExplicitBlockerCount(blockForPlayState ? 1 : -1);
+      s->mHaveBlockedForPlayState = blockForPlayState;
     }
   }
 }
@@ -344,11 +345,7 @@ void MediaDecoder::RecreateDecodedStream(int64_t aStartTimeUSecs)
 
   mDecodedStream.RecreateData(aStartTimeUSecs, MediaStreamGraph::GetInstance());
   UpdateStreamBlockingForStateMachinePlaying();
-
-  GetDecodedStream()->mHaveBlockedForPlayState = mPlayState != PLAY_STATE_PLAYING;
-  if (GetDecodedStream()->mHaveBlockedForPlayState) {
-    GetDecodedStream()->mStream->ChangeExplicitBlockerCount(1);
-  }
+  UpdateStreamBlockingForPlayState();
 }
 
 void MediaDecoder::AddOutputStream(ProcessedMediaStream* aStream,
@@ -652,7 +649,7 @@ nsresult MediaDecoder::Seek(double aTime, SeekTarget::Type aSeekType)
   mWasEndedWhenEnteredDormant = false;
 
   mLogicallySeeking = true;
-  UpdateDecodedStream();
+  UpdateStreamBlockingForPlayState();
   SeekTarget target = SeekTarget(timeUsecs, aSeekType);
   CallSeek(target);
 
@@ -1073,7 +1070,7 @@ void MediaDecoder::OnSeekResolved(SeekResolveValue aVal)
       ChangeState(PLAY_STATE_ENDED);
     }
     mLogicallySeeking = false;
-    UpdateDecodedStream();
+    UpdateStreamBlockingForPlayState();
   }
 
   UpdateLogicalPosition(aVal.mEventVisibility);
@@ -1119,7 +1116,7 @@ void MediaDecoder::ChangeState(PlayState aState)
               gPlayStateStr[mPlayState], gPlayStateStr[aState]);
   mPlayState = aState;
 
-  UpdateDecodedStream();
+  UpdateStreamBlockingForPlayState();
 
   if (mPlayState == PLAY_STATE_PLAYING) {
     ConstructMediaTracks();

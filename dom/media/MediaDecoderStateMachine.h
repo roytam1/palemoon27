@@ -92,6 +92,7 @@ hardware (via AudioStream).
 #include "mozilla/RollingMean.h"
 #include "MediaTimer.h"
 #include "StateMirroring.h"
+#include "DecodedStream.h"
 
 class nsITimer;
 
@@ -102,7 +103,6 @@ class VideoSegment;
 class MediaTaskQueue;
 class SharedThreadPool;
 class AudioSink;
-class DecodedStreamData;
 class MediaDecoderStateMachineScheduler;
 
 /*
@@ -150,7 +150,9 @@ public:
     return mState;
   }
 
-  void DispatchAudioCaptured();
+  DecodedStreamData* GetDecodedStream() const;
+
+  void AddOutputStream(ProcessedMediaStream* aStream, bool aFinishWhenEnded);
 
   // Check if the decoder needs to become dormant state.
   bool IsDormantNeeded();
@@ -163,12 +165,20 @@ private:
   // constructor immediately after the task queue is created.
   void InitializationTask();
 
+  void DispatchAudioCaptured();
+
   // Update blocking state of mDecodedStream when mPlayState or
   // mLogicallySeeking change. Decoder monitor must be held.
   void UpdateStreamBlockingForPlayState();
 
   // Call this IsPlaying() changes. Decoder monitor must be held.
   void UpdateStreamBlockingForStateMachinePlaying();
+
+  // Recreates mDecodedStream. Call this to create mDecodedStream at first,
+  // and when seeking, to ensure a new stream is set up with fresh buffers.
+  // aInitialTime is relative to mStartTime.
+  // Decoder monitor must be held.
+  void RecreateDecodedStream(int64_t aInitialTime);
 
   void Shutdown();
 public:
@@ -325,6 +335,10 @@ public:
   void BreakCycles() {
     if (mReader) {
       mReader->BreakCycles();
+    }
+    {
+      ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+      mDecodedStream.DestroyData();
     }
     mDecoder = nullptr;
   }
@@ -1257,6 +1271,13 @@ protected:
   bool mSentFirstFrameLoadedEvent;
 
   bool mSentPlaybackEndedEvent;
+
+  // The SourceMediaStream we are using to feed the mOutputStreams. This stream
+  // is never exposed outside the decoder.
+  // Only written on the main thread while holding the monitor. Therefore it
+  // can be read on any thread while holding the monitor, or on the main thread
+  // without holding the monitor.
+  DecodedStream mDecodedStream;
 };
 
 } // namespace mozilla;

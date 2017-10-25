@@ -2814,12 +2814,6 @@ nsresult HTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
     mDecoder->SetMinimizePrerollUntilPlaybackStarts();
   }
 
-  for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
-    OutputMediaStream* ms = &mOutputStreams[i];
-    aDecoder->AddOutputStream(ms->mStream->GetStream()->AsProcessedStream(),
-        ms->mFinishWhenEnded);
-  }
-
   // Update decoder principal before we start decoding, since it
   // can affect how we feed data to MediaStreams
   NotifyDecoderPrincipalChanged();
@@ -2829,6 +2823,12 @@ nsresult HTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
     SetDecoder(nullptr);
     LOG(PR_LOG_DEBUG, ("%p Failed to load for decoder %p", this, aDecoder));
     return rv;
+  }
+
+  for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
+    OutputMediaStream* ms = &mOutputStreams[i];
+    aDecoder->AddOutputStream(ms->mStream->GetStream()->AsProcessedStream(),
+        ms->mFinishWhenEnded);
   }
 
   // Decoder successfully created, the decoder now owns the MediaResource

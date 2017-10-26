@@ -3457,7 +3457,7 @@ Checker.prototype = {
       return null;
     }
 
-    url = url.replace(/%PRODUCT%/g, Services.appinfo.name);
+    url = url.replace(/%PRODUCT%/g, Services.appinfo.name.toLowerCase().replace(/ /, ""));
     url = url.replace(/%VERSION%/g, Services.appinfo.version);
     url = url.replace(/%BUILD_ID%/g, Services.appinfo.appBuildID);
     url = url.replace(/%BUILD_TARGET%/g, Services.appinfo.OS + "_" + gABI);

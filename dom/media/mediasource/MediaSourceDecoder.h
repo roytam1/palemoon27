@@ -98,6 +98,7 @@ public:
   void GetMozDebugReaderData(nsAString& aString);
 
 	MediaDecoderOwner::NextFrameStatus NextFrameBufferedStatus() override;
+	bool CanPlayThrough() override;
 
 private:
   void DoSetMediaSourceDuration(double aDuration);

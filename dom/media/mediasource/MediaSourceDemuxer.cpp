@@ -17,11 +17,6 @@ typedef TrackInfo::TrackType TrackType;
 using media::TimeUnit;
 using media::TimeIntervals;
 
-// Gap allowed between frames. Due to inaccuracies in determining buffer end
-// frames (see Mozilla bug 1065207). This value is based on the end of frame
-// default value used in Blink, kDefaultBufferDurationInMs.
-#define EOS_FUZZ_US 125000
-
 MediaSourceDemuxer::MediaSourceDemuxer()
   : mTaskQueue(new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
                                   /* aSupportsTailDispatch = */ true))
@@ -29,6 +24,11 @@ MediaSourceDemuxer::MediaSourceDemuxer()
 {
   MOZ_ASSERT(NS_IsMainThread());
 }
+
+// Gap allowed between frames. Due to inaccuracies in determining buffer end
+// frames (see Mozilla bug 1065207). This value is based on the end of frame
+// default value used in Blink, kDefaultBufferDurationInMs.
+const TimeUnit MediaSourceDemuxer::EOS_FUZZ = media::TimeUnit::FromMicroseconds(125000);
 
 nsRefPtr<MediaSourceDemuxer::InitPromise>
 MediaSourceDemuxer::Init()
@@ -309,7 +309,7 @@ nsRefPtr<MediaSourceTrackDemuxer::SeekPromise>
 MediaSourceTrackDemuxer::DoSeek(media::TimeUnit aTime)
 {
   TimeIntervals buffered = mManager->Buffered(mType);
-  buffered.SetFuzz(TimeUnit::FromMicroseconds(EOS_FUZZ_US));
+  buffered.SetFuzz(MediaSourceDemuxer::EOS_FUZZ);
 
   if (!buffered.Contains(aTime)) {
     // We don't have the data to seek to.
@@ -317,7 +317,7 @@ MediaSourceTrackDemuxer::DoSeek(media::TimeUnit aTime)
                                         __func__);
   }
   TimeUnit seekTime =
-    mManager->Seek(mType, aTime, TimeUnit::FromMicroseconds(EOS_FUZZ_US));
+    mManager->Seek(mType, aTime, MediaSourceDemuxer::EOS_FUZZ);
   {
     MonitorAutoLock mon(mMonitor);
     mNextRandomAccessPoint = mManager->GetNextRandomAccessPoint(mType);
@@ -329,9 +329,11 @@ nsRefPtr<MediaSourceTrackDemuxer::SamplesPromise>
 MediaSourceTrackDemuxer::DoGetSamples(int32_t aNumSamples)
 {
   bool error;
-  nsRefPtr<MediaRawData> sample = mManager->GetSample(mType,
-                                                      TimeUnit::FromMicroseconds(EOS_FUZZ_US),
-                                                      error);
+  nsRefPtr<MediaRawData> sample =
+    mManager->GetSample(mType,
+                        MediaSourceDemuxer::EOS_FUZZ,
+                        error);
+
   if (!sample) {
     if (error) {
       return SamplesPromise::CreateAndReject(DemuxerFailureReason::DEMUXER_ERROR, __func__);

@@ -320,10 +320,7 @@ MediaSourceDecoder::CanPlayThrough()
   }
   TimeUnit duration = TimeUnit::FromSeconds(mMediaSource->Duration());
   TimeUnit currentPosition = TimeUnit::FromMicroseconds(CurrentPosition());
-  if (duration.IsInfinite()) {
-    // We can't make an informed decision and just assume that it's a live stream
-    return true;
-  } else if (duration <= currentPosition) {
+  if (duration <= currentPosition) {
     return true;
   }
   // If we have data up to the mediasource's duration or 30s ahead, we can

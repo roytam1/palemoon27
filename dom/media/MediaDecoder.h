@@ -857,6 +857,7 @@ public:
   }
 
   virtual MediaDecoderOwner::NextFrameStatus NextFrameStatus() { return mNextFrameStatus; }
+  virtual MediaDecoderOwner::NextFrameStatus NextFrameBufferedStatus();
 
 protected:
   virtual ~MediaDecoder();
@@ -946,6 +947,11 @@ protected:
 
   // Media data resource.
   nsRefPtr<MediaResource> mResource;
+
+	// Amount of buffered data ahead of current time required to consider that
+  // the next frame is available.
+  // An arbitrary value of 250ms is used.
+  static const int DEFAULT_NEXT_FRAME_AVAILABLE_BUFFERED = 250000;
 
 private:
   // The state machine object for handling the decoding. It is safe to

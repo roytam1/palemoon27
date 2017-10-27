@@ -54,6 +54,9 @@ public:
   void DetachSourceBuffer(TrackBuffersManager* aSourceBuffer);
   MediaTaskQueue* GetTaskQueue() { return mTaskQueue; }
 
+	// Gap allowed between frames.
+  static const media::TimeUnit EOS_FUZZ;
+
 private:
   ~MediaSourceDemuxer();
   friend class MediaSourceTrackDemuxer;

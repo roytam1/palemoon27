@@ -2464,7 +2464,12 @@ ASTSerializer::statement(ParseNode* pn, MutableHandleValue dst)
 
         RootedValue init(cx), test(cx), update(cx);
 
-        return forInit(head->pn_kid1, &init) &&
+        // Init with nullptr in case of a freshen block (for(let x;;)),
+        // disconnecting chain inheritance.
+        return forInit(head->pn_kid1 && !head->pn_kid1->isKind(PNK_FRESHENBLOCK)
+                       ? head->pn_kid1
+                       : nullptr,
+                       &init) &&
                optExpression(head->pn_kid2, &test) &&
                optExpression(head->pn_kid3, &update) &&
                builder.forStatement(init, test, update, stmt, &pn->pn_pos, dst);

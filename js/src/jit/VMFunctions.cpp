@@ -1006,6 +1006,12 @@ PopBlockScope(JSContext* cx, BaselineFrame* frame)
 }
 
 bool
+FreshenBlockScope(JSContext *cx, BaselineFrame *frame)
+{
+    return frame->freshenBlock(cx);
+}
+
+bool
 DebugLeaveBlock(JSContext* cx, BaselineFrame* frame, jsbytecode* pc)
 {
     MOZ_ASSERT(frame->script()->baselineScript()->hasDebugInstrumentation());

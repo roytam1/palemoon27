@@ -153,7 +153,7 @@ class JSObject : public js::gc::Cell
     }
 
     /*
-     * Whether this is the only object which has its specified gbroup. This
+     * Whether this is the only object which has its specified group. This
      * object will have its group constructed lazily as needed by analysis.
      */
     bool isSingleton() const {

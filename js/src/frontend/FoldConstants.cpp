@@ -404,6 +404,7 @@ ContainsHoistedDeclaration(ExclusiveContext* cx, ParseNode* node, bool* result)
       case PNK_FORIN:
       case PNK_FOROF:
       case PNK_FORHEAD:
+      case PNK_FRESHENBLOCK:
         MOZ_CRASH("ContainsHoistedDeclaration should have indicated false on "
                   "some parent node without recurring to test this node");
 

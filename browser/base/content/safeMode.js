@@ -3,26 +3,30 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
+const Cc = Components.classes,
+      Ci = Components.interfaces,
+      Cu = Components.utils;
+      
+Cu.import("resource://gre/modules/AddonManager.jsm");
 
 function restartApp() {
-  var appStartup = Components.classes["@mozilla.org/toolkit/app-startup;1"]
-                             .getService(Components.interfaces.nsIAppStartup);
-  appStartup.quit(appStartup.eForceQuit | appStartup.eRestart);
+  let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"]
+                      .getService(Ci.nsIAppStartup);
+  appStartup.quit(Ci.nsIAppStartup.eForceQuit |  Ci.nsIAppStartup.eRestart);
 }
 
 function clearAllPrefs() {
-  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
-                              .getService(Components.interfaces.nsIPrefService);
+  var prefService = Cc["@mozilla.org/preferences-service;1"]
+                       .getService(Ci.nsIPrefService);
   prefService.resetUserPrefs();
 
   // Remove the pref-overrides dir, if it exists
   try {
-    var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
-                                .getService(Components.interfaces.nsIProperties);
+    var fileLocator = Cc["@mozilla.org/file/directory_service;1"]
+                         .getService(Ci.nsIProperties);
     const NS_APP_PREFS_OVERRIDE_DIR = "PrefDOverride";
     var prefOverridesDir = fileLocator.get(NS_APP_PREFS_OVERRIDE_DIR,
-                                           Components.interfaces.nsIFile);
+                                           Ci.nsIFile);
     prefOverridesDir.remove(true);
   } catch (ex) {
     Components.utils.reportError(ex);
@@ -30,16 +34,16 @@ function clearAllPrefs() {
 }
 
 function restoreDefaultBookmarks() {
-  var prefBranch  = Components.classes["@mozilla.org/preferences-service;1"]
-                              .getService(Components.interfaces.nsIPrefBranch);
+  var prefBranch  = Cc["@mozilla.org/preferences-service;1"]
+                       .getService(Ci.nsIPrefBranch);
   prefBranch.setBoolPref("browser.bookmarks.restore_default_bookmarks", true);
 }
 
 function deleteLocalstore() {
   const nsIDirectoryServiceContractID = "@mozilla.org/file/directory_service;1";
-  const nsIProperties = Components.interfaces.nsIProperties;
-  var directoryService =  Components.classes[nsIDirectoryServiceContractID]
-                                    .getService(nsIProperties);
+  const nsIProperties = Ci.nsIProperties;
+  var directoryService = Cc[nsIDirectoryServiceContractID]
+                            .getService(nsIProperties);
   // Local store file
   var localstoreFile = directoryService.get("LStoreS", Components.interfaces.nsIFile);
   // XUL store file
@@ -76,8 +80,8 @@ function disableAddons() {
 }
 
 function restoreDefaultSearchEngines() {
-  var searchService = Components.classes["@mozilla.org/browser/search-service;1"]
-                                .getService(Components.interfaces.nsIBrowserSearchService);
+  var searchService = Cc["@mozilla.org/browser/search-service;1"]
+                         .getService(Ci.nsIBrowserSearchService);
 
   searchService.restoreDefaultEngines();
 }
@@ -105,9 +109,9 @@ function onOK() {
 }
 
 function onCancel() {
-  var appStartup = Components.classes["@mozilla.org/toolkit/app-startup;1"]
-                             .getService(Components.interfaces.nsIAppStartup);
-  appStartup.quit(appStartup.eForceQuit);
+  let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"]
+                      .getService(Ci.nsIAppStartup);
+  appStartup.quit(Ci.nsIAppStartup.eForceQuit);
 }
 
 function onLoad() {

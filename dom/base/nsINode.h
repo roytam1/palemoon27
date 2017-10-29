@@ -920,9 +920,10 @@ public:
   class nsSlots
   {
   public:
-    nsSlots()
-      : mChildNodes(nullptr),
-        mWeakReference(nullptr)
+   nsSlots()
+     : mChildNodes(nullptr),
+       mWeakReference(nullptr),
+       mEditableDescendantCount(0)
     {
     }
 
@@ -951,6 +952,12 @@ public:
      * Weak reference to this node
      */
     nsNodeWeakReference* mWeakReference;
+
+    /**
+     * Number of descendant nodes in the uncomposed document that have been
+     * explicitly set as editable.
+     */
+    uint32_t mEditableDescendantCount;
   };
 
   /**
@@ -985,6 +992,22 @@ public:
                  "Trying to unset write-only flags");
     nsWrapperCache::UnsetFlags(aFlagsToUnset);
   }
+
+  void ChangeEditableDescendantCount(int32_t aDelta);
+
+  /**
+   * Returns the count of descendant nodes in the uncomposed
+   * document that are explicitly set as editable.
+   */
+  uint32_t EditableDescendantCount();
+
+  /**
+   * Sets the editable descendant count to 0. The editable
+   * descendant count only counts explicitly editable nodes
+   * that are in the uncomposed document so this method
+   * should be called when nodes are are removed from it.
+   */
+  void ResetEditableDescendantCount();
 
   void SetEditableFlag(bool aEditable)
   {

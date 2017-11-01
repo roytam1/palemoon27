@@ -1651,7 +1651,7 @@ function doPendingUninstalls(aListBox) {
   var listitem = aListBox.firstChild;
   while (listitem) {
     if (listitem.getAttribute("pending") == "uninstall" &&
-        !(listitem.opRequiresRestart("UNINSTALL")))
+        !(listitem.opRequiresRestart("uninstall")))
       items.push(listitem.mAddon);
     listitem = listitem.nextSibling;
   }

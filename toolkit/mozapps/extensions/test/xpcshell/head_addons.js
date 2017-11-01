@@ -1707,7 +1707,7 @@ function callback_soon(aFunction) {
  * its callback.
  */
 function promiseAddonsByIDs(list) {
-  return new Promise((resolve, reject) => AddonManager.getAddonsByIDs(list, resolve));
+  return new Promise(resolve => AddonManager.getAddonsByIDs(list, resolve));
 }
 
 /**
@@ -1718,7 +1718,20 @@ function promiseAddonsByIDs(list) {
  * @resolve {AddonWrapper} The corresponding add-on, or null.
  */
 function promiseAddonByID(aId) {
-  return new Promise((resolve, reject) => AddonManager.getAddonByID(aId, resolve));
+  return new Promise(resolve => AddonManager.getAddonByID(aId, resolve));
+}
+
+/**
+ * A promise-based variant of AddonManager.getAddonsWithOperationsByTypes
+ *
+ * @param {array} aTypes The first argument to
+ *                       AddonManager.getAddonsWithOperationsByTypes
+ * @return {promise}
+ * @resolve {array} The list of add-ons sent by
+ *                  AddonManaget.getAddonsWithOperationsByTypes to its callback.
+ */
+function promiseAddonsWithOperationsByTypes(aTypes) {
+  return new Promise(resolve => AddonManager.getAddonsWithOperationsByTypes(aTypes, resolve));
 }
 
 /**

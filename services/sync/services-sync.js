@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-pref("services.sync.serverURL", "https://pmsync.palemoon.net/sync/index.php/");
+pref("services.sync.serverURL", "https://pmsync.palemoon.org/sync/index.php/");
 pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
 pref("services.sync.termsURL", "http://www.palemoon.org/sync/terms.shtml");
 pref("services.sync.privacyURL", "http://www.palemoon.org/sync/privacy.shtml");
-pref("services.sync.statusURL", "https://pmsync.palemoon.net/status/");
+pref("services.sync.statusURL", "https://pmsync.palemoon.org/status/");
 pref("services.sync.syncKeyHelpURL", "http://www.palemoon.org/sync/keyhelp.shtml");
 
 pref("services.sync.lastversion", "firstrun");
@@ -37,7 +37,7 @@ pref("services.sync.engine.prefs", true);
 pref("services.sync.engine.tabs", true);
 pref("services.sync.engine.tabs.filteredUrls", "^(about:.*|chrome://weave/.*|wyciwyg:.*|file:.*)$");
 
-pref("services.sync.jpake.serverURL", "https://keyserver.palemoon.net/");
+pref("services.sync.jpake.serverURL", "https://keyserver.palemoon.org/");
 pref("services.sync.jpake.pollInterval", 1000);
 pref("services.sync.jpake.firstMsgMaxTries", 300); // 5 minutes
 pref("services.sync.jpake.lastMsgMaxTries", 300);  // 5 minutes

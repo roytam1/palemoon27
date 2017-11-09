@@ -239,15 +239,20 @@ SessionStartup.prototype = {
    * homepage. The browser uses this to not start loading the homepage if
    * we're going to stop its load anyway shortly after.
    *
+   * This is meant to be an optimization for the average case that loading the
+   * session file finishes before we may want to start loading the default
+   * homepage. Should this be called before the session file has been read it
+   * will just return false.
+   *
    * @returns bool
    */
   get willOverrideHomepage() {
-    if (Services.prefs.getIntPref("browser.startup.page") == 3) {
-      // "Restore windows and tabs from last time" selected. This will
-      // always override the default home page.
-      return true;
+    if (this._initialState && this._willRestore()) {
+      let windows = this._initialState.windows || null;
+      // If there are valid windows with not only pinned tabs, signal that we
+      // will override the default homepage by restoring a session.
+      return windows && windows.some(w => w.tabs.some(t => !t.pinned));
     }
-    // Other settings won't override.
     return false;
   },
 

@@ -4244,9 +4244,6 @@ nsBrowserAccess.prototype = {
         // Pass all params to openDialog to ensure that "url" isn't passed through
         // loadOneOrMoreURIs, which splits based on "|"
         newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
-        // Focus the address bar if opened content in a new window is blank
-        if (newWindow.isBlankPageURL(url))
-          newWindow.focusAndSelectUrlBar();
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
         let win, needToFocusWin;

@@ -92,7 +92,7 @@ public class JPakeClient {
 
   public JPakeClient(SetupSyncActivity activity) {
     controllerActivity = activity;
-    jpakeServer = "https://keyserver.palemoon.net/";
+    jpakeServer = "https://keyserver.palemoon.org/";
     jpakePollInterval = 1 * 1000; // 1 second
     jpakeMaxTries = MAX_TRIES;
 

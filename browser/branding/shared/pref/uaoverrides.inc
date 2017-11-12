@@ -36,9 +36,6 @@ pref("@GUAO_PREF@.yahoo.com","Mozilla/5.0 (@OS_SLICE@ rv:99.9) @GK_SLICE@ Firefo
 pref("@GUAO_PREF@.youtube.com","Mozilla/5.0 (@OS_SLICE@ rv:42.0) @GK_SLICE@ Firefox/42.0 @PM_SLICE@");
 pref("@GUAO_PREF@.gaming.youtube.com","Mozilla/5.0 (@OS_SLICE@ rv:42.0) @GK_SLICE@ Firefox/42.0");
 
-pref("@GUAO_PREF@.netflix.com","Mozilla/5.0 (@OS_SLICE@ rv:27.0) @GK_SLICE@ Firefox/27.0");
-pref("@GUAO_PREF@.netflximg.net","Mozilla/5.0 (@OS_SLICE@ rv:27.0) @GK_SLICE@ Firefox/27.0");
-
 pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
 
 // The never-ending Facebook debacle...
@@ -67,6 +64,8 @@ pref("@GUAO_PREF@.dropbox.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_D
 pref("@GUAO_PREF@.humblebundle.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ (Pale Moon)");
 pref("@GUAO_PREF@.privat24.ua","Mozilla/5.0 (@OS_SLICE@ rv:38.0) @GK_SLICE@ Firefox/38.0");
 pref("@GUAO_PREF@.citi.com","Mozilla/5.0 (@OS_SLICE@ rv:57.0) @GK_SLICE@ Firefox/57.0 (Pale Moon)");
+pref("@GUAO_PREF@.netflix.com","Mozilla/5.0 (@OS_SLICE@ rv:45.9) @GK_SLICE@ Firefox/45.9");
+pref("@GUAO_PREF@.netflximg.net","Mozilla/5.0 (@OS_SLICE@ rv:45.9) @GK_SLICE@ Firefox/45.9");
 
 // UA-sniffing domains that are "app/vendor-specific" and do not like Pale Moon
 pref("@GUAO_PREF@.web.whatsapp.com","Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36");

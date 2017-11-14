@@ -122,6 +122,12 @@ exports.items = [
           window.scrollTo(0,0);
           width = window.innerWidth + window.scrollMaxX - window.scrollMinX;
           height = window.innerHeight + window.scrollMaxY - window.scrollMinY;
+          let writingMode = "horizontal-tb"; 
+          if (window.getComputedStyle(document.documentElement)) {
+            writingMode = window.getComputedStyle(document.documentElement).writingMode;
+          }
+          let orientation = writingMode.substring(0, writingMode.indexOf("-")).toLowerCase();
+          left = ((orientation != "vertical") ? left : (-width + window.innerWidth));
         } else if (node) {
           let lh = new LayoutHelpers(window);
           let rect = lh.getRect(node, window);

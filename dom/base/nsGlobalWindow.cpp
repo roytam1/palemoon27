@@ -5692,7 +5692,9 @@ int32_t
 nsGlobalWindow::GetScrollMinX(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideLeft), aError, 0);
+  int32_t scrollMinX = 0;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideLeft), aError, scrollMinX);
+  return scrollMinX;
 }
 
 NS_IMETHODIMP
@@ -5709,7 +5711,9 @@ int32_t
 nsGlobalWindow::GetScrollMinY(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideTop), aError, 0);
+  int32_t scrollMinY = 0;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideTop), aError, scrollMinY);
+  return scrollMinY;
 }
 
 NS_IMETHODIMP
@@ -5726,7 +5730,9 @@ int32_t
 nsGlobalWindow::GetScrollMaxX(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideRight), aError, 0);
+  int32_t scrollMaxX = 0;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideRight), aError, scrollMaxX);
+  return scrollMaxX;
 }
 
 NS_IMETHODIMP
@@ -5743,7 +5749,9 @@ int32_t
 nsGlobalWindow::GetScrollMaxY(ErrorResult& aError)
 {
   MOZ_ASSERT(IsInnerWindow());
-  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideBottom), aError, 0);
+  int32_t scrollMaxY = 0;
+  FORWARD_TO_OUTER_OR_THROW(GetScrollBoundaryOuter, (eSideBottom), aError, scrollMaxY);
+  return scrollMaxY;
 }
 
 NS_IMETHODIMP

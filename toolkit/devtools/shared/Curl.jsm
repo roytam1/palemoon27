@@ -78,7 +78,8 @@ this.Curl = {
 
     // Create post data.
     let data = [];
-    if (utils.isUrlEncodedRequest(aData) || aData.method == "PUT") {
+    if (utils.isUrlEncodedRequest(aData) ||
+          ["PUT", "POST"].includes(aData.method)) {
       postDataText = aData.postDataText;
       data.push("--data");
       data.push(escapeString(utils.writePostDataTextParams(postDataText)));
@@ -207,6 +208,9 @@ this.CurlUtils = {
    *         Post data parameters.
    */
   writePostDataTextParams: function(aPostDataText) {
+    if (!aPostDataText) {
+      return "";
+    }
     let lines = aPostDataText.split("\r\n");
     return lines[lines.length - 1];
   },

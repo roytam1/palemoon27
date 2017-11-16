@@ -217,6 +217,7 @@ MOZ_PNG_set_expand
 MOZ_PNG_set_IHDR
 MOZ_PNG_set_interlace_handling
 MOZ_PNG_set_longjmp_fn
+MOZ_PNG_set_option
 MOZ_PNG_set_progressive_read_fn
 MOZ_PNG_set_scale_16
 MOZ_PNG_set_write_fn

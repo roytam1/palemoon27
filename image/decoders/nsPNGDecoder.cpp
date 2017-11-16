@@ -305,11 +305,20 @@ nsPNGDecoder::InitInternal()
 #endif
 #endif
 
-#if defined(PNG_SET_OPTION_SUPPORTED) && defined(PNG_sRGB_PROFILE_CHECKS) && \
-            PNG_sRGB_PROFILE_CHECKS >= 0
+// Set various PNG lib options if supported
+#ifdef PNG_SET_OPTION_SUPPORTED
+#if defined(PNG_sRGB_PROFILE_CHECKS) && PNG_sRGB_PROFILE_CHECKS >= 0
   // Skip checking of sRGB ICC profiles
   png_set_option(mPNG, PNG_SKIP_sRGB_CHECK_PROFILE, PNG_OPTION_ON);
 #endif
+
+#ifdef PNG_MAXIMUM_INFLATE_WINDOW
+  // Force a larger zlib inflate window as some images in the wild have
+  // incorrectly set metadata (specifically CMF bits) which prevent us from
+  // decoding them otherwise.
+  png_set_option(mPNG, PNG_MAXIMUM_INFLATE_WINDOW, PNG_OPTION_ON);
+#endif
+#endif  // PNG_SET_OPTION_SUPPORTED 
 
   // use this as libpng "progressive pointer" (retrieve in callbacks)
   png_set_progressive_read_fn(mPNG, static_cast<png_voidp>(this),

@@ -61,7 +61,7 @@
 #endif
 
 #if U_USE_STRTOD_L
-# if U_HAVE_XLOCALE_H
+# if U_HAVE_XLOCALE_H || U_PLATFORM_IS_DARWIN_BASED
 #   include <xlocale.h>
 # else
 #   include <locale.h>

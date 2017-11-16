@@ -405,6 +405,7 @@
 #define png_set_keep_unknown_chunks     MOZ_PNG_set_keep_unknown_chunks
 #define png_set_mem_fn                  MOZ_PNG_set_mem_fn
 #define png_set_oFFs                    MOZ_PNG_set_oFFs
+#define png_set_option                  MOZ_PNG_set_option
 #define png_set_packing                 MOZ_PNG_set_packing
 #define png_set_packswap                MOZ_PNG_set_packswap
 #define png_set_palette_to_rgb          MOZ_PNG_set_palette_to_rgb

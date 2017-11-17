@@ -6463,7 +6463,7 @@ nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal)
 }
 
 already_AddRefed<nsIDocumentLoaderFactory>
-nsContentUtils::FindInternalContentViewer(const char* aType,
+nsContentUtils::FindInternalContentViewer(const nsACString& aType,
                                           ContentViewerType* aLoaderType)
 {
   if (aLoaderType) {
@@ -6478,7 +6478,9 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
   nsCOMPtr<nsIDocumentLoaderFactory> docFactory;
 
   nsXPIDLCString contractID;
-  nsresult rv = catMan->GetCategoryEntry("Goanna-Content-Viewers", aType, getter_Copies(contractID));
+  nsresult rv = catMan->GetCategoryEntry("Goanna-Content-Viewers",
+                                         PromiseFlatCString(aType).get(),
+                                         getter_Copies(contractID));
   if (NS_SUCCEEDED(rv)) {
     docFactory = do_GetService(contractID);
     if (docFactory && aLoaderType) {
@@ -6492,7 +6494,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
     return docFactory.forget();
   }
 
-  if (DecoderTraits::IsSupportedInVideoDocument(nsDependentCString(aType))) {
+  if (DecoderTraits::IsSupportedInVideoDocument(aType)) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
       *aLoaderType = TYPE_CONTENT;

@@ -73,12 +73,12 @@ FirefoxProfileMigrator.prototype.getResources = function(aProfile) {
       let file = sourceProfileDir.clone();
       file.append(fileName);
 
-      // File resources are monolithic.  We don't make partial copies since
-      // they are not expected to work alone.
-      if (!file.exists())
-        return null;
-
-      files.push(file);
+      if (file.exists()) {
+        files.push(file);
+      }
+    }
+    if (!files.length) {
+      return null;
     }
     return {
       type: aMigrationType,
@@ -92,10 +92,10 @@ FirefoxProfileMigrator.prototype.getResources = function(aProfile) {
   };
 
   let types = MigrationUtils.resourceTypes;
-  let places = getFileResource(types.HISTORY, ["places.sqlite"]);
-  let cookies = getFileResource(types.COOKIES, ["cookies.sqlite"]);
+  let places = getFileResource(types.HISTORY, ["places.sqlite", "places.sqlite-wal"]);
+  let cookies = getFileResource(types.COOKIES, ["cookies.sqlite", "cookies.sqlite-wal"]);
   let passwords = getFileResource(types.PASSWORDS,
-                                  ["signons.sqlite", "key3.db"]);
+                                  ["signons.sqlite", "logins.json", "key3.db"]);
   let formData = getFileResource(types.FORMDATA, ["formhistory.sqlite"]);
   let bookmarksBackups = getFileResource(types.OTHERDATA,
     [PlacesBackups.profileRelativeFolderPath]);

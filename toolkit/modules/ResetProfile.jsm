@@ -8,8 +8,8 @@ this.EXPORTED_SYMBOLS = ["ResetProfile"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-//Hard-code MOZ_APP_NAME to firefox because of hard-coded type in migrator.
-#expand const MOZ_APP_NAME = "firefox";
+//For Pale Moon: Hard-code MOZ_APP_NAME to firefox because of hard-coded type in migrator.
+#expand const MOZ_APP_NAME = ("__MOZ_APP_NAME__" == "palemoon") ? "firefox" : "__MOZ_APP_NAME__";
 #expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
 
 Cu.import("resource://gre/modules/Services.jsm");

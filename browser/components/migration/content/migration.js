@@ -129,7 +129,10 @@ var MigrationWizard = {
 
     // check for more than one source profile
     var sourceProfiles = this._migrator.sourceProfiles;    
-    if (sourceProfiles && sourceProfiles.length > 1) {
+    if (this._skipImportSourcePage) {
+      this._wiz.currentPage.next = "homePageImport";
+    }
+    else if (sourceProfiles && sourceProfiles.length > 1) {
       this._wiz.currentPage.next = "selectProfile";
     }
     else {
@@ -141,7 +144,7 @@ var MigrationWizard = {
       if (sourceProfiles && sourceProfiles.length == 1)
         this._selectedProfile = sourceProfiles[0];
       else
-        this._selectedProfile = "";
+        this._selectedProfile = null;
     }
   },
   
@@ -161,28 +164,33 @@ var MigrationWizard = {
     // and we canceled the dialog.  When that happens, _migrator will be null.
     if (this._migrator) {
       var sourceProfiles = this._migrator.sourceProfiles;
-      for (var i = 0; i < sourceProfiles.length; ++i) {
+
+      for (let profile of sourceProfiles) {
         var item = document.createElement("radio");
-        item.id = sourceProfiles[i];
-        item.setAttribute("label", sourceProfiles[i]);
+        item.id = profile.id;
+        item.setAttribute("label", profile.name);
         profiles.appendChild(item);
       }
     }
     
-    profiles.selectedItem = this._selectedProfile ? document.getElementById(this._selectedProfile) : profiles.firstChild;
+    profiles.selectedItem = this._selectedProfile ? document.getElementById(this._selectedProfile.id) : profiles.firstChild;
   },
   
   onSelectProfilePageRewound: function ()
   {
     var profiles = document.getElementById("profiles");
-    this._selectedProfile = profiles.selectedItem.id;
+    this._selectedProfile = this._migrator.sourceProfiles.find(
+      profile => profile.id == profiles.selectedItem.id
+    ) || null;
   },
   
   onSelectProfilePageAdvanced: function ()
   {
     var profiles = document.getElementById("profiles");
-    this._selectedProfile = profiles.selectedItem.id;
-    
+    this._selectedProfile = this._migrator.sourceProfiles.find(
+      profile => profile.id == profiles.selectedItem.id
+    ) || null;
+
     // If we're automigrating or just doing bookmarks don't show the item selection page
     if (this._autoMigrate)
       this._wiz.currentPage.next = "homePageImport";

@@ -7,7 +7,7 @@
 "use strict";
 
 /*
- * Migrates from a Firefox profile in a lossy manner in order to clean up a
+ * Migrates from a Pale Moon profile in a lossy manner in order to clean up a
  * user's profile.  Data is only migrated where the benefits outweigh the
  * potential problems caused by importing undesired/invalid configurations
  * from the source profile.
@@ -22,17 +22,39 @@ function FirefoxProfileMigrator() { }
 
 FirefoxProfileMigrator.prototype = Object.create(MigratorPrototype);
 
-FirefoxProfileMigrator.prototype.getResources = function() {
-  // Only allow migrating from the default (selected) profile since this will
-  // be the only one returned by the toolkit profile service after bug 214675.
-  let sourceProfile =
+FirefoxProfileMigrator.prototype._getAllProfiles = function () {
+  let allProfiles = new Map();
+  let profiles =
     Components.classes["@mozilla.org/toolkit/profile-service;1"]
               .getService(Components.interfaces.nsIToolkitProfileService)
-              .selectedProfile;
-  if (!sourceProfile)
-    return null;
+              .profiles;
+  while (profiles.hasMoreElements()) {
+    let profile = profiles.getNext().QueryInterface(Components.interfaces.nsIToolkitProfile);
+    let rootDir = profile.rootDir;
 
-  let sourceProfileDir = sourceProfile.rootDir;
+    if (rootDir.exists() && rootDir.isReadable() &&
+        !rootDir.equals(MigrationUtils.profileStartup.directory)) {
+      allProfiles.set(profile.name, rootDir);
+    }
+  }
+  return allProfiles;
+};
+
+function sorter(a, b) {
+  return a.id.toLocaleLowerCase().localeCompare(b.id.toLocaleLowerCase());
+}
+
+Object.defineProperty(FirefoxProfileMigrator.prototype, "sourceProfiles", {
+  get: function() {
+    return [{id: x, name: x} for (x of this._getAllProfiles().keys())].sort(sorter);
+  }
+});
+
+FirefoxProfileMigrator.prototype.getResources = function(aProfile) {
+  let sourceProfileDir = aProfile ? this._getAllProfiles().get(aProfile.id) :
+    Components.classes["@mozilla.org/toolkit/profile-service;1"]
+              .getService(Components.interfaces.nsIToolkitProfileService)
+              .selectedProfile.rootDir;
   if (!sourceProfileDir || !sourceProfileDir.exists() ||
       !sourceProfileDir.isReadable())
     return null;

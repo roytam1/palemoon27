@@ -55,7 +55,9 @@
             style="&prefWinMinSize.styleGNOME;"
 #endif
 #endif
-            onunload="if (typeof gSecurityPane != 'undefined') gSecurityPane.syncAddonSecurityLevel();">
+            onunload="if (typeof gSecurityPane != 'undefined') gSecurityPane.syncAddonSecurityLevel();"
+            ondialogaccept="if (typeof gTabsPane != 'undefined') gTabsPane.writeNewtabUrl();
+                            return true;">
 
     <script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
 

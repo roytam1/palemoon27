@@ -16,9 +16,7 @@
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <prefpane id="paneTabs"
-#ifdef XP_WIN
             onpaneload="gTabsPane.init();"
-#endif
             helpTopic="prefs-tabs">
 
     <preferences id="tabsPreferences">
@@ -36,9 +34,10 @@
       <preference id="browser.tabs.insertRelatedAfterCurrent"  name="browser.tabs.insertRelatedAfterCurrent"  type="bool"/>
       <preference id="browser.search.context.loadInBackground" name="browser.search.context.loadInBackground" type="bool" inverted="true"/>
       <preference id="browser.tabs.closeWindowWithLastTab"     name="browser.tabs.closeWindowWithLastTab"     type="bool"/>
-      <preference id="browser.newtab.url"
-                  name="browser.newtab.url"
-                  type="string" />  
+      
+      <preference id="browser.newtab.url"    name="browser.newtab.url"    type="string"/>
+      <preference id="browser.newtab.myhome" name="browser.newtab.myhome" type="string"/>
+      <preference id="browser.newtab.choice" name="browser.newtab.choice" type="int"/>
     </preferences>
     
     <script type="application/javascript" src="chrome://browser/content/preferences/tabs.js"/>
@@ -80,11 +79,15 @@
                 preference="browser.tabs.closeWindowWithLastTab"/>
       <hbox align="center">
         <label value="&newtabPage.label;"/>
-        <menulist id="newtabPage" preference="browser.newtab.url">
+        <menulist 
+          id="newtabPage"
+          preference="browser.newtab.choice">
           <menupopup>
-            <menuitem label="&newtabPage.blank.label;"     value="about:logopage" id="newtabPageBlank"/>
-            <menuitem label="&newtabPage.home.label;"      value="https://start.palemoon.org/" id="newtabPageHome"/>
-            <menuitem label="&newtabPage.quickdial.label;" value="about:newtab" id="newtabPageQuickdial"/>
+            <menuitem label="&newtabPage.custom.label;"    value="0" id="newtabPageCustom" hidden="true" />
+            <menuitem label="&newtabPage.blank.label;"     value="1" />
+            <menuitem label="&newtabPage.home.label;"      value="2" />
+            <menuitem label="&newtabPage.myhome.label;"    value="3" />
+            <menuitem label="&newtabPage.quickdial.label;" value="4" />
           </menupopup>
         </menulist>
       </hbox>

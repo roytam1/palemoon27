@@ -26,11 +26,11 @@ var gTabsPane = {
    * - true if tabs are to be shown in the Windows 7 taskbar
    */
 
-#ifdef XP_WIN
   /**
    * Initialize any platform-specific UI.
    */
   init: function () {
+#ifdef XP_WIN
     const Cc = Components.classes;
     const Ci = Components.interfaces;
     try {
@@ -40,8 +40,10 @@ var gTabsPane = {
       let showTabsInTaskbar = document.getElementById("showTabsInTaskbar");
       showTabsInTaskbar.hidden = ver < 6.1;
     } catch (ex) {}
-  },
 #endif
+    // Set the proper value in the newtab drop-down.
+    gTabsPane.readNewtabUrl();
+  },
 
   /**
    * Pale Moon: synchronize warnOnClose and warnOnCloseOtherTabs
@@ -71,5 +73,70 @@ var gTabsPane = {
   writeLinkTarget: function() {
     var linkTargeting = document.getElementById("linkTargeting");
     return linkTargeting.checked ? 3 : 2;
+  },
+
+  /**
+   * Determines the value of the New Tab display drop-down based
+   * on the value of browser.newtab.url.
+   *
+   * @returns the appropriate value of browser.newtab.choice
+   */
+  readNewtabUrl: function() {
+    let newtabUrlPref = document.getElementById("browser.newtab.url");
+    let newtabUrlSanitizedPref = document.getElementById("browser.newtab.myhome");
+    let newtabUrlChoice = document.getElementById("browser.newtab.choice");
+    switch (newtabUrlPref.value) {
+      case "about:logopage": 
+        newtabUrlChoice.value = 1;
+        break;
+      case "https://start.palemoon.org/":
+        newtabUrlChoice.value = 2;
+        break;
+      case newtabUrlSanitizedPref.value:
+        newtabUrlChoice.value = 3;
+        break;
+      case "about:newtab":
+        newtabUrlChoice.value = 4;
+        break;
+      default: // Custom URL entered.
+        document.getElementById("newtabPageCustom").hidden = false;
+        newtabUrlChoice.value = 0;
+    }
+  },
+
+  /**
+   * Writes browser.newtab.url with the appropriate value.
+   * if the choice is "my home page", get and sanitize the browser home page
+   * URL to make it suitable for newtab use.
+   *
+   * Called from prefwindow's ondialogaccept handler.
+   */
+  writeNewtabUrl: function() {
+    try {
+      let newtabUrlChoice = Services.prefs.getIntPref("browser.newtab.choice");
+      let browserHomepageUrl = Services.prefs.getCharPref("browser.startup.homepage");
+      let newtabUrlPref = Services.prefs.getCharPref("browser.newtab.url");
+      switch (newtabUrlChoice) {
+        case 1:
+          newtabUrlPref="about:logopage";
+          break;
+        case 2:
+          newtabUrlPref="https://start.palemoon.org/";
+          break;
+        case 3:
+          // If url is a pipe-delimited set of pages, just take the first one.
+          let newtabUrlSanitizedPref=browserHomepageUrl.split("|")[0];
+          // XXX: do we need extra sanitation here, e.g. for invalid URLs?
+          Services.prefs.setCharPref("browser.newtab.myhome", newtabUrlSanitizedPref);
+          newtabUrlPref=newtabUrlSanitizedPref;
+          break;
+        case 4:
+          newtabUrlPref="about:newtab";
+          break;
+        default:
+          // In case of any other value it's a custom URL, so don't change anything...
+      } 
+      Services.prefs.setCharPref("browser.newtab.url",newtabUrlPref);
+    } catch(e) { console.error(e); }
   }
 };

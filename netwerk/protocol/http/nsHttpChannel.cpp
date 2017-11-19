@@ -48,6 +48,7 @@
 #include "nsIClassOfService.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
+#include "nsIScriptError.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsISSLStatus.h"
 #include "nsISSLStatusProvider.h"
@@ -77,6 +78,8 @@
 #include "nsIX509Cert.h"
 #include "ScopedNSSTypes.h"
 #include "nsNullPrincipal.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 
 namespace mozilla { namespace net {
 
@@ -1308,10 +1311,106 @@ nsHttpChannel::ProcessAltService()
                                  mCaps & NS_HTTP_DISALLOW_SPDY);
 }
 
+// Check and potentially enforce X-Content-Type-Options: nosniff
+nsresult
+ProcessXCTO(nsHttpResponseHead* aResponseHead, nsILoadInfo* aLoadInfo)
+{
+    if (!aResponseHead || !aLoadInfo) {
+        // if there is no response head or no loadInfo, then there is nothing to do
+        return NS_OK;
+    }
+
+    // 1) Query the XCTO header and check if 'nosniff' is the first value.
+    nsAutoCString contentTypeOptionsHeader;
+    aResponseHead->GetHeader(nsHttp::X_Content_Type_Options, contentTypeOptionsHeader);
+    if (contentTypeOptionsHeader.IsEmpty()) {
+        // if there is no XCTO header, then there is nothing to do.
+        return NS_OK;
+    }
+    // XCTO header might contain multiple values which are comma separated, so:
+    // a) let's skip all subsequent values
+    //     e.g. "   NoSniFF   , foo " will be "   NoSniFF   "
+    int32_t idx = contentTypeOptionsHeader.Find(",");
+    if (idx > 0) {
+      contentTypeOptionsHeader = Substring(contentTypeOptionsHeader, 0, idx);
+    }
+    // b) let's trim all surrounding whitespace
+    //    e.g. "   NoSniFF   " -> "NoSniFF"
+    contentTypeOptionsHeader.StripWhitespace();
+    // c) let's compare the header (ignoring case)
+    //    e.g. "NoSniFF" -> "nosniff"
+    //    if it's not 'nosniff' then there is nothing to do here
+    if (!contentTypeOptionsHeader.EqualsIgnoreCase("nosniff")) {
+        // since we are getting here, the XCTO header was sent;
+        // a non matching value most likely means a mistake happenend;
+        // e.g. sending 'nosnif' instead of 'nosniff', let's log a warning.
+        NS_ConvertUTF8toUTF16 char16_header(contentTypeOptionsHeader);
+        const char16_t* params[] = { char16_header.get() };
+        nsCOMPtr<nsIDocument> doc;
+        nsCOMPtr<nsIDOMDocument> domDoc;
+        aLoadInfo->GetLoadingDocument(getter_AddRefs(domDoc));
+        if (domDoc) {
+          doc = do_QueryInterface(domDoc);
+        }
+        nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                        NS_LITERAL_CSTRING("XCTO"),
+                                        doc,
+                                        nsContentUtils::eSECURITY_PROPERTIES,
+                                        "XCTOHeaderValueMissing",
+                                        params, ArrayLength(params));
+        return NS_OK;
+    }
+
+    // 2) Query the content type from the channel
+    nsAFlatCString contentType = aResponseHead->ContentType();
+
+    // 3) Compare the expected MIME type with the actual type
+    if (aLoadInfo->GetContentPolicyType() == nsIContentPolicy::TYPE_STYLESHEET) {
+        if (contentType.EqualsLiteral(TEXT_CSS)) {
+            return NS_OK;
+        }
+        return NS_ERROR_CORRUPTED_CONTENT;
+    }
+
+    if (aLoadInfo->GetContentPolicyType() == nsIContentPolicy::TYPE_SCRIPT) {
+        if (nsContentUtils::IsScriptType(contentType)) {
+            return NS_OK;
+        }
+        return NS_ERROR_CORRUPTED_CONTENT;
+    }
+    return NS_OK;
+}
+
 nsresult
 nsHttpChannel::ProcessResponse()
 {
-    nsresult rv;
+    nsresult rv = ProcessXCTO(mResponseHead, mLoadInfo);
+    if (NS_FAILED(rv)) {
+        LOG(("XCTO: nosniff verification failed.\n"));
+        // log a warning to the console that loading the resrouce was
+        // blocked due to MIME type mismatch.
+        nsAutoCString spec;
+        mURI->GetSpec(spec);
+        NS_ConvertUTF8toUTF16 specUTF16(spec);
+        const char16_t* params[] = { specUTF16.get() };
+        nsCOMPtr<nsIDocument> doc;
+        if (mLoadInfo) {
+            nsCOMPtr<nsIDOMDocument> domDoc;
+            mLoadInfo->GetLoadingDocument(getter_AddRefs(domDoc));
+            if (domDoc) {
+                doc = do_QueryInterface(domDoc);
+            }
+        }
+        nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
+                                        NS_LITERAL_CSTRING("XCTO"),
+                                        doc,
+                                        nsContentUtils::eSECURITY_PROPERTIES,
+                                        "MimeTypeMismatch",
+                                        params, ArrayLength(params));
+        Cancel(rv);
+        return CallOnStartRequest();
+    }
+
     uint32_t httpStatus = mResponseHead->Status();
 
     // Gather data on whether the transaction and page (if this is

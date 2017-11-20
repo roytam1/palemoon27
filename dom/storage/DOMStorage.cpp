@@ -12,6 +12,7 @@
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
 #include "nsICookiePermission.h"
+#include "nsICookieService.h"
 #include "mozIThirdPartyUtil.h"
 
 #include "mozilla/dom/StorageBinding.h"
@@ -228,15 +229,6 @@ DOMStorage::BroadcastChangeNotification(const nsSubstring& aKey,
   NS_DispatchToMainThread(r);
 }
 
-static const uint32_t ACCEPT_SESSION = 2;
-
-// Behavior pref constants taken from nsCookieService.cpp
-static const uint32_t BEHAVIOR_ACCEPT        = 0; // allow all cookies
-static const uint32_t BEHAVIOR_REJECTFOREIGN = 1; // reject all third-party cookies
-static const uint32_t BEHAVIOR_REJECT        = 2; // reject all cookies
-static const uint32_t BEHAVIOR_LIMITFOREIGN  = 3; // reject third-party cookies unless the
-                                                  // eTLD already has at least one cookie
-
 static const char kPermissionType[] = "cookie";
 static const char kStorageEnabled[] = "dom.storage.enabled";
 static const char kCookiesBehavior[] = "network.cookie.cookieBehavior";
@@ -287,7 +279,7 @@ DOMStorage::CanUseStorage(nsIDOMWindow* aWindow, DOMStorage* aStorage)
     uint32_t lifetimePolicy = Preferences::GetUint(kCookiesLifetimePolicy);
 
     // Can't use DOM storage when policy is set to "reject always".
-    if (cookieBehavior == BEHAVIOR_REJECT) {
+    if (cookieBehavior == nsICookieService::BEHAVIOR_REJECT) {
       return false;
     }
 
@@ -295,7 +287,7 @@ DOMStorage::CanUseStorage(nsIDOMWindow* aWindow, DOMStorage* aStorage)
     // If we don't have a window, then we can assume that the content is not
     // originated from a 3rd party, because storage was not obtained through
     // the window object.
-    if (aWindow && cookieBehavior == BEHAVIOR_REJECTFOREIGN) {
+    if (aWindow && cookieBehavior == nsICookieService::BEHAVIOR_REJECT_FOREIGN) {
       nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
         do_GetService(THIRDPARTYUTIL_CONTRACTID);
       MOZ_ASSERT(thirdPartyUtil);
@@ -307,7 +299,7 @@ DOMStorage::CanUseStorage(nsIDOMWindow* aWindow, DOMStorage* aStorage)
       }
     }
 
-    if (lifetimePolicy == ACCEPT_SESSION && aStorage) {
+    if (lifetimePolicy == nsICookieService::ACCEPT_SESSION && aStorage) {
       aStorage->mIsSessionOnly = true;
     }
   }

@@ -498,6 +498,15 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     }
   }
 
+  if (aNode->HasProperties()) {
+    bool ok = aNodesWithProperties.AppendObject(aNode);
+    MOZ_RELEASE_ASSERT(ok, "Out of memory");
+    if (aClone) {
+      ok = aNodesWithProperties.AppendObject(clone);
+      MOZ_RELEASE_ASSERT(ok, "Out of memory");
+    }
+  }
+
   // Cloning template element.
   if (aDeep && aClone && IsTemplateElement(aNode)) {
     DocumentFragment* origContent =
@@ -540,15 +549,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     }
   }
 #endif
-
-  if (aNode->HasProperties()) {
-    bool ok = aNodesWithProperties.AppendObject(aNode);
-    if (aClone) {
-      ok = ok && aNodesWithProperties.AppendObject(clone);
-    }
-
-    NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
-  }
 
   clone.forget(aResult);
 

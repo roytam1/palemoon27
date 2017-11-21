@@ -12785,6 +12785,29 @@ bool PropertyWriteNeedsTypeBarrier(TempAllocator& alloc, CompilerConstraintList*
                                    PropertyName* name, MDefinition** pvalue,
                                    bool canModify, MIRType implicitType = MIRType_None);
 
+inline MIRType
+MIRTypeForTypedArrayRead(Scalar::Type arrayType, bool observedDouble)
+{
+    switch (arrayType) {
+      case Scalar::Int8:
+      case Scalar::Uint8:
+      case Scalar::Uint8Clamped:
+      case Scalar::Int16:
+      case Scalar::Uint16:
+      case Scalar::Int32:
+        return MIRType_Int32;
+      case Scalar::Uint32:
+        return observedDouble ? MIRType_Double : MIRType_Int32;
+      case Scalar::Float32:
+        return MIRType_Float32;
+      case Scalar::Float64:
+        return MIRType_Double;
+      default:
+        break;
+    }
+    MOZ_CRASH("Unknown typed array type");
+}
+
 } // namespace jit
 } // namespace js
 

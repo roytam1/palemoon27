@@ -757,6 +757,7 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
 
   int32_t lastScript = MOZ_SCRIPT_INVALID;
   uint32_t previousChar = 0;
+  uint32_t baseChar = 0; // last non-diacritic seen (base char for marks)
   uint32_t savedNumberingSystem = 0;
 // Simplified/Traditional Chinese check temporarily disabled -- bug 857481
 #if 0
@@ -807,13 +808,21 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
       }
     }
 
-    // Check for consecutive non-spacing marks
-    if (previousChar != 0 &&
-        previousChar == ch &&
-        GetGeneralCategory(ch) == HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK) {
-      return false;
+    if (GetGeneralCategory(ch) == HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK) {
+      // Check for consecutive non-spacing marks
+      if (previousChar != 0 && previousChar == ch) {
+        return false;
+      }
+      // Check for diacritics on dotless-i or dotless-j, which would be
+      // indistinguishable from normal accented letter.
+      if ((baseChar == 0x0237 || baseChar == 0x0131) &&
+          ((ch >= 0x0300 && ch <= 0x0314) || ch == 0x031a)) {
+        return false;
+      }
+    } else {
+       baseChar = ch;
     }
-
+    
     // Simplified/Traditional Chinese check temporarily disabled -- bug 857481
 #if 0
 

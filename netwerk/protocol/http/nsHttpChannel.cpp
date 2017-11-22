@@ -1371,13 +1371,6 @@ ProcessXCTO(nsHttpResponseHead* aResponseHead, nsILoadInfo* aLoadInfo)
 
     // 2) Query the content type from the channel
     nsAFlatCString contentType = aResponseHead->ContentType();
-    
-    if (contentType.IsEmpty()) {
-        // If we have XCTO, we MUST have a content-type as well.
-        // If we don't have a content-type header, then there's
-        // nothing to check and we should allow the load.
-        return NS_OK;
-    }
 
     // 3) Compare the expected MIME type with the actual type
     if (aLoadInfo->GetContentPolicyType() == nsIContentPolicy::TYPE_STYLESHEET) {

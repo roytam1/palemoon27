@@ -463,6 +463,10 @@ nsHttpChannel::SpeculativeConnect()
                       LOAD_NO_NETWORK_IO | LOAD_CHECK_OFFLINE_CACHE))
         return;
 
+    if (mAllowStaleCacheContent) {
+        return;
+    }
+
     nsCOMPtr<nsIInterfaceRequestor> callbacks;
     NS_NewNotificationCallbacksAggregation(mCallbacks, mLoadGroup,
                                            getter_AddRefs(callbacks));
@@ -3139,7 +3143,7 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
         doValidation = false;
     }
     // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used
-    else if (mLoadFlags & nsIRequest::LOAD_FROM_CACHE) {
+    else if (mLoadFlags & nsIRequest::LOAD_FROM_CACHE || mAllowStaleCacheContent) {
         LOG(("NOT validating based on LOAD_FROM_CACHE load flag\n"));
         doValidation = false;
     }
@@ -6078,6 +6082,22 @@ nsHttpChannel::SetCacheTokenCachedCharset(const nsACString &aCharset)
 
     return mCacheEntry->SetMetaDataElement("charset",
                                            PromiseFlatCString(aCharset).get());
+}
+
+NS_IMETHODIMP
+nsHttpChannel::SetAllowStaleCacheContent(bool aAllowStaleCacheContent)
+{
+    LOG(("nsHttpChannel::SetAllowStaleCacheContent [this=%p, allow=%d]",
+         this, aAllowStaleCacheContent));
+    mAllowStaleCacheContent = aAllowStaleCacheContent;
+    return NS_OK;
+}
+NS_IMETHODIMP
+nsHttpChannel::GetAllowStaleCacheContent(bool *aAllowStaleCacheContent)
+{
+    NS_ENSURE_ARG(aAllowStaleCacheContent);
+    *aAllowStaleCacheContent = mAllowStaleCacheContent;
+    return NS_OK;
 }
 
 //-----------------------------------------------------------------------------

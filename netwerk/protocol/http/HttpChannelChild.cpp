@@ -1630,6 +1630,8 @@ HttpChannelChild::ContinueAsyncOpen()
   openArgs.chooseApplicationCache() = mChooseApplicationCache;
   openArgs.appCacheClientID() = appCacheClientId;
   openArgs.allowSpdy() = mAllowSpdy;
+  
+  openArgs.allowStaleCacheContent() = mAllowStaleCacheContent;
 
   propagateLoadInfo(mLoadInfo, openArgs);
 
@@ -1770,6 +1772,20 @@ HttpChannelChild::IsFromCache(bool *value)
     return NS_ERROR_NOT_AVAILABLE;
 
   *value = mIsFromCache;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetAllowStaleCacheContent(bool aAllowStaleCacheContent)
+{
+  mAllowStaleCacheContent = aAllowStaleCacheContent;
+  return NS_OK;
+}
+NS_IMETHODIMP
+HttpChannelChild::GetAllowStaleCacheContent(bool *aAllowStaleCacheContent)
+{
+  NS_ENSURE_ARG(aAllowStaleCacheContent);
+  *aAllowStaleCacheContent = mAllowStaleCacheContent;
   return NS_OK;
 }
 

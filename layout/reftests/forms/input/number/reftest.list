@@ -48,3 +48,4 @@ skip-if(B2G) needs-focus == focus-handling.html focus-handling-ref.html
 # bevel which gets slightly different antialiasing after invalidation):
 fuzzy(128,4) == number-reframe-anon-text-field.html number-reframe-anon-text-field-ref.html
 
+== pseudo-classes.html about:blank

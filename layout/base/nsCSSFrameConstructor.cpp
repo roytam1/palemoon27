@@ -3308,51 +3308,42 @@ nsCSSFrameConstructor::ConstructDetailsFrame(nsFrameConstructorState& aState,
                                              const nsStyleDisplay* aStyleDisplay,
                                              nsFrameItems& aFrameItems)
 {
+  if (!aStyleDisplay->IsScrollableOverflow()) {
+    return ConstructNonScrollableBlockWithConstructor(aState, aItem, aParentFrame,
+                                                      aStyleDisplay, aFrameItems,
+                                                      NS_NewDetailsFrame);
+  }
+
   nsIContent* const content = aItem.mContent;
   nsStyleContext* const styleContext = aItem.mStyleContext;
   nsContainerFrame* geometricParent =
     aState.GetGeometricParent(aStyleDisplay, aParentFrame);
 
   nsContainerFrame* detailsFrame = NS_NewDetailsFrame(mPresShell, styleContext);
-  nsIFrame* frameToReturn = nullptr;
 
   // Build a scroll frame to wrap details frame if necessary.
-  if (aStyleDisplay->IsScrollableOverflow()) {
-    nsContainerFrame* scrollFrame = nullptr;
+  nsContainerFrame* scrollFrame = nullptr;
 
-    nsRefPtr<nsStyleContext> detailsStyle =
-      BeginBuildingScrollFrame(aState, content, styleContext, geometricParent ,
-                               nsCSSAnonBoxes::scrolledContent, false,
-                               scrollFrame);
+  RefPtr<nsStyleContext> detailsStyle =
+    BeginBuildingScrollFrame(aState, content, styleContext, geometricParent ,
+                             nsCSSAnonBoxes::scrolledContent, false,
+                             scrollFrame);
 
-    aState.AddChild(scrollFrame, aFrameItems, content, styleContext,
-                    aParentFrame);
+  aState.AddChild(scrollFrame, aFrameItems, content, styleContext,
+                  aParentFrame);
 
-    nsFrameItems scrollFrameItems;
-    ConstructBlock(aState, aStyleDisplay, content,
-                   scrollFrame, scrollFrame,
-                   detailsStyle, &detailsFrame, scrollFrameItems,
-                   aStyleDisplay->IsPositioned(scrollFrame) ?
-                     scrollFrame : nullptr,
-                   aItem.mPendingBinding);
+  nsFrameItems scrollFrameItems;
+  ConstructBlock(aState, aStyleDisplay, content, scrollFrame, scrollFrame,
+                 detailsStyle, &detailsFrame, scrollFrameItems,
+                 aStyleDisplay->IsPositioned(scrollFrame) ?
+                   scrollFrame : nullptr,
+                 aItem.mPendingBinding);
 
-    MOZ_ASSERT(scrollFrameItems.OnlyChild() == detailsFrame);
+  MOZ_ASSERT(scrollFrameItems.OnlyChild() == detailsFrame);
 
-    FinishBuildingScrollFrame(scrollFrame, detailsFrame);
+  FinishBuildingScrollFrame(scrollFrame, detailsFrame);
 
-    frameToReturn = scrollFrame;
-  } else {
-    ConstructBlock(aState, aStyleDisplay, content, geometricParent,
-                   aParentFrame, styleContext,
-                   &detailsFrame, aFrameItems,
-                   aStyleDisplay->IsPositioned(detailsFrame) ?
-                     detailsFrame : nullptr,
-                   aItem.mPendingBinding);
-
-    frameToReturn = detailsFrame;
-  }
-
-  return frameToReturn;
+  return scrollFrame;
 }
 
 static nsIFrame*
@@ -4349,10 +4340,9 @@ nsCSSFrameConstructor::FindXULLabelData(Element* aElement,
 static nsIFrame*
 NS_NewXULDescriptionFrame(nsIPresShell* aPresShell, nsStyleContext *aContext)
 {
-  // XXXbz do we really need to set those flags?  If the parent is not
-  // a block we'll get them anyway, and if it is, do we want them?
-  return NS_NewBlockFrame(aPresShell, aContext,
-                          NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
+  // XXXbz do we really need to set up the block formatting context root? If the
+  // parent is not a block we'll get it anyway, and if it is, do we want it?
+  return NS_NewBlockFormattingContext(aPresShell, aContext);
 }
 
 /* static */
@@ -4788,6 +4778,20 @@ nsCSSFrameConstructor::ConstructNonScrollableBlock(nsFrameConstructorState& aSta
                                                    const nsStyleDisplay*    aDisplay,
                                                    nsFrameItems&            aFrameItems)
 {
+  return ConstructNonScrollableBlockWithConstructor(aState, aItem, aParentFrame,
+                                                    aDisplay, aFrameItems,
+                                                    NS_NewBlockFrame);
+}
+
+nsIFrame*
+nsCSSFrameConstructor::ConstructNonScrollableBlockWithConstructor(
+  nsFrameConstructorState& aState,
+  FrameConstructionItem& aItem,
+  nsContainerFrame* aParentFrame,
+  const nsStyleDisplay* aDisplay,
+  nsFrameItems& aFrameItems,
+  BlockFrameCreationFunc aConstructor)
+{
   nsStyleContext* const styleContext = aItem.mStyleContext;
 
   // We want a block formatting context root in paginated contexts for
@@ -4796,20 +4800,20 @@ nsCSSFrameConstructor::ConstructNonScrollableBlock(nsFrameConstructorState& aSta
   // we can check it later in nsFrame::ApplyPaginatedOverflowClipping.
   bool clipPaginatedOverflow =
     (aItem.mFCData->mBits & FCDATA_FORCED_NON_SCROLLABLE_BLOCK) != 0;
-  nsContainerFrame* newFrame;
+  nsFrameState flags = nsFrameState(0);
   if ((aDisplay->IsAbsolutelyPositionedStyle() ||
        aDisplay->IsFloatingStyle() ||
        NS_STYLE_DISPLAY_INLINE_BLOCK == aDisplay->mDisplay ||
        clipPaginatedOverflow) &&
       !aParentFrame->IsSVGText()) {
-    newFrame = NS_NewBlockFormattingContext(mPresShell, styleContext);
+    flags = NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT;
     if (clipPaginatedOverflow) {
-      newFrame->AddStateBits(NS_BLOCK_CLIP_PAGINATED_OVERFLOW);
+      flags |= NS_BLOCK_CLIP_PAGINATED_OVERFLOW;
     }
-  } else {
-    newFrame = NS_NewBlockFrame(mPresShell, styleContext);
   }
 
+  nsContainerFrame* newFrame = aConstructor(mPresShell, styleContext);
+  newFrame->AddStateBits(flags);
   ConstructBlock(aState, aDisplay, aItem.mContent,
                  aState.GetGeometricParent(aDisplay, aParentFrame),
                  aParentFrame, styleContext, &newFrame,

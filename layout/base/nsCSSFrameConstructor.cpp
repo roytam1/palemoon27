@@ -3244,8 +3244,7 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
   }
 
   nsContainerFrame* blockFrame =
-    NS_NewBlockFrame(mPresShell, fieldsetContentStyle,
-                     NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
+    NS_NewBlockFormattingContext(mPresShell, fieldsetContentStyle);
   InitAndRestoreFrame(aState, content,
     scrollFrame ? scrollFrame : fieldsetFrame, blockFrame);
 

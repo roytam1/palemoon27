@@ -184,7 +184,7 @@ TextTrack::UpdateActiveCueList()
     }
 
     if (hasChanged) {
-      RefPtr<AsyncEventDispatcher> asyncDispatcher =
+      nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
         new AsyncEventDispatcher(this, NS_LITERAL_STRING("cuechange"), false);
       asyncDispatcher->PostDOMEvent();
       if (mTrackElement) {

@@ -2101,6 +2101,13 @@ nsFrameSelection::PhysicalMove(int16_t aDirection, int16_t aAmount,
       rv = MoveCaret(mapping.direction, aExtend, mapping.amounts[aAmount + 1],
                      eVisual);
     }
+    // And if it was a next-word move that failed (which can happen when
+    // eat_space_to_next_word is true, see bug 1153237), then just move forward
+    // to the line-edge.
+    else if (mapping.amounts[aAmount] == eSelectWord &&
+             mapping.direction == eDirNext) {
+      rv = MoveCaret(eDirNext, aExtend, eSelectEndLine, eVisual);
+    }
   }
 
   return rv;

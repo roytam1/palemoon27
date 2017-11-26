@@ -1936,7 +1936,7 @@ nsHTMLEditRules::WillDeleteSelection(Selection* aSelection,
     NS_ENSURE_STATE(mHTMLEditor);
     nsCOMPtr<Element> host = mHTMLEditor->GetActiveEditingHost();
     NS_ENSURE_TRUE(host, NS_ERROR_FAILURE);
-    res = CheckForEmptyBlock(startNode, host, aSelection, aHandled);
+    res = CheckForEmptyBlock(startNode, host, aSelection, aAction, aHandled);
     NS_ENSURE_SUCCESS(res, res);
     if (*aHandled) {
       return NS_OK;
@@ -5011,6 +5011,7 @@ nsresult
 nsHTMLEditRules::CheckForEmptyBlock(nsINode* aStartNode,
                                     Element* aBodyNode,
                                     Selection* aSelection,
+                                    nsIEditor::EDirection aAction,
                                     bool* aHandled)
 {
   // If the editing host is an inline element, bail out early.
@@ -5076,9 +5077,31 @@ nsHTMLEditRules::CheckForEmptyBlock(nsINode* aStartNode,
         // AfterEdit()
       }
     } else {
-      // Adjust selection to be right after it
-      res = aSelection->Collapse(blockParent, offset + 1);
-      NS_ENSURE_SUCCESS(res, res);
+      if (aAction == nsIEditor::eNext) {
+        // Adjust selection to be right after it.
+        res = aSelection->Collapse(blockParent, offset + 1);
+        NS_ENSURE_SUCCESS(res, res);
+
+        // Move to the start of the next node if it's a text.
+        nsCOMPtr<nsIContent> nextNode = mHTMLEditor->GetNextNode(blockParent,
+                                                                 offset + 1, true);
+        if (nextNode && mHTMLEditor->IsTextNode(nextNode)) {
+          res = aSelection->Collapse(nextNode, 0);
+          NS_ENSURE_SUCCESS(res, res);
+        }
+      } else {
+        // Move to the end of the previous node if it's a text.
+        nsCOMPtr<nsIContent> priorNode = mHTMLEditor->GetPriorNode(blockParent,
+                                                                   offset,
+                                                                   true);
+        if (priorNode && mHTMLEditor->IsTextNode(priorNode)) {
+          res = aSelection->Collapse(priorNode, priorNode->TextLength());
+          NS_ENSURE_SUCCESS(res, res);
+        } else {
+          res = aSelection->Collapse(blockParent, offset + 1);
+          NS_ENSURE_SUCCESS(res, res);
+        }
+      }
     }
     NS_ENSURE_STATE(mHTMLEditor);
     res = mHTMLEditor->DeleteNode(emptyBlock);
@@ -6643,7 +6666,10 @@ nsHTMLEditRules::ReturnInParagraph(Selection* aSelection,
   bool doesCRCreateNewP = mHTMLEditor->GetReturnInParagraphCreatesNewParagraph();
 
   bool newBRneeded = false;
+  bool newSelNode = false;
   nsCOMPtr<nsIDOMNode> sibling;
+  nsCOMPtr<nsIDOMNode> selNode = aNode;
+  int32_t selOffset = aOffset;
 
   NS_ENSURE_STATE(mHTMLEditor);
   if (aNode == aPara && doesCRCreateNewP) {
@@ -6681,7 +6707,7 @@ nsHTMLEditRules::ReturnInParagraph(Selection* aSelection,
         nsCOMPtr<nsIDOMNode> tmp;
         res = mEditor->SplitNode(aNode, aOffset, getter_AddRefs(tmp));
         NS_ENSURE_SUCCESS(res, res);
-        aNode = tmp;
+        selNode = tmp;
       }
 
       newBRneeded = true;
@@ -6690,7 +6716,7 @@ nsHTMLEditRules::ReturnInParagraph(Selection* aSelection,
   } else {
     // not in a text node.
     // is there a BR prior to it?
-    nsCOMPtr<nsIDOMNode> nearNode, selNode = aNode;
+    nsCOMPtr<nsIDOMNode> nearNode;
     NS_ENSURE_STATE(mHTMLEditor);
     res = mHTMLEditor->GetPriorHTMLNode(aNode, aOffset, address_of(nearNode));
     NS_ENSURE_SUCCESS(res, res);
@@ -6705,6 +6731,9 @@ nsHTMLEditRules::ReturnInParagraph(Selection* aSelection,
       if (!nearNode || !mHTMLEditor->IsVisBreak(nearNode) ||
           nsTextEditUtils::HasMozAttr(nearNode)) {
         newBRneeded = true;
+        parent = aNode;
+        offset = aOffset;
+        newSelNode = true;
       }
     }
     if (!newBRneeded) {
@@ -6719,10 +6748,14 @@ nsHTMLEditRules::ReturnInParagraph(Selection* aSelection,
     NS_ENSURE_STATE(mHTMLEditor);
     res =  mHTMLEditor->CreateBR(parent, offset, address_of(brNode));
     sibling = brNode;
+    if (newSelNode) {
+      // We split the parent after the br we've just inserted.
+      selNode = parent;
+      selOffset = offset + 1;
+    }
   }
-  nsCOMPtr<nsIDOMNode> selNode = aNode;
   *aHandled = true;
-  return SplitParagraph(aPara, sibling, aSelection, address_of(selNode), &aOffset);
+  return SplitParagraph(aPara, sibling, aSelection, address_of(selNode), &selOffset);
 }
 
 ///////////////////////////////////////////////////////////////////////////

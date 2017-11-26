@@ -1123,7 +1123,7 @@ nsresult nsHTMLEditor::InsertObject(const char* aType, nsISupports* aObject, boo
                                  aSourceDoc,
                                  aDestinationNode, aDestOffset,
                                  aDoDeleteSelection,
-                                 aIsSafe, false);
+                                 aIsSafe);
   }
 
   return NS_OK;

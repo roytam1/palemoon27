@@ -54,9 +54,10 @@ DetailsFrame::SetInitialChildList(ChildListID aListID, nsFrameList& aChildList)
       // If details is open, the first summary needs to be rendered as if it is
       // the first child.
       for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
-        auto* realFrame = nsPlaceholderFrame::GetRealFrameFor(e.get());
-        auto* cif = realFrame->GetContentInsertionFrame();
-        if (cif && cif->GetType() == nsGkAtoms::summaryFrame) {
+        HTMLSummaryElement* summary =
+          HTMLSummaryElement::FromContent(e.get()->GetContent());
+
+        if (summary && summary->IsMainSummary()) {
           // Take out the first summary frame and insert it to the beginning of
           // the list.
           aChildList.RemoveFrame(e.get());

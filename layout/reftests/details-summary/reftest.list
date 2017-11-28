@@ -3,7 +3,7 @@ multiple-summary.html single-summary.html
 open-multiple-summary.html open-multiple-summary-ref.html
 summary-not-first-child.html single-summary.html
 open-summary-not-first-child.html open-single-summary.html
-open-summary-block-style.html open-single-summary.html
+open-summary-block-style.html open-summary-block-style-ref.html
 no-summary.html no-summary-ref.html
 open-no-summary.html open-no-summary-ref.html
 summary-not-in-details.html summary-not-in-details-ref.html

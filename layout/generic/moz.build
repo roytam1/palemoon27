@@ -105,7 +105,6 @@ UNIFIED_SOURCES += [
     'RubyUtils.cpp',
     'ScrollbarActivity.cpp',
     'StickyScrollContainer.cpp',
-    'SummaryFrame.cpp',
     'TextOverflow.cpp',
 ]
 

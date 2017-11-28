@@ -51,6 +51,8 @@
 #include "nsIFrameInlines.h"
 #include "CounterStyleManager.h"
 #include "nsISelection.h"
+#include "mozilla/dom/HTMLDetailsElement.h"
+#include "mozilla/dom/HTMLSummaryElement.h"
 
 #include "nsBidiPresUtils.h"
 
@@ -7088,6 +7090,13 @@ nsBlockFrame::RenumberListsFor(nsPresContext* aPresContext,
   // possible there is no content insertion frame
   if (!kid)
     return false;
+
+  // Do not renumber list for summary elements.
+  HTMLSummaryElement* summary =
+    HTMLSummaryElement::FromContent(kid->GetContent());
+  if (summary && summary->IsMainSummary()) {
+    return false;
+  }
 
   bool kidRenumberedABullet = false;
 

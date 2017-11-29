@@ -333,7 +333,12 @@ alsa_refill_stream(cubeb_stream * stm)
       snd_pcm_recover(stm->pcm, wrote, 1);
       wrote = snd_pcm_writei(stm->pcm, p, got);
     }
-    assert(wrote >= 0 && wrote == got);
+    if (wrote < 0 || wrote != got) {
+      /* Recovery failed, somehow. */
+      pthread_mutex_unlock(&stm->mutex);
+      stm->state_callback(stm, stm->user_ptr, CUBEB_STATE_ERROR);
+      return ERROR;
+    }
     stm->write_position += wrote;
     gettimeofday(&stm->last_activity, NULL);
   }

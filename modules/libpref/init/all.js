@@ -2171,6 +2171,15 @@ pref("middlemouse.openNewWindow", true);
 pref("middlemouse.contentLoadURL", false);
 pref("middlemouse.scrollbarPosition", false);
 
+#ifdef XP_WIN
+// Mouse 4th/5th button handling
+// Setting these to false allows you to disable the 4th and/or 5th button of
+// your mouse. The 4th button is typically mapped to "Back" and the 5th
+// button is typically mapped to "Forward".
+pref("mouse.button4.enabled", true);
+pref("mouse.button5.enabled", true);
+#endif
+
 // Clipboard behavior
 pref("clipboard.autocopy", false);
 

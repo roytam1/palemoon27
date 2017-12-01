@@ -46,48 +46,43 @@ DetailsFrame::GetType() const
 void
 DetailsFrame::SetInitialChildList(ChildListID aListID, nsFrameList& aChildList)
 {
-  if (aListID == kPrincipalList) {
-    HTMLDetailsElement* details = HTMLDetailsElement::FromContent(GetContent());
-    bool isOpen = details->Open();
-
-    if (isOpen) {
-      // If details is open, the first summary needs to be rendered as if it is
-      // the first child.
-      for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
-        HTMLSummaryElement* summary =
-          HTMLSummaryElement::FromContent(e.get()->GetContent());
-
-        if (summary && summary->IsMainSummary()) {
-          // Take out the first summary frame and insert it to the beginning of
-          // the list.
-          aChildList.RemoveFrame(e.get());
-          aChildList.InsertFrame(nullptr, nullptr, e.get());
-          break;
-        }
-      }
-    }
-
 #ifdef DEBUG
-    for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
-      HTMLSummaryElement* summary =
-        HTMLSummaryElement::FromContent(e.get()->GetContent());
-
-      if (e.get() == aChildList.FirstChild()) {
-        if (summary && summary->IsMainSummary()) {
-          break;
-        }
-      } else {
-        MOZ_ASSERT(!summary || !summary->IsMainSummary(),
-                   "Rest of the children are neither summary elements nor"
-                   "the main summary!");
-      }
-    }
-#endif
-
+  if (aListID == kPrincipalList) {
+    CheckValidMainSummary(aChildList);
   }
+#endif
 
   nsBlockFrame::SetInitialChildList(aListID, aChildList);
 }
+
+#ifdef DEBUG
+bool
+DetailsFrame::CheckValidMainSummary(const nsFrameList& aFrameList) const
+{
+  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
+    HTMLSummaryElement* summary =
+      HTMLSummaryElement::FromContent(e.get()->GetContent());
+
+    if (e.get() == aFrameList.FirstChild()) {
+      if (summary && summary->IsMainSummary()) {
+        return true;
+      } else if (e.get()->GetContent() == GetContent()) {
+        // The child frame's content is the same as our content, which means
+        // it's a kind of wrapper frame. Descend into its child list to find
+        // main summary.
+        if (CheckValidMainSummary(e.get()->PrincipalChildList())) {
+          return true;
+        }
+      }
+    } else {
+      NS_ASSERTION(!summary || !summary->IsMainSummary(),
+                   "Rest of the children are either not summary element "
+                   "or are not the main summary!");
+    }
+  }
+  return false;
+}
+#endif
 
 void
 DetailsFrame::DestroyFrom(nsIFrame* aDestructRoot)

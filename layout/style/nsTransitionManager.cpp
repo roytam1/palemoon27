@@ -162,9 +162,9 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
     }
 
     NS_ASSERTION((pseudoType == nsCSSPseudoElements::ePseudo_before &&
-                  aElement->Tag() == nsGkAtoms::mozgeneratedcontentbefore) ||
+                  aElement->IsGeneratedContentContainerForBefore()) ||
                  (pseudoType == nsCSSPseudoElements::ePseudo_after &&
-                  aElement->Tag() == nsGkAtoms::mozgeneratedcontentafter),
+                  aElement->IsGeneratedContentContainerForAfter()),
                  "Unexpected aElement coming through");
 
     // Else the element we want to use from now on is the element the

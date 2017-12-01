@@ -310,6 +310,18 @@ public:
            GetBindingParent();
   }
 
+  bool IsGeneratedContentContainerForBefore() const
+  {
+    return IsRootOfNativeAnonymousSubtree() &&
+           mNodeInfo->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore;
+  }
+
+  bool IsGeneratedContentContainerForAfter() const
+  {
+    return IsRootOfNativeAnonymousSubtree() &&
+           mNodeInfo->NameAtom() == nsGkAtoms::mozgeneratedcontentafter;
+  }
+
   /**
    * Set attribute values. All attribute values are assumed to have a
    * canonical string representation that can be used for these

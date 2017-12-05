@@ -1719,6 +1719,7 @@ class ASTSerializer
     bool statements(ParseNode* pn, NodeVector& elts);
     bool expressions(ParseNode* pn, NodeVector& elts);
     bool leftAssociate(ParseNode* pn, MutableHandleValue dst);
+    bool rightAssociate(ParseNode* pn, MutableHandleValue dst);
     bool functionArgs(ParseNode* pn, ParseNode* pnargs, ParseNode* pndestruct, ParseNode* pnbody,
                       NodeVector& args, NodeVector& defaults, MutableHandleValue rest);
 
@@ -2584,6 +2585,50 @@ ASTSerializer::leftAssociate(ParseNode* pn, MutableHandleValue dst)
     }
 
     dst.set(left);
+    return true;
+}
+
+bool
+ASTSerializer::rightAssociate(ParseNode* pn, MutableHandleValue dst)
+{
+    MOZ_ASSERT(pn->isArity(PN_LIST));
+    MOZ_ASSERT(pn->pn_count >= 1);
+
+    // First, we need to reverse the list, so that we can traverse it in the correct order.
+    // It's OK to destructively reverse the list, because there are no other consumers.
+
+    ParseNode* head = pn->pn_head;
+    ParseNode* prev = nullptr;
+    ParseNode* current = head;
+    ParseNode* next;
+    while (current != nullptr)
+    {
+        next = current->pn_next;  
+        current->pn_next = prev;   
+        prev = current;
+        current = next;
+    }
+
+    head = prev;
+
+    RootedValue right(cx);
+    if (!expression(head, &right))
+        return false;
+    for (ParseNode* next = head->pn_next; next; next = next->pn_next) {
+        RootedValue left(cx);
+        if (!expression(next, &left))
+            return false;
+
+        TokenPos subpos(pn->pn_pos.begin, next->pn_pos.end);
+
+        BinaryOperator op = binop(pn->getKind(), pn->getOp());
+        LOCAL_ASSERT(op > BINOP_ERR && op < BINOP_LIMIT);
+
+        if (!builder.binaryExpression(op, left, right, &subpos, &right))
+            return false;
+    }
+
+    dst.set(right);
     return true;
 }
 

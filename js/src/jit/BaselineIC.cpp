@@ -2459,6 +2459,10 @@ DoBinaryArithFallback(JSContext* cx, BaselineFrame* frame, ICBinaryArith_Fallbac
         if (!ModValues(cx, &lhsCopy, &rhsCopy, ret))
             return false;
         break;
+      case JSOP_POW:
+        if (!math_pow_handle(cx, lhsCopy, rhsCopy, ret))
+            return false;
+        break;
       case JSOP_BITOR: {
         int32_t result;
         if (!BitOr(cx, lhs, rhs, &result))
@@ -2559,7 +2563,7 @@ DoBinaryArithFallback(JSContext* cx, BaselineFrame* frame, ICBinaryArith_Fallbac
     }
 
     // Handle only int32 or double.
-    if (!lhs.isNumber() || !rhs.isNumber()) {
+    if (!lhs.isNumber() || !rhs.isNumber() && op != JSOP_POW) {
         stub->noteUnoptimizableOperands();
         return true;
     }
@@ -2812,6 +2816,7 @@ ICBinaryArith_Double::Compiler::generateStubCode(MacroAssembler& masm)
         masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, NumberMod), MoveOp::DOUBLE);
         MOZ_ASSERT(ReturnDoubleReg == FloatReg0);
         break;
+      // ???
       default:
         MOZ_CRASH("Unexpected op");
     }

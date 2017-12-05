@@ -7105,6 +7105,7 @@ frontend::EmitTree(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* pn)
       case PNK_MULASSIGN:
       case PNK_DIVASSIGN:
       case PNK_MODASSIGN:
+      case PNK_POWASSIGN:
         if (!EmitAssignment(cx, bce, pn->pn_left, pn->getOp(), pn->pn_right))
             return false;
         break;
@@ -7149,6 +7150,20 @@ frontend::EmitTree(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* pn)
             if (!EmitTree(cx, bce, subexpr))
                 return false;
             if (Emit1(cx, bce, op) < 0)
+                return false;
+        }
+        break;
+      }
+
+      case PNK_POW: {
+        MOZ_ASSERT(pn->isArity(PN_LIST));
+        /* Right-associative operator chain. */
+        for (ParseNode* subexpr = pn->pn_head; subexpr; subexpr = subexpr->pn_next) {
+            if (!EmitTree(cx, bce, subexpr))
+                return false;
+        }
+        for (int i = 0; i < pn->pn_count - 1; i++) {
+            if (!Emit1(cx, bce, JSOP_POW))
                 return false;
         }
         break;

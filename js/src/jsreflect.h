@@ -26,7 +26,7 @@ enum AssignmentOperator {
     /* assign */
     AOP_ASSIGN = 0,
     /* operator-assign */
-    AOP_PLUS, AOP_MINUS, AOP_STAR, AOP_DIV, AOP_MOD,
+    AOP_PLUS, AOP_MINUS, AOP_STAR, AOP_DIV, AOP_MOD, AOP_POW,
     /* shift-assign */
     AOP_LSH, AOP_RSH, AOP_URSH,
     /* binary */
@@ -45,7 +45,7 @@ enum BinaryOperator {
     /* shift */
     BINOP_LSH, BINOP_RSH, BINOP_URSH,
     /* arithmetic */
-    BINOP_ADD, BINOP_SUB, BINOP_STAR, BINOP_DIV, BINOP_MOD,
+    BINOP_ADD, BINOP_SUB, BINOP_STAR, BINOP_DIV, BINOP_MOD, BINOP_POW,
     /* binary */
     BINOP_BITOR, BINOP_BITXOR, BINOP_BITAND,
     /* misc */

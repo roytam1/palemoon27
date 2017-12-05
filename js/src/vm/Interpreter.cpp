@@ -1665,7 +1665,6 @@ CASE(JSOP_UNUSED146)
 CASE(JSOP_UNUSED147)
 CASE(JSOP_UNUSED148)
 CASE(JSOP_BACKPATCH)
-CASE(JSOP_UNUSED150)
 CASE(JSOP_UNUSED157)
 CASE(JSOP_UNUSED158)
 CASE(JSOP_UNUSED159)
@@ -2275,6 +2274,18 @@ CASE(JSOP_MOD)
     REGS.sp--;
 }
 END_CASE(JSOP_MOD)
+
+CASE(JSOP_POW)
+{
+    RootedValue& lval = rootValue0, &rval = rootValue1;
+    lval = REGS.sp[-2];
+    rval = REGS.sp[-1];
+    MutableHandleValue res = REGS.stackHandleAt(-2);
+    if (!math_pow_handle(cx, lval, rval, res))
+        goto error;
+    REGS.sp--;
+}
+END_CASE(JSOP_POW)
 
 CASE(JSOP_NOT)
 {

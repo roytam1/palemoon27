@@ -240,6 +240,12 @@ function openLinkIn(url, where, params) {
   }
 
   if (!w || where == "window") {
+    // Strip referrer data when opening a new private window, to prevent
+    // regular browsing data from leaking into it.
+    if (aIsPrivate) {
+      aReferrerURI = "";
+    }
+    
     var sa = Cc["@mozilla.org/supports-array;1"].
              createInstance(Ci.nsISupportsArray);
 

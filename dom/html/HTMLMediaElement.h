@@ -1350,6 +1350,10 @@ protected:
   // Used to block autoplay of media.
   bool mHasUserInteraction;
 
+  // Media elements also have a default playback start position, which must
+  // initially be set to zero seconds. This time is used to allow the element to
+  // be seeked even before the media is loaded.
+  double mDefaultPlaybackStartPosition;
 public:
   // Helper class to measure times for MSE telemetry stats
   class TimeDurationAccumulator {

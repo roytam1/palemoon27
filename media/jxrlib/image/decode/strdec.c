@@ -2616,7 +2616,8 @@ Int readIndexTable(CWMImageStrCodec * pSC)
             {
                 size_t index1 = k * pSC->cTableEntriesPerTile; // first subband of current tile
                 size_t index2 = (k + 1) * pSC->cTableEntriesPerTile; // first subband of next tile
-                size_t limit1, n;
+                size_t limit1;
+                int32_t n;
 
                 // Find the last subband entry corresponding to this tile that is not 0, i.e. that has data present.
                 // It looks like only flexbits may be missing, but just in case iterate down to DC. 

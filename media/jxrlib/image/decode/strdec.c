@@ -29,6 +29,7 @@
 #include "decode.h"
 #include "strTransform.h"
 #include <math.h>
+#include <stdint.h>
 #include "perfTimer.h"
 
 #ifdef MEM_TRACE

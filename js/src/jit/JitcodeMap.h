@@ -942,7 +942,7 @@ class JitcodeIonTable
   private:
     /* Variable length payload section "below" here. */
     uint32_t numRegions_;
-    uint32_t regionOffsets_[0];
+    uint32_t regionOffsets_[1];
 
     const uint8_t* payloadEnd() const {
         return reinterpret_cast<const uint8_t*>(this);

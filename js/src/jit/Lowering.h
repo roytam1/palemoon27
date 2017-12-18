@@ -104,7 +104,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitUnreachable(MUnreachable* unreachable);
     void visitAssertFloat32(MAssertFloat32* ins);
     void visitGetDynamicName(MGetDynamicName* ins);
-    void visitFilterArgumentsOrEval(MFilterArgumentsOrEval* ins);
     void visitCallDirectEval(MCallDirectEval* ins);
     void visitTest(MTest* test);
     void visitGotoWithFake(MGotoWithFake* ins);

@@ -73,8 +73,6 @@
     _(Bail)                         \
     _(Unreachable)                  \
     _(GetDynamicName)               \
-    _(FilterArgumentsOrEvalS)       \
-    _(FilterArgumentsOrEvalV)       \
     _(CallDirectEvalS)              \
     _(CallDirectEvalV)              \
     _(StackArgT)                    \

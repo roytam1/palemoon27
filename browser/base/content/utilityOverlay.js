@@ -219,6 +219,7 @@ function openLinkIn(url, where, params) {
   var aDisallowInheritPrincipal = params.disallowInheritPrincipal;
   var aInitiatingDoc        = params.initiatingDoc;
   var aIsPrivate            = params.private;
+  var sendReferrerURI       = true;
 
   if (where == "save") {
     if (!aInitiatingDoc) {
@@ -243,7 +244,7 @@ function openLinkIn(url, where, params) {
     // Strip referrer data when opening a new private window, to prevent
     // regular browsing data from leaking into it.
     if (aIsPrivate) {
-      aReferrerURI = "";
+      sendReferrerURI = false;
     }
     
     var sa = Cc["@mozilla.org/supports-array;1"].
@@ -266,7 +267,8 @@ function openLinkIn(url, where, params) {
 
     sa.AppendElement(wuri);
     sa.AppendElement(charset);
-    sa.AppendElement(aReferrerURI);
+    if (sendReferrerURI)
+      sa.AppendElement(aReferrerURI);
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
 

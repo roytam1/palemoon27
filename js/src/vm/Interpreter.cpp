@@ -2893,7 +2893,6 @@ CASE(JSOP_TABLESWITCH)
 }
 
 CASE(JSOP_ARGUMENTS)
-    MOZ_ASSERT(!REGS.fp()->fun()->hasRest());
     if (!script->ensureHasAnalyzedArgsUsage(cx))
         goto error;
     if (script->needsArgsObj()) {

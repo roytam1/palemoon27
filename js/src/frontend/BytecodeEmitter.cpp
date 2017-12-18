@@ -6917,8 +6917,6 @@ frontend::EmitTree(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* pn)
             ParseNode* rest = nullptr;
             bool restIsDefn = false;
             if (fun->hasRest()) {
-                MOZ_ASSERT(!bce->sc->asFunctionBox()->argumentsHasLocalBinding());
-
                 // Defaults with a rest parameter need special handling. The
                 // rest parameter needs to be undefined while defaults are being
                 // processed. To do this, we create the rest argument and let it
@@ -6964,7 +6962,6 @@ frontend::EmitTree(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* pn)
                 return false;
             if (pn2->pn_next == pnlast && fun->hasRest() && !hasDefaults) {
                 // Fill rest parameter. We handled the case with defaults above.
-                MOZ_ASSERT(!bce->sc->asFunctionBox()->argumentsHasLocalBinding());
                 bce->switchToProlog();
                 if (Emit1(cx, bce, JSOP_REST) < 0)
                     return false;

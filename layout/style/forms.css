@@ -17,6 +17,21 @@
   overflow: inherit;
   padding: inherit;
   block-size: 100%; /* Need this so percentage block-sizes of kids work right */
+  /* Please keep the Multicol/Flex/Align sections below in sync with
+     ::-moz-scrolled-content in ua.css and ::-moz-button-content below. */
+  /* Multicol container */
+  -moz-column-count: inherit;
+  -moz-column-width: inherit;
+  -moz-column-gap: inherit;
+  -moz-column-rule: inherit;
+  /* Flex container */
+  flex-direction: inherit;
+  flex-wrap: inherit;
+  /* CSS Align */
+  align-content: inherit;
+  align-items: inherit;
+  justify-content: inherit;
+  justify-items: inherit;
 }
 
 /* miscellaneous form elements */
@@ -614,6 +629,21 @@ button {
 
 *|*::-moz-button-content {
   display: block;
+  /* Please keep the Multicol/Flex/Align sections below in sync with
+     ::-moz-scrolled-content in ua.css and ::-moz-fieldset-content above. */
+  /* Multicol container */
+  -moz-column-count: inherit;
+  -moz-column-width: inherit;
+  -moz-column-gap: inherit;
+  -moz-column-rule: inherit;
+  /* Flex container */
+  flex-direction: inherit;
+  flex-wrap: inherit;
+  /* CSS Align */
+  align-content: inherit;
+  align-items: inherit;
+  justify-content: inherit;
+  justify-items: inherit;
 }
 
 button:hover,

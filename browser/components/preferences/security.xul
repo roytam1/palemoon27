@@ -39,6 +39,7 @@
 
       <!-- Passwords -->
       <preference id="signon.rememberSignons" name="signon.rememberSignons" type="bool"/>
+      <preference id="signon.autofillForms"   name="signon.autofillForms"   type="bool"/>
 
       <!-- Security Protocols -->
       
@@ -105,6 +106,9 @@
                 oncommand="gSecurityPane.showPasswordExceptions();"
                 preference="pref.privacy.disable_button.view_passwords_exceptions"/>
       </hbox>
+      <checkbox id="autofillPasswords" flex="1"
+                label="&autofillPasswords.label;" accesskey="&autofillPasswords.accesskey;"
+                preference="signon.autofillForms"/>
       <hbox id="masterPasswordBox">
         <checkbox id="useMasterPassword" flex="1"
                   oncommand="gSecurityPane.updateMasterPasswordButton();"

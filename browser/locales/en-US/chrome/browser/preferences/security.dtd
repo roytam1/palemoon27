@@ -23,6 +23,9 @@
 <!ENTITY  passwordExceptions.label      "Exceptions…">
 <!ENTITY  passwordExceptions.accesskey  "x">
 
+<!ENTITY  autofillPasswords.label       "Automatically fill in log-in details">
+<!ENTITY  autofillPasswords.accesskey   "A">
+
 <!ENTITY  useMasterPassword.label        "Use a master password">
 <!ENTITY  useMasterPassword.accesskey    "U">
 <!ENTITY  changeMasterPassword.label     "Change Master Password…">

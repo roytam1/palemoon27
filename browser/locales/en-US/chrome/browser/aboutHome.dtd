@@ -15,7 +15,7 @@
 
 <!ENTITY abouthome.bookmarksButton.label "Bookmarks">
 <!ENTITY abouthome.historyButton.label   "History">
-<!ENTITY abouthome.settingsButton.label  "Settings">
+<!ENTITY abouthome.settingsButton.label  "Preferences">
 <!ENTITY abouthome.addonsButton.label    "Add-ons">
 <!ENTITY abouthome.appsButton.label      "Marketplace">
 <!ENTITY abouthome.downloadsButton.label "Downloads">

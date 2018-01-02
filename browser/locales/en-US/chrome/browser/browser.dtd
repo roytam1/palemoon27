@@ -331,7 +331,7 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY appMenuUnsorted.label "Unsorted Bookmarks">
 <!ENTITY appMenuWebDeveloper.label "Web Developer">
 <!ENTITY appMenuGettingStarted.label "Getting Started">
-<!ENTITY appMenuSafeMode.label "Restart with Add-ons Disabled…">
+<!ENTITY appMenuSafeMode.label "Restart in Safe Mode…">
 
 <!ENTITY openCmd.commandkey           "l">
 <!ENTITY urlbar.placeholder2          "Search or enter address">

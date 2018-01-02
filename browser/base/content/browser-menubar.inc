@@ -168,15 +168,6 @@
                           label="&bidiSwitchTextDirectionItem.label;"
                           accesskey="&bidiSwitchTextDirectionItem.accesskey;"
                           hidden="true"/>
-#ifdef XP_UNIX
-#ifndef XP_MACOSX
-                <menuseparator/>
-                <menuitem id="menu_preferences"
-                          label="&preferencesCmdUnix.label;"
-                          accesskey="&preferencesCmdUnix.accesskey;"
-                          oncommand="openPreferences();"/>
-#endif
-#endif
               </menupopup>
             </menu>
 
@@ -589,13 +580,11 @@
                         key="key_viewInfo"
 #endif
                         command="View:PageInfo"/>
-#ifndef XP_UNIX
               <menuseparator id="prefSep"/>
               <menuitem id="menu_preferences"
                         label="&preferencesCmd2.label;"
                         accesskey="&preferencesCmd2.accesskey;"
                         oncommand="openPreferences();"/>
-#endif
               </menupopup>
             </menu>
 

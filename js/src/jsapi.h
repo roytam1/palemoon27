@@ -4210,7 +4210,8 @@ GetSymbolDescription(HandleSymbol symbol);
 
 /* Well-known symbols. */
 #define JS_FOR_EACH_WELL_KNOWN_SYMBOL(macro) \
-    macro(iterator)
+    macro(iterator) \
+    macro(unscopables)
 
 enum class SymbolCode : uint32_t {
     // There is one SymbolCode for each well-known symbol.

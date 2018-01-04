@@ -120,9 +120,7 @@ private:
   // media segment have been processed.
   nsRefPtr<CodedFrameProcessingPromise> CodedFrameProcessing();
   void CompleteCodedFrameProcessing();
-  // Called by ResetParserState. Complete parsing the input buffer for the
-  // current media segment.
-  void FinishCodedFrameProcessing();
+  // Called by ResetParserState.
   void CompleteResetParserState();
   nsRefPtr<RangeRemovalPromise>
     CodedFrameRemovalWithPromise(TimeInterval aInterval);

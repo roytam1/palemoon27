@@ -276,6 +276,8 @@ private:
 
   mozilla::Atomic<bool> mActive;
 
+  int64_t mReportedOffset;
+
   MediaPromiseRequestHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;
   const nsCString mType;
 };

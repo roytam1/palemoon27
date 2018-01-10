@@ -685,3 +685,9 @@ toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-container > .toolbarbu
   width: 16px;
   height: 16px;
 }
+
+/* Remove white bar at the bottom of the screen when watching HTML5 video in fullscreen on Windows */
+#main-window[inFullscreen] #global-notificationbox,
+#main-window[inFullscreen] #high-priority-global-notificationbox {
+  visibility: collapse;
+}

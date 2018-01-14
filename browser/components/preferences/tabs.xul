@@ -77,6 +77,8 @@
                 preference="browser.search.context.loadInBackground"/>
       <checkbox id="closeWindowWithLastTab" label="&closeWindowWithLastTab.label;"
                 preference="browser.tabs.closeWindowWithLastTab"/>
+      <checkbox id="showTabPreviews" label="&showTabPreviews.label;"
+                preference="browser.ctrlTab.previews"/>
       <hbox align="center">
         <label value="&newtabPage.label;"/>
         <menulist 

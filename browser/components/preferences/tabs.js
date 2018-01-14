@@ -76,6 +76,16 @@ var gTabsPane = {
   },
 
   /**
+   * Determines whether or not tab previews will be shown when using Ctrl+Tab.
+   *
+   * @returns |true| if tab previews should be shown
+   */
+  showTabPreviews: function() {
+    var showTabPreviews = document.getElementById("showTabPreviews");
+    return showTabPreviews.value != 2;
+  },
+  
+  /**
    * Determines the value of the New Tab display drop-down based
    * on the value of browser.newtab.url.
    *

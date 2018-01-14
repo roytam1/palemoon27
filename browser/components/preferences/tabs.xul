@@ -34,6 +34,7 @@
       <preference id="browser.tabs.insertRelatedAfterCurrent"  name="browser.tabs.insertRelatedAfterCurrent"  type="bool"/>
       <preference id="browser.search.context.loadInBackground" name="browser.search.context.loadInBackground" type="bool" inverted="true"/>
       <preference id="browser.tabs.closeWindowWithLastTab"     name="browser.tabs.closeWindowWithLastTab"     type="bool"/>
+      <preference id="browser.ctrlTab.previews"                name="browser.ctrlTab.previews"                type="bool"/>
       
       <preference id="browser.newtab.url"    name="browser.newtab.url"    type="string"/>
       <preference id="browser.newtab.myhome" name="browser.newtab.myhome" type="string"/>

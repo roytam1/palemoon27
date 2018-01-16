@@ -1878,7 +1878,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
      between the tabs and the top edge of the screen, even when the
      tabs have a top margin of 0, which is important for Fitts' law
      compliance */
-  border: 2px solid;
+  border: 1.6px solid;
   border-bottom: none;
   border-radius: var(--tab-border-radius) var(--tab-border-radius) 0px 0px;
   -moz-border-top-colors: transparent #929292;
@@ -1887,7 +1887,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   /* Hide the transparent top border by default */
   margin-top: -1px;
   /* Reduce the gap between the tabs */
-  -moz-margin-start: -1px;
+  -moz-margin-start: -0.8px;
   box-shadow: var(--tab-box-shadow);
 }
 

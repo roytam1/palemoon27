@@ -26,7 +26,7 @@
 <!ENTITY insertRelatedAfterCurrent.label    "Insert related tabs next to the current tab">
 <!ENTITY contextLoadInBackground.label      "When performing a context search, switch to the new tab immediately">
 <!ENTITY closeWindowWithLastTab.label       "Close the window when the last tab is closed">
-<!ENTITY showTabPreviews.label              "Show tab previews when switching tabs with Ctrl+Tab">
+<!ENTITY showTabPreviews.label              "Show previews when switching tabs with Ctrl+Tab">
 
 <!ENTITY newtabPage.label                   "When opening a new tab, show:">
 <!ENTITY newtabPage.custom.label            "A custom URL">

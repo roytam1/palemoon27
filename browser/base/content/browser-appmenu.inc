@@ -147,6 +147,8 @@
                     observes="devtoolsMenuBroadcaster_BrowserConsole"/>
           <menuitem id="appmenu_responsiveUI"
                     observes="devtoolsMenuBroadcaster_ResponsiveUI"/>
+          <menuitem id="appmenu_eyedropper"
+                    observes="devtoolsMenuBroadcaster_Eyedropper"/>
           <menuitem id="appmenu_scratchpad"
                     observes="devtoolsMenuBroadcaster_Scratchpad"/>
 #endif

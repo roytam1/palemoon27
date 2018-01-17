@@ -33,9 +33,6 @@ js_IdIsIndex(jsid id, uint32_t* indexp)
     return js::StringIsArrayIndex(JSID_TO_ATOM(id), indexp);
 }
 
-extern JSObject*
-js_InitArrayClass(JSContext* cx, js::HandleObject obj);
-
 extern bool
 js_InitContextBusyArrayTable(JSContext* cx);
 

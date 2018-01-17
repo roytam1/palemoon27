@@ -44,6 +44,7 @@
     macro(construct, construct, "construct") \
     macro(constructor, constructor, "constructor") \
     macro(ConvertAndCopyTo, ConvertAndCopyTo, "ConvertAndCopyTo") \
+    macro(copyWithin, copyWithin, "copyWithin") \
     macro(count, count, "count") \
     macro(currency, currency, "currency") \
     macro(currencyDisplay, currencyDisplay, "currencyDisplay") \
@@ -67,6 +68,7 @@
     macro(emptyRegExp, emptyRegExp, "(?:)") \
     macro(encodeURI, encodeURI, "encodeURI") \
     macro(encodeURIComponent, encodeURIComponent, "encodeURIComponent") \
+    macro(entries, entries, "entries") \
     macro(enumerable, enumerable, "enumerable") \
     macro(enumerate, enumerate, "enumerate") \
     macro(escape, escape, "escape") \
@@ -75,6 +77,9 @@
     macro(fieldOffsets, fieldOffsets, "fieldOffsets") \
     macro(fieldTypes, fieldTypes, "fieldTypes") \
     macro(fileName, fileName, "fileName") \
+    macro(fill, fill, "fill") \
+    macro(find, find, "find") \
+    macro(findIndex, findIndex, "findIndex") \
     macro(fix, fix, "fix") \
     macro(float32, float32, "float32") \
     macro(float32x4, float32x4, "float32x4") \
@@ -97,6 +102,7 @@
     macro(hasOwnProperty, hasOwnProperty, "hasOwnProperty") \
     macro(ignoreCase, ignoreCase, "ignoreCase") \
     macro(ignorePunctuation, ignorePunctuation, "ignorePunctuation") \
+    macro(includes, includes, "includes") \
     macro(index, index, "index") \
     macro(InitializeCollator, InitializeCollator, "InitializeCollator") \
     macro(InitializeDateTimeFormat, InitializeDateTimeFormat, "InitializeDateTimeFormat") \

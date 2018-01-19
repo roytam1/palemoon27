@@ -71,10 +71,6 @@
   -moz-box-flex: 1; /* make menu items expand to fill toolbar height */
 }
 
-#main-menubar > menu:not(:-moz-lwtheme) {
-  color: inherit; /* allow menubar items to be styled */
-}
-
 #navigator-toolbox {
   -moz-appearance: none;
   background-color: transparent;
@@ -117,6 +113,10 @@
   #main-window[tabsintitlebar] #titlebar-content:-moz-lwtheme {
     -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
     visibility: visible;
+  }
+  
+  #main-menubar > menu:not(:-moz-lwtheme) {
+    color: inherit; /* allow menubar items to be styled */
   }
 }
 

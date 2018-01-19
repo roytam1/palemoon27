@@ -163,13 +163,6 @@ WillRedirect(const nsHttpResponseHead * response)
            response->PeekHeader(nsHttp::Location);
 }
 
-// This is required to bypass XCTO: nosniff check
-bool
-WillRedirectOrNotModified(const nsHttpResponseHead * response)
-{
-    return WillRedirect(response) || response->Status() == 304;
-}
-
 } // unnamed namespace
 
 nsresult
@@ -1322,13 +1315,20 @@ nsHttpChannel::ProcessAltService()
                                  mCaps & NS_HTTP_DISALLOW_SPDY);
 }
 
+bool IsSuccessfulStatus(uint32_t status)
+{
+    return status == 200 || status == 201 || status == 202 || status == 203 ||
+           status == 204 || status == 205 || status == 206 || status == 207 || 
+           status == 208 || status == 226;
+}
+
 // Check and potentially enforce X-Content-Type-Options: nosniff
 nsresult
 ProcessXCTO(nsHttpResponseHead* aResponseHead, nsILoadInfo* aLoadInfo)
 {
-    if (!aResponseHead || WillRedirectOrNotModified(aResponseHead) || !aLoadInfo) {
+    if (!aResponseHead || !IsSuccessfulStatus(aResponseHead->Status()) || !aLoadInfo) {
         // if there is no response head or no loadInfo, then there is nothing to do
-        // we also skip the check in case of 30x response
+        // we also skip the check if response code is not 2xx
         return NS_OK;
     }
 

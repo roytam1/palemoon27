@@ -945,9 +945,7 @@ MouseScrollHandler::SystemSettings::Init()
     PR_LOG(gMouseScrollLog, PR_LOG_ALWAYS,
       ("MouseScroll::SystemSettings::Init(): ::SystemParametersInfo("
          "SPI_GETWHEELSCROLLCHARS) failed, %s",
-       IsVistaOrLater() ?
-         "this is unexpected on Vista or later" :
-         "but on XP or earlier, this is not a problem"));
+         "this is unexpected."));
     mScrollChars = 1;
   }
 

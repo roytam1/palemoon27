@@ -2788,9 +2788,7 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     // dwrite library and create a factory as early as possible so that the
     // FntCache service is ready by the time it's needed.
 
-    if (IsVistaOrLater()) {
-      CreateThread(nullptr, 0, &InitDwriteBG, nullptr, 0, nullptr);
-    }
+    CreateThread(nullptr, 0, &InitDwriteBG, nullptr, 0, nullptr);
   }
 #endif
 

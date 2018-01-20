@@ -72,8 +72,9 @@ void* ExecutableAllocator::computeRandomAllocationAddress()
 static bool
 RandomizeIsBrokenImpl()
 {
-    // We disable everything before Vista, for now.
-    return !mozilla::IsVistaOrLater();
+    // Add specific checks here for broken randomizer implementations in 
+    // operating systems (check if on broken O.S. versions).
+    return false;
 }
 
 static bool

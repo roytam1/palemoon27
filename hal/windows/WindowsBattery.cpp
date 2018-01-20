@@ -11,7 +11,6 @@
 #include "nsComponentManagerUtils.h"
 
 #include <windows.h>
-#include "mozilla/WindowsVersion.h"
 
 using namespace mozilla::dom::battery;
 
@@ -26,23 +25,6 @@ static decltype(UnregisterPowerSettingNotification)* sUnregisterPowerSettingNoti
 static HPOWERNOTIFY sPowerHandle = nullptr;
 static HPOWERNOTIFY sCapacityHandle = nullptr;
 static HWND sHWnd = nullptr;
-
-static void
-UpdateHandler(nsITimer* aTimer, void* aClosure) {
-  NS_ASSERTION(!IsVistaOrLater(),
-               "We shouldn't call this function for Vista or later version!");
-
-  static hal::BatteryInformation sLastInfo;
-  hal::BatteryInformation currentInfo;
-
-  hal_impl::GetCurrentBatteryInformation(&currentInfo);
-  if (sLastInfo.level() != currentInfo.level() ||
-      sLastInfo.charging() != currentInfo.charging() ||
-      sLastInfo.remainingTime() != currentInfo.remainingTime()) {
-    hal::NotifyBatteryChange(currentInfo);
-    sLastInfo = currentInfo;
-  }
-}
 
 static
 LRESULT CALLBACK

@@ -222,16 +222,8 @@ GDIFontEntry::IsSymbolFont()
 gfxFont *
 GDIFontEntry::CreateFontInstance(const gfxFontStyle* aFontStyle, bool aNeedsBold)
 {
-    bool isXP = !IsVistaOrLater();
-
-    bool useClearType = isXP && !aFontStyle->systemFont &&
-        (gfxWindowsPlatform::GetPlatform()->UseClearTypeAlways() ||
-         (mIsDataUserFont &&
-          gfxWindowsPlatform::GetPlatform()->UseClearTypeForDownloadableFonts()));
-
-    return new gfxGDIFont(this, aFontStyle, aNeedsBold, 
-                          (useClearType ? gfxFont::kAntialiasSubpixel
-                                        : gfxFont::kAntialiasDefault));
+    return new gfxGDIFont(this, aFontStyle, aNeedsBold,
+                          gfxFont::kAntialiasDefault);
 }
 
 nsresult

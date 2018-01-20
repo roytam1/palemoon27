@@ -504,7 +504,7 @@ nsWindow::Create(nsIWidget *aParent,
       parent = nullptr;
     }
 
-    if (IsVistaOrLater() && !IsWin8OrLater() &&
+    if (!IsWin8OrLater() &&
         HasBogusPopupsDropShadowOnMultiMonitor()) {
       extendedStyle |= WS_EX_COMPOSITED;
     }
@@ -633,13 +633,11 @@ nsWindow::Create(nsIWidget *aParent,
   // before any visible windows, and after the profile has been initialized),
   // do some initialization work.
   if (sTrimOnMinimize == 2 && mWindowType == eWindowType_invisible) {
-    // Our internal trim prevention logic is effective on 2K/XP at maintaining
-    // the working set when windows are minimized, but on Vista and up it has
-    // little to no effect. Since this feature has been the source of numerous
-    // bugs over the years, disable it (sTrimOnMinimize=1) on Vista and up.
+    // Our internal trim prevention logic has little to no effect on current
+    // Windows versions. Since this feature has been the source of numerous
+    // bugs over the years, disable it (sTrimOnMinimize=1).
     sTrimOnMinimize =
-      Preferences::GetBool("config.trim_on_minimize",
-        IsVistaOrLater() ? 1 : 0);
+      Preferences::GetBool("config.trim_on_minimize", 1);
     sSwitchKeyboardLayout =
       Preferences::GetBool("intl.keyboard.per_window_layout", false);
   }
@@ -1261,11 +1259,11 @@ bool nsWindow::IsVisible() const
  *
  **************************************************************/
 
-// XP and Vista visual styles sometimes require window clipping regions to be applied for proper
+// Visual styles sometimes require window clipping regions to be applied for proper
 // transparency. These routines are called on size and move operations.
 void nsWindow::ClearThemeRegion()
 {
-  if (IsVistaOrLater() && !HasGlass() &&
+  if (!HasGlass() &&
       (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
        (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     SetWindowRgn(mWnd, nullptr, false);
@@ -1279,7 +1277,7 @@ void nsWindow::SetThemeRegion()
   // so default constants are used for part and state. At some point we might need part and
   // state values from nsNativeThemeWin's GetThemePartAndState, but currently windows that
   // change shape based on state haven't come up.
-  if (IsVistaOrLater() && !HasGlass() &&
+  if (!HasGlass() &&
       (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
        (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     HRGN hRgn = nullptr;
@@ -3438,17 +3436,13 @@ nsWindow::OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
     return NS_OK;
   }
 
-  // Only Vista and later, Windows has the system setting of horizontal
-  // scrolling by the mouse wheel.
-  if (IsVistaOrLater()) {
-    if (!::SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0, &systemSpeed, 0)) {
-      return NS_ERROR_FAILURE;
-    }
-    // The default horizontal scrolling speed is 3, this is defined on the
-    // document of SystemParametersInfo in MSDN.
-    if (systemSpeed != kSystemDefaultScrollingSpeed) {
-      return NS_OK;
-    }
+  if (!::SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0, &systemSpeed, 0)) {
+    return NS_ERROR_FAILURE;
+  }
+  // The default horizontal scrolling speed is 3, this is defined on the
+  // document of SystemParametersInfo in MSDN.
+  if (systemSpeed != kSystemDefaultScrollingSpeed) {
+    return NS_OK;
   }
 
   // Limit the overridden delta value from the system settings.  The mouse

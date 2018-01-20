@@ -133,9 +133,7 @@ WMFDecoder::UnloadDLLs()
 bool
 WMFDecoder::IsEnabled()
 {
-  // We only use WMF on Windows Vista and up
-  return IsVistaOrLater() &&
-         Preferences::GetBool("media.windows-media-foundation.enabled");
+  return Preferences::GetBool("media.windows-media-foundation.enabled");
 }
 
 } // namespace mozilla

@@ -1670,21 +1670,16 @@ MediaManager::GetUserMedia(
     case dom::MediaSourceEnum::Window:
       // Deny screensharing request if support is disabled, or
       // the requesting document is not from a host on the whitelist, or
-      // we're on Mac OSX 10.6 and WinXP until proved that they work
+      // we're on Mac OSX 10.6
       if (!Preferences::GetBool(((src == dom::MediaSourceEnum::Browser)?
                                 "media.getusermedia.browser.enabled" :
                                 "media.getusermedia.screensharing.enabled"),
                                 false) ||
-#if defined(XP_MACOSX) || defined(XP_WIN)
+#if defined(XP_MACOSX)
           (
             !Preferences::GetBool("media.getusermedia.screensharing.allow_on_old_platforms",
                                   false) &&
-#if defined(XP_MACOSX)
             !nsCocoaFeatures::OnLionOrLater()
-#endif
-#if defined (XP_WIN)
-            !IsVistaOrLater()
-#endif
             ) ||
 #endif
           (!privileged && !HostHasPermission(*docURI))) {

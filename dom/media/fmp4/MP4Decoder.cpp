@@ -228,11 +228,11 @@ IsGMPDecoderAvailable()
 static bool
 HavePlatformMPEGDecoders()
 {
-  return Preferences::GetBool("media.use-blank-decoder") ||
 #ifdef XP_WIN
-         // We have H.264/AAC platform decoders on Windows Vista and up.
-         IsVistaOrLater() ||
-#endif
+  // We always have H.264/AAC platform decoders on Windows.
+  return true;
+#else
+  return Preferences::GetBool("media.use-blank-decoder") ||
          IsAndroidAvailable() ||
          IsFFmpegAvailable() ||
          IsAppleAvailable() ||
@@ -240,6 +240,7 @@ HavePlatformMPEGDecoders()
          IsGMPDecoderAvailable() ||
          // TODO: Other platforms...
          false;
+#endif
 }
 
 /* static */

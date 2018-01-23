@@ -117,6 +117,12 @@ IsBidiUI()
   return Preferences::GetBool("bidi.browser.ui");
 }
 
+static bool
+CjkThickCaret()
+{
+  return Preferences::GetBool("layout.cjkthickcaret");
+}
+
 nsCaret::nsCaret()
 : mOverrideOffset(0)
 , mIsBlinkOn(false)
@@ -188,7 +194,7 @@ nsCaret::ComputeMetrics(nsIFrame* aFrame, int32_t aOffset, nscoord aCaretHeight)
     nsPresContext::CSSPixelsToAppUnits(
         LookAndFeel::GetInt(LookAndFeel::eIntID_CaretWidth, 1));
 
-  if (DrawCJKCaret(aFrame, aOffset)) {
+  if (DrawCJKCaret(aFrame, aOffset) && CjkThickCaret()) {
     caretWidth += nsPresContext::CSSPixelsToAppUnits(1);
   }
   nscoord bidiIndicatorSize = nsPresContext::CSSPixelsToAppUnits(kMinBidiIndicatorPixels);

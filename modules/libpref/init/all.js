@@ -4909,4 +4909,4 @@ pref("dom.secureelement.enabled", false);
 pref("plugins.rewrite_youtube_embeds", true);
 
 // Thick caret when behind CJK characters
-pref("layout.cjkthickcaret", false);
+pref("layout.cjkthickcaret", true);

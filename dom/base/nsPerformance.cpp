@@ -468,10 +468,9 @@ DOMHighResTimeStamp
 nsPerformance::Now()
 {
   double nowTimeMs = GetDOMTiming()->TimeStampToDOMHighRes(TimeStamp::Now());
-  // Clamp the resolution of performance.now() calls to 50us, because otherwise
+  // Clamp the resolution of performance.now() calls to 1 ms, because otherwise
   // we allow various timing attacks that depend on high accuracy timers.
-  const double maxResolutionMs = 0.050;
-  return floor(nowTimeMs / maxResolutionMs) * maxResolutionMs;
+  return floor(nowTimeMs);
 }
 
 JSObject*

@@ -3032,6 +3032,9 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
 
+    if (!mElement) {
+      return;
+    }
     mElement->NotifyMediaStreamTracksAvailable(aStream);
   }
 private:

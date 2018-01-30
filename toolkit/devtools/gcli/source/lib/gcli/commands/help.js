@@ -270,7 +270,7 @@ exports.items = [
           '  <div if="${command.isParent}">\n' +
           '    <p class="gcli-help-header">${l10n.subCommands}:</p>\n' +
           '    <ul class="gcli-help-${subcommands}">\n' +
-          '      <li if="${subcommands.length === 0}">${l10n.subcommandsNone}</li>\n' +
+          '      <li if="${subcommands.length === 0}">${l10n.subCommandsNone}</li>\n' +
           '      <li foreach="subcommand in ${subcommands}">\n' +
           '        ${subcommand.name}: ${subcommand.description}\n' +
           '        <span class="gcli-out-shortcut" data-command="help ${subcommand.name}"\n' +
@@ -316,7 +316,7 @@ exports.items = [
           '\n' +
           '<span if="${command.isParent}"># ${l10n.subCommands}:</span>\n' +
           '\n' +
-          '<span if="${subcommands.length === 0}">${l10n.subcommandsNone}</span>\n' +
+          '<span if="${subcommands.length === 0}">${l10n.subCommandsNone}</span>\n' +
           '<loop foreach="subcommand in ${subcommands}">* ${subcommand.name}: ${subcommand.description}\n' +
           '</loop>\n' +
           '</div>\n',

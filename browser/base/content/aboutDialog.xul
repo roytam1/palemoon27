@@ -88,6 +88,9 @@
           </vbox>
 
         <description class="text-pmcreds">
+#ifdef MC_PRIVATE_BUILD
+          This is a private build of Pale Moon. If you did not manually build this copy from source yourself, then please download an official version from the <label class="text-link" href="http://www.palemoon.org/">Pale Moon website</label>.
+#else
           Pale Moon is released by <label class="text-link" href="http://www.moonchildproductions.info">Moonchild Productions</label>.
         </description>
         <description class="text-pmcreds">
@@ -96,6 +99,7 @@
         <description class="text-blurb">
           If you wish to contribute, please consider helping out by providing support to other users on the <label class="text-link" href="https://forum.palemoon.org/">Pale Moon forum</label>
           or getting involved in our development by tackling some of the issues found in our GitHub issue tracker.
+#endif
         </description>    
         </vbox>
       </vbox>

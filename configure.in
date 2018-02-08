@@ -4690,6 +4690,22 @@ fi
 AC_SUBST(MOZ_BRANDING_DIRECTORY)
 
 dnl ========================================================
+dnl = Private Build
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(private-build,
+[  --enable-private-build   Enable private builds
+                            This allows you to build with official
+                            branding for personal use only using any
+                            build time configuration.],
+    MC_PRIVATE_BUILD=1,
+    MC_PRIVATE_BUILD=)
+
+AC_SUBST(MC_PRIVATE_BUILD)
+if test -n "$MC_PRIVATE_BUILD"; then
+  AC_DEFINE(MC_PRIVATE_BUILD)
+fi
+
+dnl ========================================================
 dnl = Distribution ID
 dnl ========================================================
 MOZ_ARG_WITH_STRING(distribution-id,
@@ -8583,6 +8599,37 @@ fi
 AC_SUBST(MOZILLA_VERSION)
 
 AC_SUBST(ac_configure_args)
+
+dnl ========================================================
+dnl Directive 4
+dnl ========================================================
+
+DIRECTIVE4_LIST="MOZ_OFFICIAL_BRANDING=$MOZ_OFFICIAL_BRANDING
+MOZ_BRANDING_DIRECTORY=$MOZ_BRANDING_DIRECTORY
+MOZ_PHOENIX=$MOZ_PHOENIX
+MOZ_SANDBOX=$MOZ_SANDBOX
+MOZ_NATIVE_LIBEVENT=$MOZ_NATIVE_LIBEVENT
+MOZ_NATIVE_NSS=$MOZ_NATIVE_NSS
+MOZ_NATIVE_NSPR=$MOZ_NATIVE_NSPR
+MOZ_NATIVE_JPEG=$MOZ_NATIVE_JPEG
+MOZ_NATIVE_ZLIB=$MOZ_NATIVE_ZLIB
+MOZ_NATIVE_BZ2=$MOZ_NATIVE_BZ2
+MOZ_NATIVE_PNG=$MOZ_NATIVE_PNG
+MOZ_NATIVE_LIBVPX=$MOZ_NATIVE_LIBVPX
+MOZ_NATIVE_SQLITE=$MOZ_NATIVE_SQLITE
+MOZ_NATIVE_JEMALLOC=$MOZ_NATIVE_JEMALLOC"
+
+DIRECTIVE4=`$PYTHON $_topsrcdir/build/directive4.py $DIRECTIVE4_LIST`
+
+if test -n "$DIRECTIVE4"; then
+    if test -n "$MC_PRIVATE_BUILD"; then
+        AC_MSG_WARN([Private Build - The configuration you have chosen to use with official branding deviates from official build configuration. Your build is thus for personal and private use only and must not be (re)distributed - Please see: http://www.palemoon.org/redist.shtml])
+    else
+        AC_MSG_ERROR([Branding Violation - Please see: http://www.palemoon.org/redist.shtml])
+    fi
+fi
+
+AC_SUBST(DIRECTIVE4)
 
 dnl Spit out some output
 dnl ========================================================

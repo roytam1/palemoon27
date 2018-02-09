@@ -1887,7 +1887,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   /* Hide the transparent top border by default */
   margin-top: -1px;
   /* Reduce the gap between the tabs */
-  -moz-margin-start: -0.8px;
+  -moz-margin-start: -1px;
   box-shadow: var(--tab-box-shadow);
 }
 

@@ -3239,6 +3239,11 @@ void HTMLMediaElement::FirstFrameLoaded()
   NS_ASSERTION(!mSuspendedAfterFirstFrame, "Should not have already suspended");
 
   ChangeDelayLoadStatus(false);
+  
+  // FIXME: This is a workaround for DoneCreatingElement() not being called
+  // at the appropriate time when cloning elements, to preserve the "muted"
+  // status. See bug 1424871.
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::muted)) SetMuted(true);
 
   if (mDecoder && mAllowSuspendAfterFirstFrame && mPaused &&
       !HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&

@@ -250,6 +250,9 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
     TrackMapEntry* map = &mTrackMap[aMapIndex];
     StreamBuffer::Track* outputTrack = mBuffer.FindTrack(map->mOutputTrackID);
     MOZ_ASSERT(outputTrack && !outputTrack->IsEnded(), "Can't copy to ended track");
+    if (!outputTrack) {
+      return;
+    }
 
     MediaSegment* segment = map->mSegment;
     MediaStream* source = map->mInputPort->GetSource();

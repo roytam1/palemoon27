@@ -144,7 +144,7 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY stopCmd.macCommandKey        ".">
 <!ENTITY stopButton.tooltip           "Stop loading this page">
 <!ENTITY goEndCap.tooltip             "Go to the address in the Location Bar">
-<!ENTITY printButton.label            "Print…">
+<!ENTITY printButton.label            "Print">
 <!ENTITY printButton.tooltip          "Print this page">
 
 <!ENTITY backForwardItem.title        "Back/Forward">
@@ -626,7 +626,7 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 
 <!ENTITY syncBrand.shortName.label    "Sync">
 
-<!ENTITY syncSetup.label              "Set Up &syncBrand.shortName.label;">
+<!ENTITY syncSetup.label              "Set Up &syncBrand.shortName.label;…">
 <!ENTITY syncSetup.accesskey          "Y">
 <!ENTITY syncSyncNowItem.label        "Sync Now">
 <!ENTITY syncSyncNowItem.accesskey    "S">

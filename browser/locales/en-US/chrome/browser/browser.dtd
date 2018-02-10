@@ -144,7 +144,7 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY stopCmd.macCommandKey        ".">
 <!ENTITY stopButton.tooltip           "Stop loading this page">
 <!ENTITY goEndCap.tooltip             "Go to the address in the Location Bar">
-<!ENTITY printButton.label            "Print">
+<!ENTITY printButton.label            "Print…">
 <!ENTITY printButton.tooltip          "Print this page">
 
 <!ENTITY backForwardItem.title        "Back/Forward">
@@ -307,7 +307,7 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 <!ENTITY viewToolbarsMenu.accesskey     "T"> 
 <!ENTITY viewSidebarMenu.label "Sidebar">
 <!ENTITY viewSidebarMenu.accesskey "e">
-<!ENTITY viewCustomizeToolbar.label       "Customize…"> 
+<!ENTITY viewCustomizeToolbar.label       "Customize"> 
 <!ENTITY viewCustomizeToolbar.accesskey     "C">
 <!ENTITY viewTabsOnTop.label            "Tabs on Top">
 <!ENTITY viewTabsOnTop.accesskey        "T">
@@ -325,7 +325,7 @@ These should match what Safari and other Apple applications use on OS X Lion. --
 
 <!ENTITY appMenuEdit.label "Edit">
 <!ENTITY appMenuCustomize.label "Customize">
-<!ENTITY appMenuToolbarLayout.label "Toolbar Layout…">
+<!ENTITY appMenuToolbarLayout.label "Toolbar Layout">
 <!ENTITY appMenuSidebars.label "Sidebars">
 <!ENTITY appMenuFind.label "Find…">
 <!ENTITY appMenuUnsorted.label "Unsorted Bookmarks">
@@ -573,11 +573,8 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY pageReportIcon.tooltip            "Change pop-up blocking settings for this website">
 
 <!ENTITY allowPopups.accesskey "p">
-<!-- On Windows we use the term "Options" to describe settings, but
-     on Linux and Mac OS X we use "Preferences" - carry that distinction
-     over into this string, which is used in the "popup blocked" info bar . -->
-<!ENTITY editPopupSettingsUnix.label "Edit Pop-up Blocker Preferences…">
-<!ENTITY editPopupSettings.label "Edit Pop-up Blocker Options…">
+<!ENTITY editPopupSettingsUnix.label "Edit Pop-up Blocker Preferences">
+<!ENTITY editPopupSettings.label "Edit Pop-up Blocker Preferences">
 <!ENTITY editPopupSettings.accesskey "E">
 <!ENTITY dontShowMessage.accesskey "D">
 
@@ -629,7 +626,7 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 
 <!ENTITY syncBrand.shortName.label    "Sync">
 
-<!ENTITY syncSetup.label              "Set Up &syncBrand.shortName.label;…">
+<!ENTITY syncSetup.label              "Set Up &syncBrand.shortName.label;">
 <!ENTITY syncSetup.accesskey          "Y">
 <!ENTITY syncSyncNowItem.label        "Sync Now">
 <!ENTITY syncSyncNowItem.accesskey    "S">

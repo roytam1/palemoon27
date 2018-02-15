@@ -114,7 +114,8 @@ var gTabsPane = {
   writeNewtabUrl: function() {
     try {
       let newtabUrlChoice = Services.prefs.getIntPref("browser.newtab.choice");
-      let browserHomepageUrl = Services.prefs.getCharPref("browser.startup.homepage");
+      let browserHomepageUrl = Services.prefs.getComplexValue("browser.startup.homepage",
+                                Components.interfaces.nsIPrefLocalizedString).data;
       let newtabUrlPref = Services.prefs.getCharPref("browser.newtab.url");
       switch (newtabUrlChoice) {
         case 1:

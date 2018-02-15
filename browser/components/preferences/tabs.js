@@ -89,7 +89,7 @@ var gTabsPane = {
       case "about:logopage": 
         newtabUrlChoice.value = 1;
         break;
-      case "https://start.palemoon.org/":
+      case "http://start.palemoon.org/":
         newtabUrlChoice.value = 2;
         break;
       case newtabUrlSanitizedPref.value:
@@ -122,7 +122,7 @@ var gTabsPane = {
           newtabUrlPref="about:logopage";
           break;
         case 2:
-          newtabUrlPref="https://start.palemoon.org/";
+          newtabUrlPref="http://start.palemoon.org/";
           break;
         case 3:
           // If url is a pipe-delimited set of pages, just take the first one.

@@ -84,7 +84,8 @@
         <label value="&newtabPage.label;"/>
         <menulist 
           id="newtabPage"
-          preference="browser.newtab.choice">
+          preference="browser.newtab.choice"
+          oncommand="gTabsPane.writeNewtabUrl(event.target.value);">
           <menupopup>
             <menuitem label="&newtabPage.custom.label;"    value="0" id="newtabPageCustom" hidden="true" />
             <menuitem label="&newtabPage.blank.label;"     value="1" />

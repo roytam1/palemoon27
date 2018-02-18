@@ -101,6 +101,8 @@ var gTabsPane = {
       default: // Custom URL entered.
         document.getElementById("newtabPageCustom").hidden = false;
         newtabUrlChoice.value = 0;
+        // We need this to consider instantApply.
+        this.newtabPageCustom = newtabUrlPref.value;
     }
   },
 
@@ -109,33 +111,45 @@ var gTabsPane = {
    * if the choice is "my home page", get and sanitize the browser home page
    * URL to make it suitable for newtab use.
    *
-   * Called from prefwindow's ondialogaccept handler.
+   * Called from prefwindow's ondialogaccept handler and
+   * from browser.newtab.choice's oncommand to consider instantApply.
    */
-  writeNewtabUrl: function() {
+  writeNewtabUrl: function(newtabUrlChoice) {
     try {
-      let newtabUrlChoice = Services.prefs.getIntPref("browser.newtab.choice");
+      if (newtabUrlChoice) {
+        if (Services.prefs.getBoolPref("browser.preferences.instantApply")) {
+          newtabUrlChoice = parseInt(newtabUrlChoice);
+        } else {
+          return;
+        }
+      } else {
+        newtabUrlChoice = Services.prefs.getIntPref("browser.newtab.choice");
+      }
       let browserHomepageUrl = Services.prefs.getComplexValue("browser.startup.homepage",
                                 Components.interfaces.nsIPrefLocalizedString).data;
       let newtabUrlPref = Services.prefs.getCharPref("browser.newtab.url");
       switch (newtabUrlChoice) {
         case 1:
-          newtabUrlPref="about:logopage";
+          newtabUrlPref = "about:logopage";
           break;
         case 2:
-          newtabUrlPref="http://start.palemoon.org/";
+          newtabUrlPref = "http://start.palemoon.org/";
           break;
         case 3:
           // If url is a pipe-delimited set of pages, just take the first one.
           let newtabUrlSanitizedPref=browserHomepageUrl.split("|")[0];
           // XXX: do we need extra sanitation here, e.g. for invalid URLs?
           Services.prefs.setCharPref("browser.newtab.myhome", newtabUrlSanitizedPref);
-          newtabUrlPref=newtabUrlSanitizedPref;
+          newtabUrlPref = newtabUrlSanitizedPref;
           break;
         case 4:
-          newtabUrlPref="about:newtab";
+          newtabUrlPref = "about:newtab";
           break;
         default:
-          // In case of any other value it's a custom URL, so don't change anything...
+          // In case of any other value it's a custom URL, consider instantApply.
+          if (this.newtabPageCustom) {
+            newtabUrlPref = this.newtabPageCustom;
+          }
       } 
       Services.prefs.setCharPref("browser.newtab.url",newtabUrlPref);
     } catch(e) { console.error(e); }

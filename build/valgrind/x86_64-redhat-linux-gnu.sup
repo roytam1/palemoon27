@@ -71,6 +71,30 @@
    fun:gdk_display_open
    ...
 }
+# With older versions of fontconfig (e.g. 2.8.0 on taskcluster systems),
+# there's an uninitialized memory usage and leak when loading app fonts.
+{
+   Bug 1231701
+   Memcheck:Param
+   write(buf)
+   ...
+   fun:FcDirCacheWrite
+   fun:FcDirCacheScan
+   fun:FcConfigAddDirList
+   fun:FcConfigAppFontAddDir
+   ...
+}
+{
+   Bug 1231701
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:FcDirScanConfig
+   fun:FcDirCacheScan
+   fun:FcConfigAddDirList
+   fun:FcConfigAppFontAddDir
+   ...
+}
 
 ###################################
 #  Leaks in short lived precesses #

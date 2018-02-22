@@ -96,7 +96,6 @@
     'mozilla_client%': 0,
     'moz_fold_libs%': 0,
     'moz_folded_library_name%': '',
-    'ssl_enable_zlib%': 1,
     'sanitizer_flags%': 0,
     'test_build%': 0,
     'no_zdefs%': 0,
@@ -109,6 +108,7 @@
     'nss_public_dist_dir%': '<(nss_dist_dir)/public',
     'nss_private_dist_dir%': '<(nss_dist_dir)/private',
     'only_dev_random%': 1,
+    'disable_fips%': 1,
   },
   'target_defaults': {
     # Settings specific to targets should go here.
@@ -125,6 +125,12 @@
       '<(nss_dist_dir)/private/<(module)',
     ],
     'conditions': [
+      [ 'disable_fips==1', {
+        'defines': [
+          'NSS_FIPS_DISABLED',
+          'NSS_NO_INIT_SUPPORT',
+        ],
+      }],
       [ 'OS!="android" and OS!="mac" and OS!="win"', {
         'libraries': [
           '-lpthread',
@@ -167,7 +173,7 @@
           },
         },
       }],
-      [ 'target_arch=="arm64" or target_arch=="aarch64"', {
+      [ 'target_arch=="arm64" or target_arch=="aarch64" or target_arch=="sparc64" or target_arch=="ppc64" or target_arch=="ppc64le" or target_arch=="s390x" or target_arch=="mips64"', {
         'defines': [
           'NSS_USE_64',
         ],
@@ -294,7 +300,6 @@
       'Common': {
         'abstract': 1,
         'defines': [
-          'NSS_NO_INIT_SUPPORT',
           'USE_UTIL_DIRECTLY',
           'NO_NSPR_10_SUPPORT',
           'SSL_DISABLE_DEPRECATED_CIPHER_SUITE_NAMES',

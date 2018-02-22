@@ -128,12 +128,12 @@ TEST_F(TlsConnectTest, TestFallbackFromTls13) {
 #endif
 
 TEST_P(TlsConnectGeneric, TestFallbackSCSVVersionMatch) {
-  client_->SetFallbackSCSVEnabled(true);
+  client_->SetOption(SSL_ENABLE_FALLBACK_SCSV, PR_TRUE);
   Connect();
 }
 
 TEST_P(TlsConnectGenericPre13, TestFallbackSCSVVersionMismatch) {
-  client_->SetFallbackSCSVEnabled(true);
+  client_->SetOption(SSL_ENABLE_FALLBACK_SCSV, PR_TRUE);
   server_->SetVersionRange(version_, version_ + 1);
   ConnectExpectAlert(server_, kTlsAlertInappropriateFallback);
   client_->CheckErrorCode(SSL_ERROR_INAPPROPRIATE_FALLBACK_ALERT);
@@ -155,107 +155,10 @@ TEST_F(TlsConnectTest, DisallowSSLv3HelloWithTLSv13Enabled) {
   EXPECT_EQ(SECFailure, rv);
 }
 
-TEST_P(TlsConnectStream, ConnectTls10AndServerRenegotiateHigher) {
-  if (version_ == SSL_LIBRARY_VERSION_TLS_1_0) {
-    return;
-  }
-  // Set the client so it will accept any version from 1.0
-  // to |version_|.
-  client_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0, version_);
-  server_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0,
-                           SSL_LIBRARY_VERSION_TLS_1_0);
-  // Reset version so that the checks succeed.
-  uint16_t test_version = version_;
-  version_ = SSL_LIBRARY_VERSION_TLS_1_0;
-  Connect();
-
-  // Now renegotiate, with the server being set to do
-  // |version_|.
-  client_->PrepareForRenegotiate();
-  server_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0, test_version);
-  // Reset version and cipher suite so that the preinfo callback
-  // doesn't fail.
-  server_->ResetPreliminaryInfo();
-  server_->StartRenegotiate();
-
-  if (test_version >= SSL_LIBRARY_VERSION_TLS_1_3) {
-    ExpectAlert(server_, kTlsAlertUnexpectedMessage);
-  } else {
-    ExpectAlert(client_, kTlsAlertIllegalParameter);
-  }
-
-  Handshake();
-  if (test_version >= SSL_LIBRARY_VERSION_TLS_1_3) {
-    // In TLS 1.3, the server detects this problem.
-    client_->CheckErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT);
-    server_->CheckErrorCode(SSL_ERROR_RENEGOTIATION_NOT_ALLOWED);
-  } else {
-    client_->CheckErrorCode(SSL_ERROR_UNSUPPORTED_VERSION);
-    server_->CheckErrorCode(SSL_ERROR_ILLEGAL_PARAMETER_ALERT);
-  }
-}
-
-TEST_P(TlsConnectStream, ConnectTls10AndClientRenegotiateHigher) {
-  if (version_ == SSL_LIBRARY_VERSION_TLS_1_0) {
-    return;
-  }
-  // Set the client so it will accept any version from 1.0
-  // to |version_|.
-  client_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0, version_);
-  server_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0,
-                           SSL_LIBRARY_VERSION_TLS_1_0);
-  // Reset version so that the checks succeed.
-  uint16_t test_version = version_;
-  version_ = SSL_LIBRARY_VERSION_TLS_1_0;
-  Connect();
-
-  // Now renegotiate, with the server being set to do
-  // |version_|.
-  server_->PrepareForRenegotiate();
-  server_->SetVersionRange(SSL_LIBRARY_VERSION_TLS_1_0, test_version);
-  // Reset version and cipher suite so that the preinfo callback
-  // doesn't fail.
-  server_->ResetPreliminaryInfo();
-  client_->StartRenegotiate();
-  if (test_version >= SSL_LIBRARY_VERSION_TLS_1_3) {
-    ExpectAlert(server_, kTlsAlertUnexpectedMessage);
-  } else {
-    ExpectAlert(client_, kTlsAlertIllegalParameter);
-  }
-  Handshake();
-  if (test_version >= SSL_LIBRARY_VERSION_TLS_1_3) {
-    // In TLS 1.3, the server detects this problem.
-    client_->CheckErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT);
-    server_->CheckErrorCode(SSL_ERROR_RENEGOTIATION_NOT_ALLOWED);
-  } else {
-    client_->CheckErrorCode(SSL_ERROR_UNSUPPORTED_VERSION);
-    server_->CheckErrorCode(SSL_ERROR_ILLEGAL_PARAMETER_ALERT);
-  }
-}
-
-TEST_F(TlsConnectTest, Tls13RejectsRehandshakeClient) {
-  EnsureTlsSetup();
-  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
-  Connect();
-  SECStatus rv = SSL_ReHandshake(client_->ssl_fd(), PR_TRUE);
-  EXPECT_EQ(SECFailure, rv);
-  EXPECT_EQ(SSL_ERROR_RENEGOTIATION_NOT_ALLOWED, PORT_GetError());
-}
-
-TEST_F(TlsConnectTest, Tls13RejectsRehandshakeServer) {
-  EnsureTlsSetup();
-  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
-  Connect();
-  SECStatus rv = SSL_ReHandshake(server_->ssl_fd(), PR_TRUE);
-  EXPECT_EQ(SECFailure, rv);
-  EXPECT_EQ(SSL_ERROR_RENEGOTIATION_NOT_ALLOWED, PORT_GetError());
-}
-
 TEST_P(TlsConnectGeneric, AlertBeforeServerHello) {
   EnsureTlsSetup();
   client_->ExpectReceiveAlert(kTlsAlertUnrecognizedName, kTlsAlertWarning);
-  client_->StartConnect();
-  server_->StartConnect();
+  StartConnect();
   client_->Handshake();  // Send ClientHello.
   static const uint8_t kWarningAlert[] = {kTlsAlertWarning,
                                           kTlsAlertUnrecognizedName};
@@ -314,20 +217,20 @@ TEST_F(TlsConnectStreamTls13, Tls14ClientHelloWithSupportedVersions) {
   client_->SetPacketFilter(
       std::make_shared<TlsInspectorClientHelloVersionSetter>(
           SSL_LIBRARY_VERSION_TLS_1_3 + 1));
-  auto capture = std::make_shared<TlsInspectorRecordHandshakeMessage>(
-      kTlsHandshakeServerHello);
+  auto capture =
+      std::make_shared<TlsExtensionCapture>(ssl_tls13_supported_versions_xtn);
   server_->SetPacketFilter(capture);
   client_->ExpectSendAlert(kTlsAlertBadRecordMac);
   server_->ExpectSendAlert(kTlsAlertBadRecordMac);
   ConnectExpectFail();
   client_->CheckErrorCode(SSL_ERROR_BAD_MAC_READ);
   server_->CheckErrorCode(SSL_ERROR_BAD_MAC_READ);
-  const DataBuffer& server_hello = capture->buffer();
-  ASSERT_GT(server_hello.len(), 2U);
-  uint32_t ver;
-  ASSERT_TRUE(server_hello.Read(0, 2, &ver));
+
+  ASSERT_EQ(2U, capture->extension().len());
+  uint32_t version = 0;
+  ASSERT_TRUE(capture->extension().Read(0, 2, &version));
   // This way we don't need to change with new draft version.
-  ASSERT_LT(static_cast<uint32_t>(SSL_LIBRARY_VERSION_TLS_1_2), ver);
+  ASSERT_LT(static_cast<uint32_t>(SSL_LIBRARY_VERSION_TLS_1_2), version);
 }
 
 }  // namespace nss_test

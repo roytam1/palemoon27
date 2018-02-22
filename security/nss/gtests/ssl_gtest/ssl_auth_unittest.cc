@@ -29,7 +29,25 @@ TEST_P(TlsConnectGeneric, ServerAuthBigRsa) {
 }
 
 TEST_P(TlsConnectGeneric, ServerAuthRsaChain) {
-  Reset(TlsAgent::kServerRsaChain);
+  Reset("rsa_chain");
+  Connect();
+  CheckKeys();
+  size_t chain_length;
+  EXPECT_TRUE(client_->GetPeerChainLength(&chain_length));
+  EXPECT_EQ(2UL, chain_length);
+}
+
+TEST_P(TlsConnectGeneric, ServerAuthRsaPssChain) {
+  Reset("rsa_pss_chain");
+  Connect();
+  CheckKeys();
+  size_t chain_length;
+  EXPECT_TRUE(client_->GetPeerChainLength(&chain_length));
+  EXPECT_EQ(2UL, chain_length);
+}
+
+TEST_P(TlsConnectGeneric, ServerAuthRsaCARsaPssChain) {
+  Reset("rsa_ca_rsa_pss_chain");
   Connect();
   CheckKeys();
   size_t chain_length;
@@ -141,13 +159,11 @@ TEST_P(TlsConnectTls12, ClientAuthBigRsaCheckSigAlg) {
 
 class TlsZeroCertificateRequestSigAlgsFilter : public TlsHandshakeFilter {
  public:
+  TlsZeroCertificateRequestSigAlgsFilter()
+      : TlsHandshakeFilter({kTlsHandshakeCertificateRequest}) {}
   virtual PacketFilter::Action FilterHandshake(
       const TlsHandshakeFilter::HandshakeHeader& header,
       const DataBuffer& input, DataBuffer* output) {
-    if (header.handshake_type() != kTlsHandshakeCertificateRequest) {
-      return KEEP;
-    }
-
     TlsParser parser(input);
     std::cerr << "Zeroing CertReq.supported_signature_algorithms" << std::endl;
 
@@ -581,8 +597,7 @@ class EnforceNoActivity : public PacketFilter {
 TEST_P(TlsConnectGenericPre13, AuthCompleteDelayed) {
   client_->SetAuthCertificateCallback(AuthCompleteBlock);
 
-  server_->StartConnect();
-  client_->StartConnect();
+  StartConnect();
   client_->Handshake();  // Send ClientHello
   server_->Handshake();  // Send ServerHello
   client_->Handshake();  // Send ClientKeyExchange and Finished
@@ -610,8 +625,7 @@ TEST_P(TlsConnectGenericPre13, AuthCompleteDelayed) {
 TEST_P(TlsConnectTls13, AuthCompleteDelayed) {
   client_->SetAuthCertificateCallback(AuthCompleteBlock);
 
-  server_->StartConnect();
-  client_->StartConnect();
+  StartConnect();
   client_->Handshake();  // Send ClientHello
   server_->Handshake();  // Send ServerHello
   EXPECT_EQ(TlsAgent::STATE_CONNECTING, client_->state());

@@ -1578,12 +1578,6 @@ BaselineCompiler::emit_JSOP_MOD()
 }
 
 bool
-BaselineCompiler::emit_JSOP_POW()
-{
-    return emitBinaryArith();
-}
-
-bool
 BaselineCompiler::emitBinaryArith()
 {
     // Keep top JSStack value in R0 and R2

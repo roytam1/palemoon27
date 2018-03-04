@@ -29,6 +29,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(_PR_DCETHREADS)
+
 PRIntn failed_already=0;
 PRIntn debug_mode=0;
 
@@ -78,13 +80,20 @@ static PRIntn prmain(PRIntn argc, char **argv)
 
 }  /* prmain */
 
+#endif /* #if defined(_PR_DCETHREADS) */
+
 int main(int argc, char **argv)
 {
+
+#if defined(_PR_DCETHREADS)
     PR_Initialize(prmain, argc, argv, 0);
     if(failed_already)    
         return 1;
     else
         return 0;
+#else
+    return 0;
+#endif
 }  /* main */
 
 

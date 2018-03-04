@@ -256,7 +256,7 @@ ssl_LookupSID(const PRIPv6Addr *addr, PRUint16 port, const char *peerID,
 
     if (!urlSvrName)
         return NULL;
-    now = ssl_TimeSec();
+    now = ssl_Time();
     LOCK_CACHE;
     sidp = &cache;
     while ((sid = *sidp) != 0) {
@@ -306,6 +306,8 @@ ssl_LookupSID(const PRIPv6Addr *addr, PRUint16 port, const char *peerID,
 static void
 CacheSID(sslSessionID *sid)
 {
+    PRUint32 expirationPeriod;
+
     PORT_Assert(sid->cached == never_cached);
 
     SSL_TRC(8, ("SSL: Cache: sid=0x%x cached=%d addr=0x%08x%08x%08x%08x port=0x%04x "
@@ -333,6 +335,7 @@ CacheSID(sslSessionID *sid)
             return;
         sid->u.ssl3.sessionIDLength = SSL3_SESSIONID_BYTES;
     }
+    expirationPeriod = ssl3_sid_timeout;
     PRINT_BUF(8, (0, "sessionID:",
                   sid->u.ssl3.sessionID, sid->u.ssl3.sessionIDLength));
 
@@ -342,9 +345,9 @@ CacheSID(sslSessionID *sid)
     }
     PORT_Assert(sid->creationTime != 0 && sid->expirationTime != 0);
     if (!sid->creationTime)
-        sid->lastAccessTime = sid->creationTime = ssl_TimeUsec();
+        sid->lastAccessTime = sid->creationTime = ssl_Time();
     if (!sid->expirationTime)
-        sid->expirationTime = sid->creationTime + ssl3_sid_timeout * PR_USEC_PER_SEC;
+        sid->expirationTime = sid->creationTime + expirationPeriod;
 
     /*
      * Put sid into the cache.  Bump reference count to indicate that
@@ -435,7 +438,7 @@ SSL_ClearSessionCache(void)
 
 /* returns an unsigned int containing the number of seconds in PR_Now() */
 PRUint32
-ssl_TimeSec(void)
+ssl_Time(void)
 {
 #ifdef UNSAFE_FUZZER_MODE
     return 1234;
@@ -468,7 +471,7 @@ ssl_TicketTimeValid(const NewSessionTicket *ticket)
 
     endTime = ticket->received_timestamp +
               (PRTime)(ticket->ticket_lifetime_hint * PR_USEC_PER_SEC);
-    return endTime > ssl_TimeUsec();
+    return endTime > PR_Now();
 }
 
 void

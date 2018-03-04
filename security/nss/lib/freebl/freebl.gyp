@@ -23,37 +23,6 @@
       ]
     },
     {
-      'target_name': 'gcm-aes-x86_c_lib',
-      'type': 'static_library',
-      'sources': [
-        'gcm-x86.c', 'aes-x86.c'
-      ],
-      'dependencies': [
-        '<(DEPTH)/exports.gyp:nss_exports'
-      ],
-      # Enable isa option for pclmul and aes-ni; supported since gcc 4.4.
-      # This is only supported by x84/x64. It's not needed for Windows,
-      # unless clang-cl is used.
-      'cflags_mozilla': [
-        '-mpclmul', '-maes'
-      ],
-      'conditions': [
-        [ 'OS=="linux" or OS=="android" or OS=="dragonfly" or OS=="freebsd" or OS=="netbsd" or OS=="openbsd"', {
-          'cflags': [
-            '-mpclmul', '-maes'
-          ],
-        }],
-        # macOS build doesn't use cflags.
-        [ 'OS=="mac"', {
-          'xcode_settings': {
-            'OTHER_CFLAGS': [
-              '-mpclmul', '-maes'
-            ],
-          },
-        }]
-      ]
-    },
-    {
       'target_name': 'freebl',
       'type': 'static_library',
       'sources': [
@@ -76,11 +45,6 @@
         '<(DEPTH)/exports.gyp:nss_exports',
       ],
       'conditions': [
-        [ 'target_arch=="ia32" or target_arch=="x64"', {
-          'dependencies': [
-            'gcm-aes-x86_c_lib'
-          ],
-        }],
         [ 'OS=="linux"', {
           'defines!': [
             'FREEBL_NO_DEPEND',
@@ -112,11 +76,6 @@
         '<(DEPTH)/exports.gyp:nss_exports',
       ],
       'conditions': [
-        [ 'target_arch=="ia32" or target_arch=="x64"', {
-          'dependencies': [
-            'gcm-aes-x86_c_lib'
-          ]
-        }],
         [ 'OS!="linux" and OS!="android"', {
           'conditions': [
             [ 'moz_fold_libs==0', {
@@ -183,8 +142,7 @@
   'target_defaults': {
     'include_dirs': [
       'mpi',
-      'ecl',
-      'verified',
+      'ecl'
     ],
     'defines': [
       'SHLIB_SUFFIX=\"<(dll_suffix)\"',
@@ -195,12 +153,19 @@
       'MP_API_COMPATIBLE'
     ],
     'conditions': [
+      [ 'target_arch=="ia32" or target_arch=="x64"', {
+        'cflags_mozilla': [
+          '-mpclmul',
+          '-maes',
+        ],
+      }],
       [ 'OS=="mac"', {
         'xcode_settings': {
           # I'm not sure since when this is supported.
           # But I hope that doesn't matter. We also assume this is x86/x64.
           'OTHER_CFLAGS': [
-            '-std=gnu99',
+            '-mpclmul',
+            '-maes',
           ],
         },
       }],
@@ -256,23 +221,16 @@
               'HAVE_INT128_SUPPORT',
             ],
           }, {
-            'defines': [
-              'KRML_NOUINT128',
+            'sources': [
+              'ecl/uint128.c',
             ],
           }],
-        ],
-      }, {
-        'defines': [
-          'KRML_NOUINT128',
         ],
       }],
       [ 'OS=="linux"', {
         'defines': [
           'FREEBL_LOWHASH',
           'FREEBL_NO_DEPEND',
-        ],
-        'cflags': [
-          '-std=gnu99',
         ],
       }],
       [ 'OS=="linux" or OS=="android"', {
@@ -299,6 +257,14 @@
               'MP_ASSEMBLY_SQUARE',
               'MP_ASSEMBLY_DIV_2DX1D',
               'MP_USE_UINT_DIGIT',
+            ],
+          }],
+          [ 'target_arch=="ia32" or target_arch=="x64"', {
+            'cflags': [
+              # enable isa option for pclmul am aes-ni; supported since gcc 4.4
+              # This is only support by x84/x64. It's not needed for Windows.
+              '-mpclmul',
+              '-maes',
             ],
           }],
           [ 'target_arch=="arm"', {

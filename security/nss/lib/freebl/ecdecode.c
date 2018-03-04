@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifndef NSS_DISABLE_ECC
+
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
 #endif
@@ -250,3 +252,5 @@ EC_GetPointSize(const ECParams *params)
     }
     return curveParams->pointSize - 1;
 }
+
+#endif /* NSS_DISABLE_ECC */

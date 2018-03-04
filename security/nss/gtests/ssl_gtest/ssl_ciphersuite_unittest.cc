@@ -31,11 +31,11 @@ class TlsCipherSuiteTestBase : public TlsConnectTestBase {
  public:
   TlsCipherSuiteTestBase(SSLProtocolVariant variant, uint16_t version,
                          uint16_t cipher_suite, SSLNamedGroup group,
-                         SSLSignatureScheme sig_scheme)
+                         SSLSignatureScheme signature_scheme)
       : TlsConnectTestBase(variant, version),
         cipher_suite_(cipher_suite),
         group_(group),
-        sig_scheme_(sig_scheme),
+        signature_scheme_(signature_scheme),
         csinfo_({0}) {
     SECStatus rv =
         SSL_GetCipherSuiteInfo(cipher_suite_, &csinfo_, sizeof(csinfo_));
@@ -60,14 +60,14 @@ class TlsCipherSuiteTestBase : public TlsConnectTestBase {
       server_->ConfigNamedGroups(groups);
       kea_type_ = SSLInt_GetKEAType(group_);
 
-      client_->SetSignatureSchemes(&sig_scheme_, 1);
-      server_->SetSignatureSchemes(&sig_scheme_, 1);
+      client_->SetSignatureSchemes(&signature_scheme_, 1);
+      server_->SetSignatureSchemes(&signature_scheme_, 1);
     }
   }
 
   virtual void SetupCertificate() {
     if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
-      switch (sig_scheme_) {
+      switch (signature_scheme_) {
         case ssl_sig_rsa_pkcs1_sha256:
         case ssl_sig_rsa_pkcs1_sha384:
         case ssl_sig_rsa_pkcs1_sha512:
@@ -93,7 +93,8 @@ class TlsCipherSuiteTestBase : public TlsConnectTestBase {
           auth_type_ = ssl_auth_ecdsa;
           break;
         default:
-          ADD_FAILURE() << "Unsupported signature scheme: " << sig_scheme_;
+          ASSERT_TRUE(false) << "Unsupported signature scheme: "
+                             << signature_scheme_;
           break;
       }
     } else {
@@ -186,7 +187,7 @@ class TlsCipherSuiteTestBase : public TlsConnectTestBase {
   SSLAuthType auth_type_;
   SSLKEAType kea_type_;
   SSLNamedGroup group_;
-  SSLSignatureScheme sig_scheme_;
+  SSLSignatureScheme signature_scheme_;
   SSLCipherSuiteInfo csinfo_;
 };
 
@@ -235,29 +236,27 @@ TEST_P(TlsCipherSuiteTest, ResumeCipherSuite) {
   ConnectAndCheckCipherSuite();
 }
 
+// This only works for stream ciphers because we modify the sequence number -
+// which is included explicitly in the DTLS record header - and that trips a
+// different error code.  Note that the message that the client sends would not
+// decrypt (the nonce/IV wouldn't match), but the record limit is hit before
+// attempting to decrypt a record.
 TEST_P(TlsCipherSuiteTest, ReadLimit) {
   SetupCertificate();
   EnableSingleCipher();
   ConnectAndCheckCipherSuite();
-  if (version_ < SSL_LIBRARY_VERSION_TLS_1_3) {
-    uint64_t last = last_safe_write();
-    EXPECT_EQ(SECSuccess, SSLInt_AdvanceWriteSeqNum(client_->ssl_fd(), last));
-    EXPECT_EQ(SECSuccess, SSLInt_AdvanceReadSeqNum(server_->ssl_fd(), last));
+  EXPECT_EQ(SECSuccess,
+            SSLInt_AdvanceWriteSeqNum(client_->ssl_fd(), last_safe_write()));
+  EXPECT_EQ(SECSuccess,
+            SSLInt_AdvanceReadSeqNum(server_->ssl_fd(), last_safe_write()));
 
-    client_->SendData(10, 10);
-    server_->ReadBytes();  // This should be OK.
-  } else {
-    // In TLS 1.3, reading or writing triggers a KeyUpdate.  That would mean
-    // that the sequence numbers would reset and we wouldn't hit the limit.  So
-    // we move the sequence number to one less than the limit directly and don't
-    // test sending and receiving just before the limit.
-    uint64_t last = record_limit() - 1;
-    EXPECT_EQ(SECSuccess, SSLInt_AdvanceReadSeqNum(server_->ssl_fd(), last));
-  }
+  client_->SendData(10, 10);
+  server_->ReadBytes();  // This should be OK.
 
-  // The payload needs to be big enough to pass for encrypted.  The code checks
-  // the limit before it tries to decrypt.
-  static const uint8_t payload[32] = {6};
+  // The payload needs to be big enough to pass for encrypted.  In the extreme
+  // case (TLS 1.3), this means 1 for payload, 1 for content type and 16 for
+  // authentication tag.
+  static const uint8_t payload[18] = {6};
   DataBuffer record;
   uint64_t epoch;
   if (variant_ == ssl_variant_datagram) {
@@ -272,17 +271,13 @@ TEST_P(TlsCipherSuiteTest, ReadLimit) {
   TlsAgentTestBase::MakeRecord(variant_, kTlsApplicationDataType, version_,
                                payload, sizeof(payload), &record,
                                (epoch << 48) | record_limit());
-  client_->SendDirect(record);
+  server_->adapter()->PacketReceived(record);
   server_->ExpectReadWriteError();
   server_->ReadBytes();
   EXPECT_EQ(SSL_ERROR_TOO_MANY_RECORDS, server_->error_code());
 }
 
 TEST_P(TlsCipherSuiteTest, WriteLimit) {
-  // This asserts in TLS 1.3 because we expect an automatic update.
-  if (version_ >= SSL_LIBRARY_VERSION_TLS_1_3) {
-    return;
-  }
   SetupCertificate();
   EnableSingleCipher();
   ConnectAndCheckCipherSuite();

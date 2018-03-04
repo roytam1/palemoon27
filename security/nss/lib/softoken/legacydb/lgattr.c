@@ -133,7 +133,7 @@ lg_CopyAttribute(CK_ATTRIBUTE *attr, CK_ATTRIBUTE_TYPE type,
         attr->ulValueLen = (CK_ULONG)-1;
         return CKR_BUFFER_TOO_SMALL;
     }
-    if (len > 0 && value != NULL) {
+    if (value != NULL) {
         PORT_Memcpy(attr->pValue, value, len);
     }
     attr->ulValueLen = len;
@@ -421,9 +421,11 @@ lg_GetPubItem(NSSLOWKEYPublicKey *pubKey)
         case NSSLOWKEYDHKey:
             pubItem = &pubKey->u.dh.publicValue;
             break;
+#ifndef NSS_DISABLE_ECC
         case NSSLOWKEYECKey:
             pubItem = &pubKey->u.ec.publicValue;
             break;
+#endif /* NSS_DISABLE_ECC */
         default:
             break;
     }
@@ -542,6 +544,7 @@ lg_FindDHPublicKeyAttribute(NSSLOWKEYPublicKey *key, CK_ATTRIBUTE_TYPE type,
     return lg_invalidAttribute(attribute);
 }
 
+#ifndef NSS_DISABLE_ECC
 static CK_RV
 lg_FindECPublicKeyAttribute(NSSLOWKEYPublicKey *key, CK_ATTRIBUTE_TYPE type,
                             CK_ATTRIBUTE *attribute)
@@ -591,6 +594,7 @@ lg_FindECPublicKeyAttribute(NSSLOWKEYPublicKey *key, CK_ATTRIBUTE_TYPE type,
     }
     return lg_invalidAttribute(attribute);
 }
+#endif /* NSS_DISABLE_ECC */
 
 static CK_RV
 lg_FindPublicKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
@@ -641,8 +645,10 @@ lg_FindPublicKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
             return lg_FindDSAPublicKeyAttribute(key, type, attribute);
         case NSSLOWKEYDHKey:
             return lg_FindDHPublicKeyAttribute(key, type, attribute);
+#ifndef NSS_DISABLE_ECC
         case NSSLOWKEYECKey:
             return lg_FindECPublicKeyAttribute(key, type, attribute);
+#endif /* NSS_DISABLE_ECC */
         default:
             break;
     }
@@ -929,6 +935,7 @@ lg_FindDHPrivateKeyAttribute(NSSLOWKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
     return lg_invalidAttribute(attribute);
 }
 
+#ifndef NSS_DISABLE_ECC
 static CK_RV
 lg_FindECPrivateKeyAttribute(NSSLOWKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
                              CK_ATTRIBUTE *attribute, SDB *sdbpw)
@@ -966,6 +973,7 @@ lg_FindECPrivateKeyAttribute(NSSLOWKEYPrivateKey *key, CK_ATTRIBUTE_TYPE type,
     }
     return lg_invalidAttribute(attribute);
 }
+#endif /* NSS_DISABLE_ECC */
 
 static CK_RV
 lg_FindPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
@@ -1012,8 +1020,10 @@ lg_FindPrivateKeyAttribute(LGObjectCache *obj, CK_ATTRIBUTE_TYPE type,
             return lg_FindDSAPrivateKeyAttribute(key, type, attribute, obj->sdb);
         case NSSLOWKEYDHKey:
             return lg_FindDHPrivateKeyAttribute(key, type, attribute, obj->sdb);
+#ifndef NSS_DISABLE_ECC
         case NSSLOWKEYECKey:
             return lg_FindECPrivateKeyAttribute(key, type, attribute, obj->sdb);
+#endif /* NSS_DISABLE_ECC */
         default:
             break;
     }

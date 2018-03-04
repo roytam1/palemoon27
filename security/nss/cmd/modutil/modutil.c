@@ -865,7 +865,7 @@ main(int argc, char* argv[])
             errcode = ChangePW(tokenName, pwFile, newpwFile);
             break;
         case CREATE_COMMAND:
-            errcode = InitPW();
+            /* The work was already done in init_crypto() */
             break;
         case DEFAULT_COMMAND:
             errcode = SetDefaultModule(moduleName, slotName, mechanisms);

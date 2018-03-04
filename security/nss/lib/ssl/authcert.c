@@ -17,7 +17,6 @@
 #include "nss.h"
 #include "ssl.h"
 #include "pk11func.h" /* for PK11_ function calls */
-#include "sslimpl.h"
 
 /*
  * This callback used by SSL to pull client sertificate upon
@@ -64,7 +63,7 @@ NSS_GetClientAuthData(void *arg,
                 if (!cert)
                     continue;
                 /* Only check unexpired certs */
-                if (CERT_CheckCertValidTimes(cert, ssl_TimeUsec(), PR_TRUE) !=
+                if (CERT_CheckCertValidTimes(cert, PR_Now(), PR_TRUE) !=
                     secCertTimeValid) {
                     CERT_DestroyCertificate(cert);
                     continue;

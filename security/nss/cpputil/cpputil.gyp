@@ -10,7 +10,6 @@
       'target_name': 'cpputil',
       'type': 'static_library',
       'sources': [
-        'databuffer.cc',
         'dummy_io.cc',
         'dummy_io_fwd.cc',
         'tls_parser.cc',

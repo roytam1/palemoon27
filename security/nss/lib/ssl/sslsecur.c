@@ -1,4 +1,3 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /*
  * Various SSL functions.
  *
@@ -201,7 +200,7 @@ SSL_ResetHandshake(PRFileDesc *s, PRBool asServer)
     ssl_Release1stHandshakeLock(ss);
 
     ssl3_DestroyRemoteExtensions(&ss->ssl3.hs.remoteExtensions);
-    ssl3_ResetExtensionData(&ss->xtnData, ss);
+    ssl3_ResetExtensionData(&ss->xtnData);
 
     if (!ss->TCPconnected)
         ss->TCPconnected = (PR_SUCCESS == ssl_DefGetpeername(ss, &addr));
@@ -343,6 +342,11 @@ SSL_RecommendedCanFalseStart(PRFileDesc *fd, PRBool *canFalseStart)
         return SECFailure;
     }
 
+    if (!ss->ssl3.initialized) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+
     /* Require a forward-secret key exchange. */
     *canFalseStart = ss->ssl3.hs.kea_def->kea == kea_dhe_dss ||
                      ss->ssl3.hs.kea_def->kea == kea_dhe_rsa ||
@@ -429,6 +433,58 @@ SSL_ForceHandshakeWithTimeout(PRFileDesc *fd,
 }
 
 /************************************************************************/
+
+/*
+** Grow a buffer to hold newLen bytes of data.
+** Called for both recv buffers and xmit buffers.
+** Caller must hold xmitBufLock or recvBufLock, as appropriate.
+*/
+SECStatus
+sslBuffer_Grow(sslBuffer *b, unsigned int newLen)
+{
+    newLen = PR_MAX(newLen, MAX_FRAGMENT_LENGTH + 2048);
+    if (newLen > b->space) {
+        unsigned char *newBuf;
+        if (b->buf) {
+            newBuf = (unsigned char *)PORT_Realloc(b->buf, newLen);
+        } else {
+            newBuf = (unsigned char *)PORT_Alloc(newLen);
+        }
+        if (!newBuf) {
+            return SECFailure;
+        }
+        SSL_TRC(10, ("%d: SSL: grow buffer from %d to %d",
+                     SSL_GETPID(), b->space, newLen));
+        b->buf = newBuf;
+        b->space = newLen;
+    }
+    return SECSuccess;
+}
+
+SECStatus
+sslBuffer_Append(sslBuffer *b, const void *data, unsigned int len)
+{
+    unsigned int newLen = b->len + len;
+    SECStatus rv;
+
+    rv = sslBuffer_Grow(b, newLen);
+    if (rv != SECSuccess)
+        return rv;
+    PORT_Memcpy(b->buf + b->len, data, len);
+    b->len += len;
+    return SECSuccess;
+}
+
+void
+sslBuffer_Clear(sslBuffer *b)
+{
+    if (b->buf) {
+        PORT_Free(b->buf);
+        b->buf = NULL;
+        b->len = 0;
+        b->space = 0;
+    }
+}
 
 /*
 ** Save away write data that is trying to be written before the security
@@ -718,7 +774,8 @@ ssl_SecureClose(sslSocket *ss)
 
     if (!(ss->shutdownHow & ssl_SHUTDOWN_SEND) &&
         ss->firstHsDone &&
-        !ss->recvdCloseNotify) {
+        !ss->recvdCloseNotify &&
+        ss->ssl3.initialized) {
 
         /* We don't want the final alert to be Nagle delayed. */
         if (!ss->delayDisabled) {
@@ -748,7 +805,8 @@ ssl_SecureShutdown(sslSocket *ss, int nsprHow)
     if ((sslHow & ssl_SHUTDOWN_SEND) != 0 &&
         !(ss->shutdownHow & ssl_SHUTDOWN_SEND) &&
         ss->firstHsDone &&
-        !ss->recvdCloseNotify) {
+        !ss->recvdCloseNotify &&
+        ss->ssl3.initialized) {
 
         (void)SSL3_SendAlert(ss, alert_warning, close_notify);
     }
@@ -761,55 +819,6 @@ ssl_SecureShutdown(sslSocket *ss, int nsprHow)
 }
 
 /************************************************************************/
-
-static SECStatus
-tls13_CheckKeyUpdate(sslSocket *ss, CipherSpecDirection dir)
-{
-    PRBool keyUpdate;
-    ssl3CipherSpec *spec;
-    sslSequenceNumber seqNum;
-    sslSequenceNumber margin;
-    SECStatus rv;
-
-    /* Bug 1413368: enable for DTLS */
-    if (ss->version < SSL_LIBRARY_VERSION_TLS_1_3 || IS_DTLS(ss)) {
-        return SECSuccess;
-    }
-
-    /* If both sides update at the same number, then this will cause two updates
-     * to happen at once. The problem is that the KeyUpdate itself consumes a
-     * sequence number, and that will trigger the reading side to request an
-     * update.
-     *
-     * If we have the writing side update first, the writer will be the one that
-     * drives the update.  An update by the writer doesn't need a response, so
-     * it is more efficient overall.  The margins here are pretty arbitrary, but
-     * having the write margin larger reduces the number of times that a
-     * KeyUpdate is sent by a reader. */
-    ssl_GetSpecReadLock(ss);
-    if (dir == CipherSpecRead) {
-        spec = ss->ssl3.crSpec;
-        margin = spec->cipherDef->max_records / 8;
-    } else {
-        spec = ss->ssl3.cwSpec;
-        margin = spec->cipherDef->max_records / 4;
-    }
-    seqNum = spec->seqNum;
-    keyUpdate = seqNum > spec->cipherDef->max_records - margin;
-    ssl_ReleaseSpecReadLock(ss);
-    if (!keyUpdate) {
-        return SECSuccess;
-    }
-
-    SSL_TRC(5, ("%d: SSL[%d]: automatic key update at %llx for %s cipher spec",
-                SSL_GETPID(), ss->fd, seqNum,
-                (dir == CipherSpecRead) ? "read" : "write"));
-    ssl_GetSSL3HandshakeLock(ss);
-    rv = tls13_SendKeyUpdate(ss, (dir == CipherSpecRead) ? update_requested : update_not_requested,
-                             dir == CipherSpecWrite /* buffer */);
-    ssl_ReleaseSSL3HandshakeLock(ss);
-    return rv;
-}
 
 int
 ssl_SecureRecv(sslSocket *ss, unsigned char *buf, int len, int flags)
@@ -850,17 +859,8 @@ ssl_SecureRecv(sslSocket *ss, unsigned char *buf, int len, int flags)
             rv = ssl_Do1stHandshake(ss);
         }
         ssl_Release1stHandshakeLock(ss);
-    } else {
-        if (tls13_CheckKeyUpdate(ss, CipherSpecRead) != SECSuccess) {
-            rv = PR_FAILURE;
-        }
     }
     if (rv < 0) {
-        if (PORT_GetError() == PR_WOULD_BLOCK_ERROR &&
-            !PR_CLIST_IS_EMPTY(&ss->ssl3.hs.bufferedEarlyData)) {
-            PORT_Assert(ss->version >= SSL_LIBRARY_VERSION_TLS_1_3);
-            return tls13_Read0RttData(ss, buf, len);
-        }
         return rv;
     }
 
@@ -942,17 +942,9 @@ ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
         }
         ssl_Release1stHandshakeLock(ss);
     }
-
     if (rv < 0) {
         ss->writerThread = NULL;
         goto done;
-    }
-
-    if (ss->firstHsDone) {
-        if (tls13_CheckKeyUpdate(ss, CipherSpecWrite) != SECSuccess) {
-            rv = PR_FAILURE;
-            goto done;
-        }
     }
 
     if (zeroRtt) {
@@ -1249,7 +1241,14 @@ SSL_AuthCertificateComplete(PRFileDesc *fd, PRErrorCode error)
     }
 
     ssl_Get1stHandshakeLock(ss);
-    rv = ssl3_AuthCertificateComplete(ss, error);
+
+    if (!ss->ssl3.initialized) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        rv = SECFailure;
+    } else {
+        rv = ssl3_AuthCertificateComplete(ss, error);
+    }
+
     ssl_Release1stHandshakeLock(ss);
 
     return rv;

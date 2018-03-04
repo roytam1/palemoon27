@@ -1854,8 +1854,6 @@ DecodeDBSMimeEntry(certDBEntrySMime *entry, SECItem *dbentry, char *emailAddr)
                     &dbentry->data[DB_SMIME_ENTRY_HEADER_LEN +
                                    entry->subjectName.len],
                     entry->smimeOptions.len);
-    } else {
-        entry->smimeOptions.data = NULL;
     }
     if (entry->optionsDate.len) {
         entry->optionsDate.data =
@@ -1870,8 +1868,6 @@ DecodeDBSMimeEntry(certDBEntrySMime *entry, SECItem *dbentry, char *emailAddr)
                                    entry->subjectName.len +
                                    entry->smimeOptions.len],
                     entry->optionsDate.len);
-    } else {
-        entry->optionsDate.data = NULL;
     }
 
     /* both options and options date must either exist or not exist */
@@ -2018,7 +2014,7 @@ nsslowcert_ReadDBSMimeEntry(NSSLOWCERTCertDBHandle *handle, char *emailAddr)
 {
     PLArenaPool *arena = NULL;
     PLArenaPool *tmparena = NULL;
-    certDBEntrySMime *entry = NULL;
+    certDBEntrySMime *entry;
     SECItem dbkey;
     SECItem dbentry;
     SECStatus rv;
@@ -2035,8 +2031,8 @@ nsslowcert_ReadDBSMimeEntry(NSSLOWCERTCertDBHandle *handle, char *emailAddr)
         goto loser;
     }
 
-    entry = (certDBEntrySMime *)PORT_ArenaZAlloc(arena,
-                                                 sizeof(certDBEntrySMime));
+    entry = (certDBEntrySMime *)PORT_ArenaAlloc(arena,
+                                                sizeof(certDBEntrySMime));
     if (entry == NULL) {
         PORT_SetError(SEC_ERROR_NO_MEMORY);
         goto loser;

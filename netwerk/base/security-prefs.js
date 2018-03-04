@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 pref("security.tls.version.min", 1);
-pref("security.tls.version.max", 4);
+pref("security.tls.version.max", 3);
 
 /* The lowest protocol version the handshake may insecurely fall back to
    Disabled by default (only fall back to highest = no fallback) but

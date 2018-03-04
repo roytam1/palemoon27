@@ -1000,9 +1000,11 @@ MediaFormatReader::Update(TrackType aTrack)
       decoder.RejectPromise(DECODE_ERROR, __func__);
       return;
     } else if (decoder.mWaitingForData) {
-      LOG("Waiting For Data");
-      decoder.RejectPromise(WAITING_FOR_DATA, __func__);
-      return;
+      if (!decoder.mReceivedNewData) {
+        LOG("Waiting For Data");
+        decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+        return;
+      }
     }
   }
 

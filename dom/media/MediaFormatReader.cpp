@@ -750,7 +750,7 @@ MediaFormatReader::UpdateReceivedNewData(TrackType aTrack)
     decoder.mTimeRanges = decoder.mTrackDemuxer->GetBuffered();
   }
   if (decoder.mTimeRanges.Length() &&
-      (!hasLastEnd || decoder.mTimeRanges.GetEnd() > lastEnd)) {
+      (!hasLastEnd || decoder.mTimeRanges.GetEnd() < lastEnd)) {
     // New data was added after our previous end, we can clear the EOS flag.
     decoder.mDemuxEOS = false;
   }

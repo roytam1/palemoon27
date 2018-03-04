@@ -1598,7 +1598,8 @@ already_AddRefed<TimeRanges>
 HTMLMediaElement::Seekable() const
 {
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
-  if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
+  if (mMediaSource ||
+      (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING)) {
     mDecoder->GetSeekable().ToTimeRanges(ranges);
   }
   return ranges.forget();

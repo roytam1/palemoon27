@@ -10,7 +10,6 @@ EXPORTS = \
         ssl.h \
         sslt.h \
         sslerr.h \
-        sslexp.h \
         sslproto.h \
         preenc.h \
         $(NULL)
@@ -20,15 +19,13 @@ MAPFILE = $(OBJDIR)/ssl.def
 
 CSRCS = \
         dtlscon.c \
-        dtls13con.c \
         prelib.c \
         ssl3con.c \
         ssl3gthr.c \
         sslauth.c \
-        sslbloom.c \
         sslcon.c \
         ssldef.c \
-        sslencode.c \
+        ssl3encode.c \
         sslenum.c \
         sslerr.c \
         sslerrstrs.c \
@@ -41,7 +38,6 @@ CSRCS = \
         sslsecur.c \
         sslsnce.c \
         sslsock.c \
-        sslspec.c \
         ssltrace.c \
         sslver.c \
         authcert.c \
@@ -51,9 +47,7 @@ CSRCS = \
         ssl3ecc.c \
         tls13con.c \
         tls13exthandle.c \
-        tls13hashstate.c \
         tls13hkdf.c \
-        tls13replay.c \
         sslcert.c \
         sslgrp.c \
         $(NULL)

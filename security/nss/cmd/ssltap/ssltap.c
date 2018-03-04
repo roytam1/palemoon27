@@ -1637,7 +1637,8 @@ print_ssl3_handshake(unsigned char *recordBuf,
                         PR_snprintf(certFileName, sizeof certFileName, "cert.%03d",
                                     ++certFileNumber);
                         cfd =
-                            PR_Open(certFileName, PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
+                            PR_Open(certFileName, PR_WRONLY |
+                                                      PR_CREATE_FILE | PR_TRUNCATE,
                                     0664);
                         if (!cfd) {
                             PR_fprintf(PR_STDOUT,
@@ -1721,7 +1722,8 @@ print_ssl3_handshake(unsigned char *recordBuf,
                                     0 &&
                                 sslhexparse) {
                                 PR_fprintf(PR_STDOUT, " = {\n");
-                                print_hex(dnLen, hsdata + pos);
+                                print_hex(dnLen, hsdata +
+                                                     pos);
                                 PR_fprintf(PR_STDOUT, "              }\n");
                             } else {
                                 PR_fprintf(PR_STDOUT, "\n");
@@ -1794,7 +1796,8 @@ print_ssl3_handshake(unsigned char *recordBuf,
 
                 PR_snprintf(ocspFileName, sizeof ocspFileName, "ocsp.%03d",
                             ++ocspFileNumber);
-                ofd = PR_Open(ocspFileName, PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
+                ofd = PR_Open(ocspFileName, PR_WRONLY |
+                                                PR_CREATE_FILE | PR_TRUNCATE,
                               0664);
                 if (!ofd) {
                     PR_fprintf(PR_STDOUT,
@@ -2164,7 +2167,8 @@ print_ssl(DataBufferList *s, int length, unsigned char *buffer)
                         break;
 
                     case 22: /* handshake */
-                        print_ssl3_handshake(recordBuf, recordLen - s->hMACsize,
+                        print_ssl3_handshake(recordBuf, recordLen -
+                                                            s->hMACsize,
                                              &sr, s);
                         break;
 

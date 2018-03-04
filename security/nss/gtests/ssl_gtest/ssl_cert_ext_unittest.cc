@@ -82,8 +82,9 @@ TEST_P(TlsConnectGenericPre13, SignedCertificateTimestampsLegacy) {
                             ssl_kea_rsa));
   EXPECT_EQ(SECSuccess, SSL_SetSignedCertTimestamps(server_->ssl_fd(),
                                                     &kSctItem, ssl_kea_rsa));
-
-  client_->SetOption(SSL_ENABLE_SIGNED_CERT_TIMESTAMPS, PR_TRUE);
+  EXPECT_EQ(SECSuccess,
+            SSL_OptionSet(client_->ssl_fd(), SSL_ENABLE_SIGNED_CERT_TIMESTAMPS,
+                          PR_TRUE));
   SignedCertificateTimestampsExtractor timestamps_extractor(client_);
 
   Connect();
@@ -95,7 +96,9 @@ TEST_P(TlsConnectGeneric, SignedCertificateTimestampsSuccess) {
   EnsureTlsSetup();
   EXPECT_TRUE(
       server_->ConfigServerCert(TlsAgent::kServerRsa, true, &kExtraSctData));
-  client_->SetOption(SSL_ENABLE_SIGNED_CERT_TIMESTAMPS, PR_TRUE);
+  EXPECT_EQ(SECSuccess,
+            SSL_OptionSet(client_->ssl_fd(), SSL_ENABLE_SIGNED_CERT_TIMESTAMPS,
+                          PR_TRUE));
   SignedCertificateTimestampsExtractor timestamps_extractor(client_);
 
   Connect();
@@ -117,7 +120,9 @@ TEST_P(TlsConnectGeneric, SignedCertificateTimestampsInactiveClient) {
 
 TEST_P(TlsConnectGeneric, SignedCertificateTimestampsInactiveServer) {
   EnsureTlsSetup();
-  client_->SetOption(SSL_ENABLE_SIGNED_CERT_TIMESTAMPS, PR_TRUE);
+  EXPECT_EQ(SECSuccess,
+            SSL_OptionSet(client_->ssl_fd(), SSL_ENABLE_SIGNED_CERT_TIMESTAMPS,
+                          PR_TRUE));
   SignedCertificateTimestampsExtractor timestamps_extractor(client_);
 
   Connect();
@@ -168,14 +173,16 @@ TEST_P(TlsConnectGeneric, OcspNotRequested) {
 // Even if the client asks, the server has nothing unless it is configured.
 TEST_P(TlsConnectGeneric, OcspNotProvided) {
   EnsureTlsSetup();
-  client_->SetOption(SSL_ENABLE_OCSP_STAPLING, PR_TRUE);
+  EXPECT_EQ(SECSuccess, SSL_OptionSet(client_->ssl_fd(),
+                                      SSL_ENABLE_OCSP_STAPLING, PR_TRUE));
   client_->SetAuthCertificateCallback(CheckNoOCSP);
   Connect();
 }
 
 TEST_P(TlsConnectGenericPre13, OcspMangled) {
   EnsureTlsSetup();
-  client_->SetOption(SSL_ENABLE_OCSP_STAPLING, PR_TRUE);
+  EXPECT_EQ(SECSuccess, SSL_OptionSet(client_->ssl_fd(),
+                                      SSL_ENABLE_OCSP_STAPLING, PR_TRUE));
   EXPECT_TRUE(
       server_->ConfigServerCert(TlsAgent::kServerRsa, true, &kOcspExtraData));
 
@@ -190,7 +197,8 @@ TEST_P(TlsConnectGenericPre13, OcspMangled) {
 
 TEST_P(TlsConnectGeneric, OcspSuccess) {
   EnsureTlsSetup();
-  client_->SetOption(SSL_ENABLE_OCSP_STAPLING, PR_TRUE);
+  EXPECT_EQ(SECSuccess, SSL_OptionSet(client_->ssl_fd(),
+                                      SSL_ENABLE_OCSP_STAPLING, PR_TRUE));
   auto capture_ocsp =
       std::make_shared<TlsExtensionCapture>(ssl_cert_status_xtn);
   server_->SetPacketFilter(capture_ocsp);
@@ -217,7 +225,8 @@ TEST_P(TlsConnectGeneric, OcspSuccess) {
 
 TEST_P(TlsConnectGeneric, OcspHugeSuccess) {
   EnsureTlsSetup();
-  client_->SetOption(SSL_ENABLE_OCSP_STAPLING, PR_TRUE);
+  EXPECT_EQ(SECSuccess, SSL_OptionSet(client_->ssl_fd(),
+                                      SSL_ENABLE_OCSP_STAPLING, PR_TRUE));
 
   uint8_t hugeOcspValue[16385];
   memset(hugeOcspValue, 0xa1, sizeof(hugeOcspValue));

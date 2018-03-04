@@ -457,37 +457,20 @@ __CERT_NewTempCertificate(CERTCertDBHandle *handle, SECItem *derCert,
     return CERT_NewTempCertificate(handle, derCert, nickname, isperm, copyDER);
 }
 
-static CERTCertificate *
-common_FindCertByIssuerAndSN(CERTCertDBHandle *handle,
-                             CERTIssuerAndSN *issuerAndSN,
-                             void *wincx)
-{
-    PK11SlotInfo *slot;
-    CERTCertificate *cert;
-
-    cert = PK11_FindCertByIssuerAndSN(&slot, issuerAndSN, wincx);
-    if (cert && slot) {
-        PK11_FreeSlot(slot);
-    }
-
-    return cert;
-}
-
 /* maybe all the wincx's should be some const for internal token login? */
 CERTCertificate *
 CERT_FindCertByIssuerAndSN(CERTCertDBHandle *handle,
                            CERTIssuerAndSN *issuerAndSN)
 {
-    return common_FindCertByIssuerAndSN(handle, issuerAndSN, NULL);
-}
+    PK11SlotInfo *slot;
+    CERTCertificate *cert;
 
-/* maybe all the wincx's should be some const for internal token login? */
-CERTCertificate *
-CERT_FindCertByIssuerAndSNCX(CERTCertDBHandle *handle,
-                             CERTIssuerAndSN *issuerAndSN,
-                             void *wincx)
-{
-    return common_FindCertByIssuerAndSN(handle, issuerAndSN, wincx);
+    cert = PK11_FindCertByIssuerAndSN(&slot, issuerAndSN, NULL);
+    if (cert && slot) {
+        PK11_FreeSlot(slot);
+    }
+
+    return cert;
 }
 
 static NSSCertificate *
@@ -604,8 +587,7 @@ CERT_FindCertByDERCert(CERTCertDBHandle *handle, SECItem *derCert)
 static CERTCertificate *
 common_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
                                              const char *name, PRBool anyUsage,
-                                             SECCertUsage lookingForUsage,
-                                             void *wincx)
+                                             SECCertUsage lookingForUsage)
 {
     NSSCryptoContext *cc;
     NSSCertificate *c, *ct;
@@ -638,7 +620,7 @@ common_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
     }
 
     if (anyUsage) {
-        cert = PK11_FindCertFromNickname(name, wincx);
+        cert = PK11_FindCertFromNickname(name, NULL);
     } else {
         if (ct) {
             /* Does ct really have the required usage? */
@@ -650,7 +632,7 @@ common_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
             }
         }
 
-        certlist = PK11_FindCertsFromNickname(name, wincx);
+        certlist = PK11_FindCertsFromNickname(name, NULL);
         if (certlist) {
             SECStatus rv =
                 CERT_FilterCertListByUsage(certlist, lookingForUsage, PR_FALSE);
@@ -677,15 +659,7 @@ CERTCertificate *
 CERT_FindCertByNicknameOrEmailAddr(CERTCertDBHandle *handle, const char *name)
 {
     return common_FindCertByNicknameOrEmailAddrForUsage(handle, name, PR_TRUE,
-                                                        0, NULL);
-}
-
-CERTCertificate *
-CERT_FindCertByNicknameOrEmailAddrCX(CERTCertDBHandle *handle, const char *name,
-                                     void *wincx)
-{
-    return common_FindCertByNicknameOrEmailAddrForUsage(handle, name, PR_TRUE,
-                                                        0, wincx);
+                                                        0);
 }
 
 CERTCertificate *
@@ -694,17 +668,7 @@ CERT_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
                                            SECCertUsage lookingForUsage)
 {
     return common_FindCertByNicknameOrEmailAddrForUsage(handle, name, PR_FALSE,
-                                                        lookingForUsage, NULL);
-}
-
-CERTCertificate *
-CERT_FindCertByNicknameOrEmailAddrForUsageCX(CERTCertDBHandle *handle,
-                                             const char *name,
-                                             SECCertUsage lookingForUsage,
-                                             void *wincx)
-{
-    return common_FindCertByNicknameOrEmailAddrForUsage(handle, name, PR_FALSE,
-                                                        lookingForUsage, wincx);
+                                                        lookingForUsage);
 }
 
 static void

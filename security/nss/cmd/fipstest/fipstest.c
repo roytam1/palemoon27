@@ -35,11 +35,13 @@
 #include "../../lib/freebl/mpi/mpi.h"
 #endif
 
+#ifndef NSS_DISABLE_ECC
 extern SECStatus
 EC_DecodeParams(const SECItem *encodedParams, ECParams **ecparams);
 extern SECStatus
 EC_CopyParams(PLArenaPool *arena, ECParams *dstParams,
               const ECParams *srcParams);
+#endif
 
 #define ENCRYPT 1
 #define DECRYPT 0
@@ -2092,6 +2094,7 @@ get_next_line(FILE *req, char *key, char *val, FILE *rsp)
     return (c == EOF) ? -1 : ignore;
 }
 
+#ifndef NSS_DISABLE_ECC
 typedef struct curveNameTagPairStr {
     char *curveName;
     SECOidTag curveOidTag;
@@ -2955,6 +2958,7 @@ loser:
     }
     fclose(ecdsareq);
 }
+#endif /* NSS_DISABLE_ECC */
 
 PRBool
 isblankline(char *b)
@@ -5922,7 +5926,8 @@ tls(char *reqfn)
                 goto loser;
             }
             crv = NSC_DeriveKey(session, &master_mech, pms_handle,
-                                derive_template, derive_template_count - 1,
+                                derive_template, derive_template_count -
+                                                     1,
                                 &master_handle);
             if (crv != CKR_OK) {
                 fprintf(stderr, "NSC_DeriveKey(master) failed crv=0x%x\n",
@@ -6089,6 +6094,7 @@ main(int argc, char **argv)
             /* Signature Verification Test */
             dsa_sigver_test(argv[3]);
         }
+#ifndef NSS_DISABLE_ECC
         /*************/
         /*   ECDSA   */
         /*************/
@@ -6107,6 +6113,7 @@ main(int argc, char **argv)
             /* Signature Verification Test */
             ecdsa_sigver_test(argv[3]);
         }
+#endif /* NSS_DISABLE_ECC */
         /*************/
         /*   RNG     */
         /*************/

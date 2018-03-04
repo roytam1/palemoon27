@@ -20,7 +20,7 @@ class TlsRecordHeader;
 class AeadCipher {
  public:
   AeadCipher(CK_MECHANISM_TYPE mech) : mech_(mech), key_(nullptr) {}
-  virtual ~AeadCipher();
+  ~AeadCipher();
 
   bool Init(PK11SymKey *key, const uint8_t *iv);
   virtual bool Aead(bool decrypt, uint64_t seq, const uint8_t *in, size_t inlen,
@@ -58,19 +58,16 @@ class AeadCipherAesGcm : public AeadCipher {
 // Our analog of ssl3CipherSpec
 class TlsCipherSpec {
  public:
-  TlsCipherSpec() : epoch_(0), aead_() {}
+  TlsCipherSpec() : aead_() {}
 
-  bool Init(uint16_t epoch, SSLCipherAlgorithm cipher, PK11SymKey *key,
-            const uint8_t *iv);
+  bool Init(SSLCipherAlgorithm cipher, PK11SymKey *key, const uint8_t *iv);
 
   bool Protect(const TlsRecordHeader &header, const DataBuffer &plaintext,
                DataBuffer *ciphertext);
   bool Unprotect(const TlsRecordHeader &header, const DataBuffer &ciphertext,
                  DataBuffer *plaintext);
-  uint16_t epoch() const { return epoch_; }
 
  private:
-  uint16_t epoch_;
   std::unique_ptr<AeadCipher> aead_;
 };
 

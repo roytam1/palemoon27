@@ -536,7 +536,7 @@ static const bool isthreaded = true;
  */
 #define	CHUNK_2POW_DEFAULT	20
 /* Maximum number of dirty pages per arena. */
-#define	DIRTY_MAX_DEFAULT	(1U << 10)
+#define	DIRTY_MAX_DEFAULT	(1U << 8)
 
 /*
  * Maximum size of L1 cache line.  This is used to avoid cache line aliasing,
@@ -547,11 +547,12 @@ static const bool isthreaded = true;
 #define	CACHELINE		((size_t)(1U << CACHELINE_2POW))
 
 /*
- * Smallest size class to support.  On Linux and Mac, even malloc(1) must
- * reserve a word's worth of memory (see Mozilla bug 691003).
+ * Smallest size class to support.  On Windows the smallest allocation size
+ * must be 8 bytes on 32-bit, 16 bytes on 64-bit.  On Linux and Mac, even
+ * malloc(1) must reserve a word's worth of memory (see Mozilla bug 691003).
  */
 #ifdef MOZ_MEMORY_WINDOWS
-#define	TINY_MIN_2POW		1
+#define TINY_MIN_2POW           (sizeof(void*) == 8 ? 4 : 3)
 #else
 #define TINY_MIN_2POW           (sizeof(void*) == 8 ? 3 : 2)
 #endif
@@ -5840,11 +5841,6 @@ MALLOC_OUT:
 #endif
 	}
 
-#if !defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN)
-	/* Prevent potential deadlock on malloc locks after fork. */
-	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
-#endif
-
 #ifndef MALLOC_STATIC_SIZES
 	/* Set variables according to the value of opt_small_max_2pow. */
 	if (opt_small_max_2pow < opt_quantum_2pow)
@@ -6046,6 +6042,11 @@ MALLOC_OUT:
 #endif
 
 	malloc_initialized = true;
+
+#if !defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN)
+	/* Prevent potential deadlock on malloc locks after fork. */
+	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
+#endif
 
 #if defined(NEEDS_PTHREAD_MMAP_UNALIGNED_TSD)
 	if (pthread_key_create(&mmap_unaligned_tsd, NULL) != 0) {
@@ -6789,7 +6790,7 @@ _recalloc(void *ptr, size_t count, size_t size)
 	 * trailing bytes.
 	 */
 
-	ptr = realloc(ptr, newsize);
+	ptr = realloc_impl(ptr, newsize);
 	if (ptr != NULL && oldsize < newsize) {
 		memset((void *)((uintptr_t)ptr + oldsize), 0, newsize -
 		    oldsize);

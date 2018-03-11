@@ -1213,7 +1213,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 14;
+    const UI_VERSION = 15;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
     let currentUIVersion = 0;
     try {
@@ -1395,7 +1395,7 @@ BrowserGlue.prototype = {
       }
     }
 
-    if (currentUIVersion < 14) {
+    if (currentUIVersion < 16) {
       // Migrate Sync from pmsync.palemoon.net to pmsync.palemoon.org
       try {
         let syncURL = Services.prefs.getCharPref("services.sync.clusterURL");

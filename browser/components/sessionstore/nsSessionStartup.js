@@ -77,9 +77,14 @@ SessionStartup.prototype = {
       return;
     }
 
-    _SessionFile.read().then(
-      this._onSessionFileRead.bind(this)
-    );
+    if (Services.prefs.getBoolPref("browser.sessionstore.resume_session_once") ||
+        Services.prefs.getIntPref("browser.startup.page") == 3) {
+      this._ensureInitialized();
+    } else {
+      _SessionFile.read().then(
+        this._onSessionFileRead.bind(this)
+      );
+    }
   },
 
   // Wrap a string as a nsISupports

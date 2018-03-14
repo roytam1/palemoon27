@@ -62,3 +62,7 @@ addMessageListener("Finder:Initialize", function () {
   let {RemoteFinderListener} = Cu.import("resource://gre/modules/RemoteFinder.jsm", {});
   new RemoteFinderListener(global);
 });
+
+addEventListener("DOMWebNotificationClicked", function(event) {
+  sendAsyncMessage("DOMWebNotificationClicked", {});
+}, false);

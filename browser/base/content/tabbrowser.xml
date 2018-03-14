@@ -2957,6 +2957,7 @@
               let titleChanged = this.setTabTitle(tab);
               if (titleChanged && !tab.selected && !tab.hasAttribute("busy"))
                 tab.setAttribute("titlechanged", "true");
+              break;
             }
             case "DOMWebNotificationClicked": {
               let tab = this.getTabForBrowser(browser);

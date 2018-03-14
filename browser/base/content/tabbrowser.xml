@@ -2959,7 +2959,7 @@
                 tab.setAttribute("titlechanged", "true");
             }
             case "DOMWebNotificationClicked": {
-              let tab = this._getTabForBrowser(browser);
+              let tab = this.getTabForBrowser(browser);
               if (!tab)
                 return;
               this.selectedTab = tab;

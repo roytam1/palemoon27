@@ -131,7 +131,7 @@ elif CONFIG['CLANG_CL']:
     SOURCES['trunk/src/opts/SkBlurImage_opts_SSE4.cpp'].flags += ['-msse4.1']
 
 if CONFIG['GNU_CXX'] and CONFIG['CPU_ARCH'] == 'arm':
-    SOURCES['skia/src/opts/SkBlitRow_opts_arm.cpp'].flags += ['-fomit-frame-pointer']
+    SOURCES['trunk/src/opts/SkBlitRow_opts_arm.cpp'].flags += ['-fomit-frame-pointer']
 
 DEFINES['SKIA_IMPLEMENTATION'] = 1
 DEFINES['GR_IMPLEMENTATION'] = 1

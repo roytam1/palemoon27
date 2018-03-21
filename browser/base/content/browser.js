@@ -337,9 +337,18 @@ const gSessionHistoryObserver = {
 };
 
 var gURLBarSettings = {
-  prefSuggestBookmark: "browser.urlbar.suggest.bookmark",
-  prefSuggestHistory: "browser.urlbar.suggest.history",
-  prefSuggestOpenpage: "browser.urlbar.suggest.openpage",
+  prefSuggest: "browser.urlbar.suggest.",
+  /*
+  For searching in the source code:
+    browser.urlbar.suggest.bookmark
+    browser.urlbar.suggest.history
+    browser.urlbar.suggest.openpage
+  */
+  prefSuggests: [
+    "bookmark",
+    "history",
+    "openpage",
+  ],
 
   observe: function(aSubject, aTopic, aData) {
     if (aTopic != "nsPref:changed")
@@ -350,11 +359,9 @@ var gURLBarSettings = {
 
   writePlaceholder: function() {
     let attribute = "placeholder";
-    let suggests = [
-      this.prefSuggestBookmark,
-      this.prefSuggestHistory,
-      this.prefSuggestOpenpage,
-    ];
+    let suggests = this.prefSuggests.map(pref => {
+      return this.prefSuggest + pref;
+    });
     let placeholderDefault = suggests.some(pref => {
       return gPrefService.getBoolPref(pref);
     });
@@ -1001,9 +1008,7 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
     Services.obs.addObserver(gXSSObserver, "xss-on-violate-policy", false);
 
-    gPrefService.addObserver(gURLBarSettings.prefSuggestBookmark, gURLBarSettings, false);
-    gPrefService.addObserver(gURLBarSettings.prefSuggestHistory, gURLBarSettings, false);
-    gPrefService.addObserver(gURLBarSettings.prefSuggestOpenpage, gURLBarSettings, false);
+    gPrefService.addObserver(gURLBarSettings.prefSuggest, gURLBarSettings, false);
 
     gURLBarSettings.writePlaceholder();
 
@@ -1353,9 +1358,7 @@ var gBrowserInit = {
       Services.obs.removeObserver(gXSSObserver, "xss-on-violate-policy");
 
       try {
-        gPrefService.removeObserver(gURLBarSettings.prefSuggestBookmark, gURLBarSettings);
-        gPrefService.removeObserver(gURLBarSettings.prefSuggestHistory, gURLBarSettings);
-        gPrefService.removeObserver(gURLBarSettings.prefSuggestOpenpage, gURLBarSettings);
+        gPrefService.removeObserver(gURLBarSettings.prefSuggest, gURLBarSettings);
       } catch (ex) {
         Cu.reportError(ex);
       }

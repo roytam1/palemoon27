@@ -336,6 +336,39 @@ const gSessionHistoryObserver = {
   }
 };
 
+var gURLBarSettings = {
+  prefSuggestBookmark: "browser.urlbar.suggest.bookmark",
+  prefSuggestHistory: "browser.urlbar.suggest.history",
+  prefSuggestOpenpage: "browser.urlbar.suggest.openpage",
+
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic != "nsPref:changed")
+      return;
+
+    this.writePlaceholder();
+  },
+
+  writePlaceholder: function() {
+    let attribute = "placeholder";
+    let suggests = [
+      this.prefSuggestBookmark,
+      this.prefSuggestHistory,
+      this.prefSuggestOpenpage,
+    ];
+    let placeholderDefault = suggests.some(pref => {
+      return gPrefService.getBoolPref(pref);
+    });
+
+    if (placeholderDefault) {
+      gURLBar.setAttribute(
+          attribute, gNavigatorBundle.getString("urlbar.placeholder"));
+    } else {
+      gURLBar.setAttribute(
+          attribute, gNavigatorBundle.getString("urlbar.placeholderURLOnly"));
+    }
+  }
+};
+
 /**
  * Given a starting docshell and a URI to look up, find the docshell the URI
  * is loaded in.
@@ -968,6 +1001,12 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
     Services.obs.addObserver(gXSSObserver, "xss-on-violate-policy", false);
 
+    gPrefService.addObserver(gURLBarSettings.prefSuggestBookmark, gURLBarSettings, false);
+    gPrefService.addObserver(gURLBarSettings.prefSuggestHistory, gURLBarSettings, false);
+    gPrefService.addObserver(gURLBarSettings.prefSuggestOpenpage, gURLBarSettings, false);
+
+    gURLBarSettings.writePlaceholder();
+
     BrowserOffline.init();
     OfflineApps.init();
     IndexedDBPromptHelper.init();
@@ -1312,6 +1351,14 @@ var gBrowserInit = {
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
       Services.obs.removeObserver(gXSSObserver, "xss-on-violate-policy");
+
+      try {
+        gPrefService.removeObserver(gURLBarSettings.prefSuggestBookmark, gURLBarSettings);
+        gPrefService.removeObserver(gURLBarSettings.prefSuggestHistory, gURLBarSettings);
+        gPrefService.removeObserver(gURLBarSettings.prefSuggestOpenpage, gURLBarSettings);
+      } catch (ex) {
+        Cu.reportError(ex);
+      }
 
       try {
         gPrefService.removeObserver(gHomeButton.prefDomain, gHomeButton);

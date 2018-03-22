@@ -347,7 +347,7 @@ var gURLBarSettings = {
   prefSuggests: [
     "bookmark",
     "history",
-    "openpage",
+    "openpage"
   ],
   prefKeyword: "keyword.enabled",
 

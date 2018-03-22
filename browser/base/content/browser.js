@@ -349,6 +349,7 @@ var gURLBarSettings = {
     "history",
     "openpage",
   ],
+  prefKeyword: "keyword.enabled",
 
   observe: function(aSubject, aTopic, aData) {
     if (aTopic != "nsPref:changed")
@@ -359,10 +360,11 @@ var gURLBarSettings = {
 
   writePlaceholder: function() {
     let attribute = "placeholder";
-    let suggests = this.prefSuggests.map(pref => {
+    let prefs = this.prefSuggests.map(pref => {
       return this.prefSuggest + pref;
     });
-    let placeholderDefault = suggests.some(pref => {
+    prefs.push(this.prefKeyword);
+    let placeholderDefault = prefs.some(pref => {
       return gPrefService.getBoolPref(pref);
     });
 
@@ -1009,6 +1011,7 @@ var gBrowserInit = {
     Services.obs.addObserver(gXSSObserver, "xss-on-violate-policy", false);
 
     gPrefService.addObserver(gURLBarSettings.prefSuggest, gURLBarSettings, false);
+    gPrefService.addObserver(gURLBarSettings.prefKeyword, gURLBarSettings, false);
 
     gURLBarSettings.writePlaceholder();
 
@@ -1359,6 +1362,7 @@ var gBrowserInit = {
 
       try {
         gPrefService.removeObserver(gURLBarSettings.prefSuggest, gURLBarSettings);
+        gPrefService.removeObserver(gURLBarSettings.prefKeyword, gURLBarSettings);
       } catch (ex) {
         Cu.reportError(ex);
       }

@@ -10,7 +10,8 @@
 #include "nsThreadUtils.h"
 #include "TaskDispatcher.h"
 
-#include "nsContentUtils.h"
+#include "nsIAppShell.h"
+#include "nsWidgetsCID.h"
 #include "nsServiceManagerUtils.h"
 
 #include "mozilla/ClearOnShutdown.h"
@@ -22,6 +23,8 @@ namespace mozilla {
 
 StaticRefPtr<AbstractThread> sMainThread;
 ThreadLocal<AbstractThread*> AbstractThread::sCurrentThreadTLS;
+
+static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 class XPCOMThreadWrapper : public AbstractThread
 {
@@ -84,7 +87,8 @@ public:
       mTailDispatcher.emplace(/* aIsTailDispatcher = */ true);
 
       nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &XPCOMThreadWrapper::FireTailDispatcher);
-      nsContentUtils::RunInStableState(event.forget());
+      nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
+      appShell->RunInStableState(event);
     }
 
     return mTailDispatcher.ref();

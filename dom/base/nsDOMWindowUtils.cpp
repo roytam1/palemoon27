@@ -3639,14 +3639,16 @@ nsDOMWindowUtils::DispatchEventToChromeOnly(nsIDOMEventTarget* aTarget,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::RunInStableState(nsIRunnable *aRunnable)
+nsDOMWindowUtils::RunInStableState(nsIRunnable *runnable)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
 
-  nsCOMPtr<nsIRunnable> runnable = aRunnable;
-  nsContentUtils::RunInStableState(runnable.forget());
+  nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
+  if (!appShell) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
-  return NS_OK;
+  return appShell->RunInStableState(runnable);
 }
 
 NS_IMETHODIMP

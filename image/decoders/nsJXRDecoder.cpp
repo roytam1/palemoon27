@@ -1,7 +1,9 @@
 /* vim:set tw=80 expandtab softtabstop=4 ts=4 sw=4: */
 
 // Copyright © Microsoft Corp.
-// All rights reserved.
+// Contributors:
+//   Rhinoduck <private>
+//   Moonchild <moonchild@palemoon.org>
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -2245,7 +2247,8 @@ void nsJXRDecoder::FixWrongImageSizeTag(size_t maxSize)
     }
 
     if (!FinishedDecodingMainPlane())
-        SetCurrentSubbandUpperLimit(m_pDecoder->WMP.ctxSC, maxSize); // will taek care of all other cases and will not harm the above two ones
+        // This will take care of all other cases, but will not harm the above two ones.
+        SetCurrentSubbandUpperLimit(m_pDecoder->WMP.ctxSC, maxSize);
 }
 
 #define DISCARD_HEAD
@@ -2668,16 +2671,19 @@ void nsJXRDecoder::FinishInternal()
             if (HasPlanarAlpha())
             {
                 // Circumvent the bug in JXELIB's JPEG-XR encoder that writes wrong alpha plane byte count.
-                // Adjust the alpha plane byte count if the value is wrong.
                 if (m_pDecoder->WMP.wmiDEMisc.uAlphaOffset + m_pDecoder->WMP.wmiI_Alpha.uImageByteCount > GetTotalNumBytesReceived())
                 {
-                    // Let's not do this, or bad things will happen when we
-                    // receive incomplete data. [rhinoduck]
-                    //m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
-
-                    // For now, let's just raise an error instead. [rhinoduck]
-                    PostDataError();
-                    return;
+                    // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
+                    if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                        PostDataError();
+                        return;
+                    }
+                    
+                    // Adjust the alpha plane byte count if the value is wrong.
+                    // If received data is still incomplete but cut off in the alpha plane data,
+                    // the alpha plane size will be wrong but will should be an acceptable value
+                    // for the decoder. [Moonchild]
+                    m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
                 }
 
                 StartDecodingMBRows_Alpha();
@@ -2724,13 +2730,17 @@ void nsJXRDecoder::FinishInternal()
                 // Adjust the alpha plane byte count if the value is wrong.
                 if (m_pDecoder->WMP.wmiDEMisc.uAlphaOffset + m_pDecoder->WMP.wmiI_Alpha.uImageByteCount > GetTotalNumBytesReceived())
                 {
-                    // Let's not do this, or bad things will happen when we
-                    // receive incomplete data. [rhinoduck]
-                    //m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
-
-                    // For now, let's just raise an error instead. [rhinoduck]
-                    PostDataError();
-                    return;
+                    // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
+                    if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                        PostDataError();
+                        return;
+                    }
+                    
+                    // Adjust the alpha plane byte count if the value is wrong.
+                    // If received data is still incomplete but cut off in the alpha plane data,
+                    // the alpha plane size will be wrong but should still be an acceptable value
+                    // for the decoder. [Moonchild]
+                    m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
                 }
 
                 StartDecodingMBRows_Alpha();

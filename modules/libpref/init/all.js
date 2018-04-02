@@ -316,6 +316,9 @@ pref("media.jxr.autoaccept", true);
 // updated with the new type. This pref is mainly for testing and should be
 // removed once the preferred type (most likely "image/jxr") has been chosen.
 pref("media.jxr.advertised_mime_type", "image/jxr");
+// Work around the JXELIB encoding bug for incorrect bytecounts.
+// Enabling this -may- lead to crashes in rare circumstances.
+pref("media.jxr.workaround_alphaplane_bug", false);
 #endif
 #ifdef MOZ_DIRECTSHOW
 pref("media.directshow.enabled", true);

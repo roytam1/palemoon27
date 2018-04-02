@@ -250,7 +250,7 @@ private:
   DECL_GFX_PREF(Live, "image.mozsamplesize.enabled",           ImageMozSampleSizeEnabled, bool, false);
   DECL_GFX_PREF(Once, "image.multithreaded_decoding.limit",    ImageMTDecodingLimit, int32_t, -1);
   DECL_GFX_PREF(Live, "image.single-color-optimization.enabled", ImageSingleColorOptimizationEnabled, bool, true);
-
+  
   DECL_GFX_PREF(Once, "layers.acceleration.disabled",          LayersAccelerationDisabled, bool, false);
   DECL_GFX_PREF(Live, "layers.acceleration.draw-fps",          LayersDrawFPS, bool, false);
   DECL_GFX_PREF(Live, "layers.acceleration.draw-fps.print-histogram",  FPSPrintHistogram, bool, false);
@@ -330,6 +330,7 @@ private:
   DECL_GFX_PREF(Once, "layout.paint_rects_separately",         LayoutPaintRectsSeparately, bool, true);
 #ifdef MOZ_JXR
   DECL_GFX_PREF(Live, "media.jxr.enabled",                     MediaJXREnabled, bool, false);
+  DECL_GFX_PREF(Live, "media.jxr.workaround_alphaplane_bug",   MediaJXRWorkaroundAlphaplaneBug, bool, false);
 #endif
 
   DECL_GFX_PREF(Live, "nglayout.debug.widget_update_flashing", WidgetUpdateFlashing, bool, false);

@@ -88,6 +88,7 @@
 #include "gfxColor.h"
 #include "gfxPlatform.h"
 #include "qcms.h" // icSigRgbData, icSigGrayData
+#include "gfxPrefs.h" // to control workarounds
 
 //////////////////// Mozilla JPEG-XR decoder ///////////////////////////
 
@@ -2673,17 +2674,23 @@ void nsJXRDecoder::FinishInternal()
                 // Circumvent the bug in JXELIB's JPEG-XR encoder that writes wrong alpha plane byte count.
                 if (m_pDecoder->WMP.wmiDEMisc.uAlphaOffset + m_pDecoder->WMP.wmiI_Alpha.uImageByteCount > GetTotalNumBytesReceived())
                 {
-                    // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
-                    if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                    if (gfxPrefs::MediaJXRWorkaroundAlphaplaneBug()) {
+                        // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
+                        if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                            PostDataError();
+                            return;
+                        }
+                    
+                        // Adjust the alpha plane byte count if the value is wrong.
+                        // If received data is still incomplete but cut off in the alpha plane data,
+                        // the alpha plane size will be wrong but should still be an acceptable value
+                        // for the decoder. [Moonchild]
+                        m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
+                    } else {
+                        // Don't hack around this encoder bug, report an encoding error instead.
                         PostDataError();
                         return;
                     }
-                    
-                    // Adjust the alpha plane byte count if the value is wrong.
-                    // If received data is still incomplete but cut off in the alpha plane data,
-                    // the alpha plane size will be wrong but will should be an acceptable value
-                    // for the decoder. [Moonchild]
-                    m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
                 }
 
                 StartDecodingMBRows_Alpha();
@@ -2727,20 +2734,25 @@ void nsJXRDecoder::FinishInternal()
                 m_pStream->DiscardHead(m_pStream, m_pDecoder->WMP.wmiDEMisc.uAlphaOffset, &discarded);
 
                 // Circumvent the bug in JXELIB's JPEG-XR encoder that writes wrong alpha plane byte count.
-                // Adjust the alpha plane byte count if the value is wrong.
                 if (m_pDecoder->WMP.wmiDEMisc.uAlphaOffset + m_pDecoder->WMP.wmiI_Alpha.uImageByteCount > GetTotalNumBytesReceived())
                 {
-                    // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
-                    if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                    if (gfxPrefs::MediaJXRWorkaroundAlphaplaneBug()) {
+                        // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
+                        if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                            PostDataError();
+                            return;
+                        }
+
+                        // Adjust the alpha plane byte count if the value is wrong.
+                        // If received data is still incomplete but cut off in the alpha plane data,
+                        // the alpha plane size will be wrong but should still be an acceptable value
+                        // for the decoder. [Moonchild]
+                        m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
+                    } else {
+                        // Don't hack around this encoder bug, report an encoding error instead.
                         PostDataError();
                         return;
                     }
-                    
-                    // Adjust the alpha plane byte count if the value is wrong.
-                    // If received data is still incomplete but cut off in the alpha plane data,
-                    // the alpha plane size will be wrong but should still be an acceptable value
-                    // for the decoder. [Moonchild]
-                    m_pDecoder->WMP.wmiI_Alpha.uImageByteCount = GetTotalNumBytesReceived() - m_pDecoder->WMP.wmiDEMisc.uAlphaOffset;
                 }
 
                 StartDecodingMBRows_Alpha();

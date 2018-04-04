@@ -9,6 +9,7 @@
 #include "gfxContext.h"
 #include "gfxDrawable.h"
 #include "gfxPlatform.h"
+#include "gfxPrefs.h" // for surface cache size
 #include "gfxUtils.h"
 #include "imgFrame.h"
 #include "mozilla/AutoRestore.h"
@@ -837,12 +838,14 @@ VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
   nsRefPtr<gfxDrawable> svgDrawable =
     new gfxCallbackDrawable(cb, ThebesIntSize(aParams.size));
 
-  // We take an early exit without using the surface cache if
-  // x or y > maxDimension, because for vector images this can cause bad perf
-  // issues if large sizes are scaled repeatedly (a rather common scenario)
-  // that can quickly exhaust the cache.
-  // 2850 ~= 32MB cache element cap (if square)
-  int32_t maxDimension = 2850;
+  // We take an early exit without using the surface cache if too large,
+  // because for vector images this can cause bad perf issues if large sizes
+  // are scaled repeatedly (a rather common scenario) that can quickly exhaust
+  // the cache.
+  // Similar to max image size calculations, this has a max cap and size check.
+  // max cap = 8000 (pixels); size check = 5% of cache
+  int32_t maxDimension = 8000;
+  int32_t maxCacheElemSize = (gfxPrefs::ImageMemSurfaceCacheMaxSizeKB() * 1024) / 20;
   
   bool bypassCache = bool(aParams.flags & FLAG_BYPASS_SURFACE_CACHE) ||
                      // Refuse to cache animated images:
@@ -853,6 +856,14 @@ VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
                      // Image x or y is larger than our cache cap:
                      aParams.size.width > maxDimension ||
                      aParams.size.height > maxDimension;
+  if (!bypassCache) {
+    // This is separated out to make sure width and height are sane at this point
+    // and the result can't overflow. Note: keep maxDimension low enough so that
+    // (maxDimension)^2 x 4 < INT32_MAX.
+    // Assuming surface size for any rendered vector image is RGBA, so 4Bpp.
+    bypassCache = (aParams.size.width * aParams.size.height * 4) > maxCacheElemSize;
+  }
+
   if (bypassCache)
     return Show(svgDrawable, aParams);
 

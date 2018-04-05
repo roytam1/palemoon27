@@ -2671,12 +2671,20 @@ void nsJXRDecoder::FinishInternal()
 
             if (HasPlanarAlpha())
             {
-                // Circumvent the bug in JXELIB's JPEG-XR encoder that writes wrong alpha plane byte count.
+                // Circumvent a common bug in JPEG-XR encoders that writes a wrong alpha plane byte count.
                 if (m_pDecoder->WMP.wmiDEMisc.uAlphaOffset + m_pDecoder->WMP.wmiI_Alpha.uImageByteCount > GetTotalNumBytesReceived())
                 {
+                    // XXX: Remove this debug junk before release.
+                    printf ("JPEG-XR Mismatch: AOffset=%d ABC=%d BytesReceived=%d \n",
+                            m_pDecoder->WMP.wmiDEMisc.uAlphaOffset,
+                            m_pDecoder->WMP.wmiI_Alpha.uImageByteCount,
+                            GetTotalNumBytesReceived());
                     if (gfxPrefs::MediaJXRWorkaroundAlphaplaneBug()) {
-                        // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
-                        if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                        // Make sure we're not having incomplete data and avoid Bad Things(tm)
+                        // The encoding bug has the alpha plane byte count exactly equal to the
+                        // total file byte count. If that is not the case, then we have a bad
+                        // file and need to throw. [Moonchild]
+                        if (GetTotalNumBytesReceived() != m_pDecoder->WMP.wmiI_Alpha.uImageByteCount) {
                             PostDataError();
                             return;
                         }
@@ -2733,12 +2741,15 @@ void nsJXRDecoder::FinishInternal()
                 size_t discarded;
                 m_pStream->DiscardHead(m_pStream, m_pDecoder->WMP.wmiDEMisc.uAlphaOffset, &discarded);
 
-                // Circumvent the bug in JXELIB's JPEG-XR encoder that writes wrong alpha plane byte count.
+                // Circumvent a common bug in JPEG-XR encoders that writes a wrong alpha plane byte count.
                 if (m_pDecoder->WMP.wmiDEMisc.uAlphaOffset + m_pDecoder->WMP.wmiI_Alpha.uImageByteCount > GetTotalNumBytesReceived())
                 {
                     if (gfxPrefs::MediaJXRWorkaroundAlphaplaneBug()) {
-                        // Make sure we're not having incomplete data and avoid Bad Things(tm) [Moonchild]
-                        if (GetTotalNumBytesReceived() <= m_pDecoder->WMP.wmiDEMisc.uAlphaOffset) {
+                        // Make sure we're not having incomplete data and avoid Bad Things(tm)
+                        // The encoding bug has the alpha plane byte count exactly equal to the
+                        // total file byte count. If that is not the case, then we have a bad
+                        // file and need to throw. [Moonchild]
+                        if (GetTotalNumBytesReceived() != m_pDecoder->WMP.wmiI_Alpha.uImageByteCount) {
                             PostDataError();
                             return;
                         }

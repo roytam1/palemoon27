@@ -2674,11 +2674,6 @@ void nsJXRDecoder::FinishInternal()
                 // Circumvent a common bug in JPEG-XR encoders that writes a wrong alpha plane byte count.
                 if (m_pDecoder->WMP.wmiDEMisc.uAlphaOffset + m_pDecoder->WMP.wmiI_Alpha.uImageByteCount > GetTotalNumBytesReceived())
                 {
-                    // XXX: Remove this debug junk before release.
-                    printf ("JPEG-XR Mismatch: AOffset=%d ABC=%d BytesReceived=%d \n",
-                            m_pDecoder->WMP.wmiDEMisc.uAlphaOffset,
-                            m_pDecoder->WMP.wmiI_Alpha.uImageByteCount,
-                            GetTotalNumBytesReceived());
                     if (gfxPrefs::MediaJXRWorkaroundAlphaplaneBug()) {
                         // Make sure we're not having incomplete data and avoid Bad Things(tm)
                         // The encoding bug has the alpha plane byte count exactly equal to the

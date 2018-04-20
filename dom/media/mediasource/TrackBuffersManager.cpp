@@ -766,6 +766,7 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
     mVideoTracks.mDemuxer = mInputDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
     MOZ_ASSERT(mVideoTracks.mDemuxer);
     info.mVideo = *mVideoTracks.mDemuxer->GetInfo()->GetAsVideoInfo();
+    info.mVideo.mTrackId = 2;
   }
 
   uint32_t numAudios = mInputDemuxer->GetNumberTracks(TrackInfo::kAudioTrack);
@@ -774,6 +775,7 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
     mAudioTracks.mDemuxer = mInputDemuxer->GetTrackDemuxer(TrackInfo::kAudioTrack, 0);
     MOZ_ASSERT(mAudioTracks.mDemuxer);
     info.mAudio = *mAudioTracks.mDemuxer->GetInfo()->GetAsAudioInfo();
+    info.mAudio.mTrackId = 1;
   }
 
   int64_t videoDuration = numVideos ? info.mVideo.mDuration : 0;

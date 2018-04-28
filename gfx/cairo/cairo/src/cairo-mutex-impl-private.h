@@ -36,6 +36,7 @@
  *	Carl D. Worth <cworth@cworth.org>
  *	Mathias Hasselmann <mathias.hasselmann@gmx.de>
  *	Behdad Esfahbod <behdad@behdad.org>
+ *  Mark Straver <moonchild@palemoon.org>
  */
 
 #ifndef CAIRO_MUTEX_IMPL_PRIVATE_H
@@ -178,24 +179,24 @@
 #elif defined(_WIN32) /******************************************************/
 
 #define WIN32_LEAN_AND_MEAN
-/* We require Windows 2000 features such as ETO_PDY */
-#if !defined(WINVER) || (WINVER < 0x0500)
-# define WINVER 0x0500
+/* We require Windows 7 features */
+#if !defined(WINVER) || (WINVER < 0x0601)
+# define WINVER 0x0601
 #endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
-# define _WIN32_WINNT 0x0500
+#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0601)
+# define _WIN32_WINNT 0x0601
 #endif
 
 # include <windows.h>
 
-  typedef CRITICAL_SECTION cairo_mutex_impl_t;
+  typedef SRWLOCK cairo_mutex_impl_t;
 
 # define CAIRO_MUTEX_IMPL_WIN32 1
-# define CAIRO_MUTEX_IMPL_LOCK(mutex) EnterCriticalSection (&(mutex))
-# define CAIRO_MUTEX_IMPL_UNLOCK(mutex) LeaveCriticalSection (&(mutex))
-# define CAIRO_MUTEX_IMPL_INIT(mutex) InitializeCriticalSection (&(mutex))
-# define CAIRO_MUTEX_IMPL_FINI(mutex) DeleteCriticalSection (&(mutex))
-# define CAIRO_MUTEX_IMPL_NIL_INITIALIZER { NULL, 0, 0, NULL, NULL, 0 }
+# define CAIRO_MUTEX_IMPL_LOCK(mutex) AcquireSRWLockExclusive (&(mutex))
+# define CAIRO_MUTEX_IMPL_UNLOCK(mutex) ReleaseSRWLockExclusive (&(mutex))
+# define CAIRO_MUTEX_IMPL_INIT(mutex) InitializeSRWLock (&(mutex))
+# define CAIRO_MUTEX_IMPL_FINI(mutex) CAIRO_MUTEX_IMPL_NOOP
+# define CAIRO_MUTEX_IMPL_NIL_INITIALIZER SRWLOCK_INIT
 
 #elif defined __OS2__ /******************************************************/
 

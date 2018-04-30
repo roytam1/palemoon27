@@ -179,12 +179,12 @@
 #elif defined(_WIN32) /******************************************************/
 
 #define WIN32_LEAN_AND_MEAN
-/* We require Windows 7 features */
-#if !defined(WINVER) || (WINVER < 0x0601)
-# define WINVER 0x0601
+/* We require Windows Vista features */
+#if !defined(WINVER) || (WINVER < 0x0600)
+# define WINVER 0x0600
 #endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0601)
-# define _WIN32_WINNT 0x0601
+#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0600)
+# define _WIN32_WINNT 0x0600
 #endif
 
 # include <windows.h>

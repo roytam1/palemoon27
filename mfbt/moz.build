@@ -72,6 +72,7 @@ EXPORTS.mozilla = [
     'SplayTree.h',
     'TaggedAnonymousMemory.h',
     'TemplateLib.h',
+    'TextUtils.h',
     'ThreadLocal.h',
     'ToString.h',
     'TypedEnumBits.h',

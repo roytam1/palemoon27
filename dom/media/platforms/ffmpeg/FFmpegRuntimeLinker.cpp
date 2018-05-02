@@ -23,12 +23,15 @@ public:
 
 static const char* sLibs[] = {
 #if defined(XP_DARWIN)
+  "libavcodec.58.dylib",
   "libavcodec.57.dylib",
   "libavcodec.56.dylib",
   "libavcodec.55.dylib",
   "libavcodec.54.dylib",
   "libavcodec.53.dylib",
 #else
+  "libavcodec.so.58",
+  "libavcodec-ffmpeg.so.58",
   "libavcodec-ffmpeg.so.57",
   "libavcodec-ffmpeg.so.56",
   "libavcodec.so.57",
@@ -129,6 +132,15 @@ FFmpegRuntimeLinker::Bind(const char* aLibName)
       }
       version = AV_FUNC_57;
       break;
+    case 58:
+      if (micro < 100) {
+        // A micro version >= 100 indicates that it's FFmpeg (as opposed to LibAV).
+        // Due to current AVCodecContext binary incompatibility we can only
+        // support FFmpeg at this point.
+        return false;
+      }
+      version = AV_FUNC_58;
+      break;
     default:
       // Not supported at this stage.
       return false;
@@ -168,6 +180,7 @@ FFmpegRuntimeLinker::CreateDecoderModule()
     case 55:
     case 56: module = FFmpegDecoderModule<55>::Create(); break;
     case 57: module = FFmpegDecoderModule<57>::Create(); break;
+    case 58: module = FFmpegDecoderModule<58>::Create(); break;
     default: module = nullptr;
   }
   return module.forget();

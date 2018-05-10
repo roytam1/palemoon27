@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<blocklist lastupdate="1521130300000"
+<blocklist lastupdate="1525985023000"
 xmlns="http://www.mozilla.org/2006/addons-blocklist">
   <emItems>
     <emItem blockID="i545" id="superlrcs@svenyor.net">
@@ -2513,7 +2513,12 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
       <versionRange minVersion="0" maxVersion="52.4.2" severity="3">
       </versionRange>
       <prefs></prefs>
-    </emItem>   
+    </emItem>
+    <emItem blockID="pm112" id="{73a6fe31-595d-460b-a920-fcc0f8843232}">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
   </emItems>
   <pluginItems>
     <pluginItem blockID="p26">

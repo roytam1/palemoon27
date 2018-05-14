@@ -7,7 +7,7 @@
 <!ENTITY blocklist.summary           "&brandShortName; has determined that the following add-ons are known to cause issues:">
 <!ENTITY blocklist.softblocked       "It is highly recommended, but not required, that you restart with these add-ons disabled.">
 <!ENTITY blocklist.hardblocked       "These add-ons have a high risk of causing stability or security problems and have been blocked, but a restart is required to disable them completely.">
-<!ENTITY blocklist.softandhard       "The add-ons that have a high risk of causing stability or security problems have been blocked. The others in the list are lower risk. It is however highly recommended, but not required, that you restart with them also disabled.">
+<!ENTITY blocklist.softandhard       "Some listed add-ons have a high risk of causing stability or security problems and have been blocked. For the others it is highly recommended, but not required, that you restart with them disabled.">
 <!ENTITY blocklist.moreinfo          "More information">
 
 <!ENTITY blocklist.accept.label      "Restart &brandShortName;">

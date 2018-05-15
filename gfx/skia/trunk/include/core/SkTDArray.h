@@ -30,7 +30,7 @@ public:
         fData = NULL;
 #endif
         if (count) {
-            fArray = (T*)sk_malloc_throw(count * sizeof(T));
+            fArray = (T*)sk_malloc_throw(count, sizeof(T));
 #ifdef SK_DEBUG
             fData = (ArrayT*)fArray;
 #endif
@@ -379,7 +379,7 @@ private:
         SkASSERT(count > fReserve);
         fReserve = count + 4;
         fReserve += fReserve / 4;
-        fArray = (T*)sk_realloc_throw(fArray, fReserve * sizeof(T));
+        fArray = (T*)sk_realloc_throw(fArray, fReserve, sizeof(T));
 #ifdef SK_DEBUG
         fData = (ArrayT*)fArray;
 #endif

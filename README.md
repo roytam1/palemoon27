@@ -4,6 +4,12 @@ This is the source code for the Pale Moon web browser, an independent
 browser derived from Firefox/Mozilla community code. The source tree is
 mostly laid out like Mozilla-based products.
 
+## Maintenance mode
+
+This repository and incarnation of Pale Moon is currently in maintenance mode and will only receive critical and security updates.
+The new home for Pale Moon (v28+) is in the UXP platform repo where it is one of the included applications with the platform.
+** Do NOT open new feature/bug issues on this repo, please, unless it is a sec or critical issue, and check if the Pale Moon unstable channel solves any issues you may have before opening new issues on the UXP repo.
+
 ## Resources
 
  * [Mozilla Source Code Directory Structure and links to project pages](https://developer.mozilla.org/en/Mozilla_Source_Code_Directory_Structure)

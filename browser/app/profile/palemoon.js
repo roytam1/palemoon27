@@ -1105,12 +1105,12 @@ pref("browser.display.standalone_images.background_color", "#2E3B41");
 // AMO needs "Firefox", obviously - pass on the OS (determined at build time)
 #ifdef XP_UNIX
 #ifdef XP_MACOSX
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:27.9) Gecko/20100101 Firefox/27.9 (Pale Moon)");
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:27.0) Gecko/20100101 Firefox/27.0");
 #else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; rv:27.9) Gecko/20100101 Firefox/27.9 (Pale Moon)");
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; rv:27.0) Gecko/20100101 Firefox/27.0");
 #endif
 #else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.9) Gecko/20100101 Firefox/27.9 (Pale Moon)");
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.0) Gecko/20100101 Firefox/27.0");
 #endif
 
 // ****************** s4e prefs ******************

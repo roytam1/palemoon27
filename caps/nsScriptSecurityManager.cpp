@@ -723,6 +723,13 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
         }
         return NS_OK;
     }
+    else if ((!sourceScheme.LowerCaseEqualsLiteral("http") &&
+              !sourceScheme.LowerCaseEqualsLiteral("https")) &&
+             targetScheme.LowerCaseEqualsLiteral("moz-icon"))
+    {
+        // Exception for linking to moz-icon://
+        return NS_OK;
+    }
 
     // If the schemes don't match, the policy is specified by the protocol
     // flags on the target URI.  Note that the order of policy checks here is
@@ -750,9 +757,12 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
     if (hasFlags) {
         if (aFlags & nsIScriptSecurityManager::ALLOW_CHROME) {
 
-            // For now, don't change behavior for resource:// or moz-icon:// and
-            // just allow them.
-            if (!targetScheme.EqualsLiteral("chrome")) {
+            // For now, don't change behavior for resource:// and
+            // just allow it. This is required for extensions injecting
+            // extension-internal resource URLs in snippets in pages, e.g.
+            // Adding custom controls in-page.
+            if (!targetScheme.EqualsLiteral("chrome") &&
+                !targetScheme.EqualsLiteral("moz-icon")) {
                 return NS_OK;
             }
 

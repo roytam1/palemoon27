@@ -13,7 +13,10 @@ EXTRA_COMPONENTS += [
 ]
 
 EXTRA_JS_MODULES += [
-    'DownloadsCommon.jsm',
     'DownloadsLogger.jsm',
     'DownloadsTaskbar.jsm',
-] 
+]
+
+EXTRA_PP_JS_MODULES += [
+    'DownloadsCommon.jsm',
+]

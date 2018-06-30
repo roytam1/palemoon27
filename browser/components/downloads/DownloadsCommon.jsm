@@ -77,7 +77,6 @@ const nsIDM = Ci.nsIDownloadManager;
 const kDownloadsStringBundleUrl =
   "chrome://browser/locale/downloads/downloads.properties";
 
-const kPrefBdmScanWhenDone =   "browser.download.manager.scanWhenDone";
 const kPrefBdmAlertOnExeOpen = "browser.download.manager.alertOnEXEOpen";
 
 const kDownloadsStringsRequiringFormatting = {
@@ -518,22 +517,22 @@ this.DownloadsCommon = {
     if (!(aOwnerWindow instanceof Ci.nsIDOMWindow))
       throw new Error("aOwnerWindow must be a dom-window object");
 
+#ifdef XP_WIN
+    // On Windows, the system will provide a native confirmation prompt
+    // for .exe files. Exclude this from our prompt, but prompt on other
+    // executable types.
+    let isWindowsExe = aFile.leafName.toLowerCase().endsWith(".exe");
+#else
+    let isWindowsExe = false;
+#endif
+
     // Confirm opening executable files if required.
-    if (aFile.isExecutable()) {
+    if (aFile.isExecutable() && !isWindowsExe) {
       let showAlert = true;
       try {
         showAlert = Services.prefs.getBoolPref(kPrefBdmAlertOnExeOpen);
       } catch (ex) { }
 
-      // On Vista and above, we rely on native security prompting for
-      // downloaded content unless it's disabled.
-      if (DownloadsCommon.isWinVistaOrHigher) {
-        try {
-          if (Services.prefs.getBoolPref(kPrefBdmScanWhenDone)) {
-            showAlert = false;
-          }
-        } catch (ex) { }
-      }
 
       if (showAlert) {
         let name = aFile.leafName;

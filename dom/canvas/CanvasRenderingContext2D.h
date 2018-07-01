@@ -704,8 +704,11 @@ protected:
 
   /**
    * Disposes an old target and prepares to lazily create a new target.
+   *
+   * Parameters are the new dimensions to be used.
+   * if either is negative or undefined, dimensions will remain unchanged.
    */
-  void ClearTarget();
+  void ClearTarget(int32_t aWidth = -1, int32_t aHeight = -1);
 
   /**
    * Check if the target is valid after calling EnsureTarget.

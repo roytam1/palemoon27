@@ -3191,7 +3191,7 @@ HTMLInputElement::Focus(ErrorResult& aError)
     nsNumberControlFrame* numberControlFrame =
       do_QueryFrame(GetPrimaryFrame());
     if (numberControlFrame) {
-      RefPtr<HTMLInputElement> textControl =
+      nsRefPtr<HTMLInputElement> textControl =
         numberControlFrame->GetAnonTextControl();
       if (textControl) {
         textControl->Focus(aError);

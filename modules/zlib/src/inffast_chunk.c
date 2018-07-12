@@ -1,4 +1,4 @@
-/* inffast.c -- fast decoding
+/* inffast_chunk.c -- fast decoding
  * Copyright (C) 1995-2017 Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
@@ -6,7 +6,8 @@
 #include "zutil.h"
 #include "inftrees.h"
 #include "inflate.h"
-#include "inffast.h"
+#include "inffast_chunk.h"
+#include "chunkcopy.h"
 
 #ifdef ASMINF
 #  pragma message("Assembler code may have bugs -- use at your own risk")
@@ -18,15 +19,19 @@
    available, an end-of-block is encountered, or a data error is encountered.
    When large enough input and output buffers are supplied to inflate(), for
    example, a 16K input buffer and a 64K output buffer, more than 95% of the
-   inflate execution time is spent in this routine.
+   inflate() execution time is spent in this routine.
 
    Entry assumptions:
 
         state->mode == LEN
-        strm->avail_in >= INFLATE_FAST_MIN_HAVE
-        strm->avail_out >= INFLATE_FAST_MIN_LEFT
+        strm->avail_in >= INFLATE_FAST_MIN_INPUT (6 bytes)
+        strm->avail_out >= INFLATE_FAST_MIN_OUTPUT (258 bytes)
         start >= strm->avail_out
         state->bits < 8
+        strm->next_out[0..strm->avail_out] does not overlap with
+              strm->next_in[0..strm->avail_in]
+        strm->state->window is allocated with an additional
+              CHUNKCOPY_CHUNK_SIZE-1 bytes of padding beyond strm->state->wsize
 
    On return, state->mode is one of:
 
@@ -36,18 +41,22 @@
 
    Notes:
 
+    INFLATE_FAST_MIN_INPUT 6 bytes
+
     - The maximum input bits used by a length/distance pair is 15 bits for the
       length code, 5 bits for the length extra, 15 bits for the distance code,
       and 13 bits for the distance extra.  This totals 48 bits, or six bytes.
       Therefore if strm->avail_in >= 6, then there is enough input to avoid
       checking for available input while decoding.
 
+    INFLATE_FAST_MIN_OUTPUT 258 bytes
+
     - The maximum bytes that a single length/distance pair can output is 258
       bytes, which is the maximum length that can be coded.  inflate_fast()
       requires strm->avail_out >= 258 for each loop to avoid checking for
-      output space.
+      available output space while decoding.
  */
-void ZLIB_INTERNAL inflate_fast(strm, start)
+void ZLIB_INTERNAL inflate_fast_chunk_(strm, start)
 z_streamp strm;
 unsigned start;         /* inflate()'s starting value for strm->avail_out */
 {
@@ -57,6 +66,7 @@ unsigned start;         /* inflate()'s starting value for strm->avail_out */
     unsigned char FAR *out;     /* local strm->next_out */
     unsigned char FAR *beg;     /* inflate()'s initial strm->next_out */
     unsigned char FAR *end;     /* while out < end, enough space available */
+    unsigned char FAR *limit;   /* safety limit for chunky copies */
 #ifdef INFLATE_STRICT
     unsigned dmax;              /* maximum distance from zlib header */
 #endif
@@ -80,16 +90,17 @@ unsigned start;         /* inflate()'s starting value for strm->avail_out */
     /* copy state to local variables */
     state = (struct inflate_state FAR *)strm->state;
     in = strm->next_in;
-    last = in + (strm->avail_in - (INFLATE_FAST_MIN_HAVE - 1));
+    last = in + (strm->avail_in - (INFLATE_FAST_MIN_INPUT - 1));
     out = strm->next_out;
     beg = out - (start - strm->avail_out);
-    end = out + (strm->avail_out - (INFLATE_FAST_MIN_LEFT - 1));
+    end = out + (strm->avail_out - (INFLATE_FAST_MIN_OUTPUT - 1));
+    limit = out + strm->avail_out;
 #ifdef INFLATE_STRICT
     dmax = state->dmax;
 #endif
     wsize = state->wsize;
     whave = state->whave;
-    wnext = state->wnext;
+    wnext = (state->wnext == 0 && whave >= wsize) ? wsize : state->wnext;
     window = state->window;
     hold = state->hold;
     bits = state->bits;
@@ -197,70 +208,51 @@ unsigned start;         /* inflate()'s starting value for strm->avail_out */
 #endif
                     }
                     from = window;
-                    if (wnext == 0) {           /* very common case */
-                        from += wsize - op;
-                        if (op < len) {         /* some from window */
-                            len -= op;
-                            do {
-                                *out++ = *from++;
-                            } while (--op);
-                            from = out - dist;  /* rest from output */
-                        }
+                    if (wnext >= op) {          /* contiguous in window */
+                        from += wnext - op;
                     }
-                    else if (wnext < op) {      /* wrap around window */
-                        from += wsize + wnext - op;
+                    else {                      /* wrap around window */
                         op -= wnext;
+                        from += wsize - op;
                         if (op < len) {         /* some from end of window */
                             len -= op;
-                            do {
-                                *out++ = *from++;
-                            } while (--op);
-                            from = window;
-                            if (wnext < len) {  /* some from start of window */
-                                op = wnext;
-                                len -= op;
-                                do {
-                                    *out++ = *from++;
-                                } while (--op);
-                                from = out - dist;      /* rest from output */
-                            }
+                            out = chunkcopy_safe(out, from, op, limit);
+                            from = window;      /* more from start of window */
+                            op = wnext;
+                            /* This (rare) case can create a situation where
+                               the first chunkcopy below must be checked.
+                             */
                         }
                     }
-                    else {                      /* contiguous in window */
-                        from += wnext - op;
-                        if (op < len) {         /* some from window */
-                            len -= op;
-                            do {
-                                *out++ = *from++;
-                            } while (--op);
-                            from = out - dist;  /* rest from output */
-                        }
-                    }
-                    while (len > 2) {
-                        *out++ = *from++;
-                        *out++ = *from++;
-                        *out++ = *from++;
-                        len -= 3;
-                    }
-                    if (len) {
-                        *out++ = *from++;
-                        if (len > 1)
-                            *out++ = *from++;
+                    if (op < len) {             /* still need some from output */
+                        out = chunkcopy_safe(out, from, op, limit);
+                        len -= op;
+                        /* When dist is small the amount of data that can be
+                           copied from the window is also small, and progress
+                           towards the dangerous end of the output buffer is
+                           also small.  This means that for trivial memsets and
+                           for chunkunroll_relaxed() a safety check is
+                           unnecessary.  However, these conditions may not be
+                           entered at all, and in that case it's possible that
+                           the main copy is near the end.
+                          */
+                        out = chunkunroll_relaxed(out, &dist, &len);
+                        out = chunkcopy_safe(out, out - dist, len, limit);
+                    } else {
+                        /* from points to window, so there is no risk of
+                           overlapping pointers requiring memset-like behaviour
+                         */
+                        out = chunkcopy_safe(out, from, len, limit);
                     }
                 }
                 else {
-                    from = out - dist;          /* copy direct from output */
-                    do {                        /* minimum length is three */
-                        *out++ = *from++;
-                        *out++ = *from++;
-                        *out++ = *from++;
-                        len -= 3;
-                    } while (len > 2);
-                    if (len) {
-                        *out++ = *from++;
-                        if (len > 1)
-                            *out++ = *from++;
-                    }
+                    /* Whole reference is in range of current output.  No
+                       range checks are necessary because we start with room
+                       for at least 258 bytes of output, so unroll and roundoff
+                       operations can write beyond `out+len` so long as they
+                       stay within 258 bytes of `out`.
+                     */
+                    out = chunkcopy_lapped_relaxed(out, dist, len);
                 }
             }
             else if ((op & 64) == 0) {          /* 2nd level distance code */
@@ -299,11 +291,11 @@ unsigned start;         /* inflate()'s starting value for strm->avail_out */
     strm->next_in = in;
     strm->next_out = out;
     strm->avail_in = (unsigned)(in < last ?
-        (INFLATE_FAST_MIN_HAVE - 1) + (last - in) :
-        (INFLATE_FAST_MIN_HAVE - 1) - (in - last));
+        (INFLATE_FAST_MIN_INPUT - 1) + (last - in) :
+        (INFLATE_FAST_MIN_INPUT - 1) - (in - last));
     strm->avail_out = (unsigned)(out < end ?
-        (INFLATE_FAST_MIN_LEFT - 1) + (end - out) :
-        (INFLATE_FAST_MIN_LEFT - 1) - (out - end));
+        (INFLATE_FAST_MIN_OUTPUT - 1) + (end - out) :
+        (INFLATE_FAST_MIN_OUTPUT - 1) - (out - end));
     state->hold = hold;
     state->bits = bits;
     return;

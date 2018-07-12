@@ -802,7 +802,7 @@ FixupSymbolEncodedFont(uint8_t* aFontData, uint32_t aLength)
         }
         if (symbolSubtable != -1) {
             // We found a windows/symbol cmap table, and no windows/unicode one;
-           // change the encoding ID so that AddFontMemResourceEx will accept it
+            // change the encoding ID so that AddFontMemResourceEx will accept it
             encRec[symbolSubtable].encodingID =
                 gfxFontUtils::ENCODING_ID_MICROSOFT_UNICODEBMP;
             return true;

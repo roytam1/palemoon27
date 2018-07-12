@@ -284,6 +284,11 @@ public:
   // imgINotificationObserver::Notify:
   using nsImageLoadingContent::Notify;
 
+  bool HasPatternAttribute() const
+  {
+    return mHasPatternAttribute;
+  }
+
   // nsIConstraintValidation
   bool     IsTooLong();
   bool     IsValueMissing() const;
@@ -1348,6 +1353,7 @@ protected:
   bool                     mNumberControlSpinnerSpinsUp : 1;
   bool                     mPickerRunning : 1;
   bool                     mSelectionCached : 1;
+  bool                     mHasPatternAttribute : 1;
 
 private:
   static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,

@@ -9985,7 +9985,9 @@ void
 nsGlobalWindow::SetActive(bool aActive)
 {
   nsPIDOMWindow::SetActive(aActive);
-  NotifyDocumentTree(mDoc, nullptr);
+  if (MOZ_LIKELY(mDoc)) {
+    NotifyDocumentTree(mDoc, nullptr);
+  }
 }
 
 void nsGlobalWindow::SetIsBackground(bool aIsBackground)

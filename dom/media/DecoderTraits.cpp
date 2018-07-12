@@ -28,6 +28,10 @@
 #include "RawDecoder.h"
 #include "RawReader.h"
 #endif
+
+#include "ADTSDecoder.h"
+#include "ADTSDemuxer.h"
+
 #ifdef MOZ_ANDROID_OMX
 #include "AndroidMediaPluginHost.h"
 #include "AndroidMediaDecoder.h"
@@ -362,6 +366,13 @@ IsMP3SupportedType(const nsACString& aType,
   return MP3Decoder::CanHandleMediaType(aType, aCodecs);
 }
 
+static bool
+IsAACSupportedType(const nsACString& aType,
+                   const nsAString& aCodecs = EmptyString())
+{
+  return ADTSDecoder::CanHandleMediaType(aType, aCodecs);
+}
+
 #ifdef MOZ_APPLEMEDIA
 static const char * const gAppleMP3Types[] = {
   "audio/mp3",
@@ -592,6 +603,10 @@ if (IsMP3SupportedType(aType)) {
     decoder = new MP3Decoder();
     return decoder.forget();
   }
+if (IsAACSupportedType(aType)) {
+    decoder = new ADTSDecoder();
+    return decoder.forget();
+  }
 #ifdef MOZ_RAW
   if (IsRawType(aType)) {
     decoder = new RawDecoder();
@@ -712,6 +727,9 @@ MediaDecoderReader* DecoderTraits::CreateReader(const nsACString& aType, Abstrac
 #endif
 if (IsMP3SupportedType(aType)) {
     decoderReader = new MediaFormatReader(aDecoder, new mp3::MP3Demuxer(aDecoder->GetResource()));
+  } else
+if (IsAACSupportedType(aType)) {
+    decoderReader = new MediaFormatReader(aDecoder, new ADTSDemuxer(aDecoder->GetResource()));
   } else
 #ifdef MOZ_RAW
   if (IsRawType(aType)) {

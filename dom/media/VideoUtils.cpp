@@ -37,6 +37,13 @@ CheckedInt64 FramesToUsecs(int64_t aFrames, uint32_t aRate) {
   return SaferMultDiv(aFrames, USECS_PER_S, aRate);
 }
 
+media::TimeUnit FramesToTimeUnit(int64_t aFrames, uint32_t aRate) {
+  int64_t major = aFrames / aRate;
+  int64_t remainder = aFrames % aRate;
+  return media::TimeUnit::FromMicroseconds(major) * USECS_PER_S +
+    (media::TimeUnit::FromMicroseconds(remainder) * USECS_PER_S) / aRate;
+}
+
 // Converts from microseconds to number of audio frames, given the specified
 // audio rate.
 CheckedInt64 UsecsToFrames(int64_t aUsecs, uint32_t aRate) {

@@ -3,7 +3,7 @@
 
 // ===| General |==============================================================
 
-pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
+//pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
 
 pref("app.vendorURL", "http://www.palemoon.org/");
 pref("app.support.baseURL", "http://www.palemoon.org/support/");

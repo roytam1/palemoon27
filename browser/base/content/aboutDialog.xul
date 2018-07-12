@@ -91,14 +91,14 @@
 #ifdef MC_PRIVATE_BUILD
           This is a private build of Pale Moon. If you did not manually build this copy from source yourself, then please download an official version from the <label class="text-link" href="http://www.palemoon.org/">Pale Moon website</label>.
 #else
-          Pale Moon is released by <label class="text-link" href="http://www.moonchildproductions.info">Moonchild Productions</label>.
+          New Moon is an unofficial version of Pale Moon released for Windows XP/Server 2003/ReactOS.
         </description>
         <description class="text-pmcreds">
-          Special thanks to all our supporters and donors for making this browser possible!
+          Therefore you may not ask any support in official Pale Moon places like forum and so.
         </description>
         <description class="text-blurb">
           If you wish to contribute, please consider helping out by providing support to other users on the <label class="text-link" href="https://forum.palemoon.org/">Pale Moon forum</label>
-          or getting involved in our development by tackling some of the issues found in our GitHub issue tracker.
+          There is a <label class="text-link" href="http://goo.gl/SGPMj3">forum topic in MSFN</label>. This build is based on <label class="text-link" href="https://github.com/Feodor2/Mypal">Feodor2's patches</label>.
 #endif
         </description>    
         </vbox>

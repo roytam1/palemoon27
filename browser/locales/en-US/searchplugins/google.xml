@@ -1,0 +1,28 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<SearchPlugin xmlns="http://www.mozilla.org/2006/browser/search/">
+<ShortName>Google</ShortName>
+<Description>Google Search</Description>
+<InputEncoding>UTF-8</InputEncoding>
+<Image width="16" height="16">data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABF1BMVEUAAAD////+/v7////+/v7////+/v79/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f39/f00qFM4qlY6qlg6q1hBhvBChfRGh/RIqktKo5lXt3FYr45Yt3FZuHJdunZnnfZ1pvd7qveCrviNtfiR0KKb1Kqd1ayn2bSw0Y3D2PzM6dTN1onO6tXO6tbY5v3o8P7p9ezqQzXqRjjqRzrrSTvrSjzsUjftXlLtYlbtvBHuY1juZlruaV3wdmzxxCz0nJX0nZb1qaL2pGv2rKX2+/j5sgr5/Pr5/fr60s/61ND61NH7vAX7vQr7vgv7z5L8yTX84+H96uj+67X+7Lb++fn+/v///f3///9G7xLpAAAAFnRSTlMACAkKLjAylJWWmJmdv8HD19ja2/n6GaRWtgAAAL9JREFUGBk9wIVawlAAhuGfwYgdRGJDdGJ3JwZ2t9hOv/u/Ds8Gj69iWVMLgqrnqitdpMc4stL9RDen+7snVxElR1KRz+NW4gw8KUt02Nq7eHy+PPgAXBne2jtPWL9YBdV4v7vmX0UBr51vIIzN4CvgpfMFhLFpfFU5P1omMRvOUZbHWnNgHWtzOFwhJ5f70XpjfnVjYWRo6oeMZNgeryfGtshLcko8LE0ONiYWb+lLyXIMPfmUutxCxffLuYysP0WpMLAMSPJBAAAAAElFTkSuQmCC</Image>
+<Url type="application/x-suggestions+json" method="GET" template="https://www.google.com/complete/search?client=firefox&amp;q={searchTerms}"/>
+<Url type="text/html" method="GET" template="https://www.google.com/search">
+  <Param name="q" value="{searchTerms}"/><Param name="ie" value="utf-8"/><Param name="oe" value="utf-8"/><Param name="aq" value="t"/><Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
+  <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
+</Url>
+<!-- Keyword search URL is the same as the default, but with an additional parameter -->
+<Url type="application/x-moz-keywordsearch" method="GET" template="https://www.google.com/search">
+  <Param name="q" value="{searchTerms}"/><Param name="ie" value="utf-8"/><Param name="oe" value="utf-8"/><Param name="aq" value="t"/><Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
+  <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
+  <Param name="channel" value="fflb"/>
+</Url>
+<!-- Context/Right-click search URL is the same as the default, but with an additional parameter -->
+<Url type="application/x-moz-contextsearch" method="GET" template="https://www.google.com/search">
+  <Param name="q" value="{searchTerms}"/><Param name="ie" value="utf-8"/><Param name="oe" value="utf-8"/><Param name="aq" value="t"/><Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
+  <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
+  <Param name="channel" value="rcs"/>
+</Url>
+<SearchForm>https://www.google.com/</SearchForm>
+</SearchPlugin>

@@ -144,7 +144,7 @@ XULTreeAccessible::Value(nsString& aValue)
 void
 XULTreeAccessible::Shutdown()
 {
-  if (!mDoc->IsDefunct())
+  if (mDoc && !mDoc->IsDefunct())
     mAccessibleCache.Enumerate(UnbindCacheEntryFromDocument<Accessible>, nullptr);
 
   mTree = nullptr;

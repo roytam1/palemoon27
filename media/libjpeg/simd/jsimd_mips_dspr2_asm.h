@@ -2,7 +2,7 @@
  * MIPS DSPr2 optimizations for libjpeg-turbo
  *
  * Copyright (C) 2013, MIPS Technologies, Inc., California.
- * All rights reserved.
+ * All Rights Reserved.
  * Authors:  Teodora Novkovic (teodora.novkovic@imgtec.com)
  *           Darko Laus       (darko.laus@imgtec.com)
  * This software is provided 'as-is', without any express or implied
@@ -281,5 +281,3 @@ LEAF_MIPS32R2(symbol)                                   \
     addiu           sp, sp, \stack_offset
     .endif
 .endm
-
-

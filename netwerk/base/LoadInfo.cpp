@@ -64,6 +64,14 @@ LoadInfo::~LoadInfo()
 {
 }
 
+already_AddRefed<nsILoadInfo>
+LoadInfo::CloneWithNewSecFlags(nsSecurityFlags aSecurityFlags) const
+{
+  nsRefPtr<LoadInfo> copy(new LoadInfo(*this));
+  copy->mSecurityFlags = aSecurityFlags;
+  return copy.forget();
+}
+
 NS_IMPL_ISUPPORTS(LoadInfo, nsILoadInfo)
 
 NS_IMETHODIMP

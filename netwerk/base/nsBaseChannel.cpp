@@ -90,7 +90,15 @@ nsBaseChannel::Redirect(nsIChannel *newChannel, uint32_t redirectFlags,
   newChannel->SetLoadGroup(mLoadGroup);
   newChannel->SetNotificationCallbacks(mCallbacks);
   newChannel->SetLoadFlags(mLoadFlags | LOAD_REPLACE);
-  newChannel->SetLoadInfo(mLoadInfo);
+  // bug 1278013 and backbugs
+  if (mLoadInfo) {
+    nsSecurityFlags secFlags = mLoadInfo->GetSecurityFlags() ^
+                               nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
+    nsCOMPtr<nsILoadInfo> newLoadInfo =
+      static_cast<mozilla::LoadInfo*>(mLoadInfo.get())->CloneWithNewSecFlags(secFlags);
+    newChannel->SetLoadInfo(newLoadInfo);
+  } else
+    newChannel->SetLoadInfo(nullptr);
 
   // Try to preserve the privacy bit if it has been overridden
   if (mPrivateBrowsingOverriden) {

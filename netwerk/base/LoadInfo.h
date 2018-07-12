@@ -40,6 +40,12 @@ public:
            nsContentPolicyType aContentPolicyType,
            nsIURI* aBaseURI = nullptr);
 
+  // hands off!!! don't use CloneWithNewSecFlags unless you know
+  // exactly what you are doing - it should only be used within
+  // nsBaseChannel::Redirect()
+  already_AddRefed<nsILoadInfo>
+  CloneWithNewSecFlags(nsSecurityFlags aSecurityFlags) const;
+
 private:
   // private constructor that is only allowed to be called from within
   // HttpChannelParent and FTPChannelParent declared as friends undeneath.

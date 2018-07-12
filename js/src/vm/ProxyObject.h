@@ -102,7 +102,7 @@ class ProxyObject : public JSObject
 
     static void trace(JSTracer* trc, JSObject* obj);
 
-    void nuke(const BaseProxyHandler* handler);
+    void nuke();
 
     static const Class class_;
 };

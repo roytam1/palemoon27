@@ -438,7 +438,7 @@ js::NukeCrossCompartmentWrapper(JSContext* cx, JSObject* wrapper)
 
     NotifyGCNukeWrapper(wrapper);
 
-    wrapper->as<ProxyObject>().nuke(&DeadObjectProxy::singleton);
+    wrapper->as<ProxyObject>().nuke();
 
     MOZ_ASSERT(IsDeadProxyObject(wrapper));
 }

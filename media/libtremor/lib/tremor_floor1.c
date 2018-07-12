@@ -426,7 +426,7 @@ static int floor1_inverse2(vorbis_block *vb,vorbis_look_floor *in,void *memo,
     int hx=0;
     int lx=0;
     int ly=fit_value[0]*info->mult;
-    /* guard lookup against out-of-rage values */
+    /* guard lookup against out-of-range values */
     ly=(ly<0?0:ly>255?255:ly);
 
     for(j=1;j<look->posts;j++){
@@ -436,9 +436,8 @@ static int floor1_inverse2(vorbis_block *vb,vorbis_look_floor *in,void *memo,
 	
 	hx=info->postlist[current];
 	hy*=info->mult;
-        /* guard lookup against out-of-rage values */
+        /* guard lookup against out-of-range values */
         hy=(hy<0?0:hy>255?255:hy);
-
 
 	render_line(n,lx,hx,ly,hy,out);
 	

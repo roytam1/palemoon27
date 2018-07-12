@@ -67,7 +67,7 @@ static int _vorbis_synthesis1(vorbis_block *vb,ogg_packet *op,int decodep){
   
   /* more setup */
   vb->granulepos=op->granulepos;
-  vb->sequence=op->packetno-3; /* first block is third packet */
+  vb->sequence=op->packetno; /* first block is third packet */
   vb->eofflag=op->e_o_s;
 
   if(decodep){

@@ -319,6 +319,12 @@ nsHTMLEditor::ShowResizersInner(nsIDOMElement *aResizedElement)
     NS_ERROR("call HideResizers first");
     return NS_ERROR_UNEXPECTED;
   }
+
+  nsCOMPtr<nsINode> resizedNode = do_QueryInterface(aResizedElement);
+  if (NS_WARN_IF(!IsDescendantOfEditorRoot(resizedNode))) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
   mResizedObject = aResizedElement;
 
   // The resizers and the shadow will be anonymous siblings of the element.

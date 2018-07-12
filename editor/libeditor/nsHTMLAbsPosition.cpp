@@ -314,7 +314,12 @@ nsHTMLEditor::HideGrabber()
 NS_IMETHODIMP
 nsHTMLEditor::ShowGrabberOnElement(nsIDOMElement * aElement)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
+  nsCOMPtr<Element> element = do_QueryInterface(aElement);
+  NS_ENSURE_ARG_POINTER(element);
+
+  if (NS_WARN_IF(!IsDescendantOfEditorRoot(element))) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   if (mGrabber) {
     NS_ERROR("call HideGrabber first");

@@ -160,7 +160,7 @@ hb_shape_plan_create2 (hb_face_t                     *face,
   assert (props->direction != HB_DIRECTION_INVALID);
 
   hb_face_make_immutable (face);
-  shape_plan->default_shaper_list = shaper_list == NULL;
+  shape_plan->default_shaper_list = !shaper_list;
   shape_plan->face_unsafe = face;
   shape_plan->props = *props;
   shape_plan->num_user_features = num_user_features;
@@ -423,7 +423,7 @@ hb_shape_plan_matches (const hb_shape_plan_t          *shape_plan,
   return hb_segment_properties_equal (&shape_plan->props, &proposal->props) &&
 	 hb_shape_plan_user_features_match (shape_plan, proposal) &&
 	 hb_shape_plan_coords_match (shape_plan, proposal) &&
-	 ((shape_plan->default_shaper_list && proposal->shaper_list == NULL) ||
+	 ((shape_plan->default_shaper_list && !proposal->shaper_list) ||
 	  (shape_plan->shaper_func == proposal->shaper_func));
 }
 
@@ -431,11 +431,12 @@ static inline hb_bool_t
 hb_non_global_user_features_present (const hb_feature_t *user_features,
 				     unsigned int        num_user_features)
 {
-  while (num_user_features)
+  while (num_user_features) {
     if (user_features->start != 0 || user_features->end != (unsigned int) -1)
       return true;
-    else
-      num_user_features--, user_features++;
+    num_user_features--;
+    user_features++;
+  }
   return false;
 }
 

@@ -62,8 +62,6 @@ UNIFIED_SOURCES += [
     'hb-warning.cc',
 ]
 
-MSVC_ENABLE_PGO = True
-
 if 'gtk' in CONFIG['MOZ_WIDGET_TOOLKIT']:
     EXPORTS.harfbuzz += [
         'hb-glib.h',
@@ -73,6 +71,10 @@ if 'gtk' in CONFIG['MOZ_WIDGET_TOOLKIT']:
     ]
     CXXFLAGS += CONFIG['GLIB_CFLAGS']
 
+MSVC_ENABLE_PGO = True
+
+# We allow warnings for third-party code that can be updated from upstream.
+#ALLOW_COMPILER_WARNINGS = True
 
 FINAL_LIBRARY = 'gkmedias'
 

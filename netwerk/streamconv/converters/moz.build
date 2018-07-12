@@ -33,5 +33,6 @@ MSVC_ENABLE_PGO = True
 FINAL_LIBRARY = 'xul'
 
 LOCAL_INCLUDES += [
+    '/modules/brotli/dec',
     '/netwerk/base',
 ]

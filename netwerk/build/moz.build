@@ -79,5 +79,6 @@ if CONFIG['MOZ_RTSP']:
     ]
 
 GENERATED_INCLUDES += [
+    '/modules/brotli/dec',
     '/netwerk/dns',
 ]

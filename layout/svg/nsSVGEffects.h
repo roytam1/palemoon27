@@ -264,6 +264,14 @@ protected:
   virtual void DoUpdate() = 0;
 
 private:
+
+  void DetachReferences()
+  {
+    for (uint32_t i = 0; i < mReferences.Length(); i++) {
+      mReferences[i]->DetachFromChainObserver();
+    }
+  }
+
   nsTArray<nsRefPtr<nsSVGFilterReference>> mReferences;
 };
 

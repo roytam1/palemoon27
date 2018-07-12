@@ -31,6 +31,7 @@
 
 class nsIFrame;
 class nsIURI;
+class nsStyleContext;
 class imgIContainer;
 
 // Includes nsStyleStructID.
@@ -1317,123 +1318,6 @@ struct nsStyleGridLine {
   }
 };
 
-struct nsStylePosition {
-  nsStylePosition(void);
-  nsStylePosition(const nsStylePosition& aOther);
-  ~nsStylePosition(void);
-
-  void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
-    return aContext->PresShell()->
-      AllocateByObjectID(nsPresArena::nsStylePosition_id, sz);
-  }
-  void Destroy(nsPresContext* aContext) {
-    this->~nsStylePosition();
-    aContext->PresShell()->
-      FreeByObjectID(nsPresArena::nsStylePosition_id, this);
-  }
-
-  nsChangeHint CalcDifference(const nsStylePosition& aOther) const;
-  static nsChangeHint MaxDifference() {
-    return NS_CombineHint(NS_STYLE_HINT_REFLOW,
-                          nsChangeHint(nsChangeHint_RecomputePosition |
-                                       nsChangeHint_UpdateParentOverflow));
-  }
-  static nsChangeHint MaxDifferenceNeverInherited() {
-    // CalcDifference can return both nsChangeHint_ClearAncestorIntrinsics and
-    // nsChangeHint_NeedReflow as inherited hints.
-    return nsChangeHint(0);
-  }
-
-  // XXXdholbert nsStyleBackground::Position should probably be moved to a
-  // different scope, since we're now using it in multiple style structs.
-  typedef nsStyleBackground::Position Position;
-
-  Position      mObjectPosition;        // [reset]
-  nsStyleSides  mOffset;                // [reset] coord, percent, calc, auto
-  nsStyleCoord  mWidth;                 // [reset] coord, percent, enum, calc, auto
-  nsStyleCoord  mMinWidth;              // [reset] coord, percent, enum, calc
-  nsStyleCoord  mMaxWidth;              // [reset] coord, percent, enum, calc, none
-  nsStyleCoord  mHeight;                // [reset] coord, percent, calc, auto
-  nsStyleCoord  mMinHeight;             // [reset] coord, percent, calc
-  nsStyleCoord  mMaxHeight;             // [reset] coord, percent, calc, none
-  nsStyleCoord  mFlexBasis;             // [reset] coord, percent, enum, calc, auto
-  nsStyleCoord  mGridAutoColumnsMin;    // [reset] coord, percent, enum, calc, flex
-  nsStyleCoord  mGridAutoColumnsMax;    // [reset] coord, percent, enum, calc, flex
-  nsStyleCoord  mGridAutoRowsMin;       // [reset] coord, percent, enum, calc, flex
-  nsStyleCoord  mGridAutoRowsMax;       // [reset] coord, percent, enum, calc, flex
-  uint8_t       mGridAutoFlow;          // [reset] enumerated. See nsStyleConsts.h
-  uint8_t       mBoxSizing;             // [reset] see nsStyleConsts.h
-  uint8_t       mAlignContent;          // [reset] see nsStyleConsts.h
-  uint8_t       mAlignItems;            // [reset] see nsStyleConsts.h
-  uint8_t       mAlignSelf;             // [reset] see nsStyleConsts.h
-  uint8_t       mFlexDirection;         // [reset] see nsStyleConsts.h
-  uint8_t       mFlexWrap;              // [reset] see nsStyleConsts.h
-  uint8_t       mJustifyContent;        // [reset] see nsStyleConsts.h
-  uint8_t       mObjectFit;             // [reset] see nsStyleConsts.h
-  int32_t       mOrder;                 // [reset] integer
-  float         mFlexGrow;              // [reset] float
-  float         mFlexShrink;            // [reset] float
-  nsStyleCoord  mZIndex;                // [reset] integer, auto
-  nsStyleGridTemplate mGridTemplateColumns;
-  nsStyleGridTemplate mGridTemplateRows;
-
-  // nullptr for 'none'
-  nsRefPtr<mozilla::css::GridTemplateAreasValue> mGridTemplateAreas;
-
-  nsStyleGridLine mGridColumnStart;
-  nsStyleGridLine mGridColumnEnd;
-  nsStyleGridLine mGridRowStart;
-  nsStyleGridLine mGridRowEnd;
-
-  bool WidthDependsOnContainer() const
-    {
-      return mWidth.GetUnit() == eStyleUnit_Auto ||
-        WidthCoordDependsOnContainer(mWidth);
-    }
-
-  // NOTE: For a flex item, "min-width:auto" is supposed to behave like
-  // "min-content", which does depend on the container, so you might think we'd
-  // need a special case for "flex item && min-width:auto" here.  However,
-  // we don't actually need that special-case code, because flex items are
-  // explicitly supposed to *ignore* their min-width (i.e. behave like it's 0)
-  // until the flex container explicitly considers it.  So -- since the flex
-  // container doesn't rely on this method, we don't need to worry about
-  // special behavior for flex items' "min-width:auto" values here.
-  bool MinWidthDependsOnContainer() const
-    { return WidthCoordDependsOnContainer(mMinWidth); }
-  bool MaxWidthDependsOnContainer() const
-    { return WidthCoordDependsOnContainer(mMaxWidth); }
-
-  // Note that these functions count 'auto' as depending on the
-  // container since that's the case for absolutely positioned elements.
-  // However, some callers do not care about this case and should check
-  // for it, since it is the most common case.
-  // FIXME: We should probably change the assumption to be the other way
-  // around.
-  bool HeightDependsOnContainer() const
-    {
-      return mHeight.GetUnit() == eStyleUnit_Auto || // CSS 2.1, 10.6.4, item (5)
-        HeightCoordDependsOnContainer(mHeight);
-    }
-
-  // NOTE: The comment above MinWidthDependsOnContainer about flex items
-  // applies here, too.
-  bool MinHeightDependsOnContainer() const
-    { return HeightCoordDependsOnContainer(mMinHeight); }
-  bool MaxHeightDependsOnContainer() const
-    { return HeightCoordDependsOnContainer(mMaxHeight); }
-
-  bool OffsetHasPercent(mozilla::css::Side aSide) const
-  {
-    return mOffset.Get(aSide).HasPercent();
-  }
-
-private:
-  static bool WidthCoordDependsOnContainer(const nsStyleCoord &aCoord);
-  static bool HeightCoordDependsOnContainer(const nsStyleCoord &aCoord)
-    { return aCoord.HasPercent(); }
-};
-
 struct nsStyleTextOverflowSide {
   nsStyleTextOverflowSide() : mType(NS_STYLE_TEXT_OVERFLOW_CLIP) {}
 
@@ -2248,6 +2132,133 @@ struct nsStyleTable {
   uint8_t       mLayoutStrategy;// [reset] see nsStyleConsts.h NS_STYLE_TABLE_LAYOUT_*
   int32_t       mSpan;          // [reset] the number of columns spanned by a colgroup or col
 };
+
+struct nsStylePosition {
+  nsStylePosition(void);
+  nsStylePosition(const nsStylePosition& aOther);
+  ~nsStylePosition(void);
+
+  void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
+    return aContext->PresShell()->
+      AllocateByObjectID(nsPresArena::nsStylePosition_id, sz);
+  }
+  void Destroy(nsPresContext* aContext) {
+    this->~nsStylePosition();
+    aContext->PresShell()->
+      FreeByObjectID(nsPresArena::nsStylePosition_id, this);
+  }
+
+  nsChangeHint CalcDifference(const nsStylePosition& aOther) const;
+  static nsChangeHint MaxDifference() {
+    return NS_CombineHint(NS_STYLE_HINT_REFLOW,
+                          nsChangeHint(nsChangeHint_RecomputePosition |
+                                       nsChangeHint_UpdateParentOverflow));
+  }
+  static nsChangeHint MaxDifferenceNeverInherited() {
+    // CalcDifference can return both nsChangeHint_ClearAncestorIntrinsics and
+    // nsChangeHint_NeedReflow as inherited hints.
+    return nsChangeHint(0);
+  }
+
+  // XXXdholbert nsStyleBackground::Position should probably be moved to a
+  // different scope, since we're now using it in multiple style structs.
+  typedef nsStyleBackground::Position Position;
+  /**
+   * Return the computed value for 'justify-items' given our 'display' value in
+   * aDisplay and the parent StyleContext aParent (or null for the root).
+   */
+  uint8_t ComputedJustifyItems(const nsStyleDisplay* aDisplay,
+                               nsStyleContext* aParent) const;
+  Position      mObjectPosition;        // [reset]
+  nsStyleSides  mOffset;                // [reset] coord, percent, calc, auto
+  nsStyleCoord  mWidth;                 // [reset] coord, percent, enum, calc, auto
+  nsStyleCoord  mMinWidth;              // [reset] coord, percent, enum, calc
+  nsStyleCoord  mMaxWidth;              // [reset] coord, percent, enum, calc, none
+  nsStyleCoord  mHeight;                // [reset] coord, percent, calc, auto
+  nsStyleCoord  mMinHeight;             // [reset] coord, percent, calc
+  nsStyleCoord  mMaxHeight;             // [reset] coord, percent, calc, none
+  nsStyleCoord  mFlexBasis;             // [reset] coord, percent, enum, calc, auto
+  nsStyleCoord  mGridAutoColumnsMin;    // [reset] coord, percent, enum, calc, flex
+  nsStyleCoord  mGridAutoColumnsMax;    // [reset] coord, percent, enum, calc, flex
+  nsStyleCoord  mGridAutoRowsMin;       // [reset] coord, percent, enum, calc, flex
+  nsStyleCoord  mGridAutoRowsMax;       // [reset] coord, percent, enum, calc, flex
+  uint8_t       mGridAutoFlow;          // [reset] enumerated. See nsStyleConsts.h
+  uint8_t       mBoxSizing;             // [reset] see nsStyleConsts.h
+  uint8_t       mAlignContent;          // [reset] see nsStyleConsts.h
+  uint8_t       mAlignItems;            // [reset] see nsStyleConsts.h
+  uint8_t       mAlignSelf;             // [reset] see nsStyleConsts.h
+private:
+  friend class nsRuleNode;
+  uint8_t       mJustifyItems;          // [reset] see nsStyleConsts.h
+public:
+  uint8_t       mFlexDirection;         // [reset] see nsStyleConsts.h
+  uint8_t       mFlexWrap;              // [reset] see nsStyleConsts.h
+  uint8_t       mJustifyContent;        // [reset] see nsStyleConsts.h
+  uint8_t       mObjectFit;             // [reset] see nsStyleConsts.h
+  int32_t       mOrder;                 // [reset] integer
+  float         mFlexGrow;              // [reset] float
+  float         mFlexShrink;            // [reset] float
+  nsStyleCoord  mZIndex;                // [reset] integer, auto
+  nsStyleGridTemplate mGridTemplateColumns;
+  nsStyleGridTemplate mGridTemplateRows;
+
+  // nullptr for 'none'
+  nsRefPtr<mozilla::css::GridTemplateAreasValue> mGridTemplateAreas;
+
+  nsStyleGridLine mGridColumnStart;
+  nsStyleGridLine mGridColumnEnd;
+  nsStyleGridLine mGridRowStart;
+  nsStyleGridLine mGridRowEnd;
+
+  bool WidthDependsOnContainer() const
+    {
+      return mWidth.GetUnit() == eStyleUnit_Auto ||
+        WidthCoordDependsOnContainer(mWidth);
+    }
+
+  // NOTE: For a flex item, "min-width:auto" is supposed to behave like
+  // "min-content", which does depend on the container, so you might think we'd
+  // need a special case for "flex item && min-width:auto" here.  However,
+  // we don't actually need that special-case code, because flex items are
+  // explicitly supposed to *ignore* their min-width (i.e. behave like it's 0)
+  // until the flex container explicitly considers it.  So -- since the flex
+  // container doesn't rely on this method, we don't need to worry about
+  // special behavior for flex items' "min-width:auto" values here.
+  bool MinWidthDependsOnContainer() const
+    { return WidthCoordDependsOnContainer(mMinWidth); }
+  bool MaxWidthDependsOnContainer() const
+    { return WidthCoordDependsOnContainer(mMaxWidth); }
+
+  // Note that these functions count 'auto' as depending on the
+  // container since that's the case for absolutely positioned elements.
+  // However, some callers do not care about this case and should check
+  // for it, since it is the most common case.
+  // FIXME: We should probably change the assumption to be the other way
+  // around.
+  bool HeightDependsOnContainer() const
+    {
+      return mHeight.GetUnit() == eStyleUnit_Auto || // CSS 2.1, 10.6.4, item (5)
+        HeightCoordDependsOnContainer(mHeight);
+    }
+
+  // NOTE: The comment above MinWidthDependsOnContainer about flex items
+  // applies here, too.
+  bool MinHeightDependsOnContainer() const
+    { return HeightCoordDependsOnContainer(mMinHeight); }
+  bool MaxHeightDependsOnContainer() const
+    { return HeightCoordDependsOnContainer(mMaxHeight); }
+
+  bool OffsetHasPercent(mozilla::css::Side aSide) const
+  {
+    return mOffset.Get(aSide).HasPercent();
+  }
+
+private:
+  static bool WidthCoordDependsOnContainer(const nsStyleCoord &aCoord);
+  static bool HeightCoordDependsOnContainer(const nsStyleCoord &aCoord)
+    { return aCoord.HasPercent(); }
+};
+
 
 struct nsStyleTableBorder {
   nsStyleTableBorder();

@@ -815,6 +815,10 @@ uint32_t
 PL_DHashTableEnumerate(PLDHashTable* aTable, PLDHashEnumerator aEtor,
                        void* aArg)
 {
+  MOZ_ASSERT(aTable != nullptr, "aTable must not be null");
+  if (!aTable) {
+    return 0;
+  }
   return aTable->Enumerate(aEtor, aArg);
 }
 

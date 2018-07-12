@@ -51,8 +51,14 @@ class RecordFragmenter : public PacketFilter {
       while (parser.remaining()) {
         TlsHandshakeFilter::HandshakeHeader handshake_header;
         DataBuffer handshake_body;
-        if (!handshake_header.Parse(&parser, record_header, &handshake_body)) {
+        bool complete = false;
+        if (!handshake_header.Parse(&parser, record_header, DataBuffer(),
+                                    &handshake_body, &complete)) {
           ADD_FAILURE() << "couldn't parse handshake header";
+          return false;
+        }
+        if (!complete) {
+          ADD_FAILURE() << "don't want to deal with fragmented messages";
           return false;
         }
 
@@ -82,7 +88,7 @@ class RecordFragmenter : public PacketFilter {
       while (parser.remaining()) {
         TlsRecordHeader header;
         DataBuffer record;
-        if (!header.Parse(&parser, &record)) {
+        if (!header.Parse(0, &parser, &record)) {
           ADD_FAILURE() << "bad record header";
           return false;
         }
@@ -143,13 +149,13 @@ class RecordFragmenter : public PacketFilter {
 };
 
 TEST_P(TlsConnectDatagram, FragmentClientPackets) {
-  client_->SetPacketFilter(std::make_shared<RecordFragmenter>());
+  client_->SetFilter(std::make_shared<RecordFragmenter>());
   Connect();
   SendReceive();
 }
 
 TEST_P(TlsConnectDatagram, FragmentServerPackets) {
-  server_->SetPacketFilter(std::make_shared<RecordFragmenter>());
+  server_->SetFilter(std::make_shared<RecordFragmenter>());
   Connect();
   SendReceive();
 }

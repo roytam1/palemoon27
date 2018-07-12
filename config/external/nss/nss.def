@@ -261,6 +261,7 @@ NSS_InitWithMerge
 NSS_IsInitialized
 NSS_NoDB_Init
 NSS_SecureMemcmp
+NSS_SecureMemcmpZero
 NSS_SetAlgorithmPolicy
 NSS_SetDomesticPolicy
 NSS_Shutdown
@@ -268,6 +269,7 @@ NSSSMIME_GetVersion
 NSS_SMIMESignerInfo_SaveSMIMEProfile
 NSS_SMIMEUtil_FindBulkAlgForRecipients
 NSSSSL_GetVersion
+_NSSUTIL_Access
 NSSUTIL_ArgDecodeNumber
 NSSUTIL_ArgFetchValue
 NSSUTIL_ArgGetLabel
@@ -289,6 +291,7 @@ NSSUTIL_MkModuleSpec
 NSSUTIL_MkNSSString
 NSSUTIL_MkSlotString
 NSSUTIL_Quote
+_NSSUTIL_UTF8ToWide
 PK11_AlgtagToMechanism
 PK11_Authenticate
 PK11_ChangePW
@@ -463,6 +466,7 @@ PORT_UCS2_ASCIIConversion_Util
 PORT_UCS2_UTF8Conversion
 PORT_UCS2_UTF8Conversion_Util
 PORT_ZAlloc
+PORT_ZAllocAlignedOffset_Util
 PORT_ZAlloc_Util
 PORT_ZFree_Util
 SEC_AnyTemplate_Util DATA

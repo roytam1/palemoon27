@@ -2513,7 +2513,6 @@ Parser<ParseHandler>::functionArgsAndBodyGeneric(Node pn, HandleFunction fun, Fu
 
         if (kind != Arrow) {
 #if JS_HAS_EXPR_CLOSURES
-            addTelemetry(JSCompartment::DeprecatedExpressionClosure);
 #else
             report(ParseError, false, null(), JSMSG_CURLY_BEFORE_BODY);
             return false;
@@ -4436,7 +4435,6 @@ Parser<FullParseHandler>::forStatement()
         if (matched) {
             iflags = JSITER_FOREACH;
             isForEach = true;
-            addTelemetry(JSCompartment::DeprecatedForEach);
             if (versionNumber() < JSVERSION_LATEST) {
                 if (!report(ParseWarning, pc->sc->strict, null(), JSMSG_DEPRECATED_FOR_EACH))
                     return null();
@@ -4703,7 +4701,6 @@ Parser<FullParseHandler>::forStatement()
                  */
                 if (!isForEach && headKind == PNK_FORIN) {
                     iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
-                    addTelemetry(JSCompartment::DeprecatedDestructuringForIn);
                 }
             }
             break;
@@ -5291,7 +5288,6 @@ Parser<ParseHandler>::yieldExpression()
         }
 
         pc->sc->asFunctionBox()->setGeneratorKind(LegacyGenerator);
-        addTelemetry(JSCompartment::DeprecatedLegacyGenerator);
 
         if (pc->funHasReturnExpr) {
             /* As in Python (see PEP-255), disallow return v; in generators. */
@@ -6693,7 +6689,6 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode* bodyExpr, unsigned 
                 return null();
             if (matched) {
                 pn2->pn_iflags |= JSITER_FOREACH;
-                addTelemetry(JSCompartment::DeprecatedForEach);
                 if (versionNumber() < JSVERSION_LATEST) {
                     if (!report(ParseWarning, pc->sc->strict, pn2, JSMSG_DEPRECATED_FOR_EACH))
                         return null();
@@ -8256,16 +8251,6 @@ Parser<ParseHandler>::exprInParens()
 #endif /* JS_HAS_GENERATOR_EXPRS */
 
     return pn;
-}
-
-template <typename ParseHandler>
-void
-Parser<ParseHandler>::addTelemetry(JSCompartment::DeprecatedLanguageExtension e)
-{
-    JSContext* cx = context->maybeJSContext();
-    if (!cx)
-        return;
-    cx->compartment()->addTelemetry(getFilename(), e);
 }
 
 template class Parser<FullParseHandler>;

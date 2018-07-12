@@ -24,7 +24,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsPrintfCString.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Services.h"
 
 #include "nsContentUtils.h"
@@ -219,10 +218,7 @@ class AsyncFreeSnowWhite : public nsRunnable
 public:
   NS_IMETHOD Run()
   {
-      TimeStamp start = TimeStamp::Now();
       bool hadSnowWhiteObjects = nsCycleCollector_doDeferredDeletion();
-      Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_ASYNC_SNOW_WHITE_FREEING,
-                            uint32_t((TimeStamp::Now() - start).ToMilliseconds()));
       if (hadSnowWhiteObjects && !mContinuation) {
           mContinuation = true;
           if (NS_FAILED(NS_DispatchToCurrentThread(this))) {
@@ -3058,66 +3054,6 @@ JSSizeOfTab(JSObject* objArg, size_t* jsObjectsSize, size_t* jsStringsSize,
 } // namespace xpc
 
 static void
-AccumulateTelemetryCallback(int id, uint32_t sample, const char* key)
-{
-    switch (id) {
-      case JS_TELEMETRY_GC_REASON:
-        Telemetry::Accumulate(Telemetry::GC_REASON_2, sample);
-        break;
-      case JS_TELEMETRY_GC_IS_COMPARTMENTAL:
-        Telemetry::Accumulate(Telemetry::GC_IS_COMPARTMENTAL, sample);
-        break;
-      case JS_TELEMETRY_GC_MS:
-        Telemetry::Accumulate(Telemetry::GC_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_MAX_PAUSE_MS:
-        Telemetry::Accumulate(Telemetry::GC_MAX_PAUSE_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_MARK_MS:
-        Telemetry::Accumulate(Telemetry::GC_MARK_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_SWEEP_MS:
-        Telemetry::Accumulate(Telemetry::GC_SWEEP_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_MARK_ROOTS_MS:
-        Telemetry::Accumulate(Telemetry::GC_MARK_ROOTS_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_MARK_GRAY_MS:
-        Telemetry::Accumulate(Telemetry::GC_MARK_GRAY_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_SLICE_MS:
-        Telemetry::Accumulate(Telemetry::GC_SLICE_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_MMU_50:
-        Telemetry::Accumulate(Telemetry::GC_MMU_50, sample);
-        break;
-      case JS_TELEMETRY_GC_RESET:
-        Telemetry::Accumulate(Telemetry::GC_RESET, sample);
-        break;
-      case JS_TELEMETRY_GC_INCREMENTAL_DISABLED:
-        Telemetry::Accumulate(Telemetry::GC_INCREMENTAL_DISABLED, sample);
-        break;
-      case JS_TELEMETRY_GC_NON_INCREMENTAL:
-        Telemetry::Accumulate(Telemetry::GC_NON_INCREMENTAL, sample);
-        break;
-      case JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS:
-        Telemetry::Accumulate(Telemetry::GC_SCC_SWEEP_TOTAL_MS, sample);
-        break;
-      case JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS:
-        Telemetry::Accumulate(Telemetry::GC_SCC_SWEEP_MAX_PAUSE_MS, sample);
-        break;
-      case JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT:
-        Telemetry::Accumulate(Telemetry::JS_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, sample);
-        break;
-      case JS_TELEMETRY_ADDON_EXCEPTIONS:
-        Telemetry::Accumulate(Telemetry::JS_TELEMETRY_ADDON_EXCEPTIONS, nsDependentCString(key), sample);
-        break;
-      default:
-        MOZ_ASSERT_UNREACHABLE("Unexpected JS_TELEMETRY id");
-    }
-}
-
-static void
 CompartmentNameCallback(JSRuntime* rt, JSCompartment* comp,
                         char* buf, size_t bufsize)
 {
@@ -3382,7 +3318,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     JS_AddWeakPointerCallback(runtime, WeakPointerCallback, this);
     JS_SetWrapObjectCallbacks(runtime, &WrapObjectCallbacks);
     js::SetPreserveWrapperCallback(runtime, PreserveWrapper);
-    JS_SetAccumulateTelemetryCallback(runtime, AccumulateTelemetryCallback);
     js::SetDefaultJSContextCallback(runtime, DefaultJSContextCallback);
     js::SetActivityCallback(runtime, ActivityCallback, this);
     js::SetCTypesActivityCallback(runtime, CTypesActivityCallback);

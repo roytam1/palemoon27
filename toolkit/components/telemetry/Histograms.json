@@ -226,7 +226,7 @@
   "GC_REASON_2": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "JS::gcreason::NUM_TELEMETRY_REASONS",
+    "n_values": 10,
     "description": "Reason (enum value) for initiating a GC"
   },
   "GC_IS_COMPARTMENTAL": {

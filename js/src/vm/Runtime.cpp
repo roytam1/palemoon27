@@ -124,7 +124,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     asmJSActivationStack_(nullptr),
     parentRuntime(parentRuntime),
     interrupt_(false),
-    telemetryCallback(nullptr),
     handlingSignal(false),
     interruptCallback(nullptr),
     exclusiveAccessLock(nullptr),
@@ -444,19 +443,6 @@ JSRuntime::~JSRuntime()
     if (ownerThreadNative_)
         CloseHandle((HANDLE)ownerThreadNative_);
 #endif
-}
-
-void
-JSRuntime::addTelemetry(int id, uint32_t sample, const char* key)
-{
-    if (telemetryCallback)
-        (*telemetryCallback)(id, sample, key);
-}
-
-void
-JSRuntime::setTelemetryCallback(JSRuntime* rt, JSAccumulateTelemetryDataCallback callback)
-{
-    rt->telemetryCallback = callback;
 }
 
 void

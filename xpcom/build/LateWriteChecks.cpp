@@ -12,7 +12,6 @@
 #include "mozilla/SHA1.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/Telemetry.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsPrintfCString.h"
@@ -120,7 +119,7 @@ LateWriteObserver::Observe(IOInterposeObserver::Observation& aOb)
   }
 
   // If we have shutdown mode SCM_NOTHING or we can't record then abort
-  if (gShutdownChecks == SCM_NOTHING || !Telemetry::CanRecord()) {
+  if (gShutdownChecks == SCM_NOTHING) {
     return;
   }
 
@@ -130,7 +129,6 @@ LateWriteObserver::Observe(IOInterposeObserver::Observation& aOb)
 
   NS_StackWalk(RecordStackWalker, /* skipFrames */ 0, /* maxFrames */ 0,
                reinterpret_cast<void*>(&rawStack), 0, nullptr);
-  Telemetry::ProcessedStack stack = Telemetry::GetStackAndModules(rawStack);
 
   nsPrintfCString nameAux("%s%s%s", mProfileDirectory,
                           NS_SLASH, "Telemetry.LateWriteTmpXXXXXX");
@@ -170,7 +168,6 @@ LateWriteObserver::Observe(IOInterposeObserver::Observation& aOb)
   size_t numModules = stack.GetNumModules();
   sha1Stream.Printf("%u\n", (unsigned)numModules);
   for (size_t i = 0; i < numModules; ++i) {
-    Telemetry::ProcessedStack::Module module = stack.GetModule(i);
     sha1Stream.Printf("%s %s\n", module.mBreakpadId.c_str(),
                       module.mName.c_str());
   }
@@ -178,7 +175,6 @@ LateWriteObserver::Observe(IOInterposeObserver::Observation& aOb)
   size_t numFrames = stack.GetStackSize();
   sha1Stream.Printf("%u\n", (unsigned)numFrames);
   for (size_t i = 0; i < numFrames; ++i) {
-    const Telemetry::ProcessedStack::Frame& frame = stack.GetFrame(i);
     // NOTE: We write the offsets, while the atos tool expects a value with
     // the virtual address added. For example, running otool -l on the the firefox
     // binary shows

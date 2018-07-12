@@ -187,35 +187,6 @@ function test_enforce_test_mode() {
   add_clear_override("unknownissuer.test-mode.pinning.example.com");
 }
 
-function check_pinning_telemetry() {
-  let service = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
-  let prod_histogram = service.getHistogramById("CERT_PINNING_RESULTS")
-                         .snapshot();
-  let test_histogram = service.getHistogramById("CERT_PINNING_TEST_RESULTS")
-                         .snapshot();
-  // Because all of our test domains are pinned to user-specified trust
-  // anchors, effectively only strict mode and enforce test-mode get evaluated
-  do_check_eq(prod_histogram.counts[0], 4); // Failure count
-  do_check_eq(prod_histogram.counts[1], 4); // Success count
-  do_check_eq(test_histogram.counts[0], 2); // Failure count
-  do_check_eq(test_histogram.counts[1], 0); // Success count
-
-  let moz_prod_histogram = service.getHistogramById("CERT_PINNING_MOZ_RESULTS")
-                             .snapshot();
-  let moz_test_histogram =
-    service.getHistogramById("CERT_PINNING_MOZ_TEST_RESULTS").snapshot();
-  do_check_eq(moz_prod_histogram.counts[0], 0); // Failure count
-  do_check_eq(moz_prod_histogram.counts[1], 0); // Success count
-  do_check_eq(moz_test_histogram.counts[0], 0); // Failure count
-  do_check_eq(moz_test_histogram.counts[1], 0); // Success count
-
-  let per_host_histogram =
-    service.getHistogramById("CERT_PINNING_MOZ_RESULTS_BY_HOST").snapshot();
-  do_check_eq(per_host_histogram.counts[0], 0); // Failure count
-  do_check_eq(per_host_histogram.counts[1], 2); // Success count
-  run_next_test();
-}
-
 function run_test() {
   add_tls_server_setup("BadCertServer");
 
@@ -227,8 +198,5 @@ function run_test() {
   test_disabled();
   test_enforce_test_mode();
 
-  add_test(function () {
-    check_pinning_telemetry();
-  });
   run_next_test();
 }

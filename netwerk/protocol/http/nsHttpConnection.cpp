@@ -15,7 +15,6 @@
 
 #include "ASpdySession.h"
 #include "mozilla/ChaosMode.h"
-#include "mozilla/Telemetry.h"
 #include "nsHttpConnection.h"
 #include "nsHttpHandler.h"
 #include "nsHttpPipeline.h"
@@ -103,18 +102,12 @@ nsHttpConnection::~nsHttpConnection()
     if (!mEverUsedSpdy) {
         LOG(("nsHttpConnection %p performed %d HTTP/1.x transactions\n",
              this, mHttp1xTransactionCount));
-        Telemetry::Accumulate(Telemetry::HTTP_REQUEST_PER_CONN,
-                              mHttp1xTransactionCount);
     }
 
     if (mTotalBytesRead) {
         uint32_t totalKBRead = static_cast<uint32_t>(mTotalBytesRead >> 10);
         LOG(("nsHttpConnection %p read %dkb on connection spdy=%d\n",
              this, totalKBRead, mEverUsedSpdy));
-        Telemetry::Accumulate(mEverUsedSpdy ?
-                              Telemetry::SPDY_KBREAD_PER_CONN :
-                              Telemetry::HTTP_KBREAD_PER_CONN,
-                              totalKBRead);
     }
 }
 
@@ -404,9 +397,15 @@ nsHttpConnection::EnsureNPNComplete(nsresult &aOut0RTTWriteHandshakeValue,
         }
         if (!ealyDataAccepted) {
             uint32_t infoIndex;
+            uint8_t   Version[4];
+            Version[0] = SPDY_VERSION_31;
+            Version[1] = HTTP_VERSION_2;
+            Version[2] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
+            Version[3] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
+            Version[4] = HTTP_VERSION_2_DRAFT_LATEST;
             const SpdyInformation *info = gHttpHandler->SpdyInfo();
             if (NS_SUCCEEDED(info->GetNPNIndex(negotiatedNPN, &infoIndex))) {
-                StartSpdy(info->Version[infoIndex]);
+                StartSpdy(Version[infoIndex]);
             }
         } else {
           LOG(("nsHttpConnection::EnsureNPNComplete [this=%p] - %d bytes "
@@ -414,7 +413,6 @@ nsHttpConnection::EnsureNPNComplete(nsresult &aOut0RTTWriteHandshakeValue,
           mContentBytesWritten = mContentBytesWritten0RTT;
         }
 
-        Telemetry::Accumulate(Telemetry::SPDY_NPN_CONNECT, UsingSpdy());
     }
 
 npnComplete:

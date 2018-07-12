@@ -15,7 +15,6 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Atomics.h"
-#include "mozilla/Telemetry.h"
 #include "nsAutoPtr.h"
 #include "mozilla/net/PSpdyPush.h"
 #include "nsITimedChannel.h"
@@ -117,8 +116,6 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
     , mPriority(PRIORITY_NORMAL)
     , mIsCanceling(false)
     , mDefaultLoadIsTimed(false)
-    , mTimedRequests(0)
-    , mCachedRequests(0)
     , mTimedNonCachedRequestsUntilOnEndPageLoad(0)
 {
     NS_INIT_AGGREGATED(outer);
@@ -604,44 +601,6 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 
     PL_DHashTableRawRemove(&mRequests, entry);
 
-    // Collect telemetry stats only when default request is a timed channel.
-    // Don't include failed requests in the timing statistics.
-    if (mDefaultLoadIsTimed && NS_SUCCEEDED(aStatus)) {
-        nsCOMPtr<nsITimedChannel> timedChannel = do_QueryInterface(request);
-        if (timedChannel) {
-            // Figure out if this request was served from the cache
-            ++mTimedRequests;
-            TimeStamp timeStamp;
-            rv = timedChannel->GetCacheReadStart(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                ++mCachedRequests;
-            }
-            else {
-                mTimedNonCachedRequestsUntilOnEndPageLoad++;
-            }
-
-            rv = timedChannel->GetAsyncOpen(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                Telemetry::AccumulateTimeDelta(
-                    Telemetry::HTTP_SUBITEM_OPEN_LATENCY_TIME,
-                    mDefaultRequestCreationTime, timeStamp);
-            }
-
-            rv = timedChannel->GetResponseStart(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                Telemetry::AccumulateTimeDelta(
-                    Telemetry::HTTP_SUBITEM_FIRST_BYTE_LATENCY_TIME,
-                    mDefaultRequestCreationTime, timeStamp);
-            }
-
-            TelemetryReportChannel(timedChannel, false);
-        }
-    }
-
-    if (mRequests.EntryCount() == 0) {
-        TelemetryReport();
-    }
-
     // Undo any group priority delta...
     if (mPriority != 0)
         RescheduleRequest(request, -mPriority);
@@ -852,192 +811,6 @@ nsLoadGroup::SetDefaultLoadFlags(uint32_t aFlags)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void 
-nsLoadGroup::TelemetryReport()
-{
-    if (mDefaultLoadIsTimed) {
-        Telemetry::Accumulate(Telemetry::HTTP_REQUEST_PER_PAGE, mTimedRequests);
-        if (mTimedRequests) {
-            Telemetry::Accumulate(Telemetry::HTTP_REQUEST_PER_PAGE_FROM_CACHE,
-                                  mCachedRequests * 100 / mTimedRequests);
-        }
-
-        nsCOMPtr<nsITimedChannel> timedChannel =
-            do_QueryInterface(mDefaultLoadRequest);
-        if (timedChannel)
-            TelemetryReportChannel(timedChannel, true);
-    }
-
-    mTimedRequests = 0;
-    mCachedRequests = 0;
-    mDefaultLoadIsTimed = false;
-}
-
-void
-nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
-                                    bool aDefaultRequest)
-{
-    nsresult rv;
-    bool timingEnabled;
-    rv = aTimedChannel->GetTimingEnabled(&timingEnabled);
-    if (NS_FAILED(rv) || !timingEnabled)
-        return;
-
-    TimeStamp asyncOpen;
-    rv = aTimedChannel->GetAsyncOpen(&asyncOpen);
-    // We do not check !asyncOpen.IsNull() bellow, prevent ASSERTIONs this way
-    if (NS_FAILED(rv) || asyncOpen.IsNull())
-        return;
-
-    TimeStamp cacheReadStart;
-    rv = aTimedChannel->GetCacheReadStart(&cacheReadStart);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp cacheReadEnd;
-    rv = aTimedChannel->GetCacheReadEnd(&cacheReadEnd);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp domainLookupStart;
-    rv = aTimedChannel->GetDomainLookupStart(&domainLookupStart);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp domainLookupEnd;
-    rv = aTimedChannel->GetDomainLookupEnd(&domainLookupEnd);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp connectStart;
-    rv = aTimedChannel->GetConnectStart(&connectStart);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp connectEnd;
-    rv = aTimedChannel->GetConnectEnd(&connectEnd);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp requestStart;
-    rv = aTimedChannel->GetRequestStart(&requestStart);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp responseStart;
-    rv = aTimedChannel->GetResponseStart(&responseStart);
-    if (NS_FAILED(rv))
-        return;
-
-    TimeStamp responseEnd;
-    rv = aTimedChannel->GetResponseEnd(&responseEnd);
-    if (NS_FAILED(rv))
-        return;
-
-#define HTTP_REQUEST_HISTOGRAMS(prefix)                                        \
-    if (!domainLookupStart.IsNull()) {                                         \
-        Telemetry::AccumulateTimeDelta(                                        \
-            Telemetry::HTTP_##prefix##_DNS_ISSUE_TIME,                         \
-            asyncOpen, domainLookupStart);                                     \
-    }                                                                          \
-                                                                               \
-    if (!domainLookupStart.IsNull() && !domainLookupEnd.IsNull()) {            \
-        Telemetry::AccumulateTimeDelta(                                        \
-            Telemetry::HTTP_##prefix##_DNS_LOOKUP_TIME,                        \
-            domainLookupStart, domainLookupEnd);                               \
-    }                                                                          \
-                                                                               \
-    if (!connectStart.IsNull() && !connectEnd.IsNull()) {                      \
-        Telemetry::AccumulateTimeDelta(                                        \
-            Telemetry::HTTP_##prefix##_TCP_CONNECTION,                         \
-            connectStart, connectEnd);                                         \
-    }                                                                          \
-                                                                               \
-                                                                               \
-    if (!requestStart.IsNull() && !responseEnd.IsNull()) {                     \
-        Telemetry::AccumulateTimeDelta(                                        \
-            Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_SENT,                     \
-            asyncOpen, requestStart);                                          \
-                                                                               \
-        Telemetry::AccumulateTimeDelta(                                        \
-            Telemetry::HTTP_##prefix##_FIRST_SENT_TO_LAST_RECEIVED,            \
-            requestStart, responseEnd);                                        \
-                                                                               \
-        if (cacheReadStart.IsNull() && !responseStart.IsNull()) {              \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_RECEIVED,             \
-                asyncOpen, responseStart);                                     \
-        }                                                                      \
-    }                                                                          \
-                                                                               \
-    if (!cacheReadStart.IsNull() && !cacheReadEnd.IsNull()) {                  \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE,           \
-                asyncOpen, cacheReadStart);                                    \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE_V2,        \
-                asyncOpen, cacheReadStart);                                    \
-        }                                                                      \
-                                                                               \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_CACHE_READ_TIME,                    \
-                cacheReadStart, cacheReadEnd);                                 \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_CACHE_READ_TIME_V2,                 \
-                cacheReadStart, cacheReadEnd);                                 \
-        }                                                                      \
-                                                                               \
-        if (!requestStart.IsNull() && !responseEnd.IsNull()) {                 \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_REVALIDATION,                       \
-                requestStart, responseEnd);                                    \
-        }                                                                      \
-    }                                                                          \
-                                                                               \
-    if (!cacheReadEnd.IsNull()) {                                              \
-        Telemetry::AccumulateTimeDelta(                                        \
-            Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                          \
-            asyncOpen, cacheReadEnd);                                          \
-                                                                               \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED,               \
-                asyncOpen, cacheReadEnd);                                      \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED_V2,            \
-                asyncOpen, cacheReadEnd);                                      \
-        }                                                                      \
-    }                                                                          \
-    else if (!responseEnd.IsNull()) {                                          \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                      \
-                asyncOpen, responseEnd);                                       \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET,                  \
-                asyncOpen, responseEnd);                                       \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_V2,                   \
-                asyncOpen, responseEnd);                                       \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET_V2,               \
-                asyncOpen, responseEnd);                                       \
-        }                                                                      \
-    }
-
-    if (aDefaultRequest) {
-        HTTP_REQUEST_HISTOGRAMS(PAGE)
-    } else {
-        HTTP_REQUEST_HISTOGRAMS(SUB)
-    }
-#undef HTTP_REQUEST_HISTOGRAMS
-}
 
 nsresult nsLoadGroup::MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& outFlags)
 {

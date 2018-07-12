@@ -733,13 +733,6 @@ ErrorReport::init(JSContext* cx, HandleValue exn)
             if (!filename) {
                 filename = "FILE_NOT_FOUND";
             }
-            char histogramKey[64];
-            JS_snprintf(histogramKey, sizeof(histogramKey),
-                        "%s %s %u",
-                        addonIdChars.get(),
-                        filename,
-                        (reportp ? reportp->lineno : 0) );
-            cx->runtime()->addTelemetry(JS_TELEMETRY_ADDON_EXCEPTIONS, 1, histogramKey);
         }
     }
     // Be careful not to invoke ToString if we've already successfully extracted

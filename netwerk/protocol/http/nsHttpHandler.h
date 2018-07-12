@@ -92,8 +92,6 @@ public:
     bool           EnforceAssocReq()         { return mEnforceAssocReq; }
 
     bool           IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
-    bool           IsTelemetryEnabled() { return mTelemetryEnabled; }
-    bool           AllowExperiments() { return mTelemetryEnabled && mAllowExperiments; }
 
     bool           IsSpdyEnabled() { return mEnableSpdy; }
     bool           IsSpdyV31Enabled() { return mSpdyV31; }
@@ -463,12 +461,6 @@ private:
     // for broadcasting safe hint;
     bool           mSafeHintEnabled;
     bool           mParentalControlEnabled;
-
-    // Whether telemetry is reported or not
-    uint32_t           mTelemetryEnabled : 1;
-
-    // The value of network.allow-experiments
-    uint32_t           mAllowExperiments : 1;
 
     // true in between init and shutdown states
     uint32_t           mHandlerActive : 1;

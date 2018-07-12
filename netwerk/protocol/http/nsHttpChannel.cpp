@@ -71,7 +71,6 @@
 #include "nsCRT.h"
 #include "nsPerformance.h"
 #include "CacheObserver.h"
-#include "mozilla/Telemetry.h"
 #include "AlternateServices.h"
 #include "InterceptedChannel.h"
 #include "nsIHttpPushListener.h"
@@ -98,30 +97,6 @@ namespace {
 static NS_DEFINE_CID(kStreamListenerTeeCID, NS_STREAMLISTENERTEE_CID);
 static NS_DEFINE_CID(kStreamTransportServiceCID,
                      NS_STREAMTRANSPORTSERVICE_CID);
-
-enum CacheDisposition {
-    kCacheHit = 1,
-    kCacheHitViaReval = 2,
-    kCacheMissedViaReval = 3,
-    kCacheMissed = 4
-};
-
-void
-AccumulateCacheHitTelemetry(CacheDisposition hitOrMiss)
-{
-    if (!CacheObserver::UseNewCache()) {
-        Telemetry::Accumulate(Telemetry::HTTP_CACHE_DISPOSITION_2, hitOrMiss);
-    }
-    else {
-        Telemetry::Accumulate(Telemetry::HTTP_CACHE_DISPOSITION_2_V2, hitOrMiss);
-
-        int32_t experiment = CacheObserver::HalfLifeExperiment();
-        if (experiment > 0 && hitOrMiss == kCacheMissed) {
-            Telemetry::Accumulate(Telemetry::HTTP_CACHE_MISS_HALFLIFE_EXPERIMENT,
-                                  experiment - 1);
-        }
-    }
-}
 
 // Computes and returns a SHA1 hash of the input buffer. The input buffer
 // must be a null-terminated string.
@@ -389,8 +364,6 @@ nsHttpChannel::ContinueConnect()
             if (NS_FAILED(rv) && event) {
                 event->Revoke();
             }
-
-            AccumulateCacheHitTelemetry(kCacheHit);
 
             return rv;
         }
@@ -1425,15 +1398,6 @@ nsHttpChannel::ProcessResponse()
 
     uint32_t httpStatus = mResponseHead->Status();
 
-    // Gather data on whether the transaction and page (if this is
-    // the initial page load) is being loaded with SSL.
-    Telemetry::Accumulate(Telemetry::HTTP_TRANSACTION_IS_SSL,
-                          mConnectionInfo->EndToEndSSL());
-    if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI) {
-        Telemetry::Accumulate(Telemetry::HTTP_PAGELOAD_IS_SSL,
-                              mConnectionInfo->EndToEndSSL());
-    }
-
     LOG(("nsHttpChannel::ProcessResponse [this=%p httpStatus=%u]\n",
         this, httpStatus));
 
@@ -1586,35 +1550,6 @@ nsHttpChannel::ProcessResponse()
         MaybeInvalidateCacheEntryForSubsequentGet();
         break;
     }
-
-    CacheDisposition cacheDisposition;
-    if (!mDidReval)
-        cacheDisposition = kCacheMissed;
-    else if (successfulReval)
-        cacheDisposition = kCacheHitViaReval;
-    else
-        cacheDisposition = kCacheMissedViaReval;
-
-    AccumulateCacheHitTelemetry(cacheDisposition);
-    Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_VERSION,
-                          mResponseHead->Version());
-
-#if defined(ANDROID) || defined(MOZ_B2G)
-    if (gHttpHandler->IsTelemetryEnabled()) {
-      // Gather telemetry on being sent a WAP content-type
-      // This check will catch (at least) the following content types:
-      // application/wml+xml, application/vnd.wap.xhtml+xml,
-      // text/vnd.wap.wml, application/vnd.wap.wmlc
-      bool isWap = false;
-      if (!mResponseHead->ContentType().IsEmpty() && (
-          mResponseHead->ContentType().Find(".wap") != -1 ||
-          mResponseHead->ContentType().Find("/wml") != -1)) {
-        isWap = true;
-      }
-
-      Telemetry::Accumulate(Telemetry::HTTP_WAP_CONTENT_TYPE_RECEIVED, isWap);
-    }
-#endif
 
     return rv;
 }
@@ -2572,7 +2507,6 @@ nsHttpChannel::ProcessNotModified()
                 PipelineFeedbackInfo(mConnectionInfo,
                                      nsHttpConnectionMgr::RedCorruptedContent,
                                      nullptr, 0);
-        Telemetry::Accumulate(Telemetry::CACHE_LM_INCONSISTENT, true);
     }
 
     // merge any new headers with the cached response headers
@@ -2719,11 +2653,6 @@ nsHttpChannel::ContinueProcessFallback(nsresult rv)
     rv = mRedirectChannel->AsyncOpen(mListener, mListenerContext);
     if (NS_FAILED(rv))
         return rv;
-
-    if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI) {
-        Telemetry::Accumulate(Telemetry::HTTP_OFFLINE_CACHE_DOCUMENT_LOAD,
-                              true);
-    }
 
     // close down this channel
     Cancel(NS_BINDING_REDIRECTED);
@@ -3456,11 +3385,6 @@ nsHttpChannel::OnNormalCacheEntryAvailable(nsICacheEntry *aEntry,
     if (NS_SUCCEEDED(aEntryStatus)) {
         mCacheEntry = aEntry;
         mCacheEntryIsWriteOnly = aNew;
-
-        if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI) {
-            Telemetry::Accumulate(Telemetry::HTTP_OFFLINE_CACHE_DOCUMENT_LOAD,
-                                  false);
-        }
     }
 
     return NS_OK;
@@ -3490,11 +3414,6 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntry *aEntry,
         mCacheEntryIsReadOnly = true;
         mCacheEntry = aEntry;
         mCacheEntryIsWriteOnly = false;
-
-        if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI && !mApplicationCacheForWrite) {
-            Telemetry::Accumulate(Telemetry::HTTP_OFFLINE_CACHE_DOCUMENT_LOAD,
-                                  true);
-        }
 
         return NS_OK;
     }
@@ -4982,12 +4901,9 @@ nsHttpChannel::BeginConnect()
 
         LOG(("nsHttpChannel %p Using connection info from altsvc mapping", this));
         mapping->GetConnectionInfo(getter_AddRefs(mConnectionInfo), proxyInfo);
-        Telemetry::Accumulate(Telemetry::HTTP_TRANSACTION_USE_ALTSVC, true);
-        Telemetry::Accumulate(Telemetry::HTTP_TRANSACTION_USE_ALTSVC_OE, !isHttps);
     } else {
         LOG(("nsHttpChannel %p Using default connection info", this));
         mConnectionInfo = new nsHttpConnectionInfo(host, port, EmptyCString(), mUsername, proxyInfo, isHttps);
-        Telemetry::Accumulate(Telemetry::HTTP_TRANSACTION_USE_ALTSVC, false);
     }
 
     mAuthProvider =

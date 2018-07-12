@@ -21,7 +21,6 @@
 #include "Http2Push.h"
 #include "TunnelUtils.h"
 
-#include "mozilla/Telemetry.h"
 #include "nsAlgorithm.h"
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
@@ -588,8 +587,6 @@ Http2Stream::GenerateOpen()
     outputOffset += frameLen;
   }
 
-  Telemetry::Accumulate(Telemetry::SPDY_SYN_SIZE, compressedData.Length());
-
   // The size of the input headers is approximate
   uint32_t ratio =
     compressedData.Length() * 100 /
@@ -597,7 +594,6 @@ Http2Stream::GenerateOpen()
      mFlatHttpRequestHeaders.Length());
 
   mFlatHttpRequestHeaders.Truncate();
-  Telemetry::Accumulate(Telemetry::SPDY_SYN_RATIO, ratio);
   return NS_OK;
 }
 
@@ -942,13 +938,6 @@ Http2Stream::ConvertResponseHeaders(Http2Decompressor *decompressor,
     // 8.1.1 of h2 disallows 101.. throw PROTOCOL_ERROR on stream
     LOG3(("Http2Stream::ConvertResponseHeaders %p Error - status == 101\n", this));
     return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  if (aHeadersIn.Length() && aHeadersOut.Length()) {
-    Telemetry::Accumulate(Telemetry::SPDY_SYN_REPLY_SIZE, aHeadersIn.Length());
-    uint32_t ratio =
-      aHeadersIn.Length() * 100 / aHeadersOut.Length();
-    Telemetry::Accumulate(Telemetry::SPDY_SYN_REPLY_RATIO, ratio);
   }
 
   // The decoding went ok. Now we can customize and clean up.

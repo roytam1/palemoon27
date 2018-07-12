@@ -605,12 +605,6 @@ js::StringToLinearStringSlow(JSContext* cx, JSString* str)
     return str->ensureLinear(cx);
 }
 
-JS_FRIEND_API(void)
-JS_SetAccumulateTelemetryCallback(JSRuntime* rt, JSAccumulateTelemetryDataCallback callback)
-{
-    rt->setTelemetryCallback(rt, callback);
-}
-
 JS_FRIEND_API(JSObject*)
 JS_CloneObject(JSContext* cx, HandleObject obj, HandleObject protoArg, HandleObject parent)
 {

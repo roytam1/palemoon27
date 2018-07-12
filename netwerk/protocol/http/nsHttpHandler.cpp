@@ -50,7 +50,6 @@
 #include "nsINetworkLinkService.h"
 
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/Telemetry.h"
 
 #if defined(XP_UNIX)
 #include <sys/utsname.h>
@@ -84,7 +83,6 @@ extern PRThread *gSocketThread;
 #define BROWSER_PREF_PREFIX     "browser.cache."
 #define DONOTTRACK_HEADER_ENABLED "privacy.donottrackheader.enabled"
 #define H2MANDATORY_SUITE        "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256"
-#define TELEMETRY_ENABLED        "toolkit.telemetry.enabled"
 #define ALLOW_EXPERIMENTS        "network.allow-experiments"
 #define SAFE_HINT_HEADER_VALUE   "safeHint.enabled"
 
@@ -177,8 +175,6 @@ nsHttpHandler::nsHttpHandler()
     , mDoNotTrackEnabled(false)
     , mSafeHintEnabled(false)
     , mParentalControlEnabled(false)
-    , mTelemetryEnabled(false)
-    , mAllowExperiments(true)
     , mHandlerActive(false)
     , mEnableSpdy(false)
     , mSpdyV31(true)
@@ -275,7 +271,6 @@ nsHttpHandler::Init()
         prefBranch->AddObserver(INTL_ACCEPT_LANGUAGES, this, true);
         prefBranch->AddObserver(BROWSER_PREF("disk_cache_ssl"), this, true);
         prefBranch->AddObserver(DONOTTRACK_HEADER_ENABLED, this, true);
-        prefBranch->AddObserver(TELEMETRY_ENABLED, this, true);
         prefBranch->AddObserver(H2MANDATORY_SUITE, this, true);
         prefBranch->AddObserver(HTTP_PREF("tcp_keepalive.short_lived_connections"), this, true);
         prefBranch->AddObserver(HTTP_PREF("tcp_keepalive.long_lived_connections"), this, true);
@@ -1449,19 +1444,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     // includes telemetry and allow-experiments because of the abtest profile
     bool requestTokenBucketUpdated = false;
 
-    //
-    // Telemetry
-    //
-
-    if (PREF_CHANGED(TELEMETRY_ENABLED)) {
-        cVar = false;
-        requestTokenBucketUpdated = true;
-        rv = prefs->GetBoolPref(TELEMETRY_ENABLED, &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mTelemetryEnabled = cVar;
-        }
-    }
-
     // "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256" is the required h2 interop
     // suite.
 
@@ -1473,48 +1455,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
-    //
-    // network.allow-experiments
-    //
-    if (PREF_CHANGED(ALLOW_EXPERIMENTS)) {
-        cVar = true;
-        requestTokenBucketUpdated = true;
-        rv = prefs->GetBoolPref(ALLOW_EXPERIMENTS, &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mAllowExperiments = cVar;
-        }
-    }
-
-    //
-    // Test HTTP Pipelining (bug796192)
-    // If experiments are allowed and pipelining is Off,
-    // turn it On for just 10 minutes
-    //
-    if (mAllowExperiments && !mPipeliningEnabled &&
-        PREF_CHANGED(HTTP_PREF("pipelining.abtest"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("pipelining.abtest"), &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            // If option is enabled, only test for ~1% of sessions
-            if (cVar && !(rand() % 128)) {
-                mCapabilities |=  NS_HTTP_ALLOW_PIPELINING;
-                if (mPipelineTestTimer)
-                    mPipelineTestTimer->Cancel();
-                mPipelineTestTimer =
-                    do_CreateInstance("@mozilla.org/timer;1", &rv);
-                if (NS_SUCCEEDED(rv)) {
-                    rv = mPipelineTestTimer->InitWithFuncCallback(
-                        TimerCallback, this, 10*60*1000, // 10 minutes
-                        nsITimer::TYPE_ONE_SHOT);
-                }
-            } else {
-                mCapabilities &= ~NS_HTTP_ALLOW_PIPELINING;
-                if (mPipelineTestTimer) {
-                    mPipelineTestTimer->Cancel();
-                    mPipelineTestTimer = nullptr;
-                }
-            }
-        }
-    }
     if (requestTokenBucketUpdated) {
         MakeNewRequestTokenBucket();
     }
@@ -2005,11 +1945,6 @@ nsHttpHandler::Observe(nsISupports *subject,
         // depend on this value.
         mSessionStartTime = NowInSeconds();
 
-        if (!mDoNotTrackEnabled) {
-            Telemetry::Accumulate(Telemetry::DNT_USAGE, 2);
-        } else {
-            Telemetry::Accumulate(Telemetry::DNT_USAGE, 1);
-        }
     } else if (!strcmp(topic, "profile-change-net-restore")) {
         // initialize connection manager
         InitConnectionMgr();

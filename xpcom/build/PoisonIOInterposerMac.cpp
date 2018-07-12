@@ -14,7 +14,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/ProcessedStack.h"
 #include "mozilla/Scoped.h"
-#include "mozilla/Telemetry.h"
 #include "nsPrintfCString.h"
 #include "nsStackWalk.h"
 #include "nsTraceRefcnt.h"

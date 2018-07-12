@@ -12,7 +12,6 @@
 #include "mozilla/BinarySearch.h"
 #include "mozilla/Casting.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/Telemetry.h"
 
 #include "prlog.h"
 #include "prmem.h"
@@ -318,9 +317,6 @@ nsNSSSocketInfo::NoteTimeUntilReady()
 
   mNotedTimeUntilReady = true;
 
-  // This will include TCP and proxy tunnel wait time
-  Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_READY,
-                                 mSocketCreationTimestamp, TimeStamp::Now());
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
          ("[%p] nsNSSSocketInfo::NoteTimeUntilReady\n", mFd));
 }
@@ -328,31 +324,6 @@ nsNSSSocketInfo::NoteTimeUntilReady()
 void
 nsNSSSocketInfo::SetHandshakeCompleted()
 {
-  if (!mHandshakeCompleted) {
-    enum HandshakeType {
-      Resumption = 1,
-      FalseStarted = 2,
-      ChoseNotToFalseStart = 3,
-      NotAllowedToFalseStart = 4,
-    };
-
-    HandshakeType handshakeType = !IsFullHandshake() ? Resumption
-                                : mFalseStarted ? FalseStarted
-                                : mFalseStartCallbackCalled ? ChoseNotToFalseStart
-                                : NotAllowedToFalseStart;
-
-    // This will include TCP and proxy tunnel wait time
-    Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_HANDSHAKE_FINISHED,
-                                   mSocketCreationTimestamp, TimeStamp::Now());
-
-    // If the handshake is completed for the first time from just 1 callback
-    // that means that TLS session resumption must have been used.
-    Telemetry::Accumulate(Telemetry::SSL_RESUMED_SESSION,
-                          handshakeType == Resumption);
-    Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_TYPE, handshakeType);
-  }
-
-
     // Remove the plain text layer as it is not needed anymore.
     // The plain text layer is not always present - so its not a fatal error
     // if it cannot be removed
@@ -729,11 +700,6 @@ nsNSSSocketInfo::SetCertVerificationResult(PRErrorCode errorCode,
   if (errorCode) {
     mFailedVerification = true;
     SetCanceled(errorCode, errorMessageType);
-  }
-
-  if (mPlaintextBytesRead && !errorCode) {
-    Telemetry::Accumulate(Telemetry::SSL_BYTES_BEFORE_CERT_CALLBACK,
-                          AssertedCast<uint32_t>(mPlaintextBytesRead));
   }
 
   mCertVerificationState = after_cert_verification;
@@ -1201,29 +1167,6 @@ class SSLErrorRunnable : public SyncRunnableBase
 
 namespace {
 
-uint32_t tlsIntoleranceTelemetryBucket(PRErrorCode err)
-{
-  // returns a numeric code for where we track various errors in telemetry
-  // only errors that cause version fallback are tracked,
-  // so this is also used to determine which errors can cause version fallback
-  switch (err) {
-    case SSL_ERROR_BAD_MAC_ALERT: return 1;
-    case SSL_ERROR_BAD_MAC_READ: return 2;
-    case SSL_ERROR_HANDSHAKE_FAILURE_ALERT: return 3;
-    case SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT: return 4;
-    case SSL_ERROR_ILLEGAL_PARAMETER_ALERT: return 6;
-    case SSL_ERROR_NO_CYPHER_OVERLAP: return 7;
-    case SSL_ERROR_UNSUPPORTED_VERSION: return 10;
-    case SSL_ERROR_PROTOCOL_VERSION_ALERT: return 11;
-    case SSL_ERROR_BAD_HANDSHAKE_HASH_VALUE: return 13;
-    case SSL_ERROR_DECODE_ERROR_ALERT: return 14;
-    case PR_CONNECT_RESET_ERROR: return 16;
-    case PR_END_OF_FILE_ERROR: return 17;
-    case SSL_ERROR_INTERNAL_ERROR_ALERT: return 18;
-    default: return 0;
-  }
-}
-
 bool
 retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
 {
@@ -1245,15 +1188,6 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
     // this as a hard failure, but forget any intolerance so that later attempts
     // don't use this version (i.e., range.max) and trigger the error again.
 
-    // First, track the original cause of the version fallback.  This uses the
-    // same buckets as the telemetry below, except that bucket 0 will include
-    // all cases where there wasn't an original reason.
-    PRErrorCode originalReason =
-      helpers.getIntoleranceReason(socketInfo->GetHostName(),
-                                   socketInfo->GetPort());
-    Telemetry::Accumulate(Telemetry::SSL_VERSION_FALLBACK_INAPPROPRIATE,
-                          tlsIntoleranceTelemetryBucket(originalReason));
-
     helpers.forgetIntolerance(socketInfo->GetHostName(),
                               socketInfo->GetPort());
 
@@ -1273,11 +1207,8 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
       nsNSSComponent::AreAnyWeakCiphersEnabled()) {
     if (helpers.rememberStrongCiphersFailed(socketInfo->GetHostName(),
                                             socketInfo->GetPort(), err)) {
-      Telemetry::Accumulate(Telemetry::SSL_WEAK_CIPHERS_FALLBACK,
-                            tlsIntoleranceTelemetryBucket(err));
       return true;
     }
-    Telemetry::Accumulate(Telemetry::SSL_WEAK_CIPHERS_FALLBACK, 0);
   }
 
   // When not using a proxy we'll see a connection reset error.
@@ -1301,50 +1232,11 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
     return false;
   }
 
-  uint32_t reason = tlsIntoleranceTelemetryBucket(err);
-  if (reason == 0) {
-    return false;
-  }
-
-  Telemetry::ID pre;
-  Telemetry::ID post;
-  switch (range.max) {
-    case SSL_LIBRARY_VERSION_TLS_1_3:
-      pre = Telemetry::SSL_TLS13_INTOLERANCE_REASON_PRE;
-      post = Telemetry::SSL_TLS13_INTOLERANCE_REASON_POST;
-      break;
-    case SSL_LIBRARY_VERSION_TLS_1_2:
-      pre = Telemetry::SSL_TLS12_INTOLERANCE_REASON_PRE;
-      post = Telemetry::SSL_TLS12_INTOLERANCE_REASON_POST;
-      break;
-    case SSL_LIBRARY_VERSION_TLS_1_1:
-      pre = Telemetry::SSL_TLS11_INTOLERANCE_REASON_PRE;
-      post = Telemetry::SSL_TLS11_INTOLERANCE_REASON_POST;
-      break;
-    case SSL_LIBRARY_VERSION_TLS_1_0:
-      pre = Telemetry::SSL_TLS10_INTOLERANCE_REASON_PRE;
-      post = Telemetry::SSL_TLS10_INTOLERANCE_REASON_POST;
-      break;
-    case SSL_LIBRARY_VERSION_3_0:
-      pre = Telemetry::SSL_SSL30_INTOLERANCE_REASON_PRE;
-      post = Telemetry::SSL_SSL30_INTOLERANCE_REASON_POST;
-      break;
-    default:
-      MOZ_CRASH("impossible TLS version");
-      return false;
-  }
-
-  // The difference between _PRE and _POST represents how often we avoided
-  // TLS intolerance fallback due to remembered tolerance.
-  Telemetry::Accumulate(pre, reason);
-
   if (!helpers.rememberIntolerantAtVersion(socketInfo->GetHostName(),
                                            socketInfo->GetPort(),
                                            range.min, range.max, err)) {
     return false;
   }
-
-  Telemetry::Accumulate(post, reason);
 
   return true;
 }

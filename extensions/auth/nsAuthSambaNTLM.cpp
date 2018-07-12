@@ -9,7 +9,6 @@
 #include "prenv.h"
 #include "plbase64.h"
 #include "prerror.h"
-#include "mozilla/Telemetry.h"
 
 #include <stdlib.h>
 
@@ -212,16 +211,6 @@ nsAuthSambaNTLM::Init(const char *serviceName,
                       const char16_t *password)
 {
     NS_ASSERTION(!username && !domain && !password, "unexpected credentials");
-
-    static bool sTelemetrySent = false;
-    if (!sTelemetrySent) {
-        mozilla::Telemetry::Accumulate(
-            mozilla::Telemetry::NTLM_MODULE_USED_2,
-            serviceFlags & nsIAuthModule::REQ_PROXY_AUTH
-                ? NTLM_MODULE_SAMBA_AUTH_PROXY
-                : NTLM_MODULE_SAMBA_AUTH_DIRECT);
-        sTelemetrySent = true;
-    }
 
     return NS_OK;
 }

@@ -61,15 +61,6 @@ public:
    */
   static uint32_t sThreadCount;
 
-  /**
-   * Maximum number of worker threads reached during the current download session,
-   * used for telemetry.
-   *
-   * When there are no more worker threads running, we consider the download
-   * session finished, and this counter is reset.
-   */
-  static uint32_t sTelemetryMaxThreadCount;
-
 
 protected:
   virtual ~BackgroundFileSaver();

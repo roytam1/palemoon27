@@ -21,7 +21,6 @@
 #include "nsIObserverService.h"
 #include "nsICacheStorageVisitor.h"
 #include "nsISizeOf.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Services.h"
 #include "nsDirectoryServiceUtils.h"
@@ -1148,8 +1147,6 @@ CacheFileIOManager::Shutdown()
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN_V2> shutdownTimer;
-
   CacheIndex::PreShutdown();
 
   ShutdownMetadataWriteScheduling();
@@ -1176,7 +1173,6 @@ CacheFileIOManager::Shutdown()
   CacheIndex::Shutdown();
 
   if (CacheObserver::ClearCacheOnShutdown()) {
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE2_SHUTDOWN_CLEAR_PRIVATE> totalTimer;
     gInstance->SyncRemoveAllCacheFiles();
   }
 
@@ -3458,7 +3454,6 @@ CacheFileIOManager::GetDoomedFile(nsIFile **_retval)
     leafName.Truncate();
   }
 
-//  Telemetry::Accumulate(Telemetry::DISK_CACHE_GETDOOMEDFILE_ITERATIONS, iter);
 
   file.swap(*_retval);
   return NS_OK;

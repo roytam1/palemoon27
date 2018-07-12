@@ -38,8 +38,6 @@
 #include "nsICacheVisitor.h"
 #include "nsISeekableStream.h"
 
-#include "mozilla/Telemetry.h"
-
 #include "sqlite3.h"
 #include "mozilla/storage.h"
 
@@ -1495,7 +1493,6 @@ nsOfflineCacheDevice::GetDeviceID()
 nsCacheEntry *
 nsOfflineCacheDevice::FindEntry(nsCString *fullKey, bool *collision)
 {
-  mozilla::Telemetry::AutoTimer<mozilla::Telemetry::CACHE_OFFLINE_SEARCH_2> timer;
   LOG(("nsOfflineCacheDevice::FindEntry [key=%s]\n", fullKey->get()));
 
   // SELECT * FROM moz_cache WHERE key = ?

@@ -50,7 +50,6 @@
 #include "nsProxyRelease.h"
 #include "nsNetUtil.h"
 #include "mozilla/StaticMutex.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/CheckedInt.h"
 
@@ -2709,36 +2708,6 @@ WebSocketChannel::StartWebsocketData()
   return mSocketIn->AsyncWait(this, 0, 0, mSocketThread);
 }
 
-void
-WebSocketChannel::ReportConnectionTelemetry()
-{ 
-  // 3 bits are used. high bit is for wss, middle bit for failed,
-  // and low bit for proxy..
-  // 0 - 7 : ws-ok-plain, ws-ok-proxy, ws-failed-plain, ws-failed-proxy,
-  //         wss-ok-plain, wss-ok-proxy, wss-failed-plain, wss-failed-proxy
-
-  bool didProxy = false;
-
-  nsCOMPtr<nsIProxyInfo> pi;
-  nsCOMPtr<nsIProxiedChannel> pc = do_QueryInterface(mChannel);
-  if (pc)
-    pc->GetProxyInfo(getter_AddRefs(pi));
-  if (pi) {
-    nsAutoCString proxyType;
-    pi->GetType(proxyType);
-    if (!proxyType.IsEmpty() &&
-        !proxyType.EqualsLiteral("direct"))
-      didProxy = true;
-  }
-
-  uint8_t value = (mEncrypted ? (1 << 2) : 0) | 
-    (!mGotUpgradeOK ? (1 << 1) : 0) |
-    (didProxy ? (1 << 0) : 0);
-
-  LOG(("WebSocketChannel::ReportConnectionTelemetry() %p %d", this, value));
-  Telemetry::Accumulate(Telemetry::WEBSOCKETS_HANDSHAKE_TYPE, value);
-}
-
 // nsIDNSListener
 
 NS_IMETHODIMP
@@ -3546,8 +3515,6 @@ WebSocketChannel::OnStopRequest(nsIRequest *aRequest,
   LOG(("WebSocketChannel::OnStopRequest() %p [%p %p %x]\n",
        this, aRequest, aContext, aStatusCode));
   MOZ_ASSERT(NS_IsMainThread(), "not main thread");
-
-  ReportConnectionTelemetry();
 
   // This is the end of the HTTP upgrade transaction, the
   // upgraded streams live on

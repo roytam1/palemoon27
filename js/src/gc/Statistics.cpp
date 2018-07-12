@@ -236,13 +236,6 @@ class gcstats::StatisticsSerializer
     }
 };
 
-/*
- * If this fails, then you can either delete this assertion and allow all
- * larger-numbered reasons to pile up in the last telemetry bucket, or switch
- * to GC_REASON_3 and bump the max value.
- */
-JS_STATIC_ASSERT(JS::gcreason::NUM_TELEMETRY_REASONS >= JS::gcreason::NUM_REASONS);
-
 const char*
 js::gcstats::ExplainInvocationKind(JSGCInvocationKind gckind)
 {
@@ -959,23 +952,11 @@ Statistics::endGC()
     int64_t sccTotal, sccLongest;
     sccDurations(&sccTotal, &sccLongest);
 
-    runtime->addTelemetry(JS_TELEMETRY_GC_IS_COMPARTMENTAL, !zoneStats.isCollectingAllZones());
-    runtime->addTelemetry(JS_TELEMETRY_GC_MS, t(total));
-    runtime->addTelemetry(JS_TELEMETRY_GC_MAX_PAUSE_MS, t(longest));
     int64_t markTotal = SumPhase(PHASE_MARK, phaseTimes);
     int64_t markRootsTotal = SumPhase(PHASE_MARK_ROOTS, phaseTimes);
-    runtime->addTelemetry(JS_TELEMETRY_GC_MARK_MS, t(markTotal));
-    runtime->addTelemetry(JS_TELEMETRY_GC_SWEEP_MS, t(phaseTimes[PHASE_DAG_NONE][PHASE_SWEEP]));
-    runtime->addTelemetry(JS_TELEMETRY_GC_MARK_ROOTS_MS, t(markRootsTotal));
-    runtime->addTelemetry(JS_TELEMETRY_GC_MARK_GRAY_MS, t(phaseTimes[PHASE_DAG_NONE][PHASE_SWEEP_MARK_GRAY]));
-    runtime->addTelemetry(JS_TELEMETRY_GC_NON_INCREMENTAL, !!nonincrementalReason);
-    runtime->addTelemetry(JS_TELEMETRY_GC_INCREMENTAL_DISABLED, !runtime->gc.isIncrementalGCAllowed());
-    runtime->addTelemetry(JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS, t(sccTotal));
-    runtime->addTelemetry(JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS, t(sccLongest));
 
     if (!aborted) {
         double mmu50 = computeMMU(50 * PRMJ_USEC_PER_MSEC);
-        runtime->addTelemetry(JS_TELEMETRY_GC_MMU_50, mmu50 * 100);
     }
 
     if (fp)
@@ -1007,8 +988,6 @@ Statistics::beginSlice(const ZoneGCStats& zoneStats, JSGCInvocationKind gckind,
         return;
     }
 
-    runtime->addTelemetry(JS_TELEMETRY_GC_REASON, reason);
-
     // Slice callbacks should only fire for the outermost level
     if (++gcDepth == 1) {
         bool wasFullGC = zoneStats.isCollectingAllZones();
@@ -1025,8 +1004,6 @@ Statistics::endSlice()
         slices.back().end = PRMJ_Now();
         slices.back().endFaults = GetPageFaultCount();
 
-        runtime->addTelemetry(JS_TELEMETRY_GC_SLICE_MS, t(slices.back().end - slices.back().start));
-        runtime->addTelemetry(JS_TELEMETRY_GC_RESET, !!slices.back().resetReason);
     }
 
     bool last = !runtime->gc.isIncrementalGCInProgress();

@@ -693,8 +693,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
 
     bool asmJS(Node list);
 
-    void addTelemetry(JSCompartment::DeprecatedLanguageExtension e);
-
     friend class LegacyCompExprTransplanter;
     friend struct BindData<ParseHandler>;
 };

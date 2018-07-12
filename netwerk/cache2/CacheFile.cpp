@@ -14,7 +14,6 @@
 #include <algorithm>
 #include "nsComponentManagerUtils.h"
 #include "nsProxyRelease.h"
-#include "mozilla/Telemetry.h"
 
 // When CACHE_CHUNKS is defined we always cache unused chunks in mCacheChunks.
 // When it is not defined, we always release the chunks ASAP, i.e. we cache
@@ -1504,33 +1503,6 @@ CacheFile::BytesFromChunk(uint32_t aIndex)
   return std::min(advance, tail);
 }
 
-static uint32_t
-StatusToTelemetryEnum(nsresult aStatus)
-{
-  if (NS_SUCCEEDED(aStatus)) {
-    return 0;
-  }
-
-  switch (aStatus) {
-    case NS_BASE_STREAM_CLOSED:
-      return 0; // Log this as a success
-    case NS_ERROR_OUT_OF_MEMORY:
-      return 2;
-    case NS_ERROR_FILE_DISK_FULL:
-      return 3;
-    case NS_ERROR_FILE_CORRUPTED:
-      return 4;
-    case NS_ERROR_FILE_NOT_FOUND:
-      return 5;
-    case NS_BINDING_ABORTED:
-      return 6;
-    default:
-      return 1; // other error
-  }
-
-  NS_NOTREACHED("We should never get here");
-}
-
 nsresult
 CacheFile::RemoveInput(CacheFileInputStream *aInput, nsresult aStatus)
 {
@@ -1551,9 +1523,6 @@ CacheFile::RemoveInput(CacheFileInputStream *aInput, nsresult aStatus)
   // If the input didn't read all data, there might be left some preloaded
   // chunks that won't be used anymore.
   mCachedChunks.Enumerate(&CacheFile::CleanUpCachedChunks, this);
-
-  Telemetry::Accumulate(Telemetry::NETWORK_CACHE_V2_INPUT_STREAM_STATUS,
-                        StatusToTelemetryEnum(aStatus));
 
   return NS_OK;
 }
@@ -1589,9 +1558,6 @@ CacheFile::RemoveOutput(CacheFileOutputStream *aOutput, nsresult aStatus)
 
   // Notify close listener as the last action
   aOutput->NotifyCloseListener();
-
-  Telemetry::Accumulate(Telemetry::NETWORK_CACHE_V2_OUTPUT_STREAM_STATUS,
-                        StatusToTelemetryEnum(aStatus));
 
   return NS_OK;
 }

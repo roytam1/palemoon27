@@ -110,14 +110,6 @@ enum Reason {
 #undef MAKE_REASON
     NO_REASON,
     NUM_REASONS,
-
-    /*
-     * For telemetry, we want to keep a fixed max bucket size over time so we
-     * don't have to switch histograms. 100 is conservative; as of this writing
-     * there are 52. But the cost of extra buckets seems to be low while the
-     * cost of switching histograms is high.
-     */
-    NUM_TELEMETRY_REASONS = 100
 };
 
 } /* namespace gcreason */

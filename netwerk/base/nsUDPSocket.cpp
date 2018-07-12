@@ -7,7 +7,6 @@
 #include "mozilla/Endian.h"
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/HoldDropJSObjects.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsSocketTransport2.h"
 #include "nsUDPSocket.h"
@@ -128,20 +127,11 @@ private:
   // released only on the thread func.
   nsRefPtr<nsUDPSocketCloseThread> mSelf;
 
-  // Telemetry probes.
-  TimeStamp mBeforeClose;
-  TimeStamp mAfterClose;
-
-  // Active threads (roughly) counter, modified only on the main thread
-  // and used only for telemetry reports.
-  static uint32_t sActiveThreadsCount;
-
   // Switches to true on "xpcom-shutdown-threads" notification and since
   // then it makes the code fallback to a direct call to PR_Close().
   static bool sPastShutdown;
 };
 
-uint32_t nsUDPSocketCloseThread::sActiveThreadsCount = 0;
 bool nsUDPSocketCloseThread::sPastShutdown = false;
 
 NS_IMPL_ISUPPORTS(nsUDPSocketCloseThread, nsIObserver);
@@ -199,8 +189,6 @@ nsUDPSocketCloseThread::AddObserver()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  ++sActiveThreadsCount;
-
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (obs) {
     obs->AddObserver(this, "xpcom-shutdown-threads", false);
@@ -218,11 +206,6 @@ nsUDPSocketCloseThread::JoinAndRemove()
     PR_JoinThread(mThread);
     mThread = nullptr;
 
-    Telemetry::Accumulate(Telemetry::UDP_SOCKET_PARALLEL_CLOSE_COUNT, sActiveThreadsCount);
-    Telemetry::AccumulateTimeDelta(Telemetry::UDP_SOCKET_CLOSE_TIME, mBeforeClose, mAfterClose);
-
-    MOZ_ASSERT(sActiveThreadsCount > 0);
-    --sActiveThreadsCount;
   }
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -253,12 +236,8 @@ nsUDPSocketCloseThread::ThreadFunc()
 {
   PR_SetCurrentThreadName("UDP socket close");
 
-  mBeforeClose = TimeStamp::Now();
-
   PR_Close(mFd);
   mFd = nullptr;
-
-  mAfterClose = TimeStamp::Now();
 
   // Join and remove the observer on the main thread.
   nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(

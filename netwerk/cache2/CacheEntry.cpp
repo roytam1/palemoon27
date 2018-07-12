@@ -25,7 +25,6 @@
 #include "nsProxyRelease.h"
 #include "nsSerializationHelper.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Telemetry.h"
 #include <math.h>
 #include <algorithm>
 
@@ -369,13 +368,6 @@ bool CacheEntry::Load(bool aTruncate, bool aPriority)
   BackgroundOp(Ops::REGISTER);
 
   bool directLoad = aTruncate || !mUseDisk;
-  if (directLoad) {
-    // mLoadStart will be used to calculate telemetry of life-time of this entry.
-    // Low resulution is then enough.
-    mLoadStart = TimeStamp::NowLoRes();
-  } else {
-    mLoadStart = TimeStamp::Now();
-  }
 
   {
     mozilla::MutexAutoUnlock unlock(mLock);
@@ -409,21 +401,6 @@ NS_IMETHODIMP CacheEntry::OnFileReady(nsresult aResult, bool aIsNew)
 {
   LOG(("CacheEntry::OnFileReady [this=%p, rv=0x%08x, new=%d]",
       this, aResult, aIsNew));
-
-  MOZ_ASSERT(!mLoadStart.IsNull());
-
-  if (NS_SUCCEEDED(aResult)) {
-    if (aIsNew) {
-      mozilla::Telemetry::AccumulateTimeDelta(
-        mozilla::Telemetry::NETWORK_CACHE_V2_MISS_TIME_MS,
-        mLoadStart);
-    }
-    else {
-      mozilla::Telemetry::AccumulateTimeDelta(
-        mozilla::Telemetry::NETWORK_CACHE_V2_HIT_TIME_MS,
-        mLoadStart);
-    }
-  }
 
   // OnFileReady, that is the only code that can transit from LOADING
   // to any follow-on state, can only be invoked ones on an entry,

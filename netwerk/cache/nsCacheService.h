@@ -22,7 +22,7 @@
 #include "nsRefPtrHashtable.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/TimeStamp.h"
 
 class nsCacheRequest;
 class nsCacheProfilePrefObserver;
@@ -254,7 +254,7 @@ private:
      * Internal Methods
      */
 
-    static void      Lock(::mozilla::Telemetry::ID mainThreadLockerID);
+    static void      Lock();
     static void      Unlock();
     void             LockAcquired();
     void             LockReleased();
@@ -386,15 +386,12 @@ private:
  *  nsCacheServiceAutoLock
  ******************************************************************************/
 
-#define LOCK_TELEM(x) \
-  (::mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_##x)
-
 // Instantiate this class to acquire the cache service lock for a particular
 // execution scope.
 class nsCacheServiceAutoLock {
 public:
-    explicit nsCacheServiceAutoLock(mozilla::Telemetry::ID mainThreadLockerID) {
-        nsCacheService::Lock(mainThreadLockerID);
+    explicit nsCacheServiceAutoLock() {
+        nsCacheService::Lock();
     }
     ~nsCacheServiceAutoLock() {
         nsCacheService::Unlock();

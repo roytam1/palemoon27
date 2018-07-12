@@ -108,7 +108,6 @@ public:
   // determine if a version of the protocol is enabled for index < kCount
   bool ProtocolEnabled(uint32_t index) const;
 
-  uint8_t   Version[kCount]; // telemetry enum e.g. SPDY_VERSION_31
   nsCString VersionString[kCount]; // npn string e.g. "spdy/3.1"
 
   // the ALPNCallback function allows the protocol stack to decide whether or

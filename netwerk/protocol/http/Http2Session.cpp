@@ -19,7 +19,6 @@
 #include "Http2Stream.h"
 #include "Http2Push.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/Preferences.h"
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
@@ -90,7 +89,6 @@ Http2Session::Http2Session(nsISocketTransport *aSocketTransport, uint32_t versio
   , mGoAwayID(0)
   , mOutgoingGoAwayID(0)
   , mConcurrent(0)
-  , mServerPushedResources(0)
   , mServerInitialStreamWindow(kDefaultRwin)
   , mLocalSessionWindow(kDefaultRwin)
   , mServerSessionWindow(kDefaultRwin)
@@ -206,10 +204,6 @@ Http2Session::~Http2Session()
         this, mDownstreamState));
 
   mStreamTransactionHash.Enumerate(ShutdownEnumerator, this);
-  Telemetry::Accumulate(Telemetry::SPDY_PARALLEL_STREAMS, mConcurrentHighWater);
-  Telemetry::Accumulate(Telemetry::SPDY_REQUEST_PER_CONN, (mNextStreamID - 1) / 2);
-  Telemetry::Accumulate(Telemetry::SPDY_SERVER_INITIATED_STREAMS,
-                        mServerPushedResources);
 }
 
 void
@@ -1495,13 +1489,11 @@ Http2Session::RecvSettings(Http2Session *self)
 
     case SETTINGS_TYPE_MAX_CONCURRENT:
       self->mMaxConcurrent = value;
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_MAX_STREAMS, value);
       self->ProcessPending();
       break;
 
     case SETTINGS_TYPE_INITIAL_WINDOW:
       {
-        Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_IW, value >> 10);
         int32_t delta = value - self->mServerInitialStreamWindow;
         self->mServerInitialStreamWindow = value;
 
@@ -1604,7 +1596,6 @@ Http2Session::RecvPushPromise(Http2Session *self)
     return rv;
 
   Http2Stream *associatedStream = self->mInputFrameDataStream;
-  ++(self->mServerPushedResources);
 
   // Anytime we start using the high bit of stream ID (either client or server)
   // begin to migrate to a new session.
@@ -2393,8 +2384,6 @@ Http2Session::ReadyToProcessDataFrame(enum internalStateType newState)
              newState == DISCARDING_DATA_FRAME_PADDING);
   ChangeDownstreamState(newState);
 
-  Telemetry::Accumulate(Telemetry::SPDY_CHUNK_RECVD,
-                        mInputFrameDataSize >> 10);
   mLastDataReadEpoch = mLastReadEpoch;
 
   if (!mInputFrameID) {

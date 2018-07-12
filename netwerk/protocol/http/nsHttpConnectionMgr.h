@@ -570,7 +570,6 @@ private:
     nsresult ProcessNewTransaction(nsHttpTransaction *);
     nsresult EnsureSocketThreadTarget();
     void     ClosePersistentConnections(nsConnectionEntry *ent);
-    void     ReportProxyTelemetry(nsConnectionEntry *ent);
     nsresult CreateTransport(nsConnectionEntry *, nsAHttpTransaction *,
                              uint32_t, bool, bool, bool);
     void     AddActiveConn(nsHttpConnection *, nsConnectionEntry *);

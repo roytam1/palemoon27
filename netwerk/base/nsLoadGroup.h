@@ -58,11 +58,6 @@ protected:
 
     nsresult MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& flags);
 
-private:
-    void TelemetryReport();
-    void TelemetryReportChannel(nsITimedChannel *timedChannel,
-                                bool defaultRequest);
-
 protected:
     uint32_t                        mForegroundCount;
     uint32_t                        mLoadFlags;
@@ -85,8 +80,6 @@ protected:
     /* Telemetry */
     mozilla::TimeStamp              mDefaultRequestCreationTime;
     bool                            mDefaultLoadIsTimed;
-    uint32_t                        mTimedRequests;
-    uint32_t                        mCachedRequests;
 
     /* For nsPILoadGroupInternal */
     uint32_t                        mTimedNonCachedRequestsUntilOnEndPageLoad;

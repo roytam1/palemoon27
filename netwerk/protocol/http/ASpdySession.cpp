@@ -21,8 +21,6 @@
 #include "SpdySession31.h"
 #include "Http2Session.h"
 
-#include "mozilla/Telemetry.h"
-
 namespace mozilla {
 namespace net {
 
@@ -51,8 +49,6 @@ ASpdySession::NewSpdySession(uint32_t version,
   // from a list provided in the SERVER HELLO filtered by our acceptable
   // versions, so there is no risk of the server ignoring our prefs.
 
-  Telemetry::Accumulate(Telemetry::SPDY_VERSION2, version);
-
   if (version == SPDY_VERSION_31) {
     return new SpdySession31(aTransport);
   } else if (version == HTTP_VERSION_2_DRAFT_LATEST || version == HTTP_VERSION_2 ||
@@ -71,23 +67,18 @@ SpdyInformation::SpdyInformation()
 {
   // highest index of enabled protocols is the
   // most preferred for ALPN negotiaton
-  Version[0] = SPDY_VERSION_31;
   VersionString[0] = NS_LITERAL_CSTRING("spdy/3.1");
   ALPNCallbacks[0] = SpdySessionTrue;
 
-  Version[1] = HTTP_VERSION_2;
   VersionString[1] = NS_LITERAL_CSTRING("h2");
   ALPNCallbacks[1] = Http2Session::ALPNCallback;
 
-  Version[2] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
   VersionString[2] = NS_LITERAL_CSTRING("h2-14");
   ALPNCallbacks[2] = Http2Session::ALPNCallback;
 
-  Version[3] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
   VersionString[3] = NS_LITERAL_CSTRING("h2-15");
   ALPNCallbacks[3] = Http2Session::ALPNCallback;
 
-  Version[4] = HTTP_VERSION_2_DRAFT_LATEST;
   VersionString[4] = NS_LITERAL_CSTRING(HTTP2_DRAFT_LATEST_TOKEN);
   ALPNCallbacks[4] = Http2Session::ALPNCallback;
 }

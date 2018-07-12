@@ -1162,16 +1162,13 @@ PeerConnectionObserver.prototype = {
   //                 STUN requests.
 
   handleIceConnectionStateChange: function(iceConnectionState) {
-    var histogram = Services.telemetry.getHistogramById("WEBRTC_ICE_SUCCESS_RATE");
 
     if (iceConnectionState === 'failed') {
-      histogram.add(false);
       this._dompc.logError("ICE failed, see about:webrtc for more details", null, 0);
     }
     if (this._dompc.iceConnectionState === 'checking' &&
         (iceConnectionState === 'completed' ||
          iceConnectionState === 'connected')) {
-          histogram.add(true);
     }
     this._dompc.changeIceConnectionState(iceConnectionState);
   },

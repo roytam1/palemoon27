@@ -430,9 +430,6 @@ private:
   // below the current value
   uint32_t             mConcurrent;
 
-  // The number of server initiated promises, tracked for telemetry
-  uint32_t             mServerPushedResources;
-
   // The server rwin for new streams as determined from a SETTINGS frame
   uint32_t             mServerInitialStreamWindow;
 

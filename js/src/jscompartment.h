@@ -550,15 +550,6 @@ struct JSCompartment
         DeprecatedNoSuchMethod = 6,         // JS 1.7+
         DeprecatedLanguageExtensionCount
     };
-
-  private:
-    // Used for collecting telemetry on SpiderMonkey's deprecated language extensions.
-    bool sawDeprecatedLanguageExtension[DeprecatedLanguageExtensionCount];
-
-    void reportTelemetry();
-
-  public:
-    void addTelemetry(const char* filename, DeprecatedLanguageExtension e);
 };
 
 inline bool

@@ -12,7 +12,6 @@
 #include "mozilla/Endian.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
 #include "nsICryptoHash.h"
@@ -1002,16 +1001,6 @@ nsNTLMAuthModule::Init(const char      *serviceName,
   mDomain = domain;
   mUsername = username;
   mPassword = password;
-
-  static bool sTelemetrySent = false;
-  if (!sTelemetrySent) {
-      mozilla::Telemetry::Accumulate(
-          mozilla::Telemetry::NTLM_MODULE_USED_2,
-          serviceFlags & nsIAuthModule::REQ_PROXY_AUTH
-              ? NTLM_MODULE_GENERIC_PROXY
-              : NTLM_MODULE_GENERIC_DIRECT);
-      sTelemetrySent = true;
-  }
 
   return NS_OK;
 }

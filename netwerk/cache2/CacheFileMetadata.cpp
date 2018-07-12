@@ -14,7 +14,6 @@
 #include "nsICacheEntry.h" // for nsICacheEntryMetaDataVisitor
 #include "../cache/nsCacheUtils.h"
 #include "nsIFile.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/DebugOnly.h"
 #include "prnetdb.h"
 

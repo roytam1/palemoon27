@@ -13,7 +13,6 @@
 #include "mozilla/Monitor.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/ProcessedStack.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/UniquePtr.h"
 #include "nsReadableUtils.h"
@@ -36,10 +35,6 @@ volatile bool gDebugDisableHangMonitor = false;
 
 const char kHangMonitorPrefName[] = "hangmonitor.timeout";
 
-#ifdef REPORT_CHROME_HANGS
-const char kTelemetryPrefName[] = "toolkit.telemetry.enabled";
-#endif
-
 // Monitor protects gShutdown and gTimeout, but not gTimestamp which rely on
 // being atomically set by the processor; synchronization doesn't really matter
 // in this use case.
@@ -57,34 +52,11 @@ bool gShutdown;
 // we're currently not processing events.
 Atomic<PRIntervalTime> gTimestamp(PR_INTERVAL_NO_WAIT);
 
-#ifdef REPORT_CHROME_HANGS
-// Main thread ID used in reporting chrome hangs under Windows
-static HANDLE winMainThreadHandle = nullptr;
-
-// Default timeout for reporting chrome hangs to Telemetry (5 seconds)
-static const int32_t DEFAULT_CHROME_HANG_INTERVAL = 5;
-
-// Maximum number of PCs to gather from the stack
-static const int32_t MAX_CALL_STACK_PCS = 400;
-
-// Chrome hang annotators
-static StaticAutoPtr<std::set<Annotator*>> gAnnotators;
-#endif
-
 // PrefChangedFunc
 void
 PrefChanged(const char*, void*)
 {
   int32_t newval = Preferences::GetInt(kHangMonitorPrefName);
-#ifdef REPORT_CHROME_HANGS
-  // Monitor chrome hangs on the profiling branch if Telemetry enabled
-  if (newval == 0) {
-    bool telemetryEnabled = Preferences::GetBool(kTelemetryPrefName);
-    if (telemetryEnabled) {
-      newval = DEFAULT_CHROME_HANG_INTERVAL;
-    }
-  }
-#endif
   MonitorAutoLock lock(*gMonitor);
   if (newval != gTimeout) {
     gTimeout = newval;
@@ -108,231 +80,6 @@ Crash()
   NS_RUNTIMEABORT("HangMonitor triggered");
 }
 
-#ifdef REPORT_CHROME_HANGS
-class ChromeHangAnnotations : public HangAnnotations
-{
-public:
-  ChromeHangAnnotations();
-  ~ChromeHangAnnotations();
-
-  void AddAnnotation(const nsAString& aName, const int32_t aData) override;
-  void AddAnnotation(const nsAString& aName, const double aData) override;
-  void AddAnnotation(const nsAString& aName, const nsAString& aData) override;
-  void AddAnnotation(const nsAString& aName, const nsACString& aData) override;
-  void AddAnnotation(const nsAString& aName, const bool aData) override;
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const override;
-  bool IsEmpty() const override;
-  bool GetEnumerator(Enumerator** aOutEnum) override;
-
-  typedef std::pair<nsString, nsString> AnnotationType;
-  typedef std::vector<AnnotationType> VectorType;
-  typedef VectorType::const_iterator IteratorType;
-
-private:
-  VectorType  mAnnotations;
-};
-
-ChromeHangAnnotations::ChromeHangAnnotations()
-{
-  MOZ_COUNT_CTOR(ChromeHangAnnotations);
-}
-
-ChromeHangAnnotations::~ChromeHangAnnotations()
-{
-  MOZ_COUNT_DTOR(ChromeHangAnnotations);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const int32_t aData)
-{
-  nsString dataString;
-  dataString.AppendInt(aData);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const double aData)
-{
-  nsString dataString;
-  dataString.AppendFloat(aData);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const nsAString& aData)
-{
-  AnnotationType annotation = std::make_pair(nsString(aName), nsString(aData));
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const nsACString& aData)
-{
-  nsString dataString;
-  AppendUTF8toUTF16(aData, dataString);
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-void
-ChromeHangAnnotations::AddAnnotation(const nsAString& aName, const bool aData)
-{
-  nsString dataString;
-  dataString += aData ? NS_LITERAL_STRING("true") : NS_LITERAL_STRING("false");
-  AnnotationType annotation = std::make_pair(nsString(aName), dataString);
-  mAnnotations.push_back(annotation);
-}
-
-/**
- * This class itself does not use synchronization but it (and its parent object)
- * should be protected by mutual exclusion in some way. In Telemetry the chrome
- * hang data is protected via TelemetryImpl::mHangReportsMutex.
- */
-class ChromeHangAnnotationEnumerator : public HangAnnotations::Enumerator
-{
-public:
-  ChromeHangAnnotationEnumerator(const ChromeHangAnnotations::VectorType& aAnnotations);
-  ~ChromeHangAnnotationEnumerator();
-
-  virtual bool Next(nsAString& aOutName, nsAString& aOutValue);
-
-private:
-  ChromeHangAnnotations::IteratorType mIterator;
-  ChromeHangAnnotations::IteratorType mEnd;
-};
-
-ChromeHangAnnotationEnumerator::ChromeHangAnnotationEnumerator(
-                          const ChromeHangAnnotations::VectorType& aAnnotations)
-  : mIterator(aAnnotations.begin())
-  , mEnd(aAnnotations.end())
-{
-  MOZ_COUNT_CTOR(ChromeHangAnnotationEnumerator);
-}
-
-ChromeHangAnnotationEnumerator::~ChromeHangAnnotationEnumerator()
-{
-  MOZ_COUNT_DTOR(ChromeHangAnnotationEnumerator);
-}
-
-bool
-ChromeHangAnnotationEnumerator::Next(nsAString& aOutName, nsAString& aOutValue)
-{
-  aOutName.Truncate();
-  aOutValue.Truncate();
-  if (mIterator == mEnd) {
-    return false;
-  }
-  aOutName = mIterator->first;
-  aOutValue = mIterator->second;
-  ++mIterator;
-  return true;
-}
-
-bool
-ChromeHangAnnotations::IsEmpty() const
-{
-  return mAnnotations.empty();
-}
-
-size_t
-ChromeHangAnnotations::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-{
-  size_t result = sizeof(mAnnotations) +
-                  mAnnotations.capacity() * sizeof(AnnotationType);
-  for (IteratorType i = mAnnotations.begin(), e = mAnnotations.end(); i != e;
-       ++i) {
-    result += i->first.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-    result += i->second.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-  }
-
-  return result;
-}
-
-bool
-ChromeHangAnnotations::GetEnumerator(HangAnnotations::Enumerator** aOutEnum)
-{
-  if (!aOutEnum) {
-    return false;
-  }
-  *aOutEnum = nullptr;
-  if (mAnnotations.empty()) {
-    return false;
-  }
-  *aOutEnum = new ChromeHangAnnotationEnumerator(mAnnotations);
-  return true;
-}
-
-static void
-ChromeStackWalker(uint32_t aFrameNumber, void* aPC, void* aSP, void* aClosure)
-{
-  MOZ_ASSERT(aClosure);
-  std::vector<uintptr_t>* stack =
-    static_cast<std::vector<uintptr_t>*>(aClosure);
-  if (stack->size() == MAX_CALL_STACK_PCS) {
-    return;
-  }
-  MOZ_ASSERT(stack->size() < MAX_CALL_STACK_PCS);
-  stack->push_back(reinterpret_cast<uintptr_t>(aPC));
-}
-
-static void
-GetChromeHangReport(Telemetry::ProcessedStack& aStack,
-                    int32_t& aSystemUptime,
-                    int32_t& aFirefoxUptime)
-{
-  MOZ_ASSERT(winMainThreadHandle);
-
-  // The thread we're about to suspend might have the alloc lock
-  // so allocate ahead of time
-  std::vector<uintptr_t> rawStack;
-  rawStack.reserve(MAX_CALL_STACK_PCS);
-  DWORD ret = ::SuspendThread(winMainThreadHandle);
-  if (ret == -1) {
-    return;
-  }
-  NS_StackWalk(ChromeStackWalker, /* skipFrames */ 0, /* maxFrames */ 0,
-               reinterpret_cast<void*>(&rawStack),
-               reinterpret_cast<uintptr_t>(winMainThreadHandle), nullptr);
-  ret = ::ResumeThread(winMainThreadHandle);
-  if (ret == -1) {
-    return;
-  }
-  aStack = Telemetry::GetStackAndModules(rawStack);
-
-  // Record system uptime (in minutes) at the time of the hang
-  aSystemUptime = ((GetTickCount() / 1000) - (gTimeout * 2)) / 60;
-
-  // Record Firefox uptime (in minutes) at the time of the hang
-  bool error;
-  TimeStamp processCreation = TimeStamp::ProcessCreation(error);
-  if (!error) {
-    TimeDuration td = TimeStamp::Now() - processCreation;
-    aFirefoxUptime = (static_cast<int32_t>(td.ToSeconds()) - (gTimeout * 2)) / 60;
-  } else {
-    aFirefoxUptime = -1;
-  }
-}
-
-static void
-ChromeHangAnnotatorCallout(ChromeHangAnnotations& aAnnotations)
-{
-  gMonitor->AssertCurrentThreadOwns();
-  MOZ_ASSERT(gAnnotators);
-  if (!gAnnotators) {
-    return;
-  }
-  for (std::set<Annotator*>::iterator i = gAnnotators->begin(),
-                                      e = gAnnotators->end();
-       i != e; ++i) {
-    (*i)->AnnotateHang(aAnnotations);
-  }
-}
-
-#endif
-
 void
 ThreadMain(void*)
 {
@@ -345,13 +92,6 @@ ThreadMain(void*)
   // run twice to trigger hang protection.
   PRIntervalTime lastTimestamp = 0;
   int waitCount = 0;
-
-#ifdef REPORT_CHROME_HANGS
-  Telemetry::ProcessedStack stack;
-  int32_t systemUptime = -1;
-  int32_t firefoxUptime = -1;
-  auto annotations = MakeUnique<ChromeHangAnnotations>();
-#endif
 
   while (true) {
     if (gShutdown) {
@@ -373,14 +113,6 @@ ThreadMain(void*)
         timestamp == lastTimestamp &&
         gTimeout > 0) {
       ++waitCount;
-#ifdef REPORT_CHROME_HANGS
-      // Capture the chrome-hang stack + Firefox & system uptimes after
-      // the minimum hang duration has been reached (not when the hang ends)
-      if (waitCount == 2) {
-        GetChromeHangReport(stack, systemUptime, firefoxUptime);
-        ChromeHangAnnotatorCallout(*annotations);
-      }
-#else
       // This is the crash-on-hang feature.
       // See bug 867313 for the quirk in the waitCount comparison
       if (waitCount >= 2) {
@@ -391,17 +123,7 @@ ThreadMain(void*)
           Crash();
         }
       }
-#endif
     } else {
-#ifdef REPORT_CHROME_HANGS
-      if (waitCount >= 2) {
-        uint32_t hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
-        Telemetry::RecordChromeHang(hangDuration, stack, systemUptime,
-                                    firefoxUptime, Move(annotations));
-        stack.Clear();
-        annotations = MakeUnique<ChromeHangAnnotations>();
-      }
-#endif
       lastTimestamp = timestamp;
       waitCount = 0;
     }
@@ -431,16 +153,6 @@ Startup()
 
   Preferences::RegisterCallback(PrefChanged, kHangMonitorPrefName, nullptr);
   PrefChanged(nullptr, nullptr);
-
-#ifdef REPORT_CHROME_HANGS
-  Preferences::RegisterCallback(PrefChanged, kTelemetryPrefName, nullptr);
-  winMainThreadHandle =
-    OpenThread(THREAD_ALL_ACCESS, FALSE, GetCurrentThreadId());
-  if (!winMainThreadHandle) {
-    return;
-  }
-  gAnnotators = new std::set<Annotator*>();
-#endif
 
   // Don't actually start measuring hangs until we hit the main event loop.
   // This potentially misses a small class of really early startup hangs,
@@ -479,10 +191,6 @@ Shutdown()
   delete gMonitor;
   gMonitor = nullptr;
 
-#ifdef REPORT_CHROME_HANGS
-  // gAnnotators is a StaticAutoPtr, so we just need to null it out.
-  gAnnotators = nullptr;
-#endif
 }
 
 static bool
@@ -545,10 +253,6 @@ NotifyActivity(ActivityType aActivityType)
     // The minimum amount of lag time that we should report for telemetry data.
     // Mozilla's UI responsiveness goal is 50ms
     static const uint32_t kUIResponsivenessThresholdMS = 50;
-    if (cumulativeUILagMS > kUIResponsivenessThresholdMS) {
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::EVENTLOOP_UI_LAG_EXP_MS,
-                                     cumulativeUILagMS);
-    }
     cumulativeUILagMS = 0;
   }
 
@@ -574,27 +278,11 @@ Suspend()
 void
 RegisterAnnotator(Annotator& aAnnotator)
 {
-#ifdef REPORT_CHROME_HANGS
-  if (GoannaProcessType_Default != XRE_GetProcessType()) {
-    return;
-  }
-  MonitorAutoLock lock(*gMonitor);
-  MOZ_ASSERT(gAnnotators);
-  gAnnotators->insert(&aAnnotator);
-#endif
 }
 
 void
 UnregisterAnnotator(Annotator& aAnnotator)
 {
-#ifdef REPORT_CHROME_HANGS
-  if (GoannaProcessType_Default != XRE_GetProcessType()) {
-    return;
-  }
-  MonitorAutoLock lock(*gMonitor);
-  MOZ_ASSERT(gAnnotators);
-  gAnnotators->erase(&aAnnotator);
-#endif
 }
 
 } // namespace HangMonitor

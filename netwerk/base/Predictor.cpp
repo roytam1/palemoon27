@@ -35,7 +35,6 @@
 #include "prlog.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include "mozilla/net/NeckoCommon.h"
 
@@ -263,26 +262,13 @@ Predictor::Action::OnCacheEntryAvailable(nsICacheEntry *entry, bool isNew,
                    "Aborting.", this));
     return NS_OK;
   }
-  Telemetry::AccumulateTimeDelta(Telemetry::PREDICTOR_WAIT_TIME,
-                                 mStartTime);
   if (mPredict) {
     bool predicted = mPredictor->PredictInternal(mPredictReason, entry, isNew,
                                                  mFullUri, mTargetURI,
                                                  mVerifier, mStackCount);
-    Telemetry::AccumulateTimeDelta(
-      Telemetry::PREDICTOR_PREDICT_WORK_TIME, mStartTime);
-    if (predicted) {
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::PREDICTOR_PREDICT_TIME_TO_ACTION, mStartTime);
-    } else {
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::PREDICTOR_PREDICT_TIME_TO_INACTION, mStartTime);
-    }
   } else {
     mPredictor->LearnInternal(mLearnReason, entry, isNew, mFullUri, mTargetURI,
                               mSourceURI);
-    Telemetry::AccumulateTimeDelta(
-      Telemetry::PREDICTOR_LEARN_WORK_TIME, mStartTime);
   }
 
   return NS_OK;
@@ -1010,8 +996,6 @@ Predictor::CalculateGlobalDegradation(uint32_t lastLoad)
     globalDegradation = mPageDegradationMax;
   }
 
-  Telemetry::Accumulate(Telemetry::PREDICTOR_GLOBAL_DEGRADATION,
-                        globalDegradation);
   return globalDegradation;
 }
 
@@ -1033,9 +1017,6 @@ Predictor::CalculateConfidence(uint32_t hitCount, uint32_t hitsPossible,
                                int32_t globalDegradation)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_PREDICTIONS_CALCULATED> predictionsCalculated;
-  ++predictionsCalculated;
 
   if (!hitsPossible) {
     return 0;
@@ -1076,10 +1057,6 @@ Predictor::CalculateConfidence(uint32_t hitCount, uint32_t hitsPossible,
   confidence = std::max(confidence, 0);
   confidence = std::min(confidence, maxConfidence);
 
-  Telemetry::Accumulate(Telemetry::PREDICTOR_BASE_CONFIDENCE, baseConfidence);
-  Telemetry::Accumulate(Telemetry::PREDICTOR_SUBRESOURCE_DEGRADATION,
-                        confidenceDegradation);
-  Telemetry::Accumulate(Telemetry::PREDICTOR_CONFIDENCE, confidence);
   return confidence;
 }
 
@@ -1142,15 +1119,9 @@ Predictor::RunPredictions(nsINetworkPredictorVerifier *verifier)
   preconnects.SwapElements(mPreconnects);
   preresolves.SwapElements(mPreresolves);
 
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PREDICTIONS> totalPredictions;
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRECONNECTS> totalPreconnects;
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRERESOLVES> totalPreresolves;
-
   len = preconnects.Length();
   for (i = 0; i < len; ++i) {
     nsCOMPtr<nsIURI> uri = preconnects[i];
-    ++totalPredictions;
-    ++totalPreconnects;
     mSpeculativeService->SpeculativeConnect(uri, this);
     predicted = true;
     if (verifier) {
@@ -1162,8 +1133,6 @@ Predictor::RunPredictions(nsINetworkPredictorVerifier *verifier)
   nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
   for (i = 0; i < len; ++i) {
     nsCOMPtr<nsIURI> uri = preresolves[i];
-    ++totalPredictions;
-    ++totalPreresolves;
     nsAutoCString hostname;
     uri->GetAsciiHost(hostname);
     nsCOMPtr<nsICancelable> tmpCancelable;
@@ -1264,9 +1233,6 @@ Predictor::Learn(nsIURI *targetURI, nsIURI *sourceURI,
   default:
     return NS_ERROR_INVALID_ARG;
   }
-
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_LEARN_ATTEMPTS> learnAttempts;
-  ++learnAttempts;
 
   Predictor::Reason argReason;
   argReason.mLearn = reason;

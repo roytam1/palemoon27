@@ -620,9 +620,6 @@ interface nsIXPCComponents_Utils : nsISupports
       */
     PRTime getWatchdogTimestamp(in AString aCategory);
 
-    [implicit_jscontext]
-    jsval getJSEngineTelemetryValue();
-
     /*
      * Clone an object into a scope.
      * The 3rd argument is an optional options object:

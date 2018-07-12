@@ -7,13 +7,12 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2009             *
+ * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2015             *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
  function: #ifdef jail to whip a few platforms into the UNIX ideal.
- last mod: $Id: os.h 19031 2013-12-03 19:20:50Z tterribe $
 
  ********************************************************************/
 
@@ -31,7 +30,7 @@
 
 #  ifdef __GNUC__
 #    define STIN static __inline__
-#  elif _WIN32
+#  elif defined(_WIN32)
 #    define STIN static __inline
 #  else
 #    define STIN static
@@ -119,8 +118,9 @@ static inline int vorbis_ftoi(double f){  /* yes, double!  Otherwise,
 
 
 /* MSVC inline assembly. 32 bit only; inline ASM isn't implemented in the
- * 64 bit compiler */
-#if defined(_MSC_VER) && !defined(_WIN64) && !defined(_WIN32_WCE)
+ * 64 bit compiler and doesn't work on arm. */
+#if defined(_MSC_VER) && !defined(_WIN64) && \
+      !defined(_WIN32_WCE) && !defined(_M_ARM)
 #  define VORBIS_FPU_CONTROL
 
 typedef ogg_int16_t vorbis_fpu_control;

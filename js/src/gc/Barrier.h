@@ -428,11 +428,12 @@ struct InternalGCMethods<jsid>
 template <typename T>
 class BarrieredBaseMixins {};
 
-/*
- * Base class for barriered pointer types.
- */
-template <class T>
-class BarrieredBase : public BarrieredBaseMixins<T>
+ // Base class of all barrier types.
+//
+// This is marked non-memmovable since post barriers added by derived classes
+// can add pointers to class instances to the store buffer.
+template <typename T>
+class MOZ_NON_MEMMOVABLE BarrieredBase : public BarrieredBaseMixins<T>
 {
   protected:
     T value;

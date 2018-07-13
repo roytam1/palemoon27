@@ -21,6 +21,7 @@
 #include "nsFrameList.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIContent.h"
+#include "nsIContentInlines.h"
 #include "nsContentUtils.h"
 #include "nsIAtom.h"
 #include "nsString.h"
@@ -403,6 +404,7 @@ nsFrame::nsFrame(nsStyleContext* aContext)
 
   mState = NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY;
   mReflowRequestedForCharDataChange = false;
+  mIsPrimaryFrame = false;
   mStyleContext = aContext;
   mStyleContext->AddRef();
 #ifdef DEBUG
@@ -667,6 +669,13 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
     }
   }
 
+  // from bug 1381157
+  // XXXneerja All instances of 'mContent->GetPrimaryFrame() == this' have been
+  // replaced with IsPrimaryFrame() except for this one.  The reason is that
+  // for native anonymous content our subclass Destroy method has already
+  // called UnbindFromTree so nsINode::mSubtreeRoot might be in use here and
+  // we don't want to call mContent->SetPrimaryFrame(nullptr) in that case.
+  // (bug 1400618 will fix that order)
   bool isPrimaryFrame = (mContent && mContent->GetPrimaryFrame() == this);
   if (isPrimaryFrame) {
     // This needs to happen before shell->NotifyDestroyingFrame because
@@ -1083,7 +1092,7 @@ nsIFrame::IsTransformed() const
             nsLayoutUtils::HasAnimationsForCompositor(mContent,
                                                       eCSSProperty_transform) &&
             IsFrameOfType(eSupportsCSSTransforms) &&
-            mContent->GetPrimaryFrame() == this)));
+            IsPrimaryFrame())));
 }
 
 bool
@@ -1096,7 +1105,7 @@ nsIFrame::HasOpacityInternal(float aThreshold) const
          (mContent &&
            nsLayoutUtils::HasAnimationsForCompositor(mContent,
                                                      eCSSProperty_opacity) &&
-           mContent->GetPrimaryFrame() == this);
+           IsPrimaryFrame());
 }
 
 bool
@@ -7907,7 +7916,11 @@ nsFrame::DoGetParentStyleContext(nsIFrame** aProviderFrame) const
     if (MOZ_LIKELY(parentContent)) {
       nsIAtom* pseudo = StyleContext()->GetPseudo();
       if (!pseudo || !mContent->IsElement() ||
-          !nsCSSAnonBoxes::IsAnonBox(pseudo) ||
+          (!nsCSSAnonBoxes::IsAnonBox(pseudo) &&
+           // Ensure that we don't return the display:contents style
+           // of the parent content for pseudos that have the same content
+           // as their primary frame (like -moz-list-bullets do):
+           IsPrimaryFrame()) ||
           /* if next is true then it's really a request for the table frame's
              parent context, see nsTable[Outer]Frame::GetParentStyleContext. */
           pseudo == nsCSSAnonBoxes::tableOuter) {

@@ -39,6 +39,7 @@
 #include "nsIPermissionManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMMutationEvent.h"
+#include "nsIContentInlines.h"
 
 using namespace mozilla;
 using mozilla::layout::RenderFrameParent;

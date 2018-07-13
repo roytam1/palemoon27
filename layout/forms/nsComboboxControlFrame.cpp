@@ -46,6 +46,7 @@
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/unused.h"
+#include "nsIContentInlines.h"
 
 using namespace mozilla;
 using namespace mozilla::gfx;

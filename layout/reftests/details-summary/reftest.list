@@ -4,6 +4,8 @@
 == summary-not-first-child.html single-summary.html
 == open-summary-not-first-child.html open-single-summary.html
 == open-summary-block-style.html open-summary-block-style-ref.html
+== open-summary-inline-style.html open-summary-inline-style-ref.html
+== open-summary-table-cell-style.html open-summary-table-cell-style-ref.html
 == no-summary.html no-summary-ref.html
 == open-no-summary.html open-no-summary-ref.html
 == summary-not-in-details.html summary-not-in-details-ref.html
@@ -35,6 +37,7 @@
 # With 'overflow' property
 == overflow-hidden-open-details.html overflow-hidden-open-details-ref.html
 == overflow-auto-open-details.html overflow-auto-open-details-ref.html
+== overflow-scroll-details.html overflow-scroll-details-ref.html
 
 # With pagination property
 == details-page-break-after-1.html details-two-pages.html
@@ -61,6 +64,9 @@
 == details-three-columns.html details-three-columns-ref.html
 == details-writing-mode.html details-writing-mode-ref.html
 == details-in-ol.html details-in-ol-ref.html
+== details-first-line.html details-first-line-ref.html
+== open-details-first-line-1.html open-details-first-line-ref.html
+== open-details-first-line-2.html open-details-first-line-ref.html
 == summary-three-columns.html summary-three-columns-ref.html
 
 # Dispatch mouse click to summary
@@ -89,3 +95,9 @@
 == key-enter-open-second-summary.html open-multiple-summary.html
 == key-enter-prevent-default.html single-summary.html
 == key-space-single-summary.html open-single-summary.html
+
+# Generated content bits
+== details-after.html single-summary.html
+== details-before.html single-summary.html
+== open-details-after.html open-single-summary.html
+== open-details-before.html open-single-summary.html

@@ -596,6 +596,11 @@ nsComputedDOMStyle::UpdateCurrentStyleSources(bool aNeedsLayoutFlush)
   mFlushedPendingReflows = aNeedsLayoutFlush;
 #endif
 
+  nsCOMPtr<nsIPresShell> presShellForContent = GetPresShellForContent(mContent);
+  if (presShellForContent && presShellForContent != mPresShell) {
+    presShellForContent->FlushPendingNotifications(Flush_Style);
+  }
+
   mPresShell = document->GetShell();
   if (!mPresShell || !mPresShell->GetPresContext()) {
     return;
@@ -648,10 +653,11 @@ nsComputedDOMStyle::UpdateCurrentStyleSources(bool aNeedsLayoutFlush)
 #endif
     // Need to resolve a style context
     mStyleContextHolder =
-      nsComputedDOMStyle::GetStyleContextForElement(mContent->AsElement(),
-                                                    mPseudo,
-                                                    mPresShell,
-                                                    mStyleType);
+      nsComputedDOMStyle::GetStyleContextForElementNoFlush(
+          mContent->AsElement(),
+          mPseudo,
+          presShellForContent ? presShellForContent.get() : mPresShell,
+          mStyleType);
     if (!mStyleContextHolder) {
       return;
     }

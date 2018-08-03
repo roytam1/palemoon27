@@ -485,6 +485,15 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     }
   }
 
+  if (aNode->HasProperties()) {
+    bool ok = aNodesWithProperties.AppendObject(aNode);
+    MOZ_RELEASE_ASSERT(ok, "Out of memory");
+    if (aClone) {
+      ok = aNodesWithProperties.AppendObject(clone);
+      MOZ_RELEASE_ASSERT(ok, "Out of memory");
+    }
+  }
+
   if (aDeep && (!aClone || !aNode->IsNodeOfType(nsINode::eATTRIBUTE))) {
     // aNode's children.
     for (nsIContent* cloneChild = aNode->GetFirstChild();
@@ -495,15 +504,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
                          aReparentScope, aNodesWithProperties, clone,
                          getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-
-  if (aNode->HasProperties()) {
-    bool ok = aNodesWithProperties.AppendObject(aNode);
-    MOZ_RELEASE_ASSERT(ok, "Out of memory");
-    if (aClone) {
-      ok = aNodesWithProperties.AppendObject(clone);
-      MOZ_RELEASE_ASSERT(ok, "Out of memory");
     }
   }
 

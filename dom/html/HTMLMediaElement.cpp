@@ -3038,13 +3038,12 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
 
-    if (!mElement) {
-      return;
-    }
+    if (MOZ_UNLIKELY(!mElement)) return; // bug 1419363
+
     mElement->NotifyMediaStreamTracksAvailable(aStream);
   }
 private:
-  HTMLMediaElement* mElement;
+  WeakPtr<HTMLMediaElement> mElement;
 };
 
 void HTMLMediaElement::SetupSrcMediaStreamPlayback(DOMMediaStream* aStream)

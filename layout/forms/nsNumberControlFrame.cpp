@@ -641,14 +641,16 @@ nsNumberControlFrame::HandleFocusEvent(WidgetEvent* aEvent)
 {
   if (aEvent->originalTarget != mTextField) {
     // Move focus to our text field
-    HTMLInputElement::FromContent(mTextField)->Focus();
+    nsRefPtr<HTMLInputElement> textField = HTMLInputElement::FromContent(mTextField);
+    textField->Focus();
   }
 }
 
 nsresult
 nsNumberControlFrame::HandleSelectCall()
 {
-  return HTMLInputElement::FromContent(mTextField)->Select();
+  nsRefPtr<HTMLInputElement> textField = HTMLInputElement::FromContent(mTextField);
+  return textField->Select();
 }
 
 #define STYLES_DISABLING_NATIVE_THEMING \

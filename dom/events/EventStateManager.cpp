@@ -3713,12 +3713,15 @@ EventStateManager::DispatchMouseOrPointerEvent(WidgetMouseEvent* aMouseEvent,
     return nullptr;
   }
 
+  nsCOMPtr<nsIContent> targetContent = aTargetContent;
+  nsCOMPtr<nsIContent> relatedContent = aRelatedContent;
+
   nsAutoPtr<WidgetMouseEvent> dispatchEvent;
   CreateMouseOrPointerWidgetEvent(aMouseEvent, aMessage,
-                                  aRelatedContent, dispatchEvent);
+                                  relatedContent, dispatchEvent);
 
   nsWeakFrame previousTarget = mCurrentTarget;
-  mCurrentTargetContent = aTargetContent;
+  mCurrentTargetContent = targetContent;
 
   nsIFrame* targetFrame = nullptr;
 
@@ -3728,22 +3731,22 @@ EventStateManager::DispatchMouseOrPointerEvent(WidgetMouseEvent* aMouseEvent,
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  ESMEventCB callback(aTargetContent);
-  EventDispatcher::Dispatch(aTargetContent, mPresContext, dispatchEvent, nullptr,
+  ESMEventCB callback(targetContent);
+  EventDispatcher::Dispatch(targetContent, mPresContext, dispatchEvent, nullptr,
                             &status, &callback);
 
   if (mPresContext) {
     // Although the primary frame was checked in event callback, it may not be
     // the same object after event dispatch and handling, so refetch it.
-    targetFrame = mPresContext->GetPrimaryFrameFor(aTargetContent);
+    targetFrame = mPresContext->GetPrimaryFrameFor(targetContent);
 
     // If we are leaving remote content, dispatch a mouse exit event to the
     // remote frame.
-    if (aMessage == NS_MOUSE_EXIT_SYNTH && IsRemoteTarget(aTargetContent)) {
+    if (aMessage == NS_MOUSE_EXIT_SYNTH && IsRemoteTarget(targetContent)) {
       // For remote content, send a normal widget mouse exit event.
       nsAutoPtr<WidgetMouseEvent> remoteEvent;
       CreateMouseOrPointerWidgetEvent(aMouseEvent, NS_MOUSE_EXIT,
-                                      aRelatedContent, remoteEvent);
+                                       relatedContent, remoteEvent);
 
       // mCurrentTarget is set to the new target, so we must reset it to the
       // old target and then dispatch a cross-process event. (mCurrentTarget

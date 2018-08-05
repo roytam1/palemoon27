@@ -29,6 +29,7 @@
 
 #include "js/StructuredClone.h"
 
+#include "mozilla/CheckedInt.h"
 #include "mozilla/Endian.h"
 #include "mozilla/FloatingPoint.h"
 
@@ -1385,6 +1386,11 @@ JSStructuredCloneReader::readTypedArray(uint32_t arrayType, uint32_t nelems, Mut
             return false;
         byteOffset = n;
     }
+    if (!v.isObject() || !v.toObject().is<ArrayBufferObject>()) {
+        JS_ReportErrorNumber(context(), js_GetErrorMessage, nullptr, JSMSG_SC_BAD_SERIALIZED_DATA,
+                                  "typed array must be backed by an ArrayBuffer");
+        return false;
+    }
     RootedObject buffer(context(), &v.toObject());
     RootedObject obj(context(), nullptr);
 
@@ -1453,6 +1459,11 @@ JSStructuredCloneReader::readSharedTypedArray(uint32_t arrayType, uint32_t nelem
     if (!in.read(&n))
         return false;
     byteOffset = n;
+    if (!v.isObject() || !v.toObject().is<ArrayBufferObject>()) {
+        JS_ReportErrorNumber(context(), js_GetErrorMessage, nullptr, JSMSG_SC_BAD_SERIALIZED_DATA,
+                                  "DataView must be backed by an ArrayBuffer");
+        return false;
+    }
     RootedObject buffer(context(), &v.toObject());
     RootedObject obj(context());
 
@@ -1517,10 +1528,23 @@ bool
 JSStructuredCloneReader::readV1ArrayBuffer(uint32_t arrayType, uint32_t nelems,
                                            MutableHandleValue vp)
 {
-    MOZ_ASSERT(arrayType <= Scalar::Uint8Clamped);
+    if (arrayType > Scalar::Uint8Clamped) {
+        JS_ReportErrorNumber(context(), js_GetErrorMessage, nullptr, JSMSG_SC_BAD_SERIALIZED_DATA,
+                                  "invalid TypedArray type");
+        return false;
+    }
 
-    uint32_t nbytes = nelems << TypedArrayShift(static_cast<Scalar::Type>(arrayType));
-    JSObject* obj = ArrayBufferObject::create(context(), nbytes);
+    mozilla::CheckedInt<size_t> nbytes =
+        mozilla::CheckedInt<size_t>(nelems) *
+        TypedArrayElemSize(static_cast<Scalar::Type>(arrayType));
+    if (!nbytes.isValid() || nbytes.value() > UINT32_MAX) {
+        JS_ReportErrorNumber(context(), js_GetErrorMessage, nullptr,
+                             JSMSG_SC_BAD_SERIALIZED_DATA,
+                             "invalid typed array size");
+        return false;
+    }
+
+    JSObject* obj = ArrayBufferObject::create(context(), nbytes.value());
     if (!obj)
         return false;
     vp.setObject(*obj);

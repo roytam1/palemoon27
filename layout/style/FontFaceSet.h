@@ -132,7 +132,7 @@ public:
    * Finds an existing entry in the user font cache or creates a new user
    * font entry for the given FontFace object.
    */
-  already_AddRefed<gfxUserFontEntry>
+  static already_AddRefed<gfxUserFontEntry>
     FindOrCreateUserFontEntryFromFontFace(FontFace* aFontFace);
 
   /**
@@ -234,7 +234,7 @@ private:
     uint8_t mSheetType;
   };
 
-  already_AddRefed<gfxUserFontEntry> FindOrCreateUserFontEntryFromFontFace(
+  static already_AddRefed<gfxUserFontEntry> FindOrCreateUserFontEntryFromFontFace(
                                                    const nsAString& aFamilyName,
                                                    FontFace* aFontFace,
                                                    uint8_t aSheetType);

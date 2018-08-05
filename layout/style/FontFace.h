@@ -89,6 +89,8 @@ public:
    */
   bool IsInFontFaceSet() { return mInFontFaceSet; }
 
+  FontFaceSet* GetPrimaryFontFaceSet() const { return mFontFaceSet; }
+
   /**
    * Sets whether this object is in a FontFaceSet.  This is called by the
    * FontFaceSet when Add, Remove, etc. are called.

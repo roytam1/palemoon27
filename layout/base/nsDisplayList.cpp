@@ -593,7 +593,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mIsBuildingForPopup(nsLayoutUtils::IsPopup(aReferenceFrame))
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
-  PL_InitArenaPool(&mPool, "displayListArena", 1024,
+  PL_InitArenaPool(&mPool, "displayListArena", 4096,
                    std::max(NS_ALIGNMENT_OF(void*),NS_ALIGNMENT_OF(double))-1);
   RecomputeCurrentAnimatedGeometryRoot();
 

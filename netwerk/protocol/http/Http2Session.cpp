@@ -1033,7 +1033,7 @@ Http2Session::CleanupStream(Http2Stream *aStream, nsresult aResult,
     MOZ_ASSERT(pushSource->GetConsumerStream() == aStream);
     MOZ_ASSERT(!aStream->StreamID());
     MOZ_ASSERT(!(pushSource->StreamID() & 0x1));
-    pushSource->SetConsumerStream(nullptr);
+    aStream->ClearPushSource();
   }
 
   if (aStream->DeferCleanup(aResult)) {

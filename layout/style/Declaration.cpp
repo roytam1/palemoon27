@@ -371,7 +371,7 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
     case eCSSProperty_border_end:
     case eCSSProperty_border_block_start:
     case eCSSProperty_border_block_end:
-    case eCSSProperty__moz_column_rule:
+    case eCSSProperty_column_rule:
     case eCSSProperty_outline: {
       const nsCSSProperty* subprops =
         nsCSSProps::SubpropertyEntryFor(aProperty);
@@ -872,7 +872,7 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
         AppendValueToString(eCSSProperty_marker_end, aValue, aSerialization);
       break;
     }
-    case eCSSProperty__moz_columns: {
+    case eCSSProperty_columns: {
       // Two values, column-count and column-width, separated by a space.
       const nsCSSProperty* subprops =
         nsCSSProps::SubpropertyEntryFor(aProperty);

@@ -4907,6 +4907,9 @@ pref("gfx.vsync.refreshdriver", true);
 pref("dom.secureelement.enabled", false);
 #endif
 
+// MessageChannel API
+pref("dom.messageChannel.enabled", true);
+
 // Turn rewriting of youtube embeds on/off
 pref("plugins.rewrite_youtube_embeds", true);
 

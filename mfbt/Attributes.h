@@ -52,6 +52,11 @@
  */
 #  define MOZ_HAVE_NEVER_INLINE          __declspec(noinline)
 #  define MOZ_HAVE_NORETURN              __declspec(noreturn)
+#  if _MSC_VER >= 1900
+#    define MOZ_HAVE_CXX11_CONSTEXPR
+#    define MOZ_HAVE_CXX11_CONSTEXPR_IN_TEMPLATES
+#    define MOZ_HAVE_EXPLICIT_CONVERSION
+#  endif
 #  ifdef __clang__
      /* clang-cl probably supports constexpr and explicit conversions. */
 #    if __has_extension(cxx_constexpr)
@@ -273,6 +278,26 @@
 #else
 #  define MOZ_TSAN_BLACKLIST /* nothing */
 #endif
+
+/**
+ * MOZ_MUST_USE tells the compiler to emit a warning if a function's
+ * return value is not used by the caller.
+ *
+ * Place this attribute at the very beginning of a function declaration. For
+ * example, write
+ *
+ *   MOZ_MUST_USE int foo();
+ *
+ * or
+ *
+ *   MOZ_MUST_USE int foo() { return 42; }
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#  define MOZ_MUST_USE __attribute__ ((warn_unused_result))
+#else
+#  define MOZ_MUST_USE
+#endif
+
 
 #ifdef __cplusplus
 

@@ -321,6 +321,55 @@
 #endif
 
 /*
+ * MOZ_OVERRIDE explicitly indicates that a virtual member function in a class
+ * overrides a member function of a base class, rather than being a completely
+ * new member function.  MOZ_OVERRIDE should be placed immediately before the
+ * ';' terminating the member function's declaration, or before '= 0;' if the
+ * member function is pure.  If the member function is defined in the class
+ * definition, it should appear before the opening brace of the function body.
+ *
+ *   class Base
+ *   {
+ *     public:
+ *       virtual void f() = 0;
+ *   };
+ *   class Derived1 : public Base
+ *   {
+ *     public:
+ *       virtual void f() MOZ_OVERRIDE;
+ *   };
+ *   class Derived2 : public Base
+ *   {
+ *     public:
+ *       virtual void f() MOZ_OVERRIDE = 0;
+ *   };
+ *   class Derived3 : public Base
+ *   {
+ *     public:
+ *       virtual void f() MOZ_OVERRIDE { }
+ *   };
+ *
+ * In compilers supporting C++11 override controls, MOZ_OVERRIDE *requires* that
+ * the function marked with it override a member function of a base class: it
+ * is a compile error if it does not.  Otherwise MOZ_OVERRIDE does not affect
+ * semantics and merely documents the override relationship to the reader (but
+ * of course must still be used correctly to not break C++11 compilers).
+ */
+#if defined(__clang__) && __clang_major__ >= 3
+# define MOZ_OVERRIDE          override
+#elif defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
+# if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L
+#  define MOZ_OVERRIDE         override
+# else
+#  define MOZ_OVERRIDE         /* override */
+# endif
+#elif defined(_MSC_VER) && _MSC_VER >= 1400
+# define  MOZ_OVERRIDE         override
+#else
+# define MOZ_OVERRIDE          /* no override support, or unknown support */
+#endif
+
+/*
  * The following macros are attributes that support the static analysis plugin
  * included with Mozilla, and will be implemented (when such support is enabled)
  * as C++11 attributes. Since such attributes are legal pretty much everywhere

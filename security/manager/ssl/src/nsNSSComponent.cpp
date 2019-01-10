@@ -1602,7 +1602,8 @@ nsNSSComponent::GetDefaultCertVerifier()
 {
   MutexAutoLock lock(mutex);
   MOZ_ASSERT(mNSSInitialized);
-  return mDefaultCertVerifier;
+  RefPtr<SharedCertVerifier> certVerifier(mDefaultCertVerifier);
+  return certVerifier.forget();
 }
 
 namespace mozilla { namespace psm {

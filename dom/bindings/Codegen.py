@@ -3053,7 +3053,7 @@ def CreateBindingJSObject(descriptor, properties):
         create = dedent(
             """
             creator.CreateProxyObject(aCx, &Class.mBase, DOMProxyHandler::getInstance(),
-                                      proto, global, aObject, aReflector);
+                                      proto, aObject, aReflector);
             if (!aReflector) {
               return false;
             }
@@ -3068,7 +3068,7 @@ def CreateBindingJSObject(descriptor, properties):
     else:
         create = dedent(
             """
-            creator.CreateObject(aCx, Class.ToJSClass(), proto, global, aObject, aReflector);
+            creator.CreateObject(aCx, Class.ToJSClass(), proto, aObject, aReflector);
             if (!aReflector) {
               return false;
             }

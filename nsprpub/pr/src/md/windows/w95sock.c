@@ -9,12 +9,6 @@
 
 #include "primpl.h"
 
-#if defined(_WIN64)
-#if defined(_MSC_VER)
-#pragma comment(lib, "ws2_32.lib")
-#endif
-#endif
-
 #define READ_FD     1
 #define WRITE_FD    2
 #define CONNECT_FD  3

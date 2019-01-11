@@ -37,7 +37,7 @@ function parseOptions(opts) {
   let aliases = {"gtests": "gtest"};
   let allUnitTests = ["bogo", "crmf", "chains", "cipher", "db", "ec", "fips",
                       "gtest", "interop", "lowhash", "merge", "sdr", "smime", "tools",
-                      "ssl", "mpi", "scert", "spki"];
+                      "ssl", "mpi", "scert", "spki", "policy", "tlsfuzzer"];
   let unittests = intersect(opts.unittests.split(/\s*,\s*/).map(t => {
     return aliases[t] || t;
   }), allUnitTests);
@@ -51,7 +51,7 @@ function parseOptions(opts) {
   }
 
   // Parse tools.
-  let allTools = ["clang-format", "scan-build", "hacl", "saw", "abi"];
+  let allTools = ["clang-format", "scan-build", "hacl", "saw", "abi", "coverage"];
   let tools = intersect(opts.tools.split(/\s*,\s*/), allTools);
 
   // If the given value is "all" run all tools.

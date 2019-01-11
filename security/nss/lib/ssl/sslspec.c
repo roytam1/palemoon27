@@ -143,6 +143,7 @@ ssl_CreateCipherSpec(sslSocket *ss, CipherSpecDirection direction)
     spec->refCt = 1;
     spec->version = ss->version;
     spec->direction = direction;
+    spec->recordSizeLimit = MAX_FRAGMENT_LENGTH;
     SSL_TRC(10, ("%d: SSL[%d]: new %s spec %d ct=%d",
                  SSL_GETPID(), ss->fd, SPEC_DIR(spec), spec,
                  spec->refCt));
@@ -202,7 +203,7 @@ ssl_CipherSpecAddRef(ssl3CipherSpec *spec)
                  SSL_GETPID(), SPEC_DIR(spec), spec, spec->refCt));
 }
 
-static void
+void
 ssl_DestroyKeyMaterial(ssl3KeyMaterial *keyMaterial)
 {
     PK11_FreeSymKey(keyMaterial->key);

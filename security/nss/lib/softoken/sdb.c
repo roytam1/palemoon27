@@ -37,6 +37,10 @@
 #elif defined(XP_UNIX)
 #include <unistd.h>
 #endif
+#if defined(LINUX) && !defined(ANDROID)
+#include <linux/magic.h>
+#include <sys/vfs.h>
+#endif
 #include "utilpars.h"
 
 #ifdef SQLITE_UNSAFE_THREADS
@@ -154,7 +158,8 @@ static const CK_ATTRIBUTE_TYPE known_attributes[] = {
     CKA_TRUST_EMAIL_PROTECTION, CKA_TRUST_IPSEC_END_SYSTEM,
     CKA_TRUST_IPSEC_TUNNEL, CKA_TRUST_IPSEC_USER, CKA_TRUST_TIME_STAMPING,
     CKA_TRUST_STEP_UP_APPROVED, CKA_CERT_SHA1_HASH, CKA_CERT_MD5_HASH,
-    CKA_NETSCAPE_DB, CKA_NETSCAPE_TRUST, CKA_NSS_OVERRIDE_EXTENSIONS
+    CKA_NETSCAPE_DB, CKA_NETSCAPE_TRUST, CKA_NSS_OVERRIDE_EXTENSIONS,
+    CKA_PUBLIC_KEY_INFO
 };
 
 static int known_attributes_size = sizeof(known_attributes) /
@@ -643,13 +648,18 @@ static int
 sdb_openDB(const char *name, sqlite3 **sqlDB, int flags)
 {
     int sqlerr;
-    /*
-     * in sqlite3 3.5.0, there is a new open call that allows us
-     * to specify read only. Most new OS's are still on 3.3.x (including
-     * NSS's internal version and the version shipped with Firefox).
-     */
+    int openFlags;
+
     *sqlDB = NULL;
-    sqlerr = sqlite3_open(name, sqlDB);
+
+    if (flags & SDB_RDONLY) {
+        openFlags = SQLITE_OPEN_READONLY;
+    } else {
+        openFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+    }
+
+    /* Requires SQLite 3.5.0 or newer. */
+    sqlerr = sqlite3_open_v2(name, sqlDB, openFlags, NULL);
     if (sqlerr != SQLITE_OK) {
         return sqlerr;
     }
@@ -1757,6 +1767,8 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
     PRIntervalTime now = 0;
     char *env;
     PRBool enableCache = PR_FALSE;
+    PRBool checkFSType = PR_FALSE;
+    PRBool measureSpeed = PR_FALSE;
     PRBool create;
     int flags = inFlags & 0x7;
 
@@ -1917,11 +1929,48 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
 
     env = PR_GetEnvSecure("NSS_SDB_USE_CACHE");
 
-    if (!env || PORT_Strcasecmp(env, "no") == 0) {
-        enableCache = PR_FALSE;
+    /* Variables enableCache, checkFSType, measureSpeed are PR_FALSE by default,
+     * which is the expected behavior for NSS_SDB_USE_CACHE="no".
+     * We don't need to check for "no" here. */
+    if (!env) {
+        /* By default, with no variable set, we avoid expensive measuring for
+         * most FS types. We start with inexpensive FS type checking, and
+         * might perform measuring for some types. */
+        checkFSType = PR_TRUE;
     } else if (PORT_Strcasecmp(env, "yes") == 0) {
         enableCache = PR_TRUE;
-    } else {
+    } else if (PORT_Strcasecmp(env, "no") != 0) { /* not "no" => "auto" */
+        measureSpeed = PR_TRUE;
+    }
+
+    if (checkFSType) {
+#if defined(LINUX) && !defined(ANDROID)
+        struct statfs statfs_s;
+        if (statfs(dbname, &statfs_s) == 0) {
+            switch (statfs_s.f_type) {
+                case SMB_SUPER_MAGIC:
+                case 0xff534d42: /* CIFS_MAGIC_NUMBER */
+                case NFS_SUPER_MAGIC:
+                    /* We assume these are slow. */
+                    enableCache = PR_TRUE;
+                    break;
+                case CODA_SUPER_MAGIC:
+                case 0x65735546: /* FUSE_SUPER_MAGIC */
+                case NCP_SUPER_MAGIC:
+                    /* It's uncertain if this FS is fast or slow.
+                     * It seems reasonable to perform slow measuring for users
+                     * with questionable FS speed. */
+                    measureSpeed = PR_TRUE;
+                    break;
+                case AFS_SUPER_MAGIC: /* Already implements caching. */
+                default:
+                    break;
+            }
+        }
+#endif
+    }
+
+    if (measureSpeed) {
         char *tempDir = NULL;
         PRUint32 tempOps = 0;
         /*

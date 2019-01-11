@@ -685,23 +685,6 @@ ssl_SecureConnect(sslSocket *ss, const PRNetAddr *sa)
 }
 
 /*
- * The TLS 1.2 RFC 5246, Section 7.2.1 says:
- *
- *     Unless some other fatal alert has been transmitted, each party is
- *     required to send a close_notify alert before closing the write side
- *     of the connection.  The other party MUST respond with a close_notify
- *     alert of its own and close down the connection immediately,
- *     discarding any pending writes.  It is not required for the initiator
- *     of the close to wait for the responding close_notify alert before
- *     closing the read side of the connection.
- *
- * The second sentence requires that we send a close_notify alert when we
- * have received a close_notify alert.  In practice, all SSL implementations
- * close the socket immediately after sending a close_notify alert (which is
- * allowed by the third sentence), so responding with a close_notify alert
- * would result in a write failure with the ECONNRESET error.  This is why
- * we don't respond with a close_notify alert.
- *
  * Also, in the unlikely event that the TCP pipe is full and the peer stops
  * reading, the SSL3_SendAlert call in ssl_SecureClose and ssl_SecureShutdown
  * may block indefinitely in blocking mode, and may fail (without retrying)
@@ -714,8 +697,7 @@ ssl_SecureClose(sslSocket *ss)
     int rv;
 
     if (!(ss->shutdownHow & ssl_SHUTDOWN_SEND) &&
-        ss->firstHsDone &&
-        !ss->recvdCloseNotify) {
+        ss->firstHsDone) {
 
         /* We don't want the final alert to be Nagle delayed. */
         if (!ss->delayDisabled) {
@@ -744,8 +726,7 @@ ssl_SecureShutdown(sslSocket *ss, int nsprHow)
 
     if ((sslHow & ssl_SHUTDOWN_SEND) != 0 &&
         !(ss->shutdownHow & ssl_SHUTDOWN_SEND) &&
-        ss->firstHsDone &&
-        !ss->recvdCloseNotify) {
+        ss->firstHsDone) {
 
         (void)SSL3_SendAlert(ss, alert_warning, close_notify);
     }
@@ -791,7 +772,7 @@ tls13_CheckKeyUpdate(sslSocket *ss, CipherSpecDirection dir)
         spec = ss->ssl3.cwSpec;
         margin = spec->cipherDef->max_records / 4;
     }
-    seqNum = spec->seqNum;
+    seqNum = spec->nextSeqNum;
     keyUpdate = seqNum > spec->cipherDef->max_records - margin;
     ssl_ReleaseSpecReadLock(ss);
     if (!keyUpdate) {
@@ -922,20 +903,48 @@ ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
      */
     if (!ss->firstHsDone) {
         PRBool allowEarlySend = PR_FALSE;
+        PRBool firstClientWrite = PR_FALSE;
 
         ssl_Get1stHandshakeLock(ss);
-        if (ss->opt.enableFalseStart ||
-            (ss->opt.enable0RttData && !ss->sec.isServer)) {
+        /* The client can sometimes send before the handshake is fully
+         * complete. In TLS 1.2: false start; in TLS 1.3: 0-RTT. */
+        if (!ss->sec.isServer &&
+            (ss->opt.enableFalseStart || ss->opt.enable0RttData)) {
             ssl_GetSSL3HandshakeLock(ss);
-            /* The client can sometimes send before the handshake is fully
-             * complete. In TLS 1.2: false start; in TLS 1.3: 0-RTT. */
             zeroRtt = ss->ssl3.hs.zeroRttState == ssl_0rtt_sent ||
                       ss->ssl3.hs.zeroRttState == ssl_0rtt_accepted;
             allowEarlySend = ss->ssl3.hs.canFalseStart || zeroRtt;
+            firstClientWrite = ss->ssl3.hs.ws == idle_handshake;
+            ssl_ReleaseSSL3HandshakeLock(ss);
+        }
+        /* Allow the server to send 0.5 RTT data in TLS 1.3. Requesting a
+         * certificate implies that the server might condition its sending on
+         * client authentication, so force servers that do that to wait.
+         *
+         * What might not be obvious here is that this allows 0.5 RTT when doing
+         * PSK-based resumption.  As a result, 0.5 RTT is always enabled when
+         * early data is accepted.
+         *
+         * This check might be more conservative than absolutely necessary.
+         * It's possible that allowing 0.5 RTT data when the server requests,
+         * but does not require client authentication is safe because we can
+         * expect the server to check for a client certificate properly. */
+        if (ss->sec.isServer &&
+            ss->version >= SSL_LIBRARY_VERSION_TLS_1_3 &&
+            !tls13_ShouldRequestClientAuth(ss)) {
+            ssl_GetSSL3HandshakeLock(ss);
+            allowEarlySend = TLS13_IN_HS_STATE(ss, wait_finished);
             ssl_ReleaseSSL3HandshakeLock(ss);
         }
         if (!allowEarlySend && ss->handshake) {
             rv = ssl_Do1stHandshake(ss);
+        }
+        if (firstClientWrite) {
+            /* Wait until after sending ClientHello and double-check 0-RTT. */
+            ssl_GetSSL3HandshakeLock(ss);
+            zeroRtt = ss->ssl3.hs.zeroRttState == ssl_0rtt_sent ||
+                      ss->ssl3.hs.zeroRttState == ssl_0rtt_accepted;
+            ssl_ReleaseSSL3HandshakeLock(ss);
         }
         ssl_Release1stHandshakeLock(ss);
     }
@@ -962,7 +971,7 @@ ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
          * 1-RTT later.
          */
         ssl_GetSpecReadLock(ss);
-        len = tls13_LimitEarlyData(ss, content_application_data, len);
+        len = tls13_LimitEarlyData(ss, ssl_ct_application_data, len);
         ssl_ReleaseSpecReadLock(ss);
     }
 

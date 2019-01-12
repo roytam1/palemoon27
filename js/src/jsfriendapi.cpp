@@ -606,10 +606,10 @@ js::StringToLinearStringSlow(JSContext* cx, JSString* str)
 }
 
 JS_FRIEND_API(JSObject*)
-JS_CloneObject(JSContext* cx, HandleObject obj, HandleObject protoArg)
+JS_CloneObject(JSContext* cx, HandleObject obj, HandleObject protoArg, HandleObject parent)
 {
     Rooted<TaggedProto> proto(cx, TaggedProto(protoArg.get()));
-    return CloneObject(cx, obj, proto);
+    return CloneObject(cx, obj, proto, parent);
 }
 
 #ifdef DEBUG

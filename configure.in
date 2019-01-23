@@ -1257,6 +1257,18 @@ dnl ========================================================
 MOZ_ANDROID_STLPORT
 
 dnl ========================================================
+dnl = Nightly build
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(nightly-build,
+[  --enable-nightly-build       Enable Nightly build (default=no)],
+    NIGHTLY_BUILD=1,
+    NIGHTLY_BUILD= )
+if test -n "$NIGHTLY_BUILD"; then
+    AC_DEFINE(NIGHTLY_BUILD)
+fi
+AC_SUBST(NIGHTLY_BUILD)
+
+dnl ========================================================
 dnl Suppress Clang Argument Warnings
 dnl ========================================================
 if test -n "${CLANG_CC}${CLANG_CL}"; then

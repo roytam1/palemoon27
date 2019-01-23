@@ -192,15 +192,17 @@ MutatePrototype(JSContext* cx, HandlePlainObject obj, HandleValue value)
 }
 
 bool
-InitProp(JSContext* cx, HandleNativeObject obj, HandlePropertyName name, HandleValue value)
+InitProp(JSContext *cx, HandleNativeObject obj, HandlePropertyName name, HandleValue value,
+         jsbytecode *pc)
 {
     RootedId id(cx, NameToId(name));
-    return NativeDefineProperty(cx, obj, id, value, nullptr, nullptr, JSPROP_ENUMERATE);
+    unsigned propAttrs = GetInitDataPropAttrs(JSOp(*pc));
+    return NativeDefineProperty(cx, obj, id, value, nullptr, nullptr, propAttrs);
 }
 
 template<bool Equal>
 bool
-LooselyEqual(JSContext* cx, MutableHandleValue lhs, MutableHandleValue rhs, bool* res)
+LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool* res)
 {
     if (!js::LooselyEqual(cx, lhs, rhs, res))
         return false;

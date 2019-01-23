@@ -4601,16 +4601,16 @@ CodeGenerator::visitMutateProto(LMutateProto* lir)
     callVM(MutatePrototypeInfo, lir);
 }
 
-typedef bool(*InitPropFn)(JSContext* cx, HandleNativeObject obj,
-                          HandlePropertyName name, HandleValue value);
-static const VMFunction InitPropInfo =
-    FunctionInfo<InitPropFn>(InitProp);
+typedef bool(*InitPropFn)(JSContext *cx, HandleNativeObject obj,
+                          HandlePropertyName name, HandleValue value, jsbytecode *pc);
+static const VMFunction InitPropInfo = FunctionInfo<InitPropFn>(InitProp);
 
 void
 CodeGenerator::visitInitProp(LInitProp* lir)
 {
     Register objReg = ToRegister(lir->getObject());
 
+    pushArg(ImmPtr(lir->mir()->resumePoint()->pc()));
     pushArg(ToValue(lir, LInitProp::ValueIndex));
     pushArg(ImmGCPtr(lir->mir()->propertyName()));
     pushArg(objReg);

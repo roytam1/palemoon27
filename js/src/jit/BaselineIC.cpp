@@ -8263,6 +8263,8 @@ DoSetPropFallback(JSContext* cx, BaselineFrame* frame, ICSetProp_Fallback* stub_
                op == JSOP_SETGNAME ||
                op == JSOP_STRICTSETGNAME ||
                op == JSOP_INITPROP ||
+               op == JSOP_INITLOCKEDPROP ||
+               op == JSOP_INITHIDDENPROP ||
                op == JSOP_SETALIASEDVAR ||
                op == JSOP_INITALIASEDLEXICAL);
 
@@ -8296,10 +8298,14 @@ DoSetPropFallback(JSContext* cx, BaselineFrame* frame, ICSetProp_Fallback* stub_
         return false;
     }
 
-    if (op == JSOP_INITPROP) {
+    if (op == JSOP_INITPROP ||
+        op == JSOP_INITLOCKEDPROP ||
+        op == JSOP_INITHIDDENPROP)
+    {
         MOZ_ASSERT(obj->is<PlainObject>());
+        unsigned propAttrs = GetInitDataPropAttrs(op);
         if (!NativeDefineProperty(cx, obj.as<PlainObject>(), id, rhs,
-                                  nullptr, nullptr, JSPROP_ENUMERATE))
+                                  nullptr, nullptr, propAttrs))
         {
             return false;
         }

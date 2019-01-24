@@ -885,7 +885,7 @@ MSimdValueX4::foldsTo(TempAllocator& alloc)
     }
 
     MOZ_ASSERT(allSame);
-    return MSimdSplatX4::New(alloc, type(), getOperand(0));
+    return MSimdSplatX4::New(alloc, getOperand(0), type());
 }
 
 MDefinition*
@@ -954,8 +954,15 @@ MSimdUnaryArith::printOpcode(FILE *fp) const
     PrintOpcodeOperation(this, fp);
 }
 
+void
+MSimdInsertElement::printOpcode(FILE *fp) const
+{
+    MDefinition::printOpcode(fp);
+    fprintf(fp, " (%s)", MSimdInsertElement::LaneName(lane()));
+}
+
 MCloneLiteral*
-MCloneLiteral::New(TempAllocator& alloc, MDefinition* obj)
+MCloneLiteral::New(TempAllocator &alloc, MDefinition *obj)
 {
     return new(alloc) MCloneLiteral(obj);
 }
@@ -973,6 +980,11 @@ MCompare::printOpcode(FILE* fp) const
 {
     MDefinition::printOpcode(fp);
     fprintf(fp, " %s", js_CodeName[jsop()]);
+}
+void
+MSimdBinaryComp::printOpcode(FILE *fp) const
+{
+    PrintOpcodeOperation(this, fp);
 }
 
 void

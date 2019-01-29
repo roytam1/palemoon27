@@ -10237,7 +10237,7 @@ class CGDOMJSProxyHandler_defineProperty(ClassMethod):
                                    "if (hasUnforgeable) {\n"
                                    "  *defined = true;\n"
                                    "  bool unused;\n"
-                                   "  return js_DefineOwnProperty(cx, ${holder}, id, desc, &unused);\n"
+                                   "  return js::DefineOwnProperty(cx, ${holder}, id, desc, &unused);\n"
                                    "}\n")
             set += CallOnUnforgeableHolder(self.descriptor,
                                            defineOnUnforgeable,

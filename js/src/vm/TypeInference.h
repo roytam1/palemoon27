@@ -324,6 +324,9 @@ class TypeSet
         bool isSingleton() const {
             return isObject() && !!(data & 1);
         }
+        bool isSingletonUnchecked() const {
+            return isObjectUnchecked() && !!(data & 1);
+        }
 
         inline JSObject* singleton() const;
         inline JSObject* singletonNoBarrier() const;
@@ -332,6 +335,9 @@ class TypeSet
 
         bool isGroup() const {
             return isObject() && !(data & 1);
+        }
+        bool isGroupUnchecked() const {
+            return isObjectUnchecked() && !(data & 1);
         }
 
         inline ObjectGroup* group() const;
@@ -830,8 +836,6 @@ class TypeNewScript
 
   private:
     // Scripted function which this information was computed for.
-    // If instances of the associated group are created without calling
-    // 'new' on this function, the new script information is cleared.
     RelocatablePtrFunction function_;
 
     // Any preliminary objects with the type. The analyses are not performed
@@ -905,6 +909,8 @@ class TypeNewScript
     bool rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* group);
 
     static void make(JSContext* cx, ObjectGroup* group, JSFunction* fun);
+    static TypeNewScript *makeNativeVersion(JSContext *cx, TypeNewScript *newScript,
+                                            PlainObject *templateObject);
 
     size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 };

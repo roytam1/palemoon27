@@ -3360,6 +3360,9 @@ IonBuilder::replaceTypeSet(MDefinition* subject, TemporaryTypeSet* type, MTest* 
     if (type->unknown())
         return true;
 
+    if (subject->resultTypeSet() && type->equals(subject->resultTypeSet()))
+        return true;
+
     MInstruction* replace = nullptr;
     MDefinition* ins;
 
@@ -3476,12 +3479,98 @@ IonBuilder::detectAndOrStructure(MPhi* ins, bool* branchIsAnd)
 bool
 IonBuilder::improveTypesAtCompare(MCompare* ins, bool trueBranch, MTest* test)
 {
-    // Only support Compare_Undefined and Compare_Null at the moment.
-    if (ins->compareType() != MCompare::Compare_Undefined &&
-        ins->compareType() != MCompare::Compare_Null)
+    if (ins->compareType() == MCompare::Compare_Undefined ||
+        ins->compareType() == MCompare::Compare_Null)
     {
-        return true;
+        return improveTypesAtNullOrUndefinedCompare(ins, trueBranch, test);
     }
+
+    if ((ins->lhs()->isTypeOf() || ins->rhs()->isTypeOf()) &&
+        (ins->lhs()->isConstantValue() || ins->rhs()->isConstantValue()))
+    {
+        return improveTypesAtTypeOfCompare(ins, trueBranch, test);
+    }
+
+    return true;
+}
+
+bool
+IonBuilder::improveTypesAtTypeOfCompare(MCompare *ins, bool trueBranch, MTest *test)
+{
+    MTypeOf *typeOf = ins->lhs()->isTypeOf() ? ins->lhs()->toTypeOf() : ins->rhs()->toTypeOf();
+    const Value *constant =
+        ins->lhs()->isConstant() ? ins->lhs()->constantVp() : ins->rhs()->constantVp();
+
+    if (!constant->isString())
+        return true;
+
+    bool equal = ins->jsop() == JSOP_EQ || ins->jsop() == JSOP_STRICTEQ;
+    bool notEqual = ins->jsop() == JSOP_NE || ins->jsop() == JSOP_STRICTNE;
+
+    if (notEqual)
+        trueBranch = !trueBranch;
+
+    // Relational compares not supported.
+    if (!equal && !notEqual)
+        return true;
+
+    MDefinition *subject = typeOf->input();
+    TemporaryTypeSet *inputTypes = subject->resultTypeSet();
+
+    // Create temporary typeset equal to the type if there is no resultTypeSet.
+    TemporaryTypeSet tmp;
+    if (!inputTypes) {
+        if (subject->type() == MIRType_Value)
+            return true;
+        inputTypes = &tmp;
+        tmp.addType(TypeSet::PrimitiveType(ValueTypeFromMIRType(subject->type())), alloc_->lifoAlloc());
+    }
+
+    if (inputTypes->unknown())
+        return true;
+
+    // Note: we cannot remove the AnyObject type in the false branch,
+    // since there are multiple ways to get an object. That is the reason
+    // for the 'trueBranch' test.
+    TemporaryTypeSet filter;
+    const JSAtomState &names = GetJitContext()->runtime->names();
+    if (constant->toString() == TypeName(JSTYPE_VOID, names)) {
+        filter.addType(TypeSet::UndefinedType(), alloc_->lifoAlloc());
+        if (typeOf->inputMaybeCallableOrEmulatesUndefined() && trueBranch)
+            filter.addType(TypeSet::AnyObjectType(), alloc_->lifoAlloc());
+    } else if (constant->toString() == TypeName(JSTYPE_NUMBER, names)) {
+        filter.addType(TypeSet::Int32Type(), alloc_->lifoAlloc());
+        filter.addType(TypeSet::DoubleType(), alloc_->lifoAlloc());
+    } else if (constant->toString() == TypeName(JSTYPE_STRING, names)) {
+        filter.addType(TypeSet::StringType(), alloc_->lifoAlloc());
+    } else if (constant->toString() == TypeName(JSTYPE_SYMBOL, names)) {
+        filter.addType(TypeSet::SymbolType(), alloc_->lifoAlloc());
+    } else if (constant->toString() == TypeName(JSTYPE_OBJECT, names)) {
+        filter.addType(TypeSet::NullType(), alloc_->lifoAlloc());
+        if (trueBranch)
+            filter.addType(TypeSet::AnyObjectType(), alloc_->lifoAlloc());
+    } else if (constant->toString() == TypeName(JSTYPE_FUNCTION, names)) {
+        if (typeOf->inputMaybeCallableOrEmulatesUndefined() && trueBranch)
+            filter.addType(TypeSet::AnyObjectType(), alloc_->lifoAlloc());
+    }
+
+    TemporaryTypeSet *type;
+    if (trueBranch)
+        type = TypeSet::intersectSets(&filter, inputTypes, alloc_->lifoAlloc());
+    else
+        type = TypeSet::removeSet(inputTypes, &filter, alloc_->lifoAlloc());
+
+    if (!type)
+        return false;
+
+    return replaceTypeSet(subject, type, test);
+}
+
+bool
+IonBuilder::improveTypesAtNullOrUndefinedCompare(MCompare *ins, bool trueBranch, MTest *test)
+{
+    MOZ_ASSERT(ins->compareType() == MCompare::Compare_Undefined ||
+               ins->compareType() == MCompare::Compare_Null);
 
     // altersUndefined/Null represents if we can filter/set Undefined/Null.
     bool altersUndefined, altersNull;
@@ -3502,16 +3591,17 @@ IonBuilder::improveTypesAtCompare(MCompare* ins, bool trueBranch, MTest* test)
     }
 
     MDefinition* subject = ins->lhs();
+    TemporaryTypeSet *inputTypes = subject->resultTypeSet();
 
     MOZ_ASSERT(IsNullOrUndefined(ins->rhs()->type()));
 
-    if (!subject->resultTypeSet() || subject->resultTypeSet()->unknown())
-        return true;
-
-    if (!subject->mightBeType(MIRType_Undefined) &&
-        !subject->mightBeType(MIRType_Null))
-    {
-        return true;
+    // Create temporary typeset equal to the type if there is no resultTypeSet.
+    TemporaryTypeSet tmp;
+    if (!inputTypes) {
+        if (subject->type() == MIRType_Value)
+            return true;
+        inputTypes = &tmp;
+        tmp.addType(TypeSet::PrimitiveType(ValueTypeFromMIRType(subject->type())), alloc_->lifoAlloc());
     }
 
     if (!altersUndefined && !altersNull)
@@ -3521,24 +3611,28 @@ IonBuilder::improveTypesAtCompare(MCompare* ins, bool trueBranch, MTest* test)
 
     // Decide if we need to filter the type or set it.
     if ((op == JSOP_STRICTEQ || op == JSOP_EQ) ^ trueBranch) {
-        // Filter undefined/null
-        type = subject->resultTypeSet()->filter(alloc_->lifoAlloc(), altersUndefined,
-                                                                     altersNull);
+        // Remover undefined/null
+        TemporaryTypeSet remove;
+        if (altersUndefined)
+            remove.addType(TypeSet::UndefinedType(), alloc_->lifoAlloc());
+        if (altersNull)
+            remove.addType(TypeSet::NullType(), alloc_->lifoAlloc());
+
+        type = TypeSet::removeSet(inputTypes, &remove, alloc_->lifoAlloc());
     } else {
         // Set undefined/null.
-        uint32_t flags = 0;
+        TemporaryTypeSet base;
         if (altersUndefined) {
-            flags |= TYPE_FLAG_UNDEFINED;
+            base.addType(TypeSet::UndefinedType(), alloc_->lifoAlloc());
             // If TypeSet emulates undefined, then we cannot filter the objects.
-            if (subject->resultTypeSet()->maybeEmulatesUndefined(constraints()))
-                flags |= TYPE_FLAG_ANYOBJECT;
+           if (inputTypes->maybeEmulatesUndefined(constraints()))
+                base.addType(TypeSet::AnyObjectType(), alloc_->lifoAlloc());
         }
 
         if (altersNull)
-            flags |= TYPE_FLAG_NULL;
+            base.addType(TypeSet::NullType(), alloc_->lifoAlloc());
 
-        TemporaryTypeSet base(flags, static_cast<TypeSet::ObjectKey**>(nullptr));
-        type = TypeSet::intersectSets(&base, subject->resultTypeSet(), alloc_->lifoAlloc());
+        type = TypeSet::intersectSets(&base, inputTypes, alloc_->lifoAlloc());
     }
 
     if (!type)
@@ -3563,10 +3657,18 @@ IonBuilder::improveTypesAtTest(MDefinition* ins, bool trueBranch, MTest* test)
         return improveTypesAtTest(ins->toNot()->getOperand(0), !trueBranch, test);
       case MDefinition::Op_IsObject: {
         TemporaryTypeSet* oldType = ins->getOperand(0)->resultTypeSet();
-        if (!oldType)
-            return true;
-        if (oldType->unknown() || !oldType->mightBeMIRType(MIRType_Object))
-            return true;
+
+        // Create temporary typeset equal to the type if there is no resultTypeSet.
+        TemporaryTypeSet tmp;
+        if (!oldType) {
+            if (ins->type() == MIRType_Value)
+                return true;
+            oldType = &tmp;
+            tmp.addType(TypeSet::PrimitiveType(ValueTypeFromMIRType(ins->type())), alloc_->lifoAlloc());
+        }
+
+        if (oldType->unknown())
+	    return true;
 
         TemporaryTypeSet* type = nullptr;
         if (trueBranch)
@@ -3586,7 +3688,8 @@ IonBuilder::improveTypesAtTest(MDefinition* ins, bool trueBranch, MTest* test)
             break;
         }
 
-        // Now we have detected the triangular structure and determined if it was an AND or an OR.
+        // Now we have detected the triangular structure and determined if it
+        // was an AND or an OR.
         if (branchIsAnd) {
             if (trueBranch) {
                 if (!improveTypesAtTest(ins->toPhi()->getOperand(0), true, test))
@@ -3631,42 +3734,42 @@ IonBuilder::improveTypesAtTest(MDefinition* ins, bool trueBranch, MTest* test)
     // undefined and null. In false branch we can only encounter undefined, null, false, 0, ""
     // and objects that emulate undefined.
 
-    // If ins does not have a typeset we return as we cannot optimize.
-    if (!ins->resultTypeSet() || ins->resultTypeSet()->unknown())
-        return true;
-
     TemporaryTypeSet* oldType = ins->resultTypeSet();
     TemporaryTypeSet* type;
 
+    // Create temporary typeset equal to the type if there is no resultTypeSet.
+    TemporaryTypeSet tmp;
+    if (!oldType) {
+        if (ins->type() == MIRType_Value)
+            return true;
+        oldType = &tmp;
+        tmp.addType(TypeSet::PrimitiveType(ValueTypeFromMIRType(ins->type())), alloc_->lifoAlloc());
+    }
+
+    // If ins does not have a typeset we return as we cannot optimize.
+    if (oldType->unknown())
+        return true;
+
     // Decide either to set or filter.
     if (trueBranch) {
-        // Filter undefined/null.
-        if (!ins->mightBeType(MIRType_Undefined) &&
-            !ins->mightBeType(MIRType_Null))
-        {
-            return true;
-        }
-        type = oldType->filter(alloc_->lifoAlloc(), true, true);
+	TemporaryTypeSet remove;
+        remove.addType(TypeSet::UndefinedType(), alloc_->lifoAlloc());
+        remove.addType(TypeSet::NullType(), alloc_->lifoAlloc());
+        type = TypeSet::removeSet(oldType, &remove, alloc_->lifoAlloc());
     } else {
-        // According to the standards, we cannot filter out: Strings,
-        // Int32, Double, Booleans, Objects (if they emulate undefined)
-        uint32_t flags = TYPE_FLAG_PRIMITIVE;
+        TemporaryTypeSet base;
+        base.addType(TypeSet::UndefinedType(), alloc_->lifoAlloc()); // ToBoolean(undefined) == false
+        base.addType(TypeSet::NullType(), alloc_->lifoAlloc()); // ToBoolean(null) == false
+        base.addType(TypeSet::BooleanType(), alloc_->lifoAlloc()); // ToBoolean(false) == false
+        base.addType(TypeSet::Int32Type(), alloc_->lifoAlloc()); // ToBoolean(0) == false
+        base.addType(TypeSet::DoubleType(), alloc_->lifoAlloc()); // ToBoolean(0.0) == false
+        base.addType(TypeSet::StringType(), alloc_->lifoAlloc()); // ToBoolean("") == false
 
         // If the typeset does emulate undefined, then we cannot filter out
         // objects.
         if (oldType->maybeEmulatesUndefined(constraints()))
-            flags |= TYPE_FLAG_ANYOBJECT;
+	    base.addType(TypeSet::AnyObjectType(), alloc_->lifoAlloc());
 
-        // Only intersect the typesets if it will generate a more narrow
-        // typeset. The first part takes care of primitives and AnyObject,
-        // while the second line specific (type)objects.
-        if (!oldType->hasAnyFlag(~flags & TYPE_FLAG_BASE_MASK) &&
-            (oldType->maybeEmulatesUndefined(constraints()) || !oldType->maybeObject()))
-        {
-            return true;
-        }
-
-        TemporaryTypeSet base(flags, static_cast<TypeSet::ObjectKey**>(nullptr));
         type = TypeSet::intersectSets(&base, oldType, alloc_->lifoAlloc());
     }
 

@@ -622,8 +622,8 @@ public:
   virtual bool defineProperty(JSContext* cx,
                               JS::Handle<JSObject*> proxy,
                               JS::Handle<jsid> id,
-                              JS::MutableHandle<JSPropertyDescriptor> desc)
-                              const override;
+                              JS::MutableHandle<JSPropertyDescriptor> desc,
+                              JS::ObjectOpResult &result) const MOZ_OVERRIDE;
   virtual bool ownPropertyKeys(JSContext *cx,
                                JS::Handle<JSObject*> proxy,
                                JS::AutoIdVector &props) const override;
@@ -646,8 +646,8 @@ public:
   virtual bool set(JSContext *cx, JS::Handle<JSObject*> proxy,
                    JS::Handle<JSObject*> receiver,
                    JS::Handle<jsid> id,
-                   bool strict,
-                   JS::MutableHandle<JS::Value> vp) const override;
+                   JS::MutableHandle<JS::Value> vp,
+                   JS::ObjectOpResult &result) const MOZ_OVERRIDE;
 
   // SpiderMonkey extensions
   virtual bool getPropertyDescriptor(JSContext* cx,
@@ -783,8 +783,8 @@ bool
 nsOuterWindowProxy::defineProperty(JSContext* cx,
                                    JS::Handle<JSObject*> proxy,
                                    JS::Handle<jsid> id,
-                                   JS::MutableHandle<JSPropertyDescriptor> desc)
-                                   const
+                                   JS::MutableHandle<JSPropertyDescriptor> desc,
+                                   JS::ObjectOpResult &result) const
 {
   int32_t index = GetArrayIndexFromId(cx, id);
   if (IsArrayIndex(index)) {
@@ -792,7 +792,7 @@ nsOuterWindowProxy::defineProperty(JSContext* cx,
     // since we have no indexed setter or indexed creator.  That means
     // throwing in strict mode (FIXME: Bug 828137), doing nothing in
     // non-strict mode.
-    return true;
+    return result.succeed();
   }
 
   // For now, allow chrome code to define non-configurable properties
@@ -803,7 +803,7 @@ nsOuterWindowProxy::defineProperty(JSContext* cx,
     return ThrowErrorMessage(cx, MSG_DEFINE_NON_CONFIGURABLE_PROP_ON_WINDOW);
   }
 
-  return js::Wrapper::defineProperty(cx, proxy, id, desc);
+  return js::Wrapper::defineProperty(cx, proxy, id, desc, result);
 }
 
 bool
@@ -917,19 +917,17 @@ bool
 nsOuterWindowProxy::set(JSContext *cx, JS::Handle<JSObject*> proxy,
                         JS::Handle<JSObject*> receiver,
                         JS::Handle<jsid> id,
-                        bool strict,
-                        JS::MutableHandle<JS::Value> vp) const
+                        JS::MutableHandle<JS::Value> vp,
+                        JS::ObjectOpResult &result) const
 {
   int32_t index = GetArrayIndexFromId(cx, id);
   if (IsArrayIndex(index)) {
     // Reject (which means throw if and only if strict) the set.
-    if (strict) {
-      // XXXbz This needs to throw, but see bug 828137.
-    }
-    return true;
+    // XXX See bug 828137.
+    return result.succeed();
   }
 
-  return js::Wrapper::set(cx, proxy, receiver, id, strict, vp);
+  return js::Wrapper::set(cx, proxy, receiver, id, vp, result);
 }
 
 bool

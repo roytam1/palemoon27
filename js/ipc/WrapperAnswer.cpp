@@ -65,6 +65,15 @@ WrapperAnswer::ok(ReturnStatus* rs)
 }
 
 bool
+WrapperAnswer::ok(ReturnStatus *rs, const JS::ObjectOpResult &result)
+{
+    *rs = result
+          ? ReturnStatus(ReturnSuccess())
+          : ReturnStatus(ReturnObjectOpResult(result.failureCode()));
+    return true;
+}
+
+bool
 WrapperAnswer::RecvPreventExtensions(const ObjectId& objId, ReturnStatus* rs,
                                      bool* succeeded)
 {
@@ -179,11 +188,10 @@ WrapperAnswer::RecvDefineProperty(const ObjectId& objId, const JSIDVariant& idVa
     if (!toDescriptor(cx, descriptor, &desc))
         return fail(cx, rs);
 
-    bool ignored;
-    if (!js::DefineOwnProperty(cx, obj, id, desc, &ignored))
+    ObjectOpResult success;
+    if (!js::DefineOwnProperty(cx, obj, id, desc, success))
         return fail(cx, rs);
-
-    return ok(rs);
+    return ok(rs, success);
 }
 
 bool
@@ -305,8 +313,8 @@ WrapperAnswer::RecvGet(const ObjectId& objId, const ObjectVariant& receiverVar,
 
 bool
 WrapperAnswer::RecvSet(const ObjectId& objId, const ObjectVariant& receiverVar,
-                       const JSIDVariant& idVar, const bool& strict, const JSVariant& value,
-                       ReturnStatus* rs, JSVariant* result)
+                       const JSIDVariant &idVar, const JSVariant &value, ReturnStatus *rs,
+                       JSVariant *resultValue)
 {
     // We may run scripted setters.
     AutoEntryScript aes(xpc::NativeGlobal(scopeForTargetObjects()));
@@ -314,7 +322,7 @@ WrapperAnswer::RecvSet(const ObjectId& objId, const ObjectVariant& receiverVar,
 
     // The outparam will be written to the buffer, so it must be set even if
     // the parent won't read it.
-    *result = UndefinedVariant();
+    *resultValue = UndefinedVariant();
 
     RootedObject obj(cx, findObjectById(cx, objId));
     if (!obj)
@@ -330,19 +338,19 @@ WrapperAnswer::RecvSet(const ObjectId& objId, const ObjectVariant& receiverVar,
     if (!fromJSIDVariant(cx, idVar, &id))
         return fail(cx, rs);
 
-    MOZ_ASSERT(obj == receiver);
-
     RootedValue val(cx);
     if (!fromVariant(cx, value, &val))
         return fail(cx, rs);
 
-    if (!JS_SetPropertyById(cx, obj, id, val))
+    ObjectOpResult result;
+    RootedValue receiverVal(cx, ObjectValue(*receiver));
+    if (!JS_ForwardSetPropertyTo(cx, obj, id, val, receiverVal, result))
         return fail(cx, rs);
 
-    if (!toVariant(cx, val, result))
+    if (!toVariant(cx, val, resultValue))
         return fail(cx, rs);
 
-    return ok(rs);
+    return ok(rs, result);
 }
 
 bool

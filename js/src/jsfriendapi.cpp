@@ -1169,7 +1169,7 @@ js::GetObjectMetadata(JSObject* obj)
 
 JS_FRIEND_API(bool)
 js::DefineOwnProperty(JSContext* cx, JSObject* objArg, jsid idArg,
-                    JS::Handle<js::PropertyDescriptor> descriptor, bool* bp)
+                      JS::Handle<js::PropertyDescriptor> descriptor, ObjectOpResult &result)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
@@ -1181,7 +1181,7 @@ js::DefineOwnProperty(JSContext* cx, JSObject* objArg, jsid idArg,
     if (descriptor.hasSetterObject())
         assertSameCompartment(cx, descriptor.setterObject());
 
-    return StandardDefineProperty(cx, obj, id, descriptor, bp);
+    return StandardDefineProperty(cx, obj, id, descriptor, result);
 }
 
 JS_FRIEND_API(bool)

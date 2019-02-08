@@ -3318,6 +3318,9 @@ MCompare::tryFoldEqualOperands(bool* result)
             return false;
     }
 
+    if (DeadIfUnused(lhs()))
+        lhs()->setGuardRangeBailouts();
+
     *result = (jsop() == JSOP_STRICTEQ);
     return true;
 }
@@ -3785,8 +3788,9 @@ MBeta::printOpcode(FILE* fp) const
 bool
 MNewObject::shouldUseVM() const
 {
-    PlainObject* obj = templateObject();
-    return obj->isSingleton() || obj->hasDynamicSlots();
+    if (JSObject *obj = templateObject())
+        return obj->is<PlainObject>() && obj->as<PlainObject>().hasDynamicSlots();
+    return true;
 }
 
 bool
@@ -3805,7 +3809,7 @@ MObjectState::MObjectState(MDefinition* obj)
     setRecoveredOnBailout();
     NativeObject* templateObject = nullptr;
     if (obj->isNewObject())
-        templateObject = obj->toNewObject()->templateObject();
+        templateObject = &obj->toNewObject()->templateObject()->as<PlainObject>();
     else if (obj->isCreateThisWithTemplate())
         templateObject = &obj->toCreateThisWithTemplate()->templateObject()->as<PlainObject>();
     else

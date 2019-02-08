@@ -90,8 +90,7 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual bool getOwnPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
                                           MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc,
-                                ObjectOpResult &result) const MOZ_OVERRIDE;
+                                MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool ownPropertyKeys(JSContext* cx, HandleObject proxy,
                                  AutoIdVector& props) const override;
     virtual bool delete_(JSContext* cx, HandleObject proxy, HandleId id, bool* bp) const override;
@@ -102,8 +101,7 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual bool get(JSContext* cx, HandleObject proxy, HandleObject receiver,
                      HandleId id, MutableHandleValue vp) const override;
     virtual bool set(JSContext* cx, JS::HandleObject proxy, JS::HandleObject receiver,
-                     JS::HandleId id, JS::MutableHandleValue vp,
-                     JS::ObjectOpResult &result) const MOZ_OVERRIDE;
+                     JS::HandleId id, bool strict, JS::MutableHandleValue vp) const override;
     virtual bool call(JSContext* cx, HandleObject proxy, const CallArgs& args) const override;
     virtual bool construct(JSContext* cx, HandleObject proxy, const CallArgs& args) const override;
 
@@ -204,16 +202,14 @@ WrapperOwner::getOwnPropertyDescriptor(JSContext* cx, HandleObject proxy, Handle
 
 bool
 CPOWProxyHandler::defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                                 MutableHandle<JSPropertyDescriptor> desc,
-                                 ObjectOpResult &result) const
+                                 MutableHandle<JSPropertyDescriptor> desc) const
 {
-    FORWARD(defineProperty, (cx, proxy, id, desc, result));
+    FORWARD(defineProperty, (cx, proxy, id, desc));
 }
 
 bool
 WrapperOwner::defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-			     MutableHandle<JSPropertyDescriptor> desc,
-                             ObjectOpResult &result)
+			     MutableHandle<JSPropertyDescriptor> desc)
 {
     ObjectId objId = idOf(proxy);
 
@@ -231,7 +227,7 @@ WrapperOwner::defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
 
     LOG_STACK();
 
-    return ok(cx, status, result);
+    return ok(cx, status);
 }
 
 bool
@@ -435,14 +431,14 @@ WrapperOwner::get(JSContext* cx, HandleObject proxy, HandleObject receiver,
 
 bool
 CPOWProxyHandler::set(JSContext* cx, JS::HandleObject proxy, JS::HandleObject receiver,
-                      JS::HandleId id, JS::MutableHandleValue vp, JS::ObjectOpResult &result) const
+                      JS::HandleId id, bool strict, JS::MutableHandleValue vp) const
 {
-    FORWARD(set, (cx, proxy, receiver, id, vp, result));
+    FORWARD(set, (cx, proxy, receiver, id, strict, vp));
 }
 
 bool
 WrapperOwner::set(JSContext* cx, JS::HandleObject proxy, JS::HandleObject receiver,
-                  JS::HandleId id, JS::MutableHandleValue vp, JS::ObjectOpResult &result)
+                  JS::HandleId id, bool strict, JS::MutableHandleValue vp)
 {
     ObjectId objId = idOf(proxy);
 
@@ -459,16 +455,16 @@ WrapperOwner::set(JSContext* cx, JS::HandleObject proxy, JS::HandleObject receiv
         return false;
 
     ReturnStatus status;
-    JSVariant resultValue;
-    if (!SendSet(objId, receiverVar, idVar, val, &status, &resultValue))
+    JSVariant result;
+    if (!SendSet(objId, receiverVar, idVar, strict, val, &status, &result))
         return ipcfail(cx);
 
     LOG_STACK();
 
-    if (!ok(cx, status, result))
+    if (!ok(cx, status))
         return false;
 
-    return fromVariant(cx, resultValue, vp);
+    return fromVariant(cx, result, vp);
 }
 
 bool
@@ -938,16 +934,6 @@ WrapperOwner::ok(JSContext* cx, const ReturnStatus& status)
     return false;
 }
 
-bool
-WrapperOwner::ok(JSContext *cx, const ReturnStatus &status, ObjectOpResult &result)
-{
-    if (status.type() == ReturnStatus::TReturnObjectOpResult)
-        return result.fail(status.get_ReturnObjectOpResult().code());
-    if (!ok(cx, status))
-        return false;
-    return result.succeed();
-}
-
 static RemoteObject
 MakeRemoteObject(JSContext* cx, ObjectId id, HandleObject obj)
 {
@@ -1034,6 +1020,7 @@ WrapperOwner::fromRemoteObjectVariant(JSContext* cx, RemoteObject objVar)
                              &CPOWProxyHandler::singleton,
                              v,
                              nullptr,
+                             junkScope,
                              options);
         if (!obj)
             return nullptr;

@@ -27,7 +27,7 @@ namespace jsipc {
 #define LOG_STACK()		                                               \
     PR_BEGIN_MACRO                                                             \
     if (StackLoggingEnabled()) {                                               \
-        js::DumpBacktrace(cx);                                                 \
+        js_DumpBacktrace(cx);	                                               \
     }                                                                          \
     PR_END_MACRO
 

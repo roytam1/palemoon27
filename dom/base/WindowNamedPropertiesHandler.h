@@ -28,8 +28,7 @@ public:
   virtual bool
   defineProperty(JSContext* aCx, JS::Handle<JSObject*> aProxy,
                  JS::Handle<jsid> aId,
-                 JS::MutableHandle<JSPropertyDescriptor> aDesc,
-                 JS::ObjectOpResult &result) const MOZ_OVERRIDE;
+                 JS::MutableHandle<JSPropertyDescriptor> aDesc) const override;
   virtual bool
   ownPropNames(JSContext* aCx, JS::Handle<JSObject*> aProxy, unsigned flags,
                JS::AutoIdVector& aProps) const override;

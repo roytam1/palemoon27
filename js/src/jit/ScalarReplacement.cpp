@@ -113,9 +113,6 @@ IsObjectEscaped(MInstruction* ins, JSObject* objDefault = nullptr)
     else
         obj = objDefault;
 
-    if (!obj)
-        return true;
-
     // Don't optimize unboxed objects, which aren't handled by MObjectState.
     if (obj->is<UnboxedPlainObject>())
         return true;

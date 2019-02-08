@@ -756,11 +756,11 @@ bool
 AddClearDefiniteFunctionUsesInScript(JSContext* cx, ObjectGroup* group,
                                      JSScript* script, JSScript* calleeScript);
 
-// For groups where only a small number of objects have been allocated, this
-// structure keeps track of all objects in the group. Once COUNT objects have
-// been allocated, this structure is cleared and the objects are analyzed, to
-// perform the new script properties analyses or determine if an unboxed
-// representation can be used.
+// For types where only a small number of objects have been allocated, this
+// structure keeps track of all objects with the type in existence. Once
+// COUNT objects have been allocated, this structure is cleared and the objects
+// are analyzed, to perform the new script properties analyses or determine if
+// an unboxed representation can be used.
 class PreliminaryObjectArray
 {
   public:
@@ -785,26 +785,6 @@ class PreliminaryObjectArray
 
     bool full() const;
     void sweep();
-};
-
-class PreliminaryObjectArrayWithTemplate : public PreliminaryObjectArray
-{
-    HeapPtrShape shape_;
-
-  public:
-    explicit PreliminaryObjectArrayWithTemplate(Shape *shape)
-      : shape_(shape)
-    {}
-
-    Shape *shape() {
-        return shape_;
-    }
-
-    void maybeAnalyze(JSContext *cx, ObjectGroup *group, bool force = false);
-
-    void trace(JSTracer *trc);
-
-    static void writeBarrierPre(PreliminaryObjectArrayWithTemplate *preliminaryObjects);
 };
 
 // New script properties analyses overview.
@@ -904,7 +884,7 @@ class TypeNewScript
         js_free(initializerList);
     }
 
-    static void writeBarrierPre(TypeNewScript *newScript);
+    static inline void writeBarrierPre(TypeNewScript* newScript);
 
     bool analyzed() const {
         return preliminaryObjects == nullptr;

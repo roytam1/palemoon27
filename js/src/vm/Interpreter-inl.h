@@ -313,34 +313,19 @@ SetNameOperation(JSContext* cx, JSScript* script, jsbytecode* pc, HandleObject s
     RootedPropertyName name(cx, script->getName(pc));
     RootedValue valCopy(cx, val);
 
-    // In strict mode, assigning to an undeclared global variable is an
-    // error. To detect this, we call NativeSetProperty directly and pass
-    // Unqualified. It stores the error, if any, in |result|.
-    bool ok;
-    ObjectOpResult result;
-    RootedId id(cx, NameToId(name));
+    /*
+     * In strict-mode, we need to trigger an error when trying to assign to an
+     * undeclared global variable. To do this, we call NativeSetProperty
+     * directly and pass Unqualified.
+     */
     if (scope->isUnqualifiedVarObj()) {
         MOZ_ASSERT(!scope->getOps()->setProperty);
-        ok = NativeSetProperty(cx, scope.as<NativeObject>(), scope.as<NativeObject>(), id,
-                               Unqualified, &valCopy, result);
-    } else {
-        ok = SetProperty(cx, scope, scope, id, &valCopy, result);
-    }
-    return ok && result.checkStrictErrorOrWarning(cx, scope, id, strict);
-}
-
-inline bool
-InitPropertyOperation(JSContext *cx, JSOp op, HandleObject obj, HandleId id, HandleValue rhs)
-{
-    if (obj->is<PlainObject>() || obj->is<JSFunction>()) {
-        unsigned propAttrs = GetInitDataPropAttrs(op);
-        return NativeDefineProperty(cx, obj.as<NativeObject>(), id, rhs, nullptr, nullptr,
-                                    propAttrs);
+        RootedId id(cx, NameToId(name));
+        return NativeSetProperty(cx, scope.as<NativeObject>(), scope.as<NativeObject>(), id,
+                                 Unqualified, &valCopy, strict);
     }
 
-    MOZ_ASSERT(obj->as<UnboxedPlainObject>().layout().lookup(id));
-    RootedValue v(cx, rhs);
-    return PutProperty(cx, obj, id, &v, false);
+    return SetProperty(cx, scope, scope, name, &valCopy, strict);
 }
 
 inline bool

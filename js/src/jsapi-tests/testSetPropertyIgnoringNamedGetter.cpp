@@ -28,13 +28,13 @@ class CustomProxyHandler : public DirectProxyHandler {
     }
 
     bool set(JSContext* cx, HandleObject proxy, HandleObject receiver,
-             HandleId id, MutableHandleValue vp, ObjectOpResult &result) const MOZ_OVERRIDE
+             HandleId id, bool strict, MutableHandleValue vp) const override
     {
         Rooted<JSPropertyDescriptor> desc(cx);
         if (!DirectProxyHandler::getPropertyDescriptor(cx, proxy, id, &desc))
             return false;
         return SetPropertyIgnoringNamedGetter(cx, this, proxy, receiver, id, &desc,
-                                              desc.object() == proxy, vp, result);
+                                              desc.object() == proxy, strict, vp);
     }
 
   private:
@@ -72,7 +72,7 @@ BEGIN_TEST(testSetPropertyIgnoringNamedGetter_direct)
     EVAL("({})", &targetv);
 
     RootedObject proxyObj(cx, NewProxyObject(cx, &customProxyHandler, targetv,
-                                             &protov.toObject(), ProxyOptions()));
+                                             &protov.toObject(), global, ProxyOptions()));
     CHECK(proxyObj);
 
     CHECK(JS_DefineProperty(cx, global, "target", targetv, 0));

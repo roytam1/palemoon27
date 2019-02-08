@@ -310,19 +310,19 @@ SetObjectProperty(JSContext* cx, JSOp op, HandleValue lval, HandleId id, Mutable
 
     RootedObject obj(cx, &lval.toObject());
 
-    ObjectOpResult result;
+    bool strict = op == JSOP_STRICTSETPROP;
     if (MOZ_LIKELY(!obj->getOps()->setProperty)) {
         if (!NativeSetProperty(cx, obj.as<NativeObject>(), obj.as<NativeObject>(), id,
-                               Qualified, rref, result))
+                               Qualified, rref, strict))
         {
             return false;
         }
     } else {
-        if (!SetProperty(cx, obj, obj, id, rref, result))
+        if (!SetProperty(cx, obj, obj, id, rref, strict))
             return false;
     }
 
-    return result.checkStrictErrorOrWarning(cx, obj, id, op == JSOP_STRICTSETPROP);
+    return true;
 }
 
 static bool
@@ -1425,7 +1425,7 @@ SetObjectElementOperation(JSContext* cx, Handle<JSObject*> obj, HandleId id, con
         return false;
 
     RootedValue tmp(cx, value);
-    return PutProperty(cx, obj, id, &tmp, strict);
+    return SetProperty(cx, obj, obj, id, &tmp, strict);
 }
 
 static MOZ_NEVER_INLINE bool
@@ -3123,6 +3123,7 @@ CASE(JSOP_LAMBDA_ARROW)
     REGS.sp[-1].setObject(*obj);
 }
 END_CASE(JSOP_LAMBDA_ARROW)
+
 CASE(JSOP_CALLEE)
     MOZ_ASSERT(REGS.fp()->isNonEvalFunctionFrame());
     PUSH_COPY(REGS.fp()->calleev());
@@ -3174,23 +3175,25 @@ CASE(JSOP_NEWINIT)
 {
     uint8_t i = GET_UINT8(REGS.pc);
     MOZ_ASSERT(i == JSProto_Array || i == JSProto_Object);
-    RootedObject& obj = rootObject0;
 
+    RootedObject& obj = rootObject0;
+    NewObjectKind newKind = GenericObject;
     if (i == JSProto_Array) {
-    	NewObjectKind newKind = GenericObject;
         if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, &ArrayObject::class_))
             newKind = SingletonObject;
         obj = NewDenseEmptyArray(cx, NullPtr(), newKind);
-        if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
-                                                               newKind == SingletonObject))
-        {
-            goto error;
-        }
     } else {
-        obj = NewObjectOperation(cx, script, REGS.pc);
-        if (!obj)
-            goto error;
+        gc::AllocKind allocKind = GuessObjectGCKind(0);
+        if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, &PlainObject::class_))
+            newKind = SingletonObject;
+        obj = NewBuiltinClassInstance<PlainObject>(cx, allocKind, newKind);
     }
+    if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
+                                                           newKind == SingletonObject))
+    {
+        goto error;
+    }
+
     PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_NEWINIT)
@@ -3231,9 +3234,20 @@ END_CASE(JSOP_NEWARRAY_COPYONWRITE)
 
 CASE(JSOP_NEWOBJECT)
 {
-    JSObject *obj = NewObjectOperation(cx, script, REGS.pc);
-    if (!obj)
+    RootedObject& baseobj = rootObject0;
+    baseobj = script->getObject(REGS.pc);
+
+    RootedObject& obj = rootObject1;
+    NewObjectKind newKind = GenericObject;
+    if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, baseobj->getClass()))
+        newKind = SingletonObject;
+    obj = CopyInitializerObject(cx, baseobj.as<PlainObject>(), newKind);
+    if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
+                                                           newKind == SingletonObject))
+    {
         goto error;
+    }
+
     PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_NEWOBJECT)
@@ -3274,15 +3288,16 @@ CASE(JSOP_INITHIDDENPROP)
     rval = REGS.sp[-1];
 
     /* Load the object being initialized into lval/obj. */
-    RootedObject &obj = rootObject0;
-    obj = &REGS.sp[-2].toObject();
+    RootedNativeObject& obj = rootNativeObject0;
+    obj = &REGS.sp[-2].toObject().as<PlainObject>();
 
     PropertyName* name = script->getName(REGS.pc);
 
     RootedId& id = rootId0;
     id = NameToId(name);
 
-    if (!InitPropertyOperation(cx, JSOp(*REGS.pc), obj, id, rval))
+    unsigned propAttrs = GetInitDataPropAttrs(JSOp(*REGS.pc));
+    if (!NativeDefineProperty(cx, obj, id, rval, nullptr, nullptr, propAttrs))
         goto error;
 
     REGS.sp--;
@@ -3859,7 +3874,7 @@ js::DefFunOperation(JSContext* cx, HandleScript script, HandleObject scopeChain,
      */
 
     /* Step 5f. */
-    return PutProperty(cx, parent, name, &rval, script->strict());
+    return SetProperty(cx, parent, parent, name, &rval, script->strict());
 }
 
 bool
@@ -4184,82 +4199,6 @@ js::SpreadCallOperation(JSContext* cx, HandleScript script, jsbytecode* pc, Hand
     res.set(args.rval());
     TypeScript::Monitor(cx, script, pc, res);
     return true;
-}
-
-JSObject *
-js::NewObjectOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
-                       NewObjectKind newKind /* = GenericObject */)
-{
-    MOZ_ASSERT(newKind != SingletonObject);
-
-    RootedObjectGroup group(cx);
-    if (ObjectGroup::useSingletonForAllocationSite(script, pc, JSProto_Object)) {
-        newKind = SingletonObject;
-    } else {
-        group = ObjectGroup::allocationSiteGroup(cx, script, pc, JSProto_Object);
-        if (!group)
-            return nullptr;
-        if (group->maybePreliminaryObjects())
-            group->maybePreliminaryObjects()->maybeAnalyze(cx, group);
-
-        if (group->shouldPreTenure() || group->maybePreliminaryObjects())
-            newKind = TenuredObject;
-
-        if (group->maybeUnboxedLayout())
-            return UnboxedPlainObject::create(cx, group, newKind);
-    }
-
-    RootedObject obj(cx);
-
-    if (*pc == JSOP_NEWOBJECT) {
-        RootedPlainObject baseObject(cx, &script->getObject(pc)->as<PlainObject>());
-        obj = CopyInitializerObject(cx, baseObject, newKind);
-    } else {
-        MOZ_ASSERT(*pc == JSOP_NEWINIT);
-        MOZ_ASSERT(GET_UINT8(pc) == JSProto_Object);
-        obj = NewBuiltinClassInstance<PlainObject>(cx, newKind);
-    }
-
-    if (!obj)
-        return nullptr;
-
-    if (newKind == SingletonObject) {
-        if (!JSObject::setSingleton(cx, obj))
-            return nullptr;
-    } else {
-        obj->setGroup(group);
-
-        if (PreliminaryObjectArray *preliminaryObjects = group->maybePreliminaryObjects())
-            preliminaryObjects->registerNewObject(obj);
-    }
-
-    return obj;
-}
-
-JSObject*
-js::NewObjectOperationWithTemplate(JSContext *cx, HandleObject templateObject)
-{
-    // This is an optimized version of NewObjectOperation for use when the
-    // object is not a singleton and has had its preliminary objects analyzed,
-    // with the template object a copy of the object to create.
-    MOZ_ASSERT(!templateObject->isSingleton());
-
-    NewObjectKind newKind = templateObject->group()->shouldPreTenure() ? TenuredObject : GenericObject;
-
-    if (templateObject->group()->maybeUnboxedLayout()) {
-        RootedObjectGroup group(cx, templateObject->group());
-        JSObject *obj = UnboxedPlainObject::create(cx, group, newKind);
-        if (!obj)
-            return nullptr;
-        return obj;
-    }
-
-    JSObject *obj = CopyInitializerObject(cx, templateObject.as<PlainObject>(), newKind);
-    if (!obj)
-        return nullptr;
-
-    obj->setGroup(templateObject->group());
-    return obj;
 }
 
 void

@@ -32,8 +32,7 @@ DeadObjectProxy::getOwnPropertyDescriptor(JSContext* cx, HandleObject wrapper, H
 
 bool
 DeadObjectProxy::defineProperty(JSContext* cx, HandleObject wrapper, HandleId id,
-                                MutableHandle<PropertyDescriptor> desc,
-                                ObjectOpResult &result) const
+                                MutableHandle<PropertyDescriptor> desc) const
 {
     JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEAD_OBJECT);
     return false;

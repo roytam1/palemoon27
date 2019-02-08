@@ -132,15 +132,6 @@ class CompartmentChecker
     void check(InterpreterFrame* fp);
     void check(AbstractFramePtr frame);
     void check(SavedStacks* stacks);
-
-    void check(Handle<JSPropertyDescriptor> desc) {
-        check(desc.object());
-        if (desc.hasGetterObject())
-            check(desc.getterObject());
-        if (desc.hasSetterObject())
-            check(desc.setterObject());
-        check(desc.value());
-    }
 };
 
 /*
@@ -316,12 +307,12 @@ CallJSPropertyOp(JSContext* cx, PropertyOp op, HandleObject receiver, HandleId i
 
 MOZ_ALWAYS_INLINE bool
 CallJSPropertyOpSetter(JSContext* cx, StrictPropertyOp op, HandleObject obj, HandleId id,
-                       MutableHandleValue vp, ObjectOpResult &result)
+                       bool strict, MutableHandleValue vp)
 {
     JS_CHECK_RECURSION(cx, return false);
 
     assertSameCompartment(cx, obj, id, vp);
-    return op(cx, obj, id, vp, result);
+    return op(cx, obj, id, strict, vp);
 }
 
 static inline bool
@@ -339,22 +330,20 @@ CallJSDeletePropertyOp(JSContext* cx, JSDeletePropertyOp op, HandleObject receiv
 
 inline bool
 CallSetter(JSContext* cx, HandleObject obj, HandleId id, StrictPropertyOp op, unsigned attrs,
-           MutableHandleValue vp, ObjectOpResult &result)
+           bool strict, MutableHandleValue vp)
 {
     if (attrs & JSPROP_SETTER) {
         RootedValue opv(cx, CastAsObjectJsval(op));
-        if (!InvokeGetterOrSetter(cx, obj, opv, 1, vp.address(), vp))
-            return false;
-        return result.succeed();
+        return InvokeGetterOrSetter(cx, obj, opv, 1, vp.address(), vp);
     }
 
     if (attrs & JSPROP_GETTER)
-        return result.fail(JSMSG_GETTER_ONLY);
+        return ReportGetterOnlyAssignment(cx, strict);
 
     if (!op)
-        return result.succeed();
+        return true;
 
-    return CallJSPropertyOpSetter(cx, op, obj, id, vp, result);
+    return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
 }
 
 inline uintptr_t

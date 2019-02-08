@@ -115,7 +115,8 @@ extern JS_FRIEND_API(JSObject*)
 JS_ObjectToOuterObject(JSContext* cx, JS::HandleObject obj);
 
 extern JS_FRIEND_API(JSObject*)
-JS_CloneObject(JSContext* cx, JS::HandleObject obj, JS::HandleObject proto);
+JS_CloneObject(JSContext* cx, JS::HandleObject obj, JS::HandleObject proto,
+               JS::HandleObject parent);
 
 extern JS_FRIEND_API(JSString*)
 JS_BasicObjectToString(JSContext* cx, JS::HandleObject obj);
@@ -137,48 +138,41 @@ AddRawValueRoot(JSContext* cx, JS::Value* vp, const char* name);
 JS_FRIEND_API(void)
 RemoveRawValueRoot(JSContext* cx, JS::Value* vp);
 
+} /* namespace js */
+
 #ifdef JS_DEBUG
 
 /*
  * Routines to print out values during debugging.  These are FRIEND_API to help
- * the debugger find them and to support temporarily hacking js::Dump* calls
+ * the debugger find them and to support temporarily hacking js_Dump* calls
  * into other code.
  */
 
 extern JS_FRIEND_API(void)
-DumpString(JSString *str);
+js_DumpString(JSString* str);
 
 extern JS_FRIEND_API(void)
-DumpAtom(JSAtom *atom);
+js_DumpAtom(JSAtom* atom);
 
 extern JS_FRIEND_API(void)
-DumpObject(JSObject *obj);
+js_DumpObject(JSObject* obj);
 
 extern JS_FRIEND_API(void)
-DumpChars(const char16_t *s, size_t n);
+js_DumpChars(const char16_t* s, size_t n);
 
 extern JS_FRIEND_API(void)
-DumpValue(const JS::Value &val);
+js_DumpValue(const JS::Value& val);
 
 extern JS_FRIEND_API(void)
-DumpId(jsid id);
+js_DumpId(jsid id);
 
 extern JS_FRIEND_API(void)
-DumpInterpreterFrame(JSContext *cx, InterpreterFrame *start = nullptr);
-
-extern JS_FRIEND_API(bool)
-DumpPC(JSContext *cx);
-
-extern JS_FRIEND_API(bool)
-DumpScript(JSContext *cx, JSScript *scriptArg);
+js_DumpInterpreterFrame(JSContext* cx, js::InterpreterFrame* start = nullptr);
 
 #endif
 
 extern JS_FRIEND_API(void)
-DumpBacktrace(JSContext *cx);
-
-
-} // namespace js
+js_DumpBacktrace(JSContext* cx);
 
 namespace JS {
 
@@ -311,8 +305,7 @@ proxy_LookupProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::M
                     JS::MutableHandle<Shape*> propp);
 extern JS_FRIEND_API(bool)
 proxy_DefineProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
-                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs,
-                     JS::ObjectOpResult &result);
+                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 extern JS_FRIEND_API(bool)
 proxy_HasProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* foundp);
 extern JS_FRIEND_API(bool)
@@ -320,7 +313,7 @@ proxy_GetProperty(JSContext* cx, JS::HandleObject obj, JS::HandleObject receiver
                   JS::MutableHandleValue vp);
 extern JS_FRIEND_API(bool)
 proxy_SetProperty(JSContext* cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
-                  JS::MutableHandleValue bp, JS::ObjectOpResult &result);
+                  JS::MutableHandleValue bp, bool strict);
 extern JS_FRIEND_API(bool)
 proxy_GetOwnPropertyDescriptor(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                                JS::MutableHandle<JSPropertyDescriptor> desc);
@@ -2551,8 +2544,7 @@ JS_FRIEND_API(bool)
 SetPropertyIgnoringNamedGetter(JSContext* cx, const BaseProxyHandler* handler,
                                JS::HandleObject proxy, JS::HandleObject receiver,
                                JS::HandleId id, JS::MutableHandle<JSPropertyDescriptor> desc,
-                               bool descIsOwn, JS::MutableHandleValue vp,
-                               JS::ObjectOpResult &result);
+                               bool descIsOwn, bool strict, JS::MutableHandleValue vp);
 
 JS_FRIEND_API(void)
 ReportErrorWithId(JSContext* cx, const char* msg, JS::HandleId id);
@@ -2623,7 +2615,7 @@ ReportIsNotFunction(JSContext* cx, JS::HandleValue v);
 
 extern JS_FRIEND_API(bool)
 DefineOwnProperty(JSContext* cx, JSObject* objArg, jsid idArg,
-                  JS::Handle<JSPropertyDescriptor> descriptor, JS::ObjectOpResult &result);
+                  JS::Handle<JSPropertyDescriptor> descriptor, bool* bp);
 
 } /* namespace js */
 

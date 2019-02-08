@@ -494,8 +494,7 @@ enum ExitFrameTokenValues
     IonDOMMethodExitFrameLayoutToken      = 0x3,
     IonOOLNativeExitFrameLayoutToken      = 0x4,
     IonOOLPropertyOpExitFrameLayoutToken  = 0x5,
-    IonOOLSetterOpExitFrameLayoutToken    = 0x6,
-    IonOOLProxyExitFrameLayoutToken       = 0x7,
+    IonOOLProxyExitFrameLayoutToken       = 0x6,
     LazyLinkExitFrameLayoutToken          = 0xFE,
     ExitFrameLayoutBareToken              = 0xFF
 };
@@ -629,7 +628,7 @@ class IonOOLNativeExitFrameLayout
 
 class IonOOLPropertyOpExitFrameLayout
 {
-  protected:
+  protected: // only to silence a clang warning about unused private fields
     ExitFooterFrame footer_;
     ExitFrameLayout exit_;
 
@@ -654,10 +653,6 @@ class IonOOLPropertyOpExitFrameLayout
         return sizeof(IonOOLPropertyOpExitFrameLayout);
     }
 
-    static size_t offsetOfId() {
-        return offsetof(IonOOLPropertyOpExitFrameLayout, id_);
-    }
-
     static size_t offsetOfResult() {
         return offsetof(IonOOLPropertyOpExitFrameLayout, vp0_);
     }
@@ -676,35 +671,15 @@ class IonOOLPropertyOpExitFrameLayout
     }
 };
 
-class IonOOLSetterOpExitFrameLayout : public IonOOLPropertyOpExitFrameLayout
-{
-  protected: // only to silence a clang warning about unused private fields
-    JS::ObjectOpResult result_;
-
-  public:
-    static JitCode *Token() { return (JitCode *)IonOOLSetterOpExitFrameLayoutToken; }
-
-    static size_t offsetOfObjectOpResult() {
-        return offsetof(IonOOLSetterOpExitFrameLayout, result_);
-    }
-
-    static size_t Size() {
-        return sizeof(IonOOLSetterOpExitFrameLayout);
-    }
-};
-
 // Proxy::get(JSContext* cx, HandleObject proxy, HandleObject receiver, HandleId id,
 //            MutableHandleValue vp)
 // Proxy::set(JSContext* cx, HandleObject proxy, HandleObject receiver, HandleId id,
-//            MutableHandleValue vp, ObjectOpResult &result)
+//            bool strict, MutableHandleValue vp)
 class IonOOLProxyExitFrameLayout
 {
   protected: // only to silence a clang warning about unused private fields
     ExitFooterFrame footer_;
     ExitFrameLayout exit_;
-
-    // result out-parameter (unused for Proxy::get)
-    JS::ObjectOpResult result_;
 
     // The proxy object.
     JSObject* proxy_;
@@ -732,14 +707,6 @@ class IonOOLProxyExitFrameLayout
 
     static size_t offsetOfResult() {
         return offsetof(IonOOLProxyExitFrameLayout, vp0_);
-    }
-
-    static size_t offsetOfId() {
-        return offsetof(IonOOLProxyExitFrameLayout, id_);
-    }
-
-    static size_t offsetOfObjectOpResult() {
-        return offsetof(IonOOLProxyExitFrameLayout, result_);
     }
 
     inline JitCode** stubCode() {

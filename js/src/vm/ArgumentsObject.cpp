@@ -317,11 +317,10 @@ ArgGetter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 }
 
 static bool
-ArgSetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp,
-          ObjectOpResult &result)
+ArgSetter(JSContext* cx, HandleObject obj, HandleId id, bool strict, MutableHandleValue vp)
 {
     if (!obj->is<NormalArgumentsObject>())
-        return result.succeed();
+        return true;
     Handle<NormalArgumentsObject*> argsobj = obj.as<NormalArgumentsObject>();
 
     Rooted<PropertyDescriptor> desc(cx);
@@ -340,7 +339,7 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp,
             argsobj->setElement(cx, arg, vp);
             if (arg < script->functionNonDelazifying()->nargs())
                 TypeScript::SetArgument(cx, script, arg, vp);
-            return result.succeed();
+            return true;
         }
     } else {
         MOZ_ASSERT(JSID_IS_ATOM(id, cx->names().length) || JSID_IS_ATOM(id, cx->names().callee));
@@ -355,7 +354,7 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp,
      */
     bool succeeded;
     return NativeDeleteProperty(cx, argsobj, id, &succeeded) &&
-           NativeDefineProperty(cx, argsobj, id, vp, nullptr, nullptr, attrs, result);
+           NativeDefineProperty(cx, argsobj, id, vp, nullptr, nullptr, attrs);
 }
 
 static bool
@@ -439,11 +438,10 @@ StrictArgGetter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue
 }
 
 static bool
-StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp,
-                ObjectOpResult &result)
+StrictArgSetter(JSContext* cx, HandleObject obj, HandleId id, bool strict, MutableHandleValue vp)
 {
     if (!obj->is<StrictArgumentsObject>())
-        return result.succeed();
+        return true;
     Handle<StrictArgumentsObject*> argsobj = obj.as<StrictArgumentsObject>();
 
     Rooted<PropertyDescriptor> desc(cx);
@@ -458,7 +456,7 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue
         unsigned arg = unsigned(JSID_TO_INT(id));
         if (arg < argsobj->initialLength()) {
             argsobj->setElement(cx, arg, vp);
-            return result.succeed();
+            return true;
         }
     } else {
         MOZ_ASSERT(JSID_IS_ATOM(id, cx->names().length));
@@ -471,7 +469,7 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue
      */
     bool succeeded;
     return NativeDeleteProperty(cx, argsobj, id, &succeeded) &&
-           NativeDefineProperty(cx, argsobj, id, vp, nullptr, nullptr, attrs, result);
+           NativeDefineProperty(cx, argsobj, id, vp, nullptr, nullptr, attrs);
 }
 
 static bool

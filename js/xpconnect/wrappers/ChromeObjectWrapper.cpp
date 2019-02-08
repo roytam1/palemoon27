@@ -21,22 +21,21 @@ const ChromeObjectWrapper ChromeObjectWrapper::singleton;
 bool
 ChromeObjectWrapper::defineProperty(JSContext* cx, HandleObject wrapper,
                                     HandleId id,
-                                    MutableHandle<JSPropertyDescriptor> desc,
-                                    JS::ObjectOpResult &result) const
+                                    MutableHandle<JSPropertyDescriptor> desc) const
 {
     if (!AccessCheck::checkPassToPrivilegedCode(cx, wrapper, desc.value()))
         return false;
-    return ChromeObjectWrapperBase::defineProperty(cx, wrapper, id, desc, result);
+    return ChromeObjectWrapperBase::defineProperty(cx, wrapper, id, desc);
 }
 
 bool
 ChromeObjectWrapper::set(JSContext* cx, HandleObject wrapper,
                          HandleObject receiver, HandleId id,
-                         MutableHandleValue vp, ObjectOpResult &result) const
+                         bool strict, MutableHandleValue vp) const
 {
     if (!AccessCheck::checkPassToPrivilegedCode(cx, wrapper, vp))
         return false;
-    return ChromeObjectWrapperBase::set(cx, wrapper, receiver, id, vp, result);
+    return ChromeObjectWrapperBase::set(cx, wrapper, receiver, id, strict, vp);
 }
 
 }

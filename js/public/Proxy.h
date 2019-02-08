@@ -26,7 +26,6 @@ using JS::MutableHandle;
 using JS::MutableHandleObject;
 using JS::MutableHandleValue;
 using JS::NativeImpl;
-using JS::ObjectOpResult;
 using JS::PrivateValue;
 using JS::Value;
 
@@ -252,8 +251,7 @@ class JS_FRIEND_API(BaseProxyHandler)
     virtual bool getOwnPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
                                           MutableHandle<JSPropertyDescriptor> desc) const = 0;
     virtual bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc,
-                                ObjectOpResult &result) const = 0;
+                                MutableHandle<JSPropertyDescriptor> desc) const = 0;
     virtual bool ownPropertyKeys(JSContext* cx, HandleObject proxy,
                                  AutoIdVector& props) const = 0;
     virtual bool delete_(JSContext* cx, HandleObject proxy, HandleId id, bool* bp) const = 0;
@@ -291,7 +289,7 @@ class JS_FRIEND_API(BaseProxyHandler)
     virtual bool get(JSContext* cx, HandleObject proxy, HandleObject receiver,
                      HandleId id, MutableHandleValue vp) const;
     virtual bool set(JSContext* cx, HandleObject proxy, HandleObject receiver,
-                     HandleId id, MutableHandleValue vp, ObjectOpResult &result) const;
+                     HandleId id, bool strict, MutableHandleValue vp) const;
 
     /*
      * [[Call]] and [[Construct]] are standard internal methods but according
@@ -370,8 +368,7 @@ class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
     virtual bool getOwnPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
                                           MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc,
-                                ObjectOpResult &result) const MOZ_OVERRIDE;
+                                MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool ownPropertyKeys(JSContext* cx, HandleObject proxy,
                                  AutoIdVector& props) const override;
     virtual bool delete_(JSContext* cx, HandleObject proxy, HandleId id,
@@ -391,8 +388,7 @@ class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
     virtual bool get(JSContext* cx, HandleObject proxy, HandleObject receiver,
                      HandleId id, MutableHandleValue vp) const override;
     virtual bool set(JSContext* cx, HandleObject proxy, HandleObject receiver,
-                     HandleId id, MutableHandleValue vp,
-                     ObjectOpResult &result) const MOZ_OVERRIDE;
+                     HandleId id, bool strict, MutableHandleValue vp) const override;
     virtual bool call(JSContext* cx, HandleObject proxy, const CallArgs& args) const override;
     virtual bool construct(JSContext* cx, HandleObject proxy, const CallArgs& args) const override;
 
@@ -586,7 +582,7 @@ class MOZ_STACK_CLASS ProxyOptions {
 
 JS_FRIEND_API(JSObject*)
 NewProxyObject(JSContext* cx, const BaseProxyHandler* handler, HandleValue priv,
-               JSObject* proto, const ProxyOptions& options = ProxyOptions());
+               JSObject* proto, JSObject* parent, const ProxyOptions& options = ProxyOptions());
 
 JSObject*
 RenewProxyObject(JSContext* cx, JSObject* obj, BaseProxyHandler* handler, Value priv);

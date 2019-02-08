@@ -19,7 +19,6 @@ namespace js {
 class TypeDescr;
 class UnboxedLayout;
 
-class PreliminaryObjectArrayWithTemplate;
 class TypeNewScript;
 class HeapTypeSet;
 class AutoClearTypeInferenceStateOnOOM;
@@ -215,9 +214,6 @@ class ObjectGroup : public gc::TenuredCell
         // function, the addendum stores a TypeNewScript.
         Addendum_NewScript,
 
-        // For some plain objects, the addendum stores a PreliminaryObjectArrayWithTemplate.
-        Addendum_PreliminaryObjects,
-
         // When objects in this group have an unboxed representation, the
         // addendum stores an UnboxedLayout (which might have a TypeNewScript
         // as well, if the group is also constructed using 'new').
@@ -286,26 +282,6 @@ class ObjectGroup : public gc::TenuredCell
 
     void setNewScript(TypeNewScript* newScript) {
         setAddendum(Addendum_NewScript, newScript);
-    }
-
-    PreliminaryObjectArrayWithTemplate *maybePreliminaryObjects() {
-        maybeSweep(nullptr);
-        return maybePreliminaryObjectsDontCheckGeneration();
-    }
-
-    PreliminaryObjectArrayWithTemplate *maybePreliminaryObjectsDontCheckGeneration() {
-        if (addendumKind() == Addendum_PreliminaryObjects)
-            return reinterpret_cast<PreliminaryObjectArrayWithTemplate *>(addendum_);
-        return nullptr;
-    }
-
-    void setPreliminaryObjects(PreliminaryObjectArrayWithTemplate *preliminaryObjects) {
-        setAddendum(Addendum_PreliminaryObjects, preliminaryObjects);
-    }
-
-    void detachPreliminaryObjects() {
-        MOZ_ASSERT(maybePreliminaryObjects());
-        setAddendum(Addendum_None, nullptr);
     }
 
     UnboxedLayout* maybeUnboxedLayout() {

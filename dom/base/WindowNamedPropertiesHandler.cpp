@@ -159,8 +159,7 @@ bool
 WindowNamedPropertiesHandler::defineProperty(JSContext* aCx,
                                              JS::Handle<JSObject*> aProxy,
                                              JS::Handle<jsid> aId,
-                                             JS::MutableHandle<JSPropertyDescriptor> aDesc,
-                                             JS::ObjectOpResult &result) const
+                                             JS::MutableHandle<JSPropertyDescriptor> aDesc) const
 {
   ErrorResult rv;
   rv.ThrowTypeError(MSG_DEFINEPROPERTY_ON_GSP);
@@ -281,6 +280,7 @@ WindowNamedPropertiesHandler::Create(JSContext* aCx,
   options.setClass(&WindowNamedPropertiesClass.mBase);
   return js::NewProxyObject(aCx, WindowNamedPropertiesHandler::getInstance(),
                             JS::NullHandleValue, aProto,
+                            js::GetGlobalForObjectCrossCompartment(aProto),
                             options);
 }
 

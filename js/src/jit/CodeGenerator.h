@@ -123,7 +123,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitMaybeToDoubleElement(LMaybeToDoubleElement* lir);
     void visitMaybeCopyElementsForWrite(LMaybeCopyElementsForWrite* lir);
     void visitGuardObjectIdentity(LGuardObjectIdentity* guard);
-    void visitGuardReceiverPolymorphic(LGuardReceiverPolymorphic *lir);
+    void visitGuardShapePolymorphic(LGuardShapePolymorphic* lir);
     void visitTypeBarrierV(LTypeBarrierV* lir);
     void visitTypeBarrierO(LTypeBarrierO* lir);
     void visitMonitorTypes(LMonitorTypes* lir);

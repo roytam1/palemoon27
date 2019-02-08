@@ -44,7 +44,6 @@ ObjectGroup::finalize(FreeOp* fop)
 {
     fop->delete_(newScriptDontCheckGeneration());
     fop->delete_(maybeUnboxedLayoutDontCheckGeneration());
-    fop->delete_(maybePreliminaryObjectsDontCheckGeneration());
 }
 
 void
@@ -79,20 +78,12 @@ ObjectGroup::setAddendum(AddendumKind kind, void* addendum, bool writeBarrier /*
     MOZ_ASSERT(kind <= (OBJECT_FLAG_ADDENDUM_MASK >> OBJECT_FLAG_ADDENDUM_SHIFT));
 
     if (writeBarrier) {
-        // Manually trigger barriers if we are clearing new script or
-        // preliminary object information. Other addendums are immutable.
-        switch (addendumKind()) {
-          case Addendum_PreliminaryObjects:
-            PreliminaryObjectArrayWithTemplate::writeBarrierPre(maybePreliminaryObjects());
-            break;
-          case Addendum_NewScript:
+        // Manually trigger barriers if we are clearing a TypeNewScript. Other
+        // kinds of addendums are immutable.
+        if (newScript())
             TypeNewScript::writeBarrierPre(newScript());
-            break;
-          case Addendum_None:
-            break;
-          default:
-            MOZ_ASSERT(addendumKind() == kind);
-        }
+        else
+            MOZ_ASSERT(addendumKind() == Addendum_None || addendumKind() == kind);
     }
 
     flags_ &= ~OBJECT_FLAG_ADDENDUM_MASK;
@@ -1132,17 +1123,12 @@ ObjectGroup::allocationSiteGroup(JSContext* cx, JSScript* script, jsbytecode* pc
         return nullptr;
 
     if (JSOp(*pc) == JSOP_NEWOBJECT) {
-        // Keep track of the preliminary objects with this group, so we can try
-        // to use an unboxed layout for the object once some are allocated.
-        Shape *shape = script->getObject(pc)->lastProperty();
-        if (!shape->isEmptyShape()) {
-            PreliminaryObjectArrayWithTemplate *preliminaryObjects =
-                cx->new_<PreliminaryObjectArrayWithTemplate>(shape);
-            if (preliminaryObjects)
-                res->setPreliminaryObjects(preliminaryObjects);
-            else
-                cx->recoverFromOutOfMemory();
-        }
+        // This object is always constructed the same way and will not be
+        // observed by other code before all properties have been added. Mark
+        // all the properties as definite properties of the object.
+        JSObject* baseobj = script->getObject(GET_UINT32_INDEX(pc));
+        if (!res->addDefiniteProperties(cx, baseobj->lastProperty()))
+            return nullptr;
     }
 
     if (!table->add(p, key, res))

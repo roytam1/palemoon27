@@ -2533,38 +2533,23 @@ CodeGenerator::visitGuardObjectIdentity(LGuardObjectIdentity* guard)
 }
 
 void
-CodeGenerator::visitGuardReceiverPolymorphic(LGuardReceiverPolymorphic *lir)
+CodeGenerator::visitGuardShapePolymorphic(LGuardShapePolymorphic* lir)
 {
-    const MGuardReceiverPolymorphic *mir = lir->mir();
+    const MGuardShapePolymorphic* mir = lir->mir();
     Register obj = ToRegister(lir->object());
     Register temp = ToRegister(lir->temp());
 
-    MOZ_ASSERT(mir->numShapes() + mir->numUnboxedGroups() > 1);
+    MOZ_ASSERT(mir->numShapes() > 1);
 
     Label done;
+    masm.loadObjShape(obj, temp);
 
-    if (mir->numShapes()) {
-        masm.loadObjShape(obj, temp);
-
-        for (size_t i = 0; i < mir->numShapes(); i++) {
-            Shape *shape = mir->getShape(i);
-            if (i == mir->numShapes() - 1 && !mir->numUnboxedGroups())
-                bailoutCmpPtr(Assembler::NotEqual, temp, ImmGCPtr(shape), lir->snapshot());
-            else
-                masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(shape), &done);
-        }
-    }
-
-    if (mir->numUnboxedGroups()) {
-        masm.loadObjGroup(obj, temp);
-
-        for (size_t i = 0; i < mir->numUnboxedGroups(); i++) {
-            ObjectGroup *group = mir->getUnboxedGroup(i);
-            if (i == mir->numUnboxedGroups() - 1)
-                bailoutCmpPtr(Assembler::NotEqual, temp, ImmGCPtr(group), lir->snapshot());
-            else
-                masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(group), &done);
-        }
+    for (size_t i = 0; i < mir->numShapes(); i++) {
+        Shape* shape = mir->getShape(i);
+        if (i == mir->numShapes() - 1)
+            bailoutCmpPtr(Assembler::NotEqual, temp, ImmGCPtr(shape), lir->snapshot());
+        else
+            masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(shape), &done);
     }
 
     masm.bind(&done);
@@ -4197,12 +4182,8 @@ class OutOfLineNewObject : public OutOfLineCodeBase<CodeGenerator>
     }
 };
 
-typedef JSObject *(*NewInitObjectWithTemplateFn)(JSContext *, HandleObject);
-static const VMFunction NewInitObjectWithTemplateInfo =
-    FunctionInfo<NewInitObjectWithTemplateFn>(NewObjectOperationWithTemplate);
-
-typedef JSObject *(*NewInitObjectFn)(JSContext *, HandleScript, jsbytecode *pc, NewObjectKind);
-static const VMFunction NewInitObjectInfo = FunctionInfo<NewInitObjectFn>(NewObjectOperation);
+typedef JSObject* (*NewInitObjectFn)(JSContext*, HandlePlainObject);
+static const VMFunction NewInitObjectInfo = FunctionInfo<NewInitObjectFn>(NewInitObject);
 
 typedef PlainObject* (*ObjectCreateWithTemplateFn)(JSContext*, HandlePlainObject);
 static const VMFunction ObjectCreateWithTemplateInfo =
@@ -4216,25 +4197,16 @@ CodeGenerator::visitNewObjectVMCall(LNewObject* lir)
     MOZ_ASSERT(!lir->isCall());
     saveLive(lir);
 
-    JSObject *templateObject = lir->mir()->templateObject();
+    pushArg(ImmGCPtr(lir->mir()->templateObject()));
 
     // If we're making a new object with a class prototype (that is, an object
     // that derives its class from its prototype instead of being
-    // PlainObject::class_'d) from self-hosted code, we need a different init
+    // JSObject::class_'d) from self-hosted code, we need a different init
     // function.
     if (lir->mir()->mode() == MNewObject::ObjectLiteral) {
-        if (templateObject) {
-            pushArg(ImmGCPtr(templateObject));
-            callVM(NewInitObjectWithTemplateInfo, lir);
-        } else {
-            pushArg(Imm32(GenericObject));
-            pushArg(ImmPtr(lir->mir()->resumePoint()->pc()));
-            pushArg(ImmGCPtr(lir->mir()->block()->info().script()));
-            callVM(NewInitObjectInfo, lir);
-        }
+        callVM(NewInitObjectInfo, lir);
     } else {
         MOZ_ASSERT(lir->mir()->mode() == MNewObject::ObjectCreate);
-        pushArg(ImmGCPtr(templateObject));
         callVM(ObjectCreateWithTemplateInfo, lir);
     }
 
@@ -4245,12 +4217,8 @@ CodeGenerator::visitNewObjectVMCall(LNewObject* lir)
 }
 
 static bool
-ShouldInitFixedSlots(LInstruction *lir, JSObject *obj)
+ShouldInitFixedSlots(LInstruction* lir, NativeObject* templateObj)
 {
-    if (!obj->isNative())
-        return true;
-    NativeObject *templateObj = &obj->as<NativeObject>();
-
     // Look for StoreFixedSlot instructions following an object allocation
     // that write to this object before a GC is triggered or this object is
     // passed to a VM call. If all fixed slots will be initialized, the
@@ -4337,7 +4305,7 @@ CodeGenerator::visitNewObject(LNewObject* lir)
 {
     Register objReg = ToRegister(lir->output());
     Register tempReg = ToRegister(lir->temp());
-    JSObject* templateObject = lir->mir()->templateObject();
+    PlainObject* templateObject = lir->mir()->templateObject();
 
     if (lir->mir()->shouldUseVM()) {
         visitNewObjectVMCall(lir);
@@ -4635,7 +4603,8 @@ CodeGenerator::visitMutateProto(LMutateProto* lir)
     callVM(MutatePrototypeInfo, lir);
 }
 
-typedef bool(*InitPropFn)(JSContext *, HandleObject, HandlePropertyName, HandleValue, jsbytecode *pc);
+typedef bool(*InitPropFn)(JSContext *cx, HandleNativeObject obj,
+                          HandlePropertyName name, HandleValue value, jsbytecode *pc);
 static const VMFunction InitPropInfo = FunctionInfo<InitPropFn>(InitProp);
 
 void

@@ -192,11 +192,12 @@ MutatePrototype(JSContext* cx, HandlePlainObject obj, HandleValue value)
 }
 
 bool
-InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
+InitProp(JSContext *cx, HandleNativeObject obj, HandlePropertyName name, HandleValue value,
          jsbytecode *pc)
 {
     RootedId id(cx, NameToId(name));
-    return InitPropertyOperation(cx, JSOp(*pc), obj, id, value);
+    unsigned propAttrs = GetInitDataPropAttrs(JSOp(*pc));
+    return NativeDefineProperty(cx, obj, id, value, nullptr, nullptr, propAttrs);
 }
 
 template<bool Equal>
@@ -264,6 +265,23 @@ StringsEqual(JSContext* cx, HandleString lhs, HandleString rhs, bool* res)
 
 template bool StringsEqual<true>(JSContext* cx, HandleString lhs, HandleString rhs, bool* res);
 template bool StringsEqual<false>(JSContext* cx, HandleString lhs, HandleString rhs, bool* res);
+
+JSObject*
+NewInitObject(JSContext* cx, HandlePlainObject templateObject)
+{
+    NewObjectKind newKind = templateObject->isSingleton() ? SingletonObject : GenericObject;
+    if (!templateObject->hasLazyGroup() && templateObject->group()->shouldPreTenure())
+        newKind = TenuredObject;
+    RootedObject obj(cx, CopyInitializerObject(cx, templateObject, newKind));
+
+    if (!obj)
+        return nullptr;
+
+    if (!templateObject->isSingleton())
+        obj->setGroup(templateObject->group());
+
+    return obj;
+}
 
 bool
 ArraySpliceDense(JSContext* cx, HandleObject obj, uint32_t start, uint32_t deleteCount)
@@ -448,24 +466,18 @@ SetProperty(JSContext* cx, HandleObject obj, HandlePropertyName name, HandleValu
         return true;
     }
 
-    ObjectOpResult result;
     if (MOZ_LIKELY(!obj->getOps()->setProperty)) {
-        if (!NativeSetProperty(
-                cx, obj.as<NativeObject>(), obj.as<NativeObject>(), id,
-                (op == JSOP_SETNAME || op == JSOP_STRICTSETNAME ||
-                 op == JSOP_SETGNAME || op == JSOP_STRICTSETGNAME)
-                ? Unqualified
-                : Qualified,
-                &v,
-                result))
-        {
-            return false;
-        }
-    } else {
-        if (!SetProperty(cx, obj, obj, id, &v, result))
-            return false;
+        return NativeSetProperty(
+            cx, obj.as<NativeObject>(), obj.as<NativeObject>(), id,
+            (op == JSOP_SETNAME || op == JSOP_STRICTSETNAME ||
+             op == JSOP_SETGNAME || op == JSOP_STRICTSETGNAME)
+            ? Unqualified
+            : Qualified,
+            &v,
+            strict);
     }
-    return result.checkStrictErrorOrWarning(cx, obj, id, strict);
+
+    return SetProperty(cx, obj, obj, id, &v, strict);
 }
 
 bool

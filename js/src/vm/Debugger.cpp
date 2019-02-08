@@ -3970,8 +3970,7 @@ Debugger::startTraceLogger(JSContext* cx, unsigned argc, Value* vp)
         return false;
 
     TraceLoggerThread* logger = TraceLoggerForMainThread(cx->runtime());
-    if (!TraceLoggerEnable(logger, cx))
-        return false;
+    TraceLoggerEnable(logger, cx);
 
     args.rval().setUndefined();
 
@@ -4450,11 +4449,11 @@ class BytecodeRangeWithPosition : private BytecodeRange
         while (!SN_IS_TERMINATOR(sn) && snpc <= frontPC()) {
             SrcNoteType type = (SrcNoteType) SN_TYPE(sn);
             if (type == SRC_COLSPAN) {
-                ptrdiff_t colspan = SN_OFFSET_TO_COLSPAN(GetSrcNoteOffset(sn, 0));
+                ptrdiff_t colspan = SN_OFFSET_TO_COLSPAN(js_GetSrcNoteOffset(sn, 0));
                 MOZ_ASSERT(ptrdiff_t(column) + colspan >= 0);
                 column += colspan;
             } if (type == SRC_SETLINE) {
-                lineno = size_t(GetSrcNoteOffset(sn, 0));
+                lineno = size_t(js_GetSrcNoteOffset(sn, 0));
                 column = 0;
             } else if (type == SRC_NEWLINE) {
                 lineno++;
@@ -6720,7 +6719,8 @@ DebuggerObject_defineProperty(JSContext* cx, unsigned argc, Value* vp)
             return false;
 
         ErrorCopier ec(ac);
-        if (!StandardDefineProperty(cx, obj, id, desc))
+        bool dummy;
+        if (!StandardDefineProperty(cx, obj, id, desc, true, &dummy))
             return false;
     }
 
@@ -6763,7 +6763,8 @@ DebuggerObject_defineProperties(JSContext* cx, unsigned argc, Value* vp)
 
         ErrorCopier ec(ac);
         for (size_t i = 0; i < n; i++) {
-            if (!StandardDefineProperty(cx, obj, ids[i], descs[i]))
+            bool dummy;
+            if (!StandardDefineProperty(cx, obj, ids[i], descs[i], true, &dummy))
                 return false;
         }
     }
@@ -7510,7 +7511,7 @@ DebuggerEnv_setVariable(JSContext* cx, unsigned argc, Value* vp)
         }
 
         /* Just set the property. */
-        if (!SetProperty(cx, env, env, id, &v))
+        if (!SetProperty(cx, env, env, id, &v, true))
             return false;
     }
 

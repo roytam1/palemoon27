@@ -120,15 +120,14 @@ AddonWrapper<Base>::get(JSContext* cx, JS::Handle<JSObject*> wrapper, JS::Handle
 template<typename Base>
 bool
 AddonWrapper<Base>::set(JSContext* cx, JS::HandleObject wrapper, JS::HandleObject receiver,
-                        JS::HandleId id, JS::MutableHandleValue vp,
-                        JS::ObjectOpResult &result) const
+                        JS::HandleId id, bool strict, JS::MutableHandleValue vp) const
 {
     Rooted<JSPropertyDescriptor> desc(cx);
     if (!Interpose(cx, wrapper, nullptr, id, &desc))
         return false;
 
     if (!desc.object())
-        return Base::set(cx, wrapper, receiver, id, vp, result);
+        return Base::set(cx, wrapper, receiver, id, strict, vp);
 
     if (desc.setter()) {
         MOZ_ASSERT(desc.hasSetterObject());
@@ -136,26 +135,27 @@ AddonWrapper<Base>::set(JSContext* cx, JS::HandleObject wrapper, JS::HandleObjec
         JS::AutoValueVector args(cx);
         args.append(vp);
         RootedValue fval(cx, ObjectValue(*desc.setterObject()));
-        if (!JS_CallFunctionValue(cx, receiver, fval, args, vp))
-            return false;
-        return result.succeed();
-    }
+        return JS_CallFunctionValue(cx, receiver, fval, args, vp);
+    } else {
+        if (!strict)
+            return true;
 
-    return result.failCantSetInterposed();
+        js::ReportErrorWithId(cx, "unable to set interposed data property %s", id);
+        return false;
+    }
 }
 
 template<typename Base>
 bool
 AddonWrapper<Base>::defineProperty(JSContext* cx, HandleObject wrapper, HandleId id,
-                                   MutableHandle<JSPropertyDescriptor> desc,
-                                   JS::ObjectOpResult &result) const
+                                   MutableHandle<JSPropertyDescriptor> desc) const
 {
     Rooted<JSPropertyDescriptor> interpDesc(cx);
     if (!Interpose(cx, wrapper, nullptr, id, &interpDesc))
         return false;
 
     if (!interpDesc.object())
-        return Base::defineProperty(cx, wrapper, id, desc, result);
+        return Base::defineProperty(cx, wrapper, id, desc);
 
     js::ReportErrorWithId(cx, "unable to modify interposed property %s", id);
     return false;

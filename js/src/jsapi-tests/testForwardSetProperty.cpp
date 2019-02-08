@@ -45,14 +45,11 @@ BEGIN_TEST(testForwardSetProperty)
 
     // Non-strict setter
 
-    ObjectOpResult result;
-    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, setval, v3, result));
-    CHECK(result);
+    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, v3, true, setval));
 
     EXEC("assertEq(foundValue, obj3, 'wrong receiver passed to setter');");
 
-    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, setval, setval, result));
-    CHECK(result);
+    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, setval, true, setval));
 
     EXEC("assertEq(typeof foundValue === 'object', true, \n"
          "         'passing 42 as receiver to non-strict setter ' + \n"
@@ -72,13 +69,12 @@ BEGIN_TEST(testForwardSetProperty)
          "obj1;",
          &v1);
 
-    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, setval, v3, result));
-    CHECK(result);
+    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, v3, true, setval));
 
     EXEC("assertEq(foundValue, obj3, 'wrong receiver passed to strict setter');");
 
-    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, setval, setval, result));
-    CHECK(result);
+    CHECK(JS_ForwardSetPropertyTo(cx, obj2, prop, setval, true, setval));
+
 
     JS::RootedValue strictSetSupported(cx);
     EVAL("var strictSetSupported = false; \n"

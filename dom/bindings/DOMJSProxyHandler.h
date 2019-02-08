@@ -105,26 +105,25 @@ public:
   {}
 
   bool defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                      JS::MutableHandle<JSPropertyDescriptor> desc,
-                      JS::ObjectOpResult &result) const MOZ_OVERRIDE
+                      JS::MutableHandle<JSPropertyDescriptor> desc) const override
   {
     bool unused;
-    return defineProperty(cx, proxy, id, desc, result, &unused);
+    return defineProperty(cx, proxy, id, desc, &unused);
   }
   virtual bool defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                              JS::MutableHandle<JSPropertyDescriptor> desc,
-                              JS::ObjectOpResult &result, bool *defined) const;
+                              JS::MutableHandle<JSPropertyDescriptor> desc, bool* defined)
+                              const;
   bool delete_(JSContext* cx, JS::Handle<JSObject*> proxy,
-               JS::Handle<jsid> id, bool* bp) const MOZ_OVERRIDE;
+               JS::Handle<jsid> id, bool* bp) const override;
   bool preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy,
-                         bool *succeeded) const MOZ_OVERRIDE;
+                         bool *succeeded) const override;
   bool isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy, bool *extensible)
                     const override;
   bool has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-           bool* bp) const MOZ_OVERRIDE;
+           bool* bp) const override;
   bool set(JSContext *cx, JS::Handle<JSObject*> proxy, JS::Handle<JSObject*> receiver,
-           JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp, JS::ObjectOpResult &result)
-           const MOZ_OVERRIDE;
+           JS::Handle<jsid> id, bool strict, JS::MutableHandle<JS::Value> vp)
+           const override;
 
   /*
    * If assigning to proxy[id] hits a named setter with OverrideBuiltins or

@@ -69,7 +69,7 @@ class JS_FRIEND_API(Wrapper) : public DirectProxyHandler
     virtual bool defaultValue(JSContext* cx, HandleObject obj, JSType hint,
                               MutableHandleValue vp) const override;
 
-    static JSObject* New(JSContext* cx, JSObject* obj, const Wrapper* handler,
+    static JSObject* New(JSContext* cx, JSObject* obj, JSObject* parent, const Wrapper* handler,
                          const WrapperOptions& options = WrapperOptions());
 
     static JSObject* Renew(JSContext* cx, JSObject* existing, JSObject* obj, const Wrapper* handler);
@@ -117,8 +117,7 @@ class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
     virtual bool getOwnPropertyDescriptor(JSContext* cx, HandleObject wrapper, HandleId id,
                                           MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool defineProperty(JSContext* cx, HandleObject wrapper, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc,
-                                ObjectOpResult &result) const MOZ_OVERRIDE;
+                                MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool ownPropertyKeys(JSContext* cx, HandleObject wrapper,
                                  AutoIdVector& props) const override;
     virtual bool delete_(JSContext* cx, HandleObject wrapper, HandleId id, bool* bp) const override;
@@ -135,8 +134,8 @@ class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
     virtual bool has(JSContext* cx, HandleObject wrapper, HandleId id, bool* bp) const override;
     virtual bool get(JSContext* cx, HandleObject wrapper, HandleObject receiver,
                      HandleId id, MutableHandleValue vp) const override;
-    virtual bool set(JSContext *cx, HandleObject wrapper, HandleObject receiver, HandleId id,
-                     MutableHandleValue vp, ObjectOpResult &result) const MOZ_OVERRIDE;
+    virtual bool set(JSContext* cx, HandleObject wrapper, HandleObject receiver,
+                     HandleId id, bool strict, MutableHandleValue vp) const override;
     virtual bool call(JSContext* cx, HandleObject wrapper, const CallArgs& args) const override;
     virtual bool construct(JSContext* cx, HandleObject wrapper, const CallArgs& args) const override;
 
@@ -183,8 +182,7 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
                        bool* bp) const override;
 
     virtual bool defineProperty(JSContext* cx, HandleObject wrapper, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc,
-                                ObjectOpResult &result) const MOZ_OVERRIDE;
+                                MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool isExtensible(JSContext* cx, HandleObject wrapper, bool* extensible) const override;
     virtual bool preventExtensions(JSContext* cx, HandleObject wrapper, bool* succeeded) const override;
     virtual bool setPrototypeOf(JSContext* cx, HandleObject proxy, HandleObject proto,
@@ -219,7 +217,8 @@ typedef SecurityWrapper<Wrapper> SameCompartmentSecurityWrapper;
 typedef SecurityWrapper<CrossCompartmentWrapper> CrossCompartmentSecurityWrapper;
 
 extern JSObject*
-TransparentObjectWrapper(JSContext* cx, HandleObject existing, HandleObject obj);
+TransparentObjectWrapper(JSContext* cx, HandleObject existing, HandleObject obj,
+                         HandleObject parent);
 
 inline bool
 IsWrapper(JSObject* obj)

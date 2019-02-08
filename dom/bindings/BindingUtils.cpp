@@ -1469,14 +1469,13 @@ XrayResolveOwnProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
 bool
 XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
                    JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                   JS::MutableHandle<JSPropertyDescriptor> desc,
-                   JS::ObjectOpResult &result, bool *defined)
+                   JS::MutableHandle<JSPropertyDescriptor> desc, bool* defined)
 {
   if (!js::IsProxy(obj))
-    return true;
+      return true;
 
   const DOMProxyHandler* handler = GetDOMProxyHandler(obj);
-  return handler->defineProperty(cx, wrapper, id, desc, result, defined);
+  return handler->defineProperty(cx, wrapper, id, desc, defined);
 }
 
 template<typename SpecType>
@@ -1634,7 +1633,7 @@ XrayOwnPropertyKeys(JSContext* cx, JS::Handle<JSObject*> wrapper,
                                    obj, flags, props);
 }
 
-NativePropertyHooks sEmptyNativePropertyHooks = {
+NativePropertyHooks sWorkerNativePropertyHooks = {
   nullptr,
   nullptr,
   {
@@ -1832,7 +1831,7 @@ ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
     return NS_ERROR_FAILURE;
   }
 
-  JS::Rooted<JSObject*> newobj(aCx, JS_CloneObject(aCx, aObj, proto));
+  JS::Rooted<JSObject*> newobj(aCx, JS_CloneObject(aCx, aObj, proto, newParent));
   if (!newobj) {
     return NS_ERROR_FAILURE;
   }
@@ -2436,7 +2435,13 @@ EnforceNotInPrerendering(JSContext* aCx, JSObject* aObj)
     return true;
   }
 
-  if (window->GetIsPrerendered()) {
+  nsIDocShell* docShell = window->GetDocShell();
+  if (!docShell) {
+    // Without a docshell, we cannot check the safety.
+    return true;
+  }
+
+  if (docShell->GetIsPrerendered()) {
     HandlePrerenderingViolation(window);
     // When the bindings layer sees a false return value, it returns false form
     // the JSNative in order to trigger an uncatchable exception.

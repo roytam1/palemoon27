@@ -157,10 +157,10 @@ class MIRGenerator
 
     typedef Vector<ObjectGroup*, 0, JitAllocPolicy> ObjectGroupVector;
 
-    // When abortReason() == AbortReason_PreliminaryObjects, all groups with
-    // preliminary objects which haven't been analyzed yet.
-    const ObjectGroupVector &abortedPreliminaryGroups() const {
-        return abortedPreliminaryGroups_;
+    // When abortReason() == AbortReason_NewScriptProperties, all types which
+    // the new script properties analysis hasn't been performed on yet.
+    const ObjectGroupVector& abortedNewScriptPropertiesGroups() const {
+        return abortedNewScriptPropertiesGroups_;
     }
 
   public:
@@ -175,7 +175,7 @@ class MIRGenerator
     MIRGraph* graph_;
     AbortReason abortReason_;
     bool shouldForceAbort_; // Force AbortReason_Disable
-    ObjectGroupVector abortedPreliminaryGroups_;
+    ObjectGroupVector abortedNewScriptPropertiesGroups_;
     bool error_;
     mozilla::Atomic<bool, mozilla::Relaxed>* pauseBuild_;
     mozilla::Atomic<bool, mozilla::Relaxed> cancelBuild_;
@@ -200,8 +200,7 @@ class MIRGenerator
     // CodeGenerator::link).
     ObjectVector nurseryObjects_;
 
-    void addAbortedPreliminaryGroup(ObjectGroup *group);
-
+    void addAbortedNewScriptPropertiesGroup(ObjectGroup* type);
     void setForceAbort() {
         shouldForceAbort_ = true;
     }

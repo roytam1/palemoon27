@@ -574,55 +574,49 @@ static Shape* GlobalShapeForGetPropFunction(ICStub* stub)
     if (stub->isGetProp_CallNativePrototype()) {
         ICGetProp_CallNativePrototype* nstub =
             stub->toGetProp_CallNativePrototype();
-        const ReceiverGuard &guard = nstub->receiverGuard();
-        if (Shape *shape = guard.shape()) {
-            if (shape->getObjectClass()->flags & JSCLASS_IS_GLOBAL)
-                return shape;
-        }
+        if (nstub->receiverShape()->getObjectClass()->flags & JSCLASS_IS_GLOBAL)
+            return nstub->receiverShape();
     }
     return nullptr;
 }
 
 static bool
-AddReceiver(BaselineInspector::ShapeVector &nativeShapes,
-            BaselineInspector::ObjectGroupVector &unboxedGroups,
-            ReceiverGuard::Token receiver)
+AddReceiverShape(BaselineInspector::ShapeVector& shapes, Shape* shape)
 {
-    if (Shape *shape = ReceiverGuard::tokenShape(receiver))
-        return VectorAppendNoDuplicate(nativeShapes, shape);
-    ObjectGroup *group = ReceiverGuard::tokenGroup(receiver);
-    return VectorAppendNoDuplicate(unboxedGroups, group);
+    MOZ_ASSERT(shape);
+
+    for (size_t i = 0; i < shapes.length(); i++) {
+        if (shapes[i] == shape)
+            return true;
+    }
+
+    return shapes.append(shape);
 }
 
 static bool
-AddReceiverForGetPropFunction(BaselineInspector::ShapeVector &nativeShapes,
-                              BaselineInspector::ObjectGroupVector &unboxedGroups,
-                              ICStub *stub)
+AddReceiverShapeForGetPropFunction(BaselineInspector::ShapeVector& shapes, ICStub* stub)
 {
     if (stub->isGetProp_CallNative())
         return true;
 
-    ReceiverGuard::Token token;
+    Shape* shape = nullptr;
     if (stub->isGetProp_CallScripted())
-        token = stub->toGetProp_CallScripted()->receiverGuard().token();
+        shape = stub->toGetProp_CallScripted()->receiverShape();
     else
-        token = stub->toGetProp_CallNativePrototype()->receiverGuard().token();
+        shape = stub->toGetProp_CallNativePrototype()->receiverShape();
 
-    return AddReceiver(nativeShapes, unboxedGroups, token);
+    return AddReceiverShape(shapes, shape);
 }
 
 bool
 BaselineInspector::commonGetPropFunction(jsbytecode* pc, JSObject** holder, Shape** holderShape,
                                          JSFunction** commonGetter, Shape** globalShape,
-                                         bool *isOwnProperty,
-                                         ShapeVector &nativeShapes,
-                                         ObjectGroupVector &unboxedGroups)
+                                         bool* isOwnProperty, ShapeVector& receiverShapes)
 {
     if (!hasBaselineScript())
         return false;
 
-    MOZ_ASSERT(nativeShapes.empty());
-    MOZ_ASSERT(unboxedGroups.empty());
+    MOZ_ASSERT(receiverShapes.empty());
 
     *holder = nullptr;
     const ICEntry& entry = icEntryFromPC(pc);
@@ -634,7 +628,7 @@ BaselineInspector::commonGetPropFunction(jsbytecode* pc, JSObject** holder, Shap
         {
             ICGetPropCallGetter* nstub = static_cast<ICGetPropCallGetter*>(stub);
             bool isOwn = stub->isGetProp_CallNative();
-            if (!AddReceiverForGetPropFunction(nativeShapes, unboxedGroups, nstub))
+            if (!AddReceiverShapeForGetPropFunction(receiverShapes, nstub))
                 return false;
 
             if (!*holder) {
@@ -666,21 +660,19 @@ BaselineInspector::commonGetPropFunction(jsbytecode* pc, JSObject** holder, Shap
     if (!*holder)
         return false;
 
-    MOZ_ASSERT(*isOwnProperty == (nativeShapes.empty() && unboxedGroups.empty()));
+    MOZ_ASSERT(*isOwnProperty == receiverShapes.empty());
     return true;
 }
 
 bool
 BaselineInspector::commonSetPropFunction(jsbytecode* pc, JSObject** holder, Shape** holderShape,
                                          JSFunction** commonSetter, bool* isOwnProperty,
-                                         ShapeVector &nativeShapes,
-                                         ObjectGroupVector &unboxedGroups)
+                                         ShapeVector& receiverShapes)
 {
     if (!hasBaselineScript())
         return false;
 
-    MOZ_ASSERT(nativeShapes.empty());
-    MOZ_ASSERT(unboxedGroups.empty());
+    MOZ_ASSERT(receiverShapes.empty());
 
     *holder = nullptr;
     const ICEntry& entry = icEntryFromPC(pc);
@@ -688,7 +680,7 @@ BaselineInspector::commonSetPropFunction(jsbytecode* pc, JSObject** holder, Shap
     for (ICStub* stub = entry.firstStub(); stub; stub = stub->next()) {
         if (stub->isSetProp_CallScripted() || stub->isSetProp_CallNative()) {
             ICSetPropCallSetter* nstub = static_cast<ICSetPropCallSetter*>(stub);
-	    if (!AddReceiver(nativeShapes, unboxedGroups, nstub->guard().token()))
+            if (!AddReceiverShape(receiverShapes, nstub->shape()))
                 return false;
 
             if (!*holder) {

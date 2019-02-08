@@ -44,127 +44,6 @@ namespace JS {
 
 class AutoIdVector;
 
-/*
- * Per ES6, the [[DefineOwnProperty]] internal method has three different
- * possible outcomes:
- *
- * -   It can throw an exception (which we indicate by returning false).
- *
- * -   It can return true, indicating unvarnished success.
- *
- * -   It can return false, indicating "strict failure". The property could
- *     not be defined. It's an error, but no exception was thrown.
- *
- * It's not just [[DefineOwnProperty]]: all the mutating internal methods have
- * the same three outcomes. (The other affected internal methods are [[Set]],
- * [[Delete]], [[SetPrototypeOf]], and [[PreventExtensions]].)
- *
- * If you think this design is awful, you're not alone.  But as it's the
- * standard, we must represent these boolean "success" values somehow.
- * ObjectOpSuccess is the class for this. It's like a bool, but when it's false
- * it also stores an error code.
- *
- * Typical usage:
- *
- *     ObjectOpResult result;
- *     if (!DefineProperty(cx, obj, id, ..., result))
- *         return false;
- *     if (!result)
- *         return result.reportError(cx, obj, id);
- *
- * Users don't have to call `result.report()`; another possible ending is:
- *
- *     argv.rval().setBoolean(bool(result));
- *     return true;
- */
-class ObjectOpResult
-{
-  private:
-    uint32_t code_;
-
-  public:
-    enum { OkCode = 0, Uninitialized = 0xffffffff };
-
-    ObjectOpResult() : code_(Uninitialized) {}
-
-    /* Return true if fail() was not called. */
-    bool ok() const {
-        MOZ_ASSERT(code_ != Uninitialized);
-        return code_ == OkCode;
-    }
-
-    explicit operator bool() const { return ok(); }
-
-    /* Set this ObjectOpResult to true and return true. */
-    bool succeed() {
-        code_ = OkCode;
-        return true;
-    }
-
-    /*
-     * Set this ObjectOpResult to false with an error code.
-     *
-     * Always returns true, as a convenience. Typical usage will be:
-     *
-     *     if (funny condition)
-     *         return result.fail(JSMSG_CANT_DO_THE_THINGS);
-     *
-     * The true return value indicates that no exception is pending, and it
-     * would be OK to ignore the failure and continue.
-     */
-    bool fail(uint32_t msg) {
-        MOZ_ASSERT(msg != OkCode);
-        code_ = msg;
-        return true;
-    }
-
-    JS_PUBLIC_API(bool) failCantRedefineProp();
-    JS_PUBLIC_API(bool) failReadOnly();
-    JS_PUBLIC_API(bool) failGetterOnly();
-    JS_PUBLIC_API(bool) failCantSetInterposed();
-
-    uint32_t failureCode() const {
-        MOZ_ASSERT(!ok());
-        return code_;
-    }
-
-    /*
-     * Report an error or warning if necessary; return true to proceed and
-     * false if an error was reported. Call this when failure should cause
-     * a warning if extraWarnings are enabled.
-     *
-     * The precise rules are like this:
-     *
-     * -   If ok(), then we succeeded. Do nothing and return true.
-     * -   Otherwise, if |strict| is true, or if cx has both extraWarnings and
-     *     werrorOption enabled, throw a TypeError and return false.
-     * -   Otherwise, if cx has extraWarnings enabled, emit a warning and
-     *     return true.
-     * -   Otherwise, do nothing and return true.
-     */
-    bool checkStrictErrorOrWarning(JSContext *cx, HandleObject obj, HandleId id, bool strict) {
-        if (ok())
-            return true;
-        return reportStrictErrorOrWarning(cx, obj, id, strict);
-    }
-
-    /*
-     * Convenience method. Return true if ok() or if strict is false; otherwise
-     * throw a TypeError and return false.
-     */
-    bool checkStrict(JSContext *cx, HandleObject obj, HandleId id) {
-        return checkStrictErrorOrWarning(cx, obj, id, true);
-    }
-
-    /* Throw a TypeError. Call this only if !ok(). */
-    bool reportError(JSContext *cx, HandleObject obj, HandleId id) {
-        return reportStrictErrorOrWarning(cx, obj, id, true);
-    }
-
-    /* Helper function for checkStrictErrorOrWarning's slow path. */
-    JS_PUBLIC_API(bool) reportStrictErrorOrWarning(JSContext *cx, HandleObject obj, HandleId id, bool strict);
-};
-
 }
 
 // JSClass operation signatures.
@@ -183,7 +62,7 @@ typedef bool
 // set.
 typedef bool
 (* JSStrictPropertyOp)(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
-                       JS::MutableHandleValue vp, JS::ObjectOpResult &result);
+                       bool strict, JS::MutableHandleValue vp);
 
 // Delete a property named by id in obj.
 //
@@ -287,8 +166,7 @@ typedef bool
                      JS::MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
 typedef bool
 (* DefinePropertyOp)(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
-                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs,
-                     JS::ObjectOpResult &result);
+                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 typedef bool
 (* HasPropertyOp)(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* foundp);
 typedef bool
@@ -296,7 +174,7 @@ typedef bool
                   JS::MutableHandleValue vp);
 typedef bool
 (* SetPropertyOp)(JSContext* cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
-                  JS::MutableHandleValue vp, JS::ObjectOpResult &result);
+                  JS::MutableHandleValue vp, bool strict);
 typedef bool
 (* GetOwnPropertyOp)(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                      JS::MutableHandle<JSPropertyDescriptor> desc);

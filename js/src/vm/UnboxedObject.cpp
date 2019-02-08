@@ -362,13 +362,12 @@ UnboxedPlainObject::obj_lookupProperty(JSContext* cx, HandleObject obj,
 
 /* static */ bool
 UnboxedPlainObject::obj_defineProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue v,
-                                       PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
-                                       ObjectOpResult &result)
+                                       PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
     if (!convertToNative(cx, obj))
         return false;
 
-    return DefineProperty(cx, obj, id, v, getter, setter, attrs, result);
+    return DefineProperty(cx, obj, id, v, getter, setter, attrs);
 }
 
 /* static */ bool
@@ -410,24 +409,24 @@ UnboxedPlainObject::obj_getProperty(JSContext* cx, HandleObject obj, HandleObjec
 
 /* static */ bool
 UnboxedPlainObject::obj_setProperty(JSContext* cx, HandleObject obj, HandleObject receiver,
-                                    HandleId id, MutableHandleValue vp, ObjectOpResult &result)
+                                    HandleId id, MutableHandleValue vp, bool strict)
 {
     const UnboxedLayout& layout = obj->as<UnboxedPlainObject>().layout();
 
     if (const UnboxedLayout::Property* property = layout.lookup(id)) {
         if (obj == receiver) {
             if (obj->as<UnboxedPlainObject>().setValue(cx, *property, vp))
-                return result.succeed();
+                return true;
 
             if (!convertToNative(cx, obj))
                 return false;
-            return SetProperty(cx, obj, receiver, id, vp, result);
+            return SetProperty(cx, obj, receiver, id, vp, strict);
         }
 
-        return SetPropertyByDefining(cx, obj, receiver, id, vp, false, result);
+        return SetPropertyByDefining(cx, obj, receiver, id, vp, strict, false);
     }
 
-    return SetPropertyOnProto(cx, obj, receiver, id, vp, result);
+    return SetPropertyOnProto(cx, obj, receiver, id, vp, strict);
 }
 
 /* static */ bool
@@ -564,14 +563,11 @@ js::TryConvertToUnboxedLayout(JSContext* cx, Shape* templateShape,
 
         objectCount++;
 
-        // All preliminary objects must have been created with enough space to
-        // fill in their unboxed data inline. This is ensured either by using
-        // the largest allocation kind (which limits the maximum size of an
-        // unboxed object), or by using an allocation kind that covers all
-        // properties in the template, as the space used by unboxed properties
-        // less than or equal to that used by boxed properties.
-        MOZ_ASSERT(gc::GetGCKindSlots(obj->asTenured().getAllocKind()) >=
-                   Min(NativeObject::MAX_FIXED_SLOTS, templateShape->slotSpan()));
+        // All preliminary objects must have been created with the largest
+        // allocation kind possible, which will allow their unboxed data to be
+        // filled in inline.
+        MOZ_ASSERT(gc::GetGCKindSlots(obj->asTenured().getAllocKind()) ==
+                   NativeObject::MAX_FIXED_SLOTS);
 
         if (obj->as<PlainObject>().lastProperty() != templateShape ||
             obj->as<PlainObject>().hasDynamicElements())

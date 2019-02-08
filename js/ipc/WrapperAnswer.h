@@ -28,7 +28,8 @@ class WrapperAnswer : public virtual JavaScriptShared
                                       ReturnStatus* rs,
                                       PPropertyDescriptor* out);
     bool RecvDefineProperty(const ObjectId& objId, const JSIDVariant& id,
-                            const PPropertyDescriptor &flags, ReturnStatus *rs);
+                            const PPropertyDescriptor& flags,
+                            ReturnStatus* rs);
     bool RecvDelete(const ObjectId& objId, const JSIDVariant& id,
                     ReturnStatus* rs, bool* success);
 
@@ -40,8 +41,8 @@ class WrapperAnswer : public virtual JavaScriptShared
                  const JSIDVariant& id,
                  ReturnStatus* rs, JSVariant* result);
     bool RecvSet(const ObjectId& objId, const ObjectVariant& receiverVar,
-                 const JSIDVariant &id, const JSVariant &value, ReturnStatus *rs,
-                 JSVariant *result);
+                 const JSIDVariant& id, const bool& strict,
+                 const JSVariant& value, ReturnStatus* rs, JSVariant* result);
 
     bool RecvIsExtensible(const ObjectId& objId, ReturnStatus* rs,
                           bool* result);
@@ -66,8 +67,7 @@ class WrapperAnswer : public virtual JavaScriptShared
 
   private:
     bool fail(JSContext* cx, ReturnStatus* rs);
-    bool ok(ReturnStatus *rs);
-    bool ok(ReturnStatus *rs, const JS::ObjectOpResult &result);
+    bool ok(ReturnStatus* rs);
 };
 
 } // mozilla

@@ -106,7 +106,6 @@ class RangeAnalysis
     bool addRangeAssertions();
     bool removeBetaNodes();
     bool prepareForUCE(bool* shouldRemoveDeadCode);
-    bool tryRemovingGuards();
     bool truncate();
 
     // Any iteration bounds discovered for loops in the graph.

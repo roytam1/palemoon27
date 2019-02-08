@@ -3318,9 +3318,6 @@ MCompare::tryFoldEqualOperands(bool* result)
             return false;
     }
 
-    if (DeadIfUnused(lhs()))
-        lhs()->setGuardRangeBailouts();
-
     *result = (jsop() == JSOP_STRICTEQ);
     return true;
 }
@@ -3788,9 +3785,8 @@ MBeta::printOpcode(FILE* fp) const
 bool
 MNewObject::shouldUseVM() const
 {
-    if (JSObject *obj = templateObject())
-        return obj->is<PlainObject>() && obj->as<PlainObject>().hasDynamicSlots();
-    return true;
+    PlainObject* obj = templateObject();
+    return obj->isSingleton() || obj->hasDynamicSlots();
 }
 
 bool
@@ -3809,7 +3805,7 @@ MObjectState::MObjectState(MDefinition* obj)
     setRecoveredOnBailout();
     NativeObject* templateObject = nullptr;
     if (obj->isNewObject())
-        templateObject = &obj->toNewObject()->templateObject()->as<PlainObject>();
+        templateObject = obj->toNewObject()->templateObject();
     else if (obj->isCreateThisWithTemplate())
         templateObject = &obj->toCreateThisWithTemplate()->templateObject()->as<PlainObject>();
     else
@@ -4106,24 +4102,17 @@ MLoadElement::foldsTo(TempAllocator& alloc)
 }
 
 bool
-MGuardReceiverPolymorphic::congruentTo(const MDefinition *ins) const
+MGuardShapePolymorphic::congruentTo(const MDefinition* ins) const
 {
-    if (!ins->isGuardReceiverPolymorphic())
+    if (!ins->isGuardShapePolymorphic())
         return false;
 
-    const MGuardReceiverPolymorphic *other = ins->toGuardReceiverPolymorphic();
-
+    const MGuardShapePolymorphic* other = ins->toGuardShapePolymorphic();
     if (numShapes() != other->numShapes())
         return false;
+
     for (size_t i = 0; i < numShapes(); i++) {
         if (getShape(i) != other->getShape(i))
-            return false;
-    }
-
-    if (numUnboxedGroups() != other->numUnboxedGroups())
-        return false;
-    for (size_t i = 0; i < numUnboxedGroups(); i++) {
-        if (getUnboxedGroup(i) != other->getUnboxedGroup(i))
             return false;
     }
 

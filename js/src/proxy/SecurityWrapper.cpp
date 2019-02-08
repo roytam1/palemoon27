@@ -105,8 +105,7 @@ SecurityWrapper<Base>::boxedValue_unbox(JSContext* cx, HandleObject obj, Mutable
 template <class Base>
 bool
 SecurityWrapper<Base>::defineProperty(JSContext* cx, HandleObject wrapper,
-                                      HandleId id, MutableHandle<PropertyDescriptor> desc,
-                                      ObjectOpResult &result) const
+                                      HandleId id, MutableHandle<PropertyDescriptor> desc) const
 {
     if (desc.getter() || desc.setter()) {
         RootedValue idVal(cx, IdToValue(id));
@@ -122,7 +121,7 @@ SecurityWrapper<Base>::defineProperty(JSContext* cx, HandleObject wrapper,
         return false;
     }
 
-    return Base::defineProperty(cx, wrapper, id, desc, result);
+    return Base::defineProperty(cx, wrapper, id, desc);
 }
 
 template <class Base>

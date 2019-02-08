@@ -49,13 +49,12 @@ CrossCompartmentWrapper::getOwnPropertyDescriptor(JSContext* cx, HandleObject wr
 
 bool
 CrossCompartmentWrapper::defineProperty(JSContext* cx, HandleObject wrapper, HandleId id,
-                                        MutableHandle<PropertyDescriptor> desc,
-                                        ObjectOpResult &result) const
+                                        MutableHandle<PropertyDescriptor> desc) const
 {
     Rooted<PropertyDescriptor> desc2(cx, desc);
     PIERCE(cx, wrapper,
            cx->compartment()->wrap(cx, &desc2),
-           Wrapper::defineProperty(cx, wrapper, id, &desc2, result),
+           Wrapper::defineProperty(cx, wrapper, id, &desc2),
            NOTHING);
 }
 
@@ -169,13 +168,13 @@ CrossCompartmentWrapper::get(JSContext* cx, HandleObject wrapper, HandleObject r
 
 bool
 CrossCompartmentWrapper::set(JSContext* cx, HandleObject wrapper, HandleObject receiver,
-                             HandleId id, MutableHandleValue vp, ObjectOpResult &result) const
+                             HandleId id, bool strict, MutableHandleValue vp) const
 {
     RootedObject receiverCopy(cx, receiver);
     PIERCE(cx, wrapper,
            cx->compartment()->wrap(cx, &receiverCopy) &&
            cx->compartment()->wrap(cx, vp),
-           Wrapper::set(cx, wrapper, receiverCopy, id, vp, result),
+           Wrapper::set(cx, wrapper, receiverCopy, id, strict, vp),
            NOTHING);
 }
 

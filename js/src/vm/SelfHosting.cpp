@@ -373,8 +373,7 @@ js::intrinsic_UnsafePutElements(JSContext* cx, unsigned argc, Value* vp)
             MOZ_ASSERT_IF(arrobj->is<TypedObject>(), idx < uint32_t(arrobj->as<TypedObject>().length()));
             RootedValue tmp(cx, args[elemi]);
             // XXX: Always non-strict.
-            ObjectOpResult ignored;
-            if (!SetElement(cx, arrobj, arrobj, idx, &tmp, ignored))
+            if (!SetElement(cx, arrobj, arrobj, idx, &tmp, false))
                 return false;
         } else {
             MOZ_ASSERT(idx < arrobj->as<ArrayObject>().getDenseInitializedLength());
@@ -422,7 +421,8 @@ js::intrinsic_DefineDataProperty(JSContext* cx, unsigned argc, Value* vp)
 
     desc = PropDesc(value, writable, enumerable, configurable);
 
-    return StandardDefineProperty(cx, obj, id, desc);
+    bool result;
+    return StandardDefineProperty(cx, obj, id, desc, true, &result);
 }
 
 bool

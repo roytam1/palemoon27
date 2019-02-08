@@ -73,20 +73,6 @@ MIRType MIRTypeFromValue(const js::Value& vp)
     _(Lowered)       /* (Debug only) has a virtual register */                  \
     _(Guard)         /* Not removable if uses == 0 */                           \
                                                                                 \
-    /* Flag an instruction to be considered as a Guard if the instructions
-     * bails out on some inputs.
-     *
-     * Some optimizations can replace an instruction, and leave its operands
-     * unused. When the type information of the operand got used as a
-     * predicate of the transformation, then we have to flag the operands as
-     * GuardRangeBailouts.
-     *
-     * This flag prevents further optimization of instructions, which
-     * might remove the run-time checks (bailout conditions) used as a
-     * predicate of the previous transformation.
-     */                                                                         \
-    _(GuardRangeBailouts)                                                       \
-                                                                                \
     /* Keep the flagged instruction in resume points and do not substitute this
      * instruction by an UndefinedValue. This might be used by call inlining
      * when a function argument is not used by the inlined instructions.
@@ -2957,10 +2943,10 @@ class MNewObject
         initialHeap_(initialHeap),
         mode_(mode)
     {
+        PlainObject* obj = templateObject();
         MOZ_ASSERT_IF(mode != ObjectLiteral, !shouldUseVM());
         setResultType(MIRType_Object);
-
-        if (JSObject *obj = templateObject())
+        if (!obj->isSingleton())
             setResultTypeSet(MakeSingletonTypeSet(constraints, obj));
 
         // The constant is kept separated in a MConstant, this way we can safely
@@ -2968,8 +2954,7 @@ class MNewObject
         // making it emittedAtUses, we do not produce register allocations for
         // it and inline its content inside the code produced by the
         // CodeGenerator.
-        if (templateConst->toConstant()->value().isObject())
-            templateConst->setEmittedAtUses();
+        templateConst->setEmittedAtUses();
     }
 
   public:
@@ -2990,8 +2975,8 @@ class MNewObject
         return mode_;
     }
 
-    JSObject *templateObject() const {
-        return getOperand(0)->toConstant()->value().toObjectOrNull();
+    PlainObject* templateObject() const {
+        return &getOperand(0)->toConstant()->value().toObject().as<PlainObject>();
     }
 
     gc::InitialHeap initialHeap() const {
@@ -9975,18 +9960,16 @@ class MGuardShape
     }
 };
 
-// Bail if the object's shape or unboxed group is not in the input list.
-class MGuardReceiverPolymorphic
+// Bail if the object's shape is not one of the shapes in shapes_.
+class MGuardShapePolymorphic
   : public MUnaryInstruction,
     public SingleObjectPolicy::Data
 {
     Vector<Shape*, 4, JitAllocPolicy> shapes_;
-    Vector<ObjectGroup *, 4, JitAllocPolicy> unboxedGroups_;
 
-    MGuardReceiverPolymorphic(TempAllocator &alloc, MDefinition *obj)
+    MGuardShapePolymorphic(TempAllocator& alloc, MDefinition* obj)
       : MUnaryInstruction(obj),
-        shapes_(alloc),
-	unboxedGroups_(alloc)
+        shapes_(alloc)
     {
         setGuard();
         setMovable();
@@ -9994,16 +9977,15 @@ class MGuardReceiverPolymorphic
     }
 
   public:
-    INSTRUCTION_HEADER(GuardReceiverPolymorphic)
+    INSTRUCTION_HEADER(GuardShapePolymorphic)
 
-    static MGuardReceiverPolymorphic *New(TempAllocator &alloc, MDefinition *obj) {
-        return new(alloc) MGuardReceiverPolymorphic(alloc, obj);
+    static MGuardShapePolymorphic* New(TempAllocator& alloc, MDefinition* obj) {
+        return new(alloc) MGuardShapePolymorphic(alloc, obj);
     }
 
     MDefinition* obj() const {
         return getOperand(0);
     }
-
     bool addShape(Shape* shape) {
         return shapes_.append(shape);
     }
@@ -10012,16 +9994,6 @@ class MGuardReceiverPolymorphic
     }
     Shape* getShape(size_t i) const {
         return shapes_[i];
-    }
-
-    bool addUnboxedGroup(ObjectGroup *group) {
-        return unboxedGroups_.append(group);
-    }
-    size_t numUnboxedGroups() const {
-        return unboxedGroups_.length();
-    }
-    ObjectGroup *getUnboxedGroup(size_t i) const {
-        return unboxedGroups_[i];
     }
 
     bool congruentTo(const MDefinition* ins) const override;

@@ -298,7 +298,7 @@ CallObject::createHollowForDebug(JSContext* cx, HandleFunction callee)
     RootedScript script(cx, callee->nonLazyScript());
     for (BindingIter bi(script); !bi.done(); bi++) {
         id = NameToId(bi->name());
-        if (!SetProperty(cx, callobj, callobj, id, &optimizedOut))
+        if (!SetProperty(cx, callobj, callobj, id, &optimizedOut, true))
             return nullptr;
     }
 
@@ -503,11 +503,10 @@ with_LookupProperty(JSContext* cx, HandleObject obj, HandleId id,
 
 static bool
 with_DefineProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs,
-                    ObjectOpResult &result)
+                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
-    return DefineProperty(cx, actual, id, value, getter, setter, attrs, result);
+    return DefineProperty(cx, actual, id, value, getter, setter, attrs);
 }
 
 static bool
@@ -535,13 +534,13 @@ with_GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleI
 
 static bool
 with_SetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
-                 MutableHandleValue vp, ObjectOpResult &result)
+                 MutableHandleValue vp, bool strict)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
     RootedObject actualReceiver(cx, receiver);
     if (receiver == obj)
         actualReceiver = actual;
-    return SetProperty(cx, actual, actualReceiver, id, vp, result);
+    return SetProperty(cx, actual, actualReceiver, id, vp, strict);
 }
 
 static bool
@@ -1010,7 +1009,7 @@ uninitialized_GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver
 
 static bool
 uninitialized_SetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
-                          MutableHandleValue vp, ObjectOpResult &result)
+                          MutableHandleValue vp, bool strict)
 {
     ReportUninitializedLexicalId(cx, id);
     return false;
@@ -1672,8 +1671,8 @@ class DebugScopeProxy : public BaseProxyHandler
         }
     }
 
-    bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-             MutableHandleValue vp, ObjectOpResult &result) const MOZ_OVERRIDE
+    bool set(JSContext* cx, HandleObject proxy, HandleObject receiver, HandleId id, bool strict,
+             MutableHandleValue vp) const override
     {
         Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
@@ -1687,17 +1686,16 @@ class DebugScopeProxy : public BaseProxyHandler
 
         switch (access) {
           case ACCESS_UNALIASED:
-            return result.succeed();
+            return true;
           case ACCESS_GENERIC:
-            return SetProperty(cx, scope, scope, id, vp, result);
+            return SetProperty(cx, scope, scope, id, vp, strict);
           default:
             MOZ_CRASH("bad AccessResult");
         }
     }
 
     bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                        MutableHandle<PropertyDescriptor> desc,
-                        ObjectOpResult &result) const MOZ_OVERRIDE
+                        MutableHandle<PropertyDescriptor> desc) const override
     {
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
 
@@ -1707,7 +1705,13 @@ class DebugScopeProxy : public BaseProxyHandler
         if (found)
             return Throw(cx, id, JSMSG_CANT_REDEFINE_PROP);
 
-        return JS_DefinePropertyById(cx, scope, id, desc, result);
+        return JS_DefinePropertyById(cx, scope, id, desc.value(),
+                                     // Descriptors never store JSNatives for
+                                     // accessors: they have either JSFunctions
+                                     // or JSPropertyOps.
+                                     desc.attributes() | JSPROP_PROPOP_ACCESSORS,
+                                     JS_PROPERTYOP_GETTER(desc.getter()),
+                                     JS_PROPERTYOP_SETTER(desc.setter()));
     }
 
     bool ownPropertyKeys(JSContext* cx, HandleObject proxy, AutoIdVector& props) const override
@@ -1815,7 +1819,7 @@ DebugScopeObject::create(JSContext* cx, ScopeObject& scope, HandleObject enclosi
     MOZ_ASSERT(scope.compartment() == cx->compartment());
     RootedValue priv(cx, ObjectValue(scope));
     JSObject* obj = NewProxyObject(cx, &DebugScopeProxy::singleton, priv,
-                                   nullptr /* proto */);
+                                   nullptr /* proto */, &scope.global());
     if (!obj)
         return nullptr;
 

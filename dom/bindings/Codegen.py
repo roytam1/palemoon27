@@ -255,7 +255,7 @@ class CGNativePropertyHooks(CGThing):
         self.properties = properties
 
     def declare(self):
-        if not self.descriptor.wantsXrays:
+        if self.descriptor.workers:
             return ""
         return dedent("""
             // We declare this as an array so that retrieving a pointer to this
@@ -269,7 +269,7 @@ class CGNativePropertyHooks(CGThing):
             """)
 
     def define(self):
-        if not self.descriptor.wantsXrays:
+        if self.descriptor.workers:
             return ""
         if self.descriptor.concrete and self.descriptor.proxy:
             resolveOwnProperty = "ResolveOwnProperty"
@@ -323,7 +323,7 @@ class CGNativePropertyHooks(CGThing):
 
 
 def NativePropertyHooks(descriptor):
-    return "&sEmptyNativePropertyHooks" if not descriptor.wantsXrays else "sNativePropertyHooks"
+    return "&sWorkerNativePropertyHooks" if descriptor.workers else "sNativePropertyHooks"
 
 
 def DOMClass(descriptor):
@@ -381,7 +381,7 @@ class CGDOMJSClass(CGThing):
             classFlags += "JSCLASS_DOM_GLOBAL | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(DOM_GLOBAL_SLOTS) | JSCLASS_IMPLEMENTS_BARRIERS"
             traceHook = "JS_GlobalObjectTraceHook"
             reservedSlots = "JSCLASS_GLOBAL_APPLICATION_SLOTS"
-            if self.descriptor.interface.identifier.name == "Window":
+            if not self.descriptor.workers:
                 classExtensionAndObjectOps = fill(
                     """
                     {
@@ -1958,7 +1958,8 @@ class PropertyDefiner:
         return "nullptr"
 
     def usedForXrays(self):
-        return self.descriptor.wantsXrays
+        # No Xrays in workers.
+        return not self.descriptor.workers
 
     def __str__(self):
         # We only need to generate id arrays for things that will end
@@ -2618,8 +2619,9 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
         assert needInterfaceObject or needInterfacePrototypeObject
 
         idsToInit = []
-        # There is no need to init any IDs in bindings that don't want Xrays.
-        if self.descriptor.wantsXrays:
+        # There is no need to init any IDs in workers, because worker bindings
+        # don't have Xrays.
+        if not self.descriptor.workers:
             for var in self.properties.arrayNames():
                 props = getattr(self.properties, var)
                 # We only have non-chrome ids to init if we have no chrome ids.
@@ -7621,7 +7623,10 @@ class CGResolveHook(CGAbstractBindingMethod):
             // has already defined it on the object.  Don't try to also
             // define it.
             if (!desc.value().isUndefined() &&
-                !JS_DefinePropertyById(cx, obj, id, desc)) {
+                !JS_DefinePropertyById(cx, obj, id, desc.value(),
+                                       desc.attributes() | JSPROP_PROPOP_ACCESSORS,
+                                       JS_PROPERTYOP_GETTER(desc.getter()),
+                                       JS_PROPERTYOP_SETTER(desc.setter()))) {
               return false;
             }
             *resolvedp = true;
@@ -9616,7 +9621,10 @@ class CGResolveOwnPropertyViaResolve(CGAbstractBindingMethod):
               // try to also define it.
               if (objDesc.object() &&
                   !objDesc.value().isUndefined() &&
-                  !JS_DefinePropertyById(cx, obj, id, objDesc)) {
+                  !JS_DefinePropertyById(cx, obj, id, objDesc.value(),
+                                         objDesc.attributes() | JSPROP_PROPOP_ACCESSORS,
+                                         JS_PROPERTYOP_GETTER(objDesc.getter()),
+                                         JS_PROPERTYOP_SETTER(objDesc.setter()))) {
                 return false;
               }
             }
@@ -10179,13 +10187,10 @@ class CGDOMJSProxyHandler_getOwnPropDescriptor(ClassMethod):
 
 class CGDOMJSProxyHandler_defineProperty(ClassMethod):
     def __init__(self, descriptor):
-        # The usual convention is to name the ObjectOpResult out-parameter
-        # `result`, but that name is a bit overloaded around here.
         args = [Argument('JSContext*', 'cx'),
                 Argument('JS::Handle<JSObject*>', 'proxy'),
                 Argument('JS::Handle<jsid>', 'id'),
                 Argument('JS::MutableHandle<JSPropertyDescriptor>', 'desc'),
-                Argument('JS::ObjectOpResult&', 'opresult'),
                 Argument('bool*', 'defined')]
         ClassMethod.__init__(self, "defineProperty", "bool", args, virtual=True, override=True, const=True)
         self.descriptor = descriptor
@@ -10203,7 +10208,7 @@ class CGDOMJSProxyHandler_defineProperty(ClassMethod):
                 if (IsArrayIndex(index)) {
                   *defined = true;
                   $*{callSetter}
-                  return opresult.succeed();
+                  return true;
                 }
                 """,
                 callSetter=CGProxyIndexedSetter(self.descriptor).define())
@@ -10216,9 +10221,7 @@ class CGDOMJSProxyHandler_defineProperty(ClassMethod):
             set += fill(
                 """
                 if (IsArrayIndex(GetArrayIndexFromId(cx, id))) {
-                  return js::IsInNonStrictPropertySet(cx)
-                         ? opresult.succeed()
-                         : ThrowErrorMessage(cx, MSG_NO_INDEXED_SETTER, "${name}");
+                  return js::IsInNonStrictPropertySet(cx) || ThrowErrorMessage(cx, MSG_NO_INDEXED_SETTER, "${name}");
                 }
                 """,
                 name=self.descriptor.name)
@@ -10233,7 +10236,8 @@ class CGDOMJSProxyHandler_defineProperty(ClassMethod):
                                    "}\n"
                                    "if (hasUnforgeable) {\n"
                                    "  *defined = true;\n"
-                                   "  return js::DefineOwnProperty(cx, ${holder}, id, desc, opresult);\n"
+                                   "  bool unused;\n"
+                                   "  return js::DefineOwnProperty(cx, ${holder}, id, desc, &unused);\n"
                                    "}\n")
             set += CallOnUnforgeableHolder(self.descriptor,
                                            defineOnUnforgeable,
@@ -10250,7 +10254,7 @@ class CGDOMJSProxyHandler_defineProperty(ClassMethod):
                 *defined = true;
                 $*{callSetter}
 
-                return opresult.succeed();
+                return true;
                 """,
                 callSetter=CGProxyNamedSetter(self.descriptor).define())
         else:
@@ -10266,9 +10270,7 @@ class CGDOMJSProxyHandler_defineProperty(ClassMethod):
                     $*{presenceChecker}
 
                     if (found) {
-                      return js::IsInNonStrictPropertySet(cx)
-                             ? opresult.succeed()
-                             : ThrowErrorMessage(cx, MSG_NO_NAMED_SETTER, "${name}");
+                      return js::IsInNonStrictPropertySet(cx) || ThrowErrorMessage(cx, MSG_NO_NAMED_SETTER, "${name}");
                     }
                     """,
                     presenceChecker=CGProxyNamedPresenceChecker(self.descriptor, foundVar="found").define(),
@@ -11173,14 +11175,14 @@ class CGDescriptor(CGThing):
         cgThings.append(CGGeneric(define=str(properties)))
         cgThings.append(CGNativeProperties(descriptor, properties))
 
-        # Set up our Xray callbacks as needed.
-        if descriptor.wantsXrays:
-            if descriptor.concrete and descriptor.proxy:
-                cgThings.append(CGResolveOwnProperty(descriptor))
-                cgThings.append(CGEnumerateOwnProperties(descriptor))
-            elif descriptor.needsXrayResolveHooks():
-                cgThings.append(CGResolveOwnPropertyViaResolve(descriptor))
-                cgThings.append(CGEnumerateOwnPropertiesViaGetOwnPropertyNames(descriptor))
+        # Set up our Xray callbacks as needed.  Note that we don't need to do
+        # it in workers.
+        if not descriptor.workers and descriptor.concrete and descriptor.proxy:
+            cgThings.append(CGResolveOwnProperty(descriptor))
+            cgThings.append(CGEnumerateOwnProperties(descriptor))
+        elif descriptor.needsXrayResolveHooks():
+            cgThings.append(CGResolveOwnPropertyViaResolve(descriptor))
+            cgThings.append(CGEnumerateOwnPropertiesViaGetOwnPropertyNames(descriptor))
 
         # Now that we have our ResolveOwnProperty/EnumerateOwnProperties stuff
         # done, set up our NativePropertyHooks.

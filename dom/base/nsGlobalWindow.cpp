@@ -622,8 +622,8 @@ public:
   virtual bool defineProperty(JSContext* cx,
                               JS::Handle<JSObject*> proxy,
                               JS::Handle<jsid> id,
-                              JS::MutableHandle<JSPropertyDescriptor> desc,
-                              JS::ObjectOpResult &result) const MOZ_OVERRIDE;
+                              JS::MutableHandle<JSPropertyDescriptor> desc)
+                              const override;
   virtual bool ownPropertyKeys(JSContext *cx,
                                JS::Handle<JSObject*> proxy,
                                JS::AutoIdVector &props) const override;
@@ -646,8 +646,8 @@ public:
   virtual bool set(JSContext *cx, JS::Handle<JSObject*> proxy,
                    JS::Handle<JSObject*> receiver,
                    JS::Handle<jsid> id,
-                   JS::MutableHandle<JS::Value> vp,
-                   JS::ObjectOpResult &result) const MOZ_OVERRIDE;
+                   bool strict,
+                   JS::MutableHandle<JS::Value> vp) const override;
 
   // SpiderMonkey extensions
   virtual bool getPropertyDescriptor(JSContext* cx,
@@ -783,8 +783,8 @@ bool
 nsOuterWindowProxy::defineProperty(JSContext* cx,
                                    JS::Handle<JSObject*> proxy,
                                    JS::Handle<jsid> id,
-                                   JS::MutableHandle<JSPropertyDescriptor> desc,
-                                   JS::ObjectOpResult &result) const
+                                   JS::MutableHandle<JSPropertyDescriptor> desc)
+                                   const
 {
   int32_t index = GetArrayIndexFromId(cx, id);
   if (IsArrayIndex(index)) {
@@ -792,7 +792,7 @@ nsOuterWindowProxy::defineProperty(JSContext* cx,
     // since we have no indexed setter or indexed creator.  That means
     // throwing in strict mode (FIXME: Bug 828137), doing nothing in
     // non-strict mode.
-    return result.succeed();
+    return true;
   }
 
   // For now, allow chrome code to define non-configurable properties
@@ -803,7 +803,7 @@ nsOuterWindowProxy::defineProperty(JSContext* cx,
     return ThrowErrorMessage(cx, MSG_DEFINE_NON_CONFIGURABLE_PROP_ON_WINDOW);
   }
 
-  return js::Wrapper::defineProperty(cx, proxy, id, desc, result);
+  return js::Wrapper::defineProperty(cx, proxy, id, desc);
 }
 
 bool
@@ -917,17 +917,19 @@ bool
 nsOuterWindowProxy::set(JSContext *cx, JS::Handle<JSObject*> proxy,
                         JS::Handle<JSObject*> receiver,
                         JS::Handle<jsid> id,
-                        JS::MutableHandle<JS::Value> vp,
-                        JS::ObjectOpResult &result) const
+                        bool strict,
+                        JS::MutableHandle<JS::Value> vp) const
 {
   int32_t index = GetArrayIndexFromId(cx, id);
   if (IsArrayIndex(index)) {
     // Reject (which means throw if and only if strict) the set.
-    // XXX See bug 828137.
-    return result.succeed();
+    if (strict) {
+      // XXXbz This needs to throw, but see bug 828137.
+    }
+    return true;
   }
 
-  return js::Wrapper::set(cx, proxy, receiver, id, vp, result);
+  return js::Wrapper::set(cx, proxy, receiver, id, strict, vp);
 }
 
 bool
@@ -1057,15 +1059,13 @@ const nsChromeOuterWindowProxy
 nsChromeOuterWindowProxy::singleton;
 
 static JSObject*
-NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> global, bool isChrome)
+NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
 {
-  JSAutoCompartment ac(cx, global);
-  MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(global) == global);
-
+  JSAutoCompartment ac(cx, parent);
   js::WrapperOptions options;
   options.setClass(&OuterWindowProxyClass);
   options.setSingleton(true);
-  JSObject *obj = js::Wrapper::New(cx, global,
+  JSObject *obj = js::Wrapper::New(cx, parent, parent,
                                    isChrome ? &nsChromeOuterWindowProxy::singleton
                                             : &nsOuterWindowProxy::singleton,
                                    options);
@@ -2608,10 +2608,21 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       SetWrapper(outerObject);
 
-      MOZ_ASSERT(js::GetObjectParent(outerObject) == newInnerGlobal);
+      {
+        JSAutoCompartment ac(cx, outerObject);
 
-      // Inform the nsJSContext, which is the canonical holder of the outer.
-      mContext->SetWindowProxy(outerObject);
+        JS_SetParent(cx, outerObject, newInnerGlobal);
+
+        // Inform the nsJSContext, which is the canonical holder of the outer.
+        mContext->SetWindowProxy(outerObject);
+
+        NS_ASSERTION(!JS_IsExceptionPending(cx),
+                     "We might overwrite a pending exception!");
+        XPCWrappedNativeScope* scope = xpc::ObjectScope(outerObject);
+        if (scope->mWaiverWrapperMap) {
+          scope->mWaiverWrapperMap->Reparent(cx, newInnerGlobal);
+        }
+      }
     }
 
     // Enter the new global's compartment.
@@ -9324,7 +9335,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aUrl, nsIVariant* aArgument,
                             (aUrl, aArgument, aOptions, aError), aError,
                             nullptr);
 
-  if (!IsShowModalDialogEnabled() || XRE_GetProcessType() == GoannaProcessType_Content) {
+  if (!IsShowModalDialogEnabled()) {
     aError.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }
@@ -14255,13 +14266,6 @@ nsGlobalWindow::CreateNamedPropertiesObject(JSContext *aCx,
                                             JS::Handle<JSObject*> aProto)
 {
   return WindowNamedPropertiesHandler::Create(aCx, aProto);
-}
-
-bool
-nsGlobalWindow::GetIsPrerendered()
-{
-  nsIDocShell* docShell = GetDocShell();
-  return docShell && docShell->GetIsPrerendered();
 }
 
 #ifdef MOZ_B2G

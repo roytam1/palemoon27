@@ -599,6 +599,18 @@ NativeLookupProperty(ExclusiveContext* cx, HandleNativeObject obj, PropertyName*
 }
 
 inline bool
+NativeDefineProperty(ExclusiveContext* cx, HandleNativeObject obj, PropertyName* name,
+                     HandleValue value, PropertyOp getter, StrictPropertyOp setter,
+                     unsigned attrs)
+{
+    MOZ_ASSERT(getter != JS_PropertyStub);
+    MOZ_ASSERT(setter != JS_StrictPropertyStub);
+
+    RootedId id(cx, NameToId(name));
+    return NativeDefineProperty(cx, obj, id, value, getter, setter, attrs);
+}
+
+inline bool
 WarnIfNotConstructing(JSContext* cx, const CallArgs& args, const char* builtinName)
 {
     if (args.isConstructing())

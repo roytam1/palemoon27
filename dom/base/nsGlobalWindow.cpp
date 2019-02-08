@@ -9324,7 +9324,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aUrl, nsIVariant* aArgument,
                             (aUrl, aArgument, aOptions, aError), aError,
                             nullptr);
 
-  if (!IsShowModalDialogEnabled()) {
+  if (!IsShowModalDialogEnabled() || XRE_GetProcessType() == GoannaProcessType_Content) {
     aError.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }
@@ -14255,6 +14255,13 @@ nsGlobalWindow::CreateNamedPropertiesObject(JSContext *aCx,
                                             JS::Handle<JSObject*> aProto)
 {
   return WindowNamedPropertiesHandler::Create(aCx, aProto);
+}
+
+bool
+nsGlobalWindow::GetIsPrerendered()
+{
+  nsIDocShell* docShell = GetDocShell();
+  return docShell && docShell->GetIsPrerendered();
 }
 
 #ifdef MOZ_B2G

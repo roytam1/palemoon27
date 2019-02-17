@@ -220,7 +220,8 @@ public:
    */
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
                 nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow,
-                nsIAtom* aOrigin = nullptr, bool aIsMomentum = false);
+                nsIAtom* aOrigin = nullptr,
+                nsIScrollableFrame::ScrollMomentum aMomentum = nsIScrollableFrame::NOT_MOMENTUM);
   /**
    * @note This method might destroy the frame, pres shell and other objects.
    */
@@ -323,6 +324,13 @@ public:
   void MarkRecentlyScrolled();
   void MarkNotRecentlyScrolled();
   nsExpirationState* GetExpirationState() { return &mActivityExpirationState; }
+
+  void SetTransformingByAPZ(bool aTransforming) {
+    mTransformingByAPZ = aTransforming;
+  }
+  bool IsTransformingByAPZ() const {
+    return mTransformingByAPZ;
+  }
 
   void ScheduleSyntheticMouseMove();
   static void ScrollActivityCallback(nsITimer *aTimer, void* anInstance);
@@ -462,9 +470,17 @@ public:
   // SetResolutionAndScaleTo or restored via RestoreState.
   bool mIsResolutionSet:1;
 
+  // True if the events synthesized by OSX to produce momentum scrolling should
+  // be ignored.  Reset when the next real, non-synthesized scroll event occurs.
+  bool mIgnoreMomentumScroll:1;
+
   // True if the frame's resolution has been set via SetResolutionAndScaleTo.
   // Only meaningful for root scroll frames.
   bool mScaleToResolution:1;
+
+  // True if the APZ is in the process of async-transforming this scrollframe,
+  // (as best as we can tell on the main thread, anyway).
+  bool mTransformingByAPZ:1;
 
 protected:
   /**
@@ -687,8 +703,9 @@ public:
    */
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
                         nsIntPoint* aOverflow, nsIAtom* aOrigin = nullptr,
-                        bool aIsMomentum = false) override {
-    mHelper.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin, aIsMomentum);
+                        nsIScrollableFrame::ScrollMomentum aMomentum = nsIScrollableFrame::NOT_MOMENTUM)
+                        MOZ_OVERRIDE {
+    mHelper.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin, aMomentum);
   }
   /**
    * @note This method might destroy the frame, pres shell and other objects.
@@ -811,6 +828,13 @@ public:
   }
   virtual void ScrollbarActivityStarted() const override;
   virtual void ScrollbarActivityStopped() const override;
+
+  virtual void SetTransformingByAPZ(bool aTransforming) MOZ_OVERRIDE {
+    mHelper.SetTransformingByAPZ(aTransforming);
+  }
+  bool IsTransformingByAPZ() const MOZ_OVERRIDE {
+    return mHelper.IsTransformingByAPZ();
+  }
   
 #ifdef DEBUG_FRAME_DUMP
   virtual nsresult GetFrameName(nsAString& aResult) const override;
@@ -1048,8 +1072,9 @@ public:
    */
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
                         nsIntPoint* aOverflow, nsIAtom* aOrigin = nullptr,
-                        bool aIsMomentum = false) override {
-    mHelper.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin, aIsMomentum);
+                        nsIScrollableFrame::ScrollMomentum aMomentum = nsIScrollableFrame::NOT_MOMENTUM)
+                        MOZ_OVERRIDE {
+    mHelper.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin, aMomentum);
   }
   /**
    * @note This method might destroy the frame, pres shell and other objects.
@@ -1180,6 +1205,13 @@ public:
 
   virtual void ScrollbarActivityStarted() const override;
   virtual void ScrollbarActivityStopped() const override;
+
+  virtual void SetTransformingByAPZ(bool aTransforming) MOZ_OVERRIDE {
+    mHelper.SetTransformingByAPZ(aTransforming);
+  }
+  bool IsTransformingByAPZ() const MOZ_OVERRIDE {
+    return mHelper.IsTransformingByAPZ();
+  }
 
 #ifdef DEBUG_FRAME_DUMP
   virtual nsresult GetFrameName(nsAString& aResult) const override;

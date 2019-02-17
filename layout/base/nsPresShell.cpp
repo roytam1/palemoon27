@@ -2399,7 +2399,9 @@ PresShell::ScrollPage(bool aForward)
   if (scrollFrame) {
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                           nsIScrollableFrame::PAGES,
-                          nsIScrollableFrame::SMOOTH);
+                          nsIScrollableFrame::SMOOTH,
+                          nullptr, nullptr,
+                          nsIScrollableFrame::NOT_MOMENTUM);
   }
   return NS_OK;
 }
@@ -2414,7 +2416,9 @@ PresShell::ScrollLine(bool aForward)
                                             NS_DEFAULT_VERTICAL_SCROLL_DISTANCE);
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? lineCount : -lineCount),
                           nsIScrollableFrame::LINES,
-                          nsIScrollableFrame::SMOOTH);
+                          nsIScrollableFrame::SMOOTH,
+                          nullptr, nullptr,
+                          nsIScrollableFrame::NOT_MOMENTUM);
   }
   return NS_OK;
 }
@@ -2429,7 +2433,9 @@ PresShell::ScrollCharacter(bool aRight)
                                     NS_DEFAULT_HORIZONTAL_SCROLL_DISTANCE);
     scrollFrame->ScrollBy(nsIntPoint(aRight ? h : -h, 0),
                           nsIScrollableFrame::LINES,
-                          nsIScrollableFrame::SMOOTH);
+                          nsIScrollableFrame::SMOOTH,
+                          nullptr, nullptr,
+                          nsIScrollableFrame::NOT_MOMENTUM);
   }
   return NS_OK;
 }
@@ -2442,7 +2448,9 @@ PresShell::CompleteScroll(bool aForward)
   if (scrollFrame) {
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                           nsIScrollableFrame::WHOLE,
-                          nsIScrollableFrame::SMOOTH);
+                          nsIScrollableFrame::SMOOTH,
+                          nullptr, nullptr,
+                          nsIScrollableFrame::NOT_MOMENTUM);
   }
   return NS_OK;
 }

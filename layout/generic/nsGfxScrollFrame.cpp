@@ -1910,7 +1910,9 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter,
   , mShouldBuildScrollableLayer(false)
   , mHasBeenScrolled(false)
   , mIsResolutionSet(false)
+  , mIgnoreMomentumScroll(false)
   , mScaleToResolution(false)
+  , mTransformingByAPZ(false)
 {
   if (LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0) {
     mScrollbarActivity = new ScrollbarActivity(do_QueryFrame(aOuter));
@@ -2104,6 +2106,7 @@ ScrollFrameHelper::ScrollToWithOrigin(nsPoint aScrollPosition,
 
   if (gfxPrefs::ScrollBehaviorEnabled()) {
     if (aMode == nsIScrollableFrame::SMOOTH_MSD) {
+      mIgnoreMomentumScroll = true;
       if (!mAsyncSmoothMSDScroll) {
         if (mAsyncScroll) {
           if (mAsyncScroll->mIsSmoothScroll) {
@@ -3032,17 +3035,6 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
        (aBuilder->RootReferenceFrame()->PresContext() != mOuter->PresContext()));
   }
 
-  if (aBuilder->IsPaintingToWindow() &&
-      !mShouldBuildScrollableLayer &&
-      shouldBuildLayer)
-  {
-    if (nsDisplayLayerEventRegions *eventRegions = aBuilder->GetLayerEventRegions()) {
-      // Make sure that APZ will dispatch events back to content so we can
-      // create a displayport for this frame.
-      eventRegions->AddInactiveScrollPort(mScrollPort + aBuilder->ToReferenceFrame(mOuter));
-    }
-  }
-
   mScrollParentID = aBuilder->GetCurrentScrollParentId();
 
   nsDisplayListCollection scrolledContent;
@@ -3136,31 +3128,49 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       wrapper.WrapListsInPlace(aBuilder, mOuter, scrolledContent);
     }
 
+    // Make sure that APZ will dispatch events back to content so we can create
+    // a displayport for this frame. We'll add the item later on.
+    nsDisplayLayerEventRegions* inactiveRegionItem = nullptr;
+    if (aBuilder->IsPaintingToWindow() &&
+        !mShouldBuildScrollableLayer &&
+        shouldBuildLayer &&
+        gfxPrefs::LayoutEventRegionsEnabled())
+    {
+      inactiveRegionItem = new (aBuilder) nsDisplayLayerEventRegions(aBuilder, mScrolledFrame);
+      inactiveRegionItem->AddInactiveScrollPort(mScrollPort + aBuilder->ToReferenceFrame(mOuter));
+    }
+
     // In case we are not using displayport or the nsDisplayScrollLayers are
     // flattened during visibility computation, we still need to export the
     // metadata about this scroll box to the compositor process.
     nsDisplayScrollInfoLayer* layerItem = new (aBuilder) nsDisplayScrollInfoLayer(
       aBuilder, mScrolledFrame, mOuter);
+
     nsDisplayList* positionedDescendants = scrolledContent.PositionedDescendants();
+    nsDisplayList* destinationList = nullptr;
     if (BuildScrollContainerLayers()) {
       // We process display items from bottom to top, so if we need to flatten after
       // the scroll layer items have been processed we need to be on the top.
       if (!positionedDescendants->IsEmpty()) {
         layerItem->SetOverrideZIndex(MaxZIndexInList(positionedDescendants, aBuilder));
-        positionedDescendants->AppendNewToTop(layerItem);
+        destinationList = positionedDescendants;
       } else {
-        aLists.Outlines()->AppendNewToTop(layerItem);
+        destinationList = aLists.Outlines();
       }
     } else {
       int32_t zindex =
         MaxZIndexInListOfItemsContainedInFrame(positionedDescendants, mOuter);
       if (zindex >= 0) {
         layerItem->SetOverrideZIndex(zindex);
-        positionedDescendants->AppendNewToTop(layerItem);
+        destinationList = positionedDescendants;
       } else {
-        scrolledContent.Outlines()->AppendNewToTop(layerItem);
+        destinationList = scrolledContent.Outlines();
       }
     }
+    if (inactiveRegionItem) {
+      destinationList->AppendNewToTop(inactiveRegionItem);
+    }
+    destinationList->AppendNewToTop(layerItem);
   }
   // Now display overlay scrollbars and the resizer, if we have one.
   AppendScrollPartsTo(aBuilder, aDirtyRect, scrolledContent, usingDisplayport,
@@ -3231,14 +3241,12 @@ ScrollFrameHelper::GetScrollbarStylesFromFrame() const
   nsPresContext* presContext = mOuter->PresContext();
   if (!presContext->IsDynamic() &&
       !(mIsRoot && presContext->HasPaginatedScrolling())) {
-    return ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN,
-                           NS_STYLE_SCROLL_BEHAVIOR_AUTO);
+    return ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN);
   }
 
   if (!mIsRoot) {
     const nsStyleDisplay* disp = mOuter->StyleDisplay();
-    return ScrollbarStyles(disp->mOverflowX, disp->mOverflowY,
-                           disp->mScrollBehavior);
+    return ScrollbarStyles(disp);
   }
 
   ScrollbarStyles result = presContext->GetViewportScrollbarStylesOverride();
@@ -3347,18 +3355,25 @@ CalcRangeForScrollBy(int32_t aDelta, nscoord aPos,
 
 void
 ScrollFrameHelper::ScrollBy(nsIntPoint aDelta,
-                                nsIScrollableFrame::ScrollUnit aUnit,
-                                nsIScrollableFrame::ScrollMode aMode,
-                                nsIntPoint* aOverflow,
-                                nsIAtom *aOrigin,
-                                bool aIsMomentum)
+                            nsIScrollableFrame::ScrollUnit aUnit,
+                            nsIScrollableFrame::ScrollMode aMode,
+                            nsIntPoint* aOverflow,
+                            nsIAtom *aOrigin,
+                            nsIScrollableFrame::ScrollMomentum aMomentum)
 {
   // When a smooth scroll is being processed on a frame, mouse wheel and trackpad
   // momentum scroll event updates must notcancel the SMOOTH or SMOOTH_MSD
   // scroll animations, enabling Javascript that depends on them to be responsive
   // without forcing the user to wait for the fling animations to completely stop.
-  if (aIsMomentum && IsProcessingAsyncScroll()) {
-    return;
+  switch (aMomentum) {
+  case nsIScrollableFrame::NOT_MOMENTUM:
+    mIgnoreMomentumScroll = false;
+    break;
+  case nsIScrollableFrame::SYNTHESIZED_MOMENTUM_EVENT:
+    if (mIgnoreMomentumScroll) {
+      return;
+    }
+    break;
   }
 
   if (mAsyncSmoothMSDScroll != nullptr) {

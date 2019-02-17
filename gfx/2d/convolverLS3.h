@@ -1,4 +1,4 @@
-// Copyright (c) 2006-2011 The Chromium Authors. All rights reserved.
+// Copyright (c) 2014-2015 The Chromium Authors. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -26,29 +26,29 @@
 // OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 // SUCH DAMAGE.
 
-#ifndef SKIA_EXT_CONVOLVER_SSE_H_
-#define SKIA_EXT_CONVOLVER_SSE_H_
+#ifndef SKIA_EXT_CONVOLVER_LS3_H_
+#define SKIA_EXT_CONVOLVER_LS3_H_
 
 #include "convolver.h"
 
 #include <algorithm>
 
-#include "skia/include/core/SkTypes.h"
+#include "skia/SkTypes.h"
 
 namespace skia {
 
 // Convolves horizontally along a single row. The row data is given in
 // |src_data| and continues for the [begin, end) of the filter.
-void ConvolveHorizontally_SSE2(const unsigned char* src_data,
+void ConvolveHorizontally_LS3(const unsigned char* src_data,
                                int begin, int end,
                                const ConvolutionFilter1D& filter,
                                unsigned char* out_row);
 
 // Convolves horizontally along four rows. The row data is given in
 // |src_data| and continues for the [begin, end) of the filter.
-// The algorithm is almost same as |ConvolveHorizontally_SSE2|. Please
+// The algorithm is almost same as |ConvolveHorizontally_LS3|. Please
 // refer to that function for detailed comments.
-void ConvolveHorizontally4_SSE2(const unsigned char* src_data[4],
+void ConvolveHorizontally4_LS3(const unsigned char* src_data[4],
                                 int begin, int end,
                                 const ConvolutionFilter1D& filter,
                                 unsigned char* out_row[4]);
@@ -59,7 +59,7 @@ void ConvolveHorizontally4_SSE2(const unsigned char* src_data[4],
 // being |pixel_width| wide.
 //
 // The output must have room for |pixel_width * 4| bytes.
-void ConvolveVertically_SSE2(const ConvolutionFilter1D::Fixed* filter_values,
+void ConvolveVertically_LS3(const ConvolutionFilter1D::Fixed* filter_values,
                              int filter_length,
                              unsigned char* const* source_data_rows,
                              int begin, int end,
@@ -67,4 +67,4 @@ void ConvolveVertically_SSE2(const ConvolutionFilter1D::Fixed* filter_values,
 
 }  // namespace skia
 
-#endif  // SKIA_EXT_CONVOLVER_SSE_H_
+#endif  // SKIA_EXT_CONVOLVER_LS3_H_

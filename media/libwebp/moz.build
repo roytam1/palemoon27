@@ -4,19 +4,83 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+src_dir = 'src/'
+moz_dir = src_dir + 'moz/'
+dec_dir = src_dir + 'dec/'
+dsp_dir = src_dir + 'dsp/'
+utils_dir = src_dir + 'utils/'
+webp_dir = src_dir + 'webp/'
+demux_dir = src_dir + 'demux/'
+
 EXPORTS.webp += [
-    'src/webp/decode.h',
-    'src/webp/demux.h',
-    'src/webp/mux_types.h',
-    'src/webp/types.h',
+    webp_dir + 'decode.h',
+    webp_dir + 'demux.h',
+    webp_dir + 'mux_types.h',
+    webp_dir + 'types.h'
 ]
 
-DIRS += [
-    'src/dec',
-    'src/demux',
-    'src/dsp',
-    'src/moz',
-    'src/utils',
+dec_sources = [
+    dec_dir + 'alpha_dec.c',
+    dec_dir + 'buffer_dec.c',
+    dec_dir + 'frame_dec.c',
+    dec_dir + 'idec_dec.c',
+    dec_dir + 'io_dec.c',
+    dec_dir + 'quant_dec.c',
+    dec_dir + 'tree_dec.c',
+    dec_dir + 'vp8_dec.c',
+    dec_dir + 'vp8l_dec.c',
+    dec_dir + 'webp_dec.c',
 ]
+
+demux_sources = [
+    demux_dir + 'demux.c',
+]
+
+dsp_sources = [
+    dsp_dir + 'alpha_processing.c',
+    dsp_dir + 'alpha_processing_sse2.c',
+    dsp_dir + 'alpha_processing_sse41.c',
+    dsp_dir + 'dec.c',
+    dsp_dir + 'dec_clip_tables.c',
+    dsp_dir + 'dec_sse2.c',
+    dsp_dir + 'dec_sse41.c',
+    dsp_dir + 'filters.c',
+    dsp_dir + 'filters_sse2.c',
+    dsp_dir + 'lossless.c',
+    dsp_dir + 'lossless_sse2.c',
+    dsp_dir + 'rescaler.c',
+    dsp_dir + 'rescaler_sse2.c',
+    dsp_dir + 'upsampling.c',
+    dsp_dir + 'upsampling_sse2.c',
+    dsp_dir + 'upsampling_sse41.c',
+    dsp_dir + 'yuv.c',
+    dsp_dir + 'yuv_sse2.c',
+    dsp_dir + 'yuv_sse41.c',
+]
+
+moz_sources = [
+    moz_dir + 'cpu.cpp',
+]
+
+utils_sources = [
+    utils_dir + 'bit_reader_utils.c',
+    utils_dir + 'color_cache_utils.c',
+    utils_dir + 'filters_utils.c',
+    utils_dir + 'huffman_utils.c',
+    utils_dir + 'quant_levels_dec_utils.c',
+    utils_dir + 'quant_levels_utils.c',
+    utils_dir + 'random_utils.c',
+    utils_dir + 'rescaler_utils.c',
+    utils_dir + 'thread_utils.c',
+    utils_dir + 'utils.c',
+]
+
+# NB: dsp especially isn't UNIFIED_SOURCES friendly.
+SOURCES += dec_sources + demux_sources + dsp_sources + moz_sources + utils_sources
+
+Library('mozwebp')
+
+if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
+    NO_VISIBILITY_FLAGS = True
 
 FINAL_LIBRARY = 'gkmedias'

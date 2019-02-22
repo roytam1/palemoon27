@@ -8663,11 +8663,13 @@ nsGlobalWindow::ReallyCloseWindow()
            from the list of browsers) (and has an unload handler
            that closes the window). */
         // XXXbz now that we have mHavePendingClose, is this needed?
-        bool isTab = false;
+        bool isTab;
         if (rootWin == this ||
-            !bwin || (bwin->IsTabContentWindow(GetOuterWindowInternal(),
-                                               &isTab), isTab))
+            !bwin ||
+            (NS_SUCCEEDED(bwin->IsTabContentWindow(GetOuterWindowInternal(),
+                                                   &isTab)) && isTab)) {
           treeOwnerAsWin->Destroy();
+        }
       }
     }
 
@@ -10085,7 +10087,7 @@ nsGlobalWindow::SetChromeEventHandler(EventTarget* aChromeEventHandler)
 
 static bool IsLink(nsIContent* aContent)
 {
-  return aContent && (aContent->IsHTML(nsGkAtoms::a) ||
+  return aContent && (aContent->IsHTMLElement(nsGkAtoms::a) ||
                       aContent->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
                                             nsGkAtoms::simple, eCaseMatters));
 }

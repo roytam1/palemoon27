@@ -1597,7 +1597,7 @@ nsNSSComponent::IsNSSInitialized(bool* initialized)
 
 SharedCertVerifier::~SharedCertVerifier() { }
 
-TemporaryRef<SharedCertVerifier>
+already_AddRefed<SharedCertVerifier>
 nsNSSComponent::GetDefaultCertVerifier()
 {
   MutexAutoLock lock(mutex);
@@ -1608,7 +1608,7 @@ nsNSSComponent::GetDefaultCertVerifier()
 
 namespace mozilla { namespace psm {
 
-TemporaryRef<SharedCertVerifier>
+already_AddRefed<SharedCertVerifier>
 GetDefaultCertVerifier()
 {
   static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);

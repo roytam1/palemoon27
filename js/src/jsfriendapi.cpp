@@ -606,10 +606,10 @@ js::StringToLinearStringSlow(JSContext* cx, JSString* str)
 }
 
 JS_FRIEND_API(JSObject*)
-JS_CloneObject(JSContext* cx, HandleObject obj, HandleObject protoArg, HandleObject parent)
+JS_CloneObject(JSContext* cx, HandleObject obj, HandleObject protoArg)
 {
     Rooted<TaggedProto> proto(cx, TaggedProto(protoArg.get()));
-    return CloneObject(cx, obj, proto, parent);
+    return CloneObject(cx, obj, proto);
 }
 
 #ifdef DEBUG
@@ -1169,7 +1169,7 @@ js::GetObjectMetadata(JSObject* obj)
 
 JS_FRIEND_API(bool)
 js::DefineOwnProperty(JSContext* cx, JSObject* objArg, jsid idArg,
-                    JS::Handle<js::PropertyDescriptor> descriptor, bool* bp)
+                      JS::Handle<js::PropertyDescriptor> descriptor, ObjectOpResult &result)
 {
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
@@ -1181,7 +1181,7 @@ js::DefineOwnProperty(JSContext* cx, JSObject* objArg, jsid idArg,
     if (descriptor.hasSetterObject())
         assertSameCompartment(cx, descriptor.setterObject());
 
-    return StandardDefineProperty(cx, obj, id, descriptor, bp);
+    return StandardDefineProperty(cx, obj, id, descriptor, result);
 }
 
 JS_FRIEND_API(bool)

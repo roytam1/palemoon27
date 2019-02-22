@@ -6720,8 +6720,7 @@ DebuggerObject_defineProperty(JSContext* cx, unsigned argc, Value* vp)
             return false;
 
         ErrorCopier ec(ac);
-        bool dummy;
-        if (!StandardDefineProperty(cx, obj, id, desc, true, &dummy))
+        if (!StandardDefineProperty(cx, obj, id, desc))
             return false;
     }
 
@@ -6764,8 +6763,7 @@ DebuggerObject_defineProperties(JSContext* cx, unsigned argc, Value* vp)
 
         ErrorCopier ec(ac);
         for (size_t i = 0; i < n; i++) {
-            bool dummy;
-            if (!StandardDefineProperty(cx, obj, ids[i], descs[i], true, &dummy))
+            if (!StandardDefineProperty(cx, obj, ids[i], descs[i]))
                 return false;
         }
     }
@@ -6790,10 +6788,10 @@ DebuggerObject_deleteProperty(JSContext* cx, unsigned argc, Value* vp)
     ac.emplace(cx, obj);
     ErrorCopier ec(ac);
 
-    bool succeeded;
-    if (!DeleteProperty(cx, obj, id, &succeeded))
+    ObjectOpResult result;
+    if (!DeleteProperty(cx, obj, id, result))
         return false;
-    args.rval().setBoolean(succeeded);
+    args.rval().setBoolean(result.ok());
     return true;
 }
 
@@ -6807,24 +6805,17 @@ DebuggerObject_sealHelper(JSContext* cx, unsigned argc, Value* vp, SealHelperOp 
     Maybe<AutoCompartment> ac;
     ac.emplace(cx, obj);
     ErrorCopier ec(ac);
-    bool ok;
     if (op == OpSeal) {
-        ok = SetIntegrityLevel(cx, obj, IntegrityLevel::Sealed);
+        if (!SetIntegrityLevel(cx, obj, IntegrityLevel::Sealed))
+            return false;
     } else if (op == OpFreeze) {
-        ok = SetIntegrityLevel(cx, obj, IntegrityLevel::Frozen);
+        if (!SetIntegrityLevel(cx, obj, IntegrityLevel::Frozen))
+            return false;
     } else {
         MOZ_ASSERT(op == OpPreventExtensions);
-        bool succeeded;
-        ok = PreventExtensions(cx, obj, &succeeded);
-        if (!ok)
+        if (!PreventExtensions(cx, obj))
             return false;
-        if (!succeeded) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CHANGE_EXTENSIBILITY);
-            return false;
-        }
     }
-    if (!ok)
-        return false;
     args.rval().setUndefined();
     return true;
 }
@@ -7512,7 +7503,7 @@ DebuggerEnv_setVariable(JSContext* cx, unsigned argc, Value* vp)
         }
 
         /* Just set the property. */
-        if (!SetProperty(cx, env, env, id, &v, true))
+        if (!SetProperty(cx, env, env, id, &v))
             return false;
     }
 

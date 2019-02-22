@@ -2450,12 +2450,17 @@ XrayResolveOwnProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
  * wrapper is the Xray JS object.
  * obj is the target object of the Xray, a binding's instance object or a
  *     interface or interface prototype object.
+ * id and desc are the parameters for the property to be defined.
+ * result is the out-parameter indicating success (read it only if
+ *     this returns true and also sets *defined to true).
  * defined will be set to true if a property was set as a result of this call.
  */
 bool
 XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
                    JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                   JS::MutableHandle<JSPropertyDescriptor> desc, bool* defined);
+                   JS::MutableHandle<JSPropertyDescriptor> desc,
+                   JS::ObjectOpResult &result,
+                   bool *defined);
 
 /**
  * Add to props the property keys of all indexed or named properties of obj and
@@ -2795,7 +2800,7 @@ public:
     options.setClass(aClass);
     JS::Rooted<JS::Value> proxyPrivateVal(aCx, JS::PrivateValue(aNative));
     aReflector.set(js::NewProxyObject(aCx, aHandler, proxyPrivateVal, aProto,
-                                      /* parent= */nullptr, options));
+                                      options));
     if (aReflector) {
       mNative = aNative;
       mReflector = aReflector;

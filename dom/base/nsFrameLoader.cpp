@@ -194,7 +194,7 @@ nsFrameLoader::Create(Element* aOwner, bool aNetworkCreated)
   NS_ENSURE_TRUE(aOwner, nullptr);
   nsIDocument* doc = aOwner->OwnerDoc();
   NS_ENSURE_TRUE(!doc->IsResourceDoc() &&
-                 ((!doc->IsLoadedAsData() && aOwner->GetUncomposedDoc()) ||
+                 ((!doc->IsLoadedAsData() && aOwner->GetComposedDoc()) ||
                    doc->IsStaticDocument()),
                  nullptr);
 
@@ -349,7 +349,7 @@ private:
 nsresult
 nsFrameLoader::ReallyStartLoadingInternal()
 {
-  NS_ENSURE_STATE(mURIToLoad && mOwnerContent && mOwnerContent->IsInDoc());
+  NS_ENSURE_STATE(mURIToLoad && mOwnerContent && mOwnerContent->IsInComposedDoc());
 
   PROFILER_LABEL("nsFrameLoader", "ReallyStartLoading",
     js::ProfileEntry::Category::OTHER);
@@ -876,12 +876,12 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size,
   // want here.  For now, hack.
   if (!mRemoteBrowserShown) {
     if (!mOwnerContent ||
-        !mOwnerContent->GetUncomposedDoc()) {
+        !mOwnerContent->GetComposedDoc()) {
       return false;
     }
 
     nsRefPtr<layers::LayerManager> layerManager =
-      nsContentUtils::LayerManagerForDocument(mOwnerContent->GetUncomposedDoc());
+      nsContentUtils::LayerManagerForDocument(mOwnerContent->GetComposedDoc());
     if (!layerManager) {
       // This is just not going to work.
       return false;
@@ -972,8 +972,8 @@ nsFrameLoader::SwapWithOtherRemoteLoader(nsFrameLoader* aOther,
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsIDocument* ourDoc = ourContent->GetCurrentDoc();
-  nsIDocument* otherDoc = otherContent->GetCurrentDoc();
+  nsIDocument* ourDoc = ourContent->GetComposedDoc();
+  nsIDocument* otherDoc = otherContent->GetComposedDoc();
   if (!ourDoc || !otherDoc) {
     // Again, how odd, given that we had docshells
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -1191,8 +1191,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     otherChildDocument->GetParentDocument();
 
   // Make sure to swap docshells between the two frames.
-  nsIDocument* ourDoc = ourContent->GetUncomposedDoc();
-  nsIDocument* otherDoc = otherContent->GetUncomposedDoc();
+  nsIDocument* ourDoc = ourContent->GetComposedDoc();
+  nsIDocument* otherDoc = otherContent->GetComposedDoc();
   if (!ourDoc || !otherDoc) {
     // Again, how odd, given that we had docshells
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -1612,7 +1612,7 @@ nsFrameLoader::MaybeCreateDocShell()
   // XXXbz this is such a total hack.... We really need to have a
   // better setup for doing this.
   nsIDocument* doc = mOwnerContent->OwnerDoc();
-  if (!(doc->IsStaticDocument() || mOwnerContent->IsInDoc())) {
+  if (!(doc->IsStaticDocument() || mOwnerContent->IsInComposedDoc())) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -2674,17 +2674,40 @@ nsFrameLoader::RequestNotifyAfterRemotePaint()
   // If remote browsing (e10s), handle this with the TabParent.
   if (mRemoteBrowser) {
     unused << mRemoteBrowser->SendRequestNotifyAfterRemotePaint();
-    return NS_OK;
   }
 
-  // If not remote browsing, directly use the document's window.
-  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mDocShell);
-  if (!window) {
-    NS_WARNING("Unable to get window for synchronous MozAfterRemotePaint event.");
-    return NS_OK;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFrameLoader::RequestNotifyLayerTreeReady()
+{
+  if (mRemoteBrowser) {
+    return mRemoteBrowser->RequestNotifyLayerTreeReady() ? NS_OK : NS_ERROR_NOT_AVAILABLE;
   }
 
-  window->SetRequestNotifyAfterRemotePaint();
+  nsRefPtr<AsyncEventDispatcher> event =
+    new AsyncEventDispatcher(mOwnerContent,
+                             NS_LITERAL_STRING("MozLayerTreeReady"),
+                             true, false);
+  event->PostDOMEvent();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFrameLoader::RequestNotifyLayerTreeCleared()
+{
+  if (mRemoteBrowser) {
+    return mRemoteBrowser->RequestNotifyLayerTreeCleared() ? NS_OK : NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsRefPtr<AsyncEventDispatcher> event =
+    new AsyncEventDispatcher(mOwnerContent,
+                             NS_LITERAL_STRING("MozLayerTreeCleared"),
+                             true, false);
+  event->PostDOMEvent();
+
   return NS_OK;
 }
 

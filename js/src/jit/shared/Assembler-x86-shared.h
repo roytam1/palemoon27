@@ -84,25 +84,25 @@ class Operand
     Kind kind() const {
         return kind_;
     }
-    Registers::Code reg() const {
+    Register::Code reg() const {
         MOZ_ASSERT(kind() == REG);
-        return (Registers::Code)base_;
+        return Register::Code(base_);
     }
-    Registers::Code base() const {
+    Register::Code base() const {
         MOZ_ASSERT(kind() == MEM_REG_DISP || kind() == MEM_SCALE);
-        return (Registers::Code)base_;
+        return Register::Code(base_);
     }
-    Registers::Code index() const {
+    Register::Code index() const {
         MOZ_ASSERT(kind() == MEM_SCALE);
-        return (Registers::Code)index_;
+        return Register::Code(index_);
     }
     Scale scale() const {
         MOZ_ASSERT(kind() == MEM_SCALE);
         return scale_;
     }
-    FloatRegisters::Code fpu() const {
+    FloatRegister::Code fpu() const {
         MOZ_ASSERT(kind() == FPREG);
-        return (FloatRegisters::Code)base_;
+        return FloatRegister::Code(base_);
     }
     int32_t disp() const {
         MOZ_ASSERT(kind() == MEM_REG_DISP || kind() == MEM_SCALE);
@@ -1680,8 +1680,19 @@ class AssemblerX86Shared : public AssemblerShared
             MOZ_CRASH("unexpected operand kind");
         }
     }
-    void vcmpps(uint8_t order, const Operand& src1, FloatRegister src0, FloatRegister dest) {
+    void vcmpps(uint8_t order, Operand src1, FloatRegister src0, FloatRegister dest) {
         MOZ_ASSERT(HasSSE2());
+        // :TODO: (Bug 1132894) See LIRGeneratorX86Shared::lowerForFPU
+        if (!HasAVX() && !src0.aliases(dest)) {
+            if (src1.kind() == Operand::FPREG &&
+                dest.aliases(FloatRegister::FromCode(src1.fpu())))
+            {
+                vmovdqa(src1, ScratchSimdReg);
+                src1 = Operand(ScratchSimdReg);
+            }
+            vmovdqa(src0, dest);
+            src0 = dest;
+        }
         switch (src1.kind()) {
           case Operand::FPREG:
             masm.vcmpps_rr(order, src1.fpu(), src0.code(), dest.code());

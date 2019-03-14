@@ -143,7 +143,7 @@ void
 MacroAssemblerX64::finish()
 {
     if (!doubles_.empty())
-        masm.align(sizeof(double));
+        masm.haltingAlign(sizeof(double));
     for (size_t i = 0; i < doubles_.length(); i++) {
         Double& dbl = doubles_[i];
         bind(&dbl.uses);
@@ -151,7 +151,7 @@ MacroAssemblerX64::finish()
     }
 
     if (!floats_.empty())
-        masm.align(sizeof(float));
+        masm.haltingAlign(sizeof(float));
     for (size_t i = 0; i < floats_.length(); i++) {
         Float& flt = floats_[i];
         bind(&flt.uses);
@@ -160,7 +160,7 @@ MacroAssemblerX64::finish()
 
     // SIMD memory values must be suitably aligned.
     if (!simds_.empty())
-        masm.align(SimdMemoryAlignment);
+        masm.haltingAlign(SimdMemoryAlignment);
     for (size_t i = 0; i < simds_.length(); i++) {
         SimdData& v = simds_[i];
         bind(&v.uses);
@@ -213,6 +213,9 @@ MacroAssemblerX64::passABIArg(const MoveOperand& from, MoveOp::Type type)
       case MoveOp::DOUBLE: {
         FloatRegister dest;
         if (GetFloatArgReg(passedIntArgs_, passedFloatArgs_++, &dest)) {
+            // Convert to the right type of register.
+            if (type == MoveOp::FLOAT32)
+                dest = dest.asSingle();
             if (from.isFloatReg() && from.floatReg() == dest) {
                 // Nothing to do; the value is in the right register already
                 return;

@@ -11,9 +11,9 @@
 
 #include "jscompartment.h"
 
+#include "gc/Allocator.h"
+#include "gc/GCTrace.h"
 #include "vm/Probes.h"
-
-#include "jsgcinlines.h"
 
 namespace js {
 
@@ -25,21 +25,21 @@ NewObjectCache::lookupProto(const Class *clasp, JSObject *proto, gc::AllocKind k
 }
 
 inline bool
-NewObjectCache::lookupGlobal(const Class *clasp, js::GlobalObject *global, gc::AllocKind kind, EntryIndex *pentry)
+NewObjectCache::lookupGlobal(const Class *clasp, GlobalObject *global, gc::AllocKind kind, EntryIndex *pentry)
 {
     return lookup(clasp, global, kind, pentry);
 }
 
 inline void
-NewObjectCache::fillGlobal(EntryIndex entry, const Class *clasp, js::GlobalObject *global,
+NewObjectCache::fillGlobal(EntryIndex entry, const Class *clasp, GlobalObject *global,
                            gc::AllocKind kind, NativeObject *obj)
 {
     //MOZ_ASSERT(global == obj->getGlobal());
     return fill(entry, clasp, global, kind, obj);
 }
 
-inline JSObject *
-NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entryIndex, js::gc::InitialHeap heap)
+inline NativeObject *
+NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entryIndex, gc::InitialHeap heap)
 {
     // The new object cache does not account for metadata attached via callbacks.
     MOZ_ASSERT(!cx->compartment()->hasObjectMetadataCallback());
@@ -47,7 +47,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entryIndex, js::gc::I
     MOZ_ASSERT(unsigned(entryIndex) < mozilla::ArrayLength(entries));
     Entry *entry = &entries[entryIndex];
 
-    JSObject *templateObj = reinterpret_cast<JSObject *>(&entry->templateObject);
+    NativeObject *templateObj = reinterpret_cast<NativeObject *>(&entry->templateObject);
 
     // Do an end run around JSObject::group() to avoid doing AutoUnprotectCell
     // on the templateObj, which is not a GC thing and can't use runtimeFromAnyThread.
@@ -59,11 +59,11 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entryIndex, js::gc::I
     if (cx->runtime()->gc.upcomingZealousGC())
         return nullptr;
 
-    JSObject *obj = js::gc::AllocateObjectForCacheHit<NoGC>(cx, entry->kind, heap, group->clasp());
+    NativeObject *obj = gc::AllocateObjectForCacheHit<NoGC>(cx, entry->kind, heap, group->clasp());
     if (obj) {
         copyCachedToObject(obj, templateObj, entry->kind);
         probes::CreateObject(cx, obj);
-        js::gc::TraceCreateObject(obj);
+        gc::TraceCreateObject(obj);
         return obj;
     }
 
@@ -76,7 +76,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entryIndex, js::gc::I
     // take the slow allocation path. The callee is responsible for ensuring
     // that the index it uses to fill the cache is still correct after this GC.
     mozilla::DebugOnly<JSObject *> obj2 =
-        js::gc::AllocateObjectForCacheHit<CanGC>(cx, entry->kind, heap, group->clasp());
+        gc::AllocateObjectForCacheHit<CanGC>(cx, entry->kind, heap, group->clasp());
     MOZ_ASSERT(!obj2);
     return nullptr;
 }

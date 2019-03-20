@@ -10,7 +10,6 @@
 
 #include "proxy/DeadObjectProxy.h"
 
-#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;

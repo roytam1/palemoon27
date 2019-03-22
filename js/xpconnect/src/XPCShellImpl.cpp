@@ -369,8 +369,11 @@ BuildDate(JSContext* cx, unsigned argc, jsval* vp)
 static bool
 Quit(JSContext* cx, unsigned argc, jsval* vp)
 {
+    CallArgs args = CallArgsFromVp(argc, vp);
+
     gExitCode = 0;
-    JS_ConvertArguments(cx, JS::CallArgsFromVp(argc, vp),"/ i", &gExitCode);
+    if (!ToInt32(cx, args.get(0), &gExitCode))
+        return false;
 
     gQuitting = true;
 //    exit(0);
@@ -529,25 +532,6 @@ Options(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-Parent(JSContext* cx, unsigned argc, jsval* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return false;
-    }
-
-    Value v = args[0];
-    if (v.isPrimitive()) {
-        JS_ReportError(cx, "Only objects have parents!");
-        return false;
-    }
-
-    args.rval().setObjectOrNull(JS_GetParent(&v.toObject()));
-    return true;
-}
-
-static bool
 Atob(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -649,7 +633,6 @@ static const JSFunctionSpec glob_functions[] = {
     JS_FS("gczeal",          GCZeal,         1,0),
 #endif
     JS_FS("options",         Options,        0,0),
-    JS_FN("parent",          Parent,         1,0),
     JS_FS("sendCommand",     SendCommand,    1,0),
     JS_FS("atob",            Atob,           1,0),
     JS_FS("btoa",            Btoa,           1,0),

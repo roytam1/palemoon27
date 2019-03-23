@@ -1821,13 +1821,6 @@ JS_PreventExtensions(JSContext *cx, JS::HandleObject obj, ObjectOpResult &result
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_GetParent(JSObject *obj)
-{
-    MOZ_ASSERT(!obj->is<ScopeObject>());
-    return obj->getParent();
-}
-
-JS_PUBLIC_API(JSObject *)
 JS_GetConstructor(JSContext* cx, HandleObject proto)
 {
     AssertHeapIsIdle(cx);
@@ -1968,25 +1961,6 @@ JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *jsclasp, HandleObject p
     MOZ_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
     return NewObjectWithGivenProto(cx, clasp, proto, JS::NullPtr());
-}
-
-JS_FRIEND_API(JSObject *)
-JS_DeprecatedNewObjectWithGivenProtoAndParent(JSContext *cx, const JSClass *jsclasp,
-                                              HandleObject proto, HandleObject parent)
-{
-    MOZ_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, proto, parent);
-
-    const Class* clasp = Valueify(jsclasp);
-    if (!clasp)
-        clasp = &PlainObject::class_;    /* default class is Object */
-
-    MOZ_ASSERT(clasp != &JSFunction::class_);
-    MOZ_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
-
-    return NewObjectWithGivenProto(cx, clasp, proto, parent);
 }
 
 JS_PUBLIC_API(JSObject*)

@@ -60,12 +60,6 @@ extern JS_FRIEND_API(JSObject*)
 JS_NewObjectWithUniqueType(JSContext* cx, const JSClass* clasp, JS::HandleObject proto,
                            JS::HandleObject parent);
 
-// Like JS_NewObjectWithGivenProto but allows passing an explicit parent argument.  Don't use this; it's deprecated.
-extern JS_FRIEND_API(JSObject *)
-JS_DeprecatedNewObjectWithGivenProtoAndParent(JSContext *cx, const JSClass *clasp,
-                                              JS::Handle<JSObject*> proto,
-                                              JS::Handle<JSObject*> parent);
-
 // Allocate an object in exactly the same way as JS_NewObjectWithGivenProto, but
 // without invoking the metadata callback on it.  This allows creation of
 // internal bookkeeping objects that are guaranteed to not have metadata
@@ -670,14 +664,6 @@ IsCallObject(JSObject *obj);
 
 JS_FRIEND_API(bool)
 CanAccessObjectShape(JSObject *obj);
-
-inline JSObject *
-GetObjectParent(JSObject *obj)
-{
-    MOZ_ASSERT(!IsScopeObject(obj));
-    MOZ_ASSERT(CanAccessObjectShape(obj));
-    return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
-}
 
 static MOZ_ALWAYS_INLINE JSCompartment *
 GetObjectCompartment(JSObject *obj)

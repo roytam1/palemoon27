@@ -426,6 +426,10 @@ class JSObject : public js::gc::Cell
 
     /* Access the parent link of an object. */
     JSObject *getParent() const;
+    /* A way to assert something about the parent of an object */
+    MOZ_ALWAYS_INLINE void assertParentIs(JSObject *parent) const {
+        MOZ_ASSERT(getParent() == parent);
+    }
     static bool setParent(JSContext *cx, js::HandleObject obj, js::HandleObject newParent);
 
     /*
@@ -1271,13 +1275,13 @@ ToObjectFromStack(JSContext* cx, HandleValue vp)
 
 template<XDRMode mode>
 bool
-XDRObjectLiteral(XDRState<mode>* xdr, MutableHandleNativeObject obj);
+XDRObjectLiteral(XDRState<mode> *xdr, MutableHandleNativeObject obj);
 
-extern JSObject*
-CloneObjectLiteral(JSContext* cx, HandleObject parent, HandleObject srcObj);
+extern JSObject *
+CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj);
 
 extern void
-GetObjectSlotName(JSTracer* trc, char* buf, size_t bufsize);
+GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize);
 
 extern bool
 ReportGetterOnlyAssignment(JSContext* cx, bool strict);

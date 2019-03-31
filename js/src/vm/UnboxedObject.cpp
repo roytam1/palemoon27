@@ -350,8 +350,8 @@ UnboxedPlainObject::obj_lookupProperty(JSContext* cx, HandleObject obj,
 }
 
 /* static */ bool
-UnboxedPlainObject::obj_defineProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue v,
-                                       PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
+UnboxedPlainObject::obj_defineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
+                                       GetterOp getter, SetterOp setter, unsigned attrs,
                                        ObjectOpResult &result)
 {
     if (!convertToNative(cx, obj))
@@ -361,7 +361,7 @@ UnboxedPlainObject::obj_defineProperty(JSContext* cx, HandleObject obj, HandleId
 }
 
 /* static */ bool
-UnboxedPlainObject::obj_hasProperty(JSContext* cx, HandleObject obj, HandleId id, bool* foundp)
+UnboxedPlainObject::obj_hasProperty(JSContext *cx, HandleObject obj, HandleId id, bool* foundp)
 {
     if (obj->as<UnboxedPlainObject>().layout().lookup(id)) {
         *foundp = true;

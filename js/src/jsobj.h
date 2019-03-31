@@ -33,7 +33,7 @@ struct ClassInfo;
 
 namespace js {
 
-class AutoPropDescVector;
+class AutoPropertyDescriptorVector;
 class GCMarker;
 struct NativeIterator;
 class Nursery;
@@ -44,33 +44,31 @@ namespace gc {
 class RelocationOverlay;
 }
 
-inline JSObject*
-CastAsObject(PropertyOp op)
+inline JSObject *
+CastAsObject(GetterOp op)
 {
-    return JS_FUNC_TO_DATA_PTR(JSObject*, op);
+    return JS_FUNC_TO_DATA_PTR(JSObject *, op);
 }
 
-inline JSObject*
-CastAsObject(StrictPropertyOp op)
+inline JSObject *
+CastAsObject(SetterOp op)
 {
-    return JS_FUNC_TO_DATA_PTR(JSObject*, op);
+    return JS_FUNC_TO_DATA_PTR(JSObject *, op);
 }
 
 inline Value
-CastAsObjectJsval(PropertyOp op)
+CastAsObjectJsval(GetterOp op)
 {
     return ObjectOrNullValue(CastAsObject(op));
 }
 
 inline Value
-CastAsObjectJsval(StrictPropertyOp op)
+CastAsObjectJsval(SetterOp op)
 {
     return ObjectOrNullValue(CastAsObject(op));
 }
 
 /******************************************************************************/
-
-typedef Vector<PropDesc, 1> PropDescArray;
 
 extern const Class IntlClass;
 extern const Class JSONClass;
@@ -767,56 +765,49 @@ GetOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
  * the DefineProperty functions do not enforce some invariants mandated by ES6.
  */
 extern bool
-StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id, const PropDesc &desc,
-                       ObjectOpResult &result);
-
-extern bool
-StandardDefineProperty(JSContext* cx, HandleObject obj, HandleId id,
+StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id,
                        Handle<PropertyDescriptor> descriptor, ObjectOpResult &result);
 
 /*
- * For convenience, signatures identical to the above except without the
- * ObjectOpResult out-parameter. They throw a TypeError on failure.
+ * Same as above except without the ObjectOpResult out-parameter. Throws a
+ * TypeError on failure.
  */
 extern bool
-StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id, const PropDesc &desc);
-
-extern bool
-StandardDefineProperty(JSContext* cx, HandleObject obj, HandleId id,
+StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id,
                        Handle<PropertyDescriptor> desc);
 
 extern bool
 DefineProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, HandleValue value,
-               JSPropertyOp getter, JSStrictPropertyOp, unsigned attrs, ObjectOpResult &result);
+               JSGetterOp getter, JSSetterOp, unsigned attrs, ObjectOpResult &result);
 
 extern bool
 DefineProperty(ExclusiveContext *cx, HandleObject obj, PropertyName *name, HandleValue value,
-               JSPropertyOp getter, JSStrictPropertyOp, unsigned attrs, ObjectOpResult &result);
+               JSGetterOp getter, JSSetterOp, unsigned attrs, ObjectOpResult &result);
 
 extern bool
 DefineElement(ExclusiveContext *cx, HandleObject obj, uint32_t index, HandleValue value,
-              JSPropertyOp getter, JSStrictPropertyOp, unsigned attrs, ObjectOpResult &result);
+              JSGetterOp getter, JSSetterOp, unsigned attrs, ObjectOpResult &result);
 
 /*
  * When the 'result' out-param is omitted, the behavior is the same as above, except
  * that any failure results in a TypeError.
  */
 extern bool
-DefineProperty(ExclusiveContext* cx, HandleObject obj, HandleId id, HandleValue value,
-               JSPropertyOp getter = nullptr,
-               JSStrictPropertyOp setter = nullptr,
+DefineProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, HandleValue value,
+               JSGetterOp getter = nullptr,
+               JSSetterOp setter = nullptr,
                unsigned attrs = JSPROP_ENUMERATE);
 
 extern bool
-DefineProperty(ExclusiveContext* cx, HandleObject obj, PropertyName* name, HandleValue value,
-               JSPropertyOp getter = nullptr,
-               JSStrictPropertyOp setter = nullptr,
+DefineProperty(ExclusiveContext *cx, HandleObject obj, PropertyName *name, HandleValue value,
+               JSGetterOp getter = nullptr,
+               JSSetterOp setter = nullptr,
                unsigned attrs = JSPROP_ENUMERATE);
 
 extern bool
-DefineElement(ExclusiveContext* cx, HandleObject obj, uint32_t index, HandleValue value,
-              JSPropertyOp getter = nullptr,
-              JSStrictPropertyOp setter = nullptr,
+DefineElement(ExclusiveContext *cx, HandleObject obj, uint32_t index, HandleValue value,
+              JSGetterOp getter = nullptr,
+              JSSetterOp setter = nullptr,
               unsigned attrs = JSPROP_ENUMERATE);
 
 /*
@@ -1181,15 +1172,43 @@ extern NativeObject*
 DeepCloneObjectLiteral(JSContext* cx, HandleNativeObject obj, NewObjectKind newKind = GenericObject);
 
 extern bool
-DefineProperties(JSContext* cx, HandleObject obj, HandleObject props);
+DefineProperties(JSContext *cx, HandleObject obj, HandleObject props);
+
+inline JSGetterOp
+CastAsGetterOp(JSObject *object)
+{
+    return JS_DATA_TO_FUNC_PTR(JSGetterOp, object);
+}
+
+inline JSSetterOp
+CastAsSetterOp(JSObject *object)
+{
+    return JS_DATA_TO_FUNC_PTR(JSSetterOp, object);
+}
+
+/* ES6 draft rev 32 (2015 Feb 2) 6.2.4.5 ToPropertyDescriptor(Obj) */
+bool
+ToPropertyDescriptor(JSContext *cx, HandleValue descval, bool checkAccessors,
+                     MutableHandle<PropertyDescriptor> desc);
+
+/*
+ * Throw a TypeError if desc.getterObject() or setterObject() is not
+ * callable. This performs exactly the checks omitted by ToPropertyDescriptor
+ * when checkAccessors is false.
+ */
+bool
+CheckPropertyDescriptorAccessors(JSContext *cx, Handle<PropertyDescriptor> desc);
+
+void
+CompletePropertyDescriptor(MutableHandle<PropertyDescriptor> desc);
 
 /*
  * Read property descriptors from props, as for Object.defineProperties. See
  * ES5 15.2.3.7 steps 3-5.
  */
 extern bool
-ReadPropertyDescriptors(JSContext* cx, HandleObject props, bool checkAccessors,
-                        AutoIdVector* ids, AutoPropDescVector* descs);
+ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccessors,
+                        AutoIdVector *ids, AutoPropertyDescriptorVector *descs);
 
 /* Read the name using a dynamic lookup on the scopeChain. */
 extern bool
@@ -1228,33 +1247,34 @@ LookupNameUnqualified(JSContext* cx, HandlePropertyName name, HandleObject scope
 
 namespace js {
 
-extern JSObject*
+extern JSObject *
 FindVariableScope(JSContext* cx, JSFunction** funp);
 
 bool
-LookupPropertyPure(ExclusiveContext* cx, JSObject* obj, jsid id, JSObject** objp,
+LookupPropertyPure(ExclusiveContext* cx, JSObject *obj, jsid id, JSObject **objp,
                    Shape** propp);
 
 bool
-GetPropertyPure(ExclusiveContext* cx, JSObject* obj, jsid id, Value* vp);
+GetPropertyPure(ExclusiveContext *cx, JSObject *obj, jsid id, Value *vp);
 
 bool
-GetOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
+GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
                          MutableHandle<PropertyDescriptor> desc);
 
 bool
-GetOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp);
+GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp);
 
+/* ES6 draft rev 32 (2015 Feb 2) 6.2.4.4 FromPropertyDescriptor(Desc) */
 bool
-NewPropertyDescriptorObject(JSContext* cx, Handle<PropertyDescriptor> desc, MutableHandleValue vp);
+FromPropertyDescriptor(JSContext *cx, Handle<PropertyDescriptor> desc, MutableHandleValue vp);
 
 extern bool
-IsDelegate(JSContext* cx, HandleObject obj, const Value& v, bool* result);
+IsDelegate(JSContext *cx, HandleObject obj, const Value &v, bool *result);
 
 // obj is a JSObject*, but we root it immediately up front. We do it
 // that way because we need a Rooted temporary in this method anyway.
 extern bool
-IsDelegateOfObject(JSContext* cx, HandleObject protoObj, JSObject* obj, bool* result);
+IsDelegateOfObject(JSContext *cx, HandleObject protoObj, JSObject *obj, bool *result);
 
 /* Wrap boolean, number or string as Boolean, Number or String object. */
 extern JSObject*

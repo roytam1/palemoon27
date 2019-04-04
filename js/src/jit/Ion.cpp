@@ -484,12 +484,12 @@ jit::LazyLinkTopActivation(JSContext* cx)
     return script->baselineOrIonRawPointer();
 }
 /* static */ void
-JitRuntime::Mark(JSTracer* trc)
+JitRuntime::Mark(JSTracer *trc)
 {
     MOZ_ASSERT(!trc->runtime()->isHeapMinorCollecting());
-    Zone* zone = trc->runtime()->atomsCompartment()->zone();
+    Zone *zone = trc->runtime()->atomsCompartment()->zone();
     for (gc::ZoneCellIterUnderGC i(zone, gc::FINALIZE_JITCODE); !i.done(); i.next()) {
-        JitCode* code = i.get<JitCode>();
+        JitCode *code = i.get<JitCode>();
         MarkJitCodeRoot(trc, &code, "wrapper");
     }
 
@@ -1111,14 +1111,14 @@ IonScript::unlinkFromRuntime(FreeOp* fop)
 }
 
 void
-jit::ToggleBarriers(JS::Zone* zone, bool needs)
+jit::ToggleBarriers(JS::Zone *zone, bool needs)
 {
-    JSRuntime* rt = zone->runtimeFromMainThread();
+    JSRuntime *rt = zone->runtimeFromMainThread();
     if (!rt->hasJitRuntime())
         return;
 
     for (gc::ZoneCellIterUnderGC i(zone, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-        JSScript* script = i.get<JSScript>();
+        JSScript *script = i.get<JSScript>();
         if (script->hasIonScript())
             script->ionScript()->toggleBarriers(needs);
         if (script->hasBaselineScript())

@@ -832,24 +832,31 @@ class IonBuilder
     InliningStatus inlineSimdWith(CallInfo &callInfo, JSNative native, SimdLane lane,
                                   SimdTypeDescr::Type type);
     InliningStatus inlineSimdSplat(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdSwizzle(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdCheck(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
     InliningStatus inlineSimdConvert(CallInfo &callInfo, JSNative native, bool isCast,
                                      SimdTypeDescr::Type from, SimdTypeDescr::Type to);
     InliningStatus inlineSimdSelect(CallInfo &callInfo, JSNative native, bool isElementWise,
                                     SimdTypeDescr::Type type);
 
+    bool prepareForSimdLoadStore(CallInfo &callInfo, Scalar::Type simdType, MInstruction **elements,
+                                 MDefinition **index, Scalar::Type *arrayType);
+    InliningStatus inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdStore(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
+
     // Utility intrinsics.
-    InliningStatus inlineIsCallable(CallInfo& callInfo);
-    InliningStatus inlineIsObject(CallInfo& callInfo);
-    InliningStatus inlineToObject(CallInfo& callInfo);
-    InliningStatus inlineToInteger(CallInfo& callInfo);
-    InliningStatus inlineToString(CallInfo& callInfo);
-    InliningStatus inlineDump(CallInfo& callInfo);
-    InliningStatus inlineHasClass(CallInfo& callInfo, const Class* clasp,
-                                  const Class* clasp2 = nullptr,
-                                  const Class* clasp3 = nullptr,
-                                  const Class* clasp4 = nullptr);
-    InliningStatus inlineIsConstructing(CallInfo& callInfo);
-    InliningStatus inlineSubstringKernel(CallInfo& callInfo);
+    InliningStatus inlineIsCallable(CallInfo &callInfo);
+    InliningStatus inlineIsObject(CallInfo &callInfo);
+    InliningStatus inlineToObject(CallInfo &callInfo);
+    InliningStatus inlineToInteger(CallInfo &callInfo);
+    InliningStatus inlineToString(CallInfo &callInfo);
+    InliningStatus inlineDump(CallInfo &callInfo);
+    InliningStatus inlineHasClass(CallInfo &callInfo, const Class *clasp,
+                                  const Class *clasp2 = nullptr,
+                                  const Class *clasp3 = nullptr,
+                                  const Class *clasp4 = nullptr);
+    InliningStatus inlineIsConstructing(CallInfo &callInfo);
+    InliningStatus inlineSubstringKernel(CallInfo &callInfo);
 
     // Testing functions.
     InliningStatus inlineBailout(CallInfo& callInfo);

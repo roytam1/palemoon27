@@ -1758,8 +1758,7 @@ js::DeepCloneObjectLiteral(JSContext* cx, HandleNativeObject obj, NewObjectKind 
         RootedObject proto(cx, group->proto().toObject());
         obj->assertParentIs(cx->global());
         clone = NewNativeObjectWithGivenProto(cx, &PlainObject::class_, proto,
-                                              NullPtr(), kind,
-                                              newKind);
+                                              kind, newKind);
     }
 
     // Allocate the same number of slots.
@@ -2454,14 +2453,7 @@ DefineConstructorAndPrototype(JSContext* cx, HandleObject obj, JSProtoKey key, H
 
         ctor = proto;
     } else {
-        /*
-         * Create the constructor, not using GlobalObject::createConstructor
-         * because the constructor currently must have |obj| as its parent.
-         * (FIXME: remove this dependency on the exact identity of the parent,
-         * perhaps as part of bug 638316.)
-         */
-        RootedFunction fun(cx, NewFunction(cx, constructor, nargs,
-                                           JSFunction::NATIVE_CTOR, obj, atom, ctorKind));
+        RootedFunction fun(cx, NewNativeConstructor(cx, constructor, nargs, atom, ctorKind));
         if (!fun)
             goto bad;
 

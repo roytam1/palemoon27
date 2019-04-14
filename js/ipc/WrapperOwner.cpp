@@ -83,7 +83,7 @@ class CPOWProxyHandler : public BaseProxyHandler
     MOZ_CONSTEXPR CPOWProxyHandler()
       : BaseProxyHandler(&family) {}
 
-    virtual bool finalizeInBackground(Value priv) const override {
+    virtual bool finalizeInBackground(Value priv) const MOZ_OVERRIDE {
         return false;
     }
 

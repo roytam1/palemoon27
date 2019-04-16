@@ -537,17 +537,22 @@ NewNativeConstructor(ExclusiveContext *cx, JSNative native, unsigned nargs, Hand
                      NewObjectKind newKind = GenericObject,
                      JSFunction::Flags flags = JSFunction::NATIVE_CTOR);
 
-// Allocate a new scripted function.
+// Allocate a new scripted function.  If enclosingDynamicScope is null, the
+// global will be used.  In all cases the parent of the resulting object will be
+// the global.
 extern JSFunction *
-NewScriptedFunction(ExclusiveContext *cx, unsigned nargs,
-                    JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
-                    gc::AllocKind allocKind = JSFunction::FinalizeKind,
-                    NewObjectKind newKind = GenericObject);
+NewScriptedFunction(ExclusiveContext *cx, unsigned nargs, JSFunction::Flags flags,
+                    HandleAtom atom, gc::AllocKind allocKind = JSFunction::FinalizeKind,
+                    NewObjectKind newKind = GenericObject,
+                    HandleObject enclosingDynamicScope = NullPtr());
 
-// If proto is nullptr, Function.prototype is used instead.
+// If proto is nullptr, Function.prototype is used instead.  If
+// enclosingDynamicScope is null, the function will have a null environment()
+// (yes, null, not the global).  In all cases, the global will be used as the
+// parent.
 extern JSFunction *
 NewFunctionWithProto(ExclusiveContext *cx, JSNative native, unsigned nargs,
-                     JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
+                     JSFunction::Flags flags, HandleObject enclosingDynamicScope, HandleAtom atom,
                      HandleObject proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
                      NewObjectKind newKind = GenericObject);
 

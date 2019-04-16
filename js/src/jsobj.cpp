@@ -1099,17 +1099,17 @@ NewObjectGCKind(const js::Class *clasp)
 }
 
 static inline JSObject *
-NewObject(ExclusiveContext* cx, HandleObjectGroup group, HandleObject parent, gc::AllocKind kind,
+NewObject(ExclusiveContext *cx, HandleObjectGroup group, HandleObject parent, gc::AllocKind kind,
           NewObjectKind newKind)
 {
-    const Class* clasp = group->clasp();
+    const Class *clasp = group->clasp();
 
     MOZ_ASSERT(clasp != &ArrayObject::class_);
     MOZ_ASSERT_IF(clasp == &JSFunction::class_,
                   kind == JSFunction::FinalizeKind || kind == JSFunction::ExtendedFinalizeKind);
     MOZ_ASSERT_IF(parent, &parent->global() == cx->global());
 
-    JSObject* metadata = nullptr;
+    JSObject *metadata = nullptr;
     if (!NewObjectMetadata(cx, &metadata))
         return nullptr;
 
@@ -1308,31 +1308,30 @@ FindProto(ExclusiveContext* cx, const js::Class* clasp, MutableHandleObject prot
 }
 
 static bool
-NewObjectWithClassProtoIsCachable(ExclusiveContext* cxArg, HandleObject parent,
-                                  JSProtoKey protoKey, NewObjectKind newKind, const Class* clasp)
+NewObjectWithClassProtoIsCachable(ExclusiveContext *cxArg,
+                                  JSProtoKey protoKey, NewObjectKind newKind, const Class *clasp)
 {
     return cxArg->isJSContext() &&
-           parent->is<GlobalObject>() &&
            protoKey != JSProto_Null &&
            newKind == GenericObject &&
            clasp->isNative() &&
            !cxArg->asJSContext()->compartment()->hasObjectMetadataCallback();
 }
 
-JSObject*
-js::NewObjectWithClassProtoCommon(ExclusiveContext* cxArg, const Class* clasp,
-                                  HandleObject protoArg, HandleObject maybeParent,
+JSObject *
+js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg, const Class *clasp,
+                                  HandleObject protoArg,
                                   gc::AllocKind allocKind, NewObjectKind newKind)
 {
     if (protoArg) {
-        return NewObjectWithGivenTaggedProto(cxArg, clasp, AsTaggedProto(protoArg), maybeParent,
+        return NewObjectWithGivenTaggedProto(cxArg, clasp, AsTaggedProto(protoArg), NullPtr(),
                                              allocKind, newKind);
     }
 
     if (CanBeFinalizedInBackground(allocKind, clasp))
         allocKind = GetBackgroundAllocKind(allocKind);
 
-    HandleObject parent = maybeParent ? maybeParent : GlobalObject::upcast(cxArg->global());
+    Handle<GlobalObject*> global = cxArg->global();
 
     /*
      * Use the object cache, except for classes without a cached proto key.
@@ -1345,14 +1344,14 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext* cxArg, const Class* clasp,
      */
     JSProtoKey protoKey = ClassProtoKeyOrAnonymousOrNull(clasp);
 
-    bool isCachable = NewObjectWithClassProtoIsCachable(cxArg, parent, protoKey, newKind, clasp);
+    bool isCachable = NewObjectWithClassProtoIsCachable(cxArg, protoKey, newKind, clasp);
     if (isCachable) {
-        JSContext* cx = cxArg->asJSContext();
-        JSRuntime* rt = cx->runtime();
-        NewObjectCache& cache = rt->newObjectCache;
+        JSContext *cx = cxArg->asJSContext();
+        JSRuntime *rt = cx->runtime();
+        NewObjectCache &cache = rt->newObjectCache;
         NewObjectCache::EntryIndex entry = -1;
-        if (cache.lookupGlobal(clasp, &parent->as<GlobalObject>(), allocKind, &entry)) {
-            JSObject* obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
+        if (cache.lookupGlobal(clasp, global, allocKind, &entry)) {
+            JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
             if (obj)
                 return obj;
         }
@@ -1367,15 +1366,15 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext* cxArg, const Class* clasp,
     if (!group)
         return nullptr;
 
-    JSObject* obj = NewObject(cxArg, group, parent, allocKind, newKind);
+    JSObject *obj = NewObject(cxArg, group, global, allocKind, newKind);
     if (!obj)
         return nullptr;
 
     if (isCachable && !obj->as<NativeObject>().hasDynamicSlots()) {
-        NewObjectCache& cache = cxArg->asJSContext()->runtime()->newObjectCache;
+        NewObjectCache &cache = cxArg->asJSContext()->runtime()->newObjectCache;
         NewObjectCache::EntryIndex entry = -1;
-        cache.lookupGlobal(clasp, &parent->as<GlobalObject>(), allocKind, &entry);
-        cache.fillGlobal(entry, clasp, &parent->as<GlobalObject>(), allocKind,
+        cache.lookupGlobal(clasp, global, allocKind, &entry);
+        cache.fillGlobal(entry, clasp, global, allocKind,
                          &obj->as<NativeObject>());
     }
 
@@ -1383,11 +1382,10 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext* cxArg, const Class* clasp,
 }
 
 static bool
-NewObjectWithGroupIsCachable(ExclusiveContext *cx, HandleObjectGroup group, HandleObject parent,
+NewObjectWithGroupIsCachable(ExclusiveContext *cx, HandleObjectGroup group,
                              NewObjectKind newKind)
 {
     return group->proto().isObject() &&
-           parent == group->proto().toObject()->getParent() &&
            newKind == GenericObject &&
            group->clasp()->isNative() &&
            (!group->newScript() || group->newScript()->analyzed()) &&
@@ -1400,16 +1398,14 @@ NewObjectWithGroupIsCachable(ExclusiveContext *cx, HandleObjectGroup group, Hand
  * avoid losing creation site information for objects made by scripted 'new'.
  */
 JSObject *
-js::NewObjectWithGroupCommon(ExclusiveContext *cx, HandleObjectGroup group, HandleObject parent,
+js::NewObjectWithGroupCommon(ExclusiveContext *cx, HandleObjectGroup group,
                              gc::AllocKind allocKind, NewObjectKind newKind)
 {
-    MOZ_ASSERT(parent);
-
     MOZ_ASSERT(allocKind <= gc::AllocKind::OBJECT_LAST);
     if (CanBeFinalizedInBackground(allocKind, group->clasp()))
         allocKind = GetBackgroundAllocKind(allocKind);
 
-    bool isCachable = NewObjectWithGroupIsCachable(cx, group, parent, newKind);
+    bool isCachable = NewObjectWithGroupIsCachable(cx, group, newKind);
     if (isCachable) {
         NewObjectCache &cache = cx->asJSContext()->runtime()->newObjectCache;
         NewObjectCache::EntryIndex entry = -1;
@@ -1421,7 +1417,7 @@ js::NewObjectWithGroupCommon(ExclusiveContext *cx, HandleObjectGroup group, Hand
         }
     }
 
-    JSObject *obj = NewObject(cx, group, parent, allocKind, newKind);
+    JSObject *obj = NewObject(cx, group, cx->global(), allocKind, newKind);
     if (!obj)
         return nullptr;
 
@@ -1467,7 +1463,7 @@ js::CreateThis(JSContext *cx, const Class *newclasp, HandleObject callee)
 
     RootedObject proto(cx, protov.isObjectOrNull() ? protov.toObjectOrNull() : nullptr);
     gc::AllocKind kind = NewObjectGCKind(newclasp);
-    return NewObjectWithClassProto(cx, newclasp, proto, NullPtr(), kind);
+    return NewObjectWithClassProto(cx, newclasp, proto, kind);
 }
 
 static inline JSObject *
@@ -1508,7 +1504,7 @@ CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group,
         // plain object and register it with the group. Use the maximum number
         // of fixed slots, as is also required by the TypeNewScript.
         gc::AllocKind allocKind = GuessObjectGCKind(NativeObject::MAX_FIXED_SLOTS);
-        PlainObject *res = NewObjectWithGroup<PlainObject>(cx, group, cx->global(), allocKind, newKind);
+        PlainObject *res = NewObjectWithGroup<PlainObject>(cx, group, allocKind, newKind);
         if (!res)
             return nullptr;
 
@@ -1526,7 +1522,7 @@ CreateThisForFunctionWithGroup(JSContext *cx, HandleObjectGroup group,
         return NewObjectWithGivenTaggedProto(cx, &PlainObject::class_, protoRoot, cx->global(),
                                              allocKind, newKind);
     }
-    return NewObjectWithGroup<PlainObject>(cx, group, cx->global(), allocKind, newKind);
+    return NewObjectWithGroup<PlainObject>(cx, group, allocKind, newKind);
 }
 
 JSObject *
@@ -2091,7 +2087,7 @@ template bool
 js::XDRObjectLiteral(XDRState<XDR_DECODE> *xdr, MutableHandleObject obj);
 
 JSObject *
-js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
+js::CloneObjectLiteral(JSContext *cx, HandleObject srcObj)
 {
     if (srcObj->is<PlainObject>()) {
         AllocKind kind = GetBackgroundAllocKind(GuessObjectGCKind(srcObj->as<PlainObject>().numFixedSlots()));
@@ -2105,13 +2101,13 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
         if (!group)
             return nullptr;
 
-        RootedPlainObject res(cx, NewObjectWithGroup<PlainObject>(cx, group, parent, kind,
+        RootedPlainObject res(cx, NewObjectWithGroup<PlainObject>(cx, group, kind,
                                                                   MaybeSingletonObject));
         if (!res)
             return nullptr;
 
         RootedShape newShape(cx, ReshapeForParentAndAllocKind(cx, srcObj->as<PlainObject>().lastProperty(),
-                                                              TaggedProto(proto), parent, kind));
+                                                              TaggedProto(proto), cx->global(), kind));
         if (!newShape || !res->setLastProperty(cx, newShape))
             return nullptr;
 

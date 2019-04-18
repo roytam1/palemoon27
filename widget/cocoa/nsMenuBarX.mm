@@ -132,7 +132,8 @@ void nsMenuBarX::ConstructNativeMenus()
   for (uint32_t i = 0; i < count; i++) { 
     nsIContent *menuContent = mContent->GetChildAt(i);
     if (menuContent &&
-        menuContent->IsXULElement(nsGkAtoms::menu)) {
+        menuContent->Tag() == nsGkAtoms::menu &&
+        menuContent->IsXUL()) {
       nsMenuX* newMenu = new nsMenuX();
       if (newMenu) {
         nsresult rv = newMenu->Create(this, this, menuContent);

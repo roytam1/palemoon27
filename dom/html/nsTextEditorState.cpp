@@ -136,7 +136,7 @@ nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
   aWrapProp = eHTMLTextWrap_Soft; // the default
 
   nsAutoString wrap;
-  if (aContent->IsHTMLElement()) {
+  if (aContent->IsHTML()) {
     static nsIContent::AttrValuesArray strings[] =
       {&nsGkAtoms::HARD, &nsGkAtoms::OFF, nullptr};
 
@@ -570,7 +570,7 @@ nsTextInputSelectionImpl::CompleteMove(bool aForward, bool aExtend)
     {
       nsIContent *child = parentDIV->GetLastChild();
 
-      if (child->IsHTMLElement(nsGkAtoms::br))
+      if (child->Tag() == nsGkAtoms::br)
       {
         --offset;
         hint = CARET_ASSOCIATE_AFTER; // for Bug 106855

@@ -110,7 +110,7 @@ public:
         return false;
       }
       nsIContent* content = aNode.Content();
-      return content->IsHTMLElement() && content->IsInHTMLDocument();
+      return content->IsHTML() && content->IsInHTMLDocument();
     }
 };
 

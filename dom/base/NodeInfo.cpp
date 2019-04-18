@@ -83,7 +83,7 @@ NodeInfo::NodeInfo(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
       // Correct the case for HTML
       if (aNodeType == nsIDOMNode::ELEMENT_NODE &&
           aNamespaceID == kNameSpaceID_XHTML && GetDocument() &&
-          GetDocument()->IsHTMLDocument()) {
+          GetDocument()->IsHTML()) {
         nsContentUtils::ASCIIToUpper(mQualifiedName, mNodeName);
       } else {
         mNodeName = mQualifiedName;

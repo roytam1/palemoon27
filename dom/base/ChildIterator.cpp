@@ -58,7 +58,7 @@ GetMatchedNodesForPoint(nsIContent* aContent)
   }
 
   // Web components case
-  MOZ_ASSERT(aContent->IsHTMLElement(nsGkAtoms::content));
+  MOZ_ASSERT(aContent->IsHTML(nsGkAtoms::content));
   return MatchedNodes(static_cast<HTMLContentElement*>(aContent));
 }
 

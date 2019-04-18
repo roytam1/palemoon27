@@ -168,7 +168,7 @@ nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     if (aOldStyleContext->PeekStyleSVG()) {
       if ((StyleSVG()->mStrokeLinecap !=
              aOldStyleContext->PeekStyleSVG()->mStrokeLinecap) &&
-          element->IsSVGElement(nsGkAtoms::path)) {
+          element->Tag() == nsGkAtoms::path) {
         // If the stroke-linecap changes to or from "butt" then our element
         // needs to update its cached Moz2D Path, since SVGPathData::BuildPath
         // decides whether or not to insert little lines into the path for zero

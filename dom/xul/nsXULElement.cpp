@@ -632,7 +632,7 @@ nsXULElement::PerformAccesskey(bool aKeyCausesActivation,
 {
     nsCOMPtr<nsIContent> content(this);
 
-    if (IsXULElement(nsGkAtoms::label)) {
+    if (Tag() == nsGkAtoms::label) {
         nsCOMPtr<nsIDOMElement> element;
 
         nsAutoString control;
@@ -660,12 +660,13 @@ nsXULElement::PerformAccesskey(bool aKeyCausesActivation,
     nsXULElement* elm = FromContent(content);
     if (elm) {
         // Define behavior for each type of XUL element.
-        if (!content->IsXULElement(nsGkAtoms::toolbarbutton)) {
+        nsIAtom *tag = content->Tag();
+        if (tag != nsGkAtoms::toolbarbutton) {
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             nsCOMPtr<nsIDOMElement> element;
             // for radio buttons, focus the radiogroup instead
-            if (content->IsXULElement(nsGkAtoms::radio)) {
+            if (tag == nsGkAtoms::radio) {
               nsCOMPtr<nsIDOMXULSelectControlItemElement> controlItem(do_QueryInterface(content));
               if (controlItem) {
                 bool disabled;
@@ -684,8 +685,7 @@ nsXULElement::PerformAccesskey(bool aKeyCausesActivation,
               fm->SetFocus(element, nsIFocusManager::FLAG_BYKEY);
           }
         }
-        if (aKeyCausesActivation &&
-            !content->IsAnyOfXULElements(nsGkAtoms::textbox, nsGkAtoms::menulist)) {
+        if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist) {
           elm->ClickWithInputSource(nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD);
         }
     }
@@ -857,7 +857,7 @@ nsXULElement::BindToTree(nsIDocument* aDocument,
     // We do this during binding, not element construction, because elements
     // can be moved from the document that creates them to another document.
 
-    if (!XULElementsRulesInMinimalXULSheet(NodeInfo()->NameAtom())) {
+    if (!XULElementsRulesInMinimalXULSheet(Tag())) {
       doc->EnsureOnDemandBuiltInUASheet(nsLayoutStylesheetCache::XULSheet());
       // To keep memory usage down it is important that we try and avoid
       // pulling xul.css into non-XUL documents. That should be very rare, and
@@ -1287,8 +1287,9 @@ nsresult
 nsXULElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
     aVisitor.mForceContentDispatch = true; //FIXME! Bug 329119
+    nsIAtom* tag = Tag();
     if (IsRootOfNativeAnonymousSubtree() &&
-        (IsAnyOfXULElements(nsGkAtoms::scrollbar, nsGkAtoms::scrollcorner)) &&
+        (tag == nsGkAtoms::scrollbar || tag == nsGkAtoms::scrollcorner) &&
         (aVisitor.mEvent->message == NS_MOUSE_CLICK ||
          aVisitor.mEvent->message == NS_MOUSE_DOUBLECLICK ||
          aVisitor.mEvent->message == NS_XUL_COMMAND ||
@@ -1304,7 +1305,7 @@ nsXULElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
     if (aVisitor.mEvent->message == NS_XUL_COMMAND &&
         aVisitor.mEvent->mClass == eInputEventClass &&
         aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this) &&
-        !IsXULElement(nsGkAtoms::command)) {
+        tag != nsGkAtoms::command) {
         // Check that we really have an xul command event. That will be handled
         // in a special way.
         nsCOMPtr<nsIDOMXULCommandEvent> xulEvent =
@@ -1452,7 +1453,8 @@ nsXULElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     if (aAttribute == nsGkAtoms::value &&
         (aModType == nsIDOMMutationEvent::REMOVAL ||
          aModType == nsIDOMMutationEvent::ADDITION)) {
-      if (IsAnyOfXULElements(nsGkAtoms::label, nsGkAtoms::description))
+      nsIAtom *tag = Tag();
+      if (tag == nsGkAtoms::label || tag == nsGkAtoms::description)
         // Label and description dynamically morph between a normal
         // block and a cropping single-line XUL text frame.  If the
         // value attribute is being added or removed, then we need to
@@ -1583,8 +1585,10 @@ nsXULElement::LoadSrc()
 {
     // Allow frame loader only on objects for which a container box object
     // can be obtained.
-    if (!IsAnyOfXULElements(nsGkAtoms::browser, nsGkAtoms::editor,
-                            nsGkAtoms::iframe)) {
+    nsIAtom* tag = Tag();
+    if (tag != nsGkAtoms::browser &&
+        tag != nsGkAtoms::editor &&
+        tag != nsGkAtoms::iframe) {
         return NS_OK;
     }
     if (!IsInDoc() ||

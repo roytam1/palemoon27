@@ -366,7 +366,8 @@ IsDOMWordSeparator(char16_t ch)
 static inline bool
 IsBRElement(nsINode* aNode)
 {
-  return aNode->IsHTMLElement(nsGkAtoms::br);
+  return aNode->IsElement() &&
+         aNode->AsElement()->IsHTML(nsGkAtoms::br);
 }
 
 /**
@@ -441,7 +442,7 @@ IsBreakElement(nsINode* aNode)
 
   dom::Element *element = aNode->AsElement();
     
-  if (element->IsHTMLElement(nsGkAtoms::br))
+  if (element->IsHTML(nsGkAtoms::br))
     return true;
 
   // If we don't have a frame, we don't consider ourselves a break

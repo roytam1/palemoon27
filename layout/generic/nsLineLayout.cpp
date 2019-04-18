@@ -2262,10 +2262,11 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     if (!applyMinLH && isLastLine) {
       nsIContent* blockContent = mRootSpan->mFrame->mFrame->GetContent();
       if (blockContent) {
+        nsIAtom *blockTagAtom = blockContent->Tag();
         // (3) above, if the last line of LI, DT, or DD
-        if (blockContent->IsAnyOfHTMLElements(nsGkAtoms::li,
-                                              nsGkAtoms::dt,
-                                              nsGkAtoms::dd)) {
+        if (blockTagAtom == nsGkAtoms::li ||
+            blockTagAtom == nsGkAtoms::dt ||
+            blockTagAtom == nsGkAtoms::dd) {
           applyMinLH = true;
         }
       }

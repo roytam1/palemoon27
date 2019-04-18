@@ -361,7 +361,7 @@ public:
   /**
    * Is the HTML local name a block element?
    */
-  static bool IsHTMLBlock(nsIContent* aContent);
+  static bool IsHTMLBlock(nsIAtom* aLocalName);
 
   enum ParseHTMLIntegerResultFlags {
     eParseHTMLInteger_NoFlags               = 0,

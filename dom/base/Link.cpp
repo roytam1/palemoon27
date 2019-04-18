@@ -40,10 +40,8 @@ Link::~Link()
 bool
 Link::ElementHasHref() const
 {
-  return ((!mElement->IsSVGElement() &&
-           mElement->HasAttr(kNameSpaceID_None, nsGkAtoms::href))
-        || (!mElement->IsHTMLElement() &&
-            mElement->HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)));
+  return ((!mElement->IsSVG() && mElement->HasAttr(kNameSpaceID_None, nsGkAtoms::href))
+        || (!mElement->IsHTML() && mElement->HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)));
 }
 
 void

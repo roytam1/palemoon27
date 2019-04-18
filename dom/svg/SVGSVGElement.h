@@ -312,8 +312,8 @@ private:
    */
   bool IsInner() const {
     const nsIContent *parent = GetFlattenedTreeParent();
-    return parent && parent->IsSVGElement() &&
-           !parent->IsSVGElement(nsGkAtoms::foreignObject);
+    return parent && parent->IsSVG() &&
+           parent->Tag() != nsGkAtoms::foreignObject;
   }
 
   /* 

@@ -273,7 +273,7 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
       SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
     }
     gfxMatrix m = mMatrixForChildren;
-    if (kid->GetContent()->IsSVGElement()) {
+    if (kid->GetContent()->IsSVG()) {
       m = static_cast<nsSVGElement*>(kid->GetContent())->
             PrependLocalTransformsTo(m);
     }
@@ -361,7 +361,7 @@ nsSVGMaskFrame::Init(nsIContent*       aContent,
                      nsContainerFrame* aParent,
                      nsIFrame*         aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVGElement(nsGkAtoms::mask),
+  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::mask),
                "Content is not an SVG mask");
 
   nsSVGMaskFrameBase::Init(aContent, aParent, aPrevInFlow);

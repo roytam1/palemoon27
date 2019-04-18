@@ -103,7 +103,7 @@ nsSVGUseFrame::Init(nsIContent*       aContent,
                     nsContainerFrame* aParent,
                     nsIFrame*         aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVGElement(nsGkAtoms::use),
+  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::use),
                "Content is not an SVG use!");
 
   mHasValidDimensions =

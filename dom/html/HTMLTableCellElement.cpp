@@ -56,14 +56,14 @@ HTMLTableCellElement::GetTable() const
     return nullptr;
   }
 
-  if (section->IsHTMLElement(nsGkAtoms::table)) {
+  if (section->IsHTML(nsGkAtoms::table)) {
     // XHTML, without a row group.
     return static_cast<HTMLTableElement*>(section);
   }
 
   // We have a row group.
   nsIContent* result = section->GetParent();
-  if (result && result->IsHTMLElement(nsGkAtoms::table)) {
+  if (result && result->IsHTML(nsGkAtoms::table)) {
     return static_cast<HTMLTableElement*>(result);
   }
 

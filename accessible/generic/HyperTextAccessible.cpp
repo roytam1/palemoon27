@@ -59,34 +59,34 @@ NS_IMPL_ISUPPORTS_INHERITED0(HyperTextAccessible, Accessible)
 role
 HyperTextAccessible::NativeRole()
 {
-  if (mContent->IsHTMLElement(nsGkAtoms::dd))
+  nsIAtom *tag = mContent->Tag();
+
+  if (tag == nsGkAtoms::dd)
     return roles::DEFINITION;
 
-  if (mContent->IsHTMLElement(nsGkAtoms::form))
+  if (tag == nsGkAtoms::form)
     return roles::FORM;
 
-  if (mContent->IsAnyOfHTMLElements(nsGkAtoms::blockquote,
-                                    nsGkAtoms::div,
-                                    nsGkAtoms::section,
-                                    nsGkAtoms::nav))
+  if (tag == nsGkAtoms::blockquote || tag == nsGkAtoms::div ||
+      tag == nsGkAtoms::section || tag == nsGkAtoms::nav)
     return roles::SECTION;
 
-  if (mContent->IsAnyOfHTMLElements(nsGkAtoms::h1, nsGkAtoms::h2,
-                                    nsGkAtoms::h3, nsGkAtoms::h4,
-                                    nsGkAtoms::h5, nsGkAtoms::h6))
+  if (tag == nsGkAtoms::h1 || tag == nsGkAtoms::h2 ||
+      tag == nsGkAtoms::h3 || tag == nsGkAtoms::h4 ||
+      tag == nsGkAtoms::h5 || tag == nsGkAtoms::h6)
     return roles::HEADING;
 
-  if (mContent->IsHTMLElement(nsGkAtoms::article))
+  if (tag == nsGkAtoms::article)
     return roles::DOCUMENT;
 
   // Deal with html landmark elements
-  if (mContent->IsHTMLElement(nsGkAtoms::header))
+  if (tag == nsGkAtoms::header)
     return roles::HEADER;
 
-  if (mContent->IsHTMLElement(nsGkAtoms::footer))
+  if (tag == nsGkAtoms::footer)
     return roles::FOOTER;
 
-  if (mContent->IsHTMLElement(nsGkAtoms::aside))
+  if (tag == nsGkAtoms::aside)
     return roles::NOTE;
 
   // Treat block frames as paragraphs
@@ -105,7 +105,7 @@ HyperTextAccessible::NativeState()
   if (mContent->AsElement()->State().HasState(NS_EVENT_STATE_MOZ_READWRITE)) {
     states |= states::EDITABLE;
 
-  } else if (mContent->IsHTMLElement(nsGkAtoms::article)) {
+  } else if (mContent->Tag() == nsGkAtoms::article) {
     // We want <article> to behave like a document in terms of readonly state.
     states |= states::READONLY;
   }
@@ -294,7 +294,7 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
   Accessible* descendant = nullptr;
   if (findNode) {
     nsCOMPtr<nsIContent> findContent(do_QueryInterface(findNode));
-    if (findContent && findContent->IsHTMLElement() &&
+    if (findContent && findContent->IsHTML() &&
         findContent->NodeInfo()->Equals(nsGkAtoms::br) &&
         findContent->AttrValueIs(kNameSpaceID_None,
                                  nsGkAtoms::mozeditorbogusnode,
@@ -900,17 +900,18 @@ HyperTextAccessible::DefaultTextAttributes()
 int32_t
 HyperTextAccessible::GetLevelInternal()
 {
-  if (mContent->IsHTMLElement(nsGkAtoms::h1))
+  nsIAtom *tag = mContent->Tag();
+  if (tag == nsGkAtoms::h1)
     return 1;
-  if (mContent->IsHTMLElement(nsGkAtoms::h2))
+  if (tag == nsGkAtoms::h2)
     return 2;
-  if (mContent->IsHTMLElement(nsGkAtoms::h3))
+  if (tag == nsGkAtoms::h3)
     return 3;
-  if (mContent->IsHTMLElement(nsGkAtoms::h4))
+  if (tag == nsGkAtoms::h4)
     return 4;
-  if (mContent->IsHTMLElement(nsGkAtoms::h5))
+  if (tag == nsGkAtoms::h5)
     return 5;
-  if (mContent->IsHTMLElement(nsGkAtoms::h6))
+  if (tag == nsGkAtoms::h6)
     return 6;
 
   return AccessibleWrap::GetLevelInternal();
@@ -943,13 +944,14 @@ HyperTextAccessible::NativeAttributes()
   if (!HasOwnContent())
     return attributes.forget();
 
-  if (mContent->IsHTMLElement(nsGkAtoms::section)) {
+  nsIAtom* tag = mContent->Tag();
+  if (tag == nsGkAtoms::section)  {
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("region"));
-  } else if (mContent->IsHTMLElement(nsGkAtoms::article)) {
+  } else if (tag == nsGkAtoms::article) {
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("article"));
-  } else if (mContent->IsHTMLElement(nsGkAtoms::time)) {
+  } else if (tag == nsGkAtoms::time) {
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("time"));
 
@@ -968,42 +970,38 @@ HyperTextAccessible::LandmarkRole() const
 {
   // For the html landmark elements we expose them like we do ARIA landmarks to
   // make AT navigation schemes "just work".
-  if (mContent->IsHTMLElement(nsGkAtoms::nav)) {
+  nsIAtom* tag = mContent->Tag();
+  if (tag == nsGkAtoms::nav)
     return nsGkAtoms::navigation;
-  }
 
-  if (mContent->IsAnyOfHTMLElements(nsGkAtoms::header,
-                                    nsGkAtoms::footer)) {
+  if (tag == nsGkAtoms::header || tag == nsGkAtoms::footer) {
     // Only map header and footer if they are not descendants of an article
     // or section tag.
     nsIContent* parent = mContent->GetParent();
     while (parent) {
-      if (parent->IsAnyOfHTMLElements(nsGkAtoms::article, nsGkAtoms::section)) {
+      if (parent->Tag() == nsGkAtoms::article ||
+          parent->Tag() == nsGkAtoms::section)
         break;
-      }
       parent = parent->GetParent();
     }
 
     // No article or section elements found.
     if (!parent) {
-      if (mContent->IsHTMLElement(nsGkAtoms::header)) {
+      if (tag == nsGkAtoms::header)
         return nsGkAtoms::banner;
-      }
 
-      if (mContent->IsHTMLElement(nsGkAtoms::footer)) {
+      if (tag == nsGkAtoms::footer) {
         return nsGkAtoms::contentinfo;
       }
     }
     return nullptr;
   }
 
-  if (mContent->IsHTMLElement(nsGkAtoms::aside)) {
+  if (tag == nsGkAtoms::aside)
     return nsGkAtoms::complementary;
-  }
 
-  if (mContent->IsHTMLElement(nsGkAtoms::main)) {
+  if (tag == nsGkAtoms::main)
     return nsGkAtoms::main;
-  }
 
   return nullptr;
 }
@@ -1694,7 +1692,7 @@ HyperTextAccessible::NativeName(nsString& aName)
 {
   // Check @alt attribute for invalid img elements.
   bool hasImgAlt = false;
-  if (mContent->IsHTMLElement(nsGkAtoms::img)) {
+  if (mContent->IsHTML(nsGkAtoms::img)) {
     hasImgAlt = mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName);
     if (!aName.IsEmpty())
       return eNameOK;

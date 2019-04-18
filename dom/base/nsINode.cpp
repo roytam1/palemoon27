@@ -220,7 +220,7 @@ nsINode::GetTextEditorRootContent(nsIEditor** aEditor)
     *aEditor = nullptr;
   for (nsINode* node = this; node; node = node->GetParentNode()) {
     if (!node->IsElement() ||
-        !node->IsHTMLElement())
+        !node->AsElement()->IsHTML())
       continue;
 
     nsCOMPtr<nsIEditor> editor =
@@ -427,7 +427,7 @@ nsINode::IsAnonymousContentInSVGUseSubtree() const
   MOZ_ASSERT(IsInAnonymousSubtree());
   nsIContent* parent = AsContent()->GetBindingParent();
   // Watch out for parentless native-anonymous subtrees.
-  return parent && parent->IsSVGElement(nsGkAtoms::use);
+  return parent && parent->IsSVG(nsGkAtoms::use);
 }
 
 nsresult
@@ -1905,7 +1905,7 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
         // HTML template elements and ShadowRoot hosts need
         // to be checked to ensure that they are not inserted into
         // the hosted content.
-        aNewChild->NodeInfo()->NameAtom() == nsGkAtoms::_template ||
+        aNewChild->Tag() == nsGkAtoms::_template ||
         aNewChild->GetShadowRoot()) &&
        nsContentUtils::ContentIsHostIncludingDescendantOf(aParent,
                                                           aNewChild))) {

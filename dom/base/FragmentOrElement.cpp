@@ -306,7 +306,7 @@ nsIContent::GetBaseURI(bool aTryUseXHRDocBaseURI) const
   const nsIContent *elem = this;
   do {
     // First check for SVG specialness (why is this SVG specific?)
-    if (elem->IsSVGElement()) {
+    if (elem->IsSVG()) {
       nsIContent* bindingParent = elem->GetBindingParent();
       if (bindingParent) {
         nsXBLBinding* binding = bindingParent->GetXBLBinding();
@@ -731,10 +731,10 @@ nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
                 do_QueryInterface(aVisitor.mEvent->originalTarget);
               nsAutoString ot, ct, rt;
               if (originalTarget) {
-                originalTarget->NodeInfo()->NameAtom()->ToString(ot);
+                originalTarget->Tag()->ToString(ot);
               }
-              NodeInfo()->NameAtom()->ToString(ct);
-              relatedTarget->NodeInfo()->NameAtom()->ToString(rt);
+              Tag()->ToString(ct);
+              relatedTarget->Tag()->ToString(rt);
               printf("Stopping %s propagation:"
                      "\n\toriginalTarget=%s \n\tcurrentTarget=%s %s"
                      "\n\trelatedTarget=%s %s \n%s",
@@ -1347,7 +1347,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   // which is dispatched in UnbindFromTree.
 
   if (tmp->HasProperties()) {
-    if (tmp->IsHTMLElement() || tmp->IsSVGElement()) {
+    if (tmp->IsHTML() || tmp->IsSVG()) {
       nsIAtom*** props = Element::HTMLSVGPropertiesToTraverseAndUnlink();
       for (uint32_t i = 0; props[i]; ++i) {
         tmp->DeleteProperty(*props[i]);
@@ -1389,7 +1389,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
-      slots->Unlink(tmp->IsXULElement());
+      slots->Unlink(tmp->IsXUL());
     }
   }
 
@@ -1899,7 +1899,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
   tmp->OwnerDoc()->BindingManager()->Traverse(tmp, cb);
 
   if (tmp->HasProperties()) {
-    if (tmp->IsHTMLElement() || tmp->IsSVGElement()) {
+    if (tmp->IsHTML() || tmp->IsSVG()) {
       nsIAtom*** props = Element::HTMLSVGPropertiesToTraverseAndUnlink();
       for (uint32_t i = 0; props[i]; ++i) {
         nsISupports* property =
@@ -1934,7 +1934,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
-      slots->Traverse(cb, tmp->IsXULElement());
+      slots->Traverse(cb, tmp->IsXUL());
     }
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -2428,12 +2428,11 @@ AppendEncodedAttributeValue(nsAutoString* aValue, StringBuilder& aBuilder)
 static void
 StartElement(Element* aContent, StringBuilder& aBuilder)
 {
-  nsIAtom* localName = aContent->NodeInfo()->NameAtom();
+  nsIAtom* localName = aContent->Tag();
   int32_t tagNS = aContent->GetNameSpaceID();
 
   aBuilder.Append("<");
-  if (aContent->IsHTMLElement() || aContent->IsSVGElement() ||
-      aContent->IsMathMLElement()) {
+  if (aContent->IsHTML() || aContent->IsSVG() || aContent->IsMathML()) {
     aBuilder.Append(localName);
   } else {
     aBuilder.Append(aContent->NodeName());
@@ -2498,7 +2497,7 @@ StartElement(Element* aContent, StringBuilder& aBuilder)
   // pre/textarea/listing is a textnode and starts with a \n.
   // But because browsers haven't traditionally had that behavior,
   // we're not changing our behavior either - yet.
-  if (aContent->IsHTMLElement()) {
+  if (aContent->IsHTML()) {
     if (localName == nsGkAtoms::pre || localName == nsGkAtoms::textarea ||
         localName == nsGkAtoms::listing) {
       nsIContent* fc = aContent->GetFirstChild();
@@ -2517,7 +2516,7 @@ StartElement(Element* aContent, StringBuilder& aBuilder)
 static inline bool
 ShouldEscape(nsIContent* aParent)
 {
-  if (!aParent || !aParent->IsHTMLElement()) {
+  if (!aParent || !aParent->IsHTML()) {
     return true;
   }
 
@@ -2540,7 +2539,7 @@ ShouldEscape(nsIContent* aParent)
     }
   }
 
-  nsIAtom* tag = aParent->NodeInfo()->NameAtom();
+  nsIAtom* tag = aParent->Tag();
   if (sFilter.mightContain(tag)) {
     for (uint32_t i = 0; i < ArrayLength(nonEscapingElements); ++i) {
       if (tag == nonEscapingElements[i]) {
@@ -2586,10 +2585,10 @@ IsVoidTag(nsIAtom* aTag)
 static inline bool
 IsVoidTag(Element* aElement)
 {
-  if (!aElement->IsHTMLElement()) {
+  if (!aElement->IsHTML()) {
     return false;
   }
-  return IsVoidTag(aElement->NodeInfo()->NameAtom());
+  return IsVoidTag(aElement->Tag());
 }
 
 /* static */
@@ -2666,9 +2665,8 @@ Serialize(FragmentOrElement* aRoot, bool aDescendentsOnly, nsAString& aOut)
       if (!isVoid && current->NodeType() == nsIDOMNode::ELEMENT_NODE) {
         builder.Append("</");
         nsIContent* elem = static_cast<nsIContent*>(current);
-        if (elem->IsHTMLElement() || elem->IsSVGElement() ||
-            elem->IsMathMLElement()) {
-          builder.Append(elem->NodeInfo()->NameAtom());
+        if (elem->IsHTML() || elem->IsSVG() || elem->IsMathML()) {
+          builder.Append(elem->Tag());
         } else {
           builder.Append(current->NodeName());
         }
@@ -2839,17 +2837,17 @@ FragmentOrElement::SetInnerHTMLInternal(const nsAString& aInnerHTML, ErrorResult
 
   nsAutoScriptLoaderDisabler sld(doc);
 
-  nsIAtom* contextLocalName = NodeInfo()->NameAtom();
+  nsIAtom* contextLocalName = Tag();
   int32_t contextNameSpaceID = GetNameSpaceID();
 
   ShadowRoot* shadowRoot = ShadowRoot::FromNode(this);
   if (shadowRoot) {
     // Fix up the context to be the host of the ShadowRoot.
-    contextLocalName = shadowRoot->GetHost()->NodeInfo()->NameAtom();
+    contextLocalName = shadowRoot->GetHost()->Tag();
     contextNameSpaceID = shadowRoot->GetHost()->GetNameSpaceID();
   }
 
-  if (doc->IsHTMLDocument()) {
+  if (doc->IsHTML()) {
     int32_t oldChildCount = target->GetChildCount();
     aError = nsContentUtils::ParseFragmentHTML(aInnerHTML,
                                                target,

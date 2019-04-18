@@ -1146,7 +1146,7 @@ nsHtml5TreeBuilder::getFormPointerForContext(nsIContentHandle* aContext)
   // form pointer. This traversal is why aContext must not be an emtpy handle.
   nsIContent* nearestForm = nullptr;
   while (currentAncestor) {
-    if (currentAncestor->IsHTMLElement(nsGkAtoms::form)) {
+    if (currentAncestor->IsHTML(nsGkAtoms::form)) {
       nearestForm = currentAncestor;
       break;
     }

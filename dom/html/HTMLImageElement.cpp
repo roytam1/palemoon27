@@ -586,7 +586,7 @@ HTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     UpdateFormOwner();
   }
 
-  bool addedToPicture = aParent && aParent->IsHTMLElement(nsGkAtoms::picture) &&
+  bool addedToPicture = aParent && aParent->IsHTML(nsGkAtoms::picture) &&
                         HTMLPictureElement::IsPictureEnabled();
   if (addedToPicture) {
     QueueImageLoadTask();
@@ -631,7 +631,7 @@ HTMLImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
   }
 
   if (aNullParent && GetParent() &&
-      GetParent()->IsHTMLElement(nsGkAtoms::picture) &&
+      GetParent()->IsHTML(nsGkAtoms::picture) &&
       HTMLPictureElement::IsPictureEnabled()) {
     // Being removed from picture re-triggers selection, even if we
     // weren't using a <source> peer
@@ -889,7 +889,7 @@ HTMLImageElement::HaveSrcsetOrInPicture()
   }
 
   Element *parent = nsINode::GetParentElement();
-  return (parent && parent->IsHTMLElement(nsGkAtoms::picture));
+  return (parent && parent->IsHTML(nsGkAtoms::picture));
 }
 
 bool
@@ -1047,7 +1047,7 @@ HTMLImageElement::UpdateResponsiveSource()
   Element *parent = pictureEnabled ? nsINode::GetParentElement() : nullptr;
 
   nsINode *candidateSource = nullptr;
-  if (parent && parent->IsHTMLElement(nsGkAtoms::picture)) {
+  if (parent && parent->IsHTML(nsGkAtoms::picture)) {
     // Walk source nodes previous to ourselves
     candidateSource = parent->GetFirstChild();
   } else {
@@ -1076,7 +1076,8 @@ HTMLImageElement::UpdateResponsiveSource()
         mResponsiveSelector = nullptr;
       }
       break;
-    } else if (candidateSource->IsHTMLElement(nsGkAtoms::source) &&
+    } else if (candidateSource->IsElement() &&
+               candidateSource->AsElement()->IsHTML(nsGkAtoms::source) &&
                TryCreateResponsiveSelector(candidateSource->AsContent())) {
       // This led to a valid source, stop
       break;
@@ -1109,10 +1110,10 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
 
   bool pictureEnabled = HTMLPictureElement::IsPictureEnabled();
   // Skip if this is not a <source> with matching media query
-  bool isSourceTag = aSourceNode->IsHTMLElement(nsGkAtoms::source);
+  bool isSourceTag = aSourceNode->IsHTML(nsGkAtoms::source);
   if (isSourceTag) {
     DebugOnly<Element *> parent(nsINode::GetParentElement());
-    MOZ_ASSERT(parent && parent->IsHTMLElement(nsGkAtoms::picture));
+    MOZ_ASSERT(parent && parent->IsHTML(nsGkAtoms::picture));
     MOZ_ASSERT(IsPreviousSibling(aSourceNode, this));
     MOZ_ASSERT(pictureEnabled);
 
@@ -1127,7 +1128,7 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
         !SupportedPictureSourceType(type)) {
       return false;
     }
-  } else if (aSourceNode->IsHTMLElement(nsGkAtoms::img)) {
+  } else if (aSourceNode->IsHTML(nsGkAtoms::img)) {
     // Otherwise this is the <img> tag itself
     MOZ_ASSERT(aSourceNode == this);
   }

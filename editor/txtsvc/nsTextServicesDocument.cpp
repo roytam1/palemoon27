@@ -2248,7 +2248,7 @@ nsTextServicesDocument::IsBlockNode(nsIContent *aContent)
     return false;
   }
 
-  nsIAtom *atom = aContent->NodeInfo()->NameAtom();
+  nsIAtom *atom = aContent->Tag();
 
   return (sAAtom       != atom &&
           sAddressAtom != atom &&

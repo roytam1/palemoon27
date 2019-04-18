@@ -37,7 +37,7 @@ void
 SVGAttrAnimationRuleProcessor::ElementRulesMatching(Element* aElement,
                                                     nsRuleWalker* aRuleWalker)
 {
-  if (aElement->IsSVGElement()) {
+  if (aElement->IsSVG()) {
     static_cast<nsSVGElement*>(aElement)->
       WalkAnimatedContentStyleRules(aRuleWalker);
   }

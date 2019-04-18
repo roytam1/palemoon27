@@ -1249,7 +1249,7 @@ nsSVGElement::UpdateContentStyleRule()
       continue; // xml:lang has precedence
     }
 
-    if (IsSVGElement(nsGkAtoms::svg)) {
+    if (Tag() == nsGkAtoms::svg) {
       // Special case: we don't want <svg> 'width'/'height' mapped into style
       // if the attribute value isn't a valid <length> according to SVG (which
       // only supports a subset of the CSS <length> values). We don't enforce
@@ -1516,11 +1516,12 @@ nsSVGElement::GetCtx() const
 {
   nsIContent* ancestor = GetFlattenedTreeParent();
 
-  while (ancestor && ancestor->IsSVGElement()) {
-    if (ancestor->IsSVGElement(nsGkAtoms::foreignObject)) {
+  while (ancestor && ancestor->IsSVG()) {
+    nsIAtom* tag = ancestor->Tag();
+    if (tag == nsGkAtoms::foreignObject) {
       return nullptr;
     }
-    if (ancestor->IsSVGElement(nsGkAtoms::svg)) {
+    if (tag == nsGkAtoms::svg) {
       return static_cast<SVGSVGElement*>(ancestor);
     }
     ancestor = ancestor->GetFlattenedTreeParent();

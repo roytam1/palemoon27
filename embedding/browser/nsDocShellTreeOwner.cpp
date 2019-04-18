@@ -1002,7 +1002,7 @@ static bool
 UseSVGTitle(nsIDOMElement *currElement)
 {
   nsCOMPtr<dom::Element> element(do_QueryInterface(currElement));
-  if (!element || !element->IsSVGElement() || !element->GetParentNode())
+  if (!element || !element->IsSVG() || !element->GetParentNode())
     return false;
 
   return element->GetParentNode()->NodeType() != nsIDOMNode::DOCUMENT_NODE;
@@ -1051,9 +1051,10 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, char16_t **aText,
     if (currElement) {
       nsCOMPtr<nsIContent> content(do_QueryInterface(currElement));
       if (content) {
-        if (!content->IsAnyOfXULElements(mTag_dialog,
-                                         mTag_dialogheader,
-                                         mTag_window)) {
+        nsIAtom *tagAtom = content->Tag();
+        if (tagAtom != mTag_dialog &&
+            tagAtom != mTag_dialogheader &&
+            tagAtom != mTag_window) {
           // first try the normal title attribute...
           currElement->GetAttribute(NS_LITERAL_STRING("title"), outText);
           if (outText.Length()) {
@@ -1078,7 +1079,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, char16_t **aText,
                 uint32_t childNodeCount = childNodes->Length();
                 for (uint32_t i = 0; i < childNodeCount; i++) {
                   nsIContent* child = childNodes->Item(i);
-                  if (child->IsSVGElement(nsGkAtoms::title)) {
+                  if (child->IsSVG(nsGkAtoms::title)) {
                     static_cast<dom::SVGTitleElement*>(child)->GetTextContent(outText);
                     if (outText.Length())
                       found = true;

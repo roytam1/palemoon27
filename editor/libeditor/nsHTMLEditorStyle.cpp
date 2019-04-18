@@ -267,19 +267,16 @@ nsHTMLEditor::IsSimpleModifiableNode(nsIContent* aContent,
   }
 
   // First check for <b>, <i>, etc.
-  if (element->IsHTMLElement(aProperty) && !element->GetAttrCount() &&
+  if (element->IsHTML(aProperty) && !element->GetAttrCount() &&
       (!aAttribute || aAttribute->IsEmpty())) {
     return true;
   }
 
   // Special cases for various equivalencies: <strong>, <em>, <s>
   if (!element->GetAttrCount() &&
-      ((aProperty == nsGkAtoms::b &&
-        element->IsHTMLElement(nsGkAtoms::strong)) ||
-       (aProperty == nsGkAtoms::i &&
-        element->IsHTMLElement(nsGkAtoms::em)) ||
-       (aProperty == nsGkAtoms::strike &&
-        element->IsHTMLElement(nsGkAtoms::s)))) {
+      ((aProperty == nsGkAtoms::b && element->IsHTML(nsGkAtoms::strong)) ||
+       (aProperty == nsGkAtoms::i && element->IsHTML(nsGkAtoms::em)) ||
+       (aProperty == nsGkAtoms::strike && element->IsHTML(nsGkAtoms::s)))) {
     return true;
   }
 
@@ -289,8 +286,7 @@ nsHTMLEditor::IsSimpleModifiableNode(nsIContent* aContent,
     MOZ_ASSERT(atom);
 
     nsString attrValue;
-    if (element->IsHTMLElement(aProperty) &&
-        IsOnlyAttribute(element, *aAttribute) &&
+    if (element->IsHTML(aProperty) && IsOnlyAttribute(element, *aAttribute) &&
         element->GetAttr(kNameSpaceID_None, atom, attrValue) &&
         attrValue.Equals(*aValue, nsCaseInsensitiveStringComparator())) {
       // This is not quite correct, because it excludes cases like
@@ -304,8 +300,7 @@ nsHTMLEditor::IsSimpleModifiableNode(nsIContent* aContent,
   // attribute that sets only the style we're looking for, if this type of
   // style supports it
   if (!mHTMLCSSUtils->IsCSSEditableProperty(element, aProperty, aAttribute) ||
-      !element->IsHTMLElement(nsGkAtoms::span) ||
-      element->GetAttrCount() != 1 ||
+      !element->IsHTML(nsGkAtoms::span) || element->GetAttrCount() != 1 ||
       !element->HasAttr(kNameSpaceID_None, nsGkAtoms::style)) {
     return false;
   }
@@ -480,7 +475,7 @@ nsHTMLEditor::SetInlinePropertyOnNodeImpl(nsIContent* aNode,
     nsCOMPtr<dom::Element> tmp;
     // We only add style="" to <span>s with no attributes (bug 746515).  If we
     // don't have one, we need to make one.
-    if (aNode->IsHTMLElement(nsGkAtoms::span) &&
+    if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::span) &&
         !aNode->AsElement()->GetAttrCount()) {
       tmp = aNode->AsElement();
     } else {
@@ -498,7 +493,7 @@ nsHTMLEditor::SetInlinePropertyOnNodeImpl(nsIContent* aNode,
   }
 
   // is it already the right kind of node, but with wrong attribute?
-  if (aNode->IsHTMLElement(aProperty)) {
+  if (aNode->Tag() == aProperty) {
     // Just set the attribute on it.
     nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(aNode);
     return SetAttribute(elem, *aAttribute, *aValue);
@@ -650,7 +645,7 @@ nsresult nsHTMLEditor::SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
         aProperty, aAttribute, isSet, firstValue, nsHTMLCSSUtils::eSpecified);
     }
     if (// node is the correct inline prop
-        (aProperty && node->IsHTMLElement(aProperty)) ||
+        (aProperty && node->Tag() == aProperty) ||
         // node is href - test if really <a href=...
         (aProperty == nsGkAtoms::href && nsHTMLEditUtils::IsLink(node)) ||
         // or node is any prop, and we asked to split them all
@@ -1689,13 +1684,13 @@ nsHTMLEditor::RelativeFontChangeOnTextNode( int32_t aSizeChange,
   // look for siblings that are correct type of node
   nsIAtom* nodeType = aSizeChange == 1 ? nsGkAtoms::big : nsGkAtoms::small;
   nsCOMPtr<nsIContent> sibling = GetPriorHTMLSibling(node);
-  if (sibling && sibling->IsHTMLElement(nodeType)) {
+  if (sibling && sibling->Tag() == nodeType) {
     // previous sib is already right kind of inline node; slide this over into it
     res = MoveNode(node, sibling, -1);
     return res;
   }
   sibling = GetNextHTMLSibling(node);
-  if (sibling && sibling->IsHTMLElement(nodeType)) {
+  if (sibling && sibling->Tag() == nodeType) {
     // following sib is already right kind of inline node; slide this over into it
     res = MoveNode(node, sibling, 0);
     return res;
@@ -1726,7 +1721,7 @@ nsHTMLEditor::RelativeFontChangeHelper(int32_t aSizeChange, nsINode* aNode)
   }
 
   // If this is a font node with size, put big/small inside it.
-  if (aNode->IsHTMLElement(nsGkAtoms::font) &&
+  if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::font) &&
       aNode->AsElement()->HasAttr(kNameSpaceID_None, nsGkAtoms::size)) {
     // Cycle through children and adjust relative font size.
     for (uint32_t i = aNode->GetChildCount(); i--; ) {
@@ -1766,8 +1761,9 @@ nsHTMLEditor::RelativeFontChangeOnNode(int32_t aSizeChange, nsIContent* aNode)
   }
   
   // Is it the opposite of what we want?
-  if ((aSizeChange == 1 && aNode->IsHTMLElement(nsGkAtoms::small)) ||
-       (aSizeChange == -1 && aNode->IsHTMLElement(nsGkAtoms::big))) {
+  if (aNode->IsElement() &&
+      ((aSizeChange == 1 && aNode->AsElement()->IsHTML(nsGkAtoms::small)) ||
+       (aSizeChange == -1 && aNode->AsElement()->IsHTML(nsGkAtoms::big)))) {
     // first populate any nested font tags that have the size attr set
     nsresult rv = RelativeFontChangeHelper(aSizeChange, aNode);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1785,13 +1781,13 @@ nsHTMLEditor::RelativeFontChangeOnNode(int32_t aSizeChange, nsIContent* aNode)
     // first look at siblings of aNode for matching bigs or smalls.
     // if we find one, move aNode into it.
     nsIContent* sibling = GetPriorHTMLSibling(aNode);
-    if (sibling && sibling->IsHTMLElement(atom)) {
+    if (sibling && sibling->IsHTML(atom)) {
       // previous sib is already right kind of inline node; slide this over into it
       return MoveNode(aNode, sibling, -1);
     }
 
     sibling = GetNextHTMLSibling(aNode);
-    if (sibling && sibling->IsHTMLElement(atom)) {
+    if (sibling && sibling->IsHTML(atom)) {
       // following sib is already right kind of inline node; slide this over into it
       return MoveNode(aNode, sibling, 0);
     }
@@ -1924,8 +1920,8 @@ nsHTMLEditor::RemoveElementIfNoStyleOrIdOrClass(nsIDOMNode* aElement)
   NS_ENSURE_TRUE(element, NS_ERROR_NULL_POINTER);
 
   // early way out if node is not the right kind of element
-  if ((!element->IsHTMLElement(nsGkAtoms::span) &&
-       !element->IsHTMLElement(nsGkAtoms::font)) ||
+  if ((!element->IsHTML(nsGkAtoms::span) &&
+       !element->IsHTML(nsGkAtoms::font)) ||
       HasStyleOrIdOrClass(element)) {
     return NS_OK;
   }

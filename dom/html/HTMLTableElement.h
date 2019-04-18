@@ -54,7 +54,7 @@ public:
   }
   void SetTHead(HTMLTableSectionElement* aTHead, ErrorResult& aError)
   {
-    if (aTHead && !aTHead->IsHTMLElement(nsGkAtoms::thead)) {
+    if (aTHead && !aTHead->IsHTML(nsGkAtoms::thead)) {
       aError.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
       return;
     }
@@ -75,7 +75,7 @@ public:
   }
   void SetTFoot(HTMLTableSectionElement* aTFoot, ErrorResult& aError)
   {
-    if (aTFoot && !aTFoot->IsHTMLElement(nsGkAtoms::tfoot)) {
+    if (aTFoot && !aTFoot->IsHTML(nsGkAtoms::tfoot)) {
       aError.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
       return;
     }
@@ -213,7 +213,7 @@ protected:
   {
     for (nsIContent* cur = nsINode::GetFirstChild(); cur;
          cur = cur->GetNextSibling()) {
-      if (cur->IsHTMLElement(aTag)) {
+      if (cur->IsHTML(aTag)) {
         return cur;
       }
     }

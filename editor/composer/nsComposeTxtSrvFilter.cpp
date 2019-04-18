@@ -28,12 +28,13 @@ nsComposeTxtSrvFilter::Skip(nsIDOMNode* aNode, bool *_retval)
   // their type is "cite"
   nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
   if (content) {
-    if (content->IsHTMLElement(nsGkAtoms::blockquote)) {
+    nsIAtom *tag = content->Tag();
+    if (tag == nsGkAtoms::blockquote) {
       if (mIsForMail) {
         *_retval = content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                                         nsGkAtoms::cite, eIgnoreCase);
       }
-    } else if (content->IsHTMLElement(nsGkAtoms::span)) {
+    } else if (tag == nsGkAtoms::span) {
       if (mIsForMail) {
         *_retval = content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozquote,
                                         nsGkAtoms::_true, eIgnoreCase);
@@ -42,12 +43,12 @@ nsComposeTxtSrvFilter::Skip(nsIDOMNode* aNode, bool *_retval)
                                           nsGkAtoms::mozsignature, eCaseMatters);
         }
       }
-    } else if (content->IsAnyOfHTMLElements(nsGkAtoms::script,
-                                            nsGkAtoms::textarea,
-                                            nsGkAtoms::select,
-                                            nsGkAtoms::map)) {
+    } else if (tag == nsGkAtoms::script ||
+               tag == nsGkAtoms::textarea ||
+               tag == nsGkAtoms::select ||
+               tag == nsGkAtoms::map) {
       *_retval = true;
-    } else if (content->IsHTMLElement(nsGkAtoms::table)) {
+    } else if (tag == nsGkAtoms::table) {
       if (mIsForMail) {
         *_retval =
           content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::_class,

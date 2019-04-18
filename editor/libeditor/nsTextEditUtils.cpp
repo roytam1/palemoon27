@@ -44,7 +44,7 @@ bool
 nsTextEditUtils::IsBreak(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
-  return aNode->IsHTMLElement(nsGkAtoms::br);
+  return aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::br);
 }
 
 
@@ -63,7 +63,8 @@ bool
 nsTextEditUtils::IsMozBR(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
-  return aNode->IsHTMLElement(nsGkAtoms::br) &&
+  return aNode->IsElement() &&
+         aNode->AsElement()->IsHTML(nsGkAtoms::br) &&
          aNode->AsElement()->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                                          NS_LITERAL_STRING("_moz"),
                                          eIgnoreCase);

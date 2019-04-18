@@ -350,7 +350,7 @@ HTMLSelectElement::InsertOptionsIntoListRecurse(nsIContent* aOptions,
   }
 
   // Recurse down into optgroups
-  if (aOptions->IsHTMLElement(nsGkAtoms::optgroup)) {
+  if (aOptions->IsHTML(nsGkAtoms::optgroup)) {
     mOptGroupCount++;
 
     for (nsIContent* child = aOptions->GetFirstChild();
@@ -391,7 +391,7 @@ HTMLSelectElement::RemoveOptionsFromListRecurse(nsIContent* aOptions,
   }
 
   // Recurse down deeper for options
-  if (mOptGroupCount && aOptions->IsHTMLElement(nsGkAtoms::optgroup)) {
+  if (mOptGroupCount && aOptions->IsHTML(nsGkAtoms::optgroup)) {
     mOptGroupCount--;
 
     for (nsIContent* child = aOptions->GetFirstChild();
@@ -1136,7 +1136,7 @@ HTMLSelectElement::IsOptionDisabled(HTMLOptionElement* aOption)
          node;
          node = node->GetParentElement()) {
       // If we reached the select element, we're done
-      if (node->IsHTMLElement(nsGkAtoms::select)) {
+      if (node->IsHTML(nsGkAtoms::select)) {
         return false;
       }
 
@@ -1801,7 +1801,7 @@ AddOptionsRecurse(nsIContent* aRoot, HTMLOptionsCollection* aArray)
     HTMLOptionElement* opt = HTMLOptionElement::FromContent(cur);
     if (opt) {
       aArray->AppendOption(opt);
-    } else if (cur->IsHTMLElement(nsGkAtoms::optgroup)) {
+    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
       AddOptionsRecurse(cur, aArray);
     }
   }
@@ -1882,7 +1882,7 @@ VerifyOptionsRecurse(nsIContent* aRoot, int32_t& aIndex,
     if (opt) {
       NS_ASSERTION(opt == aArray->ItemAsOption(aIndex++),
                    "Options collection broken");
-    } else if (cur->IsHTMLElement(nsGkAtoms::optgroup)) {
+    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
       VerifyOptionsRecurse(cur, aIndex, aArray);
     }
   }

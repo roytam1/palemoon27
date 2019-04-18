@@ -843,7 +843,7 @@ nsTextControlFrame::SelectAllOrCollapseToEndOfText(bool aSelect)
     // br under the root node!
     nsIContent *child = rootContent->GetChildAt(numChildren - 1);
     if (child) {
-      if (child->IsHTMLElement(nsGkAtoms::br))
+      if (child->Tag() == nsGkAtoms::br)
         --numChildren;
     }
     if (!aSelect && numChildren) {

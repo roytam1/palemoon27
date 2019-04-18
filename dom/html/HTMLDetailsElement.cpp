@@ -29,7 +29,7 @@ HTMLDetailsElement::GetFirstSummary() const
   for (nsIContent* child = nsINode::GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsHTMLElement(nsGkAtoms::summary)) {
+    if (child->IsHTML(nsGkAtoms::summary)) {
       return child;
     }
   }

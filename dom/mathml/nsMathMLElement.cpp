@@ -150,7 +150,7 @@ nsMathMLElement::ParseAttribute(int32_t aNamespaceID,
                                 nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
-    if (IsMathMLElement(nsGkAtoms::math) && aAttribute == nsGkAtoms::mode) {
+    if (Tag() == nsGkAtoms::math && aAttribute == nsGkAtoms::mode) {
       WarnDeprecated(nsGkAtoms::mode->GetUTF16String(),
                      nsGkAtoms::display->GetUTF16String(), OwnerDoc());
     }
@@ -232,40 +232,42 @@ nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
   };
 
   // We don't support mglyph (yet).
-  if (IsAnyOfMathMLElements(nsGkAtoms::ms_, nsGkAtoms::mi_, nsGkAtoms::mn_,
-                            nsGkAtoms::mo_, nsGkAtoms::mtext_,
-                            nsGkAtoms::mspace_))
+  nsIAtom* tag = Tag();
+  if (tag == nsGkAtoms::ms_ || tag == nsGkAtoms::mi_ ||
+      tag == nsGkAtoms::mn_ || tag == nsGkAtoms::mo_ ||
+      tag == nsGkAtoms::mtext_ || tag == nsGkAtoms::mspace_)
     return FindAttributeDependence(aAttribute, tokenMap);
-  if (IsAnyOfMathMLElements(nsGkAtoms::mstyle_, nsGkAtoms::math))
+  if (tag == nsGkAtoms::mstyle_ ||
+      tag == nsGkAtoms::math)
     return FindAttributeDependence(aAttribute, mstyleMap);
 
-  if (IsMathMLElement(nsGkAtoms::mtable_))
+  if (tag == nsGkAtoms::mtable_)
     return FindAttributeDependence(aAttribute, mtableMap);
 
-  if (IsMathMLElement(nsGkAtoms::mrow_))
+  if (tag == nsGkAtoms::mrow_)
     return FindAttributeDependence(aAttribute, mrowMap);
 
-  if (IsAnyOfMathMLElements(nsGkAtoms::maction_,
-                            nsGkAtoms::maligngroup_,
-                            nsGkAtoms::malignmark_,
-                            nsGkAtoms::menclose_,
-                            nsGkAtoms::merror_,
-                            nsGkAtoms::mfenced_,
-                            nsGkAtoms::mfrac_,
-                            nsGkAtoms::mover_,
-                            nsGkAtoms::mpadded_,
-                            nsGkAtoms::mphantom_,
-                            nsGkAtoms::mprescripts_,
-                            nsGkAtoms::mroot_,
-                            nsGkAtoms::msqrt_,
-                            nsGkAtoms::msub_,
-                            nsGkAtoms::msubsup_,
-                            nsGkAtoms::msup_,
-                            nsGkAtoms::mtd_,
-                            nsGkAtoms::mtr_,
-                            nsGkAtoms::munder_,
-                            nsGkAtoms::munderover_,
-                            nsGkAtoms::none)) {
+  if (tag == nsGkAtoms::maction_ ||
+      tag == nsGkAtoms::maligngroup_ ||
+      tag == nsGkAtoms::malignmark_ ||
+      tag == nsGkAtoms::menclose_ ||
+      tag == nsGkAtoms::merror_ ||
+      tag == nsGkAtoms::mfenced_ ||
+      tag == nsGkAtoms::mfrac_ ||
+      tag == nsGkAtoms::mover_ ||
+      tag == nsGkAtoms::mpadded_ ||
+      tag == nsGkAtoms::mphantom_ ||
+      tag == nsGkAtoms::mprescripts_ ||
+      tag == nsGkAtoms::mroot_ ||
+      tag == nsGkAtoms::msqrt_ ||
+      tag == nsGkAtoms::msub_ ||
+      tag == nsGkAtoms::msubsup_ ||
+      tag == nsGkAtoms::msup_ ||
+      tag == nsGkAtoms::mtd_ ||
+      tag == nsGkAtoms::mtr_ ||
+      tag == nsGkAtoms::munder_ ||
+      tag == nsGkAtoms::munderover_ ||
+      tag == nsGkAtoms::none) {
     return FindAttributeDependence(aAttribute, commonPresMap);
   }
 
@@ -970,8 +972,11 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
 {
   // http://www.w3.org/TR/2010/REC-MathML3-20101021/chapter6.html#interf.link
   // The REC says that the following elements should not be linking elements:
-  if (IsAnyOfMathMLElements(nsGkAtoms::mprescripts_, nsGkAtoms::none,
-                            nsGkAtoms::malignmark_, nsGkAtoms::maligngroup_)) {
+  nsIAtom* tag = Tag();
+  if (tag == nsGkAtoms::mprescripts_ ||
+      tag == nsGkAtoms::none         ||
+      tag == nsGkAtoms::malignmark_  ||
+      tag == nsGkAtoms::maligngroup_) {
     *aURI = nullptr;
     return false;
   }

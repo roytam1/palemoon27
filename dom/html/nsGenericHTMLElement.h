@@ -301,25 +301,6 @@ public:
     return rcFrame.height;
   }
 
-  // These methods are already implemented in nsIContent but we want something
-  // faster for HTMLElements ignoring the namespace checking.
-  // This is safe because we already know that we are in the HTML namespace.
-  inline bool IsHTMLElement() const
-  {
-    return true;
-  }
-
-  inline bool IsHTMLElement(nsIAtom* aTag) const
-  {
-    return mNodeInfo->Equals(aTag);
-  }
-
-  template<typename First, typename... Args>
-  inline bool IsAnyOfHTMLElements(First aFirst, Args... aArgs) const
-  {
-    return IsNodeInternal(aFirst, aArgs...);
-  }
-
 protected:
   virtual ~nsGenericHTMLElement() {}
 
@@ -949,16 +930,19 @@ public:
   static inline bool
   ShouldExposeNameAsHTMLDocumentProperty(Element* aElement)
   {
-    return aElement->IsHTMLElement() &&
-           CanHaveName(aElement->NodeInfo()->NameAtom());
+    return aElement->IsHTML() && CanHaveName(aElement->Tag());
   }
   static inline bool
   ShouldExposeIdAsHTMLDocumentProperty(Element* aElement)
   {
-    return aElement->IsAnyOfHTMLElements(nsGkAtoms::img,
-                                         nsGkAtoms::applet,
-                                         nsGkAtoms::embed,
-                                         nsGkAtoms::object);
+    if (!aElement->IsHTML()) {
+      return false;
+    }
+    nsIAtom* tag = aElement->Tag();
+    return tag == nsGkAtoms::img ||
+           tag == nsGkAtoms::applet ||
+           tag == nsGkAtoms::embed ||
+           tag == nsGkAtoms::object;
   }
 
   static bool

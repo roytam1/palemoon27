@@ -206,7 +206,9 @@ HTMLMenuElement::TraverseContent(nsIContent* aContent,
       continue;
     }
 
-    if (child->IsHTMLElement(nsGkAtoms::menuitem)) {
+    nsIAtom* tag = child->Tag();
+
+    if (tag == nsGkAtoms::menuitem) {
       HTMLMenuItemElement* menuitem = HTMLMenuItemElement::FromContent(child);
 
       if (menuitem->IsHidden()) {
@@ -225,7 +227,9 @@ HTMLMenuElement::TraverseContent(nsIContent* aContent,
       aBuilder->AddItemFor(menuitem, CanLoadIcon(child, icon));
 
       aSeparator = ST_FALSE;
-    } else if (child->IsHTMLElement(nsGkAtoms::menu) && !element->IsHidden()) {
+    } else if (child->IsHTML(nsGkAtoms::hr)) {
+      aBuilder->AddSeparator();
+    } else if (tag == nsGkAtoms::menu && !element->IsHidden()) {
       if (child->HasAttr(kNameSpaceID_None, nsGkAtoms::label)) {
         nsAutoString label;
         child->GetAttr(kNameSpaceID_None, nsGkAtoms::label, label);

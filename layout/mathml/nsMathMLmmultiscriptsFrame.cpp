@@ -37,7 +37,7 @@ nsMathMLmmultiscriptsFrame::ScriptIncrement(nsIFrame* aFrame)
     return 0;
   if (mFrames.ContainsFrame(aFrame)) {
     if (mFrames.FirstChild() == aFrame ||
-        aFrame->GetContent()->IsMathMLElement(nsGkAtoms::mprescripts_)) {
+        aFrame->GetContent()->Tag() == nsGkAtoms::mprescripts_) {
       return 0; // No script increment for base frames or prescript markers
     }
     return 1;
@@ -57,12 +57,12 @@ nsMathMLmmultiscriptsFrame::TransmitAutomaticData()
   // the compression flag in them.
 
   int32_t count = 0;
-  bool isSubScript = !mContent->IsMathMLElement(nsGkAtoms::msup_);
+  bool isSubScript = mContent->Tag() != nsGkAtoms::msup_;
 
   nsAutoTArray<nsIFrame*, 8> subScriptFrames;
   nsIFrame* childFrame = mFrames.FirstChild();
   while (childFrame) {
-    if (childFrame->GetContent()->IsMathMLElement(nsGkAtoms::mprescripts_)) {
+    if (childFrame->GetContent()->Tag() == nsGkAtoms::mprescripts_) {
       // mprescripts frame
     } else if (0 == count) {
       // base frame
@@ -96,6 +96,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
 {
   nscoord subScriptShift = 0;
   nscoord supScriptShift = 0;
+  nsIAtom* tag = mContent->Tag();
   float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
 
   // subscriptshift
@@ -110,7 +111,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
   // As a minimum, negative values can be ignored.
   //
   nsAutoString value;
-  if (!mContent->IsMathMLElement(nsGkAtoms::msup_)) {
+  if (tag != nsGkAtoms::msup_) {
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::subscriptshift_, value);
     if (!value.IsEmpty()) {
       ParseNumericValue(value, &subScriptShift, 0, PresContext(),
@@ -128,7 +129,7 @@ nsMathMLmmultiscriptsFrame::Place(nsRenderingContext& aRenderingContext,
   // We use 0 as the default value so unitless values can be ignored.
   // As a minimum, negative values can be ignored.
   //
-  if (!mContent->IsMathMLElement(nsGkAtoms::msub_)) {
+  if (tag != nsGkAtoms::msub_) {
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::superscriptshift_, value);
     if (!value.IsEmpty()) {
       ParseNumericValue(value, &supScriptShift, 0, PresContext(),
@@ -152,16 +153,16 @@ nsMathMLmmultiscriptsFrame::PlaceMultiScript(nsPresContext*      aPresContext,
                                         nscoord              aUserSupScriptShift,
                                         float                aFontSizeInflation)
 {
-  nsIAtom* tag = aFrame->GetContent()->NodeInfo()->NameAtom();
+  nsIAtom* tag = aFrame->GetContent()->Tag();
 
   // This function deals with both munderover etc. as well as msubsup etc.
   // As the former behaves identically to the later, we treat it as such
   // to avoid additional checks later.
-  if (aFrame->GetContent()->IsMathMLElement(nsGkAtoms::mover_))
+  if (tag == nsGkAtoms::mover_)
     tag = nsGkAtoms::msup_;
-  else if (aFrame->GetContent()->IsMathMLElement(nsGkAtoms::munder_))
+  else if (tag == nsGkAtoms::munder_)
     tag = nsGkAtoms::msub_;
-  else if (aFrame->GetContent()->IsMathMLElement(nsGkAtoms::munderover_))
+  else if (tag  == nsGkAtoms::munderover_)
     tag = nsGkAtoms::msubsup_;
 
   nsBoundingMetrics bmFrame;
@@ -324,10 +325,11 @@ nsMathMLmmultiscriptsFrame::PlaceMultiScript(nsPresContext*      aPresContext,
 
   nsIFrame* childFrame = aFrame->GetFirstPrincipalChild();
   while (childFrame) {
-    if (childFrame->GetContent()->IsMathMLElement(nsGkAtoms::mprescripts_)) {
+    nsIAtom* childTag = childFrame->GetContent()->Tag();
+    if (childTag == nsGkAtoms::mprescripts_) {
       if (tag != nsGkAtoms::mmultiscripts_) {
         if (aPlaceOrigin) {
-          aFrame->ReportInvalidChildError(nsGkAtoms::mprescripts_);
+          aFrame->ReportInvalidChildError(childTag);
         }
         return aFrame->ReflowError(aRenderingContext, aDesiredSize);
       }
@@ -351,7 +353,7 @@ nsMathMLmmultiscriptsFrame::PlaceMultiScript(nsPresContext*      aPresContext,
     } else if (0 == count) {
       // base
 
-      if (childFrame->GetContent()->IsMathMLElement(nsGkAtoms::none)) {
+      if (childTag == nsGkAtoms::none) {
         if (tag == nsGkAtoms::mmultiscripts_) {
           if (aPlaceOrigin) {
             aFrame->ReportErrorToConsole("NoBase");
@@ -382,7 +384,7 @@ nsMathMLmmultiscriptsFrame::PlaceMultiScript(nsPresContext*      aPresContext,
       boundingMetrics.leftBearing = bmBase.leftBearing; // until overwritten
     } else {
       // super/subscript block
-      if (childFrame->GetContent()->IsMathMLElement(nsGkAtoms::none)) {
+      if ( childTag == nsGkAtoms::none) {
         foundNoneTag = true;
       }
 

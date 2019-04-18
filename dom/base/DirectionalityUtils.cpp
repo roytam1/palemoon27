@@ -236,7 +236,7 @@ static bool
 DoesNotParticipateInAutoDirection(const Element* aElement)
 {
   mozilla::dom::NodeInfo* nodeInfo = aElement->NodeInfo();
-  return (!aElement->IsHTMLElement() ||
+  return (!aElement->IsHTML() ||
           nodeInfo->Equals(nsGkAtoms::script) ||
           nodeInfo->Equals(nsGkAtoms::style) ||
           nodeInfo->Equals(nsGkAtoms::textarea) ||
@@ -249,7 +249,7 @@ IsBdiWithoutDirAuto(const Element* aElement)
   // We are testing for bdi elements without explicit dir="auto", so we can't
   // use the HasDirAuto() flag, since that will return true for bdi element with
   // no dir attribute or an invalid dir attribute
-  return (aElement->IsHTMLElement(nsGkAtoms::bdi) &&
+  return (aElement->IsHTML(nsGkAtoms::bdi) &&
           (!aElement->HasValidDir() || aElement->HasFixedDir()));
 }
 
@@ -931,7 +931,7 @@ void
 OnSetDirAttr(Element* aElement, const nsAttrValue* aNewValue,
              bool hadValidDir, bool hadDirAuto, bool aNotify)
 {
-  if (aElement->IsHTMLElement(nsGkAtoms::input)) {
+  if (aElement->IsHTML(nsGkAtoms::input)) {
     return;
   }
 
@@ -986,7 +986,7 @@ SetDirOnBind(mozilla::dom::Element* aElement, nsIContent* aParent)
   // Set the AncestorHasDirAuto flag, unless this element shouldn't affect
   // ancestors that have dir=auto
   if (!DoesNotParticipateInAutoDirection(aElement) &&
-      !aElement->IsHTMLElement(nsGkAtoms::bdi) &&
+      !aElement->IsHTML(nsGkAtoms::bdi) &&
       aParent && aParent->NodeOrAncestorHasDirAuto()) {
     aElement->SetAncestorHasDirAuto();
 

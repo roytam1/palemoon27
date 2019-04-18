@@ -342,15 +342,16 @@ nsHTMLFramesetFrame::Init(nsIContent*       aContent,
 
     // IMPORTANT: This must match the conditions in
     // nsCSSFrameConstructor::ContentAppended/Inserted/Removed
-    if (!child->IsHTMLElement())
+    if (!child->IsHTML())
       continue;
 
-    if (child->IsAnyOfHTMLElements(nsGkAtoms::frameset, nsGkAtoms::frame)) {
+    nsIAtom *tag = child->Tag();
+    if (tag == nsGkAtoms::frameset || tag == nsGkAtoms::frame) {
       nsRefPtr<nsStyleContext> kidSC;
 
       kidSC = shell->StyleSet()->ResolveStyleFor(child->AsElement(),
                                                  mStyleContext);
-      if (child->IsHTMLElement(nsGkAtoms::frameset)) {
+      if (tag == nsGkAtoms::frameset) {
         frame = NS_NewHTMLFramesetFrame(shell, kidSC);
 
         nsHTMLFramesetFrame* childFrame = (nsHTMLFramesetFrame*)frame;

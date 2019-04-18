@@ -390,8 +390,8 @@ nsHTMLReflowState::Init(nsPresContext* aPresContext,
               // Don't set NS_FRAME_IN_CONSTRAINED_HEIGHT on body or html
               // elements.
              (frame->GetContent() &&
-            !(frame->GetContent()->IsAnyOfHTMLElements(nsGkAtoms::body,
-                                                       nsGkAtoms::html)))) {
+            !(frame->GetContent()->IsHTML(nsGkAtoms::body) ||
+              frame->GetContent()->IsHTML(nsGkAtoms::html)))) {
 
     // If our height was specified as a percentage, then this could
     // actually resolve to 'auto', based on:
@@ -1794,13 +1794,15 @@ CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
       if (firstAncestorRS) {
         nsIContent* frameContent = firstAncestorRS->frame->GetContent();
         if (frameContent) {
-          NS_ASSERTION(frameContent->IsHTMLElement(nsGkAtoms::html), "First ancestor is not HTML");
+          nsIAtom *contentTag = frameContent->Tag();
+          NS_ASSERTION(contentTag == nsGkAtoms::html, "First ancestor is not HTML");
         }
       }
       if (secondAncestorRS) {
         nsIContent* frameContent = secondAncestorRS->frame->GetContent();
         if (frameContent) {
-          NS_ASSERTION(frameContent->IsHTMLElement(nsGkAtoms::body), "Second ancestor is not BODY");
+          nsIAtom *contentTag = frameContent->Tag();
+          NS_ASSERTION(contentTag == nsGkAtoms::body, "Second ancestor is not BODY");
         }
       }
 #endif

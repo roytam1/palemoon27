@@ -491,9 +491,9 @@ IsFontSizeInflationContainer(nsIFrame* aFrame,
                    // outer one should be considered a container.
                    // (Important, e.g., for nsSelectsAreaFrame.)
                    (aFrame->GetParent()->GetContent() == content) ||
-                   (content && (content->IsAnyOfHTMLElements(nsGkAtoms::option,
-                                                             nsGkAtoms::optgroup,
-                                                             nsGkAtoms::select) ||
+                   (content && (content->IsHTML(nsGkAtoms::option) ||
+                                content->IsHTML(nsGkAtoms::optgroup) ||
+                                content->IsHTML(nsGkAtoms::select) ||
                                 content->IsInNativeAnonymousSubtree()))) &&
                   !(aFrame->IsBoxFrame() && aFrame->GetParent()->IsBoxFrame());
   NS_ASSERTION(!aFrame->IsFrameOfType(nsIFrame::eLineParticipant) ||
@@ -1648,9 +1648,9 @@ inline static bool IsSVGContentWithCSSClip(const nsIFrame *aFrame)
   // elements regardless of the value of the 'position' property. Here we obey
   // the CSS spec for outer-<svg> (since that's what we generally do), but
   // obey the SVG spec for other SVG elements to which 'clip' applies.
+  nsIAtom *tag = aFrame->GetContent()->Tag();
   return (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) &&
-          aFrame->GetContent()->IsAnyOfSVGElements(nsGkAtoms::svg,
-                                                   nsGkAtoms::foreignObject);
+    (tag == nsGkAtoms::svg || tag == nsGkAtoms::foreignObject);
 }
 
 bool
@@ -5756,7 +5756,7 @@ nsFrame::MakeFrameName(const nsAString& aType, nsAString& aResult) const
   aResult = aType;
   if (mContent && !mContent->IsNodeOfType(nsINode::eTEXT)) {
     nsAutoString buf;
-    mContent->NodeInfo()->NameAtom()->ToString(buf);
+    mContent->Tag()->ToString(buf);
     if (GetType() == nsGkAtoms::subDocumentFrame) {
       nsAutoString src;
       mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::src, src);
@@ -8034,7 +8034,7 @@ nsIFrame::IsFocusable(int32_t *aTabIndex, bool aWithMouse)
     isFocusable = mContent->IsFocusable(&tabIndex, aWithMouse);
     if (!isFocusable && !aWithMouse &&
         GetType() == nsGkAtoms::scrollFrame &&
-        mContent->IsHTMLElement() &&
+        mContent->IsHTML() &&
         !mContent->IsRootOfNativeAnonymousSubtree() &&
         mContent->GetParent() &&
         !mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
@@ -8805,7 +8805,7 @@ nsIFrame::CreateOwnLayerIfNeeded(nsDisplayListBuilder* aBuilder,
                                  nsDisplayList* aList)
 {
   if (GetContent() &&
-      GetContent()->IsXULElement() &&
+      GetContent()->IsXUL() &&
       GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer)) {
     aList->AppendNewToTop(new (aBuilder) 
         nsDisplayOwnLayer(aBuilder, this, aList));
@@ -8960,7 +8960,7 @@ GetTagName(nsFrame* aFrame, nsIContent* aContent, int aResultSize,
 {
   if (aContent) {
     PR_snprintf(aResult, aResultSize, "%s@%p",
-                nsAtomCString(aContent->NodeInfo()->NameAtom()).get(), aFrame);
+                nsAtomCString(aContent->Tag()).get(), aFrame);
   }
   else {
     PR_snprintf(aResult, aResultSize, "@%p", aFrame);

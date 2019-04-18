@@ -1116,10 +1116,11 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
 
   // Ignore 'width', 'height', 'screenX', 'screenY' and 'sizemode' on a
   // <window>.
-  if (mContent->IsAnyOfXULElements(nsGkAtoms::window,
-                                   nsGkAtoms::page,
-                                   nsGkAtoms::dialog,
-                                   nsGkAtoms::wizard) &&
+  nsIAtom *tag = mContent->Tag();
+  if ((tag == nsGkAtoms::window ||
+       tag == nsGkAtoms::page ||
+       tag == nsGkAtoms::dialog ||
+       tag == nsGkAtoms::wizard) &&
       (nsGkAtoms::width == aAttribute ||
        nsGkAtoms::height == aAttribute ||
        nsGkAtoms::screenX == aAttribute ||
@@ -1245,7 +1246,7 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
     RegUnregAccessKey(true);
   }
   else if (aAttribute == nsGkAtoms::rows &&
-           mContent->IsXULElement(nsGkAtoms::tree)) {
+           tag == nsGkAtoms::tree) {
     // Reflow ourselves and all our children if "rows" changes, since
     // nsTreeBodyFrame's layout reads this from its parent (this frame).
     PresContext()->PresShell()->
@@ -1312,7 +1313,7 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   mozilla::layers::FrameMetrics::ViewID scrollTargetId =
     mozilla::layers::FrameMetrics::NULL_SCROLL_ID;
 
-  if (GetContent()->IsXULElement()) {
+  if (GetContent()->IsXUL()) {
     // forcelayer is only supported on XUL elements with box layout
     if (GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer)) {
       forceLayer = true;
@@ -1876,13 +1877,16 @@ nsBoxFrame::RegUnregAccessKey(bool aDoReg)
 {
   MOZ_ASSERT(mContent);
 
+  // find out what type of element this is
+  nsIAtom *atom = mContent->Tag();
+
   // only support accesskeys for the following elements
-  if (!mContent->IsAnyOfXULElements(nsGkAtoms::button,
-                                    nsGkAtoms::toolbarbutton,
-                                    nsGkAtoms::checkbox,
-                                    nsGkAtoms::textbox,
-                                    nsGkAtoms::tab,
-                                    nsGkAtoms::radio)) {
+  if (atom != nsGkAtoms::button &&
+      atom != nsGkAtoms::toolbarbutton &&
+      atom != nsGkAtoms::checkbox &&
+      atom != nsGkAtoms::textbox &&
+      atom != nsGkAtoms::tab &&
+      atom != nsGkAtoms::radio) {
     return;
   }
 

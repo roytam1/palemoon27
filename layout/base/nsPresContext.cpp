@@ -1008,7 +1008,7 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
         if (parentItem) {
           Element* containingElement =
             parent->FindContentForSubDocument(mDocument);
-          if (!containingElement->IsXULElement() ||
+          if (!containingElement->IsXUL() ||
               !containingElement->
                 HasAttr(kNameSpaceID_None,
                         nsGkAtoms::forceOwnRefreshDriver)) {

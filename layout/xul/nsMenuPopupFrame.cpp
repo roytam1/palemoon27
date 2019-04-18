@@ -279,8 +279,8 @@ nsMenuPopupFrame::CreateWidgetForView(nsView* aView)
   nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(this, this);
   nsIContent* parentContent = GetContent()->GetParent();
   nsIAtom *tag = nullptr;
-  if (parentContent && parentContent->IsXULElement())
-    tag = parentContent->NodeInfo()->NameAtom();
+  if (parentContent)
+    tag = parentContent->Tag();
   widgetData.mSupportTranslucency = mode == eTransparencyTransparent;
   widgetData.mDropShadow = !(mode == eTransparencyTransparent || tag == nsGkAtoms::menulist);
   widgetData.mPopupLevel = PopupLevel(widgetData.mNoAutoHide);

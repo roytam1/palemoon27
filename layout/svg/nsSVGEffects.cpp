@@ -383,7 +383,7 @@ bool
 nsSVGTextPathProperty::TargetIsValid()
 {
   Element* target = GetTarget();
-  return target && target->IsSVG(nsGkAtoms::path);
+  return target && target->IsSVGElement(nsGkAtoms::path);
 }
 
 void

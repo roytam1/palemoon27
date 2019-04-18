@@ -15,7 +15,7 @@
 inline bool
 nsIContent::IsInHTMLDocument() const
 {
-  return OwnerDoc()->IsHTML();
+  return OwnerDoc()->IsHTMLDocument();
 }
 
 inline void

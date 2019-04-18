@@ -131,7 +131,8 @@ public:
       return false;
     }
 
-    if (mLastDrawResult == mozilla::image::DrawResult::SUCCESS) {
+    if (mLastDrawResult == mozilla::image::DrawResult::SUCCESS ||
+        mLastDrawResult == mozilla::image::DrawResult::BAD_IMAGE) {
       return false;
     }
 

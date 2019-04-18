@@ -10,6 +10,7 @@
 #include <ctime>
 #include "gfxPrefs.h"
 #include "image_operations.h"
+#include "mozilla/SSE.h"
 #include "convolver.h"
 #include "skia/include/core/SkTypes.h"
 
@@ -69,6 +70,8 @@ Downscaler::BeginFrame(const nsIntSize& aOriginalSize,
              "Invalid original size");
 
   mOriginalSize = aOriginalSize;
+  mScale = gfxSize(double(mOriginalSize.width) / mTargetSize.width,
+                   double(mOriginalSize.height) / mTargetSize.height);
   mOutputBuffer = aOutputBuffer;
   mHasAlpha = aHasAlpha;
 
@@ -162,7 +165,7 @@ Downscaler::CommitRow()
     if (mCurrentInLine == inLineToRead) {
       skia::ConvolveHorizontally(mRowBuffer.get(), *mXFilter,
                                  mWindow[mLinesInBuffer++], mHasAlpha,
-                                 /* use_sse2 = */ true);
+                                 supports_sse2());
     }
 
     MOZ_ASSERT(mCurrentOutLine < mTargetSize.height,
@@ -189,17 +192,25 @@ Downscaler::HasInvalidation() const
   return mCurrentOutLine > mPrevInvalidatedLine;
 }
 
-nsIntRect
+DownscalerInvalidRect
 Downscaler::TakeInvalidRect()
 {
   if (MOZ_UNLIKELY(!HasInvalidation())) {
-    return nsIntRect();
+    return DownscalerInvalidRect();
   }
 
-  nsIntRect invalidRect(0, mPrevInvalidatedLine,
-                        mTargetSize.width,
-                        mCurrentOutLine - mPrevInvalidatedLine);
+  DownscalerInvalidRect invalidRect;
+
+  // Compute the target size invalid rect.
+  invalidRect.mTargetSizeRect =
+    nsIntRect(0, mPrevInvalidatedLine,
+              mTargetSize.width, mCurrentOutLine - mPrevInvalidatedLine);
   mPrevInvalidatedLine = mCurrentOutLine;
+
+  // Compute the original size invalid rect.
+  invalidRect.mOriginalSizeRect = invalidRect.mTargetSizeRect;
+  invalidRect.mOriginalSizeRect.ScaleRoundOut(mScale.width, mScale.height);
+
   return invalidRect;
 }
 
@@ -221,7 +232,7 @@ Downscaler::DownscaleInputLine()
     &mOutputBuffer[mCurrentOutLine * mTargetSize.width * sizeof(uint32_t)];
   skia::ConvolveVertically(static_cast<const FilterValue*>(filterValues),
                            filterLength, mWindow.get(), mXFilter->num_values(),
-                           outputLine, mHasAlpha, /* use_sse2 = */ true);
+                           outputLine, mHasAlpha, supports_sse2());
 
   mCurrentOutLine += 1;
 

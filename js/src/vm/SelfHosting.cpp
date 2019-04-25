@@ -1147,7 +1147,7 @@ JSRuntime::initSelfHosting(JSContext* cx)
     char* filename = getenv("MOZ_SELFHOSTEDJS");
     if (filename) {
         RootedScript script(cx);
-        if (Compile(cx, shg, options, filename, &script))
+        if (Compile(cx, options, filename, &script))
             ok = Execute(cx, script, *shg.get(), rv.address());
     } else {
         uint32_t srcLen = GetRawScriptsSize();
@@ -1161,7 +1161,7 @@ JSRuntime::initSelfHosting(JSContext* cx)
             ok = false;
         }
 
-        ok = ok && Evaluate(cx, shg, options, src, srcLen, &rv);
+        ok = ok && Evaluate(cx, options, src, srcLen, &rv);
     }
     JS_SetErrorReporter(cx->runtime(), oldReporter);
     return ok;

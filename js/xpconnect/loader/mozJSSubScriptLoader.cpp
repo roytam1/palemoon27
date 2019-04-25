@@ -177,7 +177,7 @@ mozJSSubScriptLoader::ReadScript(nsIURI* uri, JSContext* cx, JSObject* targetObj
         }
 
         if (!reuseGlobal) {
-            JS::Compile(cx, target_obj, options, srcBuf, script);
+            JS::Compile(cx, options, srcBuf, script);
         } else {
             AutoObjectVector scopeChain(cx);
             if (!JS_IsGlobalObject(target_obj) &&
@@ -193,7 +193,7 @@ mozJSSubScriptLoader::ReadScript(nsIURI* uri, JSContext* cx, JSObject* targetObj
         // the lazy source loader doesn't know the encoding.
         if (!reuseGlobal) {
             options.setSourceIsLazy(true);
-            JS::Compile(cx, target_obj, options, buf.get(), len, script);
+            JS::Compile(cx, options, buf.get(), len, script);
         } else {
             AutoObjectVector scopeChain(cx);
             if (!JS_IsGlobalObject(target_obj) &&
@@ -378,7 +378,13 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString& url,
         ok = JS_CallFunction(cx, targetObj, function, JS::HandleValueArray::empty(),
                              retval);
     } else {
-        ok = JS_ExecuteScript(cx, targetObj, script, retval);
+        if (JS_IsGlobalObject(targetObj)) {
+            ok = JS_ExecuteScript(cx, script, retval);
+        } else {
+            JS::AutoObjectVector scopeChain(cx);
+            ok = scopeChain.append(targetObj) &&
+                 JS_ExecuteScript(cx, scopeChain, script, retval);
+        }
     }
 
     if (ok) {

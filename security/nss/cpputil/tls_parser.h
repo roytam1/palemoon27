@@ -52,7 +52,6 @@ const uint8_t kTlsAlertInappropriateFallback = 86;
 const uint8_t kTlsAlertMissingExtension = 109;
 const uint8_t kTlsAlertUnsupportedExtension = 110;
 const uint8_t kTlsAlertUnrecognizedName = 112;
-const uint8_t kTlsAlertCertificateRequired = 116;
 const uint8_t kTlsAlertNoApplicationProtocol = 120;
 
 const uint8_t kTlsFakeChangeCipherSpec[] = {

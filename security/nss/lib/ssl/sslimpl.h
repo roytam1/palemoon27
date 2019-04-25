@@ -144,11 +144,6 @@ typedef enum {
     ticket_allow_psk_sign_auth = 16
 } TLS13SessionTicketFlags;
 
-typedef enum {
-    update_not_requested = 0,
-    update_requested = 1
-} tls13KeyUpdateRequest;
-
 struct sslNamedGroupDefStr {
     /* The name is the value that is encoded on the wire in TLS. */
     SSLNamedGroup name;
@@ -615,7 +610,6 @@ typedef struct SSL3HandshakeStateStr {
      * TLS 1.2 and later use only |sha|, for SHA-256. */
     PK11Context *md5;
     PK11Context *sha;
-    PK11Context *shaPostHandshake;
     SSLSignatureScheme signatureScheme;
     const ssl3KEADef *kea_def;
     ssl3CipherSuite cipher_suite;
@@ -748,11 +742,6 @@ struct ssl3StateStr {
     /* This is true after the peer requests a key update; false after a key
      * update is initiated locally. */
     PRBool peerRequestedKeyUpdate;
-
-    /* This is true if we deferred sending a key update as
-     * post-handshake auth is in progress. */
-    PRBool keyUpdateDeferred;
-    tls13KeyUpdateRequest deferredKeyUpdateRequest;
 
     /* This is true after the server requests client certificate;
      * false after the client certificate is received.  Used by the
@@ -1224,24 +1213,15 @@ extern SECStatus Null_Cipher(void *ctx, unsigned char *output, unsigned int *out
                              unsigned int maxOutputLen, const unsigned char *input,
                              unsigned int inputLen);
 extern void ssl3_RestartHandshakeHashes(sslSocket *ss);
-typedef SECStatus (*sslUpdateHandshakeHashes)(sslSocket *ss,
-                                              const unsigned char *b,
-                                              unsigned int l);
 extern SECStatus ssl3_UpdateHandshakeHashes(sslSocket *ss,
                                             const unsigned char *b,
                                             unsigned int l);
-extern SECStatus ssl3_UpdatePostHandshakeHashes(sslSocket *ss,
-                                                const unsigned char *b,
-                                                unsigned int l);
 SECStatus
 ssl_HashHandshakeMessageInt(sslSocket *ss, SSLHandshakeType type,
                             PRUint32 dtlsSeq,
-                            const PRUint8 *b, PRUint32 length,
-                            sslUpdateHandshakeHashes cb);
+                            const PRUint8 *b, PRUint32 length);
 SECStatus ssl_HashHandshakeMessage(sslSocket *ss, SSLHandshakeType type,
                                    const PRUint8 *b, PRUint32 length);
-SECStatus ssl_HashPostHandshakeMessage(sslSocket *ss, SSLHandshakeType type,
-                                       const PRUint8 *b, PRUint32 length);
 
 /* Returns PR_TRUE if we are still waiting for the server to complete its
  * response to our client second round. Once we've received the Finished from
@@ -1753,14 +1733,6 @@ void ssl_CacheExternalToken(sslSocket *ss);
 SECStatus ssl_DecodeResumptionToken(sslSessionID *sid, const PRUint8 *encodedTicket,
                                     PRUint32 encodedTicketLen);
 PRBool ssl_IsResumptionTokenUsable(sslSocket *ss, sslSessionID *sid);
-
-/* unwrap helper function to handle the case where the wrapKey doesn't wind
- *  * up in the correct token for the master secret */
-PK11SymKey *ssl_unwrapSymKey(PK11SymKey *wrapKey,
-                             CK_MECHANISM_TYPE wrapType, SECItem *param,
-                             SECItem *wrappedKey,
-                             CK_MECHANISM_TYPE target, CK_ATTRIBUTE_TYPE operation,
-                             int keySize, CK_FLAGS keyFlags, void *pinArg);
 
 /* Remove when stable. */
 

@@ -518,7 +518,6 @@ class IonBuilder
     bool storeScalarTypedObjectValue(MDefinition *typedObj,
                                      const LinearSum &byteOffset,
                                      ScalarTypeDescr::Type type,
-                                     bool racy,
                                      MDefinition *value);
     bool checkTypedObjectIndexInBounds(int32_t elemSize,
                                        MDefinition *obj,
@@ -667,7 +666,7 @@ class IonBuilder
                             SetElemSafety safety,
                             MDefinition *object, MDefinition *index, MDefinition *value);
     bool jsop_setelem_typed_object(ScalarTypeDescr::Type arrayType,
-                                   SetElemSafety safety, bool racy,
+                                   SetElemSafety safety,
                                    MDefinition *object, MDefinition *index, MDefinition *value);
     bool jsop_length();
     bool jsop_length_fastPath();
@@ -832,7 +831,8 @@ class IonBuilder
     InliningStatus inlineSimdWith(CallInfo &callInfo, JSNative native, SimdLane lane,
                                   SimdTypeDescr::Type type);
     InliningStatus inlineSimdSplat(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
-    InliningStatus inlineSimdSwizzle(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdShuffle(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+                                     unsigned numVectors, unsigned numLanes);
     InliningStatus inlineSimdCheck(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
     InliningStatus inlineSimdConvert(CallInfo &callInfo, JSNative native, bool isCast,
                                      SimdTypeDescr::Type from, SimdTypeDescr::Type to);
@@ -841,7 +841,8 @@ class IonBuilder
 
     bool prepareForSimdLoadStore(CallInfo &callInfo, Scalar::Type simdType, MInstruction **elements,
                                  MDefinition **index, Scalar::Type *arrayType);
-    InliningStatus inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+                                  unsigned numElems);
     InliningStatus inlineSimdStore(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
 
     // Utility intrinsics.

@@ -903,13 +903,47 @@ class MacroAssemblerX86Shared : public Assembler
         vpxor(dest, dest, dest);
     }
 
-    void loadAlignedInt32x4(const Address& src, FloatRegister dest) {
+    template <class T, class Reg> inline void loadScalar(const Operand &src, Reg dest);
+    template <class T, class Reg> inline void storeScalar(Reg src, const Address &dest);
+    template <class T> inline void loadAlignedVector(const Address &src, FloatRegister dest);
+    template <class T> inline void storeAlignedVector(FloatRegister src, const Address &dest);
+
+    void loadInt32x1(const Address &src, FloatRegister dest) {
+        vmovd(Operand(src), dest);
+    }
+    void loadInt32x1(const BaseIndex &src, FloatRegister dest) {
+        vmovd(Operand(src), dest);
+    }
+    void loadInt32x2(const Address &src, FloatRegister dest) {
+        vmovq(Operand(src), dest);
+    }
+    void loadInt32x2(const BaseIndex &src, FloatRegister dest) {
+        vmovq(Operand(src), dest);
+    }
+    void loadInt32x3(const BaseIndex &src, FloatRegister dest) {
+        BaseIndex srcZ(src);
+        srcZ.offset += 2 * sizeof(int32_t);
+
+        vmovq(Operand(src), dest);
+        vmovd(Operand(srcZ), ScratchSimdReg);
+        vmovlhps(ScratchSimdReg, dest, dest);
+    }
+    void loadInt32x3(const Address &src, FloatRegister dest) {
+        Address srcZ(src);
+        srcZ.offset += 2 * sizeof(int32_t);
+
+        vmovq(Operand(src), dest);
+        vmovd(Operand(srcZ), ScratchSimdReg);
+        vmovlhps(ScratchSimdReg, dest, dest);
+    }
+
+    void loadAlignedInt32x4(const Address &src, FloatRegister dest) {
         vmovdqa(Operand(src), dest);
     }
-    void loadAlignedInt32x4(const Operand& src, FloatRegister dest) {
+    void loadAlignedInt32x4(const Operand &src, FloatRegister dest) {
         vmovdqa(src, dest);
     }
-    void storeAlignedInt32x4(FloatRegister src, const Address& dest) {
+    void storeAlignedInt32x4(FloatRegister src, const Address &dest) {
         vmovdqa(src, Operand(dest));
     }
     void moveInt32x4(FloatRegister src, FloatRegister dest) {
@@ -990,13 +1024,28 @@ class MacroAssemblerX86Shared : public Assembler
         vpsrld(count, dest, dest);
     }
 
-    void loadAlignedFloat32x4(const Address& src, FloatRegister dest) {
+    void loadFloat32x3(const Address &src, FloatRegister dest) {
+        Address srcZ(src);
+        srcZ.offset += 2 * sizeof(float);
+        vmovsd(src, dest);
+        vmovss(srcZ, ScratchSimdReg);
+        vmovlhps(ScratchSimdReg, dest, dest);
+    }
+    void loadFloat32x3(const BaseIndex &src, FloatRegister dest) {
+        BaseIndex srcZ(src);
+        srcZ.offset += 2 * sizeof(float);
+        vmovsd(src, dest);
+        vmovss(srcZ, ScratchSimdReg);
+        vmovlhps(ScratchSimdReg, dest, dest);
+    }
+
+    void loadAlignedFloat32x4(const Address &src, FloatRegister dest) {
         vmovaps(Operand(src), dest);
     }
-    void loadAlignedFloat32x4(const Operand& src, FloatRegister dest) {
+    void loadAlignedFloat32x4(const Operand &src, FloatRegister dest) {
         vmovaps(src, dest);
     }
-    void storeAlignedFloat32x4(FloatRegister src, const Address& dest) {
+    void storeAlignedFloat32x4(FloatRegister src, const Address &dest) {
         vmovaps(src, Operand(dest));
     }
     void moveFloat32x4(FloatRegister src, FloatRegister dest) {
@@ -1340,6 +1389,42 @@ class MacroAssemblerX86Shared : public Assembler
   protected:
     bool buildOOLFakeExitFrame(void* fakeReturnAddr);
 };
+
+template <> inline void
+MacroAssemblerX86Shared::loadAlignedVector<int32_t>(const Address &src, FloatRegister dest) {
+    loadAlignedInt32x4(src, dest);
+}
+template <> inline void
+MacroAssemblerX86Shared::loadAlignedVector<float>(const Address &src, FloatRegister dest) {
+    loadAlignedFloat32x4(src, dest);
+}
+
+template <> inline void
+MacroAssemblerX86Shared::storeAlignedVector<int32_t>(FloatRegister src, const Address &dest) {
+    storeAlignedInt32x4(src, dest);
+}
+template <> inline void
+MacroAssemblerX86Shared::storeAlignedVector<float>(FloatRegister src, const Address &dest) {
+    storeAlignedFloat32x4(src, dest);
+}
+
+template <> inline void
+MacroAssemblerX86Shared::loadScalar<int32_t>(const Operand &src, Register dest) {
+    load32(src, dest);
+}
+template <> inline void
+MacroAssemblerX86Shared::loadScalar<float>(const Operand &src, FloatRegister dest) {
+    loadFloat32(src, dest);
+}
+
+template <> inline void
+MacroAssemblerX86Shared::storeScalar<int32_t>(Register src, const Address &dest) {
+    store32(src, dest);
+}
+template <> inline void
+MacroAssemblerX86Shared::storeScalar<float>(FloatRegister src, const Address &dest) {
+    storeFloat32(src, dest);
+}
 
 } // namespace jit
 } // namespace js

@@ -789,23 +789,26 @@ template bool
 SimdPolicy<0>::adjustInputs(TempAllocator &alloc, MInstruction *ins);
 
 bool
-SimdSwizzlePolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
+SimdShufflePolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
 {
     MIRType specialization = ins->typePolicySpecialization();
 
-    // First input is the vector input.
-    if (!MaybeSimdUnbox(alloc, ins, specialization, 0))
-        return false;
+    MSimdGeneralShuffle *s = ins->toSimdGeneralShuffle();
+
+    for (unsigned i = 0; i < s->numVectors(); i++) {
+        if (!MaybeSimdUnbox(alloc, ins, specialization, i))
+            return false;
+    }
 
     // Next inputs are the lanes, which need to be int32
-    for (unsigned i = 0; i < 4; i++) {
-        MDefinition *in = ins->getOperand(i + 1);
+    for (unsigned i = 0; i < s->numLanes(); i++) {
+        MDefinition *in = ins->getOperand(s->numVectors() + i);
         if (in->type() == MIRType_Int32)
             continue;
 
         MInstruction *replace = MToInt32::New(alloc, in, MacroAssembler::IntConversion_NumbersOnly);
         ins->block()->insertBefore(ins, replace);
-        ins->replaceOperand(i + 1, replace);
+        ins->replaceOperand(s->numVectors() + i, replace);
         if (!replace->typePolicy()->adjustInputs(alloc, replace))
             return false;
     }
@@ -879,8 +882,9 @@ InstanceOfPolicy::adjustInputs(TempAllocator& alloc, MInstruction* def)
 }
 
 bool
-StoreTypedArrayPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
-                                        Scalar::Type writeType, MDefinition *value, int valueOperand)
+StoreUnboxedScalarPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
+                                           Scalar::Type writeType, MDefinition *value,
+                                           int valueOperand)
 {
     // Storing a SIMD value just implies that we might need a SimdUnbox.
     if (Scalar::isSimdType(writeType))
@@ -965,11 +969,11 @@ StoreTypedArrayPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
 }
 
 bool
-StoreTypedArrayPolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
+StoreUnboxedScalarPolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
 {
     SingleObjectPolicy::staticAdjustInputs(alloc, ins);
 
-    MStoreTypedArrayElement *store = ins->toStoreTypedArrayElement();
+    MStoreUnboxedScalar *store = ins->toStoreUnboxedScalar();
     MOZ_ASSERT(IsValidElementsType(store->elements(), store->offsetAdjustment()));
     MOZ_ASSERT(store->index()->type() == MIRType_Int32);
 
@@ -984,7 +988,7 @@ StoreTypedArrayHolePolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins)
     MOZ_ASSERT(store->index()->type() == MIRType_Int32);
     MOZ_ASSERT(store->length()->type() == MIRType_Int32);
 
-    return StoreTypedArrayPolicy::adjustValueInput(alloc, ins, store->arrayType(), store->value(), 3);
+    return StoreUnboxedScalarPolicy::adjustValueInput(alloc, ins, store->arrayType(), store->value(), 3);
 }
 
 bool
@@ -993,7 +997,7 @@ StoreTypedArrayElementStaticPolicy::adjustInputs(TempAllocator& alloc, MInstruct
     MStoreTypedArrayElementStatic* store = ins->toStoreTypedArrayElementStatic();
 
     return ConvertToInt32Policy<0>::staticAdjustInputs(alloc, ins) &&
-        StoreTypedArrayPolicy::adjustValueInput(alloc, ins, store->accessType(), store->value(), 1);
+        StoreUnboxedScalarPolicy::adjustValueInput(alloc, ins, store->accessType(), store->value(), 1);
 }
 
 bool
@@ -1117,10 +1121,10 @@ FilterTypeSetPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins)
     _(PowPolicy)                                \
     _(SimdAllPolicy)                            \
     _(SimdSelectPolicy)                         \
-    _(SimdSwizzlePolicy)                        \
+    _(SimdShufflePolicy)                        \
     _(StoreTypedArrayElementStaticPolicy)       \
     _(StoreTypedArrayHolePolicy)                \
-    _(StoreTypedArrayPolicy)                    \
+    _(StoreUnboxedScalarPolicy)                 \
     _(StoreUnboxedObjectOrNullPolicy)           \
     _(TestPolicy)                               \
     _(AllDoublePolicy)                          \

@@ -351,14 +351,31 @@ IonBuilder::inlineNativeCall(CallInfo& callInfo, JSFunction* target)
         return inlineSimdSelect(callInfo, native, IsElementWise(false), SimdTypeDescr::TYPE_FLOAT32);
 
     if (native == js::simd_int32x4_swizzle)
-        return inlineSimdSwizzle(callInfo, native, SimdTypeDescr::TYPE_INT32);
+        return inlineSimdShuffle(callInfo, native, SimdTypeDescr::TYPE_INT32, 1, 4);
     if (native == js::simd_float32x4_swizzle)
-        return inlineSimdSwizzle(callInfo, native, SimdTypeDescr::TYPE_FLOAT32);
+        return inlineSimdShuffle(callInfo, native, SimdTypeDescr::TYPE_FLOAT32, 1, 4);
+    if (native == js::simd_int32x4_shuffle)
+        return inlineSimdShuffle(callInfo, native, SimdTypeDescr::TYPE_INT32, 2, 4);
+    if (native == js::simd_float32x4_shuffle)
+        return inlineSimdShuffle(callInfo, native, SimdTypeDescr::TYPE_FLOAT32, 2, 4);
 
     if (native == js::simd_int32x4_load)
-        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_INT32);
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_INT32, 4);
+    if (native == js::simd_int32x4_loadX)
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_INT32, 1);
+    if (native == js::simd_int32x4_loadXY)
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_INT32, 2);
+    if (native == js::simd_int32x4_loadXYZ)
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_INT32, 3);
+
     if (native == js::simd_float32x4_load)
-        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_FLOAT32);
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_FLOAT32, 4);
+    if (native == js::simd_float32x4_loadX)
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_FLOAT32, 1);
+    if (native == js::simd_float32x4_loadXY)
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_FLOAT32, 2);
+    if (native == js::simd_float32x4_loadXYZ)
+        return inlineSimdLoad(callInfo, native, SimdTypeDescr::TYPE_FLOAT32, 3);
 
     if (native == js::simd_int32x4_store)
         return inlineSimdStore(callInfo, native, SimdTypeDescr::TYPE_INT32);
@@ -2123,7 +2140,7 @@ IonBuilder::inlineUnsafeSetTypedObjectArrayElement(CallInfo& callInfo,
     MDefinition *id = callInfo.getArg(base + 1);
     MDefinition *elem = callInfo.getArg(base + 2);
 
-    if (!jsop_setelem_typed_object(arrayType, SetElem_Unsafe, true, obj, id, elem))
+    if (!jsop_setelem_typed_object(arrayType, SetElem_Unsafe, obj, id, elem))
         return false;
 
     return true;
@@ -2710,9 +2727,9 @@ IonBuilder::inlineAtomicsLoad(CallInfo& callInfo)
     MDefinition *index;
     atomicsCheckBounds(callInfo, &elements, &index);
 
-    MLoadTypedArrayElement *load =
-        MLoadTypedArrayElement::New(alloc(), elements, index, arrayType,
-                                    DoesRequireMemoryBarrier);
+    MLoadUnboxedScalar *load =
+        MLoadUnboxedScalar::New(alloc(), elements, index, arrayType,
+                                DoesRequireMemoryBarrier);
     load->setResultType(getInlineReturnType());
     current->add(load);
     current->push(load);
@@ -2747,9 +2764,9 @@ IonBuilder::inlineAtomicsStore(CallInfo &callInfo)
         toWrite = MTruncateToInt32::New(alloc(), value);
         current->add(toWrite->toInstruction());
     }
-    MStoreTypedArrayElement *store =
-        MStoreTypedArrayElement::New(alloc(), elements, index, toWrite, arrayType,
-                                     DoesRequireMemoryBarrier);
+    MStoreUnboxedScalar *store =
+        MStoreUnboxedScalar::New(alloc(), elements, index, toWrite, arrayType,
+                                 DoesRequireMemoryBarrier);
     current->add(store);
     current->push(value);
 
@@ -3136,18 +3153,24 @@ IonBuilder::inlineSimdCheck(CallInfo &callInfo, JSNative native, SimdTypeDescr::
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineSimdSwizzle(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type)
+IonBuilder::inlineSimdShuffle(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+                              unsigned numVectors, unsigned numLanes)
 {
     InlineTypedObject *templateObj = nullptr;
-    if (!checkInlineSimd(callInfo, native, type, 5, &templateObj))
+    if (!checkInlineSimd(callInfo, native, type, numVectors + numLanes, &templateObj))
         return InliningStatus_NotInlined;
 
-    MDefinition *lanes[4];
-    for (size_t i = 0; i < 4; i++)
-        lanes[i] = callInfo.getArg(1 + i);
-
     MIRType mirType = SimdTypeDescrToMIRType(type);
-    MSimdGeneralSwizzle *ins = MSimdGeneralSwizzle::New(alloc(), callInfo.getArg(0), lanes, mirType);
+    MSimdGeneralShuffle *ins = MSimdGeneralShuffle::New(alloc(), numVectors, numLanes, mirType);
+
+    if (!ins->init(alloc()))
+        return InliningStatus_Error;
+
+    for (unsigned i = 0; i < numVectors; i++)
+        ins->setVector(i, callInfo.getArg(i));
+    for (size_t i = 0; i < numLanes; i++)
+        ins->setLane(i, callInfo.getArg(numVectors + i));
+
     return boxSimd(callInfo, ins, templateObj);
 }
 
@@ -3202,7 +3225,8 @@ IonBuilder::prepareForSimdLoadStore(CallInfo &callInfo, Scalar::Type simdType, M
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type)
+IonBuilder::inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+                           unsigned numElems)
 {
     InlineTypedObject *templateObj = nullptr;
     if (!checkInlineSimd(callInfo, native, type, 2, &templateObj))
@@ -3216,9 +3240,9 @@ IonBuilder::inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::T
     if (!prepareForSimdLoadStore(callInfo, simdType, &elements, &index, &arrayType))
         return InliningStatus_NotInlined;
 
-    MLoadTypedArrayElement *load = MLoadTypedArrayElement::New(alloc(), elements, index, arrayType);
+    MLoadUnboxedScalar *load = MLoadUnboxedScalar::New(alloc(), elements, index, arrayType);
     load->setResultType(SimdTypeDescrToMIRType(type));
-    load->setReadType(simdType);
+    load->setSimdRead(simdType, numElems);
 
     return boxSimd(callInfo, load, templateObj);
 }
@@ -3239,8 +3263,8 @@ IonBuilder::inlineSimdStore(CallInfo &callInfo, JSNative native, SimdTypeDescr::
         return InliningStatus_NotInlined;
 
     MDefinition *valueToWrite = callInfo.getArg(2);
-    MStoreTypedArrayElement *store = MStoreTypedArrayElement::New(alloc(), elements, index,
-                                                                  valueToWrite, arrayType);
+    MStoreUnboxedScalar *store = MStoreUnboxedScalar::New(alloc(), elements, index,
+                                                          valueToWrite, arrayType);
     store->setWriteType(simdType);
 
     current->add(store);

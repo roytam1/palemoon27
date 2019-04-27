@@ -394,10 +394,10 @@ class IonBuilder
 
     MDefinition* walkScopeChain(unsigned hops);
 
-    MInstruction* addConvertElementsToDoubles(MDefinition* elements);
-    MDefinition* addMaybeCopyElementsForWrite(MDefinition* object);
-    MInstruction* addBoundsCheck(MDefinition* index, MDefinition* length);
-    MInstruction* addShapeGuard(MDefinition* obj, Shape* const shape, BailoutKind bailoutKind);
+    MInstruction *addConvertElementsToDoubles(MDefinition *elements);
+    MDefinition *addMaybeCopyElementsForWrite(MDefinition *object);
+    MInstruction *addBoundsCheck(MDefinition *index, MDefinition *length);
+    MInstruction *addShapeGuard(MDefinition *obj, Shape *const shape, BailoutKind bailoutKind);
     MInstruction *addGroupGuard(MDefinition *obj, ObjectGroup *group, BailoutKind bailoutKind);
 
     MInstruction *
@@ -405,7 +405,7 @@ class IonBuilder
                              const BaselineInspector::ShapeVector &shapes,
                              const BaselineInspector::ObjectGroupVector &unboxedGroups);
 
-    MDefinition* convertShiftToMaskForStaticTypedArray(MDefinition* id,
+    MDefinition *convertShiftToMaskForStaticTypedArray(MDefinition *id,
                                                        Scalar::Type viewType);
 
     bool invalidatedIdempotentCache();
@@ -843,7 +843,8 @@ class IonBuilder
                                  MDefinition **index, Scalar::Type *arrayType);
     InliningStatus inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
                                   unsigned numElems);
-    InliningStatus inlineSimdStore(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdStore(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+                                   unsigned numElems);
 
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo &callInfo);

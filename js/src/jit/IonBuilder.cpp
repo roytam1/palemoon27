@@ -12402,7 +12402,7 @@ IonBuilder::addShapeGuard(MDefinition* obj, Shape* const shape, BailoutKind bail
     return guard;
 }
 
-MInstruction*
+MInstruction *
 IonBuilder::addGroupGuard(MDefinition *obj, ObjectGroup *group, BailoutKind bailoutKind)
 {
     MGuardObjectGroup *guard = MGuardObjectGroup::New(alloc(), obj, group,

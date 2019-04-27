@@ -9112,6 +9112,7 @@ class MStoreUnboxedScalar
     Scalar::Type indexType_;
     bool requiresBarrier_;
     int32_t offsetAdjustment_;
+    unsigned numElems_; // used only for SIMD
 
     MStoreUnboxedScalar(MDefinition *elements, MDefinition *index, MDefinition *value,
                         Scalar::Type indexType, MemoryBarrierRequirement requiresBarrier,
@@ -9120,7 +9121,8 @@ class MStoreUnboxedScalar
         StoreUnboxedScalarBase(indexType),
         indexType_(indexType),
         requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier),
-        offsetAdjustment_(offsetAdjustment)
+        offsetAdjustment_(offsetAdjustment),
+        numElems_(1)
     {
         if (requiresBarrier_)
             setGuard();         // Not removable or movable
@@ -9145,6 +9147,14 @@ class MStoreUnboxedScalar
                                               requiresBarrier, offsetAdjustment);
     }
 
+    void setSimdWrite(Scalar::Type writeType, unsigned numElems) {
+        MOZ_ASSERT(Scalar::isSimdType(writeType));
+        setWriteType(writeType);
+        numElems_ = numElems;
+    }
+    unsigned numElems() const {
+        return numElems_;
+    }
     Scalar::Type indexType() const {
         return indexType_;
     }
@@ -10148,11 +10158,11 @@ class MGuardObjectGroup
   : public MUnaryInstruction,
     public SingleObjectPolicy::Data
 {
-    AlwaysTenured<ObjectGroup*> group_;
+    AlwaysTenured<ObjectGroup *> group_;
     bool bailOnEquality_;
     BailoutKind bailoutKind_;
 
-    MGuardObjectGroup(MDefinition* obj, ObjectGroup* group, bool bailOnEquality,
+    MGuardObjectGroup(MDefinition *obj, ObjectGroup *group, bool bailOnEquality,
                       BailoutKind bailoutKind)
       : MUnaryInstruction(obj),
         group_(group),
@@ -10171,15 +10181,15 @@ class MGuardObjectGroup
   public:
     INSTRUCTION_HEADER(GuardObjectGroup)
 
-    static MGuardObjectGroup* New(TempAllocator& alloc, MDefinition* obj, ObjectGroup* group,
+    static MGuardObjectGroup *New(TempAllocator &alloc, MDefinition *obj, ObjectGroup *group,
                                   bool bailOnEquality, BailoutKind bailoutKind) {
         return new(alloc) MGuardObjectGroup(obj, group, bailOnEquality, bailoutKind);
     }
 
-    MDefinition* obj() const {
+    MDefinition *obj() const {
         return getOperand(0);
     }
-    const ObjectGroup* group() const {
+    const ObjectGroup *group() const {
         return group_;
     }
     bool bailOnEquality() const {
@@ -10188,7 +10198,7 @@ class MGuardObjectGroup
     BailoutKind bailoutKind() const {
         return bailoutKind_;
     }
-    bool congruentTo(const MDefinition* ins) const MOZ_OVERRIDE {
+    bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
         if (!ins->isGuardObjectGroup())
             return false;
         if (group() != ins->toGuardObjectGroup()->group())

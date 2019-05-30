@@ -111,7 +111,6 @@ JS_GetScriptPrincipals(JSScript* script);
 extern JS_FRIEND_API(bool)
 JS_ScriptHasMutedErrors(JSScript* script);
 
-
 /* Safe to call with input obj == nullptr. Returns non-nullptr iff obj != nullptr. */
 extern JS_FRIEND_API(JSObject*)
 JS_ObjectToInnerObject(JSContext* cx, JS::HandleObject obj);
@@ -1353,9 +1352,9 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
     }
 
   private:
-    // More or less an equivalent of JS_ReportErrorNumber/js_ReportErrorNumberVA
+    // More or less an equivalent of JS_ReportErrorNumber/js::ReportErrorNumberVA
     // but fills in an ErrorReport instead of reporting it.  Uses varargs to
-    // make it simpler to call js_ExpandErrorArguments.
+    // make it simpler to call js::ExpandErrorArgumentsVA.
     //
     // Returns false if we fail to actually populate the ErrorReport
     // for some reason (probably out of memory).
@@ -2521,7 +2520,6 @@ Debug_SetActiveJSContext(JSRuntime* rt, JSContext* cx);
 inline void
 Debug_SetActiveJSContext(JSRuntime* rt, JSContext* cx) {}
 #endif
-
 
 enum CTypesActivityType {
     CTYPES_CALL_BEGIN,

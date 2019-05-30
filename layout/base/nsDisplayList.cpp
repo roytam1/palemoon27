@@ -63,6 +63,7 @@
 #include "UnitTransforms.h"
 #include "LayersLogging.h"
 #include "FrameLayerBuilder.h"
+#include "mozilla/EventStateManager.h"
 #include "RestyleManager.h"
 #include "nsCaret.h"
 #include "nsISelection.h"
@@ -784,6 +785,12 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
     LayoutDeviceIntSize lineScrollAmountInDevPixels =
       LayoutDeviceIntSize::FromAppUnitsRounded(lineScrollAmount, presContext->AppUnitsPerDevPixel());
     metrics.SetLineScrollAmount(lineScrollAmountInDevPixels);
+
+    if (!aScrollFrame->GetParent() ||
+        EventStateManager::CanVerticallyScrollFrameWithWheel(aScrollFrame->GetParent()))
+    {
+      metrics.SetAllowVerticalScrollWithWheel();
+    }
   }
 
   metrics.SetScrollId(scrollId);
@@ -802,8 +809,10 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
   // all the pres shells from here up to the root, as well as any css-driven
   // resolution. We don't need to compute it as it's already stored in the
   // container parameters.
-  metrics.SetCumulativeResolution(LayoutDeviceToLayerScale(aContainerParameters.mXScale,
-                                                           aContainerParameters.mYScale));
+  // TODO(botond): As a workaround for bug 1071018, avoid asserting if
+  // mYScale is different from mXScale. This will be handled properly in
+  // bug 1036967.
+  metrics.SetCumulativeResolution(LayoutDeviceToLayerScale(aContainerParameters.mXScale));
 
   LayoutDeviceToScreenScale resolutionToScreen(
       presShell->GetCumulativeResolution().width
@@ -3207,6 +3216,20 @@ nsDisplayLayerEventRegions::AddFrame(nsDisplayListBuilder* aBuilder,
   }
   if (aBuilder->GetAncestorHasApzAwareEventHandler()) {
     mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, borderBox);
+  }
+
+  // Touch action region
+
+  uint32_t touchAction = nsLayoutUtils::GetTouchActionFromFrame(aFrame);
+  if (touchAction & NS_STYLE_TOUCH_ACTION_NONE) {
+    mNoActionRegion.Or(mNoActionRegion, borderBox);
+  } else {
+    if ((touchAction & NS_STYLE_TOUCH_ACTION_PAN_X)) {
+      mHorizontalPanRegion.Or(mHorizontalPanRegion, borderBox);
+    }
+    if ((touchAction & NS_STYLE_TOUCH_ACTION_PAN_Y)) {
+      mVerticalPanRegion.Or(mVerticalPanRegion, borderBox);
+    }
   }
 }
 

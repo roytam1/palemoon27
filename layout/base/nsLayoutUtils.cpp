@@ -8,6 +8,7 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/BasicEvents.h"
+#include "mozilla/EventDispatcher.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Maybe.h"
@@ -95,6 +96,7 @@
 #include "FrameLayerBuilder.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/EventDispatcher.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -5931,6 +5933,20 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 
     gfxRect anchoredDestRect(anchorPoint, scaledDest);
     gfxRect anchoredImageRect(imageSpaceAnchorPoint, imageSize);
+
+    // Calculate anchoredDestRect with snapped fill rect when the devPixelFill rect
+    // corresponds to just a single tile in that direction
+    if (fill.Width() != devPixelFill.Width() &&
+        devPixelDest.x == devPixelFill.x &&
+        devPixelDest.XMost() == devPixelFill.XMost()) {
+      anchoredDestRect.width = fill.width;
+    }
+    if (fill.Height() != devPixelFill.Height() &&
+        devPixelDest.y == devPixelFill.y &&
+        devPixelDest.YMost() == devPixelFill.YMost()) {
+      anchoredDestRect.height = fill.height;
+    }
+
     transform = TransformBetweenRects(anchoredImageRect, anchoredDestRect);
     invTransform = TransformBetweenRects(anchoredDestRect, anchoredImageRect);
   }
@@ -8013,4 +8029,51 @@ nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(nsIPresShell* aShell)
     }
   }
   return false;
+}
+
+/* static */ uint32_t
+nsLayoutUtils::GetTouchActionFromFrame(nsIFrame* aFrame)
+{
+  // If aFrame is null then return default value
+  if (!aFrame) {
+    return NS_STYLE_TOUCH_ACTION_AUTO;
+  }
+
+  // The touch-action CSS property applies to: all elements except:
+  // non-replaced inline elements, table rows, row groups, table columns, and column groups
+  bool isNonReplacedInlineElement = aFrame->IsFrameOfType(nsIFrame::eLineParticipant);
+  if (isNonReplacedInlineElement) {
+    return NS_STYLE_TOUCH_ACTION_AUTO;
+  }
+
+  const nsStyleDisplay* disp = aFrame->StyleDisplay();
+  bool isTableElement = disp->IsInnerTableStyle() &&
+    disp->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL &&
+    disp->mDisplay != NS_STYLE_DISPLAY_TABLE_CAPTION;
+  if (isTableElement) {
+    return NS_STYLE_TOUCH_ACTION_AUTO;
+  }
+
+  return disp->mTouchAction;
+}
+
+/* static */  void
+nsLayoutUtils::TransformToAncestorAndCombineRegions(
+  const nsRect& aBounds,
+  nsIFrame* aFrame,
+  const nsIFrame* aAncestorFrame,
+  nsRegion* aPreciseTargetDest,
+  nsRegion* aImpreciseTargetDest)
+{
+  if (aBounds.IsEmpty()) {
+    return;
+  }
+  Matrix4x4 matrix = GetTransformToAncestor(aFrame, aAncestorFrame);
+  Matrix matrix2D;
+  bool isPrecise = (matrix.Is2D(&matrix2D)
+    && !matrix2D.HasNonAxisAlignedTransform());
+  nsRect transformed = TransformFrameRectToAncestor(
+    aFrame, aBounds, aAncestorFrame);
+  nsRegion* dest = isPrecise ? aPreciseTargetDest : aImpreciseTargetDest;
+  dest->OrWith(transformed);
 }

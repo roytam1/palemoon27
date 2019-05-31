@@ -847,12 +847,20 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
   nsIFrame* frameForCompositionBoundsCalculation = aScrollFrame ? aScrollFrame : aForFrame;
   nsRect compositionBounds(frameForCompositionBoundsCalculation->GetOffsetToCrossDoc(aReferenceFrame),
                            frameForCompositionBoundsCalculation->GetSize());
+  if (scrollableFrame) {
+    // If we have a scrollable frame, restrict the composition bounds to its
+    // scroll port. The scroll port excludes the frame borders and the scroll
+    // bars, which we don't want to be part of the composition bounds.
+    nsRect scrollPort = scrollableFrame->GetScrollPortRect();
+    compositionBounds = nsRect(compositionBounds.TopLeft() + scrollPort.TopLeft(),
+                               scrollPort.Size());
+  }
   ParentLayerRect frameBounds = LayoutDeviceRect::FromAppUnits(compositionBounds, auPerDevPixel)
                               * metrics.GetCumulativeResolution()
                               * layerToParentLayerScale;
   metrics.mCompositionBounds = frameBounds;
 
-  // For the root scroll frame of the root content document, the above calculation
+  // For the root scroll frame of the root content document (RCD-RSF), the above calculation
   // will yield the size of the viewport frame as the composition bounds, which
   // doesn't actually correspond to what is visible when
   // nsIDOMWindowUtils::setCSSViewport has been called to modify the visible area of
@@ -900,15 +908,17 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
           metrics.mCompositionBounds.SizeTo(contentSize * scale);
         }
       }
-    }
-  }
 
-  // Adjust composition bounds for the size of scroll bars.
-  if (scrollableFrame && !LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars)) {
-    nsMargin sizes = scrollableFrame->GetActualScrollbarSizes();
-    // Scrollbars are not subject to scaling, so CSS pixels = layer pixels for them.
-    ParentLayerMargin boundMargins = CSSMargin::FromAppUnits(sizes) * CSSToParentLayerScale(1.0f);
-    metrics.mCompositionBounds.Deflate(boundMargins);
+      // Exclude any non-overlay scroll bars from the composition bounds.
+      // This is only done for the RCD-RSF case, because otherwise the scroll
+      // port size is used and that already excludes the scroll bars.
+      if (scrollableFrame && !LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars)) {
+        nsMargin sizes = scrollableFrame->GetActualScrollbarSizes();
+        // Scrollbars are not subject to scaling, so CSS pixels = layer pixels for them.
+        ParentLayerMargin boundMargins = CSSMargin::FromAppUnits(sizes) * CSSToParentLayerScale(1.0f);
+        metrics.mCompositionBounds.Deflate(boundMargins);
+      }
+    }
   }
 
   metrics.SetRootCompositionSize(
@@ -1629,6 +1639,7 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
   nsIFrame* frame = aBuilder->RootReferenceFrame();
   nsPresContext* presContext = frame->PresContext();
   nsIPresShell* presShell = presContext->GetPresShell();
+  nsRootPresContext* rootPresContext = presContext->GetRootPresContext();
 
   NotifySubDocInvalidationFunc computeInvalidFunc =
     presContext->MayHavePaintEventListenerInSubDocument() ? nsPresContext::NotifySubDocInvalidation : 0;
@@ -1737,6 +1748,15 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
     if (aBuilder->WillComputePluginGeometry()) {
       flags = LayerManager::END_NO_REMOTE_COMPOSITE;
     }
+  }
+
+  // If this is the content process, we ship plugin geometry updates over with layer
+  // updates, so calculate that now before we call EndTransaction.
+  if (rootPresContext &&
+      aBuilder->WillComputePluginGeometry() &&
+      XRE_GetProcessType() == GoannaProcessType_Content) {
+    rootPresContext->ComputePluginGeometryUpdates(aBuilder->RootReferenceFrame(), aBuilder, this);
+    rootPresContext->CollectPluginGeometryUpdates(layerManager);
   }
 
   MaybeSetupTransactionIdAllocator(layerManager, view);

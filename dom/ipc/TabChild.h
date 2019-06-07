@@ -177,7 +177,6 @@ public:
     virtual nsIWebNavigation* WebNavigation() const = 0;
     virtual nsIWidget* WebWidget() = 0;
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
-    bool IsAsyncPanZoomEnabled();
     // Recalculates the display state, including the CSS
     // viewport. This should be called whenever we believe the
     // viewport data on a document may have changed. If it didn't
@@ -222,7 +221,6 @@ protected:
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     ScreenIntSize mInnerSize;
     mozilla::layers::FrameMetrics mLastRootMetrics;
-    mozilla::layout::ScrollingBehavior mScrolling;
     nsCOMPtr<nsIWebBrowserChrome3> mWebBrowserChrome;
 };
 
@@ -243,7 +241,6 @@ class TabChild final : public TabChildBase,
 {
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
-    typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
     typedef mozilla::layers::APZEventState APZEventState;
     typedef mozilla::layers::SetTargetAPZCCallback SetTargetAPZCCallback;
 
@@ -311,30 +308,33 @@ public:
     virtual bool RecvCacheFileDescriptor(const nsString& aPath,
                                          const FileDescriptor& aFileDescriptor)
                                          MOZ_OVERRIDE;
-    virtual bool RecvShow(const nsIntSize& aSize,
+    virtual bool RecvShow(const ScreenIntSize& aSize,
                           const ShowInfo& aInfo,
-                          const ScrollingBehavior& aScrolling,
                           const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                           const uint64_t& aLayersId,
                           PRenderFrameChild* aRenderFrame,
                           const bool& aParentIsActive) MOZ_OVERRIDE;
     virtual bool RecvUpdateDimensions(const nsIntRect& rect,
-                                      const nsIntSize& size,
+                                      const ScreenIntSize& size,
                                       const ScreenOrientation& orientation,
                                       const nsIntPoint& chromeDisp) MOZ_OVERRIDE;
-    virtual bool RecvUpdateFrame(const mozilla::layers::FrameMetrics& aFrameMetrics) MOZ_OVERRIDE;
+    virtual bool RecvUpdateFrame(const layers::FrameMetrics& aFrameMetrics) MOZ_OVERRIDE;
     virtual bool RecvRequestFlingSnap(const ViewID& aScrollId,
                                       const CSSPoint& aDestination) MOZ_OVERRIDE;
     virtual bool RecvAcknowledgeScrollUpdate(const ViewID& aScrollId,
                                              const uint32_t& aScrollGeneration) MOZ_OVERRIDE;
     virtual bool RecvHandleDoubleTap(const CSSPoint& aPoint,
+                                     const Modifiers& aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
     virtual bool RecvHandleSingleTap(const CSSPoint& aPoint,
+                                     const Modifiers& aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
     virtual bool RecvHandleLongTap(const CSSPoint& aPoint,
+                                   const Modifiers& aModifiers,
                                    const mozilla::layers::ScrollableLayerGuid& aGuid,
                                    const uint64_t& aInputBlockId) MOZ_OVERRIDE;
     virtual bool RecvHandleLongTapUp(const CSSPoint& aPoint,
+                                     const Modifiers& aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
     virtual bool RecvNotifyAPZStateChange(const ViewID& aViewId,
                                           const APZStateChange& aChange,
@@ -537,16 +537,14 @@ private:
 
     enum FrameScriptLoading { DONT_LOAD_SCRIPTS, DEFAULT_LOAD_SCRIPTS };
     bool InitTabChildGlobal(FrameScriptLoading aScriptLoading = DEFAULT_LOAD_SCRIPTS);
-    bool InitRenderingState(const ScrollingBehavior& aScrolling,
-                            const TextureFactoryIdentifier& aTextureFactoryIdentifier,
+    bool InitRenderingState(const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                             const uint64_t& aLayersId,
                             PRenderFrameChild* aRenderFrame);
     void DestroyWindow();
     void SetProcessNameToAppName();
 
     // Call RecvShow(nsIntSize(0, 0)) and block future calls to RecvShow().
-    void DoFakeShow(const ScrollingBehavior& aScrolling,
-                    const TextureFactoryIdentifier& aTextureFactoryIdentifier,
+    void DoFakeShow(const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                     const uint64_t& aLayersId,
                     PRenderFrameChild* aRenderFrame);
 

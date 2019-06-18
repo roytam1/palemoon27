@@ -14,6 +14,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsStreamUtils.h"
 #include "nsNetCID.h"
+#include "nsSerializationHelper.h"
 
 #include "mozilla/dom/FetchEventBinding.h"
 #include "mozilla/dom/PromiseNativeHandler.h"
@@ -28,7 +29,6 @@ BEGIN_WORKERS_NAMESPACE
 
 FetchEvent::FetchEvent(EventTarget* aOwner)
 : Event(aOwner, nullptr, nullptr)
-, mWindowId(0)
 , mIsReload(false)
 , mWaitToRespond(false)
 {
@@ -41,11 +41,11 @@ FetchEvent::~FetchEvent()
 void
 FetchEvent::PostInit(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
                      nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker,
-                     uint64_t aWindowId)
+                     nsAutoPtr<ServiceWorkerClientInfo>& aClientInfo)
 {
   mChannel = aChannel;
   mServiceWorker = aServiceWorker;
-  mWindowId = aWindowId;
+  mClientInfo = aClientInfo;
 }
 
 /*static*/ already_AddRefed<FetchEvent>
@@ -92,9 +92,12 @@ public:
 class FinishResponse final : public nsRunnable
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mChannel;
+  nsRefPtr<InternalResponse> mInternalResponse;
 public:
-  explicit FinishResponse(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel)
+  FinishResponse(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                 InternalResponse* aInternalResponse)
     : mChannel(aChannel)
+    , mInternalResponse(aInternalResponse)
   {
   }
 
@@ -102,7 +105,17 @@ public:
       Run()
   {
     AssertIsOnMainThread();
-    nsresult rv = mChannel->FinishSynthesizedResponse();
+
+    nsCOMPtr<nsISupports> infoObj;
+    nsresult rv = NS_DeserializeObject(mInternalResponse->GetSecurityInfo(), getter_AddRefs(infoObj));
+    if (NS_SUCCEEDED(rv)) {
+      rv = mChannel->SetSecurityInfo(infoObj);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+    }
+
+    rv = mChannel->FinishSynthesizedResponse();
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to finish synthesized response");
     return rv;
   }
@@ -130,9 +143,12 @@ public:
 struct RespondWithClosure
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mInterceptedChannel;
+  nsRefPtr<InternalResponse> mInternalResponse;
 
-  explicit RespondWithClosure(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel)
+  RespondWithClosure(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                     InternalResponse* aInternalResponse)
     : mInterceptedChannel(aChannel)
+    , mInternalResponse(aInternalResponse)
   {
   }
 };
@@ -142,7 +158,7 @@ void RespondWithCopyComplete(void* aClosure, nsresult aStatus)
   nsAutoPtr<RespondWithClosure> data(static_cast<RespondWithClosure*>(aClosure));
   nsCOMPtr<nsIRunnable> event;
   if (NS_SUCCEEDED(aStatus)) {
-    event = new FinishResponse(data->mInterceptedChannel);
+    event = new FinishResponse(data->mInterceptedChannel, data->mInternalResponse);
   } else {
     event = new CancelChannelRunnable(data->mInterceptedChannel);
   }
@@ -187,6 +203,11 @@ RespondWithHandler::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValu
     return;
   }
 
+  nsRefPtr<InternalResponse> ir = response->GetInternalResponse();
+  if (NS_WARN_IF(!ir)) {
+    return;
+  }
+
   nsCOMPtr<nsIInputStream> body;
   response->GetBody(getter_AddRefs(body));
   if (NS_WARN_IF(!body) || NS_WARN_IF(response->BodyUsed())) {
@@ -200,7 +221,7 @@ RespondWithHandler::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValu
     return;
   }
 
-  nsAutoPtr<RespondWithClosure> closure(new RespondWithClosure(mInterceptedChannel));
+  nsAutoPtr<RespondWithClosure> closure(new RespondWithClosure(mInterceptedChannel, ir));
 
   nsCOMPtr<nsIEventTarget> stsThread = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
   if (NS_WARN_IF(!stsThread)) {
@@ -244,10 +265,14 @@ FetchEvent::RespondWith(Promise& aPromise, ErrorResult& aRv)
 }
 
 already_AddRefed<ServiceWorkerClient>
-FetchEvent::Client()
+FetchEvent::GetClient()
 {
   if (!mClient) {
-    mClient = new ServiceWorkerClient(GetParentObject(), mWindowId);
+    if (!mClientInfo) {
+      return nullptr;
+    }
+
+    mClient = new ServiceWorkerClient(GetParentObject(), *mClientInfo);
   }
   nsRefPtr<ServiceWorkerClient> client = mClient;
   return client.forget();

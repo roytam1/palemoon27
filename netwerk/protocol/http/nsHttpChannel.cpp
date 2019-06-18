@@ -3043,7 +3043,7 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
                 // want to proceed since the LOAD_ONLY_IF_MODIFIED flag is
                 // also set.
                 MOZ_ASSERT(mLoadFlags & LOAD_ONLY_IF_MODIFIED);
-            } else {
+            } else if (mInterceptCache != INTERCEPTED) {
                 return rv;
             }
         }
@@ -3193,6 +3193,10 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
         // Append cacheKey if not in the chain already
         if (!doValidation)
             mRedirectedCachekeys->AppendElement(cacheKey);
+    }
+
+    if (doValidation && mInterceptCache == INTERCEPTED) {
+        doValidation = false;
     }
 
     mCachedContentIsValid = !doValidation;

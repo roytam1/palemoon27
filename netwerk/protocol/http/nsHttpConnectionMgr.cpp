@@ -192,7 +192,7 @@ nsHttpConnectionMgr::PostEvent(nsConnEventHandler handler, int32_t iparam, void 
         rv = NS_ERROR_NOT_INITIALIZED;
     }
     else {
-        nsRefPtr<nsIRunnable> event = new nsConnEvent(this, handler, iparam, vparam);
+        nsCOMPtr<nsIRunnable> event = new nsConnEvent(this, handler, iparam, vparam);
         rv = mSocketThreadTarget->Dispatch(event, NS_DISPATCH_NORMAL);
     }
     return rv;
@@ -2326,7 +2326,7 @@ nsHttpConnectionMgr::OnMsgShutdown(int32_t, void *param)
     }
 
     // signal shutdown complete
-    nsRefPtr<nsIRunnable> runnable =
+    nsCOMPtr<nsIRunnable> runnable =
         new nsConnEvent(this, &nsHttpConnectionMgr::OnMsgShutdownConfirm,
                         0, param);
     NS_DispatchToMainThread(runnable);

@@ -5,7 +5,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-  <title>Bug 982726 - Test service worker post message </title>
+  <title>Bug 1142015 - Test service worker post message source </title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -14,11 +14,11 @@
 <div id="content" style="display: none"></div>
 <pre id="test"></pre>
 <script class="testbody" type="text/javascript">
-  var magic_value = "MAGIC_VALUE_123";
+  var magic_value = "MAGIC_VALUE_RANDOM";
   var registration;
   function start() {
-    return navigator.serviceWorker.register("message_posting_worker.js",
-                                            { scope: "./sw_clients/" })
+    return navigator.serviceWorker.register("source_message_posting_worker.js",
+                                            { scope: "./nonexistent_scope/" })
       .then((swr) => registration = swr);
   }
 
@@ -31,29 +31,17 @@
 
   function testPostMessage(swr) {
     var p = new Promise(function(res, rej) {
-      window.onmessage = function(e) {
-        if (e.data === "READY") {
-          swr.active.postMessage(magic_value);
-        } else if (e.data === magic_value) {
-          ok(true, "Worker posted the correct value.");
-          res();
-        } else {
-          ok(false, "Wrong value. Expected: " + magic_value +
-                    ", got: " + e.data);
-          res();
-        }
+      navigator.serviceWorker.onmessage = function(e) {
+        ok(e.data === magic_value, "Worker posted the correct value.");
+        res();
       }
     });
 
-    var content = document.getElementById("content");
-    ok(content, "Parent exists.");
-
-    iframe = document.createElement("iframe");
-    iframe.setAttribute('src', "sw_clients/service_worker_controlled.html");
-    content.appendChild(iframe);
-
-    return p.then(() => content.removeChild(iframe));
+    ok(swr.installing, "Installing worker exists.");
+    swr.installing.postMessage(magic_value);
+    return p;
   }
+
 
   function runTest() {
     start()

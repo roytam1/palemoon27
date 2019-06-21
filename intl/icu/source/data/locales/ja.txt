@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 ja{
     AuxExemplarCharacters{"[兌 拼 楔 錄 鳯]"}
@@ -2381,6 +2381,7 @@ ja{
                     "大正",
                     "昭和",
                     "平成",
+                    "令和",
                 }
                 narrow{
                     "大化",
@@ -2619,6 +2620,7 @@ ja{
                     "T",
                     "S",
                     "H",
+                    "R",
                 }
             }
         }

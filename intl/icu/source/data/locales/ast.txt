@@ -1,4 +1,4 @@
-﻿// © 2016 and later: Unicode, Inc. and others.
+// © 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html#License
 ast{
     AuxExemplarCharacters{"[ª à ă â å ä ã ā æ ç è ĕ ê ë ē ì ĭ î ï ī j k º ò ŏ ô ö ø ō œ ù ŭ û ū w ÿ]"}
@@ -2288,6 +2288,7 @@ ast{
                     "Taishō",
                     "e. Shōwa",
                     "Heisei",
+                    "Reiwa",
                 }
                 narrow{
                     "Taika",
@@ -2526,6 +2527,7 @@ ast{
                     "T",
                     "S",
                     "H",
+                    "R",
                 }
                 wide{
                     "Taika (645–650)",
@@ -2764,6 +2766,7 @@ ast{
                     "Taishō",
                     "era Shōwa",
                     "Heisei",
+                    "Reiwa",
                 }
             }
             intervalFormats{

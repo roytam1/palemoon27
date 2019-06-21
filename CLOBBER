@@ -18,4 +18,4 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-Clobber required KISS-FFT build config change
+Clobber required ICU 58.3 update

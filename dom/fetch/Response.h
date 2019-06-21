@@ -37,9 +37,9 @@ public:
   Response(const Response& aOther) = delete;
 
   JSObject*
-  WrapObject(JSContext* aCx) override
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override
   {
-    return ResponseBinding::Wrap(aCx, this);
+    return ResponseBinding::Wrap(aCx, this, aGivenProto);
   }
 
   ResponseType
@@ -55,15 +55,6 @@ public:
     mInternalResponse->GetUrl(url);
     aUrl.AsAString() = NS_ConvertUTF8toUTF16(url);
   }
-
-  bool
-  GetFinalURL(ErrorResult& aRv) const
-  {
-    return mInternalResponse->FinalURL();
-  }
-
-  void
-  SetFinalURL(bool aFinalURL, ErrorResult& aRv);
 
   uint16_t
   Status() const

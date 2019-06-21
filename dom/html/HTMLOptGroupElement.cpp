@@ -139,9 +139,9 @@ HTMLOptGroupElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 JSObject*
-HTMLOptGroupElement::WrapNode(JSContext* aCx)
+HTMLOptGroupElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return HTMLOptGroupElementBinding::Wrap(aCx, this);
+  return HTMLOptGroupElementBinding::Wrap(aCx, this, aGivenProto);
 }
 
 } // namespace dom

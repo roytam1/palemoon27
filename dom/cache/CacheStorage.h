@@ -25,7 +25,6 @@ namespace mozilla {
 class ErrorResult;
 
 namespace ipc {
-  class IProtocol;
   class PrincipalInfo;
 }
 
@@ -42,7 +41,6 @@ namespace cache {
 class CacheChild;
 class CacheStorageChild;
 class Feature;
-class PCacheRequest;
 class PCacheResponseOrVoid;
 
 class CacheStorage MOZ_FINAL : public nsIIPCBackgroundChildCreateCallback
@@ -74,7 +72,7 @@ public:
   static bool PrefEnabled(JSContext* aCx, JSObject* aObj);
 
   nsISupports* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aContext) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aContext, JS::Handle<JSObject*> aGivenProto) MOZ_OVERRIDE;
 
   // nsIIPCbackgroundChildCreateCallback methods
   virtual void ActorCreated(PBackgroundChild* aActor) MOZ_OVERRIDE;

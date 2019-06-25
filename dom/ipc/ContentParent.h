@@ -66,11 +66,11 @@ class TabContext;
 class ContentBridgeParent;
 
 class ContentParent final : public PContentParent
-                              , public nsIContentParent
-                              , public nsIObserver
-                              , public nsIDOMGeoPositionCallback
-                              , public nsIDOMGeoPositionErrorCallback
-                              , public mozilla::LinkedListElement<ContentParent>
+                          , public nsIContentParent
+                          , public nsIObserver
+                          , public nsIDOMGeoPositionCallback
+                          , public nsIDOMGeoPositionErrorCallback
+                          , public mozilla::LinkedListElement<ContentParent>
 {
     typedef mozilla::ipc::GoannaChildProcessHost GoannaChildProcessHost;
     typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
@@ -339,7 +339,7 @@ public:
 
     virtual bool RecvSetOfflinePermission(const IPC::Principal& principal) override;
 
-    virtual bool RecvFinishShutdown() MOZ_OVERRIDE;
+    virtual bool RecvFinishShutdown() override;
 
 protected:
     void OnChannelConnected(int32_t pid) override;

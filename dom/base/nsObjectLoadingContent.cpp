@@ -377,10 +377,10 @@ public:
   }
 
   // nsRunnable
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run() override;
 
   // nsITimerCallback
-  NS_IMETHOD Notify(nsITimer* timer) MOZ_OVERRIDE;
+  NS_IMETHOD Notify(nsITimer* timer) override;
 
 protected:
   virtual ~nsStopPluginRunnable() {}
@@ -1292,8 +1292,8 @@ nsObjectLoadingContent::GetBaseURI(nsIURI **aResult)
 // see an interface requestor even though WebIDL bindings don't expose
 // that stuff.
 class ObjectInterfaceRequestorShim final : public nsIInterfaceRequestor,
-                                               public nsIChannelEventSink,
-                                               public nsIStreamListener
+                                           public nsIChannelEventSink,
+                                           public nsIStreamListener
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

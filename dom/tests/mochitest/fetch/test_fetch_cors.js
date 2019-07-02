@@ -1,15 +1,3 @@
-if (typeof ok !== "function") {
-  function ok(a, msg) {
-    postMessage({type: 'status', status: !!a, msg: a + ": " + msg });
-  }
-}
-
-if (typeof is !== "function") {
-  function is(a, b, msg) {
-    postMessage({type: 'status', status: a === b, msg: a + " === " + b + ": " + msg });
-  }
-}
-
 var path = "/tests/dom/base/test/";
 
 function isOpaqueResponse(response) {
@@ -58,9 +46,11 @@ var corsServerPath = "/tests/dom/base/test/file_CrossSiteXHR_server.sjs?";
 function testModeNoCors() {
   // Fetch spec, section 4, step 4, response tainting should be set opaque, so
   // that fetching leads to an opaque filtered response in step 8.
-  var r = new Request("http://example.com" + corsServerPath + "status=200&allowOrigin=*", { mode: "no-cors" });
+  var r = new Request("http://example.com" + corsServerPath + "status=200", { mode: "no-cors" });
   return fetch(r).then(function(res) {
     ok(isOpaqueResponse(res), "no-cors Request fetch should result in opaque response");
+  }, function(e) {
+    ok(false, "no-cors Request fetch should not error");
   });
 }
 
@@ -1031,7 +1021,7 @@ function testRedirects() {
              hops: [{ server: "http://example.com",
                       allowOrigin: origin
                     },
-                    { server: "http://test2.mochi.test:8000",
+                    { server: "http://test2.mochi.test:8888",
                       allowOrigin: origin
                     },
                     { server: "http://sub2.xn--lt-uia.mochi.test:8888",
@@ -1047,7 +1037,7 @@ function testRedirects() {
              hops: [{ server: "http://example.com",
                       allowOrigin: origin
                     },
-                    { server: "http://test2.mochi.test:8000",
+                    { server: "http://test2.mochi.test:8888",
                       allowOrigin: origin
                     },
                     { server: "http://sub2.xn--lt-uia.mochi.test:8888",
@@ -1079,7 +1069,7 @@ function testRedirects() {
              hops: [{ server: "http://example.com",
                       allowOrigin: origin
                     },
-                    { server: "http://test2.mochi.test:8000",
+                    { server: "http://test2.mochi.test:8888",
                       allowOrigin: origin
                     },
                     { server: "http://sub2.xn--lt-uia.mochi.test:8888",
@@ -1095,7 +1085,7 @@ function testRedirects() {
              hops: [{ server: "http://example.com",
                       allowOrigin: origin
                     },
-                    { server: "http://test2.mochi.test:8000",
+                    { server: "http://test2.mochi.test:8888",
                       allowOrigin: origin
                     },
                     { server: "http://sub2.xn--lt-uia.mochi.test:8888",
@@ -1111,7 +1101,7 @@ function testRedirects() {
              hops: [{ server: "http://example.com",
                       allowOrigin: origin
                     },
-                    { server: "http://test2.mochi.test:8000",
+                    { server: "http://test2.mochi.test:8888",
                       allowOrigin: origin
                     },
                     { server: "http://sub2.xn--lt-uia.mochi.test:8888",
@@ -1261,17 +1251,9 @@ function testRedirects() {
 }
 
 function runTest() {
-  var done = function() {
-    if (typeof SimpleTest === "object") {
-      SimpleTest.finish();
-    } else {
-      postMessage({ type: 'finish' });
-    }
-  }
-
   testNoCorsCtor();
 
-  Promise.resolve()
+  return Promise.resolve()
     .then(testModeSameOrigin)
     .then(testModeNoCors)
     .then(testModeCors)
@@ -1279,11 +1261,4 @@ function runTest() {
     .then(testCrossOriginCredentials)
     .then(testRedirects)
     // Put more promise based tests here.
-    .then(done)
-    .catch(function(e) {
-      ok(false, "Some test failed " + e);
-      done();
-    });
 }
-
-onmessage = runTest;

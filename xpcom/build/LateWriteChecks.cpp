@@ -17,6 +17,7 @@
 #include "nsPrintfCString.h"
 #include "nsStackWalk.h"
 #include "plstr.h"
+#include "prio.h"
 
 #ifdef XP_WIN
 #define NS_T(str) L ## str

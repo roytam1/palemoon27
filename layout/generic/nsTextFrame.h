@@ -75,8 +75,6 @@ public:
   
   virtual nsresult CharacterDataChanged(CharacterDataChangeInfo* aInfo) override;
                                   
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) override;
-  
   virtual nsIFrame* GetNextContinuation() const override {
     return mNextContinuation;
   }

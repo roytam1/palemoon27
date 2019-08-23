@@ -1671,7 +1671,8 @@ pref("network.http.tcp_keepalive.short_lived_idle_time", 10);
 pref("network.http.tcp_keepalive.long_lived_connections", true);
 pref("network.http.tcp_keepalive.long_lived_idle_time", 600);
 
-pref("network.http.enforce-framing.http1", false);
+pref("network.http.enforce-framing.http1", false); // should be named "strict"
+pref("network.http.enforce-framing.soft", true);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -4867,6 +4868,16 @@ pref("dom.mozSettings.SettingsService.verbose.enabled", false);
 // IndexedDB transactions to be opened as readonly or keep everything as
 // readwrite.
 pref("dom.mozSettings.allowForceReadOnly", false);
+
+// The interval at which to check for slow running addons
+#ifdef NIGHTLY_BUILD
+pref("browser.addon-watch.interval", 15000);
+#else
+pref("browser.addon-watch.interval", -1);
+#endif
+pref("browser.addon-watch.ignore", "[\"mochikit@mozilla.org\",\"special-powers@mozilla.org\"]");
+// the percentage of time addons are allowed to use without being labeled slow
+pref("browser.addon-watch.percentage-limit", 5);
 
 // RequestSync API is disabled by default.
 pref("dom.requestSync.enabled", false);

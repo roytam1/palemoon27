@@ -327,7 +327,8 @@ PluginModuleChild::InitForChrome(const std::string& aPluginFilename,
 
 #elif defined(OS_WIN) || defined(OS_MACOSX)
 
-    GetIPCChannel()->SetAbortOnError(true);
+    // no, don't do that
+    //GetIPCChannel()->SetAbortOnError(true);
 
     mShutdownFunc =
         (NP_PLUGINSHUTDOWN)PR_FindFunctionSymbol(mLibrary, "NP_Shutdown");

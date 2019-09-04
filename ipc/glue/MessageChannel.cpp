@@ -845,6 +845,12 @@ MessageChannel::Call(Message* aMsg, Message* aReply)
     // monitor lock.
     CxxStackFrame cxxframe(*this, OUT_MESSAGE, aMsg);
 
+    // mMonitor can be NULL in some conditions
+    if (!mMonitor) {
+        ReportConnectionError("MessageChannel::Call");
+        return false;
+    }
+
     MonitorAutoLock lock(*mMonitor);
     if (!Connected()) {
         ReportConnectionError("MessageChannel::Call");

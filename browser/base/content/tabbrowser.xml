@@ -35,7 +35,7 @@
               <xul:vbox flex="1" class="browserContainer">
                 <xul:stack flex="1" class="browserStack" anonid="browserStack">
                   <xul:browser anonid="initialBrowser" type="content-primary" message="true" disablehistory="true"
-                               xbl:inherits="tooltip=contenttooltip,contextmenu=contentcontextmenu,autocompletepopup"/>
+                               xbl:inherits="tooltip=contenttooltip,contextmenu=contentcontextmenu,autocompletepopup,selectpopup"/>
                 </xul:stack>
               </xul:vbox>
             </xul:hbox>
@@ -1511,6 +1511,10 @@
 
             if (this.hasAttribute("autocompletepopup"))
               b.setAttribute("autocompletepopup", this.getAttribute("autocompletepopup"));
+
+            if (this.hasAttribute("selectpopup"))
+              b.setAttribute("selectpopup", this.getAttribute("selectpopup"));
+
             b.setAttribute("autoscrollpopup", this._autoScrollPopup.id);
 
             // Create the browserStack container
@@ -3065,6 +3069,16 @@
                 tab.setAttribute("titlechanged", "true");
               break;
             }
+            case "contextmenu": {
+              gContextMenuContentData = { event: aMessage.objects.event,
+                                          browser: browser };
+              let popup = browser.ownerDocument.getElementById("contentAreaContextMenu");
+              popup.openPopup(browser, "overlap",
+                              gContextMenuContentData.event.clientX,
+                              gContextMenuContentData.event.clientY,
+                              true, false, null);
+              break;
+            }
             case "DOMWebNotificationClicked": {
               let tab = this.getTabForBrowser(browser);
               if (!tab)
@@ -3133,8 +3147,13 @@
               "-moz-default-background-color" :
               Services.prefs.getCharPref("browser.display.background_color");
 
-          if (Services.prefs.getBoolPref("browser.tabs.remote")) {
+          let remote = window.QueryInterface(Ci.nsIInterfaceRequestor)
+            .getInterface(Ci.nsIWebNavigation)
+            .QueryInterface(Ci.nsILoadContext)
+            .useRemoteTabs;
+          if (remote) {
             messageManager.addMessageListener("DOMTitleChanged", this);
+            messageManager.addMessageListener("contextmenu", this);
           } else {
             this._outerWindowIDBrowserMap.set(this.mCurrentBrowser.outerWindowID,
                                               this.mCurrentBrowser);
@@ -3185,8 +3204,10 @@
           document.removeEventListener("keypress", this, false);
           window.removeEventListener("sizemodechange", this, false);
 
-          if (Services.prefs.getBoolPref("browser.tabs.remote"))
+          if (gMultiProcessBrowser) {
             messageManager.removeMessageListener("DOMTitleChanged", this);
+            messageManager.removeMessageListener("contextmenu", this);
+          }
         ]]>
       </destructor>
 

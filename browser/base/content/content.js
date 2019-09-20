@@ -8,7 +8,6 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
   "resource://gre/modules/BrowserUtils.jsm");
@@ -49,38 +48,16 @@ addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   }
 });
 
-if (Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT) {
-  addEventListener("contextmenu", function (event) {
-    let defaultPrevented = event.defaultPrevented;
-    if (!Services.prefs.getBoolPref("dom.event.contextmenu.enabled")) {
-      let plugin = null;
-      try {
-        plugin = event.target.QueryInterface(Ci.nsIObjectLoadingContent);
-      } catch (e) {}
-      if (plugin && plugin.displayedType == Ci.nsIObjectLoadingContent.TYPE_PLUGIN) {
-        // Don't open a context menu for plugins.
-        return;
-      }
-
-      defaultPrevented = false;
-    }
-
-    if (!defaultPrevented) {
-      sendSyncMessage("contextmenu", {}, { event: event });
-    }
-  }, false);
-} else {
-  addEventListener("DOMFormHasPassword", function(event) {
-    InsecurePasswordUtils.checkForInsecurePasswords(event.target);
-    LoginManagerContent.onFormPassword(event);
-  });
-  addEventListener("DOMAutoComplete", function(event) {
-    LoginManagerContent.onUsernameInput(event);
-  });
-  addEventListener("blur", function(event) {
-    LoginManagerContent.onUsernameInput(event);
-  });
-}
+addEventListener("DOMFormHasPassword", function(event) {
+  InsecurePasswordUtils.checkForInsecurePasswords(event.target);
+  LoginManagerContent.onFormPassword(event);
+});
+addEventListener("DOMAutoComplete", function(event) {
+  LoginManagerContent.onUsernameInput(event);
+});
+addEventListener("blur", function(event) {
+  LoginManagerContent.onUsernameInput(event);
+});
 
 let AboutHomeListener = {
   init: function(chromeGlobal) {

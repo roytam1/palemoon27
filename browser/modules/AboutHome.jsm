@@ -70,10 +70,12 @@ this.AboutHomeUtils = {
  * Returns the URL to fetch snippets from, in the urlFormatter service format.
  */
 XPCOMUtils.defineLazyGetter(AboutHomeUtils, "snippetsURL", function() {
+ try {
   let updateURL = Services.prefs
                           .getCharPref(SNIPPETS_URL_PREF)
                           .replace("%STARTPAGE_VERSION%", STARTPAGE_VERSION);
   return Services.urlFormatter.formatURL(updateURL);
+ } catch(e) { return ""; }
 });
 
 /**

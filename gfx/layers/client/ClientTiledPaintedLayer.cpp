@@ -91,14 +91,11 @@ GetTransformToAncestorsParentLayer(Layer* aStart, const LayerMetricsWrapper& aAn
 
 void
 ClientTiledPaintedLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncestor,
-                                           LayerMetricsWrapper* aOutDisplayPortAncestor,
-                                           bool* aOutHasTransformAnimation)
+                                          LayerMetricsWrapper* aOutDisplayPortAncestor)
 {
   LayerMetricsWrapper scrollAncestor;
   LayerMetricsWrapper displayPortAncestor;
-  bool hasTransformAnimation = false;
   for (LayerMetricsWrapper ancestor(this, LayerMetricsWrapper::StartAt::BOTTOM); ancestor; ancestor = ancestor.GetParent()) {
-    hasTransformAnimation |= ancestor.HasTransformAnimation();
     const FrameMetrics& metrics = ancestor.Metrics();
     if (!scrollAncestor && metrics.GetScrollId() != FrameMetrics::NULL_SCROLL_ID) {
       scrollAncestor = ancestor;
@@ -115,9 +112,6 @@ ClientTiledPaintedLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncest
   }
   if (aOutDisplayPortAncestor) {
     *aOutDisplayPortAncestor = displayPortAncestor;
-  }
-  if (aOutHasTransformAnimation) {
-    *aOutHasTransformAnimation = hasTransformAnimation;
   }
 }
 
@@ -140,8 +134,7 @@ ClientTiledPaintedLayer::BeginPaint()
   // with a displayport.
   LayerMetricsWrapper scrollAncestor;
   LayerMetricsWrapper displayPortAncestor;
-  bool hasTransformAnimation;
-  GetAncestorLayers(&scrollAncestor, &displayPortAncestor, &hasTransformAnimation);
+  GetAncestorLayers(&scrollAncestor, &displayPortAncestor);
 
   if (!displayPortAncestor || !scrollAncestor) {
     // No displayport or scroll ancestor, so we can't do progressive rendering.
@@ -153,8 +146,8 @@ ClientTiledPaintedLayer::BeginPaint()
     return;
   }
 
-  TILING_LOG("TILING %p: Found scrollAncestor %p, displayPortAncestor %p, transform %d\n", this,
-    scrollAncestor.GetLayer(), displayPortAncestor.GetLayer(), hasTransformAnimation);
+  TILING_LOG("TILING %p: Found scrollAncestor %p and displayPortAncestor %p\n", this,
+    scrollAncestor.GetLayer(), displayPortAncestor.GetLayer());
 
   const FrameMetrics& scrollMetrics = scrollAncestor.Metrics();
   const FrameMetrics& displayportMetrics = displayPortAncestor.Metrics();
@@ -166,17 +159,12 @@ ClientTiledPaintedLayer::BeginPaint()
   transformDisplayPortToLayer.Invert();
 
   // Compute the critical display port that applies to this layer in the
-  // LayoutDevice space of this layer, but only if there is no OMT animation
-  // on this layer. If there is an OMT animation then we need to draw the whole
-  // visible region of this layer as determined by layout, because we don't know
-  // what parts of it might move into view in the compositor.
-  if (!hasTransformAnimation) {
-    ParentLayerRect criticalDisplayPort =
-      (displayportMetrics.GetCriticalDisplayPort() * displayportMetrics.GetZoom())
-      + displayportMetrics.mCompositionBounds.TopLeft();
-    mPaintData.mCriticalDisplayPort = RoundedOut(
-      ApplyParentLayerToLayerTransform(transformDisplayPortToLayer, criticalDisplayPort));
-  }
+  // LayoutDevice space of this layer.
+  ParentLayerRect criticalDisplayPort =
+    (displayportMetrics.GetCriticalDisplayPort() * displayportMetrics.GetZoom())
+    + displayportMetrics.mCompositionBounds.TopLeft();
+  mPaintData.mCriticalDisplayPort = RoundedOut(
+    ApplyParentLayerToLayerTransform(transformDisplayPortToLayer, criticalDisplayPort));
   TILING_LOG("TILING %p: Critical displayport %s\n", this, Stringify(mPaintData.mCriticalDisplayPort).c_str());
 
   // Store the resolution from the displayport ancestor layer. Because this is Goanna-side,
@@ -229,48 +217,26 @@ ClientTiledPaintedLayer::IsScrollingOnCompositor(const FrameMetrics& aParentMetr
 }
 
 bool
-ClientTiledPaintedLayer::UseProgressiveDraw() {
-  if (!gfxPlatform::GetPlatform()->UseProgressivePaint()) {
-    // pref is disabled, so never do progressive
-    return false;
-  }
-
-  if (ClientManager()->HasShadowTarget()) {
-    // This condition is true when we are in a reftest scenario. We don't want
-    // to draw progressively here because it can cause intermittent reftest
-    // failures because the harness won't wait for all the tiles to be drawn.
-    return false;
-  }
-
-  if (mPaintData.mCriticalDisplayPort.IsEmpty()) {
-    // This catches three scenarios:
-    // 1) This layer doesn't have a scrolling ancestor
-    // 2) This layer is subject to OMTA transforms
-    // 3) Low-precision painting is disabled
-    // In all of these cases, we don't want to draw this layer progressively.
-    return false;
-  }
-
-  if (GetIsFixedPosition() || GetParent()->GetIsFixedPosition()) {
-    // This layer is fixed-position and so even if it does have a scrolling
-    // ancestor it will likely be entirely on-screen all the time, so we
-    // should draw it all at once
-    return false;
-  }
-
-  // XXX We probably want to disable progressive drawing for non active APZ layers in the future
-  //     but we should wait for a proper test case before making this change.
-#if 0 //!defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ANDROID_APZ)
+ClientTiledPaintedLayer::UseFastPath()
+{
   LayerMetricsWrapper scrollAncestor;
-  GetAncestorLayers(&scrollAncestor, nullptr, nullptr);
-  MOZ_ASSERT(scrollAncestor); // because mPaintData.mCriticalDisplayPort is non-empty
-  const FrameMetrics& parentMetrics = scrollAncestor.Metrics();
-  if (!IsScrollingOnCompositor(parentMetrics)) {
-    return false;
+  GetAncestorLayers(&scrollAncestor, nullptr);
+  if (!scrollAncestor) {
+    return true;
   }
-#endif
+  const FrameMetrics& parentMetrics = scrollAncestor.Metrics();
 
-  return true;
+  bool multipleTransactionsNeeded = gfxPlatform::GetPlatform()->UseProgressivePaint()
+                                 || gfxPrefs::UseLowPrecisionBuffer()
+                                 || !parentMetrics.GetCriticalDisplayPort().IsEmpty();
+  bool isFixed = GetIsFixedPosition() || GetParent()->GetIsFixedPosition();
+  bool isScrollable = parentMetrics.IsScrollable();
+
+  return !multipleTransactionsNeeded || isFixed || !isScrollable
+#if !defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ANDROID_APZ)
+         || !IsScrollingOnCompositor(parentMetrics)
+#endif
+         ;
 }
 
 bool
@@ -285,8 +251,10 @@ ClientTiledPaintedLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
     return false;
   }
 
-  // Only draw progressively when the resolution is unchanged
-  if (UseProgressiveDraw() &&
+  // Only draw progressively when the resolution is unchanged, and we're not
+  // in a reftest scenario (that's what the HasShadowManager() check is for).
+  if (gfxPlatform::GetPlatform()->UseProgressivePaint() &&
+      !ClientManager()->HasShadowTarget() &&
       mContentClient->mTiledBuffer.GetFrameResolution() == mPaintData.mResolution) {
     // Store the old valid region, then clear it before painting.
     // We clip the old valid region to the visible region, as it only gets
@@ -454,6 +422,32 @@ ClientTiledPaintedLayer::RenderLayer()
     // can do the paint.
     BeginPaint();
     if (mPaintData.mPaintFinished) {
+      return;
+    }
+
+    // In some cases we can take a fast path and just be done with it.
+    if (UseFastPath()) {
+      TILING_LOG("TILING %p: Taking fast-path\n", this);
+      mValidRegion = neededRegion;
+
+      // Make sure that tiles that fall outside of the visible region or outside of the
+      // critical displayport are discarded on the first update. Also make sure that we
+      // only draw stuff inside the critical displayport on the first update.
+      if (!mPaintData.mCriticalDisplayPort.IsEmpty()) {
+        mValidRegion.And(mValidRegion, LayerIntRect::ToUntyped(mPaintData.mCriticalDisplayPort));
+        invalidRegion.And(invalidRegion, LayerIntRect::ToUntyped(mPaintData.mCriticalDisplayPort));
+      }
+
+      if (invalidRegion.IsEmpty()) {
+        EndPaint();
+        return;
+      }
+
+      mContentClient->mTiledBuffer.SetFrameResolution(mPaintData.mResolution);
+      mContentClient->mTiledBuffer.PaintThebes(mValidRegion, invalidRegion, callback, data);
+      ClientManager()->Hold(this);
+      mContentClient->UseTiledLayerBuffer(TiledContentClient::TILED_BUFFER);
+      EndPaint();
       return;
     }
 

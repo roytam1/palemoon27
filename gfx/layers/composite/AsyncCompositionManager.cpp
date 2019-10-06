@@ -402,9 +402,16 @@ SampleValue(float aPortion, Animation& aAnimation, StyleAnimationValue& aStart,
 
   TransformData& data = aAnimation.data().get_TransformData();
   nsPoint origin = data.origin();
-  // we expect all our transform data to arrive in device pixels
+  // we expect all our transform data to arrive in css pixels, so here we must
+  // adjust to dev pixels.
+  double cssPerDev = double(nsDeviceContext::AppUnitsPerCSSPixel())
+                     / double(data.appUnitsPerDevPixel());
   Point3D transformOrigin = data.transformOrigin();
+  transformOrigin.x = transformOrigin.x * cssPerDev;
+  transformOrigin.y = transformOrigin.y * cssPerDev;
   Point3D perspectiveOrigin = data.perspectiveOrigin();
+  perspectiveOrigin.x = perspectiveOrigin.x * cssPerDev;
+  perspectiveOrigin.y = perspectiveOrigin.y * cssPerDev;
   nsDisplayTransform::FrameTransformProperties props(interpolatedList,
                                                      transformOrigin,
                                                      perspectiveOrigin,

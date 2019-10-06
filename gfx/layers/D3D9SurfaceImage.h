@@ -54,10 +54,11 @@ private:
 
   gfx::IntSize mSize;
   RefPtr<IDirect3DTexture9> mTexture;
+  RefPtr<IDirect3DQuery9> mQuery;
   RefPtr<TextureClient> mTextureClient;
   HANDLE mShareHandle;
   D3DSURFACE_DESC mDesc;
-  bool mIsValid;
+  bool mValid;
 };
 
 } // namepace layers

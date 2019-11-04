@@ -11,6 +11,7 @@
 #include "mozilla/Alignment.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/BinarySearch.h"
+#include "mozilla/fallible.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Move.h"
@@ -30,7 +31,6 @@
 namespace JS {
 template<class T>
 class Heap;
-class ObjectPtr;
 } /* namespace JS */
 
 class nsRegion;
@@ -113,7 +113,7 @@ struct nsTArrayFallibleResult
   // Note: allows implicit conversions from and to bool
   MOZ_IMPLICIT nsTArrayFallibleResult(bool aResult) : mResult(aResult) {}
 
-  operator bool() { return mResult; }
+  MOZ_IMPLICIT operator bool() { return mResult; }
 
 private:
   bool mResult;
@@ -168,13 +168,13 @@ struct nsTArrayInfallibleAllocatorBase
 
 struct nsTArrayFallibleAllocator : nsTArrayFallibleAllocatorBase
 {
-  static void* Malloc(size_t aSize) { return moz_malloc(aSize); }
+  static void* Malloc(size_t aSize) { return malloc(aSize); }
   static void* Realloc(void* aPtr, size_t aSize)
   {
-    return moz_realloc(aPtr, aSize);
+    return realloc(aPtr, aSize);
   }
 
-  static void Free(void* aPtr) { moz_free(aPtr); }
+  static void Free(void* aPtr) { free(aPtr); }
   static void SizeTooBig(size_t) {}
 };
 
@@ -186,7 +186,7 @@ struct nsTArrayInfallibleAllocator : nsTArrayInfallibleAllocatorBase
     return moz_xrealloc(aPtr, aSize);
   }
 
-  static void Free(void* aPtr) { moz_free(aPtr); }
+  static void Free(void* aPtr) { free(aPtr); }
   static void SizeTooBig(size_t aSize) { NS_ABORT_OOM(aSize); }
 };
 
@@ -381,12 +381,14 @@ protected:
   // @param aCapacity The requested number of array elements.
   // @param aElemSize The size of an array element.
   // @return False if insufficient memory is available; true otherwise.
-  typename Alloc::ResultTypeProxy EnsureCapacity(size_type aCapacity,
-                                                 size_type aElemSize);
+  template<typename ActualAlloc>
+  typename ActualAlloc::ResultTypeProxy EnsureCapacity(size_type aCapacity,
+                                                       size_type aElemSize);
 
   // Resize the storage to the minimum required amount.
   // @param aElemSize  The size of an array element.
   // @param aElemAlign The alignment in bytes of an array element.
+  template<typename ActualAlloc>
   void ShrinkCapacity(size_type aElemSize, size_t aElemAlign);
 
   // This method may be called to resize a "gap" in the array by shifting
@@ -397,6 +399,7 @@ protected:
   // @param aNewLen    The desired length of the gap.
   // @param aElemSize  The size of an array element.
   // @param aElemAlign The alignment in bytes of an array element.
+  template<typename ActualAlloc>
   void ShiftData(index_type aStart, size_type aOldLen, size_type aNewLen,
                  size_type aElemSize, size_t aElemAlign);
 
@@ -422,12 +425,12 @@ protected:
   // @param aCount the number of slots to insert
   // @param aElementSize the size of an array element.
   // @param aElemAlign the alignment in bytes of an array element.
+  template<typename ActualAlloc>
   bool InsertSlotsAt(index_type aIndex, size_type aCount,
                      size_type aElementSize, size_t aElemAlign);
 
-protected:
-  template<class Allocator>
-  typename Alloc::ResultTypeProxy
+  template<typename ActualAlloc, class Allocator>
+  typename ActualAlloc::ResultTypeProxy
   SwapArrayElements(nsTArray_base<Allocator, Copy>& aOther,
                     size_type aElemSize,
                     size_t aElemAlign);
@@ -447,6 +450,7 @@ protected:
 
   // Helper function for SwapArrayElements. Ensures that if the array
   // is an nsAutoTArray that it doesn't use the built-in buffer.
+  template<typename ActualAlloc>
   bool EnsureNotUsingAutoArrayBuffer(size_type aElemSize);
 
   // Returns true if this nsTArray is an nsAutoTArray with a built-in buffer.
@@ -658,7 +662,7 @@ struct nsTArray_CopyWithConstructors
 template<class E>
 struct nsTArray_CopyChooser
 {
-  using Type = nsTArray_CopyWithMemutils;
+  typedef nsTArray_CopyWithMemutils Type;
 };
 
 //
@@ -668,31 +672,25 @@ struct nsTArray_CopyChooser
 template<class E>
 struct nsTArray_CopyChooser<JS::Heap<E>>
 {
-  using Type = nsTArray_CopyWithConstructors<JS::Heap<E>>;
-};
-
-template<>
-struct nsTArray_CopyChooser<JS::ObjectPtr>
-{
-  using Type = nsTArray_CopyWithConstructors<JS::ObjectPtr>;
+  typedef nsTArray_CopyWithConstructors<JS::Heap<E>> Type;
 };
 
 template<>
 struct nsTArray_CopyChooser<nsRegion>
 {
-  using Type = nsTArray_CopyWithConstructors<nsRegion>;
+  typedef nsTArray_CopyWithConstructors<nsRegion> Type;
 };
 
 template<>
 struct nsTArray_CopyChooser<nsIntRegion>
 {
-  using Type = nsTArray_CopyWithConstructors<nsIntRegion>;
+  typedef nsTArray_CopyWithConstructors<nsIntRegion> Type;
 };
 
 template<>
 struct nsTArray_CopyChooser<mozilla::layers::TileClient>
 {
-  using Type = nsTArray_CopyWithConstructors<mozilla::layers::TileClient>;
+  typedef nsTArray_CopyWithConstructors<mozilla::layers::TileClient> Type;
 };
 
 
@@ -796,6 +794,9 @@ class nsTArray_Impl
   : public nsTArray_base<Alloc, typename nsTArray_CopyChooser<E>::Type>
   , public nsTArray_TypedBase<E, nsTArray_Impl<E, Alloc>>
 {
+private:
+  typedef nsTArrayFallibleAllocator FallibleAlloc;
+
 public:
   typedef typename nsTArray_CopyChooser<E>::Type     copy_type;
   typedef nsTArray_base<Alloc, copy_type>            base_type;
@@ -881,9 +882,7 @@ public:
   // @param aOther The array object to copy.
   self_type& operator=(const self_type& aOther)
   {
-    if (this != &aOther) {
-      ReplaceElementsAt(0, Length(), aOther.Elements(), aOther.Length());
-    }
+    ReplaceElementsAt(0, Length(), aOther.Elements(), aOther.Length());
     return *this;
   }
 
@@ -892,10 +891,8 @@ public:
   // @param other  The array object to move from.
   self_type& operator=(self_type&& aOther)
   {
-    if (this != &aOther) {
-      Clear();
-      SwapElements(aOther);
-    }
+    Clear();
+    SwapElements(aOther);
     return *this;
   }
 
@@ -1225,36 +1222,66 @@ public:
   // @param aArrayLen The number of values to copy into this array.
   // @return          A pointer to the new elements in the array, or null if
   //                  the operation failed due to insufficient memory.
-  template<class Item>
+  template<class Item, typename ActualAlloc = Alloc>
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const Item* aArray, size_type aArrayLen)
   {
     // Adjust memory allocation up-front to catch errors.
-    if (!Alloc::Successful(this->EnsureCapacity(Length() + aArrayLen - aCount,
-                                                sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
+          Length() + aArrayLen - aCount, sizeof(elem_type)))) {
       return nullptr;
     }
     DestructRange(aStart, aCount);
-    this->ShiftData(aStart, aCount, aArrayLen,
-                    sizeof(elem_type), MOZ_ALIGNOF(elem_type));
+    this->template ShiftData<ActualAlloc>(aStart, aCount, aArrayLen,
+                                          sizeof(elem_type),
+                                          MOZ_ALIGNOF(elem_type));
     AssignRange(aStart, aArrayLen, aArray);
     return Elements() + aStart;
   }
 
-  // A variation on the ReplaceElementsAt method defined above.
+
   template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
-                               const nsTArray<Item>& aArray)
+                               const Item* aArray, size_type aArrayLen,
+                               const mozilla::fallible_t&)
   {
-    return ReplaceElementsAt(aStart, aCount, aArray.Elements(), aArray.Length());
+    return ReplaceElementsAt<Item, FallibleAlloc>(aStart, aCount,
+                                                  aArray, aArrayLen);
   }
 
   // A variation on the ReplaceElementsAt method defined above.
+  template<class Item, typename ActualAlloc = Alloc>
+  elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
+                               const nsTArray<Item>& aArray)
+  {
+    return ReplaceElementsAt<Item, ActualAlloc>(
+      aStart, aCount, aArray.Elements(), aArray.Length());
+  }
+
   template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
+                               const nsTArray<Item>& aArray,
+                               const mozilla::fallible_t&)
+  {
+    return ReplaceElementsAt<Item, FallibleAlloc>(aStart, aCount, aArray);
+  }
+
+  // A variation on the ReplaceElementsAt method defined above.
+  template<class Item, typename ActualAlloc = Alloc>
   elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
                                const Item& aItem)
   {
-    return ReplaceElementsAt(aStart, aCount, &aItem, 1);
+    return ReplaceElementsAt<Item, ActualAlloc>(aStart, aCount, &aItem, 1);
+  }
+
+  template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* ReplaceElementsAt(index_type aStart, size_type aCount,
+                               const Item& aItem, const mozilla::fallible_t&)
+  {
+    return ReplaceElementsAt<Item, FallibleAlloc>(aStart, aCount, aItem);
   }
 
   // A variation on the ReplaceElementsAt method defined above.
@@ -1265,48 +1292,84 @@ public:
   }
 
   // A variation on the ReplaceElementsAt method defined above.
-  template<class Item>
+  template<class Item, typename ActualAlloc = Alloc>
   elem_type* InsertElementsAt(index_type aIndex, const Item* aArray,
                               size_type aArrayLen)
   {
-    return ReplaceElementsAt(aIndex, 0, aArray, aArrayLen);
+    return ReplaceElementsAt<Item, ActualAlloc>(aIndex, 0, aArray, aArrayLen);
+  }
+
+  template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementsAt(index_type aIndex, const Item* aArray,
+                              size_type aArrayLen, const mozilla::fallible_t&)
+  {
+    return InsertElementsAt<Item, FallibleAlloc>(aIndex, aArray, aArrayLen);
   }
 
   // A variation on the ReplaceElementsAt method defined above.
-  template<class Item, class Allocator>
+  template<class Item, class Allocator, typename ActualAlloc = Alloc>
   elem_type* InsertElementsAt(index_type aIndex,
                               const nsTArray_Impl<Item, Allocator>& aArray)
   {
-    return ReplaceElementsAt(aIndex, 0, aArray.Elements(), aArray.Length());
+    return ReplaceElementsAt<Item, ActualAlloc>(
+      aIndex, 0, aArray.Elements(), aArray.Length());
+  }
+
+  template<class Item, class Allocator>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementsAt(index_type aIndex,
+                              const nsTArray_Impl<Item, Allocator>& aArray,
+                              const mozilla::fallible_t&)
+  {
+    return InsertElementsAt<Item, Allocator, FallibleAlloc>(aIndex, aArray);
   }
 
   // Insert a new element without copy-constructing. This is useful to avoid
   // temporaries.
   // @return A pointer to the newly inserted element, or null on OOM.
+  template<typename ActualAlloc = Alloc>
   elem_type* InsertElementAt(index_type aIndex)
   {
-    if (!Alloc::Successful(this->EnsureCapacity(Length() + 1,
-                                                sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
+          Length() + 1, sizeof(elem_type)))) {
       return nullptr;
     }
-    this->ShiftData(aIndex, 0, 1, sizeof(elem_type), MOZ_ALIGNOF(elem_type));
+    this->template ShiftData<ActualAlloc>(aIndex, 0, 1, sizeof(elem_type),
+                                          MOZ_ALIGNOF(elem_type));
     elem_type* elem = Elements() + aIndex;
     elem_traits::Construct(elem);
     return elem;
   }
 
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementAt(index_type aIndex, const mozilla::fallible_t&)
+  {
+    return InsertElementAt<FallibleAlloc>(aIndex);
+  }
+
   // Insert a new element, move constructing if possible.
-  template<class Item>
+  template<class Item, typename ActualAlloc = Alloc>
   elem_type* InsertElementAt(index_type aIndex, Item&& aItem)
   {
-    if (!Alloc::Successful(this->EnsureCapacity(Length() + 1,
-                                                sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
+          Length() + 1, sizeof(elem_type)))) {
       return nullptr;
     }
-    this->ShiftData(aIndex, 0, 1, sizeof(elem_type), MOZ_ALIGNOF(elem_type));
+    this->template ShiftData<ActualAlloc>(aIndex, 0, 1, sizeof(elem_type),
+                                          MOZ_ALIGNOF(elem_type));
     elem_type* elem = Elements() + aIndex;
     elem_traits::Construct(elem, mozilla::Forward<Item>(aItem));
     return elem;
+  }
+
+  template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementAt(index_type aIndex, Item&& aItem,
+                             const mozilla::fallible_t&)
+  {
+    return InsertElementAt<Item, FallibleAlloc>(aIndex,
+                                                mozilla::Forward<Item>(aItem));
   }
 
   // This method searches for the smallest index of an element that is strictly
@@ -1347,18 +1410,38 @@ public:
   // Inserts |aItem| at such an index to guarantee that if the array
   // was previously sorted, it will remain sorted after this
   // insertion.
-  template<class Item, class Comparator>
-  elem_type* InsertElementSorted(const Item& aItem, const Comparator& aComp)
+  template<class Item, class Comparator, typename ActualAlloc = Alloc>
+  elem_type* InsertElementSorted(Item&& aItem, const Comparator& aComp)
   {
-    index_type index = IndexOfFirstElementGt(aItem, aComp);
-    return InsertElementAt(index, aItem);
+    index_type index = IndexOfFirstElementGt<Item, Comparator>(aItem, aComp);
+    return InsertElementAt<Item, ActualAlloc>(
+      index, mozilla::Forward<Item>(aItem));
+  }
+
+  template<class Item, class Comparator>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementSorted(Item&& aItem, const Comparator& aComp,
+                                 const mozilla::fallible_t&)
+  {
+    return InsertElementSorted<Item, Comparator, FallibleAlloc>(
+      mozilla::Forward<Item>(aItem), aComp);
   }
 
   // A variation on the InsertElementSorted method defined above.
-  template<class Item>
-  elem_type* InsertElementSorted(const Item& aItem)
+  template<class Item, typename ActualAlloc = Alloc>
+  elem_type* InsertElementSorted(Item&& aItem)
   {
-    return InsertElementSorted(aItem, nsDefaultComparator<elem_type, Item>());
+    nsDefaultComparator<elem_type, Item> comp;
+    return InsertElementSorted<Item, decltype(comp), ActualAlloc>(
+      mozilla::Forward<Item>(aItem), comp);
+  }
+
+  template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementSorted(Item&& aItem, const mozilla::fallible_t&)
+  {
+    return InsertElementSorted<Item, FallibleAlloc>(
+      mozilla::Forward<Item>(aItem));
   }
 
   // This method appends elements to the end of this array.
@@ -1366,11 +1449,11 @@ public:
   // @param aArrayLen The number of elements to append to this array.
   // @return          A pointer to the new elements in the array, or null if
   //                  the operation failed due to insufficient memory.
-  template<class Item>
+  template<class Item, typename ActualAlloc = Alloc>
   elem_type* AppendElements(const Item* aArray, size_type aArrayLen)
   {
-    if (!Alloc::Successful(this->EnsureCapacity(Length() + aArrayLen,
-                                                sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
+          Length() + aArrayLen, sizeof(elem_type)))) {
       return nullptr;
     }
     index_type len = Length();
@@ -1379,19 +1462,35 @@ public:
     return Elements() + len;
   }
 
+  template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* AppendElements(const Item* aArray, size_type aArrayLen,
+                            const mozilla::fallible_t&)
+  {
+    return AppendElements<Item, FallibleAlloc>(aArray, aArrayLen);
+  }
+
   // A variation on the AppendElements method defined above.
-  template<class Item, class Allocator>
+  template<class Item, class Allocator, typename ActualAlloc = Alloc>
   elem_type* AppendElements(const nsTArray_Impl<Item, Allocator>& aArray)
   {
-    return AppendElements(aArray.Elements(), aArray.Length());
+    return AppendElements<Item, ActualAlloc>(aArray.Elements(), aArray.Length());
+  }
+
+  template<class Item, class Allocator>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* AppendElements(const nsTArray_Impl<Item, Allocator>& aArray,
+                            const mozilla::fallible_t&)
+  {
+    return AppendElements<Item, Allocator, FallibleAlloc>(aArray);
   }
 
   // Append a new element, move constructing if possible.
-  template<class Item>
+  template<class Item, typename ActualAlloc = Alloc>
   elem_type* AppendElement(Item&& aItem)
   {
-    if (!Alloc::Successful(this->EnsureCapacity(Length() + 1,
-                                                sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
+          Length() + 1, sizeof(elem_type)))) {
       return nullptr;
     }
     elem_type* elem = Elements() + Length();
@@ -1400,13 +1499,21 @@ public:
     return elem;
   }
 
+  template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* AppendElement(Item&& aItem,
+                           const mozilla::fallible_t&)
+  {
+    return AppendElement<Item, FallibleAlloc>(mozilla::Forward<Item>(aItem));
+  }
+
   // Append new elements without copy-constructing. This is useful to avoid
   // temporaries.
   // @return A pointer to the newly appended elements, or null on OOM.
-  elem_type* AppendElements(size_type aCount)
-  {
-    if (!Alloc::Successful(this->EnsureCapacity(Length() + aCount,
-                                                sizeof(elem_type)))) {
+  template<typename ActualAlloc = Alloc>
+  elem_type* AppendElements(size_type aCount) {
+    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
+          Length() + aCount, sizeof(elem_type)))) {
       return nullptr;
     }
     elem_type* elems = Elements() + Length();
@@ -1418,10 +1525,27 @@ public:
     return elems;
   }
 
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* AppendElements(size_type aCount,
+                            const mozilla::fallible_t&)
+  {
+    return AppendElements<FallibleAlloc>(aCount);
+  }
+
   // Append a new element without copy-constructing. This is useful to avoid
   // temporaries.
   // @return A pointer to the newly appended element, or null on OOM.
-  elem_type* AppendElement() { return AppendElements(1); }
+  template<typename ActualAlloc = Alloc>
+  elem_type* AppendElement()
+  {
+    return AppendElements<ActualAlloc>(1);
+  }
+
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* AppendElement(const mozilla::fallible_t&)
+  {
+    return AppendElement<FallibleAlloc>();
+  }
 
   // Move all elements from another array to the end of this array without
   // calling copy constructors or destructors.
@@ -1432,14 +1556,15 @@ public:
     MOZ_ASSERT(&aArray != this, "argument must be different aArray");
     index_type len = Length();
     index_type otherLen = aArray.Length();
-    if (!Alloc::Successful(this->EnsureCapacity(len + otherLen,
-                                                sizeof(elem_type)))) {
+    if (!Alloc::Successful(this->template EnsureCapacity<Alloc>(
+          len + otherLen, sizeof(elem_type)))) {
       return nullptr;
     }
     copy_type::CopyElements(Elements() + len, aArray.Elements(), otherLen,
                             sizeof(elem_type));
     this->IncrementLength(otherLen);
-    aArray.ShiftData(0, otherLen, 0, sizeof(elem_type), MOZ_ALIGNOF(elem_type));
+    aArray.template ShiftData<Alloc>(0, otherLen, 0, sizeof(elem_type),
+                                     MOZ_ALIGNOF(elem_type));
     return Elements() + len;
   }
   template<class Item, class Allocator>
@@ -1458,8 +1583,8 @@ public:
     // Check that the previous assert didn't overflow
     MOZ_ASSERT(aStart <= aStart + aCount, "Start index plus length overflows");
     DestructRange(aStart, aCount);
-    this->ShiftData(aStart, aCount, 0,
-                    sizeof(elem_type), MOZ_ALIGNOF(elem_type));
+    this->template ShiftData<Alloc>(aStart, aCount, 0,
+                                    sizeof(elem_type), MOZ_ALIGNOF(elem_type));
   }
 
   // A variation on the RemoveElementsAt method defined above.
@@ -1522,8 +1647,8 @@ public:
   template<class Allocator>
   typename Alloc::ResultType SwapElements(nsTArray_Impl<E, Allocator>& aOther)
   {
-    return Alloc::Result(this->SwapArrayElements(aOther, sizeof(elem_type),
-                                                 MOZ_ALIGNOF(elem_type)));
+    return Alloc::Result(this->template SwapArrayElements<Alloc>(
+      aOther, sizeof(elem_type), MOZ_ALIGNOF(elem_type)));
   }
 
   //
@@ -1536,9 +1661,17 @@ public:
   // will not reduce the number of elements in this array.
   // @param aCapacity The desired capacity of this array.
   // @return True if the operation succeeded; false if we ran out of memory
-  typename Alloc::ResultType SetCapacity(size_type aCapacity)
+  template<typename ActualAlloc = Alloc>
+  typename ActualAlloc::ResultType SetCapacity(size_type aCapacity)
   {
-    return Alloc::Result(this->EnsureCapacity(aCapacity, sizeof(elem_type)));
+    return ActualAlloc::Result(this->template EnsureCapacity<ActualAlloc>(
+      aCapacity, sizeof(elem_type)));
+  }
+
+  /* MOZ_WARN_UNUSED_RESULT */
+  bool SetCapacity(size_type aCapacity, const mozilla::fallible_t&)
+  {
+    return SetCapacity<FallibleAlloc>(aCapacity);
   }
 
   // This method modifies the length of the array.  If the new length is
@@ -1549,16 +1682,23 @@ public:
   // @return True if the operation succeeded; false otherwise.
   // See also TruncateLength if the new length is guaranteed to be smaller than
   // the old.
-  typename Alloc::ResultType SetLength(size_type aNewLen)
+  template<typename ActualAlloc = Alloc>
+  typename ActualAlloc::ResultType SetLength(size_type aNewLen)
   {
     size_type oldLen = Length();
     if (aNewLen > oldLen) {
-      return Alloc::ConvertBoolToResultType(
-        InsertElementsAt(oldLen, aNewLen - oldLen) != nullptr);
+      return ActualAlloc::ConvertBoolToResultType(
+        InsertElementsAt<ActualAlloc>(oldLen, aNewLen - oldLen) != nullptr);
     }
 
     TruncateLength(aNewLen);
-    return Alloc::ConvertBoolToResultType(true);
+    return ActualAlloc::ConvertBoolToResultType(true);
+  }
+
+  /* MOZ_WARN_UNUSED_RESULT */
+  bool SetLength(size_type aNewLen, const mozilla::fallible_t&)
+  {
+    return SetLength<FallibleAlloc>(aNewLen);
   }
 
   // This method modifies the length of the array, but may only be
@@ -1581,14 +1721,21 @@ public:
   // constructor.
   // @param aMinLen The desired minimum length of this array.
   // @return True if the operation succeeded; false otherwise.
-  typename Alloc::ResultType EnsureLengthAtLeast(size_type aMinLen)
+  template<typename ActualAlloc = Alloc>
+  typename ActualAlloc::ResultType EnsureLengthAtLeast(size_type aMinLen)
   {
     size_type oldLen = Length();
     if (aMinLen > oldLen) {
-      return Alloc::ConvertBoolToResultType(!!InsertElementsAt(oldLen,
-                                                               aMinLen - oldLen));
+      return ActualAlloc::ConvertBoolToResultType(
+        !!InsertElementsAt<ActualAlloc>(oldLen, aMinLen - oldLen));
     }
-    return Alloc::ConvertBoolToResultType(true);
+    return ActualAlloc::ConvertBoolToResultType(true);
+  }
+
+  /* MOZ_WARN_UNUSED_RESULT */
+  bool EnsureLengthAtLeast(size_type aMinLen, const mozilla::fallible_t&)
+  {
+    return EnsureLengthAtLeast<FallibleAlloc>(aMinLen);
   }
 
   // This method inserts elements into the array, constructing
@@ -1596,10 +1743,12 @@ public:
   // @param aIndex the place to insert the new elements. This must be no
   //               greater than the current length of the array.
   // @param aCount the number of elements to insert
+  template<typename ActualAlloc = Alloc>
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount)
   {
-    if (!base_type::InsertSlotsAt(aIndex, aCount, sizeof(elem_type),
-                                  MOZ_ALIGNOF(elem_type))) {
+    if (!base_type::template InsertSlotsAt<ActualAlloc>(aIndex, aCount,
+                                                        sizeof(elem_type),
+                                                        MOZ_ALIGNOF(elem_type))) {
       return nullptr;
     }
 
@@ -1613,6 +1762,13 @@ public:
     return Elements() + aIndex;
   }
 
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
+                              const mozilla::fallible_t&)
+  {
+    return InsertElementsAt<FallibleAlloc>(aIndex, aCount);
+  }
+
   // This method inserts elements into the array, constructing them
   // elem_type's copy constructor (or whatever one-arg constructor
   // happens to match the Item type).
@@ -1620,12 +1776,13 @@ public:
   //               greater than the current length of the array.
   // @param aCount the number of elements to insert.
   // @param aItem the value to use when constructing the new elements.
-  template<class Item>
+  template<class Item, typename ActualAlloc = Alloc>
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
                               const Item& aItem)
   {
-    if (!base_type::InsertSlotsAt(aIndex, aCount, sizeof(elem_type),
-                                  MOZ_ALIGNOF(elem_type))) {
+    if (!base_type::template InsertSlotsAt<ActualAlloc>(aIndex, aCount,
+                                                        sizeof(elem_type),
+                                                        MOZ_ALIGNOF(elem_type))) {
       return nullptr;
     }
 
@@ -1639,10 +1796,19 @@ public:
     return Elements() + aIndex;
   }
 
+  template<class Item>
+  /* MOZ_WARN_UNUSED_RESULT */
+  elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
+                              const Item& aItem, const mozilla::fallible_t&)
+  {
+    return InsertElementsAt<Item, FallibleAlloc>(aIndex, aCount, aItem);
+  }
+
   // This method may be called to minimize the memory used by this array.
   void Compact()
   {
-    ShrinkCapacity(sizeof(elem_type), MOZ_ALIGNOF(elem_type));
+    this->template ShrinkCapacity<Alloc>(sizeof(elem_type),
+                                         MOZ_ALIGNOF(elem_type));
   }
 
   //
@@ -1705,8 +1871,8 @@ public:
   template<class Item, class Comparator>
   elem_type* PushHeap(const Item& aItem, const Comparator& aComp)
   {
-    if (!base_type::InsertSlotsAt(Length(), 1, sizeof(elem_type),
-                                  MOZ_ALIGNOF(elem_type))) {
+    if (!base_type::template InsertSlotsAt<Alloc>(Length(), 1, sizeof(elem_type),
+                                                  MOZ_ALIGNOF(elem_type))) {
       return nullptr;
     }
     // Sift up the new node
@@ -1848,11 +2014,7 @@ public:
   nsTArray() {}
   explicit nsTArray(size_type aCapacity) : base_type(aCapacity) {}
   explicit nsTArray(const nsTArray& aOther) : base_type(aOther) {}
-#if defined(__clang__)
   MOZ_IMPLICIT nsTArray(nsTArray&& aOther) : base_type(mozilla::Move(aOther)) {}
-#else
-  explicit nsTArray(nsTArray&& aOther) : base_type(mozilla::Move(aOther)) {}
-#endif
 
   template<class Allocator>
   explicit nsTArray(const nsTArray_Impl<E, Allocator>& aOther)

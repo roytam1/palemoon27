@@ -10,6 +10,7 @@
 #include "TransportSecurityInfo.h"
 #include "nsISSLSocketControl.h"
 #include "nsIClientAuthDialogs.h"
+#include "nsIProxyInfo.h"
 #include "nsNSSCertificate.h"
 #include "nsDataHashtable.h"
 #include "nsTHashtable.h"
@@ -247,8 +248,7 @@ private:
 nsresult nsSSLIOLayerNewSocket(int32_t family,
                                const char* host,
                                int32_t port,
-                               const char* proxyHost,
-                               int32_t proxyPort,
+                               nsIProxyInfo *proxy,
                                PRFileDesc** fd,
                                nsISupports** securityInfo,
                                bool forSTARTTLS,
@@ -257,8 +257,7 @@ nsresult nsSSLIOLayerNewSocket(int32_t family,
 nsresult nsSSLIOLayerAddToSocket(int32_t family,
                                  const char* host,
                                  int32_t port,
-                                 const char* proxyHost,
-                                 int32_t proxyPort,
+                                 nsIProxyInfo *proxy,
                                  PRFileDesc* fd,
                                  nsISupports** securityInfo,
                                  bool forSTARTTLS,

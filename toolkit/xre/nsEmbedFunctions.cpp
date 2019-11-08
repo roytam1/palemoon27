@@ -406,14 +406,6 @@ XRE_InitChildProcess(int aArgc,
   base::ProcessId parentPID = strtol(parentPIDString, &end, 10);
   MOZ_ASSERT(!*end, "invalid parent PID");
 
-  // Retrieve the parent process handle. We need this for shared memory use and
-  // for creating new transports in the child.
-  base::ProcessHandle parentHandle = 0;
-  if (XRE_GetProcessType() != GoannaProcessType_GMPlugin) {
-    mozilla::DebugOnly<bool> ok = base::OpenProcessHandle(parentPID, &parentHandle);
-    MOZ_ASSERT(ok, "can't open handle to parent");
-  }
-
 #if defined(XP_WIN)
   // On Win7+, register the application user model id passed in by
   // parent. This insures windows created by the container properly

@@ -674,7 +674,11 @@ NS_METHOD nsWindow::Destroy()
    * On windows the LayerManagerOGL destructor wants the widget to be around for
    * cleanup. It also would like to have the HWND intact, so we nullptr it here.
    */
-  DestroyLayerManager();
+  if (mLayerManager) {
+    mLayerManager->Destroy();
+  }
+  mLayerManager = nullptr;
+  DestroyCompositor();
 
   /* We should clear our cached resources now and not wait for the GC to
    * delete the nsWindow. */
@@ -3325,12 +3329,9 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
   }
 
   if (!mLayerManager) {
+    MOZ_ASSERT(!mCompositorParent && !mCompositorChild);
     mLayerManager = CreateBasicLayerManager();
   }
-
-  // If we don't have a layer manager at this point we shouldn't have a
-  // PCompositor actor pair either.
-  MOZ_ASSERT(mLayerManager || (!mCompositorParent && !mCompositorChild));
 
   NS_ASSERTION(mLayerManager, "Couldn't provide a valid layer manager.");
 
@@ -6597,7 +6598,10 @@ nsWindow::IsPopup()
 void
 nsWindow::ClearCompositor(nsWindow* aWindow)
 {
-  aWindow->DestroyLayerManager();
+  if (aWindow->mLayerManager) {
+    aWindow->mLayerManager = nullptr;
+    aWindow->DestroyCompositor();
+  }
 }
 
 bool

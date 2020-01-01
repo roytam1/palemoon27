@@ -763,13 +763,11 @@ DeviceManagerD3D9::VerifyCaps()
   if (LACKS_CAP(caps.TextureAddressCaps, D3DPTADDRESSCAPS_CLAMP)) {
     return false;
   }
-
-  if (caps.MaxTextureHeight < 4096 ||
-      caps.MaxTextureWidth < 4096) {
+  //Lowered from 4096 to 2048 to allow older graphic cards
+  mMaxTextureSize = std::min(caps.MaxTextureHeight, caps.MaxTextureWidth);
+  if(mMaxTextureSize<2048){
     return false;
   }
-  mMaxTextureSize = std::min(caps.MaxTextureHeight, caps.MaxTextureWidth);
-
   if ((caps.PixelShaderVersion & 0xffff) < 0x200 ||
       (caps.VertexShaderVersion & 0xffff) < 0x200) {
     return false;

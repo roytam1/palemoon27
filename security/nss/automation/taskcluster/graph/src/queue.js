@@ -12,10 +12,12 @@ let maps = [];
 let filters = [];
 
 let tasks = new Map();
+let tags = new Map();
 let image_tasks = new Map();
+let parameters = {};
 
 let queue = new taskcluster.Queue({
-  baseUrl: "http://taskcluster/queue/v1"
+  rootUrl: process.env.TASKCLUSTER_PROXY_URL,
 });
 
 function fromNow(hours) {
@@ -94,12 +96,16 @@ function convertTask(def) {
 
   let env = merge({
     NSS_HEAD_REPOSITORY: process.env.NSS_HEAD_REPOSITORY,
-    NSS_HEAD_REVISION: process.env.NSS_HEAD_REVISION
+    NSS_HEAD_REVISION: process.env.NSS_HEAD_REVISION,
+    NSS_MAX_MP_PBE_ITERATION_COUNT: "100",
   }, def.env || {});
 
   if (def.parent) {
     dependencies.push(def.parent);
     env.TC_PARENT_TASK_ID = def.parent;
+  }
+  if (def.parents) {
+    dependencies = dependencies.concat(def.parents);
   }
 
   if (def.tests) {
@@ -108,6 +114,14 @@ function convertTask(def) {
 
   if (def.cycle) {
     env.NSS_CYCLES = def.cycle;
+  }
+  if (def.kind === "build") {
+    // Disable leak checking during builds (bug 1579290).
+    if (env.ASAN_OPTIONS) {
+      env.ASAN_OPTIONS += ":detect_leaks=0";
+    } else {
+      env.ASAN_OPTIONS = "detect_leaks=0";
+    }
   }
 
   let payload = {
@@ -132,9 +146,18 @@ function convertTask(def) {
     }
   }
 
+  if (def.scopes) {
+    // Need to add existing scopes in the task definition
+    scopes.push.apply(scopes, def.scopes)
+  }
+
+  let extra = Object.assign({
+    treeherder: parseTreeherder(def)
+  }, parameters);
+
   return {
-    provisionerId: def.provisioner || "aws-provisioner-v1",
-    workerType: def.workerType || "hg-worker",
+    provisionerId: def.provisioner || `nss-${process.env.MOZ_SCM_LEVEL}`,
+    workerType: def.workerType || "linux",
     schedulerId: process.env.TC_SCHEDULER_ID,
     taskGroupId: process.env.TASK_ID,
 
@@ -143,6 +166,7 @@ function convertTask(def) {
     deadline: fromNow(24),
 
     dependencies,
+    requires: def.requires || "all-completed",
     routes: parseRoutes(def.routes || []),
 
     metadata: {
@@ -153,10 +177,7 @@ function convertTask(def) {
     },
 
     payload,
-
-    extra: {
-      treeherder: parseTreeherder(def)
-    }
+    extra,
   };
 }
 
@@ -166,6 +187,18 @@ export function map(fun) {
 
 export function filter(fun) {
   filters.push(fun);
+}
+
+export function addParameters(params) {
+  parameters = Object.assign(parameters, params);
+}
+
+export function clearFilters(fun) {
+  filters = [];
+}
+
+export function taggedTasks(tag) {
+  return tags[tag];
 }
 
 export function scheduleTask(def) {
@@ -188,6 +221,16 @@ export async function submit() {
 
     let log_id = `${task.name} @ ${task.platform}[${task.collection || "opt"}]`;
     console.log(`+ Submitting ${log_id}.`);
+
+    // Index that task for each tag specified
+    if(task.tags) {
+      task.tags.map(tag => {
+        if(!tags[tag]) {
+          tags[tag] = [];
+        }
+        tags[tag].push(taskId);
+      });
+    }
 
     let parent = task.parent;
 

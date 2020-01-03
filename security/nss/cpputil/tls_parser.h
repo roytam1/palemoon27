@@ -31,6 +31,7 @@ const uint8_t kTlsHandshakeCertificateRequest = 13;
 const uint8_t kTlsHandshakeCertificateVerify = 15;
 const uint8_t kTlsHandshakeClientKeyExchange = 16;
 const uint8_t kTlsHandshakeFinished = 20;
+const uint8_t kTlsHandshakeKeyUpdate = 24;
 
 const uint8_t kTlsAlertWarning = 1;
 const uint8_t kTlsAlertFatal = 2;
@@ -47,6 +48,7 @@ const uint8_t kTlsAlertIllegalParameter = 47;
 const uint8_t kTlsAlertDecodeError = 50;
 const uint8_t kTlsAlertDecryptError = 51;
 const uint8_t kTlsAlertProtocolVersion = 70;
+const uint8_t kTlsAlertInsufficientSecurity = 71;
 const uint8_t kTlsAlertInternalError = 80;
 const uint8_t kTlsAlertInappropriateFallback = 86;
 const uint8_t kTlsAlertMissingExtension = 109;

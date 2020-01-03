@@ -12,6 +12,48 @@
 #include "seccomon.h"
 #include "selfencrypt.h"
 
+SECStatus SSLInt_TweakChannelInfoForDC(PRFileDesc *fd, PRBool changeAuthKeyBits,
+                                       PRBool changeScheme) {
+  if (!fd) {
+    return SECFailure;
+  }
+  sslSocket *ss = ssl_FindSocket(fd);
+  if (!ss) {
+    return SECFailure;
+  }
+
+  // Just toggle so we'll always have a valid value.
+  if (changeScheme) {
+    ss->sec.signatureScheme = (ss->sec.signatureScheme == ssl_sig_ed25519)
+                                  ? ssl_sig_ecdsa_secp256r1_sha256
+                                  : ssl_sig_ed25519;
+  }
+  if (changeAuthKeyBits) {
+    ss->sec.authKeyBits = ss->sec.authKeyBits ? ss->sec.authKeyBits * 2 : 384;
+  }
+
+  return SECSuccess;
+}
+
+SECStatus SSLInt_GetHandshakeRandoms(PRFileDesc *fd, SSL3Random client_random,
+                                     SSL3Random server_random) {
+  if (!fd) {
+    return SECFailure;
+  }
+  sslSocket *ss = ssl_FindSocket(fd);
+  if (!ss) {
+    return SECFailure;
+  }
+
+  if (client_random) {
+    memcpy(client_random, ss->ssl3.hs.client_random, sizeof(SSL3Random));
+  }
+  if (server_random) {
+    memcpy(server_random, ss->ssl3.hs.server_random, sizeof(SSL3Random));
+  }
+  return SECSuccess;
+}
+
 SECStatus SSLInt_IncrementClientHandshakeVersion(PRFileDesc *fd) {
   sslSocket *ss = ssl_FindSocket(fd);
   if (!ss) {
@@ -109,9 +151,10 @@ void SSLInt_PrintCipherSpecs(const char *label, PRFileDesc *fd) {
   }
 }
 
-/* Force a timer expiry by backdating when all active timers were started. We
- * could set the remaining time to 0 but then backoff would not work properly if
- * we decide to test it. */
+/* DTLS timers are separate from the time that the rest of the stack uses.
+ * Force a timer expiry by backdating when all active timers were started.
+ * We could set the remaining time to 0 but then backoff would not work properly
+ * if we decide to test it. */
 SECStatus SSLInt_ShiftDtlsTimers(PRFileDesc *fd, PRIntervalTime shift) {
   size_t i;
   sslSocket *ss = ssl_FindSocket(fd);
@@ -297,10 +340,6 @@ SSLKEAType SSLInt_GetKEAType(SSLNamedGroup group) {
   return groupDef->keaType;
 }
 
-void SSLInt_SetTicketLifetime(uint32_t lifetime) {
-  ssl_ticket_lifetime = lifetime;
-}
-
 SECStatus SSLInt_SetSocketMaxEarlyDataSize(PRFileDesc *fd, uint32_t size) {
   sslSocket *ss;
 
@@ -322,10 +361,6 @@ SECStatus SSLInt_SetSocketMaxEarlyDataSize(PRFileDesc *fd, uint32_t size) {
   ssl_ReleaseSpecWriteLock(ss);
 
   return SECSuccess;
-}
-
-void SSLInt_RolloverAntiReplay(void) {
-  tls13_AntiReplayRollover(ssl_TimeUsec());
 }
 
 SECStatus SSLInt_HasPendingHandshakeData(PRFileDesc *fd, PRBool *pending) {

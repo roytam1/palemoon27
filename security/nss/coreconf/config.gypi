@@ -96,6 +96,7 @@
     'cc_is_gcc%': '<(cc_is_gcc)',
     'cc_use_gnu_ld%': '<(cc_use_gnu_ld)',
     # Some defaults
+    'disable_arm_hw_aes%': 0,
     'disable_tests%': 0,
     'disable_chachapoly%': 0,
     'disable_dbm%': 0,
@@ -106,7 +107,6 @@
     'moz_fold_libs%': 0,
     'moz_folded_library_name%': '',
     'sanitizer_flags%': 0,
-    'test_build%': 0,
     'static_libs%': 0,
     'no_zdefs%': 0,
     'fuzz%': 0,
@@ -130,7 +130,6 @@
     # This is mostly for linking to libraries.
     'variables': {
       'mapfile%': '',
-      'test_build%': 0,
       'static_libs%': 0,
       'debug_optimization_level%': '0',
       'release_optimization_level%': '2',
@@ -151,11 +150,6 @@
           'NSS_FIPS_DISABLED',
           'NSS_NO_INIT_SUPPORT',
         ],
-      }],
-      [ 'static_libs==1', {
-        'variables': {
-          'standalone_static_library': '1',
-        },
       }],
       [ 'OS!="android" and OS!="mac" and OS!="ios" and OS!="win"', {
         'libraries': [
@@ -233,7 +227,7 @@
         'product_dir': '<(nss_dist_obj_dir)/lib'
       }, '_type=="executable"', {
         'product_dir': '<(nss_dist_obj_dir)/bin'
-      }, '_standalone_static_library==1', {
+      }, 'static_libs==1 or _standalone_static_library==1', {
         'product_dir': '<(nss_dist_obj_dir)/lib'
       }],
       # mapfile handling
@@ -324,6 +318,9 @@
           },
         },
       }],
+      [ '_type=="static_library" and static_libs==1', {
+        'standalone_static_library': 1,
+      }],
     ],
     'default_configuration': 'Debug',
     'configurations': {
@@ -358,6 +355,8 @@
               'LINUX2_1',
               'LINUX',
               'linux',
+              '_DEFAULT_SOURCE', # for <endian.h> functions, strdup, realpath, and getentropy
+              '_BSD_SOURCE', # for the above in glibc <= 2.19
             ],
           }],
           [ 'OS=="dragonfly" or OS=="freebsd"', {
@@ -394,8 +393,11 @@
               '-ffunction-sections',
               '-fdata-sections',
             ],
+            'cflags_c': [
+              '-std=c99',
+            ],
             'cflags_cc': [
-              '-std=c++0x',
+              '-std=c++11',
             ],
             'ldflags': [
               '-z', 'noexecstack',

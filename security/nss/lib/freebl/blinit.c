@@ -29,6 +29,7 @@ static PRBool arm_aes_support_ = PR_FALSE;
 static PRBool arm_sha1_support_ = PR_FALSE;
 static PRBool arm_sha2_support_ = PR_FALSE;
 static PRBool arm_pmull_support_ = PR_FALSE;
+static PRBool ppc_crypto_support_ = PR_FALSE;
 
 #ifdef NSS_X86_OR_X64
 /*
@@ -137,10 +138,11 @@ CheckARMSupport()
 {
     char *disable_arm_neon = PR_GetEnvSecure("NSS_DISABLE_ARM_NEON");
     char *disable_hw_aes = PR_GetEnvSecure("NSS_DISABLE_HW_AES");
+    char *disable_pmull = PR_GetEnvSecure("NSS_DISABLE_PMULL");
     if (getauxval) {
         long hwcaps = getauxval(AT_HWCAP);
         arm_aes_support_ = hwcaps & HWCAP_AES && disable_hw_aes == NULL;
-        arm_pmull_support_ = hwcaps & HWCAP_PMULL;
+        arm_pmull_support_ = hwcaps & HWCAP_PMULL && disable_pmull == NULL;
         arm_sha1_support_ = hwcaps & HWCAP_SHA1;
         arm_sha2_support_ = hwcaps & HWCAP_SHA2;
     }
@@ -204,6 +206,46 @@ GetNeonSupport()
     return PR_FALSE;
 }
 
+#ifdef __linux__
+static long
+ReadCPUInfoForHWCAP2()
+{
+    FILE *cpuinfo;
+    char buf[512];
+    char *p;
+    long hwcap2 = 0;
+
+    cpuinfo = fopen("/proc/cpuinfo", "r");
+    if (!cpuinfo) {
+        return 0;
+    }
+    while (fgets(buf, 511, cpuinfo)) {
+        if (!memcmp(buf, "Features", 8)) {
+            p = strstr(buf, " aes");
+            if (p && (p[4] == ' ' || p[4] == '\n')) {
+                hwcap2 |= HWCAP2_AES;
+            }
+            p = strstr(buf, " sha1");
+            if (p && (p[5] == ' ' || p[5] == '\n')) {
+                hwcap2 |= HWCAP2_SHA1;
+            }
+            p = strstr(buf, " sha2");
+            if (p && (p[5] == ' ' || p[5] == '\n')) {
+                hwcap2 |= HWCAP2_SHA2;
+            }
+            p = strstr(buf, " pmull");
+            if (p && (p[6] == ' ' || p[6] == '\n')) {
+                hwcap2 |= HWCAP2_PMULL;
+            }
+            break;
+        }
+    }
+
+    fclose(cpuinfo);
+    return hwcap2;
+}
+#endif /* __linux__ */
+
 void
 CheckARMSupport()
 {
@@ -216,6 +258,13 @@ CheckARMSupport()
         // AT_HWCAP2 isn't supported by glibc or Linux kernel, getauxval will
         // returns 0.
         long hwcaps = getauxval(AT_HWCAP2);
+#ifdef __linux__
+        if (!hwcaps) {
+            // Some ARMv8 devices may not implement AT_HWCAP2. So we also
+            // read /proc/cpuinfo if AT_HWCAP2 is 0.
+            hwcaps = ReadCPUInfoForHWCAP2();
+        }
+#endif
         arm_aes_support_ = hwcaps & HWCAP2_AES && disable_hw_aes == NULL;
         arm_pmull_support_ = hwcaps & HWCAP2_PMULL;
         arm_sha1_support_ = hwcaps & HWCAP2_SHA1;
@@ -300,6 +349,32 @@ arm_sha2_support()
 {
     return arm_sha2_support_;
 }
+PRBool
+ppc_crypto_support()
+{
+    return ppc_crypto_support_;
+}
+
+#if defined(__powerpc__)
+
+#include <sys/auxv.h>
+
+// Defines from cputable.h in Linux kernel - PPC, letting us build on older kernels
+#ifndef PPC_FEATURE2_VEC_CRYPTO
+#define PPC_FEATURE2_VEC_CRYPTO 0x02000000
+#endif
+
+static void
+CheckPPCSupport()
+{
+    char *disable_hw_crypto = PR_GetEnvSecure("NSS_DISABLE_PPC_GHASH");
+
+    long hwcaps = getauxval(AT_HWCAP2);
+
+    ppc_crypto_support_ = hwcaps & PPC_FEATURE2_VEC_CRYPTO && disable_hw_crypto == NULL;
+}
+
+#endif /* __powerpc__ */
 
 static PRStatus
 FreeblInit(void)
@@ -308,6 +383,8 @@ FreeblInit(void)
     CheckX86CPUSupport();
 #elif (defined(__aarch64__) || defined(__arm__))
     CheckARMSupport();
+#elif (defined(__powerpc__))
+    CheckPPCSupport();
 #endif
     return PR_SUCCESS;
 }

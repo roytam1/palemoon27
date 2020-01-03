@@ -70,11 +70,11 @@
             'UNSAFE_FUZZER_MODE',
           ],
         }],
-        [ 'enable_sslkeylogfile==1', {
-          'defines': [
-            'NSS_ALLOW_SSLKEYLOGFILE',
-          ],
-        }],
+#        [ 'enable_sslkeylogfile==1', {
+#          'defines': [
+#            'NSS_ALLOW_SSLKEYLOGFILE',
+#          ],
+#        }],
       ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports',

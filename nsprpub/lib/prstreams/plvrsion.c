@@ -54,7 +54,7 @@ PRVersionDescription VERSION_DESC_NAME =
     /* filename         */  _PRODUCTION,        /* the produced library name */
     /* description      */ "Portable runtime",  /* what we are */
     /* security         */ "N/A",               /* not applicable here */
-    /* copywrite        */  "Copyright (c) 1998 Netscape Communications Corporation. All Rights Reserved",
+    /* copywrite        */ "This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.",
     /* comment          */  "http://www.mozilla.org/MPL/",
     /* specialString    */ ""
 };
@@ -68,9 +68,9 @@ PRVersionDescription VERSION_DESC_NAME =
  * must not end in a '$' to prevent rcs keyword substitution.
  */
 static char rcsid[] = "$Header: NSPR " PR_VERSION _DEBUG_STRING
-        "  " _BUILD_STRING " $";
+                      "  " _BUILD_STRING " $";
 static char sccsid[] = "@(#)NSPR " PR_VERSION _DEBUG_STRING
-        "  " _BUILD_STRING;
+                       "  " _BUILD_STRING;
 
 #endif /* XP_UNIX */
 
@@ -86,7 +86,7 @@ PR_IMPLEMENT(const PRVersionDescription*) libVersionPoint()
      * from being optimized away as unused variables.
      */
     const char *dummy;
-    
+
     dummy = rcsid;
     dummy = sccsid;
 #endif

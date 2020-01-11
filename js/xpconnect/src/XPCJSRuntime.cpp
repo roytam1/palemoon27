@@ -45,7 +45,7 @@
 #include "nsGlobalWindow.h"
 #include "nsAboutProtocolUtils.h"
 
-#include "GoannaProfiler.h"
+#include "GeckoProfiler.h"
 #include "nsIXULRuntime.h"
 #include "nsJSPrincipals.h"
 
@@ -1389,7 +1389,7 @@ XPCJSRuntime::InterruptCallback(JSContext* cx)
     if (!nsContentUtils::IsInitialized())
         return true;
 
-    bool contentProcess = XRE_GetProcessType() == GoannaProcessType_Content;
+    bool contentProcess = XRE_GetProcessType() == GeckoProcessType_Content;
 
     // This is at least the second interrupt callback we've received since
     // returning to the event loop. See how long it's been, and what the limit
@@ -2600,7 +2600,7 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats& rtStats,
                                  size_t* rtTotalOut)
 {
     nsCOMPtr<amIAddonManager> am;
-    if (XRE_GetProcessType() == GoannaProcessType_Default) {
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
         // Only try to access the service from the main process.
         am = do_GetService("@mozilla.org/addons/integration;1");
     }
@@ -2856,7 +2856,7 @@ JSReporter::CollectReports(WindowPaths* windowPaths,
     // stats seems like a bad idea.
 
     nsCOMPtr<amIAddonManager> addonManager;
-    if (XRE_GetProcessType() == GoannaProcessType_Default) {
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
         // Only try to access the service from the main process.
         addonManager = do_GetService("@mozilla.org/addons/integration;1");
     }

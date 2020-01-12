@@ -1,4 +1,4 @@
-/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,13 +8,20 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/InlineSpellChecker.jsm");
+Cu.import("resource://gre/modules/InlineSpellCheckerContent.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "E10SUtils",
+  "resource:///modules/E10SUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
   "resource://gre/modules/BrowserUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerContent",
   "resource://gre/modules/LoginManagerContent.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "InsecurePasswordUtils",
   "resource://gre/modules/InsecurePasswordUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PluginContent",
+  "resource:///modules/PluginContent.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FormSubmitObserver",
@@ -48,21 +55,50 @@ addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   }
 });
 
-addEventListener("DOMFormHasPassword", function(event) {
-  InsecurePasswordUtils.checkForInsecurePasswords(event.target);
-  LoginManagerContent.onFormPassword(event);
-});
-addEventListener("DOMAutoComplete", function(event) {
-  LoginManagerContent.onUsernameInput(event);
-});
-addEventListener("blur", function(event) {
-  LoginManagerContent.onUsernameInput(event);
-});
+if (Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT) {
+  addEventListener("contextmenu", function (event) {
+    let defaultPrevented = event.defaultPrevented;
+    if (!Services.prefs.getBoolPref("dom.event.contextmenu.enabled")) {
+      let plugin = null;
+      try {
+        plugin = event.target.QueryInterface(Ci.nsIObjectLoadingContent);
+      } catch (e) {}
+      if (plugin && plugin.displayedType == Ci.nsIObjectLoadingContent.TYPE_PLUGIN) {
+        // Don't open a context menu for plugins.
+        return;
+      }
+
+      defaultPrevented = false;
+    }
+
+    if (!defaultPrevented) {
+      let editFlags = SpellCheckHelper.isEditable(event.target, content);
+      let spellInfo;
+      if (editFlags &
+          (SpellCheckHelper.EDITABLE | SpellCheckHelper.CONTENTEDITABLE)) {
+        spellInfo =
+          InlineSpellCheckerContent.initContextMenu(event, editFlags, this);
+      }
+
+      sendSyncMessage("contextmenu", { editFlags, spellInfo }, { event });
+    }
+  }, false);
+} else {
+  addEventListener("DOMFormHasPassword", function(event) {
+    InsecurePasswordUtils.checkForInsecurePasswords(event.target);
+    LoginManagerContent.onFormPassword(event);
+  });
+  addEventListener("DOMAutoComplete", function(event) {
+    LoginManagerContent.onUsernameInput(event);
+  });
+  addEventListener("blur", function(event) {
+    LoginManagerContent.onUsernameInput(event);
+  });
+}
 
 let AboutHomeListener = {
   init: function(chromeGlobal) {
-    let self = this;
-    chromeGlobal.addEventListener('AboutHomeLoad', function(e) { self.onPageLoad(); }, false, true);
+    chromeGlobal.addEventListener('AboutHomeLoad', () => this.onPageLoad(), false, true);
   },
 
   handleEvent: function(aEvent) {
@@ -216,6 +252,7 @@ let ClickEventHandler = {
             event.preventDefault(); // Need to prevent the pageload.
         }
       }
+      json.noReferrer = BrowserUtils.linkHasNoReferrer(node)
 
       sendAsyncMessage("Content:Click", json);
       return;
@@ -276,11 +313,67 @@ let ClickEventHandler = {
 };
 ClickEventHandler.init();
 
+function gKeywordURIFixup(fixupInfo) {
+  fixupInfo.QueryInterface(Ci.nsIURIFixupInfo);
+
+  // Ignore info from other docshells
+  let parent = fixupInfo.consumer.QueryInterface(Ci.nsIDocShellTreeItem).sameTypeRootTreeItem;
+  if (parent != docShell)
+    return;
+
+  let data = {};
+  for (let f of Object.keys(fixupInfo)) {
+    if (f == "consumer" || typeof fixupInfo[f] == "function")
+      continue;
+
+    if (fixupInfo[f] && fixupInfo[f] instanceof Ci.nsIURI) {
+      data[f] = fixupInfo[f].spec;
+    } else {
+      data[f] = fixupInfo[f];
+    }
+  }
+
+  sendAsyncMessage("Browser:URIFixup", data);
+}
+Services.obs.addObserver(gKeywordURIFixup, "keyword-uri-fixup", false);
+addEventListener("unload", () => {
+  Services.obs.removeObserver(gKeywordURIFixup, "keyword-uri-fixup");
+}, false);
+
+addMessageListener("Browser:AppTab", function(message) {
+  docShell.isAppTab = message.data.isAppTab;
+});
+
+let WebBrowserChrome = {
+  onBeforeLinkTraversal: function(originalTarget, linkURI, linkNode, isAppTab) {
+    return BrowserUtils.onBeforeLinkTraversal(originalTarget, linkURI, linkNode, isAppTab);
+  },
+
+  // Check whether this URI should load in the current process
+  shouldLoadURI: function(aDocShell, aURI, aReferrer) {
+    if (!E10SUtils.shouldLoadURI(aDocShell, aURI, aReferrer)) {
+      E10SUtils.redirectLoad(aDocShell, aURI, aReferrer);
+      return false;
+    }
+
+    return true;
+  },
+};
+
+if (Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT) {
+  let tabchild = docShell.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsITabChild);
+  tabchild.webBrowserChrome = WebBrowserChrome;
+}
+
 // Lazily load the finder code
 addMessageListener("Finder:Initialize", function () {
   let {RemoteFinderListener} = Cu.import("resource://gre/modules/RemoteFinder.jsm", {});
   new RemoteFinderListener(global);
 });
+
+// TODO: Load this lazily so the JSM is run only if a relevant event/message fires.
+let pluginContent = new PluginContent(global);
 
 addEventListener("DOMWebNotificationClicked", function(event) {
   sendAsyncMessage("DOMWebNotificationClicked", {});

@@ -7,4 +7,4 @@
 # by frozen (dependent) linkage components. Internal-linkage code should use
 # unicharutil_s which is built in the internal/ subdirectory.
 
-DIST_INSTALL = 1
+#DIST_INSTALL = 1

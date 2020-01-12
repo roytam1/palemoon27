@@ -64,7 +64,7 @@ pref("extensions.getAddons.getWithPerformance.url","https://@APO_AM_URL@/interna
 pref("extensions.update.background.url","https://@APO_AM_URL@/internal/update?@APO_AUS_ARGS@");
 pref("extensions.update.url","https://@APO_AM_URL@/internal/update?@APO_AUS_ARGS@");
 
-// Extensions Blocklist
+// Extensions Blocklist for extentions that cause issues.
 pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blocklist.xml");
 pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%blockID%");
 
@@ -83,11 +83,15 @@ pref("extensions.getAddons.cache.enabled", false);
 // ===| DOM |==================================================================
 
 pref("dom.disable_window_status_change", false); //Allow status feedback by default
+pref("dom.messageChannel.enabled", true); //Fix google captchas and craigslist reply button
+pref("dom.fetch.enabled", true); //Fix for github.com as it is now using fetch API
 // Set max script runtimes to sane values
 pref("dom.max_chrome_script_run_time", 90); //Some addons need ample time!
 pref("dom.max_script_run_time", 20); //Should be plenty for a page script to do what it needs
 
-// ============================================================================
+// ===| Canvas |===============================================================
+
+pref("canvas.poisondata", true);  //Enable canvas anti-fingerprinting by default for extra security
 
 // ===| Plugins |==============================================================
 
@@ -114,6 +118,9 @@ pref("image.mem.decode_bytes_at_a_time", 65536); //larger chunks
 
 // store sessions less frequently to prevent redundant mem usage by storing too much
 pref("browser.sessionstore.interval",60000); //every minute instead of every 10 seconds
+
+pref("browser.tabs.remote.autostart", false);
+pref("browser.sessionstore.debug", false);
 
 // Make sure we shortcut out of a11y to save walking unnecessary code
 pref("accessibility.force_disabled", 1);

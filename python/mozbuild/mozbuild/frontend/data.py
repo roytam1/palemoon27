@@ -502,12 +502,14 @@ class StaticLibrary(Library):
     """Context derived container object for a static library"""
     __slots__ = (
         'link_into',
+        'no_expand_lib',
     )
 
     def __init__(self, context, basename, real_name=None, is_sdk=False,
-        link_into=None):
+        link_into=None, no_expand_lib=False):
         Library.__init__(self, context, basename, real_name, is_sdk)
         self.link_into = link_into
+        self.no_expand_lib = no_expand_lib
 
 
 class SharedLibrary(Library):
@@ -840,7 +842,7 @@ class InstallationTarget(ContextDerived):
         self.xpiname = context.get('XPI_NAME', '')
         self.subdir = context.get('DIST_SUBDIR', '')
         self.target = context['FINAL_TARGET']
-        self.enabled = not context.get('NO_DIST_INSTALL', False)
+        self.enabled = context['DIST_INSTALL'] is not False
 
     def is_custom(self):
         """Returns whether or not the target is not derived from the default
@@ -872,13 +874,15 @@ class GeneratedFile(ContextDerived):
 
     __slots__ = (
         'script',
+        'method',
         'output',
         'inputs',
     )
 
-    def __init__(self, context, script, output, inputs):
+    def __init__(self, context, script, method, output, inputs):
         ContextDerived.__init__(self, context)
         self.script = script
+        self.method = method
         self.output = output
         self.inputs = inputs
 

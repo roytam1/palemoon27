@@ -7,4 +7,4 @@
 # used by frozen (dependent) linkage components. The internal-linkage code should use
 # rdfutil_s which is built in the internal/ subdirectory. 
 
-DIST_INSTALL = 1
+#DIST_INSTALL = 1

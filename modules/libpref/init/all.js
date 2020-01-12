@@ -5000,6 +5000,9 @@ pref("dom.secureelement.enabled", false);
 // MessageChannel API
 pref("dom.messageChannel.enabled", true);
 
+// fetch API
+pref("dom.fetch.enabled", true);
+
 // Turn rewriting of youtube embeds on/off
 pref("plugins.rewrite_youtube_embeds", true);
 

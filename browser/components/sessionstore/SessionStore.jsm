@@ -138,9 +138,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivacyFilter",
 XPCOMUtils.defineLazyModuleGetter(this, "RunState",
   "resource:///modules/sessionstore/RunState.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-  "resource://gre/modules/NetUtil.jsm");
-
 #ifdef MOZ_DEVTOOLS
 
 Object.defineProperty(this, "HUDService", {
@@ -409,16 +406,6 @@ let SessionStoreInternal = {
   // Whether session has been initialized
   _sessionInitialized: false,
 
-  // The original "sessionstore.resume_session_once" preference value before it
-  // was modified by saveState.  saveState will set the
-  // "sessionstore.resume_session_once" to true when the
-  // the "sessionstore.resume_from_crash" preference is false (crash recovery
-  // is disabled) so that pinned tabs will be restored in the case of a
-  // crash.  This variable is used to restore the original value so the
-  // previous session is not always restored when
-  // "sessionstore.resume_from_crash" is true.
-  _resume_session_once_on_shutdown: null,
-
   // Keep busy state counters per window.
   _windowBusyStates: new WeakMap(),
 
@@ -500,14 +487,9 @@ let SessionStoreInternal = {
 
             if (this._needsRestorePage(state, this._recentCrashes)) {
               // replace the crashed session with a restore-page-only session
-              let pageData = {
-                url: "about:sessionrestore",
-                formdata: {
-                  id: { "sessionData": state },
-                  xpath: {}
-                }
-              };
-              state = { windows: [{ tabs: [{ entries: [pageData] }] }] };
+              let url = "about:sessionrestore";
+              let formdata = {id: {sessionData: state}, url};
+              state = { windows: [{ tabs: [{ entries: [{url}], formdata }] }] };
             } else if (this._hasSingleTabWithURL(state.windows,
                                                  "about:welcomeback")) {
               // On a single about:welcomeback URL that crashed, replace about:welcomeback
@@ -544,18 +526,9 @@ let SessionStoreInternal = {
         this._prefBranch.getBoolPref("sessionstore.resume_session_once"))
       this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
 
-    this._initEncoding();
-
     this._sessionInitialized = true;
     TelemetryStopwatch.finish("FX_SESSION_RESTORE_STARTUP_INIT_SESSION_MS");
     return state;
-  },
-
-  _initEncoding : function ssi_initEncoding() {
-    // The (UTF-8) encoder used to write to files.
-    XPCOMUtils.defineLazyGetter(this, "_writeFileEncoder", function () {
-      return new TextEncoder();
-    });
   },
 
   _initPrefs : function() {
@@ -864,7 +837,7 @@ let SessionStoreInternal = {
           // it happens before observers are notified
           this._globalState.setFromState(aInitialState);
 
-	  let overwrite = this._isCmdLineEmpty(aWindow, aInitialState);
+          let overwrite = this._isCmdLineEmpty(aWindow, aInitialState);
           let options = {firstWindow: true, overwriteTabs: overwrite};
           this.restoreWindow(aWindow, aInitialState, options);
         }
@@ -1208,15 +1181,6 @@ let SessionStoreInternal = {
       // perform any other sanitization processing on a restart as the
       // browser is about to exit anyway.
       Services.obs.removeObserver(this, "browser:purge-session-history");
-    }
-    else if (this._resume_session_once_on_shutdown != null) {
-      // if the sessionstore.resume_session_once preference was changed by
-      // saveState because crash recovery is disabled then restore the
-      // preference back to the value it was prior to that.  This will prevent
-      // SessionStore from always restoring the session when crash recovery is
-      // disabled.
-      this._prefBranch.setBoolPref("sessionstore.resume_session_once",
-                                   this._resume_session_once_on_shutdown);
     }
 
     if (aData != "restart") {

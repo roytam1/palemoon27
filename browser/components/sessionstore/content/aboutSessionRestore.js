@@ -4,7 +4,6 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils;
 
 var gStateObject;
 var gTreeData;
@@ -20,19 +19,7 @@ window.onload = function() {
     return;
   }
 
-  // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
-  if (sessionData.value.charAt(0) == '(')
-    sessionData.value = sessionData.value.slice(1, -1);
-  try {
-    gStateObject = JSON.parse(sessionData.value);
-  }
-  catch (exJSON) {
-    var s = new Cu.Sandbox("about:blank", {sandboxName: 'aboutSessionRestore'});
-    gStateObject = Cu.evalInSandbox("(" + sessionData.value + ")", s);
-    // If we couldn't parse the string with JSON.parse originally, make sure
-    // that the value in the textbox will be parsable.
-    sessionData.value = JSON.stringify(gStateObject);
-  }
+  gStateObject = JSON.parse(sessionData.value);
 
   // make sure the data is tracked to be restored in case of a subsequent crash
   var event = document.createEvent("UIEvents");
@@ -111,14 +98,20 @@ function restoreSession() {
 
   // restore the session into a new window and close the current tab
   var newWindow = top.openDialog(top.location, "_blank", "chrome,dialog=no,all");
-  newWindow.addEventListener("load", function() {
-    newWindow.removeEventListener("load", arguments.callee, true);
+
+  var obs = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+  obs.addObserver(function observe(win, topic) {
+    if (win != newWindow) {
+      return;
+    }
+
+    obs.removeObserver(observe, topic);
     ss.setWindowState(newWindow, stateString, true);
 
     var tabbrowser = top.gBrowser;
     var tabIndex = tabbrowser.getBrowserIndexForDocument(document);
     tabbrowser.removeTab(tabbrowser.tabs[tabIndex]);
-  }, true);
+  }, "browser-delayed-startup-finished", false);
 }
 
 function startNewSession() {

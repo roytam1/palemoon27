@@ -131,29 +131,15 @@ XPCOMUtils.defineLazyModuleGetter(this, "console",
   "resource://gre/modules/devtools/Console.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
   "resource:///modules/RecentWindow.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "AppConstants",
+  "resource://gre/modules/AppConstants.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "GlobalState",
   "resource:///modules/sessionstore/GlobalState.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivacyFilter",
   "resource:///modules/sessionstore/PrivacyFilter.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RunState",
   "resource:///modules/sessionstore/RunState.jsm");
-
-#ifdef MOZ_DEVTOOLS
-
-Object.defineProperty(this, "HUDService", {
-  get: function HUDService_getter() {
-    let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-    return devtools.require("devtools/webconsole/hudservice").HUDService;
-  },
-  configurable: true,
-  enumerable: true
-});
-#endif  
-  
-XPCOMUtils.defineLazyModuleGetter(this, "DocumentUtils",
-  "resource:///modules/sessionstore/DocumentUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivacyLevel",
-  "resource:///modules/sessionstore/PrivacyLevel.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ScratchpadManager",
   "resource://gre/modules/devtools/scratchpad-manager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionSaver",
@@ -162,8 +148,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "SessionCookies",
   "resource:///modules/sessionstore/SessionCookies.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionFile",
   "resource:///modules/sessionstore/SessionFile.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "SessionHistory",
-  "resource:///modules/sessionstore/SessionHistory.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "TabAttributes",
+  "resource:///modules/sessionstore/TabAttributes.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "TabState",
   "resource:///modules/sessionstore/TabState.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "TabStateCache",
@@ -368,6 +354,9 @@ let SessionStoreInternal = {
   // states for all currently opened windows
   _windows: {},
 
+  // counter for creating unique window IDs
+  _nextWindowID: 0,
+
   // states for all recently closed windows
   _closedWindows: [],
 
@@ -498,10 +487,8 @@ let SessionStoreInternal = {
             }
           }
 
-          // Load the session start time from the previous state
-          this._sessionStartTime = state.session &&
-                                   state.session.startTime ||
-                                   this._sessionStartTime;
+          // Update the session start time using the restored session state.
+          this._updateSessionStartTime(state);
 
           // make sure that at least the first window doesn't have anything hidden
           delete state.windows[0].hidden;
@@ -773,6 +760,15 @@ let SessionStoreInternal = {
   },
 
   /**
+   * Generate a unique window identifier
+   * @return string
+   *         A unique string to identify a window
+   */
+  _generateWindowID: function ssi_generateWindowID() {
+    return "window" + (this._nextWindowID++);
+  },
+
+  /**
    * If it's the first window load since app start...
    * - determine if we're reloading after a crash or a forced-restart
    * - restore window state
@@ -792,8 +788,9 @@ let SessionStoreInternal = {
     if (RunState.isQuitting)
       return;
 
-    // assign it a unique identifier (timestamp)
-    aWindow.__SSi = "window" + Date.now();
+    // Assign the window a unique identifier we can use to reference
+    // internal data about the window.
+    aWindow.__SSi = this._generateWindowID();
 
     let mm = aWindow.getGroupMessageManager("browsers");
     MESSAGES.forEach(msg => {
@@ -889,9 +886,7 @@ let SessionStoreInternal = {
 
       if (closedWindowState) {
         let newWindowState;
-#ifndef XP_MACOSX
-        if (!this._doResumeSession()) {
-#endif
+        if (AppConstants.platform == "macosx" || !this._doResumeSession()) {
           // We want to split the window up into pinned tabs and unpinned tabs.
           // Pinned tabs should be restored. If there are any remaining tabs,
           // they should be added back to _closedWindows.
@@ -915,7 +910,6 @@ let SessionStoreInternal = {
             delete normalTabsState.windows[0].__lastSessionWindowID;
             this._closedWindows[closedWindowIndex] = normalTabsState.windows[0];
           }
-#ifndef XP_MACOSX
         }
         else {
           // If we're just restoring the window, make sure it gets removed from
@@ -924,7 +918,7 @@ let SessionStoreInternal = {
           newWindowState = closedWindowState;
           delete newWindowState.hidden;
         }
-#endif
+
         if (newWindowState) {
           // Ensure that the window state isn't hidden
           this._restoreCount = 1;
@@ -1031,8 +1025,10 @@ let SessionStoreInternal = {
     // this window was about to be restored - conserve its original data, if any
     let isFullyLoaded = this._isWindowLoaded(aWindow);
     if (!isFullyLoaded) {
-      if (!aWindow.__SSi)
-        aWindow.__SSi = "window" + Date.now();
+      if (!aWindow.__SSi) {
+        aWindow.__SSi = this._generateWindowID();
+      }
+
       this._windows[aWindow.__SSi] = this._statesToRestore[aWindow.__SS_restoreID];
       delete this._statesToRestore[aWindow.__SS_restoreID];
       delete aWindow.__SS_restoreID;
@@ -1077,11 +1073,11 @@ let SessionStoreInternal = {
         SessionCookies.update([winData]);
       }
 
-#ifndef XP_MACOSX
-      // Until we decide otherwise elsewhere, this window is part of a series
-      // of closing windows to quit.
-      winData._shouldRestore = true;
-#endif
+      if (AppConstants.platform != "macosx") {
+        // Until we decide otherwise elsewhere, this window is part of a series
+        // of closing windows to quit.
+        winData._shouldRestore = true;
+      }
 
       // Store the window's close date to figure out when each individual tab
       // was closed. This timestamp should allow re-arranging data based on how
@@ -1994,24 +1990,16 @@ let SessionStoreInternal = {
       this._capClosedWindows();
     }
 
-#ifdef MOZ_DEVTOOLS
-    // Scratchpad
     if (lastSessionState.scratchpads) {
       ScratchpadManager.restoreSession(lastSessionState.scratchpads);
     }
 
-    // The Browser Console
-    if (lastSessionState.browserConsole) {
-      HUDService.restoreBrowserConsoleSession();
-    }
-#endif
-
     // Set data that persists between sessions
     this._recentCrashes = lastSessionState.session &&
                           lastSessionState.session.recentCrashes || 0;
-    this._sessionStartTime = lastSessionState.session &&
-                             lastSessionState.session.startTime ||
-                             this._sessionStartTime;
+
+    // Update the session start time using the restored session state.
+    this._updateSessionStartTime(lastSessionState);
 
     LastSession.clear();
   },
@@ -2194,21 +2182,21 @@ let SessionStoreInternal = {
     // shallow copy this._closedWindows to preserve current state
     let lastClosedWindowsCopy = this._closedWindows.slice();
 
-#ifndef XP_MACOSX
-    // If no non-popup browser window remains open, return the state of the last
-    // closed window(s). We only want to do this when we're actually "ending"
-    // the session.
-    //XXXzpao We should do this for _restoreLastWindow == true, but that has
-    //        its own check for popups. c.f. bug 597619
-    if (nonPopupCount == 0 && lastClosedWindowsCopy.length > 0 &&
-        RunState.isQuitting) {
-      // prepend the last non-popup browser window, so that if the user loads more tabs
-      // at startup we don't accidentally add them to a popup window
-      do {
-        total.unshift(lastClosedWindowsCopy.shift())
-      } while (total[0].isPopup && lastClosedWindowsCopy.length > 0)
+    if (AppConstants.platform != "macosx") {
+      // If no non-popup browser window remains open, return the state of the last
+      // closed window(s). We only want to do this when we're actually "ending"
+      // the session.
+      //XXXzpao We should do this for _restoreLastWindow == true, but that has
+      //        its own check for popups. c.f. bug 597619
+      if (nonPopupCount == 0 && lastClosedWindowsCopy.length > 0 &&
+          RunState.isQuitting) {
+        // prepend the last non-popup browser window, so that if the user loads more tabs
+        // at startup we don't accidentally add them to a popup window
+        do {
+          total.unshift(lastClosedWindowsCopy.shift())
+        } while (total[0].isPopup && lastClosedWindowsCopy.length > 0)
+      }
     }
-#endif
 
     if (activeWindow) {
       this.activeWindowSSiCache = activeWindow.__SSi || "";
@@ -2494,17 +2482,10 @@ let SessionStoreInternal = {
         (overwriteTabs ? (parseInt(winData.selected || "1")) : 0));
     }
 
-#ifdef MOZ_DEVTOOLS
     if (aState.scratchpads) {
       ScratchpadManager.restoreSession(aState.scratchpads);
     }
 
-    // The Browser Console
-    if (aState.browserConsole) {
-      HUDService.restoreBrowserConsoleSession();
-    }
-
-#endif
     // set smoothScroll back to the original value
     tabstrip.smoothScroll = smoothScroll;
 
@@ -2906,6 +2887,20 @@ let SessionStoreInternal = {
   },
 
   /* ........ Auxiliary Functions .............. */
+
+  /**
+   * Update the session start time and send a telemetry measurement
+   * for the number of days elapsed since the session was started.
+   *
+   * @param state
+   *        The session state.
+   */
+  _updateSessionStartTime: function ssi_updateSessionStartTime(state) {
+    // Attempt to load the session start time from the session state
+    if (state.session && state.session.startTime) {
+      this._sessionStartTime = state.session.startTime;
+    }
+  },
 
   /**
    * call a callback for all currently opened browser windows
@@ -3396,15 +3391,15 @@ let SessionStoreInternal = {
     if (this._closedWindows.length <= this._max_windows_undo)
       return;
     let spliceTo = this._max_windows_undo;
-#ifndef XP_MACOSX
-    let normalWindowIndex = 0;
-    // try to find a non-popup window in this._closedWindows
-    while (normalWindowIndex < this._closedWindows.length &&
-           !!this._closedWindows[normalWindowIndex].isPopup)
-      normalWindowIndex++;
-    if (normalWindowIndex >= this._max_windows_undo)
-      spliceTo = normalWindowIndex + 1;
-#endif
+    if (AppConstants.platform != "macosx") {
+      let normalWindowIndex = 0;
+      // try to find a non-popup window in this._closedWindows
+      while (normalWindowIndex < this._closedWindows.length &&
+             !!this._closedWindows[normalWindowIndex].isPopup)
+        normalWindowIndex++;
+      if (normalWindowIndex >= this._max_windows_undo)
+        spliceTo = normalWindowIndex + 1;
+    }
     this._closedWindows.splice(spliceTo, this._closedWindows.length);
   },
 
@@ -3731,72 +3726,6 @@ let DirtyWindows = {
   clear: function (window) {
     this._data.clear();
   }
-};
-
-// A map storing the number of tabs last closed per windoow. This only
-// stores the most recent tab-close operation, and is used to undo
-// batch tab-closing operations.
-let NumberOfTabsClosedLastPerWindow = new WeakMap();
-
-// A set of tab attributes to persist. We will read a given list of tab
-// attributes when collecting tab data and will re-set those attributes when
-// the given tab data is restored to a new tab.
-let TabAttributes = {
-  _attrs: new Set(),
-
-  // We never want to directly read or write those attributes.
-  // 'image' should not be accessed directly but handled by using the
-  //         gBrowser.getIcon()/setIcon() methods.
-  // 'pending' is used internal by sessionstore and managed accordingly.
-  _skipAttrs: new Set(["image", "pending"]),
-
-  persist: function (name) {
-    if (this._attrs.has(name) || this._skipAttrs.has(name)) {
-      return false;
-    }
-
-    this._attrs.add(name);
-    return true;
-  },
-
-  get: function (tab) {
-    let data = {};
-
-    for (let name of this._attrs) {
-      if (tab.hasAttribute(name)) {
-        data[name] = tab.getAttribute(name);
-      }
-    }
-
-    return data;
-  },
-
-  set: function (tab, data = {}) {
-    // Clear attributes.
-    for (let name of this._attrs) {
-      tab.removeAttribute(name);
-    }
-
-    // Set attributes.
-    for (let name in data) {
-      tab.setAttribute(name, data[name]);
-    }
-  }
-};
-
-
-// see nsPrivateBrowsingService.js
-String.prototype.hasRootDomain = function hasRootDomain(aDomain) {
-  let index = this.indexOf(aDomain);
-  if (index == -1)
-    return false;
-
-  if (this == aDomain)
-    return true;
-
-  let prevChar = this[index - 1];
-  return (index == (this.length - aDomain.length)) &&
-         (prevChar == "." || prevChar == "/");
 };
 
 function TabData(obj = null) {

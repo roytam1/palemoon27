@@ -140,8 +140,6 @@ nsHtml5TreeBuilder::startTokenization(nsHtml5Tokenizer* self)
         tokenizer->setStateAndEndTagExpectation(NS_HTML5TOKENIZER_DATA, contextName);
       }
     }
-    contextName = nullptr;
-    contextNode = nullptr;
   } else {
     mode = NS_HTML5TREE_BUILDER_INITIAL;
     if (tokenizer->isViewingXmlSource()) {
@@ -577,6 +575,8 @@ nsHtml5TreeBuilder::endTokenization()
 {
   formPointer = nullptr;
   headPointer = nullptr;
+  contextName = nullptr;
+  contextNode = nullptr;
   deepTreeSurrogateParent = nullptr;
   templateModeStack = nullptr;
   if (stack) {

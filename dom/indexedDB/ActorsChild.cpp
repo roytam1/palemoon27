@@ -2257,11 +2257,13 @@ BackgroundCursorChild::HandleResponse(
 
   StructuredCloneReadInfo cloneReadInfo(Move(response.cloneInfo()));
 
+  // If a new cursor is created, we need to keep a reference to it until the
+  // ResultHelper creates a DOM Binding.
+  nsRefPtr<IDBCursor> newCursor;
+
   ConvertActorsToBlobs(mTransaction->Database(),
                        response.cloneInfo(),
                        cloneReadInfo.mFiles);
-
-  nsRefPtr<IDBCursor> newCursor;
 
   if (mCursor) {
     mCursor->Reset(Move(response.key()), Move(cloneReadInfo));

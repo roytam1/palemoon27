@@ -53,7 +53,8 @@ nsBaseDragService::nsBaseDragService()
     mHasImage(false), mUserCancelled(false),
     mDragAction(DRAGDROP_ACTION_NONE), mTargetSize(0,0),
     mImageX(0), mImageY(0), mScreenX(-1), mScreenY(-1), mSuppressLevel(0),
-    mInputSource(nsIDOMMouseEvent::MOZ_SOURCE_MOUSE)
+    mInputSource(nsIDOMMouseEvent::MOZ_SOURCE_MOUSE),
+    mEndingSession(false)
 {
 }
 
@@ -332,9 +333,11 @@ nsBaseDragService::OpenDragPopup()
 NS_IMETHODIMP
 nsBaseDragService::EndDragSession(bool aDoneDrag)
 {
-  if (!mDoingDrag) {
+  if (!mDoingDrag || mEndingSession) {
     return NS_ERROR_FAILURE;
   }
+
+  mEndingSession = true;
 
   if (aDoneDrag && !mSuppressLevel)
     FireDragEventAtSource(NS_DRAGDROP_END);
@@ -347,6 +350,7 @@ nsBaseDragService::EndDragSession(bool aDoneDrag)
   }
 
   mDoingDrag = false;
+  mEndingSession = false;
 
   // release the source we've been holding on to.
   mSourceDocument = nullptr;

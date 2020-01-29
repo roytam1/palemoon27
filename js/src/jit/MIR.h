@@ -8501,11 +8501,6 @@ class MStoreElementHole
     MDefinition* value() const {
         return getOperand(3);
     }
-    AliasSet getAliasSet() const override {
-        // StoreElementHole can update the initialized length, the array length
-        // or reallocate obj->elements.
-        return AliasSet::Store(AliasSet::Element | AliasSet::ObjectFields);
-    }
 
     ALLOW_CLONE(MStoreElementHole)
 };

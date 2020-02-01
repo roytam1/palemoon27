@@ -326,7 +326,7 @@ void CacheObserver::ParentDirOverride(nsIFile** aDir)
   sSelf->mCacheParentDirectoryOverride->Clone(aDir);
 }
 
-namespace { // anon
+namespace {
 
 class CacheStorageEvictHelper
 {
@@ -401,7 +401,7 @@ CacheStorageEvictHelper::ClearStorage(bool const aPrivate,
   return NS_OK;
 }
 
-} // anon
+} // namespace
 
 // static
 bool const CacheObserver::EntryIsTooBig(int64_t aSize, bool aUsingDisk)
@@ -501,5 +501,5 @@ CacheObserver::Observe(nsISupports* aSubject,
   return NS_OK;
 }
 
-} // net
-} // mozilla
+} // namespace net
+} // namespace mozilla

@@ -1325,7 +1325,7 @@ GetJARIdentifier(nsIURI *aURI,
     return AppendJARIdentifier(_result, appId, isInBrowserElement);
 }
 
-} // anon namespace
+} // namespace
 
 // static
 nsresult

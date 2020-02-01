@@ -1366,6 +1366,6 @@ Http2Stream::MapStreamToHttpConnection()
                                      mTransaction->ConnectionInfo());
 }
 
-} // namespace mozilla::net
+} // namespace net
 } // namespace mozilla
 

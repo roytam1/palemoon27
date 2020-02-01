@@ -292,7 +292,7 @@ private:
     bool mBlocked;
 };
 
-} /* namespace {} */
+} // namespace
 
 MessageChannel::MessageChannel(MessageListener *aListener)
   : mListener(aListener),
@@ -1854,5 +1854,5 @@ ParentProcessIsBlocked()
     return gParentIsBlocked;
 }
 
-} // ipc
-} // mozilla
+} // namespace ipc
+} // namespace mozilla

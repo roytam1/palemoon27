@@ -175,7 +175,7 @@ private:
   bool mHasDirtyRect;
 };
 
-}
-}
+} // namespace gfx
+} // namespace mozilla
 
 #endif /* MOZILLA_GFX_BLUR_H_ */

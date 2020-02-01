@@ -1317,7 +1317,7 @@ private:
   nsCOMPtr<imgIRequest> mRequest;
 };
 
-} // anonymous namespace
+} // namespace
 
 void
 nsImageLoadingContent::MakePendingRequestCurrent()

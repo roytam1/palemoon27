@@ -2241,5 +2241,5 @@ nsHttpConnection::CheckForTraffic(bool check)
     }
 }
 
-} // namespace mozilla::net
+} // namespace net
 } // namespace mozilla

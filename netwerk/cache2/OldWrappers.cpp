@@ -30,7 +30,7 @@ static uint32_t const CHECK_MULTITHREADED = nsICacheStorage::CHECK_MULTITHREADED
 namespace mozilla {
 namespace net {
 
-namespace { // anon
+namespace {
 
 // Fires the doom callback back on the main thread
 // after the cache I/O thread is looped.
@@ -124,7 +124,7 @@ NS_IMETHODIMP DoomCallbackWrapper::OnCacheEntryDoomed(nsresult status)
   return NS_OK;
 }
 
-} // anon
+} // namespace
 
 // _OldVisitCallbackWrapper
 // Receives visit callbacks from the old API and forwards it to the new API
@@ -489,7 +489,7 @@ NS_IMETHODIMP _OldCacheEntryWrapper::HasWriteAccess(bool aWriteAllowed_unused, b
   return NS_OK;
 }
 
-namespace { // anon
+namespace {
 
 class MetaDataVisitorWrapper : public nsICacheMetaDataVisitor
 {
@@ -512,7 +512,7 @@ MetaDataVisitorWrapper::VisitMetaDataElement(char const * key,
   return mCB->OnMetaDataElement(key, value);
 }
 
-} // anon
+} // namespace
 
 NS_IMETHODIMP _OldCacheEntryWrapper::VisitMetaData(nsICacheEntryMetaDataVisitor* cb)
 {
@@ -520,7 +520,7 @@ NS_IMETHODIMP _OldCacheEntryWrapper::VisitMetaData(nsICacheEntryMetaDataVisitor*
   return mOldDesc->VisitMetaData(w);
 }
 
-namespace { // anon
+namespace {
 
 nsresult
 GetCacheSessionNameForStoragePolicy(
@@ -654,7 +654,7 @@ GetCacheSession(nsCSubstring const &aScheme,
   return NS_OK;
 }
 
-} // anon
+} // namespace
 
 
 NS_IMPL_ISUPPORTS_INHERITED(_OldCacheLoad, nsRunnable, nsICacheListener)
@@ -1152,5 +1152,5 @@ nsresult _OldStorage::ChooseApplicationCache(nsCSubstring const &cacheKey,
   return NS_OK;
 }
 
-} // net
-} // mozilla
+} // namespace net
+} // namespace mozilla

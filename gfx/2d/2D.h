@@ -1260,7 +1260,7 @@ private:
   static DrawEventRecorder *mRecorder;
 };
 
-}
-}
+} // namespace gfx
+} // namespace mozilla
 
 #endif // _MOZILLA_GFX_2D_H

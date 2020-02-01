@@ -2077,7 +2077,7 @@ private:
   uint32_t mRemainingIters;
 };
 
-} // anonymous namespace
+} // namespace
 
 NS_IMETHODIMP
 nsMemoryReporterManager::MinimizeMemoryUsage(nsIRunnable* aCallback)
@@ -2242,7 +2242,7 @@ DEFINE_REGISTER_SIZE_OF_TAB(NonJS);
 
 #undef GET_MEMORY_REPORTER_MANAGER
 
-}
+} // namespace mozilla
 
 #if defined(MOZ_DMD)
 

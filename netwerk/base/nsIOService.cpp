@@ -1603,7 +1603,7 @@ private:
     int32_t mState;
 };
 
-}
+} // namespace
 
 NS_IMETHODIMP
 nsIOService::SetAppOffline(uint32_t aAppId, int32_t aState)

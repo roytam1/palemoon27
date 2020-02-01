@@ -298,5 +298,5 @@ nsHttpConnectionInfo::HostIsLocalIPLiteral() const
     return IsIPAddrLocal(&netAddr);
 }
 
-} // namespace mozilla::net
+} // namespace net
 } // namespace mozilla

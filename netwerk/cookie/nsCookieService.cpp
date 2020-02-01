@@ -596,7 +596,7 @@ public:
 
 NS_IMPL_ISUPPORTS(AppClearDataObserver, nsIObserver)
 
-} // anonymous namespace
+} // namespace
 
 size_t
 nsCookieKey::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
@@ -4022,7 +4022,7 @@ struct GetCookiesForAppStruct {
   {}
 };
 
-} // anonymous namespace
+} // namespace
 
 /* static */ PLDHashOperator
 nsCookieService::GetCookiesForApp(nsCookieEntry* entry, void* arg)

@@ -262,6 +262,6 @@ private:
   nsIFrame* mFrame;
 };
 
-}
+} // namespace mozilla
 
 #endif /* FRAMEPROPERTYTABLE_H_ */

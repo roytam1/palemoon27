@@ -169,7 +169,7 @@ DOMStorageDBThread::ShouldPreloadScope(const nsACString& aScope)
   return mScopesHavingData.Contains(aScope);
 }
 
-namespace { // anon
+namespace {
 
 PLDHashOperator
 GetScopesHavingDataEnum(nsCStringHashKey* aKey, void* aArg)
@@ -180,7 +180,7 @@ GetScopesHavingDataEnum(nsCStringHashKey* aKey, void* aArg)
   return PL_DHASH_NEXT;
 }
 
-} // anon
+} // namespace
 
 void
 DOMStorageDBThread::GetScopesHavingData(InfallibleTArray<nsCString>* aScopes)
@@ -390,7 +390,7 @@ DOMStorageDBThread::ThreadObserver::AfterProcessNextEvent(nsIThreadInternal *thr
 extern void
 ReverseString(const nsCSubstring& aSource, nsCSubstring& aResult);
 
-namespace { // anon
+namespace {
 
 class nsReverseStringSQLFunction final : public mozIStorageFunction
 {
@@ -427,7 +427,7 @@ nsReverseStringSQLFunction::OnFunctionCall(
   return NS_OK;
 }
 
-} // anon
+} // namespace
 
 nsresult
 DOMStorageDBThread::OpenDatabaseConnection()
@@ -1078,7 +1078,7 @@ DOMStorageDBThread::PendingOperations::HasTasks()
   return !!mUpdates.Count() || !!mClears.Count();
 }
 
-namespace { // anon
+namespace {
 
 PLDHashOperator
 ForgetUpdatesForScope(const nsACString& aMapping,
@@ -1100,7 +1100,7 @@ ForgetUpdatesForScope(const nsACString& aMapping,
   return PL_DHASH_REMOVE;
 }
 
-} // anon
+} // namespace
 
 bool
 DOMStorageDBThread::PendingOperations::CheckForCoalesceOpportunity(DBOperation* aNewOp,
@@ -1187,7 +1187,7 @@ DOMStorageDBThread::PendingOperations::Add(DOMStorageDBThread::DBOperation* aOpe
   }
 }
 
-namespace { // anon
+namespace {
 
 PLDHashOperator
 CollectTasks(const nsACString& aMapping, nsAutoPtr<DOMStorageDBThread::DBOperation>& aOperation, void* aArg)
@@ -1199,7 +1199,7 @@ CollectTasks(const nsACString& aMapping, nsAutoPtr<DOMStorageDBThread::DBOperati
   return PL_DHASH_NEXT;
 }
 
-} // anon
+} // namespace
 
 bool
 DOMStorageDBThread::PendingOperations::Prepare()
@@ -1270,7 +1270,7 @@ DOMStorageDBThread::PendingOperations::Finalize(nsresult aRv)
   return true;
 }
 
-namespace { // anon
+namespace {
 
 class FindPendingOperationForScopeData
 {
@@ -1308,7 +1308,7 @@ FindPendingClearForScope(const nsACString& aMapping,
   return PL_DHASH_NEXT;
 }
 
-} // anon
+} // namespace
 
 bool
 DOMStorageDBThread::PendingOperations::IsScopeClearPending(const nsACString& aScope)
@@ -1333,7 +1333,7 @@ DOMStorageDBThread::PendingOperations::IsScopeClearPending(const nsACString& aSc
   return false;
 }
 
-namespace { // anon
+namespace {
 
 PLDHashOperator
 FindPendingUpdateForScope(const nsACString& aMapping,
@@ -1354,7 +1354,7 @@ FindPendingUpdateForScope(const nsACString& aMapping,
   return PL_DHASH_NEXT;
 }
 
-} // anon
+} // namespace
 
 bool
 DOMStorageDBThread::PendingOperations::IsScopeUpdatePending(const nsACString& aScope)
@@ -1379,5 +1379,5 @@ DOMStorageDBThread::PendingOperations::IsScopeUpdatePending(const nsACString& aS
   return false;
 }
 
-} // ::dom
-} // ::mozilla
+} // namespace dom
+} // namespace mozilla

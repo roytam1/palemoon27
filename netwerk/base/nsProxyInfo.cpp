@@ -94,7 +94,7 @@ namespace mozilla {
   extern const char kProxyType_SOCKS4[];
   extern const char kProxyType_SOCKS5[];
   extern const char kProxyType_DIRECT[];
-}
+} // namespace mozilla
 
 bool
 nsProxyInfo::IsDirect()

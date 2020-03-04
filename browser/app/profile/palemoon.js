@@ -772,9 +772,6 @@ pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds
 pref("browser.sessionstore.interval", 15000);
-// maximum amount of POSTDATA to be saved in bytes per history entry (-1 = all of it)
-// (NB: POSTDATA will be saved either entirely or not at all)
-pref("browser.sessionstore.postdata", 0);
 // on which sites to save text data, POSTDATA and cookies
 // 0 = everywhere, 1 = unencrypted sites, 2 = nowhere
 pref("browser.sessionstore.privacy_level", 0);
@@ -788,25 +785,30 @@ pref("browser.sessionstore.max_windows_undo", 3);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
-// number of back button session history entries to save (-1 = all of them)
+// number of back button session history entries to restore (-1 = all of them)
 pref("browser.sessionstore.max_serialize_back", 10);
-// number of forward button session history entries to save (-1 = all of them)
+// number of forward button session history entries to restore (-1 = all of them)
 pref("browser.sessionstore.max_serialize_forward", -1);
-// restore_on_demand overrides browser.sessionstore.max_concurrent_tabs
+// restore_on_demand overrides MAX_CONCURRENT_TAB_RESTORES (sessionstore constant)
 // and restore_hidden_tabs. When true, tabs will not be restored until they are
 // focused (also applies to tabs that aren't visible). When false, the values
-// for browser.sessionstore.max_concurrent_tabs and restore_hidden_tabs are 
-// respected. Selected tabs are always restored regardless of this pref.
+// for MAX_CONCURRENT_TAB_RESTORES and restore_hidden_tabs are respected.
+// Selected tabs are always restored regardless of this pref.
 pref("browser.sessionstore.restore_on_demand", true);
-// The number of tabs that can restore concurrently.
-// Sane values are 1..10, default 3.
-pref("browser.sessionstore.max_concurrent_tabs", 3);
 // Whether to automatically restore hidden tabs (i.e., tabs in other tab groups) or not
 pref("browser.sessionstore.restore_hidden_tabs", false);
 // If restore_on_demand is set, pinned tabs are restored on startup by default.
 // When set to true, this pref overrides that behavior, and pinned tabs will only
 // be restored when they are focused.
 pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
+// The version at which we performed the latest upgrade backup
+pref("browser.sessionstore.upgradeBackup.latestBuildID", "");
+// How many upgrade backups should be kept
+pref("browser.sessionstore.upgradeBackup.maxUpgradeBackups", 3);
+// End-users should not run sessionstore in debug mode
+pref("browser.sessionstore.debug", false);
+// Forget closed windows/tabs after two weeks
+pref("browser.sessionstore.cleanup.forget_closed_after", 1209600000);
 // Pale Moon: Allow the user to bypass cached versions of pages when restoring
 // tabs from a previous session
 // 0 = standard behavior: pull fully from cache
@@ -901,6 +903,15 @@ pref("toolbar.customization.usesheet", true);
 pref("toolbar.customization.usesheet", false);
 #endif
 
+// Disable Flash protected mode to reduce hang/crash rates.
+pref("dom.ipc.plugins.flash.disable-protected-mode", true);
+
+// Feature-disable the protected-mode auto-flip
+pref("browser.flash-protected-mode-flip.enable", false);
+
+// Whether we've already flipped protected mode automatically
+pref("browser.flash-protected-mode-flip.done", false);
+
 #ifdef XP_MACOSX
 // On mac, the default pref is per-architecture
 pref("dom.ipc.plugins.enabled.i386", true);
@@ -953,6 +964,17 @@ pref("security.sandbox.windows.log.stackTraceDepth", 0);
 // when the 1st window is opened. It was decided to default this setting to 1.
 pref("security.sandbox.content.level", 1);
 #endif
+
+#if defined(NIGHTLY_BUILD) && defined(XP_MACOSX)
+// In Nightly, browser.tabs.remote is enabled on platforms that
+// support OMTC. However, users won't actually get remote tabs unless
+// they enable browser.tabs.remote.autostart or they use the "New OOP
+// Window" menu option.
+pref("browser.tabs.remote", true);
+#else
+pref("browser.tabs.remote", false);
+#endif
+pref("browser.tabs.remote.autostart", false);
 
 // This pref governs whether we attempt to work around problems caused by
 // plugins using OS calls to manipulate the cursor while running out-of-
@@ -1127,6 +1149,10 @@ pref("dom.debug.propagate_gesture_events_through_content", false);
 
 // The request URL of the GeoLocation backend.
 pref("geo.wifi.uri", "http://ip-api.com/json/?fields=lat,lon,status,message");
+
+// Necko IPC security checks only needed for app isolation for cookies/cache/etc:
+// currently irrelevant for desktop e10s
+pref("network.disable.ipc.security", true);
 
 //Pale Moon padlock overlay preferences
 pref("browser.padlock.shown", true);

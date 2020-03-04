@@ -42,8 +42,8 @@ EXTRA_JS_MODULES.sessionstore = [
     'TabAttributes.jsm',
     'TabState.jsm',
     'TabStateCache.jsm',
+    'TabStateFlusher.jsm',
     'TextAndScrollData.jsm',
     'Utils.jsm',
-    'XPathGenerator.jsm',
 ]
 

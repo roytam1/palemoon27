@@ -88,3 +88,10 @@
         <label id="pointerLock-cancel" value="&pointerLock.notification.message;"/>
       </popupnotificationcontent>
     </popupnotification>
+
+    <popupnotification id="mixed-content-blocked-notification" hidden="true">
+      <popupnotificationcontent orient="vertical" align="start">
+        <separator/>
+        <description id="mixed-content-blocked-moreinfo">&mixedContentBlocked.moreinfo;</description>
+      </popupnotificationcontent>
+    </popupnotification>

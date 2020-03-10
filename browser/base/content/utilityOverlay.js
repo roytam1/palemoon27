@@ -1,4 +1,4 @@
-# -*- indent-tabs-mode: nil; js-indent-level: 4 -*-
+# -*- Mode: javascript; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -222,7 +222,6 @@ function openLinkIn(url, where, params) {
   var aInitiatingDoc        = params.initiatingDoc;
   var aIsPrivate            = params.private;
   var aSkipTabAnimation     = params.skipTabAnimation;
-  var aNoReferrer           = params.noReferrer;
   var sendReferrerURI       = true;
 
   if (where == "save") {
@@ -231,7 +230,7 @@ function openLinkIn(url, where, params) {
         "where == 'save' but without initiatingDoc.  See bug 814264.");
       return;
     }
-    saveURL(url, null, null, true, null, aNoReferrer ? null : aReferrerURI, aInitiatingDoc);
+    saveURL(url, null, null, true, null, aReferrerURI, aInitiatingDoc);
     return;
   }
   const Cc = Components.classes;
@@ -271,7 +270,8 @@ function openLinkIn(url, where, params) {
 
     sa.AppendElement(wuri);
     sa.AppendElement(charset);
-    sa.AppendElement(aNoReferrer ? null : aReferrerURI);
+    if (sendReferrerURI)
+      sa.AppendElement(aReferrerURI);
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
 
@@ -318,7 +318,7 @@ function openLinkIn(url, where, params) {
     }
     if (aDisallowInheritPrincipal)
       flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-    w.gBrowser.loadURIWithFlags(url, flags, aNoReferrer ? null : aReferrerURI, null, aPostData);
+    w.gBrowser.loadURIWithFlags(url, flags, aReferrerURI, null, aPostData);
     break;
   case "tabshifted":
     loadInBackground = !loadInBackground;
@@ -333,9 +333,7 @@ function openLinkIn(url, where, params) {
                        allowThirdPartyFixup: aAllowThirdPartyFixup,
                        relatedToCurrent: aRelatedToCurrent,
                        skipAnimation: aSkipTabAnimation,
-                       allowMixedContent: aAllowMixedContent,
-	               noReferrer: aNoReferrer
-    });
+                       allowMixedContent: aAllowMixedContent});
     break;
   }
 

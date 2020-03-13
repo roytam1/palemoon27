@@ -1144,6 +1144,8 @@ pref("browser.padlock.urlbar_background", 2);
 //Pale Moon standalone image background color
 pref("browser.display.standalone_images.background_color", "#2E3B41");
 
+pref("view_source.tab", false);
+
 // ****************** domain-specific UAs ******************
 
 // AMO needs "Firefox", obviously - pass on the OS (determined at build time)

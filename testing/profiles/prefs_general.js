@@ -299,3 +299,15 @@ user_pref("browser.readinglist.introShown", true);
 
 // Don't block old libavcodec libraries when testing.
 user_pref("media.libavcodec.allow-obsolete", true);
+
+// Don't let PAC generator to set PAC, as mochitest framework has its own PAC
+// rules during testing.
+user_pref("network.proxy.pac_generator", false);
+
+// Make tests run consistently on DevEdition (which has a lightweight theme
+// selected by default).
+user_pref("lightweightThemes.selectedThemeID", "");
+user_pref("browser.devedition.theme.enabled", false);
+
+// Disable periodic updates of service workers.
+user_pref("dom.serviceWorkers.periodic-updates.enabled", false);

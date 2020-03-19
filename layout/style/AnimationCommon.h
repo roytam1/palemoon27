@@ -24,6 +24,7 @@
 #include "mozilla/FloatingPoint.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsCSSPropertySet.h"
 
 class nsIFrame;
 class nsPresContext;
@@ -33,6 +34,14 @@ namespace mozilla {
 
 class RestyleTracker;
 struct AnimationPlayerCollection;
+
+// Options to set when fetching animations to run on the compositor.
+enum class GetCompositorAnimationOptions {
+  // When fetching compositor animations, if there are any such animations,
+  // also let the ActiveLayerTracker know at the same time.
+  NotifyActiveLayerTracker = 1 << 0
+};
+MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(GetCompositorAnimationOptions)
 
 namespace css {
 
@@ -75,9 +84,9 @@ public:
   void AddStyleUpdatesTo(mozilla::RestyleTracker& aTracker);
 
   AnimationPlayerCollection*
-  GetAnimationPlayers(dom::Element *aElement,
-                      nsCSSPseudoElements::Type aPseudoType,
-                      bool aCreateIfNeeded);
+  GetAnimations(dom::Element *aElement,
+                nsCSSPseudoElements::Type aPseudoType,
+                bool aCreateIfNeeded);
 
   // Returns true if aContent or any of its ancestors has an animation
   // or transition.
@@ -144,12 +153,11 @@ protected:
     return false;
   }
 
-  // When this returns a value other than nullptr, it also,
-  // as a side-effect, notifies the ActiveLayerTracker.
   static AnimationPlayerCollection*
   GetAnimationsForCompositor(nsIContent* aContent,
                              nsIAtom* aElementProperty,
-                             nsCSSProperty aProperty);
+                             nsCSSProperty aProperty,
+                             GetCompositorAnimationOptions aFlags);
 
   PRCList mElementCollections;
   nsPresContext *mPresContext; // weak (non-null from ctor to Disconnect)
@@ -190,6 +198,14 @@ public:
     nsCSSProperty mProperty;
     mozilla::StyleAnimationValue mValue;
   };
+
+  void AddPropertiesToSet(nsCSSPropertySet& aSet) const
+  {
+    for (size_t i = 0, i_end = mPropertyValuePairs.Length(); i < i_end; ++i) {
+      const PropertyValuePair &cv = mPropertyValuePairs[i];
+      aSet.AddProperty(cv.mProperty);
+    }
+  }
 
 private:
   ~AnimValuesStyleRule() {}
@@ -322,6 +338,19 @@ struct AnimationPlayerCollection : public PRCList
     MOZ_ASSERT(IsForAfterPseudo(),
                "::before & ::after should be the only pseudo-elements here");
     return NS_LITERAL_STRING("::after");
+  }
+
+  nsCSSPseudoElements::Type PseudoElementType() const
+  {
+    if (IsForElement()) {
+      return nsCSSPseudoElements::ePseudo_NotPseudoElement;
+    }
+    if (IsForBeforePseudo()) {
+      return nsCSSPseudoElements::ePseudo_before;
+    }
+    MOZ_ASSERT(IsForAfterPseudo(),
+               "::before & ::after should be the only pseudo-elements here");
+    return nsCSSPseudoElements::ePseudo_after;
   }
 
   mozilla::dom::Element* GetElementToRestyle() const;

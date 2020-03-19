@@ -67,7 +67,7 @@ public:
   AsCSSAnimationPlayer() override { return this; }
 
   virtual dom::Promise* GetReady(ErrorResult& aRv) override;
-  virtual void Play() override;
+  virtual void Play(LimitBehavior aLimitBehavior) override;
   virtual void Pause() override;
 
   virtual dom::AnimationPlayState PlayStateFromJS() const override;
@@ -159,10 +159,12 @@ public:
   }
 
   static mozilla::AnimationPlayerCollection*
-  GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty)
+  GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty,
+                             mozilla::GetCompositorAnimationOptions aFlags
+                               = mozilla::GetCompositorAnimationOptions(0))
   {
     return mozilla::css::CommonAnimationManager::GetAnimationsForCompositor(
-      aContent, nsGkAtoms::animationsProperty, aProperty);
+      aContent, nsGkAtoms::animationsProperty, aProperty, aFlags);
   }
 
   void UpdateStyleAndEvents(mozilla::AnimationPlayerCollection* aEA,

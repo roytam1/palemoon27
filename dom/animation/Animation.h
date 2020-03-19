@@ -150,10 +150,25 @@ struct AnimationPropertySegment
 struct AnimationProperty
 {
   nsCSSProperty mProperty;
+
+  // Does this property win in the CSS Cascade?
+  //
+  // For CSS transitions, this is true as long as a CSS animation on the
+  // same property and element is not running, in which case we set this
+  // to false so that the animation (lower in the cascade) can win.  We
+  // then use this to decide whether to apply the style both in the CSS
+  // cascade and for OMTA.
+  //
+  // FIXME (bug 847287): For CSS Animations, which are overridden by
+  // !important rules in the cascade, we actually determine this from
+  // the CSS cascade computations, and then use it for OMTA.
+  bool mWinsInCascade;
+
   InfallibleTArray<AnimationPropertySegment> mSegments;
 
   bool operator==(const AnimationProperty& aOther) const {
     return mProperty == aOther.mProperty &&
+           mWinsInCascade == aOther.mWinsInCascade &&
            mSegments == aOther.mSegments;
   }
   bool operator!=(const AnimationProperty& aOther) const {
@@ -204,7 +219,7 @@ public:
   // cached when used from JS.
   already_AddRefed<AnimationEffect> GetEffect();
   Element* GetTarget() const {
-    // Currently we only implement Element.getAnimationPlayers() which only
+    // Currently we only implement Element.getAnimations() which only
     // returns animations targetting Elements so this should never
     // be called for an animation that targets a pseudo-element.
     MOZ_ASSERT(mPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement,
@@ -287,10 +302,15 @@ public:
     mIsFinishedTransition = true;
   }
 
-  bool IsCurrent() const;
+  bool IsInPlay(const AnimationPlayer& aPlayer) const;
+  bool IsCurrent(const AnimationPlayer& aPlayer) const;
   bool IsInEffect() const;
 
-  bool HasAnimationOfProperty(nsCSSProperty aProperty) const;
+  const AnimationProperty*
+  GetAnimationOfProperty(nsCSSProperty aProperty) const;
+  bool HasAnimationOfProperty(nsCSSProperty aProperty) const {
+    return GetAnimationOfProperty(aProperty) != nullptr;
+  }
   const InfallibleTArray<AnimationProperty>& Properties() const {
     return mProperties;
   }

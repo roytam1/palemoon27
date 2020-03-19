@@ -81,7 +81,7 @@ public:
 
   // A variant of Play() that avoids posting style updates since this method
   // is expected to be called whilst already updating style.
-  void PlayFromStyle() { DoPlay(); }
+  void PlayFromStyle() { DoPlay(AnimationPlayer::LimitBehavior::Continue); }
 
 protected:
   virtual ~CSSTransitionPlayer() { }
@@ -104,10 +104,12 @@ public:
   typedef mozilla::AnimationPlayerCollection AnimationPlayerCollection;
 
   static AnimationPlayerCollection*
-  GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty)
+  GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty,
+                             mozilla::GetCompositorAnimationOptions aFlags
+                               = mozilla::GetCompositorAnimationOptions(0))
   {
     return mozilla::css::CommonAnimationManager::GetAnimationsForCompositor(
-      aContent, nsGkAtoms::transitionsProperty, aProperty);
+      aContent, nsGkAtoms::transitionsProperty, aProperty, aFlags);
   }
 
   /**
@@ -127,6 +129,15 @@ public:
   void StyleContextChanged(mozilla::dom::Element *aElement,
                            nsStyleContext *aOldStyleContext,
                            nsRefPtr<nsStyleContext>* aNewStyleContext /* inout */);
+
+  void UpdateCascadeResultsWithTransitions(
+         AnimationPlayerCollection* aTransitions);
+  void UpdateCascadeResultsWithAnimations(
+         const AnimationPlayerCollection* aAnimations);
+  void UpdateCascadeResultsWithAnimationsToBeDestroyed(
+         const AnimationPlayerCollection* aAnimations);
+  void UpdateCascadeResults(AnimationPlayerCollection* aTransitions,
+                            const AnimationPlayerCollection* aAnimations);
 
   void SetInAnimationOnlyStyleUpdate(bool aInAnimationOnlyUpdate) {
     mInAnimationOnlyStyleUpdate = aInAnimationOnlyUpdate;

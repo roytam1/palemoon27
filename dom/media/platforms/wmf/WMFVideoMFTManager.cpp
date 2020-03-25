@@ -165,7 +165,7 @@ WMFVideoMFTManager::InitializeDXVA()
   }
 
   if (gfxWindowsPlatform::GetPlatform()->IsWARP() ||
-      !gfxPlatform::CanUseDXVA()) {
+      !gfxPlatform::CanUseHardwareVideoDecoding()) {
     return false;
   }
 

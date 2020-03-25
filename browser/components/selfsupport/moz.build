@@ -4,20 +4,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-JAR_MANIFESTS += ['jar.mn']
-
-XPIDL_MODULE = 'compartments'
-
-XPIDL_SOURCES += [
-    'nsICompartmentInfo.idl',
+EXTRA_COMPONENTS += [
+    'SelfSupportService.js',
+    'SelfSupportService.manifest',
 ]
 
-UNIFIED_SOURCES += [
-    'nsCompartmentInfo.cpp'
+BROWSER_CHROME_MANIFESTS += [
+    'test/browser.ini',
 ]
-
-EXPORTS += [
-    'nsCompartmentInfo.h'
-]
-
-FINAL_LIBRARY = 'xul'

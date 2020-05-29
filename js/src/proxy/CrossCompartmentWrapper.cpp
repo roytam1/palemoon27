@@ -48,14 +48,14 @@ CrossCompartmentWrapper::getOwnPropertyDescriptor(JSContext* cx, HandleObject wr
 }
 
 bool
-CrossCompartmentWrapper::defineProperty(JSContext* cx, HandleObject wrapper, HandleId id,
-                                        MutableHandle<PropertyDescriptor> desc,
+CrossCompartmentWrapper::defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
+                                        Handle<PropertyDescriptor> desc,
                                         ObjectOpResult &result) const
 {
     Rooted<PropertyDescriptor> desc2(cx, desc);
     PIERCE(cx, wrapper,
            cx->compartment()->wrap(cx, &desc2),
-           Wrapper::defineProperty(cx, wrapper, id, &desc2, result),
+           Wrapper::defineProperty(cx, wrapper, id, desc2, result),
            NOTHING);
 }
 
@@ -169,7 +169,7 @@ CrossCompartmentWrapper::get(JSContext* cx, HandleObject wrapper, HandleObject r
 }
 
 bool
-CrossCompartmentWrapper::set(JSContext* cx, HandleObject wrapper, HandleObject receiver,
+CrossCompartmentWrapper::set(JSContext *cx, HandleObject wrapper, HandleObject receiver,
                              HandleId id, MutableHandleValue vp, ObjectOpResult &result) const
 {
     RootedObject receiverCopy(cx, receiver);
@@ -181,7 +181,7 @@ CrossCompartmentWrapper::set(JSContext* cx, HandleObject wrapper, HandleObject r
 }
 
 bool
-CrossCompartmentWrapper::getOwnEnumerablePropertyKeys(JSContext* cx, HandleObject wrapper,
+CrossCompartmentWrapper::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject wrapper,
                                                       AutoIdVector& props) const
 {
     PIERCE(cx, wrapper,

@@ -2587,7 +2587,19 @@ class MutablePropertyDescriptorOperations : public PropertyDescriptorOperations<
         value().setUndefined();
     }
 
-    void assign(JSPropertyDescriptor& other) {
+    void initFields(HandleObject obj, HandleValue v, unsigned attrs,
+                    JSGetterOp getterOp, JSSetterOp setterOp) {
+        MOZ_ASSERT(getterOp != JS_PropertyStub);
+        MOZ_ASSERT(setterOp != JS_StrictPropertyStub);
+
+        object().set(obj);
+        value().set(v);
+        setAttributes(attrs);
+        setGetter(getterOp);
+        setSetter(setterOp);
+    }
+
+    void assign(JSPropertyDescriptor &other) {
         object().set(other.obj);
         setAttributes(other.attrs);
         setGetter(other.getter);

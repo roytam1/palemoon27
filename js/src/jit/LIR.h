@@ -1386,7 +1386,7 @@ class LSafepoint : public TempObject
         liveRegs_.addUnchecked(reg);
         assertInvariants();
     }
-    const RegisterSet& liveRegs() const {
+    const RegisterSet &liveRegs() const {
         return liveRegs_;
     }
 #ifdef CHECK_OSIPOINT_REGISTERS
@@ -1394,7 +1394,7 @@ class LSafepoint : public TempObject
         clobberedRegs_.addUnchecked(reg);
         assertInvariants();
     }
-    const RegisterSet& clobberedRegs() const {
+    const RegisterSet &clobberedRegs() const {
         return clobberedRegs_;
     }
 #endif
@@ -1411,11 +1411,11 @@ class LSafepoint : public TempObject
             assertInvariants();
         return result;
     }
-    SlotList& gcSlots() {
+    SlotList &gcSlots() {
         return gcSlots_;
     }
 
-    SlotList& slotsOrElementsSlots() {
+    SlotList &slotsOrElementsSlots() {
         return slotsOrElementsSlots_;
     }
     GeneralRegisterSet slotsOrElementsRegs() const {
@@ -1760,11 +1760,12 @@ class LIRGraph
     // platform stack alignment requirement, and so that it's a multiple of
     // the number of slots per Value.
     uint32_t paddedLocalSlotCount() const {
-        // Round to ABIStackAlignment, but also round to at least sizeof(Value)
-        // in case that's greater, because StackOffsetOfPassedArg rounds
-        // argument slots to 8-byte boundaries.
-        size_t Alignment = Max(size_t(JitStackAlignment), sizeof(Value));
-        return AlignBytes(localSlotCount(), Alignment);
+        // Round to JitStackAlignment, and implicitly to sizeof(Value) as
+        // JitStackAlignment is a multiple of sizeof(Value). These alignments
+        // are needed for spilling SIMD registers properly, and for
+        // StackOffsetOfPassedArg which rounds argument slots to 8-byte
+        // boundaries.
+        return AlignBytes(localSlotCount(), JitStackAlignment);
     }
     size_t paddedLocalSlotsSize() const {
         return paddedLocalSlotCount();

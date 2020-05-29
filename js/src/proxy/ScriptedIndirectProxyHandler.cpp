@@ -197,7 +197,7 @@ ScriptedIndirectProxyHandler::getOwnPropertyDescriptor(JSContext* cx, HandleObje
 
 bool
 ScriptedIndirectProxyHandler::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                                             MutableHandle<PropertyDescriptor> desc,
+                                             Handle<PropertyDescriptor> desc,
                                              ObjectOpResult &result) const
 {
     RootedObject handler(cx, GetIndirectProxyHandlerObject(proxy));
@@ -304,7 +304,7 @@ ScriptedIndirectProxyHandler::get(JSContext* cx, HandleObject proxy, HandleObjec
 }
 
 bool
-ScriptedIndirectProxyHandler::set(JSContext* cx, HandleObject proxy, HandleObject receiver,
+ScriptedIndirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject receiver,
                                   HandleId id, MutableHandleValue vp, ObjectOpResult &result) const
 {
     RootedObject handler(cx, GetIndirectProxyHandlerObject(proxy));
@@ -393,7 +393,7 @@ ScriptedIndirectProxyHandler::derivedSet(JSContext* cx, HandleObject proxy, Hand
 
         if (descIsOwn) {
             MOZ_ASSERT(desc.object() == proxy);
-            return this->defineProperty(cx, proxy, id, &desc, result);
+            return this->defineProperty(cx, proxy, id, desc, result);
         }
         return DefineProperty(cx, receiver, id, desc.value(), desc.getter(), desc.setter(),
                               desc.attributes(), result);

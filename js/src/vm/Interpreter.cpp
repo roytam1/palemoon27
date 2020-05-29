@@ -317,7 +317,7 @@ GetNameOperation(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc, MutableHan
 }
 
 static bool
-SetObjectProperty(JSContext* cx, JSOp op, HandleValue lval, HandleId id, MutableHandleValue rref)
+SetObjectProperty(JSContext *cx, JSOp op, HandleValue lval, HandleId id, MutableHandleValue rref)
 {
     MOZ_ASSERT(lval.isObject());
 
@@ -339,7 +339,7 @@ SetObjectProperty(JSContext* cx, JSOp op, HandleValue lval, HandleId id, Mutable
 }
 
 static bool
-SetPrimitiveProperty(JSContext* cx, JSOp op, HandleValue lval, HandleId id,
+SetPrimitiveProperty(JSContext *cx, JSOp op, HandleValue lval, HandleId id,
                      MutableHandleValue rref)
 {
     MOZ_ASSERT(lval.isPrimitive());
@@ -353,7 +353,7 @@ SetPrimitiveProperty(JSContext* cx, JSOp op, HandleValue lval, HandleId id,
 }
 
 static bool
-SetPropertyOperation(JSContext* cx, JSOp op, HandleValue lval, HandleId id, HandleValue rval)
+SetPropertyOperation(JSContext *cx, JSOp op, HandleValue lval, HandleId id, HandleValue rval)
 {
     MOZ_ASSERT(op == JSOP_SETPROP || op == JSOP_STRICTSETPROP);
 
@@ -842,8 +842,8 @@ js::InvokeConstructor(JSContext* cx, Value fval, unsigned argc, const Value* arg
 }
 
 bool
-js::InvokeGetterOrSetter(JSContext* cx, JSObject* obj, Value fval, unsigned argc,
-                         Value* argv, MutableHandleValue rval)
+js::InvokeGetterOrSetter(JSContext *cx, JSObject *obj, Value fval, unsigned argc,
+                         Value *argv, MutableHandleValue rval)
 {
     /*
      * Invoke could result in another try to get or set the same id again, see

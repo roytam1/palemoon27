@@ -690,7 +690,7 @@ js::StandardDefineProperty(JSContext *cx, HandleObject obj, HandleId id,
         if (obj->is<ProxyObject>()) {
             Rooted<PropertyDescriptor> pd(cx, desc);
             pd.object().set(obj);
-            return Proxy::defineProperty(cx, obj, id, &pd, result);
+            return Proxy::defineProperty(cx, obj, id, pd, result);
         }
         return result.fail(JSMSG_OBJECT_NOT_EXTENSIBLE);
     }
@@ -1577,11 +1577,11 @@ js::CreateThisForFunction(JSContext* cx, HandleObject callee, NewObjectKind newK
 }
 
 /* static */ bool
-JSObject::nonNativeSetProperty(JSContext* cx, HandleObject obj, HandleObject receiver,
+JSObject::nonNativeSetProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
                                HandleId id, MutableHandleValue vp, ObjectOpResult &result)
 {
     if (MOZ_UNLIKELY(obj->watched())) {
-        WatchpointMap* wpmap = cx->compartment()->watchpointMap;
+        WatchpointMap *wpmap = cx->compartment()->watchpointMap;
         if (wpmap && !wpmap->triggerWatchpoint(cx, obj, id, vp))
             return false;
     }
@@ -1589,7 +1589,7 @@ JSObject::nonNativeSetProperty(JSContext* cx, HandleObject obj, HandleObject rec
 }
 
 /* static */ bool
-JSObject::nonNativeSetElement(JSContext* cx, HandleObject obj, HandleObject receiver,
+JSObject::nonNativeSetElement(JSContext *cx, HandleObject obj, HandleObject receiver,
                               uint32_t index, MutableHandleValue vp, ObjectOpResult &result)
 {
     RootedId id(cx);
@@ -3176,22 +3176,29 @@ js::GetOwnPropertyDescriptor(JSContext* cx, HandleObject obj, HandleId id,
 }
 
 bool
+js::DefineProperty(JSContext *cx, HandleObject obj, HandleId id, Handle<PropertyDescriptor> desc,
+                   ObjectOpResult &result)
+{
+    if (DefinePropertyOp op = obj->getOps()->defineProperty)
+        return op(cx, obj, id, desc, result);
+    return NativeDefineProperty(cx, obj.as<NativeObject>(), id, desc, result);
+}
+
+bool
 js::DefineProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, HandleValue value,
                    JSGetterOp getter, JSSetterOp setter, unsigned attrs,
                    ObjectOpResult &result)
 {
-    MOZ_ASSERT(getter != JS_PropertyStub);
-    MOZ_ASSERT(setter != JS_StrictPropertyStub);
     MOZ_ASSERT(!(attrs & JSPROP_PROPOP_ACCESSORS));
 
-    DefinePropertyOp op = obj->getOps()->defineProperty;
-    if (op) {
+    Rooted<PropertyDescriptor> desc(cx);
+    desc.initFields(obj, value, attrs, getter, setter);
+    if (DefinePropertyOp op = obj->getOps()->defineProperty) {
         if (!cx->shouldBeJSContext())
             return false;
-        return op(cx->asJSContext(), obj, id, value, getter, setter, attrs, result);
+        return op(cx->asJSContext(), obj, id, desc, result);
     }
-    return NativeDefineProperty(cx, obj.as<NativeObject>(), id, value, getter, setter, attrs,
-                                result);
+    return NativeDefineProperty(cx, obj.as<NativeObject>(), id, desc, result);
 }
 
 bool

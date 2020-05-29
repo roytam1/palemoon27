@@ -1751,8 +1751,8 @@ ReportPropertyError(JSContext* cx,
 }
 
 bool
-TypedObject::obj_defineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
-                                GetterOp getter, SetterOp setter, unsigned attrs,
+TypedObject::obj_defineProperty(JSContext *cx, HandleObject obj, HandleId id,
+                                Handle<JSPropertyDescriptor> desc,
                                 ObjectOpResult &result)
 {
     Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
@@ -1904,10 +1904,10 @@ TypedObject::obj_getArrayElement(JSContext* cx,
 }
 
 bool
-TypedObject::obj_setProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
+TypedObject::obj_setProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                              MutableHandleValue vp, ObjectOpResult &result)
 {
-    Rooted<TypedObject*> typedObj(cx, &obj->as<TypedObject>());
+    Rooted<TypedObject *> typedObj(cx, &obj->as<TypedObject>());
 
     switch (typedObj->typeDescr().kind()) {
       case type::Scalar:

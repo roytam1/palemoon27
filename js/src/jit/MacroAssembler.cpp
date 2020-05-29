@@ -1657,7 +1657,7 @@ MacroAssembler::handleFailure()
 
 #ifdef DEBUG
 static void
-AssumeUnreachable_(const char* output) {
+AssumeUnreachable_(const char *output) {
     MOZ_ReportAssertionFailure(output, __FILE__, __LINE__);
 }
 #endif
@@ -1674,7 +1674,7 @@ MacroAssembler::assumeUnreachable(const char* output)
         setupUnalignedABICall(1, temp);
         movePtr(ImmPtr(output), temp);
         passABIArg(temp);
-        callWithABI(JS_FUNC_TO_DATA_PTR(void*, AssumeUnreachable_));
+        callWithABI(JS_FUNC_TO_DATA_PTR(void *, AssumeUnreachable_));
 
         PopRegsInMask(RegisterSet::Volatile());
     }
@@ -1706,7 +1706,7 @@ Printf0_(const char* output) {
 }
 
 void
-MacroAssembler::printf(const char* output)
+MacroAssembler::printf(const char *output)
 {
     RegisterSet regs = RegisterSet::Volatile();
     PushRegsInMask(regs);
@@ -1716,7 +1716,7 @@ MacroAssembler::printf(const char* output)
     setupUnalignedABICall(1, temp);
     movePtr(ImmPtr(output), temp);
     passABIArg(temp);
-    callWithABI(JS_FUNC_TO_DATA_PTR(void*, Printf0_));
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, Printf0_));
 
     PopRegsInMask(RegisterSet::Volatile());
 }
@@ -1729,7 +1729,7 @@ Printf1_(const char* output, uintptr_t value) {
 }
 
 void
-MacroAssembler::printf(const char* output, Register value)
+MacroAssembler::printf(const char *output, Register value)
 {
     RegisterSet regs = RegisterSet::Volatile();
     PushRegsInMask(regs);
@@ -1765,7 +1765,7 @@ MacroAssembler::tracelogStartId(Register logger, uint32_t textId, bool force)
     passABIArg(logger);
     move32(Imm32(textId), temp);
     passABIArg(temp);
-    callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogStartEventPrivate));
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, TraceLogStartEventPrivate));
 
     PopRegsInMask(RegisterSet::Volatile());
 }
@@ -1784,7 +1784,7 @@ MacroAssembler::tracelogStartId(Register logger, Register textId)
     setupUnalignedABICall(2, temp);
     passABIArg(logger);
     passABIArg(textId);
-    callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogStartEventPrivate));
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, TraceLogStartEventPrivate));
 
     PopRegsInMask(RegisterSet::Volatile());
 }
@@ -1792,7 +1792,7 @@ MacroAssembler::tracelogStartId(Register logger, Register textId)
 void
 MacroAssembler::tracelogStartEvent(Register logger, Register event)
 {
-    void (&TraceLogFunc)(TraceLoggerThread*, const TraceLoggerEvent&) = TraceLogStartEvent;
+    void (&TraceLogFunc)(TraceLoggerThread *, const TraceLoggerEvent &) = TraceLogStartEvent;
 
     PushRegsInMask(RegisterSet::Volatile());
 
@@ -1805,7 +1805,7 @@ MacroAssembler::tracelogStartEvent(Register logger, Register event)
     setupUnalignedABICall(2, temp);
     passABIArg(logger);
     passABIArg(event);
-    callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogFunc));
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, TraceLogFunc));
 
     PopRegsInMask(RegisterSet::Volatile());
 }
@@ -1828,7 +1828,7 @@ MacroAssembler::tracelogStopId(Register logger, uint32_t textId, bool force)
     move32(Imm32(textId), temp);
     passABIArg(temp);
 
-    callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogStopEventPrivate));
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, TraceLogStopEventPrivate));
 
     PopRegsInMask(RegisterSet::Volatile());
 }
@@ -1847,7 +1847,7 @@ MacroAssembler::tracelogStopId(Register logger, Register textId)
     setupUnalignedABICall(2, temp);
     passABIArg(logger);
     passABIArg(textId);
-    callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogStopEventPrivate));
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, TraceLogStopEventPrivate));
 
     PopRegsInMask(RegisterSet::Volatile());
 }
@@ -1942,48 +1942,9 @@ MacroAssembler::convertValueToFloatingPoint(JSContext* cx, const Value& v, Float
     return true;
 }
 
-void
-MacroAssembler::PushEmptyRooted(VMFunction::RootType rootType)
-{
-    switch (rootType) {
-      case VMFunction::RootNone:
-        MOZ_CRASH("Handle must have root type");
-      case VMFunction::RootObject:
-      case VMFunction::RootString:
-      case VMFunction::RootPropertyName:
-      case VMFunction::RootFunction:
-      case VMFunction::RootCell:
-        Push(ImmPtr(nullptr));
-        break;
-      case VMFunction::RootValue:
-        Push(UndefinedValue());
-        break;
-    }
-}
-
-void
-MacroAssembler::popRooted(VMFunction::RootType rootType, Register cellReg,
-                          const ValueOperand& valueReg)
-{
-    switch (rootType) {
-      case VMFunction::RootNone:
-        MOZ_CRASH("Handle must have root type");
-      case VMFunction::RootObject:
-      case VMFunction::RootString:
-      case VMFunction::RootPropertyName:
-      case VMFunction::RootFunction:
-      case VMFunction::RootCell:
-        Pop(cellReg);
-        break;
-      case VMFunction::RootValue:
-        Pop(valueReg);
-        break;
-    }
-}
-
 bool
-MacroAssembler::convertConstantOrRegisterToFloatingPoint(JSContext* cx, ConstantOrRegister src,
-                                                         FloatRegister output, Label* fail,
+MacroAssembler::convertConstantOrRegisterToFloatingPoint(JSContext *cx, ConstantOrRegister src,
+                                                         FloatRegister output, Label *fail,
                                                          MIRType outputType)
 {
     if (src.constant())
@@ -2394,8 +2355,7 @@ MacroAssembler::profilerPreCallImpl(Register reg, Register reg2)
 void
 MacroAssembler::alignJitStackBasedOnNArgs(Register nargs)
 {
-    const uint32_t alignment = JitStackAlignment / sizeof(Value);
-    if (alignment == 1)
+    if (JitStackValueAlignment == 1)
         return;
 
     // A JitFrameLayout is composed of the following:
@@ -2408,7 +2368,7 @@ MacroAssembler::alignJitStackBasedOnNArgs(Register nargs)
 
     // Which implies that |argN| is aligned if |nargs| is even, and offset by
     // |sizeof(Value)| if |nargs| is odd.
-    MOZ_ASSERT(alignment == 2);
+    MOZ_ASSERT(JitStackValueAlignment == 2);
 
     // Thus the |padding| is offset by |sizeof(Value)| if |nargs| is even, and
     // aligned if |nargs| is odd.
@@ -2443,8 +2403,7 @@ MacroAssembler::alignJitStackBasedOnNArgs(Register nargs)
 void
 MacroAssembler::alignJitStackBasedOnNArgs(uint32_t nargs)
 {
-    const uint32_t alignment = JitStackAlignment / sizeof(Value);
-    if (alignment == 1)
+    if (JitStackValueAlignment == 1)
         return;
 
     // A JitFrameLayout is composed of the following:
@@ -2457,7 +2416,7 @@ MacroAssembler::alignJitStackBasedOnNArgs(uint32_t nargs)
 
     // Which implies that |argN| is aligned if |nargs| is even, and offset by
     // |sizeof(Value)| if |nargs| is odd.
-    MOZ_ASSERT(alignment == 2);
+    MOZ_ASSERT(JitStackValueAlignment == 2);
 
     // Thus the |padding| is offset by |sizeof(Value)| if |nargs| is even, and
     // aligned if |nargs| is odd.
@@ -2472,4 +2431,172 @@ MacroAssembler::alignJitStackBasedOnNArgs(uint32_t nargs)
     } else {
         andPtr(Imm32(~(JitStackAlignment - 1)), StackPointer);
     }
+}
+
+// ===============================================================
+// Stack manipulation functions.
+
+void
+MacroAssembler::PushRegsInMask(RegisterSet set)
+{
+    PushRegsInMask(set, FloatRegisterSet());
+}
+
+void
+MacroAssembler::PushRegsInMask(GeneralRegisterSet set)
+{
+    PushRegsInMask(RegisterSet(set, FloatRegisterSet()));
+}
+
+void
+MacroAssembler::PopRegsInMask(RegisterSet set)
+{
+    PopRegsInMaskIgnore(set, RegisterSet());
+}
+
+void
+MacroAssembler::PopRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
+{
+    PopRegsInMaskIgnore(set, RegisterSet(), simdSet);
+}
+
+void
+MacroAssembler::PopRegsInMask(GeneralRegisterSet set)
+{
+    PopRegsInMask(RegisterSet(set, FloatRegisterSet()));
+}
+
+void
+MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
+{
+    PopRegsInMaskIgnore(set, ignore, FloatRegisterSet());
+}
+
+void
+MacroAssembler::Push(jsid id, Register scratchReg)
+{
+    if (JSID_IS_GCTHING(id)) {
+        // If we're pushing a gcthing, then we can't just push the tagged jsid
+        // value since the GC won't have any idea that the push instruction
+        // carries a reference to a gcthing.  Need to unpack the pointer,
+        // push it using ImmGCPtr, and then rematerialize the id at runtime.
+
+        if (JSID_IS_STRING(id)) {
+            JSString *str = JSID_TO_STRING(id);
+            MOZ_ASSERT(((size_t)str & JSID_TYPE_MASK) == 0);
+            MOZ_ASSERT(JSID_TYPE_STRING == 0x0);
+            Push(ImmGCPtr(str));
+        } else {
+            MOZ_ASSERT(JSID_IS_SYMBOL(id));
+            JS::Symbol *sym = JSID_TO_SYMBOL(id);
+            movePtr(ImmGCPtr(sym), scratchReg);
+            orPtr(Imm32(JSID_TYPE_SYMBOL), scratchReg);
+            Push(scratchReg);
+        }
+    } else {
+        Push(ImmWord(JSID_BITS(id)));
+    }
+}
+
+void
+MacroAssembler::Push(TypedOrValueRegister v)
+{
+    if (v.hasValue()) {
+        Push(v.valueReg());
+    } else if (IsFloatingPointType(v.type())) {
+        FloatRegister reg = v.typedReg().fpu();
+        if (v.type() == MIRType_Float32) {
+            convertFloat32ToDouble(reg, ScratchDoubleReg);
+            reg = ScratchDoubleReg;
+        }
+        Push(reg);
+    } else {
+        Push(ValueTypeFromMIRType(v.type()), v.typedReg().gpr());
+    }
+}
+
+void
+MacroAssembler::Push(ConstantOrRegister v)
+{
+    if (v.constant())
+        Push(v.value());
+    else
+        Push(v.reg());
+}
+
+void
+MacroAssembler::Push(const ValueOperand &val)
+{
+    pushValue(val);
+    framePushed_ += sizeof(Value);
+}
+
+void
+MacroAssembler::Push(const Value &val)
+{
+    pushValue(val);
+    framePushed_ += sizeof(Value);
+}
+
+void
+MacroAssembler::Push(JSValueType type, Register reg)
+{
+    pushValue(type, reg);
+    framePushed_ += sizeof(Value);
+}
+
+void
+MacroAssembler::PushValue(const Address &addr)
+{
+    MOZ_ASSERT(addr.base != StackPointer);
+    pushValue(addr);
+    framePushed_ += sizeof(Value);
+}
+
+void
+MacroAssembler::PushEmptyRooted(VMFunction::RootType rootType)
+{
+    switch (rootType) {
+      case VMFunction::RootNone:
+        MOZ_CRASH("Handle must have root type");
+      case VMFunction::RootObject:
+      case VMFunction::RootString:
+      case VMFunction::RootPropertyName:
+      case VMFunction::RootFunction:
+      case VMFunction::RootCell:
+        Push(ImmPtr(nullptr));
+        break;
+      case VMFunction::RootValue:
+        Push(UndefinedValue());
+        break;
+    }
+}
+
+void
+MacroAssembler::popRooted(VMFunction::RootType rootType, Register cellReg,
+                          const ValueOperand &valueReg)
+{
+    switch (rootType) {
+      case VMFunction::RootNone:
+        MOZ_CRASH("Handle must have root type");
+      case VMFunction::RootObject:
+      case VMFunction::RootString:
+      case VMFunction::RootPropertyName:
+      case VMFunction::RootFunction:
+      case VMFunction::RootCell:
+        Pop(cellReg);
+        break;
+      case VMFunction::RootValue:
+        Pop(valueReg);
+        break;
+    }
+}
+
+void
+MacroAssembler::adjustStack(int amount)
+{
+    if (amount > 0)
+        freeStack(amount);
+    else if (amount < 0)
+        reserveStack(-amount);
 }

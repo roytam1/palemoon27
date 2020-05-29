@@ -20,10 +20,10 @@ class ScriptedIndirectProxyHandler : public BaseProxyHandler
     { }
 
     /* Standard internal methods. */
-    virtual bool getOwnPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
+    virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
                                           MutableHandle<JSPropertyDescriptor> desc) const override;
-    virtual bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc,
+    virtual bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
+                                Handle<JSPropertyDescriptor> desc,
                                 ObjectOpResult &result) const override;
     virtual bool ownPropertyKeys(JSContext* cx, HandleObject proxy,
                                  AutoIdVector& props) const override;
@@ -55,7 +55,7 @@ class ScriptedIndirectProxyHandler : public BaseProxyHandler
     static const ScriptedIndirectProxyHandler singleton;
 
 private:
-    bool derivedSet(JSContext* cx, HandleObject proxy, HandleObject receiver, HandleId id,
+    bool derivedSet(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
                     MutableHandleValue vp, ObjectOpResult &result) const;
 };
 

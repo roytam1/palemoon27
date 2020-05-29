@@ -501,12 +501,11 @@ with_LookupProperty(JSContext* cx, HandleObject obj, HandleId id,
 }
 
 static bool
-with_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                    JSGetterOp getter, JSSetterOp setter, unsigned attrs,
+with_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, Handle<PropertyDescriptor> desc,
                     ObjectOpResult &result)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
-    return DefineProperty(cx, actual, id, value, getter, setter, attrs, result);
+    return DefineProperty(cx, actual, id, desc, result);
 }
 
 static bool
@@ -533,7 +532,7 @@ with_GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleI
 }
 
 static bool
-with_SetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
+with_SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                  MutableHandleValue vp, ObjectOpResult &result)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
@@ -999,7 +998,7 @@ uninitialized_GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver
 }
 
 static bool
-uninitialized_SetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
+uninitialized_SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                           MutableHandleValue vp, ObjectOpResult &result)
 {
     ReportUninitializedLexicalId(cx, id);
@@ -1685,8 +1684,8 @@ class DebugScopeProxy : public BaseProxyHandler
         }
     }
 
-    bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
-                        MutableHandle<PropertyDescriptor> desc,
+    bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
+                        Handle<PropertyDescriptor> desc,
                         ObjectOpResult &result) const override
     {
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());

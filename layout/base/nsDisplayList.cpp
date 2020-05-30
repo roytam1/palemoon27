@@ -828,8 +828,7 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
   // all the pres shells from here up to the root, as well as any css-driven
   // resolution. We don't need to compute it as it's already stored in the
   // container parameters.
-  metrics.SetCumulativeResolution(LayoutDeviceToLayerScale2D(aContainerParameters.mXScale,
-                                                             aContainerParameters.mYScale));
+  metrics.SetCumulativeResolution(aContainerParameters.Scale());
 
   LayoutDeviceToScreenScale2D resolutionToScreen(
       presShell->GetCumulativeResolution()
@@ -2494,7 +2493,8 @@ nsDisplayBackgroundImage::TryOptimizeToImageLayer(LayerManager* aManager,
   // layer pixel boundaries. This should be OK for now.
 
   int32_t appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-  mDestRect = nsLayoutUtils::RectToGfxRect(state.mDestArea, appUnitsPerDevPixel);
+  mDestRect =
+    LayoutDeviceRect::FromAppUnits(state.mDestArea, appUnitsPerDevPixel);
   mImageContainer = imageContainer;
 
   // Ok, we can turn this into a layer if needed.
@@ -2550,13 +2550,11 @@ nsDisplayBackgroundImage::GetLayerState(nsDisplayListBuilder* aBuilder,
     mozilla::gfx::IntSize imageSize = mImageContainer->GetCurrentSize();
     NS_ASSERTION(imageSize.width != 0 && imageSize.height != 0, "Invalid image size!");
 
-    gfxRect destRect = mDestRect;
-
-    destRect.width *= aParameters.mXScale;
-    destRect.height *= aParameters.mYScale;
+    const LayerRect destLayerRect = mDestRect * aParameters.Scale();
 
     // Calculate the scaling factor for the frame.
-    gfxSize scale = gfxSize(destRect.width / imageSize.width, destRect.height / imageSize.height);
+    const gfxSize scale = gfxSize(destLayerRect.width / imageSize.width,
+                                  destLayerRect.height / imageSize.height);
 
     // If we are not scaling at all, no point in separating this into a layer.
     if (scale.width == 1.0f && scale.height == 1.0f) {
@@ -2564,7 +2562,7 @@ nsDisplayBackgroundImage::GetLayerState(nsDisplayListBuilder* aBuilder,
     }
 
     // If the target size is pretty small, no point in using a layer.
-    if (destRect.width * destRect.height < 64 * 64) {
+    if (destLayerRect.width * destLayerRect.height < 64 * 64) {
       return LAYER_NONE;
     }
   }
@@ -2585,12 +2583,13 @@ nsDisplayBackgroundImage::BuildLayer(nsDisplayListBuilder* aBuilder,
       return nullptr;
   }
   layer->SetContainer(mImageContainer);
-  ConfigureLayer(layer, aParameters.mOffset);
+  ConfigureLayer(layer, aParameters);
   return layer.forget();
 }
 
 void
-nsDisplayBackgroundImage::ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset)
+nsDisplayBackgroundImage::ConfigureLayer(ImageLayer* aLayer,
+                                         const ContainerLayerParameters& aParameters)
 {
   aLayer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(mFrame));
 
@@ -2602,7 +2601,13 @@ nsDisplayBackgroundImage::ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& a
     nsDisplayBackgroundGeometry::UpdateDrawResult(this, DrawResult::SUCCESS);
   }
 
-  gfxPoint p = mDestRect.TopLeft() + aOffset;
+  // XXX(seth): Right now we ignore aParameters.Scale() and
+  // aParameters.Offset(), because FrameLayerBuilder already applies
+  // aParameters.Scale() via the layer's post-transform, and
+  // aParameters.Offset() is always zero.
+  MOZ_ASSERT(aParameters.Offset() == LayerIntPoint(0,0));
+
+  const LayoutDevicePoint p = mDestRect.TopLeft();
   Matrix transform = Matrix::Translation(p.x, p.y);
   transform.PreScale(mDestRect.width / imageSize.width,
                      mDestRect.height / imageSize.height);
@@ -4885,7 +4890,7 @@ nsRect nsDisplayZoom::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
 {
   nsRect bounds = nsDisplaySubDocument::GetBounds(aBuilder, aSnap);
   *aSnap = false;
-  return bounds.ConvertAppUnitsRoundOut(mAPD, mParentAPD);
+  return bounds.ScaleToOtherAppUnitsRoundOut(mAPD, mParentAPD);
 }
 
 void nsDisplayZoom::HitTest(nsDisplayListBuilder *aBuilder,
@@ -4897,10 +4902,10 @@ void nsDisplayZoom::HitTest(nsDisplayListBuilder *aBuilder,
   // A 1x1 rect indicates we are just hit testing a point, so pass down a 1x1
   // rect as well instead of possibly rounding the width or height to zero.
   if (aRect.width == 1 && aRect.height == 1) {
-    rect.MoveTo(aRect.TopLeft().ConvertAppUnits(mParentAPD, mAPD));
+    rect.MoveTo(aRect.TopLeft().ScaleToOtherAppUnits(mParentAPD, mAPD));
     rect.width = rect.height = 1;
   } else {
-    rect = aRect.ConvertAppUnitsRoundOut(mParentAPD, mAPD);
+    rect = aRect.ScaleToOtherAppUnitsRoundOut(mParentAPD, mAPD);
   }
   mList.HitTest(aBuilder, rect, aState, aOutFrames);
 }
@@ -4912,11 +4917,11 @@ bool nsDisplayZoom::ComputeVisibility(nsDisplayListBuilder *aBuilder,
   nsRegion visibleRegion;
   // mVisibleRect has been clipped to GetClippedBounds
   visibleRegion.And(*aVisibleRegion, mVisibleRect);
-  visibleRegion = visibleRegion.ConvertAppUnitsRoundOut(mParentAPD, mAPD);
+  visibleRegion = visibleRegion.ScaleToOtherAppUnitsRoundOut(mParentAPD, mAPD);
   nsRegion originalVisibleRegion = visibleRegion;
 
   nsRect transformedVisibleRect =
-    mVisibleRect.ConvertAppUnitsRoundOut(mParentAPD, mAPD);
+    mVisibleRect.ScaleToOtherAppUnitsRoundOut(mParentAPD, mAPD);
   bool retval;
   // If we are to generate a scrollable layer we call
   // nsDisplaySubDocument::ComputeVisibility to make the necessary adjustments
@@ -4935,7 +4940,7 @@ bool nsDisplayZoom::ComputeVisibility(nsDisplayListBuilder *aBuilder,
   // removed = originalVisibleRegion - visibleRegion
   removed.Sub(originalVisibleRegion, visibleRegion);
   // Convert removed region to parent appunits.
-  removed = removed.ConvertAppUnitsRoundIn(mAPD, mParentAPD);
+  removed = removed.ScaleToOtherAppUnitsRoundIn(mAPD, mParentAPD);
   // aVisibleRegion = aVisibleRegion - removed (modulo any simplifications
   // SubtractFromVisibleRegion does)
   aBuilder->SubtractFromVisibleRegion(aVisibleRegion, removed);
@@ -5721,7 +5726,6 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
                       NSAppUnitsToFloatPixels(aRect.width, factor),
                       NSAppUnitsToFloatPixels(aRect.height, factor));
 
-    Rect rect = matrix.ProjectRectBounds(originalRect);
 
     bool snap;
     nsRect childBounds = mStoredList.GetBounds(aBuilder, &snap);
@@ -5729,7 +5733,8 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
                         NSAppUnitsToFloatPixels(childBounds.y, factor),
                         NSAppUnitsToFloatPixels(childBounds.width, factor),
                         NSAppUnitsToFloatPixels(childBounds.height, factor));
-    rect = rect.Intersect(childGfxBounds);
+
+    Rect rect = matrix.ProjectRectBounds(originalRect, childGfxBounds);
 
     resultingRect = nsRect(NSFloatPixelsToAppUnits(float(rect.X()), factor),
                            NSFloatPixelsToAppUnits(float(rect.Y()), factor),
@@ -5969,8 +5974,7 @@ bool nsDisplayTransform::UntransformRect(const nsRect &aTransformedBounds,
                       NSAppUnitsToFloatPixels(aChildBounds.width, factor),
                       NSAppUnitsToFloatPixels(aChildBounds.height, factor));
 
-  result = ToMatrix4x4(transform.Inverse()).ProjectRectBounds(result);
-  result = result.Intersect(childGfxBounds);
+  result = ToMatrix4x4(transform.Inverse()).ProjectRectBounds(result, childGfxBounds);
   *aOutRect = nsLayoutUtils::RoundGfxRectToAppRect(ThebesRect(result), factor);
   return true;
 }
@@ -5997,8 +6001,7 @@ bool nsDisplayTransform::UntransformVisibleRect(nsDisplayListBuilder* aBuilder,
                       NSAppUnitsToFloatPixels(childBounds.height, factor));
 
   /* We want to untransform the matrix, so invert the transformation first! */
-  result = ToMatrix4x4(matrix.Inverse()).ProjectRectBounds(result);
-  result = result.Intersect(childGfxBounds);
+  result = ToMatrix4x4(matrix.Inverse()).ProjectRectBounds(result, childGfxBounds);
 
   *aOutRect = nsLayoutUtils::RoundGfxRectToAppRect(ThebesRect(result), factor);
 

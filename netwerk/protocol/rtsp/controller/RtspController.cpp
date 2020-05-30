@@ -33,7 +33,7 @@
 #include "nsNetUtil.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/TimeStamp.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 #include "plbase64.h"
 #include "prmem.h"

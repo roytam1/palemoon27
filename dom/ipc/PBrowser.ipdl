@@ -27,6 +27,7 @@ using class mozilla::gfx::Matrix from "mozilla/gfx/Matrix.h";
 using struct gfxSize from "gfxPoint.h";
 using CSSRect from "Units.h";
 using LayoutDeviceIntRect from "Units.h";
+using mozilla::LayoutDeviceIntPoint from "Units.h";
 using ScreenIntSize from "Units.h";
 using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
 using struct mozilla::layers::ScrollableLayerGuid from "FrameMetrics.h";
@@ -58,6 +59,7 @@ using mozilla::Modifiers from "mozilla/EventForwards.h";
 using mozilla::layers::GeckoContentController::APZStateChange from "mozilla/layers/GeckoContentController.h";
 using mozilla::WritingMode from "mozilla/WritingModes.h";
 using mozilla::layers::TouchBehaviorFlags from "mozilla/layers/APZUtils.h";
+using nsIWidget::TouchPointerState from "nsIWidget.h";
 
 namespace mozilla {
 namespace dom {
@@ -334,6 +336,14 @@ parent:
     sync IsParentWindowMainWidgetVisible() returns (bool visible);
 
     /**
+     * Returns the offset of this tab from the top level window
+     * origin in device pixels.
+     *
+     * aPoint offset values in device pixels.
+     */
+    sync GetTabOffset() returns (LayoutDeviceIntPoint aPoint);
+
+    /**
      * Gets the DPI of the screen corresponding to this browser.
      */
     sync GetDPI() returns (float value);
@@ -473,6 +483,41 @@ parent:
 
     sync RequestNativeKeyBindings(WidgetKeyboardEvent event)
         returns (MaybeNativeKeyBinding bindings);
+
+    SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
+                             int32_t aNativeKeyCode,
+                             uint32_t aModifierFlags,
+                             nsString aCharacters,
+                             nsString aUnmodifiedCharacters,
+                             uint64_t aObserverId);
+    SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
+                               uint32_t aNativeMessage,
+                               uint32_t aModifierFlags,
+                               uint64_t aObserverId);
+    SynthesizeNativeMouseMove(LayoutDeviceIntPoint aPoint,
+                              uint64_t aObserverId);
+    SynthesizeNativeMouseScrollEvent(LayoutDeviceIntPoint aPoint,
+                                     uint32_t aNativeMessage,
+                                     double aDeltaX,
+                                     double aDeltaY,
+                                     double aDeltaZ,
+                                     uint32_t aModifierFlags,
+                                     uint32_t aAdditionalFlags,
+                                     uint64_t aObserverId);
+    SynthesizeNativeTouchPoint(uint32_t aPointerId,
+                               TouchPointerState aPointerState,
+                               nsIntPoint aPointerScreenPoint,
+                               double aPointerPressure,
+                               uint32_t aPointerOrientation,
+                               uint64_t aObserverId);
+    SynthesizeNativeTouchTap(nsIntPoint aPointerScreenPoint,
+                             bool aLongTap,
+                             uint64_t aObserverId);
+    ClearNativeTouchSequence(uint64_t aObserverId);
+child:
+    NativeSynthesisResponse(uint64_t aObserverId, nsCString aResponse);
+
+parent:
 
     /**
      * Child informs the parent that the graphics objects are ready for

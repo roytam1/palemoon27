@@ -86,16 +86,27 @@ struct ContainerLayerParameters {
     , mDisableSubpixelAntialiasingInDescendants(aParent.mDisableSubpixelAntialiasingInDescendants)
     , mInLowPrecisionDisplayPort(aParent.mInLowPrecisionDisplayPort)
   {}
+
   float mXScale, mYScale;
+
+  LayoutDeviceToLayerScale2D Scale() const {
+    return LayoutDeviceToLayerScale2D(mXScale, mYScale);
+  }
+
   /**
    * If non-null, the rectangle in which BuildContainerLayerFor stores the
    * visible rect of the layer, in the coordinate system of the created layer.
    */
   nsIntRect* mLayerContentsVisibleRect;
+
   /**
    * An offset to apply to all child layers created.
    */
   nsIntPoint mOffset;
+
+  LayerIntPoint Offset() const {
+    return LayerIntPoint::FromUntyped(mOffset);
+  }
 
   nscolor mBackgroundColor;
   bool mInTransformedSubtree;
@@ -330,7 +341,6 @@ public:
   void AddPaintedDisplayItem(PaintedLayerData* aLayer,
                             nsDisplayItem* aItem,
                             const DisplayItemClip& aClip,
-                            const nsIntRect& aItemVisibleRect,
                             ContainerState& aContainerState,
                             LayerState aLayerState,
                             const nsPoint& aTopLeft);
@@ -436,8 +446,8 @@ public:
   private:
     DisplayItemData(LayerManagerData* aParent,
                     uint32_t aKey,
+                    Layer* aLayer,
                     nsIFrame* aFrame = nullptr);
-    DisplayItemData(DisplayItemData &toCopy);
 
     /**
      * Removes any references to this object from frames

@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jit/shared/MacroAssembler-x86-shared.h"
+#include "jit/x86-shared/MacroAssembler-x86-shared.h"
 
 #include "jit/JitFrames.h"
 #include "jit/MacroAssembler.h"
@@ -63,7 +63,7 @@ MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output)
 // Builds an exit frame on the stack, with a return address to an internal
 // non-function. Returns offset to be passed to markSafepointAt().
 void
-MacroAssemblerX86Shared::buildFakeExitFrame(Register scratch, uint32_t *offset)
+MacroAssemblerX86Shared::buildFakeExitFrame(Register scratch, uint32_t* offset)
 {
     mozilla::DebugOnly<uint32_t> initialDepth = framePushed();
 
@@ -82,7 +82,7 @@ MacroAssemblerX86Shared::buildFakeExitFrame(Register scratch, uint32_t *offset)
 }
 
 void
-MacroAssemblerX86Shared::callWithExitFrame(Label *target)
+MacroAssemblerX86Shared::callWithExitFrame(Label* target)
 {
     uint32_t descriptor = MakeFrameDescriptor(framePushed(), JitFrame_IonJS);
     asMasm().Push(Imm32(descriptor));
@@ -90,7 +90,7 @@ MacroAssemblerX86Shared::callWithExitFrame(Label *target)
 }
 
 void
-MacroAssemblerX86Shared::callWithExitFrame(JitCode *target)
+MacroAssemblerX86Shared::callWithExitFrame(JitCode* target)
 {
     uint32_t descriptor = MakeFrameDescriptor(framePushed(), JitFrame_IonJS);
     asMasm().Push(Imm32(descriptor));
@@ -98,19 +98,19 @@ MacroAssemblerX86Shared::callWithExitFrame(JitCode *target)
 }
 
 void
-MacroAssembler::alignFrameForICArguments(AfterICSaveLive &aic)
+MacroAssembler::alignFrameForICArguments(AfterICSaveLive& aic)
 {
     // Exists for MIPS compatibility.
 }
 
 void
-MacroAssembler::restoreFrameAlignmentForICArguments(AfterICSaveLive &aic)
+MacroAssembler::restoreFrameAlignmentForICArguments(AfterICSaveLive& aic)
 {
     // Exists for MIPS compatibility.
 }
 
 bool
-MacroAssemblerX86Shared::buildOOLFakeExitFrame(void *fakeReturnAddr)
+MacroAssemblerX86Shared::buildOOLFakeExitFrame(void* fakeReturnAddr)
 {
     uint32_t descriptor = MakeFrameDescriptor(framePushed(), JitFrame_IonJS);
     asMasm().Push(Imm32(descriptor));
@@ -121,7 +121,7 @@ MacroAssemblerX86Shared::buildOOLFakeExitFrame(void *fakeReturnAddr)
 void
 MacroAssemblerX86Shared::branchNegativeZero(FloatRegister reg,
                                             Register scratch,
-                                            Label *label,
+                                            Label* label,
                                             bool maybeNonZero)
 {
     // Determines whether the low double contained in the XMM register reg
@@ -156,37 +156,34 @@ MacroAssemblerX86Shared::branchNegativeZero(FloatRegister reg,
 void
 MacroAssemblerX86Shared::branchNegativeZeroFloat32(FloatRegister reg,
                                                    Register scratch,
-                                                   Label *label)
+                                                   Label* label)
 {
     vmovd(reg, scratch);
     cmp32(scratch, Imm32(1));
     j(Overflow, label);
 }
 
-MacroAssembler &
+MacroAssembler&
 MacroAssemblerX86Shared::asMasm()
 {
-    return *static_cast<MacroAssembler *>(this);
+    return *static_cast<MacroAssembler*>(this);
 }
 
-const MacroAssembler &
+const MacroAssembler&
 MacroAssemblerX86Shared::asMasm() const
 {
-    return *static_cast<const MacroAssembler *>(this);
+    return *static_cast<const MacroAssembler*>(this);
 }
 
 // ===============================================================
 // Stack manipulation functions.
 
 void
-MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
+MacroAssembler::PushRegsInMask(LiveRegisterSet set)
 {
-    FloatRegisterSet doubleSet(FloatRegisterSet::Subtract(set.fpus(), simdSet));
-    MOZ_ASSERT_IF(simdSet.empty(), doubleSet == set.fpus());
-    doubleSet = doubleSet.reduceSetForPush();
-    unsigned numSimd = simdSet.size();
-    unsigned numDouble = doubleSet.size();
-    int32_t diffF = doubleSet.getPushSizeInBytes() + numSimd * Simd128DataSize;
+    FloatRegisterSet fpuSet(set.fpus().reduceSetForPush());
+    unsigned numFpu = fpuSet.size();
+    int32_t diffF = fpuSet.getPushSizeInBytes();
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
 
     // On x86, always use push to push the integer registers, as it's fast
@@ -198,10 +195,10 @@ MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
     MOZ_ASSERT(diffG == 0);
 
     reserveStack(diffF);
-    for (FloatRegisterBackwardIterator iter(doubleSet); iter.more(); iter++) {
+    for (FloatRegisterBackwardIterator iter(fpuSet); iter.more(); iter++) {
         FloatRegister reg = *iter;
         diffF -= reg.size();
-        numDouble -= 1;
+        numFpu -= 1;
         Address spillAddress(StackPointer, diffF);
         if (reg.isDouble())
             storeDouble(reg, spillAddress);
@@ -214,14 +211,7 @@ MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
         else
             MOZ_CRASH("Unknown register type.");
     }
-    MOZ_ASSERT(numDouble == 0);
-    for (FloatRegisterBackwardIterator iter(simdSet); iter.more(); iter++) {
-        diffF -= Simd128DataSize;
-        numSimd -= 1;
-        // XXX how to choose the right move type?
-        storeUnalignedInt32x4(*iter, Address(StackPointer, diffF));
-    }
-    MOZ_ASSERT(numSimd == 0);
+    MOZ_ASSERT(numFpu == 0);
     // x64 padding to keep the stack aligned on uintptr_t. Keep in sync with
     // GetPushBytesInSize.
     diffF -= diffF % sizeof(uintptr_t);
@@ -229,30 +219,19 @@ MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
 }
 
 void
-MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore, FloatRegisterSet simdSet)
+MacroAssembler::PopRegsInMaskIgnore(LiveRegisterSet set, LiveRegisterSet ignore)
 {
-    FloatRegisterSet doubleSet(FloatRegisterSet::Subtract(set.fpus(), simdSet));
-    MOZ_ASSERT_IF(simdSet.empty(), doubleSet == set.fpus());
-    doubleSet = doubleSet.reduceSetForPush();
-    unsigned numSimd = simdSet.size();
-    unsigned numDouble = doubleSet.size();
+    FloatRegisterSet fpuSet(set.fpus().reduceSetForPush());
+    unsigned numFpu = fpuSet.size();
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
-    int32_t diffF = doubleSet.getPushSizeInBytes() + numSimd * Simd128DataSize;
+    int32_t diffF = fpuSet.getPushSizeInBytes();
     const int32_t reservedG = diffG;
     const int32_t reservedF = diffF;
 
-    for (FloatRegisterBackwardIterator iter(simdSet); iter.more(); iter++) {
-        diffF -= Simd128DataSize;
-        numSimd -= 1;
-        if (!ignore.has(*iter))
-            // XXX how to choose the right move type?
-            loadUnalignedInt32x4(Address(StackPointer, diffF), *iter);
-    }
-    MOZ_ASSERT(numSimd == 0);
-    for (FloatRegisterBackwardIterator iter(doubleSet); iter.more(); iter++) {
+    for (FloatRegisterBackwardIterator iter(fpuSet); iter.more(); iter++) {
         FloatRegister reg = *iter;
         diffF -= reg.size();
-        numDouble -= 1;
+        numFpu -= 1;
         if (ignore.has(reg))
             continue;
 
@@ -269,7 +248,7 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore, FloatRe
             MOZ_CRASH("Unknown register type.");
     }
     freeStack(reservedF);
-    MOZ_ASSERT(numDouble == 0);
+    MOZ_ASSERT(numFpu == 0);
     // x64 padding to keep the stack aligned on uintptr_t. Keep in sync with
     // GetPushBytesInSize.
     diffF -= diffF % sizeof(uintptr_t);
@@ -278,7 +257,7 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore, FloatRe
     // On x86, use pop to pop the integer registers, if we're not going to
     // ignore any slots, as it's fast on modern hardware and it's a small
     // instruction.
-    if (ignore.empty(false)) {
+    if (ignore.emptyGeneral()) {
         for (GeneralRegisterForwardIterator iter(set.gprs()); iter.more(); iter++) {
             diffG -= sizeof(intptr_t);
             Pop(*iter);
@@ -364,7 +343,7 @@ MacroAssembler::Pop(FloatRegister reg)
 }
 
 void
-MacroAssembler::Pop(const ValueOperand &val)
+MacroAssembler::Pop(const ValueOperand& val)
 {
     popValue(val);
     framePushed_ -= sizeof(Value);

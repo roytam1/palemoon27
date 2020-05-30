@@ -1567,7 +1567,7 @@ str_includes(JSContext* cx, unsigned argc, Value* vp)
 
 /* ES6 draft <RC4 String.prototype.contains kept for compatibility */
 static bool
-str_contains(JSContext *cx, unsigned argc, Value *vp)
+str_contains(JSContext* cx, unsigned argc, Value* vp)
 {
     return str_includes(cx, argc, vp);
 }
@@ -2204,7 +2204,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
 
         // Handle everything else generically (including throwing if .lastIndex is non-writable).
         RootedValue zero(cx, Int32Value(0));
-        return SetProperty(cx, obj_, obj_, cx->names().lastIndex, &zero);
+        return SetProperty(cx, obj_, cx->names().lastIndex, zero);
     }
 
     RegExpShared& regExp() { return *re_; }
@@ -3085,10 +3085,10 @@ struct StringRange
 
 template <typename CharT>
 static void
-CopySubstringsToFatInline(JSFatInlineString *dest, const CharT *src, const StringRange *ranges,
+CopySubstringsToFatInline(JSFatInlineString* dest, const CharT* src, const StringRange* ranges,
                           size_t rangesLen, size_t outputLen)
 {
-    CharT *buf = dest->init<CharT>(outputLen);
+    CharT* buf = dest->init<CharT>(outputLen);
     size_t pos = 0;
     for (size_t i = 0; i < rangesLen; i++) {
         PodCopy(buf + pos, src + ranges[i].start, ranges[i].length);
@@ -3099,11 +3099,11 @@ CopySubstringsToFatInline(JSFatInlineString *dest, const CharT *src, const Strin
     buf[outputLen] = 0;
 }
 
-static inline JSFatInlineString *
-FlattenSubstrings(JSContext *cx, HandleLinearString str, const StringRange *ranges,
+static inline JSFatInlineString*
+FlattenSubstrings(JSContext* cx, HandleLinearString str, const StringRange* ranges,
                   size_t rangesLen, size_t outputLen)
 {
-    JSFatInlineString *result = Allocate<JSFatInlineString>(cx);
+    JSFatInlineString* result = Allocate<JSFatInlineString>(cx);
     if (!result)
         return nullptr;
 

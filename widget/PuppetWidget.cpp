@@ -1109,7 +1109,7 @@ PuppetWidget::GetChromeDimensions()
     NS_WARNING("PuppetWidget without Tab does not have chrome information.");
     return nsIntPoint();
   }
-  return GetOwningTabChild()->GetChromeDisplacement();
+  return LayoutDeviceIntPoint::ToUntyped(GetOwningTabChild()->GetChromeDisplacement());
 }
 
 nsIntPoint
@@ -1126,7 +1126,7 @@ PuppetWidget::GetWindowPosition()
 
 NS_METHOD
 PuppetWidget::GetScreenBounds(nsIntRect &aRect) {
-  aRect.MoveTo(LayoutDeviceIntPoint::ToUntyped(WidgetToScreenOffset()));
+  aRect.MoveTo(gfx::ToIntPoint(LayoutDeviceIntPoint::ToUntyped(WidgetToScreenOffset())));
   aRect.SizeTo(mBounds.Size());
   return NS_OK;
 }

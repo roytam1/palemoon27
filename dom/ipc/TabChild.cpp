@@ -68,7 +68,6 @@
 #include "nsWeakReference.h"
 #include "nsWindowWatcher.h"
 #include "PermissionMessageUtils.h"
-#include "nsContentPermissionHelper.h"
 #include "PuppetWidget.h"
 #include "StructuredCloneUtils.h"
 #include "nsViewportInfo.h"
@@ -1076,7 +1075,7 @@ TabChild::Init()
   }
   mWidget->Create(
     nullptr, 0,              // no parents
-    nsIntRect(nsIntPoint(0, 0), nsIntSize(0, 0)),
+    gfx::IntRect(gfx::IntPoint(0, 0), gfx::IntSize(0, 0)),
     nullptr                  // HandleWidgetEvent
   );
 
@@ -2001,7 +2000,7 @@ TabChild::RecvShow(const ScreenIntSize& aSize,
 
 bool
 TabChild::RecvUpdateDimensions(const nsIntRect& rect, const ScreenIntSize& size,
-                               const ScreenOrientation& orientation, const nsIntPoint& chromeDisp)
+                               const ScreenOrientation& orientation, const LayoutDeviceIntPoint& chromeDisp)
 {
     if (!mRemoteFrame) {
         return true;
@@ -2612,22 +2611,6 @@ TabChild::DeallocPColorPickerChild(PColorPickerChild* aColorPicker)
   return true;
 }
 
-PContentPermissionRequestChild*
-TabChild::AllocPContentPermissionRequestChild(const InfallibleTArray<PermissionRequest>& aRequests,
-                                              const IPC::Principal& aPrincipal)
-{
-  NS_RUNTIMEABORT("unused");
-  return nullptr;
-}
-
-bool
-TabChild::DeallocPContentPermissionRequestChild(PContentPermissionRequestChild* actor)
-{
-  RemotePermissionRequest* child = static_cast<RemotePermissionRequest*>(actor);
-  child->IPDLRelease();
-  return true;
-}
-
 PFilePickerChild*
 TabChild::AllocPFilePickerChild(const nsString&, const int16_t&)
 {
@@ -3190,7 +3173,7 @@ TabChild::CreatePluginWidget(nsIWidget* aParent, nsIWidget** aOut)
   initData.mUnicode = false;
   initData.clipChildren = true;
   initData.clipSiblings = true;
-  nsresult rv = pluginWidget->Create(aParent, nullptr, nsIntRect(nsIntPoint(0, 0),
+  nsresult rv = pluginWidget->Create(aParent, nullptr, gfx::IntRect(gfx::IntPoint(0, 0),
                                      nsIntSize(0, 0)), &initData);
   if (NS_FAILED(rv)) {
     NS_WARNING("Creating native plugin widget on the chrome side failed.");

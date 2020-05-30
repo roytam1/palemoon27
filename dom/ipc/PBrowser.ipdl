@@ -10,7 +10,6 @@ include protocol PColorPicker;
 include protocol PContent;
 include protocol PContentBridge;
 include protocol PDocumentRenderer;
-include protocol PContentPermissionRequest;
 include protocol PFilePicker;
 include protocol PIndexedDBPermissionRequest;
 include protocol PRenderFrame;
@@ -18,7 +17,6 @@ include protocol PPluginWidget;
 include DOMTypes;
 include JavaScriptTypes;
 include URIParams;
-include PContentPermission;
 include ServiceWorkerRegistrarTypes;
 
 
@@ -39,9 +37,9 @@ using nscolor from "nsColor.h";
 using class mozilla::WidgetCompositionEvent from "ipc/nsGUIEventIPC.h";
 using struct mozilla::widget::IMENotification from "nsIWidget.h";
 using struct nsIMEUpdatePreference from "nsIWidget.h";
-using struct nsIntPoint from "nsPoint.h";
-using struct nsIntRect from "nsRect.h";
 using mozilla::gfx::IntSize from "mozilla/gfx/Point.h";
+using mozilla::gfx::IntPoint from "mozilla/gfx/Point.h";
+using mozilla::gfx::IntRect from "mozilla/gfx/Rect.h";
 using class mozilla::WidgetKeyboardEvent from "ipc/nsGUIEventIPC.h";
 using class mozilla::WidgetMouseEvent from "ipc/nsGUIEventIPC.h";
 using class mozilla::WidgetWheelEvent from "ipc/nsGUIEventIPC.h";
@@ -103,7 +101,6 @@ prio(normal upto urgent) sync protocol PBrowser
 
     manages PColorPicker;
     manages PDocumentRenderer;
-    manages PContentPermissionRequest;
     manages PFilePicker;
     manages PIndexedDBPermissionRequest;
     manages PRenderFrame;
@@ -384,21 +381,6 @@ parent:
      */
     PColorPicker(nsString title, nsString initialColor);
 
-    /**
-     * Initiates an asynchronous request for permission for the
-     * provided principal.
-     *
-     * @param aRequests
-     *   The array of permissions to request.
-     * @param aPrincipal
-     *   The principal of the request.
-     *
-     * NOTE: The principal is untrusted in the parent process. Only
-     *       principals that can live in the content process should
-     *       provided.
-     */
-    PContentPermissionRequest(PermissionRequest[] aRequests, Principal aPrincipal);
-
     PFilePicker(nsString aTitle, int16_t aMode);
 
     /**
@@ -506,11 +488,11 @@ parent:
                                      uint64_t aObserverId);
     SynthesizeNativeTouchPoint(uint32_t aPointerId,
                                TouchPointerState aPointerState,
-                               nsIntPoint aPointerScreenPoint,
+                               IntPoint aPointerScreenPoint,
                                double aPointerPressure,
                                uint32_t aPointerOrientation,
                                uint64_t aObserverId);
-    SynthesizeNativeTouchTap(nsIntPoint aPointerScreenPoint,
+    SynthesizeNativeTouchTap(IntPoint aPointerScreenPoint,
                              bool aLongTap,
                              uint64_t aObserverId);
     ClearNativeTouchSequence(uint64_t aObserverId);
@@ -566,8 +548,8 @@ child:
 
     CacheFileDescriptor(nsString path, FileDescriptor fd);
 
-    UpdateDimensions(nsIntRect rect, ScreenIntSize size, ScreenOrientation orientation,
-                     nsIntPoint chromeDisp) compress;
+    UpdateDimensions(IntRect rect, ScreenIntSize size, ScreenOrientation orientation,
+                     LayoutDeviceIntPoint chromeDisp) compress;
 
     UpdateFrame(FrameMetrics frame);
 

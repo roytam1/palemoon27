@@ -418,8 +418,9 @@ nsLayoutUtils::HasCurrentAnimations(nsIContent* aContent,
 }
 
 bool
-nsLayoutUtils::HasCurrentAnimationsForProperty(nsIContent* aContent,
-                                               nsCSSProperty aProperty)
+nsLayoutUtils::HasCurrentAnimationsForProperties(nsIContent* aContent,
+                                                 const nsCSSProperty* aProperties,
+                                                 size_t aPropertyCount)
 {
   if (!aContent->MayHaveAnimations())
     return false;
@@ -430,8 +431,11 @@ nsLayoutUtils::HasCurrentAnimationsForProperty(nsIContent* aContent,
   for (nsIAtom* const* animProp = sAnimProps; *animProp; animProp++) {
     AnimationPlayerCollection* collection =
       static_cast<AnimationPlayerCollection*>(aContent->GetProperty(*animProp));
-    if (collection && collection->HasCurrentAnimationsForProperty(aProperty))
+    if (collection &&
+        collection->HasCurrentAnimationsForProperties(aProperties,
+                                                      aPropertyCount)) {
       return true;
+    }
   }
 
   return false;
@@ -4520,7 +4524,7 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
 
   const nsStyleDisplay *disp = aFrame->StyleDisplay();
   if (aFrame->IsThemed(disp)) {
-    nsIntSize size(0, 0);
+    LayoutDeviceIntSize size;
     bool canOverride = true;
     nsPresContext *presContext = aFrame->PresContext();
     presContext->GetTheme()->

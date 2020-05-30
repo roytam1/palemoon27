@@ -13,7 +13,6 @@
 #include "mozilla/BrowserElementParent.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/DataTransfer.h"
-#include "mozilla/dom/PContentPermissionRequestParent.h"
 #include "mozilla/dom/ServiceWorkerRegistrar.h"
 #include "mozilla/dom/indexedDB/ActorsParent.h"
 #include "mozilla/plugins/PluginWidgetParent.h"
@@ -34,7 +33,6 @@
 #include "BlobParent.h"
 #include "nsCOMPtr.h"
 #include "nsContentAreaDragDrop.h"
-#include "nsContentPermissionHelper.h"
 #include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsFocusManager.h"
@@ -273,7 +271,6 @@ TabParent::TabParent(nsIContentParent* aManager,
   , mDefaultScale(0)
   , mShown(false)
   , mUpdatedDimensions(false)
-  , mChromeOffset(0, 0)
   , mManager(aManager)
   , mMarkedDestroying(false)
   , mIsDestroyed(false)
@@ -922,7 +919,7 @@ TabParent::UpdateDimensions(const nsIntRect& rect, const ScreenIntSize& size)
   hal::ScreenConfiguration config;
   hal::GetCurrentScreenConfiguration(&config);
   ScreenOrientation orientation = config.orientation();
-  nsIntPoint chromeOffset = -LayoutDevicePixel::ToUntyped(GetChildProcessOffset());
+  LayoutDeviceIntPoint chromeOffset = -GetChildProcessOffset();
 
   if (!mUpdatedDimensions || mOrientation != orientation ||
       mDimensions != size || !mRect.IsEqualEdges(rect) ||
@@ -1089,20 +1086,6 @@ TabParent::DeallocPDocumentRendererParent(PDocumentRendererParent* actor)
 {
     delete actor;
     return true;
-}
-
-PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequestParent(const InfallibleTArray<PermissionRequest>& aRequests,
-                                                const IPC::Principal& aPrincipal)
-{
-  return nsContentPermissionUtils::CreateContentPermissionRequestParent(aRequests, mFrameElement, aPrincipal);
-}
-
-bool
-TabParent::DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor)
-{
-  delete actor;
-  return true;
 }
 
 PFilePickerParent*

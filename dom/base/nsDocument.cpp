@@ -10846,8 +10846,8 @@ nsIDocument::Children()
 {
   if (!mChildrenCollection) {
     mChildrenCollection = new nsContentList(this, kNameSpaceID_Wildcard,
-                                            nsGkAtoms::_asterix,
-                                            nsGkAtoms::_asterix,
+                                            nsGkAtoms::_asterisk,
+                                            nsGkAtoms::_asterisk,
                                             false);
   }
 
@@ -12015,6 +12015,8 @@ DispatchPointerLockError(nsIDocument* aTarget)
   asyncDispatcher->PostDOMEvent();
 }
 
+static const uint8_t kPointerLockRequestLimit = 2;
+
 mozilla::StaticRefPtr<nsPointerLockPermissionRequest> gPendingPointerLockRequest;
 
 class nsPointerLockPermissionRequest : public nsRunnable,
@@ -12024,7 +12026,13 @@ public:
   nsPointerLockPermissionRequest(Element* aElement, bool aUserInputOrChromeCaller)
   : mElement(do_GetWeakReference(aElement)),
     mDocument(do_GetWeakReference(aElement->OwnerDoc())),
-    mUserInputOrChromeCaller(aUserInputOrChromeCaller) {}
+    mUserInputOrChromeCaller(aUserInputOrChromeCaller)
+  {
+    nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
+    if (doc) {
+      mRequester = new nsContentPermissionRequester(doc->GetInnerWindow());
+    }
+  }
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICONTENTPERMISSIONREQUEST
@@ -12056,7 +12064,7 @@ public:
     // In non-fullscreen mode user input (or chrome caller) is required!
     // Also, don't let the page to try to get the permission too many times.
     if (!mUserInputOrChromeCaller ||
-        doc->mCancelledPointerLockRequests > 2) {
+        doc->mCancelledPointerLockRequests > kPointerLockRequestLimit) {
       Handled();
       DispatchPointerLockError(d);
       return NS_OK;
@@ -12084,6 +12092,7 @@ public:
 
 protected:
   virtual ~nsPointerLockPermissionRequest() {}
+  nsCOMPtr<nsIContentPermissionRequester> mRequester;
 };
 
 NS_IMPL_ISUPPORTS_INHERITED(nsPointerLockPermissionRequest,
@@ -12134,7 +12143,10 @@ nsPointerLockPermissionRequest::Cancel()
   nsCOMPtr<nsIDocument> d = do_QueryReferent(mDocument);
   Handled();
   if (d) {
-    static_cast<nsDocument*>(d.get())->mCancelledPointerLockRequests++;
+    auto doc = static_cast<nsDocument*>(d.get());
+    if (doc->mCancelledPointerLockRequests <= kPointerLockRequestLimit) {
+      doc->mCancelledPointerLockRequests++;
+    }
     DispatchPointerLockError(d);
   }
   return NS_OK;
@@ -12186,6 +12198,16 @@ nsPointerLockPermissionRequest::Allow(JS::HandleValue aChoices)
                "aElement and this should support weak references!");
 
   DispatchPointerLockChange(d);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPointerLockPermissionRequest::GetRequester(nsIContentPermissionRequester** aRequester)
+{
+  NS_ENSURE_ARG_POINTER(aRequester);
+
+  nsCOMPtr<nsIContentPermissionRequester> requester = mRequester;
+  requester.forget(aRequester);
   return NS_OK;
 }
 

@@ -116,8 +116,9 @@ public:
   uint32_t GetSteps() const { return mSteps; }
   bool operator==(const ComputedTimingFunction& aOther) const {
     return mType == aOther.mType &&
-           mTimingFunction == aOther.mTimingFunction &&
-           mSteps == aOther.mSteps;
+           (mType == nsTimingFunction::Function ?
+	    mTimingFunction == aOther.mTimingFunction :
+	    mSteps == aOther.mSteps);
   }
   bool operator!=(const ComputedTimingFunction& aOther) const {
     return !(*this == aOther);
@@ -248,7 +249,7 @@ public:
     return mTiming;
   }
 
-  const nsString& Name() const {
+  virtual const nsString& Name() const {
     return mName;
   }
 
@@ -314,6 +315,8 @@ public:
   bool HasAnimationOfProperty(nsCSSProperty aProperty) const {
     return GetAnimationOfProperty(aProperty) != nullptr;
   }
+  bool HasAnimationOfProperties(const nsCSSProperty* aProperties,
+                                size_t aPropertyCount) const;
   const InfallibleTArray<AnimationProperty>& Properties() const {
     return mProperties;
   }

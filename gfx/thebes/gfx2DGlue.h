@@ -18,14 +18,6 @@
 
 namespace mozilla {
 namespace gfx {
-class DrawTarget;
-class SourceSurface;
-class ScaledFont;
-}
-}
-
-namespace mozilla {
-namespace gfx {
 
 inline Rect ToRect(const gfxRect &aRect)
 {
@@ -76,14 +68,19 @@ inline IntPoint ToIntPoint(const nsIntPoint &aPoint)
   return IntPoint(aPoint.x, aPoint.y);
 }
 
+inline IntMargin ToIntMargin(const nsIntMargin& aMargin)
+{
+  return IntMargin(aMargin.top, aMargin.right, aMargin.bottom, aMargin.left);
+}
+
+inline nsIntPoint ThebesIntPoint(const IntPoint &aPoint)
+{
+  return nsIntPoint(aPoint.x, aPoint.y);
+}
+
 inline Size ToSize(const gfxSize &aSize)
 {
   return Size(Float(aSize.width), Float(aSize.height));
-}
-
-inline IntSize ToIntSize(const gfxIntSize &aSize)
-{
-  return IntSize(aSize.width, aSize.height);
 }
 
 inline Filter ToFilter(GraphicsFilter aFilter)

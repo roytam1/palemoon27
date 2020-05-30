@@ -330,12 +330,6 @@ public:
                                  const nsIntSize& renderSize) override;
     virtual bool DeallocPDocumentRendererParent(PDocumentRendererParent* actor) override;
 
-    virtual PContentPermissionRequestParent*
-    AllocPContentPermissionRequestParent(const InfallibleTArray<PermissionRequest>& aRequests,
-                                         const IPC::Principal& aPrincipal) override;
-    virtual bool
-    DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor) override;
-
     virtual PFilePickerParent*
     AllocPFilePickerParent(const nsString& aTitle,
                            const int16_t& aMode) override;
@@ -489,7 +483,7 @@ protected:
     CSSToLayoutDeviceScale mDefaultScale;
     bool mShown;
     bool mUpdatedDimensions;
-    nsIntPoint mChromeOffset;
+    LayoutDeviceIntPoint mChromeOffset;
 
 private:
     already_AddRefed<nsFrameLoader> GetFrameLoader(bool aUseCachedFrameLoaderAfterDestroy = false) const;

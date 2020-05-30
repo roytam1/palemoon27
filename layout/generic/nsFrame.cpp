@@ -16,6 +16,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
+#include "gfx2DGlue.h"
 
 #include "nsCOMPtr.h"
 #include "nsFrameList.h"
@@ -4329,7 +4330,7 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
 
   const nsStyleDisplay *disp = StyleDisplay();
   if (IsThemed(disp)) {
-    nsIntSize widget(0, 0);
+    LayoutDeviceIntSize widget;
     bool canOverride = true;
     nsPresContext *presContext = PresContext();
     presContext->GetTheme()->
@@ -4946,7 +4947,7 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
         widget->GetClientBounds(screenBounds);
         nsIntRect toplevelScreenBounds;
         toplevel->GetClientBounds(toplevelScreenBounds);
-        nsIntPoint translation = screenBounds.TopLeft() - toplevelScreenBounds.TopLeft();
+        nsIntPoint translation = gfx::ThebesIntPoint(screenBounds.TopLeft() - toplevelScreenBounds.TopLeft());
 
         Matrix4x4 transformToTop;
         transformToTop._41 = translation.x;

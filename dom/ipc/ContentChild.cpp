@@ -550,6 +550,26 @@ InitOnContentProcessCreated()
     mozilla::dom::time::InitializeDateCacheCleaner();
 }
 
+#ifdef MOZ_NUWA_PROCESS
+static void
+ResetTransports(void* aUnused)
+{
+  ContentChild* child = ContentChild::GetSingleton();
+  mozilla::ipc::Transport* transport = child->GetTransport();
+  int fd = transport->GetFileDescriptor();
+  transport->ResetFileDescriptor(fd);
+
+  nsTArray<IToplevelProtocol*> actors;
+  child->GetOpenedActors(actors);
+  for (size_t i = 0; i < actors.Length(); i++) {
+      IToplevelProtocol* toplevel = actors[i];
+      transport = toplevel->GetTransport();
+      fd = transport->GetFileDescriptor();
+      transport->ResetFileDescriptor(fd);
+  }
+}
+#endif
+
 #if defined(MOZ_TASK_TRACER) && defined(MOZ_NUWA_PROCESS)
 static void
 ReinitTaskTracer(void* /*aUnused*/)
@@ -647,6 +667,12 @@ ContentChild::Init(MessageLoop* aIOLoop,
 #if defined(MOZ_TASK_TRACER) && defined (MOZ_NUWA_PROCESS)
     if (IsNuwaProcess()) {
         NuwaAddConstructor(ReinitTaskTracer, nullptr);
+    }
+#endif
+
+#ifdef MOZ_NUWA_PROCESS
+    if (IsNuwaProcess()) {
+      NuwaAddConstructor(ResetTransports, nullptr);
     }
 #endif
 
@@ -2427,18 +2453,6 @@ public:
         // In the new process.
         ContentChild* child = ContentChild::GetSingleton();
         child->SetProcessName(NS_LITERAL_STRING("(Preallocated app)"), false);
-        mozilla::ipc::Transport* transport = child->GetTransport();
-        int fd = transport->GetFileDescriptor();
-        transport->ResetFileDescriptor(fd);
-
-        IToplevelProtocol* toplevel = child->GetFirstOpenedActors();
-        while (toplevel != nullptr) {
-            transport = toplevel->GetTransport();
-            fd = transport->GetFileDescriptor();
-            transport->ResetFileDescriptor(fd);
-
-            toplevel = toplevel->getNext();
-        }
 
         // Perform other after-fork initializations.
         InitOnContentProcessCreated();
@@ -2830,9 +2844,10 @@ GetProtoFdInfos(NuwaProtoFdInfo* aInfoList,
         content->GetTransport()->GetFileDescriptor();
     i++;
 
-    for (IToplevelProtocol* actor = content->GetFirstOpenedActors();
-         actor != nullptr;
-         actor = actor->getNext()) {
+    IToplevelProtocol* actors[NUWA_TOPLEVEL_MAX];
+    size_t count = content->GetOpenedActorsUnsafe(actors, ArrayLength(actors));
+    for (size_t j = 0; j < count; j++) {
+        IToplevelProtocol* actor = actors[j];
         if (i >= aInfoListSize) {
             NS_RUNTIMEABORT("Too many top level protocols!");
         }

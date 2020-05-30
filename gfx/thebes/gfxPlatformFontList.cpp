@@ -660,8 +660,7 @@ gfxPlatformFontList::CommonFontFallback(uint32_t aCh, uint32_t aNextCh,
         const char *fallbackFamily = defaultFallbacks[i];
 
         familyName.AppendASCII(fallbackFamily);
-        gfxFontFamily *fallback =
-                gfxPlatformFontList::PlatformFontList()->FindFamily(familyName);
+        gfxFontFamily *fallback = FindFamilyByCanonicalName(familyName);
         if (!fallback)
             continue;
 
@@ -736,7 +735,9 @@ gfxPlatformFontList::CheckFamily(gfxFontFamily *aFamily)
 }
 
 gfxFontFamily* 
-gfxPlatformFontList::FindFamily(const nsAString& aFamily, bool aUseSystemFonts)
+gfxPlatformFontList::FindFamily(const nsAString& aFamily,
+                                nsIAtom* aLanguage,
+                                bool aUseSystemFonts)
 {
     nsAutoString key;
     gfxFontFamily *familyEntry;

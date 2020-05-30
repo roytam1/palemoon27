@@ -4,13 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jit_shared_Assembler_x86_shared_h
-#define jit_shared_Assembler_x86_shared_h
+#ifndef jit_x86_shared_Assembler_x86_shared_h
+#define jit_x86_shared_Assembler_x86_shared_h
 
 #include <cstddef>
 
 #include "jit/shared/Assembler-shared.h"
-#include "jit/shared/BaseAssembler-x86-shared.h"
+#include "jit/x86-shared/BaseAssembler-x86-shared.h"
 
 namespace js {
 namespace jit {
@@ -1053,8 +1053,8 @@ class AssemblerX86Shared : public AssemblerShared
         masm.setCC_r(static_cast<X86Encoding::Condition>(cond), r.code());
     }
     void testb(Register rhs, Register lhs) {
-        MOZ_ASSERT(GeneralRegisterSet(Registers::SingleByteRegs).has(rhs));
-        MOZ_ASSERT(GeneralRegisterSet(Registers::SingleByteRegs).has(lhs));
+        MOZ_ASSERT(AllocatableGeneralRegisterSet(Registers::SingleByteRegs).has(rhs));
+        MOZ_ASSERT(AllocatableGeneralRegisterSet(Registers::SingleByteRegs).has(lhs));
         masm.testb_rr(rhs.code(), lhs.code());
     }
     void testw(Register rhs, Register lhs) {
@@ -2958,4 +2958,4 @@ class AssemblerX86Shared : public AssemblerShared
 } // namespace jit
 } // namespace js
 
-#endif /* jit_shared_Assembler_x86_shared_h */
+#endif /* jit_x86_shared_Assembler_x86_shared_h */

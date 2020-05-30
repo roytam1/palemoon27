@@ -4,12 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jit/shared/MoveEmitter-x86-shared.h"
+#include "jit/x86-shared/MoveEmitter-x86-shared.h"
 
 using namespace js;
 using namespace js::jit;
 
-MoveEmitterX86::MoveEmitterX86(MacroAssembler &masm)
+MoveEmitterX86::MoveEmitterX86(MacroAssembler& masm)
   : inCycle_(false),
     masm(masm),
     pushedAtCycle_(-1)

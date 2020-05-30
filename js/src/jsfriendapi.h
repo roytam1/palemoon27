@@ -343,8 +343,8 @@ extern JS_FRIEND_API(bool)
 proxy_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
                   JS::MutableHandleValue vp);
 extern JS_FRIEND_API(bool)
-proxy_SetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
-                  JS::MutableHandleValue bp, JS::ObjectOpResult &result);
+proxy_SetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue bp,
+                  JS::HandleValue receiver, JS::ObjectOpResult &result);
 extern JS_FRIEND_API(bool)
 proxy_GetOwnPropertyDescriptor(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
                                JS::MutableHandle<JSPropertyDescriptor> desc);
@@ -1396,7 +1396,7 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
 
 /* Implemented in vm/StructuredClone.cpp. */
 extern JS_FRIEND_API(uint64_t)
-GetSCOffset(JSStructuredCloneWriter *writer);
+GetSCOffset(JSStructuredCloneWriter* writer);
 
 namespace Scalar {
 
@@ -2367,11 +2367,11 @@ struct JSTypedMethodJitInfo
 
 namespace js {
 
-static MOZ_ALWAYS_INLINE shadow::Function *
-FunctionObjectToShadowFunction(JSObject *fun)
+static MOZ_ALWAYS_INLINE shadow::Function*
+FunctionObjectToShadowFunction(JSObject* fun)
 {
     MOZ_ASSERT(GetObjectClass(fun) == FunctionClassPtr);
-    return reinterpret_cast<shadow::Function *>(fun);
+    return reinterpret_cast<shadow::Function*>(fun);
 }
 
 /* Statically asserted in jsfun.h. */
@@ -2379,13 +2379,13 @@ static const unsigned JS_FUNCTION_INTERPRETED_BITS = 0x1001;
 
 // Return whether the given function object is native.
 static MOZ_ALWAYS_INLINE bool
-FunctionObjectIsNative(JSObject *fun)
+FunctionObjectIsNative(JSObject* fun)
 {
     return !(FunctionObjectToShadowFunction(fun)->flags & JS_FUNCTION_INTERPRETED_BITS);
 }
 
 static MOZ_ALWAYS_INLINE JSNative
-GetFunctionObjectNative(JSObject *fun)
+GetFunctionObjectNative(JSObject* fun)
 {
     MOZ_ASSERT(FunctionObjectIsNative(fun));
     return FunctionObjectToShadowFunction(fun)->native;
@@ -2393,7 +2393,7 @@ GetFunctionObjectNative(JSObject *fun)
 
 } // namespace js
 
-static MOZ_ALWAYS_INLINE const JSJitInfo *
+static MOZ_ALWAYS_INLINE const JSJitInfo*
 FUNCTION_VALUE_TO_JITINFO(const JS::Value& v)
 {
     MOZ_ASSERT(js::FunctionObjectIsNative(&v.toObject()));
@@ -2560,8 +2560,8 @@ class JS_FRIEND_API(AutoCTypesActivityCallback) {
     }
 };
 
-typedef JSObject *
-(* ObjectMetadataCallback)(JSContext *cx);
+typedef JSObject*
+(* ObjectMetadataCallback)(JSContext* cx);
 
 /*
  * Specify a callback to invoke when creating each JS object in the current
@@ -2604,7 +2604,7 @@ ForwardToNative(JSContext* cx, JSNative native, const JS::CallArgs& args);
  */
 JS_FRIEND_API(bool)
 SetPropertyIgnoringNamedGetter(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                               JS::MutableHandleValue vp, JS::HandleObject receiver,
+                               JS::HandleValue v, JS::HandleValue receiver,
                                JS::Handle<JSPropertyDescriptor> ownDesc,
                                JS::ObjectOpResult &result);
 

@@ -261,7 +261,7 @@ public:
         return false;
     }
 
-    bool getPrototype(JSContext *cx, JS::HandleObject wrapper,
+    bool getPrototype(JSContext* cx, JS::HandleObject wrapper,
                       JS::HandleObject target,
                       JS::MutableHandleObject protop)
     {
@@ -441,8 +441,8 @@ class XrayWrapper : public Base {
                      bool *bp) const override;
     virtual bool get(JSContext *cx, JS::Handle<JSObject*> wrapper, JS::Handle<JSObject*> receiver,
                      JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp) const override;
-    virtual bool set(JSContext *cx, JS::Handle<JSObject*> wrapper, JS::Handle<JSObject*> receiver,
-                     JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp,
+    virtual bool set(JSContext *cx, JS::Handle<JSObject*> wrapper, JS::Handle<jsid> id,
+                     JS::Handle<JS::Value> v, JS::Handle<JS::Value> receiver,
                      JS::ObjectOpResult &result) const override;
     virtual bool call(JSContext *cx, JS::Handle<JSObject*> wrapper,
                       const JS::CallArgs& args) const override;
@@ -467,19 +467,19 @@ class XrayWrapper : public Base {
   private:
     template <bool HasPrototype>
     typename mozilla::EnableIf<HasPrototype, bool>::Type
-        getPrototypeHelper(JSContext *cx, JS::HandleObject wrapper,
+        getPrototypeHelper(JSContext* cx, JS::HandleObject wrapper,
                            JS::HandleObject target, JS::MutableHandleObject protop) const
     {
         return Traits::singleton.getPrototype(cx, wrapper, target, protop);
     }
     template <bool HasPrototype>
     typename mozilla::EnableIf<!HasPrototype, bool>::Type
-        getPrototypeHelper(JSContext *cx, JS::HandleObject wrapper,
+        getPrototypeHelper(JSContext* cx, JS::HandleObject wrapper,
                            JS::HandleObject target, JS::MutableHandleObject protop) const
     {
         return Base::getPrototype(cx, wrapper, protop);
     }
-    bool getPrototypeHelper(JSContext *cx, JS::HandleObject wrapper,
+    bool getPrototypeHelper(JSContext* cx, JS::HandleObject wrapper,
                             JS::HandleObject target, JS::MutableHandleObject protop) const
     {
         return getPrototypeHelper<Traits::HasPrototype>(cx, wrapper, target,
@@ -515,8 +515,8 @@ public:
                      bool* bp) const override;
     virtual bool get(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<JSObject*> receiver,
                      JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp) const override;
-    virtual bool set(JSContext *cx, JS::Handle<JSObject*> proxy, JS::Handle<JSObject*> receiver,
-                     JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp,
+    virtual bool set(JSContext *cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
+                     JS::Handle<JS::Value> v, JS::Handle<JS::Value> receiver,
                      JS::ObjectOpResult &result) const override;
 
     virtual bool getPropertyDescriptor(JSContext *cx, JS::Handle<JSObject*> proxy,

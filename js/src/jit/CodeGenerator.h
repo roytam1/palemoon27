@@ -370,13 +370,13 @@ class CodeGenerator : public CodeGeneratorSpecific
     }
 
   private:
-    void addGetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Register objReg,
+    void addGetPropertyCache(LInstruction *ins, LiveRegisterSet liveRegs, Register objReg,
                              PropertyName *name, TypedOrValueRegister output,
                              bool monitoredResult, jsbytecode *profilerLeavePc);
     void addGetElementCache(LInstruction *ins, Register obj, ConstantOrRegister index,
                             TypedOrValueRegister output, bool monitoredResult,
                             bool allowDoubleResult, jsbytecode *profilerLeavePc);
-    void addSetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Register objReg,
+    void addSetPropertyCache(LInstruction *ins, LiveRegisterSet liveRegs, Register objReg,
                              PropertyName *name, ConstantOrRegister value, bool strict,
                              bool needsTypeBarrier, jsbytecode* profilerLeavePc);
     void addSetElementCache(LInstruction *ins, Register obj, Register unboxIndex, Register temp,
@@ -491,8 +491,8 @@ class CodeGenerator : public CodeGeneratorSpecific
     // Barriered objects in a bit mask.
     uint32_t simdRefreshTemplatesDuringLink_;
 
-    void registerSimdTemplate(InlineTypedObject *templateObject);
-    void captureSimdTemplate(JSContext *cx);
+    void registerSimdTemplate(InlineTypedObject* templateObject);
+    void captureSimdTemplate(JSContext* cx);
 };
 
 } // namespace jit

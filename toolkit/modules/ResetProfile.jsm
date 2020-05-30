@@ -8,11 +8,8 @@ this.EXPORTED_SYMBOLS = ["ResetProfile"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-//For Pale Moon: Hard-code MOZ_APP_NAME to firefox because of hard-coded type in migrator.
-#expand const MOZ_APP_NAME = ("__MOZ_APP_NAME__" == "palemoon") ? "firefox" : "__MOZ_APP_NAME__";
-#expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
-
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/AppConstants.jsm");
 
 this.ResetProfile = {
   /**
@@ -22,8 +19,9 @@ this.ResetProfile = {
    */
   resetSupported: function() {
     // Reset is only supported if the self-migrator used for reset exists.
-    let migrator = "@mozilla.org/profile/migrator;1?app=" + MOZ_BUILD_APP +
-                   "&type=" + MOZ_APP_NAME;
+    // For Pale Moon: Hard-code MOZ_APP_NAME to firefox because of hard-coded type in migrator.
+    let migrator = "@mozilla.org/profile/migrator;1?app=" + AppConstants.MOZ_BUILD_APP +
+                   "&type=" + (AppConstants.MOZ_APP_NAME == "palemoon" ? "firefox" : AppConstants.MOZ_APP_NAME);
     if (!(migrator in Cc)) {
       return false;
     }

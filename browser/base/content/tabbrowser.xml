@@ -1494,11 +1494,8 @@
             t.setAttribute("validate", "never"); //PMed
             t.setAttribute("onerror", "this.removeAttribute('image');");
             t.className = "tabbrowser-tab";
-            if (this.AppConstants.E10S_TESTING_ONLY) {
-              let remote = this._shouldBrowserBeRemote(aURI);
-            } else {
-              let remote = gMultiProcessBrowser;
-            }
+            let remote = (this.AppConstants.E10S_TESTING_ONLY) ? this._shouldBrowserBeRemote(aURI) : gMultiProcessBrowser;
+
             if (remote)
               t.setAttribute("remote", "true");
 

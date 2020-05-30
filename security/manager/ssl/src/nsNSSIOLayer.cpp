@@ -13,7 +13,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/UniquePtr.h"
 
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "prmem.h"
 #include "prnetdb.h"
 #include "nsIPrefService.h"

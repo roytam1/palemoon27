@@ -14,6 +14,7 @@
 #include "gfxCore.h"                    // for NS_GFX
 #include "mozilla/Likely.h"             // for MOZ_UNLIKELY
 #include "mozilla/gfx/BaseRect.h"       // for BaseRect
+#include "mozilla/gfx/NumericTools.h"   // for RoundUpToMultiple, RoundDownToMultiple
 #include "nsCoord.h"                    // for nscoord, etc
 #include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
 #include "nsPoint.h"                    // for nsIntPoint, nsPoint
@@ -59,7 +60,7 @@ struct NS_GFX nsRect :
   // overflowing nscoord values in the 'width' and 'height' fields by
   // clamping the width and height values to nscoord_MAX if necessary.
 
-  nsRect SaturatingUnion(const nsRect& aRect) const
+  MOZ_WARN_UNUSED_RESULT nsRect SaturatingUnion(const nsRect& aRect) const
   {
     if (IsEmpty()) {
       return aRect;
@@ -70,7 +71,7 @@ struct NS_GFX nsRect :
     }
   }
 
-  nsRect SaturatingUnionEdges(const nsRect& aRect) const
+  MOZ_WARN_UNUSED_RESULT nsRect SaturatingUnionEdges(const nsRect& aRect) const
   {
 #ifdef NS_COORD_IS_FLOAT
     return UnionEdges(aRect);
@@ -107,7 +108,7 @@ struct NS_GFX nsRect :
 
 #ifndef NS_COORD_IS_FLOAT
   // Make all nsRect Union methods be saturating.
-  nsRect UnionEdges(const nsRect& aRect) const
+  MOZ_WARN_UNUSED_RESULT nsRect UnionEdges(const nsRect& aRect) const
   {
     return SaturatingUnionEdges(aRect);
   }
@@ -115,7 +116,7 @@ struct NS_GFX nsRect :
   {
     *this = aRect1.UnionEdges(aRect2);
   }
-  nsRect Union(const nsRect& aRect) const
+  MOZ_WARN_UNUSED_RESULT nsRect Union(const nsRect& aRect) const
   {
     return SaturatingUnion(aRect);
   }
@@ -134,25 +135,42 @@ struct NS_GFX nsRect :
     *this = aRect1.SaturatingUnionEdges(aRect2);
   }
 
-  // Converts this rect from aFromAPP, an appunits per pixel ratio, to aToAPP.
-  // In the RoundOut version we make the rect the smallest rect containing the
-  // unrounded result. In the RoundIn version we make the rect the largest rect
-  // contained in the unrounded result.
-  // Note: this can turn an empty rectangle into a non-empty rectangle
-  inline nsRect ConvertAppUnitsRoundOut(int32_t aFromAPP, int32_t aToAPP) const;
-  inline nsRect ConvertAppUnitsRoundIn(int32_t aFromAPP, int32_t aToAPP) const;
+  /**
+   * Return this rect scaled to a different appunits per pixel (APP) ratio.
+   * In the RoundOut version we make the rect the smallest rect containing the
+   * unrounded result. In the RoundIn version we make the rect the largest rect
+   * contained in the unrounded result.
+   * @param aFromAPP the APP to scale from
+   * @param aToAPP the APP to scale to
+   * @note this can turn an empty rectangle into a non-empty rectangle
+   */
+  MOZ_WARN_UNUSED_RESULT inline nsRect
+    ScaleToOtherAppUnitsRoundOut(int32_t aFromAPP, int32_t aToAPP) const;
+  MOZ_WARN_UNUSED_RESULT inline nsRect
+    ScaleToOtherAppUnitsRoundIn(int32_t aFromAPP, int32_t aToAPP) const;
 
-  inline nsIntRect ScaleToNearestPixels(float aXScale, float aYScale,
-                                        nscoord aAppUnitsPerPixel) const;
-  inline nsIntRect ToNearestPixels(nscoord aAppUnitsPerPixel) const;
+  MOZ_WARN_UNUSED_RESULT inline nsIntRect
+  ScaleToNearestPixels(float aXScale, float aYScale,
+                       nscoord aAppUnitsPerPixel) const;
+
+  MOZ_WARN_UNUSED_RESULT inline nsIntRect
+  ToNearestPixels(nscoord aAppUnitsPerPixel) const;
+
   // Note: this can turn an empty rectangle into a non-empty rectangle
-  inline nsIntRect ScaleToOutsidePixels(float aXScale, float aYScale,
-                                        nscoord aAppUnitsPerPixel) const;
+  MOZ_WARN_UNUSED_RESULT inline nsIntRect
+  ScaleToOutsidePixels(float aXScale, float aYScale,
+                       nscoord aAppUnitsPerPixel) const;
+
   // Note: this can turn an empty rectangle into a non-empty rectangle
-  inline nsIntRect ToOutsidePixels(nscoord aAppUnitsPerPixel) const;
-  inline nsIntRect ScaleToInsidePixels(float aXScale, float aYScale,
-                                       nscoord aAppUnitsPerPixel) const;
-  inline nsIntRect ToInsidePixels(nscoord aAppUnitsPerPixel) const;
+  MOZ_WARN_UNUSED_RESULT inline nsIntRect
+  ToOutsidePixels(nscoord aAppUnitsPerPixel) const;
+
+  MOZ_WARN_UNUSED_RESULT inline nsIntRect
+  ScaleToInsidePixels(float aXScale, float aYScale,
+                      nscoord aAppUnitsPerPixel) const;
+
+  MOZ_WARN_UNUSED_RESULT inline nsIntRect
+  ToInsidePixels(nscoord aAppUnitsPerPixel) const;
 
   // This is here only to keep IPDL-generated code happy. DO NOT USE.
   bool operator==(const nsRect& aRect) const
@@ -180,13 +198,28 @@ struct NS_GFX nsIntRect :
   {
   }
 
-  inline nsRect ToAppUnits(nscoord aAppUnitsPerPixel) const;
+  MOZ_WARN_UNUSED_RESULT inline nsRect
+  ToAppUnits(nscoord aAppUnitsPerPixel) const;
 
   // Returns a special nsIntRect that's used in some places to signify
   // "all available space".
   static const nsIntRect& GetMaxSizedIntRect() {
     static const nsIntRect r(0, 0, INT32_MAX, INT32_MAX);
     return r;
+  }
+
+  void InflateToMultiple(const nsIntSize& aTileSize)
+  {
+    int32_t xMost = XMost();
+    int32_t yMost = YMost();
+
+    x = RoundDownToMultiple(x, aTileSize.width);
+    y = RoundDownToMultiple(y, aTileSize.height);
+    xMost = RoundUpToMultiple(xMost, aTileSize.width);
+    yMost = RoundUpToMultiple(yMost, aTileSize.height);
+
+    width = xMost - x;
+    height = yMost - y;
   }
 
   // This is here only to keep IPDL-generated code happy. DO NOT USE.
@@ -201,7 +234,7 @@ struct NS_GFX nsIntRect :
  */
 
 inline nsRect
-nsRect::ConvertAppUnitsRoundOut(int32_t aFromAPP, int32_t aToAPP) const
+nsRect::ScaleToOtherAppUnitsRoundOut(int32_t aFromAPP, int32_t aToAPP) const
 {
   if (aFromAPP == aToAPP) {
     return *this;
@@ -219,7 +252,7 @@ nsRect::ConvertAppUnitsRoundOut(int32_t aFromAPP, int32_t aToAPP) const
 }
 
 inline nsRect
-nsRect::ConvertAppUnitsRoundIn(int32_t aFromAPP, int32_t aToAPP) const
+nsRect::ScaleToOtherAppUnitsRoundIn(int32_t aFromAPP, int32_t aToAPP) const
 {
   if (aFromAPP == aToAPP) {
     return *this;

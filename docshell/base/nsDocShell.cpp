@@ -151,7 +151,7 @@
 
 #include "nsIJARChannel.h"
 
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 #include "nsISelectionDisplay.h"
 
@@ -3125,7 +3125,7 @@ nsDocShell::AddProfileTimelineMarker(const char* aName,
 }
 
 void
-nsDocShell::AddProfileTimelineMarker(UniquePtr<TimelineMarker>& aMarker)
+nsDocShell::AddProfileTimelineMarker(UniquePtr<TimelineMarker>&& aMarker)
 {
   if (mProfileTimelineRecording) {
     mProfileTimelineMarkers.AppendElement(aMarker.release());

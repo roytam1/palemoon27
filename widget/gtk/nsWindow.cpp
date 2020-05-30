@@ -11,6 +11,8 @@
 #include "mozilla/TextEvents.h"
 #include <algorithm>
 
+#include "GeckoProfiler.h"
+
 #include "prlink.h"
 #include "nsGTKToolkit.h"
 #include "nsIRollupListener.h"
@@ -1523,6 +1525,12 @@ nsWindow::GetScreenBounds(nsIntRect &aRect)
     return NS_OK;
 }
 
+gfx::IntSize
+nsWindow::GetClientSize()
+{
+  return gfx::IntSize(mBounds.width, mBounds.height);
+}
+
 NS_IMETHODIMP
 nsWindow::GetClientBounds(nsIntRect &aRect)
 {
@@ -1538,6 +1546,8 @@ nsWindow::GetClientBounds(nsIntRect &aRect)
 nsIntPoint
 nsWindow::GetClientOffset()
 {
+    PROFILER_LABEL("nsWindow", "GetClientOffset", js::ProfileEntry::Category::GRAPHICS);
+
     if (!mIsTopLevel) {
         return nsIntPoint(0, 0);
     }
@@ -4077,14 +4087,14 @@ nsWindow::SetHasMappedToplevel(bool aState)
     }
 }
 
-nsIntSize
-nsWindow::GetSafeWindowSize(nsIntSize aSize)
+LayoutDeviceIntSize
+nsWindow::GetSafeWindowSize(LayoutDeviceIntSize aSize)
 {
     // The X protocol uses CARD32 for window sizes, but the server (1.11.3)
     // reads it as CARD16.  Sizes of pixmaps, used for drawing, are (unsigned)
     // CARD16 in the protocol, but the server's ProcCreatePixmap returns
     // BadAlloc if dimensions cannot be represented by signed shorts.
-    nsIntSize result = aSize;
+    LayoutDeviceIntSize result = aSize;
     const int32_t kInt16Max = 32767;
     if (result.width > kInt16Max) {
         result.width = kInt16Max;
@@ -6541,8 +6551,11 @@ nsWindow::GdkRectToDevicePixels(GdkRectangle rect) {
 nsresult
 nsWindow::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
                                      uint32_t aNativeMessage,
-                                     uint32_t aModifierFlags)
+                                     uint32_t aModifierFlags,
+                                     nsIObserver* aObserver)
 {
+  AutoObserverNotifier notifier(aObserver, "mouseevent");
+
   if (!mGdkWindow) {
     return NS_OK;
   }

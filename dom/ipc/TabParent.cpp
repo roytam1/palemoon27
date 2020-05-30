@@ -1233,7 +1233,7 @@ TabParent::SendRealDragEvent(WidgetDragEvent& event, uint32_t aDragAction,
 
 CSSPoint TabParent::AdjustTapToChildWidget(const CSSPoint& aPoint)
 {
-  return aPoint + (LayoutDevicePoint(mChildProcessOffsetAtTouchStart) * GetLayoutDeviceToCSSScale());
+  return aPoint + (LayoutDevicePoint(GetChildProcessOffset()) * GetLayoutDeviceToCSSScale());
 }
 
 bool TabParent::SendHandleSingleTap(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid)
@@ -1373,6 +1373,177 @@ TabParent::RecvRequestNativeKeyBindings(const WidgetKeyboardEvent& aEvent,
   return true;
 }
 
+class SynthesizedEventObserver : public nsIObserver
+{
+  NS_DECL_ISUPPORTS
+
+public:
+  SynthesizedEventObserver(TabParent* aTabParent, const uint64_t& aObserverId)
+    : mTabParent(aTabParent)
+    , mObserverId(aObserverId)
+  {
+    MOZ_ASSERT(mTabParent);
+  }
+
+  NS_IMETHODIMP Observe(nsISupports* aSubject,
+                        const char* aTopic,
+                        const char16_t* aData) override
+  {
+    if (!mTabParent) {
+      // We already sent the notification
+      return NS_OK;
+    }
+
+    if (!mTabParent->SendNativeSynthesisResponse(mObserverId, nsCString(aTopic))) {
+      NS_WARNING("Unable to send native event synthesization response!");
+    }
+    // Null out tabparent to indicate we already sent the response
+    mTabParent = nullptr;
+    return NS_OK;
+  }
+
+private:
+  virtual ~SynthesizedEventObserver() { }
+
+  nsRefPtr<TabParent> mTabParent;
+  uint64_t mObserverId;
+};
+
+NS_IMPL_ISUPPORTS(SynthesizedEventObserver, nsIObserver)
+
+class MOZ_STACK_CLASS AutoSynthesizedEventResponder
+{
+public:
+  AutoSynthesizedEventResponder(TabParent* aTabParent,
+                                const uint64_t& aObserverId,
+                                const char* aTopic)
+    : mObserver(new SynthesizedEventObserver(aTabParent, aObserverId))
+    , mTopic(aTopic)
+  { }
+
+  ~AutoSynthesizedEventResponder()
+  {
+    // This may be a no-op if the observer already sent a response.
+    mObserver->Observe(nullptr, mTopic, nullptr);
+  }
+
+  nsIObserver* GetObserver()
+  {
+    return mObserver;
+  }
+
+private:
+  nsCOMPtr<nsIObserver> mObserver;
+  const char* mTopic;
+};
+
+bool
+TabParent::RecvSynthesizeNativeKeyEvent(const int32_t& aNativeKeyboardLayout,
+                                        const int32_t& aNativeKeyCode,
+                                        const uint32_t& aModifierFlags,
+                                        const nsString& aCharacters,
+                                        const nsString& aUnmodifiedCharacters,
+                                        const uint64_t& aObserverId)
+{
+  AutoSynthesizedEventResponder responder(this, aObserverId, "keyevent");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->SynthesizeNativeKeyEvent(aNativeKeyboardLayout, aNativeKeyCode,
+      aModifierFlags, aCharacters, aUnmodifiedCharacters,
+      responder.GetObserver());
+  }
+  return true;
+}
+
+bool
+TabParent::RecvSynthesizeNativeMouseEvent(const LayoutDeviceIntPoint& aPoint,
+                                          const uint32_t& aNativeMessage,
+                                          const uint32_t& aModifierFlags,
+                                          const uint64_t& aObserverId)
+{
+  AutoSynthesizedEventResponder responder(this, aObserverId, "mouseevent");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->SynthesizeNativeMouseEvent(aPoint, aNativeMessage, aModifierFlags,
+      responder.GetObserver());
+  }
+  return true;
+}
+
+bool
+TabParent::RecvSynthesizeNativeMouseMove(const LayoutDeviceIntPoint& aPoint,
+                                         const uint64_t& aObserverId)
+{
+  AutoSynthesizedEventResponder responder(this, aObserverId, "mousemove");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->SynthesizeNativeMouseMove(aPoint, responder.GetObserver());
+  }
+  return true;
+}
+
+bool
+TabParent::RecvSynthesizeNativeMouseScrollEvent(const LayoutDeviceIntPoint& aPoint,
+                                                const uint32_t& aNativeMessage,
+                                                const double& aDeltaX,
+                                                const double& aDeltaY,
+                                                const double& aDeltaZ,
+                                                const uint32_t& aModifierFlags,
+                                                const uint32_t& aAdditionalFlags,
+                                                const uint64_t& aObserverId)
+{
+  AutoSynthesizedEventResponder responder(this, aObserverId, "mousescrollevent");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->SynthesizeNativeMouseScrollEvent(aPoint, aNativeMessage,
+      aDeltaX, aDeltaY, aDeltaZ, aModifierFlags, aAdditionalFlags,
+      responder.GetObserver());
+  }
+  return true;
+}
+
+bool
+TabParent::RecvSynthesizeNativeTouchPoint(const uint32_t& aPointerId,
+                                          const TouchPointerState& aPointerState,
+                                          const nsIntPoint& aPointerScreenPoint,
+                                          const double& aPointerPressure,
+                                          const uint32_t& aPointerOrientation,
+                                          const uint64_t& aObserverId)
+{
+  AutoSynthesizedEventResponder responder(this, aObserverId, "touchpoint");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->SynthesizeNativeTouchPoint(aPointerId, aPointerState, aPointerScreenPoint,
+      aPointerPressure, aPointerOrientation, responder.GetObserver());
+  }
+  return true;
+}
+
+bool
+TabParent::RecvSynthesizeNativeTouchTap(const nsIntPoint& aPointerScreenPoint,
+                                        const bool& aLongTap,
+                                        const uint64_t& aObserverId)
+{
+  AutoSynthesizedEventResponder responder(this, aObserverId, "touchtap");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->SynthesizeNativeTouchTap(aPointerScreenPoint, aLongTap,
+      responder.GetObserver());
+  }
+  return true;
+}
+
+bool
+TabParent::RecvClearNativeTouchSequence(const uint64_t& aObserverId)
+{
+  AutoSynthesizedEventResponder responder(this, aObserverId, "cleartouch");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->ClearNativeTouchSequence(responder.GetObserver());
+  }
+  return true;
+}
+
 bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
 {
   if (mIsDestroyed) {
@@ -1408,9 +1579,6 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
 {
   if (mIsDestroyed) {
     return false;
-  }
-  if (event.message == NS_TOUCH_START) {
-    mChildProcessOffsetAtTouchStart = GetChildProcessOffset();
   }
 
   // PresShell::HandleEventInternal adds touches on touch end/cancel.  This
@@ -1810,6 +1978,13 @@ TabParent::RecvEnableDisableCommands(const nsString& aAction,
                                          aDisabledCommands.Length(), disabledCommands);
   }
 
+  return true;
+}
+
+bool
+TabParent::RecvGetTabOffset(LayoutDeviceIntPoint* aPoint)
+{
+  *aPoint = GetChildProcessOffset();
   return true;
 }
 
@@ -2990,7 +3165,8 @@ TabParent::RecvInvokeDragSession(nsTArray<IPCDataTransfer>&& aTransfers,
     }
   }
 
-  if (aVisualDnDData.IsEmpty()) {
+  if (aVisualDnDData.IsEmpty() ||
+      (aVisualDnDData.Length() < aHeight * aStride)) {
     mDnDVisualization = nullptr;
   } else {
     mDnDVisualization =

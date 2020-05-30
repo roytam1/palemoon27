@@ -9,11 +9,6 @@
 %tabBrowserDTD;
 ]>
 
-# MAKE_E10S_WORK surrounds code needed to have the front-end try to be smart
-# about using non-remote browsers for loading certain URIs when remote tabs
-# (browser.tabs.remote) are enabled.
-#define MAKE_E10S_WORK 1
-
 <bindings id="tabBrowserBindings"
           xmlns="http://www.mozilla.org/xbl"
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
@@ -81,6 +76,9 @@
          Components.classes["@mozilla.org/autocomplete/search;1?name=history"]
                    .getService(Components.interfaces.mozIPlacesAutoComplete);
       </field>
+      <field name="AppConstants" readonly="true">
+        (Components.utils.import("resource://gre/modules/AppConstants.jsm", {})).AppConstants;
+      </field>
       <field name="mTabBox" readonly="true">
         document.getAnonymousElementByAttribute(this, "anonid", "tabbox");
       </field>
@@ -118,11 +116,7 @@
         new Map();
       </field>
       <field name="arrowKeysShouldWrap" readonly="true">
-#ifdef XP_MACOSX
-        true
-#else
-        false
-#endif
+        this.AppConstants.platform == "macosx";
       </field>
 
       <field name="_autoScrollPopup">
@@ -1387,7 +1381,6 @@
         ]]></body>
       </method>
 
-#ifdef MAKE_E10S_WORK
       <method name="_updateBrowserRemoteness">
         <parameter name="aBrowser"/>
         <parameter name="aRemote"/>
@@ -1454,7 +1447,6 @@
           ]]>
         </body>
       </method>
-#endif
 
       <method name="addTab">
         <parameter name="aURI"/>
@@ -1502,11 +1494,11 @@
             t.setAttribute("validate", "never"); //PMed
             t.setAttribute("onerror", "this.removeAttribute('image');");
             t.className = "tabbrowser-tab";
-#ifdef MAKE_E10S_WORK
-            let remote = this._shouldBrowserBeRemote(aURI);
-#else
-            let remote = gMultiProcessBrowser;
-#endif
+            if (this.AppConstants.E10S_TESTING_ONLY) {
+              let remote = this._shouldBrowserBeRemote(aURI);
+            } else {
+              let remote = gMultiProcessBrowser;
+            }
             if (remote)
               t.setAttribute("remote", "true");
 
@@ -2755,17 +2747,17 @@
         <parameter name="aCharset"/>
         <body>
           <![CDATA[
-#ifdef MAKE_E10S_WORK
-            this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(aURI));
-            try {
-#endif
-            return this.mCurrentBrowser.loadURI(aURI, aReferrerURI, aCharset);
-#ifdef MAKE_E10S_WORK
-            } catch (e) {
-              let url = this.mCurrentBrowser.currentURI.spec;
-              this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(url));
+            if (this.AppConstants.E10S_TESTING_ONLY) {
+              this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(aURI));
+              try {
+                return this.mCurrentBrowser.loadURI(aURI, aReferrerURI, aCharset);
+              } catch (e) {
+                let url = this.mCurrentBrowser.currentURI.spec;
+                this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(url));
+              }
+            } else {
+                return this.mCurrentBrowser.loadURI(aURI, aReferrerURI, aCharset);
             }
-#endif
           ]]>
         </body>
       </method>
@@ -2779,17 +2771,17 @@
         <parameter name="aPostData"/>
         <body>
           <![CDATA[
-#ifdef MAKE_E10S_WORK
-            this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(aURI));
-            try {
-#endif
-            return this.mCurrentBrowser.loadURIWithFlags(aURI, aFlags, aReferrerURI, aCharset, aPostData);
-#ifdef MAKE_E10S_WORK
-            } catch (e) {
-              let url = this.mCurrentBrowser.currentURI.spec;
-              this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(url));
+            if (this.AppConstants.E10S_TESTING_ONLY) {
+              this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(aURI));
+              try {
+                return this.mCurrentBrowser.loadURIWithFlags(aURI, aFlags, aReferrerURI, aCharset, aPostData);
+              } catch (e) {
+                let url = this.mCurrentBrowser.currentURI.spec;
+                this._updateBrowserRemoteness(this.mCurrentBrowser, this._shouldBrowserBeRemote(url));
+              }
+            } else {
+                return this.mCurrentBrowser.loadURIWithFlags(aURI, aFlags, aReferrerURI, aCharset, aPostData);
             }
-#endif
           ]]>
         </body>
       </method>
@@ -3017,30 +3009,30 @@
             }
           }
 
-#ifdef XP_MACOSX
-          if (!aEvent.metaKey)
-            return;
+          if (this.AppConstants.platform == "macosx") {
+            if (!aEvent.metaKey)
+              return;
 
-          var offset = 1;
-          switch (aEvent.charCode) {
-            case '}'.charCodeAt(0):
-              offset = -1;
-            case '{'.charCodeAt(0):
-              if (window.getComputedStyle(this, null).direction == "ltr")
-                offset *= -1;
-              this.tabContainer.advanceSelectedTab(offset, true);
+            var offset = 1;
+            switch (aEvent.charCode) {
+              case '}'.charCodeAt(0):
+                offset = -1;
+              case '{'.charCodeAt(0):
+                if (window.getComputedStyle(this, null).direction == "ltr")
+                  offset *= -1;
+                this.tabContainer.advanceSelectedTab(offset, true);
+                aEvent.stopPropagation();
+                aEvent.preventDefault();
+            }
+          } else {
+            if (aEvent.ctrlKey && !aEvent.shiftKey && !aEvent.metaKey &&
+                aEvent.keyCode == KeyEvent.DOM_VK_F4 &&
+                !this.mCurrentTab.pinned) {
+              this.removeCurrentTab({animate: true});
               aEvent.stopPropagation();
               aEvent.preventDefault();
+            }
           }
-#else
-          if (aEvent.ctrlKey && !aEvent.shiftKey && !aEvent.metaKey &&
-              aEvent.keyCode == KeyEvent.DOM_VK_F4 &&
-              !this.mCurrentTab.pinned) {
-            this.removeCurrentTab({animate: true});
-            aEvent.stopPropagation();
-            aEvent.preventDefault();
-          }
-#endif
         ]]></body>
       </method>
 
@@ -3409,15 +3401,16 @@
       </xul:hbox>
       <xul:arrowscrollbox anonid="arrowscrollbox" orient="horizontal" flex="1"
                           style="min-width: 1px;"
-#ifndef XP_MACOSX
-                          clicktoscroll="true"
-#endif
                           class="tabbrowser-arrowscrollbox">
-# This is a hack to circumvent bug 472020, otherwise the tabs show up on the
-# right of the newtab button.
+<!--
+ This is a hack to circumvent bug 472020, otherwise the tabs show up on the
+ right of the newtab button.
+-->
         <children includes="tab"/>
-# This is to ensure anything extensions put here will go before the newtab
-# button, necessary due to the previous hack.
+<!--
+  This is to ensure anything extensions put here will go before the newtab
+  button, necessary due to the previous hack.
+-->
         <children/>
         <xul:toolbarbutton class="tabs-newtab-button"
                            command="cmd_newNavigatorTab"
@@ -3713,16 +3706,17 @@
           this._lastTabClosedByMouse = true;
 
           if (this.getAttribute("overflow") == "true") {
-#ifdef XP_WIN
-            // Don't need to do anything if we're in overflow mode and we're closing
-            // the last tab.
-            if (isEndTab)
-#else
-            // Don't need to do anything if we're in overflow mode and aren't scrolled
-            // all the way to the right, or if we're closing the last tab.
-            if (isEndTab || !this.mTabstrip._scrollButtonDown.disabled)
-#endif
-              return;
+            if (this.AppConstants.platform == "win") {
+              // Don't need to do anything if we're in overflow mode and we're closing
+              // the last tab.
+              if (isEndTab)
+                return;
+            } else {
+              // Don't need to do anything if we're in overflow mode and aren't scrolled
+              // all the way to the right, or if we're closing the last tab.
+              if (isEndTab || !this.mTabstrip._scrollButtonDown.disabled)
+                return;
+            }
 
             // If the tab has an owner that will become the active tab, the owner will
             // be to the left of it, so we actually want the left tab to slide over.
@@ -4101,11 +4095,8 @@
                   PrivateBrowsingUtils.isWindowPrivate(sourceNode.ownerDocument.defaultView))
                 return dt.effectAllowed = "none";
 
-#ifdef XP_MACOSX
-              return dt.effectAllowed = event.altKey ? "copy" : "move";
-#else
-              return dt.effectAllowed = event.ctrlKey ? "copy" : "move";
-#endif
+              let copyModifier = this.AppConstants.platform == "macosx" ? event.altKey : event.ctrlKey;
+              return dt.effectAllowed = copyModifier ? "copy" : "move";
             }
           }
 
@@ -4259,14 +4250,13 @@
       ]]></handler>
 
       <handler event="dblclick"><![CDATA[
-#ifndef XP_MACOSX
-        // When the tabbar has an unified appearance with the titlebar
-        // and menubar, a double-click in it should have the same behavior
-        // as double-clicking the titlebar
-        if (TabsInTitlebar.enabled ||
-            (TabsOnTop.enabled && this.parentNode._dragBindingAlive))
-          return;
-#endif
+        if (gBrowser.AppConstants.platform != "macosx") {
+          // When the tabbar has an unified appearance with the titlebar
+          // and menubar, a double-click in it should have the same behavior
+          // as double-clicking the titlebar
+          if (TabsInTitlebar.enabled || this.parentNode._dragBindingAlive)
+            return;
+        }
 
         if (event.button != 0 ||
             event.originalTarget.localName != "box")
@@ -4296,13 +4286,13 @@
       ]]></handler>
 
       <handler event="keypress"><![CDATA[
-        if (event.altKey || event.shiftKey ||
-#ifdef XP_MACOSX
-            !event.metaKey)
-#else
-            !event.ctrlKey || event.metaKey)
-#endif
-          return;
+        if (this.AppConstants.platform == "macosx") {
+          if (event.altKey || event.shiftKey || !event.metaKey)
+            return;
+        } else {
+          if (event.altKey || event.shiftKey || !event.ctrlKey || event.metaKey)
+            return;
+        }
 
         switch (event.keyCode) {
           case KeyEvent.DOM_VK_UP:
@@ -4625,13 +4615,12 @@
           window.moveTo(left, top);
           window.focus();
         } else {
-          this.tabbrowser.replaceTabWithWindow(draggedTab, { screenX: left,
-                                                             screenY: top,
-#ifndef XP_WIN
-                                                             outerWidth: winWidth,
-                                                             outerHeight: winHeight
-#endif
-                                                             });
+          let props = { screenX: left, screenY: top };
+          if (this.tabbrowser.AppConstants.platform != "win") {
+            props.outerWidth = winWidth;
+            props.outerHeight = winHeight;
+          }
+          this.tabbrowser.replaceTabWithWindow(draggedTab, props);
         }
         event.stopPropagation();
       ]]></handler>

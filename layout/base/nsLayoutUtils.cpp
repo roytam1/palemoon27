@@ -5743,7 +5743,7 @@ struct SnappedImageDrawingParameters {
   // one has been explicitly specified. This is the same as |size| except that
   // it does not take into account any transformation on the gfxContext we're
   // drawing to - for example, CSS transforms are not taken into account.
-  nsIntSize svgViewportSize;
+  CSSIntSize svgViewportSize;
   // Whether there's anything to draw at all.
   bool shouldDraw;
 
@@ -5755,7 +5755,7 @@ struct SnappedImageDrawingParameters {
   SnappedImageDrawingParameters(const gfxMatrix&   aImageSpaceToDeviceSpace,
                                 const nsIntSize&   aSize,
                                 const ImageRegion& aRegion,
-                                const nsIntSize&   aSVGViewportSize)
+                                const CSSIntSize&  aSVGViewportSize)
    : imageSpaceToDeviceSpace(aImageSpaceToDeviceSpace)
    , size(aSize)
    , region(aRegion)
@@ -5881,10 +5881,10 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
                                     aGraphicsFilter, aImageFlags);
   gfxSize imageSize(intImageSize.width, intImageSize.height);
 
-  nsIntSize svgViewportSize = currentMatrix.IsIdentity()
-      ? intImageSize
-      : nsIntSize(NSAppUnitsToIntPixels(dest.width, aAppUnitsPerDevPixel),
-                  NSAppUnitsToIntPixels(dest.height, aAppUnitsPerDevPixel));
+  CSSIntSize svgViewportSize = currentMatrix.IsIdentity()
+    ? CSSIntSize(intImageSize.width, intImageSize.height)
+    : CSSIntSize(NSAppUnitsToIntPixels(dest.width, aAppUnitsPerDevPixel), //XXX BUG!
+                 NSAppUnitsToIntPixels(dest.height, aAppUnitsPerDevPixel)); //XXX BUG!
 
   // Compute the set of pixels that would be sampled by an ideal rendering
   gfxPoint subimageTopLeft =
@@ -6083,7 +6083,7 @@ nsLayoutUtils::DrawSingleImage(gfxContext&            aContext,
                                const nsRect*          aSourceArea)
 {
   nscoord appUnitsPerCSSPixel = nsDeviceContext::AppUnitsPerCSSPixel();
-  nsIntSize pixelImageSize(ComputeSizeForDrawingWithFallback(aImage, aDest.Size()));
+  CSSIntSize pixelImageSize(ComputeSizeForDrawingWithFallback(aImage, aDest.Size()));
   if (pixelImageSize.width < 1 || pixelImageSize.height < 1) {
     NS_ASSERTION(pixelImageSize.width >= 0 && pixelImageSize.height >= 0,
                  "Image width or height is negative");
@@ -6127,7 +6127,7 @@ nsLayoutUtils::DrawSingleImage(gfxContext&            aContext,
 
 /* static */ void
 nsLayoutUtils::ComputeSizeForDrawing(imgIContainer *aImage,
-                                     nsIntSize&     aImageSize, /*outparam*/
+                                     CSSIntSize&    aImageSize, /*outparam*/
                                      nsSize&        aIntrinsicRatio, /*outparam*/
                                      bool&          aGotWidth,  /*outparam*/
                                      bool&          aGotHeight  /*outparam*/)
@@ -6140,16 +6140,16 @@ nsLayoutUtils::ComputeSizeForDrawing(imgIContainer *aImage,
     // We hit an error (say, because the image failed to load or couldn't be
     // decoded) and should return zero size.
     aGotWidth = aGotHeight = true;
-    aImageSize = nsIntSize(0, 0);
+    aImageSize = CSSIntSize(0, 0);
     aIntrinsicRatio = nsSize(0, 0);
   }
 }
 
-/* static */ nsIntSize
+/* static */ CSSIntSize
 nsLayoutUtils::ComputeSizeForDrawingWithFallback(imgIContainer* aImage,
                                                  const nsSize&  aFallbackSize)
 {
-  nsIntSize imageSize;
+  CSSIntSize imageSize;
   nsSize imageRatio;
   bool gotHeight, gotWidth;
   ComputeSizeForDrawing(aImage, imageSize, imageRatio, gotWidth, gotHeight);
@@ -6192,7 +6192,7 @@ nsLayoutUtils::ComputeSizeForDrawingWithFallback(imgIContainer* aImage,
 nsLayoutUtils::DrawBackgroundImage(gfxContext&         aContext,
                                    nsPresContext*      aPresContext,
                                    imgIContainer*      aImage,
-                                   const nsIntSize&    aImageSize,
+                                   const CSSIntSize&   aImageSize,
                                    GraphicsFilter      aGraphicsFilter,
                                    const nsRect&       aDest,
                                    const nsRect&       aFill,
@@ -6264,18 +6264,6 @@ nsLayoutUtils::GetWholeImageDestination(const nsSize& aWholeImageSize,
   nscoord wholeSizeY = NSToCoordRound(aWholeImageSize.height*scaleY);
   return nsRect(aDestArea.TopLeft() - nsPoint(destOffsetX, destOffsetY),
                 nsSize(wholeSizeX, wholeSizeY));
-}
-
-/* static */ nsRect
-nsLayoutUtils::GetWholeImageDestination(const nsIntSize& aWholeImageSize,
-                                        const nsRect& aImageSourceArea,
-                                        const nsRect& aDestArea)
-{
-  nscoord appUnitsPerCSSPixel = nsDeviceContext::AppUnitsPerCSSPixel();
-  return GetWholeImageDestination(nsSize(aWholeImageSize.width * appUnitsPerCSSPixel,
-                                         aWholeImageSize.height * appUnitsPerCSSPixel),
-                                  aImageSourceArea,
-                                  aDestArea);
 }
 
 /* static */ already_AddRefed<imgIContainer>

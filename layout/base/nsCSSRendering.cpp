@@ -4787,7 +4787,7 @@ nsImageRenderer::ComputeIntrinsicSize()
     case eStyleImageType_Image:
     {
       bool haveWidth, haveHeight;
-      nsIntSize imageIntSize;
+      CSSIntSize imageIntSize;
       nsLayoutUtils::ComputeSizeForDrawing(mImageContainer, imageIntSize,
                                            result.mRatio, haveWidth, haveHeight);
       if (haveWidth) {
@@ -4996,8 +4996,8 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
   switch (mType) {
     case eStyleImageType_Image:
     {
-      nsIntSize imageSize(nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
-                          nsPresContext::AppUnitsToIntCSSPixels(mSize.height));
+      CSSIntSize imageSize(nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
+                           nsPresContext::AppUnitsToIntCSSPixels(mSize.height));
       return
         nsLayoutUtils::DrawBackgroundImage(*aRenderingContext.ThebesContext(),
                                            aPresContext,

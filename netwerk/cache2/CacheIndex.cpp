@@ -3123,7 +3123,6 @@ CacheIndex::RemoveNonFreshEntries(CacheIndexEntry *aEntry, void* aClosure)
   return PL_DHASH_REMOVE;
 }
 
-#ifdef PR_LOGGING
 // static
 char const *
 CacheIndex::StateString(EState aState)
@@ -3141,7 +3140,6 @@ CacheIndex::StateString(EState aState)
   MOZ_ASSERT(false, "Unexpected state!");
   return "?";
 }
-#endif
 
 void
 CacheIndex::ChangeState(EState aNewState)

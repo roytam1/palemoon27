@@ -26,7 +26,6 @@
 using namespace mozilla;
 using namespace mozilla::net;
 
-#if defined(PR_LOGGING)
 //
 // Log module for nsILoadGroup logging...
 //
@@ -39,7 +38,6 @@ using namespace mozilla::net;
 // the file nspr.log
 //
 static PRLogModuleInfo* gLoadGroupLog = nullptr;
-#endif
 
 #undef LOG
 #define LOG(args) PR_LOG(gLoadGroupLog, PR_LOG_DEBUG, args)
@@ -120,11 +118,9 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
 {
     NS_INIT_AGGREGATED(outer);
 
-#if defined(PR_LOGGING)
     // Initialize the global PRLogModule for nsILoadGroup logging
     if (nullptr == gLoadGroupLog)
         gLoadGroupLog = PR_NewLogModule("LoadGroup");
-#endif
 
     LOG(("LOADGROUP [%x]: Created.\n", this));
 }
@@ -258,12 +254,12 @@ nsLoadGroup::Cancel(nsresult status)
             continue;
         }
 
-#if defined(PR_LOGGING)
-        nsAutoCString nameStr;
-        request->GetName(nameStr);
-        LOG(("LOADGROUP [%x]: Canceling request %x %s.\n",
-             this, request, nameStr.get()));
-#endif
+        if (PR_LOG_TEST(gLoadGroupLog, PR_LOG_DEBUG)) {
+            nsAutoCString nameStr;
+            request->GetName(nameStr);
+            LOG(("LOADGROUP [%x]: Canceling request %x %s.\n",
+                 this, request, nameStr.get()));
+        }
 
         //
         // Remove the request from the load group...  This may cause
@@ -326,12 +322,12 @@ nsLoadGroup::Suspend()
         if (!request)
             continue;
 
-#if defined(PR_LOGGING)
-        nsAutoCString nameStr;
-        request->GetName(nameStr);
-        LOG(("LOADGROUP [%x]: Suspending request %x %s.\n",
-            this, request, nameStr.get()));
-#endif
+        if (PR_LOG_TEST(gLoadGroupLog, PR_LOG_DEBUG)) {
+            nsAutoCString nameStr;
+            request->GetName(nameStr);
+            LOG(("LOADGROUP [%x]: Suspending request %x %s.\n",
+                this, request, nameStr.get()));
+        }
 
         // Suspend the request...
         rv = request->Suspend();
@@ -378,12 +374,12 @@ nsLoadGroup::Resume()
         if (!request)
             continue;
 
-#if defined(PR_LOGGING)
-        nsAutoCString nameStr;
-        request->GetName(nameStr);
-        LOG(("LOADGROUP [%x]: Resuming request %x %s.\n",
-            this, request, nameStr.get()));
-#endif
+        if (PR_LOG_TEST(gLoadGroupLog, PR_LOG_DEBUG)) {
+            nsAutoCString nameStr;
+            request->GetName(nameStr);
+            LOG(("LOADGROUP [%x]: Resuming request %x %s.\n",
+                this, request, nameStr.get()));
+        }
 
         // Resume the request...
         rv = request->Resume();
@@ -467,14 +463,12 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
 {
     nsresult rv;
 
-#if defined(PR_LOGGING)
-    {
+    if (PR_LOG_TEST(gLoadGroupLog, PR_LOG_DEBUG)) {
         nsAutoCString nameStr;
         request->GetName(nameStr);
         LOG(("LOADGROUP [%x]: Adding request %x %s (count=%d).\n",
              this, request, nameStr.get(), mRequests.EntryCount()));
     }
-#endif /* PR_LOGGING */
 
     NS_ASSERTION(!PL_DHashTableSearch(&mRequests, request),
                  "Entry added to loadgroup twice, don't do that");
@@ -483,11 +477,8 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
     // Do not add the channel, if the loadgroup is being canceled...
     //
     if (mIsCanceling) {
-
-#if defined(PR_LOGGING)
         LOG(("LOADGROUP [%x]: AddChannel() ABORTED because LoadGroup is"
              " being canceled!!\n", this));
-#endif /* PR_LOGGING */
 
         return NS_BINDING_ABORTED;
     }
@@ -569,14 +560,12 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
     NS_ENSURE_ARG_POINTER(request);
     nsresult rv;
 
-#if defined(PR_LOGGING)
-    {
+    if (PR_LOG_TEST(gLoadGroupLog, PR_LOG_DEBUG)) {
         nsAutoCString nameStr;
         request->GetName(nameStr);
         LOG(("LOADGROUP [%x]: Removing request %x %s status %x (count=%d).\n",
             this, request, nameStr.get(), aStatus, mRequests.EntryCount() - 1));
     }
-#endif
 
     // Make sure we have a owning reference to the request we're about
     // to remove.
@@ -621,12 +610,10 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 
             rv = observer->OnStopRequest(request, ctxt, aStatus);
 
-#if defined(PR_LOGGING)
             if (NS_FAILED(rv)) {
                 LOG(("LOADGROUP [%x]: OnStopRequest for request %x FAILED.\n",
                     this, request));
             }
-#endif
         }
 
         // If that was the last request -> remove ourselves from loadgroup

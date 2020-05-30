@@ -28,15 +28,9 @@ static PRIOMethods nsSOCKSIOLayerMethods;
 static bool firstTime = true;
 static bool ipv6Supported = true;
 
-#if defined(PR_LOGGING)
 static PRLogModuleInfo *gSOCKSLog;
 #define LOGDEBUG(args) PR_LOG(gSOCKSLog, PR_LOG_DEBUG, args)
 #define LOGERROR(args) PR_LOG(gSOCKSLog, PR_LOG_ERROR , args)
-
-#else
-#define LOGDEBUG(args)
-#define LOGERROR(args)
-#endif
 
 class nsSOCKSSocketInfo : public nsISOCKSSocketInfo
                         , public nsIDNSListener
@@ -441,12 +435,13 @@ nsSOCKSSocketInfo::ConnectToProxy(PRFileDesc *fd)
             return PR_FAILURE;
         }
 
-#if defined(PR_LOGGING)
-        char buf[kIPv6CStrBufSize];
-        NetAddrToString(&mInternalProxyAddr, buf, sizeof(buf));
-        LOGDEBUG(("socks: trying proxy server, %s:%hu",
-                 buf, ntohs(mInternalProxyAddr.inet.port)));
-#endif
+        if (PR_LOG_TEST(gSOCKSLog, PR_LOG_DEBUG)) {
+          char buf[kIPv6CStrBufSize];
+          NetAddrToString(&mInternalProxyAddr, buf, sizeof(buf));
+          LOGDEBUG(("socks: trying proxy server, %s:%hu",
+                   buf, ntohs(mInternalProxyAddr.inet.port)));
+        }
+
         NetAddr proxy = mInternalProxyAddr;
         FixupAddressFamily(fd, &proxy);
         PRNetAddr prProxy;
@@ -1415,10 +1410,7 @@ nsSOCKSIOLayerAddToSocket(int32_t family,
 
         firstTime = false;
 
-#if defined(PR_LOGGING)
         gSOCKSLog = PR_NewLogModule("SOCKS");
-#endif
-
     }
 
     LOGDEBUG(("Entering nsSOCKSIOLayerAddToSocket()."));

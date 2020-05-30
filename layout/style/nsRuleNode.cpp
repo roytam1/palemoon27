@@ -1617,8 +1617,6 @@ nsRuleNode::ConvertChildrenToHash(int32_t aNumKids)
   PLDHashTable *hash = PL_NewDHashTable(&ChildrenHashOps,
                                         sizeof(ChildrenHashEntry),
                                         aNumKids);
-  if (!hash)
-    return;
   for (nsRuleNode* curr = ChildrenList(); curr; curr = curr->mNextSibling) {
     Key key = curr->GetKey();
     // This will never fail because of the initial size we gave the table.

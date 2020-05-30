@@ -37,6 +37,7 @@
 #include "nsError.h"
 #include "nsPrintfCString.h"
 #include "nsAlgorithm.h"
+#include "nsQueryObject.h"
 #include "GeckoProfiler.h"
 #include "nsIConsoleService.h"
 #include "mozilla/Attributes.h"
@@ -1262,6 +1263,10 @@ nsHttpChannel::ProcessAltService()
     // alternative   = protocol-id "=" alt-authority
     // protocol-id   = token ; percent-encoded ALPN protocol identifier
     // alt-authority = quoted-string ;  containing [ uri-host ] ":" port
+
+    if (!mAllowAltSvc) { // per channel opt out
+        return;
+    }
 
     if (!gHttpHandler->AllowAltSvc() || (mCaps & NS_HTTP_DISALLOW_SPDY)) {
         return;
@@ -4884,7 +4889,8 @@ nsHttpChannel::BeginConnect()
     mRequestHead.SetOrigin(scheme, host, port);
 
     nsRefPtr<AltSvcMapping> mapping;
-    if ((scheme.Equals(NS_LITERAL_CSTRING("http")) ||
+    if (mAllowAltSvc && // per channel
+        (scheme.Equals(NS_LITERAL_CSTRING("http")) ||
          scheme.Equals(NS_LITERAL_CSTRING("https"))) &&
         (mapping = gHttpHandler->GetAltServiceMapping(scheme,
                                                       host, port,
@@ -6597,12 +6603,12 @@ nsHttpChannel::MaybeInvalidateCacheEntryForSubsequentGet()
     }
 
     // Invalidate the request-uri.
-#ifdef PR_LOGGING
-    nsAutoCString key;
-    mURI->GetAsciiSpec(key);
-    LOG(("MaybeInvalidateCacheEntryForSubsequentGet [this=%p uri=%s]\n",
-        this, key.get()));
-#endif
+    if (LOG_ENABLED()) {
+      nsAutoCString key;
+      mURI->GetAsciiSpec(key);
+      LOG(("MaybeInvalidateCacheEntryForSubsequentGet [this=%p uri=%s]\n",
+          this, key.get()));
+    }
 
     DoInvalidateCacheEntry(mURI);
 
@@ -6645,11 +6651,12 @@ nsHttpChannel::DoInvalidateCacheEntry(nsIURI* aURI)
 
     nsresult rv;
 
-#ifdef PR_LOGGING
     nsAutoCString key;
-    aURI->GetAsciiSpec(key);
+    if (LOG_ENABLED()) {
+      aURI->GetAsciiSpec(key);
+    }
+
     LOG(("DoInvalidateCacheEntry [channel=%p key=%s]", this, key.get()));
-#endif
 
     nsCOMPtr<nsICacheStorageService> cacheStorageService =
         do_GetService("@mozilla.org/netwerk/cache-storage-service;1", &rv);

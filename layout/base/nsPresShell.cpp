@@ -177,6 +177,7 @@
 #include "nsIFrameInlines.h"
 #include "mozilla/gfx/2D.h"
 #include "nsSubDocumentFrame.h"
+#include "nsQueryObject.h"
 
 #ifdef ANDROID
 #include "nsIDocShellTreeOwner.h"
@@ -535,9 +536,7 @@ private:
 
 bool PresShell::sDisableNonTestMouseEvents = false;
 
-#ifdef PR_LOGGING
 PRLogModuleInfo* PresShell::gLog;
-#endif
 
 #ifdef DEBUG
 static void
@@ -753,12 +752,10 @@ PresShell::PresShell()
   mReflowCountMgr->SetPresContext(mPresContext);
   mReflowCountMgr->SetPresShell(this);
 #endif
-#ifdef PR_LOGGING
   mLoadBegin = TimeStamp::Now();
   if (!gLog) {
     gLog = PR_NewLogModule("PresShell");
   }
-#endif
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = false;
   mIsActive = true;
@@ -977,7 +974,6 @@ PresShell::Init(nsIDocument* aDocument,
   mTouchManager.Init(this, mDocument);
 }
 
-#ifdef PR_LOGGING
 enum TextPerfLogType {
   eLog_reflow,
   eLog_loaddone,
@@ -990,6 +986,18 @@ LogTextPerfStats(gfxTextPerfMetrics* aTextPerf,
                  const gfxTextPerfMetrics::TextCounts& aCounts,
                  float aTime, TextPerfLogType aLogType, const char* aURL)
 {
+  PRLogModuleInfo* tpLog = gfxPlatform::GetLog(eGfxLog_textperf);
+
+  // ignore XUL contexts unless at debug level
+  PRLogModuleLevel logLevel = PR_LOG_WARNING;
+  if (aCounts.numContentTextRuns == 0) {
+    logLevel = PR_LOG_DEBUG;
+  }
+
+  if (!PR_LOG_TEST(tpLog, logLevel)) {
+    return;
+  }
+
   char prefix[256];
 
   switch (aLogType) {
@@ -1002,14 +1010,6 @@ LogTextPerfStats(gfxTextPerfMetrics* aTextPerf,
     default:
       MOZ_ASSERT(aLogType == eLog_totals, "unknown textperf log type");
       sprintf(prefix, "(textperf-totals) %p", aPresShell);
-  }
-
-  PRLogModuleInfo* tpLog = gfxPlatform::GetLog(eGfxLog_textperf);
-
-  // ignore XUL contexts unless at debug level
-  PRLogModuleLevel logLevel = PR_LOG_WARNING;
-  if (aCounts.numContentTextRuns == 0) {
-    logLevel = PR_LOG_DEBUG;
   }
 
   double hitRatio = 0.0;
@@ -1058,7 +1058,6 @@ LogTextPerfStats(gfxTextPerfMetrics* aTextPerf,
             aTextPerf->cumulative.textrunDestr));
   }
 }
-#endif
 
 void
 PresShell::Destroy()
@@ -1067,7 +1066,6 @@ PresShell::Destroy()
     "destroy called on presshell while scripts not blocked");
 
   // dump out cumulative text perf metrics
-#ifdef PR_LOGGING
   gfxTextPerfMetrics* tp;
   if (mPresContext && (tp = mPresContext->GetTextPerfMetrics())) {
     tp->Accumulate();
@@ -1075,7 +1073,6 @@ PresShell::Destroy()
       LogTextPerfStats(tp, this, tp->cumulative, 0.0, eLog_totals, nullptr);
     }
   }
-#endif
 
 #ifdef MOZ_REFLOW_PERF
   DumpReflows();
@@ -2667,7 +2664,6 @@ PresShell::BeginLoad(nsIDocument *aDocument)
 {
   mDocumentLoading = true;
 
-#ifdef PR_LOGGING
   gfxTextPerfMetrics *tp = nullptr;
   if (mPresContext) {
     tp = mPresContext->GetTextPerfMetrics();
@@ -2688,7 +2684,6 @@ PresShell::BeginLoad(nsIDocument *aDocument)
            ("(presshell) %p load begin [%s]\n",
             this, spec.get()));
   }
-#endif
 }
 
 void
@@ -2704,7 +2699,6 @@ PresShell::EndLoad(nsIDocument *aDocument)
 void
 PresShell::LoadComplete()
 {
-#ifdef PR_LOGGING
   gfxTextPerfMetrics *tp = nullptr;
   if (mPresContext) {
     tp = mPresContext->GetTextPerfMetrics();
@@ -2732,7 +2726,6 @@ PresShell::LoadComplete()
       }
     }
   }
-#endif
 }
 
 #ifdef DEBUG
@@ -9154,8 +9147,6 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   mCurrentReflowRoot = target;
 #endif
 
-  target->WillReflow(mPresContext);
-
   // If the target frame is the root of the frame hierarchy, then
   // use all the available space. If it's simply a `reflow root',
   // then use the target frame's size as the available space.
@@ -9292,7 +9283,6 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
     MaybeScheduleReflow();
   }
 
-#ifdef PR_LOGGING
   // dump text perf metrics for reflows with significant text processing
   if (tp) {
     if (tp->current.numChars > 100) {
@@ -9302,7 +9292,6 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
     }
     tp->Accumulate();
   }
-#endif
 
   if (docShell) {
     docShell->AddProfileTimelineMarker("Reflow", TRACING_INTERVAL_END);

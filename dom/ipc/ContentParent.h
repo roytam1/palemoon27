@@ -168,6 +168,12 @@ public:
                                         TabId* aTabId) override;
     virtual bool RecvBridgeToChildProcess(const ContentParentId& aCpId) override;
 
+    virtual bool RecvCreateGMPService() override;
+    virtual bool RecvGetGMPPluginVersionForAPI(const nsCString& aAPI,
+                                               nsTArray<nsCString>&& aTags,
+                                               bool* aHasPlugin,
+                                               nsCString* aVersion) override;
+
     virtual bool RecvLoadPlugin(const uint32_t& aPluginId, nsresult* aRv) override;
     virtual bool RecvConnectPluginBridge(const uint32_t& aPluginId, nsresult* aRv) override;
     virtual bool RecvFindPlugins(const uint32_t& aPluginEpoch,
@@ -357,6 +363,7 @@ public:
 
     virtual bool RecvFinishShutdown() override;
 
+    void MaybeInvokeDragSession(TabParent* aParent);
 protected:
     void OnChannelConnected(int32_t pid) override;
     virtual void ActorDestroy(ActorDestroyReason why) override;
@@ -495,6 +502,9 @@ private:
 
     static void ForceKillTimerCallback(nsITimer* aTimer, void* aClosure);
 
+    PGMPServiceParent*
+    AllocPGMPServiceParent(mozilla::ipc::Transport* aTransport,
+                           base::ProcessId aOtherProcess) override;
     PCompositorParent*
     AllocPCompositorParent(mozilla::ipc::Transport* aTransport,
                            base::ProcessId aOtherProcess) override;
@@ -517,6 +527,7 @@ private:
                                           bool* aIsForApp,
                                           bool* aIsForBrowser) override;
     virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline,
+                                               bool* aIsLangRTL,
                                                InfallibleTArray<nsString>* dictionaries,
                                                ClipboardCapabilities* clipboardCaps,
                                                DomainPolicyClone* domainPolicy)
@@ -800,6 +811,8 @@ private:
     virtual bool RecvPDocAccessibleConstructor(PDocAccessibleParent* aDoc,
                                                PDocAccessibleParent* aParentDoc, const uint64_t& aParentID) override;
 
+    virtual bool RecvUpdateDropEffect(const uint32_t& aDragAction,
+                                      const uint32_t& aDropEffect) override;
     // If you add strong pointers to cycle collected objects here, be sure to
     // release these objects in ShutDownProcess.  See the comment there for more
     // details.

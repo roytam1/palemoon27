@@ -115,6 +115,10 @@ public:
     AllocPContentBridgeChild(mozilla::ipc::Transport* transport,
                              base::ProcessId otherProcess) override;
 
+    PGMPServiceChild*
+    AllocPGMPServiceChild(mozilla::ipc::Transport* transport,
+                          base::ProcessId otherProcess) override;
+
     PCompositorChild*
     AllocPCompositorChild(mozilla::ipc::Transport* aTransport,
                           base::ProcessId aOtherProcess) override;
@@ -289,6 +293,8 @@ public:
 
     virtual bool RecvUpdateServiceWorkerRegistrations() override;
 
+    virtual bool RecvBidiKeyboardNotify(const bool& isLangRTL) override;
+
     virtual bool RecvNotifyVisited(const URIParams& aURI) override;
     // auto remove when alertfinished is received.
     nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
@@ -386,6 +392,11 @@ public:
                                       const OptionalURIParams& aDomain) override;
     virtual bool RecvShutdown() override;
 
+    virtual bool
+    RecvInvokeDragSession(nsTArray<IPCDataTransfer>&& aTransfers,
+                          const uint32_t& aAction) override;
+    virtual bool RecvEndDragSession(const bool& aDoneDrag,
+                                    const bool& aUserCancelled) override;
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif

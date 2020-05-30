@@ -39,7 +39,7 @@ extern PRLogModuleInfo* GetGMPLog();
 #ifdef __CLASS__
 #undef __CLASS__
 #endif
-#define __CLASS__ "GMPParent"
+#define __CLASS__ "GMPStorageParent"
 
 namespace gmp {
 
@@ -52,7 +52,7 @@ GetGMPStorageDir(nsIFile** aTempDir, const nsCString& aNodeId)
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsCOMPtr<mozIGeckoMediaPluginService> mps =
+  nsCOMPtr<mozIGeckoMediaPluginChromeService> mps =
     do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return NS_ERROR_FAILURE;
@@ -468,7 +468,7 @@ GMPStorageParent::Init()
   if (NS_WARN_IF(mNodeId.IsEmpty())) {
     return NS_ERROR_FAILURE;
   }
-  nsCOMPtr<mozIGeckoMediaPluginService> mps =
+  nsCOMPtr<mozIGeckoMediaPluginChromeService> mps =
     do_GetService("@mozilla.org/gecko-media-plugin-service;1");
   if (NS_WARN_IF(!mps)) {
     return NS_ERROR_FAILURE;

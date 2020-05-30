@@ -4445,20 +4445,6 @@ nsFrame::ShrinkWidthToFit(nsRenderingContext *aRenderingContext,
 }
 
 void
-nsFrame::WillReflow(nsPresContext* aPresContext)
-{
-#ifdef DEBUG_dbaron_off
-  // bug 81268
-  NS_ASSERTION(!(mState & NS_FRAME_IN_REFLOW),
-               "nsFrame::WillReflow: frame is already in reflow");
-#endif
-
-  NS_FRAME_TRACE_MSG(NS_FRAME_TRACE_CALLS,
-                     ("WillReflow: oldState=%x", mState));
-  mState |= NS_FRAME_IN_REFLOW;
-}
-
-void
 nsFrame::DidReflow(nsPresContext*           aPresContext,
                    const nsHTMLReflowState*  aReflowState,
                    nsDidReflowStatus         aStatus)
@@ -4558,6 +4544,7 @@ nsFrame::Reflow(nsPresContext*          aPresContext,
                 const nsHTMLReflowState& aReflowState,
                 nsReflowStatus&          aStatus)
 {
+  MarkInReflow();
   DO_GLOBAL_REFLOW_COUNT("nsFrame");
   aDesiredSize.ClearSize();
   aStatus = NS_FRAME_COMPLETE;
@@ -8659,7 +8646,6 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
     #endif
 
        // place the child and reflow
-    WillReflow(aPresContext);
 
     Reflow(aPresContext, aDesiredSize, reflowState, status);
 
@@ -8974,7 +8960,7 @@ GetTagName(nsFrame* aFrame, nsIContent* aContent, int aResultSize,
 void
 nsFrame::Trace(const char* aMethod, bool aEnter)
 {
-  if (NS_FRAME_LOG_TEST(gLogModule, NS_FRAME_TRACE_CALLS)) {
+  if (NS_FRAME_LOG_TEST(GetLogModuleInfo(), NS_FRAME_TRACE_CALLS)) {
     char tagbuf[40];
     GetTagName(this, mContent, sizeof(tagbuf), tagbuf);
     PR_LogPrint("%s: %s %s", tagbuf, aEnter ? "enter" : "exit", aMethod);
@@ -8984,7 +8970,7 @@ nsFrame::Trace(const char* aMethod, bool aEnter)
 void
 nsFrame::Trace(const char* aMethod, bool aEnter, nsReflowStatus aStatus)
 {
-  if (NS_FRAME_LOG_TEST(gLogModule, NS_FRAME_TRACE_CALLS)) {
+  if (NS_FRAME_LOG_TEST(GetLogModuleInfo(), NS_FRAME_TRACE_CALLS)) {
     char tagbuf[40];
     GetTagName(this, mContent, sizeof(tagbuf), tagbuf);
     PR_LogPrint("%s: %s %s, status=%scomplete%s",
@@ -8997,7 +8983,7 @@ nsFrame::Trace(const char* aMethod, bool aEnter, nsReflowStatus aStatus)
 void
 nsFrame::TraceMsg(const char* aFormatString, ...)
 {
-  if (NS_FRAME_LOG_TEST(gLogModule, NS_FRAME_TRACE_CALLS)) {
+  if (NS_FRAME_LOG_TEST(GetLogModuleInfo(), NS_FRAME_TRACE_CALLS)) {
     // Format arguments into a buffer
     char argbuf[200];
     va_list ap;

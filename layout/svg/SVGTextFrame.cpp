@@ -5294,7 +5294,6 @@ SVGTextFrame::DoReflow()
                "style system should ensure that :-moz-svg-text "
                "does not get styled");
 
-  kid->WillReflow(presContext);
   kid->Reflow(presContext, desiredSize, reflowState, status);
   kid->DidReflow(presContext, &reflowState, nsDidReflowStatus::FINISHED);
   kid->SetSize(wm, desiredSize.Size(wm));

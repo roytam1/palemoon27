@@ -1202,9 +1202,7 @@ CacheStorageService::PurgeOverMemoryLimit()
 void
 CacheStorageService::MemoryPool::PurgeOverMemoryLimit()
 {
-#ifdef PR_LOGGING
   TimeStamp start(TimeStamp::Now());
-#endif
 
   uint32_t const memoryLimit = Limit();
   if (mMemorySize > memoryLimit) {
@@ -1440,12 +1438,12 @@ CacheStorageService::CheckStorageEntry(CacheStorage const* aStorage,
     AppendMemoryStorageID(contextKey);
   }
 
-#ifdef PR_LOGGING
-  nsAutoCString uriSpec;
-  aURI->GetAsciiSpec(uriSpec);
-  LOG(("CacheStorageService::CheckStorageEntry [uri=%s, eid=%s, contextKey=%s]",
-    uriSpec.get(), aIdExtension.BeginReading(), contextKey.get()));
-#endif
+  if (LOG_ENABLED()) {
+    nsAutoCString uriSpec;
+    aURI->GetAsciiSpec(uriSpec);
+    LOG(("CacheStorageService::CheckStorageEntry [uri=%s, eid=%s, contextKey=%s]",
+      uriSpec.get(), aIdExtension.BeginReading(), contextKey.get()));
+  }
 
   {
     mozilla::MutexAutoLock lock(mLock);

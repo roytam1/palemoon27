@@ -776,6 +776,7 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
                                const nsHTMLReflowState& aReflowState,
                                nsReflowStatus&          aStatus)
 {
+  MarkInReflow();
   // Constraints we try to satisfy:
 
   // 1) Default width of button is the vertical scrollbar size

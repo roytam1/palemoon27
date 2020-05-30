@@ -104,11 +104,14 @@ nsHttpConnectionInfo::Init(const nsACString &host, int32_t port,
 }
 
 void
-nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
+nsHttpConnectionInfo::SetNetworkInterfaceId(const nsACString& aNetworkInterfaceId)
 {
-    mHost = host;
-    mPort = port == -1 ? DefaultPort() : port;
+    mNetworkInterfaceId = aNetworkInterfaceId;
+    BuildHashKey();
+}
 
+void nsHttpConnectionInfo::BuildHashKey()
+{
     //
     // build hash key:
     //
@@ -140,6 +143,11 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
 
     mHashKey.AssignLiteral("......");
     mHashKey.Append(keyHost);
+    if (!mNetworkInterfaceId.IsEmpty()) {
+        mHashKey.Append('(');
+        mHashKey.Append(mNetworkInterfaceId);
+        mHashKey.Append(')');
+    }
     mHashKey.Append(':');
     mHashKey.AppendInt(keyPort);
     if (!mUsername.IsEmpty()) {
@@ -210,6 +218,14 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
     }
 }
 
+void
+nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
+{
+    mHost = host;
+    mPort = port == -1 ? DefaultPort() : port;
+    BuildHashKey();
+}
+
 nsHttpConnectionInfo*
 nsHttpConnectionInfo::Clone() const
 {
@@ -221,6 +237,10 @@ nsHttpConnectionInfo::Clone() const
         clone = new nsHttpConnectionInfo(mHost, mPort, mNPNToken, mUsername, mProxyInfo,
                                          mAuthenticationHost,
                                          mAuthenticationPort);
+    }
+
+    if (!mNetworkInterfaceId.IsEmpty()) {
+        clone->SetNetworkInterfaceId(mNetworkInterfaceId);
     }
 
     // Make sure the anonymous, relaxed, and private flags are transferred
@@ -249,6 +269,9 @@ nsHttpConnectionInfo::CloneAsDirectRoute(nsHttpConnectionInfo **outCI)
     clone->SetPrivate(GetPrivate());
     clone->SetRelaxed(GetRelaxed());
     clone->SetNoSpdy(GetNoSpdy());
+    if (!mNetworkInterfaceId.IsEmpty()) {
+        clone->SetNetworkInterfaceId(mNetworkInterfaceId);
+    }
     clone.forget(outCI);
 }
 

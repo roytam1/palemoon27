@@ -4815,9 +4815,10 @@ nsImageRenderer::ComputeIntrinsicSize()
           int32_t appUnitsPerDevPixel =
             mForFrame->PresContext()->AppUnitsPerDevPixel();
           result.SetSize(
-            nsSVGIntegrationUtils::GetContinuationUnionSize(mPaintServerFrame).
-              ToNearestPixels(appUnitsPerDevPixel).
-              ToAppUnits(appUnitsPerDevPixel));
+            IntSizeToAppUnits(
+              nsSVGIntegrationUtils::GetContinuationUnionSize(mPaintServerFrame).
+                ToNearestPixels(appUnitsPerDevPixel),
+              appUnitsPerDevPixel));
         }
       } else {
         NS_ASSERTION(mImageElementSurface.mSourceSurface, "Surface should be ready.");

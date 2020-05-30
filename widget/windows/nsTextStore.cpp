@@ -26,7 +26,6 @@ using namespace mozilla::widget;
 static const char* kPrefNameEnableTSF = "intl.tsf.enable";
 static const char* kPrefNameForceEnableTSF = "intl.tsf.force_enable";
 
-#ifdef PR_LOGGING
 /**
  * TSF related code should log its behavior even on release build especially
  * in the interface methods.
@@ -628,8 +627,6 @@ GetModifiersName(Modifiers aModifiers)
   }
   return names;
 }
-
-#endif // #ifdef PR_LOGGING
 
 /******************************************************************/
 /* InputScopeImpl                                                 */
@@ -1968,7 +1965,6 @@ nsTextStore::GetDisplayAttribute(ITfProperty* aAttrProperty,
 
   HRESULT hr;
 
-#ifdef PR_LOGGING
   if (PR_LOG_TEST(sTextStoreLog, PR_LOG_DEBUG)) {
     LONG start = 0, length = 0;
     hr = GetRangeExtent(aRange, &start, &length);
@@ -1979,7 +1975,6 @@ nsTextStore::GetDisplayAttribute(ITfProperty* aAttrProperty,
             start - mComposition.mStart + length,
             GetCommonReturnValueName(hr)));
   }
-#endif
 
   VARIANT propValue;
   ::VariantInit(&propValue);
@@ -3827,7 +3822,6 @@ nsTextStore::OnUpdateComposition(ITfCompositionView* pComposition,
     return hr;
   }
 
-#ifdef PR_LOGGING
   if (PR_LOG_TEST(sTextStoreLog, PR_LOG_ALWAYS)) {
     Selection& currentSel = CurrentSelection();
     if (currentSel.IsDirty()) {
@@ -3845,7 +3839,6 @@ nsTextStore::OnUpdateComposition(ITfCompositionView* pComposition,
             currentSel.StartOffset(), currentSel.EndOffset(),
             GetActiveSelEndName(currentSel.ActiveSelEnd())));
   }
-#endif // #ifdef PR_LOGGING
   return S_OK;
 }
 
@@ -4582,11 +4575,9 @@ nsTextStore::MarkContextAsEmpty(ITfContext* aContext)
 void
 nsTextStore::Initialize()
 {
-#ifdef PR_LOGGING
   if (!sTextStoreLog) {
     sTextStoreLog = PR_NewLogModule("nsTextStoreWidgets");
   }
-#endif
 
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
     ("TSF: nsTextStore::Initialize() is called..."));

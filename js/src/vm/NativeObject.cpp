@@ -1342,15 +1342,16 @@ CheckAccessorRedefinition(ExclusiveContext *cx, HandleObject obj, HandleShape sh
 }
 
 bool
-js::NativeDefineProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId id,
-                         Handle<JSPropertyDescriptor> desc,
-                         ObjectOpResult &result)
+js::NativeDefineProperty(ExclusiveContext* cx, HandleNativeObject obj, HandleId id,
+                         Handle<PropertyDescriptor> desc,
+                         ObjectOpResult& result)
 {
+    desc.assertValid();
+
     GetterOp getter = desc.getter();
     SetterOp setter = desc.setter();
     unsigned attrs = desc.attributes();
-    MOZ_ASSERT(getter != JS_PropertyStub);
-    MOZ_ASSERT(setter != JS_StrictPropertyStub);
+
     MOZ_ASSERT(!(attrs & JSPROP_PROPOP_ACCESSORS));
 
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
@@ -1385,8 +1386,8 @@ js::NativeDefineProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId 
                 if (!CheckAccessorRedefinition(cx, obj, shape, getter, setter, id, attrs))
                     return false;
                 attrs = ApplyOrDefaultAttributes(attrs, shape);
-                shape = NativeObject::changeProperty(cx, obj, shape, attrs,
-                                                     JSPROP_GETTER | JSPROP_SETTER,
+                shape = NativeObject::changeProperty(cx, obj, shape,
+                                                     attrs | JSPROP_GETTER | JSPROP_SETTER,
                                                      (attrs & JSPROP_GETTER)
                                                      ? getter
                                                      : shape->getter(),
@@ -1398,6 +1399,12 @@ js::NativeDefineProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId 
                 shouldDefine = false;
             }
         }
+
+        // Either we are converting a data property to an accessor property, or
+        // creating a new accessor property; either way [[Get]] and [[Set]]
+        // must both be filled in.
+        if (shouldDefine)
+            attrs |= JSPROP_GETTER | JSPROP_SETTER;
     } else if (desc.hasValue()) {
         // If we did a normal lookup here, it would cause resolve hook recursion in
         // the following case. Suppose the first script we run in a lazy global is
@@ -1429,9 +1436,7 @@ js::NativeDefineProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId 
             }
         }
     } else {
-        // We have been asked merely to update some attributes. If the
-        // property already exists and it's a data property, we can just
-        // call JSObject::changeProperty.
+        // We have been asked merely to update JSPROP_PERMANENT and/or JSPROP_ENUMERATE.
         if (!NativeLookupOwnProperty<CanGC>(cx, obj, id, &shape))
             return false;
 

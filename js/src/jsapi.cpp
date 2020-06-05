@@ -2435,16 +2435,10 @@ DefineProperty(JSContext* cx, HandleObject obj, const char* name, HandleValue va
     AutoRooterGetterSetter gsRoot(cx, attrs, const_cast<JSNative*>(&getter.op),
                                   const_cast<JSNative*>(&setter.op));
 
-    RootedId id(cx);
-    if (attrs & JSPROP_INDEX) {
-        id = INT_TO_JSID(intptr_t(name));
-        attrs &= ~JSPROP_INDEX;
-    } else {
-        JSAtom* atom = Atomize(cx, name, strlen(name));
-        if (!atom)
-            return false;
-        id = AtomToId(atom);
-    }
+    JSAtom *atom = Atomize(cx, name, strlen(name));
+    if (!atom)
+        return false;
+    RootedId id(cx, AtomToId(atom));
 
     return DefinePropertyById(cx, obj, id, value, getter, setter, attrs, flags);
 }
@@ -3463,6 +3457,7 @@ JS_DefineFunctions(JSContext* cx, HandleObject obj, const JSFunctionSpec* fs,
             if (flags & JSPROP_DEFINE_LATE)
                 continue;
         }
+        flags &= ~JSPROP_DEFINE_LATE;
 
         /*
          * Define a generic arity N+1 static method for the arity N prototype

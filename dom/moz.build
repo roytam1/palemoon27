@@ -65,6 +65,7 @@ DIRS += [
     'geolocation',
     'html',
     'icc',
+    'inputport',
     'json',
     'jsurl',
     'asmjscache',

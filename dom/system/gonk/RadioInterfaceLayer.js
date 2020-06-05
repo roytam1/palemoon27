@@ -84,6 +84,7 @@ const NETWORK_TYPE_MOBILE_SUPL = Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL
 const NETWORK_TYPE_MOBILE_IMS  = Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_IMS;
 const NETWORK_TYPE_MOBILE_DUN  = Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_DUN;
 
+// TODO: Bug 815526, deprecate RILContentHelper.
 const RIL_IPC_ICCMANAGER_MSG_NAMES = [
   "RIL:GetRilContext",
   "RIL:SendStkResponse",
@@ -178,6 +179,7 @@ XPCOMUtils.defineLazyGetter(this, "gStkCmdFactory", function() {
   return stk.StkProactiveCmdFactory;
 });
 
+// TODO: Bug 815526, deprecate RILContentHelper.
 XPCOMUtils.defineLazyGetter(this, "gMessageManager", function() {
   return {
     QueryInterface: XPCOMUtils.generateQI([Ci.nsIMessageListener,
@@ -1404,7 +1406,7 @@ function RadioInterfaceLayer() {
   Services.obs.addObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
   Services.prefs.addObserver(kPrefRilDebuggingEnabled, this, false);
 
-  gMessageManager.init(this);
+  gMessageManager.init(this); // TODO: Bug 815526, deprecate RILContentHelper.
   gRadioEnabledController.init(this);
   gDataConnectionManager.init(this);
 }
@@ -1416,6 +1418,7 @@ RadioInterfaceLayer.prototype = {
                                     interfaces: [Ci.nsIRadioInterfaceLayer]}),
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIRadioInterfaceLayer,
+                                         Ci.nsIRadioInterfaceLayer_new, // TODO: Bug 815526, deprecate RILContentHelper.
                                          Ci.nsIObserver]),
 
   /**
@@ -1656,13 +1659,14 @@ function RadioInterface(aClientId, aWorkerMessenger) {
   this.clientId = aClientId;
   this.workerMessenger = {
     send: aWorkerMessenger.send.bind(aWorkerMessenger, aClientId),
+    // TODO: Bug 815526, deprecate RILContentHelper.
     sendWithIPCMessage:
       aWorkerMessenger.sendWithIPCMessage.bind(aWorkerMessenger, aClientId),
   };
   aWorkerMessenger.registerClient(aClientId, this);
 
   this.rilContext = {
-    cardState:      Ci.nsIIccProvider.CARD_STATE_UNKNOWN,
+    cardState:      Ci.nsIIcc.CARD_STATE_UNKNOWN,
     iccInfo:        null,
     imsi:           null
   };
@@ -1760,12 +1764,14 @@ RadioInterface.prototype = {
 
   isCardPresent: function() {
     let cardState = this.rilContext.cardState;
-    return cardState !== Ci.nsIIccProvider.CARD_STATE_UNDETECTED &&
-      cardState !== Ci.nsIIccProvider.CARD_STATE_UNKNOWN;
+    return cardState !== Ci.nsIIcc.CARD_STATE_UNDETECTED &&
+      cardState !== Ci.nsIIcc.CARD_STATE_UNKNOWN;
   },
 
   /**
    * Process a message from the content process.
+   *
+   * TODO: Bug 815526, deprecate RILContentHelper
    */
   receiveMessage: function(msg) {
     switch (msg.name) {
@@ -1921,6 +1927,7 @@ RadioInterface.prototype = {
         gRadioEnabledController.receiveCardState(this.clientId);
         gIccService.notifyCardStateChanged(this.clientId,
                                            this.rilContext.cardState);
+        // TODO: Bug 815526, deprecate RILContentHelper.
         gMessageManager.sendIccMessage("RIL:CardStateChanged",
                                        this.clientId, message);
         break;
@@ -1950,6 +1957,7 @@ RadioInterface.prototype = {
         this.handleStkProactiveCommand(message);
         break;
       case "stksessionend":
+        // TODO: Bug 815526, deprecate RILContentHelper.
         gMessageManager.sendIccMessage("RIL:StkSessionEnd", this.clientId, null);
         break;
       case "cdma-info-rec-received":
@@ -1965,6 +1973,7 @@ RadioInterface.prototype = {
   // and not compared. E.g., if the mvnoData passed is '310260x10xxxxxx',
   // then the function returns true only if imsi has the same first 6 digits,
   // 8th and 9th digit.
+  // TODO: Bug 815526, deprecate RILContentHelper.
   isImsiMatches: function(mvnoData) {
     let imsi = this.rilContext.imsi;
 
@@ -1982,6 +1991,7 @@ RadioInterface.prototype = {
     return true;
   },
 
+  // TODO: Bug 815526, deprecate RILContentHelper.
   matchMvno: function(target, message) {
     if (DEBUG) this.debug("matchMvno: " + JSON.stringify(message));
 
@@ -2219,6 +2229,8 @@ RadioInterface.prototype = {
   handleIccInfoChange: function(message) {
     let oldSpn = this.rilContext.iccInfo ? this.rilContext.iccInfo.spn : null;
 
+    // TODO: Bug 815526, deprecate RILContentHelper:
+    //       Move the logic of updating iccInfo to IccService.js.
     if (!message || !message.iccid) {
       // If iccInfo is already `null`, don't have to clear it and send
       // RIL:IccInfoChanged.
@@ -2248,10 +2260,12 @@ RadioInterface.prototype = {
 
     // RIL:IccInfoChanged corresponds to a DOM event that gets fired only
     // when iccInfo has changed.
+    // TODO: Bug 815526, deprecate RILContentHelper.
     gMessageManager.sendIccMessage("RIL:IccInfoChanged",
                                    this.clientId,
                                    message.iccid ? message : null);
-    gIccService.notifyIccInfoChanged(this.clientId, this.rilContext.iccInfo);
+    gIccService.notifyIccInfoChanged(this.clientId,
+                                     message.iccid ? message : null);
 
     // Update lastKnownHomeNetwork.
     if (message.mcc && message.mnc) {
@@ -2279,6 +2293,7 @@ RadioInterface.prototype = {
         .notifyStkProactiveCommand(iccId,
                                    gStkCmdFactory.createCommand(message));
     }
+    // TODO: Bug 815526, deprecate RILContentHelper.
     gMessageManager.sendIccMessage("RIL:StkCommand", this.clientId, message);
   },
 

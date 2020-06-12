@@ -60,6 +60,7 @@
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/DOMRect.h"
+#include "mozilla/dom/KeyframeEffect.h"
 #include "imgIRequest.h"
 #include "nsIImageLoadingContent.h"
 #include "nsCOMPtr.h"
@@ -375,13 +376,13 @@ nsLayoutUtils::HasAnimationsForCompositor(nsIContent* aContent,
          nsTransitionManager::GetAnimationsForCompositor(aContent, aProperty);
 }
 
-static AnimationPlayerCollection*
+static AnimationCollection*
 GetAnimationsOrTransitions(nsIContent* aContent,
                            nsIAtom* aAnimationProperty,
                            nsCSSProperty aProperty)
 {
-  AnimationPlayerCollection* collection =
-    static_cast<AnimationPlayerCollection*>(aContent->GetProperty(
+  AnimationCollection* collection =
+    static_cast<AnimationCollection*>(aContent->GetProperty(
         aAnimationProperty));
   if (collection) {
     bool propertyMatches = collection->HasAnimationOfProperty(aProperty);
@@ -411,8 +412,8 @@ nsLayoutUtils::HasCurrentAnimations(nsIContent* aContent,
   if (!aContent->MayHaveAnimations())
     return false;
 
-  AnimationPlayerCollection* collection =
-    static_cast<AnimationPlayerCollection*>(
+  AnimationCollection* collection =
+    static_cast<AnimationCollection*>(
       aContent->GetProperty(aAnimationProperty));
   return (collection && collection->HasCurrentAnimations());
 }
@@ -429,8 +430,8 @@ nsLayoutUtils::HasCurrentAnimationsForProperties(nsIContent* aContent,
                                          nsGkAtoms::animationsProperty,
                                          nullptr };
   for (nsIAtom* const* animProp = sAnimProps; *animProp; animProp++) {
-    AnimationPlayerCollection* collection =
-      static_cast<AnimationPlayerCollection*>(aContent->GetProperty(*animProp));
+    AnimationCollection* collection =
+      static_cast<AnimationCollection*>(aContent->GetProperty(*animProp));
     if (collection &&
         collection->HasCurrentAnimationsForProperties(aProperties,
                                                       aPropertyCount)) {
@@ -495,18 +496,18 @@ GetSuitableScale(float aMaxScale, float aMinScale)
 
 static void
 GetMinAndMaxScaleForAnimationProperty(nsIContent* aContent,
-                                      AnimationPlayerCollection* aPlayers,
+                                      AnimationCollection* aAnimations,
                                       gfxSize& aMaxScale,
                                       gfxSize& aMinScale)
 {
-  for (size_t playerIdx = aPlayers->mPlayers.Length(); playerIdx-- != 0; ) {
-    AnimationPlayer* player = aPlayers->mPlayers[playerIdx];
-    if (!player->GetSource() || player->GetSource()->IsFinishedTransition()) {
+  for (size_t animIdx = aAnimations->mAnimations.Length(); animIdx-- != 0; ) {
+    dom::Animation* anim = aAnimations->mAnimations[animIdx];
+    if (!anim->GetEffect() || anim->GetEffect()->IsFinishedTransition()) {
       continue;
     }
-    dom::Animation* anim = player->GetSource();
-    for (size_t propIdx = anim->Properties().Length(); propIdx-- != 0; ) {
-      AnimationProperty& prop = anim->Properties()[propIdx];
+    dom::KeyframeEffectReadonly* effect = anim->GetEffect();
+    for (size_t propIdx = effect->Properties().Length(); propIdx-- != 0; ) {
+      AnimationProperty& prop = effect->Properties()[propIdx];
       if (prop.mProperty == eCSSProperty_transform) {
         for (uint32_t segIdx = prop.mSegments.Length(); segIdx-- != 0; ) {
           AnimationPropertySegment& segment = prop.mSegments[segIdx];
@@ -536,7 +537,7 @@ nsLayoutUtils::ComputeSuitableScaleForAnimation(nsIContent* aContent)
   gfxSize minScale(std::numeric_limits<gfxFloat>::max(),
                    std::numeric_limits<gfxFloat>::max());
 
-  AnimationPlayerCollection* animations =
+  AnimationCollection* animations =
     nsAnimationManager::GetAnimationsForCompositor(aContent,
                                                    eCSSProperty_transform);
   if (animations) {

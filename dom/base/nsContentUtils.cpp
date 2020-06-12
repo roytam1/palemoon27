@@ -3787,7 +3787,7 @@ nsContentUtils::ConvertStringFromEncoding(const nsACString& aEncoding,
 
   decoder->Decode(aInput.BeginReading(), aInput.Length(), false,
                   aOutput, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 /* static */
@@ -4124,7 +4124,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
   ErrorResult rv;
   *aReturn = CreateContextualFragment(aContextNode, aFragment,
                                       aPreventScriptExecution, rv).take();
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 already_AddRefed<DocumentFragment>
@@ -6482,7 +6482,7 @@ nsContentUtils::FindInternalContentViewer(const nsACString& aType,
   nsCOMPtr<nsIDocumentLoaderFactory> docFactory;
 
   nsXPIDLCString contractID;
-  nsresult rv = catMan->GetCategoryEntry("Goanna-Content-Viewers",
+  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers",
                                          PromiseFlatCString(aType).get(),
                                          getter_Copies(contractID));
   if (NS_SUCCEEDED(rv)) {

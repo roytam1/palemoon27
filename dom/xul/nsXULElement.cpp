@@ -465,7 +465,7 @@ nsXULElement::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
     ErrorResult rv;
     *aReturn =
         GetElementsByAttributeNS(aNamespaceURI, aAttribute, aValue, rv).take();
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 already_AddRefed<nsINodeList>
@@ -1371,7 +1371,7 @@ nsXULElement::GetResource(nsIRDFResource** aResource)
 {
     ErrorResult rv;
     *aResource = GetResource(rv).take();
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 already_AddRefed<nsIRDFResource>
@@ -1484,7 +1484,7 @@ nsXULElement::GetControllers(nsIControllers** aResult)
 {
     ErrorResult rv;
     NS_IF_ADDREF(*aResult = GetControllers(rv));
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 nsIControllers*
@@ -1511,7 +1511,7 @@ nsXULElement::GetBoxObject(nsIBoxObject** aResult)
 {
     ErrorResult rv;
     *aResult = GetBoxObject(rv).take();
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 already_AddRefed<BoxObject>
@@ -1649,7 +1649,7 @@ nsXULElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
 
     ErrorResult rv;
     SwapFrameLoaders(*otherEl, rv);
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 void
@@ -1698,7 +1698,7 @@ nsXULElement::Focus()
 {
     ErrorResult rv;
     Focus(rv);
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 void
@@ -1716,7 +1716,7 @@ nsXULElement::Blur()
 {
     ErrorResult rv;
     Blur(rv);
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 void

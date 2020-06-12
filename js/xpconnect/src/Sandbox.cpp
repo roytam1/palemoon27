@@ -119,7 +119,7 @@ SandboxDump(JSContext* cx, unsigned argc, jsval* vp)
     }
 #endif
 #ifdef ANDROID
-    __android_log_write(ANDROID_LOG_INFO, "GoannaDump", cstr);
+    __android_log_write(ANDROID_LOG_INFO, "GeckoDump", cstr);
 #endif
 
     fputs(cstr, stdout);
@@ -1542,8 +1542,8 @@ xpc::EvalInSandbox(JSContext* cx, HandleObject sandboxArg, const nsAString& sour
     bool ok = true;
     {
         // We're about to evaluate script, so make an AutoEntryScript.
-        // This is clearly Goanna-specific and not in any spec.
-        mozilla::dom::AutoEntryScript aes(priv);
+        // This is clearly Gecko-specific and not in any spec.
+        mozilla::dom::AutoEntryScript aes(priv, "XPConnect sandbox evaluation");
         JSContext* sandcx = aes.cx();
         AutoSaveContextOptions savedOptions(sandcx);
         JS::ContextOptionsRef(sandcx).setDontReportUncaught(true);

@@ -17,6 +17,7 @@
 
 #include "gfxUtils.h"
 #include "mozilla/dom/TabChild.h"
+#include "mozilla/dom/KeyframeEffect.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "nsCSSRendering.h"
@@ -55,7 +56,7 @@
 #include "StickyScrollContainer.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/PendingPlayerTracker.h"
+#include "mozilla/PendingAnimationTracker.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/UniquePtr.h"
 #include "ActiveLayerTracker.h"
@@ -347,13 +348,12 @@ ToTimingFunction(const ComputedTimingFunction& aCTF)
 
 static void
 AddAnimationForProperty(nsIFrame* aFrame, const AnimationProperty& aProperty,
-                        AnimationPlayer* aPlayer, Layer* aLayer,
+                        dom::Animation* aAnimation, Layer* aLayer,
                         AnimationData& aData, bool aPending)
 {
   MOZ_ASSERT(aLayer->AsContainerLayer(), "Should only animate ContainerLayer");
-  MOZ_ASSERT(aPlayer->GetSource(),
-             "Should not be adding an animation for a player without"
-             " an animation");
+  MOZ_ASSERT(aAnimation->GetEffect(),
+             "Should not be adding an animation without an effect");
   nsStyleContext* styleContext = aFrame->StyleContext();
   nsPresContext* presContext = aFrame->PresContext();
   nsRect bounds = nsDisplayTransform::GetFrameBoundsForTransform(aFrame);
@@ -363,13 +363,13 @@ AddAnimationForProperty(nsIFrame* aFrame, const AnimationProperty& aProperty,
     aLayer->AddAnimationForNextTransaction() :
     aLayer->AddAnimation();
 
-  const AnimationTiming& timing = aPlayer->GetSource()->Timing();
-  Nullable<TimeDuration> startTime = aPlayer->GetCurrentOrPendingStartTime();
+  const AnimationTiming& timing = aAnimation->GetEffect()->Timing();
+  Nullable<TimeDuration> startTime = aAnimation->GetCurrentOrPendingStartTime();
   animation->startTime() = startTime.IsNull()
                            ? TimeStamp()
-                           : aPlayer->Timeline()->ToTimeStamp(
+                           : aAnimation->Timeline()->ToTimeStamp(
                               startTime.Value() + timing.mDelay);
-  animation->initialCurrentTime() = aPlayer->GetCurrentTime().Value()
+  animation->initialCurrentTime() = aAnimation->GetCurrentTime().Value()
                                     - timing.mDelay;
   animation->duration() = timing.mIterationDuration;
   animation->iterationCount() = timing.mIterationCount;
@@ -406,7 +406,7 @@ AddAnimationForProperty(nsIFrame* aFrame, const AnimationProperty& aProperty,
 
 static void
 AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
-                         AnimationPlayerPtrArray& aPlayers,
+                         AnimationPtrArray& aAnimations,
                          Layer* aLayer, AnimationData& aData,
                          bool aPending)
 {
@@ -415,15 +415,15 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
              "inconsistent property flags");
 
   // Add from first to last (since last overrides)
-  for (size_t playerIdx = 0; playerIdx < aPlayers.Length(); playerIdx++) {
-    AnimationPlayer* player = aPlayers[playerIdx];
-    if (!player->IsPlaying()) {
+  for (size_t animIdx = 0; animIdx < aAnimations.Length(); animIdx++) {
+    dom::Animation* anim = aAnimations[animIdx];
+    if (!anim->IsPlaying()) {
       continue;
     }
-    dom::Animation* anim = player->GetSource();
-    MOZ_ASSERT(anim, "A playing player should have a source animation");
+    dom::KeyframeEffectReadonly* effect = anim->GetEffect();
+    MOZ_ASSERT(effect, "A playing animation should have an effect");
     const AnimationProperty* property =
-      anim->GetAnimationOfProperty(aProperty);
+      effect->GetAnimationOfProperty(aProperty);
     if (!property) {
       continue;
     }
@@ -449,15 +449,15 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
     // Instead we leave the animation running on the main thread and the
     // next time the refresh driver is advanced it will trigger any pending
     // animations.
-    if (player->PlayState() == AnimationPlayState::Pending) {
-      nsRefreshDriver* driver = player->Timeline()->GetRefreshDriver();
+    if (anim->PlayState() == AnimationPlayState::Pending) {
+      nsRefreshDriver* driver = anim->Timeline()->GetRefreshDriver();
       if (driver && driver->IsTestControllingRefreshesEnabled()) {
         continue;
       }
     }
 
-    AddAnimationForProperty(aFrame, *property, player, aLayer, aData, aPending);
-    player->SetIsRunningOnCompositor();
+    AddAnimationForProperty(aFrame, *property, anim, aLayer, aData, aPending);
+    anim->SetIsRunningOnCompositor();
   }
 }
 
@@ -502,9 +502,9 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
   if (!content) {
     return;
   }
-  AnimationPlayerCollection* transitions =
+  AnimationCollection* transitions =
     nsTransitionManager::GetAnimationsForCompositor(content, aProperty);
-  AnimationPlayerCollection* animations =
+  AnimationCollection* animations =
     nsAnimationManager::GetAnimationsForCompositor(content, aProperty);
 
   if (!animations && !transitions) {
@@ -565,12 +565,12 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
   // When both are running, animations override transitions.  We want
   // to add the ones that override last.
   if (transitions) {
-    AddAnimationsForProperty(aFrame, aProperty, transitions->mPlayers,
+    AddAnimationsForProperty(aFrame, aProperty, transitions->mAnimations,
                              aLayer, data, pending);
   }
 
   if (animations) {
-    AddAnimationsForProperty(aFrame, aProperty, animations->mPlayers,
+    AddAnimationsForProperty(aFrame, aProperty, animations->mAnimations,
                              aLayer, data, pending);
   }
 }
@@ -1553,14 +1553,14 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
 static bool
 TriggerPendingAnimationsOnSubDocuments(nsIDocument* aDocument, void* aReadyTime)
 {
-  PendingPlayerTracker* tracker = aDocument->GetPendingPlayerTracker();
+  PendingAnimationTracker* tracker = aDocument->GetPendingAnimationTracker();
   if (tracker) {
     nsIPresShell* shell = aDocument->GetShell();
     // If paint-suppression is in effect then we haven't finished painting
     // this document yet so we shouldn't start animations
     if (!shell || !shell->IsPaintingSuppressed()) {
       const TimeStamp& readyTime = *static_cast<TimeStamp*>(aReadyTime);
-      tracker->TriggerPendingPlayersOnNextTick(readyTime);
+      tracker->TriggerPendingAnimationsOnNextTick(readyTime);
     }
   }
   aDocument->EnumerateSubDocuments(TriggerPendingAnimationsOnSubDocuments,
@@ -5424,8 +5424,8 @@ nsDisplayOpacity::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
   if (nsLayoutUtils::IsAnimationLoggingEnabled()) {
     nsCString message;
     message.AppendLiteral("Performance warning: Async animation disabled because frame was not marked active for opacity animation");
-    AnimationPlayerCollection::LogAsyncAnimationFailure(message,
-                                                        Frame()->GetContent());
+    AnimationCollection::LogAsyncAnimationFailure(message,
+                                                  Frame()->GetContent());
   }
   return false;
 }
@@ -5478,8 +5478,8 @@ nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBui
     if (aLogAnimations) {
       nsCString message;
       message.AppendLiteral("Performance warning: Async animation disabled because frame was not marked active for transform animation");
-      AnimationPlayerCollection::LogAsyncAnimationFailure(message,
-                                                          aFrame->GetContent());
+      AnimationCollection::LogAsyncAnimationFailure(message,
+                                                    aFrame->GetContent());
     }
     return false;
   }
@@ -5518,8 +5518,8 @@ nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBui
     message.AppendLiteral(") is larger than the max allowable value (");
     message.AppendInt(nsPresContext::AppUnitsToIntCSSPixels(maxInAppUnits));
     message.Append(')');
-    AnimationPlayerCollection::LogAsyncAnimationFailure(message,
-                                                        aFrame->GetContent());
+    AnimationCollection::LogAsyncAnimationFailure(message,
+                                                  aFrame->GetContent());
   }
   return false;
 }

@@ -19,7 +19,7 @@
 #include "nsFrameManager.h"
 #include "nsRefreshDriver.h"
 #include "mozilla/dom/Touch.h"
-#include "mozilla/PendingPlayerTracker.h"
+#include "mozilla/PendingAnimationTracker.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsFrame.h"
 #include "mozilla/layers/ShadowLayers.h"
@@ -2609,16 +2609,15 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
   // Before we advance the time, we should trigger any animations that are
   // waiting to start. This is because there are many tests that call this
   // which expect animations to start immediately. Ideally, we should make
-  // all these tests do an asynchronous wait on the corresponding animation
-  // player's 'ready' promise before continuing. Then we could remove the
-  // special handling here and the code path followed when testing would
-  // more closely match the code path during regular operation. Filed as
-  // bug 1112957.
+  // all these tests do an asynchronous wait on the corresponding animation's
+  // 'ready' promise before continuing. Then we could remove the special
+  // handling here and the code path followed when testing would more closely
+  // match the code path during regular operation. Filed as bug 1112957.
   nsCOMPtr<nsIDocument> doc = GetDocument();
   if (doc) {
-    PendingPlayerTracker* tracker = doc->GetPendingPlayerTracker();
+    PendingAnimationTracker* tracker = doc->GetPendingAnimationTracker();
     if (tracker) {
-      tracker->TriggerPendingPlayersNow();
+      tracker->TriggerPendingAnimationsNow();
     }
   }
 
@@ -2913,19 +2912,6 @@ nsDOMWindowUtils::LeafLayersPartitionWindow(bool* aResult)
     *aResult = false;
   }
 #endif
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetMayHaveTouchEventListeners(bool* aResult)
-{
-  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
-
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-
-  nsPIDOMWindow* innerWindow = window->GetCurrentInnerWindow();
-  *aResult = innerWindow ? innerWindow->HasTouchEventListeners() : false;
   return NS_OK;
 }
 
@@ -3802,7 +3788,7 @@ nsDOMWindowUtils::GetOMTAStyle(nsIDOMElement* aElement,
     ErrorResult rv;
     cssValue->GetCssText(text, rv);
     aResult.Assign(text);
-    return rv.ErrorCode();
+    return rv.StealNSResult();
   } else {
     aResult.Truncate();
   }
@@ -4018,6 +4004,32 @@ nsDOMWindowUtils::GetFramesReflowed(uint64_t* aResult)
   }
 
   *aResult = presContext->FramesReflowedCount();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::SetServiceWorkersTestingEnabled(bool aEnabled)
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  NS_ENSURE_STATE(window);
+
+  window->SetServiceWorkersTestingEnabled(aEnabled);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetServiceWorkersTestingEnabled(bool *aEnabled)
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  NS_ENSURE_STATE(window);
+
+  *aEnabled = window->GetServiceWorkersTestingEnabled();
+
   return NS_OK;
 }
 

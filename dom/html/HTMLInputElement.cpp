@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 sw=2 sts=2 et tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -108,6 +109,7 @@
 #include "HTMLSplitOnSpacesTokenizer.h"
 #include "nsIController.h"
 #include "nsIMIMEInfo.h"
+#include "nsFrameSelection.h"
 
 // input type=date
 #include "js/Date.h"
@@ -1620,7 +1622,7 @@ HTMLInputElement::SetHeight(uint32_t aHeight)
 {
   ErrorResult rv;
   SetHeight(aHeight, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 NS_IMETHODIMP
@@ -1674,7 +1676,7 @@ HTMLInputElement::SetWidth(uint32_t aWidth)
 {
   ErrorResult rv;
   SetWidth(aWidth, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 NS_IMETHODIMP
@@ -1704,12 +1706,18 @@ HTMLInputElement::GetValueInternal(nsAString& aValue) const
 
     case VALUE_MODE_FILENAME:
       if (nsContentUtils::IsCallerChrome()) {
+#ifndef MOZ_CHILD_PERMISSIONS
+        aValue.Assign(mFirstFilePath);
+#else
+        // XXX We'd love to assert that this can't happen, but some mochitests
+        // use SpecialPowers to circumvent our more sane security model.
         if (!mFiles.IsEmpty()) {
           return mFiles[0]->GetMozFullPath(aValue);
         }
         else {
           aValue.Truncate();
         }
+#endif
       } else {
         // Just return the leaf name
         if (mFiles.IsEmpty() || NS_FAILED(mFiles[0]->GetName(aValue))) {
@@ -1836,7 +1844,7 @@ HTMLInputElement::SetValue(const nsAString& aValue, ErrorResult& aRv)
       }
       Sequence<nsString> list;
       list.AppendElement(aValue);
-      MozSetFileNameArray(list);
+      MozSetFileNameArray(list, aRv);
       return;
     }
     else {
@@ -1879,7 +1887,7 @@ HTMLInputElement::SetValue(const nsAString& aValue)
 {
   ErrorResult rv;
   SetValue(aValue, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 nsGenericHTMLElement*
@@ -1915,7 +1923,7 @@ HTMLInputElement::GetList(nsIDOMHTMLElement** aValue)
     return NS_OK;
   }
 
-  CallQueryInterface(element, aValue);
+  element.forget(aValue);
   return NS_OK;
 }
 
@@ -2093,7 +2101,7 @@ HTMLInputElement::SetValueAsNumber(double aValueAsNumber)
 {
   ErrorResult rv;
   SetValueAsNumber(aValueAsNumber, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 Decimal
@@ -2357,8 +2365,13 @@ HTMLInputElement::MozSetFileArray(const Sequence<OwningNonNull<File>>& aFiles)
 }
 
 void
-HTMLInputElement::MozSetFileNameArray(const Sequence< nsString >& aFileNames)
+HTMLInputElement::MozSetFileNameArray(const Sequence< nsString >& aFileNames, ErrorResult& aRv)
 {
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    return;
+  }
+
   nsTArray<nsRefPtr<File>> files;
   for (uint32_t i = 0; i < aFileNames.Length(); ++i) {
     nsCOMPtr<nsIFile> file;
@@ -2402,8 +2415,9 @@ HTMLInputElement::MozSetFileNameArray(const char16_t** aFileNames, uint32_t aLen
     list.AppendElement(nsDependentString(aFileNames[i]));
   }
 
-  MozSetFileNameArray(list);
-  return NS_OK;
+  ErrorResult rv;
+  MozSetFileNameArray(list, rv);
+  return rv.StealNSResult();
 }
 
 bool
@@ -2450,8 +2464,9 @@ HTMLInputElement::SetUserInput(const nsAString& aValue)
   {
     Sequence<nsString> list;
     list.AppendElement(aValue);
-    MozSetFileNameArray(list);
-    return NS_OK;
+    ErrorResult rv;
+    MozSetFileNameArray(list, rv);
+    return rv.StealNSResult();
   } else {
     nsresult rv = SetValueInternal(aValue, true, true);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2663,6 +2678,19 @@ HTMLInputElement::AfterSetFiles(bool aSetValueChanged)
     GetDisplayFileName(readableValue);
     formControlFrame->SetFormProperty(nsGkAtoms::value, readableValue);
   }
+
+#ifndef MOZ_CHILD_PERMISSIONS
+  // Grab the full path here for any chrome callers who access our .value via a
+  // CPOW. This path won't be called from a CPOW meaning the potential sync IPC
+  // call under GetMozFullPath won't be rejected for not being urgent.
+  // XXX Protected by the ifndef because the blob code doesn't allow us to send
+  // this message in b2g.
+  if (mFiles.IsEmpty()) {
+    mFirstFilePath.Truncate();
+  } else {
+    mFiles[0]->GetMozFullPath(mFirstFilePath);
+  }
+#endif
 
   UpdateFileList();
 
@@ -3243,7 +3271,8 @@ HTMLInputElement::Focus(ErrorResult& aError)
 bool
 HTMLInputElement::IsInteractiveHTMLContent(bool aIgnoreTabindex) const
 {
-  return mType != NS_FORM_INPUT_HIDDEN;
+  return mType != NS_FORM_INPUT_HIDDEN ||
+         nsGenericHTMLFormElementWithState::IsInteractiveHTMLContent(aIgnoreTabindex);
 }
 
 NS_IMETHODIMP
@@ -3268,6 +3297,19 @@ HTMLInputElement::Select()
   FocusTristate state = FocusState();
   if (state == eUnfocusable) {
     return NS_OK;
+  }
+
+  nsTextEditorState* tes = GetEditorState();
+  if (tes) {
+    nsFrameSelection* fs = tes->GetConstFrameSelection();
+    if (fs && fs->MouseDownRecorded()) {
+      // This means that we're being called while the frame selection has a mouse
+      // down event recorded to adjust the caret during the mouse up event.
+      // We are probably called from the focus event handler.  We should override
+      // the delayed caret data in this case to ensure that this select() call
+      // takes effect.
+      fs->SetDelayedCaretData(nullptr);
+    }
   }
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
@@ -5147,7 +5189,7 @@ HTMLInputElement::GetControllers(nsIControllers** aResult)
   ErrorResult rv;
   nsRefPtr<nsIControllers> controller = GetControllers(rv);
   controller.forget(aResult);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 int32_t
@@ -5163,7 +5205,7 @@ HTMLInputElement::GetTextLength(int32_t* aTextLength)
 {
   ErrorResult rv;
   *aTextLength = GetTextLength(rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 void
@@ -5204,7 +5246,7 @@ HTMLInputElement::SetSelectionRange(int32_t aSelectionStart,
   direction = &aDirection;
 
   SetSelectionRange(aSelectionStart, aSelectionEnd, direction, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 void
@@ -5346,7 +5388,7 @@ HTMLInputElement::GetSelectionStart(int32_t* aSelectionStart)
 
   ErrorResult rv;
   *aSelectionStart = GetSelectionStart(rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 void
@@ -5383,7 +5425,7 @@ HTMLInputElement::SetSelectionStart(int32_t aSelectionStart)
 {
   ErrorResult rv;
   SetSelectionStart(aSelectionStart, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 int32_t
@@ -5410,7 +5452,7 @@ HTMLInputElement::GetSelectionEnd(int32_t* aSelectionEnd)
 
   ErrorResult rv;
   *aSelectionEnd = GetSelectionEnd(rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 void
@@ -5447,7 +5489,7 @@ HTMLInputElement::SetSelectionEnd(int32_t aSelectionEnd)
 {
   ErrorResult rv;
   SetSelectionEnd(aSelectionEnd, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 NS_IMETHODIMP
@@ -5517,7 +5559,7 @@ HTMLInputElement::GetSelectionDirection(nsAString& aDirection)
 {
   ErrorResult rv;
   GetSelectionDirection(aDirection, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 void
@@ -5547,7 +5589,7 @@ HTMLInputElement::SetSelectionDirection(const nsAString& aDirection)
 {
   ErrorResult rv;
   SetSelectionDirection(aDirection, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 NS_IMETHODIMP

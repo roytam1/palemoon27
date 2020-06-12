@@ -151,7 +151,8 @@ NS_IMPL_INT_ATTR(HTMLImageElement, Vspace, vspace)
 bool
 HTMLImageElement::IsInteractiveHTMLContent(bool aIgnoreTabindex) const
 {
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::usemap);
+  return HasAttr(kNameSpaceID_None, nsGkAtoms::usemap) ||
+          nsGenericHTMLElement::IsInteractiveHTMLContent(aIgnoreTabindex);
 }
 
 bool
@@ -279,7 +280,7 @@ HTMLImageElement::SetHeight(uint32_t aHeight)
 {
   ErrorResult rv;
   SetHeight(aHeight, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 NS_IMETHODIMP
@@ -295,7 +296,7 @@ HTMLImageElement::SetWidth(uint32_t aWidth)
 {
   ErrorResult rv;
   SetWidth(aWidth, rv);
-  return rv.ErrorCode();
+  return rv.StealNSResult();
 }
 
 bool

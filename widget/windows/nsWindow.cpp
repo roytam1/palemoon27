@@ -1292,41 +1292,36 @@ void nsWindow::SetThemeRegion()
 
 /**************************************************************
  *
- * SECTION: nsIWidget::RegisterTouchWindow,
- * nsIWidget::UnregisterTouchWindow, and helper functions
- *
- * Used to register the native window to receive touch events
+ * SECTION: Touch and APZ-related functions
  *
  **************************************************************/
 
-NS_METHOD nsWindow::RegisterTouchWindow() {
+void nsWindow::ConfigureAPZCTreeManager()
+{
+  nsBaseWidget::ConfigureAPZCTreeManager();
+
+  // When APZ is enabled, we can actually enable raw touch events because we
+  // have code that can deal with them properly. If APZ is not enabled, this
+  // function doesn't get called, and |mGesture| will take care of touch-based
+  // scrolling. Note that RegisterTouchWindow may still do nothing depending
+  // on touch/pointer events prefs, and so it is possible to enable APZ without
+  // also enabling touch support.
+  RegisterTouchWindow();
+}
+
+void nsWindow::RegisterTouchWindow() {
   if (Preferences::GetInt("dom.w3c_touch_events.enabled", 0) ||
       gIsPointerEventsEnabled) {
     mTouchWindow = true;
     mGesture.RegisterTouchWindow(mWnd);
     ::EnumChildWindows(mWnd, nsWindow::RegisterTouchForDescendants, 0);
   }
-  return NS_OK;
-}
-
-NS_METHOD nsWindow::UnregisterTouchWindow() {
-  mTouchWindow = false;
-  mGesture.UnregisterTouchWindow(mWnd);
-  ::EnumChildWindows(mWnd, nsWindow::UnregisterTouchForDescendants, 0);
-  return NS_OK;
 }
 
 BOOL CALLBACK nsWindow::RegisterTouchForDescendants(HWND aWnd, LPARAM aMsg) {
   nsWindow* win = WinUtils::GetNSWindowPtr(aWnd);
   if (win)
     win->mGesture.RegisterTouchWindow(aWnd);
-  return TRUE;
-}
-
-BOOL CALLBACK nsWindow::UnregisterTouchForDescendants(HWND aWnd, LPARAM aMsg) {
-  nsWindow* win = WinUtils::GetNSWindowPtr(aWnd);
-  if (win)
-    win->mGesture.UnregisterTouchWindow(aWnd);
   return TRUE;
 }
 
@@ -6268,13 +6263,13 @@ bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
 
     // Dispatch touch start and move event if we have one.
     if (touchEventToSend) {
-      DispatchEvent(touchEventToSend, status);
+      status = DispatchAPZAwareEvent(touchEventToSend);
       delete touchEventToSend;
     }
 
     // Dispatch touch end event if we have one.
     if (touchEndEventToSend) {
-      DispatchEvent(touchEndEventToSend, status);
+      status = DispatchAPZAwareEvent(touchEndEventToSend);
       delete touchEndEventToSend;
     }
   }

@@ -205,7 +205,8 @@ WrapperPromiseCallback::Call(JSContext* aCx,
 
   // PromiseReactionTask step 6
   JS::Rooted<JS::Value> retValue(aCx);
-  mCallback->Call(value, &retValue, rv, CallbackObject::eRethrowExceptions,
+  mCallback->Call(value, &retValue, rv, "promise callback",
+                  CallbackObject::eRethrowExceptions,
                   mNextPromise->Compartment());
 
   rv.WouldReportJSException();
@@ -214,15 +215,7 @@ WrapperPromiseCallback::Call(JSContext* aCx,
   if (rv.Failed()) {
     JS::Rooted<JS::Value> value(aCx);
     if (rv.IsJSException()) {
-      { // scope for ac
-        // Enter the compartment of mNextPromise before stealing the JS
-        // exception, since the StealJSException call will use the current
-        // compartment for a security check that determines how much of the
-        // stack we're allowed to see and we'll be exposing that stack to
-        // consumers of mPromise.
-        JSAutoCompartment ac(aCx, mNextPromise->GlobalJSObject());
-        rv.StealJSException(aCx, &value);
-      }
+      rv.StealJSException(aCx, &value);
 
       if (!JS_WrapValue(aCx, &value)) {
         NS_WARNING("Failed to wrap value into the right compartment.");

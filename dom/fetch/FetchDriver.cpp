@@ -20,6 +20,7 @@
 #include "nsDataHandler.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "nsNetUtil.h"
+#include "nsPrintfCString.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
 
@@ -216,7 +217,7 @@ FetchDriver::BasicFetch()
       uint64_t size = blob->GetSize(result);
       if (NS_WARN_IF(result.Failed())) {
         FailWithNetworkError();
-        return result.ErrorCode();
+        return result.StealNSResult();
       }
 
       nsAutoString sizeStr;
@@ -224,7 +225,7 @@ FetchDriver::BasicFetch()
       response->Headers()->Append(NS_LITERAL_CSTRING("Content-Length"), NS_ConvertUTF16toUTF8(sizeStr), result);
       if (NS_WARN_IF(result.Failed())) {
         FailWithNetworkError();
-        return result.ErrorCode();
+        return result.StealNSResult();
       }
 
       nsAutoString type;
@@ -232,7 +233,7 @@ FetchDriver::BasicFetch()
       response->Headers()->Append(NS_LITERAL_CSTRING("Content-Type"), NS_ConvertUTF16toUTF8(type), result);
       if (NS_WARN_IF(result.Failed())) {
         FailWithNetworkError();
-        return result.ErrorCode();
+        return result.StealNSResult();
       }
     }
 
@@ -626,7 +627,13 @@ public:
   {
     ErrorResult result;
     mResponse->Headers()->Append(aHeader, aValue, result);
-    return result.ErrorCode();
+    if (result.Failed()) {
+      NS_WARNING(nsPrintfCString("Fetch ignoring illegal header - '%s': '%s'",
+                                 PromiseFlatCString(aHeader).get(),
+                                 PromiseFlatCString(aValue).get()).get());
+      result.SuppressException();
+    }
+    return NS_OK;
   }
 };
 

@@ -94,7 +94,6 @@ public:
   void ThrowTypeError(const dom::ErrNum errorNumber, ...);
   void ThrowRangeError(const dom::ErrNum errorNumber, ...);
   void ReportErrorWithMessage(JSContext* cx);
-  void ClearMessage();
   bool IsErrorWithMessage() const { return ErrorCode() == NS_ERROR_TYPE_ERR || ErrorCode() == NS_ERROR_RANGE_ERR; }
 
   // Facilities for throwing a preexisting JS exception value via this
@@ -130,8 +129,7 @@ public:
 
   // StealJSException steals the JS Exception from the object. This method must
   // be called only if IsJSException() returns true. This method also resets the
-  // ErrorCode() to NS_OK.  The value will be ensured to be sanitized wrt to the
-  // current compartment of cx if it happens to be a DOMException.
+  // error code to NS_OK.
   void StealJSException(JSContext* cx, JS::MutableHandle<JS::Value> value);
 
   void MOZ_ALWAYS_INLINE MightThrowJSException()
@@ -166,6 +164,10 @@ public:
     return mResult;
   }
 
+  bool ErrorCodeIs(nsresult rv) const {
+    return mResult == rv;
+  }
+
 private:
   friend struct IPC::ParamTraits<ErrorResult>;
   void SerializeMessage(IPC::Message* aMsg) const;
@@ -184,6 +186,8 @@ private:
     MOZ_ASSERT(!IsNotEnoughArgsError(), "Don't overwrite not enough args error");
     mResult = aRv;
   }
+
+  void ClearMessage();
 
   nsresult mResult;
   struct Message;

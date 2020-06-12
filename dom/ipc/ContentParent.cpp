@@ -215,6 +215,10 @@ using namespace mozilla::system;
 #include "nsIBrowserSearchService.h"
 #endif
 
+#ifdef MOZ_GAMEPAD
+#include "mozilla/dom/GamepadMonitoring.h"
+#endif
+
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 
@@ -2095,6 +2099,7 @@ ContentParent::ContentParent(mozIApplication* aApp,
     , mOpener(aOpener)
     , mIsForBrowser(aIsForBrowser)
     , mIsNuwaProcess(aIsNuwaProcess)
+    , mHasGamepadListener(false)
 {
     InitializeMembers();  // Perform common initialization.
 
@@ -2618,7 +2623,7 @@ ContentParent::RecvGetShowPasswordSetting(bool* showPassword)
 #ifdef MOZ_WIDGET_ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nullptr, "AndroidBridge is not available");
 
-    *showPassword = mozilla::widget::GoannaAppShell::GetShowPasswordSetting();
+    *showPassword = mozilla::widget::GeckoAppShell::GetShowPasswordSetting();
 #endif
     return true;
 }
@@ -4792,6 +4797,34 @@ ContentParent::DeallocPContentPermissionRequestParent(PContentPermissionRequestP
 {
     nsContentPermissionUtils::NotifyRemoveContentPermissionRequestParent(actor);
     delete actor;
+    return true;
+}
+
+bool
+ContentParent::RecvGamepadListenerAdded()
+{
+#ifdef MOZ_GAMEPAD
+    if (mHasGamepadListener) {
+        NS_WARNING("Gamepad listener already started, cannot start again!");
+        return false;
+    }
+    mHasGamepadListener = true;
+    StartGamepadMonitoring();
+#endif
+    return true;
+}
+
+bool
+ContentParent::RecvGamepadListenerRemoved()
+{
+#ifdef MOZ_GAMEPAD
+    if (!mHasGamepadListener) {
+        NS_WARNING("Gamepad listener already stopped, cannot stop again!");
+        return false;
+    }
+    mHasGamepadListener = false;
+    MaybeStopGamepadMonitoring();
+#endif
     return true;
 }
 

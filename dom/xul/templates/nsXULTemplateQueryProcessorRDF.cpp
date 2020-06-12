@@ -425,8 +425,7 @@ nsXULTemplateQueryProcessorRDF::CompileQuery(nsIXULTemplateBuilder* aBuilder,
 
     mQueries.AppendElement(query);
 
-    *_retval = query;
-    NS_ADDREF(*_retval);
+    query.forget(_retval);
 
     return NS_OK;
 }
@@ -582,12 +581,11 @@ nsXULTemplateQueryProcessorRDF::TranslateRef(nsISupports* aDatasource,
     nsCOMPtr<nsIRDFResource> uri;
     gRDFService->GetUnicodeResource(aRefString, getter_AddRefs(uri));
 
-    nsXULTemplateResultRDF* refresult = new nsXULTemplateResultRDF(uri);
+    nsRefPtr<nsXULTemplateResultRDF> refresult = new nsXULTemplateResultRDF(uri);
     if (! refresult)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    *aRef = refresult;
-    NS_ADDREF(*aRef);
+    refresult.forget(aRef);
 
     return NS_OK;
 }
@@ -1302,14 +1300,14 @@ nsXULTemplateQueryProcessorRDF::ParseLiteral(const nsString& aParseType,
         rv = gRDFService->GetIntLiteral(intValue, getter_AddRefs(intLiteral));
         if (NS_FAILED(rv)) 
             return rv;
-        rv = CallQueryInterface(intLiteral, aResult);
+        intLiteral.forget(aResult);
     }
     else {
         nsCOMPtr<nsIRDFLiteral> literal;
         rv = gRDFService->GetLiteral(aValue.get(), getter_AddRefs(literal));
         if (NS_FAILED(rv)) 
             return rv;
-        rv = CallQueryInterface(literal, aResult);
+        literal.forget(aResult);
     }
     return rv;
 }

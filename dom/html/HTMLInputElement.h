@@ -719,7 +719,7 @@ public:
 
   void MozGetFileNameArray(nsTArray< nsString >& aFileNames);
 
-  void MozSetFileNameArray(const Sequence< nsString >& aFileNames);
+  void MozSetFileNameArray(const Sequence< nsString >& aFileNames, ErrorResult& aRv);
   void MozSetFileArray(const Sequence<OwningNonNull<File>>& aFiles);
 
   HTMLInputElement* GetOwnerNumberControl();
@@ -1268,6 +1268,7 @@ protected:
      */
     nsTextEditorState*       mState;
   } mInputData;
+
   /**
    * The value of the input if it is a file input. This is the list of filenames
    * used when uploading a file. It is vital that this is kept separate from
@@ -1279,6 +1280,13 @@ protected:
    * SetFileNames to update this member.
    */
   nsTArray<nsRefPtr<File>> mFiles;
+
+#ifndef MOZ_CHILD_PERMISSIONS
+  /**
+   * Hack for bug 1086684: Stash the .value when we're a file picker.
+   */
+  nsString mFirstFilePath;
+#endif
 
   nsRefPtr<FileList>  mFileList;
 

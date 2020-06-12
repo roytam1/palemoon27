@@ -733,7 +733,7 @@ XULDocument::AddBroadcastListenerFor(nsIDOMElement* aBroadcaster,
     nsCOMPtr<Element> listener = do_QueryInterface(aListener);
     NS_ENSURE_ARG(broadcaster && listener);
     AddBroadcastListenerFor(*broadcaster, *listener, aAttr, rv);
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 void
@@ -1211,7 +1211,7 @@ XULDocument::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
     ErrorResult rv;
     *aReturn = GetElementsByAttributeNS(aNamespaceURI, aAttribute,
                                         aValue, rv).take();
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 already_AddRefed<nsINodeList>
@@ -1517,7 +1517,7 @@ XULDocument::GetPopupRangeOffset(int32_t* aRangeOffset)
 {
     ErrorResult rv;
     *aRangeOffset = GetPopupRangeOffset(rv);
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 int32_t
@@ -2030,8 +2030,7 @@ XULDocument::PrepareToLoadPrototype(nsIURI* aURI, const char* aCommand,
                                kCharsetFromDocTypeDefault);
     parser->SetContentSink(sink); // grabs a reference to the parser
 
-    *aResult = parser;
-    NS_ADDREF(*aResult);
+    parser.forget(aResult);
     return NS_OK;
 }
 
@@ -3550,8 +3549,8 @@ XULDocument::ExecuteScript(nsXULPrototypeScript *aScript)
     nsAutoMicroTask mt;
 
     // We're about to run script via JS::CloneAndExecuteScript, so we need an
-    // AutoEntryScript. This is Goanna specific and not in any spec.
-    AutoEntryScript aes(mScriptGlobalObject);
+    // AutoEntryScript. This is Gecko specific and not in any spec.
+    AutoEntryScript aes(mScriptGlobalObject, "precompiled XUL <script> element");
     aes.TakeOwnershipOfErrorReporting();
     JSContext* cx = aes.cx();
     JS::Rooted<JSObject*> baseGlobal(cx, JS::CurrentGlobalOrNull(cx));
@@ -3646,7 +3645,7 @@ XULDocument::CreateOverlayElement(nsXULPrototypeElement* aPrototype,
     rv = AddForwardReference(fwdref);
     if (NS_FAILED(rv)) return rv;
 
-    NS_ADDREF(*aResult = element);
+    element.forget(aResult);
     return NS_OK;
 }
 
@@ -4286,7 +4285,7 @@ XULDocument::CheckBroadcasterHookup(Element* aElement,
     ErrorResult domRv;
     AddBroadcastListenerFor(*broadcaster, *listener, attribute, domRv);
     if (domRv.Failed()) {
-        return domRv.ErrorCode();
+        return domRv.StealNSResult();
     }
 
     // Tell the world we succeeded
@@ -4637,7 +4636,7 @@ XULDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
     ErrorResult rv;
     nsCOMPtr<Element> el = do_QueryInterface(aElement);
     *aResult = GetBoxObjectFor(el, rv).take();
-    return rv.ErrorCode();
+    return rv.StealNSResult();
 }
 
 JSObject*

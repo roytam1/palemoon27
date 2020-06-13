@@ -5032,3 +5032,5 @@ pref("plugins.rewrite_youtube_embeds", true);
 
 // Thick caret when behind CJK characters
 pref("layout.cjkthickcaret", true);
+
+pref("devtools.serviceWorkers.testing.enabled", false);

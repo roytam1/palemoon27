@@ -339,21 +339,11 @@ ErrorResult::ReportNotEnoughArgsError(JSContext* cx,
 }
 
 void
-ErrorResult::SuppressException()
+ErrorResult::ReportGenericError(JSContext* cx)
 {
-  WouldReportJSException();
-  if (IsErrorWithMessage()) {
-    ClearMessage();
-  } else if (IsJSException()) {
-    JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
-    // Just steal it into a stack value (unrooting it in the process)
-    // that we then allow to die.
-    JS::Rooted<JS::Value> temp(cx);
-    StealJSException(cx, &temp);
-  }
-  // We don't use AssignErrorCode, because we want to override existing error
-  // states, which AssignErrorCode is not allowed to do.
-  mResult = NS_OK;
+  MOZ_ASSERT(!IsErrorWithMessage());
+  MOZ_ASSERT(!IsJSException());
+  dom::Throw(cx, ErrorCode());
 }
 
 ErrorResult&
@@ -392,6 +382,24 @@ ErrorResult::operator=(ErrorResult&& aRHS)
   mResult = aRHS.mResult;
   aRHS.mResult = NS_OK;
   return *this;
+}
+
+void
+ErrorResult::SuppressException()
+{
+  WouldReportJSException();
+  if (IsErrorWithMessage()) {
+    ClearMessage();
+  } else if (IsJSException()) {
+    JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
+    // Just steal it into a stack value (unrooting it in the process)
+    // that we then allow to die.
+    JS::Rooted<JS::Value> temp(cx);
+    StealJSException(cx, &temp);
+  }
+  // We don't use AssignErrorCode, because we want to override existing error
+  // states, which AssignErrorCode is not allowed to do.
+  mResult = NS_OK;
 }
 
 namespace dom {

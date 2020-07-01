@@ -820,7 +820,7 @@ BluetoothOppManager::ValidateFileName()
 }
 
 bool
-BluetoothOppManager::ComposePacket(uint8_t aOpCode, UnixSocketRawData* aMessage)
+BluetoothOppManager::ComposePacket(uint8_t aOpCode, UnixSocketBuffer* aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aMessage);
@@ -869,7 +869,7 @@ BluetoothOppManager::ComposePacket(uint8_t aOpCode, UnixSocketRawData* aMessage)
 }
 
 void
-BluetoothOppManager::ServerDataHandler(UnixSocketRawData* aMessage)
+BluetoothOppManager::ServerDataHandler(UnixSocketBuffer* aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -996,7 +996,7 @@ BluetoothOppManager::ServerDataHandler(UnixSocketRawData* aMessage)
 }
 
 void
-BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
+BluetoothOppManager::ClientDataHandler(UnixSocketBuffer* aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -1108,7 +1108,7 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
 // Virtual function of class SocketConsumer
 void
 BluetoothOppManager::ReceiveSocketData(BluetoothSocket* aSocket,
-                                       nsAutoPtr<UnixSocketRawData>& aMessage)
+                                       nsAutoPtr<UnixSocketBuffer>& aMessage)
 {
   if (mIsServer) {
     ServerDataHandler(aMessage);
@@ -1322,14 +1322,12 @@ BluetoothOppManager::ReplyError(uint8_t aError)
 void
 BluetoothOppManager::SendObexData(uint8_t* aData, uint8_t aOpcode, int aSize)
 {
-  SetObexPacketInfo(aData, aOpcode, aSize);
-
   if (!mIsServer) {
     mLastCommand = aOpcode;
   }
 
-  UnixSocketRawData* s = new UnixSocketRawData(aData, aSize);
-  mSocket->SendSocketData(s);
+  SetObexPacketInfo(aData, aOpcode, aSize);
+  mSocket->SendSocketData(new UnixSocketRawData(aData, aSize));
 }
 
 void

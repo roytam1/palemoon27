@@ -75,7 +75,7 @@ public:
                 const nsAString& aPinCode,
                 BluetoothResultHandler* aRes);
 
-  void SspReply(const nsAString& aBdAddr, const nsAString& aVariant,
+  void SspReply(const nsAString& aBdAddr, BluetoothSspVariant aVariant,
                 bool aAccept, uint32_t aPasskey,
                 BluetoothResultHandler* aRes);
 
@@ -100,6 +100,7 @@ public:
   BluetoothHandsfreeInterface* GetBluetoothHandsfreeInterface();
   BluetoothA2dpInterface* GetBluetoothA2dpInterface();
   BluetoothAvrcpInterface* GetBluetoothAvrcpInterface();
+  BluetoothGattInterface* GetBluetoothGattInterface();
 
 protected:
   BluetoothHALInterface(const bt_interface_t* aInterface);

@@ -116,26 +116,26 @@ extern bool gBluetoothDebugFlag;
   } while(0)                                                         \
 
 /**
- * Resolve promise with |ret| if |x| is false.
+ * Resolve |promise| with |ret| if |x| is false.
  */
-#define BT_ENSURE_TRUE_RESOLVE(x, ret)                               \
+#define BT_ENSURE_TRUE_RESOLVE(x, promise, ret)                      \
   do {                                                               \
     if (MOZ_UNLIKELY(!(x))) {                                        \
       BT_API2_LOGR("BT_ENSURE_TRUE_RESOLVE(" #x ") failed");         \
-      promise->MaybeResolve(ret);                                    \
-      return promise.forget();                                       \
+      (promise)->MaybeResolve(ret);                                  \
+      return (promise).forget();                                     \
     }                                                                \
   } while(0)
 
 /**
- * Reject promise with |ret| if |x| is false.
+ * Reject |promise| with |ret| if |x| is false.
  */
-#define BT_ENSURE_TRUE_REJECT(x, ret)                                \
+#define BT_ENSURE_TRUE_REJECT(x, promise, ret)                       \
   do {                                                               \
     if (MOZ_UNLIKELY(!(x))) {                                        \
       BT_API2_LOGR("BT_ENSURE_TRUE_REJECT(" #x ") failed");          \
-      promise->MaybeReject(ret);                                     \
-      return promise.forget();                                       \
+      (promise)->MaybeReject(ret);                                   \
+      return (promise).forget();                                     \
     }                                                                \
   } while(0)
 
@@ -219,10 +219,22 @@ extern bool gBluetoothDebugFlag;
 #define REQUEST_MEDIA_PLAYSTATUS_ID          "requestmediaplaystatus"
 
 /**
+ * When the value of a characteristic of a remote BLE device changes, we'll
+ * dispatch an event
+ */
+#define GATT_CHARACTERISTIC_CHANGED_ID       "characteristicchanged"
+
+/**
  * When a remote BLE device gets connected / disconnected, we'll dispatch an
- * event
+ * event.
  */
 #define GATT_CONNECTION_STATE_CHANGED_ID     "connectionstatechanged"
+
+/**
+ * When attributes of BluetoothManager, BluetoothAdapter, or BluetoothDevice
+ * are changed, we'll dispatch an event.
+ */
+#define ATTRIBUTE_CHANGED_ID                 "attributechanged"
 
 // Bluetooth address format: xx:xx:xx:xx:xx:xx (or xx_xx_xx_xx_xx_xx)
 #define BLUETOOTH_ADDRESS_LENGTH 17
@@ -452,7 +464,21 @@ enum BluetoothHandsfreeVolumeType {
 };
 
 class BluetoothSignal;
-typedef mozilla::Observer<BluetoothSignal> BluetoothSignalObserver;
+
+class BluetoothSignalObserver : public mozilla::Observer<BluetoothSignal>
+{
+public:
+  BluetoothSignalObserver() : mSignalRegistered(false)
+  { }
+
+  void SetSignalRegistered(bool aSignalRegistered)
+  {
+    mSignalRegistered = aSignalRegistered;
+  }
+
+protected:
+  bool mSignalRegistered;
+};
 
 // Enums for object types, currently used for shared function lookups
 // (get/setproperty, etc...). Possibly discernable via dbus paths, but this
@@ -570,6 +596,66 @@ struct BluetoothAvrcpPlayerSettings {
   uint8_t mValues[256];
 };
 
+enum BluetoothGattStatus {
+  GATT_STATUS_SUCCESS,
+  GATT_STATUS_INVALID_HANDLE,
+  GATT_STATUS_READ_NOT_PERMITTED,
+  GATT_STATUS_WRITE_NOT_PERMITTED,
+  GATT_STATUS_INVALID_PDU,
+  GATT_STATUS_INSUFFICIENT_AUTHENTICATION,
+  GATT_STATUS_REQUEST_NOT_SUPPORTED,
+  GATT_STATUS_INVALID_OFFSET,
+  GATT_STATUS_INSUFFICIENT_AUTHORIZATION,
+  GATT_STATUS_PREPARE_QUEUE_FULL,
+  GATT_STATUS_ATTRIBUTE_NOT_FOUND,
+  GATT_STATUS_ATTRIBUTE_NOT_LONG,
+  GATT_STATUS_INSUFFICIENT_ENCRYPTION_KEY_SIZE,
+  GATT_STATUS_INVALID_ATTRIBUTE_LENGTH,
+  GATT_STATUS_UNLIKELY_ERROR,
+  GATT_STATUS_INSUFFICIENT_ENCRYPTION,
+  GATT_STATUS_UNSUPPORTED_GROUP_TYPE,
+  GATT_STATUS_INSUFFICIENT_RESOURCES,
+  GATT_STATUS_UNKNOWN_ERROR
+};
+
+enum BluetoothGattAuthReq {
+  GATT_AUTH_REQ_NONE,
+  GATT_AUTH_REQ_NO_MITM,
+  GATT_AUTH_REQ_MITM,
+  GATT_AUTH_REQ_SIGNED_NO_MITM,
+  GATT_AUTH_REQ_SIGNED_MITM
+};
+
+
+enum BluetoothGattWriteType {
+  GATT_WRITE_TYPE_NO_RESPONSE,
+  GATT_WRITE_TYPE_NORMAL,
+  GATT_WRITE_TYPE_PREPARE,
+  GATT_WRITE_TYPE_SIGNED,
+  GATT_WRITE_TYPE_END_GUARD
+};
+
+/*
+ * Bluetooth GATT Characteristic Properties bit field
+ */
+enum BluetoothGattCharPropBit {
+  GATT_CHAR_PROP_BIT_BROADCAST            = (1 << 0),
+  GATT_CHAR_PROP_BIT_READ                 = (1 << 1),
+  GATT_CHAR_PROP_BIT_WRITE_NO_RESPONSE    = (1 << 2),
+  GATT_CHAR_PROP_BIT_WRITE                = (1 << 3),
+  GATT_CHAR_PROP_BIT_NOTIFY               = (1 << 4),
+  GATT_CHAR_PROP_BIT_INDICATE             = (1 << 5),
+  GATT_CHAR_PROP_BIT_SIGNED_WRITE         = (1 << 6),
+  GATT_CHAR_PROP_BIT_EXTENDED_PROPERTIES  = (1 << 7)
+};
+
+/*
+ * BluetoothGattCharProp is used to store a bit mask value which contains
+ * each corresponding bit value of each BluetoothGattCharPropBit.
+ */
+typedef uint8_t BluetoothGattCharProp;
+#define BLUETOOTH_EMPTY_GATT_CHAR_PROP  static_cast<BluetoothGattCharProp>(0x00)
+
 struct BluetoothGattAdvData {
   uint8_t mAdvData[62];
 };
@@ -591,6 +677,19 @@ struct BluetoothGattServiceId {
   bool operator==(const BluetoothGattServiceId& aOther) const
   {
     return mId == aOther.mId && mIsPrimary == aOther.mIsPrimary;
+  }
+};
+
+struct BluetoothGattCharAttribute {
+  BluetoothGattId mId;
+  BluetoothGattCharProp mProperties;
+  BluetoothGattWriteType mWriteType;
+
+  bool operator==(const BluetoothGattCharAttribute& aOther) const
+  {
+    return mId == aOther.mId &&
+           mProperties == aOther.mProperties &&
+           mWriteType == aOther.mWriteType;
   }
 };
 
@@ -617,7 +716,7 @@ struct BluetoothGattNotifyParam {
   BluetoothGattServiceId mServiceId;
   BluetoothGattId mCharId;
   uint16_t mLength;
-  uint8_t mIsNotify;
+  bool mIsNotify;
 };
 
 END_BLUETOOTH_NAMESPACE

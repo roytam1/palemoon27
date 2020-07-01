@@ -508,7 +508,7 @@ public:
     return rv;
   }
 
-  nsresult SspReplyCmd(const nsAString& aBdAddr, const nsAString& aVariant,
+  nsresult SspReplyCmd(const nsAString& aBdAddr, BluetoothSspVariant aVariant,
                        bool aAccept, uint32_t aPasskey,
                        BluetoothResultHandler* aRes)
   {
@@ -518,8 +518,7 @@ public:
 
     nsresult rv = PackPDU(
       PackConversion<nsAString, BluetoothAddress>(aBdAddr),
-      PackConversion<nsAString, BluetoothSspPairingVariant>(aVariant),
-      aAccept, aPasskey, *pdu);
+      aVariant, aAccept, aPasskey, *pdu);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -913,9 +912,8 @@ private:
 
   typedef BluetoothNotificationRunnable5<NotificationHandlerWrapper, void,
                                          nsString, nsString, uint32_t,
-                                         nsString, uint32_t,
-                                         const nsAString&, const nsAString&,
-                                         uint32_t, const nsAString&>
+                                         BluetoothSspVariant, uint32_t,
+                                         const nsAString&, const nsAString&>
     SspRequestNotification;
 
   typedef BluetoothNotificationRunnable3<NotificationHandlerWrapper, void,
@@ -1150,7 +1148,7 @@ private:
 
     nsresult
     operator () (nsString& aArg1, nsString& aArg2, uint32_t& aArg3,
-                 nsString& aArg4, uint32_t& aArg5) const
+                 BluetoothSspVariant aArg4, uint32_t& aArg5) const
     {
       BluetoothDaemonPDU& pdu = GetPDU();
 
@@ -1175,8 +1173,7 @@ private:
       }
 
       /* Read pairing variant */
-      rv = UnpackPDU(
-        pdu, UnpackConversion<BluetoothSspPairingVariant, nsAString>(aArg4));
+      rv = UnpackPDU(pdu, aArg4);
       if (NS_FAILED(rv)) {
         return rv;
       }
@@ -2400,7 +2397,7 @@ BluetoothDaemonInterface::PinReply(const nsAString& aBdAddr, bool aAccept,
 
 void
 BluetoothDaemonInterface::SspReply(const nsAString& aBdAddr,
-                                   const nsAString& aVariant,
+                                   BluetoothSspVariant aVariant,
                                    bool aAccept, uint32_t aPasskey,
                                    BluetoothResultHandler* aRes)
 {
@@ -2529,6 +2526,12 @@ BluetoothDaemonInterface::GetBluetoothAvrcpInterface()
   mAvrcpInterface = new BluetoothDaemonAvrcpInterface(mProtocol);
 
   return mAvrcpInterface;
+}
+
+BluetoothGattInterface*
+BluetoothDaemonInterface::GetBluetoothGattInterface()
+{
+  return nullptr;
 }
 
 END_BLUETOOTH_NAMESPACE

@@ -89,7 +89,7 @@ public:
                 const nsAString& aPinCode,
                 BluetoothResultHandler* aRes);
 
-  void SspReply(const nsAString& aBdAddr, const nsAString& aVariant,
+  void SspReply(const nsAString& aBdAddr, BluetoothSspVariant aVariant,
                 bool aAccept, uint32_t aPasskey,
                 BluetoothResultHandler* aRes);
 
@@ -114,6 +114,7 @@ public:
   BluetoothHandsfreeInterface* GetBluetoothHandsfreeInterface() override;
   BluetoothA2dpInterface* GetBluetoothA2dpInterface() override;
   BluetoothAvrcpInterface* GetBluetoothAvrcpInterface() override;
+  BluetoothGattInterface* GetBluetoothGattInterface() override;
 
 protected:
   enum Channel {

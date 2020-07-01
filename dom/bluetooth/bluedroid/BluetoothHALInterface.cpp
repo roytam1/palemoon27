@@ -8,6 +8,11 @@
 #include "BluetoothHALHelpers.h"
 #include "BluetoothA2dpHALInterface.h"
 #include "BluetoothAvrcpHALInterface.h"
+#ifdef MOZ_B2G_BT_API_V2
+#include "BluetoothGattHALInterface.h"
+#else
+// TODO: Support GATT
+#endif
 #include "BluetoothHandsfreeHALInterface.h"
 #include "BluetoothSocketHALInterface.h"
 
@@ -61,6 +66,23 @@ struct interface_traits<BluetoothAvrcpHALInterface>
     return BT_PROFILE_AV_RC_ID;
   }
 };
+#endif
+
+#ifdef MOZ_B2G_BT_API_V2
+#if ANDROID_VERSION >= 19
+template<>
+struct interface_traits<BluetoothGattHALInterface>
+{
+  typedef const btgatt_interface_t const_interface_type;
+
+  static const char* profile_id()
+  {
+    return BT_PROFILE_GATT_ID;
+  }
+};
+#endif
+#else
+// TODO: Support GATT
 #endif
 
 typedef
@@ -151,9 +173,8 @@ struct BluetoothCallback
 
   typedef BluetoothNotificationHALRunnable5<NotificationHandlerWrapper, void,
                                             nsString, nsString, uint32_t,
-                                            nsString, uint32_t,
-                                            const nsAString&, const nsAString&,
-                                            uint32_t, const nsAString&>
+                                            BluetoothSspVariant, uint32_t,
+                                            const nsAString&, const nsAString&>
     SspRequestNotification;
 
   typedef BluetoothNotificationHALRunnable3<NotificationHandlerWrapper, void,
@@ -864,7 +885,7 @@ BluetoothHALInterface::PinReply(const nsAString& aBdAddr, bool aAccept,
 
 void
 BluetoothHALInterface::SspReply(const nsAString& aBdAddr,
-                                const nsAString& aVariant,
+                                BluetoothSspVariant aVariant,
                                 bool aAccept, uint32_t aPasskey,
                                 BluetoothResultHandler* aRes)
 {
@@ -999,6 +1020,26 @@ BluetoothHALInterface::CreateProfileInterface<BluetoothAvrcpHALInterface>()
 }
 #endif
 
+#ifdef MOZ_B2G_BT_API_V2
+#if ANDROID_VERSION < 19
+/*
+ * Versions that we don't support GATT will call this function
+ * to create an GATT interface. All interface methods will fail with
+ * the error constant STATUS_UNSUPPORTED.
+ */
+template <>
+BluetoothGattHALInterface*
+BluetoothHALInterface::CreateProfileInterface<BluetoothGattHALInterface>()
+{
+  BT_WARNING("Bluetooth profile 'gatt' is not supported");
+
+  return new BluetoothGattHALInterface();
+}
+#endif
+#else
+// TODO: Support GATT
+#endif
+
 template <class T>
 T*
 BluetoothHALInterface::GetProfileInterface()
@@ -1036,6 +1077,17 @@ BluetoothAvrcpInterface*
 BluetoothHALInterface::GetBluetoothAvrcpInterface()
 {
   return GetProfileInterface<BluetoothAvrcpHALInterface>();
+}
+
+BluetoothGattInterface*
+BluetoothHALInterface::GetBluetoothGattInterface()
+{
+#ifdef MOZ_B2G_BT_API_V2
+  return GetProfileInterface<BluetoothGattHALInterface>();
+#else
+  // TODO: Support GATT
+  return nullptr;
+#endif
 }
 
 END_BLUETOOTH_NAMESPACE

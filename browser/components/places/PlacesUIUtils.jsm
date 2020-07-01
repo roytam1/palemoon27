@@ -26,6 +26,9 @@ XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
   return PlacesUtils;
 });
 
+XPCOMUtils.defineLazyModuleGetter(this, "Weave",
+                                  "resource://services-sync/main.js");
+
 this.PlacesUIUtils = {
   ORGANIZER_LEFTPANE_VERSION: 7,
   ORGANIZER_FOLDER_ANNO: "PlacesOrganizer/OrganizerFolder",
@@ -82,7 +85,6 @@ this.PlacesUIUtils = {
   get _copyableAnnotations() [
     this.DESCRIPTION_ANNO,
     this.LOAD_IN_SIDEBAR_ANNO,
-    PlacesUtils.POST_DATA_ANNO,
     PlacesUtils.READ_ONLY_ANNO,
   ],
 
@@ -117,7 +119,6 @@ this.PlacesUIUtils = {
       );
     }
 
-    let keyword = aData.keyword || null;
     let annos = [];
     if (aData.annos) {
       annos = aData.annos.filter(function (aAnno) {
@@ -125,9 +126,10 @@ this.PlacesUIUtils = {
       }, this);
     }
 
+    // There's no need to copy the keyword since it's bound to the bookmark url.
     return new PlacesCreateBookmarkTransaction(PlacesUtils._uri(aData.uri),
                                                aContainer, aIndex, aData.title,
-                                               keyword, annos, transactions);
+                                               null, annos, transactions);
   },
 
   /**
@@ -1136,7 +1138,21 @@ this.PlacesUIUtils = {
       }
     }
     return queryName;
-  }
+  },
+
+  shouldShowTabsFromOtherComputersMenuitem: function() {
+    // If Sync isn't configured yet, then don't show the menuitem.
+    return Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED &&
+           Weave.Svc.Prefs.get("firstSync", "") != "notReady";
+  },
+
+  shouldEnableTabsFromOtherComputersMenuitem: function() {
+    // The tabs engine might never be inited (if services.sync.registerEngines
+    // is modified), so make sure we avoid undefined errors.
+    return Weave.Service.isLoggedIn &&
+           Weave.Service.engineManager.get("tabs") &&
+           Weave.Service.engineManager.get("tabs").enabled;
+  },
 };
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "RDF",

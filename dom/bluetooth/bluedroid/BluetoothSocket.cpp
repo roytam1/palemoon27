@@ -13,6 +13,7 @@
 #include "BluetoothSocketObserver.h"
 #include "BluetoothInterface.h"
 #include "BluetoothUtils.h"
+#include "mozilla/ipc/UnixSocketWatcher.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/RefPtr.h"
 #include "nsThreadUtils.h"
@@ -677,7 +678,10 @@ BluetoothSocket::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mObserver);
-  mObserver->ReceiveSocketData(this, aMessage);
+
+  nsAutoPtr<mozilla::ipc::UnixSocketBuffer> buffer(aMessage.forget());
+
+  mObserver->ReceiveSocketData(this, buffer);
 }
 
 void

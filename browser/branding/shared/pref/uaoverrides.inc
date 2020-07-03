@@ -33,7 +33,7 @@ pref("@GUAO_PREF@.google.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @
 pref("@GUAO_PREF@.googlevideos.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @GRE_VERSION_SLICE@ Firefox/52.0 @PM_SLICE@");
 pref("@GUAO_PREF@.gstatic.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @GRE_VERSION_SLICE@ Firefox/52.0 @PM_SLICE@");
 // now YouTube needs to be fooled too
-pref("@GUAO_PREF@.youtube.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 Firefox/52.0 @PM_SLICE@");
+pref("@GUAO_PREF@.youtube.com","Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
 
 pref("@GUAO_PREF@.dropbox.com","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
 pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
@@ -74,7 +74,7 @@ pref("@GUAO_PREF@.netflximg.net","Mozilla/5.0 (@OS_SLICE@ rv:45.9) @GK_SLICE@ Fi
 pref("@GUAO_PREF@.yahoo.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) @GK_SLICE@ @GRE_VERSION_SLICE@ Firefox/52.0");
 
 // get good old twitter interface back
-pref("@GUAO_PREF@.twitter.com","Opera/9.80 (Windows NT 6.1) Presto/2.12.388 Version/12.18");
+pref("@GUAO_PREF@.twitter.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:60.0) Gecko/20100101 Firefox/60.0 (Pale Moon)");
 
 // UA-sniffing domains that are "app/vendor-specific" and do not like Pale Moon
 pref("@GUAO_PREF@.web.whatsapp.com","Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36");

@@ -3057,6 +3057,12 @@ const BrowserSearch = {
     let engine = BrowserSearch.loadSearch(terms, true, "contextmenu");
   },
 
+  pasteAndSearch: function (event) {
+    BrowserSearch.searchBar.select();
+    goDoCommand("cmd_paste");
+    BrowserSearch.searchBar.handleSearchCommand(event);
+  },
+
   /**
    * Returns the search bar element if it is present in the toolbar, null otherwise.
    */

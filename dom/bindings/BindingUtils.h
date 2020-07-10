@@ -1615,61 +1615,6 @@ struct GetParentObject<T, false>
   }
 };
 
-MOZ_ALWAYS_INLINE
-JSObject* GetJSObjectFromCallback(CallbackObject* callback)
-{
-  return callback->Callback();
-}
-
-MOZ_ALWAYS_INLINE
-JSObject* GetJSObjectFromCallback(void* noncallback)
-{
-  return nullptr;
-}
-
-template<typename T>
-static inline JSObject*
-WrapCallThisObject(JSContext* cx, const T& p)
-{
-  // Callbacks are nsISupports, so WrapNativeParent will just happily wrap them
-  // up as an nsISupports XPCWrappedNative... which is not at all what we want.
-  // So we need to special-case them.
-  JS::Rooted<JSObject*> obj(cx, GetJSObjectFromCallback(p));
-  if (!obj) {
-    // WrapNativeParent is a bit of a Swiss army knife that will
-    // wrap anything for us.
-    obj = WrapNativeParent(cx, p);
-    if (!obj) {
-      return nullptr;
-    }
-  }
-
-  // But all that won't necessarily put things in the compartment of cx.
-  if (!JS_WrapObject(cx, &obj)) {
-    return nullptr;
-  }
-
-  return obj;
-}
-
-/*
- * This specialized function simply wraps a JS::Rooted<> since
- * WrapNativeParent() is not applicable for JS objects.
- */
-template<>
-inline JSObject*
-WrapCallThisObject<JS::Rooted<JSObject*>>(JSContext* cx,
-                                          const JS::Rooted<JSObject*>& p)
-{
-  JS::Rooted<JSObject*> obj(cx, p);
-
-  if (!JS_WrapObject(cx, &obj)) {
-    return nullptr;
-  }
-
-  return obj;
-}
-
 // Helper for calling GetOrCreateDOMReflector with smart pointers
 // (nsAutoPtr/nsRefPtr/nsCOMPtr) or references.
 template <class T, bool isSmartPtr=IsSmartPtr<T>::value>

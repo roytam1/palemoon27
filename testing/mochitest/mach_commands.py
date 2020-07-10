@@ -7,6 +7,7 @@ from __future__ import unicode_literals
 import argparse
 import logging
 import mozpack.path as mozpath
+import mozpack.executables
 import os
 import sys
 import warnings
@@ -256,6 +257,7 @@ class MochitestRunner(MozbuildObject):
             runByDir=False,
             useTestMediaDevices=False,
             timeout=None,
+            max_timeouts=None,
             **kwargs):
         """Runs a mochitest.
 
@@ -393,6 +395,8 @@ class MochitestRunner(MozbuildObject):
         options.useTestMediaDevices = useTestMediaDevices
         if timeout:
             options.timeout = int(timeout)
+        if max_timeouts:
+            options.maxTimeouts = int(max_timeouts)
 
         options.failureFile = failure_file_path
         if install_extension is not None:
@@ -728,6 +732,10 @@ def MochitestCommand(func):
         help='The per-test timeout time in seconds (default: 60 seconds)')
     func = timeout(func)
 
+    max_timeouts = CommandArgument('--max-timeouts', default=None,
+        help='The maximum number of timeouts permitted before halting testing')
+    func = max_timeouts(func)
+
     return func
 
 
@@ -749,10 +757,10 @@ def B2GCommand(func):
               gaia profile to use')
     func = profile(func)
 
-    goannapath = CommandArgument('--goanna-path', default=None,
-                                help='the path to a goanna distribution that should \
+    geckopath = CommandArgument('--gecko-path', default=None,
+                                help='the path to a gecko distribution that should \
               be installed on the emulator prior to test')
-    func = goannapath(func)
+    func = geckopath(func)
 
     nowindow = CommandArgument(
         '--no-window',
@@ -1011,7 +1019,9 @@ class B2GCommands(MachCommandBase):
     def __init__(self, context):
         MachCommandBase.__init__(self, context)
 
-        for attr in ('b2g_home', 'xre_path', 'device_name', 'get_build_var'):
+        # These attributes are defined in:
+        # https://github.com/mozilla-b2g/B2G/blob/master/tools/mach_b2g_bootstrap.py
+        for attr in ('b2g_home', 'xre_path', 'device_name', 'target_out'):
             setattr(self, attr, getattr(context, attr, None))
 
     @Command(
@@ -1023,9 +1033,10 @@ class B2GCommands(MachCommandBase):
             is_emulator])
     @B2GCommand
     def run_mochitest_remote(self, test_paths, **kwargs):
-        if self.get_build_var:
+        if self.target_out:
             host_webapps_dir = os.path.join(
-                self.get_build_var('TARGET_OUT_DATA'),
+                self.target_out,
+                'data',
                 'local',
                 'webapps')
             if not os.path.isdir(
@@ -1121,9 +1132,19 @@ class AndroidCommands(MachCommandBase):
                             ('.py', 'r', imp.PY_SOURCE))
         import runtestsremote
 
+        MOZ_HOST_BIN = os.environ.get('MOZ_HOST_BIN')
+        if not MOZ_HOST_BIN:
+            print('environment variable MOZ_HOST_BIN must be set to a directory containing host xpcshell')
+            return 1
+        elif not os.path.isdir(MOZ_HOST_BIN):
+            print('$MOZ_HOST_BIN does not specify a directory')
+            return 1
+        elif not os.path.isfile(os.path.join(MOZ_HOST_BIN, 'xpcshell')):
+            print('$MOZ_HOST_BIN/xpcshell does not exist')
+            return 1
+
         args = [
-            '--xre-path=' +
-            os.environ.get('MOZ_HOST_BIN'),
+            '--xre-path=' + MOZ_HOST_BIN,
             '--dm_trans=adb',
             '--deviceIP=',
             '--console-level=INFO',

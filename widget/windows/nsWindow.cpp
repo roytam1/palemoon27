@@ -2024,7 +2024,7 @@ void
 nsWindow::ResetLayout()
 {
   // This will trigger a frame changed event, triggering
-  // nc calc size and a sizemode goanna event.
+  // nc calc size and a sizemode gecko event.
   SetWindowPos(mWnd, 0, 0, 0, 0, 0,
                SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|
                SWP_NOOWNERZORDER|SWP_NOSIZE|SWP_NOZORDER);
@@ -2033,7 +2033,7 @@ nsWindow::ResetLayout()
   if (!mIsVisible)
     return;
 
-  // Send a goanna size event to trigger reflow.
+  // Send a gecko size event to trigger reflow.
   RECT clientRc = {0};
   GetClientRect(mWnd, &clientRc);
   nsIntRect evRect(WinUtils::ToIntRect(clientRc));
@@ -6080,18 +6080,18 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS* wp)
     // If a maximized window is resized, recalculate the non-client margins.
     if (mSizeMode == nsSizeMode_Maximized) {
       if (UpdateNonClientMargins(nsSizeMode_Maximized, true)) {
-        // goanna resize event already sent by UpdateNonClientMargins.
+        // gecko resize event already sent by UpdateNonClientMargins.
         return;
       }
     }
 
-    // Recalculate the width and height based on the client area for goanna events.
+    // Recalculate the width and height based on the client area for gecko events.
     if (::GetClientRect(mWnd, &r)) {
       rect.width  = r.right - r.left;
       rect.height = r.bottom - r.top;
     }
     
-    // Send a goanna resize event
+    // Send a gecko resize event
     OnResize(rect);
   }
 }

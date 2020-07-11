@@ -534,7 +534,7 @@ BrowserGlue.prototype = {
           cookies = aHttpChannel.getRequestHeader("Cookie");
         } catch (e) { /* no cookie sent */ }
         if (cookies && cookies.indexOf("MoodleSession") > -1)
-          return aOriginalUA.replace(/Goanna\/[^ ]*/, "Goanna/20100101");
+          return aOriginalUA.replace(/Gecko\/[^ ]*/, "Gecko/20100101");
         return null;
       });
     }

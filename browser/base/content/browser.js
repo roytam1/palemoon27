@@ -5130,7 +5130,7 @@ function handleDroppedLink(event, url, name)
     loadURI(uri, null, postData.value, false);
 
   // Keep the event from being handled by the dragDrop listeners
-  // built-in to goanna if they happen to be above us.
+  // built-in to gecko if they happen to be above us.
   event.preventDefault();
 };
 

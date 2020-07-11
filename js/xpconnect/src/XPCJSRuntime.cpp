@@ -1387,7 +1387,7 @@ XPCJSRuntime::InterruptCallback(JSContext* cx)
         return true;
     }
 
-    // Sometimes we get called back during XPConnect initialization, before Goanna
+    // Sometimes we get called back during XPConnect initialization, before Gecko
     // has finished bootstrapping. Avoid crashing in nsContentUtils below.
     if (!nsContentUtils::IsInitialized())
         return true;

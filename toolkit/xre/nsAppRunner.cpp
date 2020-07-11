@@ -2893,7 +2893,7 @@ XREMain::XRE_mainInit(bool* aExitFlag)
 
   if (mAppData->size > offsetof(nsXREAppData, minVersion)) {
     if (!mAppData->minVersion) {
-      Output(true, "Error: Goanna:MinVersion not specified in application.ini\n");
+      Output(true, "Error: Gecko:MinVersion not specified in application.ini\n");
       return 1;
     }
 
@@ -3522,7 +3522,7 @@ XREMain::XRE_mainRun()
   NS_ASSERTION(mScopedXPCOM, "Scoped xpcom not initialized.");
 
 #ifdef MOZ_B2G_LOADER
-  mozilla::ipc::ProcLoaderClientGoannaInit();
+  mozilla::ipc::ProcLoaderClientGeckoInit();
 #endif
 
 #ifdef NS_FUNCTION_TIMER

@@ -22,7 +22,6 @@
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/TimeStamp.h"
-#include "Units.h"
 #include "mozilla/gfx/Point.h"
 #include "nsDataHashtable.h"
 #include "nsIObserver.h"
@@ -52,6 +51,7 @@ class CompositorChild;
 class LayerManager;
 class LayerManagerComposite;
 class PLayerTransactionChild;
+struct ScrollableLayerGuid;
 }
 namespace gfx {
 class DrawTarget;
@@ -1752,7 +1752,8 @@ class nsIWidget : public nsISupports {
      * which includes the area for the borders and titlebar. This method
      * should work even when the window is not yet visible.
      */
-    virtual nsIntSize ClientToWindowSize(const nsIntSize& aClientSize) = 0;
+    virtual mozilla::LayoutDeviceIntSize ClientToWindowSize(
+                const mozilla::LayoutDeviceIntSize& aClientSize) = 0;
 
     /**
      * Dispatches an event to the widget
@@ -1774,6 +1775,13 @@ class nsIWidget : public nsISupports {
      * forwarded to the parent process synchronously.
      */
     virtual nsEventStatus DispatchInputEvent(mozilla::WidgetInputEvent* aEvent) = 0;
+
+    /**
+     * Confirm an APZ-aware event target. This should be used when APZ will
+     * not need a layers update to process the event.
+     */
+    virtual void SetConfirmedTargetAPZC(uint64_t aInputBlockId,
+                                        const nsTArray<mozilla::layers::ScrollableLayerGuid>& aTargets) const = 0;
 
     /**
      * Enables the dropping of files to a widget (XXX this is temporary)

@@ -486,8 +486,9 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 // This is obnoxious, and seems to no longer be relevant.
   NS_WARN_IF_FALSE(!aTargetFrame ||
                    !aTargetFrame->GetContent() ||
-                   aTargetFrame->GetContent() == aTargetContent,
-                   "aTargetContent should be related with aTargetFrame");
+                   aTargetFrame->GetContent() == aTargetContent ||
+                   aTargetFrame->GetContent()->GetParent() == aTargetContent,
+                   "aTargetFrame should be related with aTargetContent");
 #endif
 
   mCurrentTarget = aTargetFrame;
@@ -1199,7 +1200,9 @@ CrossProcessSafeEvent(const WidgetEvent& aEvent)
     case NS_MOUSE_BUTTON_UP:
     case NS_MOUSE_MOVE:
     case NS_CONTEXTMENU:
+    case NS_MOUSE_ENTER:
     case NS_MOUSE_EXIT:
+    case NS_MOUSE_ENTER_SYNTH:
       return true;
     default:
       return false;
@@ -2496,7 +2499,7 @@ EventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
     actualDevPixelScrollAmount.y = 0;
   }
 
-  nsIScrollableFrame::ScrollSnapMode snapMode = nsIScrollableFrame::DISABLE_SNAP;
+  nsIScrollbarMediator::ScrollSnapMode snapMode = nsIScrollbarMediator::DISABLE_SNAP;
   nsIAtom* origin = nullptr;
   switch (aEvent->deltaMode) {
     case nsIDOMWheelEvent::DOM_DELTA_LINE:
@@ -3090,9 +3093,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       // When APZ is enabled, the actual scroll animation might be handled by
       // the compositor.
       WheelPrefs::Action action;
-      if (gfxPrefs::AsyncPanZoomEnabled() &&
-          layers::APZCTreeManager::WillHandleWheelEvent(wheelEvent))
-      {
+      if (wheelEvent->mFlags.mHandledByAPZ) {
         action = WheelPrefs::ACTION_NONE;
       } else {
         action = WheelPrefs::GetInstance()->ComputeActionFor(wheelEvent);
@@ -3811,20 +3812,28 @@ EventStateManager::DispatchMouseOrPointerEvent(WidgetMouseEvent* aMouseEvent,
     // the same object after event dispatch and handling, so refetch it.
     targetFrame = mPresContext->GetPrimaryFrameFor(targetContent);
 
-    // If we are leaving remote content, dispatch a mouse exit event to the
-    // remote frame.
-    if (aMessage == NS_MOUSE_EXIT_SYNTH && IsRemoteTarget(targetContent)) {
-      // For remote content, send a normal widget mouse exit event.
-      nsAutoPtr<WidgetMouseEvent> remoteEvent;
-      CreateMouseOrPointerWidgetEvent(aMouseEvent, NS_MOUSE_EXIT,
-                                       relatedContent, remoteEvent);
+    // If we are entering/leaving remote content, dispatch a mouse enter/exit
+    // event to the remote frame.
+    if (IsRemoteTarget(aTargetContent)) {
+      if (aMessage == NS_MOUSE_EXIT_SYNTH) {
+        // For remote content, send a "top-level" widget mouse exit event.
+        nsAutoPtr<WidgetMouseEvent> remoteEvent;
+        CreateMouseOrPointerWidgetEvent(aMouseEvent, NS_MOUSE_EXIT,
+                                        aRelatedContent, remoteEvent);
+        remoteEvent->exit = WidgetMouseEvent::eTopLevel;
 
-      // mCurrentTarget is set to the new target, so we must reset it to the
-      // old target and then dispatch a cross-process event. (mCurrentTarget
-      // will be set back below.) HandleCrossProcessEvent will query for the
-      // proper target via GetEventTarget which will return mCurrentTarget.
-      mCurrentTarget = targetFrame;
-      HandleCrossProcessEvent(remoteEvent, &status);
+        // mCurrentTarget is set to the new target, so we must reset it to the
+        // old target and then dispatch a cross-process event. (mCurrentTarget
+        // will be set back below.) HandleCrossProcessEvent will query for the
+        // proper target via GetEventTarget which will return mCurrentTarget.
+        mCurrentTarget = targetFrame;
+        HandleCrossProcessEvent(remoteEvent, &status);
+      } else if (aMessage == NS_MOUSE_ENTER_SYNTH) {
+        nsAutoPtr<WidgetMouseEvent> remoteEvent;
+        CreateMouseOrPointerWidgetEvent(aMouseEvent, NS_MOUSE_ENTER,
+                                        aRelatedContent, remoteEvent);
+        HandleCrossProcessEvent(remoteEvent, &status);
+      }
     }
   }
 
@@ -4658,7 +4667,7 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
     nsIContent *anc1 = aNode1;
     for (;;) {
       ++offset;
-      nsIContent* parent = anc1->GetParent();
+      nsIContent* parent = anc1->GetFlattenedTreeParent();
       if (!parent)
         break;
       anc1 = parent;
@@ -4666,7 +4675,7 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
     nsIContent *anc2 = aNode2;
     for (;;) {
       --offset;
-      nsIContent* parent = anc2->GetParent();
+      nsIContent* parent = anc2->GetFlattenedTreeParent();
       if (!parent)
         break;
       anc2 = parent;
@@ -4675,16 +4684,16 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
       anc1 = aNode1;
       anc2 = aNode2;
       while (offset > 0) {
-        anc1 = anc1->GetParent();
+        anc1 = anc1->GetFlattenedTreeParent();
         --offset;
       }
       while (offset < 0) {
-        anc2 = anc2->GetParent();
+        anc2 = anc2->GetFlattenedTreeParent();
         ++offset;
       }
       while (anc1 != anc2) {
-        anc1 = anc1->GetParent();
-        anc2 = anc2->GetParent();
+        anc1 = anc1->GetFlattenedTreeParent();
+        anc2 = anc2->GetFlattenedTreeParent();
       }
       return anc1;
     }
@@ -4740,7 +4749,7 @@ EventStateManager::UpdateAncestorState(nsIContent* aStartNode,
                                        bool aAddState)
 {
   for (; aStartNode && aStartNode != aStopBefore;
-       aStartNode = aStartNode->GetParent()) {
+       aStartNode = aStartNode->GetFlattenedTreeParent()) {
     // We might be starting with a non-element (e.g. a text node) and
     // if someone is doing something weird might be ending with a
     // non-element too (e.g. a document fragment)
@@ -4768,7 +4777,7 @@ EventStateManager::UpdateAncestorState(nsIContent* aStartNode,
     // still be in hover state.  To handle this situation we need to
     // keep walking up the tree and any time we find a label mark its
     // corresponding node as still in our state.
-    for ( ; aStartNode; aStartNode = aStartNode->GetParent()) {
+    for ( ; aStartNode; aStartNode = aStartNode->GetFlattenedTreeParent()) {
       if (!aStartNode->IsElement()) {
         continue;
       }
@@ -5609,9 +5618,25 @@ EventStateManager::WheelPrefs::NeedToComputeLineOrPageDelta(
 }
 
 bool
+EventStateManager::WheelPrefs::HasUserPrefsForDelta(WidgetWheelEvent* aEvent)
+{
+  Index index = GetIndexFor(aEvent);
+  Init(index);
+
+  return mMultiplierX[index] != 1.0 ||
+         mMultiplierY[index] != 1.0;
+}
+
+bool
 EventStateManager::WheelEventIsScrollAction(WidgetWheelEvent* aEvent)
 {
   return WheelPrefs::GetInstance()->ComputeActionFor(aEvent) == WheelPrefs::ACTION_SCROLL;
+}
+
+bool
+EventStateManager::WheelEventNeedsDeltaMultipliers(WidgetWheelEvent* aEvent)
+{
+  return WheelPrefs::GetInstance()->HasUserPrefsForDelta(aEvent);
 }
 
 bool

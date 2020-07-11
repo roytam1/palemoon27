@@ -25,13 +25,13 @@
 #include "nsIXULBrowserWindow.h"
 #include "nsWeakReference.h"
 #include "Units.h"
+#include "nsIWidget.h"
 
 class nsFrameLoader;
 class nsIFrameLoader;
 class nsIContent;
 class nsIPrincipal;
 class nsIURI;
-class nsIWidget;
 class nsILoadContext;
 class nsIDocShell;
 
@@ -403,6 +403,7 @@ public:
     bool RequestNotifyLayerTreeReady();
     bool RequestNotifyLayerTreeCleared();
     bool LayerTreeUpdate(bool aActive);
+    void SwapLayerTreeObservers(TabParent* aOther);
 
     virtual bool
     RecvInvokeDragSession(nsTArray<IPCDataTransfer>&& aTransfers,
@@ -481,7 +482,6 @@ protected:
     ScreenOrientation mOrientation;
     float mDPI;
     CSSToLayoutDeviceScale mDefaultScale;
-    bool mShown;
     bool mUpdatedDimensions;
     LayoutDeviceIntPoint mChromeOffset;
 
@@ -585,6 +585,19 @@ private:
     // frame scripts that we intend to load and send them as part of the
     // CreateWindow response. Then TabChild loads them immediately.
     nsTArray<FrameScriptInfo> mDelayedFrameScripts;
+
+    // If the user called RequestNotifyLayerTreeReady and the RenderFrameParent
+    // wasn't ready yet, we set this flag and call RequestNotifyLayerTreeReady
+    // again once the RenderFrameParent arrives.
+    bool mNeedLayerTreeReadyNotification;
+
+    // Cached cursor setting from TabChild.  When the cursor is over the tab,
+    // it should take this appearance.
+    nsCursor mCursor;
+
+    // True if the cursor changes from the TabChild should change the widget
+    // cursor.  This happens whenever the cursor is in the tab's region.
+    bool mTabSetsCursor;
 
 private:
     // This is used when APZ needs to find the TabParent associated with a layer

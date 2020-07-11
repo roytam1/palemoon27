@@ -269,7 +269,6 @@ TabParent::TabParent(nsIContentParent* aManager,
   , mOrientation(0)
   , mDPI(0)
   , mDefaultScale(0)
-  , mShown(false)
   , mUpdatedDimensions(false)
   , mManager(aManager)
   , mMarkedDestroying(false)
@@ -282,6 +281,9 @@ TabParent::TabParent(nsIContentParent* aManager,
   , mInitedByParent(false)
   , mTabId(aTabId)
   , mCreatingWindow(false)
+  , mNeedLayerTreeReadyNotification(false)
+  , mCursor(nsCursor(-1))
+  , mTabSetsCursor(false)
 {
   MOZ_ASSERT(aManager);
 }
@@ -757,13 +759,6 @@ TabParent::LoadURL(nsIURI* aURI)
         return;
     }
 
-    if (!mShown) {
-        NS_WARNING(nsPrintfCString("TabParent::LoadURL(%s) called before "
-                                   "Show(). Ignoring LoadURL.\n",
-                                   spec.get()).get());
-        return;
-    }
-
     uint32_t appId = OwnOrContainingAppId();
     if (mSendOfflineStatus && NS_IsAppOffline(appId)) {
       // If the app is offline in the parent process
@@ -827,8 +822,6 @@ TabParent::LoadURL(nsIURI* aURI)
 void
 TabParent::Show(const ScreenIntSize& size, bool aParentIsActive)
 {
-    // sigh
-    mShown = true;
     mDimensions = size;
     if (mIsDestroyed) {
         return;
@@ -1185,6 +1178,25 @@ bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
     return false;
   }
   event.refPoint += GetChildProcessOffset();
+
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    // When we mouseenter the tab, the tab's cursor should become the current
+    // cursor.  When we mouseexit, we stop.
+    if (event.message == NS_MOUSE_ENTER ||
+        event.message == NS_MOUSE_ENTER_SYNTH) {
+      mTabSetsCursor = true;
+      if (mCursor != nsCursor(-1)) {
+        widget->SetCursor(mCursor);
+      }
+      // We don't actually want to forward NS_MOUSE_ENTER messages.
+      return true;
+    } else if (event.message == NS_MOUSE_EXIT ||
+               event.message == NS_MOUSE_EXIT_SYNTH) {
+      mTabSetsCursor = false;
+    }
+  }
+
   if (event.message == NS_MOUSE_MOVE) {
     return SendRealMouseMoveEvent(event);
   }
@@ -1662,12 +1674,16 @@ TabParent::RecvAsyncMessage(const nsString& aMessage,
 bool
 TabParent::RecvSetCursor(const uint32_t& aCursor, const bool& aForce)
 {
+  mCursor = static_cast<nsCursor>(aCursor);
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
     if (aForce) {
       widget->ClearCachedCursor();
     }
-    widget->SetCursor((nsCursor) aCursor);
+    if (mTabSetsCursor) {
+      widget->SetCursor(mCursor);
+    }
   }
   return true;
 }
@@ -1758,13 +1774,14 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
                               nsIMEUpdatePreference* aPreference,
                               uint32_t* aSeqno)
 {
+  *aSeqno = mIMESeqno;
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
     *aPreference = nsIMEUpdatePreference();
     return true;
   }
 
-  *aSeqno = mIMESeqno;
   mIMETabParent = aFocus ? this : nullptr;
   mIMESelectionAnchor = 0;
   mIMESelectionFocus = 0;
@@ -2581,6 +2598,12 @@ TabParent::RecvGetRenderFrameInfo(PRenderFrameParent* aRenderFrame,
   RenderFrameParent* renderFrame = static_cast<RenderFrameParent*>(aRenderFrame);
   renderFrame->GetTextureFactoryIdentifier(aTextureFactoryIdentifier);
   *aLayersId = renderFrame->GetLayersId();
+
+  if (mNeedLayerTreeReadyNotification) {
+    RequestNotifyLayerTreeReady();
+    mNeedLayerTreeReadyNotification = false;
+  }
+
   return true;
 }
 
@@ -2883,11 +2906,11 @@ TabParent::RequestNotifyLayerTreeReady()
 {
   RenderFrameParent* frame = GetRenderFrame();
   if (!frame) {
-    return false;
+    mNeedLayerTreeReadyNotification = true;
+  } else {
+    CompositorParent::RequestNotifyLayerTreeReady(frame->GetLayersId(),
+                                                  new LayerTreeUpdateObserver());
   }
-
-  CompositorParent::RequestNotifyLayerTreeReady(frame->GetLayersId(),
-                                                new LayerTreeUpdateObserver());
   return true;
 }
 
@@ -2925,6 +2948,23 @@ TabParent::LayerTreeUpdate(bool aActive)
   bool dummy;
   mFrameElement->DispatchEvent(event, &dummy);
   return true;
+}
+
+void
+TabParent::SwapLayerTreeObservers(TabParent* aOther)
+{
+  if (IsDestroyed() || aOther->IsDestroyed()) {
+    return;
+  }
+
+  RenderFrameParent* rfp = GetRenderFrame();
+  RenderFrameParent* otherRfp = aOther->GetRenderFrame();
+  if(!rfp || !otherRfp) {
+    return;
+  }
+
+  CompositorParent::SwapLayerTreeObservers(rfp->GetLayersId(),
+                                           otherRfp->GetLayersId());
 }
 
 bool

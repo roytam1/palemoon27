@@ -62,6 +62,9 @@ FetchDriver::Fetch(FetchDriverObserver* aObserver)
   workers::AssertIsOnMainThread();
   mObserver = aObserver;
 
+  Telemetry::Accumulate(Telemetry::SERVICE_WORKER_REQUEST_PASSTHROUGH,
+                        mRequest->WasCreatedByFetchEvent());
+
   return Fetch(false /* CORS flag */);
 }
 
@@ -204,9 +207,9 @@ FetchDriver::BasicFetch()
   }
 
   if (scheme.LowerCaseEqualsLiteral("blob")) {
-    nsRefPtr<FileImpl> blobImpl;
+    nsRefPtr<BlobImpl> blobImpl;
     rv = NS_GetBlobForBlobURI(uri, getter_AddRefs(blobImpl));
-    FileImpl* blob = static_cast<FileImpl*>(blobImpl.get());
+    BlobImpl* blob = static_cast<BlobImpl*>(blobImpl.get());
     if (NS_WARN_IF(NS_FAILED(rv))) {
       FailWithNetworkError();
       return rv;

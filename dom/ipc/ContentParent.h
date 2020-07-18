@@ -77,6 +77,7 @@ class ContentParent final : public PContentParent
     typedef mozilla::ipc::TestShellParent TestShellParent;
     typedef mozilla::ipc::URIParams URIParams;
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
+    typedef mozilla::OwningSerializedStructuredCloneBuffer OwningSerializedStructuredCloneBuffer;
 
 public:
 #ifdef MOZ_NUWA_PROCESS
@@ -217,6 +218,9 @@ public:
                   const ContentParentId& aCpId);
     static void
     DeallocateTabId(const TabId& aTabId, const ContentParentId& aCpId);
+
+    static bool
+    GetBrowserConfiguration(const nsCString& aURI, BrowserConfiguration& aConfig);
 
     void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();
@@ -534,10 +538,12 @@ private:
                                           bool* aIsForApp,
                                           bool* aIsForBrowser) override;
     virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline,
+                                               bool* aIsConnected,
                                                bool* aIsLangRTL,
                                                InfallibleTArray<nsString>* dictionaries,
                                                ClipboardCapabilities* clipboardCaps,
-                                               DomainPolicyClone* domainPolicy) override;
+                                               DomainPolicyClone* domainPolicy,
+                                               OwningSerializedStructuredCloneBuffer* initialData) override;
 
     virtual bool DeallocPJavaScriptParent(mozilla::jsipc::PJavaScriptParent*) override;
 
@@ -696,12 +702,12 @@ private:
                                  const ClonedMessageData& aData,
                                  InfallibleTArray<CpowEntry>&& aCpows,
                                  const IPC::Principal& aPrincipal,
-                                 InfallibleTArray<nsString>* aRetvals) override;
+                                 nsTArray<OwningSerializedStructuredCloneBuffer>* aRetvals) override;
     virtual bool RecvRpcMessage(const nsString& aMsg,
                                 const ClonedMessageData& aData,
                                 InfallibleTArray<CpowEntry>&& aCpows,
                                 const IPC::Principal& aPrincipal,
-                                InfallibleTArray<nsString>* aRetvals) override;
+                                nsTArray<OwningSerializedStructuredCloneBuffer>* aRetvals) override;
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData,
                                   InfallibleTArray<CpowEntry>&& aCpows,
@@ -772,6 +778,8 @@ private:
 
     virtual bool RecvSetFakeVolumeState(const nsString& fsName, const int32_t& fsState) override;
 
+    virtual bool RecvRemoveFakeVolume(const nsString& fsName) override;
+
     virtual bool RecvKeywordToURI(const nsCString& aKeyword,
                                   nsString* aProviderName,
                                   OptionalInputStreamParams* aPostData,
@@ -779,6 +787,10 @@ private:
 
     virtual bool RecvNotifyKeywordSearchLoading(const nsString &aProvider,
                                                 const nsString &aKeyword) override;
+
+    virtual bool RecvCopyFavicon(const URIParams& aOldURI,
+                                 const URIParams& aNewURI,
+                                 const bool& aInPrivateBrowsing) override;
 
     virtual void ProcessingError(Result aCode, const char* aMsgName) override;
 
@@ -836,6 +848,8 @@ private:
 
     virtual bool RecvUpdateDropEffect(const uint32_t& aDragAction,
                                       const uint32_t& aDropEffect) override;
+
+    virtual bool RecvGetBrowserConfiguration(const nsCString& aURI, BrowserConfiguration* aConfig) override;
 
     virtual bool RecvGamepadListenerAdded() override;
     virtual bool RecvGamepadListenerRemoved() override;

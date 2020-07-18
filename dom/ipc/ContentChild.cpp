@@ -802,13 +802,20 @@ ContentChild::InitXPCOM()
         NS_WARNING("Couldn't register console listener for child process");
 
     bool isOffline, isLangRTL;
+    bool isConnected;
     ClipboardCapabilities clipboardCaps;
     DomainPolicyClone domainPolicy;
+    OwningSerializedStructuredCloneBuffer initialData;
 
-    SendGetXPCOMProcessAttributes(&isOffline, &isLangRTL, &mAvailableDictionaries,
-                                  &clipboardCaps, &domainPolicy);
+    SendGetXPCOMProcessAttributes(&isOffline, &isConnected,
+                                  &isLangRTL, &mAvailableDictionaries,
+                                  &clipboardCaps, &domainPolicy, &initialData);
     RecvSetOffline(isOffline);
+    RecvSetConnectivity(isConnected);
     RecvBidiKeyboardNotify(isLangRTL);
+
+    // Create the CPOW manager as soon as possible.
+    SendPJavaScriptConstructor();
 
     if (domainPolicy.active()) {
         nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
@@ -823,6 +830,20 @@ ContentChild::InitXPCOM()
     nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1"));
     if (nsCOMPtr<nsIClipboardProxy> clipboardProxy = do_QueryInterface(clipboard)) {
         clipboardProxy->SetCapabilities(clipboardCaps);
+    }
+
+    {
+        AutoJSAPI jsapi;
+        if (NS_WARN_IF(!jsapi.Init(xpc::PrivilegedJunkScope()))) {
+            MOZ_CRASH();
+        }
+        JS::RootedValue data(jsapi.cx());
+        if (!JS_ReadStructuredClone(jsapi.cx(), initialData.data, initialData.dataLength,
+                                    JS_STRUCTURED_CLONE_VERSION, &data, nullptr, nullptr)) {
+            MOZ_CRASH();
+        }
+        ProcessGlobal* global = ProcessGlobal::Get();
+        global->SetInitialProcessData(data);
     }
 
     DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
@@ -1236,6 +1257,26 @@ ContentChild::RecvBidiKeyboardNotify(const bool& aIsLangRTL)
     PuppetBidiKeyboard* bidi = static_cast<PuppetBidiKeyboard*>(nsContentUtils::GetBidiKeyboard());
     if (bidi) {
         bidi->SetIsLangRTL(aIsLangRTL);
+    }
+    return true;
+}
+
+bool
+ContentChild::RecvRemoveServiceWorkerRegistrationsForDomain(const nsString& aDomain)
+{
+    nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
+    if (swm) {
+        swm->Remove(NS_ConvertUTF16toUTF8(aDomain));
+    }
+    return true;
+}
+
+bool
+ContentChild::RecvRemoveServiceWorkerRegistrations()
+{
+    nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
+    if (swm) {
+        swm->RemoveAll();
     }
     return true;
 }
@@ -1866,6 +1907,18 @@ ContentChild::RecvSetOffline(const bool& offline)
     return true;
 }
 
+bool
+ContentChild::RecvSetConnectivity(const bool& connectivity)
+{
+    nsCOMPtr<nsIIOService> io(do_GetIOService());
+    nsCOMPtr<nsIIOServiceInternal> ioInternal(do_QueryInterface(io));
+    NS_ASSERTION(ioInternal, "IO Service can not be null");
+
+    ioInternal->SetConnectivity(connectivity);
+
+    return true;
+}
+
 void
 ContentChild::ActorDestroy(ActorDestroyReason why)
 {
@@ -2255,6 +2308,13 @@ ContentChild::RecvFilePathUpdate(const nsString& aStorageType,
                                  const nsString& aPath,
                                  const nsCString& aReason)
 {
+    if (nsDOMDeviceStorage::InstanceCount() == 0) {
+        // No device storage instances in this process. Don't try and
+        // and create a DeviceStorageFile since it will fail.
+
+        return true;
+    }
+
     nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(aStorageType, aStorageName, aPath);
 
     nsString reason;
@@ -2300,6 +2360,21 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
     unused << aIsUnmounting;
     unused << aIsRemovable;
     unused << aIsHotSwappable;
+#endif
+    return true;
+}
+
+bool
+ContentChild::RecvVolumeRemoved(const nsString& aFsName)
+{
+#ifdef MOZ_WIDGET_GONK
+    nsRefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
+    if (vs) {
+        vs->RemoveVolumeByName(aFsName);
+    }
+#else
+    // Remove warnings about unused arguments
+    unused << aFsName;
 #endif
     return true;
 }
@@ -2814,8 +2889,19 @@ ContentChild::RecvInvokeDragSession(nsTArray<IPCDataTransfer>&& aTransfers,
             variant->SetAsAString(data);
           } else if (item.data().type() == IPCDataTransferData::TPBlobChild) {
             BlobChild* blob = static_cast<BlobChild*>(item.data().get_PBlobChild());
-            nsRefPtr<FileImpl> fileImpl = blob->GetBlobImpl();
-            variant->SetAsISupports(fileImpl);
+            nsRefPtr<BlobImpl> blobImpl = blob->GetBlobImpl();
+            nsString path;
+            ErrorResult result;
+            blobImpl->GetMozFullPathInternal(path, result);
+            if (result.Failed()) {
+              variant->SetAsISupports(blobImpl);
+            } else {
+              nsCOMPtr<nsIFile> file;
+              NS_NewNativeLocalFile(NS_ConvertUTF16toUTF8(path), true, getter_AddRefs(file));
+              variant->SetAsISupports(file);
+            }
+          } else {
+            continue;
           }
           dataTransfer->SetDataWithPrincipal(NS_ConvertUTF8toUTF16(item.flavor()),
                                              variant, i,

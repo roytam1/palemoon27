@@ -27,9 +27,10 @@
 // Intended internal use only for remoting offline/inline events.
 // See Bug 552829
 #define NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC "ipc:network:set-offline"
+#define NS_IPC_IOSERVICE_SET_CONNECTIVITY_TOPIC "ipc:network:set-connectivity"
 
 static const char gScheme[][sizeof("resource")] =
-    {"chrome", "file", "http", "jar", "resource"};
+    {"chrome", "file", "http", "https", "jar", "data", "resource"};
 
 class nsAsyncRedirectVerifyHelper;
 class nsINetworkLinkService;
@@ -51,6 +52,7 @@ class nsIOService final : public nsIIOService2
                         , public nsINetUtil_ESR_38
                         , public nsISpeculativeConnect
                         , public nsSupportsWeakReference
+                        , public nsIIOServiceInternal
 {
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
@@ -60,6 +62,7 @@ public:
     NS_DECL_NSINETUTIL
     NS_DECL_NSINETUTIL_ESR_38
     NS_DECL_NSISPECULATIVECONNECT
+    NS_DECL_NSIIOSERVICEINTERNAL
 
     // Gets the singleton instance of the IO Service, creating it as needed
     // Returns nullptr on out of memory or failure to initialize.
@@ -80,10 +83,6 @@ public:
     bool IsOffline() { return mOffline; }
     bool IsLinkUp();
 
-    bool IsComingOnline() const {
-      return mOffline && mSettingOffline && !mSetOfflineValue;
-    }
-
     // Should only be called from NeckoChild. Use SetAppOffline instead.
     void SetAppOfflineInternal(uint32_t appId, int32_t status);
 
@@ -93,6 +92,7 @@ private:
     // - destroy using Release
     nsIOService();
     ~nsIOService();
+    nsresult SetConnectivityInternal(bool aConnectivity);
 
     nsresult OnNetworkLinkEvent(const char *data);
 
@@ -128,7 +128,11 @@ private:
 private:
     bool                                 mOffline;
     bool                                 mOfflineForProfileChange;
-    bool                                 mManageOfflineStatus;
+    bool                                 mManageLinkStatus;
+    bool                                 mConnectivity;
+    // If true, the connectivity state will be mirrored by IOService.offline
+    // meaning if !mConnectivity, GetOffline() will return true
+    bool                                 mOfflineMirrorsConnectivity;
 
     // Used to handle SetOffline() reentrancy.  See the comment in
     // SetOffline() for more details.

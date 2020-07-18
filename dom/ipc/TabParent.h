@@ -23,6 +23,7 @@
 #include "nsISecureBrowserUI.h"
 #include "nsITabParent.h"
 #include "nsIXULBrowserWindow.h"
+#include "nsRefreshDriver.h"
 #include "nsWeakReference.h"
 #include "Units.h"
 #include "nsIWidget.h"
@@ -74,8 +75,10 @@ class TabParent final : public PBrowserParent
                       , public nsISecureBrowserUI
                       , public nsSupportsWeakReference
                       , public TabContext
+                      , public nsAPostRefreshObserver
 {
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
+    typedef mozilla::OwningSerializedStructuredCloneBuffer OwningSerializedStructuredCloneBuffer;
 
     virtual ~TabParent();
 
@@ -119,6 +122,8 @@ public:
     void Destroy();
 
     void RemoveWindowListeners();
+    void AddWindowListeners();
+    void DidRefresh() override;
 
     virtual bool RecvMoveFocus(const bool& aForward) override;
     virtual bool RecvEvent(const RemoteDOMEvent& aEvent) override;
@@ -145,12 +150,12 @@ public:
                                  const ClonedMessageData& aData,
                                  InfallibleTArray<CpowEntry>&& aCpows,
                                  const IPC::Principal& aPrincipal,
-                                 InfallibleTArray<nsString>* aJSONRetVal) override;
+                                 nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal) override;
     virtual bool RecvRpcMessage(const nsString& aMessage,
                                 const ClonedMessageData& aData,
                                 InfallibleTArray<CpowEntry>&& aCpows,
                                 const IPC::Principal& aPrincipal,
-                                InfallibleTArray<nsString>* aJSONRetVal) override;
+                                nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal) override;
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const ClonedMessageData& aData,
                                   InfallibleTArray<CpowEntry>&& aCpows,
@@ -242,6 +247,7 @@ public:
     void UpdateDimensions(const nsIntRect& rect, const ScreenIntSize& size);
     void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
     void UIResolutionChanged();
+    void ThemeChanged();
     void RequestFlingSnap(const FrameMetrics::ViewID& aScrollId,
                           const mozilla::CSSPoint& aDestination);
     void AcknowledgeScrollUpdate(const ViewID& aScrollId, const uint32_t& aScrollGeneration);
@@ -423,7 +429,7 @@ protected:
                         const StructuredCloneData* aCloneData,
                         mozilla::jsipc::CpowHolder* aCpows,
                         nsIPrincipal* aPrincipal,
-                        InfallibleTArray<nsString>* aJSONRetVal = nullptr);
+                        nsTArray<OwningSerializedStructuredCloneBuffer>* aJSONRetVal = nullptr);
 
     virtual bool RecvAsyncAuthPrompt(const nsCString& aUri,
                                      const nsString& aRealm,
@@ -453,7 +459,7 @@ protected:
 
     bool SendCompositionChangeEvent(mozilla::WidgetCompositionEvent& event);
 
-    bool InitBrowserConfiguration(nsIURI* aURI,
+    bool InitBrowserConfiguration(const nsCString& aURI,
                                   BrowserConfiguration& aConfiguration);
 
     // IME
@@ -491,6 +497,8 @@ private:
     nsRefPtr<nsIContentParent> mManager;
     void TryCacheDPIAndScale();
 
+    nsresult UpdatePosition();
+
     CSSPoint AdjustTapToChildWidget(const CSSPoint& aPoint);
 
     // Update state prior to routing an APZ-aware event to the child process.
@@ -521,7 +529,7 @@ private:
     {
       nsCString mFlavor;
       nsString mStringData;
-      nsRefPtr<mozilla::dom::FileImpl> mBlobData;
+      nsRefPtr<mozilla::dom::BlobImpl> mBlobData;
       enum DataType
       {
         eString,
@@ -598,6 +606,8 @@ private:
     // True if the cursor changes from the TabChild should change the widget
     // cursor.  This happens whenever the cursor is in the tab's region.
     bool mTabSetsCursor;
+
+    nsRefPtr<nsIPresShell> mPresShellWithRefreshListener;
 
 private:
     // This is used when APZ needs to find the TabParent associated with a layer

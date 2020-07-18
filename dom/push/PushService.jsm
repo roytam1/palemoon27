@@ -1286,8 +1286,6 @@ this.PushService = {
         wakeupTable[record.scope].push(record.pageURL);
       }
 
-      // TODO -- test needed.  E10s support needed.
-
       let globalMM = Cc['@mozilla.org/globalmessagemanager;1'].getService(Ci.nsIMessageListenerManager);
       for (let scope in wakeupTable) {
         wakeupTable[scope].forEach(function(pageURL) {

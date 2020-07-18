@@ -30,6 +30,7 @@
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsCycleCollectionNoteRootCallback.h"
+#include "nsCycleCollector.h"
 #include "nsScriptLoader.h"
 #include "jsfriendapi.h"
 #include "jsprf.h"

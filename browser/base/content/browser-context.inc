@@ -334,7 +334,7 @@
                 label="&viewPageSourceCmd.label;"
                 accesskey="&viewPageSourceCmd.accesskey;"
                 oncommand="BrowserViewSource(gContextMenu.browser);"
-                observes="isImage"/>
+                observes="canViewSource"/>
       <menuitem id="context-viewinfo"
                 label="&viewPageInfoCmd.label;"
                 accesskey="&viewPageInfoCmd.accesskey;"

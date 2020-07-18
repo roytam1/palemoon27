@@ -3054,7 +3054,7 @@ TabChild::DoSendBlockingMessage(JSContext* aCx,
                                 const StructuredCloneData& aData,
                                 JS::Handle<JSObject *> aCpows,
                                 nsIPrincipal* aPrincipal,
-                                InfallibleTArray<nsString>* aJSONRetVal,
+                                nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal,
                                 bool aIsSync)
 {
   ClonedMessageData data;
@@ -3067,11 +3067,11 @@ TabChild::DoSendBlockingMessage(JSContext* aCx,
   }
   if (aIsSync) {
     return SendSyncMessage(PromiseFlatString(aMessage), data, cpows,
-                           Principal(aPrincipal), aJSONRetVal);
+                           Principal(aPrincipal), aRetVal);
   }
 
   return SendRpcMessage(PromiseFlatString(aMessage), data, cpows,
-                        Principal(aPrincipal), aJSONRetVal);
+                        Principal(aPrincipal), aRetVal);
 }
 
 bool
@@ -3162,8 +3162,27 @@ TabChild::RecvUIResolutionChanged()
   static_cast<PuppetWidget*>(mWidget.get())->ClearBackingScaleCache();
   nsCOMPtr<nsIDocument> document(GetDocument());
   nsCOMPtr<nsIPresShell> presShell = document->GetShell();
-  nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
-  presContext->UIResolutionChanged();
+  if (presShell) {
+    nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
+    if (presContext) {
+      presContext->UIResolutionChanged();
+    }
+  }
+  return true;
+}
+
+bool
+TabChild::RecvThemeChanged(nsTArray<LookAndFeelInt>&& aLookAndFeelIntCache)
+{
+  LookAndFeel::SetIntCache(aLookAndFeelIntCache);
+  nsCOMPtr<nsIDocument> document(GetDocument());
+  nsCOMPtr<nsIPresShell> presShell = document->GetShell();
+  if (presShell) {
+    nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
+    if (presContext) {
+      presContext->ThemeChanged();
+    }
+  }
   return true;
 }
 

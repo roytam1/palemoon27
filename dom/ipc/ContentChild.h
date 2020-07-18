@@ -288,12 +288,17 @@ public:
     virtual bool DeallocPRemoteSpellcheckEngineChild(PRemoteSpellcheckEngineChild*) override;
 
     virtual bool RecvSetOffline(const bool& offline) override;
+    virtual bool RecvSetConnectivity(const bool& connectivity) override;
 
     virtual bool RecvSpeakerManagerNotify() override;
 
+    virtual bool RecvBidiKeyboardNotify(const bool& isLangRTL) override;
+
     virtual bool RecvUpdateServiceWorkerRegistrations() override;
 
-    virtual bool RecvBidiKeyboardNotify(const bool& isLangRTL) override;
+    virtual bool RecvRemoveServiceWorkerRegistrationsForDomain(const nsString& aDomain) override;
+
+    virtual bool RecvRemoveServiceWorkerRegistrations() override;
 
     virtual bool RecvNotifyVisited(const URIParams& aURI) override;
     // auto remove when alertfinished is received.
@@ -353,6 +358,7 @@ public:
                                       const bool& aIsUnmounting,
                                       const bool& aIsRemovable,
                                       const bool& aIsHotSwappable) override;
+    virtual bool RecvVolumeRemoved(const nsString& aFsName) override;
 
     virtual bool RecvNuwaFork() override;
 

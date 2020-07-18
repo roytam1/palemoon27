@@ -1924,7 +1924,7 @@ nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile)
   MOZ_ASSERT(aFile->mLastModifiedDate != UINT64_MAX);
 
   nsCOMPtr<nsIDOMBlob> blob = Blob::Create(aWindow,
-    new FileImplFile(fullPath, aFile->mMimeType,
+    new BlobImplFile(fullPath, aFile->mMimeType,
                      aFile->mLength, aFile->mFile,
                      aFile->mLastModifiedDate));
   return InterfaceToJsval(aWindow, blob, &NS_GET_IID(nsIDOMBlob));
@@ -2609,7 +2609,7 @@ private:
 class WriteFileEvent : public nsRunnable
 {
 public:
-  WriteFileEvent(FileImpl* aBlobImpl,
+  WriteFileEvent(BlobImpl* aBlobImpl,
                  DeviceStorageFile *aFile,
                  already_AddRefed<DOMRequest> aRequest,
                  int32_t aRequestType)
@@ -2675,7 +2675,7 @@ public:
   }
 
 private:
-  nsRefPtr<FileImpl> mBlobImpl;
+  nsRefPtr<BlobImpl> mBlobImpl;
   nsRefPtr<DeviceStorageFile> mFile;
   nsRefPtr<DOMRequest> mRequest;
   int32_t mRequestType;
@@ -3360,6 +3360,8 @@ NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(nsDOMDeviceStorage, DOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorage, DOMEventTargetHelper)
 
+int nsDOMDeviceStorage::sInstanceCount = 0;
+
 nsDOMDeviceStorage::nsDOMDeviceStorage(nsPIDOMWindow* aWindow)
   : DOMEventTargetHelper(aWindow)
   , mIsShareable(false)
@@ -3367,6 +3369,8 @@ nsDOMDeviceStorage::nsDOMDeviceStorage(nsPIDOMWindow* aWindow)
   , mIsWatchingFile(false)
   , mAllowedToWatchFile(false)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+  sInstanceCount++;
 }
 
 /* virtual */ JSObject*
@@ -3450,6 +3454,8 @@ nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType,
 
 nsDOMDeviceStorage::~nsDOMDeviceStorage()
 {
+  MOZ_ASSERT(NS_IsMainThread());
+  sInstanceCount--;
 }
 
 void
@@ -3570,6 +3576,30 @@ nsDOMDeviceStorage::CreateDeviceStoragesFor(
 }
 
 // static
+void
+nsDOMDeviceStorage::CreateDeviceStorageByNameAndType(
+  nsPIDOMWindow* aWin,
+  const nsAString& aName,
+  const nsAString& aType,
+  nsDOMDeviceStorage** aStore)
+{
+  if (!DeviceStorageTypeChecker::IsVolumeBased(aType)) {
+    nsRefPtr<nsDOMDeviceStorage> storage = new nsDOMDeviceStorage(aWin);
+    if (NS_FAILED(storage->Init(aWin, aType, EmptyString()))) {
+      *aStore = nullptr;
+      return;
+    }
+    NS_ADDREF(*aStore = storage.get());
+    return;
+  }
+
+  nsRefPtr<nsDOMDeviceStorage> storage = GetStorageByNameAndType(aWin,
+                                                                 aName,
+                                                                 aType);
+  NS_ADDREF(*aStore = storage.get());
+}
+
+// static
 bool
 nsDOMDeviceStorage::ParseFullPath(const nsAString& aFullPath,
                                   nsAString& aOutStorageName,
@@ -3628,14 +3658,28 @@ nsDOMDeviceStorage::GetStorageByName(const nsAString& aStorageName)
     ds = this;
     return ds.forget();
   }
+
+  return GetStorageByNameAndType(GetOwner(), aStorageName, mStorageType);
+}
+
+// static
+already_AddRefed<nsDOMDeviceStorage>
+nsDOMDeviceStorage::GetStorageByNameAndType(nsPIDOMWindow* aWin,
+                                            const nsAString& aStorageName,
+                                            const nsAString& aType)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsRefPtr<nsDOMDeviceStorage> ds;
+
   VolumeNameArray volNames;
   GetOrderedVolumeNames(volNames);
   VolumeNameArray::size_type numVolumes = volNames.Length();
   VolumeNameArray::index_type i;
   for (i = 0; i < numVolumes; i++) {
     if (volNames[i].Equals(aStorageName)) {
-      ds = new nsDOMDeviceStorage(GetOwner());
-      nsresult rv = ds->Init(GetOwner(), mStorageType, aStorageName);
+      ds = new nsDOMDeviceStorage(aWin);
+      nsresult rv = ds->Init(aWin, aType, aStorageName);
       if (NS_FAILED(rv)) {
         return nullptr;
       }

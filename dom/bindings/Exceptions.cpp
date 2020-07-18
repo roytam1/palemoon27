@@ -244,21 +244,21 @@ protected:
     return false;
   }
 
-  virtual nsresult GetLineno(int32_t* aLineNo)
+  virtual int32_t GetLineno()
   {
-    *aLineNo = mLineno;
-    return NS_OK;
+    return mLineno;
   }
 
-  virtual nsresult GetColNo(int32_t* aColNo)
+  virtual int32_t GetColNo()
   {
-    *aColNo = mColNo;
-    return NS_OK;
+    return mColNo;
   }
 
   nsCOMPtr<nsIStackFrame> mCaller;
+  nsCOMPtr<nsIStackFrame> mAsyncCaller;
   nsString mFilename;
   nsString mFunname;
+  nsString mAsyncCause;
   int32_t mLineno;
   int32_t mColNo;
   uint32_t mLanguage;
@@ -281,7 +281,7 @@ StackFrame::~StackFrame()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION(StackFrame, mCaller)
+NS_IMPL_CYCLE_COLLECTION(StackFrame, mCaller, mAsyncCaller)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(StackFrame)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(StackFrame)
 
@@ -306,16 +306,19 @@ public:
   NS_IMETHOD GetLanguageName(nsACString& aLanguageName) override;
   NS_IMETHOD GetFilename(nsAString& aFilename) override;
   NS_IMETHOD GetName(nsAString& aFunction) override;
+  NS_IMETHOD GetAsyncCause(nsAString& aAsyncCause) override;
+  NS_IMETHOD GetAsyncCaller(nsIStackFrame** aAsyncCaller) override;
   NS_IMETHOD GetCaller(nsIStackFrame** aCaller) override;
   NS_IMETHOD GetFormattedStack(nsAString& aStack) override;
+  NS_IMETHOD GetNativeSavedFrame(JS::MutableHandle<JS::Value> aSavedFrame) override;
 
 protected:
   virtual bool IsJSFrame() const override {
     return true;
   }
 
-  virtual nsresult GetLineno(int32_t* aLineNo) override;
-  virtual nsresult GetColNo(int32_t* aColNo) override;
+  virtual int32_t GetLineno() override;
+  virtual int32_t GetColNo() override;
 
 private:
   virtual ~JSStackFrame();
@@ -327,6 +330,8 @@ private:
   bool mFunnameInitialized;
   bool mLinenoInitialized;
   bool mColNoInitialized;
+  bool mAsyncCauseInitialized;
+  bool mAsyncCallerInitialized;
   bool mCallerInitialized;
   bool mFormattedStackInitialized;
 };
@@ -337,6 +342,8 @@ JSStackFrame::JSStackFrame(JS::Handle<JSObject*> aStack)
   , mFunnameInitialized(false)
   , mLinenoInitialized(false)
   , mColNoInitialized(false)
+  , mAsyncCauseInitialized(false)
+  , mAsyncCallerInitialized(false)
   , mCallerInitialized(false)
   , mFormattedStackInitialized(false)
 {
@@ -429,7 +436,11 @@ GetValueIfNotCached(JSContext* aCx, JSObject* aStack,
 /* readonly attribute AString filename; */
 NS_IMETHODIMP JSStackFrame::GetFilename(nsAString& aFilename)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
+  if (!mStack) {
+    aFilename.Truncate();
+    return NS_OK;
+  }
+
   ThreadsafeAutoJSContext cx;
   JS::Rooted<JSString*> filename(cx);
   bool canCache = false, useCachedValue = false;
@@ -441,7 +452,9 @@ NS_IMETHODIMP JSStackFrame::GetFilename(nsAString& aFilename)
 
   nsAutoJSString str;
   if (!str.init(cx, filename)) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    JS_ClearPendingException(cx);
+    aFilename.Truncate();
+    return NS_OK;
   }
   aFilename = str;
 
@@ -468,7 +481,11 @@ NS_IMETHODIMP StackFrame::GetFilename(nsAString& aFilename)
 /* readonly attribute AString name; */
 NS_IMETHODIMP JSStackFrame::GetName(nsAString& aFunction)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
+  if (!mStack) {
+    aFunction.Truncate();
+    return NS_OK;
+  }
+
   ThreadsafeAutoJSContext cx;
   JS::Rooted<JSString*> name(cx);
   bool canCache = false, useCachedValue = false;
@@ -483,7 +500,9 @@ NS_IMETHODIMP JSStackFrame::GetName(nsAString& aFunction)
   if (name) {
     nsAutoJSString str;
     if (!str.init(cx, name)) {
-      return NS_ERROR_OUT_OF_MEMORY;
+      JS_ClearPendingException(cx);
+      aFunction.Truncate();
+      return NS_OK;
     }
     aFunction = str;
   } else {
@@ -511,10 +530,13 @@ NS_IMETHODIMP StackFrame::GetName(nsAString& aFunction)
 }
 
 // virtual
-nsresult
-JSStackFrame::GetLineno(int32_t* aLineNo)
+int32_t
+JSStackFrame::GetLineno()
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
+  if (!mStack) {
+    return 0;
+  }
+
   ThreadsafeAutoJSContext cx;
   uint32_t line;
   bool canCache = false, useCachedValue = false;
@@ -522,30 +544,32 @@ JSStackFrame::GetLineno(int32_t* aLineNo)
                       &canCache, &useCachedValue, &line);
 
   if (useCachedValue) {
-    return StackFrame::GetLineno(aLineNo);
+    return StackFrame::GetLineno();
   }
-
-  *aLineNo = line;
 
   if (canCache) {
     mLineno = line;
     mLinenoInitialized = true;
   }
 
-  return NS_OK;
+  return line;
 }
 
 /* readonly attribute int32_t lineNumber; */
 NS_IMETHODIMP StackFrame::GetLineNumber(int32_t* aLineNumber)
 {
-  return GetLineno(aLineNumber);
+  *aLineNumber = GetLineno();
+  return NS_OK;
 }
 
 // virtual
-nsresult
-JSStackFrame::GetColNo(int32_t* aColNo)
+int32_t
+JSStackFrame::GetColNo()
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
+  if (!mStack) {
+    return 0;
+  }
+
   ThreadsafeAutoJSContext cx;
   uint32_t col;
   bool canCache = false, useCachedValue = false;
@@ -553,23 +577,22 @@ JSStackFrame::GetColNo(int32_t* aColNo)
                       &canCache, &useCachedValue, &col);
 
   if (useCachedValue) {
-    return StackFrame::GetColNo(aColNo);
+    return StackFrame::GetColNo();
   }
-
-  *aColNo = col;
 
   if (canCache) {
     mColNo = col;
     mColNoInitialized = true;
   }
 
-  return NS_OK;
+  return col;
 }
 
 /* readonly attribute int32_t columnNumber; */
 NS_IMETHODIMP StackFrame::GetColumnNumber(int32_t* aColumnNumber)
 {
-  return GetColNo(aColumnNumber);
+  *aColumnNumber = GetColNo();
+  return NS_OK;
 }
 
 /* readonly attribute AUTF8String sourceLine; */
@@ -579,10 +602,102 @@ NS_IMETHODIMP StackFrame::GetSourceLine(nsACString& aSourceLine)
   return NS_OK;
 }
 
+/* readonly attribute AString asyncCause; */
+NS_IMETHODIMP JSStackFrame::GetAsyncCause(nsAString& aAsyncCause)
+{
+  if (!mStack) {
+    aAsyncCause.Truncate();
+    return NS_OK;
+  }
+
+  ThreadsafeAutoJSContext cx;
+  JS::Rooted<JSString*> asyncCause(cx);
+  bool canCache = false, useCachedValue = false;
+  GetValueIfNotCached(cx, mStack, JS::GetSavedFrameAsyncCause,
+                      mAsyncCauseInitialized, &canCache, &useCachedValue,
+                      &asyncCause);
+
+  if (useCachedValue) {
+    return StackFrame::GetAsyncCause(aAsyncCause);
+  }
+
+  if (asyncCause) {
+    nsAutoJSString str;
+    if (!str.init(cx, asyncCause)) {
+      JS_ClearPendingException(cx);
+      aAsyncCause.Truncate();
+      return NS_OK;
+    }
+    aAsyncCause = str;
+  } else {
+    aAsyncCause.SetIsVoid(true);
+  }
+
+  if (canCache) {
+    mAsyncCause = aAsyncCause;
+    mAsyncCauseInitialized = true;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP StackFrame::GetAsyncCause(nsAString& aAsyncCause)
+{
+  // The async cause must be set to null if empty.
+  if (mAsyncCause.IsEmpty()) {
+    aAsyncCause.SetIsVoid(true);
+  } else {
+    aAsyncCause.Assign(mAsyncCause);
+  }
+
+  return NS_OK;
+}
+
+/* readonly attribute nsIStackFrame asyncCaller; */
+NS_IMETHODIMP JSStackFrame::GetAsyncCaller(nsIStackFrame** aAsyncCaller)
+{
+  if (!mStack) {
+    *aAsyncCaller = nullptr;
+    return NS_OK;
+  }
+
+  ThreadsafeAutoJSContext cx;
+  JS::Rooted<JSObject*> asyncCallerObj(cx);
+  bool canCache = false, useCachedValue = false;
+  GetValueIfNotCached(cx, mStack, JS::GetSavedFrameAsyncParent,
+                      mAsyncCallerInitialized, &canCache, &useCachedValue,
+                      &asyncCallerObj);
+
+  if (useCachedValue) {
+    return StackFrame::GetAsyncCaller(aAsyncCaller);
+  }
+
+  nsCOMPtr<nsIStackFrame> asyncCaller =
+    asyncCallerObj ? new JSStackFrame(asyncCallerObj) : nullptr;
+  asyncCaller.forget(aAsyncCaller);
+
+  if (canCache) {
+    mAsyncCaller = *aAsyncCaller;
+    mAsyncCallerInitialized = true;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP StackFrame::GetAsyncCaller(nsIStackFrame** aAsyncCaller)
+{
+  NS_IF_ADDREF(*aAsyncCaller = mAsyncCaller);
+  return NS_OK;
+}
+
 /* readonly attribute nsIStackFrame caller; */
 NS_IMETHODIMP JSStackFrame::GetCaller(nsIStackFrame** aCaller)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
+  if (!mStack) {
+    *aCaller = nullptr;
+    return NS_OK;
+  }
+
   ThreadsafeAutoJSContext cx;
   JS::Rooted<JSObject*> callerObj(cx);
   bool canCache = false, useCachedValue = false;
@@ -620,7 +735,11 @@ NS_IMETHODIMP StackFrame::GetCaller(nsIStackFrame** aCaller)
 
 NS_IMETHODIMP JSStackFrame::GetFormattedStack(nsAString& aStack)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
+  if (!mStack) {
+    aStack.Truncate();
+    return NS_OK;
+  }
+
   // Sadly we can't use GetValueIfNotCached here, because our getter
   // returns bool, not JS::SavedFrameResult.  Maybe it's possible to
   // make the templates more complicated to deal, but in the meantime
@@ -640,13 +759,17 @@ NS_IMETHODIMP JSStackFrame::GetFormattedStack(nsAString& aStack)
   JS::Rooted<JSObject*> stack(cx, mStack);
 
   JS::Rooted<JSString*> formattedStack(cx);
-  if (!JS::StringifySavedFrameStack(cx, stack, &formattedStack)) {
-    return NS_ERROR_UNEXPECTED;
+  if (!JS::BuildStackString(cx, stack, &formattedStack)) {
+    JS_ClearPendingException(cx);
+    aStack.Truncate();
+    return NS_OK;
   }
 
   nsAutoJSString str;
   if (!str.init(cx, formattedStack)) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    JS_ClearPendingException(cx);
+    aStack.Truncate();
+    return NS_OK;
   }
 
   aStack = str;
@@ -662,6 +785,19 @@ NS_IMETHODIMP JSStackFrame::GetFormattedStack(nsAString& aStack)
 NS_IMETHODIMP StackFrame::GetFormattedStack(nsAString& aStack)
 {
   aStack.Truncate();
+  return NS_OK;
+}
+
+/* readonly attribute jsval nativeSavedFrame; */
+NS_IMETHODIMP JSStackFrame::GetNativeSavedFrame(JS::MutableHandle<JS::Value> aSavedFrame)
+{
+  aSavedFrame.setObjectOrNull(mStack);
+  return NS_OK;
+}
+
+NS_IMETHODIMP StackFrame::GetNativeSavedFrame(JS::MutableHandle<JS::Value> aSavedFrame)
+{
+  aSavedFrame.setNull();
   return NS_OK;
 }
 
@@ -688,9 +824,7 @@ NS_IMETHODIMP StackFrame::ToString(nsACString& _retval)
     funname.AssignLiteral("<TOP_LEVEL>");
   }
 
-  int32_t lineno;
-  rv = GetLineno(&lineno);
-  NS_ENSURE_SUCCESS(rv, rv);
+  int32_t lineno = GetLineno();
 
   static const char format[] = "%s frame :: %s :: %s :: line %d";
   _retval.AppendPrintf(format, frametype,

@@ -56,19 +56,22 @@ class Thread;
 
 class nsBaseWidget;
 
+// Helper class used in shutting down gfx related code.
 class WidgetShutdownObserver final : public nsIObserver
 {
-  ~WidgetShutdownObserver() {}
+  ~WidgetShutdownObserver();
 
 public:
-  explicit WidgetShutdownObserver(nsBaseWidget* aWidget)
-    : mWidget(aWidget)
-  { }
+  explicit WidgetShutdownObserver(nsBaseWidget* aWidget);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
+  void Register();
+  void Unregister();
+
   nsBaseWidget *mWidget;
+  bool mRegistered;
 };
 
 /**
@@ -151,6 +154,7 @@ public:
   virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
   virtual void            CreateCompositor();
   virtual void            CreateCompositor(int aWidth, int aHeight);
+  virtual bool            IsMultiProcessWindow();
   virtual void            PrepareWindowEffects() override {}
   virtual void            CleanupWindowEffects() override {}
   virtual bool            PreRender(LayerManagerComposite* aManager) override { return true; }
@@ -305,16 +309,6 @@ public:
     nsRefPtr<BasicLayerManager> mLayerManager;
   };
   friend class AutoLayerManagerSetup;
-
-  class AutoUseBasicLayerManager {
-  public:
-    explicit AutoUseBasicLayerManager(nsBaseWidget* aWidget);
-    ~AutoUseBasicLayerManager();
-  private:
-    nsBaseWidget* mWidget;
-    bool mPreviousTemporarilyUseBasicLayerManager;
-  };
-  friend class AutoUseBasicLayerManager;
 
   virtual bool            ShouldUseOffMainThreadCompositing();
 
@@ -471,10 +465,11 @@ protected:
   void DestroyCompositor();
   void DestroyLayerManager();
 
+  void FreeShutdownObserver();
+
   nsIWidgetListener* mWidgetListener;
   nsIWidgetListener* mAttachedWidgetListener;
   nsRefPtr<LayerManager> mLayerManager;
-  nsRefPtr<LayerManager> mBasicLayerManager;
   nsRefPtr<CompositorChild> mCompositorChild;
   nsRefPtr<CompositorParent> mCompositorParent;
   nsRefPtr<mozilla::CompositorVsyncDispatcher> mCompositorVsyncDispatcher;
@@ -487,11 +482,7 @@ protected:
   bool              mUpdateCursor;
   nsBorderStyle     mBorderStyle;
   bool              mUseLayersAcceleration;
-  bool              mForceLayersAcceleration;
-  bool              mTemporarilyUseBasicLayerManager;
-  // Windows with out-of-process tabs always require OMTC. This flag designates
-  // such windows.
-  bool              mRequireOffMainThreadCompositing;
+  bool              mMultiProcessWindow;
   bool              mUseAttachedEvents;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;

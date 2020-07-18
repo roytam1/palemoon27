@@ -3282,26 +3282,17 @@ struct LayerManagerPrefs {
 static void
 GetLayerManagerPrefs(LayerManagerPrefs* aManagerPrefs)
 {
-  Preferences::GetBool("layers.acceleration.disabled",
-                       &aManagerPrefs->mDisableAcceleration);
-  Preferences::GetBool("layers.acceleration.force-enabled",
-                       &aManagerPrefs->mForceAcceleration);
-  Preferences::GetBool("layers.prefer-opengl",
-                       &aManagerPrefs->mPreferOpenGL);
-  Preferences::GetBool("layers.prefer-d3d9",
-                       &aManagerPrefs->mPreferD3D9);
+  aManagerPrefs->mDisableAcceleration = gfxPrefs::LayersAccelerationDisabled();
+  aManagerPrefs->mForceAcceleration = gfxPrefs::LayersAccelerationForceEnabled();
+  aManagerPrefs->mPreferOpenGL = gfxPrefs::LayersPreferOpenGL();
+  aManagerPrefs->mPreferD3D9 = gfxPrefs::LayersPreferD3D9();
 
   const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
   aManagerPrefs->mAccelerateByDefault =
     aManagerPrefs->mAccelerateByDefault ||
     (acceleratedEnv && (*acceleratedEnv != '0'));
-
-  bool safeMode = false;
-  nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
-  if (xr)
-    xr->GetInSafeMode(&safeMode);
   aManagerPrefs->mDisableAcceleration =
-    aManagerPrefs->mDisableAcceleration || safeMode;
+    aManagerPrefs->mDisableAcceleration || gfxPlatform::InSafeMode();
 }
 
 LayerManager*
@@ -3804,8 +3795,8 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
       && nsWindowType::eWindowType_toplevel == mWindowType
       // Currently this scheme is used only when pointer events is enabled.
       && gfxPrefs::PointerEventsEnabled()
-      // NS_MOUSE_EXIT is received, when InkCollector has been already initialized.
-      && NS_MOUSE_EXIT != aEventType) {
+      // NS_MOUSE_EXIT_WIDGET is received, when InkCollector has been already initialized.
+      && NS_MOUSE_EXIT_WIDGET != aEventType) {
     InkCollector::sInkCollector->SetTarget(mWnd);
   }
 
@@ -3814,11 +3805,11 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
       CaptureMouse(true);
       break;
 
-    // NS_MOUSE_MOVE and NS_MOUSE_EXIT are here because we need to make sure capture flag
+    // NS_MOUSE_MOVE and NS_MOUSE_EXIT_WIDGET are here because we need to make sure capture flag
     // isn't left on after a drag where we wouldn't see a button up message (see bug 324131).
     case NS_MOUSE_BUTTON_UP:
     case NS_MOUSE_MOVE:
-    case NS_MOUSE_EXIT:
+    case NS_MOUSE_EXIT_WIDGET:
       if (!(wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON)) && sIsInMouseCapture)
         CaptureMouse(false);
       break;
@@ -3912,7 +3903,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
   else if (aEventType == NS_MOUSE_MOVE && !insideMovementThreshold) {
     sLastClickCount = 0;
   }
-  else if (aEventType == NS_MOUSE_EXIT) {
+  else if (aEventType == NS_MOUSE_EXIT_WIDGET) {
     event.exit = IsTopLevelMouseExit(mWnd) ?
                    WidgetMouseEvent::eTopLevel : WidgetMouseEvent::eChild;
   }
@@ -3975,7 +3966,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
     case NS_MOUSE_MOVE:
       pluginEvent.event = WM_MOUSEMOVE;
       break;
-    case NS_MOUSE_EXIT:
+    case NS_MOUSE_EXIT_WIDGET:
       pluginEvent.event = WM_MOUSELEAVE;
       break;
     default:
@@ -4005,20 +3996,20 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
         if (sCurrentWindow == nullptr || sCurrentWindow != this) {
           if ((nullptr != sCurrentWindow) && (!sCurrentWindow->mInDtor)) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
-            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_EXIT, wParam, pos, false, 
+            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_EXIT_WIDGET, wParam, pos, false, 
                                                WidgetMouseEvent::eLeftButton,
                                                aInputSource);
           }
           sCurrentWindow = this;
           if (!mInDtor) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
-            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_ENTER, wParam, pos, false,
+            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_ENTER_WIDGET, wParam, pos, false,
                                                WidgetMouseEvent::eLeftButton,
                                                aInputSource);
           }
         }
       }
-    } else if (aEventType == NS_MOUSE_EXIT) {
+    } else if (aEventType == NS_MOUSE_EXIT_WIDGET) {
       if (sCurrentWindow == this) {
         sCurrentWindow = nullptr;
       }
@@ -4913,7 +4904,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
 
     case WM_NCMOUSEMOVE:
       // If we receive a mouse move event on non-client chrome, make sure and
-      // send an NS_MOUSE_EXIT event as well.
+      // send an NS_MOUSE_EXIT_WIDGET event as well.
       if (mMousePresent && !sIsInMouseCapture)
         SendMessage(mWnd, WM_MOUSELEAVE, 0, 0);
     break;
@@ -4950,7 +4941,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
       // Synthesize an event position because we don't get one from
       // WM_MOUSELEAVE.
       LPARAM pos = lParamToClient(::GetMessagePos());
-      DispatchMouseEvent(NS_MOUSE_EXIT, mouseState, pos, false,
+      DispatchMouseEvent(NS_MOUSE_EXIT_WIDGET, mouseState, pos, false,
                          WidgetMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
     }
     break;
@@ -4958,7 +4949,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
     case MOZ_WM_PEN_LEAVES_HOVER_OF_DIGITIZER:
     {
       LPARAM pos = lParamToClient(::GetMessagePos());
-      DispatchMouseEvent(NS_MOUSE_EXIT, wParam, pos, false,
+      DispatchMouseEvent(NS_MOUSE_EXIT_WIDGET, wParam, pos, false,
                          WidgetMouseEvent::eLeftButton,
                          nsIDOMMouseEvent::MOZ_SOURCE_PEN);
     }

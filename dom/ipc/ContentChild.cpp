@@ -58,7 +58,6 @@
 #if defined(XP_WIN)
 #define TARGET_SANDBOX_EXPORTS
 #include "mozilla/sandboxTarget.h"
-#include "nsDirectoryServiceDefs.h"
 #elif defined(XP_LINUX)
 #include "mozilla/Sandbox.h"
 #include "mozilla/SandboxInfo.h"
@@ -242,13 +241,12 @@ class MemoryReportRequestChild : public PMemoryReportRequestChild,
 public:
     NS_DECL_ISUPPORTS
 
-    MemoryReportRequestChild(uint32_t aGeneration, bool aAnonymize,
+    MemoryReportRequestChild(bool aAnonymize,
                              const MaybeFileDesc& aDMDFile);
     NS_IMETHOD Run() override;
 private:
     virtual ~MemoryReportRequestChild();
 
-    uint32_t mGeneration;
     bool     mAnonymize;
     FileDescriptor mDMDFile;
 };
@@ -256,8 +254,8 @@ private:
 NS_IMPL_ISUPPORTS(MemoryReportRequestChild, nsIRunnable)
 
 MemoryReportRequestChild::MemoryReportRequestChild(
-    uint32_t aGeneration, bool aAnonymize, const MaybeFileDesc& aDMDFile)
-  : mGeneration(aGeneration), mAnonymize(aAnonymize)
+    bool aAnonymize, const MaybeFileDesc& aDMDFile)
+  : mAnonymize(aAnonymize)
 {
     MOZ_COUNT_CTOR(MemoryReportRequestChild);
     if (aDMDFile.type() == MaybeFileDesc::TFileDescriptor) {
@@ -555,6 +553,14 @@ InitOnContentProcessCreated()
         return;
     }
     PostForkPreload();
+
+    nsCOMPtr<nsIPermissionManager> permManager =
+        services::GetPermissionManager();
+    MOZ_ASSERT(permManager, "Unable to get permission manager");
+    nsresult rv = permManager->RefreshPermission();
+    if (NS_FAILED(rv)) {
+        MOZ_ASSERT(false, "Failed updating permission in child process");
+    }
 #endif
 
     nsCOMPtr<nsISystemMessageCache> smc =
@@ -673,8 +679,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
     int xSocketFd = ConnectionNumber(DefaultXDisplay());
     SendBackUpXResources(FileDescriptor(xSocketFd));
 #endif
-
-    GetCPOWManager();
 
     SendGetProcessAttributes(&mID, &mIsForApp, &mIsForBrowser);
     InitProcessAttributes();
@@ -855,48 +859,37 @@ ContentChild::AllocPMemoryReportRequestChild(const uint32_t& aGeneration,
                                              const MaybeFileDesc& aDMDFile)
 {
     MemoryReportRequestChild *actor =
-        new MemoryReportRequestChild(aGeneration, aAnonymize, aDMDFile);
+        new MemoryReportRequestChild(aAnonymize, aDMDFile);
     actor->AddRef();
     return actor;
 }
-
-// This is just a wrapper for InfallibleTArray<MemoryReport> that implements
-// nsISupports, so it can be passed to nsIMemoryReporter::CollectReports.
-class MemoryReportsWrapper final : public nsISupports {
-    ~MemoryReportsWrapper() {}
-public:
-    NS_DECL_ISUPPORTS
-    explicit MemoryReportsWrapper(InfallibleTArray<MemoryReport>* r) : mReports(r) { }
-    InfallibleTArray<MemoryReport> *mReports;
-};
-NS_IMPL_ISUPPORTS0(MemoryReportsWrapper)
 
 class MemoryReportCallback final : public nsIMemoryReporterCallback
 {
 public:
     NS_DECL_ISUPPORTS
 
-    explicit MemoryReportCallback(const nsACString& aProcess)
-    : mProcess(aProcess)
+    explicit MemoryReportCallback(MemoryReportRequestChild* aActor,
+                                  const nsACString& aProcess)
+    : mActor(aActor)
+    , mProcess(aProcess)
     {
     }
 
     NS_IMETHOD Callback(const nsACString& aProcess, const nsACString &aPath,
                         int32_t aKind, int32_t aUnits, int64_t aAmount,
                         const nsACString& aDescription,
-                        nsISupports* aiWrappedReports) override
+                        nsISupports* aUnused) override
     {
-        MemoryReportsWrapper *wrappedReports =
-            static_cast<MemoryReportsWrapper *>(aiWrappedReports);
-
         MemoryReport memreport(mProcess, nsCString(aPath), aKind, aUnits,
                                aAmount, nsCString(aDescription));
-        wrappedReports->mReports->AppendElement(memreport);
+        mActor->SendReport(memreport);
         return NS_OK;
     }
 private:
     ~MemoryReportCallback() {}
 
+    nsRefPtr<MemoryReportRequestChild> mActor;
     const nsCString mProcess;
 };
 NS_IMPL_ISUPPORTS(
@@ -932,21 +925,18 @@ NS_IMETHODIMP MemoryReportRequestChild::Run()
     ContentChild *child = static_cast<ContentChild*>(Manager());
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
 
-    InfallibleTArray<MemoryReport> reports;
-
     nsCString process;
     child->GetProcessName(process);
     child->AppendProcessId(process);
 
     // Run the reporters.  The callback will turn each measurement into a
     // MemoryReport.
-    nsRefPtr<MemoryReportsWrapper> wrappedReports =
-        new MemoryReportsWrapper(&reports);
-    nsRefPtr<MemoryReportCallback> cb = new MemoryReportCallback(process);
-    mgr->GetReportsForThisProcessExtended(cb, wrappedReports, mAnonymize,
+    nsRefPtr<MemoryReportCallback> cb =
+        new MemoryReportCallback(this, process);
+    mgr->GetReportsForThisProcessExtended(cb, nullptr, mAnonymize,
                                           FileDescriptorToFILE(mDMDFile, "wb"));
 
-    bool sent = Send__delete__(this, mGeneration, reports);
+    bool sent = Send__delete__(this);
     return sent ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -1088,76 +1078,6 @@ ContentChild::AllocPProcessHangMonitorChild(Transport* aTransport,
     return CreateHangMonitorChild(aTransport, aOtherProcess);
 }
 
-#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
-static void
-SetUpSandboxEnvironment()
-{
-    // Set up a low integrity temp directory. This only makes sense if the
-    // delayed integrity level for the content process is INTEGRITY_LEVEL_LOW.
-    nsresult rv;
-    nsCOMPtr<nsIProperties> directoryService =
-        do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return;
-    }
-
-    nsCOMPtr<nsIFile> lowIntegrityTemp;
-    rv = directoryService->Get(NS_WIN_LOW_INTEGRITY_TEMP, NS_GET_IID(nsIFile),
-                               getter_AddRefs(lowIntegrityTemp));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return;
-    }
-
-    // Undefine returns a failure if the property is not already set.
-    unused << directoryService->Undefine(NS_OS_TEMP_DIR);
-    rv = directoryService->Set(NS_OS_TEMP_DIR, lowIntegrityTemp);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return;
-    }
-
-    // Set TEMP and TMP environment variables.
-    nsAutoString lowIntegrityTempPath;
-    rv = lowIntegrityTemp->GetPath(lowIntegrityTempPath);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return;
-    }
-
-    bool setOK = SetEnvironmentVariableW(L"TEMP", lowIntegrityTempPath.get());
-    NS_WARN_IF_FALSE(setOK, "Failed to set TEMP to low integrity temp path");
-    setOK = SetEnvironmentVariableW(L"TMP", lowIntegrityTempPath.get());
-    NS_WARN_IF_FALSE(setOK, "Failed to set TMP to low integrity temp path");
-}
-
-void
-ContentChild::CleanUpSandboxEnvironment()
-{
-    // Sandbox environment is only currently a low integrity temp, which only
-    // makes sense for sandbox pref level 1 (and will eventually not be needed
-    // at all, once all file access is via chrome/broker process).
-    if (Preferences::GetInt("security.sandbox.content.level") != 1) {
-        return;
-    }
-
-    nsresult rv;
-    nsCOMPtr<nsIProperties> directoryService =
-        do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return;
-    }
-
-    nsCOMPtr<nsIFile> lowIntegrityTemp;
-    rv = directoryService->Get(NS_WIN_LOW_INTEGRITY_TEMP, NS_GET_IID(nsIFile),
-                               getter_AddRefs(lowIntegrityTemp));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return;
-    }
-
-    // Don't check the return value as the directory will only have been created
-    // if it has been used.
-    unused << lowIntegrityTemp->Remove(/* aRecursive */ true);
-}
-#endif
-
 #if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
 
 #include <stdlib.h>
@@ -1243,13 +1163,14 @@ StartMacOSContentSandbox()
 
   MacSandboxInfo info;
   info.type = MacSandboxType_Content;
-  info.appPath.Assign(appPath);
-  info.appBinaryPath.Assign(appBinaryPath);
-  info.appDir.Assign(appDir);
+  info.level = Preferences::GetInt("security.sandbox.content.level");
+  info.appPath.assign(appPath.get());
+  info.appBinaryPath.assign(appBinaryPath.get());
+  info.appDir.assign(appDir.get());
 
-  nsAutoCString err;
+  std::string err;
   if (!mozilla::StartMacSandbox(info, err)) {
-    NS_WARNING(err.get());
+    NS_WARNING(err.c_str());
     MOZ_CRASH("sandbox_init() failed");
   }
 }
@@ -1275,12 +1196,6 @@ ContentChild::RecvSetProcessSandbox()
     SetContentProcessSandbox();
 #elif defined(XP_WIN)
     mozilla::SandboxTarget::Instance()->StartSandbox();
-    // Sandbox environment is only currently a low integrity temp, which only
-    // makes sense for sandbox pref level 1 (and will eventually not be needed
-    // at all, once all file access is via chrome/broker process).
-    if (Preferences::GetInt("security.sandbox.content.level") == 1) {
-        SetUpSandboxEnvironment();
-    }
 #elif defined(XP_MACOSX)
     StartMacOSContentSandbox();
 #endif
@@ -1644,11 +1559,10 @@ ContentChild::DeallocPNeckoChild(PNeckoChild* necko)
 PPrintingChild*
 ContentChild::AllocPPrintingChild()
 {
-    // The ContentParent should never attempt to allocate the
-    // nsPrintingPromptServiceProxy, which implements PPrintingChild. Instead,
-    // the nsPrintingPromptServiceProxy service is requested and instantiated
-    // via XPCOM, and the constructor of nsPrintingPromptServiceProxy sets up
-    // the IPC connection.
+    // The ContentParent should never attempt to allocate the nsPrintingProxy,
+    // which implements PPrintingChild. Instead, the nsPrintingProxy service is
+    // requested and instantiated via XPCOM, and the constructor of
+    // nsPrintingProxy sets up the IPC connection.
     NS_NOTREACHED("Should never get here!");
     return nullptr;
 }

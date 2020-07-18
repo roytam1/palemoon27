@@ -164,10 +164,6 @@ EVENT(change,
       NS_FORM_CHANGE,
       EventNameType_HTMLXUL,
       eBasicEventClass)
-EVENT(auxclick,
-      NS_MOUSE_AUXCLICK,
-      EventNameType_All,
-      eMouseEventClass)
 EVENT(click,
       NS_MOUSE_CLICK,
       EventNameType_All,
@@ -194,16 +190,12 @@ EVENT(dragenter,
       NS_DRAGDROP_ENTER,
       EventNameType_HTMLXUL,
       eDragEventClass)
-EVENT(dragexit,
-      NS_DRAGDROP_EXIT_SYNTH,
-      EventNameType_HTMLXUL,
-      eDragEventClass)
 EVENT(dragleave,
-      NS_DRAGDROP_LEAVE_SYNTH,
+      NS_DRAGDROP_LEAVE,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragover,
-      NS_DRAGDROP_OVER_SYNTH,
+      NS_DRAGDROP_OVER,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragstart,
@@ -291,11 +283,11 @@ EVENT(mousemove,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseout,
-      NS_MOUSE_EXIT_SYNTH,
+      NS_MOUSE_OUT,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseover,
-      NS_MOUSE_ENTER_SYNTH,
+      NS_MOUSE_OVER,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseup,
@@ -743,6 +735,10 @@ NON_IDL_EVENT(commandupdate,
               NS_XUL_COMMAND_UPDATE,
               EventNameType_XUL,
               eBasicEventClass)
+NON_IDL_EVENT(dragexit,
+              NS_DRAGDROP_EXIT,
+              EventNameType_XUL,
+              eDragEventClass)
 NON_IDL_EVENT(dragdrop,
               NS_DRAGDROP_DRAGDROP,
               EventNameType_XUL,

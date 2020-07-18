@@ -1864,6 +1864,16 @@ nsChildView::CreateCompositor()
   }
 }
 
+bool
+nsChildView::IsMultiProcessWindow()
+{
+  // On OS X the XULWindowWidget object gets the widget's init-data, which
+  // is what has the electrolysis window flag. So here in the child view
+  // we need to get the flag from that window instead.
+  nsCocoaWindow* parent = GetXULWindowWidget();
+  return parent ? parent->IsMultiProcessWindow() : false;
+}
+
 void
 nsChildView::ConfigureAPZCTreeManager()
 {
@@ -4547,7 +4557,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NSPoint windowEventLocation = nsCocoaUtils::EventLocationForWindow(aEvent, [self window]);
   NSPoint localEventLocation = [self convertPoint:windowEventLocation fromView:nil];
 
-  uint32_t msg = aEnter ? NS_MOUSE_ENTER : NS_MOUSE_EXIT;
+  uint32_t msg = aEnter ? NS_MOUSE_ENTER_WIDGET : NS_MOUSE_EXIT_WIDGET;
   WidgetMouseEvent event(true, msg, mGeckoChild, WidgetMouseEvent::eReal);
   event.refPoint = LayoutDeviceIntPoint::FromUntyped(
     mGeckoChild->CocoaPointsToDevPixels(localEventLocation));

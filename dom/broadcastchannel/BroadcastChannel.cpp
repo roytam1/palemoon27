@@ -16,10 +16,7 @@
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 
-#include "nsIAppsService.h"
 #include "nsIDocument.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsServiceManagerUtils.h"
 #include "nsISupportsPrimitives.h"
 
 #ifdef XP_WIN
@@ -57,53 +54,38 @@ GetOrigin(nsIPrincipal* aPrincipal, nsAString& aOrigin, ErrorResult& aRv)
 {
   MOZ_ASSERT(aPrincipal);
 
-  uint16_t appStatus = aPrincipal->GetAppStatus();
-
-  if (appStatus == nsIPrincipal::APP_STATUS_NOT_INSTALLED) {
-    nsAutoString tmp;
-    aRv = nsContentUtils::GetUTFOrigin(aPrincipal, tmp);
-    if (NS_WARN_IF(aRv.Failed())) {
-      return;
-    }
-
-    aOrigin = tmp;
-    if (aOrigin.EqualsASCII("null")) {
-      nsCOMPtr<nsIURI> uri;
-      aRv = aPrincipal->GetURI(getter_AddRefs(uri));
-      if (NS_WARN_IF(aRv.Failed())) {
-        return;
-      }
-
-      if (NS_WARN_IF(!uri)) {
-        aRv.Throw(NS_ERROR_FAILURE);
-        return;
-      }
-
-      nsAutoCString spec;
-      aRv = uri->GetSpec(spec);
-      if (NS_WARN_IF(aRv.Failed())) {
-        return;
-      }
-
-      aOrigin = NS_ConvertUTF8toUTF16(spec);
-    }
-
+  nsAutoString tmp;
+  aRv = nsContentUtils::GetUTFOrigin(aPrincipal, tmp);
+  if (NS_WARN_IF(aRv.Failed())) {
     return;
   }
 
-  uint32_t appId = aPrincipal->GetAppId();
+  // 'null' means an unknown origin (it can be chrome code or it can be some
+  // about: page).
 
-  // If we are in "app code", use manifest URL as unique origin since
-  // multiple apps can share the same origin but not same broadcast messages.
-  nsresult rv;
-  nsCOMPtr<nsIAppsService> appsService =
-    do_GetService("@mozilla.org/AppsService;1", &rv);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    aRv.Throw(rv);
+  aOrigin = tmp;
+  if (!aOrigin.EqualsASCII("null")) {
     return;
   }
 
-  appsService->GetManifestURLByLocalId(appId, aOrigin);
+  nsCOMPtr<nsIURI> uri;
+  aRv = aPrincipal->GetURI(getter_AddRefs(uri));
+  if (NS_WARN_IF(aRv.Failed())) {
+    return;
+  }
+
+  if (NS_WARN_IF(!uri)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+
+  nsAutoCString spec;
+  aRv = uri->GetSpec(spec);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return;
+  }
+
+  aOrigin = NS_ConvertUTF8toUTF16(spec);
 }
 
 nsIPrincipal*

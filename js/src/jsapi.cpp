@@ -3269,7 +3269,7 @@ IsFunctionCloneable(HandleFunction fun, HandleObject dynamicScope)
         return false;
     }
 
-    return !fun->nonLazyScript()->compileAndGo() || dynamicScope->is<GlobalObject>();
+    return true;
 }
 
 static JSObject*
@@ -3677,7 +3677,6 @@ JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions& rhs)
     utf8 = rhs.utf8;
     lineno = rhs.lineno;
     column = rhs.column;
-    compileAndGo = rhs.compileAndGo;
     forEval = rhs.forEval;
     noScriptRval = rhs.noScriptRval;
     selfHostingMode = rhs.selfHostingMode;
@@ -3794,7 +3793,6 @@ JS::CompileOptions::CompileOptions(JSContext* cx, JSVersion version)
 {
     this->version = (version != JSVERSION_UNKNOWN) ? version : cx->findVersion();
 
-    compileAndGo = false;
     strictOption = cx->runtime()->options().strictMode();
     extraWarningsOption = cx->compartment()->options().extraWarnings(cx);
     werrorOption = cx->runtime()->options().werror();
@@ -3942,7 +3940,6 @@ JS_BufferIsCompilableUnit(JSContext* cx, HandleObject obj, const char* utf8, siz
     bool result = true;
 
     CompileOptions options(cx);
-    options.setCompileAndGo(false);
     Parser<frontend::FullParseHandler> parser(cx, &cx->tempLifoAlloc(),
                                               options, chars, length,
                                               /* foldConstants = */ true, nullptr, nullptr);
@@ -4042,9 +4039,7 @@ CompileFunction(JSContext* cx, const ReadOnlyCompileOptions& optionsArg,
         return false;
 
     // Make sure to handle cases when we have a polluted scopechain.
-    OwningCompileOptions options(cx);
-    if (!options.copy(cx, optionsArg))
-        return false;
+    CompileOptions options(cx, optionsArg);
     if (!enclosingDynamicScope->is<GlobalObject>())
         options.setHasPollutedScope(true);
 
@@ -4220,8 +4215,8 @@ Evaluate(JSContext *cx, HandleObject scope, const ReadOnlyCompileOptions &option
 
     AutoLastFrameCheck lfc(cx);
 
-    options.setCompileAndGo(scope->is<GlobalObject>());
     options.setHasPollutedScope(!scope->is<GlobalObject>());
+    options.setIsRunOnce(true);
     SourceCompressionTask sct(cx);
     RootedScript script(cx, frontend::CompileScript(cx, &cx->tempLifoAlloc(),
                                                     scope, NullPtr(), NullPtr(), options,

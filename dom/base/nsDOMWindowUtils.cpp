@@ -25,6 +25,9 @@
 #include "mozilla/layers/ShadowLayers.h"
 #include "ClientLayerManager.h"
 #include "nsQueryObject.h"
+#ifdef MOZ_FMP4
+#include "MP4Reader.h"
+#endif
 
 #include "nsIScrollableFrame.h"
 
@@ -55,6 +58,7 @@
 #include "nsIContentViewer.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/dom/File.h"
+#include "mozilla/dom/FileBinding.h"
 #include "mozilla/dom/DOMRect.h"
 #include <algorithm>
 
@@ -2231,6 +2235,27 @@ nsDOMWindowUtils::GetLayerManagerRemote(bool* retval)
 }
 
 NS_IMETHODIMP
+nsDOMWindowUtils::GetSupportsHardwareH264Decoding(bool* retval)
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+#ifdef MOZ_FMP4
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (!widget)
+    return NS_ERROR_FAILURE;
+
+  LayerManager *mgr = widget->GetLayerManager();
+  if (!mgr)
+    return NS_ERROR_FAILURE;
+
+  *retval = MP4Reader::IsVideoAccelerated(mgr->GetCompositorBackendType());
+#else
+  *retval = false;
+#endif
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDOMWindowUtils::StartFrameTimeRecording(uint32_t *startIndex)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
@@ -2557,7 +2582,7 @@ nsDOMWindowUtils::GetContainerElement(nsIDOMElement** aResult)
 
 NS_IMETHODIMP
 nsDOMWindowUtils::WrapDOMFile(nsIFile *aFile,
-                              nsIDOMFile **aDOMFile)
+                              nsISupports **aDOMFile)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
 
@@ -2573,8 +2598,8 @@ nsDOMWindowUtils::WrapDOMFile(nsIFile *aFile,
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<File> file = File::CreateFromFile(innerWindow, aFile);
-  file.forget(aDOMFile);
+  nsCOMPtr<nsIDOMBlob> blob = File::CreateFromFile(innerWindow, aFile);
+  blob.forget(aDOMFile);
   return NS_OK;
 }
 
@@ -2823,15 +2848,13 @@ nsDOMWindowUtils::GetFilePath(JS::HandleValue aFile, JSContext* aCx,
 
   JSObject* obj = aFile.toObjectOrNull();
 
-  nsISupports* nativeObj =
-    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, obj);
-
-  nsCOMPtr<nsIDOMFile> file = do_QueryInterface(nativeObj);
-  if (file) {
+  File* file = nullptr;
+  if (NS_SUCCEEDED(UNWRAP_OBJECT(File, obj, file))) {
     nsString filePath;
-    nsresult rv = file->GetMozFullPathInternal(filePath);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+    ErrorResult rv;
+    file->GetMozFullPathInternal(filePath, rv);
+    if (NS_WARN_IF(rv.Failed())) {
+      return rv.StealNSResult();
     }
 
     _retval = filePath;
@@ -3574,6 +3597,18 @@ nsDOMWindowUtils::GetCompositorAPZTestData(JSContext* aContext,
     }
   }
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::PostRestyleSelfEvent(nsIDOMElement* aElement)
+{
+  nsCOMPtr<Element> element = do_QueryInterface(aElement);
+  if (!element) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  nsLayoutUtils::PostRestyleEvent(element, eRestyle_Self, nsChangeHint(0));
   return NS_OK;
 }
 

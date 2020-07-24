@@ -3153,7 +3153,8 @@ ReadSourceFromFilename(JSContext* cx, const char* filename, char16_t** src, size
     if (!buf)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    unsigned char* ptr = buf, *end = ptr + rawLen;
+    unsigned char* ptr = buf;
+    unsigned char* end = ptr + rawLen;
     while (ptr < end) {
         uint32_t bytesRead;
         rv = scriptStream->Read(reinterpret_cast<char*>(ptr), end - ptr, &bytesRead);
@@ -3357,7 +3358,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     // function compiled with LAZY_SOURCE, it calls SourceHook to load it.
     ///
     // Note we do have to retain the source code in memory for scripts compiled in
-    // compileAndGo mode and compiled function bodies (from
+    // isRunOnce mode and compiled function bodies (from
     // JS::CompileFunction). In practice, this means content scripts and event
     // handlers.
     UniquePtr<XPCJSSourceHook> hook(new XPCJSSourceHook);

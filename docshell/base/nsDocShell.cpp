@@ -1144,8 +1144,7 @@ nsDocShell::GetInterface(const nsIID& aIID, void** aSink)
     nsCOMPtr<nsISHistory> shistory;
     nsresult rv = GetSessionHistory(getter_AddRefs(shistory));
     if (NS_SUCCEEDED(rv) && shistory) {
-      *aSink = shistory;
-      NS_ADDREF((nsISupports*)*aSink);
+      shistory.forget(aSink);
       return NS_OK;
     }
     return NS_NOINTERFACE;
@@ -1163,8 +1162,7 @@ nsDocShell::GetInterface(const nsIID& aIID, void** aSink)
     nsCOMPtr<nsIEditingSession> editingSession;
     mEditorData->GetEditingSession(getter_AddRefs(editingSession));
     if (editingSession) {
-      *aSink = editingSession;
-      NS_ADDREF((nsISupports*)*aSink);
+      editingSession.forget(aSink);
       return NS_OK;
     }
 
@@ -1783,8 +1781,7 @@ nsDocShell::CreateLoadInfo(nsIDocShellLoadInfo** aLoadInfo)
   NS_ENSURE_TRUE(loadInfo, NS_ERROR_OUT_OF_MEMORY);
   nsCOMPtr<nsIDocShellLoadInfo> localRef(loadInfo);
 
-  *aLoadInfo = localRef;
-  NS_ADDREF(*aLoadInfo);
+  localRef.forget(aLoadInfo);
   return NS_OK;
 }
 
@@ -6302,7 +6299,7 @@ nsDocShell::GetOnePermittedSandboxedNavigator(nsIDocShell** aSandboxedNavigator)
   NS_ENSURE_ARG_POINTER(aSandboxedNavigator);
   nsCOMPtr<nsIDocShell> permittedNavigator =
     do_QueryReferent(mOnePermittedSandboxedNavigator);
-  NS_IF_ADDREF(*aSandboxedNavigator = permittedNavigator);
+  permittedNavigator.forget(aSandboxedNavigator);
   return NS_OK;
 }
 
@@ -12174,8 +12171,7 @@ nsDocShell::AddToSessionHistory(nsIURI* aURI, nsIChannel* aChannel,
   if (aNewEntry) {
     *aNewEntry = nullptr;
     if (NS_SUCCEEDED(rv)) {
-      *aNewEntry = entry;
-      NS_ADDREF(*aNewEntry);
+      entry.forget(aNewEntry);
     }
   }
 

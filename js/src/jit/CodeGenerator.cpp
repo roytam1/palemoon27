@@ -755,12 +755,10 @@ CodeGenerator::visitObjectGroupDispatch(LObjectGroupDispatch* lir)
     Register input = ToRegister(lir->input());
     Register temp = ToRegister(lir->temp());
 
-    // Hold the incoming ObjectGroup.
-
+    // Load the incoming ObjectGroup in temp.
     masm.loadPtr(Address(input, JSObject::offsetOfGroup()), temp);
 
     // Compare ObjectGroups.
-
     MacroAssembler::BranchGCPtr lastBranch;
     LBlock* lastBlock = nullptr;
     InlinePropertyTable* propTable = mir->propTable();
@@ -785,7 +783,22 @@ CodeGenerator::visitObjectGroupDispatch(LObjectGroupDispatch* lir)
         MOZ_ASSERT(found);
     }
 
-    // Unknown function: jump to fallback block.
+    // Jump to fallback block if we have an unknown ObjectGroup. If there's no
+    // fallback block, we should have handled all cases.
+
+    if (!mir->hasFallback()) {
+        MOZ_ASSERT(lastBranch.isInitialized());
+#ifdef DEBUG
+        Label ok;
+        lastBranch.relink(&ok);
+        lastBranch.emit(masm);
+        masm.assumeUnreachable("Unexpected ObjectGroup");
+        masm.bind(&ok);
+#endif
+        if (!isNextBlock(lastBlock))
+            masm.jump(lastBlock->label());
+        return;
+    }
 
     LBlock* fallback = skipTrivialBlocks(mir->getFallback())->lir();
     if (!lastBranch.isInitialized()) {
@@ -2687,9 +2700,7 @@ CodeGenerator::visitPostWriteBarrierO(LPostWriteBarrierO* lir)
     Register temp = ToTempRegisterOrInvalid(lir->temp());
 
     if (lir->object()->isConstant()) {
-#ifdef DEBUG
         MOZ_ASSERT(!IsInsideNursery(&lir->object()->toConstant()->toObject()));
-#endif
     } else {
         masm.branchPtrInNurseryRange(Assembler::Equal, ToRegister(lir->object()), temp,
                                      ool->rejoin());
@@ -4486,10 +4497,10 @@ CodeGenerator::visitSimdUnbox(LSimdUnbox* lir)
     js::SimdTypeDescr::Type type;
     switch (lir->mir()->type()) {
       case MIRType_Int32x4:
-        type = js::SimdTypeDescr::TYPE_INT32;
+        type = js::SimdTypeDescr::Int32x4;
         break;
       case MIRType_Float32x4:
-        type = js::SimdTypeDescr::TYPE_FLOAT32;
+        type = js::SimdTypeDescr::Float32x4;
         break;
       default:
         MOZ_CRASH("Unexpected SIMD Type.");
@@ -9657,20 +9668,18 @@ CodeGenerator::visitRecompileCheck(LRecompileCheck* ins)
     masm.bind(&done);
 }
 
-typedef bool (*ThrowUninitializedLexicalFn)(JSContext*);
-static const VMFunction ThrowUninitializedLexicalInfo =
-    FunctionInfo<ThrowUninitializedLexicalFn>(ThrowUninitializedLexical);
-
 void
 CodeGenerator::visitLexicalCheck(LLexicalCheck* ins)
 {
-    OutOfLineCode* ool = oolCallVM(ThrowUninitializedLexicalInfo, ins, (ArgList()),
-                                   StoreNothing());
     ValueOperand inputValue = ToValue(ins, LLexicalCheck::Input);
-    masm.branchTestMagicValue(Assembler::Equal, inputValue, JS_UNINITIALIZED_LEXICAL,
-                              ool->entry());
-    masm.bind(ool->rejoin());
+    Label bail;
+    masm.branchTestMagicValue(Assembler::Equal, inputValue, JS_UNINITIALIZED_LEXICAL, &bail);
+    bailoutFrom(&bail, ins->snapshot());
 }
+
+typedef bool (*ThrowUninitializedLexicalFn)(JSContext *);
+static const VMFunction ThrowUninitializedLexicalInfo =
+    FunctionInfo<ThrowUninitializedLexicalFn>(ThrowUninitializedLexical);
 
 void
 CodeGenerator::visitThrowUninitializedLexical(LThrowUninitializedLexical* ins)

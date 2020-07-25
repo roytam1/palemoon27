@@ -13,8 +13,12 @@ this.EXPORTED_SYMBOLS = [ "AboutHomeUtils", "AboutHome" ];
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "AppConstants",
+  "resource://gre/modules/AppConstants.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+  "resource://gre/modules/Promise.jsm");
 
 // Url to fetch snippets, in the urlFormatter service format.
 const SNIPPETS_URL_PREF = "browser.aboutHomeSnippets.updateUrl";
@@ -46,10 +50,10 @@ this.AboutHomeUtils = {
       return !Services.prefs.getBoolPref("browser.EULA.override");
     } catch (e) { }
 
-#ifndef MOZILLA_OFFICIAL
-    // Non-official builds shouldn't show the notification.
-    return false;
-#endif
+    if (!AppConstants.MOZILLA_OFFICIAL) {
+      // Non-official builds shouldn't show the notification.
+      return false;
+    }
 
     // Look to see if the user has seen the current version or not.
     var currentVersion = Services.prefs.getIntPref("browser.rights.version");
@@ -72,12 +76,10 @@ this.AboutHomeUtils = {
  * Returns the URL to fetch snippets from, in the urlFormatter service format.
  */
 XPCOMUtils.defineLazyGetter(AboutHomeUtils, "snippetsURL", function() {
- try {
   let updateURL = Services.prefs
                           .getCharPref(SNIPPETS_URL_PREF)
                           .replace("%STARTPAGE_VERSION%", STARTPAGE_VERSION);
   return Services.urlFormatter.formatURL(updateURL);
- } catch(e) { return ""; }
 });
 
 /**
@@ -169,12 +171,28 @@ let AboutHome = {
           Cu.reportError(ex);
           break;
         }
-#ifdef MOZ_SERVICES_HEALTHREPORT
-        window.BrowserSearch.recordSearchInHealthReport(data.engineName, "abouthome");
-#endif
-        // Trigger a search through nsISearchEngine.getSubmission()
-        let submission = Services.search.currentEngine.getSubmission(data.searchTerms);
-        window.loadURI(submission.uri.spec, null, submission.postData);
+
+        Services.search.init(function(status) {
+          if (!Components.isSuccessCode(status)) {
+            return;
+          }
+
+          let engine = Services.search.currentEngine;
+          if (AppConstants.MOZ_SERVICES_HEALTHREPORT) {
+            window.BrowserSearch.recordSearchInHealthReport(engine, "abouthome", data.selection);
+          }
+
+          // Trigger a search through nsISearchEngine.getSubmission()
+          let submission = engine.getSubmission(data.searchTerms, null, "homepage");
+          let where = data.useNewTab ? "tab" : "current";
+          window.openUILinkIn(submission.uri.spec, where, false,
+                              submission.postData);
+
+          // Used for testing
+          let mm = aMessage.target.messageManager;
+          mm.sendAsyncMessage("AboutHome:SearchTriggered", aMessage.data.searchData);
+        });
+
         break;
     }
   },
@@ -186,13 +204,26 @@ let AboutHome = {
     Components.utils.import("resource:///modules/sessionstore/SessionStore.jsm",
       wrapper);
     let ss = wrapper.SessionStore;
+
     ss.promiseInitialized.then(function() {
+      let deferred = Promise.defer();
+
+      Services.search.init(function (status){
+        if (!Components.isSuccessCode(status)) {
+          deferred.reject(status);
+        } else {
+          deferred.resolve(Services.search.defaultEngine.name);
+        }
+      });
+
+      return deferred.promise;
+    }).then(function(engineName) {
       let data = {
         showRestoreLastSession: ss.canRestoreLastSession,
         snippetsURL: AboutHomeUtils.snippetsURL,
         showKnowYourRights: AboutHomeUtils.showKnowYourRights,
         snippetsVersion: AboutHomeUtils.snippetsVersion,
-        defaultEngineName: Services.search.defaultEngine.name
+        defaultEngineName: engineName
       };
 
       if (AboutHomeUtils.showKnowYourRights) {
@@ -201,7 +232,7 @@ let AboutHome = {
         Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
       }
 
-      if (target) {
+     if (target && target.messageManager) {
         target.messageManager.sendAsyncMessage("AboutHome:Update", data);
       } else {
         let mm = Cc["@mozilla.org/globalmessagemanager;1"].getService(Ci.nsIMessageListenerManager);
@@ -211,4 +242,13 @@ let AboutHome = {
       Cu.reportError("Error in AboutHome.sendAboutHomeData " + x);
     });
   },
+
+  /**
+   * Focuses the search input in the page with the given message manager.
+   * @param  messageManager
+   *         The MessageManager object of the selected browser.
+   */
+  focusInput: function (messageManager) {
+    messageManager.sendAsyncMessage("AboutHome:FocusInput");
+  }
 };

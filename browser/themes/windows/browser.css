@@ -1730,6 +1730,30 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
+%include ../shared/readinglist.inc.css
+
+/* Reader mode button */
+
+#reader-mode-button {
+  -moz-appearance: none;
+  padding: 0;
+  list-style-image: url("chrome://browser/skin/reader-mode-16.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
+
+#reader-mode-button > .toolbarbutton-icon {
+  width: 16px;
+}
+
+#reader-mode-button:focus {
+  outline: 1px dotted;
+}
+
+#reader-mode-button:hover:active,
+#reader-mode-button[readeractive] {
+   -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
 /* star button */
 
 #star-button {
@@ -2437,6 +2461,12 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   -moz-image-region: auto;
 }
 
+#menu_readingList,
+#BMB_readingList {
+  list-style-image: url("chrome://browser/skin/readinglist/readinglist-icon.svg");
+  -moz-image-region: auto;
+}
+
 /* ::::: Keyboard UI Panel ::::: */
 
 .KUI-panel {
@@ -2682,6 +2712,7 @@ toolbar[brighttext] #addonbar-closebutton {
 %include ../../../toolkit/themes/shared/devtools/commandline.inc.css
 %endif
 %include ../shared/plugin-doorhanger.inc.css
+%include ../shared/badcontent-doorhanger.inc.css
 
 %ifdef MOZ_DEVTOOLS
 /* Error counter */

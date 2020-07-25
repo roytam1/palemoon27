@@ -114,6 +114,10 @@
      oncommand="Cc['@mozilla.org/browser/browserglue;1'].getService(Ci.nsIBrowserGlue).sanitize(window);"/>
     <command id="Tools:PrivateBrowsing"
       oncommand="OpenBrowserWindow({private: true});"/>
+    <command id="Tools:RemoteWindow"
+      oncommand="OpenBrowserWindow({remote: true});"/>
+    <command id="Tools:NonRemoteWindow"
+      oncommand="OpenBrowserWindow({remote: false});"/>
     <command id="History:UndoCloseTab" oncommand="undoCloseTab();"/>
     <command id="History:UndoCloseWindow" oncommand="undoCloseWindow();"/>
     <command id="Browser:ToggleAddonBar" oncommand="toggleAddonBar();"/>
@@ -129,7 +133,7 @@
   <broadcasterset id="mainBroadcasterSet">
     <broadcaster id="viewBookmarksSidebar" autoCheck="false" sidebartitle="&bookmarksButton.label;"
                  type="checkbox" group="sidebar" sidebarurl="chrome://browser/content/bookmarks/bookmarksPanel.xul"
-                 oncommand="toggleSidebar('viewBookmarksSidebar');"/>
+                 oncommand="SidebarUI.toggle('viewBookmarksSidebar');"/>
 
     <!-- for both places and non-places, the sidebar lives at
          chrome://browser/content/history/history-panel.xul so there are no
@@ -137,11 +141,16 @@
     <broadcaster id="viewHistorySidebar" autoCheck="false" sidebartitle="&historyButton.label;"
                  type="checkbox" group="sidebar"
                  sidebarurl="chrome://browser/content/history/history-panel.xul"
-                 oncommand="toggleSidebar('viewHistorySidebar');"/>
+                 oncommand="SidebarUI.toggle('viewHistorySidebar');"/>
+
+    <broadcaster id="readingListSidebar" hidden="true" autoCheck="false"
+                 sidebartitle="&readingList.label;" type="checkbox" group="sidebar"
+                 sidebarurl="chrome://browser/content/readinglist/sidebar.xhtml"
+                 oncommand="SidebarUI.toggle('readingListSidebar');"/>
 
     <broadcaster id="viewWebPanelsSidebar" autoCheck="false"
                  type="checkbox" group="sidebar" sidebarurl="chrome://browser/content/web-panels.xul"
-                 oncommand="toggleSidebar('viewWebPanelsSidebar');"/>
+                 oncommand="SidebarUI.toggle('viewWebPanelsSidebar');"/>
 
     <!-- popup blocking menu items -->
     <broadcaster id="blockedPopupAllowSite"
@@ -168,6 +177,7 @@
 #ifdef MOZ_SERVICES_SYNC
     <broadcaster id="sync-setup-state"/>
     <broadcaster id="sync-syncnow-state"/>
+    <broadcaster id="sync-reauth-state" hidden="true"/>
 #endif
     <broadcaster id="workOfflineMenuitemState"/>
 
@@ -385,6 +395,11 @@
          modifiers="accel"
 #endif
          command="viewHistorySidebar"/>
+
+    <key id="key_readingListSidebar"
+         key="&readingList.sidebar.commandKey;"
+         modifiers="accel,alt"
+         command="readingListSidebar"/>
 
     <key id="key_fullZoomReduce"  key="&fullZoomReduceCmd.commandkey;"   command="cmd_fullZoomReduce"  modifiers="accel"/>
     <key                          key="&fullZoomReduceCmd.commandkey2;"  command="cmd_fullZoomReduce"  modifiers="accel"/>

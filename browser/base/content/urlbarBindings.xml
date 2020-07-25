@@ -12,6 +12,8 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 %notificationDTD;
 <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
 %browserDTD;
+<!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
+%brandDTD;
 ]>
 
 <bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl"
@@ -273,6 +275,9 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
           var postData = null;
 
           var action = this._parseActionUrl(url);
+          let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
+
+          let matchLastLocationChange = true;
           if (action) {
             if (this.hasAttribute("actiontype")) {
               if (action.type == "switchtab") {
@@ -285,82 +290,94 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
               }
               return;
             }
+            continueOperation.call(this);
           }
           else {
-            [url, postData, mayInheritPrincipal] = this._canonizeURL(aTriggeringEvent);
-            if (!url)
-              return;
+            this._canonizeURL(aTriggeringEvent, response => {
+              [url, postData, mayInheritPrincipal] = response;
+              if (url) {
+                matchLastLocationChange = (lastLocationChange ==
+                                           gBrowser.selectedBrowser.lastLocationChange);
+                continueOperation.call(this);
+              }
+            });
           }
 
-          this.value = url;
-          gBrowser.userTypedValue = url;
-          try {
-            addToUrlbarHistory(url);
-          } catch (ex) {
-            // Things may go wrong when adding url to session history,
-            // but don't let that interfere with the loading of the url.
-            Cu.reportError(ex);
-          }
-
-          function loadCurrent() {
-            let webnav = Ci.nsIWebNavigation;
-            let flags = webnav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
-                        webnav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
-            // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
-            // inheriting the currently loaded document's principal, unless this
-            // URL is marked as safe to inherit (e.g. came from a bookmark
-            // keyword).
-            if (!mayInheritPrincipal)
-              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-            gBrowser.loadURIWithFlags(url, flags, null, null, postData);
-          }
-
-          // Focus the content area before triggering loads, since if the load
-          // occurs in a new tab, we want focus to be restored to the content
-          // area when the current tab is re-selected.
-          gBrowser.selectedBrowser.focus();
-
-          let isMouseEvent = aTriggeringEvent instanceof MouseEvent;
-          let altEnter = !isMouseEvent && aTriggeringEvent && aTriggeringEvent.altKey;
-
-          if (altEnter) {
-            // XXX This was added a long time ago, and I'm not sure why it is
-            // necessary. Alt+Enter's default action might cause a system beep,
-            // or something like that?
-            aTriggeringEvent.preventDefault();
-            aTriggeringEvent.stopPropagation();
-          }
-
-          // If the current tab is empty, ignore Alt+Enter (just reuse this tab)
-          altEnter = altEnter && !isTabEmpty(gBrowser.selectedTab);
-
-          if (isMouseEvent || altEnter) {
-            // Use the standard UI link behaviors for clicks or Alt+Enter
-            let where = "tab";
-            if (isMouseEvent)
-              where = whereToOpenLink(aTriggeringEvent, false, false);
-
-            if (where == "current") {
-              loadCurrent();
-            } else {
-              this.handleRevert();
-              let params = { allowThirdPartyFixup: true,
-                             postData: postData,
-                             initiatingDoc: document };
-              openUILinkIn(url, where, params);
+          function continueOperation()
+          {
+            this.value = url;
+            gBrowser.userTypedValue = url;
+            try {
+              addToUrlbarHistory(url);
+            } catch (ex) {
+              // Things may go wrong when adding url to session history,
+              // but don't let that interfere with the loading of the url.
+              Cu.reportError(ex);
             }
-          } else {
-            loadCurrent();
+
+            function loadCurrent() {
+              let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+              // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
+              // inheriting the currently loaded document's principal, unless this
+              // URL is marked as safe to inherit (e.g. came from a bookmark
+              // keyword).
+              if (!mayInheritPrincipal)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
+              // If the value wasn't typed, we know that we decoded the value as
+              // UTF-8 (see losslessDecodeURI)
+              if (!this.valueIsTyped)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_URI_IS_UTF8;
+              gBrowser.loadURIWithFlags(url, flags, null, null, postData);
+            }
+
+            // Focus the content area before triggering loads, since if the load
+            // occurs in a new tab, we want focus to be restored to the content
+            // area when the current tab is re-selected.
+            gBrowser.selectedBrowser.focus();
+
+            let isMouseEvent = aTriggeringEvent instanceof MouseEvent;
+
+            // If the current tab is empty, ignore Alt+Enter (just reuse this tab)
+            let altEnter = !isMouseEvent && aTriggeringEvent &&
+              aTriggeringEvent.altKey && !isTabEmpty(gBrowser.selectedTab);
+
+            if (isMouseEvent || altEnter) {
+              // Use the standard UI link behaviors for clicks or Alt+Enter
+              let where = "tab";
+              if (isMouseEvent)
+                where = whereToOpenLink(aTriggeringEvent, false, false);
+
+              if (where == "current") {
+                if (matchLastLocationChange) {
+                  loadCurrent();
+                }
+              } else {
+                this.handleRevert();
+                let params = { allowThirdPartyFixup: true,
+                               postData: postData,
+                               initiatingDoc: document };
+                if (!this.valueIsTyped)
+                  params.isUTF8 = true;
+                openUILinkIn(url, where, params);
+              }
+            } else {
+              if (matchLastLocationChange) {
+                loadCurrent();
+              }
+            }
           }
         ]]></body>
       </method>
 
       <method name="_canonizeURL">
         <parameter name="aTriggeringEvent"/>
+        <parameter name="aCallback"/>
         <body><![CDATA[
           var url = this.value;
-          if (!url)
-            return ["", null, false];
+          if (!url) {
+            aCallback(["", null, false]);
+            return;
+          }
 
           // Only add the suffix when the URL bar value isn't already "URL-like",
           // and only if we get a keyboard event, to match user expectations.
@@ -411,11 +428,9 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
             }
           }
 
-          var postData = {};
-          var mayInheritPrincipal = { value: false };
-          url = getShortcutOrURI(url, postData, mayInheritPrincipal);
-
-          return [url, postData.value, mayInheritPrincipal.value];
+          getShortcutOrURIAndPostData(url, data => {
+            aCallback([data.url, data.postData, data.mayInheritPrincipal]);
+          });
         ]]></body>
       </method>
 
@@ -597,6 +612,11 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
               case "trimURLs":
                 this._mayTrimURLs = this._prefs.getBoolPref(aData);
                 break;
+            }
+          } else {
+            let originalUrl = ReaderParent.parseReaderUrl(aValue);
+            if (originalUrl) {
+              returnValue = originalUrl;
             }
           }
         ]]></body>
@@ -1314,6 +1334,104 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
     </implementation>
   </binding>
 
+  <binding id="bad-content-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
+    <content>
+      <xul:hbox align="start">
+        <xul:image class="popup-notification-icon" xbl:inherits="popupid"/>
+        <xul:vbox>
+          <!-- header -->
+          <xul:vbox>
+            <xul:description anonid="badContentBlocked.title"
+              class="popup-notification-item-title" xbl:inherits="popupid">
+            </xul:description>
+            <xul:description class="popup-notification-item-message"
+              xbl:inherits="popupid">
+              &badContentBlocked.moreinfo;
+            </xul:description>
+          </xul:vbox>
+          <!-- mixed content -->
+          <xul:vbox anonid="mixedContent" hidden="true">
+            <xul:separator class="groove"/>
+            <xul:hbox align="start">
+              <xul:vbox>
+                <xul:description class="popup-notification-item-title"
+                  xbl:inherits="popupid">
+                  &mixedContentBlocked2.message;
+                </xul:description>
+                <xul:description class="popup-notification-item-message"
+                  xbl:inherits="popupid">
+                  &mixedContentBlocked2.moreinfo;
+                </xul:description>
+                <xul:label anonid="mixedContent.helplink"
+                  class="text-link plain" href=""
+                  value="&mixedContentBlocked2.learnMore;"/>
+              </xul:vbox>
+              <xul:button
+                type="menu" label="&mixedContentBlocked2.options;"
+                sizetopopup="none">
+                <xul:menupopup>
+                  <xul:menuitem anonid="mixedContentAction.unblock"
+                    hidden="true" label="&mixedContentBlocked2.unblock.label;"
+                    accesskey="&mixedContentBlocked2.unblock.accesskey;"
+                    oncommand="document.getBindingParent(this).disableMixedContentProtection();"/>
+                </xul:menupopup>
+              </xul:button>
+            </xul:hbox>
+          </xul:vbox>
+        </xul:vbox>
+      </xul:hbox>
+    </content>
+    <resources>
+      <stylesheet src="chrome://global/skin/notification.css"/>
+    </resources>
+    <implementation>
+      <field name="_brandShortName">
+        document.getElementById("bundle_brand").getString("brandShortName")
+      </field>
+      <field name="_doorhangerTitle">
+        document.getAnonymousElementByAttribute(this, "anonid",
+          "badContentBlocked.title")
+      </field>
+      <field name="_mixedContent">
+        document.getAnonymousElementByAttribute(this, "anonid",
+            "mixedContent")
+      </field>
+      <field name="_mixedContentUnblock">
+        document.getAnonymousElementByAttribute(this, "anonid",
+          "mixedContentAction.unblock")
+      </field>
+      <field name="_mixedContentHelplink">
+        document.getAnonymousElementByAttribute(this, "anonid",
+          "mixedContent.helplink")
+      </field>
+      <constructor><![CDATA[
+        // default title
+        _doorhangerTitle.value =
+          gNavigatorBundle.getFormattedString(
+            "badContentBlocked.notblocked.message", [this._brandShortName]);
+
+        if (this.notification.options.state &
+          Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT) {
+          _doorhangerTitle.value =
+            gNavigatorBundle.getFormattedString(
+              "badContentBlocked.blocked.message", [this._brandShortName]);
+          _mixedContent.hidden = false;
+          _mixedContentUnblock.hidden = false;
+          _mixedContentHelplink.href =
+            Services.urlFormatter.formatURLPref("app.support.baseURL")
+              + "mixed-content";
+        }
+      ]]></constructor>
+      <method name="disableMixedContentProtection">
+        <body><![CDATA[
+          // Reload the page with the content unblocked
+          BrowserReloadWithFlags(
+            nsIWebNavigation.LOAD_FLAGS_ALLOW_MIXED_CONTENT);
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
   <binding id="click-to-play-plugins-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
     <content align="start" class="click-to-play-plugins-notification-content">
       <xul:vbox flex="1" align="stretch" class="popup-notification-main-box"
@@ -1383,14 +1501,20 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
       <field name="_items">[]</field>
       <constructor><![CDATA[
         const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-        for (let action of this.notification.options.centerActions) {
+        let sortedActions = [];
+        for (let action of this.notification.options.pluginData.values()) {
+          sortedActions.push(action);
+        }
+        sortedActions.sort((a, b) => a.pluginName.localeCompare(b.pluginName));
+
+        for (let action of sortedActions) {
           let item = document.createElementNS(XUL_NS, "row");
           item.setAttribute("class", "plugin-popupnotification-centeritem");
           item.action = action;
           this.appendChild(item);
           this._items.push(item);
         }
-        switch (this.notification.options.centerActions.length) {
+        switch (this._items.length) {
           case 0:
             PopupNotifications._dismiss();
             break;
@@ -1416,7 +1540,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
             return;
           }
 
-          let host = gPluginHandler._getHostFromPrincipal(this.notification.browser.contentWindow.document.nodePrincipal);
+          let host = this.notification.options.host;
           this._setupDescription("pluginActivateMultiple.message", null, host);
 
           var showBox = document.getAnonymousElementByAttribute(this, "anonid", "plugin-notification-showbox");
@@ -1455,7 +1579,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
       </method>
       <method name="_setupSingleState">
         <body><![CDATA[
-          var action = this.notification.options.centerActions[0];
+          var action = this._items[0].action;
           var host = action.pluginPermissionHost;
 
           let label, linkLabel, linkUrl, button1, button2;
@@ -1619,7 +1743,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
       <method name="_singleActivateNow">
         <body><![CDATA[
           gPluginHandler._updatePluginPermission(this.notification,
-            this.notification.options.centerActions[0],
+            this._items[0].action,
             "allownow");
           this._cancel();
         ]]></body>
@@ -1627,7 +1751,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
       <method name="_singleBlock">
         <body><![CDATA[
           gPluginHandler._updatePluginPermission(this.notification,
-            this.notification.options.centerActions[0],
+            this._items[0].action,
             "block");
             this._cancel();
         ]]></body>
@@ -1635,7 +1759,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
       <method name="_singleActivateAlways">
         <body><![CDATA[
           gPluginHandler._updatePluginPermission(this.notification,
-            this.notification.options.centerActions[0],
+            this._items[0].action,
             "allowalways");
           this._cancel();
         ]]></body>
@@ -1643,7 +1767,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
       <method name="_singleContinue">
         <body><![CDATA[
           gPluginHandler._updatePluginPermission(this.notification,
-            this.notification.options.centerActions[0],
+            this._items[0].action,
             "continue");
           this._cancel();
         ]]></body>

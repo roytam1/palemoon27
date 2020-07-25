@@ -7,7 +7,7 @@
 
 pref("app.vendorURL", "http://www.palemoon.org/");
 pref("app.support.baseURL", "http://www.palemoon.org/support/");
-pref("browser.getdevtools.url","https://@APO_AM_URL@/external/devtools");
+pref("browser.getdevtools.url","https://addons.palemoon.org/extensions/web-development/");
 
 // User Interface
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style
@@ -50,15 +50,15 @@ pref("app.update.cert.requireBuiltIn", false);
 // ===| Add-ons Manager |======================================================
 
 // Add-on window fixes
-pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/firefox");
-pref("extensions.getAddons.recommended.browseURL", "https://@APO_AM_URL@/external/recommended");
-pref("extensions.getAddons.recommended.url", "https://@APO_AM_URL@/internal/recommended?locale=%LOCALE%&os=%OS%");
-pref("extensions.getAddons.search.browseURL", "https://@APO_AM_URL@/external/search?q=%TERMS%");
-pref("extensions.getAddons.search.url", "https://@APO_AM_URL@/internal/search?q=%TERMS%&locale=%LOCALE%&os=%OS%&version=%VERSION%");
-pref("extensions.getMoreThemesURL", "https://@APO_AM_URL@/external/themes");
-pref("extensions.webservice.discoverURL","http://@APO_AM_URL@/internal/discover/");
-pref("extensions.getAddons.get.url","https://@APO_AM_URL@/internal/get?addonguid=%IDS%&os=%OS%&version=%VERSION%");
-pref("extensions.getAddons.getWithPerformance.url","https://@APO_AM_URL@/internal/get?addonguid=%IDS%&os=%OS%&version=%VERSION%");
+pref("extensions.getAddons.browseAddons", "https://addons.palemoon.org/extensions/");
+pref("extensions.getAddons.recommended.browseURL", "");
+pref("extensions.getAddons.recommended.url", "");
+pref("extensions.getAddons.search.browseURL", "https://addons.palemoon.org/search/?terms=");
+pref("extensions.getAddons.search.url", "https://addons.palemoon.org/search/");
+pref("extensions.getMoreThemesURL", "https://addons.palemoon.org/themes/");
+pref("extensions.webservice.discoverURL","");
+pref("extensions.getAddons.get.url","https://addons.palemoon.org/extensions/");
+pref("extensions.getAddons.getWithPerformance.url","");
 
 // Add-on updates: hard-code base Firefox version number.
 pref("extensions.update.background.url","https://@APO_AM_URL@/internal/update?@APO_AUS_ARGS@");
@@ -69,10 +69,10 @@ pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blockli
 pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%blockID%");
 
 // Search engine fixes
-pref("browser.search.searchEnginesURL", "https://@APO_AM_URL@/external/searchplugins");
+pref("browser.search.searchEnginesURL", "https://addons.palemoon.org/search/");
 
 // Dictionary URL
-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
+pref("browser.dictionaries.download.url", "http://repository.binaryoutcast.com/dicts/");
 
 pref("extensions.update.autoUpdateDefault", true); // Automatically update extensions by default
 pref("extensions.getAddons.maxResults", 10);
@@ -118,9 +118,6 @@ pref("image.mem.decode_bytes_at_a_time", 65536); //larger chunks
 
 // store sessions less frequently to prevent redundant mem usage by storing too much
 pref("browser.sessionstore.interval",60000); //every minute instead of every 10 seconds
-
-pref("browser.tabs.remote.autostart", false);
-pref("browser.sessionstore.debug", false);
 
 // Make sure we shortcut out of a11y to save walking unnecessary code
 pref("accessibility.force_disabled", 1);

@@ -252,7 +252,7 @@ function fillInPluginPermissionTemplate(aPermissionString, aPluginObject) {
   permPluginTemplate.setAttribute("permString", aPermissionString);
   permPluginTemplate.setAttribute("tooltiptext", aPluginObject.description);
   let attrs = [
-    [ ".permPluginTemplateLabel", "value", aPluginObject ],
+    [ ".permPluginTemplateLabel", "value", aPluginObject.name ],
     [ ".permPluginTemplateRadioGroup", "id", aPermissionString + "RadioGroup" ],
     [ ".permPluginTemplateRadioDefault", "id", aPermissionString + "#0" ],
     [ ".permPluginTemplateRadioAsk", "id", aPermissionString + "#3" ],
@@ -303,11 +303,11 @@ function initPluginsRow() {
 
   let entries = [{name: item[1], permission: item[0]} for (item of permissionMap)];
   entries.sort(function(a, b) {
-    return ((a.name < b.name) ? -1 : (a.name == b.name ? 0 : 1));
+    return ((a.obj.name < b.obj.name) ? -1 : (a.obj.name == b.obj.name ? 0 : 1));
   });
 
   let permissionEntries = [
-    fillInPluginPermissionTemplate(p.permission, p.name) for (p of entries)
+    fillInPluginPermissionTemplate(p.permission, p.obj) for (p of entries)
   ];
 
   let permPluginsRow = document.getElementById("perm-plugins-row");

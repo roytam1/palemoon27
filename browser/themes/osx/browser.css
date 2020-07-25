@@ -371,6 +371,11 @@ toolbarbutton.bookmark-item > menupopup {
   height: 16px;
 }
 
+/* #menu_readingList, svg icons don't work in the mac native menubar */
+#BMB_readingList {
+  list-style-image: url("chrome://browser/skin/readinglist/readinglist-icon.svg");
+}
+
 /* ::::: primary toolbar buttons ::::: */
 
 .toolbarbutton-1 {
@@ -1289,6 +1294,42 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
     -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
+%include ../shared/readinglist.inc.css
+
+/* Reader mode button */
+
+#reader-mode-button {
+  -moz-appearance: none;
+  padding: 0;
+  list-style-image: url("chrome://browser/skin/reader-mode-16.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
+
+#reader-mode-button > .toolbarbutton-icon {
+  width: 16px;
+}
+
+#reader-mode-button:focus {
+  @hudButtonFocused@
+}
+
+#reader-mode-button:hover:active,
+#reader-mode-button[readeractive] {
+   -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
+@media (min-resolution: 2dppx) {
+  #reader-mode-button {
+    list-style-image: url("chrome://browser/skin/reader-mode-16@2x.png");
+    -moz-image-region: rect(0, 32px, 32px, 0);
+  }
+
+  #reader-mode-button:hover:active,
+  #reader-mode-button[readeractive] {
+    -moz-image-region: rect(0, 64px, 32px, 32px);
+  }
+}
+
 
 /* star button */
 
@@ -1576,6 +1617,14 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
 .tab-icon-image[pinned] {
     -moz-margin-start: 5px;
     -moz-margin-end: 5px;
+}
+
+/*
+ * Force the overlay to create a new stacking context so it always appears on
+ * top of the icon.
+ */
+.tab-icon-overlay {
+  opacity: 0.9999;
 }
 
 /* tabbrowser-tab focus ring */
@@ -1946,21 +1995,15 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 
 
 
-#plugins-notification-icon,
-#alert-plugins-notification-icon,
-#blocked-plugins-notification-icon {
+#plugins-notification-icon {
     -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
-#plugins-notification-icon:hover,
-#alert-plugins-notification-icon:hover,
-#blocked-plugins-notification-icon:hover {
+#plugins-notification-icon:hover {
     -moz-image-region: rect(0, 32px, 16px, 16px);
 }
 
-#plugins-notification-icon:active,
-#alert-plugins-notification-icon:active,
-#blocked-plugins-notification-icon:active {
+#plugins-notification-icon:active {
     -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
@@ -2263,6 +2306,7 @@ toolbar[brighttext] #addonbar-closebutton {
 %include ../../../toolkit/themes/shared/devtools/commandline.inc.css
 %endif
 %include ../shared/plugin-doorhanger.inc.css
+%include ../shared/badcontent-doorhanger.inc.css
 
 %ifdef MOZ_DEVTOOLS
 /* Error counter */

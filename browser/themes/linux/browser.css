@@ -502,6 +502,11 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
   list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
 }
 
+#menu_readingList,
+#BMB_readingList {
+  list-style-image: url("chrome://browser/skin/readinglist/readinglist-icon.svg");
+}
+
 #appmenu_downloads,
 #menu_openDownloads {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
@@ -1336,6 +1341,30 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url("chrome://browser/skin/Info.png");
 }
 
+%include ../shared/readinglist.inc.css
+
+/* Reader mode button */
+
+#reader-mode-button {
+  -moz-appearance: none;
+  padding: 0;
+  list-style-image: url("chrome://browser/skin/reader-mode-16.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
+
+#reader-mode-button > .toolbarbutton-icon {
+  width: 16px;
+}
+
+#reader-mode-button:focus {
+  outline: 1px dotted;
+}
+
+#reader-mode-button:hover:active,
+#reader-mode-button[readeractive] {
+   -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
 /* Star button */
 #star-button {
   list-style-image: url("chrome://browser/skin/places/starPage.png");
@@ -1932,6 +1961,7 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 %include ../../../toolkit/themes/shared/devtools/commandline.inc.css
 %endif
 %include ../shared/plugin-doorhanger.inc.css
+%include ../shared/badcontent-doorhanger.inc.css
 
 %ifdef MOZ_DEVTOOLS
 .gcli-panel {

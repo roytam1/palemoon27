@@ -701,23 +701,15 @@ IsCacheableGetPropCallPropertyOp(JSObject* obj, JSObject* holder, Shape* shape)
 
 static void
 TestMatchingReceiver(MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                     Register object, JSObject *obj, Label *failure,
+                     Register object, JSObject* obj, Label* failure,
                      bool alwaysCheckGroup = false)
 {
-    if (Shape *shape = obj->maybeShape()) {
-        attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
-                                       Address(object, JSObject::offsetOfShape()),
-                                       ImmGCPtr(shape), failure);
-
-        if (alwaysCheckGroup)
-            masm.branchTestObjGroup(Assembler::NotEqual, object, obj->group(), failure);
-    } else {
-        MOZ_ASSERT(obj->is<UnboxedPlainObject>());
+    if (obj->is<UnboxedPlainObject>()) {
         MOZ_ASSERT(failure);
 
         masm.branchTestObjGroup(Assembler::NotEqual, object, obj->group(), failure);
         Address expandoAddress(object, UnboxedPlainObject::offsetOfExpando());
-        if (UnboxedExpandoObject *expando = obj->as<UnboxedPlainObject>().maybeExpando()) {
+        if (UnboxedExpandoObject* expando = obj->as<UnboxedPlainObject>().maybeExpando()) {
             masm.branchPtr(Assembler::Equal, expandoAddress, ImmWord(0), failure);
             Label success;
             masm.push(object);
@@ -731,6 +723,20 @@ TestMatchingReceiver(MacroAssembler &masm, IonCache::StubAttacher &attacher,
         } else {
             masm.branchPtr(Assembler::NotEqual, expandoAddress, ImmWord(0), failure);
         }
+    } else if (obj->is<TypedObject>()) {
+        attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
+                                       Address(object, JSObject::offsetOfGroup()),
+                                       ImmGCPtr(obj->group()), failure);
+    } else {
+        Shape* shape = obj->maybeShape();
+        MOZ_ASSERT(shape);
+
+        attacher.branchNextStubOrLabel(masm, Assembler::NotEqual,
+                                       Address(object, JSObject::offsetOfShape()),
+                                       ImmGCPtr(shape), failure);
+
+        if (alwaysCheckGroup)
+            masm.branchTestObjGroup(Assembler::NotEqual, object, obj->group(), failure);
     }
 }
 

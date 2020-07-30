@@ -305,12 +305,12 @@ IonBuilder::CFGState::IfElse(jsbytecode* trueEnd, jsbytecode* falseEnd, MTest* t
 }
 
 IonBuilder::CFGState
-IonBuilder::CFGState::AndOr(jsbytecode* join, MBasicBlock* joinStart)
+IonBuilder::CFGState::AndOr(jsbytecode* join, MBasicBlock* lhs)
 {
     CFGState state;
     state.state = AND_OR;
     state.stopAt = join;
-    state.branch.ifFalse = joinStart;
+    state.branch.ifFalse = lhs;
     state.branch.test = nullptr;
     return state;
 }
@@ -2716,16 +2716,25 @@ IonBuilder::processNextTableSwitchCase(CFGState& state)
 IonBuilder::ControlStatus
 IonBuilder::processAndOrEnd(CFGState& state)
 {
-    // We just processed the RHS of an && or || expression.
-    // Now jump to the join point (the false block).
-    current->end(MGoto::New(alloc(), state.branch.ifFalse));
+    MOZ_ASSERT(current);
+    MBasicBlock* lhs = state.branch.ifFalse;
 
-    if (!state.branch.ifFalse->addPredecessor(alloc(), current))
+    // Create a new block to represent the join.
+    MBasicBlock* join = newBlock(current, state.stopAt);
+    if (!join)
         return ControlStatus_Error;
 
-    if (!setCurrentAndSpecializePhis(state.branch.ifFalse))
+    // End the rhs.
+    current->end(MGoto::New(alloc(), join));
+
+    // End the lhs.
+    lhs->end(MGoto::New(alloc(), join));
+    if (!join->addPredecessor(alloc(), state.branch.ifFalse))
         return ControlStatus_Error;
-    graph().moveBlockToEnd(current);
+
+    // Set the join path as current path.
+    if (!setCurrentAndSpecializePhis(join))
+        return ControlStatus_Error;
     pc = current->pc();
     return ControlStatus_Joined;
 }
@@ -3698,15 +3707,16 @@ IonBuilder::improveTypesAtTest(MDefinition* ins, bool trueBranch, MTest* test)
       case MDefinition::Op_Not:
         return improveTypesAtTest(ins->toNot()->getOperand(0), !trueBranch, test);
       case MDefinition::Op_IsObject: {
-        TemporaryTypeSet* oldType = ins->getOperand(0)->resultTypeSet();
+        MDefinition* subject = ins->getOperand(0);
+        TemporaryTypeSet* oldType = subject->resultTypeSet();
 
         // Create temporary typeset equal to the type if there is no resultTypeSet.
         TemporaryTypeSet tmp;
         if (!oldType) {
-            if (ins->type() == MIRType_Value)
+            if (subject->type() == MIRType_Value)
                 return true;
             oldType = &tmp;
-            tmp.addType(TypeSet::PrimitiveType(ValueTypeFromMIRType(ins->type())), alloc_->lifoAlloc());
+            tmp.addType(TypeSet::PrimitiveType(ValueTypeFromMIRType(subject->type())), alloc_->lifoAlloc());
         }
 
         if (oldType->unknown())
@@ -3721,7 +3731,7 @@ IonBuilder::improveTypesAtTest(MDefinition* ins, bool trueBranch, MTest* test)
         if (!type)
             return false;
 
-        return replaceTypeSet(ins->getOperand(0), type, test);
+        return replaceTypeSet(subject, type, test);
       }
       case MDefinition::Op_Phi: {
         bool branchIsAnd = true;
@@ -4156,20 +4166,34 @@ IonBuilder::jsop_andor(JSOp op)
     // We have to leave the LHS on the stack.
     MDefinition* lhs = current->peek(-1);
 
+    MBasicBlock* evalLhs = newBlock(current, joinStart);
     MBasicBlock* evalRhs = newBlock(current, rhsStart);
-    MBasicBlock* join = newBlock(current, joinStart);
-    if (!evalRhs || !join)
+    if (!evalLhs || !evalRhs)
         return false;
 
     MTest* test = (op == JSOP_AND)
-                  ? newTest(lhs, evalRhs, join)
-                  : newTest(lhs, join, evalRhs);
+                  ? newTest(lhs, evalRhs, evalLhs)
+                  : newTest(lhs, evalLhs, evalRhs);
     current->end(test);
 
-    if (!cfgStack_.append(CFGState::AndOr(joinStart, join)))
+    // Create the lhs block and specialize.
+    if (!setCurrentAndSpecializePhis(evalLhs))
         return false;
 
-    return setCurrentAndSpecializePhis(evalRhs);
+    if (!improveTypesAtTest(test->getOperand(0), test->ifTrue() == current, test))
+        return false;
+
+    // Create the rhs block.
+    if (!cfgStack_.append(CFGState::AndOr(joinStart, evalLhs)))
+        return false;
+
+    if (!setCurrentAndSpecializePhis(evalRhs))
+        return false;
+
+    if (!improveTypesAtTest(test->getOperand(0), test->ifTrue() == current, test))
+        return false;
+
+    return true;
 }
 
 bool
@@ -7075,22 +7099,31 @@ IonBuilder::maybeInsertResume()
     return resumeAfter(ins);
 }
 
+// Return whether property lookups can be performed effectlessly on clasp.
 static bool
-ClassHasEffectlessLookup(const Class* clasp, PropertyName* name)
+ClassHasEffectlessLookup(const Class* clasp)
 {
     return (clasp == &UnboxedPlainObject::class_) ||
+           IsTypedObjectClass(clasp) ||
            (clasp->isNative() && !clasp->ops.lookupProperty);
 }
 
+// Return whether an object might have a property for name which is not
+// accounted for by type information.
 static bool
-ClassHasResolveHook(CompileCompartment* comp, const Class* clasp, PropertyName* name)
+ObjectHasExtraOwnProperty(CompileCompartment* comp, TypeSet::ObjectKey* object, PropertyName* name)
 {
-    // While arrays do not have resolve hooks, the types of their |length|
-    // properties are not reflected in type information, so pretend there is a
-    // resolve hook for this property.
+    // Some typed object properties are not reflected in type information.
+    if (object->isGroup() && object->group()->maybeTypeDescr())
+        return object->group()->typeDescr().hasProperty(comp->runtime()->names(), NameToId(name));
+
+    const Class* clasp = object->clasp();
+
+    // Array |length| properties are not reflected in type information.
     if (clasp == &ArrayObject::class_)
         return name == comp->runtime()->names().length;
 
+    // Resolve hooks can install new properties on objects on demand.
     if (!clasp->resolve)
         return false;
 
@@ -7147,7 +7180,7 @@ IonBuilder::testSingletonProperty(JSObject* obj, PropertyName* name)
     // property will change and trigger invalidation.
 
     while (obj) {
-        if (!ClassHasEffectlessLookup(obj->getClass(), name))
+        if (!ClassHasEffectlessLookup(obj->getClass()))
             return nullptr;
 
         TypeSet::ObjectKey* objKey = TypeSet::ObjectKey::get(obj);
@@ -7164,7 +7197,7 @@ IonBuilder::testSingletonProperty(JSObject* obj, PropertyName* name)
             return nullptr;
         }
 
-        if (ClassHasResolveHook(compartment, obj->getClass(), name))
+        if (ObjectHasExtraOwnProperty(compartment, objKey, name))
             return nullptr;
 
         obj = obj->getProto();
@@ -7236,7 +7269,7 @@ IonBuilder::testSingletonPropertyTypes(MDefinition* obj, JSObject* singleton, Pr
                 key->ensureTrackedProperty(analysisContext, NameToId(name));
 
             const Class* clasp = key->clasp();
-            if (!ClassHasEffectlessLookup(clasp, name) || ClassHasResolveHook(compartment, clasp, name))
+            if (!ClassHasEffectlessLookup(clasp) || ObjectHasExtraOwnProperty(compartment, key, name))
                 return false;
             if (key->unknownProperties())
                 return false;
@@ -7514,36 +7547,6 @@ IonBuilder::getStaticName(JSObject* staticObject, PropertyName* name, bool* psuc
 
     return loadSlot(obj, property.maybeTypes()->definiteSlot(), NumFixedSlots(staticObject),
                     rvalType, barrier, types);
-}
-
-// Whether 'types' includes all possible values represented by input/inputTypes.
-bool
-jit::TypeSetIncludes(TypeSet* types, MIRType input, TypeSet* inputTypes)
-{
-    if (!types)
-        return inputTypes && inputTypes->empty();
-
-    switch (input) {
-      case MIRType_Undefined:
-      case MIRType_Null:
-      case MIRType_Boolean:
-      case MIRType_Int32:
-      case MIRType_Double:
-      case MIRType_Float32:
-      case MIRType_String:
-      case MIRType_Symbol:
-      case MIRType_MagicOptimizedArguments:
-        return types->hasType(TypeSet::PrimitiveType(ValueTypeFromMIRType(input)));
-
-      case MIRType_Object:
-        return types->unknownObject() || (inputTypes && inputTypes->isSubset(types));
-
-      case MIRType_Value:
-        return types->unknown() || (inputTypes && inputTypes->isSubset(types));
-
-      default:
-        MOZ_CRASH("Bad input type");
-    }
 }
 
 // Whether a write of the given value may need a post-write barrier for GC purposes.
@@ -9645,19 +9648,18 @@ IonBuilder::objectsHaveCommonPrototype(TemporaryTypeSet* types, PropertyName* na
                 return false;
 
             const Class* clasp = key->clasp();
-            if (!ClassHasEffectlessLookup(clasp, name))
+            if (!ClassHasEffectlessLookup(clasp))
                 return false;
             JSObject* singleton = key->isSingleton() ? key->singleton() : nullptr;
-            if (ClassHasResolveHook(compartment, clasp, name)) {
+            if (ObjectHasExtraOwnProperty(compartment, key, name)) {
                 if (!singleton || !singleton->is<GlobalObject>())
                     return false;
                 *guardGlobal = true;
             }
 
             // Look for a getter/setter on the class itself which may need
-            // to be called. Ignore the getProperty op for typed arrays, it
-            // only handles integers and forwards names to the prototype.
-            if (isGetter && clasp->ops.getProperty && !IsAnyTypedArrayClass(clasp))
+            // to be called.
+            if (isGetter && clasp->ops.getProperty)
                 return false;
             if (!isGetter && clasp->ops.setProperty)
                 return false;
@@ -9824,7 +9826,7 @@ IonBuilder::annotateGetPropertyCache(MDefinition* obj, MGetPropertyCache* getPro
             continue;
 
         const Class* clasp = key->clasp();
-        if (!ClassHasEffectlessLookup(clasp, name) || ClassHasResolveHook(compartment, clasp, name))
+        if (!ClassHasEffectlessLookup(clasp) || ObjectHasExtraOwnProperty(compartment, key, name))
             continue;
 
         HeapTypeSetKey ownTypes = key->property(NameToId(name));

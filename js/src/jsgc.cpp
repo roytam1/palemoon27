@@ -2162,9 +2162,9 @@ GCRuntime::relocateArenas(Zone *zone, JS::gcreason::Reason reason, SliceBudget &
 
 
 void
-MovingTracer::Visit(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
+MovingTracer::Visit(JS::CallbackTracer* jstrc, void** thingp, JSGCTraceKind kind)
 {
-    TenuredCell *thing = TenuredCell::fromPointer(*thingp);
+    TenuredCell* thing = TenuredCell::fromPointer(*thingp);
 
     // Currently we only relocate objects.
     if (kind != JSTRACE_OBJECT) {
@@ -2172,7 +2172,7 @@ MovingTracer::Visit(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
         return;
     }
 
-    JSObject *obj = reinterpret_cast<JSObject*>(thing);
+    JSObject* obj = reinterpret_cast<JSObject*>(thing);
     if (IsForwarded(obj))
         *thingp = Forwarded(obj);
 }
@@ -3626,11 +3626,11 @@ GCRuntime::shouldPreserveJITCode(JSCompartment* comp, int64_t currentTime,
 }
 
 #ifdef DEBUG
-class CompartmentCheckTracer : public JSTracer
+class CompartmentCheckTracer : public JS::CallbackTracer
 {
   public:
     CompartmentCheckTracer(JSRuntime* rt, JSTraceCallback callback)
-      : JSTracer(rt, callback)
+      : JS::CallbackTracer(rt, callback)
     {}
 
     Cell* src;
@@ -3690,7 +3690,7 @@ CompartmentOfCell(Cell* thing, JSGCTraceKind kind)
 }
 
 static void
-CheckCompartmentCallback(JSTracer* trcArg, void** thingp, JSGCTraceKind kind)
+CheckCompartmentCallback(JS::CallbackTracer* trcArg, void** thingp, JSGCTraceKind kind)
 {
     CompartmentCheckTracer* trc = static_cast<CompartmentCheckTracer*>(trcArg);
     TenuredCell* thing = TenuredCell::fromPointer(*thingp);
@@ -3810,8 +3810,7 @@ GCRuntime::beginMarkPhase(JS::gcreason::Reason reason)
     }
 
     marker.start();
-    MOZ_ASSERT(!marker.callback);
-    MOZ_ASSERT(IsMarkingTracer(&marker));
+    GCMarker* gcmarker = &marker;
 
     /* For non-incremental GC the following sweep discards the jit code. */
     if (isIncremental) {
@@ -3820,8 +3819,6 @@ GCRuntime::beginMarkPhase(JS::gcreason::Reason reason)
             zone->discardJitCode(rt->defaultFreeOp());
         }
     }
-
-    GCMarker* gcmarker = &marker;
 
     startNumber = number;
 
@@ -7268,6 +7265,16 @@ ZoneGCNumberGetter(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
+#ifdef JS_MORE_DETERMINISTIC
+static bool
+DummyGetter(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().setUndefined();
+    return true;
+}
+#endif
+
 } /* namespace MemInfo */
 
 JSObject *
@@ -7291,9 +7298,14 @@ NewMemoryInfoObject(JSContext *cx)
     };
 
     for (size_t i = 0; i < mozilla::ArrayLength(getters); i++) {
+ #ifdef JS_MORE_DETERMINISTIC
+        JSNative getter = DummyGetter;
+#else
+        JSNative getter = getters[i].getter;
+#endif
         if (!JS_DefineProperty(cx, obj, getters[i].name, UndefinedHandleValue,
                                JSPROP_ENUMERATE | JSPROP_SHARED,
-                               getters[i].getter, nullptr))
+                               getter, nullptr))
         {
             return nullptr;
         }
@@ -7321,9 +7333,14 @@ NewMemoryInfoObject(JSContext *cx)
     };
 
     for (size_t i = 0; i < mozilla::ArrayLength(zoneGetters); i++) {
+ #ifdef JS_MORE_DETERMINISTIC
+        JSNative getter = DummyGetter;
+#else
+        JSNative getter = zoneGetters[i].getter;
+#endif
         if (!JS_DefineProperty(cx, zoneObj, zoneGetters[i].name, UndefinedHandleValue,
                                JSPROP_ENUMERATE | JSPROP_SHARED,
-                               zoneGetters[i].getter, nullptr))
+                               getter, nullptr))
         {
             return nullptr;
         }

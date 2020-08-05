@@ -2418,6 +2418,7 @@ struct UpdateCellPointersTask : public GCParallelTask
 
     UpdateCellPointersTask() : rt_(nullptr), source_(nullptr), arenaList_(nullptr) {}
     void init(JSRuntime* rt, ArenasToUpdate* source, AutoLockHelperThreadState& lock);
+    ~UpdateCellPointersTask() override { join(); }
 
   private:
     JSRuntime* rt_;
@@ -6289,6 +6290,9 @@ GCRuntime::onOutOfMallocMemory()
     // Stop allocating new chunks.
     allocTask.cancel(GCParallelTask::CancelAndWait);
 
+    // Wait for background free of nursery huge slots to finish.
+    nursery.waitBackgroundFreeEnd();
+
     AutoLockGC lock(rt);
     onOutOfMallocMemory(lock);
 }
@@ -6390,6 +6394,7 @@ AutoFinishGC::AutoFinishGC(JSRuntime* rt)
     }
 
     rt->gc.waitBackgroundSweepEnd();
+    rt->gc.nursery.waitBackgroundFreeEnd();
 }
 
 AutoPrepareForTracing::AutoPrepareForTracing(JSRuntime* rt, ZoneSelector selector)

@@ -7,8 +7,8 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/FileUtils.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
+Cu.import("resource://gre/modules/FileUtils.jsm", this);
 Cu.import("resource://gre/modules/Services.jsm");
 
 const DIR_UPDATES         = "updates";

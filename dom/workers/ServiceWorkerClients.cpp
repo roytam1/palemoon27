@@ -188,7 +188,7 @@ ServiceWorkerClients::OpenWindow(const nsAString& aUrl)
     return nullptr;
   }
 
-  promise->MaybeReject(NS_ERROR_NOT_AVAILABLE);
+  promise->MaybeResolve(JS::UndefinedHandleValue);
   return promise.forget();
 }
 

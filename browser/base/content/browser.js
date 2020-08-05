@@ -9,8 +9,6 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Task",
-                                  "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
                                   "resource:///modules/CharsetMenu.jsm");
 
@@ -51,13 +49,20 @@ var gEditUIVisible = true;
 
 // Smart getter for the findbar.  If you don't wish to force the creation of
 // the findbar, check gFindBarInitialized first.
+var gFindBarInitialized = false;
+XPCOMUtils.defineLazyGetter(window, "gFindBar", function() {
+  let XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+  let findbar = document.createElementNS(XULNS, "findbar");
+  findbar.id = "FindToolbar";
 
-this.__defineGetter__("gFindBar", function() {
-  return window.gBrowser.getFindBar();
-});
+  let browserBottomBox = document.getElementById("browser-bottombox");
+  browserBottomBox.insertBefore(findbar, browserBottomBox.firstChild);
 
-this.__defineGetter__("gFindBarInitialized", function() {
-  return window.gBrowser.isFindBarInitialized();
+  // Force a style flush to ensure that our binding is attached.
+  findbar.clientTop;
+  findbar.browser = gBrowser;
+  window.gFindBarInitialized = true;
+  return findbar;
 });
 
 XPCOMUtils.defineLazyGetter(this, "gPrefService", function() {
@@ -1048,12 +1053,6 @@ var gBrowserInit = {
     var homeButton = document.getElementById("home-button");
     gHomeButton.updateTooltip(homeButton);
     gHomeButton.updatePersonalToolbarStyle(homeButton);
-
-    let safeMode = document.getElementById("helpSafeMode");
-    if (Services.appinfo.inSafeMode) {
-      safeMode.label = safeMode.getAttribute("stoplabel");
-      safeMode.accesskey = safeMode.getAttribute("stopaccesskey");
-    }
 
     // BiDi UI
     gBidiUI = isBidiEnabled();
@@ -3855,7 +3854,16 @@ var XULBrowserWindow = {
           else
             elt.removeAttribute("disabled");
         }
-      }
+        if (gFindBarInitialized) {
+          if (!gFindBar.hidden && aDisable) {
+            gFindBar.hidden = true;
+            this._findbarTemporarilyHidden = true;
+          } else if (this._findbarTemporarilyHidden && !aDisable) {
+            gFindBar.hidden = false;
+            this._findbarTemporarilyHidden = false;
+          }
+        }
+      }.bind(this);
 
       var onContentRSChange = function onContentRSChange(e) {
         if (e.target.readyState != "interactive" && e.target.readyState != "complete")
@@ -6998,20 +7006,57 @@ Object.defineProperty(this, "HUDService", {
 #endif
 
 // Prompt user to restart the browser in safe mode or normally
-function safeModeRestart() {
-  if (Services.appinfo.inSafeMode) {
-    let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"].
-                     createInstance(Ci.nsISupportsPRBool);
-    Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
-
-    if (cancelQuit.data)
-      return;
-
-    Services.startup.quit(Ci.nsIAppStartup.eRestart | Ci.nsIAppStartup.eAttemptQuit);
-    return;
+function restart(safeMode)
+{
+  let promptTitleString = null;
+  let promptMessageString = null;
+  let restartTextString = null;
+  if (safeMode) {
+    promptTitleString = "safeModeRestartPromptTitle";
+    promptMessageString = "safeModeRestartPromptMessage";
+    restartTextString = "safeModeRestartButton";
+  } else {
+    promptTitleString = "restartPromptTitle";
+    promptMessageString = "restartPromptMessage";
+    restartTextString = "restartButton";
   }
 
-  Services.obs.notifyObservers(null, "restart-in-safe-mode", "");
+  let flags = Ci.nsIAppStartup.eAttemptQuit;
+
+  // Prompt the user to confirm
+  let promptTitle = gNavigatorBundle.getString(promptTitleString);
+  let brandBundle = document.getElementById("bundle_brand");
+  let brandShortName = brandBundle.getString("brandShortName");
+  let promptMessage =
+    gNavigatorBundle.getFormattedString(promptMessageString, [brandShortName]);
+  let restartText = gNavigatorBundle.getString(restartTextString);
+  let buttonFlags = (Services.prompt.BUTTON_POS_0 *
+                     Services.prompt.BUTTON_TITLE_IS_STRING) +
+                    (Services.prompt.BUTTON_POS_1 *
+                     Services.prompt.BUTTON_TITLE_CANCEL) +
+                    Services.prompt.BUTTON_POS_0_DEFAULT;
+
+  let rv = Services.prompt.confirmEx(window, promptTitle, promptMessage,
+                                     buttonFlags, restartText, null, null,
+                                     null, {});
+
+  if (rv == 0) {
+    // Notify all windows that an application quit has been requested.
+    let cancelQuit = Components.classes["@mozilla.org/supports-PRBool;1"]
+                     .createInstance(Ci.nsISupportsPRBool);
+    Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
+
+    // Something aborted the quit process.
+    if (cancelQuit.data) {
+      return;
+    }
+
+    if (safeMode) {    
+      Services.startup.restartInSafeMode(flags);
+    } else {
+      Services.startup.quit(flags | Ci.nsIAppStartup.eRestart);
+    }
+  }
 }
 
 /* duplicateTabIn duplicates tab in a place specified by the parameter |where|.

@@ -201,7 +201,7 @@ function GetBookmarksResource(aProfileFolder) {
     type: MigrationUtils.resourceTypes.BOOKMARKS,
 
     migrate: function(aCallback) {
-      NetUtil.asyncFetch2(bookmarksFile, MigrationUtils.wrapMigrateFunction(
+      NetUtil.asyncFetch(bookmarksFile, MigrationUtils.wrapMigrateFunction(
         function(aInputStream, aResultCode) {
           if (!Components.isSuccessCode(aResultCode))
             throw new Error("Could not read Bookmarks file");
@@ -237,12 +237,7 @@ function GetBookmarksResource(aProfileFolder) {
               }
             }
           }, null);
-        }, aCallback),
-        null,      // aLoadingNode
-        Services.scriptSecurityManager.getSystemPrincipal(),
-        null,      // aTriggeringPrincipal
-        Ci.nsILoadInfo.SEC_NORMAL,
-        Ci.nsIContentPolicy.TYPE_OTHER);
+        }, aCallback));
     }
   };
 }

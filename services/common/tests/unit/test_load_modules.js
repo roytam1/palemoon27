@@ -1,83 +1,31 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-Components.utils.import("resource://gre/modules/AppConstants.jsm");
-
-const MODULE_BASE = "resource://services-common/";
-const shared_modules = [
+const modules = [
   "async.js",
+  "bagheeraclient.js",
   "logmanager.js",
   "rest.js",
+  "storageservice.js",
   "stringbundle.js",
+  "tokenserverclient.js",
   "utils.js",
 ];
 
-const non_android_modules = [
-  "tokenserverclient.js",
-];
-
-const non_android_healthreport_modules = [
-  "bagheeraclient.js",
-];
-
-const TEST_BASE = "resource://testing-common/services/common/";
-const shared_test_modules = [
+const test_modules = [
+  "bagheeraserver.js",
   "logging.js",
-];
-
-const non_android_test_modules = [
   "storageserver.js",
 ];
 
-const non_android_healthreport_test_modules = [
-  "bagheeraserver.js",
-];
-
-function expectImportsToSucceed(mm, base=MODULE_BASE) {
-  for each (let m in mm) {
-    let resource = base + m;
-    let succeeded = false;
-    try {
-      Components.utils.import(resource, {});
-      succeeded = true;
-    } catch (e) {}
-
-    if (!succeeded) {
-      throw "Importing " + resource + " should have succeeded!";
-    }
-  }
-}
-
-function expectImportsToFail(mm, base=MODULE_BASE) {
-  for each (let m in mm) {
-    let resource = base + m;
-    let succeeded = false;
-    try {
-      Components.utils.import(resource, {});
-      succeeded = true;
-    } catch (e) {}
-
-    if (succeeded) {
-      throw "Importing " + resource + " should have failed!";
-    }
-  }
-}
-
 function run_test() {
-  expectImportsToSucceed(shared_modules);
-  expectImportsToSucceed(shared_test_modules, TEST_BASE);
+  for each (let m in modules) {
+    let resource = "resource://services-common/" + m;
+    Components.utils.import(resource, {});
+  }
 
-  if (AppConstants.platform != "android") {
-    expectImportsToSucceed(non_android_modules);
-    expectImportsToSucceed(non_android_test_modules, TEST_BASE);
-    if (AppConstants.MOZ_SERVICES_HEALTHREPORT) {
-      expectImportsToSucceed(non_android_healthreport_modules);
-      expectImportsToSucceed(non_android_healthreport_test_modules, TEST_BASE);
-    }
-  } else {
-    expectImportsToFail(non_android_modules);
-    expectImportsToFail(non_android_test_modules, TEST_BASE);
-    expectImportsToFail(non_android_healthreport_modules);
-    expectImportsToFail(non_android_healthreport_test_modules, TEST_BASE);
+  for each (let m in test_modules) {
+    let resource = "resource://testing-common/services/common/" + m;
+    Components.utils.import(resource, {});
   }
 }

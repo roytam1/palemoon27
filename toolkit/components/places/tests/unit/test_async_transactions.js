@@ -739,7 +739,11 @@ add_task(function* test_add_and_remove_bookmarks_with_additional_info() {
    , newValue: ANNO.value },
    { guid: b2_info.guid
    , property: "keyword"
-   , newValue: KEYWORD } ];
+   , newValue: KEYWORD },
+   { guid: b2_info.guid
+   , isAnnoProperty: true
+   , property: PlacesUtils.POST_DATA_ANNO
+   , newValue: POST_DATA } ];
   ensureItemsChanged(...b2_post_creation_changes);
   ensureTags([TAG_1, TAG_2]);
 

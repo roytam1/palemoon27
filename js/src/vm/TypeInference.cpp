@@ -708,12 +708,12 @@ TypeSet::IsTypeMarked(TypeSet::Type* v)
 {
     bool rv;
     if (v->isSingletonUnchecked()) {
-        JSObject *obj = v->singleton();
-        rv = IsObjectMarked(&obj);
+        JSObject* obj = v->singletonNoBarrier();
+        rv = IsMarkedUnbarriered(&obj);
         *v = TypeSet::ObjectType(obj);
     } else if (v->isGroupUnchecked()) {
-        ObjectGroup *group = v->group();
-        rv = IsObjectGroupMarked(&group);
+        ObjectGroup* group = v->groupNoBarrier();
+        rv = IsMarkedUnbarriered(&group);
         *v = TypeSet::ObjectType(group);
     } else {
         rv = true;
@@ -726,10 +726,10 @@ TypeSet::IsTypeAllocatedDuringIncremental(TypeSet::Type v)
 {
     bool rv;
     if (v.isSingletonUnchecked()) {
-        JSObject *obj = v.singletonNoBarrier();
+        JSObject* obj = v.singletonNoBarrier();
         rv = obj->isTenured() && obj->asTenured().arenaHeader()->allocatedDuringIncremental;
     } else if (v.isGroupUnchecked()) {
-        ObjectGroup *group = v.groupNoBarrier();
+        ObjectGroup* group = v.groupNoBarrier();
         rv = group->arenaHeader()->allocatedDuringIncremental;
     } else {
         rv = false;
@@ -738,19 +738,19 @@ TypeSet::IsTypeAllocatedDuringIncremental(TypeSet::Type v)
 }
 
 static inline bool
-IsObjectKeyAboutToBeFinalized(TypeSet::ObjectKey **keyp)
+IsObjectKeyAboutToBeFinalized(TypeSet::ObjectKey** keyp)
 {
-    TypeSet::ObjectKey *key = *keyp;
+    TypeSet::ObjectKey* key = *keyp;
     bool isAboutToBeFinalized;
     if (key->isGroup()) {
-        ObjectGroup *group = key->groupNoBarrier();
-        isAboutToBeFinalized = IsObjectGroupAboutToBeFinalized(&group);
+        ObjectGroup* group = key->groupNoBarrier();
+        isAboutToBeFinalized = IsAboutToBeFinalizedUnbarriered(&group);
         if (!isAboutToBeFinalized)
             *keyp = TypeSet::ObjectKey::get(group);
     } else {
         MOZ_ASSERT(key->isSingleton());
-        JSObject *singleton = key->singletonNoBarrier();
-        isAboutToBeFinalized = IsObjectAboutToBeFinalized(&singleton);
+        JSObject* singleton = key->singletonNoBarrier();
+        isAboutToBeFinalized = IsAboutToBeFinalizedUnbarriered(&singleton);
         if (!isAboutToBeFinalized)
             *keyp = TypeSet::ObjectKey::get(singleton);
     }
@@ -758,11 +758,11 @@ IsObjectKeyAboutToBeFinalized(TypeSet::ObjectKey **keyp)
 }
 
 bool
-TypeSet::IsTypeAboutToBeFinalized(TypeSet::Type *v)
+TypeSet::IsTypeAboutToBeFinalized(TypeSet::Type* v)
 {
     bool isAboutToBeFinalized;
     if (v->isObjectUnchecked()) {
-        TypeSet::ObjectKey *key = v->objectKey();
+        TypeSet::ObjectKey* key = v->objectKey();
         isAboutToBeFinalized = IsObjectKeyAboutToBeFinalized(&key);
         if (!isAboutToBeFinalized)
             *v = TypeSet::ObjectType(key);
@@ -773,7 +773,7 @@ TypeSet::IsTypeAboutToBeFinalized(TypeSet::Type *v)
 }
 
 bool
-TypeSet::clone(LifoAlloc *alloc, TemporaryTypeSet *result) const
+TypeSet::clone(LifoAlloc* alloc, TemporaryTypeSet* result) const
 {
     MOZ_ASSERT(result->empty());
 
@@ -1290,7 +1290,7 @@ class TypeConstraintFreezeStack : public TypeConstraint
     }
 
     bool sweep(TypeZone& zone, TypeConstraint** res) {
-        if (IsScriptAboutToBeFinalized(&script_))
+        if (IsAboutToBeFinalizedUnbarriered(&script_))
             return false;
         *res = zone.typeLifoAlloc.new_<TypeConstraintFreezeStack>(script_);
         return true;
@@ -1813,7 +1813,7 @@ class ConstraintDataFreezeObjectForTypedArrayData
 
     bool shouldSweep() {
         // Note: |viewData| is only used for equality testing.
-        return IsObjectAboutToBeFinalized(&obj);
+        return IsAboutToBeFinalizedUnbarriered(&obj);
     }
 };
 
@@ -3048,7 +3048,7 @@ class TypeConstraintClearDefiniteGetterSetter : public TypeConstraint
     void newType(JSContext* cx, TypeSet* source, TypeSet::Type type) {}
 
     bool sweep(TypeZone& zone, TypeConstraint** res) {
-        if (IsObjectGroupAboutToBeFinalized(&group))
+        if (IsAboutToBeFinalizedUnbarriered(&group))
             return false;
         *res = zone.typeLifoAlloc.new_<TypeConstraintClearDefiniteGetterSetter>(group);
         return true;
@@ -3099,7 +3099,7 @@ class TypeConstraintClearDefiniteSingle : public TypeConstraint
     }
 
     bool sweep(TypeZone& zone, TypeConstraint** res) {
-        if (IsObjectGroupAboutToBeFinalized(&group))
+        if (IsAboutToBeFinalizedUnbarriered(&group))
             return false;
         *res = zone.typeLifoAlloc.new_<TypeConstraintClearDefiniteSingle>(group);
         return true;
@@ -3319,7 +3319,7 @@ PreliminaryObjectArray::sweep()
     // destroyed.
     for (size_t i = 0; i < COUNT; i++) {
         JSObject** ptr = &objects[i];
-        if (*ptr && IsObjectAboutToBeFinalized(ptr))
+        if (*ptr && IsAboutToBeFinalizedUnbarriered(ptr))
             *ptr = nullptr;
     }
 }
@@ -3327,7 +3327,7 @@ PreliminaryObjectArray::sweep()
 void
 PreliminaryObjectArrayWithTemplate::trace(JSTracer *trc)
 {
-    MarkShape(trc, &shape_, "PreliminaryObjectArrayWithTemplate_shape");
+    TraceEdge(trc, &shape_, "PreliminaryObjectArrayWithTemplate_shape");
 }
 
 /* static */ void
@@ -3883,16 +3883,16 @@ TypeNewScript::rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* g
 void
 TypeNewScript::trace(JSTracer* trc)
 {
-    MarkObject(trc, &function_, "TypeNewScript_function");
+    TraceEdge(trc, &function_, "TypeNewScript_function");
 
     if (templateObject_)
-        MarkObject(trc, &templateObject_, "TypeNewScript_templateObject");
+        TraceEdge(trc, &templateObject_, "TypeNewScript_templateObject");
 
     if (initializedShape_)
-        MarkShape(trc, &initializedShape_, "TypeNewScript_initializedShape");
+        TraceEdge(trc, &initializedShape_, "TypeNewScript_initializedShape");
 
     if (initializedGroup_)
-        MarkObjectGroup(trc, &initializedGroup_, "TypeNewScript_initializedGroup");
+        TraceEdge(trc, &initializedGroup_, "TypeNewScript_initializedGroup");
 }
 
 /* static */ void
@@ -4064,8 +4064,8 @@ ObjectGroup::maybeSweep(AutoClearTypeInferenceStateOnOOM* oom)
     if (maybeUnboxedLayout()) {
         // Remove unboxed layouts that are about to be finalized from the
         // compartment wide list while we are still on the main thread.
-        ObjectGroup *group = this;
-        if (IsObjectGroupAboutToBeFinalized(&group))
+        ObjectGroup* group = this;
+        if (IsAboutToBeFinalizedUnbarriered(&group))
             unboxedLayout().detachFromCompartment();
 
         if (unboxedLayout().newScript())
@@ -4250,7 +4250,7 @@ TypeZone::beginSweep(FreeOp* fop, bool releaseTypes, AutoClearTypeInferenceState
             CompilerOutput& output = (*compilerOutputs)[i];
             if (output.isValid()) {
                 JSScript* script = output.script();
-                if (IsScriptAboutToBeFinalized(&script)) {
+                if (IsAboutToBeFinalizedUnbarriered(&script)) {
                     script->ionScript()->recompileInfoRef() = RecompileInfo();
                     output.invalidate();
                 } else {
@@ -4296,7 +4296,7 @@ TypeZone::clearAllNewScriptsOnOOM()
          !iter.done(); iter.next())
     {
         ObjectGroup* group = iter.get<ObjectGroup>();
-        if (!IsObjectGroupAboutToBeFinalized(&group))
+        if (!IsAboutToBeFinalizedUnbarriered(&group))
             group->maybeClearNewScriptOnOOM();
     }
 }

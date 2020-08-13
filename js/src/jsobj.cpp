@@ -2301,10 +2301,10 @@ JSObject::swap(JSContext* cx, HandleObject a, HandleObject b)
      * Normally write barriers happen before the write. However, that's not
      * necessary here because nothing is being destroyed. We're just swapping.
      */
-    JS::Zone *zone = a->zone();
+    JS::Zone* zone = a->zone();
     if (zone->needsIncrementalBarrier()) {
-        a->markChildren(zone->barrierTracer());
-        b->markChildren(zone->barrierTracer());
+        a->traceChildren(zone->barrierTracer());
+        b->traceChildren(zone->barrierTracer());
     }
 
     NotifyGCPostSwap(a, b, r);
@@ -3615,13 +3615,21 @@ js::ToObjectSlow(JSContext* cx, JS::HandleValue val, bool reportScanStack)
     return PrimitiveToObject(cx, val);
 }
 
-void
-js::GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
+class GetObjectSlotNameFunctor : public JS::CallbackTracer::ContextFunctor
 {
-    MOZ_ASSERT(trc->debugPrinter() == GetObjectSlotName);
+    JSObject* obj;
 
-    JSObject* obj = (JSObject*)trc->debugPrintArg();
-    uint32_t slot = uint32_t(trc->debugPrintIndex());
+  public:
+    explicit GetObjectSlotNameFunctor(JSObject* ctx) : obj(ctx) {}
+    virtual void operator()(JS::CallbackTracer* trc, char* buf, size_t bufsize) override;
+};
+
+void
+GetObjectSlotNameFunctor::operator()(JS::CallbackTracer* trc, char* buf, size_t bufsize)
+{
+    MOZ_ASSERT(trc->contextIndex() != JS::CallbackTracer::InvalidIndex);
+
+    uint32_t slot = uint32_t(trc->contextIndex());
 
     Shape* shape;
     if (obj->isNative()) {
@@ -4078,34 +4086,38 @@ JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ClassIn
 }
 
 void
-JSObject::markChildren(JSTracer *trc)
+JSObject::traceChildren(JSTracer* trc)
 {
-    MarkObjectGroup(trc, &group_, "group");
+    TraceEdge(trc, &group_, "group");
 
-    const Class *clasp = group_->clasp();
+    const Class* clasp = group_->clasp();
     if (clasp->trace)
         clasp->trace(trc, this);
 
     if (clasp->isNative()) {
         NativeObject *nobj = &as<NativeObject>();
 
-        MarkShape(trc, &nobj->shape_, "shape");
+        TraceEdge(trc, &nobj->shape_, "shape");
 
-        MarkObjectSlots(trc, nobj, 0, nobj->slotSpan());
+        {
+            GetObjectSlotNameFunctor func(nobj);
+            JS::AutoTracingDetails ctx(trc, func);
+            MarkObjectSlots(trc, nobj, 0, nobj->slotSpan());
+        }
 
         do {
             if (nobj->denseElementsAreCopyOnWrite()) {
                 HeapPtrNativeObject& owner = nobj->getElementsHeader()->ownerObject();
                 if (owner != nobj) {
-                    MarkObject(trc, &owner, "objectElementsOwner");
+                    TraceEdge(trc, &owner, "objectElementsOwner");
                     break;
                 }
             }
 
-            gc::MarkArraySlots(trc,
-                               nobj->getDenseInitializedLength(),
-                               nobj->getDenseElementsAllowCopyOnWrite(),
-                               "objectElements");
+            TraceRange(trc,
+                       nobj->getDenseInitializedLength(),
+                       static_cast<HeapSlot*>(nobj->getDenseElementsAllowCopyOnWrite()),
+                       "objectElements");
         } while (false);
     }
 }

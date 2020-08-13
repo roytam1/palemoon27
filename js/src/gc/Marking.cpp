@@ -7,6 +7,8 @@
 #include "gc/Marking.h"
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/IntegerRange.h"
+#include "mozilla/TypeTraits.h"
 
 #include "jsgc.h"
 #include "jsprf.h"
@@ -32,84 +34,13 @@ using namespace js;
 using namespace js::gc;
 
 using mozilla::DebugOnly;
+using mozilla::IsBaseOf;
+using mozilla::IsSame;
+using mozilla::MakeRange;
 
 void * const js::NullPtr::constNullValue = nullptr;
 
 JS_PUBLIC_DATA(void * const) JS::NullPtr::constNullValue = nullptr;
-
-/*
- * There are two mostly separate mark paths. The first is a fast path used
- * internally in the GC. The second is a slow path used for root marking and
- * for API consumers like the cycle collector or Class::trace implementations.
- *
- * The fast path uses explicit stacks. The basic marking process during a GC is
- * that all roots are pushed on to a mark stack, and then each item on the
- * stack is scanned (possibly pushing more stuff) until the stack is empty.
- *
- * PushMarkStack pushes a GC thing onto the mark stack. In some cases (shapes
- * or strings) it eagerly marks the object rather than pushing it. Popping and
- * scanning is done by the processMarkStackTop method. For efficiency reasons
- * like tail recursion elimination that method also implements the scanning of
- * objects. For other GC things it uses helper methods.
- *
- * Most of the marking code outside Marking.cpp uses functions like MarkObject,
- * MarkString, etc. These functions check if an object is in the compartment
- * currently being GCed. If it is, they call PushMarkStack. Roots are pushed
- * this way as well as pointers traversed inside trace hooks (for things like
- * PropertyIteratorObjects). It is always valid to call a MarkX function
- * instead of PushMarkStack, although it may be slower.
- *
- * The MarkX functions also handle non-GC object traversal. In this case, they
- * call a callback for each object visited. This is a recursive process; the
- * mark stacks are not involved. These callbacks may ask for the outgoing
- * pointers to be visited. Eventually, this leads to the MarkChildren functions
- * being called. These functions duplicate much of the functionality of
- * scanning functions, but they don't push onto an explicit stack.
- */
-
-static inline void
-PushMarkStack(GCMarker* gcmarker, JSObject* thing) {
-    gcmarker->traverse(thing);
-}
-static inline void
-PushMarkStack(GCMarker* gcmarker, JSFunction* thing) {
-    gcmarker->traverse(static_cast<JSObject*>(thing));
-}
-static inline void
-PushMarkStack(GCMarker* gcmarker, ObjectGroup* thing) {
-    gcmarker->traverse(thing);
-}
-static void
-PushMarkStack(GCMarker* gcmarker, jit::JitCode* thing) {
-    gcmarker->traverse(thing);
-}
-static inline void
-PushMarkStack(GCMarker* gcmarker, JSScript* thing) {
-    gcmarker->traverse(thing);
-}
-static inline void
-PushMarkStack(GCMarker* gcmarker, LazyScript* thing) {
-    gcmarker->traverse(thing);
-}
-
-static inline void
-PushMarkStack(GCMarker* gcmarker, Shape* thing);
-static inline void
-PushMarkStack(GCMarker* gcmarker, BaseShape* thing);
-static inline void
-PushMarkStack(GCMarker* gcmarker, JSString* thing);
-static inline void
-PushMarkStack(GCMarker* gcmarker, JS::Symbol* thing);
-
-namespace js {
-namespace gc {
-
-static void MarkChildren(JSTracer* trc, ObjectGroup* group);
-
-} /* namespace gc */
-} /* namespace js */
-
-/*** Object Marking ***/
 
 #if defined(DEBUG)
 template<typename T>
@@ -148,13 +79,25 @@ AsGCMarker(JSTracer* trc)
     return static_cast<GCMarker*>(trc);
 }
 
-template <typename T> bool ThingIsPermanentAtom(T* thing) { return false; }
-template <> bool ThingIsPermanentAtom<JSString>(JSString* str) { return str->isPermanentAtom(); }
-template <> bool ThingIsPermanentAtom<JSFlatString>(JSFlatString* str) { return str->isPermanentAtom(); }
-template <> bool ThingIsPermanentAtom<JSLinearString>(JSLinearString* str) { return str->isPermanentAtom(); }
-template <> bool ThingIsPermanentAtom<JSAtom>(JSAtom* atom) { return atom->isPermanent(); }
-template <> bool ThingIsPermanentAtom<PropertyName>(PropertyName* name) { return name->isPermanent(); }
-template <> bool ThingIsPermanentAtom<JS::Symbol>(JS::Symbol* sym) { return sym->isWellKnownSymbol(); }
+template <typename T> bool ThingIsPermanentAtomOrWellKnownSymbol(T* thing) { return false; }
+template <> bool ThingIsPermanentAtomOrWellKnownSymbol<JSString>(JSString* str) {
+    return str->isPermanentAtom();
+}
+template <> bool ThingIsPermanentAtomOrWellKnownSymbol<JSFlatString>(JSFlatString* str) {
+    return str->isPermanentAtom();
+}
+template <> bool ThingIsPermanentAtomOrWellKnownSymbol<JSLinearString>(JSLinearString* str) {
+    return str->isPermanentAtom();
+}
+template <> bool ThingIsPermanentAtomOrWellKnownSymbol<JSAtom>(JSAtom* atom) {
+    return atom->isPermanent();
+}
+template <> bool ThingIsPermanentAtomOrWellKnownSymbol<PropertyName>(PropertyName* name) {
+    return name->isPermanent();
+}
+template <> bool ThingIsPermanentAtomOrWellKnownSymbol<JS::Symbol>(JS::Symbol* sym) {
+    return sym->isWellKnownSymbol();
+}
 
 template <typename T>
 static inline bool
@@ -169,14 +112,11 @@ IsOwnedByOtherRuntime(JSTracer* trc, T thing)
 
 template<typename T>
 static inline void
-CheckMarkedThing(JSTracer* trc, T** thingp)
+CheckMarkedThing(JSTracer* trc, T thingp)
 {
 #ifdef DEBUG
     MOZ_ASSERT(trc);
-    MOZ_ASSERT(thingp);
-
-    T* thing = *thingp;
-    MOZ_ASSERT(*thingp);
+    MOZ_ASSERT(thing);
 
     thing = MaybeForwarded(thing);
 
@@ -185,7 +125,7 @@ CheckMarkedThing(JSTracer* trc, T** thingp)
         return;
 
     MOZ_ASSERT_IF(!MovingTracer::IsMovingTracer(trc) && !Nursery::IsMinorCollectionTracer(trc),
-                  !IsForwarded(*thingp));
+                  !IsForwarded(thing));
 
     /*
      * Permanent atoms and things in the self-hosting zone are not associated
@@ -201,10 +141,10 @@ CheckMarkedThing(JSTracer* trc, T** thingp)
     MOZ_ASSERT_IF(!MovingTracer::IsMovingTracer(trc), CurrentThreadCanAccessRuntime(rt));
 
     MOZ_ASSERT(zone->runtimeFromAnyThread() == trc->runtime());
-    MOZ_ASSERT(trc->hasTracingDetails());
 
     MOZ_ASSERT(thing->isAligned());
-    MOZ_ASSERT(MapTypeToTraceKind<T>::kind == GetGCThingTraceKind(thing));
+    MOZ_ASSERT(MapTypeToTraceKind<typename mozilla::RemovePointer<T>::Type>::kind ==
+               GetGCThingTraceKind(thing));
 
     /*
      * Do not check IsMarkingTracer directly -- it should only be used in paths
@@ -238,80 +178,30 @@ CheckMarkedThing(JSTracer* trc, T** thingp)
 #endif
 }
 
-/*
- * We only set the maybeAlive flag for objects and scripts. It's assumed that,
- * if a compartment is alive, then it will have at least some live object or
- * script it in. Even if we get this wrong, the worst that will happen is that
- * scheduledForDestruction will be set on the compartment, which will cause some
- * extra GC activity to try to free the compartment.
- */
-template<typename T>
-static inline void
-SetMaybeAliveFlag(T* thing)
-{
-}
-
 template<>
 void
-SetMaybeAliveFlag(JSObject* thing)
+CheckMarkedThing<Value>(JSTracer* trc, Value val)
 {
-    thing->compartment()->maybeAlive = true;
+#ifdef DEBUG
+    if (val.isString())
+        CheckMarkedThing(trc, val.toString());
+    else if (val.isObject())
+        CheckMarkedThing(trc, &val.toObject());
+    else if (val.isSymbol())
+        CheckMarkedThing(trc, val.toSymbol());
+#endif
 }
 
-template<>
+template <>
 void
-SetMaybeAliveFlag(NativeObject* thing)
+CheckMarkedThing<jsid>(JSTracer* trc, jsid id)
 {
-    thing->compartment()->maybeAlive = true;
-}
-
-template<>
-void
-SetMaybeAliveFlag(JSScript* thing)
-{
-    thing->compartment()->maybeAlive = true;
-}
-
-template<typename T>
-static void
-MarkInternal(JSTracer* trc, T** thingp)
-{
-    CheckMarkedThing(trc, thingp);
-    T* thing = *thingp;
-
-    if (trc->isMarkingTracer()) {
-        /*
-         * We may mark a Nursery thing outside the context of the
-         * MinorCollectionTracer because of a pre-barrier. The pre-barrier is
-         * not needed in this case because we perform a minor collection before
-         * each incremental slice.
-         */
-        if (IsInsideNursery(thing))
-            return;
-
-        /*
-         * Don't mark permanent atoms, as they may be associated with another
-         * runtime. Note that PushMarkStack() also checks this, but the tests
-         * and maybeAlive write below should only be done on the main thread.
-         */
-        if (ThingIsPermanentAtom(thing))
-            return;
-
-        /*
-         * Don't mark things outside a compartment if we are in a
-         * per-compartment GC.
-         */
-        if (!thing->zone()->isGCMarking())
-            return;
-
-        PushMarkStack(AsGCMarker(trc), thing);
-        SetMaybeAliveFlag(thing);
-    } else {
-        trc->asCallbackTracer()->invoke((void**)thingp, MapTypeToTraceKind<T>::kind);
-        trc->unsetTracingLocation();
-    }
-
-    trc->clearTracingDetails();
+#ifdef DEBUG
+    if (JSID_IS_STRING(id))
+        CheckMarkedThing(trc, JSID_TO_STRING(id));
+    else if (JSID_IS_SYMBOL(id))
+        CheckMarkedThing(trc, JSID_TO_SYMBOL(id));
+#endif
 }
 
 #define JS_ROOT_MARKING_ASSERT(trc) \
@@ -319,46 +209,360 @@ MarkInternal(JSTracer* trc, T** thingp)
                   trc->runtime()->gc.state() == NO_INCREMENTAL || \
                   trc->runtime()->gc.state() == MARK_ROOTS);
 
-namespace js {
-namespace gc {
+// A C++ version of JSGCTraceKind
+enum class TraceKind {
+#define NAMES(name, _, __) name,
+FOR_EACH_GC_LAYOUT(NAMES)
+#undef NAMES
+};
+
+#define FOR_EACH_GC_POINTER_TYPE(D) \
+    D(BaseShape*) \
+    D(UnownedBaseShape*) \
+    D(jit::JitCode*) \
+    D(NativeObject*) \
+    D(ArrayObject*) \
+    D(ArgumentsObject*) \
+    D(ArrayBufferObject*) \
+    D(ArrayBufferObjectMaybeShared*) \
+    D(ArrayBufferViewObject*) \
+    D(DebugScopeObject*) \
+    D(GlobalObject*) \
+    D(JSObject*) \
+    D(JSFunction*) \
+    D(NestedScopeObject*) \
+    D(PlainObject*) \
+    D(SavedFrame*) \
+    D(ScopeObject*) \
+    D(ScriptSourceObject*) \
+    D(SharedArrayBufferObject*) \
+    D(SharedTypedArrayObject*) \
+    D(JSScript*) \
+    D(LazyScript*) \
+    D(Shape*) \
+    D(JSAtom*) \
+    D(JSString*) \
+    D(JSFlatString*) \
+    D(JSLinearString*) \
+    D(PropertyName*) \
+    D(JS::Symbol*) \
+    D(js::ObjectGroup*) \
+    D(Value) \
+    D(jsid)
+
+// The second parameter to BaseGCType is derived automatically based on T. The
+// relation here is that for any T, the TraceKind will automatically,
+// statically select the correct Cell layout for marking. Below, we instantiate
+// each override with a declaration of the most derived layout type.
+//
+// Usage:
+//   BaseGCType<T>::type
+//
+// Examples:
+//   BaseGCType<JSFunction>::type => JSObject
+//   BaseGCType<UnownedBaseShape>::type => BaseShape
+//   etc.
+template <typename T,
+          TraceKind = IsBaseOf<JSObject, T>::value     ? TraceKind::Object
+                    : IsBaseOf<JSString, T>::value     ? TraceKind::String
+                    : IsBaseOf<JS::Symbol, T>::value   ? TraceKind::Symbol
+                    : IsBaseOf<JSScript, T>::value     ? TraceKind::Script
+                    : IsBaseOf<Shape, T>::value        ? TraceKind::Shape
+                    : IsBaseOf<BaseShape, T>::value    ? TraceKind::BaseShape
+                    : IsBaseOf<jit::JitCode, T>::value ? TraceKind::JitCode
+                    : IsBaseOf<LazyScript, T>::value   ? TraceKind::LazyScript
+                    :                                    TraceKind::ObjectGroup>
+struct BaseGCType;
+#define IMPL_BASE_GC_TYPE(name, type_, _) \
+    template <typename T> struct BaseGCType<T, TraceKind:: name> { typedef type_ type; };
+FOR_EACH_GC_LAYOUT(IMPL_BASE_GC_TYPE);
+#undef IMPL_BASE_GC_TYPE
+
+// Our barrier templates are parameterized on the pointer types so that we can
+// share the definitions with Value and jsid. Thus, we need to strip the
+// pointer before sending the type to BaseGCType and re-add it on the other
+// side. As such:
+template <typename T> struct PtrBaseGCType {};
+template <> struct PtrBaseGCType<Value> { typedef Value type; };
+template <> struct PtrBaseGCType<jsid> { typedef jsid type; };
+template <typename T> struct PtrBaseGCType<T*> { typedef typename BaseGCType<T>::type* type; };
+
+template <typename T>
+typename PtrBaseGCType<T>::type*
+ConvertToBase(T* thingp)
+{
+    return reinterpret_cast<typename PtrBaseGCType<T>::type*>(thingp);
+}
+
+template <typename T> void DispatchToTracer(JSTracer* trc, T* thingp, const char* name);
+template <typename T> void DoCallback(JS::CallbackTracer* trc, T* thingp, const char* name);
+template <typename T> void DoMarking(GCMarker* gcmarker, T thing);
+static bool ShouldMarkCrossCompartment(JSTracer* trc, JSObject* src, Cell* cell);
+static bool ShouldMarkCrossCompartment(JSTracer* trc, JSObject* src, Value val);
 
 template <typename T>
 void
-MarkUnbarriered(JSTracer* trc, T** thingp, const char* name)
+js::TraceEdge(JSTracer* trc, BarrieredBase<T>* thingp, const char* name)
 {
-    trc->setTracingName(name);
-    MarkInternal(trc, thingp);
+    DispatchToTracer(trc, ConvertToBase(thingp->unsafeGet()), name);
 }
 
 template <typename T>
-static void
-Mark(JSTracer* trc, BarrieredBase<T*>* thing, const char* name)
+void
+js::TraceManuallyBarrieredEdge(JSTracer* trc, T* thingp, const char* name)
 {
-    trc->setTracingName(name);
-    MarkInternal(trc, thing->unsafeGet());
+    DispatchToTracer(trc, ConvertToBase(thingp), name);
 }
+
+template <typename T>
+void
+js::TraceRoot(JSTracer* trc, T* thingp, const char* name)
+{
+    JS_ROOT_MARKING_ASSERT(trc);
+    DispatchToTracer(trc, ConvertToBase(thingp), name);
+}
+
+template <typename T>
+void
+js::TraceRange(JSTracer* trc, size_t len, BarrieredBase<T>* vec, const char* name)
+{
+    JS::AutoTracingIndex index(trc);
+    for (auto i : MakeRange(len)) {
+        if (InternalGCMethods<T>::isMarkable(vec[i].get()))
+            DispatchToTracer(trc, ConvertToBase(vec[i].unsafeGet()), name);
+        ++index;
+    }
+}
+
+template <typename T>
+void
+js::TraceRootRange(JSTracer* trc, size_t len, T* vec, const char* name)
+{
+    JS_ROOT_MARKING_ASSERT(trc);
+    JS::AutoTracingIndex index(trc);
+    for (auto i : MakeRange(len)) {
+        if (InternalGCMethods<T>::isMarkable(vec[i]))
+            DispatchToTracer(trc, ConvertToBase(&vec[i]), name);
+        ++index;
+    }
+}
+
+// Instantiate a copy of the Tracing templates for each derived type.
+#define INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS(type) \
+    template void js::TraceEdge<type>(JSTracer*, BarrieredBase<type>*, const char*); \
+    template void js::TraceManuallyBarrieredEdge<type>(JSTracer*, type*, const char*); \
+    template void js::TraceRoot<type>(JSTracer*, type*, const char*); \
+    template void js::TraceRange<type>(JSTracer*, size_t, BarrieredBase<type>*, const char*); \
+    template void js::TraceRootRange<type>(JSTracer*, size_t, type*, const char*);
+FOR_EACH_GC_POINTER_TYPE(INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS)
+#undef INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS
+
+template <typename T>
+void
+js::TraceManuallyBarrieredCrossCompartmentEdge(JSTracer* trc, JSObject* src, T* dst,
+                                               const char* name)
+{
+    if (ShouldMarkCrossCompartment(trc, src, *dst))
+        DispatchToTracer(trc, dst, name);
+}
+template void js::TraceManuallyBarrieredCrossCompartmentEdge<JSObject*>(JSTracer*, JSObject*,
+                                                                        JSObject**, const char*);
+template void js::TraceManuallyBarrieredCrossCompartmentEdge<JSScript*>(JSTracer*, JSObject*,
+                                                                        JSScript**, const char*);
+
+template <typename T>
+void
+js::TraceCrossCompartmentEdge(JSTracer* trc, JSObject* src, BarrieredBase<T>* dst, const char* name)
+{
+    if (ShouldMarkCrossCompartment(trc, src, dst->get()))
+        DispatchToTracer(trc, dst->unsafeGet(), name);
+}
+template void js::TraceCrossCompartmentEdge<Value>(JSTracer*, JSObject*, BarrieredBase<Value>*,
+                                                   const char*);
+
+// This method is responsible for dynamic dispatch to the real tracer
+// implementation. Consider replacing this choke point with virtual dispatch:
+// a sufficiently smart C++ compiler may be able to devirtualize some paths.
+template <typename T>
+void
+DispatchToTracer(JSTracer* trc, T* thingp, const char* name)
+{
+#define IS_SAME_TYPE_OR(name, type, _) mozilla::IsSame<type*, T>::value ||
+    static_assert(
+            FOR_EACH_GC_LAYOUT(IS_SAME_TYPE_OR)
+            mozilla::IsSame<T, JS::Value>::value ||
+            mozilla::IsSame<T, jsid>::value,
+            "Only the base cell layout types are allowed into marking/tracing internals");
+#undef IS_SAME_TYPE_OR
+    CheckMarkedThing(trc, *thingp);
+
+    if (trc->isMarkingTracer())
+        return DoMarking(static_cast<GCMarker*>(trc), *thingp);
+    return DoCallback(trc->asCallbackTracer(), thingp, name);
+}
+
+template <typename T>
+static inline bool
+MustSkipMarking(T thing)
+{
+    // Don't mark things outside a zone if we are in a per-zone GC.
+    return !thing->zone()->isGCMarking();
+}
+
+template <>
+bool
+MustSkipMarking<JSObject*>(JSObject* obj)
+{
+    // We may mark a Nursery thing outside the context of the
+    // MinorCollectionTracer because of a pre-barrier. The pre-barrier is not
+    // needed in this case because we perform a minor collection before each
+    // incremental slice.
+    if (IsInsideNursery(obj))
+        return true;
+
+    // Don't mark things outside a zone if we are in a per-zone GC. It is
+    // faster to check our own arena header, which we can do since we know that
+    // the object is tenured.
+    return !TenuredCell::fromPointer(obj)->zone()->isGCMarking();
+}
+
+template <>
+bool
+MustSkipMarking<JSString*>(JSString* str)
+{
+    // Don't mark permanent atoms, as they may be associated with another
+    // runtime. Note that traverse() also checks this, but we need to not
+    // run the isGCMarking test from off-main-thread, so have to check it here
+    // too.
+    return str->isPermanentAtom() ||
+           !str->zone()->isGCMarking();
+}
+
+template <>
+bool
+MustSkipMarking<JS::Symbol*>(JS::Symbol* sym)
+{
+    // As for JSString, don't touch a globally owned well-known symbol from
+    // off-main-thread.
+    return sym->isWellKnownSymbol() ||
+           !sym->zone()->isGCMarking();
+}
+
+template <typename T>
+void
+DoMarking(GCMarker* gcmarker, T thing)
+{
+    // Do per-type marking precondition checks.
+    if (MustSkipMarking(thing))
+        return;
+
+    gcmarker->traverse(thing);
+
+    // Mark the compartment as live.
+    SetMaybeAliveFlag(thing);
+}
+
+template <>
+void
+DoMarking<Value>(GCMarker* gcmarker, Value val)
+{
+    if (val.isString())
+        DoMarking(gcmarker, val.toString());
+    else if (val.isObject())
+        DoMarking(gcmarker, &val.toObject());
+    else if (val.isSymbol())
+        DoMarking(gcmarker, val.toSymbol());
+}
+
+template <>
+void
+DoMarking<jsid>(GCMarker* gcmarker, jsid id)
+{
+    if (JSID_IS_STRING(id))
+        DoMarking(gcmarker, JSID_TO_STRING(id));
+    else if (JSID_IS_SYMBOL(id))
+        DoMarking(gcmarker, JSID_TO_SYMBOL(id));
+}
+
+// The default traversal calls out to the fully generic traceChildren function
+// to visit the child edges. In the absense of other traversal mechanisms, this
+// function will rapidly grow the stack past its bounds and crash the process.
+// Thus, this generic tracing should only be used in cases where subsequent
+// tracing will not recurse.
+template <typename T>
+void
+js::GCMarker::traverse(T* thing)
+{
+    auto asBase = static_cast<typename BaseGCType<T>::type*>(thing);
+    MOZ_ASSERT(!ThingIsPermanentAtomOrWellKnownSymbol(asBase));
+    if (mark(asBase))
+        thing->traceChildren(this);
+}
+
+// Shape, BaseShape, String, and Symbol are extremely common, but have simple
+// patterns of recursion. We traverse trees of these edges immediately, with
+// aggressive, manual inlining, implemented by eagerlyTraceChildren.
+template <typename T>
+void
+js::GCMarker::markAndScan(T* thing)
+{
+    if (ThingIsPermanentAtomOrWellKnownSymbol(thing))
+        return;
+    if (mark(thing))
+        eagerlyMarkChildren(thing);
+}
+namespace js {
+template <> void GCMarker::traverse(Shape* thing) { markAndScan(thing); }
+template <> void GCMarker::traverse(BaseShape* thing) { markAndScan(thing); }
+template <> void GCMarker::traverse(JSString* thing) { markAndScan(thing); }
+template <> void GCMarker::traverse(JS::Symbol* thing) { markAndScan(thing); }
+} // namespace js
+
+// Object and ObjectGroup are extremely common and can contain arbitrarily
+// nested graphs, so are not trivially inlined. In this case we use a mark
+// stack to control recursion. JitCode shares none of these properties, but is
+// included for historical reasons.
+template <typename T>
+void
+js::GCMarker::markAndPush(StackTag tag, T* thing)
+{
+    if (mark(thing))
+        pushTaggedPtr(tag, thing);
+}
+namespace js {
+template <> void GCMarker::traverse(JSObject* thing) { markAndPush(ObjectTag, thing); }
+template <> void GCMarker::traverse(ObjectGroup* thing) { markAndPush(GroupTag, thing); }
+template <> void GCMarker::traverse(jit::JitCode* thing) { markAndPush(JitCodeTag, thing); }
+} // namespace js
+
+template <typename T>
+bool
+js::GCMarker::mark(T* thing)
+{
+    JS_COMPARTMENT_ASSERT(runtime(), thing);
+    MOZ_ASSERT(!IsInsideNursery(gc::TenuredCell::fromPointer(thing)));
+    return gc::ParticipatesInCC<T>::value
+           ? gc::TenuredCell::fromPointer(thing)->markIfUnmarked(markColor())
+           : gc::TenuredCell::fromPointer(thing)->markIfUnmarked(gc::BLACK);
+}
+
+namespace js {
+namespace gc {
 
 void
 MarkPermanentAtom(JSTracer* trc, JSAtom* atom, const char* name)
 {
-    trc->setTracingName(name);
-
     MOZ_ASSERT(atom->isPermanent());
 
-    CheckMarkedThing(trc, &atom);
-
-    if (trc->isMarkingTracer()) {
-        // Atoms do not refer to other GC things so don't need to go on the mark stack.
-        // Additionally, PushMarkStack will ignore permanent atoms.
+    // We have to mark permanent atoms through a special method because the
+    // default DoMarking implementation automatically skips them. Fortunatly,
+    // atoms cannot refer to other GC things, so they do not need to go through
+    // the mark stack and may simply be marked directly.
+    CheckMarkedThing(trc, atom);
+    if (trc->isMarkingTracer())
         atom->markIfUnmarked();
-    } else {
-        void* thing = atom;
-        trc->asCallbackTracer()->invoke(&thing, JSTRACE_STRING);
-        MOZ_ASSERT(thing == atom);
-        trc->unsetTracingLocation();
-    }
-
-    trc->clearTracingDetails();
+    else
+        DoCallback(trc->asCallbackTracer(), reinterpret_cast<JSString**>(&atom), name);
 }
 
 void
@@ -366,69 +570,29 @@ MarkWellKnownSymbol(JSTracer* trc, JS::Symbol* sym)
 {
     if (!sym)
         return;
-
-    trc->setTracingName("wellKnownSymbols");
-
     MOZ_ASSERT(sym->isWellKnownSymbol());
-    CheckMarkedThing(trc, &sym);
+
+    // As per permanent atoms, the normal marking path is not adequate.
+    CheckMarkedThing(trc, sym);
     if (trc->isMarkingTracer()) {
         // Permanent atoms are marked before well-known symbols.
         MOZ_ASSERT(sym->description()->isMarked());
         sym->markIfUnmarked();
     } else {
-        void* thing = sym;
-        trc->asCallbackTracer()->invoke(&thing, JSTRACE_SYMBOL);
-        MOZ_ASSERT(thing == sym);
-        trc->unsetTracingLocation();
-    }
-
-    trc->clearTracingDetails();
-}
-
-} /* namespace gc */
-} /* namespace js */
-
-template <typename T>
-static void
-MarkRoot(JSTracer* trc, T** thingp, const char* name)
-{
-    JS_ROOT_MARKING_ASSERT(trc);
-    trc->setTracingName(name);
-    MarkInternal(trc, thingp);
-}
-
-template <typename T>
-static void
-MarkRange(JSTracer* trc, size_t len, HeapPtr<T*>* vec, const char* name)
-{
-    for (size_t i = 0; i < len; ++i) {
-        if (vec[i].get()) {
-            trc->setTracingIndex(name, i);
-            MarkInternal(trc, vec[i].unsafeGet());
-        }
+        DoCallback(trc->asCallbackTracer(), &sym, "wellKnownSymbol");
     }
 }
-
-template <typename T>
-static void
-MarkRootRange(JSTracer* trc, size_t len, T** vec, const char* name)
-{
-    JS_ROOT_MARKING_ASSERT(trc);
-    for (size_t i = 0; i < len; ++i) {
-        if (vec[i]) {
-            trc->setTracingIndex(name, i);
-            MarkInternal(trc, &vec[i]);
-        }
-    }
-}
-
-namespace js {
-namespace gc {
 
 template <typename T>
 static inline void
-CheckIsMarkedThing(T** thingp)
+CheckIsMarkedThing(T* thingp)
 {
+#define IS_SAME_TYPE_OR(name, type, _) mozilla::IsSame<type*, T>::value ||
+    static_assert(
+            FOR_EACH_GC_LAYOUT(IS_SAME_TYPE_OR)
+            false, "Only the base cell layout types are allowed into marking/tracing internals");
+#undef IS_SAME_TYPE_OR
+
 #ifdef DEBUG
     MOZ_ASSERT(thingp);
     MOZ_ASSERT(*thingp);
@@ -441,16 +605,7 @@ CheckIsMarkedThing(T** thingp)
 
 template <typename T>
 static bool
-IsMarked(T** thingp)
-{
-    MOZ_ASSERT_IF(!ThingIsPermanentAtom(*thingp),
-                  CurrentThreadCanAccessRuntime((*thingp)->runtimeFromMainThread()));
-    return IsMarkedFromAnyThread(thingp);
-}
-
-template <typename T>
-static bool
-IsMarkedFromAnyThread(T** thingp)
+IsMarkedInternal(T* thingp)
 {
     CheckIsMarkedThing(thingp);
     JSRuntime* rt = (*thingp)->runtimeFromAnyThread();
@@ -468,25 +623,54 @@ IsMarkedFromAnyThread(T** thingp)
     return (*thingp)->asTenured().isMarked();
 }
 
-template <typename T>
-static bool
-IsAboutToBeFinalized(T** thingp)
+template <>
+bool
+IsMarkedInternal<Value>(Value* valuep)
 {
-    MOZ_ASSERT_IF(!ThingIsPermanentAtom(*thingp),
-                  CurrentThreadCanAccessRuntime((*thingp)->runtimeFromMainThread()));
-    return IsAboutToBeFinalizedFromAnyThread(thingp);
+    bool rv = true;  // Non-markable types are always live.
+    if (valuep->isString()) {
+        JSString* str = valuep->toString();
+        rv = IsMarkedInternal(&str);
+        valuep->setString(str);
+    } else if (valuep->isObject()) {
+        JSObject* obj = &valuep->toObject();
+        rv = IsMarkedInternal(&obj);
+        valuep->setObject(*obj);
+    } else if (valuep->isSymbol()) {
+        JS::Symbol* sym = valuep->toSymbol();
+        rv = IsMarkedInternal(&sym);
+        valuep->setSymbol(sym);
+    }
+    return rv;
+}
+
+template <>
+bool
+IsMarkedInternal<jsid>(jsid* idp)
+{
+    bool rv = true;  // Non-markable types are always live.
+    if (JSID_IS_STRING(*idp)) {
+        JSString* str = JSID_TO_STRING(*idp);
+        rv = IsMarkedInternal(&str);
+        *idp = NON_INTEGER_ATOM_TO_JSID(reinterpret_cast<JSAtom*>(str));
+    } else if (JSID_IS_SYMBOL(*idp)) {
+        JS::Symbol* sym = JSID_TO_SYMBOL(*idp);
+        rv = IsMarkedInternal(&sym);
+        *idp = SYMBOL_TO_JSID(sym);
+    }
+    return rv;
 }
 
 template <typename T>
 static bool
-IsAboutToBeFinalizedFromAnyThread(T** thingp)
+IsAboutToBeFinalizedInternal(T* thingp)
 {
     CheckIsMarkedThing(thingp);
-    T* thing = *thingp;
+    T thing = *thingp;
     JSRuntime* rt = thing->runtimeFromAnyThread();
 
     /* Permanent atoms are never finalized by non-owning runtimes. */
-    if (ThingIsPermanentAtom(thing) && !TlsPerThreadData.get()->associatedWith(rt))
+    if (ThingIsPermanentAtomOrWellKnownSymbol(thing) && !TlsPerThreadData.get()->associatedWith(rt))
         return false;
 
     Nursery& nursery = rt->gc.nursery;
@@ -509,6 +693,97 @@ IsAboutToBeFinalizedFromAnyThread(T** thingp)
     return false;
 }
 
+template <>
+bool
+IsAboutToBeFinalizedInternal<Value>(Value* valuep)
+{
+    bool rv = false;  // Non-markable types are always live.
+    if (valuep->isString()) {
+        JSString* str = (JSString*)valuep->toGCThing();
+        rv = IsAboutToBeFinalizedInternal(&str);
+        valuep->setString(str);
+    } else if (valuep->isObject()) {
+        JSObject* obj = (JSObject*)valuep->toGCThing();
+        rv = IsAboutToBeFinalizedInternal(&obj);
+        valuep->setObject(*obj);
+    } else if (valuep->isSymbol()) {
+        JS::Symbol* sym = valuep->toSymbol();
+        rv = IsAboutToBeFinalizedInternal(&sym);
+        valuep->setSymbol(sym);
+    }
+    return rv;
+}
+
+template <>
+bool
+IsAboutToBeFinalizedInternal<jsid>(jsid* idp)
+{
+    bool rv = false;  // Non-markable types are always live.
+    if (JSID_IS_STRING(*idp)) {
+        JSString* str = JSID_TO_STRING(*idp);
+        rv = IsAboutToBeFinalizedInternal(&str);
+        *idp = NON_INTEGER_ATOM_TO_JSID(reinterpret_cast<JSAtom*>(str));
+    } else if (JSID_IS_SYMBOL(*idp)) {
+        JS::Symbol* sym = JSID_TO_SYMBOL(*idp);
+        rv = IsAboutToBeFinalizedInternal(&sym);
+        *idp = SYMBOL_TO_JSID(sym);
+    }
+    return rv;
+}
+
+template <typename T>
+bool
+IsMarkedUnbarriered(T* thingp)
+{
+    return IsMarkedInternal(ConvertToBase(thingp));
+}
+
+template <typename T>
+bool
+IsMarked(BarrieredBase<T>* thingp)
+{
+    return IsMarkedInternal(ConvertToBase(thingp->unsafeGet()));
+}
+
+template <typename T>
+bool
+IsMarked(ReadBarriered<T>* thingp)
+{
+    return IsMarkedInternal(ConvertToBase(thingp->unsafeGet()));
+}
+
+template <typename T>
+bool
+IsAboutToBeFinalizedUnbarriered(T* thingp)
+{
+    return IsAboutToBeFinalizedInternal(ConvertToBase(thingp));
+}
+
+template <typename T>
+bool
+IsAboutToBeFinalized(BarrieredBase<T>* thingp)
+{
+    return IsAboutToBeFinalizedInternal(ConvertToBase(thingp->unsafeGet()));
+}
+
+template <typename T>
+bool
+IsAboutToBeFinalized(ReadBarriered<T>* thingp)
+{
+    return IsAboutToBeFinalizedInternal(ConvertToBase(thingp->unsafeGet()));
+}
+
+// Instantiate a copy of the Tracing templates for each derived type.
+#define INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS(type) \
+    template bool IsMarkedUnbarriered<type>(type*); \
+    template bool IsMarked<type>(BarrieredBase<type>*); \
+    template bool IsMarked<type>(ReadBarriered<type>*); \
+    template bool IsAboutToBeFinalizedUnbarriered<type>(type*); \
+    template bool IsAboutToBeFinalized<type>(BarrieredBase<type>*); \
+    template bool IsAboutToBeFinalized<type>(ReadBarriered<type>*);
+FOR_EACH_GC_POINTER_TYPE(INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS)
+#undef INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS
+
 template <typename T>
 T*
 UpdateIfRelocated(JSRuntime* rt, T** thingp)
@@ -529,386 +804,45 @@ UpdateIfRelocated(JSRuntime* rt, T** thingp)
     return *thingp;
 }
 
-#define DeclMarkerImpl(base, type)                                                                \
-void                                                                                              \
-Mark##base(JSTracer* trc, BarrieredBase<type*>* thing, const char* name)                          \
-{                                                                                                 \
-    Mark<type>(trc, thing, name);                                                                 \
-}                                                                                                 \
-                                                                                                  \
-void                                                                                              \
-Mark##base##Root(JSTracer* trc, type** thingp, const char* name)                                  \
-{                                                                                                 \
-    MarkRoot<type>(trc, thingp, name);                                                            \
-}                                                                                                 \
-                                                                                                  \
-void                                                                                              \
-Mark##base##Unbarriered(JSTracer* trc, type** thingp, const char* name)                           \
-{                                                                                                 \
-    MarkUnbarriered<type>(trc, thingp, name);                                                     \
-}                                                                                                 \
-                                                                                                  \
-/* Explicitly instantiate MarkUnbarriered<type*>. It is referenced from */                        \
-/* other translation units and the instantiation might otherwise get */                           \
-/* inlined away. */                                                                               \
-template void MarkUnbarriered<type>(JSTracer*, type**, const char*);                           \
-                                                                                                  \
-void                                                                                              \
-Mark##base##Range(JSTracer* trc, size_t len, HeapPtr<type*>* vec, const char* name)               \
-{                                                                                                 \
-    MarkRange<type>(trc, len, vec, name);                                                         \
-}                                                                                                 \
-                                                                                                  \
-void                                                                                              \
-Mark##base##RootRange(JSTracer* trc, size_t len, type** vec, const char* name)                    \
-{                                                                                                 \
-    MarkRootRange<type>(trc, len, vec, name);                                                     \
-}                                                                                                 \
-                                                                                                  \
-bool                                                                                              \
-Is##base##Marked(type **thingp)                                                                   \
-{                                                                                                 \
-    return IsMarked<type>(thingp);                                                                \
-}                                                                                                 \
-                                                                                                  \
-bool                                                                                              \
-Is##base##MarkedFromAnyThread(BarrieredBase<type*>* thingp)                                       \
-{                                                                                                 \
-    return IsMarkedFromAnyThread<type>(thingp->unsafeGet());                                      \
-}                                                                                                 \
-                                                                                                  \
-bool                                                                                              \
-Is##base##Marked(BarrieredBase<type*>* thingp)                                                    \
-{                                                                                                 \
-    return IsMarked<type>(thingp->unsafeGet());                                                   \
-}                                                                                                 \
-                                                                                                  \
-bool                                                                                              \
-Is##base##AboutToBeFinalized(type** thingp)                                                       \
-{                                                                                                 \
-    return IsAboutToBeFinalized<type>(thingp);                                                    \
-}                                                                                                 \
-                                                                                                  \
-bool                                                                                              \
-Is##base##AboutToBeFinalizedFromAnyThread(type **thingp)                                          \
-{                                                                                                 \
-    return IsAboutToBeFinalizedFromAnyThread<type>(thingp);                                       \
-}                                                                                                 \
-                                                                                                  \
-bool                                                                                              \
-Is##base##AboutToBeFinalized(BarrieredBase<type*>* thingp)                                        \
-{                                                                                                 \
-    return IsAboutToBeFinalized<type>(thingp->unsafeGet());                                       \
-}                                                                                                 \
-                                                                                                  \
-type *                                                                                            \
-Update##base##IfRelocated(JSRuntime* rt, BarrieredBase<type*>* thingp)                            \
-{                                                                                                 \
-    return UpdateIfRelocated<type>(rt, thingp->unsafeGet());                                      \
-}                                                                                                 \
-                                                                                                  \
-type *                                                                                            \
-Update##base##IfRelocated(JSRuntime* rt, type** thingp)                                           \
-{                                                                                                 \
-    return UpdateIfRelocated<type>(rt, thingp);                                                   \
-}
-
-
-DeclMarkerImpl(BaseShape, BaseShape)
-DeclMarkerImpl(BaseShape, UnownedBaseShape)
-DeclMarkerImpl(JitCode, jit::JitCode)
-DeclMarkerImpl(Object, NativeObject)
-DeclMarkerImpl(Object, ArrayObject)
-DeclMarkerImpl(Object, ArgumentsObject)
-DeclMarkerImpl(Object, ArrayBufferObject)
-DeclMarkerImpl(Object, ArrayBufferObjectMaybeShared)
-DeclMarkerImpl(Object, ArrayBufferViewObject)
-DeclMarkerImpl(Object, DebugScopeObject)
-DeclMarkerImpl(Object, GlobalObject)
-DeclMarkerImpl(Object, JSObject)
-DeclMarkerImpl(Object, JSFunction)
-DeclMarkerImpl(Object, NestedScopeObject)
-DeclMarkerImpl(Object, PlainObject)
-DeclMarkerImpl(Object, SavedFrame)
-DeclMarkerImpl(Object, ScopeObject)
-DeclMarkerImpl(Object, SharedArrayBufferObject)
-DeclMarkerImpl(Object, SharedTypedArrayObject)
-DeclMarkerImpl(Script, JSScript)
-DeclMarkerImpl(LazyScript, LazyScript)
-DeclMarkerImpl(Shape, Shape)
-DeclMarkerImpl(String, JSAtom)
-DeclMarkerImpl(String, JSString)
-DeclMarkerImpl(String, JSFlatString)
-DeclMarkerImpl(String, JSLinearString)
-DeclMarkerImpl(String, PropertyName)
-DeclMarkerImpl(Symbol, JS::Symbol)
-DeclMarkerImpl(ObjectGroup, js::ObjectGroup)
-
 } /* namespace gc */
 } /* namespace js */
 
 /*** Externally Typed Marking ***/
 
-void
-gc::MarkKind(JSTracer* trc, void** thingp, JSGCTraceKind kind)
-{
-    MOZ_ASSERT(thingp);
-    MOZ_ASSERT(*thingp);
-    DebugOnly<Cell*> cell = static_cast<Cell*>(*thingp);
-    MOZ_ASSERT_IF(cell->isTenured(),
-                  kind == MapAllocToTraceKind(cell->asTenured().getAllocKind()));
-    switch (kind) {
-      case JSTRACE_OBJECT:
-        MarkInternal(trc, reinterpret_cast<JSObject**>(thingp));
-        break;
-      case JSTRACE_SCRIPT:
-        MarkInternal(trc, reinterpret_cast<JSScript**>(thingp));
-        break;
-      case JSTRACE_STRING:
-        MarkInternal(trc, reinterpret_cast<JSString**>(thingp));
-        break;
-      case JSTRACE_SYMBOL:
-        MarkInternal(trc, reinterpret_cast<JS::Symbol**>(thingp));
-        break;
-      case JSTRACE_BASE_SHAPE:
-        MarkInternal(trc, reinterpret_cast<BaseShape**>(thingp));
-        break;
-      case JSTRACE_JITCODE:
-        MarkInternal(trc, reinterpret_cast<jit::JitCode**>(thingp));
-        break;
-      case JSTRACE_LAZY_SCRIPT:
-        MarkInternal(trc, reinterpret_cast<LazyScript**>(thingp));
-        break;
-      case JSTRACE_SHAPE:
-        MarkInternal(trc, reinterpret_cast<Shape**>(thingp));
-        break;
-      case JSTRACE_OBJECT_GROUP:
-        MarkInternal(trc, reinterpret_cast<ObjectGroup**>(thingp));
-        break;
-      default:
-        MOZ_CRASH("Invalid trace kind in MarkKind.");
+// A typed functor adaptor for TraceRoot.
+struct TraceRootFunctor {
+    template <typename T>
+    void operator()(JSTracer* trc, Cell** thingp, const char* name) {
+        TraceRoot(trc, reinterpret_cast<T**>(thingp), name);
     }
-}
+};
 
-static void
-MarkGCThingInternal(JSTracer* trc, void** thingp, const char* name)
+// A typed functor adaptor for TraceManuallyBarrieredEdge.
+struct TraceManuallyBarrieredEdgeFunctor {
+    template <typename T>
+    void operator()(JSTracer* trc, Cell** thingp, const char* name) {
+        TraceManuallyBarrieredEdge(trc, reinterpret_cast<T**>(thingp), name);
+    }
+};
+
+void
+js::gc::TraceGenericPointerRoot(JSTracer* trc, Cell** thingp, const char* name)
 {
-    trc->setTracingName(name);
     MOZ_ASSERT(thingp);
     if (!*thingp)
         return;
-    MarkKind(trc, thingp, GetGCThingTraceKind(*thingp));
+    TraceRootFunctor f;
+    CallTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
 }
 
 void
-gc::MarkGCThingRoot(JSTracer* trc, void** thingp, const char* name)
+js::gc::TraceManuallyBarrieredGenericPointerEdge(JSTracer* trc, Cell** thingp, const char* name)
 {
-    JS_ROOT_MARKING_ASSERT(trc);
-    MarkGCThingInternal(trc, thingp, name);
-}
-
-void
-gc::MarkGCThingUnbarriered(JSTracer* trc, void** thingp, const char* name)
-{
-    MarkGCThingInternal(trc, thingp, name);
-}
-
-/*** ID Marking ***/
-
-static inline void
-MarkIdInternal(JSTracer* trc, jsid* id)
-{
-    if (JSID_IS_STRING(*id)) {
-        JSString* str = JSID_TO_STRING(*id);
-        JSString* prior = str;
-        trc->setTracingLocation((void*)id);
-        MarkInternal(trc, &str);
-        if (str != prior)
-            *id = NON_INTEGER_ATOM_TO_JSID(reinterpret_cast<JSAtom*>(str));
-    } else if (JSID_IS_SYMBOL(*id)) {
-        JS::Symbol* sym = JSID_TO_SYMBOL(*id);
-        JS::Symbol* prior = sym;
-        trc->setTracingLocation((void*)id);
-        MarkInternal(trc, &sym);
-        if (sym != prior)
-            *id = SYMBOL_TO_JSID(sym);
-    } else {
-        /* Unset realLocation manually if we do not call MarkInternal. */
-        trc->unsetTracingLocation();
-    }
-}
-
-void
-gc::MarkId(JSTracer* trc, BarrieredBase<jsid>* id, const char* name)
-{
-    trc->setTracingName(name);
-    MarkIdInternal(trc, id->unsafeGet());
-}
-
-void
-gc::MarkIdRoot(JSTracer* trc, jsid* id, const char* name)
-{
-    JS_ROOT_MARKING_ASSERT(trc);
-    trc->setTracingName(name);
-    MarkIdInternal(trc, id);
-}
-
-void
-gc::MarkIdUnbarriered(JSTracer* trc, jsid* id, const char* name)
-{
-    trc->setTracingName(name);
-    MarkIdInternal(trc, id);
-}
-
-void
-gc::MarkIdRange(JSTracer* trc, size_t len, HeapId* vec, const char* name)
-{
-    for (size_t i = 0; i < len; ++i) {
-        trc->setTracingIndex(name, i);
-        MarkIdInternal(trc, vec[i].unsafeGet());
-    }
-}
-
-void
-gc::MarkIdRootRange(JSTracer* trc, size_t len, jsid* vec, const char* name)
-{
-    JS_ROOT_MARKING_ASSERT(trc);
-    for (size_t i = 0; i < len; ++i) {
-        trc->setTracingIndex(name, i);
-        MarkIdInternal(trc, &vec[i]);
-    }
-}
-
-/*** Value Marking ***/
-
-static inline void
-MarkValueInternal(JSTracer* trc, Value* v)
-{
-    if (v->isMarkable()) {
-        MOZ_ASSERT(v->toGCThing());
-        void* thing = v->toGCThing();
-        trc->setTracingLocation((void*)v);
-        if (v->isString()) {
-            JSString* str = static_cast<JSString*>(thing);
-            MarkInternal(trc, &str);
-            if (str != thing)
-                v->setString(str);
-        } else if (v->isObject()) {
-            JSObject* obj = static_cast<JSObject*>(thing);
-            MarkInternal(trc, &obj);
-            if (obj != thing)
-                v->setObjectOrNull(obj);
-        } else {
-            MOZ_ASSERT(v->isSymbol());
-            JS::Symbol* sym = static_cast<JS::Symbol*>(thing);
-            MarkInternal(trc, &sym);
-            if (sym != thing)
-                v->setSymbol(sym);
-        }
-    } else {
-        /* Unset realLocation manually if we do not call MarkInternal. */
-        trc->unsetTracingLocation();
-    }
-}
-
-void
-gc::MarkValue(JSTracer* trc, BarrieredBase<Value>* v, const char* name)
-{
-    trc->setTracingName(name);
-    MarkValueInternal(trc, v->unsafeGet());
-}
-
-void
-gc::MarkValueRoot(JSTracer* trc, Value* v, const char* name)
-{
-    JS_ROOT_MARKING_ASSERT(trc);
-    trc->setTracingName(name);
-    MarkValueInternal(trc, v);
-}
-
-void
-gc::MarkValueRange(JSTracer* trc, size_t len, BarrieredBase<Value>* vec, const char* name)
-{
-    for (size_t i = 0; i < len; ++i) {
-        trc->setTracingIndex(name, i);
-        MarkValueInternal(trc, vec[i].unsafeGet());
-    }
-}
-
-void
-gc::MarkValueRootRange(JSTracer* trc, size_t len, Value* vec, const char* name)
-{
-    JS_ROOT_MARKING_ASSERT(trc);
-    for (size_t i = 0; i < len; ++i) {
-        trc->setTracingIndex(name, i);
-        MarkValueInternal(trc, &vec[i]);
-    }
-}
-
-bool
-gc::IsValueMarked(Value* v)
-{
-    MOZ_ASSERT(v->isMarkable());
-    bool rv;
-    if (v->isString()) {
-        JSString* str = (JSString*)v->toGCThing();
-        rv = IsMarked<JSString>(&str);
-        v->setString(str);
-    } else if (v->isObject()) {
-        JSObject* obj = (JSObject*)v->toGCThing();
-        rv = IsMarked<JSObject>(&obj);
-        v->setObject(*obj);
-    } else {
-        MOZ_ASSERT(v->isSymbol());
-        JS::Symbol* sym = v->toSymbol();
-        rv = IsMarked<JS::Symbol>(&sym);
-        v->setSymbol(sym);
-    }
-    return rv;
-}
-
-bool
-gc::IsValueAboutToBeFinalized(Value* v)
-{
-    MOZ_ASSERT(v->isMarkable());
-    bool rv;
-    if (v->isString()) {
-        JSString* str = (JSString*)v->toGCThing();
-        rv = IsAboutToBeFinalized<JSString>(&str);
-        v->setString(str);
-    } else if (v->isObject()) {
-        JSObject* obj = (JSObject*)v->toGCThing();
-        rv = IsAboutToBeFinalized<JSObject>(&obj);
-        v->setObject(*obj);
-    } else {
-        MOZ_ASSERT(v->isSymbol());
-        JS::Symbol* sym = v->toSymbol();
-        rv = IsAboutToBeFinalized<JS::Symbol>(&sym);
-        v->setSymbol(sym);
-    }
-    return rv;
-}
-
-bool
-gc::IsValueAboutToBeFinalizedFromAnyThread(Value* v)
-{
-    MOZ_ASSERT(v->isMarkable());
-    bool rv;
-    if (v->isString()) {
-        JSString* str = (JSString*)v->toGCThing();
-        rv = IsAboutToBeFinalizedFromAnyThread<JSString>(&str);
-        v->setString(str);
-    } else if (v->isObject()) {
-        JSObject* obj = (JSObject*)v->toGCThing();
-        rv = IsAboutToBeFinalizedFromAnyThread<JSObject>(&obj);
-        v->setObject(*obj);
-    } else {
-        MOZ_ASSERT(v->isSymbol());
-        JS::Symbol* sym = v->toSymbol();
-        rv = IsAboutToBeFinalizedFromAnyThread<JS::Symbol>(&sym);
-        v->setSymbol(sym);
-    }
-    return rv;
+    MOZ_ASSERT(thingp);
+    if (!*thingp)
+        return;
+    TraceManuallyBarrieredEdgeFunctor f;
+    CallTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
 }
 
 /*** Type Marking ***/
@@ -923,49 +857,28 @@ TypeSet::MarkTypeRoot(JSTracer* trc, TypeSet::Type* v, const char* name)
 void
 TypeSet::MarkTypeUnbarriered(JSTracer* trc, TypeSet::Type* v, const char* name)
 {
-    trc->setTracingName(name);
     if (v->isSingletonUnchecked()) {
         JSObject* obj = v->singleton();
-        MarkInternal(trc, &obj);
+        DispatchToTracer(trc, &obj, name);
         *v = TypeSet::ObjectType(obj);
     } else if (v->isGroupUnchecked()) {
         ObjectGroup* group = v->group();
-        MarkInternal(trc, &group);
+        DispatchToTracer(trc, &group, name);
         *v = TypeSet::ObjectType(group);
     }
 }
 
 /*** Slot Marking ***/
 
-bool
-gc::IsSlotMarked(HeapSlot* s)
-{
-    return IsMarked(s);
-}
-
-void
-gc::MarkSlot(JSTracer* trc, HeapSlot* s, const char* name)
-{
-    trc->setTracingName(name);
-    MarkValueInternal(trc, s->unsafeGet());
-}
-
-void
-gc::MarkArraySlots(JSTracer* trc, size_t len, HeapSlot* vec, const char* name)
-{
-    for (size_t i = 0; i < len; ++i) {
-        trc->setTracingIndex(name, i);
-        MarkValueInternal(trc, vec[i].unsafeGet());
-    }
-}
-
 void
 gc::MarkObjectSlots(JSTracer* trc, NativeObject* obj, uint32_t start, uint32_t nslots)
 {
-    MOZ_ASSERT(obj->isNative());
+    JS::AutoTracingIndex index(trc, start);
     for (uint32_t i = start; i < (start + nslots); ++i) {
-        trc->setTracingDetails(GetObjectSlotName, obj, i);
-        MarkValueInternal(trc, obj->getSlotRef(i).unsafeGet());
+        HeapSlot& slot = obj->getSlotRef(i);
+        if (InternalGCMethods<Value>::isMarkable(slot))
+            DispatchToTracer(trc, slot.unsafeGet(), "object slot");
+        ++index;
     }
 }
 
@@ -1013,41 +926,31 @@ ShouldMarkCrossCompartment(JSTracer* trc, JSObject* src, Cell* cell)
     }
 }
 
-void
-gc::MarkCrossCompartmentObjectUnbarriered(JSTracer* trc, JSObject* src, JSObject** dst, const char* name)
+static bool
+ShouldMarkCrossCompartment(JSTracer* trc, JSObject* src, Value val)
 {
-    if (ShouldMarkCrossCompartment(trc, src, *dst))
-        MarkObjectUnbarriered(trc, dst, name);
-}
-
-void
-gc::MarkCrossCompartmentScriptUnbarriered(JSTracer* trc, JSObject* src, JSScript** dst,
-                                          const char* name)
-{
-    if (ShouldMarkCrossCompartment(trc, src, *dst))
-        MarkScriptUnbarriered(trc, dst, name);
-}
-
-void
-gc::MarkCrossCompartmentSlot(JSTracer* trc, JSObject* src, HeapValue* dst, const char* name)
-{
-    if (dst->isMarkable() && ShouldMarkCrossCompartment(trc, src, (Cell*)dst->toGCThing()))
-        MarkValue(trc, dst, name);
+    return val.isMarkable() && ShouldMarkCrossCompartment(trc, src, (Cell*)val.toGCThing());
 }
 
 /*** Special Marking ***/
 
 void
-gc::MarkValueUnbarriered(JSTracer* trc, Value* v, const char* name)
+gc::MarkValueForBarrier(JSTracer* trc, Value* valuep, const char* name)
 {
-    trc->setTracingName(name);
-    MarkValueInternal(trc, v);
+    MOZ_ASSERT(!trc->runtime()->isHeapCollecting());
+    TraceManuallyBarrieredEdge(trc, valuep, name);
+}
+
+void
+gc::MarkIdForBarrier(JSTracer* trc, jsid* idp, const char* name)
+{
+    TraceManuallyBarrieredEdge(trc, idp, name);
 }
 
 /*** Push Mark Stack ***/
 
 /*
- * PushMarkStack for BaseShape unpacks its children directly onto the mark
+ * GCMarker::traverse for BaseShape unpacks its children directly onto the mark
  * stack. For a pre-barrier between incremental slices, this may result in
  * objects in the nursery getting pushed onto the mark stack. It is safe to
  * ignore these objects because they will be marked by the matching
@@ -1062,77 +965,49 @@ MaybePushMarkStackBetweenSlices(GCMarker* gcmarker, JSObject* thing)
         gcmarker->traverse(thing);
 }
 
-static void
-ScanShape(GCMarker* gcmarker, Shape* shape);
-
-static void
-PushMarkStack(GCMarker* gcmarker, Shape* thing)
-{
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime(), thing);
-    MOZ_ASSERT(!IsInsideNursery(thing));
-
-    /* We mark shapes directly rather than pushing on the stack. */
-    if (thing->markIfUnmarked(gcmarker->markColor()))
-        ScanShape(gcmarker, thing);
-}
-
-static inline void
-ScanBaseShape(GCMarker* gcmarker, BaseShape* base);
-
 void
-BaseShape::markChildren(JSTracer* trc)
+BaseShape::traceChildren(JSTracer* trc)
 {
     if (isOwned())
-        gc::MarkBaseShape(trc, &unowned_, "base");
+        TraceEdge(trc, &unowned_, "base");
 
     JSObject* global = compartment()->unsafeUnbarrieredMaybeGlobal();
     if (global)
-        MarkObjectUnbarriered(trc, &global, "global");
+        TraceManuallyBarrieredEdge(trc, &global, "global");
 }
 
-static void
-PushMarkStack(GCMarker* gcmarker, BaseShape* thing)
-{
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime(), thing);
-    MOZ_ASSERT(!IsInsideNursery(thing));
-
-    /* We mark base shapes directly rather than pushing on the stack. */
-    if (thing->markIfUnmarked(gcmarker->markColor()))
-        ScanBaseShape(gcmarker, thing);
-}
-
-static void
-ScanShape(GCMarker* gcmarker, Shape* shape)
+inline void
+GCMarker::eagerlyMarkChildren(Shape* shape)
 {
   restart:
-    PushMarkStack(gcmarker, shape->base());
+    traverse(shape->base());
 
     const BarrieredBase<jsid>& id = shape->propidRef();
     if (JSID_IS_STRING(id))
-        PushMarkStack(gcmarker, JSID_TO_STRING(id));
+        traverse(JSID_TO_STRING(id));
     else if (JSID_IS_SYMBOL(id))
-        PushMarkStack(gcmarker, JSID_TO_SYMBOL(id));
+        traverse(JSID_TO_SYMBOL(id));
 
     if (shape->hasGetterObject())
-        MaybePushMarkStackBetweenSlices(gcmarker, shape->getterObject());
+        MaybePushMarkStackBetweenSlices(this, shape->getterObject());
 
     if (shape->hasSetterObject())
-        MaybePushMarkStackBetweenSlices(gcmarker, shape->setterObject());
+        MaybePushMarkStackBetweenSlices(this, shape->setterObject());
 
     shape = shape->previous();
-    if (shape && shape->markIfUnmarked(gcmarker->markColor()))
+    if (shape && shape->markIfUnmarked(this->markColor()))
         goto restart;
 }
 
-static inline void
-ScanBaseShape(GCMarker *gcmarker, BaseShape* base)
+inline void
+GCMarker::eagerlyMarkChildren(BaseShape* base)
 {
     base->assertConsistency();
 
     base->compartment()->mark();
 
-    if (GlobalObject *global = base->compartment()->unsafeUnbarrieredMaybeGlobal())
-        gcmarker->traverse(global);
+    if (GlobalObject* global = base->compartment()->unsafeUnbarrieredMaybeGlobal())
+        traverse(global);
 
     /*
      * All children of the owned base shape are consistent with its
@@ -1142,7 +1017,7 @@ ScanBaseShape(GCMarker *gcmarker, BaseShape* base)
     if (base->isOwned()) {
         UnownedBaseShape* unowned = base->baseUnowned();
         MOZ_ASSERT(base->compartment() == unowned->compartment());
-        unowned->markIfUnmarked(gcmarker->markColor());
+        unowned->markIfUnmarked(markColor());
     }
 }
 
@@ -1223,52 +1098,20 @@ ScanRope(GCMarker* gcmarker, JSRope* rope)
     MOZ_ASSERT(savedPos == gcmarker->stack.position());
  }
 
-static inline void
-ScanString(GCMarker* gcmarker, JSString* str)
+inline void
+GCMarker::eagerlyMarkChildren(JSString* str)
 {
     if (str->isLinear())
-        ScanLinearString(gcmarker, &str->asLinear());
+        ScanLinearString(this, &str->asLinear());
     else
-        ScanRope(gcmarker, &str->asRope());
+        ScanRope(this, &str->asRope());
 }
 
-static inline void
-PushMarkStack(GCMarker* gcmarker, JSString* str)
-{
-    // Permanent atoms might not be associated with this runtime.
-    if (str->isPermanentAtom())
-        return;
-
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime(), str);
-
-    /*
-     * As string can only refer to other strings we fully scan its GC graph
-     * using the explicit stack when navigating the rope tree to avoid
-     * dealing with strings on the stack in drainMarkStack.
-     */
-    if (str->markIfUnmarked())
-        ScanString(gcmarker, str);
-}
-
-static inline void
-ScanSymbol(GCMarker* gcmarker, JS::Symbol* sym)
+inline void
+GCMarker::eagerlyMarkChildren(JS::Symbol* sym)
 {
     if (JSString* desc = sym->description())
-        PushMarkStack(gcmarker, desc);
-}
-
-static inline void
-PushMarkStack(GCMarker* gcmarker, JS::Symbol* sym)
-{
-    // Well-known symbols might not be associated with this runtime.
-    if (sym->isWellKnownSymbol())
-        return;
-
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime(), sym);
-    MOZ_ASSERT(!IsInsideNursery(sym));
-
-    if (sym->markIfUnmarked())
-        ScanSymbol(gcmarker, sym);
+        traverse(desc);
 }
 
 /*
@@ -1288,7 +1131,7 @@ gc::MarkCycleCollectorChildren(JSTracer* trc, Shape* shape)
      */
     JSObject* global = shape->compartment()->unsafeUnbarrieredMaybeGlobal();
     MOZ_ASSERT(global);
-    MarkObjectUnbarriered(trc, &global, "global");
+    TraceManuallyBarrieredEdge(trc, &global, "global");
 
     do {
         MOZ_ASSERT(global == shape->compartment()->unsafeUnbarrieredMaybeGlobal());
@@ -1296,17 +1139,17 @@ gc::MarkCycleCollectorChildren(JSTracer* trc, Shape* shape)
         MOZ_ASSERT(shape->base());
         shape->base()->assertConsistency();
 
-        MarkId(trc, &shape->propidRef(), "propid");
+        TraceEdge(trc, &shape->propidRef(), "propid");
 
         if (shape->hasGetterObject()) {
             JSObject* tmp = shape->getterObject();
-            MarkObjectUnbarriered(trc, &tmp, "getter");
+            TraceManuallyBarrieredEdge(trc, &tmp, "getter");
             MOZ_ASSERT(tmp == shape->getterObject());
         }
 
         if (shape->hasSetterObject()) {
             JSObject* tmp = shape->setterObject();
-            MarkObjectUnbarriered(trc, &tmp, "setter");
+            TraceManuallyBarrieredEdge(trc, &tmp, "setter");
             MOZ_ASSERT(tmp == shape->setterObject());
         }
 
@@ -1320,7 +1163,7 @@ ScanObjectGroup(GCMarker* gcmarker, ObjectGroup* group)
     unsigned count = group->getPropertyCount();
     for (unsigned i = 0; i < count; i++) {
         if (ObjectGroup::Property* prop = group->getProperty(i))
-            MarkId(gcmarker, &prop->id, "ObjectGroup property id");
+            DoMarking(gcmarker, prop->id.get());
     }
 
     if (group->proto().isObject())
@@ -1329,7 +1172,7 @@ ScanObjectGroup(GCMarker* gcmarker, ObjectGroup* group)
     group->compartment()->mark();
 
     if (GlobalObject* global = group->compartment()->unsafeUnbarrieredMaybeGlobal())
-        PushMarkStack(gcmarker, global);
+        gcmarker->traverse(global);
 
     if (group->newScript())
         group->newScript()->trace(gcmarker);
@@ -1341,7 +1184,7 @@ ScanObjectGroup(GCMarker* gcmarker, ObjectGroup* group)
         group->unboxedLayout().trace(gcmarker);
 
     if (ObjectGroup* unboxedGroup = group->maybeOriginalUnboxedGroup())
-        PushMarkStack(gcmarker, unboxedGroup);
+        gcmarker->traverse(unboxedGroup);
 
     if (TypeDescr* descr = group->maybeTypeDescr())
         gcmarker->traverse(descr);
@@ -1350,40 +1193,40 @@ ScanObjectGroup(GCMarker* gcmarker, ObjectGroup* group)
         gcmarker->traverse(fun);
 }
 
-static void
-gc::MarkChildren(JSTracer* trc, ObjectGroup* group)
+void
+js::ObjectGroup::traceChildren(JSTracer* trc)
 {
-    unsigned count = group->getPropertyCount();
+    unsigned count = getPropertyCount();
     for (unsigned i = 0; i < count; i++) {
-        if (ObjectGroup::Property* prop = group->getProperty(i))
-            MarkId(trc, &prop->id, "group_property");
+        if (ObjectGroup::Property* prop = getProperty(i))
+            TraceEdge(trc, &prop->id, "group_property");
     }
 
-    if (group->proto().isObject())
-        MarkObject(trc, &group->protoRaw(), "group_proto");
+    if (proto().isObject())
+        TraceEdge(trc, &protoRaw(), "group_proto");
 
-    if (group->newScript())
-        group->newScript()->trace(trc);
+    if (newScript())
+        newScript()->trace(trc);
 
-    if (group->maybePreliminaryObjects())
-        group->maybePreliminaryObjects()->trace(trc);
+    if (maybePreliminaryObjects())
+        maybePreliminaryObjects()->trace(trc);
 
-    if (group->maybeUnboxedLayout())
-        group->unboxedLayout().trace(trc);
+    if (maybeUnboxedLayout())
+        unboxedLayout().trace(trc);
 
-    if (ObjectGroup* unboxedGroup = group->maybeOriginalUnboxedGroup()) {
-        MarkObjectGroupUnbarriered(trc, &unboxedGroup, "group_original_unboxed_group");
-        group->setOriginalUnboxedGroup(unboxedGroup);
+    if (ObjectGroup* unboxedGroup = maybeOriginalUnboxedGroup()) {
+        TraceManuallyBarrieredEdge(trc, &unboxedGroup, "group_original_unboxed_group");
+        setOriginalUnboxedGroup(unboxedGroup);
     }
 
-    if (JSObject* descr = group->maybeTypeDescr()) {
-        MarkObjectUnbarriered(trc, &descr, "group_type_descr");
-        group->setTypeDescr(&descr->as<TypeDescr>());
+    if (JSObject* descr = maybeTypeDescr()) {
+        TraceManuallyBarrieredEdge(trc, &descr, "group_type_descr");
+        setTypeDescr(&descr->as<TypeDescr>());
     }
 
-    if (JSObject* fun = group->maybeInterpretedFunction()) {
-        MarkObjectUnbarriered(trc, &fun, "group_function");
-        group->setInterpretedFunction(&fun->as<JSFunction>());
+    if (JSObject* fun = maybeInterpretedFunction()) {
+        TraceManuallyBarrieredEdge(trc, &fun, "group_function");
+        setInterpretedFunction(&fun->as<JSFunction>());
     }
 }
 
@@ -1392,7 +1235,7 @@ static void
 PushArenaTyped(GCMarker* gcmarker, ArenaHeader* aheader)
 {
     for (ArenaCellIterUnderGC i(aheader); !i.done(); i.next())
-        PushMarkStack(gcmarker, i.get<T>());
+        gcmarker->traverse(i.get<T>());
 }
 
 void
@@ -1562,7 +1405,7 @@ GCMarker::processMarkStackOther(uintptr_t tag, uintptr_t addr)
         else
             repush(obj);
     } else if (tag == JitCodeTag) {
-        reinterpret_cast<jit::JitCode*>(addr)->trace(this);
+        reinterpret_cast<jit::JitCode*>(addr)->traceChildren(this);
     }
 }
 
@@ -1573,7 +1416,7 @@ GCMarker::markAndScanString(JSObject* source, JSString* str)
         JS_COMPARTMENT_ASSERT(runtime(), str);
         MOZ_ASSERT(runtime()->isAtomsZone(str->zone()) || str->zone() == source->zone());
         if (str->markIfUnmarked())
-            ScanString(this, str);
+            eagerlyMarkChildren(str);
     }
 }
 
@@ -1584,7 +1427,7 @@ GCMarker::markAndScanSymbol(JSObject* source, JS::Symbol* sym)
         JS_COMPARTMENT_ASSERT(runtime(), sym);
         MOZ_ASSERT(runtime()->isAtomsZone(sym->zone()) || sym->zone() == source->zone());
         if (sym->markIfUnmarked())
-            ScanSymbol(this, sym);
+            eagerlyMarkChildren(sym);
     }
 }
 
@@ -1713,7 +1556,7 @@ GCMarker::processMarkStackTop(SliceBudget& budget)
                           clasp->flags & JSCLASS_IMPLEMENTS_BARRIERS);
             if (clasp->trace == InlineTypedObject::obj_trace) {
                 Shape* shape = obj->as<InlineTypedObject>().shapeFromGC();
-                PushMarkStack(this, shape);
+                traverse(shape);
                 TypeDescr* descr = &obj->as<InlineTypedObject>().typeDescr();
                 if (!descr->hasTraceList())
                     return;
@@ -1741,7 +1584,7 @@ GCMarker::processMarkStackTop(SliceBudget& budget)
         NativeObject* nobj = &obj->as<NativeObject>();
 
         Shape* shape = nobj->lastProperty();
-        PushMarkStack(this, shape);
+        traverse(shape);
 
         unsigned nslots = nobj->slotSpan();
 
@@ -1823,56 +1666,19 @@ GCMarker::drainMarkStack(SliceBudget &budget)
     return true;
 }
 
-template <typename T>
-void
-GCMarker::markChildren(T* thing)
-{
-    thing->markChildren(this);
-}
+struct TraceChildrenFunctor {
+    template <typename T>
+    void operator()(JSTracer* trc, void* thing) {
+        static_cast<T*>(thing)->traceChildren(trc);
+    }
+};
 
 void
 js::TraceChildren(JSTracer* trc, void* thing, JSGCTraceKind kind)
 {
-    switch (kind) {
-      case JSTRACE_OBJECT:
-        static_cast<JSObject*>(thing)->markChildren(trc);
-        break;
-
-      case JSTRACE_SCRIPT:
-        static_cast<JSScript*>(thing)->markChildren(trc);
-        break;
-
-      case JSTRACE_STRING:
-        static_cast<JSString*>(thing)->markChildren(trc);
-        break;
-
-      case JSTRACE_SYMBOL:
-        static_cast<JS::Symbol*>(thing)->markChildren(trc);
-        break;
-
-      case JSTRACE_BASE_SHAPE:
-        static_cast<BaseShape*>(thing)->markChildren(trc);
-        break;
-
-      case JSTRACE_JITCODE:
-        static_cast<jit::JitCode*>(thing)->trace(trc);
-        break;
-
-      case JSTRACE_LAZY_SCRIPT:
-        static_cast<LazyScript*>(thing)->markChildren(trc);
-        break;
-
-      case JSTRACE_SHAPE:
-        static_cast<Shape*>(thing)->markChildren(trc);
-        break;
-
-      case JSTRACE_OBJECT_GROUP:
-        MarkChildren(trc, (ObjectGroup*)thing);
-        break;
-
-      default:
-        MOZ_CRASH("Invalid trace kind in TraceChildren.");
-    }
+    MOZ_ASSERT(thing);
+    TraceChildrenFunctor f;
+    CallTyped(f, kind, trc, thing);
 }
 
 #ifdef DEBUG

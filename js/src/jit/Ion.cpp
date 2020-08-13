@@ -489,10 +489,10 @@ jit::LazyLinkTopActivation(JSContext *cx)
 JitRuntime::Mark(JSTracer *trc)
 {
     MOZ_ASSERT(!trc->runtime()->isHeapMinorCollecting());
-    Zone *zone = trc->runtime()->atomsCompartment()->zone();
+    Zone* zone = trc->runtime()->atomsCompartment()->zone();
     for (gc::ZoneCellIterUnderGC i(zone, gc::AllocKind::JITCODE); !i.done(); i.next()) {
-        JitCode *code = i.get<JitCode>();
-        MarkJitCodeRoot(trc, &code, "wrapper");
+        JitCode* code = i.get<JitCode>();
+        TraceRoot(trc, &code, "wrapper");
     }
 }
 
@@ -542,18 +542,18 @@ JitCompartment::sweep(FreeOp* fop, JSCompartment* compartment)
     if (!stubCodes_->lookup(static_cast<uint32_t>(ICStub::SetProp_Fallback)))
         baselineSetPropReturnAddr_ = nullptr;
 
-    if (stringConcatStub_ && !IsJitCodeMarked(&stringConcatStub_))
+    if (stringConcatStub_ && !IsMarkedUnbarriered(&stringConcatStub_))
         stringConcatStub_ = nullptr;
 
-    if (regExpExecStub_ && !IsJitCodeMarked(&regExpExecStub_))
+    if (regExpExecStub_ && !IsMarkedUnbarriered(&regExpExecStub_))
         regExpExecStub_ = nullptr;
 
-    if (regExpTestStub_ && !IsJitCodeMarked(&regExpTestStub_))
+    if (regExpTestStub_ && !IsMarkedUnbarriered(&regExpTestStub_))
         regExpTestStub_ = nullptr;
 
     for (size_t i = 0; i <= SimdTypeDescr::LAST_TYPE; i++) {
         ReadBarrieredObject& obj = simdTemplateObjects_[i];
-        if (obj && IsObjectAboutToBeFinalized(obj.unsafeGet()))
+        if (obj && IsAboutToBeFinalized(&obj))
             obj.set(nullptr);
     }
 }
@@ -639,7 +639,7 @@ JitCode::copyFrom(MacroAssembler& masm)
 }
 
 void
-JitCode::trace(JSTracer* trc)
+JitCode::traceChildren(JSTracer* trc)
 {
     // Note that we cannot mark invalidated scripts, since we've basically
     // corrupted the code stream by injecting bailouts.
@@ -859,13 +859,13 @@ void
 IonScript::trace(JSTracer* trc)
 {
     if (method_)
-        MarkJitCode(trc, &method_, "method");
+        TraceEdge(trc, &method_, "method");
 
     if (deoptTable_)
-        MarkJitCode(trc, &deoptTable_, "deoptimizationTable");
+        TraceEdge(trc, &deoptTable_, "deoptimizationTable");
 
     for (size_t i = 0; i < numConstants(); i++)
-        gc::MarkValue(trc, &getConstant(i), "constant");
+        TraceEdge(trc, &getConstant(i), "constant");
 }
 
 /* static */ void
@@ -1701,7 +1701,7 @@ AttachFinishedCompilations(JSContext* cx)
 void
 MIRGenerator::traceNurseryObjects(JSTracer* trc)
 {
-    MarkObjectRootRange(trc, nurseryObjects_.length(), nurseryObjects_.begin(), "ion-nursery-objects");
+    TraceRootRange(trc, nurseryObjects_.length(), nurseryObjects_.begin(), "ion-nursery-objects");
 }
 
 class MarkOffThreadNurseryObjects : public gc::BufferableRef
@@ -2624,7 +2624,7 @@ InvalidateActivation(FreeOp* fop, const JitActivationIterator& activations, bool
             // embedded in the JitCode. Perform one final trace of the
             // JitCode for the incremental GC, as it must know about
             // those edges.
-            ionCode->trace(zone->barrierTracer());
+            ionCode->traceChildren(zone->barrierTracer());
         }
         ionCode->setInvalidated();
 

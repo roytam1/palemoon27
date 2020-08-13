@@ -941,8 +941,8 @@ DumpHeapVisitChild(JS::CallbackTracer *trc, void** thingp, JSGCTraceKind kind)
 
     DumpHeapTracer* dtrc = static_cast<DumpHeapTracer*>(trc);
     char buffer[1024];
-    fprintf(dtrc->output, "> %p %c %s\n", *thingp, MarkDescriptor(*thingp),
-            dtrc->getTracingEdgeName(buffer, sizeof(buffer)));
+    dtrc->getTracingEdgeName(buffer, sizeof(buffer));
+    fprintf(dtrc->output, "> %p %c %s\n", *thingp, MarkDescriptor(*thingp), buffer);
 }
 
 static void
@@ -953,8 +953,8 @@ DumpHeapVisitRoot(JS::CallbackTracer* trc, void** thingp, JSGCTraceKind kind)
 
     DumpHeapTracer* dtrc = static_cast<DumpHeapTracer*>(trc);
     char buffer[1024];
-    fprintf(dtrc->output, "%p %c %s\n", *thingp, MarkDescriptor(*thingp),
-            dtrc->getTracingEdgeName(buffer, sizeof(buffer)));
+    dtrc->getTracingEdgeName(buffer, sizeof(buffer));
+    fprintf(dtrc->output, "%p %c %s\n", *thingp, MarkDescriptor(*thingp), buffer);
 }
 
 void
@@ -1038,7 +1038,7 @@ js::GetAnyCompartmentInZone(JS::Zone* zone)
 void
 JS::ObjectPtr::updateWeakPointerAfterGC()
 {
-    if (js::gc::IsObjectAboutToBeFinalized(value.unsafeGet()))
+    if (js::gc::IsAboutToBeFinalizedUnbarriered(value.unsafeGet()))
         value = nullptr;
 }
 

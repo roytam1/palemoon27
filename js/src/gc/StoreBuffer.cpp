@@ -36,8 +36,8 @@ StoreBuffer::SlotsEdge::mark(JSTracer* trc) const
         int32_t initLen = obj->getDenseInitializedLength();
         int32_t clampedStart = Min(start_, initLen);
         int32_t clampedEnd = Min(start_ + count_, initLen);
-        gc::MarkArraySlots(trc, clampedEnd - clampedStart,
-                           obj->getDenseElements() + clampedStart, "element");
+        TraceRange(trc, clampedEnd - clampedStart,
+                   static_cast<HeapSlot*>(obj->getDenseElements() + clampedStart), "element");
     } else {
         int32_t start = Min(uint32_t(start_), obj->slotSpan());
         int32_t end = Min(uint32_t(start_) + count_, obj->slotSpan());
@@ -55,11 +55,11 @@ StoreBuffer::WholeCellEdges::mark(JSTracer *trc) const
         JSObject *object = static_cast<JSObject *>(edge);
         if (object->is<ArgumentsObject>())
             ArgumentsObject::trace(trc, object);
-        object->markChildren(trc);
+        object->traceChildren(trc);
         return;
     }
     MOZ_ASSERT(kind == JSTRACE_JITCODE);
-    static_cast<jit::JitCode*>(edge)->trace(trc);
+    static_cast<jit::JitCode*>(edge)->traceChildren(trc);
 }
 
 void
@@ -69,7 +69,7 @@ StoreBuffer::CellPtrEdge::mark(JSTracer *trc) const
         return;
 
     MOZ_ASSERT(GetGCThingTraceKind(*edge) == JSTRACE_OBJECT);
-    MarkObjectRoot(trc, reinterpret_cast<JSObject**>(edge), "store buffer edge");
+    TraceRoot(trc, reinterpret_cast<JSObject**>(edge), "store buffer edge");
 }
 
 void
@@ -78,7 +78,7 @@ StoreBuffer::ValueEdge::mark(JSTracer* trc) const
     if (!deref())
         return;
 
-    MarkValueRoot(trc, edge, "store buffer edge");
+    TraceRoot(trc, edge, "store buffer edge");
 }
 
 /*** MonoTypeBuffer ***/

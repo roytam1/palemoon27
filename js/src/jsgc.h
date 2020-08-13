@@ -23,9 +23,20 @@
 
 #include "vm/NativeObject.h"
 
-namespace js {
+#define FOR_EACH_GC_LAYOUT(D) \
+ /* PrettyName       TypeName           AddToCCKind */ \
+    D(AccessorShape, js::AccessorShape, true) \
+    D(BaseShape,     js::BaseShape,     true) \
+    D(JitCode,       js::jit::JitCode,  true) \
+    D(LazyScript,    js::LazyScript,    true) \
+    D(Object,        JSObject,          true) \
+    D(ObjectGroup,   js::ObjectGroup,   true) \
+    D(Script,        JSScript,          true) \
+    D(Shape,         js::Shape,         true) \
+    D(String,        JSString,          false) \
+    D(Symbol,        JS::Symbol,        false)
 
-class AutoLockGC;
+namespace js {
 
 unsigned GetCPUCount();
 
@@ -41,10 +52,6 @@ enum ThreadType
     MainThread,
     BackgroundThread
 };
-
-namespace jit {
-    class JitCode;
-}
 
 namespace gcstats {
 struct Statistics;
@@ -77,6 +84,12 @@ template <> struct MapTypeToFinalizeKind<JSString>          { static const Alloc
 template <> struct MapTypeToFinalizeKind<JSExternalString>  { static const AllocKind kind = AllocKind::EXTERNAL_STRING; };
 template <> struct MapTypeToFinalizeKind<JS::Symbol>        { static const AllocKind kind = AllocKind::SYMBOL; };
 template <> struct MapTypeToFinalizeKind<jit::JitCode>      { static const AllocKind kind = AllocKind::JITCODE; };
+
+template <typename T> struct ParticipatesInCC {};
+#define EXPAND_PARTICIPATES_IN_CC(_, type, addToCCKind) \
+    template <> struct ParticipatesInCC<type> { static const bool value = addToCCKind; };
+FOR_EACH_GC_LAYOUT(EXPAND_PARTICIPATES_IN_CC)
+#undef EXPAND_PARTICIPATES_IN_CC
 
 static inline bool
 IsNurseryAllocable(AllocKind kind)
@@ -161,6 +174,51 @@ CanBeFinalizedInBackground(AllocKind kind, const Class* clasp)
 
 inline JSGCTraceKind
 GetGCThingTraceKind(const void* thing);
+
+// Fortunately, few places in the system need to deal with fully abstract
+// cells. In those places that do, we generally want to move to a layout
+// templated function as soon as possible. This template wraps the upcast
+// for that dispatch.
+//
+// Call the functor |F f| with template parameter of the layout type.
+
+// GCC and Clang require an explicit template declaration in front of the
+// specialization of operator() because it is a dependent template. MSVC, on
+// the other hand, gets very confused if we have a |template| token there.
+#ifdef XP_WIN
+# define DEPENDENT_TEMPLATE_HINT
+#else
+# define DEPENDENT_TEMPLATE_HINT template
+#endif
+template <typename F, typename... Args>
+auto
+CallTyped(F f, JSGCTraceKind traceKind, Args&&... args)
+  -> decltype(f. DEPENDENT_TEMPLATE_HINT operator()<JSObject>(mozilla::Forward<Args>(args)...))
+{
+    switch (traceKind) {
+      case JSTRACE_OBJECT:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<JSObject>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_SCRIPT:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<JSScript>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_STRING:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<JSString>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_SYMBOL:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<JS::Symbol>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_BASE_SHAPE:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<BaseShape>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_JITCODE:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<jit::JitCode>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_LAZY_SCRIPT:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<LazyScript>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_SHAPE:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<Shape>(mozilla::Forward<Args>(args)...);
+      case JSTRACE_OBJECT_GROUP:
+          return f. DEPENDENT_TEMPLATE_HINT operator()<ObjectGroup>(mozilla::Forward<Args>(args)...);
+      default:
+          MOZ_CRASH("Invalid trace kind in CallTyped.");
+    }
+}
+#undef DEPENDENT_TEMPLATE_HINT
 
 /* Capacity for slotsToThingKind */
 const size_t SLOTS_TO_THING_KIND_LIMIT = 17;
@@ -1049,19 +1107,6 @@ struct GCChunkHasher {
 };
 
 typedef HashSet<js::gc::Chunk*, GCChunkHasher, SystemAllocPolicy> GCChunkSet;
-
-struct GrayRoot {
-    void* thing;
-    JSGCTraceKind kind;
-#ifdef DEBUG
-    JSTraceNamePrinter debugPrinter;
-    const void* debugPrintArg;
-    size_t debugPrintIndex;
-#endif
-
-    GrayRoot(void* thing, JSGCTraceKind kind)
-        : thing(thing), kind(kind) {}
-};
 
 typedef void (*IterateChunkCallback)(JSRuntime* rt, void* data, gc::Chunk* chunk);
 typedef void (*IterateZoneCallback)(JSRuntime* rt, void* data, JS::Zone* zone);

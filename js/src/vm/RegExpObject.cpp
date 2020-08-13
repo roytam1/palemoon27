@@ -589,12 +589,12 @@ RegExpShared::trace(JSTracer *trc)
         marked_ = true;
 
     if (source)
-        MarkString(trc, &source, "RegExpShared source");
+        TraceEdge(trc, &source, "RegExpShared source");
 
     for (size_t i = 0; i < ArrayLength(compilationArray); i++) {
         RegExpCompilation& compilation = compilationArray[i];
         if (compilation.jitCode)
-            MarkJitCode(trc, &compilation.jitCode, "RegExpShared code");
+            TraceEdge(trc, &compilation.jitCode, "RegExpShared code");
     }
 }
 
@@ -920,11 +920,11 @@ RegExpCompartment::sweep(JSRuntime* rt)
         // the RegExpShared if it was accidentally marked earlier but wasn't
         // marked by the current trace.
         bool keep = shared->marked() &&
-                    IsStringMarkedFromAnyThread(&shared->source);
+                    IsMarked(&shared->source);
         for (size_t i = 0; i < ArrayLength(shared->compilationArray); i++) {
             RegExpShared::RegExpCompilation& compilation = shared->compilationArray[i];
             if (compilation.jitCode &&
-                IsJitCodeAboutToBeFinalizedFromAnyThread(compilation.jitCode.unsafeGet()))
+                IsAboutToBeFinalized(&compilation.jitCode))
             {
                 keep = false;
             }
@@ -938,7 +938,7 @@ RegExpCompartment::sweep(JSRuntime* rt)
     }
 
     if (matchResultTemplateObject_ &&
-        IsObjectAboutToBeFinalized(matchResultTemplateObject_.unsafeGet()))
+        IsAboutToBeFinalized(&matchResultTemplateObject_))
     {
         matchResultTemplateObject_.set(nullptr);
     }

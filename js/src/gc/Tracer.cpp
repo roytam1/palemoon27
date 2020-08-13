@@ -29,70 +29,127 @@ using namespace js;
 using namespace js::gc;
 using mozilla::DebugOnly;
 
+template <typename T>
+void
+DoCallback(JS::CallbackTracer* trc, T* thingp, const char* name)
+{
+    JSGCTraceKind kind = MapTypeToTraceKind<typename mozilla::RemovePointer<T>::Type>::kind;
+    JS::AutoTracingName ctx(trc, name);
+    trc->invoke((void**)thingp, kind);
+}
+#define INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS(name, type, _) \
+    template void DoCallback<type*>(JS::CallbackTracer*, type**, const char*);
+FOR_EACH_GC_LAYOUT(INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS);
+#undef INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS
+
+template <>
+void
+DoCallback<Value>(JS::CallbackTracer* trc, Value* vp, const char* name)
+{
+    if (vp->isObject()) {
+        JSObject* prior = &vp->toObject();
+        JSObject* obj = prior;
+        DoCallback(trc, &obj, name);
+        if (obj != prior)
+            vp->setObjectOrNull(obj);
+    } else if (vp->isString()) {
+        JSString* prior = vp->toString();
+        JSString* str = prior;
+        DoCallback(trc, &str, name);
+        if (str != prior)
+            vp->setString(str);
+    } else if (vp->isSymbol()) {
+        JS::Symbol* prior = vp->toSymbol();
+        JS::Symbol* sym = prior;
+        DoCallback(trc, &sym, name);
+        if (sym != prior)
+            vp->setSymbol(sym);
+    }
+}
+
+template <>
+void
+DoCallback<jsid>(JS::CallbackTracer* trc, jsid* idp, const char* name)
+{
+    if (JSID_IS_STRING(*idp)) {
+        JSString* prior = JSID_TO_STRING(*idp);
+        JSString* str = prior;
+        DoCallback(trc, &str, name);
+        if (str != prior)
+            *idp = NON_INTEGER_ATOM_TO_JSID(reinterpret_cast<JSAtom*>(str));
+    } else if (JSID_IS_SYMBOL(*idp)) {
+        JS::Symbol* prior = JSID_TO_SYMBOL(*idp);
+        JS::Symbol* sym = prior;
+        DoCallback(trc, &sym, name);
+        if (sym != prior)
+            *idp = SYMBOL_TO_JSID(sym);
+    }
+}
+
 JS_PUBLIC_API(void)
 JS_CallUnbarrieredValueTracer(JSTracer* trc, Value* valuep, const char* name)
 {
-    MarkValueUnbarriered(trc, valuep, name);
+    TraceManuallyBarrieredEdge(trc, valuep, name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallUnbarrieredIdTracer(JSTracer* trc, jsid* idp, const char* name)
 {
-    MarkIdUnbarriered(trc, idp, name);
+    TraceManuallyBarrieredEdge(trc, idp, name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallUnbarrieredObjectTracer(JSTracer* trc, JSObject** objp, const char* name)
 {
-    MarkObjectUnbarriered(trc, objp, name);
+    TraceManuallyBarrieredEdge(trc, objp, name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallUnbarrieredStringTracer(JSTracer* trc, JSString** strp, const char* name)
 {
-    MarkStringUnbarriered(trc, strp, name);
+    TraceManuallyBarrieredEdge(trc, strp, name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallUnbarrieredScriptTracer(JSTracer* trc, JSScript** scriptp, const char* name)
 {
-    MarkScriptUnbarriered(trc, scriptp, name);
+    TraceManuallyBarrieredEdge(trc, scriptp, name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallValueTracer(JSTracer* trc, JS::Heap<JS::Value>* valuep, const char* name)
 {
-    MarkValueUnbarriered(trc, valuep->unsafeGet(), name);
+    TraceManuallyBarrieredEdge(trc, valuep->unsafeGet(), name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallIdTracer(JSTracer* trc, JS::Heap<jsid>* idp, const char* name)
 {
-    MarkIdUnbarriered(trc, idp->unsafeGet(), name);
+    TraceManuallyBarrieredEdge(trc, idp->unsafeGet(), name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallObjectTracer(JSTracer* trc, JS::Heap<JSObject*>* objp, const char* name)
 {
-    MarkObjectUnbarriered(trc, objp->unsafeGet(), name);
+    TraceManuallyBarrieredEdge(trc, objp->unsafeGet(), name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallStringTracer(JSTracer* trc, JS::Heap<JSString*>* strp, const char* name)
 {
-    MarkStringUnbarriered(trc, strp->unsafeGet(), name);
+    TraceManuallyBarrieredEdge(trc, strp->unsafeGet(), name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallScriptTracer(JSTracer* trc, JS::Heap<JSScript*>* scriptp, const char* name)
 {
-    MarkScriptUnbarriered(trc, scriptp->unsafeGet(), name);
+    TraceManuallyBarrieredEdge(trc, scriptp->unsafeGet(), name);
 }
 
 JS_PUBLIC_API(void)
 JS_CallFunctionTracer(JSTracer* trc, JS::Heap<JSFunction*>* funp, const char* name)
 {
-    MarkObjectUnbarriered(trc, funp->unsafeGet(), name);
+    TraceManuallyBarrieredEdge(trc, funp->unsafeGet(), name);
 }
 
 JS_PUBLIC_API(void)
@@ -102,8 +159,8 @@ JS_CallTenuredObjectTracer(JSTracer* trc, JS::TenuredHeap<JSObject*>* objp, cons
     if (!obj)
         return;
 
-    trc->setTracingLocation((void*)objp);
-    MarkObjectUnbarriered(trc, &obj, name);
+    JS::AutoOriginalTraceLocation reloc(trc, (void**)objp);
+    TraceManuallyBarrieredEdge(trc, &obj, name);
 
     objp->setPtr(obj);
 }
@@ -149,7 +206,7 @@ JS_TraceIncomingCCWs(JSTracer* trc, const JS::ZoneSet& zones)
                     if (!zones.has(obj->zone()))
                         continue;
 
-                    MarkObjectUnbarriered(trc, &obj, "cross-compartment wrapper");
+                    TraceManuallyBarrieredEdge(trc, &obj, "cross-compartment wrapper");
                     MOZ_ASSERT(obj == key.wrapped);
                     break;
 
@@ -159,7 +216,7 @@ JS_TraceIncomingCCWs(JSTracer* trc, const JS::ZoneSet& zones)
                     // set of zones.
                     if (!zones.has(script->zone()))
                         continue;
-                    MarkScriptUnbarriered(trc, &script, "cross-compartment wrapper");
+                    TraceManuallyBarrieredEdge(trc, &script, "cross-compartment wrapper");
                     MOZ_ASSERT(script == key.wrapped);
                     break;
                 }
@@ -322,61 +379,23 @@ JSTracer::JSTracer(JSRuntime* rt, TracerKindTag kindTag,
                    WeakMapTraceKind weakTraceKind /* = TraceWeakMapValues */)
   : runtime_(rt)
   , tag(kindTag)
-  , debugPrinter_(nullptr)
-  , debugPrintArg_(nullptr)
-  , debugPrintIndex_(size_t(-1))
   , eagerlyTraceWeakMaps_(weakTraceKind)
-#ifdef JS_GC_ZEAL
-  , realLocation_(nullptr)
-#endif
 {
 }
 
-bool
-JSTracer::hasTracingDetails() const
+void
+JS::CallbackTracer::getTracingEdgeName(char* buffer, size_t bufferSize)
 {
-    return debugPrinter_ || debugPrintArg_;
-}
-
-const char*
-JSTracer::tracingName(const char* fallback) const
-{
-    MOZ_ASSERT(hasTracingDetails());
-    return debugPrinter_ ? fallback : (const char*)debugPrintArg_;
-}
-
-const char*
-JSTracer::getTracingEdgeName(char* buffer, size_t bufferSize)
-{
-    if (debugPrinter_) {
-        debugPrinter_(this, buffer, bufferSize);
-        return buffer;
+    MOZ_ASSERT(bufferSize > 0);
+    if (contextFunctor_) {
+        (*contextFunctor_)(this, buffer, bufferSize);
+        return;
     }
-    if (debugPrintIndex_ != size_t(-1)) {
-        JS_snprintf(buffer, bufferSize, "%s[%lu]",
-                    (const char*)debugPrintArg_,
-                    debugPrintIndex_);
-        return buffer;
+    if (contextIndex_ != InvalidIndex) {
+        JS_snprintf(buffer, bufferSize, "%s[%lu]", contextName_, contextIndex_);
+        return;
     }
-    return (const char*)debugPrintArg_;
-}
-
-JSTraceNamePrinter
-JSTracer::debugPrinter() const
-{
-    return debugPrinter_;
-}
-
-const void*
-JSTracer::debugPrintArg() const
-{
-    return debugPrintArg_;
-}
-
-size_t
-JSTracer::debugPrintIndex() const
-{
-    return debugPrintIndex_;
+    JS_snprintf(buffer, bufferSize, "%s", contextName_);
 }
 
 void
@@ -384,27 +403,6 @@ JS::CallbackTracer::setTraceCallback(JSTraceCallback traceCallback)
 {
     callback = traceCallback;
 }
-
-#ifdef JS_GC_ZEAL
-void
-JSTracer::setTracingLocation(void* location)
-{
-    if (!realLocation_ || !location)
-        realLocation_ = location;
-}
-
-void
-JSTracer::unsetTracingLocation()
-{
-    realLocation_ = nullptr;
-}
-
-void**
-JSTracer::tracingLocation(void** thingp)
-{
-    return realLocation_ ? (void**)realLocation_ : thingp;
-}
-#endif
 
 bool
 MarkStack::init(JSGCMode gcMode)

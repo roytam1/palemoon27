@@ -1470,8 +1470,8 @@ OutlineTypedObject::setOwnerAndData(JSObject* owner, uint8_t* data)
 }
 
 /*static*/ OutlineTypedObject*
-OutlineTypedObject::createUnattachedWithClass(JSContext *cx,
-                                              const Class *clasp,
+OutlineTypedObject::createUnattachedWithClass(JSContext* cx,
+                                              const Class* clasp,
                                               HandleTypeDescr descr,
                                               int32_t length,
                                               gc::InitialHeap heap)
@@ -1485,8 +1485,8 @@ OutlineTypedObject::createUnattachedWithClass(JSContext *cx,
     if (!group)
         return nullptr;
 
-    NewObjectKind newKind = (heap == gc::TenuredHeap) ? MaybeSingletonObject : GenericObject;
-    OutlineTypedObject *obj = NewObjectWithGroup<OutlineTypedObject>(cx, group,
+    NewObjectKind newKind = (heap == gc::TenuredHeap) ? TenuredObject : GenericObject;
+    OutlineTypedObject* obj = NewObjectWithGroup<OutlineTypedObject>(cx, group,
                                                                      gc::AllocKind::OBJECT0,
                                                                      newKind);
     if (!obj)
@@ -2119,7 +2119,7 @@ InlineTypedObject::create(JSContext* cx, HandleTypeDescr descr, gc::InitialHeap 
     if (!group)
         return nullptr;
 
-    NewObjectKind newKind = (heap == gc::TenuredHeap) ? MaybeSingletonObject : GenericObject;
+    NewObjectKind newKind = (heap == gc::TenuredHeap) ? TenuredObject : GenericObject;
     return NewObjectWithGroup<InlineTypedObject>(cx, group, allocKind, newKind);
 }
 

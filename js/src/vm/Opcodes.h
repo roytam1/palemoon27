@@ -486,7 +486,7 @@
      *   Category: Literals
      *   Type: Object
      *   Operands:
-     *   Stack: heritage => objProto, funcProto
+     *   Stack: heritage => funcProto, objProto
      */ \
     macro(JSOP_CLASSHERITAGE,  51, "classheritage",   NULL,         1,  1,  2,  JOF_BYTE) \
     /*
@@ -677,15 +677,16 @@
     macro(JSOP_STRICTNE,  73, "strictne",   "!==",        1,  2,  1, JOF_BYTE|JOF_DETECTING|JOF_LEFTASSOC|JOF_ARITH) \
     \
     /*
-     * Sometimes web pages do 'o.Item(i) = j'. This is not an early SyntaxError,
-     * for web compatibility. Instead we emit JSOP_SETCALL after the function
-     * call, an opcode that always throws.
+     * Sometimes we know when emitting that an operation will always throw.
+     *
+     * Throws the indicated JSMSG.
+     *
      *   Category: Statements
-     *   Type: Function
-     *   Operands:
+     *   Type: Exceptions
+     *   Operands: uint16_t msgNumber
      *   Stack: =>
      */ \
-    macro(JSOP_SETCALL,   74, "setcall",    NULL,         1,  0,  0, JOF_BYTE) \
+    macro(JSOP_THROWMSG,   74, "throwmsg",    NULL,         3,  0,  0, JOF_UINT16) \
     \
     /*
      * Sets up a for-in or for-each-in loop using the JSITER_* flag bits in
@@ -861,7 +862,13 @@
      */ \
     macro(JSOP_NEWOBJECT, 91, "newobject",  NULL,         5,  0,  1, JOF_OBJECT) \
     \
-    macro(JSOP_UNUSED92,  92, "unused92",   NULL,         1,  0,  0, JOF_BYTE) \
+    /*
+     * Initialize the home object for functions with super bindings.
+     *
+     * This opcode takes the function and the object to be the home object, does
+     * the set, and leaves both on the stack.
+     */\
+    macro(JSOP_INITHOMEOBJECT,  92, "inithomeobject",   NULL,         1,  2,  2, JOF_BYTE|JOF_SET|JOF_DETECTING) \
     \
     /*
      * Initialize a named property in an object literal, like '{a: x}'.
@@ -981,9 +988,26 @@
      */ \
     macro(JSOP_NEWARRAY_COPYONWRITE, 102, "newarray_copyonwrite", NULL, 5, 0, 1, JOF_OBJECT) \
     \
-    macro(JSOP_UNUSED103,  103, "unused103",   NULL,         1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED104,  104, "unused104",   NULL,         1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED105,  105, "unused105",   NULL,         1,  0,  0,  JOF_BYTE) \
+    macro(JSOP_SUPERBASE,  103, "superbase",   NULL,         1,  0,  1,  JOF_BYTE) \
+    /*
+     * Pops the top two values, and pushes the property of one, using the other
+     * as the receiver.
+     *   Category: Literals
+     *   Type: Object
+     *   Operands: uint32_t nameIndex
+     *   Stack: receiver obj => obj[name]
+     */ \
+    macro(JSOP_GETPROP_SUPER,   104, "getprop-super", NULL, 5,  2,  1, JOF_ATOM|JOF_PROP) \
+    /*
+     * Pops the top three values on the stack as 'val' and 'obj', and 'receiver',
+     * and performs 'obj.prop = val', pushing 'val' back onto the stack.
+     * Throws a TypeError if the set-operation failed (per strict mode semantics).
+     *   Category: Literals
+     *   Type: Object
+     *   Operands: uint32_t nameIndex
+     *   Stack: receiver, obj, val => val
+     */ \
+    macro(JSOP_STRICTSETPROP_SUPER,   105, "strictsetprop-super",    NULL,         5,  3,  1, JOF_ATOM|JOF_PROP|JOF_SET|JOF_DETECTING|JOF_CHECKSTRICT) \
     \
     /*
      * This opcode precedes every labeled statement. It's a no-op.
@@ -997,7 +1021,15 @@
      */ \
     macro(JSOP_LABEL,     106,"label",     NULL,          5,  0,  0,  JOF_JUMP) \
     \
-    macro(JSOP_UNUSED107, 107,"unused107",  NULL,         1,  0,  0,  JOF_BYTE) \
+    /*
+     * Pops the top three values on the stack as 'val', 'obj' and 'receiver',
+     * and performs 'obj.prop = val', pushing 'val' back onto the stack.
+     *   Category: Literals
+     *   Type: Object
+     *   Operands: uint32_t nameIndex
+     *   Stack: receiver, obj, val => val
+     */ \
+    macro(JSOP_SETPROP_SUPER,   107, "setprop-super",    NULL,         5,  3,  1, JOF_ATOM|JOF_PROP|JOF_SET|JOF_DETECTING|JOF_CHECKSLOPPY) \
     \
     /*
      * Invokes 'callee' with 'this' and 'args', pushes return value onto the
@@ -1218,7 +1250,15 @@
      *   nuses: (argc+2)
      */ \
     macro(JSOP_STRICTEVAL,       124, "strict-eval",       NULL,         3, -1,  1, JOF_UINT16|JOF_INVOKE|JOF_TYPESET|JOF_CHECKSTRICT) \
-    macro(JSOP_UNUSED125,  125, "unused125", NULL,      1,  0,  0,  JOF_BYTE) \
+    /*
+     * LIKE JSOP_GETELEM but takes receiver on stack, and the propval is
+     * evaluated before the obj.
+     *   Category: Literals
+     *   Type: Object
+     *   Operands:
+     *   Stack: receiver, obj, propval => obj[propval]
+     */ \
+    macro(JSOP_GETELEM_SUPER, 125, "getelem-super", NULL, 1,  3,  1, JOF_BYTE |JOF_ELEM|JOF_LEFTASSOC) \
     macro(JSOP_UNUSED126,  126, "unused126", NULL,      1,  0,  0,  JOF_BYTE) \
     \
     /*
@@ -1556,8 +1596,24 @@
      *   Stack: => this
      */                                                                 \
     macro(JSOP_GIMPLICITTHIS, 157, "gimplicitthis", "",      5,  0,  1,  JOF_ATOM) \
-    macro(JSOP_UNUSED158,  158, "unused158",   NULL,         1,  0,  0,  JOF_BYTE) \
-    macro(JSOP_UNUSED159,  159, "unused159",   NULL,         1,  0,  0,  JOF_BYTE) \
+    /*
+     * LIKE JSOP_SETELEM, but takes receiver on the stack, and the propval is
+     * evaluated before the base.
+     *   Category: Literals
+     *   Type: Object
+     *   Operands:
+     *   Stack: propval, receiver, obj, val => val
+     */ \
+    macro(JSOP_SETELEM_SUPER,   158, "setelem-super", NULL, 1,  4,  1, JOF_BYTE |JOF_ELEM|JOF_SET|JOF_DETECTING|JOF_CHECKSLOPPY) \
+    /*
+     * LIKE JSOP_STRICTSETELEM, but takes receiver on the stack, and the
+     * propval is evaluated before the base.
+     *   Category: Literals
+     *   Type: Object
+     *   Operands:
+     *   Stack: propval, receiver, obj, val => val
+     */ \
+    macro(JSOP_STRICTSETELEM_SUPER, 159, "strict-setelem-super", NULL, 1,  4, 1, JOF_BYTE |JOF_ELEM|JOF_SET|JOF_DETECTING|JOF_CHECKSTRICT) \
     \
     /*
      * Pushes a regular expression literal onto the stack.

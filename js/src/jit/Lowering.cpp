@@ -2460,6 +2460,24 @@ LIRGenerator::visitSetInitializedLength(MSetInitializedLength* ins)
 }
 
 void
+LIRGenerator::visitUnboxedArrayLength(MUnboxedArrayLength* ins)
+{
+    define(new(alloc()) LUnboxedArrayLength(useRegisterAtStart(ins->object())), ins);
+}
+
+void
+LIRGenerator::visitUnboxedArrayInitializedLength(MUnboxedArrayInitializedLength* ins)
+{
+    define(new(alloc()) LUnboxedArrayInitializedLength(useRegisterAtStart(ins->object())), ins);
+}
+
+void
+LIRGenerator::visitIncrementUnboxedArrayInitializedLength(MIncrementUnboxedArrayInitializedLength* ins)
+{
+    add(new(alloc()) LIncrementUnboxedArrayInitializedLength(useRegister(ins->object())), ins);
+}
+
+void
 LIRGenerator::visitNot(MNot* ins)
 {
     MDefinition* op = ins->input();
@@ -2701,17 +2719,22 @@ LIRGenerator::visitStoreElementHole(MStoreElementHole* ins)
     const LUse elements = useRegister(ins->elements());
     const LAllocation index = useRegisterOrConstant(ins->index());
 
+    // Use a temp register when adding new elements to unboxed arrays.
+    LDefinition tempDef = LDefinition::BogusTemp();
+    if (ins->unboxedType() != JSVAL_TYPE_MAGIC)
+        tempDef = temp();
+
     LInstruction* lir;
     switch (ins->value()->type()) {
       case MIRType_Value:
-        lir = new(alloc()) LStoreElementHoleV(object, elements, index);
+        lir = new(alloc()) LStoreElementHoleV(object, elements, index, tempDef);
         useBox(lir, LStoreElementHoleV::Value, ins->value());
         break;
 
       default:
       {
         const LAllocation value = useRegisterOrNonDoubleConstant(ins->value());
-        lir = new(alloc()) LStoreElementHoleT(object, elements, index, value);
+        lir = new(alloc()) LStoreElementHoleT(object, elements, index, value, tempDef);
         break;
       }
     }
@@ -3854,11 +3877,13 @@ LIRGenerator::visitSimdConvert(MSimdConvert* ins)
 {
     MOZ_ASSERT(IsSimdType(ins->type()));
     MDefinition* input = ins->input();
-    LUse use = useRegisterAtStart(input);
-
+    LUse use = useRegister(input);
     if (ins->type() == MIRType_Int32x4) {
         MOZ_ASSERT(input->type() == MIRType_Float32x4);
-        define(new(alloc()) LFloat32x4ToInt32x4(use), ins);
+        LFloat32x4ToInt32x4* lir = new(alloc()) LFloat32x4ToInt32x4(use, temp());
+        if (!gen->conversionErrorLabel())
+            assignSnapshot(lir, Bailout_BoundsCheck);
+        define(lir, ins);
     } else if (ins->type() == MIRType_Float32x4) {
         MOZ_ASSERT(input->type() == MIRType_Int32x4);
         define(new(alloc()) LInt32x4ToFloat32x4(use), ins);
@@ -4065,6 +4090,8 @@ void
 LIRGenerator::visitSimdShift(MSimdShift* ins)
 {
     MOZ_ASSERT(ins->type() == MIRType_Int32x4);
+    MOZ_ASSERT(ins->lhs()->type() == MIRType_Int32x4);
+    MOZ_ASSERT(ins->rhs()->type() == MIRType_Int32);
 
     LUse vector = useRegisterAtStart(ins->lhs());
     LAllocation value = useRegisterOrConstant(ins->rhs());

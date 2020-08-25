@@ -288,9 +288,6 @@ args_delProperty(JSContext *cx, HandleObject obj, HandleId id, ObjectOpResult &r
 static bool
 ArgGetter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
-    if (!obj->is<NormalArgumentsObject>())
-        return true;
-
     NormalArgumentsObject& argsobj = obj->as<NormalArgumentsObject>();
     if (JSID_IS_INT(id)) {
         /*
@@ -412,9 +409,6 @@ args_enumerate(JSContext* cx, HandleObject obj)
 static bool
 StrictArgGetter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
-    if (!obj->is<StrictArgumentsObject>())
-        return true;
-
     StrictArgumentsObject& argsobj = obj->as<StrictArgumentsObject>();
 
     if (JSID_IS_INT(id)) {
@@ -566,6 +560,7 @@ const Class NormalArgumentsObject::class_ = {
     nullptr,                 /* setProperty */
     args_enumerate,
     args_resolve,
+    nullptr,                 /* mayResolve  */
     nullptr,                 /* convert     */
     ArgumentsObject::finalize,
     nullptr,                 /* call        */
@@ -590,6 +585,7 @@ const Class StrictArgumentsObject::class_ = {
     nullptr,                 /* setProperty */
     strictargs_enumerate,
     strictargs_resolve,
+    nullptr,                 /* mayResolve  */
     nullptr,                 /* convert     */
     ArgumentsObject::finalize,
     nullptr,                 /* call        */

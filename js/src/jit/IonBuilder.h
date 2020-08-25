@@ -353,9 +353,6 @@ class IonBuilder
     MConstant* constant(const Value& v);
     MConstant* constantInt(int32_t i);
 
-    // Note: This function might return nullptr in case of failure.
-    MConstant* constantMaybeAtomize(const Value& v);
-
     // Improve the type information at tests
     bool improveTypesAtTest(MDefinition* ins, bool trueBranch, MTest* test);
     bool improveTypesAtCompare(MCompare* ins, bool trueBranch, MTest* test);
@@ -422,6 +419,7 @@ class IonBuilder
                    MIRType slotType = MIRType_None);
     bool storeSlot(MDefinition* obj, Shape* shape, MDefinition* value, bool needsBarrier,
                    MIRType slotType = MIRType_None);
+    bool shouldAbortOnPreliminaryGroups(MDefinition *obj);
 
     MDefinition* tryInnerizeWindow(MDefinition* obj);
 
@@ -658,12 +656,13 @@ class IonBuilder
     bool jsop_intrinsic(PropertyName* name);
     bool jsop_bindname(PropertyName* name);
     bool jsop_getelem();
-    bool jsop_getelem_dense(MDefinition* obj, MDefinition* index);
+    bool jsop_getelem_dense(MDefinition* obj, MDefinition* index, JSValueType unboxedType);
     bool jsop_getelem_typed(MDefinition* obj, MDefinition* index, ScalarTypeDescr::Type arrayType);
     bool jsop_setelem();
     bool jsop_setelem_dense(TemporaryTypeSet::DoubleConversion conversion,
                             SetElemSafety safety,
-                            MDefinition* object, MDefinition* index, MDefinition* value);
+                            MDefinition* object, MDefinition* index, MDefinition* value,
+                            JSValueType unboxedType);
     bool jsop_setelem_typed(ScalarTypeDescr::Type arrayType,
                             SetElemSafety safety,
                             MDefinition* object, MDefinition* index, MDefinition* value);
@@ -848,6 +847,8 @@ class IonBuilder
     InliningStatus inlineSimdStore(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type,
                                    unsigned numElems);
 
+    InliningStatus inlineSimdBool(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type);
+
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo& callInfo);
     InliningStatus inlineIsObject(CallInfo& callInfo);
@@ -940,8 +941,16 @@ class IonBuilder
                               JSValueType* punboxedType);
     MInstruction* loadUnboxedProperty(MDefinition* obj, size_t offset, JSValueType unboxedType,
                                       BarrierKind barrier, TemporaryTypeSet* types);
+    MInstruction* loadUnboxedValue(MDefinition* elements, size_t elementsOffset,
+                                   MDefinition* scaledOffset, JSValueType unboxedType,
+                                   BarrierKind barrier, TemporaryTypeSet* types);
     MInstruction* storeUnboxedProperty(MDefinition* obj, size_t offset, JSValueType unboxedType,
                                        MDefinition* value);
+    MInstruction* storeUnboxedValue(MDefinition* obj,
+                                    MDefinition* elements, int32_t elementsOffset,
+                                    MDefinition* scaledOffset, JSValueType unboxedType,
+                                    MDefinition* value);
+    bool checkPreliminaryGroups(MDefinition *obj);
     bool freezePropTypeSets(TemporaryTypeSet* types,
                             JSObject* foundProto, PropertyName* name);
     bool canInlinePropertyOpShapes(const BaselineInspector::ReceiverVector& receivers);

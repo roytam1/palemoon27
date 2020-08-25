@@ -380,7 +380,7 @@ SetArrayElement(JSContext* cx, HandleObject obj, double index, HandleValue v)
  * non-configurable, but proxies may implement different semantics.)
  */
 static bool
-DeleteArrayElement(JSContext *cx, HandleObject obj, double index, ObjectOpResult &result)
+DeleteArrayElement(JSContext* cx, HandleObject obj, double index, ObjectOpResult& result)
 {
     MOZ_ASSERT(index >= 0);
     MOZ_ASSERT(floor(index) == index);
@@ -436,31 +436,16 @@ js::SetLengthProperty(JSContext* cx, HandleObject obj, double length)
     return SetProperty(cx, obj, cx->names().length, v);
 }
 
-/*
- * Since SpiderMonkey supports cross-class prototype-based delegation, we have
- * to be careful about the length getter and setter being called on an object
- * not of Array class. For the getter, we search obj's prototype chain for the
- * array that caused this getter to be invoked. In the setter case to overcome
- * the JSPROP_SHARED attribute, we must define a shadowing length property.
- */
 static bool
-array_length_getter(JSContext* cx, HandleObject obj_, HandleId id, MutableHandleValue vp)
+array_length_getter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
-    RootedObject obj(cx, obj_);
-    do {
-        if (obj->is<ArrayObject>()) {
-            vp.setNumber(obj->as<ArrayObject>().length());
-            return true;
-        }
-        if (!GetPrototype(cx, obj, &obj))
-            return false;
-    } while (obj);
+    vp.setNumber(obj->as<ArrayObject>().length());
     return true;
 }
 
 static bool
-array_length_setter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp,
-                    ObjectOpResult &result)
+array_length_setter(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp,
+                    ObjectOpResult& result)
 {
     if (!obj->is<ArrayObject>()) {
         // This array .length property was found on the prototype
@@ -505,36 +490,36 @@ js::CanonicalizeArrayLengthValue(JSContext* cx, HandleValue v, uint32_t* newLen)
     return false;
 }
 
-/* ES6 20130308 draft 8.4.2.4 ArraySetLength */
+/* ES6 draft rev 34 (2015 Feb 20) 9.4.2.4 ArraySetLength */
 bool
 js::ArraySetLength(JSContext* cx, Handle<ArrayObject*> arr, HandleId id,
-                   unsigned attrs, HandleValue value, ObjectOpResult &result)
+                   unsigned attrs, HandleValue value, ObjectOpResult& result)
 {
     MOZ_ASSERT(id == NameToId(cx->names().length));
 
     if (!arr->maybeCopyElementsForWrite(cx))
         return false;
 
-    /* Steps 1-2 are irrelevant in our implementation. */
-
-    /* Steps 3-5. */
+    // Step 1.
     uint32_t newLen;
-    if (!CanonicalizeArrayLengthValue(cx, value, &newLen))
-        return false;
+    if (attrs & JSPROP_IGNORE_VALUE) {
+        // The spec has us calling OrdinaryDefineOwnProperty if
+        // Desc.[[Value]] is absent, but our implementation is so different that
+        // this is impossible. Instead, set newLen to the current length and
+        // proceed to step 9.
+        newLen = arr->length();
+    } else {
+        // Step 2 is irrelevant in our implementation.
 
-    // Abort if we're being asked to change enumerability or configurability.
-    // (The length property of arrays is non-configurable, so such attempts
-    // must fail.)  This behavior is spread throughout the ArraySetLength spec
-    // algorithm, but we only need check it once as our array implementation
-    // is internally so different from the spec algorithm.  (ES5 and ES6 define
-    // behavior by delegating to the default define-own-property algorithm --
-    // OrdinaryDefineOwnProperty in ES6, the default [[DefineOwnProperty]] in
-    // ES5 -- but we reimplement all the conflict-detection bits ourselves here
-    // so that we can use a customized length representation.)
-    if (!(attrs & JSPROP_PERMANENT) || (attrs & JSPROP_ENUMERATE))
-        return result.fail(JSMSG_CANT_REDEFINE_PROP);
+        // Steps 3-7.
+        MOZ_ASSERT_IF(attrs & JSPROP_IGNORE_VALUE, value.isUndefined());
+        if (!CanonicalizeArrayLengthValue(cx, value, &newLen))
+            return false;
 
-    /* Steps 6-7. */
+        // Step 8 is irrelevant in our implementation.
+    }
+
+    // Steps 9-11.
     bool lengthIsWritable = arr->lengthIsWritable();
 #ifdef DEBUG
     {
@@ -543,10 +528,21 @@ js::ArraySetLength(JSContext* cx, Handle<ArrayObject*> arr, HandleId id,
         MOZ_ASSERT(lengthShape->writable() == lengthIsWritable);
     }
 #endif
-
     uint32_t oldLen = arr->length();
 
-    /* Steps 8-9 for arrays with non-writable length. */
+    // Part of steps 1.a, 12.a, and 16: Fail if we're being asked to change
+    // enumerability or configurability, or otherwise break the object
+    // invariants. (ES6 checks these by calling OrdinaryDefineOwnProperty, but
+    // in SM, the array length property is hardly ordinary.)
+    if ((attrs & (JSPROP_PERMANENT | JSPROP_IGNORE_PERMANENT)) == 0 ||
+        (attrs & (JSPROP_ENUMERATE | JSPROP_IGNORE_ENUMERATE)) == JSPROP_ENUMERATE ||
+        (attrs & (JSPROP_GETTER | JSPROP_SETTER)) != 0 ||
+        (!lengthIsWritable && (attrs & (JSPROP_READONLY | JSPROP_IGNORE_READONLY)) == 0))
+    {
+        return result.fail(JSMSG_CANT_REDEFINE_PROP);
+    }
+
+    // Steps 12-13 for arrays with non-writable length.
     if (!lengthIsWritable) {
         if (newLen == oldLen)
             return result.succeed();
@@ -554,7 +550,7 @@ js::ArraySetLength(JSContext* cx, Handle<ArrayObject*> arr, HandleId id,
         return result.fail(JSMSG_CANT_REDEFINE_ARRAY_LENGTH);
     }
 
-    /* Step 8. */
+    // Step 19.
     bool succeeded = true;
     do {
         // The initialized length and capacity of an array only need updating
@@ -616,10 +612,10 @@ js::ArraySetLength(JSContext* cx, Handle<ArrayObject*> arr, HandleId id,
             // If we're removing a relatively small number of elements, just do
             // it exactly by the spec.
             while (newLen < oldLen) {
-                /* Step 15a. */
+                // Step 15a.
                 oldLen--;
 
-                /* Steps 15b-d. */
+                // Steps 15b-d.
                 ObjectOpResult deleteSucceeded;
                 if (!DeleteElement(cx, arr, oldLen, deleteSucceeded))
                     return false;
@@ -679,7 +675,7 @@ js::ArraySetLength(JSContext* cx, Handle<ArrayObject*> arr, HandleId id,
                 MOZ_ASSERT(indexes[i] < index, "indexes should never repeat");
                 index = indexes[i];
 
-                /* Steps 15b-d. */
+                // Steps 15b-d.
                 ObjectOpResult deleteSucceeded;
                 if (!DeleteElement(cx, arr, index, deleteSucceeded))
                     return false;
@@ -692,22 +688,24 @@ js::ArraySetLength(JSContext* cx, Handle<ArrayObject*> arr, HandleId id,
         }
     } while (false);
 
-    /* Steps 12, 16. */
-
-    // Yes, we totally drop a non-stub getter/setter from a defineProperty
-    // API call on the floor here.  Given that getter/setter will go away in
-    // the long run, with accessors replacing them both internally and at the
-    // API level, just run with this.
-    RootedShape lengthShape(cx, arr->lookup(cx, id));
-    if (!NativeObject::changeProperty(cx, arr, lengthShape,
-                                      attrs | JSPROP_PERMANENT | JSPROP_SHARED |
-                                      (lengthShape->attributes() & JSPROP_READONLY),
-                                      array_length_getter, array_length_setter))
-    {
-        return false;
-    }
-
+    // Update array length. Technically we should have been doing this
+    // throughout the loop, in step 19.d.iii.
     arr->setLength(cx, newLen);
+
+    // Step 20.
+    if (attrs & JSPROP_READONLY) {
+        // Yes, we totally drop a non-stub getter/setter from a defineProperty
+        // API call on the floor here.  Given that getter/setter will go away in
+        // the long run, with accessors replacing them both internally and at the
+        // API level, just run with this.
+        RootedShape lengthShape(cx, arr->lookup(cx, id));
+        if (!NativeObject::changeProperty(cx, arr, lengthShape,
+                                          lengthShape->attributes() | JSPROP_READONLY,
+                                          array_length_getter, array_length_setter))
+        {
+            return false;
+        }
+    }
 
     // All operations past here until the |!succeeded| code must be infallible,
     // so that all element fields remain properly synchronized.
@@ -745,12 +743,12 @@ js::WouldDefinePastNonwritableLength(HandleNativeObject obj, uint32_t index)
     if (!obj->is<ArrayObject>())
         return false;
 
-    ArrayObject *arr = &obj->as<ArrayObject>();
+    ArrayObject* arr = &obj->as<ArrayObject>();
     return !arr->lengthIsWritable() && index >= arr->length();
 }
 
 static bool
-array_addProperty(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+array_addProperty(JSContext* cx, HandleObject obj, HandleId id, HandleValue v)
 {
     Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
 
@@ -819,8 +817,9 @@ AddLengthProperty(ExclusiveContext* cx, HandleArrayObject obj)
     MOZ_ASSERT(!obj->lookup(cx, lengthId));
 
     return NativeObject::addProperty(cx, obj, lengthId, array_length_getter, array_length_setter,
-                                     SHAPE_INVALID_SLOT, JSPROP_PERMANENT | JSPROP_SHARED, 0,
-                                     /* allowDictionary = */ false);
+                                     SHAPE_INVALID_SLOT,
+                                     JSPROP_PERMANENT | JSPROP_SHARED | JSPROP_SHADOWABLE,
+                                     0, /* allowDictionary = */ false);
 }
 
 #if JS_HAS_TOSOURCE
@@ -1174,13 +1173,13 @@ js::array_join(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static inline bool
-InitArrayTypes(JSContext *cx, ObjectGroup *group, JSObject *obj,
-               const Value *vector, unsigned count)
+InitArrayTypes(JSContext* cx, ObjectGroup* group, JSObject* obj,
+               const Value* vector, unsigned count)
 {
     if (!group->unknownProperties()) {
         AutoEnterAnalysis enter(cx);
 
-        HeapTypeSet *types = group->getProperty(cx, obj, JSID_VOID);
+        HeapTypeSet* types = group->getProperty(cx, obj, JSID_VOID);
         if (!types)
             return false;
 
@@ -1201,14 +1200,14 @@ enum ShouldUpdateTypes
 
 /* vector must point to rooted memory. */
 static bool
-InitArrayElements(JSContext *cx, HandleObject obj, uint32_t start, uint32_t count, const Value *vector, ShouldUpdateTypes updateTypes)
+InitArrayElements(JSContext* cx, HandleObject obj, uint32_t start, uint32_t count, const Value* vector, ShouldUpdateTypes updateTypes)
 {
     MOZ_ASSERT(count <= MAX_ARRAY_INDEX);
 
     if (count == 0)
         return true;
 
-    ObjectGroup *group = obj->getGroup(cx);
+    ObjectGroup* group = obj->getGroup(cx);
     if (!group)
         return false;
     if (updateTypes && !InitArrayTypes(cx, group, obj, vector, count))
@@ -1251,7 +1250,7 @@ InitArrayElements(JSContext *cx, HandleObject obj, uint32_t start, uint32_t coun
         return true;
     } while (false);
 
-    const Value *end = vector + count;
+    const Value* end = vector + count;
     while (vector < end && start <= MAX_ARRAY_INDEX) {
         if (!CheckForInterrupt(cx) ||
             !SetArrayElement(cx, obj, start++, HandleValue::fromMarkedLocation(vector++))) {
@@ -2295,8 +2294,13 @@ TryReuseArrayGroup(JSObject* obj, ArrayObject* narr)
      */
     MOZ_ASSERT(ObjectGroup::hasDefaultNewGroup(narr->getProto(), &ArrayObject::class_, narr->group()));
 
-    if (obj->is<ArrayObject>() && !obj->isSingleton() && obj->getProto() == narr->getProto())
+    if (obj->is<ArrayObject>() &&
+        !obj->isSingleton() &&
+        !obj->group()->hasUnanalyzedPreliminaryObjects() &&
+        obj->getProto() == narr->getProto())
+    {
         narr->setGroup(obj->group());
+    }
 }
 
 /*
@@ -3028,11 +3032,11 @@ IsArrayConstructor(const Value& v)
 }
 
 static bool
-ArrayFromCallArgs(JSContext *cx, HandleObjectGroup group, CallArgs &args)
+ArrayFromCallArgs(JSContext* cx, HandleObjectGroup group, CallArgs& args)
 {
     if (!InitArrayTypes(cx, group, nullptr, args.array(), args.length()))
         return false;
-    JSObject *obj = (args.length() == 0)
+    JSObject* obj = (args.length() == 0)
         ? NewDenseEmptyArray(cx)
         : NewDenseCopiedArray(cx, args.length(), args.array());
     if (!obj)
@@ -3283,6 +3287,7 @@ const Class ArrayObject::class_ = {
     nullptr, /* setProperty */
     nullptr, /* enumerate */
     nullptr, /* resolve */
+    nullptr, /* mayResolve */
     nullptr, /* convert */
     nullptr, /* finalize */
     nullptr, /* call */
@@ -3322,7 +3327,7 @@ EnsureNewArrayElements(ExclusiveContext* cx, ArrayObject* obj, uint32_t length)
 }
 
 static bool
-NewArrayIsCachable(ExclusiveContext *cxArg, NewObjectKind newKind)
+NewArrayIsCachable(ExclusiveContext* cxArg, NewObjectKind newKind)
 {
     return cxArg->isJSContext() && newKind == GenericObject;
 }
@@ -3441,7 +3446,7 @@ js::NewDenseUnallocatedArray(ExclusiveContext* cx, uint32_t length,
 }
 
 ArrayObject *
-js::NewDenseArray(ExclusiveContext *cx, uint32_t length, HandleObjectGroup group,
+js::NewDenseArray(ExclusiveContext* cx, uint32_t length, HandleObjectGroup group,
                   AllocatingBehaviour allocating, bool convertDoubleElements)
 {
     NewObjectKind newKind = !group ? SingletonObject : GenericObject;
@@ -3539,12 +3544,12 @@ js::NewDenseFullyAllocatedArrayWithTemplate(JSContext* cx, uint32_t length, JSOb
     return arr;
 }
 
-JSObject *
-js::NewDenseCopyOnWriteArray(JSContext *cx, HandleArrayObject templateObject, gc::InitialHeap heap)
+JSObject*
+js::NewDenseCopyOnWriteArray(JSContext* cx, HandleArrayObject templateObject, gc::InitialHeap heap)
 {
     MOZ_ASSERT(!gc::IsInsideNursery(templateObject));
 
-    ArrayObject *arr = ArrayObject::createCopyOnWriteArray(cx, heap, templateObject);
+    ArrayObject* arr = ArrayObject::createCopyOnWriteArray(cx, heap, templateObject);
     if (!arr)
         return nullptr;
 

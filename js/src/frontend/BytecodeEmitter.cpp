@@ -360,7 +360,7 @@ const char js_with_statement_str[] = "with statement";
 const char js_finally_block_str[]  = "finally block";
 const char js_script_str[]         = "script";
 
-static const char*  const statementName[] = {
+static const char * const statementName[] = {
     "label statement",       /* LABEL */
     "if statement",          /* IF */
     "else statement",        /* ELSE */
@@ -615,7 +615,7 @@ NonLocalExitScope::prepareForNonLocalJump(StmtInfoBCE* toStmt)
 
 #define FLUSH_POPS() if (npops && !bce->flushPops(&npops)) return false
 
-    for (StmtInfoBCE *stmt = bce->topStmt; stmt != toStmt; stmt = stmt->down) {
+    for (StmtInfoBCE* stmt = bce->topStmt; stmt != toStmt; stmt = stmt->down) {
         switch (stmt->type) {
           case STMT_FINALLY:
             FLUSH_POPS();
@@ -661,14 +661,15 @@ NonLocalExitScope::prepareForNonLocalJump(StmtInfoBCE* toStmt)
         if (stmt->isBlockScope) {
             MOZ_ASSERT(stmt->isNestedScope);
             StaticBlockObject& blockObj = stmt->staticBlock();
-            if (!bce->emit1(JSOP_DEBUGLEAVEBLOCK))
-                return false;
-            if (!popScopeForNonLocalExit(stmt->blockScopeIndex))
-                return false;
             if (blockObj.needsClone()) {
                 if (!bce->emit1(JSOP_POPBLOCKSCOPE))
                     return false;
+            } else {
+                if (!bce->emit1(JSOP_DEBUGLEAVEBLOCK))
+                    return false;
             }
+            if (!popScopeForNonLocalExit(stmt->blockScopeIndex))
+                return false;
         }
     }
 
@@ -880,11 +881,17 @@ BytecodeEmitter::computeLocalOffset(Handle<StaticBlockObject*> blockObj)
 // Only functions have fixed var bindings.
 //
 // To assist the debugger, we emit a DEBUGLEAVEBLOCK opcode before leaving a
-// block scope, even if the block has no aliased locals.  This allows
-// DebugScopes to invalidate any association between a debugger scope object,
-// which can proxy access to unaliased stack locals, and the actual live frame.
-// In normal, non-debug mode, this opcode does not cause any baseline code to be
+// block scope, if the block has no aliased locals.  This allows DebugScopes
+// to invalidate any association between a debugger scope object, which can
+// proxy access to unaliased stack locals, and the actual live frame.  In
+// normal, non-debug mode, this opcode does not cause any baseline code to be
 // emitted.
+//
+// If the block has aliased locals, no DEBUGLEAVEBLOCK is emitted, and
+// POPBLOCKSCOPE itself balances the debug scope mapping. This gets around a
+// comedic situation where DEBUGLEAVEBLOCK may remove a block scope from the
+// debug scope map, but the immediate following POPBLOCKSCOPE adds it back due
+// to an onStep hook.
 //
 // Enter a nested scope with enterNestedScope.  It will emit
 // PUSHBLOCKSCOPE/ENTERWITH if needed, and arrange to record the PC bounds of
@@ -937,7 +944,7 @@ BytecodeEmitter::enterNestedScope(StmtInfoBCE* stmt, ObjectBox* objbox, StmtType
 
     pushStatement(stmt, stmtType, offset());
     scopeObj->initEnclosingNestedScope(enclosingStaticScope());
-    FinishPushNestedScope(this, stmt,* scopeObj);
+    FinishPushNestedScope(this, stmt, *scopeObj);
     MOZ_ASSERT(stmt->isNestedScope);
     stmt->isBlockScope = (stmtType == STMT_BLOCK);
 
@@ -977,15 +984,20 @@ BytecodeEmitter::leaveNestedScope(StmtInfoBCE* stmt)
 
     popStatement();
 
-    if (!emit1(stmt->isBlockScope ? JSOP_DEBUGLEAVEBLOCK : JSOP_LEAVEWITH))
-        return false;
-
-    blockScopeList.recordEnd(blockScopeIndex, offset());
-
-    if (stmt->isBlockScope && stmt->staticScope->as<StaticBlockObject>().needsClone()) {
-        if (!emit1(JSOP_POPBLOCKSCOPE))
+    if (stmt->isBlockScope) {
+        if (stmt->staticScope->as<StaticBlockObject>().needsClone()) {
+            if (!emit1(JSOP_POPBLOCKSCOPE))
+                return false;
+        } else {
+            if (!emit1(JSOP_DEBUGLEAVEBLOCK))
+                return false;
+        }
+    } else {
+        if (!emit1(JSOP_LEAVEWITH))
             return false;
     }
+
+    blockScopeList.recordEnd(blockScopeIndex, offset());
 
     return true;
 }
@@ -5395,7 +5407,7 @@ BytecodeEmitter::emitNormalFor(ParseNode* pn, ptrdiff_t top)
     return true;
 }
 
-inline bool
+bool
 BytecodeEmitter::emitFor(ParseNode* pn, ptrdiff_t top)
 {
     if (pn->pn_left->isKind(PNK_FORIN))
@@ -6394,7 +6406,7 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
                 return false;
         }
     } else {
-        if (!emitArray(pn2->pn_next, argc))
+        if (!emitArray(pn2->pn_next, argc, JSOP_SPREADCALLARRAY))
             return false;
     }
     emittingForInit = oldEmittingForInit;
@@ -6730,7 +6742,7 @@ BytecodeEmitter::emitPropertyList(ParseNode* pn, MutableHandlePlainObject objp, 
             propdef->pn_right->pn_funbox->needsHomeObject())
         {
             MOZ_ASSERT(propdef->pn_right->pn_funbox->function()->isMethod());
-            if (!emit1(JSOP_INITHOMEOBJECT))
+            if (!emit2(JSOP_INITHOMEOBJECT, isIndex))
                 return false;
         }
 
@@ -6860,7 +6872,7 @@ BytecodeEmitter::emitSpread()
 }
 
 bool
-BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count)
+BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
 {
     /*
      * Emit code for [a, b, c] that is equivalent to constructing a new
@@ -6870,6 +6882,7 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count)
      * to avoid dup'ing and popping the array as each element is added, as
      * JSOP_SETELEM/JSOP_SETPROP would do.
      */
+    MOZ_ASSERT(op == JSOP_NEWARRAY || op == JSOP_SPREADCALLARRAY);
 
     int32_t nspread = 0;
     for (ParseNode* elt = pn; elt; elt = elt->pn_next) {
@@ -6878,9 +6891,9 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count)
     }
 
     ptrdiff_t off;
-    if (!emitN(JSOP_NEWARRAY, 3, &off))                             // ARRAY
+    if (!emitN(op, 3, &off))                                        // ARRAY
         return false;
-    checkTypeSet(JSOP_NEWARRAY);
+    checkTypeSet(op);
     jsbytecode* pc = code(off);
 
     // For arrays with spread, this is a very pessimistic allocation, the
@@ -7087,7 +7100,7 @@ BytecodeEmitter::emitClass(ParseNode* pn)
         return false;
 
     if (constructor->pn_funbox->needsHomeObject()) {
-        if (!emit1(JSOP_INITHOMEOBJECT))
+        if (!emit2(JSOP_INITHOMEOBJECT, 0))
             return false;
     }
 
@@ -7539,7 +7552,7 @@ BytecodeEmitter::emitTree(ParseNode* pn)
                     if (!ObjectElements::MakeElementsCopyOnWrite(cx, obj))
                         return false;
 
-    ObjectBox* objbox = parser->newObjectBox(obj);
+                    ObjectBox* objbox = parser->newObjectBox(obj);
                     if (!objbox)
                         return false;
 
@@ -7549,7 +7562,7 @@ BytecodeEmitter::emitTree(ParseNode* pn)
             }
         }
 
-        ok = emitArray(pn->pn_head, pn->pn_count);
+        ok = emitArray(pn->pn_head, pn->pn_count, JSOP_NEWARRAY);
         break;
 
        case PNK_ARRAYCOMP:
@@ -7740,7 +7753,7 @@ BytecodeEmitter::setSrcNoteOffset(unsigned index, unsigned which, ptrdiff_t offs
     SrcNotesVector& notes = this->notes();
 
     /* Find the offset numbered which (i.e., skip exactly which offsets). */
-    jssrcnote *sn = &notes[index];
+    jssrcnote* sn = &notes[index];
     MOZ_ASSERT(SN_TYPE(sn) != SRC_XDELTA);
     MOZ_ASSERT((int) which < js_SrcNoteSpec[SN_TYPE(sn)].arity);
     for (sn++; which; sn++, which--) {

@@ -1055,7 +1055,6 @@ GCRuntime::GCRuntime(JSRuntime* rt) :
     maxMallocBytes(0),
     numArenasFreeCommitted(0),
     verifyPreData(nullptr),
-    verifyPostData(nullptr),
     chunkAllocationSinceLastGC(false),
     nextFullGCTime(0),
     lastGCTime(PRMJ_Now()),
@@ -1151,8 +1150,8 @@ const char* gc::ZealModeHelpText =
     "    8: Incremental GC in two slices: 1) mark roots 2) finish collection\n"
     "    9: Incremental GC in two slices: 1) mark all 2) new marking and finish\n"
     "   10: Incremental GC in multiple slices\n"
-    "   11: Verify post write barriers between instructions\n"
-    "   12: Verify post write barriers between paints\n"
+    "   11: unused\n"
+    "   12: unused\n"
     "   13: Check internal hashtables on minor GC\n"
     "   14: Perform a shrinking collection every N allocations\n";
 
@@ -1161,8 +1160,6 @@ GCRuntime::setZeal(uint8_t zeal, uint32_t frequency)
 {
     if (verifyPreData)
         VerifyBarriers(rt, PreBarrierVerifier);
-    if (verifyPostData)
-        VerifyBarriers(rt, PostBarrierVerifier);
 
     if (zealMode == ZealGenerationalGCValue) {
         evictNursery(JS::gcreason::DEBUG_GC);
@@ -6208,11 +6205,6 @@ GCRuntime::notifyDidPaint()
         return;
     }
 
-    if (zealMode == ZealFrameVerifierPostValue) {
-        verifyPostBarriers();
-        return;
-    }
-
     if (zealMode == ZealFrameGCValue) {
         JS::PrepareForFullGC(rt);
         gc(GC_NORMAL, JS::gcreason::REFRESH_FRAME);
@@ -7050,40 +7042,19 @@ JS::IsIncrementalBarrierNeeded(JSContext* cx)
     return IsIncrementalBarrierNeeded(cx->runtime());
 }
 
+struct IncrementalReferenceBarrierFunctor {
+    template <typename T> void operator()(gc::Cell* cell) {
+        T::writeBarrierPre(static_cast<T*>(cell));
+    }
+};
+
 JS_PUBLIC_API(void)
 JS::IncrementalReferenceBarrier(GCCellPtr thing)
 {
     if (!thing)
         return;
 
-    if (thing.isString() && thing.toString()->isPermanentAtom())
-        return;
-
-#ifdef DEBUG
-    Zone* zone = thing.isObject()
-                 ? thing.toObject()->zone()
-                 : thing.asCell()->asTenured().zone();
-    MOZ_ASSERT(!zone->runtimeFromMainThread()->isHeapMajorCollecting());
-#endif
-
-    switch(thing.kind()) {
-      case JSTRACE_OBJECT: return JSObject::writeBarrierPre(thing.toObject());
-      case JSTRACE_STRING: return JSString::writeBarrierPre(thing.toString());
-      case JSTRACE_SCRIPT: return JSScript::writeBarrierPre(thing.toScript());
-      case JSTRACE_SYMBOL: return JS::Symbol::writeBarrierPre(thing.toSymbol());
-      case JSTRACE_LAZY_SCRIPT:
-        return LazyScript::writeBarrierPre(static_cast<LazyScript*>(thing.asCell()));
-      case JSTRACE_JITCODE:
-        return jit::JitCode::writeBarrierPre(static_cast<jit::JitCode*>(thing.asCell()));
-      case JSTRACE_SHAPE:
-        return Shape::writeBarrierPre(static_cast<Shape*>(thing.asCell()));
-      case JSTRACE_BASE_SHAPE:
-        return BaseShape::writeBarrierPre(static_cast<BaseShape*>(thing.asCell()));
-      case JSTRACE_OBJECT_GROUP:
-        return ObjectGroup::writeBarrierPre(static_cast<ObjectGroup*>(thing.asCell()));
-      default:
-        MOZ_CRASH("Invalid trace kind in IncrementalReferenceBarrier.");
-    }
+    CallTyped(IncrementalReferenceBarrierFunctor(), thing.kind(), thing.asCell());
 }
 
 JS_PUBLIC_API(void)
@@ -7111,25 +7082,13 @@ JS::WasIncrementalGC(JSRuntime* rt)
 
 JS::AutoDisableGenerationalGC::AutoDisableGenerationalGC(JSRuntime* rt)
   : gc(&rt->gc)
-#ifdef JS_GC_ZEAL
-  , restartVerifier(false)
-#endif
 {
-#ifdef JS_GC_ZEAL
-    restartVerifier = gc->endVerifyPostBarriers();
-#endif
     gc->disableGenerationalGC();
 }
 
 JS::AutoDisableGenerationalGC::~AutoDisableGenerationalGC()
 {
     gc->enableGenerationalGC();
-#ifdef JS_GC_ZEAL
-    if (restartVerifier) {
-        MOZ_ASSERT(gc->isGenerationalGCEnabled());
-        gc->startVerifyPostBarriers();
-    }
-#endif
 }
 
 JS_PUBLIC_API(bool)

@@ -151,13 +151,13 @@ AutoGCRooter::trace(JSTracer* trc)
 
       case VALVECTOR: {
         AutoValueVector::VectorImpl& vector = static_cast<AutoValueVector*>(this)->vector;
-        TraceRootRange(trc, vector.length(), vector.begin(), "js::AutoValueVector.vector");
+        TraceRootRange(trc, vector.length(), vector.begin(), "JS::AutoValueVector.vector");
         return;
       }
 
       case IDVECTOR: {
         AutoIdVector::VectorImpl& vector = static_cast<AutoIdVector*>(this)->vector;
-        TraceRootRange(trc, vector.length(), vector.begin(), "js::AutoIdVector.vector");
+        TraceRootRange(trc, vector.length(), vector.begin(), "JS::AutoIdVector.vector");
         return;
       }
 
@@ -179,13 +179,7 @@ AutoGCRooter::trace(JSTracer* trc)
 
       case OBJVECTOR: {
         AutoObjectVector::VectorImpl& vector = static_cast<AutoObjectVector*>(this)->vector;
-        TraceRootRange(trc, vector.length(), vector.begin(), "js::AutoObjectVector.vector");
-        return;
-      }
-
-      case FUNVECTOR: {
-        AutoFunctionVector::VectorImpl& vector = static_cast<AutoFunctionVector*>(this)->vector;
-        TraceRootRange(trc, vector.length(), vector.begin(), "js::AutoFunctionVector.vector");
+        TraceRootRange(trc, vector.length(), vector.begin(), "JS::AutoObjectVector.vector");
         return;
       }
 
@@ -222,7 +216,6 @@ AutoGCRooter::trace(JSTracer* trc)
         for (AutoObjectObjectHashMap::Enum e(map); !e.empty(); e.popFront()) {
             TraceRoot(trc, &e.front().value(), "AutoObjectObjectHashMap value");
             JSObject* key = e.front().key();
-            JS::AutoOriginalTraceLocation reloc(trc, &e.front().key());
             TraceRoot(trc, &key, "AutoObjectObjectHashMap key");
             if (key != e.front().key())
                 e.rekeyFront(key);

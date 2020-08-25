@@ -414,6 +414,11 @@ CallResolveOp(JSContext* cx, HandleNativeObject obj, HandleId id, MutableHandleS
     if (!resolved)
         return true;
 
+    // Assert the mayResolve hook, if there is one, returns true for this
+    // property.
+    MOZ_ASSERT_IF(obj->getClass()->mayResolve,
+                  obj->getClass()->mayResolve(cx->names(), id, obj));
+
     if (JSID_IS_INT(id) && obj->containsDenseElement(JSID_TO_INT(id))) {
         MarkDenseOrTypedArrayElementFound<CanGC>(propp);
         return true;
@@ -422,6 +427,28 @@ CallResolveOp(JSContext* cx, HandleNativeObject obj, HandleId id, MutableHandleS
     MOZ_ASSERT(!IsAnyTypedArray(obj));
 
     propp.set(obj->lookup(cx, id));
+    return true;
+}
+
+static MOZ_ALWAYS_INLINE bool
+ClassMayResolveId(const JSAtomState& names, const Class* clasp, jsid id, JSObject* maybeObj)
+{
+    MOZ_ASSERT_IF(maybeObj, maybeObj->getClass() == clasp);
+
+    if (!clasp->resolve) {
+        // Sanity check: we should only have a mayResolve hook if we have a
+        // resolve hook.
+        MOZ_ASSERT(!clasp->mayResolve, "Class with mayResolve hook but no resolve hook");
+        return false;
+    }
+
+    if (clasp->mayResolve) {
+        // Tell the analysis our mayResolve hooks won't trigger GC.
+        JS::AutoSuppressGCAnalysis nogc;
+        if (!clasp->mayResolve(names, id, maybeObj))
+            return false;
+    }
+
     return true;
 }
 
@@ -574,14 +601,6 @@ LookupPropertyInline(ExclusiveContext* cx,
     objp.set(nullptr);
     propp.set(nullptr);
     return true;
-}
-
-inline bool
-NativeLookupProperty(ExclusiveContext* cx, HandleNativeObject obj, PropertyName* name,
-                     MutableHandleObject objp, MutableHandleShape propp)
-{
-    RootedId id(cx, NameToId(name));
-    return NativeLookupProperty<CanGC>(cx, obj, id, objp, propp);
 }
 
 inline bool

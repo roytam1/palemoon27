@@ -26,8 +26,8 @@
 
 namespace js {
 
-class Nursery;
 class Shape;
+class TenuringTracer;
 
 /*
  * To really poison a set of values, using 'magic' or 'undefined' isn't good
@@ -114,9 +114,9 @@ ArraySetLength(JSContext* cx, Handle<ArrayObject*> obj, HandleId id,
  *  - The length property as a uint32_t, accessible for array objects with
  *    ArrayObject::{length,setLength}().  This is unused for non-arrays.
  *  - The number of element slots (capacity), gettable with
- *    getDenseElementsCapacity().
+ *    getDenseCapacity().
  *  - The array's initialized length, accessible with
- *    getDenseElementsInitializedLength().
+ *    getDenseInitializedLength().
  *
  * Holes in the array are represented by MagicValue(JS_ELEMENTS_HOLE) values.
  * These indicate indexes which are not dense properties of the array. The
@@ -180,9 +180,9 @@ class ObjectElements
 
   private:
     friend class ::JSObject;
-    friend class NativeObject;
     friend class ArrayObject;
-    friend class Nursery;
+    friend class NativeObject;
+    friend class TenuringTracer;
 
     friend bool js::SetIntegrityLevel(JSContext* cx, HandleObject obj, IntegrityLevel level);
 
@@ -404,7 +404,7 @@ class NativeObject : public JSObject
     uint32_t getDenseInitializedLength() {
         return getElementsHeader()->initializedLength;
     }
-    uint32_t getDenseCapacity() {
+    uint32_t getDenseCapacity() const {
         return getElementsHeader()->capacity;
     }
 
@@ -457,7 +457,7 @@ class NativeObject : public JSObject
     bool toDictionaryMode(ExclusiveContext* cx);
 
   private:
-    friend class Nursery;
+    friend class TenuringTracer;
 
     /*
      * Get internal pointers to the range of values starting at start and
@@ -1347,27 +1347,6 @@ NativeLookupOwnProperty(ExclusiveContext* cx,
                         typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp);
 
 /*
- * On success, and if id was found, return true with *objp non-null and with a
- * property of *objp stored in *propp. If successful but id was not found,
- * return true with both *objp and *propp null.
- */
-template <AllowGC allowGC>
-extern bool
-NativeLookupProperty(ExclusiveContext* cx,
-                     typename MaybeRooted<NativeObject*, allowGC>::HandleType obj,
-                     typename MaybeRooted<jsid, allowGC>::HandleType id,
-                     typename MaybeRooted<JSObject*, allowGC>::MutableHandleType objp,
-                     typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp);
-
-inline bool
-NativeLookupProperty(ExclusiveContext* cx, HandleNativeObject obj, PropertyName* name,
-                     MutableHandleObject objp, MutableHandleShape propp);
-
-extern bool
-NativeLookupElement(JSContext* cx, HandleNativeObject obj, uint32_t index,
-                    MutableHandleObject objp, MutableHandleShape propp);
-
-/*
  * Get a property from `receiver`, after having already done a lookup and found
  * the property on a native object `obj`.
  *
@@ -1376,7 +1355,7 @@ NativeLookupElement(JSContext* cx, HandleNativeObject obj, uint32_t index,
  */
 extern bool
 NativeGetExistingProperty(JSContext* cx, HandleObject receiver, HandleNativeObject obj,
-                          HandleShape shape, MutableHandle<Value> vp);
+                          HandleShape shape, MutableHandleValue vp);
 
 /* * */
 

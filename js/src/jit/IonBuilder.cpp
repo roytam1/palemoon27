@@ -903,8 +903,7 @@ IonBuilder::build()
     if (!processIterators())
         return false;
 
-    if (!abortedPreliminaryGroups().empty()) {
-        MOZ_ASSERT(!info().isAnalysis());
+    if (!info().isAnalysis() && !abortedPreliminaryGroups().empty()) {
         abortReason_ = AbortReason_PreliminaryObjects;
         return false;
     }
@@ -1061,8 +1060,7 @@ IonBuilder::buildInline(IonBuilder* callerBuilder, MResumePoint* callerResumePoi
     // Discard unreferenced & pre-allocated resume points.
     replaceMaybeFallbackFunctionGetter(nullptr);
 
-    if (!abortedPreliminaryGroups().empty()) {
-        MOZ_ASSERT(!info().isAnalysis());
+    if (!info().isAnalysis() && !abortedPreliminaryGroups().empty()) {
         abortReason_ = AbortReason_PreliminaryObjects;
         return false;
     }
@@ -6498,37 +6496,29 @@ bool
 IonBuilder::jsop_newarray(uint32_t count)
 {
     JSObject* templateObject = inspector->getTemplateObject(pc);
-    if (!templateObject) {
-        if (info().analysisMode() == Analysis_ArgumentsUsage) {
-            MUnknownValue* unknown = MUnknownValue::New(alloc());
-            current->add(unknown);
-            current->push(unknown);
-            return true;
-        }
-        return abort("No template object for NEWARRAY");
-    }
+    gc::InitialHeap heap;
+    MConstant* templateConst;
 
-    MOZ_ASSERT(templateObject->is<ArrayObject>());
-    if (templateObject->group()->unknownProperties()) {
-        if (info().analysisMode() == Analysis_ArgumentsUsage) {
-            MUnknownValue* unknown = MUnknownValue::New(alloc());
-            current->add(unknown);
-            current->push(unknown);
-            return true;
-        }
-        // We will get confused in jsop_initelem_array if we can't find the
-        // object group being initialized.
-        return abort("New array has unknown properties");
+    if (templateObject) {
+        heap = templateObject->group()->initialHeap(constraints());
+        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
+    } else {
+        heap = gc::DefaultHeap;
+        templateConst = MConstant::New(alloc(), NullValue());
     }
-
-    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
     current->add(templateConst);
 
     MNewArray* ins = MNewArray::New(alloc(), constraints(), count, templateConst,
-                                    templateObject->group()->initialHeap(constraints()),
-                                    NewArray_FullyAllocating);
+                                    heap, NewArray_FullyAllocating, pc);
     current->add(ins);
     current->push(ins);
+
+    ObjectGroup* templateGroup = inspector->getTemplateObjectGroup(pc);
+    if (templateGroup) {
+        TemporaryTypeSet* types = MakeSingletonTypeSet(constraints(), templateGroup);
+        ins->setResultTypeSet(types);
+    }
+
     return true;
 }
 
@@ -6602,10 +6592,23 @@ IonBuilder::jsop_initelem_array()
     // intializer, and that arrays are marked as non-packed when writing holes
     // to them during initialization.
     bool needStub = false;
-    if (obj->isUnknownValue()) {
+    JSValueType unboxedType = JSVAL_TYPE_MAGIC;
+    if (shouldAbortOnPreliminaryGroups(obj)) {
+        needStub = true;
+    } else if (!obj->resultTypeSet() ||
+               obj->resultTypeSet()->unknownObject() ||
+               obj->resultTypeSet()->getObjectCount() != 1)
+    {
         needStub = true;
     } else {
+        MOZ_ASSERT(obj->resultTypeSet()->getObjectCount() == 1);
         TypeSet::ObjectKey* initializer = obj->resultTypeSet()->getObject(0);
+        if (initializer->clasp() == &UnboxedArrayObject::class_) {
+            if (initializer->group()->unboxedLayout().nativeGroup())
+                needStub = true;
+            else
+                unboxedType = initializer->group()->unboxedLayout().elementType();
+        }
         if (value->type() == MIRType_MagicHole) {
             if (!initializer->hasFlags(constraints(), OBJECT_FLAG_NON_PACKED))
                 needStub = true;
@@ -6618,9 +6621,6 @@ IonBuilder::jsop_initelem_array()
         }
     }
 
-    if (NeedsPostBarrier(info(), value))
-        current->add(MPostWriteBarrier::New(alloc(), obj, value));
-
     if (needStub) {
         MCallInitElementArray* store = MCallInitElementArray::New(alloc(), obj, GET_UINT24(pc), value);
         current->add(store);
@@ -6631,29 +6631,44 @@ IonBuilder::jsop_initelem_array()
     current->add(id);
 
     // Get the elements vector.
-    MElements* elements = MElements::New(alloc(), obj);
+    MElements* elements = MElements::New(alloc(), obj, unboxedType != JSVAL_TYPE_MAGIC);
     current->add(elements);
 
-    if (obj->toNewArray()->convertDoubleElements()) {
-        MInstruction* valueDouble = MToDouble::New(alloc(), value);
-        current->add(valueDouble);
-        value = valueDouble;
+    if (unboxedType != JSVAL_TYPE_MAGIC) {
+        // Note: storeUnboxedValue takes care of any post barriers on the value.
+        storeUnboxedValue(obj, elements, 0, id, unboxedType, value);
+
+        MInstruction* increment = MIncrementUnboxedArrayInitializedLength::New(alloc(), obj);
+        current->add(increment);
+
+        if (!resumeAfter(increment))
+            return false;
+    } else {
+        if (NeedsPostBarrier(info(), value))
+            current->add(MPostWriteBarrier::New(alloc(), obj, value));
+
+        if (obj->toNewArray()->convertDoubleElements()) {
+            MInstruction* valueDouble = MToDouble::New(alloc(), value);
+            current->add(valueDouble);
+            value = valueDouble;
+        }
+
+        // Store the value.
+        MStoreElement* store = MStoreElement::New(alloc(), elements, id, value,
+                                                  /* needsHoleCheck = */ false);
+        current->add(store);
+
+        // Update the initialized length. (The template object for this array has
+        // the array's ultimate length, so the length field is already correct: no
+        // updating needed.)
+        MSetInitializedLength* initLength = MSetInitializedLength::New(alloc(), elements, id);
+        current->add(initLength);
+
+        if (!resumeAfter(initLength))
+            return false;
     }
 
-    // Store the value.
-    MStoreElement* store = MStoreElement::New(alloc(), elements, id, value, /* needsHoleCheck = */ false);
-    current->add(store);
-
-    // Update the initialized length. (The template object for this array has
-    // the array's ultimate length, so the length field is already correct: no
-    // updating needed.)
-    MSetInitializedLength* initLength = MSetInitializedLength::New(alloc(), elements, id);
-    current->add(initLength);
-
-    if (!resumeAfter(initLength))
-        return false;
-
-   return true;
+    return true;
 }
 
 bool
@@ -7123,18 +7138,8 @@ ObjectHasExtraOwnProperty(CompileCompartment* comp, TypeSet::ObjectKey* object, 
         return name == comp->runtime()->names().length;
 
     // Resolve hooks can install new properties on objects on demand.
-    if (!clasp->resolve)
-        return false;
-
-    if (clasp->resolve == str_resolve) {
-        // str_resolve only resolves integers, not names.
-        return false;
-    }
-
-    if (clasp->resolve == fun_resolve)
-        return FunctionHasResolveHook(comp->runtime()->names(), NameToId(name));
-
-    return true;
+    JSObject* singleton = object->isSingleton() ? object->singleton() : nullptr;
+    return ClassMayResolveId(comp->runtime()->names(), clasp, NameToId(name), singleton);
 }
 
 void
@@ -7729,7 +7734,7 @@ IonBuilder::jsop_getelem()
 
     // Always use a call if we are performing analysis and not actually
     // emitting code, to simplify later analysis.
-    if (info().isAnalysis()) {
+    if (info().isAnalysis() || shouldAbortOnPreliminaryGroups(obj)) {
         MInstruction* ins = MCallGetElement::New(alloc(), obj, index);
 
         current->add(ins);
@@ -8143,9 +8148,12 @@ IonBuilder::getElemTryDense(bool* emitted, MDefinition* obj, MDefinition* index)
 {
     MOZ_ASSERT(*emitted == false);
 
-    if (!ElementAccessIsDenseNative(constraints(), obj, index)) {
-        trackOptimizationOutcome(TrackedOutcome::AccessNotDense);
-        return true;
+    JSValueType unboxedType = UnboxedArrayElementType(constraints(), obj, index);
+    if (unboxedType == JSVAL_TYPE_MAGIC) {
+        if (!ElementAccessIsDenseNative(constraints(), obj, index)) {
+            trackOptimizationOutcome(TrackedOutcome::AccessNotDense);
+            return true;
+        }
     }
 
     // Don't generate a fast path if there have been bounds check failures
@@ -8162,8 +8170,7 @@ IonBuilder::getElemTryDense(bool* emitted, MDefinition* obj, MDefinition* index)
         return true;
     }
 
-    // Emit dense getelem variant.
-    if (!jsop_getelem_dense(obj, index))
+    if (!jsop_getelem_dense(obj, index, unboxedType))
         return false;
 
     trackOptimizationSuccess();
@@ -8475,7 +8482,7 @@ IonBuilder::getElemTryCache(bool* emitted, MDefinition* obj, MDefinition* index)
 }
 
 bool
-IonBuilder::jsop_getelem_dense(MDefinition* obj, MDefinition* index)
+IonBuilder::jsop_getelem_dense(MDefinition* obj, MDefinition* index, JSValueType unboxedType)
 {
     TemporaryTypeSet* types = bytecodeTypes(pc);
 
@@ -8499,7 +8506,7 @@ IonBuilder::jsop_getelem_dense(MDefinition* obj, MDefinition* index)
         !ElementAccessHasExtraIndexedProperty(constraints(), obj);
 
     MIRType knownType = MIRType_Value;
-    if (barrier == BarrierKind::NoBarrier)
+    if (unboxedType == JSVAL_TYPE_MAGIC && barrier == BarrierKind::NoBarrier)
         knownType = GetElemKnownType(needsHoleCheck, types);
 
     // Ensure index is an integer.
@@ -8508,19 +8515,24 @@ IonBuilder::jsop_getelem_dense(MDefinition* obj, MDefinition* index)
     index = idInt32;
 
     // Get the elements vector.
-    MInstruction* elements = MElements::New(alloc(), obj);
+    MInstruction* elements = MElements::New(alloc(), obj, unboxedType != JSVAL_TYPE_MAGIC);
     current->add(elements);
 
     // Note: to help GVN, use the original MElements instruction and not
     // MConvertElementsToDoubles as operand. This is fine because converting
     // elements to double does not change the initialized length.
-    MInitializedLength* initLength = MInitializedLength::New(alloc(), elements);
+    MInstruction* initLength;
+    if (unboxedType != JSVAL_TYPE_MAGIC)
+        initLength = MUnboxedArrayInitializedLength::New(alloc(), obj);
+    else
+        initLength = MInitializedLength::New(alloc(), elements);
     current->add(initLength);
 
     // If we can load the element as a definite double, make sure to check that
     // the array has been converted to homogenous doubles first.
     TemporaryTypeSet* objTypes = obj->resultTypeSet();
     bool loadDouble =
+        unboxedType == JSVAL_TYPE_MAGIC &&
         barrier == BarrierKind::NoBarrier &&
         loopDepth_ &&
         !readOutOfBounds &&
@@ -8540,13 +8552,18 @@ IonBuilder::jsop_getelem_dense(MDefinition* obj, MDefinition* index)
         // hoisting.
         index = addBoundsCheck(index, initLength);
 
-        load = MLoadElement::New(alloc(), elements, index, needsHoleCheck, loadDouble);
-        current->add(load);
+        if (unboxedType != JSVAL_TYPE_MAGIC) {
+            load = loadUnboxedValue(elements, 0, index, unboxedType, barrier, types);
+        } else {
+            load = MLoadElement::New(alloc(), elements, index, needsHoleCheck, loadDouble);
+            current->add(load);
+        }
     } else {
         // This load may return undefined, so assume that we *can* read holes,
         // or that we can read out-of-bounds accesses. In this case, the bounds
         // check is part of the opcode.
-        load = MLoadElementHole::New(alloc(), elements, index, initLength, needsHoleCheck);
+        load = MLoadElementHole::New(alloc(), elements, index, initLength,
+                                     unboxedType, needsHoleCheck);
         current->add(load);
 
         // If maybeUndefined was true, the typeset must have undefined, and
@@ -8753,6 +8770,13 @@ IonBuilder::jsop_setelem()
     trackTypeInfo(TrackedTypeSite::Receiver, object->type(), object->resultTypeSet());
     trackTypeInfo(TrackedTypeSite::Index, index->type(), index->resultTypeSet());
     trackTypeInfo(TrackedTypeSite::Value, value->type(), value->resultTypeSet());
+
+    if (shouldAbortOnPreliminaryGroups(object)) {
+        MInstruction* ins = MCallSetElement::New(alloc(), object, index, value, IsStrictSetPC(pc));
+        current->add(ins);
+        current->push(value);
+        return resumeAfter(ins);
+    }
 
     trackOptimizationAttempt(TrackedStrategy::SetElem_TypedObject);
     if (!setElemTryTypedObject(&emitted, object, index, value) || emitted)
@@ -8974,9 +8998,12 @@ IonBuilder::setElemTryDense(bool* emitted, MDefinition* object,
 {
     MOZ_ASSERT(*emitted == false);
 
-    if (!ElementAccessIsDenseNative(constraints(), object, index)) {
-        trackOptimizationOutcome(TrackedOutcome::AccessNotDense);
-        return true;
+    JSValueType unboxedType = UnboxedArrayElementType(constraints(), object, index);
+    if (unboxedType == JSVAL_TYPE_MAGIC) {
+        if (!ElementAccessIsDenseNative(constraints(), object, index)) {
+            trackOptimizationOutcome(TrackedOutcome::AccessNotDense);
+            return true;
+        }
     }
 
     if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
@@ -9010,7 +9037,7 @@ IonBuilder::setElemTryDense(bool* emitted, MDefinition* object,
     }
 
     // Emit dense setelem variant.
-    if (!jsop_setelem_dense(conversion, SetElem_Normal, object, index, value))
+    if (!jsop_setelem_dense(conversion, SetElem_Normal, object, index, value, unboxedType))
         return false;
 
     trackOptimizationSuccess();
@@ -9095,9 +9122,12 @@ IonBuilder::setElemTryCache(bool* emitted, MDefinition* object,
 bool
 IonBuilder::jsop_setelem_dense(TemporaryTypeSet::DoubleConversion conversion,
                                SetElemSafety safety,
-                               MDefinition* obj, MDefinition* id, MDefinition* value)
+                               MDefinition* obj, MDefinition* id, MDefinition* value,
+                               JSValueType unboxedType)
 {
-    MIRType elementType = DenseNativeElementType(constraints(), obj);
+    MIRType elementType = MIRType_None;
+    if (unboxedType == JSVAL_TYPE_MAGIC)
+        elementType = DenseNativeElementType(constraints(), obj);
     bool packed = ElementAccessIsPacked(constraints(), obj);
 
     // Writes which are on holes in the object do not have to bail out if they
@@ -9116,7 +9146,7 @@ IonBuilder::jsop_setelem_dense(TemporaryTypeSet::DoubleConversion conversion,
     obj = addMaybeCopyElementsForWrite(obj);
 
     // Get the elements vector.
-    MElements* elements = MElements::New(alloc(), obj);
+    MElements* elements = MElements::New(alloc(), obj, unboxedType != JSVAL_TYPE_MAGIC);
     current->add(elements);
 
     // Ensure the value is a double, if double conversion might be needed.
@@ -9154,20 +9184,23 @@ IonBuilder::jsop_setelem_dense(TemporaryTypeSet::DoubleConversion conversion,
     // Use MStoreElementHole if this SETELEM has written to out-of-bounds
     // indexes in the past. Otherwise, use MStoreElement so that we can hoist
     // the initialized length and bounds check.
-    MStoreElementCommon* store;
+    MInstruction* store;
+    MStoreElementCommon *common = nullptr;
     if (writeHole && writeOutOfBounds) {
         MOZ_ASSERT(safety == SetElem_Normal);
 
-        MStoreElementHole* ins = MStoreElementHole::New(alloc(), obj, elements, id, newValue);
+        MStoreElementHole* ins = MStoreElementHole::New(alloc(), obj, elements, id, newValue, unboxedType);
         store = ins;
+        common = ins;
 
         current->add(ins);
         current->push(value);
-
-        if (!resumeAfter(ins))
-            return false;
     } else {
-        MInitializedLength* initLength = MInitializedLength::New(alloc(), elements);
+        MInstruction* initLength;
+        if (unboxedType != JSVAL_TYPE_MAGIC)
+            initLength = MUnboxedArrayInitializedLength::New(alloc(), obj);
+        else
+            initLength = MInitializedLength::New(alloc(), elements);
         current->add(initLength);
 
         bool needsHoleCheck;
@@ -9178,24 +9211,31 @@ IonBuilder::jsop_setelem_dense(TemporaryTypeSet::DoubleConversion conversion,
             needsHoleCheck = false;
         }
 
-        MStoreElement* ins = MStoreElement::New(alloc(), elements, id, newValue, needsHoleCheck);
-        store = ins;
+        if (unboxedType != JSVAL_TYPE_MAGIC) {
+            store = storeUnboxedValue(obj, elements, 0, id, unboxedType, newValue);
+        } else {
+            MStoreElement* ins = MStoreElement::New(alloc(), elements, id, newValue, needsHoleCheck);
+            store = ins;
+            common = ins;
 
-        current->add(ins);
+            current->add(store);
+        }
 
         if (safety == SetElem_Normal)
             current->push(value);
-
-        if (!resumeAfter(ins))
-            return false;
     }
 
-    // Determine whether a write barrier is required.
-    if (obj->resultTypeSet()->propertyNeedsBarrier(constraints(), JSID_VOID))
-        store->setNeedsBarrier();
+    if (!resumeAfter(store))
+        return false;
 
-    if (elementType != MIRType_None && packed)
-        store->setElementType(elementType);
+    if (common) {
+        // Determine whether a write barrier is required.
+        if (obj->resultTypeSet()->propertyNeedsBarrier(constraints(), JSID_VOID))
+            common->setNeedsBarrier();
+
+        if (elementType != MIRType_None && packed)
+            common->setElementType(elementType);
+    }
 
     return true;
 }
@@ -9321,6 +9361,16 @@ IonBuilder::jsop_length_fastPath()
             return true;
         }
 
+        // Compute the length for unboxed array objects.
+        if (UnboxedArrayElementType(constraints(), obj, nullptr) != JSVAL_TYPE_MAGIC) {
+            current->pop();
+
+            MUnboxedArrayLength* length = MUnboxedArrayLength::New(alloc(), obj);
+            current->add(length);
+            current->push(length);
+            return true;
+        }
+
         // Compute the length for array typed objects.
         TypedObjectPrediction prediction = typedObjectPrediction(obj);
         if (!prediction.isUseless()) {
@@ -9400,7 +9450,7 @@ IonBuilder::jsop_rest()
 
     MNewArray* array = MNewArray::New(alloc(), constraints(), numRest, templateConst,
                                       templateObject->group()->initialHeap(constraints()),
-                                      NewArray_FullyAllocating);
+                                      NewArray_FullyAllocating, pc);
     current->add(array);
 
     if (numRest == 0) {
@@ -9453,37 +9503,6 @@ IonBuilder::getDefiniteSlot(TemporaryTypeSet* types, PropertyName* name, uint32_
         return UINT32_MAX;
     }
 
-    // Watch for groups which still have preliminary object information and
-    // have not had the new script properties other analyses performed on their
-    // preliminary objects. Normally this is done after a small number of the
-    // objects have been created, but if only a few have been created we can
-    // still perform the analysis with a smaller object population. The
-    // analysis can have side effects so abort the builder and retry later.
-    //
-    // We always check this, so that even if we aren't able to find a common
-    // slot we ensure that the new script analysis is performed on all accessed
-    // objects. Later, this will let us elide baseline IC stubs for preliminary
-    // objects, which often have a different number of fixed slots from
-    // subsequent objects.
-    for (size_t i = 0; i < types->getObjectCount(); i++) {
-        TypeSet::ObjectKey* key = types->getObject(i);
-        if (!key)
-            continue;
-
-        if (ObjectGroup* group = key->maybeGroup()) {
-            if (group->newScript() && !group->newScript()->analyzed()) {
-                addAbortedPreliminaryGroup(group);
-                trackOptimizationOutcome(TrackedOutcome::NoAnalysisInfo);
-                return UINT32_MAX;
-            }
-            if (group->maybePreliminaryObjects()) {
-                addAbortedPreliminaryGroup(group);
-                trackOptimizationOutcome(TrackedOutcome::NoAnalysisInfo);
-                return UINT32_MAX;
-            }
-        }
-    }
-
     uint32_t slot = UINT32_MAX;
 
     for (size_t i = 0; i < types->getObjectCount(); i++) {
@@ -9509,6 +9528,10 @@ IonBuilder::getDefiniteSlot(TemporaryTypeSet* types, PropertyName* name, uint32_
                 if (!convertUnboxedGroups.append(key->group()))
                     CrashAtUnhandlableOOM("IonBuilder::getDefiniteSlot");
                 key = TypeSet::ObjectKey::get(nativeGroup);
+                if (key->unknownProperties()) {
+                    trackOptimizationOutcome(TrackedOutcome::UnknownProperties);
+                    return UINT32_MAX;
+                }
             }
         }
 
@@ -9613,10 +9636,9 @@ IonBuilder::jsop_not()
 {
     MDefinition* value = current->pop();
 
-    MNot* ins = MNot::New(alloc(), value);
+    MNot* ins = MNot::New(alloc(), value, constraints());
     current->add(ins);
     current->push(ins);
-    ins->cacheOperandMightEmulateUndefined(constraints());
     return true;
 }
 
@@ -9955,6 +9977,37 @@ IonBuilder::storeSlot(MDefinition* obj, Shape* shape, MDefinition* value, bool n
 }
 
 bool
+IonBuilder::shouldAbortOnPreliminaryGroups(MDefinition *obj)
+{
+    // Watch for groups which still have preliminary object information and
+    // have not had the new script properties or unboxed layout analyses
+    // performed. Normally this is done after a small number of the objects
+    // have been created, but if only a few have been created we can still
+    // perform the analysis with a smaller object population. The analysis can
+    // have side effects so we will end up aborting compilation after building
+    // finishes and retrying later.
+    TemporaryTypeSet *types = obj->resultTypeSet();
+    if (!types || types->unknownObject())
+        return false;
+
+    bool preliminary = false;
+    for (size_t i = 0; i < types->getObjectCount(); i++) {
+        TypeSet::ObjectKey* key = types->getObject(i);
+        if (!key)
+            continue;
+
+        if (ObjectGroup* group = key->maybeGroup()) {
+            if (group->hasUnanalyzedPreliminaryObjects()) {
+                addAbortedPreliminaryGroup(group);
+                preliminary = true;
+            }
+        }
+    }
+
+    return preliminary;
+}
+
+bool
 IonBuilder::jsop_getprop(PropertyName* name)
 {
     bool emitted = false;
@@ -9995,7 +10048,7 @@ IonBuilder::jsop_getprop(PropertyName* name)
     // not actually emitting code, to simplify later analysis. Also skip deeper
     // analysis if there are no known types for this operation, as it will
     // always invalidate when executing.
-    if (info().isAnalysis() || types->empty()) {
+    if (info().isAnalysis() || types->empty() || shouldAbortOnPreliminaryGroups(obj)) {
         if (types->empty()) {
             // Since no further optimizations will be tried, use the IC
             // strategy, which would have been the last one to be tried, as a
@@ -10523,33 +10576,39 @@ IonBuilder::loadUnboxedProperty(MDefinition* obj, size_t offset, JSValueType unb
     MInstruction* scaledOffset = MConstant::New(alloc(), Int32Value(scaledOffsetConstant));
     current->add(scaledOffset);
 
+    return loadUnboxedValue(obj, UnboxedPlainObject::offsetOfData(),
+                            scaledOffset, unboxedType, barrier, types);
+}
+
+MInstruction*
+IonBuilder::loadUnboxedValue(MDefinition* elements, size_t elementsOffset,
+                             MDefinition* scaledOffset, JSValueType unboxedType,
+                             BarrierKind barrier, TemporaryTypeSet* types)
+{
+
     MInstruction* load;
     switch (unboxedType) {
       case JSVAL_TYPE_BOOLEAN:
-        load = MLoadUnboxedScalar::New(alloc(), obj, scaledOffset, Scalar::Uint8,
-                                       DoesNotRequireMemoryBarrier,
-                                       UnboxedPlainObject::offsetOfData());
+        load = MLoadUnboxedScalar::New(alloc(), elements, scaledOffset, Scalar::Uint8,
+                                       DoesNotRequireMemoryBarrier, elementsOffset);
         load->setResultType(MIRType_Boolean);
         break;
 
       case JSVAL_TYPE_INT32:
-        load = MLoadUnboxedScalar::New(alloc(), obj, scaledOffset, Scalar::Int32,
-                                       DoesNotRequireMemoryBarrier,
-                                       UnboxedPlainObject::offsetOfData());
+        load = MLoadUnboxedScalar::New(alloc(), elements, scaledOffset, Scalar::Int32,
+                                       DoesNotRequireMemoryBarrier, elementsOffset);
         load->setResultType(MIRType_Int32);
         break;
 
       case JSVAL_TYPE_DOUBLE:
-        load = MLoadUnboxedScalar::New(alloc(), obj, scaledOffset, Scalar::Float64,
-                                       DoesNotRequireMemoryBarrier,
-                                       UnboxedPlainObject::offsetOfData(),
+        load = MLoadUnboxedScalar::New(alloc(), elements, scaledOffset, Scalar::Float64,
+                                       DoesNotRequireMemoryBarrier, elementsOffset,
                                        /* canonicalizeDoubles = */ false);
         load->setResultType(MIRType_Double);
         break;
 
       case JSVAL_TYPE_STRING:
-        load = MLoadUnboxedString::New(alloc(), obj, scaledOffset,
-                                       UnboxedPlainObject::offsetOfData());
+        load = MLoadUnboxedString::New(alloc(), elements, scaledOffset, elementsOffset);
         break;
 
       case JSVAL_TYPE_OBJECT: {
@@ -10558,8 +10617,8 @@ IonBuilder::loadUnboxedProperty(MDefinition* obj, size_t offset, JSValueType unb
             nullBehavior = MLoadUnboxedObjectOrNull::HandleNull;
         else
             nullBehavior = MLoadUnboxedObjectOrNull::NullNotPossible;
-        load = MLoadUnboxedObjectOrNull::New(alloc(), obj, scaledOffset, nullBehavior,
-                                             UnboxedPlainObject::offsetOfData());
+        load = MLoadUnboxedObjectOrNull::New(alloc(), elements, scaledOffset, nullBehavior,
+                                             elementsOffset);
         break;
       }
 
@@ -11102,7 +11161,7 @@ IonBuilder::jsop_setprop(PropertyName* name)
 
     // Always use a call if we are doing the definite properties analysis and
     // not actually emitting code, to simplify later analysis.
-    if (info().isAnalysis()) {
+    if (info().isAnalysis() || shouldAbortOnPreliminaryGroups(obj)) {
         bool strict = IsStrictSetPC(pc);
         MInstruction* ins = MCallSetProperty::New(alloc(), obj, value, name, strict);
         current->add(ins);
@@ -11442,34 +11501,39 @@ IonBuilder::storeUnboxedProperty(MDefinition* obj, size_t offset, JSValueType un
     MInstruction* scaledOffset = MConstant::New(alloc(), Int32Value(scaledOffsetConstant));
     current->add(scaledOffset);
 
+    return storeUnboxedValue(obj, obj, UnboxedPlainObject::offsetOfData(),
+                             scaledOffset, unboxedType, value);
+}
+
+MInstruction*
+IonBuilder::storeUnboxedValue(MDefinition* obj, MDefinition* elements, int32_t elementsOffset,
+                              MDefinition* scaledOffset, JSValueType unboxedType,
+                              MDefinition* value)
+{
     MInstruction* store;
     switch (unboxedType) {
       case JSVAL_TYPE_BOOLEAN:
-        store = MStoreUnboxedScalar::New(alloc(), obj, scaledOffset, value, Scalar::Uint8,
-                                         DoesNotRequireMemoryBarrier,
-                                         UnboxedPlainObject::offsetOfData());
+        store = MStoreUnboxedScalar::New(alloc(), elements, scaledOffset, value, Scalar::Uint8,
+                                         DoesNotRequireMemoryBarrier, elementsOffset);
         break;
 
       case JSVAL_TYPE_INT32:
-        store = MStoreUnboxedScalar::New(alloc(), obj, scaledOffset, value, Scalar::Int32,
-                                         DoesNotRequireMemoryBarrier,
-                                         UnboxedPlainObject::offsetOfData());
+        store = MStoreUnboxedScalar::New(alloc(), elements, scaledOffset, value, Scalar::Int32,
+                                         DoesNotRequireMemoryBarrier, elementsOffset);
         break;
 
       case JSVAL_TYPE_DOUBLE:
-        store = MStoreUnboxedScalar::New(alloc(), obj, scaledOffset, value, Scalar::Float64,
-                                         DoesNotRequireMemoryBarrier,
-                                         UnboxedPlainObject::offsetOfData());
+        store = MStoreUnboxedScalar::New(alloc(), elements, scaledOffset, value, Scalar::Float64,
+                                         DoesNotRequireMemoryBarrier, elementsOffset);
         break;
 
       case JSVAL_TYPE_STRING:
-        store = MStoreUnboxedString::New(alloc(), obj, scaledOffset, value,
-                                         UnboxedPlainObject::offsetOfData());
+        store = MStoreUnboxedString::New(alloc(), elements, scaledOffset, value, elementsOffset);
         break;
 
       case JSVAL_TYPE_OBJECT:
-        store = MStoreUnboxedObjectOrNull::New(alloc(), obj, scaledOffset, value, obj,
-                                               UnboxedPlainObject::offsetOfData());
+        store = MStoreUnboxedObjectOrNull::New(alloc(), elements, scaledOffset, value, obj,
+                                               elementsOffset);
         break;
 
       default:
@@ -12241,7 +12305,8 @@ IonBuilder::jsop_in()
     MDefinition* obj = current->peek(-1);
     MDefinition* id = current->peek(-2);
 
-    if (ElementAccessIsDenseNative(constraints(), obj, id) &&
+    if (!shouldAbortOnPreliminaryGroups(obj) &&
+        ElementAccessIsDenseNative(constraints(), obj, id) &&
         !ElementAccessHasExtraIndexedProperty(constraints(), obj))
     {
         return jsop_in_dense();
@@ -12906,17 +12971,8 @@ IonBuilder::storeReferenceTypedObjectValue(MDefinition* typedObj,
 MConstant*
 IonBuilder::constant(const Value& v)
 {
-    // For performance reason (TLS) and error code handling (AtomizeString), we
-    // should prefer the specialized frunction constantMaybeAtomize instead of
-    // constant.
     MOZ_ASSERT(!v.isString() || v.toString()->isAtom(),
-               "To handle non-atomized strings, you should use constantMaybeAtomize instead of constant.");
-    if (v.isString() && MOZ_UNLIKELY(!v.toString()->isAtom())) {
-        MConstant *cst = constantMaybeAtomize(v);
-        if (!cst)
-            js::CrashAtUnhandlableOOM("Use constantMaybeAtomize.");
-        return cst;
-    }
+               "Handle non-atomized strings outside IonBuilder.");
 
     MConstant* c = MConstant::New(alloc(), v, constraints());
     current->add(c);
@@ -12927,19 +12983,6 @@ MConstant*
 IonBuilder::constantInt(int32_t i)
 {
     return constant(Int32Value(i));
-}
-
-MConstant*
-IonBuilder::constantMaybeAtomize(const Value& v)
-{
-    if (!v.isString() || v.toString()->isAtom())
-        return constant(v);
-
-    JSContext* cx = GetJitContext()->cx;
-    JSAtom* atom = js::AtomizeString(cx, v.toString());
-    if (!atom)
-        return nullptr;
-    return constant(StringValue(atom));
 }
 
 MDefinition*

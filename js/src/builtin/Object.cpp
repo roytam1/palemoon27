@@ -555,6 +555,7 @@ js::obj_hasOwnProperty(JSContext* cx, unsigned argc, Value* vp)
     jsid id;
     if (args.thisv().isObject() && ValueToId<NoGC>(cx, idValue, &id)) {
         JSObject* obj = &args.thisv().toObject();
+
         Shape* prop;
         if (obj->isNative() &&
             NativeLookupOwnProperty<NoGC>(cx, &obj->as<NativeObject>(), id, &prop))
@@ -1181,6 +1182,7 @@ const Class PlainObject::class_ = {
     nullptr,  /* setProperty */
     nullptr,  /* enumerate */
     nullptr,  /* resolve */
+    nullptr,  /* mayResolve */
     nullptr,  /* convert */
     nullptr,  /* finalize */
     nullptr,  /* call */

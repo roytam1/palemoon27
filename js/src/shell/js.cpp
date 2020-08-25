@@ -142,7 +142,10 @@ static bool enableIon = false;
 static bool enableAsmJS = false;
 static bool enableNativeRegExp = false;
 static bool enableUnboxedObjects = false;
+static bool enableUnboxedArrays = false;
+#ifdef JS_GC_ZEAL
 static char gZealStr[128];
+#endif
 
 static bool printTiming = false;
 static const char* jsCacheDir = nullptr;
@@ -2631,7 +2634,7 @@ static const JSClass sandbox_class = {
     JSCLASS_GLOBAL_FLAGS,
     nullptr, nullptr, nullptr, nullptr,
     sandbox_enumerate, sandbox_resolve,
-    nullptr, nullptr,
+    nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr,
     JS_GlobalObjectTraceHook
 };
@@ -5073,10 +5076,16 @@ global_resolve(JSContext* cx, HandleObject obj, HandleId id, bool* resolvedp)
     return true;
 }
 
+static bool
+global_mayResolve(const JSAtomState& names, jsid id, JSObject* maybeObj)
+{
+    return JS_MayResolveStandardClass(names, id, maybeObj);
+}
+
 static const JSClass global_class = {
     "global", JSCLASS_GLOBAL_FLAGS,
     nullptr, nullptr, nullptr, nullptr,
-    global_enumerate, global_resolve,
+    global_enumerate, global_resolve, global_mayResolve,
     nullptr, nullptr,
     nullptr, nullptr, nullptr,
     JS_GlobalObjectTraceHook
@@ -5139,6 +5148,7 @@ static const JSJitInfo dom_x_getterinfo = {
     JSVAL_TYPE_UNKNOWN, /* returnType */
     true,     /* isInfallible. False in setters. */
     true,     /* isMovable */
+    true,     /* isEliminatable */
     false,    /* isAlwaysInSlot */
     false,    /* isLazilyCachedInSlot */
     false,    /* isTypedMethod */
@@ -5154,6 +5164,7 @@ static const JSJitInfo dom_x_setterinfo = {
     JSVAL_TYPE_UNKNOWN, /* returnType */
     false,    /* isInfallible. False in setters. */
     false,    /* isMovable. */
+    false,    /* isEliminatable. */
     false,    /* isAlwaysInSlot */
     false,    /* isLazilyCachedInSlot */
     false,    /* isTypedMethod */
@@ -5169,6 +5180,7 @@ static const JSJitInfo doFoo_methodinfo = {
     JSVAL_TYPE_UNKNOWN, /* returnType */
     false,    /* isInfallible. False in setters. */
     false,    /* isMovable */
+    false,    /* isEliminatable */
     false,    /* isAlwaysInSlot */
     false,    /* isLazilyCachedInSlot */
     false,    /* isTypedMethod */
@@ -5740,12 +5752,14 @@ SetRuntimeOptions(JSRuntime* rt, const OptionParser& op)
     enableAsmJS = !op.getBoolOption("no-asmjs");
     enableNativeRegExp = !op.getBoolOption("no-native-regexp");
     enableUnboxedObjects = op.getBoolOption("unboxed-objects");
+    enableUnboxedArrays = op.getBoolOption("unboxed-arrays");
 
     JS::RuntimeOptionsRef(rt).setBaseline(enableBaseline)
                              .setIon(enableIon)
                              .setAsmJS(enableAsmJS)
                              .setNativeRegExp(enableNativeRegExp)
-                             .setUnboxedObjects(enableUnboxedObjects);
+                             .setUnboxedObjects(enableUnboxedObjects)
+                             .setUnboxedArrays(enableUnboxedArrays);
 
     if (const char* str = op.getStringOption("ion-scalar-replacement")) {
         if (strcmp(str, "on") == 0)
@@ -5950,7 +5964,8 @@ SetWorkerRuntimeOptions(JSRuntime *rt)
                              .setIon(enableIon)
                              .setAsmJS(enableAsmJS)
                              .setNativeRegExp(enableNativeRegExp)
-                             .setUnboxedObjects(enableUnboxedObjects);
+                             .setUnboxedObjects(enableUnboxedObjects)
+                             .setUnboxedArrays(enableUnboxedArrays);
     rt->setOffthreadIonCompilationEnabled(offthreadCompilation);
     rt->profilingScripts = enableDisassemblyDumps;
 
@@ -6126,7 +6141,8 @@ main(int argc, char** argv, char** envp)
         || !op.addBoolOption('\0', "no-ion", "Disable IonMonkey")
         || !op.addBoolOption('\0', "no-asmjs", "Disable asm.js compilation")
         || !op.addBoolOption('\0', "no-native-regexp", "Disable native regexp compilation")
-        || !op.addBoolOption('\0', "unboxed-objects", "Allow creating unboxed objects")
+        || !op.addBoolOption('\0', "unboxed-objects", "Allow creating unboxed plain objects")
+        || !op.addBoolOption('\0', "unboxed-arrays", "Allow creating unboxed arrays")
         || !op.addStringOption('\0', "ion-scalar-replacement", "on/off",
                                "Scalar Replacement (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-gvn", "[mode]",

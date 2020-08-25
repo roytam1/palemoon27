@@ -606,6 +606,13 @@ Debugger::slowPathOnLeaveFrame(JSContext* cx, AbstractFramePtr frame, bool frame
 {
     Handle<GlobalObject*> global = cx->global();
 
+    // The onPop handler and associated clean up logic should not run multiple
+    // times on the same frame. If slowPathOnLeaveFrame has already been
+    // called, the frame will not be present in the Debugger frame maps.
+    FrameRange frameRange(frame, global);
+    if (frameRange.empty())
+        return frameOk;
+
     /* Save the frame's completion value. */
     JSTrapStatus status;
     RootedValue value(cx);
@@ -618,8 +625,8 @@ Debugger::slowPathOnLeaveFrame(JSContext* cx, AbstractFramePtr frame, bool frame
     if (!cx->isThrowingOverRecursed() && !cx->isThrowingOutOfMemory()) {
         /* Build a list of the recipients. */
         AutoObjectVector frames(cx);
-        for (FrameRange r(frame, global); !r.empty(); r.popFront()) {
-            if (!frames.append(r.frontFrame())) {
+        for (; !frameRange.empty(); frameRange.popFront()) {
+            if (!frames.append(frameRange.frontFrame())) {
                 cx->clearPendingException();
                 return false;
             }
@@ -1688,8 +1695,8 @@ Debugger::slowPathOnNewGlobalObject(JSContext* cx, Handle<GlobalObject*> global)
 }
 
 /* static */ bool
-Debugger::slowPathOnLogAllocationSite(JSContext* cx, HandleSavedFrame frame, int64_t when,
-                                      GlobalObject::DebuggerVector& dbgs)
+Debugger::slowPathOnLogAllocationSite(JSContext* cx, HandleObject obj, HandleSavedFrame frame,
+                                      int64_t when, GlobalObject::DebuggerVector& dbgs)
 {
     MOZ_ASSERT(!dbgs.empty());
     mozilla::DebugOnly<Debugger**> begin = dbgs.begin();
@@ -1701,7 +1708,7 @@ Debugger::slowPathOnLogAllocationSite(JSContext* cx, HandleSavedFrame frame, int
 
         if ((*dbgp)->trackingAllocationSites &&
             (*dbgp)->enabled &&
-            !(*dbgp)->appendAllocationSite(cx, frame, when))
+            !(*dbgp)->appendAllocationSite(cx, obj, frame, when))
         {
             return false;
         }
@@ -1717,15 +1724,38 @@ Debugger::isDebuggee(const JSCompartment* compartment) const
     return compartment->isDebuggee() && debuggees.has(compartment->maybeGlobal());
 }
 
+/* static */ Debugger::AllocationSite*
+Debugger::AllocationSite::create(JSContext* cx, HandleObject frame, int64_t when, HandleObject obj)
+{
+    assertSameCompartment(cx, frame);
+
+    RootedAtom ctorName(cx);
+    {
+        AutoCompartment ac(cx, obj);
+        if (!obj->constructorDisplayAtom(cx, &ctorName))
+            return nullptr;
+    }
+
+    AllocationSite* allocSite = cx->new_<AllocationSite>(frame, when);
+    if (!allocSite)
+        return nullptr;
+
+    allocSite->className = obj->getClass()->name;
+    allocSite->ctorName = ctorName.get();
+    return allocSite;
+}
+
+
 bool
-Debugger::appendAllocationSite(JSContext* cx, HandleSavedFrame frame, int64_t when)
+Debugger::appendAllocationSite(JSContext* cx, HandleObject obj, HandleSavedFrame frame,
+                               int64_t when)
 {
     AutoCompartment ac(cx, object);
-    RootedObject wrapped(cx, frame);
-    if (!cx->compartment()->wrap(cx, &wrapped))
+    RootedObject wrappedFrame(cx, frame);
+    if (!cx->compartment()->wrap(cx, &wrappedFrame))
         return false;
 
-    AllocationSite* allocSite = cx->new_<AllocationSite>(wrapped, when);
+    AllocationSite* allocSite = AllocationSite::create(cx, wrappedFrame, when, obj);
     if (!allocSite)
         return false;
 
@@ -2386,6 +2416,8 @@ Debugger::trace(JSTracer* trc)
     for (AllocationSite* s = allocationsLog.getFirst(); s; s = s->getNext()) {
         if (s->frame)
             TraceEdge(trc, &s->frame, "allocation log SavedFrame");
+        if (s->ctorName)
+            TraceEdge(trc, &s->ctorName, "allocation log constructor name");
     }
 
     /* Trace the weak map from JSScript instances to Debugger.Script objects. */
@@ -2467,7 +2499,7 @@ const Class Debugger::jsclass = {
     "Debugger",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUG_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, Debugger::finalize,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
@@ -4266,7 +4298,7 @@ const Class DebuggerScript_class = {
     "Script",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSCRIPT_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
@@ -4999,13 +5031,11 @@ Debugger::replaceFrameGuts(JSContext* cx, AbstractFramePtr from, AbstractFramePt
     return true;
 }
 
-/* static */ void
-Debugger::assertNotInFrameMaps(AbstractFramePtr frame)
+/* static */ bool
+Debugger::inFrameMaps(AbstractFramePtr frame)
 {
-#ifdef DEBUG
     FrameRange r(frame);
-    MOZ_ASSERT(r.empty());
-#endif
+    return !r.empty();
 }
 
 /* static */ void
@@ -5289,7 +5319,7 @@ const Class DebuggerSource_class = {
     "Source",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSOURCE_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
@@ -5644,7 +5674,7 @@ DebuggerFrame_finalize(FreeOp* fop, JSObject* obj)
 
 const Class DebuggerFrame_class = {
     "Frame", JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGFRAME_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, DebuggerFrame_finalize
 };
 
@@ -6401,7 +6431,7 @@ const Class DebuggerObject_class = {
     "Object",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGOBJECT_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
@@ -7311,7 +7341,7 @@ const Class DebuggerEnv_class = {
     "Environment",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGENV_COUNT),
-    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */

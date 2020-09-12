@@ -76,6 +76,8 @@ EXPORTS.mozilla += [
     'CountingAllocatorBase.h',
     'CycleCollectedJSRuntime.h',
     'Debug.h',
+    'DebuggerOnGCRunnable.h',
+    'DeferredFinalize.h',
     'ErrorNames.h',
     'HoldDropJSObjects.h',
     'LinuxUtils.h',
@@ -94,12 +96,13 @@ SOURCES += [
 ]
 SOURCES['nsDebugImpl.cpp'].no_pgo = True
 
-# UNIFIED_SOURCES += [
-SOURCES += [
+UNIFIED_SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
     'CycleCollectedJSRuntime.cpp',
     'Debug.cpp',
+    'DebuggerOnGCRunnable.cpp',
+    'DeferredFinalize.cpp',
     'ErrorNames.cpp',
     'HoldDropJSObjects.cpp',
     'nsConsoleMessage.cpp',

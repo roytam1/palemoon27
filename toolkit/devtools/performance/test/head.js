@@ -56,6 +56,7 @@ let DEFAULT_PREFS = [
   "devtools.performance.memory.max-log-length",
   "devtools.performance.profiler.buffer-size",
   "devtools.performance.profiler.sample-frequency-khz",
+  "devtools.performance.ui.retro-mode",
 ].reduce((prefs, pref) => {
   prefs[pref] = Preferences.get(pref);
   return prefs;
@@ -66,6 +67,10 @@ Services.prefs.setBoolPref("devtools.performance.enabled", true);
 // Enable logging for all the tests. Both the debugger server and frontend will
 // be affected by this pref.
 Services.prefs.setBoolPref("devtools.debugger.log", false);
+
+// Disable retro mode.
+// TODO bug 1160313
+Services.prefs.setBoolPref("devtools.performance.ui.retro-mode", false);
 
 /**
  * Call manually in tests that use frame script utils after initializing
@@ -137,7 +142,7 @@ function handleError(aError) {
 }
 
 function once(aTarget, aEventName, aUseCapture = false, spread = false) {
-  info("Waiting for event: '" + aEventName + "' on " + aTarget + ".");
+  info(`Waiting for event: '${aEventName}' on ${aTarget}`);
 
   let deferred = Promise.defer();
 
@@ -148,6 +153,7 @@ function once(aTarget, aEventName, aUseCapture = false, spread = false) {
   ]) {
     if ((add in aTarget) && (remove in aTarget)) {
       aTarget[add](aEventName, function onEvent(...aArgs) {
+        info(`Received event: '${aEventName}' on ${aTarget}`);
         aTarget[remove](aEventName, onEvent, aUseCapture);
         deferred.resolve(spread ? aArgs : aArgs[0]);
       }, aUseCapture);
@@ -189,6 +195,8 @@ function initBackend(aUrl, targetOps={}) {
     // may not exist. Possible options that will actually work:
     // TEST_MOCK_MEMORY_ACTOR = true
     // TEST_MOCK_TIMELINE_ACTOR = true
+    // TEST_MOCK_PROFILER_CHECK_TIMER = number
+    // TEST_PROFILER_FILTER_STATUS = array
     merge(target, targetOps);
 
     let connection = getPerformanceActorsConnection(target);
@@ -199,7 +207,7 @@ function initBackend(aUrl, targetOps={}) {
   });
 }
 
-function initPerformance(aUrl, selectedTool="performance", targetOps={}) {
+function initPerformance(aUrl, tool="performance", targetOps={}) {
   info("Initializing a performance pane.");
 
   return Task.spawn(function*() {
@@ -213,9 +221,11 @@ function initPerformance(aUrl, selectedTool="performance", targetOps={}) {
     // may not exist. Possible options that will actually work:
     // TEST_MOCK_MEMORY_ACTOR = true
     // TEST_MOCK_TIMELINE_ACTOR = true
+    // TEST_MOCK_PROFILER_CHECK_TIMER = number
+    // TEST_PROFILER_FILTER_STATUS = array
     merge(target, targetOps);
 
-    let toolbox = yield gDevTools.showToolbox(target, selectedTool);
+    let toolbox = yield gDevTools.showToolbox(target, tool);
     let panel = toolbox.getCurrentPanel();
     return { target, panel, toolbox };
   });
@@ -300,13 +310,13 @@ function consoleMethod (...args) {
 }
 
 function* consoleProfile(win, label) {
-  let profileStart = once(win.PerformanceController, win.EVENTS.CONSOLE_RECORDING_STARTED);
+  let profileStart = once(win.PerformanceController, win.EVENTS.RECORDING_STARTED);
   consoleMethod("profile", label);
   yield profileStart;
 }
 
 function* consoleProfileEnd(win, label) {
-  let ended = once(win.PerformanceController, win.EVENTS.CONSOLE_RECORDING_STOPPED);
+  let ended = once(win.PerformanceController, win.EVENTS.RECORDING_STOPPED);
   consoleMethod("profileEnd", label);
   yield ended;
 }
@@ -486,11 +496,6 @@ function dropSelection(graph) {
   graph.emit("selecting");
 }
 
-function getSourceActor(aSources, aURL) {
-  let item = aSources.getItemForAttachment(a => a.source.url === aURL);
-  return item && item.value;
-}
-
 /**
  * Fires a key event, like "VK_UP", "VK_DOWN", etc.
  */
@@ -501,4 +506,67 @@ function fireKey (e) {
 function reload (aTarget, aEvent = "navigate") {
   aTarget.activeTab.reload();
   return once(aTarget, aEvent);
+}
+
+/**
+ * Inflate a particular sample's stack and return an array of strings.
+ */
+function getInflatedStackLocations(thread, sample) {
+  let stackTable = thread.stackTable;
+  let frameTable = thread.frameTable;
+  let stringTable = thread.stringTable;
+  let SAMPLE_STACK_SLOT = thread.samples.schema.stack;
+  let STACK_PREFIX_SLOT = stackTable.schema.prefix;
+  let STACK_FRAME_SLOT = stackTable.schema.frame;
+  let FRAME_LOCATION_SLOT = frameTable.schema.location;
+
+  // Build the stack from the raw data and accumulate the locations in
+  // an array.
+  let stackIndex = sample[SAMPLE_STACK_SLOT];
+  let locations = [];
+  while (stackIndex !== null) {
+    let stackEntry = stackTable.data[stackIndex];
+    let frame = frameTable.data[stackEntry[STACK_FRAME_SLOT]];
+    locations.push(stringTable[frame[FRAME_LOCATION_SLOT]]);
+    stackIndex = stackEntry[STACK_PREFIX_SLOT];
+  }
+
+  // The profiler tree is inverted, so reverse the array.
+  return locations.reverse();
+}
+
+/**
+ * Get a path in a FrameNode call tree.
+ */
+function getFrameNodePath(root, path) {
+  let calls = root.calls;
+  let node;
+  for (let key of path.split(" > ")) {
+    node = calls.find((node) => node.key == key);
+    if (!node) {
+      break;
+    }
+    calls = node.calls;
+  }
+  return node;
+}
+
+/**
+ * Synthesize a profile for testing.
+ */
+function synthesizeProfileForTest(samples) {
+  const { RecordingUtils } = devtools.require("devtools/performance/recording-utils");
+
+  samples.unshift({
+    time: 0,
+    frames: [
+      { location: "(root)" }
+    ]
+  });
+
+  let uniqueStacks = new RecordingUtils.UniqueStacks();
+  return RecordingUtils.deflateThread({
+    samples: samples,
+    markers: []
+  }, uniqueStacks);
 }

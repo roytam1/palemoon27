@@ -240,7 +240,7 @@ let SnapshotsListView = Heritage.extend(WidgetMethods, {
     // the dummy snapshot item from being drawn.
     this.addSnapshot();
 
-    // If this is the first item, immediately show the "Loading?? notice.
+    // If this is the first item, immediately show the "Loading…" notice.
     if (this.itemCount == 1) {
       $("#empty-notice").hidden = true;
       $("#waiting-notice").hidden = false;
@@ -463,7 +463,7 @@ let SnapshotsListView = Heritage.extend(WidgetMethods, {
       let footer = $(".snapshot-item-footer", snapshotItem.target);
       let save = $(".snapshot-item-save", snapshotItem.target);
 
-      // Show a throbber and a "Saving?? label if serializing isn't immediate.
+      // Show a throbber and a "Saving…" label if serializing isn't immediate.
       setNamedTimeout("call-list-save", CALLS_LIST_SLOW_SAVE_DELAY, () => {
         footer.classList.add("devtools-throbber");
         save.setAttribute("disabled", "true");

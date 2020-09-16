@@ -1094,6 +1094,20 @@ pref("devtools.performance.profiler.buffer-size", 10000000);
 pref("devtools.performance.profiler.sample-frequency-khz", 1);
 pref("devtools.performance.ui.show-jit-optimizations", false);
 
+// If in aurora (40.0, will revert for 40.1), set default
+// to retro mode.
+// TODO bug 1160313
+#if MOZ_UPDATE_CHANNEL == aurora
+  pref("devtools.performance.ui.retro-mode", true);
+#else
+  pref("devtools.performance.ui.retro-mode", false);
+#endif
+
+// Set imgur upload client ID
+pref("devtools.gcli.imgurClientID", '0df414e888d7240');
+// Imgur's upload URL
+pref("devtools.gcli.imgurUploadURL", "https://api.imgur.com/3/image");
+
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.
 pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.properties");

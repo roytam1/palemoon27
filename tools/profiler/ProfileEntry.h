@@ -25,7 +25,10 @@
 
 class ThreadProfile;
 
+// NB: Packing this structure has been shown to cause SIGBUS issues on ARM.
+#ifndef __arm__
 #pragma pack(push, 1)
+#endif
 
 class ProfileEntry
 {
@@ -73,9 +76,9 @@ private:
   char mTagName;
 };
 
+#ifndef __arm__
 #pragma pack(pop)
-
-typedef void (*IterateTagsCallback)(const ProfileEntry& entry, const char* tagStringData);
+#endif
 
 class UniqueJSONStrings
 {
@@ -111,7 +114,7 @@ class UniqueStacks
 {
 public:
   struct FrameKey {
-    std::string mLocation;
+    nsCString mLocation;
     mozilla::Maybe<unsigned> mLine;
     mozilla::Maybe<unsigned> mCategory;
     mozilla::Maybe<void*> mJITAddress;
@@ -119,6 +122,14 @@ public:
 
     explicit FrameKey(const char* aLocation)
      : mLocation(aLocation)
+    { }
+
+    FrameKey(const FrameKey& aToCopy)
+     : mLocation(aToCopy.mLocation)
+     , mLine(aToCopy.mLine)
+     , mCategory(aToCopy.mCategory)
+     , mJITAddress(aToCopy.mJITAddress)
+     , mJITDepth(aToCopy.mJITDepth)
     { }
 
     FrameKey(void* aJITAddress, uint32_t aJITDepth)
@@ -137,6 +148,11 @@ public:
     explicit OnStackFrameKey(const char* aLocation)
       : FrameKey(aLocation)
       , mJITFrameHandle(nullptr)
+    { }
+
+    OnStackFrameKey(const OnStackFrameKey& aToCopy)
+      : FrameKey(aToCopy)
+      , mJITFrameHandle(aToCopy.mJITFrameHandle)
     { }
 
     OnStackFrameKey(void* aJITAddress, unsigned aJITDepth)
@@ -218,7 +234,6 @@ public:
   explicit ProfileBuffer(int aEntrySize);
 
   void addTag(const ProfileEntry& aTag);
-  void IterateTagsForThread(IterateTagsCallback aCallback, int aThreadId);
   void StreamSamplesToJSON(SpliceableJSONWriter& aWriter, int aThreadId, float aSinceTime,
                            JSRuntime* rt, UniqueStacks& aUniqueStacks);
   void StreamMarkersToJSON(SpliceableJSONWriter& aWriter, int aThreadId, float aSinceTime,
@@ -364,9 +379,6 @@ public:
    * expired.
    */
   void addStoredMarker(ProfilerMarker *aStoredMarker);
-  void IterateTags(IterateTagsCallback aCallback);
-  void ToStreamAsJSON(std::ostream& stream, float aSinceTime = 0);
-  JSObject* ToJSObject(JSContext *aCx, float aSinceTime = 0);
   PseudoStack* GetPseudoStack();
   mozilla::Mutex* GetMutex();
   void StreamJSON(SpliceableJSONWriter& aWriter, float aSinceTime = 0);

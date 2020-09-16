@@ -395,7 +395,7 @@ class IonBuilder
     MDefinition* walkScopeChain(unsigned hops);
 
     MInstruction* addConvertElementsToDoubles(MDefinition* elements);
-    MDefinition* addMaybeCopyElementsForWrite(MDefinition* object);
+    MDefinition* addMaybeCopyElementsForWrite(MDefinition* object, bool checkNative);
     MInstruction* addBoundsCheck(MDefinition* index, MDefinition* length);
     MInstruction* addShapeGuard(MDefinition* obj, Shape* const shape, BailoutKind bailoutKind);
     MInstruction* addGroupGuard(MDefinition* obj, ObjectGroup* group, BailoutKind bailoutKind);
@@ -867,7 +867,6 @@ class IonBuilder
     InliningStatus inlineBailout(CallInfo& callInfo);
     InliningStatus inlineAssertFloat32(CallInfo& callInfo);
     InliningStatus inlineAssertRecoveredOnBailout(CallInfo& callInfo);
-    InliningStatus inlineTrue(CallInfo& callInfo);
 
     // Bind function.
     InliningStatus inlineBoundFunction(CallInfo& callInfo, JSFunction* target);
@@ -949,7 +948,7 @@ class IonBuilder
     MInstruction* storeUnboxedValue(MDefinition* obj,
                                     MDefinition* elements, int32_t elementsOffset,
                                     MDefinition* scaledOffset, JSValueType unboxedType,
-                                    MDefinition* value);
+                                    MDefinition* value, bool preBarrier = true);
     bool checkPreliminaryGroups(MDefinition *obj);
     bool freezePropTypeSets(TemporaryTypeSet* types,
                             JSObject* foundProto, PropertyName* name);

@@ -233,7 +233,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             return nullptr;
 
         return NewFunctionWithProto(cx, class_constructor, 3,
-                                    JSFunction::NATIVE_CTOR, NullPtr(),
+                                    JSFunction::NATIVE_CTOR, nullptr,
                                     ClassName(key, cx),
                                     ctorProto, gc::AllocKind::FUNCTION,
                                     SingletonObject);
@@ -253,7 +253,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
 
         RootedFunction fun(cx);
         fun = NewNativeFunction(cx, ArrayBufferObject::createTypedArrayFromBuffer<NativeType>,
-                                0, NullPtr());
+                                0, nullptr);
         if (!fun)
             return false;
 
@@ -1135,7 +1135,7 @@ DataViewObject::class_constructor(JSContext* cx, unsigned argc, Value* vp)
         return true;
     }
 
-    return construct(cx, bufobj, args, NullPtr());
+    return construct(cx, bufobj, args, nullptr);
 }
 
 template <typename NativeType>
@@ -1975,8 +1975,8 @@ DataViewObject::defineGetter(JSContext* cx, PropertyName* name, HandleNativeObje
     unsigned attrs = JSPROP_SHARED | JSPROP_GETTER;
 
     Rooted<GlobalObject*> global(cx, cx->compartment()->maybeGlobal());
-    JSObject *getter =
-        NewNativeFunction(cx, DataViewObject::getter<ValueGetter>, 0, NullPtr());
+    JSObject* getter =
+        NewNativeFunction(cx, DataViewObject::getter<ValueGetter>, 0, nullptr);
     if (!getter)
         return false;
 
@@ -2021,7 +2021,7 @@ DataViewObject::initClass(JSContext* cx)
      * global for use by the DataViewObject constructor.
      */
     RootedFunction fun(cx, NewNativeFunction(cx, ArrayBufferObject::createDataViewForThis,
-                                             0, NullPtr()));
+                                             0, nullptr));
     if (!fun)
         return false;
 

@@ -151,7 +151,7 @@ JS::ObjectOpResult::reportStrictErrorOrWarning(JSContext* cx, HandleObject obj, 
     if (code_ == JSMSG_OBJECT_NOT_EXTENSIBLE || code_ == JSMSG_SET_NON_OBJECT_RECEIVER) {
         RootedValue val(cx, ObjectValue(*obj));
         return ReportValueErrorFlags(cx, flags, code_, JSDVG_IGNORE_STACK, val,
-                                     NullPtr(), nullptr, nullptr);
+                                     nullptr, nullptr, nullptr);
     }
     if (ErrorTakesIdArgument(code_)) {
         RootedValue idv(cx, IdToValue(id));
@@ -1998,7 +1998,7 @@ JS_NewObject(JSContext *cx, const JSClass *jsclasp)
     MOZ_ASSERT(clasp != &JSFunction::class_);
     MOZ_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
-    return NewObjectWithClassProto(cx, clasp, NullPtr());
+    return NewObjectWithClassProto(cx, clasp, nullptr);
 }
 
 JS_PUBLIC_API(JSObject*)
@@ -2663,7 +2663,7 @@ JS_DefineObject(JSContext* cx, HandleObject obj, const char* name, const JSClass
     if (!clasp)
         clasp = &PlainObject::class_;    /* default class is Object */
 
-    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, NullPtr()));
+    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, nullptr));
     if (!nobj)
         return nullptr;
 
@@ -3406,7 +3406,7 @@ JS_IsNativeFunction(JSObject* funobj, JSNative call)
 extern JS_PUBLIC_API(bool)
 JS_IsConstructor(JSFunction* fun)
 {
-    return fun->isNativeConstructor() || fun->isInterpretedConstructor();
+    return fun->isConstructor();
 }
 
 JS_PUBLIC_API(JSObject*)
@@ -3822,7 +3822,7 @@ JS::Compile(JSContext *cx, const ReadOnlyCompileOptions &options,
     CHECK_REQUEST(cx);
 
     script.set(frontend::CompileScript(cx, &cx->tempLifoAlloc(), cx->global(),
-                                       NullPtr(), NullPtr(), options, srcBuf));
+                                       nullptr, nullptr, options, srcBuf));
     return !!script;
 }
 
@@ -4046,7 +4046,7 @@ CompileFunction(JSContext* cx, const ReadOnlyCompileOptions& optionsArg,
             return false;
     }
 
-    fun.set(NewScriptedFunction(cx, 0, JSFunction::INTERPRETED, funAtom,
+    fun.set(NewScriptedFunction(cx, 0, JSFunction::INTERPRETED_NORMAL, funAtom,
                                 gc::AllocKind::FUNCTION, TenuredObject,
                                 enclosingDynamicScope));
     if (!fun)
@@ -4156,7 +4156,7 @@ ExecuteScript(JSContext* cx, HandleObject obj, HandleScript scriptArg, jsval* rv
     assertSameCompartment(cx, obj, scriptArg);
 
     if (!script->hasPollutedGlobalScope() && !obj->is<GlobalObject>()) {
-        script = CloneScript(cx, NullPtr(), NullPtr(), script, HasPollutedGlobalScope);
+        script = CloneScript(cx, nullptr, nullptr, script, HasPollutedGlobalScope);
         if (!script)
             return false;
         js::Debugger::onNewScript(cx, script);
@@ -4206,7 +4206,7 @@ JS::CloneAndExecuteScript(JSContext* cx, HandleScript scriptArg)
     CHECK_REQUEST(cx);
     RootedScript script(cx, scriptArg);
     if (script->compartment() != cx->compartment()) {
-        script = CloneScript(cx, NullPtr(), NullPtr(), script);
+        script = CloneScript(cx, nullptr, nullptr, script);
         if (!script)
             return false;
 
@@ -4233,7 +4233,7 @@ Evaluate(JSContext *cx, HandleObject scope, const ReadOnlyCompileOptions &option
     options.setIsRunOnce(true);
     SourceCompressionTask sct(cx);
     RootedScript script(cx, frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                    scope, NullPtr(), NullPtr(), options,
+                                                    scope, nullptr, nullptr, options,
                                                     srcBuf, nullptr, 0, &sct));
     if (!script)
         return false;

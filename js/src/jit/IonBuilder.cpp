@@ -467,7 +467,7 @@ IonBuilder::canInlineTarget(JSFunction* target, CallInfo& callInfo)
     }
 
     JSScript* inlineScript = target->nonLazyScript();
-    if (callInfo.constructing() && !target->isInterpretedConstructor()) {
+    if (callInfo.constructing() && !target->isConstructor()) {
         trackOptimizationOutcome(TrackedOutcome::CantInlineNotConstructor);
         return DontInline(inlineScript, "Callee is not a constructor");
     }
@@ -5917,7 +5917,7 @@ IonBuilder::createThis(JSFunction* target, MDefinition* callee)
 
     // Native constructors build the new Object themselves.
     if (target->isNative()) {
-        if (!target->isNativeConstructor())
+        if (!target->isConstructor())
             return nullptr;
 
         MConstant* magic = MConstant::New(alloc(), MagicValue(JS_IS_CONSTRUCTING));
@@ -6367,8 +6367,7 @@ IonBuilder::makeCall(JSFunction* target, CallInfo& callInfo)
 {
     // Constructor calls to non-constructors should throw. We don't want to use
     // CallKnown in this case.
-    MOZ_ASSERT_IF(callInfo.constructing() && target,
-                  target->isInterpretedConstructor() || target->isNativeConstructor());
+    MOZ_ASSERT_IF(callInfo.constructing() && target, target->isConstructor());
 
     MCall* call = makeCallHelper(target, callInfo);
     if (!call)
@@ -6637,7 +6636,7 @@ IonBuilder::jsop_initelem_array()
 
     if (unboxedType != JSVAL_TYPE_MAGIC) {
         // Note: storeUnboxedValue takes care of any post barriers on the value.
-        storeUnboxedValue(obj, elements, 0, id, unboxedType, value);
+        storeUnboxedValue(obj, elements, 0, id, unboxedType, value, /* preBarrier = */ false);
 
         MInstruction* increment = MIncrementUnboxedArrayInitializedLength::New(alloc(), obj);
         current->add(increment);
@@ -7119,6 +7118,7 @@ static bool
 ClassHasEffectlessLookup(const Class* clasp)
 {
     return (clasp == &UnboxedPlainObject::class_) ||
+           (clasp == &UnboxedArrayObject::class_) ||
            IsTypedObjectClass(clasp) ||
            (clasp->isNative() && !clasp->ops.lookupProperty);
 }
@@ -9101,7 +9101,9 @@ IonBuilder::setElemTryCache(bool* emitted, MDefinition* object,
     bool guardHoles = ElementAccessHasExtraIndexedProperty(constraints(), object);
 
     // Make sure the object being written to doesn't have copy on write elements.
-    object = addMaybeCopyElementsForWrite(object);
+    const Class* clasp = object->resultTypeSet() ? object->resultTypeSet()->getKnownClass(constraints()) : nullptr;
+    bool checkNative = !clasp || !clasp->isNative();
+    object = addMaybeCopyElementsForWrite(object, checkNative);
 
     if (NeedsPostBarrier(info(), value))
         current->add(MPostWriteBarrier::New(alloc(), object, value));
@@ -9144,7 +9146,7 @@ IonBuilder::jsop_setelem_dense(TemporaryTypeSet::DoubleConversion conversion,
     id = idInt32;
 
     // Copy the elements vector if necessary.
-    obj = addMaybeCopyElementsForWrite(obj);
+    obj = addMaybeCopyElementsForWrite(obj, /* checkNative = */ false);
 
     // Get the elements vector.
     MElements* elements = MElements::New(alloc(), obj, unboxedType != JSVAL_TYPE_MAGIC);
@@ -11511,7 +11513,7 @@ IonBuilder::storeUnboxedProperty(MDefinition* obj, size_t offset, JSValueType un
 MInstruction*
 IonBuilder::storeUnboxedValue(MDefinition* obj, MDefinition* elements, int32_t elementsOffset,
                               MDefinition* scaledOffset, JSValueType unboxedType,
-                              MDefinition* value)
+                              MDefinition* value, bool preBarrier /* = true */)
 {
     MInstruction* store;
     switch (unboxedType) {
@@ -11531,12 +11533,13 @@ IonBuilder::storeUnboxedValue(MDefinition* obj, MDefinition* elements, int32_t e
         break;
 
       case JSVAL_TYPE_STRING:
-        store = MStoreUnboxedString::New(alloc(), elements, scaledOffset, value, elementsOffset);
+        store = MStoreUnboxedString::New(alloc(), elements, scaledOffset, value,
+                                         elementsOffset, preBarrier);
         break;
 
       case JSVAL_TYPE_OBJECT:
         store = MStoreUnboxedObjectOrNull::New(alloc(), elements, scaledOffset, value, obj,
-                                               elementsOffset);
+                                               elementsOffset, preBarrier);
         break;
 
       default:
@@ -12563,11 +12566,11 @@ IonBuilder::addConvertElementsToDoubles(MDefinition* elements)
 }
 
 MDefinition*
-IonBuilder::addMaybeCopyElementsForWrite(MDefinition* object)
+IonBuilder::addMaybeCopyElementsForWrite(MDefinition* object, bool checkNative)
 {
     if (!ElementAccessMightBeCopyOnWrite(constraints(), object))
         return object;
-    MInstruction* copy = MMaybeCopyElementsForWrite::New(alloc(), object);
+    MInstruction* copy = MMaybeCopyElementsForWrite::New(alloc(), object, checkNative);
     current->add(copy);
     return copy;
 }

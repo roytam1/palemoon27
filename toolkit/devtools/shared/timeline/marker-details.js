@@ -64,9 +64,7 @@ MarkerDetails.prototype = {
     hbox.setAttribute("align", "center");
 
     let bullet = this._document.createElement("hbox");
-    bullet.className = "marker-details-bullet";
-    bullet.style.backgroundColor = blueprint.fill;
-    bullet.style.borderColor = blueprint.stroke;
+    bullet.className = `marker-details-bullet ${blueprint.colorName}`;
 
     let label = this._document.createElement("label");
     label.className = "marker-details-type";
@@ -140,6 +138,9 @@ MarkerDetails.prototype = {
       case "DOMEvent":
         this.renderDOMEventMarker(this._parent, marker);
         break;
+      case "Javascript":
+        this.renderJavascriptMarker(this._parent, marker);
+        break;
       default:
     }
 
@@ -177,16 +178,31 @@ MarkerDetails.prototype = {
     labelName.setAttribute("value", L10N.getStr(property));
     parent.appendChild(labelName);
 
+    let wasAsyncParent = false;
     while (frameIndex > 0) {
       let frame = frames[frameIndex];
       let url = frame.source;
       let displayName = frame.functionDisplayName;
       let line = frame.line;
 
+      // If the previous frame had an async parent, then the async
+      // cause is in this frame and should be displayed.
+      if (wasAsyncParent) {
+        let asyncBox = this._document.createElement("hbox");
+        let asyncLabel = this._document.createElement("label");
+        asyncLabel.className = "devtools-monospace";
+        asyncLabel.setAttribute("value", L10N.getFormatStr("timeline.markerDetail.asyncStack",
+                                                           frame.asyncCause));
+        asyncBox.appendChild(asyncLabel);
+        parent.appendChild(asyncBox);
+        wasAsyncParent = false;
+      }
+
       let hbox = this._document.createElement("hbox");
 
       if (displayName) {
         let functionLabel = this._document.createElement("label");
+        functionLabel.className = "devtools-monospace";
         functionLabel.setAttribute("value", displayName);
         hbox.appendChild(functionLabel);
       }
@@ -218,7 +234,12 @@ MarkerDetails.prototype = {
 
       parent.appendChild(hbox);
 
-      frameIndex = frame.parent;
+      if (frame.asyncParent) {
+        frameIndex = frame.asyncParent;
+        wasAsyncParent = true;
+      } else {
+        frameIndex = frame.parent;
+      }
     }
   },
 
@@ -263,6 +284,21 @@ MarkerDetails.prototype = {
       }
       let phase = this.buildNameValueLabel("timeline.markerDetail.DOMEventPhase", L10N.getStr(phaseL10NProp));
       this._parent.appendChild(phase);
+    }
+  },
+
+  /**
+   * Render details of a Javascript marker.
+   *
+   * @param nsIDOMNode parent
+   *        The parent node holding the view.
+   * @param object marker
+   *        The marker to display.
+   */
+  renderJavascriptMarker: function(parent, marker) {
+    if ("causeName" in marker) {
+      let cause = this.buildNameValueLabel("timeline.markerDetail.causeName", marker.causeName);
+      this._parent.appendChild(cause);
     }
   },
 

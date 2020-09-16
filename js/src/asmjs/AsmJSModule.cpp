@@ -97,6 +97,10 @@ AsmJSModule::AsmJSModule(ScriptSource* scriptSource, uint32_t srcStart, uint32_t
     pod.strict_ = strict;
     pod.usesSignalHandlers_ = canUseSignalHandlers;
 
+    // AsmJSCheckedImmediateRange should be defined to be at most the minimum
+    // heap length so that offsets can be folded into bounds checks.
+    MOZ_ASSERT(pod.minHeapLength_ - AsmJSCheckedImmediateRange <= pod.minHeapLength_);
+
     scriptSource_->incref();
 }
 
@@ -968,7 +972,7 @@ const Class AsmJSModuleObject::class_ = {
 AsmJSModuleObject*
 AsmJSModuleObject::create(ExclusiveContext* cx, ScopedJSDeletePtr<AsmJSModule>* module)
 {
-    JSObject* obj = NewObjectWithGivenProto(cx, &AsmJSModuleObject::class_, NullPtr());
+    JSObject* obj = NewObjectWithGivenProto(cx, &AsmJSModuleObject::class_, nullptr);
     if (!obj)
         return nullptr;
     AsmJSModuleObject* nobj = &obj->as<AsmJSModuleObject>();

@@ -56,8 +56,8 @@
 #if defined(XP_UNIX)
 #include <sys/resource.h>
 #elif defined(XP_WIN)
-#include <Processthreadsapi.h>
-#include <Windows.h>
+#include <processthreadsapi.h>
+#include <windows.h>
 #endif // defined(XP_UNIX) || defined(XP_WIN)
 
 using namespace js;
@@ -174,7 +174,7 @@ js::OnUnknownMethod(JSContext* cx, HandleObject obj, Value idval_, MutableHandle
         return false;
 
     if (value.isObject()) {
-        NativeObject *obj = NewNativeObjectWithClassProto(cx, &js_NoSuchMethodClass, NullPtr());
+        NativeObject* obj = NewNativeObjectWithClassProto(cx, &js_NoSuchMethodClass, NullPtr());
         if (!obj)
             return false;
 
@@ -186,7 +186,7 @@ js::OnUnknownMethod(JSContext* cx, HandleObject obj, Value idval_, MutableHandle
 }
 
 static bool
-NoSuchMethod(JSContext *cx, unsigned argc, Value *vp)
+NoSuchMethod(JSContext* cx, unsigned argc, Value* vp)
 {
     if (!cx->compartment()->warnedAboutNoSuchMethod) {
         if (!JS_ReportWarning(cx, "__noSuchMethod__ is deprecated"))
@@ -200,13 +200,13 @@ NoSuchMethod(JSContext *cx, unsigned argc, Value *vp)
 
     MOZ_ASSERT(vp[0].isObject());
     MOZ_ASSERT(vp[1].isObject());
-    NativeObject *obj = &vp[0].toObject().as<NativeObject>();
+    NativeObject* obj = &vp[0].toObject().as<NativeObject>();
     MOZ_ASSERT(obj->getClass() == &js_NoSuchMethodClass);
 
     args.setCallee(obj->getReservedSlot(JSSLOT_FOUND_FUNCTION));
     args.setThis(vp[1]);
     args[0].set(obj->getReservedSlot(JSSLOT_SAVED_ID));
-    JSObject *argsobj = NewDenseCopiedArray(cx, argc, vp + 2);
+    JSObject* argsobj = NewDenseCopiedArray(cx, argc, vp + 2);
     if (!argsobj)
         return false;
     args[1].setObject(*argsobj);
@@ -278,7 +278,7 @@ GetPropertyOperation(JSContext* cx, InterpreterFrame* fp, HandleScript script, j
 }
 
 static inline bool
-GetNameOperation(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc, MutableHandleValue vp)
+GetNameOperation(JSContext* cx, InterpreterFrame* fp, jsbytecode* pc, MutableHandleValue vp)
 {
     JSObject* obj = fp->scopeChain();
     PropertyName* name = fp->script()->getName(pc);
@@ -318,7 +318,7 @@ GetNameOperation(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc, MutableHan
 }
 
 static bool
-SetPropertyOperation(JSContext *cx, JSOp op, HandleValue lval, HandleId id, HandleValue rval)
+SetPropertyOperation(JSContext* cx, JSOp op, HandleValue lval, HandleId id, HandleValue rval)
 {
     MOZ_ASSERT(op == JSOP_SETPROP || op == JSOP_STRICTSETPROP);
 
@@ -811,7 +811,7 @@ js::InvokeConstructor(JSContext* cx, Value fval, unsigned argc, const Value* arg
 }
 
 bool
-js::InvokeGetter(JSContext *cx, JSObject *obj, Value fval, MutableHandleValue rval)
+js::InvokeGetter(JSContext* cx, JSObject* obj, Value fval, MutableHandleValue rval)
 {
     /*
      * Invoke could result in another try to get or set the same id again, see
@@ -823,7 +823,7 @@ js::InvokeGetter(JSContext *cx, JSObject *obj, Value fval, MutableHandleValue rv
 }
 
 bool
-js::InvokeSetter(JSContext *cx, const Value &thisv, Value fval, HandleValue v)
+js::InvokeSetter(JSContext* cx, const Value& thisv, Value fval, HandleValue v)
 {
     JS_CHECK_RECURSION(cx, return false);
 
@@ -961,7 +961,7 @@ js::HasInstance(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
 // XXX RM FIXME 2018-12-10 try to update this
     RootedValue val(cx, ObjectValue(*obj));
     ReportValueError(cx, JSMSG_BAD_INSTANCEOF_RHS,
-                     JSDVG_SEARCH_STACK, val, js::NullPtr());
+                        JSDVG_SEARCH_STACK, val, NullPtr());
     return false;
 }
 
@@ -1242,92 +1242,73 @@ js::UnwindAllScopesInFrame(JSContext* cx, ScopeIter& si)
 jsbytecode*
 js::UnwindScopeToTryPc(JSScript* script, JSTryNote* tn)
 {
-    return script->main() + tn->start - js_CodeSpec[JSOP_TRY].length;
+    jsbytecode* pc = script->main() + tn->start;
+    if (tn->kind == JSTRY_CATCH || tn->kind == JSTRY_FINALLY) {
+        pc -= JSOP_TRY_LENGTH;
+        MOZ_ASSERT(*pc == JSOP_TRY);
+    }
+    return pc;
 }
 
-static void
-ForcedReturn(JSContext* cx, ScopeIter& si, InterpreterRegs& regs)
+static bool
+ForcedReturn(JSContext* cx, ScopeIter& si, InterpreterRegs& regs, bool frameOk = true)
 {
+    bool ok = Debugger::onLeaveFrame(cx, regs.fp(), frameOk);
     UnwindAllScopesInFrame(cx, si);
+    // Point the frame to the end of the script, regardless of error. The
+    // caller must jump to the correct continuation depending on 'ok'.
     regs.setToEndOfScript();
+    return ok;
 }
 
-static void
+static bool
 ForcedReturn(JSContext* cx, InterpreterRegs& regs)
 {
     ScopeIter si(cx, regs.fp(), regs.pc);
-    ForcedReturn(cx, si, regs);
+    return ForcedReturn(cx, si, regs);
 }
 
-void
-js::UnwindForUncatchableException(JSContext* cx, const InterpreterRegs& regs)
+static void
+SettleOnTryNote(JSContext* cx, JSTryNote* tn, ScopeIter& si, InterpreterRegs& regs)
 {
-    /* c.f. the regular (catchable) TryNoteIter loop in HandleError. */
-    for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
+    // Unwind the scope to the beginning of the JSOP_TRY.
+    UnwindScope(cx, si, UnwindScopeToTryPc(regs.fp()->script(), tn));
+
+    // Set pc to the first bytecode after the the try note to point
+    // to the beginning of catch or finally.
+    regs.pc = regs.fp()->script()->main() + tn->start + tn->length;
+    regs.sp = regs.spForStackDepth(tn->stackDepth);
+}
+
+class InterpreterFrameStackDepthOp
+{
+    const InterpreterRegs& regs_;
+  public:
+    explicit InterpreterFrameStackDepthOp(const InterpreterRegs& regs)
+      : regs_(regs)
+    { }
+    uint32_t operator()() { return regs_.stackDepth(); }
+};
+
+class TryNoteIterInterpreter : public TryNoteIter<InterpreterFrameStackDepthOp>
+{
+  public:
+    TryNoteIterInterpreter(JSContext* cx, const InterpreterRegs& regs)
+      : TryNoteIter(cx, regs.fp()->script(), regs.pc, InterpreterFrameStackDepthOp(regs))
+    { }
+};
+
+static void
+UnwindIteratorsForUncatchableException(JSContext* cx, const InterpreterRegs& regs)
+{
+    // c.f. the regular (catchable) TryNoteIterInterpreter loop in
+    // ProcessTryNotes.
+    for (TryNoteIterInterpreter tni(cx, regs); !tni.done(); ++tni) {
         JSTryNote* tn = *tni;
         if (tn->kind == JSTRY_FOR_IN) {
             Value* sp = regs.spForStackDepth(tn->stackDepth);
             UnwindIteratorForUncatchableException(cx, &sp[-1].toObject());
         }
-    }
-}
-
-TryNoteIter::TryNoteIter(JSContext* cx, const InterpreterRegs& regs)
-  : regs(regs),
-    script(cx, regs.fp()->script()),
-    pcOffset(regs.pc - script->main())
-{
-    if (script->hasTrynotes()) {
-        tn = script->trynotes()->vector;
-        tnEnd = tn + script->trynotes()->length;
-    } else {
-        tn = tnEnd = nullptr;
-    }
-    settle();
-}
-
-void
-TryNoteIter::operator++()
-{
-    ++tn;
-    settle();
-}
-
-bool
-TryNoteIter::done() const
-{
-    return tn == tnEnd;
-}
-
-void
-TryNoteIter::settle()
-{
-    for (; tn != tnEnd; ++tn) {
-        /* If pc is out of range, try the next one. */
-        if (pcOffset - tn->start >= tn->length)
-            continue;
-
-        /*
-         * We have a note that covers the exception pc but we must check
-         * whether the interpreter has already executed the corresponding
-         * handler. This is possible when the executed bytecode implements
-         * break or return from inside a for-in loop.
-         *
-         * In this case the emitter generates additional [enditer] and [gosub]
-         * opcodes to close all outstanding iterators and execute the finally
-         * blocks. If such an [enditer] throws an exception, its pc can still
-         * be inside several nested for-in loops and try-finally statements
-         * even if we have already closed the corresponding iterators and
-         * invoked the finally blocks.
-         *
-         * To address this, we make [enditer] always decrease the stack even
-         * when its implementation throws an exception. Thus already executed
-         * [enditer] and [gosub] opcodes will have try notes with the stack
-         * depth exceeding the current one and this condition is what we use to
-         * filter them out.
-         */
-        if (tn->stackDepth <= regs.stackDepth())
-            break;
     }
 }
 
@@ -1340,6 +1321,69 @@ enum HandleErrorContinuation
 };
 
 static HandleErrorContinuation
+ProcessTryNotes(JSContext* cx, ScopeIter& si, InterpreterRegs& regs)
+{
+    for (TryNoteIterInterpreter tni(cx, regs); !tni.done(); ++tni) {
+        JSTryNote* tn = *tni;
+
+        switch (tn->kind) {
+          case JSTRY_CATCH:
+            /* Catch cannot intercept the closing of a generator. */
+            if (cx->isClosingGenerator())
+                break;
+            SettleOnTryNote(cx, tn, si, regs);
+            return CatchContinuation;
+
+          case JSTRY_FINALLY:
+            SettleOnTryNote(cx, tn, si, regs);
+            return FinallyContinuation;
+
+          case JSTRY_FOR_IN: {
+            /* This is similar to JSOP_ENDITER in the interpreter loop. */
+            DebugOnly<jsbytecode*> pc = regs.fp()->script()->main() + tn->start + tn->length;
+            MOZ_ASSERT(JSOp(*pc) == JSOP_ENDITER);
+            Value* sp = regs.spForStackDepth(tn->stackDepth);
+            RootedObject obj(cx, &sp[-1].toObject());
+            if (!UnwindIteratorForException(cx, obj)) {
+                // We should only settle on the note only if
+                // UnwindIteratorForException itself threw, as
+                // onExceptionUnwind should be called anew with the new
+                // location of the throw (the iterator). Indeed, we must
+                // settle to avoid infinitely handling the same exception.
+                SettleOnTryNote(cx, tn, si, regs);
+                return ErrorReturnContinuation;
+            }
+            break;
+          }
+
+          case JSTRY_FOR_OF:
+          case JSTRY_LOOP:
+            break;
+
+          default:
+            MOZ_CRASH("Invalid try note");
+        }
+    }
+
+    return SuccessfulReturnContinuation;
+}
+
+bool
+js::HandleClosingGeneratorReturn(JSContext* cx, AbstractFramePtr frame, bool ok)
+{
+    /*
+     * Propagate the exception or error to the caller unless the exception
+     * is an asynchronous return from a generator.
+     */
+    if (cx->isClosingGenerator()) {
+        cx->clearPendingException();
+        ok = true;
+        SetReturnValueForClosingGenerator(cx, frame);
+    }
+    return ok;
+}
+
+static HandleErrorContinuation
 HandleError(JSContext* cx, InterpreterRegs& regs)
 {
     MOZ_ASSERT(regs.fp()->script()->containsPC(regs.pc));
@@ -1350,11 +1394,7 @@ HandleError(JSContext* cx, InterpreterRegs& regs)
   again:
     if (cx->isExceptionPending()) {
         /* Call debugger throw hooks. */
-        RootedValue exception(cx);
-        if (!cx->getPendingException(&exception))
-            goto again;
-
-        if (!exception.isMagic(JS_GENERATOR_CLOSING)) {
+        if (!cx->isClosingGenerator()) {
             JSTrapStatus status = Debugger::onExceptionUnwind(cx, regs.fp());
             switch (status) {
               case JSTRAP_ERROR:
@@ -1365,7 +1405,9 @@ HandleError(JSContext* cx, InterpreterRegs& regs)
                 break;
 
               case JSTRAP_RETURN:
-                ForcedReturn(cx, si, regs);
+                UnwindIteratorsForUncatchableException(cx, regs);
+                if (!ForcedReturn(cx, si, regs))
+                    return ErrorReturnContinuation;
                 return SuccessfulReturnContinuation;
 
               default:
@@ -1373,77 +1415,37 @@ HandleError(JSContext* cx, InterpreterRegs& regs)
             }
         }
 
-        for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
-            JSTryNote* tn = *tni;
-
-            // Unwind the scope to the beginning of the JSOP_TRY.
-            UnwindScope(cx, si, UnwindScopeToTryPc(regs.fp()->script(), tn));
-
-            /*
-             * Set pc to the first bytecode after the the try note to point
-             * to the beginning of catch or finally or to [enditer] closing
-             * the for-in loop.
-             */
-            regs.pc = regs.fp()->script()->main() + tn->start + tn->length;
-            regs.sp = regs.spForStackDepth(tn->stackDepth);
-
-            switch (tn->kind) {
-              case JSTRY_CATCH:
-                /* Catch cannot intercept the closing of a generator. */
-                if (!cx->getPendingException(&exception))
-                    return ErrorReturnContinuation;
-                if (exception.isMagic(JS_GENERATOR_CLOSING))
-                    break;
-                return CatchContinuation;
-
-              case JSTRY_FINALLY:
-                return FinallyContinuation;
-
-              case JSTRY_FOR_IN: {
-                /* This is similar to JSOP_ENDITER in the interpreter loop. */
-                MOZ_ASSERT(JSOp(*regs.pc) == JSOP_ENDITER);
-                RootedObject obj(cx, &regs.sp[-1].toObject());
-                bool ok = UnwindIteratorForException(cx, obj);
-                regs.sp -= 1;
-                if (!ok)
-                    goto again;
-                break;
-              }
-
-              case JSTRY_FOR_OF:
-              case JSTRY_LOOP:
-                break;
-            }
+        switch (ProcessTryNotes(cx, si, regs)) {
+          case SuccessfulReturnContinuation:
+            break;
+          case ErrorReturnContinuation:
+            goto again;
+          case CatchContinuation:
+            return CatchContinuation;
+          case FinallyContinuation:
+            return FinallyContinuation;
         }
 
-        /*
-         * Propagate the exception or error to the caller unless the exception
-         * is an asynchronous return from a generator.
-         */
-        if (cx->isExceptionPending()) {
-            RootedValue exception(cx);
-            if (!cx->getPendingException(&exception))
-                return ErrorReturnContinuation;
-
-            if (exception.isMagic(JS_GENERATOR_CLOSING)) {
-                cx->clearPendingException();
-                ok = true;
-                SetReturnValueForClosingGenerator(cx, regs.fp());
-            }
-        }
+        ok = HandleClosingGeneratorReturn(cx, regs.fp(), ok);
+        ok = Debugger::onLeaveFrame(cx, regs.fp(), ok);
     } else {
         // We may be propagating a forced return from the interrupt
         // callback, which cannot easily force a return.
         if (MOZ_UNLIKELY(cx->isPropagatingForcedReturn())) {
             cx->clearPropagatingForcedReturn();
-            ForcedReturn(cx, si, regs);
+            if (!ForcedReturn(cx, si, regs))
+                return ErrorReturnContinuation;
             return SuccessfulReturnContinuation;
         }
 
-        UnwindForUncatchableException(cx, regs);
+        UnwindIteratorsForUncatchableException(cx, regs);
     }
 
-    ForcedReturn(cx, si, regs);
+    // After this point, we will pop the frame regardless. Settle the frame on
+    // the end of the script.
+    UnwindAllScopesInFrame(cx, si);
+    regs.setToEndOfScript();
+
     return ok ? SuccessfulReturnContinuation : ErrorReturnContinuation;
 }
 
@@ -1826,7 +1828,8 @@ Interpret(JSContext* cx, RunState& state)
       case JSTRAP_CONTINUE:
         break;
       case JSTRAP_RETURN:
-        ForcedReturn(cx, REGS);
+        if (!ForcedReturn(cx, REGS))
+            goto error;
         goto successful_return_continuation;
       case JSTRAP_THROW:
       case JSTRAP_ERROR:
@@ -1872,7 +1875,8 @@ CASE(EnableInterruptsPseudoOpcode)
                 break;
               case JSTRAP_RETURN:
                 REGS.fp()->setReturnValue(rval);
-                ForcedReturn(cx, REGS);
+                if (!ForcedReturn(cx, REGS))
+                    goto error;
                 goto successful_return_continuation;
               case JSTRAP_THROW:
                 cx->setPendingException(rval);
@@ -1893,7 +1897,8 @@ CASE(EnableInterruptsPseudoOpcode)
                 goto error;
               case JSTRAP_RETURN:
                 REGS.fp()->setReturnValue(rval);
-                ForcedReturn(cx, REGS);
+                if (!ForcedReturn(cx, REGS))
+                    goto error;
                 goto successful_return_continuation;
               case JSTRAP_THROW:
                 cx->setPendingException(rval);
@@ -1918,7 +1923,6 @@ CASE(EnableInterruptsPseudoOpcode)
 /* Various 1-byte no-ops. */
 CASE(JSOP_NOP)
 CASE(JSOP_UNUSED2)
-CASE(JSOP_UNUSED126)
 CASE(JSOP_UNUSED148)
 CASE(JSOP_BACKPATCH)
 CASE(JSOP_UNUSED161)
@@ -2098,8 +2102,6 @@ CASE(JSOP_RETRVAL)
             ADVANCE_AND_DISPATCH(JSOP_CALL_LENGTH);
         }
 
-        /* Increment pc so that |sp - fp->slots == ReconstructStackDepth(pc)|. */
-        REGS.pc += JSOP_CALL_LENGTH;
         goto error;
     } else {
         MOZ_ASSERT(REGS.stackDepth() == 0);
@@ -2293,14 +2295,14 @@ CASE(JSOP_BINDNAME)
 {
     JSOp op = JSOp(*REGS.pc);
     if (op == JSOP_BINDNAME || script->hasPollutedGlobalScope()) {
-        RootedObject &scopeChain = rootObject0;
+        RootedObject& scopeChain = rootObject0;
         scopeChain = REGS.fp()->scopeChain();
 
-        RootedPropertyName &name = rootName0;
+        RootedPropertyName& name = rootName0;
         name = script->getName(REGS.pc);
 
         /* Assigning to an undeclared name adds a property to the global object. */
-        RootedObject &scope = rootObject1;
+        RootedObject& scope = rootObject1;
         if (!LookupNameUnqualified(cx, name, scopeChain, &scope))
             goto error;
 
@@ -2754,7 +2756,7 @@ CASE(JSOP_STRICTSETNAME)
     static_assert(JSOP_SETNAME_LENGTH == JSOP_SETGNAME_LENGTH,
                   "We're sharing the END_CASE so the lengths better match");
 
-    RootedObject &scope = rootObject0;
+    RootedObject& scope = rootObject0;
     scope = &REGS.sp[-2].toObject();
     HandleValue value = REGS.stackHandleAt(-1);
 
@@ -3043,7 +3045,8 @@ CASE(JSOP_FUNCALL)
       case JSTRAP_CONTINUE:
         break;
       case JSTRAP_RETURN:
-        ForcedReturn(cx, REGS);
+        if (!ForcedReturn(cx, REGS))
+            goto error;
         goto successful_return_continuation;
       case JSTRAP_THROW:
       case JSTRAP_ERROR:
@@ -3068,17 +3071,17 @@ CASE(JSOP_GIMPLICITTHIS)
 {
     JSOp op = JSOp(*REGS.pc);
     if (op == JSOP_IMPLICITTHIS || script->hasPollutedGlobalScope()) {
-        RootedPropertyName &name = rootName0;
+        RootedPropertyName& name = rootName0;
         name = script->getName(REGS.pc);
 
-        RootedObject &scopeObj = rootObject0;
+        RootedObject& scopeObj = rootObject0;
         scopeObj = REGS.fp()->scopeChain();
 
-        RootedObject &scope = rootObject1;
+        RootedObject& scope = rootObject1;
         if (!LookupNameWithGlobalDefault(cx, name, scopeObj, &scope))
             goto error;
 
-        RootedValue &v = rootValue0;
+        RootedValue& v = rootValue0;
         if (!ComputeImplicitThis(cx, scope, &v))
             goto error;
         PUSH_COPY(v);
@@ -3108,7 +3111,7 @@ END_CASE(JSOP_GETNAME)
 
 CASE(JSOP_GETINTRINSIC)
 {
-    RootedValue &rval = rootValue0;
+    RootedValue& rval = rootValue0;
 
     if (!GetIntrinsicOperation(cx, REGS.pc, &rval))
         goto error;
@@ -3463,6 +3466,7 @@ CASE(JSOP_LAMBDA_ARROW)
     REGS.sp[-1].setObject(*obj);
 }
 END_CASE(JSOP_LAMBDA_ARROW)
+
 CASE(JSOP_CALLEE)
     MOZ_ASSERT(REGS.fp()->isNonEvalFunctionFrame());
     PUSH_COPY(REGS.fp()->calleev());
@@ -3514,41 +3518,25 @@ CASE(JSOP_NEWINIT)
 {
     uint8_t i = GET_UINT8(REGS.pc);
     MOZ_ASSERT(i == JSProto_Array || i == JSProto_Object);
-    RootedObject& obj = rootObject0;
 
-    if (i == JSProto_Array) {
-    	NewObjectKind newKind = GenericObject;
-        if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, &ArrayObject::class_))
-            newKind = SingletonObject;
-        obj = NewDenseEmptyArray(cx, NullPtr(), newKind);
-        if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
-                                                               newKind == SingletonObject))
-        {
-            goto error;
-        }
-    } else {
+    JSObject* obj;
+    if (i == JSProto_Array)
+        obj = NewArrayOperation(cx, script, REGS.pc, 0);
+    else
         obj = NewObjectOperation(cx, script, REGS.pc);
-        if (!obj)
-            goto error;
-    }
+
+    if (!obj)
+        goto error;
     PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_NEWINIT)
 
 CASE(JSOP_NEWARRAY)
+CASE(JSOP_SPREADCALLARRAY)
 {
-    unsigned count = GET_UINT24(REGS.pc);
-    RootedObject& obj = rootObject0;
-    NewObjectKind newKind = GenericObject;
-    if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, &ArrayObject::class_))
-        newKind = SingletonObject;
-    obj = NewDenseFullyAllocatedArray(cx, count, NullPtr(), newKind);
-    if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
-                                                           newKind == SingletonObject))
-    {
+    JSObject* obj = NewArrayOperation(cx, script, REGS.pc, GET_UINT24(REGS.pc));
+    if (!obj)
         goto error;
-    }
-
     PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_NEWARRAY)
@@ -3571,7 +3559,7 @@ END_CASE(JSOP_NEWARRAY_COPYONWRITE)
 
 CASE(JSOP_NEWOBJECT)
 {
-    JSObject *obj = NewObjectOperation(cx, script, REGS.pc);
+    JSObject* obj = NewObjectOperation(cx, script, REGS.pc);
     if (!obj)
         goto error;
     PUSH_OBJECT(*obj);
@@ -3612,7 +3600,7 @@ CASE(JSOP_INITHIDDENPROP)
     rval = REGS.sp[-1];
 
     /* Load the object being initialized into lval/obj. */
-    RootedObject &obj = rootObject0;
+    RootedObject& obj = rootObject0;
     obj = &REGS.sp[-2].toObject();
 
     PropertyName* name = script->getName(REGS.pc);
@@ -3650,8 +3638,6 @@ CASE(JSOP_INITELEM_ARRAY)
 
     RootedObject& obj = rootObject0;
     obj = &REGS.sp[-2].toObject();
-
-    MOZ_ASSERT(obj->is<ArrayObject>());
 
     uint32_t index = GET_UINT24(REGS.pc);
     if (!InitArrayElemOperation(cx, REGS.pc, obj, index, val))
@@ -3769,7 +3755,8 @@ CASE(JSOP_DEBUGGER)
       case JSTRAP_CONTINUE:
         break;
       case JSTRAP_RETURN:
-        ForcedReturn(cx, REGS);
+        if (!ForcedReturn(cx, REGS))
+            goto error;
         goto successful_return_continuation;
       case JSTRAP_THROW:
         goto error;
@@ -3793,12 +3780,14 @@ CASE(JSOP_POPBLOCKSCOPE)
 {
 #ifdef DEBUG
     // Pop block from scope chain.
-    MOZ_ASSERT(*(REGS.pc - JSOP_DEBUGLEAVEBLOCK_LENGTH) == JSOP_DEBUGLEAVEBLOCK);
-    NestedScopeObject* scope = script->getStaticBlockScope(REGS.pc - JSOP_DEBUGLEAVEBLOCK_LENGTH);
+    NestedScopeObject* scope = script->getStaticBlockScope(REGS.pc);
     MOZ_ASSERT(scope && scope->is<StaticBlockObject>());
     StaticBlockObject& blockObj = scope->as<StaticBlockObject>();
     MOZ_ASSERT(blockObj.needsClone());
 #endif
+
+    if (MOZ_UNLIKELY(cx->compartment()->isDebuggee()))
+        DebugScopes::onPopBlock(cx, REGS.fp(), REGS.pc);
 
     // Pop block from scope chain.
     REGS.fp()->popBlock(cx);
@@ -3809,6 +3798,7 @@ CASE(JSOP_DEBUGLEAVEBLOCK)
 {
     MOZ_ASSERT(script->getStaticBlockScope(REGS.pc));
     MOZ_ASSERT(script->getStaticBlockScope(REGS.pc)->is<StaticBlockObject>());
+    MOZ_ASSERT(!script->getStaticBlockScope(REGS.pc)->as<StaticBlockObject>().needsClone());
 
     // FIXME: This opcode should not be necessary.  The debugger shouldn't need
     // help from bytecode to do its job.  See bug 927782.
@@ -3820,6 +3810,9 @@ END_CASE(JSOP_DEBUGLEAVEBLOCK)
 
 CASE(JSOP_FRESHENBLOCKSCOPE)
 {
+    if (MOZ_UNLIKELY(cx->compartment()->isDebuggee()))
+        DebugScopes::onPopBlock(cx, REGS.fp(), REGS.pc);
+
     if (!REGS.fp()->freshenBlock(cx))
         goto error;
 }
@@ -3829,7 +3822,7 @@ CASE(JSOP_GENERATOR)
 {
     MOZ_ASSERT(!cx->isExceptionPending());
     MOZ_ASSERT(REGS.stackDepth() == 0);
-    JSObject *obj = GeneratorObject::create(cx, REGS.fp());
+    JSObject* obj = GeneratorObject::create(cx, REGS.fp());
     if (!obj)
         goto error;
     PUSH_OBJECT(*obj);
@@ -3919,11 +3912,11 @@ END_CASE(JSOP_ARRAYPUSH)
 
 CASE(JSOP_CLASSHERITAGE)
 {
-    RootedValue &val = rootValue0;
+    RootedValue& val = rootValue0;
     val = REGS.sp[-1];
 
-    RootedValue &objProto = rootValue1;
-    RootedObject &funcProto = rootObject0;
+    RootedValue& objProto = rootValue1;
+    RootedObject& funcProto = rootObject0;
     if (val.isNull()) {
         objProto.setNull();
         if (!GetBuiltinPrototype(cx, JSProto_Function, &funcProto))
@@ -3952,14 +3945,14 @@ END_CASE(JSOP_CLASSHERITAGE)
 
 CASE(JSOP_FUNWITHPROTO)
 {
-    RootedObject &proto = rootObject1;
+    RootedObject& proto = rootObject1;
     proto = &REGS.sp[-1].toObject();
 
     /* Load the specified function object literal. */
-    RootedFunction &fun = rootFunction0;
+    RootedFunction& fun = rootFunction0;
     fun = script->getFunction(GET_UINT32_INDEX(REGS.pc));
 
-    JSObject *obj = CloneFunctionObjectIfNotSingleton(cx, fun, REGS.fp()->scopeChain(),
+    JSObject* obj = CloneFunctionObjectIfNotSingleton(cx, fun, REGS.fp()->scopeChain(),
                                                       proto, GenericObject);
     if (!obj)
         goto error;
@@ -3970,10 +3963,10 @@ END_CASE(JSOP_FUNWITHPROTO)
 
 CASE(JSOP_OBJWITHPROTO)
 {
-    RootedObject &proto = rootObject0;
+    RootedObject& proto = rootObject0;
     proto = REGS.sp[-1].toObjectOrNull();
 
-    JSObject *obj = NewObjectWithGivenProto<PlainObject>(cx, proto);
+    JSObject* obj = NewObjectWithGivenProto<PlainObject>(cx, proto);
     if (!obj)
         goto error;
 
@@ -3983,7 +3976,8 @@ END_CASE(JSOP_OBJWITHPROTO)
 
 CASE(JSOP_INITHOMEOBJECT)
 {
-    MOZ_ASSERT(REGS.stackDepth() >= 2);
+    unsigned skipOver = GET_UINT8(REGS.pc);
+    MOZ_ASSERT(REGS.stackDepth() >= skipOver + 2);
 
     /* Load the function to be initialized */
     RootedFunction& func = rootFunction0;
@@ -3992,7 +3986,7 @@ CASE(JSOP_INITHOMEOBJECT)
 
     /* Load the home object */
     RootedNativeObject& obj = rootNativeObject0;
-    obj = &REGS.sp[-2].toObject().as<NativeObject>();
+    obj = &REGS.sp[int(-2 - skipOver)].toObject().as<NativeObject>();
     MOZ_ASSERT(obj->is<PlainObject>() || obj->is<JSFunction>());
 
     func->setExtendedSlot(FunctionExtended::METHOD_HOMEOBJECT_SLOT, ObjectValue(*obj));
@@ -4353,10 +4347,10 @@ js::DeletePropertyJit(JSContext* cx, HandleValue v, HandlePropertyName name, boo
     return true;
 }
 
-template bool js::DeletePropertyJit<true> (JSContext *cx, HandleValue val, HandlePropertyName name,
-                                           bool *bp);
-template bool js::DeletePropertyJit<false>(JSContext *cx, HandleValue val, HandlePropertyName name,
-                                           bool *bp);
+template bool js::DeletePropertyJit<true> (JSContext* cx, HandleValue val, HandlePropertyName name,
+                                           bool* bp);
+template bool js::DeletePropertyJit<false>(JSContext* cx, HandleValue val, HandlePropertyName name,
+                                           bool* bp);
 
 template <bool strict>
 bool
@@ -4647,8 +4641,8 @@ js::SpreadCallOperation(JSContext* cx, HandleScript script, jsbytecode* pc, Hand
     return true;
 }
 
-JSObject *
-js::NewObjectOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
+JSObject*
+js::NewObjectOperation(JSContext* cx, HandleScript script, jsbytecode* pc,
                        NewObjectKind newKind /* = GenericObject */)
 {
     MOZ_ASSERT(newKind != SingletonObject);
@@ -4690,7 +4684,7 @@ js::NewObjectOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
     } else {
         obj->setGroup(group);
 
-        if (PreliminaryObjectArray *preliminaryObjects = group->maybePreliminaryObjects())
+        if (PreliminaryObjectArray* preliminaryObjects = group->maybePreliminaryObjects())
             preliminaryObjects->registerNewObject(obj);
     }
 
@@ -4698,7 +4692,7 @@ js::NewObjectOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
 }
 
 JSObject*
-js::NewObjectOperationWithTemplate(JSContext *cx, HandleObject templateObject)
+js::NewObjectOperationWithTemplate(JSContext* cx, HandleObject templateObject)
 {
     // This is an optimized version of NewObjectOperation for use when the
     // object is not a singleton and has had its preliminary objects analyzed,
@@ -4709,16 +4703,75 @@ js::NewObjectOperationWithTemplate(JSContext *cx, HandleObject templateObject)
 
     if (templateObject->group()->maybeUnboxedLayout()) {
         RootedObjectGroup group(cx, templateObject->group());
-        JSObject *obj = UnboxedPlainObject::create(cx, group, newKind);
-        if (!obj)
-            return nullptr;
-        return obj;
+        return UnboxedPlainObject::create(cx, group, newKind);
     }
 
-    JSObject *obj = CopyInitializerObject(cx, templateObject.as<PlainObject>(), newKind);
+    JSObject* obj = CopyInitializerObject(cx, templateObject.as<PlainObject>(), newKind);
     if (!obj)
         return nullptr;
 
+    obj->setGroup(templateObject->group());
+    return obj;
+}
+
+JSObject*
+js::NewArrayOperation(JSContext* cx, HandleScript script, jsbytecode* pc, uint32_t length,
+                      NewObjectKind newKind /* = GenericObject */)
+{
+    MOZ_ASSERT(newKind != SingletonObject);
+
+    RootedObjectGroup group(cx);
+    if (ObjectGroup::useSingletonForAllocationSite(script, pc, JSProto_Array)) {
+        newKind = SingletonObject;
+    } else {
+        group = ObjectGroup::allocationSiteGroup(cx, script, pc, JSProto_Array);
+        if (!group)
+            return nullptr;
+        if (group->maybePreliminaryObjects())
+            group->maybePreliminaryObjects()->maybeAnalyze(cx, group);
+
+        if (group->shouldPreTenure() || group->maybePreliminaryObjects())
+            newKind = TenuredObject;
+
+        if (group->maybeUnboxedLayout())
+            return UnboxedArrayObject::create(cx, group, length, newKind);
+    }
+
+    ArrayObject* obj = NewDenseFullyAllocatedArray(cx, length, NullPtr(), newKind);
+    if (!obj)
+        return nullptr;
+
+    if (newKind == SingletonObject) {
+        MOZ_ASSERT(obj->isSingleton());
+    } else {
+        obj->setGroup(group);
+
+        if (PreliminaryObjectArray* preliminaryObjects = group->maybePreliminaryObjects())
+            preliminaryObjects->registerNewObject(obj);
+    }
+
+    return obj;
+}
+
+JSObject*
+js::NewArrayOperationWithTemplate(JSContext* cx, HandleObject templateObject)
+{
+    MOZ_ASSERT(!templateObject->isSingleton());
+
+    NewObjectKind newKind = templateObject->group()->shouldPreTenure() ? TenuredObject : GenericObject;
+
+    if (templateObject->is<UnboxedArrayObject>()) {
+        uint32_t length = templateObject->as<UnboxedArrayObject>().length();
+        RootedObjectGroup group(cx, templateObject->group());
+        return UnboxedArrayObject::create(cx, group, length, newKind);
+    }
+
+    ArrayObject* obj = NewDenseFullyAllocatedArray(cx, templateObject->as<ArrayObject>().length(),
+                                                   NullPtr(), newKind);
+    if (!obj)
+        return nullptr;
+
+    MOZ_ASSERT(obj->lastProperty() == templateObject->as<ArrayObject>().lastProperty());
     obj->setGroup(templateObject->group());
     return obj;
 }

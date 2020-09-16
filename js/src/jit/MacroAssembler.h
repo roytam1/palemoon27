@@ -572,7 +572,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         return extractObject(source, scratch);
     }
 
-    void branchIfFunctionHasNoScript(Register fun, Label *label) {
+    void branchIfFunctionHasNoScript(Register fun, Label* label) {
         // 16-bit loads are slow and unaligned 32-bit loads may be too so
         // perform an aligned 32-bit load and adjust the bitmask accordingly.
         MOZ_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
@@ -672,7 +672,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     template<typename T>
-    void loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegister dest, Register temp, Label *fail,
+    void loadFromTypedArray(Scalar::Type arrayType, const T& src, AnyRegister dest, Register temp, Label* fail,
                             bool canonicalizeDoubles = true, unsigned numElems = 0);
 
     template<typename T>
@@ -708,12 +708,12 @@ class MacroAssembler : public MacroAssemblerSpecific
     void atomicBinopToTypedIntArray(AtomicOp op, Scalar::Type arrayType, const S &value,
                                     const T &mem, Register temp1, Register temp2, AnyRegister output);
 
-    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const BaseIndex &dest,
+    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const BaseIndex& dest,
                                 unsigned numElems = 0);
-    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const Address &dest,
+    void storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value, const Address& dest,
                                 unsigned numElems = 0);
 
-    // Load a property from an UnboxedPlainObject.
+    // Load a property from an UnboxedPlainObject or UnboxedArrayObject.
     template <typename T>
     void loadUnboxedProperty(T address, JSValueType type, TypedOrValueRegister output);
 
@@ -723,6 +723,9 @@ class MacroAssembler : public MacroAssemblerSpecific
     template <typename T>
     void storeUnboxedProperty(T address, JSValueType type,
                               ConstantOrRegister value, Label* failure);
+
+    void checkUnboxedArrayCapacity(Register obj, const Int32Key& index, Register temp,
+                                   Label* failure);
 
     Register extractString(const Address& address, Register scratch) {
         return extractObject(address, scratch);
@@ -930,6 +933,53 @@ class MacroAssembler : public MacroAssemblerSpecific
         loadObjClass(object, scratch);
         branchTestClassIsProxy(proxy, scratch, label);
     }
+
+  public:
+#ifndef JS_CODEGEN_ARM64
+    // StackPointer manipulation functions.
+    // On ARM64, the StackPointer is implemented as two synchronized registers.
+    // Code shared across platforms must use these functions to be valid.
+    template <typename T>
+    void addToStackPtr(T t) { addPtr(t, getStackPointer()); }
+    template <typename T>
+    void addStackPtrTo(T t) { addPtr(getStackPointer(), t); }
+
+    template <typename T>
+    void subFromStackPtr(T t) { subPtr(t, getStackPointer()); }
+    template <typename T>
+    void subStackPtrFrom(T t) { subPtr(getStackPointer(), t); }
+
+    template <typename T>
+    void andToStackPtr(T t) { andPtr(t, getStackPointer()); }
+    template <typename T>
+    void andStackPtrTo(T t) { andPtr(getStackPointer(), t); }
+
+    template <typename T>
+    void moveToStackPtr(T t) { movePtr(t, getStackPointer()); }
+    template <typename T>
+    void moveStackPtrTo(T t) { movePtr(getStackPointer(), t); }
+
+    template <typename T>
+    void loadStackPtr(T t) { loadPtr(t, getStackPointer()); }
+    template <typename T>
+    void storeStackPtr(T t) { storePtr(getStackPointer(), t); }
+
+    // StackPointer testing functions.
+    // On ARM64, sp can function as the zero register depending on context.
+    // Code shared across platforms must use these functions to be valid.
+    template <typename T>
+    void branchTestStackPtr(Condition cond, T t, Label *label) {
+        branchTestPtr(cond, getStackPointer(), t, label);
+    }
+    template <typename T>
+    void branchStackPtr(Condition cond, T rhs, Label *label) {
+        branchPtr(cond, getStackPointer(), rhs, label);
+    }
+    template <typename T>
+    void branchStackPtrRhs(Condition cond, T lhs, Label *label) {
+        branchPtr(cond, lhs, getStackPointer(), label);
+    }
+#endif // !JS_CODEGEN_ARM64
 
   private:
     // These two functions are helpers used around call sites throughout the
@@ -1259,12 +1309,12 @@ class MacroAssembler : public MacroAssemblerSpecific
         uint32_t off = offset;
         while (off) {
             uint32_t lowestBit = 1 << mozilla::CountTrailingZeroes32(off);
-            branchTestPtr(Assembler::Zero, StackPointer, Imm32(lowestBit), &bad);
+            branchTestStackPtr(Assembler::Zero, Imm32(lowestBit), &bad);
             off ^= lowestBit;
         }
 
         // Check that all remaining bits are zero.
-        branchTestPtr(Assembler::Zero, StackPointer, Imm32((alignment - 1) ^ offset), &ok);
+        branchTestStackPtr(Assembler::Zero, Imm32((alignment - 1) ^ offset), &ok);
 
         bind(&bad);
         breakpoint();

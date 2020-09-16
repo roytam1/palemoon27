@@ -214,7 +214,7 @@ HashType(TypeSet::Type ty)
 }
 
 static HashNumber
-HashTypeList(const TypeSet::TypeList& types)
+HashTypeList(const TempTypeList& types)
 {
     HashNumber h = 0;
     for (uint32_t i = 0; i < types.length(); i++)
@@ -445,11 +445,11 @@ IonTrackedOptimizationsRegion::RangeIterator::readNext(uint32_t* startOffset, ui
 }
 
 Maybe<uint8_t>
-JitcodeGlobalEntry::IonEntry::trackedOptimizationIndexAtAddr(void *ptr, uint32_t *entryOffsetOut)
+JitcodeGlobalEntry::IonEntry::trackedOptimizationIndexAtAddr(void* ptr, uint32_t* entryOffsetOut)
 {
     MOZ_ASSERT(hasTrackedOptimizations());
     MOZ_ASSERT(containsPointer(ptr));
-    uint32_t ptrOffset = ((uint8_t *) ptr) - ((uint8_t *) nativeStartAddr());
+    uint32_t ptrOffset = ((uint8_t*) ptr) - ((uint8_t*) nativeStartAddr());
     Maybe<IonTrackedOptimizationsRegion> region = optsRegionTable_->findRegion(ptrOffset);
     if (region.isNothing())
         return Nothing();
@@ -491,7 +491,7 @@ IonTrackedOptimizationsTypeInfo::forEach(ForEachOp& op, const IonTrackedTypeVect
 }
 
 Maybe<uint8_t>
-IonTrackedOptimizationsRegion::findIndex(uint32_t offset, uint32_t *entryOffsetOut) const
+IonTrackedOptimizationsRegion::findIndex(uint32_t offset, uint32_t* entryOffsetOut) const
 {
     if (offset <= startOffset_ || offset > endOffset_)
         return Nothing();
@@ -1040,6 +1040,11 @@ IonBuilder::startTrackingOptimizations()
             // OOMs are handled as if optimization tracking were turned off.
             if (!trackedOptimizationSites_.append(site))
                 site = nullptr;
+        } else {
+            // The same bytecode may be visited multiple times (see
+            // restartLoop). Only the last time matters, so clear any previous
+            // tracked optimizations.
+            site->optimizations()->clear();
         }
 
         if (site)
@@ -1053,7 +1058,7 @@ IonBuilder::trackTypeInfoUnchecked(TrackedTypeSite kind, MIRType mirType,
 {
     BytecodeSite* site = current->trackedSite();
     // OOMs are handled as if optimization tracking were turned off.
-    OptimizationTypeInfo typeInfo(kind, mirType);
+    OptimizationTypeInfo typeInfo(alloc(), kind, mirType);
     if (!typeInfo.trackTypeSet(typeSet)) {
         site->setOptimizations(nullptr);
         return;
@@ -1067,7 +1072,7 @@ IonBuilder::trackTypeInfoUnchecked(TrackedTypeSite kind, JSObject* obj)
 {
     BytecodeSite* site = current->trackedSite();
     // OOMs are handled as if optimization tracking were turned off.
-    OptimizationTypeInfo typeInfo(kind, MIRType_Object);
+    OptimizationTypeInfo typeInfo(alloc(), kind, MIRType_Object);
     if (!typeInfo.trackType(TypeSet::ObjectType(obj)))
         return;
     if (!site->optimizations()->trackTypeInfo(mozilla::Move(typeInfo)))
@@ -1128,11 +1133,11 @@ IonBuilder::trackInlineSuccessUnchecked(InliningStatus status)
 }
 
 JS_PUBLIC_API(void)
-JS::ForEachTrackedOptimizationAttempt(JSRuntime *rt, void *addr, uint8_t index,
-                                      ForEachTrackedOptimizationAttemptOp &op,
-                                      JSScript **scriptOut, jsbytecode **pcOut)
+JS::ForEachTrackedOptimizationAttempt(JSRuntime* rt, void* addr, uint8_t index,
+                                      ForEachTrackedOptimizationAttemptOp& op,
+                                      JSScript** scriptOut, jsbytecode** pcOut)
 {
-    JitcodeGlobalTable *table = rt->jitRuntime()->getJitcodeGlobalTable();
+    JitcodeGlobalTable* table = rt->jitRuntime()->getJitcodeGlobalTable();
     JitcodeGlobalEntry entry;
     table->lookupInfallible(addr, &entry, rt);
     entry.youngestFrameLocationAtAddr(rt, addr, scriptOut, pcOut);
@@ -1170,7 +1175,7 @@ FunctionFromTrackedType(const IonTrackedTypeWithAddendum& tracked)
 }
 
 void
-IonTrackedOptimizationsTypeInfo::ForEachOpAdapter::readType(const IonTrackedTypeWithAddendum &tracked)
+IonTrackedOptimizationsTypeInfo::ForEachOpAdapter::readType(const IonTrackedTypeWithAddendum& tracked)
 {
     TypeSet::Type ty = tracked.type;
 
@@ -1182,7 +1187,7 @@ IonTrackedOptimizationsTypeInfo::ForEachOpAdapter::readType(const IonTrackedType
     char buf[512];
     const uint32_t bufsize = mozilla::ArrayLength(buf);
 
-    if (JSFunction *fun = FunctionFromTrackedType(tracked)) {
+    if (JSFunction* fun = FunctionFromTrackedType(tracked)) {
         if (fun->isNative()) {
             //
             // Print out the absolute address of the function pointer.
@@ -1196,7 +1201,7 @@ IonTrackedOptimizationsTypeInfo::ForEachOpAdapter::readType(const IonTrackedType
             // for use with utilities like `addr2line` on Linux and `atos` on
             // OS X. Converting to an offset may be done via dladdr():
             //
-            //   void *addr = JS_FUNC_TO_DATA_PTR(void *, fun->native());
+            //   void* addr = JS_FUNC_TO_DATA_PTR(void*, fun->native());
             //   uintptr_t offset;
             //   Dl_info info;
             //   if (dladdr(addr, &info) != 0)
@@ -1208,19 +1213,22 @@ IonTrackedOptimizationsTypeInfo::ForEachOpAdapter::readType(const IonTrackedType
             return;
         }
 
-        PutEscapedString(buf, bufsize, fun->displayAtom(), 0);
-        const char *filename;
+        if (fun->displayAtom())
+            PutEscapedString(buf, bufsize, fun->displayAtom(), 0);
+        const char* filename;
         unsigned lineno;
         InterpretedFunctionFilenameAndLineNumber(fun, &filename, &lineno);
-        op_.readType(tracked.constructor ? "constructor" : "function", buf, filename, lineno);
+        op_.readType(tracked.constructor ? "constructor" : "function",
+                     fun->displayAtom() ? buf : nullptr,
+                     filename, lineno);
         return;
     }
 
-    const char *className = ty.objectKey()->clasp()->name;
+    const char* className = ty.objectKey()->clasp()->name;
     JS_snprintf(buf, bufsize, "[object %s]", className);
 
     if (tracked.hasAllocationSite()) {
-        JSScript *script = tracked.script;
+        JSScript* script = tracked.script;
         op_.readType("alloc site", buf,
                      script->maybeForwardedScriptSource()->filename(),
                      PCToLineNumber(script, script->offsetToPC(tracked.offset)));
@@ -1243,10 +1251,10 @@ IonTrackedOptimizationsTypeInfo::ForEachOpAdapter::operator()(JS::TrackedTypeSit
 }
 
 JS_PUBLIC_API(void)
-JS::ForEachTrackedOptimizationTypeInfo(JSRuntime *rt, void *addr, uint8_t index,
-                                       ForEachTrackedOptimizationTypeInfoOp &op)
+JS::ForEachTrackedOptimizationTypeInfo(JSRuntime* rt, void* addr, uint8_t index,
+                                       ForEachTrackedOptimizationTypeInfoOp& op)
 {
-    JitcodeGlobalTable *table = rt->jitRuntime()->getJitcodeGlobalTable();
+    JitcodeGlobalTable* table = rt->jitRuntime()->getJitcodeGlobalTable();
     JitcodeGlobalEntry entry;
     table->lookupInfallible(addr, &entry, rt);
     IonTrackedOptimizationsTypeInfo::ForEachOpAdapter adapter(op);
@@ -1254,9 +1262,9 @@ JS::ForEachTrackedOptimizationTypeInfo(JSRuntime *rt, void *addr, uint8_t index,
 }
 
 JS_PUBLIC_API(Maybe<uint8_t>)
-JS::TrackedOptimizationIndexAtAddr(JSRuntime *rt, void *addr, void **entryAddr)
+JS::TrackedOptimizationIndexAtAddr(JSRuntime* rt, void* addr, void** entryAddr)
 {
-    JitcodeGlobalTable *table = rt->jitRuntime()->getJitcodeGlobalTable();
+    JitcodeGlobalTable* table = rt->jitRuntime()->getJitcodeGlobalTable();
     JitcodeGlobalEntry entry;
     table->lookupInfallible(addr, &entry, rt);
     if (!entry.hasTrackedOptimizations())
@@ -1264,6 +1272,6 @@ JS::TrackedOptimizationIndexAtAddr(JSRuntime *rt, void *addr, void **entryAddr)
     uint32_t entryOffset = 0;
     Maybe<uint8_t> index = entry.trackedOptimizationIndexAtAddr(addr, &entryOffset);
     if (index.isSome())
-        *entryAddr = (void *)(((uint8_t *) entry.nativeStartAddr()) + entryOffset);
+        *entryAddr = (void*)(((uint8_t*) entry.nativeStartAddr()) + entryOffset);
     return index;
 }

@@ -63,6 +63,7 @@
  *     Intrinsics
  *     Block-local Scope
  *     This
+ *     Super
  *     Arguments
  *   [Operators]
  *     Comparison Operators
@@ -832,8 +833,8 @@
      * This opcode takes the kind of initializer (JSProto_Array or
      * JSProto_Object).
      *
-     * This opcode has an extra byte so it can be exchanged with JSOP_NEWOBJECT
-     * during emit.
+     * This opcode has three extra bytes so it can be exchanged with
+     * JSOP_NEWOBJECT during emit.
      *   Category: Literals
      *   Type: Object
      *   Operands: uint8_t kind (, uint24_t extra)
@@ -867,8 +868,12 @@
      *
      * This opcode takes the function and the object to be the home object, does
      * the set, and leaves both on the stack.
+     *   Category: Literals
+     *   Type: Object
+     *   Operands: uint8_t n
+     *   Stack: homeObject, [...n], fun => homeObject, [...n], fun
      */\
-    macro(JSOP_INITHOMEOBJECT,  92, "inithomeobject",   NULL,         1,  2,  2, JOF_BYTE|JOF_SET|JOF_DETECTING) \
+    macro(JSOP_INITHOMEOBJECT,  92, "inithomeobject",   NULL,         2,  2,  2, JOF_UINT8) \
     \
     /*
      * Initialize a named property in an object literal, like '{a: x}'.
@@ -988,6 +993,14 @@
      */ \
     macro(JSOP_NEWARRAY_COPYONWRITE, 102, "newarray_copyonwrite", NULL, 5, 0, 1, JOF_OBJECT) \
     \
+    /*
+     * Pushes the prototype of the home object for current callee onto the
+     * stack.
+     *   Category: Variables and Scopes
+     *   Type: Super
+     *   Operands:
+     *   Stack: => homeObjectProto
+     */\
     macro(JSOP_SUPERBASE,  103, "superbase",   NULL,         1,  0,  1,  JOF_BYTE) \
     /*
      * Pops the top two values, and pushes the property of one, using the other
@@ -1259,7 +1272,18 @@
      *   Stack: receiver, obj, propval => obj[propval]
      */ \
     macro(JSOP_GETELEM_SUPER, 125, "getelem-super", NULL, 1,  3,  1, JOF_BYTE |JOF_ELEM|JOF_LEFTASSOC) \
-    macro(JSOP_UNUSED126,  126, "unused126", NULL,      1,  0,  0,  JOF_BYTE) \
+    /*
+     * Pushes newly created array for a spread call onto the stack. This has
+     * the same semantics as JSOP_NEWARRAY, but is distinguished to avoid
+     * using unboxed arrays in spread calls, which would make compiling spread
+     * calls in baseline more complex.
+     *
+     *   Category: Literals
+     *   Type: Array
+     *   Operands: uint24_t length
+     *   Stack: => obj
+     */ \
+    macro(JSOP_SPREADCALLARRAY, 126, "spreadcallarray", NULL, 4,  0,  1, JOF_UINT24) \
     \
     /*
      * Defines the given function on the current scope.

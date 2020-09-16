@@ -567,6 +567,9 @@ class LSimdShift : public LInstructionHelper<1, 2, 0>
     MSimdShift::Operation operation() const {
         return mir_->toSimdShift()->operation();
     }
+    const char* extraName() const {
+        return MSimdShift::OperationName(operation());
+    }
     MSimdShift* mir() const {
         return mir_->toSimdShift();
     }
@@ -1533,14 +1536,6 @@ class LJSCallInstructionHelper : public LCallInstructionHelper<Defs, Operands, T
         return mir()->getSingleTarget();
     }
 
-    // The number of stack arguments is the max between the number of formal
-    // arguments and the number of actual arguments. The number of stack
-    // argument includes the |undefined| padding added in case of underflow.
-    // Does not include |this|.
-    uint32_t numStackArgs() const {
-        MOZ_ASSERT(mir()->numStackArgs() >= 1);
-        return mir()->numStackArgs() - 1; // |this| is not a formal argument.
-    }
     // Does not include |this|.
     uint32_t numActualArgs() const {
         return mir()->numActualArgs();
@@ -3710,12 +3705,19 @@ class LInt32x4ToFloat32x4 : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LFloat32x4ToInt32x4 : public LInstructionHelper<1, 1, 0>
+class LFloat32x4ToInt32x4 : public LInstructionHelper<1, 1, 1>
 {
   public:
     LIR_HEADER(Float32x4ToInt32x4);
-    explicit LFloat32x4ToInt32x4(const LAllocation& input) {
+    explicit LFloat32x4ToInt32x4(const LAllocation& input, const LDefinition& temp) {
         setOperand(0, input);
+        setTemp(0, temp);
+    }
+    const LDefinition* temp() {
+        return getTemp(0);
+    }
+    const MSimdConvert* mir() const {
+        return mir_->toSimdConvert();
     }
 };
 
@@ -4039,6 +4041,10 @@ class LElements : public LInstructionHelper<1, 1, 0>
     const LAllocation* object() {
         return getOperand(0);
     }
+
+    const MElements* mir() const {
+        return mir_->toElements();
+    }
 };
 
 // If necessary, convert any int32 elements in a vector into doubles.
@@ -4133,6 +4139,48 @@ class LSetInitializedLength : public LInstructionHelper<0, 2, 0>
     }
     const LAllocation* index() {
         return getOperand(1);
+    }
+};
+
+class LUnboxedArrayLength : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(UnboxedArrayLength)
+
+    explicit LUnboxedArrayLength(const LAllocation& object) {
+        setOperand(0, object);
+    }
+
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+};
+
+class LUnboxedArrayInitializedLength : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(UnboxedArrayInitializedLength)
+
+    explicit LUnboxedArrayInitializedLength(const LAllocation& object) {
+        setOperand(0, object);
+    }
+
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+};
+
+class LIncrementUnboxedArrayInitializedLength : public LInstructionHelper<0, 1, 0>
+{
+  public:
+    LIR_HEADER(IncrementUnboxedArrayInitializedLength)
+
+    explicit LIncrementUnboxedArrayInitializedLength(const LAllocation& object) {
+        setOperand(0, object);
+    }
+
+    const LAllocation* object() {
+        return getOperand(0);
     }
 };
 
@@ -4565,16 +4613,17 @@ class LStoreElementT : public LInstructionHelper<0, 3, 0>
 };
 
 // Like LStoreElementV, but supports indexes >= initialized length.
-class LStoreElementHoleV : public LInstructionHelper<0, 3 + BOX_PIECES, 0>
+class LStoreElementHoleV : public LInstructionHelper<0, 3 + BOX_PIECES, 1>
 {
   public:
     LIR_HEADER(StoreElementHoleV)
 
     LStoreElementHoleV(const LAllocation& object, const LAllocation& elements,
-                       const LAllocation& index) {
+                       const LAllocation& index, const LDefinition& temp) {
         setOperand(0, object);
         setOperand(1, elements);
         setOperand(2, index);
+        setTemp(0, temp);
     }
 
     static const size_t Value = 3;
@@ -4594,17 +4643,19 @@ class LStoreElementHoleV : public LInstructionHelper<0, 3 + BOX_PIECES, 0>
 };
 
 // Like LStoreElementT, but supports indexes >= initialized length.
-class LStoreElementHoleT : public LInstructionHelper<0, 4, 0>
+class LStoreElementHoleT : public LInstructionHelper<0, 4, 1>
 {
   public:
     LIR_HEADER(StoreElementHoleT)
 
     LStoreElementHoleT(const LAllocation& object, const LAllocation& elements,
-                       const LAllocation& index, const LAllocation& value) {
+                       const LAllocation& index, const LAllocation& value,
+                       const LDefinition& temp) {
         setOperand(0, object);
         setOperand(1, elements);
         setOperand(2, index);
         setOperand(3, value);
+        setTemp(0, temp);
     }
 
     const MStoreElementHole* mir() const {

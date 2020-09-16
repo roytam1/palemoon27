@@ -198,14 +198,27 @@ Function Properties of the `Debugger.Memory.prototype` Object
     <pre class='language-js'><code>
     {
       "timestamp": <i>timestamp</i>,
-      "frame": <i>allocationSite</i>
+      "frame": <i>allocationSite</i>,
+      "class": <i>className</i>,
+      "constructor": <i>constructorName</i>
     }
     </code></pre>
 
-    Here <i>timestamp</i> is the [timestamp][timestamps] of the allocation event and
-    <i>allocationSite</i> is an allocation site (as a
-    [captured stack][saved-frame]).  <i>allocationSite</i> is `null` for objects
-    allocated with no JavaScript frames on the stack.
+    Where
+
+    * *timestamp* is the [timestamp][timestamps] of the allocation event.
+
+    * *allocationSite* is an allocation site (as a
+      [captured stack][saved-frame]). Note that this property can be null if the
+      object was allocated with no JavaScript frames on the stack.
+
+    * *className* is the string name of the allocated object's internal
+    `[[Class]]` property, for example "Array", "Date", "RegExp", or (most
+    commonly) "Object".
+
+    * *constructorName* is the constructor function's display name for objects
+      created by `new Ctor`. If that data is not available, or the object was
+      not created with a `new` expression, this property is `null`.
 
     When `trackingAllocationSites` is `false`, `drainAllocationsLog()` throws an
     `Error`.

@@ -37,8 +37,10 @@ class MIRGenerator
   public:
     MIRGenerator(CompileCompartment* compartment, const JitCompileOptions& options,
                  TempAllocator* alloc, MIRGraph* graph,
-                 CompileInfo *info, const OptimizationInfo *optimizationInfo,
-                 Label *outOfBoundsLabel = nullptr, bool usesSignalHandlersForAsmJSOOB = false);
+                 CompileInfo* info, const OptimizationInfo* optimizationInfo,
+                 Label* outOfBoundsLabel = nullptr,
+                 Label* conversionErrorLabel = nullptr,
+                 bool usesSignalHandlersForAsmJSOOB = false);
 
     TempAllocator& alloc() {
         return *alloc_;
@@ -200,12 +202,16 @@ class MIRGenerator
     // CodeGenerator::link).
     ObjectVector nurseryObjects_;
 
-    Label *outOfBoundsLabel_;
+    void addAbortedPreliminaryGroup(ObjectGroup* group);
+
+    Label* outOfBoundsLabel_;
+    // Label where we should jump in asm.js mode, in the case where we have an
+    // invalid conversion or a loss of precision (when converting from a
+    // floating point SIMD type into an integer SIMD type).
+    Label* conversionErrorLabel_;
 #if defined(ASMJS_MAY_USE_SIGNAL_HANDLERS_FOR_OOB)
     bool usesSignalHandlersForAsmJSOOB_;
 #endif
-
-    void addAbortedPreliminaryGroup(ObjectGroup *group);
 
     void setForceAbort() {
         shouldForceAbort_ = true;
@@ -230,10 +236,15 @@ class MIRGenerator
         return nurseryObjects_;
     }
 
-    Label *outOfBoundsLabel() const {
+    Label* conversionErrorLabel() const {
+        MOZ_ASSERT((conversionErrorLabel_ != nullptr) == compilingAsmJS());
+        return conversionErrorLabel_;
+    }
+    Label* outOfBoundsLabel() const {
+        MOZ_ASSERT(compilingAsmJS());
         return outOfBoundsLabel_;
     }
-    bool needsAsmJSBoundsCheckBranch(const MAsmJSHeapAccess *access) const {
+    bool needsAsmJSBoundsCheckBranch(const MAsmJSHeapAccess* access) const {
         // A heap access needs a bounds-check branch if we're not relying on signal
         // handlers to catch errors, and if it's not proven to be within bounds.
         // We use signal-handlers on x64, but on x86 there isn't enough address

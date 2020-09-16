@@ -172,7 +172,6 @@ JitcodeGlobalEntry::BaselineEntry::callStackAtAddr(JSRuntime* rt, void* ptr,
                                                    uint32_t maxResults) const
 {
     MOZ_ASSERT(containsPointer(ptr));
-    MOZ_ASSERT(script_->hasBaselineScript());
     MOZ_ASSERT(maxResults >= 1);
 
     results[0] = str();
@@ -788,7 +787,7 @@ JitcodeGlobalTable::sweep(JSRuntime* rt)
         if (entry->baseEntry().isJitcodeAboutToBeFinalized())
             e.removeFront();
         else
-            entry->sweep();
+            entry->sweep(rt);
     }
 }
 
@@ -922,6 +921,22 @@ JitcodeGlobalEntry::IonEntry::isMarkedFromAnyThread()
     }
 
     return true;
+}
+
+bool
+JitcodeGlobalEntry::IonCacheEntry::markIfUnmarked(JSTracer* trc)
+{
+    JitcodeGlobalEntry entry;
+    RejoinEntry(trc->runtime(), *this, nativeStartAddr(), &entry);
+    return entry.markIfUnmarked(trc);
+}
+
+void
+JitcodeGlobalEntry::IonCacheEntry::sweep(JSRuntime* rt)
+{
+    JitcodeGlobalEntry entry;
+    RejoinEntry(rt, *this, nativeStartAddr(), &entry);
+    entry.sweep(rt);
 }
 
 bool

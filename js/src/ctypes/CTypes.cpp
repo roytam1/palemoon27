@@ -300,10 +300,12 @@ namespace StructType {
 
   bool FieldsArrayGetter(JSContext* cx, const JS::CallArgs& args);
 
-  static bool FieldGetter(JSContext* cx, HandleObject obj, HandleId idval,
-                          MutableHandleValue vp);
-  static bool FieldSetter(JSContext* cx, HandleObject obj, HandleId idval,
-                          MutableHandleValue vp, ObjectOpResult &result);
+  enum {
+    SLOT_FIELDNAME
+  };
+
+  static bool FieldGetter(JSContext* cx, unsigned argc, Value* vp);
+  static bool FieldSetter(JSContext* cx, unsigned argc, Value* vp);
   static bool AddressOfField(JSContext* cx, unsigned argc, jsval* vp);
   static bool Define(JSContext* cx, unsigned argc, jsval* vp);
 } // namespace StructType
@@ -528,7 +530,7 @@ static const JSClass sCABIClass = {
 static const JSClass sCTypeProtoClass = {
   "CType",
   JSCLASS_HAS_RESERVED_SLOTS(CTYPEPROTO_SLOTS),
-  nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, nullptr,
   ConstructAbstract, nullptr, ConstructAbstract
 };
@@ -543,7 +545,7 @@ static const JSClass sCDataProtoClass = {
 static const JSClass sCTypeClass = {
   "CType",
   JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(CTYPE_SLOTS),
-  nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, CType::Finalize,
   CType::ConstructData, CType::HasInstance, CType::ConstructData,
   CType::Trace
@@ -553,14 +555,14 @@ static const JSClass sCDataClass = {
   "CData",
   JSCLASS_HAS_RESERVED_SLOTS(CDATA_SLOTS),
   nullptr, nullptr, ArrayType::Getter, ArrayType::Setter,
-  nullptr, nullptr, nullptr, CData::Finalize,
+  nullptr, nullptr, nullptr, nullptr, CData::Finalize,
   FunctionType::Call, nullptr, FunctionType::Call
 };
 
 static const JSClass sCClosureClass = {
   "CClosure",
   JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(CCLOSURE_SLOTS),
-  nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, CClosure::Finalize,
   nullptr, nullptr, nullptr, CClosure::Trace
 };
@@ -582,7 +584,7 @@ static const JSClass sCDataFinalizerProtoClass = {
 static const JSClass sCDataFinalizerClass = {
   "CDataFinalizer",
   JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(CDATAFINALIZER_SLOTS),
-  nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, CDataFinalizer::Finalize
 };
 
@@ -768,14 +770,14 @@ static const JSClass sUInt64ProtoClass = {
 static const JSClass sInt64Class = {
   "Int64",
   JSCLASS_HAS_RESERVED_SLOTS(INT64_SLOTS),
-  nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, Int64Base::Finalize
 };
 
 static const JSClass sUInt64Class = {
   "UInt64",
   JSCLASS_HAS_RESERVED_SLOTS(INT64_SLOTS),
-  nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, nullptr, nullptr,
   nullptr, nullptr, nullptr, Int64Base::Finalize
 };
 
@@ -783,7 +785,7 @@ static const JSFunctionSpec sInt64StaticFunctions[] = {
   JS_FN("compare", Int64::Compare, 2, CTYPESFN_FLAGS),
   JS_FN("lo", Int64::Lo, 1, CTYPESFN_FLAGS),
   JS_FN("hi", Int64::Hi, 1, CTYPESFN_FLAGS),
-  JS_FN("join", Int64::Join, 2, CTYPESFN_FLAGS),
+  // "join" is defined specially; see InitInt64Class.
   JS_FS_END
 };
 
@@ -791,7 +793,7 @@ static const JSFunctionSpec sUInt64StaticFunctions[] = {
   JS_FN("compare", UInt64::Compare, 2, CTYPESFN_FLAGS),
   JS_FN("lo", UInt64::Lo, 1, CTYPESFN_FLAGS),
   JS_FN("hi", UInt64::Hi, 1, CTYPESFN_FLAGS),
-  JS_FN("join", UInt64::Join, 2, CTYPESFN_FLAGS),
+  // "join" is defined specially; see InitInt64Class.
   JS_FS_END
 };
 
@@ -1102,10 +1104,8 @@ InitInt64Class(JSContext* cx,
   RootedObject ctor(cx, JS_GetConstructor(cx, prototype));
   if (!ctor)
     return nullptr;
-  if (!JS_FreezeObject(cx, ctor))
-    return nullptr;
 
-  // Redefine the 'join' function as an extended native and stash
+  // Define the 'join' function as an extended native and stash
   // ctypes.{Int64,UInt64}.prototype in a reserved slot of the new function.
   MOZ_ASSERT(clasp == &sInt64ProtoClass || clasp == &sUInt64ProtoClass);
   JSNative native = (clasp == &sInt64ProtoClass) ? Int64::Join : UInt64::Join;
@@ -1117,6 +1117,8 @@ InitInt64Class(JSContext* cx,
   js::SetFunctionNativeReserved(fun, SLOT_FN_INT64PROTO,
     OBJECT_TO_JSVAL(prototype));
 
+  if (!JS_FreezeObject(cx, ctor))
+    return nullptr;
   if (!JS_FreezeObject(cx, prototype))
     return nullptr;
 
@@ -4923,14 +4925,30 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
       // Add the field to the StructType's 'prototype' property.
       AutoStableStringChars nameChars(cx);
       if (!nameChars.initTwoByte(cx, name))
-          return false;
+        return false;
+
+      RootedFunction getter(cx, NewFunctionWithReserved(cx, StructType::FieldGetter, 0, 0, nullptr));
+      if (!getter)
+        return false;
+      SetFunctionNativeReserved(getter, StructType::SLOT_FIELDNAME,
+                                StringValue(JS_FORGET_STRING_FLATNESS(name)));
+      RootedObject getterObj(cx, JS_GetFunctionObject(getter));
+
+      RootedFunction setter(cx, NewFunctionWithReserved(cx, StructType::FieldSetter, 1, 0, nullptr));
+      if (!setter)
+        return false;
+      SetFunctionNativeReserved(setter, StructType::SLOT_FIELDNAME,
+                                StringValue(JS_FORGET_STRING_FLATNESS(name)));
+      RootedObject setterObj(cx, JS_GetFunctionObject(setter));
 
       if (!JS_DefineUCProperty(cx, prototype,
              nameChars.twoByteChars(), name->length(), UndefinedHandleValue,
-             JSPROP_SHARED | JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_PROPOP_ACCESSORS,
-             JS_PROPERTYOP_GETTER(StructType::FieldGetter),
-             JS_PROPERTYOP_SETTER(StructType::FieldSetter)))
+             JSPROP_SHARED | JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_GETTER | JSPROP_SETTER,
+             JS_DATA_TO_FUNC_PTR(JSNative, getterObj.get()),
+             JS_DATA_TO_FUNC_PTR(JSNative, setterObj.get())))
+      {
         return false;
+      }
 
       size_t fieldSize = CType::GetSize(fieldType);
       size_t fieldAlign = CType::GetAlignment(fieldType);
@@ -5271,8 +5289,16 @@ StructType::FieldsArrayGetter(JSContext* cx, const JS::CallArgs& args)
 }
 
 bool
-StructType::FieldGetter(JSContext* cx, HandleObject obj, HandleId idval, MutableHandleValue vp)
+StructType::FieldGetter(JSContext* cx, unsigned argc, Value* vp)
 {
+  CallArgs args = CallArgsFromVp(argc, vp);
+
+  if (!args.thisv().isObject()) {
+    JS_ReportError(cx, "not a CData");
+    return false;
+  }
+
+  RootedObject obj(cx, &args.thisv().toObject());
   if (!CData::IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return false;
@@ -5284,19 +5310,31 @@ StructType::FieldGetter(JSContext* cx, HandleObject obj, HandleId idval, Mutable
     return false;
   }
 
-  const FieldInfo* field = LookupField(cx, typeObj, JSID_TO_FLAT_STRING(idval));
+  RootedValue nameVal(cx, GetFunctionNativeReserved(&args.callee(), SLOT_FIELDNAME));
+  Rooted<JSFlatString*> name(cx, JS_FlattenString(cx, nameVal.toString()));
+  if (!name)
+    return false;
+
+  const FieldInfo* field = LookupField(cx, typeObj, name);
   if (!field)
     return false;
 
   char* data = static_cast<char*>(CData::GetData(obj)) + field->mOffset;
   RootedObject fieldType(cx, field->mType);
-  return ConvertToJS(cx, fieldType, obj, data, false, false, vp);
+  return ConvertToJS(cx, fieldType, obj, data, false, false, args.rval());
 }
 
 bool
-StructType::FieldSetter(JSContext* cx, HandleObject obj, HandleId idval, MutableHandleValue vp,
-                        ObjectOpResult &result)
+StructType::FieldSetter(JSContext* cx, unsigned argc, Value* vp)
 {
+  CallArgs args = CallArgsFromVp(argc, vp);
+
+  if (!args.thisv().isObject()) {
+    JS_ReportError(cx, "not a CData");
+    return false;
+  }
+
+  RootedObject obj(cx, &args.thisv().toObject());
   if (!CData::IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return false;
@@ -5308,14 +5346,19 @@ StructType::FieldSetter(JSContext* cx, HandleObject obj, HandleId idval, Mutable
     return false;
   }
 
-  const FieldInfo* field = LookupField(cx, typeObj, JSID_TO_FLAT_STRING(idval));
+  RootedValue nameVal(cx, GetFunctionNativeReserved(&args.callee(), SLOT_FIELDNAME));
+  Rooted<JSFlatString*> name(cx, JS_FlattenString(cx, nameVal.toString()));
+  if (!name)
+    return false;
+
+  const FieldInfo* field = LookupField(cx, typeObj, name);
   if (!field)
     return false;
 
+  args.rval().setUndefined();
+
   char* data = static_cast<char*>(CData::GetData(obj)) + field->mOffset;
-  if (!ImplicitConvert(cx, vp, field->mType, data, false, nullptr))
-    return false;
-  return result.succeed();
+  return ImplicitConvert(cx, args.get(0), field->mType, data, false, nullptr);
 }
 
 bool

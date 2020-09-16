@@ -86,8 +86,8 @@ js::TraceCycleDetectionSet(JSTracer* trc, js::ObjectSet& set)
 {
     for (js::ObjectSet::Enum e(set); !e.empty(); e.popFront()) {
         JSObject* key = e.front();
-        trc->setTracingLocation((void*)&e.front());
-        MarkObjectRoot(trc, &key, "cycle detector table entry");
+        JS::AutoOriginalTraceLocation reloc(trc, &e.front());
+        TraceRoot(trc, &key, "cycle detector table entry");
         if (key != e.front())
             e.rekeyFront(key);
     }
@@ -1129,7 +1129,7 @@ JSContext::mark(JSTracer* trc)
 
     /* Mark other roots-by-definition in the JSContext. */
     if (isExceptionPending())
-        MarkValueRoot(trc, &unwrappedException_, "unwrapped exception");
+        TraceRoot(trc, &unwrappedException_, "unwrapped exception");
 
     TraceCycleDetectionSet(trc, cycleDetectorSet);
 

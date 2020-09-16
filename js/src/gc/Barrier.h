@@ -237,14 +237,10 @@ template <> struct MapTypeToTraceKind<UnownedBaseShape> { static const JSGCTrace
 template <> struct MapTypeToTraceKind<jit::JitCode>     { static const JSGCTraceKind kind = JSTRACE_JITCODE; };
 template <> struct MapTypeToTraceKind<ObjectGroup>      { static const JSGCTraceKind kind = JSTRACE_OBJECT_GROUP; };
 
-// Direct value access used by the write barriers and the jits.
-void
-MarkValueUnbarriered(JSTracer* trc, Value* v, const char* name);
-
-// These three declarations are also present in gc/Marking.h, via the DeclMarker
-// macro.  Not great, but hard to avoid.
-void
-MarkIdUnbarriered(JSTracer* trc, jsid* idp, const char* name);
+// Marking.h depends on these barrier definitions, so we need a separate
+// entry point for marking to implement the pre-barrier.
+void MarkValueForBarrier(JSTracer* trc, Value* v, const char* name);
+void MarkIdForBarrier(JSTracer* trc, jsid* idp, const char* name);
 
 } // namespace gc
 
@@ -336,10 +332,12 @@ struct InternalGCMethods<Value>
 
     static void preBarrier(Value v) {
         MOZ_ASSERT(!CurrentThreadIsIonCompiling());
+        if (v.isString() && StringIsPermanentAtom(v.toString()))
+            return;
         if (v.isSymbol() && SymbolIsWellKnown(v.toSymbol()))
             return;
         if (v.isMarkable() && shadowRuntimeFromAnyThread(v)->needsIncrementalBarrier())
-            preBarrier(ZoneOfValueFromAnyThread(v), v);
+            preBarrierImpl(ZoneOfValueFromAnyThread(v), v);
     }
 
     static void preBarrier(Zone* zone, Value v) {
@@ -348,15 +346,21 @@ struct InternalGCMethods<Value>
             return;
         if (v.isSymbol() && SymbolIsWellKnown(v.toSymbol()))
             return;
+        preBarrierImpl(zone, v);
+    }
+
+  private:
+    static void preBarrierImpl(Zone* zone, Value v) {
         JS::shadow::Zone* shadowZone = JS::shadow::Zone::asShadowZone(zone);
         if (shadowZone->needsIncrementalBarrier()) {
             MOZ_ASSERT_IF(v.isMarkable(), shadowRuntimeFromMainThread(v)->needsIncrementalBarrier());
             Value tmp(v);
-            js::gc::MarkValueUnbarriered(shadowZone->barrierTracer(), &tmp, "write barrier");
+            js::gc::MarkValueForBarrier(shadowZone->barrierTracer(), &tmp, "write barrier");
             MOZ_ASSERT(tmp == v);
         }
     }
 
+  public:
     static void postBarrier(Value* vp) {
         MOZ_ASSERT(!CurrentThreadIsIonCompiling());
         if (vp->isObject()) {
@@ -414,7 +418,7 @@ struct InternalGCMethods<jsid>
         JS::shadow::Zone* shadowZone = JS::shadow::Zone::asShadowZone(zone);
         if (shadowZone->needsIncrementalBarrier()) {
             jsid tmp(id);
-            js::gc::MarkIdUnbarriered(shadowZone->barrierTracer(), &tmp, "id write barrier");
+            js::gc::MarkIdForBarrier(shadowZone->barrierTracer(), &tmp, "id write barrier");
             MOZ_ASSERT(tmp == id);
         }
     }
@@ -702,7 +706,7 @@ struct HeapPtrHasher
 
 /* Specialized hashing policy for HeapPtrs. */
 template <class T>
-struct DefaultHasher< HeapPtr<T> > : HeapPtrHasher<T> { };
+struct DefaultHasher<HeapPtr<T>> : HeapPtrHasher<T> { };
 
 template <class T>
 struct PreBarrieredHasher
@@ -716,7 +720,7 @@ struct PreBarrieredHasher
 };
 
 template <class T>
-struct DefaultHasher< PreBarriered<T> > : PreBarrieredHasher<T> { };
+struct DefaultHasher<PreBarriered<T>> : PreBarrieredHasher<T> { };
 
 /*
  * Incremental GC requires that weak pointers have read barriers. This is mostly
@@ -759,6 +763,22 @@ class ReadBarriered
 
     void set(T v) { value = v; }
 };
+
+/* Useful for hashtables with a ReadBarriered as key. */
+template <class T>
+struct ReadBarrieredHasher
+{
+    typedef ReadBarriered<T> Key;
+    typedef T Lookup;
+
+    static HashNumber hash(Lookup obj) { return DefaultHasher<T>::hash(obj); }
+    static bool match(const Key& k, Lookup l) { return k.get() == l; }
+    static void rekey(Key& k, const Key& newKey) { k.set(newKey); }
+};
+
+/* Specialized hashing policy for ReadBarriereds. */
+template <class T>
+struct DefaultHasher<ReadBarriered<T>> : ReadBarrieredHasher<T> { };
 
 class ArrayObject;
 class ArrayBufferObject;

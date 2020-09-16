@@ -884,6 +884,10 @@ class JSScript : public js::gc::TenuredCell
 
     // 16-bit fields.
 
+    uint16_t        warmUpResetCount; /* Number of times the |warmUpCount| was
+                                 * forcibly discarded. The counter is reset when
+                                 * a script is successfully jit-compiled. */
+
     uint16_t        version;    /* JS version under which script was compiled */
 
     uint16_t        funLength_; /* ES6 function length */
@@ -1352,6 +1356,7 @@ class JSScript : public js::gc::TenuredCell
         if (hasIonScript())
             js::jit::IonScript::writeBarrierPre(zone(), ion);
         ion = ionScript;
+        resetWarmUpResetCounter();
         MOZ_ASSERT_IF(hasIonScript(), hasBaselineScript());
         updateBaselineOrIonRaw(maybecx);
     }
@@ -1472,13 +1477,15 @@ class JSScript : public js::gc::TenuredCell
     bool makeTypes(JSContext* cx);
 
   public:
-    uint32_t getWarmUpCount() const {
-        return warmUpCount;
-    }
+    uint32_t getWarmUpCount() const { return warmUpCount; }
     uint32_t incWarmUpCounter(uint32_t amount = 1) { return warmUpCount += amount; }
     uint32_t* addressOfWarmUpCounter() { return &warmUpCount; }
     static size_t offsetOfWarmUpCounter() { return offsetof(JSScript, warmUpCount); }
-    void resetWarmUpCounter() { warmUpCount = 0; }
+    void resetWarmUpCounter() { incWarmUpResetCounter(); warmUpCount = 0; }
+
+    uint16_t getWarmUpResetCount() const { return warmUpResetCount; }
+    uint16_t incWarmUpResetCounter(uint16_t amount = 1) { return warmUpResetCount += amount; }
+    void resetWarmUpResetCounter() { warmUpResetCount = 0; }
 
   public:
     bool initScriptCounts(JSContext* cx);
@@ -1697,7 +1704,7 @@ class JSScript : public js::gc::TenuredCell
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
 
-    void markChildren(JSTracer* trc);
+    void traceChildren(JSTracer* trc);
 
     // A helper class to prevent relazification of the given function's script
     // while it's holding on to it.  This class automatically roots the script.
@@ -2113,7 +2120,7 @@ class LazyScript : public gc::TenuredCell
     bool hasUncompiledEnclosingScript() const;
     uint32_t staticLevel(JSContext* cx) const;
 
-    void markChildren(JSTracer* trc);
+    void traceChildren(JSTracer* trc);
     void finalize(js::FreeOp* fop);
     void fixupAfterMovingGC() {}
 

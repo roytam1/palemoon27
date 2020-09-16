@@ -521,7 +521,7 @@ Debugger::hasAnyLiveHooks() const
 
     /* If any breakpoints are in live scripts, return true. */
     for (Breakpoint* bp = firstBreakpoint(); bp; bp = bp->nextInDebugger()) {
-        if (IsScriptMarked(&bp->site->script))
+        if (IsMarkedUnbarriered(&bp->site->script))
             return true;
     }
 
@@ -2031,7 +2031,7 @@ UpdateExecutionObservabilityOfScriptsInZone(JSContext* cx, Zone* zone,
             for (gc::ZoneCellIter iter(zone, gc::AllocKind::SCRIPT); !iter.done(); iter.next()) {
                 JSScript *script = iter.get<JSScript>();
                 if (obs.shouldRecompileOrInvalidate(script) &&
-                    !gc::IsScriptAboutToBeFinalized(&script))
+                    !gc::IsAboutToBeFinalizedUnbarriered(&script))
                 {
                     if (!AppendAndInvalidateScript(cx, zone, script, scripts))
                         return false;
@@ -2156,7 +2156,7 @@ Debugger::updateObservesAllExecutionOnDebuggees(JSContext* cx, IsObserving obser
     if (!obs.init())
         return false;
 
-    for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
+    for (WeakGlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
         GlobalObject* global = r.front();
         JSCompartment* comp = global->compartment();
 
@@ -2177,7 +2177,7 @@ Debugger::updateObservesAllExecutionOnDebuggees(JSContext* cx, IsObserving obser
 void
 Debugger::updateObservesAsmJSOnDebuggees(IsObserving observing)
 {
-    for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
+    for (WeakGlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
         GlobalObject* global = r.front();
         JSCompartment* comp = global->compartment();
 
@@ -2266,7 +2266,7 @@ Debugger::markAllIteratively(GCMarker* trc)
     for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
         if (c->isDebuggee()) {
             GlobalObject* global = c->maybeGlobal();
-            if (!IsObjectMarked(&global))
+            if (!IsMarkedUnbarriered(&global))
                 continue;
 
             /*
@@ -2288,13 +2288,13 @@ Debugger::markAllIteratively(GCMarker* trc)
                 if (!dbgobj->zone()->isGCMarking())
                     continue;
 
-                bool dbgMarked = IsObjectMarked(&dbgobj);
+                bool dbgMarked = IsMarked(&dbgobj);
                 if (!dbgMarked && dbg->hasAnyLiveHooks()) {
                     /*
                      * obj could be reachable only via its live, enabled
                      * debugger hooks, which may yet be called.
                      */
-                    MarkObject(trc, &dbgobj, "enabled Debugger");
+                    TraceEdge(trc, &dbgobj, "enabled Debugger");
                     markedAny = true;
                     dbgMarked = true;
                 }
@@ -2302,13 +2302,13 @@ Debugger::markAllIteratively(GCMarker* trc)
                 if (dbgMarked) {
                     /* Search for breakpoints to mark. */
                     for (Breakpoint* bp = dbg->firstBreakpoint(); bp; bp = bp->nextInDebugger()) {
-                        if (IsScriptMarked(&bp->site->script)) {
+                        if (IsMarkedUnbarriered(&bp->site->script)) {
                             /*
                              * The debugger and the script are both live.
                              * Therefore the breakpoint handler is live.
                              */
-                            if (!IsObjectMarked(&bp->getHandlerRef())) {
-                                MarkObject(trc, &bp->getHandlerRef(), "breakpoint handler");
+                            if (!IsMarked(&bp->getHandlerRef())) {
+                                TraceEdge(trc, &bp->getHandlerRef(), "breakpoint handler");
                                 markedAny = true;
                             }
                         }
@@ -2330,16 +2330,16 @@ Debugger::markAll(JSTracer* trc)
 {
     JSRuntime* rt = trc->runtime();
     for (Debugger* dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
-        GlobalObjectSet& debuggees = dbg->debuggees;
-        for (GlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {
+        WeakGlobalObjectSet& debuggees = dbg->debuggees;
+        for (WeakGlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {
             GlobalObject* global = e.front();
-            MarkObjectUnbarriered(trc, &global, "Global Object");
+            TraceManuallyBarrieredEdge(trc, &global, "Global Object");
             if (global != e.front())
-                e.rekeyFront(global);
+                e.rekeyFront(ReadBarrieredGlobalObject(global));
         }
 
         HeapPtrNativeObject& dbgobj = dbg->toJSObjectRef();
-        MarkObject(trc, &dbgobj, "Debugger Object");
+        TraceEdge(trc, &dbgobj, "Debugger Object");
 
         dbg->scripts.trace(trc);
         dbg->sources.trace(trc);
@@ -2347,8 +2347,8 @@ Debugger::markAll(JSTracer* trc)
         dbg->environments.trace(trc);
 
         for (Breakpoint* bp = dbg->firstBreakpoint(); bp; bp = bp->nextInDebugger()) {
-            MarkScriptUnbarriered(trc, &bp->site->script, "breakpoint script");
-            MarkObject(trc, &bp->getHandlerRef(), "breakpoint handler");
+            TraceManuallyBarrieredEdge(trc, &bp->site->script, "breakpoint script");
+            TraceEdge(trc, &bp->getHandlerRef(), "breakpoint handler");
         }
     }
 }
@@ -2364,7 +2364,7 @@ void
 Debugger::trace(JSTracer* trc)
 {
     if (uncaughtExceptionHook)
-        MarkObject(trc, &uncaughtExceptionHook, "hooks");
+        TraceEdge(trc, &uncaughtExceptionHook, "hooks");
 
     /*
      * Mark Debugger.Frame objects. These are all reachable from JS, because the
@@ -2377,7 +2377,7 @@ Debugger::trace(JSTracer* trc)
     for (FrameMap::Range r = frames.all(); !r.empty(); r.popFront()) {
         RelocatablePtrNativeObject& frameobj = r.front().value();
         MOZ_ASSERT(MaybeForwarded(frameobj.get())->getPrivate());
-        MarkObject(trc, &frameobj, "live Debugger.Frame");
+        TraceEdge(trc, &frameobj, "live Debugger.Frame");
     }
 
     /*
@@ -2385,7 +2385,7 @@ Debugger::trace(JSTracer* trc)
      */
     for (AllocationSite* s = allocationsLog.getFirst(); s; s = s->getNext()) {
         if (s->frame)
-            MarkObject(trc, &s->frame, "allocation log SavedFrame");
+            TraceEdge(trc, &s->frame, "allocation log SavedFrame");
     }
 
     /* Trace the weak map from JSScript instances to Debugger.Script objects. */
@@ -2407,13 +2407,13 @@ Debugger::sweepAll(FreeOp* fop)
     JSRuntime* rt = fop->runtime();
 
     for (Debugger* dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
-        if (IsObjectAboutToBeFinalized(&dbg->object)) {
+        if (IsAboutToBeFinalized(&dbg->object)) {
             /*
              * dbg is being GC'd. Detach it from its debuggees. The debuggee
              * might be GC'd too. Since detaching requires access to both
              * objects, this must be done before finalize time.
              */
-            for (GlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront())
+            for (WeakGlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront())
                 dbg->removeDebuggeeGlobal(fop, e.front(), &e);
         }
     }
@@ -2754,7 +2754,7 @@ Debugger::setAllowUnobservedAsmJS(JSContext* cx, unsigned argc, Value* vp)
         return false;
     dbg->allowUnobservedAsmJS = ToBoolean(args[0]);
 
-    for (GlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront()) {
+    for (WeakGlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront()) {
         GlobalObject* global = r.front();
         JSCompartment* comp = global->compartment();
         comp->updateDebuggerObservesAsmJS();
@@ -2912,7 +2912,7 @@ Debugger::removeAllDebuggees(JSContext* cx, unsigned argc, Value* vp)
     if (!obs.init())
         return false;
 
-    for (GlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront()) {
+    for (WeakGlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront()) {
         Rooted<GlobalObject*> global(cx, e.front());
         dbg->removeDebuggeeGlobal(cx->runtime()->defaultFreeOp(), global, &e);
 
@@ -2955,8 +2955,8 @@ Debugger::getDebuggees(JSContext* cx, unsigned argc, Value* vp)
     unsigned i = 0;
     {
         JS::AutoCheckCannotGC nogc;
-        for (GlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront())
-            debuggees[i++].setObject(*e.front());
+        for (WeakGlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront())
+            debuggees[i++].setObject(*e.front().get());
     }
 
     RootedArrayObject arrobj(cx, NewDenseFullyAllocatedArray(cx, count));
@@ -3001,7 +3001,7 @@ Debugger::getNewestFrame(JSContext* cx, unsigned argc, Value* vp)
 Debugger::clearAllBreakpoints(JSContext* cx, unsigned argc, Value* vp)
 {
     THIS_DEBUGGER(cx, argc, vp, "clearAllBreakpoints", args, dbg);
-    for (GlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront())
+    for (WeakGlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront())
         r.front()->compartment()->clearBreakpointsIn(cx->runtime()->defaultFreeOp(),
                                                      dbg, NullPtr());
     return true;
@@ -3168,7 +3168,8 @@ Debugger::addDebuggeeGlobal(JSContext* cx, Handle<GlobalObject*> global)
 }
 
 void
-Debugger::removeDebuggeeGlobal(FreeOp* fop, GlobalObject* global, GlobalObjectSet::Enum* debugEnum)
+Debugger::removeDebuggeeGlobal(FreeOp* fop, GlobalObject* global,
+                               WeakGlobalObjectSet::Enum* debugEnum)
 {
     /*
      * The caller might have found global by enumerating this->debuggees; if
@@ -3525,7 +3526,7 @@ class MOZ_STACK_CLASS Debugger::ScriptQuery
     bool matchAllDebuggeeGlobals() {
         MOZ_ASSERT(compartments.count() == 0);
         /* Build our compartment set from the debugger's set of debuggee globals. */
-        for (GlobalObjectSet::Range r = debugger->debuggees.all(); !r.empty(); r.popFront()) {
+        for (WeakGlobalObjectSet::Range r = debugger->debuggees.all(); !r.empty(); r.popFront()) {
             if (!addCompartment(r.front()->compartment())) {
                 ReportOutOfMemory(cx);
                 return false;
@@ -4256,7 +4257,7 @@ DebuggerScript_trace(JSTracer* trc, JSObject* obj)
 {
     /* This comes from a private pointer, so no barrier needed. */
     if (JSScript* script = GetScriptReferent(obj)) {
-        MarkCrossCompartmentScriptUnbarriered(trc, obj, &script, "Debugger.Script referent");
+        TraceManuallyBarrieredCrossCompartmentEdge(trc, obj, &script, "Debugger.Script referent");
         obj->as<NativeObject>().setPrivateUnbarriered(script);
     }
 }
@@ -5278,7 +5279,8 @@ DebuggerSource_trace(JSTracer* trc, JSObject* obj)
      * is okay.
      */
     if (JSObject* referent = GetSourceReferent(obj)) {
-        MarkCrossCompartmentObjectUnbarriered(trc, obj, &referent, "Debugger.Source referent");
+        TraceManuallyBarrieredCrossCompartmentEdge(trc, obj, &referent,
+                                                   "Debugger.Source referent");
         obj->as<NativeObject>().setPrivateUnbarriered(referent);
     }
 }
@@ -6389,7 +6391,8 @@ DebuggerObject_trace(JSTracer* trc, JSObject* obj)
      * is okay.
      */
     if (JSObject* referent = (JSObject*) obj->as<NativeObject>().getPrivate()) {
-        MarkCrossCompartmentObjectUnbarriered(trc, obj, &referent, "Debugger.Object referent");
+        TraceManuallyBarrieredCrossCompartmentEdge(trc, obj, &referent,
+                                                   "Debugger.Object referent");
         obj->as<NativeObject>().setPrivateUnbarriered(referent);
     }
 }
@@ -7298,7 +7301,8 @@ DebuggerEnv_trace(JSTracer* trc, JSObject* obj)
      * is okay.
      */
     if (Env* referent = (JSObject*) obj->as<NativeObject>().getPrivate()) {
-        MarkCrossCompartmentObjectUnbarriered(trc, obj, &referent, "Debugger.Environment referent");
+        TraceManuallyBarrieredCrossCompartmentEdge(trc, obj, &referent,
+                                                   "Debugger.Environment referent");
         obj->as<NativeObject>().setPrivateUnbarriered(referent);
     }
 }

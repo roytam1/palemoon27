@@ -332,27 +332,27 @@ InterpreterFrame::mark(JSTracer *trc)
      * frame is copied to the floating frame. Therefore, no barrier is needed.
      */
     if (flags_ & HAS_SCOPECHAIN)
-        gc::MarkObjectUnbarriered(trc, &scopeChain_, "scope chain");
+        TraceManuallyBarrieredEdge(trc, &scopeChain_, "scope chain");
     if (flags_ & HAS_ARGS_OBJ)
-        gc::MarkObjectUnbarriered(trc, &argsObj_, "arguments");
+        TraceManuallyBarrieredEdge(trc, &argsObj_, "arguments");
     if (isFunctionFrame()) {
-        gc::MarkObjectUnbarriered(trc, &exec.fun, "fun");
+        TraceManuallyBarrieredEdge(trc, &exec.fun, "fun");
         if (isEvalFrame())
-            gc::MarkScriptUnbarriered(trc, &u.evalScript, "eval script");
+            TraceManuallyBarrieredEdge(trc, &u.evalScript, "eval script");
     } else {
-        gc::MarkScriptUnbarriered(trc, &exec.script, "script");
+        TraceManuallyBarrieredEdge(trc, &exec.script, "script");
     }
     if (trc->isMarkingTracer())
         script()->compartment()->zone()->active = true;
     if (hasReturnValue())
-        gc::MarkValueUnbarriered(trc, &rval_, "rval");
+        TraceManuallyBarrieredEdge(trc, &rval_, "rval");
 }
 
 void
 InterpreterFrame::markValues(JSTracer* trc, unsigned start, unsigned end)
 {
     if (start < end)
-        gc::MarkValueRootRange(trc, end - start, slots() + start, "vm_stack");
+        TraceRootRange(trc, end - start, slots() + start, "vm_stack");
 }
 
 void
@@ -396,10 +396,10 @@ InterpreterFrame::markValues(JSTracer* trc, Value* sp, jsbytecode* pc)
     if (hasArgs()) {
         // Mark callee, |this| and arguments.
         unsigned argc = Max(numActualArgs(), numFormalArgs());
-        gc::MarkValueRootRange(trc, argc + 2, argv_ - 2, "fp argv");
+        TraceRootRange(trc, argc + 2, argv_ - 2, "fp argv");
     } else {
         // Mark callee and |this|
-        gc::MarkValueRootRange(trc, 2, ((Value*)this) - 2, "stack callee and this");
+        TraceRootRange(trc, 2, ((Value*)this) - 2, "stack callee and this");
     }
 }
 

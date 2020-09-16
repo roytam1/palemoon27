@@ -313,7 +313,7 @@ void
 Bindings::trace(JSTracer* trc)
 {
     if (callObjShape_)
-        MarkShape(trc, &callObjShape_, "callObjShape");
+        TraceEdge(trc, &callObjShape_, "callObjShape");
 
     /*
      * As the comment in Bindings explains, bindingsArray may point into freed
@@ -325,7 +325,7 @@ Bindings::trace(JSTracer* trc)
 
     for (const Binding& b : *this) {
         PropertyName* name = b.name();
-        MarkStringUnbarriered(trc, &name, "bindingArray");
+        TraceManuallyBarrieredEdge(trc, &name, "bindingArray");
     }
 }
 
@@ -1340,7 +1340,7 @@ ScriptSourceObject::trace(JSTracer* trc, JSObject* obj)
     if (!sso->getReservedSlot(INTRODUCTION_SCRIPT_SLOT).isMagic(JS_GENERIC_MAGIC)) {
         JSScript* script = sso->introductionScript();
         if (script) {
-            MarkScriptUnbarriered(trc, &script, "ScriptSourceObject introductionScript");
+            TraceManuallyBarrieredEdge(trc, &script, "ScriptSourceObject introductionScript");
             sso->setReservedSlot(INTRODUCTION_SCRIPT_SLOT, PrivateValue(script));
         }
     }
@@ -3425,7 +3425,7 @@ JSScript::hasBreakpointsAt(jsbytecode* pc)
 }
 
 void
-JSScript::markChildren(JSTracer* trc)
+JSScript::traceChildren(JSTracer* trc)
 {
     // NOTE: this JSScript may be partially initialized at this point.  E.g. we
     // may have created it and partially initialized it with
@@ -3438,37 +3438,37 @@ JSScript::markChildren(JSTracer* trc)
 
     for (uint32_t i = 0; i < natoms(); ++i) {
         if (atoms[i])
-            MarkString(trc, &atoms[i], "atom");
+            TraceEdge(trc, &atoms[i], "atom");
     }
 
     if (hasObjects()) {
         ObjectArray* objarray = objects();
-        MarkObjectRange(trc, objarray->length, objarray->vector, "objects");
+        TraceRange(trc, objarray->length, objarray->vector, "objects");
     }
 
     if (hasRegexps()) {
         ObjectArray* objarray = regexps();
-        MarkObjectRange(trc, objarray->length, objarray->vector, "objects");
+        TraceRange(trc, objarray->length, objarray->vector, "objects");
     }
 
     if (hasConsts()) {
         ConstArray* constarray = consts();
-        MarkValueRange(trc, constarray->length, constarray->vector, "consts");
+        TraceRange(trc, constarray->length, constarray->vector, "consts");
     }
 
     if (sourceObject()) {
         MOZ_ASSERT(MaybeForwarded(sourceObject())->compartment() == compartment());
-        MarkObject(trc, &sourceObject_, "sourceObject");
+        TraceEdge(trc, &sourceObject_, "sourceObject");
     }
 
     if (functionNonDelazifying())
-        MarkObject(trc, &function_, "function");
+        TraceEdge(trc, &function_, "function");
 
     if (enclosingStaticScope_)
-        MarkObject(trc, &enclosingStaticScope_, "enclosingStaticScope");
+        TraceEdge(trc, &enclosingStaticScope_, "enclosingStaticScope");
 
     if (maybeLazyScript())
-        MarkLazyScriptUnbarriered(trc, &lazyScript, "lazyScript");
+        TraceManuallyBarrieredEdge(trc, &lazyScript, "lazyScript");
 
     if (trc->isMarkingTracer()) {
         compartment()->mark();
@@ -3483,30 +3483,30 @@ JSScript::markChildren(JSTracer* trc)
 }
 
 void
-LazyScript::markChildren(JSTracer* trc)
+LazyScript::traceChildren(JSTracer* trc)
 {
     if (function_)
-        MarkObject(trc, &function_, "function");
+        TraceEdge(trc, &function_, "function");
 
     if (sourceObject_)
-        MarkObject(trc, &sourceObject_, "sourceObject");
+        TraceEdge(trc, &sourceObject_, "sourceObject");
 
     if (enclosingScope_)
-        MarkObject(trc, &enclosingScope_, "enclosingScope");
+        TraceEdge(trc, &enclosingScope_, "enclosingScope");
 
     if (script_)
-        MarkScript(trc, &script_, "realScript");
+        TraceEdge(trc, &script_, "realScript");
 
     // We rely on the fact that atoms are always tenured.
     FreeVariable* freeVariables = this->freeVariables();
     for (size_t i = 0; i < numFreeVariables(); i++) {
         JSAtom* atom = freeVariables[i].atom();
-        MarkStringUnbarriered(trc, &atom, "lazyScriptFreeVariable");
+        TraceManuallyBarrieredEdge(trc, &atom, "lazyScriptFreeVariable");
     }
 
     HeapPtrFunction* innerFunctions = this->innerFunctions();
     for (size_t i = 0; i < numInnerFunctions(); i++)
-        MarkObject(trc, &innerFunctions[i], "lazyScriptInnerFunction");
+        TraceEdge(trc, &innerFunctions[i], "lazyScriptInnerFunction");
 }
 
 void

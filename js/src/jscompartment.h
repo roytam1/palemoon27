@@ -382,15 +382,15 @@ struct JSCompartment
     /* Mark cross-compartment wrappers. */
     void markCrossCompartmentWrappers(JSTracer* trc);
 
-    inline bool wrap(JSContext *cx, JS::MutableHandleValue vp,
-                     JS::HandleObject existing = js::NullPtr());
+    inline bool wrap(JSContext* cx, JS::MutableHandleValue vp,
+                     JS::HandleObject existing = nullptr);
 
-    bool wrap(JSContext *cx, js::MutableHandleString strp);
-    bool wrap(JSContext *cx, JS::MutableHandleObject obj,
-              JS::HandleObject existingArg = js::NullPtr());
-    bool wrap(JSContext *cx, JS::MutableHandle<js::PropertyDescriptor> desc);
+    bool wrap(JSContext* cx, js::MutableHandleString strp);
+    bool wrap(JSContext* cx, JS::MutableHandleObject obj,
+              JS::HandleObject existingArg = nullptr);
+    bool wrap(JSContext* cx, JS::MutableHandle<js::PropertyDescriptor> desc);
 
-    template<typename T> bool wrap(JSContext *cx, JS::AutoVectorRooter<T> &vec) {
+    template<typename T> bool wrap(JSContext* cx, JS::AutoVectorRooter<T>& vec) {
         for (size_t i = 0; i < vec.length(); ++i) {
             if (!wrap(cx, vec[i]))
                 return false;
@@ -435,13 +435,14 @@ struct JSCompartment
     void fixupGlobal();
 
     bool hasObjectMetadataCallback() const { return objectMetadataCallback; }
+    js::ObjectMetadataCallback getObjectMetadataCallback() const { return objectMetadataCallback; }
     void setObjectMetadataCallback(js::ObjectMetadataCallback callback);
     void forgetObjectMetadataCallback() {
         objectMetadataCallback = nullptr;
     }
-    void setNewObjectMetadata(JSContext *cx, JSObject *obj);
+    void setNewObjectMetadata(JSContext* cx, JSObject* obj);
     void clearObjectMetadata();
-    const void *addressOfMetadataCallback() const {
+    const void* addressOfMetadataCallback() const {
         return &objectMetadataCallback;
     }
 

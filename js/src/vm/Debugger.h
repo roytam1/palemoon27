@@ -35,6 +35,8 @@ enum JSTrapStatus {
 
 namespace js {
 
+class LSprinter;
+
 class Breakpoint;
 class DebuggerMemory;
 
@@ -189,7 +191,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     friend class mozilla::LinkedListElement<Debugger>;
     friend bool (::JS_DefineDebuggerObject)(JSContext* cx, JS::HandleObject obj);
     friend bool (::JS::dbg::IsDebugger)(JS::Value val);
-    friend JSObject* SavedStacksMetadataCallback(JSContext* cx);
     friend void JS::dbg::onNewPromise(JSContext* cx, HandleObject promise);
     friend void JS::dbg::onPromiseSettled(JSContext* cx, HandleObject promise);
     friend bool JS::dbg::FireOnGarbageCollectionHook(JSContext* cx,
@@ -205,6 +206,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
         OnNewPromise,
         OnPromiseSettled,
         OnGarbageCollection,
+        OnIonCompilation,
         HookCount
     };
     enum {
@@ -304,6 +306,39 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     bool appendAllocationSite(JSContext* cx, HandleObject obj, HandleSavedFrame frame,
                               int64_t when);
     void emptyAllocationsLog();
+
+    /*
+     * Return true if there is an existing object metadata callback for the
+     * given global's compartment that will prevent our instrumentation of
+     * allocations.
+     */
+    static bool cannotTrackAllocations(const GlobalObject& global);
+
+    /*
+     * Return true if the given global is being observed by at least one
+     * Debugger that is tracking allocations.
+     */
+    static bool isObservedByDebuggerTrackingAllocations(const GlobalObject& global);
+
+    /*
+     * Add allocations tracking for objects allocated within the given
+     * debuggee's compartment. The given debuggee global must be observed by at
+     * least one Debugger that is enabled and tracking allocations.
+     */
+    static bool addAllocationsTracking(JSContext* cx, GlobalObject& debuggee);
+
+    /*
+     * Remove allocations tracking for objects allocated within the given
+     * global's compartment. This is a no-op if there are still Debuggers
+     * observing this global and who are tracking allocations.
+     */
+    static void removeAllocationsTracking(GlobalObject& global);
+
+    /*
+     * Add or remove allocations tracking for all debuggees.
+     */
+    bool addAllocationsTrackingForAllDebuggees(JSContext* cx);
+    void removeAllocationsTrackingForAllDebuggees();
 
     /*
      * If this Debugger is enabled, and has a onNewGlobalObject handler, then
@@ -423,52 +458,54 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
 
     static const Class jsclass;
 
-    static bool getHookImpl(JSContext *cx, CallArgs &args, Debugger &dbg, Hook which);
-    static bool setHookImpl(JSContext *cx, CallArgs &args, Debugger &dbg, Hook which);
+    static bool getHookImpl(JSContext* cx, CallArgs& args, Debugger& dbg, Hook which);
+    static bool setHookImpl(JSContext* cx, CallArgs& args, Debugger& dbg, Hook which);
 
-    static Debugger *fromThisValue(JSContext *cx, const CallArgs &ca, const char *fnname);
-    static bool getEnabled(JSContext *cx, unsigned argc, Value *vp);
-    static bool setEnabled(JSContext *cx, unsigned argc, Value *vp);
-    static bool getOnDebuggerStatement(JSContext *cx, unsigned argc, Value *vp);
-    static bool setOnDebuggerStatement(JSContext *cx, unsigned argc, Value *vp);
-    static bool getOnExceptionUnwind(JSContext *cx, unsigned argc, Value *vp);
-    static bool setOnExceptionUnwind(JSContext *cx, unsigned argc, Value *vp);
-    static bool getOnNewScript(JSContext *cx, unsigned argc, Value *vp);
-    static bool setOnNewScript(JSContext *cx, unsigned argc, Value *vp);
-    static bool getOnEnterFrame(JSContext *cx, unsigned argc, Value *vp);
-    static bool setOnEnterFrame(JSContext *cx, unsigned argc, Value *vp);
-    static bool getOnNewGlobalObject(JSContext *cx, unsigned argc, Value *vp);
-    static bool setOnNewGlobalObject(JSContext *cx, unsigned argc, Value *vp);
-    static bool getOnNewPromise(JSContext *cx, unsigned argc, Value *vp);
-    static bool setOnNewPromise(JSContext *cx, unsigned argc, Value *vp);
-    static bool getOnPromiseSettled(JSContext *cx, unsigned argc, Value *vp);
-    static bool setOnPromiseSettled(JSContext *cx, unsigned argc, Value *vp);
-    static bool getUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
-    static bool setUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
-    static bool getAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp);
-    static bool setAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp);
-    static bool getMemory(JSContext *cx, unsigned argc, Value *vp);
-    static bool addDebuggee(JSContext *cx, unsigned argc, Value *vp);
-    static bool addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp);
-    static bool removeDebuggee(JSContext *cx, unsigned argc, Value *vp);
-    static bool removeAllDebuggees(JSContext *cx, unsigned argc, Value *vp);
-    static bool hasDebuggee(JSContext *cx, unsigned argc, Value *vp);
-    static bool getDebuggees(JSContext *cx, unsigned argc, Value *vp);
-    static bool getNewestFrame(JSContext *cx, unsigned argc, Value *vp);
-    static bool clearAllBreakpoints(JSContext *cx, unsigned argc, Value *vp);
-    static bool findScripts(JSContext *cx, unsigned argc, Value *vp);
-    static bool findObjects(JSContext *cx, unsigned argc, Value *vp);
-    static bool findAllGlobals(JSContext *cx, unsigned argc, Value *vp);
-    static bool makeGlobalObjectReference(JSContext *cx, unsigned argc, Value *vp);
-    static bool setupTraceLoggerScriptCalls(JSContext *cx, unsigned argc, Value *vp);
-    static bool drainTraceLoggerScriptCalls(JSContext *cx, unsigned argc, Value *vp);
-    static bool startTraceLogger(JSContext *cx, unsigned argc, Value *vp);
-    static bool endTraceLogger(JSContext *cx, unsigned argc, Value *vp);
+    static Debugger* fromThisValue(JSContext* cx, const CallArgs& ca, const char* fnname);
+    static bool getEnabled(JSContext* cx, unsigned argc, Value* vp);
+    static bool setEnabled(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnDebuggerStatement(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnDebuggerStatement(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnExceptionUnwind(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnExceptionUnwind(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnNewScript(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnNewScript(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnEnterFrame(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnEnterFrame(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnNewGlobalObject(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnNewGlobalObject(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnNewPromise(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnNewPromise(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnPromiseSettled(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnPromiseSettled(JSContext* cx, unsigned argc, Value* vp);
+    static bool getUncaughtExceptionHook(JSContext* cx, unsigned argc, Value* vp);
+    static bool setUncaughtExceptionHook(JSContext* cx, unsigned argc, Value* vp);
+    static bool getAllowUnobservedAsmJS(JSContext* cx, unsigned argc, Value* vp);
+    static bool setAllowUnobservedAsmJS(JSContext* cx, unsigned argc, Value* vp);
+    static bool getMemory(JSContext* cx, unsigned argc, Value* vp);
+    static bool getOnIonCompilation(JSContext* cx, unsigned argc, Value* vp);
+    static bool setOnIonCompilation(JSContext* cx, unsigned argc, Value* vp);
+    static bool addDebuggee(JSContext* cx, unsigned argc, Value* vp);
+    static bool addAllGlobalsAsDebuggees(JSContext* cx, unsigned argc, Value* vp);
+    static bool removeDebuggee(JSContext* cx, unsigned argc, Value* vp);
+    static bool removeAllDebuggees(JSContext* cx, unsigned argc, Value* vp);
+    static bool hasDebuggee(JSContext* cx, unsigned argc, Value* vp);
+    static bool getDebuggees(JSContext* cx, unsigned argc, Value* vp);
+    static bool getNewestFrame(JSContext* cx, unsigned argc, Value* vp);
+    static bool clearAllBreakpoints(JSContext* cx, unsigned argc, Value* vp);
+    static bool findScripts(JSContext* cx, unsigned argc, Value* vp);
+    static bool findObjects(JSContext* cx, unsigned argc, Value* vp);
+    static bool findAllGlobals(JSContext* cx, unsigned argc, Value* vp);
+    static bool makeGlobalObjectReference(JSContext* cx, unsigned argc, Value* vp);
+    static bool setupTraceLoggerScriptCalls(JSContext* cx, unsigned argc, Value* vp);
+    static bool drainTraceLoggerScriptCalls(JSContext* cx, unsigned argc, Value* vp);
+    static bool startTraceLogger(JSContext* cx, unsigned argc, Value* vp);
+    static bool endTraceLogger(JSContext* cx, unsigned argc, Value* vp);
 #ifdef NIGHTLY_BUILD
-    static bool setupTraceLogger(JSContext *cx, unsigned argc, Value *vp);
-    static bool drainTraceLogger(JSContext *cx, unsigned argc, Value *vp);
+    static bool setupTraceLogger(JSContext* cx, unsigned argc, Value* vp);
+    static bool drainTraceLogger(JSContext* cx, unsigned argc, Value* vp);
 #endif
-    static bool construct(JSContext *cx, unsigned argc, Value *vp);
+    static bool construct(JSContext* cx, unsigned argc, Value* vp);
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];
 
@@ -515,8 +552,12 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool slowPathOnLogAllocationSite(JSContext* cx, HandleObject obj, HandleSavedFrame frame,
                                             int64_t when, GlobalObject::DebuggerVector& dbgs);
     static void slowPathPromiseHook(JSContext* cx, Hook hook, HandleObject promise);
-    static JSTrapStatus dispatchHook(JSContext* cx, MutableHandleValue vp, Hook which,
-                                     HandleObject payload);
+    static void slowPathOnIonCompilation(JSContext* cx, AutoScriptVector& scripts, LSprinter& graph);
+
+    template <typename HookIsEnabledFun /* bool (Debugger*) */,
+              typename FireHookFun /* JSTrapStatus (Debugger*) */>
+    static JSTrapStatus dispatchHook(JSContext* cx, HookIsEnabledFun hookIsEnabled,
+                                     FireHookFun fireHook);
 
     JSTrapStatus fireDebuggerStatement(JSContext* cx, MutableHandleValue vp);
     JSTrapStatus fireExceptionUnwind(JSContext* cx, MutableHandleValue vp);
@@ -548,6 +589,13 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      */
     void fireOnGarbageCollectionHook(JSContext* cx,
                                      const JS::dbg::GarbageCollectionEvent::Ptr& gcData);
+
+    /*
+     * Receive a "Ion compilation" event from the engine. An Ion compilation with
+     * the given summary just got linked.
+     */
+    JSTrapStatus fireOnIonCompilationHook(JSContext* cx, AutoScriptVector& scripts,
+                                          LSprinter& graph);
 
     /*
      * Gets a Debugger.Frame object. If maybeIter is non-null, we eagerly copy
@@ -595,12 +643,12 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      * Debugger objects that are definitely live but not yet marked, it marks
      * them and returns true. If not, it returns false.
      */
-    static void markAllCrossCompartmentEdges(JSTracer *tracer);
-    static bool markAllIteratively(GCMarker *trc);
-    static void markAll(JSTracer *trc);
-    static void sweepAll(FreeOp *fop);
-    static void detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global);
-    static void findCompartmentEdges(JS::Zone *v, gc::ComponentFinder<JS::Zone> &finder);
+    static void markAllCrossCompartmentEdges(JSTracer* tracer);
+    static bool markAllIteratively(GCMarker* trc);
+    static void markAll(JSTracer* trc);
+    static void sweepAll(FreeOp* fop);
+    static void detachAllDebuggersFromGlobal(FreeOp* fop, GlobalObject* global);
+    static void findCompartmentEdges(JS::Zone* v, gc::ComponentFinder<JS::Zone>& finder);
 
     /*
      * JSTrapStatus Overview
@@ -666,6 +714,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static inline void onNewGlobalObject(JSContext* cx, Handle<GlobalObject*> global);
     static inline bool onLogAllocationSite(JSContext* cx, JSObject* obj, HandleSavedFrame frame,
                                            int64_t when);
+    static inline bool observesIonCompilation(JSContext* cx);
+    static inline void onIonCompilation(JSContext* cx, AutoScriptVector& scripts, LSprinter& graph);
     static JSTrapStatus onTrap(JSContext* cx, MutableHandleValue vp);
     static JSTrapStatus onSingleStep(JSContext* cx, MutableHandleValue vp);
     static bool handleBaselineOsr(JSContext* cx, InterpreterFrame* from, jit::BaselineFrame* to);
@@ -741,9 +791,9 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      * debugger compartment--mirror symmetry. But compartment wrapping always
      * happens in the target compartment--rotational symmetry.)
      */
-    bool unwrapDebuggeeValue(JSContext *cx, MutableHandleValue vp);
-    bool unwrapDebuggeeObject(JSContext *cx, MutableHandleObject obj);
-    bool unwrapPropertyDescriptor(JSContext *cx, HandleObject obj,
+    bool unwrapDebuggeeValue(JSContext* cx, MutableHandleValue vp);
+    bool unwrapDebuggeeObject(JSContext* cx, MutableHandleObject obj);
+    bool unwrapPropertyDescriptor(JSContext* cx, HandleObject obj,
                                   MutableHandle<PropertyDescriptor> desc);
 
     /*

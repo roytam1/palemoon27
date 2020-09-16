@@ -21,18 +21,9 @@
 using namespace js;
 using namespace js::jit;
 
-bool
-C1Spewer::init(const char* path)
-{
-    return out_.init(path);
-}
-
 void
-C1Spewer::beginFunction(MIRGraph* graph, HandleScript script)
+C1Spewer::beginFunction(MIRGraph* graph, JSScript* script)
 {
-    if (!out_.isInitialized())
-        return;
-
     this->graph  = graph;
 
     out_.printf("begin_compilation\n");
@@ -50,9 +41,6 @@ C1Spewer::beginFunction(MIRGraph* graph, HandleScript script)
 void
 C1Spewer::spewPass(const char* pass)
 {
-    if (!out_.isInitialized())
-        return;
-
     out_.printf("begin_cfg\n");
     out_.printf("  name \"%s\"\n", pass);
 
@@ -60,15 +48,11 @@ C1Spewer::spewPass(const char* pass)
         spewPass(out_, *block);
 
     out_.printf("end_cfg\n");
-    out_.flush();
 }
 
 void
 C1Spewer::spewRanges(const char* pass, BacktrackingAllocator* regalloc)
 {
-    if (!out_.isInitialized())
-        return;
-
     out_.printf("begin_ranges\n");
     out_.printf(" name \"%s\"\n", pass);
 
@@ -76,19 +60,11 @@ C1Spewer::spewRanges(const char* pass, BacktrackingAllocator* regalloc)
         spewRanges(out_, *block, regalloc);
 
     out_.printf("end_ranges\n");
-    out_.flush();
 }
 
 void
 C1Spewer::endFunction()
 {
-}
-
-void
-C1Spewer::finish()
-{
-    if (out_.isInitialized())
-        out_.finish();
 }
 
 static void

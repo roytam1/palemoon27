@@ -25,19 +25,17 @@ class LNode;
 class C1Spewer
 {
     MIRGraph* graph;
-    Fprinter out_;
+    GenericPrinter& out_;
 
   public:
-    C1Spewer()
-      : graph(nullptr), out_()
+    explicit C1Spewer(GenericPrinter& out)
+      : graph(nullptr), out_(out)
     { }
 
-    bool init(const char* path);
-    void beginFunction(MIRGraph* graph, HandleScript script);
+    void beginFunction(MIRGraph* graph, JSScript* script);
     void spewPass(const char* pass);
     void spewRanges(const char* pass, BacktrackingAllocator* regalloc);
     void endFunction();
-    void finish();
 
   private:
     void spewPass(GenericPrinter& out, MBasicBlock* block);

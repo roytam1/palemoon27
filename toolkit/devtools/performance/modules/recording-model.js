@@ -4,6 +4,7 @@
 "use strict";
 
 const { Cc, Ci, Cu, Cr } = require("chrome");
+const { Task } = require("resource://gre/modules/Task.jsm");
 
 loader.lazyRequireGetter(this, "PerformanceIO",
   "devtools/performance/io", true);
@@ -17,19 +18,24 @@ loader.lazyRequireGetter(this, "RecordingUtils",
  */
 
 const RecordingModel = function (options={}) {
-  this._front = options.front;
-  this._performance = options.performance;
   this._label = options.label || "";
+  this._console = options.console || false;
 
   this._configuration = {
+    withMarkers: options.withMarkers || false,
     withTicks: options.withTicks || false,
     withMemory: options.withMemory || false,
-    withAllocations: options.withAllocations || false
+    withAllocations: options.withAllocations || false,
+    allocationsSampleProbability: options.allocationsSampleProbability || 0,
+    allocationsMaxLogLength: options.allocationsMaxLogLength || 0,
+    bufferSize: options.bufferSize || 0,
+    sampleFrequency: options.sampleFrequency || 1
   };
 };
 
 RecordingModel.prototype = {
   // Private fields, only needed when a recording is started or stopped.
+  _console: false,
   _imported: false,
   _recording: false,
   _profilerStartTime: 0,
@@ -65,6 +71,7 @@ RecordingModel.prototype = {
     this._ticks = recordingData.ticks;
     this._allocations = recordingData.allocations;
     this._profile = recordingData.profile;
+    this._configuration = recordingData.configuration || {};
   }),
 
   /**
@@ -79,19 +86,16 @@ RecordingModel.prototype = {
   }),
 
   /**
-   * Starts recording with the PerformanceFront.
-   *
-   * @param object options
-   *        @see PerformanceFront.prototype.startRecording
+   * Sets up the instance with data from the SharedPerformanceConnection when
+   * starting a recording. Should only be called by SharedPerformanceConnection.
    */
-  startRecording: Task.async(function *(options = {}) {
+  populate: function (info) {
     // Times must come from the actor in order to be self-consistent.
     // However, we also want to update the view with the elapsed time
     // even when the actor is not generating data. To do this we get
     // the local time and use it to compute a reasonable elapsed time.
-    this._localStartTime = this._performance.now();
+    this._localStartTime = Date.now()
 
-    let info = yield this._front.startRecording(options);
     this._profilerStartTime = info.profilerStartTime;
     this._timelineStartTime = info.timelineStartTime;
     this._memoryStartTime = info.memoryStartTime;
@@ -102,27 +106,35 @@ RecordingModel.prototype = {
     this._memory = [];
     this._ticks = [];
     this._allocations = { sites: [], timestamps: [], frames: [], counts: [] };
-  }),
+  },
 
   /**
-   * Stops recording with the PerformanceFront.
+   * Sets results available from stopping a recording from SharedPerformanceConnection.
+   * Should only be called by SharedPerformanceConnection.
    */
-  stopRecording: Task.async(function *() {
-    let info = yield this._front.stopRecording(this.getConfiguration());
+  _onStopRecording: Task.async(function *(info) {
     this._profile = info.profile;
     this._duration = info.profilerEndTime - this._profilerStartTime;
     this._recording = false;
 
-    // We'll need to filter out all samples that fall out of current profile's
-    // range since the profiler is continuously running. Because of this, sample
-    // times are not guaranteed to have a zero epoch, so offset the timestamps.
-    RecordingUtils.filterSamples(this._profile, this._profilerStartTime);
+    // We filter out all samples that fall out of current profile's range
+    // since the profiler is continuously running. Because of this, sample
+    // times are not guaranteed to have a zero epoch, so offset the
+    // timestamps.
     RecordingUtils.offsetSampleTimes(this._profile, this._profilerStartTime);
 
     // Markers need to be sorted ascending by time, to be properly displayed
     // in a waterfall view.
     this._markers = this._markers.sort((a, b) => (a.start > b.start));
   }),
+
+  /**
+   * Gets the profile's start time.
+   * @return number
+   */
+  getProfilerStartTime: function () {
+    return this._profilerStartTime;
+  },
 
   /**
    * Gets the profile's label, from `console.profile(LABEL)`.
@@ -141,7 +153,7 @@ RecordingModel.prototype = {
     // still in progress. This is needed to ensure that the view updates even
     // when new data is not being generated.
     if (this._recording) {
-      return this._performance.now() - this._localStartTime;
+      return Date.now() - this._localStartTime;
     } else {
       return this._duration;
     }
@@ -216,7 +228,24 @@ RecordingModel.prototype = {
     let ticks = this.getTicks();
     let allocations = this.getAllocations();
     let profile = this.getProfile();
-    return { label, duration, markers, frames, memory, ticks, allocations, profile };
+    let configuration = this.getConfiguration();
+    return { label, duration, markers, frames, memory, ticks, allocations, profile, configuration };
+  },
+
+  /**
+   * Returns a boolean indicating whether or not this recording model
+   * was imported via file.
+   */
+  isImported: function () {
+    return this._imported;
+  },
+
+  /**
+   * Returns a boolean indicating whether or not this recording model
+   * was started via a `console.profile` call.
+   */
+  isConsole: function () {
+    return this._console;
   },
 
   /**
@@ -237,10 +266,13 @@ RecordingModel.prototype = {
       return;
     }
 
+    let config = this.getConfiguration();
+
     switch (eventName) {
       // Accumulate timeline markers into an array. Furthermore, the timestamps
       // do not have a zero epoch, so offset all of them by the start time.
       case "markers": {
+        if (!config.withMarkers) { break; }
         let [markers] = data;
         RecordingUtils.offsetMarkerTimes(markers, this._timelineStartTime);
         Array.prototype.push.apply(this._markers, markers);
@@ -248,6 +280,7 @@ RecordingModel.prototype = {
       }
       // Accumulate stack frames into an array.
       case "frames": {
+        if (!config.withMarkers) { break; }
         let [, frames] = data;
         Array.prototype.push.apply(this._frames, frames);
         break;
@@ -255,6 +288,7 @@ RecordingModel.prototype = {
       // Accumulate memory measurements into an array. Furthermore, the timestamp
       // does not have a zero epoch, so offset it by the actor's start time.
       case "memory": {
+        if (!config.withMemory) { break; }
         let [currentTime, measurement] = data;
         this._memory.push({
           delta: currentTime - this._timelineStartTime,
@@ -264,6 +298,7 @@ RecordingModel.prototype = {
       }
       // Save the accumulated refresh driver ticks.
       case "ticks": {
+        if (!config.withTicks) { break; }
         let [, timestamps] = data;
         this._ticks = timestamps;
         break;
@@ -272,6 +307,7 @@ RecordingModel.prototype = {
       // do not have a zero epoch, and are microseconds instead of milliseconds,
       // so offset all of them by the start time, also converting from µs to ms.
       case "allocations": {
+        if (!config.withAllocations) { break; }
         let [{ sites, timestamps, frames, counts }] = data;
         let timeOffset = this._memoryStartTime * 1000;
         let timeScale = 1000;

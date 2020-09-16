@@ -143,7 +143,6 @@ void ProfileBuffer::deleteExpiredStoredMarkers() {
 void ProfileBuffer::reset() {
   mGeneration += 2;
   mReadPos = mWritePos = 0;
-  deleteExpiredStoredMarkers();
 }
 
 #define DYNAMIC_MAX_STRING 512
@@ -223,7 +222,7 @@ public:
   { }
 
   void readType(const char* keyedBy, const char* name,
-                const char* location, unsigned lineno) override {
+                const char* location, Maybe<unsigned> lineno) override {
     if (!mStartedTypeList) {
       mStartedTypeList = true;
       mWriter.BeginObject();
@@ -239,8 +238,8 @@ public:
       if (location) {
         mWriter.NameValue("location", location);
       }
-      if (lineno != UINT32_MAX) {
-        mWriter.NameValue("line", lineno);
+      if (lineno.isSome()) {
+        mWriter.NameValue("line", *lineno);
       }
     mWriter.EndObject();
   }

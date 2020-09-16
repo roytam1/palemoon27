@@ -38,6 +38,14 @@ RegionAtAddr(const JitcodeGlobalEntry::IonEntry& entry, void* ptr,
 }
 
 
+void*
+JitcodeGlobalEntry::IonEntry::canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const
+{
+    uint32_t ptrOffset;
+    JitcodeRegionEntry region = RegionAtAddr(*this, ptr, &ptrOffset);
+    return (void*)(((uint8_t*) nativeStartAddr()) + region.nativeOffset());
+}
+
 bool
 JitcodeGlobalEntry::IonEntry::callStackAtAddr(JSRuntime* rt, void* ptr,
                                               BytecodeLocationVector& results,
@@ -148,6 +156,14 @@ JitcodeGlobalEntry::IonEntry::destroy()
     optsAllTypes_ = nullptr;
 }
 
+void*
+JitcodeGlobalEntry::BaselineEntry::canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const
+{
+    // TODO: We can't yet normalize Baseline addresses until we unify
+    // BaselineScript's PCMappingEntries with JitcodeGlobalMap.
+    return ptr;
+}
+
 bool
 JitcodeGlobalEntry::BaselineEntry::callStackAtAddr(JSRuntime* rt, void* ptr,
                                                    BytecodeLocationVector& results,
@@ -198,15 +214,23 @@ JitcodeGlobalEntry::BaselineEntry::destroy()
 }
 
 static inline void
-RejoinEntry(JSRuntime *rt, const JitcodeGlobalEntry::IonCacheEntry &cache,
-            void *ptr, JitcodeGlobalEntry *entry)
+RejoinEntry(JSRuntime* rt, const JitcodeGlobalEntry::IonCacheEntry& cache,
+            void* ptr, JitcodeGlobalEntry* entry)
 {
     MOZ_ASSERT(cache.containsPointer(ptr));
 
     // There must exist an entry for the rejoin addr if this entry exists.
-    JitRuntime *jitrt = rt->jitRuntime();
+    JitRuntime* jitrt = rt->jitRuntime();
     jitrt->getJitcodeGlobalTable()->lookupInfallible(cache.rejoinAddr(), entry, rt);
     MOZ_ASSERT(entry->isIon());
+}
+
+void*
+JitcodeGlobalEntry::IonCacheEntry::canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const
+{
+    JitcodeGlobalEntry entry;
+    RejoinEntry(rt, *this, ptr, &entry);
+    return entry.canonicalNativeAddrFor(rt, rejoinAddr());
 }
 
 bool
@@ -419,7 +443,7 @@ JitcodeGlobalTable::lookup(void* ptr, JitcodeGlobalEntry* result, JSRuntime* rt)
 {
     MOZ_ASSERT(result);
 
-    JitcodeGlobalEntry *entry = lookupInternal(ptr);
+    JitcodeGlobalEntry* entry = lookupInternal(ptr);
     if (!entry)
         return false;
 
@@ -495,15 +519,15 @@ JitcodeGlobalTable::addEntry(const JitcodeGlobalEntry& entry, JSRuntime* rt)
 {
     MOZ_ASSERT(entry.isIon() || entry.isBaseline() || entry.isIonCache() || entry.isDummy());
 
-    JitcodeGlobalEntry *searchTower[JitcodeSkiplistTower::MAX_HEIGHT];
+    JitcodeGlobalEntry* searchTower[JitcodeSkiplistTower::MAX_HEIGHT];
     searchInternal(entry, searchTower);
 
     // Allocate a new entry and tower.
-    JitcodeSkiplistTower *newTower = allocateTower(generateTowerHeight());
+    JitcodeSkiplistTower* newTower = allocateTower(generateTowerHeight());
     if (!newTower)
         return false;
 
-    JitcodeGlobalEntry *newEntry = allocateEntry();
+    JitcodeGlobalEntry* newEntry = allocateEntry();
     if (!newEntry)
         return false;
 
@@ -1180,7 +1204,7 @@ struct JitcodeMapBufferWriteSpewer
         startPos = writer->length();
     }
 #else // !DEBUG
-    JitcodeMapBufferWriteSpewer(CompactBufferWriter& w) {}
+    explicit JitcodeMapBufferWriteSpewer(CompactBufferWriter& w) {}
     void spewAndAdvance(const char* name) {}
 #endif // DEBUG
 };
@@ -1521,17 +1545,46 @@ JitcodeIonTable::WriteIonTable(CompactBufferWriter& writer,
 } // namespace jit
 } // namespace js
 
-
-JS_PUBLIC_API(JS::ProfilingFrameIterator::FrameKind)
-JS::GetProfilingFrameKindFromNativeAddr(JSRuntime* rt, void* addr)
+JS::ForEachProfiledFrameOp::FrameHandle::FrameHandle(JSRuntime* rt, JitcodeGlobalEntry& entry,
+                                                     void* addr, const char* label, uint32_t depth)
+  : rt_(rt),
+    entry_(entry),
+    addr_(addr),
+    canonicalAddr_(nullptr),
+    label_(label),
+    depth_(depth)
 {
-    JitcodeGlobalTable* table = rt->jitRuntime()->getJitcodeGlobalTable();
-    JitcodeGlobalEntry entry;
-    table->lookupInfallible(addr, &entry, rt);
-    MOZ_ASSERT(entry.isIon() || entry.isIonCache() || entry.isBaseline());
+    updateHasTrackedOptimizations();
 
-    if (entry.isBaseline())
+    if (!canonicalAddr_) {
+        // If the entry has tracked optimizations, updateHasTrackedOptimizations
+        // would have updated the canonical address.
+        MOZ_ASSERT_IF(entry_.isIon(), !hasTrackedOptimizations());
+        canonicalAddr_ = entry_.canonicalNativeAddrFor(rt_, addr_);
+    }
+}
+
+JS::ProfilingFrameIterator::FrameKind
+JS::ForEachProfiledFrameOp::FrameHandle::frameKind() const
+{
+    if (entry_.isBaseline())
         return JS::ProfilingFrameIterator::Frame_Baseline;
-
     return JS::ProfilingFrameIterator::Frame_Ion;
+}
+
+JS_PUBLIC_API(void)
+JS::ForEachProfiledFrame(JSRuntime* rt, void* addr, ForEachProfiledFrameOp& op)
+{
+    js::jit::JitcodeGlobalTable* table = rt->jitRuntime()->getJitcodeGlobalTable();
+    js::jit::JitcodeGlobalEntry entry;
+    table->lookupInfallible(addr, &entry, rt);
+
+    // Extract the stack for the entry.  Assume maximum inlining depth is <64
+    const char* labels[64];
+    uint32_t depth = entry.callStackAtAddr(rt, addr, labels, 64);
+    MOZ_ASSERT(depth < 64);
+    for (uint32_t i = depth; i != 0; i--) {
+        JS::ForEachProfiledFrameOp::FrameHandle handle(rt, entry, addr, labels[i - 1], i - 1);
+        op(handle);
+    }
 }

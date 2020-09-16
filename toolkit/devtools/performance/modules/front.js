@@ -6,6 +6,7 @@
 const { Cc, Ci, Cu, Cr } = require("chrome");
 const { Task } = require("resource://gre/modules/Task.jsm");
 const { extend } = require("sdk/util/object");
+const { RecordingModel } = require("devtools/performance/recording-model");
 
 loader.lazyRequireGetter(this, "Services");
 loader.lazyRequireGetter(this, "promise");
@@ -26,9 +27,21 @@ loader.lazyImporter(this, "setTimeout",
   "resource://gre/modules/Timer.jsm");
 loader.lazyImporter(this, "clearTimeout",
   "resource://gre/modules/Timer.jsm");
+loader.lazyImporter(this, "Promise",
+  "resource://gre/modules/Promise.jsm");
+
 
 // How often do we pull allocation sites from the memory actor.
 const DEFAULT_ALLOCATION_SITES_PULL_TIMEOUT = 200; // ms
+
+// Events to pipe from PerformanceActorsConnection to the PerformanceFront
+const CONNECTION_PIPE_EVENTS = [
+  "console-profile-start", "console-profile-ending", "console-profile-end",
+  "timeline-data", "profiler-already-active", "profiler-activated"
+];
+
+// Events to listen to from the profiler actor
+const PROFILER_EVENTS = ["console-api-profiler", "profiler-stopped"];
 
 /**
  * A cache of all PerformanceActorsConnection instances.
@@ -71,15 +84,25 @@ function PerformanceActorsConnection(target) {
   this._target = target;
   this._client = this._target.client;
   this._request = this._request.bind(this);
+  this._pendingConsoleRecordings = [];
+  this._sitesPullTimeout = 0;
+  this._recordings = [];
+
+  this._onTimelineMarkers = this._onTimelineMarkers.bind(this);
+  this._onTimelineFrames = this._onTimelineFrames.bind(this);
+  this._onTimelineMemory = this._onTimelineMemory.bind(this);
+  this._onTimelineTicks = this._onTimelineTicks.bind(this);
+  this._onProfilerEvent = this._onProfilerEvent.bind(this);
+  this._pullAllocationSites = this._pullAllocationSites.bind(this);
 
   Services.obs.notifyObservers(null, "performance-actors-connection-created", null);
 }
 
 PerformanceActorsConnection.prototype = {
 
-  // Properties set when mocks are being used
-  _usingMockMemory: false,
-  _usingMockTimeline: false,
+  // Properties set based off of server actor support
+  _memorySupported: true,
+  _timelineSupported: true,
 
   /**
    * Initializes a connection to the profiler and other miscellaneous actors.
@@ -89,9 +112,13 @@ PerformanceActorsConnection.prototype = {
    *         A promise that is resolved once the connection is established.
    */
   open: Task.async(function*() {
-    if (this._connected) {
-      return;
+    if (this._connecting) {
+      return this._connecting.promise;
     }
+
+    // Create a promise that gets resolved upon connecting, so that
+    // other attempts to open the connection use the same resolution promise
+    this._connecting = Promise.defer();
 
     // Local debugging needs to make the target remote.
     yield this._target.makeRemote();
@@ -104,8 +131,11 @@ PerformanceActorsConnection.prototype = {
     yield this._connectTimelineActor();
     yield this._connectMemoryActor();
 
+    yield this._registerListeners();
+
     this._connected = true;
 
+    this._connecting.resolve();
     Services.obs.notifyObservers(null, "performance-actors-connection-opened", null);
   }),
 
@@ -113,33 +143,27 @@ PerformanceActorsConnection.prototype = {
    * Destroys this connection.
    */
   destroy: Task.async(function*() {
+    if (this._connecting && !this._connected) {
+      yield this._connecting.promise;
+    } else if (!this._connected) {
+      return;
+    }
+
+    yield this._unregisterListeners();
     yield this._disconnectActors();
+
+    this._memory = this._timeline = this._profiler = this._target = this._client = null;
     this._connected = false;
+    this._connecting = null;
   }),
 
   /**
-   * Initializes a connection to the profiler actor.
+   * Initializes a connection to the profiler actor. Uses a facade around the ProfilerFront
+   * for similarity to the other actors in the shared connection.
    */
   _connectProfilerActor: Task.async(function*() {
-    // Chrome debugging targets have already obtained a reference
-    // to the profiler actor.
-    if (this._target.chrome) {
-      this._profiler = this._target.form.profilerActor;
-    }
-    // When we are debugging content processes, we already have the tab
-    // specific one. Use it immediately.
-    else if (this._target.form && this._target.form.profilerActor) {
-      this._profiler = this._target.form.profilerActor;
-    }
-    // Check if we already have a grip to the `listTabs` response object
-    // and, if we do, use it to get to the profiler actor.
-    else if (this._target.root && this._target.root.profilerActor) {
-      this._profiler = this._target.root.profilerActor;
-    }
-    // Otherwise, call `listTabs`.
-    else {
-      this._profiler = (yield listTabs(this._client)).profilerActor;
-    }
+    this._profiler = new compatibility.ProfilerFront(this._target);
+    yield this._profiler.connect();
   }),
 
   /**
@@ -150,9 +174,9 @@ PerformanceActorsConnection.prototype = {
     if (supported) {
       this._timeline = new TimelineFront(this._target.client, this._target.form);
     } else {
-      this._usingMockTimeline = true;
       this._timeline = new compatibility.MockTimelineFront();
     }
+    this._timelineSupported = supported;
   },
 
   /**
@@ -163,9 +187,38 @@ PerformanceActorsConnection.prototype = {
     if (supported) {
       this._memory = new MemoryFront(this._target.client, this._target.form);
     } else {
-      this._usingMockMemory = true;
       this._memory = new compatibility.MockMemoryFront();
     }
+    this._memorySupported = supported;
+  }),
+
+  /**
+   * Registers listeners on events from the underlying
+   * actors, so the connection can handle them.
+   */
+  _registerListeners: Task.async(function*() {
+    // Pipe events from TimelineActor to the PerformanceFront
+    this._timeline.on("markers", this._onTimelineMarkers);
+    this._timeline.on("frames", this._onTimelineFrames);
+    this._timeline.on("memory", this._onTimelineMemory);
+    this._timeline.on("ticks", this._onTimelineTicks);
+
+    // Register events on the profiler actor to hook into `console.profile*` calls.
+    yield this._request("profiler", "registerEventNotifications", { events: PROFILER_EVENTS });
+    this._client.addListener("eventNotification", this._onProfilerEvent);
+  }),
+
+  /**
+   * Unregisters listeners on events on the underlying actors.
+   */
+  _unregisterListeners: Task.async(function*() {
+    this._timeline.off("markers", this._onTimelineMarkers);
+    this._timeline.off("frames", this._onTimelineFrames);
+    this._timeline.off("memory", this._onTimelineMemory);
+    this._timeline.off("ticks", this._onTimelineTicks);
+
+    yield this._request("profiler", "unregisterEventNotifications", { events: PROFILER_EVENTS });
+    this._client.removeListener("eventNotification", this._onProfilerEvent);
   }),
 
   /**
@@ -192,12 +245,7 @@ PerformanceActorsConnection.prototype = {
   _request: function(actor, method, ...args) {
     // Handle requests to the profiler actor.
     if (actor == "profiler") {
-      let deferred = promise.defer();
-      let data = args[0] || {};
-      data.to = this._profiler;
-      data.type = method;
-      this._client.request(data, deferred.resolve);
-      return deferred.promise;
+      return this._profiler._request(method, ...args);
     }
 
     // Handle requests to the timeline actor.
@@ -209,75 +257,207 @@ PerformanceActorsConnection.prototype = {
     if (actor == "memory") {
       return this._memory[method].apply(this._memory, args);
     }
-  }
-};
-
-/**
- * A thin wrapper around a shared PerformanceActorsConnection for the parent target.
- * Handles manually starting and stopping a recording.
- *
- * @param PerformanceActorsConnection connection
- *        The shared instance for the parent target.
- */
-function PerformanceFront(connection) {
-  EventEmitter.decorate(this);
-
-  this._request = connection._request;
-
-  // Pipe events from TimelineActor to the PerformanceFront
-  connection._timeline.on("markers", markers => this.emit("markers", markers));
-  connection._timeline.on("frames", (delta, frames) => this.emit("frames", delta, frames));
-  connection._timeline.on("memory", (delta, measurement) => this.emit("memory", delta, measurement));
-  connection._timeline.on("ticks", (delta, timestamps) => this.emit("ticks", delta, timestamps));
-
-  // Set when mocks are being used
-  this._usingMockMemory = connection._usingMockMemory;
-  this._usingMockTimeline = connection._usingMockTimeline;
-
-  this._pullAllocationSites = this._pullAllocationSites.bind(this);
-  this._sitesPullTimeout = 0;
-}
-
-PerformanceFront.prototype = {
+  },
 
   /**
-   * Manually begins a recording session.
+   * Invoked whenever a registered event was emitted by the profiler actor.
+   *
+   * @param object response
+   *        The data received from the backend.
+   */
+  _onProfilerEvent: function (_, { topic, subject, details }) {
+    if (topic === "console-api-profiler") {
+      if (subject.action === "profile") {
+        this._onConsoleProfileStart(details);
+      } else if (subject.action === "profileEnd") {
+        this._onConsoleProfileEnd(details);
+      }
+    } else if (topic === "profiler-stopped") {
+      this._onProfilerUnexpectedlyStopped();
+    }
+  },
+
+  /**
+   * TODO handle bug 1144438
+   */
+  _onProfilerUnexpectedlyStopped: function () {
+
+  },
+
+  /**
+   * Invoked whenever `console.profile` is called.
+   *
+   * @param string profileLabel
+   *        The provided string argument if available; undefined otherwise.
+   * @param number currentTime
+   *        The time (in milliseconds) when the call was made, relative to when
+   *        the nsIProfiler module was started.
+   */
+  _onConsoleProfileStart: Task.async(function *({ profileLabel, currentTime: startTime }) {
+    let recordings = this._recordings;
+
+    // Abort if a profile with this label already exists.
+    if (recordings.find(e => e.getLabel() === profileLabel)) {
+      return;
+    }
+
+    // Ensure the performance front is set up and ready.
+    // Slight performance overhead for this, should research some more.
+    // This is to ensure that there is a front to receive the events for
+    // the console profiles.
+    yield gDevTools.getToolbox(this._target).loadTool("performance");
+
+    let model = yield this.startRecording(extend(getRecordingModelPrefs(), {
+      console: true,
+      label: profileLabel
+    }));
+
+    this.emit("console-profile-start", model);
+  }),
+
+  /**
+   * Invoked whenever `console.profileEnd` is called.
+   *
+   * @param string profileLabel
+   *        The provided string argument if available; undefined otherwise.
+   * @param number currentTime
+   *        The time (in milliseconds) when the call was made, relative to when
+   *        the nsIProfiler module was started.
+   */
+  _onConsoleProfileEnd: Task.async(function *(data) {
+    // If no data, abort; can occur if profiler isn't running and we get a surprise
+    // call to console.profileEnd()
+    if (!data) {
+      return;
+    }
+    let { profileLabel, currentTime: endTime } = data;
+
+    let pending = this._recordings.filter(r => r.isConsole() && r.isRecording());
+    if (pending.length === 0) {
+      return;
+    }
+
+    let model;
+    // Try to find the corresponding `console.profile` call if
+    // a label was used in profileEnd(). If no matches, abort.
+    if (profileLabel) {
+      model = pending.find(e => e.getLabel() === profileLabel);
+    }
+    // If no label supplied, pop off the most recent pending console recording
+    else {
+      model = pending[pending.length - 1];
+    }
+
+    // If `profileEnd()` was called with a label, and there are no matching
+    // sessions, abort.
+    if (!model) {
+      Cu.reportError("console.profileEnd() called with label that does not match a recording.");
+      return;
+    }
+
+    this.emit("console-profile-ending", model);
+    yield this.stopRecording(model);
+    this.emit("console-profile-end", model);
+  }),
+
+  /**
+   * Handlers for TimelineActor events. All pipe to `_onTimelineData`
+   * with the appropriate event name.
+   */
+  _onTimelineMarkers: function (markers) { this._onTimelineData("markers", markers); },
+  _onTimelineFrames: function (delta, frames) { this._onTimelineData("frames", delta, frames); },
+  _onTimelineMemory: function (delta, measurement) { this._onTimelineData("memory", delta, measurement); },
+  _onTimelineTicks: function (delta, timestamps) { this._onTimelineData("ticks", delta, timestamps); },
+
+  /**
+   * Called whenever there is timeline data of any of the following types:
+   * - markers
+   * - frames
+   * - memory
+   * - ticks
+   * - allocations
+   *
+   * Populate our internal store of recordings for all currently recording sessions.
+   */
+
+  _onTimelineData: function (...data) {
+    this._recordings.forEach(e => e.addTimelineData.apply(e, data));
+    this.emit("timeline-data", ...data);
+  },
+
+  /**
+   * Begins a recording session
    *
    * @param object options
    *        An options object to pass to the actors. Supported properties are
-   *        `withTicks`, `withMemory` and `withAllocations`.
+   *        `withTicks`, `withMemory` and `withAllocations`, `probability`, and `maxLogLength`.
    * @return object
    *         A promise that is resolved once recording has started.
    */
   startRecording: Task.async(function*(options = {}) {
+    let model = new RecordingModel(options);
     // All actors are started asynchronously over the remote debugging protocol.
     // Get the corresponding start times from each one of them.
-    let profilerStartTime = yield this._startProfiler();
+    let profilerStartTime = yield this._startProfiler(options);
     let timelineStartTime = yield this._startTimeline(options);
     let memoryStartTime = yield this._startMemory(options);
 
-    return {
+    let data = {
       profilerStartTime,
       timelineStartTime,
       memoryStartTime
     };
+
+    // Signify to the model that the recording has started,
+    // populate with data and store the recording model here.
+    model.populate(data);
+    this._recordings.push(model);
+
+    return model;
   }),
 
   /**
-   * Manually ends the current recording session.
+   * Manually ends the recording session for the corresponding RecordingModel.
    *
-   * @param object options
-   *        @see PerformanceFront.prototype.startRecording
-   * @return object
-   *         A promise that is resolved once recording has stopped,
-   *         with the profiler and memory data, along with all the end times.
+   * @param RecordingModel model
+   *        The corresponding RecordingModel that belongs to the recording session wished to stop.
+   * @return RecordingModel
+   *         Returns the same model, populated with the profiling data.
    */
-  stopRecording: Task.async(function*(options = {}) {
-    let memoryEndTime = yield this._stopMemory(options);
-    let timelineEndTime = yield this._stopTimeline(options);
-    let profilerData = yield this._request("profiler", "getProfile");
+  stopRecording: Task.async(function*(model) {
+    // If model isn't in the PerformanceActorsConnections internal store,
+    // then do nothing.
+    if (this._recordings.indexOf(model) === -1) {
+      return;
+    }
 
-    return {
+    // Currently there are two ways profiles stop recording. Either manually in the
+    // performance tool, or via console.profileEnd. Once a recording is done,
+    // we want to deliver the model to the performance tool (either as a return
+    // from the PerformanceFront or via `console-profile-end` event) and then
+    // remove it from the internal store.
+    //
+    // In the case where a console.profile is generated via the console (so the tools are
+    // open), we initialize the Performance tool so it can listen to those events.
+    this._recordings.splice(this._recordings.indexOf(model), 1);
+
+    let config = model.getConfiguration();
+    let startTime = model.getProfilerStartTime();
+    let profilerData = yield this._request("profiler", "getProfile", { startTime });
+    let memoryEndTime = Date.now();
+    let timelineEndTime = Date.now();
+
+    // Only if there are no more sessions recording do we stop
+    // the underlying memory and timeline actors. If we're still recording,
+    // juse use Date.now() for the memory and timeline end times, as those
+    // are only used in tests.
+    if (!this.isRecording()) {
+      memoryEndTime = yield this._stopMemory(config);
+      timelineEndTime = yield this._stopTimeline(config);
+    }
+
+    // Set the results on the RecordingModel itself.
+    model._onStopRecording({
       // Data available only at the end of a recording.
       profile: profilerData.profile,
 
@@ -285,13 +465,25 @@ PerformanceFront.prototype = {
       profilerEndTime: profilerData.currentTime,
       timelineEndTime: timelineEndTime,
       memoryEndTime: memoryEndTime
-    };
+    });
+
+    return model;
   }),
+
+  /**
+   * Checks all currently stored recording models and returns a boolean
+   * if there is a session currently being recorded.
+   *
+   * @return Boolean
+   */
+  isRecording: function () {
+    return this._recordings.some(recording => recording.isRecording());
+  },
 
   /**
    * Starts the profiler actor, if necessary.
    */
-  _startProfiler: Task.async(function *() {
+  _startProfiler: Task.async(function *(options={}) {
     // Start the profiler only if it wasn't already active. The built-in
     // nsIPerformance module will be kept recording, because it's the same instance
     // for all targets and interacts with the whole platform, so we don't want
@@ -302,8 +494,13 @@ PerformanceFront.prototype = {
       return profilerStatus.currentTime;
     }
 
-    // Extend the profiler options so that protocol.js doesn't modify the original.
-    let profilerOptions = extend({}, this._customProfilerOptions);
+    // Translate options from the recording model into profiler-specific
+    // options for the nsIProfiler
+    let profilerOptions = {
+      entries: options.bufferSize,
+      interval: options.sampleFrequency ? (1000 / (options.sampleFrequency * 1000)) : void 0
+    };
+
     yield this._request("profiler", "startProfiler", profilerOptions);
 
     this.emit("profiler-activated");
@@ -327,26 +524,51 @@ PerformanceFront.prototype = {
   }),
 
   /**
-   * Starts the timeline actor, if necessary.
+   * Starts polling for allocations from the memory actor, if necessary.
    */
   _startMemory: Task.async(function *(options) {
     if (!options.withAllocations) {
       return 0;
     }
-    yield this._request("memory", "attach");
-    let memoryStartTime = yield this._request("memory", "startRecordingAllocations");
+    let memoryStartTime = yield this._startRecordingAllocations(options);
     yield this._pullAllocationSites();
     return memoryStartTime;
   }),
 
   /**
-   * Stops the timeline actor, if necessary.
+   * Stops polling for allocations from the memory actor, if necessary.
    */
   _stopMemory: Task.async(function *(options) {
     if (!options.withAllocations) {
       return 0;
     }
+    // Since `_pullAllocationSites` is usually running inside a timeout, and
+    // it's performing asynchronous requests to the server, a recording may
+    // be stopped before that method finishes executing. Therefore, we need to
+    // wait for the last request to `getAllocations` to finish before actually
+    // stopping recording allocations.
+    yield this._lastPullAllocationSitesFinished;
     clearTimeout(this._sitesPullTimeout);
+
+    return yield this._stopRecordingAllocations();
+  }),
+
+  /**
+   * Starts recording allocations in the memory actor.
+   */
+  _startRecordingAllocations: Task.async(function*(options) {
+    yield this._request("memory", "attach");
+    let memoryStartTime = yield this._request("memory", "startRecordingAllocations", {
+      probability: options.allocationsSampleProbability,
+      maxLogLength: options.allocationsMaxLogLength
+    });
+    return memoryStartTime;
+  }),
+
+  /**
+   * Stops recording allocations in the memory actor.
+   */
+  _stopRecordingAllocations: Task.async(function*() {
     let memoryEndTime = yield this._request("memory", "stopRecordingAllocations");
     yield this._request("memory", "detach");
     return memoryEndTime;
@@ -357,6 +579,11 @@ PerformanceFront.prototype = {
    * them to consumers.
    */
   _pullAllocationSites: Task.async(function *() {
+    let isDetached = (yield this._request("memory", "getState")) !== "attached";
+    if (isDetached) {
+      return;
+    }
+
     let memoryData = yield this._request("memory", "getAllocations");
     let isStillAttached = yield this._request("memory", "getState") == "attached";
 
@@ -373,38 +600,86 @@ PerformanceFront.prototype = {
     }
   }),
 
+  toString: () => "[object PerformanceActorsConnection]"
+};
+
+/**
+ * A thin wrapper around a shared PerformanceActorsConnection for the parent target.
+ * Handles manually starting and stopping a recording.
+ *
+ * @param PerformanceActorsConnection connection
+ *        The shared instance for the parent target.
+ */
+function PerformanceFront(connection) {
+  EventEmitter.decorate(this);
+
+  this._connection = connection;
+  this._request = connection._request;
+
+  // Set when mocks are being used
+  this._memorySupported = connection._memorySupported;
+  this._timelineSupported = connection._timelineSupported;
+
+  // Pipe the console profile events from the connection
+  // to the front so that the UI can listen.
+  CONNECTION_PIPE_EVENTS.forEach(eventName => this._connection.on(eventName, () => this.emit.apply(this, arguments)));
+}
+
+PerformanceFront.prototype = {
+
   /**
-   * Overrides the options sent to the built-in profiler module when activating,
-   * such as the maximum entries count, the sampling interval etc.
+   * Manually begins a recording session and creates a RecordingModel.
+   * Calls the underlying PerformanceActorsConnection's startRecording method.
    *
-   * Used in tests and for older backend implementations.
+   * @param object options
+   *        An options object to pass to the actors. Supported properties are
+   *        `withTicks`, `withMemory` and `withAllocations`,
+   *        `probability` and `maxLogLength`.
+   * @return object
+   *         A promise that is resolved once recording has started.
    */
-  _customProfilerOptions: {
-    entries: 1000000,
-    interval: 1,
-    features: ["js"],
-    threadFilters: ["GeckoMain"]
+  startRecording: function (options) {
+    return this._connection.startRecording(options);
   },
 
   /**
-   * Returns an object indicating if mock actors are being used or not.
+   * Manually ends the recording session for the corresponding RecordingModel.
+   * Calls the underlying PerformanceActorsConnection's
+   *
+   * @param RecordingModel model
+   *        The corresponding RecordingModel that belongs to the recording session wished to stop.
+   * @return RecordingModel
+   *         Returns the same model, populated with the profiling data.
    */
-  getMocksInUse: function () {
+  stopRecording: function (model) {
+    return this._connection.stopRecording(model);
+  },
+
+  /**
+   * Returns an object indicating what server actors are available and
+   * initialized. A falsy value indicates that the server does not support
+   * that feature, or that mock actors were explicitly requested (tests).
+   */
+  getActorSupport: function () {
     return {
-      memory: this._usingMockMemory,
-      timeline: this._usingMockTimeline
+      memory: this._memorySupported,
+      timeline: this._timelineSupported
     };
   }
 };
 
 /**
- * Returns a promise resolved with a listing of all the tabs in the
- * provided thread client.
+ * Creates an object of configurations based off of preferences for a RecordingModel.
  */
-function listTabs(client) {
-  let deferred = promise.defer();
-  client.listTabs(deferred.resolve);
-  return deferred.promise;
+function getRecordingModelPrefs () {
+  return {
+    withMarkers: true,
+    withMemory: Services.prefs.getBoolPref("devtools.performance.ui.enable-memory"),
+    withTicks: Services.prefs.getBoolPref("devtools.performance.ui.enable-framerate"),
+    withAllocations: Services.prefs.getBoolPref("devtools.performance.ui.enable-memory"),
+    allocationsSampleProbability: +Services.prefs.getCharPref("devtools.performance.memory.sample-probability"),
+    allocationsMaxLogLength: Services.prefs.getIntPref("devtools.performance.memory.max-log-length")
+  };
 }
 
 exports.getPerformanceActorsConnection = target => SharedPerformanceActors.forTarget(target);

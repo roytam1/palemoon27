@@ -3,6 +3,8 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
+const { Cc, Ci, Cu, Cr } = require("chrome");
+
 /**
  * Utility functions for managing recording models and their internal data,
  * such as filtering profile samples or offsetting timestamps.
@@ -21,9 +23,9 @@ exports.RecordingUtils = {};
  */
 exports.RecordingUtils.filterSamples = function(profile, profilerStartTime) {
   let firstThread = profile.threads[0];
-
-  firstThread.samples = firstThread.samples.filter(e => {
-    return e.time >= profilerStartTime;
+  const TIME_SLOT = firstThread.samples.schema.time;
+  firstThread.samples.data = firstThread.samples.data.filter(e => {
+    return e[TIME_SLOT] >= profilerStartTime;
   });
 }
 
@@ -37,9 +39,10 @@ exports.RecordingUtils.filterSamples = function(profile, profilerStartTime) {
  */
 exports.RecordingUtils.offsetSampleTimes = function(profile, timeOffset) {
   let firstThread = profile.threads[0];
-
-  for (let sample of firstThread.samples) {
-    sample.time -= timeOffset;
+  const TIME_SLOT = firstThread.samples.schema.time;
+  let samplesData = firstThread.samples.data;
+  for (let i = 0; i < samplesData.length; i++) {
+    samplesData[i][TIME_SLOT] -= timeOffset;
   }
 }
 
@@ -130,3 +133,50 @@ exports.RecordingUtils.getSamplesFromAllocations = function(allocations) {
   gSamplesFromAllocationCache.set(allocations, samples);
   return samples;
 }
+
+/**
+ * Gets the current timeline blueprint without the hidden markers.
+ *
+ * @param blueprint
+ *        The default timeline blueprint.
+ * @param array hiddenMarkers
+ *        A list of hidden markers' names.
+ * @return object
+ *         The filtered timeline blueprint.
+ */
+exports.RecordingUtils.getFilteredBlueprint = function({ blueprint, hiddenMarkers }) {
+  let filteredBlueprint = Cu.cloneInto(blueprint, {});
+  let maybeRemovedGroups = new Set();
+  let removedGroups = new Set();
+
+  // 1. Remove hidden markers from the blueprint.
+
+  for (let hiddenMarkerName of hiddenMarkers) {
+    maybeRemovedGroups.add(filteredBlueprint[hiddenMarkerName].group);
+    delete filteredBlueprint[hiddenMarkerName];
+  }
+
+  // 2. Get a list of all the groups that will be removed.
+
+  for (let maybeRemovedGroup of maybeRemovedGroups) {
+    let markerNames = Object.keys(filteredBlueprint);
+    let isGroupRemoved = markerNames.every(e => filteredBlueprint[e].group != maybeRemovedGroup);
+    if (isGroupRemoved) {
+      removedGroups.add(maybeRemovedGroup);
+    }
+  }
+
+  // 3. Offset groups so that their indices are consecutive.
+
+  for (let removedGroup of removedGroups) {
+    let markerNames = Object.keys(filteredBlueprint);
+    for (let markerName of markerNames) {
+      let markerDetails = filteredBlueprint[markerName];
+      if (markerDetails.group > removedGroup) {
+        markerDetails.group--;
+      }
+    }
+  }
+
+  return filteredBlueprint;
+};

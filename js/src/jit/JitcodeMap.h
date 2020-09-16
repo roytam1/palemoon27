@@ -318,20 +318,22 @@ class JitcodeGlobalEntry
             return -1;
         }
 
+        void* canonicalNativeAddrFor(JSRuntime*rt, void* ptr) const;
+
         bool callStackAtAddr(JSRuntime* rt, void* ptr, BytecodeLocationVector& results,
                              uint32_t* depth) const;
 
         uint32_t callStackAtAddr(JSRuntime* rt, void* ptr, const char** results,
                                  uint32_t maxResults) const;
 
-        void youngestFrameLocationAtAddr(JSRuntime *rt, void *ptr,
-                                         JSScript **script, jsbytecode **pc) const;
+        void youngestFrameLocationAtAddr(JSRuntime* rt, void* ptr,
+                                         JSScript** script, jsbytecode** pc) const;
 
         bool hasTrackedOptimizations() const {
             return !!optsRegionTable_;
         }
 
-        const IonTrackedOptimizationsRegionTable *trackedOptimizationsRegionTable() const {
+        const IonTrackedOptimizationsRegionTable* trackedOptimizationsRegionTable() const {
             MOZ_ASSERT(hasTrackedOptimizations());
             return optsRegionTable_;
         }
@@ -356,9 +358,9 @@ class JitcodeGlobalEntry
             return optsAllTypes_;
         }
 
-        mozilla::Maybe<uint8_t> trackedOptimizationIndexAtAddr(void *ptr, uint32_t *entryOffsetOut);
+        mozilla::Maybe<uint8_t> trackedOptimizationIndexAtAddr(void* ptr, uint32_t* entryOffsetOut);
 
-        bool markIfUnmarked(JSTracer *trc);
+        bool markIfUnmarked(JSTracer* trc);
         void sweep();
         bool isMarkedFromAnyThread();
     };
@@ -374,8 +376,8 @@ class JitcodeGlobalEntry
         jsbytecode* ionAbortPc_;
         const char* ionAbortMessage_;
 
-        void init(JitCode *code, void *nativeStartAddr, void *nativeEndAddr,
-                  JSScript *script, const char *str)
+        void init(JitCode* code, void* nativeStartAddr, void* nativeEndAddr,
+                  JSScript* script, const char* str)
         {
             MOZ_ASSERT(script != nullptr);
             BaseEntry::init(Baseline, code, nativeStartAddr, nativeEndAddr);
@@ -405,16 +407,18 @@ class JitcodeGlobalEntry
 
         void destroy();
 
+        void* canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const;
+
         bool callStackAtAddr(JSRuntime* rt, void* ptr, BytecodeLocationVector& results,
                              uint32_t* depth) const;
 
         uint32_t callStackAtAddr(JSRuntime* rt, void* ptr, const char** results,
                                  uint32_t maxResults) const;
 
-        void youngestFrameLocationAtAddr(JSRuntime *rt, void *ptr,
-                                         JSScript **script, jsbytecode **pc) const;
+        void youngestFrameLocationAtAddr(JSRuntime* rt, void* ptr,
+                                         JSScript** script, jsbytecode** pc) const;
 
-        bool markIfUnmarked(JSTracer *trc);
+        bool markIfUnmarked(JSTracer* trc);
         void sweep();
         bool isMarkedFromAnyThread();
     };
@@ -423,8 +427,8 @@ class JitcodeGlobalEntry
     {
         void* rejoinAddr_;
 
-        void init(JitCode *code, void *nativeStartAddr, void *nativeEndAddr,
-                  void *rejoinAddr)
+        void init(JitCode* code, void* nativeStartAddr, void* nativeEndAddr,
+                  void* rejoinAddr)
         {
             MOZ_ASSERT(rejoinAddr != nullptr);
             BaseEntry::init(IonCache, code, nativeStartAddr, nativeEndAddr);
@@ -436,6 +440,8 @@ class JitcodeGlobalEntry
         }
 
         void destroy() {}
+
+        void* canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const;
 
         bool callStackAtAddr(JSRuntime* rt, void* ptr, BytecodeLocationVector& results,
                              uint32_t* depth) const;
@@ -461,6 +467,10 @@ class JitcodeGlobalEntry
         }
 
         void destroy() {}
+
+        void* canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const {
+            return nullptr;
+        }
 
         bool callStackAtAddr(JSRuntime* rt, void* ptr, BytecodeLocationVector& results,
                              uint32_t* depth) const
@@ -529,31 +539,31 @@ class JitcodeGlobalEntry
         base_.init();
     }
 
-    explicit JitcodeGlobalEntry(const IonEntry &ion)
+    explicit JitcodeGlobalEntry(const IonEntry& ion)
       : tower_(nullptr)
     {
         ion_ = ion;
     }
 
-    explicit JitcodeGlobalEntry(const BaselineEntry &baseline)
+    explicit JitcodeGlobalEntry(const BaselineEntry& baseline)
       : tower_(nullptr)
     {
         baseline_ = baseline;
     }
 
-    explicit JitcodeGlobalEntry(const IonCacheEntry &ionCache)
+    explicit JitcodeGlobalEntry(const IonCacheEntry& ionCache)
       : tower_(nullptr)
     {
         ionCache_ = ionCache;
     }
 
-    explicit JitcodeGlobalEntry(const DummyEntry &dummy)
+    explicit JitcodeGlobalEntry(const DummyEntry& dummy)
       : tower_(nullptr)
     {
         dummy_ = dummy;
     }
 
-    explicit JitcodeGlobalEntry(const QueryEntry &query)
+    explicit JitcodeGlobalEntry(const QueryEntry& query)
       : tower_(nullptr)
     {
         query_ = query;
@@ -700,6 +710,22 @@ class JitcodeGlobalEntry
     const QueryEntry& queryEntry() const {
         MOZ_ASSERT(isQuery());
         return query_;
+    }
+
+    void* canonicalNativeAddrFor(JSRuntime* rt, void* ptr) const {
+        switch (kind()) {
+          case Ion:
+            return ionEntry().canonicalNativeAddrFor(rt, ptr);
+          case Baseline:
+            return baselineEntry().canonicalNativeAddrFor(rt, ptr);
+          case IonCache:
+            return ionCacheEntry().canonicalNativeAddrFor(rt, ptr);
+          case Dummy:
+            return dummyEntry().canonicalNativeAddrFor(rt, ptr);
+          default:
+            MOZ_CRASH("Invalid JitcodeGlobalEntry kind.");
+        }
+        return nullptr;
     }
 
     // Read the inline call stack at a given point in the native code and append into

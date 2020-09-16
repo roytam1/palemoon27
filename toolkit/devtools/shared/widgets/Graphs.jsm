@@ -12,9 +12,9 @@ const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.
 
 this.EXPORTED_SYMBOLS = [
   "GraphCursor",
-  "GraphSelection",
-  "GraphSelectionDragger",
-  "GraphSelectionResizer",
+  "GraphArea",
+  "GraphAreaDragger",
+  "GraphAreaResizer",
   "AbstractCanvasGraph",
   "LineGraphWidget",
   "BarGraphWidget",
@@ -101,17 +101,17 @@ this.GraphCursor = function() {
   this.y = null;
 };
 
-this.GraphSelection = function() {
+this.GraphArea = function() {
   this.start = null;
   this.end = null;
 };
 
-this.GraphSelectionDragger = function() {
+this.GraphAreaDragger = function(anchor = new GraphArea()) {
   this.origin = null;
-  this.anchor = new GraphSelection();
+  this.anchor = anchor;
 };
 
-this.GraphSelectionResizer = function() {
+this.GraphAreaResizer = function() {
   this.margin = null;
 };
 
@@ -178,9 +178,9 @@ this.AbstractCanvasGraph = function(parent, name, sharpness) {
     this._ctx.mozImageSmoothingEnabled = false;
 
     this._cursor = new GraphCursor();
-    this._selection = new GraphSelection();
-    this._selectionDragger = new GraphSelectionDragger();
-    this._selectionResizer = new GraphSelectionResizer();
+    this._selection = new GraphArea();
+    this._selectionDragger = new GraphAreaDragger();
+    this._selectionResizer = new GraphAreaResizer();
 
     this._onAnimationFrame = this._onAnimationFrame.bind(this);
     this._onMouseMove = this._onMouseMove.bind(this);
@@ -229,7 +229,9 @@ AbstractCanvasGraph.prototype = {
   /**
    * Destroys this graph.
    */
-  destroy: function() {
+  destroy: Task.async(function *() {
+    yield this.ready();
+
     this._window.removeEventListener("mousemove", this._onMouseMove);
     this._window.removeEventListener("mousedown", this._onMouseDown);
     this._window.removeEventListener("mouseup", this._onMouseUp);
@@ -259,7 +261,7 @@ AbstractCanvasGraph.prototype = {
     gCachedStripePattern.clear();
 
     this.emit("destroyed");
-  },
+  }),
 
   /**
    * Rendering options. Subclasses should override these.

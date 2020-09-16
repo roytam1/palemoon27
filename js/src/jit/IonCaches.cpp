@@ -26,6 +26,7 @@
 #include "vm/Shape.h"
 
 #include "jit/JitFrames-inl.h"
+#include "jit/MacroAssembler-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/Shape-inl.h"
 
@@ -1011,7 +1012,7 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
         // Preload arguments into registers.
         masm.loadJSContext(argJSContextReg);
         masm.move32(Imm32(0), argUintNReg);
-        masm.movePtr(StackPointer, argVpReg);
+        masm.moveStackPtrTo(argVpReg);
 
         // Push marking data for later use.
         masm.Push(argUintNReg);
@@ -1032,17 +1033,16 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
         masm.branchIfFalseBool(ReturnReg, masm.exceptionLabel());
 
         // Load the outparam vp[0] into output register(s).
-        Address outparam(StackPointer, IonOOLNativeExitFrameLayout::offsetOfResult());
+        Address outparam(masm.getStackPointer(), IonOOLNativeExitFrameLayout::offsetOfResult());
         masm.loadTypedOrValue(outparam, output);
 
         // masm.leaveExitFrame & pop locals
         masm.adjustStack(IonOOLNativeExitFrameLayout::Size(0));
     } else if (IsCacheableGetPropCallPropertyOp(obj, holder, shape)) {
         Register argJSContextReg = regSet.takeAnyGeneral();
-        Register argUintNReg     = regSet.takeAnyGeneral();
-        Register argVpReg        = regSet.takeAnyGeneral();
-        Register argObjReg       = argUintNReg;
+        Register argObjReg       = regSet.takeAnyGeneral();
         Register argIdReg        = regSet.takeAnyGeneral();
+        Register argVpReg        = regSet.takeAnyGeneral();
 
         GetterOp target = shape->getterOp();
         MOZ_ASSERT(target);
@@ -1054,14 +1054,25 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
 
         // Push args on stack first so we can take pointers to make handles.
         masm.Push(UndefinedValue());
-        masm.movePtr(StackPointer, argVpReg);
+        masm.moveStackPtrTo(argVpReg);
 
-        // push canonical jsid from shape instead of propertyname.
+        // Push canonical jsid from shape instead of propertyname.
         masm.Push(shape->propid(), scratchReg);
-        masm.movePtr(StackPointer, argIdReg);
+        masm.moveStackPtrTo(argIdReg);
 
-        masm.Push(object);
-        masm.movePtr(StackPointer, argObjReg);
+        // Push the holder.
+        if (obj == holder) {
+            // When the holder is also the current receiver, we just have a shape guard,
+            // so we might end up with a random object which is also guaranteed to have
+            // this JSGetterOp.
+            masm.Push(object);
+        } else {
+            // If the holder is on the prototype chain, the prototype-guarding
+            // only allows objects with the same holder.
+            masm.movePtr(ImmMaybeNurseryPtr(holder), scratchReg);
+            masm.Push(scratchReg);
+        }
+        masm.moveStackPtrTo(argObjReg);
 
         masm.loadJSContext(argJSContextReg);
 
@@ -1081,7 +1092,7 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
         masm.branchIfFalseBool(ReturnReg, masm.exceptionLabel());
 
         // Load the outparam vp[0] into output register(s).
-        Address outparam(StackPointer, IonOOLPropertyOpExitFrameLayout::offsetOfResult());
+        Address outparam(masm.getStackPointer(), IonOOLPropertyOpExitFrameLayout::offsetOfResult());
         masm.loadTypedOrValue(outparam, output);
 
         // masm.leaveExitFrame & pop locals.
@@ -1561,17 +1572,17 @@ EmitCallProxyGet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
 
     // Push args on stack first so we can take pointers to make handles.
     masm.Push(UndefinedValue());
-    masm.movePtr(StackPointer, argVpReg);
+    masm.moveStackPtrTo(argVpReg);
 
     RootedId propId(cx, AtomToId(name));
     masm.Push(propId, scratch);
-    masm.movePtr(StackPointer, argIdReg);
+    masm.moveStackPtrTo(argIdReg);
 
     // Pushing object and receiver.  Both are the same, so Handle to one is equivalent to
     // handle to other.
     masm.Push(object);
     masm.Push(object);
-    masm.movePtr(StackPointer, argProxyReg);
+    masm.moveStackPtrTo(argProxyReg);
 
     masm.loadJSContext(argJSContextReg);
 
@@ -1592,7 +1603,7 @@ EmitCallProxyGet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
     masm.branchIfFalseBool(ReturnReg, masm.exceptionLabel());
 
     // Load the outparam vp[0] into output register(s).
-    Address outparam(StackPointer, IonOOLProxyExitFrameLayout::offsetOfResult());
+    Address outparam(masm.getStackPointer(), IonOOLProxyExitFrameLayout::offsetOfResult());
     masm.loadTypedOrValue(outparam, output);
 
     // masm.leaveExitFrame & pop locals
@@ -2206,7 +2217,7 @@ EmitObjectOpResultCheck(MacroAssembler &masm, Label *failure, bool strict,
     // if (!result) {
     Label noStrictError;
     masm.branch32(Assembler::Equal,
-                  Address(StackPointer,
+                  Address(masm.getStackPointer(),
                           FrameLayout::offsetOfObjectOpResult()),
                   Imm32(ObjectOpResult::OkCode),
                   &noStrictError);
@@ -2215,14 +2226,14 @@ EmitObjectOpResultCheck(MacroAssembler &masm, Label *failure, bool strict,
     //         goto failure;
     masm.loadJSContext(argJSContextReg);
     masm.computeEffectiveAddress(
-        Address(StackPointer, FrameLayout::offsetOfObject()),
+        Address(masm.getStackPointer(), FrameLayout::offsetOfObject()),
         argObjReg);
     masm.computeEffectiveAddress(
-        Address(StackPointer, FrameLayout::offsetOfId()),
+        Address(masm.getStackPointer(), FrameLayout::offsetOfId()),
         argIdReg);
     masm.move32(Imm32(strict), argStrictReg);
     masm.computeEffectiveAddress(
-        Address(StackPointer, FrameLayout::offsetOfObjectOpResult()),
+        Address(masm.getStackPointer(), FrameLayout::offsetOfObjectOpResult()),
         argResultReg);
     masm.setupUnalignedABICall(5, scratchReg);
     masm.passABIArg(argJSContextReg);
@@ -2279,18 +2290,18 @@ EmitCallProxySet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
     // Push args on stack so we can take pointers to make handles.
     // Push value before touching any other registers (see WARNING above).
     masm.Push(value);
-    masm.movePtr(StackPointer, argValueReg);
+    masm.moveStackPtrTo(argValueReg);
 
     masm.move32(Imm32(strict), argStrictReg);
 
     masm.Push(propId, scratch);
-    masm.movePtr(StackPointer, argIdReg);
+    masm.moveStackPtrTo(argIdReg);
 
     // Pushing object and receiver.  Both are the same, so Handle to one is equivalent to
     // handle to other.
     masm.Push(object);
     masm.Push(object);
-    masm.movePtr(StackPointer, argProxyReg);
+    masm.moveStackPtrTo(argProxyReg);
 
     masm.loadJSContext(argJSContextReg);
 
@@ -2491,7 +2502,7 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler& masm,
         masm.Push(value);
         masm.Push(TypedOrValueRegister(MIRType_Object, AnyRegister(object)));
         masm.Push(ObjectValue(*target));
-        masm.movePtr(StackPointer, argVpReg);
+        masm.moveStackPtrTo(argVpReg);
 
         // Preload other regs
         masm.loadJSContext(argJSContextReg);
@@ -2535,7 +2546,7 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler& masm,
         // the stubCode pointer in order to match the layout of
         // IonOOLSetterOpExitFrameLayout.
         PushObjectOpResult(masm);
-        masm.movePtr(StackPointer, argResultReg);
+        masm.moveStackPtrTo(argResultReg);
 
         attacher.pushStubCodePointer(masm);
 
@@ -2554,14 +2565,14 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler& masm,
         // We can just reuse the "object" register for argObjReg
         Register argObjReg       = object;
         Register argIdReg        = regSet.takeAnyGeneral();
-        masm.movePtr(StackPointer, argValueReg);
+        masm.moveStackPtrTo(argValueReg);
 
         // push canonical jsid from shape instead of propertyname.
         masm.Push(shape->propid(), argIdReg);
-        masm.movePtr(StackPointer, argIdReg);
+        masm.moveStackPtrTo(argIdReg);
 
         masm.Push(object);
-        masm.movePtr(StackPointer, argObjReg);
+        masm.moveStackPtrTo(argObjReg);
 
         masm.loadJSContext(argJSContextReg);
 
@@ -2789,7 +2800,7 @@ GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
     // if a type barrier is required.
     if (checkTypeset) {
         CheckTypeSetForWrite(masm, obj, newShape->propid(), object, value, &failuresPopObject);
-        masm.loadPtr(Address(StackPointer, 0), object);
+        masm.loadPtr(Address(masm.getStackPointer(), 0), object);
     }
 
     // Guard shapes along prototype chain.
@@ -3961,7 +3972,7 @@ GetElementIC::update(JSContext* cx, HandleScript outerScript, size_t cacheIndex,
     AutoDetectInvalidation adi(cx, res, ion);
 
     if (cache.isDisabled()) {
-        if (!GetObjectElementOperation(cx, JSOp(*pc), obj, idval, res))
+        if (!GetObjectElementOperation(cx, JSOp(*pc), obj, obj, idval, res))
             return false;
         if (!cache.monitoredResult())
             TypeScript::Monitor(cx, script, pc, res);
@@ -4010,7 +4021,7 @@ GetElementIC::update(JSContext* cx, HandleScript outerScript, size_t cacheIndex,
         }
     }
 
-    if (!GetObjectElementOperation(cx, JSOp(*pc), obj, idval, res))
+    if (!GetObjectElementOperation(cx, JSOp(*pc), obj, obj, idval, res))
         return false;
 
     // Disable cache when we reach max stubs or update failed too much.

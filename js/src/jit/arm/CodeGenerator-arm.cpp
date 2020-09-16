@@ -23,6 +23,7 @@
 
 #include "jsscriptinlines.h"
 
+#include "jit/MacroAssembler-inl.h"
 #include "jit/shared/CodeGenerator-shared-inl.h"
 
 using namespace js;
@@ -1009,11 +1010,11 @@ CodeGeneratorARM::visitPowHalfD(LPowHalfD* ins)
 }
 
 MoveOperand
-CodeGeneratorARM::toMoveOperand(const LAllocation* a) const
+CodeGeneratorARM::toMoveOperand(LAllocation a) const
 {
-    if (a->isGeneralReg())
+    if (a.isGeneralReg())
         return MoveOperand(ToRegister(a));
-    if (a->isFloatReg())
+    if (a.isFloatReg())
         return MoveOperand(ToFloatRegister(a));
     int32_t offset = ToStackOffset(a);
     MOZ_ASSERT((offset & 3) == 0);
@@ -1663,12 +1664,6 @@ CodeGeneratorARM::visitGuardObjectGroup(LGuardObjectGroup* guard)
     Register obj = ToRegister(guard->input());
     Register tmp = ToRegister(guard->tempInt());
     MOZ_ASSERT(obj != tmp);
-
-    if (guard->mir()->checkUnboxedExpando()) {
-        masm.ma_ldr(DTRAddr(obj, DtrOffImm(UnboxedPlainObject::offsetOfExpando())), tmp);
-        masm.ma_cmp(tmp, ImmWord(0));
-        bailoutIf(Assembler::NotEqual, guard->snapshot());
-    }
 
     masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfGroup())), tmp);
     masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->group()));

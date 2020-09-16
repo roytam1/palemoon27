@@ -3625,6 +3625,14 @@ nsObjectLoadingContent::DoResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
   return true;
 }
 
+/* static */
+bool
+nsObjectLoadingContent::MayResolve(jsid aId)
+{
+  // We can resolve anything, really.
+  return true;
+}
+
 void
 nsObjectLoadingContent::GetOwnPropertyNames(JSContext* aCx,
                                             nsTArray<nsString>& /* unused */,

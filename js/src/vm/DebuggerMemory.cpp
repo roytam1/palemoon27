@@ -138,7 +138,7 @@ DebuggerMemory::setTrackingAllocationSites(JSContext* cx, unsigned argc, Value* 
     }
 
     if (enabling) {
-        for (GlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront()) {
+        for (WeakGlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront()) {
             JSCompartment* compartment = r.front()->compartment();
             if (compartment->hasObjectMetadataCallback()) {
                 JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
@@ -148,7 +148,7 @@ DebuggerMemory::setTrackingAllocationSites(JSContext* cx, unsigned argc, Value* 
         }
     }
 
-    for (GlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront()) {
+    for (WeakGlobalObjectSet::Range r = dbg->debuggees.all(); !r.empty(); r.popFront()) {
         if (enabling) {
             r.front()->compartment()->setObjectMetadataCallback(SavedStacksMetadataCallback);
         } else {
@@ -207,6 +207,19 @@ DebuggerMemory::drainAllocationsLog(JSContext* cx, unsigned argc, Value* vp)
 
         RootedValue timestampValue(cx, NumberValue(allocSite->when));
         if (!DefineProperty(cx, obj, cx->names().timestamp, timestampValue))
+            return false;
+
+        RootedString className(cx, Atomize(cx, allocSite->className, strlen(allocSite->className)));
+        if (!className)
+            return false;
+        RootedValue classNameValue(cx, StringValue(className));
+        if (!DefineProperty(cx, obj, cx->names().class_, classNameValue))
+            return false;
+
+        RootedValue ctorName(cx, NullValue());
+        if (allocSite->ctorName)
+            ctorName.setString(allocSite->ctorName);
+        if (!DefineProperty(cx, obj, cx->names().constructor, ctorName))
             return false;
 
         result->setDenseElement(i, ObjectValue(*obj));
@@ -792,7 +805,7 @@ DebuggerMemory::takeCensus(JSContext* cx, unsigned argc, Value* vp)
     RootedObject dbgObj(cx, dbg->object);
 
     // Populate our target set of debuggee zones.
-    for (GlobalObjectSet::Range r = dbg->allDebuggees(); !r.empty(); r.popFront()) {
+    for (WeakGlobalObjectSet::Range r = dbg->allDebuggees(); !r.empty(); r.popFront()) {
         if (!census.debuggeeZones.put(r.front()->zone()))
             return false;
     }

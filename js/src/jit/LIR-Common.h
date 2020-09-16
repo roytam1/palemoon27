@@ -58,27 +58,21 @@ class LOsiPoint : public LInstructionHelper<0, 0, 0>
 
 class LMove
 {
-    LAllocation* from_;
-    LAllocation* to_;
+    LAllocation from_;
+    LAllocation to_;
     LDefinition::Type type_;
 
   public:
-    LMove(LAllocation* from, LAllocation* to, LDefinition::Type type)
+    LMove(LAllocation from, LAllocation to, LDefinition::Type type)
       : from_(from),
         to_(to),
         type_(type)
     { }
 
-    LAllocation* from() {
+    LAllocation from() const {
         return from_;
     }
-    const LAllocation* from() const {
-        return from_;
-    }
-    LAllocation* to() {
-        return to_;
-    }
-    const LAllocation* to() const {
+    LAllocation to() const {
         return to_;
     }
     LDefinition::Type type() const {
@@ -106,13 +100,13 @@ class LMoveGroup : public LInstructionHelper<0, 0, 0>
         return new(alloc) LMoveGroup(alloc);
     }
 
-    void printOperands(FILE* fp);
+    void printOperands(GenericPrinter& out);
 
     // Add a move which takes place simultaneously with all others in the group.
-    bool add(LAllocation* from, LAllocation* to, LDefinition::Type type);
+    bool add(LAllocation from, LAllocation to, LDefinition::Type type);
 
     // Add a move which takes place after existing moves in the group.
-    bool addAfter(LAllocation* from, LAllocation* to, LDefinition::Type type);
+    bool addAfter(LAllocation from, LAllocation to, LDefinition::Type type);
 
     size_t numMoves() const {
         return moves_.length();
@@ -137,7 +131,7 @@ class LMoveGroup : public LInstructionHelper<0, 0, 0>
     bool uses(Register reg) {
         for (size_t i = 0; i < numMoves(); i++) {
             LMove move = getMove(i);
-            if (*move.from() == LGeneralReg(reg) || *move.to() == LGeneralReg(reg))
+            if (move.from() == LGeneralReg(reg) || move.to() == LGeneralReg(reg))
                 return true;
         }
         return false;
@@ -566,6 +560,9 @@ class LSimdShift : public LInstructionHelper<1, 2, 0>
     }
     MSimdShift::Operation operation() const {
         return mir_->toSimdShift()->operation();
+    }
+    const char* extraName() const {
+        return MSimdShift::OperationName(operation());
     }
     MSimdShift* mir() const {
         return mir_->toSimdShift();
@@ -1533,14 +1530,6 @@ class LJSCallInstructionHelper : public LCallInstructionHelper<Defs, Operands, T
         return mir()->getSingleTarget();
     }
 
-    // The number of stack arguments is the max between the number of formal
-    // arguments and the number of actual arguments. The number of stack
-    // argument includes the |undefined| padding added in case of underflow.
-    // Does not include |this|.
-    uint32_t numStackArgs() const {
-        MOZ_ASSERT(mir()->numStackArgs() >= 1);
-        return mir()->numStackArgs() - 1; // |this| is not a formal argument.
-    }
     // Does not include |this|.
     uint32_t numActualArgs() const {
         return mir()->numActualArgs();
@@ -1664,6 +1653,12 @@ class LUnreachable : public LControlInstructionHelper<0, 0, 0>
 {
   public:
     LIR_HEADER(Unreachable)
+};
+
+class LEncodeSnapshot : public LInstructionHelper<0, 0, 0>
+{
+  public:
+    LIR_HEADER(EncodeSnapshot)
 };
 
 template <size_t defs, size_t ops>
@@ -3704,12 +3699,19 @@ class LInt32x4ToFloat32x4 : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LFloat32x4ToInt32x4 : public LInstructionHelper<1, 1, 0>
+class LFloat32x4ToInt32x4 : public LInstructionHelper<1, 1, 1>
 {
   public:
     LIR_HEADER(Float32x4ToInt32x4);
-    explicit LFloat32x4ToInt32x4(const LAllocation& input) {
+    explicit LFloat32x4ToInt32x4(const LAllocation& input, const LDefinition& temp) {
         setOperand(0, input);
+        setTemp(0, temp);
+    }
+    const LDefinition* temp() {
+        return getTemp(0);
+    }
+    const MSimdConvert* mir() const {
+        return mir_->toSimdConvert();
     }
 };
 
@@ -4033,6 +4035,10 @@ class LElements : public LInstructionHelper<1, 1, 0>
     const LAllocation* object() {
         return getOperand(0);
     }
+
+    const MElements* mir() const {
+        return mir_->toElements();
+    }
 };
 
 // If necessary, convert any int32 elements in a vector into doubles.
@@ -4127,6 +4133,48 @@ class LSetInitializedLength : public LInstructionHelper<0, 2, 0>
     }
     const LAllocation* index() {
         return getOperand(1);
+    }
+};
+
+class LUnboxedArrayLength : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(UnboxedArrayLength)
+
+    explicit LUnboxedArrayLength(const LAllocation& object) {
+        setOperand(0, object);
+    }
+
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+};
+
+class LUnboxedArrayInitializedLength : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(UnboxedArrayInitializedLength)
+
+    explicit LUnboxedArrayInitializedLength(const LAllocation& object) {
+        setOperand(0, object);
+    }
+
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+};
+
+class LIncrementUnboxedArrayInitializedLength : public LInstructionHelper<0, 1, 0>
+{
+  public:
+    LIR_HEADER(IncrementUnboxedArrayInitializedLength)
+
+    explicit LIncrementUnboxedArrayInitializedLength(const LAllocation& object) {
+        setOperand(0, object);
+    }
+
+    const LAllocation* object() {
+        return getOperand(0);
     }
 };
 
@@ -4559,16 +4607,17 @@ class LStoreElementT : public LInstructionHelper<0, 3, 0>
 };
 
 // Like LStoreElementV, but supports indexes >= initialized length.
-class LStoreElementHoleV : public LInstructionHelper<0, 3 + BOX_PIECES, 0>
+class LStoreElementHoleV : public LInstructionHelper<0, 3 + BOX_PIECES, 1>
 {
   public:
     LIR_HEADER(StoreElementHoleV)
 
     LStoreElementHoleV(const LAllocation& object, const LAllocation& elements,
-                       const LAllocation& index) {
+                       const LAllocation& index, const LDefinition& temp) {
         setOperand(0, object);
         setOperand(1, elements);
         setOperand(2, index);
+        setTemp(0, temp);
     }
 
     static const size_t Value = 3;
@@ -4588,17 +4637,19 @@ class LStoreElementHoleV : public LInstructionHelper<0, 3 + BOX_PIECES, 0>
 };
 
 // Like LStoreElementT, but supports indexes >= initialized length.
-class LStoreElementHoleT : public LInstructionHelper<0, 4, 0>
+class LStoreElementHoleT : public LInstructionHelper<0, 4, 1>
 {
   public:
     LIR_HEADER(StoreElementHoleT)
 
     LStoreElementHoleT(const LAllocation& object, const LAllocation& elements,
-                       const LAllocation& index, const LAllocation& value) {
+                       const LAllocation& index, const LAllocation& value,
+                       const LDefinition& temp) {
         setOperand(0, object);
         setOperand(1, elements);
         setOperand(2, index);
         setOperand(3, value);
+        setTemp(0, temp);
     }
 
     const MStoreElementHole* mir() const {
@@ -6032,6 +6083,38 @@ class LGuardReceiverPolymorphic : public LInstructionHelper<0, 1, 1>
     }
     const MGuardReceiverPolymorphic *mir() const {
         return mir_->toGuardReceiverPolymorphic();
+    }
+};
+
+class LGuardUnboxedExpando : public LInstructionHelper<0, 1, 0>
+{
+  public:
+    LIR_HEADER(GuardUnboxedExpando)
+
+    explicit LGuardUnboxedExpando(const LAllocation& in) {
+        setOperand(0, in);
+    }
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+    const MGuardUnboxedExpando* mir() const {
+        return mir_->toGuardUnboxedExpando();
+    }
+};
+
+class LLoadUnboxedExpando : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(LoadUnboxedExpando)
+
+    explicit LLoadUnboxedExpando(const LAllocation& in) {
+        setOperand(0, in);
+    }
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+    const MLoadUnboxedExpando* mir() const {
+        return mir_->toLoadUnboxedExpando();
     }
 };
 

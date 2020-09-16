@@ -81,7 +81,7 @@ WeakMapBase::markAll(JSCompartment* c, JSTracer* tracer)
     for (WeakMapBase* m = c->gcWeakMapList; m; m = m->next) {
         m->trace(tracer);
         if (m->memberOf)
-            gc::MarkObject(tracer, &m->memberOf, "memberOf");
+            TraceEdge(tracer, &m->memberOf, "memberOf");
     }
 }
 
@@ -616,6 +616,7 @@ const Class WeakMapObject::class_ = {
     nullptr, /* setProperty */
     nullptr, /* enumerate */
     nullptr, /* resolve */
+    nullptr, /* mayResolve */
     nullptr, /* convert */
     WeakMap_finalize,
     nullptr, /* call */

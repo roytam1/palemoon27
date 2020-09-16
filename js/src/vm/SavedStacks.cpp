@@ -77,19 +77,15 @@ struct SavedFrame::Lookup {
     JSPrincipals* principals;
 
     void trace(JSTracer* trc) {
-        gc::MarkStringUnbarriered(trc, &source, "SavedFrame::Lookup::source");
+        TraceManuallyBarrieredEdge(trc, &source, "SavedFrame::Lookup::source");
         if (functionDisplayName) {
-            gc::MarkStringUnbarriered(trc, &functionDisplayName,
-                                      "SavedFrame::Lookup::functionDisplayName");
+            TraceManuallyBarrieredEdge(trc, &functionDisplayName,
+                                       "SavedFrame::Lookup::functionDisplayName");
         }
-        if (asyncCause) {
-            gc::MarkStringUnbarriered(trc, &asyncCause,
-                                      "SavedFrame::Lookup::asyncCause");
-        }
-        if (parent) {
-            gc::MarkObjectUnbarriered(trc, &parent,
-                                      "SavedFrame::Lookup::parent");
-        }
+        if (asyncCause)
+            TraceManuallyBarrieredEdge(trc, &asyncCause, "SavedFrame::Lookup::asyncCause");
+        if (parent)
+            TraceManuallyBarrieredEdge(trc, &parent, "SavedFrame::Lookup::parent");
     }
 };
 
@@ -187,6 +183,7 @@ SavedFrame::finishSavedFrameInit(JSContext* cx, HandleObject ctor, HandleObject 
     nullptr,                    // setProperty
     nullptr,                    // enumerate
     nullptr,                    // resolve
+    nullptr,                    // mayResolve
     nullptr,                    // convert
     SavedFrame::finalize,       // finalize
     nullptr,                    // call
@@ -196,7 +193,7 @@ SavedFrame::finishSavedFrameInit(JSContext* cx, HandleObject ctor, HandleObject 
 
     // ClassSpec
     {
-        GenericCreateConstructor<SavedFrame::construct, 0, JSFunction::FinalizeKind>,
+        GenericCreateConstructor<SavedFrame::construct, 0, gc::AllocKind::FUNCTION>,
         GenericCreatePrototype,
         SavedFrame::staticFunctions,
         nullptr,
@@ -814,7 +811,7 @@ SavedStacks::sweep(JSRuntime* rt)
             JSObject* obj = e.front().unbarrieredGet();
             JSObject* temp = obj;
 
-            if (IsObjectAboutToBeFinalizedFromAnyThread(&obj)) {
+            if (IsAboutToBeFinalizedUnbarriered(&obj)) {
                 e.removeFront();
             } else {
                 SavedFrame* frame = &obj->as<SavedFrame>();
@@ -844,7 +841,7 @@ SavedStacks::trace(JSTracer* trc)
     // Mark each of the source strings in our pc to location cache.
     for (PCLocationMap::Enum e(pcLocationMap); !e.empty(); e.popFront()) {
         LocationValue& loc = e.front().value();
-        MarkString(trc, &loc.source, "SavedStacks::PCLocationMap's memoized script source name");
+        TraceEdge(trc, &loc.source, "SavedStacks::PCLocationMap's memoized script source name");
     }
 }
 
@@ -1082,7 +1079,7 @@ SavedStacks::sweepPCLocationMap()
     for (PCLocationMap::Enum e(pcLocationMap); !e.empty(); e.popFront()) {
         PCKey key = e.front().key();
         JSScript* script = key.script.get();
-        if (IsScriptAboutToBeFinalizedFromAnyThread(&script)) {
+        if (IsAboutToBeFinalizedUnbarriered(&script)) {
             e.removeFront();
         } else if (script != key.script.get()) {
             key.script = script;
@@ -1181,8 +1178,10 @@ SavedStacks::chooseSamplingProbability(JSContext* cx)
 }
 
 JSObject*
-SavedStacksMetadataCallback(JSContext* cx)
+SavedStacksMetadataCallback(JSContext* cx, JSObject* target)
 {
+    RootedObject obj(cx, target);
+
     SavedStacks& stacks = cx->compartment()->savedStacks();
     if (stacks.allocationSkipCount > 0) {
         stacks.allocationSkipCount--;
@@ -1222,7 +1221,7 @@ SavedStacksMetadataCallback(JSContext* cx)
     if (!stacks.saveCurrentStack(cx, &frame))
         CrashAtUnhandlableOOM("SavedStacksMetadataCallback");
 
-    if (!Debugger::onLogAllocationSite(cx, frame, PRMJ_Now()))
+    if (!Debugger::onLogAllocationSite(cx, obj, frame, PRMJ_Now()))
         CrashAtUnhandlableOOM("SavedStacksMetadataCallback");
 
     return frame;

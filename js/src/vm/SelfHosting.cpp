@@ -41,6 +41,7 @@ using namespace js;
 using namespace js::selfhosted;
 
 using JS::AutoCheckCannotGC;
+using mozilla::UniquePtr;
 
 static void
 selfHosting_ErrorReporter(JSContext* cx, const char* message, JSErrorReport* report)
@@ -185,16 +186,15 @@ intrinsic_OwnPropertyKeys(JSContext* cx, unsigned argc, Value* vp)
     return GetOwnPropertyKeys(cx, args, args[1].toInt32());
 }
 
-bool
-js::intrinsic_ThrowError(JSContext* cx, unsigned argc, Value* vp)
+static void
+ThrowErrorWithType(JSContext* cx, JSExnType type, const CallArgs& args)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() >= 1);
     uint32_t errorNumber = args[0].toInt32();
 
 #ifdef DEBUG
     const JSErrorFormatString* efs = GetErrorMessage(nullptr, errorNumber);
     MOZ_ASSERT(efs->argCount == args.length() - 1);
+    MOZ_ASSERT(efs->exnType == type, "error-throwing intrinsic and error number are inconsistent");
 #endif
 
     JSAutoByteString errorArgs[3];
@@ -203,19 +203,42 @@ js::intrinsic_ThrowError(JSContext* cx, unsigned argc, Value* vp)
         if (val.isInt32()) {
             JSString* str = ToString<CanGC>(cx, val);
             if (!str)
-                return false;
+                return;
             errorArgs[i - 1].encodeLatin1(cx, str);
         } else if (val.isString()) {
             errorArgs[i - 1].encodeLatin1(cx, val.toString());
         } else {
-            errorArgs[i - 1].initBytes(DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, NullPtr()).release());
+            UniquePtr<char[], JS::FreePolicy> bytes =
+                DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, NullPtr());
+            if (!bytes)
+                return;
+            errorArgs[i - 1].initBytes(bytes.release());
         }
         if (!errorArgs[i - 1])
-            return false;
+            return;
     }
 
     JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, errorNumber,
                          errorArgs[0].ptr(), errorArgs[1].ptr(), errorArgs[2].ptr());
+}
+
+bool
+js::intrinsic_ThrowRangeError(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() >= 1);
+
+    ThrowErrorWithType(cx, JSEXN_RANGEERR, args);
+    return false;
+}
+
+bool
+js::intrinsic_ThrowTypeError(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() >= 1);
+
+    ThrowErrorWithType(cx, JSEXN_TYPEERR, args);
     return false;
 }
 
@@ -317,18 +340,18 @@ js::intrinsic_NewDenseArray(JSContext* cx, unsigned argc, Value* vp)
         return false;
     buffer->setGroup(newgroup);
 
-    NativeObject::EnsureDenseResult edr = buffer->ensureDenseElements(cx, length, 0);
+    DenseElementResult edr = buffer->ensureDenseElements(cx, length, 0);
     switch (edr) {
-      case NativeObject::ED_OK:
+      case DenseElementResult::Success:
         args.rval().setObject(*buffer);
         return true;
 
-      case NativeObject::ED_SPARSE: // shouldn't happen!
+      case DenseElementResult::Incomplete: // shouldn't happen!
         MOZ_ASSERT(!"%EnsureDenseArrayElements() would yield sparse array");
         JS_ReportError(cx, "%EnsureDenseArrayElements() would yield sparse array");
         break;
 
-      case NativeObject::ED_FAILED:
+      case DenseElementResult::Failure:
         break;
     }
     return false;
@@ -915,7 +938,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("IsCallable",              intrinsic_IsCallable,              1,0),
     JS_FN("IsConstructor",           intrinsic_IsConstructor,           1,0),
     JS_FN("OwnPropertyKeys",         intrinsic_OwnPropertyKeys,         1,0),
-    JS_FN("ThrowError",              intrinsic_ThrowError,              4,0),
+    JS_FN("ThrowRangeError",         intrinsic_ThrowRangeError,         4,0),
+    JS_FN("ThrowTypeError",          intrinsic_ThrowTypeError,          4,0),
     JS_FN("AssertionFailed",         intrinsic_AssertionFailed,         1,0),
     JS_FN("GetBuiltinConstructorImpl", intrinsic_GetBuiltinConstructor, 1,0),
     JS_FN("MakeConstructible",       intrinsic_MakeConstructible,       2,0),
@@ -1084,7 +1108,7 @@ JSRuntime::createSelfHostingGlobal(JSContext* cx)
         "self-hosting-global", JSCLASS_GLOBAL_FLAGS,
         nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr, nullptr,
-        nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr,
         JS_GlobalObjectTraceHook
     };
 
@@ -1180,17 +1204,17 @@ void
 JSRuntime::markSelfHostingGlobal(JSTracer* trc)
 {
     if (selfHostingGlobal_ && !parentRuntime)
-        MarkObjectRoot(trc, &selfHostingGlobal_, "self-hosting global");
+        TraceRoot(trc, &selfHostingGlobal_, "self-hosting global");
 }
 
 bool
-JSRuntime::isSelfHostingCompartment(JSCompartment* comp)
+JSRuntime::isSelfHostingCompartment(JSCompartment* comp) const
 {
     return selfHostingGlobal_->compartment() == comp;
 }
 
 bool
-JSRuntime::isSelfHostingZone(JS::Zone* zone)
+JSRuntime::isSelfHostingZone(const JS::Zone* zone) const
 {
     return selfHostingGlobal_ && selfHostingGlobal_->zoneFromAnyThread() == zone;
 }
@@ -1314,7 +1338,7 @@ CloneObject(JSContext* cx, HandleNativeObject selfHostedObject)
         // Arrow functions use the first extended slot for their lexical |this| value.
         MOZ_ASSERT(!selfHostedFunction->isArrow());
         js::gc::AllocKind kind = hasName
-                                 ? JSFunction::ExtendedFinalizeKind
+                                 ? gc::AllocKind::FUNCTION_EXTENDED
                                  : selfHostedFunction->getAllocKind();
         clone = CloneFunctionObject(cx, selfHostedFunction, cx->global(), kind, TenuredObject);
         // To be able to re-lazify the cloned function, its name in the

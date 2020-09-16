@@ -44,6 +44,7 @@
 #include "jsobjinlines.h"
 
 #include "frontend/ParseNode-inl.h"
+#include "jit/MacroAssembler-inl.h"
 #include "vm/ArrayBufferObject-inl.h"
 #include "vm/Stack-inl.h"
 
@@ -134,12 +135,12 @@ AsmJSModule::trace(JSTracer* trc)
         globals_[i].trace(trc);
     for (unsigned i = 0; i < exits_.length(); i++) {
         if (exitIndexToGlobalDatum(i).fun)
-            MarkObject(trc, &exitIndexToGlobalDatum(i).fun, "asm.js imported function");
+            TraceEdge(trc, &exitIndexToGlobalDatum(i).fun, "asm.js imported function");
     }
     for (unsigned i = 0; i < exports_.length(); i++)
         exports_[i].trace(trc);
     for (unsigned i = 0; i < names_.length(); i++)
-        MarkStringUnbarriered(trc, &names_[i].name(), "asm.js module function name");
+        TraceManuallyBarrieredEdge(trc, &names_[i].name(), "asm.js module function name");
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
     for (unsigned i = 0; i < profiledFunctions_.length(); i++)
         profiledFunctions_[i].trace(trc);
@@ -149,13 +150,13 @@ AsmJSModule::trace(JSTracer* trc)
         perfProfiledBlocksFunctions_[i].trace(trc);
 #endif
     if (globalArgumentName_)
-        MarkStringUnbarriered(trc, &globalArgumentName_, "asm.js global argument name");
+        TraceManuallyBarrieredEdge(trc, &globalArgumentName_, "asm.js global argument name");
     if (importArgumentName_)
-        MarkStringUnbarriered(trc, &importArgumentName_, "asm.js import argument name");
+        TraceManuallyBarrieredEdge(trc, &importArgumentName_, "asm.js import argument name");
     if (bufferArgumentName_)
-        MarkStringUnbarriered(trc, &bufferArgumentName_, "asm.js buffer argument name");
+        TraceManuallyBarrieredEdge(trc, &bufferArgumentName_, "asm.js buffer argument name");
     if (maybeHeap_)
-        gc::MarkObject(trc, &maybeHeap_, "asm.js heap");
+        TraceEdge(trc, &maybeHeap_, "asm.js heap");
 }
 
 void
@@ -955,6 +956,7 @@ const Class AsmJSModuleObject::class_ = {
     nullptr, /* setProperty */
     nullptr, /* enumerate */
     nullptr, /* resolve */
+    nullptr, /* mayResolve */
     nullptr, /* convert */
     AsmJSModuleObject_finalize,
     nullptr, /* call */
@@ -963,13 +965,13 @@ const Class AsmJSModuleObject::class_ = {
     AsmJSModuleObject_trace
 };
 
-AsmJSModuleObject *
-AsmJSModuleObject::create(ExclusiveContext *cx, ScopedJSDeletePtr<AsmJSModule> *module)
+AsmJSModuleObject*
+AsmJSModuleObject::create(ExclusiveContext* cx, ScopedJSDeletePtr<AsmJSModule>* module)
 {
-    JSObject *obj = NewObjectWithGivenProto(cx, &AsmJSModuleObject::class_, NullPtr());
+    JSObject* obj = NewObjectWithGivenProto(cx, &AsmJSModuleObject::class_, NullPtr());
     if (!obj)
         return nullptr;
-    AsmJSModuleObject *nobj = &obj->as<AsmJSModuleObject>();
+    AsmJSModuleObject* nobj = &obj->as<AsmJSModuleObject>();
 
     nobj->setReservedSlot(MODULE_SLOT, PrivateValue(module->forget()));
     return nobj;

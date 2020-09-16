@@ -37,7 +37,6 @@ class OutOfLineInterruptCheckImplicit;
 class OutOfLineUnboxFloatingPoint;
 class OutOfLineStoreElementHole;
 class OutOfLineTypeOfV;
-class OutOfLineLoadTypedArray;
 class OutOfLineUpdateCache;
 class OutOfLineCallPostWriteBarrier;
 class OutOfLineIsCallable;
@@ -121,6 +120,8 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitMaybeCopyElementsForWrite(LMaybeCopyElementsForWrite* lir);
     void visitGuardObjectIdentity(LGuardObjectIdentity* guard);
     void visitGuardReceiverPolymorphic(LGuardReceiverPolymorphic* lir);
+    void visitGuardUnboxedExpando(LGuardUnboxedExpando* lir);
+    void visitLoadUnboxedExpando(LLoadUnboxedExpando* lir);
     void visitTypeBarrierV(LTypeBarrierV* lir);
     void visitTypeBarrierO(LTypeBarrierO* lir);
     void visitMonitorTypes(LMonitorTypes* lir);
@@ -138,6 +139,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitApplyArgsGeneric(LApplyArgsGeneric* apply);
     void visitBail(LBail* lir);
     void visitUnreachable(LUnreachable* unreachable);
+    void visitEncodeSnapshot(LEncodeSnapshot* lir);
     void visitGetDynamicName(LGetDynamicName* lir);
     void visitCallDirectEvalS(LCallDirectEvalS* lir);
     void visitCallDirectEvalV(LCallDirectEvalV* lir);
@@ -184,6 +186,9 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitSubstr(LSubstr* lir);
     void visitInitializedLength(LInitializedLength* lir);
     void visitSetInitializedLength(LSetInitializedLength* lir);
+    void visitUnboxedArrayLength(LUnboxedArrayLength* lir);
+    void visitUnboxedArrayInitializedLength(LUnboxedArrayInitializedLength* lir);
+    void visitIncrementUnboxedArrayInitializedLength(LIncrementUnboxedArrayInitializedLength* lir);
     void visitNotO(LNotO* ins);
     void visitNotV(LNotV* ins);
     void visitBoundsCheck(LBoundsCheck* lir);

@@ -21,6 +21,7 @@
 #include "jsscriptinlines.h"
 
 #include "frontend/Parser-inl.h"
+#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -267,10 +268,12 @@ frontend::CompileScript(ExclusiveContext* cx, LifoAlloc* alloc, HandleObject sco
     if (!parser.checkOptions())
         return nullptr;
 
-    Directives directives(options.strictOption);
-    GlobalSharedContext globalsc(cx, directives, options.extraWarningsOption);
-
     bool savedCallerFun = evalCaller && evalCaller->functionOrCallerFunction();
+    bool allowSuperProperty = savedCallerFun && evalCaller->functionOrCallerFunction()->isMethod();
+
+    Directives directives(options.strictOption);
+    GlobalSharedContext globalsc(cx, directives, options.extraWarningsOption, allowSuperProperty);
+
     Rooted<JSScript*> script(cx, JSScript::Create(cx, evalStaticScope, savedCallerFun,
                                                   options, staticLevel, sourceObject, 0,
                                                   srcBuf.length()));
@@ -326,7 +329,7 @@ frontend::CompileScript(ExclusiveContext* cx, LifoAlloc* alloc, HandleObject sco
         TokenStream::Position pos(parser.keepAtoms);
         parser.tokenStream.tell(&pos);
 
-        ParseNode* pn = parser.statement(canHaveDirectives);
+        ParseNode* pn = parser.statement(YieldIsName, canHaveDirectives);
         if (!pn) {
             if (parser.hadAbortedSyntaxParse()) {
                 // Parsing inner functions lazily may lead the parser into an
@@ -350,7 +353,7 @@ frontend::CompileScript(ExclusiveContext* cx, LifoAlloc* alloc, HandleObject sco
                     return nullptr;
                 MOZ_ASSERT(parser.pc == pc.ptr());
 
-                pn = parser.statement();
+                pn = parser.statement(YieldIsName);
             }
             if (!pn) {
                 MOZ_ASSERT(!parser.hadAbortedSyntaxParse());

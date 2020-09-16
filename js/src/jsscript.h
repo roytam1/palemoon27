@@ -43,11 +43,11 @@ namespace jit {
 
 class BreakpointSite;
 class BindingIter;
+class Debugger;
 class LazyScript;
 class RegExpObject;
 struct SourceCompressionTask;
 class Shape;
-class WatchpointMap;
 class NestedScopeObject;
 
 namespace frontend {
@@ -884,6 +884,10 @@ class JSScript : public js::gc::TenuredCell
 
     // 16-bit fields.
 
+    uint16_t        warmUpResetCount; /* Number of times the |warmUpCount| was
+                                 * forcibly discarded. The counter is reset when
+                                 * a script is successfully jit-compiled. */
+
     uint16_t        version;    /* JS version under which script was compiled */
 
     uint16_t        funLength_; /* ES6 function length */
@@ -1018,6 +1022,8 @@ class JSScript : public js::gc::TenuredCell
     // keep it from relazifying.
     bool doNotRelazify_:1;
 
+    bool needsHomeObject_:1;
+
     // Add padding so JSScript is gc::Cell aligned. Make padding protected
     // instead of private to suppress -Wunused-private-field compiler warnings.
   protected:
@@ -1069,6 +1075,12 @@ class JSScript : public js::gc::TenuredCell
     void setLength(size_t length) { length_ = length; }
 
     jsbytecode* codeEnd() const { return code() + length(); }
+
+    jsbytecode* lastPC() const {
+        jsbytecode* pc = codeEnd() - js::JSOP_RETRVAL_LENGTH;
+        MOZ_ASSERT(*pc == JSOP_RETRVAL);
+        return pc;
+    }
 
     bool containsPC(const jsbytecode* pc) const {
         return pc >= code() && pc < codeEnd();
@@ -1276,6 +1288,14 @@ class JSScript : public js::gc::TenuredCell
         generatorKindBits_ = GeneratorKindAsBits(kind);
     }
 
+    void setNeedsHomeObject() {
+        needsHomeObject_ = true;
+    }
+    bool needsHomeObject() const {
+        return needsHomeObject_;
+    }
+
+
     /*
      * As an optimization, even when argsHasLocalBinding, the function prologue
      * may not need to create an arguments object. This is determined by
@@ -1352,6 +1372,7 @@ class JSScript : public js::gc::TenuredCell
         if (hasIonScript())
             js::jit::IonScript::writeBarrierPre(zone(), ion);
         ion = ionScript;
+        resetWarmUpResetCounter();
         MOZ_ASSERT_IF(hasIonScript(), hasBaselineScript());
         updateBaselineOrIonRaw(maybecx);
     }
@@ -1472,13 +1493,15 @@ class JSScript : public js::gc::TenuredCell
     bool makeTypes(JSContext* cx);
 
   public:
-    uint32_t getWarmUpCount() const {
-        return warmUpCount;
-    }
+    uint32_t getWarmUpCount() const { return warmUpCount; }
     uint32_t incWarmUpCounter(uint32_t amount = 1) { return warmUpCount += amount; }
     uint32_t* addressOfWarmUpCounter() { return &warmUpCount; }
     static size_t offsetOfWarmUpCounter() { return offsetof(JSScript, warmUpCount); }
-    void resetWarmUpCounter() { warmUpCount = 0; }
+    void resetWarmUpCounter() { incWarmUpResetCounter(); warmUpCount = 0; }
+
+    uint16_t getWarmUpResetCount() const { return warmUpResetCount; }
+    uint16_t incWarmUpResetCounter(uint16_t amount = 1) { return warmUpResetCount += amount; }
+    void resetWarmUpResetCounter() { warmUpResetCount = 0; }
 
   public:
     bool initScriptCounts(JSContext* cx);
@@ -1617,6 +1640,9 @@ class JSScript : public js::gc::TenuredCell
         return arr->vector[index];
     }
 
+    // The following 3 functions find the static scope just before the
+    // execution of the instruction pointed to by pc.
+
     js::NestedScopeObject* getStaticBlockScope(jsbytecode* pc);
 
     // Returns the innermost static scope at pc if it falls within the extent
@@ -1697,7 +1723,7 @@ class JSScript : public js::gc::TenuredCell
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
 
-    void markChildren(JSTracer* trc);
+    void traceChildren(JSTracer* trc);
 
     // A helper class to prevent relazification of the given function's script
     // while it's holding on to it.  This class automatically roots the script.
@@ -1886,8 +1912,9 @@ class LazyScript : public gc::TenuredCell
 
   private:
     // If non-nullptr, the script has been compiled and this is a forwarding
-    // pointer to the result.
-    HeapPtrScript script_;
+    // pointer to the result. This is a weak pointer: after relazification, we
+    // can collect the script if there are no other pointers to it.
+    ReadBarrieredScript script_;
 
     // Original function with which the lazy script is associated.
     HeapPtrFunction function_;
@@ -1985,8 +2012,14 @@ class LazyScript : public gc::TenuredCell
 
     void initScript(JSScript* script);
     void resetScript();
+
     JSScript* maybeScript() {
+        if (script_.unbarrieredGet() && gc::IsAboutToBeFinalized(&script_))
+            script_.set(nullptr);
         return script_;
+    }
+    JSScript* maybeScriptUnbarriered() const {
+        return script_.unbarrieredGet();
     }
 
     JSObject* enclosingScope() const {
@@ -2113,7 +2146,8 @@ class LazyScript : public gc::TenuredCell
     bool hasUncompiledEnclosingScript() const;
     uint32_t staticLevel(JSContext* cx) const;
 
-    void markChildren(JSTracer* trc);
+    friend class GCMarker;
+    void traceChildren(JSTracer* trc);
     void finalize(js::FreeOp* fop);
     void fixupAfterMovingGC() {}
 

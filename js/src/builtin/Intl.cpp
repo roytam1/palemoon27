@@ -252,8 +252,8 @@ unum_setTextAttribute(UNumberFormat* fmt, UNumberFormatTextAttribute tag, const 
 
 class Locale {
   public:
-    Locale(const char* language, const char* country = 0, const char* variant = 0,
-           const char* keywordsAndValues = 0);
+    explicit Locale(const char* language, const char* country = 0, const char* variant = 0,
+                    const char* keywordsAndValues = 0);
 };
 
 Locale::Locale(const char* language, const char* country, const char* variant,
@@ -565,6 +565,7 @@ static const Class CollatorClass = {
     nullptr, /* setProperty */
     nullptr, /* enumerate */
     nullptr, /* resolve */
+    nullptr, /* mayResolve */
     nullptr, /* convert */
     collator_finalize
 };
@@ -1057,6 +1058,7 @@ static const Class NumberFormatClass = {
     nullptr, /* setProperty */
     nullptr, /* enumerate */
     nullptr, /* resolve */
+    nullptr, /* mayResolve */
     nullptr, /* convert */
     numberFormat_finalize
 };
@@ -1516,6 +1518,7 @@ static const Class DateTimeFormatClass = {
     nullptr, /* setProperty */
     nullptr, /* enumerate */
     nullptr, /* resolve */
+    nullptr, /* mayResolve */
     nullptr, /* convert */
     dateTimeFormat_finalize
 };

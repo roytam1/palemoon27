@@ -11,13 +11,13 @@
 
 #include "js/TypeDecls.h"
 
+#include "vm/Printer.h"
+
 namespace js {
 namespace jit {
 
 class BacktrackingAllocator;
 class MDefinition;
-class MInstruction;
-class MBasicBlock;
 class MIRGraph;
 class MResumePoint;
 class LNode;
@@ -31,7 +31,7 @@ class JSONSpewer
 
     int indentLevel_;
     bool first_;
-    FILE* fp_;
+    Fprinter out_;
 
     void indent();
 
@@ -51,7 +51,7 @@ class JSONSpewer
       : inFunction_(false),
         indentLevel_(0),
         first_(true),
-        fp_(nullptr)
+        out_()
     { }
     ~JSONSpewer();
 
@@ -63,7 +63,7 @@ class JSONSpewer
     void spewMIR(MIRGraph* mir);
     void spewLIns(LNode* ins);
     void spewLIR(MIRGraph* mir);
-    void spewIntervals(BacktrackingAllocator* regalloc);
+    void spewRanges(BacktrackingAllocator* regalloc);
     void endPass();
     void endFunction();
     void finish();

@@ -353,6 +353,9 @@ class IonBuilder
     MConstant* constant(const Value& v);
     MConstant* constantInt(int32_t i);
 
+    // Note: This function might return nullptr in case of failure.
+    MConstant* constantMaybeAtomize(const Value& v);
+
     // Improve the type information at tests
     bool improveTypesAtTest(MDefinition* ins, bool trueBranch, MTest* test);
     bool improveTypesAtCompare(MCompare* ins, bool trueBranch, MTest* test);
@@ -398,13 +401,11 @@ class IonBuilder
     MDefinition* addMaybeCopyElementsForWrite(MDefinition* object);
     MInstruction* addBoundsCheck(MDefinition* index, MDefinition* length);
     MInstruction* addShapeGuard(MDefinition* obj, Shape* const shape, BailoutKind bailoutKind);
-    MInstruction* addGroupGuard(MDefinition* obj, ObjectGroup* group, BailoutKind bailoutKind,
-                                bool checkUnboxedExpando = false);
+    MInstruction* addGroupGuard(MDefinition* obj, ObjectGroup* group, BailoutKind bailoutKind);
+    MInstruction* addUnboxedExpandoGuard(MDefinition* obj, bool hasExpando, BailoutKind bailoutKind);
 
     MInstruction*
-    addGuardReceiverPolymorphic(MDefinition* obj,
-                                const BaselineInspector::ShapeVector& shapes,
-                                const BaselineInspector::ObjectGroupVector& unboxedGroups);
+    addGuardReceiverPolymorphic(MDefinition* obj, const BaselineInspector::ReceiverVector& receivers);
 
     MDefinition* convertShiftToMaskForStaticTypedArray(MDefinition* id,
                                                        Scalar::Type viewType);
@@ -436,13 +437,13 @@ class IonBuilder
                                 BarrierKind barrier, TemporaryTypeSet* types);
     bool getPropTryUnboxed(bool* emitted, MDefinition* obj, PropertyName* name,
                            BarrierKind barrier, TemporaryTypeSet* types);
-    bool getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName *name,
-                                TemporaryTypeSet *types);
+    bool getPropTryCommonGetter(bool* emitted, MDefinition* obj, PropertyName* name,
+                                TemporaryTypeSet* types);
     bool getPropTryInlineAccess(bool* emitted, MDefinition* obj, PropertyName* name,
                                 BarrierKind barrier, TemporaryTypeSet* types);
     bool getPropTrySimdGetter(bool* emitted, MDefinition* obj, PropertyName* name);
     bool getPropTryTypedObject(bool* emitted, MDefinition* obj, PropertyName* name);
-    bool getPropTryScalarPropOfTypedObject(bool *emitted, MDefinition *typedObj,
+    bool getPropTryScalarPropOfTypedObject(bool* emitted, MDefinition* typedObj,
                                            int32_t fieldOffset,
                                            TypedObjectPrediction fieldTypeReprs);
     bool getPropTryReferencePropOfTypedObject(bool* emitted, MDefinition* typedObj,
@@ -516,15 +517,15 @@ class IonBuilder
                                         ReferenceTypeDescr::Type type,
                                         MDefinition* value,
                                         PropertyName* name);
-    bool storeScalarTypedObjectValue(MDefinition *typedObj,
-                                     const LinearSum &byteOffset,
+    bool storeScalarTypedObjectValue(MDefinition* typedObj,
+                                     const LinearSum& byteOffset,
                                      ScalarTypeDescr::Type type,
-                                     MDefinition *value);
+                                     MDefinition* value);
     bool checkTypedObjectIndexInBounds(int32_t elemSize,
-                                       MDefinition *obj,
-                                       MDefinition *index,
+                                       MDefinition* obj,
+                                       MDefinition* index,
                                        TypedObjectPrediction objTypeDescrs,
-                                       LinearSum *indexAsByteOffset);
+                                       LinearSum* indexAsByteOffset);
     bool pushDerivedTypedObject(bool* emitted,
                                 MDefinition* obj,
                                 const LinearSum& byteOffset,
@@ -662,13 +663,13 @@ class IonBuilder
     bool jsop_setelem();
     bool jsop_setelem_dense(TemporaryTypeSet::DoubleConversion conversion,
                             SetElemSafety safety,
-                            MDefinition *object, MDefinition *index, MDefinition *value);
+                            MDefinition* object, MDefinition* index, MDefinition* value);
     bool jsop_setelem_typed(ScalarTypeDescr::Type arrayType,
                             SetElemSafety safety,
-                            MDefinition *object, MDefinition *index, MDefinition *value);
+                            MDefinition* object, MDefinition* index, MDefinition* value);
     bool jsop_setelem_typed_object(ScalarTypeDescr::Type arrayType,
                                    SetElemSafety safety,
-                                   MDefinition *object, MDefinition *index, MDefinition *value);
+                                   MDefinition* object, MDefinition* index, MDefinition* value);
     bool jsop_length();
     bool jsop_length_fastPath();
     bool jsop_arguments();
@@ -813,53 +814,53 @@ class IonBuilder
     InliningStatus inlineConstructTypedObject(CallInfo& callInfo, TypeDescr* target);
 
     // SIMD intrinsics and natives.
-    InliningStatus inlineConstructSimdObject(CallInfo& callInfo, SimdTypeDescr *target);
+    InliningStatus inlineConstructSimdObject(CallInfo& callInfo, SimdTypeDescr* target);
 
     //  helpers
     static MIRType SimdTypeDescrToMIRType(SimdTypeDescr::Type type);
-    bool checkInlineSimd(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
-                         unsigned numArgs, InlineTypedObject **templateObj);
-    IonBuilder::InliningStatus boxSimd(CallInfo &callInfo, MInstruction *ins,
-                                       InlineTypedObject *templateObj);
+    bool checkInlineSimd(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type,
+                         unsigned numArgs, InlineTypedObject** templateObj);
+    IonBuilder::InliningStatus boxSimd(CallInfo& callInfo, MInstruction* ins,
+                                       InlineTypedObject* templateObj);
 
     template <typename T>
-    InliningStatus inlineBinarySimd(CallInfo &callInfo, JSNative native,
+    InliningStatus inlineBinarySimd(CallInfo& callInfo, JSNative native,
                                     typename T::Operation op, SimdTypeDescr::Type type);
-    InliningStatus inlineCompSimd(CallInfo &callInfo, JSNative native,
+    InliningStatus inlineCompSimd(CallInfo& callInfo, JSNative native,
                                   MSimdBinaryComp::Operation op, SimdTypeDescr::Type compType);
-    InliningStatus inlineUnarySimd(CallInfo &callInfo, JSNative native,
+    InliningStatus inlineUnarySimd(CallInfo& callInfo, JSNative native,
                                    MSimdUnaryArith::Operation op, SimdTypeDescr::Type type);
-    InliningStatus inlineSimdWith(CallInfo &callInfo, JSNative native, SimdLane lane,
+    InliningStatus inlineSimdWith(CallInfo& callInfo, JSNative native, SimdLane lane,
                                   SimdTypeDescr::Type type);
-    InliningStatus inlineSimdSplat(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
-    InliningStatus inlineSimdShuffle(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+    InliningStatus inlineSimdSplat(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdShuffle(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type,
                                      unsigned numVectors, unsigned numLanes);
-    InliningStatus inlineSimdCheck(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type);
-    InliningStatus inlineSimdConvert(CallInfo &callInfo, JSNative native, bool isCast,
+    InliningStatus inlineSimdCheck(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type);
+    InliningStatus inlineSimdConvert(CallInfo& callInfo, JSNative native, bool isCast,
                                      SimdTypeDescr::Type from, SimdTypeDescr::Type to);
-    InliningStatus inlineSimdSelect(CallInfo &callInfo, JSNative native, bool isElementWise,
+    InliningStatus inlineSimdSelect(CallInfo& callInfo, JSNative native, bool isElementWise,
                                     SimdTypeDescr::Type type);
 
-    bool prepareForSimdLoadStore(CallInfo &callInfo, Scalar::Type simdType, MInstruction **elements,
-                                 MDefinition **index, Scalar::Type *arrayType);
-    InliningStatus inlineSimdLoad(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+    bool prepareForSimdLoadStore(CallInfo& callInfo, Scalar::Type simdType, MInstruction** elements,
+                                 MDefinition** index, Scalar::Type* arrayType);
+    InliningStatus inlineSimdLoad(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type,
                                   unsigned numElems);
-    InliningStatus inlineSimdStore(CallInfo &callInfo, JSNative native, SimdTypeDescr::Type type,
+    InliningStatus inlineSimdStore(CallInfo& callInfo, JSNative native, SimdTypeDescr::Type type,
                                    unsigned numElems);
 
     // Utility intrinsics.
-    InliningStatus inlineIsCallable(CallInfo &callInfo);
-    InliningStatus inlineIsObject(CallInfo &callInfo);
-    InliningStatus inlineToObject(CallInfo &callInfo);
-    InliningStatus inlineToInteger(CallInfo &callInfo);
-    InliningStatus inlineToString(CallInfo &callInfo);
-    InliningStatus inlineDump(CallInfo &callInfo);
-    InliningStatus inlineHasClass(CallInfo &callInfo, const Class *clasp,
-                                  const Class *clasp2 = nullptr,
-                                  const Class *clasp3 = nullptr,
-                                  const Class *clasp4 = nullptr);
-    InliningStatus inlineIsConstructing(CallInfo &callInfo);
-    InliningStatus inlineSubstringKernel(CallInfo &callInfo);
+    InliningStatus inlineIsCallable(CallInfo& callInfo);
+    InliningStatus inlineIsObject(CallInfo& callInfo);
+    InliningStatus inlineToObject(CallInfo& callInfo);
+    InliningStatus inlineToInteger(CallInfo& callInfo);
+    InliningStatus inlineToString(CallInfo& callInfo);
+    InliningStatus inlineDump(CallInfo& callInfo);
+    InliningStatus inlineHasClass(CallInfo& callInfo, const Class* clasp,
+                                  const Class* clasp2 = nullptr,
+                                  const Class* clasp3 = nullptr,
+                                  const Class* clasp4 = nullptr);
+    InliningStatus inlineIsConstructing(CallInfo& callInfo);
+    InliningStatus inlineSubstringKernel(CallInfo& callInfo);
 
     // Testing functions.
     InliningStatus inlineBailout(CallInfo& callInfo);
@@ -918,8 +919,8 @@ class IonBuilder
 
     MDefinition*
     addShapeGuardsForGetterSetter(MDefinition* obj, JSObject* holder, Shape* holderShape,
-                                  const BaselineInspector::ShapeVector& receiverShapes,
-                                  const BaselineInspector::ObjectGroupVector& receiverGroups,
+                                  const BaselineInspector::ReceiverVector& receivers,
+                                  const BaselineInspector::ObjectGroupVector& convertUnboxedGroups,
                                   bool isOwnProperty);
 
     bool annotateGetPropertyCache(MDefinition* obj, MGetPropertyCache* getPropCache,
@@ -943,8 +944,7 @@ class IonBuilder
                                        MDefinition* value);
     bool freezePropTypeSets(TemporaryTypeSet* types,
                             JSObject* foundProto, PropertyName* name);
-    bool canInlinePropertyOpShapes(const BaselineInspector::ShapeVector& nativeShapes,
-                                   const BaselineInspector::ObjectGroupVector& unboxedGroups);
+    bool canInlinePropertyOpShapes(const BaselineInspector::ReceiverVector& receivers);
 
     TemporaryTypeSet* bytecodeTypes(jsbytecode* pc);
 

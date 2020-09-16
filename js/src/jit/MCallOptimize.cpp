@@ -1530,11 +1530,14 @@ IonBuilder::inlineConstantStringSplit(CallInfo& callInfo)
     if (templateObject->getDenseInitializedLength() != initLength)
         return InliningStatus_NotInlined;
 
+    JSContext *cx = GetJitContext()->cx;
     Vector<MConstant*, 0, SystemAllocPolicy> arrayValues;
     for (uint32_t i = 0; i < initLength; i++) {
-        Value str = templateObject->getDenseElement(i);
-        MOZ_ASSERT(str.toString()->isAtom());
-        MConstant* value = MConstant::New(alloc(), str, constraints());
+        JSAtom* str = js::AtomizeString(cx, templateObject->getDenseElement(i).toString());
+        if (!str)
+            return InliningStatus_Error;
+
+        MConstant *value = MConstant::New(alloc(), StringValue(str), constraints());
         if (!TypeSetIncludes(key.maybeTypes(), value->type(), value->resultTypeSet()))
             return InliningStatus_NotInlined;
 
@@ -2695,13 +2698,20 @@ IonBuilder::inlineBoundFunction(CallInfo& nativeCallInfo, JSFunction* target)
 
     CallInfo callInfo(alloc(), nativeCallInfo.constructing());
     callInfo.setFun(constant(ObjectValue(*scriptedTarget)));
-    callInfo.setThis(constant(thisVal));
+    MConstant* thisConst = constantMaybeAtomize(thisVal);
+    if (!thisConst)
+        return InliningStatus_Error;
+    callInfo.setThis(thisConst);
 
     if (!callInfo.argv().reserve(argc))
         return InliningStatus_Error;
 
-    for (size_t i = 0; i < target->getBoundFunctionArgumentCount(); i++)
-        callInfo.argv().infallibleAppend(constant(target->getBoundFunctionArgument(i)));
+    for (size_t i = 0; i < target->getBoundFunctionArgumentCount(); i++) {
+        MConstant* argConst = constantMaybeAtomize(target->getBoundFunctionArgument(i));
+        if (!argConst)
+            return InliningStatus_Error;
+        callInfo.argv().infallibleAppend(argConst);
+    }
     for (size_t i = 0; i < nativeCallInfo.argc(); i++)
         callInfo.argv().infallibleAppend(nativeCallInfo.getArg(i));
 
@@ -2841,6 +2851,9 @@ IonBuilder::inlineAtomicsFence(CallInfo& callInfo)
         return InliningStatus_NotInlined;
     }
 
+    if (!JitSupportsAtomics())
+        return InliningStatus_NotInlined;
+
     callInfo.setImplicitlyUsedUnchecked();
 
     MMemoryBarrier* fence = MMemoryBarrier::New(alloc());
@@ -2911,6 +2924,9 @@ IonBuilder::inlineAtomicsBinop(CallInfo& callInfo, JSFunction* target)
 bool
 IonBuilder::atomicsMeetsPreconditions(CallInfo& callInfo, Scalar::Type* arrayType)
 {
+    if (!JitSupportsAtomics())
+        return false;
+
     if (callInfo.getArg(0)->type() != MIRType_Object)
         return false;
 

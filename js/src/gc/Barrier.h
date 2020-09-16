@@ -11,9 +11,9 @@
 
 #include "gc/Heap.h"
 #include "gc/StoreBuffer.h"
-#include "js/HashTable.h"
 #include "js/Id.h"
 #include "js/RootingAPI.h"
+#include "js/Value.h"
 
 /*
  * A write barrier is a mechanism used by incremental or generation GCs to
@@ -173,7 +173,6 @@ class GlobalObject;
 class LazyScript;
 class NativeObject;
 class NestedScopeObject;
-class Nursery;
 class PlainObject;
 class PropertyName;
 class SavedFrame;
@@ -340,15 +339,6 @@ struct InternalGCMethods<Value>
             preBarrierImpl(ZoneOfValueFromAnyThread(v), v);
     }
 
-    static void preBarrier(Zone* zone, Value v) {
-        MOZ_ASSERT(!CurrentThreadIsIonCompiling());
-        if (v.isString() && StringIsPermanentAtom(v.toString()))
-            return;
-        if (v.isSymbol() && SymbolIsWellKnown(v.toSymbol()))
-            return;
-        preBarrierImpl(zone, v);
-    }
-
   private:
     static void preBarrierImpl(Zone* zone, Value v) {
         JS::shadow::Zone* shadowZone = JS::shadow::Zone::asShadowZone(zone);
@@ -414,7 +404,7 @@ struct InternalGCMethods<jsid>
     static JS::shadow::Runtime* shadowRuntimeFromAnyThread(jsid id) {
         return reinterpret_cast<JS::shadow::Runtime*>(runtimeFromAnyThread(id));
     }
-    static void preBarrierImpl(Zone *zone, jsid id) {
+    static void preBarrierImpl(Zone* zone, jsid id) {
         JS::shadow::Zone* shadowZone = JS::shadow::Zone::asShadowZone(zone);
         if (shadowZone->needsIncrementalBarrier()) {
             jsid tmp(id);
@@ -470,7 +460,6 @@ class MOZ_NON_MEMMOVABLE BarrieredBase : public BarrieredBaseMixins<T>
 
   protected:
     void pre() { InternalGCMethods<T>::preBarrier(value); }
-    void pre(Zone* zone) { InternalGCMethods<T>::preBarrier(zone, value); }
 };
 
 template <>
@@ -600,7 +589,8 @@ class ImmutableTenuredPtr
         value = ptr;
     }
 
-    const T * address() { return &value; }
+    T get() const { return value; }
+    const T* address() { return &value; }
 };
 
 /*
@@ -893,20 +883,12 @@ class HeapSlot : public BarrieredBase<Value>
 
 #ifdef DEBUG
     bool preconditionForSet(NativeObject* owner, Kind kind, uint32_t slot);
-    bool preconditionForSet(Zone* zone, NativeObject* owner, Kind kind, uint32_t slot);
     bool preconditionForWriteBarrierPost(NativeObject* obj, Kind kind, uint32_t slot, Value target) const;
 #endif
 
     void set(NativeObject* owner, Kind kind, uint32_t slot, const Value& v) {
         MOZ_ASSERT(preconditionForSet(owner, kind, slot));
         pre();
-        value = v;
-        post(owner, kind, slot, v);
-    }
-
-    void set(Zone* zone, NativeObject* owner, Kind kind, uint32_t slot, const Value& v) {
-        MOZ_ASSERT(preconditionForSet(zone, owner, kind, slot));
-        pre(zone);
         value = v;
         post(owner, kind, slot, v);
     }

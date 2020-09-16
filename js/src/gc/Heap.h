@@ -27,8 +27,6 @@
 #include "js/HeapAPI.h"
 #include "js/TracingAPI.h"
 
-struct JSCompartment;
-
 struct JSRuntime;
 
 namespace JS {
@@ -55,6 +53,9 @@ CurrentThreadIsIonCompiling();
 extern bool
 UnmarkGrayCellRecursively(gc::Cell* cell, JSGCTraceKind kind);
 
+extern void
+TraceManuallyBarrieredGenericPointerEdge(JSTracer* trc, gc::Cell** thingp, const char* name);
+
 namespace gc {
 
 struct Arena;
@@ -62,9 +63,6 @@ class ArenaList;
 class SortedArenaList;
 struct ArenaHeader;
 struct Chunk;
-
-extern void
-TraceManuallyBarrieredGenericPointerEdge(JSTracer* trc, Cell** thingp, const char* name);
 
 /*
  * This flag allows an allocation site to request a specific heap based upon the

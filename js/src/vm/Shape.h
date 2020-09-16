@@ -110,7 +110,6 @@
 namespace js {
 
 class Bindings;
-class Debugger;
 class Nursery;
 class StaticBlockObject;
 
@@ -965,13 +964,13 @@ class Shape : public gc::TenuredCell
 
     static inline ThingRootKind rootKind() { return THING_ROOT_SHAPE; }
 
-    inline void traceChildren(JSTracer* trc);
+    void traceChildren(JSTracer* trc);
 
     inline Shape* search(ExclusiveContext* cx, jsid id);
     inline Shape* searchLinear(jsid id);
 
     void fixupAfterMovingGC();
-    void fixupGetterSetterForBarrier(JSTracer *trc);
+    void fixupGetterSetterForBarrier(JSTracer* trc);
 
     /* For JIT usage */
     static inline size_t offsetOfBase() { return offsetof(Shape, base_); }
@@ -1253,14 +1252,14 @@ GetterSetterWriteBarrierPost(AccessorShape* shape)
 {
     MOZ_ASSERT(shape);
     if (shape->hasGetterObject()) {
-        gc::StoreBuffer *sb = reinterpret_cast<gc::Cell*>(shape->getterObject())->storeBuffer();
+        gc::StoreBuffer* sb = reinterpret_cast<gc::Cell*>(shape->getterObject())->storeBuffer();
         if (sb) {
             sb->putGeneric(ShapeGetterSetterRef(shape));
             return;
         }
     }
     if (shape->hasSetterObject()) {
-        gc::StoreBuffer *sb = reinterpret_cast<gc::Cell*>(shape->setterObject())->storeBuffer();
+        gc::StoreBuffer* sb = reinterpret_cast<gc::Cell*>(shape->setterObject())->storeBuffer();
         if (sb) {
             sb->putGeneric(ShapeGetterSetterRef(shape));
             return;
@@ -1349,21 +1348,6 @@ Shape::searchLinear(jsid id)
     }
 
     return nullptr;
-}
-
-inline void
-Shape::traceChildren(JSTracer* trc)
-{
-    TraceEdge(trc, &base_, "base");
-    TraceEdge(trc, &propidRef(), "propid");
-    if (parent)
-        TraceEdge(trc, &parent, "parent");
-
-    if (hasGetterObject())
-        TraceManuallyBarrieredEdge(trc, &asAccessorShape().getterObj, "getter");
-
-    if (hasSetterObject())
-        TraceManuallyBarrieredEdge(trc, &asAccessorShape().setterObj, "setter");
 }
 
 /*

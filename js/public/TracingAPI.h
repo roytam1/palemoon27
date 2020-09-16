@@ -42,6 +42,9 @@ enum JSGCTraceKind
     // Shape details are exposed through JS_TraceShapeCycleCollectorChildren.
     JSTRACE_SHAPE = 0x04,
 
+    // ObjectGroup details are exposed through JS_TraceObjectGroupCycleCollectorChildren.
+    JSTRACE_OBJECT_GROUP = 0x05,
+
     // The kind associated with a nullptr.
     JSTRACE_NULL = 0x06,
 
@@ -52,7 +55,6 @@ enum JSGCTraceKind
     JSTRACE_BASE_SHAPE = 0x0F,
     JSTRACE_JITCODE = 0x1F,
     JSTRACE_LAZY_SCRIPT = 0x2F,
-    JSTRACE_OBJECT_GROUP = 0x3F,
 
     JSTRACE_LAST = JSTRACE_OBJECT_GROUP
 };
@@ -100,17 +102,19 @@ class JS_PUBLIC_API(JSTracer)
         MarkingTracer,
         CallbackTracer
     };
-    bool isMarkingTracer() const { return tag == MarkingTracer; }
-    bool isCallbackTracer() const { return tag == CallbackTracer; }
+    bool isMarkingTracer() const { return tag_ == MarkingTracer; }
+    bool isCallbackTracer() const { return tag_ == CallbackTracer; }
     inline JS::CallbackTracer* asCallbackTracer();
 
   protected:
     JSTracer(JSRuntime* rt, TracerKindTag tag,
-             WeakMapTraceKind weakTraceKind = TraceWeakMapValues);
+             WeakMapTraceKind weakTraceKind = TraceWeakMapValues)
+      : runtime_(rt), tag_(tag), eagerlyTraceWeakMaps_(weakTraceKind)
+    {}
 
   private:
     JSRuntime*          runtime_;
-    TracerKindTag       tag;
+    TracerKindTag       tag_;
     WeakMapTraceKind    eagerlyTraceWeakMaps_;
 };
 
@@ -132,7 +136,9 @@ class JS_PUBLIC_API(CallbackTracer) : public JSTracer
     {}
 
     // Update the trace callback.
-    void setTraceCallback(JSTraceCallback traceCallback);
+    void setTraceCallback(JSTraceCallback traceCallback) {
+        callback = traceCallback;
+    }
 
     // Test if the given callback is the same as our callback.
     bool hasCallback(JSTraceCallback maybeCallback) const {
@@ -219,7 +225,7 @@ class JS_PUBLIC_API(CallbackTracer) : public JSTracer
 class AutoTracingName
 {
     CallbackTracer* trc_;
-    const char *prior_;
+    const char* prior_;
 
   public:
     AutoTracingName(CallbackTracer* trc, const char* name) : trc_(trc), prior_(trc->contextName_) {
@@ -290,7 +296,7 @@ class AutoTracingDetails
 class AutoOriginalTraceLocation
 {
 #ifdef JS_GC_ZEAL
-    CallbackTracer *trc_;
+    CallbackTracer* trc_;
 
   public:
     template <typename T>

@@ -852,21 +852,21 @@ JS::IsProfilingEnabledForRuntime(JSRuntime *runtime)
 }
 
 void
-js::ResetStopwatches(JSRuntime *rt)
+js::ResetStopwatches(JSRuntime* rt)
 {
     MOZ_ASSERT(rt);
     rt->stopwatch.reset();
 }
 
 bool
-js::SetStopwatchActive(JSRuntime *rt, bool isActive)
+js::SetStopwatchActive(JSRuntime* rt, bool isActive)
 {
     MOZ_ASSERT(rt);
     return rt->stopwatch.setIsActive(isActive);
 }
 
 bool
-js::IsStopwatchActive(JSRuntime *rt)
+js::IsStopwatchActive(JSRuntime* rt)
 {
     MOZ_ASSERT(rt);
     return rt->stopwatch.isActive();
@@ -913,7 +913,7 @@ js::PerformanceGroupHolder::unlink()
     js_delete(group);
 }
 
-PerformanceGroup *
+PerformanceGroup*
 js::PerformanceGroupHolder::getGroup()
 {
     if (group_)
@@ -936,7 +936,7 @@ js::PerformanceGroupHolder::getGroup()
 }
 
 PerformanceData*
-js::GetPerformanceData(JSRuntime *rt)
+js::GetPerformanceData(JSRuntime* rt)
 {
     return &rt->stopwatch.performance;
 }

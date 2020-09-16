@@ -43,11 +43,11 @@ namespace jit {
 
 class BreakpointSite;
 class BindingIter;
+class Debugger;
 class LazyScript;
 class RegExpObject;
 struct SourceCompressionTask;
 class Shape;
-class WatchpointMap;
 class NestedScopeObject;
 
 namespace frontend {
@@ -2120,6 +2120,7 @@ class LazyScript : public gc::TenuredCell
     bool hasUncompiledEnclosingScript() const;
     uint32_t staticLevel(JSContext* cx) const;
 
+    friend class GCMarker;
     void traceChildren(JSTracer* trc);
     void finalize(js::FreeOp* fop);
     void fixupAfterMovingGC() {}

@@ -1987,6 +1987,10 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
 nsresult
 nsFrameLoader::GetWindowDimensions(nsIntRect& aRect)
 {
+  if (!mOwnerContent) {
+    return NS_ERROR_FAILURE;
+  }
+
   // Need to get outer window position here
   nsIDocument* doc = mOwnerContent->GetComposedDoc();
   if (!doc) {

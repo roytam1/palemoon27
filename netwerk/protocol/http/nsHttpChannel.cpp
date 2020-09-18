@@ -229,6 +229,7 @@ nsHttpChannel::nsHttpChannel()
     , mHasAutoRedirectVetoNotifier(0)
     , mPushedStream(nullptr)
     , mLocalBlocklist(false)
+    , mWarningReporter(nullptr)
     , mDidReval(false)
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
@@ -266,6 +267,19 @@ nsHttpChannel::Init(nsIURI *uri,
 
     return rv;
 }
+
+nsresult
+nsHttpChannel::AddSecurityMessage(const nsAString& aMessageTag,
+                                  const nsAString& aMessageCategory)
+{
+    if (mWarningReporter) {
+        return mWarningReporter->ReportSecurityMessage(aMessageTag,
+                                                       aMessageCategory);
+    }
+    return HttpBaseChannel::AddSecurityMessage(aMessageTag,
+                                               aMessageCategory);
+}
+
 //-----------------------------------------------------------------------------
 // nsHttpChannel <private>
 //-----------------------------------------------------------------------------
@@ -6092,35 +6106,6 @@ nsHttpChannel::SetOfflineCacheToken(nsISupports *token)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-class nsHttpChannelCacheKey final : public nsISupportsPRUint32,
-                                    public nsISupportsCString
-{
-    NS_DECL_ISUPPORTS
-
-    NS_DECL_NSISUPPORTSPRIMITIVE
-    NS_FORWARD_NSISUPPORTSPRUINT32(mSupportsPRUint32->)
-
-    // Both interfaces declares toString method with the same signature.
-    // Thus we have to delegate only to nsISupportsPRUint32 implementation.
-    NS_IMETHOD GetData(nsACString & aData) override
-    {
-        return mSupportsCString->GetData(aData);
-    }
-    NS_IMETHOD SetData(const nsACString & aData) override
-    {
-        return mSupportsCString->SetData(aData);
-    }
-
-public:
-    nsresult SetData(uint32_t aPostID, const nsACString& aKey);
-
-protected:
-    ~nsHttpChannelCacheKey() {}
-
-    nsCOMPtr<nsISupportsPRUint32> mSupportsPRUint32;
-    nsCOMPtr<nsISupportsCString> mSupportsCString;
-};
-
 NS_IMPL_ADDREF(nsHttpChannelCacheKey)
 NS_IMPL_RELEASE(nsHttpChannelCacheKey)
 NS_INTERFACE_TABLE_HEAD(nsHttpChannelCacheKey)
@@ -6164,6 +6149,19 @@ nsresult nsHttpChannelCacheKey::SetData(uint32_t aPostID,
     if (NS_FAILED(rv)) return rv;
 
     return NS_OK;
+}
+
+nsresult nsHttpChannelCacheKey::GetData(uint32_t *aPostID,
+                                        nsACString& aKey)
+{
+    nsresult rv;
+
+    rv = mSupportsPRUint32->GetData(aPostID);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+
+    return mSupportsCString->GetData(aKey);
 }
 
 NS_IMETHODIMP

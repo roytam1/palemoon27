@@ -57,9 +57,10 @@ VMFunction::addToFunctions()
 }
 
 bool
-InvokeFunction(JSContext* cx, HandleObject obj, uint32_t argc, Value* argv, Value* rval)
+InvokeFunction(JSContext* cx, HandleObject obj, bool constructing, uint32_t argc, Value* argv,
+               MutableHandleValue rval)
 {
-    AutoArrayRooter argvRoot(cx, argc + 1, argv);
+    AutoArrayRooter argvRoot(cx, argc + 1 + constructing, argv);
 
     // Data in the argument vector is arranged for a JIT -> JIT call.
     Value thisv = argv[0];
@@ -68,35 +69,19 @@ InvokeFunction(JSContext* cx, HandleObject obj, uint32_t argc, Value* argv, Valu
     // For constructing functions, |this| is constructed at caller side and we can just call Invoke.
     // When creating this failed / is impossible at caller site, i.e. MagicValue(JS_IS_CONSTRUCTING),
     // we use InvokeConstructor that creates it at the callee side.
-    RootedValue rv(cx);
-    if (thisv.isMagic(JS_IS_CONSTRUCTING)) {
-        if (!InvokeConstructor(cx, ObjectValue(*obj), argc, argvWithoutThis, &rv))
-            return false;
-    } else {
-        if (!Invoke(cx, thisv, ObjectValue(*obj), argc, argvWithoutThis, &rv))
-            return false;
-    }
+    if (thisv.isMagic(JS_IS_CONSTRUCTING))
+        return InvokeConstructor(cx, ObjectValue(*obj), argc, argvWithoutThis, true, rval);
 
-    if (obj->is<JSFunction>()) {
-        jsbytecode* pc;
-        RootedScript script(cx, cx->currentScript(&pc));
-        TypeScript::Monitor(cx, script, pc, rv.get());
-    }
-
-    *rval = rv;
-    return true;
+    return Invoke(cx, thisv, ObjectValue(*obj), argc, argvWithoutThis, rval);
 }
 
-JSObject *
-NewGCObject(JSContext *cx, gc::AllocKind allocKind, gc::InitialHeap initialHeap,
-            size_t ndynamic, const js::Class *clasp)
+bool
+InvokeFunctionShuffleNewTarget(JSContext* cx, HandleObject obj, uint32_t numActualArgs,
+                               uint32_t numFormalArgs, Value* argv, MutableHandleValue rval)
 {
-    JSObject *obj = js::Allocate<JSObject>(cx, allocKind, ndynamic, initialHeap, clasp);
-    if (!obj)
-        return nullptr;
-
-    SetNewObjectMetadata(cx, obj);
-    return obj;
+    MOZ_ASSERT(numFormalArgs > numActualArgs);
+    argv[1 + numActualArgs] = argv[1 + numFormalArgs];
+    return InvokeFunction(cx, obj, true, numActualArgs, argv, rval);
 }
 
 bool
@@ -193,8 +178,8 @@ MutatePrototype(JSContext* cx, HandlePlainObject obj, HandleValue value)
 }
 
 bool
-InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
-         jsbytecode *pc)
+InitProp(JSContext* cx, HandleObject obj, HandlePropertyName name, HandleValue value,
+         jsbytecode* pc)
 {
     RootedId id(cx, NameToId(name));
     return InitPropertyOperation(cx, JSOp(*pc), obj, id, value);
@@ -202,7 +187,7 @@ InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue v
 
 template<bool Equal>
 bool
-LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool* res)
+LooselyEqual(JSContext* cx, MutableHandleValue lhs, MutableHandleValue rhs, bool* res)
 {
     if (!js::LooselyEqual(cx, lhs, rhs, res))
         return false;

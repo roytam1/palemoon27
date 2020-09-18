@@ -115,6 +115,9 @@
       <field name="_outerWindowIDBrowserMap">
         new Map();
       </field>
+      <field name="_outerWindowIDBrowserMap">
+        new Map();
+      </field>
       <field name="arrowKeysShouldWrap" readonly="true">
         this.AppConstants.platform == "macosx";
       </field>
@@ -334,6 +337,15 @@
           <![CDATA[
             var tab = this._getTabForContentWindow(aDocument.defaultView);
             return tab ? tab.linkedBrowser : null;
+          ]]>
+        </body>
+      </method>
+
+      <method name="getBrowserForOuterWindowID">
+        <parameter name="aID"/>
+        <body>
+          <![CDATA[
+            return this._outerWindowIDBrowserMap.get(aID);
           ]]>
         </body>
       </method>
@@ -1454,6 +1466,9 @@
 
             let wasActive = document.activeElement == aBrowser;
 
+            // Unmap the old outerWindowID.
+            this._outerWindowIDBrowserMap.delete(aBrowser.outerWindowID);
+
             // Unhook our progress listener.
             let tab = this.getTabForBrowser(aBrowser);
             let index = tab._tPos;
@@ -1473,8 +1488,12 @@
 
             // Change the "remote" attribute.
             let parent = aBrowser.parentNode;
+            let permanentKey = aBrowser.permanentKey;
             parent.removeChild(aBrowser);
             aBrowser.setAttribute("remote", aShouldBeRemote ? "true" : "false");
+            // Tearing down the browser gives a new permanentKey but we want to
+            // keep the old one. Re-set it explicitly after unbinding from DOM.
+            aBrowser._permanentKey = permanentKey;
             parent.appendChild(aBrowser);
 
             aBrowser.droppedLinkHandler = droppedLinkHandler;
@@ -1493,6 +1512,13 @@
             this._tabListeners.set(tab, listener);
             filter.addProgressListener(listener, Ci.nsIWebProgress.NOTIFY_ALL);
 
+            // Switching a browser's remoteness will create a new frameLoader.
+            // As frameLoaders start out with an active docShell we have to
+            // deactivate it if this is not the selected tab's browser or the
+            // browser window is minimized.
+            aBrowser.docShellIsActive = (aBrowser == this.selectedBrowser &&
+                                         window.windowState != window.STATE_MINIMIZED);
+
             // Restore the progress listener.
             aBrowser.webProgress.addProgressListener(filter, Ci.nsIWebProgress.NOTIFY_ALL);
 
@@ -1503,6 +1529,9 @@
               tab.removeAttribute("crashed");
             } else {
               aBrowser.messageManager.sendAsyncMessage("Browser:AppTab", { isAppTab: tab.pinned })
+
+              // Register the new outerWindowID.
+              this._outerWindowIDBrowserMap.set(aBrowser.outerWindowID, aBrowser);
 	    }
 
             if (wasActive)
@@ -1754,10 +1783,10 @@
               // No preloaded browser found, create one.
               b = this._createBrowser({remote, uriIsAboutBlank});
             }
-            let notificationbox = this.getNotificationBox(b);
 
+            let notificationbox = this.getNotificationBox(b);
             var position = this.tabs.length - 1;
-            var uniqueId = "panel" + Date.now() + position;
+            var uniqueId = this._generateUniquePanelID();
             notificationbox.id = uniqueId;
             t.linkedPanel = uniqueId;
             t.linkedBrowser = b;
@@ -1849,9 +1878,7 @@
             // Note: Only do this of we still have a docShell. The TabOpen
             // event was dispatched above and a gBrowser.removeTab() call from
             // one of its listeners could cause us to fail here.
-            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
-               !Services.prefs.getBoolPref("browser.tabs.remote")
-               && b.docShell) {
+            if (!remote && b.docShell) {
               this._outerWindowIDBrowserMap.set(b.outerWindowID, b);
             }
 
@@ -2136,9 +2163,12 @@
               // the fast path.
               if (closeWindow &&
                   aCloseWindowFastpath &&
-                  this._removingTabs.length == 0 &&
-                  (this._windowIsClosing = window.closeWindow(true, window.warnAboutClosingWindow)))
+                  this._removingTabs.length == 0) {
+                // This call actually closes the window, unless the user
+                // cancels the operation.  We are finished here in both cases.
+                this._windowIsClosing = window.closeWindow(true, window.warnAboutClosingWindow);
                 return null;
+	      }
 
               newTab = true;
             }
@@ -3809,6 +3839,15 @@
               window.focus();
               break;
             }
+            case "Browser:Init": {
+              let tab = this.getTabForBrowser(browser);
+              if (!tab)
+                return;
+
+              this._outerWindowIDBrowserMap.set(browser.outerWindowID, browser);
+              browser.messageManager.sendAsyncMessage("Browser:AppTab", { isAppTab: tab.pinned })
+              break;
+            }
             case "Findbar:Keypress":
               if (!gFindBarInitialized) {
                 // If the find bar for this tab is not yet alive, change that,
@@ -3835,7 +3874,7 @@
           }
           window.addEventListener("sizemodechange", this, false);
 
-          var uniqueId = "panel" + Date.now();
+          var uniqueId = this._generateUniquePanelID();
           this.mPanelContainer.childNodes[0].id = uniqueId;
           this.mCurrentTab.linkedPanel = uniqueId;
           this.mCurrentTab._tPos = 0;
@@ -3884,6 +3923,7 @@
             messageManager.addMessageListener("DOMTitleChanged", this);
             messageManager.addMessageListener("DOMWindowClose", this);
             messageManager.addMessageListener("contextmenu", this);
+	    messageManager.addMessageListener("Browser:Init", this);
 
             // If this window has remote tabs, switch to our tabpanels fork
             // which does asynchronous tab switching.
@@ -3896,6 +3936,23 @@
           messageManager.addMessageListener("Findbar:Keypress", this);
         ]]>
       </constructor>
+
+      <method name="_generateUniquePanelID">
+        <body><![CDATA[
+          if (!this._uniquePanelIDCounter) {
+            this._uniquePanelIDCounter = 0;
+          }
+
+          let outerID = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                              .getInterface(Ci.nsIDOMWindowUtils)
+                              .outerWindowID;
+
+          // We want panel IDs to be globally unique, that's why we include the
+          // window ID. We switched to a monotonic counter as Date.now() lead
+          // to random failures because of colliding IDs.
+          return "panel-" + outerID + "-" + (++this._uniquePanelIDCounter);
+        ]]></body>
+      </method>
 
       <method name="_addProgressListenerForInitialTab">
         <body><![CDATA[

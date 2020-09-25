@@ -96,6 +96,8 @@ enum JitSpewChannel {
     JitSpew_Terminator
 };
 
+class MIRGenerator;
+class TempAllocator;
 
 // The JitSpewer is only available on debug builds.
 // None of the global functions have effect on non-debug builds.
@@ -170,7 +172,7 @@ void EnableIonDebugAsyncLogging();
 class GraphSpewer
 {
   public:
-    GraphSpewer(TempAllocator *alloc) { }
+    explicit GraphSpewer(TempAllocator *alloc) { }
 
     bool isSpewing() { return false; }
     void init(MIRGraph* graph, JSScript* function) { }

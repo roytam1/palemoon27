@@ -26,7 +26,6 @@ XPIDL_SOURCES += [
     'nsISupports.idl',
     'nsIUUIDGenerator.idl',
     'nsIVersionComparator.idl',
-    'nsIVisualEventTracer.idl',
     'nsIWeakReference.idl',
     'nsrootidl.idl',
 ]
@@ -49,6 +48,7 @@ EXPORTS += [
     'nscore.h',
     'nsCycleCollector.h',
     'nsDebugImpl.h',
+    'nsDumpUtils.h',
     'nsError.h',
     'nsGZFileWriter.h',
     'nsIID.h',
@@ -86,7 +86,6 @@ EXPORTS.mozilla += [
     'StaticMutex.h',
     'StaticPtr.h',
     'SystemMemoryReporter.h',
-    'VisualEventTracer.h',
 ]
 
 # nsDebugImpl isn't unified because we disable PGO so that NS_ABORT_OOM isn't
@@ -122,7 +121,6 @@ UNIFIED_SOURCES += [
     'nsTraceRefcnt.cpp',
     'nsUUIDGenerator.cpp',
     'nsVersionComparatorImpl.cpp',
-    'VisualEventTracer.cpp',
 ]
 
 # MOZ_STACKWALKING is defined in configure.in when the build configuration meets
@@ -149,8 +147,6 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     SOURCES += [
         'nsCrashOnException.cpp',
     ]
-
-MSVC_ENABLE_PGO = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

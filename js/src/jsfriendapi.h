@@ -1282,7 +1282,7 @@ GetErrorMessage(void* userRef, const unsigned errorNumber);
  * JSString methods and often the code can be rewritten so that only indexes
  * instead of char pointers are used in parts of the code that can GC.
  */
-class MOZ_STACK_CLASS AutoStableStringChars
+class MOZ_STACK_CLASS JS_FRIEND_API(AutoStableStringChars)
 {
     /* Ensure the string is kept alive while we're using its chars. */
     JS::RootedString s_;
@@ -1300,10 +1300,10 @@ class MOZ_STACK_CLASS AutoStableStringChars
     {}
     ~AutoStableStringChars();
 
-    bool init(JSContext* cx, JSString* s);
+    bool init(JSContext* cx, JSString* s) MOZ_WARN_UNUSED_RESULT;
 
     /* Like init(), but Latin1 chars are inflated to TwoByte. */
-    bool initTwoByte(JSContext* cx, JSString* s);
+    bool initTwoByte(JSContext* cx, JSString* s) MOZ_WARN_UNUSED_RESULT;
 
     bool isLatin1() const { return state_ == Latin1; }
     bool isTwoByte() const { return state_ == TwoByte; }

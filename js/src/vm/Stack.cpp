@@ -1388,9 +1388,10 @@ AbstractFramePtr::hasPushedSPSFrame() const
     return false;
 }
 
-jit::JitActivation::JitActivation(JSContext* cx, bool active)
+jit::JitActivation::JitActivation(JSContext* cx, CalleeToken entryPoint, bool active)
   : Activation(cx, Jit),
     active_(active),
+    isLazyLinkExitFrame_(false),
     rematerializedFrames_(nullptr),
     ionRecovery_(cx),
     bailoutData_(nullptr),
@@ -1410,10 +1411,22 @@ jit::JitActivation::JitActivation(JSContext* cx, bool active)
         prevJitJSContext_ = nullptr;
         prevJitActivation_ = nullptr;
     }
+
+    if (entryMonitor_) {
+        MOZ_ASSERT(entryPoint);
+
+        if (CalleeTokenIsFunction(entryPoint))
+            entryMonitor_->Entry(cx_, CalleeTokenToFunction(entryPoint));
+        else
+            entryMonitor_->Entry(cx_, CalleeTokenToScript(entryPoint));
+    }
 }
 
 jit::JitActivation::~JitActivation()
 {
+    if (entryMonitor_)
+        entryMonitor_->Exit(cx_);
+
     if (active_) {
         if (isProfiling())
             unregisterProfiling();

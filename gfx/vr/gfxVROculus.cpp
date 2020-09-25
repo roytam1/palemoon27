@@ -9,22 +9,20 @@
 #include "prmem.h"
 #include "prenv.h"
 #include "gfxPrefs.h"
-#include "gfxVR.h"
 #include "nsString.h"
 #include "mozilla/Preferences.h"
 
-#include "ovr_capi_dynamic.h"
+#include "gfxVROculus.h"
 
 #include "nsServiceManagerUtils.h"
 #include "nsIScreenManager.h"
 
-#ifdef XP_WIN
-#include "gfxWindowsPlatform.h" // for gfxWindowsPlatform::GetDPIScale
-#endif
-
 #ifndef M_PI
 # define M_PI 3.14159265358979323846
 #endif
+
+using namespace mozilla::gfx;
+using namespace mozilla::gfx::impl;
 
 namespace {
 
@@ -181,93 +179,7 @@ static bool InitializeOculusCAPI()
 }
 #endif
 
-} // anonymous namespace
-
-using namespace mozilla::gfx;
-
-// Dummy nsIScreen implementation, for when we just need to specify a size
-class FakeScreen : public nsIScreen
-{
-public:
-  explicit FakeScreen(const IntRect& aScreenRect)
-    : mScreenRect(aScreenRect)
-  { }
-
-  NS_DECL_ISUPPORTS
-
-  NS_IMETHOD GetRect(int32_t *l, int32_t *t, int32_t *w, int32_t *h) override {
-    *l = mScreenRect.x;
-    *t = mScreenRect.y;
-    *w = mScreenRect.width;
-    *h = mScreenRect.height;
-    return NS_OK;
-  }
-  NS_IMETHOD GetAvailRect(int32_t *l, int32_t *t, int32_t *w, int32_t *h) override {
-    return GetRect(l, t, w, h);
-  }
-  NS_IMETHOD GetRectDisplayPix(int32_t *l, int32_t *t, int32_t *w, int32_t *h) override {
-    return GetRect(l, t, w, h);
-  }
-  NS_IMETHOD GetAvailRectDisplayPix(int32_t *l, int32_t *t, int32_t *w, int32_t *h) override {
-    return GetAvailRect(l, t, w, h);
-  }
-
-  NS_IMETHOD GetId(uint32_t* aId) override { *aId = (uint32_t)-1; return NS_OK; }
-  NS_IMETHOD GetPixelDepth(int32_t* aPixelDepth) override { *aPixelDepth = 24; return NS_OK; }
-  NS_IMETHOD GetColorDepth(int32_t* aColorDepth) override { *aColorDepth = 24; return NS_OK; }
-
-  NS_IMETHOD LockMinimumBrightness(uint32_t aBrightness) override { return NS_ERROR_NOT_AVAILABLE; }
-  NS_IMETHOD UnlockMinimumBrightness(uint32_t aBrightness) override { return NS_ERROR_NOT_AVAILABLE; }
-  NS_IMETHOD GetRotation(uint32_t* aRotation) override {
-    *aRotation = nsIScreen::ROTATION_0_DEG;
-    return NS_OK;
-  }
-  NS_IMETHOD SetRotation(uint32_t aRotation) override { return NS_ERROR_NOT_AVAILABLE; }
-  NS_IMETHOD GetContentsScaleFactor(double* aContentsScaleFactor) override {
-    *aContentsScaleFactor = 1.0;
-    return NS_OK;
-  }
-
-protected:
-  virtual ~FakeScreen() {}
-
-  IntRect mScreenRect;
-};
-
-NS_IMPL_ISUPPORTS(FakeScreen, nsIScreen)
-
-class HMDInfoOculus : public VRHMDInfo {
-  friend class VRHMDManagerOculusImpl;
-public:
-  explicit HMDInfoOculus(ovrHmd aHMD);
-
-  bool SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRight,
-              double zNear, double zFar) override;
-
-  bool StartSensorTracking() override;
-  VRHMDSensorState GetSensorState(double timeOffset) override;
-  void StopSensorTracking() override;
-  void ZeroSensor() override;
-
-  void FillDistortionConstants(uint32_t whichEye,
-                               const IntSize& textureSize, const IntRect& eyeViewport,
-                               const Size& destViewport, const Rect& destRect,
-                               VRDistortionConstants& values) override;
-
-  void Destroy();
-
-protected:
-  virtual ~HMDInfoOculus() {
-      Destroy();
-      MOZ_COUNT_DTOR_INHERITED(HMDInfoOculus, VRHMDInfo);
-  }
-
-  ovrHmd mHMD;
-  ovrFovPort mFOVPort[2];
-  uint32_t mStartCount;
-};
-
-static ovrFovPort
+ovrFovPort
 ToFovPort(const VRFieldOfView& aFOV)
 {
   ovrFovPort fovPort;
@@ -278,7 +190,7 @@ ToFovPort(const VRFieldOfView& aFOV)
   return fovPort;
 }
 
-static VRFieldOfView
+VRFieldOfView
 FromFovPort(const ovrFovPort& aFOV)
 {
   VRFieldOfView fovInfo;
@@ -288,6 +200,8 @@ FromFovPort(const ovrFovPort& aFOV)
   fovInfo.downDegrees = atan(aFOV.DownTan) * 180.0 / M_PI;
   return fovInfo;
 }
+
+} // anonymous namespace
 
 HMDInfoOculus::HMDInfoOculus(ovrHmd aHMD)
   : VRHMDInfo(VRHMDType::Oculus)
@@ -414,10 +328,10 @@ HMDInfoOculus::FillDistortionConstants(uint32_t whichEye,
 
   ovrHmd_GetRenderScaleAndOffset(mFOVPort[whichEye], texSize, eyePort, scaleOut);
 
-  values.eyeToSourceScaleAndOffset[0] = scaleOut[0].x;
-  values.eyeToSourceScaleAndOffset[1] = scaleOut[0].y;
-  values.eyeToSourceScaleAndOffset[2] = scaleOut[1].x;
-  values.eyeToSourceScaleAndOffset[3] = scaleOut[1].y;
+  values.eyeToSourceScaleAndOffset[0] = scaleOut[1].x;
+  values.eyeToSourceScaleAndOffset[1] = scaleOut[1].y;
+  values.eyeToSourceScaleAndOffset[2] = scaleOut[0].x;
+  values.eyeToSourceScaleAndOffset[3] = scaleOut[0].y;
 
   // These values are in clip space [-1..1] range, but we're providing
   // scaling in the 0..2 space for sanity.
@@ -513,71 +427,8 @@ HMDInfoOculus::GetSensorState(double timeOffset)
   return result;
 }
 
-namespace mozilla {
-namespace gfx {
-
-class VRHMDManagerOculusImpl {
-public:
-  VRHMDManagerOculusImpl() : mOculusInitialized(false), mOculusPlatformInitialized(false)
-  { }
-
-  bool PlatformInit();
-  bool Init();
-  void Destroy();
-  void GetOculusHMDs(nsTArray<nsRefPtr<VRHMDInfo> >& aHMDResult);
-protected:
-  nsTArray<nsRefPtr<HMDInfoOculus>> mOculusHMDs;
-  bool mOculusInitialized;
-  bool mOculusPlatformInitialized;
-};
-
-} // namespace gfx
-} // namespace mozilla
-
-VRHMDManagerOculusImpl *VRHMDManagerOculus::mImpl = nullptr;
-
-// These just forward to the Impl class, to have a non-static container for various
-// objects.
-
 bool
 VRHMDManagerOculus::PlatformInit()
-{
-  if (!mImpl) {
-    mImpl = new VRHMDManagerOculusImpl;
-  }
-  return mImpl->PlatformInit();
-}
-
-bool
-VRHMDManagerOculus::Init()
-{
-  if (!mImpl) {
-    mImpl = new VRHMDManagerOculusImpl;
-  }
-  return mImpl->Init();
-}
-
-void
-VRHMDManagerOculus::GetOculusHMDs(nsTArray<nsRefPtr<VRHMDInfo>>& aHMDResult)
-{
-  if (!mImpl) {
-    mImpl = new VRHMDManagerOculusImpl;
-  }
-  mImpl->GetOculusHMDs(aHMDResult);
-}
-
-void
-VRHMDManagerOculus::Destroy()
-{
-  if (!mImpl)
-    return;
-  mImpl->Destroy();
-  delete mImpl;
-  mImpl = nullptr;
-}
-
-bool
-VRHMDManagerOculusImpl::PlatformInit()
 {
   if (mOculusPlatformInitialized)
     return true;
@@ -598,7 +449,7 @@ VRHMDManagerOculusImpl::PlatformInit()
 }
 
 bool
-VRHMDManagerOculusImpl::Init()
+VRHMDManagerOculus::Init()
 {
   if (mOculusInitialized)
     return true;
@@ -610,8 +461,10 @@ VRHMDManagerOculusImpl::Init()
 
   for (int i = 0; i < count; ++i) {
     ovrHmd hmd = ovrHmd_Create(i);
-    nsRefPtr<HMDInfoOculus> oc = new HMDInfoOculus(hmd);
-    mOculusHMDs.AppendElement(oc);
+    if (hmd) {
+      nsRefPtr<HMDInfoOculus> oc = new HMDInfoOculus(hmd);
+      mOculusHMDs.AppendElement(oc);
+    }
   }
 
   // VRAddTestDevices == 1: add test device only if no real devices present
@@ -620,8 +473,10 @@ VRHMDManagerOculusImpl::Init()
       (gfxPrefs::VRAddTestDevices() == 2))
   {
     ovrHmd hmd = ovrHmd_CreateDebug(ovrHmd_DK2);
-    nsRefPtr<HMDInfoOculus> oc = new HMDInfoOculus(hmd);
-    mOculusHMDs.AppendElement(oc);
+    if (hmd) {
+      nsRefPtr<HMDInfoOculus> oc = new HMDInfoOculus(hmd);
+      mOculusHMDs.AppendElement(oc);
+    }
   }
 
   mOculusInitialized = true;
@@ -629,7 +484,7 @@ VRHMDManagerOculusImpl::Init()
 }
 
 void
-VRHMDManagerOculusImpl::Destroy()
+VRHMDManagerOculus::Destroy()
 {
   if (!mOculusInitialized)
     return;
@@ -645,7 +500,7 @@ VRHMDManagerOculusImpl::Destroy()
 }
 
 void
-VRHMDManagerOculusImpl::GetOculusHMDs(nsTArray<nsRefPtr<VRHMDInfo>>& aHMDResult)
+VRHMDManagerOculus::GetHMDs(nsTArray<nsRefPtr<VRHMDInfo>>& aHMDResult)
 {
   Init();
   for (size_t i = 0; i < mOculusHMDs.Length(); ++i) {

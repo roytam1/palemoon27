@@ -4855,6 +4855,39 @@ class LArrayConcat : public LCallInstructionHelper<1, 2, 2>
     }
 };
 
+class LArraySlice : public LCallInstructionHelper<1, 3, 2>
+{
+  public:
+    LIR_HEADER(ArraySlice)
+
+    LArraySlice(const LAllocation& obj, const LAllocation& begin, const LAllocation& end,
+                const LDefinition& temp1, const LDefinition& temp2) {
+        setOperand(0, obj);
+        setOperand(1, begin);
+        setOperand(2, end);
+        setTemp(0, temp1);
+        setTemp(1, temp2);
+    }
+    const MArraySlice* mir() const {
+        return mir_->toArraySlice();
+    }
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+    const LAllocation* begin() {
+        return getOperand(1);
+    }
+    const LAllocation* end() {
+        return getOperand(2);
+    }
+    const LDefinition* temp1() {
+        return getTemp(0);
+    }
+    const LDefinition* temp2() {
+        return getTemp(1);
+    }
+};
+
 class LArrayJoin : public LCallInstructionHelper<1, 2, 0>
 {
   public:
@@ -5079,6 +5112,35 @@ class LAtomicTypedArrayElementBinop : public LInstructionHelper<1, 3, 2>
     }
     const LDefinition* temp2() {
         return getTemp(1);
+    }
+
+    const MAtomicTypedArrayElementBinop* mir() const {
+        return mir_->toAtomicTypedArrayElementBinop();
+    }
+};
+
+// Atomic binary operation where the result is discarded.
+class LAtomicTypedArrayElementBinopForEffect : public LInstructionHelper<0, 3, 0>
+{
+  public:
+    LIR_HEADER(AtomicTypedArrayElementBinopForEffect)
+
+    LAtomicTypedArrayElementBinopForEffect(const LAllocation &elements, const LAllocation &index,
+                                           const LAllocation &value)
+    {
+        setOperand(0, elements);
+        setOperand(1, index);
+        setOperand(2, value);
+    }
+
+    const LAllocation* elements() {
+        return getOperand(0);
+    }
+    const LAllocation* index() {
+        return getOperand(1);
+    }
+    const LAllocation* value() {
+        return getOperand(2);
     }
 
     const MAtomicTypedArrayElementBinop* mir() const {
@@ -6512,6 +6574,39 @@ class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
 
     void setAddrTemp(const LDefinition &addrTemp) {
         setTemp(1, addrTemp);
+    }
+
+    MAsmJSAtomicBinopHeap* mir() const {
+        return mir_->toAsmJSAtomicBinopHeap();
+    }
+};
+
+// Atomic binary operation where the result is discarded.
+class LAsmJSAtomicBinopHeapForEffect : public LInstructionHelper<0, 2, 1>
+{
+  public:
+    LIR_HEADER(AsmJSAtomicBinopHeapForEffect);
+    LAsmJSAtomicBinopHeapForEffect(const LAllocation &ptr, const LAllocation &value)
+    {
+        setOperand(0, ptr);
+        setOperand(1, value);
+        setTemp(0, LDefinition::BogusTemp());
+    }
+    const LAllocation* ptr() {
+        return getOperand(0);
+    }
+    const LAllocation* value() {
+        return getOperand(1);
+    }
+    const LDefinition* temp() {
+        return getTemp(0);
+    }
+    const LDefinition* addrTemp() {
+        return getTemp(0);
+    }
+
+    void setAddrTemp(const LDefinition &addrTemp) {
+        setTemp(0, addrTemp);
     }
 
     MAsmJSAtomicBinopHeap* mir() const {

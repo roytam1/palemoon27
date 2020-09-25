@@ -372,8 +372,9 @@ struct BaselineStackBuilder
         MOZ_ASSERT(BaselineFrameReg == FramePointer);
         priorOffset -= sizeof(void*);
         return virtualPointerAtStackOffset(priorOffset);
-#elif defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
-        // On X64, ARM and MIPS, the frame pointer save location depends on
+#elif defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_ARM64) || \
+      defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_MIPS)
+        // On X64, ARM, ARM64, and MIPS, the frame pointer save location depends on
         // the caller of the rectifier frame.
         BufferPointer<RectifierFrameLayout> priorFrame =
             pointerAtStackOffset<RectifierFrameLayout>(priorOffset);
@@ -487,12 +488,10 @@ HasLiveIteratorAtStackDepth(JSScript* script, jsbytecode* pc, uint32_t stackDept
         if (tn->kind == JSTRY_FOR_IN && stackDepth == tn->stackDepth)
             return true;
 
-        // For-of loops have both the iterator and the result on stack.
-        if (tn->kind == JSTRY_FOR_OF &&
-            (stackDepth == tn->stackDepth || stackDepth == tn->stackDepth - 1))
-        {
+        // For-of loops have both the iterator and the result object on
+        // stack. The iterator is below the result object.
+        if (tn->kind == JSTRY_FOR_OF && stackDepth == tn->stackDepth - 1)
             return true;
-        }
     }
 
     return false;
@@ -1571,10 +1570,10 @@ jit::BailoutIonToBaseline(JSContext* cx, JitActivation* activation, JitFrameIter
 
     // Do stack check.
     bool overRecursed = false;
-    BaselineBailoutInfo* info = builder.info();
+    BaselineBailoutInfo *info = builder.info();
     uint8_t* newsp = info->incomingStack - (info->copyStackTop - info->copyStackBottom);
-#if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
-    if (Simulator::Current()->overRecursed(uintptr_t(newsp)))
+#if defined(JS_ARM_SIMULATOR) || defined(JS_ARM64_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
+    if (SimulatorType::Current()->overRecursed(uintptr_t(newsp)))
         overRecursed = true;
 #else
     JS_CHECK_RECURSION_WITH_SP_DONT_REPORT(cx, newsp, overRecursed = true);

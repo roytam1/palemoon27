@@ -21,6 +21,12 @@
 
 struct JSCompartment;
 
+namespace JS {
+namespace dbg {
+class AutoEntryMonitor;
+}
+}
+
 namespace js {
 
 class ArgumentsObject;
@@ -1085,6 +1091,11 @@ class Activation
     // Value of asyncCause to be attached to asyncStack_.
     RootedString asyncCause_;
 
+    // The entry point monitor that was set on cx_->runtime() when this
+    // Activation was created. Subclasses should report their entry frame's
+    // function or script here.
+    JS::dbg::AutoEntryMonitor* entryMonitor_;
+
     enum Kind { Interpreter, Jit, AsmJS };
     Kind kind_;
 
@@ -1280,6 +1291,15 @@ class JitActivation : public Activation
     JSContext* prevJitJSContext_;
     bool active_;
 
+    // The lazy link stub reuse the frame pushed for calling a function as an
+    // exit frame. In a few cases, such as after calls from asm.js, we might
+    // have an entry frame followed by an exit frame. This pattern can be
+    // assimilated as a fake exit frame (unwound frame), in which case we skip
+    // marking during a GC. To ensure that we do mark the stack as expected we
+    // have to keep a flag set by the LazyLink VM function to safely mark the
+    // stack if a GC happens during the link phase.
+    bool isLazyLinkExitFrame_;
+
     // Rematerialized Ion frames which has info copied out of snapshots. Maps
     // frame pointers (i.e. jitTop) to a vector of rematerializations of all
     // inline frames associated with that frame.
@@ -1325,7 +1345,11 @@ class JitActivation : public Activation
 #endif
 
   public:
-    explicit JitActivation(JSContext* cx, bool active = true);
+    // If non-null, |entryScript| should be the script we're about to begin
+    // executing, for the benefit of performance tooling. We can pass null for
+    // entryScript when we know we couldn't possibly be entering JS directly
+    // from the JSAPI: OSR, asm.js -> Ion transitions, and so on.
+    explicit JitActivation(JSContext* cx, CalleeToken entryPoint, bool active = true);
     ~JitActivation();
 
     bool isActive() const {
@@ -1407,6 +1431,14 @@ class JitActivation : public Activation
 
     // Unregister the bailout data when the frame is reconstructed.
     void cleanBailoutData();
+
+    // Return the bailout information if it is registered.
+    bool isLazyLinkExitFrame() const { return isLazyLinkExitFrame_; }
+
+    // Register the bailout data when it is constructed.
+    void setLazyLinkExitFrame(bool isExitFrame) {
+        isLazyLinkExitFrame_ = isExitFrame;
+    }
 
     static size_t offsetOfLastProfilingFrame() {
         return offsetof(JitActivation, lastProfilingFrame_);

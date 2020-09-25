@@ -23,7 +23,6 @@
 #include "mozilla/StartupTimeline.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/unused.h"
-#include "mozilla/VisualEventTracer.h"
 #include "URIUtils.h"
 
 #include "nsIContent.h"
@@ -3017,7 +3016,7 @@ nsDocShell::PopProfileTimelineMarkers(
       marker->mName = NS_ConvertUTF8toUTF16(startPayload->GetName());
       marker->mStart = startPayload->GetTime();
       marker->mEnd = startPayload->GetTime();
-      startPayload->AddDetails(*marker);
+      startPayload->AddDetails(aCx, *marker);
       continue;
     }
 
@@ -3065,8 +3064,8 @@ nsDocShell::PopProfileTimelineMarkers(
               if (isPaint) {
                 marker->mRectangles.Construct(layerRectangles);
               }
-              startPayload->AddDetails(*marker);
-              endPayload->AddDetails(*marker);
+              startPayload->AddDetails(aCx, *marker);
+              endPayload->AddDetails(aCx, *marker);
             }
 
             // We want the start to be dropped either way.
@@ -7553,8 +7552,6 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
     return NS_ERROR_NULL_POINTER;
   }
 
-  MOZ_EVENT_TRACER_DONE(this, "docshell::pageload");
-
   nsCOMPtr<nsIURI> url;
   nsresult rv = aChannel->GetURI(getter_AddRefs(url));
   if (NS_FAILED(rv)) {
@@ -10611,13 +10608,6 @@ nsDocShell::DoURILoad(nsIURI* aURI,
                       nsIURI* aBaseURI,
                       nsContentPolicyType aContentPolicyType)
 {
-#ifdef MOZ_VISUAL_EVENT_TRACER
-  nsAutoCString urlSpec;
-  aURI->GetAsciiSpec(urlSpec);
-  MOZ_EVENT_TRACER_NAME_OBJECT(this, urlSpec.BeginReading());
-  MOZ_EVENT_TRACER_EXEC(this, "docshell::pageload");
-#endif
-
   nsresult rv;
   nsCOMPtr<nsIURILoader> uriLoader;
 
@@ -14118,27 +14108,61 @@ class JavascriptTimelineMarker : public TimelineMarker
 {
 public:
   JavascriptTimelineMarker(nsDocShell* aDocShell, const char* aName,
-                           const char* aReason)
+                           const char* aReason,
+                           const char16_t* aFunctionName,
+                           const char16_t* aFileName,
+                           uint32_t aLineNumber)
     : TimelineMarker(aDocShell, aName, TRACING_INTERVAL_START,
-                     NS_ConvertUTF8toUTF16(aReason))
+                     NS_ConvertUTF8toUTF16(aReason),
+                     NO_STACK)
+    , mFunctionName(aFunctionName)
+    , mFileName(aFileName)
+    , mLineNumber(aLineNumber)
   {
   }
 
-  void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker) override
+  void AddDetails(JSContext* aCx, mozilla::dom::ProfileTimelineMarker& aMarker)
+    override
   {
     aMarker.mCauseName.Construct(GetCause());
+
+    if (!mFunctionName.IsEmpty() || !mFileName.IsEmpty()) {
+      RootedDictionary<ProfileTimelineStackFrame> stackFrame(aCx);
+      stackFrame.mLine.Construct(mLineNumber);
+      stackFrame.mSource.Construct(mFileName);
+      stackFrame.mFunctionDisplayName.Construct(mFunctionName);
+
+      JS::Rooted<JS::Value> newStack(aCx);
+      if (ToJSValue(aCx, stackFrame, &newStack)) {
+        if (newStack.isObject()) {
+          aMarker.mStack = &newStack.toObject();
+        }
+      } else {
+        JS_ClearPendingException(aCx);
+      }
+    }
   }
+
+private:
+  nsString mFunctionName;
+  nsString mFileName;
+  uint32_t mLineNumber;
 };
 
 void
-nsDocShell::NotifyJSRunToCompletionStart(const char* aReason)
+nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
+                                         const char16_t* aFunctionName,
+                                         const char16_t* aFilename,
+                                         const uint32_t aLineNumber)
 {
   bool timelineOn = nsIDocShell::GetRecordProfileTimelineMarkers();
 
   // If first start, mark interval start.
   if (timelineOn && mJSRunToCompletionDepth == 0) {
     mozilla::UniquePtr<TimelineMarker> marker =
-      MakeUnique<JavascriptTimelineMarker>(this, "Javascript", aReason);
+      MakeUnique<JavascriptTimelineMarker>(this, "Javascript", aReason,
+                                           aFunctionName, aFilename,
+                                           aLineNumber);
     AddProfileTimelineMarker(Move(marker));
   }
   mJSRunToCompletionDepth++;

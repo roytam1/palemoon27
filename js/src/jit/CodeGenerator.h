@@ -146,8 +146,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitUnreachable(LUnreachable* unreachable);
     void visitEncodeSnapshot(LEncodeSnapshot* lir);
     void visitGetDynamicName(LGetDynamicName* lir);
-    void visitCallDirectEvalS(LCallDirectEvalS* lir);
-    void visitCallDirectEvalV(LCallDirectEvalV* lir);
+    void visitCallDirectEval(LCallDirectEval* lir);
     void visitDoubleToInt32(LDoubleToInt32* lir);
     void visitFloat32ToInt32(LFloat32ToInt32* lir);
     void visitNewArrayCallVM(LNewArray* lir);
@@ -184,6 +183,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitSetArrayLength(LSetArrayLength* lir);
     void visitTypedArrayLength(LTypedArrayLength* lir);
     void visitTypedArrayElements(LTypedArrayElements* lir);
+    void visitSetDisjointTypedElements(LSetDisjointTypedElements* lir);
     void visitTypedObjectElements(LTypedObjectElements* lir);
     void visitSetTypedObjectOffset(LSetTypedObjectOffset* lir);
     void visitTypedObjectDescr(LTypedObjectDescr* ins);
@@ -322,6 +322,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitLexicalCheck(LLexicalCheck* ins);
     void visitThrowUninitializedLexical(LThrowUninitializedLexical* ins);
     void visitDebugger(LDebugger* ins);
+    void visitNewTarget(LNewTarget* ins);
 
     void visitCheckOverRecursed(LCheckOverRecursed* lir);
     void visitCheckOverRecursedFailure(CheckOverRecursedFailure* ool);

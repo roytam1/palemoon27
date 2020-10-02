@@ -4027,7 +4027,7 @@ class MGetDynamicName
 class MCallDirectEval
   : public MAryInstruction<3>,
     public Mix3Policy<ObjectPolicy<0>,
-                      BoxExceptPolicy<1, MIRType_String>,
+                      StringPolicy<1>,
                       BoxPolicy<2> >::Data
 {
   protected:
@@ -8037,6 +8037,49 @@ class MTypedArrayElements
     ALLOW_CLONE(MTypedArrayElements)
 };
 
+class MSetDisjointTypedElements
+  : public MTernaryInstruction,
+    public NoTypePolicy::Data
+{
+    explicit MSetDisjointTypedElements(MDefinition* target, MDefinition* targetOffset,
+                                       MDefinition* source)
+      : MTernaryInstruction(target, targetOffset, source)
+    {
+        MOZ_ASSERT(target->type() == MIRType_Object);
+        MOZ_ASSERT(targetOffset->type() == MIRType_Int32);
+        MOZ_ASSERT(source->type() == MIRType_Object);
+        setResultType(MIRType_None);
+    }
+
+  public:
+    INSTRUCTION_HEADER(SetDisjointTypedElements)
+
+    static MSetDisjointTypedElements*
+    New(TempAllocator& alloc, MDefinition* target, MDefinition* targetOffset,
+        MDefinition* source)
+    {
+        return new(alloc) MSetDisjointTypedElements(target, targetOffset, source);
+    }
+
+    MDefinition* target() const {
+        return getOperand(0);
+    }
+
+    MDefinition* targetOffset() const {
+        return getOperand(1);
+    }
+
+    MDefinition* source() const {
+        return getOperand(2);
+    }
+
+    AliasSet getAliasSet() const override {
+        return AliasSet::Store(AliasSet::UnboxedElement);
+    }
+
+    ALLOW_CLONE(MSetDisjointTypedElements)
+};
+
 // Load a binary data object's "elements", which is just its opaque
 // binary data space. Eventually this should probably be
 // unified with `MTypedArrayElements`.
@@ -11925,6 +11968,28 @@ class MGetFrameArgument
         // aliased.
         if (scriptHasSetArg_)
             return AliasSet::Load(AliasSet::FrameArgument);
+        return AliasSet::None();
+    }
+};
+
+class MNewTarget : public MNullaryInstruction
+{
+    MNewTarget() : MNullaryInstruction() {
+        setResultType(MIRType_Value);
+        setMovable();
+    }
+
+  public:
+    INSTRUCTION_HEADER(NewTarget)
+
+    static MNewTarget* New(TempAllocator& alloc) {
+        return new(alloc) MNewTarget();
+    }
+
+    bool congruentTo(const MDefinition* ins) const override {
+        return congruentIfOperandsEqual(ins);
+    }
+    AliasSet getAliasSet() const override {
         return AliasSet::None();
     }
 };

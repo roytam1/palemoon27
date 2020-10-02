@@ -582,24 +582,13 @@ LIRGenerator::visitCallDirectEval(MCallDirectEval* ins)
     MOZ_ASSERT(scopeChain->type() == MIRType_Object);
 
     MDefinition* string = ins->getString();
-    MOZ_ASSERT(string->type() == MIRType_String || string->type() == MIRType_Value);
+    MOZ_ASSERT(string->type() == MIRType_String);
 
     MDefinition* thisValue = ins->getThisValue();
 
-
-    LInstruction* lir;
-    if (string->type() == MIRType_String) {
-        lir = new(alloc()) LCallDirectEvalS(useRegisterAtStart(scopeChain),
-                                            useRegisterAtStart(string));
-    } else {
-        lir = new(alloc()) LCallDirectEvalV(useRegisterAtStart(scopeChain));
-        useBoxAtStart(lir, LCallDirectEvalV::Argument, string);
-    }
-
-    if (string->type() == MIRType_String)
-        useBoxAtStart(lir, LCallDirectEvalS::ThisValue, thisValue);
-    else
-        useBoxAtStart(lir, LCallDirectEvalV::ThisValue, thisValue);
+    LInstruction* lir = new(alloc()) LCallDirectEval(useRegisterAtStart(scopeChain),
+                                                     useRegisterAtStart(string));
+    useBoxAtStart(lir, LCallDirectEval::ThisValue, thisValue);
 
     defineReturn(lir, ins);
     assignSafepoint(lir, ins);
@@ -2419,6 +2408,27 @@ LIRGenerator::visitTypedArrayElements(MTypedArrayElements* ins)
 }
 
 void
+LIRGenerator::visitSetDisjointTypedElements(MSetDisjointTypedElements* ins)
+{
+    MOZ_ASSERT(ins->type() == MIRType_None);
+
+    MDefinition* target = ins->target();
+    MOZ_ASSERT(target->type() == MIRType_Object);
+
+    MDefinition* targetOffset = ins->targetOffset();
+    MOZ_ASSERT(targetOffset->type() == MIRType_Int32);
+
+    MDefinition* source = ins->source();
+    MOZ_ASSERT(source->type() == MIRType_Object);
+
+    auto lir = new(alloc()) LSetDisjointTypedElements(useRegister(target),
+                                                      useRegister(targetOffset),
+                                                      useRegister(source),
+                                                      temp());
+    add(lir, ins);
+}
+
+void
 LIRGenerator::visitTypedObjectDescr(MTypedObjectDescr* ins)
 {
     MOZ_ASSERT(ins->type() == MIRType_Object);
@@ -3512,6 +3522,13 @@ void
 LIRGenerator::visitGetFrameArgument(MGetFrameArgument* ins)
 {
     LGetFrameArgument* lir = new(alloc()) LGetFrameArgument(useRegisterOrConstant(ins->index()));
+    defineBox(lir, ins);
+}
+
+void
+LIRGenerator::visitNewTarget(MNewTarget* ins)
+{
+    LNewTarget* lir = new(alloc()) LNewTarget();
     defineBox(lir, ins);
 }
 

@@ -91,6 +91,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "SimpleServiceDiscovery",
 XPCOMUtils.defineLazyModuleGetter(this, "ContentSearch",
                                   "resource:///modules/ContentSearch.jsm");
 
+#ifdef MOZ_CRASHREPORTER
+XPCOMUtils.defineLazyModuleGetter(this, "TabCrashReporter",
+                                  "resource:///modules/ContentCrashReporters.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PluginCrashReporter",
+                                  "resource:///modules/ContentCrashReporters.jsm");
+#endif
+
 XPCOMUtils.defineLazyModuleGetter(this, "ReaderParent",
                                   "resource:///modules/ReaderParent.jsm");
 
@@ -554,6 +561,11 @@ BrowserGlue.prototype = {
 
     LoginManagerParent.init();
     ReaderParent.init();
+
+#ifdef MOZ_CRASHREPORTER
+    TabCrashReporter.init();
+    PluginCrashReporter.init();
+#endif
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
 

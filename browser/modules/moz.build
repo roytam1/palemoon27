@@ -13,6 +13,7 @@ EXTRA_JS_MODULES += [
     'BrowserNewTabPreloader.jsm',
     'CastingApps.jsm',
     'ContentClick.jsm',
+    'ContentCrashReporters.jsm',
     'ContentLinkHandler.jsm',
     'ContentSearch.jsm',
     'E10SUtils.jsm',

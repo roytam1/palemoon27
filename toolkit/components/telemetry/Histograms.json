@@ -4072,6 +4072,12 @@
     "n_buckets": 30,
     "description": "The subset of sessionstore.js dealing with storing history (item size, in bytes)"
   },
+  "FX_SESSION_RESTORE_SEND_UPDATE_CAUSED_OOM": {
+    "alert_emails": ["session-restore-telemetry-alerts@mozilla.com"],
+    "expires_in_version": "default",
+    "kind": "count",
+    "description": "Count of messages sent by SessionRestore from child frames to the parent and that cannot be transmitted as they eat up too much memory."
+  },
   "INNERWINDOWS_WITH_MUTATION_LISTENERS": {
     "expires_in_version": "never",
     "kind": "boolean",
@@ -5450,7 +5456,7 @@
     "expires_in_version": "never",
     "kind": "enumerated",
     "n_values": 13,
-    "description": "Screen resolution of DevTools user (0:lower, 1:800x600, 2:1024x768, 3:1280x800, 4:1280x1024, 5:1366x768, 6:1440x900, 7:1920x1080, 8:2560×1440, 9:2560×1600, 10:2880x1800, 11:other, 12:higher)"
+    "description": "Screen resolution of DevTools user (0:lower, 1:800x600, 2:1024x768, 3:1280x800, 4:1280x1024, 5:1366x768, 6:1440x900, 7:1920x1080, 8:2560?1440, 9:2560?1600, 10:2880x1800, 11:other, 12:higher)"
   },
   "DEVTOOLS_WEBIDE_OPENED_BOOLEAN": {
     "expires_in_version": "never",

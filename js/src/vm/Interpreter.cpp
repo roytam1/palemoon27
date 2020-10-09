@@ -362,8 +362,8 @@ InvokeState::pushInterpreterFrame(JSContext* cx)
 InterpreterFrame*
 ExecuteState::pushInterpreterFrame(JSContext* cx)
 {
-    return cx->runtime()->interpreterStack().pushExecuteFrame(cx, script_, thisv_, scopeChain_,
-                                                              type_, evalInFrame_);
+    return cx->runtime()->interpreterStack().pushExecuteFrame(cx, script_, thisv_, newTargetValue_,
+                                                              scopeChain_, type_, evalInFrame_);
 }
 namespace js {
 
@@ -381,8 +381,7 @@ struct AutoStopwatch final
     //
     // Previous owner is restored upon destruction.
     explicit inline AutoStopwatch(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : compartment_(nullptr)
-      , runtime_(nullptr)
+      : cx_(cx)
       , iteration_(0)
       , isActive_(false)
       , isTop_(false)
@@ -391,16 +390,18 @@ struct AutoStopwatch final
       , CPOWTimeStart_(0)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        runtime_ = cx->runtime();
-        if (!runtime_->stopwatch.isActive())
-            return;
-        compartment_ = cx->compartment();
-        MOZ_ASSERT(compartment_);
-        if (compartment_->scheduledForDestruction)
-            return;
-        iteration_ = runtime_->stopwatch.iteration;
 
-        PerformanceGroup* group = compartment_->performanceMonitoring.getGroup();
+        JSRuntime* runtime = JS_GetRuntime(cx_);
+        if (!runtime->stopwatch.isMonitoringJank())
+            return;
+
+        JSCompartment* compartment = cx_->compartment();
+        if (compartment->scheduledForDestruction)
+            return;
+
+        iteration_ = runtime->stopwatch.iteration;
+
+        PerformanceGroup *group = compartment->performanceMonitoring.getGroup(cx);
         MOZ_ASSERT(group);
 
         if (group->hasStopwatch(iteration_)) {
@@ -410,22 +411,22 @@ struct AutoStopwatch final
         }
 
         // Start the stopwatch.
-        if (!this->getTimes(&userTimeStart_, &systemTimeStart_))
+        if (!this->getTimes(runtime, &userTimeStart_, &systemTimeStart_))
             return;
         isActive_ = true;
-        CPOWTimeStart_ = runtime_->stopwatch.performance.totalCPOWTime;
+        CPOWTimeStart_ = runtime->stopwatch.performance.totalCPOWTime;
 
         // We are now in charge of monitoring this group for the tick,
         // until destruction of `this` or until we enter a nested event
         // loop and `iteration_` is incremented.
         group->acquireStopwatch(iteration_, this);
 
-        if (runtime_->stopwatch.isEmpty) {
+        if (runtime->stopwatch.isEmpty) {
             // This is the topmost stopwatch on the stack.
             // It will be in charge of updating the per-process
             // performance data.
-            runtime_->stopwatch.isEmpty = false;
-            runtime_->stopwatch.performance.ticks++;
+            runtime->stopwatch.isEmpty = false;
+            runtime->stopwatch.performance.ticks++;
             isTop_ = true;
         }
     }
@@ -435,32 +436,35 @@ struct AutoStopwatch final
             return;
         }
 
-        MOZ_ASSERT(!compartment_->scheduledForDestruction);
+        JSRuntime* runtime = JS_GetRuntime(cx_);
+        JSCompartment* compartment = cx_->compartment();
 
-        if (!runtime_->stopwatch.isActive()) {
+        MOZ_ASSERT(!compartment->scheduledForDestruction);
+
+        if (!runtime->stopwatch.isMonitoringJank()) {
             // Monitoring has been stopped while we were
             // executing the code. Drop everything.
             return;
         }
 
-        if (iteration_ != runtime_->stopwatch.iteration) {
+        if (iteration_ != runtime->stopwatch.iteration) {
             // We have entered a nested event loop at some point.
             // Any information we may have is obsolete.
             return;
         }
 
-        PerformanceGroup* group = compartment_->performanceMonitoring.getGroup();
+        PerformanceGroup *group = compartment->performanceMonitoring.getGroup(cx_);
         MOZ_ASSERT(group);
 
         // Compute time spent.
         group->releaseStopwatch(iteration_, this);
         uint64_t userTimeEnd, systemTimeEnd;
-        if (!this->getTimes(&userTimeEnd, &systemTimeEnd))
+        if (!this->getTimes(runtime, &userTimeEnd, &systemTimeEnd))
             return;
 
         uint64_t userTimeDelta = userTimeEnd - userTimeStart_;
         uint64_t systemTimeDelta = systemTimeEnd - systemTimeStart_;
-        uint64_t CPOWTimeDelta = runtime_->stopwatch.performance.totalCPOWTime - CPOWTimeStart_;
+        uint64_t CPOWTimeDelta = runtime->stopwatch.performance.totalCPOWTime - CPOWTimeStart_;
         group->data.totalUserTime += userTimeDelta;
         group->data.totalSystemTime += systemTimeDelta;
         group->data.totalCPOWTime += CPOWTimeDelta;
@@ -472,10 +476,10 @@ struct AutoStopwatch final
         if (isTop_) {
             // This is the topmost stopwatch on the stack.
             // Record the timing information.
-            runtime_->stopwatch.performance.totalUserTime = userTimeEnd;
-            runtime_->stopwatch.performance.totalSystemTime = systemTimeEnd;
-            updateDurations(totalTimeDelta, runtime_->stopwatch.performance.durations);
-            runtime_->stopwatch.isEmpty = true;
+            runtime->stopwatch.performance.totalUserTime = userTimeEnd;
+            runtime->stopwatch.performance.totalSystemTime = systemTimeEnd;
+            updateDurations(totalTimeDelta, runtime->stopwatch.performance.durations);
+            runtime->stopwatch.isEmpty = true;
         }
     }
 
@@ -499,7 +503,7 @@ struct AutoStopwatch final
     // Get the OS-reported time spent in userland/systemland, in
     // microseconds. On most platforms, this data is per-thread,
     // but on some platforms we need to fall back to per-process.
-    bool getTimes(uint64_t* userTime, uint64_t* systemTime) const {
+    bool getTimes(JSRuntime* runtime, uint64_t* userTime, uint64_t* systemTime) const {
         MOZ_ASSERT(userTime);
         MOZ_ASSERT(systemTime);
 
@@ -563,12 +567,12 @@ struct AutoStopwatch final
         kernelTimeInt.LowPart = kernelFileTime.dwLowDateTime;
         kernelTimeInt.HighPart = kernelFileTime.dwHighDateTime;
         // Convert 100 ns to 1 us, make sure that the result is monotonic
-        *systemTime = runtime_-> stopwatch.systemTimeFix.monotonize(kernelTimeInt.QuadPart / 10);
+        *systemTime = runtime->stopwatch.systemTimeFix.monotonize(kernelTimeInt.QuadPart / 10);
 
         userTimeInt.LowPart = userFileTime.dwLowDateTime;
         userTimeInt.HighPart = userFileTime.dwHighDateTime;
         // Convert 100 ns to 1 us, make sure that the result is monotonic
-        *userTime = runtime_-> stopwatch.userTimeFix.monotonize(userTimeInt.QuadPart / 10);
+        *userTime = runtime->stopwatch.userTimeFix.monotonize(userTimeInt.QuadPart / 10);
 
 #endif // defined(XP_MACOSX) || defined(XP_UNIX) || defined(XP_WIN)
 
@@ -576,13 +580,9 @@ struct AutoStopwatch final
     }
 
   private:
-    // The compartment with which this object was initialized.
+    // The context with which this object was initialized.
     // Non-null.
-    JSCompartment* compartment_;
-
-    // The runtime with which this object was initialized.
-    // Non-null.
-    JSRuntime* runtime_;
+    JSContext* const cx_;
 
     // An indication of the number of times we have entered the event
     // loop.  Used only for comparison.
@@ -844,7 +844,8 @@ js::InvokeSetter(JSContext* cx, const Value& thisv, Value fval, HandleValue v)
 
 bool
 js::ExecuteKernel(JSContext* cx, HandleScript script, JSObject& scopeChainArg, const Value& thisv,
-                  ExecuteType type, AbstractFramePtr evalInFrame, Value* result)
+                  const Value& newTargetValue, ExecuteType type, AbstractFramePtr evalInFrame,
+                  Value* result)
 {
     MOZ_ASSERT_IF(evalInFrame, type == EXECUTE_DEBUG);
     MOZ_ASSERT_IF(type == EXECUTE_GLOBAL, !IsSyntacticScope(&scopeChainArg));
@@ -879,7 +880,7 @@ js::ExecuteKernel(JSContext* cx, HandleScript script, JSObject& scopeChainArg, c
     TypeScript::SetThis(cx, script, thisv);
 
     probes::StartExecution(script);
-    ExecuteState state(cx, script, thisv, scopeChainArg, type, evalInFrame, result);
+    ExecuteState state(cx, script, thisv, newTargetValue, scopeChainArg, type, evalInFrame, result);
     bool ok = RunScript(cx, state);
     probes::StopExecution(script);
 
@@ -919,7 +920,7 @@ js::Execute(JSContext* cx, HandleScript script, JSObject& scopeChainArg, Value* 
         return false;
     Value thisv = ObjectValue(*thisObj);
 
-    return ExecuteKernel(cx, script, *scopeChain, thisv, EXECUTE_GLOBAL,
+    return ExecuteKernel(cx, script, *scopeChain, thisv, NullValue(), EXECUTE_GLOBAL,
                          NullFramePtr() /* evalInFrame */, rval);
 }
 
@@ -3465,12 +3466,14 @@ CASE(JSOP_LAMBDA_ARROW)
 {
     /* Load the specified function object literal. */
     ReservedRooted<JSFunction*> fun(&rootFunction0, script->getFunction(GET_UINT32_INDEX(REGS.pc)));
-    ReservedRooted<Value> thisv(&rootValue0, REGS.sp[-1]);
-    JSObject* obj = LambdaArrow(cx, fun, REGS.fp()->scopeChain(), thisv);
+    ReservedRooted<Value> thisv(&rootValue0, REGS.sp[-2]);
+    ReservedRooted<Value> newTarget(&rootValue1, REGS.sp[-1]);
+    JSObject* obj = LambdaArrow(cx, fun, REGS.fp()->scopeChain(), thisv, newTarget);
     if (!obj)
         goto error;
     MOZ_ASSERT(obj->getProto());
-    REGS.sp[-1].setObject(*obj);
+    REGS.sp[-2].setObject(*obj);
+    REGS.sp--;
 }
 END_CASE(JSOP_LAMBDA_ARROW)
 
@@ -4010,6 +4013,7 @@ END_CASE(JSOP_SUPERBASE)
 
 CASE(JSOP_NEWTARGET)
     PUSH_COPY(REGS.fp()->newTarget());
+    MOZ_ASSERT(REGS.sp[-1].isObject() || REGS.sp[-1].isUndefined());
 END_CASE(JSOP_NEWTARGET)
 
 DEFAULT()
@@ -4211,7 +4215,8 @@ js::Lambda(JSContext* cx, HandleFunction fun, HandleObject parent)
 }
 
 JSObject*
-js::LambdaArrow(JSContext* cx, HandleFunction fun, HandleObject parent, HandleValue thisv)
+js::LambdaArrow(JSContext* cx, HandleFunction fun, HandleObject parent, HandleValue thisv,
+                HandleValue newTargetv)
 {
     MOZ_ASSERT(fun->isArrow());
 
@@ -4222,6 +4227,7 @@ js::LambdaArrow(JSContext* cx, HandleFunction fun, HandleObject parent, HandleVa
 
     MOZ_ASSERT(clone->as<JSFunction>().isArrow());
     clone->as<JSFunction>().setExtendedSlot(0, thisv);
+    clone->as<JSFunction>().setExtendedSlot(1, newTargetv);
 
     MOZ_ASSERT(fun->global() == clone->global());
     return clone;

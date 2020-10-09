@@ -105,7 +105,6 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter* parent,
                                  Parser<FullParseHandler>* parser, SharedContext* sc,
                                  HandleScript script, Handle<LazyScript*> lazyScript,
                                  bool insideEval, HandleScript evalCaller,
-                                 Handle<StaticEvalObject*> staticEvalScope,
                                  bool insideNonGlobalEval, uint32_t lineNum,
                                  EmitterMode emitterMode)
   : sc(sc),
@@ -118,7 +117,6 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter* parent,
     current(&main),
     parser(parser),
     evalCaller(evalCaller),
-    evalStaticScope(staticEvalScope),
     topStmt(nullptr),
     topScopeStmt(nullptr),
     staticScope(cx),
@@ -143,8 +141,6 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter* parent,
 {
     MOZ_ASSERT_IF(evalCaller, insideEval);
     MOZ_ASSERT_IF(emitterMode == LazyFunction, lazyScript);
-    // Function scripts are never eval scripts.
-    MOZ_ASSERT_IF(evalStaticScope, !sc->isFunctionBox());
 }
 
 bool
@@ -773,7 +769,7 @@ BytecodeEmitter::enclosingStaticScope()
 
         // Top-level eval scripts have a placeholder static scope so that
         // StaticScopeIter may iterate through evals.
-        return evalStaticScope;
+        return sc->asGlobalSharedContext()->evalStaticScope();
     }
 
     return sc->asFunctionBox()->function();
@@ -5416,6 +5412,19 @@ BytecodeEmitter::emitFor(ParseNode* pn, ptrdiff_t top)
     return emitNormalFor(pn, top);
 }
 
+bool
+BytecodeEmitter::arrowNeedsNewTarget()
+{
+    for (BytecodeEmitter* bce = this; bce; bce = bce->parent) {
+        SharedContext *sc = bce->sc;
+        if (sc->isFunctionBox() && sc->asFunctionBox()->function()->isArrow())
+            continue;
+
+        return sc->allowSyntax(SharedContext::AllowedSyntax::NewTarget);
+    }
+    MOZ_CRASH("impossible parent chain");
+}
+
 MOZ_NEVER_INLINE bool
 BytecodeEmitter::emitFunction(ParseNode* pn, bool needsProto)
 {
@@ -5487,7 +5496,6 @@ BytecodeEmitter::emitFunction(ParseNode* pn, bool needsProto)
             uint32_t lineNum = parser->tokenStream.srcCoords.lineNum(pn->pn_pos.begin);
             BytecodeEmitter bce2(this, parser, funbox, script, /* lazyScript = */ nullptr,
                                  insideEval, evalCaller,
-                                 /* evalStaticScope = */ nullptr,
                                  insideNonGlobalEval, lineNum, emitterMode);
             if (!bce2.init())
                 return false;
@@ -5508,10 +5516,21 @@ BytecodeEmitter::emitFunction(ParseNode* pn, bool needsProto)
 
     /* Non-hoisted functions simply emit their respective op. */
     if (!pn->functionIsHoisted()) {
-        /* JSOP_LAMBDA_ARROW is always preceded by JSOP_THIS. */
+        /* JSOP_LAMBDA_ARROW is always preceded by JSOP_THIS and a new.target */
         MOZ_ASSERT(fun->isArrow() == (pn->getOp() == JSOP_LAMBDA_ARROW));
-        if (fun->isArrow() && !emit1(JSOP_THIS))
-            return false;
+        if (fun->isArrow()) {
+            if (!emit1(JSOP_THIS))
+                return false;
+
+            if (arrowNeedsNewTarget()) {
+                if (!emit1(JSOP_NEWTARGET))
+                    return false;
+            } else {
+                if (!emit1(JSOP_NULL))
+                    return false;
+            }
+        }
+
         if (needsProto) {
             MOZ_ASSERT(pn->getOp() == JSOP_LAMBDA);
             pn->setOp(JSOP_FUNWITHPROTO);

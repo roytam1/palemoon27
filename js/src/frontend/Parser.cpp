@@ -701,8 +701,9 @@ Parser<ParseHandler>::parse(JSObject* chain)
      *   protected from the GC by a root or a stack frame reference.
      */
     Directives directives(options().strictOption);
-    GlobalSharedContext globalsc(context, directives, options().extraWarningsOption,
-                                 /* allowSuperProperty = */ false);
+    GlobalSharedContext globalsc(context, directives,
+                                 /* staticEvalScope = */ nullptr,
+                                 options().extraWarningsOption);
     ParseContext<ParseHandler> globalpc(this, /* parent = */ nullptr, ParseHandler::null(),
                                         &globalsc, /* newDirectives = */ nullptr,
                                         /* staticLevel = */ 0, /* bodyid = */ 0,
@@ -7744,18 +7745,35 @@ Parser<ParseHandler>::argumentList(YieldHandling yieldHandling, Node listNode, b
 
 template <typename ParseHandler>
 bool
-Parser<ParseHandler>::checkAndMarkSuperScope()
+Parser<ParseHandler>::checkAllowedNestedSyntax(SharedContext::AllowedSyntax allowed,
+                                               SharedContext** allowingContext)
 {
     for (GenericParseContext* gpc = pc; gpc; gpc = gpc->parent) {
         SharedContext* sc = gpc->sc;
-        if (sc->allowSuperProperty()) {
-            if (sc->isFunctionBox())
-                sc->asFunctionBox()->setNeedsHomeObject();
-            return true;
-        } else if (sc->isFunctionBox() && !sc->asFunctionBox()->function()->isArrow()) {
-            // super is not legal in normal functions.
-            break;
-        }
+
+        // Arrow functions don't help decide whether we should allow nested
+        // syntax, as they don't store any of the necessary state for themselves.
+        if (sc->isFunctionBox() && sc->asFunctionBox()->function()->isArrow())
+            continue;
+
+        if (!sc->allowSyntax(allowed))
+            return false;
+        if (allowingContext)
+            *allowingContext = sc;
+        return true;
+    }
+    return false;
+}
+
+template <typename ParseHandler>
+bool
+Parser<ParseHandler>::checkAndMarkSuperScope()
+{
+    SharedContext* foundContext = nullptr;
+    if (checkAllowedNestedSyntax(SharedContext::AllowedSyntax::SuperProperty, &foundContext)) {
+        if (foundContext->isFunctionBox())
+            foundContext->asFunctionBox()->setNeedsHomeObject();
+        return true;
     }
     return false;
 }
@@ -7894,7 +7912,7 @@ Parser<ParseHandler>::memberExpr(YieldHandling yieldHandling, TokenKind tt, bool
 
                     // If we're in a method, mark the method as requiring
                     // support for 'super', since direct eval code can use it.
-                    // (If we're not in a method, that's fine, so ignore the 
+                    // (If we're not in a method, that's fine, so ignore the
                     // return value.)
                     checkAndMarkSuperScope();
                 }
@@ -8552,9 +8570,7 @@ Parser<ParseHandler>::tryNewTarget(Node &newTarget)
         return false;
     }
 
-    if (!pc->sc->isFunctionBox() || pc->sc->asFunctionBox()->isGenerator() ||
-        pc->sc->asFunctionBox()->function()->isArrow())
-    {
+    if (!checkAllowedNestedSyntax(SharedContext::AllowedSyntax::NewTarget)) {
         reportWithOffset(ParseError, false, begin, JSMSG_BAD_NEWTARGET);
         return false;
     }

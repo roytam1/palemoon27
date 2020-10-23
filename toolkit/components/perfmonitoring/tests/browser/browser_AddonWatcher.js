@@ -5,14 +5,12 @@
 
 "use strict";
 
-const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
-
 Cu.import("resource://gre/modules/Promise.jsm", this);
 Cu.import("resource://gre/modules/AddonManager.jsm", this);
 Cu.import("resource://gre/modules/AddonWatcher.jsm", this);
 Cu.import("resource://gre/modules/Services.jsm", this);
 
-const ADDON_URL = "http://example.com/browser/toolkit/modules/tests/browser/browser_Addons_sample.xpi";
+const ADDON_URL = "http://example.com/browser/toolkit/components/perfmonitoring/tests/browser/browser_Addons_sample.xpi";
 const ADDON_ID = "addonwatcher-test@mozilla.com";
 
 add_task(function* init() {
@@ -60,7 +58,9 @@ let burn_rubber = Task.async(function*({histogramName, topic, expectedReason, pr
     info("Preparing add-on watcher");
     let wait = new Promise(resolve => AddonWatcher.init((id, reason) => {
       Assert.equal(id, ADDON_ID, "The add-on watcher has detected the misbehaving addon");
-      resolve(reason);
+      if (reason == expectedReason) {
+        resolve(reason);
+      }
     }));
     let done = false;
     wait = wait.then(result => {

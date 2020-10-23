@@ -612,7 +612,7 @@ ToLowerCase(JSContext* cx, JSLinearString* str)
         size_t i = 0;
         for (; i < length; i++) {
             char16_t c = chars[i];
-            if (unicode::ToLowerCase(c) != c)
+            if (unicode::CanLowerCase(c))
                 break;
         }
 
@@ -731,7 +731,7 @@ ToUpperCase(JSContext* cx, JSLinearString* str)
         size_t i = 0;
         for (; i < length; i++) {
             char16_t c = chars[i];
-            if (unicode::ToUpperCase(c) != c)
+            if (unicode::CanUpperCase(c))
                 break;
         }
 
@@ -901,13 +901,13 @@ str_normalize(JSContext* cx, unsigned argc, Value* vp)
             return false;
 
         // Step 7.
-        if (formStr == cx->names().NFC) {
+        if (EqualStrings(formStr, cx->names().NFC)) {
             form = UNORM_NFC;
-        } else if (formStr == cx->names().NFD) {
+        } else if (EqualStrings(formStr, cx->names().NFD)) {
             form = UNORM_NFD;
-        } else if (formStr == cx->names().NFKC) {
+        } else if (EqualStrings(formStr, cx->names().NFKC)) {
             form = UNORM_NFKC;
-        } else if (formStr == cx->names().NFKD) {
+        } else if (EqualStrings(formStr, cx->names().NFKD)) {
             form = UNORM_NFKD;
         } else {
             JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
@@ -1518,7 +1518,8 @@ RopeMatch(JSContext* cx, JSRope* text, JSLinearString* pat, int* match)
     return true;
 }
 
-/* ES6 2015 ST 21.1.3.7 String.prototype.includes */
+
+/* ES6 draft rc4 21.1.3.7. */
 static bool
 str_includes(JSContext* cx, unsigned argc, Value* vp)
 {
@@ -1575,10 +1576,16 @@ str_includes(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-/* ES6 draft <RC4 String.prototype.contains kept for compatibility */
+/* TODO: remove String.prototype.contains (bug 1103588) */
 static bool
-str_contains(JSContext* cx, unsigned argc, Value* vp)
+str_contains(JSContext *cx, unsigned argc, Value *vp)
 {
+#ifndef RELEASE_BUILD
+    CallArgs args = CallArgsFromVp(argc, vp);
+    RootedObject callee(cx, &args.callee());
+    if (!GlobalObject::warnOnceAboutStringContains(cx, callee))
+        return false;
+#endif
     return str_includes(cx, argc, vp);
 }
 

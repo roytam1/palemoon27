@@ -13,24 +13,33 @@ function run_test() {
 let promiseStatistics = Task.async(function*(name) {
   yield Promise.resolve(); // Make sure that we wait until
   // statistics have been updated.
-  let snapshot = PerformanceStats.getSnapshot();
-  do_print("Statistics: " + name);
-  do_print(JSON.stringify(snapshot.processData, null, "\t"));
-  do_print(JSON.stringify(snapshot.componentsData, null, "\t"));
-  return snapshot;
+  let service = Cc["@mozilla.org/toolkit/performance-stats-service;1"].
+    getService(Ci.nsIPerformanceStatsService);
+  let snapshot = service.getSnapshot();
+  let componentsData = [];
+  let componentsEnum = snapshot.getComponentsData().enumerate();
+  while (componentsEnum.hasMoreElements()) {
+    componentsData.push(componentsEnum.getNext().QueryInterface(Ci.nsIPerformanceStats));
+  }
+  return {
+    processData: snapshot.getProcessData(),
+    componentsData
+  };
 });
 
 let promiseSetMonitoring = Task.async(function*(to) {
-  Cc["@mozilla.org/toolkit/performance-stats-service;1"].
-    getService(Ci.nsIPerformanceStatsService).
-    isStopwatchActive = to;
+  let service = Cc["@mozilla.org/toolkit/performance-stats-service;1"].
+    getService(Ci.nsIPerformanceStatsService);
+  service.isMonitoringJank = to;
+  service.isMonitoringCPOW = to;
   yield Promise.resolve();
 });
 
-function getBuiltinStatistics(snapshot) {
+function getBuiltinStatistics(name, snapshot) {
   let stats = snapshot.componentsData.find(stats =>
     stats.isSystem && !stats.addonId
   );
+  do_print(`Built-in statistics for ${name} were ${stats?"":"not "}found`);
   return stats;
 }
 
@@ -111,10 +120,10 @@ add_task(function* test_measure() {
   Assert.equal(process4.totalUserTime, process3.totalUserTime, "After deactivating the stopwatch, we didn't count any time");
   Assert.equal(process4.totalCPOWTime, process3.totalCPOWTime, "After deactivating the stopwatch, we didn't count any CPOW time");
 
-  let builtin1 = getBuiltinStatistics(stats1) || { totalUserTime: 0, totalCPOWTime: 0 };
-  let builtin2 = getBuiltinStatistics(stats2);
-  let builtin3 = getBuiltinStatistics(stats3);
-  let builtin4 = getBuiltinStatistics(stats4);
+  let builtin1 = getBuiltinStatistics("Built-ins 1", stats1) || { totalUserTime: 0, totalCPOWTime: 0 };
+  let builtin2 = getBuiltinStatistics("Built-ins 2", stats2);
+  let builtin3 = getBuiltinStatistics("Built-ins 3", stats3);
+  let builtin4 = getBuiltinStatistics("Built-ins 4", stats4);
   Assert.notEqual(builtin2, null, "Found the statistics for built-ins 2");
   Assert.notEqual(builtin3, null, "Found the statistics for built-ins 3");
   Assert.notEqual(builtin4, null, "Found the statistics for built-ins 4");

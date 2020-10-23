@@ -1490,6 +1490,7 @@ struct JSRuntime : public JS::shadow::Runtime,
           , currentPerfGroupCallback(nullptr)
           , isMonitoringJank_(false)
           , isMonitoringCPOW_(false)
+          , idCounter_(0)
         { }
 
         /**
@@ -1543,6 +1544,13 @@ struct JSRuntime : public JS::shadow::Runtime,
             return isMonitoringCPOW_;
         }
 
+        /**
+         * Return a identifier for a group, unique to the runtime.
+         */
+        uint64_t uniqueId() {
+            return idCounter_++;
+        }
+
         // Some systems have non-monotonic clocks. While we cannot
         // improve the precision, we can make sure that our measures
         // are monotonic nevertheless. We do this by storing the
@@ -1593,6 +1601,11 @@ struct JSRuntime : public JS::shadow::Runtime,
          */
         bool isMonitoringJank_;
         bool isMonitoringCPOW_;
+
+        /**
+         * A counter used to generate unique identifiers for groups.
+         */
+        uint64_t idCounter_;
     };
     Stopwatch stopwatch;
 };

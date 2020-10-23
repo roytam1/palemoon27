@@ -1824,12 +1824,12 @@ HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
           return false;
         }
 
-        double date = JS::MakeDate(year, month - 1, day);
-        if (IsNaN(date)) {
+        JS::ClippedTime time = JS::TimeClip(JS::MakeDate(year, month - 1, day));
+        if (!time.isValid()) {
           return false;
         }
 
-        aResultValue = Decimal::fromDouble(date);
+        aResultValue = Decimal::fromDouble(time.toDouble());
         return true;
       }
     case NS_FORM_INPUT_TIME:
@@ -1872,7 +1872,11 @@ HTMLInputElement::SetValue(const nsAString& aValue, ErrorResult& aRv)
         return;
       }
       Sequence<nsString> list;
-      list.AppendElement(aValue);
+      if (!list.AppendElement(aValue)) {
+        aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+        return;
+      }
+
       MozSetFileNameArray(list, aRv);
       return;
     }
@@ -2064,7 +2068,8 @@ HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
         return Nullable<Date>();
       }
 
-      return Nullable<Date>(Date(JS::MakeDate(year, month - 1, day)));
+      JS::ClippedTime time = JS::TimeClip(JS::MakeDate(year, month - 1, day));
+      return Nullable<Date>(Date(time));
     }
     case NS_FORM_INPUT_TIME:
     {
@@ -2075,7 +2080,11 @@ HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
         return Nullable<Date>();
       }
 
-      return Nullable<Date>(Date(millisecond));
+      JS::ClippedTime time = JS::TimeClip(millisecond);
+      MOZ_ASSERT(time.toDouble() == millisecond,
+                 "HTML times are restricted to the day after the epoch and "
+                 "never clip");
+      return Nullable<Date>(Date(time));
     }
   }
 
@@ -2097,7 +2106,7 @@ HTMLInputElement::SetValueAsDate(Nullable<Date> aDate, ErrorResult& aRv)
     return;
   }
 
-  SetValue(Decimal::fromDouble(aDate.Value().TimeStamp()));
+  SetValue(Decimal::fromDouble(aDate.Value().TimeStamp().toDouble()));
 }
 
 NS_IMETHODIMP
@@ -2453,7 +2462,9 @@ HTMLInputElement::MozSetFileNameArray(const char16_t** aFileNames, uint32_t aLen
 
   Sequence<nsString> list;
   for (uint32_t i = 0; i < aLength; ++i) {
-    list.AppendElement(nsDependentString(aFileNames[i]));
+    if (!list.AppendElement(nsDependentString(aFileNames[i]))) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   ErrorResult rv;
@@ -2504,7 +2515,10 @@ HTMLInputElement::SetUserInput(const nsAString& aValue)
   if (mType == NS_FORM_INPUT_FILE)
   {
     Sequence<nsString> list;
-    list.AppendElement(aValue);
+    if (!list.AppendElement(aValue)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
     ErrorResult rv;
     MozSetFileNameArray(list, rv);
     return rv.StealNSResult();

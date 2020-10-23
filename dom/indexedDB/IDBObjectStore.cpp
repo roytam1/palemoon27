@@ -20,6 +20,7 @@
 #include "IndexedDatabaseInlines.h"
 #include "IndexedDatabaseManager.h"
 #include "js/Class.h"
+#include "js/Date.h"
 #include "js/StructuredClone.h"
 #include "KeyPath.h"
 #include "mozilla/Endian.h"
@@ -747,8 +748,8 @@ public:
       return false;
     }
 
-    JS::Rooted<JSObject*> date(aCx,
-      JS_NewDateObjectMsec(aCx, aData.lastModifiedDate));
+    JS::ClippedTime time = JS::TimeClip(aData.lastModifiedDate);
+    JS::Rooted<JSObject*> date(aCx, JS::NewDateObject(aCx, time));
     if (NS_WARN_IF(!date)) {
       return false;
     }
@@ -1191,7 +1192,8 @@ IDBObjectStore::AddOrPut(JSContext* aCx,
   }
 
   FallibleTArray<uint8_t> cloneData;
-  if (NS_WARN_IF(!cloneData.SetLength(cloneWriteInfo.mCloneBuffer.nbytes()))) {
+  if (NS_WARN_IF(!cloneData.SetLength(cloneWriteInfo.mCloneBuffer.nbytes(),
+                                      fallible))) {
     aRv = NS_ERROR_OUT_OF_MEMORY;
     return nullptr;
   }

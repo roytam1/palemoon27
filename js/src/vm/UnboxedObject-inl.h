@@ -162,8 +162,24 @@ SetUnboxedValue(ExclusiveContext* cx, JSObject* unboxedObject, jsid id,
 }
 
 /////////////////////////////////////////////////////////////////////
+// UnboxedPlainObject
+/////////////////////////////////////////////////////////////////////
+
+inline const UnboxedLayout&
+UnboxedPlainObject::layout() const
+{
+    return group()->unboxedLayout();
+}
+
+/////////////////////////////////////////////////////////////////////
 // UnboxedArrayObject
 /////////////////////////////////////////////////////////////////////
+
+inline const UnboxedLayout&
+UnboxedArrayObject::layout() const
+{
+    return group()->unboxedLayout();
+}
 
 inline void
 UnboxedArrayObject::setLength(ExclusiveContext* cx, uint32_t length)
@@ -304,9 +320,27 @@ SetAnyBoxedOrUnboxedArrayLength(JSContext* cx, JSObject* obj, size_t length)
     }
 }
 
+static inline bool
+SetAnyBoxedOrUnboxedDenseElement(JSContext* cx, JSObject* obj, size_t index, const Value& value)
+{
+    if (obj->isNative()) {
+        obj->as<NativeObject>().setDenseElementWithType(cx, index, value);
+        return true;
+    }
+    return obj->as<UnboxedArrayObject>().setElement(cx, index, value);
+}
+
 /////////////////////////////////////////////////////////////////////
 // Template methods for NativeObject and UnboxedArrayObject accesses.
 /////////////////////////////////////////////////////////////////////
+
+static inline JSValueType
+GetBoxedOrUnboxedType(JSObject* obj)
+{
+    if (obj->isNative())
+        return JSVAL_TYPE_MAGIC;
+    return obj->as<UnboxedArrayObject>().elementType();
+}
 
 template <JSValueType Type>
 static inline bool
@@ -373,6 +407,17 @@ SetBoxedOrUnboxedDenseElementNoTypeChange(JSObject* obj, size_t index, const Val
 
 template <JSValueType Type>
 static inline bool
+SetBoxedOrUnboxedDenseElement(JSContext* cx, JSObject* obj, size_t index, const Value& value)
+{
+    if (Type == JSVAL_TYPE_MAGIC) {
+        obj->as<NativeObject>().setDenseElementWithType(cx, index, value);
+        return true;
+    }
+    return obj->as<UnboxedArrayObject>().setElementSpecific<Type>(cx, index, value);
+}
+
+template <JSValueType Type>
+static inline bool
 EnsureBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj, size_t count)
 {
     if (Type == JSVAL_TYPE_MAGIC) {
@@ -387,17 +432,11 @@ EnsureBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj, size_t count)
     return true;
 }
 
-enum ShouldUpdateTypes
-{
-    UpdateTypes = true,
-    DontUpdateTypes = false
-};
-
 template <JSValueType Type>
 static inline DenseElementResult
-SetOrExtendBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj,
+SetOrExtendBoxedOrUnboxedDenseElements(ExclusiveContext* cx, JSObject* obj,
                                        uint32_t start, const Value* vp, uint32_t count,
-                                       ShouldUpdateTypes updateTypes)
+                                       ShouldUpdateTypes updateTypes = ShouldUpdateTypes::Update)
 {
     if (Type == JSVAL_TYPE_MAGIC) {
         NativeObject* nobj = &obj->as<NativeObject>();
@@ -416,7 +455,7 @@ SetOrExtendBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj,
         if (obj->is<ArrayObject>() && start + count >= obj->as<ArrayObject>().length())
             obj->as<ArrayObject>().setLengthInt32(start + count);
 
-        if (updateTypes == DontUpdateTypes && !nobj->shouldConvertDoubleElements()) {
+        if (updateTypes == ShouldUpdateTypes::DontUpdate && !nobj->shouldConvertDoubleElements()) {
             nobj->copyDenseElements(start, vp, count);
         } else {
             for (size_t i = 0; i < count; i++)
@@ -446,7 +485,7 @@ SetOrExtendBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj,
     // which will overwrite the already-modified elements as well as the ones
     // that were left alone.
     size_t i = 0;
-    if (updateTypes == DontUpdateTypes) {
+    if (updateTypes == ShouldUpdateTypes::DontUpdate) {
         for (size_t j = start; i < count && j < oldInitlen; i++)
             nobj->setElementNoTypeChangeSpecific<Type>(j, vp[i]);
     } else {
@@ -458,7 +497,7 @@ SetOrExtendBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj,
 
     if (i != count) {
         obj->as<UnboxedArrayObject>().setInitializedLength(start + count);
-        if (updateTypes == DontUpdateTypes) {
+        if (updateTypes == ShouldUpdateTypes::DontUpdate) {
             for (; i < count; i++)
                 nobj->initElementNoTypeChangeSpecific<Type>(start + i, vp[i]);
         } else {
@@ -635,9 +674,9 @@ struct Signature ## Functor {                                           \
 }
 
 DenseElementResult
-SetOrExtendAnyBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj,
+SetOrExtendAnyBoxedOrUnboxedDenseElements(ExclusiveContext* cx, JSObject* obj,
                                           uint32_t start, const Value* vp, uint32_t count,
-                                          ShouldUpdateTypes updateTypes);
+                                          ShouldUpdateTypes updateTypes = ShouldUpdateTypes::Update);
 
 DenseElementResult
 MoveAnyBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj,
@@ -649,6 +688,9 @@ CopyAnyBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* dst, JSObject* src,
 
 void
 SetAnyBoxedOrUnboxedInitializedLength(JSContext* cx, JSObject* obj, size_t initlen);
+
+bool
+EnsureAnyBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj, size_t count);
 
 } // namespace js
 

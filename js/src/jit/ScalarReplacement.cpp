@@ -568,13 +568,6 @@ IsArrayEscaped(MInstruction* ins)
     MOZ_ASSERT(ins->isNewArray());
     uint32_t count = ins->toNewArray()->count();
 
-    // The array is probably too large to be represented efficiently with
-    // MArrayState, and we do not want to make huge allocations during bailouts.
-    if (ins->toNewArray()->allocatingBehaviour() == NewArray_Unallocating) {
-        JitSpewDef(JitSpew_Escape, "Array is not allocated\n", ins);
-        return true;
-    }
-
     JSObject* obj = ins->toNewArray()->templateObject();
     if (!obj || obj->is<UnboxedArrayObject>())
         return true;
@@ -1037,11 +1030,12 @@ ArrayMemoryView::visitArrayLength(MArrayLength* ins)
 }
 
 bool
-ScalarReplacement(MIRGenerator* mir, MIRGraph& graph)
+ScalarReplacement(MIRGenerator* mir, MIRGraph& graph, bool* success)
 {
     EmulateStateOf<ObjectMemoryView> replaceObject(mir, graph);
     EmulateStateOf<ArrayMemoryView> replaceArray(mir, graph);
     bool addedPhi = false;
+    *success = false;
 
     for (ReversePostorderIterator block = graph.rpoBegin(); block != graph.rpoEnd(); block++) {
         if (mir->shouldCancel("Scalar Replacement (main loop)"))
@@ -1055,6 +1049,7 @@ ScalarReplacement(MIRGenerator* mir, MIRGraph& graph)
                 if (!replaceObject.run(view))
                     return false;
                 view.assertSuccess();
+                *success = true;
                 addedPhi = true;
                 continue;
             }
@@ -1064,6 +1059,7 @@ ScalarReplacement(MIRGenerator* mir, MIRGraph& graph)
                 if (!replaceArray.run(view))
                     return false;
                 view.assertSuccess();
+                *success = true;
                 addedPhi = true;
                 continue;
             }

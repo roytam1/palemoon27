@@ -687,6 +687,26 @@ MakeUnknownTypeSet()
     return alloc->new_<TemporaryTypeSet>(alloc, TypeSet::UnknownType());
 }
 
+#ifdef DEBUG
+
+bool
+jit::IonCompilationCanUseNurseryPointers()
+{
+    // If we are doing backend compilation, which could occur on a helper
+    // thread but might actually be on the main thread, check the flag set on
+    // the PerThreadData by AutoEnterIonCompilation.
+    if (CurrentThreadIsIonCompiling())
+        return !CurrentThreadIsIonCompilingSafeForMinorGC();
+
+    // Otherwise, we must be on the main thread during MIR construction. The
+    // store buffer must have been notified that minor GCs must cancel pending
+    // or in progress Ion compilations.
+    JSRuntime* rt = TlsPerThreadData.get()->runtimeFromMainThread();
+    return rt->gc.storeBuffer.cancelIonCompilations();
+}
+
+#endif // DEBUG
+
 MConstant::MConstant(const js::Value& vp, CompilerConstraintList* constraints)
   : value_(vp)
 {
@@ -1813,6 +1833,40 @@ jit::EqualTypes(MIRType type1, TemporaryTypeSet* typeset1,
 
     // Typesets should equal.
     return typeset1->equals(typeset2);
+}
+
+// Tests whether input/inputTypes can always be stored to an unboxed
+// object/array property with the given unboxed type.
+bool
+jit::CanStoreUnboxedType(TempAllocator& alloc,
+                         JSValueType unboxedType, MIRType input, TypeSet* inputTypes)
+{
+    TemporaryTypeSet types;
+
+    switch (unboxedType) {
+      case JSVAL_TYPE_BOOLEAN:
+      case JSVAL_TYPE_INT32:
+      case JSVAL_TYPE_DOUBLE:
+      case JSVAL_TYPE_STRING:
+        types.addType(TypeSet::PrimitiveType(unboxedType), alloc.lifoAlloc());
+        break;
+
+      case JSVAL_TYPE_OBJECT:
+        types.addType(TypeSet::AnyObjectType(), alloc.lifoAlloc());
+        types.addType(TypeSet::NullType(), alloc.lifoAlloc());
+        break;
+
+      default:
+        MOZ_CRASH("Bad unboxed type");
+    }
+
+    return TypeSetIncludes(&types, input, inputTypes);
+}
+
+static bool
+CanStoreUnboxedType(TempAllocator& alloc, JSValueType unboxedType, MDefinition* value)
+{
+    return CanStoreUnboxedType(alloc, unboxedType, value->type(), value->resultTypeSet());
 }
 
 bool
@@ -3994,11 +4048,10 @@ MArrayState::Copy(TempAllocator& alloc, MArrayState* state)
 }
 
 MNewArray::MNewArray(CompilerConstraintList* constraints, uint32_t count, MConstant* templateConst,
-                     gc::InitialHeap initialHeap, AllocatingBehaviour allocating, jsbytecode* pc)
+                     gc::InitialHeap initialHeap, jsbytecode* pc)
   : MUnaryInstruction(templateConst),
     count_(count),
     initialHeap_(initialHeap),
-    allocating_(allocating),
     convertDoubleElements_(false),
     pc_(pc)
 {
@@ -4016,11 +4069,6 @@ MNewArray::shouldUseVM() const
 {
     if (!templateObject())
         return true;
-
-    // Allocate space using the VMCall when mir hints it needs to get allocated
-    // immediately, but only when data doesn't fit the available array slots.
-    if (allocatingBehaviour() == NewArray_Unallocating)
-        return false;
 
     if (templateObject()->is<UnboxedArrayObject>()) {
         MOZ_ASSERT(templateObject()->as<UnboxedArrayObject>().capacity() >= count());
@@ -5183,6 +5231,23 @@ jit::PropertyWriteNeedsTypeBarrier(TempAllocator& alloc, CompilerConstraintList*
             success = TryAddTypeBarrierForWrite(alloc, constraints, current, types, name, pvalue,
                                                 implicitType);
             break;
+        }
+    }
+
+    // Perform additional filtering to make sure that any unboxed property
+    // being written can accommodate the value.
+    for (size_t i = 0; i < types->getObjectCount(); i++) {
+        TypeSet::ObjectKey* key = types->getObject(i);
+        if (key && key->isGroup() && key->group()->maybeUnboxedLayout()) {
+            const UnboxedLayout& layout = key->group()->unboxedLayout();
+            if (name) {
+                const UnboxedLayout::Property* property = layout.lookup(name);
+                if (property && !CanStoreUnboxedType(alloc, property->type, *pvalue))
+                    return true;
+            } else {
+                if (layout.isArray() && !CanStoreUnboxedType(alloc, layout.elementType(), *pvalue))
+                    return true;
+            }
         }
     }
 

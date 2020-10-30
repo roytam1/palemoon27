@@ -131,7 +131,6 @@ static bool enableBaseline = false;
 static bool enableIon = false;
 static bool enableAsmJS = false;
 static bool enableNativeRegExp = false;
-static bool enableUnboxedObjects = false;
 static bool enableUnboxedArrays = false;
 #ifdef JS_GC_ZEAL
 static char gZealStr[128];
@@ -987,7 +986,7 @@ CacheEntry_setBytecode(JSContext* cx, HandleObject cache, uint8_t* buffer, uint3
     if (!arrayBuffer)
         return false;
 
-    SetReservedSlot(cache, CacheEntry_BYTECODE, OBJECT_TO_JSVAL(arrayBuffer));
+    SetReservedSlot(cache, CacheEntry_BYTECODE, ObjectValue(*arrayBuffer));
     return true;
 }
 
@@ -5289,7 +5288,7 @@ static void
 InitDOMObject(HandleObject obj)
 {
     /* Fow now just initialize to a constant we can check. */
-    SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL((void*)0x1234));
+    SetReservedSlot(obj, DOM_OBJECT_SLOT, PrivateValue((void*)0x1234));
 }
 
 static bool
@@ -5758,15 +5757,16 @@ SetRuntimeOptions(JSRuntime* rt, const OptionParser& op)
     enableIon = !op.getBoolOption("no-ion");
     enableAsmJS = !op.getBoolOption("no-asmjs");
     enableNativeRegExp = !op.getBoolOption("no-native-regexp");
-    enableUnboxedObjects = op.getBoolOption("unboxed-objects");
     enableUnboxedArrays = op.getBoolOption("unboxed-arrays");
 
     JS::RuntimeOptionsRef(rt).setBaseline(enableBaseline)
                              .setIon(enableIon)
                              .setAsmJS(enableAsmJS)
                              .setNativeRegExp(enableNativeRegExp)
-                             .setUnboxedObjects(enableUnboxedObjects)
                              .setUnboxedArrays(enableUnboxedArrays);
+
+    if (op.getBoolOption("no-unboxed-objects"))
+        jit::js_JitOptions.disableUnboxedObjects = true;
 
     if (const char* str = op.getStringOption("ion-scalar-replacement")) {
         if (strcmp(str, "on") == 0)
@@ -5971,7 +5971,6 @@ SetWorkerRuntimeOptions(JSRuntime* rt)
                              .setIon(enableIon)
                              .setAsmJS(enableAsmJS)
                              .setNativeRegExp(enableNativeRegExp)
-                             .setUnboxedObjects(enableUnboxedObjects)
                              .setUnboxedArrays(enableUnboxedArrays);
     rt->setOffthreadIonCompilationEnabled(offthreadCompilation);
     rt->profilingScripts = enableDisassemblyDumps;
@@ -6148,7 +6147,7 @@ main(int argc, char** argv, char** envp)
         || !op.addBoolOption('\0', "no-ion", "Disable IonMonkey")
         || !op.addBoolOption('\0', "no-asmjs", "Disable asm.js compilation")
         || !op.addBoolOption('\0', "no-native-regexp", "Disable native regexp compilation")
-        || !op.addBoolOption('\0', "unboxed-objects", "Allow creating unboxed plain objects")
+        || !op.addBoolOption('\0', "no-unboxed-objects", "Disable creating unboxed plain objects")
         || !op.addBoolOption('\0', "unboxed-arrays", "Allow creating unboxed arrays")
         || !op.addStringOption('\0', "ion-scalar-replacement", "on/off",
                                "Scalar Replacement (default: on, off to disable)")

@@ -1377,13 +1377,6 @@ LIRGenerator::visitPow(MPow* ins)
 }
 
 void
-LIRGenerator::visitRandom(MRandom* ins)
-{
-    LRandom* lir = new(alloc()) LRandom(tempFixed(CallTempReg0), tempFixed(CallTempReg1));
-    defineReturn(lir, ins);
-}
-
-void
 LIRGenerator::visitMathFunction(MMathFunction* ins)
 {
     MOZ_ASSERT(IsFloatingPointType(ins->type()));
@@ -2499,6 +2492,14 @@ void
 LIRGenerator::visitIncrementUnboxedArrayInitializedLength(MIncrementUnboxedArrayInitializedLength* ins)
 {
     add(new(alloc()) LIncrementUnboxedArrayInitializedLength(useRegister(ins->object())), ins);
+}
+
+void
+LIRGenerator::visitSetUnboxedArrayInitializedLength(MSetUnboxedArrayInitializedLength* ins)
+{
+    add(new(alloc()) LSetUnboxedArrayInitializedLength(useRegister(ins->object()),
+                                                       useRegisterOrConstant(ins->length()),
+                                                       temp()), ins);
 }
 
 void

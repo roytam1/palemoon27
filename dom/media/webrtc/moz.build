@@ -61,6 +61,9 @@ UNIFIED_SOURCES += [
 EXPORTS.mozilla += [
     'PeerIdentity.h',
 ]
+EXPORTS.mozilla.dom += [
+    'RTCCertificate.h',
+]
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

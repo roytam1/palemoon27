@@ -119,14 +119,10 @@ class LMoveGroup : public LInstructionHelper<0, 0, 0>
     void setScratchRegister(Register reg) {
         scratchRegister_ = LGeneralReg(reg);
     }
-#endif
     LAllocation maybeScratchRegister() {
-#ifdef JS_CODEGEN_X86
         return scratchRegister_;
-#else
-        return LAllocation();
-#endif
     }
+#endif
 
     bool uses(Register reg) {
         for (size_t i = 0; i < numMoves(); i++) {
@@ -3052,23 +3048,6 @@ class LPowD : public LCallInstructionHelper<1, 2, 1>
     }
 };
 
-// Math.random().
-class LRandom : public LCallInstructionHelper<1, 0, 2>
-{
-  public:
-    LIR_HEADER(Random)
-    LRandom(const LDefinition& temp, const LDefinition& temp2) {
-        setTemp(0, temp);
-        setTemp(1, temp2);
-    }
-    const LDefinition* temp() {
-        return getTemp(0);
-    }
-    const LDefinition* temp2() {
-        return getTemp(1);
-    }
-};
-
 class LMathFunctionD : public LCallInstructionHelper<1, 1, 1>
 {
   public:
@@ -4159,6 +4138,30 @@ class LIncrementUnboxedArrayInitializedLength : public LInstructionHelper<0, 1, 
 
     const LAllocation* object() {
         return getOperand(0);
+    }
+};
+
+class LSetUnboxedArrayInitializedLength : public LInstructionHelper<0, 2, 1>
+{
+  public:
+    LIR_HEADER(SetUnboxedArrayInitializedLength)
+
+    explicit LSetUnboxedArrayInitializedLength(const LAllocation& object,
+                                               const LAllocation& length,
+                                               const LDefinition& temp) {
+        setOperand(0, object);
+        setOperand(1, length);
+        setTemp(0, temp);
+    }
+
+    const LAllocation* object() {
+        return getOperand(0);
+    }
+    const LAllocation* length() {
+        return getOperand(1);
+    }
+    const LDefinition* temp() {
+        return getTemp(0);
     }
 };
 

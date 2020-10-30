@@ -196,6 +196,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitUnboxedArrayLength(LUnboxedArrayLength* lir);
     void visitUnboxedArrayInitializedLength(LUnboxedArrayInitializedLength* lir);
     void visitIncrementUnboxedArrayInitializedLength(LIncrementUnboxedArrayInitializedLength* lir);
+    void visitSetUnboxedArrayInitializedLength(LSetUnboxedArrayInitializedLength* lir);
     void visitNotO(LNotO* ins);
     void visitNotV(LNotV* ins);
     void visitBoundsCheck(LBoundsCheck* lir);
@@ -219,10 +220,9 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitHypot(LHypot* lir);
     void visitPowI(LPowI* lir);
     void visitPowD(LPowD* lir);
-    void visitRandom(LRandom* lir);
-    void visitMathFunctionD(LMathFunctionD *ins);
-    void visitMathFunctionF(LMathFunctionF *ins);
-    void visitModD(LModD *ins);
+    void visitMathFunctionD(LMathFunctionD* ins);
+    void visitMathFunctionF(LMathFunctionF* ins);
+    void visitModD(LModD* ins);
     void visitMinMaxI(LMinMaxI* lir);
     void visitBinaryV(LBinaryV* lir);
     void emitCompareS(LInstruction* lir, JSOp op, Register left, Register right, Register output);

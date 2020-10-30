@@ -211,17 +211,17 @@ JS_WrapPropertyDescriptor(JSContext* cx, JS::MutableHandle<js::PropertyDescripto
 }
 
 JS_FRIEND_API(void)
-JS_TraceShapeCycleCollectorChildren(JSTracer* trc, JS::GCCellPtr shape)
+JS_TraceShapeCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr shape)
 {
     MOZ_ASSERT(shape.isShape());
-    MarkCycleCollectorChildren(trc, static_cast<Shape*>(shape.asCell()));
+    TraceCycleCollectorChildren(trc, static_cast<Shape*>(shape.asCell()));
 }
 
 JS_FRIEND_API(void)
-JS_TraceObjectGroupCycleCollectorChildren(JSTracer* trc, JS::GCCellPtr group)
+JS_TraceObjectGroupCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr group)
 {
     MOZ_ASSERT(group.isObjectGroup());
-    MarkCycleCollectorChildren(trc, static_cast<ObjectGroup*>(group.asCell()));
+    TraceCycleCollectorChildren(trc, static_cast<ObjectGroup*>(group.asCell()));
 }
 
 static bool
@@ -592,11 +592,11 @@ js::ZoneGlobalsAreAllGray(JS::Zone* zone)
     return true;
 }
 
-JS_FRIEND_API(JSGCTraceKind)
+JS_FRIEND_API(JS::TraceKind)
 js::GCThingTraceKind(void* thing)
 {
     MOZ_ASSERT(thing);
-    return gc::GetGCThingTraceKind(thing);
+    return static_cast<js::gc::Cell*>(thing)->getTraceKind();
 }
 
 JS_FRIEND_API(void)
@@ -922,7 +922,7 @@ DumpHeapVisitCompartment(JSRuntime* rt, void* data, JSCompartment* comp)
 
 static void
 DumpHeapVisitArena(JSRuntime* rt, void* data, gc::Arena* arena,
-                   JSGCTraceKind traceKind, size_t thingSize)
+                   JS::TraceKind traceKind, size_t thingSize)
 {
     DumpHeapTracer* dtrc = static_cast<DumpHeapTracer*>(data);
     fprintf(dtrc->output, "# arena allockind=%u size=%u\n",
@@ -931,7 +931,7 @@ DumpHeapVisitArena(JSRuntime* rt, void* data, gc::Arena* arena,
 
 static void
 DumpHeapVisitCell(JSRuntime* rt, void* data, void* thing,
-                  JSGCTraceKind traceKind, size_t thingSize)
+                  JS::TraceKind traceKind, size_t thingSize)
 {
     DumpHeapTracer* dtrc = static_cast<DumpHeapTracer*>(data);
     char cellDesc[1024 * 32];
@@ -941,7 +941,7 @@ DumpHeapVisitCell(JSRuntime* rt, void* data, void* thing,
 }
 
 static void
-DumpHeapVisitChild(JS::CallbackTracer *trc, void** thingp, JSGCTraceKind kind)
+DumpHeapVisitChild(JS::CallbackTracer* trc, void** thingp, JS::TraceKind kind)
 {
     if (gc::IsInsideNursery((js::gc::Cell*)*thingp))
         return;
@@ -953,7 +953,7 @@ DumpHeapVisitChild(JS::CallbackTracer *trc, void** thingp, JSGCTraceKind kind)
 }
 
 static void
-DumpHeapVisitRoot(JS::CallbackTracer* trc, void** thingp, JSGCTraceKind kind)
+DumpHeapVisitRoot(JS::CallbackTracer* trc, void** thingp, JS::TraceKind kind)
 {
     if (gc::IsInsideNursery((js::gc::Cell*)*thingp))
         return;
@@ -1185,23 +1185,6 @@ js::GetObjectMetadata(JSObject *obj)
 }
 
 JS_FRIEND_API(bool)
-js::DefineOwnProperty(JSContext* cx, JSObject* objArg, jsid idArg,
-                      JS::Handle<js::PropertyDescriptor> descriptor, ObjectOpResult &result)
-{
-    RootedObject obj(cx, objArg);
-    RootedId id(cx, idArg);
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj, id, descriptor.value());
-    if (descriptor.hasGetterObject())
-        assertSameCompartment(cx, descriptor.getterObject());
-    if (descriptor.hasSetterObject())
-        assertSameCompartment(cx, descriptor.setterObject());
-
-    return StandardDefineProperty(cx, obj, id, descriptor, result);
-}
-
-JS_FRIEND_API(bool)
 js::ReportIsNotFunction(JSContext* cx, HandleValue v)
 {
     return ReportIsNotFunction(cx, v, -1);
@@ -1253,6 +1236,13 @@ JS_FRIEND_API(bool)
 js::ForwardToNative(JSContext* cx, JSNative native, const CallArgs& args)
 {
     return native(cx, args.length(), args.base());
+}
+
+JS_FRIEND_API(JSObject*)
+js::ConvertArgsToArray(JSContext* cx, const CallArgs& args)
+{
+    RootedObject argsArray(cx, NewDenseCopiedArray(cx, args.length(), args.array()));
+    return argsArray;
 }
 
 JS_FRIEND_API(JSAtom*)

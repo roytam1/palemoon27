@@ -1228,6 +1228,26 @@ TypeSet::ObjectKey::ensureTrackedProperty(JSContext* cx, jsid id)
     }
 }
 
+void
+js::EnsureTrackPropertyTypes(JSContext* cx, JSObject* obj, jsid id)
+{
+    id = IdToTypeId(id);
+
+    if (obj->isSingleton()) {
+        AutoEnterAnalysis enter(cx);
+        if (obj->hasLazyGroup() && !obj->getGroup(cx)) {
+            CrashAtUnhandlableOOM("Could not allocate ObjectGroup in EnsureTrackPropertyTypes");
+            return;
+        }
+        if (!obj->group()->unknownProperties() && !obj->group()->getProperty(cx, obj, id)) {
+            MOZ_ASSERT(obj->group()->unknownProperties());
+            return;
+        }
+    }
+
+    MOZ_ASSERT(obj->group()->unknownProperties() || TrackPropertyTypes(cx, obj, id));
+}
+
 bool
 HeapTypeSetKey::instantiate(JSContext* cx)
 {
@@ -2621,11 +2641,11 @@ ObjectGroup::updateNewPropertyTypes(ExclusiveContext* cx, JSObject* objArg, jsid
     }
 }
 
-bool
+void
 ObjectGroup::addDefiniteProperties(ExclusiveContext* cx, Shape* shape)
 {
     if (unknownProperties())
-        return true;
+        return;
 
     // Mark all properties of shape as definite properties of this group.
     AutoEnterAnalysis enter(cx);
@@ -2636,16 +2656,12 @@ ObjectGroup::addDefiniteProperties(ExclusiveContext* cx, Shape* shape)
             MOZ_ASSERT_IF(shape->slot() >= shape->numFixedSlots(),
                           shape->numFixedSlots() == NativeObject::MAX_FIXED_SLOTS);
             TypeSet* types = getProperty(cx, nullptr, id);
-            if (!types)
-                return false;
-            if (types->canSetDefinite(shape->slot()))
+            if (types && types->canSetDefinite(shape->slot()))
                 types->setDefinite(shape->slot());
         }
 
         shape = shape->previous();
     }
-
-    return true;
 }
 
 bool
@@ -2853,6 +2869,11 @@ ObjectGroup::markUnknown(ExclusiveContext* cx)
             prop->types.setNonDataProperty(cx);
         }
     }
+
+    if (maybeUnboxedLayout() && maybeUnboxedLayout()->nativeGroup())
+        MarkObjectGroupUnknownProperties(cx, maybeUnboxedLayout()->nativeGroup());
+    if (ObjectGroup* unboxedGroup = maybeOriginalUnboxedGroup())
+        MarkObjectGroupUnknownProperties(cx, unboxedGroup);
 }
 
 TypeNewScript*
@@ -3429,9 +3450,9 @@ PreliminaryObjectArrayWithTemplate::maybeAnalyze(ExclusiveContext* cx, ObjectGro
 
     if (shape()) {
         // We weren't able to use an unboxed layout, but since the preliminary
-        // still reflect the template object's properties, and all objects in the
-        // future will be created with those properties, the properties can be
-        // marked as definite for objects in the group.
+        // objects still reflect the template object's properties, and all
+        // objects in the future will be created with those properties, the
+        // properties can be marked as definite for objects in the group.
         group->addDefiniteProperties(cx, shape());
     }
 }
@@ -3735,8 +3756,7 @@ TypeNewScript::maybeAnalyze(JSContext* cx, ObjectGroup* group, bool* regenerate,
         // The definite properties analysis found exactly the properties that
         // are held in common by the preliminary objects. No further analysis
         // is needed.
-        if (!group->addDefiniteProperties(cx, templateObject()->lastProperty()))
-            return false;
+        group->addDefiniteProperties(cx, templateObject()->lastProperty());
 
         destroyNewScript.group = nullptr;
         return true;
@@ -3757,10 +3777,8 @@ TypeNewScript::maybeAnalyze(JSContext* cx, ObjectGroup* group, bool* regenerate,
     if (!initialGroup)
         return false;
 
-    if (!initialGroup->addDefiniteProperties(cx, templateObject()->lastProperty()))
-        return false;
-    if (!group->addDefiniteProperties(cx, prefixShape))
-        return false;
+    initialGroup->addDefiniteProperties(cx, templateObject()->lastProperty());
+    group->addDefiniteProperties(cx, prefixShape);
 
     cx->compartment()->objectGroups.replaceDefaultNewGroup(nullptr, group->proto(), function(),
                                                            initialGroup);
@@ -4024,16 +4042,6 @@ ObjectGroup::clearProperties()
     propertySet = nullptr;
 }
 
-#ifdef DEBUG
-bool
-ObjectGroup::needsSweep()
-{
-    // Note: this can be called off thread during compacting GCs, in which case
-    // nothing will be running on the main thread.
-    return generation() != zoneFromAnyThread()->types.generation;
-}
-#endif
-
 static void
 EnsureHasAutoClearTypeInferenceStateOnOOM(AutoClearTypeInferenceStateOnOOM*& oom, Zone* zone,
                                           Maybe<AutoClearTypeInferenceStateOnOOM>& fallback)
@@ -4056,12 +4064,9 @@ EnsureHasAutoClearTypeInferenceStateOnOOM(AutoClearTypeInferenceStateOnOOM*& oom
  * objects are accessed before their contents have been swept.
  */
 void
-ObjectGroup::maybeSweep(AutoClearTypeInferenceStateOnOOM* oom)
+ObjectGroup::sweep(AutoClearTypeInferenceStateOnOOM* oom)
 {
-    if (generation() == zoneFromAnyThread()->types.generation) {
-        // No sweeping required.
-        return;
-    }
+    MOZ_ASSERT(generation() != zoneFromAnyThread()->types.generation);
 
     setGeneration(zone()->types.generation);
 

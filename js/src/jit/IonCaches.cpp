@@ -3028,6 +3028,9 @@ CanAttachNativeSetProp(JSContext* cx, HandleObject obj, HandleId id, ConstantOrR
     if (obj->isNative() && (!shape || (obj != holder && shape->hasDefaultSetter() && shape->hasSlot())))
         return SetPropertyIC::MaybeCanAttachAddSlot;
 
+    if (IsImplicitNonNativeProperty(shape))
+        return SetPropertyIC::CanAttachNone;
+
     if (IsCacheableSetPropCallPropertyOp(obj, holder, shape) ||
         IsCacheableSetPropCallNative(obj, holder, shape) ||
         IsCacheableSetPropCallScripted(obj, holder, shape))
@@ -3067,13 +3070,7 @@ GenerateSetUnboxed(JSContext* cx, MacroAssembler& masm, IonCache::StubAttacher& 
             MOZ_ASSERT(!UnboxedTypeNeedsPreBarrier(unboxedType));
     }
 
-    // If the unboxed object's type has known properties, then instances have
-    // never been converted to native objects and the type set check performed
-    // above ensures the value being written can be stored in the unboxed
-    // object.
-    Label* storeFailure = obj->group()->unknownProperties() ? &failure : nullptr;
-
-    masm.storeUnboxedProperty(address, unboxedType, value, storeFailure);
+    masm.storeUnboxedProperty(address, unboxedType, value, &failure);
 
     attacher.jumpRejoin(masm);
 

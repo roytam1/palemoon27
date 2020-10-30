@@ -609,6 +609,11 @@ class ICNewArray_Fallback : public ICFallbackStub
     HeapPtrObjectGroup& templateGroup() {
         return templateGroup_;
     }
+
+    void setTemplateGroup(ObjectGroup* group) {
+        templateObject_ = nullptr;
+        templateGroup_ = group;
+    }
 };
 
 class ICNewObject_Fallback : public ICFallbackStub
@@ -1940,7 +1945,7 @@ class ICGetElem_UnboxedArray : public ICMonitoredStub
           : ICStubCompiler(cx, ICStub::GetElem_UnboxedArray, Engine::Baseline),
             firstMonitorStub_(firstMonitorStub),
             group_(cx, group),
-            elementType_(group->unboxedLayout().elementType())
+            elementType_(group->unboxedLayoutDontCheckGeneration().elementType())
         {}
 
         ICStub* getStub(ICStubSpace* space) {
@@ -2152,7 +2157,9 @@ class ICSetElem_DenseOrUnboxedArray : public ICUpdatedStub
           : ICStubCompiler(cx, ICStub::SetElem_DenseOrUnboxedArray, Engine::Baseline),
             shape_(cx, shape),
             group_(cx, group),
-            unboxedType_(shape ? JSVAL_TYPE_MAGIC : group->unboxedLayout().elementType())
+            unboxedType_(shape
+                         ? JSVAL_TYPE_MAGIC
+                         : group->unboxedLayoutDontCheckGeneration().elementType())
         {}
 
         ICUpdatedStub* getStub(ICStubSpace* space) {
@@ -4610,8 +4617,8 @@ class ICCall_Native : public ICMonitoredStub
     HeapPtrObject templateObject_;
     uint32_t pcOffset_;
 
-#if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
-    void* native_;
+#if defined(JS_ARM_SIMULATOR) || defined(JS_ARM64_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
+    void *native_;
 #endif
 
     ICCall_Native(JitCode* stubCode, ICStub* firstMonitorStub,
@@ -4636,7 +4643,7 @@ class ICCall_Native : public ICMonitoredStub
         return offsetof(ICCall_Native, pcOffset_);
     }
 
-#if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
+#if defined(JS_ARM_SIMULATOR) || defined(JS_ARM64_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
     static size_t offsetOfNative() {
         return offsetof(ICCall_Native, native_);
     }
@@ -4912,10 +4919,10 @@ class ICCall_StringSplit : public ICMonitoredStub
     uint32_t pcOffset_;
     HeapPtrString expectedThis_;
     HeapPtrString expectedArg_;
-    HeapPtrArrayObject templateObject_;
+    HeapPtrObject templateObject_;
 
     ICCall_StringSplit(JitCode* stubCode, ICStub* firstMonitorStub, uint32_t pcOffset, JSString* thisString,
-                       JSString* argString, ArrayObject* templateObject)
+                       JSString* argString, JSObject* templateObject)
       : ICMonitoredStub(ICStub::Call_StringSplit, stubCode, firstMonitorStub),
         pcOffset_(pcOffset), expectedThis_(thisString), expectedArg_(argString),
         templateObject_(templateObject)
@@ -4942,7 +4949,7 @@ class ICCall_StringSplit : public ICMonitoredStub
         return expectedArg_;
     }
 
-    HeapPtrArrayObject& templateObject() {
+    HeapPtrObject& templateObject() {
         return templateObject_;
     }
 
@@ -4952,7 +4959,7 @@ class ICCall_StringSplit : public ICMonitoredStub
         uint32_t pcOffset_;
         RootedString expectedThis_;
         RootedString expectedArg_;
-        RootedArrayObject templateObject_;
+        RootedObject templateObject_;
 
         bool generateStubCode(MacroAssembler& masm);
 
@@ -4969,7 +4976,7 @@ class ICCall_StringSplit : public ICMonitoredStub
             pcOffset_(pcOffset),
             expectedThis_(cx, thisString),
             expectedArg_(cx, argString),
-            templateObject_(cx, &templateObject.toObject().as<ArrayObject>())
+            templateObject_(cx, &templateObject.toObject())
         { }
 
         ICStub* getStub(ICStubSpace* space) {

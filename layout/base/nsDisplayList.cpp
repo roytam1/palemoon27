@@ -1229,7 +1229,7 @@ nsDisplayListBuilder::IsAnimatedGeometryRoot(nsIFrame* aFrame, nsIFrame** aParen
     return true;
   }
 
-  if (parentType == nsGkAtoms::scrollFrame) {
+  if (parentType == nsGkAtoms::scrollFrame || parentType == nsGkAtoms::listControlFrame) {
     nsIScrollableFrame* sf = do_QueryFrame(parent);
     if (sf->IsScrollingActive(this) && sf->GetScrolledFrame() == aFrame) {
       return true;
@@ -1702,7 +1702,11 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
     } else if (!gfxPrefs::LayoutUseContainersForRootFrames()) {
       // If there is no root scroll frame, and we're using containerless
       // scrolling, pick the document element instead.
+      // On Android we want the root xul document to get a null scroll id
+      // so that the root content document gets the first non-null scroll id.
+#ifndef MOZ_WIDGET_ANDROID
       content = document->GetDocumentElement();
+#endif
     }
 
     root->SetFrameMetrics(
@@ -3402,6 +3406,26 @@ nsDisplayBorder::CalculateBounds(const nsStyleBorder& aStyleBorder)
       result.UnionRect(result, nsRect(borderBounds.X(), borderBounds.Y(), border.left, borderBounds.Height()));
     }
 
+    nscoord radii[8];
+    if (mFrame->GetBorderRadii(radii)) {
+      if (border.left > 0 || border.top > 0) {
+        nsSize cornerSize(radii[NS_CORNER_TOP_LEFT_X], radii[NS_CORNER_TOP_LEFT_Y]);
+        result.UnionRect(result, nsRect(borderBounds.TopLeft(), cornerSize));
+      }
+      if (border.top > 0 || border.right > 0) {
+        nsSize cornerSize(radii[NS_CORNER_TOP_RIGHT_X], radii[NS_CORNER_TOP_RIGHT_Y]);
+        result.UnionRect(result, nsRect(borderBounds.TopRight() - nsPoint(cornerSize.width, 0), cornerSize));
+      }
+      if (border.right > 0 || border.bottom > 0) {
+        nsSize cornerSize(radii[NS_CORNER_BOTTOM_RIGHT_X], radii[NS_CORNER_BOTTOM_RIGHT_Y]);
+        result.UnionRect(result, nsRect(borderBounds.BottomRight() - nsPoint(cornerSize.width, cornerSize.height), cornerSize));
+      }
+      if (border.bottom > 0 || border.left > 0) {
+        nsSize cornerSize(radii[NS_CORNER_BOTTOM_LEFT_X], radii[NS_CORNER_BOTTOM_LEFT_Y]);
+        result.UnionRect(result, nsRect(borderBounds.BottomLeft() - nsPoint(0, cornerSize.height), cornerSize));
+      }
+    }
+
     return result;
   }
 }
@@ -4162,10 +4186,13 @@ bool nsDisplayBlendContainer::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplay
 
 nsDisplayOwnLayer::nsDisplayOwnLayer(nsDisplayListBuilder* aBuilder,
                                      nsIFrame* aFrame, nsDisplayList* aList,
-                                     uint32_t aFlags, ViewID aScrollTarget)
+                                     uint32_t aFlags, ViewID aScrollTarget,
+                                     float aScrollbarThumbRatio)
     : nsDisplayWrapList(aBuilder, aFrame, aList)
     , mFlags(aFlags)
-    , mScrollTarget(aScrollTarget) {
+    , mScrollTarget(aScrollTarget)
+    , mScrollbarThumbRatio(aScrollbarThumbRatio)
+{
   MOZ_COUNT_CTOR(nsDisplayOwnLayer);
 }
 
@@ -4179,16 +4206,17 @@ nsDisplayOwnLayer::~nsDisplayOwnLayer() {
 already_AddRefed<Layer>
 nsDisplayOwnLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
                               LayerManager* aManager,
-                              const ContainerLayerParameters& aContainerParameters) {
+                              const ContainerLayerParameters& aContainerParameters)
+{
   nsRefPtr<ContainerLayer> layer = aManager->GetLayerBuilder()->
     BuildContainerLayerFor(aBuilder, aManager, mFrame, this, &mList,
                            aContainerParameters, nullptr,
                            FrameLayerBuilder::CONTAINER_ALLOW_PULL_BACKGROUND_COLOR);
   if (mFlags & VERTICAL_SCROLLBAR) {
-    layer->SetScrollbarData(mScrollTarget, Layer::ScrollDirection::VERTICAL);
+    layer->SetScrollbarData(mScrollTarget, Layer::ScrollDirection::VERTICAL, mScrollbarThumbRatio);
   }
   if (mFlags & HORIZONTAL_SCROLLBAR) {
-    layer->SetScrollbarData(mScrollTarget, Layer::ScrollDirection::HORIZONTAL);
+    layer->SetScrollbarData(mScrollTarget, Layer::ScrollDirection::HORIZONTAL, mScrollbarThumbRatio);
   }
   if (mFlags & SCROLLBAR_CONTAINER) {
     layer->SetIsScrollbarContainer();

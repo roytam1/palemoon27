@@ -3511,14 +3511,11 @@ nsCSSFrameConstructor::FindHTMLData(Element* aElement,
        !aElement->GetParent()->IsHTMLElement(nsGkAtoms::fieldset) ||
        aStyleContext->StyleDisplay()->IsFloatingStyle() ||
        aStyleContext->StyleDisplay()->IsAbsolutelyPositionedStyle())) {
-    // <legend> is only special inside fieldset, check both the frame tree
-    // parent and content tree parent due to XBL issues. For floated or
-    // absolutely positioned legends we want to construct by display type and
+    // <legend> is only special inside fieldset, we only check the frame tree
+    // parent because the content tree parent may not be a <fieldset> due to
+    // display:contents, Shadow DOM, or XBL. For floated or absolutely
+    // positioned legends we want to construct by display type and
     // not do special legend stuff.
-    // XXXbz it would be nice if we could just decide this based on the parent
-    // tag, and hence just use a SIMPLE_TAG_CHAIN for legend below, but the
-    // fact that with XBL we could end up with this legend element in some
-    // totally weird insertion point makes that chancy, I think.
     return nullptr;
   }
 
@@ -3831,6 +3828,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
     const nsStylePosition* position = styleContext->StylePosition();
     const nsStyleDisplay* maybeAbsoluteContainingBlockDisplay = display;
     const nsStylePosition* maybeAbsoluteContainingBlockPosition = position;
+    nsIFrame* maybeAbsoluteContainingBlockStyleFrame = primaryFrame;
     nsIFrame* maybeAbsoluteContainingBlock = newFrame;
     nsIFrame* possiblyLeafFrame = newFrame;
     if (bits & FCDATA_CREATE_BLOCK_WRAPPER_FOR_ALL_KIDS) {
@@ -3900,6 +3898,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
       if (outerDisplay->IsAbsPosContainingBlock(outerFrame)) {
         maybeAbsoluteContainingBlockDisplay = outerDisplay;
         maybeAbsoluteContainingBlock = outerFrame;
+	maybeAbsoluteContainingBlockStyleFrame = outerFrame;
         innerFrame->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
       }
 
@@ -3932,17 +3931,18 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
       if (bits & FCDATA_FORCE_NULL_ABSPOS_CONTAINER) {
         aState.PushAbsoluteContainingBlock(nullptr, nullptr, absoluteSaveState);
       } else if (!(bits & FCDATA_SKIP_ABSPOS_PUSH)) {
-        nsIFrame* cb = maybeAbsoluteContainingBlock;
-        cb->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
-        // This check is identical to nsStyleDisplay::IsPositioned except without
-        // the assertion that the style display and frame match. When constructing
-        // scroll frames we intentionally use the style display for the outer, but
-        // make the inner the containing block.
+        maybeAbsoluteContainingBlock->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
+        // This check is identical to nsStyleDisplay::IsAbsPosContainingBlock
+        // except without the assertion that the style display and frame match.
+        // When constructing scroll frames we intentionally use the style
+        // display for the outer, but make the inner the containing block.
         if ((maybeAbsoluteContainingBlockDisplay->IsAbsolutelyPositionedStyle() ||
              maybeAbsoluteContainingBlockDisplay->IsRelativelyPositionedStyle() ||
-             maybeAbsoluteContainingBlockPosition->IsFixedPosContainingBlock(cb)) &&
-            !cb->IsSVGText()) {
-          nsContainerFrame* cf = static_cast<nsContainerFrame*>(cb);
+             maybeAbsoluteContainingBlockPosition->IsFixedPosContainingBlock(
+                 maybeAbsoluteContainingBlockStyleFrame)) &&
+            !maybeAbsoluteContainingBlockStyleFrame->IsSVGText()) {
+          nsContainerFrame* cf = static_cast<nsContainerFrame*>(
+              maybeAbsoluteContainingBlock);
           aState.PushAbsoluteContainingBlock(cf, cf, absoluteSaveState);
         }
       }

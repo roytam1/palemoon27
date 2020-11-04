@@ -859,8 +859,6 @@ public:
   NS_DECLARE_FRAME_PROPERTY(UsedPaddingProperty, DeleteValue<nsMargin>)
   NS_DECLARE_FRAME_PROPERTY(UsedBorderProperty, DeleteValue<nsMargin>)
 
-  NS_DECLARE_FRAME_PROPERTY(ScrollLayerCount, nullptr)
-
   NS_DECLARE_FRAME_PROPERTY(LineBaselineOffset, nullptr)
 
   // Temporary override for a flex item's main-size property (either width

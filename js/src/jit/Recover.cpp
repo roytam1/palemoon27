@@ -24,6 +24,7 @@
 #include "jit/MIRGraph.h"
 #include "jit/VMFunctions.h"
 #include "vm/Interpreter.h"
+#include "vm/String.h"
 
 #include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
@@ -1375,15 +1376,25 @@ RObjectState::recover(JSContext* cx, SnapshotIterator& iter) const
     if (object->is<UnboxedPlainObject>()) {
         const UnboxedLayout& layout = object->as<UnboxedPlainObject>().layout();
 
+        RootedId id(cx);
+        RootedValue receiver(cx, ObjectValue(*object));
         const UnboxedLayout::PropertyVector& properties = layout.properties();
         for (size_t i = 0; i < properties.length(); i++) {
             val = iter.read();
+
             // This is the default placeholder value of MObjectState, when no
             // properties are defined yet.
             if (val.isUndefined())
                 continue;
 
-            MOZ_ALWAYS_TRUE(object->as<UnboxedPlainObject>().setValue(cx, properties[i], val));
+            id = NameToId(properties[i].name);
+            ObjectOpResult result;
+
+            // SetProperty can only fail due to OOM.
+            if (!SetProperty(cx, object, id, val, receiver, result))
+                return false;
+            if (!result)
+                return result.reportError(cx, object, id);
         }
     } else {
         RootedNativeObject nativeObject(cx, &object->as<NativeObject>());

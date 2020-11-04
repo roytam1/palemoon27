@@ -170,7 +170,7 @@ JitOptions::JitOptions()
     SET_DEFAULT(smallFunctionMaxBytecodeLength_, 100);
 
     // Toggles whether unboxed plain objects can be created by the VM.
-    SET_DEFAULT(disableUnboxedObjects, false);
+    SET_DEFAULT(disableUnboxedObjects, true);
 }
 
 bool

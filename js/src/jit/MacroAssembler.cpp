@@ -29,45 +29,8 @@ using namespace js::jit;
 using JS::GenericNaN;
 using JS::ToInt32;
 
-namespace {
-
-// Emulate a TypeSet logic from a Type object to avoid duplicating the guard
-// logic.
-class TypeWrapper {
-    TypeSet::Type t_;
-
-  public:
-    explicit TypeWrapper(TypeSet::Type t) : t_(t) {}
-
-    inline bool unknown() const {
-        return t_.isUnknown();
-    }
-    inline bool hasType(TypeSet::Type t) const {
-        if (t == TypeSet::Int32Type())
-            return t == t_ || t_ == TypeSet::DoubleType();
-        return t == t_;
-    }
-    inline unsigned getObjectCount() const {
-        if (t_.isAnyObject() || t_.isUnknown() || !t_.isObject())
-            return 0;
-        return 1;
-    }
-    inline JSObject* getSingletonNoBarrier(unsigned) const {
-        if (t_.isSingleton())
-            return t_.singletonNoBarrier();
-        return nullptr;
-    }
-    inline ObjectGroup* getGroupNoBarrier(unsigned) const {
-        if (t_.isGroup())
-            return t_.groupNoBarrier();
-        return nullptr;
-    }
-};
-
-} /* anonymous namespace */
-
-template <typename Source, typename Set> void
-MacroAssembler::guardTypeSet(const Source& address, const Set* types, BarrierKind kind,
+template <typename Source> void
+MacroAssembler::guardTypeSet(const Source& address, const TypeSet *types, BarrierKind kind,
                              Register scratch, Label* miss)
 {
     MOZ_ASSERT(kind == BarrierKind::TypeTagOnly || kind == BarrierKind::TypeSet);
@@ -139,7 +102,7 @@ MacroAssembler::guardTypeSet(const Source& address, const Set* types, BarrierKin
 
         if (obj == scratch)
             extractObject(address, scratch);
-        guardTypeSetMightBeIncomplete(obj, scratch, &matched);
+        guardTypeSetMightBeIncomplete(types, obj, scratch, &matched);
 
         assumeUnreachable("Unexpected object type");
 #endif
@@ -148,29 +111,46 @@ MacroAssembler::guardTypeSet(const Source& address, const Set* types, BarrierKin
     bind(&matched);
 }
 
+template <typename TypeSet>
 void
-MacroAssembler::guardTypeSetMightBeIncomplete(Register obj, Register scratch, Label* label)
+MacroAssembler::guardTypeSetMightBeIncomplete(TypeSet* types, Register obj, Register scratch, Label* label)
 {
     // Type set guards might miss when an object's group changes. In this case
-    // either its properties will become unknown, or it will change to a native
-    // object with an original unboxed group. Jump to label if this might have
-    // happened for the input object.
+    // either its old group's properties will become unknown, or it will change
+    // to a native object with an original unboxed group. Jump to label if this
+    // might have happened for the input object.
+
+    if (types->unknownObject()) {
+        jump(label);
+        return;
+    }
 
     loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
     load32(Address(scratch, ObjectGroup::offsetOfFlags()), scratch);
-    branchTest32(Assembler::NonZero, scratch, Imm32(OBJECT_FLAG_UNKNOWN_PROPERTIES), label);
     and32(Imm32(OBJECT_FLAG_ADDENDUM_MASK), scratch);
     branch32(Assembler::Equal,
              scratch, Imm32(ObjectGroup::addendumOriginalUnboxedGroupValue()), label);
+
+    for (size_t i = 0; i < types->getObjectCount(); i++) {
+        if (JSObject* singleton = types->getSingletonNoBarrier(i)) {
+            movePtr(ImmGCPtr(singleton), scratch);
+            loadPtr(Address(scratch, JSObject::offsetOfGroup()), scratch);
+        } else if (ObjectGroup* group = types->getGroupNoBarrier(i)) {
+            movePtr(ImmGCPtr(group), scratch);
+        } else {
+            continue;
+        }
+        branchTest32(Assembler::NonZero, Address(scratch, ObjectGroup::offsetOfFlags()),
+                     Imm32(OBJECT_FLAG_UNKNOWN_PROPERTIES), label);
+    }
 }
 
-template <typename Set> void
-MacroAssembler::guardObjectType(Register obj, const Set* types,
+void
+MacroAssembler::guardObjectType(Register obj, const TypeSet* types,
                                 Register scratch, Label* miss)
 {
     MOZ_ASSERT(!types->unknown());
     MOZ_ASSERT(!types->hasType(TypeSet::AnyObjectType()));
-    MOZ_ASSERT(types->getObjectCount());
     MOZ_ASSERT(scratch != InvalidReg);
 
     // Note: this method elides read barriers on values read from type sets, as
@@ -236,47 +216,16 @@ MacroAssembler::guardObjectType(Register obj, const Set* types,
     return;
 }
 
-template <typename Source> void
-MacroAssembler::guardType(const Source& address, TypeSet::Type type,
-                          Register scratch, Label* miss)
-{
-    TypeWrapper wrapper(type);
-    guardTypeSet(address, &wrapper, BarrierKind::TypeSet, scratch, miss);
-}
-
-template void MacroAssembler::guardTypeSet(const Address& address, const TemporaryTypeSet* types,
-                                           BarrierKind kind, Register scratch, Label* miss);
-template void MacroAssembler::guardTypeSet(const ValueOperand& value, const TemporaryTypeSet* types,
-                                           BarrierKind kind, Register scratch, Label* miss);
-
-template void MacroAssembler::guardTypeSet(const Address& address, const HeapTypeSet* types,
-                                           BarrierKind kind, Register scratch, Label* miss);
-template void MacroAssembler::guardTypeSet(const ValueOperand& value, const HeapTypeSet* types,
-                                           BarrierKind kind, Register scratch, Label* miss);
-template void MacroAssembler::guardTypeSet(const TypedOrValueRegister& reg, const HeapTypeSet* types,
-                                           BarrierKind kind, Register scratch, Label* miss);
-
 template void MacroAssembler::guardTypeSet(const Address& address, const TypeSet* types,
                                            BarrierKind kind, Register scratch, Label* miss);
 template void MacroAssembler::guardTypeSet(const ValueOperand& value, const TypeSet* types,
                                            BarrierKind kind, Register scratch, Label* miss);
-
-template void MacroAssembler::guardTypeSet(const Address& address, const TypeWrapper* types,
-                                           BarrierKind kind, Register scratch, Label* miss);
-template void MacroAssembler::guardTypeSet(const ValueOperand& value, const TypeWrapper* types,
+template void MacroAssembler::guardTypeSet(const TypedOrValueRegister& value, const TypeSet* types,
                                            BarrierKind kind, Register scratch, Label* miss);
 
-template void MacroAssembler::guardObjectType(Register obj, const TemporaryTypeSet* types,
-                                              Register scratch, Label* miss);
-template void MacroAssembler::guardObjectType(Register obj, const TypeSet* types,
-                                              Register scratch, Label* miss);
-template void MacroAssembler::guardObjectType(Register obj, const TypeWrapper* types,
-                                              Register scratch, Label* miss);
-
-template void MacroAssembler::guardType(const Address& address, TypeSet::Type type,
-                                        Register scratch, Label* miss);
-template void MacroAssembler::guardType(const ValueOperand& value, TypeSet::Type type,
-                                        Register scratch, Label* miss);
+template void MacroAssembler::guardTypeSetMightBeIncomplete(const TemporaryTypeSet* types,
+                                                            Register obj, Register scratch,
+                                                            Label* label);
 
 template<typename S, typename T>
 static void
@@ -798,8 +747,16 @@ void
 MacroAssembler::loadUnboxedProperty(T address, JSValueType type, TypedOrValueRegister output)
 {
     switch (type) {
+      case JSVAL_TYPE_INT32: {
+          // Handle loading an int32 into a double reg.
+          if (output.type() == MIRType_Double) {
+              convertInt32ToDouble(address, output.typedReg().fpu());
+              break;
+          }
+          // Fallthrough.
+      }
+
       case JSVAL_TYPE_BOOLEAN:
-      case JSVAL_TYPE_INT32:
       case JSVAL_TYPE_STRING: {
         Register outReg;
         if (output.hasValue()) {

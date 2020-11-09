@@ -235,39 +235,6 @@ IonBuilder::spew(const char* message)
 #endif
 }
 
-MInstruction*
-IonBuilder::constantMaybeNursery(JSObject* obj)
-{
-    MOZ_ASSERT(obj);
-    if (!IsInsideNursery(obj))
-        return constant(ObjectValue(*obj));
-
-    // If |obj| is in the nursery, we have to add it to the list of nursery
-    // objects that get traced during off-thread compilation. We use
-    // MNurseryObject to ensure we will patch the code with the right
-    // pointer after codegen is done.
-
-    ObjectVector& nurseryObjects = outermostBuilder()->nurseryObjects_;
-
-    size_t index = UINT32_MAX;
-    for (size_t i = 0, len = nurseryObjects.length(); i < len; i++) {
-        if (nurseryObjects[i] == obj) {
-            index = i;
-            break;
-        }
-    }
-
-    if (index == UINT32_MAX) {
-        if (!nurseryObjects.append(obj))
-            return nullptr;
-        index = nurseryObjects.length() - 1;
-    }
-
-    MNurseryObject* ins = MNurseryObject::New(alloc(), obj, index, constraints());
-    current->add(ins);
-    return ins;
-}
-
 static inline int32_t
 GetJumpOffset(jsbytecode* pc)
 {
@@ -472,6 +439,11 @@ IonBuilder::canInlineTarget(JSFunction* target, CallInfo& callInfo)
     if (callInfo.constructing() && !target->isConstructor()) {
         trackOptimizationOutcome(TrackedOutcome::CantInlineNotConstructor);
         return DontInline(inlineScript, "Callee is not a constructor");
+    }
+
+    if (!callInfo.constructing() && target->isClassConstructor()) {
+        trackOptimizationOutcome(TrackedOutcome::CantInlineClassConstructor);
+        return DontInline(inlineScript, "Not constructing class constructor");
     }
 
     AnalysisMode analysisMode = info().analysisMode();
@@ -978,6 +950,8 @@ IonBuilder::buildInline(IonBuilder* callerBuilder, MResumePoint* callerResumePoi
 
     if (callerBuilder->failedLexicalCheck_)
         failedLexicalCheck_ = true;
+
+    safeForMinorGC_ = callerBuilder->safeForMinorGC_;
 
     // Generate single entrance block.
     if (!setCurrentAndSpecializePhis(newBlock(pc)))
@@ -4754,9 +4728,6 @@ IonBuilder::inlineScriptedCall(CallInfo& callInfo, JSFunction* target)
         return false;
     }
 
-    MOZ_ASSERT(inlineBuilder.nurseryObjects_.empty(),
-               "Nursery objects should be added to outer builder");
-
     // Create return block.
     jsbytecode* postCall = GetNextPc(pc);
     MBasicBlock* returnBlock = newBlock(nullptr, postCall);
@@ -5521,7 +5492,7 @@ IonBuilder::inlineCalls(CallInfo& callInfo, const ObjectVector& targets, BoolVec
         // hoisting scope chain gets above the dispatch instruction.
         MInstruction* funcDef;
         if (target->isSingleton())
-            funcDef = MConstant::New(alloc(), ObjectValue(*target), constraints());
+            funcDef = MConstant::New(alloc(), ObjectValue(*target), constraints(), this);
         else
             funcDef = MPolyInlineGuard::New(alloc(), callInfo.fun());
 
@@ -5840,7 +5811,7 @@ IonBuilder::createThisScriptedSingleton(JSFunction* target, MDefinition* callee)
 
     // Generate an inline path to create a new |this| object with
     // the given singleton prototype.
-    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
+    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
     MCreateThisWithTemplate* createThis =
         MCreateThisWithTemplate::New(alloc(), constraints(), templateConst,
                                      templateObject->group()->initialHeap(constraints()));
@@ -5871,7 +5842,7 @@ IonBuilder::createThisScriptedBaseline(MDefinition* callee)
     if (!protov.isObject())
         return nullptr;
 
-    JSObject* proto = &protov.toObject();
+    JSObject* proto = checkNurseryObject(&protov.toObject());
     if (proto != templateObject->getProto())
         return nullptr;
 
@@ -5892,14 +5863,14 @@ IonBuilder::createThisScriptedBaseline(MDefinition* callee)
     current->add(slots);
     MLoadSlot* prototype = MLoadSlot::New(alloc(), slots, shape->slot());
     current->add(prototype);
-    MDefinition* protoConst = constantMaybeNursery(proto);
+    MDefinition* protoConst = constant(ObjectValue(*proto));
     MGuardObjectIdentity* guard = MGuardObjectIdentity::New(alloc(), prototype, protoConst,
                                                             /* bailOnEquality = */ false);
     current->add(guard);
 
     // Generate an inline path to create a new |this| object with
     // the given prototype.
-    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
+    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
     MCreateThisWithTemplate* createThis =
         MCreateThisWithTemplate::New(alloc(), constraints(), templateConst,
                                      templateObject->group()->initialHeap(constraints()));
@@ -6513,7 +6484,7 @@ IonBuilder::jsop_newarray(uint32_t count)
 
     if (templateObject) {
         heap = templateObject->group()->initialHeap(constraints());
-        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
+        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
     } else {
         heap = gc::DefaultHeap;
         templateConst = MConstant::New(alloc(), NullValue());
@@ -6564,7 +6535,7 @@ IonBuilder::jsop_newobject()
 
     if (templateObject) {
         heap = templateObject->group()->initialHeap(constraints());
-        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
+        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
     } else {
         heap = gc::DefaultHeap;
         templateConst = MConstant::New(alloc(), NullValue());
@@ -7228,7 +7199,7 @@ IonBuilder::testSingletonProperty(JSObject* obj, PropertyName* name)
         if (ObjectHasExtraOwnProperty(compartment, objKey, name))
             return nullptr;
 
-        obj = obj->getProto();
+        obj = checkNurseryObject(obj->getProto());
     }
 
     return nullptr;
@@ -7295,7 +7266,7 @@ IonBuilder::testSingletonPropertyTypes(MDefinition* obj, PropertyName* name)
             if (property.isOwnProperty(constraints()))
                 return nullptr;
 
-            if (JSObject* proto = key->proto().toObjectOrNull()) {
+            if (JSObject* proto = checkNurseryObject(key->proto().toObjectOrNull())) {
                 // Test this type.
                 JSObject* thisSingleton = testSingletonProperty(proto, name);
                 if (!thisSingleton)
@@ -7644,17 +7615,13 @@ IonBuilder::jsop_getgname(PropertyName* name)
     if (!getStaticName(obj, name, &emitted) || emitted)
         return emitted;
 
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache;
-
-    {
+    if (!forceInlineCaches()) {
         TemporaryTypeSet* types = bytecodeTypes(pc);
         MDefinition* globalObj = constant(ObjectValue(*obj));
         if (!getPropTryCommonGetter(&emitted, globalObj, name, types) || emitted)
             return emitted;
     }
 
-  do_InlineCache:
     return jsop_getname(name);
 }
 
@@ -7778,38 +7745,37 @@ IonBuilder::jsop_getelem()
     obj = maybeUnboxForPropertyAccess(obj);
 
     bool emitted = false;
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache;
 
-    trackOptimizationAttempt(TrackedStrategy::GetElem_TypedObject);
-    if (!getElemTryTypedObject(&emitted, obj, index) || emitted)
-        return emitted;
+    if (!forceInlineCaches()) {
+        trackOptimizationAttempt(TrackedStrategy::GetElem_TypedObject);
+        if (!getElemTryTypedObject(&emitted, obj, index) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetElem_Dense);
-    if (!getElemTryDense(&emitted, obj, index) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetElem_Dense);
+        if (!getElemTryDense(&emitted, obj, index) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetElem_TypedStatic);
-    if (!getElemTryTypedStatic(&emitted, obj, index) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetElem_TypedStatic);
+        if (!getElemTryTypedStatic(&emitted, obj, index) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetElem_TypedArray);
-    if (!getElemTryTypedArray(&emitted, obj, index) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetElem_TypedArray);
+        if (!getElemTryTypedArray(&emitted, obj, index) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetElem_String);
-    if (!getElemTryString(&emitted, obj, index) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetElem_String);
+        if (!getElemTryString(&emitted, obj, index) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetElem_Arguments);
-    if (!getElemTryArguments(&emitted, obj, index) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetElem_Arguments);
+        if (!getElemTryArguments(&emitted, obj, index) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetElem_ArgumentsInlined);
-    if (!getElemTryArgumentsInlined(&emitted, obj, index) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetElem_ArgumentsInlined);
+        if (!getElemTryArgumentsInlined(&emitted, obj, index) || emitted)
+            return emitted;
+    }
 
-  do_InlineCache:
     if (script()->argumentsHasVarBinding() && obj->mightBeType(MIRType_MagicOptimizedArguments))
         return abort("Type is not definitely lazy arguments.");
 
@@ -8806,34 +8772,30 @@ IonBuilder::jsop_setelem()
         return resumeAfter(ins);
     }
 
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache;
+    if (!forceInlineCaches()) {
+        trackOptimizationAttempt(TrackedStrategy::SetElem_TypedObject);
+        if (!setElemTryTypedObject(&emitted, object, index, value) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::SetElem_TypedObject);
-    if (!setElemTryTypedObject(&emitted, object, index, value) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::SetElem_TypedStatic);
+        if (!setElemTryTypedStatic(&emitted, object, index, value) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::SetElem_TypedStatic);
-    if (!setElemTryTypedStatic(&emitted, object, index, value) || emitted)
-        return emitted;
+        trackOptimizationAttempt(TrackedStrategy::SetElem_TypedArray);
+        if (!setElemTryTypedArray(&emitted, object, index, value) || emitted)
+            return emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::SetElem_TypedArray);
-    if (!setElemTryTypedArray(&emitted, object, index, value) || emitted)
-        return emitted;
-
-    {
         trackOptimizationAttempt(TrackedStrategy::SetElem_Dense);
         SetElemICInspector icInspect(inspector->setElemICInspector(pc));
         bool writeHole = icInspect.sawOOBDenseWrite();
         if (!setElemTryDense(&emitted, object, index, value, writeHole) || emitted)
             return emitted;
+
+        trackOptimizationAttempt(TrackedStrategy::SetElem_Arguments);
+        if (!setElemTryArguments(&emitted, object, index, value) || emitted)
+            return emitted;
     }
 
-    trackOptimizationAttempt(TrackedStrategy::SetElem_Arguments);
-    if (!setElemTryArguments(&emitted, object, index, value) || emitted)
-        return emitted;
-
-  do_InlineCache:
     if (script()->argumentsHasVarBinding() &&
         object->mightBeType(MIRType_MagicOptimizedArguments) &&
         info().analysisMode() != Analysis_ArgumentsUsage)
@@ -9042,7 +9004,7 @@ IonBuilder::setElemTryDense(bool* emitted, MDefinition* object,
         }
     }
 
-    if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
+    if (PropertyWriteNeedsTypeBarrier(this, constraints(), current,
                                       &object, nullptr, &value, /* canModify = */ true))
     {
         trackOptimizationOutcome(TrackedOutcome::NeedsTypeBarrier);
@@ -9122,7 +9084,7 @@ IonBuilder::setElemTryCache(bool* emitted, MDefinition* object,
         return true;
     }
 
-    if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
+    if (PropertyWriteNeedsTypeBarrier(this, constraints(), current,
                                       &object, nullptr, &value, /* canModify = */ true))
     {
         trackOptimizationOutcome(TrackedOutcome::NeedsTypeBarrier);
@@ -9472,7 +9434,7 @@ IonBuilder::jsop_rest()
     unsigned numFormals = info().nargs() - 1;
     unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
 
-    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
+    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
     current->add(templateConst);
 
     MNewArray* array = MNewArray::New(alloc(), constraints(), numRest, templateConst,
@@ -9726,7 +9688,8 @@ IonBuilder::objectsHaveCommonPrototype(TemporaryTypeSet* types, PropertyName* na
                 }
             }
 
-            JSObject* proto = key->proto().toObjectOrNull();
+            JSObject* proto = checkNurseryObject(key->proto().toObjectOrNull());
+
             if (proto == foundProto)
                 break;
             if (!proto) {
@@ -9821,7 +9784,7 @@ IonBuilder::testCommonGetterSetter(TemporaryTypeSet* types, PropertyName* name,
         }
     }
 
-    MInstruction* wrapper = constantMaybeNursery(foundProto);
+    MInstruction* wrapper = constant(ObjectValue(*foundProto));
     *guard = addShapeGuard(wrapper, lastProperty, Bailout_ShapeGuard);
     return true;
 }
@@ -9871,6 +9834,7 @@ IonBuilder::annotateGetPropertyCache(MDefinition* obj, MGetPropertyCache* getPro
         TypeSet::ObjectKey* key = TypeSet::ObjectKey::get(group);
         if (key->unknownProperties() || !key->proto().isObject())
             continue;
+        JSObject* proto = checkNurseryObject(key->proto().toObject());
 
         const Class* clasp = key->clasp();
         if (!ClassHasEffectlessLookup(clasp) || ObjectHasExtraOwnProperty(compartment, key, name))
@@ -9880,7 +9844,7 @@ IonBuilder::annotateGetPropertyCache(MDefinition* obj, MGetPropertyCache* getPro
         if (ownTypes.isOwnProperty(constraints()))
             continue;
 
-        JSObject* singleton = testSingletonProperty(key->proto().toObject(), name);
+        JSObject* singleton = testSingletonProperty(proto, name);
         if (!singleton || !singleton->is<JSFunction>())
             continue;
 
@@ -10124,45 +10088,43 @@ IonBuilder::jsop_getprop(PropertyName* name)
     if (!getPropTryInnerize(&emitted, obj, name, types) || emitted)
         return emitted;
 
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache;
+    if (!forceInlineCaches()) {
+        // Try to hardcode known constants.
+        trackOptimizationAttempt(TrackedStrategy::GetProp_Constant);
+        if (!getPropTryConstant(&emitted, obj, name, types) || emitted)
+            return emitted;
 
-    // Try to hardcode known constants.
-    trackOptimizationAttempt(TrackedStrategy::GetProp_Constant);
-    if (!getPropTryConstant(&emitted, obj, name, types) || emitted)
-        return emitted;
+        // Try to emit SIMD getter loads
+        trackOptimizationAttempt(TrackedStrategy::GetProp_SimdGetter);
+        if (!getPropTrySimdGetter(&emitted, obj, name) || emitted)
+            return emitted;
 
-    // Try to emit SIMD getter loads
-    trackOptimizationAttempt(TrackedStrategy::GetProp_SimdGetter);
-    if (!getPropTrySimdGetter(&emitted, obj, name) || emitted)
-        return emitted;
+        // Try to emit loads from known binary data blocks
+        trackOptimizationAttempt(TrackedStrategy::GetProp_TypedObject);
+        if (!getPropTryTypedObject(&emitted, obj, name) || emitted)
+            return emitted;
 
-    // Try to emit loads from known binary data blocks
-    trackOptimizationAttempt(TrackedStrategy::GetProp_TypedObject);
-    if (!getPropTryTypedObject(&emitted, obj, name) || emitted)
-        return emitted;
+        // Try to emit loads from definite slots.
+        trackOptimizationAttempt(TrackedStrategy::GetProp_DefiniteSlot);
+        if (!getPropTryDefiniteSlot(&emitted, obj, name, barrier, types) || emitted)
+            return emitted;
 
-    // Try to emit loads from definite slots.
-    trackOptimizationAttempt(TrackedStrategy::GetProp_DefiniteSlot);
-    if (!getPropTryDefiniteSlot(&emitted, obj, name, barrier, types) || emitted)
-        return emitted;
+        // Try to emit loads from unboxed objects.
+        trackOptimizationAttempt(TrackedStrategy::GetProp_Unboxed);
+        if (!getPropTryUnboxed(&emitted, obj, name, barrier, types) || emitted)
+            return emitted;
 
-    // Try to emit loads from unboxed objects.
-    trackOptimizationAttempt(TrackedStrategy::GetProp_Unboxed);
-    if (!getPropTryUnboxed(&emitted, obj, name, barrier, types) || emitted)
-        return emitted;
+        // Try to inline a common property getter, or make a call.
+        trackOptimizationAttempt(TrackedStrategy::GetProp_CommonGetter);
+        if (!getPropTryCommonGetter(&emitted, obj, name, types) || emitted)
+            return emitted;
 
-    // Try to inline a common property getter, or make a call.
-    trackOptimizationAttempt(TrackedStrategy::GetProp_CommonGetter);
-    if (!getPropTryCommonGetter(&emitted, obj, name, types) || emitted)
-        return emitted;
+        // Try to emit a monomorphic/polymorphic access based on baseline caches.
+        trackOptimizationAttempt(TrackedStrategy::GetProp_InlineAccess);
+        if (!getPropTryInlineAccess(&emitted, obj, name, barrier, types) || emitted)
+            return emitted;
+    }
 
-    // Try to emit a monomorphic/polymorphic access based on baseline caches.
-    trackOptimizationAttempt(TrackedStrategy::GetProp_InlineAccess);
-    if (!getPropTryInlineAccess(&emitted, obj, name, barrier, types) || emitted)
-        return emitted;
-
-  do_InlineCache:
     // Try to emit a polymorphic cache.
     trackOptimizationAttempt(TrackedStrategy::GetProp_InlineCache);
     if (!getPropTryCache(&emitted, obj, name, barrier, types) || emitted)
@@ -10718,7 +10680,7 @@ IonBuilder::addShapeGuardsForGetterSetter(MDefinition* obj, JSObject* holder, Sh
         return addShapeGuard(obj, holderShape, Bailout_ShapeGuard);
     }
 
-    MDefinition* holderDef = constantMaybeNursery(holder);
+    MDefinition* holderDef = constant(ObjectValue(*holder));
     addShapeGuard(holderDef, holderShape, Bailout_ShapeGuard);
 
     return addGuardReceiverPolymorphic(obj, receivers);
@@ -10812,7 +10774,7 @@ IonBuilder::getPropTryCommonGetter(bool* emitted, MDefinition* obj, PropertyName
     // Make sure there's enough room
     if (!current->ensureHasSlots(2))
         return false;
-    current->push(constantMaybeNursery(commonGetter));
+    current->push(constant(ObjectValue(*commonGetter)));
 
     current->push(obj);
 
@@ -11053,7 +11015,7 @@ IonBuilder::getPropTryCache(bool* emitted, MDefinition* obj, PropertyName* name,
     // reflect such possible values.
     if (barrier != BarrierKind::TypeSet) {
         BarrierKind protoBarrier =
-            PropertyReadOnPrototypeNeedsTypeBarrier(constraints(), obj, name, types);
+            PropertyReadOnPrototypeNeedsTypeBarrier(this, constraints(), obj, name, types);
         if (protoBarrier != BarrierKind::NoBarrier) {
             MOZ_ASSERT(barrier <= protoBarrier);
             barrier = protoBarrier;
@@ -11153,31 +11115,29 @@ IonBuilder::getPropTryInnerize(bool* emitted, MDefinition* obj, PropertyName* na
     if (inner == obj)
         return true;
 
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache;
+    if (!forceInlineCaches()) {
+        // Note: the Baseline ICs don't know about this optimization, so it's
+        // possible the global property's HeapTypeSet has not been initialized
+        // yet. In this case we'll fall back to getPropTryCache for now.
 
-    // Note: the Baseline ICs don't know about this optimization, so it's
-    // possible the global property's HeapTypeSet has not been initialized
-    // yet. In this case we'll fall back to getPropTryCache for now.
+        // Note that it's important that we do this _before_ we'd try to
+        // do the optimizations below on obj normally, since some of those
+        // optimizations have fallback paths that are slower than the path
+        // we'd produce here.
 
-    // Note that it's important that we do this _before_ we'd try to
-    // do the optimizations below on obj normally, since some of those
-    // optimizations have fallback paths that are slower than the path
-    // we'd produce here.
+        trackOptimizationAttempt(TrackedStrategy::GetProp_Constant);
+        if (!getPropTryConstant(emitted, inner, name, types) || *emitted)
+            return *emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetProp_Constant);
-    if (!getPropTryConstant(emitted, inner, name, types) || *emitted)
-        return *emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetProp_StaticName);
+        if (!getStaticName(&script()->global(), name, emitted) || *emitted)
+            return *emitted;
 
-    trackOptimizationAttempt(TrackedStrategy::GetProp_StaticName);
-    if (!getStaticName(&script()->global(), name, emitted) || *emitted)
-        return *emitted;
+        trackOptimizationAttempt(TrackedStrategy::GetProp_CommonGetter);
+        if (!getPropTryCommonGetter(emitted, inner, name, types) || *emitted)
+            return *emitted;
+    }
 
-    trackOptimizationAttempt(TrackedStrategy::GetProp_CommonGetter);
-    if (!getPropTryCommonGetter(emitted, inner, name, types) || *emitted)
-        return *emitted;
-
-  do_InlineCache:
     // Passing the inner object to GetProperty IC is safe, see the
     // needsOuterizedThisObject check in IsCacheableGetPropCallNative.
     BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
@@ -11211,52 +11171,46 @@ IonBuilder::jsop_setprop(PropertyName* name)
         return resumeAfter(ins);
     }
 
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache_step1;
+    if (!forceInlineCaches()) {
+        // Try to inline a common property setter, or make a call.
+        trackOptimizationAttempt(TrackedStrategy::SetProp_CommonSetter);
+        if (!setPropTryCommonSetter(&emitted, obj, name, value) || emitted)
+            return emitted;
 
-    // Try to inline a common property setter, or make a call.
-    trackOptimizationAttempt(TrackedStrategy::SetProp_CommonSetter);
-    if (!setPropTryCommonSetter(&emitted, obj, name, value) || emitted)
-        return emitted;
+        // Try to emit stores to known binary data blocks
+        trackOptimizationAttempt(TrackedStrategy::SetProp_TypedObject);
+        if (!setPropTryTypedObject(&emitted, obj, name, value) || emitted)
+            return emitted;
+    }
 
-    // Try to emit stores to known binary data blocks
-    trackOptimizationAttempt(TrackedStrategy::SetProp_TypedObject);
-    if (!setPropTryTypedObject(&emitted, obj, name, value) || emitted)
-        return emitted;
-
-  do_InlineCache_step1:
     TemporaryTypeSet* objTypes = obj->resultTypeSet();
-    bool barrier = PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current, &obj, name, &value,
+    bool barrier = PropertyWriteNeedsTypeBarrier(this, constraints(), current, &obj, name, &value,
                                                  /* canModify = */ true);
 
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache_step2;
+    if (!forceInlineCaches()) {
+        // Try to emit stores to unboxed objects.
+        trackOptimizationAttempt(TrackedStrategy::SetProp_Unboxed);
+        if (!setPropTryUnboxed(&emitted, obj, name, value, barrier, objTypes) || emitted)
+            return emitted;
+    }
 
-    // Try to emit stores to unboxed objects.
-    trackOptimizationAttempt(TrackedStrategy::SetProp_Unboxed);
-    if (!setPropTryUnboxed(&emitted, obj, name, value, barrier, objTypes) || emitted)
-        return emitted;
-
-  do_InlineCache_step2:
     // Add post barrier if needed. The instructions above manage any post
     // barriers they need directly.
     if (NeedsPostBarrier(info(), value))
         current->add(MPostWriteBarrier::New(alloc(), obj, value));
 
-    if (MOZ_UNLIKELY(js_JitOptions.forceInlineCaches))
-        goto do_InlineCache_step3;
+    if (!forceInlineCaches()) {
+        // Try to emit store from definite slots.
+        trackOptimizationAttempt(TrackedStrategy::SetProp_DefiniteSlot);
+        if (!setPropTryDefiniteSlot(&emitted, obj, name, value, barrier, objTypes) || emitted)
+            return emitted;
 
-    // Try to emit store from definite slots.
-    trackOptimizationAttempt(TrackedStrategy::SetProp_DefiniteSlot);
-    if (!setPropTryDefiniteSlot(&emitted, obj, name, value, barrier, objTypes) || emitted)
-        return emitted;
+        // Try to emit a monomorphic/polymorphic store based on baseline caches.
+        trackOptimizationAttempt(TrackedStrategy::SetProp_InlineAccess);
+        if (!setPropTryInlineAccess(&emitted, obj, name, value, barrier, objTypes) || emitted)
+            return emitted;
+    }
 
-    // Try to emit a monomorphic/polymorphic store based on baseline caches.
-    trackOptimizationAttempt(TrackedStrategy::SetProp_InlineAccess);
-    if (!setPropTryInlineAccess(&emitted, obj, name, value, barrier, objTypes) || emitted)
-        return emitted;
-
-  do_InlineCache_step3:
     // Emit a polymorphic cache.
     trackOptimizationAttempt(TrackedStrategy::SetProp_InlineCache);
     return setPropTryCache(&emitted, obj, name, value, barrier, objTypes);
@@ -11324,7 +11278,7 @@ IonBuilder::setPropTryCommonSetter(bool* emitted, MDefinition* obj,
     if (!current->ensureHasSlots(3))
         return false;
 
-    current->push(constantMaybeNursery(commonSetter));
+    current->push(constant(ObjectValue(*commonSetter)));
     current->push(obj);
     current->push(value);
 
@@ -11871,7 +11825,7 @@ IonBuilder::jsop_lambda(JSFunction* fun)
     if (fun->isNative() && IsAsmJSModuleNative(fun->native()))
         return abort("asm.js module function");
 
-    MConstant* cst = MConstant::NewConstraintlessObject(alloc(), fun);
+    MConstant* cst = MConstant::NewConstraintlessObject(alloc(), fun, this);
     current->add(cst);
     MLambda* ins = MLambda::New(alloc(), constraints(), current->scopeChain(), cst);
     current->add(ins);
@@ -12580,7 +12534,7 @@ IonBuilder::jsop_instanceof()
         current->add(slots);
         MLoadSlot* prototype = MLoadSlot::New(alloc(), slots, slot);
         current->add(prototype);
-        MConstant* protoConst = MConstant::NewConstraintlessObject(alloc(), protoObject);
+        MConstant* protoConst = MConstant::NewConstraintlessObject(alloc(), protoObject, this);
         current->add(protoConst);
         MGuardObjectIdentity* guard = MGuardObjectIdentity::New(alloc(), prototype, protoConst,
                                                                 /* bailOnEquality = */ false);
@@ -12991,7 +12945,7 @@ IonBuilder::storeReferenceTypedObjectValue(MDefinition* typedObj,
         MIRType implicitType =
             (type == ReferenceTypeDescr::TYPE_ANY) ? MIRType_Undefined : MIRType_Null;
 
-        if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current, &typedObj, name, &value,
+        if (PropertyWriteNeedsTypeBarrier(this, constraints(), current, &typedObj, name, &value,
                                           /* canModify = */ true, implicitType))
         {
             trackOptimizationOutcome(TrackedOutcome::NeedsTypeBarrier);
@@ -13032,13 +12986,35 @@ IonBuilder::storeReferenceTypedObjectValue(MDefinition* typedObj,
     return true;
 }
 
+JSObject*
+IonBuilder::checkNurseryObject(JSObject* obj)
+{
+    // If we try to use any nursery pointers during compilation, make sure that
+    // the main thread will cancel this compilation before performing a minor
+    // GC. All constants used during compilation should either go through this
+    // function or should come from a type set (which has a similar barrier).
+    if (obj && IsInsideNursery(obj)) {
+        compartment->runtime()->setMinorGCShouldCancelIonCompilations();
+        IonBuilder* builder = this;
+        while (builder) {
+            builder->setNotSafeForMinorGC();
+            builder = builder->callerBuilder_;
+        }
+    }
+
+    return obj;
+}
+
 MConstant*
 IonBuilder::constant(const Value& v)
 {
     MOZ_ASSERT(!v.isString() || v.toString()->isAtom(),
                "Handle non-atomized strings outside IonBuilder.");
 
-    MConstant* c = MConstant::New(alloc(), v, constraints());
+    if (v.isObject())
+        checkNurseryObject(&v.toObject());
+
+    MConstant* c = MConstant::New(alloc(), v, constraints(), this);
     current->add(c);
     return c;
 }

@@ -350,14 +350,13 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     // Emits a test of a value against all types in a TypeSet. A scratch
     // register is required.
-    template <typename Source, typename TypeSet>
-    void guardTypeSet(const Source& address, const TypeSet* types, BarrierKind kind, Register scratch, Label* miss);
-    template <typename TypeSet>
-    void guardObjectType(Register obj, const TypeSet* types, Register scratch, Label* miss);
     template <typename Source>
-    void guardType(const Source& address, TypeSet::Type type, Register scratch, Label* miss);
+    void guardTypeSet(const Source& address, const TypeSet* types, BarrierKind kind, Register scratch, Label* miss);
 
-    void guardTypeSetMightBeIncomplete(Register obj, Register scratch, Label* label);
+    void guardObjectType(Register obj, const TypeSet* types, Register scratch, Label* miss);
+
+    template <typename TypeSet>
+    void guardTypeSetMightBeIncomplete(TypeSet* types, Register obj, Register scratch, Label* label);
 
     void loadObjShape(Register objReg, Register dest) {
         loadPtr(Address(objReg, JSObject::offsetOfShape()), dest);
@@ -940,6 +939,15 @@ class MacroAssembler : public MacroAssemblerSpecific
     {
         loadObjClass(object, scratch);
         branchTestClassIsProxy(proxy, scratch, label);
+    }
+
+    void branchFunctionKind(Condition cond, JSFunction::FunctionKind kind, Register fun,
+                            Register scratch, Label* label)
+    {
+        Address flags(fun, JSFunction::offsetOfFlags());
+        load32(flags, scratch);
+        and32(Imm32(JSFunction::FUNCTION_KIND_MASK), scratch);
+        branch32(cond, scratch, Imm32(kind << JSFunction::FUNCTION_KIND_SHIFT), label);
     }
 
   public:

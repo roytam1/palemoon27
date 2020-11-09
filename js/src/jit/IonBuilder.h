@@ -228,8 +228,6 @@ class IonBuilder
     void trackActionableAbort(const char* message);
     void spew(const char* message);
 
-    MInstruction* constantMaybeNursery(JSObject* obj);
-
     JSFunction* getSingleCallTarget(TemporaryTypeSet* calleeTypes);
     bool getPolyCallTargets(TemporaryTypeSet* calleeTypes, bool constructing,
                             ObjectVector& targets, uint32_t maxTargets);
@@ -981,6 +979,7 @@ class IonBuilder
 
   public:
     void clearForBackEnd();
+    JSObject* checkNurseryObject(JSObject* obj);
 
     JSScript* script() const { return script_; }
 
@@ -1203,6 +1202,10 @@ class IonBuilder
     void trackInlineSuccess(InliningStatus status = InliningStatus_Inlined) {
         if (MOZ_UNLIKELY(current->trackedSite()->hasOptimizations()))
             trackInlineSuccessUnchecked(status);
+    }
+
+    bool forceInlineCaches() {
+        return MOZ_UNLIKELY(js_JitOptions.forceInlineCaches);
     }
 
     // Out-of-line variants that don't check if optimization tracking is

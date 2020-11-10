@@ -3104,7 +3104,7 @@ class MNewObject
     bool canRecoverOnBailout() const override {
         // The template object can safely be used in the recover instruction
         // because it can never be mutated by any other function execution.
-        return true;
+        return templateObject() != nullptr;
     }
 };
 
@@ -9580,17 +9580,29 @@ class MStoreUnboxedScalar
     public StoreUnboxedScalarBase,
     public StoreUnboxedScalarPolicy::Data
 {
+  public:
+    enum TruncateInputKind {
+        DontTruncateInput,
+        TruncateInput
+    };
+
+  private:
     Scalar::Type storageType_;
+
+    // Whether this store truncates out of range inputs, for use by range analysis.
+    TruncateInputKind truncateInput_;
+
     bool requiresBarrier_;
     int32_t offsetAdjustment_;
     unsigned numElems_; // used only for SIMD
 
     MStoreUnboxedScalar(MDefinition* elements, MDefinition* index, MDefinition* value,
-                        Scalar::Type storageType, MemoryBarrierRequirement requiresBarrier,
-                        int32_t offsetAdjustment)
+                        Scalar::Type storageType, TruncateInputKind truncateInput,
+                        MemoryBarrierRequirement requiresBarrier, int32_t offsetAdjustment)
       : MTernaryInstruction(elements, index, value),
         StoreUnboxedScalarBase(storageType),
         storageType_(storageType),
+        truncateInput_(truncateInput),
         requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier),
         offsetAdjustment_(offsetAdjustment),
         numElems_(1)
@@ -9610,12 +9622,13 @@ class MStoreUnboxedScalar
     static MStoreUnboxedScalar* New(TempAllocator& alloc,
                                     MDefinition* elements, MDefinition* index,
                                     MDefinition* value, Scalar::Type storageType,
+                                    TruncateInputKind truncateInput,
                                     MemoryBarrierRequirement requiresBarrier =
                                         DoesNotRequireMemoryBarrier,
                                     int32_t offsetAdjustment = 0)
     {
         return new(alloc) MStoreUnboxedScalar(elements, index, value, storageType,
-                                              requiresBarrier, offsetAdjustment);
+                                              truncateInput, requiresBarrier, offsetAdjustment);
     }
 
     void setSimdWrite(Scalar::Type writeType, unsigned numElems) {
@@ -9640,6 +9653,9 @@ class MStoreUnboxedScalar
     }
     AliasSet getAliasSet() const override {
         return AliasSet::Store(AliasSet::UnboxedElement);
+    }
+    TruncateInputKind truncateInput() const {
+        return truncateInput_;
     }
     bool requiresMemoryBarrier() const {
         return requiresBarrier_;
@@ -12262,6 +12278,12 @@ class MTypeBarrier
             return false;
         if (input()->type() == MIRType_Value)
             return false;
+        if (input()->type() == MIRType_ObjectOrNull) {
+            // The ObjectOrNull optimization is only performed when the
+            // barrier's type is MIRType_Null.
+            MOZ_ASSERT(type == MIRType_Null);
+            return false;
+        }
         return input()->type() != type;
     }
 

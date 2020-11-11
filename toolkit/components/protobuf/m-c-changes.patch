@@ -363,3 +363,48 @@
      // This is the slow-path case where "length" may be too large to
      // safely allocate.  We read as much as we can into *values
      // without pre-allocating "length" bytes.
+--- a/toolkit/components/protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.h
++++ b/toolkit/components/protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.h
+@@ -39,16 +39,17 @@
+ // streams.  Of course, many users will probably want to write their own
+ // implementations of these interfaces specific to the particular I/O
+ // abstractions they prefer to use, but these should cover the most common
+ // cases.
+ 
+ #ifndef GOOGLE_PROTOBUF_IO_ZERO_COPY_STREAM_IMPL_LITE_H__
+ #define GOOGLE_PROTOBUF_IO_ZERO_COPY_STREAM_IMPL_LITE_H__
+ 
++#include <vector> /* See Bug 1186561 */
+ #include <string>
+ #include <iosfwd>
+ #include <google/protobuf/io/zero_copy_stream.h>
+ #include <google/protobuf/stubs/common.h>
+ #include <google/protobuf/stubs/stl_util.h>
+ 
+ 
+ namespace google {
+diff --git a/toolkit/components/protobuf/src/google/protobuf/stubs/atomicops.h b/toolkit/components/protobuf/src/google/protobuf/stubs/atomicops.h
+--- a/toolkit/components/protobuf/src/google/protobuf/stubs/atomicops.h
++++ b/toolkit/components/protobuf/src/google/protobuf/stubs/atomicops.h
+@@ -73,17 +73,21 @@ typedef int32 Atomic32;
+ typedef int64 Atomic64;
+ #else
+ typedef intptr_t Atomic64;
+ #endif
+ #endif
+ 
+ // Use AtomicWord for a machine-sized pointer.  It will use the Atomic32 or
+ // Atomic64 routines below, depending on your architecture.
++#if defined(__OpenBSD__) && !defined(GOOGLE_PROTOBUF_ARCH_64_BIT)
++typedef Atomic32 AtomicWord;
++#else
+ typedef intptr_t AtomicWord;
++#endif
+ 
+ // Atomically execute:
+ //      result = *ptr;
+ //      if (*ptr == old_value)
+ //        *ptr = new_value;
+ //      return result;
+ //
+ // I.e., replace "*ptr" with "new_value" if "*ptr" used to be "old_value".

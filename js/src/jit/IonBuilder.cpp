@@ -5492,7 +5492,7 @@ IonBuilder::inlineCalls(CallInfo& callInfo, const ObjectVector& targets, BoolVec
         // hoisting scope chain gets above the dispatch instruction.
         MInstruction* funcDef;
         if (target->isSingleton())
-            funcDef = MConstant::New(alloc(), ObjectValue(*target), constraints(), this);
+            funcDef = MConstant::New(alloc(), ObjectValue(*target), constraints());
         else
             funcDef = MPolyInlineGuard::New(alloc(), callInfo.fun());
 
@@ -5811,7 +5811,7 @@ IonBuilder::createThisScriptedSingleton(JSFunction* target, MDefinition* callee)
 
     // Generate an inline path to create a new |this| object with
     // the given singleton prototype.
-    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
+    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
     MCreateThisWithTemplate* createThis =
         MCreateThisWithTemplate::New(alloc(), constraints(), templateConst,
                                      templateObject->group()->initialHeap(constraints()));
@@ -5870,7 +5870,7 @@ IonBuilder::createThisScriptedBaseline(MDefinition* callee)
 
     // Generate an inline path to create a new |this| object with
     // the given prototype.
-    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
+    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
     MCreateThisWithTemplate* createThis =
         MCreateThisWithTemplate::New(alloc(), constraints(), templateConst,
                                      templateObject->group()->initialHeap(constraints()));
@@ -6484,7 +6484,7 @@ IonBuilder::jsop_newarray(uint32_t count)
 
     if (templateObject) {
         heap = templateObject->group()->initialHeap(constraints());
-        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
+        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
     } else {
         heap = gc::DefaultHeap;
         templateConst = MConstant::New(alloc(), NullValue());
@@ -6535,7 +6535,7 @@ IonBuilder::jsop_newobject()
 
     if (templateObject) {
         heap = templateObject->group()->initialHeap(constraints());
-        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
+        templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
     } else {
         heap = gc::DefaultHeap;
         templateConst = MConstant::New(alloc(), NullValue());
@@ -7743,6 +7743,8 @@ IonBuilder::jsop_getelem()
     }
 
     obj = maybeUnboxForPropertyAccess(obj);
+    if (obj->type() == MIRType_Object)
+        obj = convertUnboxedObjects(obj);
 
     bool emitted = false;
 
@@ -8759,7 +8761,7 @@ IonBuilder::jsop_setelem()
 
     MDefinition* value = current->pop();
     MDefinition* index = current->pop();
-    MDefinition* object = current->pop();
+    MDefinition* object = convertUnboxedObjects(current->pop());
 
     trackTypeInfo(TrackedTypeSite::Receiver, object->type(), object->resultTypeSet());
     trackTypeInfo(TrackedTypeSite::Index, index->type(), index->resultTypeSet());
@@ -9004,7 +9006,7 @@ IonBuilder::setElemTryDense(bool* emitted, MDefinition* object,
         }
     }
 
-    if (PropertyWriteNeedsTypeBarrier(this, constraints(), current,
+    if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
                                       &object, nullptr, &value, /* canModify = */ true))
     {
         trackOptimizationOutcome(TrackedOutcome::NeedsTypeBarrier);
@@ -9084,7 +9086,7 @@ IonBuilder::setElemTryCache(bool* emitted, MDefinition* object,
         return true;
     }
 
-    if (PropertyWriteNeedsTypeBarrier(this, constraints(), current,
+    if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
                                       &object, nullptr, &value, /* canModify = */ true))
     {
         trackOptimizationOutcome(TrackedOutcome::NeedsTypeBarrier);
@@ -9435,7 +9437,7 @@ IonBuilder::jsop_rest()
     unsigned numFormals = info().nargs() - 1;
     unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
 
-    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject, this);
+    MConstant* templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
     current->add(templateConst);
 
     MNewArray* array = MNewArray::New(alloc(), constraints(), numRest, templateConst,
@@ -9484,8 +9486,7 @@ IonBuilder::jsop_rest()
 }
 
 uint32_t
-IonBuilder::getDefiniteSlot(TemporaryTypeSet* types, PropertyName* name, uint32_t* pnfixed,
-                            BaselineInspector::ObjectGroupVector& convertUnboxedGroups)
+IonBuilder::getDefiniteSlot(TemporaryTypeSet* types, PropertyName* name, uint32_t* pnfixed)
 {
     if (!types || types->unknownObject()) {
         trackOptimizationOutcome(TrackedOutcome::NoTypeInfo);
@@ -9507,21 +9508,6 @@ IonBuilder::getDefiniteSlot(TemporaryTypeSet* types, PropertyName* name, uint32_
         if (key->isSingleton()) {
             trackOptimizationOutcome(TrackedOutcome::Singleton);
             return UINT32_MAX;
-        }
-
-        // If we encounter a group for an unboxed property which has a
-        // corresponding native group, look for a definite slot in that native
-        // group, and force conversion of incoming objects to the native group.
-        if (key->isGroup() && key->group()->maybeUnboxedLayout()) {
-            if (ObjectGroup* nativeGroup = key->group()->unboxedLayout().nativeGroup()) {
-                if (!convertUnboxedGroups.append(key->group()))
-                    CrashAtUnhandlableOOM("IonBuilder::getDefiniteSlot");
-                key = TypeSet::ObjectKey::get(nativeGroup);
-                if (key->unknownProperties()) {
-                    trackOptimizationOutcome(TrackedOutcome::UnknownProperties);
-                    return UINT32_MAX;
-                }
-            }
         }
 
         HeapTypeSetKey property = key->property(NameToId(name));
@@ -10039,6 +10025,8 @@ IonBuilder::jsop_getprop(PropertyName* name)
     }
 
     obj = maybeUnboxForPropertyAccess(obj);
+    if (obj->type() == MIRType_Object)
+        obj = convertUnboxedObjects(obj);
 
     BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
                                                        obj, name, types);
@@ -10518,11 +10506,42 @@ IonBuilder::getPropTryComplexPropOfTypedObject(bool* emitted,
 }
 
 MDefinition*
+IonBuilder::convertUnboxedObjects(MDefinition* obj)
+{
+    // If obj might be in any particular unboxed group which should be
+    // converted to a native representation, perform that conversion. This does
+    // not guarantee the object will not have such a group afterwards, if the
+    // object's possible groups are not precisely known.
+    TemporaryTypeSet* types = obj->resultTypeSet();
+    if (!types || types->unknownObject())
+        return obj;
+
+    BaselineInspector::ObjectGroupVector list(alloc());
+    for (size_t i = 0; i < types->getObjectCount(); i++) {
+        TypeSet::ObjectKey* key = obj->resultTypeSet()->getObject(i);
+        if (!key || !key->isGroup())
+            continue;
+
+        if (UnboxedLayout* layout = key->group()->maybeUnboxedLayout()) {
+            if (layout->nativeGroup() && !list.append(key->group()))
+                CrashAtUnhandlableOOM("IonBuilder::convertUnboxedObjects");
+        }
+    }
+
+    return convertUnboxedObjects(obj, list);
+}
+
+MDefinition*
 IonBuilder::convertUnboxedObjects(MDefinition* obj,
                                   const BaselineInspector::ObjectGroupVector& list)
 {
     for (size_t i = 0; i < list.length(); i++) {
-        obj = MConvertUnboxedObjectToNative::New(alloc(), obj, list[i]);
+        ObjectGroup* group = list[i];
+        if (TemporaryTypeSet* types = obj->resultTypeSet()) {
+            if (!types->hasType(TypeSet::ObjectType(group)))
+                continue;
+        }
+        obj = MConvertUnboxedObjectToNative::New(alloc(), obj, group);
         current->add(obj->toInstruction());
     }
     return obj;
@@ -10534,10 +10553,8 @@ IonBuilder::getPropTryDefiniteSlot(bool* emitted, MDefinition* obj, PropertyName
 {
     MOZ_ASSERT(*emitted == false);
 
-    BaselineInspector::ObjectGroupVector convertUnboxedGroups(alloc());
-
     uint32_t nfixed;
-    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name, &nfixed, convertUnboxedGroups);
+    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name, &nfixed);
     if (slot == UINT32_MAX)
         return true;
 
@@ -10546,8 +10563,6 @@ IonBuilder::getPropTryDefiniteSlot(bool* emitted, MDefinition* obj, PropertyName
         current->add(guard);
         obj = guard;
     }
-
-    obj = convertUnboxedObjects(obj, convertUnboxedGroups);
 
     MInstruction* load;
     if (slot < nfixed) {
@@ -11155,7 +11170,7 @@ bool
 IonBuilder::jsop_setprop(PropertyName* name)
 {
     MDefinition* value = current->pop();
-    MDefinition* obj = current->pop();
+    MDefinition* obj = convertUnboxedObjects(current->pop());
 
     bool emitted = false;
     startTrackingOptimizations();
@@ -11185,7 +11200,7 @@ IonBuilder::jsop_setprop(PropertyName* name)
     }
 
     TemporaryTypeSet* objTypes = obj->resultTypeSet();
-    bool barrier = PropertyWriteNeedsTypeBarrier(this, constraints(), current, &obj, name, &value,
+    bool barrier = PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current, &obj, name, &value,
                                                  /* canModify = */ true);
 
     if (!forceInlineCaches()) {
@@ -11454,10 +11469,8 @@ IonBuilder::setPropTryDefiniteSlot(bool* emitted, MDefinition* obj,
         return true;
     }
 
-    BaselineInspector::ObjectGroupVector convertUnboxedGroups(alloc());
-
     uint32_t nfixed;
-    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name, &nfixed, convertUnboxedGroups);
+    uint32_t slot = getDefiniteSlot(obj->resultTypeSet(), name, &nfixed);
     if (slot == UINT32_MAX)
         return true;
 
@@ -11474,8 +11487,6 @@ IonBuilder::setPropTryDefiniteSlot(bool* emitted, MDefinition* obj,
         }
         writeBarrier |= property.needsBarrier(constraints());
     }
-
-    obj = convertUnboxedObjects(obj, convertUnboxedGroups);
 
     MInstruction* store;
     if (slot < nfixed) {
@@ -11834,7 +11845,7 @@ IonBuilder::jsop_lambda(JSFunction* fun)
     if (fun->isNative() && IsAsmJSModuleNative(fun->native()))
         return abort("asm.js module function");
 
-    MConstant* cst = MConstant::NewConstraintlessObject(alloc(), fun, this);
+    MConstant* cst = MConstant::NewConstraintlessObject(alloc(), fun);
     current->add(cst);
     MLambda* ins = MLambda::New(alloc(), constraints(), current->scopeChain(), cst);
     current->add(ins);
@@ -12320,8 +12331,8 @@ IonBuilder::jsop_setaliasedvar(ScopeCoordinate sc)
 bool
 IonBuilder::jsop_in()
 {
-    MDefinition* obj = current->peek(-1);
-    MDefinition* id = current->peek(-2);
+    MDefinition* obj = convertUnboxedObjects(current->pop());
+    MDefinition* id = current->pop();
 
     do {
         if (shouldAbortOnPreliminaryGroups(obj))
@@ -12336,11 +12347,9 @@ IonBuilder::jsop_in()
         if (ElementAccessHasExtraIndexedProperty(constraints(), obj))
             break;
 
-        return jsop_in_dense(unboxedType);
+        return jsop_in_dense(obj, id, unboxedType);
     } while (false);
 
-    current->pop();
-    current->pop();
     MIn* ins = MIn::New(alloc(), id, obj);
 
     current->add(ins);
@@ -12350,11 +12359,8 @@ IonBuilder::jsop_in()
 }
 
 bool
-IonBuilder::jsop_in_dense(JSValueType unboxedType)
+IonBuilder::jsop_in_dense(MDefinition* obj, MDefinition* id, JSValueType unboxedType)
 {
-    MDefinition* obj = current->pop();
-    MDefinition* id = current->pop();
-
     bool needsHoleCheck = !ElementAccessIsPacked(constraints(), obj);
 
     // Ensure id is an integer.
@@ -12543,7 +12549,7 @@ IonBuilder::jsop_instanceof()
         current->add(slots);
         MLoadSlot* prototype = MLoadSlot::New(alloc(), slots, slot);
         current->add(prototype);
-        MConstant* protoConst = MConstant::NewConstraintlessObject(alloc(), protoObject, this);
+        MConstant* protoConst = MConstant::NewConstraintlessObject(alloc(), protoObject);
         current->add(protoConst);
         MGuardObjectIdentity* guard = MGuardObjectIdentity::New(alloc(), prototype, protoConst,
                                                                 /* bailOnEquality = */ false);
@@ -12955,7 +12961,7 @@ IonBuilder::storeReferenceTypedObjectValue(MDefinition* typedObj,
         MIRType implicitType =
             (type == ReferenceTypeDescr::TYPE_ANY) ? MIRType_Undefined : MIRType_Null;
 
-        if (PropertyWriteNeedsTypeBarrier(this, constraints(), current, &typedObj, name, &value,
+        if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current, &typedObj, name, &value,
                                           /* canModify = */ true, implicitType))
         {
             trackOptimizationOutcome(TrackedOutcome::NeedsTypeBarrier);
@@ -13024,7 +13030,7 @@ IonBuilder::constant(const Value& v)
     if (v.isObject())
         checkNurseryObject(&v.toObject());
 
-    MConstant* c = MConstant::New(alloc(), v, constraints(), this);
+    MConstant* c = MConstant::New(alloc(), v, constraints());
     current->add(c);
     return c;
 }

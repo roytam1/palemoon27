@@ -3387,6 +3387,16 @@ PreliminaryObjectArray::full() const
     return true;
 }
 
+bool
+PreliminaryObjectArray::empty() const
+{
+    for (size_t i = 0; i < COUNT; i++) {
+        if (objects[i])
+            return false;
+    }
+    return true;
+}
+
 void
 PreliminaryObjectArray::sweep()
 {

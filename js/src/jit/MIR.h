@@ -1304,20 +1304,17 @@ class MConstant : public MNullaryInstruction
     Value value_;
 
   protected:
-    MConstant(const Value& v, CompilerConstraintList* constraints, MIRGenerator* gen);
-    explicit MConstant(JSObject* obj, MIRGenerator* gen);
+    MConstant(const Value& v, CompilerConstraintList* constraints);
+    explicit MConstant(JSObject* obj);
 
   public:
     INSTRUCTION_HEADER(Constant)
     static MConstant* New(TempAllocator& alloc, const Value& v,
-                          CompilerConstraintList* constraints = nullptr,
-                          MIRGenerator* gen = nullptr);
+                          CompilerConstraintList* constraints = nullptr);
     static MConstant* NewTypedValue(TempAllocator& alloc, const Value& v, MIRType type,
-                                    CompilerConstraintList* constraints = nullptr,
-                                    MIRGenerator* gen = nullptr);
+                                    CompilerConstraintList* constraints = nullptr);
     static MConstant* NewAsmJS(TempAllocator& alloc, const Value& v, MIRType type);
-    static MConstant* NewConstraintlessObject(TempAllocator& alloc, JSObject* v,
-                                              MIRGenerator* gen);
+    static MConstant* NewConstraintlessObject(TempAllocator& alloc, JSObject* v);
 
     const js::Value& value() const {
         return value_;
@@ -2843,6 +2840,11 @@ EqualTypes(MIRType type1, TemporaryTypeSet* typeset1,
 bool
 CanStoreUnboxedType(TempAllocator& alloc,
                     JSValueType unboxedType, MIRType input, TypeSet* inputTypes);
+
+#ifdef DEBUG
+bool
+IonCompilationCanUseNurseryPointers();
+#endif
 
 #ifdef DEBUG
 bool
@@ -9004,9 +9006,7 @@ class MConvertUnboxedObjectToNative
     INSTRUCTION_HEADER(ConvertUnboxedObjectToNative)
 
     static MConvertUnboxedObjectToNative* New(TempAllocator& alloc, MDefinition* obj,
-                                              ObjectGroup* group) {
-        return new(alloc) MConvertUnboxedObjectToNative(obj, group);
-    }
+                                              ObjectGroup* group);
 
     MDefinition* object() const {
         return getOperand(0);
@@ -9138,14 +9138,16 @@ class MArrayConcat
 {
     CompilerObject templateObj_;
     gc::InitialHeap initialHeap_;
-    JSValueType unboxedType_;
+    bool unboxedThis_, unboxedArg_;
 
     MArrayConcat(CompilerConstraintList* constraints, MDefinition* lhs, MDefinition* rhs,
-                 JSObject* templateObj, gc::InitialHeap initialHeap, JSValueType unboxedType)
+                 JSObject* templateObj, gc::InitialHeap initialHeap,
+                 bool unboxedThis, bool unboxedArg)
       : MBinaryInstruction(lhs, rhs),
         templateObj_(templateObj),
         initialHeap_(initialHeap),
-        unboxedType_(unboxedType)
+        unboxedThis_(unboxedThis),
+        unboxedArg_(unboxedArg)
     {
         setResultType(MIRType_Object);
         setResultTypeSet(MakeSingletonTypeSet(constraints, templateObj));
@@ -9157,10 +9159,10 @@ class MArrayConcat
     static MArrayConcat* New(TempAllocator& alloc, CompilerConstraintList* constraints,
                              MDefinition* lhs, MDefinition* rhs,
                              JSObject* templateObj, gc::InitialHeap initialHeap,
-                             JSValueType unboxedType)
+                             bool unboxedThis, bool unboxedArg)
     {
         return new(alloc) MArrayConcat(constraints, lhs, rhs, templateObj,
-                                       initialHeap, unboxedType);
+                                       initialHeap, unboxedThis, unboxedArg);
     }
 
     JSObject* templateObj() const {
@@ -9171,12 +9173,17 @@ class MArrayConcat
         return initialHeap_;
     }
 
-    JSValueType unboxedType() const {
-        return unboxedType_;
+    bool unboxedThis() const {
+        return unboxedThis_;
+    }
+
+    bool unboxedArg() const {
+        return unboxedArg_;
     }
 
     AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::BoxedOrUnboxedElements(unboxedType()) |
+        return AliasSet::Store(AliasSet::BoxedOrUnboxedElements(unboxedThis() ? JSVAL_TYPE_INT32 : JSVAL_TYPE_MAGIC) |
+                               AliasSet::BoxedOrUnboxedElements(unboxedArg() ? JSVAL_TYPE_INT32 : JSVAL_TYPE_MAGIC) |
                                AliasSet::ObjectFields);
     }
     bool possiblyCalls() const override {
@@ -13590,7 +13597,7 @@ void AddObjectsForPropertyRead(MDefinition* obj, PropertyName* name,
 bool CanWriteProperty(TempAllocator& alloc, CompilerConstraintList* constraints,
                       HeapTypeSetKey property, MDefinition* value,
                       MIRType implicitType = MIRType_None);
-bool PropertyWriteNeedsTypeBarrier(MIRGenerator* gen, CompilerConstraintList* constraints,
+bool PropertyWriteNeedsTypeBarrier(TempAllocator& alloc, CompilerConstraintList* constraints,
                                    MBasicBlock* current, MDefinition** pobj,
                                    PropertyName* name, MDefinition** pvalue,
                                    bool canModify, MIRType implicitType = MIRType_None);

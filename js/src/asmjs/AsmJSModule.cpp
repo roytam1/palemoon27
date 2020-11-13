@@ -1366,6 +1366,7 @@ AsmJSModule::CodeRange::CodeRange(uint32_t nameIndex, uint32_t lineNumber,
     profilingReturn_(l.profilingReturn.offset()),
     end_(l.end.offset())
 {
+    PodZero(&u);  // zero padding for Valgrind
     u.kind_ = Function;
     setDeltas(l.entry.offset(), l.profilingJump.offset(), l.profilingEpilogue.offset());
 
@@ -1390,9 +1391,13 @@ AsmJSModule::CodeRange::setDeltas(uint32_t entry, uint32_t profilingJump, uint32
 }
 
 AsmJSModule::CodeRange::CodeRange(Kind kind, uint32_t begin, uint32_t end)
-  : begin_(begin),
+  : nameIndex_(0),
+    lineNumber_(0),
+    begin_(begin),
+    profilingReturn_(0),
     end_(end)
 {
+    PodZero(&u);  // zero padding for Valgrind
     u.kind_ = kind;
 
     MOZ_ASSERT(begin_ <= end_);
@@ -1400,10 +1405,13 @@ AsmJSModule::CodeRange::CodeRange(Kind kind, uint32_t begin, uint32_t end)
 }
 
 AsmJSModule::CodeRange::CodeRange(Kind kind, uint32_t begin, uint32_t profilingReturn, uint32_t end)
-  : begin_(begin),
+  : nameIndex_(0),
+    lineNumber_(0),
+    begin_(begin),
     profilingReturn_(profilingReturn),
     end_(end)
 {
+    PodZero(&u);  // zero padding for Valgrind
     u.kind_ = kind;
 
     MOZ_ASSERT(begin_ < profilingReturn_);
@@ -1413,10 +1421,13 @@ AsmJSModule::CodeRange::CodeRange(Kind kind, uint32_t begin, uint32_t profilingR
 
 AsmJSModule::CodeRange::CodeRange(AsmJSExit::BuiltinKind builtin, uint32_t begin,
                                   uint32_t profilingReturn, uint32_t end)
-  : begin_(begin),
+  : nameIndex_(0),
+    lineNumber_(0),
+    begin_(begin),
     profilingReturn_(profilingReturn),
     end_(end)
 {
+    PodZero(&u);  // zero padding for Valgrind
     u.kind_ = Thunk;
     u.thunk.target_ = builtin;
 
@@ -1774,6 +1785,9 @@ AsmJSModule::setProfilingEnabled(JSContext* cx, bool enabled)
         BOffImm calleeOffset;
         callerInsn->as<InstBLImm>()->extractImm(&calleeOffset);
         void* callee = calleeOffset.getDest(callerInsn);
+#elif defined(JS_CODEGEN_ARM64)
+        MOZ_CRASH();
+        void* callee = nullptr;
 #elif defined(JS_CODEGEN_MIPS)
         Instruction* instr = (Instruction*)(callerRetAddr - 4 * sizeof(uint32_t));
         void* callee = (void*)Assembler::ExtractLuiOriValue(instr, instr->next());
@@ -1798,6 +1812,8 @@ AsmJSModule::setProfilingEnabled(JSContext* cx, bool enabled)
         X86Encoding::SetRel32(callerRetAddr, newCallee);
 #elif defined(JS_CODEGEN_ARM)
         new (caller) InstBLImm(BOffImm(newCallee - caller), Assembler::Always);
+#elif defined(JS_CODEGEN_ARM64)
+        MOZ_CRASH();
 #elif defined(JS_CODEGEN_MIPS)
         Assembler::WriteLuiOriInstructions(instr, instr->next(),
                                            ScratchRegister, (uint32_t)newCallee);
@@ -1861,6 +1877,8 @@ AsmJSModule::setProfilingEnabled(JSContext* cx, bool enabled)
             MOZ_ASSERT(reinterpret_cast<Instruction*>(jump)->is<InstBImm>());
             new (jump) InstNOP();
         }
+#elif defined(JS_CODEGEN_ARM64)
+        MOZ_CRASH();
 #elif defined(JS_CODEGEN_MIPS)
         Instruction* instr = (Instruction*)jump;
         if (enabled) {

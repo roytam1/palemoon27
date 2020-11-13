@@ -56,6 +56,8 @@ IonBuilder::inlineNativeCall(CallInfo& callInfo, JSFunction* target)
     // Atomic natives.
     if (native == atomics_compareExchange)
         return inlineAtomicsCompareExchange(callInfo);
+    if (native == atomics_exchange)
+        return inlineAtomicsExchange(callInfo);
     if (native == atomics_load)
         return inlineAtomicsLoad(callInfo);
     if (native == atomics_store)
@@ -70,6 +72,8 @@ IonBuilder::inlineNativeCall(CallInfo& callInfo, JSFunction* target)
     {
         return inlineAtomicsBinop(callInfo, target);
     }
+    if (native == atomics_isLockFree)
+        return inlineAtomicsIsLockFree(callInfo);
 
     // Array natives.
     if (native == ArrayConstructor)
@@ -764,14 +768,13 @@ IonBuilder::inlineArrayPush(CallInfo& callInfo)
         trackOptimizationOutcome(TrackedOutcome::NeedsTypeBarrier);
         return InliningStatus_NotInlined;
     }
-    MOZ_ASSERT(obj == callInfo.thisArg() && value == callInfo.getArg(0));
 
     if (getInlineReturnType() != MIRType_Int32)
         return InliningStatus_NotInlined;
-    if (callInfo.thisArg()->type() != MIRType_Object)
+    if (obj->type() != MIRType_Object)
         return InliningStatus_NotInlined;
 
-    TemporaryTypeSet* thisTypes = callInfo.thisArg()->resultTypeSet();
+    TemporaryTypeSet* thisTypes = obj->resultTypeSet();
     if (!thisTypes)
         return InliningStatus_NotInlined;
     const Class* clasp = thisTypes->getKnownClass(constraints());
@@ -792,13 +795,12 @@ IonBuilder::inlineArrayPush(CallInfo& callInfo)
 
     JSValueType unboxedType = JSVAL_TYPE_MAGIC;
     if (clasp == &UnboxedArrayObject::class_) {
-        unboxedType = UnboxedArrayElementType(constraints(), callInfo.thisArg(), nullptr);
+        unboxedType = UnboxedArrayElementType(constraints(), obj, nullptr);
         if (unboxedType == JSVAL_TYPE_MAGIC)
             return InliningStatus_NotInlined;
     }
 
     callInfo.setImplicitlyUsedUnchecked();
-    value = callInfo.getArg(0);
 
     if (conversion == TemporaryTypeSet::AlwaysConvertToDoubles ||
         conversion == TemporaryTypeSet::MaybeConvertToDoubles)
@@ -2816,6 +2818,46 @@ IonBuilder::inlineAtomicsCompareExchange(CallInfo& callInfo)
 }
 
 IonBuilder::InliningStatus
+IonBuilder::inlineAtomicsExchange(CallInfo& callInfo)
+{
+    if (callInfo.argc() != 3 || callInfo.constructing()) {
+        trackOptimizationOutcome(TrackedOutcome::CantInlineNativeBadForm);
+        return InliningStatus_NotInlined;
+    }
+
+    Scalar::Type arrayType;
+    if (!atomicsMeetsPreconditions(callInfo, &arrayType))
+        return InliningStatus_NotInlined;
+
+    MDefinition* value = callInfo.getArg(2);
+    if (!(value->type() == MIRType_Int32 || value->type() == MIRType_Double))
+        return InliningStatus_NotInlined;
+
+    callInfo.setImplicitlyUsedUnchecked();
+
+    MInstruction* elements;
+    MDefinition* index;
+    atomicsCheckBounds(callInfo, &elements, &index);
+
+    MDefinition* toWrite = value;
+    if (value->type() == MIRType_Double) {
+        toWrite = MTruncateToInt32::New(alloc(), value);
+        current->add(toWrite->toInstruction());
+    }
+
+    MInstruction* exchange =
+        MAtomicExchangeTypedArrayElement::New(alloc(), elements, index, toWrite, arrayType);
+    exchange->setResultType(getInlineReturnType());
+    current->add(exchange);
+    current->push(exchange);
+
+    if (!resumeAfter(exchange))
+        return InliningStatus_Error;
+
+    return InliningStatus_Inlined;
+}
+
+IonBuilder::InliningStatus
 IonBuilder::inlineAtomicsLoad(CallInfo& callInfo)
 {
     if (callInfo.argc() != 2 || callInfo.constructing()) {
@@ -2856,7 +2898,7 @@ IonBuilder::inlineAtomicsStore(CallInfo& callInfo)
     }
 
     Scalar::Type arrayType;
-    if (!atomicsMeetsPreconditions(callInfo, &arrayType))
+    if (!atomicsMeetsPreconditions(callInfo, &arrayType, DontCheckAtomicResult))
         return InliningStatus_NotInlined;
 
     MDefinition* value = callInfo.getArg(2);
@@ -2964,8 +3006,27 @@ IonBuilder::inlineAtomicsBinop(CallInfo& callInfo, JSFunction* target)
     return InliningStatus_Inlined;
 }
 
+IonBuilder::InliningStatus
+IonBuilder::inlineAtomicsIsLockFree(CallInfo& callInfo)
+{
+    if (callInfo.argc() != 1 || callInfo.constructing()) {
+        trackOptimizationOutcome(TrackedOutcome::CantInlineNativeBadForm);
+        return InliningStatus_NotInlined;
+    }
+
+    callInfo.setImplicitlyUsedUnchecked();
+
+    MAtomicIsLockFree* ilf =
+        MAtomicIsLockFree::New(alloc(), callInfo.getArg(0));
+    current->add(ilf);
+    current->push(ilf);
+
+    return InliningStatus_Inlined;
+}
+
 bool
-IonBuilder::atomicsMeetsPreconditions(CallInfo& callInfo, Scalar::Type* arrayType)
+IonBuilder::atomicsMeetsPreconditions(CallInfo& callInfo, Scalar::Type* arrayType,
+                                      AtomicCheckResult checkResult)
 {
     if (!JitSupportsAtomics())
         return false;
@@ -2993,12 +3054,12 @@ IonBuilder::atomicsMeetsPreconditions(CallInfo& callInfo, Scalar::Type* arrayTyp
       case Scalar::Int16:
       case Scalar::Uint16:
       case Scalar::Int32:
-        return getInlineReturnType() == MIRType_Int32;
+        return checkResult == DontCheckAtomicResult || getInlineReturnType() == MIRType_Int32;
       case Scalar::Uint32:
         // Bug 1077305: it would be attractive to allow inlining even
         // if the inline return type is Int32, which it will frequently
         // be.
-        return getInlineReturnType() == MIRType_Double;
+        return checkResult == DontCheckAtomicResult || getInlineReturnType() == MIRType_Double;
       default:
         // Excludes floating types and Uint8Clamped
         return false;

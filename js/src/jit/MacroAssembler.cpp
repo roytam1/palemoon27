@@ -491,6 +491,49 @@ MacroAssembler::compareExchangeToTypedIntArray(Scalar::Type arrayType, const Bas
                                                Register oldval, Register newval, Register temp,
                                                AnyRegister output);
 
+template<typename T>
+void
+MacroAssembler::atomicExchangeToTypedIntArray(Scalar::Type arrayType, const T& mem,
+                                              Register value, Register temp, AnyRegister output)
+{
+    switch (arrayType) {
+      case Scalar::Int8:
+        atomicExchange8SignExtend(mem, value, output.gpr());
+        break;
+      case Scalar::Uint8:
+        atomicExchange8ZeroExtend(mem, value, output.gpr());
+        break;
+      case Scalar::Uint8Clamped:
+        atomicExchange8ZeroExtend(mem, value, output.gpr());
+        break;
+      case Scalar::Int16:
+        atomicExchange16SignExtend(mem, value, output.gpr());
+        break;
+      case Scalar::Uint16:
+        atomicExchange16ZeroExtend(mem, value, output.gpr());
+        break;
+      case Scalar::Int32:
+        atomicExchange32(mem, value, output.gpr());
+        break;
+      case Scalar::Uint32:
+        // At the moment, the code in MCallOptimize.cpp requires the output
+        // type to be double for uint32 arrays.  See bug 1077305.
+        MOZ_ASSERT(output.isFloat());
+        atomicExchange32(mem, value, temp);
+        convertUInt32ToDouble(temp, output.fpu());
+        break;
+      default:
+        MOZ_CRASH("Invalid typed array type");
+    }
+}
+
+template void
+MacroAssembler::atomicExchangeToTypedIntArray(Scalar::Type arrayType, const Address& mem,
+                                              Register value, Register temp, AnyRegister output);
+template void
+MacroAssembler::atomicExchangeToTypedIntArray(Scalar::Type arrayType, const BaseIndex& mem,
+                                              Register value, Register temp, AnyRegister output);
+
 template<typename S, typename T>
 void
 MacroAssembler::atomicBinopToTypedIntArray(AtomicOp op, Scalar::Type arrayType, const S& value,
@@ -1594,8 +1637,7 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
         regs.take(bailoutInfo);
 
         // Reset SP to the point where clobbering starts.
-        loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, incomingStack)),
-                BaselineStackReg);
+        loadStackPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, incomingStack)));
 
         Register copyCur = regs.takeAny();
         Register copyEnd = regs.takeAny();
@@ -1610,7 +1652,7 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
             bind(&copyLoop);
             branchPtr(Assembler::BelowOrEqual, copyCur, copyEnd, &endOfCopy);
             subPtr(Imm32(4), copyCur);
-            subPtr(Imm32(4), BaselineStackReg);
+            subFromStackPtr(Imm32(4));
             load32(Address(copyCur, 0), temp);
             store32(temp, Address(BaselineStackReg, 0));
             jump(&copyLoop);
@@ -2510,9 +2552,12 @@ MacroAssembler::MacroAssembler(JSContext* cx, IonScript* ion,
     jitContext_.emplace(cx, (js::jit::TempAllocator*)nullptr);
     alloc_.emplace(cx);
     moveResolver_.setAllocator(*jitContext_->temp);
-#ifdef JS_CODEGEN_ARM
+#if defined(JS_CODEGEN_ARM)
     initWithAllocator();
     m_buffer.id = GetJitContext()->getNextAssemblerId();
+#elif defined(JS_CODEGEN_ARM64)
+    initWithAllocator();
+    armbuffer_.id = GetJitContext()->getNextAssemblerId();
 #endif
     if (ion) {
         setFramePushed(ion->frameSize());
@@ -2707,12 +2752,12 @@ MacroAssembler::freeStack(uint32_t amount)
 {
     MOZ_ASSERT(amount <= framePushed_);
     if (amount)
-        addPtr(Imm32(amount), StackPointer);
+        addToStackPtr(Imm32(amount));
     framePushed_ -= amount;
 }
 
 void
 MacroAssembler::freeStack(Register amount)
 {
-    addPtr(amount, StackPointer);
+    addToStackPtr(amount);
 }

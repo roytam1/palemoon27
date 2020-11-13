@@ -205,7 +205,9 @@ namespace jit {
     _(LoadTypedArrayElementStatic)                                          \
     _(StoreTypedArrayElementHole)                                           \
     _(StoreTypedArrayElementStatic)                                         \
+    _(AtomicIsLockFree)                                                     \
     _(CompareExchangeTypedArrayElement)                                     \
+    _(AtomicExchangeTypedArrayElement)                                      \
     _(AtomicTypedArrayElementBinop)                                         \
     _(EffectiveAddress)                                                     \
     _(ClampToUint8)                                                         \

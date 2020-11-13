@@ -244,7 +244,9 @@
     _(LoadTypedArrayElementStatic)  \
     _(StoreTypedArrayElementHole)   \
     _(StoreTypedArrayElementStatic) \
+    _(AtomicIsLockFree)             \
     _(CompareExchangeTypedArrayElement) \
+    _(AtomicExchangeTypedArrayElement) \
     _(AtomicTypedArrayElementBinop) \
     _(AtomicTypedArrayElementBinopForEffect) \
     _(EffectiveAddress)             \
@@ -357,6 +359,8 @@
 # include "jit/x64/LOpcodes-x64.h"
 #elif defined(JS_CODEGEN_ARM)
 # include "jit/arm/LOpcodes-arm.h"
+#elif defined(JS_CODEGEN_ARM64)
+# include "jit/arm64/LOpcodes-arm64.h"
 #elif defined(JS_CODEGEN_MIPS)
 # include "jit/mips/LOpcodes-mips.h"
 #elif defined(JS_CODEGEN_NONE)

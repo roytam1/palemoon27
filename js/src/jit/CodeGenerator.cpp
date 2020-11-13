@@ -22,6 +22,7 @@
 #include "builtin/TypedObject.h"
 #include "gc/Nursery.h"
 #include "irregexp/NativeRegExpMacroAssembler.h"
+#include "jit/AtomicOperations.h"
 #include "jit/BaselineCompiler.h"
 #include "jit/IonBuilder.h"
 #include "jit/IonCaches.h"
@@ -39,6 +40,7 @@
 
 #include "jsboolinlines.h"
 
+#include "jit/AtomicOperations-inl.h"
 #include "jit/MacroAssembler-inl.h"
 #include "jit/shared/CodeGenerator-shared-inl.h"
 #include "vm/Interpreter-inl.h"
@@ -9196,14 +9198,34 @@ CodeGenerator::visitStoreTypedArrayElementHole(LStoreTypedArrayElementHole* lir)
 }
 
 void
+CodeGenerator::visitAtomicIsLockFree(LAtomicIsLockFree* lir)
+{
+    Register value = ToRegister(lir->value());
+    Register output = ToRegister(lir->output());
+
+    // Keep this in sync with isLockfree() in jit/AtomicOperations-inl.h.
+
+    Label Ldone, Lfailed;
+    masm.move32(Imm32(1), output);
+    if (AtomicOperations::isLockfree8())
+        masm.branch32(Assembler::Equal, value, Imm32(8), &Ldone);
+    else
+        masm.branch32(Assembler::Equal, value, Imm32(8), &Lfailed);
+    masm.branch32(Assembler::Equal, value, Imm32(4), &Ldone);
+    masm.branch32(Assembler::Equal, value, Imm32(2), &Ldone);
+    masm.branch32(Assembler::Equal, value, Imm32(1), &Ldone);
+    if (!AtomicOperations::isLockfree8())
+        masm.bind(&Lfailed);
+    masm.move32(Imm32(0), output);
+    masm.bind(&Ldone);
+}
+
+void
 CodeGenerator::visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayElement* lir)
 {
     Register elements = ToRegister(lir->elements());
     AnyRegister output = ToAnyRegister(lir->output());
     Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
-
-    MOZ_ASSERT(lir->oldval()->isRegister());
-    MOZ_ASSERT(lir->newval()->isRegister());
 
     Register oldval = ToRegister(lir->oldval());
     Register newval = ToRegister(lir->newval());
@@ -9217,6 +9239,27 @@ CodeGenerator::visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayE
     } else {
         BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
         masm.compareExchangeToTypedIntArray(arrayType, dest, oldval, newval, temp, output);
+    }
+}
+
+void
+CodeGenerator::visitAtomicExchangeTypedArrayElement(LAtomicExchangeTypedArrayElement* lir)
+{
+    Register elements = ToRegister(lir->elements());
+    AnyRegister output = ToAnyRegister(lir->output());
+    Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
+
+    Register value = ToRegister(lir->value());
+
+    Scalar::Type arrayType = lir->mir()->arrayType();
+    int width = Scalar::byteSize(arrayType);
+
+    if (lir->index()->isConstant()) {
+        Address dest(elements, ToInt32(lir->index()) * width);
+        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
+    } else {
+        BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
+        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
     }
 }
 

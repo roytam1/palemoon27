@@ -5051,6 +5051,19 @@ class LStoreTypedArrayElementStatic : public LInstructionHelper<0, 2, 0>
     }
 };
 
+class LAtomicIsLockFree : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(AtomicIsLockFree)
+
+    explicit LAtomicIsLockFree(const LAllocation& value) {
+        setOperand(0, value);
+    }
+    const LAllocation* value() {
+        return getOperand(0);
+    }
+};
+
 class LCompareExchangeTypedArrayElement : public LInstructionHelper<1, 4, 1>
 {
   public:
@@ -5085,6 +5098,38 @@ class LCompareExchangeTypedArrayElement : public LInstructionHelper<1, 4, 1>
 
     const MCompareExchangeTypedArrayElement* mir() const {
         return mir_->toCompareExchangeTypedArrayElement();
+    }
+};
+
+class LAtomicExchangeTypedArrayElement : public LInstructionHelper<1, 3, 1>
+{
+  public:
+    LIR_HEADER(AtomicExchangeTypedArrayElement)
+
+    LAtomicExchangeTypedArrayElement(const LAllocation& elements, const LAllocation& index,
+                                     const LAllocation& value, const LDefinition& temp)
+    {
+        setOperand(0, elements);
+        setOperand(1, index);
+        setOperand(2, value);
+        setTemp(0, temp);
+    }
+
+    const LAllocation* elements() {
+        return getOperand(0);
+    }
+    const LAllocation* index() {
+        return getOperand(1);
+    }
+    const LAllocation* value() {
+        return getOperand(2);
+    }
+    const LDefinition* temp() {
+        return getTemp(0);
+    }
+
+    const MAtomicExchangeTypedArrayElement* mir() const {
+        return mir_->toAtomicExchangeTypedArrayElement();
     }
 };
 

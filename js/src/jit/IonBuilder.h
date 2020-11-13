@@ -776,10 +776,12 @@ class IonBuilder
 
     // Atomics natives.
     InliningStatus inlineAtomicsCompareExchange(CallInfo& callInfo);
+    InliningStatus inlineAtomicsExchange(CallInfo& callInfo);
     InliningStatus inlineAtomicsLoad(CallInfo& callInfo);
     InliningStatus inlineAtomicsStore(CallInfo& callInfo);
     InliningStatus inlineAtomicsFence(CallInfo& callInfo);
     InliningStatus inlineAtomicsBinop(CallInfo& callInfo, JSFunction* target);
+    InliningStatus inlineAtomicsIsLockFree(CallInfo& callInfo);
 
     // Slot intrinsics.
     InliningStatus inlineUnsafeSetReservedSlot(CallInfo& callInfo);
@@ -876,7 +878,13 @@ class IonBuilder
                                    MObjectGroupDispatch* dispatch, MGetPropertyCache* cache,
                                    MBasicBlock** fallbackTarget);
 
-    bool atomicsMeetsPreconditions(CallInfo& callInfo, Scalar::Type* arrayElementType);
+    enum AtomicCheckResult {
+        DontCheckAtomicResult,
+        DoCheckAtomicResult
+    };
+
+    bool atomicsMeetsPreconditions(CallInfo& callInfo, Scalar::Type* arrayElementType,
+                                   AtomicCheckResult checkResult=DoCheckAtomicResult);
     void atomicsCheckBounds(CallInfo& callInfo, MInstruction** elements, MDefinition** index);
 
     bool testNeedsArgumentCheck(JSFunction* target, CallInfo& callInfo);

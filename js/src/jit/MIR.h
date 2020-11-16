@@ -3253,6 +3253,7 @@ class MSimdUnbox
       : MUnaryInstruction(op)
     {
         MOZ_ASSERT(IsSimdType(type));
+        setGuard();
         setMovable();
         setResultType(type);
     }
@@ -3264,6 +3265,11 @@ class MSimdUnbox
     static MSimdUnbox* New(TempAllocator& alloc, MDefinition* op, MIRType type)
     {
         return new(alloc) MSimdUnbox(op, type);
+    }
+
+    MDefinition* foldsTo(TempAllocator& alloc) override;
+    bool congruentTo(const MDefinition* ins) const override {
+        return congruentIfOperandsEqual(ins);
     }
 
     AliasSet getAliasSet() const override {

@@ -454,34 +454,19 @@ IsAtomsCompartment(JSCompartment* comp);
 extern JS_FRIEND_API(bool)
 IsAtomsZone(JS::Zone* zone);
 
-/*
- * Returns whether we're in a non-strict property set (in that we're in a
- * non-strict script and the bytecode we're on is a property set).  The return
- * value does NOT indicate any sort of exception was thrown: it's just a
- * boolean.
- */
-extern JS_FRIEND_API(bool)
-IsInNonStrictPropertySet(JSContext* cx);
+struct WeakMapTracer
+{
+    JSRuntime* runtime;
 
-struct WeakMapTracer;
+    explicit WeakMapTracer(JSRuntime* rt) : runtime(rt) {}
 
-/*
- * Weak map tracer callback, called once for every binding of every
- * weak map that was live at the time of the last garbage collection.
- *
- * m will be nullptr if the weak map is not contained in a JS Object.
- *
- * The callback should not GC (and will assert in a debug build if it does so.)
- */
-typedef void
-(* WeakMapTraceCallback)(WeakMapTracer* trc, JSObject* m, JS::GCCellPtr key, JS::GCCellPtr value);
-
-struct WeakMapTracer {
-    JSRuntime*           runtime;
-    WeakMapTraceCallback callback;
-
-    WeakMapTracer(JSRuntime* rt, WeakMapTraceCallback cb)
-        : runtime(rt), callback(cb) {}
+    // Weak map tracer callback, called once for every binding of every
+    // weak map that was live at the time of the last garbage collection.
+    //
+    // m will be nullptr if the weak map is not contained in a JS Object.
+    //
+    // The callback should not GC (and will assert in a debug build if it does so.)
+    virtual void trace(JSObject* m, JS::GCCellPtr key, JS::GCCellPtr value) = 0;
 };
 
 extern JS_FRIEND_API(void)
@@ -2258,7 +2243,9 @@ class JSJitMethodCallArgs : protected JS::detail::CallArgsBase<JS::detail::NoUse
         return argv_[-2].toObject();
     }
 
-    // Add get() as needed
+    JS::HandleValue get(unsigned i) const {
+        return Base::get(i);
+    }
 };
 
 struct JSJitMethodCallArgsTraits

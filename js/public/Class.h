@@ -142,6 +142,8 @@ class ObjectOpResult
     JS_PUBLIC_API(bool) failCantDeleteWindowElement();
     JS_PUBLIC_API(bool) failCantDeleteWindowNamedProperty();
     JS_PUBLIC_API(bool) failCantPreventExtensions();
+    JS_PUBLIC_API(bool) failNoNamedSetter();
+    JS_PUBLIC_API(bool) failNoIndexedSetter();
 
     uint32_t failureCode() const {
         MOZ_ASSERT(!ok());
@@ -668,7 +670,7 @@ struct JSClass {
 // the beginning of every global object's slots for use by the
 // application.
 #define JSCLASS_GLOBAL_APPLICATION_SLOTS 5
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSCLASS_GLOBAL_APPLICATION_SLOTS + JSProto_LIMIT * 3 + 33)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSCLASS_GLOBAL_APPLICATION_SLOTS + JSProto_LIMIT * 3 + 35)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \

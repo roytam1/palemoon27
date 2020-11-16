@@ -22,6 +22,7 @@
 #include "builtin/Intl.h"
 #include "builtin/Object.h"
 #include "builtin/SelfHostingDefines.h"
+#include "builtin/SIMD.h"
 #include "builtin/TypedObject.h"
 #include "builtin/WeakSetObject.h"
 #include "gc/Marking.h"
@@ -1351,6 +1352,10 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("std_WeakMap_delete",                  WeakMap_delete,               1,0),
     JS_FN("std_WeakMap_clear",                   WeakMap_clear,                0,0),
 
+    JS_FN("std_SIMD_Int32x4_extractLane",        simd_int32x4_extractLane,     2,0),
+    JS_FN("std_SIMD_Float32x4_extractLane",      simd_float32x4_extractLane,   2,0),
+    JS_FN("std_SIMD_Float64x2_extractLane",      simd_float64x2_extractLane,   2,0),
+
     // Helper funtions after this point.
     JS_FN("ToObject",                intrinsic_ToObject,                1,0),
     JS_FN("IsObject",                intrinsic_IsObject,                1,0),
@@ -1455,6 +1460,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("GetTypedObjectModule",           js::GetTypedObjectModule, 0, 0),
     JS_FN("GetFloat32x4TypeDescr",          js::GetFloat32x4TypeDescr, 0, 0),
     JS_FN("GetFloat64x2TypeDescr",          js::GetFloat64x2TypeDescr, 0, 0),
+    JS_FN("GetInt8x16TypeDescr",            js::GetInt8x16TypeDescr, 0, 0),
+    JS_FN("GetInt16x8TypeDescr",            js::GetInt16x8TypeDescr, 0, 0),
     JS_FN("GetInt32x4TypeDescr",            js::GetInt32x4TypeDescr, 0, 0),
 
 #define LOAD_AND_STORE_SCALAR_FN_DECLS(_constant, _type, _name)         \

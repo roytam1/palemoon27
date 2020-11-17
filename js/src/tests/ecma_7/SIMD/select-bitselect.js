@@ -24,12 +24,6 @@ function getMask(i, maskLength) {
         throw new Error("Invalid mask length.");
 }
 
-function selectMaskType(type) {
-    if (type == Int32x4 || type == Float32x4 || type == Float64x2)
-        return Int32x4;
-    return type;
-}
-
 function select(mask, ifTrue, ifFalse) {
     var m = simdToArray(mask);
     var tv = simdToArray(ifTrue);
@@ -57,66 +51,33 @@ function testSelect(type, inputs) {
     }
 }
 
-function intFromTypeBits(type, vec) {
-    switch (type) {
-      case Float32x4:
-          return Int32x4.fromFloat32x4Bits(vec);
-      case Float64x2:
-          return Int32x4.fromFloat64x2Bits(vec);
-      case Int8x16:
-          return vec;
-      case Int16x8:
-          return vec;
-      case Int32x4:
-          return vec;
-      default:
-          throw new TypeError("Unknown SIMD type.");
-    }
-}
-
-function bitselect(type, mask, ifTrue, ifFalse) {
-    var maskType = selectMaskType(type);
-    var tv = intFromTypeBits(type, ifTrue);
-    var fv = intFromTypeBits(type, ifFalse);
-    var tr = maskType.and(mask, tv);
-    var fr = maskType.and(maskType.not(mask), fv);
-    var orApplied = maskType.or(tr, fr);
-    var converted = type == maskType ? orApplied : type.fromInt32x4Bits(orApplied);
-    return simdToArray(converted);
-}
-
-function findCorrespondingScalarTypedArray(type) {
-    switch (type) {
-        case Int8x16: return Int8Array;
-        case Int16x8: return Int16Array;
-        case Int32x4: return Int32Array;
-        case Float32x4: return Float32Array;
-        case Float64x2: return Float64Array;
-        default: throw new Error("undefined scalar typed array");
-    }
+function selectBits(type, mask, ifTrue, ifFalse) {
+    var tr = type.and(mask, ifTrue);
+    var fr = type.and(type.not(mask), ifFalse);
+    var orApplied = type.or(tr, fr);
+    return simdToArray(orApplied);
 }
 
 /**
- * This tests type.bitselect on all boolean masks, as in select. For these,
- *          bitselect(mask, x, y) === select(mask, x, y)
+ * This tests type.selectBits on all boolean masks, as in select. For these,
+ *          selectBits(mask, x, y) === select(mask, x, y)
  */
-function testBitSelectSimple(type, inputs) {
+function testSelectBitsSimple(type, inputs) {
     var x, y;
     var maskLength = simdLengthType(type);
-    maskLength = maskLength != 2 ? maskLength : 4;
-    var ScalarTypedArray = findCorrespondingScalarTypedArray(type);
     for (var i = 0; i < Math.pow(maskLength, 2); i++) {
         var mask = getMask(i, maskLength);
         for ([x, y] of inputs)
-            assertEqVec(type.bitselect(mask, x, y), bitselect(type, mask, x, y));
+            assertEqVec(type.selectBits(mask, x, y), selectBits(type, mask, x, y));
+            assertEqVec(type.selectBits(mask, x, y), simdToArray(type.select(mask, x, y)));
     }
 }
 
 /**
- * This tests type.bitselect on a few hand-defined masks. For these,
- *          bitselect(mask, x, y) !== select(mask, x, y)
+ * This tests type.selectBits on a few hand-defined masks. For these,
+ *          selectBits(mask, x, y) !== select(mask, x, y)
  */
-function testBitSelectComplex(type, inputs) {
+function testSelectBitsComplex(type, inputs) {
     var masks8 = [
         Int8x16(0x42, 42, INT8_MAX, INT8_MIN, INT8_MAX + 1, INT8_MIN - 1, 13, 37, -42, 125, -125, -1, 1, 0xA, 0xB, 0xC)
     ]
@@ -129,22 +90,21 @@ function testBitSelectComplex(type, inputs) {
         Int32x4(0x00FF1CE, 0xBAADF00D, 0xDEADBEEF, 0xCAFED00D),
         Int32x4(0xD15EA5E, 0xDEADC0DE, 0xFACEB00C, 0x4B1D4B1D)
     ];
-    var masks = [];
-    var maskType = selectMaskType(type);
-    if (maskType == SIMD.Int8x16)
+
+    var masks;
+    if (type == SIMD.Int8x16)
         masks = masks8;
-    else if (maskType == SIMD.Int16x8)
+    else if (type == SIMD.Int16x8)
         masks = masks16;
-    else if (maskType == SIMD.Int32x4)
+    else if (type == SIMD.Int32x4)
         masks = masks32;
     else
         throw new Error("Unknown mask type.");
 
     var x, y;
-    var ScalarTypedArray = findCorrespondingScalarTypedArray(type);
     for (var mask of masks) {
         for ([x, y] of inputs)
-            assertEqVec(type.bitselect(mask, x, y), bitselect(type, mask, x, y));
+            assertEqVec(type.selectBits(mask, x, y), selectBits(type, mask, x, y));
     }
 }
 
@@ -156,8 +116,8 @@ function test() {
     ];
 
     testSelect(Int8x16, inputs);
-    testBitSelectSimple(Int8x16, inputs);
-    testBitSelectComplex(Int8x16, inputs);
+    testSelectBitsSimple(Int8x16, inputs);
+    testSelectBitsComplex(Int8x16, inputs);
 
     inputs = [
         [Int16x8(0,4,9,16,25,36,49,64), Int16x8(1,2,3,4,5,6,7,8)],
@@ -166,8 +126,8 @@ function test() {
     ];
 
     testSelect(Int16x8, inputs);
-    testBitSelectSimple(Int16x8, inputs);
-    testBitSelectComplex(Int16x8, inputs);
+    testSelectBitsSimple(Int16x8, inputs);
+    testSelectBitsComplex(Int16x8, inputs);
 
     inputs = [
         [Int32x4(0,4,9,16), Int32x4(1,2,3,4)],
@@ -175,8 +135,8 @@ function test() {
     ];
 
     testSelect(Int32x4, inputs);
-    testBitSelectSimple(Int32x4, inputs);
-    testBitSelectComplex(Int32x4, inputs);
+    testSelectBitsSimple(Int32x4, inputs);
+    testSelectBitsComplex(Int32x4, inputs);
 
     inputs = [
         [Float32x4(0.125,4.25,9.75,16.125), Float32x4(1.5,2.75,3.25,4.5)],
@@ -185,8 +145,6 @@ function test() {
     ];
 
     testSelect(Float32x4, inputs);
-    testBitSelectSimple(Float32x4, inputs);
-    testBitSelectComplex(Float32x4, inputs);
 
     inputs = [
         [Float64x2(0.125,4.25), Float64x2(9.75,16.125)],
@@ -198,8 +156,6 @@ function test() {
     ];
 
     testSelect(Float64x2, inputs);
-    testBitSelectSimple(Float64x2, inputs);
-    testBitSelectComplex(Float64x2, inputs);
 
     if (typeof reportCompare === "function")
         reportCompare(true, true);

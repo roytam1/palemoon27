@@ -44,9 +44,6 @@ class InterpreterFrame;
 extern JS_FRIEND_API(void)
 JS_SetGrayGCRootsTracer(JSRuntime* rt, JSTraceDataOp traceOp, void* data);
 
-extern JS_FRIEND_API(JSString*)
-JS_GetAnonymousString(JSRuntime* rt);
-
 extern JS_FRIEND_API(JSObject*)
 JS_FindCompilationScope(JSContext* cx, JS::HandleObject obj);
 
@@ -289,6 +286,7 @@ namespace js {
         js::Class::NON_NATIVE |                                                         \
             JSCLASS_IS_PROXY |                                                          \
             JSCLASS_IMPLEMENTS_BARRIERS |                                               \
+            JSCLASS_DELAY_METADATA_CALLBACK |                                           \
             flags,                                                                      \
         nullptr,                 /* addProperty */                                      \
         nullptr,                 /* delProperty */                                      \
@@ -609,7 +607,7 @@ inline bool
 StandardClassIsDependent(JSProtoKey key)
 {
     const Class* clasp = ProtoKeyToClass(key);
-    return clasp->spec.defined() && clasp->spec.dependent();
+    return clasp && clasp->spec.defined() && clasp->spec.dependent();
 }
 
 // Returns the key for the class inherited by a given standard class (that
@@ -645,33 +643,19 @@ IsOuterObject(JSObject* obj) {
 }
 
 JS_FRIEND_API(bool)
-IsFunctionObject(JSObject *obj);
+IsFunctionObject(JSObject* obj);
 
-JS_FRIEND_API(bool)
-IsScopeObject(JSObject *obj);
-
-JS_FRIEND_API(bool)
-IsCallObject(JSObject *obj);
-
-JS_FRIEND_API(bool)
-CanAccessObjectShape(JSObject *obj);
-
-static MOZ_ALWAYS_INLINE JSCompartment *
-GetObjectCompartment(JSObject *obj)
+static MOZ_ALWAYS_INLINE JSCompartment*
+GetObjectCompartment(JSObject* obj)
 {
     return reinterpret_cast<shadow::Object*>(obj)->group->compartment;
 }
 
-JS_FRIEND_API(JSObject *)
-GetGlobalForObjectCrossCompartment(JSObject *obj);
+JS_FRIEND_API(JSObject*)
+GetGlobalForObjectCrossCompartment(JSObject* obj);
 
-JS_FRIEND_API(JSObject *)
-GetPrototypeNoProxy(JSObject *obj);
-
-// Sidestep the activeContext checking implicitly performed in
-// JS_SetPendingException.
-JS_FRIEND_API(void)
-SetPendingExceptionCrossContext(JSContext* cx, JS::HandleValue v);
+JS_FRIEND_API(JSObject*)
+GetPrototypeNoProxy(JSObject* obj);
 
 JS_FRIEND_API(void)
 AssertSameCompartment(JSContext* cx, JSObject* obj);
@@ -702,12 +686,12 @@ JS_FRIEND_API(JSFunction*)
 DefineFunctionWithReserved(JSContext* cx, JSObject* obj, const char* name, JSNative call,
                            unsigned nargs, unsigned attrs);
 
-JS_FRIEND_API(JSFunction *)
-NewFunctionWithReserved(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
+JS_FRIEND_API(JSFunction*)
+NewFunctionWithReserved(JSContext* cx, JSNative call, unsigned nargs, unsigned flags,
                         const char *name);
 
-JS_FRIEND_API(JSFunction *)
-NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags,
+JS_FRIEND_API(JSFunction*)
+NewFunctionByIdWithReserved(JSContext* cx, JSNative native, unsigned nargs, unsigned flags,
                             jsid id);
 
 JS_FRIEND_API(const JS::Value&)
@@ -717,7 +701,7 @@ JS_FRIEND_API(void)
 SetFunctionNativeReserved(JSObject* fun, size_t which, const JS::Value& val);
 
 JS_FRIEND_API(bool)
-FunctionHasNativeReserved(JSObject *fun);
+FunctionHasNativeReserved(JSObject* fun);
 
 JS_FRIEND_API(bool)
 GetObjectProto(JSContext* cx, JS::HandleObject obj, JS::MutableHandleObject proto);
@@ -913,9 +897,6 @@ GetPropertyKeys(JSContext* cx, JS::HandleObject obj, unsigned flags, JS::AutoIdV
 
 JS_FRIEND_API(bool)
 AppendUnique(JSContext* cx, JS::AutoIdVector& base, JS::AutoIdVector& others);
-
-JS_FRIEND_API(bool)
-GetGeneric(JSContext* cx, JSObject* obj, JSObject* receiver, jsid id, JS::Value* vp);
 
 JS_FRIEND_API(bool)
 StringIsArrayIndex(JSLinearString* str, uint32_t* indexp);
@@ -2754,14 +2735,6 @@ extern JS_FRIEND_API(JSObject*)
 GetObjectEnvironmentObjectForFunction(JSFunction* fun);
 
 /*
- * Get the stored principal of the stack frame this SavedFrame object
- * represents.  note that this is not the same thing as the object principal of
- * the object itself.  Do NOT pass a non-SavedFrame object here.
- */
-extern JS_FRIEND_API(JSPrincipals*)
-GetSavedFramePrincipals(JS::HandleObject savedFrame);
-
-/*
  * Get the first SavedFrame object in this SavedFrame stack whose principals are
  * subsumed by the cx's principals. If there is no such frame, return nullptr.
  *
@@ -2789,5 +2762,15 @@ extern JS_FRIEND_API(void)
 JS_StoreStringPostBarrierCallback(JSContext* cx,
                                   void (*callback)(JSTracer* trc, JSString* key, void* data),
                                   JSString* key, void* data);
+
+/*
+ * Forcibly clear postbarrier callbacks queued by the previous two methods.
+ * This should be used when the object owning the postbarriered pointers is
+ * being destroyed outside of a garbage collection.
+ *
+ * This currently works by performing a minor GC.
+ */
+extern JS_FRIEND_API(void)
+JS_ClearAllPostBarrierCallbacks(JSRuntime *rt);
 
 #endif /* jsfriendapi_h */

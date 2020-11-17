@@ -1548,6 +1548,7 @@ class MOZ_STACK_CLASS ModuleCompiler
 
         if (!standardLibraryAtomicsNames_.init() ||
             !addStandardLibraryAtomicsName("compareExchange", AsmJSAtomicsBuiltin_compareExchange) ||
+            !addStandardLibraryAtomicsName("exchange", AsmJSAtomicsBuiltin_exchange) ||
             !addStandardLibraryAtomicsName("load", AsmJSAtomicsBuiltin_load) ||
             !addStandardLibraryAtomicsName("store", AsmJSAtomicsBuiltin_store) ||
             !addStandardLibraryAtomicsName("fence", AsmJSAtomicsBuiltin_fence) ||
@@ -2567,6 +2568,7 @@ enum class I32 : uint8_t {
 
     // Atomics opcodes
     AtomicsCompareExchange,
+    AtomicsExchange,
     AtomicsLoad,
     AtomicsStore,
     AtomicsBinOp,
@@ -3591,6 +3593,19 @@ class FunctionCompiler
         bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK;
         MAsmJSCompareExchangeHeap* cas =
             MAsmJSCompareExchangeHeap::New(alloc(), accessType, ptr, oldv, newv, needsBoundsCheck);
+        curBlock_->add(cas);
+        return cas;
+    }
+
+    MDefinition* atomicExchangeHeap(Scalar::Type accessType, MDefinition* ptr, MDefinition* value,
+                                    NeedsBoundsCheck chk)
+    {
+        if (inDeadCode())
+            return nullptr;
+
+        bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK;
+        MAsmJSAtomicExchangeHeap* cas =
+            MAsmJSAtomicExchangeHeap::New(alloc(), accessType, ptr, value, needsBoundsCheck);
         curBlock_->add(cas);
         return cas;
     }
@@ -5418,17 +5433,6 @@ EmitLoadArray(FunctionCompiler& f, Scalar::Type scalarType, MDefinition** def)
     return true;
 }
 
-void
-SwitchPatchOp(FunctionBuilder& f, size_t at, AsmJSSimdType type,
-              I32 i32, F32 f32)
-{
-    switch (type) {
-      case AsmJSSimdType_int32x4:   f.patchOp(at, i32); return;
-      case AsmJSSimdType_float32x4: f.patchOp(at, f32); return;
-    }
-    MOZ_CRASH("unexpected simd type");
-}
-
 static bool
 CheckDotAccess(FunctionBuilder& f, ParseNode* elem, Type* type)
 {
@@ -5448,29 +5452,13 @@ CheckDotAccess(FunctionBuilder& f, ParseNode* elem, Type* type)
 
     JSAtomState& names = m.cx()->names();
 
-    if (field == names.signMask) {
-        *type = Type::Signed;
-        switch (baseType.simdType()) {
-          case AsmJSSimdType_int32x4:   f.patchOp(opcodeAt, I32::I32X4SignMask); break;
-          case AsmJSSimdType_float32x4: f.patchOp(opcodeAt, I32::F32X4SignMask); break;
-        }
-        return true;
-    }
+    if (field != names.signMask)
+        return f.fail(base, "dot access field must be signMask");
 
-    if (field == names.x)
-        SwitchPatchOp(f, opcodeAt, baseType.simdType(), I32::I32X4ExtractLane, F32::F32X4ExtractLane);
-    else if (field == names.y)
-        SwitchPatchOp(f, opcodeAt, baseType.simdType(), I32::I32X4ExtractLane, F32::F32X4ExtractLane);
-    else if (field == names.z)
-        SwitchPatchOp(f, opcodeAt, baseType.simdType(), I32::I32X4ExtractLane, F32::F32X4ExtractLane);
-    else if (field == names.w)
-        SwitchPatchOp(f, opcodeAt, baseType.simdType(), I32::I32X4ExtractLane, F32::F32X4ExtractLane);
-    else
-        return f.fail(base, "dot access field must be a lane name (x, y, z, w) or signMask");
-
+    *type = Type::Signed;
     switch (baseType.simdType()) {
-      case AsmJSSimdType_int32x4:   *type = Type::Signed; break;
-      case AsmJSSimdType_float32x4: *type = Type::Float;  break;
+      case AsmJSSimdType_int32x4:   f.patchOp(opcodeAt, I32::I32X4SignMask); break;
+      case AsmJSSimdType_float32x4: f.patchOp(opcodeAt, I32::F32X4SignMask); break;
     }
 
     return true;
@@ -6173,12 +6161,63 @@ EmitAtomicsCompareExchange(FunctionCompiler& f, MDefinition** def)
 }
 
 static bool
+CheckAtomicsExchange(FunctionBuilder& f, ParseNode* call, Type* type)
+{
+    if (CallArgListLength(call) != 3)
+        return f.fail(call, "Atomics.exchange must be passed 3 arguments");
+
+    ParseNode* arrayArg = CallArgList(call);
+    ParseNode* indexArg = NextNode(arrayArg);
+    ParseNode* valueArg = NextNode(indexArg);
+
+    f.writeOp(I32::AtomicsExchange);
+    size_t needsBoundsCheckAt = f.tempU8();
+    size_t viewTypeAt = f.tempU8();
+
+    Scalar::Type viewType;
+    NeedsBoundsCheck needsBoundsCheck;
+    int32_t mask;
+    if (!CheckSharedArrayAtomicAccess(f, arrayArg, indexArg, &viewType, &needsBoundsCheck, &mask))
+        return false;
+
+    Type valueArgType;
+    if (!CheckExpr(f, valueArg, &valueArgType))
+        return false;
+
+    if (!valueArgType.isIntish())
+        return f.failf(arrayArg, "%s is not a subtype of intish", valueArgType.toChars());
+
+    f.patchU8(needsBoundsCheckAt, uint8_t(needsBoundsCheck));
+    f.patchU8(viewTypeAt, uint8_t(viewType));
+
+    *type = Type::Intish;
+    return true;
+}
+
+static bool
+EmitAtomicsExchange(FunctionCompiler& f, MDefinition** def)
+{
+    NeedsBoundsCheck needsBoundsCheck = NeedsBoundsCheck(f.readU8());
+    Scalar::Type viewType = Scalar::Type(f.readU8());
+    MDefinition* index;
+    if (!EmitI32Expr(f, &index))
+        return false;
+    MDefinition* value;
+    if (!EmitI32Expr(f, &value))
+        return false;
+    *def = f.atomicExchangeHeap(viewType, index, value, needsBoundsCheck);
+    return true;
+}
+
+static bool
 CheckAtomicsBuiltinCall(FunctionBuilder& f, ParseNode* callNode, AsmJSAtomicsBuiltinFunction func,
                         Type* resultType)
 {
     switch (func) {
       case AsmJSAtomicsBuiltin_compareExchange:
         return CheckAtomicsCompareExchange(f, callNode, resultType);
+      case AsmJSAtomicsBuiltin_exchange:
+        return CheckAtomicsExchange(f, callNode, resultType);
       case AsmJSAtomicsBuiltin_load:
         return CheckAtomicsLoad(f, callNode, resultType);
       case AsmJSAtomicsBuiltin_store:
@@ -7681,7 +7720,7 @@ CheckSimdOperationCall(FunctionBuilder& f, ParseNode* call, const ModuleCompiler
       case AsmJSSimdOperation_store3:
         return CheckSimdStore(f, call, opType, 3, type);
 
-      case AsmJSSimdOperation_bitselect:
+      case AsmJSSimdOperation_selectBits:
         return CheckSimdSelect(f, call, opType, /*isElementWise */ false, type);
       case AsmJSSimdOperation_select:
         return CheckSimdSelect(f, call, opType, /*isElementWise */ true, type);
@@ -9917,6 +9956,8 @@ EmitI32Expr(FunctionCompiler& f, MDefinition** def)
         return EmitComparison(f, op, def);
       case I32::AtomicsCompareExchange:
         return EmitAtomicsCompareExchange(f, def);
+      case I32::AtomicsExchange:
+        return EmitAtomicsExchange(f, def);
       case I32::AtomicsLoad:
         return EmitAtomicsLoad(f, def);
       case I32::AtomicsStore:
@@ -11552,6 +11593,7 @@ GenerateBuiltinThunk(ModuleCompiler& m, AsmJSExit::BuiltinKind builtin)
         argTypes.infallibleAppend(MIRType_Int32);
         argTypes.infallibleAppend(MIRType_Int32);
         break;
+      case AsmJSExit::Builtin_AtomicXchg:
       case AsmJSExit::Builtin_AtomicFetchAdd:
       case AsmJSExit::Builtin_AtomicFetchSub:
       case AsmJSExit::Builtin_AtomicFetchAnd:

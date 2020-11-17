@@ -847,7 +847,7 @@ class MDefinition : public MNode
 // iteration.
 class MUseDefIterator
 {
-    MDefinition* def_;
+    const MDefinition* def_;
     MUseIterator current_;
 
     MUseIterator search(MUseIterator start) {
@@ -860,7 +860,7 @@ class MUseDefIterator
     }
 
   public:
-    explicit MUseDefIterator(MDefinition* def)
+    explicit MUseDefIterator(const MDefinition* def)
       : def_(def),
         current_(search(def->usesBegin()))
     { }
@@ -12238,6 +12238,11 @@ class MFilterTypeSet
         return resultTypeSet()->empty();
     }
     void computeRange(TempAllocator& alloc) override;
+
+    bool isFloat32Commutative() const override { return true; }
+    bool canProduceFloat32() const override { return input()->canProduceFloat32(); }
+    bool canConsumeFloat32(MUse* operand) const override;
+    void trySpecializeFloat32(TempAllocator& alloc) override;
 };
 
 // Given a value, guard that the value is in a particular TypeSet, then returns
@@ -13274,6 +13279,38 @@ class MAsmJSCompareExchangeHeap
     }
 };
 
+class MAsmJSAtomicExchangeHeap
+  : public MBinaryInstruction,
+    public MAsmJSHeapAccess,
+    public NoTypePolicy::Data
+{
+    MAsmJSAtomicExchangeHeap(Scalar::Type accessType, MDefinition* ptr, MDefinition* value,
+                             bool needsBoundsCheck)
+        : MBinaryInstruction(ptr, value),
+          MAsmJSHeapAccess(accessType, needsBoundsCheck)
+    {
+        setGuard();             // Not removable
+        setResultType(MIRType_Int32);
+    }
+
+  public:
+    INSTRUCTION_HEADER(AsmJSAtomicExchangeHeap)
+
+    static MAsmJSAtomicExchangeHeap* New(TempAllocator& alloc, Scalar::Type accessType,
+                                         MDefinition* ptr, MDefinition* value,
+                                         bool needsBoundsCheck)
+    {
+        return new(alloc) MAsmJSAtomicExchangeHeap(accessType, ptr, value, needsBoundsCheck);
+    }
+
+    MDefinition* ptr() const { return getOperand(0); }
+    MDefinition* value() const { return getOperand(1); }
+
+    AliasSet getAliasSet() const override {
+        return AliasSet::Store(AliasSet::AsmJSHeap);
+    }
+};
+
 class MAsmJSAtomicBinopHeap
   : public MBinaryInstruction,
     public MAsmJSHeapAccess,
@@ -13666,8 +13703,7 @@ bool ElementAccessIsAnyTypedArray(CompilerConstraintList* constraints,
                                   Scalar::Type* arrayType);
 bool ElementAccessIsPacked(CompilerConstraintList* constraints, MDefinition* obj);
 bool ElementAccessMightBeCopyOnWrite(CompilerConstraintList* constraints, MDefinition* obj);
-bool ElementAccessHasExtraIndexedProperty(CompilerConstraintList* constraints,
-                                          MDefinition* obj);
+bool ElementAccessHasExtraIndexedProperty(IonBuilder* builder, MDefinition* obj);
 MIRType DenseNativeElementType(CompilerConstraintList* constraints, MDefinition* obj);
 BarrierKind PropertyReadNeedsTypeBarrier(JSContext* propertycx,
                                          CompilerConstraintList* constraints,
@@ -13678,7 +13714,6 @@ BarrierKind PropertyReadNeedsTypeBarrier(JSContext* propertycx,
                                          MDefinition* obj, PropertyName* name,
                                          TemporaryTypeSet* observed);
 BarrierKind PropertyReadOnPrototypeNeedsTypeBarrier(IonBuilder* builder,
-                                                    CompilerConstraintList* constraints,
                                                     MDefinition* obj, PropertyName* name,
                                                     TemporaryTypeSet* observed);
 bool PropertyReadIsIdempotent(CompilerConstraintList* constraints,
@@ -13692,6 +13727,8 @@ bool PropertyWriteNeedsTypeBarrier(TempAllocator& alloc, CompilerConstraintList*
                                    MBasicBlock* current, MDefinition** pobj,
                                    PropertyName* name, MDefinition** pvalue,
                                    bool canModify, MIRType implicitType = MIRType_None);
+bool ArrayPrototypeHasIndexedProperty(IonBuilder* builder, JSScript* script);
+bool TypeCanHaveExtraIndexedProperties(IonBuilder* builder, TemporaryTypeSet* types);
 
 inline MIRType
 MIRTypeForTypedArrayRead(Scalar::Type arrayType, bool observedDouble)

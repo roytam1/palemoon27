@@ -2,23 +2,21 @@ load(libdir + 'simd.js');
 
 setJitCompilerOption("ion.warmup.trigger", 50);
 
-function Int32x4FromTypeBits(type, vec) {
-    if (type == SIMD.Int32x4)
-        return vec;
-    if (type == SIMD.Float32x4)
-        return SIMD.Int32x4.fromFloat32x4Bits(vec);
-    throw 'unimplemented';
+function selectBits(mask, ifTrue, ifFalse) {
+    var Int32x4 = SIMD.Int32x4;
+    var tr = Int32x4.and(mask, ifTrue);
+    var fr = Int32x4.and(Int32x4.not(mask), ifFalse);
+    var orApplied = Int32x4.or(tr, fr);
+    return simdToArray(orApplied);
 }
 
-function bitselect(type, mask, ifTrue, ifFalse) {
-    var Int32x4 = SIMD.Int32x4;
-    var tv = Int32x4FromTypeBits(type, ifTrue);
-    var fv = Int32x4FromTypeBits(type, ifFalse);
-    var tr = Int32x4.and(mask, tv);
-    var fr = Int32x4.and(Int32x4.not(mask), fv);
-    var orApplied = Int32x4.or(tr, fr);
-    var converted = type == Int32x4 ? orApplied : type.fromInt32x4Bits(orApplied);
-    return simdToArray(converted);
+function select(type, mask, ifTrue, ifFalse) {
+    var arr = [];
+    for (var i = 0; i < 4; i++) {
+        var selector = SIMD.Int32x4.extractLane(mask, i);
+        arr.push(type.extractLane(selector === -1 ? ifTrue : ifFalse, i));
+    }
+    return arr;
 }
 
 function f() {
@@ -34,13 +32,13 @@ function f() {
     var mask = SIMD.Int32x4(0xdeadbeef, 0xbaadf00d, 0x00ff1ce, 0xdeadc0de);
 
     for (var i = 0; i < 150; i++) {
-        assertEqX4(SIMD.Float32x4.select(TTFT, f1, f2), [f1.x, f1.y, f2.z, f1.w]);
-        assertEqX4(SIMD.Float32x4.select(TFTF, f1, f2), [f1.x, f2.y, f1.z, f2.w]);
-        assertEqX4(SIMD.Int32x4.select(TFTF, i1, i2), [i1.x, i2.y, i1.z, i2.w]);
-        assertEqX4(SIMD.Int32x4.select(TTFT, i1, i2), [i1.x, i1.y, i2.z, i1.w]);
+        assertEqX4(SIMD.Float32x4.select(TTFT, f1, f2), select(SIMD.Float32x4, TTFT, f1, f2));
+        assertEqX4(SIMD.Float32x4.select(TFTF, f1, f2), select(SIMD.Float32x4, TFTF, f1, f2));
 
-        assertEqX4(SIMD.Float32x4.bitselect(mask, f1, f2), bitselect(SIMD.Float32x4, mask, f1, f2));
-        assertEqX4(SIMD.Int32x4.bitselect(mask, i1, i2), bitselect(SIMD.Int32x4, mask, i1, i2));
+        assertEqX4(SIMD.Int32x4.select(TFTF, i1, i2), select(SIMD.Int32x4, TFTF, i1, i2));
+        assertEqX4(SIMD.Int32x4.select(TTFT, i1, i2), select(SIMD.Int32x4, TTFT, i1, i2));
+
+        assertEqX4(SIMD.Int32x4.selectBits(mask, i1, i2), selectBits(mask, i1, i2));
     }
 }
 

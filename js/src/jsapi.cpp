@@ -662,6 +662,22 @@ JS_SetICUMemoryFunctions(JS_ICUAllocFn allocFn, JS_ICUReallocFn reallocFn, JS_IC
 #endif
 }
 
+static JS_CurrentEmbedderTimeFunction currentEmbedderTimeFunction;
+
+JS_PUBLIC_API(void)
+JS_SetCurrentEmbedderTimeFunction(JS_CurrentEmbedderTimeFunction timeFn)
+{
+    currentEmbedderTimeFunction = timeFn;
+}
+
+JS_PUBLIC_API(double)
+JS_GetCurrentEmbedderTime()
+{
+    if (currentEmbedderTimeFunction)
+        return currentEmbedderTimeFunction();
+    return PRMJ_Now() / static_cast<double>(PRMJ_USEC_PER_MSEC);
+}
+
 JS_PUBLIC_API(void*)
 JS_GetRuntimePrivate(JSRuntime* rt)
 {
@@ -1249,12 +1265,15 @@ JS_ResolveStandardClass(JSContext* cx, HandleObject obj, HandleId id, bool* reso
     // If this class is anonymous, then it doesn't exist as a global
     // property, so we won't resolve anything.
     JSProtoKey key = stdnm ? stdnm->key : JSProto_Null;
-    if (key != JSProto_Null && !(ProtoKeyToClass(key)->flags & JSCLASS_IS_ANONYMOUS)) {
-        if (!GlobalObject::ensureConstructor(cx, global, stdnm->key))
-            return false;
+    if (key != JSProto_Null) {
+        const Class* clasp = ProtoKeyToClass(key);
+        if (!clasp || !(clasp->flags & JSCLASS_IS_ANONYMOUS)) {
+            if (!GlobalObject::ensureConstructor(cx, global, key))
+                return false;
 
-        *resolved = true;
-        return true;
+            *resolved = true;
+            return true;
+        }
     }
 
     // There is no such property to resolve. An ordinary resolve hook would

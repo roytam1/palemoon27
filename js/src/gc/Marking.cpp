@@ -1820,8 +1820,12 @@ js::gc::StoreBuffer::WholeCellEdges::trace(TenuringTracer& mover) const
 
         return;
     }
-    MOZ_ASSERT(kind == JS::TraceKind::JitCode);
-    static_cast<jit::JitCode*>(edge)->traceChildren(&mover);
+    if (kind == JS::TraceKind::Script)
+        static_cast<JSScript*>(edge)->traceChildren(&mover);
+    else if (kind == JS::TraceKind::JitCode)
+        static_cast<jit::JitCode*>(edge)->traceChildren(&mover);
+    else
+        MOZ_CRASH();
 }
 
 void
@@ -1883,11 +1887,11 @@ js::Nursery::collectToFixedPoint(TenuringTracer& mover, TenureCountCache& tenure
         JSObject* obj = static_cast<JSObject*>(p->forwardingAddress());
         mover.traceObject(obj);
 
-        TenureCount& entry = tenureCounts.findEntry(obj->group());
-        if (entry.group == obj->group()) {
+        TenureCount& entry = tenureCounts.findEntry(obj->groupRaw());
+        if (entry.group == obj->groupRaw()) {
             entry.count++;
         } else if (!entry.group) {
-            entry.group = obj->group();
+            entry.group = obj->groupRaw();
             entry.count = 1;
         }
     }
@@ -1974,14 +1978,18 @@ js::TenuringTracer::moveObjectToTenured(JSObject* dst, JSObject* src, AllocKind 
         }
     }
 
-    if (src->is<InlineTypedObject>()) {
-        InlineTypedObject::objectMovedDuringMinorGC(this, dst, src);
-    } else if (src->is<UnboxedArrayObject>()) {
-        tenuredSize += UnboxedArrayObject::objectMovedDuringMinorGC(this, dst, src, dstKind);
-    } else {
-        // Objects with JSCLASS_SKIP_NURSERY_FINALIZE need to be handled above
-        // to ensure any additional nursery buffers they hold are moved.
-        MOZ_ASSERT(!(src->getClass()->flags & JSCLASS_SKIP_NURSERY_FINALIZE));
+    if (src->getClass()->flags & JSCLASS_SKIP_NURSERY_FINALIZE) {
+        if (src->is<InlineTypedObject>()) {
+            InlineTypedObject::objectMovedDuringMinorGC(this, dst, src);
+        } else if (src->is<UnboxedArrayObject>()) {
+            tenuredSize += UnboxedArrayObject::objectMovedDuringMinorGC(this, dst, src, dstKind);
+        } else if (src->is<ArgumentsObject>()) {
+            tenuredSize += ArgumentsObject::objectMovedDuringMinorGC(this, dst, src);
+        } else {
+            // Objects with JSCLASS_SKIP_NURSERY_FINALIZE need to be handled above
+            // to ensure any additional nursery buffers they hold are moved.
+            MOZ_CRASH("Unhandled JSCLASS_SKIP_NURSERY_FINALIZE Class");
+        }
     }
 
     return tenuredSize;
@@ -2420,11 +2428,7 @@ js::UnmarkGrayCellRecursively(gc::Cell* cell, JS::TraceKind kind)
     MOZ_ASSERT(cell);
 
     JSRuntime* rt = cell->runtimeFromMainThread();
-
-    // When the ReadBarriered type is used in a HashTable, it is difficult or
-    // impossible to suppress the implicit cast operator while iterating for GC.
-    if (rt->isHeapBusy())
-        return false;
+    MOZ_ASSERT(!rt->isHeapBusy());
 
     bool unmarkedArg = false;
     if (cell->isTenured()) {

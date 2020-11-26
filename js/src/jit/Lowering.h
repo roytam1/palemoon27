@@ -17,8 +17,10 @@
 # include "jit/x64/Lowering-x64.h"
 #elif defined(JS_CODEGEN_ARM)
 # include "jit/arm/Lowering-arm.h"
+#elif defined(JS_CODEGEN_ARM64)
+# include "jit/arm64/Lowering-arm64.h"
 #elif defined(JS_CODEGEN_MIPS)
-# include "jit/mips/Lowering-mips.h"
+# include "jit/mips32/Lowering-mips32.h"
 #elif defined(JS_CODEGEN_NONE)
 # include "jit/none/Lowering-none.h"
 #else
@@ -295,9 +297,9 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitLexicalCheck(MLexicalCheck* ins);
     void visitThrowUninitializedLexical(MThrowUninitializedLexical* ins);
     void visitDebugger(MDebugger* ins);
-    void visitNurseryObject(MNurseryObject* ins);
     void visitNewTarget(MNewTarget* ins);
     void visitArrowNewTarget(MArrowNewTarget* ins);
+    void visitAtomicIsLockFree(MAtomicIsLockFree* ins);
 };
 
 } // namespace jit

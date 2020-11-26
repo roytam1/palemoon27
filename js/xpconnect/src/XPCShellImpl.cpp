@@ -1464,7 +1464,7 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
 
             JSAutoCompartment ac(cx, glob);
 
-            if (!JS_InitReflect(cx, glob)) {
+            if (!JS_InitReflectParse(cx, glob)) {
                 return 1;
             }
 

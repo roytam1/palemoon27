@@ -104,12 +104,20 @@ GetBuildConfiguration(JSContext* cx, unsigned argc, jsval* vp)
     if (!JS_SetProperty(cx, info, "x64", value))
         return false;
 
-#ifdef JS_ARM_SIMULATOR
+#ifdef JS_SIMULATOR_ARM
     value = BooleanValue(true);
 #else
     value = BooleanValue(false);
 #endif
     if (!JS_SetProperty(cx, info, "arm-simulator", value))
+        return false;
+
+#ifdef JS_SIMULATOR_ARM64
+    value = BooleanValue(true);
+#else
+    value = BooleanValue(false);
+#endif
+    if (!JS_SetProperty(cx, info, "arm64-simulator", value))
         return false;
 
 #ifdef MOZ_ASAN
@@ -1529,7 +1537,7 @@ js::testingFunc_inIon(JSContext* cx, unsigned argc, jsval* vp)
     ScriptFrameIter iter(cx);
     if (iter.isIon()) {
         // Reset the counter of the IonScript's script.
-        JitFrameIterator jitIter(cx);
+        jit::JitFrameIterator jitIter(cx);
         ++jitIter;
         jitIter.script()->resetWarmUpResetCounter();
     } else {
@@ -2099,7 +2107,7 @@ static bool
 ReportLargeAllocationFailure(JSContext* cx, unsigned argc, jsval* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    void* buf = cx->runtime()->onOutOfMemoryCanGC(NULL, JSRuntime::LARGE_ALLOCATION);
+    void* buf = cx->runtime()->onOutOfMemoryCanGC(AllocFunction::Malloc, JSRuntime::LARGE_ALLOCATION);
     js_free(buf);
     args.rval().setUndefined();
     return true;
@@ -2501,7 +2509,7 @@ SetImmutablePrototype(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-SetLazyParsingEnabled(JSContext *cx, unsigned argc, Value *vp)
+SetLazyParsingEnabled(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -2540,6 +2548,20 @@ GetConstructorName(JSContext* cx, unsigned argc, Value* vp)
     } else {
         args.rval().setNull();
     }
+    return true;
+}
+
+static bool
+AllocationMarker(JSContext* cx, unsigned argc, jsval* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    static const JSClass cls = { "AllocationMarker" };
+
+    RootedObject obj(cx, JS_NewObject(cx, &cls));
+    if (!obj)
+        return false;
+    args.rval().setObject(*obj);
     return true;
 }
 
@@ -2939,6 +2961,13 @@ gc::ZealModeHelpText),
 "getConstructorName(object)",
 "  If the given object was created with `new Ctor`, return the constructor's display name. "
 "  Otherwise, return null."),
+
+    JS_FN_HELP("allocationMarker", AllocationMarker, 0, 0,
+"allocationMarker()",
+"  Return a freshly allocated object whose [[Class]] name is\n"
+"  \"AllocationMarker\". Such objects are allocated only by calls\n"
+"  to this function, never implicitly by the system, making them\n"
+"  suitable for use in allocation tooling tests.\n"),
 
     JS_FS_HELP_END
 };

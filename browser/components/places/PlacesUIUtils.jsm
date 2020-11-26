@@ -87,6 +87,7 @@ this.PlacesUIUtils = {
   get _copyableAnnotations() [
     this.DESCRIPTION_ANNO,
     this.LOAD_IN_SIDEBAR_ANNO,
+    PlacesUtils.POST_DATA_ANNO,
     PlacesUtils.READ_ONLY_ANNO,
   ],
 
@@ -121,6 +122,7 @@ this.PlacesUIUtils = {
       );
     }
 
+    let keyword = aData.keyword || null;
     let annos = [];
     if (aData.annos) {
       annos = aData.annos.filter(function (aAnno) {
@@ -128,10 +130,9 @@ this.PlacesUIUtils = {
       }, this);
     }
 
-    // There's no need to copy the keyword since it's bound to the bookmark url.
     return new PlacesCreateBookmarkTransaction(PlacesUtils._uri(aData.uri),
                                                aContainer, aIndex, aData.title,
-                                               null, annos, transactions);
+                                               keyword, annos, transactions);
   },
 
   /**

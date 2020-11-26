@@ -244,7 +244,9 @@
     _(LoadTypedArrayElementStatic)  \
     _(StoreTypedArrayElementHole)   \
     _(StoreTypedArrayElementStatic) \
+    _(AtomicIsLockFree)             \
     _(CompareExchangeTypedArrayElement) \
+    _(AtomicExchangeTypedArrayElement) \
     _(AtomicTypedArrayElementBinop) \
     _(AtomicTypedArrayElementBinopForEffect) \
     _(EffectiveAddress)             \
@@ -335,6 +337,7 @@
     _(AsmJSPassStackArg)            \
     _(AsmJSCall)                    \
     _(AsmJSCompareExchangeHeap)     \
+    _(AsmJSAtomicExchangeHeap)      \
     _(AsmJSAtomicBinopHeap)         \
     _(AsmJSAtomicBinopHeapForEffect)\
     _(RecompileCheck)               \
@@ -347,7 +350,6 @@
     _(AssertResultT)                \
     _(LexicalCheck)                 \
     _(ThrowUninitializedLexical)    \
-    _(NurseryObject)                \
     _(Debugger)                     \
     _(NewTarget)                    \
     _(ArrowNewTarget)
@@ -358,8 +360,10 @@
 # include "jit/x64/LOpcodes-x64.h"
 #elif defined(JS_CODEGEN_ARM)
 # include "jit/arm/LOpcodes-arm.h"
+#elif defined(JS_CODEGEN_ARM64)
+# include "jit/arm64/LOpcodes-arm64.h"
 #elif defined(JS_CODEGEN_MIPS)
-# include "jit/mips/LOpcodes-mips.h"
+# include "jit/mips32/LOpcodes-mips32.h"
 #elif defined(JS_CODEGEN_NONE)
 # include "jit/none/LOpcodes-none.h"
 #else

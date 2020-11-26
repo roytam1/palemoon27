@@ -248,16 +248,6 @@ js::ObjectGroupHasProperty(JSContext* cx, ObjectGroup* group, jsid id, const Val
 
         TypeSet::Type type = TypeSet::GetValueType(value);
 
-        // Type set guards might miss when an object's group changes and its
-        // properties become unknown.
-        if (value.isObject() &&
-            !value.toObject().hasLazyGroup() &&
-            ((value.toObject().group()->flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES) ||
-             value.toObject().group()->maybeOriginalUnboxedGroup()))
-        {
-            return true;
-        }
-
         AutoEnterAnalysis enter(cx);
 
         /*
@@ -268,6 +258,22 @@ js::ObjectGroupHasProperty(JSContext* cx, ObjectGroup* group, jsid id, const Val
         TypeSet* types = group->maybeGetProperty(id);
         if (!types)
             return true;
+
+        // Type set guards might miss when an object's group changes and its
+        // properties become unknown.
+        if (value.isObject()) {
+            if (types->unknownObject())
+                return true;
+            for (size_t i = 0; i < types->getObjectCount(); i++) {
+                if (TypeSet::ObjectKey* key = types->getObject(i)) {
+                    if (key->unknownProperties())
+                        return true;
+                }
+            }
+            JSObject* obj = &value.toObject();
+            if (!obj->hasLazyGroup() && obj->group()->maybeOriginalUnboxedGroup())
+                return true;
+        }
 
         if (!types->hasType(type)) {
             TypeFailure(cx, "Missing type in object %s %s: %s",
@@ -605,6 +611,41 @@ TypeSet::addType(Type type, LifoAlloc* alloc)
     }
 }
 
+// This class is used for post barriers on type set contents. The only times
+// when type sets contain nursery references is when a nursery object has its
+// group dynamically changed to a singleton. In such cases the type set will
+// need to be traced at the next minor GC.
+//
+// There is no barrier used for TemporaryTypeSets. These type sets are only
+// used during Ion compilation, and if some ConstraintTypeSet contains nursery
+// pointers then any number of TemporaryTypeSets might as well. Thus, if there
+// are any such ConstraintTypeSets in existence, all off thread Ion
+// compilations are canceled by the next minor GC.
+class TypeSetRef : public BufferableRef
+{
+    Zone* zone;
+    ConstraintTypeSet* types;
+
+  public:
+    TypeSetRef(Zone* zone, ConstraintTypeSet* types)
+      : zone(zone), types(types)
+    {}
+
+    void trace(JSTracer* trc) override {
+        types->trace(zone, trc);
+    }
+};
+
+void
+ConstraintTypeSet::postWriteBarrier(ExclusiveContext* cx, Type type)
+{
+    if (type.isSingletonUnchecked() && IsInsideNursery(type.singletonNoBarrier())) {
+        JSRuntime* rt = cx->asJSContext()->runtime();
+        rt->gc.storeBuffer.putGeneric(TypeSetRef(cx->zone(), this));
+        rt->gc.storeBuffer.setShouldCancelIonCompilations();
+    }
+}
+
 void
 ConstraintTypeSet::addType(ExclusiveContext* cxArg, Type type)
 {
@@ -617,6 +658,8 @@ ConstraintTypeSet::addType(ExclusiveContext* cxArg, Type type)
 
     if (type.isObjectUnchecked() && unknownObject())
         type = AnyObjectType();
+
+    postWriteBarrier(cxArg, type);
 
     InferSpew(ISpewOps, "addType: %sT%p%s %s",
               InferSpewColor(this), this, InferSpewColorReset(),
@@ -2572,6 +2615,7 @@ UpdatePropertyType(ExclusiveContext* cx, HeapTypeSet* types, NativeObject* obj, 
         {
             TypeSet::Type type = TypeSet::GetValueType(value);
             types->TypeSet::addType(type, &cx->typeLifoAlloc());
+            types->postWriteBarrier(cx, type);
         }
 
         if (indexed || shape->hadOverwrite()) {
@@ -2623,6 +2667,7 @@ ObjectGroup::updateNewPropertyTypes(ExclusiveContext* cx, JSObject* objArg, jsid
             if (!value.isMagic(JS_ELEMENTS_HOLE)) {
                 TypeSet::Type type = TypeSet::GetValueType(value);
                 types->TypeSet::addType(type, &cx->typeLifoAlloc());
+                types->postWriteBarrier(cx, type);
             }
         }
     } else if (!JSID_IS_EMPTY(id)) {
@@ -2774,24 +2819,6 @@ ObjectGroup::markPropertyNonWritable(ExclusiveContext* cx, JSObject* obj, jsid i
         types->setNonWritableProperty(cx);
 }
 
-bool
-ObjectGroup::isPropertyNonData(jsid id)
-{
-    TypeSet* types = maybeGetProperty(id);
-    if (types)
-        return types->nonDataProperty();
-    return false;
-}
-
-bool
-ObjectGroup::isPropertyNonWritable(jsid id)
-{
-    TypeSet* types = maybeGetProperty(id);
-    if (types)
-        return types->nonWritableProperty();
-    return false;
-}
-
 void
 ObjectGroup::markStateChange(ExclusiveContext* cxArg)
 {
@@ -2851,6 +2878,9 @@ ObjectGroup::markUnknown(ExclusiveContext* cx)
 
     clearNewScript(cx);
     ObjectStateChange(cx, this, true);
+
+    if (ObjectGroup* unboxedGroup = maybeOriginalUnboxedGroup())
+        unboxedGroup->markUnknown(cx);
 
     /*
      * Existing constraints may have already been added to this object, which we need
@@ -3254,8 +3284,10 @@ JSScript::makeTypes(JSContext* cx)
 
     TypeScript* typeScript = (TypeScript*)
         zone()->pod_calloc<uint8_t>(TypeScript::SizeIncludingTypeArray(count));
-    if (!typeScript)
+    if (!typeScript) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     types_ = typeScript;
     setTypesGeneration(cx->zone()->types.generation);
@@ -3337,6 +3369,16 @@ PreliminaryObjectArray::full() const
     return true;
 }
 
+bool
+PreliminaryObjectArray::empty() const
+{
+    for (size_t i = 0; i < COUNT; i++) {
+        if (objects[i])
+            return false;
+    }
+    return true;
+}
+
 void
 PreliminaryObjectArray::sweep()
 {
@@ -3344,8 +3386,25 @@ PreliminaryObjectArray::sweep()
     // destroyed.
     for (size_t i = 0; i < COUNT; i++) {
         JSObject** ptr = &objects[i];
-        if (*ptr && IsAboutToBeFinalizedUnbarriered(ptr))
+        if (*ptr && IsAboutToBeFinalizedUnbarriered(ptr)) {
+            // Before we clear this reference, change the object's group to the
+            // Object.prototype group. This is done to ensure JSObject::finalize
+            // sees a NativeObject Class even if we change the current group's
+            // Class to one of the unboxed object classes in the meantime. If
+            // the compartment's global is dead, we don't do anything as the
+            // group's Class is not going to change in that case.
+            JSObject* obj = *ptr;
+            GlobalObject* global = obj->compartment()->maybeGlobal();
+            if (global && !obj->isSingleton()) {
+                JSObject* objectProto = GetBuiltinPrototypePure(global, JSProto_Object);
+                obj->setGroup(objectProto->groupRaw());
+                MOZ_ASSERT(obj->is<NativeObject>());
+                MOZ_ASSERT(obj->getClass() == objectProto->getClass());
+                MOZ_ASSERT(!obj->getClass()->finalize);
+            }
+
             *ptr = nullptr;
+        }
     }
 }
 
@@ -3361,7 +3420,7 @@ PreliminaryObjectArrayWithTemplate::writeBarrierPre(PreliminaryObjectArrayWithTe
 {
     Shape* shape = objects->shape();
 
-    if (!shape || !shape->runtimeFromAnyThread()->needsIncrementalBarrier())
+    if (!shape || shape->runtimeFromAnyThread()->isHeapBusy())
         return;
 
     JS::Zone* zone = shape->zoneFromAnyThread();
@@ -3512,8 +3571,10 @@ TypeNewScript::makeNativeVersion(JSContext* cx, TypeNewScript* newScript,
     size_t initializerLength = cursor - newScript->initializerList + 1;
 
     nativeNewScript->initializerList = cx->zone()->pod_calloc<Initializer>(initializerLength);
-    if (!nativeNewScript->initializerList)
+    if (!nativeNewScript->initializerList) {
+        ReportOutOfMemory(cx);
         return nullptr;
+    }
     PodCopy(nativeNewScript->initializerList, newScript->initializerList, initializerLength);
 
     return nativeNewScript.forget();
@@ -3720,8 +3781,10 @@ TypeNewScript::maybeAnalyze(JSContext* cx, ObjectGroup* group, bool* regenerate,
             return false;
 
         initializerList = group->zone()->pod_calloc<Initializer>(initializerVector.length());
-        if (!initializerList)
+        if (!initializerList) {
+            ReportOutOfMemory(cx);
             return false;
+        }
         PodCopy(initializerList, initializerVector.begin(), initializerVector.length());
     }
 
@@ -3926,7 +3989,7 @@ TypeNewScript::trace(JSTracer* trc)
 /* static */ void
 TypeNewScript::writeBarrierPre(TypeNewScript* newScript)
 {
-    if (!newScript->function()->runtimeFromAnyThread()->needsIncrementalBarrier())
+    if (newScript->function()->runtimeFromAnyThread()->isHeapBusy())
         return;
 
     JS::Zone* zone = newScript->function()->zoneFromAnyThread();
@@ -3944,6 +4007,55 @@ TypeNewScript::sweep()
 /////////////////////////////////////////////////////////////////////
 // Tracing
 /////////////////////////////////////////////////////////////////////
+
+static inline void
+TraceObjectKey(JSTracer* trc, TypeSet::ObjectKey** keyp)
+{
+    TypeSet::ObjectKey* key = *keyp;
+    if (key->isGroup()) {
+        ObjectGroup* group = key->groupNoBarrier();
+        TraceManuallyBarrieredEdge(trc, &group, "objectKey_group");
+        *keyp = TypeSet::ObjectKey::get(group);
+    } else {
+        JSObject* singleton = key->singletonNoBarrier();
+        TraceManuallyBarrieredEdge(trc, &singleton, "objectKey_singleton");
+        *keyp = TypeSet::ObjectKey::get(singleton);
+    }
+}
+
+void
+ConstraintTypeSet::trace(Zone* zone, JSTracer* trc)
+{
+    // ConstraintTypeSets only hold strong references during minor collections.
+    MOZ_ASSERT(zone->runtimeFromMainThread()->isHeapMinorCollecting());
+
+    unsigned objectCount = baseObjectCount();
+    if (objectCount >= 2) {
+        unsigned oldCapacity = TypeHashSet::Capacity(objectCount);
+        ObjectKey** oldArray = objectSet;
+
+        clearObjects();
+        objectCount = 0;
+        for (unsigned i = 0; i < oldCapacity; i++) {
+            ObjectKey* key = oldArray[i];
+            if (!key)
+                continue;
+            TraceObjectKey(trc, &key);
+            ObjectKey** pentry =
+                TypeHashSet::Insert<ObjectKey*, ObjectKey, ObjectKey>
+                    (zone->types.typeLifoAlloc, objectSet, objectCount, key);
+            if (pentry)
+                *pentry = key;
+            else
+                CrashAtUnhandlableOOM("ConstraintTypeSet::trace");
+        }
+        setBaseObjectCount(objectCount);
+    } else if (objectCount == 1) {
+        ObjectKey* key = (ObjectKey*) objectSet;
+        TraceObjectKey(trc, &key);
+        objectSet = reinterpret_cast<ObjectKey**>(key);
+    }
+}
 
 void
 ConstraintTypeSet::sweep(Zone* zone, AutoClearTypeInferenceStateOnOOM& oom)

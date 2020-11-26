@@ -22,6 +22,7 @@
 #include "builtin/TypedObject.h"
 #include "gc/Nursery.h"
 #include "irregexp/NativeRegExpMacroAssembler.h"
+#include "jit/AtomicOperations.h"
 #include "jit/BaselineCompiler.h"
 #include "jit/IonBuilder.h"
 #include "jit/IonCaches.h"
@@ -39,6 +40,7 @@
 
 #include "jsboolinlines.h"
 
+#include "jit/AtomicOperations-inl.h"
 #include "jit/MacroAssembler-inl.h"
 #include "jit/shared/CodeGenerator-shared-inl.h"
 #include "vm/Interpreter-inl.h"
@@ -2236,19 +2238,6 @@ CodeGenerator::visitPointer(LPointer* lir)
 }
 
 void
-CodeGenerator::visitNurseryObject(LNurseryObject* lir)
-{
-    Register output = ToRegister(lir->output());
-    uint32_t index = lir->mir()->index();
-
-    // Store a dummy JSObject pointer. We will fix it up on the main thread,
-    // in JitCode::fixupNurseryObjects. The low bit is set to distinguish
-    // it from a real JSObject pointer.
-    JSObject* ptr = reinterpret_cast<JSObject*>((uintptr_t(index) << 1) | 1);
-    masm.movePtr(ImmGCPtr(IonNurseryPtr(ptr)), output);
-}
-
-void
 CodeGenerator::visitKeepAliveObject(LKeepAliveObject* lir)
 {
     // No-op.
@@ -3041,10 +3030,12 @@ CodeGenerator::visitCallGeneric(LCallGeneric* call)
 
     // Guard that calleereg is an interpreted function with a JSScript.
     // If we are constructing, also ensure the callee is a constructor.
-    if (call->mir()->isConstructing())
+    if (call->mir()->isConstructing()) {
         masm.branchIfNotInterpretedConstructor(calleereg, nargsreg, &invoke);
-    else
+    } else {
         masm.branchIfFunctionHasNoScript(calleereg, &invoke);
+        masm.branchFunctionKind(Assembler::Equal, JSFunction::ClassConstructor, calleereg, objreg, &invoke);
+    }
 
     // Knowing that calleereg is a non-native function, load the JSScript.
     masm.loadPtr(Address(calleereg, JSFunction::offsetOfNativeOrScript()), objreg);
@@ -3138,6 +3129,7 @@ CodeGenerator::visitCallKnown(LCallKnown* call)
 
     // Native single targets are handled by LCallNative.
     MOZ_ASSERT(!target->isNative());
+    MOZ_ASSERT_IF(target->isClassConstructor(), call->isConstructing());
     // Missing arguments must have been explicitly appended by the IonBuilder.
     DebugOnly<unsigned> numNonArgsOnStack = 1 + call->isConstructing();
     MOZ_ASSERT(target->nargs() <= call->mir()->numStackArgs() - numNonArgsOnStack);
@@ -3576,11 +3568,16 @@ CodeGenerator::generateArgumentsChecks(bool bailout)
             // Check for cases where the type set guard might have missed due to
             // changing object groups.
             for (uint32_t i = info.startArgSlot(); i < info.endArgSlot(); i++) {
+                MParameter* param = rp->getOperand(i)->toParameter();
+                const TemporaryTypeSet* types = param->resultTypeSet();
+                if (!types || types->unknown())
+                    continue;
+
                 Label skip;
                 Address addr(StackPointer, ArgToStackOffset((i - info.startArgSlot()) * sizeof(Value)));
                 masm.branchTestObject(Assembler::NotEqual, addr, &skip);
                 Register obj = masm.extractObject(addr, temp);
-                masm.guardTypeSetMightBeIncomplete(obj, temp, &success);
+                masm.guardTypeSetMightBeIncomplete(types, obj, temp, &success);
                 masm.bind(&skip);
             }
 
@@ -3810,7 +3807,7 @@ CodeGenerator::branchIfInvalidated(Register temp, Label* invalidated)
 }
 
 void
-CodeGenerator::emitAssertObjectOrStringResult(Register input, MIRType type, TemporaryTypeSet* typeset)
+CodeGenerator::emitAssertObjectOrStringResult(Register input, MIRType type, const TemporaryTypeSet* typeset)
 {
     MOZ_ASSERT(type == MIRType_Object || type == MIRType_ObjectOrNull ||
                type == MIRType_String || type == MIRType_Symbol);
@@ -3840,7 +3837,7 @@ CodeGenerator::emitAssertObjectOrStringResult(Register input, MIRType type, Temp
         masm.jump(&ok);
 
         masm.bind(&miss);
-        masm.guardTypeSetMightBeIncomplete(input, temp, &ok);
+        masm.guardTypeSetMightBeIncomplete(typeset, input, temp, &ok);
 
         masm.assumeUnreachable("MIR instruction returned object with unexpected type");
 
@@ -3880,7 +3877,7 @@ CodeGenerator::emitAssertObjectOrStringResult(Register input, MIRType type, Temp
 }
 
 void
-CodeGenerator::emitAssertResultV(const ValueOperand input, TemporaryTypeSet* typeset)
+CodeGenerator::emitAssertResultV(const ValueOperand input, const TemporaryTypeSet* typeset)
 {
     AllocatableGeneralRegisterSet regs(GeneralRegisterSet::All());
     regs.take(input);
@@ -3908,7 +3905,7 @@ CodeGenerator::emitAssertResultV(const ValueOperand input, TemporaryTypeSet* typ
         Label realMiss;
         masm.branchTestObject(Assembler::NotEqual, input, &realMiss);
         Register payload = masm.extractObject(input, temp1);
-        masm.guardTypeSetMightBeIncomplete(payload, temp1, &ok);
+        masm.guardTypeSetMightBeIncomplete(typeset, payload, temp1, &ok);
         masm.bind(&realMiss);
 
         masm.assumeUnreachable("MIR instruction returned value with unexpected type");
@@ -7188,22 +7185,23 @@ CodeGenerator::visitArrayConcat(LArrayConcat* lir)
     // inline and pass it to the stub. Else, we just pass nullptr and the stub falls
     // back to a slow path.
     Label fail, call;
-    if (lir->mir()->unboxedType() == JSVAL_TYPE_MAGIC) {
-        masm.loadPtr(Address(lhs, NativeObject::offsetOfElements()), temp1);
-        masm.load32(Address(temp1, ObjectElements::offsetOfInitializedLength()), temp2);
-        masm.branch32(Assembler::NotEqual, Address(temp1, ObjectElements::offsetOfLength()), temp2, &fail);
-
-        masm.loadPtr(Address(rhs, NativeObject::offsetOfElements()), temp1);
-        masm.load32(Address(temp1, ObjectElements::offsetOfInitializedLength()), temp2);
-        masm.branch32(Assembler::NotEqual, Address(temp1, ObjectElements::offsetOfLength()), temp2, &fail);
-    } else {
+    if (lir->mir()->unboxedThis()) {
         masm.load32(Address(lhs, UnboxedArrayObject::offsetOfCapacityIndexAndInitializedLength()), temp1);
         masm.and32(Imm32(UnboxedArrayObject::InitializedLengthMask), temp1);
         masm.branch32(Assembler::NotEqual, Address(lhs, UnboxedArrayObject::offsetOfLength()), temp1, &fail);
-
+    } else {
+        masm.loadPtr(Address(lhs, NativeObject::offsetOfElements()), temp1);
+        masm.load32(Address(temp1, ObjectElements::offsetOfInitializedLength()), temp2);
+        masm.branch32(Assembler::NotEqual, Address(temp1, ObjectElements::offsetOfLength()), temp2, &fail);
+    }
+    if (lir->mir()->unboxedArg()) {
         masm.load32(Address(rhs, UnboxedArrayObject::offsetOfCapacityIndexAndInitializedLength()), temp1);
         masm.and32(Imm32(UnboxedArrayObject::InitializedLengthMask), temp1);
         masm.branch32(Assembler::NotEqual, Address(rhs, UnboxedArrayObject::offsetOfLength()), temp1, &fail);
+    } else {
+        masm.loadPtr(Address(rhs, NativeObject::offsetOfElements()), temp1);
+        masm.load32(Address(temp1, ObjectElements::offsetOfInitializedLength()), temp2);
+        masm.branch32(Assembler::NotEqual, Address(temp1, ObjectElements::offsetOfLength()), temp2, &fail);
     }
 
     // Try to allocate an object.
@@ -7957,10 +7955,43 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
 
     script->setIonScript(cx, ionScript);
 
-    invalidateEpilogueData_.fixup(&masm);
-    Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, invalidateEpilogueData_),
-                                       ImmPtr(ionScript),
-                                       ImmPtr((void*)-1));
+    {
+        AutoWritableJitCode awjc(code);
+        invalidateEpilogueData_.fixup(&masm);
+        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, invalidateEpilogueData_),
+                                           ImmPtr(ionScript),
+                                           ImmPtr((void*)-1));
+
+        for (size_t i = 0; i < ionScriptLabels_.length(); i++) {
+            ionScriptLabels_[i].fixup(&masm);
+            Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, ionScriptLabels_[i]),
+                                               ImmPtr(ionScript),
+                                               ImmPtr((void*)-1));
+        }
+
+#ifdef JS_TRACE_LOGGING
+        TraceLoggerThread* logger = TraceLoggerForMainThread(cx->runtime());
+        for (uint32_t i = 0; i < patchableTraceLoggers_.length(); i++) {
+            patchableTraceLoggers_[i].fixup(&masm);
+            Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTraceLoggers_[i]),
+                                               ImmPtr(logger),
+                                               ImmPtr(nullptr));
+        }
+
+        if (patchableTLScripts_.length() > 0) {
+            MOZ_ASSERT(TraceLogTextIdEnabled(TraceLogger_Scripts));
+            TraceLoggerEvent event(logger, TraceLogger_Scripts, script);
+            ionScript->setTraceLoggerEvent(event);
+            uint32_t textId = event.payload()->textId();
+            for (uint32_t i = 0; i < patchableTLScripts_.length(); i++) {
+                patchableTLScripts_[i].fixup(&masm);
+                Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
+                                                   ImmPtr((void*) uintptr_t(textId)),
+                                                   ImmPtr((void*)0));
+            }
+        }
+#endif
+    }
 
     JitSpew(JitSpew_Codegen, "Created IonScript %p (raw %p)",
             (void*) ionScript, (void*) code->raw());
@@ -7977,13 +8008,6 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
     if (PerfEnabled())
         perfSpewer_.writeProfile(script, code, masm);
 #endif
-
-    for (size_t i = 0; i < ionScriptLabels_.length(); i++) {
-        ionScriptLabels_[i].fixup(&masm);
-        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, ionScriptLabels_[i]),
-                                           ImmPtr(ionScript),
-                                           ImmPtr((void*)-1));
-    }
 
     // for generating inline caches during the execution.
     if (runtimeData_.length())
@@ -8007,36 +8031,19 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
     MOZ_ASSERT_IF(snapshots_.listSize(), recovers_.size());
     if (recovers_.size())
         ionScript->copyRecovers(&recovers_);
-    if (graph.numConstants())
-        ionScript->copyConstants(graph.constantPool());
-    if (patchableBackedges_.length() > 0)
-        ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin(), masm);
-
-#ifdef JS_TRACE_LOGGING
-    TraceLoggerThread* logger = TraceLoggerForMainThread(cx->runtime());
-    for (uint32_t i = 0; i < patchableTraceLoggers_.length(); i++) {
-        patchableTraceLoggers_[i].fixup(&masm);
-        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTraceLoggers_[i]),
-                                           ImmPtr(logger),
-                                           ImmPtr(nullptr));
-    }
-
-    if (patchableTLScripts_.length() > 0) {
-        MOZ_ASSERT(TraceLogTextIdEnabled(TraceLogger_Scripts));
-        TraceLoggerEvent event(logger, TraceLogger_Scripts, script);
-        ionScript->setTraceLoggerEvent(event);
-        uint32_t textId = event.payload()->textId();
-        for (uint32_t i = 0; i < patchableTLScripts_.length(); i++) {
-            patchableTLScripts_[i].fixup(&masm);
-            Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
-                                               ImmPtr((void*) uintptr_t(textId)),
-                                               ImmPtr((void*)0));
+    if (graph.numConstants()) {
+        const Value* vp = graph.constantPool();
+        ionScript->copyConstants(vp);
+        for (size_t i = 0; i < graph.numConstants(); i++) {
+            const Value& v = vp[i];
+            if (v.isObject() && IsInsideNursery(&v.toObject())) {
+                cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(script);
+                break;
+            }
         }
     }
-#endif
-
-    // Replace dummy JSObject pointers embedded by LNurseryObject.
-    code->fixupNurseryObjects(cx, gen->nurseryObjects());
+    if (patchableBackedges_.length() > 0)
+        ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin(), masm);
 
     // The correct state for prebarriers is unknown until the end of compilation,
     // since a GC can occur during code generation. All barriers are emitted
@@ -9191,14 +9198,34 @@ CodeGenerator::visitStoreTypedArrayElementHole(LStoreTypedArrayElementHole* lir)
 }
 
 void
+CodeGenerator::visitAtomicIsLockFree(LAtomicIsLockFree* lir)
+{
+    Register value = ToRegister(lir->value());
+    Register output = ToRegister(lir->output());
+
+    // Keep this in sync with isLockfree() in jit/AtomicOperations-inl.h.
+
+    Label Ldone, Lfailed;
+    masm.move32(Imm32(1), output);
+    if (AtomicOperations::isLockfree8())
+        masm.branch32(Assembler::Equal, value, Imm32(8), &Ldone);
+    else
+        masm.branch32(Assembler::Equal, value, Imm32(8), &Lfailed);
+    masm.branch32(Assembler::Equal, value, Imm32(4), &Ldone);
+    masm.branch32(Assembler::Equal, value, Imm32(2), &Ldone);
+    masm.branch32(Assembler::Equal, value, Imm32(1), &Ldone);
+    if (!AtomicOperations::isLockfree8())
+        masm.bind(&Lfailed);
+    masm.move32(Imm32(0), output);
+    masm.bind(&Ldone);
+}
+
+void
 CodeGenerator::visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayElement* lir)
 {
     Register elements = ToRegister(lir->elements());
     AnyRegister output = ToAnyRegister(lir->output());
     Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
-
-    MOZ_ASSERT(lir->oldval()->isRegister());
-    MOZ_ASSERT(lir->newval()->isRegister());
 
     Register oldval = ToRegister(lir->oldval());
     Register newval = ToRegister(lir->newval());
@@ -9212,6 +9239,27 @@ CodeGenerator::visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayE
     } else {
         BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
         masm.compareExchangeToTypedIntArray(arrayType, dest, oldval, newval, temp, output);
+    }
+}
+
+void
+CodeGenerator::visitAtomicExchangeTypedArrayElement(LAtomicExchangeTypedArrayElement* lir)
+{
+    Register elements = ToRegister(lir->elements());
+    AnyRegister output = ToAnyRegister(lir->output());
+    Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
+
+    Register value = ToRegister(lir->value());
+
+    Scalar::Type arrayType = lir->mir()->arrayType();
+    int width = Scalar::byteSize(arrayType);
+
+    if (lir->index()->isConstant()) {
+        Address dest(elements, ToInt32(lir->index()) * width);
+        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
+    } else {
+        BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
+        masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
     }
 }
 

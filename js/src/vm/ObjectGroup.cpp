@@ -494,8 +494,20 @@ ObjectGroup::defaultNewGroup(ExclusiveContext* cx, const Class* clasp,
             clasp = &PlainObject::class_;
     }
 
-    if (proto.isObject() && !proto.toObject()->setDelegate(cx))
-        return nullptr;
+    if (proto.isObject() && !proto.toObject()->isDelegate()) {
+        RootedObject protoObj(cx, proto.toObject());
+        if (!protoObj->setDelegate(cx))
+            return nullptr;
+
+        // Objects which are prototypes of one another should be singletons, so
+        // that their type information can be tracked more precisely. Limit
+        // this group change to plain objects, to avoid issues with other types
+        // of singletons like typed arrays.
+        if (protoObj->is<PlainObject>() && !protoObj->isSingleton()) {
+            if (!JSObject::changeToSingleton(cx->asJSContext(), protoObj))
+                return nullptr;
+        }
+    }
 
     ObjectGroupCompartment::NewTable::AddPtr p =
         table->lookupForAdd(ObjectGroupCompartment::NewEntry::Lookup(clasp, proto, associated));
@@ -809,20 +821,19 @@ ObjectGroup::newArrayObject(ExclusiveContext* cx,
     ObjectGroupCompartment::ArrayObjectKey key(elementType);
     DependentAddPtr<ObjectGroupCompartment::ArrayObjectTable> p(cx, *table, key);
 
-    if (!p) {
-        RootedArrayObject obj(cx, NewDenseCopiedArray(cx, length, vp, nullptr, TenuredObject));
-        if (!obj)
+    RootedObjectGroup group(cx);
+    if (p) {
+        group = p->value();
+    } else {
+        RootedObject proto(cx);
+        if (!GetBuiltinPrototype(cx, JSProto_Array, &proto))
             return nullptr;
-
-        Rooted<TaggedProto> proto(cx, TaggedProto(obj->getProto()));
-        RootedObjectGroup group(cx, ObjectGroupCompartment::makeGroup(cx, &ArrayObject::class_,
-                                                                      proto));
+        Rooted<TaggedProto> taggedProto(cx, TaggedProto(proto));
+        group = ObjectGroupCompartment::makeGroup(cx, &ArrayObject::class_, taggedProto);
         if (!group)
             return nullptr;
 
         AddTypePropertyId(cx, group, nullptr, JSID_VOID, elementType);
-
-        obj->setGroup(group);
 
         if (elementType != TypeSet::UnknownType()) {
             // Keep track of the initial objects we create with this type.
@@ -833,17 +844,13 @@ ObjectGroup::newArrayObject(ExclusiveContext* cx,
             if (!preliminaryObjects)
                 return nullptr;
             group->setPreliminaryObjects(preliminaryObjects);
-            preliminaryObjects->registerNewObject(obj);
         }
 
 
         if (!p.add(cx, *table, key, group))
             return nullptr;
-
-        return obj;
     }
 
-    RootedObjectGroup group(cx, p->value());
     return NewCopiedArrayTryUseGroup(cx, group, vp, length, newKind,
                                      ShouldUpdateTypes::DontUpdate);
 }
@@ -997,13 +1004,17 @@ ObjectGroup::newPlainObject(ExclusiveContext* cx, IdValuePair* properties, size_
         preliminaryObjects->registerNewObject(obj);
 
         ScopedJSFreePtr<jsid> ids(group->zone()->pod_calloc<jsid>(nproperties));
-        if (!ids)
+        if (!ids) {
+            ReportOutOfMemory(cx);
             return nullptr;
+        }
 
         ScopedJSFreePtr<TypeSet::Type> types(
             group->zone()->pod_calloc<TypeSet::Type>(nproperties));
-        if (!types)
+        if (!types) {
+            ReportOutOfMemory(cx);
             return nullptr;
+        }
 
         for (size_t i = 0; i < nproperties; i++) {
             ids[i] = properties[i].id;

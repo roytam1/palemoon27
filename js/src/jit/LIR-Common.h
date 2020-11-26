@@ -712,16 +712,6 @@ class LValue : public LInstructionHelper<BOX_PIECES, 0, 0>
     }
 };
 
-class LNurseryObject : public LInstructionHelper<1, 0, 0>
-{
-  public:
-    LIR_HEADER(NurseryObject);
-
-    MNurseryObject* mir() const {
-        return mir_->toNurseryObject();
-    }
-};
-
 // Clone an object literal such as we are not modifying the object contained in
 // the sources.
 class LCloneLiteral : public LCallInstructionHelper<1, 1, 0>
@@ -5061,6 +5051,19 @@ class LStoreTypedArrayElementStatic : public LInstructionHelper<0, 2, 0>
     }
 };
 
+class LAtomicIsLockFree : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(AtomicIsLockFree)
+
+    explicit LAtomicIsLockFree(const LAllocation& value) {
+        setOperand(0, value);
+    }
+    const LAllocation* value() {
+        return getOperand(0);
+    }
+};
+
 class LCompareExchangeTypedArrayElement : public LInstructionHelper<1, 4, 1>
 {
   public:
@@ -5095,6 +5098,38 @@ class LCompareExchangeTypedArrayElement : public LInstructionHelper<1, 4, 1>
 
     const MCompareExchangeTypedArrayElement* mir() const {
         return mir_->toCompareExchangeTypedArrayElement();
+    }
+};
+
+class LAtomicExchangeTypedArrayElement : public LInstructionHelper<1, 3, 1>
+{
+  public:
+    LIR_HEADER(AtomicExchangeTypedArrayElement)
+
+    LAtomicExchangeTypedArrayElement(const LAllocation& elements, const LAllocation& index,
+                                     const LAllocation& value, const LDefinition& temp)
+    {
+        setOperand(0, elements);
+        setOperand(1, index);
+        setOperand(2, value);
+        setTemp(0, temp);
+    }
+
+    const LAllocation* elements() {
+        return getOperand(0);
+    }
+    const LAllocation* index() {
+        return getOperand(1);
+    }
+    const LAllocation* value() {
+        return getOperand(2);
+    }
+    const LDefinition* temp() {
+        return getTemp(0);
+    }
+
+    const MAtomicExchangeTypedArrayElement* mir() const {
+        return mir_->toAtomicExchangeTypedArrayElement();
     }
 };
 
@@ -6560,6 +6595,37 @@ class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 1>
 
     MAsmJSCompareExchangeHeap* mir() const {
         return mir_->toAsmJSCompareExchangeHeap();
+    }
+};
+
+class LAsmJSAtomicExchangeHeap : public LInstructionHelper<1, 2, 1>
+{
+  public:
+    LIR_HEADER(AsmJSAtomicExchangeHeap);
+
+    LAsmJSAtomicExchangeHeap(const LAllocation& ptr, const LAllocation& value)
+    {
+        setOperand(0, ptr);
+        setOperand(1, value);
+        setTemp(0, LDefinition::BogusTemp());
+    }
+
+    const LAllocation* ptr() {
+        return getOperand(0);
+    }
+    const LAllocation* value() {
+        return getOperand(1);
+    }
+    const LDefinition* addrTemp() {
+        return getTemp(0);
+    }
+
+    void setAddrTemp(const LDefinition& addrTemp) {
+        setTemp(0, addrTemp);
+    }
+
+    MAsmJSAtomicExchangeHeap* mir() const {
+        return mir_->toAsmJSAtomicExchangeHeap();
     }
 };
 

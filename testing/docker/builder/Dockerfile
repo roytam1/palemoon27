@@ -1,4 +1,4 @@
-FROM          quay.io/mozilla/b2g-build:0.2.5
+FROM          quay.io/mozilla/b2g-build:0.2.6
 MAINTAINER    Dustin J. Mitchell <dustin@mozilla.com>
 
 ENV PYTHONPATH /tools/tools/lib/python:$PYTHONPATH
@@ -21,7 +21,7 @@ RUN git config --global user.email "mozilla@example.com" && \
     git config --global user.name "mozilla"
 
 # VCS Tools
-RUN npm install -g taskcluster-vcs@2.3.0
+RUN npm install -g taskcluster-vcs@2.3.1
 
 # TODO enable worker
 # TODO volume mount permissions will be an issue

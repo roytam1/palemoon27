@@ -407,8 +407,8 @@ package-tests: \
   stage-marionette \
   stage-cppunittests \
   stage-jittest \
-  stage-steeplechase \
   stage-web-platform-tests \
+  stage-luciddream \
   test-packages-manifest \
   $(NULL)
 ifdef MOZ_WEBRTC
@@ -568,6 +568,11 @@ stage-steeplechase: make-stage-dir
 	cp -RL $(DIST)/xpi-stage/specialpowers $(PKG_STAGE)/steeplechase
 	cp -RL $(topsrcdir)/testing/profiles/prefs_general.js $(PKG_STAGE)/steeplechase
 
+LUCIDDREAM_DIR=$(PKG_STAGE)/luciddream
+stage-luciddream: make-stage-dir
+	$(NSINSTALL) -D $(LUCIDDREAM_DIR)
+	@(cd $(topsrcdir)/testing/luciddream && tar $(TAR_CREATE_FLAGS) - *) | (cd $(LUCIDDREAM_DIR)/ && tar -xf -)
+
 MARIONETTE_DIR=$(PKG_STAGE)/marionette
 stage-marionette: make-stage-dir
 	$(NSINSTALL) -D $(MARIONETTE_DIR)/tests
@@ -624,6 +629,7 @@ stage-instrumentation-tests: make-stage-dir
   stage-steeplechase \
   stage-web-platform-tests \
   stage-instrumentation-tests \
+  stage-luciddream \
   test-packages-manifest \
   $(NULL)
 

@@ -23,6 +23,9 @@ task:
         cd ./workspace/gecko/testing/taskcluster/scripts/phone-builder &&
         buildbot_step 'Build' ./build-phone.sh $HOME/workspace
   extra:
+    treeherderEnv:
+      - production
+      - staging
     treeherder:
       symbol: Be
       groupSymbol: Flame-KK
@@ -34,5 +37,3 @@ task:
 
       GAIA_OPTIMIZE: '1'
       B2G_SYSTEM_APPS: '1'
-      B2G_UPDATER: '1'
-

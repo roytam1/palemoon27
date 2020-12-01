@@ -2,10 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import print_function, unicode_literals
+from __future__ import absolute_import, print_function, unicode_literals
 
 import os
-import pprint
 import sys
 
 from mach.decorators import (
@@ -14,7 +13,6 @@ from mach.decorators import (
     Command,
 )
 
-from autotry import AutoTry
 from mozbuild.base import MachCommandBase
 
 
@@ -354,7 +352,11 @@ class CheckSpiderMonkeyCommand(MachCommandBase):
         check_style_cmd = [sys.executable, os.path.join(self.topsrcdir, 'config', 'check_spidermonkey_style.py')]
         check_style_result = subprocess.call(check_style_cmd, cwd=os.path.join(self.topsrcdir, 'js', 'src'))
 
-        all_passed = jittest_result and jstest_result and jsapi_tests_result and check_style_result
+        print('running check-masm')
+        check_masm_cmd = [sys.executable, os.path.join(self.topsrcdir, 'config', 'check_macroassembler_style.py')]
+        check_masm_result = subprocess.call(check_masm_cmd, cwd=os.path.join(self.topsrcdir, 'js', 'src'))
+
+        all_passed = jittest_result and jstest_result and jsapi_tests_result and check_style_result and check_masm_result
 
         return all_passed
 
@@ -455,6 +457,8 @@ class PushToTry(MachCommandBase):
 
         from mozbuild.testing import TestResolver
         from mozbuild.controller.building import BuildDriver
+        from autotry import AutoTry
+        import pprint
 
         print("mach try is under development, please file bugs blocking 1149670.")
 

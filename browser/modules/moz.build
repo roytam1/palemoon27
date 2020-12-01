@@ -32,7 +32,6 @@ EXTRA_JS_MODULES += [
     'SharedFrame.jsm',
     'SitePermissions.jsm',
     'TabCrashReporter.jsm',
-    'webrtcUI.jsm'
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
@@ -41,6 +40,10 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'WindowsJumpLists.jsm',
         'WindowsPreviewPerTab.jsm',
     ]
+
+EXTRA_PP_JS_MODULES += [
+    'webrtcUI.jsm',
+]
 
 if CONFIG['MOZILLA_OFFICIAL']:
     DEFINES['MOZILLA_OFFICIAL'] = 1

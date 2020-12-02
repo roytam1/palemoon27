@@ -400,16 +400,9 @@ SampleValue(float aPortion, Animation& aAnimation, StyleAnimationValue& aStart,
 
   TransformData& data = aAnimation.data().get_TransformData();
   nsPoint origin = data.origin();
-  // we expect all our transform data to arrive in css pixels, so here we must
-  // adjust to dev pixels.
-  double cssPerDev = double(nsDeviceContext::AppUnitsPerCSSPixel())
-                     / double(data.appUnitsPerDevPixel());
+  // we expect all our transform data to arrive in device pixels
   Point3D transformOrigin = data.transformOrigin();
-  transformOrigin.x = transformOrigin.x * cssPerDev;
-  transformOrigin.y = transformOrigin.y * cssPerDev;
   Point3D perspectiveOrigin = data.perspectiveOrigin();
-  perspectiveOrigin.x = perspectiveOrigin.x * cssPerDev;
-  perspectiveOrigin.y = perspectiveOrigin.y * cssPerDev;
   nsDisplayTransform::FrameTransformProperties props(interpolatedList,
                                                      transformOrigin,
                                                      perspectiveOrigin,
@@ -1020,7 +1013,8 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
 }
 
 bool
-AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
+AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame,
+                                             TransformsToSkip aSkip)
 {
   PROFILER_LABEL("AsyncCompositionManager", "TransformShadowTree",
     js::ProfileEntry::Category::GRAPHICS);
@@ -1035,29 +1029,31 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
   // transforms.
   bool wantNextFrame = SampleAnimations(root, aCurrentFrame);
 
-  // FIXME/bug 775437: unify this interface with the ~native-fennec
-  // derived code
-  //
-  // Attempt to apply an async content transform to any layer that has
-  // an async pan zoom controller (which means that it is rendered
-  // async using Gecko). If this fails, fall back to transforming the
-  // primary scrollable layer.  "Failing" here means that we don't
-  // find a frame that is async scrollable.  Note that the fallback
-  // code also includes Fennec which is rendered async.  Fennec uses
-  // its own platform-specific async rendering that is done partially
-  // in Gecko and partially in Java.
-  wantNextFrame |= SampleAPZAnimations(LayerMetricsWrapper(root), aCurrentFrame);
-  if (!ApplyAsyncContentTransformToTree(root)) {
-    nsAutoTArray<Layer*,1> scrollableLayers;
+  if (!(aSkip & TransformsToSkip::APZ)) {
+    // FIXME/bug 775437: unify this interface with the ~native-fennec
+    // derived code
+    //
+    // Attempt to apply an async content transform to any layer that has
+    // an async pan zoom controller (which means that it is rendered
+    // async using Gecko). If this fails, fall back to transforming the
+    // primary scrollable layer.  "Failing" here means that we don't
+    // find a frame that is async scrollable.  Note that the fallback
+    // code also includes Fennec which is rendered async.  Fennec uses
+    // its own platform-specific async rendering that is done partially
+    // in Gecko and partially in Java.
+    wantNextFrame |= SampleAPZAnimations(LayerMetricsWrapper(root), aCurrentFrame);
+    if (!ApplyAsyncContentTransformToTree(root)) {
+      nsAutoTArray<Layer*,1> scrollableLayers;
 #ifdef MOZ_WIDGET_ANDROID
-    mLayerManager->GetRootScrollableLayers(scrollableLayers);
+      mLayerManager->GetRootScrollableLayers(scrollableLayers);
 #else
-    mLayerManager->GetScrollableLayers(scrollableLayers);
+      mLayerManager->GetScrollableLayers(scrollableLayers);
 #endif
 
-    for (uint32_t i = 0; i < scrollableLayers.Length(); i++) {
-      if (scrollableLayers[i]) {
-        TransformScrollableLayer(scrollableLayers[i]);
+      for (uint32_t i = 0; i < scrollableLayers.Length(); i++) {
+        if (scrollableLayers[i]) {
+          TransformScrollableLayer(scrollableLayers[i]);
+        }
       }
     }
   }

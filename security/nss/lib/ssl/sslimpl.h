@@ -710,6 +710,7 @@ typedef struct SSL3HandshakeStateStr {
                                            * or received. */
     PRBool receivedCcs;                   /* A server received ChangeCipherSpec
                                            * before the handshake started. */
+    PRBool rejectCcs;                     /* Excessive ChangeCipherSpecs are rejected. */
     PRBool clientCertRequested;           /* True if CertificateRequest received. */
     ssl3KEADef kea_def_mutable;           /* Used to hold the writable kea_def
                                            * we use for TLS 1.3 */

@@ -12993,8 +12993,14 @@ ssl3_HandleRecord(sslSocket *ss, SSL3Ciphertext *cText)
             ss->ssl3.hs.ws != idle_handshake &&
             cText->buf->len == 1 &&
             cText->buf->buf[0] == change_cipher_spec_choice) {
-            /* Ignore the CCS. */
-            return SECSuccess;
+            if (!ss->ssl3.hs.rejectCcs) {
+                /* Allow only the first CCS. */
+                ss->ssl3.hs.rejectCcs = PR_TRUE;
+                return SECSuccess;
+            } else {
+                alert = unexpected_message;
+                PORT_SetError(SSL_ERROR_RX_MALFORMED_CHANGE_CIPHER);
+            }
         }
 
         if (IS_DTLS(ss) ||

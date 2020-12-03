@@ -2473,6 +2473,12 @@ SourceMediaStream::FinishAddTracks()
   }
 }
 
+StreamBuffer::Track*
+SourceMediaStream::FindTrack(TrackID aID)
+{
+  return mBuffer.FindTrack(aID);
+}
+
 void
 SourceMediaStream::ResampleAudioToGraphSampleRate(TrackData* aTrackData, MediaSegment* aSegment)
 {

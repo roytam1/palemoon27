@@ -378,7 +378,7 @@ public:
   bool WantAsyncScroll() const;
   void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
                            const ContainerLayerParameters& aParameters,
-                           nsRect* aClipRect,
+                           mozilla::Maybe<nsRect>* aClipRect,
                            nsTArray<FrameMetrics>* aOutput) const;
 
   // nsIScrollbarMediator
@@ -498,6 +498,12 @@ public:
   // If true, the layer should always be active because we always build a
   // scrollable layer. Used for asynchronous scrolling.
   bool mShouldBuildScrollableLayer:1;
+
+  // Whether we are the root scroll frame that is used for containerful
+  // scrolling with a display port. If true, the scrollable frame
+  // shouldn't attach frame metrics to its layers because the container
+  // will already have the necessary frame metrics.
+  bool mIsScrollableLayerInRootContainer:1;
 
   // If true, add clipping in ScrollFrameHelper::ComputeFrameMetrics.
   bool mAddClipRectToLayer:1;
@@ -827,7 +833,7 @@ public:
   }
   virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
                                    const ContainerLayerParameters& aParameters,
-                                   nsRect* aClipRect,
+                                   mozilla::Maybe<nsRect>* aClipRect,
                                    nsTArray<FrameMetrics>* aOutput) const override {
     mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
                                 aParameters, aClipRect, aOutput);
@@ -1216,7 +1222,7 @@ public:
   }
   virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
                                    const ContainerLayerParameters& aParameters,
-                                   nsRect* aClipRect,
+                                   mozilla::Maybe<nsRect>* aClipRect,
                                    nsTArray<FrameMetrics>* aOutput) const override {
     mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
                                 aParameters, aClipRect, aOutput);

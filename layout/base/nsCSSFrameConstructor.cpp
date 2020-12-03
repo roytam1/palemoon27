@@ -2670,7 +2670,7 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
 
   SetInitialSingleChild(mDocElementContainingBlock, newFrame);
 
-  // Create touch caret frame if there is a canvas frame
+  // Create frames for anonymous contents if there is a canvas frame.
   if (mDocElementContainingBlock->GetType() == nsGkAtoms::canvasFrame) {
     ConstructAnonymousContentForCanvas(state, mDocElementContainingBlock,
                                        aDocElement);
@@ -2938,7 +2938,6 @@ nsCSSFrameConstructor::ConstructAnonymousContentForCanvas(nsFrameConstructorStat
   nsAutoTArray<nsIAnonymousContentCreator::ContentInfo, 4> anonymousItems;
   GetAnonymousContent(aDocElement, aFrame, anonymousItems);
   if (anonymousItems.IsEmpty()) {
-    // Touch caret is not enabled.
     return;
   }
 

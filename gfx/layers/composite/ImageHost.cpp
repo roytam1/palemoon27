@@ -142,7 +142,7 @@ ImageHost::Composite(EffectChain& aEffectChain,
 
     it->BeginBigImageIteration();
     do {
-      nsIntRect tileRect = it->GetTileRect();
+      IntRect tileRect = it->GetTileRect();
       gfx::Rect rect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
       if (mHasPictureRect) {
         rect = rect.Intersect(pictureRect);
@@ -364,6 +364,16 @@ ImageHostOverlay::UseOverlaySource(OverlaySource aOverlay)
   mOverlay = aOverlay;
 }
 
+IntSize
+ImageHostOverlay::GetImageSize() const
+{
+  if (mHasPictureRect) {
+    return IntSize(mPictureRect.width, mPictureRect.height);
+  }
+
+  return IntSize();
+}
+
 void
 ImageHostOverlay::PrintInfo(std::stringstream& aStream, const char* aPrefix)
 {
@@ -380,5 +390,5 @@ ImageHostOverlay::PrintInfo(std::stringstream& aStream, const char* aPrefix)
 }
 
 #endif
-}
-}
+} // namespace layers
+} // namespace mozilla

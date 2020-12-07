@@ -1058,6 +1058,13 @@ public:
   {
     mTestAsyncScrollOffset = aPoint;
   }
+  /**
+   * Set an extra offset for testing async scrolling.
+   */
+  void SetTestAsyncZoom(const LayerToParentLayerScale& aZoom)
+  {
+    mTestAsyncZoom = aZoom;
+  }
 
   void MarkAsyncTransformAppliedToContent()
   {
@@ -1072,6 +1079,8 @@ public:
 private:
   // Extra offset to add in SampleContentTransformForFrame for testing
   CSSPoint mTestAsyncScrollOffset;
+  // Extra zoom to include in SampleContentTransformForFrame for testing
+  LayerToParentLayerScale mTestAsyncZoom;
   // Flag to track whether or not the APZ transform is not used. This
   // flag is recomputed for every composition frame.
   bool mAsyncTransformAppliedToContent;

@@ -211,33 +211,6 @@ class Context(KeyedDefaultDict):
 
         return KeyedDefaultDict.__setitem__(self, key, value)
 
-    def resolve_path(self, path):
-        """Resolves a path using moz.build conventions.
-
-        Paths may be relative to the current srcdir or objdir, or to the
-        environment's topsrcdir or topobjdir.  Different resolution contexts
-        are denoted by characters at the beginning of the path:
-
-            * '/' - relative to topsrcdir;
-            * '!/' - relative to topobjdir;
-            * '!' - relative to objdir; and
-            * any other character - relative to srcdir.
-        """
-        if path.startswith('/'):
-            resolved = mozpath.join(self.config.topsrcdir, path[1:])
-        elif path.startswith('!/'):
-            resolved = mozpath.join(self.config.topobjdir, path[2:])
-        elif path.startswith('!'):
-            resolved = mozpath.join(self.objdir, path[1:])
-        else:
-            resolved = mozpath.join(self.srcdir, path)
-
-        return mozpath.normpath(resolved)
-
-    @staticmethod
-    def is_objdir_path(path):
-        return path[0] == '!'
-
     def update(self, iterable={}, **kwargs):
         """Like dict.update(), but using the context's setitem.
 
@@ -660,18 +633,11 @@ VARIABLES = {
         populated by calling add_android_eclipse{_library}_project().
         """, 'export'),
 
-    'SOURCES': (StrictOrderingOnAppendListWithFlagsFactory({'no_pgo': bool, 'flags': List}), list,
+    'SOURCES': (ContextDerivedTypedListWithItems(Path, StrictOrderingOnAppendListWithFlagsFactory({'no_pgo': bool, 'flags': List})), list,
         """Source code files.
 
         This variable contains a list of source code files to compile.
         Accepts assembler, C, C++, Objective C/C++.
-        """, None),
-
-    'GENERATED_SOURCES': (StrictOrderingOnAppendList, list,
-        """Generated source code files.
-
-        This variable contains a list of generated source code files to
-        compile. Accepts assembler, C, C++, Objective C/C++.
         """, None),
 
     'FILES_PER_UNIFIED_FILE': (int, int,
@@ -679,22 +645,13 @@ VARIABLES = {
 
         """, 'None'),
 
-    'UNIFIED_SOURCES': (StrictOrderingOnAppendList, list,
+    'UNIFIED_SOURCES': (ContextDerivedTypedList(SourcePath, StrictOrderingOnAppendList), list,
         """Source code files that can be compiled together.
 
         This variable contains a list of source code files to compile,
         that can be concatenated all together and built as a single source
         file. This can help make the build faster and reduce the debug info
         size.
-        """, None),
-
-    'GENERATED_UNIFIED_SOURCES': (StrictOrderingOnAppendList, list,
-        """Generated source code files that can be compiled together.
-
-        This variable contains a list of generated source code files to
-        compile, that can be concatenated all together, with UNIFIED_SOURCES,
-        and built as a single source file. This can help make the build faster
-        and reduce the debug info size.
         """, None),
 
     'GENERATED_FILES': (StrictOrderingOnAppendListWithFlagsFactory({
@@ -823,6 +780,12 @@ VARIABLES = {
         disabled.
         """, None),
 
+    'DIST_FILES': (StrictOrderingOnAppendList, list,
+        """Additional files to place in ``FINAL_TARGET`` (typically ``dist/bin``).
+
+        Unlike ``FINAL_TARGET_FILES``, these files are preprocessed.
+        """, 'libs'),
+
     'EXTRA_COMPONENTS': (StrictOrderingOnAppendList, list,
         """Additional component files to distribute.
 
@@ -906,7 +869,7 @@ VARIABLES = {
         files by the compiler.
         """, None),
 
-    'HOST_SOURCES': (StrictOrderingOnAppendList, list,
+    'HOST_SOURCES': (ContextDerivedTypedList(SourcePath, StrictOrderingOnAppendList), list,
         """Source code files to compile with the host compiler.
 
         This variable contains a list of source code files to compile.
@@ -1349,6 +1312,25 @@ VARIABLES = {
         neither are present, the result is dist/bin. If XPI_NAME is present, the
         result is dist/xpi-stage/$(XPI_NAME). If DIST_SUBDIR is present, then
         the $(DIST_SUBDIR) directory of the otherwise default value is used.
+        """, None),
+
+    'USE_EXTENSION_MANIFEST': (bool, bool,
+        """Controls the name of the manifest for JAR files.
+
+        By default, the name of the manifest is ${JAR_MANIFEST}.manifest.
+        Setting this variable to ``True`` changes the name of the manifest to
+        chrome.manifest.
+        """, None),
+
+    'NO_JS_MANIFEST': (bool, bool,
+        """Explicitly disclaims responsibility for manifest listing in EXTRA_COMPONENTS.
+
+        Normally, if you have .js files listed in ``EXTRA_COMPONENTS`` or
+        ``EXTRA_PP_COMPONENTS``, you are expected to have a corresponding
+        .manifest file to go with those .js files.  Setting ``NO_JS_MANIFEST``
+        indicates that the relevant .manifest file and entries for those .js
+        files are elsehwere (jar.mn, for instance) and this state of affairs
+        is OK.
         """, None),
 
     'GYP_DIRS': (StrictOrderingOnAppendListWithFlagsFactory({
@@ -1865,6 +1847,16 @@ DEPRECATION_HINTS = {
         instead of
 
             NO_DIST_INSTALL = True
+    ''',
+
+    'GENERATED_SOURCES': '''
+        Please use
+
+            SOURCES += [ '!foo.cpp' ]
+
+        instead of
+
+            GENERATED_SOURCES += [ 'foo.cpp']
     ''',
 }
 

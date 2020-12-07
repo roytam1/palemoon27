@@ -600,11 +600,33 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer)
     // When doing so, it might be useful to look at how it was called here before
     // bug 1036967 removed the (dead) call.
 
+#if defined(MOZ_ANDROID_APZ)
+    if (mIsFirstPaint) {
+      CSSToLayerScale geckoZoom = metrics.LayersPixelsPerCSSPixel().ToScaleFactor();
+      LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.GetScrollOffset() * geckoZoom);
+      mContentRect = metrics.GetScrollableRect();
+      SetFirstPaintViewport(scrollOffsetLayerPixels,
+                            geckoZoom,
+                            mContentRect);
+    }
+#endif
+
     mIsFirstPaint = false;
     mLayersUpdated = false;
 
     // Apply the render offset
     mLayerManager->GetCompositor()->SetScreenRenderOffset(offset);
+
+    // See the comment below - the first FrameMetrics has the clip computed
+    // by layout (currently, effectively the composition bounds), which we
+    // intersect here to include the layer clip.
+    if (i == 0 && metrics.HasClipRect()) {
+      if (clipRect) {
+        clipRect = Some(clipRect.value().Intersect(metrics.ClipRect()));
+      } else {
+        clipRect = Some(metrics.ClipRect());
+      }
+    }
 
     combinedAsyncTransformWithoutOverscroll *= asyncTransformWithoutOverscroll;
     combinedAsyncTransform *= (Matrix4x4(asyncTransformWithoutOverscroll) * overscrollTransform);
@@ -625,7 +647,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer)
       ParentLayerRect transformed = TransformTo<ParentLayerPixel>(
         (Matrix4x4(asyncTransformWithoutOverscroll) * overscrollTransform),
         ParentLayerRect(*clipRect));
-      clipRect = Some(RoundedOut(transformed.Intersect(metrics.mCompositionBounds)));
+      clipRect = Some(RoundedOut(transformed.Intersect(metrics.GetCompositionBounds())));
     }
   }
 
@@ -717,11 +739,13 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     // |metrics.CalculateCompositedSizeInCssPixels()| would not give a correct
     // result.
     const CSSToParentLayerScale effectiveZoom(metrics.GetZoom().yScale * asyncZoomY);
-    const CSSCoord compositedHeight = (metrics.mCompositionBounds / effectiveZoom).height;
-    const CSSCoord scrollableHeight = metrics.GetScrollableRect().height;
 
-    // The scrollbar thumb ratio is in AppUnits.
-    const float ratio = aScrollbar->GetScrollbarThumbRatio();
+    const LayoutDeviceToParentLayerScale nonLayoutScale = effectiveZoom /
+        metrics.GetDevPixelsPerCSSPixel();
+    // Here we convert the scrollbar thumb ratio into a true unitless ratio by
+    // dividing out the conversion factor from the scrollframe's parent's space
+    // to the scrollframe's space.
+    const float ratio = aScrollbar->GetScrollbarThumbRatio() / nonLayoutScale.scale;
     ParentLayerCoord yTranslation = -asyncScrollY * ratio;
 
     // The scroll thumb additionally needs to be translated to compensate for
@@ -735,7 +759,7 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     // a change of basis. We have a method to help with that,
     // Matrix4x4::ChangeBasis(), but it wouldn't necessarily make the code
     // cleaner in this case).
-    const CSSCoord thumbOrigin = (metrics.GetScrollOffset().y / scrollableHeight) * compositedHeight;
+    const CSSCoord thumbOrigin = (metrics.GetScrollOffset().y * ratio);
     const CSSCoord thumbOriginScaled = thumbOrigin * yScale;
     const CSSCoord thumbOriginDelta = thumbOriginScaled - thumbOrigin;
     const ParentLayerCoord thumbOriginDeltaPL = thumbOriginDelta * effectiveZoom;
@@ -764,14 +788,13 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     const float xScale = 1.f / asyncZoomX;
 
     const CSSToParentLayerScale effectiveZoom(metrics.GetZoom().xScale * asyncZoomX);
-    const CSSCoord compositedWidth = (metrics.mCompositionBounds / effectiveZoom).width;
-    const CSSCoord scrollableWidth = metrics.GetScrollableRect().width;
 
-    // The scrollbar thumb ratio is in AppUnits.
-    const float ratio = aScrollbar->GetScrollbarThumbRatio();
+    const LayoutDeviceToParentLayerScale nonLayoutScale = effectiveZoom /
+        metrics.GetDevPixelsPerCSSPixel();
+    const float ratio = aScrollbar->GetScrollbarThumbRatio() / nonLayoutScale.scale;
     ParentLayerCoord xTranslation = -asyncScrollX * ratio;
 
-    const CSSCoord thumbOrigin = (metrics.GetScrollOffset().x / scrollableWidth) * compositedWidth;
+    const CSSCoord thumbOrigin = (metrics.GetScrollOffset().x * ratio);
     const CSSCoord thumbOriginScaled = thumbOrigin * xScale;
     const CSSCoord thumbOriginDelta = thumbOriginScaled - thumbOrigin;
     const ParentLayerCoord thumbOriginDeltaPL = thumbOriginDelta * effectiveZoom;
@@ -981,28 +1004,28 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   Point3D overscrollTranslation;
   if (userScroll.x < contentScreenRect.x) {
     overscrollTranslation.x = contentScreenRect.x - userScroll.x;
-  } else if (userScroll.x + metrics.mCompositionBounds.width > contentScreenRect.XMost()) {
+  } else if (userScroll.x + metrics.GetCompositionBounds().width > contentScreenRect.XMost()) {
     overscrollTranslation.x = contentScreenRect.XMost() -
-      (userScroll.x + metrics.mCompositionBounds.width);
+      (userScroll.x + metrics.GetCompositionBounds().width);
   }
   if (userScroll.y < contentScreenRect.y) {
     overscrollTranslation.y = contentScreenRect.y - userScroll.y;
-  } else if (userScroll.y + metrics.mCompositionBounds.height > contentScreenRect.YMost()) {
+  } else if (userScroll.y + metrics.GetCompositionBounds().height > contentScreenRect.YMost()) {
     overscrollTranslation.y = contentScreenRect.YMost() -
-      (userScroll.y + metrics.mCompositionBounds.height);
+      (userScroll.y + metrics.GetCompositionBounds().height);
   }
   oldTransform.PreTranslate(overscrollTranslation.x,
                             overscrollTranslation.y,
                             overscrollTranslation.z);
 
   gfx::Size underZoomScale(1.0f, 1.0f);
-  if (mContentRect.width * userZoom.scale < metrics.mCompositionBounds.width) {
+  if (mContentRect.width * userZoom.scale < metrics.GetCompositionBounds().width) {
     underZoomScale.width = (mContentRect.width * userZoom.scale) /
-      metrics.mCompositionBounds.width;
+      metrics.GetCompositionBounds().width;
   }
-  if (mContentRect.height * userZoom.scale < metrics.mCompositionBounds.height) {
+  if (mContentRect.height * userZoom.scale < metrics.GetCompositionBounds().height) {
     underZoomScale.height = (mContentRect.height * userZoom.scale) /
-      metrics.mCompositionBounds.height;
+      metrics.GetCompositionBounds().height;
   }
   oldTransform.PreScale(underZoomScale.width, underZoomScale.height, 1);
 

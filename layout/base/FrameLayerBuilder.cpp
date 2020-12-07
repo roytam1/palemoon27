@@ -4262,8 +4262,6 @@ ContainerState::SetupScrollingMetadata(NewLayerEntry* aEntry)
   }
   uint32_t baseLength = metricsArray.Length();
 
-  ParentLayerIntRect tmpClipRect;
-  const ParentLayerIntRect* layerClip = aEntry->mLayer->GetClipRect().ptrOr(nullptr);
   nsIFrame* fParent;
   for (const nsIFrame* f = aEntry->mAnimatedGeometryRoot;
        f != mContainerAnimatedGeometryRoot;
@@ -4288,23 +4286,9 @@ ContainerState::SetupScrollingMetadata(NewLayerEntry* aEntry)
       continue;
     }
 
-    Maybe<nsRect> clipRect;
     scrollFrame->ComputeFrameMetrics(aEntry->mLayer, mContainerReferenceFrame,
-                                     mParameters, &clipRect, &metricsArray);
-    if (clipRect) {
-      ParentLayerIntRect pixClip = ViewAs<ParentLayerPixel>(ScaleToNearestPixels(*clipRect));
-      if (layerClip) {
-        tmpClipRect.IntersectRect(pixClip, *layerClip);
-      } else {
-        tmpClipRect = pixClip;
-      }
-      layerClip = &tmpClipRect;
-      // XXX this could cause IPC churn due to cliprects being updated
-      // twice during layer building --- for non-PaintedLayers that have
-      // both CSS and scroll clipping.
-    }
+                                     mParameters, &metricsArray);
   }
-  aEntry->mLayer->SetClipRect(ToMaybe(layerClip));
   // Watch out for FrameMetrics copies in profiles
   aEntry->mLayer->SetFrameMetrics(metricsArray);
 }
@@ -4342,6 +4326,15 @@ InvalidateVisibleBoundsChangesForScrolledLayer(PaintedLayer* aLayer)
   }
 }
 
+static inline const Maybe<ParentLayerIntRect>&
+GetStationaryClipInContainer(Layer* aLayer)
+{
+  if (size_t metricsCount = aLayer->GetFrameMetricsCount()) {
+    return aLayer->GetFrameMetrics(metricsCount - 1).GetClipRect();
+  }
+  return aLayer->GetClipRect();
+}
+
 void
 ContainerState::PostprocessRetainedLayers(nsIntRegion* aOpaqueRegionForContainer)
 {
@@ -4368,7 +4361,7 @@ ContainerState::PostprocessRetainedLayers(nsIntRegion* aOpaqueRegionForContainer
     if (hideAll) {
       e->mVisibleRegion.SetEmpty();
     } else if (!e->mLayer->IsScrollbarContainer()) {
-      const Maybe<ParentLayerIntRect>& clipRect = e->mLayer->GetClipRect();
+      const Maybe<ParentLayerIntRect>& clipRect = GetStationaryClipInContainer(e->mLayer);
       if (clipRect && opaqueRegionForContainer >= 0 &&
           opaqueRegions[opaqueRegionForContainer].mOpaqueRegion.Contains(ParentLayerIntRect::ToUntyped(*clipRect))) {
         e->mVisibleRegion.SetEmpty();
@@ -4408,7 +4401,7 @@ ContainerState::PostprocessRetainedLayers(nsIntRegion* aOpaqueRegionForContainer
       }
 
       nsIntRegion clippedOpaque = e->mOpaqueRegion;
-      const Maybe<ParentLayerIntRect>& clipRect = e->mLayer->GetClipRect();
+      Maybe<ParentLayerIntRect> clipRect = e->mLayer->GetCombinedClipRect();
       if (clipRect) {
         clippedOpaque.AndWith(ParentLayerIntRect::ToUntyped(*clipRect));
       }
@@ -4597,7 +4590,9 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
     if (aContainerFrame->GetContent() &&
         nsLayoutUtils::HasAnimationsForCompositor(
           aContainerFrame->GetContent(), eCSSProperty_transform)) {
-      scale = nsLayoutUtils::ComputeSuitableScaleForAnimation(aContainerFrame->GetContent());
+      scale = nsLayoutUtils::ComputeSuitableScaleForAnimation(
+                aContainerFrame->GetContent(), aVisibleRect.Size(),
+                aContainerFrame->PresContext()->GetVisibleArea().Size());
     } else {
       // Scale factors are normalized to a power of 2 to reduce the number of resolution changes
       scale = RoundToFloatPrecision(ThebesMatrix(transform2d).ScaleFactors(true));

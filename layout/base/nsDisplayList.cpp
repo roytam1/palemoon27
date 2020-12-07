@@ -1558,7 +1558,7 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
                          presShell->GetRootScrollFrame(),
                          content,
                          aBuilder->FindReferenceFrameFor(frame),
-                         root, FrameMetrics::NULL_SCROLL_ID, viewport,
+                         root, FrameMetrics::NULL_SCROLL_ID, viewport, Nothing(),
                          isRoot, containerParameters));
   }
 
@@ -4139,7 +4139,7 @@ nsDisplaySubDocument::ComputeFrameMetrics(Layer* aLayer,
   return MakeUnique<FrameMetrics>(
     nsLayoutUtils::ComputeFrameMetrics(
       mFrame, rootScrollFrame, rootScrollFrame->GetContent(), ReferenceFrame(),
-      aLayer, mScrollParentId, viewport,
+      aLayer, mScrollParentId, viewport, Nothing(),
       isRootContentDocument, params));
 }
 
@@ -4411,7 +4411,7 @@ nsDisplayScrollInfoLayer::ComputeFrameMetrics(Layer* aLayer,
     nsLayoutUtils::ComputeFrameMetrics(
       mScrolledFrame, mScrollFrame, mScrollFrame->GetContent(),
       ReferenceFrame(), aLayer,
-      mScrollParentId, viewport, false, params)));
+      mScrollParentId, viewport, Nothing(), false, params)));
 }
 
 

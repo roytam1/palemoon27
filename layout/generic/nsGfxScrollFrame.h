@@ -378,7 +378,6 @@ public:
   bool WantAsyncScroll() const;
   void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
                            const ContainerLayerParameters& aParameters,
-                           mozilla::Maybe<nsRect>* aClipRect,
                            nsTArray<FrameMetrics>* aOutput) const;
 
   // nsIScrollbarMediator
@@ -833,10 +832,9 @@ public:
   }
   virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
                                    const ContainerLayerParameters& aParameters,
-                                   mozilla::Maybe<nsRect>* aClipRect,
                                    nsTArray<FrameMetrics>* aOutput) const override {
     mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
-                                aParameters, aClipRect, aOutput);
+                                aParameters, aOutput);
   }
   virtual bool IsIgnoringViewportClipping() const override {
     return mHelper.IsIgnoringViewportClipping();
@@ -897,6 +895,10 @@ public:
   }
   virtual void ScrollbarActivityStarted() const override;
   virtual void ScrollbarActivityStopped() const override;
+
+  virtual bool IsScrollbarOnRight() const override {
+    return mHelper.IsScrollbarOnRight();
+  }
 
   virtual void SetTransformingByAPZ(bool aTransforming) override {
     mHelper.SetTransformingByAPZ(aTransforming);
@@ -1222,10 +1224,9 @@ public:
   }
   virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
                                    const ContainerLayerParameters& aParameters,
-                                   mozilla::Maybe<nsRect>* aClipRect,
                                    nsTArray<FrameMetrics>* aOutput) const override {
     mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
-                                aParameters, aClipRect, aOutput);
+                                aParameters, aOutput);
   }
   virtual bool IsIgnoringViewportClipping() const override {
     return mHelper.IsIgnoringViewportClipping();
@@ -1294,6 +1295,10 @@ public:
 
   virtual void ScrollbarActivityStarted() const override;
   virtual void ScrollbarActivityStopped() const override;
+
+  virtual bool IsScrollbarOnRight() const override {
+    return mHelper.IsScrollbarOnRight();
+  }
 
   virtual void SetTransformingByAPZ(bool aTransforming) override {
     mHelper.SetTransformingByAPZ(aTransforming);

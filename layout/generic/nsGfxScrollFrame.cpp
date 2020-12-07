@@ -55,6 +55,7 @@
 #include "gfxPlatform.h"
 #include "gfxPrefs.h"
 #include "AsyncScrollBase.h"
+#include "UnitTransforms.h"
 #include <mozilla/layers/AxisPhysicsModel.h>
 #include <mozilla/layers/AxisPhysicsMSDModel.h>
 #include <algorithm>
@@ -351,10 +352,16 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
     ComputeInsideBorderSize(aState, desiredInsideBorderSize);
   nsSize scrollPortSize = nsSize(std::max(0, aState->mInsideBorderSize.width - vScrollbarDesiredWidth),
                                  std::max(0, aState->mInsideBorderSize.height - hScrollbarDesiredHeight));
+
   nsSize visualScrollPortSize = scrollPortSize;
   nsIPresShell* presShell = PresContext()->PresShell();
   if (mHelper.mIsRoot && presShell->IsScrollPositionClampingScrollPortSizeSet()) {
-    visualScrollPortSize = presShell->GetScrollPositionClampingScrollPortSize();
+    nsSize compositionSize = nsLayoutUtils::CalculateCompositionSizeForFrame(this, false);
+    float resolution = presShell->GetResolution();
+    compositionSize.width /= resolution;
+    compositionSize.height /= resolution;
+    visualScrollPortSize = nsSize(std::max(0, compositionSize.width - vScrollbarDesiredWidth),
+                                  std::max(0, compositionSize.height - hScrollbarDesiredHeight));
   }
 
   if (!aForce) {
@@ -394,7 +401,7 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
   aState->mShowVScrollbar = aAssumeVScroll;
   nsPoint scrollPortOrigin(aState->mComputedBorder.left,
                            aState->mComputedBorder.top);
-  if (!mHelper.IsScrollbarOnRight()) {
+  if (!IsScrollbarOnRight()) {
     scrollPortOrigin.x += vScrollbarActualWidth;
   }
   mHelper.mScrollPort = nsRect(scrollPortOrigin, scrollPortSize);
@@ -3036,17 +3043,30 @@ void
 ScrollFrameHelper::ComputeFrameMetrics(Layer* aLayer,
                                        nsIFrame* aContainerReferenceFrame,
                                        const ContainerLayerParameters& aParameters,
-                                       Maybe<nsRect>* aClipRect,
                                        nsTArray<FrameMetrics>* aOutput) const
 {
+  if (!mShouldBuildScrollableLayer || mIsScrollableLayerInRootContainer) {
+    return;
+  }
+
+  bool needsParentLayerClip = true;
+  if (gfxPrefs::LayoutUseContainersForRootFrames() && !mAddClipRectToLayer) {
+    // For containerful frames, the clip is on the container frame.
+    needsParentLayerClip = false;
+  }
+
+  // Note: Do not apply clips to the scroll ports of metrics above the first
+  // one on a given layer. They will be applied by the compositor instead,
+  // with async transforms for the scrollframes interspersed between them.
+  if (aOutput->Length() > 0) {
+    needsParentLayerClip = false;
+  }
+
   nsPoint toReferenceFrame = mOuter->GetOffsetToCrossDoc(aContainerReferenceFrame);
   bool isRoot = mIsRoot && mOuter->PresContext()->IsRootContentDocument();
-  // If APZ is enabled, do not apply clips to the scroll ports of metrics
-  // above the first one on a given layer. They will be applied by the
-  // compositor instead, with async transforms for the scrollframes interspersed
-  // between them.
-  bool omitClip = gfxPrefs::AsyncPanZoomEnabled() && aOutput->Length() > 0;
-  if (!omitClip && (!gfxPrefs::LayoutUseContainersForRootFrames() || mAddClipRectToLayer)) {
+
+  Maybe<nsRect> parentLayerClip;
+  if (needsParentLayerClip) {
     nsRect clip = nsRect(mScrollPort.TopLeft() + toReferenceFrame,
                          nsLayoutUtils::CalculateCompositionSizeForFrame(mOuter));
     if (isRoot) {
@@ -3054,12 +3074,31 @@ ScrollFrameHelper::ComputeFrameMetrics(Layer* aLayer,
       clip.width = NSToCoordRound(clip.width / res);
       clip.height = NSToCoordRound(clip.height / res);
     }
-    // When using containers, the container layer contains the clip. Otherwise
-    // we always include the clip.
-    *aClipRect = Some(clip);
+
+    parentLayerClip = Some(clip);
   }
 
-  if (!mShouldBuildScrollableLayer || mIsScrollableLayerInRootContainer) {
+  if (!gfxPrefs::AsyncPanZoomEnabled()) {
+    if (parentLayerClip) {
+      // If APZ is not enabled, we still need the displayport to be clipped
+      // in the compositor.
+      ParentLayerIntRect displayportClip =
+        ViewAs<ParentLayerPixel>(
+          parentLayerClip->ScaleToNearestPixels(
+            aParameters.mXScale,
+            aParameters.mYScale,
+            mScrolledFrame->PresContext()->AppUnitsPerDevPixel()));
+
+      ParentLayerIntRect layerClip;
+      if (const ParentLayerIntRect* origClip = aLayer->GetClipRect().ptrOr(nullptr)) {
+        layerClip = displayportClip.Intersect(*origClip);
+      } else {
+        layerClip = displayportClip;
+      }
+      aLayer->SetClipRect(Some(layerClip));
+    }
+
+    // Return early, since if we don't use APZ we don't need FrameMetrics.
     return;
   }
 
@@ -3070,7 +3109,7 @@ ScrollFrameHelper::ComputeFrameMetrics(Layer* aLayer,
       nsLayoutUtils::ComputeFrameMetrics(
         mScrolledFrame, mOuter, mOuter->GetContent(),
         aContainerReferenceFrame, aLayer, mScrollParentID,
-        scrollport, isRoot, aParameters);
+        scrollport, parentLayerClip, isRoot, aParameters);
 }
 
 bool
@@ -4269,7 +4308,7 @@ ScrollFrameHelper::IsScrollingActive(nsDisplayListBuilder* aBuilder) const
 nsresult
 nsXULScrollFrame::Layout(nsBoxLayoutState& aState)
 {
-  bool scrollbarRight = mHelper.IsScrollbarOnRight();
+  bool scrollbarRight = IsScrollbarOnRight();
   bool scrollbarBottom = true;
 
   // get the content rect
@@ -4888,12 +4927,12 @@ ScrollFrameHelper::SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom,
   DebugOnly<nsWeakPtr> weakShell(
     do_GetWeakReference(mOuter->PresContext()->PresShell()));
   // convert to pixels
-  aSize = nsPresContext::AppUnitsToIntCSSPixels(aSize);
+  int32_t pixelSize = nsPresContext::AppUnitsToIntCSSPixels(aSize);
 
   // only set the attribute if it changed.
 
   nsAutoString newValue;
-  newValue.AppendInt(aSize);
+  newValue.AppendInt(pixelSize);
 
   if (aContent->AttrValueIs(kNameSpaceID_None, aAtom, newValue, eCaseMatters))
     return;

@@ -175,10 +175,6 @@ PuppetWidget::Show(bool aState)
     mChild->mVisible = aState;
   }
 
-  if (!mVisible && mLayerManager) {
-    mLayerManager->ClearCachedResources();
-  }
-
   if (!wasVisible && mVisible) {
     Resize(mBounds.width, mBounds.height, false);
     Invalidate(mBounds);
@@ -1135,7 +1131,7 @@ PuppetWidget::GetWindowPosition()
 
 NS_METHOD
 PuppetWidget::GetScreenBounds(nsIntRect &aRect) {
-  aRect.MoveTo(gfx::ToIntPoint(LayoutDeviceIntPoint::ToUntyped(WidgetToScreenOffset())));
+  aRect.MoveTo(LayoutDeviceIntPoint::ToUntyped(WidgetToScreenOffset()));
   aRect.SizeTo(mBounds.Size());
   return NS_OK;
 }

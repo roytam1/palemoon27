@@ -737,6 +737,8 @@ pref("canvas.hitregions.enabled", false);
 pref("canvas.filters.enabled", false);
 // Add support for canvas path objects
 pref("canvas.path.enabled", true);
+// captureStream() on canvas disabled by default
+pref("canvas.capturestream.enabled", false);
 
 // We want the ability to forcibly disable platform a11y, because
 // some non-a11y-related components attempt to bring it up.  See bug
@@ -4422,6 +4424,9 @@ pref("layers.force-active", false);
 // Never use gralloc surfaces, even when they're available on this
 // platform and are the optimal surface type.
 pref("layers.gralloc.disable", false);
+
+// Don't use compositor-lru on this platform
+pref("layers.compositor-lru-size", 0);
 
 // Enable/Disable the geolocation API for content
 pref("geo.enabled", true);

@@ -1522,6 +1522,16 @@
             // Restore the progress listener.
             aBrowser.webProgress.addProgressListener(filter, Ci.nsIWebProgress.NOTIFY_ALL);
 
+            // Restore the securityUI state.
+            let securityUI = aBrowser.securityUI;
+            let state = securityUI ? securityUI.state
+                                   : Ci.nsIWebProgressListener.STATE_IS_INSECURE;
+            // Include the true final argument to indicate that this event is
+            // simulated (instead of being observed by the webProgressListener).
+            this._callProgressListeners(aBrowser, "onSecurityChange",
+                                        [aBrowser.webProgress, null, securityUI.state, true],
+                                        true, false);
+
             if (aShouldBeRemote) {
               // Switching the browser to be remote will connect to a new child
               // process so the browser can no longer be considered to be
@@ -2508,8 +2518,16 @@
             if (remoteBrowser) {
               remoteBrowser._outerWindowIDBrowserMap.delete(aOtherBrowser.outerWindowID);
             }
+
             // Swap the docshells
             ourBrowser.swapDocShells(aOtherBrowser);
+
+            if (ourBrowser.isRemoteBrowser) {
+              // Switch outerWindowIDs for remote browsers.
+              let ourOuterWindowID = ourBrowser._outerWindowID;
+              ourBrowser._outerWindowID = aOtherBrowser._outerWindowID;
+              aOtherBrowser._outerWindowID = ourOuterWindowID;
+            }
 
             // Register new outerWindowIDs.
             this._outerWindowIDBrowserMap.set(ourBrowser.outerWindowID, ourBrowser);
@@ -3278,6 +3296,8 @@
 
               let tab = this.tabbrowser.getTabForBrowser(browser);
               this.setTabState(tab, this.STATE_LOADED);
+
+              this.finishTabSwitch();
 
               if (this.loadingTab === tab) {
                 clearTimeout(this.loadTimer);

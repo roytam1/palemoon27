@@ -1183,11 +1183,9 @@ interface nsIDOMWindowUtils : nsISupports {
    * Called when the remote child frame has changed its fullscreen state,
    * when entering fullscreen, and when the origin which is fullscreen changes.
    * aFrameElement is the iframe element which contains the child-process
-   * fullscreen document, and aNewOrigin is the origin of the new fullscreen
-   * document.
+   * fullscreen document.
    */
-  void remoteFrameFullscreenChanged(in nsIDOMElement aFrameElement,
-                                    in AString aNewOrigin);
+  void remoteFrameFullscreenChanged(in nsIDOMElement aFrameElement);
 
   /**
    * Called when the remote frame has popped all fullscreen elements off its

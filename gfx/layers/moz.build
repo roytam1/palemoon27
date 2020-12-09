@@ -115,12 +115,14 @@ EXPORTS.mozilla.layers += [
     'client/TextureClient.h',
     'client/TextureClientPool.h',
     'client/TextureClientRecycleAllocator.h',
+    'client/TextureClientSharedSurface.h',
     'client/TiledContentClient.h',
     'composite/AsyncCompositionManager.h',
     'composite/CanvasLayerComposite.h',
     'composite/ColorLayerComposite.h',
     'composite/ContainerLayerComposite.h',
     'composite/ContentHost.h',
+    'composite/FrameUniformityData.h',
     'composite/ImageHost.h',
     'composite/ImageLayerComposite.h',
     'composite/LayerManagerComposite.h',
@@ -160,6 +162,7 @@ EXPORTS.mozilla.layers += [
     'opengl/MacIOSurfaceTextureHostOGL.h',
     'opengl/TextureClientOGL.h',
     'opengl/TextureHostOGL.h',
+    'PersistentBufferProvider.h',
     'RenderTrace.h',
     'TransactionIdAllocator.h',
     'YCbCrImageDataSerializer.h',
@@ -264,6 +267,7 @@ UNIFIED_SOURCES += [
     'client/TextureClient.cpp',
     'client/TextureClientPool.cpp',
     'client/TextureClientRecycleAllocator.cpp',
+    'client/TextureClientSharedSurface.cpp',
     'client/TiledContentClient.cpp',
     'composite/AsyncCompositionManager.cpp',
     'composite/CanvasLayerComposite.cpp',
@@ -272,6 +276,7 @@ UNIFIED_SOURCES += [
     'composite/ContainerLayerComposite.cpp',
     'composite/ContentHost.cpp',
     'composite/FPSCounter.cpp',
+    'composite/FrameUniformityData.cpp',
     'composite/ImageHost.cpp',
     'composite/ImageLayerComposite.cpp',
     'composite/LayerManagerComposite.cpp',
@@ -327,6 +332,7 @@ SOURCES += [
     'ImageContainer.cpp',
     'Layers.cpp',
     'LayerTreeInvalidation.cpp',
+    'PersistentBufferProvider.cpp',
 ]
 
 # Disable RTTI in google protocol buffer
@@ -387,6 +393,7 @@ CXXFLAGS += [
 ]
 
 MOCHITEST_MANIFESTS += ['apz/test/mochitest.ini']
+MOCHITEST_CHROME_MANIFESTS += ['apz/test/chrome.ini']
 
 CXXFLAGS += CONFIG['MOZ_CAIRO_CFLAGS']
 CXXFLAGS += CONFIG['TK_CFLAGS']

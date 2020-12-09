@@ -14,12 +14,14 @@
 #include "mozilla/layers/CompositableClient.h"
 #include "mozilla/layers/CompositorChild.h" // for CompositorChild
 #include "mozilla/layers/ContentClient.h"
+#include "mozilla/layers/FrameUniformityData.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "mozilla/layers/LayersMessages.h"  // for EditReply, etc
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
 #include "mozilla/layers/PLayerChild.h"  // for PLayerChild
 #include "mozilla/layers/LayerTransactionChild.h"
 #include "mozilla/layers/TextureClientPool.h" // for TextureClientPool
+#include "mozilla/layers/PersistentBufferProvider.h"
 #include "ClientReadbackLayer.h"        // for ClientReadbackLayer
 #include "nsAString.h"
 #include "nsIWidgetListener.h"
@@ -426,6 +428,20 @@ ClientLayerManager::StartNewRepaintRequest(SequenceNumber aSequenceNumber)
   }
 }
 
+void
+ClientLayerManager::GetFrameUniformity(FrameUniformityData* aOutData)
+{
+  MOZ_ASSERT(XRE_IsParentProcess(), "Frame Uniformity only supported in parent process");
+
+  if (HasShadowManager()) {
+    CompositorChild* child = GetRemoteRenderer();
+    child->SendGetFrameUniformity(aOutData);
+    return;
+  }
+
+  return LayerManager::GetFrameUniformity(aOutData);
+}
+
 bool
 ClientLayerManager::RequestOverfill(mozilla::dom::OverfillCallback* aCallback)
 {
@@ -750,7 +766,6 @@ ClientLayerManager::GetBackendName(nsAString& aName)
     case LayersBackend::LAYERS_BASIC: aName.AssignLiteral("Basic"); return;
     case LayersBackend::LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
     case LayersBackend::LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;
-    case LayersBackend::LAYERS_D3D10: aName.AssignLiteral("Direct3D 10"); return;
     case LayersBackend::LAYERS_D3D11: {
 #ifdef XP_WIN
       if (gfxWindowsPlatform::GetPlatform()->IsWARP()) {

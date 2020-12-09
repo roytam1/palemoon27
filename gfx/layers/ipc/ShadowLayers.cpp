@@ -28,7 +28,6 @@
 #include "mozilla/layers/TextureClient.h"  // for TextureClient
 #include "mozilla/mozalloc.h"           // for operator new, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr, getter_AddRefs, etc
-#include "nsSize.h"                     // for nsIntSize
 #include "nsTArray.h"                   // for nsAutoTArray, nsTArray, etc
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
 #include "mozilla/ReentrantMonitor.h"
@@ -536,6 +535,13 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies,
   if (mTxn->Empty() && !mTxn->RotationChanged() && !mWindowOverlayChanged) {
     MOZ_LAYERS_LOG(("[LayersForwarder] 0-length cset (?) and no rotation event, skipping Update()"));
     return true;
+  }
+
+  if (!mTxn->mPaints.empty()) {
+    // With some platforms, telling the drawing backend that there will be no more
+    // drawing for this frame helps with preventing command queues from spanning
+    // across multiple frames.
+    gfxPlatform::GetPlatform()->FlushContentDrawing();
   }
 
   MOZ_LAYERS_LOG(("[LayersForwarder] destroying buffers..."));

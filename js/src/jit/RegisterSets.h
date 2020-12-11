@@ -1259,10 +1259,12 @@ SavedNonVolatileRegisters(AllocatableGeneralRegisterSet unused)
             result.add(reg);
     }
 
-    // ARM and MIPS require an additional register to be saved, if calls can be made.
+    // Some platforms require the link register to be saved, if calls can be made.
 #if defined(JS_CODEGEN_ARM)
     result.add(Register::FromCode(Registers::lr));
-#elif defined(JS_CODEGEN_MIPS)
+#elif defined(JS_CODEGEN_ARM64)
+    result.add(Register::FromCode(Registers::lr));
+#elif defined(JS_CODEGEN_MIPS32)
     result.add(Register::FromCode(Registers::ra));
 #endif
 

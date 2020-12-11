@@ -9,10 +9,10 @@
 #include <stdint.h>                     // for uint8_t
 #include "gfxColor.h"                   // for gfxRGBA
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4, Matrix
+#include "mozilla/gfx/Point.h"          // for IntSize
 #include "nsDebug.h"                    // for NS_ERROR
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRect.h"                     // for mozilla::gfx::IntRect
-#include "nsSize.h"                     // for nsIntSize
 
 using namespace mozilla::gfx;
 
@@ -213,7 +213,7 @@ AppendToString(std::stringstream& aStream, const ScrollableLayerGuid& s,
                const char* pfx, const char* sfx)
 {
   aStream << pfx
-          << nsPrintfCString("{ l=%llu, p=%u, v=%llu }", s.mLayersId, s.mPresShellId, s.mScrollId).get()
+          << nsPrintfCString("{ l=%" PRIu64 ", p=%u, v=%" PRIu64 " }", s.mLayersId, s.mPresShellId, s.mScrollId).get()
           << sfx;
 }
 

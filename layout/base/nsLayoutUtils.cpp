@@ -8235,6 +8235,8 @@ nsLayoutUtils::ComputeFrameMetrics(nsIFrame* aForFrame,
     {
       metrics.SetAllowVerticalScrollWithWheel();
     }
+
+    metrics.SetUsesContainerScrolling(scrollableFrame->UsesContainerScrolling());
   }
 
   // If we have the scrollparent being the same as the scroll id, the
@@ -8244,6 +8246,13 @@ nsLayoutUtils::ComputeFrameMetrics(nsIFrame* aForFrame,
   metrics.SetScrollId(scrollId);
   metrics.SetIsRoot(aIsRoot);
   metrics.SetScrollParentId(aScrollParentId);
+
+  if (scrollId != FrameMetrics::NULL_SCROLL_ID && !presContext->GetParentPresContext()) {
+    if ((aScrollFrame && (aScrollFrame == presShell->GetRootScrollFrame())) ||
+        aContent == presShell->GetDocument()->GetDocumentElement()) {
+      metrics.SetIsLayersIdRoot(true);
+    }
+  }
 
   // Only the root scrollable frame for a given presShell should pick up
   // the presShell's resolution. All the other frames are 1.0.

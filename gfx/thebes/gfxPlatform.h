@@ -305,7 +305,9 @@ public:
     mozilla::gfx::BackendType GetPreferredCanvasBackend() {
       return mPreferredCanvasBackend;
     }
-
+    mozilla::gfx::BackendType GetFallbackCanvasBackend() {
+      return mFallbackCanvasBackend;
+    }
     /*
      * Font bits
      */
@@ -634,6 +636,17 @@ public:
       return false;
     }
 
+    virtual void FlushContentDrawing() {}
+
+    /**
+     * Helper method, creates a draw target for a specific Azure backend.
+     * Used by CreateOffscreenDrawTarget.
+     */
+    already_AddRefed<DrawTarget>
+      CreateDrawTargetForBackend(mozilla::gfx::BackendType aBackend,
+                                 const mozilla::gfx::IntSize& aSize,
+                                 mozilla::gfx::SurfaceFormat aFormat);
+
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();
@@ -645,15 +658,6 @@ protected:
      * Initialized hardware vsync based on each platform.
      */
     virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource();
-
-    /**
-     * Helper method, creates a draw target for a specific Azure backend.
-     * Used by CreateOffscreenDrawTarget.
-     */
-    already_AddRefed<DrawTarget>
-      CreateDrawTargetForBackend(mozilla::gfx::BackendType aBackend,
-                                 const mozilla::gfx::IntSize& aSize,
-                                 mozilla::gfx::SurfaceFormat aFormat);
 
     /**
      * Initialise the preferred and fallback canvas backends

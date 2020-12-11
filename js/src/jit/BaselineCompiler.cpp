@@ -478,7 +478,7 @@ BaselineCompiler::emitOutOfLinePostBarrierSlot()
     // On ARM, save the link register before calling.  It contains the return
     // address.  The |masm.ret()| later will pop this into |pc| to return.
     masm.push(lr);
-#elif defined(JS_CODEGEN_MIPS)
+#elif defined(JS_CODEGEN_MIPS32)
     masm.push(ra);
 #endif
     masm.pushValue(R0);
@@ -862,7 +862,7 @@ BaselineCompiler::emitProfilerEnterFrame()
     // Starts off initially disabled.
     Label noInstrument;
     CodeOffsetLabel toggleOffset = masm.toggledJump(&noInstrument);
-    masm.profilerEnterFrame(BaselineStackReg, R0.scratchReg());
+    masm.profilerEnterFrame(masm.getStackPointer(), R0.scratchReg());
     masm.bind(&noInstrument);
 
     // Store the start offset in the appropriate location.
@@ -3737,7 +3737,7 @@ BaselineCompiler::emit_JSOP_RESUME()
         AbsoluteAddress addressOfEnabled(cx->runtime()->spsProfiler.addressOfEnabled());
         masm.branch32(Assembler::Equal, addressOfEnabled, Imm32(0), &skip);
         masm.loadPtr(AbsoluteAddress(cx->runtime()->addressOfProfilingActivation()), scratchReg);
-        masm.storePtr(BaselineStackReg,
+        masm.storePtr(masm.getStackPointer(),
                       Address(scratchReg, JitActivation::offsetOfLastProfilingFrame()));
         masm.bind(&skip);
     }

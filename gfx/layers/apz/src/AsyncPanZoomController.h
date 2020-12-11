@@ -882,10 +882,16 @@ public:
   }
 
   /* Returns true if there is no APZC higher in the tree with the same
-   * layers id.
+   * layers id. Deprecated. New code shouldn't use this. Old code should be
+   * updated to not use this.
    */
-  bool IsRootForLayersId() const {
+  bool HasNoParentWithSameLayersId() const {
     return !mParent || (mParent->mLayersId != mLayersId);
+  }
+
+  bool IsRootForLayersId() const {
+    ReentrantMonitorAutoEnter lock(mMonitor);
+    return mFrameMetrics.IsLayersIdRoot();
   }
 
 private:
@@ -1074,6 +1080,11 @@ public:
   bool GetAsyncTransformAppliedToContent() const
   {
     return mAsyncTransformAppliedToContent;
+  }
+
+  uint64_t GetLayersId() const
+  {
+    return mLayersId;
   }
 
 private:

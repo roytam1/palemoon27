@@ -14,6 +14,7 @@
 #include "mozilla/gfx/ScaleFactor.h"    // for ScaleFactor
 #include "mozilla/gfx/Logging.h"        // for Log
 #include "gfxColor.h"
+#include "gfxPrefs.h"                   // for LayoutUseContainersForRootFrames
 #include "nsString.h"
 
 namespace IPC {
@@ -67,6 +68,8 @@ public:
     , mLineScrollAmount(0, 0)
     , mPageScrollAmount(0, 0)
     , mAllowVerticalScrollWithWheel(false)
+    , mIsLayersIdRoot(false)
+    , mUsesContainerScrolling(false)
   {
   }
 
@@ -100,7 +103,9 @@ public:
            mLineScrollAmount == aOther.mLineScrollAmount &&
            mPageScrollAmount == aOther.mPageScrollAmount &&
            mAllowVerticalScrollWithWheel == aOther.mAllowVerticalScrollWithWheel &&
-           mClipRect == aOther.mClipRect;
+           mClipRect == aOther.mClipRect &&
+           mIsLayersIdRoot == aOther.mIsLayersIdRoot &&
+		   mUsesContainerScrolling == aOther.mUsesContainerScrolling;
   }
   bool operator!=(const FrameMetrics& aOther) const
   {
@@ -534,6 +539,21 @@ public:
     return mClipRect.ref();
   }
 
+  void SetIsLayersIdRoot(bool aValue) {
+    mIsLayersIdRoot = aValue;
+  }
+  bool IsLayersIdRoot() const {
+    return mIsLayersIdRoot;
+  }
+
+  void SetUsesContainerScrolling(bool aValue) {
+    MOZ_ASSERT_IF(aValue, gfxPrefs::LayoutUseContainersForRootFrames());
+    mUsesContainerScrolling = aValue;
+  }
+  bool UsesContainerScrolling() const {
+    return mUsesContainerScrolling;
+  }
+
 private:
 
   // The pres-shell resolution that has been induced on the document containing
@@ -707,6 +727,14 @@ private:
 
   // The clip rect to use when compositing a layer with this FrameMetrics.
   Maybe<ParentLayerIntRect> mClipRect;
+
+  // Whether these framemetrics are for the root scroll frame (root element if
+  // we don't have a root scroll frame) for its layers id.
+  bool mIsLayersIdRoot;
+
+  // True if scrolling using containers, false otherwise. This can be removed
+  // when containerful scrolling is eliminated.
+  bool mUsesContainerScrolling;
 
   // WARNING!!!!
   //

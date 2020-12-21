@@ -10,38 +10,6 @@ EXPORTS += [
     'zlib.h',
 ]
 
-if CONFIG['CPU_ARCH'] == 'arm':
-    DEFINES['ADLER32_SIMD_NEON'] = True
-    DEFINES['INFLATE_CHUNK_SIMD_NEON'] = True
-    SOURCES += [
-        'adler32_simd.c',
-        'inffast_chunk.c',
-        'inflate_simd.c',
-    ]
-
-if CONFIG['INTEL_ARCHITECTURE']:
-    DEFINES['ADLER32_SIMD_SSSE3'] = True
-    DEFINES['INFLATE_CHUNK_SIMD_SSE2'] = True
-    DEFINES['CRC32_SIMD_SSE42_PCLMUL'] = True
-    SOURCES += [
-        'adler32_simd.c',
-        'crc32_simd.c',
-        'crc_folding.c',
-        'fill_window_sse.c',
-        'inffast_chunk.c',
-        'inflate_simd.c',
-        'x86.c',
-    ]
-else:
-    SOURCES += [
-        'simd_stub.c',
-    ]
-
-if CONFIG['CPU_ARCH'] != 'arm' and not CONFIG['INTEL_ARCHITECTURE']:
-    SOURCES += [
-        'inflate.c',
-    ]
-
 if CONFIG['ZLIB_IN_MOZGLUE']:
     FINAL_LIBRARY = 'mozglue'
     DEFINES['IMPL_MFBT'] = True
@@ -60,6 +28,7 @@ SOURCES += [
     'gzwrite.c',
     'infback.c',
     'inffast.c',
+    'inflate.c',
     'inftrees.c',
     'trees.c',
     'uncompr.c',

@@ -660,7 +660,10 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
     sIndirectLayerTrees[mRootLayerTreeID].mParent = this;
   }
 
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
+  // The Compositor uses the APZ pref directly since it needs to know whether
+  // to attempt to create the APZ machinery at all.
+  if (gfxPlatform::AsyncPanZoomEnabled() &&
+      (aWidget->WindowType() == eWindowType_toplevel || aWidget->WindowType() == eWindowType_child)) {
     mApzcTreeManager = new APZCTreeManager();
   }
 
@@ -1050,6 +1053,13 @@ CompositorParent::ScheduleComposition()
 /* static */ void
 CompositorParent::SetShadowProperties(Layer* aLayer)
 {
+  if (Layer* maskLayer = aLayer->GetMaskLayer()) {
+    SetShadowProperties(maskLayer);
+  }
+  for (size_t i = 0; i < aLayer->GetAncestorMaskLayerCount(); i++) {
+    SetShadowProperties(aLayer->GetAncestorMaskLayerAt(i));
+  }
+
   // FIXME: Bug 717688 -- Do these updates in LayerTransactionParent::RecvUpdate.
   LayerComposite* layerComposite = aLayer->AsLayerComposite();
   // Set the layerComposite's base transform to the layer's base transform.

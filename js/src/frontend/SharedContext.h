@@ -126,6 +126,9 @@ class FunctionContextFlags
     //
     bool definitelyNeedsArgsObj:1;
 
+    bool needsHomeObject:1;
+    bool isDerivedClassConstructor:1;
+
     FunctionContextFlags flagsForNestedGeneratorComprehensionLambda() const {
         FunctionContextFlags flags;
         flags.mightAliasLocals = mightAliasLocals;
@@ -133,10 +136,10 @@ class FunctionContextFlags
         flags.needsDeclEnvObject = false;
         flags.argumentsHasLocalBinding = false;
         flags.definitelyNeedsArgsObj = false;
+        flags.needsHomeObject = false;
+        flags.isDerivedClassConstructor = false;
         return flags;
     }
-
-    bool needsHomeObject:1;
 
   public:
     FunctionContextFlags()
@@ -145,7 +148,8 @@ class FunctionContextFlags
         needsDeclEnvObject(false),
         argumentsHasLocalBinding(false),
         definitelyNeedsArgsObj(false),
-        needsHomeObject(false)
+        needsHomeObject(false),
+        isDerivedClassConstructor(false)
     { }
 };
 
@@ -245,6 +249,7 @@ class SharedContext
         SuperProperty
     };
     virtual bool allowSyntax(AllowedSyntax allowed) const = 0;
+    virtual bool inWith() const = 0;
 
   protected:
     static bool FunctionAllowsSyntax(JSFunction* func, AllowedSyntax allowed)
@@ -253,8 +258,8 @@ class SharedContext
 
         switch (allowed) {
           case AllowedSyntax::NewTarget:
-            // For now, disallow new.target inside generators
-            return !func->isGenerator();
+            // Any function supports new.target
+            return true;
           case AllowedSyntax::SuperProperty:
             return func->allowSuperProperty();
           default:;
@@ -267,19 +272,11 @@ class GlobalSharedContext : public SharedContext
 {
   private:
     Handle<ScopeObject*> topStaticScope_;
+    bool allowNewTarget_;
+    bool allowSuperProperty_;
+    bool inWith_;
 
-  public:
-    GlobalSharedContext(ExclusiveContext* cx,
-                        Directives directives, Handle<ScopeObject*> topStaticScope,
-                        bool extraWarnings)
-      : SharedContext(cx, directives, extraWarnings),
-        topStaticScope_(topStaticScope)
-    {}
-
-    ObjectBox* toObjectBox() { return nullptr; }
-    HandleObject topStaticScope() const { return topStaticScope_; }
-
-    bool allowSyntax(AllowedSyntax allowed) const {
+    bool computeAllowSyntax(AllowedSyntax allowed) const {
         StaticScopeIter<CanGC> it(context, topStaticScope_);
         for (; !it.done(); it++) {
             if (it.type() == StaticScopeIter<CanGC>::Function &&
@@ -291,13 +288,39 @@ class GlobalSharedContext : public SharedContext
         return false;
     }
 
-    bool inWith() const {
+    bool computeInWith() const {
         for (StaticScopeIter<CanGC> it(context, topStaticScope_); !it.done(); it++) {
             if (it.type() == StaticScopeIter<CanGC>::With)
                 return true;
         }
         return false;
     }
+
+  public:
+    GlobalSharedContext(ExclusiveContext* cx,
+                        Directives directives, Handle<ScopeObject*> topStaticScope,
+                        bool extraWarnings)
+      : SharedContext(cx, directives, extraWarnings),
+        topStaticScope_(topStaticScope),
+        allowNewTarget_(computeAllowSyntax(AllowedSyntax::NewTarget)),
+        allowSuperProperty_(computeAllowSyntax(AllowedSyntax::SuperProperty)),
+        inWith_(computeInWith())
+    {}
+
+    ObjectBox* toObjectBox() override { return nullptr; }
+    HandleObject topStaticScope() const { return topStaticScope_; }
+    bool allowSyntax(AllowedSyntax allowSyntax) const override {
+        switch (allowSyntax) {
+          case AllowedSyntax::NewTarget:
+            // Any function supports new.target
+            return allowNewTarget_;
+          case AllowedSyntax::SuperProperty:
+            return allowSuperProperty_;
+          default:;
+        }
+        MOZ_CRASH("Unknown AllowedSyntax query");
+    }
+    bool inWith() const override { return inWith_; }
 };
 
 class FunctionBox : public ObjectBox, public SharedContext
@@ -311,7 +334,7 @@ class FunctionBox : public ObjectBox, public SharedContext
     uint16_t        length;
 
     uint8_t         generatorKindBits_;     /* The GeneratorKind of this function. */
-    bool            inWith:1;               /* some enclosing scope is a with-statement */
+    bool            inWith_:1;              /* some enclosing scope is a with-statement */
     bool            inGenexpLambda:1;       /* lambda from generator expression */
     bool            hasDestructuringArgs:1; /* arguments list contains destructuring expression */
     bool            useAsm:1;               /* see useAsmOrInsideUseAsm */
@@ -329,7 +352,7 @@ class FunctionBox : public ObjectBox, public SharedContext
                 ParseContext<ParseHandler>* pc, Directives directives,
                 bool extraWarnings, GeneratorKind generatorKind);
 
-    ObjectBox* toObjectBox() { return this; }
+    ObjectBox* toObjectBox() override { return this; }
     JSFunction* function() const { return &object->as<JSFunction>(); }
 
     GeneratorKind generatorKind() const { return GeneratorKindFromBits(generatorKindBits_); }
@@ -351,6 +374,7 @@ class FunctionBox : public ObjectBox, public SharedContext
     bool argumentsHasLocalBinding() const { return funCxFlags.argumentsHasLocalBinding; }
     bool definitelyNeedsArgsObj()   const { return funCxFlags.definitelyNeedsArgsObj; }
     bool needsHomeObject()          const { return funCxFlags.needsHomeObject; }
+    bool isDerivedClassConstructor() const { return funCxFlags.isDerivedClassConstructor; }
 
     void setMightAliasLocals()             { funCxFlags.mightAliasLocals         = true; }
     void setHasExtensibleScope()           { funCxFlags.hasExtensibleScope       = true; }
@@ -360,6 +384,8 @@ class FunctionBox : public ObjectBox, public SharedContext
                                              funCxFlags.definitelyNeedsArgsObj   = true; }
     void setNeedsHomeObject()              { MOZ_ASSERT(function()->allowSuperProperty());
                                              funCxFlags.needsHomeObject          = true; }
+    void setDerivedClassConstructor()      { MOZ_ASSERT(function()->isClassConstructor());
+                                             funCxFlags.isDerivedClassConstructor = true; }
 
     FunctionContextFlags flagsForNestedGeneratorComprehensionLambda() const {
         return funCxFlags.flagsForNestedGeneratorComprehensionLambda();
@@ -394,13 +420,12 @@ class FunctionBox : public ObjectBox, public SharedContext
                isGenerator();
     }
 
-    bool allowSyntax(AllowedSyntax allowed) const {
-        // For now (!) we don't allow new.target in generators, and can't
-        // check that for functions we haven't finished parsing, as they
-        // don't have initialized scripts. Check from our stashed bits instead.
-        if (allowed == AllowedSyntax::NewTarget)
-            return !isGenerator();
+    bool allowSyntax(AllowedSyntax allowed) const override {
         return FunctionAllowsSyntax(function(), allowed);
+    }
+
+    bool inWith() const override {
+        return inWith_;
     }
 };
 

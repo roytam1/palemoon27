@@ -377,9 +377,9 @@ public:
     }
   }
   bool WantAsyncScroll() const;
-  void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
-                           const ContainerLayerParameters& aParameters,
-                           nsTArray<FrameMetrics>* aOutput) const;
+  Maybe<FrameMetricsAndClip> ComputeFrameMetrics(
+    Layer* aLayer, nsIFrame* aContainerReferenceFrame,
+    const ContainerLayerParameters& aParameters) const;
 
   // nsIScrollbarMediator
   void ScrollByPage(nsScrollbarFrame* aScrollbar, int32_t aDirection,
@@ -457,6 +457,9 @@ public:
   nsRect mPrevScrolledRect;
 
   FrameMetrics::ViewID mScrollParentID;
+
+  // The scroll port clip. Only valid during painting.
+  const DisplayItemClip* mAncestorClip;
 
   bool mNeverHasVerticalScrollbar:1;
   bool mNeverHasHorizontalScrollbar:1;
@@ -831,11 +834,11 @@ public:
   virtual bool WantAsyncScroll() const override {
     return mHelper.WantAsyncScroll();
   }
-  virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
-                                   const ContainerLayerParameters& aParameters,
-                                   nsTArray<FrameMetrics>* aOutput) const override {
-    mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
-                                aParameters, aOutput);
+  virtual mozilla::Maybe<mozilla::FrameMetricsAndClip> ComputeFrameMetrics(
+    Layer* aLayer, nsIFrame* aContainerReferenceFrame,
+    const ContainerLayerParameters& aParameters) const override
+  {
+    return mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame, aParameters);
   }
   virtual bool IsIgnoringViewportClipping() const override {
     return mHelper.IsIgnoringViewportClipping();
@@ -1226,11 +1229,11 @@ public:
   virtual bool WantAsyncScroll() const override {
     return mHelper.WantAsyncScroll();
   }
-  virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
-                                   const ContainerLayerParameters& aParameters,
-                                   nsTArray<FrameMetrics>* aOutput) const override {
-    mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
-                                aParameters, aOutput);
+  virtual mozilla::Maybe<mozilla::FrameMetricsAndClip> ComputeFrameMetrics(
+    Layer* aLayer, nsIFrame* aContainerReferenceFrame,
+    const ContainerLayerParameters& aParameters) const override
+  {
+    return mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame, aParameters);
   }
   virtual bool IsIgnoringViewportClipping() const override {
     return mHelper.IsIgnoringViewportClipping();

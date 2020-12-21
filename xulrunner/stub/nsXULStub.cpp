@@ -8,6 +8,8 @@
 #include "nsXULAppAPI.h"
 #include "nsIFile.h"
 
+#include "mozilla/ChaosMode.h" // ChaosMode hack
+
 #include <stdarg.h>
 
 #ifdef XP_WIN
@@ -461,3 +463,13 @@ main(int argc, char **argv)
 
   return retval;
 }
+
+#ifdef MOZ_XULRUNNER
+namespace mozilla {
+namespace detail {
+
+Atomic<uint32_t> gChaosModeCounter(0);
+
+} /* namespace detail */
+} /* namespace mozilla */
+#endif

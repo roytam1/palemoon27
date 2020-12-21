@@ -1567,7 +1567,7 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
   }
 
   if (addMetrics || ensureMetricsForRootId) {
-    bool isRoot = presContext->IsRootContentDocument();
+    bool isRootContent = presContext->IsRootContentDocument();
 
     nsRect viewport(aBuilder->ToReferenceFrame(frame), frame->GetSize());
 
@@ -1576,7 +1576,10 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
                          rootScrollFrame, content,
                          aBuilder->FindReferenceFrameFor(frame),
                          root, FrameMetrics::NULL_SCROLL_ID, viewport, Nothing(),
-                         isRoot, containerParameters));
+                         isRootContent, containerParameters));
+  } else {
+    // Set empty metrics to clear any metrics that might be on a recycled layer.
+    root->SetFrameMetrics(nsTArray<FrameMetrics>());
   }
 
   // NS_WARNING is debug-only, so don't even bother checking the conditions in

@@ -238,7 +238,8 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   friend nsContainerFrame* NS_NewMathMLmtdFrame(nsIPresShell* aPresShell,
-                                                nsStyleContext* aContext);
+                                                nsStyleContext* aContext,
+                                                nsTableFrame* aTableFrame);
 
   // overloaded nsTableCellFrame methods
 
@@ -263,12 +264,13 @@ public:
     return nsTableCellFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
   }
 
-  virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const override;
+  virtual LogicalMargin GetBorderWidth(WritingMode aWM) const override;
 
   virtual nsMargin GetBorderOverflow() override;
 
 protected:
-  explicit nsMathMLmtdFrame(nsStyleContext* aContext) : nsTableCellFrame(aContext) {}
+  nsMathMLmtdFrame(nsStyleContext* aContext, nsTableFrame* aTableFrame)
+    : nsTableCellFrame(aContext, aTableFrame) {}
   virtual ~nsMathMLmtdFrame();
 }; // class nsMathMLmtdFrame
 

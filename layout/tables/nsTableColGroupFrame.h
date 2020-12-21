@@ -9,6 +9,7 @@
 #include "nscore.h"
 #include "nsContainerFrame.h"
 #include "nsTableFrame.h"
+#include "mozilla/WritingModes.h"
 
 class nsTableColFrame;
 
@@ -37,6 +38,8 @@ public:
   {
     nsIFrame* parent = GetParent();
     MOZ_ASSERT(parent && parent->GetType() == nsGkAtoms::tableFrame);
+    MOZ_ASSERT(!parent->GetPrevInFlow(),
+               "Col group should always be in a first-in-flow table frame");
     return static_cast<nsTableFrame*>(parent);
   }
 
@@ -112,6 +115,9 @@ public:
    * @see nsGkAtoms::tableColGroupFrame
    */
   virtual nsIAtom* GetType() const override;
+
+  virtual mozilla::WritingMode GetWritingMode() const override
+    { return GetTableFrame()->GetWritingMode(); }
 
   /** Add column frames to the table storages: colframe cache and cellmap
     * this doesn't change the mFrames of the colgroup frame.

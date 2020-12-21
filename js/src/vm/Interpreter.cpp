@@ -272,7 +272,7 @@ GetNameOperation(JSContext* cx, InterpreterFrame* fp, jsbytecode* pc, MutableHan
      * the actual behavior even if the id could be found on the scope chain
      * before the global object.
      */
-    if (IsGlobalOp(JSOp(*pc)) && !fp->script()->hasPollutedGlobalScope())
+    if (IsGlobalOp(JSOp(*pc)) && !fp->script()->hasNonSyntacticScope())
         obj = &obj->global();
 
     Shape* shape = nullptr;
@@ -866,7 +866,7 @@ js::ExecuteKernel(JSContext* cx, HandleScript script, JSObject& scopeChainArg, c
     while (IsSyntacticScope(terminatingScope))
         terminatingScope = terminatingScope->enclosingScope();
     MOZ_ASSERT(terminatingScope->is<GlobalObject>() ||
-               script->hasPollutedGlobalScope());
+               script->hasNonSyntacticScope());
 #endif
 
     if (script->treatAsRunOnce()) {
@@ -902,8 +902,8 @@ js::Execute(JSContext* cx, HandleScript script, JSObject& scopeChainArg, Value* 
     RootedObject scopeChain(cx, &scopeChainArg);
     MOZ_ASSERT(scopeChain == GetInnerObject(scopeChain));
 
-    MOZ_RELEASE_ASSERT(scopeChain->is<GlobalObject>() || script->hasPollutedGlobalScope(),
-                       "Only scripts with polluted scopes can be executed with "
+    MOZ_RELEASE_ASSERT(scopeChain->is<GlobalObject>() || script->hasNonSyntacticScope(),
+                       "Only scripts with non-syntactic scopes can be executed with "
                        "interesting scopechains");
 
     /* Ensure the scope chain is all same-compartment and terminates in a global. */
@@ -1219,6 +1219,7 @@ PopScope(JSContext* cx, ScopeIter& si)
         break;
       case ScopeIter::Call:
       case ScopeIter::Eval:
+      case ScopeIter::NonSyntactic:
         break;
     }
 }
@@ -2362,7 +2363,7 @@ CASE(JSOP_BINDGNAME)
 CASE(JSOP_BINDNAME)
 {
     JSOp op = JSOp(*REGS.pc);
-    if (op == JSOP_BINDNAME || script->hasPollutedGlobalScope()) {
+    if (op == JSOP_BINDNAME || script->hasNonSyntacticScope()) {
         ReservedRooted<JSObject*> scopeChain(&rootObject0, REGS.fp()->scopeChain());
         ReservedRooted<PropertyName*> name(&rootName0, script->getName(REGS.pc));
 
@@ -3116,7 +3117,7 @@ CASE(JSOP_IMPLICITTHIS)
 CASE(JSOP_GIMPLICITTHIS)
 {
     JSOp op = JSOp(*REGS.pc);
-    if (op == JSOP_IMPLICITTHIS || script->hasPollutedGlobalScope()) {
+    if (op == JSOP_IMPLICITTHIS || script->hasNonSyntacticScope()) {
         ReservedRooted<PropertyName*> name(&rootName0, script->getName(REGS.pc));
         ReservedRooted<JSObject*> scopeObj(&rootObject0, REGS.fp()->scopeChain());
         ReservedRooted<JSObject*> scope(&rootObject1);
@@ -3994,7 +3995,7 @@ CASE(JSOP_SUPERBASE)
 {
     ScopeIter si(cx, REGS.fp()->scopeChain(), REGS.fp()->script()->innermostStaticScope(REGS.pc));
     for (; !si.done(); ++si) {
-        if (si.hasScopeObject() && si.type() == ScopeIter::Call) {
+        if (si.hasSyntacticScopeObject() && si.type() == ScopeIter::Call) {
             JSFunction& callee = si.scope().as<CallObject>().callee();
 
             // Arrow functions don't have the information we're looking for,

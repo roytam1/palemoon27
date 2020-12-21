@@ -16,8 +16,7 @@
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsTArray.h"
-
-class nsTableFrame;
+#include "nsTableRowFrame.h"
 
 /**
  * nsTableCellFrame
@@ -45,6 +44,18 @@ public:
 
   explicit nsTableCellFrame(nsStyleContext* aContext);
   ~nsTableCellFrame();
+
+  nsTableRowFrame* GetTableRowFrame() const
+  {
+    nsIFrame* parent = GetParent();
+    MOZ_ASSERT(parent && parent->GetType() == nsGkAtoms::tableRowFrame);
+    return static_cast<nsTableRowFrame*>(parent);
+  }
+
+  nsTableFrame* GetTableFrame() const
+  {
+    return GetTableRowFrame()->GetTableFrame();
+  }
 
   virtual void Init(nsIContent*       aContent,
                     nsContainerFrame* aParent,

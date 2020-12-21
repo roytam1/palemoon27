@@ -9,8 +9,8 @@
 #include "nscore.h"
 #include "nsContainerFrame.h"
 #include "nsTablePainter.h"
+#include "nsTableRowGroupFrame.h"
 
-class  nsTableFrame;
 class  nsTableCellFrame;
 struct nsTableCellReflowState;
 
@@ -57,6 +57,18 @@ public:
     */
   friend nsTableRowFrame* NS_NewTableRowFrame(nsIPresShell* aPresShell,
                                               nsStyleContext* aContext);
+
+  nsTableRowGroupFrame* GetTableRowGroupFrame() const
+  {
+    nsIFrame* parent = GetParent();
+    MOZ_ASSERT(parent && parent->GetType() == nsGkAtoms::tableRowGroupFrame);
+    return static_cast<nsTableRowGroupFrame*>(parent);
+  }
+
+  nsTableFrame* GetTableFrame() const
+  {
+    return GetTableRowGroupFrame()->GetTableFrame();
+  }
 
   virtual nsMargin GetUsedMargin() const override;
   virtual nsMargin GetUsedBorder() const override;

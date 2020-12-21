@@ -1080,7 +1080,7 @@ ScrollFrameHelper::HandleScrollbarStyleSwitching()
   }
 }
 
-#if defined(MOZ_B2G) || defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_B2G) || (defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_ANDROID_APZ))
 static bool IsFocused(nsIContent* aContent)
 {
   // Some content elements, like the GetContent() of a scroll frame
@@ -1105,7 +1105,7 @@ ScrollFrameHelper::WantAsyncScroll() const
   bool isHScrollable = !!(directions & nsIScrollableFrame::HORIZONTAL) &&
                        (styles.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN);
 
-#if defined(MOZ_B2G) || defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_B2G) || (defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_ANDROID_APZ))
   // Mobile platforms need focus to scroll.
   bool canScrollWithoutScrollbars = IsFocused(mOuter->GetContent());
 #else
@@ -1824,7 +1824,7 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter,
 
   if (IsAlwaysActive() &&
       gfxPrefs::LayersTilesEnabled() &&
-      !nsLayoutUtils::UsesAsyncScrolling() &&
+      !nsLayoutUtils::UsesAsyncScrolling(mOuter) &&
       mOuter->GetContent()) {
     // If we have tiling but no APZ, then set a 0-margin display port on
     // active scroll containers so that we paint by whole tile increments
@@ -2028,7 +2028,7 @@ ScrollFrameHelper::ScrollToWithOrigin(nsPoint aScrollPosition,
           mAsyncScroll = nullptr;
         }
 
-        if (gfxPrefs::AsyncPanZoomEnabled()) {
+        if (nsLayoutUtils::AsyncPanZoomEnabled(mOuter)) {
           // The animation will be handled in the compositor, pass the
           // information needed to start the animation and skip the main-thread
           // animation for this scroll.
@@ -2909,7 +2909,7 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     shouldBuildLayer = true;
   } else {
     shouldBuildLayer =
-      gfxPrefs::AsyncPanZoomEnabled() &&
+      nsLayoutUtils::AsyncPanZoomEnabled(mOuter) &&
       WantAsyncScroll() &&
       // If we are using containers for root frames, and we are the root
       // scroll frame for the display root, then we don't need a scroll
@@ -3071,7 +3071,15 @@ ScrollFrameHelper::ComputeFrameMetrics(Layer* aLayer,
     parentLayerClip = Some(clip);
   }
 
-  if (!gfxPrefs::AsyncPanZoomEnabled()) {
+  bool thisScrollFrameUsesAsyncScrolling = nsLayoutUtils::UsesAsyncScrolling(mOuter);
+#if defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_ANDROID_APZ)
+  // Android without apzc (aka the java pan zoom code) only uses async scrolling
+  // for the root scroll frame of the root content document.
+  if (!isRoot) {
+    thisScrollFrameUsesAsyncScrolling = false;
+  }
+#endif
+  if (!thisScrollFrameUsesAsyncScrolling) {
     if (parentLayerClip) {
       // If APZ is not enabled, we still need the displayport to be clipped
       // in the compositor.
@@ -3381,7 +3389,8 @@ ScrollFrameHelper::ScrollBy(nsIntPoint aDelta,
   }
 
   if (aUnit == nsIScrollableFrame::DEVICE_PIXELS &&
-      !gfxPrefs::AsyncPanZoomEnabled()) {
+      !nsLayoutUtils::AsyncPanZoomEnabled(mOuter))
+  {
     // When APZ is disabled, we must track the velocity
     // on the main thread; otherwise, the APZC will manage this.
     mVelocityQueue.Sample(GetScrollPosition());
@@ -4775,8 +4784,20 @@ ScrollFrameHelper::LayoutScrollbars(nsBoxLayoutState& aState,
   NS_ASSERTION(!mSupppressScrollbarUpdate,
                "This should have been suppressed");
 
+  nsIPresShell* presShell = mOuter->PresContext()->PresShell();
+
   bool hasResizer = HasResizer();
   bool scrollbarOnLeft = !IsScrollbarOnRight();
+  bool overlayScrollBarsWithZoom =
+    mIsRoot && LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) &&
+    presShell->IsScrollPositionClampingScrollPortSizeSet();
+
+  nsSize scrollPortClampingSize = mScrollPort.Size();
+  double res = 1.0;
+  if (overlayScrollBarsWithZoom) {
+    scrollPortClampingSize = presShell->GetScrollPositionClampingScrollPortSize();
+    res = presShell->GetCumulativeResolution();
+  }
 
   // place the scrollcorner
   if (mScrollCornerBox || mResizerBox) {
@@ -4839,8 +4860,11 @@ ScrollFrameHelper::LayoutScrollbars(nsBoxLayoutState& aState,
   if (mVScrollbarBox) {
     NS_PRECONDITION(mVScrollbarBox->IsBoxFrame(), "Must be a box frame!");
     vRect = mScrollPort;
+    if (overlayScrollBarsWithZoom) {
+      vRect.height = NSToCoordRound(res * scrollPortClampingSize.height);
+    }
     vRect.width = aContentArea.width - mScrollPort.width;
-    vRect.x = scrollbarOnLeft ? aContentArea.x : mScrollPort.XMost();
+    vRect.x = scrollbarOnLeft ? aContentArea.x : mScrollPort.x + NSToCoordRound(res * scrollPortClampingSize.width);
     if (mHasVerticalScrollbar) {
       nsMargin margin;
       mVScrollbarBox->GetMargin(margin);
@@ -4853,8 +4877,11 @@ ScrollFrameHelper::LayoutScrollbars(nsBoxLayoutState& aState,
   if (mHScrollbarBox) {
     NS_PRECONDITION(mHScrollbarBox->IsBoxFrame(), "Must be a box frame!");
     hRect = mScrollPort;
+    if (overlayScrollBarsWithZoom) {
+      hRect.width = NSToCoordRound(res * scrollPortClampingSize.width);
+    }
     hRect.height = aContentArea.height - mScrollPort.height;
-    hRect.y = true ? mScrollPort.YMost() : aContentArea.y;
+    hRect.y = mScrollPort.y + NSToCoordRound(res * scrollPortClampingSize.height);
     if (mHasHorizontalScrollbar) {
       nsMargin margin;
       mHScrollbarBox->GetMargin(margin);

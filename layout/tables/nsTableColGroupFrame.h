@@ -8,16 +8,9 @@
 #include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
-#include "nsTableColFrame.h"
+#include "nsTableFrame.h"
 
-class nsTableFrame;
 class nsTableColFrame;
-
-enum nsTableColGroupType {
-  eColGroupContent            = 0, // there is real col group content associated   
-  eColGroupAnonymousCol       = 1, // the result of a col
-  eColGroupAnonymousCell      = 2  // the result of a cell alone
-};
 
 /**
  * nsTableColGroupFrame
@@ -39,6 +32,13 @@ public:
     */
   friend nsTableColGroupFrame* NS_NewTableColGroupFrame(nsIPresShell* aPresShell,
                                                         nsStyleContext* aContext);
+
+  nsTableFrame* GetTableFrame() const
+  {
+    nsIFrame* parent = GetParent();
+    MOZ_ASSERT(parent && parent->GetType() == nsGkAtoms::tableFrame);
+    return static_cast<nsTableFrame*>(parent);
+  }
 
   /**
    * ColGroups never paint anything, nor receive events.

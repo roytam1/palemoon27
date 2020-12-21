@@ -1327,7 +1327,7 @@ bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
 
   ScrollableLayerGuid guid;
   uint64_t blockId;
-  ApzAwareEventRoutingToChild(&guid, &blockId);
+  ApzAwareEventRoutingToChild(&guid, &blockId, nullptr);
   event.refPoint += GetChildProcessOffset();
   return PBrowserParent::SendMouseWheelEvent(event, guid, blockId);
 }
@@ -1642,7 +1642,8 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
 
   ScrollableLayerGuid guid;
   uint64_t blockId;
-  ApzAwareEventRoutingToChild(&guid, &blockId);
+  nsEventStatus apzResponse;
+  ApzAwareEventRoutingToChild(&guid, &blockId, &apzResponse);
 
   if (mIsDestroyed) {
     return false;
@@ -1654,8 +1655,8 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
   }
 
   return (event.message == NS_TOUCH_MOVE) ?
-    PBrowserParent::SendRealTouchMoveEvent(event, guid, blockId) :
-    PBrowserParent::SendRealTouchEvent(event, guid, blockId);
+    PBrowserParent::SendRealTouchMoveEvent(event, guid, blockId, apzResponse) :
+    PBrowserParent::SendRealTouchEvent(event, guid, blockId, apzResponse);
 }
 
 bool
@@ -2718,9 +2719,10 @@ TabParent::GetWidget() const
 
 void
 TabParent::ApzAwareEventRoutingToChild(ScrollableLayerGuid* aOutTargetGuid,
-                                       uint64_t* aOutInputBlockId)
+                                       uint64_t* aOutInputBlockId,
+                                       nsEventStatus* aOutApzResponse)
 {
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
+  if (AsyncPanZoomEnabled()) {
     if (aOutTargetGuid) {
       *aOutTargetGuid = InputAPZContext::GetTargetLayerGuid();
 
@@ -2737,6 +2739,9 @@ TabParent::ApzAwareEventRoutingToChild(ScrollableLayerGuid* aOutTargetGuid,
     }
     if (aOutInputBlockId) {
       *aOutInputBlockId = InputAPZContext::GetInputBlockId();
+    }
+    if (aOutApzResponse) {
+      *aOutApzResponse = InputAPZContext::GetApzResponse();
     }
 
     // Let the widget know that the event will be sent to the child process,
@@ -2897,7 +2902,7 @@ TabParent::InjectTouchEvent(const nsAString& aType,
 NS_IMETHODIMP
 TabParent::GetUseAsyncPanZoom(bool* useAsyncPanZoom)
 {
-  *useAsyncPanZoom = gfxPrefs::AsyncPanZoomEnabled();
+  *useAsyncPanZoom = AsyncPanZoomEnabled();
   return NS_OK;
 }
 
@@ -3301,6 +3306,13 @@ TabParent::TakeDragVisualization(RefPtr<mozilla::gfx::SourceSurface>& aSurface,
   aSurface = mDnDVisualization.forget();
   aDragAreaX = mDragAreaX;
   aDragAreaY = mDragAreaY;
+}
+
+bool
+TabParent::AsyncPanZoomEnabled() const
+{
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  return widget && widget->AsyncPanZoomEnabled();
 }
 
 NS_IMETHODIMP

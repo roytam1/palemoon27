@@ -4504,6 +4504,15 @@ static inline gfxSize RoundToFloatPrecision(const gfxSize& aSize)
   return gfxSize(float(aSize.width), float(aSize.height));
 }
 
+static inline gfxSize NudgedToIntegerSize(const gfxSize& aSize)
+{
+  float width = aSize.width;
+  float height = aSize.height;
+  gfx::NudgeToInteger(&width);
+  gfx::NudgeToInteger(&height);
+  return gfxSize(width, height);
+}
+
 static void RestrictScaleToMaxLayerSize(gfxSize& aScale,
                                         const nsRect& aVisibleRect,
                                         nsIFrame* aContainerFrame,
@@ -4548,12 +4557,13 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   if (aTransform) {
     // aTransform is applied first, then the scale is applied to the result
     transform = (*aTransform)*transform;
-    // Set any matrix entries close to integers to be those exact integers.
-    // This protects against floating-point inaccuracies causing problems
-    // in the checks below.
-    // We use the fixed epsilon version here because we don't want the nudging
-    // to depend on the scroll position.
-    transform.NudgeToIntegersFixedEpsilon();
+    // Set relevant 3d matrix entries that are close to integers to be those
+    // exact integers. This protects against floating-point inaccuracies
+    // causing problems in the CanDraw2D / Is2D checks below.
+    // We don't nudge all matrix components here. In particular, we don't want to
+    // nudge the X/Y translation components, because those include the scroll
+    // offset, and we don't want scrolling to affect whether we nudge or not.
+    transform.NudgeTo2D();
   }
   Matrix transform2d;
   if (aContainerFrame &&
@@ -4621,7 +4631,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
           scale.height = gfxUtils::ClampToScaleFactor(scale.height);
         }
       } else {
-        // XXX Do we need to move nearly-integer values to integers here?
+        scale = NudgedToIntegerSize(scale);
       }
     }
     // If the scale factors are too small, just use 1.0. The content is being
@@ -4803,7 +4813,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
   if ((aContainerFrame->GetStateBits() & NS_FRAME_NO_COMPONENT_ALPHA) &&
       mRetainingManager &&
       mRetainingManager->ShouldAvoidComponentAlphaLayers() &&
-      !gfxPrefs::AsyncPanZoomEnabled())
+      !nsLayoutUtils::AsyncPanZoomEnabled(aContainerFrame))
   {
     flattenToSingleLayer = true;
   }
@@ -4835,7 +4845,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
         mRetainingManager->ShouldAvoidComponentAlphaLayers() &&
         containerLayer->HasMultipleChildren() &&
         !flattenToSingleLayer &&
-        !gfxPrefs::AsyncPanZoomEnabled())
+        !nsLayoutUtils::AsyncPanZoomEnabled(aContainerFrame))
     {
       // Since we don't want any component alpha layers on BasicLayers, we repeat
       // the layer building process with this explicitely forced off.

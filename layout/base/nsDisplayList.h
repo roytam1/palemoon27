@@ -349,8 +349,10 @@ public:
   bool IsBuildingLayerEventRegions()
   {
     if (mMode == PAINTING) {
-      return (gfxPrefs::LayoutEventRegionsEnabled() ||
-              gfxPrefs::AsyncPanZoomEnabled());
+      // Note: this is the only place that gets to query LayoutEventRegionsEnabled
+      // 'directly' - other code should call this function.
+      return gfxPrefs::LayoutEventRegionsEnabledDoNotUseDirectly() ||
+             mAsyncPanZoomEnabled;
     }
     return false;
   }
@@ -995,6 +997,7 @@ private:
   bool                           mWindowDraggingAllowed;
   bool                           mIsBuildingForPopup;
   bool                           mForceLayerForScrollParent;
+  bool                           mAsyncPanZoomEnabled;
 };
 
 class nsDisplayItem;

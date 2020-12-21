@@ -621,7 +621,8 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mHaveScrollableDisplayPort(false),
       mWindowDraggingAllowed(false),
       mIsBuildingForPopup(nsLayoutUtils::IsPopup(aReferenceFrame)),
-      mForceLayerForScrollParent(false)
+      mForceLayerForScrollParent(false),
+      mAsyncPanZoomEnabled(nsLayoutUtils::AsyncPanZoomEnabled(aReferenceFrame))
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
   PL_InitArenaPool(&mPool, "displayListArena", 4096,
@@ -1532,31 +1533,47 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
   // want the root container layer to have metrics. If the parent process is
   // using XUL windows, there is no root scrollframe, and without explicitly
   // creating metrics there will be no guaranteed top-level APZC.
-  if (gfxPrefs::LayoutUseContainersForRootFrames() ||
-      (XRE_IsParentProcess() && !presShell->GetRootScrollFrame()))
-  {
+  bool addMetrics = gfxPrefs::LayoutUseContainersForRootFrames() ||
+      (XRE_IsParentProcess() && !presShell->GetRootScrollFrame());
+
+  // Add metrics if there are none in the layer tree with the id (create an id
+  // if there isn't one already) of the root scroll frame/root content.
+  bool ensureMetricsForRootId =
+    nsLayoutUtils::AsyncPanZoomEnabled(frame) &&
+    !gfxPrefs::LayoutUseContainersForRootFrames() &&
+    aBuilder->IsPaintingToWindow() &&
+    !presContext->GetParentPresContext();
+
+  nsIContent* content = nullptr;
+  nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
+  if (rootScrollFrame) {
+    content = rootScrollFrame->GetContent();
+  } else {
+    // If there is no root scroll frame, pick the document element instead.
+    // The only case we don't want to do this is in non-APZ fennec, where
+    // we want the root xul document to get a null scroll id so that the root
+    // content document gets the first non-null scroll id.
+#if !defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ANDROID_APZ)
+    content = document->GetDocumentElement();
+#endif
+  }
+
+
+  if (ensureMetricsForRootId && content) {
+    ViewID scrollId = nsLayoutUtils::FindOrCreateIDFor(content);
+    if (nsLayoutUtils::ContainsMetricsWithId(root, scrollId)) {
+      ensureMetricsForRootId = false;
+    }
+  }
+
+  if (addMetrics || ensureMetricsForRootId) {
     bool isRoot = presContext->IsRootContentDocument();
 
     nsRect viewport(aBuilder->ToReferenceFrame(frame), frame->GetSize());
 
-    nsIFrame* scrollFrame = presShell->GetRootScrollFrame();
-    nsIContent* content = nullptr;
-    if (scrollFrame) {
-      content = scrollFrame->GetContent();
-    } else if (!gfxPrefs::LayoutUseContainersForRootFrames()) {
-      // If there is no root scroll frame, and we're using containerless
-      // scrolling, pick the document element instead.
-      // On Android we want the root xul document to get a null scroll id
-      // so that the root content document gets the first non-null scroll id.
-#ifndef MOZ_WIDGET_ANDROID
-      content = document->GetDocumentElement();
-#endif
-    }
-
     root->SetFrameMetrics(
       nsLayoutUtils::ComputeFrameMetrics(frame,
-                         presShell->GetRootScrollFrame(),
-                         content,
+                         rootScrollFrame, content,
                          aBuilder->FindReferenceFrameFor(frame),
                          root, FrameMetrics::NULL_SCROLL_ID, viewport, Nothing(),
                          isRoot, containerParameters));
@@ -2288,7 +2305,7 @@ nsDisplayBackgroundImage::ShouldFixToViewport(LayerManager* aManager)
 {
   // APZ doesn't (yet) know how to scroll the visible region for these type of
   // items, so don't layerize them if it's enabled.
-  if (nsLayoutUtils::UsesAsyncScrolling() ||
+  if (nsLayoutUtils::UsesAsyncScrolling(mFrame) ||
       (aManager && aManager->ShouldAvoidComponentAlphaLayers())) {
     return false;
   }
@@ -4190,7 +4207,7 @@ nsDisplaySubDocument::ComputeVisibility(nsDisplayListBuilder* aBuilder,
   // If APZ is enabled then don't allow this computation to influence
   // aVisibleRegion, on the assumption that the layer can be asynchronously
   // scrolled so we'll definitely need all the content under it.
-  if (!nsLayoutUtils::UsesAsyncScrolling()) {
+  if (!nsLayoutUtils::UsesAsyncScrolling(mFrame)) {
     bool snap;
     nsRect bounds = GetBounds(aBuilder, &snap);
     nsRegion removed;

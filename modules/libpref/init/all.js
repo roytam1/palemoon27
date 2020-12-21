@@ -4162,8 +4162,16 @@ pref("image.cache.size", 5242880);
 // Size is given a weight of 1000 - timeweight.
 pref("image.cache.timeweight", 500);
 
+// Prevents images from automatically being decoded on load, instead allowing
+// them to be decoded on demand when they are drawn.
+pref("image.decode-only-on-draw.enabled", true);
+
+// Decode all images automatically on load, ignoring our normal heuristics.
+// Overrides image.decode-only-on-draw.enabled.
+pref("image.decode-immediately.enabled", false);
+
 // Whether we attempt to downscale images during decoding.
-pref("image.downscale-during-decode.enabled", true);
+pref("image.downscale-during-decode.enabled", false);
 
 // The default Accept header sent for images loaded over HTTP(S)
 pref("image.http.accept", "image/webp,image/png,image/*;q=0.8,*/*;q=0.5");
@@ -4188,10 +4196,6 @@ pref("image.single-color-optimization.enabled", true);
 // Discards inactive image frames and re-decodes them on demand from
 // compressed data.
 pref("image.mem.discardable", true);
-
-// Prevents images from automatically being decoded on load, instead allowing
-// them to be decoded on demand when they are drawn.
-pref("image.mem.decodeondraw", true);
 
 // Allows image locking of decoded image data in content processes.
 pref("image.mem.allow_locking_in_content_processes", true);

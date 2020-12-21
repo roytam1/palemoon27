@@ -639,6 +639,19 @@ VARIABLES = {
         This variable contains a list of source code files to compile.
         Accepts assembler, C, C++, Objective C/C++.
         """, None),
+        
+     'SOURCES_NOPCH': (StrictOrderingOnAppendList, list,
+        """Source code files.
+
+        This variable contains a list of source code files not using
+        the precompiled header.
+        """, 'compile'),        
+        
+     'PCHHDR': (unicode, unicode,
+        "", None),   
+     'PCHSRC': (unicode, unicode,
+        "", None),      
+         
 
     'FILES_PER_UNIFIED_FILE': (int, int,
         """The number of source files to compile into each unified source file.

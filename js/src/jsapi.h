@@ -37,6 +37,9 @@
 
 namespace JS {
 
+extern JS_PUBLIC_API(bool)
+  JS_RequireArgsAtLeast(JSContext* cx, JS::CallArgs& args, const char* fnname, unsigned required);
+
 class TwoByteChars;
 
 #ifdef JS_DEBUG

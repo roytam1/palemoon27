@@ -112,6 +112,7 @@
 #include "nsIXPConnect.h"
 #include "nsIInterfaceInfo.h"
 #include "nsIXPCScriptable.h"
+#include "nsIJSContextStack.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "nsCOMPtr.h"
@@ -249,13 +250,15 @@ static inline bool IS_WN_REFLECTOR(JSObject* obj)
 
 class nsXPConnect final : public nsIXPConnect,
                           public nsIThreadObserver,
-                          public nsSupportsWeakReference
+                          public nsSupportsWeakReference,
+                          public nsIJSContextStack
 {
 public:
     // all the interface method declarations...
     NS_DECL_ISUPPORTS
     NS_DECL_NSIXPCONNECT
     NS_DECL_NSITHREADOBSERVER
+    NS_DECL_NSIJSCONTEXTSTACK
 
     // non-interface implementation
 public:

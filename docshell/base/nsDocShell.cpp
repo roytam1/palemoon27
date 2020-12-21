@@ -10633,7 +10633,7 @@ nsDocShell::DoURILoad(nsIURI* aURI,
     // timing attacks to read data from cross-origin iframes. If this widens
     // we should add a protocol flag for whether the scheme is allowed in
     // frames and use something like nsNetUtil::NS_URIChainHasFlags.
-    nsCOMPtr<nsIURI> tempURI = aURI;
+    /*nsCOMPtr<nsIURI> tempURI = aURI;
     nsCOMPtr<nsINestedURI> nestedURI = do_QueryInterface(tempURI);
     while (nestedURI) {
       // view-source should always be an nsINestedURI, loop and check the
@@ -10645,7 +10645,7 @@ nsDocShell::DoURILoad(nsIURI* aURI,
       }
       nestedURI->GetInnerURI(getter_AddRefs(tempURI));
       nestedURI = do_QueryInterface(tempURI);
-    }
+    }*/
   }
 
   // open a channel for the url

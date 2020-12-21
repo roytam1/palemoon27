@@ -221,6 +221,15 @@ nsUnknownContentTypeDialog.prototype = {
       parent = aContext.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindow);
     } catch (ex) {}
 
+    if(!parent) {
+      // K-Meleon hack!!
+      try {
+        var jsb = Components.classes["@kmeleon/jsbridge;1"].getService(Components.interfaces["nsIJSBridge"]);
+        var wb = jsb.Open("about:blank",3); //3=newtab
+        parent = wb.contentDOMWindow;
+      } catch (ex) {}
+    }
+
     if (parent) {
       gDownloadLastDir = new downloadModule.DownloadLastDir(parent);
     } else {
@@ -974,6 +983,8 @@ nsUnknownContentTypeDialog.prototype = {
     // Unhook dialog from this object.
     this.mDialog.dialog = null;
 
+    this.cleanUp();
+
     // Close up dialog by returning true.
     return true;
   },
@@ -992,8 +1003,22 @@ nsUnknownContentTypeDialog.prototype = {
     // Unhook dialog from this object.
     this.mDialog.dialog = null;
 
+    this.cleanUp();
+
     // Close up dialog by returning true.
     return true;
+  },
+
+  cleanUp: function() {
+    // If the window that launched the download is "about:blank"
+    // then we need to close it.
+    let parent;
+    try {
+      parent = aContext.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindow);
+    } catch (ex) {}
+    if (parent && parent.document.location == 'about:blank') {
+      parent.close();
+    }
   },
 
   // dialogElement:  Convenience.

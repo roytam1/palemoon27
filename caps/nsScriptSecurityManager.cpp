@@ -392,6 +392,8 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 {
     MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
     nsCOMPtr<nsIPrincipal> subjectPrincipal = nsContentUtils::SubjectPrincipal();
+    if (!subjectPrincipal)
+        return true;
     nsCOMPtr<nsIContentSecurityPolicy> csp;
     nsresult rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
     NS_ASSERTION(NS_SUCCEEDED(rv), "CSP: Failed to get CSP from principal.");

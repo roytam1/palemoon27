@@ -1130,7 +1130,8 @@ CompositorD3D11::EndFrame()
         rects.push_back(rect);
       }
 
-      params.pDirtyRects = &rects.front();
+      if (rects.size())
+        params.pDirtyRects = &rects.front();
       chain->Present1(presentInterval, mDisableSequenceForNextFrame ? DXGI_PRESENT_DO_NOT_SEQUENCE : 0, &params);
     } else {
       mSwapChain->Present(presentInterval, mDisableSequenceForNextFrame ? DXGI_PRESENT_DO_NOT_SEQUENCE : 0);

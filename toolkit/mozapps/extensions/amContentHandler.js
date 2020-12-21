@@ -45,6 +45,20 @@ amContentHandler.prototype = {
       window = callbacks.getInterface(Ci.nsIDOMWindow);
 
     aRequest.cancel(Cr.NS_BINDING_ABORTED);
+    
+    let mm = Cc["@mozilla.org/childprocessmessagemanager;1"]
+            .getService(Ci.nsISyncMessageSender);
+   
+    return mm.sendSyncMessage(MSG_INSTALL_ADDONS, {
+      uris: [uri.spec],
+      hashes: [null],
+      names: [null],
+      icons: [null],
+      mimetype: XPI_CONTENT_TYPE,
+      triggeringPrincipal: aRequest.loadInfo.triggeringPrincipal,
+      callbackID: -1
+    }, {win: window})[0];    
+    
 
     let installs = {
       uris: [uri.spec],

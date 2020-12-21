@@ -4162,7 +4162,7 @@ case "$MOZ_WIDGET_TOOLKIT" in
 cairo-windows)
     MOZ_WIDGET_TOOLKIT=windows
     MOZ_PDF_PRINTING=1
-    MOZ_INSTRUMENT_EVENT_LOOP=1
+    MOZ_INSTRUMENT_EVENT_LOOP=
     if test -n "$GNU_CC"; then
         MOZ_FOLD_LIBS=
     fi

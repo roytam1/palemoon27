@@ -86,6 +86,14 @@ interface nsIFaviconService : nsISupports
    * The default favicon URI
    */
   readonly attribute nsIURI defaultFavicon;
+  
+  nsIURI getFaviconForPage(in nsIURI aPageURI);
+
+  void getFaviconData(in nsIURI aFaviconURI,
+                   out AUTF8String aMimeType,
+                    [optional] out unsigned long aDataLen,
+                      [array,retval,size_is(aDataLen)] out octet aData);
+                        
 };
 
 [scriptable, function, uuid(c85e5c82-b70f-4621-9528-beb2aa47fb44)]

@@ -81,7 +81,9 @@
 #include "prmem.h"
 #include "prenv.h"
 
+#ifdef MOZ_INSTRUMENT_EVENT_LOOP
 #include "mozilla/WidgetTraceEvent.h"
+#endif
 #include "nsIAppShell.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIDOMMouseEvent.h"
@@ -4337,14 +4339,14 @@ LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam
       return ::CallWindowProcW(prevWindowProc, hWnd, msg, wParam, lParam);
     }
   }
-
+#ifdef MOZ_INSTRUMENT_EVENT_LOOP
   if (msg == MOZ_WM_TRACE) {
     // This is a tracer event for measuring event loop latency.
     // See WidgetTraceEvent.cpp for more details.
     mozilla::SignalTracerThread();
     return 0;
   }
-
+#endif
   // Get the window which caused the event and ask it to process the message
   nsWindow *targetWindow = WinUtils::GetNSWindowPtr(hWnd);
   NS_ASSERTION(targetWindow, "nsWindow* is null!");

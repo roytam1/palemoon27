@@ -42,11 +42,11 @@ function amManager() {
   let globalMM = Cc["@mozilla.org/globalmessagemanager;1"]
                  .getService(Ci.nsIMessageListenerManager);
   globalMM.loadFrameScript(CHILD_SCRIPT, true);
-  globalMM.addMessageListener(MSG_INSTALL_ADDONS, this);
 
   gParentMM = Cc["@mozilla.org/parentprocessmessagemanager;1"]
                  .getService(Ci.nsIMessageListenerManager);
   gParentMM.addMessageListener(MSG_INSTALL_ENABLED, this);
+  gParentMM.addMessageListener(MSG_INSTALL_ADDONS, this);
 
   // Needed so receiveMessage can be called directly by JS callers
   this.wrappedJSObject = this;
@@ -176,7 +176,7 @@ amManager.prototype = {
         }
 
         return this.installAddonsFromWebpage(payload.mimetype,
-          aMessage.target, payload.triggeringPrincipal, payload.uris,
+          aMessage.objects.win.document.documentElement, payload.triggeringPrincipal, payload.uris,
           payload.hashes, payload.names, payload.icons, callback);
       }
     }

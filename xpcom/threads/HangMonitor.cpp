@@ -194,7 +194,7 @@ Shutdown()
 static bool
 IsUIMessageWaiting()
 {
-#ifndef XP_WIN
+#if 1//ndef XP_WIN
   return false;
 #else
 #define NS_WM_IMEFIRST WM_IME_SETCONTEXT

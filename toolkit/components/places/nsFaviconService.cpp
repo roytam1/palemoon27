@@ -36,7 +36,7 @@
 #include "imgIContainer.h"
 
 // Default value for mOptimizedIconDimension
-#define OPTIMIZED_FAVICON_DIMENSION 16
+#define OPTIMIZED_FAVICON_DIMENSION 32
 
 #define MAX_FAILED_FAVICONS 256
 #define FAVICON_CACHE_REDUCE_COUNT 64
@@ -625,4 +625,89 @@ ExpireFaviconsStatementCallbackNotifier::HandleCompletion(uint16_t aReason)
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFaviconService::GetFaviconForPage(nsIURI* aPageURI, nsIURI** _retval)
+{
+  NS_ENSURE_ARG(aPageURI);
+  NS_ENSURE_ARG_POINTER(_retval);
+
+  nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
+    "SELECT f.id, f.url, length(f.data), f.expiration "
+    "FROM moz_places h "
+    "JOIN moz_favicons f ON h.favicon_id = f.id "
+    "WHERE h.url = :page_url "
+    "LIMIT 1"
+  );
+  NS_ENSURE_STATE(stmt);
+  mozStorageStatementScoper scoper(stmt);
+
+  nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aPageURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool hasResult;
+  if (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
+    nsCString url;
+    rv = stmt->GetUTF8String(1, url);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_NewURI(_retval, url);
+  }
+  return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
+nsFaviconService::GetFaviconData(nsIURI* aFaviconURI, nsACString& aMimeType,
+                                 uint32_t* aDataLen, uint8_t** aData)
+{
+  NS_ENSURE_ARG(aFaviconURI);
+  NS_ENSURE_ARG_POINTER(aDataLen);
+  NS_ENSURE_ARG_POINTER(aData);
+
+  nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
+    "SELECT f.data, f.mime_type FROM moz_favicons f WHERE url = :icon_url"
+  );
+  NS_ENSURE_STATE(stmt);
+  mozStorageStatementScoper scoper(stmt);
+
+  nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool hasResult = false;
+  if (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
+    rv = stmt->GetUTF8String(1, aMimeType);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+	bool isNull;
+	rv = stmt->GetIsNull(0, &isNull);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+	if (!isNull) return stmt->GetBlob(0, aDataLen, aData);
+  }
+
+  stmt = mDB->GetStatement(
+    "SELECT f.data, f.mime_type "
+    "FROM moz_places h "
+    "JOIN moz_favicons f ON h.favicon_id = f.id "
+    "WHERE h.url = :page_url "
+    "LIMIT 1"
+  );
+  NS_ENSURE_STATE(stmt);
+  mozStorageStatementScoper scoper2(stmt);
+
+  rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aFaviconURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
+    rv = stmt->GetUTF8String(1, aMimeType);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+	bool isNull;
+	rv = stmt->GetIsNull(0, &isNull);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+
+	if (!isNull) return stmt->GetBlob(0, aDataLen, aData);
+  }
+  return NS_ERROR_NOT_AVAILABLE;
 }

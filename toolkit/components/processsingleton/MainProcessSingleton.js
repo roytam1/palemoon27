@@ -79,13 +79,13 @@ MainProcessSingleton.prototype = {
       // before other frame scripts.
       Services.mm.loadFrameScript("chrome://global/content/browser-content.js", true);
       Services.ppmm.addMessageListener("Console:Log", this.logConsoleMessage);
-      Services.mm.addMessageListener("Search:AddEngine", this.addSearchEngine);
+      Services.ppmm.addMessageListener("Search:AddEngine", this.addSearchEngine);
       break;
     }
 
     case "xpcom-shutdown":
       Services.ppmm.removeMessageListener("Console:Log", this.logConsoleMessage);
-      Services.mm.removeMessageListener("Search:AddEngine", this.addSearchEngine);
+      Services.ppmm.removeMessageListener("Search:AddEngine", this.addSearchEngine);
       break;
     }
   },

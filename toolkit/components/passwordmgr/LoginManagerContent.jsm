@@ -200,6 +200,54 @@ var LoginManagerContent = {
                              messageData);
   },
 
+  doAutocompleteSearch: function({ formOrigin, actionOrigin,
+                                   searchString, previousResult,
+                                   rect, requestId, remote }, target) {
+    // Note: previousResult is a regular object, not an
+    // nsIAutoCompleteResult.
+    var result;
+
+    let searchStringLower = searchString.toLowerCase();
+    let logins;
+    if (previousResult &&
+        searchStringLower.startsWith(previousResult.searchString.toLowerCase())) {
+      log("Using previous autocomplete result");
+
+      // We have a list of results for a shorter search string, so just
+      // filter them further based on the new search string.
+      logins = previousResult.logins;
+    } else {
+      log("Creating new autocomplete search result.");
+
+      // Grab the logins from the database.
+      logins = Services.logins.findLogins({}, formOrigin, actionOrigin, null);
+    }
+
+    let matchingLogins = logins.filter(function(fullMatch) {
+      let match = fullMatch.username;
+
+      // Remove results that are too short, or have different prefix.
+      // Also don't offer empty usernames as possible results.
+      return match && match.toLowerCase().startsWith(searchStringLower);
+    });
+
+    // XXX In the E10S case, we're responsible for showing our own
+    // autocomplete popup here because the autocomplete protocol hasn't
+    // been e10s-ized yet. In the non-e10s case, our caller is responsible
+    // for showing the autocomplete popup (via the regular
+    // nsAutoCompleteController).
+    if (remote) {
+      result = new UserAutoCompleteResult(searchString, matchingLogins);
+      AutoCompleteE10S.showPopupWithResults(target.ownerDocument.defaultView, rect, result);
+    }
+    
+    return Promise.resolve(matchingLogins);
+    
+    target.messageManager.sendAsyncMessage("RemoteLogins:loginsAutoCompleted",
+                                           { requestId: requestId,
+                                             logins: matchingLogins });
+  },
+
   _autoCompleteSearchAsync: function(aSearchString, aPreviousResult,
                                      aElement, aRect) {
     let doc = aElement.ownerDocument;
@@ -209,7 +257,7 @@ var LoginManagerContent = {
     let formOrigin = LoginUtils._getPasswordOrigin(doc.documentURI);
     let actionOrigin = LoginUtils._getActionOrigin(form);
 
-    let messageManager = messageManagerFromWindow(win);
+    //let messageManager = messageManagerFromWindow(win);
 
     let remote = (Services.appinfo.processType ===
                   Services.appinfo.PROCESS_TYPE_CONTENT);
@@ -222,6 +270,7 @@ var LoginManagerContent = {
                         rect: aRect,
                         remote: remote };
 
+    return this.doAutocompleteSearch(messageData);
     return this._sendRequest(messageManager, requestData,
                              "RemoteLogins:autoCompleteLogins",
                              messageData);
@@ -238,7 +287,7 @@ var LoginManagerContent = {
     let form = event.target;
 
     let doc = form.ownerDocument;
-    let win = doc.defaultView;
+    /*let win = doc.defaultView;
     let messageManager = messageManagerFromWindow(win);
 
     messageManager.sendAsyncMessage("LoginStats:LoginEncountered");
@@ -248,7 +297,49 @@ var LoginManagerContent = {
     log("onFormPassword for", form.ownerDocument.documentURI);
     this._asyncFindLogins(form, { showMasterPassword: true })
         .then(this.loginsFound.bind(this))
-        .then(null, Cu.reportError);
+        .then(null, Cu.reportError);*/
+
+    log("onFormPassword for", doc.documentURI);
+
+      // If there are no logins for this site, bail out now.
+      let formOrigin = LoginUtils._getPasswordOrigin(doc.documentURI);
+      if (!Services.logins.countLogins(formOrigin, "", null))
+          return;
+
+      // If we're currently displaying a master password prompt, defer
+      // processing this form until the user handles the prompt.
+      if (Services.logins.uiBusy) {
+        log("deferring onFormPassword for", doc.documentURI);
+        let self = this;
+        let observer = {
+            QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsISupportsWeakReference]),
+
+            observe: function (subject, topic, data) {
+                log("Got deferred onFormPassword notification:", topic);
+                // Only run observer once.
+                Services.obs.removeObserver(this, "passwordmgr-crypto-login");
+                Services.obs.removeObserver(this, "passwordmgr-crypto-loginCanceled");
+                if (topic == "passwordmgr-crypto-loginCanceled")
+                    return;
+                self.onFormPassword(event);
+            },
+            handleEvent : function (event) {
+                // Not expected to be called
+            }
+        };
+        // Trickyness follows: We want an observer, but don't want it to
+        // cause leaks. So add the observer with a weak reference, and use
+        // a dummy event listener (a strong reference) to keep it alive
+        // until the form is destroyed.
+        Services.obs.addObserver(observer, "passwordmgr-crypto-login", true);
+        Services.obs.addObserver(observer, "passwordmgr-crypto-loginCanceled", true);
+        form.addEventListener("mozCleverClosureHack", observer);
+        return;
+      }
+
+      let autofillForm = gAutofillForms && !PrivateBrowsingUtils.isWindowPrivate(doc.defaultView);
+
+      this._fillForm(form, autofillForm, false, false, null);
   },
 
   loginsFound: function({ form, loginsFound }) {
@@ -296,11 +387,18 @@ var LoginManagerContent = {
     var [usernameField, passwordField, ignored] =
         this._getFormFields(acForm, false);
     if (usernameField == acInputField && passwordField) {
-      this._asyncFindLogins(acForm, { showMasterPassword: false })
+      /*this._asyncFindLogins(acForm, { showMasterPassword: false })
           .then(({ form, loginsFound }) => {
               this._fillForm(form, true, true, true, loginsFound);
           })
-          .then(null, Cu.reportError);
+          .then(null, Cu.reportError);*/
+	  
+	  // If the user has a master password but itsn't logged in, bail
+            // out now to prevent annoying prompts.
+            if (!Services.logins.isLoggedIn)
+                return;
+
+            this._fillForm(acForm, true, true, true, null);
     } else {
       // Ignore the event, it's for some input we don't care about.
     }
@@ -483,6 +581,13 @@ var LoginManagerContent = {
    * our stored password.
    */
   _onFormSubmit : function (form) {
+        // For E10S this will need to move.
+        function getPrompter(aWindow) {
+            var prompterSvc = Cc["@mozilla.org/login-manager/prompter;1"].
+                              createInstance(Ci.nsILoginManagerPrompter);
+            prompterSvc.init(aWindow);
+            return prompterSvc;
+        }
     var doc = form.ownerDocument;
     var win = doc.defaultView;
 
@@ -534,7 +639,7 @@ var LoginManagerContent = {
       return;
     }
 
-    // Don't try to send DOM nodes over IPC.
+    /* // Don't try to send DOM nodes over IPC.
     let mockUsername = usernameField ?
                          { name: usernameField.name,
                            value: usernameField.value } :
@@ -556,7 +661,106 @@ var LoginManagerContent = {
                                       usernameField: mockUsername,
                                       newPasswordField: mockPassword,
                                       oldPasswordField: mockOldPassword },
-                                    { openerWin: opener });
+                                    { openerWin: opener });*/
+     
+      if (!Services.logins.getLoginSavingEnabled(hostname)) {
+        log("(form submission ignored -- saving is disabled for:", hostname, ")");
+        return;
+      }
+
+      var formLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                      createInstance(Ci.nsILoginInfo);
+      formLogin.init(hostname, formSubmitURL, null,
+                  (usernameField ? usernameField.value : ""),
+                  newPasswordField.value,
+                  (usernameField ? usernameField.name  : ""),
+                  newPasswordField.name);
+
+      // If we didn't find a username field, but seem to be changing a
+      // password, allow the user to select from a list of applicable
+      // logins to update the password for.
+      if (!usernameField && oldPasswordField) {
+
+          var logins = Services.logins.findLogins({}, hostname, formSubmitURL, null);
+
+          if (logins.length == 0) {
+              // Could prompt to save this as a new password-only login.
+              // This seems uncommon, and might be wrong, so ignore.
+              log("(no logins for this host -- pwchange ignored)");
+              return;
+          }
+
+          var prompter = getPrompter(win);
+
+          if (logins.length == 1) {
+              var oldLogin = logins[0];
+              formLogin.username      = oldLogin.username;
+              formLogin.usernameField = oldLogin.usernameField;
+
+              prompter.promptToChangePassword(oldLogin, formLogin);
+          } else {
+              prompter.promptToChangePasswordWithUsernames(
+                                  logins, logins.length, formLogin);
+          }
+
+          return;
+        }
+
+
+        // Look for an existing login that matches the form login.
+        var existingLogin = null;
+        var logins = Services.logins.findLogins({}, hostname, formSubmitURL, null);
+
+        for (var i = 0; i < logins.length; i++) {
+            var same, login = logins[i];
+
+            // If one login has a username but the other doesn't, ignore
+            // the username when comparing and only match if they have the
+            // same password. Otherwise, compare the logins and match even
+            // if the passwords differ.
+            if (!login.username && formLogin.username) {
+                var restoreMe = formLogin.username;
+                formLogin.username = "";
+                same = formLogin.matches(login, false);
+                formLogin.username = restoreMe;
+            } else if (!formLogin.username && login.username) {
+                formLogin.username = login.username;
+                same = formLogin.matches(login, false);
+                formLogin.username = ""; // we know it's always blank.
+            } else {
+                same = formLogin.matches(login, true);
+            }
+
+            if (same) {
+                existingLogin = login;
+                break;
+            }
+        }
+
+        if (existingLogin) {
+            log("Found an existing login matching this form submission");
+
+            // Change password if needed.
+            if (existingLogin.password != formLogin.password) {
+                log("...passwords differ, prompting to change.");
+                prompter = getPrompter(win);
+                prompter.promptToChangePassword(existingLogin, formLogin);
+            } else {
+                // Update the lastUsed timestamp.
+                var propBag = Cc["@mozilla.org/hash-property-bag;1"].
+                              createInstance(Ci.nsIWritablePropertyBag);
+                propBag.setProperty("timeLastUsed", Date.now());
+                propBag.setProperty("timesUsedIncrement", 1);
+                Services.logins.modifyLogin(existingLogin, propBag);
+            }
+
+            return;
+        }
+
+
+        // Prompt user to save login (via dialog or notification bar)
+        prompter = getPrompter(win);
+        prompter.promptToSavePassword(formLogin);
   },
 
   /*
@@ -598,6 +802,17 @@ var LoginManagerContent = {
       autofillResultHist.add(result);
     }
 
+    // Need to get a list of logins if we weren't given them
+    if (foundLogins == null) {
+      var formOrigin =
+          LoginUtils._getPasswordOrigin(form.ownerDocument.documentURI);
+      var actionOrigin = LoginUtils._getActionOrigin(form);
+          foundLogins = Services.logins.findLogins({}, formOrigin, actionOrigin, null);
+          log("found", foundLogins.length, "matching logins.");
+    } else {
+       log("reusing logins from last form.");
+    }
+    
     // Nothing to do if we have no matching logins available.
     if (foundLogins.length == 0) {
       // We don't log() here since this is a very common case.
@@ -788,8 +1003,8 @@ var LoginManagerContent = {
       recordAutofillResult(AUTOFILL_RESULT.FILLED);
       let doc = form.ownerDocument;
       let win = doc.defaultView;
-      let messageManager = messageManagerFromWindow(win);
-      messageManager.sendAsyncMessage("LoginStats:LoginFillSuccessful");
+      //let messageManager = messageManagerFromWindow(win);
+      //messageManager.sendAsyncMessage("LoginStats:LoginFillSuccessful");
     } else {
       let autofillResult = AUTOFILL_RESULT.UNKNOWN_FAILURE;
       switch (didntFillReason) {

@@ -16,10 +16,8 @@ function nsSidebar() {
 nsSidebar.prototype = {
   init: function(window) {
     this.window = window;
-    this.mm = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.nsIDocShell)
-                    .QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.nsIContentFrameMessageManager);
+    this.mm = Components.classes["@mozilla.org/childprocessmessagemanager;1"]
+            .getService(Ci.nsISyncMessageSender);
   },
 
   // The suggestedTitle and suggestedCategory parameters are ignored, but remain
@@ -45,7 +43,7 @@ nsSidebar.prototype = {
       pageURL: this.window.document.documentURIObject.spec,
       engineURL,
       type: Ci.nsISearchEngine.DATA_XML
-    });
+    },{win:this.window});
   },
 
   // This function exists to implement window.external.IsSearchProviderInstalled(),

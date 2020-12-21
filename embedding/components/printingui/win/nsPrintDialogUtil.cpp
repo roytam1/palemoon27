@@ -1073,7 +1073,7 @@ nsresult NativeShowPrintDialog(HWND                aHWnd,
 
   nsresult rv = ShowNativePrintDialog(aHWnd, aPrintSettings);
   if (aHWnd) {
-    ::DestroyWindow(aHWnd);
+    //::DestroyWindow(aHWnd);
   }
 
   return rv;

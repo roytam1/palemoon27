@@ -94,13 +94,7 @@ RemoteMediator.prototype = {
     }
 
     // Fall back to sending through the message manager
-    let messageManager = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                               .getInterface(Ci.nsIWebNavigation)
-                               .QueryInterface(Ci.nsIDocShell)
-                               .QueryInterface(Ci.nsIInterfaceRequestor)
-                               .getInterface(Ci.nsIContentFrameMessageManager);
-
-    return messageManager.sendSyncMessage(MSG_INSTALL_ADDONS, installs)[0];
+    return this.mm.sendSyncMessage(MSG_INSTALL_ADDONS, installs, {win: window})[0];
   },
 
   _addCallback: function(callback, urls) {

@@ -116,6 +116,12 @@ using js::frontend::Parser;
 #endif
 
 JS_PUBLIC_API(bool)
+JS::JS_RequireArgsAtLeast(JSContext* cx, JS::CallArgs& args,
+const char* fnname, unsigned required) {
+    return args.requireAtLeast(cx, fnname, required);
+}
+
+JS_PUBLIC_API(bool)
 JS::CallArgs::requireAtLeast(JSContext* cx, const char* fnname, unsigned required) const
 {
     if (length() < required) {

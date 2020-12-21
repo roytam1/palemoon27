@@ -20,7 +20,7 @@ namespace image {
 #define ICONCOUNTOFFSET 4
 #define DIRENTRYOFFSET 6
 #define BITMAPINFOSIZE 40
-#define PREFICONSIZE 16
+#define PREFICONSIZE 32
 
 // ----------------------------------------
 // Actual Data Processing

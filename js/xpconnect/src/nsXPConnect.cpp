@@ -40,7 +40,8 @@ using namespace JS;
 NS_IMPL_ISUPPORTS(nsXPConnect,
                   nsIXPConnect,
                   nsISupportsWeakReference,
-                  nsIThreadObserver)
+                  nsIThreadObserver,
+                  nsIJSContextStack)
 
 nsXPConnect* nsXPConnect::gSelf = nullptr;
 bool         nsXPConnect::gOnceAliveNowDead = false;
@@ -1001,6 +1002,19 @@ nsXPConnect::AfterProcessNextEvent(nsIThreadInternal* aThread,
     PopNullJSContext();
 
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPConnect::Push(JSContext *aJSContext)
+{
+  return PushNullJSContext() ? NS_OK : NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsXPConnect::Pop(JSContext **aJSContext)
+{
+  PopNullJSContext();//*aJSContext = XPCJSRuntime::Get()->GetJSContextStack()->Pop();
+  return NS_OK;
 }
 
 NS_IMETHODIMP

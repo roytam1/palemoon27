@@ -688,7 +688,8 @@ nsDocShellTreeOwner::OnProgressChange(nsIWebProgress* aProgress,
     // In the absence of DOM document creation event, this method is the
     // most convenient place to install the mouse listener on the
     // DOM document.
-    return AddChromeListeners();
+    // return AddChromeListeners();
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -842,12 +843,14 @@ nsDocShellTreeOwner::AddChromeListeners()
   nsCOMPtr<EventTarget> target;
   GetDOMEventTarget(mWebBrowser, getter_AddRefs(target));
 
-  EventListenerManager* elmP = target->GetOrCreateListenerManager();
-  if (elmP) {
-    elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                 TrustedEventsAtSystemGroupBubble());
-    elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                 TrustedEventsAtSystemGroupBubble());
+  if (target) {
+    EventListenerManager* elmP = target->GetOrCreateListenerManager();
+    if (elmP) {
+      elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
+                                   TrustedEventsAtSystemGroupBubble());
+      elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
+                                   TrustedEventsAtSystemGroupBubble());
+    }
   }
 
   return rv;
@@ -910,7 +913,7 @@ nsDocShellTreeOwner::HandleEvent(nsIDOMEvent* aEvent)
       nsIWebNavigation* webnav = static_cast<nsIWebNavigation *>(mWebBrowser);
 
       nsAutoString link, name;
-      if (webnav && NS_SUCCEEDED(handler->DropLink(dragEvent, name, true, link))) {
+      if (webnav && NS_SUCCEEDED(handler->DropLink(dragEvent, name, false, link))) {
         if (!link.IsEmpty()) {
           webnav->LoadURI(link.get(), 0, nullptr, nullptr, nullptr);
         }

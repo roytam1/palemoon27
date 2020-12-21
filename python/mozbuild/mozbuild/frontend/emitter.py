@@ -560,6 +560,9 @@ class TreeMetadataEmitter(LoggingMixin):
             'LD_VERSION_SCRIPT',
             'USE_EXTENSION_MANIFEST',
             'NO_JS_MANIFEST',
+            'SOURCES_NOPCH',
+            'PCHHDR',
+            'PCHSRC',
         ]
         for v in varlist:
             if v in context and context[v]:

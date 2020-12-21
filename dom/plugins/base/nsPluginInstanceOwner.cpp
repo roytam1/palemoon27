@@ -704,6 +704,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
     if (win) {
       nsView *view = nsView::GetViewFor(win);
       NS_ASSERTION(view, "No view for widget");
+      if (!view) return NS_ERROR_FAILURE;
       nsPoint offset = view->GetOffsetTo(nullptr);
 
       if (offset.x || offset.y) {

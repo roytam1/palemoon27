@@ -1,0 +1,12 @@
+#include "nsISupports.idl"
+
+[ptr] native JSContext(JSContext);
+
+[uuid(c67d8270-3189-11d3-9885-006008962422)]
+interface nsIJSContextStack : nsISupports
+{
+    JSContext                   pop();
+    void                        push(in JSContext cx);
+};
+
+

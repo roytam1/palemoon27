@@ -29,6 +29,7 @@
 #ifdef XP_WIN
 #include <process.h>
 #include "mozilla/ipc/WindowsMessageLoop.h"
+#include "mozilla/widget/AudioSession.h"
 #endif
 
 #include "nsAppDirectoryServiceDefs.h"
@@ -183,6 +184,10 @@ XRE_InitEmbedding2(nsIFile *aLibXULDirectory,
 
   startupNotifier->Observe(nullptr, APPSTARTUP_TOPIC, nullptr);
 
+#ifdef XP_WIN
+  mozilla::widget::StartAudioSession();
+#endif
+
   return NS_OK;
 }
 
@@ -202,6 +207,10 @@ XRE_TermEmbedding()
   NS_ASSERTION(gDirServiceProvider,
                "XRE_TermEmbedding without XRE_InitEmbedding");
 
+#ifdef XP_WIN
+  mozilla::widget::StopAudioSession();
+#endif
+  
   gDirServiceProvider->DoShutdown();
   NS_ShutdownXPCOM(nullptr);
   delete gDirServiceProvider;

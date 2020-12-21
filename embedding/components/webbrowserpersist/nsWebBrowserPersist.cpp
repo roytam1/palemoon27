@@ -1228,7 +1228,8 @@ nsresult nsWebBrowserPersist::SaveURIInternal(
 
     if (NS_FAILED(rv) || inputChannel == nullptr)
     {
-        EndDownload(NS_ERROR_FAILURE);
+        //No point in stopping the download because of a single failure
+        //EndDownload(NS_ERROR_FAILURE);
         return NS_ERROR_FAILURE;
     }
 

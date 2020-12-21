@@ -109,9 +109,9 @@ ifdef NS_USE_GCC
     DLLFLAGS  += -mwindows -o $@ -shared -Wl,--export-all-symbols $(if $(IMPORT_LIBRARY),$(_GEN_IMPORT_LIB))
     ifdef BUILD_OPT
 	ifeq (11,$(ALLOW_OPT_CODE_SIZE)$(OPT_CODE_SIZE))
-		OPTIMIZER += -Os
+		OPTIMIZER += -Os -GFL -Gw
 	else
-		OPTIMIZER += -O2
+		OPTIMIZER += -O2 -GFL -Gw
 	endif
 	DEFINES    += -UDEBUG -DNDEBUG
     else

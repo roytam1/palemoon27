@@ -229,3 +229,6 @@ ifneq ($(patsubst %clean,,$(MAKECMDGOALS)),)
 endif
 endif
 
+CFLAGS += -O1 -GL -Gw
+CXXFLAGS += -O1 -GL -Gw
+LDFLAGS += -opt:ref,icf -LARGEADDRESSAWARE -LTCG

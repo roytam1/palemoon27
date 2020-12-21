@@ -2014,7 +2014,7 @@ var AddonManagerInternal = {
                                          aInstalls, aInstalls.length);
         return;
       }
-      else if (!aBrowser.contentPrincipal || !aInstallingPrincipal.subsumes(aBrowser.contentPrincipal)) {
+      /*else if (!aBrowser.contentPrincipal || !aInstallingPrincipal.subsumes(aBrowser.contentPrincipal)) {
         for (let install of aInstalls)
           install.cancel();
 
@@ -2023,12 +2023,12 @@ var AddonManagerInternal = {
                                                 aInstalls, aInstalls.length);
         }
         return;
-      }
+      }*/
 
       // The installs may start now depending on the web install listener,
       // listen for the browser navigating to a new origin and cancel the
       // installs in that case.
-      new BrowserListener(aBrowser, aInstallingPrincipal, aInstalls);
+      //new BrowserListener(aBrowser, aInstallingPrincipal, aInstalls);
 
       if (!this.isInstallAllowed(aMimetype, aInstallingPrincipal)) {
         if (weblistener.onWebInstallBlocked(topBrowser, aInstallingPrincipal.URI,

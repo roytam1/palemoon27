@@ -5057,3 +5057,19 @@ pref("plugins.rewrite_youtube_embeds", true);
 pref("layout.cjkthickcaret", true);
 
 pref("devtools.serviceWorkers.testing.enabled", false);
+
+// additional
+lock_pref("platform.name", "Goanna");
+#filter substitution
+lock_pref("platform.version", @MOZILLA_VERSION@);
+lock_pref("platform.buildid", "@GRE_BUILDID@");
+#unfilter substitution
+
+#ifdef MOZ_XULRUNNER
+#define MOZ_APP_VERSION 27.9
+// User Agent
+#filter substitution
+#filter emptyLines
+#include ../../../browser/branding/shared/pref/uaoverrides.inc
+
+#endif

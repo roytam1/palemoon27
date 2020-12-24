@@ -158,7 +158,7 @@ nsTableRowFrame::Init(nsIContent*       aContent,
 void
 nsTableRowFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  if (GetStateBits() & NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN) {
+  if (HasAnyStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN)) {
     nsTableFrame::UnregisterPositionedTablePart(this, aDestructRoot);
   }
 
@@ -303,13 +303,11 @@ GetBSizeOfRowsSpannedBelowFirst(nsTableCellFrame& aTableCellFrame,
 nsTableCellFrame*
 nsTableRowFrame::GetFirstCell()
 {
-  nsIFrame* childFrame = mFrames.FirstChild();
-  while (childFrame) {
+  for (nsIFrame* childFrame : mFrames) {
     nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
     if (cellFrame) {
       return cellFrame;
     }
-    childFrame = childFrame->GetNextSibling();
   }
   return nullptr;
 }
@@ -322,26 +320,59 @@ nsTableRowFrame::DidResize()
 {
   // Resize and re-align the cell frames based on our row bsize
   nsTableFrame* tableFrame = GetTableFrame();
-  nsTableIterator iter(*this);
-  nsIFrame* childFrame = iter.First();
 
   WritingMode wm = GetWritingMode();
   nsHTMLReflowMetrics desiredSize(wm);
   desiredSize.SetSize(wm, GetLogicalSize(wm));
   desiredSize.SetOverflowAreasToDesiredBounds();
 
-  while (childFrame) {
+  nscoord containerWidth = mRect.width;
+
+  for (nsIFrame* childFrame : mFrames) {
     nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
     if (cellFrame) {
       nscoord cellBSize = BSize(wm) +
         GetBSizeOfRowsSpannedBelowFirst(*cellFrame, *tableFrame, wm);
 
-      // resize the cell's bsize
+      // If the bsize for the cell has changed, we need to reset it;
+      // and in vertical-rl mode, we need to update the cell's block position
+      // to account for the containerWidth, which may not have been known
+      // earlier, so we always apply it here.
       LogicalSize cellSize = cellFrame->GetLogicalSize(wm);
-      nsRect cellVisualOverflow = cellFrame->GetVisualOverflowRect();
-      if (cellSize.BSize(wm) != cellBSize) {
-        cellSize.BSize(wm) = cellBSize;
+      if (cellSize.BSize(wm) != cellBSize || wm.IsVerticalRL()) {
         nsRect cellOldRect = cellFrame->GetRect();
+        nsRect cellVisualOverflow = cellFrame->GetVisualOverflowRect();
+
+        if (wm.IsVerticalRL()) {
+          // Get the old position of the cell, as we want to preserve its
+          // inline coordinate.
+          LogicalPoint oldPos =
+            cellFrame->GetLogicalPosition(wm, containerWidth);
+
+          // The cell should normally be aligned with the row's block-start,
+          // so set the B component of the position to zero:
+          LogicalPoint newPos(wm, oldPos.I(wm), 0);
+
+          // ...unless relative positioning is in effect, in which case the
+          // cell may have been moved away from the row's block-start
+          if (cellFrame->IsRelativelyPositioned()) {
+            // Find out where the cell would have been without relative
+            // positioning.
+            LogicalPoint oldNormalPos =
+              cellFrame->GetLogicalNormalPosition(wm, containerWidth);
+            // The difference (if any) between oldPos and oldNormalPos reflects
+            // relative positioning that was applied to the cell, and which we
+            // need to incorporate when resetting the position.
+            newPos.B(wm) = oldPos.B(wm) - oldNormalPos.B(wm);
+          }
+
+          if (oldPos != newPos) {
+            cellFrame->SetPosition(wm, newPos, containerWidth);
+            nsTableFrame::RePositionViews(cellFrame);
+          }
+        }
+
+        cellSize.BSize(wm) = cellBSize;
         cellFrame->SetSize(wm, cellSize);
         nsTableFrame::InvalidateTableFrame(cellFrame, cellOldRect,
                                            cellVisualOverflow,
@@ -359,8 +390,6 @@ nsTableRowFrame::DidResize()
       // Note that if the cell's *content* needs to change in response
       // to this height, it will get a special bsize reflow.
     }
-    // Get the next child
-    childFrame = iter.Next();
   }
   FinishAndStoreOverflow(&desiredSize);
   if (HasView()) {
@@ -402,25 +431,21 @@ nscoord nsTableRowFrame::GetRowBaseline(WritingMode aWM)
   // bppppppppppppppppb
   // bbbbbbbbbbbbbbbbbb
 
-  nsTableIterator iter(*this);
-  nsIFrame* childFrame = iter.First();
   nscoord ascent = 0;
   nscoord containerWidth = GetRect().width;
-   while (childFrame) {
+  for (nsIFrame* childFrame : mFrames) {
     if (IS_TABLE_CELL(childFrame->GetType())) {
       nsIFrame* firstKid = childFrame->GetFirstPrincipalChild();
       ascent = std::max(ascent,
                         LogicalRect(aWM, firstKid->GetNormalRect(),
                                     containerWidth).BEnd(aWM));
     }
-    // Get the next child
-    childFrame = iter.Next();
   }
   return ascent;
 }
 
 nscoord
-nsTableRowFrame::GetBSize(nscoord aPctBasis) const
+nsTableRowFrame::GetInitialBSize(nscoord aPctBasis) const
 {
   nscoord bsize = 0;
   if ((aPctBasis > 0) && HasPctBSize()) {
@@ -463,7 +488,7 @@ nsTableRowFrame::UpdateBSize(nscoord           aBSize,
 
   if (aBSize != NS_UNCONSTRAINEDSIZE) {
     if (!(aCellFrame->HasVerticalAlignBaseline())) { // only the cell's height matters
-      if (GetBSize() < aBSize) {
+      if (GetInitialBSize() < aBSize) {
         int32_t rowSpan = aTableFrame->GetEffectiveRowSpan(*aCellFrame);
         if (rowSpan == 1) {
           SetContentBSize(aBSize);
@@ -485,7 +510,7 @@ nsTableRowFrame::UpdateBSize(nscoord           aBSize,
         }
       }
       // keep the tallest bsize in sync
-      if (GetBSize() < mMaxCellAscent + mMaxCellDescent) {
+      if (GetInitialBSize() < mMaxCellAscent + mMaxCellDescent) {
         SetContentBSize(mMaxCellAscent + mMaxCellDescent);
       }
     }
@@ -511,8 +536,7 @@ nsTableRowFrame::CalcBSize(const nsHTMLReflowState& aReflowState)
   }
   // calc() with percentages is treated like 'auto' on table rows.
 
-  for (nsIFrame* kidFrame = mFrames.FirstChild(); kidFrame;
-       kidFrame = kidFrame->GetNextSibling()) {
+  for (nsIFrame* kidFrame : mFrames) {
     nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
     if (cellFrame) {
       MOZ_ASSERT(cellFrame->GetWritingMode() == wm);
@@ -530,7 +554,7 @@ nsTableRowFrame::CalcBSize(const nsHTMLReflowState& aReflowState)
        UpdateBSize(desSize.BSize(wm), ascent, descent, tableFrame, cellFrame);
     }
   }
-  return GetBSize();
+  return GetInitialBSize();
 }
 
 /**
@@ -723,16 +747,16 @@ GetSpaceBetween(int32_t       aPrevColIndex,
                 bool          aCheckVisibility)
 {
   nscoord space = 0;
-  int32_t colX;
+  int32_t colIdx;
   nsTableFrame* fifTable =
     static_cast<nsTableFrame*>(aTableFrame.FirstInFlow());
-  for (colX = aPrevColIndex + 1; aColIndex > colX; colX++) {
+  for (colIdx = aPrevColIndex + 1; aColIndex > colIdx; colIdx++) {
     bool isCollapsed = false;
     if (!aCheckVisibility) {
-      space += fifTable->GetColumnISizeFromFirstInFlow(colX);
+      space += fifTable->GetColumnISizeFromFirstInFlow(colIdx);
     }
     else {
-      nsTableColFrame* colFrame = aTableFrame.GetColFrame(colX);
+      nsTableColFrame* colFrame = aTableFrame.GetColFrame(colIdx);
       const nsStyleVisibility* colVis = colFrame->StyleVisibility();
       bool collapseCol = (NS_STYLE_VISIBILITY_COLLAPSE == colVis->mVisible);
       nsIFrame* cgFrame = colFrame->GetParent();
@@ -741,10 +765,10 @@ GetSpaceBetween(int32_t       aPrevColIndex,
                               groupVis->mVisible);
       isCollapsed = collapseCol || collapseGroup;
       if (!isCollapsed)
-        space += fifTable->GetColumnISizeFromFirstInFlow(colX);
+        space += fifTable->GetColumnISizeFromFirstInFlow(colIdx);
     }
-    if (!isCollapsed && aTableFrame.ColumnHasCellSpacingBefore(colX)) {
-      space += aTableFrame.GetColSpacing(colX - 1);
+    if (!isCollapsed && aTableFrame.ColumnHasCellSpacingBefore(colIdx)) {
+      space += aTableFrame.GetColSpacing(colIdx - 1);
     }
   }
   return space;
@@ -784,10 +808,8 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
 
   int32_t cellColSpan = 1;  // must be defined here so it's set properly for non-cell kids
 
-  nsTableIterator iter(*this);
   // remember the col index of the previous cell to handle rowspans into this row
-  int32_t firstPrevColIndex = -1;
-  int32_t prevColIndex  = firstPrevColIndex;
+  int32_t prevColIndex = -1;
   nscoord iCoord = 0; // running total of children inline-coord offset
 
   // This computes the max of all cell bsizes
@@ -802,7 +824,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
     containerWidth += aReflowState.ComputedPhysicalBorderPadding().LeftRight();
   }
 
-  for (nsIFrame* kidFrame = iter.First(); kidFrame; kidFrame = iter.Next()) {
+  for (nsIFrame* kidFrame : mFrames) {
     nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
     if (!cellFrame) {
       // XXXldb nsCSSFrameConstructor needs to enforce this!
@@ -838,8 +860,8 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
       }
     }
     if (aReflowState.mFlags.mSpecialBSizeReflow) {
-      if (!isPaginated && !(cellFrame->GetStateBits() &
-                            NS_FRAME_CONTAINS_RELATIVE_BSIZE)) {
+      if (!isPaginated &&
+          !cellFrame->HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE)) {
         continue;
       }
     }
@@ -863,14 +885,15 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
       kidFrame->GetLogicalNormalPosition(wm, containerWidth);
     // All cells' no-relative-positioning position should be snapped to the
     // row's bstart edge.
-    // XXX This currently doesn't hold in vertical-rl mode, which is probably
-    // a bug, but to enable progress with testing I'm temporarily neutering
-    // the assertion in that case (bug 1174711).
-    MOZ_ASSERT(origKidNormalPosition.B(wm) == 0 || wm.IsVerticalRL());
+    // This doesn't hold in vertical-rl mode, where we don't yet know the
+    // correct containerWidth for the row frame. In that case, we'll have to
+    // fix up child positions later, after determining our desiredSize.
+    NS_ASSERTION(origKidNormalPosition.B(wm) == 0 || wm.IsVerticalRL(),
+                 "unexpected kid position");
+
     nsRect kidVisualOverflow = kidFrame->GetVisualOverflowRect();
     LogicalPoint kidPosition(wm, iCoord, 0);
-    bool firstReflow =
-      (kidFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
+    bool firstReflow = kidFrame->HasAnyStateBits(NS_FRAME_FIRST_REFLOW);
 
     if (doReflowChild) {
       // Calculate the available isize for the table cell using the known
@@ -889,13 +912,13 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
       NS_ASSERTION(cellFrame->GetWritingMode() == wm,
                    "expected consistent writing-mode within table");
       LogicalSize cellDesiredSize = cellFrame->GetDesiredSize();
-      if ((availCellISize != cellFrame->GetPriorAvailISize())       ||
+      if ((availCellISize != cellFrame->GetPriorAvailISize())           ||
           (cellDesiredSize.ISize(wm) > cellFrame->GetPriorAvailISize()) ||
-          (GetStateBits() & NS_FRAME_IS_DIRTY)                      ||
-          isPaginated                                               ||
-          NS_SUBTREE_DIRTY(cellFrame)                               ||
+          HasAnyStateBits(NS_FRAME_IS_DIRTY)                            ||
+          isPaginated                                                   ||
+          NS_SUBTREE_DIRTY(cellFrame)                                   ||
           // See if it needs a special reflow, or if it had one that we need to undo.
-          (cellFrame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_BSIZE) ||
+          cellFrame->HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE)  ||
           HasPctBSize()) {
         // Reflow the cell to fit the available isize, bsize
         // XXX The old IR_ChildIsDirty code used availCellISize here.
@@ -1051,7 +1074,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
     // Any children whose width was not the same as our final
     // aDesiredSize.BSize will have been misplaced earlier at the
     // FinishReflowChild stage. So fix them up now.
-    for (nsIFrame* kidFrame = iter.First(); kidFrame; kidFrame = iter.Next()) {
+    for (nsIFrame* kidFrame : mFrames) {
       nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
       if (!cellFrame) {
         continue;
@@ -1110,7 +1133,7 @@ nsTableRowFrame::Reflow(nsPresContext*           aPresContext,
 
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
-  if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
+  if (!GetParent()->HasAnyStateBits(NS_FRAME_FIRST_REFLOW) &&
       nsSize(aDesiredSize.Width(), aDesiredSize.Height()) != mRect.Size()) {
     InvalidateFrame();
   }
@@ -1175,8 +1198,8 @@ nsTableRowFrame::ReflowCellFrame(nsPresContext*           aPresContext,
   nsTableFrame::InvalidateTableFrame(aCellFrame,
                                      cellRect.GetPhysicalRect(wm, containerWidth),
                                      cellVisualOverflow,
-                                     (aCellFrame->GetStateBits() &
-                                      NS_FRAME_FIRST_REFLOW) != 0);
+                                     aCellFrame->
+                                       HasAnyStateBits(NS_FRAME_FIRST_REFLOW));
 
   aCellFrame->DidReflow(aPresContext, nullptr, nsDidReflowStatus::FINISHED);
 
@@ -1242,19 +1265,14 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
     rowRect.BSize(wm) = 0;
   }
   else { // row is not collapsed
-    nsTableIterator iter(*this);
     // remember the col index of the previous cell to handle rowspans into this
     // row
-    int32_t firstPrevColIndex = -1;
-    int32_t prevColIndex  = firstPrevColIndex;
+    int32_t prevColIndex = -1;
     nscoord iPos = 0; // running total of children inline-axis offset
     nsTableFrame* fifTable =
       static_cast<nsTableFrame*>(tableFrame->FirstInFlow());
 
-    int32_t colIncrement = 1;
-
-    nsIFrame* kidFrame = iter.First();
-    while (kidFrame) {
+    for (nsIFrame* kidFrame : mFrames) {
       nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
       if (cellFrame) {
         int32_t cellColIndex;
@@ -1271,13 +1289,12 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
 
         // remember the last (iend-wards-most) column this cell spans into
         prevColIndex = cellColIndex + cellColSpan - 1;
-        int32_t startIndex = cellColIndex;
         int32_t actualColSpan = cellColSpan;
         bool isVisible = false;
-        for (int32_t colX = startIndex; actualColSpan > 0;
-             colX += colIncrement, actualColSpan--) {
+        for (int32_t colIdx = cellColIndex; actualColSpan > 0;
+             colIdx++, actualColSpan--) {
 
-          nsTableColFrame* colFrame = tableFrame->GetColFrame(colX);
+          nsTableColFrame* colFrame = tableFrame->GetColFrame(colIdx);
           const nsStyleVisibility* colVis = colFrame->StyleVisibility();
           bool collapseCol = (NS_STYLE_VISIBILITY_COLLAPSE ==
                                 colVis->mVisible);
@@ -1287,15 +1304,15 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
                                   groupVis->mVisible);
           bool isCollapsed = collapseCol || collapseGroup;
           if (!isCollapsed) {
-            cRect.ISize(wm) += fifTable->GetColumnISizeFromFirstInFlow(colX);
+            cRect.ISize(wm) += fifTable->GetColumnISizeFromFirstInFlow(colIdx);
             isVisible = true;
             if ((actualColSpan > 1)) {
               nsTableColFrame* nextColFrame =
-                tableFrame->GetColFrame(colX + colIncrement);
+                tableFrame->GetColFrame(colIdx + 1);
               const nsStyleVisibility* nextColVis =
               nextColFrame->StyleVisibility();
               if ( (NS_STYLE_VISIBILITY_COLLAPSE != nextColVis->mVisible) &&
-                  tableFrame->ColumnHasCellSpacingBefore(colX + colIncrement)) {
+                  tableFrame->ColumnHasCellSpacingBefore(colIdx + 1)) {
                 cRect.ISize(wm) += tableFrame->GetColSpacing(cellColIndex);
               }
             }
@@ -1351,7 +1368,6 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
                                              oldCellVisualOverflow, false);
         }
       }
-      kidFrame = iter.Next(); // Get the next child
     }
   }
 
@@ -1375,8 +1391,7 @@ nsTableRowFrame::InsertCellFrame(nsTableCellFrame* aFrame,
 {
   // Find the cell frame where col index < aColIndex
   nsTableCellFrame* priorCell = nullptr;
-  for (nsIFrame* child = mFrames.FirstChild(); child;
-       child = child->GetNextSibling()) {
+  for (nsIFrame* child : mFrames) {
     nsTableCellFrame *cellFrame = do_QueryFrame(child);
     if (cellFrame) {
       int32_t colIndex;
@@ -1461,10 +1476,9 @@ nsTableRowFrame::AccessibleType()
  */
 void nsTableRowFrame::InitHasCellWithStyleBSize(nsTableFrame* aTableFrame)
 {
-  nsTableIterator iter(*this);
   WritingMode wm = GetWritingMode();
 
-  for (nsIFrame* kidFrame = iter.First(); kidFrame; kidFrame = iter.Next()) {
+  for (nsIFrame* kidFrame : mFrames) {
     nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
     if (!cellFrame) {
       NS_NOTREACHED("Table row has a non-cell child.");

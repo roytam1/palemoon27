@@ -203,7 +203,7 @@ public:
   void    SetPctBSize(float  aPctValue,
                        bool aForce = false);
 
-  nscoord GetBSize(nscoord aBasis = 0) const;
+  nscoord GetInitialBSize(nscoord aBasis = 0) const;
 
   nsTableRowFrame* GetNextRow() const;
 
@@ -391,16 +391,15 @@ inline float nsTableRowFrame::GetPctBSize() const
 
 inline bool nsTableRowFrame::HasUnpaginatedBSize()
 {
-  return (mState & NS_TABLE_ROW_HAS_UNPAGINATED_BSIZE) ==
-         NS_TABLE_ROW_HAS_UNPAGINATED_BSIZE;
+  return HasAnyStateBits(NS_TABLE_ROW_HAS_UNPAGINATED_BSIZE);
 }
 
 inline void nsTableRowFrame::SetHasUnpaginatedBSize(bool aValue)
 {
   if (aValue) {
-    mState |= NS_TABLE_ROW_HAS_UNPAGINATED_BSIZE;
+    AddStateBits(NS_TABLE_ROW_HAS_UNPAGINATED_BSIZE);
   } else {
-    mState &= ~NS_TABLE_ROW_HAS_UNPAGINATED_BSIZE;
+    RemoveStateBits(NS_TABLE_ROW_HAS_UNPAGINATED_BSIZE);
   }
 }
 

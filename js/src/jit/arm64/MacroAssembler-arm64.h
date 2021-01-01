@@ -59,29 +59,10 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
     bool enoughMemory_;
     uint32_t framePushed_;
 
-    // TODO: Can this be moved out of the MacroAssembler and into some shared code?
-    // TODO: All the code seems to be arch-independent, and it's weird to have this here.
-    bool inCall_;
-    bool usedOutParam_;
-    uint32_t args_;
-    uint32_t passedIntArgs_;
-    uint32_t passedFloatArgs_;
-    uint32_t passedArgTypes_;
-    uint32_t stackForCall_;
-    bool dynamicAlignment_;
-
     MacroAssemblerCompat()
       : vixl::MacroAssembler(),
         enoughMemory_(true),
-        framePushed_(0),
-        inCall_(false),
-        usedOutParam_(false),
-        args_(0),
-        passedIntArgs_(0),
-        passedFloatArgs_(0),
-        passedArgTypes_(0),
-        stackForCall_(0),
-        dynamicAlignment_(false)
+        framePushed_(0)
     { }
 
   protected:
@@ -1687,7 +1668,9 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
         loadPtr(address, scratch);
         branchTest32(cond, scratch, imm, label);
     }
-    CodeOffsetJump jumpWithPatch(RepatchLabel* label, Condition cond = Always) {
+    CodeOffsetJump jumpWithPatch(RepatchLabel* label, Condition cond = Always,
+                                 Label* documentation = nullptr)
+    {
         ARMBuffer::PoolEntry pe;
         BufferOffset load_bo;
         BufferOffset branch_bo;
@@ -1712,8 +1695,8 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
         label->use(branch_bo.getOffset());
         return CodeOffsetJump(load_bo.getOffset(), pe.index());
     }
-    CodeOffsetJump backedgeJump(RepatchLabel* label) {
-        return jumpWithPatch(label);
+    CodeOffsetJump backedgeJump(RepatchLabel* label, Label* documentation = nullptr) {
+        return jumpWithPatch(label, documentation);
     }
     template <typename T>
     CodeOffsetJump branchPtrWithPatch(Condition cond, Register reg, T ptr, RepatchLabel* label) {
@@ -2679,58 +2662,12 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
             Add(dest64, dest64, Operand(address.offset));
     }
 
-  private:
-    void setupABICall(uint32_t args);
-
   public:
-    // Setup a call to C/C++ code, given the number of general arguments it
-    // takes. Note that this only supports cdecl.
-    //
-    // In order for alignment to work correctly, the MacroAssembler must have a
-    // consistent view of the stack displacement. It is okay to call "push"
-    // manually, however, if the stack alignment were to change, the macro
-    // assembler should be notified before starting a call.
-    void setupAlignedABICall(uint32_t args) {
-        MOZ_CRASH("setupAlignedABICall");
-    }
-
-    // Sets up an ABI call for when the alignment is not known. This may need a
-    // scratch register.
-    void setupUnalignedABICall(uint32_t args, Register scratch);
-
-    // Arguments must be assigned to a C/C++ call in order. They are moved
-    // in parallel immediately before performing the call. This process may
-    // temporarily use more stack, in which case sp-relative addresses will be
-    // automatically adjusted. It is extremely important that sp-relative
-    // addresses are computed *after* setupABICall(). Furthermore, no
-    // operations should be emitted while setting arguments.
-    void passABIArg(const MoveOperand& from, MoveOp::Type type);
-    void passABIArg(Register reg);
-    void passABIArg(FloatRegister reg, MoveOp::Type type);
-    void passABIOutParam(Register reg);
-
-  private:
-    void callWithABIPre(uint32_t* stackAdjust);
-    void callWithABIPost(uint32_t stackAdjust, MoveOp::Type result);
-
-  public:
-    // Emits a call to a C/C++ function, resolving all argument moves.
-    void callWithABI(void* fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(Register fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(AsmJSImmPtr imm, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(Address fun, MoveOp::Type result = MoveOp::GENERAL);
-
     CodeOffsetLabel labelForPatch() {
         return CodeOffsetLabel(nextOffset().getOffset());
     }
 
     void handleFailureWithHandlerTail(void* handler);
-
-    // FIXME: This is the same on all platforms. Can be common code?
-    void makeFrameDescriptor(Register frameSizeReg, FrameType type) {
-        lshiftPtr(Imm32(FRAMESIZE_SHIFT), frameSizeReg);
-        orPtr(Imm32(type), frameSizeReg);
-    }
 
     // FIXME: See CodeGeneratorX64 calls to noteAsmJSGlobalAccess.
     void patchAsmJSGlobalAccess(CodeOffsetLabel patchAt, uint8_t* code,
@@ -2759,22 +2696,12 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
     void callWithExitFrame(JitCode* target);
     void callWithExitFrame(JitCode* target, Register dynStack);
 
-    void callJit(Register callee) {
-        // AArch64 cannot read from the PC, so pushing must be handled callee-side.
-        syncStackPtr();
-        Blr(ARMRegister(callee, 64));
-    }
-
     void appendCallSite(const CallSiteDesc& desc) {
         MOZ_CRASH("appendCallSite");
     }
 
     void callExit(AsmJSImmPtr imm, uint32_t stackArgBytes) {
         MOZ_CRASH("callExit");
-    }
-
-    void callJitFromAsmJS(Register reg) {
-        Blr(ARMRegister(reg, 64));
     }
 
     void callAndPushReturnAddress(Label* label);

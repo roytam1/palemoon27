@@ -8,15 +8,124 @@
 
 #include "nsGridContainerFrame.h"
 
+#include <algorithm> // for std::stable_sort
+#include <limits>
 #include "mozilla/Maybe.h"
+#include "nsAbsoluteContainingBlock.h"
+#include "nsAlgorithm.h" // for clamped()
+#include "nsAutoPtr.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsDataHashtable.h"
+#include "nsDisplayList.h"
 #include "nsHashKeys.h"
+#include "nsIFrameInlines.h"
 #include "nsPresContext.h"
 #include "nsReadableUtils.h"
+#include "nsRuleNode.h"
 #include "nsStyleContext.h"
 
 using namespace mozilla;
+typedef nsGridContainerFrame::TrackSize TrackSize;
+
+class nsGridContainerFrame::GridItemCSSOrderIterator
+{
+public:
+  enum OrderState { eUnknownOrder, eKnownOrdered, eKnownUnordered };
+  GridItemCSSOrderIterator(nsIFrame* aGridContainer,
+                           nsIFrame::ChildListID aListID,
+                           OrderState aState = eUnknownOrder)
+    : mChildren(aGridContainer->GetChildList(aListID))
+    , mArrayIndex(0)
+#ifdef DEBUG
+    , mGridContainer(aGridContainer)
+    , mListID(aListID)
+#endif
+  {
+    size_t count = 0;
+    bool isOrdered = aState != eKnownUnordered;
+    if (aState == eUnknownOrder) {
+      auto maxOrder = std::numeric_limits<int32_t>::min();
+      for (nsFrameList::Enumerator e(mChildren); !e.AtEnd(); e.Next()) {
+        ++count;
+        int32_t order = e.get()->StylePosition()->mOrder;
+        if (order < maxOrder) {
+          isOrdered = false;
+          break;
+        }
+        maxOrder = order;
+      }
+    }
+    if (isOrdered) {
+      mEnumerator.emplace(mChildren);
+    } else {
+      count *= 2; // XXX somewhat arbitrary estimate for now...
+      mArray.emplace(count);
+      for (nsFrameList::Enumerator e(mChildren); !e.AtEnd(); e.Next()) {
+        mArray->AppendElement(e.get());
+      }
+      // XXX replace this with nsTArray::StableSort when bug 1147091 is fixed.
+      std::stable_sort(mArray->begin(), mArray->end(), IsCSSOrderLessThan);
+    }
+  }
+
+  nsIFrame* operator*() const
+  {
+    MOZ_ASSERT(!AtEnd());
+    if (mEnumerator) {
+      return mEnumerator->get();
+    }
+    return (*mArray)[mArrayIndex];
+  }
+
+  bool AtEnd() const
+  {
+    MOZ_ASSERT(mEnumerator || mArrayIndex <= mArray->Length());
+    return mEnumerator ? mEnumerator->AtEnd() : mArrayIndex >= mArray->Length();
+  }
+
+  void Next()
+  {
+#ifdef DEBUG
+    nsFrameList list = mGridContainer->GetChildList(mListID);
+    MOZ_ASSERT(list.FirstChild() == mChildren.FirstChild() &&
+               list.LastChild() == mChildren.LastChild(),
+               "the list of child frames must not change while iterating!");
+#endif
+    if (mEnumerator) {
+      mEnumerator->Next();
+    } else {
+      MOZ_ASSERT(mArrayIndex < mArray->Length(), "iterating past end");
+      ++mArrayIndex;
+    }
+  }
+
+  void Reset()
+  {
+    if (mEnumerator) {
+      mEnumerator.reset();
+      mEnumerator.emplace(mChildren);
+    } else {
+      mArrayIndex = 0;
+    }
+  }
+
+  bool ItemsAreAlreadyInOrder() const { return mEnumerator.isSome(); }
+
+private:
+  static bool IsCSSOrderLessThan(nsIFrame* const& a, nsIFrame* const& b)
+    { return a->StylePosition()->mOrder < b->StylePosition()->mOrder; }
+
+  nsFrameList mChildren;
+  // Used if child list is already in ascending 'order'.
+  Maybe<nsFrameList::Enumerator> mEnumerator;
+  // Used if child list is *not* in ascending 'order'.
+  Maybe<nsTArray<nsIFrame*>> mArray;
+  size_t mArrayIndex;
+#ifdef DEBUG
+  nsIFrame* mGridContainer;
+  nsIFrame::ChildListID mListID;
+#endif
+};
 
 /**
  * Search for the aNth occurrence of aName in aNameList (forward), starting at
@@ -144,6 +253,39 @@ IsNameWithStartSuffix(const nsString& aString, uint32_t* aIndex)
   return IsNameWithSuffix(aString, NS_LITERAL_STRING("-start"), aIndex);
 }
 
+static nscoord
+GridLinePosition(uint32_t aLine, const nsTArray<TrackSize>& aTrackSizes)
+{
+  MOZ_ASSERT(aLine != 0, "expected a 1-based line number");
+  const uint32_t endIndex = aLine - 1;
+  MOZ_ASSERT(endIndex <= aTrackSizes.Length(), "aTrackSizes is too small");
+  nscoord pos = 0;
+  for (uint32_t i = 0; i < endIndex; ++i) {
+    pos += aTrackSizes[i].mBase;
+  }
+  return pos;
+}
+
+/**
+ * (XXX share this utility function with nsFlexContainerFrame at some point)
+ *
+ * Helper for BuildDisplayList, to implement this special-case for grid
+ * items from the spec:
+ *   The painting order of grid items is exactly the same as inline blocks,
+ *   except that [...] 'z-index' values other than 'auto' create a stacking
+ *   context even if 'position' is 'static'.
+ * http://dev.w3.org/csswg/css-grid/#z-order
+ */
+static uint32_t
+GetDisplayFlagsForGridItem(nsIFrame* aFrame)
+{
+  const nsStylePosition* pos = aFrame->StylePosition();
+  if (pos->mZIndex.GetUnit() == eStyleUnit_Integer) {
+    return nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT;
+  }
+  return nsIFrame::DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT;
+}
+
 //----------------------------------------------------------------------
 
 // Frame class boilerplate
@@ -167,6 +309,18 @@ NS_NewGridContainerFrame(nsIPresShell* aPresShell,
 
 // nsGridContainerFrame Method Implementations
 // ===========================================
+
+/*static*/ const nsRect&
+nsGridContainerFrame::GridItemCB(nsIFrame* aChild)
+{
+  MOZ_ASSERT((aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
+             aChild->IsAbsolutelyPositioned());
+  nsRect* cb = static_cast<nsRect*>(aChild->Properties().Get(
+                 GridItemContainingBlockRect()));
+  MOZ_ASSERT(cb, "this method must only be called on grid items, and the grid "
+                 "container should've reflowed this item by now and set up cb");
+  return *cb;
+}
 
 void
 nsGridContainerFrame::AddImplicitNamedAreas(
@@ -418,6 +572,53 @@ nsGridContainerFrame::PlaceDefinite(nsIFrame* aChild,
                      mExplicitGridRowEnd, aStyle));
 }
 
+nsGridContainerFrame::LineRange
+nsGridContainerFrame::ResolveAbsPosLineRange(
+  const nsStyleGridLine& aStart,
+  const nsStyleGridLine& aEnd,
+  const nsTArray<nsTArray<nsString>>& aLineNameList,
+  uint32_t GridNamedArea::* aAreaStart,
+  uint32_t GridNamedArea::* aAreaEnd,
+  uint32_t aExplicitGridEnd,
+  uint32_t aGridEnd,
+  const nsStylePosition* aStyle)
+{
+  if (aStart.IsAuto()) {
+    if (aEnd.IsAuto()) {
+      return LineRange(0, 0);
+    }
+    uint32_t end = ResolveLine(aEnd, aEnd.mInteger, 0, aLineNameList, aAreaStart,
+                               aAreaEnd, aExplicitGridEnd, eLineRangeSideEnd,
+                               aStyle);
+    MOZ_ASSERT(end != 0, "resolving non-auto line shouldn't result in auto");
+    if (aEnd.mHasSpan) {
+      ++end;
+    }
+    return LineRange(0, clamped(end, 1U, aGridEnd));
+  }
+
+  if (aEnd.IsAuto()) {
+    uint32_t start =
+      ResolveLine(aStart, aStart.mInteger, 0, aLineNameList, aAreaStart,
+                  aAreaEnd, aExplicitGridEnd, eLineRangeSideStart, aStyle);
+    MOZ_ASSERT(start != 0, "resolving non-auto line shouldn't result in auto");
+    if (aStart.mHasSpan) {
+      start = std::max(int32_t(aGridEnd) - int32_t(start), 1);
+    }
+    return LineRange(clamped(start, 1U, aGridEnd), 0);
+  }
+
+  LineRange r = ResolveLineRange(aStart, aEnd, aLineNameList, aAreaStart,
+                                 aAreaEnd, aExplicitGridEnd, aStyle);
+  MOZ_ASSERT(!r.IsAuto(), "resolving definite lines shouldn't result in auto");
+  // Clamp definite lines to be within the implicit grid.
+  // Note that this implies mStart may be equal to mEnd.
+  r.mStart = clamped(r.mStart, 1U, aGridEnd);
+  r.mEnd = clamped(r.mEnd, 1U, aGridEnd);
+  MOZ_ASSERT(r.mStart <= r.mEnd);
+  return r;
+}
+
 uint32_t
 nsGridContainerFrame::FindAutoCol(uint32_t aStartCol, uint32_t aLockedRow,
                                   const GridArea* aArea) const
@@ -457,6 +658,26 @@ nsGridContainerFrame::FindAutoCol(uint32_t aStartCol, uint32_t aLockedRow,
     }
   }
   return candidate + 1; // return a 1-based column number
+}
+
+nsGridContainerFrame::GridArea
+nsGridContainerFrame::PlaceAbsPos(nsIFrame* aChild,
+                                  const nsStylePosition* aStyle)
+{
+  const nsStylePosition* itemStyle = aChild->StylePosition();
+  return GridArea(
+    ResolveAbsPosLineRange(itemStyle->mGridColumnStart,
+                           itemStyle->mGridColumnEnd,
+                           aStyle->mGridTemplateColumns.mLineNameLists,
+                           &GridNamedArea::mColumnStart,
+                           &GridNamedArea::mColumnEnd,
+                           mExplicitGridColEnd, mGridColEnd, aStyle),
+    ResolveAbsPosLineRange(itemStyle->mGridRowStart,
+                           itemStyle->mGridRowEnd,
+                           aStyle->mGridTemplateRows.mLineNameLists,
+                           &GridNamedArea::mRowStart,
+                           &GridNamedArea::mRowEnd,
+                           mExplicitGridRowEnd, mGridRowEnd, aStyle));
 }
 
 void
@@ -572,15 +793,16 @@ nsGridContainerFrame::InitializeGridBounds(const nsStylePosition* aStyle)
 }
 
 void
-nsGridContainerFrame::PlaceGridItems(const nsStylePosition* aStyle)
+nsGridContainerFrame::PlaceGridItems(GridItemCSSOrderIterator& aIter,
+                                     const nsStylePosition*    aStyle)
 {
   mCellMap.ClearOccupied();
   InitializeGridBounds(aStyle);
 
   // http://dev.w3.org/csswg/css-grid/#line-placement
   // Resolve definite positions per spec chap 9.2.
-  for (nsFrameList::Enumerator e(PrincipalChildList()); !e.AtEnd(); e.Next()) {
-    nsIFrame* child = e.get();
+  for (; !aIter.AtEnd(); aIter.Next()) {
+    nsIFrame* child = *aIter;
     const GridArea& area = PlaceDefinite(child, aStyle);
     GridArea* prop = GetGridAreaForChild(child);
     if (prop) {
@@ -608,8 +830,9 @@ nsGridContainerFrame::PlaceGridItems(const nsStylePosition* aStyle)
     }
     auto placeAutoMinorFunc = isRowOrder ? &nsGridContainerFrame::PlaceAutoCol
                                          : &nsGridContainerFrame::PlaceAutoRow;
-    for (nsFrameList::Enumerator e(PrincipalChildList()); !e.AtEnd(); e.Next()) {
-      nsIFrame* child = e.get();
+    aIter.Reset();
+    for (; !aIter.AtEnd(); aIter.Next()) {
+      nsIFrame* child = *aIter;
       GridArea* area = GetGridAreaForChild(child);
       LineRange& major = isRowOrder ? area->mRows : area->mCols;
       LineRange& minor = isRowOrder ? area->mCols : area->mRows;
@@ -642,8 +865,9 @@ nsGridContainerFrame::PlaceGridItems(const nsStylePosition* aStyle)
   uint32_t cursorMinor = 1;
   auto placeAutoMajorFunc = isRowOrder ? &nsGridContainerFrame::PlaceAutoRow
                                        : &nsGridContainerFrame::PlaceAutoCol;
-  for (nsFrameList::Enumerator e(PrincipalChildList()); !e.AtEnd(); e.Next()) {
-    nsIFrame* child = e.get();
+  aIter.Reset();
+  for (; !aIter.AtEnd(); aIter.Next()) {
+    nsIFrame* child = *aIter;
     GridArea* area = GetGridAreaForChild(child);
     LineRange& major = isRowOrder ? area->mRows : area->mCols;
     LineRange& minor = isRowOrder ? area->mCols : area->mRows;
@@ -685,6 +909,269 @@ nsGridContainerFrame::PlaceGridItems(const nsStylePosition* aStyle)
       InflateGridFor(*area);
     }
   }
+
+  if (IsAbsoluteContainer()) {
+    // 9.4 Absolutely-positioned Grid Items
+    // http://dev.w3.org/csswg/css-grid/#abspos-items
+    // We only resolve definite lines here; we'll align auto positions to the
+    // grid container later during reflow.
+    nsFrameList children(GetChildList(GetAbsoluteListID()));
+    for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
+      nsIFrame* child = e.get();
+      GridArea area(PlaceAbsPos(child, aStyle));
+      GridArea* prop = GetGridAreaForChild(child);
+      if (prop) {
+        *prop = area;
+      } else {
+        child->Properties().Set(GridAreaProperty(), new GridArea(area));
+      }
+    }
+  }
+}
+
+static void
+InitializeTrackSize(nscoord aPercentageBasis,
+                    const nsStyleCoord& aMinCoord,
+                    const nsStyleCoord& aMaxCoord,
+                    TrackSize* aTrackSize)
+{
+  // http://dev.w3.org/csswg/css-grid/#algo-init
+  nscoord& base = aTrackSize->mBase;
+  switch (aMaxCoord.GetUnit()) {
+    case eStyleUnit_Enumerated:
+    case eStyleUnit_FlexFraction:
+      base = 0;
+      break;
+    default:
+      base = nsRuleNode::ComputeCoordPercentCalc(aMinCoord, aPercentageBasis);
+  }
+  nscoord& limit = aTrackSize->mLimit;
+  switch (aMaxCoord.GetUnit()) {
+    case eStyleUnit_Enumerated:
+      limit = NS_UNCONSTRAINEDSIZE;
+      break;
+    case eStyleUnit_FlexFraction:
+      limit = base;
+      break;
+    default:
+      limit = nsRuleNode::ComputeCoordPercentCalc(aMaxCoord, aPercentageBasis);
+      if (limit < base) {
+        limit = base;
+      }
+  }
+}
+
+static void
+InitializeTrackSizes(nscoord aPercentageBasis,
+                     const nsTArray<nsStyleCoord>& aMinSizingFunctions,
+                     const nsTArray<nsStyleCoord>& aMaxSizingFunctions,
+                     const nsStyleCoord& aAutoMinFunction,
+                     const nsStyleCoord& aAutoMaxFunction,
+                     nsTArray<TrackSize>& aResults)
+{
+  MOZ_ASSERT(aResults.Length() >= aMinSizingFunctions.Length());
+  MOZ_ASSERT(aMinSizingFunctions.Length() == aMaxSizingFunctions.Length());
+  const size_t len = aMinSizingFunctions.Length();
+  size_t i = 0;
+  for (; i < len; ++i) {
+    InitializeTrackSize(aPercentageBasis,
+                        aMinSizingFunctions[i], aMinSizingFunctions[i],
+                        &aResults[i]);
+  }
+  for (; i < aResults.Length(); ++i) {
+    InitializeTrackSize(aPercentageBasis,
+                        aAutoMinFunction, aAutoMaxFunction,
+                        &aResults[i]);
+  }
+}
+
+void
+nsGridContainerFrame::CalculateTrackSizes(const LogicalSize& aPercentageBasis,
+                                          const nsStylePosition* aStyle,
+                                          nsTArray<TrackSize>& aColSizes,
+                                          nsTArray<TrackSize>& aRowSizes)
+{
+  aColSizes.SetLength(mGridColEnd - 1);
+  aRowSizes.SetLength(mGridRowEnd - 1);
+  WritingMode wm = GetWritingMode();
+  InitializeTrackSizes(aPercentageBasis.ISize(wm),
+                       aStyle->mGridTemplateColumns.mMinTrackSizingFunctions,
+                       aStyle->mGridTemplateColumns.mMaxTrackSizingFunctions,
+                       aStyle->mGridAutoColumnsMin,
+                       aStyle->mGridAutoColumnsMax,
+                       aColSizes);
+  InitializeTrackSizes(aPercentageBasis.BSize(wm),
+                       aStyle->mGridTemplateRows.mMinTrackSizingFunctions,
+                       aStyle->mGridTemplateRows.mMaxTrackSizingFunctions,
+                       aStyle->mGridAutoRowsMin,
+                       aStyle->mGridAutoRowsMax,
+                       aRowSizes);
+}
+
+void
+nsGridContainerFrame::LineRange::ToPositionAndLength(
+  const nsTArray<TrackSize>& aTrackSizes, nscoord* aPos, nscoord* aLength) const
+{
+  //MOZ_ASSERT(mStart != 0 && Extent() > 0, "expected a definite LineRange");
+  // XXX relaxed it a bit for abs.pos. items for now:
+  MOZ_ASSERT(mStart != 0 && mEnd != 0, "expected a definite LineRange");
+  nscoord pos = 0;
+  const uint32_t start = mStart - 1;
+  uint32_t i = 0;
+  for (; i < start; ++i) {
+    pos += aTrackSizes[i].mBase;
+  }
+  *aPos = pos;
+
+  nscoord length = 0;
+  const uint32_t end = mEnd - 1;
+  MOZ_ASSERT(end <= aTrackSizes.Length(), "aTrackSizes isn't large enough");
+  for (; i < end; ++i) {
+    length += aTrackSizes[i].mBase;
+  }
+  *aLength = length;
+}
+
+void
+nsGridContainerFrame::LineRange::ToPositionAndLengthForAbsPos(
+  const nsTArray<TrackSize>& aTrackSizes, nscoord aGridOrigin,
+  nscoord* aPos, nscoord* aLength) const
+{
+  // A "0" line represents "auto", which for abspos children, contributes
+  // the corresponding edge of the grid's padding-box.
+  if (mEnd == 0) {
+    if (mStart == 0) {
+      // done
+    } else {
+      const nscoord endPos = *aPos + *aLength;
+      nscoord startPos = ::GridLinePosition(mStart, aTrackSizes);
+      *aPos = aGridOrigin + startPos;
+      *aLength = std::max(endPos - *aPos, 0);
+    }
+  } else {
+    if (mStart == 0) {
+      nscoord endPos = ::GridLinePosition(mEnd, aTrackSizes);
+      *aLength = std::max(aGridOrigin + endPos, 0);
+    } else {
+      nscoord pos;
+      ToPositionAndLength(aTrackSizes, &pos, aLength);
+      *aPos = aGridOrigin + pos;
+    }
+  }
+}
+
+LogicalRect
+nsGridContainerFrame::ContainingBlockFor(
+  const WritingMode& aWM,
+  const GridArea& aArea,
+  const nsTArray<TrackSize>& aColSizes,
+  const nsTArray<TrackSize>& aRowSizes) const
+{
+  nscoord i, b, iSize, bSize;
+  aArea.mCols.ToPositionAndLength(aColSizes, &i, &iSize);
+  aArea.mRows.ToPositionAndLength(aRowSizes, &b, &bSize);
+  return LogicalRect(aWM, i, b, iSize, bSize);
+}
+
+LogicalRect
+nsGridContainerFrame::ContainingBlockForAbsPos(
+  const WritingMode& aWM,
+  const GridArea& aArea,
+  const nsTArray<TrackSize>& aColSizes,
+  const nsTArray<TrackSize>& aRowSizes,
+  const LogicalPoint& aGridOrigin,
+  const LogicalRect& aGridCB) const
+{
+  nscoord i = aGridCB.IStart(aWM);
+  nscoord b = aGridCB.BStart(aWM);
+  nscoord iSize = aGridCB.ISize(aWM);
+  nscoord bSize = aGridCB.BSize(aWM);
+  aArea.mCols.ToPositionAndLengthForAbsPos(aColSizes, aGridOrigin.I(aWM),
+                                           &i, &iSize);
+  aArea.mRows.ToPositionAndLengthForAbsPos(aRowSizes, aGridOrigin.B(aWM),
+                                           &b, &bSize);
+  return LogicalRect(aWM, i, b, iSize, bSize);
+}
+
+void
+nsGridContainerFrame::ReflowChildren(GridItemCSSOrderIterator&  aIter,
+                                     const LogicalRect&         aContentArea,
+                                     const nsTArray<TrackSize>& aColSizes,
+                                     const nsTArray<TrackSize>& aRowSizes,
+                                     nsHTMLReflowMetrics&       aDesiredSize,
+                                     const nsHTMLReflowState&   aReflowState,
+                                     nsReflowStatus&            aStatus)
+{
+  WritingMode wm = aReflowState.GetWritingMode();
+  const LogicalPoint gridOrigin(aContentArea.Origin(wm));
+  const nscoord gridWidth = aContentArea.Width(wm);
+  nsPresContext* pc = PresContext();
+  for (; !aIter.AtEnd(); aIter.Next()) {
+    nsIFrame* child = *aIter;
+    GridArea* area = GetGridAreaForChild(child);
+    MOZ_ASSERT(area && area->IsDefinite());
+    LogicalRect cb = ContainingBlockFor(wm, *area, aColSizes, aRowSizes);
+    cb += gridOrigin;
+    nsHTMLReflowState childRS(pc, aReflowState, child, cb.Size(wm));
+    const LogicalMargin margin = childRS.ComputedLogicalMargin();
+    if (childRS.ComputedBSize() == NS_AUTOHEIGHT) {
+      // XXX the start of an align-self:stretch impl.  Needs min-/max-bsize
+      // clamping though, and check the prop value is actually 'stretch'!
+      LogicalMargin bp = childRS.ComputedLogicalBorderPadding();
+      bp.ApplySkipSides(child->GetLogicalSkipSides());
+      nscoord bSize = cb.BSize(wm) - bp.BStartEnd(wm) - margin.BStartEnd(wm);
+      childRS.SetComputedBSize(std::max(bSize, 0));
+    }
+    LogicalPoint childPos = cb.Origin(wm);
+    childPos.I(wm) += margin.IStart(wm);
+    childPos.B(wm) += margin.BStart(wm);
+    nsHTMLReflowMetrics childSize(childRS);
+    nsReflowStatus childStatus;
+    ReflowChild(child, pc, childSize, childRS, wm, childPos,
+                gridWidth, 0, childStatus);
+    FinishReflowChild(child, pc, childSize, &childRS, wm, childPos,
+                      gridWidth, 0);
+    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, child);
+    // XXX deal with 'childStatus' not being COMPLETE
+  }
+
+  if (IsAbsoluteContainer()) {
+    nsFrameList children(GetChildList(GetAbsoluteListID()));
+    if (!children.IsEmpty()) {
+      LogicalMargin pad(aReflowState.ComputedLogicalPadding());
+      pad.ApplySkipSides(GetLogicalSkipSides(&aReflowState));
+      // 'gridOrigin' is the origin of the grid (the start of the first track),
+      // with respect to the grid container's padding-box (CB).
+      const LogicalPoint gridOrigin(wm, pad.IStart(wm), pad.BStart(wm));
+      const LogicalRect gridCB(wm, 0, 0,
+                               aContentArea.ISize(wm) + pad.IStartEnd(wm),
+                               aContentArea.BSize(wm) + pad.BStartEnd(wm));
+      for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
+        nsIFrame* child = e.get();
+        GridArea* area = GetGridAreaForChild(child);
+        MOZ_ASSERT(area);
+        LogicalRect itemCB(ContainingBlockForAbsPos(wm, *area,
+                                                    aColSizes, aRowSizes,
+                                                    gridOrigin, gridCB));
+        // nsAbsoluteContainingBlock::Reflow uses physical coordinates.
+        nsRect* cb = static_cast<nsRect*>(child->Properties().Get(
+                       GridItemContainingBlockRect()));
+        if (!cb) {
+          cb = new nsRect;
+          child->Properties().Set(GridItemContainingBlockRect(), cb);
+        }
+        *cb = itemCB.GetPhysicalRect(wm, gridWidth);
+      }
+      // This rect isn't used at all for layout so we use it to optimize
+      // away the virtual GetType() call in the callee in most cases.
+      // @see nsAbsoluteContainingBlock::Reflow
+      nsRect dummyRect(0, 0, VERY_LIKELY_A_GRID_CONTAINER, 0);
+      GetAbsoluteContainingBlock()->Reflow(this, pc, aReflowState, aStatus,
+                                           dummyRect, true,
+                                           true, true, // XXX could be optimized
+                                           &aDesiredSize.mOverflowAreas);
+    }
+  }
 }
 
 void
@@ -707,21 +1194,42 @@ nsGridContainerFrame::Reflow(nsPresContext*           aPresContext,
 
   LogicalMargin bp = aReflowState.ComputedLogicalBorderPadding();
   bp.ApplySkipSides(GetLogicalSkipSides());
-  nscoord contentBSize = GetEffectiveComputedBSize(aReflowState);
-  if (contentBSize == NS_AUTOHEIGHT) {
-    contentBSize = 0;
-  }
-  WritingMode wm = aReflowState.GetWritingMode();
-  LogicalSize finalSize(wm,
-                        aReflowState.ComputedISize() + bp.IStartEnd(wm),
-                        contentBSize + bp.BStartEnd(wm));
-  aDesiredSize.SetSize(wm, finalSize);
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
-
   const nsStylePosition* stylePos = aReflowState.mStylePosition;
   InitImplicitNamedAreas(stylePos);
-  PlaceGridItems(stylePos);
+  GridItemCSSOrderIterator normalFlowIter(this, kPrincipalList);
+  mIsNormalFlowInCSSOrder = normalFlowIter.ItemsAreAlreadyInOrder();
+  PlaceGridItems(normalFlowIter, stylePos);
 
+  nsAutoTArray<TrackSize, 32> colSizes;
+  nsAutoTArray<TrackSize, 32> rowSizes;
+  WritingMode wm = aReflowState.GetWritingMode();
+  const nscoord computedBSize = aReflowState.ComputedBSize();
+  const nscoord computedISize = aReflowState.ComputedISize();
+  LogicalSize percentageBasis(wm, computedISize,
+      computedBSize == NS_AUTOHEIGHT ? 0 : computedBSize);
+  CalculateTrackSizes(percentageBasis, stylePos, colSizes, rowSizes);
+
+  nscoord bSize = 0;
+  if (computedBSize == NS_AUTOHEIGHT) {
+    for (uint32_t i = 0; i < mGridRowEnd - 1; ++i) {
+      bSize += rowSizes[i].mBase;
+    }
+  } else {
+    bSize = computedBSize;
+  }
+  bSize = std::max(bSize - GetConsumedBSize(), 0);
+  LogicalSize desiredSize(wm, computedISize + bp.IStartEnd(wm),
+                          bSize + bp.BStartEnd(wm));
+  aDesiredSize.SetSize(wm, desiredSize);
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
+
+  LogicalRect contentArea(wm, bp.IStart(wm), bp.BStart(wm),
+                          computedISize, bSize);
+  normalFlowIter.Reset();
+  ReflowChildren(normalFlowIter, contentArea, colSizes, rowSizes, aDesiredSize,
+                 aReflowState, aStatus);
+
+  FinishAndStoreOverflow(&aDesiredSize);
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
 }
@@ -730,6 +1238,38 @@ nsIAtom*
 nsGridContainerFrame::GetType() const
 {
   return nsGkAtoms::gridContainerFrame;
+}
+
+void
+nsGridContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                       const nsRect&           aDirtyRect,
+                                       const nsDisplayListSet& aLists)
+{
+  DisplayBorderBackgroundOutline(aBuilder, aLists);
+
+  // Our children are all grid-level boxes, which behave the same as
+  // inline-blocks in painting, so their borders/backgrounds all go on
+  // the BlockBorderBackgrounds list.
+  // Also, we capture positioned descendants so we can sort them by
+  // CSS 'order'.
+  nsDisplayList positionedDescendants;
+  nsDisplayListSet childLists(aLists.BlockBorderBackgrounds(),
+                              aLists.BlockBorderBackgrounds(),
+                              aLists.Floats(),
+                              aLists.Content(),
+                              &positionedDescendants,
+                              aLists.Outlines());
+  typedef GridItemCSSOrderIterator::OrderState OrderState;
+  OrderState order = mIsNormalFlowInCSSOrder ? OrderState::eKnownOrdered
+                                             : OrderState::eKnownUnordered;
+  GridItemCSSOrderIterator iter(this, kPrincipalList, order);
+  for (; !iter.AtEnd(); iter.Next()) {
+    nsIFrame* child = *iter;
+    BuildDisplayListForChild(aBuilder, child, aDirtyRect, childLists,
+                             ::GetDisplayFlagsForGridItem(child));
+  }
+  positionedDescendants.SortByCSSOrder(aBuilder);
+  aLists.PositionedDescendants()->AppendToTop(&positionedDescendants);
 }
 
 #ifdef DEBUG_FRAME_DUMP

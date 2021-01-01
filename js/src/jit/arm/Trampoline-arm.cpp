@@ -292,7 +292,7 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
         masm.push(framePtr); // BaselineFrame
         masm.push(r0); // jitcode
 
-        masm.setupUnalignedABICall(3, scratch);
+        masm.setupUnalignedABICall(scratch);
         masm.passABIArg(r11); // BaselineFrame
         masm.passABIArg(OsrFrameReg); // InterpreterFrame
         masm.passABIArg(numStackValues);
@@ -338,12 +338,17 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
         masm.loadPtr(Address(r11, offsetof(EnterJITStack, scopeChain)), R1.scratchReg());
     }
 
-    // The space for the return address is already reserved. Check that it is
-    // correctly aligned for a Jit frame.
-    masm.assertStackAlignment(JitStackAlignment);
+    // The Data transfer is pushing 4 words, which already account for the
+    // return address space of the Jit frame.  We have to undo what the data
+    // transfer did before making the call.
+    masm.addPtr(Imm32(sizeof(uintptr_t)), sp);
+
+    // The callee will push the return address on the stack, thus we check that
+    // the stack would be aligned once the call is complete.
+    masm.assertStackAlignment(JitStackAlignment, sizeof(uintptr_t));
 
     // Call the function.
-    masm.ma_callJitNoPush(r0);
+    masm.callJitNoProfiler(r0);
 
     if (type == EnterJitBaseline) {
         // Baseline OSR will return here.
@@ -423,7 +428,7 @@ JitRuntime::generateInvalidator(JSContext* cx)
     const int sizeOfBailoutInfo = sizeof(void*)*2;
     masm.reserveStack(sizeOfBailoutInfo);
     masm.mov(sp, r2);
-    masm.setupAlignedABICall(3);
+    masm.setupAlignedABICall();
     masm.passABIArg(r0);
     masm.passABIArg(r1);
     masm.passABIArg(r2);
@@ -646,7 +651,7 @@ GenerateBailoutThunk(JSContext* cx, MacroAssembler& masm, uint32_t frameClass)
     const int sizeOfBailoutInfo = sizeof(void*)*2;
     masm.reserveStack(sizeOfBailoutInfo);
     masm.mov(sp, r1);
-    masm.setupAlignedABICall(2);
+    masm.setupAlignedABICall();
 
     // Decrement sp by another 4, so we keep alignment. Not Anymore! Pushing
     // both the snapshotoffset as well as the: masm.as_sub(sp, sp, Imm8(4));
@@ -817,7 +822,7 @@ JitRuntime::generateVMWrapper(JSContext* cx, const VMFunction& f)
         break;
     }
 
-    masm.setupUnalignedABICall(f.argc(), regs.getAny());
+    masm.setupUnalignedABICall(regs.getAny());
     masm.passABIArg(cxreg);
 
     size_t argDisp = 0;
@@ -942,7 +947,7 @@ JitRuntime::generatePreBarrier(JSContext* cx, MIRType type)
     MOZ_ASSERT(PreBarrierReg == r1);
     masm.movePtr(ImmPtr(cx->runtime()), r0);
 
-    masm.setupUnalignedABICall(2, r2);
+    masm.setupUnalignedABICall(r2);
     masm.passABIArg(r0);
     masm.passABIArg(r1);
     masm.callWithABI(IonMarkFunction(type));
@@ -980,7 +985,7 @@ JitRuntime::generateDebugTrapHandler(JSContext* cx)
     // stub frame has a nullptr ICStub pointer, since this pointer is marked
     // during GC.
     masm.movePtr(ImmPtr(nullptr), ICStubReg);
-    EmitEnterStubFrame(masm, scratch2);
+    EmitBaselineEnterStubFrame(masm, scratch2);
 
     JitCode* code = cx->runtime()->jitRuntime()->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
@@ -988,9 +993,9 @@ JitRuntime::generateDebugTrapHandler(JSContext* cx)
 
     masm.push(lr);
     masm.push(scratch1);
-    EmitCallVM(code, masm);
+    EmitBaselineCallVM(code, masm);
 
-    EmitLeaveStubFrame(masm);
+    EmitBaselineLeaveStubFrame(masm);
 
     // If the stub returns |true|, we have to perform a forced return (return
     // from the JS frame). If the stub returns |false|, just return from the

@@ -11,6 +11,7 @@
 
 #include "jsscriptinlines.h"
 
+#include "jit/MacroAssembler-inl.h"
 #include "jit/shared/CodeGenerator-shared-inl.h"
 
 using namespace js;
@@ -71,10 +72,11 @@ CodeGeneratorX64::visitBox(LBox* box)
     const LDefinition* result = box->getDef(0);
 
     if (IsFloatingPointType(box->type())) {
+        ScratchDoubleScope scratch(masm);
         FloatRegister reg = ToFloatRegister(in);
         if (box->type() == MIRType_Float32) {
-            masm.convertFloat32ToDouble(reg, ScratchDoubleReg);
-            reg = ScratchDoubleReg;
+            masm.convertFloat32ToDouble(reg, scratch);
+            reg = scratch;
         }
         masm.vmovq(reg, ToRegister(result));
     } else {
@@ -147,13 +149,14 @@ CodeGeneratorX64::visitCompareB(LCompareB* lir)
     MOZ_ASSERT(mir->jsop() == JSOP_STRICTEQ || mir->jsop() == JSOP_STRICTNE);
 
     // Load boxed boolean in ScratchReg.
+    ScratchRegisterScope scratch(masm);
     if (rhs->isConstant())
-        masm.moveValue(*rhs->toConstant(), ScratchReg);
+        masm.moveValue(*rhs->toConstant(), scratch);
     else
-        masm.boxValue(JSVAL_TYPE_BOOLEAN, ToRegister(rhs), ScratchReg);
+        masm.boxValue(JSVAL_TYPE_BOOLEAN, ToRegister(rhs), scratch);
 
     // Perform the comparison.
-    masm.cmpPtr(lhs.valueReg(), ScratchReg);
+    masm.cmpPtr(lhs.valueReg(), scratch);
     masm.emitSet(JSOpToCondition(mir->compareType(), mir->jsop()), output);
 }
 
@@ -168,13 +171,14 @@ CodeGeneratorX64::visitCompareBAndBranch(LCompareBAndBranch* lir)
     MOZ_ASSERT(mir->jsop() == JSOP_STRICTEQ || mir->jsop() == JSOP_STRICTNE);
 
     // Load boxed boolean in ScratchReg.
+    ScratchRegisterScope scratch(masm);
     if (rhs->isConstant())
-        masm.moveValue(*rhs->toConstant(), ScratchReg);
+        masm.moveValue(*rhs->toConstant(), scratch);
     else
-        masm.boxValue(JSVAL_TYPE_BOOLEAN, ToRegister(rhs), ScratchReg);
+        masm.boxValue(JSVAL_TYPE_BOOLEAN, ToRegister(rhs), scratch);
 
     // Perform the comparison.
-    masm.cmpPtr(lhs.valueReg(), ScratchReg);
+    masm.cmpPtr(lhs.valueReg(), scratch);
     emitBranch(JSOpToCondition(mir->compareType(), mir->jsop()), lir->ifTrue(), lir->ifFalse());
 }
 
@@ -980,7 +984,7 @@ CodeGeneratorX64::visitOutOfLineRandom(OutOfLineRandom* ool)
 
     masm.loadJSContext(temp);
 
-    masm.setupUnalignedABICall(1, temp2);
+    masm.setupUnalignedABICall(temp2);
     masm.passABIArg(temp);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, math_random_no_outparam), MoveOp::DOUBLE);
 

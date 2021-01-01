@@ -320,18 +320,16 @@ class MacroAssembler : public MacroAssemblerSpecific
     mozilla::Maybe<AutoJitContextAlloc> alloc_;
 
   private:
-    // This field is used to manage profiling instrumentation output. If
-    // provided and enabled, then instrumentation will be emitted around call
-    // sites.
-    bool emitProfilingInstrumentation_;
-
     // Labels for handling exceptions and failures.
     NonAssertingLabel failureLabel_;
 
   public:
     MacroAssembler()
-      : emitProfilingInstrumentation_(false),
-        framePushed_(0)
+      : framePushed_(0),
+#ifdef DEBUG
+        inCall_(false),
+#endif
+        emitProfilingInstrumentation_(false)
     {
         JitContext* jcx = GetJitContext();
         JSContext* cx = jcx->cx;
@@ -362,8 +360,11 @@ class MacroAssembler : public MacroAssemblerSpecific
     // asm.js compilation handles its own JitContext-pushing
     struct AsmJSToken {};
     explicit MacroAssembler(AsmJSToken)
-      : emitProfilingInstrumentation_(false),
-        framePushed_(0)
+      : framePushed_(0),
+#ifdef DEBUG
+        inCall_(false),
+#endif
+        emitProfilingInstrumentation_(false)
     {
 #if defined(JS_CODEGEN_ARM)
         initWithAllocator();
@@ -372,10 +373,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         initWithAllocator();
         armbuffer_.id = 0;
 #endif
-    }
-
-    void enableProfilingInstrumentation() {
-        emitProfilingInstrumentation_ = true;
     }
 
     void resetForNewCodeGenerator(TempAllocator& alloc);
@@ -456,6 +453,17 @@ class MacroAssembler : public MacroAssemblerSpecific
     // Warning: This method does not update the framePushed() counter.
     void freeStack(Register amount);
 
+  private:
+    // ===============================================================
+    // Register allocation fields.
+#ifdef DEBUG
+    friend AutoRegisterScope;
+    friend AutoFloatRegisterScope;
+    // Used to track register scopes for debug builds.
+    // Manipulated by the AutoGenericRegisterScope class.
+    AllocatableRegisterSet debugTrackedRegisters_;
+#endif // DEBUG
+
   public:
     // ===============================================================
     // Simple call functions.
@@ -472,6 +480,101 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     inline void call(const CallSiteDesc& desc, const Register reg);
     inline void call(const CallSiteDesc& desc, Label* label);
+
+  public:
+    // ===============================================================
+    // ABI function calls.
+
+    // Setup a call to C/C++ code, given the assumption that the framePushed
+    // accruately define the state of the stack, and that the top of the stack
+    // was properly aligned. Note that this only supports cdecl.
+    void setupAlignedABICall(); // CRASH_ON(arm64)
+
+    // Setup an ABI call for when the alignment is not known. This may need a
+    // scratch register.
+    void setupUnalignedABICall(Register scratch) PER_ARCH;
+
+    // Arguments must be assigned to a C/C++ call in order. They are moved
+    // in parallel immediately before performing the call. This process may
+    // temporarily use more stack, in which case esp-relative addresses will be
+    // automatically adjusted. It is extremely important that esp-relative
+    // addresses are computed *after* setupABICall(). Furthermore, no
+    // operations should be emitted while setting arguments.
+    void passABIArg(const MoveOperand& from, MoveOp::Type type);
+    inline void passABIArg(Register reg);
+    inline void passABIArg(FloatRegister reg, MoveOp::Type type);
+
+    template <typename T>
+    inline void callWithABI(const T& fun, MoveOp::Type result = MoveOp::GENERAL);
+
+  private:
+    // Reinitialize the variables which have to be cleared before making a call
+    // with callWithABI.
+    void setupABICall();
+
+    // Reserve the stack and resolve the arguments move.
+    void callWithABIPre(uint32_t* stackAdjust, bool callFromAsmJS = false) PER_ARCH;
+
+    // Emits a call to a C/C++ function, resolving all argument moves.
+    void callWithABINoProfiler(void* fun, MoveOp::Type result);
+    void callWithABINoProfiler(AsmJSImmPtr imm, MoveOp::Type result);
+    void callWithABINoProfiler(Register fun, MoveOp::Type result) PER_ARCH;
+    void callWithABINoProfiler(const Address& fun, MoveOp::Type result) PER_ARCH;
+
+    // Restore the stack to its state before the setup function call.
+    void callWithABIPost(uint32_t stackAdjust, MoveOp::Type result) PER_ARCH;
+
+    // Create the signature to be able to decode the arguments of a native
+    // function, when calling a function within the simulator.
+    inline void appendSignatureType(MoveOp::Type type);
+    inline ABIFunctionType signature() const;
+
+    // Private variables used to handle moves between registers given as
+    // arguments to passABIArg and the list of ABI registers expected for the
+    // signature of the function.
+    MoveResolver moveResolver_;
+
+    // Architecture specific implementation which specify how registers & stack
+    // offsets are used for calling a function.
+    ABIArgGenerator abiArgs_;
+
+#ifdef DEBUG
+    // Flag use to assert that we use ABI function in the right context.
+    bool inCall_;
+#endif
+
+    // If set by setupUnalignedABICall then callWithABI will pop the stack
+    // register which is on the stack.
+    bool dynamicAlignment_;
+
+#ifdef JS_SIMULATOR
+    // The signature is used to accumulate all types of arguments which are used
+    // by the caller. This is used by the simulators to decode the arguments
+    // properly, and cast the function pointer to the right type.
+    uint32_t signature_;
+#endif
+
+  public:
+    // ===============================================================
+    // Jit Frames.
+    //
+    // These functions are used to build the content of the Jit frames.  See
+    // CommonFrameLayout class, and all its derivatives. The content should be
+    // pushed in the opposite order as the fields of the structures, such that
+    // the structures can be used to interpret the content of the stack.
+
+    // Call the Jit function, and push the return address (or let the callee
+    // push the return address).
+    //
+    // These functions return the offset of the return address, in order to use
+    // the return address to index the safepoints, which are used to list all
+    // live registers.
+    uint32_t callJitNoProfiler(Register callee) PER_SHARED_ARCH;
+    inline uint32_t callJit(Register callee);
+
+    // The frame descriptor is the second field of all Jit frames, pushed before
+    // calling the Jit function.  It is a composite value defined in JitFrames.h
+    inline void makeFrameDescriptor(Register frameSizeReg, FrameType type);
 
     //}}} check_macroassembler_style
   public:
@@ -1002,46 +1105,27 @@ class MacroAssembler : public MacroAssemblerSpecific
     // they are returning the offset of the assembler just after the call has
     // been made so that a safepoint can be made at that location.
 
-    template <typename T>
-    void callWithABI(const T& fun, MoveOp::Type result = MoveOp::GENERAL) {
-        profilerPreCall();
-        MacroAssemblerSpecific::callWithABI(fun, result);
-        profilerPostReturn();
-    }
-
-    // see above comment for what is returned
-    uint32_t callJit(Register callee) {
-        profilerPreCall();
-        MacroAssemblerSpecific::callJit(callee);
-        uint32_t ret = currentOffset();
-        profilerPostReturn();
-        return ret;
-    }
-
     // see above comment for what is returned
     uint32_t callWithExitFrame(Label* target) {
-        profilerPreCall();
+        AutoProfilerCallInstrumentation profiler(*this);
         MacroAssemblerSpecific::callWithExitFrame(target);
         uint32_t ret = currentOffset();
-        profilerPostReturn();
         return ret;
     }
 
     // see above comment for what is returned
     uint32_t callWithExitFrame(JitCode* target) {
-        profilerPreCall();
+        AutoProfilerCallInstrumentation profiler(*this);
         MacroAssemblerSpecific::callWithExitFrame(target);
         uint32_t ret = currentOffset();
-        profilerPostReturn();
         return ret;
     }
 
     // see above comment for what is returned
     uint32_t callWithExitFrame(JitCode* target, Register dynStack) {
-        profilerPreCall();
+        AutoProfilerCallInstrumentation profiler(*this);
         MacroAssemblerSpecific::callWithExitFrame(target, dynStack);
         uint32_t ret = currentOffset();
-        profilerPostReturn();
         return ret;
     }
 
@@ -1135,21 +1219,40 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 #endif // !JS_CODEGEN_ARM64
 
-  private:
-    // These two functions are helpers used around call sites throughout the
-    // assembler. They are called from the above call wrappers to emit the
-    // necessary instrumentation.
-    void profilerPreCall() {
-        if (!emitProfilingInstrumentation_)
-            return;
-        profilerPreCallImpl();
+  public:
+    void enableProfilingInstrumentation() {
+        emitProfilingInstrumentation_ = true;
     }
 
-    void profilerPostReturn() {
-        if (!emitProfilingInstrumentation_)
-            return;
-        profilerPostReturnImpl();
+  private:
+    // This class is used to surround call sites throughout the assembler. This
+    // is used by callWithABI, callJit, and callWithExitFrame functions, except
+    // if suffixed by NoProfiler.
+    class AutoProfilerCallInstrumentation {
+        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER;
+
+      public:
+        explicit AutoProfilerCallInstrumentation(MacroAssembler& masm
+                                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+        ~AutoProfilerCallInstrumentation() {}
+    };
+    friend class AutoProfilerCallInstrumentation;
+
+    void appendProfilerCallSite(CodeOffsetLabel label) {
+        propagateOOM(profilerCallSites_.append(label));
     }
+
+    // Fix up the code pointers to be written for locations where profilerCallSite
+    // emitted moves of RIP to a register.
+    void linkProfilerCallSites(JitCode* code);
+
+    // This field is used to manage profiling instrumentation output. If
+    // provided and enabled, then instrumentation will be emitted around call
+    // sites.
+    bool emitProfilingInstrumentation_;
+
+    // Record locations of the call sites.
+    Vector<CodeOffsetLabel, 0, SystemAllocPolicy> profilerCallSites_;
 
   public:
     void loadBaselineOrIonRaw(Register script, Register dest, Label* failure);
@@ -1462,10 +1565,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         bind(&ok);
 #endif
     }
-
-    void profilerPreCallImpl();
-    void profilerPreCallImpl(Register reg, Register reg2);
-    void profilerPostReturnImpl() {}
 };
 
 static inline Assembler::DoubleCondition

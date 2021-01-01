@@ -1485,7 +1485,7 @@ MacroAssembler::initGCThing(Register obj, Register temp, JSObject* templateObj,
     regs.takeUnchecked(obj);
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(2, temp);
+    setupUnalignedABICall(temp);
     passABIArg(obj);
     movePtr(ImmGCPtr(templateObj->type()), temp);
     passABIArg(temp);
@@ -1623,7 +1623,7 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
     // Fall-through: overrecursed.
     {
         loadJSContext(ReturnReg);
-        setupUnalignedABICall(1, scratch);
+        setupUnalignedABICall(scratch);
         passABIArg(ReturnReg);
         callWithABI(JS_FUNC_TO_DATA_PTR(void*, BailoutReportOverRecursed));
         jump(exceptionLabel());
@@ -1687,7 +1687,7 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
             push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, monitorStub)));
 
             // Call a stub to free allocated memory and create arguments objects.
-            setupUnalignedABICall(1, temp);
+            setupUnalignedABICall(temp);
             passABIArg(bailoutInfo);
             callWithABI(JS_FUNC_TO_DATA_PTR(void*, FinishBailoutToBaseline));
             branchTest32(Zero, ReturnReg, ReturnReg, exceptionLabel());
@@ -1725,7 +1725,7 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
             push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)));
 
             // Call a stub to free allocated memory and create arguments objects.
-            setupUnalignedABICall(1, temp);
+            setupUnalignedABICall(temp);
             passABIArg(bailoutInfo);
             callWithABI(JS_FUNC_TO_DATA_PTR(void*, FinishBailoutToBaseline));
             branchTest32(Zero, ReturnReg, ReturnReg, exceptionLabel());
@@ -1800,7 +1800,7 @@ MacroAssembler::assumeUnreachable(const char* output)
         PushRegsInMask(save);
         Register temp = regs.takeAnyGeneral();
 
-        setupUnalignedABICall(1, temp);
+        setupUnalignedABICall(temp);
         movePtr(ImmPtr(output), temp);
         passABIArg(temp);
         callWithABI(JS_FUNC_TO_DATA_PTR(void*, AssumeUnreachable_));
@@ -1843,7 +1843,7 @@ MacroAssembler::printf(const char *output)
 
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(1, temp);
+    setupUnalignedABICall(temp);
     movePtr(ImmPtr(output), temp);
     passABIArg(temp);
     callWithABI(JS_FUNC_TO_DATA_PTR(void*, Printf0_));
@@ -1869,7 +1869,7 @@ MacroAssembler::printf(const char *output, Register value)
 
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(2, temp);
+    setupUnalignedABICall(temp);
     movePtr(ImmPtr(output), temp);
     passABIArg(temp);
     passABIArg(value);
@@ -1892,7 +1892,7 @@ MacroAssembler::tracelogStartId(Register logger, uint32_t textId, bool force)
 
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(2, temp);
+    setupUnalignedABICall(temp);
     passABIArg(logger);
     move32(Imm32(textId), temp);
     passABIArg(temp);
@@ -1912,7 +1912,7 @@ MacroAssembler::tracelogStartId(Register logger, Register textId)
 
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(2, temp);
+    setupUnalignedABICall(temp);
     passABIArg(logger);
     passABIArg(textId);
     callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogStartEventPrivate));
@@ -1933,7 +1933,7 @@ MacroAssembler::tracelogStartEvent(Register logger, Register event)
 
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(2, temp);
+    setupUnalignedABICall(temp);
     passABIArg(logger);
     passABIArg(event);
     callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogFunc));
@@ -1954,7 +1954,7 @@ MacroAssembler::tracelogStopId(Register logger, uint32_t textId, bool force)
 
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(2, temp);
+    setupUnalignedABICall(temp);
     passABIArg(logger);
     move32(Imm32(textId), temp);
     passABIArg(temp);
@@ -1975,7 +1975,7 @@ MacroAssembler::tracelogStopId(Register logger, Register textId)
 
     Register temp = regs.takeAnyGeneral();
 
-    setupUnalignedABICall(2, temp);
+    setupUnalignedABICall(temp);
     passABIArg(logger);
     passABIArg(textId);
     callWithABI(JS_FUNC_TO_DATA_PTR(void*, TraceLogStopEventPrivate));
@@ -2374,14 +2374,7 @@ MacroAssembler::link(JitCode* code)
                                 ImmPtr((void*)-1));
     }
 
-    // Fix up the code pointers to be written for locations where profilerCallSite
-    // emitted moves of RIP to a register.
-    for (size_t i = 0; i < profilerCallSites_.length(); i++) {
-        CodeOffsetLabel offset = profilerCallSites_[i];
-        offset.fixup(this);
-        CodeLocationLabel location(code, offset);
-        PatchDataWithValueCheck(location, ImmPtr(location.raw()), ImmPtr((void*)-1));
-    }
+    linkProfilerCallSites(code);
 }
 
 void
@@ -2435,29 +2428,41 @@ MacroAssembler::branchEqualTypeIfNeeded(MIRType type, MDefinition* maybeDef, Reg
     }
 }
 
-void
-MacroAssembler::profilerPreCallImpl()
+MacroAssembler::AutoProfilerCallInstrumentation::AutoProfilerCallInstrumentation(
+    MacroAssembler& masm
+    MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 {
+    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    if (!masm.emitProfilingInstrumentation_)
+        return;
+
     Register reg = CallTempReg0;
     Register reg2 = CallTempReg1;
-    push(reg);
-    push(reg2);
-    profilerPreCallImpl(reg, reg2);
-    pop(reg2);
-    pop(reg);
-}
+    masm.push(reg);
+    masm.push(reg2);
 
-void
-MacroAssembler::profilerPreCallImpl(Register reg, Register reg2)
-{
     JitContext* icx = GetJitContext();
     AbsoluteAddress profilingActivation(icx->runtime->addressOfProfilingActivation());
 
-    CodeOffsetLabel label = movWithPatch(ImmWord(uintptr_t(-1)), reg);
-    loadPtr(profilingActivation, reg2);
-    storePtr(reg, Address(reg2, JitActivation::offsetOfLastProfilingCallSite()));
+    CodeOffsetLabel label = masm.movWithPatch(ImmWord(uintptr_t(-1)), reg);
+    masm.loadPtr(profilingActivation, reg2);
+    masm.storePtr(reg, Address(reg2, JitActivation::offsetOfLastProfilingCallSite()));
 
-    appendProfilerCallSite(label);
+    masm.appendProfilerCallSite(label);
+
+    masm.pop(reg2);
+    masm.pop(reg);
+}
+
+void
+MacroAssembler::linkProfilerCallSites(JitCode* code)
+{
+    for (size_t i = 0; i < profilerCallSites_.length(); i++) {
+        CodeOffsetLabel offset = profilerCallSites_[i];
+        offset.fixup(this);
+        CodeLocationLabel location(code, offset);
+        PatchDataWithValueCheck(location, ImmPtr(location.raw()), ImmPtr((void*)-1));
+    }
 }
 
 void
@@ -2545,8 +2550,11 @@ MacroAssembler::alignJitStackBasedOnNArgs(uint32_t nargs)
 
 MacroAssembler::MacroAssembler(JSContext* cx, IonScript* ion,
                                JSScript* script, jsbytecode* pc)
-  : emitProfilingInstrumentation_(false),
-    framePushed_(0)
+  : framePushed_(0),
+#ifdef DEBUG
+    inCall_(false),
+#endif
+    emitProfilingInstrumentation_(false)
 {
     constructRoot(cx);
     jitContext_.emplace(cx, (js::jit::TempAllocator*)nullptr);
@@ -2562,7 +2570,7 @@ MacroAssembler::MacroAssembler(JSContext* cx, IonScript* ion,
     if (ion) {
         setFramePushed(ion->frameSize());
         if (pc && cx->runtime()->spsProfiler.enabled())
-            emitProfilingInstrumentation_ = true;
+            enableProfilingInstrumentation();
     }
 }
 
@@ -2572,6 +2580,9 @@ MacroAssembler::resetForNewCodeGenerator(TempAllocator& alloc)
     setFramePushed(0);
     moveResolver_.clearTempObjectPool();
     moveResolver_.setAllocator(alloc);
+#ifdef DEBUG
+    debugTrackedRegisters_.clear();
+#endif
 }
 
 MacroAssembler::AfterICSaveLive
@@ -2763,4 +2774,138 @@ MacroAssembler::freeStack(Register amount)
     addToStackPtr(amount);
 }
 
+// ===============================================================
+// ABI function calls.
+
+void
+MacroAssembler::setupABICall()
+{
+#ifdef DEBUG
+    MOZ_ASSERT(!inCall_);
+    inCall_ = true;
+#endif
+
+#ifdef JS_SIMULATOR
+    signature_ = 0;
+#endif
+
+    // Reinitialize the ABIArg generator.
+    abiArgs_ = ABIArgGenerator();
+
+#if defined(JS_CODEGEN_ARM)
+    // On ARM, we need to know what ABI we are using, either in the
+    // simulator, or based on the configure flags.
+#if defined(JS_SIMULATOR_ARM)
+    abiArgs_.setUseHardFp(UseHardFpABI());
+#elif defined(JS_CODEGEN_ARM_HARDFP)
+    abiArgs_.setUseHardFp(true);
+#else
+    abiArgs_.setUseHardFp(false);
+#endif
+#endif
+
+#if defined(JS_CODEGEN_MIPS32)
+    // On MIPS, the system ABI use general registers pairs to encode double
+    // arguments, after one or 2 integer-like arguments. Unfortunately, the
+    // Lowering phase is not capable to express it at the moment. So we enforce
+    // the system ABI here.
+    abiArgs_.enforceO32ABI();
+#endif
+}
+
+void
+MacroAssembler::setupAlignedABICall()
+{
+    setupABICall();
+    dynamicAlignment_ = false;
+    assertStackAlignment(ABIStackAlignment);
+
+#if defined(JS_CODEGEN_ARM64)
+    MOZ_CRASH("Not supported on arm64");
+#endif
+}
+
+void
+MacroAssembler::passABIArg(const MoveOperand& from, MoveOp::Type type)
+{
+    MOZ_ASSERT(inCall_);
+    appendSignatureType(type);
+
+    ABIArg arg;
+    switch (type) {
+      case MoveOp::FLOAT32:
+        arg = abiArgs_.next(MIRType_Float32);
+        break;
+      case MoveOp::DOUBLE:
+        arg = abiArgs_.next(MIRType_Double);
+        break;
+      case MoveOp::GENERAL:
+        arg = abiArgs_.next(MIRType_Pointer);
+        break;
+      default:
+        MOZ_CRASH("Unexpected argument type");
+    }
+
+    MoveOperand to(*this, arg);
+    if (from == to)
+        return;
+
+    if (!enoughMemory_)
+        return;
+    enoughMemory_ = moveResolver_.addMove(from, to, type);
+}
+
+void
+MacroAssembler::callWithABINoProfiler(void* fun, MoveOp::Type result)
+{
+    appendSignatureType(result);
+#ifdef JS_SIMULATOR
+    fun = Simulator::RedirectNativeFunction(fun, signature());
+#endif
+
+    uint32_t stackAdjust;
+    callWithABIPre(&stackAdjust);
+    call(ImmPtr(fun));
+    callWithABIPost(stackAdjust, result);
+}
+
+void
+MacroAssembler::callWithABINoProfiler(AsmJSImmPtr imm, MoveOp::Type result)
+{
+    uint32_t stackAdjust;
+    callWithABIPre(&stackAdjust, /* callFromAsmJS = */ true);
+    call(imm);
+    callWithABIPost(stackAdjust, result);
+}
+
 //}}} check_macroassembler_style
+
+namespace js {
+namespace jit {
+
+#ifdef DEBUG
+template <class RegisterType>
+AutoGenericRegisterScope<RegisterType>::AutoGenericRegisterScope(MacroAssembler& masm, RegisterType reg)
+  : RegisterType(reg), masm_(masm)
+{
+    masm.debugTrackedRegisters_.add(reg);
+}
+
+template AutoGenericRegisterScope<Register>::AutoGenericRegisterScope(MacroAssembler& masm, Register reg);
+template AutoGenericRegisterScope<FloatRegister>::AutoGenericRegisterScope(MacroAssembler& masm, FloatRegister reg);
+#endif // DEBUG
+
+#ifdef DEBUG
+template <class RegisterType>
+AutoGenericRegisterScope<RegisterType>::~AutoGenericRegisterScope()
+{
+    const RegisterType& reg = *dynamic_cast<RegisterType*>(this);
+    masm_.debugTrackedRegisters_.take(reg);
+}
+
+template AutoGenericRegisterScope<Register>::~AutoGenericRegisterScope();
+template AutoGenericRegisterScope<FloatRegister>::~AutoGenericRegisterScope();
+#endif // DEBUG
+
+} // namespace jit
+} // namespace js

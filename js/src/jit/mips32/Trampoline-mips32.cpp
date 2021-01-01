@@ -247,7 +247,7 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
         masm.storePtr(framePtr, Address(StackPointer, sizeof(uintptr_t))); // BaselineFrame
         masm.storePtr(reg_code, Address(StackPointer, 0)); // jitcode
 
-        masm.setupUnalignedABICall(3, scratch);
+        masm.setupUnalignedABICall(scratch);
         masm.passABIArg(BaselineFrameReg); // BaselineFrame
         masm.passABIArg(OsrFrameReg); // InterpreterFrame
         masm.passABIArg(numStackValues);
@@ -303,7 +303,7 @@ JitRuntime::generateEnterJIT(JSContext* cx, EnterJitType type)
     masm.assertStackAlignment(JitStackAlignment, sizeof(uintptr_t));
 
     // Call the function with pushing return address to stack.
-    masm.ma_callJitHalfPush(reg_code);
+    masm.callJitNoProfiler(reg_code);
 
     if (type == EnterJitBaseline) {
         // Baseline OSR will return here.
@@ -374,7 +374,7 @@ JitRuntime::generateInvalidator(JSContext* cx)
     // Pass pointer to BailoutInfo
     masm.movePtr(StackPointer, a2);
 
-    masm.setupAlignedABICall(3);
+    masm.setupAlignedABICall();
     masm.passABIArg(a0);
     masm.passABIArg(a1);
     masm.passABIArg(a2);
@@ -610,7 +610,7 @@ GenerateBailoutThunk(JSContext* cx, MacroAssembler& masm, uint32_t frameClass)
     masm.storePtr(ImmPtr(nullptr), Address(StackPointer, 0));
     masm.movePtr(StackPointer, a1);
 
-    masm.setupAlignedABICall(2);
+    masm.setupAlignedABICall();
     masm.passABIArg(a0);
     masm.passABIArg(a1);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, Bailout));
@@ -766,7 +766,7 @@ JitRuntime::generateVMWrapper(JSContext* cx, const VMFunction& f)
     masm.reserveStack(outParamOffset);
     masm.movePtr(StackPointer, doubleArgs);
 
-    masm.setupAlignedABICall(f.argc());
+    masm.setupAlignedABICall();
     masm.passABIArg(cxreg);
 
     size_t argDisp = 0;
@@ -910,7 +910,7 @@ JitRuntime::generatePreBarrier(JSContext* cx, MIRType type)
     MOZ_ASSERT(PreBarrierReg == a1);
     masm.movePtr(ImmPtr(cx->runtime()), a0);
 
-    masm.setupUnalignedABICall(2, a2);
+    masm.setupUnalignedABICall(a2);
     masm.passABIArg(a0);
     masm.passABIArg(a1);
     masm.callWithABI(IonMarkFunction(type));
@@ -948,7 +948,7 @@ JitRuntime::generateDebugTrapHandler(JSContext* cx)
     // the stub frame has a nullptr ICStub pointer, since this pointer is
     // marked during GC.
     masm.movePtr(ImmPtr(nullptr), ICStubReg);
-    EmitEnterStubFrame(masm, scratch2);
+    EmitBaselineEnterStubFrame(masm, scratch2);
 
     JitCode* code = cx->runtime()->jitRuntime()->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
@@ -958,9 +958,9 @@ JitRuntime::generateDebugTrapHandler(JSContext* cx)
     masm.storePtr(ra, Address(StackPointer, sizeof(uintptr_t)));
     masm.storePtr(scratch1, Address(StackPointer, 0));
 
-    EmitCallVM(code, masm);
+    EmitBaselineCallVM(code, masm);
 
-    EmitLeaveStubFrame(masm);
+    EmitBaselineLeaveStubFrame(masm);
 
     // If the stub returns |true|, we have to perform a forced return
     // (return from the JS frame). If the stub returns |false|, just return

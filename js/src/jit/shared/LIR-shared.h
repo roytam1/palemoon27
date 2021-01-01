@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jit_LIR_Common_h
-#define jit_LIR_Common_h
+#ifndef jit_shared_LIR_shared_h
+#define jit_shared_LIR_shared_h
 
 #include "jsutil.h"
 
@@ -17,7 +17,26 @@
 namespace js {
 namespace jit {
 
-class Range;
+class LBox : public LInstructionHelper<BOX_PIECES, 1, 0>
+{
+    MIRType type_;
+
+  public:
+    LIR_HEADER(Box);
+
+    LBox(const LAllocation& payload, MIRType type)
+      : type_(type)
+    {
+        setOperand(0, payload);
+    }
+
+    MIRType type() const {
+        return type_;
+    }
+    const char* extraName() const {
+        return StringFromMIRType(type_);
+    }
+};
 
 template <size_t Temps, size_t ExtraUses = 0>
 class LBinaryMath : public LInstructionHelper<1, 2 + ExtraUses, Temps>
@@ -3667,6 +3686,26 @@ class LFloat32x4ToInt32x4 : public LInstructionHelper<1, 1, 1>
     }
 };
 
+// Double raised to a half power.
+class LPowHalfD : public LInstructionHelper<1, 1, 0>
+{
+  public:
+    LIR_HEADER(PowHalfD);
+    explicit LPowHalfD(const LAllocation& input) {
+        setOperand(0, input);
+    }
+
+    const LAllocation* input() {
+        return getOperand(0);
+    }
+    const LDefinition* output() {
+        return getDef(0);
+    }
+    MPowHalf* mir() const {
+        return mir_->toPowHalf();
+    }
+};
+
 // No-op instruction that is used to hold the entry snapshot. This simplifies
 // register allocation as it doesn't need to sniff the snapshot out of the
 // LIRGraph.
@@ -7057,4 +7096,4 @@ class LArrowNewTarget : public LInstructionHelper<BOX_PIECES, 1, 0>
 } // namespace jit
 } // namespace js
 
-#endif /* jit_LIR_Common_h */
+#endif /* jit_shared_LIR_shared_h */

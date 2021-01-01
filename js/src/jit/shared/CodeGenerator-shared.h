@@ -46,7 +46,7 @@ struct PatchableBackedgeInfo
 };
 
 struct ReciprocalMulConstants {
-    int32_t multiplier;
+    int64_t multiplier;
     int32_t shiftAmount;
 };
 
@@ -63,9 +63,9 @@ struct NativeToTrackedOptimizations
 
 class CodeGeneratorShared : public LElementVisitor
 {
-    js::Vector<OutOfLineCode *, 0, SystemAllocPolicy> outOfLineCode_;
+    js::Vector<OutOfLineCode*, 0, SystemAllocPolicy> outOfLineCode_;
 
-    MacroAssembler &ensureMasm(MacroAssembler *masm);
+    MacroAssembler &ensureMasm(MacroAssembler* masm);
     mozilla::Maybe<MacroAssembler> maybeMasm_;
 
   public:
@@ -105,6 +105,9 @@ class CodeGeneratorShared : public LElementVisitor
     js::Vector<CodeOffsetLabel, 0, SystemAllocPolicy> patchableTraceLoggers_;
     js::Vector<CodeOffsetLabel, 0, SystemAllocPolicy> patchableTLScripts_;
 #endif
+
+    // Label for the common return path.
+    NonAssertingLabel returnLabel_;
 
   public:
     struct NativeToBytecode {
@@ -446,14 +449,17 @@ class CodeGeneratorShared : public LElementVisitor
 
     void addCache(LInstruction* lir, size_t cacheIndex);
     bool addCacheLocations(const CacheLocationList& locs, size_t* numLocs, size_t* offset);
-    ReciprocalMulConstants computeDivisionConstants(int d);
+    ReciprocalMulConstants computeDivisionConstants(uint32_t d, int maxLog);
 
   protected:
-    void addOutOfLineCode(OutOfLineCode *code, const MInstruction *mir);
-    void addOutOfLineCode(OutOfLineCode *code, const BytecodeSite *site);
+    bool generatePrologue();
+    bool generateEpilogue();
+
+    void addOutOfLineCode(OutOfLineCode* code, const MInstruction* mir);
+    void addOutOfLineCode(OutOfLineCode* code, const BytecodeSite* site);
     bool generateOutOfLineCode();
 
-    Label *labelForBackedgeWithImplicitCheck(MBasicBlock *mir);
+    Label* labelForBackedgeWithImplicitCheck(MBasicBlock* mir);
 
     // Generate a jump to the start of the specified block, adding information
     // if this is a loop backedge. Use this in place of jumping directly to

@@ -3169,7 +3169,7 @@ Parse(JSContext* cx, unsigned argc, jsval* vp)
     if (!parser.checkOptions())
         return false;
 
-    ParseNode* pn = parser.parse(nullptr);
+    ParseNode* pn = parser.parse();
     if (!pn)
         return false;
 #ifdef DEBUG
@@ -3216,7 +3216,7 @@ SyntaxParse(JSContext* cx, unsigned argc, jsval* vp)
     if (!parser.checkOptions())
         return false;
 
-    bool succeeded = parser.parse(nullptr);
+    bool succeeded = parser.parse();
     if (cx->isExceptionPending())
         return false;
 

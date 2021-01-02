@@ -299,6 +299,19 @@ namespace js {
 
 class ExclusiveContext;
 
+/*
+ * This list enumerates the different types of conceptual stacks we have in
+ * SpiderMonkey. In reality, they all share the C stack, but we allow different
+ * stack limits depending on the type of code running.
+ */
+enum StackKind
+{
+    StackForSystemCode,      // C++, such as the GC, running on behalf of the VM.
+    StackForTrustedScript,   // Script running with trusted principals.
+    StackForUntrustedScript, // Script running with untrusted principals.
+    StackKindCount
+};
+
 enum ThingRootKind
 {
     THING_ROOT_OBJECT,
@@ -312,24 +325,11 @@ enum ThingRootKind
     THING_ROOT_LAZY_SCRIPT,
     THING_ROOT_ID,
     THING_ROOT_VALUE,
-    THING_ROOT_TYPE,
     THING_ROOT_BINDINGS,
     THING_ROOT_PROPERTY_DESCRIPTOR,
     THING_ROOT_PROP_DESC,
+    THING_ROOT_STATIC_TRACEABLE,
     THING_ROOT_LIMIT
-};
-
-/*
- * This list enumerates the different types of conceptual stacks we have in
- * SpiderMonkey. In reality, they all share the C stack, but we allow different
- * stack limits depending on the type of code running.
- */
-enum StackKind
-{
-    StackForSystemCode,      // C++, such as the GC, running on behalf of the VM.
-    StackForTrustedScript,   // Script running with trusted principals.
-    StackForUntrustedScript, // Script running with untrusted principals.
-    StackKindCount
 };
 
 template <typename T>

@@ -75,7 +75,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     SimdMap simdMap_;
 
   public:
-    using MacroAssemblerX86Shared::callWithExitFrame;
     using MacroAssemblerX86Shared::branch32;
     using MacroAssemblerX86Shared::branchTest32;
     using MacroAssemblerX86Shared::load32;
@@ -847,24 +846,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void lshiftPtr(Imm32 imm, Register dest) {
         shlq(imm, dest);
     }
-    void xorPtr(Imm32 imm, Register dest) {
-        xorq(imm, dest);
-    }
-    void xorPtr(Register src, Register dest) {
-        xorq(src, dest);
-    }
-    void orPtr(Imm32 imm, Register dest) {
-        orq(imm, dest);
-    }
-    void orPtr(Register src, Register dest) {
-        orq(src, dest);
-    }
-    void andPtr(Imm32 imm, Register dest) {
-        andq(imm, dest);
-    }
-    void andPtr(Register src, Register dest) {
-        andq(src, dest);
-    }
 
     void splitTag(Register src, Register dest) {
         if (src != dest)
@@ -1424,8 +1405,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
   public:
     void handleFailureWithHandlerTail(void* handler);
-
-    void callWithExitFrame(JitCode* target, Register dynStack);
 
     // See CodeGeneratorX64 calls to noteAsmJSGlobalAccess.
     void patchAsmJSGlobalAccess(CodeOffsetLabel patchAt, uint8_t* code, uint8_t* globalData,

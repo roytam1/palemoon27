@@ -106,10 +106,12 @@ MarkExactStackRootsAcrossTypes(T context, JSTracer* trc)
     MarkExactStackRootList<LazyScript*, TraceRoot>(trc, context, "exact-lazy-script");
     MarkExactStackRootList<jsid, TraceRoot>(trc, context, "exact-id");
     MarkExactStackRootList<Value, TraceRoot>(trc, context, "exact-value");
-    MarkExactStackRootList<TypeSet::Type, TypeSet::MarkTypeRoot>(trc, context, "TypeSet::Type");
     MarkExactStackRootList<Bindings, MarkBindingsRoot>(trc, context, "Bindings");
     MarkExactStackRootList<JSPropertyDescriptor, MarkPropertyDescriptorRoot>(
         trc, context, "JSPropertyDescriptor");
+    MarkExactStackRootList<JS::StaticTraceable,
+                           js::DispatchWrapper<JS::StaticTraceable>::TraceWrapped>(
+        trc, context, "StaticTraceable");
 }
 
 static void
@@ -394,12 +396,7 @@ js::gc::GCRuntime::markRuntime(JSTracer* trc,
 
     if (traceOrMark == MarkRuntime) {
         gcstats::AutoPhase ap(stats, gcstats::PHASE_MARK_CCWS);
-
-        for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
-            if (!c->zone()->isCollecting())
-                c->markCrossCompartmentWrappers(trc);
-        }
-        Debugger::markAllCrossCompartmentEdges(trc);
+        JSCompartment::traceIncomingCrossCompartmentEdgesForZoneGC(trc);
     }
 
     {
@@ -465,32 +462,8 @@ js::gc::GCRuntime::markRuntime(JSTracer* trc,
         }
     }
 
-    /* We can't use GCCompartmentsIter if we're called from TraceRuntime. */
-    for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
-        c->markRoots(trc);
-
-        if (rt->isHeapMinorCollecting())
-            c->globalWriteBarriered = false;
-
-        if (traceOrMark == MarkRuntime && !c->zone()->isCollecting())
-            continue;
-
-        /* During a GC, these are treated as weak pointers. */
-        if (traceOrMark == TraceRuntime) {
-            if (c->watchpointMap)
-                c->watchpointMap->markAll(trc);
-        }
-
-        /* Mark debug scopes, if present */
-        if (c->debugScopes)
-            c->debugScopes->mark(trc);
-
-        if (c->lazyArrayBuffers)
-            c->lazyArrayBuffers->trace(trc);
-
-        if (c->objectMetadataTable)
-            c->objectMetadataTable->trace(trc);
-    }
+    for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next())
+        c->traceRoots(trc, traceOrMark);
 
     MarkInterpreterActivations(rt, trc);
 

@@ -193,6 +193,18 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
     return true;
 }
 
+bool
+Bindings::initTrivial(ExclusiveContext* cx)
+{
+    Shape* shape = EmptyShape::getInitialShape(cx, &CallObject::class_, TaggedProto(nullptr),
+                                               CallObject::RESERVED_SLOTS,
+                                               BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE);
+    if (!shape)
+        return false;
+    callObjShape_.init(shape);
+    return true;
+}
+
 uint8_t*
 Bindings::switchToScriptStorage(Binding* newBindingArray)
 {
@@ -2613,6 +2625,9 @@ JSScript::partiallyInit(ExclusiveContext* cx, HandleScript script, uint32_t ncon
 /* static */ bool
 JSScript::fullyInitTrivial(ExclusiveContext* cx, Handle<JSScript*> script)
 {
+    if (!script->bindings.initTrivial(cx))
+        return false;
+
     if (!partiallyInit(cx, script, 0, 0, 0, 0, 0, 0, 0))
         return false;
 
@@ -3097,6 +3112,7 @@ js::detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScri
     uint32_t nregexps  = src->hasRegexps()  ? src->regexps()->length  : 0;
     uint32_t ntrynotes = src->hasTrynotes() ? src->trynotes()->length : 0;
     uint32_t nblockscopes = src->hasBlockScopes() ? src->blockScopes()->length : 0;
+    uint32_t nyieldoffsets = src->hasYieldOffsets() ? src->yieldOffsets().length() : 0;
 
     /* Script data */
 
@@ -3241,6 +3257,8 @@ js::detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScri
         dst->trynotes()->vector = Rebase<JSTryNote>(dst, src, src->trynotes()->vector);
     if (nblockscopes != 0)
         dst->blockScopes()->vector = Rebase<BlockScopeNote>(dst, src, src->blockScopes()->vector);
+    if (nyieldoffsets != 0)
+        dst->yieldOffsets().vector_ = Rebase<uint32_t>(dst, src, src->yieldOffsets().vector_);
 
     /*
      * Function delazification assumes that their script does not have a
@@ -4125,11 +4143,29 @@ void
 JSScript::AutoDelazify::holdScript(JS::HandleFunction fun)
 {
     if (fun) {
-        JSAutoCompartment ac(cx_, fun);
-        script_ = fun->getOrCreateScript(cx_);
-        if (script_) {
-            oldDoNotRelazify_ = script_->doNotRelazify_;
-            script_->setDoNotRelazify(true);
+        if (fun->compartment()->isSelfHosting) {
+            // The self-hosting compartment is shared across runtimes, so we
+            // can't use JSAutoCompartment: it could cause races. Functions in
+            // the self-hosting compartment will never be lazy, so we can safely
+            // assume we don't have to delazify.
+            script_ = fun->nonLazyScript();
+        } else {
+            JSAutoCompartment ac(cx_, fun);
+            script_ = fun->getOrCreateScript(cx_);
+            if (script_) {
+                oldDoNotRelazify_ = script_->doNotRelazify_;
+                script_->setDoNotRelazify(true);
+            }
         }
     }
+}
+
+void
+JSScript::AutoDelazify::dropScript()
+{
+    // Don't touch script_ if it's in the self-hosting compartment, see the
+    // comment in holdScript.
+    if (script_ && !script_->compartment()->isSelfHosting)
+        script_->setDoNotRelazify(oldDoNotRelazify_);
+    script_ = nullptr;
 }

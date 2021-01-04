@@ -55,6 +55,15 @@ namespace frontend {
     class UpvarCookie;
 } // namespace frontend
 
+namespace detail {
+
+// Do not call this directly! It is exposed for the friend declarations in
+// this file.
+bool
+CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScript src, HandleScript dst);
+
+} // namespace detail
+
 }
 
 /*
@@ -115,7 +124,7 @@ struct ConstArray {
 };
 
 struct ObjectArray {
-    js::HeapPtrObject *vector;  // Array of indexed objects.
+    js::HeapPtrObject* vector;  // Array of indexed objects.
     uint32_t        length;     // Count of indexed objects.
 };
 
@@ -130,6 +139,10 @@ struct BlockScopeArray {
 };
 
 class YieldOffsetArray {
+    friend bool
+    detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScript src,
+                       HandleScript dst);
+
     uint32_t*       vector_;   // Array of bytecode offsets.
     uint32_t        length_;    // Count of bytecode offsets.
 
@@ -201,7 +214,7 @@ class Bindings
     friend class BindingIter;
     friend class AliasedFormalIter;
 
-    HeapPtrShape callObjShape_;
+    RelocatablePtrShape callObjShape_;
     uintptr_t bindingArrayAndFlag_;
     uint16_t numArgs_;
     uint16_t numBlockScoped_;
@@ -253,6 +266,9 @@ class Bindings
                                          uint32_t numBodyLevelLexicals, uint32_t numBlockScoped,
                                          uint32_t numUnaliasedVars, uint32_t numUnaliasedBodyLevelLexicals,
                                          Binding* bindingArray);
+
+    // Initialize a trivial Bindings with no slots and an empty callObjShape.
+    bool initTrivial(ExclusiveContext* cx);
 
     // CompileScript parses and compiles one statement at a time, but the result
     // is one Script object.  There will be no vars or bindings, because those
@@ -765,16 +781,6 @@ XDRLazyScript(XDRState<mode>* xdr, HandleObject enclosingScope, HandleScript enc
 template<XDRMode mode>
 bool
 XDRScriptConst(XDRState<mode>* xdr, MutableHandleValue vp);
-
-
-namespace detail {
-
-// Do not call this directly! It is exposed for the friend declaration in
-// JSScript.
-bool
-CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScript src, HandleScript dst);
-
-} // namespace detail
 
 } /* namespace js */
 
@@ -1611,8 +1617,8 @@ class JSScript : public js::gc::TenuredCell
         return getAtom(GET_UINT32_INDEX(pc))->asPropertyName();
     }
 
-    JSObject *getObject(size_t index) {
-        js::ObjectArray *arr = objects();
+    JSObject* getObject(size_t index) {
+        js::ObjectArray* arr = objects();
         MOZ_ASSERT(index < arr->length);
         MOZ_ASSERT(arr->vector[index]->isTenured());
         return arr->vector[index];
@@ -1623,7 +1629,7 @@ class JSScript : public js::gc::TenuredCell
         return savedCallerFun() ? 1 : 0;
     }
 
-    JSObject *getObject(jsbytecode *pc) {
+    JSObject* getObject(jsbytecode* pc) {
         MOZ_ASSERT(containsPC(pc) && containsPC(pc + sizeof(uint32_t)));
         return getObject(GET_UINT32_INDEX(pc));
     }
@@ -1764,14 +1770,7 @@ class JSScript : public js::gc::TenuredCell
 
       private:
         void holdScript(JS::HandleFunction fun);
-
-        void dropScript()
-        {
-            if (script_) {
-                script_->setDoNotRelazify(oldDoNotRelazify_);
-                script_ = nullptr;
-            }
-        }
+        void dropScript();
     };
 };
 
@@ -1803,7 +1802,7 @@ class BindingIter
       : bindings_(script, &script->bindings), i_(0), unaliasedLocal_(0) {}
 
     bool done() const { return i_ == bindings_->count(); }
-    operator bool() const { return !done(); }
+    explicit operator bool() const { return !done(); }
     BindingIter& operator++() { (*this)++; return *this; }
 
     void operator++(int) {
@@ -1874,7 +1873,7 @@ class AliasedFormalIter
     explicit inline AliasedFormalIter(JSScript* script);
 
     bool done() const { return p_ == end_; }
-    operator bool() const { return !done(); }
+    explicit operator bool() const { return !done(); }
     void operator++(int) { MOZ_ASSERT(!done()); p_++; slot_++; settle(); }
 
     const Binding& operator*() const { MOZ_ASSERT(!done()); return *p_; }

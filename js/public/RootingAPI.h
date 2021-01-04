@@ -629,10 +629,22 @@ struct GCMethods<JSFunction*>
 
 namespace JS {
 
-// To use a static class or struct as part of a Rooted/Handle/MutableHandle,
-// ensure that it derives from StaticTraceable (i.e. so that automatic upcast
-// via calls works) and ensure that a method |static void trace(T*, JSTracer*)|
-// exists on the class.
+// If a class containing GC pointers has (or can gain) a vtable, then it can be
+// trivially used with Rooted/Handle/MutableHandle by deriving from
+// DynamicTraceable and overriding |void trace(JSTracer*)|.
+class DynamicTraceable
+{
+  public:
+    static js::ThingRootKind rootKind() { return js::THING_ROOT_DYNAMIC_TRACEABLE; }
+
+    virtual ~DynamicTraceable() {}
+    virtual void trace(JSTracer* trc) = 0;
+};
+
+// To use a static class or struct (e.g. not containing a vtable) as part of a
+// Rooted/Handle/MutableHandle, ensure that it derives from StaticTraceable
+// (i.e. so that automatic upcast via calls works) and ensure that a method
+// |static void trace(T*, JSTracer*)| exists on the class.
 class StaticTraceable
 {
   public:
@@ -688,11 +700,15 @@ namespace JS {
 template <typename T>
 class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
 {
+    static_assert(!mozilla::IsConvertible<T, StaticTraceable*>::value &&
+                  !mozilla::IsConvertible<T, DynamicTraceable*>::value,
+                  "Rooted takes pointer or Traceable types but not Traceable* type");
+
     /* Note: CX is a subclass of either ContextFriendFields or PerThreadDataFriendFields. */
     template <typename CX>
     void init(CX* cx) {
         js::ThingRootKind kind = js::RootKind<T>::rootKind();
-        this->stack = &cx->thingGCRooters[kind];
+        this->stack = &cx->roots.stackRoots_[kind];
         this->prev = *stack;
         *stack = reinterpret_cast<Rooted<void*>*>(this);
     }
@@ -706,7 +722,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(js::ContextFriendFields::get(cx));
     }
 
-    Rooted(JSContext* cx, T initial
+    Rooted(JSContext* cx, const T& initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
     {
@@ -722,7 +738,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(cx);
     }
 
-    Rooted(js::ContextFriendFields* cx, T initial
+    Rooted(js::ContextFriendFields* cx, const T& initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
     {
@@ -738,7 +754,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(pt);
     }
 
-    Rooted(js::PerThreadDataFriendFields* pt, T initial
+    Rooted(js::PerThreadDataFriendFields* pt, const T& initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
     {
@@ -754,7 +770,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(js::PerThreadDataFriendFields::getMainThread(rt));
     }
 
-    Rooted(JSRuntime* rt, T initial
+    Rooted(JSRuntime* rt, const T& initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
     {

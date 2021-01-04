@@ -2453,7 +2453,7 @@ MacroAssemblerMIPSCompat::boxNonDouble(JSValueType type, Register src,
 void
 MacroAssemblerMIPSCompat::boolValueToDouble(const ValueOperand& operand, FloatRegister dest)
 {
-    convertBoolToInt32(ScratchRegister, operand.payloadReg());
+    convertBoolToInt32(operand.payloadReg(), ScratchRegister);
     convertInt32ToDouble(ScratchRegister, dest);
 }
 
@@ -2469,7 +2469,7 @@ MacroAssemblerMIPSCompat::boolValueToFloat32(const ValueOperand& operand,
                                              FloatRegister dest)
 {
 
-    convertBoolToInt32(ScratchRegister, operand.payloadReg());
+    convertBoolToInt32(operand.payloadReg(), ScratchRegister);
     convertInt32ToFloat32(ScratchRegister, dest);
 }
 
@@ -3356,9 +3356,9 @@ MacroAssembler::callAndPushReturnAddress(Register callee)
 void
 MacroAssembler::callAndPushReturnAddress(Label* label)
 {
-    // Push return address during jalr delay slot.
+    // Push return address during bal delay slot.
     as_addiu(StackPointer, StackPointer, -sizeof(intptr_t));
-    as_jalr(label);
+    ma_bal(label, DontFillDelaySlot);
     as_sw(ra, StackPointer, 0);
 }
 

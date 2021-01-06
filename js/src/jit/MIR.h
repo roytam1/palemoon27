@@ -3409,6 +3409,9 @@ class MObjectState
         replaceOperand(slot + 1, def);
     }
 
+    bool hasFixedSlot(uint32_t slot) const {
+        return slot < numSlots() && slot < numFixedSlots();
+    }
     MDefinition* getFixedSlot(uint32_t slot) const {
         MOZ_ASSERT(slot < numFixedSlots());
         return getSlot(slot);
@@ -3418,6 +3421,9 @@ class MObjectState
         setSlot(slot, def);
     }
 
+    bool hasDynamicSlot(uint32_t slot) const {
+        return numFixedSlots() < numSlots() && slot < numSlots() - numFixedSlots();
+    }
     MDefinition* getDynamicSlot(uint32_t slot) const {
         return getSlot(slot + numFixedSlots());
     }
@@ -5559,26 +5565,33 @@ class MBinaryArithInstruction
     // analysis detect a precision loss in the multiplication.
     TruncateKind implicitTruncate_;
 
-    void inferFallback(BaselineInspector* inspector, jsbytecode* pc);
-
   public:
     MBinaryArithInstruction(MDefinition* left, MDefinition* right)
       : MBinaryInstruction(left, right),
         implicitTruncate_(NoTruncate)
     {
+        specialization_ = MIRType_None;
         setMovable();
     }
+
+    static MBinaryArithInstruction* New(TempAllocator& alloc, Opcode op,
+                                        MDefinition* left, MDefinition* right);
+
+    bool constantDoubleResult(TempAllocator& alloc);
 
     MDefinition* foldsTo(TempAllocator& alloc) override;
 
     virtual double getIdentity() = 0;
 
-    void infer(TempAllocator& alloc, BaselineInspector* inspector, jsbytecode* pc);
-
-    void setInt32() {
+    void setSpecialization(MIRType type) {
+        specialization_ = type;
+        setResultType(type);
+    }
+    void setInt32Specialization() {
         specialization_ = MIRType_Int32;
         setResultType(MIRType_Int32);
     }
+    void setNumberSpecialization(TempAllocator& alloc, BaselineInspector* inspector, jsbytecode* pc);
 
     virtual void trySpecializeFloat32(TempAllocator& alloc) override;
 

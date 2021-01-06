@@ -34,6 +34,8 @@
 #include "jsscriptinlines.h"
 
 #include "jit/JitFrames-inl.h"
+#include "jit/MacroAssembler-inl.h"
+#include "jit/shared/Lowering-shared-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/ScopeObject-inl.h"
 #include "vm/StringObject-inl.h"
@@ -1904,6 +1906,10 @@ DoBinaryArithFallback(JSContext* cx, BaselineFrame* frame, ICBinaryArith_Fallbac
         if (!ModValues(cx, &lhsCopy, &rhsCopy, ret))
             return false;
         break;
+      case JSOP_POW:
+        if (!math_pow_handle(cx, lhsCopy, rhsCopy, ret))
+            return false;
+        break;
       case JSOP_BITOR: {
         int32_t result;
         if (!BitOr(cx, lhs, rhs, &result))
@@ -2037,7 +2043,7 @@ DoBinaryArithFallback(JSContext* cx, BaselineFrame* frame, ICBinaryArith_Fallbac
         }
     }
 
-    if (lhs.isInt32() && rhs.isInt32()) {
+    if (lhs.isInt32() && rhs.isInt32() && op != JSOP_POW) {
         bool allowDouble = ret.isDouble();
         if (allowDouble)
             stub->unlinkStubsWithKind(cx, ICStub::BinaryArith_Int32);
@@ -10218,7 +10224,7 @@ ICCallStubCompiler::pushSpreadCallArguments(MacroAssembler& masm,
     masm.unboxObject(Address(masm.getStackPointer(),
                              (isConstructing * sizeof(Value)) + STUB_FRAME_SIZE), startReg);
     masm.loadPtr(Address(startReg, NativeObject::offsetOfElements()), startReg);
-    
+ 
     // Align the stack such that the JitFrameLayout is aligned on the
     // JitStackAlignment.
     if (isJitCall) {
@@ -10474,18 +10480,18 @@ ICCall_Fallback::Compiler::generateStubCode(MacroAssembler& masm)
         // Use BaselineFrameReg instead of BaselineStackReg, because
         // BaselineFrameReg and BaselineStackReg hold the same value just after
         // calling enterStubFrame.
-        
+ 
         // newTarget
         if (isConstructing_)
             masm.pushValue(Address(BaselineFrameReg, STUB_FRAME_SIZE));
-        
+ 
         // array
         uint32_t valueOffset = isConstructing_;
         masm.pushValue(Address(BaselineFrameReg, valueOffset++ * sizeof(Value) + STUB_FRAME_SIZE));
-        
+ 
         // this
         masm.pushValue(Address(BaselineFrameReg, valueOffset++ * sizeof(Value) + STUB_FRAME_SIZE));
-        
+
         // callee
         masm.pushValue(Address(BaselineFrameReg, valueOffset++ * sizeof(Value) + STUB_FRAME_SIZE));
 

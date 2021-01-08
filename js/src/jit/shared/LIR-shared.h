@@ -3921,6 +3921,31 @@ class LStringReplace: public LStrReplace
     }
 };
 
+class LBinarySharedStub : public LCallInstructionHelper<BOX_PIECES, 2 * BOX_PIECES, 0>
+{
+  public:
+    LIR_HEADER(BinarySharedStub)
+
+    const MBinarySharedStub* mir() const {
+        return mir_->toBinarySharedStub();
+    }
+
+    static const size_t LhsInput = 0;
+    static const size_t RhsInput = BOX_PIECES;
+};
+
+class LUnarySharedStub : public LCallInstructionHelper<BOX_PIECES, BOX_PIECES, 0>
+{
+  public:
+    LIR_HEADER(UnarySharedStub)
+
+    const MUnarySharedStub* mir() const {
+        return mir_->toUnarySharedStub();
+    }
+
+    static const size_t Input = 0;
+};
+
 class LLambdaForSingleton : public LCallInstructionHelper<1, 1, 0>
 {
   public:
@@ -5177,6 +5202,8 @@ class LAtomicTypedArrayElementBinop : public LInstructionHelper<1, 3, 2>
   public:
     LIR_HEADER(AtomicTypedArrayElementBinop)
 
+    static const int32_t valueOp = 2;
+
     LAtomicTypedArrayElementBinop(const LAllocation& elements, const LAllocation& index,
                                   const LAllocation& value, const LDefinition& temp1,
                                   const LDefinition& temp2)
@@ -5195,6 +5222,7 @@ class LAtomicTypedArrayElementBinop : public LInstructionHelper<1, 3, 2>
         return getOperand(1);
     }
     const LAllocation* value() {
+        MOZ_ASSERT(valueOp == 2);
         return getOperand(2);
     }
     const LDefinition* temp1() {
@@ -5215,8 +5243,8 @@ class LAtomicTypedArrayElementBinopForEffect : public LInstructionHelper<0, 3, 0
   public:
     LIR_HEADER(AtomicTypedArrayElementBinopForEffect)
 
-    LAtomicTypedArrayElementBinopForEffect(const LAllocation &elements, const LAllocation &index,
-                                           const LAllocation &value)
+    LAtomicTypedArrayElementBinopForEffect(const LAllocation& elements, const LAllocation& index,
+                                           const LAllocation& value)
     {
         setOperand(0, elements);
         setOperand(1, index);
@@ -6359,6 +6387,7 @@ class LPostWriteBarrierO : public LInstructionHelper<0, 2, 1>
         return getOperand(0);
     }
     const LAllocation* value() {
+        MOZ_ASSERT(valueOp == 1);
         return getOperand(1);
     }
     const LDefinition* temp() {
@@ -6672,6 +6701,9 @@ class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
 {
   public:
     LIR_HEADER(AsmJSAtomicBinopHeap);
+
+    static const int32_t valueOp = 1;
+
     LAsmJSAtomicBinopHeap(const LAllocation& ptr, const LAllocation& value,
                           const LDefinition& temp)
     {
@@ -6707,7 +6739,7 @@ class LAsmJSAtomicBinopHeapForEffect : public LInstructionHelper<0, 2, 1>
 {
   public:
     LIR_HEADER(AsmJSAtomicBinopHeapForEffect);
-    LAsmJSAtomicBinopHeapForEffect(const LAllocation &ptr, const LAllocation &value)
+    LAsmJSAtomicBinopHeapForEffect(const LAllocation& ptr, const LAllocation& value)
     {
         setOperand(0, ptr);
         setOperand(1, value);

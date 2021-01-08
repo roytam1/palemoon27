@@ -1009,13 +1009,10 @@ CodeGenerator::visitRegExp(LRegExp* lir)
     callVM(CloneRegExpObjectInfo, lir);
 }
 
-// The maximum number of pairs we can handle when executing RegExps inline.
-static const size_t RegExpMaxPairCount = 6;
-
 // Amount of space to reserve on the stack when executing RegExps inline.
 static const size_t RegExpReservedStack = sizeof(irregexp::InputOutputData)
                                         + sizeof(MatchPairs)
-                                        + RegExpMaxPairCount * sizeof(MatchPair);
+                                        + RegExpObject::MaxPairCount * sizeof(MatchPair);
 
 static size_t
 RegExpPairsVectorStartOffset(size_t inputOutputDataStartOffset)
@@ -1094,7 +1091,7 @@ PrepareAndExecuteRegExp(JSContext* cx, MacroAssembler& masm, Register regexp, Re
     if (mode == RegExpShared::Normal) {
         // Don't handle RegExps with excessive parens.
         masm.load32(Address(temp1, RegExpShared::offsetOfParenCount()), temp2);
-        masm.branch32(Assembler::AboveOrEqual, temp2, Imm32(RegExpMaxPairCount), failure);
+        masm.branch32(Assembler::AboveOrEqual, temp2, Imm32(RegExpObject::MaxPairCount), failure);
 
         // Fill in the paren count in the MatchPairs on the stack.
         masm.add32(Imm32(1), temp2);
@@ -1343,7 +1340,7 @@ JitCompartment::generateRegExpExecStub(JSContext* cx)
 
     // The template object should have enough space for the maximum number of
     // pairs this stub can handle.
-    MOZ_ASSERT(ObjectElements::VALUES_PER_HEADER + RegExpMaxPairCount ==
+    MOZ_ASSERT(ObjectElements::VALUES_PER_HEADER + RegExpObject::MaxPairCount ==
                gc::GetGCKindSlots(templateObject->asTenured().getAllocKind()));
 
     MacroAssembler masm(cx);
@@ -1683,6 +1680,83 @@ CodeGenerator::visitStringReplace(LStringReplace* lir)
         pushArg(ToRegister(lir->string()));
 
     callVM(StringReplaceInfo, lir);
+}
+
+void
+CodeGenerator::emitSharedStub(ICStub::Kind kind, LInstruction* lir)
+{
+    JSScript* script = lir->mirRaw()->block()->info().script();
+    jsbytecode* pc = lir->mirRaw()->toInstruction()->resumePoint()->pc();
+
+#ifdef JS_USE_LINK_REGISTER
+    // Some architectures don't push the return address on the stack but
+    // use the link register. In that case the stack isn't aligned. Push
+    // to make sure we are aligned.
+    masm.Push(Imm32(0));
+#endif
+
+    // Create descriptor signifying end of Ion frame.
+    uint32_t descriptor = MakeFrameDescriptor(masm.framePushed(), JitFrame_IonJS);
+    masm.Push(Imm32(descriptor));
+
+    // Call into the stubcode.
+    CodeOffsetLabel patchOffset;
+    IonICEntry entry(script->pcToOffset(pc), ICEntry::Kind_Op, script);
+    EmitCallIC(&patchOffset, masm);
+    entry.setReturnOffset(CodeOffsetLabel(masm.currentOffset()));
+
+    SharedStub sharedStub(kind, entry, patchOffset);
+    masm.propagateOOM(sharedStubs_.append(sharedStub));
+
+    // Fix up upon return.
+    uint32_t callOffset = masm.currentOffset();
+#ifdef JS_USE_LINK_REGISTER
+    masm.freeStack(sizeof(intptr_t) * 2);
+#else
+    masm.freeStack(sizeof(intptr_t));
+#endif
+    markSafepointAt(callOffset, lir);
+}
+
+void
+CodeGenerator::visitBinarySharedStub(LBinarySharedStub* lir)
+{
+    JSOp jsop = JSOp(*lir->mirRaw()->toInstruction()->resumePoint()->pc());
+    switch (jsop) {
+      case JSOP_ADD:
+      case JSOP_SUB:
+      case JSOP_MUL:
+      case JSOP_DIV:
+      case JSOP_MOD:
+        emitSharedStub(ICStub::Kind::BinaryArith_Fallback, lir);
+        break;
+      case JSOP_LT:
+      case JSOP_LE:
+      case JSOP_GT:
+      case JSOP_GE:
+      case JSOP_EQ:
+      case JSOP_NE:
+      case JSOP_STRICTEQ:
+      case JSOP_STRICTNE:
+        emitSharedStub(ICStub::Kind::Compare_Fallback, lir);
+        break;
+      default:
+        MOZ_CRASH("Unsupported jsop in shared stubs.");
+    }
+}
+
+void
+CodeGenerator::visitUnarySharedStub(LUnarySharedStub* lir)
+{
+    JSOp jsop = JSOp(*lir->mir()->resumePoint()->pc());
+    switch (jsop) {
+      case JSOP_BITNOT:
+      case JSOP_NEG:
+        emitSharedStub(ICStub::Kind::UnaryArith_Fallback, lir);
+        break;
+      default:
+        MOZ_CRASH("Unsupported jsop in shared stubs.");
+    }
 }
 
 typedef JSObject* (*LambdaFn)(JSContext*, HandleFunction, HandleObject);
@@ -2743,6 +2817,7 @@ CodeGenerator::visitPostWriteBarrierO(LPostWriteBarrierO* lir)
     Register temp = ToTempRegisterOrInvalid(lir->temp());
 
     if (lir->object()->isConstant()) {
+        // Constant nursery objects cannot appear here, see LIRGenerator::visitPostWriteBarrier.
         MOZ_ASSERT(!IsInsideNursery(&lir->object()->toConstant()->toObject()));
     } else {
         masm.branchPtrInNurseryRange(Assembler::Equal, ToRegister(lir->object()), temp,
@@ -2763,9 +2838,8 @@ CodeGenerator::visitPostWriteBarrierV(LPostWriteBarrierV* lir)
     Register temp = ToTempRegisterOrInvalid(lir->temp());
 
     if (lir->object()->isConstant()) {
-#ifdef DEBUG
+        // Constant nursery objects cannot appear here, see LIRGenerator::visitPostWriteBarrier.
         MOZ_ASSERT(!IsInsideNursery(&lir->object()->toConstant()->toObject()));
-#endif
     } else {
         masm.branchPtrInNurseryRange(Assembler::Equal, ToRegister(lir->object()), temp,
                                      ool->rejoin());
@@ -3128,14 +3202,20 @@ CodeGenerator::visitCallKnown(LCallKnown* call)
 
     // Native single targets are handled by LCallNative.
     MOZ_ASSERT(!target->isNative());
-    MOZ_ASSERT_IF(target->isClassConstructor(), call->isConstructing());
     // Missing arguments must have been explicitly appended by the IonBuilder.
     DebugOnly<unsigned> numNonArgsOnStack = 1 + call->isConstructing();
     MOZ_ASSERT(target->nargs() <= call->mir()->numStackArgs() - numNonArgsOnStack);
 
-    MOZ_ASSERT_IF(call->mir()->isConstructing(), target->isConstructor());
+    MOZ_ASSERT_IF(call->isConstructing(), target->isConstructor());
 
     masm.checkStackAlignment();
+
+    if (target->isClassConstructor() && !call->isConstructing()) {
+        emitCallInvokeFunction(call, calleereg, call->isConstructing(), call->numActualArgs(), unusedStack);
+        return;
+    }
+
+    MOZ_ASSERT_IF(target->isClassConstructor(), call->isConstructing());
 
     // The calleereg is known to be a non-native function, but might point to
     // a LazyScript instead of a JSScript.
@@ -5660,7 +5740,7 @@ CodeGenerator::visitIsNullOrLikeUndefinedAndBranchV(LIsNullOrLikeUndefinedAndBra
 }
 
 void
-CodeGenerator::visitIsNullOrLikeUndefinedT(LIsNullOrLikeUndefinedT* lir)
+CodeGenerator::visitIsNullOrLikeUndefinedT(LIsNullOrLikeUndefinedT * lir)
 {
     MOZ_ASSERT(lir->mir()->compareType() == MCompare::Compare_Undefined ||
                lir->mir()->compareType() == MCompare::Compare_Null);
@@ -7802,6 +7882,40 @@ struct AutoDiscardIonCode
 };
 
 bool
+CodeGenerator::linkSharedStubs(JSContext* cx)
+{
+    for (uint32_t i = 0; i < sharedStubs_.length(); i++) {
+        ICStub *stub = nullptr;
+
+        switch (sharedStubs_[i].kind) {
+          case ICStub::Kind::BinaryArith_Fallback: {
+            ICBinaryArith_Fallback::Compiler stubCompiler(cx, ICStubCompiler::Engine::IonMonkey);
+            stub = stubCompiler.getStub(&stubSpace_);
+            break;
+          }
+          case ICStub::Kind::UnaryArith_Fallback: {
+            ICUnaryArith_Fallback::Compiler stubCompiler(cx, ICStubCompiler::Engine::IonMonkey);
+            stub = stubCompiler.getStub(&stubSpace_);
+            break;
+          }
+          case ICStub::Kind::Compare_Fallback: {
+            ICCompare_Fallback::Compiler stubCompiler(cx, ICStubCompiler::Engine::IonMonkey);
+            stub = stubCompiler.getStub(&stubSpace_);
+            break;
+          }
+          default:
+            MOZ_CRASH("Unsupported shared stub.");
+        }
+
+        if (!stub)
+            return false;
+
+        sharedStubs_[i].entry.setFirstStub(stub);
+    }
+    return true;
+}
+
+bool
 CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
 {
     RootedScript script(cx, gen->info().script());
@@ -7824,6 +7938,9 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
     }
 
     if (scriptCounts_ && !script->hasScriptCounts() && !script->initScriptCounts(cx))
+        return false;
+
+    if (!linkSharedStubs(cx))
         return false;
 
     // Check to make sure we didn't have a mid-build invalidation. If so, we
@@ -7857,7 +7974,8 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
                      recovers_.size(), bailouts_.length(), graph.numConstants(),
                      safepointIndices_.length(), osiIndices_.length(),
                      cacheList_.length(), runtimeData_.length(),
-                     safepoints_.size(), patchableBackedges_.length(), optimizationLevel);
+                     safepoints_.size(), patchableBackedges_.length(),
+                     sharedStubs_.length(), optimizationLevel);
     if (!ionScript)
         return false;
     discardIonCode.ionScript = ionScript;
@@ -7951,6 +8069,9 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
 
     script->setIonScript(cx, ionScript);
 
+    // Adopt fallback shared stubs from the compiler into the ion script.
+    ionScript->adoptFallbackStubs(&stubSpace_);
+
     {
         AutoWritableJitCode awjc(code);
         invalidateEpilogueData_.fixup(&masm);
@@ -7987,6 +8108,23 @@ CodeGenerator::link(JSContext* cx, CompilerConstraintList* constraints)
             }
         }
 #endif
+        // Patch shared stub IC loads using IC entries
+        for (size_t i = 0; i < sharedStubs_.length(); i++) {
+            CodeOffsetLabel label = sharedStubs_[i].label;
+            label.fixup(&masm);
+
+            IonICEntry& entry = ionScript->sharedStubList()[i];
+            entry = sharedStubs_[i].entry;
+            entry.fixupReturnOffset(masm);
+            Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, label),
+                                               ImmPtr(&entry),
+                                               ImmPtr((void*)-1));
+
+            MOZ_ASSERT(entry.hasStub());
+            MOZ_ASSERT(entry.firstStub()->isFallback());
+
+            entry.firstStub()->toFallbackStub()->fixupICEntry(&entry);
+        }
     }
 
     JitSpew(JitSpew_Codegen, "Created IonScript %p (raw %p)",
@@ -8355,7 +8493,7 @@ CodeGenerator::visitGetPropertyIC(OutOfLineUpdateCache* ool, DataPtr<GetProperty
 }
 
 void
-CodeGenerator::addGetElementCache(LInstruction* ins, Register obj, ConstantOrRegister index,
+CodeGenerator::addGetElementCache(LInstruction* ins, Register obj, TypedOrValueRegister index,
                                   TypedOrValueRegister output, bool monitoredResult,
                                   bool allowDoubleResult, jsbytecode* profilerLeavePc)
 {
@@ -8369,7 +8507,7 @@ void
 CodeGenerator::visitGetElementCacheV(LGetElementCacheV* ins)
 {
     Register obj = ToRegister(ins->object());
-    ConstantOrRegister index = TypedOrValueRegister(ToValue(ins, LGetElementCacheV::Index));
+    TypedOrValueRegister index = TypedOrValueRegister(ToValue(ins, LGetElementCacheV::Index));
     TypedOrValueRegister output = TypedOrValueRegister(GetValueOutput(ins));
     const MGetElementCache* mir = ins->mir();
 
@@ -8381,7 +8519,7 @@ void
 CodeGenerator::visitGetElementCacheT(LGetElementCacheT* ins)
 {
     Register obj = ToRegister(ins->object());
-    ConstantOrRegister index = TypedOrValueRegister(MIRType_Int32, ToAnyRegister(ins->index()));
+    TypedOrValueRegister index = TypedOrValueRegister(MIRType_Int32, ToAnyRegister(ins->index()));
     TypedOrValueRegister output(ins->mir()->type(), ToAnyRegister(ins->output()));
     const MGetElementCache* mir = ins->mir();
 
@@ -9256,71 +9394,6 @@ CodeGenerator::visitAtomicExchangeTypedArrayElement(LAtomicExchangeTypedArrayEle
     } else {
         BaseIndex dest(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
         masm.atomicExchangeToTypedIntArray(arrayType, dest, value, temp, output);
-    }
-}
-
-template <typename T>
-static inline void
-AtomicBinopToTypedArray(MacroAssembler& masm, AtomicOp op,
-                        Scalar::Type arrayType, const LAllocation* value, const T& mem,
-                        Register temp1, Register temp2, AnyRegister output)
-{
-    if (value->isConstant())
-        masm.atomicBinopToTypedIntArray(op, arrayType, Imm32(ToInt32(value)), mem, temp1, temp2, output);
-    else
-        masm.atomicBinopToTypedIntArray(op, arrayType, ToRegister(value), mem, temp1, temp2, output);
-}
-
-void
-CodeGenerator::visitAtomicTypedArrayElementBinop(LAtomicTypedArrayElementBinop* lir)
-{
-    MOZ_ASSERT(lir->mir()->hasUses());
-
-    AnyRegister output = ToAnyRegister(lir->output());
-    Register elements = ToRegister(lir->elements());
-    Register temp1 = lir->temp1()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp1());
-    Register temp2 = lir->temp2()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp2());
-    const LAllocation* value = lir->value();
-
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
-
-    if (lir->index()->isConstant()) {
-        Address mem(elements, ToInt32(lir->index()) * width);
-        AtomicBinopToTypedArray(masm, lir->mir()->operation(), arrayType, value, mem, temp1, temp2, output);
-    } else {
-        BaseIndex mem(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
-        AtomicBinopToTypedArray(masm, lir->mir()->operation(), arrayType, value, mem, temp1, temp2, output);
-    }
-}
-
-template <typename T>
-static inline void
-AtomicBinopToTypedArray(MacroAssembler &masm, AtomicOp op,
-                        Scalar::Type arrayType, const LAllocation* value, const T &mem)
-{
-    if (value->isConstant())
-        masm.atomicBinopToTypedIntArray(op, arrayType, Imm32(ToInt32(value)), mem);
-    else
-        masm.atomicBinopToTypedIntArray(op, arrayType, ToRegister(value), mem);
-}
-
-void
-CodeGenerator::visitAtomicTypedArrayElementBinopForEffect(LAtomicTypedArrayElementBinopForEffect* lir)
-{
-    MOZ_ASSERT(!lir->mir()->hasUses());
-
-    Register elements = ToRegister(lir->elements());
-    const LAllocation* value = lir->value();
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
-
-    if (lir->index()->isConstant()) {
-        Address mem(elements, ToInt32(lir->index())*  width);
-        AtomicBinopToTypedArray(masm, lir->mir()->operation(), arrayType, value, mem);
-    } else {
-        BaseIndex mem(elements, ToRegister(lir->index()), ScaleFromElemWidth(width));
-        AtomicBinopToTypedArray(masm, lir->mir()->operation(), arrayType, value, mem);
     }
 }
 

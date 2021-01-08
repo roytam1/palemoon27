@@ -2342,7 +2342,7 @@ Debugger::markCrossCompartmentEdges(JSTracer* trc)
  * pointers in zones that are not currently being compacted.
  */
 /* static */ void
-Debugger::markAllCrossCompartmentEdges(JSTracer *trc)
+Debugger::markIncomingCrossCompartmentEdges(JSTracer* trc)
 {
     JSRuntime *rt = trc->runtime();
     gc::State state = rt->gc.state();
@@ -2491,7 +2491,7 @@ Debugger::trace(JSTracer* trc)
      * frames.)
      */
     for (FrameMap::Range r = frames.all(); !r.empty(); r.popFront()) {
-        HeapPtrNativeObject& frameobj = r.front().value();
+        RelocatablePtrNativeObject& frameobj = r.front().value();
         MOZ_ASSERT(MaybeForwarded(frameobj.get())->getPrivate());
         TraceEdge(trc, &frameobj, "live Debugger.Frame");
     }

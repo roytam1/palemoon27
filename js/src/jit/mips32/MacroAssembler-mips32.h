@@ -315,10 +315,6 @@ class MacroAssemblerMIPS : public Assembler
                               FPConditionBit fcc = FCC0);
 
   public:
-    // calls an ion function, assuming that the stack is currently not 8 byte aligned
-    void ma_callJitHalfPush(const Register reg);
-    void ma_callJitHalfPush(Label* label);
-
     void ma_call(ImmPtr dest);
 
     void ma_jump(ImmPtr dest);
@@ -373,10 +369,6 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
     }
     void mov(Address src, Register dest) {
         MOZ_CRASH("NYI-IC");
-    }
-
-    void callAndPushReturnAddress(Label* label) {
-        ma_callJitHalfPush(label);
     }
 
     void branch(JitCode* c) {
@@ -1112,14 +1104,6 @@ public:
         MOZ_CRASH("NYI");
     }
 
-    // Builds an exit frame on the stack, with a return address to an internal
-    // non-function. Returns offset to be passed to markSafepointAt().
-    void buildFakeExitFrame(Register scratch, uint32_t* offset);
-
-    void callWithExitFrame(Label* target);
-    void callWithExitFrame(JitCode* target);
-    void callWithExitFrame(JitCode* target, Register dynStack);
-
     void add32(Register src, Register dest);
     void add32(Imm32 imm, Register dest);
     void add32(Imm32 imm, const Address& dest);
@@ -1156,24 +1140,9 @@ public:
         }
     }
 
-    void and32(Register src, Register dest);
-    void and32(Imm32 imm, Register dest);
-    void and32(Imm32 imm, const Address& dest);
-    void and32(const Address& src, Register dest);
-    void or32(Imm32 imm, Register dest);
-    void or32(Imm32 imm, const Address& dest);
-    void or32(Register src, Register dest);
-    void xor32(Imm32 imm, Register dest);
-    void xorPtr(Imm32 imm, Register dest);
-    void xorPtr(Register src, Register dest);
-    void orPtr(Imm32 imm, Register dest);
-    void orPtr(Register src, Register dest);
-    void andPtr(Imm32 imm, Register dest);
-    void andPtr(Register src, Register dest);
     void addPtr(Register src, Register dest);
     void subPtr(Register src, Register dest);
     void addPtr(const Address& src, Register dest);
-    void not32(Register reg);
 
     void move32(Imm32 imm, Register dest);
     void move32(Register src, Register dest);

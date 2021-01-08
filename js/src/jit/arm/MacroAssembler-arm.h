@@ -429,13 +429,6 @@ class MacroAssemblerARM : public Assembler
     BufferOffset ma_vstr(VFPRegister src, Register base, Register index, int32_t shift,
                          int32_t offset, Condition cc = Always);
 
-    // Calls an ion function, assuming that the stack is currently not 8 byte
-    // aligned.
-    void ma_callJitHalfPush(const Register reg);
-    // Calls an ion function, assuming that the stack is currently not 8 byte
-    // aligned.
-    void ma_callJitHalfPush(Label* label);
-
     void ma_call(ImmPtr dest);
 
     // Float registers can only be loaded/stored in continuous runs when using
@@ -531,8 +524,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void mov(Address src, Register dest) {
         MOZ_CRASH("NYI-IC");
     }
-
-    void callAndPushReturnAddress(Label* label);
 
     void branch(JitCode* c) {
         BufferOffset bo = m_buffer.nextOffset();
@@ -1194,14 +1185,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     // Common interface.
     /////////////////////////////////////////////////////////////////
   public:
-    // Builds an exit frame on the stack, with a return address to an internal
-    // non-function. Returns offset to be passed to markSafepointAt().
-    void buildFakeExitFrame(Register scratch, uint32_t* offset);
-
-    void callWithExitFrame(Label* target);
-    void callWithExitFrame(JitCode* target);
-    void callWithExitFrame(JitCode* target, Register dynStack);
-
     void add32(Register src, Register dest);
     void add32(Imm32 imm, Register dest);
     void add32(Imm32 imm, const Address& dest);
@@ -1217,24 +1200,9 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         sub32(src, dest);
         j(cond, label);
     }
-    void xor32(Imm32 imm, Register dest);
 
-    void and32(Register src, Register dest);
-    void and32(Imm32 imm, Register dest);
-    void and32(Imm32 imm, const Address& dest);
-    void and32(const Address& src, Register dest);
-    void or32(Register src, Register dest);
-    void or32(Imm32 imm, Register dest);
-    void or32(Imm32 imm, const Address& dest);
-    void xorPtr(Imm32 imm, Register dest);
-    void xorPtr(Register src, Register dest);
-    void orPtr(Imm32 imm, Register dest);
-    void orPtr(Register src, Register dest);
-    void andPtr(Imm32 imm, Register dest);
-    void andPtr(Register src, Register dest);
     void addPtr(Register src, Register dest);
     void addPtr(const Address& src, Register dest);
-    void not32(Register reg);
 
     void move32(Imm32 imm, Register dest);
     void move32(Register src, Register dest);
@@ -1778,16 +1746,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         load32(Source, lr);
         storeValue(JSVAL_TYPE_INT32, lr, Dest);
     }
-    void memMove32(Address Source, Address Dest) {
-        loadPtr(Source, lr);
-        storePtr(lr, Dest);
-    }
-    void memMove64(Address Source, Address Dest) {
-        loadPtr(Source, lr);
-        storePtr(lr, Dest);
-        loadPtr(Address(Source.base, Source.offset+4), lr);
-        storePtr(lr, Address(Dest.base, Dest.offset+4));
-    }
 
     void lea(Operand addr, Register dest) {
         ma_add(addr.baseReg(), Imm32(addr.disp()), dest);
@@ -1818,10 +1776,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void loadAsmJSHeapRegisterFromGlobalData() {
         loadPtr(Address(GlobalReg, AsmJSHeapGlobalDataOffset - AsmJSGlobalRegBias), HeapReg);
     }
-    void pushReturnAddress() {
-        push(lr);
-    }
-
     // Instrumentation for entering and leaving the profiler.
     void profilerEnterFrame(Register framePtr, Register scratch);
     void profilerExitFrame();

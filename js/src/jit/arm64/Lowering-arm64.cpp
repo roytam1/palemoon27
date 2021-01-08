@@ -18,7 +18,7 @@ using namespace js::jit;
 using mozilla::FloorLog2;
 
 void
-LIRGeneratorARM64::useBoxFixed(LInstruction* lir, size_t n, MDefinition* mir, Register reg1, Register)
+LIRGeneratorARM64::useBoxFixed(LInstruction* lir, size_t n, MDefinition* mir, Register reg1, Register,                               bool useAtStart)
 {
     MOZ_CRASH("useBoxFixed");
 }
@@ -33,24 +33,6 @@ LAllocation
 LIRGeneratorARM64::useByteOpRegisterOrNonDoubleConstant(MDefinition* mir)
 {
     MOZ_CRASH("useByteOpRegisterOrNonDoubleConstant");
-}
-
-void
-LIRGeneratorARM64::lowerConstantDouble(double d, MInstruction* mir)
-{
-    MOZ_CRASH("lowerConstantDouble");
-}
-
-void
-LIRGeneratorARM64::lowerConstantFloat32(float d, MInstruction* mir)
-{
-    MOZ_CRASH("lowerConstantFloat32");
-}
-
-void
-LIRGeneratorARM64::visitConstant(MConstant* ins)
-{
-    MOZ_CRASH("visitConstant");
 }
 
 void

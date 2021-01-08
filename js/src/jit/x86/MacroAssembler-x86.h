@@ -83,7 +83,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void setupABICall(uint32_t args);
 
   public:
-    using MacroAssemblerX86Shared::callWithExitFrame;
     using MacroAssemblerX86Shared::branch32;
     using MacroAssemblerX86Shared::branchTest32;
     using MacroAssemblerX86Shared::load32;
@@ -1064,24 +1063,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void lshiftPtr(Imm32 imm, Register dest) {
         shll(imm, dest);
     }
-    void xorPtr(Imm32 imm, Register dest) {
-        xorl(imm, dest);
-    }
-    void xorPtr(Register src, Register dest) {
-        xorl(src, dest);
-    }
-    void orPtr(Imm32 imm, Register dest) {
-        orl(imm, dest);
-    }
-    void orPtr(Register src, Register dest) {
-        orl(src, dest);
-    }
-    void andPtr(Imm32 imm, Register dest) {
-        andl(imm, dest);
-    }
-    void andPtr(Register src, Register dest) {
-        andl(src, dest);
-    }
 
     void loadInstructionPointerAfterCall(Register dest) {
         movl(Operand(StackPointer, 0x0), dest);
@@ -1137,8 +1118,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
   public:
     // Used from within an Exit frame to handle a pending exception.
     void handleFailureWithHandlerTail(void* handler);
-
-    void callWithExitFrame(JitCode* target, Register dynStack);
 
     void branchPtrInNurseryRange(Condition cond, Register ptr, Register temp, Label* label);
     void branchValueIsNurseryObject(Condition cond, ValueOperand value, Register temp, Label* label);

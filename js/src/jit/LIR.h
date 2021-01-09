@@ -252,12 +252,12 @@ class LUse : public LAllocation
     explicit LUse(FloatRegister reg, bool usedAtStart = false) {
         set(FIXED, reg.code(), usedAtStart);
     }
-    LUse(Register reg, uint32_t virtualRegister) {
-        set(FIXED, reg.code(), false);
+    LUse(Register reg, uint32_t virtualRegister, bool usedAtStart = false) {
+        set(FIXED, reg.code(), usedAtStart);
         setVirtualRegister(virtualRegister);
     }
-    LUse(FloatRegister reg, uint32_t virtualRegister) {
-        set(FIXED, reg.code(), false);
+    LUse(FloatRegister reg, uint32_t virtualRegister, bool usedAtStart = false) {
+        set(FIXED, reg.code(), usedAtStart);
         setVirtualRegister(virtualRegister);
     }
 
@@ -1165,7 +1165,7 @@ class LRecoverInfo : public TempObject
             return *this;
         }
 
-        operator bool() const {
+        explicit operator bool() const {
             return it_ == end_;
         }
 
@@ -1815,7 +1815,7 @@ LAllocation::toRegister() const
 } // namespace jit
 } // namespace js
 
-#include "jit/LIR-Common.h"
+#include "jit/shared/LIR-shared.h"
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
 # if defined(JS_CODEGEN_X86)
 #  include "jit/x86/LIR-x86.h"
@@ -1828,7 +1828,10 @@ LAllocation::toRegister() const
 #elif defined(JS_CODEGEN_ARM64)
 # include "jit/arm64/LIR-arm64.h"
 #elif defined(JS_CODEGEN_MIPS32)
-# include "jit/mips32/LIR-mips32.h"
+# if defined(JS_CODEGEN_MIPS32)
+#  include "jit/mips32/LIR-mips32.h"
+# endif
+# include "jit/mips-shared/LIR-mips-shared.h"
 #elif defined(JS_CODEGEN_NONE)
 # include "jit/none/LIR-none.h"
 #else

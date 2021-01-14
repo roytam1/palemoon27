@@ -48,7 +48,7 @@ public:
   NS_DECL_NSISSLSTATUSPROVIDER
 
 protected:
-  virtual ~nsSecureBrowserUIImpl();
+  virtual ~nsSecureBrowserUIImpl() {};
 
   mozilla::ReentrantMonitor mReentrantMonitor;
   

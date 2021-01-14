@@ -90,7 +90,6 @@ public:
 protected:
   virtual ~nsCertTree();
 
-  nsresult InitCompareHash();
   void ClearCompareHash();
   void RemoveCacheEntry(void *key);
 
@@ -117,6 +116,8 @@ protected:
   nsresult GetCertsByTypeFromCache(nsIX509CertList *aCache, uint32_t aType,
                                    nsCertCompareFunc aCertCmpFn, void *aCertCmpFnArg);
 private:
+  static const uint32_t kInitialCacheLength = 64;
+
   nsTArray< mozilla::RefPtr<nsCertTreeDispInfo> > mDispInfo;
   nsCOMPtr<nsITreeBoxObject>  mTree;
   nsCOMPtr<nsITreeSelection>  mSelection;

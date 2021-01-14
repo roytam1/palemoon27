@@ -14,13 +14,6 @@ namespace TestPLDHash {
 
 static bool test_pldhash_Init_capacity_ok()
 {
-  PLDHashTable t;
-
-  // Check that the constructor nulls |ops|.
-  if (t.IsInitialized()) {
-    return false;
-  }
-
   // Try the largest allowed capacity.  With PL_DHASH_MAX_CAPACITY==1<<26, this
   // would allocate (if we added an element) 0.5GB of entry store on 32-bit
   // platforms and 1GB on 64-bit platforms.
@@ -34,34 +27,19 @@ static bool test_pldhash_Init_capacity_ok()
   // of entry storage.  That's very likely to fail on 32-bit platforms, so such
   // a test wouldn't be reliable.
   //
-  PL_DHashTableInit(&t, PL_DHashGetStubOps(), sizeof(PLDHashEntryStub),
-                    PL_DHASH_MAX_INITIAL_LENGTH);
-
-  // Check that Init() sets |ops|.
-  if (!t.IsInitialized()) {
-    return false;
-  }
-
-  // Check that Finish() nulls |ops|.
-  PL_DHashTableFinish(&t);
-  if (t.IsInitialized()) {
-    return false;
-  }
+  PLDHashTable t(PL_DHashGetStubOps(), sizeof(PLDHashEntryStub),
+                 PL_DHASH_MAX_INITIAL_LENGTH);
 
   return true;
 }
 
 static bool test_pldhash_lazy_storage()
 {
-  PLDHashTable2 t(PL_DHashGetStubOps(), sizeof(PLDHashEntryStub));
+  PLDHashTable t(PL_DHashGetStubOps(), sizeof(PLDHashEntryStub));
 
   // PLDHashTable allocates entry storage lazily. Check that all the non-add
   // operations work appropriately when the table is empty and the storage
   // hasn't yet been allocated.
-
-  if (!t.IsInitialized()) {
-    return false;
-  }
 
   if (t.Capacity() != 0) {
     return false;
@@ -128,37 +106,31 @@ static const PLDHashTableOps trivialOps = {
 
 static bool test_pldhash_move_semantics()
 {
-  PLDHashTable2 t1(&trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t1(&trivialOps, sizeof(PLDHashEntryStub));
   PL_DHashTableAdd(&t1, (const void*)88);
-  PLDHashTable2 t2(&trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t2(&trivialOps, sizeof(PLDHashEntryStub));
   PL_DHashTableAdd(&t2, (const void*)99);
 
   t1 = mozilla::Move(t1);   // self-move
 
-  t1 = mozilla::Move(t2);   // inited overwritten with inited
+  t1 = mozilla::Move(t2);   // empty overwritten with empty
 
-  PLDHashTable t3, t4;
-  PL_DHashTableInit(&t3, &trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t3(&trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t4(&trivialOps, sizeof(PLDHashEntryStub));
   PL_DHashTableAdd(&t3, (const void*)88);
 
-  t3 = mozilla::Move(t4);   // inited overwritten with uninited
+  t3 = mozilla::Move(t4);   // non-empty overwritten with empty
 
-  PL_DHashTableFinish(&t3);
-  PL_DHashTableFinish(&t4);
-
-  PLDHashTable t5, t6;
-  PL_DHashTableInit(&t6, &trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t5(&trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t6(&trivialOps, sizeof(PLDHashEntryStub));
   PL_DHashTableAdd(&t6, (const void*)88);
 
-  t5 = mozilla::Move(t6);   // uninited overwritten with inited
+  t5 = mozilla::Move(t6);   // empty overwritten with non-empty
 
-  PL_DHashTableFinish(&t5);
-  PL_DHashTableFinish(&t6);
+  PLDHashTable t7(&trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t8(mozilla::Move(t7));  // new table constructed with uninited
 
-  PLDHashTable t7;
-  PLDHashTable t8(mozilla::Move(t7));   // new table constructed with uninited
-
-  PLDHashTable2 t9(&trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t9(&trivialOps, sizeof(PLDHashEntryStub));
   PL_DHashTableAdd(&t9, (const void*)88);
   PLDHashTable t10(mozilla::Move(t9));  // new table constructed with inited
 
@@ -167,7 +139,7 @@ static bool test_pldhash_move_semantics()
 
 static bool test_pldhash_Clear()
 {
-  PLDHashTable2 t1(&trivialOps, sizeof(PLDHashEntryStub));
+  PLDHashTable t1(&trivialOps, sizeof(PLDHashEntryStub));
 
   t1.Clear();
   if (t1.EntryCount() != 0) {
@@ -213,14 +185,8 @@ static bool test_pldhash_Clear()
 static bool test_pldhash_grow_to_max_capacity()
 {
   // This is infallible.
-  PLDHashTable2* t =
-    new PLDHashTable2(&trivialOps, sizeof(PLDHashEntryStub), 128);
-
-  // Check that New() sets |t->ops|.
-  if (!t->IsInitialized()) {
-    delete t;
-    return false;
-  }
+  PLDHashTable* t =
+    new PLDHashTable(&trivialOps, sizeof(PLDHashEntryStub), 128);
 
   // Keep inserting elements until failure occurs because the table is full.
   size_t numInserted = 0;

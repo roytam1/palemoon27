@@ -236,8 +236,6 @@ private:
 
   PLDHashTable mGlobalNames;
   PLDHashTable mNavigatorNames;
-
-  bool mIsInitialized;
 };
 
 #endif /* nsScriptNameSpaceManager_h__ */

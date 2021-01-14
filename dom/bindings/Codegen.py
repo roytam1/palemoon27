@@ -2160,7 +2160,8 @@ class MethodDefiner(PropertyDefiner):
                 "flags": "JSPROP_ENUMERATE",
                 "condition": PropertyDefiner.getControllingCondition(m, descriptor),
                 "allowCrossOriginThis": m.getExtendedAttribute("CrossOriginCallable"),
-                "returnsPromise": m.returnsPromise()
+                "returnsPromise": m.returnsPromise(),
+                "hasIteratorAlias": "@@iterator" in m.aliases
             }
             if isChromeOnly(m):
                 self.chrome.append(method)
@@ -2168,7 +2169,8 @@ class MethodDefiner(PropertyDefiner):
                 self.regular.append(method)
 
         # FIXME Check for an existing iterator on the interface first.
-        if any(m.isGetter() and m.isIndexed() for m in methods):
+        if (any(m.isGetter() and m.isIndexed() for m in methods) and
+            not any("@@iterator" in m.aliases for m in methods)):
             self.regular.append({
                 "name": "@@iterator",
                 "methodInfo": False,
@@ -2501,6 +2503,12 @@ class CGNativeProperties(CGList):
                 else:
                     props = "nullptr, nullptr, nullptr"
                 nativeProps.append(CGGeneric(props))
+            iteratorAliasIndex = -1
+            for index, item in enumerate(properties.methods.regular):
+                if item.get("hasIteratorAlias"):
+                    iteratorAliasIndex = index
+                    break
+            nativeProps.append(CGGeneric(str(iteratorAliasIndex)));
             return CGWrapper(CGIndenter(CGList(nativeProps, ",\n")),
                              pre="static const NativeProperties %s = {\n" % name,
                              post="\n};\n")
@@ -2778,9 +2786,65 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
                 name=self.descriptor.name))
         else:
             setUnforgeableHolder = None
+
+        aliasedMembers = [m for m in self.descriptor.interface.members if m.isMethod() and m.aliases]
+        if aliasedMembers:
+            assert needInterfacePrototypeObject
+
+            def defineAlias(alias):
+                if alias == "@@iterator":
+                    symbolJSID = "SYMBOL_TO_JSID(JS::GetWellKnownSymbol(aCx, JS::SymbolCode::iterator))"
+                    getSymbolJSID = CGGeneric(fill("JS::Rooted<jsid> iteratorId(aCx, ${symbolJSID});",
+                                                   symbolJSID=symbolJSID))
+                    defineFn = "JS_DefinePropertyById"
+                    prop = "iteratorId"
+                elif alias.startswith("@@"):
+                    raise TypeError("Can't handle any well-known Symbol other than @@iterator")
+                else:
+                    getSymbolJSID = None
+                    defineFn = "JS_DefineProperty"
+                    prop = '"%s"' % alias
+                return CGList([
+                    getSymbolJSID,
+                    # XXX If we ever create non-enumerate properties that can be
+                    #     aliased, we should consider making the aliases match
+                    #     the enumerability of the property being aliased.
+                    CGGeneric(fill("""
+                    if (!${defineFn}(aCx, proto, ${prop}, aliasedVal, JSPROP_ENUMERATE)) {
+                      return;
+                    }
+                    """,
+                    defineFn=defineFn,
+                    prop=prop))
+                ], "\n")
+
+            def defineAliasesFor(m):
+                return CGList([
+                    CGGeneric(fill("""
+                        if (!JS_GetProperty(aCx, proto, \"${prop}\", &aliasedVal)) {
+                          return;
+                        }
+                        """,
+                        prop=m.identifier.name))
+                ] + [defineAlias(alias) for alias in sorted(m.aliases)])
+
+            defineAliases = CGList([
+                CGGeneric(dedent("""
+                    // Set up aliases on the interface prototype object we just created.
+                    JS::Handle<JSObject*> proto = GetProtoObjectHandle(aCx, aGlobal);
+                    if (!proto) {
+                      return;
+                    }
+
+                    """)),
+                CGGeneric("JS::Rooted<JS::Value> aliasedVal(aCx);\n\n")
+            ] + [defineAliasesFor(m) for m in sorted(aliasedMembers)])
+        else:
+            defineAliases = None
+
         return CGList(
             [CGGeneric(getParentProto), CGGeneric(getConstructorProto), initIds,
-             prefCache, CGGeneric(call), createUnforgeableHolder, setUnforgeableHolder],
+             prefCache, CGGeneric(call), defineAliases, createUnforgeableHolder, setUnforgeableHolder],
             "\n").define()
 
 

@@ -164,6 +164,11 @@ GENERATED_INCLUDES += [
     '/dist/public/nss',
 ]
 
+if CONFIG['_MSC_VER']:
+    # prevent "fatal error C1128: number of sections exceeded object file format limit: compile with /bigobj"
+    # when compiling nsSiteSecurityService.cpp
+    CXXFLAGS += ['-bigobj']
+
 if CONFIG['NSS_DISABLE_DBM']:
     DEFINES['NSS_DISABLE_DBM'] = '1'
 

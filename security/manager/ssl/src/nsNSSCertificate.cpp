@@ -36,7 +36,6 @@
 #include "nsCertVerificationThread.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIObjectInputStream.h"
-#include "nsIProgrammingLanguage.h"
 #include "nsXULAppAPI.h"
 #include "nsProxyRelease.h"
 #include "mozilla/Base64.h"
@@ -1934,8 +1933,7 @@ nsNSSCertificate::GetInterfaces(uint32_t* count, nsIID*** array)
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::GetHelperForLanguage(uint32_t language,
-                                       nsISupports** _retval)
+nsNSSCertificate::GetScriptableHelper(nsIXPCScriptable** _retval)
 {
   *_retval = nullptr;
   return NS_OK;
@@ -1962,13 +1960,6 @@ nsNSSCertificate::GetClassID(nsCID** aClassID)
   if (!*aClassID)
     return NS_ERROR_OUT_OF_MEMORY;
   return GetClassIDNoAlloc(*aClassID);
-}
-
-NS_IMETHODIMP
-nsNSSCertificate::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-  *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
-  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -18,7 +18,6 @@
 #include "nsMemoryPressure.h"
 #include "nsThreadManager.h"
 #include "nsIClassInfoImpl.h"
-#include "nsIProgrammingLanguage.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "pratom.h"
@@ -124,7 +123,7 @@ nsThreadClassInfo::GetInterfaces(uint32_t* aCount, nsIID*** aArray)
 }
 
 NS_IMETHODIMP
-nsThreadClassInfo::GetHelperForLanguage(uint32_t aLang, nsISupports** aResult)
+nsThreadClassInfo::GetScriptableHelper(nsIXPCScriptable** aResult)
 {
   *aResult = nullptr;
   return NS_OK;
@@ -148,13 +147,6 @@ NS_IMETHODIMP
 nsThreadClassInfo::GetClassID(nsCID** aResult)
 {
   *aResult = nullptr;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThreadClassInfo::GetImplementationLanguage(uint32_t* aResult)
-{
-  *aResult = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
@@ -550,9 +542,6 @@ nsThread::DispatchInternal(nsIRunnable* aEvent, uint32_t aFlags,
 
     nsRefPtr<nsThreadSyncDispatch> wrapper =
       new nsThreadSyncDispatch(thread, aEvent);
-    if (!wrapper) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
     nsresult rv = PutEvent(wrapper, aTarget);
     // Don't wait for the event to finish if we didn't dispatch it...
     if (NS_FAILED(rv)) {
@@ -630,9 +619,6 @@ nsThread::Shutdown()
   // Set mShutdownContext and wake up the thread in case it is waiting for
   // events to process.
   nsCOMPtr<nsIRunnable> event = new nsThreadShutdownEvent(this, &context);
-  if (!event) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
   // XXXroc What if posting the event fails due to OOM?
   PutEvent(event, nullptr);
 

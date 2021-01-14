@@ -17,7 +17,6 @@
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsNSSCertHelper.h"
-#include "nsIProgrammingLanguage.h"
 #include "nsIArray.h"
 #include "nsComponentManagerUtils.h"
 #include "nsReadableUtils.h"
@@ -448,8 +447,7 @@ TransportSecurityInfo::GetInterfaces(uint32_t *count, nsIID * **array)
 }
 
 NS_IMETHODIMP
-TransportSecurityInfo::GetHelperForLanguage(uint32_t language,
-                                            nsISupports **_retval)
+TransportSecurityInfo::GetScriptableHelper(nsIXPCScriptable **_retval)
 {
   *_retval = nullptr;
   return NS_OK;
@@ -476,14 +474,6 @@ TransportSecurityInfo::GetClassID(nsCID * *aClassID)
   if (!*aClassID)
     return NS_ERROR_OUT_OF_MEMORY;
   return GetClassIDNoAlloc(*aClassID);
-}
-
-NS_IMETHODIMP
-TransportSecurityInfo::GetImplementationLanguage(
-  uint32_t *aImplementationLanguage)
-{
-  *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
-  return NS_OK;
 }
 
 NS_IMETHODIMP

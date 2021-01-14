@@ -152,10 +152,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_Interfaces::GetHelperForLanguage(uint32_t language,
-                                                 nsISupports** retval)
+nsXPCComponents_Interfaces::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -183,14 +182,6 @@ NS_IMETHODIMP
 nsXPCComponents_Interfaces::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_Interfaces::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -397,10 +388,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_InterfacesByID::GetHelperForLanguage(uint32_t language,
-                                                     nsISupports** retval)
+nsXPCComponents_InterfacesByID::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -428,14 +418,6 @@ NS_IMETHODIMP
 nsXPCComponents_InterfacesByID::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_InterfacesByID::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -644,10 +626,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_Classes::GetHelperForLanguage(uint32_t language,
-                                              nsISupports** retval)
+nsXPCComponents_Classes::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -675,14 +656,6 @@ NS_IMETHODIMP
 nsXPCComponents_Classes::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_Classes::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -871,10 +844,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_ClassesByID::GetHelperForLanguage(uint32_t language,
-                                                  nsISupports** retval)
+nsXPCComponents_ClassesByID::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -902,14 +874,6 @@ NS_IMETHODIMP
 nsXPCComponents_ClassesByID::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_ClassesByID::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -1121,10 +1085,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_Results::GetHelperForLanguage(uint32_t language,
-                                              nsISupports** retval)
+nsXPCComponents_Results::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -1152,14 +1115,6 @@ NS_IMETHODIMP
 nsXPCComponents_Results::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_Results::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -1328,10 +1283,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_ID::GetHelperForLanguage(uint32_t language,
-                                         nsISupports** retval)
+nsXPCComponents_ID::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -1359,14 +1313,6 @@ NS_IMETHODIMP
 nsXPCComponents_ID::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_ID::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -1545,10 +1491,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_Exception::GetHelperForLanguage(uint32_t language,
-                                                nsISupports** retval)
+nsXPCComponents_Exception::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -1576,14 +1521,6 @@ NS_IMETHODIMP
 nsXPCComponents_Exception::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_Exception::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -1935,10 +1872,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCConstructor::GetHelperForLanguage(uint32_t language,
-                                       nsISupports** retval)
+nsXPCConstructor::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -1966,14 +1902,6 @@ NS_IMETHODIMP
 nsXPCConstructor::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCConstructor::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -2190,10 +2118,9 @@ oom:
     return NS_ERROR_OUT_OF_MEMORY;
 }
 
-/* nsISupports getHelperForLanguage (in uint32_t language); */
+/* nsIXPCScriptable getScriptableHelper(); */
 NS_IMETHODIMP
-nsXPCComponents_Constructor::GetHelperForLanguage(uint32_t language,
-                                                  nsISupports** retval)
+nsXPCComponents_Constructor::GetScriptableHelper(nsIXPCScriptable** retval)
 {
     *retval = nullptr;
     return NS_OK;
@@ -2221,14 +2148,6 @@ NS_IMETHODIMP
 nsXPCComponents_Constructor::GetClassID(nsCID * *aClassID)
 {
     *aClassID = nullptr;
-    return NS_OK;
-}
-
-/* readonly attribute uint32_t implementationLanguage; */
-NS_IMETHODIMP
-nsXPCComponents_Constructor::GetImplementationLanguage(uint32_t* aImplementationLanguage)
-{
-    *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
@@ -3731,7 +3650,7 @@ public:
     // The NS_IMETHODIMP isn't really accurate here, but NS_CALLBACK requires
     // the referent to be declared __stdcall on Windows, and this is the only
     // macro that does that.
-    static NS_IMETHODIMP Get(uint32_t aLangId, nsISupports** helper)
+    static NS_IMETHODIMP Get(nsIXPCScriptable** helper)
     {
         *helper = &singleton;
         return NS_OK;

@@ -266,6 +266,55 @@ PL_DHashTableInit(PLDHashTable* aTable, const PLDHashTableOps* aOps,
   aTable->Init(aOps, aEntrySize, aLength);
 }
 
+void
+PL_DHashTableInit(PLDHashTable2* aTable, const PLDHashTableOps* aOps,
+                  uint32_t aEntrySize, uint32_t aLength)
+{
+  aTable->Init(aOps, aEntrySize, aLength);
+}
+
+PLDHashTable2::PLDHashTable2(const PLDHashTableOps* aOps, uint32_t aEntrySize,
+                             uint32_t aLength)
+  : PLDHashTable()
+{
+  PLDHashTable::Init(aOps, aEntrySize, aLength);
+}
+
+PLDHashTable& PLDHashTable::operator=(PLDHashTable&& aOther)
+{
+  if (this == &aOther) {
+    return *this;
+  }
+
+  // Destruct |this|.
+  Finish();
+
+  // Move pieces over.
+  mOps = Move(aOther.mOps);
+  mHashShift = Move(aOther.mHashShift);
+  mEntrySize = Move(aOther.mEntrySize);
+  mEntryCount = Move(aOther.mEntryCount);
+  mRemovedCount = Move(aOther.mRemovedCount);
+  mGeneration = Move(aOther.mGeneration);
+  mEntryStore = Move(aOther.mEntryStore);
+#ifdef PL_DHASHMETER
+  mStats = Move(aOther.mStats);
+#endif
+#ifdef DEBUG
+  // Atomic<> doesn't have an |operator=(Atomic<>&&)|.
+  mRecursionLevel = uint32_t(aOther.mRecursionLevel);
+#endif
+
+  // Clear up |aOther| so its destruction will be a no-op.
+  aOther.mOps = nullptr;
+  aOther.mEntryStore = nullptr;
+#ifdef DEBUG
+  aOther.mRecursionLevel = 0;
+#endif
+
+  return *this;
+}
+
 /*
  * Double hashing needs the second hash code to be relatively prime to table
  * size, so we simply make hash2 odd.
@@ -305,7 +354,10 @@ PLDHashTable::EntryIsFree(PLDHashEntryHdr* aEntry)
 MOZ_ALWAYS_INLINE void
 PLDHashTable::Finish()
 {
-  MOZ_ASSERT(IsInitialized());
+  if (!IsInitialized()) {
+    MOZ_ASSERT(!mEntryStore);
+    return;
+  }
 
   INCREMENT_RECURSION_LEVEL(this);
 
@@ -335,6 +387,36 @@ void
 PL_DHashTableFinish(PLDHashTable* aTable)
 {
   aTable->Finish();
+}
+
+void
+PL_DHashTableFinish(PLDHashTable2* aTable)
+{
+  aTable->Finish();
+}
+
+PLDHashTable2::~PLDHashTable2()
+{
+  PLDHashTable::Finish();
+}
+
+void
+PLDHashTable2::ClearAndPrepareForLength(uint32_t aLength)
+{
+  MOZ_ASSERT(IsInitialized());
+
+  // Get these values before the call to Finish() clobbers them.
+  const PLDHashTableOps* ops = mOps;
+  uint32_t entrySize = mEntrySize;
+
+  PLDHashTable::Finish();
+  PLDHashTable::Init(ops, entrySize, aLength);
+}
+
+void
+PLDHashTable2::Clear()
+{
+  ClearAndPrepareForLength(PL_DHASH_DEFAULT_INITIAL_LENGTH);
 }
 
 // If |IsAdd| is true, the return value is always non-null and it may be a

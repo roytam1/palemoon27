@@ -1873,11 +1873,12 @@ class MemberCondition:
     None, they should be strings that have the pref name (for "pref")
     or function name (for "func" and "available").
     """
-    def __init__(self, pref, func, available=None, checkPermissions=None):
+    def __init__(self, pref, func, available=None, checkPermissions=None, checkAllPermissions=None):
         assert pref is None or isinstance(pref, str)
         assert func is None or isinstance(func, str)
         assert available is None or isinstance(available, str)
         assert checkPermissions is None or isinstance(checkPermissions, int)
+        assert checkAllPermissions is None or isinstance(checkAllPermissions, int)
         self.pref = pref
 
         def toFuncPtr(val):
@@ -1890,11 +1891,16 @@ class MemberCondition:
             self.checkPermissions = "nullptr"
         else:
             self.checkPermissions = "permissions_%i" % checkPermissions
+        if checkAllPermissions is None:
+            self.checkAllPermissions = "nullptr"
+        else:
+            self.checkAllPermissions = "allpermissions_%i" % checkAllPermissions
 
     def __eq__(self, other):
         return (self.pref == other.pref and self.func == other.func and
                 self.available == other.available and
-                self.checkPermissions == other.checkPermissions)
+                self.checkPermissions == other.checkPermissions and
+                self.checkAllPermissions == other.checkAllPermissions)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -1962,7 +1968,8 @@ class PropertyDefiner:
                                PropertyDefiner.getStringAttr(interfaceMember,
                                                              "Func"),
                                getAvailableInTestFunc(interfaceMember),
-                               descriptor.checkPermissionsIndicesForMembers.get(interfaceMember.identifier.name))
+                               descriptor.checkPermissionsIndicesForMembers.get(interfaceMember.identifier.name),
+                               descriptor.checkAllPermissionsIndicesForMembers.get(interfaceMember.identifier.name))
 
     def generatePrefableArray(self, array, name, specFormatter, specTerminator,
                               specType, getCondition, getDataTuple, doIdArrays):
@@ -2000,7 +2007,7 @@ class PropertyDefiner:
         specs = []
         prefableSpecs = []
 
-        prefableTemplate = '  { true, %s, %s, %s, &%s[%d] }'
+        prefableTemplate = '  { true, %s, %s, %s, %s, &%s[%d] }'
         prefCacheTemplate = '&%s[%d].enabled'
 
         def switchToCondition(props, condition):
@@ -2015,6 +2022,7 @@ class PropertyDefiner:
                                  (condition.func,
                                   condition.available,
                                   condition.checkPermissions,
+                                  condition.checkAllPermissions,
                                   name + "_specs", len(specs)))
 
         switchToCondition(self, lastCondition)
@@ -2160,7 +2168,8 @@ class MethodDefiner(PropertyDefiner):
                 "flags": "JSPROP_ENUMERATE",
                 "condition": PropertyDefiner.getControllingCondition(m, descriptor),
                 "allowCrossOriginThis": m.getExtendedAttribute("CrossOriginCallable"),
-                "returnsPromise": m.returnsPromise()
+                "returnsPromise": m.returnsPromise(),
+                "hasIteratorAlias": "@@iterator" in m.aliases
             }
             if isChromeOnly(m):
                 self.chrome.append(method)
@@ -2168,7 +2177,8 @@ class MethodDefiner(PropertyDefiner):
                 self.regular.append(method)
 
         # FIXME Check for an existing iterator on the interface first.
-        if any(m.isGetter() and m.isIndexed() for m in methods):
+        if (any(m.isGetter() and m.isIndexed() for m in methods) and
+            not any("@@iterator" in m.aliases for m in methods)):
             self.regular.append({
                 "name": "@@iterator",
                 "methodInfo": False,
@@ -2501,6 +2511,12 @@ class CGNativeProperties(CGList):
                 else:
                     props = "nullptr, nullptr, nullptr"
                 nativeProps.append(CGGeneric(props))
+            iteratorAliasIndex = -1
+            for index, item in enumerate(properties.methods.regular):
+                if item.get("hasIteratorAlias"):
+                    iteratorAliasIndex = index
+                    break
+            nativeProps.append(CGGeneric(str(iteratorAliasIndex)));
             return CGWrapper(CGIndenter(CGList(nativeProps, ",\n")),
                              pre="static const NativeProperties %s = {\n" % name,
                              post="\n};\n")
@@ -2778,9 +2794,65 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
                 name=self.descriptor.name))
         else:
             setUnforgeableHolder = None
+
+        aliasedMembers = [m for m in self.descriptor.interface.members if m.isMethod() and m.aliases]
+        if aliasedMembers:
+            assert needInterfacePrototypeObject
+
+            def defineAlias(alias):
+                if alias == "@@iterator":
+                    symbolJSID = "SYMBOL_TO_JSID(JS::GetWellKnownSymbol(aCx, JS::SymbolCode::iterator))"
+                    getSymbolJSID = CGGeneric(fill("JS::Rooted<jsid> iteratorId(aCx, ${symbolJSID});",
+                                                   symbolJSID=symbolJSID))
+                    defineFn = "JS_DefinePropertyById"
+                    prop = "iteratorId"
+                elif alias.startswith("@@"):
+                    raise TypeError("Can't handle any well-known Symbol other than @@iterator")
+                else:
+                    getSymbolJSID = None
+                    defineFn = "JS_DefineProperty"
+                    prop = '"%s"' % alias
+                return CGList([
+                    getSymbolJSID,
+                    # XXX If we ever create non-enumerate properties that can be
+                    #     aliased, we should consider making the aliases match
+                    #     the enumerability of the property being aliased.
+                    CGGeneric(fill("""
+                    if (!${defineFn}(aCx, proto, ${prop}, aliasedVal, JSPROP_ENUMERATE)) {
+                      return;
+                    }
+                    """,
+                    defineFn=defineFn,
+                    prop=prop))
+                ], "\n")
+
+            def defineAliasesFor(m):
+                return CGList([
+                    CGGeneric(fill("""
+                        if (!JS_GetProperty(aCx, proto, \"${prop}\", &aliasedVal)) {
+                          return;
+                        }
+                        """,
+                        prop=m.identifier.name))
+                ] + [defineAlias(alias) for alias in sorted(m.aliases)])
+
+            defineAliases = CGList([
+                CGGeneric(dedent("""
+                    // Set up aliases on the interface prototype object we just created.
+                    JS::Handle<JSObject*> proto = GetProtoObjectHandle(aCx, aGlobal);
+                    if (!proto) {
+                      return;
+                    }
+
+                    """)),
+                CGGeneric("JS::Rooted<JS::Value> aliasedVal(aCx);\n\n")
+            ] + [defineAliasesFor(m) for m in sorted(aliasedMembers)])
+        else:
+            defineAliases = None
+
         return CGList(
             [CGGeneric(getParentProto), CGGeneric(getConstructorProto), initIds,
-             prefCache, CGGeneric(call), createUnforgeableHolder, setUnforgeableHolder],
+             prefCache, CGGeneric(call), defineAliases, createUnforgeableHolder, setUnforgeableHolder],
             "\n").define()
 
 
@@ -3036,6 +3108,9 @@ class CGConstructorEnabled(CGAbstractMethod):
         checkPermissions = self.descriptor.checkPermissionsIndex
         if checkPermissions is not None:
             conditions.append("CheckPermissions(aCx, aObj, permissions_%i)" % checkPermissions)
+        checkAllPermissions = self.descriptor.checkAllPermissionsIndex
+        if checkAllPermissions is not None:
+            conditions.append("CheckAllPermissions(aCx, aObj, allpermissions_%i)" % checkAllPermissions)
         # We should really have some conditions
         assert len(body) or len(conditions)
 
@@ -11280,14 +11355,16 @@ class CGDescriptor(CGThing):
         if descriptor.concrete and descriptor.wrapperCache:
             cgThings.append(CGClassObjectMovedHook(descriptor))
 
-        if len(descriptor.permissions):
-            for (k, v) in sorted(descriptor.permissions.items()):
-                perms = CGList((CGGeneric('"%s",' % p) for p in k), joiner="\n")
-                perms.append(CGGeneric("nullptr"))
-                cgThings.append(CGWrapper(CGIndenter(perms),
-                                          pre="static const char* const permissions_%i[] = {\n" % v,
-                                          post="\n};\n",
-                                          defineOnly=True))
+        for name in ["permissions", "allpermissions"]:
+            permissions = getattr(descriptor, name)
+            if len(permissions):
+                for (k, v) in sorted(permissions.items()):
+                    perms = CGList((CGGeneric('"%s",' % p) for p in k), joiner="\n")
+                    perms.append(CGGeneric("nullptr"))
+                    cgThings.append(CGWrapper(CGIndenter(perms),
+                                              pre="static const char* const %s_%i[] = {\n" % (name, v),
+                                              post="\n};\n",
+                                              defineOnly=True))
 
         # Generate the _ClearCachedFooValue methods before the property arrays that use them.
         if descriptor.interface.isJSImplemented():

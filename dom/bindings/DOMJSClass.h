@@ -42,6 +42,9 @@ typedef bool
 bool
 CheckPermissions(JSContext* aCx, JSObject* aObj, const char* const aPermissions[]);
 
+bool
+CheckAllPermissions(JSContext* aCx, JSObject* aObj, const char* const aPermissions[]);
+
 struct ConstantSpec
 {
   const char* name;
@@ -52,26 +55,29 @@ typedef bool (*PropertyEnabled)(JSContext* cx, JSObject* global);
 
 template<typename T>
 struct Prefable {
-  inline bool isEnabled(JSContext* cx, JSObject* obj) const {
+  inline bool isEnabled(JSContext* cx, JS::Handle<JSObject*> obj) const {
     if (!enabled) {
       return false;
     }
-    if (!enabledFunc && !availableFunc && !checkPermissions) {
+    if (!enabledFunc && !availableFunc && !checkPermissions && !checkAllPermissions) {
       return true;
     }
-    // Just go ahead and root obj, in case enabledFunc GCs
-    JS::Rooted<JSObject*> rootedObj(cx, obj);
     if (enabledFunc &&
-        !enabledFunc(cx, js::GetGlobalForObjectCrossCompartment(rootedObj))) {
+        !enabledFunc(cx, js::GetGlobalForObjectCrossCompartment(obj))) {
       return false;
     }
     if (availableFunc &&
-        !availableFunc(cx, js::GetGlobalForObjectCrossCompartment(rootedObj))) {
+        !availableFunc(cx, js::GetGlobalForObjectCrossCompartment(obj))) {
       return false;
     }
     if (checkPermissions &&
-        !CheckPermissions(cx, js::GetGlobalForObjectCrossCompartment(rootedObj),
+        !CheckPermissions(cx, js::GetGlobalForObjectCrossCompartment(obj),
                           checkPermissions)) {
+      return false;
+    }
+    if (checkAllPermissions &&
+        !CheckAllPermissions(cx, js::GetGlobalForObjectCrossCompartment(obj),
+                             checkAllPermissions)) {
       return false;
     }
     return true;
@@ -89,6 +95,7 @@ struct Prefable {
   // implementations in case when we need to do two separate checks.
   PropertyEnabled availableFunc;
   const char* const* checkPermissions;
+  const char* const* checkAllPermissions;
   // Array of specs, terminated in whatever way is customary for T.
   // Null to indicate a end-of-array for Prefable, when such an
   // indicator is needed.
@@ -124,6 +131,9 @@ struct NativeProperties
   const Prefable<const ConstantSpec>* constants;
   jsid* constantIds;
   const ConstantSpec* constantSpecs;
+
+  // Index into methods for the entry that is [Alias="@@iterator"], -1 if none
+  int32_t iteratorAliasMethodIndex;
 };
 
 struct NativePropertiesHolder

@@ -547,6 +547,7 @@ nsHostResolver::nsHostResolver(uint32_t maxCacheEntries,
     , mNumIdleThreads(0)
     , mThreadCount(0)
     , mActiveAnyThreadCount(0)
+    , mDB(&gHostDB_ops, sizeof(nsHostDBEnt), 0)
     , mEvictionQSize(0)
     , mPendingCount(0)
     , mShutdown(true)
@@ -563,7 +564,6 @@ nsHostResolver::nsHostResolver(uint32_t maxCacheEntries,
 
 nsHostResolver::~nsHostResolver()
 {
-    PL_DHashTableFinish(&mDB);
 }
 
 nsresult
@@ -572,8 +572,6 @@ nsHostResolver::Init()
     if (NS_FAILED(GetAddrInfoInit())) {
         return NS_ERROR_FAILURE;
     }
-
-    PL_DHashTableInit(&mDB, &gHostDB_ops, sizeof(nsHostDBEnt), 0);
 
     mShutdown = false;
 
@@ -1434,8 +1432,6 @@ nsHostResolver::Create(uint32_t maxCacheEntries,
 
     nsHostResolver *res = new nsHostResolver(maxCacheEntries, defaultCacheEntryLifetime,
                                              defaultGracePeriod);
-    if (!res)
-        return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(res);
 
     nsresult rv = res->Init();

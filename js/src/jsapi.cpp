@@ -1440,7 +1440,7 @@ JS_ComputeThis(JSContext* cx, jsval* vp)
     assertSameCompartment(cx, JSValueArray(vp, 2));
     CallReceiver call = CallReceiverFromVp(vp);
     if (!BoxNonStrictThis(cx, call))
-        return JSVAL_NULL;
+        return NullValue();
     return call.thisv();
 }
 

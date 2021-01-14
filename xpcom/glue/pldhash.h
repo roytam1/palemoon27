@@ -145,12 +145,10 @@ typedef size_t (*PLDHashSizeOfEntryExcludingThisFun)(
   PLDHashEntryHdr* aHdr, mozilla::MallocSizeOf aMallocSizeOf, void* aArg);
 
 /*
- * A PLDHashTable is currently 8 words (without the PL_DHASHMETER overhead)
- * on most architectures, and may be allocated on the stack or within another
- * structure or class (see below for the Init and Finish functions to use).
- *
- * No entry storage is allocated until the first element is added. This means
- * that empty hash tables are cheap, which is good because they are common.
+ * A PLDHashTable may be allocated on the stack or within another structure or
+ * class. No entry storage is allocated until the first element is added. This
+ * means that empty hash tables are cheap, which is good because they are
+ * common.
  *
  * There used to be a long, math-heavy comment here about the merits of
  * double hashing vs. chaining; it was removed in bug 1058335. In short, double
@@ -204,56 +202,33 @@ private:
 #endif
 
 public:
-  // The most important thing here is that we zero |mOps| because it's used to
-  // determine if Init() has been called. (The use of MOZ_CONSTEXPR means all
-  // the other members must be initialized too.)
-  MOZ_CONSTEXPR PLDHashTable()
+  // Initialize the table with |aOps| and |aEntrySize|. The table's initial
+  // capacity is chosen such that |aLength| elements can be inserted without
+  // rehashing; if |aLength| is a power-of-two, this capacity will be
+  // |2*length|. However, because entry storage is allocated lazily, this
+  // initial capacity won't be relevant until the first element is added; prior
+  // to that the capacity will be zero.
+  //
+  // This will crash if |aEntrySize| and/or |aLength| are too large.
+  PLDHashTable(const PLDHashTableOps* aOps, uint32_t aEntrySize,
+               uint32_t aLength = PL_DHASH_DEFAULT_INITIAL_LENGTH);
+
+  PLDHashTable(PLDHashTable&& aOther)
     : mOps(nullptr)
-    , mHashShift(0)
-    , mEntrySize(0)
-    , mEntryCount(0)
-    , mRemovedCount(0)
-    , mGeneration(0)
     , mEntryStore(nullptr)
-#ifdef PL_DHASHMETER
-    , mStats()
-#endif
 #ifdef DEBUG
-    , mRecursionLevel()
+    , mRecursionLevel(0)
 #endif
-  {}
-
-  PLDHashTable(PLDHashTable&& aOther) { *this = mozilla::Move(aOther); }
-
-  PLDHashTable& operator=(PLDHashTable&& aOther)
   {
-    using mozilla::Move;
-
-    mOps = Move(aOther.mOps);
-    mHashShift = Move(aOther.mHashShift);
-    mEntrySize = Move(aOther.mEntrySize);
-    mEntryCount = Move(aOther.mEntryCount);
-    mRemovedCount = Move(aOther.mRemovedCount);
-    mGeneration = Move(aOther.mGeneration);
-    mEntryStore = Move(aOther.mEntryStore);
-
-#ifdef PL_DHASHMETER
-    mStats = Move(aOther.mStats);
-#endif
-
-#ifdef DEBUG
-    // Atomic<> doesn't have an |operator=(Atomic<>&&)|.
-    mRecursionLevel = uint32_t(aOther.mRecursionLevel);
-#endif
-
-    return *this;
+    *this = mozilla::Move(aOther);
   }
 
-  bool IsInitialized() const { return !!mOps; }
+  PLDHashTable& operator=(PLDHashTable&& aOther);
 
-  // These should be used rarely.
+  ~PLDHashTable();
+
+  // This should be used rarely.
   const PLDHashTableOps* const Ops() { return mOps; }
-  void SetOps(const PLDHashTableOps* aOps) { mOps = aOps; }
 
   /*
    * Size in entries (gross, not net of free and removed sentinels) for table.
@@ -269,10 +244,6 @@ public:
   uint32_t EntryCount() const { return mEntryCount; }
   uint32_t Generation() const { return mGeneration; }
 
-  void Init(const PLDHashTableOps* aOps, uint32_t aEntrySize, uint32_t aLength);
-
-  void Finish();
-
   PLDHashEntryHdr* Search(const void* aKey);
   PLDHashEntryHdr* Add(const void* aKey, const mozilla::fallible_t&);
   PLDHashEntryHdr* Add(const void* aKey);
@@ -281,6 +252,20 @@ public:
   void RawRemove(PLDHashEntryHdr* aEntry);
 
   uint32_t Enumerate(PLDHashEnumerator aEtor, void* aArg);
+
+  // This function is equivalent to
+  // ClearAndPrepareForLength(PL_DHASH_DEFAULT_INITIAL_LENGTH).
+  void Clear();
+
+  // This function clears the table's contents and frees its entry storage,
+  // leaving it in a empty state ready to be used again. Afterwards, when the
+  // first element is added the entry storage that gets allocated will have a
+  // capacity large enough to fit |aLength| elements without rehashing.
+  //
+  // It's conceptually the same as calling the destructor and then re-calling
+  // the constructor with the original |aOps| and |aEntrySize| arguments, and
+  // a new |aLength| argument.
+  void ClearAndPrepareForLength(uint32_t aLength);
 
   size_t SizeOfIncludingThis(
     PLDHashSizeOfEntryExcludingThisFun aSizeOfEntryExcludingThis,
@@ -336,6 +321,9 @@ private:
   }
 
   PLDHashNumber ComputeKeyHash(const void* aKey);
+
+  void Init(const PLDHashTableOps* aOps, uint32_t aEntrySize, uint32_t aLength);
+  void Finish();
 
   enum SearchReason { ForSearchOrRemove, ForAdd };
 
@@ -463,42 +451,6 @@ void PL_DHashFreeStringKey(PLDHashTable* aTable, PLDHashEntryHdr* aEntry);
  * stub operations.
  */
 const PLDHashTableOps* PL_DHashGetStubOps(void);
-
-/*
- * Dynamically allocate a new PLDHashTable, initialize it using
- * PL_DHashTableInit, and return its address. Never returns null.
- */
-PLDHashTable* PL_NewDHashTable(
-  const PLDHashTableOps* aOps, uint32_t aEntrySize,
-  uint32_t aLength = PL_DHASH_DEFAULT_INITIAL_LENGTH);
-
-/*
- * Free |aTable|'s entry storage and |aTable| itself (both via
- * aTable->mOps->freeTable). Use this function to destroy a PLDHashTable that
- * was allocated on the heap via PL_NewDHashTable().
- */
-void PL_DHashTableDestroy(PLDHashTable* aTable);
-
-/*
- * Initialize aTable with aOps and aEntrySize. The table's initial capacity
- * will be chosen such that |aLength| elements can be inserted without
- * rehashing; if |aLength| is a power-of-two, this capacity will be |2*length|.
- * However, because entry storage is allocated lazily, this initial capacity
- * won't be relevant until the first element is added; prior to that the
- * capacity will be zero.
- *
- * This function will crash if |aEntrySize| and/or |aLength| are too large.
- */
-void PL_DHashTableInit(
-  PLDHashTable* aTable, const PLDHashTableOps* aOps,
-  uint32_t aEntrySize, uint32_t aLength = PL_DHASH_DEFAULT_INITIAL_LENGTH);
-
-/*
- * Free |aTable|'s entry storage (via aTable->mOps->freeTable). Use this
- * function to destroy a PLDHashTable that is allocated on the stack or in
- * static memory and was created via PL_DHashTableInit().
- */
-void PL_DHashTableFinish(PLDHashTable* aTable);
 
 /*
  * To search for a key in |table|, call:

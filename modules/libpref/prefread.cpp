@@ -45,6 +45,7 @@ enum {
 static const char kUserPref[] = "user_pref";
 static const char kLockPref[] = "lock_pref";
 static const char kPref[] = "pref";
+static const char kPrefSticky[] = "sticky_pref";
 static const char kTrue[] = "true";
 static const char kFalse[] = "false";
 
@@ -130,7 +131,8 @@ pref_DoCallback(PrefParseState *ps)
     default:
         break;
     }
-    (*ps->reader)(ps->closure, ps->lb, value, ps->vtype, ps->fdefault, ps->flock);
+    (*ps->reader)(ps->closure, ps->lb, value, ps->vtype, ps->fdefault,
+                  ps->fstickydefault, ps->flock);
     return true;
 }
 
@@ -189,6 +191,7 @@ PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen)
                 ps->vb    = nullptr;
                 ps->vtype = PREF_INVALID;
                 ps->fdefault = false;
+                ps->fstickydefault = false;
                 ps->flock = false;
             }
             switch (c) {
@@ -200,9 +203,10 @@ PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen)
                 break;
             case 'u':       /* indicating user_pref */
             case 'p':       /* indicating pref */
+            case 's':       /* indicating sticky_pref */
             case 'l':       /* indicating lock_pref */
                 ps->smatch = (c == 'u' ? kUserPref :
-                                         (c == 'p' ? kPref : kLockPref));
+                             (c == 's' ? kPrefSticky : (c == 'l' ? kLockPref : kPref)));
                 ps->sindex = 1;
                 ps->nextstate = PREF_PARSE_UNTIL_OPEN_PAREN;
                 state = PREF_PARSE_MATCH_STRING;
@@ -246,7 +250,8 @@ PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen)
         /* name parsing */
         case PREF_PARSE_UNTIL_NAME:
             if (c == '\"' || c == '\'') {
-                ps->fdefault = (ps->smatch != kUserPref);
+                ps->fdefault = (ps->smatch == kPref || ps->smatch == kPrefSticky);
+                ps->fstickydefault = (ps->smatch == kPrefSticky);
                 ps->flock = (ps->smatch == kLockPref);
                 ps->quotechar = c;
                 ps->nextstate = PREF_PARSE_UNTIL_COMMA; /* return here when done */

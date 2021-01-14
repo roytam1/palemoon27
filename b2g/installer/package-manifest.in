@@ -675,6 +675,9 @@
 @RESPATH@/components/EngineeringModeAPI.js
 @RESPATH@/components/EngineeringModeService.js
 
+@RESPATH@/components/SystemUpdate.manifest
+@RESPATH@/components/SystemUpdateManager.js
+
 #if defined(ENABLE_TESTS) && defined(MOZ_DEBUG)
 @RESPATH@/components/TestInterfaceJS.js
 @RESPATH@/components/TestInterfaceJS.manifest
@@ -807,8 +810,7 @@
 
 ; [Personal Security Manager]
 ;
-@RESPATH@/@DLL_PREFIX@nssckbi@DLL_SUFFIX@
-@RESPATH@/components/pipboot.xpt
+@BINPATH@/@DLL_PREFIX@nssckbi@DLL_SUFFIX@
 @RESPATH@/components/pipnss.xpt
 @RESPATH@/components/pippki.xpt
 @BINPATH@/@DLL_PREFIX@nss3@DLL_SUFFIX@

@@ -775,7 +775,7 @@ public:
   static nsresult ReportToConsoleNonLocalized(const nsAString& aErrorText,
                                               uint32_t aErrorFlags,
                                               const nsACString& aCategory,
-                                              nsIDocument* aDocument,
+                                              const nsIDocument* aDocument,
                                               nsIURI* aURI = nullptr,
                                               const nsAFlatString& aSourceLine
                                                 = EmptyString(),
@@ -820,7 +820,7 @@ public:
   };
   static nsresult ReportToConsole(uint32_t aErrorFlags,
                                   const nsACString& aCategory,
-                                  nsIDocument* aDocument,
+                                  const nsIDocument* aDocument,
                                   PropertiesFile aFile,
                                   const char *aMessageName,
                                   const char16_t **aParams = nullptr,
@@ -1339,6 +1339,9 @@ public:
    */
   MOZ_WARN_UNUSED_RESULT
   static bool GetNodeTextContent(nsINode* aNode, bool aDeep,
+                                 nsAString& aResult, const mozilla::fallible_t&);
+
+  static void GetNodeTextContent(nsINode* aNode, bool aDeep,
                                  nsAString& aResult);
 
   /**

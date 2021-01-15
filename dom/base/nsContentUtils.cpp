@@ -1685,7 +1685,7 @@ nsContentUtils::ParseLegacyFontSize(const nsAString& aValue)
     ++iter;
   }
 
-  if (*iter < char16_t('0') || *iter > char16_t('9')) {
+  if (iter == end || *iter < char16_t('0') || *iter > char16_t('9')) {
     return 0;
   }
 
@@ -3364,7 +3364,7 @@ nsContentUtils::LogSimpleConsoleError(const nsAString& aErrorText,
 /* static */ nsresult
 nsContentUtils::ReportToConsole(uint32_t aErrorFlags,
                                 const nsACString& aCategory,
-                                nsIDocument* aDocument,
+                                const nsIDocument* aDocument,
                                 PropertiesFile aFile,
                                 const char *aMessageName,
                                 const char16_t **aParams,
@@ -3399,7 +3399,7 @@ nsContentUtils::ReportToConsole(uint32_t aErrorFlags,
 nsContentUtils::ReportToConsoleNonLocalized(const nsAString& aErrorText,
                                             uint32_t aErrorFlags,
                                             const nsACString& aCategory,
-                                            nsIDocument* aDocument,
+                                            const nsIDocument* aDocument,
                                             nsIURI* aURI,
                                             const nsAFlatString& aSourceLine,
                                             uint32_t aLineNumber,
@@ -7125,10 +7125,19 @@ nsContentUtils::DOMWindowDumpEnabled()
 }
 
 bool
-nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult)
+nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult,
+                                   const fallible_t& aFallible)
 {
   aResult.Truncate();
-  return AppendNodeTextContent(aNode, aDeep, aResult, fallible);
+  return AppendNodeTextContent(aNode, aDeep, aResult, aFallible);
+}
+
+void
+nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult)
+{
+  if (!GetNodeTextContent(aNode, aDeep, aResult, fallible)) {
+    NS_ABORT_OOM(0); // Unfortunately we don't know the allocation size
+  }
 }
 
 void

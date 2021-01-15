@@ -7084,8 +7084,7 @@ nsDocument::GetTitleFromElement(uint32_t aNamespace, nsAString& aTitle)
   nsIContent* title = GetTitleContent(aNamespace);
   if (!title)
     return;
-  if(!nsContentUtils::GetNodeTextContent(title, false, aTitle))
-    NS_RUNTIMEABORT("OOM");
+  nsContentUtils::GetNodeTextContent(title, false, aTitle);
 }
 
 NS_IMETHODIMP
@@ -7542,9 +7541,8 @@ nsDocument::GetInputEncoding(nsAString& aInputEncoding)
 }
 
 void
-nsIDocument::GetInputEncoding(nsAString& aInputEncoding)
+nsIDocument::GetInputEncoding(nsAString& aInputEncoding) const
 {
-  // Not const function, because WarnOnceAbout is not a const method
   WarnOnceAbout(eInputEncoding);
   if (mHaveInputEncoding) {
     return GetCharacterSet(aInputEncoding);
@@ -10403,7 +10401,7 @@ static const char* kDocumentWarnings[] = {
 #undef DOCUMENT_WARNING
 
 bool
-nsIDocument::HasWarnedAbout(DeprecatedOperations aOperation)
+nsIDocument::HasWarnedAbout(DeprecatedOperations aOperation) const
 {
   static_assert(eDeprecatedOperationCount <= 64,
                 "Too many deprecated operations");
@@ -10412,8 +10410,9 @@ nsIDocument::HasWarnedAbout(DeprecatedOperations aOperation)
 
 void
 nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
-                           bool asError /* = false */)
+                           bool asError /* = false */) const
 {
+  MOZ_ASSERT(NS_IsMainThread());
   if (HasWarnedAbout(aOperation)) {
     return;
   }
@@ -10427,7 +10426,7 @@ nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
 }
 
 bool
-nsIDocument::HasWarnedAbout(DocumentWarnings aWarning)
+nsIDocument::HasWarnedAbout(DocumentWarnings aWarning) const
 {
   static_assert(eDocumentWarningCount <= 64,
                 "Too many document warnings");
@@ -10438,8 +10437,9 @@ void
 nsIDocument::WarnOnceAbout(DocumentWarnings aWarning,
                            bool asError /* = false */,
                            const char16_t **aParams /* = nullptr */,
-                           uint32_t aParamsLength /* = 0 */)
+                           uint32_t aParamsLength /* = 0 */) const
 {
+  MOZ_ASSERT(NS_IsMainThread());
   if (HasWarnedAbout(aWarning)) {
     return;
   }

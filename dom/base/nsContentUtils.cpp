@@ -93,6 +93,7 @@
 #include "nsHostObjectProtocolHandler.h"
 #include "nsHtml5Module.h"
 #include "nsHtml5StringParser.h"
+#include "nsIAppShell.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsICategoryManager.h"
 #include "nsIChannelEventSink.h"
@@ -183,6 +184,7 @@
 #include "nsUnicodeProperties.h"
 #include "nsViewManager.h"
 #include "nsViewportInfo.h"
+#include "nsWidgetsCID.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsXULPopupManager.h"
 #include "xpcprivate.h" // nsXPConnect
@@ -256,6 +258,7 @@ bool nsContentUtils::sIsUserTimingLoggingEnabled = false;
 bool nsContentUtils::sIsExperimentalAutocompleteEnabled = false;
 bool nsContentUtils::sEncodeDecodeURLHash = false;
 bool nsContentUtils::sGettersDecodeURLHash = false;
+bool nsContentUtils::sPrivacyResistFingerprinting = false;
 
 uint32_t nsContentUtils::sHandlingInputTimeout = 1000;
 
@@ -339,6 +342,7 @@ namespace {
 
 static NS_DEFINE_CID(kParserServiceCID, NS_PARSERSERVICE_CID);
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
+static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 static PLDHashTable* sEventListenerManagersHash;
 
@@ -544,6 +548,9 @@ nsContentUtils::Init()
 
   Preferences::AddBoolVarCache(&sGettersDecodeURLHash,
                                "dom.url.getters_decode_hash", false);
+
+  Preferences::AddBoolVarCache(&sPrivacyResistFingerprinting,
+                               "privacy.resistFingerprinting", false);
 
   Preferences::AddUintVarCache(&sHandlingInputTimeout,
                                "dom.event.handling-user-input-time-limit",
@@ -2008,6 +2015,16 @@ nsContentUtils::IsCallerChrome()
 
   // If the check failed, look for UniversalXPConnect on the cx compartment.
   return xpc::IsUniversalXPConnectEnabled(GetCurrentJSContext());
+}
+
+bool
+nsContentUtils::ShouldResistFingerprinting(nsIDocShell* aDocShell)
+{
+  if (!aDocShell) {
+    return false;
+  }
+  bool isChrome = nsContentUtils::IsChromeDoc(aDocShell->GetDocument());
+  return !isChrome && sPrivacyResistFingerprinting;
 }
 
 namespace mozilla {
@@ -3993,28 +4010,21 @@ nsContentUtils::MaybeFireNodeRemoved(nsINode* aChild, nsINode* aParent,
   }
 }
 
-PLDHashOperator
-ListenerEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
-                   uint32_t aNumber, void* aArg)
+void
+nsContentUtils::UnmarkGrayJSListenersInCCGenerationDocuments()
 {
-  EventListenerManagerMapEntry* entry =
-    static_cast<EventListenerManagerMapEntry*>(aEntry);
-  if (entry) {
+  if (!sEventListenerManagersHash) {
+    return;
+  }
+
+  PLDHashTable::Iterator iter(sEventListenerManagersHash);
+  while (iter.HasMoreEntries()) {
+    auto entry = static_cast<EventListenerManagerMapEntry*>(iter.NextEntry());
     nsINode* n = static_cast<nsINode*>(entry->mListenerManager->GetTarget());
     if (n && n->IsInDoc() &&
         nsCCUncollectableMarker::InGeneration(n->OwnerDoc()->GetMarkedCCGeneration())) {
       entry->mListenerManager->MarkForCC();
     }
-  }
-  return PL_DHASH_NEXT;
-}
-
-void
-nsContentUtils::UnmarkGrayJSListenersInCCGenerationDocuments(uint32_t aGeneration)
-{
-  if (sEventListenerManagersHash) {
-    PL_DHashTableEnumerate(sEventListenerManagersHash, ListenerEnumerator,
-                           &aGeneration);
   }
 }
 
@@ -5163,6 +5173,20 @@ nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
   run->Run();
 
   return true;
+}
+
+/* static */
+void
+nsContentUtils::RunInStableState(already_AddRefed<nsIRunnable> aRunnable,
+                                 DispatchFailureHandling aHandling)
+{
+  nsCOMPtr<nsIRunnable> runnable = aRunnable;
+  nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
+  if (!appShell) {
+    MOZ_ASSERT(aHandling == DispatchFailureHandling::IgnoreFailure);
+    return;
+  }
+  appShell->RunInStableState(runnable.forget());
 }
 
 void

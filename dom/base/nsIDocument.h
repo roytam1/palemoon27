@@ -32,6 +32,7 @@
 #include "nsExpirationTracker.h"
 #include "nsClassHashtable.h"
 #include "prclist.h"
+#include <bitset>                        // for member
 
 class imgIRequest;
 class nsAString;
@@ -80,7 +81,6 @@ class nsSMILAnimationController;
 class nsStyleSet;
 class nsTextNode;
 class nsWindowSizes;
-class nsSmallVoidArray;
 class nsDOMCaretPosition;
 class nsViewportInfo;
 class nsIGlobalObject;
@@ -2075,6 +2075,11 @@ public:
    */
   virtual bool IsDocumentRightToLeft() { return false; }
 
+  /**
+   * Called by Parser for link rel=preconnect
+   */
+  virtual void MaybePreconnect(nsIURI* uri) = 0;
+
   enum DocumentTheme {
     Doc_Theme_Uninitialized, // not determined yet
     Doc_Theme_None,
@@ -2122,9 +2127,8 @@ public:
   /**
    * This method returns _all_ the elements in this document which
    * have id aElementId, if there are any.  Otherwise it returns null.
-   * The entries of the nsSmallVoidArray are Element*
    */
-  virtual const nsSmallVoidArray* GetAllElementsForId(const nsAString& aElementId) const = 0;
+  virtual const nsTArray<Element*>* GetAllElementsForId(const nsAString& aElementId) const = 0;
 
   /**
    * Lookup an image element using its associated ID, which is usually provided
@@ -2190,6 +2194,10 @@ public:
   virtual nsresult AddPlugin(nsIObjectLoadingContent* aPlugin) = 0;
   virtual void RemovePlugin(nsIObjectLoadingContent* aPlugin) = 0;
   virtual void GetPlugins(nsTArray<nsIObjectLoadingContent*>& aPlugins) = 0;
+
+  virtual nsresult AddResponsiveContent(nsIContent* aContent) = 0;
+  virtual void RemoveResponsiveContent(nsIContent* aContent) = 0;
+  virtual void NotifyMediaFeatureValuesChanged() = 0;
 
   virtual nsresult GetStateObject(nsIVariant** aResult) = 0;
 
@@ -2616,8 +2624,8 @@ public:
   bool InlineScriptAllowedByCSP();
 
 private:
-  mutable uint64_t mDeprecationWarnedAbout;
-  mutable uint64_t mDocWarningWarnedAbout;
+  mutable std::bitset<eDeprecatedOperationCount> mDeprecationWarnedAbout;
+  mutable std::bitset<eDocumentWarningCount> mDocWarningWarnedAbout;
   SelectorCache mSelectorCache;
 
 protected:

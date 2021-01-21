@@ -1250,7 +1250,6 @@ Statistics::endSlice()
     if (!aborted) {
         slices.back().end = PRMJ_Now();
         slices.back().endFaults = GetPageFaultCount();
-
     }
 
     bool last = !runtime->gc.isIncrementalGCInProgress();

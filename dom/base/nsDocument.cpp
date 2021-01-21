@@ -2951,19 +2951,10 @@ nsDocument::InitCSP(nsIChannel* aChannel)
   rv = csp->GetReferrerPolicy(&referrerPolicy, &hasReferrerPolicy);
   NS_ENSURE_SUCCESS(rv, rv);
   if (hasReferrerPolicy) {
-    // Referrer policy spec (section 6.1) says that once the referrer policy
-    // is set, any future attempts to change it result in No-Referrer.
-    if (!mReferrerPolicySet) {
-      mReferrerPolicy = static_cast<ReferrerPolicy>(referrerPolicy);
-      mReferrerPolicySet = true;
-    } else if (mReferrerPolicy != referrerPolicy) {
-      mReferrerPolicy = mozilla::net::RP_No_Referrer;
-      {
-        PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("%s %s",
-                "CSP wants to set referrer, but nsDocument"
-                "already has it set. No referrers will be sent"));
-      }
-    }
+    // Referrer policy spec (section 6.1) says that we always use the newest
+    // referrer policy we find
+    mReferrerPolicy = static_cast<ReferrerPolicy>(referrerPolicy);
+    mReferrerPolicySet = true;
 
     // Referrer Policy is set separately for the speculative parser in
     // nsHTMLDocument::StartDocumentLoad() so there's nothing to do here for
@@ -3801,14 +3792,10 @@ nsDocument::SetHeaderData(nsIAtom* aHeaderField, const nsAString& aData)
   if (aHeaderField == nsGkAtoms::referrer && !aData.IsEmpty()) {
     ReferrerPolicy policy = mozilla::net::ReferrerPolicyFromString(aData);
 
-    // Referrer policy spec (section 6.1) says that once the referrer policy
-    // is set, any future attempts to change it result in No-Referrer.
-    if (!mReferrerPolicySet) {
-      mReferrerPolicy = policy;
-      mReferrerPolicySet = true;
-    } else if (mReferrerPolicy != policy) {
-      mReferrerPolicy = mozilla::net::RP_No_Referrer;
-    }
+    // Referrer policy spec (section 6.1) says that we always use the newest
+    // referrer policy we find
+    mReferrerPolicy = policy;
+    mReferrerPolicySet = true;
   }
 }
 
@@ -4777,6 +4764,9 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
     nsLoadFlags loadFlags = 0;
     channel->GetLoadFlags(&loadFlags);
     // If we are shift-reloaded, don't associate with a ServiceWorker.
+    // TODO: This should check the nsDocShell definition of shift-reload instead
+    //       of trying to infer it from LOAD_BYPASS_CACHE.  The current code
+    //       will probably cause problems once bug 1120715 lands.
     if (loadFlags & nsIRequest::LOAD_BYPASS_CACHE) {
       NS_WARNING("Page was shift reloaded, skipping ServiceWorker control");
       return;
@@ -10381,9 +10371,7 @@ static const char* kDocumentWarnings[] = {
 bool
 nsIDocument::HasWarnedAbout(DeprecatedOperations aOperation) const
 {
-  static_assert(eDeprecatedOperationCount <= 64,
-                "Too many deprecated operations");
-  return mDeprecationWarnedAbout & (1ull << aOperation);
+  return mDeprecationWarnedAbout[aOperation];
 }
 
 void
@@ -10394,7 +10382,7 @@ nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
   if (HasWarnedAbout(aOperation)) {
     return;
   }
-  mDeprecationWarnedAbout |= (1ull << aOperation);
+  mDeprecationWarnedAbout[aOperation] = true;
   uint32_t flags = asError ? nsIScriptError::errorFlag
                            : nsIScriptError::warningFlag;
   nsContentUtils::ReportToConsole(flags,
@@ -10406,9 +10394,7 @@ nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
 bool
 nsIDocument::HasWarnedAbout(DocumentWarnings aWarning) const
 {
-  static_assert(eDocumentWarningCount <= 64,
-                "Too many document warnings");
-  return mDocWarningWarnedAbout & (1ull << aWarning);
+  return mDocWarningWarnedAbout[aWarning];
 }
 
 void
@@ -10421,7 +10407,7 @@ nsIDocument::WarnOnceAbout(DocumentWarnings aWarning,
   if (HasWarnedAbout(aWarning)) {
     return;
   }
-  mDocWarningWarnedAbout |= (1ull << aWarning);
+  mDocWarningWarnedAbout[aWarning] = true;
   uint32_t flags = asError ? nsIScriptError::errorFlag
                            : nsIScriptError::warningFlag;
   nsContentUtils::ReportToConsole(flags,

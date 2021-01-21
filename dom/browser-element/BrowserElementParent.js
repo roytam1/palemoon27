@@ -36,22 +36,10 @@ function getIntPref(prefName, def) {
   }
 }
 
-function visibilityChangeHandler(e) {
-  // The visibilitychange event's target is the document.
-  let win = e.target.defaultView;
-
-  if (!win._browserElementParents) {
-    return;
-  }
-
-  let beps = Cu.nondeterministicGetWeakMapKeys(win._browserElementParents);
-  if (beps.length == 0) {
-    win.removeEventListener('visibilitychange', visibilityChangeHandler);
-    return;
-  }
-
-  for (let i = 0; i < beps.length; i++) {
-    beps[i]._ownerVisibilityChange();
+function handleWindowEvent(e) {
+  if (this._browserElementParents) {
+    let beps = Cu.nondeterministicGetWeakMapKeys(this._browserElementParents);
+    beps.forEach(bep => bep._handleOwnerEvent(e));
   }
 }
 
@@ -84,8 +72,8 @@ function BrowserElementParent() {
   this._pendingDOMRequests = {};
   this._pendingSetInputMethodActive = [];
   this._nextPaintListeners = [];
+  this._pendingDOMFullscreen = false;
 
-  Services.obs.addObserver(this, 'ask-children-to-exit-fullscreen', /* ownsWeak = */ true);
   Services.obs.addObserver(this, 'oop-frameloader-crashed', /* ownsWeak = */ true);
   Services.obs.addObserver(this, 'copypaste-docommand', /* ownsWeak = */ true);
 }
@@ -118,10 +106,14 @@ BrowserElementParent.prototype = {
     // BrowserElementParents.
     if (!this._window._browserElementParents) {
       this._window._browserElementParents = new WeakMap();
-      this._window.addEventListener('visibilitychange',
-                                    visibilityChangeHandler,
-                                    /* useCapture = */ false,
-                                    /* wantsUntrusted = */ false);
+      let handler = handleWindowEvent.bind(this._window);
+      let windowEvents = ['visibilitychange', 'mozfullscreenchange'];
+      let els = Cc["@mozilla.org/eventlistenerservice;1"]
+                  .getService(Ci.nsIEventListenerService);
+      for (let event of windowEvents) {
+        els.addSystemEventListener(this._window, event, handler,
+                                   /* useCapture = */ true);
+      }
     }
 
     this._window._browserElementParents.set(this, null);
@@ -192,10 +184,9 @@ BrowserElementParent.prototype = {
       "got-contentdimensions": this._gotDOMRequestResult,
       "got-can-go-back": this._gotDOMRequestResult,
       "got-can-go-forward": this._gotDOMRequestResult,
-      "entered-dom-fullscreen": this._enteredDomFullscreen,
+      "requested-dom-fullscreen": this._requestedDOMFullscreen,
       "fullscreen-origin-change": this._fullscreenOriginChange,
-      "rollback-fullscreen": this._remoteFrameFullscreenReverted,
-      "exit-fullscreen": this._exitFullscreen,
+      "exited-dom-fullscreen": this._exitedDomFullscreen,
       "got-visible": this._gotDOMRequestResult,
       "visibilitychange": this._childVisibilityChange,
       "got-set-input-method-active": this._gotDOMRequestResult,
@@ -905,21 +896,34 @@ BrowserElementParent.prototype = {
     this._fireEventFromMsg(data);
   },
 
-  _exitFullscreen: function() {
-    this._windowUtils.exitFullscreen();
-  },
-
-  _enteredDomFullscreen: function() {
+  _requestedDOMFullscreen: function() {
+    this._pendingDOMFullscreen = true;
     this._windowUtils.remoteFrameFullscreenChanged(this._frameElement);
   },
 
   _fullscreenOriginChange: function(data) {
     Services.obs.notifyObservers(
-      this._frameElement, "fullscreen-origin-change", data.json.origin);
+      this._frameElement, "fullscreen-origin-change", data.json.originNoSuffix);
   },
 
-  _remoteFrameFullscreenReverted: function(data) {
+  _exitedDomFullscreen: function(data) {
     this._windowUtils.remoteFrameFullscreenReverted();
+  },
+
+  _handleOwnerEvent: function(evt) {
+    switch (evt.type) {
+      case 'visibilitychange':
+        this._ownerVisibilityChange();
+        break;
+      case 'mozfullscreenchange':
+        if (!this._window.document.mozFullScreen) {
+          this._sendAsyncMsg('exit-fullscreen');
+        } else if (this._pendingDOMFullscreen) {
+          this._pendingDOMFullscreen = false;
+          this._sendAsyncMsg('entered-fullscreen');
+        }
+        break;
+    }
   },
 
   _fireFatalError: function() {
@@ -933,13 +937,6 @@ BrowserElementParent.prototype = {
     case 'oop-frameloader-crashed':
       if (this._isAlive() && subject == this._frameLoader) {
         this._fireFatalError();
-      }
-      break;
-    case 'ask-children-to-exit-fullscreen':
-      if (this._isAlive() &&
-          this._frameElement.ownerDocument == subject &&
-          this._frameLoader.QueryInterface(Ci.nsIFrameLoader).tabParent) {
-        this._sendAsyncMsg('exit-fullscreen');
       }
       break;
     case 'copypaste-docommand':

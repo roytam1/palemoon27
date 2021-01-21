@@ -229,6 +229,8 @@
 #include "mozilla/dom/BoxObject.h"
 #include "gfxVR.h"
 
+#include "nsISpeculativeConnect.h"
+
 #ifdef MOZ_MEDIA_NAVIGATOR
 #include "mozilla/MediaManager.h"
 #endif // MOZ_MEDIA_NAVIGATOR
@@ -268,14 +270,14 @@ nsIdentifierMapEntry::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 bool
 nsIdentifierMapEntry::IsEmpty()
 {
-  return mIdContentList.Count() == 0 && !mNameContentList &&
+  return mIdContentList.IsEmpty() && !mNameContentList &&
          !mChangeCallbacks && !mImageElement;
 }
 
 Element*
 nsIdentifierMapEntry::GetIdElement()
 {
-  return static_cast<Element*>(mIdContentList.SafeElementAt(0));
+  return mIdContentList.SafeElementAt(0);
 }
 
 Element*
@@ -287,8 +289,8 @@ nsIdentifierMapEntry::GetImageIdElement()
 void
 nsIdentifierMapEntry::AppendAllIdContent(nsCOMArray<nsIContent>* aElements)
 {
-  for (int32_t i = 0; i < mIdContentList.Count(); ++i) {
-    aElements->AppendObject(static_cast<Element*>(mIdContentList[i]));
+  for (size_t i = 0; i < mIdContentList.Length(); ++i) {
+    aElements->AppendObject(mIdContentList[i]);
   }
 }
 
@@ -575,16 +577,15 @@ bool
 nsIdentifierMapEntry::AddIdElement(Element* aElement)
 {
   NS_PRECONDITION(aElement, "Must have element");
-  NS_PRECONDITION(mIdContentList.IndexOf(nullptr) < 0,
+  NS_PRECONDITION(!mIdContentList.Contains(nullptr),
                   "Why is null in our list?");
 
 #ifdef DEBUG
-  Element* currentElement =
-    static_cast<Element*>(mIdContentList.SafeElementAt(0));
+  Element* currentElement = mIdContentList.SafeElementAt(0);
 #endif
 
   // Common case
-  if (mIdContentList.Count() == 0) {
+  if (mIdContentList.IsEmpty()) {
     if (!mIdContentList.AppendElement(aElement))
       return false;
     NS_ASSERTION(currentElement == nullptr, "How did that happen?");
@@ -596,7 +597,7 @@ nsIdentifierMapEntry::AddIdElement(Element* aElement)
   // with us.  Search for the right place to insert the content.
 
   size_t idx;
-  if (BinarySearchIf(mIdContentList, 0, mIdContentList.Count(),
+  if (BinarySearchIf(mIdContentList, 0, mIdContentList.Length(),
                      PositionComparator(aElement), &idx)) {
     // Already in the list, so already in the right spot.  Get out of here.
     // XXXbz this only happens because XUL does all sorts of random
@@ -604,12 +605,12 @@ nsIdentifierMapEntry::AddIdElement(Element* aElement)
     return true;
   }
 
-  if (!mIdContentList.InsertElementAt(aElement, idx))
+  if (!mIdContentList.InsertElementAt(idx, aElement)) {
     return false;
+  }
 
   if (idx == 0) {
-    Element* oldElement =
-      static_cast<Element*>(mIdContentList.SafeElementAt(1));
+    Element* oldElement = mIdContentList.SafeElementAt(1);
     NS_ASSERTION(currentElement == oldElement, "How did that happen?");
     FireChangeCallbacks(oldElement, aElement);
   }
@@ -628,17 +629,15 @@ nsIdentifierMapEntry::RemoveIdElement(Element* aElement)
   // Only assert this in HTML documents for now as XUL does all sorts of weird
   // crap.
   NS_ASSERTION(!aElement->OwnerDoc()->IsHTMLDocument() ||
-               mIdContentList.IndexOf(aElement) >= 0,
+               mIdContentList.Contains(aElement),
                "Removing id entry that doesn't exist");
 
   // XXXbz should this ever Compact() I guess when all the content is gone
   // we'll just get cleaned up in the natural order of things...
-  Element* currentElement =
-    static_cast<Element*>(mIdContentList.SafeElementAt(0));
+  Element* currentElement = mIdContentList.SafeElementAt(0);
   mIdContentList.RemoveElement(aElement);
   if (currentElement == aElement) {
-    FireChangeCallbacks(currentElement,
-                        static_cast<Element*>(mIdContentList.SafeElementAt(0)));
+    FireChangeCallbacks(currentElement, mIdContentList.SafeElementAt(0));
   }
 }
 
@@ -693,17 +692,6 @@ public:
   // Both of these are strong references
   Element *mKey; // must be first, to look like PLDHashEntryStub
   nsIDocument *mSubDocument;
-};
-
-struct FindContentData
-{
-  explicit FindContentData(nsIDocument* aSubDoc)
-    : mSubDocument(aSubDoc), mResult(nullptr)
-  {
-  }
-
-  nsISupports *mSubDocument;
-  Element *mResult;
 };
 
 
@@ -1840,22 +1828,6 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsDocument)
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 static PLDHashOperator
-SubDocTraverser(PLDHashTable *table, PLDHashEntryHdr *hdr, uint32_t number,
-                void *arg)
-{
-  SubDocMapEntry *entry = static_cast<SubDocMapEntry*>(hdr);
-  nsCycleCollectionTraversalCallback *cb =
-    static_cast<nsCycleCollectionTraversalCallback*>(arg);
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mSubDocuments entry->mKey");
-  cb->NoteXPCOMChild(entry->mKey);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mSubDocuments entry->mSubDocument");
-  cb->NoteXPCOMChild(entry->mSubDocument);
-
-  return PL_DHASH_NEXT;
-}
-
-static PLDHashOperator
 RadioGroupsTraverser(const nsAString& aKey, nsRadioGroupStruct* aData,
                      void* aClosure)
 {
@@ -2014,7 +1986,17 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   }
 
   if (tmp->mSubDocuments) {
-    PL_DHashTableEnumerate(tmp->mSubDocuments, SubDocTraverser, &cb);
+    PLDHashTable::Iterator iter(tmp->mSubDocuments);
+    while (iter.HasMoreEntries()) {
+      auto entry = static_cast<SubDocMapEntry*>(iter.NextEntry());
+
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb,
+                                         "mSubDocuments entry->mKey");
+      cb.NoteXPCOMChild(entry->mKey);
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb,
+                                         "mSubDocuments entry->mSubDocument");
+      cb.NoteXPCOMChild(entry->mSubDocument);
+    }
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCSSLoader)
@@ -4085,22 +4067,6 @@ nsDocument::GetSubDocumentFor(nsIContent *aContent) const
   return nullptr;
 }
 
-static PLDHashOperator
-FindContentEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                      uint32_t number, void *arg)
-{
-  SubDocMapEntry *entry = static_cast<SubDocMapEntry*>(hdr);
-  FindContentData *data = static_cast<FindContentData*>(arg);
-
-  if (entry->mSubDocument == data->mSubDocument) {
-    data->mResult = entry->mKey;
-
-    return PL_DHASH_STOP;
-  }
-
-  return PL_DHASH_NEXT;
-}
-
 Element*
 nsDocument::FindContentForSubDocument(nsIDocument *aDocument) const
 {
@@ -4110,10 +4076,14 @@ nsDocument::FindContentForSubDocument(nsIDocument *aDocument) const
     return nullptr;
   }
 
-  FindContentData data(aDocument);
-  PL_DHashTableEnumerate(mSubDocuments, FindContentEnumerator, &data);
-
-  return data.mResult;
+  PLDHashTable::Iterator iter(mSubDocuments);
+  while (iter.HasMoreEntries()) {
+    auto entry = static_cast<SubDocMapEntry*>(iter.NextEntry());
+    if (entry->mSubDocument == aDocument) {
+      return entry->mKey;
+    }
+  }
+  return nullptr;
 }
 
 bool
@@ -5018,7 +4988,7 @@ nsDocument::GetElementById(const nsAString& aElementId)
   return entry ? entry->GetIdElement() : nullptr;
 }
 
-const nsSmallVoidArray*
+const nsTArray<Element*>*
 nsDocument::GetAllElementsForId(const nsAString& aElementId) const
 {
   if (aElementId.IsEmpty()) {
@@ -5026,7 +4996,7 @@ nsDocument::GetAllElementsForId(const nsAString& aElementId) const
   }
 
   nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aElementId);
-  return entry ? entry->GetIdElements() : nullptr;
+  return entry ? &entry->GetIdElements() : nullptr;
 }
 
 NS_IMETHODIMP
@@ -5122,6 +5092,10 @@ nsDocument::DispatchContentLoadedEvents()
 
   // Unpin references to preloaded images
   mPreloadingImages.Clear();
+
+  // DOM manipulation after content loaded should not care if the element
+  // came from the preloader.
+  mPreloadedPreconnects.Clear();
 
   if (mTiming) {
     mTiming->NotifyDOMContentLoadedStart(nsIDocument::GetDocumentURI());
@@ -8741,45 +8715,22 @@ struct SubDocEnumArgs
   void *data;
 };
 
-static PLDHashOperator
-SubDocHashEnum(PLDHashTable *table, PLDHashEntryHdr *hdr,
-               uint32_t number, void *arg)
-{
-  SubDocMapEntry *entry = static_cast<SubDocMapEntry*>(hdr);
-  SubDocEnumArgs *args = static_cast<SubDocEnumArgs*>(arg);
-
-  nsIDocument *subdoc = entry->mSubDocument;
-  bool next = subdoc ? args->callback(subdoc, args->data) : true;
-
-  return next ? PL_DHASH_NEXT : PL_DHASH_STOP;
-}
-
 void
 nsDocument::EnumerateSubDocuments(nsSubDocEnumFunc aCallback, void *aData)
 {
-  if (mSubDocuments) {
-    SubDocEnumArgs args = { aCallback, aData };
-    PL_DHashTableEnumerate(mSubDocuments, SubDocHashEnum, &args);
-  }
-}
-
-static PLDHashOperator
-CanCacheSubDocument(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                    uint32_t number, void *arg)
-{
-  SubDocMapEntry *entry = static_cast<SubDocMapEntry*>(hdr);
-  bool *canCacheArg = static_cast<bool*>(arg);
-
-  nsIDocument *subdoc = entry->mSubDocument;
-
-  // The aIgnoreRequest we were passed is only for us, so don't pass it on.
-  bool canCache = subdoc ? subdoc->CanSavePresentation(nullptr) : false;
-  if (!canCache) {
-    *canCacheArg = false;
-    return PL_DHASH_STOP;
+  if (!mSubDocuments) {
+    return;
   }
 
-  return PL_DHASH_NEXT;
+  PLDHashTable::Iterator iter(mSubDocuments);
+  while (iter.HasMoreEntries()) {
+    auto entry = static_cast<SubDocMapEntry*>(iter.NextEntry());
+    nsIDocument* subdoc = entry->mSubDocument;
+    bool next = subdoc ? aCallback(subdoc, aData) : true;
+    if (!next) {
+      break;
+    }
+  }
 }
 
 #ifdef DEBUG_bryner
@@ -8872,11 +8823,21 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     return false;
   }
 
-  bool canCache = true;
-  if (mSubDocuments)
-    PL_DHashTableEnumerate(mSubDocuments, CanCacheSubDocument, &canCache);
+  if (mSubDocuments) {
+    PLDHashTable::Iterator iter(mSubDocuments);
+    while (iter.HasMoreEntries()) {
+      auto entry = static_cast<SubDocMapEntry*>(iter.NextEntry());
+      nsIDocument* subdoc = entry->mSubDocument;
 
-  return canCache;
+      // The aIgnoreRequest we were passed is only for us, so don't pass it on.
+      bool canCache = subdoc ? subdoc->CanSavePresentation(nullptr) : false;
+      if (!canCache) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 void
@@ -9805,6 +9766,23 @@ nsDocument::MaybePreLoadImage(nsIURI* uri, const nsAString &aCrossOriginAttr,
 }
 
 void
+nsDocument::MaybePreconnect(nsIURI* uri)
+{
+  if (mPreloadedPreconnects.Contains(uri)) {
+    return;
+  }
+  mPreloadedPreconnects.Put(uri, true);
+
+  nsCOMPtr<nsISpeculativeConnect>
+    speculator(do_QueryInterface(nsContentUtils::GetIOService()));
+  if (!speculator) {
+    return;
+  }
+
+  speculator->SpeculativeConnect(uri, nullptr);
+}
+
+void
 nsDocument::ForgetImagePreload(nsIURI* aURI)
 {
   // Checking count is faster than hashing the URI in the common
@@ -10578,6 +10556,38 @@ nsDocument::GetPlugins(nsTArray<nsIObjectLoadingContent*>& aPlugins)
   aPlugins.SetCapacity(aPlugins.Length() + mPlugins.Count());
   mPlugins.EnumerateEntries(AllPluginEnum, &aPlugins);
   EnumerateSubDocuments(AllSubDocumentPluginEnum, &aPlugins);
+}
+
+nsresult
+nsDocument::AddResponsiveContent(nsIContent* aContent)
+{
+  MOZ_ASSERT(aContent);
+  MOZ_ASSERT(aContent->IsHTMLElement(nsGkAtoms::img));
+  mResponsiveContent.PutEntry(aContent);
+  return NS_OK;
+}
+
+void
+nsDocument::RemoveResponsiveContent(nsIContent* aContent)
+{
+  MOZ_ASSERT(aContent);
+  mResponsiveContent.RemoveEntry(aContent);
+}
+
+static PLDHashOperator
+NotifyMediaFeatureEnum(nsPtrHashKey<nsIContent>* aContent, void* userArg)
+{
+  nsCOMPtr<nsIContent> content = aContent->GetKey();
+  if (content->IsHTMLElement(nsGkAtoms::img)) {
+    static_cast<HTMLImageElement*>(content.get())->MediaFeatureValuesChanged();
+  }
+  return PL_DHASH_NEXT;
+}
+
+void
+nsDocument::NotifyMediaFeatureValuesChanged()
+{
+  mResponsiveContent.EnumerateEntries(NotifyMediaFeatureEnum, nullptr);
 }
 
 PLDHashOperator LockEnumerator(imgIRequest* aKey,

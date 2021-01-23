@@ -489,9 +489,13 @@ public:
   // Inner windows only.
   virtual void RefreshCompartmentPrincipal() override;
 
+  // For accessing protected field mFullScreen
+  friend class FullscreenTransitionTask;
+
   // Outer windows only.
-  virtual nsresult SetFullScreenInternal(bool aIsFullscreen, bool aFullscreenMode,
-                                         mozilla::gfx::VRHMDInfo *aHMD = nullptr) override final;
+  virtual nsresult SetFullscreenInternal(
+    FullscreenReason aReason, bool aIsFullscreen,
+    mozilla::gfx::VRHMDInfo *aHMD = nullptr) override final;
   virtual void FinishFullscreenChange(bool aIsFullscreen) override final;
   bool FullScreen() const;
 

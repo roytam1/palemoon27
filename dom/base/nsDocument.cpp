@@ -7852,7 +7852,11 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
   // Compute the CSS-to-LayoutDevice pixel scale as the product of the
   // widget scale and the full zoom.
   nsPresContext* context = mPresShell->GetPresContext();
-  float fullZoom = context ? context->GetFullZoom() : 1.0;
+  // When querying the full zoom, get it from the device context rather than
+  // directly from the pres context, because the device context's value can
+  // include an adjustment necessay to keep the number of app units per device
+  // pixel an integer, and we want the adjusted value.
+  float fullZoom = context ? context->DeviceContext()->GetFullZoom() : 1.0;
   fullZoom = (fullZoom == 0.0) ? 1.0 : fullZoom;
   nsIWidget *widget = nsContentUtils::WidgetForDocument(this);
   float widgetScale = widget ? widget->GetDefaultScale().scale : 1.0f;
@@ -11053,7 +11057,8 @@ public:
   NS_IMETHOD Run()
   {
     if (mDoc->GetWindow()) {
-      mDoc->GetWindow()->SetFullScreenInternal(mValue, false, mHMD);
+      mDoc->GetWindow()->SetFullscreenInternal(
+        nsPIDOMWindow::eForFullscreenAPI, mValue, mHMD);
     }
     return NS_OK;
   }
@@ -11247,6 +11252,27 @@ nsDocument::RestorePreviousFullScreenState()
     return;
   }
 
+  // Check whether we are restoring to non-fullscreen state.
+  bool exitingFullscreen = true;
+  for (nsIDocument* doc = this; doc; doc = doc->GetParentDocument()) {
+    if (static_cast<nsDocument*>(doc)->mFullScreenStack.Length() > 1) {
+      exitingFullscreen = false;
+      break;
+    }
+  }
+  if (exitingFullscreen) {
+    // If we are fully exiting fullscreen, don't touch anything here,
+    // just wait for the window to get out from fullscreen first.
+    if (XRE_GetProcessType() == GeckoProcessType_Content) {
+      (new AsyncEventDispatcher(
+        this, NS_LITERAL_STRING("MozDOMFullscreen:Exit"),
+        /* Bubbles */ true, /* ChromeOnly */ true))->PostDOMEvent();
+    } else {
+      SetWindowFullScreen(this, false);
+    }
+    return;
+  }
+
   // If fullscreen mode is updated the pointer should be unlocked
   UnlockPointer();
 
@@ -11294,17 +11320,9 @@ nsDocument::RestorePreviousFullScreenState()
     }
   }
 
-  if (doc == nullptr) {
-    // We moved all documents in this doctree out of fullscreen mode,
-    // move the top-level window out of fullscreen mode.
-    NS_ASSERTION(!nsContentUtils::GetRootDocument(this)->IsFullScreenDoc(),
-                 "Should have cleared all docs' stacks");
-    nsRefPtr<AsyncEventDispatcher> asyncDispatcher = new AsyncEventDispatcher(
-      this, NS_LITERAL_STRING("MozDOMFullscreen:Exited"), true, true);
-    asyncDispatcher->PostDOMEvent();
-    FullscreenRoots::Remove(this);
-    SetWindowFullScreen(this, false);
-  }
+  MOZ_ASSERT(doc, "If we were going to exit from fullscreen on all documents "
+             "in this doctree, we should've asked the window to exit first "
+             "instead of reaching here.");
 }
 
 bool

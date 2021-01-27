@@ -17,7 +17,7 @@
 #include "mozilla/Likely.h"
 #include "mozilla/LookAndFeel.h"
 
-#include "nsDeviceContext.h"
+#include "nsAlgorithm.h" // for clamped()
 #include "nsRuleNode.h"
 #include "nscore.h"
 #include "nsIWidget.h"
@@ -2612,7 +2612,12 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
       parentdata_ = maybeFakeParentData.ptr();                                \
     }                                                                         \
   }                                                                           \
-  if (aStartStruct)                                                           \
+  if (eStyleStruct_##type_ == eStyleStruct_Variables)                         \
+    /* no need to copy construct an nsStyleVariables, as we will copy */      \
+    /* inherited variables (and set canStoreInRuleTree to false) in */        \
+    /* ComputeVariablesData */                                                \
+    data_ = new (mPresContext) nsStyle##type_ ctorargs_;                      \
+  else if (aStartStruct)                                                      \
     /* We only need to compute the delta between this computed data and */    \
     /* our computed data. */                                                  \
     data_ = new (mPresContext)                                                \
@@ -3795,7 +3800,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     aFont->mFont.sizeAdjust = systemFont.sizeAdjust;
   } else
     SetFactor(*sizeAdjustValue, aFont->mFont.sizeAdjust,
-              aCanStoreInRuleTree, aParentFont->mFont.sizeAdjust, 0.0f,
+              aCanStoreInRuleTree, aParentFont->mFont.sizeAdjust, -1.0f,
               SETFCT_NONE | SETFCT_UNSET_INHERIT);
 }
 
@@ -7284,7 +7289,9 @@ SetGridLine(const nsCSSValue& aValue,
       if (item->mValue.GetUnit() == eCSSUnit_Enumerated) {
         aResult.mHasSpan = true;
       } else if (item->mValue.GetUnit() == eCSSUnit_Integer) {
-        aResult.mInteger = item->mValue.GetIntValue();
+        aResult.mInteger = clamped(item->mValue.GetIntValue(),
+                                   nsStyleGridLine::kMinLine,
+                                   nsStyleGridLine::kMaxLine);
       } else if (item->mValue.GetUnit() == eCSSUnit_Ident) {
         item->mValue.GetStringValue(aResult.mLineName);
       } else {
@@ -9315,34 +9322,6 @@ nsRuleNode::GetStyleData(nsStyleStructID aSID,
   MOZ_ASSERT(data, "should have aborted on out-of-memory");
   return data;
 }
-
-// See comments above in GetStyleData for an explanation of what the
-// code below does.
-#define STYLE_STRUCT(name_, checkdata_cb_)                                    \
-const nsStyle##name_*                                                         \
-nsRuleNode::GetStyle##name_(nsStyleContext* aContext, bool aComputeData)      \
-{                                                                             \
-  NS_ASSERTION(IsUsedDirectly(),                                              \
-               "if we ever call this on rule nodes that aren't used "         \
-               "directly, we should adjust handling of mDependentBits "       \
-               "in some way.");                                               \
-                                                                              \
-  const nsStyle##name_ *data;                                                 \
-  data = mStyleData.GetStyle##name_();                                        \
-  if (MOZ_LIKELY(data != nullptr))                                            \
-    return data;                                                              \
-                                                                              \
-  if (MOZ_UNLIKELY(!aComputeData))                                            \
-    return nullptr;                                                           \
-                                                                              \
-  data = static_cast<const nsStyle##name_ *>                                  \
-           (WalkRuleTree(eStyleStruct_##name_, aContext));                    \
-                                                                              \
-  MOZ_ASSERT(data, "should have aborted on out-of-memory");                   \
-  return data;                                                                \
-}
-#include "nsStyleStructList.h"
-#undef STYLE_STRUCT
 
 void
 nsRuleNode::Mark()

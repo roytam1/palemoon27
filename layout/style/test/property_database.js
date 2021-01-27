@@ -3039,8 +3039,8 @@ var gCSSProperties = {
     domProp: "MozOrient",
     inherited: false,
     type: CSS_TYPE_LONGHAND,
-    initial_values: [ "auto" ],
-    other_values: [ "horizontal", "vertical" ],
+    initial_values: [ "inline" ],
+    other_values: [ "horizontal", "vertical", "block" ],
     invalid_values: [ "none" ]
   },
   "orphans": {
@@ -3314,7 +3314,7 @@ var gCSSProperties = {
     type: CSS_TYPE_LONGHAND,
     // don't know whether left and right are same as start
     initial_values: [ "start" ],
-    other_values: [ "center", "justify", "end" ],
+    other_values: [ "center", "justify", "end", "match-parent" ],
     invalid_values: [ "true", "true true" ]
   },
   "-moz-text-align-last": {

@@ -57,8 +57,6 @@ static const char* kSelectionCaretsLogModuleName = "SelectionCarets";
 // We treat mouse/touch move as "REAL" move event once its move distance
 // exceed this value, in CSS pixel.
 static const int32_t kMoveStartTolerancePx = 5;
-// Time for trigger scroll end event, in miliseconds.
-static const int32_t kScrollEndTimerDelay = 300;
 
 NS_IMPL_ISUPPORTS(SelectionCarets,
                   nsIReflowObserver,
@@ -67,6 +65,9 @@ NS_IMPL_ISUPPORTS(SelectionCarets,
                   nsISupportsWeakReference)
 
 /*static*/ int32_t SelectionCarets::sSelectionCaretsInflateSize = 0;
+/*static*/ bool SelectionCarets::sSelectionCaretDetectsLongTap = true;
+/*static*/ bool SelectionCarets::sCaretManagesAndroidActionbar = false;
+/*static*/ bool SelectionCarets::sSelectionCaretObservesCompositions = false;
 
 SelectionCarets::SelectionCarets(nsIPresShell* aPresShell)
   : mPresShell(aPresShell)
@@ -79,6 +80,7 @@ SelectionCarets::SelectionCarets(nsIPresShell* aPresShell)
   , mStartCaretVisible(false)
   , mSelectionVisibleInScrollFrames(true)
   , mVisible(false)
+  , mActionBarViewID(0)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -92,6 +94,12 @@ SelectionCarets::SelectionCarets(nsIPresShell* aPresShell)
   if (!addedPref) {
     Preferences::AddIntVarCache(&sSelectionCaretsInflateSize,
                                 "selectioncaret.inflatesize.threshold");
+    Preferences::AddBoolVarCache(&sSelectionCaretDetectsLongTap,
+                                 "selectioncaret.detects.longtap", true);
+    Preferences::AddBoolVarCache(&sCaretManagesAndroidActionbar,
+                                 "caret.manages-android-actionbar");
+    Preferences::AddBoolVarCache(&sSelectionCaretObservesCompositions,
+                                 "selectioncaret.observes.compositions");
     addedPref = true;
   }
 }
@@ -255,13 +263,16 @@ SelectionCarets::HandleEvent(WidgetEvent* aEvent)
           nsPresContext::AppUnitsPerCSSPixel() * kMoveStartTolerancePx) {
       CancelLongTapDetector();
     }
+
   } else if (aEvent->message == NS_MOUSE_MOZLONGTAP) {
-    if (!mVisible) {
-      SELECTIONCARETS_LOG("SelectWord from APZ");
+    if (!mVisible || !sSelectionCaretDetectsLongTap) {
+      SELECTIONCARETS_LOG("SelectWord from NS_MOUSE_MOZLONGTAP");
+
+      mDownPoint = ptInRoot;
       nsresult wordSelected = SelectWord();
 
       if (NS_FAILED(wordSelected)) {
-        SELECTIONCARETS_LOG("SelectWord from APZ failed!")
+        SELECTIONCARETS_LOG("SelectWord from NS_MOUSE_MOZLONGTAP failed!");
         return nsEventStatus_eIgnore;
       }
 
@@ -308,6 +319,11 @@ SelectionCarets::SetVisibility(bool aVisible)
 
   dom::Element* endElement = mPresShell->GetSelectionCaretsEndElement();
   SetElementVisibility(endElement, mVisible && mEndCaretVisible);
+
+  // Update the Android Actionbar visibility if in use.
+  if (sCaretManagesAndroidActionbar) {
+    TouchCaret::UpdateAndroidActionBarVisibility(mVisible, mActionBarViewID);
+  }
 }
 
 void
@@ -1105,12 +1121,46 @@ SelectionCarets::NotifySelectionChanged(nsIDOMDocument* aDoc,
     return NS_OK;
   }
 
-  if (!aReason || (aReason & (nsISelectionListener::DRAG_REASON |
-                              nsISelectionListener::KEYPRESS_REASON |
-                              nsISelectionListener::MOUSEDOWN_REASON))) {
-    SetVisibility(false);
+  // Update SelectionCaret visibility.
+  if (sSelectionCaretObservesCompositions) {
+    // When observing selection change notifications generated for example
+    // by Android soft-keyboard compositions, we can only obtain visibility
+    // after mouse-up by long-tap, or final caret-drag.
+    if (!mVisible) {
+      if (aReason & nsISelectionListener::MOUSEUP_REASON) {
+        UpdateSelectionCarets();
+      }
+    } else {
+      // If already visible, we hide immediately for some known
+      // event-reasons: drag, keypress, or mouse down.
+      if (aReason & (nsISelectionListener::DRAG_REASON |
+                     nsISelectionListener::KEYPRESS_REASON |
+                     nsISelectionListener::MOUSEDOWN_REASON)) {
+        SetVisibility(false);
+      } else {
+        // Else we look further at the selection status, as currently
+        // style-composition changes don't provide reason codes.
+        UpdateSelectionCarets();
+      }
+    }
   } else {
-    UpdateSelectionCarets();
+    // Default logic, mainly employed by b2g, isn't aware of soft-keyboard
+    // selection change compositions.
+    if (!aReason || (aReason & (nsISelectionListener::DRAG_REASON |
+                                nsISelectionListener::KEYPRESS_REASON |
+                                nsISelectionListener::MOUSEDOWN_REASON))) {
+      SetVisibility(false);
+    } else {
+      UpdateSelectionCarets();
+    }
+  }
+
+  // Maybe trigger Android ActionBar updates.
+  if (mVisible && sCaretManagesAndroidActionbar) {
+    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    if (os) {
+      os->NotifyObservers(nullptr, "ActionBar:UpdateState", nullptr);
+    }
   }
 
   DispatchSelectionStateChangedEvent(static_cast<Selection*>(aSel),
@@ -1142,7 +1192,10 @@ SelectionCarets::AsyncPanZoomStarted()
 {
   if (mVisible) {
     mInAsyncPanZoomGesture = true;
-    SetVisibility(false);
+    // Hide selection carets if not using ActionBar.
+    if (!sCaretManagesAndroidActionbar) {
+      SetVisibility(false);
+    }
 
     SELECTIONCARETS_LOG("Dispatch scroll started");
     DispatchScrollViewChangeEvent(mPresShell, dom::ScrollState::Started);
@@ -1178,7 +1231,11 @@ SelectionCarets::ScrollPositionChanged()
 {
   if (mVisible) {
     if (!mUseAsyncPanZoom) {
-      SetVisibility(false);
+      // Hide selection carets if not using ActionBar.
+      if (!sCaretManagesAndroidActionbar) {
+        SetVisibility(false);
+      }
+
       //TODO: handling scrolling for selection bubble when APZ is off
       // Dispatch event to notify gaia to hide selection bubble.
       // Positions will be updated when scroll is end, so no need to calculate
@@ -1206,7 +1263,7 @@ SelectionCarets::ScrollPositionChanged()
 void
 SelectionCarets::LaunchLongTapDetector()
 {
-  if (mUseAsyncPanZoom) {
+  if (!sSelectionCaretDetectsLongTap || mUseAsyncPanZoom) {
     return;
   }
 
@@ -1264,10 +1321,11 @@ SelectionCarets::LaunchScrollEndDetector()
 
   MOZ_ASSERT(mScrollEndDetectorTimer);
 
-  SELECTIONCARETS_LOG("Will fire scroll end after %d ms", kScrollEndTimerDelay);
+  SELECTIONCARETS_LOG("Will fire scroll end after %d ms",
+    TouchCaret::sScrollEndTimerDelay);
   mScrollEndDetectorTimer->InitWithFuncCallback(FireScrollEnd,
                                                 this,
-                                                kScrollEndTimerDelay,
+                                                TouchCaret::sScrollEndTimerDelay,
                                                 nsITimer::TYPE_ONE_SHOT);
 }
 

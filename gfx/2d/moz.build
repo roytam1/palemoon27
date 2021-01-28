@@ -24,6 +24,7 @@ EXPORTS.mozilla.gfx += [
     'DrawTargetTiled.h',
     'Filters.h',
     'Helpers.h',
+    'HelpersCairo.h',
     'Logging.h',
     'Matrix.h',
     'NumericTools.h',

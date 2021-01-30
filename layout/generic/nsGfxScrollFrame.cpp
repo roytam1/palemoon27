@@ -2896,8 +2896,8 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     dirtyRect = ExpandRectToNearlyVisible(dirtyRect);
   }
 
-  const nsStylePosition* pos = mOuter->StylePosition();
-  if (pos && (pos->mWillChangeBitField & NS_STYLE_WILL_CHANGE_SCROLL)) {
+  const nsStyleDisplay* disp = mOuter->StyleDisplay();
+  if (disp && (disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_SCROLL)) {
     aBuilder->AddToWillChangeBudget(mOuter, GetScrollPositionClampingScrollPortSize());
   }
 
@@ -4298,8 +4298,8 @@ ScrollFrameHelper::IsScrollbarOnRight() const
 bool
 ScrollFrameHelper::IsMaybeScrollingActive() const
 {
-  const nsStylePosition* pos = mOuter->StylePosition();
-  if (pos && (pos->mWillChangeBitField & NS_STYLE_WILL_CHANGE_SCROLL)) {
+  const nsStyleDisplay* disp = mOuter->StyleDisplay();
+  if (disp && (disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_SCROLL)) {
     return true;
   }
 
@@ -4311,9 +4311,9 @@ ScrollFrameHelper::IsMaybeScrollingActive() const
 bool
 ScrollFrameHelper::IsScrollingActive(nsDisplayListBuilder* aBuilder) const
 {
-  const nsStylePosition* pos = mOuter->StylePosition();
-  if (pos && (pos->mWillChangeBitField & NS_STYLE_WILL_CHANGE_SCROLL) &&
-      aBuilder->IsInWillChangeBudget(mOuter)) {
+  const nsStyleDisplay* disp = mOuter->StyleDisplay();
+  if (disp && (disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_SCROLL) &&
+    aBuilder->IsInWillChangeBudget(mOuter)) {
     return true;
   }
 

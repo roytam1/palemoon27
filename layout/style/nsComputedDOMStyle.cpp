@@ -53,6 +53,7 @@ using namespace mozilla;
 using namespace mozilla::dom;
 typedef const nsStyleBackground::Position Position;
 typedef const nsStyleBackground::Position::PositionCoord PositionCoord;
+typedef nsStyleTransformMatrix::TransformReferenceBox TransformReferenceBox;
 
 #if defined(DEBUG_bzbarsky) || defined(DEBUG_caillon)
 #define DEBUG_ComputedDOMStyle
@@ -1157,22 +1158,23 @@ nsComputedDOMStyle::DoGetTransformOrigin()
   nsDOMCSSValueList* valueList = GetROCSSValueList(false);
 
   /* Now, get the values. */
-  const nsStylePosition* pos = StylePosition();
+  const nsStyleDisplay* display = StyleDisplay();
 
   nsROCSSPrimitiveValue* width = new nsROCSSPrimitiveValue;
-  SetValueToCoord(width, pos->mTransformOrigin[0], false,
+  SetValueToCoord(width, display->mTransformOrigin[0], false,
                   &nsComputedDOMStyle::GetFrameBoundsWidthForTransform);
   valueList->AppendCSSValue(width);
 
   nsROCSSPrimitiveValue* height = new nsROCSSPrimitiveValue;
-  SetValueToCoord(height, pos->mTransformOrigin[1], false,
+  SetValueToCoord(height, display->mTransformOrigin[1], false,
                   &nsComputedDOMStyle::GetFrameBoundsHeightForTransform);
   valueList->AppendCSSValue(height);
 
-  if (pos->mTransformOrigin[2].GetUnit() != eStyleUnit_Coord ||
-      pos->mTransformOrigin[2].GetCoordValue() != 0) {
+  if (display->mTransformOrigin[2].GetUnit() != eStyleUnit_Coord ||
+      display->mTransformOrigin[2].GetCoordValue() != 0) {
     nsROCSSPrimitiveValue* depth = new nsROCSSPrimitiveValue;
-    SetValueToCoord(depth, pos->mTransformOrigin[2], false, nullptr);
+    SetValueToCoord(depth, display->mTransformOrigin[2], false,
+                    nullptr);
     valueList->AppendCSSValue(depth);
   }
 
@@ -1193,15 +1195,15 @@ nsComputedDOMStyle::DoGetPerspectiveOrigin()
   nsDOMCSSValueList* valueList = GetROCSSValueList(false);
 
   /* Now, get the values. */
-  const nsStylePosition* pos = StylePosition();
+  const nsStyleDisplay* display = StyleDisplay();
 
   nsROCSSPrimitiveValue* width = new nsROCSSPrimitiveValue;
-  SetValueToCoord(width, pos->mPerspectiveOrigin[0], false,
+  SetValueToCoord(width, display->mPerspectiveOrigin[0], false,
                   &nsComputedDOMStyle::GetFrameBoundsWidthForTransform);
   valueList->AppendCSSValue(width);
 
   nsROCSSPrimitiveValue* height = new nsROCSSPrimitiveValue;
-  SetValueToCoord(height, pos->mPerspectiveOrigin[1], false,
+  SetValueToCoord(height, display->mPerspectiveOrigin[1], false,
                   &nsComputedDOMStyle::GetFrameBoundsHeightForTransform);
   valueList->AppendCSSValue(height);
 
@@ -1212,7 +1214,7 @@ CSSValue*
 nsComputedDOMStyle::DoGetPerspective()
 {
     nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
-    SetValueToCoord(val, StylePosition()->mChildPerspective, false);
+    SetValueToCoord(val, StyleDisplay()->mChildPerspective, false);
     return val;
 }
 
@@ -1221,7 +1223,7 @@ nsComputedDOMStyle::DoGetBackfaceVisibility()
 {
     nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
     val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(StylePosition()->mBackfaceVisibility,
+        nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mBackfaceVisibility,
                                        nsCSSProps::kBackfaceVisibilityKTable));
     return val;
 }
@@ -1231,7 +1233,7 @@ nsComputedDOMStyle::DoGetTransformStyle()
 {
     nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
     val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(StylePosition()->mTransformStyle,
+        nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mTransformStyle,
                                        nsCSSProps::kTransformStyleKTable));
     return val;
 }
@@ -1243,13 +1245,13 @@ nsComputedDOMStyle::DoGetTransformStyle()
 CSSValue*
 nsComputedDOMStyle::DoGetTransform()
 {
-  /* First, get the position data.  We'll need it. */
-  const nsStylePosition* pos = StylePosition();
+  /* First, get the display data.  We'll need it. */
+  const nsStyleDisplay* display = StyleDisplay();
 
   /* If there are no transforms, then we should construct a single-element
    * entry and hand it back.
    */
-  if (!pos->mSpecifiedTransform) {
+  if (!display->mSpecifiedTransform) {
     nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
 
     /* Set it to "none." */
@@ -1261,7 +1263,9 @@ nsComputedDOMStyle::DoGetTransform()
    * store it in a string, and hand it back to the caller.
    */
 
-  /* Use the inner frame for width and height.  If we fail, assume zero.
+  /* Use the inner frame for the reference box.  If we don't have an inner
+   * frame we use empty dimensions to allow us to continue (and percentage
+   * values in the transform will simply give broken results).
    * TODO: There is no good way for us to represent the case where there's no
    * frame, which is problematic.  The reason is that when we have percentage
    * transforms, there are a total of four stored matrix entries that influence
@@ -1270,20 +1274,28 @@ nsComputedDOMStyle::DoGetTransform()
    * using the named transforms.  Until a real solution is found, we'll just
    * use this approach.
    */
-  nsRect bounds =
-    (mInnerFrame ? nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame) :
-     nsRect(0, 0, 0, 0));
+  TransformReferenceBox refBox(mInnerFrame, nsSize(0, 0));
 
    bool dummy;
    gfx3DMatrix matrix =
-     nsStyleTransformMatrix::ReadTransforms(pos->mSpecifiedTransform->mHead,
+     nsStyleTransformMatrix::ReadTransforms(display->mSpecifiedTransform->mHead,
                                             mStyleContextHolder,
                                             mStyleContextHolder->PresContext(),
                                             dummy,
-                                            bounds,
+                                            refBox,
                                             float(mozilla::AppUnitsPerCSSPixel()));
 
   return MatrixToCSSValue(matrix);
+}
+
+CSSValue*
+nsComputedDOMStyle::DoGetTransformBox()
+{
+  nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+      nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mTransformBox,
+                                     nsCSSProps::kTransformBoxKTable));
+  return val;
 }
 
 /* static */ nsROCSSPrimitiveValue*
@@ -4030,9 +4042,9 @@ nsComputedDOMStyle::DoGetClip()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
 
-  const nsStylePosition* pos = StylePosition();
+  const nsStyleDisplay* display = StyleDisplay();
 
-  if (pos->mClipFlags == NS_STYLE_CLIP_AUTO) {
+  if (display->mClipFlags == NS_STYLE_CLIP_AUTO) {
     val->SetIdent(eCSSKeyword_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object
@@ -4042,28 +4054,28 @@ nsComputedDOMStyle::DoGetClip()
     nsROCSSPrimitiveValue *leftVal   = new nsROCSSPrimitiveValue;
     nsDOMCSSRect * domRect = new nsDOMCSSRect(topVal, rightVal,
                                               bottomVal, leftVal);
-    if (pos->mClipFlags & NS_STYLE_CLIP_TOP_AUTO) {
+    if (display->mClipFlags & NS_STYLE_CLIP_TOP_AUTO) {
       topVal->SetIdent(eCSSKeyword_auto);
     } else {
-      topVal->SetAppUnits(pos->mClip.y);
+      topVal->SetAppUnits(display->mClip.y);
     }
 
-    if (pos->mClipFlags & NS_STYLE_CLIP_RIGHT_AUTO) {
+    if (display->mClipFlags & NS_STYLE_CLIP_RIGHT_AUTO) {
       rightVal->SetIdent(eCSSKeyword_auto);
     } else {
-      rightVal->SetAppUnits(pos->mClip.width + pos->mClip.x);
+      rightVal->SetAppUnits(display->mClip.width + display->mClip.x);
     }
 
-    if (pos->mClipFlags & NS_STYLE_CLIP_BOTTOM_AUTO) {
+    if (display->mClipFlags & NS_STYLE_CLIP_BOTTOM_AUTO) {
       bottomVal->SetIdent(eCSSKeyword_auto);
     } else {
-      bottomVal->SetAppUnits(pos->mClip.height + pos->mClip.y);
+      bottomVal->SetAppUnits(display->mClip.height + display->mClip.y);
     }
 
-    if (pos->mClipFlags & NS_STYLE_CLIP_LEFT_AUTO) {
+    if (display->mClipFlags & NS_STYLE_CLIP_LEFT_AUTO) {
       leftVal->SetIdent(eCSSKeyword_auto);
     } else {
-      leftVal->SetAppUnits(pos->mClip.x);
+      leftVal->SetAppUnits(display->mClip.x);
     }
     val->SetRect(domRect);
   }
@@ -4074,7 +4086,7 @@ nsComputedDOMStyle::DoGetClip()
 CSSValue*
 nsComputedDOMStyle::DoGetWillChange()
 {
-  const nsTArray<nsString>& willChange = StylePosition()->mWillChange;
+  const nsTArray<nsString>& willChange = StyleDisplay()->mWillChange;
 
   if (willChange.IsEmpty()) {
     nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
@@ -4982,7 +4994,7 @@ nsComputedDOMStyle::GetFrameBoundsWidthForTransform(nscoord& aWidth)
 
   AssertFlushedPendingReflows();
 
-  aWidth = nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame).width;
+  aWidth = TransformReferenceBox(mInnerFrame).Width();
   return true;
 }
 
@@ -4996,7 +5008,7 @@ nsComputedDOMStyle::GetFrameBoundsHeightForTransform(nscoord& aHeight)
 
   AssertFlushedPendingReflows();
 
-  aHeight = nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame).height;
+  aHeight = TransformReferenceBox(mInnerFrame).Height();
   return true;
 }
 

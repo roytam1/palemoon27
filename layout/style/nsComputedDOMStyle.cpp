@@ -1274,7 +1274,7 @@ nsComputedDOMStyle::DoGetTransform()
   nsStyleTransformMatrix::TransformReferenceBox refBox(mInnerFrame,
                                                        nsSize(0, 0));
 
-   bool dummy;
+   RuleNodeCacheConditions dummy;
    gfx3DMatrix matrix =
      nsStyleTransformMatrix::ReadTransforms(display->mSpecifiedTransform->mHead,
                                             mStyleContextHolder,

@@ -192,6 +192,32 @@ nsLayoutStylesheetCache::CounterStylesSheet()
   return gStyleCache->mCounterStylesSheet;
 }
 
+CSSStyleSheet*
+nsLayoutStylesheetCache::NoScriptSheet()
+{
+  EnsureGlobal();
+
+  if (!gStyleCache->mNoScriptSheet) {
+    LoadSheetURL("resource://gre-resources/noscript.css",
+                 gStyleCache->mNoScriptSheet, true);
+  }
+
+  return gStyleCache->mNoScriptSheet;
+}
+
+CSSStyleSheet*
+nsLayoutStylesheetCache::NoFramesSheet()
+{
+  EnsureGlobal();
+
+  if (!gStyleCache->mNoFramesSheet) {
+    LoadSheetURL("resource://gre-resources/noframes.css",
+                 gStyleCache->mNoFramesSheet, true);
+  }
+
+  return gStyleCache->mNoFramesSheet;
+}
+
 void
 nsLayoutStylesheetCache::Shutdown()
 {
@@ -225,6 +251,8 @@ nsLayoutStylesheetCache::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf
   MEASURE(mHTMLSheet);
   MEASURE(mMathMLSheet);
   MEASURE(mMinimalXULSheet);
+  MEASURE(mNoFramesSheet);
+  MEASURE(mNoScriptSheet);
   MEASURE(mNumberControlSheet);
   MEASURE(mQuirkSheet);
   MEASURE(mSVGSheet);

@@ -4087,7 +4087,6 @@ nsIFrame::InlinePrefISizeData::ForceBreak(nsRenderingContext *aRenderingContext)
 
 static void
 AddCoord(const nsStyleCoord& aStyle,
-         nsRenderingContext* aRenderingContext,
          nsIFrame* aFrame,
          nscoord* aCoord, float* aPercent,
          bool aClampNegativeToZero)
@@ -4123,63 +4122,82 @@ AddCoord(const nsStyleCoord& aStyle,
   }
 }
 
-/* virtual */ nsIFrame::IntrinsicISizeOffsetData
-nsFrame::IntrinsicISizeOffsets(nsRenderingContext* aRenderingContext)
+static nsIFrame::IntrinsicISizeOffsetData
+IntrinsicSizeOffsets(nsIFrame* aFrame, bool aForISize)
 {
-  IntrinsicISizeOffsetData result;
-
-  WritingMode wm = GetWritingMode();
-
-  const nsStyleMargin *styleMargin = StyleMargin();
-  AddCoord(wm.IsVertical() ? styleMargin->mMargin.GetTop()
-                           : styleMargin->mMargin.GetLeft(),
-           aRenderingContext, this, &result.hMargin, &result.hPctMargin,
+  nsIFrame::IntrinsicISizeOffsetData result;
+  WritingMode wm = aFrame->GetWritingMode();
+  const nsStyleMargin* styleMargin = aFrame->StyleMargin();
+  bool orthogonal = aForISize == wm.IsVertical();
+  AddCoord(orthogonal ? styleMargin->mMargin.GetTop()
+                      : styleMargin->mMargin.GetLeft(),
+           aFrame, &result.hMargin, &result.hPctMargin,
            false);
-  AddCoord(wm.IsVertical() ? styleMargin->mMargin.GetBottom()
-                           : styleMargin->mMargin.GetRight(),
-           aRenderingContext, this, &result.hMargin, &result.hPctMargin,
+  AddCoord(orthogonal ? styleMargin->mMargin.GetBottom()
+                      : styleMargin->mMargin.GetRight(),
+           aFrame, &result.hMargin, &result.hPctMargin,
            false);
 
-  const nsStylePadding *stylePadding = StylePadding();
-  AddCoord(wm.IsVertical() ? stylePadding->mPadding.GetTop()
-                           : stylePadding->mPadding.GetLeft(),
-           aRenderingContext, this, &result.hPadding, &result.hPctPadding,
+  const nsStylePadding* stylePadding = aFrame->StylePadding();
+  AddCoord(orthogonal ? stylePadding->mPadding.GetTop()
+                      : stylePadding->mPadding.GetLeft(),
+           aFrame, &result.hPadding, &result.hPctPadding,
            true);
-  AddCoord(wm.IsVertical() ? stylePadding->mPadding.GetBottom()
-                           : stylePadding->mPadding.GetRight(),
-           aRenderingContext, this, &result.hPadding, &result.hPctPadding,
+  AddCoord(orthogonal ? stylePadding->mPadding.GetBottom()
+                      : stylePadding->mPadding.GetRight(),
+           aFrame, &result.hPadding, &result.hPctPadding,
            true);
 
-  const nsStyleBorder *styleBorder = StyleBorder();
-  result.hBorder += styleBorder->GetComputedBorderWidth(
-    wm.PhysicalSideForInlineAxis(eLogicalEdgeStart));
-  result.hBorder += styleBorder->GetComputedBorderWidth(
-    wm.PhysicalSideForInlineAxis(eLogicalEdgeEnd));
+  if (aForISize) {
+    const nsStyleBorder* styleBorder = aFrame->StyleBorder();
+    result.hBorder += styleBorder->GetComputedBorderWidth(
+      wm.PhysicalSideForInlineAxis(eLogicalEdgeStart));
+    result.hBorder += styleBorder->GetComputedBorderWidth(
+      wm.PhysicalSideForInlineAxis(eLogicalEdgeEnd));
+  } else {
+    auto wm = aFrame->StyleVisibility()->mWritingMode;
+    const nsStyleBorder* styleBorder = aFrame->StyleBorder();
+    result.hBorder += styleBorder->GetComputedBorderWidth(
+      WritingMode::PhysicalSideForBlockAxis(wm, eLogicalEdgeStart));
+    result.hBorder += styleBorder->GetComputedBorderWidth(
+      WritingMode::PhysicalSideForBlockAxis(wm, eLogicalEdgeEnd));
+  }
 
-  const nsStyleDisplay *disp = StyleDisplay();
-  if (IsThemed(disp)) {
-    nsPresContext *presContext = PresContext();
+  const nsStyleDisplay* disp = aFrame->StyleDisplay();
+  if (aFrame->IsThemed(disp)) {
+    nsPresContext* presContext = aFrame->PresContext();
 
     nsIntMargin border;
     presContext->GetTheme()->GetWidgetBorder(presContext->DeviceContext(),
-                                             this, disp->mAppearance,
+                                             aFrame, disp->mAppearance,
                                              &border);
     result.hBorder =
-      presContext->DevPixelsToAppUnits(wm.IsVertical() ? border.TopBottom()
-                                                       : border.LeftRight());
+      presContext->DevPixelsToAppUnits(orthogonal ? border.TopBottom()
+                                                  : border.LeftRight());
 
     nsIntMargin padding;
     if (presContext->GetTheme()->GetWidgetPadding(presContext->DeviceContext(),
-                                                  this, disp->mAppearance,
+                                                  aFrame, disp->mAppearance,
                                                   &padding)) {
       result.hPadding =
-        presContext->DevPixelsToAppUnits(wm.IsVertical() ? padding.TopBottom()
-                                                         : padding.LeftRight());
+        presContext->DevPixelsToAppUnits(orthogonal ? padding.TopBottom()
+                                                    : padding.LeftRight());
       result.hPctPadding = 0;
     }
   }
-
   return result;
+}
+
+/* virtual */ nsIFrame::IntrinsicISizeOffsetData
+nsFrame::IntrinsicISizeOffsets()
+{
+  return IntrinsicSizeOffsets(this, true);
+}
+
+nsIFrame::IntrinsicISizeOffsetData
+nsIFrame::IntrinsicBSizeOffsets()
+{
+  return IntrinsicSizeOffsets(this, false);
 }
 
 /* virtual */ IntrinsicSize
@@ -7930,7 +7948,7 @@ nsFrame::DoGetParentStyleContext(nsIFrame** aProviderFrame) const
            // Ensure that we don't return the display:contents style
            // of the parent content for pseudos that have the same content
            // as their primary frame (like -moz-list-bullets do):
-           IsPrimaryFrame()) ||
+           mContent->GetPrimaryFrame() == this) ||
           /* if next is true then it's really a request for the table frame's
              parent context, see nsTable[Outer]Frame::GetParentStyleContext. */
           pseudo == nsCSSAnonBoxes::tableOuter) {

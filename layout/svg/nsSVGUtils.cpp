@@ -298,6 +298,22 @@ nsSVGUtils::NotifyAncestorsOfFilterRegionChange(nsIFrame *aFrame)
   }
 }
 
+Size
+nsSVGUtils::GetContextSize(const nsIFrame* aFrame)
+{
+  Size size;
+
+  MOZ_ASSERT(aFrame->GetContent()->IsSVGElement(), "bad cast");
+  const nsSVGElement* element = static_cast<nsSVGElement*>(aFrame->GetContent());
+
+  SVGSVGElement* ctx = element->GetCtx();
+  if (ctx) {
+    size.width = ctx->GetLength(SVGContentUtils::X);
+    size.height = ctx->GetLength(SVGContentUtils::Y);
+  }
+  return size;
+}
+
 float
 nsSVGUtils::ObjectSpace(const gfxRect &aRect, const nsSVGLength2 *aLength)
 {
@@ -827,10 +843,9 @@ nsSVGUtils::GetClipRectForFrame(nsIFrame *aFrame,
                                 float aX, float aY, float aWidth, float aHeight)
 {
   const nsStyleDisplay* disp = aFrame->StyleDisplay();
-  const nsStylePosition* pos = aFrame->StylePosition();
 
-  if (!(pos->mClipFlags & NS_STYLE_CLIP_RECT)) {
-    NS_ASSERTION(pos->mClipFlags == NS_STYLE_CLIP_AUTO,
+  if (!(disp->mClipFlags & NS_STYLE_CLIP_RECT)) {
+    NS_ASSERTION(disp->mClipFlags == NS_STYLE_CLIP_AUTO,
                  "We don't know about this type of clip.");
     return gfxRect(aX, aY, aWidth, aHeight);
   }
@@ -839,14 +854,14 @@ nsSVGUtils::GetClipRectForFrame(nsIFrame *aFrame,
       disp->mOverflowY == NS_STYLE_OVERFLOW_HIDDEN) {
 
     nsIntRect clipPxRect =
-      pos->mClip.ToOutsidePixels(aFrame->PresContext()->AppUnitsPerDevPixel());
+      disp->mClip.ToOutsidePixels(aFrame->PresContext()->AppUnitsPerDevPixel());
     gfxRect clipRect =
       gfxRect(clipPxRect.x, clipPxRect.y, clipPxRect.width, clipPxRect.height);
 
-    if (NS_STYLE_CLIP_RIGHT_AUTO & pos->mClipFlags) {
+    if (NS_STYLE_CLIP_RIGHT_AUTO & disp->mClipFlags) {
       clipRect.width = aWidth - clipRect.X();
     }
-    if (NS_STYLE_CLIP_BOTTOM_AUTO & pos->mClipFlags) {
+    if (NS_STYLE_CLIP_BOTTOM_AUTO & disp->mClipFlags) {
       clipRect.height = aHeight - clipRect.Y();
     }
 
@@ -904,6 +919,17 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, uint32_t aFlags)
         !static_cast<const nsSVGElement*>(content)->HasValidDimensions()) {
       return bbox;
     }
+
+    FrameProperties props = aFrame->Properties();
+
+    if (aFlags == eBBoxIncludeFillGeometry) {
+      gfxRect* prop =
+        static_cast<gfxRect*>(props.Get(ObjectBoundingBoxProperty()));
+      if (prop) {
+        return *prop;
+      }
+    }
+
     gfxMatrix matrix;
     if (aFrame->GetType() == nsGkAtoms::svgForeignObjectFrame ||
         aFrame->GetType() == nsGkAtoms::svgUseFrame) {
@@ -971,6 +997,13 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, uint32_t aFlags)
         bbox = gfxRect(0, 0, 0, 0);
       }
     }
+
+    if (aFlags == eBBoxIncludeFillGeometry) {
+      // Obtaining the bbox for objectBoundingBox calculations is common so we
+      // cache the result for future calls, since calculation can be expensive:
+      props.Set(ObjectBoundingBoxProperty(), new gfxRect(bbox));
+    }
+
     return bbox;
   }
   return nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);

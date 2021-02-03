@@ -448,6 +448,19 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_DISPLAY_RUBY_TEXT_CONTAINER    37
 #define NS_STYLE_DISPLAY_CONTENTS               38
 
+// See nsStyleDisplay
+// If these are re-ordered, nsComputedDOMStyle::DoGetContain() and
+// nsCSSValue::AppendToString() must be updated.
+#define NS_STYLE_CONTAIN_NONE                   0
+#define NS_STYLE_CONTAIN_STRICT                 0x1
+#define NS_STYLE_CONTAIN_LAYOUT                 0x2
+#define NS_STYLE_CONTAIN_STYLE                  0x4
+#define NS_STYLE_CONTAIN_PAINT                  0x8
+// NS_STYLE_CONTAIN_ALL_BITS does not correspond to a keyword.
+#define NS_STYLE_CONTAIN_ALL_BITS               (NS_STYLE_CONTAIN_LAYOUT | \
+                                                 NS_STYLE_CONTAIN_STYLE  | \
+                                                 NS_STYLE_CONTAIN_PAINT)
+
 // Shared constants for all align/justify properties (nsStylePosition):
 #define NS_STYLE_ALIGN_AUTO             0
 #define NS_STYLE_ALIGN_START            1
@@ -841,6 +854,11 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_TOUCH_ACTION_MANIPULATION    (1 << 4)
 
 // See nsStyleDisplay
+#define NS_STYLE_TRANSFORM_BOX_BORDER_BOX                0
+#define NS_STYLE_TRANSFORM_BOX_FILL_BOX                  1
+#define NS_STYLE_TRANSFORM_BOX_VIEW_BOX                  2
+
+// See nsStyleDisplay
 #define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE         0
 #define NS_STYLE_TRANSITION_TIMING_FUNCTION_LINEAR       1
 #define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN      2
@@ -939,12 +957,18 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_TABLE_EMPTY_CELLS_HIDE            0
 #define NS_STYLE_TABLE_EMPTY_CELLS_SHOW            1
 
-#define NS_STYLE_CAPTION_SIDE_TOP               0
-#define NS_STYLE_CAPTION_SIDE_RIGHT             1
-#define NS_STYLE_CAPTION_SIDE_BOTTOM            2
-#define NS_STYLE_CAPTION_SIDE_LEFT              3
-#define NS_STYLE_CAPTION_SIDE_TOP_OUTSIDE       4
-#define NS_STYLE_CAPTION_SIDE_BOTTOM_OUTSIDE    5
+#define NS_STYLE_CAPTION_SIDE_BSTART            0 // matches eLogicalSideBStart
+#define NS_STYLE_CAPTION_SIDE_BEND              1 // matches eLogicalSideBEnd
+#define NS_STYLE_CAPTION_SIDE_ISTART            2 // matches eLogicalSideIStart
+#define NS_STYLE_CAPTION_SIDE_IEND              3 // matches eLogicalSideIEnd
+#define NS_STYLE_CAPTION_SIDE_BSTART_OUTSIDE    4
+#define NS_STYLE_CAPTION_SIDE_BEND_OUTSIDE      5
+#define NS_STYLE_CAPTION_SIDE_TOP               6
+#define NS_STYLE_CAPTION_SIDE_RIGHT             7
+#define NS_STYLE_CAPTION_SIDE_BOTTOM            8
+#define NS_STYLE_CAPTION_SIDE_LEFT              9
+#define NS_STYLE_CAPTION_SIDE_TOP_OUTSIDE       10
+#define NS_STYLE_CAPTION_SIDE_BOTTOM_OUTSIDE    11
 
 // constants for cell "scope" attribute
 #define NS_STYLE_CELL_SCOPE_ROW                 0
@@ -1073,12 +1097,10 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_VECTOR_EFFECT_NONE                 0
 #define NS_STYLE_VECTOR_EFFECT_NON_SCALING_STROKE   1
 
-// backface-visibility
 // 3d Transforms - Backface visibility
 #define NS_STYLE_BACKFACE_VISIBILITY_VISIBLE        1
 #define NS_STYLE_BACKFACE_VISIBILITY_HIDDEN         0
 
-// transform-style
 #define NS_STYLE_TRANSFORM_STYLE_FLAT               0
 #define NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D        1
 

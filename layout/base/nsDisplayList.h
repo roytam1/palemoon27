@@ -2001,6 +2001,14 @@ public:
     : nsDisplayItem(aBuilder, aFrame)
   {}
 
+  /**
+   * @return true if this display item can be optimized into an image layer.
+   * It is an error to call GetContainer() unless you've called
+   * CanOptimizeToImageLayer() first and it returned true.
+   */
+  virtual bool CanOptimizeToImageLayer(LayerManager* aManager,
+                                       nsDisplayListBuilder* aBuilder) = 0;
+
   virtual already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
                                                         nsDisplayListBuilder* aBuilder) = 0;
   virtual void ConfigureLayer(ImageLayer* aLayer,
@@ -2179,11 +2187,8 @@ protected:
  */
 class nsDisplayBorder : public nsDisplayItem {
 public:
-  nsDisplayBorder(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame)
-  {
-    MOZ_COUNT_CTOR(nsDisplayBorder);
-  }
+  nsDisplayBorder(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame);
+
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayBorder() {
     MOZ_COUNT_DTOR(nsDisplayBorder);
@@ -2203,6 +2208,8 @@ public:
 
 protected:
   nsRect CalculateBounds(const nsStyleBorder& aStyleBorder);
+
+  nsRect mBounds;
 };
 
 /**
@@ -2350,6 +2357,8 @@ public:
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion* aInvalidRegion) override;
   
+  virtual bool CanOptimizeToImageLayer(LayerManager* aManager,
+                                       nsDisplayListBuilder* aBuilder) override;
   virtual already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
                                                         nsDisplayListBuilder *aBuilder) override;
   virtual void ConfigureLayer(ImageLayer* aLayer,
@@ -2376,7 +2385,7 @@ protected:
   // Cache the result of nsCSSRendering::FindBackground. Always null if
   // mIsThemed is true or if FindBackground returned false.
   const nsStyleBackground* mBackgroundStyle;
-  /* If this background can be a simple image layer, we store the format here. */
+  nsCOMPtr<imgIContainer> mImage;
   nsRefPtr<ImageContainer> mImageContainer;
   LayoutDeviceRect mDestRect;
   /* Bounds of this display item */
@@ -3516,22 +3525,6 @@ public:
   static Point3D GetDeltaToPerspectiveOrigin(const nsIFrame* aFrame,
                                              float aAppUnitsPerPixel);
 
-  /**
-   * Returns the bounds of a frame as defined for resolving percentage
-   * <translation-value>s in CSS transforms.  If
-   * UNIFIED_CONTINUATIONS is not defined, this is simply the frame's bounding
-   * rectangle, translated to the origin.  Otherwise, returns the smallest
-   * rectangle containing a frame and all of its continuations.  For example,
-   * if there is a <span> element with several continuations split over
-   * several lines, this function will return the rectangle containing all of
-   * those continuations.  This rectangle is relative to the origin of the
-   * frame's local coordinate space.
-   *
-   * @param aFrame The frame to get the bounding rect for.
-   * @return The frame's bounding rect, as described above.
-   */
-  static nsRect GetFrameBoundsForTransform(const nsIFrame* aFrame);
-
   struct FrameTransformProperties
   {
     FrameTransformProperties(const nsIFrame* aFrame,
@@ -3544,15 +3537,24 @@ public:
       : mFrame(nullptr)
       , mTransformList(aTransformList)
       , mToTransformOrigin(aToTransformOrigin)
-      , mToPerspectiveOrigin(aToPerspectiveOrigin)
       , mChildPerspective(aChildPerspective)
+      , mToPerspectiveOrigin(aToPerspectiveOrigin)
     {}
+
+    const Point3D& GetToPerspectiveOrigin() const
+    {
+      MOZ_ASSERT(mChildPerspective > 0, "Only valid with mChildPerspective > 0");
+      return mToPerspectiveOrigin;
+    }
 
     const nsIFrame* mFrame;
     nsRefPtr<nsCSSValueSharedList> mTransformList;
     const Point3D mToTransformOrigin;
-    const Point3D mToPerspectiveOrigin;
     nscoord mChildPerspective;
+
+  private:
+    // mToPerspectiveOrigin is only valid if mChildPerspective > 0.
+    Point3D mToPerspectiveOrigin;
   };
 
   /**
@@ -3563,10 +3565,10 @@ public:
    * @param aOrigin Relative to which point this transform should be applied.
    * @param aAppUnitsPerPixel The number of app units per graphics unit.
    * @param aBoundsOverride [optional] If this is nullptr (the default), the
-   *        computation will use the value of GetFrameBoundsForTransform(aFrame)
-   *        for the frame's bounding rectangle. Otherwise, it will use the
-   *        value of aBoundsOverride.  This is mostly for internal use and in
-   *        most cases you will not need to specify a value.
+   *        computation will use the value of TransformReferenceBox(aFrame).
+   *        Otherwise, it will use the value of aBoundsOverride.  This is
+   *        mostly for internal use and in most cases you will not need to
+   *        specify a value.
    * @param aOffsetByOrigin If true, the resulting matrix will be translated
    *        by aOrigin. This translation is applied *before* the CSS transform.
    */

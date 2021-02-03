@@ -2561,6 +2561,9 @@ pref("layout.css.overflow-clip-box.enabled", false);
 // Is support for CSS grid enabled?
 pref("layout.css.grid.enabled", false);
 
+// Is support for CSS contain enabled?
+pref("layout.css.contain.enabled", false);
+
 // Is support for CSS Ruby enabled?
 //
 // When this pref is removed, make sure that the pref callback registration
@@ -2781,6 +2784,12 @@ pref("svg.marker-improvements.enabled", true);
 // Is support for the new getBBox method from SVG 2 enabled?
 // See https://svgwg.org/svg2-draft/single-page.html#types-SVGBoundingBoxOptions
 pref("svg.new-getBBox.enabled", false);
+
+#ifdef RELEASE_BUILD
+pref("svg.transform-origin.enabled", false);
+#else
+pref("svg.transform-origin.enabled", true);
+#endif // RELEASE_BUILD
 
 // Default font types and sizes by locale
 pref("font.default.ar", "sans-serif");

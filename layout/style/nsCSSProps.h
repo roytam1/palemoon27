@@ -656,6 +656,7 @@ public:
   static const KTableValue kMaskTypeKTable[];
   static const KTableValue kMathVariantKTable[];
   static const KTableValue kMathDisplayKTable[];
+  static const KTableValue kContainKTable[];
   static const KTableValue kContextOpacityKTable[];
   static const KTableValue kContextPatternKTable[];
   static const KTableValue kObjectFitKTable[];
@@ -700,6 +701,7 @@ public:
   static const KTableValue kTextOverflowKTable[];
   static const KTableValue kTextTransformKTable[];
   static const KTableValue kTouchActionKTable[];
+  static const KTableValue kTransformBoxKTable[];
   static const KTableValue kTransitionTimingFunctionKTable[];
   static const KTableValue kUnicodeBidiKTable[];
   static const KTableValue kUserFocusKTable[];

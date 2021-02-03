@@ -1065,7 +1065,7 @@ nsFrameConstructorState::PushAbsoluteContainingBlock(nsContainerFrame* aNewAbsol
    * we're a transformed element.
    */
   mFixedPosIsAbsPos = aPositionedFrame &&
-      aPositionedFrame->StylePosition()->IsFixedPosContainingBlock(aPositionedFrame);
+      aPositionedFrame->StyleDisplay()->IsFixedPosContainingBlock(aPositionedFrame);
 
   if (aNewAbsoluteContainingBlock) {
     aNewAbsoluteContainingBlock->MarkAsAbsoluteContainingBlock();
@@ -3815,9 +3815,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
 
     // If we need to create a block formatting context to wrap our
     // kids, do it now.
-    const nsStylePosition* position = styleContext->StylePosition();
     const nsStyleDisplay* maybeAbsoluteContainingBlockDisplay = display;
-    const nsStylePosition* maybeAbsoluteContainingBlockPosition = position;
     nsIFrame* maybeAbsoluteContainingBlockStyleFrame = primaryFrame;
     nsIFrame* maybeAbsoluteContainingBlock = newFrame;
     nsIFrame* possiblyLeafFrame = newFrame;
@@ -3928,7 +3926,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
         // display for the outer, but make the inner the containing block.
         if ((maybeAbsoluteContainingBlockDisplay->IsAbsolutelyPositionedStyle() ||
              maybeAbsoluteContainingBlockDisplay->IsRelativelyPositionedStyle() ||
-             maybeAbsoluteContainingBlockPosition->IsFixedPosContainingBlock(
+             maybeAbsoluteContainingBlockDisplay->IsFixedPosContainingBlock(
                  maybeAbsoluteContainingBlockStyleFrame)) &&
             !maybeAbsoluteContainingBlockStyleFrame->IsSVGText()) {
           nsContainerFrame* cf = static_cast<nsContainerFrame*>(
@@ -6108,7 +6106,7 @@ nsCSSFrameConstructor::GetAbsoluteContainingBlock(nsIFrame* aFrame,
     // not transformed, skip it.
     if (!frame->IsAbsPosContaininingBlock() ||
         (aType == FIXED_POS &&
-         !frame->StylePosition()->IsFixedPosContainingBlock(frame))) {
+         !frame->StyleDisplay()->IsFixedPosContainingBlock(frame))) {
       continue;
     }
     nsIFrame* absPosCBCandidate = frame;
@@ -6704,7 +6702,12 @@ nsCSSFrameConstructor::GetInsertionPrevSibling(InsertionPoint* aInsertion,
         // the container would be inserted.  This is needed when inserting
         // into nested display:contents nodes.
         nsIContent* child = aInsertion->mContainer;
-        InsertionPoint fakeInsertion(aInsertion->mParentFrame, child->GetParent());
+        nsIContent* parent = child->GetParent();
+        aInsertion->mParentFrame =
+          ::GetAdjustedParentFrame(aInsertion->mParentFrame,
+                                   aInsertion->mParentFrame->GetType(),
+                                   parent);
+        InsertionPoint fakeInsertion(aInsertion->mParentFrame, parent);
         nsIFrame* result = GetInsertionPrevSibling(&fakeInsertion, child, aIsAppend,
                                                    aIsRangeInsertSafe, nullptr, nullptr);
         MOZ_ASSERT(aInsertion->mParentFrame->GetContent() ==
@@ -9081,8 +9084,10 @@ nsCSSFrameConstructor::GetInsertionPoint(nsIContent* aContainer,
   InsertionPoint insertion(GetContentInsertionFrameFor(insertionElement),
                            insertionElement);
 
-  // Fieldsets have multiple insertion points.
-  if (insertionElement->IsHTMLElement(nsGkAtoms::fieldset)) {
+  // Fieldset frames have multiple normal flow child frame lists so handle it
+  // the same as if it had multiple content insertion points.
+  if (insertion.mParentFrame &&
+      insertion.mParentFrame->GetType() == nsGkAtoms::fieldSetFrame) {
     insertion.mMultiple = true;
   }
 

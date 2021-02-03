@@ -392,6 +392,7 @@ private:
   mozilla::dom::CSSValue* DoGetClear();
   mozilla::dom::CSSValue* DoGetFloat();
   mozilla::dom::CSSValue* DoGetDisplay();
+  mozilla::dom::CSSValue* DoGetContain();
   mozilla::dom::CSSValue* DoGetPosition();
   mozilla::dom::CSSValue* DoGetClip();
   mozilla::dom::CSSValue* DoGetImageOrientation();
@@ -406,6 +407,7 @@ private:
   mozilla::dom::CSSValue* DoGetPageBreakInside();
   mozilla::dom::CSSValue* DoGetTouchAction();
   mozilla::dom::CSSValue* DoGetTransform();
+  mozilla::dom::CSSValue* DoGetTransformBox();
   mozilla::dom::CSSValue* DoGetTransformOrigin();
   mozilla::dom::CSSValue* DoGetPerspective();
   mozilla::dom::CSSValue* DoGetBackfaceVisibility();

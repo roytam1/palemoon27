@@ -32,6 +32,8 @@
 #include "nsIDocument.h"
 #include <algorithm>
 
+using namespace mozilla;
+
 static_assert((((1 << nsStyleStructID_Length) - 1) &
                ~(NS_STYLE_INHERIT_MASK)) == 0,
               "Not enough bits in NS_STYLE_INHERIT_MASK");
@@ -1390,14 +1392,12 @@ bool nsStyleSVGPaint::operator==(const nsStyleSVGPaint& aOther) const
 // nsStylePosition
 //
 nsStylePosition::nsStylePosition(void)
-  : mWillChangeBitField(0)
 {
   MOZ_COUNT_CTOR(nsStylePosition);
 
   // positioning values not inherited
 
   mObjectPosition.SetInitialPercentValues(0.5f);
-  mClip.SetRect(0,0,0,0);
 
   nsStyleCoord  autoCoord(eStyleUnit_Auto);
   mOffset.SetLeft(autoCoord);
@@ -1413,22 +1413,11 @@ nsStylePosition::nsStylePosition(void)
   mFlexBasis.SetAutoValue();
 
   // The initial value of grid-auto-columns and grid-auto-rows is 'auto',
-  // which computes to 'minmax(min-content, max-content)'.
-  mGridAutoColumnsMin.SetIntValue(NS_STYLE_GRID_TRACK_BREADTH_MIN_CONTENT,
-                                  eStyleUnit_Enumerated);
-  mGridAutoColumnsMax.SetIntValue(NS_STYLE_GRID_TRACK_BREADTH_MAX_CONTENT,
-                                  eStyleUnit_Enumerated);
-  mGridAutoRowsMin.SetIntValue(NS_STYLE_GRID_TRACK_BREADTH_MIN_CONTENT,
-                               eStyleUnit_Enumerated);
-  mGridAutoRowsMax.SetIntValue(NS_STYLE_GRID_TRACK_BREADTH_MAX_CONTENT,
-                               eStyleUnit_Enumerated);
-
-  mTransformOrigin[0].SetPercentValue(0.5f); // Transform is centered on origin
-  mTransformOrigin[1].SetPercentValue(0.5f);
-  mTransformOrigin[2].SetCoordValue(0);
-  mChildPerspective.SetNoneValue();
-  mPerspectiveOrigin[0].SetPercentValue(0.5f);
-  mPerspectiveOrigin[1].SetPercentValue(0.5f);
+  // which computes to 'minmax(auto, auto)'.
+  mGridAutoColumnsMin.SetAutoValue();
+  mGridAutoColumnsMax.SetAutoValue();
+  mGridAutoRowsMin.SetAutoValue();
+  mGridAutoRowsMax.SetAutoValue();
 
   mGridAutoFlow = NS_STYLE_GRID_AUTO_FLOW_ROW;
   mBoxSizing = NS_STYLE_BOX_SIZING_CONTENT;
@@ -1440,14 +1429,10 @@ nsStylePosition::nsStylePosition(void)
   mFlexWrap = NS_STYLE_FLEX_WRAP_NOWRAP;
   mJustifyContent = NS_STYLE_JUSTIFY_CONTENT_FLEX_START;
   mObjectFit = NS_STYLE_OBJECT_FIT_FILL;
-  mClipFlags = NS_STYLE_CLIP_AUTO;
-  mBackfaceVisibility = NS_STYLE_BACKFACE_VISIBILITY_VISIBLE;
-  mTransformStyle = NS_STYLE_TRANSFORM_STYLE_FLAT;
   mOrder = NS_STYLE_ORDER_INITIAL;
   mFlexGrow = 0.0f;
   mFlexShrink = 1.0f;
   mZIndex.SetAutoValue();
-  mSpecifiedTransform = nullptr;
   // Other members get their default constructors
   // which initialize them to representations of their respective initial value.
   // mGridTemplateAreas: nullptr for 'none'
@@ -1462,7 +1447,6 @@ nsStylePosition::~nsStylePosition(void)
 
 nsStylePosition::nsStylePosition(const nsStylePosition& aSource)
   : mObjectPosition(aSource.mObjectPosition)
-  , mClip(aSource.mClip)
   , mOffset(aSource.mOffset)
   , mWidth(aSource.mWidth)
   , mMinWidth(aSource.mMinWidth)
@@ -1475,7 +1459,6 @@ nsStylePosition::nsStylePosition(const nsStylePosition& aSource)
   , mGridAutoColumnsMax(aSource.mGridAutoColumnsMax)
   , mGridAutoRowsMin(aSource.mGridAutoRowsMin)
   , mGridAutoRowsMax(aSource.mGridAutoRowsMax)
-  , mChildPerspective(aSource.mChildPerspective)
   , mGridAutoFlow(aSource.mGridAutoFlow)
   , mBoxSizing(aSource.mBoxSizing)
   , mAlignContent(aSource.mAlignContent)
@@ -1486,10 +1469,6 @@ nsStylePosition::nsStylePosition(const nsStylePosition& aSource)
   , mFlexWrap(aSource.mFlexWrap)
   , mJustifyContent(aSource.mJustifyContent)
   , mObjectFit(aSource.mObjectFit)
-  , mClipFlags(aSource.mClipFlags)
-  , mBackfaceVisibility(aSource.mBackfaceVisibility)
-  , mTransformStyle(aSource.mTransformStyle)
-  , mWillChangeBitField(aSource.mWillChangeBitField)
   , mOrder(aSource.mOrder)
   , mFlexGrow(aSource.mFlexGrow)
   , mFlexShrink(aSource.mFlexShrink)
@@ -1501,17 +1480,8 @@ nsStylePosition::nsStylePosition(const nsStylePosition& aSource)
   , mGridColumnEnd(aSource.mGridColumnEnd)
   , mGridRowStart(aSource.mGridRowStart)
   , mGridRowEnd(aSource.mGridRowEnd)
-  , mSpecifiedTransform(aSource.mSpecifiedTransform)
-  , mWillChange(aSource.mWillChange)
 {
   MOZ_COUNT_CTOR(nsStylePosition);
-
-  /* Copy over transform origin. */
-  mTransformOrigin[0] = aSource.mTransformOrigin[0];
-  mTransformOrigin[1] = aSource.mTransformOrigin[1];
-  mTransformOrigin[2] = aSource.mTransformOrigin[2];
-  mPerspectiveOrigin[0] = aSource.mPerspectiveOrigin[0];
-  mPerspectiveOrigin[1] = aSource.mPerspectiveOrigin[1];
 }
 
 static bool
@@ -1542,96 +1512,6 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
       mObjectPosition != aOther.mObjectPosition) {
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_RepaintFrame,
                                        nsChangeHint_NeedReflow));
-  }
-
-  if (mClipFlags != aOther.mClipFlags) {
-    NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_AllReflowHints,
-                                       nsChangeHint_RepaintFrame));
-  }
-
-  if (!mClip.IsEqualInterior(aOther.mClip)) {
-    // If the clip has changed, we just need to update overflow areas. DLBI
-    // will handle the invalidation.
-    NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_UpdateOverflow,
-                                       nsChangeHint_SchedulePaint));
-  }
-
-  /* If we've added or removed the transform property, we need to reconstruct the frame to add
-   * or remove the view object, and also to handle abs-pos and fixed-pos containers.
-   */
-  if (HasTransformStyle() != aOther.HasTransformStyle()) {
-    // We do not need to apply nsChangeHint_UpdateTransformLayer since
-    // nsChangeHint_RepaintFrame will forcibly invalidate the frame area and
-    // ensure layers are rebuilt (or removed).
-    NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_AddOrRemoveTransform,
-                          NS_CombineHint(nsChangeHint_UpdateOverflow,
-                                         nsChangeHint_RepaintFrame)));
-  } else {
-    /* Otherwise, if we've kept the property lying around and we already had a
-     * transform, we need to see whether or not we've changed the transform.
-     * If so, we need to recompute its overflow rect (which probably changed
-     * if the transform changed) and to redraw within the bounds of that new
-     * overflow rect.
-     *
-     * If the property isn't present in either style struct, we still do the
-     * comparisons but turn all the resulting change hints into
-     * nsChangeHint_NeutralChange.
-     */
-    nsChangeHint transformHint = nsChangeHint(0);
-
-    if (!mSpecifiedTransform != !aOther.mSpecifiedTransform ||
-        (mSpecifiedTransform &&
-         *mSpecifiedTransform != *aOther.mSpecifiedTransform)) {
-      NS_UpdateHint(transformHint, nsChangeHint_UpdateTransformLayer);
-
-      if (mSpecifiedTransform &&
-          aOther.mSpecifiedTransform) {
-        NS_UpdateHint(transformHint, nsChangeHint_UpdatePostTransformOverflow);
-      } else {
-        NS_UpdateHint(transformHint, nsChangeHint_UpdateOverflow);
-      }
-    }
-
-    const nsChangeHint kUpdateOverflowAndRepaintHint =
-      NS_CombineHint(nsChangeHint_UpdateOverflow, nsChangeHint_RepaintFrame);
-    for (uint8_t index = 0; index < 3; ++index)
-      if (mTransformOrigin[index] != aOther.mTransformOrigin[index]) {
-        NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
-        break;
-      }
-
-    for (uint8_t index = 0; index < 2; ++index)
-      if (mPerspectiveOrigin[index] != aOther.mPerspectiveOrigin[index]) {
-        NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
-        break;
-      }
-
-    if (mChildPerspective != aOther.mChildPerspective ||
-        mTransformStyle != aOther.mTransformStyle)
-      NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
-
-    if (mBackfaceVisibility != aOther.mBackfaceVisibility)
-      NS_UpdateHint(transformHint, nsChangeHint_RepaintFrame);
-
-    if (transformHint) {
-      if (HasTransformStyle()) {
-        NS_UpdateHint(hint, transformHint);
-      } else {
-        NS_UpdateHint(hint, nsChangeHint_NeutralChange);
-      }
-    }
-  }
-
-  // Note that the HasTransformStyle() != aOther.HasTransformStyle()
-  // test above handles relevant changes in the
-  // NS_STYLE_WILL_CHANGE_TRANSFORM bit, which in turn handles frame
-  // reconstruction for changes in the containing block of
-  // fixed-positioned elements.  Other than that, all changes to
-  // 'will-change' can be handled by a repaint.
-  uint8_t willChangeBitsChanged =
-    mWillChangeBitField ^ aOther.mWillChangeBitField;
-  if (willChangeBitsChanged) {
-    NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
   }
 
   if (mOrder != aOther.mOrder) {
@@ -1754,10 +1634,6 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
     } else {
       return NS_CombineHint(hint, nsChangeHint_AllReflowHints);
     }
-  }
-
-  if (!hint && !mClip.IsEqualEdges(aOther.mClip)) {
-    return nsChangeHint_NeutralChange;
   }
   return hint;
 }
@@ -2721,11 +2597,13 @@ mozilla::StyleAnimation::operator==(const mozilla::StyleAnimation& aOther) const
 }
 
 nsStyleDisplay::nsStyleDisplay()
+  : mWillChangeBitField(0)
 {
   MOZ_COUNT_CTOR(nsStyleDisplay);
   mAppearance = NS_THEME_NONE;
   mDisplay = NS_STYLE_DISPLAY_INLINE;
   mOriginalDisplay = mDisplay;
+  mContain = NS_STYLE_CONTAIN_NONE;
   mPosition = NS_STYLE_POSITION_STATIC;
   mFloats = NS_STYLE_FLOAT_NONE;
   mOriginalFloats = mFloats;
@@ -2737,7 +2615,19 @@ nsStyleDisplay::nsStyleDisplay()
   mOverflowY = NS_STYLE_OVERFLOW_VISIBLE;
   mOverflowClipBox = NS_STYLE_OVERFLOW_CLIP_BOX_PADDING_BOX;
   mResize = NS_STYLE_RESIZE_NONE;
+  mClipFlags = NS_STYLE_CLIP_AUTO;
+  mClip.SetRect(0,0,0,0);
   mOpacity = 1.0f;
+  mSpecifiedTransform = nullptr;
+  mTransformOrigin[0].SetPercentValue(0.5f); // Transform is centered on origin
+  mTransformOrigin[1].SetPercentValue(0.5f);
+  mTransformOrigin[2].SetCoordValue(0);
+  mPerspectiveOrigin[0].SetPercentValue(0.5f);
+  mPerspectiveOrigin[1].SetPercentValue(0.5f);
+  mChildPerspective.SetNoneValue();
+  mBackfaceVisibility = NS_STYLE_BACKFACE_VISIBILITY_VISIBLE;
+  mTransformStyle = NS_STYLE_TRANSFORM_STYLE_FLAT;
+  mTransformBox = NS_STYLE_TRANSFORM_BOX_BORDER_BOX;
   mOrient = NS_STYLE_ORIENT_INLINE;
   mMixBlendMode = NS_STYLE_BLEND_NORMAL;
   mIsolation = NS_STYLE_ISOLATION_AUTO;
@@ -2775,9 +2665,11 @@ nsStyleDisplay::nsStyleDisplay()
 
 nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   : mBinding(aSource.mBinding)
+  , mClip(aSource.mClip)
   , mOpacity(aSource.mOpacity)
   , mDisplay(aSource.mDisplay)
   , mOriginalDisplay(aSource.mOriginalDisplay)
+  , mContain(aSource.mContain)
   , mAppearance(aSource.mAppearance)
   , mPosition(aSource.mPosition)
   , mFloats(aSource.mFloats)
@@ -2790,9 +2682,12 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mOverflowY(aSource.mOverflowY)
   , mOverflowClipBox(aSource.mOverflowClipBox)
   , mResize(aSource.mResize)
+  , mClipFlags(aSource.mClipFlags)
   , mOrient(aSource.mOrient)
   , mMixBlendMode(aSource.mMixBlendMode)
   , mIsolation(aSource.mIsolation)
+  , mWillChangeBitField(aSource.mWillChangeBitField)
+  , mWillChange(aSource.mWillChange)
   , mTouchAction(aSource.mTouchAction)
   , mScrollBehavior(aSource.mScrollBehavior)
   , mScrollSnapTypeX(aSource.mScrollSnapTypeX)
@@ -2801,6 +2696,11 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mScrollSnapPointsY(aSource.mScrollSnapPointsY)
   , mScrollSnapDestination(aSource.mScrollSnapDestination)
   , mScrollSnapCoordinate(aSource.mScrollSnapCoordinate)
+  , mBackfaceVisibility(aSource.mBackfaceVisibility)
+  , mTransformStyle(aSource.mTransformStyle)
+  , mTransformBox(aSource.mTransformBox)
+  , mSpecifiedTransform(aSource.mSpecifiedTransform)
+  , mChildPerspective(aSource.mChildPerspective)
   , mTransitions(aSource.mTransitions)
   , mTransitionTimingFunctionCount(aSource.mTransitionTimingFunctionCount)
   , mTransitionDurationCount(aSource.mTransitionDurationCount)
@@ -2817,6 +2717,13 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mAnimationIterationCountCount(aSource.mAnimationIterationCountCount)
 {
   MOZ_COUNT_CTOR(nsStyleDisplay);
+
+  /* Copy over transform origin. */
+  mTransformOrigin[0] = aSource.mTransformOrigin[0];
+  mTransformOrigin[1] = aSource.mTransformOrigin[1];
+  mTransformOrigin[2] = aSource.mTransformOrigin[2];
+  mPerspectiveOrigin[0] = aSource.mPerspectiveOrigin[0];
+  mPerspectiveOrigin[1] = aSource.mPerspectiveOrigin[1];
 }
 
 nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
@@ -2826,6 +2733,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
   if (!EqualURIs(mBinding, aOther.mBinding)
       || mPosition != aOther.mPosition
       || mDisplay != aOther.mDisplay
+      || mContain != aOther.mContain
       || (mFloats == NS_STYLE_FLOAT_NONE) != (aOther.mFloats == NS_STYLE_FLOAT_NONE)
       || mOverflowX != aOther.mOverflowX
       || mOverflowY != aOther.mOverflowY
@@ -2879,9 +2787,17 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mBreakAfter != aOther.mBreakAfter
       || mAppearance != aOther.mAppearance
       || mOrient != aOther.mOrient
-      || mOverflowClipBox != aOther.mOverflowClipBox)
+      || mOverflowClipBox != aOther.mOverflowClipBox
+      || mClipFlags != aOther.mClipFlags)
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_AllReflowHints,
                                        nsChangeHint_RepaintFrame));
+
+  if (!mClip.IsEqualInterior(aOther.mClip)) {
+    // If the clip has changed, we just need to update overflow areas. DLBI
+    // will handle the invalidation.
+    NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_UpdateOverflow,
+                                       nsChangeHint_SchedulePaint));
+  }
 
   if (mOpacity != aOther.mOpacity) {
     // If we're going from the optimized >=0.99 opacity value to 1.0 or back, then
@@ -2897,6 +2813,85 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
 
   if (mMixBlendMode != aOther.mMixBlendMode
       || mIsolation != aOther.mIsolation) {
+    NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
+  }
+
+  /* If we've added or removed the transform property, we need to reconstruct the frame to add
+   * or remove the view object, and also to handle abs-pos and fixed-pos containers.
+   */
+  if (HasTransformStyle() != aOther.HasTransformStyle()) {
+    // We do not need to apply nsChangeHint_UpdateTransformLayer since
+    // nsChangeHint_RepaintFrame will forcibly invalidate the frame area and
+    // ensure layers are rebuilt (or removed).
+    NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_AddOrRemoveTransform,
+                          NS_CombineHint(nsChangeHint_UpdateOverflow,
+                                         nsChangeHint_RepaintFrame)));
+  } else {
+    /* Otherwise, if we've kept the property lying around and we already had a
+     * transform, we need to see whether or not we've changed the transform.
+     * If so, we need to recompute its overflow rect (which probably changed
+     * if the transform changed) and to redraw within the bounds of that new
+     * overflow rect.
+     *
+     * If the property isn't present in either style struct, we still do the
+     * comparisons but turn all the resulting change hints into
+     * nsChangeHint_NeutralChange.
+     */
+    nsChangeHint transformHint = nsChangeHint(0);
+
+    if (!mSpecifiedTransform != !aOther.mSpecifiedTransform ||
+        (mSpecifiedTransform &&
+         *mSpecifiedTransform != *aOther.mSpecifiedTransform)) {
+      NS_UpdateHint(transformHint, nsChangeHint_UpdateTransformLayer);
+
+      if (mSpecifiedTransform &&
+          aOther.mSpecifiedTransform) {
+        NS_UpdateHint(transformHint, nsChangeHint_UpdatePostTransformOverflow);
+      } else {
+        NS_UpdateHint(transformHint, nsChangeHint_UpdateOverflow);
+      }
+    }
+
+    const nsChangeHint kUpdateOverflowAndRepaintHint =
+      NS_CombineHint(nsChangeHint_UpdateOverflow, nsChangeHint_RepaintFrame);
+    for (uint8_t index = 0; index < 3; ++index)
+      if (mTransformOrigin[index] != aOther.mTransformOrigin[index]) {
+        NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
+        break;
+      }
+    
+    for (uint8_t index = 0; index < 2; ++index)
+      if (mPerspectiveOrigin[index] != aOther.mPerspectiveOrigin[index]) {
+        NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
+        break;
+      }
+
+    if (mChildPerspective != aOther.mChildPerspective ||
+        mTransformStyle != aOther.mTransformStyle ||
+        mTransformBox != aOther.mTransformBox)
+      NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
+
+    if (mBackfaceVisibility != aOther.mBackfaceVisibility)
+      NS_UpdateHint(transformHint, nsChangeHint_RepaintFrame);
+
+    if (transformHint) {
+      if (HasTransformStyle()) {
+        NS_UpdateHint(hint, transformHint);
+      } else {
+        NS_UpdateHint(hint, nsChangeHint_NeutralChange);
+      }
+    }
+  }
+
+  // Note that the HasTransformStyle() != aOther.HasTransformStyle() 
+  // test above handles relevant changes in the
+  // NS_STYLE_WILL_CHANGE_TRANSFORM bit, which in turn handles frame 
+  // reconstruction for changes in the containing block of 
+  // fixed-positioned elements.  Other than that, all changes to 
+  // 'will-change' can be handled by a repaint.
+  uint8_t willChangeBitsChanged =
+    mWillChangeBitField ^ aOther.mWillChangeBitField;
+  if (willChangeBitsChanged) {
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
   }
 
@@ -2918,7 +2913,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
   // properties, since some data did change in the style struct.
 
   if (!hint &&
-      (mOriginalDisplay != aOther.mOriginalDisplay ||
+      (!mClip.IsEqualEdges(aOther.mClip) ||
+       mOriginalDisplay != aOther.mOriginalDisplay ||
        mOriginalFloats != aOther.mOriginalFloats ||
        mTransitions != aOther.mTransitions ||
        mTransitionTimingFunctionCount !=

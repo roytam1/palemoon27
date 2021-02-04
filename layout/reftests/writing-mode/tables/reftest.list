@@ -7,19 +7,19 @@
 == vertical-table-colspan-1.html vertical-table-colspan-1-ref.html
 == vertical-table-colspan-2.html vertical-table-colspan-2-ref.html
 == vertical-table-specified-width-1.html vertical-table-specified-width-1-ref.html
-== vertical-table-specified-width-2.html vertical-table-specified-width-2-ref.html
+asserts(1) == vertical-table-specified-width-2.html vertical-table-specified-width-2-ref.html # bug 1179741
 fuzzy-if(cocoaWidget,141,24) == vertical-border-collapse-1.html vertical-border-collapse-1-ref.html
 fuzzy-if(cocoaWidget,141,24) == vertical-border-collapse-2.html vertical-border-collapse-2-ref.html
 
-== fixed-table-layout-002-vlr.html fixed-table-layout-002-ref.html
-== fixed-table-layout-003-vlr.html fixed-table-layout-002-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-002-vlr.html fixed-table-layout-002-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-003-vlr.html fixed-table-layout-002-ref.html
 == fixed-table-layout-004-vlr.html fixed-table-layout-004-ref.html
 == fixed-table-layout-005-vlr.html fixed-table-layout-005-ref.html
 == fixed-table-layout-006-vlr.html fixed-table-layout-006-ref.html
-== fixed-table-layout-007-vlr.html fixed-table-layout-007-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-007-vlr.html fixed-table-layout-007-ref.html
 == fixed-table-layout-009-vlr.html fixed-table-layout-009-ref.html
-random == fixed-table-layout-010-vlr.html fixed-table-layout-010-ref.html # bug 1178059
-== fixed-table-layout-012-vlr.html fixed-table-layout-012-ref.html
+fuzzy-if(Android,255,400) == fixed-table-layout-010-vlr.html fixed-table-layout-010-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-012-vlr.html fixed-table-layout-012-ref.html
 == fixed-table-layout-013-vlr.html fixed-table-layout-002-ref.html
 == fixed-table-layout-014-vlr.html fixed-table-layout-002-ref.html
 == fixed-table-layout-015-vlr.html fixed-table-layout-002-ref.html
@@ -37,15 +37,15 @@ random == fixed-table-layout-010-vlr.html fixed-table-layout-010-ref.html # bug 
 == fixed-table-layout-030-vlr.html fixed-table-layout-025-ref.html
 == fixed-table-layout-031-vlr.html fixed-table-layout-025-ref.html
 
-== fixed-table-layout-002-vrl.html fixed-table-layout-002-ref.html
-== fixed-table-layout-003-vrl.html fixed-table-layout-002-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-002-vrl.html fixed-table-layout-002-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-003-vrl.html fixed-table-layout-002-ref.html
 == fixed-table-layout-004-vrl.html fixed-table-layout-004-ref.html
 == fixed-table-layout-005-vrl.html fixed-table-layout-005-ref.html
 == fixed-table-layout-006-vrl.html fixed-table-layout-006-ref.html
-== fixed-table-layout-007-vrl.html fixed-table-layout-007-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-007-vrl.html fixed-table-layout-007-ref.html
 == fixed-table-layout-009-vrl.html fixed-table-layout-009-ref.html
-random == fixed-table-layout-010-vrl.html fixed-table-layout-010-ref.html # bug 1178059
-== fixed-table-layout-012-vrl.html fixed-table-layout-012-ref.html
+fuzzy-if(Android,255,400) == fixed-table-layout-010-vrl.html fixed-table-layout-010-ref.html
+fuzzy-if(B2G,5,1) == fixed-table-layout-012-vrl.html fixed-table-layout-012-ref.html
 == fixed-table-layout-013-vrl.html fixed-table-layout-002-ref.html
 == fixed-table-layout-014-vrl.html fixed-table-layout-002-ref.html
 == fixed-table-layout-015-vrl.html fixed-table-layout-002-ref.html
@@ -62,3 +62,23 @@ random == fixed-table-layout-010-vrl.html fixed-table-layout-010-ref.html # bug 
 == fixed-table-layout-029-vrl.html fixed-table-layout-025-ref.html
 == fixed-table-layout-030-vrl.html fixed-table-layout-025-ref.html
 == fixed-table-layout-031-vrl.html fixed-table-layout-025-ref.html
+
+HTTP(../..) == s72-border-spacing-002.xht s72-border-spacing-002-ref.xht
+HTTP(../..) == s72-border-spacing-003.xht s72-border-spacing-002-ref.xht
+HTTP(../..) == s72-border-spacing-004.xht s72-border-spacing-002-ref.xht
+HTTP(../..) == s72-border-spacing-005.xht s72-border-spacing-002-ref.xht
+fuzzy-if(winWidget,48,600) fuzzy-if(cocoaWidget,19,97) HTTP(../..) == wm-row-progression-002.xht multicol-count-002-ref.xht
+fuzzy-if(winWidget,48,600) fuzzy-if(cocoaWidget,19,97) HTTP(../..) == wm-row-progression-003.xht multicol-count-002-ref.xht
+fuzzy-if(winWidget,48,600) fuzzy-if(cocoaWidget,19,97) HTTP(../..) == wm-row-progression-004.xht multicol-count-002-ref.xht
+fuzzy-if(winWidget,48,600) fuzzy-if(cocoaWidget,19,97) HTTP(../..) == wm-row-progression-005.xht multicol-count-002-ref.xht
+fuzzy-if(winWidget,48,600) fuzzy-if(cocoaWidget,19,97) HTTP(../..) == wm-row-progression-006.xht multicol-count-002-ref.xht
+fuzzy-if(winWidget,48,600) fuzzy-if(cocoaWidget,19,97) HTTP(../..) == wm-row-progression-007.xht multicol-count-002-ref.xht
+
+fuzzy-if(Android,255,38) == table-caption-block-start-1.html table-caption-block-start-1-ref.html
+fuzzy-if(Android,255,38) == table-caption-block-end-1.html table-caption-block-end-1-ref.html
+== table-caption-inline-start-1.html table-caption-inline-start-1-ref.html
+== table-caption-inline-end-1.html table-caption-inline-end-1-ref.html
+fuzzy-if(Android,255,38) == table-caption-top-1.html table-caption-top-1-ref.html
+fuzzy-if(Android,255,38) == table-caption-bottom-1.html table-caption-bottom-1-ref.html
+== table-caption-left-1.html table-caption-left-1-ref.html
+== table-caption-right-1.html table-caption-right-1-ref.html

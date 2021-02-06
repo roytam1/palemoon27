@@ -18,6 +18,9 @@
 class nsWindow;
 
 namespace mozilla {
+
+class WritingMode;
+
 namespace widget {
 
 struct MSGResult;
@@ -158,7 +161,10 @@ protected:
   static bool IsComposingOnPlugin();
   static bool IsComposingWindow(nsWindow* aWindow);
 
+  static bool IsJapanist2003Active();
+
   static bool ShouldDrawCompositionStringOurselves();
+  static bool IsVerticalWritingSupported();
   static void InitKeyboardLayout(HKL aKeyboardLayout);
   static UINT GetKeyboardCodePage();
 
@@ -275,13 +281,23 @@ protected:
                                const nsIMEContext& aIMEContext);
   void SetIMERelatedWindowsPosOnPlugin(nsWindow* aWindow,
                                        const nsIMEContext& aIMEContext);
-  bool GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
-                                          uint32_t aOffset,
-                                          nsIntRect &aCharRect);
-  bool GetCaretRect(nsWindow* aWindow, nsIntRect &aCaretRect);
+  bool GetCharacterRectOfSelectedTextAt(
+         nsWindow* aWindow,
+         uint32_t aOffset,
+         nsIntRect& aCharRect,
+         mozilla::WritingMode* aWritingMode = nullptr);
+  bool GetCaretRect(nsWindow* aWindow,
+                    nsIntRect& aCaretRect,
+                    mozilla::WritingMode* aWritingMode = nullptr);
   void GetCompositionString(const nsIMEContext &aIMEContext,
                             DWORD aIndex,
                             nsAString& aCompositionString) const;
+
+  /**
+   * AdjustCompositionFont() makes IME vertical writing mode if it's supported.
+   */
+  void AdjustCompositionFont(const nsIMEContext& aIMEContext,
+                             const mozilla::WritingMode& aWritingMode);
   /**
    *  Get the current target clause of composition string.
    *  If there are one or more characters whose attribute is ATTR_TARGET_*,
@@ -359,8 +375,11 @@ protected:
   bool mIsComposingOnPlugin;
   bool mNativeCaretIsCreated;
 
+  static nsString sIMEName;
   static UINT sCodePage;
   static DWORD sIMEProperty;
+  static DWORD sIMEUIProperty;
+  static bool sAssumeVerticalWritingModeNotSupported;
 };
 
 #endif // nsIMM32Handler_h__

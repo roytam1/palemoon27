@@ -79,6 +79,8 @@ PuppetWidget::PuppetWidget(TabChild* aTabChild)
   , mDPI(-1)
   , mDefaultScale(-1)
   , mNativeKeyCommandsValid(false)
+  , mCursorHotspotX(0)
+  , mCursorHotspotY(0)
 {
   MOZ_COUNT_CTOR(PuppetWidget);
 
@@ -499,6 +501,16 @@ PuppetWidget::SetConfirmedTargetAPZC(uint64_t aInputBlockId,
   }
 }
 
+void
+PuppetWidget::UpdateZoomConstraints(const uint32_t& aPresShellId,
+                                    const FrameMetrics::ViewID& aViewId,
+                                    const Maybe<ZoomConstraints>& aConstraints)
+{
+  if (mTabChild) {
+    mTabChild->DoUpdateZoomConstraints(aPresShellId, aViewId, aConstraints);
+  }
+}
+
 bool
 PuppetWidget::AsyncPanZoomEnabled() const
 {
@@ -901,19 +913,12 @@ PuppetWidget::NotifyIMEOfSelectionChange(
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
-  nsEventStatus status;
-  WidgetQueryContentEvent queryEvent(true, NS_QUERY_SELECTED_TEXT, this);
-  InitEvent(queryEvent, nullptr);
-  DispatchEvent(&queryEvent, status);
-
-  if (queryEvent.mSucceeded) {
-    mTabChild->SendNotifyIMESelection(
-      mIMELastReceivedSeqno,
-      queryEvent.GetSelectionStart(),
-      queryEvent.GetSelectionEnd(),
-      queryEvent.GetWritingMode(),
-      aIMENotification.mSelectionChangeData.mCausedByComposition);
-  }
+  mTabChild->SendNotifyIMESelection(
+    mIMELastReceivedSeqno,
+    aIMENotification.mSelectionChangeData.StartOffset(),
+    aIMENotification.mSelectionChangeData.EndOffset(),
+    aIMENotification.mSelectionChangeData.GetWritingMode(),
+    aIMENotification.mSelectionChangeData.mCausedByComposition);
   return NS_OK;
 }
 
@@ -971,9 +976,11 @@ PuppetWidget::NotifyIMEOfPositionChange()
 NS_IMETHODIMP
 PuppetWidget::SetCursor(nsCursor aCursor)
 {
-  if (mCursor == aCursor && !mUpdateCursor) {
+  if (mCursor == aCursor && !mCustomCursor && !mUpdateCursor) {
     return NS_OK;
   }
+
+  mCustomCursor = nullptr;
 
   if (mTabChild &&
       !mTabChild->SendSetCursor(aCursor, mUpdateCursor)) {
@@ -984,6 +991,59 @@ PuppetWidget::SetCursor(nsCursor aCursor)
   mUpdateCursor = false;
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+PuppetWidget::SetCursor(imgIContainer* aCursor,
+                        uint32_t aHotspotX, uint32_t aHotspotY)
+{
+  if (!aCursor || !mTabChild) {
+    return NS_OK;
+  }
+
+  if (mCustomCursor == aCursor &&
+      mCursorHotspotX == aHotspotX &&
+      mCursorHotspotY == aHotspotY &&
+      !mUpdateCursor) {
+    return NS_OK;
+  }
+
+  RefPtr<mozilla::gfx::SourceSurface> surface =
+    aCursor->GetFrame(imgIContainer::FRAME_CURRENT,
+                      imgIContainer::FLAG_SYNC_DECODE);
+  if (!surface) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mozilla::RefPtr<mozilla::gfx::DataSourceSurface> dataSurface =
+    surface->GetDataSurface();
+  size_t length;
+  int32_t stride;
+  mozilla::UniquePtr<char[]> surfaceData =
+    nsContentUtils::GetSurfaceData(dataSurface, &length, &stride);
+
+  nsCString cursorData = nsCString(surfaceData.get(), length);
+  mozilla::gfx::IntSize size = dataSurface->GetSize();
+  if (!mTabChild->SendSetCustomCursor(cursorData, size.width, size.height, stride,
+                                      static_cast<uint8_t>(dataSurface->GetFormat()),
+                                      aHotspotX, aHotspotY, mUpdateCursor)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mCursor = nsCursor(-1);
+  mCustomCursor = aCursor;
+  mCursorHotspotX = aHotspotX;
+  mCursorHotspotY = aHotspotY;
+  mUpdateCursor = false;
+
+  return NS_OK;
+}
+
+void
+PuppetWidget::ClearCachedCursor()
+{
+  nsBaseWidget::ClearCachedCursor();
+  mCustomCursor = nullptr;
 }
 
 nsresult
@@ -1178,6 +1238,20 @@ PuppetWidget::GetScreenBounds(nsIntRect &aRect) {
   aRect.MoveTo(LayoutDeviceIntPoint::ToUntyped(WidgetToScreenOffset()));
   aRect.SizeTo(mBounds.Size());
   return NS_OK;
+}
+
+uint32_t PuppetWidget::GetMaxTouchPoints() const
+{
+  static uint32_t sTouchPoints = 0;
+  static bool sIsInitialized = false;
+  if (sIsInitialized) {
+    return sTouchPoints;
+  }
+  if (mTabChild) {
+    mTabChild->GetMaxTouchPoints(&sTouchPoints);
+    sIsInitialized = true;
+  }
+  return sTouchPoints;
 }
 
 PuppetScreen::PuppetScreen(void *nativeScreen)

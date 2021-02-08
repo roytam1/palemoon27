@@ -11,7 +11,6 @@
 #include "nsWindowDefs.h"
 #include "WinUtils.h"
 #include "KeyboardLayout.h"
-#include "WritingModes.h"
 #include <algorithm>
 
 #include "mozilla/MiscEvents.h"
@@ -132,6 +131,7 @@ static UINT sWM_MSIME_MOUSE = 0; // mouse message for MSIME 98/2000
 #define IMEMOUSE_WUP        0x10    // wheel up
 #define IMEMOUSE_WDOWN      0x20    // wheel down
 
+WritingMode nsIMM32Handler::sWritingModeOfCompositionFont;
 nsString nsIMM32Handler::sIMEName;
 UINT nsIMM32Handler::sCodePage = 0;
 DWORD nsIMM32Handler::sIMEProperty = 0;
@@ -158,7 +158,7 @@ nsIMM32Handler::Initialize()
   sAssumeVerticalWritingModeNotSupported =
     Preferences::GetBool(
       "intl.imm.vertical_writing.always_assume_not_supported", false);
-  InitKeyboardLayout(::GetKeyboardLayout(0));
+  InitKeyboardLayout(nullptr, ::GetKeyboardLayout(0));
 }
 
 /* static */ void
@@ -206,6 +206,15 @@ nsIMM32Handler::IsJapanist2003Active()
 }
 
 /* static */ bool
+nsIMM32Handler::IsGoogleJapaneseInputActive()
+{
+  // NOTE: Even on Windows for en-US, the name of Google Japanese Input is
+  //       written in Japanese.
+  return sIMEName.Equals(L"Google \x65E5\x672C\x8A9E\x5165\x529B "
+                         L"IMM32 \x30E2\x30B8\x30E5\x30FC\x30EB");
+}
+
+/* static */ bool
 nsIMM32Handler::ShouldDrawCompositionStringOurselves()
 {
   // If current IME has special UI or its composition window should not
@@ -223,18 +232,24 @@ nsIMM32Handler::IsVerticalWritingSupported()
   if (sAssumeVerticalWritingModeNotSupported) {
     return false;
   }
+  // Google Japanese Input doesn't support vertical writing mode.  We should
+  // return false if it's active IME.
+  if (IsGoogleJapaneseInputActive()) {
+    return false;
+  }
   return !!(sIMEUIProperty & (UI_CAP_2700 | UI_CAP_ROT90 | UI_CAP_ROTANY));
 }
 
 /* static */ void
-nsIMM32Handler::InitKeyboardLayout(HKL aKeyboardLayout)
+nsIMM32Handler::InitKeyboardLayout(nsWindow* aWindow,
+                                   HKL aKeyboardLayout)
 {
   UINT IMENameLength = ::ImmGetDescriptionW(aKeyboardLayout, nullptr, 0);
   if (IMENameLength) {
     // Add room for the terminating null character
     sIMEName.SetLength(++IMENameLength);
     IMENameLength =
-      ::ImmGetDescriptionW(aKeyboardLayout, sIMEName.BeginWriting(),
+      ::ImmGetDescriptionW(aKeyboardLayout, wwc(sIMEName.BeginWriting()),
                            IMENameLength);
     // Adjust the length to ignore the terminating null character
     sIMEName.SetLength(IMENameLength);
@@ -248,6 +263,22 @@ nsIMM32Handler::InitKeyboardLayout(HKL aKeyboardLayout)
                    (PWSTR)&sCodePage, sizeof(sCodePage) / sizeof(WCHAR));
   sIMEProperty = ::ImmGetProperty(aKeyboardLayout, IGP_PROPERTY);
   sIMEUIProperty = ::ImmGetProperty(aKeyboardLayout, IGP_UI);
+
+  // If active IME is a TIP of TSF, we cannot retrieve the name with IMM32 API.
+  // For hacking some bugs of some TIP, we should set an IME name from the
+  // pref.
+  if (sCodePage == 932 && sIMEName.IsEmpty()) {
+    sIMEName =
+      Preferences::GetString("intl.imm.japanese.assume_active_tip_name_as");
+  }
+
+  // Whether the IME supports vertical writing mode might be changed or
+  // some IMEs may need specific font for their UI.  Therefore, we should
+  // update composition font forcibly here.
+  if (aWindow) {
+    MaybeAdjustCompositionFont(aWindow, sWritingModeOfCompositionFont, true);
+  }
+
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
     ("IMM32: InitKeyboardLayout, aKeyboardLayout=%08x (\"%s\"), sCodePage=%lu, "
      "sIMEProperty=%s, sIMEUIProperty=%s",
@@ -268,6 +299,7 @@ nsIMM32Handler::GetIMEUpdatePreference()
 {
   return nsIMEUpdatePreference(
     nsIMEUpdatePreference::NOTIFY_POSITION_CHANGE |
+    nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE |
     nsIMEUpdatePreference::NOTIFY_MOUSE_BUTTON_EVENT_ON_CHAR);
 }
 
@@ -389,6 +421,43 @@ nsIMM32Handler::OnUpdateComposition(nsWindow* aWindow)
   gIMM32Handler->SetIMERelatedWindowsPos(aWindow, IMEContext);
 }
 
+// static
+void
+nsIMM32Handler::OnSelectionChange(nsWindow* aWindow,
+                                  const IMENotification& aIMENotification)
+{
+  if (aIMENotification.mSelectionChangeData.mCausedByComposition) {
+    return;
+  }
+  MaybeAdjustCompositionFont(aWindow,
+    aIMENotification.mSelectionChangeData.GetWritingMode());
+}
+
+// static
+void
+nsIMM32Handler::MaybeAdjustCompositionFont(nsWindow* aWindow,
+                                           const WritingMode& aWritingMode,
+                                           bool aForceUpdate)
+{
+  switch (sCodePage) {
+    case 932: // Japanese Shift-JIS
+    case 936: // Simlified Chinese GBK
+    case 949: // Korean
+    case 950: // Traditional Chinese Big5
+      EnsureHandlerInstance();
+      break;
+    default:
+      // If there is no instance of nsIMM32Hander, we shouldn't waste footprint.
+      if (!gIMM32Handler) {
+        return;
+      }
+  }
+
+  // Like Navi-Bar of ATOK, some IMEs may require proper composition font even
+  // before sending WM_IME_STARTCOMPOSITION.
+  nsIMEContext IMEContext(aWindow->GetWindowHandle());
+  gIMM32Handler->AdjustCompositionFont(IMEContext, aWritingMode, aForceUpdate);
+}
 
 /* static */ bool
 nsIMM32Handler::ProcessInputLangChangeMessage(nsWindow* aWindow,
@@ -402,7 +471,7 @@ nsIMM32Handler::ProcessInputLangChangeMessage(nsWindow* aWindow,
   if (gIMM32Handler) {
     gIMM32Handler->OnInputLangChange(aWindow, wParam, lParam, aResult);
   }
-  InitKeyboardLayout(reinterpret_cast<HKL>(lParam));
+  InitKeyboardLayout(aWindow, reinterpret_cast<HKL>(lParam));
   // We can release the instance here, because the instance may be never
   // used. E.g., the new keyboard layout may not use IME, or it may use TSF.
   Terminate();
@@ -1487,18 +1556,46 @@ nsIMM32Handler::HandleQueryCharPosition(nsWindow* aWindow,
   // even if the content of the popup window has focus.
   ResolveIMECaretPos(aWindow->GetTopLevelWindow(false),
                      r, nullptr, screenRect);
+
+  // XXX This might need to check writing mode.  However, MSDN doesn't explain
+  //     how to set the values in vertical writing mode. Additionally, IME
+  //     doesn't work well with top-left of the character (this is explicitly
+  //     documented) and its horizontal width.  So, it might be better to set
+  //     top-right corner of the character and horizontal width, but we're not
+  //     sure if it doesn't cause any problems with a lot of IMEs...
   pCharPosition->pt.x = screenRect.x;
   pCharPosition->pt.y = screenRect.y;
 
   pCharPosition->cLineHeight = r.height;
 
-  // XXX we should use NS_QUERY_EDITOR_RECT event here.
-  ::GetWindowRect(aWindow->GetWindowHandle(), &pCharPosition->rcDocument);
+  WidgetQueryContentEvent editorRect(true, NS_QUERY_EDITOR_RECT, aWindow);
+  aWindow->InitEvent(editorRect);
+  aWindow->DispatchWindowEvent(&editorRect);
+  if (NS_WARN_IF(!editorRect.mSucceeded)) {
+    PR_LOG(gIMM32Log, PR_LOG_ERROR,
+      ("IMM32: HandleQueryCharPosition, NS_QUERY_EDITOR_RECT failed"));
+    ::GetWindowRect(aWindow->GetWindowHandle(), &pCharPosition->rcDocument);
+  } else {
+    nsIntRect editorRectInWindow =
+      LayoutDevicePixel::ToUntyped(editorRect.mReply.mRect);
+    nsWindow* window = editorRect.mReply.mFocusedWidget ?
+      static_cast<nsWindow*>(editorRect.mReply.mFocusedWidget) : aWindow;
+    nsIntRect editorRectInScreen;
+    ResolveIMECaretPos(window, editorRectInWindow, nullptr, editorRectInScreen);
+    ::SetRect(&pCharPosition->rcDocument,
+              editorRectInScreen.x, editorRectInScreen.y,
+              editorRectInScreen.XMost(), editorRectInScreen.YMost());
+  }
 
   *oResult = TRUE;
 
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: HandleQueryCharPosition, SUCCEEDED\n"));
+    ("IMM32: HandleQueryCharPosition, SUCCEEDED, pCharPosition={ pt={ x=%d, "
+     "y=%d }, cLineHeight=%d, rcDocument={ left=%d, top=%d, right=%d, "
+     "bottom=%d } }",
+     pCharPosition->pt.x, pCharPosition->pt.y, pCharPosition->cLineHeight,
+     pCharPosition->rcDocument.left, pCharPosition->rcDocument.top,
+     pCharPosition->rcDocument.right, pCharPosition->rcDocument.bottom));
   return true;
 }
 
@@ -2252,7 +2349,8 @@ SetVerticalFontToLogFont(const nsAString& aFontFace,
 
 void
 nsIMM32Handler::AdjustCompositionFont(const nsIMEContext& aIMEContext,
-                                      const WritingMode& aWritingMode)
+                                      const WritingMode& aWritingMode,
+                                      bool aForceUpdate)
 {
   // An instance of nsIMM32Handler is destroyed when active IME is changed.
   // Therefore, we need to store the information which are set to the IM
@@ -2264,13 +2362,13 @@ nsIMM32Handler::AdjustCompositionFont(const nsIMEContext& aIMEContext,
   // If composition font is customized by pref, we need to modify the
   // composition font of the IME context at first time even if the writing mode
   // is horizontal.
-  bool setCompositionFontForcibly =
-    !sCompositionFontsInitialized && !sCompositionFont.IsEmpty();
+  bool setCompositionFontForcibly = aForceUpdate ||
+    (!sCompositionFontsInitialized && !sCompositionFont.IsEmpty());
 
   static WritingMode sCurrentWritingMode;
   static nsString sCurrentIMEName;
   if (!setCompositionFontForcibly &&
-      sCurrentWritingMode == aWritingMode &&
+      sWritingModeOfCompositionFont == aWritingMode &&
       sCurrentIMEName == sIMEName) {
     // Nothing to do if writing mode isn't being changed.
     return;
@@ -2319,7 +2417,7 @@ nsIMM32Handler::AdjustCompositionFont(const nsIMEContext& aIMEContext,
     }
   }
 
-  sCurrentWritingMode = aWritingMode;
+  sWritingModeOfCompositionFont = aWritingMode;
   sCurrentIMEName = sIMEName;
 
   LOGFONTW logFont;

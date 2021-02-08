@@ -918,6 +918,8 @@ pref("browser.tabs.remote", false);
 // This will require a restart.
 pref("security.sandbox.windows.log", false);
 
+pref("dom.ipc.plugins.sandbox-level.flash", 0);
+
 #if defined(MOZ_CONTENT_SANDBOX)
 // This controls the strength of the Windows content process sandbox for testing
 // purposes. This will require a restart.

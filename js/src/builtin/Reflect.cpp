@@ -387,7 +387,7 @@ Reflect_setPrototypeOf(JSContext* cx, unsigned argc, Value* vp)
 
 static const JSFunctionSpec methods[] = {
     JS_FN("apply", Reflect_apply, 3, 0),
-    JS_FN("construct", Reflect_construct, 2, 0),
+    //JS_FN("construct", Reflect_construct, 2, 0),
     JS_FN("defineProperty", Reflect_defineProperty, 3, 0),
     JS_FN("deleteProperty", Reflect_deleteProperty, 2, 0),
     // JS_FN("enumerate", Reflect_enumerate, 1, 0),

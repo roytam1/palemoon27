@@ -219,6 +219,9 @@ public:
     BT_WARNING("Unable to get value for '" AUDIO_VOLUME_BT_SCO_ID "'");
     return NS_OK;
   }
+
+protected:
+  ~GetVolumeTask() { }
 };
 
 NS_IMPL_ISUPPORTS(BluetoothHfpManager::GetVolumeTask,
@@ -439,12 +442,8 @@ BluetoothHfpManager::Reset()
 bool
 BluetoothHfpManager::Init()
 {
-#ifdef MOZ_B2G_BT_API_V2
   // The function must run at b2g process since it would access SettingsService.
   MOZ_ASSERT(IsMainProcess());
-#else
-// Missing in bluetooth1
-#endif
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -594,11 +593,8 @@ BluetoothHfpManager::HandleVolumeChanged(nsISupports* aSubject)
   //  {"key":"volumeup", "value":10}
   //  {"key":"volumedown", "value":2}
 
-#ifdef MOZ_B2G_BT_API_V2
   RootedDictionary<dom::SettingChangeNotification> setting(nsContentUtils::RootingCx());
-#else
-  RootedDictionary<SettingChangeNotification> setting(nsContentUtils::RootingCx());
-#endif
+
   if (!WrappedJSToDictionary(aSubject, setting)) {
     return;
   }
@@ -1112,20 +1108,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
     }
 #endif // MOZ_B2G_RIL
   } else {
-#ifdef MOZ_B2G_BT_API_V2
-    nsCString warningMsg;
-    warningMsg.Append(NS_LITERAL_CSTRING("Unsupported AT command: "));
-    warningMsg.Append(msg);
-    warningMsg.Append(NS_LITERAL_CSTRING(", reply with ERROR"));
-    BT_WARNING(warningMsg.get());
-#else
-    nsCString warningMsg;
-    warningMsg.AppendLiteral("Unsupported AT command: ");
-    warningMsg.Append(msg);
-    warningMsg.AppendLiteral(", reply with ERROR");
-    BT_WARNING(warningMsg.get());
-#endif
-
+    BT_WARNING("Unsupported AT command: %s, reply with ERROR", msg.get());
     SendLine("ERROR");
     return;
   }
@@ -1167,12 +1150,12 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
 
   // Stop listening because currently we only support one connection at a time.
   if (mHandsfreeSocket) {
-    mHandsfreeSocket->Disconnect();
+    mHandsfreeSocket->Close();
     mHandsfreeSocket = nullptr;
   }
 
   if (mHeadsetSocket) {
-    mHeadsetSocket->Disconnect();
+    mHeadsetSocket->Close();
     mHeadsetSocket = nullptr;
   }
 
@@ -1219,7 +1202,7 @@ BluetoothHfpManager::Listen()
           kHeadsetAG,
           BluetoothReservedChannels::CHANNEL_HEADSET_AG)) {
       BT_WARNING("[HSP] Can't listen on RFCOMM socket!");
-      mHandsfreeSocket->Disconnect();
+      mHandsfreeSocket->Close();
       mHandsfreeSocket = nullptr;
       mHeadsetSocket = nullptr;
       return false;
@@ -1244,7 +1227,7 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
   MOZ_ASSERT(!mController);
 
   mController = aController;
-  mSocket->Disconnect();
+  mSocket->Close();
 }
 
 #ifdef MOZ_B2G_RIL
@@ -1697,11 +1680,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
           GetNumberOfCalls(nsITelephonyService::CALL_STATE_DISCONNECTED)) {
         // In order to let user hear busy tone via connected Bluetooth headset,
         // we postpone the timing of dropping SCO.
-#ifdef MOZ_B2G_BT_API_V2
         if (!(aError.Equals(NS_LITERAL_STRING("BusyError")))) {
-#else
-        if (!(aError.EqualsLiteral("BusyError"))) {
-#endif
           DisconnectSco();
         } else {
           // Close Sco later since Dialer is still playing busy tone via HF.
@@ -1817,14 +1796,14 @@ BluetoothHfpManager::OnSocketConnectSuccess(BluetoothSocket* aSocket)
     mIsHsp = false;
     mHandsfreeSocket.swap(mSocket);
 
-    mHeadsetSocket->Disconnect();
+    mHeadsetSocket->Close();
     mHeadsetSocket = nullptr;
   } else if (aSocket == mHeadsetSocket) {
     MOZ_ASSERT(!mSocket);
     mIsHsp = true;
     mHeadsetSocket.swap(mSocket);
 
-    mHandsfreeSocket->Disconnect();
+    mHandsfreeSocket->Close();
     mHandsfreeSocket = nullptr;
   }
 
@@ -1937,12 +1916,7 @@ BluetoothHfpManager::OnScoConnectSuccess()
 {
   // For active connection request, we need to reply the DOMRequest
   if (mScoRunnable) {
-#ifdef MOZ_B2G_BT_API_V2
     DispatchReplySuccess(mScoRunnable);
-#else
-    DispatchBluetoothReply(mScoRunnable,
-                           BluetoothValue(true), EmptyString());
-#endif
     mScoRunnable = nullptr;
   }
 
@@ -1956,13 +1930,8 @@ void
 BluetoothHfpManager::OnScoConnectError()
 {
   if (mScoRunnable) {
-#ifdef MOZ_B2G_BT_API_V2
     DispatchReplyError(mScoRunnable,
                        NS_LITERAL_STRING("Failed to create SCO socket!"));
-#else
-    NS_NAMED_LITERAL_STRING(replyError, "Failed to create SCO socket!");
-    DispatchBluetoothReply(mScoRunnable, BluetoothValue(), replyError);
-#endif
     mScoRunnable = nullptr;
   }
 
@@ -2021,7 +1990,7 @@ BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
   }
 
   // Stop listening
-  mScoSocket->Disconnect();
+  mScoSocket->Close();
 
   mScoSocket->Connect(mDeviceAddress, kUnknownService, -1);
   mScoSocketStatus = mScoSocket->GetConnectionStatus();
@@ -2038,7 +2007,7 @@ BluetoothHfpManager::DisconnectSco()
     return false;
   }
 
-  mScoSocket->Disconnect();
+  mScoSocket->Close();
   return true;
 }
 
@@ -2058,7 +2027,7 @@ BluetoothHfpManager::ListenSco()
     return false;
   }
 
-  mScoSocket->Disconnect();
+  mScoSocket->Close();
 
   if (!mScoSocket->Listen(NS_LITERAL_STRING("Handsfree Audio Gateway SCO"),
                           kUnknownService, -1)) {

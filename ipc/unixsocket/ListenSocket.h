@@ -51,24 +51,16 @@ public:
   bool Listen(ConnectionOrientedSocket* aCOSocket);
 
   /**
-   * Queues the internal representation of socket for deletion. Can be called
-   * from main thread.
-   */
-  void Close();
-
-  /**
    * Get the current sockaddr for the socket
    */
   void GetSocketAddr(nsAString& aAddrStr);
 
+  // Methods for |SocketBase|
+  //
+
+  void Close() override;
+
 private:
-
-  // Legacy interface from |SocketBase|; should be replaced by |Close|.
-  void CloseSocket() override
-  {
-    Close();
-  }
-
   ListenSocketIO* mIO;
 };
 

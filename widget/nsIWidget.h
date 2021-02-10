@@ -427,6 +427,7 @@ struct InputContext {
   InputContext()
     : mNativeIMEContext(nullptr)
     , mOrigin(XRE_IsParentProcess() ? ORIGIN_MAIN : ORIGIN_CONTENT)
+    , mMayBeIMEUnaware(false)
   {}
 
   bool IsPasswordEditor() const
@@ -450,7 +451,6 @@ struct InputContext {
      be nullptr. */
   void* mNativeIMEContext;
 
-
   /**
    * mOrigin indicates whether this focus event refers to main or remote content.
    */
@@ -462,6 +462,11 @@ struct InputContext {
     ORIGIN_CONTENT
   };
   Origin mOrigin;
+
+  /* True if the webapp may be unaware of IME events such as input event or
+   * composiion events. This enables a key-events-only mode on Android for
+   * compatibility with webapps relying on key listeners. */
+  bool mMayBeIMEUnaware;
 
   bool IsOriginMainProcess() const
   {
@@ -1522,7 +1527,8 @@ class nsIWidget : public nsISupports {
      * widgets are currently included in the visible layer tree. It calls this
      * helper to hide widgets it knows nothing about.
      */
-    static void UpdateRegisteredPluginWindowVisibility(nsTArray<uintptr_t>& aVisibleList);
+    static void UpdateRegisteredPluginWindowVisibility(uintptr_t aOwnerWidget,
+                                                       nsTArray<uintptr_t>& aVisibleList);
 
     /**
      * Set the shadow style of the window.

@@ -709,8 +709,6 @@ nsPrincipal::IsOnCSSUnprefixingWhitelist()
 
 /************************************************************************************************************************/
 
-static const char EXPANDED_PRINCIPAL_SPEC[] = "[Expanded Principal]";
-
 NS_IMPL_CLASSINFO(nsExpandedPrincipal, nullptr, nsIClassInfo::MAIN_THREAD_ONLY,
                   NS_EXPANDEDPRINCIPAL_CID)
 NS_IMPL_QUERY_INTERFACE_CI(nsExpandedPrincipal,
@@ -744,7 +742,19 @@ nsExpandedPrincipal::SetDomain(nsIURI* aDomain)
 NS_IMETHODIMP
 nsExpandedPrincipal::GetOrigin(nsACString& aOrigin)
 {
-  aOrigin.AssignLiteral(EXPANDED_PRINCIPAL_SPEC);
+  aOrigin.AssignLiteral("[Expanded Principal [");
+  for (size_t i = 0; i < mPrincipals.Length(); ++i) {
+    if (i != 0) {
+      aOrigin.AppendLiteral(", ");
+    }
+
+    nsAutoCString subOrigin;
+    nsresult rv = mPrincipals.ElementAt(i)->GetOrigin(subOrigin);
+    NS_ENSURE_SUCCESS(rv, rv);
+    aOrigin.Append(subOrigin);
+  }
+
+  aOrigin.Append("]]");
   return NS_OK;
 }
 
@@ -925,9 +935,7 @@ nsExpandedPrincipal::IsOnCSSUnprefixingWhitelist()
 void
 nsExpandedPrincipal::GetScriptLocation(nsACString& aStr)
 {
-  aStr.Assign(EXPANDED_PRINCIPAL_SPEC);
-  aStr.AppendLiteral(" (");
-
+  aStr.Assign("[Expanded Principal [");
   for (size_t i = 0; i < mPrincipals.Length(); ++i) {
     if (i != 0) {
       aStr.AppendLiteral(", ");
@@ -939,7 +947,7 @@ nsExpandedPrincipal::GetScriptLocation(nsACString& aStr)
     aStr.Append(spec);
 
   }
-  aStr.Append(")");
+  aStr.Append("]]");
 }
 
 //////////////////////////////////////////

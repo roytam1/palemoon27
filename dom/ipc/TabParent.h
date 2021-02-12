@@ -208,6 +208,14 @@ public:
                                            nsTArray<nsCString>&& aEnabledCommands,
                                            nsTArray<nsCString>&& aDisabledCommands) override;
     virtual bool RecvSetCursor(const uint32_t& aValue, const bool& aForce) override;
+    virtual bool RecvSetCustomCursor(const nsCString& aUri,
+                                     const uint32_t& aWidth,
+                                     const uint32_t& aHeight,
+                                     const uint32_t& aStride,
+                                     const uint8_t& aFormat,
+                                     const uint32_t& aHotspotX,
+                                     const uint32_t& aHotspotY,
+                                     const bool& aForce) override;
     virtual bool RecvSetBackgroundColor(const nscolor& aValue) override;
     virtual bool RecvSetStatus(const uint32_t& aType, const nsString& aStatus) override;
     virtual bool RecvIsParentWindowMainWidgetVisible(bool* aIsVisible) override;
@@ -215,14 +223,14 @@ public:
     virtual bool RecvHideTooltip() override;
     virtual bool RecvGetDPI(float* aValue) override;
     virtual bool RecvGetDefaultScale(double* aValue) override;
+    virtual bool RecvGetMaxTouchPoints(uint32_t* aTouchPoints) override;
     virtual bool RecvGetWidgetNativeData(WindowsHandle* aValue) override;
     virtual bool RecvZoomToRect(const uint32_t& aPresShellId,
                                 const ViewID& aViewId,
                                 const CSSRect& aRect) override;
     virtual bool RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
                                            const ViewID& aViewId,
-                                           const bool& aIsRoot,
-                                           const ZoomConstraints& aConstraints) override;
+                                           const MaybeZoomConstraints& aConstraints) override;
     virtual bool RecvContentReceivedInputBlock(const ScrollableLayerGuid& aGuid,
                                                const uint64_t& aInputBlockId,
                                                const bool& aPreventDefault) override;
@@ -237,6 +245,14 @@ public:
     virtual PColorPickerParent*
     AllocPColorPickerParent(const nsString& aTitle, const nsString& aInitialColor) override;
     virtual bool DeallocPColorPickerParent(PColorPickerParent* aColorPicker) override;
+
+    virtual PDocAccessibleParent*
+    AllocPDocAccessibleParent(PDocAccessibleParent*, const uint64_t&) override;
+    virtual bool DeallocPDocAccessibleParent(PDocAccessibleParent*) override;
+    virtual bool
+    RecvPDocAccessibleConstructor(PDocAccessibleParent* aDoc,
+                                  PDocAccessibleParent* aParentDoc,
+                                  const uint64_t& aParentID) override;
 
     void LoadURL(nsIURI* aURI);
     // XXX/cjones: it's not clear what we gain by hiding these
@@ -600,6 +616,8 @@ private:
     // Cached cursor setting from TabChild.  When the cursor is over the tab,
     // it should take this appearance.
     nsCursor mCursor;
+    nsCOMPtr<imgIContainer> mCustomCursor;
+    uint32_t mCustomCursorHotspotX, mCustomCursorHotspotY;
 
     // True if the cursor changes from the TabChild should change the widget
     // cursor.  This happens whenever the cursor is in the tab's region.

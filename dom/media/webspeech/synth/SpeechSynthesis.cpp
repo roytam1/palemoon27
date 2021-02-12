@@ -137,7 +137,7 @@ SpeechSynthesis::Speak(SpeechSynthesisUtterance& aUtterance)
   mSpeechQueue.AppendElement(&aUtterance);
   aUtterance.mState = SpeechSynthesisUtterance::STATE_PENDING;
 
-  if (mSpeechQueue.Length() == 1) {
+  if (mSpeechQueue.Length() == 1 && !mCurrentTask) {
     AdvanceQueue();
   }
 }
@@ -179,17 +179,20 @@ SpeechSynthesis::AdvanceQueue()
 void
 SpeechSynthesis::Cancel()
 {
-  mSpeechQueue.Clear();
-
   if (mCurrentTask) {
-    mCurrentTask->Cancel();
+   if (mSpeechQueue.Length() > 1) {
+      // Remove all queued utterances except for current one.
+      mSpeechQueue.RemoveElementsAt(1, mSpeechQueue.Length() - 1);
+    }
+
+   mCurrentTask->Cancel();
   }
 }
 
 void
 SpeechSynthesis::Pause()
 {
-  if (mCurrentTask) {
+  if (mCurrentTask && !Paused() && (Speaking() || Pending())) {
     mCurrentTask->Pause();
   }
 }
@@ -197,7 +200,7 @@ SpeechSynthesis::Pause()
 void
 SpeechSynthesis::Resume()
 {
-  if (mCurrentTask) {
+  if (mCurrentTask && Paused()) {
     mCurrentTask->Resume();
   }
 }
@@ -222,7 +225,9 @@ SpeechSynthesis::GetVoices(nsTArray< nsRefPtr<SpeechSynthesisVoice> >& aResult)
   uint32_t voiceCount = 0;
 
   nsresult rv = nsSynthVoiceRegistry::GetInstance()->GetVoiceCount(&voiceCount);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  if(NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
 
   for (uint32_t i = 0; i < voiceCount; i++) {
     nsAutoString uri;

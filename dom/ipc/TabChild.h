@@ -35,6 +35,7 @@
 #include "mozilla/layers/CompositorTypes.h"
 #include "nsIWebBrowserChrome3.h"
 #include "mozilla/dom/ipc/IdType.h"
+#include "PuppetWidget.h"
 
 class nsICachedFileDescriptorListener;
 class nsIDOMWindowUtils;
@@ -169,6 +170,9 @@ class TabChildBase : public nsISupports,
                      public nsMessageManagerScriptExecutor,
                      public ipc::MessageManagerCallback
 {
+protected:
+    typedef mozilla::widget::PuppetWidget PuppetWidget;
+
 public:
     TabChildBase();
 
@@ -176,7 +180,7 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(TabChildBase)
 
     virtual nsIWebNavigation* WebNavigation() const = 0;
-    virtual nsIWidget* WebWidget() = 0;
+    virtual PuppetWidget* WebWidget() = 0;
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
     // Recalculates the display state, including the CSS
     // viewport. This should be called whenever we believe the
@@ -186,8 +190,9 @@ public:
     bool HandlePossibleViewportChange(const ScreenIntSize& aOldScreenSize);
     virtual bool DoUpdateZoomConstraints(const uint32_t& aPresShellId,
                                          const mozilla::layers::FrameMetrics::ViewID& aViewId,
-                                         const bool& aIsRoot,
-                                         const mozilla::layers::ZoomConstraints& aConstraints) = 0;
+                                         const Maybe<mozilla::layers::ZoomConstraints>& aConstraints) = 0;
+
+    virtual ScreenIntSize GetInnerSize() = 0;
 
 protected:
     virtual ~TabChildBase();
@@ -222,7 +227,6 @@ protected:
     CSSSize mOldViewportSize;
     bool mContentDocumentIsDisplayed;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
-    ScreenIntSize mInnerSize;
     mozilla::layers::FrameMetrics mLastRootMetrics;
     nsCOMPtr<nsIWebBrowserChrome3> mWebBrowserChrome;
 };
@@ -307,8 +311,7 @@ public:
                                     nsIPrincipal* aPrincipal) override;
     virtual bool DoUpdateZoomConstraints(const uint32_t& aPresShellId,
                                          const ViewID& aViewId,
-                                         const bool& aIsRoot,
-                                         const ZoomConstraints& aConstraints) override;
+                                         const Maybe<ZoomConstraints>& aConstraints) override;
     virtual bool RecvLoadURL(const nsCString& aURI,
                              const BrowserConfiguration& aConfiguration) override;
     virtual bool RecvCacheFileDescriptor(const nsString& aPath,
@@ -320,8 +323,8 @@ public:
                           const uint64_t& aLayersId,
                           PRenderFrameChild* aRenderFrame,
                           const bool& aParentIsActive) override;
-    virtual bool RecvUpdateDimensions(const nsIntRect& rect,
-                                      const ScreenIntSize& size,
+    virtual bool RecvUpdateDimensions(const CSSRect& rect,
+                                      const CSSSize& size,
                                       const ScreenOrientation& orientation,
                                       const LayoutDeviceIntPoint& chromeDisp) override;
     virtual bool RecvUpdateFrame(const layers::FrameMetrics& aFrameMetrics) override;
@@ -392,6 +395,10 @@ public:
 
     virtual bool RecvSwappedWithOtherRemoteLoader() override;
 
+    virtual PDocAccessibleChild* AllocPDocAccessibleChild(PDocAccessibleChild*,
+                                                          const uint64_t&)
+      override;
+    virtual bool DeallocPDocAccessibleChild(PDocAccessibleChild*) override;
     virtual PDocumentRendererChild*
     AllocPDocumentRendererChild(const nsRect& documentRect, const gfx::Matrix& transform,
                                 const nsString& bgcolor,
@@ -425,11 +432,13 @@ public:
                                        override;
 
     virtual nsIWebNavigation* WebNavigation() const override { return mWebNav; }
-    virtual nsIWidget* WebWidget() override { return mWidget; }
+    virtual PuppetWidget* WebWidget() override { return mPuppetWidget; }
 
     /** Return the DPI of the widget this TabChild draws to. */
     void GetDPI(float* aDPI);
     void GetDefaultScale(double *aScale);
+
+    void GetMaxTouchPoints(uint32_t* aTouchPoints);
 
     ScreenOrientation GetOrientation() { return mOrientation; }
 
@@ -504,6 +513,8 @@ public:
       return mParentIsActive;
     }
     bool AsyncPanZoomEnabled() { return mAsyncPanZoomEnabled; }
+
+    virtual ScreenIntSize GetInnerSize();
 
 protected:
     virtual ~TabChild();
@@ -589,10 +600,13 @@ private:
 
     bool HasValidInnerSize();
 
-    // Get the pres shell resolution of the document in this tab.
-    float GetPresShellResolution() const;
-
     void SetTabId(const TabId& aTabId);
+
+    ScreenIntRect GetOuterRect();
+
+    void SetUnscaledInnerSize(const CSSSize& aSize) {
+      mUnscaledInnerSize = aSize;
+    }
 
     class CachedFileDescriptorInfo;
     class CachedFileDescriptorCallbackRunnable;
@@ -600,13 +614,13 @@ private:
 
     TextureFactoryIdentifier mTextureFactoryIdentifier;
     nsCOMPtr<nsIWebNavigation> mWebNav;
-    nsCOMPtr<nsIWidget> mWidget;
+    nsRefPtr<PuppetWidget> mPuppetWidget;
     nsCOMPtr<nsIURI> mLastURI;
     RenderFrameChild* mRemoteFrame;
     nsRefPtr<nsIContentChild> mManager;
     uint32_t mChromeFlags;
     uint64_t mLayersId;
-    nsIntRect mOuterRect;
+    CSSRect mUnscaledOuterRect;
     // When we're tracking a possible tap gesture, this is the "down"
     // point of the touchstart.
     LayoutDevicePoint mGestureDownPoint;
@@ -641,6 +655,7 @@ private:
     bool mIPCOpen;
     bool mParentIsActive;
     bool mAsyncPanZoomEnabled;
+    CSSSize mUnscaledInnerSize;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

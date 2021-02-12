@@ -32,6 +32,7 @@
 #include "nsPresContext.h"
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
+#include "WritingModes.h"
 
 namespace mozilla {
 
@@ -42,7 +43,8 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IMEContentObserver)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IMEContentObserver)
   nsAutoScriptBlocker scriptBlocker;
 
-  tmp->UnregisterObservers(true);
+  tmp->NotifyIMEOfBlur();
+  tmp->UnregisterObservers();
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWidget)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSelection)
@@ -85,6 +87,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(IMEContentObserver)
 IMEContentObserver::IMEContentObserver()
   : mESM(nullptr)
   , mPreCharacterDataChangeLength(-1)
+  , mIsObserving(false)
   , mIsSelectionChangeEventPending(false)
   , mSelectionChangeCausedOnlyByComposition(false)
   , mIsPositionChangeEventPending(false)
@@ -103,17 +106,35 @@ IMEContentObserver::Init(nsIWidget* aWidget,
 {
   MOZ_ASSERT(aEditor, "aEditor must not be null");
 
+  State state = GetState();
+  if (NS_WARN_IF(state == eState_Observing)) {
+    return; // Nothing to do.
+  }
+
+  bool firstInitialization = state != eState_StoppedObserving;
+  if (!firstInitialization) {
+    // If this is now trying to initialize with new contents, all observers
+    // should be registered again for simpler implementation.
+    UnregisterObservers();
+    // Clear members which may not be initialized again.
+    mRootContent = nullptr;
+    mEditor = nullptr;
+    mSelection = nullptr;
+    mDocShell = nullptr;
+  }
+
   mESM = aPresContext->EventStateManager();
   mESM->OnStartToObserveContent(this);
 
   mWidget = aWidget;
-  mEditableNode = IMEStateManager::GetRootEditableNode(aPresContext, aContent);
+
+  mEditableNode =
+    IMEStateManager::GetRootEditableNode(aPresContext, aContent);
   if (!mEditableNode) {
     return;
   }
 
   mEditor = aEditor;
-  mEditor->AddEditorObserver(this);
 
   nsIPresShell* presShell = aPresContext->PresShell();
 
@@ -153,19 +174,23 @@ IMEContentObserver::Init(nsIWidget* aWidget,
   }
   NS_ENSURE_TRUE_VOID(mRootContent);
 
-  if (IMEStateManager::IsTestingIME()) {
-    nsIDocument* doc = aPresContext->Document();
-    (new AsyncEventDispatcher(doc, NS_LITERAL_STRING("MozIMEFocusIn"),
-                              false, false))->RunDOMEventWhenSafe();
-  }
+  if (firstInitialization) {
+    aWidget->NotifyIME(IMENotification(NOTIFY_IME_OF_FOCUS));
 
-  aWidget->NotifyIME(IMENotification(NOTIFY_IME_OF_FOCUS));
+    // While Init() notifies IME of focus, pending layout may be flushed
+    // because the notification may cause querying content.  Then, recursive
+    // call of Init() with the latest content may be occur.  In such case, we
+    // shouldn't keep first initialization.
+    if (GetState() != eState_Initializing) {
+      return;
+    }
 
-  // NOTIFY_IME_OF_FOCUS might cause recreating IMEContentObserver
-  // instance via IMEStateManager::UpdateIMEState().  So, this
-  // instance might already have been destroyed, check it.
-  if (!mRootContent) {
-    return;
+    // NOTIFY_IME_OF_FOCUS might cause recreating IMEContentObserver
+    // instance via IMEStateManager::UpdateIMEState().  So, this
+    // instance might already have been destroyed, check it.
+    if (!mRootContent) {
+      return;
+    }
   }
 
   mDocShell = aPresContext->GetDocShell();
@@ -176,8 +201,13 @@ IMEContentObserver::Init(nsIWidget* aWidget,
 void
 IMEContentObserver::ObserveEditableNode()
 {
-  MOZ_ASSERT(mSelection);
-  MOZ_ASSERT(mRootContent);
+  MOZ_RELEASE_ASSERT(mEditor);
+  MOZ_RELEASE_ASSERT(mSelection);
+  MOZ_RELEASE_ASSERT(mRootContent);
+  MOZ_RELEASE_ASSERT(GetState() != eState_Observing);
+
+  mIsObserving = true;
+  mEditor->AddEditorObserver(this);
 
   mUpdatePreference = mWidget->GetIMEUpdatePreference();
   if (mUpdatePreference.WantSelectionChange()) {
@@ -202,32 +232,30 @@ IMEContentObserver::ObserveEditableNode()
 }
 
 void
-IMEContentObserver::UnregisterObservers(bool aPostEvent)
+IMEContentObserver::NotifyIMEOfBlur()
 {
-  if (mEditor) {
-    mEditor->RemoveEditorObserver(this);
+  // If this failed to initialize, mRootContent may be null, then, we
+  // should not call NotifyIME(IMENotification(NOTIFY_IME_OF_BLUR))
+  if (!mRootContent || !mWidget) {
+    return;
   }
 
-  // If CreateTextStateManager failed, mRootContent will be null, then, we
-  // should not call NotifyIME(IMENotification(NOTIFY_IME_OF_BLUR))
-  if (mRootContent && mWidget) {
-    if (IMEStateManager::IsTestingIME() && mEditableNode) {
-      nsIDocument* doc = mEditableNode->OwnerDoc();
-      if (doc) {
-        nsRefPtr<AsyncEventDispatcher> dispatcher =
-          new AsyncEventDispatcher(doc, NS_LITERAL_STRING("MozIMEFocusOut"),
-                                   false, false);
-        if (aPostEvent) {
-          dispatcher->PostDOMEvent();
-        } else {
-          dispatcher->RunDOMEventWhenSafe();
-        }
-      }
-    }
-    // A test event handler might destroy the widget.
-    if (mWidget) {
-      mWidget->NotifyIME(IMENotification(NOTIFY_IME_OF_BLUR));
-    }
+  // A test event handler might destroy the widget.
+  if (mWidget) {
+    mWidget->NotifyIME(IMENotification(NOTIFY_IME_OF_BLUR));
+  }
+}
+
+void
+IMEContentObserver::UnregisterObservers()
+{
+  if (!mIsObserving) {
+    return;
+  }
+  mIsObserving = false;
+
+  if (mEditor) {
+    mEditor->RemoveEditorObserver(this);
   }
 
   if (mUpdatePreference.WantSelectionChange() && mSelection) {
@@ -247,12 +275,19 @@ IMEContentObserver::UnregisterObservers(bool aPostEvent)
   }
 }
 
+nsPresContext*
+IMEContentObserver::GetPresContext() const
+{
+  return mESM ? mESM->GetPresContext() : nullptr;
+}
+
 void
 IMEContentObserver::Destroy()
 {
   // WARNING: When you change this method, you have to check Unlink() too.
 
-  UnregisterObservers(false);
+  NotifyIMEOfBlur();
+  UnregisterObservers();
 
   mEditor = nullptr;
   // Even if there are some pending notification, it'll never notify the widget.
@@ -276,15 +311,46 @@ IMEContentObserver::DisconnectFromEventStateManager()
 }
 
 bool
+IMEContentObserver::MaybeReinitialize(nsIWidget* aWidget,
+                                      nsPresContext* aPresContext,
+                                      nsIContent* aContent,
+                                      nsIEditor* aEditor)
+{
+  if (!IsObservingContent(aPresContext, aContent)) {
+    return false;
+  }
+
+  if (GetState() == eState_StoppedObserving) {
+    Init(aWidget, aPresContext, aContent, aEditor);
+  }
+  return IsManaging(aPresContext, aContent);
+}
+
+bool
 IMEContentObserver::IsManaging(nsPresContext* aPresContext,
                                nsIContent* aContent)
 {
+  return GetState() == eState_Observing &&
+         IsObservingContent(aPresContext, aContent);
+}
+
+IMEContentObserver::State
+IMEContentObserver::GetState() const
+{
   if (!mSelection || !mRootContent || !mEditableNode) {
-    return false; // failed to initialize.
+    return eState_NotObserving; // failed to initialize or finalized.
   }
   if (!mRootContent->IsInComposedDoc()) {
-    return false; // the focused editor has already been reframed.
+    // the focused editor has already been reframed.
+    return eState_StoppedObserving;
   }
+  return mIsObserving ? eState_Observing : eState_Initializing;
+}
+
+bool
+IMEContentObserver::IsObservingContent(nsPresContext* aPresContext,
+                                       nsIContent* aContent) const
+{
   return mEditableNode == IMEStateManager::GetRootEditableNode(aPresContext,
                                                                aContent);
 }
@@ -331,12 +397,39 @@ public:
 
   NS_IMETHOD Run()
   {
-    if (mDispatcher->GetWidget()) {
-      IMENotification notification(NOTIFY_IME_OF_SELECTION_CHANGE);
-      notification.mSelectionChangeData.mCausedByComposition =
-         mCausedByComposition;
-      mDispatcher->GetWidget()->NotifyIME(notification);
+    nsCOMPtr<nsIWidget> widget = mDispatcher->GetWidget();
+    nsPresContext* presContext = mDispatcher->GetPresContext();
+    if (!widget || !presContext) {
+      return NS_OK;
     }
+
+    // XXX Cannot we cache some information for reducing the cost to compute
+    //     selection offset and writing mode?
+    WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, widget);
+    ContentEventHandler handler(presContext);
+    handler.OnQuerySelectedText(&selection);
+    if (NS_WARN_IF(!selection.mSucceeded)) {
+      return NS_OK;
+    }
+
+    // The widget might be destroyed during querying the content since it
+    // causes flushing layout.
+    widget = mDispatcher->GetWidget();
+    if (!widget || NS_WARN_IF(widget->Destroyed())) {
+      return NS_OK;
+    }
+
+    IMENotification notification(NOTIFY_IME_OF_SELECTION_CHANGE);
+    notification.mSelectionChangeData.mOffset =
+      selection.mReply.mOffset;
+    notification.mSelectionChangeData.mLength =
+      selection.mReply.mString.Length();
+    notification.mSelectionChangeData.SetWritingMode(
+                                        selection.GetWritingMode());
+    notification.mSelectionChangeData.mReversed = selection.mReply.mReversed;
+    notification.mSelectionChangeData.mCausedByComposition =
+      mCausedByComposition;
+    widget->NotifyIME(notification);
     return NS_OK;
   }
 

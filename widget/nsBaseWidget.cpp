@@ -55,6 +55,7 @@
 #include "mozilla/Snprintf.h"
 #include "nsRefPtrHashtable.h"
 #include "TouchEvents.h"
+#include "WritingModes.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #endif
@@ -99,6 +100,25 @@ int32_t nsIWidget::sPointerIdCounter = 0;
 // Some statics from nsIWidget.h
 /*static*/ uint64_t AutoObserverNotifier::sObserverId = 0;
 /*static*/ nsDataHashtable<nsUint64HashKey, nsCOMPtr<nsIObserver>> AutoObserverNotifier::sSavedObservers;
+
+namespace mozilla {
+namespace widget {
+
+void
+IMENotification::SelectionChangeData::SetWritingMode(
+                                        const WritingMode& aWritingMode)
+{
+  mWritingMode = aWritingMode.mWritingMode;
+}
+
+WritingMode
+IMENotification::SelectionChangeData::GetWritingMode() const
+{
+  return WritingMode(mWritingMode);
+}
+
+} // namespace widget
+} // namespace mozilla
 
 nsAutoRollup::nsAutoRollup()
 {
@@ -988,6 +1008,19 @@ nsBaseWidget::SetConfirmedTargetAPZC(uint64_t aInputBlockId,
     mAPZC.get(), setTargetApzcFunc, aInputBlockId, mozilla::Move(aTargets)));
 }
 
+void
+nsBaseWidget::UpdateZoomConstraints(const uint32_t& aPresShellId,
+                                    const FrameMetrics::ViewID& aViewId,
+                                    const Maybe<ZoomConstraints>& aConstraints)
+{
+  if (!mCompositorParent || !mAPZC) {
+    return;
+  }
+  uint64_t layersId = mCompositorParent->RootLayerTreeId();
+  mAPZC->UpdateZoomConstraints(ScrollableLayerGuid(layersId, aPresShellId, aViewId),
+                               aConstraints);
+}
+
 bool
 nsBaseWidget::AsyncPanZoomEnabled() const
 {
@@ -1011,7 +1044,7 @@ nsBaseWidget::ProcessUntransformedAPZEvent(WidgetInputEvent* aEvent,
   // TODO: Do other types of events (than touch) need this?
   if (aEvent->AsTouchEvent() && aGuid.mLayersId == mCompositorParent->RootLayerTreeId()) {
     APZCCallbackHelper::ApplyCallbackTransform(*aEvent->AsTouchEvent(), aGuid,
-        GetDefaultScale(), 1.0f);
+        GetDefaultScale());
   }
 
   nsEventStatus status;
@@ -1868,6 +1901,11 @@ nsIWidget::LookupRegisteredPluginWindow(uintptr_t aWindowID)
 }
 
 #if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
+struct VisEnumContext {
+  uintptr_t parentWidget;
+  const nsTArray<uintptr_t>* list;
+};
+
 static PLDHashOperator
 RegisteredPluginEnumerator(const void* aWindowId, nsIWidget* aWidget, void* aUserArg)
 {
@@ -1875,9 +1913,13 @@ RegisteredPluginEnumerator(const void* aWindowId, nsIWidget* aWidget, void* aUse
   MOZ_ASSERT(aWindowId);
   MOZ_ASSERT(aWidget);
   MOZ_ASSERT(aUserArg);
-  const nsTArray<uintptr_t>* visible = static_cast<const nsTArray<uintptr_t>*>(aUserArg);
-  if (!visible->Contains((uintptr_t)aWindowId) && !aWidget->Destroyed()) {
-    aWidget->Show(false);
+
+  if (!aWidget->Destroyed()) {
+    VisEnumContext* pctx = static_cast<VisEnumContext*>(aUserArg);
+    if ((uintptr_t)aWidget->GetParent() == pctx->parentWidget &&
+        !pctx->list->Contains((uintptr_t)aWindowId)) {
+      aWidget->Show(false);
+    }
   }
   return PLDHashOperator::PL_DHASH_NEXT;
 }
@@ -1885,7 +1927,8 @@ RegisteredPluginEnumerator(const void* aWindowId, nsIWidget* aWidget, void* aUse
 
 // static
 void
-nsIWidget::UpdateRegisteredPluginWindowVisibility(nsTArray<uintptr_t>& aVisibleList)
+nsIWidget::UpdateRegisteredPluginWindowVisibility(uintptr_t aOwnerWidget,
+                                                  nsTArray<uintptr_t>& aVisibleList)
 {
 #if !defined(XP_WIN) && !defined(MOZ_WIDGET_GTK)
   NS_NOTREACHED("nsBaseWidget::UpdateRegisteredPluginWindowVisibility not implemented!");
@@ -1893,8 +1936,66 @@ nsIWidget::UpdateRegisteredPluginWindowVisibility(nsTArray<uintptr_t>& aVisibleL
 #else
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(sPluginWidgetList);
-  sPluginWidgetList->EnumerateRead(RegisteredPluginEnumerator, static_cast<void*>(&aVisibleList));
+  // Our visible list is associated with a compositor which is associated with
+  // a specific top level window. We hand the parent widget in here so the
+  // enumerator can skip the plugin widgets owned by other top level windows.
+  VisEnumContext ctx = { aOwnerWidget, &aVisibleList };
+  sPluginWidgetList->EnumerateRead(RegisteredPluginEnumerator, static_cast<void*>(&ctx));
 #endif
+}
+
+already_AddRefed<mozilla::gfx::SourceSurface>
+nsIWidget::SnapshotWidgetOnScreen()
+{
+  // This is only supported on a widget with a compositor.
+  LayerManager* layerManager = GetLayerManager();
+  if (!layerManager) {
+    return nullptr;
+  }
+
+  ClientLayerManager* lm = layerManager->AsClientLayerManager();
+  if (!lm) {
+    return nullptr;
+  }
+
+  CompositorChild* cc = lm->GetRemoteRenderer();
+  if (!cc) {
+    return nullptr;
+  }
+
+  nsIntRect bounds;
+  GetBounds(bounds);
+  if (bounds.IsEmpty()) {
+    return nullptr;
+  }
+
+  gfx::IntSize size(bounds.width, bounds.height);
+
+  ShadowLayerForwarder* forwarder = lm->AsShadowForwarder();
+  SurfaceDescriptor surface;
+  if (!forwarder->AllocSurfaceDescriptor(size, gfxContentType::COLOR_ALPHA, &surface)) {
+    return nullptr;
+  }
+
+  if (!cc->SendMakeWidgetSnapshot(surface)) {
+    return nullptr;
+  }
+
+  RefPtr<gfx::DataSourceSurface> snapshot = GetSurfaceForDescriptor(surface);
+  RefPtr<gfx::DrawTarget> dt =
+    gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(size, gfx::SurfaceFormat::B8G8R8A8);
+  if (!snapshot || !dt) {
+    forwarder->DestroySharedSurface(&surface);
+    return nullptr;
+  }
+
+  dt->DrawSurface(snapshot,
+                  gfx::Rect(gfx::Point(), gfx::Size(size)),
+                  gfx::Rect(gfx::Point(), gfx::Size(size)),
+                  gfx::DrawSurfaceOptions(gfx::Filter::POINT));
+
+  forwarder->DestroySharedSurface(&surface);
+  return dt->Snapshot();
 }
 
 #ifdef DEBUG

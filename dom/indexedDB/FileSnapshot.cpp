@@ -9,6 +9,7 @@
 #include "IDBFileHandle.h"
 #include "MainThreadUtils.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/dom/File.h"
 #include "mozilla/dom/MetadataHelper.h"
 
 #ifdef DEBUG
@@ -90,24 +91,23 @@ BlobImplSnapshot::AssertSanity()
 
 NS_IMPL_ISUPPORTS_INHERITED(BlobImplSnapshot, BlobImpl, PIBlobImplSnapshot)
 
-nsresult
-BlobImplSnapshot::GetInternalStream(nsIInputStream** aStream)
+void
+BlobImplSnapshot::GetInternalStream(nsIInputStream** aStream,
+                                    ErrorResult& aRv)
 {
   AssertSanity();
 
   nsCOMPtr<EventTarget> et = do_QueryReferent(mFileHandle);
   nsRefPtr<IDBFileHandle> fileHandle = static_cast<IDBFileHandle*>(et.get());
   if (!fileHandle) {
-    return NS_ERROR_DOM_FILEHANDLE_INACTIVE_ERR;
+    aRv.Throw(NS_ERROR_DOM_FILEHANDLE_INACTIVE_ERR);
+    return;
   }
 
-  nsresult rv = fileHandle->OpenInputStream(mWholeFile, mStart, mLength,
-                                            aStream);
-  if (NS_FAILED(rv)) {
-    return rv;
+  aRv = fileHandle->OpenInputStream(mWholeFile, mStart, mLength, aStream);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return;
   }
-
-  return NS_OK;
 }
 
 already_AddRefed<BlobImpl>

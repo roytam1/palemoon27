@@ -9,6 +9,7 @@ include protocol PBlob;
 include protocol PColorPicker;
 include protocol PContent;
 include protocol PContentBridge;
+include protocol PDocAccessible;
 include protocol PDocumentRenderer;
 include protocol PFilePicker;
 include protocol PIndexedDBPermissionRequest;
@@ -24,12 +25,14 @@ using class IPC::Principal from "mozilla/dom/PermissionMessageUtils.h";
 using class mozilla::gfx::Matrix from "mozilla/gfx/Matrix.h";
 using struct gfxSize from "gfxPoint.h";
 using CSSRect from "Units.h";
+using CSSSize from "Units.h";
 using LayoutDeviceIntRect from "Units.h";
 using mozilla::LayoutDeviceIntPoint from "Units.h";
 using ScreenIntSize from "Units.h";
 using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
 using struct mozilla::layers::ScrollableLayerGuid from "FrameMetrics.h";
 using struct mozilla::layers::ZoomConstraints from "FrameMetrics.h";
+using mozilla::layers::MaybeZoomConstraints from "FrameMetrics.h";
 using FrameMetrics::ViewID from "FrameMetrics.h";
 using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
 using mozilla::WindowsHandle from "ipc/IPCMessageUtils.h";
@@ -98,6 +101,7 @@ prio(normal upto urgent) sync protocol PBrowser
     manager PContent or PContentBridge;
 
     manages PColorPicker;
+    manages PDocAccessible;
     manages PDocumentRenderer;
     manages PFilePicker;
     manages PIndexedDBPermissionRequest;
@@ -115,6 +119,14 @@ both:
     PRenderFrame();
 
 parent:
+    /**
+     * Tell the parent process a new accessible document has been created.
+     * aParentDoc is the accessible document it was created in if any, and
+     * aParentAcc is the id of the accessible in that document the new document
+     * is a child of.
+     */
+    PDocAccessible(nullable PDocAccessible aParentDoc, uint64_t aParentAcc);
+
     /*
      * Creates a new remoted nsIWidget connection for windowed plugins
      * in e10s mode. This is always initiated from the child in response
@@ -341,6 +353,11 @@ parent:
     sync GetDefaultScale() returns (double value);
 
     /**
+     * Gets maximum of touch points at current device.
+     */
+    sync GetMaxTouchPoints() returns (uint32_t value);
+
+    /**
      * Set the native cursor.
      * @param value
      *   The widget cursor to set.
@@ -349,6 +366,30 @@ parent:
      *   update.
      */
     SetCursor(uint32_t value, bool force);
+
+    /**
+     * Set the native cursor using a custom image.
+     * @param cursorData
+     *   Serialized image data.
+     * @param width
+     *   Width of the image.
+     * @param height
+     *   Height of the image.
+     * @param stride
+     *   Stride used in the image data.
+     * @param format
+     *   Image format, see gfx::SurfaceFormat for possible values.
+     * @param hotspotX
+     *   Horizontal hotspot of the image, as specified by the css cursor property.
+     * @param hotspotY
+     *   Vertical hotspot of the image, as specified by the css cursor property.
+     * @param force
+     *   Invalidate any locally cached cursor settings and force an
+     *   update.
+     */
+    SetCustomCursor(nsCString cursorData, uint32_t width, uint32_t height,
+                    uint32_t stride, uint8_t format,
+                    uint32_t hotspotX, uint32_t hotspotY, bool force);
 
     SetBackgroundColor(nscolor color);
 
@@ -435,8 +476,8 @@ parent:
      * The zoom controller code lives on the parent side and so this allows it to
      * have up-to-date zoom constraints.
      */
-    UpdateZoomConstraints(uint32_t aPresShellId, ViewID aViewId, bool aIsRoot,
-                          ZoomConstraints aConstraints);
+    UpdateZoomConstraints(uint32_t aPresShellId, ViewID aViewId,
+                          MaybeZoomConstraints aConstraints);
 
     /**
      * Brings up the auth prompt dialog.
@@ -538,8 +579,8 @@ child:
 
     CacheFileDescriptor(nsString path, FileDescriptor fd);
 
-    UpdateDimensions(IntRect rect, ScreenIntSize size, ScreenOrientation orientation,
-                     LayoutDeviceIntPoint chromeDisp) compress;
+    UpdateDimensions(CSSRect rect, CSSSize size, ScreenOrientation orientation,
+                     LayoutDeviceIntPoint chromeDisp) compressall;
 
     UpdateFrame(FrameMetrics frame);
 

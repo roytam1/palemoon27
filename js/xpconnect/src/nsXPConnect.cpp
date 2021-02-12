@@ -496,13 +496,39 @@ NativeInterface2JSObject(HandleObject aScope,
     return NS_OK;
 }
 
-/* nsIXPConnectJSObjectHolder wrapNative (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDRef aIID); */
+/* JSObjectPtr wrapNative (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDRef aIID); */
 NS_IMETHODIMP
 nsXPConnect::WrapNative(JSContext * aJSContext,
                         JSObject * aScopeArg,
                         nsISupports* aCOMObj,
                         const nsIID & aIID,
-                        nsIXPConnectJSObjectHolder** aHolder)
+                        JSObject** aRetVal)
+{
+    MOZ_ASSERT(aJSContext, "bad param");
+    MOZ_ASSERT(aScopeArg, "bad param");
+    MOZ_ASSERT(aCOMObj, "bad param");
+
+    RootedObject aScope(aJSContext, aScopeArg);
+    RootedValue v(aJSContext);
+    nsresult rv = NativeInterface2JSObject(aScope, aCOMObj, nullptr, &aIID,
+                                           true, &v, nullptr);
+    if (NS_FAILED(rv))
+        return rv;
+
+    if (!v.isObjectOrNull())
+        return NS_ERROR_FAILURE;
+
+    *aRetVal = v.toObjectOrNull();
+    return NS_OK;
+}
+
+/* nsIXPConnectJSObjectHolder wrapNativeHolder(in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDRef aIID); */
+NS_IMETHODIMP
+nsXPConnect::WrapNativeHolder(JSContext * aJSContext,
+                              JSObject * aScopeArg,
+                              nsISupports* aCOMObj,
+                              const nsIID & aIID,
+                              nsIXPConnectJSObjectHolder **aHolder)
 {
     MOZ_ASSERT(aHolder, "bad param");
     MOZ_ASSERT(aJSContext, "bad param");
@@ -515,7 +541,7 @@ nsXPConnect::WrapNative(JSContext * aJSContext,
                                     true, &v, aHolder);
 }
 
-/* void wrapNativeToJSVal (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDPtr aIID, out jsval aVal, out nsIXPConnectJSObjectHolder aHolder); */
+/* void wrapNativeToJSVal (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDPtr aIID, out jsval aVal); */
 NS_IMETHODIMP
 nsXPConnect::WrapNativeToJSVal(JSContext* aJSContext,
                                JSObject* aScopeArg,
@@ -678,27 +704,6 @@ nsXPConnect::GetWrappedNativeOfNativeObject(JSContext * aJSContext,
     if (NS_FAILED(rv))
         return NS_ERROR_FAILURE;
     *_retval = static_cast<nsIXPConnectWrappedNative*>(wrapper);
-    return NS_OK;
-}
-
-/* nsIStackFrame createStackFrameLocation (in uint32_t aLanguage, in string aFilename, in string aFunctionName, in int32_t aLineNumber, in nsIStackFrame aCaller); */
-NS_IMETHODIMP
-nsXPConnect::CreateStackFrameLocation(uint32_t aLanguage,
-                                      const char* aFilename,
-                                      const char* aFunctionName,
-                                      int32_t aLineNumber,
-                                      nsIStackFrame* aCaller,
-                                      nsIStackFrame** _retval)
-{
-    MOZ_ASSERT(_retval, "bad param");
-
-    nsCOMPtr<nsIStackFrame> stackFrame =
-        exceptions::CreateStackFrameLocation(aLanguage,
-                                             aFilename,
-                                             aFunctionName,
-                                             aLineNumber,
-                                             aCaller);
-    stackFrame.forget(_retval);
     return NS_OK;
 }
 

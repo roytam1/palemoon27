@@ -3308,6 +3308,16 @@ CreateNonSyntacticScopeChain(JSContext* cx, AutoObjectVector& scopeChain,
         staticScopeObj.set(StaticNonSyntacticScopeObjects::create(cx, nullptr));
         if (!staticScopeObj)
             return false;
+
+        // The XPConnect subscript loader, which may pass in its own dynamic
+        // scopes to load scripts in, expects the dynamic scope chain to be
+        // the holder of "var" declarations. In SpiderMonkey, such objects are
+        // called "qualified varobjs", the "qualified" part meaning the
+        // declaration was qualified by "var". There is only sadness.
+        //
+        // See JSObject::isQualifiedVarObj.
+        if (!dynamicScopeObj->setQualifiedVarObj(cx))
+            return false;
     }
 
     return true;
@@ -4216,11 +4226,8 @@ CompileFunction(JSContext* cx, const ReadOnlyCompileOptions& optionsArg,
                   HasNonSyntacticStaticScopeChain(enclosingStaticScope));
 
     CompileOptions options(cx, optionsArg);
-    if (!frontend::CompileFunctionBody(cx, fun, options, formals, srcBuf,
-                                       enclosingStaticScope))
-    {
+    if (!frontend::CompileFunctionBody(cx, fun, options, formals, srcBuf, enclosingStaticScope))
         return false;
-    }
 
     return true;
 }
@@ -4720,6 +4727,12 @@ JS::AutoSetAsyncStackForNewCalls::AutoSetAsyncStackForNewCalls(
     oldAsyncCause(cx, cx->runtime()->asyncCauseForNewActivations)
 {
     CHECK_REQUEST(cx);
+
+    // The option determines whether we actually use the new values at this
+    // point. It will not affect restoring the previous values when the object
+    // is destroyed, so if the option changes it won't cause consistency issues.
+    if (!cx->runtime()->options().asyncStack())
+        return;
 
     SavedFrame* asyncStack = &stack->as<SavedFrame>();
     MOZ_ASSERT(!asyncCause->empty());

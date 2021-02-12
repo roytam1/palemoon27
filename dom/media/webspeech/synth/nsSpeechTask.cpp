@@ -136,6 +136,12 @@ nsSpeechTask::BindStream(ProcessedMediaStream* aStream)
   mPort = aStream->AllocateInputPort(mStream, 0);
 }
 
+void
+nsSpeechTask::SetChosenVoiceURI(const nsAString& aUri)
+{
+  mChosenVoiceURI = aUri;
+}
+
 NS_IMETHODIMP
 nsSpeechTask::Setup(nsISpeechTaskCallback* aCallback,
                     uint32_t aChannels, uint32_t aRate, uint8_t argc)
@@ -159,7 +165,9 @@ nsSpeechTask::Setup(nsISpeechTaskCallback* aCallback,
   mStream->AddListener(new SynthStreamListener(this));
 
   // XXX: Support more than one channel
-  NS_ENSURE_TRUE(aChannels == 1, NS_ERROR_FAILURE);
+  if(NS_WARN_IF(!(aChannels == 1))) {
+    return NS_ERROR_FAILURE;
+  }
 
   mChannels = aChannels;
 
@@ -191,10 +199,18 @@ nsSpeechTask::SendAudio(JS::Handle<JS::Value> aData, JS::Handle<JS::Value> aLand
 {
   MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
 
-  NS_ENSURE_TRUE(mStream, NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_FALSE(mStream->IsDestroyed(), NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_TRUE(mChannels, NS_ERROR_FAILURE);
-  NS_ENSURE_TRUE(aData.isObject(), NS_ERROR_INVALID_ARG);
+  if(NS_WARN_IF(!(mStream))) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if(NS_WARN_IF(mStream->IsDestroyed())) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if(NS_WARN_IF(!(mChannels))) {
+    return NS_ERROR_FAILURE;
+  }
+  if(NS_WARN_IF(!(aData.isObject()))) {
+    return NS_ERROR_INVALID_ARG;
+  }
 
   if (mIndirectAudio) {
     NS_WARNING("Can't call SendAudio from an indirect audio speech service.");
@@ -233,9 +249,15 @@ nsSpeechTask::SendAudioNative(int16_t* aData, uint32_t aDataLen)
 {
   MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
 
-  NS_ENSURE_TRUE(mStream, NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_FALSE(mStream->IsDestroyed(), NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_TRUE(mChannels, NS_ERROR_FAILURE);
+  if(NS_WARN_IF(!(mStream))) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if(NS_WARN_IF(mStream->IsDestroyed())) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if(NS_WARN_IF(!(mChannels))) {
+    return NS_ERROR_FAILURE;
+  }
 
   if (mIndirectAudio) {
     NS_WARNING("Can't call SendAudio from an indirect audio speech service.");
@@ -278,13 +300,21 @@ nsSpeechTask::DispatchStart()
 nsresult
 nsSpeechTask::DispatchStartImpl()
 {
+  return DispatchStartImpl(mChosenVoiceURI);
+}
+
+nsresult
+nsSpeechTask::DispatchStartImpl(const nsAString& aUri)
+{
   LOG(PR_LOG_DEBUG, ("nsSpeechTask::DispatchStart"));
 
   MOZ_ASSERT(mUtterance);
-  NS_ENSURE_TRUE(mUtterance->mState == SpeechSynthesisUtterance::STATE_PENDING,
-                 NS_ERROR_NOT_AVAILABLE);
+  if(NS_WARN_IF(!(mUtterance->mState == SpeechSynthesisUtterance::STATE_PENDING))) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   mUtterance->mState = SpeechSynthesisUtterance::STATE_SPEAKING;
+  mUtterance->mChosenVoiceURI = aUri;
   mUtterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("start"), 0, 0,
                                            NS_LITERAL_STRING(""));
 
@@ -308,8 +338,9 @@ nsSpeechTask::DispatchEndImpl(float aElapsedTime, uint32_t aCharIndex)
   LOG(PR_LOG_DEBUG, ("nsSpeechTask::DispatchEnd\n"));
 
   MOZ_ASSERT(mUtterance);
-  NS_ENSURE_FALSE(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED,
-                  NS_ERROR_NOT_AVAILABLE);
+  if(NS_WARN_IF(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   // XXX: This should not be here, but it prevents a crash in MSG.
   if (mStream) {
@@ -350,9 +381,12 @@ nsSpeechTask::DispatchPauseImpl(float aElapsedTime, uint32_t aCharIndex)
 {
   LOG(PR_LOG_DEBUG, ("nsSpeechTask::DispatchPause"));
   MOZ_ASSERT(mUtterance);
-  NS_ENSURE_FALSE(mUtterance->mPaused, NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_FALSE(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED,
-                  NS_ERROR_NOT_AVAILABLE);
+  if(NS_WARN_IF(mUtterance->mPaused)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if(NS_WARN_IF(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   mUtterance->mPaused = true;
   mUtterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("pause"),
@@ -377,9 +411,12 @@ nsSpeechTask::DispatchResumeImpl(float aElapsedTime, uint32_t aCharIndex)
 {
   LOG(PR_LOG_DEBUG, ("nsSpeechTask::DispatchResume"));
   MOZ_ASSERT(mUtterance);
-  NS_ENSURE_TRUE(mUtterance->mPaused, NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_FALSE(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED,
-                  NS_ERROR_NOT_AVAILABLE);
+  if(NS_WARN_IF(!(mUtterance->mPaused))) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if(NS_WARN_IF(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   mUtterance->mPaused = false;
   mUtterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("resume"),
@@ -403,8 +440,9 @@ nsresult
 nsSpeechTask::DispatchErrorImpl(float aElapsedTime, uint32_t aCharIndex)
 {
   MOZ_ASSERT(mUtterance);
-  NS_ENSURE_FALSE(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED,
-                  NS_ERROR_NOT_AVAILABLE);
+  if(NS_WARN_IF(mUtterance->mState == SpeechSynthesisUtterance::STATE_ENDED)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   mUtterance->mState = SpeechSynthesisUtterance::STATE_ENDED;
   mUtterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("error"),
@@ -430,8 +468,9 @@ nsSpeechTask::DispatchBoundaryImpl(const nsAString& aName,
                                    float aElapsedTime, uint32_t aCharIndex)
 {
   MOZ_ASSERT(mUtterance);
-  NS_ENSURE_TRUE(mUtterance->mState == SpeechSynthesisUtterance::STATE_SPEAKING,
-                 NS_ERROR_NOT_AVAILABLE);
+  if(NS_WARN_IF(!(mUtterance->mState == SpeechSynthesisUtterance::STATE_SPEAKING))) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   mUtterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("boundary"),
                                            aCharIndex, aElapsedTime,
@@ -456,8 +495,9 @@ nsSpeechTask::DispatchMarkImpl(const nsAString& aName,
                                float aElapsedTime, uint32_t aCharIndex)
 {
   MOZ_ASSERT(mUtterance);
-  NS_ENSURE_TRUE(mUtterance->mState == SpeechSynthesisUtterance::STATE_SPEAKING,
-                 NS_ERROR_NOT_AVAILABLE);
+  if(NS_WARN_IF(!(mUtterance->mState == SpeechSynthesisUtterance::STATE_SPEAKING))) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   mUtterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("mark"),
                                            aCharIndex, aElapsedTime,

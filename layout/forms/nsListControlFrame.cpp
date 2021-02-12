@@ -1760,6 +1760,20 @@ nsListControlFrame::GetIndexFromDOMEvent(nsIDOMEvent* aMouseEvent,
   return NS_ERROR_FAILURE;
 }
 
+static bool
+FireShowDropDownEvent(nsIContent* aContent)
+{
+  if (XRE_GetProcessType() == GeckoProcessType_Content &&
+      Preferences::GetBool("browser.tabs.remote.desktopbehavior", false)) {
+    nsContentUtils::DispatchChromeEvent(aContent->OwnerDoc(), aContent,
+                                        NS_LITERAL_STRING("mozshowdropdown"), true,
+                                        false);
+    return true;
+  }
+
+  return false;
+}
+
 nsresult
 nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
 {
@@ -1807,11 +1821,7 @@ nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   } else {
     // NOTE: the combo box is responsible for dropping it down
     if (mComboboxFrame) {
-      if (XRE_GetProcessType() == GeckoProcessType_Content &&
-          Preferences::GetBool("browser.tabs.remote.desktopbehavior", false)) {
-        nsContentUtils::DispatchChromeEvent(mContent->OwnerDoc(), mContent,
-                                            NS_LITERAL_STRING("mozshowdropdown"), true,
-                                            false);
+      if (FireShowDropDownEvent(mContent)) {
         return NS_OK;
       }
 
@@ -2054,7 +2064,9 @@ nsListControlFrame::DropDownToggleKey(nsIDOMEvent* aKeyEvent)
   if (IsInDropDownMode() && !nsComboboxControlFrame::ToolkitHasNativePopup()) {
     aKeyEvent->PreventDefault();
     if (!mComboboxFrame->IsDroppedDown()) {
-      mComboboxFrame->ShowDropDown(true);
+      if (!FireShowDropDownEvent(mContent)) {
+        mComboboxFrame->ShowDropDown(true);
+      }
     } else {
       nsWeakFrame weakFrame(this);
       // mEndSelectionIndex is the last item that got selected.

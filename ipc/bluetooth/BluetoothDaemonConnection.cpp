@@ -10,7 +10,9 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include "mozilla/ipc/BluetoothDaemonConnectionConsumer.h"
 #include "mozilla/ipc/DataSocket.h"
+#include "mozilla/ipc/UnixSocketConnector.h"
 #include "mozilla/ipc/UnixSocketWatcher.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
@@ -224,8 +226,8 @@ public:
   //
 
   nsresult Accept(int aFd,
-                  const union sockaddr_any* aAddr,
-                  socklen_t aAddrLen) override;
+                  const struct sockaddr* aAddress,
+                  socklen_t aAddressLength) override;
 
   // Methods for |DataSocketIO|
   //
@@ -334,8 +336,8 @@ BluetoothDaemonConnectionIO::OnError(const char* aFunction, int aErrno)
 
 nsresult
 BluetoothDaemonConnectionIO::Accept(int aFd,
-                                    const union sockaddr_any* aAddr,
-                                    socklen_t aAddrLen)
+                                    const struct sockaddr* aAddress,
+                                    socklen_t aAddressLength)
 {
   MOZ_ASSERT(MessageLoopForIO::current() == GetIOLoop());
   MOZ_ASSERT(GetConnectionStatus() == SOCKET_IS_CONNECTING);
@@ -432,8 +434,12 @@ BluetoothDaemonConnectionIO::ShutdownOnIOThread()
 //
 
 BluetoothDaemonConnection::BluetoothDaemonConnection(
-  BluetoothDaemonPDUConsumer* aConsumer)
-  : mConsumer(aConsumer)
+  BluetoothDaemonPDUConsumer* aPDUConsumer,
+  BluetoothDaemonConnectionConsumer* aConsumer,
+  int aIndex)
+  : mPDUConsumer(aPDUConsumer)
+  , mConsumer(aConsumer)
+  , mIndex(aIndex)
   , mIO(nullptr)
 {
   MOZ_ASSERT(mConsumer);
@@ -442,30 +448,28 @@ BluetoothDaemonConnection::BluetoothDaemonConnection(
 BluetoothDaemonConnection::~BluetoothDaemonConnection()
 { }
 
-ConnectionOrientedSocketIO*
-BluetoothDaemonConnection::PrepareAccept()
+// |ConnectionOrientedSocket|
+
+nsresult
+BluetoothDaemonConnection::PrepareAccept(UnixSocketConnector* aConnector,
+                                         ConnectionOrientedSocketIO*& aIO)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mIO);
+
+  // |BluetoothDaemonConnection| now owns the connector, but doesn't
+  // actually use it. So the connector is stored in an auto pointer
+  // to be deleted at the end of the method.
+  nsAutoPtr<UnixSocketConnector> connector(aConnector);
 
   SetConnectionStatus(SOCKET_CONNECTING);
 
   mIO = new BluetoothDaemonConnectionIO(
     XRE_GetIOMessageLoop(), -1, UnixSocketWatcher::SOCKET_IS_CONNECTING,
-    this, mConsumer);
+    this, mPDUConsumer);
+  aIO = mIO;
 
-  return mIO;
-}
-
-// |ConnectionOrientedSocket|
-
-ConnectionOrientedSocketIO*
-BluetoothDaemonConnection::GetIO()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mIO); // Call |PrepareAccept| before listening for connections
-
-  return mIO;
+  return NS_OK;
 }
 
 // |DataSocket|
@@ -499,6 +503,30 @@ BluetoothDaemonConnection::Close()
   mIO = nullptr;
 
   NotifyDisconnect();
+}
+
+void
+BluetoothDaemonConnection::OnConnectSuccess()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnConnectSuccess(mIndex);
+}
+
+void
+BluetoothDaemonConnection::OnConnectError()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnConnectError(mIndex);
+}
+
+void
+BluetoothDaemonConnection::OnDisconnect()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnDisconnect(mIndex);
 }
 
 }

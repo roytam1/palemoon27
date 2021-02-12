@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include "mozilla/RefPtr.h"
 #include "nsXULAppAPI.h"
+#include "StreamSocketConsumer.h"
 #include "UnixSocketConnector.h"
 
 static const size_t MAX_READ_SIZE = 1 << 16;
@@ -70,8 +71,8 @@ public:
   //
 
   nsresult Accept(int aFd,
-                  const union sockaddr_any* aAddr,
-                  socklen_t aAddrLen) override;
+                  const struct sockaddr* aAddress,
+                  socklen_t aAddressLength) override;
 
   // Methods for |DataSocket|
   //
@@ -320,7 +321,8 @@ StreamSocketIO::FireSocketError()
 
 nsresult
 StreamSocketIO::Accept(int aFd,
-                       const union sockaddr_any* aAddr, socklen_t aAddrLen)
+                       const struct sockaddr* aAddress,
+                       socklen_t aAddressLength)
 {
   MOZ_ASSERT(MessageLoopForIO::current() == GetIOLoop());
   MOZ_ASSERT(GetConnectionStatus() == SOCKET_IS_CONNECTING);
@@ -328,8 +330,8 @@ StreamSocketIO::Accept(int aFd,
   SetSocket(aFd, SOCKET_IS_CONNECTED);
 
   // Address setup
-  mAddressLength = aAddrLen;
-  memcpy(&mAddress, aAddr, mAddressLength);
+  mAddressLength = aAddressLength;
+  memcpy(&mAddress, aAddress, mAddressLength);
 
   // Signal success
   NS_DispatchToMainThread(
@@ -499,13 +501,25 @@ public:
 // StreamSocket
 //
 
-StreamSocket::StreamSocket()
-: mIO(nullptr)
-{ }
+StreamSocket::StreamSocket(StreamSocketConsumer* aConsumer, int aIndex)
+  : mConsumer(aConsumer)
+  , mIndex(aIndex)
+  , mIO(nullptr)
+{
+  MOZ_ASSERT(mConsumer);
+}
 
 StreamSocket::~StreamSocket()
 {
   MOZ_ASSERT(!mIO);
+}
+
+void
+StreamSocket::ReceiveSocketData(nsAutoPtr<UnixSocketBuffer>& aBuffer)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->ReceiveSocketData(mIndex, aBuffer);
 }
 
 nsresult
@@ -530,21 +544,24 @@ StreamSocket::Connect(UnixSocketConnector* aConnector,
   return NS_OK;
 }
 
-ConnectionOrientedSocketIO*
-StreamSocket::PrepareAccept(UnixSocketConnector* aConnector)
+// |ConnectionOrientedSocket|
+
+nsresult
+StreamSocket::PrepareAccept(UnixSocketConnector* aConnector,
+                            ConnectionOrientedSocketIO*& aIO)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mIO);
   MOZ_ASSERT(aConnector);
 
-  nsAutoPtr<UnixSocketConnector> connector(aConnector);
-
   SetConnectionStatus(SOCKET_CONNECTING);
 
   mIO = new StreamSocketIO(XRE_GetIOMessageLoop(),
                            -1, UnixSocketWatcher::SOCKET_IS_CONNECTING,
-                           this, connector.forget());
-  return mIO;
+                           this, aConnector);
+  aIO = mIO;
+
+  return NS_OK;
 }
 
 // |DataSocket|
@@ -583,6 +600,29 @@ StreamSocket::Close()
   NotifyDisconnect();
 }
 
+void
+StreamSocket::OnConnectSuccess()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnConnectSuccess(mIndex);
+}
+
+void
+StreamSocket::OnConnectError()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnConnectError(mIndex);
+}
+
+void
+StreamSocket::OnDisconnect()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnDisconnect(mIndex);
+}
 
 } // namespace ipc
 } // namespace mozilla

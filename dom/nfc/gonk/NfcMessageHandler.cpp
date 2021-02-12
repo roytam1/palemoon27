@@ -8,12 +8,14 @@
 #include <binder/Parcel.h>
 #include "mozilla/dom/MozNDEFRecordBinding.h"
 #include "nsDebug.h"
-#include "NfcGonkMessage.h"
 #include "NfcOptions.h"
 #include "mozilla/unused.h"
 
 #include <android/log.h>
 #define NMH_LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "NfcMessageHandler", args)
+
+#define NFCD_MAJOR_VERSION 1
+#define NFCD_MINOR_VERSION 22
 
 using namespace android;
 using namespace mozilla;
@@ -107,6 +109,9 @@ NfcMessageHandler::ProcessNotification(int32_t aType, const Parcel& aParcel, Eve
     case NfcNotificationType::HciEventTransaction:
       result = HCIEventTransactionNotification(aParcel, aOptions);
       break;
+    case NfcNotificationType::NdefReceived:
+      result = NDEFReceivedNotification(aParcel, aOptions);
+      break;
     default:
       result = false;
       break;
@@ -167,7 +172,7 @@ NfcMessageHandler::ReadNDEFResponse(const Parcel& aParcel, EventOptions& aOption
   aOptions.mRequestId = mRequestIdQueue[0];
   mRequestIdQueue.RemoveElementAt(0);
 
-  if (aOptions.mErrorCode == NfcErrorCode::Success) {
+  if (aOptions.mErrorCode == 0) {
     ReadNDEFMessage(aParcel, aOptions);
   }
 
@@ -201,7 +206,7 @@ NfcMessageHandler::TransceiveResponse(const Parcel& aParcel, EventOptions& aOpti
   aOptions.mRequestId = mRequestIdQueue[0];
   mRequestIdQueue.RemoveElementAt(0);
 
-  if (aOptions.mErrorCode == NfcErrorCode::Success) {
+  if (aOptions.mErrorCode == 0) {
     ReadTransceiveResponse(aParcel, aOptions);
   }
 
@@ -303,6 +308,18 @@ NfcMessageHandler::HCIEventTransactionNotification(const Parcel& aParcel, EventO
   int32_t payloadLength = aParcel.readInt32();
   aOptions.mPayload.AppendElements(
     static_cast<const uint8_t*>(aParcel.readInplace(payloadLength)), payloadLength);
+
+  return true;
+}
+
+bool
+NfcMessageHandler::NDEFReceivedNotification(const Parcel& aParcel, EventOptions& aOptions)
+{
+  aOptions.mSessionId = aParcel.readInt32();
+  int32_t ndefMsgCount = aParcel.readInt32();
+  if (ndefMsgCount != 0) {
+    ReadNDEFMessage(aParcel, aOptions);
+  }
 
   return true;
 }

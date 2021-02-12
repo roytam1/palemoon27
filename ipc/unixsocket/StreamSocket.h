@@ -12,21 +12,21 @@
 namespace mozilla {
 namespace ipc {
 
+class StreamSocketConsumer;
 class StreamSocketIO;
 class UnixSocketConnector;
 
-class StreamSocket : public ConnectionOrientedSocket
+class StreamSocket final : public ConnectionOrientedSocket
 {
 public:
-  StreamSocket();
+  StreamSocket(StreamSocketConsumer* aConsumer, int aIndex);
 
   /**
-   * Method to be called whenever data is received. This is only called on the
-   * main thread.
+   * Method to be called whenever data is received. Main-thread only.
    *
    * @param aBuffer Data received from the socket.
    */
-  virtual void ReceiveSocketData(nsAutoPtr<UnixSocketBuffer>& aBuffer) = 0;
+  void ReceiveSocketData(nsAutoPtr<UnixSocketBuffer>& aBuffer);
 
   /**
    * Starts a task on the socket that will try to connect to a socket in a
@@ -38,6 +38,12 @@ public:
    */
   nsresult Connect(UnixSocketConnector* aConnector, int aDelayMs = 0);
 
+  // Methods for |ConnectionOrientedSocket|
+  //
+
+  nsresult PrepareAccept(UnixSocketConnector* aConnector,
+                         ConnectionOrientedSocketIO*& aIO) override;
+
   // Methods for |DataSocket|
   //
 
@@ -47,16 +53,16 @@ public:
   //
 
   void Close() override;
+  void OnConnectSuccess() override;
+  void OnConnectError() override;
+  void OnDisconnect() override;
 
 protected:
   virtual ~StreamSocket();
 
-  // Prepares an instance of |StreamSocket| in DISCONNECTED state
-  // for accepting a connection. Subclasses implementing |GetIO|
-  // need to call this method.
-  ConnectionOrientedSocketIO* PrepareAccept(UnixSocketConnector* aConnector);
-
 private:
+  StreamSocketConsumer* mConsumer;
+  int mIndex;
   StreamSocketIO* mIO;
 };
 

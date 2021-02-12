@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include "ConnectionOrientedSocket.h"
 #include "DataSocket.h"
+#include "ListenSocketConsumer.h"
 #include "mozilla/RefPtr.h"
 #include "nsXULAppAPI.h"
 #include "UnixSocketConnector.h"
@@ -31,7 +32,7 @@ public:
                  UnixSocketConnector* aConnector);
   ~ListenSocketIO();
 
-  void GetSocketAddr(nsAString& aAddrStr) const;
+  UnixSocketConnector* GetConnector() const;
 
   // Task callback methods
   //
@@ -114,24 +115,10 @@ ListenSocketIO::~ListenSocketIO()
   MOZ_ASSERT(IsShutdownOnMainThread());
 }
 
-void
-ListenSocketIO::GetSocketAddr(nsAString& aAddrStr) const
+UnixSocketConnector*
+ListenSocketIO::GetConnector() const
 {
-  if (!mConnector) {
-    NS_WARNING("No connector to get socket address from!");
-    aAddrStr.Truncate();
-    return;
-  }
-
-  nsCString addressString;
-  nsresult rv = mConnector->ConvertAddressToString(
-    *reinterpret_cast<const struct sockaddr*>(&mAddress), mAddressLength,
-    addressString);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  aAddrStr.Assign(NS_ConvertUTF8toUTF16(addressString));
+  return mConnector;
 }
 
 void
@@ -228,7 +215,7 @@ ListenSocketIO::OnSocketCanAcceptWithoutBlocking()
   }
 
   mCOSocketIO->Accept(fd,
-                      reinterpret_cast<union sockaddr_any*>(&storage),
+                      reinterpret_cast<struct sockaddr*>(&storage),
                       addressLength);
 }
 
@@ -305,60 +292,70 @@ private:
 // UnixSocketConsumer
 //
 
-ListenSocket::ListenSocket()
-: mIO(nullptr)
-{ }
+ListenSocket::ListenSocket(ListenSocketConsumer* aConsumer, int aIndex)
+  : mConsumer(aConsumer)
+  , mIndex(aIndex)
+  , mIO(nullptr)
+{
+  MOZ_ASSERT(mConsumer);
+}
 
 ListenSocket::~ListenSocket()
 {
   MOZ_ASSERT(!mIO);
 }
 
-bool
+nsresult
 ListenSocket::Listen(UnixSocketConnector* aConnector,
                      ConnectionOrientedSocket* aCOSocket)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aConnector);
-  MOZ_ASSERT(aCOSocket);
+  MOZ_ASSERT(!mIO);
 
-  nsAutoPtr<UnixSocketConnector> connector(aConnector);
-
-  if (mIO) {
-    NS_WARNING("Socket already connecting/connected!");
-    return false;
-  }
-
-  mIO = new ListenSocketIO(XRE_GetIOMessageLoop(), this, connector.forget());
+  mIO = new ListenSocketIO(XRE_GetIOMessageLoop(), this, aConnector);
 
   // Prepared I/O object, now start listening.
-  return Listen(aCOSocket);
+  nsresult rv = Listen(aCOSocket);
+  if (NS_FAILED(rv)) {
+    delete mIO;
+    mIO = nullptr;
+    return rv;
+  }
+
+  return NS_OK;
 }
 
-bool
+nsresult
 ListenSocket::Listen(ConnectionOrientedSocket* aCOSocket)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mIO);
   MOZ_ASSERT(aCOSocket);
+  MOZ_ASSERT(mIO);
+
+  // We first prepare the connection-oriented socket with a
+  // socket connector and a socket I/O class.
+
+  nsAutoPtr<UnixSocketConnector> connector;
+  nsresult rv = mIO->GetConnector()->Duplicate(*connector.StartAssignment());
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  nsAutoPtr<ConnectionOrientedSocketIO> io;
+  rv = aCOSocket->PrepareAccept(connector, *io.StartAssignment());
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  connector.forget(); // now owned by |io|
+
+  // Then we start listening for connection requests.
 
   SetConnectionStatus(SOCKET_LISTENING);
 
   XRE_GetIOMessageLoop()->PostTask(
-    FROM_HERE, new ListenSocketIO::ListenTask(mIO, aCOSocket->GetIO()));
+    FROM_HERE, new ListenSocketIO::ListenTask(mIO, io.forget()));
 
-  return true;
-}
-
-void
-ListenSocket::GetSocketAddr(nsAString& aAddrStr)
-{
-  aAddrStr.Truncate();
-  if (!mIO || GetConnectionStatus() != SOCKET_CONNECTED) {
-    NS_WARNING("No socket currently open!");
-    return;
-  }
-  mIO->GetSocketAddr(aAddrStr);
+  return NS_OK;
 }
 
 // |SocketBase|
@@ -382,6 +379,30 @@ ListenSocket::Close()
   mIO = nullptr;
 
   NotifyDisconnect();
+}
+
+void
+ListenSocket::OnConnectSuccess()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnConnectSuccess(mIndex);
+}
+
+void
+ListenSocket::OnConnectError()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnConnectError(mIndex);
+}
+
+void
+ListenSocket::OnDisconnect()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mConsumer->OnDisconnect(mIndex);
 }
 
 } // namespace ipc

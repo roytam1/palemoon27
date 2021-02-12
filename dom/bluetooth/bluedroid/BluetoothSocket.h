@@ -16,23 +16,22 @@ class BluetoothSocketObserver;
 class BluetoothSocketResultHandler;
 class DroidSocketImpl;
 
-class BluetoothSocket : public mozilla::ipc::DataSocket
+class BluetoothSocket final : public mozilla::ipc::DataSocket
 {
 public:
-  BluetoothSocket(BluetoothSocketObserver* aObserver,
+  BluetoothSocket(BluetoothSocketObserver* aObserver);
+
+  nsresult Connect(const nsAString& aDeviceAddress,
+                   const BluetoothUuid& aServiceUuid,
+                   BluetoothSocketType aType,
+                   int aChannel,
+                   bool aAuth, bool aEncrypt);
+
+  nsresult Listen(const nsAString& aServiceName,
+                  const BluetoothUuid& aServiceUuid,
                   BluetoothSocketType aType,
-                  bool aAuth,
-                  bool aEncrypt);
-
-  bool ConnectSocket(const nsAString& aDeviceAddress,
-                     const BluetoothUuid& aServiceUuid,
-                     int aChannel);
-
-  bool ListenSocket(const nsAString& aServiceName,
-                    const BluetoothUuid& aServiceUuid,
-                    int aChannel);
-
-  void Close() override;
+                  int aChannel,
+                  bool aAuth, bool aEncrypt);
 
   /**
    * Method to be called whenever data is received. This is only called on the
@@ -41,12 +40,6 @@ public:
    * @param aBuffer Data received from the socket.
    */
   void ReceiveSocketData(nsAutoPtr<mozilla::ipc::UnixSocketBuffer>& aBuffer);
-
-  void SendSocketData(mozilla::ipc::UnixSocketIOBuffer* aBuffer) override;
-
-  virtual void OnConnectSuccess() override;
-  virtual void OnConnectError() override;
-  virtual void OnDisconnect() override;
 
   inline void GetAddress(nsAString& aDeviceAddress)
   {
@@ -63,13 +56,25 @@ public:
     mCurrentRes = aRes;
   }
 
+  // Methods for |DataSocket|
+  //
+
+  void SendSocketData(mozilla::ipc::UnixSocketIOBuffer* aBuffer) override;
+
+  // Methods for |SocketBase|
+  //
+
+  void CloseSocket() override;
+
+  void OnConnectSuccess() override;
+  void OnConnectError() override;
+  void OnDisconnect() override;
+
 private:
   BluetoothSocketObserver* mObserver;
   BluetoothSocketResultHandler* mCurrentRes;
   DroidSocketImpl* mImpl;
   nsString mDeviceAddress;
-  bool mAuth;
-  bool mEncrypt;
 };
 
 END_BLUETOOTH_NAMESPACE

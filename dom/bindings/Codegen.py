@@ -444,7 +444,8 @@ class CGDOMJSClass(CGThing):
                       nullptr, /* unwatch */
                       nullptr, /* getElements */
                       nullptr, /* enumerate */
-                      JS_ObjectToOuterObject /* thisObject */
+                      JS_ObjectToOuterObject, /* thisObject */
+                      nullptr, /* funToString */
                     }
                     """,
                     objectMoved=objectMovedHook)
@@ -720,7 +721,21 @@ class CGInterfaceObjectJSClass(CGThing):
                 nullptr,               /* trace */
                 JS_NULL_CLASS_SPEC,
                 JS_NULL_CLASS_EXT,
-                JS_NULL_OBJECT_OPS
+                {
+                  nullptr, /* lookupProperty */
+                  nullptr, /* defineProperty */
+                  nullptr, /* hasProperty */
+                  nullptr, /* getProperty */
+                  nullptr, /* setProperty */
+                  nullptr, /* getOwnPropertyDescriptor */
+                  nullptr, /* deleteProperty */
+                  nullptr, /* watch */
+                  nullptr, /* unwatch */
+                  nullptr, /* getElements */
+                  nullptr, /* enumerate */
+                  nullptr, /* thisObject */
+                  InterfaceObjectToString, /* funToString */
+                }
               },
               eInterface,
               ${hooks},

@@ -3249,6 +3249,10 @@ GetErrorPrototype(JSContext* aCx, JS::Handle<JSObject*> aForObj)
   return JS_GetErrorPrototype(aCx);
 }
 
+// A callback to perform funToString on an interface object
+JSString*
+InterfaceObjectToString(JSContext* aCx, JS::Handle<JSObject*> aObject,
+                        unsigned /* indent */);
 } // namespace dom
 } // namespace mozilla
 

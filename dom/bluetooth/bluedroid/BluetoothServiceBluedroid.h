@@ -56,8 +56,8 @@ public:
   FetchUuidsInternal(const nsAString& aDeviceAddress,
                      BluetoothReplyRunnable* aRunnable) override;
 
-  virtual nsresult StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
-  virtual nsresult StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
+  virtual void StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
+  virtual void StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
 
   virtual nsresult
   SetProperty(BluetoothObjectType aType,
@@ -191,6 +191,12 @@ public:
   // GATT Client
   //
 
+  virtual void StartLeScanInternal(const nsTArray<nsString>& aServiceUuids,
+                                   BluetoothReplyRunnable* aRunnable);
+
+  virtual void StopLeScanInternal(const nsAString& aScanUuid,
+                                  BluetoothReplyRunnable* aRunnable);
+
   virtual void
   ConnectGattClientInternal(const nsAString& aAppUuid,
                             const nsAString& aDeviceAddress,
@@ -241,6 +247,23 @@ public:
     const BluetoothGattServiceId& aServiceId,
     const BluetoothGattId& aCharacteristicId,
     const BluetoothGattWriteType& aWriteType,
+    const nsTArray<uint8_t>& aValue,
+    BluetoothReplyRunnable* aRunnable) override;
+
+  virtual void
+  GattClientReadDescriptorValueInternal(
+    const nsAString& aAppUuid,
+    const BluetoothGattServiceId& aServiceId,
+    const BluetoothGattId& aCharacteristicId,
+    const BluetoothGattId& aDescriptorId,
+    BluetoothReplyRunnable* aRunnable) override;
+
+  virtual void
+  GattClientWriteDescriptorValueInternal(
+    const nsAString& aAppUuid,
+    const BluetoothGattServiceId& aServiceId,
+    const BluetoothGattId& aCharacteristicId,
+    const BluetoothGattId& aDescriptorId,
     const nsTArray<uint8_t>& aValue,
     BluetoothReplyRunnable* aRunnable) override;
 
@@ -350,8 +373,8 @@ public:
                                      const nsTArray<nsString>& aDeviceAddress,
                                      BluetoothReplyRunnable* aRunnable);
 
-  virtual nsresult StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
-  virtual nsresult StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
+  virtual void StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
+  virtual void StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable);
 
   virtual nsresult
   SetProperty(BluetoothObjectType aType,

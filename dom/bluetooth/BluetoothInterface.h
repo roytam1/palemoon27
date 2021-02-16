@@ -712,6 +712,7 @@ public:
   virtual void Connect(int aClientIf,
                        const nsAString& aBdAddr,
                        bool aIsDirect, /* auto connect */
+                       BluetoothTransport aTransport,
                        BluetoothGattClientResultHandler* aRes) = 0;
   virtual void Disconnect(int aClientIf,
                           const nsAString& aBdAddr,
@@ -768,16 +769,15 @@ public:
                               const BluetoothGattServiceId& aServiceId,
                               const BluetoothGattId& aCharId,
                               const BluetoothGattId& aDescriptorId,
-                              int aAuthReq,
+                              BluetoothGattAuthReq aAuthReq,
                               BluetoothGattClientResultHandler* aRes) = 0;
   virtual void WriteDescriptor(int aConnId,
                                const BluetoothGattServiceId& aServiceId,
                                const BluetoothGattId& aCharId,
                                const BluetoothGattId& aDescriptorId,
-                               int aWriteType,
-                               int aLen,
-                               int aAuthReq,
-                               const ArrayBuffer& aValue,
+                               BluetoothGattWriteType aWriteType,
+                               BluetoothGattAuthReq aAuthReq,
+                               const nsTArray<uint8_t>& aValue,
                                BluetoothGattClientResultHandler* aRes) = 0;
 
   /* Execute / Abort Prepared Write*/
@@ -817,6 +817,10 @@ public:
                           int aApperance,
                           uint8_t aManufacturerLen,
                           const ArrayBuffer& aManufacturerData,
+                          uint8_t aServiceDataLen,
+                          const ArrayBuffer& aServiceData,
+                          uint8_t aServiceUUIDLen,
+                          const ArrayBuffer& aServiceUUID,
                           BluetoothGattClientResultHandler* aRes) = 0;
 
 protected:

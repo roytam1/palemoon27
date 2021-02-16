@@ -2844,16 +2844,16 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
   return SendAsyncDBusMessage(objectPath, DBUS_SINK_IFACE, aMessage, callback);
 }
 
-nsresult
+void
 BluetoothDBusService::StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable)
 {
-  return SendDiscoveryMessage("StopDiscovery", aRunnable);
+  SendDiscoveryMessage("StopDiscovery", aRunnable);
 }
 
-nsresult
+void
 BluetoothDBusService::StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable)
 {
-  return SendDiscoveryMessage("StartDiscovery", aRunnable);
+  SendDiscoveryMessage("StartDiscovery", aRunnable);
 }
 
 class BluetoothArrayOfDevicePropertiesReplyHandler : public DBusReplyHandler
@@ -4696,6 +4696,20 @@ BluetoothDBusService::UpdateNotification(ControlEventId aEventId,
 
 #ifdef MOZ_B2G_BT_API_V2
 void
+BluetoothDBusService::StartLeScanInternal(
+  const nsTArray<nsString>& aServiceUuids,
+  BluetoothReplyRunnable* aRunnable);
+{
+}
+
+void
+BluetoothDBusService::StopLeScanInternal(
+  const nsAString& aAppUuid,
+  BluetoothReplyRunnable* aRunnable);
+{
+}
+
+void
 BluetoothDBusService::ConnectGattClientInternal(
   const nsAString& aAppUuid, const nsAString& aDeviceAddress,
   BluetoothReplyRunnable* aRunnable)
@@ -4757,6 +4771,27 @@ BluetoothDBusService::GattClientWriteCharacteristicValueInternal(
   const BluetoothGattServiceId& aServiceId,
   const BluetoothGattId& aCharacteristicId,
   const BluetoothGattWriteType& aWriteType,
+  const nsTArray<uint8_t>& aValue,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::GattClientReadDescriptorValueInternal(
+  const nsAString& aAppUuid,
+  const BluetoothGattServiceId& aServiceId,
+  const BluetoothGattId& aCharacteristicId,
+  const BluetoothGattId& aDescriptorId,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::GattClientWriteDescriptorValueInternal(
+  const nsAString& aAppUuid,
+  const BluetoothGattServiceId& aServiceId,
+  const BluetoothGattId& aCharacteristicId,
+  const BluetoothGattId& aDescriptorId,
   const nsTArray<uint8_t>& aValue,
   BluetoothReplyRunnable* aRunnable)
 {

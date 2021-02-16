@@ -14,6 +14,7 @@
 #include "nsIFrame.h"
 #include "nsStyleStruct.h"
 #include "nsIContent.h" // for GetParent()
+#include "nsTextFrame.h" // for nsTextFrame::ShouldSuppressLineBreak
 
 inline void
 nsStyleImage::SetSubImage(uint8_t aIndex, imgIContainer* aSubImage) const
@@ -31,20 +32,6 @@ nsStyleImage::GetSubImage(uint8_t aIndex) const
 }
 
 bool
-nsStylePosition::HasTransform(const nsIFrame* aContextFrame) const
-{
-  NS_ASSERTION(aContextFrame->StylePosition() == this, "unexpected aContextFrame");
-  return HasTransformStyle() && aContextFrame->IsFrameOfType(nsIFrame::eSupportsCSSTransforms);
-}
-
-bool
-nsStylePosition::IsFixedPosContainingBlock(const nsIFrame* aContextFrame) const
-{
-  return (HasTransform(aContextFrame) || HasPerspectiveStyle()) &&
-      !aContextFrame->IsSVGText();
-}
-
-bool
 nsStyleText::HasTextShadow() const
 {
   return mTextShadow;
@@ -57,11 +44,11 @@ nsStyleText::GetTextShadow() const
 }
 
 bool
-nsStyleText::NewlineIsSignificant(const nsIFrame* aContextFrame) const
+nsStyleText::NewlineIsSignificant(const nsTextFrame* aContextFrame) const
 {
   NS_ASSERTION(aContextFrame->StyleText() == this, "unexpected aContextFrame");
   return NewlineIsSignificantStyle() &&
-    !aContextFrame->StyleContext()->ShouldSuppressLineBreak();
+    !aContextFrame->ShouldSuppressLineBreak();
 }
 
 bool
@@ -142,14 +129,27 @@ nsStyleDisplay::IsFloating(const nsIFrame* aContextFrame) const
 // nsCSSFrameConstructor::ConstructFrameFromItemInternal that references
 // this function in comments.
 bool
+nsStyleDisplay::HasTransform(const nsIFrame* aContextFrame) const
+{
+  NS_ASSERTION(aContextFrame->StyleDisplay() == this, "unexpected aContextFrame");
+  return HasTransformStyle() && aContextFrame->IsFrameOfType(nsIFrame::eSupportsCSSTransforms);
+}
+
+bool
+nsStyleDisplay::IsFixedPosContainingBlock(const nsIFrame* aContextFrame) const
+{
+  return (HasTransform(aContextFrame) || HasPerspectiveStyle() ||
+          !aContextFrame->StyleSVGReset()->mFilters.IsEmpty()) &&
+      !aContextFrame->IsSVGText();
+}
+
+bool
 nsStyleDisplay::IsAbsPosContainingBlock(const nsIFrame* aContextFrame) const
 {
   NS_ASSERTION(aContextFrame->StyleDisplay() == this,
                "unexpected aContextFrame");
   return ((IsAbsolutelyPositionedStyle() || IsRelativelyPositionedStyle()) &&
-          !aContextFrame->IsSVGText()) ||
-         aContextFrame->StylePosition()->
-             IsFixedPosContainingBlock(aContextFrame);
+          !aContextFrame->IsSVGText()) || IsFixedPosContainingBlock(aContextFrame);
 }
 
 bool

@@ -761,12 +761,20 @@ private:
   nsRefPtr<AudioContext> mAudioContext;
 };
 
-
-
 void
 AudioContext::OnStateChanged(void* aPromise, AudioContextState aNewState)
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+  // This can happen if close() was called right after creating the
+  // AudioContext, before the context has switched to "running".
+  if (mAudioContextState == AudioContextState::Closed &&
+      aNewState == AudioContextState::Running &&
+      !aPromise) {
+    return;
+  }
+
+#ifndef WIN32 // Bug 1170547
 
   MOZ_ASSERT((mAudioContextState == AudioContextState::Suspended &&
               aNewState == AudioContextState::Running)   ||
@@ -778,6 +786,8 @@ AudioContext::OnStateChanged(void* aPromise, AudioContextState aNewState)
               aNewState == AudioContextState::Closed)    ||
              (mAudioContextState == aNewState),
              "Invalid AudioContextState transition");
+
+#endif // WIN32
 
   MOZ_ASSERT(
     mIsOffline || aPromise || aNewState == AudioContextState::Running,

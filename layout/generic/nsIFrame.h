@@ -1660,8 +1660,13 @@ public:
       , hPctPadding(0.0f), hPctMargin(0.0f)
     {}
   };
-  virtual IntrinsicISizeOffsetData
-    IntrinsicISizeOffsets(nsRenderingContext* aRenderingContext) = 0;
+  virtual IntrinsicISizeOffsetData IntrinsicISizeOffsets() = 0;
+
+  /**
+   * Return the bsize components of padding, border, and margin
+   * that contribute to the intrinsic width that applies to the parent.
+   */
+  IntrinsicISizeOffsetData IntrinsicBSizeOffsets();
 
   virtual mozilla::IntrinsicSize GetIntrinsicSize() = 0;
 
@@ -2646,7 +2651,8 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::ParagraphDepthProperty()))
    * rect, with coordinates relative to this frame's origin. aRect must not be
    * null!
    */
-  bool GetClipPropClipRect(nsRect* aRect, const nsSize& aSize) const;
+  bool GetClipPropClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
+                           const nsSize& aSize) const;
 
   /**
    * Check if this frame is focusable and in the current tab order.

@@ -147,6 +147,9 @@ user_pref("layout.css.report_errors", true);
 // Enable CSS Grid for testing
 user_pref("layout.css.grid.enabled", true);
 
+// Enable CSS 'contain' for testing
+user_pref("layout.css.contain.enabled", true);
+
 // Enable CSS object-fit & object-position for testing
 user_pref("layout.css.object-fit-and-position.enabled", true);
 
@@ -291,6 +294,7 @@ user_pref("media.decoder.heuristic.dormant.timeout", 0);
 user_pref("browser.displayedE10SPrompt.1", 5);
 // Don't use auto-enabled e10s
 user_pref("browser.tabs.remote.autostart.1", false);
+user_pref("browser.tabs.remote.autostart.2", false);
 // Don't forceably kill content processes after a timeout
 user_pref("dom.ipc.tabs.shutdownTimeoutSecs", 0);
 
@@ -311,3 +315,6 @@ user_pref("browser.devedition.theme.enabled", false);
 
 // Disable periodic updates of service workers.
 user_pref("dom.serviceWorkers.periodic-updates.enabled", false);
+
+// Enable speech synth test service, and disable built in platform services.
+user_pref("media.webspeech.synth.test", true);

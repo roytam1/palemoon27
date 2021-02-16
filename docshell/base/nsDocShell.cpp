@@ -193,7 +193,6 @@
 #include "nsIWidget.h"
 #include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/dom/ScriptSettings.h"
-#include "mozilla/dom/URLSearchParams.h"
 #include "nsPerformance.h"
 
 #ifdef MOZ_TOOLKIT_SEARCH
@@ -2034,24 +2033,6 @@ nsDocShell::SetCurrentURI(nsIURI* aURI, nsIRequest* aRequest,
     mLSHE->GetIsSubFrame(&isSubFrame);
   }
 
-  // nsDocShell owns a URLSearchParams that is used by
-  // window.location.searchParams to be in sync with the current location.
-  if (!mURLSearchParams) {
-    mURLSearchParams = new URLSearchParams();
-  }
-
-  nsAutoCString search;
-
-  nsCOMPtr<nsIURL> url(do_QueryInterface(mCurrentURI));
-  if (url) {
-    nsresult rv = url->GetQuery(search);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Failed to get the query from a nsIURL.");
-    }
-  }
-
-  mURLSearchParams->ParseInput(search, nullptr);
-
   if (!isSubFrame && !isRoot) {
     /*
      * We don't want to send OnLocationChange notifications when
@@ -2828,16 +2809,16 @@ nsDocShell::GetBusyFlags(uint32_t* aBusyFlags)
 }
 
 NS_IMETHODIMP
-nsDocShell::TabToTreeOwner(bool aForward, bool* aTookFocus)
+nsDocShell::TabToTreeOwner(bool aForward, bool aForDocumentNavigation, bool* aTookFocus)
 {
   NS_ENSURE_ARG_POINTER(aTookFocus);
 
   nsCOMPtr<nsIWebBrowserChromeFocus> chromeFocus = do_GetInterface(mTreeOwner);
   if (chromeFocus) {
     if (aForward) {
-      *aTookFocus = NS_SUCCEEDED(chromeFocus->FocusNextElement());
+      *aTookFocus = NS_SUCCEEDED(chromeFocus->FocusNextElement(aForDocumentNavigation));
     } else {
-      *aTookFocus = NS_SUCCEEDED(chromeFocus->FocusPrevElement());
+      *aTookFocus = NS_SUCCEEDED(chromeFocus->FocusPrevElement(aForDocumentNavigation));
     }
   } else {
     *aTookFocus = false;
@@ -5872,11 +5853,6 @@ nsDocShell::Destroy()
 
   mParentWidget = nullptr;
   mCurrentURI = nullptr;
-
-  if (mURLSearchParams) {
-    mURLSearchParams->RemoveObservers();
-    mURLSearchParams = nullptr;
-  }
 
   if (mScriptGlobal) {
     mScriptGlobal->DetachFromDocShell();
@@ -14090,12 +14066,6 @@ nsDocShell::GetOpener()
   return opener;
 }
 
-URLSearchParams*
-nsDocShell::GetURLSearchParams()
-{
-  return mURLSearchParams;
-}
-
 class JavascriptTimelineMarker : public TimelineMarker
 {
 public:
@@ -14103,7 +14073,9 @@ public:
                            const char* aReason,
                            const char16_t* aFunctionName,
                            const char16_t* aFileName,
-                           uint32_t aLineNumber)
+                           uint32_t aLineNumber,
+                           JS::Handle<JS::Value> aAsyncStack,
+                           JS::Handle<JS::Value> aAsyncCause)
     : TimelineMarker(aDocShell, aName, TRACING_INTERVAL_START,
                      NS_ConvertUTF8toUTF16(aReason),
                      NO_STACK)
@@ -14111,6 +14083,11 @@ public:
     , mFileName(aFileName)
     , mLineNumber(aLineNumber)
   {
+    JSContext* ctx = nsContentUtils::GetCurrentJSContext();
+    if (ctx) {
+      mAsyncStack.init(ctx, aAsyncStack);
+      mAsyncCause.init(ctx, aAsyncCause);
+    }
   }
 
   void AddDetails(JSContext* aCx, mozilla::dom::ProfileTimelineMarker& aMarker)
@@ -14123,6 +14100,17 @@ public:
       stackFrame.mLine.Construct(mLineNumber);
       stackFrame.mSource.Construct(mFileName);
       stackFrame.mFunctionDisplayName.Construct(mFunctionName);
+      if (mAsyncStack.isObject() && !mAsyncStack.isNullOrUndefined() &&
+          mAsyncCause.isString()) {
+        JS::Rooted<JSObject*> asyncStack(aCx, mAsyncStack.toObjectOrNull());
+        JS::Rooted<JSString*> asyncCause(aCx, mAsyncCause.toString());
+        JS::Rooted<JSObject*> parentFrame(aCx);
+        if (!JS::CopyAsyncStack(aCx, asyncStack, asyncCause, &parentFrame, 0)) {
+          JS_ClearPendingException(aCx);
+        } else {
+          stackFrame.mAsyncParent = parentFrame;
+        }
+      }
 
       JS::Rooted<JS::Value> newStack(aCx);
       if (ToJSValue(aCx, stackFrame, &newStack)) {
@@ -14139,13 +14127,17 @@ private:
   nsString mFunctionName;
   nsString mFileName;
   uint32_t mLineNumber;
+  JS::PersistentRooted<JS::Value> mAsyncStack;
+  JS::PersistentRooted<JS::Value> mAsyncCause;
 };
 
 void
 nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
                                          const char16_t* aFunctionName,
                                          const char16_t* aFilename,
-                                         const uint32_t aLineNumber)
+                                         const uint32_t aLineNumber,
+                                         JS::Handle<JS::Value> aAsyncStack,
+                                         JS::Handle<JS::Value> aAsyncCause)
 {
   bool timelineOn = nsIDocShell::GetRecordProfileTimelineMarkers();
 
@@ -14154,7 +14146,8 @@ nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
     mozilla::UniquePtr<TimelineMarker> marker =
       MakeUnique<JavascriptTimelineMarker>(this, "Javascript", aReason,
                                            aFunctionName, aFilename,
-                                           aLineNumber);
+                                           aLineNumber, aAsyncStack,
+                                           aAsyncCause);
     AddProfileTimelineMarker(Move(marker));
   }
   mJSRunToCompletionDepth++;

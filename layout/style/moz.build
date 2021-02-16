@@ -84,6 +84,8 @@ EXPORTS.mozilla += [
     'CSSVariableDeclarations.h',
     'CSSVariableResolver.h',
     'CSSVariableValues.h',
+    'IncrementalClearCOMRuleArray.h',
+    'RuleNodeCacheConditions.h',
     'StyleAnimationValue.h',
 ]
 
@@ -93,6 +95,7 @@ EXPORTS.mozilla.dom += [
     'CSSValue.h',
     'FontFace.h',
     'FontFaceSet.h',
+    'FontFaceSetIterator.h',
     'MediaQueryList.h',
 ]
 
@@ -120,7 +123,9 @@ UNIFIED_SOURCES += [
     'Declaration.cpp',
     'ErrorReporter.cpp',
     'FontFace.cpp',
+    'FontFaceSetIterator.cpp',
     'ImageLoader.cpp',
+    'IncrementalClearCOMRuleArray.cpp',
     'Loader.cpp',
     'MediaQueryList.cpp',
     'nsAnimationManager.cpp',
@@ -157,6 +162,7 @@ UNIFIED_SOURCES += [
     'nsStyleTransformMatrix.cpp',
     'nsStyleUtil.cpp',
     'nsTransitionManager.cpp',
+    'RuleNodeCacheConditions.cpp',
     'StyleAnimationValue.cpp',
     'StyleRule.cpp',
     'SVGAttrAnimationRuleProcessor.cpp',

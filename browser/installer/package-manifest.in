@@ -303,6 +303,7 @@
 @RESPATH@/components/necko_file.xpt
 @RESPATH@/components/necko_ftp.xpt
 @RESPATH@/components/necko_http.xpt
+@RESPATH@/components/necko_mdns.xpt
 @RESPATH@/components/necko_res.xpt
 @RESPATH@/components/necko_socket.xpt
 @RESPATH@/components/necko_strconv.xpt
@@ -452,6 +453,7 @@
 @RESPATH@/components/nsUpdateTimerManager.js
 @RESPATH@/components/addoncompat.manifest
 @RESPATH@/components/multiprocessShims.js
+@RESPATH@/components/defaultShims.js
 @RESPATH@/components/remoteTagService.js
 @RESPATH@/components/pluginGlue.manifest
 @RESPATH@/components/ProcessSingleton.manifest

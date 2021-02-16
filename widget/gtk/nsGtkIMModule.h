@@ -16,13 +16,16 @@
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsIWidget.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/EventForwards.h"
+#include "WritingModes.h"
 
 class nsWindow;
 
 class nsGtkIMModule
 {
 protected:
+    typedef mozilla::widget::IMENotification IMENotification;
     typedef mozilla::widget::InputContext InputContext;
     typedef mozilla::widget::InputContextAction InputContextAction;
 
@@ -48,7 +51,8 @@ public:
     void OnFocusChangeInGecko(bool aFocus);
     // OnSelectionChange is a notification that selection (caret) is changed
     // in the focused editor.
-    void OnSelectionChange(nsWindow* aCaller);
+    void OnSelectionChange(nsWindow* aCaller,
+                           const IMENotification& aIMENotification);
 
     // OnKeyEvent is called when aWindow gets a native key press event or a
     // native key release event.  If this returns TRUE, the key event was
@@ -65,6 +69,7 @@ public:
                          const InputContextAction* aAction);
     InputContext GetInputContext();
     void OnUpdateComposition();
+    void OnLayoutChange();
 
 protected:
     ~nsGtkIMModule();
@@ -167,6 +172,44 @@ protected:
         }
     }
 
+    struct Selection final
+    {
+        uint32_t mOffset;
+        uint32_t mLength;
+        mozilla::WritingMode mWritingMode;
+
+        Selection()
+            : mOffset(UINT32_MAX)
+            , mLength(UINT32_MAX)
+        {
+        }
+
+        void Clear()
+        {
+            mOffset = UINT32_MAX;
+            mLength = UINT32_MAX;
+            mWritingMode = mozilla::WritingMode();
+        }
+
+        void Assign(const IMENotification& aIMENotification);
+        void Assign(const mozilla::WidgetQueryContentEvent& aSelectedTextEvent);
+
+        bool IsValid() const { return mOffset != UINT32_MAX; }
+        bool Collapsed() const { return !mLength; }
+        uint32_t EndOffset() const
+        {
+            if (NS_WARN_IF(!IsValid())) {
+                return UINT32_MAX;
+            }
+            mozilla::CheckedInt<uint32_t> endOffset =
+                mozilla::CheckedInt<uint32_t>(mOffset) + mLength;
+            if (NS_WARN_IF(!endOffset.isValid())) {
+                return UINT32_MAX;
+            }
+            return endOffset.value();
+        }
+    } mSelection;
+    bool EnsureToCacheSelection(nsAString* aSelectedString = nullptr);
 
     // mIsIMFocused is set to TRUE when we call gtk_im_context_focus_in(). And
     // it's set to FALSE when we call gtk_im_context_focus_out().
@@ -184,6 +227,9 @@ protected:
     // mIsDeletingSurrounding is true while OnDeleteSurroundingNative() is
     // trying to delete the surrounding text.
     bool mIsDeletingSurrounding;
+    // mLayoutChanged is true after OnLayoutChange() is called.  This is reset
+    // when NS_COMPOSITION_CHANGE is being dispatched.
+    bool mLayoutChanged;
 
     // sLastFocusedModule is a pointer to the last focused instance of this
     // class.  When a instance is destroyed and sLastFocusedModule refers it,

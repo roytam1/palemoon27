@@ -36,6 +36,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/MemoryReporting.h"
+#include "ZoomConstraintsClient.h"
 
 class nsRange;
 
@@ -522,8 +523,6 @@ protected:
   nsresult CreatePreferenceStyleSheet(void);
   nsresult SetPrefLinkRules(void);
   nsresult SetPrefFocusRules(void);
-  nsresult SetPrefNoScriptRule();
-  nsresult SetPrefNoFramesRule(void);
 
   // methods for painting a range to an offscreen buffer
 
@@ -817,6 +816,8 @@ protected:
 
   // TouchManager
   TouchManager              mTouchManager;
+
+  nsRefPtr<ZoomConstraintsClient> mZoomConstraintsClient;
 
   // TouchCaret
   nsRefPtr<mozilla::TouchCaret> mTouchCaret;

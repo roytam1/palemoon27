@@ -69,7 +69,8 @@ child:
    * Sets the list of currently visible plugin windows based on a
    * list of plugin window ids.
    */
-  async UpdatePluginVisibility(uintptr_t[] aVisibleIdList);
+  async UpdatePluginVisibility(uintptr_t aOwnerWidget,
+                               uintptr_t[] aVisibleIdList);
 
   /**
    * Drop any buffers that might be retained on the child compositor
@@ -114,6 +115,14 @@ parent:
   // NB: this message will result in animations, transforms, effects,
   // and so forth being interpolated.  That's what we want to happen.
   sync MakeSnapshot(SurfaceDescriptor inSnapshot, IntRect dirtyRect);
+
+  // Same as Makesnapshot(), except the snapshot is read from the underlying
+  // operating system desktop rather than the compositor's backbuffer. This
+  // is intended for testing whether hardware acceleration works.
+  //
+  // This call is part of IPDL, even though it simply wraps an nsIWidget
+  // call, to make sure it does not occur in the middle of a composite.
+  sync MakeWidgetSnapshot(SurfaceDescriptor inSnapshot);
 
   // Make sure any pending composites are started immediately and
   // block until they are completed.

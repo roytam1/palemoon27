@@ -1373,7 +1373,7 @@ CSS_PROP_DISPLAY(
     kClearKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
     clip,
     clip,
     Clip,
@@ -1382,7 +1382,7 @@ CSS_PROP_POSITION(
     "",
     0,
     nullptr,
-    offsetof(nsStylePosition, mClip),
+    offsetof(nsStyleDisplay, mClip),
     eStyleAnimType_Custom)
 CSS_PROP_COLOR(
     color,
@@ -1487,6 +1487,18 @@ CSS_PROP_COLUMN(
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
+CSS_PROP_DISPLAY(
+    contain,
+    contain,
+    Contain,
+    CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
+    "layout.css.contain.enabled",
+    // Does not affect parsing, but is needed for tab completion in devtools:
+    VARIANT_HK | VARIANT_NONE,
+    kContainKTable,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_CONTENT(
     content,
     content,
@@ -3315,7 +3327,7 @@ CSS_PROP_TEXT(
     kTextTransformKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
     transform,
     transform,
     Transform,
@@ -3326,9 +3338,19 @@ CSS_PROP_POSITION(
     "",
     0,
     nullptr,
-    offsetof(nsStylePosition, mSpecifiedTransform),
+    offsetof(nsStyleDisplay, mSpecifiedTransform),
     eStyleAnimType_Custom)
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
+    transform-box,
+    transform_box,
+    TransformBox,
+    CSS_PROPERTY_PARSE_VALUE,
+    "svg.transform-origin.enabled",
+    VARIANT_HK,
+    kTransformBoxKTable,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_DISPLAY(
     transform-origin,
     transform_origin,
     TransformOrigin,
@@ -3340,7 +3362,7 @@ CSS_PROP_POSITION(
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
     perspective-origin,
     perspective_origin,
     PerspectiveOrigin,
@@ -3352,7 +3374,7 @@ CSS_PROP_POSITION(
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
     perspective,
     perspective,
     Perspective,
@@ -3361,9 +3383,9 @@ CSS_PROP_POSITION(
     "",
     VARIANT_NONE | VARIANT_INHERIT | VARIANT_LENGTH | VARIANT_POSITIVE_DIMENSION,
     nullptr,
-    offsetof(nsStylePosition, mChildPerspective),
+    offsetof(nsStyleDisplay, mChildPerspective),
     eStyleAnimType_Coord)
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
     transform-style,
     transform_style,
     TransformStyle,
@@ -3374,7 +3396,7 @@ CSS_PROP_POSITION(
     kTransformStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
     backface-visibility,
     backface_visibility,
     BackfaceVisibility,
@@ -3382,7 +3404,7 @@ CSS_PROP_POSITION(
     "",
     VARIANT_HK,
     kBackfaceVisibilityKTable,
-    offsetof(nsStylePosition, mBackfaceVisibility),
+    offsetof(nsStyleDisplay, mBackfaceVisibility),
     eStyleAnimType_None)
 CSS_PROP_POSITION(
     top,
@@ -4133,7 +4155,7 @@ CSS_PROP_SVGRESET(
     offsetof(nsStyleSVGReset, mVectorEffect),
     eStyleAnimType_EnumU8)
 
-CSS_PROP_POSITION(
+CSS_PROP_DISPLAY(
     will-change,
     will_change,
     WillChange,

@@ -610,6 +610,29 @@ const Class StaticNonSyntacticScopeObjects::class_ = {
     JSCLASS_IS_ANONYMOUS
 };
 
+/* static */ NonSyntacticVariablesObject*
+NonSyntacticVariablesObject::create(JSContext* cx, Handle<GlobalObject*> global)
+{
+    Rooted<NonSyntacticVariablesObject*> obj(cx,
+        NewObjectWithNullTaggedProto<NonSyntacticVariablesObject>(cx, TenuredObject,
+                                                                  BaseShape::DELEGATE));
+    if (!obj)
+        return nullptr;
+
+    MOZ_ASSERT(obj->isUnqualifiedVarObj());
+    if (!obj->setQualifiedVarObj(cx))
+        return nullptr;
+
+    obj->setEnclosingScope(global);
+    return obj;
+}
+
+const Class NonSyntacticVariablesObject::class_ = {
+    "NonSyntacticVariablesObject",
+    JSCLASS_HAS_RESERVED_SLOTS(NonSyntacticVariablesObject::RESERVED_SLOTS) |
+    JSCLASS_IS_ANONYMOUS
+};
+
 /*****************************************************************************/
 
 /* static */ ClonedBlockObject*

@@ -149,8 +149,8 @@ nsPrincipal::GetOriginForURI(nsIURI* aURI, nsACString& aOrigin)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsPrincipal::GetOrigin(nsACString& aOrigin)
+nsresult
+nsPrincipal::GetOriginInternal(nsACString& aOrigin)
 {
   return GetOriginForURI(mCodebase, aOrigin);
 }
@@ -604,9 +604,39 @@ NS_IMPL_CI_INTERFACE_GETTER(nsExpandedPrincipal,
                              nsIPrincipal,
                              nsIExpandedPrincipal)
 
+struct OriginComparator
+{
+  bool LessThan(nsIPrincipal* a, nsIPrincipal* b) const
+  {
+    nsAutoCString originA;
+    nsresult rv = a->GetOrigin(originA);
+    NS_ENSURE_SUCCESS(rv, false);
+    nsAutoCString originB;
+    rv = b->GetOrigin(originB);
+    NS_ENSURE_SUCCESS(rv, false);
+    return originA < originB;
+  }
+
+  bool Equals(nsIPrincipal* a, nsIPrincipal* b) const
+  {
+    nsAutoCString originA;
+    nsresult rv = a->GetOrigin(originA);
+    NS_ENSURE_SUCCESS(rv, false);
+    nsAutoCString originB;
+    rv = b->GetOrigin(originB);
+    NS_ENSURE_SUCCESS(rv, false);
+    return a == b;
+  }
+};
+
 nsExpandedPrincipal::nsExpandedPrincipal(nsTArray<nsCOMPtr <nsIPrincipal> > &aWhiteList)
 {
-  mPrincipals.AppendElements(aWhiteList);
+  // We force the principals to be sorted by origin so that nsExpandedPrincipal
+  // origins can have a canonical form.
+  OriginComparator c;
+  for (size_t i = 0; i < aWhiteList.Length(); ++i) {
+    mPrincipals.InsertElementSorted(aWhiteList[i], c);
+  }
 }
 
 nsExpandedPrincipal::~nsExpandedPrincipal()
@@ -625,8 +655,8 @@ nsExpandedPrincipal::SetDomain(nsIURI* aDomain)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsExpandedPrincipal::GetOrigin(nsACString& aOrigin)
+nsresult
+nsExpandedPrincipal::GetOriginInternal(nsACString& aOrigin)
 {
   aOrigin.AssignLiteral("[Expanded Principal [");
   for (size_t i = 0; i < mPrincipals.Length(); ++i) {

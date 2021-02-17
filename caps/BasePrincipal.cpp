@@ -6,16 +6,22 @@
 
 #include "mozilla/BasePrincipal.h"
 
+#include "nsIContentSecurityPolicy.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
+
+#include "nsPrincipal.h"
+#include "nsNetUtil.h"
+#include "nsNullPrincipal.h"
 #include "nsScriptSecurityManager.h"
 
+#include "mozilla/dom/CSPDictionariesBinding.h"
 #include "mozilla/dom/ToJSValue.h"
 
 namespace mozilla {
 
 void
-BasePrincipal::OriginAttributes::CreateSuffix(nsACString& aStr)
+OriginAttributes::CreateSuffix(nsACString& aStr)
 {
   aStr.Truncate();
   MOZ_RELEASE_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
@@ -32,14 +38,14 @@ BasePrincipal::OriginAttributes::CreateSuffix(nsACString& aStr)
 }
 
 void
-BasePrincipal::OriginAttributes::Serialize(nsIObjectOutputStream* aStream) const
+OriginAttributes::Serialize(nsIObjectOutputStream* aStream) const
 {
   aStream->Write32(mAppId);
   aStream->WriteBoolean(mInBrowser);
 }
 
 nsresult
-BasePrincipal::OriginAttributes::Deserialize(nsIObjectInputStream* aStream)
+OriginAttributes::Deserialize(nsIObjectInputStream* aStream)
 {
   nsresult rv = aStream->Read32(&mAppId);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -48,6 +54,12 @@ BasePrincipal::OriginAttributes::Deserialize(nsIObjectInputStream* aStream)
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+BasePrincipal::GetOrigin(nsACString& aOrigin)
+{
+  return GetOriginInternal(aOrigin);
 }
 
 bool
@@ -108,6 +120,19 @@ BasePrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
 }
 
 NS_IMETHODIMP
+BasePrincipal::GetCspJSON(nsAString& outCSPinJSON)
+{
+  outCSPinJSON.Truncate();
+  dom::CSPPolicies jsonPolicies;
+
+  if (!mCSP) {
+    jsonPolicies.ToJSON(outCSPinJSON);
+    return NS_OK;
+  }
+  return mCSP->ToJSON(outCSPinJSON);
+}
+
+NS_IMETHODIMP
 BasePrincipal::GetIsNullPrincipal(bool* aIsNullPrincipal)
 {
   *aIsNullPrincipal = false;
@@ -137,6 +162,15 @@ BasePrincipal::GetOriginSuffix(nsACString& aOriginAttributes)
 {
   mOriginAttributes.CreateSuffix(aOriginAttributes);
   return NS_OK;
+}
+
+NS_IMETHODIMP
+BasePrincipal::GetCookieJar(nsACString& aCookieJar)
+{
+  // We just forward to .jarPrefix for now, which is a nice compact
+  // stringification of the (appId, inBrowser) tuple. This will eventaully be
+  // swapped out for an origin attribute - see the comment in nsIPrincipal.idl.
+  return GetJarPrefix(aCookieJar);
 }
 
 NS_IMETHODIMP
@@ -177,6 +211,38 @@ BasePrincipal::GetUnknownAppId(bool* aUnknownAppId)
 {
   *aUnknownAppId = AppId() == nsIScriptSecurityManager::UNKNOWN_APP_ID;
   return NS_OK;
+}
+
+already_AddRefed<BasePrincipal>
+BasePrincipal::CreateCodebasePrincipal(nsIURI* aURI, OriginAttributes& aAttrs)
+{
+  // If the URI is supposed to inherit the security context of whoever loads it,
+  // we shouldn't make a codebase principal for it.
+  bool inheritsPrincipal;
+  nsresult rv = NS_URIChainHasFlags(aURI, nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
+                                    &inheritsPrincipal);
+  nsCOMPtr<nsIPrincipal> principal;
+  if (NS_FAILED(rv) || inheritsPrincipal) {
+    return nsNullPrincipal::Create();
+  }
+
+  // Check whether the URI knows what its principal is supposed to be.
+  nsCOMPtr<nsIURIWithPrincipal> uriPrinc = do_QueryInterface(aURI);
+  if (uriPrinc) {
+    nsCOMPtr<nsIPrincipal> principal;
+    uriPrinc->GetPrincipal(getter_AddRefs(principal));
+    if (!principal) {
+      return nsNullPrincipal::Create();
+    }
+    nsRefPtr<BasePrincipal> concrete = Cast(principal);
+    return concrete.forget();
+  }
+
+  // Mint a codebase principal.
+  nsRefPtr<nsPrincipal> codebase = new nsPrincipal();
+  rv = codebase->Init(aURI, aAttrs);
+  NS_ENSURE_SUCCESS(rv, nullptr);
+  return codebase.forget();
 }
 
 } // namespace mozilla

@@ -92,6 +92,7 @@
 
 #include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
+#include "vm/SavedStacks-inl.h"
 #include "vm/String-inl.h"
 
 using namespace js;
@@ -558,6 +559,8 @@ JS_Init(void)
     if (!TlsPerThreadData.initialized() && !TlsPerThreadData.init())
         return false;
 
+    jit::ExecutableAllocator::initStatic();
+
     if (!jit::InitializeIon())
         return false;
 
@@ -994,7 +997,7 @@ JS_GetCompartmentPrivate(JSCompartment* compartment)
 JS_PUBLIC_API(JSAddonId*)
 JS::NewAddonId(JSContext* cx, HandleString str)
 {
-    return static_cast<JSAddonId*>(JS_InternJSString(cx, str));
+    return static_cast<JSAddonId*>(JS_AtomizeAndPinJSString(cx, str));
 }
 
 JS_PUBLIC_API(JSString*)
@@ -2766,13 +2769,13 @@ PropertySpecNameToSymbolCode(const char* name)
 
 static bool
 PropertySpecNameToId(JSContext* cx, const char* name, MutableHandleId id,
-                     js::InternBehavior ib = js::DoNotInternAtom)
+                     js::PinningBehavior pin = js::DoNotPinAtom)
 {
     if (JS::PropertySpecNameIsSymbol(name)) {
         JS::SymbolCode which = PropertySpecNameToSymbolCode(name);
         id.set(SYMBOL_TO_JSID(cx->wellKnownSymbols().get(which)));
     } else {
-        JSAtom* atom = Atomize(cx, name, strlen(name), ib);
+        JSAtom* atom = Atomize(cx, name, strlen(name), pin);
         if (!atom)
             return false;
         id.set(AtomToId(atom));
@@ -2788,7 +2791,7 @@ JS::PropertySpecNameToPermanentId(JSContext* cx, const char* name, jsid* idp)
     // of this API is to populate *idp with a jsid that does not need to be
     // marked.
     return PropertySpecNameToId(cx, name, MutableHandleId::fromMarkedLocation(idp),
-                                js::InternAtom);
+                                js::PinAtom);
 }
 
 JS_PUBLIC_API(bool)
@@ -3496,13 +3499,6 @@ extern JS_PUBLIC_API(bool)
 JS_IsConstructor(JSFunction* fun)
 {
     return fun->isConstructor();
-}
-
-JS_PUBLIC_API(JSObject*)
-JS_BindCallable(JSContext* cx, HandleObject target, HandleObject newThis)
-{
-    RootedValue thisArg(cx, ObjectValue(*newThis));
-    return fun_bind(cx, target, thisArg, nullptr, 0);
 }
 
 static bool
@@ -4776,7 +4772,7 @@ JS_NewStringCopyZ(JSContext* cx, const char* s)
 }
 
 JS_PUBLIC_API(bool)
-JS_StringHasBeenInterned(JSContext* cx, JSString* str)
+JS_StringHasBeenPinned(JSContext* cx, JSString* str)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
@@ -4784,7 +4780,7 @@ JS_StringHasBeenInterned(JSContext* cx, JSString* str)
     if (!str->isAtom())
         return false;
 
-    return AtomIsInterned(cx, &str->asAtom());
+    return AtomIsPinned(cx, &str->asAtom());
 }
 
 JS_PUBLIC_API(jsid)
@@ -4792,33 +4788,33 @@ INTERNED_STRING_TO_JSID(JSContext* cx, JSString* str)
 {
     MOZ_ASSERT(str);
     MOZ_ASSERT(((size_t)str & JSID_TYPE_MASK) == 0);
-    MOZ_ASSERT_IF(cx, JS_StringHasBeenInterned(cx, str));
+    MOZ_ASSERT_IF(cx, JS_StringHasBeenPinned(cx, str));
     return AtomToId(&str->asAtom());
 }
 
 JS_PUBLIC_API(JSString*)
-JS_InternJSString(JSContext* cx, HandleString str)
+JS_AtomizeAndPinJSString(JSContext* cx, HandleString str)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    JSAtom* atom = AtomizeString(cx, str, InternAtom);
-    MOZ_ASSERT_IF(atom, JS_StringHasBeenInterned(cx, atom));
+    JSAtom* atom = AtomizeString(cx, str, PinAtom);
+    MOZ_ASSERT_IF(atom, JS_StringHasBeenPinned(cx, atom));
     return atom;
 }
 
 JS_PUBLIC_API(JSString*)
-JS_InternString(JSContext* cx, const char* s)
+JS_AtomizeAndPinString(JSContext* cx, const char* s)
 {
-    return JS_InternStringN(cx, s, strlen(s));
+    return JS_AtomizeAndPinStringN(cx, s, strlen(s));
 }
 
 JS_PUBLIC_API(JSString*)
-JS_InternStringN(JSContext* cx, const char* s, size_t length)
+JS_AtomizeAndPinStringN(JSContext* cx, const char* s, size_t length)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    JSAtom* atom = Atomize(cx, s, length, InternAtom);
-    MOZ_ASSERT_IF(atom, JS_StringHasBeenInterned(cx, atom));
+    JSAtom* atom = Atomize(cx, s, length, PinAtom);
+    MOZ_ASSERT_IF(atom, JS_StringHasBeenPinned(cx, atom));
     return atom;
 }
 
@@ -4851,19 +4847,19 @@ JS_NewUCStringCopyZ(JSContext* cx, const char16_t* s)
 }
 
 JS_PUBLIC_API(JSString*)
-JS_InternUCStringN(JSContext* cx, const char16_t* s, size_t length)
+JS_AtomizeAndPinUCStringN(JSContext* cx, const char16_t* s, size_t length)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    JSAtom* atom = AtomizeChars(cx, s, length, InternAtom);
-    MOZ_ASSERT_IF(atom, JS_StringHasBeenInterned(cx, atom));
+    JSAtom* atom = AtomizeChars(cx, s, length, PinAtom);
+    MOZ_ASSERT_IF(atom, JS_StringHasBeenPinned(cx, atom));
     return atom;
 }
 
 JS_PUBLIC_API(JSString*)
-JS_InternUCString(JSContext* cx, const char16_t* s)
+JS_AtomizeAndPinUCString(JSContext* cx, const char16_t* s)
 {
-    return JS_InternUCStringN(cx, s, js_strlen(s));
+    return JS_AtomizeAndPinUCStringN(cx, s, js_strlen(s));
 }
 
 JS_PUBLIC_API(size_t)
@@ -6274,6 +6270,22 @@ JS::CaptureCurrentStack(JSContext* cx, JS::MutableHandleObject stackp, unsigned 
     MOZ_ASSERT(compartment);
     Rooted<SavedFrame*> frame(cx);
     if (!compartment->savedStacks().saveCurrentStack(cx, &frame, maxFrameCount))
+        return false;
+    stackp.set(frame.get());
+    return true;
+}
+
+JS_PUBLIC_API(bool)
+JS::CopyAsyncStack(JSContext* cx, JS::HandleObject asyncStack,
+                   JS::HandleString asyncCause, JS::MutableHandleObject stackp,
+                   unsigned maxFrameCount)
+{
+    js::AssertObjectIsSavedFrameOrWrapper(cx, asyncStack);
+    JSCompartment* compartment = cx->compartment();
+    MOZ_ASSERT(compartment);
+    Rooted<SavedFrame*> frame(cx);
+    if (!compartment->savedStacks().copyAsyncStack(cx, asyncStack, asyncCause,
+                                                   &frame, maxFrameCount))
         return false;
     stackp.set(frame.get());
     return true;

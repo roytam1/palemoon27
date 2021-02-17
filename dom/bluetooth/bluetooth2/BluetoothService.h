@@ -174,19 +174,29 @@ public:
 
   /**
    * Stop device discovery (platform specific implementation)
-   *
-   * @return NS_OK if discovery stopped correctly, false otherwise
    */
-  virtual nsresult
+  virtual void
   StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable) = 0;
 
   /**
    * Start device discovery (platform specific implementation)
-   *
-   * @return NS_OK if discovery stopped correctly, false otherwise
    */
-  virtual nsresult
+  virtual void
   StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable) = 0;
+
+  /**
+   * Stops an ongoing Bluetooth LE device scan.
+   */
+  virtual void
+  StopLeScanInternal(const nsAString& aScanUuid,
+                     BluetoothReplyRunnable* aRunnable) = 0;
+
+  /**
+   * Starts a Bluetooth LE device scan.
+   */
+  virtual void
+  StartLeScanInternal(const nsTArray<nsString>& aServiceUuids,
+                      BluetoothReplyRunnable* aRunnable) = 0;
 
   /**
    * Set a property for the specified object
@@ -423,6 +433,31 @@ public:
     const BluetoothGattServiceId& aServiceId,
     const BluetoothGattId& aCharacteristicId,
     const BluetoothGattWriteType& aWriteType,
+    const nsTArray<uint8_t>& aValue,
+    BluetoothReplyRunnable* aRunnable) = 0;
+
+  /**
+   * Read the value of a descriptor of a characteristic on a GATT client.
+   * (platform specific implementation)
+   */
+  virtual void
+  GattClientReadDescriptorValueInternal(
+    const nsAString& aAppUuid,
+    const BluetoothGattServiceId& aServiceId,
+    const BluetoothGattId& aCharacteristicId,
+    const BluetoothGattId& aDescriptorId,
+    BluetoothReplyRunnable* aRunnable) = 0;
+
+  /**
+   * Write the value of a descriptor of a characteristic on a GATT client.
+   * (platform specific implementation)
+   */
+  virtual void
+  GattClientWriteDescriptorValueInternal(
+    const nsAString& aAppUuid,
+    const BluetoothGattServiceId& aServiceId,
+    const BluetoothGattId& aCharacteristicId,
+    const BluetoothGattId& aDescriptorId,
     const nsTArray<uint8_t>& aValue,
     BluetoothReplyRunnable* aRunnable) = 0;
 

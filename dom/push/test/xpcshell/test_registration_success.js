@@ -15,8 +15,7 @@ function run_test() {
 
 add_task(function* test_registration_success() {
   let db = new PushDB();
-  let promiseDB = promisifyDatabase(db);
-  do_register_cleanup(() => cleanupDatabase(db));
+  do_register_cleanup(() => {return db.drop().then(_ => db.close());});
   let records = [{
     channelID: 'bf001fe0-2684-42f2-bc4d-a3e14b11dd5b',
     pushEndpoint: 'https://example.com/update/same-manifest/1',
@@ -34,7 +33,7 @@ add_task(function* test_registration_success() {
     version: 15
   }];
   for (let record of records) {
-    yield promiseDB.put(record);
+    yield db.put(record);
   }
 
   PushService.init({
@@ -60,8 +59,10 @@ add_task(function* test_registration_success() {
 
   let registration = yield PushNotificationService.registration(
     'https://example.net/a');
-  deepEqual(registration, {
-    pushEndpoint: 'https://example.com/update/same-manifest/1',
-    version: 5
-  }, 'Should include registrations for all pages with this manifest');
+  equal(
+    registration.pushEndpoint,
+    'https://example.com/update/same-manifest/1',
+    'Wrong push endpoint for scope'
+  );
+  equal(registration.version, 5, 'Wrong version for scope');
 });

@@ -10,6 +10,7 @@ this.EXPORTED_SYMBOLS = [ "BrowserUtils" ];
 const {interfaces: Ci, utils: Cu, classes: Cc} = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.importGlobalProperties(['URL']);
 
 this.BrowserUtils = {
 
@@ -76,6 +77,55 @@ this.BrowserUtils = {
 
   makeURIFromCPOW: function(aCPOWURI) {
     return Services.io.newURI(aCPOWURI.spec, aCPOWURI.originCharset, null);
+  },
+
+  /**
+   * Return the current focus element and window. If the current focus
+   * is in a content process, then this function returns CPOWs
+   * (cross-process object wrappers) that refer to the focused
+   * items. Note that calling this function synchronously contacts the
+   * content process, which may block for a long time.
+   *
+   * @param document The document in question.
+   * @return [focusedElement, focusedWindow]
+   */
+  getFocusSync: function(document) {
+    let elt = document.commandDispatcher.focusedElement;
+    var window = document.commandDispatcher.focusedWindow;
+
+    const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+    if (elt instanceof window.XULElement &&
+        elt.localName == "browser" &&
+        elt.namespaceURI == XUL_NS &&
+        elt.getAttribute("remote")) {
+      [elt, window] = elt.syncHandler.getFocusedElementAndWindow();
+    }
+
+    return [elt, window];
+  },
+
+  // Creates a codebase principal from a canonical origin string. This is
+  // the inverse operation of .origin on a codebase principal.
+  principalFromOrigin: function(aOriginString) {
+    if (aOriginString.startsWith('[')) {
+      throw new Error("principalFromOrigin does not support System and Expanded principals");
+    }
+
+    if (aOriginString.startsWith("moz-nullprincipal:")) {
+      throw new Error("principalFromOrigin does not support nsNullPrincipal");
+    }
+
+    var parts = aOriginString.split('!');
+    if (parts.length > 2) {
+      throw new Error("bad origin string: " + aOriginString);
+    }
+
+    var uri = Services.io.newURI(parts[0], null, null);
+    var attrs = {};
+    // Parse the parameters string into a dictionary.
+    (parts[1] || "").split("&").map((x) => x.split('=')).forEach((x) => attrs[x[0]] = x[1]);
+
+    return Services.scriptSecurityManager.createCodebasePrincipal(uri, attrs);
   },
 
   /**

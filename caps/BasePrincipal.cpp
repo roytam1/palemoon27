@@ -6,6 +6,7 @@
 
 #include "mozilla/BasePrincipal.h"
 
+#include "nsIContentSecurityPolicy.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 
@@ -14,6 +15,7 @@
 #include "nsNullPrincipal.h"
 #include "nsScriptSecurityManager.h"
 
+#include "mozilla/dom/CSPDictionariesBinding.h"
 #include "mozilla/dom/ToJSValue.h"
 
 namespace mozilla {
@@ -129,6 +131,19 @@ BasePrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
 }
 
 NS_IMETHODIMP
+BasePrincipal::GetCspJSON(nsAString& outCSPinJSON)
+{
+  outCSPinJSON.Truncate();
+  dom::CSPPolicies jsonPolicies;
+
+  if (!mCSP) {
+    jsonPolicies.ToJSON(outCSPinJSON);
+    return NS_OK;
+  }
+  return mCSP->ToJSON(outCSPinJSON);
+}
+
+NS_IMETHODIMP
 BasePrincipal::GetIsNullPrincipal(bool* aIsNullPrincipal)
 {
   *aIsNullPrincipal = false;
@@ -158,6 +173,15 @@ BasePrincipal::GetOriginSuffix(nsACString& aOriginAttributes)
 {
   mOriginAttributes.CreateSuffix(aOriginAttributes);
   return NS_OK;
+}
+
+NS_IMETHODIMP
+BasePrincipal::GetCookieJar(nsACString& aCookieJar)
+{
+  // We just forward to .jarPrefix for now, which is a nice compact
+  // stringification of the (appId, inBrowser) tuple. This will eventaully be
+  // swapped out for an origin attribute - see the comment in nsIPrincipal.idl.
+  return GetJarPrefix(aCookieJar);
 }
 
 NS_IMETHODIMP

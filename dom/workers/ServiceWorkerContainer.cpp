@@ -51,6 +51,13 @@ ServiceWorkerContainer::DisconnectFromOwner()
 }
 
 void
+ServiceWorkerContainer::ControllerChanged(ErrorResult& aRv)
+{
+  mControllerWorker = nullptr;
+  aRv = DispatchTrustedEvent(NS_LITERAL_STRING("controllerchange"));
+}
+
+void
 ServiceWorkerContainer::RemoveReadyPromise()
 {
   nsCOMPtr<nsPIDOMWindow> window = GetOwner();
@@ -233,7 +240,8 @@ ServiceWorkerContainer::GetScopeForUrl(const nsAString& aUrl,
     return;
   }
 
-  aRv = swm->GetScopeForUrl(aUrl, aScope);
+  aRv = swm->GetScopeForUrl(GetOwner()->GetExtantDoc()->NodePrincipal(),
+                            aUrl, aScope);
 }
 
 // Testing only.

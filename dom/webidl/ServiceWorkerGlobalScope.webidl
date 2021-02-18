@@ -13,16 +13,11 @@
 [Global=(Worker,ServiceWorker),
  Exposed=ServiceWorker]
 interface ServiceWorkerGlobalScope : WorkerGlobalScope {
-  // FIXME(nsm): Bug 982725
-  // readonly attribute CacheList caches;
-
   readonly attribute Clients clients;
   readonly attribute ServiceWorkerRegistration registration;
 
-  [Unforgeable] readonly attribute DOMString scope;
-
-  // FIXME(nsm): Bug 995484
-  // ResponsePromise<any> fetch((Request or [EnsureUTF16] DOMString) request);
+  [Throws]
+  Promise<boolean> skipWaiting();
 
   attribute EventHandler oninstall;
   attribute EventHandler onactivate;
@@ -34,4 +29,9 @@ interface ServiceWorkerGlobalScope : WorkerGlobalScope {
   attribute EventHandler onmessage;
 };
 
+// These are from w3c.github.io/push-api/
+partial interface ServiceWorkerGlobalScope {
+  attribute EventHandler onpush;
+  attribute EventHandler onpushsubscriptionchange;
+};
 

@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ServiceWorkerScriptCache.h"
+#include "mozilla/unused.h"
 #include "mozilla/dom/CacheBinding.h"
 #include "mozilla/dom/cache/CacheStorage.h"
 #include "mozilla/dom/cache/Cache.h"
@@ -317,6 +318,13 @@ public:
   }
 
   void
+  SetMaxScope(const nsACString& aMaxScope)
+  {
+    MOZ_ASSERT(!mNetworkFinished);
+    mMaxScope = aMaxScope;
+  }
+
+  void
   NetworkFinished(nsresult aStatus)
   {
     AssertIsOnMainThread();
@@ -407,7 +415,8 @@ public:
     }
 
     MOZ_ASSERT(mState == WaitingForPut);
-    mCallback->ComparisonResult(NS_OK, false /* aIsEqual */, mNewCacheName);
+    mCallback->ComparisonResult(NS_OK, false /* aIsEqual */,
+                                mNewCacheName, mMaxScope);
     Cleanup();
   }
 
@@ -449,7 +458,8 @@ private:
   Fail(nsresult aStatus)
   {
     AssertIsOnMainThread();
-    mCallback->ComparisonResult(aStatus, false /* aIsEqual */, EmptyString());
+    mCallback->ComparisonResult(aStatus, false /* aIsEqual */,
+                                EmptyString(), EmptyCString());
     Cleanup();
   }
 
@@ -475,7 +485,7 @@ private:
     }
 
     if (aIsEqual) {
-      mCallback->ComparisonResult(aStatus, aIsEqual, EmptyString());
+      mCallback->ComparisonResult(aStatus, aIsEqual, EmptyString(), mMaxScope);
       Cleanup();
       return;
     }
@@ -563,6 +573,8 @@ private:
 
   nsCString mSecurityInfo;
 
+  nsCString mMaxScope;
+
   enum {
     WaitingForOpen,
     WaitingForPut
@@ -647,6 +659,14 @@ CompareNetwork::OnStreamComplete(nsIStreamLoader* aLoader, nsISupports* aContext
       mManager->NetworkFinished(NS_ERROR_FAILURE);
       return NS_OK;
     }
+
+    nsAutoCString maxScope;
+    // Note: we explicitly don't check for the return value here, because the
+    // absense of the header is not an error condition.
+    unused << httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Service-Worker-Allowed"),
+                                             maxScope);
+
+    mManager->SetMaxScope(maxScope);
   }
   else {
     // The only supported request schemes are http, https, and app.

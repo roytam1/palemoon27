@@ -1635,6 +1635,12 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     }
   }
 
+  if (aWorkerPrivate->IsServiceWorker()) {
+    AssertIsOnMainThread();
+    Telemetry::AccumulateTimeDelta(Telemetry::SERVICE_WORKER_LIFE_TIME,
+                                   aWorkerPrivate->CreationTimeStamp());
+  }
+
   if (aWorkerPrivate->IsSharedWorker()) {
     AssertIsOnMainThread();
 
@@ -2340,6 +2346,7 @@ RuntimeService::CreateSharedWorkerFromLoadInfo(JSContext* aCx,
   AssertIsOnMainThread();
   MOZ_ASSERT(aLoadInfo);
   MOZ_ASSERT(aLoadInfo->mResolvedScriptURI);
+  MOZ_ASSERT_IF(aType == WorkerTypeService, aLoadInfo->mServiceWorkerID > 0);
 
   nsRefPtr<WorkerPrivate> workerPrivate;
   {

@@ -13,6 +13,7 @@
 
 #include "mozilla/dom/SystemDictionariesBinding.h"
 
+class nsIContentSecurityPolicy;
 class nsIObjectOutputStream;
 class nsIObjectInputStream;
 
@@ -38,13 +39,11 @@ public:
     return !(*this == aOther);
   }
 
-  // Serializes non-default values into the suffix format, i.e.
+  // Serializes/Deserializes non-default values into the suffix format, i.e.
   // |!key1=value1&key2=value2|. If there are no non-default attributes, this
   // returns an empty string.
-  void CreateSuffix(nsACString& aStr);
-
-  void Serialize(nsIObjectOutputStream* aStream) const;
-  nsresult Deserialize(nsIObjectInputStream* aStream);
+  void CreateSuffix(nsACString& aStr) const;
+  bool PopulateFromSuffix(const nsACString& aStr);
 };
 
 /*
@@ -57,7 +56,7 @@ public:
 class BasePrincipal : public nsJSPrincipals
 {
 public:
-  BasePrincipal() {}
+  BasePrincipal();
 
   enum DocumentDomainConsideration { DontConsiderDocumentDomain, ConsiderDocumentDomain};
   bool Subsumes(nsIPrincipal* aOther, DocumentDomainConsideration aConsideration);
@@ -82,6 +81,8 @@ public:
 
   virtual bool IsOnCSSUnprefixingWhitelist() override { return false; }
 
+  static bool IsCodebasePrincipal(nsIPrincipal* aPrincipal);
+
   static BasePrincipal* Cast(nsIPrincipal* aPrin) { return static_cast<BasePrincipal*>(aPrin); }
   static already_AddRefed<BasePrincipal> CreateCodebasePrincipal(nsIURI* aURI, OriginAttributes& aAttrs);
 
@@ -90,7 +91,7 @@ public:
   bool IsInBrowserElement() const { return mOriginAttributes.mInBrowser; }
 
 protected:
-  virtual ~BasePrincipal() {}
+  virtual ~BasePrincipal();
 
   virtual nsresult GetOriginInternal(nsACString& aOrigin) = 0;
   virtual bool SubsumesInternal(nsIPrincipal* aOther, DocumentDomainConsideration aConsider) = 0;

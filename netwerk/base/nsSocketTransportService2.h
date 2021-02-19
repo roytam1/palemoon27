@@ -30,6 +30,13 @@ extern PRLogModuleInfo *gSocketTransportLog;
 #define SOCKET_LOG(args)     PR_LOG(gSocketTransportLog, PR_LOG_DEBUG, args)
 #define SOCKET_LOG_ENABLED() PR_LOG_TEST(gSocketTransportLog, PR_LOG_DEBUG)
 
+//
+// set NSPR_LOG_MODULES=UDPSocket:5
+//
+extern PRLogModuleInfo *gUDPSocketLog;
+#define UDPSOCKET_LOG(args)     PR_LOG(gUDPSocketLog, PR_LOG_DEBUG, args)
+#define UDPSOCKET_LOG_ENABLED() PR_LOG_TEST(gUDPSocketLog, PR_LOG_DEBUG)
+
 //-----------------------------------------------------------------------------
 
 #define NS_SOCKET_POLL_TIMEOUT PR_INTERVAL_NO_TIMEOUT
@@ -67,6 +74,7 @@ public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSPISOCKETTRANSPORTSERVICE
     NS_DECL_NSISOCKETTRANSPORTSERVICE
+    NS_DECL_NSIROUTEDSOCKETTRANSPORTSERVICE
     NS_DECL_NSIEVENTTARGET
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIRUNNABLE

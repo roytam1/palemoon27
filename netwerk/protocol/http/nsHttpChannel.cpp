@@ -327,7 +327,7 @@ nsHttpChannel::Connect()
     }
 
     // ensure that we are using a valid hostname
-    if (!net_IsValidHostName(nsDependentCString(mConnectionInfo->Host())))
+    if (!net_IsValidHostName(nsDependentCString(mConnectionInfo->Origin())))
         return NS_ERROR_UNKNOWN_HOST;
 
     // Finalize ConnectionInfo flags before SpeculativeConnect
@@ -900,7 +900,7 @@ nsHttpChannel::CallOnStartRequest()
         if (!mContentTypeHint.IsEmpty())
             mResponseHead->SetContentType(mContentTypeHint);
         else if (mResponseHead->Version() == NS_HTTP_VERSION_0_9 &&
-                 mConnectionInfo->Port() != mConnectionInfo->DefaultPort())
+                 mConnectionInfo->OriginPort() != mConnectionInfo->DefaultPort())
             mResponseHead->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
         else {
             // Uh-oh.  We had better find out what type we are!
@@ -4901,9 +4901,9 @@ nsHttpChannel::BeginConnect()
         (mapping = gHttpHandler->GetAltServiceMapping(scheme,
                                                       host, port,
                                                       mPrivateBrowsing))) {
-        LOG(("nsHttpChannel %p Alt Service Mapping Found %s://%s:%d\n", this,
-             scheme.get(), mapping->AlternateHost().get(),
-             mapping->AlternatePort()));
+        LOG(("nsHttpChannel %p Alt Service Mapping Found %s://%s:%d [%s]\n",
+             this, scheme.get(), mapping->AlternateHost().get(),
+             mapping->AlternatePort(), mapping->HashKey().get()));
 
         if (!(mLoadFlags & LOAD_ANONYMOUS) && !mPrivateBrowsing) {
             nsAutoCString altUsedLine(mapping->AlternateHost());
@@ -5045,6 +5045,7 @@ nsHttpChannel::BeginConnect()
     if (mLoadFlags & LOAD_FRESH_CONNECTION) {
         // just the initial document resets the whole pool
         if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI) {
+            gHttpHandler->ConnMgr()->ClearAltServiceMappings();
             gHttpHandler->ConnMgr()->DoShiftReloadConnectionCleanup(mConnectionInfo);
         }
         mCaps &= ~NS_HTTP_ALLOW_PIPELINING;

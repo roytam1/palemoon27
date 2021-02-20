@@ -110,7 +110,7 @@ public:
   InitOrigin(PersistenceType aPersistenceType, const nsACString& aGroup,
              const nsACString& aOrigin, UsageInfo* aUsageInfo) override
   {
-    return NS_OK;
+    return GetUsageForOrigin(aPersistenceType, aGroup, aOrigin, aUsageInfo);
   }
 
   virtual nsresult
@@ -153,6 +153,7 @@ public:
       if (isDir) {
         if (leafName.EqualsLiteral("morgue")) {
           rv = GetBodyUsage(file, aUsageInfo);
+          if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
         } else {
           NS_WARNING("Unknown Cache directory found!");
         }
@@ -160,10 +161,11 @@ public:
         continue;
       }
 
-      // Ignore transient sqlite files
+      // Ignore transient sqlite files and marker files
       if (leafName.EqualsLiteral("caches.sqlite-journal") ||
           leafName.EqualsLiteral("caches.sqlite-shm") ||
-          leafName.Find(NS_LITERAL_CSTRING("caches.sqlite-mj"), false, 0, 0) == 0) {
+          leafName.Find(NS_LITERAL_CSTRING("caches.sqlite-mj"), false, 0, 0) == 0 ||
+          leafName.EqualsLiteral("context_open.marker")) {
         continue;
       }
 

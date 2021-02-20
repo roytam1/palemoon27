@@ -93,7 +93,7 @@ public:
   }
 
   virtual void
-  RunOnTarget(Resolver* aResolver, const QuotaInfo& aQuotaInfo) override
+  RunOnTarget(Resolver* aResolver, const QuotaInfo& aQuotaInfo, Data*) override
   {
     MOZ_ASSERT(aResolver);
     MOZ_ASSERT(aQuotaInfo.mDir);
@@ -1303,12 +1303,13 @@ public:
         // no outstanding references, delete immediately
         nsRefPtr<Context> context = mManager->mContext;
 
-        // TODO: note that we need to check this cache for staleness on startup (bug 1110446)
-        if (!context->IsCanceled()) {
+        if (context->IsCanceled()) {
+          context->NoteOrphanedData();
+        } else {
           context->CancelForCacheId(mCacheId);
           nsRefPtr<Action> action =
             new DeleteOrphanedCacheAction(mManager, mCacheId);
-          context->Dispatch(mManager->mIOThread, action);
+          context->Dispatch(action);
         }
       }
     }
@@ -1457,8 +1458,25 @@ Manager::RemoveContext(Context* aContext)
 
   // Whether the Context destruction was triggered from the Manager going
   // idle or the underlying storage being invalidated, we should know we
-  // are closing before the Conext is destroyed.
+  // are closing before the Context is destroyed.
   MOZ_ASSERT(mState == Closing);
+
+  // Before forgetting the Context, check to see if we have any outstanding
+  // cache or body objects waiting for deletion.  If so, note that we've
+  // orphaned data so it will be cleaned up on the next open.
+  for (uint32_t i = 0; i < mCacheIdRefs.Length(); ++i) {
+    if (mCacheIdRefs[i].mOrphaned) {
+      aContext->NoteOrphanedData();
+      break;
+    }
+  }
+
+  for (uint32_t i = 0; i < mBodyIdRefs.Length(); ++i) {
+    if (mBodyIdRefs[i].mOrphaned) {
+      aContext->NoteOrphanedData();
+      break;
+    }
+  }
 
   mContext = nullptr;
 
@@ -1511,13 +1529,18 @@ Manager::ReleaseCacheId(CacheId aCacheId)
       if (mCacheIdRefs[i].mCount == 0) {
         bool orphaned = mCacheIdRefs[i].mOrphaned;
         mCacheIdRefs.RemoveElementAt(i);
-        // TODO: note that we need to check this cache for staleness on startup (bug 1110446)
         nsRefPtr<Context> context = mContext;
-        if (orphaned && context && !context->IsCanceled()) {
-          context->CancelForCacheId(aCacheId);
-          nsRefPtr<Action> action = new DeleteOrphanedCacheAction(this,
-                                                                  aCacheId);
-          context->Dispatch(mIOThread, action);
+        // If the context is already gone, then orphan flag should have been
+        // set in RemoveContext().
+        if (orphaned && context) {
+          if (context->IsCanceled()) {
+            context->NoteOrphanedData();
+          } else {
+            context->CancelForCacheId(aCacheId);
+            nsRefPtr<Action> action = new DeleteOrphanedCacheAction(this,
+                                                                    aCacheId);
+            context->Dispatch(action);
+          }
         }
       }
       MaybeAllowContextToClose();
@@ -1555,11 +1578,16 @@ Manager::ReleaseBodyId(const nsID& aBodyId)
       if (mBodyIdRefs[i].mCount < 1) {
         bool orphaned = mBodyIdRefs[i].mOrphaned;
         mBodyIdRefs.RemoveElementAt(i);
-        // TODO: note that we need to check this body for staleness on startup (bug 1110446)
         nsRefPtr<Context> context = mContext;
-        if (orphaned && context && !context->IsCanceled()) {
-          nsRefPtr<Action> action = new DeleteOrphanedBodyAction(aBodyId);
-          context->Dispatch(mIOThread, action);
+        // If the context is already gone, then orphan flag should have been
+        // set in RemoveContext().
+        if (orphaned && context) {
+          if (context->IsCanceled()) {
+            context->NoteOrphanedData();
+          } else {
+            nsRefPtr<Action> action = new DeleteOrphanedBodyAction(aBodyId);
+            context->Dispatch(action);
+          }
         }
       }
       MaybeAllowContextToClose();
@@ -1635,7 +1663,7 @@ Manager::ExecuteCacheOp(Listener* aListener, CacheId aCacheId,
       MOZ_CRASH("Unknown Cache operation!");
   }
 
-  context->Dispatch(mIOThread, action);
+  context->Dispatch(action);
 }
 
 void
@@ -1682,7 +1710,7 @@ Manager::ExecuteStorageOp(Listener* aListener, Namespace aNamespace,
       MOZ_CRASH("Unknown CacheStorage operation!");
   }
 
-  context->Dispatch(mIOThread, action);
+  context->Dispatch(action);
 }
 
 void
@@ -1708,7 +1736,7 @@ Manager::ExecutePutAll(Listener* aListener, CacheId aCacheId,
                                                   aPutList, aRequestStreamList,
                                                   aResponseStreamList);
 
-  context->Dispatch(mIOThread, action);
+  context->Dispatch(action);
 }
 
 Manager::Manager(ManagerId* aManagerId, nsIThread* aIOThread)
@@ -1752,7 +1780,8 @@ Manager::Init(Manager* aOldManager)
   // per Manager now, this lets us cleanly call Factory::Remove() once the
   // Context goes away.
   nsRefPtr<Action> setupAction = new SetupAction();
-  nsRefPtr<Context> ref = Context::Create(this, setupAction, oldContext);
+  nsRefPtr<Context> ref = Context::Create(this, mIOThread, setupAction,
+                                          oldContext);
   mContext = ref;
 }
 
@@ -1870,7 +1899,7 @@ Manager::NoteOrphanedBodyIdList(const nsTArray<nsID>& aDeletedBodyIdList)
   nsRefPtr<Context> context = mContext;
   if (!deleteNowList.IsEmpty() && context && !context->IsCanceled()) {
     nsRefPtr<Action> action = new DeleteOrphanedBodyAction(deleteNowList);
-    context->Dispatch(mIOThread, action);
+    context->Dispatch(action);
   }
 }
 

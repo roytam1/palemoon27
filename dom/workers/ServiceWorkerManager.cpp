@@ -388,12 +388,20 @@ ServiceWorkerManager::~ServiceWorkerManager()
 {
   // The map will assert if it is not empty when destroyed.
   mRegistrationInfos.Clear();
+
   MOZ_ASSERT(!mActor);
 }
 
 void
 ServiceWorkerManager::Init()
 {
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    DebugOnly<nsresult> rv;
+    rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false /* ownsWeak */);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+  }
+
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
     nsRefPtr<ServiceWorkerRegistrar> swr = ServiceWorkerRegistrar::Get();
     MOZ_ASSERT(swr);
@@ -402,11 +410,8 @@ ServiceWorkerManager::Init()
     swr->GetRegistrations(data);
     LoadRegistrations(data);
 
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       DebugOnly<nsresult> rv;
-      rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false /* ownsWeak */);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
       rv = obs->AddObserver(this, PURGE_SESSION_HISTORY, false /* ownsWeak */);
       MOZ_ASSERT(NS_SUCCEEDED(rv));
       rv = obs->AddObserver(this, PURGE_DOMAIN_DATA, false /* ownsWeak */);
@@ -2319,7 +2324,7 @@ private:
 
     nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
 
-    // We could be shutting down.
+    // Could it be that we are shutting down.
     if (swm->mActor) {
       swm->mActor->SendUnregister(principalInfo, NS_ConvertUTF8toUTF16(mScope));
     }
@@ -4414,21 +4419,22 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
                               const char* aTopic,
                               const char16_t* aData)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
-
   if (strcmp(aTopic, PURGE_SESSION_HISTORY) == 0) {
+    MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
     RemoveAll();
     PropagateRemoveAll();
     return NS_OK;
   }
 
   if (strcmp(aTopic, PURGE_DOMAIN_DATA) == 0) {
+    MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
     nsAutoString domain(aData);
     RemoveAndPropagate(NS_ConvertUTF16toUTF8(domain));
     return NS_OK;
   }
 
   if (strcmp(aTopic, WEBAPPS_CLEAR_DATA) == 0) {
+    MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
     nsCOMPtr<mozIApplicationClearPrivateDataParams> params =
       do_QueryInterface(aSubject);
     if (NS_WARN_IF(!params)) {
@@ -4458,15 +4464,21 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
     }
 
     RemoveAllRegistrations(principal);
-  } else if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
+    return NS_OK;
+  }
+
+  if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
     mShuttingDown = true;
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
-      obs->RemoveObserver(this, PURGE_SESSION_HISTORY);
-      obs->RemoveObserver(this, PURGE_DOMAIN_DATA);
-      obs->RemoveObserver(this, WEBAPPS_CLEAR_DATA);
+
+      if (XRE_GetProcessType() == GeckoProcessType_Default) {
+        obs->RemoveObserver(this, PURGE_SESSION_HISTORY);
+        obs->RemoveObserver(this, PURGE_DOMAIN_DATA);
+        obs->RemoveObserver(this, WEBAPPS_CLEAR_DATA);
+      }
     }
 
     if (mActor) {
@@ -4477,10 +4489,10 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
       unused << NS_WARN_IF(NS_FAILED(rv));
       mActor = nullptr;
     }
-  } else {
-    MOZ_CRASH("Received message we aren't supposed to be registered for!");
+    return NS_OK;
   }
 
+  MOZ_CRASH("Received message we aren't supposed to be registered for!");
   return NS_OK;
 }
 

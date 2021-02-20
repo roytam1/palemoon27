@@ -111,13 +111,14 @@ public:
   // will run on the QuotaManager IO thread.  Note, this Action must
   // be execute synchronously.
   static already_AddRefed<Context>
-  Create(Manager* aManager, Action* aQuotaIOThreadAction, Context* aOldContext);
+  Create(Manager* aManager, nsIThread* aTarget,
+         Action* aInitAction, Context* aOldContext);
 
   // Execute given action on the target once the quota manager has been
   // initialized.
   //
   // Only callable from the thread that created the Context.
-  void Dispatch(nsIEventTarget* aTarget, Action* aAction);
+  void Dispatch(Action* aAction);
 
   // Cancel any Actions running or waiting to run.  This should allow the
   // Context to be released and Listener::RemoveContext() will be called
@@ -151,7 +152,13 @@ public:
     return mQuotaInfo;
   }
 
+  // Tell the Context that some state information has been orphaned in the
+  // data store and won't be cleaned up.  The Context will leave the marker
+  // in place to trigger cleanup the next times its opened.
+  void NoteOrphanedData();
+
 private:
+  class Data;
   class QuotaInitRunnable;
   class ActionRunnable;
 
@@ -169,10 +176,11 @@ private:
     nsRefPtr<Action> mAction;
   };
 
-  explicit Context(Manager* aManager);
+  Context(Manager* aManager, nsIThread* aTarget);
   ~Context();
+  void Init(Action* aInitAction, Context* aOldContext);
   void Start();
-  void DispatchAction(nsIEventTarget* aTarget, Action* aAction);
+  void DispatchAction(Action* aAction, bool aDoomData = false);
   void OnQuotaInit(nsresult aRv, const QuotaInfo& aQuotaInfo,
                    nsMainThreadPtrHandle<OfflineStorage>& aOfflineStorage);
 
@@ -182,8 +190,14 @@ private:
   void
   SetNextContext(Context* aNextContext);
 
+  void
+  DoomTargetData();
+
   nsRefPtr<Manager> mManager;
+  nsCOMPtr<nsIThread> mTarget;
+  nsRefPtr<Data> mData;
   State mState;
+  bool mOrphanedData;
   QuotaInfo mQuotaInfo;
   nsRefPtr<QuotaInitRunnable> mInitRunnable;
   nsTArray<PendingAction> mPendingActions;

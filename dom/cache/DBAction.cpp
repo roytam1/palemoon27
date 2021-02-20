@@ -35,7 +35,8 @@ DBAction::~DBAction()
 }
 
 void
-DBAction::RunOnTarget(Resolver* aResolver, const QuotaInfo& aQuotaInfo)
+DBAction::RunOnTarget(Resolver* aResolver, const QuotaInfo& aQuotaInfo,
+                      Data* aOptionalData)
 {
   MOZ_ASSERT(!NS_IsMainThread());
   MOZ_ASSERT(aResolver);
@@ -60,12 +61,27 @@ DBAction::RunOnTarget(Resolver* aResolver, const QuotaInfo& aQuotaInfo)
   }
 
   nsCOMPtr<mozIStorageConnection> conn;
-  rv = OpenConnection(aQuotaInfo, dbDir, getter_AddRefs(conn));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    aResolver->Resolve(rv);
-    return;
+
+  // Attempt to reuse the connection opened by a previous Action.
+  if (aOptionalData) {
+    conn = aOptionalData->GetConnection();
   }
-  MOZ_ASSERT(conn);
+
+  // If there is no previous Action, then we must open one.
+  if (!conn) {
+    rv = OpenConnection(aQuotaInfo, dbDir, getter_AddRefs(conn));
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      aResolver->Resolve(rv);
+      return;
+    }
+    MOZ_ASSERT(conn);
+
+    // Save this connection in the shared Data object so later Actions can
+    // use it.  This avoids opening a new connection for every Action.
+    if (aOptionalData) {
+      aOptionalData->SetConnection(conn);
+    }
+  }
 
   RunWithDBOnTarget(aResolver, aQuotaInfo, dbDir, conn);
 }
@@ -153,6 +169,7 @@ DBAction::OpenConnection(const QuotaInfo& aQuotaInfo, nsIFile* aDBDir,
     if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
     rv = ss->OpenDatabaseWithFileURL(dbFileUrl, getter_AddRefs(conn));
+    if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
   }
 
   rv = db::InitializeConnection(conn);

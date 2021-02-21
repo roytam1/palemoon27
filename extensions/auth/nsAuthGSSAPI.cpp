@@ -226,8 +226,6 @@ gssInit()
     return NS_OK;
 }
 
-#if defined( PR_LOGGING )
-
 // Generate proper GSSAPI error messages from the major and
 // minor status codes.
 void
@@ -268,12 +266,6 @@ LogGssError(OM_uint32 maj_stat, OM_uint32 min_stat, const char *prefix)
 
     LOG(("%s\n", errorStr.get()));
 }
-
-#else /* PR_LOGGING */
-
-#define LogGssError(x,y,z)
-
-#endif /* PR_LOGGING */
 
 //-----------------------------------------------------------------------------
 

@@ -48,7 +48,7 @@ ServiceWorkerRegistrar::Initialize()
 {
   MOZ_ASSERT(!gServiceWorkerRegistrar);
 
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (!XRE_IsParentProcess()) {
     return;
   }
 
@@ -70,7 +70,7 @@ ServiceWorkerRegistrar::Initialize()
 /* static */ already_AddRefed<ServiceWorkerRegistrar>
 ServiceWorkerRegistrar::Get()
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_IsParentProcess());
 
   MOZ_ASSERT(gServiceWorkerRegistrar);
   nsRefPtr<ServiceWorkerRegistrar> service = gServiceWorkerRegistrar.get();
@@ -192,6 +192,31 @@ ServiceWorkerRegistrar::UnregisterServiceWorker(
         break;
       }
     }
+  }
+
+  if (deleted) {
+    ScheduleSaveData();
+  }
+}
+
+void
+ServiceWorkerRegistrar::RemoveAll()
+{
+  AssertIsOnBackgroundThread();
+
+  if (mShuttingDown) {
+    NS_WARNING("Failed to remove all the serviceWorkers during shutting down.");
+    return;
+  }
+
+  bool deleted = false;
+
+  {
+    MonitorAutoLock lock(mMonitor);
+    MOZ_ASSERT(mDataLoaded);
+
+    deleted = !mData.IsEmpty();
+    mData.Clear();
   }
 
   if (deleted) {

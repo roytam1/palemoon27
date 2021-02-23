@@ -1222,7 +1222,7 @@ nsHttpTransaction::Restart()
     mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
     SetPipelinePosition(0);
 
-    if (!mConnInfo->GetAuthenticationHost().IsEmpty()) {
+    if (!mConnInfo->GetRoutedHost().IsEmpty()) {
         MutexAutoLock lock(*nsHttp::GetLock());
         nsRefPtr<nsHttpConnectionInfo> ci;
          mConnInfo->CloneAsDirectRoute(getter_AddRefs(ci));
@@ -1554,11 +1554,9 @@ nsHttpTransaction::HandleContentStart()
             LOG(("this response should not contain a body.\n"));
             break;
         case 421:
-            if (!mConnInfo->GetAuthenticationHost().IsEmpty()) {
-                LOG(("Misdirected Request.\n"));
-                gHttpHandler->ConnMgr()->
-                    ClearHostMapping(mConnInfo->GetHost(), mConnInfo->Port());
-            }
+            LOG(("Misdirected Request.\n"));
+            gHttpHandler->ConnMgr()->ClearHostMapping(mConnInfo);
+
             // retry on a new connection - just in case
             mCaps &= ~NS_HTTP_ALLOW_KEEPALIVE;
             mForceRestart = true; // force restart has built in loop protection

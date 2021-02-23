@@ -6,6 +6,7 @@ include protocol PCache;
 include protocol PCachePushStream;
 include protocol PCacheStreamControl;
 include InputStreamParams;
+include ChannelInfo;
 
 using HeadersGuardEnum from "mozilla/dom/cache/IPCUtils.h";
 using RequestCredentials from "mozilla/dom/cache/IPCUtils.h";
@@ -25,7 +26,6 @@ struct CacheQueryParams
   bool ignoreSearch;
   bool ignoreMethod;
   bool ignoreVary;
-  bool prefixMatch;
   bool cacheNameSet;
   nsString cacheName;
 };
@@ -82,7 +82,7 @@ struct CacheResponse
   HeadersEntry[] headers;
   HeadersGuardEnum headersGuard;
   CacheReadStreamOrVoid body;
-  nsCString securityInfo;
+  IPCChannelInfo channelInfo;
 };
 
 union CacheResponseOrVoid
@@ -107,11 +107,6 @@ struct CacheMatchAllArgs
 {
   CacheRequestOrVoid requestOrVoid;
   CacheQueryParams params;
-};
-
-struct CacheAddAllArgs
-{
-  CacheRequest[] requestList;
 };
 
 struct CachePutAllArgs
@@ -160,7 +155,6 @@ union CacheOpArgs
 {
   CacheMatchArgs;
   CacheMatchAllArgs;
-  CacheAddAllArgs;
   CachePutAllArgs;
   CacheDeleteArgs;
   CacheKeysArgs;
@@ -179,10 +173,6 @@ struct CacheMatchResult
 struct CacheMatchAllResult
 {
   CacheResponse[] responseList;
-};
-
-struct CacheAddAllResult
-{
 };
 
 struct CachePutAllResult
@@ -229,7 +219,6 @@ union CacheOpResult
   void_t;
   CacheMatchResult;
   CacheMatchAllResult;
-  CacheAddAllResult;
   CachePutAllResult;
   CacheDeleteResult;
   CacheKeysResult;

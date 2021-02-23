@@ -6,6 +6,7 @@
 
 #include "ActorsChild.h" // IndexedDB
 #include "BroadcastChannelChild.h"
+#include "ServiceWorkerManagerChild.h"
 #include "FileDescriptorSetChild.h"
 #include "mozilla/media/MediaChild.h"
 #include "mozilla/Assertions.h"
@@ -15,6 +16,8 @@
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/ipc/PBackgroundTestChild.h"
 #include "mozilla/layout/VsyncChild.h"
+#include "mozilla/net/PUDPSocketChild.h"
+#include "mozilla/dom/network/UDPSocketChild.h"
 #include "nsID.h"
 #include "nsTraceRefcnt.h"
 
@@ -47,6 +50,9 @@ public:
 
 namespace mozilla {
 namespace ipc {
+
+using mozilla::dom::UDPSocketChild;
+using mozilla::net::PUDPSocketChild;
 
 using mozilla::dom::cache::PCacheChild;
 using mozilla::dom::cache::PCacheStorageChild;
@@ -213,6 +219,23 @@ BackgroundChildImpl::DeallocPVsyncChild(PVsyncChild* aActor)
   return true;
 }
 
+PUDPSocketChild*
+BackgroundChildImpl::AllocPUDPSocketChild(const OptionalPrincipalInfo& aPrincipalInfo,
+                                          const nsCString& aFilter)
+{
+  MOZ_CRASH("AllocPUDPSocket should not be called");
+  return nullptr;
+}
+
+bool
+BackgroundChildImpl::DeallocPUDPSocketChild(PUDPSocketChild* child)
+{
+
+  UDPSocketChild* p = static_cast<UDPSocketChild*>(child);
+  p->ReleaseIPDLReference();
+  return true;
+}
+
 // -----------------------------------------------------------------------------
 // BroadcastChannel API
 // -----------------------------------------------------------------------------
@@ -234,6 +257,28 @@ BackgroundChildImpl::DeallocPBroadcastChannelChild(
 {
   nsRefPtr<dom::BroadcastChannelChild> child =
     dont_AddRef(static_cast<dom::BroadcastChannelChild*>(aActor));
+  MOZ_ASSERT(child);
+  return true;
+}
+
+// -----------------------------------------------------------------------------
+// ServiceWorkerManager
+// -----------------------------------------------------------------------------
+
+dom::PServiceWorkerManagerChild*
+BackgroundChildImpl::AllocPServiceWorkerManagerChild()
+{
+  nsRefPtr<dom::workers::ServiceWorkerManagerChild> agent =
+    new dom::workers::ServiceWorkerManagerChild();
+  return agent.forget().take();
+}
+
+bool
+BackgroundChildImpl::DeallocPServiceWorkerManagerChild(
+                                             PServiceWorkerManagerChild* aActor)
+{
+  nsRefPtr<dom::workers::ServiceWorkerManagerChild> child =
+    dont_AddRef(static_cast<dom::workers::ServiceWorkerManagerChild*>(aActor));
   MOZ_ASSERT(child);
   return true;
 }

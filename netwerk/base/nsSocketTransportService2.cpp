@@ -29,6 +29,7 @@ using namespace mozilla;
 using namespace mozilla::net;
 
 PRLogModuleInfo *gSocketTransportLog = nullptr;
+PRLogModuleInfo *gUDPSocketLog = nullptr;
 
 nsSocketTransportService *gSocketTransportService = nullptr;
 PRThread                 *gSocketThread           = nullptr;
@@ -71,6 +72,7 @@ nsSocketTransportService::nsSocketTransportService()
     , mProbedMaxCount(false)
 {
     gSocketTransportLog = PR_NewLogModule("nsSocketTransport");
+    gUDPSocketLog = PR_NewLogModule("UDPSocket");
 
     NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
@@ -424,6 +426,7 @@ nsSocketTransportService::Poll(bool wait, uint32_t *interval)
 
 NS_IMPL_ISUPPORTS(nsSocketTransportService,
                   nsISocketTransportService,
+                  nsIRoutedSocketTransportService,
                   nsIEventTarget,
                   nsIThreadObserver,
                   nsIRunnable,
@@ -613,6 +616,20 @@ nsSocketTransportService::CreateTransport(const char **types,
                                           nsIProxyInfo *proxyInfo,
                                           nsISocketTransport **result)
 {
+    return CreateRoutedTransport(types, typeCount, host, port, NS_LITERAL_CSTRING(""), 0,
+                                 proxyInfo, result);
+}
+
+NS_IMETHODIMP
+nsSocketTransportService::CreateRoutedTransport(const char **types,
+                                                uint32_t typeCount,
+                                                const nsACString &host,
+                                                int32_t port,
+                                                const nsACString &hostRoute,
+                                                int32_t portRoute,
+                                                nsIProxyInfo *proxyInfo,
+                                                nsISocketTransport **result)
+{
 #if defined(MOZILLA_XPCOMRT_API)
     NS_WARNING("nsSocketTransportService::CreateTransport not implemented");
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -621,7 +638,7 @@ nsSocketTransportService::CreateTransport(const char **types,
     NS_ENSURE_TRUE(port >= 0 && port <= 0xFFFF, NS_ERROR_ILLEGAL_VALUE);
 
     nsRefPtr<nsSocketTransport> trans = new nsSocketTransport();
-    nsresult rv = trans->Init(types, typeCount, host, port, proxyInfo);
+    nsresult rv = trans->Init(types, typeCount, host, port, hostRoute, portRoute, proxyInfo);
     if (NS_FAILED(rv)) {
         return rv;
     }

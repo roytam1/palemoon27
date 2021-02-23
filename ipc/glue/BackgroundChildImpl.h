@@ -83,6 +83,12 @@ protected:
   virtual bool
   DeallocPVsyncChild(PVsyncChild* aActor) override;
 
+  virtual PUDPSocketChild*
+  AllocPUDPSocketChild(const OptionalPrincipalInfo& aPrincipalInfo,
+                       const nsCString& aFilter) override;
+  virtual bool
+  DeallocPUDPSocketChild(PUDPSocketChild* aActor) override;
+
   virtual PBroadcastChannelChild*
   AllocPBroadcastChannelChild(const PrincipalInfo& aPrincipalInfo,
                               const nsString& aOrigin,
@@ -91,6 +97,12 @@ protected:
 
   virtual bool
   DeallocPBroadcastChannelChild(PBroadcastChannelChild* aActor) override;
+
+  virtual PServiceWorkerManagerChild*
+  AllocPServiceWorkerManagerChild() override;
+
+  virtual bool
+  DeallocPServiceWorkerManagerChild(PServiceWorkerManagerChild* aActor) override;
 
   virtual dom::cache::PCacheStorageChild*
   AllocPCacheStorageChild(const dom::cache::Namespace& aNamespace,

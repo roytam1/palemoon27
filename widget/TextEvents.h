@@ -10,6 +10,7 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/BasicEvents.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/EventForwards.h" // for KeyNameIndex, temporarily
 #include "mozilla/TextRange.h"
 #include "mozilla/FontRange.h"
@@ -36,8 +37,6 @@ enum
 };
 
 #undef NS_DEFINE_VK
-
-#define kLatestSeqno UINT32_MAX
 
 namespace mozilla {
 
@@ -352,12 +351,8 @@ private:
   friend class mozilla::dom::PBrowserChild;
 
   WidgetCompositionEvent()
-    : mSeqno(kLatestSeqno)
   {
   }
-
-public:
-  uint32_t mSeqno;
 
 public:
   virtual WidgetCompositionEvent* AsCompositionEvent() override
@@ -368,7 +363,6 @@ public:
   WidgetCompositionEvent(bool aIsTrusted, uint32_t aMessage,
                          nsIWidget* aWidget)
     : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, eCompositionEventClass)
-    , mSeqno(kLatestSeqno)
   {
     // XXX compositionstart is cancelable in draft of DOM3 Events.
     //     However, it doesn't make sense for us, we cannot cancel composition
@@ -548,6 +542,13 @@ public:
   bool mWithFontRanges;
   struct
   {
+    uint32_t EndOffset() const
+    {
+      CheckedInt<uint32_t> endOffset =
+        CheckedInt<uint32_t>(mOffset) + mLength;
+      return NS_WARN_IF(!endOffset.isValid()) ? UINT32_MAX : endOffset.value();
+    }
+
     uint32_t mOffset;
     uint32_t mLength;
   } mInput;
@@ -599,17 +600,13 @@ private:
   friend class mozilla::dom::PBrowserChild;
 
   WidgetSelectionEvent()
-    : mSeqno(kLatestSeqno)
-    , mOffset(0)
+    : mOffset(0)
     , mLength(0)
     , mReversed(false)
     , mExpandToClusterBoundary(true)
     , mSucceeded(false)
   {
   }
-
-public:
-  uint32_t mSeqno;
 
 public:
   virtual WidgetSelectionEvent* AsSelectionEvent() override
@@ -619,7 +616,6 @@ public:
 
   WidgetSelectionEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget)
     : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, eSelectionEventClass)
-    , mSeqno(kLatestSeqno)
     , mOffset(0)
     , mLength(0)
     , mReversed(false)

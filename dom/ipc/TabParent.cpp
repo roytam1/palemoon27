@@ -438,7 +438,7 @@ TabParent::Destroy()
   }
   mIsDestroyed = true;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_IsParentProcess()) {
     Manager()->AsContentParent()->NotifyTabDestroying(this);
   }
 
@@ -456,7 +456,7 @@ TabParent::Destroy()
 bool
 TabParent::Recv__delete__()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_IsParentProcess()) {
     Manager()->AsContentParent()->NotifyTabDestroyed(this, mMarkedDestroying);
     ContentParent::DeallocateTabId(mTabId,
                                    Manager()->AsContentParent()->ChildID());
@@ -1089,6 +1089,14 @@ TabParent::NotifyMouseScrollTestEvent(const ViewID& aScrollId, const nsString& a
 {
   if (!mIsDestroyed) {
     unused << SendMouseScrollTestEvent(aScrollId, aEvent);
+  }
+}
+
+void
+TabParent::NotifyFlushComplete()
+{
+  if (!mIsDestroyed) {
+    unused << SendNotifyFlushComplete();
   }
 }
 

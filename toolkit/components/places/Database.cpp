@@ -348,7 +348,7 @@ Database::Database()
   , mShuttingDown(false)
   , mClosed(false)
 {
-  MOZ_ASSERT(XRE_GetProcessType() != GeckoProcessType_Content,
+  MOZ_ASSERT(!XRE_IsContentProcess(),
              "Cannot instantiate Places in the content process");
   // Attempting to create two instances of the service?
   MOZ_ASSERT(!gDatabase);

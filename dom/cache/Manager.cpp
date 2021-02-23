@@ -30,15 +30,12 @@
 #include "nsThreadUtils.h"
 #include "nsTObserverArray.h"
 
-namespace {
 
-using mozilla::unused;
-using mozilla::dom::cache::Action;
-using mozilla::dom::cache::BodyCreateDir;
-using mozilla::dom::cache::BodyDeleteFiles;
-using mozilla::dom::cache::QuotaInfo;
-using mozilla::dom::cache::SyncDBAction;
-using mozilla::dom::cache::db::CreateSchema;
+namespace mozilla {
+namespace dom {
+namespace cache {
+
+namespace {
 
 // An Action that is executed when a Context is first created.  It ensures that
 // the directory and database are setup properly.  This lets other actions
@@ -54,23 +51,56 @@ public:
   RunSyncWithDBOnTarget(const QuotaInfo& aQuotaInfo, nsIFile* aDBDir,
                         mozIStorageConnection* aConn) override
   {
-    // TODO: init maintainance marker (bug 1110446)
-    // TODO: perform maintainance if necessary (bug 1110446)
-    // TODO: find orphaned caches in database (bug 1110446)
-    // TODO: have Context create/delete marker files in constructor/destructor
-    //       and only do expensive maintenance if that marker is present (bug 1110446)
-
     nsresult rv = BodyCreateDir(aDBDir);
     if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
-    mozStorageTransaction trans(aConn, false,
-                                mozIStorageConnection::TRANSACTION_IMMEDIATE);
+    {
+      mozStorageTransaction trans(aConn, false,
+                                  mozIStorageConnection::TRANSACTION_IMMEDIATE);
 
-    rv = CreateSchema(aConn);
-    if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+      rv = db::CreateSchema(aConn);
+      if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
-    rv = trans.Commit();
-    if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+      rv = trans.Commit();
+      if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+    }
+
+    // If the Context marker file exists, then the last session was
+    // not cleanly shutdown.  In these cases sqlite will ensure that
+    // the database is valid, but we might still orphan data.  Both
+    // Cache objects and body files can be referenced by DOM objects
+    // after they are "removed" from their parent.  So we need to
+    // look and see if any of these late access objects have been
+    // orphaned.
+    //
+    // Note, this must be done after any schema version updates to
+    // ensure our DBSchema methods work correctly.
+    if (MarkerFileExists(aQuotaInfo)) {
+      NS_WARNING("Cache not shutdown cleanly! Cleaning up stale data...");
+      mozStorageTransaction trans(aConn, false,
+                                  mozIStorageConnection::TRANSACTION_IMMEDIATE);
+
+      // Clean up orphaned Cache objects
+      nsAutoTArray<CacheId, 8> orphanedCacheIdList;
+      nsresult rv = db::FindOrphanedCacheIds(aConn, orphanedCacheIdList);
+      if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+      for (uint32_t i = 0; i < orphanedCacheIdList.Length(); ++i) {
+        nsAutoTArray<nsID, 16> deletedBodyIdList;
+        rv = db::DeleteCacheId(aConn, orphanedCacheIdList[i], deletedBodyIdList);
+        if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+        rv = BodyDeleteFiles(aDBDir, deletedBodyIdList);
+        if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+      }
+
+      // Clean up orphaned body objects
+      nsAutoTArray<nsID, 64> knownBodyIdList;
+      rv = db::GetKnownBodyIds(aConn, knownBodyIdList);
+
+      rv = BodyDeleteOrphanedFiles(aDBDir, knownBodyIdList);
+      if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+    }
 
     return rv;
   }
@@ -126,14 +156,6 @@ public:
 private:
   nsTArray<nsID> mDeletedBodyIdList;
 };
-
-} // namespace
-
-namespace mozilla {
-namespace dom {
-namespace cache {
-
-namespace {
 
 bool IsHeadRequest(CacheRequest aRequest, CacheQueryParams aParams)
 {
@@ -227,6 +249,26 @@ public:
 
     // clean up the factory singleton if there are no more managers
     MaybeDestroyInstance();
+  }
+
+  static void
+  StartAbortOnMainThread(const nsACString& aOrigin)
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    // Lock for sBackgroundThread.
+    StaticMutexAutoLock lock(sMutex);
+
+    if (!sBackgroundThread) {
+      return;
+    }
+
+    // Guaranteed to succeed because we should get abort only before the
+    // background thread is destroyed.
+    nsCOMPtr<nsIRunnable> runnable = new AbortRunnable(aOrigin);
+    nsresult rv = sBackgroundThread->Dispatch(runnable,
+                                              nsIThread::DISPATCH_NORMAL);
+    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(rv));
   }
 
   static void
@@ -339,6 +381,36 @@ private:
   }
 
   static void
+  AbortOnBackgroundThread(const nsACString& aOrigin)
+  {
+    mozilla::ipc::AssertIsOnBackgroundThread();
+
+    // The factory was destroyed between when abort started on main thread and
+    // when we could start abort on the worker thread.  Just declare abort
+    // complete.
+    if (!sFactory) {
+#ifdef DEBUG
+      StaticMutexAutoLock lock(sMutex);
+      MOZ_ASSERT(!sBackgroundThread);
+#endif
+      return;
+    }
+
+    MOZ_ASSERT(!sFactory->mManagerList.IsEmpty());
+
+    {
+      ManagerList::ForwardIterator iter(sFactory->mManagerList);
+      while (iter.HasMore()) {
+        nsRefPtr<Manager> manager = iter.GetNext();
+        if (aOrigin.IsVoid() ||
+            manager->mManagerId->ExtendedOrigin() == aOrigin) {
+          manager->Abort();
+        }
+      }
+    }
+  }
+
+  static void
   ShutdownAllOnBackgroundThread()
   {
     mozilla::ipc::AssertIsOnBackgroundThread();
@@ -373,6 +445,26 @@ private:
 
     MaybeDestroyInstance();
   }
+
+  class AbortRunnable final : public nsRunnable
+  {
+  public:
+    explicit AbortRunnable(const nsACString& aOrigin)
+      : mOrigin(aOrigin)
+    { }
+
+    NS_IMETHOD
+    Run() override
+    {
+      mozilla::ipc::AssertIsOnBackgroundThread();
+      AbortOnBackgroundThread(mOrigin);
+      return NS_OK;
+    }
+  private:
+    ~AbortRunnable() { }
+
+    const nsCString mOrigin;
+  };
 
   class ShutdownAllRunnable final : public nsRunnable
   {
@@ -1463,6 +1555,15 @@ Manager::ShutdownAllOnMainThread()
   }
 }
 
+// static
+void
+Manager::AbortOnMainThread(const nsACString& aOrigin)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  Factory::StartAbortOnMainThread(aOrigin);
+}
+
 void
 Manager::RemoveListener(Listener* aListener)
 {
@@ -1836,6 +1937,22 @@ Manager::Shutdown()
     context->CancelAll();
     return;
   }
+}
+
+void
+Manager::Abort()
+{
+  NS_ASSERT_OWNINGTHREAD(Manager);
+  MOZ_ASSERT(mContext);
+
+  // Note that we are closing to prevent any new requests from coming in and
+  // creating a new Context.  We must ensure all Contexts and IO operations are
+  // complete before origin clear proceeds.
+  NoteClosing();
+
+  // Cancel and only note that we are done after the context is cleaned up.
+  nsRefPtr<Context> context = mContext;
+  context->CancelAll();
 }
 
 Manager::ListenerId

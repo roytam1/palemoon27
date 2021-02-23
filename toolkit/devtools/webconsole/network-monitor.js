@@ -773,7 +773,7 @@ NetworkMonitor.prototype = {
 
     // Determine if this is an XHR request.
     httpActivity.isXHR = event.isXHR =
-        (aChannel.loadInfo.contentPolicyType === Ci.nsIContentPolicy.TYPE_XMLHTTPREQUEST);
+        (aChannel.loadInfo && aChannel.loadInfo.contentPolicyType === Ci.nsIContentPolicy.TYPE_XMLHTTPREQUEST);
 
     // Determine the HTTP version.
     let httpVersionMaj = {};

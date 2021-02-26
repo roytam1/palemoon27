@@ -60,8 +60,10 @@ NS_IMPL_ISUPPORTS(imgRequest,
                   nsIInterfaceRequestor,
                   nsIAsyncVerifyRedirectCallback)
 
-imgRequest::imgRequest(imgLoader* aLoader)
+imgRequest::imgRequest(imgLoader* aLoader, const ImageCacheKey& aCacheKey)
  : mLoader(aLoader)
+ , mCacheKey(aCacheKey)
+ , mLoadId(nullptr)
  , mValidator(nullptr)
  , mInnerWindowId(0)
  , mCORSMode(imgIRequest::CORS_NONE)
@@ -174,7 +176,7 @@ imgRequest::ClearLoader() {
 }
 
 already_AddRefed<ProgressTracker>
-imgRequest::GetProgressTracker()
+imgRequest::GetProgressTracker() const
 {
   MutexAutoLock lock(mMutex);
 
@@ -498,7 +500,8 @@ imgRequest::RemoveFromCache()
   mCacheEntry = nullptr;
 }
 
-bool imgRequest::HasConsumers()
+bool
+imgRequest::HasConsumers() const
 {
   nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
   return progressTracker && progressTracker->ObserverCount() > 0;

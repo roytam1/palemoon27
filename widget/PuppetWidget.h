@@ -22,6 +22,7 @@
 #include "nsIScreenManager.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/ContentCache.h"
 #include "mozilla/EventForwards.h"
 
 namespace mozilla {
@@ -259,18 +260,17 @@ private:
   void SetChild(PuppetWidget* aChild);
 
   nsresult IMEEndComposition(bool aCancel);
-  nsresult NotifyIMEOfFocusChange(bool aFocus);
+  nsresult NotifyIMEOfFocusChange(const IMENotification& aIMENotification);
   nsresult NotifyIMEOfSelectionChange(const IMENotification& aIMENotification);
-  nsresult NotifyIMEOfUpdateComposition();
+  nsresult NotifyIMEOfUpdateComposition(const IMENotification& aIMENotification);
   nsresult NotifyIMEOfTextChange(const IMENotification& aIMENotification);
   nsresult NotifyIMEOfMouseButtonEvent(const IMENotification& aIMENotification);
-  nsresult NotifyIMEOfEditorRect();
-  nsresult NotifyIMEOfPositionChange();
+  nsresult NotifyIMEOfPositionChange(const IMENotification& aIMENotification);
 
-  bool GetEditorRect(mozilla::LayoutDeviceIntRect& aEditorRect);
-  bool GetCompositionRects(uint32_t& aStartOffset,
-                           nsTArray<mozilla::LayoutDeviceIntRect>& aRectArray,
-                           uint32_t& aTargetCauseOffset);
+  bool CacheEditorRect();
+  bool CacheCompositionRects(uint32_t& aStartOffset,
+                             nsTArray<mozilla::LayoutDeviceIntRect>& aRectArray,
+                             uint32_t& aTargetCauseOffset);
   bool GetCaretRect(mozilla::LayoutDeviceIntRect& aCaretRect, uint32_t aCaretOffset);
   uint32_t GetCaretOffset();
 
@@ -313,13 +313,7 @@ private:
   mozilla::RefPtr<DrawTarget> mDrawTarget;
   // IME
   nsIMEUpdatePreference mIMEPreferenceOfParent;
-  // Latest seqno received through events
-  uint32_t mIMELastReceivedSeqno;
-  // Chrome's seqno value when last blur occurred
-  // arriving events with seqno up to this should be discarded
-  // Note that if seqno overflows (~50 days at 1 ms increment rate),
-  // events will be discarded until new focus/blur occurs
-  uint32_t mIMELastBlurSeqno;
+  ContentCache mContentCache;
   bool mNeedIMEStateInit;
 
   // The DPI of the screen corresponding to this widget

@@ -24,6 +24,7 @@
 #include "nsIObjectLoadingContent.h"
 #include "nsFrame.h"
 #include "mozilla/layers/ShadowLayers.h"
+#include "mozilla/layers/APZCCallbackHelper.h"
 #include "ClientLayerManager.h"
 #include "nsQueryObject.h"
 #ifdef MOZ_FMP4
@@ -2488,6 +2489,34 @@ nsDOMWindowUtils::SetAsyncZoom(nsIDOMNode* aRootElement, float aValue)
 }
 
 NS_IMETHODIMP
+nsDOMWindowUtils::FlushApzRepaints(bool* aOutResult)
+{
+  nsIWidget* widget = GetWidget();
+  if (!widget) {
+    *aOutResult = false;
+    return NS_OK;
+  }
+  // If APZ is not enabled, this function is a no-op.
+  if (!widget->AsyncPanZoomEnabled()) {
+    *aOutResult = false;
+    return NS_OK;
+  }
+  LayerManager* manager = widget->GetLayerManager();
+  if (!manager) {
+    *aOutResult = false;
+    return NS_OK;
+  }
+  ShadowLayerForwarder* forwarder = manager->AsShadowForwarder();
+  if (!forwarder || !forwarder->HasShadowManager()) {
+    *aOutResult = false;
+    return NS_OK;
+  }
+  forwarder->GetShadowManager()->SendFlushApzRepaints();
+  *aOutResult = true;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDOMWindowUtils::ComputeAnimationDistance(nsIDOMElement* aElement,
                                            const nsAString& aProperty,
                                            const nsAString& aValue1,
@@ -2944,6 +2973,24 @@ nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName, int64_t aId,
   else {
     *aRefCnt = *aDBRefCnt = *aSliceRefCnt = -1;
     *aResult = false;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::FlushPendingFileDeletions()
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+  using mozilla::dom::indexedDB::IndexedDatabaseManager;
+
+  nsRefPtr<IndexedDatabaseManager> mgr = IndexedDatabaseManager::Get();
+  if (mgr) {
+    nsresult rv = mgr->FlushPendingFileDeletions();
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
   }
 
   return NS_OK;

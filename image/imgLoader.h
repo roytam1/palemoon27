@@ -17,6 +17,7 @@
 #include "nsRefPtrHashtable.h"
 #include "nsExpirationTracker.h"
 #include "nsAutoPtr.h"
+#include "ImageCacheKey.h"
 #include "imgRequest.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannel.h"
@@ -224,8 +225,10 @@ class imgLoader final : public imgILoader,
   virtual ~imgLoader();
 
 public:
+  typedef mozilla::image::ImageCacheKey ImageCacheKey;
   typedef mozilla::image::ImageURL ImageURL;
-  typedef nsRefPtrHashtable<nsCStringHashKey, imgCacheEntry> imgCacheTable;
+  typedef nsRefPtrHashtable<nsGenericHashKey<ImageCacheKey>,
+                            imgCacheEntry> imgCacheTable;
   typedef nsTHashtable<nsPtrHashKey<imgRequest>> imgSet;
   typedef mozilla::net::ReferrerPolicy ReferrerPolicy;
   typedef mozilla::Mutex Mutex;
@@ -310,11 +313,7 @@ public:
 
   nsresult InitCache();
 
-  bool RemoveFromCache(nsIURI* aKey);
-  bool RemoveFromCache(ImageURL* aKey);
-  bool RemoveFromCache(nsCString& spec,
-                       imgCacheTable& cache,
-                       imgCacheQueue& queue);
+  bool RemoveFromCache(const ImageCacheKey& aKey);
 
   // Enumeration describing if a given entry is in the cache queue or not.
   // There are some cases we know the entry is definitely not in the queue.
@@ -326,7 +325,7 @@ public:
   bool RemoveFromCache(imgCacheEntry* entry,
                        QueueState aQueueState = QueueState::MaybeExists);
 
-  bool PutIntoCache(nsIURI* key, imgCacheEntry* entry);
+  bool PutIntoCache(const ImageCacheKey& aKey, imgCacheEntry* aEntry);
 
   void AddToUncachedImages(imgRequest* aRequest);
   void RemoveFromUncachedImages(imgRequest* aRequest);
@@ -410,11 +409,11 @@ private: // methods
   nsresult EvictEntries(imgCacheTable& aCacheToClear);
   nsresult EvictEntries(imgCacheQueue& aQueueToClear);
 
-  imgCacheTable& GetCache(nsIURI* aURI);
-  imgCacheQueue& GetCacheQueue(nsIURI* aURI);
-  imgCacheTable& GetCache(ImageURL* aURI);
-  imgCacheQueue& GetCacheQueue(ImageURL* aURI);
-  void CacheEntriesChanged(ImageURL* aURI, int32_t sizediff = 0);
+  imgCacheTable& GetCache(bool aForChrome);
+  imgCacheTable& GetCache(const ImageCacheKey& aKey);
+  imgCacheQueue& GetCacheQueue(bool aForChrome);
+  imgCacheQueue& GetCacheQueue(const ImageCacheKey& aKey);
+  void CacheEntriesChanged(bool aForChrome, int32_t aSizeDiff = 0);
   void CheckCacheLimits(imgCacheTable& cache, imgCacheQueue& queue);
 
 #ifdef MOZ_JXR
@@ -474,7 +473,7 @@ public:
   explicit ProxyListener(nsIStreamListener* dest);
 
   /* additional members */
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSITHREADRETARGETABLESTREAMLISTENER
   NS_DECL_NSIREQUESTOBSERVER

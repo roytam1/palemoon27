@@ -16,6 +16,7 @@
 #include "nsIHttpChannel.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsIHttpHeaderVisitor.h"
+#include "nsIJARChannel.h"
 #include "nsINetworkInterceptController.h"
 #include "nsIMutableArray.h"
 #include "nsIUploadChannel2.h"
@@ -388,13 +389,21 @@ ServiceWorkerManager::~ServiceWorkerManager()
 {
   // The map will assert if it is not empty when destroyed.
   mRegistrationInfos.Clear();
+
   MOZ_ASSERT(!mActor);
 }
 
 void
 ServiceWorkerManager::Init()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    DebugOnly<nsresult> rv;
+    rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false /* ownsWeak */);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+  }
+
+  if (XRE_IsParentProcess()) {
     nsRefPtr<ServiceWorkerRegistrar> swr = ServiceWorkerRegistrar::Get();
     MOZ_ASSERT(swr);
 
@@ -402,11 +411,8 @@ ServiceWorkerManager::Init()
     swr->GetRegistrations(data);
     LoadRegistrations(data);
 
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       DebugOnly<nsresult> rv;
-      rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false /* ownsWeak */);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
       rv = obs->AddObserver(this, PURGE_SESSION_HISTORY, false /* ownsWeak */);
       MOZ_ASSERT(NS_SUCCEEDED(rv));
       rv = obs->AddObserver(this, PURGE_DOMAIN_DATA, false /* ownsWeak */);
@@ -2319,7 +2325,7 @@ private:
 
     nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
 
-    // We could be shutting down.
+    // Could it be that we are shutting down.
     if (swm->mActor) {
       swm->mActor->SendUnregister(principalInfo, NS_ConvertUTF8toUTF16(mScope));
     }
@@ -3205,47 +3211,8 @@ public:
     rv = uri->GetSpec(mSpec);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(channel);
-    NS_ENSURE_TRUE(httpChannel, NS_ERROR_NOT_AVAILABLE);
-
-    rv = httpChannel->GetRequestMethod(mMethod);
-    NS_ENSURE_SUCCESS(rv, rv);
-
     uint32_t loadFlags;
     rv = channel->GetLoadFlags(&loadFlags);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIHttpChannelInternal> internalChannel = do_QueryInterface(httpChannel);
-    NS_ENSURE_TRUE(internalChannel, NS_ERROR_NOT_AVAILABLE);
-
-    uint32_t mode;
-    internalChannel->GetCorsMode(&mode);
-    switch (mode) {
-      case nsIHttpChannelInternal::CORS_MODE_SAME_ORIGIN:
-        mRequestMode = RequestMode::Same_origin;
-        break;
-      case nsIHttpChannelInternal::CORS_MODE_NO_CORS:
-        mRequestMode = RequestMode::No_cors;
-        break;
-      case nsIHttpChannelInternal::CORS_MODE_CORS:
-      case nsIHttpChannelInternal::CORS_MODE_CORS_WITH_FORCED_PREFLIGHT:
-        mRequestMode = RequestMode::Cors;
-        break;
-      default:
-        MOZ_CRASH("Unexpected CORS mode");
-    }
-
-    if (loadFlags & nsIRequest::LOAD_ANONYMOUS) {
-      mRequestCredentials = RequestCredentials::Omit;
-    } else {
-      bool includeCrossOrigin;
-      internalChannel->GetCorsIncludeCredentials(&includeCrossOrigin);
-      if (includeCrossOrigin) {
-        mRequestCredentials = RequestCredentials::Include;
-      }
-    }
-
-    rv = httpChannel->VisitRequestHeaders(this);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsILoadInfo> loadInfo;
@@ -3254,11 +3221,60 @@ public:
 
     mContentPolicyType = loadInfo->InternalContentPolicyType();
 
-    nsCOMPtr<nsIUploadChannel2> uploadChannel = do_QueryInterface(httpChannel);
-    if (uploadChannel) {
-      MOZ_ASSERT(!mUploadStream);
-      rv = uploadChannel->CloneUploadStream(getter_AddRefs(mUploadStream));
+    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(channel);
+    if (httpChannel) {
+      rv = httpChannel->GetRequestMethod(mMethod);
       NS_ENSURE_SUCCESS(rv, rv);
+
+      nsCOMPtr<nsIHttpChannelInternal> internalChannel = do_QueryInterface(httpChannel);
+      NS_ENSURE_TRUE(internalChannel, NS_ERROR_NOT_AVAILABLE);
+
+      uint32_t mode;
+      internalChannel->GetCorsMode(&mode);
+      switch (mode) {
+        case nsIHttpChannelInternal::CORS_MODE_SAME_ORIGIN:
+          mRequestMode = RequestMode::Same_origin;
+          break;
+        case nsIHttpChannelInternal::CORS_MODE_NO_CORS:
+          mRequestMode = RequestMode::No_cors;
+          break;
+        case nsIHttpChannelInternal::CORS_MODE_CORS:
+        case nsIHttpChannelInternal::CORS_MODE_CORS_WITH_FORCED_PREFLIGHT:
+          mRequestMode = RequestMode::Cors;
+          break;
+        default:
+          MOZ_CRASH("Unexpected CORS mode");
+      }
+
+      if (loadFlags & nsIRequest::LOAD_ANONYMOUS) {
+        mRequestCredentials = RequestCredentials::Omit;
+      } else {
+        bool includeCrossOrigin;
+        internalChannel->GetCorsIncludeCredentials(&includeCrossOrigin);
+        if (includeCrossOrigin) {
+          mRequestCredentials = RequestCredentials::Include;
+        }
+      }
+
+      rv = httpChannel->VisitRequestHeaders(this);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      nsCOMPtr<nsIUploadChannel2> uploadChannel = do_QueryInterface(httpChannel);
+      if (uploadChannel) {
+        MOZ_ASSERT(!mUploadStream);
+        rv = uploadChannel->CloneUploadStream(getter_AddRefs(mUploadStream));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    } else {
+      nsCOMPtr<nsIJARChannel> jarChannel = do_QueryInterface(channel);
+      // If it is not an HTTP channel it must be a JAR one.
+      NS_ENSURE_TRUE(jarChannel, NS_ERROR_NOT_AVAILABLE);
+
+      mMethod = "GET";
+
+      if (loadFlags & nsIRequest::LOAD_ANONYMOUS) {
+        mRequestCredentials = RequestCredentials::Omit;
+      }
     }
 
     return NS_OK;
@@ -4358,7 +4374,7 @@ void
 ServiceWorkerManager::PropagateRemoveAll()
 {
   AssertIsOnMainThread();
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_IsParentProcess());
 
   if (!mActor) {
     nsRefPtr<nsIRunnable> runnable = new PropagateRemoveAllRunnable();
@@ -4414,21 +4430,22 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
                               const char* aTopic,
                               const char16_t* aData)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
-
   if (strcmp(aTopic, PURGE_SESSION_HISTORY) == 0) {
+    MOZ_ASSERT(XRE_IsParentProcess());
     RemoveAll();
     PropagateRemoveAll();
     return NS_OK;
   }
 
   if (strcmp(aTopic, PURGE_DOMAIN_DATA) == 0) {
+    MOZ_ASSERT(XRE_IsParentProcess());
     nsAutoString domain(aData);
     RemoveAndPropagate(NS_ConvertUTF16toUTF8(domain));
     return NS_OK;
   }
 
   if (strcmp(aTopic, WEBAPPS_CLEAR_DATA) == 0) {
+    MOZ_ASSERT(XRE_IsParentProcess());
     nsCOMPtr<mozIApplicationClearPrivateDataParams> params =
       do_QueryInterface(aSubject);
     if (NS_WARN_IF(!params)) {
@@ -4458,15 +4475,21 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
     }
 
     RemoveAllRegistrations(principal);
-  } else if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
+    return NS_OK;
+  }
+
+  if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
     mShuttingDown = true;
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
-      obs->RemoveObserver(this, PURGE_SESSION_HISTORY);
-      obs->RemoveObserver(this, PURGE_DOMAIN_DATA);
-      obs->RemoveObserver(this, WEBAPPS_CLEAR_DATA);
+
+      if (XRE_IsParentProcess()) {
+        obs->RemoveObserver(this, PURGE_SESSION_HISTORY);
+        obs->RemoveObserver(this, PURGE_DOMAIN_DATA);
+        obs->RemoveObserver(this, WEBAPPS_CLEAR_DATA);
+      }
     }
 
     if (mActor) {
@@ -4477,10 +4500,10 @@ ServiceWorkerManager::Observe(nsISupports* aSubject,
       unused << NS_WARN_IF(NS_FAILED(rv));
       mActor = nullptr;
     }
-  } else {
-    MOZ_CRASH("Received message we aren't supposed to be registered for!");
+    return NS_OK;
   }
 
+  MOZ_CRASH("Received message we aren't supposed to be registered for!");
   return NS_OK;
 }
 

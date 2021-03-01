@@ -22,6 +22,7 @@
 #include "mozilla/EventStateManager.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/Hal.h"
+#include "mozilla/IMEStateManager.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "mozilla/layers/CompositorParent.h"
@@ -1925,7 +1926,7 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
   IMENotification notification(aFocus ? NOTIFY_IME_OF_FOCUS :
                                         NOTIFY_IME_OF_BLUR);
   mContentCache.AssignContent(aContentCache, &notification);
-  widget->NotifyIME(notification);
+  IMEStateManager::NotifyIME(notification, widget, true);
 
   if (aFocus) {
     *aPreference = widget->GetIMEUpdatePreference();
@@ -1936,8 +1937,8 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
 bool
 TabParent::RecvNotifyIMETextChange(const ContentCache& aContentCache,
                                    const uint32_t& aStart,
-                                   const uint32_t& aEnd,
-                                   const uint32_t& aNewEnd,
+                                   const uint32_t& aRemovedEnd,
+                                   const uint32_t& aAddedEnd,
                                    const bool& aCausedByComposition)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
@@ -1955,12 +1956,12 @@ TabParent::RecvNotifyIMETextChange(const ContentCache& aContentCache,
 
   IMENotification notification(NOTIFY_IME_OF_TEXT_CHANGE);
   notification.mTextChangeData.mStartOffset = aStart;
-  notification.mTextChangeData.mOldEndOffset = aEnd;
-  notification.mTextChangeData.mNewEndOffset = aNewEnd;
+  notification.mTextChangeData.mRemovedEndOffset = aRemovedEnd;
+  notification.mTextChangeData.mAddedEndOffset = aAddedEnd;
   notification.mTextChangeData.mCausedByComposition = aCausedByComposition;
 
   mContentCache.AssignContent(aContentCache, &notification);
-  widget->NotifyIME(notification);
+  mContentCache.MaybeNotifyIME(widget, notification);
   return true;
 }
 
@@ -1975,8 +1976,7 @@ TabParent::RecvNotifyIMESelectedCompositionRect(
 
   IMENotification notification(NOTIFY_IME_OF_COMPOSITION_UPDATE);
   mContentCache.AssignContent(aContentCache, &notification);
-
-  widget->NotifyIME(notification);
+  mContentCache.MaybeNotifyIME(widget, notification);
   return true;
 }
 
@@ -1996,10 +1996,9 @@ TabParent::RecvNotifyIMESelection(const ContentCache& aContentCache,
   if (updatePreference.WantSelectionChange() &&
       (updatePreference.WantChangesCausedByComposition() ||
        !aCausedByComposition)) {
-    mContentCache.InitNotification(notification);
     notification.mSelectionChangeData.mCausedByComposition =
       aCausedByComposition;
-    widget->NotifyIME(notification);
+    mContentCache.MaybeNotifyIME(widget, notification);
   }
   return true;
 }
@@ -2027,7 +2026,7 @@ TabParent::RecvNotifyIMEMouseButtonEvent(
     *aConsumedByIME = false;
     return true;
   }
-  nsresult rv = widget->NotifyIME(aIMENotification);
+  nsresult rv = IMEStateManager::NotifyIME(aIMENotification, widget, true);
   *aConsumedByIME = rv == NS_SUCCESS_EVENT_CONSUMED;
   return true;
 }
@@ -2046,8 +2045,25 @@ TabParent::RecvNotifyIMEPositionChange(const ContentCache& aContentCache)
   const nsIMEUpdatePreference updatePreference =
     widget->GetIMEUpdatePreference();
   if (updatePreference.WantPositionChanged()) {
-    widget->NotifyIME(notification);
+    IMEStateManager::NotifyIME(notification, widget, true);
   }
+  return true;
+}
+
+bool
+TabParent::RecvOnEventNeedingAckReceived()
+{
+  // This is called when the child process receives WidgetCompositionEvent or
+  // WidgetSelectionEvent.
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (!widget) {
+    return true;
+  }
+
+  // While calling OnEventNeedingAckReceived(), TabParent *might* be destroyed
+  // since it may send notifications to IME.
+  nsRefPtr<TabParent> kungFuDeathGrip(this);
+  mContentCache.OnEventNeedingAckReceived(widget);
   return true;
 }
 
@@ -2236,6 +2252,7 @@ TabParent::SendSelectionEvent(WidgetSelectionEvent& event)
   if (!widget) {
     return true;
   }
+  mContentCache.OnSelectionEvent(event);
   return PBrowserParent::SendSelectionEvent(event);
 }
 

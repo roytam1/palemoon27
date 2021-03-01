@@ -82,7 +82,7 @@ TimerObserverRunnable::Run()
 nsresult
 TimerThread::Init()
 {
-  PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+  MOZ_LOG(GetTimerLog(), LogLevel::Debug,
          ("TimerThread::Init [%d]\n", mInitialized));
 
   if (mInitialized) {
@@ -129,7 +129,7 @@ TimerThread::Init()
 nsresult
 TimerThread::Shutdown()
 {
-  PR_LOG(GetTimerLog(), PR_LOG_DEBUG, ("TimerThread::Shutdown begin\n"));
+  MOZ_LOG(GetTimerLog(), LogLevel::Debug, ("TimerThread::Shutdown begin\n"));
 
   if (!mThread) {
     return NS_ERROR_NOT_INITIALIZED;
@@ -167,7 +167,7 @@ TimerThread::Shutdown()
 
   mThread->Shutdown();    // wait for the thread to die
 
-  PR_LOG(GetTimerLog(), PR_LOG_DEBUG, ("TimerThread::Shutdown end\n"));
+  MOZ_LOG(GetTimerLog(), LogLevel::Debug, ("TimerThread::Shutdown end\n"));
   return NS_OK;
 }
 
@@ -260,13 +260,9 @@ TimerThread::Run()
           RemoveTimerInternal(timer);
           timer = nullptr;
 
-#ifdef DEBUG_TIMERS
-          if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
-            PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
-                   ("Timer thread woke up %fms from when it was supposed to\n",
-                    fabs((now - timerRef->mTimeout).ToMilliseconds())));
-          }
-#endif
+          MOZ_LOG(GetTimerLog(), LogLevel::Debug,
+                 ("Timer thread woke up %fms from when it was supposed to\n",
+                  fabs((now - timerRef->mTimeout).ToMilliseconds())));
 
           {
             // We release mMonitor around the Fire call to avoid deadlock.
@@ -346,16 +342,14 @@ TimerThread::Run()
         }
       }
 
-#ifdef DEBUG_TIMERS
-      if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
+      if (MOZ_LOG_TEST(GetTimerLog(), LogLevel::Debug)) {
         if (waitFor == PR_INTERVAL_NO_TIMEOUT)
-          PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+          MOZ_LOG(GetTimerLog(), LogLevel::Debug,
                  ("waiting for PR_INTERVAL_NO_TIMEOUT\n"));
         else
-          PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+          MOZ_LOG(GetTimerLog(), LogLevel::Debug,
                  ("waiting for %u\n", PR_IntervalToMilliseconds(waitFor)));
       }
-#endif
     }
 
     mWaiting = true;

@@ -574,8 +574,11 @@ struct SizeConstraints {
 typedef int8_t IMEMessageType;
 enum IMEMessage : IMEMessageType
 {
+  // This is used by IMENotification internally.  This means that the instance
+  // hasn't been initialized yet.
+  NOTIFY_IME_OF_NOTHING,
   // An editable content is getting focus
-  NOTIFY_IME_OF_FOCUS = 1,
+  NOTIFY_IME_OF_FOCUS,
   // An editable content is losing focus
   NOTIFY_IME_OF_BLUR,
   // Selection in the focused editable content is changed
@@ -599,7 +602,7 @@ enum IMEMessage : IMEMessageType
 struct IMENotification
 {
   IMENotification()
-    : mMessage(static_cast<IMEMessage>(-1))
+    : mMessage(NOTIFY_IME_OF_NOTHING)
   {}
 
   MOZ_IMPLICIT IMENotification(IMEMessage aMessage)
@@ -615,8 +618,8 @@ struct IMENotification
         break;
       case NOTIFY_IME_OF_TEXT_CHANGE:
         mTextChangeData.mStartOffset = 0;
-        mTextChangeData.mOldEndOffset = 0;
-        mTextChangeData.mNewEndOffset = 0;
+        mTextChangeData.mRemovedEndOffset = 0;
+        mTextChangeData.mAddedEndOffset = 0;
         mTextChangeData.mCausedByComposition = false;
         break;
       case NOTIFY_IME_OF_MOUSE_BUTTON_EVENT:
@@ -628,6 +631,59 @@ struct IMENotification
         mMouseButtonEventData.mButtons = 0;
         mMouseButtonEventData.mModifiers = 0;
       default:
+        break;
+    }
+  }
+
+  void Clear()
+  {
+    mMessage = NOTIFY_IME_OF_NOTHING;
+  }
+
+  bool HasNotification() const
+  {
+    return mMessage != NOTIFY_IME_OF_NOTHING;
+  }
+
+  void MergeWith(const IMENotification& aNotification)
+  {
+    switch (mMessage) {
+      case NOTIFY_IME_OF_NOTHING:
+        MOZ_ASSERT(aNotification.mMessage != NOTIFY_IME_OF_NOTHING);
+        *this = aNotification;
+        break;
+      case NOTIFY_IME_OF_SELECTION_CHANGE:
+        MOZ_ASSERT(aNotification.mMessage == NOTIFY_IME_OF_SELECTION_CHANGE);
+        mSelectionChangeData.mOffset =
+          aNotification.mSelectionChangeData.mOffset;
+        mSelectionChangeData.mLength =
+          aNotification.mSelectionChangeData.mLength;
+        mSelectionChangeData.mWritingMode =
+          aNotification.mSelectionChangeData.mWritingMode;
+        mSelectionChangeData.mReversed =
+          aNotification.mSelectionChangeData.mReversed;
+        mSelectionChangeData.mCausedByComposition =
+          mSelectionChangeData.mCausedByComposition &&
+            aNotification.mSelectionChangeData.mCausedByComposition;
+        break;
+      case NOTIFY_IME_OF_TEXT_CHANGE:
+        MOZ_ASSERT(aNotification.mMessage == NOTIFY_IME_OF_TEXT_CHANGE);
+        // TODO: Needs to merge the ranges rather than overwriting.
+        mTextChangeData.mStartOffset =
+          aNotification.mTextChangeData.mStartOffset;
+        mTextChangeData.mRemovedEndOffset =
+          aNotification.mTextChangeData.mRemovedEndOffset;
+        mTextChangeData.mAddedEndOffset =
+          aNotification.mTextChangeData.mAddedEndOffset;
+        mTextChangeData.mCausedByComposition =
+          mTextChangeData.mCausedByComposition &&
+            aNotification.mTextChangeData.mCausedByComposition;
+        break;
+      case NOTIFY_IME_OF_COMPOSITION_UPDATE:
+        MOZ_ASSERT(aNotification.mMessage == NOTIFY_IME_OF_COMPOSITION_UPDATE);
+        break;
+      default:
+        MOZ_CRASH("Merging notification isn't supported");
         break;
     }
   }
@@ -664,33 +720,39 @@ struct IMENotification
     }
   };
 
+  struct TextChangeDataBase
+  {
+    // mStartOffset is the start offset of modified or removed text in
+    // original content and inserted text in new content.
+    uint32_t mStartOffset;
+    // mRemovalEndOffset is the end offset of modified or removed text in
+    // original content.  If the value is same as mStartOffset, no text hasn't
+    // been removed yet.
+    uint32_t mRemovedEndOffset;
+    // mAddedEndOffset is the end offset of inserted text or same as
+    // mStartOffset if just removed.  The vlaue is offset in the new content.
+    uint32_t mAddedEndOffset;
+
+    bool mCausedByComposition;
+
+    uint32_t OldLength() const { return mRemovedEndOffset - mStartOffset; }
+    uint32_t NewLength() const { return mAddedEndOffset - mStartOffset; }
+
+    bool IsInInt32Range() const
+    {
+      return mStartOffset <= INT32_MAX &&
+             mRemovedEndOffset <= INT32_MAX &&
+             mAddedEndOffset <= INT32_MAX;
+    }
+  };
+
   union
   {
     // NOTIFY_IME_OF_SELECTION_CHANGE specific data
     SelectionChangeData mSelectionChangeData;
 
     // NOTIFY_IME_OF_TEXT_CHANGE specific data
-    struct
-    {
-      uint32_t mStartOffset;
-      uint32_t mOldEndOffset;
-      uint32_t mNewEndOffset;
-
-      bool mCausedByComposition;
-
-      uint32_t OldLength() const { return mOldEndOffset - mStartOffset; }
-      uint32_t NewLength() const { return mNewEndOffset - mStartOffset; }
-      int32_t AdditionalLength() const
-      {
-        return static_cast<int32_t>(mNewEndOffset - mOldEndOffset);
-      }
-      bool IsInInt32Range() const
-      {
-        return mStartOffset <= INT32_MAX &&
-               mOldEndOffset <= INT32_MAX &&
-               mNewEndOffset <= INT32_MAX;
-      }
-    } mTextChangeData;
+    TextChangeDataBase mTextChangeData;
 
     // NOTIFY_IME_OF_MOUSE_BUTTON_EVENT specific data
     struct

@@ -27,7 +27,7 @@ GetSpeechSynthLog()
 
   return sLog;
 }
-#define LOG(type, msg) PR_LOG(GetSpeechSynthLog(), type, msg)
+#define LOG(type, msg) MOZ_LOG(GetSpeechSynthLog(), type, msg)
 
 namespace mozilla {
 namespace dom {
@@ -145,7 +145,7 @@ SpeechSynthesis::Speak(SpeechSynthesisUtterance& aUtterance)
 void
 SpeechSynthesis::AdvanceQueue()
 {
-  LOG(PR_LOG_DEBUG,
+  LOG(LogLevel::Debug,
       ("SpeechSynthesis::AdvanceQueue length=%d", mSpeechQueue.Length()));
 
   if (mSpeechQueue.IsEmpty()) {

@@ -43,7 +43,7 @@ namespace mozilla {
 #endif
 
 PRLogModuleInfo* gTrackUnionStreamLog;
-#define STREAM_LOG(type, msg) PR_LOG(gTrackUnionStreamLog, type, msg)
+#define STREAM_LOG(type, msg) MOZ_LOG(gTrackUnionStreamLog, type, msg)
 
 TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
   ProcessedMediaStream(aWrapper)
@@ -196,7 +196,7 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
     segment->AppendNullData(outputStart);
     StreamBuffer::Track* track =
       &mBuffer.AddTrack(id, outputStart, segment.forget());
-    STREAM_LOG(PR_LOG_DEBUG, ("TrackUnionStream %p adding track %d for input stream %p track %d, start ticks %lld",
+    STREAM_LOG(LogLevel::Debug, ("TrackUnionStream %p adding track %d for input stream %p track %d, start ticks %lld",
                               this, id, aPort->GetSource(), aTrack->GetID(),
                               (long long)outputStart));
 
@@ -264,7 +264,7 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
       if (interval.mInputIsBlocked) {
         // Maybe the input track ended?
         segment->AppendNullData(ticks);
-        STREAM_LOG(PR_LOG_DEBUG+1, ("TrackUnionStream %p appending %lld ticks of null data to track %d",
+        STREAM_LOG(LogLevel::Verbose, ("TrackUnionStream %p appending %lld ticks of null data to track %d",
                    this, (long long)ticks, outputTrack->GetID()));
       } else if (InMutedCycle()) {
         segment->AppendNullData(ticks);

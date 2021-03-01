@@ -245,7 +245,7 @@ const map = (f, ...sequences) => seq(function* () {
       let index = 0;
       let value = void(0);
       while (index < count && !done) {
-        ({ done, value }) = inputs[index].next();
+        ({ done, value } = inputs[index].next());
 
         // If input is not exhausted yet store value in args.
         if (!done) {

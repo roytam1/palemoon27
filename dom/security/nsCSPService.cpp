@@ -109,10 +109,10 @@ CSPService::ShouldLoad(uint32_t aContentType,
     return NS_ERROR_FAILURE;
   }
 
-  if (PR_LOG_TEST(gCspPRLog, PR_LOG_DEBUG)) {
+  if (MOZ_LOG_TEST(gCspPRLog, LogLevel::Debug)) {
     nsAutoCString location;
     aContentLocation->GetSpec(location);
-    PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCspPRLog, LogLevel::Debug,
            ("CSPService::ShouldLoad called for %s", location.get()));
   }
 
@@ -202,14 +202,14 @@ CSPService::ShouldLoad(uint32_t aContentType,
     principal->GetCsp(getter_AddRefs(csp));
 
     if (csp) {
-      if (PR_LOG_TEST(gCspPRLog, PR_LOG_DEBUG)) {
+      if (MOZ_LOG_TEST(gCspPRLog, LogLevel::Debug)) {
         uint32_t numPolicies = 0;
         nsresult rv = csp->GetPolicyCount(&numPolicies);
         if (NS_SUCCEEDED(rv)) {
           for (uint32_t i=0; i<numPolicies; i++) {
             nsAutoString policy;
             csp->GetPolicy(i, policy);
-            PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+            MOZ_LOG(gCspPRLog, LogLevel::Debug,
                    ("Document has CSP[%d]: %s", i,
                    NS_ConvertUTF16toUTF8(policy).get()));
           }
@@ -226,10 +226,10 @@ CSPService::ShouldLoad(uint32_t aContentType,
                       aDecision);
     }
   }
-  else if (PR_LOG_TEST(gCspPRLog, PR_LOG_DEBUG)) {
+  else if (MOZ_LOG_TEST(gCspPRLog, LogLevel::Debug)) {
     nsAutoCString uriSpec;
     aContentLocation->GetSpec(uriSpec);
-    PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCspPRLog, LogLevel::Debug,
            ("COULD NOT get nsINode for location: %s", uriSpec.get()));
   }
 
@@ -314,19 +314,19 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
                   originalUri,    // aMimeTypeGuess
                   &aDecision);
 
-  if (newUri && PR_LOG_TEST(gCspPRLog, PR_LOG_DEBUG)) {
+  if (newUri && MOZ_LOG_TEST(gCspPRLog, LogLevel::Debug)) {
     nsAutoCString newUriSpec("None");
     newUri->GetSpec(newUriSpec);
-    PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCspPRLog, LogLevel::Debug,
            ("CSPService::AsyncOnChannelRedirect called for %s",
             newUriSpec.get()));
   }
   if (aDecision == 1) {
-    PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCspPRLog, LogLevel::Debug,
            ("CSPService::AsyncOnChannelRedirect ALLOWING request."));
   }
   else {
-    PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCspPRLog, LogLevel::Debug,
            ("CSPService::AsyncOnChannelRedirect CANCELLING request."));
   }
 

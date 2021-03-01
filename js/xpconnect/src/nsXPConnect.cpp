@@ -243,8 +243,8 @@ xpc::ErrorReport::LogToConsole()
     if (!gJSDiagnostics)
         gJSDiagnostics = PR_NewLogModule("JSDiagnostics");
     if (gJSDiagnostics) {
-        PR_LOG(gJSDiagnostics,
-                JSREPORT_IS_WARNING(mFlags) ? PR_LOG_WARNING : PR_LOG_ERROR,
+        MOZ_LOG(gJSDiagnostics,
+                JSREPORT_IS_WARNING(mFlags) ? LogLevel::Warning : LogLevel::Error,
                 ("file %s, line %u\n%s", NS_LossyConvertUTF16toASCII(mFileName).get(),
                  mLineNumber, NS_LossyConvertUTF16toASCII(mErrorMsg).get()));
     }

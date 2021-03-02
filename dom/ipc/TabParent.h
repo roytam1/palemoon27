@@ -161,23 +161,22 @@ public:
                                   const ClonedMessageData& aData,
                                   InfallibleTArray<CpowEntry>&& aCpows,
                                   const IPC::Principal& aPrincipal) override;
-    virtual bool RecvNotifyIMEFocus(const bool& aFocus,
-                                    const ContentCache& aContentCache,
+    virtual bool RecvNotifyIMEFocus(const ContentCache& aContentCache,
+                                    const widget::IMENotification& aEventMessage,
                                     nsIMEUpdatePreference* aPreference)
                                       override;
     virtual bool RecvNotifyIMETextChange(const ContentCache& aContentCache,
-                                         const uint32_t& aStart,
-                                         const uint32_t& aRemovedEnd,
-                                         const uint32_t& aAddedEnd,
-                                         const bool& aCausedByComposition) override;
-    virtual bool RecvNotifyIMESelectedCompositionRect(const ContentCache& aContentCache) override;
+                                         const widget::IMENotification& aEventMessage) override;
+    virtual bool RecvNotifyIMECompositionUpdate(const ContentCache& aContentCache,
+                                                const widget::IMENotification& aEventMessage) override;
     virtual bool RecvNotifyIMESelection(const ContentCache& aContentCache,
-                                        const bool& aCausedByComposition) override;
+                                        const widget::IMENotification& aEventMessage) override;
     virtual bool RecvUpdateContentCache(const ContentCache& aContentCache) override;
     virtual bool RecvNotifyIMEMouseButtonEvent(const widget::IMENotification& aEventMessage,
                                                bool* aConsumedByIME) override;
-    virtual bool RecvNotifyIMEPositionChange(const ContentCache& aContentCache) override;
-    virtual bool RecvOnEventNeedingAckReceived() override;
+    virtual bool RecvNotifyIMEPositionChange(const ContentCache& aContentCache,
+                                             const widget::IMENotification& aEventMessage) override;
+    virtual bool RecvOnEventNeedingAckReceived(const uint32_t& aMessage) override;
     virtual bool RecvEndIMEComposition(const bool& aCancel,
                                        bool* aNoCompositionEvent,
                                        nsString* aComposition) override;
@@ -367,7 +366,6 @@ public:
     NS_DECL_NSIAUTHPROMPTPROVIDER
     NS_DECL_NSISECUREBROWSERUI
 
-    static TabParent *GetIMETabParent() { return mIMETabParent; }
     bool HandleQueryContentEvent(mozilla::WidgetQueryContentEvent& aEvent);
     bool SendCompositionEvent(mozilla::WidgetCompositionEvent& event);
     bool SendSelectionEvent(mozilla::WidgetSelectionEvent& event);
@@ -447,8 +445,6 @@ protected:
     Element* mFrameElement;
     nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
 
-    bool AllowContentIME();
-
     virtual PRenderFrameParent* AllocPRenderFrameParent() override;
     virtual bool DeallocPRenderFrameParent(PRenderFrameParent* aFrame) override;
 
@@ -467,8 +463,6 @@ protected:
 
     void SetHasContentOpener(bool aHasContentOpener);
 
-    // IME
-    static TabParent *mIMETabParent;
     ContentCacheInParent mContentCache;
 
     nsIntRect mRect;

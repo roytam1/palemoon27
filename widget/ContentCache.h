@@ -322,7 +322,7 @@ public:
    *          TabParent or aWidget.  Therefore, the caller must not destroy
    *          this instance during a call of this method.
    */
-  void OnEventNeedingAckReceived(nsIWidget* aWidget);
+  void OnEventNeedingAckReceived(nsIWidget* aWidget, uint32_t aMessage);
 
   /**
    * RequestToCommitComposition() requests to commit or cancel composition to
@@ -348,7 +348,7 @@ public:
    * and flush it later.
    */
   void MaybeNotifyIME(nsIWidget* aWidget,
-                      IMENotification& aNotification);
+                      const IMENotification& aNotification);
 
 private:
   IMENotification mPendingSelectionChange;

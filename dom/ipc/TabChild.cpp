@@ -20,6 +20,7 @@
 #include "mozilla/dom/workers/ServiceWorkerManager.h"
 #include "mozilla/dom/indexedDB/PIndexedDBPermissionRequestChild.h"
 #include "mozilla/plugins/PluginWidgetChild.h"
+#include "mozilla/IMEStateManager.h"
 #include "mozilla/ipc/DocumentRendererChild.h"
 #include "mozilla/ipc/FileDescriptorUtils.h"
 #include "mozilla/layers/APZCCallbackHelper.h"
@@ -2192,6 +2193,20 @@ bool TabChild::RecvParentActivated(const bool& aActivated)
 }
 
 bool
+TabChild::RecvStopIMEStateManagement()
+{
+  IMEStateManager::StopIMEStateManagement();
+  return true;
+}
+
+bool
+TabChild::RecvMenuKeyboardListenerInstalled(const bool& aInstalled)
+{
+  IMEStateManager::OnInstalledMenuKeyboardListener(aInstalled);
+  return true;
+}
+
+bool
 TabChild::RecvMouseEvent(const nsString& aType,
                          const float&    aX,
                          const float&    aY,
@@ -2565,7 +2580,7 @@ TabChild::RecvKeyEvent(const nsString& aType,
 bool
 TabChild::RecvCompositionEvent(const WidgetCompositionEvent& event)
 {
-  unused << SendOnEventNeedingAckReceived();
+  unused << SendOnEventNeedingAckReceived(event.message);
   WidgetCompositionEvent localEvent(event);
   localEvent.widget = mPuppetWidget;
   APZCCallbackHelper::DispatchWidgetEvent(localEvent);
@@ -2575,7 +2590,7 @@ TabChild::RecvCompositionEvent(const WidgetCompositionEvent& event)
 bool
 TabChild::RecvSelectionEvent(const WidgetSelectionEvent& event)
 {
-  unused << SendOnEventNeedingAckReceived();
+  unused << SendOnEventNeedingAckReceived(event.message);
   WidgetSelectionEvent localEvent(event);
   localEvent.widget = mPuppetWidget;
   APZCCallbackHelper::DispatchWidgetEvent(localEvent);

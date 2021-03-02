@@ -915,15 +915,16 @@ ContentCacheInParent::OnSelectionEvent(
 }
 
 void
-ContentCacheInParent::OnEventNeedingAckReceived(nsIWidget* aWidget)
+ContentCacheInParent::OnEventNeedingAckReceived(nsIWidget* aWidget,
+                                                uint32_t aMessage)
 {
   // This is called when the child process receives WidgetCompositionEvent or
   // WidgetSelectionEvent.
 
   MOZ_LOG(sContentCacheLog, LogLevel::Info,
-    ("ContentCacheInParent: 0x%p OnEventNeedingAckReceived(aWidget=0x%p), "
-     "mPendingEventsNeedingAck=%u",
-     this, aWidget, mPendingEventsNeedingAck));
+    ("ContentCacheInParent: 0x%p OnEventNeedingAckReceived(aWidget=0x%p, "
+     "aMessage=%s), mPendingEventsNeedingAck=%u",
+     this, aWidget, GetEventMessageName(aMessage), mPendingEventsNeedingAck));
 
   MOZ_RELEASE_ASSERT(mPendingEventsNeedingAck > 0);
   if (--mPendingEventsNeedingAck) {
@@ -960,15 +961,8 @@ ContentCacheInParent::RequestToCommitComposition(nsIWidget* aWidget,
 
 void
 ContentCacheInParent::MaybeNotifyIME(nsIWidget* aWidget,
-                                     IMENotification& aNotification)
+                                     const IMENotification& aNotification)
 {
-  if (aNotification.mMessage == NOTIFY_IME_OF_SELECTION_CHANGE) {
-    aNotification.mSelectionChangeData.mOffset = mSelection.StartOffset();
-    aNotification.mSelectionChangeData.mLength = mSelection.Length();
-    aNotification.mSelectionChangeData.mReversed = mSelection.Reversed();
-    aNotification.mSelectionChangeData.SetWritingMode(mSelection.mWritingMode);
-  }
-
   if (!mPendingEventsNeedingAck) {
     IMEStateManager::NotifyIME(aNotification, aWidget, true);
     return;

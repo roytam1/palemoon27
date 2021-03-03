@@ -273,10 +273,10 @@ const reductions = (...params) => {
   let hasInitial = false;
   let f, initial, source;
   if (count === 2) {
-    ([f, source]) = params;
+    [f, source] = params;
   }
   else if (count === 3) {
-    ([f, initial, source]) = params;
+    [f, initial, source] = params;
     hasInitial = true;
   }
   else {

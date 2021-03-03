@@ -191,20 +191,11 @@ struct TextRange
  ******************************************************************************/
 class TextRangeArray final : public nsAutoTArray<TextRange, 10>
 {
+  friend class WidgetCompositionEvent;
+
   ~TextRangeArray() {}
 
   NS_INLINE_DECL_REFCOUNTING(TextRangeArray)
-
-public:
-  bool IsComposing() const
-  {
-    for (uint32_t i = 0; i < Length(); ++i) {
-      if (ElementAt(i).IsClause()) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   // Returns target clase offset.  If there are selected clauses, this returns
   // the first selected clause offset.  Otherwise, 0.
@@ -218,6 +209,17 @@ public:
       }
     }
     return 0;
+  }
+
+public:
+  bool IsComposing() const
+  {
+    for (uint32_t i = 0; i < Length(); ++i) {
+      if (ElementAt(i).IsClause()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool Equals(const TextRangeArray& aOther) const

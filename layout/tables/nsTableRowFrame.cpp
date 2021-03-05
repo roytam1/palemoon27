@@ -817,12 +817,8 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
 
   // Reflow each of our existing cell frames
   WritingMode wm = aReflowState.GetWritingMode();
-  nscoord containerWidth = aReflowState.ComputedWidth();
-  if (containerWidth == NS_UNCONSTRAINEDSIZE) {
-    containerWidth = 0; // cell positions will not yet be correct
-  } else {
-    containerWidth += aReflowState.ComputedPhysicalBorderPadding().LeftRight();
-  }
+  nscoord containerWidth =
+    aReflowState.ComputedSizeAsContainerIfConstrained().width;
 
   for (nsIFrame* kidFrame : mFrames) {
     nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
@@ -991,8 +987,12 @@ nsTableRowFrame::ReflowChildren(nsPresContext*           aPresContext,
         // We didn't reflow.  Do the positioning part of what
         // MovePositionBy does internally.  (This codepath should really
         // be merged into the else below if we can.)
-        LogicalMargin computedOffsets(wm, *static_cast<nsMargin*>
-          (kidFrame->Properties().Get(nsIFrame::ComputedOffsetProperty())));
+        nsMargin* computedOffsetProp = static_cast<nsMargin*>
+          (kidFrame->Properties().Get(nsIFrame::ComputedOffsetProperty()));
+        // Bug 975644: a position:sticky kid can end up with a null
+        // property value here.
+        LogicalMargin computedOffsets(wm, computedOffsetProp ?
+                                            *computedOffsetProp : nsMargin());
         nsHTMLReflowState::ApplyRelativePositioning(kidFrame, wm, computedOffsets,
                                                     &kidPosition, containerWidth);
       }

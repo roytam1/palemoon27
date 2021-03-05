@@ -51,7 +51,7 @@ GetImgLog()
   }
   return sImgLog;
 }
-#define LOG_TEST(level) (GetImgLog() && PR_LOG_TEST(GetImgLog(), (level)))
+#define LOG_TEST(level) (GetImgLog() && MOZ_LOG_TEST(GetImgLog(), (level)))
 
 NS_IMPL_ISUPPORTS(imgRequest,
                   nsIStreamListener, nsIRequestObserver,
@@ -260,7 +260,7 @@ imgRequest::RemoveProxy(imgRequestProxy* proxy, nsresult aStatus)
       if (mLoader) {
         mLoader->SetHasNoProxies(this, mCacheEntry);
       }
-    } else if (PR_LOG_TEST(GetImgLog(), PR_LOG_DEBUG)) {
+    } else if (MOZ_LOG_TEST(GetImgLog(), LogLevel::Debug)) {
       nsAutoCString spec;
       mURI->GetSpec(spec);
       LOG_MSG_WITH_PARAM(GetImgLog(),
@@ -794,7 +794,7 @@ imgRequest::OnStartRequest(nsIRequest* aRequest, nsISupports* ctxt)
         DecodePool::Singleton()->GetIOEventTarget();
       rv = retargetable->RetargetDeliveryTo(target);
     }
-    PR_LOG(GetImgLog(), PR_LOG_WARNING,
+    MOZ_LOG(GetImgLog(), LogLevel::Warning,
            ("[this=%p] imgRequest::OnStartRequest -- "
             "RetargetDeliveryTo rv %d=%s\n",
             this, rv, NS_SUCCEEDED(rv) ? "succeeded" : "failed"));
@@ -950,14 +950,14 @@ PrepareForNewPart(nsIRequest* aRequest, nsIInputStream* aInStr, uint32_t aCount,
     }
 
     if (NS_FAILED(rv)) {
-      PR_LOG(GetImgLog(),
-             PR_LOG_ERROR, ("imgRequest::PrepareForNewPart "
+      MOZ_LOG(GetImgLog(),
+             LogLevel::Error, ("imgRequest::PrepareForNewPart "
                             "-- Content type unavailable from the channel\n"));
       return result;
     }
   }
 
-  PR_LOG(GetImgLog(), PR_LOG_DEBUG,
+  MOZ_LOG(GetImgLog(), LogLevel::Debug,
          ("imgRequest::PrepareForNewPart -- Got content type %s\n",
           result.mContentType.get()));
 
@@ -1115,7 +1115,7 @@ imgRequest::OnDataAvailable(nsIRequest* aRequest, nsISupports* aContext,
     image->OnImageDataAvailable(aRequest, aContext, aInStr, aOffset, aCount);
 
   if (NS_FAILED(rv)) {
-    PR_LOG(GetImgLog(), PR_LOG_WARNING,
+    MOZ_LOG(GetImgLog(), LogLevel::Warning,
            ("[this=%p] imgRequest::OnDataAvailable -- "
             "copy to RasterImage failed\n", this));
     Cancel(NS_IMAGELIB_ERROR_FAILURE);
@@ -1233,7 +1233,7 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
   mTimedChannel = do_QueryInterface(mChannel);
   mNewRedirectChannel = nullptr;
 
-  if (LOG_TEST(PR_LOG_DEBUG)) {
+  if (LOG_TEST(LogLevel::Debug)) {
     nsAutoCString spec;
     if (mCurrentURI) {
       mCurrentURI->GetSpec(spec);
@@ -1260,7 +1260,7 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
   // Update the current URI.
   mChannel->GetURI(getter_AddRefs(mCurrentURI));
 
-  if (LOG_TEST(PR_LOG_DEBUG)) {
+  if (LOG_TEST(LogLevel::Debug)) {
     nsAutoCString spec;
     if (mCurrentURI) {
       mCurrentURI->GetSpec(spec);

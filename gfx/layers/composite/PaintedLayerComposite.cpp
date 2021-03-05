@@ -7,7 +7,6 @@
 #include "CompositableHost.h"           // for TiledLayerProperties, etc
 #include "FrameMetrics.h"               // for FrameMetrics
 #include "Units.h"                      // for CSSRect, LayerPixel, etc
-#include "gfx2DGlue.h"                  // for ToMatrix4x4
 #include "gfxUtils.h"                   // for gfxUtils, etc
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
@@ -28,8 +27,6 @@
 
 namespace mozilla {
 namespace layers {
-
-class TiledLayerComposer;
 
 PaintedLayerComposite::PaintedLayerComposite(LayerManagerComposite *aManager)
   : PaintedLayer(aManager, nullptr)
@@ -89,16 +86,6 @@ PaintedLayerComposite::SetLayerManager(LayerManagerComposite* aManager)
   if (mBuffer && mCompositor) {
     mBuffer->SetCompositor(mCompositor);
   }
-}
-
-TiledLayerComposer*
-PaintedLayerComposite::GetTiledLayerComposer()
-{
-  if (!mBuffer) {
-    return nullptr;
-  }
-  MOZ_ASSERT(mBuffer->IsAttached());
-  return mBuffer->AsTiledLayerComposer();
 }
 
 LayerRenderState

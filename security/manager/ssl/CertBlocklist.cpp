@@ -5,6 +5,7 @@
 
 #include "CertBlocklist.h"
 #include "mozilla/Base64.h"
+#include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsCRTGlue.h"
@@ -22,7 +23,16 @@
 
 NS_IMPL_ISUPPORTS(CertBlocklist, nsICertBlocklist)
 
+using namespace mozilla;
+using namespace mozilla::pkix;
+
+#define PREF_BACKGROUND_UPDATE_TIMER "app.update.lastUpdateTime.blocklist-background-update-timer"
+#define PREF_MAX_STALENESS_IN_SECONDS "security.onecrl.maximum_staleness_in_seconds"
+
 static PRLogModuleInfo* gCertBlockPRLog;
+
+uint32_t CertBlocklist::sLastBlocklistUpdate = 0U;
+uint32_t CertBlocklist::sMaxStaleness = 0U;
 
 CertBlocklistItem::CertBlocklistItem(const uint8_t* DNData,
                                      size_t DNLength,
@@ -69,11 +79,11 @@ CertBlocklistItem::ToBase64(nsACString& b64DNOut, nsACString& b64OtherOut)
                                  mDNLength);
   nsDependentCSubstring otherString(reinterpret_cast<char*>(mOtherData),
                                     mOtherLength);
-  nsresult rv = mozilla::Base64Encode(DNString, b64DNOut);
+  nsresult rv = Base64Encode(DNString, b64DNOut);
   if (NS_FAILED(rv)) {
     return rv;
   }
-  rv = mozilla::Base64Encode(otherString, b64OtherOut);
+  rv = Base64Encode(otherString, b64OtherOut);
   return rv;
 }
 
@@ -120,25 +130,46 @@ CertBlocklist::CertBlocklist()
 
 CertBlocklist::~CertBlocklist()
 {
+  Preferences::UnregisterCallback(CertBlocklist::PreferenceChanged,
+                                  PREF_BACKGROUND_UPDATE_TIMER,
+                                  this);
+  Preferences::UnregisterCallback(CertBlocklist::PreferenceChanged,
+                                  PREF_MAX_STALENESS_IN_SECONDS,
+                                  this);
 }
 
 nsresult
 CertBlocklist::Init()
 {
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG, ("CertBlocklist::Init"));
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Debug, ("CertBlocklist::Init"));
 
   // Init must be on main thread for getting the profile directory
   if (!NS_IsMainThread()) {
-    PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
            ("CertBlocklist::Init - called off main thread"));
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
+  // Register preference callbacks
+  nsresult rv =
+      Preferences::RegisterCallbackAndCall(CertBlocklist::PreferenceChanged,
+                                           PREF_BACKGROUND_UPDATE_TIMER,
+                                           this);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  rv = Preferences::RegisterCallbackAndCall(CertBlocklist::PreferenceChanged,
+                                            PREF_MAX_STALENESS_IN_SECONDS,
+                                            this);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
   // Get the profile directory
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
-                                       getter_AddRefs(mBackingFile));
+  rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
+                              getter_AddRefs(mBackingFile));
   if (NS_FAILED(rv) || !mBackingFile) {
-    PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
            ("CertBlocklist::Init - couldn't get profile dir"));
     // Since we're returning NS_OK here, set mBackingFile to a safe value.
     // (We need initialization to succeed and CertBlocklist to be in a
@@ -155,22 +186,22 @@ CertBlocklist::Init()
   if (NS_FAILED(rv)) {
     return rv;
   }
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
          ("CertBlocklist::Init certList path: %s", path.get()));
 
   return NS_OK;
 }
 
 nsresult
-CertBlocklist::EnsureBackingFileInitialized(mozilla::MutexAutoLock& lock)
+CertBlocklist::EnsureBackingFileInitialized(MutexAutoLock& lock)
 {
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
          ("CertBlocklist::EnsureBackingFileInitialized"));
   if (mBackingFileIsInitialized || !mBackingFile) {
     return NS_OK;
   }
 
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
          ("CertBlocklist::EnsureBackingFileInitialized - not initialized"));
 
   bool exists = false;
@@ -179,7 +210,7 @@ CertBlocklist::EnsureBackingFileInitialized(mozilla::MutexAutoLock& lock)
     return rv;
   }
   if (!exists) {
-    PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
            ("CertBlocklist::EnsureBackingFileInitialized no revocations file"));
     return NS_OK;
   }
@@ -232,11 +263,11 @@ CertBlocklist::EnsureBackingFileInitialized(mozilla::MutexAutoLock& lock)
     if (DN.IsEmpty() || other.IsEmpty()) {
       continue;
     }
-    PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
            ("CertBlocklist::EnsureBackingFileInitialized adding: %s %s",
             DN.get(), other.get()));
 
-    PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
            ("CertBlocklist::EnsureBackingFileInitialized - pre-decode"));
 
     rv = AddRevokedCertInternal(DN, other, mechanism, CertOldFromLocalCache,
@@ -245,7 +276,7 @@ CertBlocklist::EnsureBackingFileInitialized(mozilla::MutexAutoLock& lock)
     if (NS_FAILED(rv)) {
       // we warn here, rather than abandoning, since we need to
       // ensure that as many items as possible are read
-      PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
+      MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
              ("CertBlocklist::EnsureBackingFileInitialized adding revoked cert "
               "failed"));
     }
@@ -259,10 +290,10 @@ NS_IMETHODIMP
 CertBlocklist::RevokeCertBySubjectAndPubKey(const char* aSubject,
                                             const char* aPubKeyHash)
 {
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
          ("CertBlocklist::RevokeCertBySubjectAndPubKey - subject is: %s and pubKeyHash: %s",
           aSubject, aPubKeyHash));
-  mozilla::MutexAutoLock lock(mMutex);
+  MutexAutoLock lock(mMutex);
 
   return AddRevokedCertInternal(nsDependentCString(aSubject),
                                 nsDependentCString(aPubKeyHash),
@@ -275,10 +306,10 @@ NS_IMETHODIMP
 CertBlocklist::RevokeCertByIssuerAndSerial(const char* aIssuer,
                                            const char* aSerialNumber)
 {
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
          ("CertBlocklist::RevokeCertByIssuerAndSerial - issuer is: %s and serial: %s",
           aIssuer, aSerialNumber));
-  mozilla::MutexAutoLock lock(mMutex);
+  MutexAutoLock lock(mMutex);
 
   return AddRevokedCertInternal(nsDependentCString(aIssuer),
                                 nsDependentCString(aSerialNumber),
@@ -291,16 +322,16 @@ CertBlocklist::AddRevokedCertInternal(const nsACString& aEncodedDN,
                                       const nsACString& aEncodedOther,
                                       CertBlocklistItemMechanism aMechanism,
                                       CertBlocklistItemState aItemState,
-                                      mozilla::MutexAutoLock& /*proofOfLock*/)
+                                      MutexAutoLock& /*proofOfLock*/)
 {
     nsCString decodedDN;
     nsCString decodedOther;
 
-    nsresult rv = mozilla::Base64Decode(aEncodedDN, decodedDN);
+    nsresult rv = Base64Decode(aEncodedDN, decodedDN);
     if (NS_FAILED(rv)) {
       return rv;
     }
-    rv = mozilla::Base64Decode(aEncodedOther, decodedOther);
+    rv = Base64Decode(aEncodedOther, decodedOther);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -450,9 +481,9 @@ WriteIssuer(nsCStringHashKey* aHashKey, void* aUserArg)
 NS_IMETHODIMP
 CertBlocklist::SaveEntries()
 {
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Debug,
       ("CertBlocklist::SaveEntries - not initialized"));
-  mozilla::MutexAutoLock lock(mMutex);
+  MutexAutoLock lock(mMutex);
   if (!mModified) {
     return NS_OK;
   }
@@ -464,7 +495,7 @@ CertBlocklist::SaveEntries()
 
   if (!mBackingFile) {
     // We allow this to succeed with no profile directory for tests
-    PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
            ("CertBlocklist::SaveEntries no file in profile to write to"));
     return NS_OK;
   }
@@ -484,14 +515,14 @@ CertBlocklist::SaveEntries()
 
   mBlocklist.EnumerateEntries(ProcessBlocklistEntry, &saveInfo);
   if (!saveInfo.success) {
-    PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
            ("CertBlocklist::SaveEntries writing revocation data failed"));
     return NS_ERROR_FAILURE;
   }
 
   saveInfo.issuers.EnumerateEntries(WriteIssuer, &saveInfo);
   if (!saveInfo.success) {
-    PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
            ("CertBlocklist::SaveEntries writing revocation data failed"));
     return NS_ERROR_FAILURE;
   }
@@ -504,7 +535,7 @@ CertBlocklist::SaveEntries()
   }
   rv = safeStream->Finish();
   if (NS_FAILED(rv)) {
-    PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
            ("CertBlocklist::SaveEntries saving revocation data failed"));
     return rv;
   }
@@ -531,19 +562,19 @@ CertBlocklist::IsCertRevoked(const uint8_t* aIssuer,
                              uint32_t aPubKeyLength,
                              bool* _retval)
 {
-  mozilla::MutexAutoLock lock(mMutex);
+  MutexAutoLock lock(mMutex);
 
   nsresult rv = EnsureBackingFileInitialized(lock);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  mozilla::pkix::Input issuer;
-  mozilla::pkix::Input serial;
-  if (issuer.Init(aIssuer, aIssuerLength) != mozilla::pkix::Success) {
+  Input issuer;
+  Input serial;
+  if (issuer.Init(aIssuer, aIssuerLength) != Success) {
     return NS_ERROR_FAILURE;
   }
-  if (serial.Init(aSerial, aSerialLength) != mozilla::pkix::Success) {
+  if (serial.Init(aSerial, aSerialLength) != Success) {
     return NS_ERROR_FAILURE;
   }
 
@@ -583,4 +614,44 @@ CertBlocklist::IsCertRevoked(const uint8_t* aIssuer,
   *_retval = mBlocklist.Contains(subjectPubKey);
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+CertBlocklist::IsBlocklistFresh(bool* _retval)
+{
+  MutexAutoLock lock(mMutex);
+  *_retval = false;
+
+  uint32_t now = uint32_t(PR_Now() / PR_USEC_PER_SEC);
+
+  if (now > sLastBlocklistUpdate) {
+    int64_t interval = now - sLastBlocklistUpdate;
+    MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+           ("CertBlocklist::IsBlocklistFresh we're after the last BlocklistUpdate "
+            "interval is %i, staleness %u", interval, sMaxStaleness));
+    *_retval = sMaxStaleness > interval;
+  }
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+         ("CertBlocklist::IsBlocklistFresh ? %s", *_retval ? "true" : "false"));
+  return NS_OK;
+}
+
+
+/* static */
+void
+CertBlocklist::PreferenceChanged(const char* aPref, void* aClosure)
+
+{
+  CertBlocklist* blocklist = reinterpret_cast<CertBlocklist*>(aClosure);
+  MutexAutoLock lock(blocklist->mMutex);
+
+  MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
+         ("CertBlocklist::PreferenceChanged %s changed", aPref));
+  if (strcmp(aPref, PREF_BACKGROUND_UPDATE_TIMER) == 0) {
+    sLastBlocklistUpdate = Preferences::GetUint(PREF_BACKGROUND_UPDATE_TIMER,
+                                                uint32_t(0));
+  } else if (strcmp(aPref, PREF_MAX_STALENESS_IN_SECONDS) == 0) {
+    sMaxStaleness = Preferences::GetUint(PREF_MAX_STALENESS_IN_SECONDS,
+                                         uint32_t(0));
+  }
 }

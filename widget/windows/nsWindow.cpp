@@ -1389,7 +1389,7 @@ NS_METHOD nsWindow::Move(double aX, double aY)
           ::SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
           // no annoying assertions. just mention the issue.
           if (x < 0 || x >= workArea.right || y < 0 || y >= workArea.bottom) {
-            PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
+            MOZ_LOG(gWindowsLog, LogLevel::Info,
                    ("window moved to offscreen position\n"));
           }
         }
@@ -1802,10 +1802,10 @@ NS_METHOD nsWindow::SetFocus(bool aRaise)
   if (mWnd) {
 #ifdef WINSTATE_DEBUG_OUTPUT
     if (mWnd == WinUtils::GetTopLevelHWND(mWnd)) {
-      PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
+      MOZ_LOG(gWindowsLog, LogLevel::Info,
              ("*** SetFocus: [  top] raise=%d\n", aRaise));
     } else {
-      PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
+      MOZ_LOG(gWindowsLog, LogLevel::Info,
              ("*** SetFocus: [child] raise=%d\n", aRaise));
     }
 #endif
@@ -2694,7 +2694,7 @@ void nsWindow::UpdateGlass()
     break;
   }
 
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
+  MOZ_LOG(gWindowsLog, LogLevel::Info,
          ("glass margins: left:%d top:%d right:%d bottom:%d\n",
           margins.cxLeftWidth, margins.cyTopHeight,
           margins.cxRightWidth, margins.cyBottomHeight));
@@ -3048,7 +3048,7 @@ NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec)
 #ifdef DEBUG_SetIcon
   else {
     NS_LossyConvertUTF16toASCII cPath(iconPath);
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
+    MOZ_LOG(gWindowsLog, LogLevel::Info,
            ("\nIcon load error; icon=%s, rc=0x%08X\n\n", 
             cPath.get(), ::GetLastError()));
   }
@@ -3062,7 +3062,7 @@ NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec)
 #ifdef DEBUG_SetIcon
   else {
     NS_LossyConvertUTF16toASCII cPath(iconPath);
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
+    MOZ_LOG(gWindowsLog, LogLevel::Info,
            ("\nSmall icon load error; icon=%s, rc=0x%08X\n\n", 
             cPath.get(), ::GetLastError()));
   }
@@ -3920,7 +3920,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
   event.clickCount = sLastClickCount;
 
 #ifdef NS_DEBUG_XX
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
+  MOZ_LOG(gWindowsLog, LogLevel::Info,
          ("Msg Time: %d Click Count: %d\n", curMsgTime, event.clickCount));
 #endif
 
@@ -5940,30 +5940,30 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS* wp)
 
 #ifdef WINSTATE_DEBUG_OUTPUT
   if (mWnd == WinUtils::GetTopLevelHWND(mWnd)) {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("*** OnWindowPosChanged: [  top] "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("*** OnWindowPosChanged: [  top] "));
   } else {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("*** OnWindowPosChanged: [child] "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("*** OnWindowPosChanged: [child] "));
   }
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("WINDOWPOS flags:"));
+  MOZ_LOG(gWindowsLog, LogLevel::Info, ("WINDOWPOS flags:"));
   if (wp->flags & SWP_FRAMECHANGED) {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("SWP_FRAMECHANGED "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("SWP_FRAMECHANGED "));
   }
   if (wp->flags & SWP_SHOWWINDOW) {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("SWP_SHOWWINDOW "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("SWP_SHOWWINDOW "));
   }
   if (wp->flags & SWP_NOSIZE) {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("SWP_NOSIZE "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("SWP_NOSIZE "));
   }
   if (wp->flags & SWP_HIDEWINDOW) {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("SWP_HIDEWINDOW "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("SWP_HIDEWINDOW "));
   }
   if (wp->flags & SWP_NOZORDER) {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("SWP_NOZORDER "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("SWP_NOZORDER "));
   }
   if (wp->flags & SWP_NOACTIVATE) {
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("SWP_NOACTIVATE "));
+    MOZ_LOG(gWindowsLog, LogLevel::Info, ("SWP_NOACTIVATE "));
   }
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("\n"));
+  MOZ_LOG(gWindowsLog, LogLevel::Info, ("\n"));
 #endif
 
   // Handle window size mode changes
@@ -6007,19 +6007,19 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS* wp)
 #ifdef WINSTATE_DEBUG_OUTPUT
     switch (mSizeMode) {
       case nsSizeMode_Normal:
-          PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+          MOZ_LOG(gWindowsLog, LogLevel::Info, 
                  ("*** mSizeMode: nsSizeMode_Normal\n"));
         break;
       case nsSizeMode_Minimized:
-        PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+        MOZ_LOG(gWindowsLog, LogLevel::Info, 
                ("*** mSizeMode: nsSizeMode_Minimized\n"));
         break;
       case nsSizeMode_Maximized:
-          PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+          MOZ_LOG(gWindowsLog, LogLevel::Info, 
                  ("*** mSizeMode: nsSizeMode_Maximized\n"));
         break;
       default:
-          PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("*** mSizeMode: ??????\n"));
+          MOZ_LOG(gWindowsLog, LogLevel::Info, ("*** mSizeMode: ??????\n"));
         break;
     };
 #endif
@@ -6103,7 +6103,7 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS* wp)
     mLastSize.height = newHeight;
 
 #ifdef WINSTATE_DEBUG_OUTPUT
-    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+    MOZ_LOG(gWindowsLog, LogLevel::Info, 
            ("*** Resize window: %d x %d x %d x %d\n", wp->x, wp->y, 
             newWidth, newHeight));
 #endif
@@ -6792,7 +6792,7 @@ NS_IMETHODIMP
 nsWindow::GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState)
 {
 #ifdef DEBUG_KBSTATE
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("GetToggledKeyState\n"));
+  MOZ_LOG(gWindowsLog, LogLevel::Info, ("GetToggledKeyState\n"));
 #endif 
   NS_ENSURE_ARG_POINTER(aLEDState);
   *aLEDState = (::GetKeyState(aKeyCode) & 1) != 0;
@@ -7032,13 +7032,13 @@ LRESULT CALLBACK nsWindow::MozSpecialMsgFilter(int code, WPARAM wParam, LPARAM l
     if (code != gLastMsgCode) {
       if (gMSGFEvents[inx].mId == code) {
 #ifdef DEBUG
-        PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+        MOZ_LOG(gWindowsLog, LogLevel::Info, 
                ("MozSpecialMessageProc - code: 0x%X  - %s  hw: %p\n", 
                 code, gMSGFEvents[inx].mStr, pMsg->hwnd));
 #endif
       } else {
 #ifdef DEBUG
-        PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+        MOZ_LOG(gWindowsLog, LogLevel::Info, 
                ("MozSpecialMessageProc - code: 0x%X  - %d  hw: %p\n", 
                 code, gMSGFEvents[inx].mId, pMsg->hwnd));
 #endif
@@ -7124,7 +7124,7 @@ void nsWindow::RegisterSpecialDropdownHooks()
                                       nullptr, GetCurrentThreadId());
 #ifdef POPUP_ROLLUP_DEBUG_OUTPUT
     if (!sMsgFilterHook) {
-      PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+      MOZ_LOG(gWindowsLog, LogLevel::Info, 
              ("***** SetWindowsHookEx is NOT installed for WH_MSGFILTER!\n"));
     }
 #endif
@@ -7137,7 +7137,7 @@ void nsWindow::RegisterSpecialDropdownHooks()
                                       nullptr, GetCurrentThreadId());
 #ifdef POPUP_ROLLUP_DEBUG_OUTPUT
     if (!sCallProcHook) {
-      PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+      MOZ_LOG(gWindowsLog, LogLevel::Info, 
              ("***** SetWindowsHookEx is NOT installed for WH_CALLWNDPROC!\n"));
     }
 #endif
@@ -7150,7 +7150,7 @@ void nsWindow::RegisterSpecialDropdownHooks()
                                        nullptr, GetCurrentThreadId());
 #ifdef POPUP_ROLLUP_DEBUG_OUTPUT
     if (!sCallMouseHook) {
-      PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
+      MOZ_LOG(gWindowsLog, LogLevel::Info, 
              ("***** SetWindowsHookEx is NOT installed for WH_MOUSE!\n"));
     }
 #endif

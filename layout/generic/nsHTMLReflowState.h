@@ -441,8 +441,22 @@ struct nsHTMLReflowState : public nsCSSOffsetState {
   const nsMargin& ComputedPhysicalOffsets() const { return mComputedOffsets; }
   nsMargin& ComputedPhysicalOffsets() { return mComputedOffsets; }
 
-  LogicalMargin ComputedLogicalOffsets() const
+  const LogicalMargin ComputedLogicalOffsets() const
     { return LogicalMargin(mWritingMode, mComputedOffsets); }
+
+  void SetComputedLogicalOffsets(const LogicalMargin& aOffsets)
+    { mComputedOffsets = aOffsets.GetPhysicalMargin(mWritingMode); }
+
+  // Return the state's computed size including border-padding, with
+  // unconstrained dimensions replaced by zero.
+  nsSize ComputedSizeAsContainerIfConstrained() const {
+    const nscoord wd = ComputedWidth();
+    const nscoord ht = ComputedHeight();
+    return nsSize(wd == NS_UNCONSTRAINEDSIZE
+                  ? 0 : wd + ComputedPhysicalBorderPadding().LeftRight(),
+                  ht == NS_UNCONSTRAINEDSIZE
+                  ? 0 : ht + ComputedPhysicalBorderPadding().TopBottom());
+  }
 
 private:
   // the available width in which to reflow the frame. The space
@@ -899,9 +913,6 @@ protected:
 
   void CalculateHypotheticalBox(nsPresContext*    aPresContext,
                                 nsIFrame*         aPlaceholderFrame,
-                                nsIFrame*         aContainingBlock,
-                                nscoord           aBlockIStartContentEdge,
-                                nscoord           aBlockContentISize,
                                 const nsHTMLReflowState* cbrs,
                                 nsHypotheticalBox& aHypotheticalBox,
                                 nsIAtom*          aFrameType);

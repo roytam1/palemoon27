@@ -217,7 +217,7 @@ nsNSSComponent::nsNSSComponent()
 {
   if (!gPIPNSSLog)
     gPIPNSSLog = PR_NewLogModule("pipnss");
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::ctor\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent::ctor\n"));
   mObserversRegistered = false;
 
   NS_ASSERTION( (0 == mInstanceCount), "nsNSSComponent is a singleton, but instantiated multiple times!");
@@ -255,7 +255,7 @@ nsNSSComponent::createBackgroundThreads()
 
 nsNSSComponent::~nsNSSComponent()
 {
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::dtor\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent::dtor\n"));
 
   deleteBackgroundThreads();
 
@@ -271,7 +271,7 @@ nsNSSComponent::~nsNSSComponent()
   // potential nss initialization later.
   EnsureNSSInitialized(nssShutdown);
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::dtor finished\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent::dtor finished\n"));
 }
 
 NS_IMETHODIMP
@@ -361,7 +361,7 @@ nsNSSComponent::LaunchSmartCardThreads()
     SECMODModuleList* list;
     SECMODListLock* lock = SECMOD_GetDefaultModuleListLock();
     if (!lock) {
-        PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+        MOZ_LOG(gPIPNSSLog, LogLevel::Error,
                ("Couldn't get the module list lock, can't launch smart card threads\n"));
         return;
     }
@@ -429,7 +429,7 @@ nsNSSComponent::LoadLoadableRoots()
     SECMODModuleList* list;
     SECMODListLock* lock = SECMOD_GetDefaultModuleListLock();
     if (!lock) {
-        PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+        MOZ_LOG(gPIPNSSLog, LogLevel::Error,
                ("Couldn't get the module list lock, can't install loadable roots\n"));
         return;
     }
@@ -959,7 +959,7 @@ GetNSSProfilePath(nsAutoCString& aProfilePath)
   aProfilePath.Truncate();
   const char* dbDirOverride = getenv("MOZPSM_NSSDBDIR_OVERRIDE");
   if (dbDirOverride && strlen(dbDirOverride) > 0) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
            ("Using specified MOZPSM_NSSDBDIR_OVERRIDE as NSS DB dir: %s\n",
             dbDirOverride));
     aProfilePath.Assign(dbDirOverride);
@@ -970,7 +970,7 @@ GetNSSProfilePath(nsAutoCString& aProfilePath)
   nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                                        getter_AddRefs(profileFile));
   if (NS_FAILED(rv)) {
-    PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+    MOZ_LOG(gPIPNSSLog, LogLevel::Error,
            ("Unable to get profile directory - continuing with no NSS DB\n"));
     return NS_OK;
   }
@@ -980,7 +980,7 @@ GetNSSProfilePath(nsAutoCString& aProfilePath)
   // codepage, using short (canonical) path as workaround.
   nsCOMPtr<nsILocalFileWin> profileFileWin(do_QueryInterface(profileFile));
   if (!profileFileWin) {
-    PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+    MOZ_LOG(gPIPNSSLog, LogLevel::Error,
            ("Could not get nsILocalFileWin for profile directory.\n"));
     return NS_ERROR_FAILURE;
   }
@@ -989,7 +989,7 @@ GetNSSProfilePath(nsAutoCString& aProfilePath)
   rv = profileFile->GetNativePath(aProfilePath);
 #endif
   if (NS_FAILED(rv)) {
-    PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
+    MOZ_LOG(gPIPNSSLog, LogLevel::Error,
            ("Could not get native path for profile directory.\n"));
     return rv;
   }
@@ -1003,7 +1003,7 @@ nsNSSComponent::InitializeNSS()
   // Can be called both during init and profile change.
   // Needs mutex protection.
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::InitializeNSS\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent::InitializeNSS\n"));
 
   static_assert(nsINSSErrorsService::NSS_SEC_ERROR_BASE == SEC_ERROR_BASE &&
                 nsINSSErrorsService::NSS_SEC_ERROR_LIMIT == SEC_ERROR_LIMIT &&
@@ -1020,7 +1020,7 @@ nsNSSComponent::InitializeNSS()
     return NS_ERROR_FAILURE;
   }
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS Initialization beginning\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("NSS Initialization beginning\n"));
 
   // The call to ConfigureInternalPKCS11Token needs to be done before NSS is initialized,
   // but affects only static data.
@@ -1043,11 +1043,11 @@ nsNSSComponent::InitializeNSS()
     SECStatus init_rv = ::mozilla::psm::InitializeNSS(profileStr.get(), false);
     // If that fails, attempt read-only mode.
     if (init_rv != SECSuccess) {
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("could not init NSS r/w in %s\n", profileStr.get()));
+      MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("could not init NSS r/w in %s\n", profileStr.get()));
       init_rv = ::mozilla::psm::InitializeNSS(profileStr.get(), true);
     }
     if (init_rv != SECSuccess) {
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("could not init in r/o either\n"));
+      MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("could not init in r/o either\n"));
     }
   }
   // If we haven't succeeded in initializing the DB in our profile
@@ -1057,7 +1057,7 @@ nsNSSComponent::InitializeNSS()
     init_rv = NSS_NoDB_Init(nullptr);
   }
   if (init_rv != SECSuccess) {
-    PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("could not initialize NSS - panicking\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("could not initialize NSS - panicking\n"));
     nsPSMInitPanic::SetPanic();
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -1114,7 +1114,7 @@ nsNSSComponent::InitializeNSS()
                                             ENABLED_0RTT_DATA_DEFAULT));
 
   if (NS_FAILED(InitializeCipherSuite())) {
-    PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to initialize cipher suite settings\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("Unable to initialize cipher suite settings\n"));
     return NS_ERROR_FAILURE;
   }
 
@@ -1139,12 +1139,12 @@ nsNSSComponent::InitializeNSS()
   nsCOMPtr<nsISiteSecurityService> sssService =
     do_GetService(NS_SSSERVICE_CONTRACTID);
   if (!sssService) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Cannot initialize site security service\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("Cannot initialize site security service\n"));
     return NS_ERROR_FAILURE;
   }
 
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS Initialization done\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("NSS Initialization done\n"));
   return NS_OK;
 }
 
@@ -1154,7 +1154,7 @@ nsNSSComponent::ShutdownNSS()
   // Can be called both during init and profile change,
   // needs mutex protection.
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::ShutdownNSS\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent::ShutdownNSS\n"));
 
   MutexAutoLock lock(mutex);
 
@@ -1165,7 +1165,7 @@ nsNSSComponent::ShutdownNSS()
 
     Preferences::RemoveObserver(this, "security.");
     if (NS_FAILED(CipherSuiteChangeObserver::StopObserve())) {
-      PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("nsNSSComponent::ShutdownNSS cannot stop observing cipher suite change\n"));
+      MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("nsNSSComponent::ShutdownNSS cannot stop observing cipher suite change\n"));
     }
 
 #ifndef MOZ_NO_SMART_CARDS
@@ -1176,14 +1176,14 @@ nsNSSComponent::ShutdownNSS()
 #ifndef MOZ_NO_EV_CERTS
     CleanupIdentityInfo();
 #endif
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("evaporating psm resources\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("evaporating psm resources\n"));
     mShutdownObjectList->evaporateAllNSSResources();
     EnsureNSSInitialized(nssShutdown);
     if (SECSuccess != ::NSS_Shutdown()) {
-      PR_LOG(gPIPNSSLog, PR_LOG_ALWAYS, ("NSS SHUTDOWN FAILURE\n"));
+      MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("NSS SHUTDOWN FAILURE\n"));
     }
     else {
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS shutdown =====>> OK <<=====\n"));
+      MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("NSS shutdown =====>> OK <<=====\n"));
     }
   }
 }
@@ -1196,17 +1196,17 @@ nsNSSComponent::Init()
 
   nsresult rv = NS_OK;
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Beginning NSS initialization\n"));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("Beginning NSS initialization\n"));
 
   if (!mShutdownObjectList)
   {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, out of memory in constructor\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("NSS init, out of memory in constructor\n"));
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
   rv = InitializePIPNSSBundle();
   if (NS_FAILED(rv)) {
-    PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to create pipnss bundle.\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("Unable to create pipnss bundle.\n"));
     return rv;
   }
 
@@ -1228,7 +1228,7 @@ nsNSSComponent::Init()
 
   rv = InitializeNSS();
   if (NS_FAILED(rv)) {
-    PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to Initialize NSS.\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("Unable to Initialize NSS.\n"));
 
     DeregisterObservers();
     mPIPNSSBundle = nullptr;
@@ -1240,7 +1240,7 @@ nsNSSComponent::Init()
   createBackgroundThreads();
   if (!mCertVerificationThread)
   {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, could not create threads\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("NSS init, could not create threads\n"));
 
     DeregisterObservers();
     mPIPNSSBundle = nullptr;
@@ -1303,11 +1303,11 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
                         const char16_t* someData)
 {
   if (nsCRT::strcmp(aTopic, PROFILE_CHANGE_TEARDOWN_TOPIC) == 0) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("in PSM code, receiving change-teardown\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("in PSM code, receiving change-teardown\n"));
     DoProfileChangeTeardown(aSubject);
   }
   else if (nsCRT::strcmp(aTopic, PROFILE_BEFORE_CHANGE_TOPIC) == 0) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("receiving profile change topic\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("receiving profile change topic\n"));
     DoProfileBeforeChange(aSubject);
   }
   else if (nsCRT::strcmp(aTopic, PROFILE_DO_CHANGE_TOPIC) == 0) {
@@ -1339,13 +1339,13 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
 
     if (needsInit) {
       if (NS_FAILED(InitializeNSS())) {
-        PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to Initialize NSS after profile switch.\n"));
+        MOZ_LOG(gPIPNSSLog, LogLevel::Error, ("Unable to Initialize NSS after profile switch.\n"));
       }
     }
   }
   else if (nsCRT::strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
 
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent: XPCom shutdown observed\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent: XPCom shutdown observed\n"));
 
     // Cleanup code that requires services, it's too late in destructor.
 
@@ -1405,11 +1405,11 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
       SSL_ClearSessionCache();
   }
   else if (nsCRT::strcmp(aTopic, PROFILE_CHANGE_NET_TEARDOWN_TOPIC) == 0) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("receiving network teardown topic\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("receiving network teardown topic\n"));
     DoProfileChangeNetTeardown();
   }
   else if (nsCRT::strcmp(aTopic, PROFILE_CHANGE_NET_RESTORE_TOPIC) == 0) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("receiving network restore topic\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("receiving network restore topic\n"));
     DoProfileChangeNetRestore();
   }
 
@@ -1493,7 +1493,7 @@ nsNSSComponent::RegisterObservers()
   NS_ASSERTION(observerService, "could not get observer service");
   if (observerService) {
     mObserversRegistered = true;
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent: adding observers\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent: adding observers\n"));
 
     // We are a service.
     // Once we are loaded, don't allow being removed from memory.
@@ -1523,7 +1523,7 @@ nsNSSComponent::DeregisterObservers()
   NS_ASSERTION(observerService, "could not get observer service");
   if (observerService) {
     mObserversRegistered = false;
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent: removing observers\n"));
+    MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("nsNSSComponent: removing observers\n"));
 
     observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
 

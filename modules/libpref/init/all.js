@@ -2798,9 +2798,9 @@ pref("svg.marker-improvements.enabled", true);
 pref("svg.new-getBBox.enabled", false);
 
 #ifdef RELEASE_BUILD
-pref("svg.transform-origin.enabled", false);
+pref("svg.transform-box.enabled", false);
 #else
-pref("svg.transform-origin.enabled", true);
+pref("svg.transform-box.enabled", true);
 #endif // RELEASE_BUILD
 
 // Default font types and sizes by locale
@@ -4244,6 +4244,13 @@ pref("image.high_quality_downscaling.min_factor", 335);
 // interpreted as number of decoded bytes.
 pref("image.high_quality_upscaling.max_size", 20971520);
 
+// The threshold for inferring that changes to an <img> element's |src|
+// attribute by JavaScript represent an animation, in milliseconds. If the |src|
+// attribute is changing more frequently than this value, then we enter a
+// special "animation mode" which is designed to eliminate flicker. Set to 0 to
+// disable.
+pref("image.infer-src-animation.threshold-ms", 2000);
+
 // Should we optimize away the surfaces of single-color images?
 pref("image.single-color-optimization.enabled", true);
 
@@ -4374,6 +4381,9 @@ pref("layers.acceleration.force-enabled", false);
 #endif
 
 pref("layers.acceleration.draw-fps", false);
+
+// Enable DEAA antialiasing for transformed layers in the compositor
+pref("layers.deaa.enabled", false);
 
 pref("layers.dump", false);
 #ifdef MOZ_DUMP_PAINTING

@@ -13,11 +13,13 @@
 #include "pratom.h"
 #include "GeckoProfiler.h"
 #include "mozilla/Atomics.h"
+#include "mozilla/Logging.h"
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"
 #endif
 
 using mozilla::Atomic;
+using mozilla::LogLevel;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 
@@ -313,14 +315,14 @@ nsTimerImpl::Startup()
 void
 nsTimerImpl::Shutdown()
 {
-  if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
+  if (MOZ_LOG_TEST(GetTimerLog(), LogLevel::Debug)) {
     double mean = 0, stddev = 0;
     myNS_MeanAndStdDev(sDeltaNum, sDeltaSum, sDeltaSumSquared, &mean, &stddev);
 
-    PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetTimerLog(), LogLevel::Debug,
            ("sDeltaNum = %f, sDeltaSum = %f, sDeltaSumSquared = %f\n",
             sDeltaNum, sDeltaSum, sDeltaSumSquared));
-    PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetTimerLog(), LogLevel::Debug,
            ("mean: %fms, stddev: %fms\n", mean, stddev));
   }
 
@@ -569,7 +571,7 @@ nsTimerImpl::Fire()
 #endif
 
   TimeStamp now = TimeStamp::Now();
-  if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
+  if (MOZ_LOG_TEST(GetTimerLog(), LogLevel::Debug)) {
     TimeDuration   a = now - mStart; // actual delay in intervals
     TimeDuration   b = TimeDuration::FromMilliseconds(mDelay); // expected delay in intervals
     TimeDuration   delta = (a > b) ? a - b : b - a;
@@ -578,14 +580,14 @@ nsTimerImpl::Fire()
     sDeltaSumSquared += double(d) * double(d);
     sDeltaNum++;
 
-    PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetTimerLog(), LogLevel::Debug,
            ("[this=%p] expected delay time %4ums\n", this, mDelay));
-    PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetTimerLog(), LogLevel::Debug,
            ("[this=%p] actual delay time   %fms\n", this,
             a.ToMilliseconds()));
-    PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetTimerLog(), LogLevel::Debug,
            ("[this=%p] (mType is %d)       -------\n", this, mType));
-    PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetTimerLog(), LogLevel::Debug,
            ("[this=%p]     delta           %4dms\n",
             this, (a > b) ? (int32_t)d : -(int32_t)d));
 
@@ -650,7 +652,7 @@ nsTimerImpl::Fire()
   mFiring = false;
   mTimerCallbackWhileFiring = nullptr;
 
-  PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+  MOZ_LOG(GetTimerLog(), LogLevel::Debug,
          ("[this=%p] Took %fms to fire timer callback\n",
           this, (TimeStamp::Now() - now).ToMilliseconds()));
 
@@ -698,9 +700,9 @@ nsTimerEvent::Run()
     return NS_OK;
   }
 
-  if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
+  if (MOZ_LOG_TEST(GetTimerLog(), LogLevel::Debug)) {
     TimeStamp now = TimeStamp::Now();
-    PR_LOG(GetTimerLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetTimerLog(), LogLevel::Debug,
            ("[this=%p] time between PostTimerEvent() and Fire(): %fms\n",
             this, (now - mInitTime).ToMilliseconds()));
   }
@@ -739,7 +741,7 @@ nsTimerImpl::PostTimerEvent(already_AddRefed<nsTimerImpl> aTimerRef)
     return timer.forget();
   }
 
-  if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
+  if (MOZ_LOG_TEST(GetTimerLog(), LogLevel::Debug)) {
     event->mInitTime = TimeStamp::Now();
   }
 
@@ -786,7 +788,7 @@ nsTimerImpl::SetDelayInternal(uint32_t aDelay)
 
   mTimeout += delayInterval;
 
-  if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
+  if (MOZ_LOG_TEST(GetTimerLog(), LogLevel::Debug)) {
     if (mStart.IsNull()) {
       mStart = now;
     } else {

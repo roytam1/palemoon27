@@ -11,6 +11,7 @@
 #include "nsPoint.h"
 #include "nsRegion.h"
 #include "nsCRT.h"
+#include "nsCOMPtr.h"
 #include "nsWidgetInitData.h" // for nsWindowType
 #include "nsIWidgetListener.h"
 #include "mozilla/EventForwards.h"
@@ -281,6 +282,14 @@ public:
   nsIWidget* GetWidget() const { return mWindow; }
 
   /**
+   * The widget which we have attached a listener to can also have a "previous"
+   * listener set on it. This is to keep track of the last nsView when navigating
+   * to a new one so that we can continue to paint that if the new one isn't ready
+   * yet.
+   */
+  void SetPreviousWidget(nsIWidget* aWidget) { mPreviousWindow = aWidget; }
+
+  /**
    * Returns true if the view has a widget associated with it.
    */
   bool HasWidget() const { return mWindow != nullptr; }
@@ -380,6 +389,8 @@ public:
   nsPoint GetOffsetTo(const nsView* aOther, const int32_t aAPD) const;
   nsIWidget* GetNearestWidget(nsPoint* aOffset, const int32_t aAPD) const;
 
+  bool IsPrimaryFramePaintSuppressed();
+
 private:
   explicit nsView(nsViewManager* aViewManager = nullptr,
                   nsViewVisibility aVisibility = nsViewVisibility_kShow);
@@ -446,7 +457,8 @@ private:
 
   nsViewManager    *mViewManager;
   nsView           *mParent;
-  nsIWidget        *mWindow;
+  nsCOMPtr<nsIWidget> mWindow;
+  nsCOMPtr<nsIWidget> mPreviousWindow;
   nsView           *mNextSibling;
   nsView           *mFirstChild;
   nsIFrame         *mFrame;

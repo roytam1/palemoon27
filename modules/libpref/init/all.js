@@ -2798,9 +2798,9 @@ pref("svg.marker-improvements.enabled", true);
 pref("svg.new-getBBox.enabled", false);
 
 #ifdef RELEASE_BUILD
-pref("svg.transform-origin.enabled", false);
+pref("svg.transform-box.enabled", false);
 #else
-pref("svg.transform-origin.enabled", true);
+pref("svg.transform-box.enabled", true);
 #endif // RELEASE_BUILD
 
 // Default font types and sizes by locale
@@ -4381,6 +4381,9 @@ pref("layers.acceleration.force-enabled", false);
 #endif
 
 pref("layers.acceleration.draw-fps", false);
+
+// Enable DEAA antialiasing for transformed layers in the compositor
+pref("layers.deaa.enabled", false);
 
 pref("layers.dump", false);
 #ifdef MOZ_DUMP_PAINTING

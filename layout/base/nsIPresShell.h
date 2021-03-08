@@ -22,6 +22,7 @@
 
 #include "mozilla/EventForwards.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/StaticPtr.h"
 #include "mozilla/WeakPtr.h"
 #include "gfxPoint.h"
 #include "nsTHashtable.h"
@@ -135,7 +136,7 @@ typedef struct CapturingContentInfo {
   bool mPointerLock;
   bool mRetargetToElement;
   bool mPreventDrag;
-  nsIContent* mContent;
+  mozilla::StaticRefPtr<nsIContent> mContent;
 } CapturingContentInfo;
 
 // a7ef8bb3-d628-4965-80f3-a326e089fb7f
@@ -1683,18 +1684,21 @@ protected:
 
   // These are the same Document and PresContext owned by the DocViewer.
   // we must share ownership.
-  nsIDocument*              mDocument;      // [STRONG]
-  nsPresContext*            mPresContext;   // [STRONG]
+  nsCOMPtr<nsIDocument>     mDocument;
+  nsRefPtr<nsPresContext>   mPresContext;
   nsStyleSet*               mStyleSet;      // [OWNS]
   nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
   nsViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsPresArena               mFrameArena;
-  nsFrameSelection*         mSelection;
+  nsRefPtr<nsFrameSelection> mSelection;
   // Pointer into mFrameConstructor - this is purely so that FrameManager() and
   // GetRootFrame() can be inlined:
   nsFrameManagerBase*       mFrameManager;
   mozilla::WeakPtr<nsDocShell>                 mForwardingContainer;
-  nsRefreshDriver*          mHiddenInvalidationObserverRefreshDriver;
+  nsRefreshDriver* MOZ_UNSAFE_REF("These two objects hold weak references "
+                                  "to each other, and the validity of this "
+                                  "member is ensured by the logic in nsIPresShell.")
+                            mHiddenInvalidationObserverRefreshDriver;
 #ifdef ACCESSIBILITY
   mozilla::a11y::DocAccessible* mDocAccessible;
 #endif

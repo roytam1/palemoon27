@@ -3586,13 +3586,19 @@ static FrameTarget GetSelectionClosestFrameForLine(
   nsIFrame *closestFromIStart = nullptr, *closestFromIEnd = nullptr;
   nscoord closestIStart = aLine->IStart(), closestIEnd = aLine->IEnd();
   WritingMode wm = aLine->mWritingMode;
-  LogicalPoint pt(wm, aPoint, aLine->mContainerWidth);
+  LogicalPoint pt(wm, aPoint, aLine->mContainerSize);
+  bool canSkipBr = false;
   for (int32_t n = aLine->GetChildCount(); n;
        --n, frame = frame->GetNextSibling()) {
-    if (!SelfIsSelectable(frame, aFlags) || frame->IsEmpty())
+    // Skip brFrames. Can only skip if the line contains at least
+    // one selectable and non-empty frame before
+    if (!SelfIsSelectable(frame, aFlags) || frame->IsEmpty() ||
+        (canSkipBr && frame->GetType() == nsGkAtoms::brFrame)) {
       continue;
+    }
+    canSkipBr = true;
     LogicalRect frameRect = LogicalRect(wm, frame->GetRect(),
-                                        aLine->mContainerWidth);
+                                        aLine->mContainerSize);
     if (pt.I(wm) >= frameRect.IStart(wm)) {
       if (pt.I(wm) < frameRect.IEnd(wm)) {
         return GetSelectionClosestFrameForChild(frame, aPoint, aFlags);
@@ -3650,7 +3656,7 @@ static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
   nsBlockFrame::line_iterator closestLine = end;
   // Convert aPoint into a LogicalPoint in the writing-mode of this block
   WritingMode wm = curLine->mWritingMode;
-  LogicalPoint pt(wm, aPoint, curLine->mContainerWidth);
+  LogicalPoint pt(wm, aPoint, curLine->mContainerSize);
   while (curLine != end) {
     // Check to see if our point lies within the line's block-direction bounds
     nscoord BCoord = pt.B(wm) - curLine->BStart();
@@ -4366,20 +4372,20 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
       GetMinimumWidgetSize(presContext, this, disp->mAppearance,
                            &widget, &canOverride);
 
-    // Dimensions from themed widgets are applied physically...
-    nsSize size;
-    size.width = presContext->DevPixelsToAppUnits(widget.width);
-    size.height = presContext->DevPixelsToAppUnits(widget.height);
+    // Convert themed widget's physical dimensions to logical coords
+    LogicalSize size(aWM,
+                     nsSize(presContext->DevPixelsToAppUnits(widget.width),
+                            presContext->DevPixelsToAppUnits(widget.height)));
 
     // GMWS() returns border-box; we need content-box
-    size.width -= aBorder.Width(aWM) + aPadding.Width(aWM);
-    size.height -= aBorder.Height(aWM) + aPadding.Height(aWM);
+    size.ISize(aWM) -= aBorder.ISize(aWM) + aPadding.ISize(aWM);
+    size.BSize(aWM) -= aBorder.BSize(aWM) + aPadding.BSize(aWM);
 
-    if (size.height > result.Height(aWM) || !canOverride) {
-      result.Height(aWM) = size.height;
+    if (size.BSize(aWM) > result.BSize(aWM) || !canOverride) {
+      result.BSize(aWM) = size.BSize(aWM);
     }
-    if (size.width > result.Width(aWM) || !canOverride) {
-      result.Width(aWM) = size.width;
+    if (size.ISize(aWM) > result.ISize(aWM) || !canOverride) {
+      result.ISize(aWM) = size.ISize(aWM);
     }
   }
 
@@ -5718,14 +5724,16 @@ nsIFrame::ListGeneric(nsACString& aTo, const char* aPrefix, uint32_t aFlags) con
   if (parent) {
     WritingMode pWM = parent->GetWritingMode();
     if (pWM.IsVertical() || !pWM.IsBidiLTR()) {
-      nscoord cw = parent->mRect.width;
-      LogicalRect lr(pWM, mRect, cw);
-      aTo += nsPrintfCString(" parent wm=%s-%s,width=%d,logicalRect={%d,%d,%d,%d}",
+      nsSize containerSize = parent->mRect.Size();
+      LogicalRect lr(pWM, mRect, containerSize);
+      aTo += nsPrintfCString(" parent wm=%s-%s, cs={%d,%d}, "
+                             " logicalRect={%d,%d,%d,%d}",
                              pWM.IsVertical() ? pWM.IsVerticalLR()
                                                 ? "vlr" : "vrl"
                                               : "htb",
                              wm.IsBidiLTR() ? "ltr" : "rtl",
-                             cw, lr.IStart(pWM), lr.BStart(pWM),
+                             containerSize.width, containerSize.height,
+                             lr.IStart(pWM), lr.BStart(pWM),
                              lr.ISize(pWM), lr.BSize(pWM));
     }
   }
@@ -6879,6 +6887,12 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
         for (int32_t count = lineFrameCount; count;
              --count, frame = frame->GetNextSibling()) {
           if (!frame->IsGeneratedContentFrame()) {
+            // When jumping to the end of the line with the "end" key,
+            // skip over brFrames
+            if (endOfLine && lineFrameCount > 1 &&
+                frame->GetType() == nsGkAtoms::brFrame) {
+              continue;
+            }
             baseFrame = frame;
             if (!endOfLine)
               break;
@@ -7159,6 +7173,23 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, bool aVisual,
         (!traversedFrame->IsGeneratedContentFrame() &&
          traversedFrame->GetContent()->IsRootOfNativeAnonymousSubtree())) {
       return NS_ERROR_FAILURE;
+    }
+
+    // Skip brFrames, but only if they are not the only frame in the line
+    if (atLineEdge && aDirection == eDirPrevious &&
+        traversedFrame->GetType() == nsGkAtoms::brFrame) {
+      int32_t lineFrameCount;
+      nsIFrame *currentBlockFrame, *currentFirstFrame;
+      nsRect usedRect;
+      int32_t currentLine = nsFrame::GetLineNumber(traversedFrame, aScrollViewStop, &currentBlockFrame);
+      nsAutoLineIterator iter = currentBlockFrame->GetLineIterator();
+      result = iter->GetLine(currentLine, &currentFirstFrame, &lineFrameCount, usedRect);
+      if (NS_FAILED(result)) {
+        return result;
+      }
+      if (lineFrameCount > 1) {
+        continue;
+      }
     }
 
     traversedFrame->IsSelectable(&selectable, nullptr);

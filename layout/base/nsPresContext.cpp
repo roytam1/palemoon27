@@ -67,6 +67,7 @@
 #include "mozilla/Preferences.h"
 #include "gfxTextRun.h"
 #include "nsFontFaceUtils.h"
+#include "nsLayoutStylesheetCache.h"
 
 #if defined(MOZ_WIDGET_GTK)
 #include "gfxPlatformGtk.h" // xxx - for UseFcFontList
@@ -929,6 +930,12 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
     mPrefChangedTimer = do_CreateInstance("@mozilla.org/timer;1");
     if (!mPrefChangedTimer)
       return;
+    // We will end up calling InvalidatePreferenceSheets one from each pres
+    // context, but all it's doing is clearing its cached sheet pointers,
+    // so it won't be wastefully recreating the sheet multiple times.
+    // The first pres context that has its mPrefChangedTimer called will
+    // be the one to cause the reconstruction of the pref style sheet.
+    nsLayoutStylesheetCache::InvalidatePreferenceSheets();
     mPrefChangedTimer->InitWithFuncCallback(nsPresContext::PrefChangedUpdateTimerCallback, (void*)this, 0, nsITimer::TYPE_ONE_SHOT);
   }
   if (prefName.EqualsLiteral("nglayout.debug.paint_flashing") ||
@@ -953,7 +960,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
 
   // update the presShell: tell it to set the preference style rules up
   if (mShell) {
-    mShell->SetPreferenceStyleRules(true);
+    mShell->UpdatePreferenceStyles();
   }
 
   InvalidatePaintedLayers();
@@ -1320,12 +1327,40 @@ nsPresContext::GetRootPresContext()
 void
 nsPresContext::CompatibilityModeChanged()
 {
-  if (!mShell)
+  if (!mShell) {
     return;
+  }
 
-  // enable/disable the QuirkSheet
-  mShell->StyleSet()->
-    EnableQuirkStyleSheet(CompatibilityMode() == eCompatibility_NavQuirks);
+  nsIDocument* doc = mShell->GetDocument();
+  if (!doc) {
+    return;
+  }
+
+  if (doc->IsSVGDocument()) {
+    // SVG documents never load quirk.css.
+    return;
+  }
+
+  bool needsQuirkSheet = CompatibilityMode() == eCompatibility_NavQuirks;
+  if (mQuirkSheetAdded == needsQuirkSheet) {
+    return;
+  }
+
+  nsStyleSet* styleSet = mShell->StyleSet();
+  CSSStyleSheet* sheet = nsLayoutStylesheetCache::QuirkSheet();
+
+  if (needsQuirkSheet) {
+    // quirk.css needs to come after html.css; we just keep it at the end.
+    DebugOnly<nsresult> rv =
+      styleSet->AppendStyleSheet(nsStyleSet::eAgentSheet, sheet);
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to insert quirk.css");
+  } else {
+    DebugOnly<nsresult> rv =
+      styleSet->RemoveStyleSheet(nsStyleSet::eAgentSheet, sheet);
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to remove quirk.css");
+  }
+
+  mQuirkSheetAdded = needsQuirkSheet;
 }
 
 // Helper function for setting Anim Mode on image

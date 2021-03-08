@@ -609,14 +609,15 @@ IsTopLevelWidget(nsIWidget* aWidget)
 void
 nsContainerFrame::SyncWindowProperties(nsPresContext*       aPresContext,
                                        nsIFrame*            aFrame,
-                                       nsView*             aView,
-                                       nsRenderingContext*  aRC)
+                                       nsView*              aView,
+                                       nsRenderingContext*  aRC,
+                                       uint32_t             aFlags)
 {
 #ifdef MOZ_XUL
   if (!aView || !nsCSSRendering::IsCanvasFrame(aFrame) || !aView->HasWidget())
     return;
 
-  nsIWidget* windowWidget = GetPresContextContainerWidget(aPresContext);
+  nsCOMPtr<nsIWidget> windowWidget = GetPresContextContainerWidget(aPresContext);
   if (!windowWidget || !IsTopLevelWidget(windowWidget))
     return;
 
@@ -650,14 +651,27 @@ nsContainerFrame::SyncWindowProperties(nsPresContext*       aPresContext,
   if (!rootFrame)
     return;
 
+  if (aFlags & SET_ASYNC) {
+    aView->SetNeedsWindowPropertiesSync();
+    return;
+  }
+
+  nsRefPtr<nsPresContext> kungFuDeathGrip(aPresContext);
+  nsWeakFrame weak(rootFrame);
+
   nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(aFrame, rootFrame);
-  nsIWidget* viewWidget = aView->GetWidget();
+  int32_t shadow = rootFrame->StyleUIReset()->mWindowShadow;
+  nsCOMPtr<nsIWidget> viewWidget = aView->GetWidget();
   viewWidget->SetTransparencyMode(mode);
-  windowWidget->SetWindowShadowStyle(rootFrame->StyleUIReset()->mWindowShadow);
+  windowWidget->SetWindowShadowStyle(shadow);
 
   if (!aRC)
     return;
-  
+
+  if (!weak.IsAlive()) {
+    return;
+  }
+
   nsBoxLayoutState aState(aPresContext, aRC);
   nsSize minSize = rootFrame->GetMinSize(aState);
   nsSize maxSize = rootFrame->GetMaxSize(aState);
@@ -968,7 +982,7 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
   NS_PRECONDITION(aReflowState.frame == aKidFrame, "bad reflow state");
   if (aWM.IsVerticalRL() || (!aWM.IsVertical() && !aWM.IsBidiLTR())) {
     NS_ASSERTION(aContainerWidth != NS_UNCONSTRAINEDSIZE,
-                 "FinishReflowChild with unconstrained container width!");
+                 "ReflowChild with unconstrained container width!");
   }
 
   // Position the child frame and its view if requested.

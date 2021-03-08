@@ -5707,7 +5707,7 @@ nsTableFrame::CalcBCBorders()
   // segments that are on the table border edges need
   // to be initialized only once
   bool tableBorderReset[4];
-  for (uint32_t sideX = eLogicalSideBStart; sideX <= eLogicalSideIStart; sideX++) {
+  for (uint32_t sideX = 0; sideX < ArrayLength(tableBorderReset); sideX++) {
     tableBorderReset[sideX] = false;
   }
 
@@ -6172,12 +6172,12 @@ struct BCBlockDirSeg
 
   void Initialize(BCPaintBorderIterator& aIter);
   void GetBEndCorner(BCPaintBorderIterator& aIter,
-                       BCPixelSize            aInlineSegBSize);
+                     BCPixelSize            aInlineSegBSize);
 
 
-   void Paint(BCPaintBorderIterator& aIter,
-              nsRenderingContext&   aRenderingContext,
-              BCPixelSize            aInlineSegBSize);
+  void Paint(BCPaintBorderIterator& aIter,
+             nsRenderingContext&    aRenderingContext,
+             BCPixelSize            aInlineSegBSize);
   void AdvanceOffsetB();
   void IncludeCurrentBorder(BCPaintBorderIterator& aIter);
 
@@ -6222,12 +6222,12 @@ struct BCInlineDirSeg
              BCBorderOwner          aBorderOwner,
              BCPixelSize            aBEndBlockSegISize,
              BCPixelSize            aInlineSegBSize);
-   void GetIEndCorner(BCPaintBorderIterator& aIter,
-                      BCPixelSize            aIStartSegISize);
-   void AdvanceOffsetI();
-   void IncludeCurrentBorder(BCPaintBorderIterator& aIter);
-   void Paint(BCPaintBorderIterator& aIter,
-              nsRenderingContext&    aRenderingContext);
+  void GetIEndCorner(BCPaintBorderIterator& aIter,
+                     BCPixelSize            aIStartSegISize);
+  void AdvanceOffsetI();
+  void IncludeCurrentBorder(BCPaintBorderIterator& aIter);
+  void Paint(BCPaintBorderIterator& aIter,
+             nsRenderingContext&    aRenderingContext);
 
   nscoord            mOffsetI;       // i-offset with respect to the table edge
   nscoord            mOffsetB;       // b-offset with respect to the table edge
@@ -6909,7 +6909,7 @@ BCBlockDirSeg::GetBEndCorner(BCPaintBorderIterator& aIter,
  */
 void
 BCBlockDirSeg::Paint(BCPaintBorderIterator& aIter,
-                     nsRenderingContext&   aRenderingContext,
+                     nsRenderingContext&    aRenderingContext,
                      BCPixelSize            aInlineSegBSize)
 {
   // get the border style, color and paint the segment
@@ -6982,16 +6982,40 @@ BCBlockDirSeg::Paint(BCPaintBorderIterator& aIter,
                  aIter.mTable->PresContext()->DevPixelsToAppUnits(mBEndInlineSegBSize) : 0;
   LogicalSide bEndBevelSide =
     (aInlineSegBSize > 0) ? eLogicalSideIEnd : eLogicalSideIStart;
+
+  // Convert logical to physical sides/coordinates for DrawTableBorderSegment.
+
+  nsRect physicalRect = segRect.GetPhysicalRect(aIter.mTableWM,
+                                                aIter.mTable->GetSize().width);
+  // XXX For reversed vertical writing-modes (with direction:rtl), we need to
+  // invert physicalRect's y-position here, with respect to the table.
+  // However, it's not worth fixing the border positions here until the
+  // ordering of the table columns themselves is also fixed (bug 1180528).
+
+  uint8_t startBevelSide = aIter.mTableWM.PhysicalSide(mBStartBevelSide);
+  uint8_t endBevelSide = aIter.mTableWM.PhysicalSide(bEndBevelSide);
+  nscoord startBevelOffset = mBStartBevelOffset;
+  nscoord endBevelOffset = bEndBevelOffset;
+  // In vertical-rl mode, the 'start' and 'end' of the block-dir (horizontal)
+  // border segment need to be swapped because DrawTableBorderSegment will
+  // apply the 'start' bevel at the left edge, and 'end' at the right.
+  // (Note: In this case, startBevelSide/endBevelSide will usually both be
+  // "top" or "bottom". DrawTableBorderSegment works purely with physical
+  // coordinates, so it expects startBevelOffset to be the indentation-from-
+  // the-left for the "start" (left) end of the border-segment, and
+  // endBevelOffset is the indentation-from-the-right for the "end" (right)
+  // end of the border-segment. We've got them reversed, since our block dir
+  // is RTL, so we have to swap them here.)
+  if (aIter.mTableWM.IsVerticalRL()) {
+    Swap(startBevelSide, endBevelSide);
+    Swap(startBevelOffset, endBevelOffset);
+  }
   nsCSSRendering::DrawTableBorderSegment(aRenderingContext, style, color,
-                                         aIter.mTableBgColor,
-                                         segRect.GetPhysicalRect(aIter.mTableWM,
-                                           aIter.mTable->GetSize().width),
+					 aIter.mTableBgColor, physicalRect,
                                          appUnitsPerDevPixel,
                                          aIter.mTable->PresContext()->AppUnitsPerDevPixel(),
-                                         aIter.mTableWM.PhysicalSide(mBStartBevelSide),
-                                         mBStartBevelOffset,
-                                         aIter.mTableWM.PhysicalSide(bEndBevelSide),
-                                         bEndBevelOffset);
+                                         startBevelSide, startBevelOffset,
+                                         endBevelSide, endBevelOffset);
 }
 
 /**
@@ -7167,29 +7191,37 @@ BCInlineDirSeg::Paint(BCPaintBorderIterator& aIter,
                       mOffsetB - nsPresContext::CSSPixelsToAppUnits(largeHalf),
                       mLength,
                       aIter.mTable->PresContext()->DevPixelsToAppUnits(mWidth));
-  if (aIter.mTableWM.IsBidiLTR()) {
-    nsCSSRendering::DrawTableBorderSegment(aRenderingContext, style, color,
-                                           aIter.mTableBgColor,
-                                           segRect.GetPhysicalRect(aIter.mTableWM,
-                                             aIter.mTable->GetSize().width),
-                                           appUnitsPerDevPixel,
-                                           aIter.mTable->PresContext()->AppUnitsPerDevPixel(),
-                                           aIter.mTableWM.PhysicalSide(mIStartBevelSide),
-                                           aIter.mTable->PresContext()->DevPixelsToAppUnits(mIStartBevelOffset),
-                                           aIter.mTableWM.PhysicalSide(mIEndBevelSide),
-                                           mIEndBevelOffset);
-  } else {
-    nsCSSRendering::DrawTableBorderSegment(aRenderingContext, style, color,
-                                           aIter.mTableBgColor,
-                                           segRect.GetPhysicalRect(aIter.mTableWM,
-                                             aIter.mTable->GetSize().width),
-                                           appUnitsPerDevPixel,
-                                           aIter.mTable->PresContext()->AppUnitsPerDevPixel(),
-                                           aIter.mTableWM.PhysicalSide(mIEndBevelSide),
-                                           mIEndBevelOffset,
-                                           aIter.mTableWM.PhysicalSide(mIStartBevelSide),
-                                           aIter.mTable->PresContext()->DevPixelsToAppUnits(mIStartBevelOffset));
+
+  // Convert logical to physical sides/coordinates for DrawTableBorderSegment.
+  nsRect physicalRect = segRect.GetPhysicalRect(aIter.mTableWM,
+                                                aIter.mTable->GetSize().width);
+  uint8_t startBevelSide = aIter.mTableWM.PhysicalSide(mIStartBevelSide);
+  uint8_t endBevelSide = aIter.mTableWM.PhysicalSide(mIEndBevelSide);
+  nscoord startBevelOffset =
+      aIter.mTable->PresContext()->DevPixelsToAppUnits(mIStartBevelOffset);
+  nscoord endBevelOffset = mIEndBevelOffset;
+  // With inline-RTL directionality, the 'start' and 'end' of the inline-dir
+  // border segment need to be swapped because DrawTableBorderSegment will
+  // apply the 'start' bevel physically at the left or top edge, and 'end' at
+  // the right or bottom.
+  // (Note: startBevelSide/endBevelSide will be "top" or "bottom" in horizontal
+  // writing mode, or "left" or "right" in vertical mode.
+  // DrawTableBorderSegment works purely with physical coordinates, so it
+  // expects startBevelOffset to be the indentation-from-the-left or top end
+  // of the border-segment, and endBevelOffset is the indentation-from-the-
+  // right or bottom end. If the writing mode is inline-RTL, our "start" and
+  // "end" will be reversed from this physical-coord view, so we have to swap
+  // them here.
+  if (!aIter.mTableWM.IsBidiLTR()) {
+    Swap(startBevelSide, endBevelSide);
+    Swap(startBevelOffset, endBevelOffset);
   }
+  nsCSSRendering::DrawTableBorderSegment(aRenderingContext, style, color,
+                                         aIter.mTableBgColor, physicalRect,
+                                         appUnitsPerDevPixel,
+                                         aIter.mTable->PresContext()->AppUnitsPerDevPixel(),
+                                         startBevelSide, startBevelOffset,
+                                         endBevelSide, endBevelOffset);
 }
 
 /**

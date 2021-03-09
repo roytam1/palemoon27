@@ -7,7 +7,7 @@
 #define GFX_LAYERSTYPES_H
 
 #include <stdint.h>                     // for uint32_t
-#include "nsPoint.h"                    // for nsIntPoint
+#include "mozilla/gfx/Point.h"          // for IntPoint
 #include "nsRegion.h"
 
 #include "mozilla/TypedEnumBits.h"
@@ -97,7 +97,7 @@ struct LayerRenderState {
 
 #ifdef MOZ_WIDGET_GONK
   LayerRenderState(android::GraphicBuffer* aSurface,
-                   const nsIntSize& aSize,
+                   const gfx::IntSize& aSize,
                    LayerRenderStateFlags aFlags,
                    TextureHost* aTexture)
     : mFlags(aFlags)
@@ -138,7 +138,7 @@ struct LayerRenderState {
   android::sp<android::GraphicBuffer> mSurface;
   int32_t mOverlayId;
   // size of mSurface
-  nsIntSize mSize;
+  gfx::IntSize mSize;
   TextureHost* mTexture;
 #endif
 };
@@ -206,7 +206,22 @@ struct EventRegions {
     mDispatchToContentHitRegion.Sub(aMinuend.mDispatchToContentHitRegion, aSubtrahend);
   }
 
-  void Transform(const gfx3DMatrix& aTransform)
+  void ApplyTranslationAndScale(float aXTrans, float aYTrans, float aXScale, float aYScale)
+  {
+    mHitRegion.ScaleRoundOut(aXScale, aYScale);
+    mDispatchToContentHitRegion.ScaleRoundOut(aXScale, aYScale);
+    mNoActionRegion.ScaleRoundOut(aXScale, aYScale);
+    mHorizontalPanRegion.ScaleRoundOut(aXScale, aYScale);
+    mVerticalPanRegion.ScaleRoundOut(aXScale, aYScale);
+
+    mHitRegion.MoveBy(aXTrans, aYTrans);
+    mDispatchToContentHitRegion.MoveBy(aXTrans, aYTrans);
+    mNoActionRegion.MoveBy(aXTrans, aYTrans);
+    mHorizontalPanRegion.MoveBy(aXTrans, aYTrans);
+    mVerticalPanRegion.MoveBy(aXTrans, aYTrans);
+  }
+
+  void Transform(const gfx::Matrix4x4& aTransform)
   {
     mHitRegion.Transform(aTransform);
     mDispatchToContentHitRegion.Transform(aTransform);

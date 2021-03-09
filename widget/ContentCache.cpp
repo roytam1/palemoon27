@@ -915,15 +915,16 @@ ContentCacheInParent::OnSelectionEvent(
 }
 
 void
-ContentCacheInParent::OnEventNeedingAckReceived(nsIWidget* aWidget)
+ContentCacheInParent::OnEventNeedingAckReceived(nsIWidget* aWidget,
+                                                uint32_t aMessage)
 {
   // This is called when the child process receives WidgetCompositionEvent or
   // WidgetSelectionEvent.
 
   MOZ_LOG(sContentCacheLog, LogLevel::Info,
-    ("ContentCacheInParent: 0x%p OnEventNeedingAckReceived(aWidget=0x%p), "
-     "mPendingEventsNeedingAck=%u",
-     this, aWidget, mPendingEventsNeedingAck));
+    ("ContentCacheInParent: 0x%p OnEventNeedingAckReceived(aWidget=0x%p, "
+     "aMessage=%s), mPendingEventsNeedingAck=%u",
+     this, aWidget, GetEventMessageName(aMessage), mPendingEventsNeedingAck));
 
   MOZ_RELEASE_ASSERT(mPendingEventsNeedingAck > 0);
   if (--mPendingEventsNeedingAck) {
@@ -960,15 +961,8 @@ ContentCacheInParent::RequestToCommitComposition(nsIWidget* aWidget,
 
 void
 ContentCacheInParent::MaybeNotifyIME(nsIWidget* aWidget,
-                                     IMENotification& aNotification)
+                                     const IMENotification& aNotification)
 {
-  if (aNotification.mMessage == NOTIFY_IME_OF_SELECTION_CHANGE) {
-    aNotification.mSelectionChangeData.mOffset = mSelection.StartOffset();
-    aNotification.mSelectionChangeData.mLength = mSelection.Length();
-    aNotification.mSelectionChangeData.mReversed = mSelection.Reversed();
-    aNotification.mSelectionChangeData.SetWritingMode(mSelection.mWritingMode);
-  }
-
   if (!mPendingEventsNeedingAck) {
     IMEStateManager::NotifyIME(aNotification, aWidget, true);
     return;
@@ -980,6 +974,9 @@ ContentCacheInParent::MaybeNotifyIME(nsIWidget* aWidget,
       break;
     case NOTIFY_IME_OF_TEXT_CHANGE:
       mPendingTextChange.MergeWith(aNotification);
+      break;
+    case NOTIFY_IME_OF_POSITION_CHANGE:
+      mPendingLayoutChange.MergeWith(aNotification);
       break;
     case NOTIFY_IME_OF_COMPOSITION_UPDATE:
       mPendingCompositionUpdate.MergeWith(aNotification);
@@ -1020,6 +1017,16 @@ ContentCacheInParent::FlushPendingNotifications(nsIWidget* aWidget)
     }
   }
 
+  // Layout change notification should be notified after selection change
+  // notification because IME may want to query position of new caret position.
+  if (mPendingLayoutChange.HasNotification()) {
+    IMENotification notification(mPendingLayoutChange);
+    if (!aWidget->Destroyed()) {
+      mPendingLayoutChange.Clear();
+      IMEStateManager::NotifyIME(notification, aWidget, true);
+    }
+  }
+
   // Finally, send composition update notification because it notifies IME of
   // finishing handling whole sending events.
   if (mPendingCompositionUpdate.HasNotification()) {
@@ -1033,6 +1040,7 @@ ContentCacheInParent::FlushPendingNotifications(nsIWidget* aWidget)
   if (!--mPendingEventsNeedingAck && !aWidget->Destroyed() &&
       (mPendingTextChange.HasNotification() ||
        mPendingSelectionChange.HasNotification() ||
+       mPendingLayoutChange.HasNotification() ||
        mPendingCompositionUpdate.HasNotification())) {
     FlushPendingNotifications(aWidget);
   }

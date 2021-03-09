@@ -94,9 +94,6 @@ class nsStyleSet
 
   nsRuleNode* GetRuleTree() { return mRuleTree; }
 
-  // enable / disable the Quirk style sheet
-  void EnableQuirkStyleSheet(bool aEnable);
-
   // get a style context for a non-pseudo frame.
   already_AddRefed<nsStyleContext>
   ResolveStyleFor(mozilla::dom::Element* aElement,
@@ -192,10 +189,30 @@ class nsStyleSet
                           TreeMatchContext& aTreeMatchContext,
                           mozilla::dom::Element* aPseudoElement = nullptr);
 
+  /**
+   * Bit-flags that can be passed to ResolveAnonymousBoxStyle and GetContext
+   * in their parameter 'aFlags'.
+   */
+  enum {
+    eNoFlags =          0,
+    eIsLink =           1 << 0,
+    eIsVisitedLink =    1 << 1,
+    eDoAnimation =      1 << 2,
+
+    // Indicates that we should skip the flex/grid item specific chunk of
+    // ApplyStyleFixups().  This is useful if our parent has "display: flex"
+    // or "display: grid" but we can tell we're not going to honor that (e.g. if
+    // it's the outer frame of a button widget, and we're the inline frame for
+    // the button's label).
+    eSkipParentDisplayBasedStyleFixup = 1 << 3
+  };
+
   // Get a style context for an anonymous box.  aPseudoTag is the
-  // pseudo-tag to use and must be non-null.
+  // pseudo-tag to use and must be non-null.  aFlags will be forwarded
+  // to a GetContext call internally.
   already_AddRefed<nsStyleContext>
-  ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag, nsStyleContext* aParentContext);
+  ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag, nsStyleContext* aParentContext,
+                           uint32_t aFlags = eNoFlags);
 
 #ifdef MOZ_XUL
   // Get a style context for a XUL tree pseudo.  aPseudoTag is the
@@ -352,11 +369,6 @@ class nsStyleSet
     return mInReconstruct;
   }
 
-  // Let the style set know that a particular sheet is the quirks sheet.  This
-  // sheet must already have been added to the UA sheets.  The pointer must not
-  // be null.  This should only be called once for a given style set.
-  void SetQuirkStyleSheet(nsIStyleSheet* aQuirkStyleSheet);
-
   // Return whether the rule tree has cached data such that we need to
   // do dynamic change handling for changes that change the results of
   // media queries or require rebuilding all style data.
@@ -442,23 +454,6 @@ class nsStyleSet
                                       nsCSSPseudoElements::Type aPseudoType,
                                       nsRestyleHint aReplacements);
 
-  /**
-   * Bit-flags that can be passed to GetContext() in its parameter 'aFlags'.
-   */
-  enum {
-    eNoFlags =          0,
-    eIsLink =           1 << 0,
-    eIsVisitedLink =    1 << 1,
-    eDoAnimation =      1 << 2,
-
-    // Indicates that we should skip the flex/grid item specific chunk of
-    // ApplyStyleFixups().  This is useful if our parent has "display: flex"
-    // or "display: grid" but we can tell we're not going to honor that (e.g. if
-    // it's the outer frame of a button widget, and we're the inline frame for
-    // the button's label).
-    eSkipParentDisplayBasedStyleFixup = 1 << 3
-  };
-
   already_AddRefed<nsStyleContext>
   GetContext(nsStyleContext* aParentContext,
              nsRuleNode* aRuleNode,
@@ -483,9 +478,6 @@ class nsStyleSet
 
   // Rule processors for HTML5 scoped style sheets, one per scope.
   nsTArray<nsCOMPtr<nsIStyleRuleProcessor> > mScopedDocSheetRuleProcessors;
-
-  // cached instance for enabling/disabling
-  nsCOMPtr<nsIStyleSheet> mQuirkStyleSheet;
 
   nsRefPtr<nsBindingManager> mBindingManager;
 

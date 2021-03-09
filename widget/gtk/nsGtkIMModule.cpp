@@ -762,11 +762,21 @@ nsGtkIMModule::OnSelectionChange(nsWindow* aCaller,
         return;
     }
 
+    const IMENotification::SelectionChangeData& selectionChangeData =
+        aIMENotification.mSelectionChangeData;
+
     MOZ_LOG(gGtkIMLog, LogLevel::Info,
-        ("GtkIMModule(%p): OnSelectionChange(aCaller=0x%p), "
-         "mCompositionState=%s, mIsDeletingSurrounding=%s",
-         this, aCaller, GetCompositionStateName(),
-         mIsDeletingSurrounding ? "true" : "false"));
+        ("GtkIMModule(%p): OnSelectionChange(aCaller=0x%p, aIMENotification={ "
+         "mSelectionChangeData={ mOffset=%u, Length()=%u, mReversed=%s, "
+         "mWritingMode=%s, mCausedByComposition=%s, mCausedBySelectionEvent=%s "
+         "} }), mCompositionState=%s, mIsDeletingSurrounding=%s",
+         this, aCaller, selectionChangeData.mOffset,
+         selectionChangeData.Length(),
+         GetBoolName(selectionChangeData.mReversed),
+         GetWritingModeName(selectionChangeData.GetWritingMode()).get(),
+         GetBoolName(selectionChangeData.mCausedByComposition),
+         GetBoolName(selectionChangeData.mCausedBySelectionEvent),
+         GetCompositionStateName(), GetBoolName(mIsDeletingSurrounding)));
 
     if (aCaller != mLastFocusedWindow) {
         MOZ_LOG(gGtkIMLog, LogLevel::Info,
@@ -804,7 +814,13 @@ nsGtkIMModule::OnSelectionChange(nsWindow* aCaller,
         return;
     }
 
-    ResetIME();
+    // When the selection change is caused by dispatching composition event
+    // and/or selection set event, we shouldn't notify IME of that and commit
+    // existing composition.
+    if (!selectionChangeData.mCausedByComposition &&
+        !selectionChangeData.mCausedBySelectionEvent) {
+        ResetIME();
+    }
 }
 
 /* static */
@@ -1195,7 +1211,7 @@ nsGtkIMModule::DispatchCompositionChangeEvent(
 
     compositionChangeEvent.mRanges =
       CreateTextRangeArray(aContext, mDispatchedCompositionString);
-    targetOffset += compositionChangeEvent.mRanges->TargetClauseOffset();
+    targetOffset += compositionChangeEvent.TargetClauseOffset();
 
     mCompositionState = eCompositionState_CompositionChangeEventDispatched;
 
@@ -1205,7 +1221,7 @@ nsGtkIMModule::DispatchCompositionChangeEvent(
     mLayoutChanged = false;
     mCompositionTargetRange.mOffset = targetOffset;
     mCompositionTargetRange.mLength =
-        compositionChangeEvent.mRanges->TargetClauseLength();
+        compositionChangeEvent.TargetClauseLength();
 
     mLastFocusedWindow->DispatchEvent(&compositionChangeEvent, status);
     if (lastFocusedWindow->IsDestroyed() ||
@@ -1784,7 +1800,7 @@ nsGtkIMModule::Selection::Assign(const IMENotification& aIMENotification)
 {
     MOZ_ASSERT(aIMENotification.mMessage == NOTIFY_IME_OF_SELECTION_CHANGE);
     mOffset = aIMENotification.mSelectionChangeData.mOffset;
-    mLength = aIMENotification.mSelectionChangeData.mLength;
+    mLength = aIMENotification.mSelectionChangeData.Length();
     mWritingMode = aIMENotification.mSelectionChangeData.GetWritingMode();
 }
 

@@ -136,8 +136,8 @@ PuppetWidget::InitIMEState()
   MOZ_ASSERT(mTabChild);
   if (mNeedIMEStateInit) {
     mContentCache.Clear();
-    mTabChild->SendNotifyIMEFocus(false, mContentCache,
-                                  &mIMEPreferenceOfParent);
+    mTabChild->SendUpdateContentCache(mContentCache);
+    mIMEPreferenceOfParent = nsIMEUpdatePreference();
     mNeedIMEStateInit = false;
   }
 }
@@ -215,7 +215,14 @@ PuppetWidget::Resize(double aWidth,
     InvalidateRegion(this, dirty);
   }
 
+  // call WindowResized() on both the current listener, and possibly
+  // also the previous one if we're in a state where we're drawing that one
+  // because the current one is paint suppressed
   if (!oldBounds.IsEqualEdges(mBounds) && mAttachedWidgetListener) {
+    if (GetCurrentWidgetListener() &&
+        GetCurrentWidgetListener() != mAttachedWidgetListener) {
+      GetCurrentWidgetListener()->WindowResized(this, mBounds.width, mBounds.height);
+    }
     mAttachedWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
   }
 
@@ -311,8 +318,8 @@ PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
 
   aStatus = nsEventStatus_eIgnore;
 
-  if (mAttachedWidgetListener) {
-    aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);
+  if (GetCurrentWidgetListener()) {
+    aStatus = GetCurrentWidgetListener()->HandleEvent(event, mUseAttachedEvents);
   }
 
   return NS_OK;
@@ -601,7 +608,7 @@ PuppetWidget::NotifyIMEInternal(const IMENotification& aIMENotification)
     case NOTIFY_IME_OF_TEXT_CHANGE:
       return NotifyIMEOfTextChange(aIMENotification);
     case NOTIFY_IME_OF_COMPOSITION_UPDATE:
-      return NotifyIMEOfUpdateComposition(aIMENotification);
+      return NotifyIMEOfCompositionUpdate(aIMENotification);
     case NOTIFY_IME_OF_MOUSE_BUTTON_EVENT:
       return NotifyIMEOfMouseButtonEvent(aIMENotification);
     case NOTIFY_IME_OF_POSITION_CHANGE:
@@ -695,7 +702,7 @@ PuppetWidget::NotifyIMEOfFocusChange(const IMENotification& aIMENotification)
   }
 
   mIMEPreferenceOfParent = nsIMEUpdatePreference();
-  if (!mTabChild->SendNotifyIMEFocus(gotFocus, mContentCache,
+  if (!mTabChild->SendNotifyIMEFocus(mContentCache, aIMENotification,
                                      &mIMEPreferenceOfParent)) {
     return NS_ERROR_FAILURE;
   }
@@ -703,7 +710,7 @@ PuppetWidget::NotifyIMEOfFocusChange(const IMENotification& aIMENotification)
 }
 
 nsresult
-PuppetWidget::NotifyIMEOfUpdateComposition(
+PuppetWidget::NotifyIMEOfCompositionUpdate(
                 const IMENotification& aIMENotification)
 {
 #ifndef MOZ_CROSS_PROCESS_IME
@@ -715,7 +722,7 @@ PuppetWidget::NotifyIMEOfUpdateComposition(
   if (NS_WARN_IF(!mContentCache.CacheSelection(this, &aIMENotification))) {
     return NS_ERROR_FAILURE;
   }
-  mTabChild->SendNotifyIMESelectedCompositionRect(mContentCache);
+  mTabChild->SendNotifyIMECompositionUpdate(mContentCache, aIMENotification);
   return NS_OK;
 }
 
@@ -760,12 +767,7 @@ PuppetWidget::NotifyIMEOfTextChange(const IMENotification& aIMENotification)
   if (mIMEPreferenceOfParent.WantTextChange() &&
       (mIMEPreferenceOfParent.WantChangesCausedByComposition() ||
        !aIMENotification.mTextChangeData.mCausedByComposition)) {
-    mTabChild->SendNotifyIMETextChange(
-      mContentCache,
-      aIMENotification.mTextChangeData.mStartOffset,
-      aIMENotification.mTextChangeData.mRemovedEndOffset,
-      aIMENotification.mTextChangeData.mAddedEndOffset,
-      aIMENotification.mTextChangeData.mCausedByComposition);
+    mTabChild->SendNotifyIMETextChange(mContentCache, aIMENotification);
   } else {
     mTabChild->SendUpdateContentCache(mContentCache);
   }
@@ -789,14 +791,13 @@ PuppetWidget::NotifyIMEOfSelectionChange(
   // Note that selection change must be notified after text change if it occurs.
   // Therefore, we don't need to query text content again here.
   mContentCache.SetSelection(
-    this,
+    this, 
     aIMENotification.mSelectionChangeData.mOffset,
-    aIMENotification.mSelectionChangeData.mLength,
+    aIMENotification.mSelectionChangeData.Length(),
     aIMENotification.mSelectionChangeData.mReversed,
     aIMENotification.mSelectionChangeData.GetWritingMode());
 
-  mTabChild->SendNotifyIMESelection(
-    mContentCache, aIMENotification.mSelectionChangeData.mCausedByComposition);
+  mTabChild->SendNotifyIMESelection(mContentCache, aIMENotification);
   return NS_OK;
 }
 
@@ -831,7 +832,8 @@ PuppetWidget::NotifyIMEOfPositionChange(const IMENotification& aIMENotification)
       NS_WARN_IF(!mContentCache.CacheSelection(this, &aIMENotification))) {
     return NS_ERROR_FAILURE;
   }
-  if (!mTabChild->SendNotifyIMEPositionChange(mContentCache)) {
+  if (!mTabChild->SendNotifyIMEPositionChange(mContentCache,
+                                              aIMENotification)) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
@@ -915,7 +917,7 @@ PuppetWidget::Paint()
 {
   MOZ_ASSERT(!mDirtyRegion.IsEmpty(), "paint event logic messed up");
 
-  if (!mAttachedWidgetListener)
+  if (!GetCurrentWidgetListener())
     return NS_OK;
 
   nsIntRegion region = mDirtyRegion;
@@ -924,9 +926,9 @@ PuppetWidget::Paint()
   mDirtyRegion.SetEmpty();
   mPaintTask.Revoke();
 
-  mAttachedWidgetListener->WillPaintWindow(this);
+  GetCurrentWidgetListener()->WillPaintWindow(this);
 
-  if (mAttachedWidgetListener) {
+  if (GetCurrentWidgetListener()) {
 #ifdef DEBUG
     debug_DumpPaintEvent(stderr, this, region,
                          nsAutoCString("PuppetWidget"), 0);
@@ -943,15 +945,15 @@ PuppetWidget::Paint()
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BufferMode::BUFFER_NONE);
-      mAttachedWidgetListener->PaintWindow(this, region);
+      GetCurrentWidgetListener()->PaintWindow(this, region);
       if (mTabChild) {
         mTabChild->NotifyPainted();
       }
     }
   }
 
-  if (mAttachedWidgetListener) {
-    mAttachedWidgetListener->DidPaintWindow();
+  if (GetCurrentWidgetListener()) {
+    GetCurrentWidgetListener()->DidPaintWindow();
   }
 
   return NS_OK;
@@ -1250,6 +1252,21 @@ PuppetScreenManager::GetSystemDefaultScale(float *aDefaultScale)
 {
   *aDefaultScale = 1.0f;
   return NS_OK;
+}
+
+nsIWidgetListener*
+PuppetWidget::GetCurrentWidgetListener()
+{
+  if (!mPreviouslyAttachedWidgetListener ||
+      !mAttachedWidgetListener) {
+    return mAttachedWidgetListener;
+  }
+
+  if (mAttachedWidgetListener->GetView()->IsPrimaryFramePaintSuppressed()) {
+    return mPreviouslyAttachedWidgetListener;
+  }
+
+  return mAttachedWidgetListener;
 }
 
 } // namespace widget

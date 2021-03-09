@@ -100,6 +100,9 @@ nsImageLoadingContent::nsImageLoadingContent()
   if (!nsContentUtils::GetImgLoaderForChannel(nullptr, nullptr)) {
     mLoadingEnabled = false;
   }
+
+  bool isInconsistent;
+  mMostRecentRequestChange = TimeStamp::ProcessCreation(isInconsistent);
 }
 
 void
@@ -1214,6 +1217,22 @@ nsImageLoadingContent::FireEvent(const nsAString& aEventType)
 nsRefPtr<imgRequestProxy>&
 nsImageLoadingContent::PrepareNextRequest(ImageLoadType aImageLoadType)
 {
+  nsImageFrame* frame = do_QueryFrame(GetOurPrimaryFrame());
+  if (frame) {
+    // Detect JavaScript-based animations created by changing the |src|
+    // attribute on a timer.
+    TimeStamp now = TimeStamp::Now();
+    TimeDuration threshold =
+      TimeDuration::FromMilliseconds(
+        gfxPrefs::ImageInferSrcAnimationThresholdMS());
+
+    // If the length of time between request changes is less than the threshold,
+    // then force sync decoding to eliminate flicker from the animation.
+    frame->SetForceSyncDecoding(now - mMostRecentRequestChange < threshold);
+
+    mMostRecentRequestChange = now;
+  }
+
   // If we don't have a usable current request, get rid of any half-baked
   // request that might be sitting there and make this one current.
   if (!HaveSize(mCurrentRequest))
@@ -1470,6 +1489,15 @@ nsImageLoadingContent::TrackImage(imgIRequest* aImage)
   nsIDocument* doc = GetOurCurrentDoc();
   if (doc && (mFrameCreateCalled || GetOurPrimaryFrame()) &&
       (mVisibleCount > 0)) {
+
+    if (mVisibleCount == 1) {
+      // Since we're becoming visible, request a decode.
+      nsImageFrame* f = do_QueryFrame(GetOurPrimaryFrame());
+      if (f) {
+        f->MaybeDecodeForPredictedSize();
+      }
+    }
+
     if (aImage == mCurrentRequest && !(mCurrentRequestFlags & REQUEST_IS_TRACKED)) {
       mCurrentRequestFlags |= REQUEST_IS_TRACKED;
       doc->AddImage(mCurrentRequest);

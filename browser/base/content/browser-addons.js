@@ -144,6 +144,7 @@ const gXPInstallObserver = {
       notificationID = "addon-progress";
       messageString = gNavigatorBundle.getString("addonDownloadingAndVerifying");
       messageString = PluralForm.get(installInfo.installs.length, messageString);
+      messageString = messageString.replace("#1", installInfo.installs.length);
       options.installs = installInfo.installs;
       options.contentWindow = browser.contentWindow;
       options.sourceURI = browser.currentURI;
@@ -558,6 +559,10 @@ var LightWeightThemeWebInstaller = {
     var pm = Services.perms;
 
     var uri = node.ownerDocument.documentURIObject;
+
+    if (!uri.schemeIs("https"))
+      return false;
+
     return pm.testPermission(uri, "install") == pm.ALLOW_ACTION;
   },
 

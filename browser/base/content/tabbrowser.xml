@@ -76,6 +76,13 @@
          Components.classes["@mozilla.org/autocomplete/search;1?name=history"]
                    .getService(Components.interfaces.mozIPlacesAutoComplete);
       </field>
+      <field name="_unifiedComplete" readonly="true">
+         Components.classes["@mozilla.org/autocomplete/search;1?name=unifiedcomplete"]
+                   .getService(Components.interfaces.mozIPlacesAutoComplete);
+      </field>
+      <field name="PlacesUtils" readonly="true">
+        (Components.utils.import("resource://gre/modules/PlacesUtils.jsm", {})).PlacesUtils;
+      </field>
       <field name="AppConstants" readonly="true">
         (Components.utils.import("resource://gre/modules/AppConstants.jsm", {})).AppConstants;
       </field>
@@ -755,8 +762,10 @@
                 }
 
                 let autocomplete = this.mTabBrowser._placesAutocomplete;
+                let unifiedComplete = this.mTabBrowser._unifiedComplete;
                 if (this.mBrowser.registeredOpenURI) {
                   autocomplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
+                  unifiedComplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
                   delete this.mBrowser.registeredOpenURI;
                 }
                 // Tabs in private windows aren't registered as "Open" so
@@ -765,6 +774,7 @@
                     (!PrivateBrowsingUtils.isWindowPrivate(window) ||
                     PrivateBrowsingUtils.permanentPrivateBrowsing)) {
                   autocomplete.registerOpenPage(aLocation);
+                  unifiedComplete.registerOpenPage(aLocation);
                   this.mBrowser.registeredOpenURI = aLocation;
                 }
               }
@@ -2216,6 +2226,7 @@
 
             if (browser.registeredOpenURI && !aTabWillBeMoved) {
               this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
+              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
 
@@ -2559,6 +2570,7 @@
             // If the current URI is registered as open remove it from the list.
             if (aOurBrowser.registeredOpenURI) {
               this._placesAutocomplete.unregisterOpenPage(aOurBrowser.registeredOpenURI);
+              this._unifiedComplete.unregisterOpenPage(aOurBrowser.registeredOpenURI);
               delete aOurBrowser.registeredOpenURI;
             }
 
@@ -4006,6 +4018,7 @@
             let browser = this.getBrowserAtIndex(i);
             if (browser.registeredOpenURI) {
               this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
+              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
             browser.webProgress.removeProgressListener(this.mTabFilters[i]);
@@ -4893,7 +4906,11 @@
                   PrivateBrowsingUtils.isWindowPrivate(sourceNode.ownerDocument.defaultView))
                 return dt.effectAllowed = "none";
 
-              let copyModifier = this.AppConstants.platform == "macosx" ? event.altKey : event.ctrlKey;
+              if (window.gMultiProcessBrowser !=
+                  sourceNode.ownerDocument.defaultView.gMultiProcessBrowser)
+                return dt.effectAllowed = "none";
+
+              let copyModifier = this.tabbrowser.AppConstants.platform == "macosx" ? event.altKey : event.ctrlKey;
               return dt.effectAllowed = copyModifier ? "copy" : "move";
             }
           }

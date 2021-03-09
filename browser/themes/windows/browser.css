@@ -2311,11 +2311,6 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   max-width: 27em;
 }
 
-.popup-progress-meter,
-#addon-install-confirmation-content {
-  margin-top: 1em;
-}
-
 .addon-install-confirmation-name {
   font-weight: bold;
 }
@@ -2785,6 +2780,7 @@ toolbar[brighttext] #addonbar-closebutton {
 %endif
 %include ../shared/plugin-doorhanger.inc.css
 %include ../shared/badcontent-doorhanger.inc.css
+%include ../shared/login-doorhanger.inc.css
 
 %ifdef MOZ_DEVTOOLS
 /* Error counter */

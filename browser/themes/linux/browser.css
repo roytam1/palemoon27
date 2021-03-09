@@ -1217,10 +1217,6 @@ toolbar[iconsize="small"] #feed-button {
   max-width: 27em;
 }
 
-.popup-progress-meter {
-  margin-top: .5em;
-}
-
 .addon-install-confirmation-name {
   font-weight: bold;
 }
@@ -1985,6 +1981,7 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 %endif
 %include ../shared/plugin-doorhanger.inc.css
 %include ../shared/badcontent-doorhanger.inc.css
+%include ../shared/login-doorhanger.inc.css
 
 %ifdef MOZ_DEVTOOLS
 .gcli-panel {

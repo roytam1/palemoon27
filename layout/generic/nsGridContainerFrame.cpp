@@ -31,11 +31,14 @@ class nsGridContainerFrame::GridItemCSSOrderIterator
 {
 public:
   enum OrderState { eUnknownOrder, eKnownOrdered, eKnownUnordered };
+  enum ChildFilter { eSkipPlaceholders, eIncludeAll };
   GridItemCSSOrderIterator(nsIFrame* aGridContainer,
                            nsIFrame::ChildListID aListID,
+                           ChildFilter aFilter = eSkipPlaceholders,
                            OrderState aState = eUnknownOrder)
     : mChildren(aGridContainer->GetChildList(aListID))
     , mArrayIndex(0)
+    , mSkipPlaceholders(aFilter == eSkipPlaceholders)
 #ifdef DEBUG
     , mGridContainer(aGridContainer)
     , mListID(aListID)
@@ -66,6 +69,10 @@ public:
       // XXX replace this with nsTArray::StableSort when bug 1147091 is fixed.
       std::stable_sort(mArray->begin(), mArray->end(), IsCSSOrderLessThan);
     }
+
+    if (mSkipPlaceholders) {
+      SkipPlaceholders();
+    }
   }
 
   nsIFrame* operator*() const
@@ -75,6 +82,28 @@ public:
       return mEnumerator->get();
     }
     return (*mArray)[mArrayIndex];
+  }
+
+  /**
+   * Skip over placeholder children.
+   */
+  void SkipPlaceholders()
+  {
+    if (mEnumerator) {
+      for (; !mEnumerator->AtEnd(); mEnumerator->Next()) {
+        nsIFrame* child = mEnumerator->get();
+        if (child->GetType() != nsGkAtoms::placeholderFrame) {
+          return;
+        }
+      }
+    } else {
+      for (; mArrayIndex < mArray->Length(); ++mArrayIndex) {
+        nsIFrame* child = (*mArray)[mArrayIndex];
+        if (child->GetType() != nsGkAtoms::placeholderFrame) {
+          return;
+        }
+      }
+    }
   }
 
   bool AtEnd() const
@@ -97,15 +126,22 @@ public:
       MOZ_ASSERT(mArrayIndex < mArray->Length(), "iterating past end");
       ++mArrayIndex;
     }
+    if (mSkipPlaceholders) {
+      SkipPlaceholders();
+    }
   }
 
-  void Reset()
+  void Reset(ChildFilter aFilter = eSkipPlaceholders)
   {
     if (mEnumerator) {
       mEnumerator.reset();
       mEnumerator.emplace(mChildren);
     } else {
       mArrayIndex = 0;
+    }
+    mSkipPlaceholders = aFilter == eSkipPlaceholders;
+    if (mSkipPlaceholders) {
+      SkipPlaceholders();
     }
   }
 
@@ -121,6 +157,8 @@ private:
   // Used if child list is *not* in ascending 'order'.
   Maybe<nsTArray<nsIFrame*>> mArray;
   size_t mArrayIndex;
+  // Skip placeholder children in the iteration?
+  bool mSkipPlaceholders;
 #ifdef DEBUG
   nsIFrame* mGridContainer;
   nsIFrame::ChildListID mListID;
@@ -1119,33 +1157,52 @@ nsGridContainerFrame::ReflowChildren(GridItemCSSOrderIterator&  aIter,
 {
   WritingMode wm = aReflowState.GetWritingMode();
   const LogicalPoint gridOrigin(aContentArea.Origin(wm));
-  const nscoord gridWidth = aContentArea.Width(wm);
+  const nsSize containerSize =
+    (aContentArea.Size(wm) +
+     aReflowState.ComputedLogicalBorderPadding().Size(wm)).GetPhysicalSize(wm);
   nsPresContext* pc = PresContext();
   for (; !aIter.AtEnd(); aIter.Next()) {
     nsIFrame* child = *aIter;
-    GridArea* area = GetGridAreaForChild(child);
-    MOZ_ASSERT(area && area->IsDefinite());
-    LogicalRect cb = ContainingBlockFor(wm, *area, aColSizes, aRowSizes);
-    cb += gridOrigin;
-    nsHTMLReflowState childRS(pc, aReflowState, child, cb.Size(wm));
+    const bool isGridItem = child->GetType() != nsGkAtoms::placeholderFrame;
+    LogicalRect cb(wm);
+    if (MOZ_LIKELY(isGridItem)) {
+      GridArea* area = GetGridAreaForChild(child);
+      MOZ_ASSERT(area && area->IsDefinite());
+      cb = ContainingBlockFor(wm, *area, aColSizes, aRowSizes);
+      cb += gridOrigin;
+    } else {
+      cb = aContentArea;
+    }
+    WritingMode childWM = child->GetWritingMode();
+    LogicalSize childCBSize = cb.Size(wm).ConvertTo(childWM, wm);
+    nsHTMLReflowState childRS(pc, aReflowState, child, childCBSize);
     const LogicalMargin margin = childRS.ComputedLogicalMargin();
-    if (childRS.ComputedBSize() == NS_AUTOHEIGHT) {
+    if (childRS.ComputedBSize() == NS_AUTOHEIGHT && MOZ_LIKELY(isGridItem)) {
       // XXX the start of an align-self:stretch impl.  Needs min-/max-bsize
       // clamping though, and check the prop value is actually 'stretch'!
       LogicalMargin bp = childRS.ComputedLogicalBorderPadding();
       bp.ApplySkipSides(child->GetLogicalSkipSides());
-      nscoord bSize = cb.BSize(wm) - bp.BStartEnd(wm) - margin.BStartEnd(wm);
+      nscoord bSize = childCBSize.BSize(childWM) - bp.BStartEnd(childWM) -
+                        margin.BStartEnd(childWM);
       childRS.SetComputedBSize(std::max(bSize, 0));
     }
-    LogicalPoint childPos = cb.Origin(wm);
-    childPos.I(wm) += margin.IStart(wm);
-    childPos.B(wm) += margin.BStart(wm);
+    // We need the width of the child before we can correctly convert
+    // the writing-mode of its origin, so we reflow at (0, 0) using a dummy
+    // containerSize, and then pass the correct position to FinishReflowChild.
     nsHTMLReflowMetrics childSize(childRS);
     nsReflowStatus childStatus;
-    ReflowChild(child, pc, childSize, childRS, wm, childPos,
-                gridWidth, 0, childStatus);
-    FinishReflowChild(child, pc, childSize, &childRS, wm, childPos,
-                      gridWidth, 0);
+    const nsSize dummyContainerSize;
+    ReflowChild(child, pc, childSize, childRS, childWM, LogicalPoint(childWM),
+                dummyContainerSize, 0, childStatus);
+    LogicalPoint childPos =
+      cb.Origin(wm).ConvertTo(childWM, wm,
+                              containerSize - childSize.PhysicalSize() -
+                              margin.Size(childWM).GetPhysicalSize(childWM));
+    childPos.I(childWM) += margin.IStart(childWM);
+    childPos.B(childWM) += margin.BStart(childWM);
+    childRS.ApplyRelativePositioning(&childPos, containerSize);
+    FinishReflowChild(child, pc, childSize, &childRS, childWM, childPos,
+                      containerSize, 0);
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, child);
     // XXX deal with 'childStatus' not being COMPLETE
   }
@@ -1175,7 +1232,7 @@ nsGridContainerFrame::ReflowChildren(GridItemCSSOrderIterator&  aIter,
           cb = new nsRect;
           child->Properties().Set(GridItemContainingBlockRect(), cb);
         }
-        *cb = itemCB.GetPhysicalRect(wm, gridWidth);
+        *cb = itemCB.GetPhysicalRect(wm, containerSize);
       }
       // This rect isn't used at all for layout so we use it to optimize
       // away the virtual GetType() call in the callee in most cases.
@@ -1240,7 +1297,7 @@ nsGridContainerFrame::Reflow(nsPresContext*           aPresContext,
 
   LogicalRect contentArea(wm, bp.IStart(wm), bp.BStart(wm),
                           computedISize, bSize);
-  normalFlowIter.Reset();
+  normalFlowIter.Reset(GridItemCSSOrderIterator::eIncludeAll);
   ReflowChildren(normalFlowIter, contentArea, colSizes, rowSizes, aDesiredSize,
                  aReflowState, aStatus);
 
@@ -1277,7 +1334,8 @@ nsGridContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   typedef GridItemCSSOrderIterator::OrderState OrderState;
   OrderState order = mIsNormalFlowInCSSOrder ? OrderState::eKnownOrdered
                                              : OrderState::eKnownUnordered;
-  GridItemCSSOrderIterator iter(this, kPrincipalList, order);
+  GridItemCSSOrderIterator iter(this, kPrincipalList,
+                                GridItemCSSOrderIterator::eIncludeAll, order);
   for (; !iter.AtEnd(); iter.Next()) {
     nsIFrame* child = *iter;
     BuildDisplayListForChild(aBuilder, child, aDirtyRect, childLists,
@@ -1350,8 +1408,7 @@ FrameWantsToBeInAnonymousGridItem(nsIFrame* aFrame)
 {
   // Note: This needs to match the logic in
   // nsCSSFrameConstructor::FrameConstructionItem::NeedsAnonFlexOrGridItem()
-  return (aFrame->IsFrameOfType(nsIFrame::eLineParticipant) ||
-          nsGkAtoms::placeholderFrame == aFrame->GetType());
+  return aFrame->IsFrameOfType(nsIFrame::eLineParticipant);
 }
 
 // Debugging method, to let us assert that our anonymous grid items are

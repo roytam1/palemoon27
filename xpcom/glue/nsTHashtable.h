@@ -20,13 +20,6 @@
 
 #include <new>
 
-// helper function for nsTHashtable::Clear()
-PLDHashOperator PL_DHashStubEnumRemove(PLDHashTable* aTable,
-                                       PLDHashEntryHdr* aEntry,
-                                       uint32_t aOrdinal,
-                                       void* aUserArg);
-
-
 /**
  * a base class for templated hashtables.
  *
@@ -79,6 +72,16 @@ PLDHashOperator PL_DHashStubEnumRemove(PLDHashTable* aTable,
  * @author "Benjamin Smedberg <bsmedberg@covad.net>"
  */
 
+// These are the codes returned by |Enumerator| functions, which control
+// EnumerateEntry()'s behavior. The PLD/PL_D prefix is because they originated
+// in PLDHashTable, but that class no longer uses them.
+enum PLDHashOperator
+{
+  PL_DHASH_NEXT = 0,          // enumerator says continue
+  PL_DHASH_STOP = 1,          // enumerator says stop
+  PL_DHASH_REMOVE = 2         // enumerator says remove
+};
+
 template<class EntryType>
 class MOZ_NEEDS_NO_VTABLE_TYPE nsTHashtable
 {
@@ -88,7 +91,7 @@ public:
   // Separate constructors instead of default aInitLength parameter since
   // otherwise the default no-arg constructor isn't found.
   nsTHashtable()
-    : mTable(Ops(), sizeof(EntryType), PL_DHASH_DEFAULT_INITIAL_LENGTH)
+    : mTable(Ops(), sizeof(EntryType), PLDHashTable::kDefaultInitialLength)
   {}
   explicit nsTHashtable(uint32_t aInitLength)
     : mTable(Ops(), sizeof(EntryType), aInitLength)
@@ -132,8 +135,7 @@ public:
   EntryType* GetEntry(KeyType aKey) const
   {
     return static_cast<EntryType*>(
-      PL_DHashTableSearch(const_cast<PLDHashTable*>(&mTable),
-                          EntryType::KeyToPointer(aKey)));
+      const_cast<PLDHashTable*>(&mTable)->Search(EntryType::KeyToPointer(aKey)));
   }
 
   /**
@@ -199,7 +201,10 @@ public:
   typedef PLDHashOperator (*Enumerator)(EntryType* aEntry, void* userArg);
 
   /**
-   * Enumerate all the entries of the function.
+   * Enumerate all the entries of the function. If any entries are removed via
+   * a PL_DHASH_REMOVE return value from |aEnumFunc|, the table may be shrunk
+   * at the end. Use RawRemoveEntry() instead if you wish to remove an entry
+   * without possibly shrinking the table.
    * @param     enumFunc the <code>Enumerator</code> function to call
    * @param     userArg a pointer to pass to the
    *            <code>Enumerator</code> function
@@ -223,11 +228,13 @@ public:
   }
 
   /**
-   * remove all entries, return hashtable to "pristine" state ;)
+   * Remove all entries, return hashtable to "pristine" state. It's
+   * conceptually the same as calling the destructor and then re-calling the
+   * constructor.
    */
   void Clear()
   {
-    PL_DHashTableEnumerate(&mTable, PL_DHashStubEnumRemove, nullptr);
+    mTable.Clear();
   }
 
   /**

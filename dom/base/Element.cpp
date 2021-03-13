@@ -2274,9 +2274,11 @@ Element::SetAttr(int32_t aNamespaceID, nsIAtom* aName,
 
   nsresult rv = BeforeSetAttr(aNamespaceID, aName, &value, aNotify);
   NS_ENSURE_SUCCESS(rv, rv);
+  nsAttrValue* preparsedAttrValue = value.GetStoredAttrValue();
 
   if (aNotify) {
-    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType);
+    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType,
+                                     preparsedAttrValue);
   }
 
   // Hold a script blocker while calling ParseAttribute since that can call
@@ -2284,6 +2286,11 @@ Element::SetAttr(int32_t aNamespaceID, nsIAtom* aName,
   nsAutoScriptBlocker scriptBlocker;
 
   nsAttrValue attrValue;
+  if (preparsedAttrValue) {
+    attrValue.SwapValueWith(*preparsedAttrValue);
+  }
+  // Even the value was pre-parsed in BeforeSetAttr, we still need to call
+  // ParseAttribute because it can have side effects.
   if (!ParseAttribute(aNamespaceID, aName, aValue, attrValue)) {
     attrValue.SetTo(aValue);
   }
@@ -2323,7 +2330,8 @@ Element::SetParsedAttr(int32_t aNamespaceID, nsIAtom* aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNotify) {
-    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType);
+    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType,
+                                     &aParsedValue);
   }
 
   return SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
@@ -2350,10 +2358,10 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
   nsMutationGuard::DidMutate();
 
   // Copy aParsedValue for later use since it will be lost when we call
-  // SetAndTakeMappedAttr below
-  nsAttrValue aValueForAfterSetAttr;
+  // SetAndSwapMappedAttr below
+  nsAttrValue valueForAfterSetAttr;
   if (aCallAfterSetAttr) {
-    aValueForAfterSetAttr.SetTo(aParsedValue);
+    valueForAfterSetAttr.SetTo(aParsedValue);
   }
 
   bool hadValidDir = false;
@@ -2369,7 +2377,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     // stuff to Element?
     if (!IsAttributeMapped(aName) ||
         !SetMappedAttribute(document, aName, aParsedValue, &rv)) {
-      rv = mAttrsAndChildren.SetAndTakeAttr(aName, aParsedValue);
+      rv = mAttrsAndChildren.SetAndSwapAttr(aName, aParsedValue);
     }
   }
   else {
@@ -2378,8 +2386,13 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
                                                    aNamespaceID,
                                                    nsIDOMNode::ATTRIBUTE_NODE);
 
-    rv = mAttrsAndChildren.SetAndTakeAttr(ni, aParsedValue);
+    rv = mAttrsAndChildren.SetAndSwapAttr(ni, aParsedValue);
   }
+
+  // If the old value owns its own data, we know it is OK to keep using it.
+  const nsAttrValue* oldValue =
+      aParsedValue.StoresOwnData() ? &aParsedValue : &aOldValue;
+
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
@@ -2393,8 +2406,8 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
 
   nsIDocument* ownerDoc = OwnerDoc();
   if (ownerDoc && GetCustomElementData()) {
-    nsCOMPtr<nsIAtom> oldValueAtom = aOldValue.GetAsAtom();
-    nsCOMPtr<nsIAtom> newValueAtom = aValueForAfterSetAttr.GetAsAtom();
+    nsCOMPtr<nsIAtom> oldValueAtom = oldValue->GetAsAtom();
+    nsCOMPtr<nsIAtom> newValueAtom = valueForAfterSetAttr.GetAsAtom();
     LifecycleCallbackArgs args = {
       nsDependentAtomString(aName),
       aModType == nsIDOMMutationEvent::ADDITION ?
@@ -2406,17 +2419,21 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
   }
 
   if (aCallAfterSetAttr) {
-    rv = AfterSetAttr(aNamespaceID, aName, &aValueForAfterSetAttr, aNotify);
+    rv = AfterSetAttr(aNamespaceID, aName, &valueForAfterSetAttr, aNotify);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::dir) {
-      OnSetDirAttr(this, &aValueForAfterSetAttr,
+      OnSetDirAttr(this, &valueForAfterSetAttr,
                    hadValidDir, hadDirAuto, aNotify);
     }
   }
 
   if (aNotify) {
-    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, aModType);
+    // Don't pass aOldValue to AttributeChanged since it may not be reliable.
+    // Callers only compute aOldValue under certain conditions which may not
+    // be triggered by all nsIMutationObservers.
+    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, aModType,
+        oldValue == &aParsedValue ? &aParsedValue : nullptr);
   }
 
   if (aFireMutation) {
@@ -2434,8 +2451,8 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     if (!newValue.IsEmpty()) {
       mutation.mNewAttrValue = do_GetAtom(newValue);
     }
-    if (!aOldValue.IsEmptyString()) {
-      mutation.mPrevAttrValue = aOldValue.GetAsAtom();
+    if (!oldValue->IsEmptyString()) {
+      mutation.mPrevAttrValue = oldValue->GetAsAtom();
     }
     mutation.mAttrChange = aModType;
 
@@ -2443,6 +2460,25 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     (new AsyncEventDispatcher(this, mutation))->RunDOMEventWhenSafe();
   }
 
+  return NS_OK;
+}
+
+nsresult
+Element::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                       nsAttrValueOrString* aValue, bool aNotify)
+{
+  if (aNamespaceID == kNameSpaceID_None) {
+    if (aName == nsGkAtoms::_class) {
+      // aValue->GetAttrValue will only be non-null here when this is called
+      // via Element::SetParsedAttr. This shouldn't happen for "class", but
+      // this will handle it.
+      if (aValue && !aValue->GetAttrValue()) {
+        nsAttrValue attr;
+        attr.ParseAtomArray(aValue->String());
+        aValue->TakeParsedValue(attr);
+      }
+    }
+  }
   return NS_OK;
 }
 
@@ -2455,7 +2491,7 @@ Element::ParseAttribute(int32_t aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::_class) {
       SetFlags(NODE_MAY_HAVE_CLASS);
-      aResult.ParseAtomArray(aValue);
+      // Result should have been preparsed above.
       return true;
     }
     if (aAttribute == nsGkAtoms::id) {
@@ -2562,7 +2598,8 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 
   if (aNotify) {
     nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
-                                     nsIDOMMutationEvent::REMOVAL);
+                                     nsIDOMMutationEvent::REMOVAL,
+                                     nullptr);
   }
 
   bool hasMutationListeners = aNotify &&
@@ -2628,8 +2665,10 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
 
   if (aNotify) {
+    // We can always pass oldValue here since there is no new value which could
+    // have corrupted it.
     nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
-                                  nsIDOMMutationEvent::REMOVAL);
+                                  nsIDOMMutationEvent::REMOVAL, &oldValue);
   }
 
   rv = AfterSetAttr(aNameSpaceID, aName, nullptr, aNotify);

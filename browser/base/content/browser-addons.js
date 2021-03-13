@@ -75,7 +75,7 @@ const gXPInstallObserver = {
     };
 
     try {
-      options.originHost = installInfo.originatingURI.host;
+      options.displayOrigin = installInfo.originatingURI.host;
     } catch (e) {
       // originatingURI might be missing or 'host' might throw for non-nsStandardURL nsIURIs.
     }
@@ -113,7 +113,7 @@ const gXPInstallObserver = {
       removeNotificationOnEnd(popup, installInfo.installs);
       break; }
     case "addon-install-blocked": {
-      if (!options.originHost) {
+      if (!options.displayOrigin) {
         // Need to deal with missing originatingURI and with about:/data: URIs more gracefully,
         // see bug 1063418 - but for now, bail:
         return;
@@ -171,7 +171,7 @@ const gXPInstallObserver = {
     case "addon-install-failed": {
       // TODO This isn't terribly ideal for the multiple failure case
       for (let install of installInfo.installs) {
-        let host = options.originHost;
+        let host = options.displayOrigin;
         if (!host)
           host = (install.sourceURI instanceof Ci.nsIStandardURL) &&
                  install.sourceURI.host;
@@ -199,6 +199,9 @@ const gXPInstallObserver = {
       this._removeProgressNotification(browser);
       break; }
     case "addon-install-confirmation": {
+      let unsigned = installInfo.installs.filter(i => i.addon.signedState <= AddonManager.SIGNEDSTATE_MISSING);
+      let someUnsigned = unsigned.length > 0 && unsigned.length < installInfo.installs.length;
+
       options.eventCallback = (aEvent) => {
         switch (aEvent) {
           case "removed":
@@ -215,15 +218,19 @@ const gXPInstallObserver = {
 
             for (let install of installInfo.installs) {
               let container = document.createElement("hbox");
+
               let name = document.createElement("label");
-              let author = document.createElement("label");
               name.setAttribute("value", install.addon.name);
-              author.setAttribute("value", !install.addon.creator ? "" :
-                gNavigatorBundle.getFormattedString("addonConfirmInstall.author", [install.addon.creator]));
               name.setAttribute("class", "addon-install-confirmation-name");
-              author.setAttribute("class", "addon-install-confirmation-author");
               container.appendChild(name);
-              container.appendChild(author);
+
+              if (someUnsigned && install.addon.signedState <= AddonManager.SIGNEDSTATE_MISSING) {
+                let unsigned = document.createElement("label");
+                unsigned.setAttribute("value", gNavigatorBundle.getString("addonInstall.unsigned"));
+                unsigned.setAttribute("class", "addon-install-confirmation-unsigned");
+                container.appendChild(unsigned);
+              }
+
               addonList.appendChild(container);
             }
 
@@ -240,7 +247,23 @@ const gXPInstallObserver = {
         }
       };
 
-      messageString = gNavigatorBundle.getString("addonConfirmInstall.message");
+      options.learnMoreURL = Services.urlFormatter.formatURLPref("app.support.baseURL") +
+                             "find-and-install-add-ons";
+
+      if (unsigned.length == installInfo.installs.length) {
+        // None of the add-ons are verified
+        messageString = gNavigatorBundle.getString("addonConfirmInstallUnsigned.message");
+      }
+      else if (unsigned.length == 0) {
+        // All add-ons are verified or don't need to be verified
+        messageString = gNavigatorBundle.getString("addonConfirmInstall.message");
+      }
+      else {
+        // Some of the add-ons are unverified, the list of names will indicate
+        // which
+        messageString = gNavigatorBundle.getString("addonConfirmInstallSomeUnsigned.message");
+      }
+
       messageString = PluralForm.get(installInfo.installs.length, messageString);
       messageString = messageString.replace("#1", brandShortName);
       messageString = messageString.replace("#2", installInfo.installs.length);
@@ -254,10 +277,6 @@ const gXPInstallObserver = {
       acceptButton.accessKey = gNavigatorBundle.getString("addonInstall.acceptButton.accesskey");
 
       let showNotification = () => {
-        // The download may have been cancelled during the security delay
-        if (!PopupNotifications.getNotification("addon-progress", browser))
-          return;
-
         let tab = gBrowser.getTabForBrowser(browser);
         if (tab)
           gBrowser.selectedTab = tab;
@@ -278,15 +297,20 @@ const gXPInstallObserver = {
                 .add(Ci.nsISecurityUITelemetry.WARNING_CONFIRM_ADDON_INSTALL);
       };
 
-      let downloadDuration = 0;
       let progressNotification = PopupNotifications.getNotification("addon-progress", browser);
-      if (progressNotification)
-        downloadDuration = Date.now() - progressNotification._startTime;
-      let securityDelay = Services.prefs.getIntPref("security.dialog_enable_delay") - downloadDuration;
-      if (securityDelay > 0)
-        setTimeout(showNotification, securityDelay);
-      else
-        showNotification();
+      if (progressNotification) {
+        let downloadDuration = Date.now() - progressNotification._startTime;
+        let securityDelay = Services.prefs.getIntPref("security.dialog_enable_delay") - downloadDuration;
+        if (securityDelay > 0) {
+          setTimeout(() => {
+            // The download may have been cancelled during the security delay
+            if (PopupNotifications.getNotification("addon-progress", browser))
+              showNotification();
+          }, securityDelay);
+          break;
+        }
+      }
+      showNotification();
       break; }
     case "addon-install-complete": {
       let needsRestart = installInfo.installs.some(function(i) {
@@ -299,7 +323,7 @@ const gXPInstallObserver = {
           label: gNavigatorBundle.getString("addonInstallRestartButton"),
           accessKey: gNavigatorBundle.getString("addonInstallRestartButton.accesskey"),
           callback: function() {
-            Application.restart();
+            BrowserUtils.restartApplication();
           }
         };
       }
@@ -459,7 +483,7 @@ var LightWeightThemeWebInstaller = {
           label: gNavigatorBundle.getString("lwthemeNeedsRestart.button"),
           accessKey: gNavigatorBundle.getString("lwthemeNeedsRestart.accesskey"),
           callback: function () {
-            Application.restart();
+            BrowserUtils.restartApplication();
           }
         };
 

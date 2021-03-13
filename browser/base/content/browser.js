@@ -1188,7 +1188,6 @@ var gBrowserInit = {
     if (gMultiProcessBrowser)
       TabCrashReporter.init();
 #endif
-    ReadingListUI.init();
 
     SidebarUI.startDelayedLoad();
 
@@ -1372,6 +1371,8 @@ var gBrowserInit = {
         appMenuOpening = null;
       }, false);
     }
+
+    ReadingListUI.init();
 
     window.addEventListener("mousemove", MousePosTracker, false);
     window.addEventListener("dragover", MousePosTracker, false);

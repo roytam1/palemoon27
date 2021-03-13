@@ -86,12 +86,17 @@ let RLSidebar = {
    *
    * @param {ReadinglistItem} item - Item that was added.
    */
-  onItemAdded(item) {
+  onItemAdded(item, append = false) {
     log.trace(`onItemAdded: ${item}`);
 
     let itemNode = document.importNode(this.itemTemplate.content, true).firstElementChild;
     this.updateItem(item, itemNode);
-    this.list.appendChild(itemNode);
+    // XXX Inserting at the top by default is a temp hack that will stop
+    // working once we start including items received from sync.
+    if (append)
+      this.list.appendChild(itemNode);
+    else
+      this.list.insertBefore(itemNode, this.list.firstChild);
     this.itemNodesById.set(item.id, itemNode);
     this.itemsById.set(item.id, item);
 
@@ -140,7 +145,20 @@ let RLSidebar = {
     itemNode.setAttribute("title", `${item.title}\n${item.url}`);
 
     itemNode.querySelector(".item-title").textContent = item.title;
-    itemNode.querySelector(".item-domain").textContent = item.domain;
+
+    let domain = item.uri.spec;
+    try {
+      domain = item.uri.host;
+    }
+    catch (err) {}
+    itemNode.querySelector(".item-domain").textContent = domain;
+
+    let thumb = itemNode.querySelector(".item-thumb-container");
+    if (item.preview) {
+      thumb.style.backgroundImage = "url(" + item.preview + ")";
+    } else {
+      thumb.style.removeProperty("background-image");
+    }
   },
 
   /**
@@ -150,11 +168,11 @@ let RLSidebar = {
     yield ReadingList.forEachItem(item => {
       // TODO: Should be batch inserting via DocumentFragment
       try {
-        this.onItemAdded(item);
+        this.onItemAdded(item, true);
       } catch (e) {
         log.warn("Error adding item", e);
       }
-    });
+    }, {sort: "addedOn", descending: true});
     this.emptyListInfo.hidden = (this.numItems > 0);
   }),
 
@@ -428,7 +446,7 @@ let RLSidebar = {
     if (!msg.url) {
       this.activeItem = null;
     } else {
-      ReadingList.getItemForURL(msg.url).then(item => {
+      ReadingList.itemForURL(msg.url).then(item => {
         this.activeItem = this.itemNodesById.get(item.id);
       });
     }

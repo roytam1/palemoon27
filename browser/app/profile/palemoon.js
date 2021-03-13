@@ -1227,6 +1227,8 @@ pref("network.disable.ipc.security", true);
 
 // Disable ReadingList by default.
 pref("browser.readinglist.enabled", false);
+pref("readinglist.scheduler.enabled", false);
+pref("readinglist.server", "https://readinglist.services.mozilla.com/v1");
 
 //Pale Moon padlock overlay preferences
 pref("browser.padlock.shown", true);

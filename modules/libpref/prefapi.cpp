@@ -585,7 +585,7 @@ PREF_ClearUserPref(const char *pref_name)
         pref->flags &= ~PREF_USERSET;
 
         if (!(pref->flags & PREF_HAS_DEFAULT)) {
-            PL_DHashTableRemove(gHashTable, pref_name);
+            gHashTable->RemoveEntry(pref);
         }
 
         pref_DoCallback(pref_name);
@@ -699,7 +699,7 @@ PrefHashEntry* pref_HashTableLookup(const void *key)
     MOZ_ASSERT(NS_IsMainThread());
 #endif
 
-    return static_cast<PrefHashEntry*>(PL_DHashTableSearch(gHashTable, key));
+    return static_cast<PrefHashEntry*>(gHashTable->Search(key));
 }
 
 nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, uint32_t flags)

@@ -617,7 +617,7 @@ nsHostResolver::FlushCache()
             nsHostRecord *rec = static_cast<nsHostRecord *>(node);
             node = node->next;
             PR_REMOVE_AND_INIT_LINK(rec);
-            PL_DHashTableRemove(&mDB, (nsHostKey *) rec);
+            mDB.Remove((nsHostKey *) rec);
             NS_RELEASE(rec);
         }
     }
@@ -757,8 +757,7 @@ nsHostResolver::ResolveHost(const char            *host,
             // callback, and proceed to do the lookup.
 
             nsHostKey key = { host, flags, af, netInterface };
-            nsHostDBEnt *he = static_cast<nsHostDBEnt *>
-                (PL_DHashTableAdd(&mDB, &key, fallible));
+            auto he = static_cast<nsHostDBEnt*>(mDB.Add(&key, fallible));
 
             // if the record is null, the hash table OOM'd.
             if (!he) {
@@ -1243,7 +1242,7 @@ nsHostResolver::OnLookupComplete(nsHostRecord* rec, nsresult status, AddrInfo* r
                 nsHostRecord *head =
                     static_cast<nsHostRecord *>(PR_LIST_HEAD(&mEvictionQ));
                 PR_REMOVE_AND_INIT_LINK(head);
-                PL_DHashTableRemove(&mDB, (nsHostKey *) head);
+                mDB.Remove((nsHostKey *) head);
 
                 // release reference to rec owned by mEvictionQ
                 NS_RELEASE(head);
@@ -1312,7 +1311,7 @@ nsHostResolver::CancelAsyncRequest(const char            *host,
 
         // If there are no more callbacks, remove the hash table entry
         if (recPtr && PR_CLIST_IS_EMPTY(&recPtr->callbacks)) {
-            PL_DHashTableRemove(&mDB, (nsHostKey *)recPtr);
+            mDB.Remove((nsHostKey *)recPtr);
             // If record is on a Queue, remove it and then deref it
             if (recPtr->next != recPtr) {
                 PR_REMOVE_LINK(recPtr);

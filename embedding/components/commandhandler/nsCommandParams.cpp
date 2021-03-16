@@ -200,7 +200,7 @@ nsCommandParams::SetISupportsValue(const char* aName, nsISupports* aValue)
 NS_IMETHODIMP
 nsCommandParams::RemoveValue(const char* aName)
 {
-  PL_DHashTableRemove(&mValuesHash, (void*)aName);
+  mValuesHash.Remove((void*)aName);
   return NS_OK;
 }
 
@@ -219,8 +219,7 @@ nsCommandParams::GetOrMakeEntry(const char* aName, uint8_t aEntryType)
     return foundEntry;
   }
 
-  foundEntry = static_cast<HashEntry*>(
-    PL_DHashTableAdd(&mValuesHash, (void*)aName, fallible));
+  foundEntry = static_cast<HashEntry*>(mValuesHash.Add((void*)aName, fallible));
   if (!foundEntry) {
     return nullptr;
   }

@@ -229,12 +229,10 @@ nsDiskCacheBindery::AddBinding(nsDiskCacheBinding * binding)
     NS_ASSERTION(initialized, "nsDiskCacheBindery not initialized");
 
     // find hash entry for key
-    HashTableEntry * hashEntry;
-    hashEntry = (HashTableEntry *)
-      PL_DHashTableAdd(&table,
-                       (void *)(uintptr_t) binding->mRecord.HashNumber(),
-                       fallible);
-    if (!hashEntry) return NS_ERROR_OUT_OF_MEMORY;
+    auto hashEntry = static_cast<HashTableEntry*>
+        (table.Add((void*)(uintptr_t)binding->mRecord.HashNumber(), fallible));
+    if (!hashEntry)
+        return NS_ERROR_OUT_OF_MEMORY;
     
     if (hashEntry->mBinding == nullptr) {
         hashEntry->mBinding = binding;
@@ -303,8 +301,7 @@ nsDiskCacheBindery::RemoveBinding(nsDiskCacheBinding * binding)
     if (binding == hashEntry->mBinding) {
         if (PR_CLIST_IS_EMPTY(binding)) {
             // remove this hash entry
-            PL_DHashTableRemove(&table,
-                                (void*)(uintptr_t) binding->mRecord.HashNumber());
+            table.Remove((void*)(uintptr_t) binding->mRecord.HashNumber());
             return;
             
         } else {

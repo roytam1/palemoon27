@@ -572,7 +572,7 @@ PLDHashTable::Search(const void* aKey)
   return entry;
 }
 
-MOZ_ALWAYS_INLINE PLDHashEntryHdr*
+PLDHashEntryHdr*
 PLDHashTable::Add(const void* aKey, const mozilla::fallible_t&)
 {
 #ifdef DEBUG
@@ -633,7 +633,7 @@ PLDHashTable::Add(const void* aKey, const mozilla::fallible_t&)
   return entry;
 }
 
-MOZ_ALWAYS_INLINE PLDHashEntryHdr*
+PLDHashEntryHdr*
 PLDHashTable::Add(const void* aKey)
 {
   PLDHashEntryHdr* entry = Add(aKey, fallible);
@@ -654,7 +654,7 @@ PLDHashTable::Add(const void* aKey)
   return entry;
 }
 
-MOZ_ALWAYS_INLINE void
+void
 PLDHashTable::Remove(const void* aKey)
 {
 #ifdef DEBUG
@@ -679,25 +679,6 @@ PLDHashTable::RemoveEntry(PLDHashEntryHdr* aEntry)
 
   RawRemove(aEntry);
   ShrinkIfAppropriate();
-}
-
-PLDHashEntryHdr* PL_DHASH_FASTCALL
-PL_DHashTableAdd(PLDHashTable* aTable, const void* aKey,
-                 const fallible_t& aFallible)
-{
-  return aTable->Add(aKey, aFallible);
-}
-
-PLDHashEntryHdr* PL_DHASH_FASTCALL
-PL_DHashTableAdd(PLDHashTable* aTable, const void* aKey)
-{
-  return aTable->Add(aKey);
-}
-
-void PL_DHASH_FASTCALL
-PL_DHashTableRemove(PLDHashTable* aTable, const void* aKey)
-{
-  aTable->Remove(aKey);
 }
 
 MOZ_ALWAYS_INLINE void

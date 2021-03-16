@@ -1139,7 +1139,7 @@ RDFServiceImpl::RegisterResource(nsIRDFResource* aResource, bool aReplace)
                 aResource, (const char*) uri));
     }
     else {
-        hdr = PL_DHashTableAdd(&mResources, uri, fallible);
+        hdr = mResources.Add(uri, fallible);
         if (! hdr)
             return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1185,7 +1185,7 @@ RDFServiceImpl::UnregisterResource(nsIRDFResource* aResource)
         NS_WARNING("resource was never registered");
 #endif
 
-    PL_DHashTableRemove(&mResources, uri);
+    mResources.Remove(uri);
     return NS_OK;
 }
 
@@ -1375,7 +1375,7 @@ RDFServiceImpl::RegisterLiteral(nsIRDFLiteral* aLiteral)
 
     NS_ASSERTION(!mLiterals.Search(value), "literal already registered");
 
-    PLDHashEntryHdr *hdr = PL_DHashTableAdd(&mLiterals, value, fallible);
+    PLDHashEntryHdr *hdr = mLiterals.Add(value, fallible);
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1404,7 +1404,7 @@ RDFServiceImpl::UnregisterLiteral(nsIRDFLiteral* aLiteral)
 
     NS_ASSERTION(mLiterals.Search(value), "literal was never registered");
 
-    PL_DHashTableRemove(&mLiterals, value);
+    mLiterals.Remove(value);
 
     // N.B. that we _don't_ release the literal: we only held a weak
     // reference to it in the hashtable.
@@ -1425,7 +1425,7 @@ RDFServiceImpl::RegisterInt(nsIRDFInt* aInt)
 
     NS_ASSERTION(!mInts.Search(&value), "int already registered");
 
-    PLDHashEntryHdr *hdr = PL_DHashTableAdd(&mInts, &value, fallible);
+    PLDHashEntryHdr *hdr = mInts.Add(&value, fallible);
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1454,7 +1454,7 @@ RDFServiceImpl::UnregisterInt(nsIRDFInt* aInt)
 
     NS_ASSERTION(mInts.Search(&value), "int was never registered");
 
-    PL_DHashTableRemove(&mInts, &value);
+    mInts.Remove(&value);
 
     // N.B. that we _don't_ release the literal: we only held a weak
     // reference to it in the hashtable.
@@ -1475,7 +1475,7 @@ RDFServiceImpl::RegisterDate(nsIRDFDate* aDate)
 
     NS_ASSERTION(!mDates.Search(&value), "date already registered");
 
-    PLDHashEntryHdr *hdr = PL_DHashTableAdd(&mDates, &value, fallible);
+    PLDHashEntryHdr *hdr = mDates.Add(&value, fallible);
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1504,7 +1504,7 @@ RDFServiceImpl::UnregisterDate(nsIRDFDate* aDate)
 
     NS_ASSERTION(mDates.Search(&value), "date was never registered");
 
-    PL_DHashTableRemove(&mDates, &value);
+    mDates.Remove(&value);
 
     // N.B. that we _don't_ release the literal: we only held a weak
     // reference to it in the hashtable.
@@ -1520,7 +1520,7 @@ RDFServiceImpl::RegisterBlob(BlobImpl *aBlob)
 {
     NS_ASSERTION(!mBlobs.Search(&aBlob->mData), "blob already registered");
 
-    PLDHashEntryHdr *hdr = PL_DHashTableAdd(&mBlobs, &aBlob->mData, fallible);
+    PLDHashEntryHdr *hdr = mBlobs.Add(&aBlob->mData, fallible);
     if (! hdr)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1544,7 +1544,7 @@ RDFServiceImpl::UnregisterBlob(BlobImpl *aBlob)
 {
     NS_ASSERTION(mBlobs.Search(&aBlob->mData), "blob was never registered");
 
-    PL_DHashTableRemove(&mBlobs, &aBlob->mData);
+    mBlobs.Remove(&aBlob->mData);
 
      // N.B. that we _don't_ release the literal: we only held a weak
      // reference to it in the hashtable.

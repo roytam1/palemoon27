@@ -28,10 +28,10 @@ NS_IMPL_ISUPPORTS_INHERITED0(ScriptProcessorNode, AudioNode)
 
 // This class manages a queue of output buffers shared between
 // the main thread and the Media Stream Graph thread.
-class SharedBuffers
+class SharedBuffers final
 {
 private:
-  class OutputQueue
+  class OutputQueue final
   {
   public:
     explicit OutputQueue(const char* aName)
@@ -237,7 +237,7 @@ private:
   bool mDroppingBuffers;
 };
 
-class ScriptProcessorNodeEngine : public AudioNodeEngine
+class ScriptProcessorNodeEngine final : public AudioNodeEngine
 {
 public:
   typedef nsAutoTArray<nsAutoArrayPtr<float>, 2> InputChannels;
@@ -249,7 +249,7 @@ public:
     : AudioNodeEngine(aNode)
     , mSharedBuffers(aNode->GetSharedBuffers())
     , mSource(nullptr)
-    , mDestination(static_cast<AudioNodeStream*> (aDestination->Stream()))
+    , mDestination(aDestination->Stream())
     , mBufferSize(aBufferSize)
     , mInputWriteIndex(0)
     , mSeenNonSilenceInput(false)
@@ -268,14 +268,6 @@ public:
                             AudioChunk* aOutput,
                             bool* aFinished) override
   {
-    MutexAutoLock lock(NodeMutex());
-
-    // If our node is dead, just output silence.
-    if (!Node()) {
-      aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
-      return;
-    }
-
     // This node is not connected to anything. Per spec, we don't fire the
     // onaudioprocess event. We also want to clear out the input and output
     // buffer queue, and output a null buffer.
@@ -361,7 +353,7 @@ private:
     double playbackTime =
       mSource->DestinationTimeFromTicks(mDestination, playbackTick);
 
-    class Command : public nsRunnable
+    class Command final : public nsRunnable
     {
     public:
       Command(AudioNodeStream* aStream,
@@ -380,7 +372,7 @@ private:
         }
       }
 
-      NS_IMETHODIMP Run()
+      NS_IMETHOD Run() override
       {
         nsRefPtr<ScriptProcessorNode> node = static_cast<ScriptProcessorNode*>
           (mStream->Engine()->NodeMainThread());
@@ -490,7 +482,7 @@ ScriptProcessorNode::ScriptProcessorNode(AudioContext* aContext,
                                   BufferSize(),
                                   aNumberOfInputChannels);
   mStream = aContext->Graph()->CreateAudioNodeStream(engine, MediaStreamGraph::INTERNAL_STREAM);
-  engine->SetSourceStream(static_cast<AudioNodeStream*> (mStream.get()));
+  engine->SetSourceStream(mStream);
 }
 
 ScriptProcessorNode::~ScriptProcessorNode()

@@ -45,8 +45,9 @@ public:
 
     void CopyBufferSubData(GLenum readTarget, GLenum writeTarget,
                            GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size);
-    void GetBufferSubData(GLenum target, GLintptr offset, const dom::ArrayBuffer& returnedData);
-    void GetBufferSubData(GLenum target, GLintptr offset, const dom::ArrayBufferView& returnedData);
+    void GetBufferSubData(GLenum target, GLintptr offset,
+                          const dom::Nullable<dom::ArrayBuffer>& maybeData);
+
 
     // -------------------------------------------------------------------------
     // Framebuffer objects - WebGL2ContextFramebuffers.cpp
@@ -276,6 +277,8 @@ private:
                                 GLsizei width, GLsizei height, GLsizei depth,
                                 const char* info);
 
+    // CreateVertexArrayImpl is assumed to be infallible.
+    virtual WebGLVertexArray* CreateVertexArrayImpl() override;
     virtual bool ValidateAttribPointerType(bool integerMode, GLenum type, GLsizei* alignment, const char* info) override;
     virtual bool ValidateBufferTarget(GLenum target, const char* info) override;
     virtual bool ValidateBufferIndexedTarget(GLenum target, const char* info) override;

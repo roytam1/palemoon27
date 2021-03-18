@@ -19,6 +19,9 @@
 #include "nsIDOMWindow.h"
 #include "nsRefreshDriver.h"
 #include "nsView.h"
+#include "mozilla/TouchEvents.h"
+#include "mozilla/dom/Element.h"
+#include "Layers.h"
 
 #define APZCCH_LOG(...)
 // #define APZCCH_LOG(...) printf_stderr("APZCCH: " __VA_ARGS__)

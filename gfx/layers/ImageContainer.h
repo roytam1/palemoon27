@@ -145,9 +145,6 @@ public:
 
   int32_t GetSerial() { return mSerial; }
 
-  void MarkSent() { mSent = true; }
-  bool IsSentToCompositor() { return mSent; }
-
   virtual already_AddRefed<gfx::SourceSurface> GetAsSourceSurface() = 0;
 
   virtual GrallocImage* AsGrallocImage()
@@ -169,8 +166,7 @@ protected:
   Image(void* aImplData, ImageFormat aFormat) :
     mImplData(aImplData),
     mSerial(++sSerialCounter),
-    mFormat(aFormat),
-    mSent(false)
+    mFormat(aFormat)
   {}
 
   // Protected destructor, to discourage deletion outside of Release():
@@ -224,13 +220,6 @@ private:
   nsTArray<nsAutoArrayPtr<uint8_t> > mRecycledBuffers;
   // This is only valid if mRecycledBuffers is non-empty
   uint32_t mRecycledBufferSize;
-};
-
-class CompositionNotifySink
-{
-public:
-  virtual void DidComposite() = 0;
-  virtual ~CompositionNotifySink() {}
 };
 
 /**
@@ -480,15 +469,6 @@ public:
   }
 
   /**
-   * Resets the paint count to zero.
-   * Can be called from any thread.
-   */
-  void ResetPaintCount() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    mPaintCount = 0;
-  }
-
-  /**
    * Increments mPaintCount if this is the first time aPainted has been
    * painted, and sets mPaintTime if the painted image is the current image.
    * current image.  Can be called from any thread.
@@ -509,14 +489,6 @@ public:
       mPaintCount++;
       mPreviousImagePainted = true;
     }
-
-    if (mCompositionNotifySink) {
-      mCompositionNotifySink->DidComposite();
-    }
-  }
-
-  void SetCompositionNotifySink(CompositionNotifySink *aSink) {
-    mCompositionNotifySink = aSink;
   }
 
 private:
@@ -568,8 +540,6 @@ private:
   gfx::IntSize mScaleHint;
 
   nsRefPtr<BufferRecycleBin> mRecycleBin;
-
-  CompositionNotifySink *mCompositionNotifySink;
 
   // This member points to an ImageClient if this ImageContainer was
   // sucessfully created with ENABLE_ASYNC, or points to null otherwise.

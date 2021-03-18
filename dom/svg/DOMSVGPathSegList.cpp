@@ -221,7 +221,7 @@ DOMSVGPathSegList::InternalListWillChangeTo(const SVGPathData& aNewValue)
         // have FEWER items than it does.
         return;
       }
-      if (!mItems.AppendElement(ItemProxy(nullptr, dataIndex))) {
+      if (!mItems.AppendElement(ItemProxy(nullptr, dataIndex), fallible)) {
         // OOM
         ErrorResult rv;
         Clear(rv);
@@ -385,10 +385,12 @@ DOMSVGPathSegList::InsertItemBefore(DOMSVGPathSeg& aNewItem,
 
   MOZ_ALWAYS_TRUE(InternalList().mData.InsertElementsAt(internalIndex,
                                                         segAsRaw,
-                                                        1 + argCount));
+                                                        1 + argCount,
+                                                        fallible));
   MOZ_ALWAYS_TRUE(mItems.InsertElementAt(aIndex,
                                          ItemProxy(domItem.get(),
-                                                   internalIndex)));
+                                                   internalIndex),
+                                         fallible));
 
   // This MUST come after the insertion into InternalList(), or else under the
   // insertion into InternalList() the values read from domItem would be bad
@@ -541,7 +543,10 @@ DOMSVGPathSegList::
   MOZ_ASSERT(animVal->mItems.Length() == mItems.Length(),
              "animVal list not in sync!");
 
-  animVal->mItems.InsertElementAt(aIndex, ItemProxy(nullptr, aInternalIndex));
+  MOZ_ALWAYS_TRUE(animVal->mItems.InsertElementAt(aIndex,
+                                                  ItemProxy(nullptr,
+                                                            aInternalIndex),
+                                                  fallible));
 
   animVal->UpdateListIndicesFromIndex(aIndex + 1, 1 + aArgCountForItem);
 }

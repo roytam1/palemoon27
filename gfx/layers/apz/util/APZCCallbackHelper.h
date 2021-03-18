@@ -6,6 +6,8 @@
 #ifndef mozilla_layers_APZCCallbackHelper_h
 #define mozilla_layers_APZCCallbackHelper_h
 
+#include "nsCOMPtr.h"
+#include "nsIPresShell.h"
 #include "FrameMetrics.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/layers/APZUtils.h"

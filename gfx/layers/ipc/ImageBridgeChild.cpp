@@ -407,20 +407,27 @@ void ImageBridgeChild::DispatchImageClientUpdate(ImageClient* aClient,
       nsRefPtr<ImageContainer> >(&UpdateImageClientNow, aClient, aContainer));
 }
 
-static void FlushAllImagesSync(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront, AsyncTransactionTracker* aStatus)
+static void FlushAllImagesSync(ImageClient* aClient, ImageContainer* aContainer,
+                               bool aExceptFront, AsyncTransactionWaiter* aWaiter)
 {
   MOZ_ASSERT(aClient);
   sImageBridgeChildSingleton->BeginTransaction();
   if (aContainer && !aExceptFront) {
     aContainer->ClearCurrentImage();
   }
-  aClient->FlushAllImages(aExceptFront, aStatus);
+  aClient->FlushAllImages(aExceptFront, aWaiter);
   aClient->OnTransaction();
   sImageBridgeChildSingleton->EndTransaction();
+  // This decrement is balanced by the increment in FlushAllImages.
+  // If any AsyncTransactionTrackers were created by FlushAllImages and attached
+  // to aWaiter, aWaiter will not complete until those trackers all complete.
+  // Otherwise, aWaiter will be ready to complete now.
+  aWaiter->DecrementWaitCount();
 }
 
 //static
-void ImageBridgeChild::FlushAllImages(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront)
+void ImageBridgeChild::FlushAllImages(ImageClient* aClient,
+                                      ImageContainer* aContainer, bool aExceptFront)
 {
   if (!IsCreated()) {
     return;
@@ -430,16 +437,18 @@ void ImageBridgeChild::FlushAllImages(ImageClient* aClient, ImageContainer* aCon
   MOZ_ASSERT(!InImageBridgeChildThread());
   if (InImageBridgeChildThread()) {
     NS_ERROR("ImageBridgeChild::FlushAllImages() is called on ImageBridge thread.");
-     return;
-   }
+    return;
+  }
 
-  RefPtr<AsyncTransactionTracker> status = aClient->PrepareFlushAllImages();
+  RefPtr<AsyncTransactionWaiter> waiter = new AsyncTransactionWaiter();
+  // This increment is balanced by the decrement in FlushAllImagesSync
+  waiter->IncrementWaitCount();
 
   sImageBridgeChildSingleton->GetMessageLoop()->PostTask(
     FROM_HERE,
-    NewRunnableFunction(&FlushAllImagesSync, aClient, aContainer, aExceptFront, status));
+    NewRunnableFunction(&FlushAllImagesSync, aClient, aContainer, aExceptFront, waiter));
 
-  status->WaitComplete();
+  waiter->WaitComplete();
 }
 
 void
@@ -450,13 +459,13 @@ ImageBridgeChild::BeginTransaction()
   mTxn->Begin();
 }
 
-class MOZ_STACK_CLASS AutoRemoveTextures
+class MOZ_STACK_CLASS AutoRemoveTexturesFromImageBridge
 {
 public:
-  explicit AutoRemoveTextures(ImageBridgeChild* aImageBridge)
+  explicit AutoRemoveTexturesFromImageBridge(ImageBridgeChild* aImageBridge)
     : mImageBridge(aImageBridge) {}
 
-  ~AutoRemoveTextures()
+  ~AutoRemoveTexturesFromImageBridge()
   {
     mImageBridge->RemoveTexturesIfNecessary();
   }
@@ -471,7 +480,7 @@ ImageBridgeChild::EndTransaction()
   MOZ_ASSERT(!mTxn->Finished(), "forgot BeginTransaction?");
 
   AutoEndTransaction _(mTxn);
-  AutoRemoveTextures autoRemoveTextures(this);
+  AutoRemoveTexturesFromImageBridge autoRemoveTextures(this);
 
   if (mTxn->IsEmpty()) {
     return;
@@ -503,25 +512,7 @@ ImageBridgeChild::EndTransaction()
     }
   }
   for (nsTArray<EditReply>::size_type i = 0; i < replies.Length(); ++i) {
-    const EditReply& reply = replies[i];
-    switch (reply.type()) {
-    case EditReply::TReturnReleaseFence: {
-      const ReturnReleaseFence& rep = reply.get_ReturnReleaseFence();
-      FenceHandle fence = rep.fence();
-      PTextureChild* child = rep.textureChild();
-
-      if (!fence.IsValid() || !child) {
-        break;
-      }
-      RefPtr<TextureClient> texture = TextureClient::AsTextureClient(child);
-      if (texture) {
-        texture->SetReleaseFenceHandle(fence);
-      }
-      break;
-    }
-    default:
-      NS_RUNTIMEABORT("not reached");
-    }
+    NS_RUNTIMEABORT("not reached");
   }
   SendPendingAsyncMessges();
 }

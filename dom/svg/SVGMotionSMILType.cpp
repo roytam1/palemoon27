@@ -195,13 +195,10 @@ SVGMotionSMILType::Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const
 
   const MotionSegmentArray& srcArr = ExtractMotionSegmentArray(aSrc);
   MotionSegmentArray& dstArr = ExtractMotionSegmentArray(aDest);
-
-  // Ensure we have sufficient memory.
-  if (!dstArr.SetCapacity(srcArr.Length(), fallible)) {
+  if (!dstArr.Assign(srcArr, fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  dstArr = srcArr; // Do the assignment.
   return NS_OK;
 }
 
@@ -305,8 +302,7 @@ SVGMotionSMILType::Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
 
   // Replace destination's current value -- a point-on-a-path -- with the
   // translation that results from our addition.
-  dstArr.Clear();
-  dstArr.AppendElement(MotionSegment(newX, newY, rotateAngle));
+  dstArr.ReplaceElementAt(0, MotionSegment(newX, newY, rotateAngle));
   return NS_OK;
 }
 
@@ -324,7 +320,7 @@ SVGMotionSMILType::SandwichAdd(nsSMILValue& aDest,
   MOZ_ASSERT(srcArr.Length() == 1,
              "Trying to do sandwich add of more than one value");
 
-  if (!dstArr.AppendElement(srcArr[0])) {
+  if (!dstArr.AppendElement(srcArr[0], fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
@@ -441,7 +437,8 @@ SVGMotionSMILType::Interpolate(const nsSMILValue& aStartVal,
   // AppendElement has guaranteed success here, since Init() allocates 1 slot.
   MOZ_ALWAYS_TRUE(resultArr.AppendElement(MotionSegment(path, resultDist,
                                                         rotateType,
-                                                        rotateAngle)));
+                                                        rotateAngle),
+                                          fallible));
   return NS_OK;
 }
 
@@ -484,7 +481,8 @@ SVGMotionSMILType::ConstructSMILValue(Path* aPath,
 
   // AppendElement has guaranteed success here, since Init() allocates 1 slot.
   MOZ_ALWAYS_TRUE(arr.AppendElement(MotionSegment(aPath, aDist,
-                                                  aRotateType, aRotateAngle)));
+                                                  aRotateType, aRotateAngle),
+                                    fallible));
   return smilVal;
 }
 

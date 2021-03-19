@@ -243,6 +243,7 @@ WebGLContext::BindTexture(GLenum rawTarget, WebGLTexture* newTex)
        default:
             return ErrorInvalidEnumInfo("bindTexture: target", rawTarget);
     }
+    const TexTarget target(rawTarget);
 
     if (newTex) {
         // silently ignore a deleted texture
@@ -253,29 +254,16 @@ WebGLContext::BindTexture(GLenum rawTarget, WebGLTexture* newTex)
             return ErrorInvalidOperation("bindTexture: this texture has already been bound to a different target");
     }
 
-    const TexTarget target(rawTarget);
-
-    WebGLTextureFakeBlackStatus currentTexFakeBlackStatus = WebGLTextureFakeBlackStatus::NotNeeded;
-    if (*currentTexPtr) {
-        currentTexFakeBlackStatus = (*currentTexPtr)->ResolvedFakeBlackStatus();
-    }
-    WebGLTextureFakeBlackStatus newTexFakeBlackStatus = WebGLTextureFakeBlackStatus::NotNeeded;
-    if (newTex) {
-        newTexFakeBlackStatus = newTex->ResolvedFakeBlackStatus();
-    }
-
     *currentTexPtr = newTex;
-
-    if (currentTexFakeBlackStatus != newTexFakeBlackStatus) {
-        SetFakeBlackStatus(WebGLContextFakeBlackStatus::Unknown);
-    }
 
     MakeContextCurrent();
 
-    if (newTex)
+    if (newTex) {
+        SetFakeBlackStatus(WebGLContextFakeBlackStatus::Unknown);
         newTex->Bind(target);
-    else
-        gl->fBindTexture(target.get(), 0 /* == texturename */);
+    } else {
+        gl->fBindTexture(target.get(), 0);
+    }
 }
 
 void WebGLContext::BlendEquation(GLenum mode)
@@ -2830,7 +2818,7 @@ WebGLContext::UniformMatrix2fv_base(WebGLUniformLocation* loc, bool transpose,
 {
     GLuint rawLoc;
     GLsizei numElementsToUpload;
-    if (!ValidateUniformMatrixArraySetter(loc, 2, LOCAL_GL_FLOAT, arrayLength,
+    if (!ValidateUniformMatrixArraySetter(loc, 2, 2, LOCAL_GL_FLOAT, arrayLength,
                                           transpose, "uniformMatrix2fv",
                                           &rawLoc, &numElementsToUpload))
     {
@@ -2847,7 +2835,7 @@ WebGLContext::UniformMatrix3fv_base(WebGLUniformLocation* loc, bool transpose,
 {
     GLuint rawLoc;
     GLsizei numElementsToUpload;
-    if (!ValidateUniformMatrixArraySetter(loc, 3, LOCAL_GL_FLOAT, arrayLength,
+    if (!ValidateUniformMatrixArraySetter(loc, 3, 3, LOCAL_GL_FLOAT, arrayLength,
                                           transpose, "uniformMatrix3fv",
                                           &rawLoc, &numElementsToUpload))
     {
@@ -2864,7 +2852,7 @@ WebGLContext::UniformMatrix4fv_base(WebGLUniformLocation* loc, bool transpose,
 {
     GLuint rawLoc;
     GLsizei numElementsToUpload;
-    if (!ValidateUniformMatrixArraySetter(loc, 4, LOCAL_GL_FLOAT, arrayLength,
+    if (!ValidateUniformMatrixArraySetter(loc, 4, 4, LOCAL_GL_FLOAT, arrayLength,
                                           transpose, "uniformMatrix4fv",
                                           &rawLoc, &numElementsToUpload))
     {
@@ -3238,6 +3226,9 @@ GLenum WebGLContext::CheckedTexImage2D(TexImageTarget texImageTarget,
     }
 
     gl->fTexImage2D(texImageTarget.get(), level, driverInternalFormat, width, height, border, driverFormat, driverType, data);
+
+    if (effectiveInternalFormat != driverInternalFormat)
+        SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalformat.get());
 
     GLenum error = LOCAL_GL_NO_ERROR;
     if (sizeMayChange) {

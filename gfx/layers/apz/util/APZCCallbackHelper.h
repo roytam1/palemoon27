@@ -6,8 +6,6 @@
 #ifndef mozilla_layers_APZCCallbackHelper_h
 #define mozilla_layers_APZCCallbackHelper_h
 
-#include "nsCOMPtr.h"
-#include "nsIPresShell.h"
 #include "FrameMetrics.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/layers/APZUtils.h"
@@ -15,8 +13,11 @@
 
 class nsIContent;
 class nsIDocument;
+class nsIPresShell;
 class nsIWidget;
 template<class T> struct already_AddRefed;
+template<class T> class nsCOMPtr;
+template<class T> class nsRefPtr;
 
 namespace mozilla {
 namespace layers {

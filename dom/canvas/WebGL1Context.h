@@ -34,6 +34,9 @@ private:
     virtual bool ValidateBufferTarget(GLenum target, const char* info) override;
     virtual bool ValidateBufferIndexedTarget(GLenum target, const char* info) override;
     virtual bool ValidateBufferForTarget(GLenum target, WebGLBuffer* buffer, const char* info) override;
+    virtual bool ValidateBufferUsageEnum(GLenum usage, const char* info) override;
+    virtual bool ValidateQueryTarget(GLenum target, const char* info) override;
+    virtual bool ValidateUniformMatrixTranspose(bool transpose, const char* info) override;
 };
 
 } // namespace mozilla

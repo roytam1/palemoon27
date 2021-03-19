@@ -324,6 +324,7 @@ WebGLContext::DestroyResourcesAndContext()
     mBound2DTextures.Clear();
     mBoundCubeMapTextures.Clear();
     mBound3DTextures.Clear();
+    mBoundSamplers.Clear();
     mBoundArrayBuffer = nullptr;
     mBoundCopyReadBuffer = nullptr;
     mBoundCopyWriteBuffer = nullptr;
@@ -1871,11 +1872,13 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
                         0, format, type, nullptr);
     }
 
+    const gl::OriginPos destOrigin = mPixelStoreFlipY ? gl::OriginPos::BottomLeft
+                                                      : gl::OriginPos::TopLeft;
     bool ok = gl->BlitHelper()->BlitImageToTexture(srcImage.get(),
                                                    srcImage->GetSize(),
-                                                   tex->GLName(),
+                                                   tex->mGLName,
                                                    texImageTarget.get(),
-                                                   mPixelStoreFlipY);
+                                                   destOrigin);
     if (ok) {
         TexInternalFormat effectiveInternalFormat =
             EffectiveInternalFormatFromInternalFormatAndType(internalFormat,
@@ -1942,6 +1945,7 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(WebGLContext,
   mBound2DTextures,
   mBoundCubeMapTextures,
   mBound3DTextures,
+  mBoundSamplers,
   mBoundArrayBuffer,
   mBoundCopyReadBuffer,
   mBoundCopyWriteBuffer,

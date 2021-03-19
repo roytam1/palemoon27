@@ -221,10 +221,9 @@ NS_GetContentList(nsINode* aRootNode,
       new PLDHashTable(&hash_table_ops, sizeof(ContentListHashEntry));
   }
 
-  ContentListHashEntry *entry = nullptr;
   // First we look in our hashtable.  Then we create a content list if needed
-  entry = static_cast<ContentListHashEntry *>
-    (PL_DHashTableAdd(gContentListHashTable, &hashKey, fallible));
+  auto entry = static_cast<ContentListHashEntry*>
+                          (gContentListHashTable->Add(&hashKey, fallible));
   if (entry)
     list = entry->mContentList;
 
@@ -330,8 +329,8 @@ GetFuncStringContentList(nsINode* aRootNode,
   if (gFuncStringContentListHashTable) {
     nsFuncStringCacheKey hashKey(aRootNode, aFunc, aString);
 
-    entry = static_cast<FuncStringContentListHashEntry *>
-      (PL_DHashTableAdd(gFuncStringContentListHashTable, &hashKey, fallible));
+    entry = static_cast<FuncStringContentListHashEntry*>
+      (gFuncStringContentListHashTable->Add(&hashKey, fallible));
     if (entry) {
       list = entry->mContentList;
 #ifdef DEBUG
@@ -671,7 +670,8 @@ nsContentList::Item(uint32_t aIndex)
 void
 nsContentList::AttributeChanged(nsIDocument *aDocument, Element* aElement,
                                 int32_t aNameSpaceID, nsIAtom* aAttribute,
-                                int32_t aModType)
+                                int32_t aModType,
+                                const nsAttrValue* aOldValue)
 {
   NS_PRECONDITION(aElement, "Must have a content node to work with");
   
@@ -983,7 +983,7 @@ nsContentList::RemoveFromHashtable()
   if (!gContentListHashTable)
     return;
 
-  PL_DHashTableRemove(gContentListHashTable, &key);
+  gContentListHashTable->Remove(&key);
 
   if (gContentListHashTable->EntryCount() == 0) {
     delete gContentListHashTable;
@@ -1024,7 +1024,7 @@ nsCacheableFuncStringContentList::RemoveFromFuncStringHashtable()
   }
 
   nsFuncStringCacheKey key(mRootNode, mFunc, mString);
-  PL_DHashTableRemove(gFuncStringContentListHashTable, &key);
+  gFuncStringContentListHashTable->Remove(&key);
 
   if (gFuncStringContentListHashTable->EntryCount() == 0) {
     delete gFuncStringContentListHashTable;

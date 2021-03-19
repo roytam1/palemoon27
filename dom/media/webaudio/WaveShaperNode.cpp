@@ -48,7 +48,7 @@ static uint32_t ValueOf(OverSampleType aType)
   }
 }
 
-class Resampler
+class Resampler final
 {
 public:
   Resampler()
@@ -161,7 +161,7 @@ private:
   nsTArray<float> mBuffer;
 };
 
-class WaveShaperNodeEngine : public AudioNodeEngine
+class WaveShaperNodeEngine final : public AudioNodeEngine
 {
 public:
   explicit WaveShaperNodeEngine(AudioNode* aNode)
@@ -324,7 +324,7 @@ WaveShaperNode::SetCurve(const Nullable<Float32Array>& aCurve)
     mCurve = nullptr;
   }
 
-  AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
+  AudioNodeStream* ns = mStream;
   MOZ_ASSERT(ns, "Why don't we have a stream here?");
   ns->SetRawArrayData(curve);
 }

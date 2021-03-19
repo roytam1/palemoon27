@@ -1557,11 +1557,12 @@ MediaStreamGraphImpl::ApplyStreamUpdate(StreamUpdate* aUpdate)
   stream->mMainThreadCurrentTime = aUpdate->mNextMainThreadCurrentTime;
   stream->mMainThreadFinished = aUpdate->mNextMainThreadFinished;
 
-  if (stream->mWrapper) {
-    stream->mWrapper->NotifyStreamStateChanged();
-  }
-  for (int32_t i = stream->mMainThreadListeners.Length() - 1; i >= 0; --i) {
-    stream->mMainThreadListeners[i]->NotifyMainThreadStateChanged();
+  if (stream->ShouldNotifyStreamFinished()) {
+    if (stream->mWrapper) {
+      stream->mWrapper->NotifyStreamFinished();
+    }
+
+    stream->NotifyMainThreadListeners();
   }
 }
 
@@ -1930,6 +1931,7 @@ MediaStream::MediaStream(DOMMediaStream* aWrapper)
   , mWrapper(aWrapper)
   , mMainThreadCurrentTime(0)
   , mMainThreadFinished(false)
+  , mFinishedNotificationSent(false)
   , mMainThreadDestroyed(false)
   , mGraph(nullptr)
   , mAudioChannelType(dom::AudioChannel::Normal)
@@ -2413,6 +2415,50 @@ MediaStream::ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment, Media
   if (aRawSegment) {
     aRawSegment->ReplaceWithDisabled();
   }
+}
+
+void
+MediaStream::AddMainThreadListener(MainThreadMediaStreamListener* aListener)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aListener);
+  MOZ_ASSERT(!mMainThreadListeners.Contains(aListener));
+
+  mMainThreadListeners.AppendElement(aListener);
+
+  // If we have to send the notification or we have a runnable that will do it,
+  // let finish here.
+  if (!mFinishedNotificationSent || mNotificationMainThreadRunnable) {
+    return;
+  }
+
+  class NotifyRunnable final : public nsRunnable
+  {
+  public:
+    explicit NotifyRunnable(MediaStream* aStream)
+      : mStream(aStream)
+    {}
+
+    NS_IMETHOD Run() override
+    {
+      MOZ_ASSERT(NS_IsMainThread());
+      mStream->mNotificationMainThreadRunnable = nullptr;
+      mStream->NotifyMainThreadListeners();
+      return NS_OK;
+    }
+
+  private:
+    ~NotifyRunnable() {}
+
+    nsRefPtr<MediaStream> mStream;
+  };
+
+  nsRefPtr<nsRunnable> runnable = new NotifyRunnable(this);
+  if (NS_WARN_IF(NS_FAILED(NS_DispatchToMainThread(runnable)))) {
+    return;
+  }
+
+  mNotificationMainThreadRunnable = runnable;
 }
 
 void

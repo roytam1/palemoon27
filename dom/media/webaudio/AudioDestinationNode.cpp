@@ -29,7 +29,7 @@ namespace dom {
 
 static uint8_t gWebAudioOutputKey;
 
-class OfflineDestinationNodeEngine : public AudioNodeEngine
+class OfflineDestinationNodeEngine final : public AudioNodeEngine
 {
 public:
   typedef AutoFallibleTArray<nsAutoArrayPtr<float>, 2> InputChannels;
@@ -134,7 +134,7 @@ public:
       , mRenderedBuffer(aRenderedBuffer)
     {}
 
-    NS_IMETHOD Run()
+    NS_IMETHOD Run() override
     {
       nsRefPtr<OfflineAudioCompletionEvent> event =
           new OfflineAudioCompletionEvent(mAudioContext, nullptr, nullptr);
@@ -209,7 +209,7 @@ private:
   bool mBufferAllocated;
 };
 
-class InputMutedRunnable : public nsRunnable
+class InputMutedRunnable final : public nsRunnable
 {
 public:
   InputMutedRunnable(AudioNodeStream* aStream,
@@ -219,7 +219,7 @@ public:
   {
   }
 
-  NS_IMETHOD Run()
+  NS_IMETHOD Run() override
   {
     MOZ_ASSERT(NS_IsMainThread());
     nsRefPtr<AudioNode> node = mStream->Engine()->NodeMainThread();
@@ -237,7 +237,7 @@ private:
   bool mInputMuted;
 };
 
-class DestinationNodeEngine : public AudioNodeEngine
+class DestinationNodeEngine final : public AudioNodeEngine
 {
 public:
   explicit DestinationNodeEngine(AudioDestinationNode* aNode)
@@ -350,7 +350,6 @@ AudioDestinationNode::AudioDestinationNode(AudioContext* aContext,
   , mFramesToProduce(aLength)
   , mAudioChannel(AudioChannel::Normal)
   , mIsOffline(aIsOffline)
-  , mHasFinished(false)
   , mAudioChannelAgentPlaying(false)
   , mExtraCurrentTime(0)
   , mExtraCurrentTimeSinceLastStartedBlocking(0)
@@ -370,7 +369,7 @@ AudioDestinationNode::AudioDestinationNode(AudioContext* aContext,
   mStream->AddAudioOutput(&gWebAudioOutputKey);
 
   if (!aIsOffline) {
-    graph->NotifyWhenGraphStarted(mStream->AsAudioNodeStream());
+    graph->NotifyWhenGraphStarted(mStream);
   }
 
   if (aChannel != AudioChannel::Normal) {
@@ -425,24 +424,22 @@ AudioDestinationNode::DestroyMediaStream()
 }
 
 void
-AudioDestinationNode::NotifyMainThreadStateChanged()
+AudioDestinationNode::NotifyMainThreadStreamFinished()
 {
-  if (mStream->IsFinished() && !mHasFinished) {
-    mHasFinished = true;
-    if (mIsOffline) {
-      nsCOMPtr<nsIRunnable> runnable =
-        NS_NewRunnableMethod(this, &AudioDestinationNode::FireOfflineCompletionEvent);
-      NS_DispatchToCurrentThread(runnable);
-    }
+  MOZ_ASSERT(mStream->IsFinished());
+
+  if (mIsOffline) {
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethod(this, &AudioDestinationNode::FireOfflineCompletionEvent);
+    NS_DispatchToCurrentThread(runnable);
   }
 }
 
 void
 AudioDestinationNode::FireOfflineCompletionEvent()
 {
-  AudioNodeStream* stream = static_cast<AudioNodeStream*>(Stream());
   OfflineDestinationNodeEngine* engine =
-    static_cast<OfflineDestinationNodeEngine*>(stream->Engine());
+    static_cast<OfflineDestinationNodeEngine*>(Stream()->Engine());
   engine->FireOfflineCompletionEvent(this);
 }
 

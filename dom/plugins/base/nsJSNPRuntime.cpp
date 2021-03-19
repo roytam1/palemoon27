@@ -1759,7 +1759,7 @@ NPObjWrapper_Finalize(js::FreeOp* fop, JSObject* obj)
   NPObject* npobj = (NPObject*)::JS_GetPrivate(obj);
   if (npobj) {
     if (sNPObjWrappers) {
-      PL_DHashTableRemove(sNPObjWrappers, npobj);
+      sNPObjWrappers->Remove(npobj);
     }
   }
 
@@ -1783,11 +1783,11 @@ NPObjWrapper_ObjectMoved(JSObject* obj, const JSObject* old)
     return;
   }
 
-  // Calling PL_DHashTableSearch() will not result in GC.
+  // Calling PLDHashTable::Search() will not result in GC.
   JS::AutoSuppressGCAnalysis nogc;
 
-  NPObjWrapperHashEntry* entry = static_cast<NPObjWrapperHashEntry*>
-    (PL_DHashTableSearch(sNPObjWrappers, npobj));
+  auto entry =
+    static_cast<NPObjWrapperHashEntry*>(sNPObjWrappers->Search(npobj));
   MOZ_ASSERT(entry && entry->mJSObj);
   MOZ_ASSERT(entry->mJSObj == old);
   entry->mJSObj = obj;
@@ -1839,8 +1839,8 @@ nsNPObjWrapper::OnDestroy(NPObject* npobj)
     return;
   }
 
-  NPObjWrapperHashEntry* entry = static_cast<NPObjWrapperHashEntry*>
-    (PL_DHashTableSearch(sNPObjWrappers, npobj));
+  auto entry =
+    static_cast<NPObjWrapperHashEntry*>(sNPObjWrappers->Search(npobj));
 
   if (entry && entry->mJSObj) {
     // Found a live NPObject wrapper, null out its JSObjects' private
@@ -1890,8 +1890,8 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext* cx, NPObject* npobj)
     }
   }
 
-  NPObjWrapperHashEntry* entry = static_cast<NPObjWrapperHashEntry*>
-    (PL_DHashTableAdd(sNPObjWrappers, npobj, fallible));
+  auto entry =
+    static_cast<NPObjWrapperHashEntry*>(sNPObjWrappers->Add(npobj, fallible));
 
   if (!entry) {
     // Out of memory
@@ -1923,7 +1923,7 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext* cx, NPObject* npobj)
       // Reload entry if the JS_NewObject call caused a GC and reallocated
       // the table (see bug 445229). This is guaranteed to succeed.
 
-      NS_ASSERTION(PL_DHashTableSearch(sNPObjWrappers, npobj),
+      NS_ASSERTION(sNPObjWrappers->Search(npobj),
                    "Hashtable didn't find what we just added?");
   }
 
@@ -2048,8 +2048,8 @@ LookupNPP(NPObject* npobj)
     return o->mNpp;
   }
 
-  NPObjWrapperHashEntry* entry = static_cast<NPObjWrapperHashEntry*>
-    (PL_DHashTableAdd(sNPObjWrappers, npobj, fallible));
+  auto entry =
+    static_cast<NPObjWrapperHashEntry*>(sNPObjWrappers->Add(npobj, fallible));
 
   if (!entry) {
     return nullptr;

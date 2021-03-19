@@ -20,13 +20,6 @@
 
 #include <new>
 
-// helper function for nsTHashtable::Clear()
-PLDHashOperator PL_DHashStubEnumRemove(PLDHashTable* aTable,
-                                       PLDHashEntryHdr* aEntry,
-                                       uint32_t aOrdinal,
-                                       void* aUserArg);
-
-
 /**
  * a base class for templated hashtables.
  *
@@ -79,6 +72,16 @@ PLDHashOperator PL_DHashStubEnumRemove(PLDHashTable* aTable,
  * @author "Benjamin Smedberg <bsmedberg@covad.net>"
  */
 
+// These are the codes returned by |Enumerator| functions, which control
+// EnumerateEntry()'s behavior. The PLD/PL_D prefix is because they originated
+// in PLDHashTable, but that class no longer uses them.
+enum PLDHashOperator
+{
+  PL_DHASH_NEXT = 0,          // enumerator says continue
+  PL_DHASH_STOP = 1,          // enumerator says stop
+  PL_DHASH_REMOVE = 2         // enumerator says remove
+};
+
 template<class EntryType>
 class MOZ_NEEDS_NO_VTABLE_TYPE nsTHashtable
 {
@@ -88,7 +91,7 @@ public:
   // Separate constructors instead of default aInitLength parameter since
   // otherwise the default no-arg constructor isn't found.
   nsTHashtable()
-    : mTable(Ops(), sizeof(EntryType), PL_DHASH_DEFAULT_INITIAL_LENGTH)
+    : mTable(Ops(), sizeof(EntryType), PLDHashTable::kDefaultInitialLength)
   {}
   explicit nsTHashtable(uint32_t aInitLength)
     : mTable(Ops(), sizeof(EntryType), aInitLength)
@@ -132,8 +135,7 @@ public:
   EntryType* GetEntry(KeyType aKey) const
   {
     return static_cast<EntryType*>(
-      PL_DHashTableSearch(const_cast<PLDHashTable*>(&mTable),
-                          EntryType::KeyToPointer(aKey)));
+      const_cast<PLDHashTable*>(&mTable)->Search(EntryType::KeyToPointer(aKey)));
   }
 
   /**
@@ -151,16 +153,15 @@ public:
    */
   EntryType* PutEntry(KeyType aKey)
   {
-    return static_cast<EntryType*>  // infallible add
-      (PL_DHashTableAdd(&mTable, EntryType::KeyToPointer(aKey)));
+    // infallible add
+    return static_cast<EntryType*>(mTable.Add(EntryType::KeyToPointer(aKey)));
   }
 
   MOZ_WARN_UNUSED_RESULT
   EntryType* PutEntry(KeyType aKey, const fallible_t&)
   {
-    return static_cast<EntryType*>
-      (PL_DHashTableAdd(&mTable, EntryType::KeyToPointer(aKey),
-                        mozilla::fallible));
+    return static_cast<EntryType*>(mTable.Add(EntryType::KeyToPointer(aKey),
+                                              mozilla::fallible));
   }
 
   /**
@@ -169,8 +170,7 @@ public:
    */
   void RemoveEntry(KeyType aKey)
   {
-    PL_DHashTableRemove(&mTable,
-                        EntryType::KeyToPointer(aKey));
+    mTable.Remove(EntryType::KeyToPointer(aKey));
   }
 
   /**
@@ -199,7 +199,11 @@ public:
   typedef PLDHashOperator (*Enumerator)(EntryType* aEntry, void* userArg);
 
   /**
-   * Enumerate all the entries of the function.
+   * Enumerate all the entries of the function. If any entries are removed via
+   * a PL_DHASH_REMOVE return value from |aEnumFunc|, the table may be shrunk
+   * at the end. Use RawRemoveEntry() instead if you wish to remove an entry
+   * without possibly shrinking the table.
+   * WARNING: this function is deprecated. Please use Iterator instead.
    * @param     enumFunc the <code>Enumerator</code> function to call
    * @param     userArg a pointer to pass to the
    *            <code>Enumerator</code> function
@@ -222,12 +226,47 @@ public:
     return n;
   }
 
+  // This is an iterator that also allows entry removal. Example usage:
+  //
+  //   for (auto iter = table.Iter(); !iter.Done(); iter.Next()) {
+  //     Entry* entry = iter.Get();
+  //     // ... do stuff with |entry| ...
+  //     // ... possibly call iter.Remove() once ...
+  //   }
+  //
+  class Iterator : public PLDHashTable::Iterator
+  {
+  public:
+    typedef PLDHashTable::Iterator Base;
+
+    explicit Iterator(nsTHashtable* aTable) : Base(&aTable->mTable) {}
+    Iterator(Iterator&& aOther) : Base(aOther.mTable) {}
+    ~Iterator() {}
+
+    EntryType* Get() const { return static_cast<EntryType*>(Base::Get()); }
+
+  private:
+    Iterator() = delete;
+    Iterator(const Iterator&) = delete;
+    Iterator& operator=(const Iterator&) = delete;
+    Iterator& operator=(const Iterator&&) = delete;
+  };
+
+  Iterator Iter() { return Iterator(this); }
+
+  Iterator ConstIter() const
+  {
+    return Iterator(const_cast<nsTHashtable*>(this));
+  }
+
   /**
-   * remove all entries, return hashtable to "pristine" state ;)
+   * Remove all entries, return hashtable to "pristine" state. It's
+   * conceptually the same as calling the destructor and then re-calling the
+   * constructor.
    */
   void Clear()
   {
-    PL_DHashTableEnumerate(&mTable, PL_DHashStubEnumRemove, nullptr);
+    mTable.Clear();
   }
 
   /**
@@ -482,35 +521,6 @@ nsTHashtable<EntryType>::s_SizeOfStub(PLDHashEntryHdr* aEntry,
 
 class nsCycleCollectionTraversalCallback;
 
-struct MOZ_STACK_CLASS nsTHashtableCCTraversalData
-{
-  nsTHashtableCCTraversalData(nsCycleCollectionTraversalCallback& aCallback,
-                              const char* aName,
-                              uint32_t aFlags)
-    : mCallback(aCallback)
-    , mName(aName)
-    , mFlags(aFlags)
-  {
-  }
-
-  nsCycleCollectionTraversalCallback& mCallback;
-  const char* mName;
-  uint32_t mFlags;
-};
-
-template<class EntryType>
-PLDHashOperator
-ImplCycleCollectionTraverse_EnumFunc(EntryType* aEntry, void* aUserData)
-{
-  auto userData = static_cast<nsTHashtableCCTraversalData*>(aUserData);
-
-  ImplCycleCollectionTraverse(userData->mCallback,
-                              *aEntry,
-                              userData->mName,
-                              userData->mFlags);
-  return PL_DHASH_NEXT;
-}
-
 template<class EntryType>
 inline void
 ImplCycleCollectionUnlink(nsTHashtable<EntryType>& aField)
@@ -525,10 +535,10 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
                             const char* aName,
                             uint32_t aFlags = 0)
 {
-  nsTHashtableCCTraversalData userData(aCallback, aName, aFlags);
-
-  aField.EnumerateEntries(ImplCycleCollectionTraverse_EnumFunc<EntryType>,
-                          &userData);
+  for (auto iter = aField.Iter(); !iter.Done(); iter.Next()) {
+    EntryType* entry = iter.Get();
+    ImplCycleCollectionTraverse(aCallback, *entry, aName, aFlags);
+  }
 }
 
 #endif // nsTHashtable_h__

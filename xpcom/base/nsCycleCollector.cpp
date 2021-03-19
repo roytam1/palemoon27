@@ -858,9 +858,10 @@ public:
   }
 #endif
 
+  PtrToNodeEntry* FindNodeEntry(void* aPtr);
   PtrInfo* FindNode(void* aPtr);
   PtrToNodeEntry* AddNodeToMap(void* aPtr);
-  void RemoveNodeFromMap(void* aPtr);
+  void RemoveNodeFromMap(PtrToNodeEntry* aPtr);
 
   uint32_t MapCount() const
   {
@@ -880,11 +881,17 @@ public:
   }
 };
 
+PtrToNodeEntry*
+CCGraph::FindNodeEntry(void* aPtr)
+{
+  return
+    static_cast<PtrToNodeEntry*>(mPtrToNodeMap.Search(aPtr));
+}
+
 PtrInfo*
 CCGraph::FindNode(void* aPtr)
 {
-  PtrToNodeEntry* e =
-    static_cast<PtrToNodeEntry*>(PL_DHashTableSearch(&mPtrToNodeMap, aPtr));
+  PtrToNodeEntry* e = FindNodeEntry(aPtr);
   return e ? e->mNode : nullptr;
 }
 
@@ -896,8 +903,7 @@ CCGraph::AddNodeToMap(void* aPtr)
     return nullptr;
   }
 
-  PtrToNodeEntry* e = static_cast<PtrToNodeEntry*>
-    (PL_DHashTableAdd(&mPtrToNodeMap, aPtr, fallible));
+  auto e = static_cast<PtrToNodeEntry*>(mPtrToNodeMap.Add(aPtr, fallible));
   if (!e) {
     mOutOfMemory = true;
     MOZ_ASSERT(false, "Ran out of memory while building cycle collector graph");
@@ -907,9 +913,9 @@ CCGraph::AddNodeToMap(void* aPtr)
 }
 
 void
-CCGraph::RemoveNodeFromMap(void* aPtr)
+CCGraph::RemoveNodeFromMap(PtrToNodeEntry* aEntry)
 {
-  PL_DHashTableRemove(&mPtrToNodeMap, aPtr);
+  mPtrToNodeMap.RemoveEntry(aEntry);
 }
 
 
@@ -3846,8 +3852,10 @@ nsCycleCollector::RemoveObjectFromGraph(void* aObj)
     return;
   }
 
-  if (PtrInfo* pinfo = mGraph.FindNode(aObj)) {
-    mGraph.RemoveNodeFromMap(aObj);
+  PtrToNodeEntry* e = mGraph.FindNodeEntry(aObj);
+  PtrInfo* pinfo = e ? e->mNode : nullptr;
+  if (pinfo) {
+    mGraph.RemoveNodeFromMap(e);
 
     pinfo->mPointer = nullptr;
     pinfo->mParticipant = nullptr;

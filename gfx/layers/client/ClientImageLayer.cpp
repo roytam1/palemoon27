@@ -77,6 +77,7 @@ protected:
   void DestroyBackBuffer()
   {
     if (mImageClient) {
+      mImageClient->SetLayer(nullptr);
       mImageClient->OnDetach();
       mImageClient = nullptr;
     }
@@ -107,15 +108,15 @@ protected:
     AutoLockImage autoLock(mContainer);
 
 #ifdef MOZ_WIDGET_GONK
-    if (autoLock.GetImage()->GetFormat() == ImageFormat::OVERLAY_IMAGE) {
+    if (autoLock.HasImage() &&
+        autoLock.GetImage()->GetFormat() == ImageFormat::OVERLAY_IMAGE) {
       mImageClientTypeContainer = CompositableType::IMAGE_OVERLAY;
       return mImageClientTypeContainer;
     }
 #endif
 
-  	mImageClientTypeContainer = autoLock.GetImage()
-							  ? CompositableType::IMAGE
-							  : CompositableType::UNKNOWN;
+    mImageClientTypeContainer = autoLock.HasImage()
+        ? CompositableType::IMAGE : CompositableType::UNKNOWN;
     return mImageClientTypeContainer;
   }
 
@@ -149,13 +150,10 @@ ClientImageLayer::RenderLayer()
     mImageClient = ImageClient::CreateImageClient(type,
                                                   ClientManager()->AsShadowForwarder(),
                                                   flags);
-    if (type == CompositableType::IMAGE_BRIDGE) {
-      static_cast<ImageClientBridge*>(mImageClient.get())->SetLayer(this);
-    }
-
     if (!mImageClient) {
       return;
     }
+    mImageClient->SetLayer(this);
     if (HasShadow() && !mContainer->IsAsync()) {
       mImageClient->Connect();
       ClientManager()->AsShadowForwarder()->Attach(mImageClient, this);

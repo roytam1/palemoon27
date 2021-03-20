@@ -132,9 +132,7 @@ nsGlobalNameStruct *
 nsScriptNameSpaceManager::AddToHash(PLDHashTable *aTable, const nsAString *aKey,
                                     const char16_t **aClassName)
 {
-  GlobalNameMapEntry *entry = static_cast<GlobalNameMapEntry *>
-    (PL_DHashTableAdd(aTable, aKey, fallible));
-
+  auto entry = static_cast<GlobalNameMapEntry*>(aTable->Add(aKey, fallible));
   if (!entry) {
     return nullptr;
   }
@@ -150,7 +148,7 @@ void
 nsScriptNameSpaceManager::RemoveFromHash(PLDHashTable *aTable,
                                          const nsAString *aKey)
 {
-  PL_DHashTableRemove(aTable, aKey);
+  aTable->Remove(aKey);
 }
 
 nsGlobalNameStruct*

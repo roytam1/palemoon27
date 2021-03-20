@@ -16,9 +16,9 @@ namespace dom {
 
 NS_IMPL_ISUPPORTS_INHERITED0(AnalyserNode, AudioNode)
 
-class AnalyserNodeEngine : public AudioNodeEngine
+class AnalyserNodeEngine final : public AudioNodeEngine
 {
-  class TransferBuffer : public nsRunnable
+  class TransferBuffer final : public nsRunnable
   {
   public:
     TransferBuffer(AudioNodeStream* aStream,
@@ -30,15 +30,8 @@ class AnalyserNodeEngine : public AudioNodeEngine
 
     NS_IMETHOD Run()
     {
-      nsRefPtr<AnalyserNode> node;
-      {
-        // No need to keep holding the lock for the whole duration of this
-        // function, since we're holding a strong reference to it, so if
-        // we can obtain the reference, we will hold the node alive in
-        // this function.
-        MutexAutoLock lock(mStream->Engine()->NodeMutex());
-        node = static_cast<AnalyserNode*>(mStream->Engine()->Node());
-      }
+      nsRefPtr<AnalyserNode> node =
+        static_cast<AnalyserNode*>(mStream->Engine()->NodeMainThread());
       if (node) {
         node->AppendChunk(mChunk);
       }
@@ -64,25 +57,21 @@ public:
   {
     *aOutput = aInput;
 
-    MutexAutoLock lock(NodeMutex());
-
-    if (Node()) {
-      // If the input is silent, we sill need to send a silent buffer
-      if (aOutput->IsNull()) {
-        AllocateAudioBlock(1, aOutput);
-        float* samples = static_cast<float*>(
-            const_cast<void*>(aOutput->mChannelData[0]));
-        PodZero(samples, WEBAUDIO_BLOCK_SIZE);
-      }
-      uint32_t channelCount = aOutput->mChannelData.Length();
-      for (uint32_t channel = 0; channel < channelCount; ++channel) {
-        float* samples = static_cast<float*>(
-            const_cast<void*>(aOutput->mChannelData[channel]));
-        AudioBlockInPlaceScale(samples, aOutput->mVolume);
-      }
-      nsRefPtr<TransferBuffer> transfer = new TransferBuffer(aStream, *aOutput);
-      NS_DispatchToMainThread(transfer);
+    // If the input is silent, we sill need to send a silent buffer
+    if (aOutput->IsNull()) {
+      AllocateAudioBlock(1, aOutput);
+      float* samples =
+        static_cast<float*>(const_cast<void*>(aOutput->mChannelData[0]));
+      PodZero(samples, WEBAUDIO_BLOCK_SIZE);
     }
+    uint32_t channelCount = aOutput->mChannelData.Length();
+    for (uint32_t channel = 0; channel < channelCount; ++channel) {
+      float* samples =
+        static_cast<float*>(const_cast<void*>(aOutput->mChannelData[channel]));
+      AudioBlockInPlaceScale(samples, aOutput->mVolume);
+    }
+    nsRefPtr<TransferBuffer> transfer = new TransferBuffer(aStream, *aOutput);
+    NS_DispatchToMainThread(transfer);
   }
 
   virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const override
@@ -251,17 +240,16 @@ bool
 AnalyserNode::FFTAnalysis()
 {
   float* inputBuffer;
-  bool allocated = false;
+  AlignedFallibleTArray<float> tmpBuffer;
   if (mWriteIndex == 0) {
     inputBuffer = mBuffer.Elements();
   } else {
-    inputBuffer = static_cast<float*>(moz_malloc(FftSize() * sizeof(float)));
-    if (!inputBuffer) {
+    if (!tmpBuffer.SetLength(FftSize(), fallible)) {
       return false;
     }
+    inputBuffer = tmpBuffer.Elements();
     memcpy(inputBuffer, mBuffer.Elements() + mWriteIndex, sizeof(float) * (FftSize() - mWriteIndex));
     memcpy(inputBuffer + FftSize() - mWriteIndex, mBuffer.Elements(), sizeof(float) * mWriteIndex);
-    allocated = true;
   }
 
   ApplyBlackmanWindow(inputBuffer, FftSize());
@@ -279,9 +267,6 @@ AnalyserNode::FFTAnalysis()
                        (1.0 - mSmoothingTimeConstant) * scalarMagnitude;
   }
 
-  if (allocated) {
-    moz_free(inputBuffer);
-  }
   return true;
 }
 
@@ -305,16 +290,16 @@ AnalyserNode::AllocateBuffer()
 {
   bool result = true;
   if (mBuffer.Length() != FftSize()) {
-    result = mBuffer.SetLength(FftSize());
-    if (result) {
-      memset(mBuffer.Elements(), 0, sizeof(float) * FftSize());
-      mWriteIndex = 0;
-
-      result = mOutputBuffer.SetLength(FrequencyBinCount());
-      if (result) {
-        memset(mOutputBuffer.Elements(), 0, sizeof(float) * FrequencyBinCount());
-      }
+    if (!mBuffer.SetLength(FftSize(), fallible)) {
+      return false;
     }
+    memset(mBuffer.Elements(), 0, sizeof(float) * FftSize());
+    mWriteIndex = 0;
+
+    if (!mOutputBuffer.SetLength(FrequencyBinCount(), fallible)) {
+      return false;
+    }
+    memset(mOutputBuffer.Elements(), 0, sizeof(float) * FrequencyBinCount());
   }
   return result;
 }

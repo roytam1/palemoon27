@@ -853,7 +853,8 @@ ReadCompressedIndexDataValuesFromBlob(
     blobDataIter += keyBufferLength;
 
     if (NS_WARN_IF(!aIndexValues.InsertElementSorted(
-                      IndexDataValue(indexId, unique, Key(keyBuffer))))) {
+                      IndexDataValue(indexId, unique, Key(keyBuffer)),
+                      fallible))) {
       IDB_REPORT_INTERNAL_ERR();
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -2729,7 +2730,8 @@ InsertIndexDataValuesFunction::OnFunctionCall(mozIStorageValueArray* aValues,
   }
 
   MOZ_ALWAYS_TRUE(
-    indexValues.InsertElementSorted(IndexDataValue(indexId, !!unique, value)));
+    indexValues.InsertElementSorted(IndexDataValue(indexId, !!unique, value),
+                                    fallible));
 
   // Compress the array.
   UniqueFreePtr<uint8_t> indexValuesBlob;
@@ -8500,7 +8502,7 @@ ConvertBlobsToActors(PBackgroundParent* aBackgroundActor,
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    MOZ_ALWAYS_TRUE(aActors.AppendElement(actor));
+    MOZ_ALWAYS_TRUE(aActors.AppendElement(actor, fallible));
 
     if (collectFileInfos) {
       nsRefPtr<FileInfo> fileInfo = file.mFileInfo;
@@ -8508,7 +8510,7 @@ ConvertBlobsToActors(PBackgroundParent* aBackgroundActor,
       // Transfer a reference to the receiver.
       auto transferedFileInfo =
         reinterpret_cast<intptr_t>(fileInfo.forget().take());
-      MOZ_ALWAYS_TRUE(aFileInfos.AppendElement(transferedFileInfo));
+      MOZ_ALWAYS_TRUE(aFileInfos.AppendElement(transferedFileInfo, fallible));
     }
   }
 
@@ -12359,7 +12361,7 @@ Database::Invalidate()
       auto* array =
         static_cast<FallibleTArray<nsRefPtr<TransactionBase>>*>(aUserData);
 
-      if (NS_WARN_IF(!array->AppendElement(aEntry->GetKey()))) {
+      if (NS_WARN_IF(!array->AppendElement(aEntry->GetKey(), fallible))) {
         return PL_DHASH_STOP;
       }
 
@@ -12626,7 +12628,7 @@ Database::AllocPBackgroundIDBTransactionParent(
 
       if (closure->mName == aValue->mCommonMetadata.name() &&
           !aValue->mDeleted) {
-        MOZ_ALWAYS_TRUE(closure->mObjectStores.AppendElement(aValue));
+        MOZ_ALWAYS_TRUE(closure->mObjectStores.AppendElement(aValue, fallible));
         return PL_DHASH_STOP;
       }
 
@@ -17604,7 +17606,8 @@ DatabaseOperationBase::IndexDataValuesFromUpdateInfos(
     MOZ_ALWAYS_TRUE(aUniqueIndexTable.Get(indexId, &unique));
 
     MOZ_ALWAYS_TRUE(
-      aIndexValues.InsertElementSorted(IndexDataValue(indexId, unique, key)));
+      aIndexValues.InsertElementSorted(IndexDataValue(indexId, unique, key),
+                                       fallible));
   }
 
   return NS_OK;
@@ -18566,7 +18569,7 @@ FactoryOp::SendVersionChangeMessages(DatabaseActorInfo* aDatabaseActorInfo,
       Database* database = aDatabaseActorInfo->mLiveDatabases[index];
       if ((!aOpeningDatabase || database != aOpeningDatabase) &&
           !database->IsClosed() &&
-          NS_WARN_IF(!maybeBlockedDatabases.AppendElement(database))) {
+          NS_WARN_IF(!maybeBlockedDatabases.AppendElement(database, fallible))) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
     }
@@ -22090,7 +22093,8 @@ UpdateIndexDataValuesFunction::OnFunctionCall(mozIStorageValueArray* aValues,
     MOZ_ALWAYS_TRUE(
       indexValues.InsertElementSorted(IndexDataValue(metadata.id(),
                                                      metadata.unique(),
-                                                     info.value())));
+                                                     info.value()),
+                                      fallible));
   }
 
   UniqueFreePtr<uint8_t> indexValuesBlob;
@@ -22126,7 +22130,8 @@ UpdateIndexDataValuesFunction::OnFunctionCall(mozIStorageValueArray* aValues,
       MOZ_ALWAYS_TRUE(
         indexValues.InsertElementSorted(IndexDataValue(metadata.id(),
                                                        metadata.unique(),
-                                                       info.value())));
+                                                       info.value()),
+                                        fallible));
     }
   }
 
@@ -22848,7 +22853,7 @@ ObjectStoreAddOrPutRequestOp::Init(TransactionBase* aTransaction)
                      TPBackgroundIDBDatabaseFileParent ||
                  fileOrFileId.type() == DatabaseFileOrMutableFileId::Tint64_t);
 
-      StoredFileInfo* storedFileInfo = mStoredFileInfos.AppendElement();
+      StoredFileInfo* storedFileInfo = mStoredFileInfos.AppendElement(fallible);
       MOZ_ASSERT(storedFileInfo);
 
       switch (fileOrFileId.type()) {
@@ -23413,7 +23418,7 @@ ObjectStoreGetRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
 
   bool hasResult;
   while (NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
-    StructuredCloneReadInfo* cloneInfo = mResponse.AppendElement();
+    StructuredCloneReadInfo* cloneInfo = mResponse.AppendElement(fallible);
     if (NS_WARN_IF(!cloneInfo)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -23540,7 +23545,7 @@ ObjectStoreGetAllKeysRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
 
   bool hasResult;
   while(NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
-    Key* key = mResponse.AppendElement();
+    Key* key = mResponse.AppendElement(fallible);
     if (NS_WARN_IF(!key)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -23962,7 +23967,7 @@ IndexGetRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
 
   bool hasResult;
   while(NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
-    StructuredCloneReadInfo* cloneInfo = mResponse.AppendElement();
+    StructuredCloneReadInfo* cloneInfo = mResponse.AppendElement(fallible);
     if (NS_WARN_IF(!cloneInfo)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -24154,7 +24159,7 @@ IndexGetKeyRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
 
   bool hasResult;
   while(NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
-    Key* key = mResponse.AppendElement();
+    Key* key = mResponse.AppendElement(fallible);
     if (NS_WARN_IF(!key)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }

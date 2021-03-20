@@ -145,9 +145,6 @@ public:
 
   int32_t GetSerial() { return mSerial; }
 
-  void MarkSent() { mSent = true; }
-  bool IsSentToCompositor() { return mSent; }
-
   virtual already_AddRefed<gfx::SourceSurface> GetAsSourceSurface() = 0;
 
   virtual GrallocImage* AsGrallocImage()
@@ -169,8 +166,7 @@ protected:
   Image(void* aImplData, ImageFormat aFormat) :
     mImplData(aImplData),
     mSerial(++sSerialCounter),
-    mFormat(aFormat),
-    mSent(false)
+    mFormat(aFormat)
   {}
 
   // Protected destructor, to discourage deletion outside of Release():
@@ -224,13 +220,6 @@ private:
   nsTArray<nsAutoArrayPtr<uint8_t> > mRecycledBuffers;
   // This is only valid if mRecycledBuffers is non-empty
   uint32_t mRecycledBufferSize;
-};
-
-class CompositionNotifySink
-{
-public:
-  virtual void DidComposite() = 0;
-  virtual ~CompositionNotifySink() {}
 };
 
 /**
@@ -384,52 +373,19 @@ public:
    */
   bool HasCurrentImage();
 
+  struct OwningImage {
+    nsRefPtr<Image> mImage;
+  };
   /**
-   * Lock the current Image.
-   * This has to add a reference since otherwise there are race conditions
+   * Copy the current Image list to aImages.
+   * This has to add references since otherwise there are race conditions
    * where the current image is destroyed before the caller can add
    * a reference. This lock strictly guarantees the underlying image remains
    * valid, it does not mean the current image cannot change.
-   * Can be called on any thread. This method will lock the cross-process
-   * mutex to ensure remote processes cannot alter underlying data. This call
-   * -must- be balanced by a call to UnlockCurrentImage and users should avoid
-   * holding the image locked for a long time.
+   * Can be called on any thread.
+   * May return an empty list to indicate there is no current image.
    */
-  already_AddRefed<Image> LockCurrentImage();
-
-  /**
-   * This call unlocks the image. For remote images releasing the cross-process
-   * mutex.
-   */
-  void UnlockCurrentImage();
-
-  /**
-   * Get the current image as a SourceSurface. This is useful for fallback
-   * rendering.
-   * This can only be called from the main thread, since cairo objects
-   * can only be used from the main thread.
-   * This is defined here and not on Image because it's possible (likely)
-   * that some backends will make an Image "ready to draw" only when it
-   * becomes the current image for an image container.
-   * Returns null if there is no current image.
-   * Returns the size in aSize.
-   * The returned surface will never be modified. The caller must not
-   * modify it.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
-   * If the current image is a remote image, that is, if it is an image that
-   * may be shared accross processes, calling this function will make
-   * a copy of the image data while holding the mRemoteDataMutex. If possible,
-   * the lock methods should be used to avoid the copy, however this should be
-   * avoided if the surface is required for a long period of time.
-   */
-  already_AddRefed<gfx::SourceSurface> GetCurrentAsSourceSurface(gfx::IntSize* aSizeResult);
-
-  /**
-   * Same as LockCurrentAsSurface but for Moz2D
-   */
-  already_AddRefed<gfx::SourceSurface> LockCurrentAsSourceSurface(gfx::IntSize* aSizeResult,
-                                                              Image** aCurrentImage = nullptr);
+  void GetCurrentImages(nsTArray<OwningImage>* aImages);
 
   /**
    * Returns the size of the image in pixels.
@@ -480,15 +436,6 @@ public:
   }
 
   /**
-   * Resets the paint count to zero.
-   * Can be called from any thread.
-   */
-  void ResetPaintCount() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    mPaintCount = 0;
-  }
-
-  /**
    * Increments mPaintCount if this is the first time aPainted has been
    * painted, and sets mPaintTime if the painted image is the current image.
    * current image.  Can be called from any thread.
@@ -509,14 +456,6 @@ public:
       mPaintCount++;
       mPreviousImagePainted = true;
     }
-
-    if (mCompositionNotifySink) {
-      mCompositionNotifySink->DidComposite();
-    }
-  }
-
-  void SetCompositionNotifySink(CompositionNotifySink *aSink) {
-    mCompositionNotifySink = aSink;
   }
 
 private:
@@ -569,8 +508,6 @@ private:
 
   nsRefPtr<BufferRecycleBin> mRecycleBin;
 
-  CompositionNotifySink *mCompositionNotifySink;
-
   // This member points to an ImageClient if this ImageContainer was
   // sucessfully created with ENABLE_ASYNC, or points to null otherwise.
   // 'unsuccessful' in this case only means that the ImageClient could not
@@ -584,39 +521,19 @@ private:
 class AutoLockImage
 {
 public:
-  explicit AutoLockImage(ImageContainer *aContainer) : mContainer(aContainer) { mImage = mContainer->LockCurrentImage(); }
-  AutoLockImage(ImageContainer *aContainer, RefPtr<gfx::SourceSurface> *aSurface) : mContainer(aContainer) {
-    *aSurface = mContainer->LockCurrentAsSourceSurface(&mSize, getter_AddRefs(mImage));
-  }
-  ~AutoLockImage() { if (mContainer) { mContainer->UnlockCurrentImage(); } }
-
-  Image* GetImage() { return mImage; }
-  const gfx::IntSize &GetSize() { return mSize; }
-
-  void Unlock() { 
-    if (mContainer) {
-      mImage = nullptr;
-      mContainer->UnlockCurrentImage();
-      mContainer = nullptr;
-    }
+  explicit AutoLockImage(ImageContainer *aContainer)
+  {
+    aContainer->GetCurrentImages(&mImages);
   }
 
-  /** Things get a little tricky here, because our underlying image can -still-
-   * change, and OS X requires a complicated callback mechanism to update this
-   * we need to support staying the lock and getting the new image in a proper
-   * way. This method makes any images retrieved with GetImage invalid!
-   */
-  void Refresh() {
-    if (mContainer) {
-      mContainer->UnlockCurrentImage();
-      mImage = mContainer->LockCurrentImage();
-    }
+  bool HasImage() const { return !mImages.IsEmpty(); }
+  Image* GetImage() const
+  {
+    return mImages.IsEmpty() ? nullptr : mImages[0].mImage.get();
   }
 
 private:
-  ImageContainer *mContainer;
-  nsRefPtr<Image> mImage;
-  gfx::IntSize mSize;
+  nsAutoTArray<ImageContainer::OwningImage,4> mImages;
 };
 
 struct PlanarYCbCrData {

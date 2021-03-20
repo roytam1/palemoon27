@@ -3991,7 +3991,7 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     // aSubDoc is nullptr, remove the mapping
 
     if (mSubDocuments) {
-      PL_DHashTableRemove(mSubDocuments, aElement);
+      mSubDocuments->Remove(aElement);
     }
   } else {
     if (!mSubDocuments) {
@@ -4010,8 +4010,8 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     }
 
     // Add a mapping to the hash table
-    SubDocMapEntry *entry = static_cast<SubDocMapEntry*>
-      (PL_DHashTableAdd(mSubDocuments, aElement, fallible));
+    auto entry =
+      static_cast<SubDocMapEntry*>(mSubDocuments->Add(aElement, fallible));
 
     if (!entry) {
       return NS_ERROR_OUT_OF_MEMORY;

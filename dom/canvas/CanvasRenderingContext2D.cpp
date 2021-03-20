@@ -2799,7 +2799,7 @@ void CanvasRenderingContext2D::DrawFocusIfNeeded(mozilla::dom::Element& aElement
     // set dashing for foreground
     FallibleTArray<mozilla::gfx::Float>& dash = CurrentState().dash;
     for (uint32_t i = 0; i < 2; ++i) {
-      if (!dash.AppendElement(1)) {
+      if (!dash.AppendElement(1, fallible)) {
         aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
         return;
       }
@@ -3595,17 +3595,21 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor : public nsBidiPresUtils::BidiProcess
 
         const gfxTextRun::DetailedGlyph *d = mTextRun->GetDetailedGlyphs(i);
 
-        if (glyphs[i].IsMissing() && d->mAdvance > 0) {
-          newGlyph.mIndex = 0;
-          if (rtl) {
-            inlinePos = baselineOriginInline - advanceSum -
-              d->mAdvance * devUnitsPerAppUnit;
-          } else {
-            inlinePos = baselineOriginInline + advanceSum;
+        if (glyphs[i].IsMissing()) {
+          if (d->mAdvance > 0) {
+            // Perhaps we should render a hexbox here, but for now
+            // we just draw the font's .notdef glyph. (See bug 808288.)
+            newGlyph.mIndex = 0;
+            if (rtl) {
+              inlinePos = baselineOriginInline - advanceSum -
+                d->mAdvance * devUnitsPerAppUnit;
+            } else {
+              inlinePos = baselineOriginInline + advanceSum;
+            }
+            blockPos = baselineOriginBlock;
+            advanceSum += d->mAdvance * devUnitsPerAppUnit;
+            glyphBuf.push_back(newGlyph);
           }
-          blockPos = baselineOriginBlock;
-          advanceSum += d->mAdvance * devUnitsPerAppUnit;
-          glyphBuf.push_back(newGlyph);
           continue;
         }
 
@@ -4108,14 +4112,14 @@ CanvasRenderingContext2D::SetLineDash(const Sequence<double>& aSegments,
       return;
     }
 
-    if (!dash.AppendElement(aSegments[x])) {
+    if (!dash.AppendElement(aSegments[x], fallible)) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;
     }
   }
   if (aSegments.Length() % 2) { // If the number of elements is odd, concatenate again
     for (uint32_t x = 0; x < aSegments.Length(); x++) {
-      if (!dash.AppendElement(aSegments[x])) {
+      if (!dash.AppendElement(aSegments[x], fallible)) {
         aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
         return;
       }
@@ -4402,7 +4406,8 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
       return;
     }
 
-    nsRefPtr<mozilla::layers::Image> srcImage = container->LockCurrentImage();
+    AutoLockImage lockImage(container);
+    layers::Image* srcImage = lockImage.GetImage();
     if (!srcImage) {
       error.Throw(NS_ERROR_NOT_AVAILABLE);
       return;
@@ -4429,7 +4434,10 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
       gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
       gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
     }
-    bool ok = gl->BlitHelper()->BlitImageToTexture(srcImage.get(), srcImage->GetSize(), mVideoTexture, LOCAL_GL_TEXTURE_2D, 1);
+    const gl::OriginPos destOrigin = gl::OriginPos::TopLeft;
+    bool ok = gl->BlitHelper()->BlitImageToTexture(srcImage, srcImage->GetSize(),
+                                                   mVideoTexture, LOCAL_GL_TEXTURE_2D,
+                                                   destOrigin);
     if (ok) {
       NativeSurface texSurf;
       texSurf.mType = NativeSurfaceType::OPENGL_TEXTURE;
@@ -4448,7 +4456,6 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
       sh *= (double)imgSize.height / (double)displayHeight;
     }
     srcImage = nullptr;
-    container->UnlockCurrentImage();
 
     if (mCanvasElement) {
       CanvasUtils::DoDrawImageSecurityCheck(mCanvasElement,

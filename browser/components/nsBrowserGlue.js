@@ -67,6 +67,15 @@ XPCOMUtils.defineLazyModuleGetter(this, "OS",
 XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerParent",
                                   "resource://gre/modules/LoginManagerParent.jsm");
 
+XPCOMUtils.defineLazyGetter(this, "gBrandBundle", function() {
+  return Services.strings.createBundle('chrome://branding/locale/brand.properties');
+});
+
+XPCOMUtils.defineLazyGetter(this, "gBrowserBundle", function() {
+  return Services.strings.createBundle('chrome://browser/locale/browser.properties');
+});
+
+
 XPCOMUtils.defineLazyModuleGetter(this, "FormValidationHandler",
                                   "resource:///modules/FormValidationHandler.jsm");
 
@@ -621,7 +630,7 @@ BrowserGlue.prototype = {
 
   _onSafeModeRestart: function BG_onSafeModeRestart() {
     // prompt the user to confirm
-    let strings = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+    let strings = gBrowserBundle;
     let promptTitle = strings.GetStringFromName("safeModeRestartPromptTitle");
     let promptMessage = strings.GetStringFromName("safeModeRestartPromptMessage");
     let restartText = strings.GetStringFromName("safeModeRestartButton");
@@ -677,9 +686,7 @@ BrowserGlue.prototype = {
     if (!win)
       return;
 
-    let productName = Services.strings
-                              .createBundle("chrome://branding/locale/brand.properties")
-                              .GetStringFromName("brandFullName");
+    let productName = gBrandBundle.GetStringFromName("brandFullName");
     let message = win.gNavigatorBundle.getFormattedString("slowStartup.message", [productName]);
 
     let buttons = [
@@ -717,9 +724,7 @@ BrowserGlue.prototype = {
     if (!ResetProfile.resetSupported())
       return;
 
-    let productName = Services.strings
-                              .createBundle("chrome://branding/locale/brand.properties")
-                              .GetStringFromName("brandShortName");
+    let productName = gBrandBundle.GetStringFromName("brandShortName");
     let resetBundle = Services.strings
                               .createBundle("chrome://global/locale/resetProfile.properties");
 
@@ -944,9 +949,7 @@ BrowserGlue.prototype = {
 
     let prompt = Services.prompt;
     let quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
-    let brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-
-    let appName = brandBundle.GetStringFromName("brandShortName");
+    let appName = gBrandBundle.GetStringFromName("brandShortName");
     let quitDialogTitle = quitBundle.formatStringFromName("quitDialogTitle",
                                                           [appName], 1);
     let neverAskText = quitBundle.GetStringFromName("neverAsk2");
@@ -1023,9 +1026,7 @@ BrowserGlue.prototype = {
 
     var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
                     getService(Ci.nsIURLFormatter);
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-    var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-    var appName = brandBundle.GetStringFromName("brandShortName");
+    var appName = gBrandBundle.GetStringFromName("brandShortName");
 
     function getNotifyString(aPropData) {
       var propValue = update.getProperty(aPropData.propName);
@@ -1033,11 +1034,11 @@ BrowserGlue.prototype = {
         if (aPropData.prefName)
           propValue = formatter.formatURLPref(aPropData.prefName);
         else if (aPropData.stringParams)
-          propValue = browserBundle.formatStringFromName(aPropData.stringName,
-                                                         aPropData.stringParams,
-                                                         aPropData.stringParams.length);
+          propValue = gBrowserBundle.formatStringFromName(aPropData.stringName,
+                                                          aPropData.stringParams,
+                                                          aPropData.stringParams.length);
         else
-          propValue = browserBundle.GetStringFromName(aPropData.stringName);
+          propValue = gBrowserBundle.GetStringFromName(aPropData.stringName);
       }
       return propValue;
     }
@@ -1382,8 +1383,7 @@ BrowserGlue.prototype = {
    * Show the notificationBox for a locked places database.
    */
   _showPlacesLockedNotificationBox: function BG__showPlacesLockedNotificationBox() {
-    var brandBundle  = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-    var applicationName = brandBundle.GetStringFromName("brandShortName");
+    var applicationName = gBrandBundle.GetStringFromName("brandShortName");
     var placesBundle = Services.strings.createBundle("chrome://browser/locale/places/places.properties");
     var title = placesBundle.GetStringFromName("lockPrompt.title");
     var text = placesBundle.formatStringFromName("lockPrompt.text", [applicationName], 1);
@@ -1957,9 +1957,7 @@ BrowserGlue.prototype = {
     if (!win) {
       return;
     }
-    let productName = Services.strings
-      .createBundle("chrome://branding/locale/brand.properties")
-      .GetStringFromName("brandShortName");
+    let productName = gBrandBundle.GetStringFromName("brandShortName");
     let message = win.gNavigatorBundle.
       getFormattedString("flashHang.message", [productName]);
     let buttons = [{
@@ -1992,16 +1990,21 @@ ContentPermissionPrompt.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
 
-  _getChromeWindow: function CPP_getChromeWindow(aWindow) {
-    var chromeWin = aWindow
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebNavigation)
-      .QueryInterface(Ci.nsIDocShellTreeItem)
-      .rootTreeItem
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindow)
-      .QueryInterface(Ci.nsIDOMChromeWindow);
-    return chromeWin;
+  _getBrowserForRequest: function (aRequest) {
+    var browser;
+    try {
+      // "element" is only defined in e10s mode, otherwise it throws.
+      browser = aRequest.element;
+    } catch (e) {}
+    if (!browser) {
+      var requestingWindow = aRequest.window.top;
+      // find the requesting browser or iframe
+      browser = requestingWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                  .getInterface(Ci.nsIWebNavigation)
+                                  .QueryInterface(Ci.nsIDocShell)
+                                  .chromeEventHandler;
+    }
+    return browser;
   },
 
   /**
@@ -2020,22 +2023,8 @@ ContentPermissionPrompt.prototype = {
    */
   _showPrompt: function CPP_showPrompt(aRequest, aMessage, aPermission, aActions,
                                        aNotificationId, aAnchorId, aOptions) {
-    function onFullScreen() {
-      popup.remove();
-    }
-
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-
-    var requestingWindow = aRequest.window.top;
-    var chromeWin = this._getChromeWindow(requestingWindow).wrappedJSObject;
-    var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
-    if (!browser) {
-      // find the requesting browser or iframe
-      browser = requestingWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                  .getInterface(Ci.nsIWebNavigation)
-                                  .QueryInterface(Ci.nsIDocShell)
-                                  .chromeEventHandler;
-    }
+    var browser = this._getBrowserForRequest(aRequest);
+    var chromeWin = browser.ownerDocument.defaultView;
     var requestPrincipal = aRequest.principal;
 
     // Transform the prompt actions into PopupNotification actions.
@@ -2051,8 +2040,8 @@ ContentPermissionPrompt.prototype = {
       }
 
       var action = {
-        label: browserBundle.GetStringFromName(promptAction.stringId),
-        accessKey: browserBundle.GetStringFromName(promptAction.stringId + ".accesskey"),
+        label: gBrowserBundle.GetStringFromName(promptAction.stringId),
+        accessKey: gBrowserBundle.GetStringFromName(promptAction.stringId + ".accesskey"),
         callback: function() {
           if (promptAction.callback) {
             promptAction.callback();
@@ -2080,34 +2069,15 @@ ContentPermissionPrompt.prototype = {
                        popupNotificationActions[0] : null;
     var secondaryActions = popupNotificationActions.splice(1);
 
-    if (aRequest.type == "pointerLock") {
-      // If there's no mainAction, this is the autoAllow warning prompt.
-      let autoAllow = !mainAction;
-
-      if (!aOptions)
-        aOptions = {};
-
-      aOptions.removeOnDismissal = autoAllow;
-      aOptions.eventCallback = type => {
-        if (type == "removed") {
-          browser.removeEventListener("mozfullscreenchange", onFullScreen, true);
-          if (autoAllow) {
-            aRequest.allow();
-          }
-        }
-      }
-
+    // Only allow exactly one permission request here.
+    let types = aRequest.types.QueryInterface(Ci.nsIArray);
+    if (types.length != 1) {
+      aRequest.cancel();
+      return;
     }
 
-    var popup = chromeWin.PopupNotifications.show(browser, aNotificationId, aMessage, aAnchorId,
-                                                  mainAction, secondaryActions, aOptions);
-    if (aRequest.type == "pointerLock") {
-      // pointerLock is automatically allowed in fullscreen mode (and revoked
-      // upon exit), so if the page enters fullscreen mode after requesting
-      // pointerLock (but before the user has granted permission), we should
-      // remove the now-impotent notification.
-      browser.addEventListener("mozfullscreenchange", onFullScreen, true);
-    }
+    return chromeWin.PopupNotifications.show(browser, aNotificationId, aMessage, aAnchorId,
+                                             mainAction, secondaryActions, aOptions);
   },
 
   _promptPush : function(aRequest) {
@@ -2147,7 +2117,6 @@ ContentPermissionPrompt.prototype = {
   },
 
   _promptGeo : function(aRequest) {
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     var requestingURI = aRequest.principal.URI;
 
     var message;
@@ -2163,11 +2132,11 @@ ContentPermissionPrompt.prototype = {
     }];
 
     if (requestingURI.schemeIs("file")) {
-      message = browserBundle.formatStringFromName("geolocation.shareWithFile",
-                                                   [requestingURI.path], 1);
+      message = gBrowserBundle.formatStringFromName("geolocation.shareWithFile",
+                                                    [requestingURI.path], 1);
     } else {
-      message = browserBundle.formatStringFromName("geolocation.shareWithSite",
-                                                   [requestingURI.host], 1);
+      message = gBrowserBundle.formatStringFromName("geolocation.shareWithSite",
+                                                    [requestingURI.host], 1);
       // Always share location action.
       actions.push({
         stringId: "geolocation.alwaysShareLocation",
@@ -2198,11 +2167,10 @@ ContentPermissionPrompt.prototype = {
   },
 
   _promptWebNotifications : function(aRequest) {
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     var requestingURI = aRequest.principal.URI;
 
-    var message = browserBundle.formatStringFromName("webNotifications.showFromSite",
-                                                     [requestingURI.host], 1);
+    var message = gBrowserBundle.formatStringFromName("webNotifications.showFromSite",
+                                                      [requestingURI.host], 1);
 
     var actions = [
       {
@@ -2232,11 +2200,10 @@ ContentPermissionPrompt.prototype = {
 
   _promptPointerLock: function CPP_promtPointerLock(aRequest, autoAllow) {
 
-    let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     let requestingURI = aRequest.principal.URI;
 
     let originString = requestingURI.schemeIs("file") ? requestingURI.path : requestingURI.host;
-    let message = browserBundle.formatStringFromName(autoAllow ?
+    let message = gBrowserBundle.formatStringFromName(autoAllow ?
                                   "pointerLock.autoLock.title2" : "pointerLock.title2",
                                   [originString], 1);
     // If this is an autoAllow info prompt, offer no actions.
@@ -2265,12 +2232,34 @@ ContentPermissionPrompt.prototype = {
       ];
     }
 
-    this._showPrompt(aRequest, message, "pointerLock", actions, "pointerLock",
-                     "pointerLock-notification-icon", null);
+    function onFullScreen() {
+      notification.remove();
+    }
+
+    let options = {};
+    options.removeOnDismissal = autoAllow;
+    options.eventCallback = type => {
+      if (type == "removed") {
+        notification.browser.removeEventListener("mozfullscreenchange", onFullScreen, true);
+        if (autoAllow) {
+          aRequest.allow();
+        }
+      }
+    }
+
+    let notification =
+      this._showPrompt(aRequest, message, "pointerLock", actions, "pointerLock",
+                       "pointerLock-notification-icon", options);
+
+    // pointerLock is automatically allowed in fullscreen mode (and revoked
+    // upon exit), so if the page enters fullscreen mode after requesting
+    // pointerLock (but before the user has granted permission), we should
+    // remove the now-impotent notification.
+    notification.browser.addEventListener("mozfullscreenchange", onFullScreen, true);
   },
 
   prompt: function CPP_prompt(request) {
-    // Only allow exactly one permission rquest here.
+    // Only allow exactly one permission request here.
     let types = request.types.QueryInterface(Ci.nsIArray);
     if (types.length != 1) {
       request.cancel();
@@ -2308,7 +2297,7 @@ ContentPermissionPrompt.prototype = {
     if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
       autoAllow = true;
       // For pointerLock, we still want to show a warning prompt.
-      if (request.type != "pointerLock") {
+      if (perm.type != "pointerLock") {
         request.allow();
         return;
       }

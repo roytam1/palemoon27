@@ -21,8 +21,6 @@
  * exported ManifestObtainer
  */
 'use strict';
-this.EXPORTED_SYMBOLS = ['ManifestObtainer'];
-
 const MSG_KEY = 'DOM:ManifestObtainer:Obtain';
 let messageCounter = 0;
 // FIXME: Ideally, we would store a reference to the
@@ -76,10 +74,19 @@ ManifestObtainer.prototype = {
     });
 
     function toError(aErrorClone) {
-      const error = new Error();
+      let error;
+      switch (aErrorClone.name) {
+      case 'TypeError':
+        error = new TypeError();
+        break;
+      default:
+        error = new Error();
+      }
       Object.getOwnPropertyNames(aErrorClone)
         .forEach(name => error[name] = aErrorClone[name]);
       return error;
     }
   }
 };
+this.ManifestObtainer = ManifestObtainer; // jshint ignore:line
+this.EXPORTED_SYMBOLS = ['ManifestObtainer']; // jshint ignore:line

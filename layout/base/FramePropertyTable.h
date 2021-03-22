@@ -214,7 +214,6 @@ protected:
   };
 
   static void DeleteAllForEntry(Entry* aEntry);
-  static PLDHashOperator DeleteEnumerator(Entry* aEntry, void* aArg);
 
   nsTHashtable<Entry> mEntries;
   nsIFrame* mLastFrame;

@@ -165,19 +165,16 @@ public:
   virtual bool HasVideo() = 0;
 
   // The default implementation of AsyncReadMetadata is implemented in terms of
-  // synchronous PreReadMetadata() / ReadMetadata() calls. Implementations may also
+  // synchronous ReadMetadata() calls. Implementations may also
   // override AsyncReadMetadata to create a more proper async implementation.
   virtual nsRefPtr<MetadataPromise> AsyncReadMetadata();
-
-  // A function that is called before ReadMetadata() call.
-  virtual void PreReadMetadata() {};
 
   // Read header data for all bitstreams in the file. Fills aInfo with
   // the data required to present the media, and optionally fills *aTags
   // with tag metadata from the file.
   // Returns NS_OK on success, or NS_ERROR_FAILURE on failure.
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
-                                MetadataTags** aTags) = 0;
+                                MetadataTags** aTags) { MOZ_CRASH(); }
 
   // Fills aInfo with the latest cached data required to present the media,
   // ReadUpdatedMetadata will always be called once ReadMetadata has succeeded.

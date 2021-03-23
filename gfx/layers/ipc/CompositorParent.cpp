@@ -38,10 +38,12 @@
 #include "mozilla/layers/CompositorOGL.h"  // for CompositorOGL
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/FrameUniformityData.h"
+#include "mozilla/layers/ImageBridgeParent.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layers/PLayerTransactionParent.h"
 #include "mozilla/layers/ShadowLayersManager.h" // for ShadowLayersManager
+#include "mozilla/media/MediaSystemResourceService.h" // for MediaSystemResourceService
 #include "mozilla/mozalloc.h"           // for operator new, etc
 #include "mozilla/Telemetry.h"
 #ifdef MOZ_WIDGET_GTK
@@ -592,6 +594,7 @@ void CompositorParent::ShutDown()
   MOZ_ASSERT(sCompositorThreadHolder, "The compositor thread has already been shut down!");
 
   ReleaseImageBridgeParentSingleton();
+  MediaSystemResourceService::Shutdown();
 
   sCompositorThreadHolder = nullptr;
 
@@ -1169,7 +1172,7 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget, const gfx::IntRect* aRe
   }
 #endif
   mLayerManager->SetDebugOverlayWantsNextFrame(false);
-  mLayerManager->EndEmptyTransaction();
+  mLayerManager->EndTransaction(time);
 
   if (!aTarget) {
     DidComposite();
@@ -1198,6 +1201,7 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget, const gfx::IntRect* aRe
     // Special full-tilt composite mode for performance testing
     ScheduleComposition();
   }
+  mCompositor->SetCompositionTime(TimeStamp());
 
   mozilla::Telemetry::AccumulateTimeDelta(mozilla::Telemetry::COMPOSITE_TIME, start);
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_END);
@@ -1823,6 +1827,13 @@ CompositorParent::DidComposite()
   if (mPendingTransaction) {
     unused << SendDidComposite(0, mPendingTransaction);
     mPendingTransaction = 0;
+  }
+  if (mLayerManager) {
+    nsTArray<ImageCompositeNotification> notifications;
+    mLayerManager->ExtractImageCompositeNotifications(&notifications);
+    if (!notifications.IsEmpty()) {
+      unused << ImageBridgeParent::NotifyImageComposites(notifications);
+    }
   }
 
   MonitorAutoLock lock(*sIndirectLayerTreesLock);

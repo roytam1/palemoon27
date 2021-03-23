@@ -13,6 +13,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/BinarySearch.h"
 #include "mozilla/fallible.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Move.h"
@@ -386,6 +387,17 @@ protected:
   typename ActualAlloc::ResultTypeProxy EnsureCapacity(size_type aCapacity,
                                                        size_type aElemSize);
 
+  // Extend the storage to accommodate aCount extra elements.
+  // @param aLength The current size of the array.
+  // @param aCount The number of elements to add.
+  // @param aElemSize The size of an array element.
+  // @return False if insufficient memory is available or the new length
+  //   would overflow; true otherwise.
+  template<typename ActualAlloc>
+  typename ActualAlloc::ResultTypeProxy ExtendCapacity(size_type aLength,
+                                                       size_type aCount,
+                                                       size_type aElemSize);
+
   // Tries to resize the storage to the minimum required amount. If this fails,
   // the array is left as-is.
   // @param aElemSize  The size of an array element.
@@ -427,8 +439,9 @@ protected:
   // @param aElementSize the size of an array element.
   // @param aElemAlign the alignment in bytes of an array element.
   template<typename ActualAlloc>
-  bool InsertSlotsAt(index_type aIndex, size_type aCount,
-                     size_type aElementSize, size_t aElemAlign);
+  typename ActualAlloc::ResultTypeProxy
+  InsertSlotsAt(index_type aIndex, size_type aCount,
+                size_type aElementSize, size_t aElemAlign);
 
   template<typename ActualAlloc, class Allocator>
   typename ActualAlloc::ResultTypeProxy
@@ -884,7 +897,9 @@ public:
   // @param aOther The array object to copy.
   self_type& operator=(const self_type& aOther)
   {
-    ReplaceElementsAt(0, Length(), aOther.Elements(), aOther.Length());
+    if (this != &aOther) {
+      ReplaceElementsAt(0, Length(), aOther.Elements(), aOther.Length());
+    }
     return *this;
   }
 
@@ -893,8 +908,10 @@ public:
   // @param other  The array object to move from.
   self_type& operator=(self_type&& aOther)
   {
-    Clear();
-    SwapElements(aOther);
+    if (this != &aOther) {
+      Clear();
+      SwapElements(aOther);
+    }
     return *this;
   }
 
@@ -1368,6 +1385,7 @@ protected:
   template<typename ActualAlloc = Alloc>
   elem_type* InsertElementAt(index_type aIndex)
   {
+    // Length() + 1 is guaranteed to not overflow, so EnsureCapacity is OK.
     if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
           Length() + 1, sizeof(elem_type)))) {
       return nullptr;
@@ -1391,6 +1409,7 @@ protected:
   template<class Item, typename ActualAlloc = Alloc>
   elem_type* InsertElementAt(index_type aIndex, Item&& aItem)
   {
+    // Length() + 1 is guaranteed to not overflow, so EnsureCapacity is OK.
     if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
           Length() + 1, sizeof(elem_type)))) {
       return nullptr;
@@ -1497,8 +1516,8 @@ protected:
   template<class Item, typename ActualAlloc = Alloc>
   elem_type* AppendElements(const Item* aArray, size_type aArrayLen)
   {
-    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
-          Length() + aArrayLen, sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template ExtendCapacity<ActualAlloc>(
+      Length(), aArrayLen, sizeof(elem_type)))) {
       return nullptr;
     }
     index_type len = Length();
@@ -1538,8 +1557,9 @@ protected:
   template<class Item, typename ActualAlloc = Alloc>
   elem_type* AppendElement(Item&& aItem)
   {
+    // Length() + 1 is guaranteed to not overflow, so EnsureCapacity is OK.
     if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
-          Length() + 1, sizeof(elem_type)))) {
+        Length() + 1, sizeof(elem_type)))) {
       return nullptr;
     }
     elem_type* elem = Elements() + Length();
@@ -1563,8 +1583,8 @@ public:
 protected:
   template<typename ActualAlloc = Alloc>
   elem_type* AppendElements(size_type aCount) {
-    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
-          Length() + aCount, sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template ExtendCapacity<ActualAlloc>(
+       Length(), aCount, sizeof(elem_type)))) {
       return nullptr;
     }
     elem_type* elems = Elements() + Length();
@@ -1808,9 +1828,8 @@ protected:
   template<typename ActualAlloc = Alloc>
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount)
   {
-    if (!base_type::template InsertSlotsAt<ActualAlloc>(aIndex, aCount,
-                                                        sizeof(elem_type),
-                                                        MOZ_ALIGNOF(elem_type))) {
+    if (!ActualAlloc::Successful(this->template InsertSlotsAt<ActualAlloc>(
+          aIndex, aCount, sizeof(elem_type), MOZ_ALIGNOF(elem_type)))) {
       return nullptr;
     }
 
@@ -1844,9 +1863,8 @@ protected:
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount,
                               const Item& aItem)
   {
-    if (!base_type::template InsertSlotsAt<ActualAlloc>(aIndex, aCount,
-                                                        sizeof(elem_type),
-                                                        MOZ_ALIGNOF(elem_type))) {
+    if (!ActualAlloc::Successful(this->template InsertSlotsAt<ActualAlloc>(
+        aIndex, aCount, sizeof(elem_type), MOZ_ALIGNOF(elem_type)))) {
       return nullptr;
     }
 

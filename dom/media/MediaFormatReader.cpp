@@ -204,10 +204,6 @@ MediaFormatReader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-bool MediaFormatReader::IsWaitingMediaResources() {
-  return mVideo.mDecoder && mVideo.mDecoder->IsWaitingMediaResources();
-}
-
 bool MediaFormatReader::IsWaitingOnCDMResource() {
   // EME Stub
   return false;
@@ -1386,7 +1382,7 @@ MediaFormatReader::GetBuffered()
   int64_t startTime;
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    MOZ_ASSERT(mStartTime != -1, "Need to finish metadata decode first");
+    NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
     startTime = mStartTime;
   }
   if (NS_IsMainThread()) {
@@ -1554,6 +1550,12 @@ MediaFormatReader::NotifyDataRemoved()
       this, &MediaFormatReader::NotifyDemuxer,
       0, 0);
   GetTaskQueue()->Dispatch(task.forget());
+}
+
+bool
+MediaFormatReader::ForceZeroStartTime() const
+{
+  return !mDemuxer->ShouldComputeStartTime();
 }
 
 int64_t

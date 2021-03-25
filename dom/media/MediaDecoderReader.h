@@ -165,19 +165,16 @@ public:
   virtual bool HasVideo() = 0;
 
   // The default implementation of AsyncReadMetadata is implemented in terms of
-  // synchronous PreReadMetadata() / ReadMetadata() calls. Implementations may also
+  // synchronous ReadMetadata() calls. Implementations may also
   // override AsyncReadMetadata to create a more proper async implementation.
   virtual nsRefPtr<MetadataPromise> AsyncReadMetadata();
-
-  // A function that is called before ReadMetadata() call.
-  virtual void PreReadMetadata() {};
 
   // Read header data for all bitstreams in the file. Fills aInfo with
   // the data required to present the media, and optionally fills *aTags
   // with tag metadata from the file.
   // Returns NS_OK on success, or NS_ERROR_FAILURE on failure.
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
-                                MetadataTags** aTags) = 0;
+                                MetadataTags** aTags) { MOZ_CRASH(); }
 
   // Fills aInfo with the latest cached data required to present the media,
   // ReadUpdatedMetadata will always be called once ReadMetadata has succeeded.
@@ -224,6 +221,9 @@ public:
   // since in FirefoxOS we can't do I/O on the main thread, where this is
   // called.
   virtual media::TimeIntervals GetBuffered();
+
+  // MediaSourceReader opts out of the start-time-guessing mechanism.
+  virtual bool ForceZeroStartTime() const { return false; }
 
   virtual int64_t ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio);
 
@@ -330,7 +330,13 @@ protected:
   // The start time of the media, in microseconds. This is the presentation
   // time of the first frame decoded from the media. This is initialized to -1,
   // and then set to a value >= by MediaDecoderStateMachine::SetStartTime(),
-  // after which point it never changes.
+  // after which point it never changes (though SetStartTime may be called
+  // multiple times with the same value).
+  //
+  // This is an ugly breach of abstractions - it's currently necessary for the
+  // readers to return the correct value of GetBuffered. We should refactor
+  // things such that all GetBuffered calls go through the MDSM, which would
+  // offset the range accordingly.
   int64_t mStartTime;
 
   // This is a quick-and-dirty way for DecodeAudioData implementations to

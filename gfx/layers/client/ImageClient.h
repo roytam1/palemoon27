@@ -56,12 +56,6 @@ public:
    */
   virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags) = 0;
 
-  /**
-   * The picture rect is the area of the texture which makes up the image. That
-   * is, the area that should be composited. In texture space.
-   */
-  virtual void UpdatePictureRect(gfx::IntRect aPictureRect);
-
   virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) = 0;
 
   void SetLayer(ClientLayer* aLayer) { mLayer = aLayer; }
@@ -85,8 +79,7 @@ protected:
 
   ClientLayer* mLayer;
   CompositableType mType;
-  int32_t mLastPaintedImageSerial;
-  gfx::IntRect mPictureRect;
+  uint32_t mLastUpdateGenerationCounter;
 };
 
 /**
@@ -113,7 +106,11 @@ public:
                               AsyncTransactionWaiter* aAsyncTransactionWaiter) override;
 
 protected:
-  RefPtr<TextureClient> mFrontBuffer;
+  struct Buffer {
+    RefPtr<TextureClient> mTextureClient;
+    int32_t mImageSerial;
+  };
+  nsTArray<Buffer> mBuffers;
 };
 
 /**
@@ -128,8 +125,7 @@ public:
                     TextureFlags aFlags);
 
   virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags) override;
-  virtual bool Connect() override { return false; }
-  virtual void Updated() {}
+  virtual bool Connect(ImageContainer* aImageContainer) override { return false; }
 
   virtual TextureInfo GetTextureInfo() const override
   {

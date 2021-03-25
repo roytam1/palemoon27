@@ -35,14 +35,11 @@ struct ElementPropertyTransition : public dom::KeyframeEffectReadOnly
                             dom::Element* aTarget,
                             nsCSSPseudoElements::Type aPseudoType,
                             const AnimationTiming &aTiming)
-    : dom::KeyframeEffectReadOnly(aDocument, aTarget, aPseudoType,
-                                  aTiming, EmptyString())
+    : dom::KeyframeEffectReadOnly(aDocument, aTarget, aPseudoType, aTiming)
   { }
 
-  virtual ElementPropertyTransition* AsTransition() { return this; }
-  virtual const ElementPropertyTransition* AsTransition() const { return this; }
-
-  virtual const nsString& Name() const override;
+  virtual ElementPropertyTransition* AsTransition() override { return this; }
+  virtual const ElementPropertyTransition* AsTransition() const override { return this; }
 
   nsCSSProperty TransitionProperty() const {
     MOZ_ASSERT(Properties().Length() == 1,
@@ -74,22 +71,37 @@ struct ElementPropertyTransition : public dom::KeyframeEffectReadOnly
   double CurrentValuePortion() const;
 };
 
-class CSSTransition final : public dom::Animation
+namespace dom {
+
+class CSSTransition final : public Animation
 {
 public:
- explicit CSSTransition(dom::DocumentTimeline* aTimeline)
-    : dom::Animation(aTimeline)
+ explicit CSSTransition(DocumentTimeline* aTimeline)
+    : Animation(aTimeline)
   {
   }
 
+  JSObject* WrapObject(JSContext* aCx,
+                       JS::Handle<JSObject*> aGivenProto) override;
+
   virtual CSSTransition* AsCSSTransition() override { return this; }
 
-  virtual dom::AnimationPlayState PlayStateFromJS() const override;
-  virtual void PlayFromJS() override;
+  // CSSTransition interface
+  void GetTransitionProperty(nsString& aRetVal) const;
+
+  // Animation interface overrides
+  virtual AnimationPlayState PlayStateFromJS() const override;
+  virtual void PlayFromJS(ErrorResult& aRv) override;
 
   // A variant of Play() that avoids posting style updates since this method
   // is expected to be called whilst already updating style.
-  void PlayFromStyle() { DoPlay(Animation::LimitBehavior::Continue); }
+  void PlayFromStyle()
+  {
+    ErrorResult rv;
+    DoPlay(rv, Animation::LimitBehavior::Continue);
+    // play() should not throw when LimitBehavior is Continue
+    MOZ_ASSERT(!rv.Failed(), "Unexpected exception playing transition");
+  }
 
 protected:
   virtual ~CSSTransition() { }
@@ -97,6 +109,7 @@ protected:
   virtual css::CommonAnimationManager* GetAnimationManager() const override;
 };
 
+} // namespace dom
 } // namespace mozilla
 
 class nsTransitionManager final

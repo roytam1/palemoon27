@@ -144,12 +144,14 @@ void
 MediaDecoderReader::SetStartTime(int64_t aStartTime)
 {
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
+  MOZ_ASSERT(mStartTime == -1);
   mStartTime = aStartTime;
 }
 
 media::TimeIntervals
 MediaDecoderReader::GetBuffered()
 {
+  NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
   AutoPinned<MediaResource> stream(mDecoder->GetResource());
   int64_t durationUs = 0;
   {
@@ -182,9 +184,6 @@ MediaDecoderReader::AsyncReadMetadata()
   mDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
   DECODER_LOG("MediaDecoderReader::AsyncReadMetadata");
 
-  // PreReadMetadata causes us to try to allocate various hardware and OS
-  // resources, which may not be available at the moment.
-  PreReadMetadata();
   if (IsWaitingMediaResources()) {
     return MetadataPromise::CreateAndReject(Reason::WAITING_FOR_RESOURCES, __func__);
   }

@@ -175,7 +175,7 @@ public:
     size_t amount = 0;
     amount += aMallocSizeOf(mKissFFT);
     amount += aMallocSizeOf(mKissIFFT);
-    amount += mOutputBuffer.SizeOfExcludingThis(aMallocSizeOf);
+    amount += mOutputBuffer.ShallowSizeOfExcludingThis(aMallocSizeOf);
     return amount;
   }
 

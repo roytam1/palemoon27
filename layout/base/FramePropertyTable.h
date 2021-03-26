@@ -169,7 +169,7 @@ protected:
       // their types are opaque.
       if (IsArray()) {
         nsTArray<PropertyValue>* array = ToArray();
-        n += array->SizeOfExcludingThis(aMallocSizeOf);
+        n += array->ShallowSizeOfExcludingThis(aMallocSizeOf);
       }
       return n;
     }

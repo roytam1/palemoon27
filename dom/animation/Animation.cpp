@@ -18,7 +18,10 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(Animation, mTimeline,
+// Static members
+uint64_t Animation::sNextSequenceNum = 0;
+
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(Animation, mGlobal, mTimeline,
                                       mEffect, mReady, mFinished)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Animation)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Animation)
@@ -55,13 +58,7 @@ Animation::SetEffect(KeyframeEffectReadOnly* aEffect)
 void
 Animation::SetStartTime(const Nullable<TimeDuration>& aNewStartTime)
 {
-#if 1
-  // Bug 1096776: once we support inactive/missing timelines we'll want to take
-  // the disabled branch.
-  MOZ_ASSERT(mTimeline && !mTimeline->GetCurrentTime().IsNull(),
-             "We don't support inactive/missing timelines yet");
-#else
-  Nullable<TimeDuration> timelineTime = mTimeline->GetCurrentTime();
+  Nullable<TimeDuration> timelineTime;
   if (mTimeline) {
     // The spec says to check if the timeline is active (has a resolved time)
     // before using it here, but we don't need to since it's harmless to set
@@ -71,7 +68,7 @@ Animation::SetStartTime(const Nullable<TimeDuration>& aNewStartTime)
   if (timelineTime.IsNull() && !aNewStartTime.IsNull()) {
     mHoldTime.SetNull();
   }
-#endif
+
   Nullable<TimeDuration> previousCurrentTime = GetCurrentTime();
   mStartTime = aNewStartTime;
   if (!aNewStartTime.IsNull()) {
@@ -103,7 +100,7 @@ Animation::GetCurrentTime() const
     return result;
   }
 
-  if (!mStartTime.IsNull()) {
+  if (mTimeline && !mStartTime.IsNull()) {
     Nullable<TimeDuration> timelineTime = mTimeline->GetCurrentTime();
     if (!timelineTime.IsNull()) {
       result.SetValue((timelineTime.Value() - mStartTime.Value())
@@ -170,21 +167,11 @@ Animation::PlayState() const
   return AnimationPlayState::Running;
 }
 
-static inline already_AddRefed<Promise>
-CreatePromise(DocumentTimeline* aTimeline, ErrorResult& aRv)
-{
-  nsIGlobalObject* global = aTimeline->GetParentObject();
-  if (global) {
-    return Promise::Create(global, aRv);
-  }
-  return nullptr;
-}
-
 Promise*
 Animation::GetReady(ErrorResult& aRv)
 {
-  if (!mReady) {
-    mReady = CreatePromise(mTimeline, aRv); // Lazily create on demand
+  if (!mReady && mGlobal) {
+    mReady = Promise::Create(mGlobal, aRv); // Lazily create on demand
   }
   if (!mReady) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -197,8 +184,8 @@ Animation::GetReady(ErrorResult& aRv)
 Promise*
 Animation::GetFinished(ErrorResult& aRv)
 {
-  if (!mFinished) {
-    mFinished = CreatePromise(mTimeline, aRv); // Lazily create on demand
+  if (!mFinished && mGlobal) {
+    mFinished = Promise::Create(mGlobal, aRv); // Lazily create on demand
   }
   if (!mFinished) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -322,6 +309,8 @@ Animation::Tick()
   // resuming.
   if (mPendingState != PendingState::NotPending &&
       !mPendingReadyTime.IsNull() &&
+      mTimeline &&
+      !mTimeline->GetCurrentTime().IsNull() &&
       mPendingReadyTime.Value() <= mTimeline->GetCurrentTime().Value()) {
     FinishPendingAt(mPendingReadyTime.Value());
     mPendingReadyTime.SetNull();
@@ -355,10 +344,22 @@ Animation::TriggerOnNextTick(const Nullable<TimeDuration>& aReadyTime)
 void
 Animation::TriggerNow()
 {
-  MOZ_ASSERT(PlayState() == AnimationPlayState::Pending,
-             "Expected to start a pending animation");
-  MOZ_ASSERT(mTimeline && !mTimeline->GetCurrentTime().IsNull(),
-             "Expected an active timeline");
+  // Normally we expect the play state to be pending but when an animation
+  // is cancelled and its rendered document can't be reached, we can end up
+  // with the animation still in a pending player tracker even after it is
+  // no longer pending.
+  if (PlayState() != AnimationPlayState::Pending) {
+    return;
+  }
+
+  // If we don't have an active timeline we can't trigger the animation.
+  // However, this is a test-only method that we don't expect to be used in
+  // conjunction with animations without an active timeline so generate
+  // a warning if we do find ourselves in that situation.
+  if (!mTimeline || mTimeline->GetCurrentTime().IsNull()) {
+    NS_WARNING("Failed to trigger an animation with an active timeline");
+    return;
+  }
 
   FinishPendingAt(mTimeline->GetCurrentTime().Value());
 }
@@ -436,7 +437,7 @@ Animation::DoCancel()
   mHoldTime.SetNull();
   mStartTime.SetNull();
 
-  UpdateEffect();
+  UpdateTiming(SeekFlag::NoSeek);
 }
 
 void
@@ -451,6 +452,20 @@ Animation::UpdateRelevance()
   } else if (!wasRelevant && mIsRelevant) {
     nsNodeUtils::AnimationAdded(this);
   }
+}
+
+bool
+Animation::HasLowerCompositeOrderThan(const Animation& aOther) const
+{
+  // We only ever sort non-idle animations so we don't ever expect
+  // mSequenceNum to be set to kUnsequenced
+  MOZ_ASSERT(mSequenceNum != kUnsequenced &&
+             aOther.mSequenceNum != kUnsequenced,
+             "Animations to compare should not be idle");
+  MOZ_ASSERT(mSequenceNum != aOther.mSequenceNum || &aOther == this,
+             "Sequence numbers should be unique");
+
+  return mSequenceNum < aOther.mSequenceNum;
 }
 
 bool
@@ -539,7 +554,7 @@ Animation::ComposeStyle(nsRefPtr<css::AnimValuesStyleRule>& aStyleRule,
       Nullable<TimeDuration> timeToUse = mPendingReadyTime;
       if (timeToUse.IsNull() &&
           mTimeline &&
-          !mTimeline->IsUnderTestControl()) {
+          mTimeline->TracksWallclockTime()) {
         timeToUse = mTimeline->ToTimelineTime(TimeStamp::Now());
       }
       if (!timeToUse.IsNull()) {
@@ -617,15 +632,14 @@ Animation::DoPlay(ErrorResult& aRv, LimitBehavior aLimitBehavior)
   mPendingState = PendingState::PlayPending;
 
   nsIDocument* doc = GetRenderedDocument();
-  if (!doc) {
+  if (doc) {
+    PendingAnimationTracker* tracker =
+      doc->GetOrCreatePendingAnimationTracker();
+    tracker->AddPlayPending(*this);
+  } else {
     TriggerOnNextTick(Nullable<TimeDuration>());
-    return;
   }
 
-  PendingAnimationTracker* tracker = doc->GetOrCreatePendingAnimationTracker();
-  tracker->AddPlayPending(*this);
-
-  // We may have updated the current time when we set the hold time above.
   UpdateTiming(SeekFlag::NoSeek);
 }
 
@@ -669,13 +683,13 @@ Animation::DoPause(ErrorResult& aRv)
   mPendingState = PendingState::PausePending;
 
   nsIDocument* doc = GetRenderedDocument();
-  if (!doc) {
+  if (doc) {
+    PendingAnimationTracker* tracker =
+      doc->GetOrCreatePendingAnimationTracker();
+    tracker->AddPausePending(*this);
+  } else {
     TriggerOnNextTick(Nullable<TimeDuration>());
-    return;
   }
-
-  PendingAnimationTracker* tracker = doc->GetOrCreatePendingAnimationTracker();
-  tracker->AddPausePending(*this);
 
   UpdateTiming(SeekFlag::NoSeek);
 }
@@ -735,6 +749,16 @@ Animation::PauseAt(const TimeDuration& aReadyTime)
 void
 Animation::UpdateTiming(SeekFlag aSeekFlag)
 {
+  // Update the sequence number each time we transition in or out of the
+  // idle state
+  if (!IsUsingCustomCompositeOrder()) {
+    if (PlayState() == AnimationPlayState::Idle) {
+      mSequenceNum = kUnsequenced;
+    } else if (mSequenceNum == kUnsequenced) {
+      mSequenceNum = sNextSequenceNum++;
+    }
+  }
+
   // We call UpdateFinishedState before UpdateEffect because the former
   // can change the current time, which is used by the latter.
   UpdateFinishedState(aSeekFlag);
@@ -768,10 +792,12 @@ Animation::UpdateFinishedState(SeekFlag aSeekFlag)
         mHoldTime.SetValue(0);
       }
     } else if (mPlaybackRate != 0.0 &&
-               !currentTime.IsNull()) {
+               !currentTime.IsNull() &&
+               mTimeline &&
+               !mTimeline->GetCurrentTime().IsNull()) {
       if (aSeekFlag == SeekFlag::DidSeek && !mHoldTime.IsNull()) {
         mStartTime.SetValue(mTimeline->GetCurrentTime().Value() -
-                              (mHoldTime.Value().MultDouble(1 / mPlaybackRate)));
+                             (mHoldTime.Value().MultDouble(1 / mPlaybackRate)));
       }
       mHoldTime.SetNull();
     }
@@ -890,7 +916,7 @@ Animation::IsPossiblyOrphanedPendingAnimation() const
   // never starting/pausing the animation and is unlikely.
   nsIDocument* doc = GetRenderedDocument();
   if (!doc) {
-    return false;
+    return true;
   }
 
   PendingAnimationTracker* tracker = doc->GetPendingAnimationTracker();

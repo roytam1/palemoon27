@@ -97,7 +97,6 @@ public:
 
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
 
-  UserFontSet* EnsureUserFontSet(nsPresContext* aPresContext);
   UserFontSet* GetUserFontSet() { return mUserFontSet; }
 
   // Called when this font set is no longer associated with a presentation.
@@ -228,6 +227,12 @@ private:
   void CheckLoadingFinished();
 
   /**
+   * Callback for invoking CheckLoadingFinished after going through the
+   * event loop.  See OnFontFaceStatusChanged.
+   */
+  void CheckLoadingFinishedAfterDelay();
+
+  /**
    * Dispatches a CSSFontFaceLoadEvent to this object.
    */
   void DispatchLoadingFinishedEvent(
@@ -324,13 +329,6 @@ private:
   // Whether mNonRuleFaces has changed since last time UpdateRules ran.
   bool mNonRuleFacesDirty;
 
-  // Whether we have called MaybeResolve() on mReady.
-  bool mReadyIsResolved;
-
-  // Whether we have already dispatched loading events for the current set
-  // of loading FontFaces.
-  bool mDispatchedLoadingEvent;
-
   // Whether any FontFace objects in mRuleFaces or mNonRuleFaces are
   // loading.  Only valid when mHasLoadingFontFacesIsDirty is false.  Don't use
   // this variable directly; call the HasLoadingFontFaces method instead.
@@ -338,6 +336,10 @@ private:
 
   // This variable is only valid when mLoadingDirty is false.
   bool mHasLoadingFontFacesIsDirty;
+
+  // Whether CheckLoadingFinished calls should be ignored.  See comment in
+  // OnFontFaceStatusChanged.
+  bool mDelayedLoadCheck;
 };
 
 } // namespace dom

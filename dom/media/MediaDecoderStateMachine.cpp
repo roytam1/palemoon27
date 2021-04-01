@@ -180,7 +180,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
                                                    bool aRealTime) :
   mDecoder(aDecoder),
   mTaskQueue(new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
-                                /* aAssertTailDispatch = */ true)),
+                                /* aSupportsTailDispatch = */ true)),
   mWatchManager(this, mTaskQueue),
   mRealTime(aRealTime),
   mDispatchedStateMachine(false),
@@ -284,8 +284,6 @@ MediaDecoderStateMachine::~MediaDecoderStateMachine()
 {
   MOZ_ASSERT(NS_IsMainThread(), "Should be on main thread.");
   MOZ_COUNT_DTOR(MediaDecoderStateMachine);
-  NS_ASSERTION(!mPendingWakeDecoder.get(),
-               "WakeDecoder should have been revoked already");
 
   mReader = nullptr;
 
@@ -461,8 +459,6 @@ void MediaDecoderStateMachine::SendStreamData()
         AudioSegment* audio = new AudioSegment();
         mediaStream->AddAudioTrack(audioTrackId, mInfo.mAudio.mRate, 0, audio,
                                    SourceMediaStream::ADDTRACK_QUEUED);
-        stream->mStream->DispatchWhenNotEnoughBuffered(audioTrackId,
-            TaskQueue(), GetWakeDecoderRunnable());
         stream->mNextAudioTime = mStreamStartTime;
       }
       if (mInfo.HasVideo()) {
@@ -470,9 +466,6 @@ void MediaDecoderStateMachine::SendStreamData()
         VideoSegment* video = new VideoSegment();
         mediaStream->AddTrack(videoTrackId, 0, video,
                               SourceMediaStream::ADDTRACK_QUEUED);
-        stream->mStream->DispatchWhenNotEnoughBuffered(videoTrackId,
-            TaskQueue(), GetWakeDecoderRunnable());
-
         stream->mNextVideoTime = mStreamStartTime;
       }
       mediaStream->FinishAddTracks();
@@ -601,18 +594,6 @@ void MediaDecoderStateMachine::SendStreamData()
   }
 }
 
-MediaDecoderStateMachine::WakeDecoderRunnable*
-MediaDecoderStateMachine::GetWakeDecoderRunnable()
-{
-  MOZ_ASSERT(OnTaskQueue());
-  AssertCurrentThreadInMonitor();
-
-  if (!mPendingWakeDecoder.get()) {
-    mPendingWakeDecoder = new WakeDecoderRunnable(this);
-  }
-  return mPendingWakeDecoder.get();
-}
-
 bool MediaDecoderStateMachine::HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs)
 {
   MOZ_ASSERT(OnTaskQueue());
@@ -634,8 +615,6 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs)
     if (!stream->mStream->HaveEnoughBuffered(audioTrackId)) {
       return false;
     }
-    stream->mStream->DispatchWhenNotEnoughBuffered(audioTrackId,
-        TaskQueue(), GetWakeDecoderRunnable());
   }
 
   return true;
@@ -658,8 +637,6 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedVideo()
     if (!stream->mStream->HaveEnoughBuffered(videoTrackId)) {
       return false;
     }
-    stream->mStream->DispatchWhenNotEnoughBuffered(videoTrackId,
-        TaskQueue(), GetWakeDecoderRunnable());
   }
 
   return true;
@@ -1256,10 +1233,6 @@ nsresult MediaDecoderStateMachine::Init(MediaDecoderStateMachine* aCloneDonor)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (NS_WARN_IF(!mReader->EnsureTaskQueue())) {
-    return NS_ERROR_FAILURE;
-  }
-
   MediaDecoderReader* cloneReader = nullptr;
   if (aCloneDonor) {
     cloneReader = aCloneDonor->mReader;
@@ -1554,8 +1527,6 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
     // it here as well.
     nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethod(mReader, &MediaDecoderReader::ReleaseMediaResources);
     DecodeTaskQueue()->Dispatch(r.forget());
-    // There's now no possibility of mPendingWakeDecoder being needed again. Revoke it.
-    mPendingWakeDecoder = nullptr;
     mDecoder->GetReentrantMonitor().NotifyAll();
   } else if ((aDormant != true) && (mState == DECODER_STATE_DORMANT)) {
     mDecodingFrozenAtStateDecoding = true;
@@ -1880,7 +1851,7 @@ MediaDecoderStateMachine::InitiateSeek()
   seekTime = std::min(seekTime, end);
   seekTime = std::max(mStartTime, seekTime);
   NS_ASSERTION(seekTime >= mStartTime && seekTime <= end,
-  "Can only seek in range [0,duration]");
+               "Can only seek in range [0,duration]");
   mCurrentSeek.mTarget.mTime = seekTime;
 
   if (mAudioCaptured) {
@@ -2551,10 +2522,6 @@ MediaDecoderStateMachine::FinishShutdown()
   AudioQueue().ClearListeners();
   VideoQueue().ClearListeners();
 
-  // Now that those threads are stopped, there's no possibility of
-  // mPendingWakeDecoder being needed again. Revoke it.
-  mPendingWakeDecoder = nullptr;
-
   // Disconnect canonicals and mirrors before shutting down our task queue.
   mEstimatedDuration.DisconnectIfConnected();
   mExplicitDuration.DisconnectIfConnected();
@@ -3022,11 +2989,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
     int64_t delta = currentFrame->mTime - clock_time;
     TimeStamp presTime = nowTime + TimeDuration::FromMicroseconds(delta / mPlaybackRate);
     NS_ASSERTION(currentFrame->mTime >= mStartTime, "Should have positive frame time");
-    // Filter out invalid frames by checking the frame time. FrameTime could be
-    // zero if it's a initial frame.
-    int64_t frameTime = currentFrame->mTime - mStartTime;
-    if (frameTime > 0  || (frameTime == 0 && mPlayDuration == 0) ||
-        IsRealTime()) {
+    {
       ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
       // If we have video, we want to increment the clock in steps of the frame
       // duration.

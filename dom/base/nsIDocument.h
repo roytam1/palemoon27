@@ -32,6 +32,7 @@
 #include "nsExpirationTracker.h"
 #include "nsClassHashtable.h"
 #include "prclist.h"
+#include "mozilla/UniquePtr.h"
 #include "mozilla/CORSMode.h"
 #include <bitset>                        // for member
 
@@ -88,7 +89,6 @@ class nsDOMCaretPosition;
 class nsViewportInfo;
 class nsIGlobalObject;
 struct nsCSSSelectorList;
-struct FullscreenRequest; // For nsIDocument::HandlePendingFullscreenRequest
 
 namespace mozilla {
 class CSSStyleSheet;
@@ -124,6 +124,7 @@ class Event;
 class EventTarget;
 class FontFaceSet;
 class FrameRequestCallback;
+struct FullscreenRequest;
 class ImportManager;
 class HTMLBodyElement;
 struct LifecycleCallbackArgs;
@@ -150,27 +151,12 @@ template<typename> class Sequence;
 template<typename, typename> class CallbackObjectHolder;
 typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 
-struct FullScreenOptions {
-  FullScreenOptions();
-  nsRefPtr<gfx::VRHMDInfo> mVRHMDDevice;
-  // This value should be true if the fullscreen request is
-  // originated from chrome code.
-  bool mIsCallerChrome = false;
-  // This value denotes whether we should trigger a NewOrigin event if
-  // requesting fullscreen in its document causes the origin which is
-  // fullscreen to change. We may want *not* to trigger that event if
-  // we're calling RequestFullScreen() as part of a continuation of a
-  // request in a subdocument in different process, whereupon the caller
-  // need to send some notification itself with the real origin.
-  bool mShouldNotifyNewOrigin = true;
-};
-
 } // namespace dom
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x21bbd52a, 0xc2d2, 0x4b2f, \
-  { 0xbc, 0x6c, 0xc9, 0x52, 0xbe, 0x23, 0x6b, 0x19 } }
+{ 0x24fbaa06, 0x322b, 0x495f, \
+  {0x89, 0xcb, 0x33, 0xbc, 0x6f, 0x2d, 0xf6, 0x93} }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -202,9 +188,11 @@ NS_GetContentList(nsINode* aRootNode,
 class nsIDocument : public nsINode
 {
   typedef mozilla::dom::GlobalObject GlobalObject;
+
 public:
   typedef mozilla::net::ReferrerPolicy ReferrerPolicyEnum;
   typedef mozilla::dom::Element Element;
+  typedef mozilla::dom::FullscreenRequest FullscreenRequest;
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IDOCUMENT_IID)
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -1117,8 +1105,8 @@ public:
    * the <iframe> or <browser> that contains this document is also mode
    * fullscreen. This happens recursively in all ancestor documents.
    */
-  virtual void AsyncRequestFullScreen(Element* aElement,
-                                      mozilla::dom::FullScreenOptions& aOptions) = 0;
+  virtual void AsyncRequestFullScreen(
+    mozilla::UniquePtr<FullscreenRequest>&& aRequest) = 0;
 
   /**
    * Called when a frame in a child process has entered fullscreen or when a

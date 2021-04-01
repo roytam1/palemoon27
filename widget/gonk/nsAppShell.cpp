@@ -34,10 +34,8 @@
 
 #include "base/basictypes.h"
 #include "GonkPermission.h"
+#include "libdisplay/BootAnimation.h"
 #include "nscore.h"
-#ifdef MOZ_OMX_DECODER
-#include "MediaResourceManagerService.h"
-#endif
 #include "mozilla/TouchEvents.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Hal.h"
@@ -49,6 +47,7 @@
 #include "nativewindow/FakeSurfaceComposer.h"
 #endif
 #include "nsAppShell.h"
+#include "mozilla/DebugOnly.h"
 #include "mozilla/dom/Touch.h"
 #include "nsGkAtoms.h"
 #include "nsIObserverService.h"
@@ -578,7 +577,7 @@ GeckoInputReaderPolicy::setDisplayInfo()
     nsRefPtr<nsScreenGonk> screen = nsScreenManagerGonk::GetPrimaryScreen();
 
     uint32_t rotation = nsIScreen::ROTATION_0_DEG;
-    nsresult rv = screen->GetRotation(&rotation);
+    DebugOnly<nsresult> rv = screen->GetRotation(&rotation);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
     nsIntRect screenBounds = screen->GetNaturalBounds();
 
@@ -888,9 +887,6 @@ nsAppShell::Init()
         printf("*** This is stdout. Most of the useful output will be in logcat.\n");
         printf("***\n");
         printf("*****************************************************************\n");
-#ifdef MOZ_OMX_DECODER
-        android::MediaResourceManagerService::instantiate();
-#endif
 #if ANDROID_VERSION >= 18 && (defined(MOZ_OMX_DECODER) || defined(MOZ_B2G_CAMERA))
         android::FakeSurfaceComposer::instantiate();
 #endif
@@ -935,6 +931,10 @@ nsAppShell::Observe(nsISupports* aSubject,
             updateHeadphoneSwitch();
         }
         mEnableDraw = true;
+
+        // System is almost booting up. Stop the bootAnim now.
+        StopBootAnimation();
+
         NotifyEvent();
         return NS_OK;
     }

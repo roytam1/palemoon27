@@ -124,26 +124,17 @@ private:
   uint64_t                         mFullLength;
 };
 
-void MediaOmxReader::CancelProcessCachedData()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MutexAutoLock lock(mMutex);
-  mIsShutdown = true;
-}
-
 MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder)
   : MediaOmxCommonReader(aDecoder)
-  , mMutex("MediaOmxReader.Data")
+  , mShutdownMutex("MediaOmxReader.Shutdown")
   , mHasVideo(false)
   , mHasAudio(false)
   , mVideoSeekTimeUs(-1)
   , mAudioSeekTimeUs(-1)
   , mLastParserDuration(-1)
   , mSkipCount(0)
-  , mUseParserDuration(false)
   , mIsShutdown(false)
   , mMP3FrameParser(-1)
-  , mIsWaitingResources(false)
 {
   if (!gMediaDecoderLog) {
     gMediaDecoderLog = PR_NewLogModule("MediaDecoder");
@@ -161,6 +152,16 @@ nsresult MediaOmxReader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
+already_AddRefed<AbstractMediaDecoder>
+MediaOmxReader::SafeGetDecoder() {
+  nsRefPtr<AbstractMediaDecoder> decoder;
+  MutexAutoLock lock(mShutdownMutex);
+  if (!mIsShutdown) {
+    decoder = mDecoder;
+  }
+  return decoder.forget();
+}
+
 void MediaOmxReader::ReleaseDecoder()
 {
   if (mOmxDecoder.get()) {
@@ -172,9 +173,10 @@ void MediaOmxReader::ReleaseDecoder()
 nsRefPtr<ShutdownPromise>
 MediaOmxReader::Shutdown()
 {
-  nsCOMPtr<nsIRunnable> cancelEvent =
-    NS_NewRunnableMethod(this, &MediaOmxReader::CancelProcessCachedData);
-  NS_DispatchToMainThread(cancelEvent);
+  {
+    MutexAutoLock lock(mShutdownMutex);
+    mIsShutdown = true;
+  }
 
   nsRefPtr<ShutdownPromise> p = MediaDecoderReader::Shutdown();
 
@@ -185,22 +187,11 @@ MediaOmxReader::Shutdown()
   return p;
 }
 
-bool MediaOmxReader::IsWaitingMediaResources()
-{
-  return mIsWaitingResources;
-}
-
-void MediaOmxReader::UpdateIsWaitingMediaResources()
-{
-  if (mOmxDecoder.get()) {
-    mIsWaitingResources = mOmxDecoder->IsWaitingMediaResources();
-  } else {
-    mIsWaitingResources = false;
-  }
-}
-
 void MediaOmxReader::ReleaseMediaResources()
 {
+  mMediaResourceRequest.DisconnectIfExists();
+  mMetadataPromise.RejectIfExists(ReadMetadataFailureReason::METADATA_ERROR, __func__);
+
   ResetDecode();
   // Before freeing a video codec, all video buffers needed to be released
   // even from graphics pipeline.
@@ -235,23 +226,17 @@ nsresult MediaOmxReader::InitOmxDecoder()
   return NS_OK;
 }
 
-void MediaOmxReader::PreReadMetadata()
-{
-  UpdateIsWaitingMediaResources();
-}
-
-nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
-                                      MetadataTags** aTags)
+nsRefPtr<MediaDecoderReader::MetadataPromise>
+MediaOmxReader::AsyncReadMetadata()
 {
   MOZ_ASSERT(OnTaskQueue());
   EnsureActive();
 
-  *aTags = nullptr;
-
   // Initialize the internal OMX Decoder.
   nsresult rv = InitOmxDecoder();
   if (NS_FAILED(rv)) {
-    return rv;
+    return MediaDecoderReader::MetadataPromise::CreateAndReject(
+             ReadMetadataFailureReason::METADATA_ERROR, __func__);
   }
 
   bool isMP3 = mDecoder->GetResource()->GetContentType().EqualsASCII(AUDIO_MP3);
@@ -263,32 +248,44 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
     ProcessCachedData(0, true);
   }
 
-  if (!mOmxDecoder->AllocateMediaResources()) {
-    return NS_ERROR_FAILURE;
-  }
-  // Bug 1050667, both MediaDecoderStateMachine and MediaOmxReader
-  // relies on IsWaitingMediaResources() function. And the waiting state will be
-  // changed by binder thread, so we store the waiting state in a cache value to
-  // make them in consistent state.
-  UpdateIsWaitingMediaResources();
-  if (IsWaitingMediaResources()) {
-    return NS_OK;
-  }
+  nsRefPtr<MediaDecoderReader::MetadataPromise> p = mMetadataPromise.Ensure(__func__);
+
+  nsRefPtr<MediaOmxReader> self = this;
+  mMediaResourceRequest.Begin(mOmxDecoder->AllocateMediaResources()
+    ->RefableThen(GetTaskQueue(), __func__,
+      [self] (bool) -> void {
+        self->mMediaResourceRequest.Complete();
+        self->HandleResourceAllocated();
+      }, [self] (bool) -> void {
+        self->mMediaResourceRequest.Complete();
+        self->mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
+      }));
+
+  return p;
+}
+
+void MediaOmxReader::HandleResourceAllocated()
+{
+  EnsureActive();
+
   // After resources are available, set the metadata.
   if (!mOmxDecoder->EnsureMetadata()) {
-    return NS_ERROR_FAILURE;
+    mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
+    return;
   }
 
+  bool isMP3 = mDecoder->GetResource()->GetContentType().EqualsASCII(AUDIO_MP3);
   if (isMP3 && mMP3FrameParser.IsMP3()) {
-    int64_t duration = mMP3FrameParser.GetDuration();
-    // The MP3FrameParser may reported a duration;
-    // return -1 if no frame has been parsed.
-    if (duration >= 0) {
-      mUseParserDuration = true;
-      mLastParserDuration = duration;
-      mInfo.mMetadataDuration = Some(TimeUnit::FromMicroseconds(mLastParserDuration));
-    }
+    // Check if the MP3 frame parser found a duration.
+    mLastParserDuration = mMP3FrameParser.GetDuration();
+  }
+
+  if (mLastParserDuration >= 0) {
+    // Prefer the parser duration if we have it.
+    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+    mDecoder->SetMediaDuration(mLastParserDuration);
   } else {
+    // MP3 parser failed to find a duration.
     // Set the total duration (the max of the audio and video track).
     int64_t durationUs;
     mOmxDecoder->GetDuration(&durationUs);
@@ -308,7 +305,8 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
     nsIntSize displaySize(displayWidth, displayHeight);
     nsIntSize frameSize(width, height);
     if (!IsValidVideoRegion(frameSize, pictureRect, displaySize)) {
-      return NS_ERROR_FAILURE;
+      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
+      return;
     }
 
     // Video track's frame sizes will not overflow. Activate the video track.
@@ -332,13 +330,15 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
     mInfo.mAudio.mRate = sampleRate;
   }
 
- *aInfo = mInfo;
+  nsRefPtr<MetadataHolder> metadata = new MetadataHolder();
+  metadata->mInfo = mInfo;
+  metadata->mTags = nullptr;
 
 #ifdef MOZ_AUDIO_OFFLOAD
   CheckAudioOffload();
 #endif
 
-  return NS_OK;
+  mMetadataPromise.Resolve(metadata, __func__);
 }
 
 bool
@@ -472,23 +472,27 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
 void MediaOmxReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (IsShutdown()) {
+  nsRefPtr<AbstractMediaDecoder> decoder = SafeGetDecoder();
+  if (!decoder) { // reader has shut down
     return;
   }
   if (HasVideo()) {
     return;
   }
-
   if (!mMP3FrameParser.NeedsData()) {
     return;
   }
 
   mMP3FrameParser.Parse(aBuffer, aLength, aOffset);
+  if (!mMP3FrameParser.IsMP3()) {
+    return;
+  }
+
   int64_t duration = mMP3FrameParser.GetDuration();
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  if (duration != mLastParserDuration && mUseParserDuration) {
+  if (duration != mLastParserDuration) {
+    ReentrantMonitorAutoEnter mon(decoder->GetReentrantMonitor());
     mLastParserDuration = duration;
-    mDecoder->UpdateEstimatedMediaDuration(mLastParserDuration);
+    decoder->UpdateEstimatedMediaDuration(mLastParserDuration);
   }
 }
 
@@ -574,7 +578,8 @@ void MediaOmxReader::EnsureActive() {
 int64_t MediaOmxReader::ProcessCachedData(int64_t aOffset, bool aWaitForCompletion)
 {
   // Could run on decoder thread or IO thread.
-  if (IsShutdown()) {
+  nsRefPtr<AbstractMediaDecoder> decoder = SafeGetDecoder();
+  if (!decoder) { // reader has shut down
     return -1;
   }
   // We read data in chunks of 32 KiB. We can reduce this
@@ -585,8 +590,8 @@ int64_t MediaOmxReader::ProcessCachedData(int64_t aOffset, bool aWaitForCompleti
 
   NS_ASSERTION(!NS_IsMainThread(), "Should not be on main thread.");
 
-  MOZ_ASSERT(mDecoder->GetResource());
-  int64_t resourceLength = mDecoder->GetResource()->GetCachedDataEnd(0);
+  MOZ_ASSERT(decoder->GetResource());
+  int64_t resourceLength = decoder->GetResource()->GetCachedDataEnd(0);
   NS_ENSURE_TRUE(resourceLength >= 0, -1);
 
   if (aOffset >= resourceLength) {
@@ -597,7 +602,7 @@ int64_t MediaOmxReader::ProcessCachedData(int64_t aOffset, bool aWaitForCompleti
 
   nsAutoArrayPtr<char> buffer(new char[bufferLength]);
 
-  nsresult rv = mDecoder->GetResource()->ReadFromCache(buffer.get(),
+  nsresult rv = decoder->GetResource()->ReadFromCache(buffer.get(),
                                                        aOffset, bufferLength);
   NS_ENSURE_SUCCESS(rv, -1);
 

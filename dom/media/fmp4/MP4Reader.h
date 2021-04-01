@@ -34,7 +34,7 @@ class MP4Reader final : public MediaDecoderReader
   typedef TrackInfo::TrackType TrackType;
 
 public:
-  explicit MP4Reader(AbstractMediaDecoder* aDecoder);
+  explicit MP4Reader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue = nullptr);
 
   virtual ~MP4Reader();
 
@@ -68,7 +68,6 @@ public:
 
   // For Media Resource Management
   virtual void SetIdle() override;
-  virtual bool IsWaitingMediaResources() override;
   virtual bool IsDormantNeeded() override;
   virtual void ReleaseMediaResources() override;
   virtual void SetSharedDecoderManager(SharedDecoderManager* aManager)
@@ -83,6 +82,8 @@ public:
   virtual void DisableHardwareAcceleration() override;
 
   static bool IsVideoAccelerated(layers::LayersBackend aBackend);
+
+  virtual bool VideoIsHardwareAccelerated() const override;
 
 private:
 
@@ -123,7 +124,6 @@ private:
   void UpdateIndex();
   bool IsSupportedAudioMimeType(const nsACString& aMimeType);
   bool IsSupportedVideoMimeType(const nsACString& aMimeType);
-  void NotifyResourcesStatusChanged();
   virtual bool IsWaitingOnCDMResource() override;
 
   Microseconds GetNextKeyframeTime();
@@ -154,9 +154,6 @@ private:
     }
     virtual void DrainComplete() override {
       mReader->DrainComplete(mType);
-    }
-    virtual void NotifyResourcesStatusChanged() override {
-      mReader->NotifyResourcesStatusChanged();
     }
     virtual void ReleaseMediaResources() override {
       mReader->ReleaseMediaResources();

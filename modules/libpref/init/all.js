@@ -188,9 +188,6 @@ pref("dom.keyboardevent.code.enabled", true);
 // even if this is true).
 pref("dom.keyboardevent.dispatch_during_composition", false);
 
-// Whether the WebCrypto API is enabled
-pref("dom.webcrypto.enabled", true);
-
 // Whether the UndoManager API is enabled
 pref("dom.undo_manager.enabled", false);
 
@@ -2023,6 +2020,14 @@ pref("network.auth.force-generic-ntlm", false);
 pref("network.automatic-ntlm-auth.allow-proxies", true);
 pref("network.automatic-ntlm-auth.allow-non-fqdn", false);
 pref("network.automatic-ntlm-auth.trusted-uris", "");
+
+// Sub-resources HTTP-authentication:
+//   0 - don't allow sub-resources to open HTTP authentication credentials
+//       dialogs
+//   1 - allow sub-resources to open HTTP authentication credentials dialogs,
+//       but don't allow it for cross-origin sub-resources
+//   2 - allow the cross-origin authentication as well.
+pref("network.auth.allow-subresource-auth", 1);
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 

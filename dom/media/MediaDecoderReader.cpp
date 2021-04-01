@@ -60,14 +60,18 @@ public:
   size_t mSize;
 };
 
-MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
+MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder,
+                                       MediaTaskQueue* aBorrowedTaskQueue)
   : mAudioCompactor(mAudioQueue)
   , mDecoder(aDecoder)
+  , mTaskQueue(aBorrowedTaskQueue ? aBorrowedTaskQueue
+                                  : new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
+                                                       /* aSupportsTailDispatch = */ true))
   , mIgnoreAudioOutputFormat(false)
   , mStartTime(-1)
   , mHitAudioDecodeError(false)
   , mShutdown(false)
-  , mTaskQueueIsBorrowed(false)
+  , mTaskQueueIsBorrowed(!!aBorrowedTaskQueue)
   , mAudioDiscontinuity(false)
   , mVideoDiscontinuity(false)
 {
@@ -144,12 +148,14 @@ void
 MediaDecoderReader::SetStartTime(int64_t aStartTime)
 {
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
+  MOZ_ASSERT(mStartTime == -1);
   mStartTime = aStartTime;
 }
 
 media::TimeIntervals
 MediaDecoderReader::GetBuffered()
 {
+  NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
   AutoPinned<MediaResource> stream(mDecoder->GetResource());
   int64_t durationUs = 0;
   {
@@ -182,9 +188,6 @@ MediaDecoderReader::AsyncReadMetadata()
   mDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
   DECODER_LOG("MediaDecoderReader::AsyncReadMetadata");
 
-  // PreReadMetadata causes us to try to allocate various hardware and OS
-  // resources, which may not be available at the moment.
-  PreReadMetadata();
   if (IsWaitingMediaResources()) {
     return MetadataPromise::CreateAndReject(Reason::WAITING_FOR_RESOURCES, __func__);
   }
@@ -329,19 +332,6 @@ MediaDecoderReader::RequestAudioData()
   }
 
   return p;
-}
-
-MediaTaskQueue*
-MediaDecoderReader::EnsureTaskQueue()
-{
-  if (!mTaskQueue) {
-    MOZ_ASSERT(!mTaskQueueIsBorrowed);
-    RefPtr<SharedThreadPool> pool(GetMediaThreadPool(MediaThreadType::PLAYBACK));
-    MOZ_DIAGNOSTIC_ASSERT(pool);
-    mTaskQueue = new MediaTaskQueue(pool.forget());
-  }
-
-  return mTaskQueue;
 }
 
 void

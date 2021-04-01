@@ -32,8 +32,10 @@
 #include "nsExpirationTracker.h"
 #include "nsClassHashtable.h"
 #include "prclist.h"
+#include "mozilla/CORSMode.h"
 #include <bitset>                        // for member
 
+class gfxUserFontSet;
 class imgIRequest;
 class nsAString;
 class nsBindingManager;
@@ -167,8 +169,8 @@ struct FullScreenOptions {
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0xdcfa30f2, 0x2197, 0x421f, \
-  { 0xa7, 0x5a, 0x3e, 0x70, 0x18, 0x08, 0xde, 0x81 } }
+{ 0x21bbd52a, 0xc2d2, 0x4b2f, \
+  { 0xbc, 0x6c, 0xc9, 0x52, 0xbe, 0x23, 0x6b, 0x19 } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -2102,7 +2104,8 @@ public:
   /**
    * Called by Parser for link rel=preconnect
    */
-  virtual void MaybePreconnect(nsIURI* uri) = 0;
+  virtual void MaybePreconnect(nsIURI* uri,
+                               mozilla::CORSMode aCORSMode) = 0;
 
   enum DocumentTheme {
     Doc_Theme_Uninitialized, // not determined yet
@@ -2628,8 +2631,13 @@ public:
     }
   }
 
+  gfxUserFontSet* GetUserFontSet();
+  void FlushUserFontSet();
+  void RebuildUserFontSet(); // asynchronously
+  mozilla::dom::FontFaceSet* GetFonts() { return mFontFaceSet; }
+
   // FontFaceSource
-  mozilla::dom::FontFaceSet* GetFonts(mozilla::ErrorResult& aRv);
+  mozilla::dom::FontFaceSet* Fonts();
 
   bool DidFireDOMContentLoaded() const { return mDidFireDOMContentLoaded; }
   
@@ -2688,6 +2696,11 @@ protected:
 
   mozilla::dom::XPathEvaluator* XPathEvaluator();
 
+  void HandleRebuildUserFontSet() {
+    mPostedFlushUserFontSet = false;
+    FlushUserFontSet();
+  }
+
   nsCString mReferrer;
   nsString mLastModified;
 
@@ -2743,6 +2756,9 @@ protected:
 
   // Our cached .children collection
   nsCOMPtr<nsIHTMLCollection> mChildrenCollection;
+
+  // container for per-context fonts (downloadable, SVG, etc.)
+  nsRefPtr<mozilla::dom::FontFaceSet> mFontFaceSet;
 
   // Compatibility mode
   nsCompatibility mCompatMode;
@@ -2875,6 +2891,15 @@ protected:
    */
   bool mIsLinkUpdateRegistrationsForbidden;
 #endif
+
+  // Is the current mFontFaceSet valid?
+  bool mFontFaceSetDirty;
+
+  // Has GetUserFontSet() been called?
+  bool mGetUserFontSetCalled;
+
+  // Do we currently have an event posted to call FlushUserFontSet?
+  bool mPostedFlushUserFontSet;
 
   enum Type {
     eUnknown, // should never be used

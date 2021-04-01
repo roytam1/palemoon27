@@ -581,9 +581,20 @@ nsIOService::NewChannelFromURIWithLoadInfo(nsIURI* aURI,
                                                  result);
 }
 
+/*  ***** DEPRECATED *****
+ * please use NewChannelFromURI2 providing the right arguments for:
+ *        * aLoadingNode
+ *        * aLoadingPrincipal
+ *        * aTriggeringPrincipal
+ *        * aSecurityFlags
+ *        * aContentPolicyType
+ *
+ * See nsIIoService.idl for a detailed description of those arguments
+ */
 NS_IMETHODIMP
 nsIOService::NewChannelFromURI(nsIURI *aURI, nsIChannel **result)
 {
+  NS_WARNING("Deprecated, use NewChannelFromURI2 providing loadInfo arguments!");
   return NewChannelFromURI2(aURI,
                             nullptr, // aLoadingNode
                             nullptr, // aLoadingPrincipal
@@ -737,12 +748,23 @@ nsIOService::NewChannelFromURIWithProxyFlags2(nsIURI* aURI,
                                                    result);
 }
 
+/*  ***** DEPRECATED *****
+ * please use NewChannelFromURIWithProxyFlags2 providing the right arguments for:
+ *        * aLoadingNode
+ *        * aLoadingPrincipal
+ *        * aTriggeringPrincipal
+ *        * aSecurityFlags
+ *        * aContentPolicyType
+ *
+ * See nsIIoService.idl for a detailed description of those arguments
+ */
 NS_IMETHODIMP
 nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
                                              nsIURI *aProxyURI,
                                              uint32_t aProxyFlags,
                                              nsIChannel **result)
 {
+  NS_WARNING("Deprecated, use NewChannelFromURIWithProxyFlags2 providing loadInfo arguments!");
   return NewChannelFromURIWithProxyFlags2(aURI,
                                           aProxyURI,
                                           aProxyFlags,
@@ -779,9 +801,20 @@ nsIOService::NewChannel2(const nsACString& aSpec,
                               result);
 }
 
+/*  ***** DEPRECATED *****
+ * please use NewChannel2 providing the right arguments for:
+ *        * aLoadingNode
+ *        * aLoadingPrincipal
+ *        * aTriggeringPrincipal
+ *        * aSecurityFlags
+ *        * aContentPolicyType
+ *
+ * See nsIIoService.idl for a detailed description of those arguments
+ */
 NS_IMETHODIMP
 nsIOService::NewChannel(const nsACString &aSpec, const char *aCharset, nsIURI *aBaseURI, nsIChannel **result)
 {
+  NS_WARNING("Deprecated, use NewChannel2 providing loadInfo arguments!");
   return NewChannel2(aSpec,
                      aCharset,
                      aBaseURI,
@@ -1588,14 +1621,21 @@ IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIChannel *cha
     if (!speculativeHandler)
         return NS_OK;
 
-    speculativeHandler->SpeculativeConnect(uri,
-                                           mCallbacks);
+    nsLoadFlags loadFlags = 0;
+    channel->GetLoadFlags(&loadFlags);
+    if (loadFlags & nsIRequest::LOAD_ANONYMOUS) {
+        speculativeHandler->SpeculativeAnonymousConnect(uri, mCallbacks);
+    } else {
+        speculativeHandler->SpeculativeConnect(uri, mCallbacks);
+    }
+
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsIOService::SpeculativeConnect(nsIURI *aURI,
-                                nsIInterfaceRequestor *aCallbacks)
+nsresult
+nsIOService::SpeculativeConnectInternal(nsIURI *aURI,
+                                        nsIInterfaceRequestor *aCallbacks,
+                                        bool aAnonymous)
 {
     // Check for proxy information. If there is a proxy configured then a
     // speculative connect should not be performed because the potential
@@ -1626,8 +1666,14 @@ nsIOService::SpeculativeConnect(nsIURI *aURI,
                             nsILoadInfo::SEC_NORMAL,
                             nsIContentPolicy::TYPE_OTHER,
                             getter_AddRefs(channel));
-
     NS_ENSURE_SUCCESS(rv, rv);
+
+    if (aAnonymous) {
+        nsLoadFlags loadFlags = 0;
+        channel->GetLoadFlags(&loadFlags);
+        loadFlags |= nsIRequest::LOAD_ANONYMOUS;
+        channel->SetLoadFlags(loadFlags);
+    }
 
     nsCOMPtr<nsICancelable> cancelable;
     nsRefPtr<IOServiceProxyCallback> callback =
@@ -1637,6 +1683,20 @@ nsIOService::SpeculativeConnect(nsIURI *aURI,
         return pps2->AsyncResolve2(channel, 0, callback, getter_AddRefs(cancelable));
     }
     return pps->AsyncResolve(channel, 0, callback, getter_AddRefs(cancelable));
+}
+
+NS_IMETHODIMP
+nsIOService::SpeculativeConnect(nsIURI *aURI,
+                                nsIInterfaceRequestor *aCallbacks)
+{
+    return SpeculativeConnectInternal(aURI, aCallbacks, false);
+}
+
+NS_IMETHODIMP
+nsIOService::SpeculativeAnonymousConnect(nsIURI *aURI,
+                                         nsIInterfaceRequestor *aCallbacks)
+{
+    return SpeculativeConnectInternal(aURI, aCallbacks, true);
 }
 
 void

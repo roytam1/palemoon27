@@ -144,8 +144,8 @@ static void webm_log(nestegg * context,
 static bool sIsIntelDecoderEnabled = false;
 #endif
 
-WebMReader::WebMReader(AbstractMediaDecoder* aDecoder)
-  : MediaDecoderReader(aDecoder)
+WebMReader::WebMReader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue)
+  : MediaDecoderReader(aDecoder, aBorrowedTaskQueue)
   , mContext(nullptr)
   , mVideoTrack(0)
   , mAudioTrack(0)
@@ -777,7 +777,7 @@ nsresult WebMReader::SeekInternal(int64_t aTarget)
 
 media::TimeIntervals WebMReader::GetBuffered()
 {
-  MOZ_ASSERT(mStartTime != -1, "Need to finish metadata decode first");
+  NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
 
   media::TimeIntervals buffered;

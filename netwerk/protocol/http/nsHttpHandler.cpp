@@ -48,6 +48,7 @@
 #include "nsIMemoryReporter.h"
 #include "nsIParentalControlsService.h"
 #include "nsINetworkLinkService.h"
+#include "nsHttpChannelAuthProvider.h"
 
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/ipc/URIUtils.h"
@@ -276,6 +277,8 @@ nsHttpHandler::Init()
         prefBranch->AddObserver(SAFE_HINT_HEADER_VALUE, this, true);
         PrefsChanged(prefBranch, nullptr);
     }
+
+    nsHttpChannelAuthProvider::InitializePrefs();
 
     if (mCompatFirefoxEnabled) {
       mMisc.AssignLiteral("rv:" MOZILLA_COMPATVERSION);
@@ -2004,14 +2007,15 @@ nsHttpHandler::Observe(nsISupports *subject,
 
 // nsISpeculativeConnect
 
-NS_IMETHODIMP
-nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
-                                  nsIInterfaceRequestor *aCallbacks)
+nsresult
+nsHttpHandler::SpeculativeConnectInternal(nsIURI *aURI,
+                                          nsIInterfaceRequestor *aCallbacks,
+                                          bool anonymous)
 {
     if (IsNeckoChild()) {
         ipc::URIParams params;
         SerializeURI(aURI, params);
-        gNeckoChild->SendSpeculativeConnect(params);
+        gNeckoChild->SendSpeculativeConnect(params, anonymous);
         return NS_OK;
     }
 
@@ -2074,8 +2078,23 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
 
     nsHttpConnectionInfo *ci =
         new nsHttpConnectionInfo(host, port, EmptyCString(), username, nullptr, usingSSL);
+    ci->SetAnonymous(anonymous);
 
     return SpeculativeConnect(ci, aCallbacks);
+}
+
+NS_IMETHODIMP
+nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
+                                  nsIInterfaceRequestor *aCallbacks)
+{
+    return SpeculativeConnectInternal(aURI, aCallbacks, false);
+}
+
+NS_IMETHODIMP
+nsHttpHandler::SpeculativeAnonymousConnect(nsIURI *aURI,
+                                           nsIInterfaceRequestor *aCallbacks)
+{
+    return SpeculativeConnectInternal(aURI, aCallbacks, true);
 }
 
 void

@@ -211,10 +211,6 @@ MediaDecodeTask::CreateReader()
     return false;
   }
 
-  if (!mDecoderReader->EnsureTaskQueue()) {
-    return false;
-  }
-
   return true;
 }
 
@@ -618,7 +614,7 @@ WebAudioDecodeJob::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
   if (mOutput) {
     amount += mOutput->SizeOfIncludingThis(aMallocSizeOf);
   }
-  amount += mChannelBuffers.SizeOfExcludingThis(aMallocSizeOf);
+  amount += mChannelBuffers.ShallowSizeOfExcludingThis(aMallocSizeOf);
   for (uint32_t i = 0; i < mChannelBuffers.Length(); ++i) {
     amount += mChannelBuffers[i].SizeOfExcludingThis(aMallocSizeOf);
   }

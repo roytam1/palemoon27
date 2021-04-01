@@ -1802,7 +1802,7 @@ PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight)
   // Take this ref after viewManager so it'll make sure to go away first.
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
 
-  if (!GetPresContext()->SupressingResizeReflow()) {
+  if (!GetPresContext()->SuppressingResizeReflow()) {
     // Have to make sure that the content notifications are flushed before we
     // start messing with the frame model; otherwise we can get content doubling.
     mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
@@ -4003,7 +4003,7 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
       // Flush any pending update of the user font set, since that could
       // cause style changes (for updating ex/ch units, and to cause a
       // reflow).
-      mPresContext->FlushUserFontSet();
+      mDocument->FlushUserFontSet();
 
       mPresContext->FlushCounterStyles();
 
@@ -4418,8 +4418,9 @@ nsIPresShell::ReconstructStyleDataInternal()
     return;
   }
 
+  mDocument->RebuildUserFontSet();
+
   if (mPresContext) {
-    mPresContext->RebuildUserFontSet();
     mPresContext->RebuildCounterStyles();
   }
 
@@ -8797,7 +8798,7 @@ PresShell::DidCauseReflow()
 void
 PresShell::WillDoReflow()
 {
-  mPresContext->FlushUserFontSet();
+  mDocument->FlushUserFontSet();
 
   mPresContext->FlushCounterStyles();
 

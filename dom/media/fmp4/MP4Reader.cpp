@@ -141,8 +141,8 @@ InvokeAndRetry(ThisType* aThisVal, ReturnType(ThisType::*aMethod)(), MP4Stream* 
   }
 }
 
-MP4Reader::MP4Reader(AbstractMediaDecoder* aDecoder)
-  : MediaDecoderReader(aDecoder)
+MP4Reader::MP4Reader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue)
+  : MediaDecoderReader(aDecoder, aBorrowedTaskQueue)
   , mAudio(MediaData::AUDIO_DATA, Preferences::GetUint("media.mp4-audio-decode-ahead", 2))
   , mVideo(MediaData::VIDEO_DATA, Preferences::GetUint("media.mp4-video-decode-ahead", 2))
   , mLastReportedNumDecodedFrames(0)
@@ -259,10 +259,6 @@ MP4Reader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-bool MP4Reader::IsWaitingMediaResources() {
-  return mVideo.mDecoder && mVideo.mDecoder->IsWaitingMediaResources();
-}
-
 bool MP4Reader::IsWaitingOnCDMResource() {
   // EME Stub
   return false;
@@ -335,7 +331,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     // an encrypted stream and we need to wait for a CDM to be set, we don't
     // need to reinit the demuxer.
     mDemuxerInitialized = true;
-  } else if (mPlatform && !IsWaitingMediaResources()) {
+  } else if (mPlatform) {
     *aInfo = mInfo;
     *aTags = nullptr;
   }
@@ -1011,7 +1007,7 @@ MP4Reader::GetBuffered()
     return buffered;
   }
   UpdateIndex();
-  MOZ_ASSERT(mStartTime != -1, "Need to finish metadata decode first");
+  NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
 
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
   nsTArray<MediaByteRange> ranges;
@@ -1053,19 +1049,11 @@ void MP4Reader::ReleaseMediaResources()
   }
 }
 
-void MP4Reader::NotifyResourcesStatusChanged()
-{
-  if (mDecoder) {
-    mDecoder->NotifyWaitingForResourcesStatusChanged();
-  }
-}
-
 void
 MP4Reader::SetIdle()
 {
   if (mSharedDecoderManager && mVideo.mDecoder) {
     mSharedDecoderManager->SetIdle(mVideo.mDecoder);
-    NotifyResourcesStatusChanged();
   }
 }
 
@@ -1110,6 +1098,12 @@ MP4Reader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOff
     MonitorAutoLock lock(decoder.mMonitor);
     decoder.mDemuxEOS = false;
   }
+}
+
+bool
+MP4Reader::VideoIsHardwareAccelerated() const
+{
+  return mVideo.mDecoder && mVideo.mDecoder->IsHardwareAccelerated();
 }
 
 } // namespace mozilla

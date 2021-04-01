@@ -30,7 +30,8 @@ class MediaFormatReader final : public MediaDecoderReader
 
 public:
   explicit MediaFormatReader(AbstractMediaDecoder* aDecoder,
-                               MediaDataDemuxer* aDemuxer);
+                             MediaDataDemuxer* aDemuxer,
+                             MediaTaskQueue* aBorrowedTaskQueue = nullptr);
 
   virtual ~MediaFormatReader();
 
@@ -55,13 +56,6 @@ public:
   }
 
   virtual nsRefPtr<MetadataPromise> AsyncReadMetadata() override;
-  virtual nsresult ReadMetadata(MediaInfo* aInfo,
-                                MetadataTags** aTags) override
-  {
-    // Unused as we provide AsyncReadMetadataAPI.
-    // However we must implement it as it's pure virtual.
-    return NS_OK;
-  }
 
   virtual void ReadUpdatedMetadata(MediaInfo* aInfo) override;
 
@@ -81,9 +75,10 @@ public:
 
   virtual media::TimeIntervals GetBuffered() override;
 
+  virtual bool ForceZeroStartTime() const override;
+
   // For Media Resource Management
   virtual void SetIdle() override;
-  virtual bool IsWaitingMediaResources() override;
   virtual bool IsDormantNeeded() override;
   virtual void ReleaseMediaResources() override;
   virtual void SetSharedDecoderManager(SharedDecoderManager* aManager)

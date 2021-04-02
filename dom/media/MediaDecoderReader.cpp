@@ -60,14 +60,18 @@ public:
   size_t mSize;
 };
 
-MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
+MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder,
+                                       MediaTaskQueue* aBorrowedTaskQueue)
   : mAudioCompactor(mAudioQueue)
   , mDecoder(aDecoder)
+  , mTaskQueue(aBorrowedTaskQueue ? aBorrowedTaskQueue
+                                  : new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
+                                                       /* aSupportsTailDispatch = */ true))
   , mIgnoreAudioOutputFormat(false)
   , mStartTime(-1)
   , mHitAudioDecodeError(false)
   , mShutdown(false)
-  , mTaskQueueIsBorrowed(false)
+  , mTaskQueueIsBorrowed(!!aBorrowedTaskQueue)
   , mAudioDiscontinuity(false)
   , mVideoDiscontinuity(false)
 {
@@ -159,20 +163,6 @@ MediaDecoderReader::GetBuffered()
     durationUs = mDecoder->GetMediaDuration();
   }
   return GetEstimatedBufferedTimeRanges(stream, durationUs);
-}
-
-int64_t
-MediaDecoderReader::ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio)
-{
-  int64_t startTime = std::min<int64_t>(aAudio ? aAudio->mTime : INT64_MAX,
-                                        aVideo ? aVideo->mTime : INT64_MAX);
-  if (startTime == INT64_MAX) {
-    startTime = 0;
-  }
-  DECODER_LOG("ComputeStartTime first video frame start %lld", aVideo ? aVideo->mTime : -1);
-  DECODER_LOG("ComputeStartTime first audio frame start %lld", aAudio ? aAudio->mTime : -1);
-  NS_ASSERTION(startTime >= 0, "Start time is negative");
-  return startTime;
 }
 
 nsRefPtr<MediaDecoderReader::MetadataPromise>
@@ -328,19 +318,6 @@ MediaDecoderReader::RequestAudioData()
   }
 
   return p;
-}
-
-MediaTaskQueue*
-MediaDecoderReader::EnsureTaskQueue()
-{
-  if (!mTaskQueue) {
-    MOZ_ASSERT(!mTaskQueueIsBorrowed);
-    RefPtr<SharedThreadPool> pool(GetMediaThreadPool(MediaThreadType::PLAYBACK));
-    MOZ_DIAGNOSTIC_ASSERT(pool);
-    mTaskQueue = new MediaTaskQueue(pool.forget());
-  }
-
-  return mTaskQueue;
 }
 
 void

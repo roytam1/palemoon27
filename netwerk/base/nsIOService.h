@@ -125,6 +125,11 @@ private:
                                                      uint32_t aProxyFlags,
                                                      nsILoadInfo* aLoadInfo,
                                                      nsIChannel** result);
+
+    nsresult SpeculativeConnectInternal(nsIURI *aURI,
+                                        nsIInterfaceRequestor *aCallbacks,
+                                        bool aAnonymous);
+
 private:
     bool                                 mOffline;
     bool                                 mOfflineForProfileChange;

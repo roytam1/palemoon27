@@ -7974,3 +7974,15 @@ nsContentUtils::FirePageShowEvent(nsIDocShellTreeItem* aItem,
     doc->OnPageShow(true, aChromeEventHandler);
   }
 }
+/* static */
+already_AddRefed<nsPIWindowRoot>
+nsContentUtils::GetWindowRoot(nsIDocument* aDoc)
+{
+  if (aDoc) {
+    nsPIDOMWindow* win = aDoc->GetWindow();
+    if (win) {
+      return win->GetTopWindowRoot();
+    }
+  }
+  return nullptr;
+}

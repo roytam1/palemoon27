@@ -34,7 +34,7 @@ class MP4Reader final : public MediaDecoderReader
   typedef TrackInfo::TrackType TrackType;
 
 public:
-  explicit MP4Reader(AbstractMediaDecoder* aDecoder);
+  explicit MP4Reader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue = nullptr);
 
   virtual ~MP4Reader();
 
@@ -82,6 +82,8 @@ public:
   virtual void DisableHardwareAcceleration() override;
 
   static bool IsVideoAccelerated(layers::LayersBackend aBackend);
+
+  virtual bool VideoIsHardwareAccelerated() const override;
 
 private:
 

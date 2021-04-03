@@ -929,10 +929,11 @@ public:
   AbstractCanonical<bool>* CanonicalPreservesPitch() { return &mPreservesPitch; }
 protected:
 
-  // Duration of the media resource. Set to -1 if unknown.
-  // Set when the metadata is loaded. Accessed on the main thread
-  // only.
-  int64_t mDuration;
+  // Official duration of the media resource as observed by script.
+  double mDuration;
+
+  // Duration of the media resource according to the state machine.
+  Mirror<media::NullableTimeUnit> mStateMachineDuration;
 
   // True if the media is seekable (i.e. supports random access).
   bool mMediaSeekable;

@@ -384,7 +384,8 @@ ReadStructuredClone(JSContext* cx, uint64_t* data, size_t nbytes, MutableHandleV
 // Transferables will use the JSStructuredCloneCallbacks::freeTransfer() to
 // delete their transferables.
 static void
-Discard(uint64_t* buffer, size_t nbytes, const JSStructuredCloneCallbacks* cb, void* cbClosure)
+DiscardTransferables(uint64_t* buffer, size_t nbytes,
+                     const JSStructuredCloneCallbacks* cb, void* cbClosure)
 {
     MOZ_ASSERT(nbytes % sizeof(uint64_t) == 0);
     uint64_t* end = buffer + nbytes / sizeof(uint64_t);
@@ -443,27 +444,15 @@ Discard(uint64_t* buffer, size_t nbytes, const JSStructuredCloneCallbacks* cb, v
     }
 }
 
-static void
-ClearStructuredClone(uint64_t* data, size_t nbytes,
-                     const JSStructuredCloneCallbacks* cb, void* cbClosure)
+static bool
+StructuredCloneHasTransferObjects(const uint64_t* data, size_t nbytes)
 {
-    Discard(data, nbytes, cb, cbClosure);
-    js_free(data);
-}
+    if (!data)
+        return false;
 
-bool
-StructuredCloneHasTransferObjects(const uint64_t* data, size_t nbytes, bool* hasTransferable)
-{
-    *hasTransferable = false;
-
-    if (data) {
-        uint64_t u = LittleEndian::readUint64(data);
-        uint32_t tag = uint32_t(u >> 32);
-        if (tag == SCTAG_TRANSFER_MAP_HEADER)
-            *hasTransferable = true;
-    }
-
-    return true;
+    uint64_t u = LittleEndian::readUint64(data);
+    uint32_t tag = uint32_t(u >> 32);
+    return (tag == SCTAG_TRANSFER_MAP_HEADER);
 }
 
 namespace js {
@@ -746,7 +735,8 @@ JSStructuredCloneWriter::~JSStructuredCloneWriter()
     uint64_t* data;
     size_t size;
     MOZ_ALWAYS_TRUE(extractBuffer(&data, &size));
-    ClearStructuredClone(data, size, callbacks, closure);
+    DiscardTransferables(data, size, callbacks, closure);
+    js_free(data);
 }
 
 bool
@@ -1832,8 +1822,9 @@ JSStructuredCloneReader::readTransferMap()
             MOZ_ASSERT(!cx->isExceptionPending());
         }
 
-        // On failure, the buffer will still own the data (since its ownership will not get set to SCTAG_TMO_UNOWNED),
-        // so the data will be freed by ClearStructuredClone
+        // On failure, the buffer will still own the data (since its ownership
+        // will not get set to SCTAG_TMO_UNOWNED), so the data will be freed by
+        // DiscardTransferables.
         if (!obj)
             return false;
 
@@ -1960,9 +1951,12 @@ JS_WriteStructuredClone(JSContext* cx, HandleValue value, uint64_t** bufp, size_
 JS_PUBLIC_API(bool)
 JS_ClearStructuredClone(uint64_t* data, size_t nbytes,
                         const JSStructuredCloneCallbacks* optionalCallbacks,
-                        void* closure)
+                        void* closure, bool freeData)
 {
-    ClearStructuredClone(data, nbytes, optionalCallbacks, closure);
+    DiscardTransferables(data, nbytes, optionalCallbacks, closure);
+    if (freeData) {
+      js_free(data);
+    }
     return true;
 }
 
@@ -1970,11 +1964,7 @@ JS_PUBLIC_API(bool)
 JS_StructuredCloneHasTransferables(const uint64_t* data, size_t nbytes,
                                    bool* hasTransferable)
 {
-    bool transferable;
-    if (!StructuredCloneHasTransferObjects(data, nbytes, &transferable))
-        return false;
-
-    *hasTransferable = transferable;
+    *hasTransferable = StructuredCloneHasTransferObjects(data, nbytes);
     return true;
 }
 
@@ -2022,6 +2012,7 @@ JS_StructuredClone(JSContext* cx, HandleValue value, MutableHandleValue vp,
 
 JSAutoStructuredCloneBuffer::JSAutoStructuredCloneBuffer(JSAutoStructuredCloneBuffer&& other)
 {
+    ownTransferables_ = other.ownTransferables_;
     other.steal(&data_, &nbytes_, &version_);
 }
 
@@ -2030,6 +2021,7 @@ JSAutoStructuredCloneBuffer::operator=(JSAutoStructuredCloneBuffer&& other)
 {
     MOZ_ASSERT(&other != this);
     clear();
+    ownTransferables_ = other.ownTransferables_;
     other.steal(&data_, &nbytes_, &version_);
     return *this;
 }
@@ -2038,7 +2030,10 @@ void
 JSAutoStructuredCloneBuffer::clear()
 {
     if (data_) {
-        ClearStructuredClone(data_, nbytes_, callbacks_, closure_);
+        if (ownTransferables_ == OwnsTransferablesIfAny)
+            DiscardTransferables(data_, nbytes_, callbacks_, closure_);
+        ownTransferables_ = NoTransferables;
+        js_free(data_);
         data_ = nullptr;
         nbytes_ = 0;
         version_ = 0;
@@ -2049,9 +2044,7 @@ bool
 JSAutoStructuredCloneBuffer::copy(const uint64_t* srcData, size_t nbytes, uint32_t version)
 {
     // transferable objects cannot be copied
-    bool hasTransferable;
-    if (!StructuredCloneHasTransferObjects(data_, nbytes_, &hasTransferable) ||
-        hasTransferable)
+    if (StructuredCloneHasTransferObjects(data_, nbytes_))
         return false;
 
     uint64_t* newData = static_cast<uint64_t*>(js_malloc(nbytes));
@@ -2064,6 +2057,7 @@ JSAutoStructuredCloneBuffer::copy(const uint64_t* srcData, size_t nbytes, uint32
     data_ = newData;
     nbytes_ = nbytes;
     version_ = version;
+    ownTransferables_ = NoTransferables;
     return true;
 }
 
@@ -2074,6 +2068,7 @@ JSAutoStructuredCloneBuffer::adopt(uint64_t* data, size_t nbytes, uint32_t versi
     data_ = data;
     nbytes_ = nbytes;
     version_ = version;
+    ownTransferables_ = OwnsTransferablesIfAny;
 }
 
 void
@@ -2087,6 +2082,7 @@ JSAutoStructuredCloneBuffer::steal(uint64_t** datap, size_t* nbytesp, uint32_t* 
     data_ = nullptr;
     nbytes_ = 0;
     version_ = 0;
+    ownTransferables_ = NoTransferables;
 }
 
 bool
@@ -2116,13 +2112,17 @@ JSAutoStructuredCloneBuffer::write(JSContext* cx, HandleValue value,
                                    void* closure)
 {
     clear();
-    bool ok = !!JS_WriteStructuredClone(cx, value, &data_, &nbytes_,
-                                        optionalCallbacks, closure,
-                                        transferable);
-    if (!ok) {
+    bool ok = JS_WriteStructuredClone(cx, value, &data_, &nbytes_,
+                                      optionalCallbacks, closure,
+                                      transferable);
+
+    if (ok) {
+        ownTransferables_ = OwnsTransferablesIfAny;
+    } else {
         data_ = nullptr;
         nbytes_ = 0;
         version_ = JS_STRUCTURED_CLONE_VERSION;
+        ownTransferables_ = NoTransferables;
     }
     return ok;
 }

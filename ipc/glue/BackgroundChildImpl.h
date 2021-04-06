@@ -71,12 +71,6 @@ protected:
   virtual bool
   DeallocPFileDescriptorSetChild(PFileDescriptorSetChild* aActor) override;
 
-  virtual PMediaChild*
-  AllocPMediaChild() override;
-
-  virtual bool
-  DeallocPMediaChild(PMediaChild* aActor) override;
-
   virtual PVsyncChild*
   AllocPVsyncChild() override;
 
@@ -121,6 +115,13 @@ protected:
 
   virtual bool
   DeallocPCacheStreamControlChild(dom::cache::PCacheStreamControlChild* aActor) override;
+
+  virtual PMessagePortChild*
+  AllocPMessagePortChild(const nsID& aUUID, const nsID& aDestinationUUID,
+                         const uint32_t& aSequenceID) override;
+
+  virtual bool
+  DeallocPMessagePortChild(PMessagePortChild* aActor) override;
 };
 
 class BackgroundChildImpl::ThreadLocal final

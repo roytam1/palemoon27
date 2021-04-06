@@ -8,7 +8,7 @@
 #include "jsapi-tests/tests.h"
 
 static bool
-constructHook(JSContext* cx, unsigned argc, jsval* vp)
+constructHook(JSContext* cx, unsigned argc, JS::Value* vp)
 {
     JS::CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -90,7 +90,7 @@ BEGIN_TEST(testNewObject_1)
     CHECK(JS_GetArrayLength(cx, obj, &len));
     CHECK_EQUAL(len, N);
     CHECK(JS_GetElement(cx, obj, N - 1, &v));
-    CHECK_SAME(v, INT_TO_JSVAL(N - 1));
+    CHECK(v.isInt32(N - 1));
 
     // With JSClass.construct.
     static const JSClass cls = {

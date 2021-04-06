@@ -187,7 +187,7 @@ MediaEngineWebRTCAudioSource::GetName(nsAString& aName)
 }
 
 void
-MediaEngineWebRTCAudioSource::GetUUID(nsAString& aUUID)
+MediaEngineWebRTCAudioSource::GetUUID(nsACString& aUUID)
 {
   if (mInitDone) {
     aUUID.Assign(mDeviceUUID);
@@ -478,11 +478,12 @@ MediaEngineWebRTCAudioSource::Shutdown()
 {
   if (!mInitDone) {
     // duplicate these here in case we failed during Init()
-    if (mChannel != -1) {
+    if (mChannel != -1 && mVoENetwork) {
       mVoENetwork->DeRegisterExternalTransport(mChannel);
     }
 
     delete mNullTransport;
+    mNullTransport = nullptr;
     return;
   }
 
@@ -514,6 +515,7 @@ MediaEngineWebRTCAudioSource::Shutdown()
   }
 
   delete mNullTransport;
+  mNullTransport = nullptr;
 
   mVoEProcessing = nullptr;
   mVoENetwork = nullptr;

@@ -64,6 +64,8 @@ public:
   virtual void EnumerateAudioDevices(dom::MediaSourceEnum,
                                      nsTArray<nsRefPtr<MediaEngineAudioSource> >*) = 0;
 
+  virtual void Shutdown() = 0;
+
 protected:
   virtual ~MediaEngine() {}
 };
@@ -81,11 +83,13 @@ public:
 
   virtual ~MediaEngineSource() {}
 
+  virtual void Shutdown() = 0;
+
   /* Populate the human readable name of this device in the nsAString */
   virtual void GetName(nsAString&) = 0;
 
-  /* Populate the UUID of this device in the nsAString */
-  virtual void GetUUID(nsAString&) = 0;
+  /* Populate the UUID of this device in the nsACString */
+  virtual void GetUUID(nsACString&) = 0;
 
   /* Release the device back to the system. */
   virtual nsresult Deallocate() = 0;
@@ -245,6 +249,7 @@ public:
   /* This call reserves but does not start the device. */
   virtual nsresult Allocate(const dom::MediaTrackConstraints &aConstraints,
                             const MediaEnginePrefs &aPrefs) = 0;
+
 protected:
   explicit MediaEngineAudioSource(MediaEngineState aState)
     : MediaEngineSource(aState) {}

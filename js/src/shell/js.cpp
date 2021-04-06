@@ -565,7 +565,7 @@ Process(JSContext* cx, const char* filename, bool forceTTY)
 }
 
 static bool
-Version(JSContext* cx, unsigned argc, jsval* vp)
+Version(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JSVersion origVersion = JS_GetVersion(cx);
@@ -675,7 +675,7 @@ CreateMappedArrayBuffer(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-Options(JSContext* cx, unsigned argc, jsval* vp)
+Options(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -734,7 +734,7 @@ Options(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-LoadScript(JSContext* cx, unsigned argc, jsval* vp, bool scriptRelative)
+LoadScript(JSContext* cx, unsigned argc, Value* vp, bool scriptRelative)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -773,13 +773,13 @@ LoadScript(JSContext* cx, unsigned argc, jsval* vp, bool scriptRelative)
 }
 
 static bool
-Load(JSContext* cx, unsigned argc, jsval* vp)
+Load(JSContext* cx, unsigned argc, Value* vp)
 {
     return LoadScript(cx, argc, vp, false);
 }
 
 static bool
-LoadScriptRelativeToScript(JSContext* cx, unsigned argc, jsval* vp)
+LoadScriptRelativeToScript(JSContext* cx, unsigned argc, Value* vp)
 {
     return LoadScript(cx, argc, vp, true);
 }
@@ -1015,7 +1015,7 @@ class AutoSaveFrameChain
 };
 
 static bool
-Evaluate(JSContext* cx, unsigned argc, jsval* vp)
+Evaluate(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1309,7 +1309,7 @@ js::shell::FileAsString(JSContext* cx, const char* pathname)
  * to produce benchmark timings by SunSpider.
  */
 static bool
-Run(JSContext* cx, unsigned argc, jsval* vp)
+Run(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() != 1) {
@@ -1362,7 +1362,7 @@ Run(JSContext* cx, unsigned argc, jsval* vp)
  * Provides a hook for scripts to read a line from stdin.
  */
 static bool
-ReadLine(JSContext* cx, unsigned argc, jsval* vp)
+ReadLine(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1436,7 +1436,7 @@ ReadLine(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-PutStr(JSContext* cx, unsigned argc, jsval* vp)
+PutStr(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1457,7 +1457,7 @@ PutStr(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-Now(JSContext* cx, unsigned argc, jsval* vp)
+Now(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     double now = PRMJ_Now() / double(PRMJ_USEC_PER_MSEC);
@@ -1487,24 +1487,24 @@ PrintInternal(JSContext* cx, const CallArgs& args, FILE* file)
 }
 
 static bool
-Print(JSContext* cx, unsigned argc, jsval* vp)
+Print(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return PrintInternal(cx, args, gOutFile);
 }
 
 static bool
-PrintErr(JSContext* cx, unsigned argc, jsval* vp)
+PrintErr(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return PrintInternal(cx, args, gErrFile);
 }
 
 static bool
-Help(JSContext* cx, unsigned argc, jsval* vp);
+Help(JSContext* cx, unsigned argc, Value* vp);
 
 static bool
-Quit(JSContext* cx, unsigned argc, jsval* vp)
+Quit(JSContext* cx, unsigned argc, Value* vp)
 {
 #ifdef JS_MORE_DETERMINISTIC
     // Print a message to stderr in more-deterministic builds to help jsfunfuzz
@@ -1533,7 +1533,7 @@ Quit(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-StartTimingMutator(JSContext* cx, unsigned argc, jsval* vp)
+StartTimingMutator(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() > 0) {
@@ -1548,7 +1548,7 @@ StartTimingMutator(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-StopTimingMutator(JSContext* cx, unsigned argc, jsval* vp)
+StopTimingMutator(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() > 0) {
@@ -1586,7 +1586,7 @@ ToSource(JSContext* cx, MutableHandleValue vp, JSAutoByteString* bytes)
 }
 
 static bool
-AssertEq(JSContext* cx, unsigned argc, jsval* vp)
+AssertEq(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (!(args.length() == 2 || (args.length() == 3 && args[2].isString()))) {
@@ -1624,7 +1624,7 @@ AssertEq(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static JSScript*
-ValueToScript(JSContext* cx, jsval vArg, JSFunction** funp = nullptr)
+ValueToScript(JSContext* cx, Value vArg, JSFunction** funp = nullptr)
 {
     RootedValue v(cx, vArg);
     RootedFunction fun(cx, JS_ValueToFunction(cx, v));
@@ -1663,13 +1663,13 @@ GetTopScript(JSContext* cx)
 }
 
 static bool
-GetScriptAndPCArgs(JSContext* cx, unsigned argc, jsval* argv, MutableHandleScript scriptp,
+GetScriptAndPCArgs(JSContext* cx, unsigned argc, Value* argv, MutableHandleScript scriptp,
                    int32_t* ip)
 {
     RootedScript script(cx, GetTopScript(cx));
     *ip = 0;
     if (argc != 0) {
-        jsval v = argv[0];
+        Value v = argv[0];
         unsigned intarg = 0;
         if (v.isObject() &&
             JS_GetClass(&v.toObject()) == Jsvalify(&JSFunction::class_)) {
@@ -1694,7 +1694,7 @@ GetScriptAndPCArgs(JSContext* cx, unsigned argc, jsval* argv, MutableHandleScrip
 }
 
 static bool
-LineToPC(JSContext* cx, unsigned argc, jsval* vp)
+LineToPC(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1724,7 +1724,7 @@ LineToPC(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-PCToLine(JSContext* cx, unsigned argc, jsval* vp)
+PCToLine(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedScript script(cx);
@@ -1873,7 +1873,7 @@ SrcNotes(JSContext* cx, HandleScript script, Sprinter* sp)
 }
 
 static bool
-Notes(JSContext* cx, unsigned argc, jsval* vp)
+Notes(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     Sprinter sprinter(cx);
@@ -1996,11 +1996,11 @@ namespace {
 
 struct DisassembleOptionParser {
     unsigned   argc;
-    jsval*  argv;
+    Value*  argv;
     bool    lines;
     bool    recursive;
 
-    DisassembleOptionParser(unsigned argc, jsval* argv)
+    DisassembleOptionParser(unsigned argc, Value* argv)
       : argc(argc), argv(argv), lines(false), recursive(false) {}
 
     bool parse(JSContext* cx) {
@@ -2025,7 +2025,7 @@ struct DisassembleOptionParser {
 } /* anonymous namespace */
 
 static bool
-DisassembleToSprinter(JSContext* cx, unsigned argc, jsval* vp, Sprinter* sprinter)
+DisassembleToSprinter(JSContext* cx, unsigned argc, Value* vp, Sprinter* sprinter)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     DisassembleOptionParser p(args.length(), args.array());
@@ -2057,7 +2057,7 @@ DisassembleToSprinter(JSContext* cx, unsigned argc, jsval* vp, Sprinter* sprinte
 }
 
 static bool
-DisassembleToString(JSContext* cx, unsigned argc, jsval* vp)
+DisassembleToString(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     Sprinter sprinter(cx);
@@ -2074,7 +2074,7 @@ DisassembleToString(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-Disassemble(JSContext* cx, unsigned argc, jsval* vp)
+Disassemble(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     Sprinter sprinter(cx);
@@ -2089,7 +2089,7 @@ Disassemble(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-DisassFile(JSContext* cx, unsigned argc, jsval* vp)
+DisassFile(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -2138,7 +2138,7 @@ DisassFile(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-DisassWithSrc(JSContext* cx, unsigned argc, jsval* vp)
+DisassWithSrc(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -2236,7 +2236,7 @@ DisassWithSrc(JSContext* cx, unsigned argc, jsval* vp)
 #endif /* DEBUG */
 
 static bool
-Intern(JSContext* cx, unsigned argc, jsval* vp)
+Intern(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JSString* str = JS::ToString(cx, args.get(0));
@@ -2257,7 +2257,7 @@ Intern(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-Clone(JSContext* cx, unsigned argc, jsval* vp)
+Clone(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject parent(cx);
@@ -2307,7 +2307,7 @@ Clone(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-GetSLX(JSContext* cx, unsigned argc, jsval* vp)
+GetSLX(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedScript script(cx);
@@ -2320,7 +2320,7 @@ GetSLX(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-ThrowError(JSContext* cx, unsigned argc, jsval* vp)
+ThrowError(JSContext* cx, unsigned argc, Value* vp)
 {
     JS_ReportError(cx, "This is an error");
     return false;
@@ -2398,7 +2398,7 @@ NewSandbox(JSContext* cx, bool lazy)
 }
 
 static bool
-EvalInContext(JSContext* cx, unsigned argc, jsval* vp)
+EvalInContext(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (!args.requireAtLeast(cx, "evalcx", 1))
@@ -2547,7 +2547,7 @@ WorkerMain(void* arg)
 Vector<PRThread*, 0, SystemAllocPolicy> workerThreads;
 
 static bool
-EvalInWorker(JSContext* cx, unsigned argc, jsval* vp)
+EvalInWorker(JSContext* cx, unsigned argc, Value* vp)
 {
     if (!CanUseExtraThreads()) {
         JS_ReportError(cx, "Can't create worker threads with --no-threads");
@@ -2843,7 +2843,7 @@ InterruptIf(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-InvokeInterruptCallbackWrapper(JSContext* cx, unsigned argc, jsval* vp)
+InvokeInterruptCallbackWrapper(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() != 1) {
@@ -2929,7 +2929,7 @@ StackPointerInfo(JSContext* cx, unsigned argc, Value* vp)
 
 
 static bool
-Elapsed(JSContext* cx, unsigned argc, jsval* vp)
+Elapsed(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
@@ -2945,7 +2945,7 @@ Elapsed(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-Compile(JSContext* cx, unsigned argc, jsval* vp)
+Compile(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() < 1) {
@@ -2981,7 +2981,7 @@ Compile(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-Parse(JSContext* cx, unsigned argc, jsval* vp)
+Parse(JSContext* cx, unsigned argc, Value* vp)
 {
     using namespace js::frontend;
 
@@ -3029,7 +3029,7 @@ Parse(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-SyntaxParse(JSContext* cx, unsigned argc, jsval* vp)
+SyntaxParse(JSContext* cx, unsigned argc, Value* vp)
 {
     using namespace js::frontend;
 
@@ -3164,7 +3164,7 @@ OffThreadCompileScriptCallback(void* token, void* callbackData)
 }
 
 static bool
-OffThreadCompileScript(JSContext* cx, unsigned argc, jsval* vp)
+OffThreadCompileScript(JSContext* cx, unsigned argc, Value* vp)
 {
     if (!CanUseExtraThreads()) {
         JS_ReportError(cx, "Can't use offThreadCompileScript with --no-threads");
@@ -3254,7 +3254,7 @@ OffThreadCompileScript(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-runOffThreadScript(JSContext* cx, unsigned argc, jsval* vp)
+runOffThreadScript(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -3389,7 +3389,7 @@ PropagateFlagToNestedShells(const char* flag)
 }
 
 static bool
-NestedShell(JSContext* cx, unsigned argc, jsval* vp)
+NestedShell(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -3537,7 +3537,7 @@ ThisFilename(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-WrapWithProto(JSContext* cx, unsigned argc, jsval* vp)
+WrapWithProto(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     Value obj = UndefinedValue(), proto = UndefinedValue();
@@ -3563,7 +3563,7 @@ WrapWithProto(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-NewGlobal(JSContext* cx, unsigned argc, jsval* vp)
+NewGlobal(JSContext* cx, unsigned argc, Value* vp)
 {
     JSPrincipals* principals = nullptr;
     JS::CompartmentOptions options;
@@ -3611,7 +3611,7 @@ NewGlobal(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-GetMaxArgs(JSContext* cx, unsigned argc, jsval* vp)
+GetMaxArgs(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     args.rval().setInt32(ARGS_LENGTH_MAX);
@@ -3619,7 +3619,7 @@ GetMaxArgs(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-ObjectEmulatingUndefined(JSContext* cx, unsigned argc, jsval* vp)
+ObjectEmulatingUndefined(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -3636,7 +3636,7 @@ ObjectEmulatingUndefined(JSContext* cx, unsigned argc, jsval* vp)
 }
 
 static bool
-GetSelfHostedValue(JSContext* cx, unsigned argc, jsval* vp)
+GetSelfHostedValue(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -3688,7 +3688,7 @@ class ShellSourceHook: public SourceHook {
 };
 
 static bool
-WithSourceHook(JSContext* cx, unsigned argc, jsval* vp)
+WithSourceHook(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject callee(cx, &args.callee());
@@ -4780,7 +4780,7 @@ DefineConsole(JSContext* cx, HandleObject global)
 #undef EXTERNAL_FUNCTION_COUNT
 
 static bool
-PrintHelpString(JSContext* cx, jsval v)
+PrintHelpString(JSContext* cx, Value v)
 {
     JSString* str = v.toString();
 
@@ -4818,7 +4818,7 @@ PrintHelp(JSContext* cx, HandleObject obj)
 }
 
 static bool
-Help(JSContext* cx, unsigned argc, jsval* vp)
+Help(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     fprintf(gOutFile, "%s\n", JS_GetImplementationVersion());

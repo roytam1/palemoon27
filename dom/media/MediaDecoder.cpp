@@ -308,23 +308,21 @@ void MediaDecoder::AddOutputStream(ProcessedMediaStream* aStream,
 double MediaDecoder::GetDuration()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mInfiniteStream) {
-    return std::numeric_limits<double>::infinity();
-  }
-
   return mDuration;
 }
 
-int64_t MediaDecoder::GetMediaDuration()
+AbstractCanonical<media::NullableTimeUnit>*
+MediaDecoder::CanonicalDurationOrNull()
 {
-  NS_ENSURE_TRUE(GetStateMachine(), -1);
-  return GetStateMachine()->GetDuration();
+  MOZ_ASSERT(mDecoderStateMachine);
+  return mDecoderStateMachine->CanonicalDuration();
 }
 
 void MediaDecoder::SetInfinite(bool aInfinite)
 {
   MOZ_ASSERT(NS_IsMainThread());
   mInfiniteStream = aInfinite;
+  DurationChanged();
 }
 
 bool MediaDecoder::IsInfinite()
@@ -369,6 +367,7 @@ MediaDecoder::MediaDecoder() :
   mPausedForPlaybackRateNull(false),
   mMinimizePreroll(false),
   mMediaTracksConstructed(false),
+  mFiredMetadataLoaded(false),
   mIsDormant(false),
   mWasEndedWhenEnteredDormant(false),
   mIsHeuristicDormantSupported(
@@ -387,6 +386,9 @@ MediaDecoder::MediaDecoder() :
   //
   // Initialize watchers.
   //
+
+  // mDuration
+  mWatchManager.Watch(mStateMachineDuration, &MediaDecoder::DurationChanged);
 
   // readyState
   mWatchManager.Watch(mPlayState, &MediaDecoder::UpdateReadyState);
@@ -646,18 +648,6 @@ void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
               aInfo->mAudio.mChannels, aInfo->mAudio.mRate,
               aInfo->HasAudio(), aInfo->HasVideo());
 
-  {
-    ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-    if (mStateMachineDuration.Ref().isNothing() && mStateMachineDuration.Ref().ref().IsInfinite()) {
-      SetInfinite(true);
-    } else {
-      mDuration = mStateMachineDuration.Ref().ref().ToSeconds();
-    }
-
-    // Duration has changed so we should recompute playback rate
-    UpdatePlaybackRate();
-  }
-
   mInfo = aInfo.forget();
   ConstructMediaTracks();
 
@@ -666,6 +656,7 @@ void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
     // our new size.
     Invalidate();
     if (aEventVisibility != MediaDecoderEventVisibility::Suppressed) {
+      mFiredMetadataLoaded = true;
       mOwner->MetadataLoaded(mInfo, nsAutoPtr<const MetadataTags>(aTags.forget()));
     }
   }
@@ -1076,22 +1067,38 @@ void MediaDecoder::UpdateLogicalPosition(MediaDecoderEventVisibility aEventVisib
   }
 }
 
-void MediaDecoder::DurationChanged(TimeUnit aNewDuration)
+void MediaDecoder::DurationChanged()
 {
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
+
   double oldDuration = mDuration;
-  mDuration = aNewDuration.ToSeconds();
+  if (IsInfinite()) {
+    mDuration = std::numeric_limits<double>::infinity();
+  } else if (mExplicitDuration.Ref().isSome()) {
+    mDuration = mExplicitDuration.Ref().ref();
+  } else if (mStateMachineDuration.Ref().isSome()) {
+    mDuration = mStateMachineDuration.Ref().ref().ToSeconds();
+  }
+
+  if (mDuration == oldDuration || IsNaN(mDuration)) {
+    return;
+  }
+
+  DECODER_LOG("Duration changed to %f", mDuration);
+
   // Duration has changed so we should recompute playback rate
   UpdatePlaybackRate();
 
-  if (mOwner && oldDuration != mDuration && !IsInfinite()) {
-    DECODER_LOG("Duration changed to %f", mDuration);
+  // See https://www.w3.org/Bugs/Public/show_bug.cgi?id=28822 for a discussion
+  // of whether we should fire durationchange on explicit infinity.
+  if (mOwner && mFiredMetadataLoaded &&
+      (!mozilla::IsInfinite<double>(mDuration) || mExplicitDuration.Ref().isSome())) {
     mOwner->DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
   }
 
-  if (CurrentPosition() > aNewDuration.ToMicroseconds()) {
-    Seek(aNewDuration.ToSeconds(), SeekTarget::Accurate);
+  if (CurrentPosition() > TimeUnit::FromSeconds(mDuration).ToMicroseconds()) {
+    Seek(mDuration, SeekTarget::Accurate);
   }
 }
 

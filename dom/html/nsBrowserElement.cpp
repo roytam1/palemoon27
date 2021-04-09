@@ -377,6 +377,62 @@ nsBrowserElement::GetContentDimensions(ErrorResult& aRv)
 }
 
 void
+nsBrowserElement::FindAll(const nsAString& aSearchString,
+                          BrowserFindCaseSensitivity aCaseSensitivity,
+                          ErrorResult& aRv)
+{
+  NS_ENSURE_TRUE_VOID(IsBrowserElementOrThrow(aRv));
+  NS_ENSURE_TRUE_VOID(IsNotWidgetOrThrow(aRv));
+
+  uint32_t caseSensitivity;
+  if (aCaseSensitivity == BrowserFindCaseSensitivity::Case_insensitive) {
+    caseSensitivity = nsIBrowserElementAPI::FIND_CASE_INSENSITIVE;
+  } else {
+    caseSensitivity = nsIBrowserElementAPI::FIND_CASE_SENSITIVE;
+  }
+
+  nsresult rv = mBrowserElementAPI->FindAll(aSearchString, caseSensitivity);
+
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+  }
+}
+
+void
+nsBrowserElement::FindNext(BrowserFindDirection aDirection,
+                          ErrorResult& aRv)
+{
+  NS_ENSURE_TRUE_VOID(IsBrowserElementOrThrow(aRv));
+  NS_ENSURE_TRUE_VOID(IsNotWidgetOrThrow(aRv));
+
+  uint32_t direction;
+  if (aDirection == BrowserFindDirection::Backward) {
+    direction = nsIBrowserElementAPI::FIND_BACKWARD;
+  } else {
+    direction = nsIBrowserElementAPI::FIND_FORWARD;
+  }
+
+  nsresult rv = mBrowserElementAPI->FindNext(direction);
+
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+  }
+}
+
+void
+nsBrowserElement::ClearMatch(ErrorResult& aRv)
+{
+  NS_ENSURE_TRUE_VOID(IsBrowserElementOrThrow(aRv));
+  NS_ENSURE_TRUE_VOID(IsNotWidgetOrThrow(aRv));
+
+  nsresult rv = mBrowserElementAPI->ClearMatch();
+
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+  }
+}
+
+void
 nsBrowserElement::AddNextPaintListener(BrowserElementNextPaintEventCallback& aListener,
                                        ErrorResult& aRv)
 {
@@ -416,29 +472,9 @@ nsBrowserElement::SetInputMethodActive(bool aIsActive,
 {
   NS_ENSURE_TRUE(IsBrowserElementOrThrow(aRv), nullptr);
 
-  nsCOMPtr<nsIFrameLoader> frameLoader = GetFrameLoader();
-  if (!frameLoader) {
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDOMElement> ownerElement;
-  nsresult rv = frameLoader->GetOwnerElement(getter_AddRefs(ownerElement));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(ownerElement);
-  nsCOMPtr<nsIPrincipal> principal = node->NodePrincipal();
-  if (!nsContentUtils::IsExactSitePermAllow(principal, "input-manage")) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-    return nullptr;
-  }
-
   nsCOMPtr<nsIDOMDOMRequest> req;
-  rv = mBrowserElementAPI->SetInputMethodActive(aIsActive,
-                                                getter_AddRefs(req));
+  nsresult rv = mBrowserElementAPI->SetInputMethodActive(aIsActive,
+                                                         getter_AddRefs(req));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     if (rv == NS_ERROR_INVALID_ARG) {
       aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
@@ -457,27 +493,7 @@ nsBrowserElement::SetNFCFocus(bool aIsFocus,
 {
   NS_ENSURE_TRUE_VOID(IsBrowserElementOrThrow(aRv));
 
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  if (!frameLoader) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
-  }
-
-  nsCOMPtr<nsIDOMElement> ownerElement;
-  nsresult rv = frameLoader->GetOwnerElement(getter_AddRefs(ownerElement));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(ownerElement);
-  nsCOMPtr<nsIPrincipal> principal = node->NodePrincipal();
-  if (!nsContentUtils::IsExactSitePermAllow(principal, "nfc-manager")) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-    return;
-  }
-
-  rv = mBrowserElementAPI->SetNFCFocus(aIsFocus);
+  nsresult rv = mBrowserElementAPI->SetNFCFocus(aIsFocus);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
   }

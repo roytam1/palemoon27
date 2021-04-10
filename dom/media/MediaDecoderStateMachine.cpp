@@ -447,9 +447,11 @@ void MediaDecoderStateMachine::SendStreamData()
   bool finished =
       (!mInfo.HasAudio() || AudioQueue().IsFinished()) &&
       (!mInfo.HasVideo() || VideoQueue().IsFinished());
-  if (mDecoder->IsSameOriginMedia()) {
+
+  {
     SourceMediaStream* mediaStream = stream->mStream;
     StreamTime endPosition = 0;
+    const bool isSameOrigin = mDecoder->IsSameOriginMedia();
 
     if (!stream->mStreamInitialized) {
       if (mInfo.HasAudio()) {
@@ -486,6 +488,9 @@ void MediaDecoderStateMachine::SendStreamData()
       AudioSegment output;
       for (uint32_t i = 0; i < audio.Length(); ++i) {
         SendStreamAudio(audio[i], stream, &output);
+      }
+      if (!isSameOrigin) {
+        output.ReplaceWithDisabled();
       }
       // |mNextAudioTime| is updated as we process each audio sample in
       // SendStreamAudio(). This is consistent with how |mNextVideoTime|
@@ -548,6 +553,9 @@ void MediaDecoderStateMachine::SendStreamData()
           VERBOSE_LOG("skipping writing video frame %lldus (end %lldus) to MediaStream",
                       v->mTime, v->GetEndTime());
         }
+      }
+      if (!isSameOrigin) {
+        output.ReplaceWithDisabled();
       }
       if (output.GetDuration() > 0) {
         mediaStream->AppendToTrack(videoTrackId, &output);
@@ -2347,7 +2355,6 @@ MediaDecoderStateMachine::FinishDecodeFirstFrame()
   // So we need to check if this has occurred, else our decode pipeline won't
   // run (since it doesn't need to) and we won't detect end of stream.
   CheckIfDecodeComplete();
-  MaybeStartPlayback();
 
   if (mQueuedSeek.Exists()) {
     mPendingSeek.Steal(mQueuedSeek);
@@ -2899,12 +2906,6 @@ void MediaDecoderStateMachine::UpdateRenderedVideoFrames()
       ScheduleStateMachineIn(USECS_PER_S);
       return;
     }
-  }
-
-  // We've got enough data to keep playing until at least the next frame.
-  // Start playing now if need be.
-  if ((mFragmentEndTime >= 0 && clock_time < mFragmentEndTime) || mFragmentEndTime < 0) {
-    MaybeStartPlayback();
   }
 
   // Cap the current time to the larger of the audio and video end time.

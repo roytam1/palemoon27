@@ -1382,11 +1382,6 @@ void MediaDecoderStateMachine::VolumeChanged()
   }
 }
 
-bool MediaDecoderStateMachine::IsRealTime() const
-{
-  return mRealTime;
-}
-
 void MediaDecoderStateMachine::RecomputeDuration()
 {
   MOZ_ASSERT(OnTaskQueue());
@@ -1417,13 +1412,6 @@ void MediaDecoderStateMachine::RecomputeDuration()
 
   MOZ_ASSERT(duration.ToMicroseconds() >= 0);
   mDuration = Some(duration);
-}
-
-void MediaDecoderStateMachine::SetFragmentEndTime(int64_t aEndTime)
-{
-  AssertCurrentThreadInMonitor();
-
-  mFragmentEndTime = aEndTime < 0 ? aEndTime : aEndTime;
 }
 
 bool MediaDecoderStateMachine::IsDormantNeeded()
@@ -2795,6 +2783,7 @@ int64_t MediaDecoderStateMachine::GetStreamClock() const
 
 int64_t MediaDecoderStateMachine::GetVideoStreamPosition() const
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
 
   if (!IsPlaying()) {
@@ -3153,6 +3142,7 @@ void MediaDecoderStateMachine::StartBuffering()
 
 void MediaDecoderStateMachine::SetPlayStartTime(const TimeStamp& aTimeStamp)
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   mPlayStartTime = aTimeStamp;
   if (!mAudioSink) {

@@ -145,11 +145,6 @@ public:
     DECODER_STATE_ERROR
   };
 
-  State GetState() {
-    AssertCurrentThreadInMonitor();
-    return mState;
-  }
-
   DecodedStreamData* GetDecodedStream() const;
 
   void AddOutputStream(ProcessedMediaStream* aStream, bool aFinishWhenEnded);
@@ -191,7 +186,8 @@ public:
 
   void FinishShutdown();
 
-  bool IsRealTime() const;
+  // Immutable after construction - may be called on any thread.
+  bool IsRealTime() const { return mRealTime; }
 
   // Functions used by assertions to ensure we're calling things
   // on the appropriate threads.
@@ -231,6 +227,7 @@ public:
   // This is called on the state machine thread and audio thread.
   // The decoder monitor must be obtained before calling this.
   bool HasAudio() const {
+    MOZ_ASSERT(OnTaskQueue());
     AssertCurrentThreadInMonitor();
     return mInfo.HasAudio();
   }
@@ -238,6 +235,7 @@ public:
   // This is called on the state machine thread and audio thread.
   // The decoder monitor must be obtained before calling this.
   bool HasVideo() const {
+    MOZ_ASSERT(OnTaskQueue());
     AssertCurrentThreadInMonitor();
     return mInfo.HasVideo();
   }
@@ -306,7 +304,14 @@ public:
   void NotReached() { MOZ_DIAGNOSTIC_ASSERT(false); }
 
   // Set the media fragment end time. aEndTime is in microseconds.
-  void SetFragmentEndTime(int64_t aEndTime);
+  void DispatchSetFragmentEndTime(int64_t aEndTime)
+  {
+    nsRefPtr<MediaDecoderStateMachine> self = this;
+    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self, aEndTime] () {
+      self->mFragmentEndTime = aEndTime;
+    });
+    TaskQueue()->Dispatch(r.forget());
+  }
 
   // Drop reference to decoder.  Only called during shutdown dance.
   void BreakCycles() {
@@ -584,6 +589,7 @@ protected:
   // not start at 0. Note this is different than the "current playback position",
   // which is in the range [0,duration].
   int64_t GetMediaTime() const {
+    MOZ_ASSERT(OnTaskQueue());
     AssertCurrentThreadInMonitor();
     return mCurrentPosition;
   }
@@ -715,7 +721,7 @@ private:
   WatchManager<MediaDecoderStateMachine> mWatchManager;
 
   // True is we are decoding a realtime stream, like a camera stream.
-  bool mRealTime;
+  const bool mRealTime;
 
   // True if we've dispatched a task to run the state machine but the task has
   // yet to run.

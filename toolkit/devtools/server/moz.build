@@ -75,6 +75,7 @@ EXTRA_JS_MODULES.devtools.server.actors += [
     'actors/preference.js',
     'actors/pretty-print-worker.js',
     'actors/profiler.js',
+    'actors/promises.js',
     'actors/root.js',
     'actors/script.js',
     'actors/settings.js',
@@ -99,6 +100,7 @@ EXTRA_JS_MODULES.devtools.server.actors.utils += [
     'actors/utils/map-uri-to-addon-id.js',
     'actors/utils/ScriptStore.js',
     'actors/utils/stack.js',
+    'actors/utils/TabSources.js'
 ]
 
 FAIL_ON_WARNINGS = True

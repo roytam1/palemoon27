@@ -150,6 +150,7 @@ TabSources.prototype = {
       source: source,
       originalUrl: originalUrl,
       generatedSource: generatedSource,
+      isInlineSource: isInlineSource,
       contentType: contentType
     });
 
@@ -589,6 +590,39 @@ TabSources.prototype = {
       return OriginalLocation.fromGeneratedLocation(generatedLocation);
     });
   },
+
+  getAllGeneratedLocations: function (originalLocation) {
+    let {
+      originalSourceActor,
+      originalLine,
+      originalColumn
+    } = originalLocation;
+
+    let source = originalSourceActor.source ||
+                 originalSourceActor.generatedSource;
+
+    return this.fetchSourceMap(source).then((map) => {
+      if (map) {
+        map.computeColumnSpans();
+
+        return map.allGeneratedPositionsFor({
+          source: originalSourceActor.url,
+          line: originalLine,
+          column: originalColumn
+        }).map(({ line, column, lastColumn }) => {
+          return new GeneratedLocation(
+            this.createNonSourceMappedActor(source),
+            line,
+            column,
+            lastColumn
+          );
+        });
+      }
+
+      return [GeneratedLocation.fromOriginalLocation(originalLocation)];
+    });
+  },
+
 
   /**
    * Returns a promise of the location in the generated source corresponding to

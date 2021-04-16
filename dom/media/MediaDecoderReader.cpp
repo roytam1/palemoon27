@@ -174,11 +174,11 @@ MediaDecoderReader::GetBuffered()
   NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
   AutoPinned<MediaResource> stream(mDecoder->GetResource());
 
-  if (!mDuration.ReadOnWrongThread().isSome()) {
+  if (!mDuration.Ref().isSome()) {
     return TimeIntervals();
   }
 
-  return GetEstimatedBufferedTimeRanges(stream, mDuration.ReadOnWrongThread().ref().ToMicroseconds());
+  return GetEstimatedBufferedTimeRanges(stream, mDuration.Ref().ref().ToMicroseconds());
 }
 
 nsRefPtr<MediaDecoderReader::MetadataPromise>
@@ -226,7 +226,7 @@ public:
 
   NS_METHOD Run()
   {
-    MOZ_ASSERT(mReader->GetTaskQueue()->IsCurrentThreadIn());
+    MOZ_ASSERT(mReader->OnTaskQueue());
 
     // Make sure ResetDecode hasn't been called in the mean time.
     if (!mReader->mBaseVideoPromise.IsEmpty()) {
@@ -251,7 +251,7 @@ public:
 
   NS_METHOD Run()
   {
-    MOZ_ASSERT(mReader->GetTaskQueue()->IsCurrentThreadIn());
+    MOZ_ASSERT(mReader->OnTaskQueue());
 
     // Make sure ResetDecode hasn't been called in the mean time.
     if (!mReader->mBaseAudioPromise.IsEmpty()) {
@@ -339,7 +339,9 @@ MediaDecoderReader::RequestAudioData()
 void
 MediaDecoderReader::BreakCycles()
 {
-  mTaskQueue = nullptr;
+  // Nothing left to do here these days. We keep this method around so that, if
+  // we need it, we don't have to make all of the subclass implementations call
+  // the superclass method again.
 }
 
 nsRefPtr<ShutdownPromise>
@@ -358,7 +360,7 @@ MediaDecoderReader::Shutdown()
 
   // Spin down the task queue if necessary. We wait until BreakCycles to null
   // out mTaskQueue, since otherwise any remaining tasks could crash when they
-  // invoke GetTaskQueue()->IsCurrentThreadIn().
+  // invoke OnTaskQueue().
   if (mTaskQueue && !mTaskQueueIsBorrowed) {
     // If we own our task queue, shutdown ends when the task queue is done.
     p = mTaskQueue->BeginShutdown();

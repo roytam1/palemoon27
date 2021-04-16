@@ -12,7 +12,8 @@
  */
 let { Ci, Cc, CC, Cu, Cr } = require("chrome");
 let Services = require("Services");
-let { ActorPool, RegisteredActorFactory, ObservedActorFactory } = require("devtools/server/actors/common");
+let { ActorPool, OriginalLocation, RegisteredActorFactory,
+      ObservedActorFactory } = require("devtools/server/actors/common");
 let { LocalDebuggerTransport, ChildDebuggerTransport } =
   require("devtools/toolkit/transport/transport");
 let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
@@ -536,6 +537,11 @@ var DebuggerServer = {
       prefix: "animations",
       constructor: "AnimationsActor",
       type: { tab: true }
+    });
+    this.registerModule("devtools/server/actors/promises", {
+      prefix: "promises",
+      constructor: "PromisesActor",
+      type: { global: true, tab: true }
     });
   },
 
@@ -1130,9 +1136,14 @@ EventEmitter.decorate(DebuggerServer);
 
 if (this.exports) {
   exports.DebuggerServer = DebuggerServer;
+  exports.ActorPool = ActorPool;
+  exports.OriginalLocation = OriginalLocation;
 }
+
 // Needed on B2G (See header note)
 this.DebuggerServer = DebuggerServer;
+this.ActorPool = ActorPool;
+this.OriginalLocation = OriginalLocation;
 
 // When using DebuggerServer.addActors, some symbols are expected to be in
 // the scope of the added actor even before the corresponding modules are
@@ -1142,11 +1153,6 @@ let includes = ["Components", "Ci", "Cu", "require", "Services", "DebuggerServer
 includes.forEach(name => {
   DebuggerServer[name] = this[name];
 });
-
-// Export ActorPool for requirers of main.js
-if (this.exports) {
-  exports.ActorPool = ActorPool;
-}
 
 /**
  * Creates a DebuggerServerConnection.

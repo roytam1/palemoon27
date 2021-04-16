@@ -29,7 +29,6 @@
 #include "nsITransport.h"
 #include "nsISocketTransportService.h"
 #include <algorithm>
-#include "Http2Compression.h"
 #include "mozilla/ChaosMode.h"
 #include "mozilla/unused.h"
 
@@ -174,7 +173,6 @@ nsHttpConnectionMgr::Shutdown()
     // wait for shutdown event to complete
     while (!shutdown)
         NS_ProcessNextEvent(NS_GetCurrentThread());
-    Http2CompressionCleanup();
 
     return NS_OK;
 }

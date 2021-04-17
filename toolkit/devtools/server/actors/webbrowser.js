@@ -8,6 +8,7 @@
 
 let { Ci, Cu } = require("chrome");
 let Services = require("Services");
+let promise = require("promise");
 let { ActorPool, createExtraActors, appendExtraActors } = require("devtools/server/actors/common");
 let { DebuggerServer } = require("devtools/server/main");
 let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
@@ -15,7 +16,6 @@ let { dbg_assert } = DevToolsUtils;
 let { TabSources, isHiddenSource } = require("./utils/TabSources");
 let makeDebugger = require("./utils/make-debugger");
 
-let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 loader.lazyRequireGetter(this, "RootActor", "devtools/server/actors/root", true);
@@ -80,7 +80,7 @@ function getInnerId(window) {
  * youngest, using nsIWindowMediator::getEnumerator. We're usually
  * interested in "navigator:browser" windows.
  */
-function allAppShellDOMWindows(aWindowType)
+function* allAppShellDOMWindows(aWindowType)
 {
   let e = Services.wm.getEnumerator(aWindowType);
   while (e.hasMoreElements()) {
@@ -1816,7 +1816,7 @@ BrowserAddonList.prototype.getList = function() {
         this._actorByAddonId.set(addon.id, actor);
       }
     }
-    deferred.resolve([actor for ([_, actor] of this._actorByAddonId)]);
+    deferred.resolve([...this._actorByAddonId].map(([_, actor]) => actor));
   });
   return deferred.promise;
 }

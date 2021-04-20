@@ -53,6 +53,7 @@ EXTRA_JS_MODULES.devtools.server += [
 
 EXTRA_JS_MODULES.devtools.server.actors += [
     'actors/actor-registry.js',
+    'actors/addon.js',
     'actors/animation.js',
     'actors/call-watcher.js',
     'actors/canvas.js',
@@ -72,6 +73,7 @@ EXTRA_JS_MODULES.devtools.server.actors += [
     'actors/layout.js',
     'actors/memory.js',
     'actors/monitor.js',
+    'actors/object.js',
     'actors/preference.js',
     'actors/pretty-print-worker.js',
     'actors/profiler.js',

@@ -21,28 +21,28 @@
 
 namespace mozilla {
 
-using dom::URLSearchParams;
+using dom::URLParams;
 
 void
 OriginAttributes::CreateSuffix(nsACString& aStr) const
 {
   MOZ_RELEASE_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  nsRefPtr<URLSearchParams> usp = new URLSearchParams(nullptr);
+  UniquePtr<URLParams> params(new URLParams());
   nsAutoString value;
 
   if (mAppId != nsIScriptSecurityManager::NO_APP_ID) {
     value.AppendInt(mAppId);
-    usp->Set(NS_LITERAL_STRING("appId"), value);
+    params->Set(NS_LITERAL_STRING("appId"), value);
   }
 
   if (mInBrowser) {
-    usp->Set(NS_LITERAL_STRING("inBrowser"), NS_LITERAL_STRING("1"));
+    params->Set(NS_LITERAL_STRING("inBrowser"), NS_LITERAL_STRING("1"));
   }
 
   aStr.Truncate();
 
-  usp->Serialize(value);
+  params->Serialize(value);
   if (!value.IsEmpty()) {
     aStr.AppendLiteral("!");
     aStr.Append(NS_ConvertUTF16toUTF8(value));
@@ -52,7 +52,7 @@ OriginAttributes::CreateSuffix(nsACString& aStr) const
 namespace {
 
 class MOZ_STACK_CLASS PopulateFromSuffixIterator final
-  : public URLSearchParams::ForEachIterator
+  : public URLParams::ForEachIterator
 {
 public:
   explicit PopulateFromSuffixIterator(OriginAttributes* aOriginAttributes)
@@ -61,8 +61,8 @@ public:
     MOZ_ASSERT(aOriginAttributes);
   }
 
-  bool URLSearchParamsIterator(const nsString& aName,
-                               const nsString& aValue) override
+  bool URLParamsIterator(const nsString& aName,
+                         const nsString& aValue) override
   {
     if (aName.EqualsLiteral("appId")) {
       nsresult rv;
@@ -108,11 +108,17 @@ OriginAttributes::PopulateFromSuffix(const nsACString& aStr)
     return false;
   }
 
-  nsRefPtr<URLSearchParams> usp = new URLSearchParams(nullptr);
-  usp->ParseInput(Substring(aStr, 1, aStr.Length() - 1));
+  UniquePtr<URLParams> params(new URLParams());
+  params->ParseInput(Substring(aStr, 1, aStr.Length() - 1));
 
   PopulateFromSuffixIterator iterator(this);
-  return usp->ForEach(iterator);
+  return params->ForEach(iterator);
+}
+
+void
+OriginAttributes::CookieJar(nsACString& aStr)
+{
+  mozilla::GetJarPrefix(mAppId, mInBrowser, aStr);
 }
 
 BasePrincipal::BasePrincipal()
@@ -212,7 +218,7 @@ BasePrincipal::GetJarPrefix(nsACString& aJarPrefix)
 {
   MOZ_ASSERT(AppId() != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  mozilla::GetJarPrefix(AppId(), IsInBrowserElement(), aJarPrefix);
+  mOriginAttributes.CookieJar(aJarPrefix);
   return NS_OK;
 }
 
@@ -235,10 +241,8 @@ BasePrincipal::GetOriginSuffix(nsACString& aOriginAttributes)
 NS_IMETHODIMP
 BasePrincipal::GetCookieJar(nsACString& aCookieJar)
 {
-  // We just forward to .jarPrefix for now, which is a nice compact
-  // stringification of the (appId, inBrowser) tuple. This will eventaully be
-  // swapped out for an origin attribute - see the comment in nsIPrincipal.idl.
-  return GetJarPrefix(aCookieJar);
+  mOriginAttributes.CookieJar(aCookieJar);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

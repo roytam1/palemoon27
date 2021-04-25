@@ -9,6 +9,8 @@
 #include "mozilla/dom/CacheBinding.h"
 #include "mozilla/dom/cache/CacheStorage.h"
 #include "mozilla/dom/cache/Cache.h"
+#include "mozilla/ipc/BackgroundUtils.h"
+#include "mozilla/ipc/PBackgroundSharedTypes.h"
 #include "nsIThreadRetargetableRequest.h"
 
 #include "nsIPrincipal.h"
@@ -72,7 +74,7 @@ public:
   }
 
   nsresult
-  Initialize(nsIPrincipal* aPrincipal, const nsAString& aURL)
+  Initialize(nsIPrincipal* aPrincipal, const nsAString& aURL, nsILoadGroup* aLoadGroup)
   {
     MOZ_ASSERT(aPrincipal);
     AssertIsOnMainThread();
@@ -83,10 +85,17 @@ public:
       return rv;
     }
 
+    nsCOMPtr<nsILoadGroup> loadGroup;
+    rv = NS_NewLoadGroup(getter_AddRefs(loadGroup), aPrincipal);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+
     rv = NS_NewChannel(getter_AddRefs(mChannel),
                        uri, aPrincipal,
                        nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_SCRIPT); // FIXME(nsm): TYPE_SERVICEWORKER
+                       nsIContentPolicy::TYPE_SCRIPT, // FIXME(nsm): TYPE_SERVICEWORKER
+                       loadGroup);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
@@ -275,7 +284,7 @@ public:
 
   nsresult
   Initialize(nsIPrincipal* aPrincipal, const nsAString& aURL,
-             const nsAString& aCacheName)
+             const nsAString& aCacheName, nsILoadGroup* aLoadGroup)
   {
     AssertIsOnMainThread();
     MOZ_ASSERT(aPrincipal);
@@ -292,7 +301,7 @@ public:
     }
 
     mCN = new CompareNetwork(this);
-    nsresult rv = mCN->Initialize(aPrincipal, aURL);
+    nsresult rv = mCN->Initialize(aPrincipal, aURL, aLoadGroup);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
@@ -445,6 +454,28 @@ public:
     mChannelInfo.InitFromChannel(aChannel);
   }
 
+  nsresult
+  SetPrincipalInfo(nsIChannel* aChannel)
+  {
+    nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
+    NS_ASSERTION(ssm, "Should never be null!");
+
+    nsCOMPtr<nsIPrincipal> channelPrincipal;
+    nsresult rv = ssm->GetChannelResultPrincipal(aChannel, getter_AddRefs(channelPrincipal));
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+
+    UniquePtr<mozilla::ipc::PrincipalInfo> principalInfo(new mozilla::ipc::PrincipalInfo());
+    rv = PrincipalToPrincipalInfo(channelPrincipal, principalInfo.get());
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+
+    mPrincipalInfo = Move(principalInfo);
+    return NS_OK;
+  }
+
 private:
   ~CompareManager()
   {
@@ -540,6 +571,9 @@ private:
     ir->SetBody(body);
 
     ir->InitChannelInfo(mChannelInfo);
+    if (mPrincipalInfo) {
+      ir->SetPrincipalInfo(Move(mPrincipalInfo));
+    }
 
     nsRefPtr<Response> response = new Response(aCache->GetGlobalObject(), ir);
 
@@ -572,6 +606,8 @@ private:
 
   ChannelInfo mChannelInfo;
 
+  UniquePtr<mozilla::ipc::PrincipalInfo> mPrincipalInfo;
+
   nsCString mMaxScope;
 
   enum {
@@ -600,6 +636,10 @@ CompareNetwork::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
 #endif
 
   mManager->InitChannelInfo(mChannel);
+  nsresult rv = mManager->SetPrincipalInfo(mChannel);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
 
   return NS_OK;
 }
@@ -930,7 +970,8 @@ GenerateCacheName(nsAString& aName)
 
 nsresult
 Compare(nsIPrincipal* aPrincipal, const nsAString& aCacheName,
-        const nsAString& aURL, CompareCallback* aCallback)
+        const nsAString& aURL, CompareCallback* aCallback,
+        nsILoadGroup* aLoadGroup)
 {
   AssertIsOnMainThread();
   MOZ_ASSERT(aPrincipal);
@@ -939,7 +980,7 @@ Compare(nsIPrincipal* aPrincipal, const nsAString& aCacheName,
 
   nsRefPtr<CompareManager> cm = new CompareManager(aCallback);
 
-  nsresult rv = cm->Initialize(aPrincipal, aURL, aCacheName);
+  nsresult rv = cm->Initialize(aPrincipal, aURL, aCacheName, aLoadGroup);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }

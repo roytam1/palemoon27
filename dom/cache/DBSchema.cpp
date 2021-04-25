@@ -19,6 +19,7 @@
 #include "nsCRT.h"
 #include "nsHttp.h"
 #include "nsICryptoHash.h"
+#include "mozilla/BasePrincipal.h"
 #include "mozilla/dom/HeadersBinding.h"
 #include "mozilla/dom/RequestBinding.h"
 #include "mozilla/dom/ResponseBinding.h"
@@ -29,11 +30,11 @@ namespace dom {
 namespace cache {
 namespace db {
 
-const int32_t kMaxWipeSchemaVersion = 10;
+const int32_t kMaxWipeSchemaVersion = 11;
 
 namespace {
 
-const int32_t kLatestSchemaVersion = 10;
+const int32_t kLatestSchemaVersion = 11;
 const int32_t kMaxEntriesPerStatement = 255;
 
 const uint32_t kPageSize = 4 * 1024;
@@ -301,6 +302,11 @@ CreateSchema(mozIStorageConnection* aConn)
         "response_headers_guard INTEGER NOT NULL, "
         "response_body_id TEXT NULL, "
         "response_security_info_id INTEGER NULL REFERENCES security_info(id), "
+        "response_principal_info TEXT NOT NULL, "
+        "response_redirected INTEGER NOT NULL, "
+        // Note that response_redirected_url is either going to be empty, or
+        // it's going to be a URL different than response_url.
+        "response_redirected_url TEXT NOT NULL, "
         "cache_id INTEGER NOT NULL REFERENCES caches(id) ON DELETE CASCADE"
       ");"
     ));
@@ -1524,6 +1530,9 @@ InsertEntry(mozIStorageConnection* aConn, CacheId aCacheId,
       "response_headers_guard, "
       "response_body_id, "
       "response_security_info_id, "
+      "response_principal_info, "
+      "response_redirected, "
+      "response_redirected_url, "
       "cache_id "
     ") VALUES ("
       ":request_method, "
@@ -1544,6 +1553,9 @@ InsertEntry(mozIStorageConnection* aConn, CacheId aCacheId,
       ":response_headers_guard, "
       ":response_body_id, "
       ":response_security_info_id, "
+      ":response_principal_info, "
+      ":response_redirected, "
+      ":response_redirected_url, "
       ":cache_id "
     ");"
   ), getter_AddRefs(state));
@@ -1621,6 +1633,36 @@ InsertEntry(mozIStorageConnection* aConn, CacheId aCacheId,
     rv = state->BindInt32ByName(NS_LITERAL_CSTRING("response_security_info_id"),
                                 securityId);
   }
+  if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+  nsAutoCString serializedInfo;
+  // We only allow content serviceworkers right now.
+  if (aResponse.principalInfo().type() == mozilla::ipc::OptionalPrincipalInfo::TPrincipalInfo) {
+    const mozilla::ipc::PrincipalInfo& principalInfo =
+      aResponse.principalInfo().get_PrincipalInfo();
+    MOZ_ASSERT(principalInfo.type() == mozilla::ipc::PrincipalInfo::TContentPrincipalInfo);
+    const mozilla::ipc::ContentPrincipalInfo& cInfo =
+      principalInfo.get_ContentPrincipalInfo();
+
+    serializedInfo.Append(cInfo.spec());
+
+    MOZ_ASSERT(cInfo.appId() != nsIScriptSecurityManager::UNKNOWN_APP_ID);
+    OriginAttributes attrs(cInfo.appId(), cInfo.isInBrowserElement());
+    nsAutoCString suffix;
+    attrs.CreateSuffix(suffix);
+    serializedInfo.Append(suffix);
+  }
+
+  rv = state->BindUTF8StringByName(NS_LITERAL_CSTRING("response_principal_info"),
+                                   serializedInfo);
+  if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+  rv = state->BindInt32ByName(NS_LITERAL_CSTRING("response_redirected"),
+                              aResponse.channelInfo().redirected() ? 1 : 0);
+  if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+  rv = state->BindUTF8StringByName(NS_LITERAL_CSTRING("response_redirected_url"),
+                                   aResponse.channelInfo().redirectedURI());
   if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
   rv = state->BindInt64ByName(NS_LITERAL_CSTRING("cache_id"), aCacheId);
@@ -1714,6 +1756,9 @@ ReadResponse(mozIStorageConnection* aConn, EntryId aEntryId,
       "entries.response_status_text, "
       "entries.response_headers_guard, "
       "entries.response_body_id, "
+      "entries.response_principal_info, "
+      "entries.response_redirected, "
+      "entries.response_redirected_url, "
       "security_info.data "
     "FROM entries "
     "LEFT OUTER JOIN security_info "
@@ -1761,7 +1806,32 @@ ReadResponse(mozIStorageConnection* aConn, EntryId aEntryId,
     if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
   }
 
-  rv = state->GetBlobAsUTF8String(6, aSavedResponseOut->mValue.channelInfo().securityInfo());
+  nsAutoCString serializedInfo;
+  rv = state->GetUTF8String(6, serializedInfo);
+  if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+  aSavedResponseOut->mValue.principalInfo() = void_t();
+  if (!serializedInfo.IsEmpty()) {
+    nsAutoCString originNoSuffix;
+    OriginAttributes attrs;
+    fprintf(stderr, "\n%s\n", serializedInfo.get());
+    if (!attrs.PopulateFromOrigin(serializedInfo, originNoSuffix)) {
+      NS_WARNING("Something went wrong parsing a serialized principal!");
+      return NS_ERROR_FAILURE;
+    }
+
+    aSavedResponseOut->mValue.principalInfo() =
+      mozilla::ipc::ContentPrincipalInfo(attrs.mAppId, attrs.mInBrowser, originNoSuffix);
+  }
+
+  int32_t redirected;
+  rv = state->GetInt32(7, &redirected);
+  aSavedResponseOut->mValue.channelInfo().redirected() = !!redirected;
+
+  rv = state->GetUTF8String(8, aSavedResponseOut->mValue.channelInfo().redirectedURI());
+  if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
+
+  rv = state->GetBlobAsUTF8String(9, aSavedResponseOut->mValue.channelInfo().securityInfo());
   if (NS_WARN_IF(NS_FAILED(rv))) { return rv; }
 
   rv = aConn->CreateStatement(NS_LITERAL_CSTRING(

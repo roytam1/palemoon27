@@ -14,7 +14,7 @@
 #include "prlink.h"
 
 #include "ctypes/typedefs.h"
-#include "js/HashTable.h"
+#include "js/TraceableHashTable.h"
 #include "js/Vector.h"
 #include "vm/String.h"
 
@@ -236,6 +236,10 @@ struct FieldInfo
   JS::Heap<JSObject*> mType;    // CType of the field
   size_t              mIndex;   // index of the field in the struct (first is 0)
   size_t              mOffset;  // offset of the field in the struct, in bytes
+
+  void trace(JSTracer* trc) {
+    JS_CallObjectTracer(trc, &mType, "fieldType");
+  }
 };
 
 struct UnbarrieredFieldInfo
@@ -279,7 +283,11 @@ struct FieldHashPolicy : DefaultHasher<JSFlatString*>
   }
 };
 
-typedef HashMap<JSFlatString*, FieldInfo, FieldHashPolicy, SystemAllocPolicy> FieldInfoHash;
+typedef TraceableHashMap<JSFlatString*, FieldInfo, FieldHashPolicy, SystemAllocPolicy>
+    FieldInfoHash;
+
+void
+TraceFieldInfoHash(JSTracer* trc, FieldInfoHash* fields);
 
 // Descriptor of ABI, return type, argument types, and variadicity for a
 // FunctionType.

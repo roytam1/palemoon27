@@ -26,15 +26,6 @@ GCTraceKindToAscii(JS::TraceKind kind);
 
 } // namespace JS
 
-namespace js {
-class BaseShape;
-class LazyScript;
-class ObjectGroup;
-namespace jit {
-class JitCode;
-} // namespace jit
-} // namespace js
-
 enum WeakMapTraceKind {
     DoNotTraceWeakMaps = 0,
     TraceWeakMapValues = 1,
@@ -267,6 +258,31 @@ JSTracer::asCallbackTracer()
     MOZ_ASSERT(isCallbackTracer());
     return static_cast<JS::CallbackTracer*>(this);
 }
+
+namespace js {
+
+// Automates static dispatch for tracing for TraceableContainers.
+template <typename, typename=void> struct DefaultTracer;
+
+// The default for POD, non-pointer types is to do nothing.
+template <typename T>
+struct DefaultTracer<T, typename mozilla::EnableIf<!mozilla::IsPointer<T>::value &&
+                                                   mozilla::IsPod<T>::value>::Type> {
+    static void trace(JSTracer* trc, T* t, const char* name) {
+        MOZ_ASSERT(mozilla::IsPod<T>::value);
+        MOZ_ASSERT(!mozilla::IsPointer<T>::value);
+    }
+};
+
+// The default for non-pod (e.g. struct) types is to call the trace method.
+template <typename T>
+struct DefaultTracer<T, typename mozilla::EnableIf<!mozilla::IsPod<T>::value>::Type> {
+    static void trace(JSTracer* trc, T* t, const char* name) {
+        t->trace(trc);
+    }
+};
+
+} // namespace js
 
 // The JS_Call*Tracer family of functions traces the given GC thing reference.
 // This performs the tracing action configured on the given JSTracer:

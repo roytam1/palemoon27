@@ -197,6 +197,7 @@ js::Nursery::allocateObject(JSContext* cx, size_t size, size_t numDynamic, const
     /* If we want external slots, add them. */
     HeapSlot* slots = nullptr;
     if (numDynamic) {
+        MOZ_ASSERT(clasp->isNative());
         slots = static_cast<HeapSlot*>(allocateBuffer(cx->zone(), numDynamic * sizeof(HeapSlot)));
         if (!slots) {
             /*
@@ -246,9 +247,9 @@ js::Nursery::allocateBuffer(Zone* zone, uint32_t nbytes)
     }
 
     void* buffer = zone->pod_malloc<uint8_t>(nbytes);
-    if (buffer) {
-        /* If this put fails, we will only leak the slots. */
-        (void)mallocedBuffers.put(buffer);
+    if (buffer && !mallocedBuffers.putNew(buffer)) {
+        js_free(buffer);
+        return nullptr;
     }
     return buffer;
 }
@@ -273,11 +274,8 @@ js::Nursery::reallocateBuffer(JSObject* obj, void* oldBuffer,
 
     if (!isInside(oldBuffer)) {
         void* newBuffer = obj->zone()->pod_realloc<uint8_t>((uint8_t*)oldBuffer, oldBytes, newBytes);
-        if (newBuffer && oldBytes != newBytes) {
-            removeMallocedBuffer(oldBuffer);
-            /* If this put fails, we will only leak the slots. */
-            (void)mallocedBuffers.put(newBuffer);
-        }
+        if (newBuffer && oldBuffer != newBuffer)
+            MOZ_ALWAYS_TRUE(mallocedBuffers.rekeyAs(oldBuffer, newBuffer, newBuffer));
         return newBuffer;
     }
 
@@ -623,6 +621,7 @@ js::Nursery::freeMallocedBuffers()
 void
 js::Nursery::waitBackgroundFreeEnd()
 {
+    MOZ_ASSERT(freeMallocedBuffersTask);
     freeMallocedBuffersTask->join();
 }
 

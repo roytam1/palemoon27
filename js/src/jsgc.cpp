@@ -1318,6 +1318,10 @@ GCRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
 void
 GCRuntime::finish()
 {
+    /* Wait for the nursery sweeping to end. */
+    if (rt->gc.nursery.isEnabled())
+        rt->gc.nursery.waitBackgroundFreeEnd();
+
     /*
      * Wait until the background finalization and allocation stops and the
      * helper thread shuts down before we forcefully release any remaining GC
@@ -1363,15 +1367,14 @@ FinishPersistentRootedChain(mozilla::LinkedList<PersistentRooted<T>>& list)
 }
 
 void
-js::gc::FinishPersistentRootedChains(JSRuntime* rt)
+js::gc::FinishPersistentRootedChains(RootLists& roots)
 {
-    /* The lists of persistent roots are stored on the shadow runtime. */
-    FinishPersistentRootedChain(rt->functionPersistentRooteds);
-    FinishPersistentRootedChain(rt->idPersistentRooteds);
-    FinishPersistentRootedChain(rt->objectPersistentRooteds);
-    FinishPersistentRootedChain(rt->scriptPersistentRooteds);
-    FinishPersistentRootedChain(rt->stringPersistentRooteds);
-    FinishPersistentRootedChain(rt->valuePersistentRooteds);
+    FinishPersistentRootedChain(roots.functionPersistentRooteds);
+    FinishPersistentRootedChain(roots.idPersistentRooteds);
+    FinishPersistentRootedChain(roots.objectPersistentRooteds);
+    FinishPersistentRootedChain(roots.scriptPersistentRooteds);
+    FinishPersistentRootedChain(roots.stringPersistentRooteds);
+    FinishPersistentRootedChain(roots.valuePersistentRooteds);
 }
 
 void
@@ -1380,7 +1383,7 @@ GCRuntime::finishRoots()
     if (rootsHash.initialized())
         rootsHash.clear();
 
-    FinishPersistentRootedChains(rt);
+    FinishPersistentRootedChains(rt->mainThread.roots);
 }
 
 void
@@ -1389,6 +1392,8 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
     switch (key) {
       case JSGC_MAX_MALLOC_BYTES:
         setMaxMallocBytes(value);
+        for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next())
+            zone->setGCMaxMallocBytes(maxMallocBytesAllocated() * 0.9);
         break;
       case JSGC_SLICE_TIME_BUDGET:
         sliceBudget = value ? value : SliceBudget::Unlimited;
@@ -1410,6 +1415,10 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
         break;
       default:
         tunables.setParameter(key, value);
+        for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
+            zone->threshold.updateAfterGC(zone->usage.gcBytes(), GC_NORMAL, tunables,
+                                         schedulingState);
+        }
     }
 }
 
@@ -2598,6 +2607,7 @@ GCRuntime::updatePointersToRelocatedCells(Zone *zone)
         Debugger::markIncomingCrossCompartmentEdges(&trc);
 
         for (CompartmentsInZoneIter c(zone); !c.done(); c.next()) {
+            c->trace(&trc);
             WeakMapBase::markAll(c, &trc);
             if (c->watchpointMap)
                 c->watchpointMap->markAll(&trc);

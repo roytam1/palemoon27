@@ -800,8 +800,8 @@ class HasChildTracer : public JS::CallbackTracer
     RootedValue child_;
     bool found_;
 
-    void trace(void** thingp, JS::TraceKind kind) {
-        if (*thingp == child_.toGCThing())
+    void onChild(const JS::GCCellPtr& thing) override {
+        if (thing.asCell() == child_.toGCThing())
             found_ = true;
     }
 
@@ -1398,7 +1398,7 @@ js::testingFunc_inJit(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (!IsBaselineEnabled(cx)) {
+    if (!jit::IsBaselineEnabled(cx)) {
         JSString* error = JS_NewStringCopyZ(cx, "Baseline is disabled.");
         if(!error)
             return false;
@@ -1426,7 +1426,7 @@ js::testingFunc_inIon(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (!IsIonEnabled(cx)) {
+    if (!jit::IsIonEnabled(cx)) {
         JSString* error = JS_NewStringCopyZ(cx, "Ion is disabled.");
         if (!error)
             return false;

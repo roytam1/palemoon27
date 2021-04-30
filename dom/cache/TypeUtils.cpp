@@ -177,7 +177,6 @@ TypeUtils::ToCacheRequest(CacheRequest& aOut, InternalRequest* aIn,
   aOut.mode() = aIn->Mode();
   aOut.credentials() = aIn->GetCredentialsMode();
   aOut.contentPolicyType() = aIn->ContentPolicyType();
-  aOut.context() = aIn->Context();
   aOut.requestCache() = aIn->GetCacheMode();
 
   if (aBodyAction == IgnoreBody) {
@@ -225,6 +224,11 @@ TypeUtils::ToCacheResponseWithoutBody(CacheResponse& aOut,
   ToHeadersEntryList(aOut.headers(), headers);
   aOut.headersGuard() = headers->Guard();
   aOut.channelInfo() = aIn.GetChannelInfo().AsIPCChannelInfo();
+  if (aIn.GetPrincipalInfo()) {
+    aOut.principalInfo() = *aIn.GetPrincipalInfo();
+  } else {
+    aOut.principalInfo() = void_t();
+  }
 }
 
 void
@@ -291,6 +295,10 @@ TypeUtils::ToResponse(const CacheResponse& aIn)
   MOZ_ASSERT(!result.Failed());
 
   ir->InitChannelInfo(aIn.channelInfo());
+  if (aIn.principalInfo().type() == mozilla::ipc::OptionalPrincipalInfo::TPrincipalInfo) {
+    UniquePtr<mozilla::ipc::PrincipalInfo> info(new mozilla::ipc::PrincipalInfo(aIn.principalInfo().get_PrincipalInfo()));
+    ir->SetPrincipalInfo(Move(info));
+  }
 
   nsCOMPtr<nsIInputStream> stream = ReadStream::Create(aIn.body());
   ir->SetBody(stream);
@@ -328,10 +336,6 @@ TypeUtils::ToInternalRequest(const CacheRequest& aIn)
   internalRequest->SetMode(aIn.mode());
   internalRequest->SetCredentialsMode(aIn.credentials());
   internalRequest->SetContentPolicyType(aIn.contentPolicyType());
-  DebugOnly<RequestContext> contextAfterSetContentPolicyType = internalRequest->Context();
-  internalRequest->SetContext(aIn.context());
-  MOZ_ASSERT(contextAfterSetContentPolicyType.value == internalRequest->Context(),
-             "The RequestContext and nsContentPolicyType values should not get out of sync");
   internalRequest->SetCacheMode(aIn.requestCache());
 
   nsRefPtr<InternalHeaders> internalHeaders =

@@ -33,6 +33,7 @@
 
 using mozilla::Some;
 using mozilla::UniquePtr;
+using JS::DispatchTraceKindTyped;
 using JS::HandleValue;
 using JS::Value;
 using JS::ZoneSet;
@@ -65,9 +66,9 @@ struct Node::ConstructFunctor : public js::BoolDefaultAdaptor<Value, false> {
     template <typename T> bool operator()(T* t, Node* node) { node->construct(t); return true; }
 };
 
-Node::Node(JS::TraceKind kind, void* ptr)
+Node::Node(const JS::GCCellPtr &thing)
 {
-    CallTyped(ConstructFunctor(), ptr, kind, this);
+    DispatchTraceKindTyped(ConstructFunctor(), thing.asCell(), thing.kind(), this);
 }
 
 Node::Node(HandleValue value)
@@ -111,8 +112,15 @@ class SimpleEdgeVectorTracer : public JS::CallbackTracer {
     // True if we should populate the edge's names.
     bool wantNames;
 
-    void trace(void** thingp, JS::TraceKind kind) {
+    void onChild(const JS::GCCellPtr& thing) override {
         if (!okay)
+            return;
+
+        // Don't trace permanent atoms and well-known symbols that are owned by
+        // a parent JSRuntime.
+        if (thing.is<JSString>() && thing.as<JSString>().isPermanentAtom())
+            return;
+        if (thing.is<JS::Symbol>() && thing.as<JS::Symbol>().isWellKnownSymbol())
             return;
 
         char16_t* name16 = nullptr;
@@ -139,7 +147,7 @@ class SimpleEdgeVectorTracer : public JS::CallbackTracer {
         // ownership of name; if the append succeeds, the vector element
         // then takes ownership; if the append fails, then the temporary
         // retains it, and its destructor will free it.
-        if (!vec->append(mozilla::Move(SimpleEdge(name16, Node(kind, *thingp))))) {
+        if (!vec->append(mozilla::Move(SimpleEdge(name16, Node(thing))))) {
             okay = false;
             return;
         }
@@ -186,7 +194,7 @@ template<typename Referent>
 JS::Zone*
 TracerConcrete<Referent>::zone() const
 {
-    return get().zone();
+    return get().zoneFromAnyThread();
 }
 
 template<typename Referent>
@@ -197,7 +205,7 @@ TracerConcrete<Referent>::edges(JSContext* cx, bool wantNames) const {
     if (!range)
         return nullptr;
 
-    if (!range->init(cx, ptr, ::js::gc::MapTypeToTraceKind<Referent>::kind, wantNames))
+    if (!range->init(cx, ptr, JS::MapTypeToTraceKind<Referent>::kind, wantNames))
         return nullptr;
 
     return UniquePtr<EdgeRange>(range.release());

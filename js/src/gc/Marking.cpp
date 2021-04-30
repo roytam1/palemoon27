@@ -35,6 +35,8 @@
 using namespace js;
 using namespace js::gc;
 
+using JS::MapTypeToTraceKind;
+
 using mozilla::ArrayLength;
 using mozilla::DebugOnly;
 using mozilla::IsBaseOf;
@@ -266,7 +268,7 @@ CheckTracedThing<jsid>(JSTracer* trc, jsid id)
 
 #define IMPL_CHECK_TRACED_THING(_, type, __) \
     template void CheckTracedThing<type*>(JSTracer*, type*);
-FOR_EACH_GC_LAYOUT(IMPL_CHECK_TRACED_THING);
+JS_FOR_EACH_TRACEKIND(IMPL_CHECK_TRACED_THING);
 #undef IMPL_CHECK_TRACED_THING
 } // namespace js
 
@@ -415,7 +417,7 @@ template <typename T,
 struct BaseGCType;
 #define IMPL_BASE_GC_TYPE(name, type_, _) \
     template <typename T> struct BaseGCType<T, JS::TraceKind:: name> { typedef type_ type; };
-FOR_EACH_GC_LAYOUT(IMPL_BASE_GC_TYPE);
+JS_FOR_EACH_TRACEKIND(IMPL_BASE_GC_TYPE);
 #undef IMPL_BASE_GC_TYPE
 
 // Our barrier templates are parameterized on the pointer types so that we can
@@ -565,7 +567,7 @@ js::TraceGenericPointerRoot(JSTracer* trc, Cell** thingp, const char* name)
     if (!*thingp)
         return;
     TraceRootFunctor f;
-    CallTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
+    DispatchTraceKindTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
 }
 
 // A typed functor adaptor for TraceManuallyBarrieredEdge.
@@ -583,7 +585,7 @@ js::TraceManuallyBarrieredGenericPointerEdge(JSTracer* trc, Cell** thingp, const
     if (!*thingp)
         return;
     TraceManuallyBarrieredEdgeFunctor f;
-    CallTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
+    DispatchTraceKindTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
 }
 
 // This method is responsible for dynamic dispatch to the real tracer
@@ -595,7 +597,7 @@ DispatchToTracer(JSTracer* trc, T* thingp, const char* name)
 {
 #define IS_SAME_TYPE_OR(name, type, _) mozilla::IsSame<type*, T>::value ||
     static_assert(
-            FOR_EACH_GC_LAYOUT(IS_SAME_TYPE_OR)
+            JS_FOR_EACH_TRACEKIND(IS_SAME_TYPE_OR)
             mozilla::IsSame<T, JS::Value>::value ||
             mozilla::IsSame<T, jsid>::value,
             "Only the base cell layout types are allowed into marking/tracing internals");
@@ -1251,8 +1253,8 @@ GCMarker::processMarkStackTop(SliceBudget& budget)
       case SavedValueArrayTag: {
         MOZ_ASSERT(!(addr & CellMask));
         JSObject* obj = reinterpret_cast<JSObject*>(addr);
-        HeapValue* vp;
-        HeapValue* end;
+        HeapSlot* vp;
+        HeapSlot* end;
         if (restoreValueArray(obj, (void**)&vp, (void**)&end))
             pushValueArray(&obj->as<NativeObject>(), vp, end);
         else
@@ -1703,7 +1705,7 @@ struct PushArenaFunctor {
 void
 gc::PushArena(GCMarker* gcmarker, ArenaHeader* aheader)
 {
-    CallTyped(PushArenaFunctor(), MapAllocToTraceKind(aheader->getAllocKind()), gcmarker, aheader);
+    DispatchTraceKindTyped(PushArenaFunctor(), MapAllocToTraceKind(aheader->getAllocKind()), gcmarker, aheader);
 }
 
 #ifdef DEBUG
@@ -2080,7 +2082,7 @@ CheckIsMarkedThing(T* thingp)
 {
 #define IS_SAME_TYPE_OR(name, type, _) mozilla::IsSame<type*, T>::value ||
     static_assert(
-            FOR_EACH_GC_LAYOUT(IS_SAME_TYPE_OR)
+            JS_FOR_EACH_TRACEKIND(IS_SAME_TYPE_OR)
             false, "Only the base cell layout types are allowed into marking/tracing internals");
 #undef IS_SAME_TYPE_OR
 
@@ -2303,9 +2305,9 @@ TypeSet::MarkTypeUnbarriered(JSTracer* trc, TypeSet::Type* v, const char* name)
 #ifdef DEBUG
 struct AssertNonGrayTracer : public JS::CallbackTracer {
     explicit AssertNonGrayTracer(JSRuntime* rt) : JS::CallbackTracer(rt) {}
-    void trace(void** thingp, JS::TraceKind kind) override {
-        DebugOnly<Cell*> thing(static_cast<Cell*>(*thingp));
-        MOZ_ASSERT_IF(thing->isTenured(), !thing->asTenured().isMarked(js::gc::GRAY));
+    void onChild(const JS::GCCellPtr& thing) override {
+        MOZ_ASSERT_IF(thing.asCell()->isTenured(),
+                      !thing.asCell()->asTenured().isMarked(js::gc::GRAY));
     }
 };
 #endif
@@ -2330,7 +2332,7 @@ struct UnmarkGrayTracer : public JS::CallbackTracer
         unmarkedAny(false)
     {}
 
-    void trace(void** thingp, JS::TraceKind kind) override;
+    void onChild(const JS::GCCellPtr& thing) override;
 
     /* True iff we are tracing the immediate children of a shape. */
     bool tracingShape;
@@ -2373,7 +2375,7 @@ struct UnmarkGrayTracer : public JS::CallbackTracer
  *   containers.
  */
 void
-UnmarkGrayTracer::trace(void** thingp, JS::TraceKind kind)
+UnmarkGrayTracer::onChild(const JS::GCCellPtr& thing)
 {
     int stackDummy;
     if (!JS_CHECK_STACK_SIZE(runtime()->mainThread.nativeStackLimit[StackForSystemCode],
@@ -2387,14 +2389,14 @@ UnmarkGrayTracer::trace(void** thingp, JS::TraceKind kind)
         return;
     }
 
-    Cell* cell = static_cast<Cell*>(*thingp);
+    Cell* cell = thing.asCell();
 
     // Cells in the nursery cannot be gray, and therefore must necessarily point
     // to only black edges.
     if (!cell->isTenured()) {
 #ifdef DEBUG
         AssertNonGrayTracer nongray(runtime());
-        TraceChildren(&nongray, cell, kind);
+        TraceChildren(&nongray, cell, thing.kind());
 #endif
         return;
     }
@@ -2411,16 +2413,16 @@ UnmarkGrayTracer::trace(void** thingp, JS::TraceKind kind)
     // The parent will later trace |tenured|. This is done to avoid increasing
     // the stack depth during shape tracing. It is safe to do because a shape
     // can only have one child that is a shape.
-    UnmarkGrayTracer childTracer(this, kind == JS::TraceKind::Shape);
+    UnmarkGrayTracer childTracer(this, thing.kind() == JS::TraceKind::Shape);
 
-    if (kind != JS::TraceKind::Shape) {
-        TraceChildren(&childTracer, &tenured, kind);
+    if (thing.kind() != JS::TraceKind::Shape) {
+        TraceChildren(&childTracer, &tenured, thing.kind());
         MOZ_ASSERT(!childTracer.previousShape);
         unmarkedAny |= childTracer.unmarkedAny;
         return;
     }
 
-    MOZ_ASSERT(kind == JS::TraceKind::Shape);
+    MOZ_ASSERT(thing.kind() == JS::TraceKind::Shape);
     Shape* shape = static_cast<Shape*>(&tenured);
     if (tracingShape) {
         MOZ_ASSERT(!previousShape);

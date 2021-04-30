@@ -18,12 +18,12 @@
 #include "jswatchpoint.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
-#include "prmjtime.h"
 
 #include "builtin/TestingFunctions.h"
 #include "js/Proxy.h"
 #include "proxy/DeadObjectProxy.h"
 #include "vm/ArgumentsObject.h"
+#include "vm/Time.h"
 #include "vm/WeakMapObject.h"
 #include "vm/WrapperObject.h"
 
@@ -205,15 +205,15 @@ JS_WrapPropertyDescriptor(JSContext* cx, JS::MutableHandle<js::PropertyDescripto
 JS_FRIEND_API(void)
 JS_TraceShapeCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr shape)
 {
-    MOZ_ASSERT(shape.isShape());
-    TraceCycleCollectorChildren(trc, static_cast<Shape*>(shape.asCell()));
+    MOZ_ASSERT(shape.is<Shape>());
+    TraceCycleCollectorChildren(trc, &shape.as<Shape>());
 }
 
 JS_FRIEND_API(void)
 JS_TraceObjectGroupCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr group)
 {
-    MOZ_ASSERT(group.isObjectGroup());
-    TraceCycleCollectorChildren(trc, static_cast<ObjectGroup*>(group.asCell()));
+    MOZ_ASSERT(group.is<ObjectGroup>());
+    TraceCycleCollectorChildren(trc, &group.as<ObjectGroup>());
 }
 
 static bool
@@ -846,14 +846,14 @@ struct DumpHeapTracer : public JS::CallbackTracer, public WeakMapTracer
   private:
     void trace(JSObject* map, JS::GCCellPtr key, JS::GCCellPtr value) override {
         JSObject* kdelegate = nullptr;
-        if (key.isObject())
-            kdelegate = js::GetWeakmapKeyDelegate(key.toObject());
+        if (key.is<JSObject>())
+            kdelegate = js::GetWeakmapKeyDelegate(&key.as<JSObject>());
 
         fprintf(output, "WeakMapEntry map=%p key=%p keyDelegate=%p value=%p\n",
                 map, key.asCell(), kdelegate, value.asCell());
     }
 
-    void trace(void** thingp, JS::TraceKind kind) override;
+    void onChild(const JS::GCCellPtr& thing) override;
 };
 
 static char
@@ -907,14 +907,14 @@ DumpHeapVisitCell(JSRuntime* rt, void* data, void* thing,
 }
 
 void
-DumpHeapTracer::trace(void** thingp, JS::TraceKind kind)
+DumpHeapTracer::onChild(const JS::GCCellPtr& thing)
 {
-    if (gc::IsInsideNursery((js::gc::Cell*)*thingp))
+    if (gc::IsInsideNursery(thing.asCell()))
         return;
 
     char buffer[1024];
     getTracingEdgeName(buffer, sizeof(buffer));
-    fprintf(output, "%s%p %c %s\n", prefix, *thingp, MarkDescriptor(*thingp), buffer);
+    fprintf(output, "%s%p %c %s\n", prefix, thing.asCell(), MarkDescriptor(thing.asCell()), buffer);
 }
 
 void

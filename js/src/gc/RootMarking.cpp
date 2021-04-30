@@ -349,22 +349,27 @@ struct PersistentRootedMarker
 } // namespace js
 
 void
+js::gc::MarkPersistentRootedChainsInLists(RootLists& roots, JSTracer* trc)
+{
+    PersistentRootedMarker<JSObject*>::markChain(trc, roots.getPersistentRootedList<JSObject*>(),
+                                                 "PersistentRooted<JSObject*>");
+    PersistentRootedMarker<JSScript*>::markChain(trc, roots.getPersistentRootedList<JSScript*>(),
+                                                 "PersistentRooted<JSScript*>");
+    PersistentRootedMarker<JSString*>::markChain(trc, roots.getPersistentRootedList<JSString*>(),
+                                                 "PersistentRooted<JSString*>");
+
+    PersistentRootedMarker<jsid>::markChain(trc, roots.getPersistentRootedList<jsid>(),
+                                            "PersistentRooted<jsid>");
+    PersistentRootedMarker<Value>::markChain(trc, roots.getPersistentRootedList<Value>(),
+                                             "PersistentRooted<Value>");
+}
+
+void
 js::gc::MarkPersistentRootedChains(JSTracer* trc)
 {
-    JSRuntime* rt = trc->runtime();
-
-    PersistentRootedMarker<JSFunction*>::markChain(trc, rt->functionPersistentRooteds,
-                                                   "PersistentRooted<JSFunction*>");
-    PersistentRootedMarker<JSObject*>::markChain(trc, rt->objectPersistentRooteds,
-                                                 "PersistentRooted<JSObject*>");
-    PersistentRootedMarker<JSScript*>::markChain(trc, rt->scriptPersistentRooteds,
-                                                 "PersistentRooted<JSScript*>");
-    PersistentRootedMarker<JSString*>::markChain(trc, rt->stringPersistentRooteds,
-                                                 "PersistentRooted<JSString*>");
-    PersistentRootedMarker<jsid>::markChain(trc, rt->idPersistentRooteds,
-                                            "PersistentRooted<jsid>");
-    PersistentRootedMarker<Value>::markChain(trc, rt->valuePersistentRooteds,
-                                             "PersistentRooted<Value>");
+    for (ContextIter cx(trc->runtime()); !cx.done(); cx.next())
+        MarkPersistentRootedChainsInLists(cx->roots, trc);
+    MarkPersistentRootedChainsInLists(trc->runtime()->mainThread.roots, trc);
 }
 
 void
@@ -484,7 +489,7 @@ class BufferGrayRootsTracer : public JS::CallbackTracer
     // Set to false if we OOM while buffering gray roots.
     bool bufferingGrayRootsFailed;
 
-    void trace(void** thingp, JS::TraceKind kind) override;
+    void onChild(const JS::GCCellPtr& thing) override;
 
   public:
     explicit BufferGrayRootsTracer(JSRuntime* rt)
@@ -537,24 +542,24 @@ struct SetMaybeAliveFunctor {
 };
 
 void
-BufferGrayRootsTracer::trace(void** thingp, JS::TraceKind kind)
+BufferGrayRootsTracer::onChild(const JS::GCCellPtr& thing)
 {
     MOZ_ASSERT(runtime()->isHeapBusy());
 
     if (bufferingGrayRootsFailed)
         return;
 
-    gc::TenuredCell* thing = gc::TenuredCell::fromPointer(*thingp);
+    gc::TenuredCell* tenured = gc::TenuredCell::fromPointer(thing.asCell());
 
-    Zone* zone = thing->zone();
+    Zone* zone = tenured->zone();
     if (zone->isCollecting()) {
         // See the comment on SetMaybeAliveFlag to see why we only do this for
         // objects and scripts. We rely on gray root buffering for this to work,
         // but we only need to worry about uncollected dead compartments during
         // incremental GCs (when we do gray root buffering).
-        CallTyped(SetMaybeAliveFunctor(), thing, kind);
+        DispatchTraceKindTyped(SetMaybeAliveFunctor(), tenured, thing.kind());
 
-        if (!zone->gcGrayRoots.append(thing))
+        if (!zone->gcGrayRoots.append(tenured))
             bufferingGrayRootsFailed = true;
     }
 }

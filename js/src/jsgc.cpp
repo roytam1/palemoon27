@@ -210,7 +210,6 @@
 #ifdef XP_WIN
 # include "jswin.h"
 #endif
-#include "prmjtime.h"
 
 #include "gc/FindSCCs.h"
 #include "gc/GCInternals.h"
@@ -227,6 +226,7 @@
 #include "vm/Shape.h"
 #include "vm/String.h"
 #include "vm/Symbol.h"
+#include "vm/Time.h"
 #include "vm/TraceLogging.h"
 #include "vm/WrapperObject.h"
 
@@ -1318,6 +1318,10 @@ GCRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
 void
 GCRuntime::finish()
 {
+    /* Wait for the nursery sweeping to end. */
+    if (rt->gc.nursery.isEnabled())
+        rt->gc.nursery.waitBackgroundFreeEnd();
+
     /*
      * Wait until the background finalization and allocation stops and the
      * helper thread shuts down before we forcefully release any remaining GC
@@ -1363,15 +1367,13 @@ FinishPersistentRootedChain(mozilla::LinkedList<PersistentRooted<T>>& list)
 }
 
 void
-js::gc::FinishPersistentRootedChains(JSRuntime* rt)
+js::gc::FinishPersistentRootedChains(RootLists& roots)
 {
-    /* The lists of persistent roots are stored on the shadow runtime. */
-    FinishPersistentRootedChain(rt->functionPersistentRooteds);
-    FinishPersistentRootedChain(rt->idPersistentRooteds);
-    FinishPersistentRootedChain(rt->objectPersistentRooteds);
-    FinishPersistentRootedChain(rt->scriptPersistentRooteds);
-    FinishPersistentRootedChain(rt->stringPersistentRooteds);
-    FinishPersistentRootedChain(rt->valuePersistentRooteds);
+    FinishPersistentRootedChain(roots.getPersistentRootedList<JSObject*>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<JSScript*>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<JSString*>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<jsid>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<Value>());
 }
 
 void
@@ -1380,7 +1382,7 @@ GCRuntime::finishRoots()
     if (rootsHash.initialized())
         rootsHash.clear();
 
-    FinishPersistentRootedChains(rt);
+    FinishPersistentRootedChains(rt->mainThread.roots);
 }
 
 void
@@ -1389,6 +1391,8 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
     switch (key) {
       case JSGC_MAX_MALLOC_BYTES:
         setMaxMallocBytes(value);
+        for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next())
+            zone->setGCMaxMallocBytes(maxMallocBytesAllocated() * 0.9);
         break;
       case JSGC_SLICE_TIME_BUDGET:
         sliceBudget = value ? value : SliceBudget::Unlimited;
@@ -1410,6 +1414,10 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
         break;
       default:
         tunables.setParameter(key, value);
+        for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
+            zone->threshold.updateAfterGC(zone->usage.gcBytes(), GC_NORMAL, tunables,
+                                         schedulingState);
+        }
     }
 }
 
@@ -2207,19 +2215,10 @@ GCRuntime::relocateArenas(Zone *zone, JS::gcreason::Reason reason, SliceBudget &
 }
 
 void
-MovingTracer::trace(void** thingp, JS::TraceKind kind)
+MovingTracer::onObjectEdge(JSObject** objp)
 {
-    TenuredCell* thing = TenuredCell::fromPointer(*thingp);
-
-    // Currently we only relocate objects.
-    if (kind != JS::TraceKind::Object) {
-        MOZ_ASSERT(!RelocationOverlay::isCellForwarded(thing));
-        return;
-    }
-
-    JSObject* obj = reinterpret_cast<JSObject*>(thing);
-    if (IsForwarded(obj))
-        *thingp = Forwarded(obj);
+    if (IsForwarded(*objp))
+        *objp = Forwarded(*objp);
 }
 
 void
@@ -2607,6 +2606,7 @@ GCRuntime::updatePointersToRelocatedCells(Zone *zone)
         Debugger::markIncomingCrossCompartmentEdges(&trc);
 
         for (CompartmentsInZoneIter c(zone); !c.done(); c.next()) {
+            c->trace(&trc);
             WeakMapBase::markAll(c, &trc);
             if (c->watchpointMap)
                 c->watchpointMap->markAll(&trc);
@@ -3671,10 +3671,12 @@ GCRuntime::shouldPreserveJITCode(JSCompartment* comp, int64_t currentTime,
 #ifdef DEBUG
 class CompartmentCheckTracer : public JS::CallbackTracer
 {
-    void trace(void** thingp, JS::TraceKind kind) override;
+    void onChild(const JS::GCCellPtr& thing) override;
 
   public:
-    explicit CompartmentCheckTracer(JSRuntime* rt) : JS::CallbackTracer(rt) {}
+    explicit CompartmentCheckTracer(JSRuntime* rt)
+      : JS::CallbackTracer(rt), src(nullptr), zone(nullptr), compartment(nullptr)
+    {}
 
     Cell* src;
     JS::TraceKind srcKind;
@@ -3712,17 +3714,17 @@ struct MaybeCompartmentFunctor {
 };
 
 void
-CompartmentCheckTracer::trace(void** thingp, JS::TraceKind kind)
+CompartmentCheckTracer::onChild(const JS::GCCellPtr& thing)
 {
-    TenuredCell* thing = TenuredCell::fromPointer(*thingp);
+    TenuredCell* tenured = TenuredCell::fromPointer(thing.asCell());
 
-    JSCompartment* comp = CallTyped(MaybeCompartmentFunctor(), thing, kind);
+    JSCompartment* comp = DispatchTraceKindTyped(MaybeCompartmentFunctor(), tenured, thing.kind());
     if (comp && compartment) {
         MOZ_ASSERT(comp == compartment || runtime()->isAtomsCompartment(comp) ||
                    (srcKind == JS::TraceKind::Object &&
-                    InCrossCompartmentMap(static_cast<JSObject*>(src), thing, kind)));
+                    InCrossCompartmentMap(static_cast<JSObject*>(src), tenured, thing.kind())));
     } else {
-        MOZ_ASSERT(thing->zone() == zone || thing->zone()->isAtomsZone());
+        MOZ_ASSERT(tenured->zone() == zone || tenured->zone()->isAtomsZone());
     }
 }
 
@@ -3739,7 +3741,8 @@ GCRuntime::checkForCompartmentMismatches()
             for (ZoneCellIterUnderGC i(zone, thingKind); !i.done(); i.next()) {
                 trc.src = i.getCell();
                 trc.srcKind = MapAllocToTraceKind(thingKind);
-                trc.compartment = CallTyped(MaybeCompartmentFunctor(), trc.src, trc.srcKind);
+                trc.compartment = DispatchTraceKindTyped(MaybeCompartmentFunctor(),
+                                                         trc.src, trc.srcKind);
                 JS_TraceChildren(&trc, trc.src, trc.srcKind);
             }
         }
@@ -6104,7 +6107,7 @@ GCRuntime::collect(bool incremental, SliceBudget budget, JS::gcreason::Reason re
     JS_AbortIfWrongThread(rt);
 
     /* If we attempt to invoke the GC while we are running in the GC, assert. */
-    MOZ_ALWAYS_TRUE(!rt->isHeapBusy());
+    MOZ_RELEASE_ASSERT(!rt->isHeapBusy());
 
     /* The engine never locks across anything that could GC. */
     MOZ_ASSERT(!rt->currentThreadHasExclusiveAccess());
@@ -6231,7 +6234,7 @@ GCRuntime::abortGC()
 {
     JS_AbortIfWrongThread(rt);
 
-    MOZ_ALWAYS_TRUE(!rt->isHeapBusy());
+    MOZ_RELEASE_ASSERT(!rt->isHeapBusy());
     MOZ_ASSERT(!rt->currentThreadHasExclusiveAccess());
     MOZ_ASSERT(!rt->mainThread.suppressGC);
 
@@ -6941,7 +6944,7 @@ JS::GCTraceKindToAscii(JS::TraceKind kind)
 {
     switch(kind) {
 #define MAP_NAME(name, _0, _1) case JS::TraceKind::name: return #name;
-FOR_EACH_GC_LAYOUT(MAP_NAME);
+JS_FOR_EACH_TRACEKIND(MAP_NAME);
 #undef MAP_NAME
       default: return "Invalid";
     }
@@ -6971,8 +6974,8 @@ JS::GCCellPtr::outOfLineKind() const
 bool
 JS::GCCellPtr::mayBeOwnedByOtherRuntime() const
 {
-    return (isString() && toString()->isPermanentAtom()) ||
-           (isSymbol() && toSymbol()->isWellKnownSymbol());
+    return (is<JSString>() && as<JSString>().isPermanentAtom()) ||
+           (is<Symbol>() && as<Symbol>().isWellKnownSymbol());
 }
 
 #ifdef JSGC_HASH_TABLE_CHECKS
@@ -7169,7 +7172,7 @@ JS::IncrementalReferenceBarrier(GCCellPtr thing)
     if (!thing)
         return;
 
-    CallTyped(IncrementalReferenceBarrierFunctor(), thing.asCell(), thing.kind());
+    DispatchTraceKindTyped(IncrementalReferenceBarrierFunctor(), thing.asCell(), thing.kind());
 }
 
 JS_PUBLIC_API(void)

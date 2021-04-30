@@ -1369,12 +1369,11 @@ FinishPersistentRootedChain(mozilla::LinkedList<PersistentRooted<T>>& list)
 void
 js::gc::FinishPersistentRootedChains(RootLists& roots)
 {
-    FinishPersistentRootedChain(roots.functionPersistentRooteds);
-    FinishPersistentRootedChain(roots.idPersistentRooteds);
-    FinishPersistentRootedChain(roots.objectPersistentRooteds);
-    FinishPersistentRootedChain(roots.scriptPersistentRooteds);
-    FinishPersistentRootedChain(roots.stringPersistentRooteds);
-    FinishPersistentRootedChain(roots.valuePersistentRooteds);
+    FinishPersistentRootedChain(roots.getPersistentRootedList<JSObject*>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<JSScript*>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<JSString*>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<jsid>());
+    FinishPersistentRootedChain(roots.getPersistentRootedList<Value>());
 }
 
 void
@@ -6108,7 +6107,7 @@ GCRuntime::collect(bool incremental, SliceBudget budget, JS::gcreason::Reason re
     JS_AbortIfWrongThread(rt);
 
     /* If we attempt to invoke the GC while we are running in the GC, assert. */
-    MOZ_ALWAYS_TRUE(!rt->isHeapBusy());
+    MOZ_RELEASE_ASSERT(!rt->isHeapBusy());
 
     /* The engine never locks across anything that could GC. */
     MOZ_ASSERT(!rt->currentThreadHasExclusiveAccess());
@@ -6235,7 +6234,7 @@ GCRuntime::abortGC()
 {
     JS_AbortIfWrongThread(rt);
 
-    MOZ_ALWAYS_TRUE(!rt->isHeapBusy());
+    MOZ_RELEASE_ASSERT(!rt->isHeapBusy());
     MOZ_ASSERT(!rt->currentThreadHasExclusiveAccess());
     MOZ_ASSERT(!rt->mainThread.suppressGC);
 

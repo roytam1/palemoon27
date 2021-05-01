@@ -10,6 +10,7 @@
 #include "nsIContentPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIHttpChannel.h"
+#include "nsIHttpChannelInternal.h"
 #include "nsIInputStreamPump.h"
 #include "nsIIOService.h"
 #include "nsIProtocolHandler.h"
@@ -860,6 +861,16 @@ private:
       return rv;
     }
 
+    // If we are loading a script for a ServiceWorker then we must not
+    // try to intercept it.  If the interception matches the current
+    // ServiceWorker's scope then we could deadlock the load.
+    if (mWorkerPrivate->IsServiceWorker()) {
+      nsCOMPtr<nsIHttpChannelInternal> internal = do_QueryInterface(channel);
+      if (internal) {
+        internal->ForceNoIntercept();
+      }
+    }
+
     if (loadInfo.mCacheStatus != ScriptLoadInfo::ToBeCached) {
       rv = channel->AsyncOpen(loader, indexSupports);
       if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -1097,7 +1108,7 @@ private:
         mWorkerPrivate->SetBaseURI(finalURI);
       }
 
-      nsIPrincipal* principal = mWorkerPrivate->GetPrincipal();
+      DebugOnly<nsIPrincipal*> principal = mWorkerPrivate->GetPrincipal();
       MOZ_ASSERT(principal);
       nsILoadGroup* loadGroup = mWorkerPrivate->GetLoadGroup();
       MOZ_ASSERT(loadGroup);

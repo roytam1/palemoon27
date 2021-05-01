@@ -92,6 +92,12 @@ protected:
   virtual bool
   DeallocPServiceWorkerManagerParent(PServiceWorkerManagerParent* aActor) override;
 
+  virtual PMediaParent*
+  AllocPMediaParent() override;
+
+  virtual bool
+  DeallocPMediaParent(PMediaParent* aActor) override;
+
   virtual bool
   RecvShutdownServiceWorkerRegistrar() override;
 

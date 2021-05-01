@@ -151,7 +151,9 @@ MediaEngineWebRTCVideoSource::NotifyPull(MediaStreamGraph* aGraph,
 size_t
 MediaEngineWebRTCVideoSource::NumCapabilities()
 {
-  int num = mViECapture->NumberOfCapabilities(GetUUID().get(), kMaxUniqueIdLength);
+  NS_ConvertUTF16toUTF8 uniqueId(mUniqueId); // TODO: optimize this?
+
+  int num = mViECapture->NumberOfCapabilities(uniqueId.get(), kMaxUniqueIdLength);
   if (num > 0) {
     return num;
   }
@@ -203,23 +205,23 @@ MediaEngineWebRTCVideoSource::GetCapability(size_t aIndex,
   if (!mHardcodedCapabilities.IsEmpty()) {
     MediaEngineCameraVideoSource::GetCapability(aIndex, aOut);
   }
-  mViECapture->GetCaptureCapability(GetUUID().get(), kMaxUniqueIdLength, aIndex, aOut);
+  NS_ConvertUTF16toUTF8 uniqueId(mUniqueId); // TODO: optimize this?
+  mViECapture->GetCaptureCapability(uniqueId.get(), kMaxUniqueIdLength, aIndex, aOut);
 }
 
 nsresult
 MediaEngineWebRTCVideoSource::Allocate(const dom::MediaTrackConstraints &aConstraints,
-                                       const MediaEnginePrefs &aPrefs,
-                                       const nsString& aDeviceId)
+                                       const MediaEnginePrefs &aPrefs)
 {
   LOG((__FUNCTION__));
   if (mState == kReleased && mInitDone) {
     // Note: if shared, we don't allow a later opener to affect the resolution.
     // (This may change depending on spec changes for Constraints/settings)
 
-    if (!ChooseCapability(aConstraints, aPrefs, aDeviceId)) {
+    if (!ChooseCapability(aConstraints, aPrefs)) {
       return NS_ERROR_UNEXPECTED;
     }
-    if (mViECapture->AllocateCaptureDevice(GetUUID().get(),
+    if (mViECapture->AllocateCaptureDevice(NS_ConvertUTF16toUTF8(mUniqueId).get(),
                                            kMaxUniqueIdLength, mCaptureIndex)) {
       return NS_ERROR_FAILURE;
     }
@@ -264,7 +266,7 @@ MediaEngineWebRTCVideoSource::Deallocate()
     // another thread anywhere else, b) ViEInputManager::DestroyCaptureDevice() grabs
     // an exclusive object lock and deletes it in a critical section, so all in all
     // this should be safe threadwise.
-    NS_DispatchToMainThread(WrapRunnable(mViECapture.get(),
+    NS_DispatchToMainThread(WrapRunnable(mViECapture,
                                          &webrtc::ViECapture::ReleaseCaptureDevice,
                                          mCaptureIndex),
                             NS_DISPATCH_SYNC);
@@ -385,8 +387,9 @@ MediaEngineWebRTCVideoSource::Init()
                                     uniqueId, kMaxUniqueIdLength)) {
     return;
   }
-  SetName(NS_ConvertUTF8toUTF16(deviceName));
-  SetUUID(uniqueId);
+
+  CopyUTF8toUTF16(deviceName, mDeviceName);
+  CopyUTF8toUTF16(uniqueId, mUniqueId);
 
   mInitDone = true;
 }
@@ -419,10 +422,9 @@ MediaEngineWebRTCVideoSource::Shutdown()
   if (mState == kAllocated || mState == kStopped) {
     Deallocate();
   }
-  mViECapture = nullptr;
-  mViERender = nullptr;
-  mViEBase = nullptr;
-
+  mViECapture->Release();
+  mViERender->Release();
+  mViEBase->Release();
   mState = kReleased;
   mInitDone = false;
 }
@@ -440,9 +442,11 @@ void MediaEngineWebRTCVideoSource::Refresh(int aIndex) {
     return;
   }
 
-  SetName(NS_ConvertUTF8toUTF16(deviceName));
+  CopyUTF8toUTF16(deviceName, mDeviceName);
 #ifdef DEBUG
-  MOZ_ASSERT(GetUUID().Equals(uniqueId));
+  nsString temp;
+  CopyUTF8toUTF16(uniqueId, temp);
+  MOZ_ASSERT(temp.Equals(mUniqueId));
 #endif
 }
 

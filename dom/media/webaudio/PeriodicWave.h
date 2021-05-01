@@ -12,6 +12,7 @@
 #include "mozilla/Attributes.h"
 #include "AudioContext.h"
 #include "AudioNodeEngine.h"
+#include "nsAutoPtr.h"
 
 namespace mozilla {
 

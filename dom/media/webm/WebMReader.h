@@ -59,7 +59,7 @@ public:
 class WebMReader : public MediaDecoderReader
 {
 public:
-  explicit WebMReader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue = nullptr);
+  explicit WebMReader(AbstractMediaDecoder* aDecoder);
 
 protected:
   ~WebMReader();

@@ -40,8 +40,6 @@ public:
     , mRecomputeParameters(true)
     , mCustomLength(0)
   {
-    MOZ_ASSERT(NS_IsMainThread());
-    mBasicWaveFormCache = aDestination->Context()->GetBasicWaveFormCache();
   }
 
   void SetSourceStream(AudioNodeStream* aSource)
@@ -106,9 +104,13 @@ public:
             mPhase = 0.0;
             break;
           case OscillatorType::Square:
+            mPeriodicWave = WebCore::PeriodicWave::createSquare(mSource->SampleRate());
+            break;
           case OscillatorType::Triangle:
+            mPeriodicWave = WebCore::PeriodicWave::createTriangle(mSource->SampleRate());
+            break;
           case OscillatorType::Sawtooth:
-            mPeriodicWave = mBasicWaveFormCache->GetBasicWaveForm(mType);
+            mPeriodicWave = WebCore::PeriodicWave::createSawtooth(mSource->SampleRate());
             break;
           case OscillatorType::Custom:
             break;
@@ -369,9 +371,8 @@ public:
   float mPhaseIncrement;
   bool mRecomputeParameters;
   nsRefPtr<ThreadSharedFloatArrayBufferList> mCustom;
-  nsRefPtr<BasicWaveFormCache> mBasicWaveFormCache;
   uint32_t mCustomLength;
-  nsRefPtr<WebCore::PeriodicWave> mPeriodicWave;
+  nsAutoPtr<WebCore::PeriodicWave> mPeriodicWave;
 };
 
 OscillatorNode::OscillatorNode(AudioContext* aContext)

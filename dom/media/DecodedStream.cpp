@@ -69,8 +69,10 @@ private:
   bool mStreamFinishedOnMainThread;
 };
 
-DecodedStreamData::DecodedStreamData(SourceMediaStream* aStream)
+DecodedStreamData::DecodedStreamData(int64_t aInitialTime,
+                                     SourceMediaStream* aStream)
   : mAudioFramesWritten(0)
+  , mInitialTime(aInitialTime)
   , mNextVideoTime(-1)
   , mNextAudioTime(-1)
   , mStreamInitialized(false)
@@ -100,9 +102,9 @@ DecodedStreamData::IsFinished() const
 }
 
 int64_t
-DecodedStreamData::GetPosition() const
+DecodedStreamData::GetClock() const
 {
-  return mListener->GetLastOutputTime();
+  return mInitialTime + mListener->GetLastOutputTime();
 }
 
 class OutputStreamListener : public MediaStreamListener {
@@ -187,10 +189,10 @@ DecodedStream::GetData() const
 void
 DecodedStream::DestroyData()
 {
-  MOZ_ASSERT(NS_IsMainThread());
+	MOZ_ASSERT(NS_IsMainThread());
   GetReentrantMonitor().AssertCurrentThreadIn();
 
-  // Avoid the redundant blocking to output stream.
+	// Avoid the redundant blocking to output stream.
   if (!mData) {
     return;
   }
@@ -220,18 +222,18 @@ DecodedStream::DestroyData()
 }
 
 void
-DecodedStream::RecreateData(MediaStreamGraph* aGraph)
+DecodedStream::RecreateData(int64_t aInitialTime, MediaStreamGraph* aGraph)
 {
-  MOZ_ASSERT(NS_IsMainThread());
+	MOZ_ASSERT(NS_IsMainThread());
   GetReentrantMonitor().AssertCurrentThreadIn();
   MOZ_ASSERT((aGraph && !mData && OutputStreams().IsEmpty()) || // first time
              (!aGraph && mData)); // 2nd time and later
 
   auto source = aGraph->CreateSourceStream(nullptr);
   DestroyData();
-  mData.reset(new DecodedStreamData(source));
+  mData.reset(new DecodedStreamData(aInitialTime, source));
 
-  // Note that the delay between removing ports in DestroyDecodedStream
+	// Note that the delay between removing ports in DestroyDecodedStream
   // and adding new ones won't cause a glitch since all graph operations
   // between main-thread stable states take effect atomically.
   auto& outputStreams = OutputStreams();
@@ -245,7 +247,7 @@ DecodedStream::RecreateData(MediaStreamGraph* aGraph)
 nsTArray<OutputStreamData>&
 DecodedStream::OutputStreams()
 {
-  GetReentrantMonitor().AssertCurrentThreadIn();
+	GetReentrantMonitor().AssertCurrentThreadIn();
   return mOutputStreams;
 }
 

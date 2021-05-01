@@ -16,8 +16,6 @@
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
 
-#include <queue>
-
 namespace mozilla {
 
 /*

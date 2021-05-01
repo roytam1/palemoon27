@@ -95,6 +95,7 @@ public:
   // have the first frame of the resource available. This does the same
   // as chrome/blink and assumes that we always start at t=0.
   virtual bool ForceZeroStartTime() const override { return true; }
+  virtual int64_t ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio) override { return 0; }
 
   // Buffering heuristics don't make sense for MSE, because the arrival of data
   // is at least partly controlled by javascript, and javascript does not expect
@@ -145,15 +146,8 @@ public:
   void SetMediaSourceDuration(double aDuration /* seconds */);
 
   virtual bool IsAsync() const override {
-    ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
     return (!GetAudioReader() || GetAudioReader()->IsAsync()) &&
            (!GetVideoReader() || GetVideoReader()->IsAsync());
-  }
-
-
-  virtual bool VideoIsHardwareAccelerated() const override {
-    ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
-    return GetVideoReader() && GetVideoReader()->VideoIsHardwareAccelerated();
   }
 
   // Returns true if aReader is a currently active audio or video

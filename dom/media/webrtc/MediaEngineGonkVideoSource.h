@@ -61,8 +61,7 @@ public:
     }
 
   virtual nsresult Allocate(const dom::MediaTrackConstraints &aConstraints,
-                            const MediaEnginePrefs &aPrefs,
-                            const nsString& aDeviceId) override;
+                            const MediaEnginePrefs &aPrefs) override;
   virtual nsresult Deallocate() override;
   virtual nsresult Start(SourceMediaStream* aStream, TrackID aID) override;
   virtual nsresult Stop(SourceMediaStream* aSource, TrackID aID) override;

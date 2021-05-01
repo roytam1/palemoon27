@@ -27,10 +27,6 @@
 #undef CurrentTime
 #endif
 
-namespace WebCore {
-  class PeriodicWave;
-};
-
 class nsPIDOMWindow;
 
 namespace mozilla {
@@ -69,25 +65,6 @@ class StereoPannerNode;
 class WaveShaperNode;
 class PeriodicWave;
 class Promise;
-enum class OscillatorType : uint32_t;
-
-// This is addrefed by the OscillatorNodeEngine on the main thread
-// and then used from the MSG thread.
-// It can be released either from the graph thread or the main thread.
-class BasicWaveFormCache
-{
-public:
-  BasicWaveFormCache(uint32_t aSampleRate);
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(BasicWaveFormCache)
-  WebCore::PeriodicWave* GetBasicWaveForm(OscillatorType aType);
-private:
-  ~BasicWaveFormCache();
-  nsRefPtr<WebCore::PeriodicWave> mSawtooth;
-  nsRefPtr<WebCore::PeriodicWave> mSquare;
-  nsRefPtr<WebCore::PeriodicWave> mTriangle;
-  uint32_t mSampleRate;
-};
-
 
 /* This runnable allows the MSG to notify the main thread when audio is actually
  * flowing */
@@ -315,8 +292,6 @@ public:
 
   void OnStateChanged(void* aPromise, AudioContextState aNewState);
 
-  BasicWaveFormCache* GetBasicWaveFormCache();
-
   IMPL_EVENT_HANDLER(mozinterruptbegin)
   IMPL_EVENT_HANDLER(mozinterruptend)
 
@@ -362,8 +337,6 @@ private:
   // Hashsets containing all the PannerNodes, to compute the doppler shift.
   // These are weak pointers.
   nsTHashtable<nsPtrHashKey<PannerNode> > mPannerNodes;
-  // Cache to avoid recomputing basic waveforms all the time.
-  nsRefPtr<BasicWaveFormCache> mBasicWaveFormCache;
   // Number of channels passed in the OfflineAudioContext ctor.
   uint32_t mNumberOfChannels;
   // Number of nodes that currently exist for this AudioContext

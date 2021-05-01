@@ -109,9 +109,9 @@ MediaEngineTabVideoSource::GetName(nsAString_internal& aName)
 }
 
 void
-MediaEngineTabVideoSource::GetUUID(nsACString_internal& aUuid)
+MediaEngineTabVideoSource::GetUUID(nsAString_internal& aUuid)
 {
-  aUuid.AssignLiteral("tab");
+  aUuid.AssignLiteral(MOZ_UTF16("uuid"));
 }
 
 #define DEFAULT_TABSHARE_VIDEO_MAX_WIDTH 4096
@@ -120,8 +120,7 @@ MediaEngineTabVideoSource::GetUUID(nsACString_internal& aUuid)
 
 nsresult
 MediaEngineTabVideoSource::Allocate(const dom::MediaTrackConstraints& aConstraints,
-                                    const MediaEnginePrefs& aPrefs,
-                                    const nsString& aDeviceId)
+                                    const MediaEnginePrefs& aPrefs)
 {
   // windowId and scrollWithPage are not proper constraints, so just read them.
   // They have no well-defined behavior in advanced, so ignore them there.

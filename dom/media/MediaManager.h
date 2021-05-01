@@ -27,8 +27,6 @@
 #include "mozilla/dom/MediaStreamBinding.h"
 #include "mozilla/dom/MediaStreamTrackBinding.h"
 #include "mozilla/dom/MediaStreamError.h"
-#include "mozilla/media/MediaChild.h"
-#include "mozilla/media/MediaParent.h"
 #include "mozilla/Logging.h"
 #include "DOMMediaStream.h"
 
@@ -73,7 +71,6 @@ public:
 
   ~GetUserMediaCallbackMediaStreamListener()
   {
-    unused << mMediaThread;
     // It's OK to release mStream on any thread; they have thread-safe
     // refcounts.
   }
@@ -465,25 +462,15 @@ public:
   NS_DECL_NSIMEDIADEVICE
 
   void SetId(const nsAString& aID);
-  virtual uint32_t GetBestFitnessDistance(
-      const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
 protected:
   virtual ~MediaDevice() {}
-  explicit MediaDevice(MediaEngineSource* aSource, bool aIsVideo);
-  static uint32_t FitnessDistance(nsString aN,
-    const dom::OwningStringOrStringSequenceOrConstrainDOMStringParameters& aConstraint);
-private:
-  static bool StringsContain(const dom::OwningStringOrStringSequence& aStrings,
-                             nsString aN);
-  static uint32_t FitnessDistance(nsString aN,
-      const dom::ConstrainDOMStringParameters& aParams);
-protected:
+  explicit MediaDevice(MediaEngineSource* aSource);
   nsString mName;
   nsString mID;
+  bool mHasFacingMode;
+  dom::VideoFacingModeEnum mFacingMode;
   dom::MediaSourceEnum mMediaSource;
   nsRefPtr<MediaEngineSource> mSource;
-public:
-  bool mIsVideo;
 };
 
 class VideoDevice : public MediaDevice
@@ -494,8 +481,8 @@ public:
   explicit VideoDevice(Source* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   Source* GetSource();
-  nsresult Allocate(const dom::MediaTrackConstraints &aConstraints,
-                    const MediaEnginePrefs &aPrefs);
+  uint32_t GetBestFitnessDistance(
+    const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
 };
 
 class AudioDevice : public MediaDevice
@@ -506,8 +493,8 @@ public:
   explicit AudioDevice(Source* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   Source* GetSource();
-  nsresult Allocate(const dom::MediaTrackConstraints &aConstraints,
-                    const MediaEnginePrefs &aPrefs);
+  uint32_t GetBestFitnessDistance(
+    const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
 };
 
 // we could add MediaManager if needed
@@ -527,7 +514,7 @@ public:
   // from MediaManager thread.
   static MediaManager* Get();
   static MediaManager* GetIfExists();
-  static void PostTask(const tracked_objects::Location& from_here, Task* task);
+  static MessageLoop* GetMessageLoop();
 #ifdef DEBUG
   static bool IsInMediaThread();
 #endif
@@ -546,7 +533,6 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIMEDIAMANAGERSERVICE
 
-  media::Parent<media::NonE10s>* GetNonE10sParent();
   MediaEngine* GetBackend(uint64_t aWindowId = 0);
   StreamListeners *GetWindowListeners(uint64_t aWindowId) {
     NS_ASSERTION(NS_IsMainThread(), "Only access windowlist on main thread");
@@ -568,10 +554,11 @@ public:
     nsIDOMGetUserMediaErrorCallback* onError);
 
   nsresult GetUserMediaDevices(nsPIDOMWindow* aWindow,
-                               const dom::MediaStreamConstraints& aConstraints,
-                               nsIGetUserMediaDevicesSuccessCallback* onSuccess,
-                               nsIDOMGetUserMediaErrorCallback* onError,
-                               uint64_t aInnerWindowID = 0);
+    const dom::MediaStreamConstraints& aConstraints,
+    nsIGetUserMediaDevicesSuccessCallback* onSuccess,
+    nsIDOMGetUserMediaErrorCallback* onError,
+    uint64_t aInnerWindowID = 0,
+    bool aPrivileged = true);
 
   nsresult EnumerateDevices(nsPIDOMWindow* aWindow,
                             nsIGetUserMediaDevicesSuccessCallback* aOnSuccess,
@@ -583,26 +570,7 @@ public:
 
   MediaEnginePrefs mPrefs;
 
-  typedef nsTArray<nsRefPtr<MediaDevice>> SourceSet;
 private:
-  typedef media::Pledge<SourceSet*, dom::MediaStreamError> PledgeSourceSet;
-
-  static bool IsPrivileged();
-  static bool IsLoop(nsIURI* aDocURI);
-  static bool IsPrivateBrowsing(nsPIDOMWindow *window);
-  static nsresult GenerateUUID(nsAString& aResult);
-  static nsresult AnonymizeId(nsAString& aId, const nsACString& aOriginKey);
-public: // TODO: make private once we upgrade to GCC 4.8+ on linux.
-  static void AnonymizeDevices(SourceSet& aDevices, const nsACString& aOriginKey);
-  static already_AddRefed<nsIWritableVariant> ToJSArray(SourceSet& aDevices);
-private:
-  already_AddRefed<PledgeSourceSet>
-  EnumerateRawDevices(uint64_t aWindowId, dom::MediaSourceEnum aSrcType,
-                      bool aFake, bool aFakeTracks);
-  already_AddRefed<PledgeSourceSet>
-  EnumerateDevicesImpl(uint64_t aWindowId, dom::MediaSourceEnum aSrcType,
-                       bool aFake = false, bool aFakeTracks = false);
-
   StreamListeners* AddWindowID(uint64_t aWindowId);
   WindowTable *GetActiveWindows() {
     NS_ASSERTION(NS_IsMainThread(), "Only access windowlist on main thread");
@@ -641,13 +609,9 @@ private:
 
   static StaticRefPtr<MediaManager> sSingleton;
 
-  media::CoatCheck<PledgeSourceSet> mOutstandingPledges;
 #if defined(MOZ_B2G_CAMERA) && defined(MOZ_WIDGET_GONK)
   nsRefPtr<nsDOMCameraManager> mCameraManager;
 #endif
-public:
-  media::CoatCheck<media::Pledge<nsCString>> mGetOriginKeyPledges;
-  ScopedDeletePtr<media::Parent<media::NonE10s>> mNonE10sParent;
 };
 
 } // namespace mozilla

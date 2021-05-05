@@ -956,7 +956,15 @@ public:
           mRegistration->mPendingUninstall = false;
           swm->StoreRegistration(mPrincipal, mRegistration);
           Succeed();
-          Done(NS_OK);
+
+          // Done() must always be called async from Start()
+          nsCOMPtr<nsIRunnable> runnable =
+            NS_NewRunnableMethodWithArg<nsresult>(
+              this,
+              &ServiceWorkerRegisterJob::Done,
+              NS_OK);
+          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(runnable)));
+
           return;
         }
       } else {
@@ -1375,45 +1383,18 @@ ContinueInstallTask::ContinueAfterWorkerEvent(bool aSuccess, bool aActivateImmed
   mJob->ContinueAfterInstallEvent(aSuccess, aActivateImmediately);
 }
 
-// If we return an error code here, the ServiceWorkerContainer will
-// automatically reject the Promise.
-NS_IMETHODIMP
-ServiceWorkerManager::Register(nsIDOMWindow* aWindow,
-                               nsIURI* aScopeURI,
-                               nsIURI* aScriptURI,
-                               nsISupports** aPromise)
+static bool
+IsFromAuthenticatedOriginInternal(nsIDocument* aDoc)
 {
-  AssertIsOnMainThread();
-
-  // XXXnsm Don't allow chrome callers for now, we don't support chrome
-  // ServiceWorkers.
-  MOZ_ASSERT(!nsContentUtils::IsCallerChrome());
-
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
-
-  nsCOMPtr<nsPIDOMWindow> outerWindow = window->GetOuterWindow();
-  bool serviceWorkersTestingEnabled =
-    outerWindow->GetServiceWorkersTestingEnabled();
-
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
-  if (!doc) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIURI> documentURI = doc->GetBaseURI();
+  nsCOMPtr<nsIURI> documentURI = aDoc->GetDocumentURI();
 
   bool authenticatedOrigin = false;
-  if (Preferences::GetBool("dom.serviceWorkers.testing.enabled") ||
-      serviceWorkersTestingEnabled) {
-    authenticatedOrigin = true;
-  }
-
   nsresult rv;
   if (!authenticatedOrigin) {
     nsAutoCString scheme;
     rv = documentURI->GetScheme(scheme);
     if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+      return false;
     }
 
     if (scheme.EqualsLiteral("https") ||
@@ -1427,7 +1408,7 @@ ServiceWorkerManager::Register(nsIDOMWindow* aWindow,
     nsAutoCString host;
     rv = documentURI->GetHost(host);
     if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+      return false;
     }
 
     if (host.Equals("127.0.0.1") ||
@@ -1441,24 +1422,83 @@ ServiceWorkerManager::Register(nsIDOMWindow* aWindow,
     bool isFile;
     rv = documentURI->SchemeIs("file", &isFile);
     if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+      return false;
     }
 
     if (!isFile) {
       bool isHttps;
       rv = documentURI->SchemeIs("https", &isHttps);
-      if (NS_WARN_IF(NS_FAILED(rv)) || !isHttps) {
-        NS_WARNING("ServiceWorker registration from insecure websites is not allowed.");
-        return NS_ERROR_DOM_SECURITY_ERR;
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return false;
       }
+      authenticatedOrigin = isHttps;
     }
+  }
+
+  return authenticatedOrigin;
+}
+
+// This function implements parts of the step 3 of the following algorithm:
+// https://w3c.github.io/webappsec/specs/powerfulfeatures/#settings-secure
+static bool
+IsFromAuthenticatedOrigin(nsIDocument* aDoc)
+{
+  MOZ_ASSERT(aDoc);
+  nsCOMPtr<nsIDocument> doc(aDoc);
+  while (doc && !nsContentUtils::IsChromeDoc(doc)) {
+    if (!IsFromAuthenticatedOriginInternal(doc)) {
+      return false;
+    }
+
+    doc = doc->GetParentDocument();
+  }
+  return true;
+}
+
+// If we return an error code here, the ServiceWorkerContainer will
+// automatically reject the Promise.
+NS_IMETHODIMP
+ServiceWorkerManager::Register(nsIDOMWindow* aWindow,
+                               nsIURI* aScopeURI,
+                               nsIURI* aScriptURI,
+                               nsISupports** aPromise)
+{
+  AssertIsOnMainThread();
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
+  MOZ_ASSERT(window);
+
+  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  if (!doc) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // Don't allow service workers to register when the *document* is chrome for
+  // now.
+  MOZ_ASSERT(!nsContentUtils::IsSystemPrincipal(doc->NodePrincipal()));
+
+  nsCOMPtr<nsPIDOMWindow> outerWindow = window->GetOuterWindow();
+  bool serviceWorkersTestingEnabled =
+    outerWindow->GetServiceWorkersTestingEnabled();
+
+  bool authenticatedOrigin;
+  if (Preferences::GetBool("dom.serviceWorkers.testing.enabled") ||
+      serviceWorkersTestingEnabled) {
+    authenticatedOrigin = true;
+  } else {
+    authenticatedOrigin = IsFromAuthenticatedOrigin(doc);
+  }
+
+  if (!authenticatedOrigin) {
+    NS_WARNING("ServiceWorker registration from insecure websites is not allowed.");
+    return NS_ERROR_DOM_SECURITY_ERR;
   }
 
   // Data URLs are not allowed.
   nsCOMPtr<nsIPrincipal> documentPrincipal = doc->NodePrincipal();
 
-  rv = documentPrincipal->CheckMayLoad(aScriptURI, true /* report */,
-                                       false /* allowIfInheritsPrincipal */);
+  nsresult rv = documentPrincipal->CheckMayLoad(aScriptURI, true /* report */,
+                                                false /* allowIfInheritsPrincipal */);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
@@ -1834,14 +1874,17 @@ ServiceWorkerManager::GetRegistrations(nsIDOMWindow* aWindow,
   AssertIsOnMainThread();
   MOZ_ASSERT(aWindow);
 
-  // XXXnsm Don't allow chrome callers for now, we don't support chrome
-  // ServiceWorkers.
-  MOZ_ASSERT(!nsContentUtils::IsCallerChrome());
-
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
-  if (!window) {
+  MOZ_ASSERT(window);
+
+  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  if (!doc) {
     return NS_ERROR_FAILURE;
   }
+
+  // Don't allow service workers to register when the *document* is chrome for
+  // now.
+  MOZ_ASSERT(!nsContentUtils::IsSystemPrincipal(doc->NodePrincipal()));
 
   nsCOMPtr<nsIGlobalObject> sgo = do_QueryInterface(window);
   ErrorResult result;
@@ -1935,14 +1978,17 @@ ServiceWorkerManager::GetRegistration(nsIDOMWindow* aWindow,
   AssertIsOnMainThread();
   MOZ_ASSERT(aWindow);
 
-  // XXXnsm Don't allow chrome callers for now, we don't support chrome
-  // ServiceWorkers.
-  MOZ_ASSERT(!nsContentUtils::IsCallerChrome());
-
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
-  if (!window) {
+  MOZ_ASSERT(window);
+
+  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  if (!doc) {
     return NS_ERROR_FAILURE;
   }
+
+  // Don't allow service workers to register when the *document* is chrome for
+  // now.
+  MOZ_ASSERT(!nsContentUtils::IsSystemPrincipal(doc->NodePrincipal()));
 
   nsCOMPtr<nsIGlobalObject> sgo = do_QueryInterface(window);
   ErrorResult result;
@@ -2159,14 +2205,17 @@ ServiceWorkerManager::GetReadyPromise(nsIDOMWindow* aWindow,
   AssertIsOnMainThread();
   MOZ_ASSERT(aWindow);
 
-  // XXXnsm Don't allow chrome callers for now, we don't support chrome
-  // ServiceWorkers.
-  MOZ_ASSERT(!nsContentUtils::IsCallerChrome());
-
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
-  if (!window) {
+  MOZ_ASSERT(window);
+
+  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  if (!doc) {
     return NS_ERROR_FAILURE;
   }
+
+  // Don't allow service workers to register when the *document* is chrome for
+  // now.
+  MOZ_ASSERT(!nsContentUtils::IsSystemPrincipal(doc->NodePrincipal()));
 
   MOZ_ASSERT(!mPendingReadyPromises.Contains(window));
 
@@ -2752,7 +2801,7 @@ ServiceWorkerManager::GetServiceWorkerRegistrationInfo(nsIPrincipal* aPrincipal,
 
   nsAutoCString originAttributesSuffix;
   nsresult rv = PrincipalToScopeKey(aPrincipal, originAttributesSuffix);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_FAILED(rv)) {
     return nullptr;
   }
 
@@ -2814,7 +2863,7 @@ ServiceWorkerManager::PrincipalToScopeKey(nsIPrincipal* aPrincipal,
 {
   MOZ_ASSERT(aPrincipal);
 
-  if (NS_WARN_IF(!BasePrincipal::Cast(aPrincipal)->IsCodebasePrincipal())) {
+  if (!BasePrincipal::Cast(aPrincipal)->IsCodebasePrincipal()) {
     return NS_ERROR_FAILURE;
   }
 
@@ -3772,14 +3821,16 @@ EnumControlledDocuments(nsISupports* aKey,
                         void* aData)
 {
   FilterRegistrationData* data = static_cast<FilterRegistrationData*>(aData);
-  if (data->mRegistration != aRegistration) {
+  MOZ_ASSERT(data->mRegistration);
+  MOZ_ASSERT(aRegistration);
+  if (!data->mRegistration->mScope.Equals(aRegistration->mScope)) {
     return PL_DHASH_NEXT;
   }
 
   nsCOMPtr<nsIDocument> document = do_QueryInterface(aKey);
 
   if (!document || !document->GetWindow()) {
-      return PL_DHASH_NEXT;
+    return PL_DHASH_NEXT;
   }
 
   ServiceWorkerClientInfo clientInfo(document);

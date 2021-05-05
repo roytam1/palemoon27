@@ -199,6 +199,12 @@
 #include "nsIBrowserSearchService.h"
 #endif
 
+#include "mozIThirdPartyUtil.h"
+// Values for the network.cookie.cookieBehavior pref are documented in
+// nsCookieService.cpp
+#define COOKIE_BEHAVIOR_ACCEPT 0 // Allow all cookies.
+#define COOKIE_BEHAVIOR_REJECT_FOREIGN 1 // Reject all third-party cookies.
+
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 #if defined(DEBUG_bryner) || defined(DEBUG_chb)
@@ -217,10 +223,12 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using mozilla::dom::workers::ServiceWorkerManager;
 
-// True means sUseErrorPages has been added to preferences var cache.
+// True means sUseErrorPages and sInterceptionEnabled has been added to
+// preferences var cache.
 static bool gAddedPreferencesVarCache = false;
 
 bool nsDocShell::sUseErrorPages = false;
+bool nsDocShell::sInterceptionEnabled = false;
 
 // Number of documents currently loading
 static int32_t gNumberOfDocumentsLoading = 0;
@@ -5751,6 +5759,9 @@ nsDocShell::Create()
     Preferences::AddBoolVarCache(&sUseErrorPages,
                                  "browser.xul.error_pages.enabled",
                                  mUseErrorPages);
+    Preferences::AddBoolVarCache(&sInterceptionEnabled,
+                                 "dom.serviceWorkers.interception.enabled",
+                                 false);
     gAddedPreferencesVarCache = true;
   }
 
@@ -14230,6 +14241,11 @@ nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
                                       bool* aShouldIntercept)
 {
   *aShouldIntercept = false;
+  // Preffed off.
+  if (!sInterceptionEnabled) {
+    return NS_OK;
+  }
+
   if (mSandboxFlags) {
     // If we're sandboxed, don't intercept.
     return NS_OK;
@@ -14238,6 +14254,32 @@ nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
   nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
   if (!swm) {
     return NS_OK;
+  }
+
+  nsresult result;
+  nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
+    do_GetService(THIRDPARTYUTIL_CONTRACTID, &result);
+  NS_ENSURE_SUCCESS(result, result);
+
+  if (mCurrentURI) {
+    nsAutoCString uriSpec;
+    mCurrentURI->GetSpec(uriSpec);
+    if (!(uriSpec.EqualsLiteral("about:blank"))) {
+      // Reject the interception of third-party iframes if the cookie behaviour
+      // is set to reject all third-party cookies (1). In case that this pref
+      // is not set or can't be read, we default to allow all cookies (0) as
+      // this is the default value in all.js.
+      bool isThirdPartyURI = true;
+      result = thirdPartyUtil->IsThirdPartyURI(mCurrentURI, aURI,
+                                               &isThirdPartyURI);
+      NS_ENSURE_SUCCESS(result, result);
+      if (isThirdPartyURI &&
+          (Preferences::GetInt("network.cookie.cookieBehavior",
+                               COOKIE_BEHAVIOR_ACCEPT) ==
+                               COOKIE_BEHAVIOR_REJECT_FOREIGN)) {
+        return NS_OK;
+      }
+    }
   }
 
   if (aIsNavigate) {

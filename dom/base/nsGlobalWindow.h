@@ -1344,6 +1344,7 @@ public:
   already_AddRefed<nsIBaseWindow> GetTreeOwnerWindow();
   already_AddRefed<nsIWebBrowserChrome> GetWebBrowserChrome();
   nsresult SecurityCheckURL(const char *aURL);
+  bool IsPrivateBrowsing();
 
   bool PopupWhitelisted();
   PopupControlState RevisePopupAbuseLevel(PopupControlState);

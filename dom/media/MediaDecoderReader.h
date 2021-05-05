@@ -79,7 +79,13 @@ public:
 
   // The caller must ensure that Shutdown() is called before aDecoder is
   // destroyed.
-  explicit MediaDecoderReader(AbstractMediaDecoder* aDecoder);
+  explicit MediaDecoderReader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTaskQueue = nullptr);
+
+  // Does any spinup that needs to happen on this task queue. This runs on a
+  // different thread than Init, and there should not be ordering dependencies
+  // between the two (even though in practice, Init will always run first right
+  // now thanks to the tail dispatcher).
+  void InitializationTask();
 
   // Initializes the reader, returns NS_OK on success, or NS_ERROR_FAILURE
   // on failure.
@@ -107,18 +113,9 @@ public:
   // thread.
   virtual nsRefPtr<ShutdownPromise> Shutdown();
 
-  MediaTaskQueue* EnsureTaskQueue();
-
   virtual bool OnTaskQueue()
   {
-    return !GetTaskQueue() || GetTaskQueue()->IsCurrentThreadIn();
-  }
-
-  void SetBorrowedTaskQueue(MediaTaskQueue* aTaskQueue)
-  {
-    MOZ_ASSERT(!mTaskQueue && aTaskQueue);
-    mTaskQueue = aTaskQueue;
-    mTaskQueueIsBorrowed = true;
+    return TaskQueue()->IsCurrentThreadIn();
   }
 
   // Resets all state related to decoding, emptying all buffers etc.
@@ -225,8 +222,6 @@ public:
   // MediaSourceReader opts out of the start-time-guessing mechanism.
   virtual bool ForceZeroStartTime() const { return false; }
 
-  virtual int64_t ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio);
-
   // The MediaDecoderStateMachine uses various heuristics that assume that
   // raw media data is arriving sequentially from a network channel. This
   // makes sense in the <video src="foo"> case, but not for more advanced use
@@ -269,7 +264,7 @@ public:
   virtual bool IsMediaSeekable() = 0;
   void SetStartTime(int64_t aStartTime);
 
-  MediaTaskQueue* GetTaskQueue() {
+  MediaTaskQueue* TaskQueue() {
     return mTaskQueue;
   }
 
@@ -280,6 +275,10 @@ public:
   virtual bool IsAsync() const { return false; }
 
   virtual void DisableHardwareAcceleration() {}
+
+  // Returns true if this decoder reader uses hardware accelerated video
+  // decoding.
+  virtual bool VideoIsHardwareAccelerated() const { return false; }
 
 protected:
   virtual ~MediaDecoderReader();
@@ -319,8 +318,14 @@ protected:
   // Reference to the owning decoder object.
   AbstractMediaDecoder* mDecoder;
 
+  // Decode task queue.
+  nsRefPtr<MediaTaskQueue> mTaskQueue;
+
   // Stores presentation info required for playback.
   MediaInfo mInfo;
+
+  // Duration, mirrored from the state machine task queue.
+  Mirror<media::NullableTimeUnit> mDuration;
 
   // Whether we should accept media that we know we can't play
   // directly, because they have a number of channel higher than
@@ -352,7 +357,6 @@ private:
   MediaPromiseHolder<AudioDataPromise> mBaseAudioPromise;
   MediaPromiseHolder<VideoDataPromise> mBaseVideoPromise;
 
-  nsRefPtr<MediaTaskQueue> mTaskQueue;
   bool mTaskQueueIsBorrowed;
 
   // Flags whether a the next audio/video sample comes after a "gap" or

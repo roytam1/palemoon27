@@ -147,13 +147,14 @@ MediaEngineGonkVideoSource::NumCapabilities()
 
 nsresult
 MediaEngineGonkVideoSource::Allocate(const dom::MediaTrackConstraints& aConstraints,
-                                     const MediaEnginePrefs& aPrefs)
+                                     const MediaEnginePrefs& aPrefs,
+                                     const nsString& aDeviceId)
 {
   LOG((__FUNCTION__));
 
   ReentrantMonitorAutoEnter sync(mCallbackMonitor);
   if (mState == kReleased && mInitDone) {
-    ChooseCapability(aConstraints, aPrefs);
+    ChooseCapability(aConstraints, aPrefs, aDeviceId);
     NS_DispatchToMainThread(WrapRunnable(nsRefPtr<MediaEngineGonkVideoSource>(this),
                                          &MediaEngineGonkVideoSource::AllocImpl));
     mCallbackMonitor.Wait();
@@ -334,8 +335,8 @@ MediaEngineGonkVideoSource::Init()
 {
   nsAutoCString deviceName;
   ICameraControl::GetCameraName(mCaptureIndex, deviceName);
-  CopyUTF8toUTF16(deviceName, mDeviceName);
-  CopyUTF8toUTF16(deviceName, mUniqueId);
+  SetName(NS_ConvertUTF8toUTF16(deviceName));
+  SetUUID(deviceName.get());
 
   mInitDone = true;
 }

@@ -183,6 +183,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "mozilla/AutoTimelineMarker.h"
 #include "mozilla/Likely.h"
 #include "mozilla/PoisonIOInterposer.h"
 #include "mozilla/ThreadLocal.h"
@@ -2836,6 +2837,11 @@ nsCycleCollector::ForgetSkippable(bool aRemoveChildlessNodes,
 {
   CheckThreadSafety();
 
+  mozilla::Maybe<mozilla::AutoGlobalTimelineMarker> marker;
+  if (NS_IsMainThread()) {
+    marker.emplace("nsCycleCollector::ForgetSkippable");
+  }
+
   // If we remove things from the purple buffer during graph building, we may
   // lose track of an object that was mutated during graph building.
   MOZ_ASSERT(mIncrementalPhase == IdlePhase);
@@ -3590,6 +3596,11 @@ nsCycleCollector::Collect(ccType aCCType,
   mActivelyCollecting = true;
 
   MOZ_ASSERT(!IsIncrementalGCInProgress());
+
+  mozilla::Maybe<mozilla::AutoGlobalTimelineMarker> marker;
+  if (NS_IsMainThread()) {
+    marker.emplace("nsCycleCollector::Collect");
+  }
 
   bool startedIdle = (mIncrementalPhase == IdlePhase);
   bool collectedAny = false;

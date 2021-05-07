@@ -66,6 +66,7 @@ public:
     mLanguage = aLanguage;
     mEnabled = aEnabled;
     mTrackId = aTrackId;
+    mType = aType;
   }
 
   // Fields common with MediaTrack object.
@@ -241,6 +242,8 @@ public:
   // Describing how many degrees video frames should be rotated in clock-wise to
   // get correct view.
   Rotation mRotation;
+
+  bool mIsHardwareAccelerated;
 };
 
 class AudioInfo : public TrackInfo {

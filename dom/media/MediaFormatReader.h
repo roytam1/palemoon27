@@ -30,20 +30,19 @@ class MediaFormatReader final : public MediaDecoderReader
 
 public:
   explicit MediaFormatReader(AbstractMediaDecoder* aDecoder,
-                             MediaDataDemuxer* aDemuxer,
-                             MediaTaskQueue* aBorrowedTaskQueue = nullptr);
+                              MediaDataDemuxer* aDemuxer);
 
   virtual ~MediaFormatReader();
 
-  nsresult Init(MediaDecoderReader* aCloneDonor) override;
+  virtual nsresult Init(MediaDecoderReader* aCloneDonor) override;
 
-  size_t SizeOfVideoQueueInFrames() override;
-  size_t SizeOfAudioQueueInFrames() override;
+  virtual size_t SizeOfVideoQueueInFrames() override;
+  virtual size_t SizeOfAudioQueueInFrames() override;
 
-  nsRefPtr<VideoDataPromise>
+  virtual nsRefPtr<VideoDataPromise>
   RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold) override;
 
-  nsRefPtr<AudioDataPromise> RequestAudioData() override;
+  virtual nsRefPtr<AudioDataPromise> RequestAudioData() override;
 
   bool HasVideo() override
   {
@@ -55,47 +54,49 @@ public:
     return mAudio.mTrackDemuxer;
   }
 
-  nsRefPtr<MetadataPromise> AsyncReadMetadata() override;
+  virtual nsRefPtr<MetadataPromise> AsyncReadMetadata() override;
 
-  void ReadUpdatedMetadata(MediaInfo* aInfo) override;
+  virtual void ReadUpdatedMetadata(MediaInfo* aInfo) override;
 
-  nsRefPtr<SeekPromise>
+  virtual nsRefPtr<SeekPromise>
   Seek(int64_t aTime, int64_t aUnused) override;
 
-  bool IsMediaSeekable() override
+  virtual bool IsMediaSeekable() override
   {
     return mSeekable;
   }
 
-  int64_t GetEvictionOffset(double aTime) override;
-  void NotifyDataArrived(const char* aBuffer,
+  virtual int64_t GetEvictionOffset(double aTime) override;
+  virtual void NotifyDataArrived(const char* aBuffer,
                                  uint32_t aLength,
                                  int64_t aOffset) override;
-  void NotifyDataRemoved() override;
+  virtual void NotifyDataRemoved() override;
 
-  media::TimeIntervals GetBuffered() override;
+  virtual media::TimeIntervals GetBuffered() override;
 
-  bool ForceZeroStartTime() const override;
+  virtual bool ForceZeroStartTime() const override;
 
   // For Media Resource Management
-  void SetIdle() override;
-  bool IsDormantNeeded() override;
-  void ReleaseMediaResources() override;
-  void SetSharedDecoderManager(SharedDecoderManager* aManager)
+  virtual void SetIdle() override;
+  virtual bool IsDormantNeeded() override;
+  virtual void ReleaseMediaResources() override;
+  virtual void SetSharedDecoderManager(SharedDecoderManager* aManager)
     override;
 
-  nsresult ResetDecode() override;
+  virtual nsresult ResetDecode() override;
 
-  nsRefPtr<ShutdownPromise> Shutdown() override;
+  virtual nsRefPtr<ShutdownPromise> Shutdown() override;
 
-  bool IsAsync() const override { return true; }
+  virtual bool IsAsync() const override { return true; }
 
-  void DisableHardwareAcceleration() override;
+  virtual void DisableHardwareAcceleration() override;
 
-  bool IsWaitForDataSupported() override { return true; }
-  nsRefPtr<WaitForDataPromise> WaitForData(MediaData::Type aType) override;
+  virtual bool IsWaitForDataSupported() override { return true; }
+  virtual nsRefPtr<WaitForDataPromise> WaitForData(MediaData::Type aType) override;
 
-  bool IsWaitingOnCDMResource() override;
+  virtual bool IsWaitingOnCDMResource() override;
+
+  int64_t ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio) override;
 
   bool UseBufferingHeuristics() override
   {
@@ -163,19 +164,19 @@ private:
       , mType(aType)
     {
     }
-    void Output(MediaData* aSample) override {
+    virtual void Output(MediaData* aSample) override {
       mReader->Output(mType, aSample);
     }
-    void InputExhausted() override {
+    virtual void InputExhausted() override {
       mReader->InputExhausted(mType);
     }
-    void Error() override {
+    virtual void Error() override {
       mReader->Error(mType);
     }
-    void DrainComplete() override {
+    virtual void DrainComplete() override {
       mReader->DrainComplete(mType);
     }
-    void ReleaseMediaResources() override {
+    virtual void ReleaseMediaResources() override {
       mReader->ReleaseMediaResources();
     }
   private:

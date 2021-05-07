@@ -954,13 +954,13 @@ public:
     }
   }
 
-  virtual bool Equals(const TimelineMarker* aOther) override
+  virtual bool Equals(const TimelineMarker& aOther) override
   {
     if (!TimelineMarker::Equals(aOther)) {
       return false;
     }
     // Console markers must have matching causes as well.
-    return GetCause() == aOther->GetCause();
+    return GetCause() == aOther.GetCause();
   }
 
   virtual void AddDetails(JSContext* aCx,
@@ -982,7 +982,6 @@ public:
                           const nsAString& aCause)
     : TimelineMarker(aDocShell, "TimeStamp", aMetaData, aCause)
   {
-    CaptureStack();
     MOZ_ASSERT(aMetaData == TRACING_TIMESTAMP);
   }
 
@@ -992,7 +991,6 @@ public:
     if (!GetCause().IsEmpty()) {
       aMarker.mCauseName.Construct(GetCause());
     }
-    aMarker.mEndStack = GetStack();
   }
 };
 

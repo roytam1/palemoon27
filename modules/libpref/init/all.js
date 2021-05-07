@@ -154,9 +154,6 @@ pref("dom.workers.maxPerDomain", 20);
 // Whether or not Shared Web Workers are enabled.
 pref("dom.workers.sharedWorkers.enabled", true);
 
-// WebSocket in workers are disabled by default.
-pref("dom.workers.websocket.enabled", true);
-
 // Service workers
 pref("dom.serviceWorkers.enabled", false);
 

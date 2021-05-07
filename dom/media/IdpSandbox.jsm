@@ -202,7 +202,7 @@ IdpSandbox.prototype = {
       wantGlobalProperties: [
         'indexedDB', 'XMLHttpRequest', 'TextEncoder', 'TextDecoder',
         'URL', 'URLSearchParams', 'atob', 'btoa', 'Blob', 'crypto',
-        'rtcIdentityProvider', 'fetch'
+        'rtcIdentityProvider'
       ]
     });
     let registrar = this.sandbox.rtcIdentityProvider;

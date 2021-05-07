@@ -15,8 +15,7 @@ enum SupportedVideoConstraints {
     "frameRate",
     "mediaSource",
     "browserWindow",
-    "scrollWithPage",
-    "deviceId"
+    "scrollWithPage"
 };
 
 enum SupportedAudioConstraints {
@@ -31,7 +30,6 @@ dictionary MediaTrackConstraintSet {
     DOMString mediaSource = "camera";
     long long browserWindow;
     boolean scrollWithPage;
-    ConstrainDOMString deviceId;
 };
 
 typedef (long or ConstrainLongRange) ConstrainLong;

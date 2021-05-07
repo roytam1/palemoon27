@@ -18,12 +18,10 @@ class MediaEngineTabVideoSource : public MediaEngineVideoSource, nsIDOMEventList
     NS_DECL_NSITIMERCALLBACK
     MediaEngineTabVideoSource();
 
-    virtual void Shutdown() override {};
     virtual void GetName(nsAString_internal&) override;
-    virtual void GetUUID(nsACString_internal&) override;
+    virtual void GetUUID(nsAString_internal&) override;
     virtual nsresult Allocate(const dom::MediaTrackConstraints &,
-                              const mozilla::MediaEnginePrefs&,
-                              const nsString& aDeviceId) override;
+                              const mozilla::MediaEnginePrefs&) override;
     virtual nsresult Deallocate() override;
     virtual nsresult Start(mozilla::SourceMediaStream*, mozilla::TrackID) override;
     virtual void SetDirectListeners(bool aHasDirectListeners) override {};
@@ -35,8 +33,7 @@ class MediaEngineTabVideoSource : public MediaEngineVideoSource, nsIDOMEventList
       return dom::MediaSourceEnum::Browser;
     }
     virtual uint32_t GetBestFitnessDistance(
-      const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets,
-      const nsString& aDeviceId) override
+      const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets) override
     {
       return 0;
     }

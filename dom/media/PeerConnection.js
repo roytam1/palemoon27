@@ -1029,7 +1029,6 @@ RTCPeerConnection.prototype = {
                                               // the name change
       this.logWarning("Deprecated RTCDataChannelInit dictionary entry outOfOrderAllowed used!", null, 0);
     }
-
     if (dict.preset != undefined) {
       dict.negotiated = dict.preset;
       this.logWarning("Deprecated RTCDataChannelInit dictionary entry preset used!", null, 0);

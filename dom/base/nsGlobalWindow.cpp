@@ -10374,11 +10374,9 @@ nsGlobalWindow::GetSessionStorage(ErrorResult& aError)
       return nullptr;
     }
 
-    nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
-
     nsCOMPtr<nsIDOMStorage> storage;
     aError = storageManager->CreateStorage(this, principal, documentURI,
-                                           loadContext && loadContext->UsePrivateBrowsing(),
+                                           IsPrivateBrowsing(),
                                            getter_AddRefs(storage));
     if (aError.Failed()) {
       return nullptr;
@@ -10454,12 +10452,9 @@ nsGlobalWindow::GetLocalStorage(ErrorResult& aError)
       mDoc->GetDocumentURI(documentURI);
     }
 
-    nsIDocShell* docShell = GetDocShell();
-    nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
-
     nsCOMPtr<nsIDOMStorage> storage;
     aError = storageManager->CreateStorage(this, principal, documentURI,
-                                           loadContext && loadContext->UsePrivateBrowsing(),
+                                           IsPrivateBrowsing(),
                                            getter_AddRefs(storage));
     if (aError.Failed()) {
       return nullptr;
@@ -11289,9 +11284,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       return NS_OK;
     }
 
-    nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(GetDocShell());
-    bool isPrivate = loadContext && loadContext->UsePrivateBrowsing();
-    if (changingStorage->IsPrivate() != isPrivate) {
+    if (changingStorage->IsPrivate() != IsPrivateBrowsing()) {
       return NS_OK;
     }
 
@@ -12729,6 +12722,13 @@ nsGlobalWindow::SecurityCheckURL(const char *aURL)
   }
 
   return NS_OK;
+}
+
+bool
+nsGlobalWindow::IsPrivateBrowsing()
+{
+  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(GetDocShell());
+  return loadContext && loadContext->UsePrivateBrowsing();
 }
 
 void

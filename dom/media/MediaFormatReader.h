@@ -9,19 +9,12 @@
 
 #include "mozilla/Atomics.h"
 #include "mozilla/Maybe.h"
-#include "mozilla/Monitor.h"
 #include "MediaDataDemuxer.h"
 #include "MediaDecoderReader.h"
 #include "MediaTaskQueue.h"
 #include "PlatformDecoderModule.h"
 
 namespace mozilla {
-
-#if defined(MOZ_GONK_MEDIACODEC) || defined(XP_WIN) || defined(MOZ_APPLEMEDIA) || defined(MOZ_FFMPEG)
-#define READER_DORMANT_HEURISTIC
-#else
-#undef READER_DORMANT_HEURISTIC
-#endif
 
 class MediaFormatReader final : public MediaDecoderReader
 {
@@ -68,9 +61,9 @@ public:
   }
 
   int64_t GetEvictionOffset(double aTime) override;
-  void NotifyDataArrived(const char* aBuffer,
-                                 uint32_t aLength,
-                                 int64_t aOffset) override;
+protected:
+  void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
+public:
   void NotifyDataRemoved() override;
 
   media::TimeIntervals GetBuffered() override;
@@ -79,7 +72,6 @@ public:
 
   // For Media Resource Management
   void SetIdle() override;
-  bool IsDormantNeeded() override;
   void ReleaseMediaResources() override;
   void SetSharedDecoderManager(SharedDecoderManager* aManager)
     override;
@@ -205,8 +197,6 @@ private:
       , mNumSamplesOutput(0)
       , mSizeOfQueue(0)
       , mLastStreamSourceID(UINT32_MAX)
-      , mMonitor(aType == MediaData::AUDIO_DATA ? "audio decoder data"
-                                                : "video decoder data")
     {}
 
     MediaFormatReader* mOwner;
@@ -298,9 +288,6 @@ private:
     // Sample format monitoring.
     uint32_t mLastStreamSourceID;
     Maybe<uint32_t> mNextStreamSourceID;
-    // Monitor that protects all non-threadsafe state; the primitives
-    // that follow.
-    Monitor mMonitor;
     media::TimeIntervals mTimeRanges;
     nsRefPtr<SharedTrackInfo> mInfo;
   };
@@ -419,9 +406,6 @@ private:
   nsRefPtr<MediaDataDemuxer> mMainThreadDemuxer;
   nsRefPtr<MediaTrackDemuxer> mAudioTrackDemuxer;
   nsRefPtr<MediaTrackDemuxer> mVideoTrackDemuxer;
-  ByteInterval mDataRange;
-  media::TimeIntervals mCachedTimeRanges;
-  bool mCachedTimeRangesStale;
 
 #if defined(READER_DORMANT_HEURISTIC)
   const bool mDormantEnabled;

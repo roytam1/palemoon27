@@ -152,9 +152,6 @@ MP4Reader::MP4Reader(AbstractMediaDecoder* aDecoder, MediaTaskQueue* aBorrowedTa
   , mIndexReady(false)
   , mLastSeenEnd(-1)
   , mDemuxerMonitor("MP4 Demuxer")
-#if defined(MP4_READER_DORMANT_HEURISTIC)
-  , mDormantEnabled(Preferences::GetBool("media.decoder.heuristic.dormant.enabled", false))
-#endif
 {
   MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
   MOZ_COUNT_CTOR(MP4Reader);
@@ -1001,6 +998,7 @@ MP4Reader::GetEvictionOffset(double aTime)
 media::TimeIntervals
 MP4Reader::GetBuffered()
 {
+  MOZ_ASSERT(OnTaskQueue());
   MonitorAutoLock mon(mDemuxerMonitor);
   media::TimeIntervals buffered;
   if (!mIndexReady) {
@@ -1024,15 +1022,6 @@ MP4Reader::GetBuffered()
   }
 
   return buffered;
-}
-
-bool MP4Reader::IsDormantNeeded()
-{
-#if defined(MP4_READER_DORMANT_HEURISTIC)
-  return mDormantEnabled;
-#else
-  return false;
-#endif
 }
 
 void MP4Reader::ReleaseMediaResources()
@@ -1066,14 +1055,9 @@ MP4Reader::SetSharedDecoderManager(SharedDecoderManager* aManager)
 }
 
 void
-MP4Reader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
+MP4Reader::NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mShutdown) {
-    return;
-  }
-
+  MOZ_ASSERT(OnTaskQueue());
   if (mLastSeenEnd < 0) {
     MonitorAutoLock mon(mDemuxerMonitor);
     mLastSeenEnd = mDecoder->GetResource()->GetLength();

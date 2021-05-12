@@ -149,8 +149,6 @@ public:
 
   void AddOutputStream(ProcessedMediaStream* aStream, bool aFinishWhenEnded);
 
-  // Check if the decoder needs to become dormant state.
-  bool IsDormantNeeded();
   // Set/Unset dormant state.
   void SetDormant(bool aDormant);
 
@@ -257,11 +255,6 @@ public:
     return mState == DECODER_STATE_SEEKING;
   }
 
-  media::TimeIntervals GetBuffered() {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    return mReader->GetBuffered();
-  }
-
   size_t SizeOfVideoQueue() {
     if (mReader) {
       return mReader->SizeOfVideoQueueInBytes();
@@ -276,7 +269,12 @@ public:
     return 0;
   }
 
-  void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
+  void DispatchNotifyDataArrived(uint32_t aLength, int64_t aOffset, bool aThrottleUpdates)
+  {
+    mReader->DispatchNotifyDataArrived(aLength, aOffset, aThrottleUpdates);
+  }
+
+  AbstractCanonical<media::TimeIntervals>* CanonicalBuffered() { return mReader->CanonicalBuffered(); }
 
   // Returns the state machine task queue.
   MediaTaskQueue* TaskQueue() const { return mTaskQueue; }
@@ -394,6 +392,8 @@ protected:
   void AssertCurrentThreadInMonitor() const { mDecoder->GetReentrantMonitor().AssertCurrentThreadIn(); }
 
   void SetState(State aState);
+
+  void BufferedRangeUpdated();
 
   // Inserts MediaData* samples into their respective MediaQueues.
   // aSample must not be null.
@@ -940,6 +940,9 @@ private:
   // accessed on the state machine thread. This is null while we're not
   // buffering.
   TimeStamp mBufferingStart;
+
+  // The buffered range. Mirrored from the decoder thread.
+  Mirror<media::TimeIntervals> mBuffered;
 
   // Duration of the media. This is guaranteed to be non-null after we finish
   // decoding the first frame.

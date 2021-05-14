@@ -63,6 +63,7 @@
 #include "ServiceWorkerRegistration.h"
 #include "ServiceWorkerScriptCache.h"
 #include "ServiceWorkerEvents.h"
+#include "SharedWorker.h"
 #include "WorkerInlines.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
@@ -3480,7 +3481,7 @@ ServiceWorkerManager::DispatchFetchEvent(const OriginAttributes& aOriginAttribut
   if (!isNavigation) {
     MOZ_ASSERT(aDoc);
     aRv = GetDocumentController(aDoc->GetInnerWindow(), getter_AddRefs(serviceWorker));
-    clientInfo = new ServiceWorkerClientInfo(aDoc);
+    clientInfo = new ServiceWorkerClientInfo(aDoc, aDoc->GetWindow());
   } else {
     nsCOMPtr<nsIChannel> internalChannel;
     aRv = aChannel->GetChannel(getter_AddRefs(internalChannel));
@@ -3542,7 +3543,7 @@ ServiceWorkerManager::DispatchFetchEvent(const OriginAttributes& aOriginAttribut
 
 bool
 ServiceWorkerManager::IsAvailable(const OriginAttributes& aOriginAttributes,
-                                        nsIURI* aURI)
+                                  nsIURI* aURI)
 {
   MOZ_ASSERT(aURI);
 
@@ -3555,6 +3556,7 @@ bool
 ServiceWorkerManager::IsControlled(nsIDocument* aDoc, ErrorResult& aRv)
 {
   MOZ_ASSERT(aDoc);
+  MOZ_ASSERT(!nsContentUtils::IsInPrivateBrowsing(aDoc));
 
   nsRefPtr<ServiceWorkerRegistrationInfo> registration;
   nsresult rv = GetDocumentRegistration(aDoc, getter_AddRefs(registration));
@@ -3677,6 +3679,25 @@ ServiceWorkerManager::CreateServiceWorker(nsIPrincipal* aPrincipal,
 
   info.mIndexedDBAllowed =
     indexedDB::IDBFactory::AllowedForPrincipal(aPrincipal);
+   info.mPrivateBrowsing = false;
+
+  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  rv = aPrincipal->GetCsp(getter_AddRefs(csp));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  info.mCSP = csp;
+  if (info.mCSP) {
+    rv = info.mCSP->GetAllowsEval(&info.mReportCSPViolations,
+                                  &info.mEvalAllowed);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  } else {
+    info.mEvalAllowed = true;
+    info.mReportCSPViolations = false;
+  }
 
   // NOTE: this defaults the SW load context to:
   //  - private browsing = false
@@ -3833,7 +3854,7 @@ EnumControlledDocuments(nsISupports* aKey,
     return PL_DHASH_NEXT;
   }
 
-  ServiceWorkerClientInfo clientInfo(document);
+  ServiceWorkerClientInfo clientInfo(document, document->GetWindow());
   data->mDocuments.AppendElement(clientInfo);
 
   return PL_DHASH_NEXT;

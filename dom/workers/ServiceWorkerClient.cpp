@@ -9,6 +9,7 @@
 #include "ServiceWorkerContainer.h"
 
 #include "mozilla/dom/MessageEvent.h"
+#include "mozilla/dom/Navigator.h"
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
 #include "WorkerPrivate.h"
@@ -28,7 +29,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(ServiceWorkerClient)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-ServiceWorkerClientInfo::ServiceWorkerClientInfo(nsIDocument* aDoc)
+ServiceWorkerClientInfo::ServiceWorkerClientInfo(nsIDocument* aDoc,
+                                                 nsPIDOMWindow* aWindow)
   : mWindowId(0)
 {
   MOZ_ASSERT(aDoc);
@@ -53,7 +55,7 @@ ServiceWorkerClientInfo::ServiceWorkerClientInfo(nsIDocument* aDoc)
     NS_WARNING("Failed to get focus information.");
   }
 
-  nsRefPtr<nsGlobalWindow> outerWindow = static_cast<nsGlobalWindow*>(aDoc->GetWindow());
+  nsRefPtr<nsGlobalWindow> outerWindow = static_cast<nsGlobalWindow*>(aWindow);
   MOZ_ASSERT(outerWindow);
   if (!outerWindow->IsTopLevelWindow()) {
     mFrameType = FrameType::Nested;

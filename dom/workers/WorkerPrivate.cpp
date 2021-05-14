@@ -17,6 +17,7 @@
 #include "nsIDocShell.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIMemoryReporter.h"
+#include "nsINetworkInterceptController.h"
 #include "nsIPermissionManager.h"
 #include "nsIScriptError.h"
 #include "nsIScriptGlobalObject.h"
@@ -102,6 +103,7 @@
 #include "RuntimeService.h"
 #include "ScriptLoader.h"
 #include "ServiceWorkerManager.h"
+#include "ServiceWorkerWindowClient.h"
 #include "SharedWorker.h"
 #include "WorkerDebuggerManager.h"
 #include "WorkerFeature.h"
@@ -2338,6 +2340,8 @@ WorkerLoadInfo::WorkerLoadInfo()
   , mIsInPrivilegedApp(false)
   , mIsInCertifiedApp(false)
   , mIndexedDBAllowed(false)
+  , mPrivateBrowsing(true)
+  , mServiceWorkersTestingInWindow(false)
 {
   MOZ_COUNT_CTOR(WorkerLoadInfo);
 }
@@ -2392,6 +2396,8 @@ WorkerLoadInfo::StealFrom(WorkerLoadInfo& aOther)
   mIsInPrivilegedApp = aOther.mIsInPrivilegedApp;
   mIsInCertifiedApp = aOther.mIsInCertifiedApp;
   mIndexedDBAllowed = aOther.mIndexedDBAllowed;
+  mPrivateBrowsing = aOther.mPrivateBrowsing;
+  mServiceWorkersTestingInWindow = aOther.mServiceWorkersTestingInWindow;
 }
 
 template <class Derived>
@@ -2767,7 +2773,8 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mParentStatus(Pending), mParentFrozen(false),
   mIsChromeWorker(aIsChromeWorker), mMainThreadObjectsForgotten(false),
   mWorkerType(aWorkerType),
-  mCreationTimeStamp(TimeStamp::Now())
+  mCreationTimeStamp(TimeStamp::Now()),
+  mCreationTimeHighRes((double)PR_Now() / PR_USEC_PER_MSEC)
 {
   MOZ_ASSERT_IF(!IsDedicatedWorker(),
                 !aSharedWorkerName.IsVoid() && NS_IsMainThread());
@@ -2789,6 +2796,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
 
     MOZ_ASSERT(IsDedicatedWorker());
     mNowBaseTimeStamp = aParent->NowBaseTimeStamp();
+    mNowBaseTimeHighRes = aParent->NowBaseTimeHighRes();
   }
   else {
     AssertIsOnMainThread();
@@ -2799,8 +2807,11 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
         mLoadInfo.mWindow->GetPerformance()) {
       mNowBaseTimeStamp = mLoadInfo.mWindow->GetPerformance()->GetDOMTiming()->
         GetNavigationStartTimeStamp();
+      mNowBaseTimeHighRes = mLoadInfo.mWindow->GetPerformance()->GetDOMTiming()->
+        GetNavigationStartHighRes();
     } else {
       mNowBaseTimeStamp = CreationTimeStamp();
+      mNowBaseTimeHighRes = CreationTimeHighRes();
     }
   }
 }
@@ -4130,6 +4141,7 @@ WorkerPrivateParent<Derived>::SetPrincipal(nsIPrincipal* aPrincipal,
   mLoadInfo.mLoadGroup = aLoadGroup;
 
   mLoadInfo.mPrincipalInfo = new PrincipalInfo();
+  mLoadInfo.mPrivateBrowsing = nsContentUtils::IsInPrivateBrowsing(aLoadGroup);
 
   MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
     PrincipalToPrincipalInfo(aPrincipal, mLoadInfo.mPrincipalInfo)));
@@ -4915,6 +4927,9 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
     loadInfo.mFromWindow = aParent->IsFromWindow();
     loadInfo.mWindowID = aParent->WindowID();
     loadInfo.mIndexedDBAllowed = aParent->IsIndexedDBAllowed();
+    loadInfo.mPrivateBrowsing = aParent->IsInPrivateBrowsing();
+    loadInfo.mServiceWorkersTestingInWindow =
+      aParent->ServiceWorkersTestingInWindow();
   } else {
     AssertIsOnMainThread();
 
@@ -4956,6 +4971,9 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
       nsPIDOMWindow* outerWindow = globalWindow->GetOuterWindow();
       if (outerWindow) {
         loadInfo.mWindow = outerWindow->GetCurrentInnerWindow();
+        // TODO: fix this for SharedWorkers with multiple documents (bug 1177935)
+        loadInfo.mServiceWorkersTestingInWindow =
+          outerWindow->GetServiceWorkersTestingEnabled();
       }
 
       if (!loadInfo.mWindow ||
@@ -5031,6 +5049,7 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
       loadInfo.mFromWindow = true;
       loadInfo.mWindowID = globalWindow->WindowID();
       loadInfo.mIndexedDBAllowed = IDBFactory::AllowedForWindow(globalWindow);
+      loadInfo.mPrivateBrowsing = nsContentUtils::IsInPrivateBrowsing(document);
     } else {
       // Not a window
       MOZ_ASSERT(isChrome);
@@ -5072,6 +5091,7 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
       loadInfo.mFromWindow = false;
       loadInfo.mWindowID = UINT64_MAX;
       loadInfo.mIndexedDBAllowed = true;
+      loadInfo.mPrivateBrowsing = false;
     }
 
     MOZ_ASSERT(loadInfo.mPrincipal);

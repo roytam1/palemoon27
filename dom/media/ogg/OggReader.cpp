@@ -474,7 +474,7 @@ nsresult OggReader::ReadMetadata(MediaInfo* aInfo,
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
     MediaResource* resource = mDecoder->GetResource();
-    if (mInfo.mMetadataDuration.isNothing() && !mDecoder->IsShutdown() &&
+    if (mInfo.mMetadataDuration.isNothing() && !mDecoder->IsOggDecoderShutdown() &&
         resource->GetLength() >= 0 && mDecoder->IsMediaSeekable())
     {
       // We didn't get a duration from the index or a Content-Duration header.
@@ -1350,11 +1350,8 @@ nsresult OggReader::SeekInBufferedRange(int64_t aTarget,
     do {
       bool skip = false;
       eof = !DecodeVideoFrame(skip, 0);
-      {
-        ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-        if (mDecoder->IsShutdown()) {
-          return NS_ERROR_FAILURE;
-        }
+      if (mDecoder->IsOggDecoderShutdown()) {
+        return NS_ERROR_FAILURE;
       }
     } while (!eof &&
              mVideoQueue.GetSize() == 0);
@@ -1501,8 +1498,7 @@ nsresult OggReader::SeekInternal(int64_t aTarget, int64_t aEndTime)
       // forwards until we find a keyframe.
       bool skip = true;
       while (DecodeVideoFrame(skip, 0) && skip) {
-        ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-        if (mDecoder->IsShutdown()) {
+        if (mDecoder->IsOggDecoderShutdown()) {
           return NS_ERROR_FAILURE;
         }
       }
@@ -1972,14 +1968,14 @@ VideoData* OggReader::FindStartTime(int64_t& aOutStartTime)
   VideoData* videoData = nullptr;
 
   if (HasVideo()) {
-    videoData = DecodeToFirstVideoData();
+    videoData = SyncDecodeToFirstVideoData();
     if (videoData) {
       videoStartTime = videoData->mTime;
       LOG(LogLevel::Debug, ("OggReader::FindStartTime() video=%lld", videoStartTime));
     }
   }
   if (HasAudio()) {
-    AudioData* audioData = DecodeToFirstAudioData();
+    AudioData* audioData = SyncDecodeToFirstAudioData();
     if (audioData) {
       audioStartTime = audioData->mTime;
       LOG(LogLevel::Debug, ("OggReader::FindStartTime() audio=%lld", audioStartTime));
@@ -1994,15 +1990,12 @@ VideoData* OggReader::FindStartTime(int64_t& aOutStartTime)
   return videoData;
 }
 
-AudioData* OggReader::DecodeToFirstAudioData()
+AudioData* OggReader::SyncDecodeToFirstAudioData()
 {
   bool eof = false;
   while (!eof && AudioQueue().GetSize() == 0) {
-    {
-      ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
-      if (mDecoder->IsShutdown()) {
-        return nullptr;
-      }
+    if (mDecoder->IsOggDecoderShutdown()) {
+      return nullptr;
     }
     eof = !DecodeAudioData();
   }
@@ -2011,6 +2004,23 @@ AudioData* OggReader::DecodeToFirstAudioData()
   }
   AudioData* d = nullptr;
   return (d = AudioQueue().PeekFront()) ? d : nullptr;
+}
+
+VideoData* OggReader::SyncDecodeToFirstVideoData()
+{
+  bool eof = false;
+  while (!eof && VideoQueue().GetSize() == 0) {
+    if (mDecoder->IsOggDecoderShutdown()) {
+      return nullptr;
+    }
+    bool keyframeSkip = false;
+    eof = !DecodeVideoFrame(keyframeSkip, 0);
+  }
+  if (eof) {
+    VideoQueue().Finish();
+  }
+  VideoData* d = nullptr;
+  return (d = VideoQueue().PeekFront()) ? d : nullptr;
 }
 
 OggCodecStore::OggCodecStore()

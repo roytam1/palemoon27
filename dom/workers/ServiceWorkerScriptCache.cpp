@@ -9,11 +9,17 @@
 #include "mozilla/dom/CacheBinding.h"
 #include "mozilla/dom/cache/CacheStorage.h"
 #include "mozilla/dom/cache/Cache.h"
+#include "mozilla/dom/Promise.h"
+#include "mozilla/dom/PromiseWorkerProxy.h"
 #include "mozilla/ipc/BackgroundUtils.h"
 #include "mozilla/ipc/PBackgroundSharedTypes.h"
+#include "nsIHttpChannelInternal.h"
+#include "nsIStreamLoader.h"
 #include "nsIThreadRetargetableRequest.h"
 
 #include "nsIPrincipal.h"
+#include "nsNetUtil.h"
+#include "nsScriptLoader.h"
 #include "Workers.h"
 
 using mozilla::dom::cache::Cache;
@@ -54,9 +60,20 @@ CreateCacheStorage(nsIPrincipal* aPrincipal, ErrorResult& aRv,
     sandbox.forget(aHolder);
   }
 
+  // We assume private browsing is not enabled here.  The ScriptLoader
+  // explicitly fails for private browsing so there should never be
+  // a service worker running in private browsing mode.  Therefore if
+  // we are purging scripts or running a comparison algorithm we cannot
+  // be in private browing.
+  //
+  // Also, bypass the CacheStorage trusted origin checks.  The ServiceWorker
+  // has validated the origin prior to this point.  All the information
+  // to revalidate is not available now.
   return CacheStorage::CreateOnMainThread(cache::CHROME_ONLY_NAMESPACE,
-                                          sandboxGlobalObject,
-                                          aPrincipal, aRv);
+                                          sandboxGlobalObject, aPrincipal,
+                                          false /* private browsing */,
+                                          true /* force trusted origin */,
+                                          aRv);
 }
 
 class CompareManager;

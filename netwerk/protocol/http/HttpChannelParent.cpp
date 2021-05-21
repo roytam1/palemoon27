@@ -120,9 +120,7 @@ HttpChannelParent::Init(const HttpChannelCreationArgs& aArgs)
                        a.thirdPartyFlags(), a.resumeAt(), a.startPos(),
                        a.entityID(), a.chooseApplicationCache(),
                        a.appCacheClientID(), a.allowSpdy(), a.allowAltSvc(), a.fds(),
-                       a.requestingPrincipalInfo(), a.triggeringPrincipalInfo(),
-                       a.securityFlags(), a.contentPolicyType(), a.innerWindowID(),
-                       a.synthesizedResponseHead(), a.cacheKey(),
+                       a.loadInfo(), a.synthesizedResponseHead(), a.cacheKey(),
                        a.allowStaleCacheContent());
   }
   case HttpChannelCreationArgs::THttpChannelConnectArgs:
@@ -238,8 +236,8 @@ HttpChannelParent::GetInterface(const nsIID& aIID, void **result)
 
   // Only support nsILoadContext if child channel's callbacks did too
   if (aIID.Equals(NS_GET_IID(nsILoadContext)) && mLoadContext) {
-    NS_ADDREF(mLoadContext);
-    *result = static_cast<nsILoadContext*>(mLoadContext);
+    nsCOMPtr<nsILoadContext> copy = mLoadContext;
+    copy.forget(result);
     return NS_OK;
   }
 
@@ -277,11 +275,7 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
                                  const bool&                allowSpdy,
                                  const bool&                allowAltSvc,
                                  const OptionalFileDescriptorSet& aFds,
-                                 const ipc::PrincipalInfo&  aRequestingPrincipalInfo,
-                                 const ipc::PrincipalInfo&  aTriggeringPrincipalInfo,
-                                 const uint32_t&            aSecurityFlags,
-                                 const uint32_t&            aContentPolicyType,
-                                 const uint32_t&            aInnerWindowID,
+                                 const LoadInfoArgs&        aLoadInfoArgs,
                                  const OptionalHttpResponseHead& aSynthesizedResponseHead,
                                  const uint32_t&            aCacheKey,
                                  const bool&                aAllowStaleCacheContent)
@@ -309,17 +303,6 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
 
-  nsCOMPtr<nsIPrincipal> requestingPrincipal =
-    mozilla::ipc::PrincipalInfoToPrincipal(aRequestingPrincipalInfo, &rv);
-  if (NS_FAILED(rv)) {
-    return SendFailedAsyncOpen(rv);
-  }
-  nsCOMPtr<nsIPrincipal> triggeringPrincipal =
-    mozilla::ipc::PrincipalInfoToPrincipal(aTriggeringPrincipalInfo, &rv);
-  if (NS_FAILED(rv)) {
-    return SendFailedAsyncOpen(rv);
-  }
-
   bool appOffline = false;
   uint32_t appId = GetAppId();
   if (appId != NECKO_UNKNOWN_APP_ID &&
@@ -334,10 +317,12 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
     loadFlags |= nsICachingChannel::LOAD_NO_NETWORK_IO;
   }
 
-  nsCOMPtr<nsILoadInfo> loadInfo =
-    new mozilla::LoadInfo(requestingPrincipal, triggeringPrincipal,
-                          aSecurityFlags, aContentPolicyType,
-                          aInnerWindowID);
+  nsCOMPtr<nsILoadInfo> loadInfo;
+  rv = mozilla::ipc::LoadInfoArgsToLoadInfo(aLoadInfoArgs,
+                                            getter_AddRefs(loadInfo));
+  if (NS_FAILED(rv)) {
+    return SendFailedAsyncOpen(rv);
+  }
 
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannelInternal(getter_AddRefs(channel), uri, loadInfo,

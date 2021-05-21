@@ -18,9 +18,14 @@ class nsINode;
 namespace mozilla {
 
 namespace net {
-class HttpChannelParent;
-class FTPChannelParent;
-class WebSocketChannelParent;
+class LoadInfoArgs;
+}
+
+namespace ipc {
+// we have to forward declare that function so we can use it as a friend.
+nsresult
+LoadInfoArgsToLoadInfo(const mozilla::net::LoadInfoArgs& aLoadInfoArgs,
+                       nsILoadInfo** outLoadInfo);
 }
 
 /**
@@ -56,11 +61,13 @@ private:
            nsIPrincipal* aTriggeringPrincipal,
            nsSecurityFlags aSecurityFlags,
            nsContentPolicyType aContentPolicyType,
-           uint32_t aInnerWindowID);
+           uint64_t aInnerWindowID,
+           uint64_t aOuterWindowID,
+           uint64_t aParentOuterWindowID);
 
-  friend class net::HttpChannelParent;
-  friend class net::FTPChannelParent;
-  friend class net::WebSocketChannelParent;
+  friend nsresult
+  mozilla::ipc::LoadInfoArgsToLoadInfo(const mozilla::net::LoadInfoArgs& aLoadInfoArgs,
+                                       nsILoadInfo** outLoadInfo);
 
   ~LoadInfo();
 
@@ -70,7 +77,9 @@ private:
   nsSecurityFlags mSecurityFlags;
   nsContentPolicyType mInternalContentPolicyType;
   nsCOMPtr<nsIURI> mBaseURI;
-  uint32_t mInnerWindowID;
+  uint64_t mInnerWindowID;
+  uint64_t mOuterWindowID;
+  uint64_t mParentOuterWindowID;
 
   // Is true if this load was triggered by processing the attributes of the
   // browsing context container.

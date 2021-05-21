@@ -39,6 +39,8 @@
 #include "prprf.h"
 #include "nsNetUtil.h"
 #include "nsNetCID.h"
+#include "nsISimpleEnumerator.h"
+#include "nsIInputStream.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsNetCID.h"
 #include "mozilla/storage.h"
@@ -46,6 +48,7 @@
 #include "mozilla/FileUtils.h"
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
+#include "mozIApplicationClearPrivateDataParams.h"
 #include "nsIConsoleService.h"
 
 using namespace mozilla;

@@ -3,17 +3,18 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 <?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
-<?xml-stylesheet href="chrome://global/content/devtools/widgets.css" type="text/css"?>
-<?xml-stylesheet href="chrome://global/skin/devtools/common.css" type="text/css"?>
-<?xml-stylesheet href="chrome://global/skin/devtools/widgets.css" type="text/css"?>
-<?xml-stylesheet href="chrome://global/skin/devtools/performance.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/content/devtools/widgets.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/skin/devtools/common.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/skin/devtools/widgets.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/skin/devtools/performance.css" type="text/css"?>
 <!DOCTYPE window [
   <!ENTITY % profilerDTD SYSTEM "chrome://global/locale/devtools/profiler.dtd">
   %profilerDTD;
 ]>
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
-  <script src="chrome://global/content/devtools/theme-switching.js"/>
+  <script src="chrome://browser/content/devtools/theme-switching.js"/>
+  <script type="application/javascript" src="performance/system.js"/>
   <script type="application/javascript" src="performance/performance-controller.js"/>
   <script type="application/javascript" src="performance/performance-view.js"/>
   <script type="application/javascript" src="performance/recording-model.js"/>
@@ -38,6 +39,7 @@
                 label="&profilerUI.showPlatformData;"
                 tooltiptext="&profilerUI.showPlatformData.tooltiptext;"/>
       <menuitem id="option-enable-memory"
+                class="experimental-option"
                 type="checkbox"
                 data-pref="enable-memory"
                 label="&profilerUI.enableMemory;"
@@ -63,6 +65,7 @@
                 label="&profilerUI.flattenTreeRecursion;"
                 tooltiptext="&profilerUI.flattenTreeRecursion.tooltiptext;"/>
       <menuitem id="option-show-jit-optimizations"
+                class="experimental-option"
                 type="checkbox"
                 data-pref="show-jit-optimizations"
                 label="&profilerUI.showJITOptimizations;"
@@ -94,8 +97,8 @@
       <toolbar id="performance-toolbar" class="devtools-toolbar">
         <hbox id="performance-toolbar-control-other" class="devtools-toolbarbutton-group">
           <toolbarbutton id="filter-button"
-                         popup="performance-filter-menupopup"
                          class="devtools-toolbarbutton"
+                         popup="performance-filter-menupopup"
                          tooltiptext="&profilerUI.options.filter.tooltiptext;"/>
         </hbox>
         <hbox id="performance-toolbar-controls-detail-views" class="devtools-toolbarbutton-group">
@@ -142,7 +145,7 @@
               flex="1">
           <hbox class="devtools-toolbarbutton-group"
                 pack="center">
-            <toolbarbutton class="record-button"
+            <toolbarbutton class="devtools-toolbarbutton record-button"
                            label="&profilerUI.startRecording;" />
           </hbox>
         </hbox>
@@ -153,6 +156,13 @@
             <hbox id="time-framerate"/>
           </vbox>
           <deck id="details-pane-container" flex="1">
+            <hbox id="loading-notice"
+                  class="notice-container devtools-throbber"
+                  align="center"
+                  pack="center"
+                  flex="1">
+              <label value="&profilerUI.loadingNotice;"/>
+            </hbox>
             <hbox id="recording-notice"
                   class="notice-container"
                   align="center"
@@ -161,9 +171,13 @@
               <vbox>
                 <hbox class="devtools-toolbarbutton-group"
                       pack="center">
-                  <toolbarbutton class="record-button"
+                  <toolbarbutton class="devtools-toolbarbutton record-button"
                                  label="&profilerUI.stopRecording;" />
                 </hbox>
+                <label class="realtime-disabled-message"
+                       value="Realtime recording data disabled on non-multiprocess Firefox."/>
+                <label class="realtime-disabled-on-e10s-message"
+                       value="Enable multiprocess Firefox in preferences for rendering recording data in realtime."/>
                 <label class="buffer-status-message"
                        tooltiptext="&profilerUI.bufferStatusTooltip;"/>
                 <label class="buffer-status-message-full"
@@ -186,6 +200,10 @@
                       <label class="console-profile-command" />
                       <label value="&profilerUI.console.stopCommandEnd;" />
                     </hbox>
+                    <label class="realtime-disabled-message"
+                           value="Realtime recording data disabled on non-multiprocess Firefox."/>
+                    <label class="realtime-disabled-on-e10s-message"
+                           value="Enable multiprocess Firefox in preferences for rendering recording data in realtime."/>
                     <label class="buffer-status-message"
                            tooltiptext="&profilerUI.bufferStatusTooltip;"/>
                     <label class="buffer-status-message-full"

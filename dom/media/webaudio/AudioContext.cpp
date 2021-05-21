@@ -35,6 +35,7 @@
 #include "PeriodicWave.h"
 #include "ConvolverNode.h"
 #include "OscillatorNode.h"
+#include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "AudioStream.h"
 #include "mozilla/dom/Promise.h"

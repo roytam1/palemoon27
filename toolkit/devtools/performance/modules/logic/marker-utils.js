@@ -9,9 +9,9 @@
  */
 
 loader.lazyRequireGetter(this, "L10N",
-  "devtools/shared/timeline/global", true);
+  "devtools/performance/global", true);
 loader.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
-  "devtools/shared/timeline/global", true);
+  "devtools/performance/global", true);
 loader.lazyRequireGetter(this, "WebConsoleUtils",
   "devtools/toolkit/webconsole/utils");
 
@@ -28,7 +28,6 @@ function getMarkerLabel (marker) {
   // as a string.
   return typeof blueprint.label === "function" ? blueprint.label(marker) : blueprint.label;
 }
-exports.getMarkerLabel = getMarkerLabel;
 
 /**
  * Returns the correct generic name for a marker class, like "Function Call"
@@ -57,7 +56,6 @@ function getMarkerClassName (type) {
 
   return className;
 }
-exports.getMarkerClassName = getMarkerClassName;
 
 /**
  * Returns an array of objects with key/value pairs of what should be rendered
@@ -92,12 +90,11 @@ function getMarkerFields (marker) {
     return fields;
   }, []);
 }
-exports.getMarkerFields = getMarkerFields;
 
 /**
  * Utilites for creating elements for markers.
  */
-const DOM = exports.DOM = {
+const DOM = {
   /**
    * Builds all the fields possible for the given marker. Returns an
    * array of elements to be appended to a parent element.
@@ -189,11 +186,10 @@ const DOM = exports.DOM = {
    * @param object params
    *        An options object with the following members:
    *        string type - String identifier for type of stack ("stack", "startStack" or "endStack")
-   *        integer frameIndex - The index of the topmost stack frame.
+   *        number frameIndex - The index of the topmost stack frame.
    *        array frames - Array of stack frames.
-   * @return {Element}
    */
-  buildStackTrace: function (doc, { type, frameIndex, frames }) {
+  buildStackTrace: function(doc, { type, frameIndex, frames }) {
     let container = doc.createElement("vbox");
     let labelName = doc.createElement("label");
     labelName.className = "plain marker-details-labelname";
@@ -248,7 +244,7 @@ const DOM = exports.DOM = {
         hbox.appendChild(aNode);
 
         // Clicking here will bubble up to the parent,
-        // which handles the view source
+        // which handles the view source.
         aNode.setAttribute("data-action", JSON.stringify({
           url, line, action: "view-source"
         }));
@@ -271,5 +267,10 @@ const DOM = exports.DOM = {
     }
 
     return container;
-  },
+  }
 };
+
+exports.getMarkerLabel = getMarkerLabel;
+exports.getMarkerClassName = getMarkerClassName;
+exports.getMarkerFields = getMarkerFields;
+exports.DOM = DOM;

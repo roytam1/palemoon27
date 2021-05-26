@@ -3,8 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const { Task } = require("resource://gre/modules/Task.jsm");
-const { Promise } = require("resource://gre/modules/Promise.jsm");
+loader.lazyRequireGetter(this, "promise");
 loader.lazyRequireGetter(this, "EventEmitter",
   "devtools/toolkit/event-emitter");
 
@@ -35,7 +34,6 @@ function MockMemoryFront () {
     ["getAllocations", createMockAllocations],
   ]);
 }
-exports.MockMemoryFront = MockMemoryFront;
 
 function MockTimelineFront () {
   MockFront.call(this, [
@@ -44,7 +42,6 @@ function MockTimelineFront () {
     ["stop", 0],
   ]);
 }
-exports.MockTimelineFront = MockTimelineFront;
 
 /**
  * Create a fake allocations object, to be used with the MockMemoryFront
@@ -85,7 +82,6 @@ function memoryActorSupported (target) {
   // but no memory actor (like addon debugging in Gecko 38+)
   return !!target.getTrait("memoryActorAllocations") && target.hasActor("memory");
 }
-exports.memoryActorSupported = Task.async(memoryActorSupported);
 
 /**
  * Takes a TabTarget, and checks existence of a TimelineActor on
@@ -103,7 +99,6 @@ function timelineActorSupported(target) {
 
   return target.hasActor("timeline");
 }
-exports.timelineActorSupported = Task.async(timelineActorSupported);
 
 /**
  * Returns a promise resolving to the location of the profiler actor
@@ -113,36 +108,35 @@ exports.timelineActorSupported = Task.async(timelineActorSupported);
  * @return {Promise<ProfilerActor>}
  */
 function getProfiler (target) {
-  let { promise, resolve } = Promise.defer();
+  let deferred = promise.defer();
   // Chrome and content process targets already have obtained a reference
   // to the profiler tab actor. Use it immediately.
   if (target.form && target.form.profilerActor) {
-    resolve(target.form.profilerActor);
+    deferred.resolve(target.form.profilerActor);
   }
   // Check if we already have a grip to the `listTabs` response object
   // and, if we do, use it to get to the profiler actor.
   else if (target.root && target.root.profilerActor) {
-    resolve(target.root.profilerActor);
+    deferred.resolve(target.root.profilerActor);
   }
   // Otherwise, call `listTabs`.
   else {
-    target.client.listTabs(({ profilerActor }) => resolve(profilerActor));
+    target.client.listTabs(({ profilerActor }) => deferred.resolve(profilerActor));
   }
-  return promise;
+  return deferred.promise;
 }
-exports.getProfiler = Task.async(getProfiler);
 
 /**
  * Makes a request to an actor that does not have the modern `Front`
  * interface.
  */
 function legacyRequest (target, actor, method, args) {
-  let { promise, resolve } = Promise.defer();
+  let deferred = promise.defer();
   let data = args[0] || {};
   data.to = actor;
   data.type = method;
-  target.client.request(data, resolve);
-  return promise;
+  target.client.request(data, deferred.resolve);
+  return deferred.promise;
 }
 
 /**
@@ -175,4 +169,10 @@ function actorCompatibilityBridge (method) {
     }
   };
 }
+
+exports.MockMemoryFront = MockMemoryFront;
+exports.MockTimelineFront = MockTimelineFront;
+exports.memoryActorSupported = memoryActorSupported;
+exports.timelineActorSupported = timelineActorSupported;
+exports.getProfiler = getProfiler;
 exports.actorCompatibilityBridge = actorCompatibilityBridge;

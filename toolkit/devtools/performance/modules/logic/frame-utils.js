@@ -3,11 +3,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const { Ci } = require("chrome");
-const { extend } = require("sdk/util/object");
+const { Cc, Ci, Cu, Cr } = require("chrome");
+
 loader.lazyRequireGetter(this, "Services");
 loader.lazyRequireGetter(this, "CATEGORY_OTHER",
-  "devtools/shared/profiler/global", true);
+  "devtools/performance/global", true);
 
 // Character codes used in various parsing helper functions.
 const CHAR_CODE_A = "a".charCodeAt(0);
@@ -42,7 +42,7 @@ const gInflatedFrameStore = new WeakMap();
  * Parses the raw location of this function call to retrieve the actual
  * function name, source url, host name, line and column.
  */
-exports.parseLocation = function parseLocation(location, fallbackLine, fallbackColumn) {
+function parseLocation(location, fallbackLine, fallbackColumn) {
   // Parse the `location` for the function name, source url, line, column etc.
 
   let line, column, url;
@@ -99,6 +99,13 @@ exports.parseLocation = function parseLocation(location, fallbackLine, fallbackC
           length++;
         }
 
+        // Discard port numbers
+        if (location.charCodeAt(i) === CHAR_CODE_SLASH) {
+          lineAndColumnIndex = -1;
+          --i;
+          continue;
+        }
+
         if (!line) {
           line = location.substr(start, length);
 
@@ -126,26 +133,32 @@ exports.parseLocation = function parseLocation(location, fallbackLine, fallbackC
     }
   }
 
-  let functionName, fileName, hostName;
+  let functionName, fileName, hostName, port, host;
+  line = line || fallbackLine;
+  column = column || fallbackColumn;
 
   // If the URI digged out from the `location` is valid, this is a JS frame.
   if (uri) {
     functionName = location.substring(0, firstParenIndex - 1);
     fileName = (uri.fileName + (uri.ref ? "#" + uri.ref : "")) || "/";
     hostName = getHost(url, uri.host);
+    // nsIURL throws when accessing a piece of a URL that doesn't
+    // exist, because we can't have nice things. Only check this if hostName
+    // exists, to save an extra try/catch.
+    if (hostName) {
+      try {
+        port = uri.port === -1 ? null : uri.port;
+        host = port !== null ? `${hostName}:${port}` : hostName;
+      } catch (e) {
+        host = hostName;
+      }
+    }
   } else {
     functionName = location;
     url = null;
   }
 
-  return {
-    functionName: functionName,
-    fileName: fileName,
-    hostName: hostName,
-    url: url,
-    line: line || fallbackLine,
-    column: column || fallbackColumn
-  };
+  return { functionName, fileName, hostName, host, port, url, line, column };
 };
 
 /**
@@ -177,7 +190,6 @@ function isContent({ location, category }) {
   // If there was no left parenthesis, try matching from the start.
   return isContentScheme(location, 0);
 }
-exports.isContent = isContent;
 
 /**
  * Get caches to cache inflated frames and computed frame keys of a frame
@@ -186,7 +198,7 @@ exports.isContent = isContent;
  * @param object framesTable
  * @return object
  */
-exports.getInflatedFrameCache = function getInflatedFrameCache(frameTable) {
+function getInflatedFrameCache(frameTable) {
   let inflatedCache = gInflatedFrameStore.get(frameTable);
   if (inflatedCache !== undefined) {
     return inflatedCache;
@@ -207,7 +219,7 @@ exports.getInflatedFrameCache = function getInflatedFrameCache(frameTable) {
  * @param object stringTable
  * @param object allocationsTable
  */
-exports.getOrAddInflatedFrame = function getOrAddInflatedFrame(cache, index, frameTable, stringTable, allocationsTable) {
+function getOrAddInflatedFrame(cache, index, frameTable, stringTable, allocationsTable) {
   let inflatedFrame = cache[index];
   if (inflatedFrame === null) {
     inflatedFrame = cache[index] = new InflatedFrame(index, frameTable, stringTable, allocationsTable);
@@ -279,8 +291,6 @@ InflatedFrame.prototype.getFrameKey = function getFrameKey(options) {
   return "";
 };
 
-exports.InflatedFrame = InflatedFrame;
-
 /**
  * Helper for getting an nsIURL instance out of a string.
  */
@@ -301,6 +311,7 @@ function nsIURL(url) {
     // The passed url string is invalid.
     uri = null;
   }
+
   gNSURLStore.set(url, uri);
   return uri;
 };
@@ -406,3 +417,9 @@ function isChromeScheme(location, i) {
 function isNumeric(c) {
   return c >= CHAR_CODE_0 && c <= CHAR_CODE_9;
 }
+
+exports.parseLocation = parseLocation;
+exports.isContent = isContent;
+exports.getInflatedFrameCache = getInflatedFrameCache;
+exports.getOrAddInflatedFrame = getOrAddInflatedFrame;
+exports.InflatedFrame = InflatedFrame;

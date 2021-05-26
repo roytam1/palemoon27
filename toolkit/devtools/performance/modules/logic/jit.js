@@ -23,7 +23,7 @@ const SUCCESSFUL_OUTCOMES = [
  * An OptimizationSite contains a record of how many times the
  * RawOptimizationSite was sampled, as well as the unique id based off of the
  * original profiler array, and the RawOptimizationSite itself as a reference.
- * @see toolkit/devtools/shared/profiler/tree-model.js
+ * @see toolkit/devtools/performance/modules/logic/tree-model.js
  *
  * @struct RawOptimizationSite
  * A structure describing a location in a script that was attempted to be optimized.
@@ -117,7 +117,7 @@ const SUCCESSFUL_OUTCOMES = [
  * @type {number} id
  */
 
-const OptimizationSite = exports.OptimizationSite = function (id, opts) {
+const OptimizationSite = function (id, opts) {
   this.id = id;
   this.data = opts;
   this.samples = 1;
@@ -169,7 +169,7 @@ OptimizationSite.prototype.getIonTypes = function () {
  *                        JIT optimizations. Do not modify this!
  */
 
-const JITOptimizations = exports.JITOptimizations = function (rawSites, stringTable) {
+const JITOptimizations = function (rawSites, stringTable) {
   // Build a histogram of optimization sites.
   let sites = [];
 
@@ -241,3 +241,6 @@ function maybeTypeset(typeset, stringTable) {
     };
   });
 }
+
+exports.OptimizationSite = OptimizationSite;
+exports.JITOptimizations = JITOptimizations;

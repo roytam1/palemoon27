@@ -9,14 +9,13 @@ const { Task } = require("resource://gre/modules/Task.jsm");
 loader.lazyRequireGetter(this, "PerformanceIO",
   "devtools/performance/io", true);
 loader.lazyRequireGetter(this, "RecordingUtils",
-  "devtools/performance/recording-utils", true);
+  "devtools/performance/recording-utils");
 
 /**
  * Model for a wholistic profile, containing the duration, profiling data,
  * frames data, timeline (marker, tick, memory) data, and methods to mark
  * a recording as 'in progress' or 'finished'.
  */
-
 const RecordingModel = function (options={}) {
   this._label = options.label || "";
   this._console = options.console || false;

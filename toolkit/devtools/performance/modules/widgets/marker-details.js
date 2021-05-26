@@ -7,14 +7,17 @@
  * This file contains the rendering code for the marker sidebar.
  */
 
-loader.lazyRequireGetter(this, "L10N",
-  "devtools/shared/timeline/global", true);
-loader.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
-  "devtools/shared/timeline/global", true);
+const { Cc, Ci, Cu, Cr } = require("chrome");
+let WebConsoleUtils = require("devtools/toolkit/webconsole/utils").Utils;
+
 loader.lazyRequireGetter(this, "EventEmitter",
   "devtools/toolkit/event-emitter");
+loader.lazyRequireGetter(this, "L10N",
+  "devtools/performance/global", true);
+loader.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
+  "devtools/performance/global", true);
 loader.lazyRequireGetter(this, "MarkerUtils",
-  "devtools/shared/timeline/marker-utils");
+  "devtools/performance/marker-utils");
 
 /**
  * A detailed view for one single marker.
@@ -40,6 +43,7 @@ MarkerDetails.prototype = {
    */
   destroy: function() {
     this.empty();
+    this._parent.removeEventListener("click", this._onClick);
     this._parent = null;
     this._splitter = null;
   },
@@ -68,7 +72,7 @@ MarkerDetails.prototype = {
     MarkerUtils.DOM.buildFields(this._document, marker).forEach(field => elements.push(field));
 
     // Build a stack element -- and use the "startStack" label if
-    // we have both a start and endStack.
+    // we have both a star and endStack.
     if (marker.stack) {
       let type = marker.endStack ? "startStack" : "stack";
       elements.push(MarkerUtils.DOM.buildStackTrace(this._document, {
@@ -76,17 +80,11 @@ MarkerDetails.prototype = {
       }));
     }
 
-    if (marker.endStack) {
-      elements.push(MarkerUtils.DOM.buildStackTrace(this._document, {
-        frameIndex: marker.endStack, frames, type: "endStack"
-      }));
-    }
-
     elements.forEach(el => this._parent.appendChild(el));
   },
 
   /**
-   * Handles clicking in the marker details view. Based on the target,
+   * Handles click in the marker details view. Based on the target,
    * can handle different actions -- only supporting view source links
    * for the moment.
    */
@@ -103,14 +101,14 @@ MarkerDetails.prototype = {
 };
 
 /**
- * Take an element from an event `target`, and ascend through
+ * Take an element from an event `target`, and asend through
  * the DOM, looking for an element with a `data-action` attribute. Return
  * the parsed `data-action` value found, or null if none found before
  * reaching the parent `container`.
  *
  * @param {Element} target
  * @param {Element} container
- * @return {object?}
+ * @return {?object}
  */
 function findActionFromEvent (target, container) {
   let el = target;

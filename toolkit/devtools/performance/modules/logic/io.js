@@ -7,6 +7,8 @@ const { Cc, Ci, Cu, Cr } = require("chrome");
 
 loader.lazyRequireGetter(this, "Services");
 loader.lazyRequireGetter(this, "promise");
+loader.lazyRequireGetter(this, "RecordingUtils",
+  "devtools/performance/recording-utils");
 
 loader.lazyImporter(this, "FileUtils",
   "resource://gre/modules/FileUtils.jsm");
@@ -74,7 +76,15 @@ let PerformanceIO = {
   loadRecordingFromFile: function(file) {
     let deferred = promise.defer();
 
-    let channel = NetUtil.newChannel(file);
+    let channel = NetUtil.newChannel2(file,
+                                      null,
+                                      null,
+                                      null,      // aLoadingNode
+                                      Services.scriptSecurityManager.getSystemPrincipal(),
+                                      null,      // aTriggeringPrincipal
+                                      Ci.nsILoadInfo.SEC_NORMAL,
+                                      Ci.nsIContentPolicy.TYPE_OTHER);
+
     channel.contentType = "text/plain";
 
     NetUtil.asyncFetch(channel, (inputStream, status) => {
@@ -105,8 +115,6 @@ let PerformanceIO = {
     return deferred.promise;
   }
 };
-
-exports.PerformanceIO = PerformanceIO;
 
 /**
  * Returns a boolean indicating whether or not the passed in `version`
@@ -156,3 +164,5 @@ function convertLegacyData (legacyData) {
 
   return data;
 }
+
+exports.PerformanceIO = PerformanceIO;

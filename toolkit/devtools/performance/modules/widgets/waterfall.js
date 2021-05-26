@@ -8,19 +8,21 @@
  * of all the markers in the timeline data.
  */
 
-const {Ci, Cu} = require("chrome");
+const { Cc, Ci, Cu, Cr } = require("chrome");
 
-loader.lazyRequireGetter(this, "L10N",
-  "devtools/shared/timeline/global", true);
-
-loader.lazyImporter(this, "setNamedTimeout",
-  "resource://gre/modules/devtools/ViewHelpers.jsm");
-loader.lazyImporter(this, "clearNamedTimeout",
-  "resource://gre/modules/devtools/ViewHelpers.jsm");
+loader.lazyRequireGetter(this, "promise");
 loader.lazyRequireGetter(this, "EventEmitter",
   "devtools/toolkit/event-emitter");
+
+loader.lazyRequireGetter(this, "L10N",
+  "devtools/performance/global", true);
 loader.lazyRequireGetter(this, "MarkerUtils",
-  "devtools/shared/timeline/marker-utils");
+  "devtools/performance/marker-utils");
+
+loader.lazyImporter(this, "setNamedTimeout",
+  "resource:///modules/devtools/ViewHelpers.jsm");
+loader.lazyImporter(this, "clearNamedTimeout",
+  "resource:///modules/devtools/ViewHelpers.jsm");
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 

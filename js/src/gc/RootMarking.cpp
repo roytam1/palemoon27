@@ -140,14 +140,6 @@ AutoGCRooter::trace(JSTracer* trc)
         return;
       }
 
-      case DESCVECTOR: {
-        AutoPropertyDescriptorVector::VectorImpl &descriptors =
-            static_cast<AutoPropertyDescriptorVector *>(this)->vector;
-        for (size_t i = 0, len = descriptors.length(); i < len; i++)
-            descriptors[i].trace(trc);
-        return;
-      }
-
       case VALVECTOR: {
         AutoValueVector::VectorImpl& vector = static_cast<AutoValueVector*>(this)->vector;
         TraceRootRange(trc, vector.length(), vector.begin(), "JS::AutoValueVector.vector");
@@ -166,13 +158,6 @@ AutoGCRooter::trace(JSTracer* trc)
             TraceRoot(trc, &vector[i].id, "js::AutoIdValueVector id");
             TraceRoot(trc, &vector[i].value, "js::AutoIdValueVector value");
         }
-        return;
-      }
-
-      case SHAPEVECTOR: {
-        AutoShapeVector::VectorImpl& vector = static_cast<js::AutoShapeVector*>(this)->vector;
-        TraceRootRange(trc, vector.length(), const_cast<Shape**>(vector.begin()),
-                       "js::AutoShapeVector.vector");
         return;
       }
 
@@ -207,18 +192,6 @@ AutoGCRooter::trace(JSTracer* trc)
       case SCRIPTVECTOR: {
         AutoScriptVector::VectorImpl& vector = static_cast<AutoScriptVector*>(this)->vector;
         TraceRootRange(trc, vector.length(), vector.begin(), "js::AutoScriptVector.vector");
-        return;
-      }
-
-      case OBJU32HASHMAP: {
-        AutoObjectUnsigned32HashMap* self = static_cast<AutoObjectUnsigned32HashMap*>(this);
-        AutoObjectUnsigned32HashMap::HashMapImpl& map = self->map;
-        for (AutoObjectUnsigned32HashMap::Enum e(map); !e.empty(); e.popFront()) {
-            JSObject* key = e.front().key();
-            TraceRoot(trc, &key, "AutoObjectUnsignedHashMap key");
-            if (key != e.front().key())
-                e.rekeyFront(key);
-        }
         return;
       }
 

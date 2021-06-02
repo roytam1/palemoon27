@@ -3028,7 +3028,7 @@ protected:
 
 class nsScriptErrorWithStack : public nsScriptError {
 public:
-    nsScriptErrorWithStack(JS::HandleObject);
+    explicit nsScriptErrorWithStack(JS::HandleObject);
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsScriptErrorWithStack)
@@ -3041,7 +3041,7 @@ public:
                     uint32_t flags,
                     const char* category) override;
 
-    NS_IMETHOD GetStack(JS::MutableHandleValue);
+    NS_IMETHOD GetStack(JS::MutableHandleValue) override;
 
 private:
     virtual ~nsScriptErrorWithStack();

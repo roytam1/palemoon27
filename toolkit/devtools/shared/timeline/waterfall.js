@@ -19,10 +19,12 @@ loader.lazyImporter(this, "clearNamedTimeout",
   "resource://gre/modules/devtools/ViewHelpers.jsm");
 loader.lazyRequireGetter(this, "EventEmitter",
   "devtools/toolkit/event-emitter");
+loader.lazyRequireGetter(this, "MarkerUtils",
+  "devtools/shared/timeline/marker-utils");
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 
-const WATERFALL_SIDEBAR_WIDTH = 150; // px
+const WATERFALL_SIDEBAR_WIDTH = 200; // px
 
 const WATERFALL_IMMEDIATE_DRAW_MARKERS_COUNT = 30;
 const WATERFALL_FLUSH_OUTSTANDING_MARKERS_DELAY = 75; // ms
@@ -432,7 +434,7 @@ Waterfall.prototype = {
     sidebar.setAttribute("align", "center");
 
     let bullet = this._document.createElement("hbox");
-    bullet.className = `waterfall-marker-bullet ${blueprint.colorName}`;
+    bullet.className = `waterfall-marker-bullet marker-color-${blueprint.colorName}`;
     bullet.setAttribute("type", marker.name);
     sidebar.appendChild(bullet);
 
@@ -441,14 +443,7 @@ Waterfall.prototype = {
     name.setAttribute("flex", "1");
     name.className = "plain waterfall-marker-name";
 
-    let label;
-    if (marker.causeName) {
-      label = this._l10n.getFormatStr("timeline.markerDetailFormat",
-                                      blueprint.label,
-                                      marker.causeName);
-    } else {
-      label = blueprint.label;
-    }
+    let label = MarkerUtils.getMarkerLabel(marker);
     name.setAttribute("value", label);
     name.setAttribute("tooltiptext", label);
     sidebar.appendChild(name);
@@ -481,7 +476,7 @@ Waterfall.prototype = {
     let offset = this._isRTL ? this._waterfallWidth : 0;
 
     let bar = this._document.createElement("hbox");
-    bar.className = `waterfall-marker-bar ${blueprint.colorName}`;
+    bar.className = `waterfall-marker-bar marker-color-${blueprint.colorName}`;
     bar.style.transform = "translateX(" + (start - offset) + "px)";
     bar.setAttribute("type", marker.name);
     bar.setAttribute("width", Math.max(width, WATERFALL_MARKER_BAR_WIDTH_MIN));

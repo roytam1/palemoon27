@@ -7,7 +7,6 @@
 function registerServiceWorker() {
   return new Promise((resolve, reject) => {
     navigator.serviceWorker.ready.then(() => {
-      ready();
       resolve();
     });
     navigator.serviceWorker.register('sw.js', {scope: '.'})
@@ -20,9 +19,10 @@ function registerServiceWorker() {
 
 function runTests() {
   return Promise.resolve()
-    .then(() => { return testFetchAppResource('networkresponse'); })
+    .then(() => { return testFetchAppResource('foo.txt',
+                                              'networkresponse'); })
     .then(registerServiceWorker)
-    .then(done);
+    .then(ready);
 }
   </script>
   </head>

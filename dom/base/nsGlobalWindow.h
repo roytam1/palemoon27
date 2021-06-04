@@ -111,6 +111,7 @@ class MozSelfSupport;
 class Navigator;
 class OwningExternalOrWindowProxy;
 class Promise;
+class PostMessageEvent;
 struct RequestInit;
 class RequestOrUSVString;
 class Selection;
@@ -127,12 +128,6 @@ namespace gfx {
 class VRHMDInfo;
 } // namespace gfx
 } // namespace mozilla
-
-extern nsresult
-NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
-                          bool *aIsInterval,
-                          int32_t *aInterval,
-                          nsIScriptTimeoutHandler **aRet);
 
 extern already_AddRefed<nsIScriptTimeoutHandler>
 NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
@@ -1332,7 +1327,6 @@ public:
   }
 
   // JS specific timeout functions (JS args grabbed from context).
-  nsresult SetTimeoutOrInterval(bool aIsInterval, int32_t* aReturn);
   nsresult ResetTimersForNonBackgroundWindow();
 
   // The timeout implementation functions.
@@ -1355,6 +1349,7 @@ public:
   already_AddRefed<nsIBaseWindow> GetTreeOwnerWindow();
   already_AddRefed<nsIWebBrowserChrome> GetWebBrowserChrome();
   nsresult SecurityCheckURL(const char *aURL);
+  bool IsPrivateBrowsing();
 
   bool PopupWhitelisted();
   PopupControlState RevisePopupAbuseLevel(PopupControlState);
@@ -1748,7 +1743,7 @@ protected:
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
-  friend class PostMessageEvent;
+  friend class mozilla::dom::PostMessageEvent;
   friend class DesktopNotification;
 
   static WindowByIdTable* sWindowsById;

@@ -1,2 +1,3 @@
-application.zip contains foo.txt, index.html, sw.js and manifest.webapp.
-Any change to one of these three files should be added to application.zip as well.
+application.list contains a list of files that are in application.zip.
+
+To update application.zip when changing one of those files, run makezip.sh.

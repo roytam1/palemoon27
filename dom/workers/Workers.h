@@ -199,6 +199,8 @@ enum WorkerPreference
   WORKERPREF_DUMP = 0, // browser.dom.window.dump.enabled
   WORKERPREF_DOM_CACHES, // dom.caches.enabled
   WORKERPREF_SERVICEWORKERS, // dom.serviceWorkers.enabled
+  WORKERPREF_INTERCEPTION_ENABLED, // dom.serviceWorkers.interception.enabled
+  WORKERPREF_DOM_WORKERNOTIFICATION, // dom.webnotifications.workers.enabled
   WORKERPREF_COUNT
 };
 
@@ -325,7 +327,7 @@ public:
 };
 
 WorkerCrossThreadDispatcher*
-GetWorkerCrossThreadDispatcher(JSContext* aCx, jsval aWorker);
+GetWorkerCrossThreadDispatcher(JSContext* aCx, JS::Value aWorker);
 
 // Random unique constant to facilitate JSPrincipal debugging
 const uint32_t kJSPrincipalsDebugToken = 0x7e2df9d2;

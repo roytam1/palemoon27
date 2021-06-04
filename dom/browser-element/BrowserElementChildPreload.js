@@ -185,6 +185,11 @@ BrowserElementChild.prototype = {
                      /* useCapture = */ true,
                      /* wantsUntrusted = */ false);
 
+    addEventListener('click',
+                     this._ClickHandler.bind(this),
+                     /* useCapture = */ false,
+                     /* wantsUntrusted = */ false);
+
     // This listens to unload events from our message manager, but /not/ from
     // the |content| window.  That's because the window's unload event doesn't
     // bubble, and we're not using a capturing listener.  If we'd used
@@ -225,7 +230,10 @@ BrowserElementChild.prototype = {
       "activate-next-paint-listener": this._activateNextPaintListener.bind(this),
       "set-input-method-active": this._recvSetInputMethodActive.bind(this),
       "deactivate-next-paint-listener": this._deactivateNextPaintListener.bind(this),
-      "do-command": this._recvDoCommand
+      "do-command": this._recvDoCommand,
+      "find-all": this._recvFindAll.bind(this),
+      "find-next": this._recvFindNext.bind(this),
+      "clear-match": this._recvClearMatch.bind(this),
     }
 
     addMessageListener("browser-element-api:call", function(aMessage) {
@@ -540,6 +548,7 @@ BrowserElementChild.prototype = {
     debug('Got metaChanged: (' + e.target.name + ') ' + e.target.content);
 
     let handlers = {
+      'viewmode': this._viewmodeChangedHandler,
       'theme-color': this._themeColorChangedHandler,
       'application-name': this._applicationNameChangedHandler
     };
@@ -595,6 +604,18 @@ BrowserElementChild.prototype = {
       state: e.state,
     };
     sendAsyncMsg('scrollviewchange', detail);
+  },
+
+  _ClickHandler: function(e) {
+    let elem = e.target;
+    if (elem instanceof Ci.nsIDOMHTMLAnchorElement && elem.href) {
+      // Open in a new tab if middle click or ctrl/cmd-click.
+      if ((Services.appinfo.OS == 'Darwin' && e.metaKey) ||
+          (Services.appinfo.OS != 'Darwin' && e.ctrlKey) ||
+           e.button == 1) {
+        sendAsyncMsg('opentab', {url: elem.href});
+      }
+    }
   },
 
   _selectionStateChangedHandler: function(e) {
@@ -686,6 +707,16 @@ BrowserElementChild.prototype = {
     }
 
     sendAsyncMsg('selectionstatechanged', detail);
+  },
+
+
+  _viewmodeChangedHandler: function(eventType, target) {
+    let meta = {
+      name: 'viewmode',
+      content: target.content,
+      type: eventType.replace('DOMMeta', '').toLowerCase()
+    };
+    sendAsyncMsg('metachange', meta);
   },
 
   _themeColorChangedHandler: function(eventType, target) {
@@ -831,21 +862,26 @@ BrowserElementChild.prototype = {
   },
 
   _getSystemCtxMenuData: function(elem) {
+    let documentURI = 
+      docShell.QueryInterface(Ci.nsIWebNavigation).currentURI.spec;
     if ((elem instanceof Ci.nsIDOMHTMLAnchorElement && elem.href) ||
         (elem instanceof Ci.nsIDOMHTMLAreaElement && elem.href)) {
       return {uri: elem.href,
+              documentURI: documentURI,
               text: elem.textContent.substring(0, kLongestReturnedString)};
     }
     if (elem instanceof Ci.nsIImageLoadingContent && elem.currentURI) {
-      return {uri: elem.currentURI.spec};
+      return {uri: elem.currentURI.spec, documentURI: documentURI};
     }
     if (elem instanceof Ci.nsIDOMHTMLImageElement) {
-      return {uri: elem.src};
+      return {uri: elem.src, documentURI: documentURI};
     }
     if (elem instanceof Ci.nsIDOMHTMLMediaElement) {
       let hasVideo = !(elem.readyState >= elem.HAVE_METADATA &&
                        (elem.videoWidth == 0 || elem.videoHeight == 0));
-      return {uri: elem.currentSrc || elem.src, hasVideo: hasVideo};
+      return {uri: elem.currentSrc || elem.src,
+              hasVideo: hasVideo,
+              documentURI: documentURI};
     }
     if (elem instanceof Ci.nsIDOMHTMLInputElement &&
         elem.hasAttribute("name")) {
@@ -862,6 +898,7 @@ BrowserElementChild.prototype = {
             ? parent.getAttribute("method").toLowerCase()
             : "get";
           return {
+            documentURI: documentURI,
             action: actionHref,
             method: method,
             name: elem.getAttribute("name"),
@@ -1111,7 +1148,7 @@ BrowserElementChild.prototype = {
 
   _updateVisibility: function() {
     var visible = this._forcedVisible && this._ownerVisible;
-    if (docShell.isActive !== visible) {
+    if (docShell && docShell.isActive !== visible) {
       docShell.isActive = visible;
       sendAsyncMsg('visibilitychange', {visible: visible});
     }
@@ -1193,6 +1230,57 @@ BrowserElementChild.prototype = {
       this._selectionStateChangedTarget = null;
       docShell.doCommand(COMMAND_MAP[data.json.command]);
     }
+  },
+
+  _initFinder: function() {
+    if (!this._finder) {
+      try {
+        this._findLimit = Services.prefs.getIntPref("accessibility.typeaheadfind.matchesCountLimit");
+      } catch (e) {
+        // Pref not available, assume 0, no match counting.
+        this._findLimit = 0;
+      }
+
+      let {Finder} = Components.utils.import("resource://gre/modules/Finder.jsm", {});
+      this._finder = new Finder(docShell);
+      this._finder.addResultListener({
+        onMatchesCountResult: (data) => {
+          sendAsyncMsg('findchange', {
+            active: true,
+            searchString: this._finder.searchString,
+            searchLimit: this._findLimit,
+            activeMatchOrdinal: data.current,
+            numberOfMatches: data.total
+          });
+        }
+      });
+    }
+  },
+
+  _recvFindAll: function(data) {
+    this._initFinder();
+    let searchString = data.json.searchString;
+    this._finder.caseSensitive = data.json.caseSensitive;
+    this._finder.fastFind(searchString, false, false);
+    this._finder.requestMatchesCount(searchString, this._findLimit, false);
+  },
+
+  _recvFindNext: function(data) {
+    if (!this._finder) {
+      debug("findNext() called before findAll()");
+      return;
+    }
+    this._finder.findAgain(data.json.backward, false, false);
+    this._finder.requestMatchesCount(this._finder.searchString, this._findLimit, false);
+  },
+
+  _recvClearMatch: function(data) {
+    if (!this._finder) {
+      debug("clearMach() called before findAll()");
+      return;
+    }
+    this._finder.removeSelection();
+    sendAsyncMsg('findchange', {active: false});
   },
 
   _recvSetInputMethodActive: function(data) {

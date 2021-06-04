@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_cache_CacheStorage_h
 #define mozilla_dom_cache_CacheStorage_h
 
-#include "mozilla/dom/CacheBinding.h"
 #include "mozilla/dom/cache/Types.h"
 #include "mozilla/dom/cache/TypeUtils.h"
 #include "nsAutoPtr.h"
@@ -29,6 +28,7 @@ namespace ipc {
 
 namespace dom {
 
+enum class CacheStorageNamespace : uint32_t;
 class Promise;
 
 namespace workers {
@@ -64,6 +64,11 @@ public:
   already_AddRefed<Promise> Delete(const nsAString& aKey, ErrorResult& aRv);
   already_AddRefed<Promise> Keys(ErrorResult& aRv);
 
+  // chrome-only webidl interface methods
+  static already_AddRefed<CacheStorage>
+  Constructor(const GlobalObject& aGlobal, CacheStorageNamespace aNamespace,
+              nsIPrincipal* aPrincipal, ErrorResult& aRv);
+
   // binding methods
   static bool PrefEnabled(JSContext* aCx, JSObject* aObj);
 
@@ -89,6 +94,7 @@ public:
 private:
   CacheStorage(Namespace aNamespace, nsIGlobalObject* aGlobal,
                const mozilla::ipc::PrincipalInfo& aPrincipalInfo, Feature* aFeature);
+  explicit CacheStorage(nsresult aFailureResult);
   ~CacheStorage();
 
   void MaybeRunPendingRequests();
@@ -104,7 +110,7 @@ private:
   struct Entry;
   nsTArray<nsAutoPtr<Entry>> mPendingRequests;
 
-  bool mFailedActor;
+  nsresult mStatus;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

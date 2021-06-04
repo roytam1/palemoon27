@@ -76,6 +76,7 @@ function BrowserElementParent() {
 
   Services.obs.addObserver(this, 'oop-frameloader-crashed', /* ownsWeak = */ true);
   Services.obs.addObserver(this, 'copypaste-docommand', /* ownsWeak = */ true);
+  Services.obs.addObserver(this, 'ask-children-to-execute-copypaste-command', /* ownsWeak = */ true);
 }
 
 BrowserElementParent.prototype = {
@@ -192,6 +193,8 @@ BrowserElementParent.prototype = {
       "got-set-input-method-active": this._gotDOMRequestResult,
       "selectionstatechanged": this._handleSelectionStateChanged,
       "scrollviewchange": this._handleScrollViewChange,
+      "caretstatechanged": this._handleCaretStateChanged,
+      "findchange": this._handleFindChange
     };
 
     let mmSecuritySensitiveCalls = {
@@ -207,7 +210,8 @@ BrowserElementParent.prototype = {
       "metachange": this._fireEventFromMsg,
       "resize": this._fireEventFromMsg,
       "activitydone": this._fireEventFromMsg,
-      "scroll": this._fireEventFromMsg
+      "scroll": this._fireEventFromMsg,
+      "opentab": this._fireEventFromMsg
     };
 
     this._mm.addMessageListener('browser-element-api:call', function(aMsg) {
@@ -425,8 +429,42 @@ BrowserElementParent.prototype = {
     this._frameElement.dispatchEvent(evt);
   },
 
+  // Called when state of accessible caret in child has changed.
+  // The fields of data is as following:
+  //  - rect: Contains bounding rectangle of selection, Include width, height,
+  //          top, bottom, left and right.
+  //  - commands: Describe what commands can be executed in child. Include canSelectAll,
+  //              canCut, canCopy and canPaste. For example: if we want to check if cut
+  //              command is available, using following code, if (data.commands.canCut) {}.
+  //  - zoomFactor: Current zoom factor in child frame.
+  //  - reason: The reason causes the state changed. Include "visibilitychange",
+  //            "updateposition", "longpressonemptycontent", "taponcaret", "presscaret",
+  //            "releasecaret".
+  //  - collapsed: Indicate current selection is collapsed or not.
+  //  - caretVisible: Indicate the caret visiibility.
+  //  - selectionVisible: Indicate current selection is visible or not.
+  _handleCaretStateChanged: function(data) {
+    let evt = this._createEvent('caretstatechanged', data.json,
+                                /* cancelable = */ false);
+
+    let self = this;
+    function sendDoCommandMsg(cmd) {
+      let data = { command: cmd };
+      self._sendAsyncMsg('copypaste-do-command', data);
+    }
+    Cu.exportFunction(sendDoCommandMsg, evt.detail, { defineAs: 'sendDoCommandMsg' });
+
+    this._frameElement.dispatchEvent(evt);
+  },
+
   _handleScrollViewChange: function(data) {
     let evt = this._createEvent("scrollviewchange", data.json,
+                                /* cancelable = */ false);
+    this._frameElement.dispatchEvent(evt);
+  },
+
+  _handleFindChange: function(data) {
+    let evt = this._createEvent("findchange", data.json,
                                 /* cancelable = */ false);
     this._frameElement.dispatchEvent(evt);
   },
@@ -602,6 +640,23 @@ BrowserElementParent.prototype = {
   getCanGoForward: defineDOMRequestMethod('get-can-go-forward'),
   getContentDimensions: defineDOMRequestMethod('get-contentdimensions'),
 
+  findAll: defineNoReturnMethod(function(searchString, caseSensitivity) {
+    return this._sendAsyncMsg('find-all', {
+      searchString,
+      caseSensitive: caseSensitivity == Ci.nsIBrowserElementAPI.FIND_CASE_SENSITIVE
+    });
+  }),
+
+  findNext: defineNoReturnMethod(function(direction) {
+    return this._sendAsyncMsg('find-next', {
+      backward: direction == Ci.nsIBrowserElementAPI.FIND_BACKWARD
+    });
+  }),
+
+  clearMatch: defineNoReturnMethod(function() {
+    return this._sendAsyncMsg('clear-match');
+  }),
+
   goBack: defineNoReturnMethod(function() {
     this._sendAsyncMsg('go-back');
   }),
@@ -635,10 +690,11 @@ BrowserElementParent.prototype = {
     if (!this._isAlive()) {
       return null;
     }
-    let ioService =
-      Cc['@mozilla.org/network/io-service;1'].getService(Ci.nsIIOService);
-    let uri = ioService.newURI(_url, null, null);
+    
+    let uri = Services.io.newURI(_url, null, null);
     let url = uri.QueryInterface(Ci.nsIURL);
+
+    debug('original _options = ' + uneval(_options));
 
     // Ensure we have _options, we always use it to send the filename.
     _options = _options || {};
@@ -646,7 +702,7 @@ BrowserElementParent.prototype = {
       _options.filename = url.fileName;
     }
 
-    debug('_options = ' + uneval(_options));
+    debug('final _options = ' + uneval(_options));
 
     // Ensure we have a filename.
     if (!_options.filename) {
@@ -724,7 +780,37 @@ BrowserElementParent.prototype = {
                                              Ci.nsIRequestObserver])
     };
 
-    let channel = ioService.newChannelFromURI(url);
+    // If we have a URI we'll use it to get the triggering principal to use, 
+    // if not available a null principal is acceptable.
+    let referrer = null;
+    let principal = null;
+    if (_options.referrer) {
+      // newURI can throw on malformed URIs.
+      try {
+        referrer = Services.io.newURI(_options.referrer, null, null);
+      }
+      catch(e) {
+        debug('Malformed referrer -- ' + e);
+      }
+      // This simply returns null if there is no principal available
+      // for the requested uri. This is an acceptable fallback when
+      // calling newChannelFromURI2.
+      principal = 
+        Services.scriptSecurityManager.getAppCodebasePrincipal(
+          referrer, 
+          this._frameLoader.loadContext.appId, 
+          this._frameLoader.loadContext.isInBrowserElement);
+    }
+
+    debug('Using principal? ' + !!principal);
+
+    let channel = 
+      Services.io.newChannelFromURI2(url,
+                                     null,       // No document. 
+                                     principal,  // Loading principal
+                                     principal,  // Triggering principal
+                                     Ci.nsILoadInfo.SEC_NORMAL,
+                                     Ci.nsIContentPolicy.TYPE_OTHER);
 
     // XXX We would set private browsing information prior to calling this.
     channel.notificationCallbacks = interfaceRequestor;
@@ -741,8 +827,8 @@ BrowserElementParent.prototype = {
     channel.loadFlags |= flags;
 
     if (channel instanceof Ci.nsIHttpChannel) {
-      debug('Setting HTTP referrer = ' + this._window.document.documentURIObject);
-      channel.referrer = this._window.document.documentURIObject;
+      debug('Setting HTTP referrer = ' + (referrer && referrer.spec)); 
+      channel.referrer = referrer;
       if (channel instanceof Ci.nsIHttpChannelInternal) {
         channel.forceAllowThirdPartyCookie = true;
       }
@@ -942,6 +1028,11 @@ BrowserElementParent.prototype = {
     case 'copypaste-docommand':
       if (this._isAlive() && this._frameElement.isEqualNode(subject.wrappedJSObject)) {
         this._sendAsyncMsg('do-command', { command: data });
+      }
+      break;
+    case 'ask-children-to-execute-copypaste-command':
+      if (this._isAlive() && this._frameElement == subject.wrappedJSObject) {
+        this._sendAsyncMsg('copypaste-do-command', { command: data });
       }
       break;
     default:

@@ -2748,9 +2748,14 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
         if needInterfacePrototypeObject:
             protoClass = "&PrototypeClass.mBase"
             protoCache = "&aProtoAndIfaceCache.EntrySlotOrCreate(prototypes::id::%s)" % self.descriptor.name
+            parentProto = "parentProto"
+            getParentProto = CGGeneric(getParentProto)
         else:
             protoClass = "nullptr"
             protoCache = "nullptr"
+            parentProto = "nullptr"
+            getParentProto = None
+
         if needInterfaceObject:
             interfaceClass = "&InterfaceObjectClass.mBase"
             interfaceCache = "&aProtoAndIfaceCache.EntrySlotOrCreate(constructors::id::%s)" % self.descriptor.name
@@ -2778,7 +2783,7 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
             """
             JS::Heap<JSObject*>* protoCache = ${protoCache};
             JS::Heap<JSObject*>* interfaceCache = ${interfaceCache};
-            dom::CreateInterfaceObjects(aCx, aGlobal, parentProto,
+            dom::CreateInterfaceObjects(aCx, aGlobal, ${parentProto},
                                         ${protoClass}, protoCache,
                                         constructorProto, ${interfaceClass}, ${constructHookHolder}, ${constructArgs}, ${namedConstructors},
                                         interfaceCache,
@@ -2787,6 +2792,7 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
                                         ${name}, aDefineOnGlobal);
             """,
             protoClass=protoClass,
+            parentProto=parentProto,
             protoCache=protoCache,
             interfaceClass=interfaceClass,
             constructHookHolder=constructHookHolder,
@@ -2866,7 +2872,7 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
             defineAliases = None
 
         return CGList(
-            [CGGeneric(getParentProto), CGGeneric(getConstructorProto), initIds,
+            [getParentProto, CGGeneric(getConstructorProto), initIds,
              prefCache, CGGeneric(call), defineAliases, createUnforgeableHolder, setUnforgeableHolder],
             "\n").define()
 
@@ -3921,7 +3927,7 @@ class CGCallbackTempRoot(CGGeneric):
         define = dedent("""
             { // Scope for tempRoot
               JS::Rooted<JSObject*> tempRoot(cx, &${val}.toObject());
-              ${declName} = new %s(tempRoot, mozilla::dom::GetIncumbentGlobal());
+              ${declName} = new %s(cx, tempRoot, mozilla::dom::GetIncumbentGlobal());
             }
             """) % name
         CGGeneric.__init__(self, define=define)
@@ -5529,15 +5535,15 @@ def convertConstIDLValueToJSVal(value):
     tag = value.type.tag()
     if tag in [IDLType.Tags.int8, IDLType.Tags.uint8, IDLType.Tags.int16,
                IDLType.Tags.uint16, IDLType.Tags.int32]:
-        return "INT_TO_JSVAL(%s)" % (value.value)
+        return "JS::Int32Value(%s)" % (value.value)
     if tag == IDLType.Tags.uint32:
-        return "UINT_TO_JSVAL(%sU)" % (value.value)
+        return "JS::NumberValue(%sU)" % (value.value)
     if tag in [IDLType.Tags.int64, IDLType.Tags.uint64]:
-        return "DOUBLE_TO_JSVAL(%s)" % numericValue(tag, value.value)
+        return "JS::CanonicalizedDoubleValue(%s)" % numericValue(tag, value.value)
     if tag == IDLType.Tags.bool:
         return "JSVAL_TRUE" if value.value else "JSVAL_FALSE"
     if tag in [IDLType.Tags.float, IDLType.Tags.double]:
-        return "DOUBLE_TO_JSVAL(%s)" % (value.value)
+        return "JS::CanonicalizedDoubleValue(%s)" % (value.value)
     raise TypeError("Const value of unhandled type: %s" % value.type)
 
 
@@ -6952,13 +6958,9 @@ class CGPerSignatureCall(CGThing):
         return wrapCode
 
     def getErrorReport(self):
-        jsImplemented = ""
-        if self.descriptor.interface.isJSImplemented():
-            jsImplemented = ", true"
-        return CGGeneric('return ThrowMethodFailedWithDetails(cx, rv, "%s", "%s"%s);\n'
+        return CGGeneric('return ThrowMethodFailedWithDetails(cx, rv, "%s", "%s");\n'
                          % (self.descriptor.interface.identifier.name,
-                            self.idlNode.identifier.name,
-                            jsImplemented))
+                            self.idlNode.identifier.name))
 
     def define(self):
         return (self.cgRoot.define() + self.wrap_return_value())
@@ -13793,7 +13795,7 @@ class CGJSImplClass(CGBindingImplClass):
             destructor = ClassDestructor(virtual=False, visibility="private")
 
         baseConstructors = [
-            ("mImpl(new %s(aJSImplObject, /* aIncumbentGlobal = */ nullptr))" %
+            ("mImpl(new %s(nullptr, aJSImplObject, /* aIncumbentGlobal = */ nullptr))" %
              jsImplName(descriptor.name)),
             "mParent(aParent)"]
         parentInterface = descriptor.interface.parent
@@ -13938,13 +13940,14 @@ class CGCallback(CGClass):
             # CallbackObject does that already.
             body = ""
         return [ClassConstructor(
-            [Argument("JS::Handle<JSObject*>", "aCallback"),
+            [Argument("JSContext*", "aCx"),
+             Argument("JS::Handle<JSObject*>", "aCallback"),
              Argument("nsIGlobalObject*", "aIncumbentGlobal")],
             bodyInHeader=True,
             visibility="public",
             explicit=True,
             baseConstructors=[
-                "%s(aCallback, aIncumbentGlobal)" % self.baseName,
+                "%s(aCx, aCallback, aIncumbentGlobal)" % self.baseName,
             ],
             body=body)]
 

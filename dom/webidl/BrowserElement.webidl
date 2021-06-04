@@ -6,8 +6,12 @@
 
 callback BrowserElementNextPaintEventCallback = void ();
 
+enum BrowserFindCaseSensitivity { "case-sensitive", "case-insensitive" };
+enum BrowserFindDirection { "forward", "backward" };
+
 dictionary BrowserElementDownloadOptions {
   DOMString? filename;
+  DOMString? referrer;
 };
 
 [NoInterfaceObject]
@@ -137,12 +141,27 @@ interface BrowserElementPrivileged {
 
   [Throws,
    Pref="dom.mozBrowserFramesEnabled",
-   CheckPermissions="browser"]
+   CheckAllPermissions="browser input-manage"]
   DOMRequest setInputMethodActive(boolean isActive);
 
-  // Additional |nfc-manager| permission is required for setNFCFocus API
+  [Throws,
+   Pref="dom.mozBrowserFramesEnabled",
+   CheckAllPermissions="browser setNFCFocus"]
+  void setNFCFocus(boolean isFocus);
+
   [Throws,
    Pref="dom.mozBrowserFramesEnabled",
    CheckPermissions="browser"]
-  void setNFCFocus(boolean isFocus);
+  void findAll(DOMString searchString, BrowserFindCaseSensitivity caseSensitivity);
+
+  [Throws,
+   Pref="dom.mozBrowserFramesEnabled",
+   CheckPermissions="browser"]
+  void findNext(BrowserFindDirection direction);
+
+  [Throws,
+   Pref="dom.mozBrowserFramesEnabled",
+   CheckPermissions="browser"]
+  void clearMatch();
+
 };

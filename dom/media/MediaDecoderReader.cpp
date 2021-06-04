@@ -60,18 +60,14 @@ public:
   size_t mSize;
 };
 
-MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder,
-                                       MediaTaskQueue* aBorrowedTaskQueue)
+MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
   : mAudioCompactor(mAudioQueue)
   , mDecoder(aDecoder)
-  , mTaskQueue(aBorrowedTaskQueue ? aBorrowedTaskQueue
-                                  : new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
-                                                       /* aSupportsTailDispatch = */ true))
   , mIgnoreAudioOutputFormat(false)
   , mStartTime(-1)
   , mHitAudioDecodeError(false)
   , mShutdown(false)
-  , mTaskQueueIsBorrowed(!!aBorrowedTaskQueue)
+  , mTaskQueueIsBorrowed(false)
   , mAudioDiscontinuity(false)
   , mVideoDiscontinuity(false)
 {
@@ -332,6 +328,19 @@ MediaDecoderReader::RequestAudioData()
   }
 
   return p;
+}
+
+MediaTaskQueue*
+MediaDecoderReader::EnsureTaskQueue()
+{
+  if (!mTaskQueue) {
+    MOZ_ASSERT(!mTaskQueueIsBorrowed);
+    RefPtr<SharedThreadPool> pool(GetMediaThreadPool(MediaThreadType::PLAYBACK));
+    MOZ_DIAGNOSTIC_ASSERT(pool);
+    mTaskQueue = new MediaTaskQueue(pool.forget());
+  }
+
+  return mTaskQueue;
 }
 
 void

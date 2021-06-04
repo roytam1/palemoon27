@@ -509,6 +509,16 @@ function reload (aTarget, aEvent = "navigate") {
 }
 
 /**
+* Forces cycle collection and GC, used in AudioNode destruction tests.
+*/
+function forceCC () {
+  info("Triggering GC/CC...");
+  SpecialPowers.DOMWindowUtils.cycleCollect();
+  SpecialPowers.DOMWindowUtils.garbageCollect();
+  SpecialPowers.DOMWindowUtils.garbageCollect();
+}
+
+/**
  * Inflate a particular sample's stack and return an array of strings.
  */
 function getInflatedStackLocations(thread, sample) {
@@ -570,3 +580,4 @@ function synthesizeProfileForTest(samples) {
     markers: []
   }, uniqueStacks);
 }
+

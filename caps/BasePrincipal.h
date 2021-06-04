@@ -11,7 +11,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsJSPrincipals.h"
 
-#include "mozilla/dom/SystemDictionariesBinding.h"
+#include "mozilla/dom/ChromeUtilsBinding.h"
 
 class nsIContentSecurityPolicy;
 class nsIObjectOutputStream;
@@ -28,6 +28,8 @@ public:
     mAppId = aAppId;
     mInBrowser = aInBrowser;
   }
+  explicit OriginAttributes(const OriginAttributesDictionary& aOther)
+    : OriginAttributesDictionary(aOther) {}
 
   bool operator==(const OriginAttributes& aOther) const
   {
@@ -44,6 +46,13 @@ public:
   // returns an empty string.
   void CreateSuffix(nsACString& aStr) const;
   bool PopulateFromSuffix(const nsACString& aStr);
+
+  void CookieJar(nsACString& aStr);
+
+  // Populates the attributes from a string like
+  // |uri!key1=value1&key2=value2| and returns the uri without the suffix.
+  bool PopulateFromOrigin(const nsACString& aOrigin,
+                          nsACString& aOriginNoSuffix);
 };
 
 /*
@@ -82,7 +91,7 @@ public:
 
   virtual bool IsOnCSSUnprefixingWhitelist() override { return false; }
 
-  static bool IsCodebasePrincipal(nsIPrincipal* aPrincipal);
+  virtual bool IsCodebasePrincipal() const { return false; };
 
   static BasePrincipal* Cast(nsIPrincipal* aPrin) { return static_cast<BasePrincipal*>(aPrin); }
   static already_AddRefed<BasePrincipal> CreateCodebasePrincipal(nsIURI* aURI, OriginAttributes& aAttrs);

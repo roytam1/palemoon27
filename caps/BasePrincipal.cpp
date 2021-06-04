@@ -21,28 +21,28 @@
 
 namespace mozilla {
 
-using dom::URLSearchParams;
+using dom::URLParams;
 
 void
 OriginAttributes::CreateSuffix(nsACString& aStr) const
 {
   MOZ_RELEASE_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  nsRefPtr<URLSearchParams> usp = new URLSearchParams();
+  UniquePtr<URLParams> params(new URLParams());
   nsAutoString value;
 
   if (mAppId != nsIScriptSecurityManager::NO_APP_ID) {
     value.AppendInt(mAppId);
-    usp->Set(NS_LITERAL_STRING("appId"), value);
+    params->Set(NS_LITERAL_STRING("appId"), value);
   }
 
   if (mInBrowser) {
-    usp->Set(NS_LITERAL_STRING("inBrowser"), NS_LITERAL_STRING("1"));
+    params->Set(NS_LITERAL_STRING("inBrowser"), NS_LITERAL_STRING("1"));
   }
 
   aStr.Truncate();
 
-  usp->Serialize(value);
+  params->Serialize(value);
   if (!value.IsEmpty()) {
     aStr.AppendLiteral("!");
     aStr.Append(NS_ConvertUTF16toUTF8(value));
@@ -52,7 +52,7 @@ OriginAttributes::CreateSuffix(nsACString& aStr) const
 namespace {
 
 class MOZ_STACK_CLASS PopulateFromSuffixIterator final
-  : public URLSearchParams::ForEachIterator
+  : public URLParams::ForEachIterator
 {
 public:
   explicit PopulateFromSuffixIterator(OriginAttributes* aOriginAttributes)
@@ -61,8 +61,8 @@ public:
     MOZ_ASSERT(aOriginAttributes);
   }
 
-  bool URLSearchParamsIterator(const nsString& aName,
-                               const nsString& aValue) override
+  bool URLParamsIterator(const nsString& aName,
+                         const nsString& aValue) override
   {
     if (aName.EqualsLiteral("appId")) {
       nsresult rv;
@@ -108,11 +108,34 @@ OriginAttributes::PopulateFromSuffix(const nsACString& aStr)
     return false;
   }
 
-  nsRefPtr<URLSearchParams> usp = new URLSearchParams();
-  usp->ParseInput(Substring(aStr, 1, aStr.Length() - 1), nullptr);
+  UniquePtr<URLParams> params(new URLParams());
+  params->ParseInput(Substring(aStr, 1, aStr.Length() - 1));
 
   PopulateFromSuffixIterator iterator(this);
-  return usp->ForEach(iterator);
+  return params->ForEach(iterator);
+}
+
+bool
+OriginAttributes::PopulateFromOrigin(const nsACString& aOrigin,
+                                     nsACString& aOriginNoSuffix)
+{
+  // RFindChar is only available on nsCString.
+  nsCString origin(aOrigin);
+  int32_t pos = origin.RFindChar('!');
+
+  if (pos == kNotFound) {
+    aOriginNoSuffix = origin;
+    return true;
+  }
+
+  aOriginNoSuffix = Substring(origin, 0, pos);
+  return PopulateFromSuffix(Substring(origin, pos));
+}
+
+void
+OriginAttributes::CookieJar(nsACString& aStr)
+{
+  mozilla::GetJarPrefix(mAppId, mInBrowser, aStr);
 }
 
 BasePrincipal::BasePrincipal()
@@ -141,14 +164,14 @@ BasePrincipal::GetOriginNoSuffix(nsACString& aOrigin)
 bool
 BasePrincipal::Subsumes(nsIPrincipal* aOther, DocumentDomainConsideration aConsideration)
 {
-  MOZ_RELEASE_ASSERT(aOther, "The caller is performing a nonsensical security check!");
+  MOZ_ASSERT(aOther);
   return SubsumesInternal(aOther, aConsideration);
 }
 
 NS_IMETHODIMP
 BasePrincipal::Equals(nsIPrincipal *aOther, bool *aResult)
 {
-
+  NS_ENSURE_TRUE(aOther, NS_ERROR_INVALID_ARG);
   *aResult = Subsumes(aOther, DontConsiderDocumentDomain) &&
              Cast(aOther)->Subsumes(this, DontConsiderDocumentDomain);
   return NS_OK;
@@ -157,6 +180,7 @@ BasePrincipal::Equals(nsIPrincipal *aOther, bool *aResult)
 NS_IMETHODIMP
 BasePrincipal::EqualsConsideringDomain(nsIPrincipal *aOther, bool *aResult)
 {
+  NS_ENSURE_TRUE(aOther, NS_ERROR_INVALID_ARG);
   *aResult = Subsumes(aOther, ConsiderDocumentDomain) &&
              Cast(aOther)->Subsumes(this, ConsiderDocumentDomain);
   return NS_OK;
@@ -165,6 +189,7 @@ BasePrincipal::EqualsConsideringDomain(nsIPrincipal *aOther, bool *aResult)
 NS_IMETHODIMP
 BasePrincipal::Subsumes(nsIPrincipal *aOther, bool *aResult)
 {
+  NS_ENSURE_TRUE(aOther, NS_ERROR_INVALID_ARG);
   *aResult = Subsumes(aOther, DontConsiderDocumentDomain);
   return NS_OK;
 }
@@ -172,6 +197,7 @@ BasePrincipal::Subsumes(nsIPrincipal *aOther, bool *aResult)
 NS_IMETHODIMP
 BasePrincipal::SubsumesConsideringDomain(nsIPrincipal *aOther, bool *aResult)
 {
+  NS_ENSURE_TRUE(aOther, NS_ERROR_INVALID_ARG);
   *aResult = Subsumes(aOther, ConsiderDocumentDomain);
   return NS_OK;
 }
@@ -220,7 +246,7 @@ BasePrincipal::GetJarPrefix(nsACString& aJarPrefix)
 {
   MOZ_ASSERT(AppId() != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  mozilla::GetJarPrefix(AppId(), IsInBrowserElement(), aJarPrefix);
+  mOriginAttributes.CookieJar(aJarPrefix);
   return NS_OK;
 }
 
@@ -243,10 +269,8 @@ BasePrincipal::GetOriginSuffix(nsACString& aOriginAttributes)
 NS_IMETHODIMP
 BasePrincipal::GetCookieJar(nsACString& aCookieJar)
 {
-  // We just forward to .jarPrefix for now, which is a nice compact
-  // stringification of the (appId, inBrowser) tuple. This will eventaully be
-  // swapped out for an origin attribute - see the comment in nsIPrincipal.idl.
-  return GetJarPrefix(aCookieJar);
+  mOriginAttributes.CookieJar(aCookieJar);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -319,31 +343,6 @@ BasePrincipal::CreateCodebasePrincipal(nsIURI* aURI, OriginAttributes& aAttrs)
   rv = codebase->Init(aURI, aAttrs);
   NS_ENSURE_SUCCESS(rv, nullptr);
   return codebase.forget();
-}
-
-/* static */ bool
-BasePrincipal::IsCodebasePrincipal(nsIPrincipal* aPrincipal)
-{
-  MOZ_ASSERT(aPrincipal);
-
-  bool isNullPrincipal = true;
-  nsresult rv = aPrincipal->GetIsNullPrincipal(&isNullPrincipal);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return false;
-  }
-
-  if (isNullPrincipal || nsContentUtils::IsSystemPrincipal(aPrincipal)) {
-    return false;
-  }
-
-  // No expanded principals.
-  nsCOMPtr<nsIExpandedPrincipal> expandedPrincipal =
-    do_QueryInterface(aPrincipal);
-  if (expandedPrincipal) {
-    return false;
-  }
-
-  return true;
 }
 
 } // namespace mozilla

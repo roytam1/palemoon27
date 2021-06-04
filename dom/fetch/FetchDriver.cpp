@@ -416,21 +416,37 @@ FetchDriver::HttpFetch(bool aCORSFlag, bool aCORSPreflightFlag, bool aAuthentica
     // Step 2. Set the referrer.
     nsAutoString referrer;
     mRequest->GetReferrer(referrer);
-    // The referrer should have already been resolved to a URL by the caller.
-    MOZ_ASSERT(!referrer.EqualsLiteral(kFETCH_CLIENT_REFERRER_STR));
-    if (!referrer.IsEmpty()) {
-      nsCOMPtr<nsIURI> refURI;
-      rv = NS_NewURI(getter_AddRefs(refURI), referrer, nullptr, nullptr);
+    if (referrer.EqualsLiteral(kFETCH_CLIENT_REFERRER_STR)) {
+      rv = nsContentUtils::SetFetchReferrerURIWithPolicy(mPrincipal,
+                                                         mDocument,
+                                                         httpChan);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return FailWithNetworkError();
+      }
+    } else if (referrer.IsEmpty()) {
+      rv = httpChan->SetReferrerWithPolicy(nullptr, net::RP_No_Referrer);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return FailWithNetworkError();
+      }
+    } else {
+      // From "Determine request's Referrer" step 3
+      // "If request's referrer is a URL, let referrerSource be request's
+      // referrer."
+      //
+      // XXXnsm - We never actually hit this from a fetch() call since both
+      // fetch and Request() create a new internal request whose referrer is
+      // always set to about:client. Should we just crash here instead until
+      // someone tries to use FetchDriver for non-fetch() APIs?
+      nsCOMPtr<nsIURI> referrerURI;
+      rv = NS_NewURI(getter_AddRefs(referrerURI), referrer, nullptr, nullptr);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return FailWithNetworkError();
       }
 
-      net::ReferrerPolicy referrerPolicy = net::RP_Default;
-      if (mDocument) {
-        referrerPolicy = mDocument->GetReferrerPolicy();
-      }
-
-      rv = httpChan->SetReferrerWithPolicy(refURI, referrerPolicy);
+      rv =
+        httpChan->SetReferrerWithPolicy(referrerURI,
+                                        mDocument ? mDocument->GetReferrerPolicy() :
+                                                    net::RP_Default);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return FailWithNetworkError();
       }
@@ -548,14 +564,16 @@ FetchDriver::ContinueHttpFetchAfterNetworkFetch()
 }
 
 already_AddRefed<InternalResponse>
-FetchDriver::BeginAndGetFilteredResponse(InternalResponse* aResponse)
+FetchDriver::BeginAndGetFilteredResponse(InternalResponse* aResponse, nsIURI* aFinalURI)
 {
   MOZ_ASSERT(aResponse);
-  if (!aResponse->FinalURL()) {
-    nsAutoCString reqURL;
+  nsAutoCString reqURL;
+  if (aFinalURI) {
+    aFinalURI->GetSpec(reqURL);
+  } else {
     mRequest->GetURL(reqURL);
-    aResponse->SetUrl(reqURL);
   }
+  aResponse->SetUrl(reqURL);
 
   // FIXME(nsm): Handle mixed content check, step 7 of fetch.
 
@@ -584,7 +602,7 @@ FetchDriver::BeginAndGetFilteredResponse(InternalResponse* aResponse)
 void
 FetchDriver::BeginResponse(InternalResponse* aResponse)
 {
-  nsRefPtr<InternalResponse> r = BeginAndGetFilteredResponse(aResponse);
+  nsRefPtr<InternalResponse> r = BeginAndGetFilteredResponse(aResponse, nullptr);
   // Release the ref.
 }
 
@@ -707,9 +725,17 @@ FetchDriver::OnStartRequest(nsIRequest* aRequest,
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
   response->InitChannelInfo(channel);
 
+  nsCOMPtr<nsIURI> channelURI;
+  rv = channel->GetURI(getter_AddRefs(channelURI));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    FailWithNetworkError();
+    // Cancel request.
+    return rv;
+  }
+
   // Resolves fetch() promise which may trigger code running in a worker.  Make
   // sure the Response is fully initialized before calling this.
-  mResponse = BeginAndGetFilteredResponse(response);
+  mResponse = BeginAndGetFilteredResponse(response, channelURI);
 
   nsCOMPtr<nsIEventTarget> sts = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID, &rv);
   if (NS_WARN_IF(NS_FAILED(rv))) {

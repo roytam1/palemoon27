@@ -48,25 +48,25 @@ BEGIN_TEST(testParseJSON_success)
     expected = JS::NullValue();
     CHECK(TryParse(cx, "null", expected));
 
-    expected = INT_TO_JSVAL(0);
+    expected.setInt32(0);
     CHECK(TryParse(cx, "0", expected));
 
-    expected = INT_TO_JSVAL(1);
+    expected.setInt32(1);
     CHECK(TryParse(cx, "1", expected));
 
-    expected = INT_TO_JSVAL(-1);
+    expected.setInt32(-1);
     CHECK(TryParse(cx, "-1", expected));
 
-    expected = DOUBLE_TO_JSVAL(1);
+    expected.setDouble(1);
     CHECK(TryParse(cx, "1", expected));
 
-    expected = DOUBLE_TO_JSVAL(1.75);
+    expected.setDouble(1.75);
     CHECK(TryParse(cx, "1.75", expected));
 
-    expected = DOUBLE_TO_JSVAL(9e9);
+    expected.setDouble(9e9);
     CHECK(TryParse(cx, "9e9", expected));
 
-    expected = DOUBLE_TO_JSVAL(std::numeric_limits<double>::infinity());
+    expected.setDouble(std::numeric_limits<double>::infinity());
     CHECK(TryParse(cx, "9e99999", expected));
 
     JS::Rooted<JSFlatString*> str(cx);
@@ -130,7 +130,7 @@ BEGIN_TEST(testParseJSON_success)
     obj = &v.toObject();
     CHECK(!JS_IsArrayObject(cx, obj));
     CHECK(JS_GetProperty(cx, obj, "f", &v2));
-    CHECK_SAME(v2, INT_TO_JSVAL(17));
+    CHECK(v2.isInt32(17));
 
     return true;
 }
@@ -327,7 +327,7 @@ ReportJSONError(JSContext* cx, const char* message, JSErrorReport* report)
 END_TEST(testParseJSON_error)
 
 static bool
-Censor(JSContext* cx, unsigned argc, jsval* vp)
+Censor(JSContext* cx, unsigned argc, JS::Value* vp)
 {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
     MOZ_RELEASE_ASSERT(args.length() == 2);

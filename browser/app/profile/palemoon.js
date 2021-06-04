@@ -1251,6 +1251,12 @@ pref("view_source.tab", true);
 // Disable reader mode by default.
 pref("reader.parse-on-load.enabled", false);
 
+// Enable Service Workers for desktop on non-release builds
+#ifndef RELEASE_BUILD
+pref("dom.serviceWorkers.enabled", true);
+pref("dom.serviceWorkers.interception.enabled", true);
+#endif
+
 // ****************** domain-specific UAs ******************
 
 // AMO needs "Firefox", obviously - pass on the OS (determined at build time)

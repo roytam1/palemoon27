@@ -101,8 +101,7 @@ ThrowInvalidThis(JSContext* aCx, const JS::CallArgs& aArgs,
 inline bool
 ThrowMethodFailedWithDetails(JSContext* cx, ErrorResult& rv,
                              const char* ifaceName,
-                             const char* memberName,
-                             bool reportJSContentExceptions = false)
+                             const char* memberName)
 {
   if (rv.IsUncatchableException()) {
     // Nuke any existing exception on aCx, to make sure we're uncatchable.
@@ -116,11 +115,7 @@ ThrowMethodFailedWithDetails(JSContext* cx, ErrorResult& rv,
     return false;
   }
   if (rv.IsJSException()) {
-    if (reportJSContentExceptions) {
-      rv.ReportJSExceptionFromJSImplementation(cx);
-    } else {
-      rv.ReportJSException(cx);
-    }
+    rv.ReportJSException(cx);
     return false;
   }
   if (rv.IsNotEnoughArgsError()) {
@@ -520,17 +515,20 @@ AllocateProtoAndIfaceCache(JSObject* obj, ProtoAndIfaceCache::Kind aKind)
 }
 
 #ifdef DEBUG
-void
-VerifyTraceProtoAndIfaceCacheCalled(JS::CallbackTracer *trc, void **thingp,
-                                    JS::TraceKind kind);
-
 struct VerifyTraceProtoAndIfaceCacheCalledTracer : public JS::CallbackTracer
 {
-    bool ok;
+  bool ok;
 
-    explicit VerifyTraceProtoAndIfaceCacheCalledTracer(JSRuntime *rt)
-      : JS::CallbackTracer(rt, VerifyTraceProtoAndIfaceCacheCalled), ok(false)
-    {}
+  explicit VerifyTraceProtoAndIfaceCacheCalledTracer(JSRuntime *rt)
+    : JS::CallbackTracer(rt), ok(false)
+  {}
+
+  void onChild(const JS::GCCellPtr&) override {
+    // We don't do anything here, we only want to verify that
+    // TraceProtoAndIfaceCache was called.
+  }
+
+  TracerKind getTracerKind() const override { return TracerKind::VerifyTraceProtoAndIface; }
 };
 #endif
 
@@ -541,8 +539,8 @@ TraceProtoAndIfaceCache(JSTracer* trc, JSObject* obj)
 
 #ifdef DEBUG
   if (trc->isCallbackTracer() &&
-      trc->asCallbackTracer()->hasCallback(
-        VerifyTraceProtoAndIfaceCacheCalled)) {
+      (trc->asCallbackTracer()->getTracerKind() ==
+       JS::CallbackTracer::TracerKind::VerifyTraceProtoAndIface)) {
     // We don't do anything here, we only want to verify that
     // TraceProtoAndIfaceCache was called.
     static_cast<VerifyTraceProtoAndIfaceCacheCalledTracer*>(trc)->ok = true;
@@ -3248,6 +3246,17 @@ GetErrorPrototype(JSContext* aCx, JS::Handle<JSObject*> aForObj)
 {
   return JS_GetErrorPrototype(aCx);
 }
+
+// Resolve an id on the given global object that wants to be included in
+// Exposed=System webidl annotations.  False return value means exception
+// thrown.
+bool SystemGlobalResolve(JSContext* cx, JS::Handle<JSObject*> obj,
+                         JS::Handle<jsid> id, bool* resolvedp);
+
+// Enumerate all ids on the given global object that wants to be included in
+// Exposed=System webidl annotations.  False return value means exception
+// thrown.
+bool SystemGlobalEnumerate(JSContext* cx, JS::Handle<JSObject*> obj);
 
 // A callback to perform funToString on an interface object
 JSString*

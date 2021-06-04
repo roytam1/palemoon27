@@ -36,6 +36,7 @@ public:
     decoder->SetResource(resource);
 
     reader->Init(nullptr);
+    reader->EnsureTaskQueue();
     {
       // This needs to be done before invoking GetBuffered. This is normally
       // done by MediaDecoderStateMachine.

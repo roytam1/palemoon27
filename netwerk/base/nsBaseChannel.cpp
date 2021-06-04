@@ -6,7 +6,9 @@
 
 #include "nsBaseChannel.h"
 #include "nsURLHelper.h"
-#include "nsNetUtil.h"
+#include "nsNetCID.h"
+#include "nsMimeTypes.h"
+#include "nsIContentSniffer.h"
 #include "nsMimeTypes.h"
 #include "nsIHttpEventSink.h"
 #include "nsIHttpChannel.h"
@@ -16,6 +18,7 @@
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "nsProxyRelease.h"
 #include "nsXULAppAPI.h"
+#include "mozilla/LoadInfo.h"
 
 static PLDHashOperator
 CopyProperties(const nsAString &key, nsIVariant *data, void *closure)

@@ -13,6 +13,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
 
+XPCOMUtils.defineLazyServiceGetter(this, "acs",
+                                   "@mozilla.org/audiochannel/service;1",
+                                   "nsIAudioChannelService");
+
 let kLongestReturnedString = 128;
 
 function debug(msg) {
@@ -234,6 +238,12 @@ BrowserElementChild.prototype = {
       "find-all": this._recvFindAll.bind(this),
       "find-next": this._recvFindNext.bind(this),
       "clear-match": this._recvClearMatch.bind(this),
+      "execute-script": this._recvExecuteScript,
+      "get-audio-channel-volume": this._recvGetAudioChannelVolume,
+      "set-audio-channel-volume": this._recvSetAudioChannelVolume,
+      "get-audio-channel-muted": this._recvGetAudioChannelMuted,
+      "set-audio-channel-muted": this._recvSetAudioChannelMuted,
+      "get-is-audio-channel-active": this._recvIsAudioChannelActive
     }
 
     addMessageListener("browser-element-api:call", function(aMessage) {
@@ -960,6 +970,90 @@ BrowserElementChild.prototype = {
       takeScreenshotClosure, maxDelayMS);
   },
 
+  _recvExecuteScript: function(data) {
+    debug("Received executeScript message: (" + data.json.id + ")");
+
+    let domRequestID = data.json.id;
+
+    let sendError = errorMsg => sendAsyncMsg("execute-script-done", {
+      errorMsg,
+      id: domRequestID
+    });
+
+    let sendSuccess = successRv => sendAsyncMsg("execute-script-done", {
+      successRv,
+      id: domRequestID
+    });
+
+    let isJSON = obj => {
+      try {
+        JSON.stringify(obj);
+      } catch(e) {
+        return false;
+      }
+      return true;
+    }
+
+    let expectedOrigin = data.json.args.options.origin;
+    let expectedUrl = data.json.args.options.url;
+
+    if (expectedOrigin) {
+      if (expectedOrigin != content.location.origin) {
+        sendError("Origin mismatches");
+        return;
+      }
+    }
+
+    if (expectedUrl) {
+      let expectedURI
+      try {
+       expectedURI = Services.io.newURI(expectedUrl, null, null);
+      } catch(e) {
+        sendError("Malformed URL");
+        return;
+      }
+      let currentURI = docShell.QueryInterface(Ci.nsIWebNavigation).currentURI;
+      if (!currentURI.equalsExceptRef(expectedURI)) {
+        sendError("URL mismatches");
+        return;
+      }
+    }
+
+    let sandbox = new Cu.Sandbox([content], {
+      sandboxPrototype: content,
+      sandboxName: "browser-api-execute-script",
+      allowWaivers: false,
+      sameZoneAs: content
+    });
+
+    try {
+      let sandboxRv = Cu.evalInSandbox(data.json.args.script, sandbox, "1.8");
+      if (sandboxRv instanceof Promise) {
+        sandboxRv.then(rv => {
+          if (isJSON(rv)) {
+            sendSuccess(rv);
+          } else {
+            sendError("Value returned (resolve) by promise is not a valid JSON object");
+          }
+        }, error => {
+          if (isJSON(error)) {
+            sendError(error);
+          } else {
+            sendError("Value returned (reject) by promise is not a valid JSON object");
+          }
+        });
+      } else {
+        if (isJSON(sandboxRv)) {
+          sendSuccess(sandboxRv);
+        } else {
+          sendError("Script last expression must be a promise or a JSON object");
+        }
+      }
+    } catch(e) {
+      sendError(e.toString());
+    }
+  },
+
   _recvGetContentDimensions: function(data) {
     debug("Received getContentDimensions message: (" + data.json.id + ")");
     sendAsyncMsg('got-contentdimensions', {
@@ -1230,6 +1324,55 @@ BrowserElementChild.prototype = {
       this._selectionStateChangedTarget = null;
       docShell.doCommand(COMMAND_MAP[data.json.command]);
     }
+  },
+
+  _recvGetAudioChannelVolume: function(data) {
+    debug("Received getAudioChannelVolume message: (" + data.json.id + ")");
+
+    let volume = acs.getAudioChannelVolume(content,
+                                           data.json.args.audioChannel);
+    sendAsyncMsg('got-audio-channel-volume', {
+      id: data.json.id, successRv: volume
+    });
+  },
+
+  _recvSetAudioChannelVolume: function(data) {
+    debug("Received setAudioChannelVolume message: (" + data.json.id + ")");
+
+    acs.setAudioChannelVolume(content,
+                              data.json.args.audioChannel,
+                              data.json.args.volume);
+    sendAsyncMsg('got-set-audio-channel-volume', {
+      id: data.json.id, successRv: true
+    });
+  },
+
+  _recvGetAudioChannelMuted: function(data) {
+    debug("Received getAudioChannelMuted message: (" + data.json.id + ")");
+
+    let muted = acs.getAudioChannelMuted(content, data.json.args.audioChannel);
+    sendAsyncMsg('got-audio-channel-muted', {
+      id: data.json.id, successRv: muted
+    });
+  },
+
+  _recvSetAudioChannelMuted: function(data) {
+    debug("Received setAudioChannelMuted message: (" + data.json.id + ")");
+
+    acs.setAudioChannelMuted(content, data.json.args.audioChannel,
+                             data.json.args.muted);
+    sendAsyncMsg('got-set-audio-channel-muted', {
+      id: data.json.id, successRv: true
+    });
+  },
+
+  _recvIsAudioChannelActive: function(data) {
+    debug("Received isAudioChannelActive message: (" + data.json.id + ")");
+
+    let active = acs.isAudioChannelActive(content, data.json.args.audioChannel);
+    sendAsyncMsg('got-is-audio-channel-active', {
+      id: data.json.id, successRv: active
+    });
   },
 
   _initFinder: function() {

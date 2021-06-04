@@ -13683,6 +13683,22 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
   nsCOMPtr<nsIURI> referer = refererDoc->GetDocumentURI();
   uint32_t refererPolicy = refererDoc->GetReferrerPolicy();
 
+  // get referrer attribute from clicked link and parse it
+  // if per element referrer is enabled, the element referrer overrules
+  // the document wide referrer
+  if (IsElementAnchor(aContent)) {
+    MOZ_ASSERT(aContent->IsHTMLElement());
+    if (Preferences::GetBool("network.http.enablePerElementReferrer", false)) {
+      nsAutoString referrerPolicy;
+      if (aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::referrer, referrerPolicy)) {
+        uint32_t refPolEnum = mozilla::net::ReferrerPolicyFromString(referrerPolicy);
+        if (refPolEnum != mozilla::net::RP_Unset) {
+          refererPolicy = refPolEnum;
+        }
+      }
+    }
+  }
+
   // referer could be null here in some odd cases, but that's ok,
   // we'll just load the link w/o sending a referer in those cases.
 
@@ -14096,9 +14112,7 @@ public:
                            const char* aReason,
                            const char16_t* aFunctionName,
                            const char16_t* aFileName,
-                           uint32_t aLineNumber,
-                           JS::Handle<JS::Value> aAsyncStack,
-                           JS::Handle<JS::Value> aAsyncCause)
+                           uint32_t aLineNumber)
     : TimelineMarker(aDocShell, aName, TRACING_INTERVAL_START,
                      NS_ConvertUTF8toUTF16(aReason),
                      NO_STACK)
@@ -14106,11 +14120,6 @@ public:
     , mFileName(aFileName)
     , mLineNumber(aLineNumber)
   {
-    JSContext* ctx = nsContentUtils::GetCurrentJSContext();
-    if (ctx) {
-      mAsyncStack.init(ctx, aAsyncStack);
-      mAsyncCause.init(ctx, aAsyncCause);
-    }
   }
 
   void AddDetails(JSContext* aCx, mozilla::dom::ProfileTimelineMarker& aMarker)
@@ -14123,17 +14132,6 @@ public:
       stackFrame.mLine.Construct(mLineNumber);
       stackFrame.mSource.Construct(mFileName);
       stackFrame.mFunctionDisplayName.Construct(mFunctionName);
-      if (mAsyncStack.isObject() && !mAsyncStack.isNullOrUndefined() &&
-          mAsyncCause.isString()) {
-        JS::Rooted<JSObject*> asyncStack(aCx, mAsyncStack.toObjectOrNull());
-        JS::Rooted<JSString*> asyncCause(aCx, mAsyncCause.toString());
-        JS::Rooted<JSObject*> parentFrame(aCx);
-        if (!JS::CopyAsyncStack(aCx, asyncStack, asyncCause, &parentFrame, 0)) {
-          JS_ClearPendingException(aCx);
-        } else {
-          stackFrame.mAsyncParent = parentFrame;
-        }
-      }
 
       JS::Rooted<JS::Value> newStack(aCx);
       if (ToJSValue(aCx, stackFrame, &newStack)) {
@@ -14150,17 +14148,13 @@ private:
   nsString mFunctionName;
   nsString mFileName;
   uint32_t mLineNumber;
-  JS::PersistentRooted<JS::Value> mAsyncStack;
-  JS::PersistentRooted<JS::Value> mAsyncCause;
 };
 
 void
 nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
                                          const char16_t* aFunctionName,
                                          const char16_t* aFilename,
-                                         const uint32_t aLineNumber,
-                                         JS::Handle<JS::Value> aAsyncStack,
-                                         JS::Handle<JS::Value> aAsyncCause)
+                                         const uint32_t aLineNumber)
 {
   bool timelineOn = nsIDocShell::GetRecordProfileTimelineMarkers();
 
@@ -14169,8 +14163,7 @@ nsDocShell::NotifyJSRunToCompletionStart(const char* aReason,
     mozilla::UniquePtr<TimelineMarker> marker =
       MakeUnique<JavascriptTimelineMarker>(this, "Javascript", aReason,
                                            aFunctionName, aFilename,
-                                           aLineNumber, aAsyncStack,
-                                           aAsyncCause);
+                                           aLineNumber);
     AddProfileTimelineMarker(Move(marker));
   }
   mJSRunToCompletionDepth++;

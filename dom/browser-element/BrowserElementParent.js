@@ -194,7 +194,13 @@ BrowserElementParent.prototype = {
       "selectionstatechanged": this._handleSelectionStateChanged,
       "scrollviewchange": this._handleScrollViewChange,
       "caretstatechanged": this._handleCaretStateChanged,
-      "findchange": this._handleFindChange
+      "findchange": this._handleFindChange,
+      "execute-script-done": this._gotDOMRequestResult,
+      "got-audio-channel-volume": this._gotDOMRequestResult,
+      "got-set-audio-channel-volume": this._gotDOMRequestResult,
+      "got-audio-channel-muted": this._gotDOMRequestResult,
+      "got-set-audio-channel-muted": this._gotDOMRequestResult,
+      "got-is-audio-channel-active": this._gotDOMRequestResult
     };
 
     let mmSecuritySensitiveCalls = {
@@ -673,6 +679,19 @@ BrowserElementParent.prototype = {
     this._sendAsyncMsg('stop');
   }),
 
+  executeScript: function(script, options) {
+    if (!this._isAlive()) {
+      throw Components.Exception("Dead content process",
+                                 Cr.NS_ERROR_DOM_INVALID_STATE_ERR);
+    }
+
+    // Enforcing options.url or options.origin
+    if (!options.url && !options.origin) {
+      throw Components.Exception("Invalid argument", Cr.NS_ERROR_INVALID_ARG);
+    }
+    return this._sendDOMRequest('execute-script', {script, options});
+  },
+
   /*
    * The valid range of zoom scale is defined in preference "zoom.maxPercent" and "zoom.minPercent".
    */
@@ -957,6 +976,33 @@ BrowserElementParent.prototype = {
     } catch(e) {
       // Not all platforms support NFC
     }
+  },
+
+  getAudioChannelVolume: function(aAudioChannel) {
+    return this._sendDOMRequest('get-audio-channel-volume',
+                                {audioChannel: aAudioChannel});
+  },
+
+  setAudioChannelVolume: function(aAudioChannel, aVolume) {
+    return this._sendDOMRequest('set-audio-channel-volume',
+                                {audioChannel: aAudioChannel,
+                                 volume: aVolume});
+  },
+
+  getAudioChannelMuted: function(aAudioChannel) {
+    return this._sendDOMRequest('get-audio-channel-muted',
+                                {audioChannel: aAudioChannel});
+  },
+
+  setAudioChannelMuted: function(aAudioChannel, aMuted) {
+    return this._sendDOMRequest('set-audio-channel-muted',
+                                {audioChannel: aAudioChannel,
+                                 muted: aMuted});
+  },
+
+  isAudioChannelActive: function(aAudioChannel) {
+    return this._sendDOMRequest('get-is-audio-channel-active',
+                                {audioChannel: aAudioChannel});
   },
 
   /**

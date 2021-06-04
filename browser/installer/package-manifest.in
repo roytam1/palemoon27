@@ -219,7 +219,6 @@
 @RESPATH@/components/dom_alarm.xpt
 @RESPATH@/components/dom_core.xpt
 @RESPATH@/components/dom_css.xpt
-@RESPATH@/components/dom_devicestorage.xpt
 @RESPATH@/components/dom_events.xpt
 @RESPATH@/components/dom_geolocation.xpt
 @RESPATH@/components/dom_media.xpt
@@ -329,9 +328,7 @@
 @RESPATH@/components/saxparser.xpt
 @RESPATH@/browser/components/sessionstore.xpt
 @RESPATH@/components/services-crypto-component.xpt
-#ifdef MOZ_CAPTIVEDETECT
 @RESPATH@/components/captivedetect.xpt
-#endif
 @RESPATH@/browser/components/shellservice.xpt
 #ifdef MOZ_BROWSER_STATUSBAR
 @RESPATH@/browser/components/status4evar.xpt
@@ -541,10 +538,8 @@
 @RESPATH@/components/SyncComponents.manifest
 @RESPATH@/components/Weave.js
 #endif
-#ifdef MOZ_CAPTIVEDETECT
 @RESPATH@/components/CaptivePortalDetectComponents.manifest
 @RESPATH@/components/captivedetect.js
-#endif
 @RESPATH@/components/servicesComponents.manifest
 @RESPATH@/components/cryptoComponents.manifest
 @RESPATH@/components/TelemetryStartup.js
@@ -838,6 +833,8 @@ bin/libfreebl_32int64_3.so
 @RESPATH@/components/DataStore.manifest
 @RESPATH@/components/DataStoreImpl.js
 @RESPATH@/components/dom_datastore.xpt
+
+@RESPATH@/components/dom_audiochannel.xpt
 
 ; Shutdown Terminator
 @RESPATH@/components/nsTerminatorTelemetry.js

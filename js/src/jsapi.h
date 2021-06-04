@@ -29,6 +29,7 @@
 #include "js/Id.h"
 #include "js/Principals.h"
 #include "js/RootingAPI.h"
+#include "js/TraceableVector.h"
 #include "js/TracingAPI.h"
 #include "js/Utility.h"
 #include "js/Value.h"
@@ -218,8 +219,11 @@ class MOZ_STACK_CLASS AutoVectorRooter : public AutoVectorRooterBase<T>
 typedef AutoVectorRooter<Value> AutoValueVector;
 typedef AutoVectorRooter<jsid> AutoIdVector;
 typedef AutoVectorRooter<JSObject*> AutoObjectVector;
-typedef AutoVectorRooter<JSFunction*> AutoFunctionVector;
 typedef AutoVectorRooter<JSScript*> AutoScriptVector;
+
+using ValueVector = js::TraceableVector<JS::Value>;
+using IdVector = js::TraceableVector<jsid>;
+using ScriptVector = js::TraceableVector<JSScript*>;
 
 template<class Key, class Value>
 class AutoHashMapRooter : protected AutoGCRooter
@@ -3379,10 +3383,20 @@ namespace JS {
  * it doesn't care who owns them, or what's keeping them alive. It does its own
  * addrefs/copies/tracing/etc.
  *
- * So, we have a class hierarchy that reflects these three use cases:
+ * Furthermore, in some cases compile options are propagated from one entity to
+ * another (e.g. from a scriipt to a function defined in that script).  This
+ * involves copying over some, but not all, of the options.
  *
- * - ReadOnlyCompileOptions is the common base class. It can be used by code
- *   that simply needs to access options set elsewhere, like the compiler.
+ * So, we have a class hierarchy that reflects these four use cases:
+ *
+ * - TransitiveCompileOptions is the common base class, representing options
+ *   that should get propagated from a script to functions defined in that
+ *   script.  This is never instantiated directly.
+ *
+ * - ReadOnlyCompileOptions is the only subclass of TransitiveCompileOptions,
+ *   representing a full set of compile options.  It can be used by code that
+ *   simply needs to access options set elsewhere, like the compiler.  This,
+ *   again, is never instantiated directly.
  *
  * - The usual CompileOptions class must be stack-allocated, and holds
  *   non-owning references to the filename, element, and so on. It's derived
@@ -3396,15 +3410,11 @@ namespace JS {
 /*
  * The common base class for the CompileOptions hierarchy.
  *
- * Use this in code that only needs to access compilation options created
- * elsewhere, like the compiler. Don't instantiate this class (the constructor
- * is protected anyway); instead, create instances only of the derived classes:
- * CompileOptions and OwningCompileOptions.
+ * Use this in code that needs to propagate compile options from one compilation
+ * unit to another.
  */
-class JS_FRIEND_API(ReadOnlyCompileOptions)
+class JS_FRIEND_API(TransitiveCompileOptions)
 {
-    friend class CompileOptions;
-
   protected:
     // The Web Platform allows scripts to be loaded from arbitrary cross-origin
     // sources. This allows an attack by which a malicious website loads a
@@ -3426,7 +3436,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     // is unusable until that's set to something more specific; the derived
     // classes' constructors take care of that, in ways appropriate to their
     // purpose.
-    ReadOnlyCompileOptions()
+    TransitiveCompileOptions()
       : mutedErrors_(false),
         filename_(nullptr),
         introducerFilename_(nullptr),
@@ -3434,11 +3444,6 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
         version(JSVERSION_UNKNOWN),
         versionSet(false),
         utf8(false),
-        lineno(1),
-        column(0),
-        isRunOnce(false),
-        forEval(false),
-        noScriptRval(false),
         selfHostingMode(false),
         canLazilyParse(true),
         strictOption(false),
@@ -3456,7 +3461,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
 
     // Set all POD options (those not requiring reference counts, copies,
     // rooting, or other hand-holding) to their values in |rhs|.
-    void copyPODOptions(const ReadOnlyCompileOptions& rhs);
+    void copyPODTransitiveOptions(const TransitiveCompileOptions& rhs);
 
   public:
     // Read-only accessors for non-POD options. The proper way to set these
@@ -3473,12 +3478,6 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     JSVersion version;
     bool versionSet;
     bool utf8;
-    unsigned lineno;
-    unsigned column;
-    // isRunOnce only applies to non-function scripts.
-    bool isRunOnce;
-    bool forEval;
-    bool noScriptRval;
     bool selfHostingMode;
     bool canLazilyParse;
     bool strictOption;
@@ -3497,7 +3496,55 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     bool hasIntroductionInfo;
 
   private:
-    static JSObject * const nullObjectPtr;
+    void operator=(const TransitiveCompileOptions&) = delete;
+};
+
+/*
+ * The class representing a full set of compile options.
+ *
+ * Use this in code that only needs to access compilation options created
+ * elsewhere, like the compiler. Don't instantiate this class (the constructor
+ * is protected anyway); instead, create instances only of the derived classes:
+ * CompileOptions and OwningCompileOptions.
+ */
+class JS_FRIEND_API(ReadOnlyCompileOptions) : public TransitiveCompileOptions
+{
+    friend class CompileOptions;
+
+  protected:
+    ReadOnlyCompileOptions()
+      : TransitiveCompileOptions(),
+        lineno(1),
+        column(0),
+        isRunOnce(false),
+        forEval(false),
+        noScriptRval(false)
+    { }
+
+    // Set all POD options (those not requiring reference counts, copies,
+    // rooting, or other hand-holding) to their values in |rhs|.
+    void copyPODOptions(const ReadOnlyCompileOptions& rhs);
+
+  public:
+    // Read-only accessors for non-POD options. The proper way to set these
+    // depends on the derived type.
+    bool mutedErrors() const { return mutedErrors_; }
+    const char* filename() const { return filename_; }
+    const char* introducerFilename() const { return introducerFilename_; }
+    const char16_t* sourceMapURL() const { return sourceMapURL_; }
+    virtual JSObject* element() const = 0;
+    virtual JSString* elementAttributeName() const = 0;
+    virtual JSScript* introductionScript() const = 0;
+
+    // POD options.
+    unsigned lineno;
+    unsigned column;
+    // isRunOnce only applies to non-function scripts.
+    bool isRunOnce;
+    bool forEval;
+    bool noScriptRval;
+
+  private:
     void operator=(const ReadOnlyCompileOptions&) = delete;
 };
 
@@ -3612,8 +3659,22 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
     {
         copyPODOptions(rhs);
 
-        mutedErrors_ = rhs.mutedErrors_;
         filename_ = rhs.filename();
+        introducerFilename_ = rhs.introducerFilename();
+        sourceMapURL_ = rhs.sourceMapURL();
+        elementRoot = rhs.element();
+        elementAttributeNameRoot = rhs.elementAttributeName();
+        introductionScriptRoot = rhs.introductionScript();
+    }
+
+    CompileOptions(js::ContextFriendFields* cx, const TransitiveCompileOptions& rhs)
+      : ReadOnlyCompileOptions(), elementRoot(cx), elementAttributeNameRoot(cx),
+        introductionScriptRoot(cx)
+    {
+        copyPODTransitiveOptions(rhs);
+
+        filename_ = rhs.filename();
+        introducerFilename_ = rhs.introducerFilename();
         sourceMapURL_ = rhs.sourceMapURL();
         elementRoot = rhs.element();
         elementAttributeNameRoot = rhs.elementAttributeName();
@@ -4920,6 +4981,9 @@ JS_DropExceptionState(JSContext* cx, JSExceptionState* state);
 extern JS_PUBLIC_API(JSErrorReport*)
 JS_ErrorFromException(JSContext* cx, JS::HandleObject obj);
 
+extern JS_PUBLIC_API(JSObject*)
+ExceptionStackOrNull(JSContext* cx, JS::HandleObject obj);
+
 /*
  * Throws a StopIteration exception on cx.
  */
@@ -5315,25 +5379,6 @@ SetOutOfMemoryCallback(JSRuntime* rt, OutOfMemoryCallback cb, void* data);
  */
 extern JS_PUBLIC_API(bool)
 CaptureCurrentStack(JSContext* cx, MutableHandleObject stackp, unsigned maxFrameCount = 0);
-
-/*
- * This is a utility function for preparing an async stack to be used
- * by some other object.  This may be used when you need to treat a
- * given stack trace as an async parent.  If you just need to capture
- * the current stack, async parents and all, use CaptureCurrentStack
- * instead.
- *
- * Here |asyncStack| is the async stack to prepare.  It is copied into
- * |cx|'s current compartment, and the newest frame is given
- * |asyncCause| as its asynchronous cause.  If |maxFrameCount| is
- * non-zero, capture at most the youngest |maxFrameCount| frames.  The
- * new stack object is written to |stackp|.  Returns true on success,
- * or sets an exception and returns |false| on error.
- */
-extern JS_PUBLIC_API(bool)
-CopyAsyncStack(JSContext* cx, HandleObject asyncStack,
-               HandleString asyncCause, MutableHandleObject stackp,
-               unsigned maxFrameCount);
 
 /*
  * Accessors for working with SavedFrame JSObjects

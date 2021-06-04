@@ -90,6 +90,7 @@ let initTable = [
   ["focus", "@mozilla.org/focus-manager;1", "nsIFocusManager"],
   ["uriFixup", "@mozilla.org/docshell/urifixup;1", "nsIURIFixup"],
   ["blocklist", "@mozilla.org/extensions/blocklist;1", "nsIBlocklistService"],
+  ["netUtils", "@mozilla.org/network/util;1", "nsINetUtil"],
 #ifdef XP_WIN
 #ifdef MOZ_METRO
   ["metro", "@mozilla.org/windows-metroutils;1", "nsIWinMetroUtils"],

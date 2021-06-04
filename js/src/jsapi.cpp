@@ -92,7 +92,6 @@
 
 #include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
-#include "vm/SavedStacks-inl.h"
 #include "vm/String-inl.h"
 
 using namespace js;
@@ -3826,18 +3825,13 @@ AutoFile::open(JSContext* cx, const char* filename)
     return true;
 }
 
-JSObject * const JS::ReadOnlyCompileOptions::nullObjectPtr = nullptr;
-
 void
-JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions& rhs)
+JS::TransitiveCompileOptions::copyPODTransitiveOptions(const TransitiveCompileOptions& rhs)
 {
+    mutedErrors_ = rhs.mutedErrors_;
     version = rhs.version;
     versionSet = rhs.versionSet;
     utf8 = rhs.utf8;
-    lineno = rhs.lineno;
-    column = rhs.column;
-    forEval = rhs.forEval;
-    noScriptRval = rhs.noScriptRval;
     selfHostingMode = rhs.selfHostingMode;
     canLazilyParse = rhs.canLazilyParse;
     strictOption = rhs.strictOption;
@@ -3851,6 +3845,17 @@ JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions& rhs)
     introductionLineno = rhs.introductionLineno;
     introductionOffset = rhs.introductionOffset;
     hasIntroductionInfo = rhs.hasIntroductionInfo;
+};
+
+void
+JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions& rhs)
+{
+    copyPODTransitiveOptions(rhs);
+    lineno = rhs.lineno;
+    column = rhs.column;
+    isRunOnce = rhs.isRunOnce;
+    forEval = rhs.forEval;
+    noScriptRval = rhs.noScriptRval;
 }
 
 JS::OwningCompileOptions::OwningCompileOptions(JSContext* cx)
@@ -3875,7 +3880,6 @@ JS::OwningCompileOptions::copy(JSContext* cx, const ReadOnlyCompileOptions& rhs)
 {
     copyPODOptions(rhs);
 
-    setMutedErrors(rhs.mutedErrors());
     setElement(rhs.element());
     setElementAttributeName(rhs.elementAttributeName());
     setIntroductionScript(rhs.introductionScript());
@@ -4283,8 +4287,7 @@ CompileFunction(JSContext* cx, const ReadOnlyCompileOptions& optionsArg,
     MOZ_ASSERT_IF(!enclosingDynamicScope->is<GlobalObject>(),
                   HasNonSyntacticStaticScopeChain(enclosingStaticScope));
 
-    CompileOptions options(cx, optionsArg);
-    if (!frontend::CompileFunctionBody(cx, fun, options, formals, srcBuf, enclosingStaticScope))
+    if (!frontend::CompileFunctionBody(cx, fun, optionsArg, formals, srcBuf, enclosingStaticScope))
         return false;
 
     return true;
@@ -6320,22 +6323,6 @@ JS::CaptureCurrentStack(JSContext* cx, JS::MutableHandleObject stackp, unsigned 
     MOZ_ASSERT(compartment);
     Rooted<SavedFrame*> frame(cx);
     if (!compartment->savedStacks().saveCurrentStack(cx, &frame, maxFrameCount))
-        return false;
-    stackp.set(frame.get());
-    return true;
-}
-
-JS_PUBLIC_API(bool)
-JS::CopyAsyncStack(JSContext* cx, JS::HandleObject asyncStack,
-                   JS::HandleString asyncCause, JS::MutableHandleObject stackp,
-                   unsigned maxFrameCount)
-{
-    js::AssertObjectIsSavedFrameOrWrapper(cx, asyncStack);
-    JSCompartment* compartment = cx->compartment();
-    MOZ_ASSERT(compartment);
-    Rooted<SavedFrame*> frame(cx);
-    if (!compartment->savedStacks().copyAsyncStack(cx, asyncStack, asyncCause,
-                                                   &frame, maxFrameCount))
         return false;
     stackp.set(frame.get());
     return true;

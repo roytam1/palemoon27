@@ -1337,6 +1337,7 @@ GCRuntime::finish()
 
     /* Delete all remaining zones. */
     if (rt->gcInitialized) {
+        AutoSetThreadIsSweeping threadIsSweeping;
         for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
             for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next())
                 js_delete(comp.get());
@@ -2115,12 +2116,18 @@ ArenaList::relocateArenas(ArenaHeader *toRelocate, ArenaHeader *relocated, Slice
 // heap memory.
 static const double MIN_ZONE_RECLAIM_PERCENT = 2.0;
 
+static bool isOOMReason(JS::gcreason::Reason reason)
+{
+    return reason == JS::gcreason::LAST_DITCH ||
+           reason == JS::gcreason::MEM_PRESSURE;
+}
+
 static bool ShouldRelocateZone(size_t arenaCount, size_t relocCount, JS::gcreason::Reason reason)
 {
     if (relocCount == 0)
         return false;
 
-    if (reason == JS::gcreason::MEM_PRESSURE || reason == JS::gcreason::LAST_DITCH)
+    if (isOOMReason(reason))
         return true;
 
     return (relocCount * 100.0) / arenaCount >= MIN_ZONE_RECLAIM_PERCENT;
@@ -4053,6 +4060,25 @@ GCRuntime::markAllGrayReferences(gcstats::Phase phase)
 
 #ifdef DEBUG
 
+struct GCChunkHasher {
+    typedef gc::Chunk* Lookup;
+
+    /*
+     * Strip zeros for better distribution after multiplying by the golden
+     * ratio.
+     */
+    static HashNumber hash(gc::Chunk* chunk) {
+        MOZ_ASSERT(!(uintptr_t(chunk) & gc::ChunkMask));
+        return HashNumber(uintptr_t(chunk) >> gc::ChunkShift);
+    }
+
+    static bool match(gc::Chunk* k, gc::Chunk* l) {
+        MOZ_ASSERT(!(uintptr_t(k) & gc::ChunkMask));
+        MOZ_ASSERT(!(uintptr_t(l) & gc::ChunkMask));
+        return k == l;
+    }
+};
+
 class js::gc::MarkingValidator
 {
   public:
@@ -5487,10 +5513,7 @@ GCRuntime::finishCollection(JS::gcreason::Reason reason)
     // before returning to ensure that we free as much as possible. If this is
     // a zeal-triggered GC, we want to ensure that the mutator can continue
     // allocating on the same pages to reduce fragmentation.
-    if (reason == JS::gcreason::LAST_DITCH ||
-        reason == JS::gcreason::MEM_PRESSURE ||
-        reason == JS::gcreason::DEBUG_GC)
-    {
+    if (isOOMReason(reason) || reason == JS::gcreason::DEBUG_GC) {
         gcstats::AutoPhase ap(stats, gcstats::PHASE_WAIT_BACKGROUND_THREAD);
         rt->gc.waitBackgroundSweepOrAllocEnd();
     }
@@ -5774,6 +5797,7 @@ GCRuntime::incrementalCollectSlice(SliceBudget& budget, JS::gcreason::Reason rea
 
     switch (incrementalState) {
       case NO_INCREMENTAL:
+        initialReason = reason;
         cleanUpEverything = ShouldCleanUpEverything(reason, invocationKind);
         isCompacting = shouldCompact();
         lastMarkSlice = false;
@@ -6226,6 +6250,19 @@ void
 GCRuntime::finishGC(JS::gcreason::Reason reason)
 {
     MOZ_ASSERT(isIncrementalGCInProgress());
+
+    // If we're not collecting because we're out of memory then skip the
+    // compacting phase if we need to finish an ongoing incremental GC
+    // non-incrementally to avoid janking the browser.
+    if (!isOOMReason(initialReason)) {
+        if (incrementalState == COMPACT) {
+            abortGC();
+            return;
+        }
+
+        isCompacting = false;
+    }
+
     collect(true, SliceBudget(), reason);
 }
 
@@ -7359,14 +7396,14 @@ DummyGetter(JSContext* cx, unsigned argc, Value* vp)
 
 } /* namespace MemInfo */
 
-JSObject *
-NewMemoryInfoObject(JSContext *cx)
+JSObject*
+NewMemoryInfoObject(JSContext* cx)
 {
     RootedObject obj(cx, JS_NewObject(cx, nullptr));
 
     using namespace MemInfo;
-    struct {
-        const char *name;
+    struct NamedGetter {
+        const char* name;
         JSNative getter;
     } getters[] = {
         { "gcBytes", GCBytesGetter },
@@ -7379,13 +7416,13 @@ NewMemoryInfoObject(JSContext *cx)
         { "minorGCCount", MinorGCCountGetter }
     };
 
-    for (size_t i = 0; i < mozilla::ArrayLength(getters); i++) {
- #ifdef JS_MORE_DETERMINISTIC
+    for (auto pair : getters) {
+#ifdef JS_MORE_DETERMINISTIC
         JSNative getter = DummyGetter;
 #else
-        JSNative getter = getters[i].getter;
+        JSNative getter = pair.getter;
 #endif
-        if (!JS_DefineProperty(cx, obj, getters[i].name, UndefinedHandleValue,
+        if (!JS_DefineProperty(cx, obj, pair.name, UndefinedHandleValue,
                                JSPROP_ENUMERATE | JSPROP_SHARED,
                                getter, nullptr))
         {
@@ -7400,8 +7437,8 @@ NewMemoryInfoObject(JSContext *cx)
     if (!JS_DefineProperty(cx, obj, "zone", zoneObj, JSPROP_ENUMERATE))
         return nullptr;
 
-    struct {
-        const char *name;
+    struct NamedZoneGetter {
+        const char* name;
         JSNative getter;
     } zoneGetters[] = {
         { "gcBytes", ZoneGCBytesGetter },
@@ -7414,13 +7451,13 @@ NewMemoryInfoObject(JSContext *cx)
         { "gcNumber", ZoneGCNumberGetter }
     };
 
-    for (size_t i = 0; i < mozilla::ArrayLength(zoneGetters); i++) {
+    for (auto pair : zoneGetters) {
  #ifdef JS_MORE_DETERMINISTIC
         JSNative getter = DummyGetter;
 #else
-        JSNative getter = zoneGetters[i].getter;
+        JSNative getter = pair.getter;
 #endif
-        if (!JS_DefineProperty(cx, zoneObj, zoneGetters[i].name, UndefinedHandleValue,
+        if (!JS_DefineProperty(cx, zoneObj, pair.name, UndefinedHandleValue,
                                JSPROP_ENUMERATE | JSPROP_SHARED,
                                getter, nullptr))
         {

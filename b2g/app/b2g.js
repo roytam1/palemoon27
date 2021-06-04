@@ -856,6 +856,8 @@ pref("general.useragent.device_id", "");
 
 // Make <audio> and <video> talk to the AudioChannelService.
 pref("media.useAudioChannelService", true);
+// Add Mozilla AudioChannel APIs.
+pref("media.useAudioChannelAPI", true);
 
 pref("b2g.version", @MOZ_B2G_VERSION@);
 pref("b2g.osName", @MOZ_B2G_OS_NAME@);
@@ -867,10 +869,6 @@ pref("consoleservice.buffered", false);
 // Performance testing suggests 2k is a better page size for SQLite.
 pref("toolkit.storage.pageSize", 2048);
 #endif
-
-// Enable captive portal detection.
-pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/success.txt");
-pref("captivedetect.canonicalContent", "success\n");
 
 // The url of the manifest we use for ADU pings.
 pref("ping.manifestURL", "https://marketplace.firefox.com/packaged.webapp");

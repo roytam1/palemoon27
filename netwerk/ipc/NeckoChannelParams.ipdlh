@@ -30,18 +30,6 @@ union OptionalHttpResponseHead
   nsHttpResponseHead;
 };
 
-struct HttpChannelCacheKey
-{
-  uint32_t postId;
-  nsCString key;
-};
-
-union OptionalHttpChannelCacheKey
-{
-  void_t;
-  HttpChannelCacheKey;
-};
-
 struct HttpChannelOpenArgs
 {
   URIParams                   uri;
@@ -77,9 +65,11 @@ struct HttpChannelOpenArgs
   PrincipalInfo               triggeringPrincipalInfo;
   uint32_t                    securityFlags;
   uint32_t                    contentPolicyType;
-  uint32_t                    innerWindowID;
+  uint64_t                    innerWindowID;
+  uint64_t                    outerWindowID;
+  uint64_t                    parentOuterWindowID;
   OptionalHttpResponseHead    synthesizedResponseHead;
-  OptionalHttpChannelCacheKey cacheKey;
+  uint32_t                    cacheKey;
   bool                        allowStaleCacheContent;
   bool                        isFromProcessingFrameAttributes;
 };
@@ -87,6 +77,7 @@ struct HttpChannelOpenArgs
 struct HttpChannelConnectArgs
 {
   uint32_t channelId;
+  bool shouldIntercept;
 };
 
 union HttpChannelCreationArgs
@@ -109,8 +100,9 @@ struct FTPChannelOpenArgs
   PrincipalInfo             triggeringPrincipalInfo;
   uint32_t                  securityFlags;
   uint32_t                  contentPolicyType;
-  uint32_t                  innerWindowID;
-  OptionalHttpResponseHead    synthesizedResponseHead;
+  uint64_t                  innerWindowID;
+  uint64_t                  outerWindowID;
+  uint64_t                  parentOuterWindowID;
 };
 
 struct FTPChannelConnectArgs
@@ -156,7 +148,9 @@ struct WebSocketLoadInfoArgs
   PrincipalInfo triggeringPrincipalInfo;
   uint32_t      securityFlags;
   uint32_t      contentPolicyType;
-  uint32_t      innerWindowID;
+  uint64_t      innerWindowID;
+  uint64_t      outerWindowID;
+  uint64_t      parentOuterWindowID;
 };
 
 } // namespace ipc

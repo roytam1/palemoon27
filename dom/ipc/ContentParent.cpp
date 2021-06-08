@@ -55,6 +55,8 @@
 #include "mozilla/dom/mobileconnection/MobileConnectionParent.h"
 #include "mozilla/dom/mobilemessage/SmsParent.h"
 #include "mozilla/dom/power/PowerManagerService.h"
+#include "mozilla/dom/PresentationParent.h"
+#include "mozilla/dom/PPresentationParent.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/dom/telephony/TelephonyParent.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
@@ -2342,6 +2344,18 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
     // must come after the Open() call above.
     ProcessPriorityManager::SetProcessPriority(this, aInitialPriority);
 
+    if (gAppData) {
+        nsCString version(gAppData->version);
+        nsCString buildID(gAppData->buildID);
+        nsCString name(gAppData->name);
+        nsCString UAName(gAppData->UAName);
+        nsCString ID(gAppData->ID);
+        nsCString vendor(gAppData->vendor);
+
+        // Sending all information to content process.
+        unused << SendAppInfo(version, buildID, name, UAName, ID, vendor);
+    }
+
     if (aSetupOffMainThreadCompositing) {
         // NB: internally, this will send an IPC message to the child
         // process to get it to create the CompositorChild.  This
@@ -2380,15 +2394,8 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
     }
 
     if (gAppData) {
-        nsCString version(gAppData->version);
-        nsCString buildID(gAppData->buildID);
-        nsCString name(gAppData->name);
-        nsCString UAName(gAppData->UAName);
-        nsCString ID(gAppData->ID);
-        nsCString vendor(gAppData->vendor);
-
         // Sending all information to content process.
-        unused << SendAppInfo(version, buildID, name, UAName, ID, vendor);
+        unused << SendAppInit();
     }
 
     nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
@@ -3736,6 +3743,27 @@ ContentParent::DeallocPFMRadioParent(PFMRadioParent* aActor)
     NS_WARNING("No support for FMRadio on this platform!");
     return false;
 #endif
+}
+
+PPresentationParent*
+ContentParent::AllocPPresentationParent()
+{
+  nsRefPtr<PresentationParent> actor = new PresentationParent();
+  return actor.forget().take();
+}
+
+bool
+ContentParent::DeallocPPresentationParent(PPresentationParent* aActor)
+{
+  nsRefPtr<PresentationParent> actor =
+    dont_AddRef(static_cast<PresentationParent*>(aActor));
+  return true;
+}
+
+bool
+ContentParent::RecvPPresentationConstructor(PPresentationParent* aActor)
+{
+  return static_cast<PresentationParent*>(aActor)->Init();
 }
 
 asmjscache::PAsmJSCacheEntryParent*

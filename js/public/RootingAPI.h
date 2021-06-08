@@ -384,8 +384,8 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
   public:
     /* Creates a handle from a handle of a type convertible to T. */
     template <typename S>
-    Handle(Handle<S> handle,
-           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0)
+    MOZ_IMPLICIT Handle(Handle<S> handle,
+                        typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0)
     {
         static_assert(sizeof(Handle<T>) == sizeof(T*),
                       "Handle must be binary compatible with T*.");
@@ -428,19 +428,19 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
      */
     template <typename S>
     inline
-    Handle(const Rooted<S>& root,
-           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
+    MOZ_IMPLICIT Handle(const Rooted<S>& root,
+                        typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
     template <typename S>
     inline
-    Handle(const PersistentRooted<S>& root,
-           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
+    MOZ_IMPLICIT Handle(const PersistentRooted<S>& root,
+                        typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
     /* Construct a read only handle from a mutable handle. */
     template <typename S>
     inline
-    Handle(MutableHandle<S>& root,
-           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
+    MOZ_IMPLICIT Handle(MutableHandle<S>& root,
+                        typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
     DECLARE_POINTER_COMPARISON_OPS(T);
     DECLARE_POINTER_CONSTREF_OPS(T);
@@ -710,81 +710,43 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
                   "Rooted takes pointer or Traceable types but not Traceable* type");
 
     /* Note: CX is a subclass of either ContextFriendFields or PerThreadDataFriendFields. */
-    template <typename CX>
-    void registerWithRootLists(CX* cx) {
+    void registerWithRootLists(js::RootLists& roots) {
         js::ThingRootKind kind = js::RootKind<T>::rootKind();
-        this->stack = &cx->roots.stackRoots_[kind];
+        this->stack = &roots.stackRoots_[kind];
         this->prev = *stack;
         *stack = reinterpret_cast<Rooted<void*>*>(this);
     }
 
+    static js::RootLists& rootListsForRootingContext(JSContext* cx) {
+        return js::ContextFriendFields::get(cx)->roots;
+    }
+    static js::RootLists& rootListsForRootingContext(js::ContextFriendFields* cx) {
+        return cx->roots;
+    }
+    static js::RootLists& rootListsForRootingContext(JSRuntime* rt) {
+        return js::PerThreadDataFriendFields::getMainThread(rt)->roots;
+    }
+    static js::RootLists& rootListsForRootingContext(js::PerThreadDataFriendFields* pt) {
+        return pt->roots;
+    }
+
   public:
-    explicit Rooted(JSContext* cx
+    template <typename RootingContext>
+    explicit Rooted(const RootingContext& cx
                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(js::GCMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(js::ContextFriendFields::get(cx));
+        registerWithRootLists(rootListsForRootingContext(cx));
     }
 
-    template <typename S>
-    Rooted(JSContext* cx, S&& initial
+    template <typename RootingContext, typename S>
+    Rooted(const RootingContext& cx, S&& initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(mozilla::Forward<S>(initial))
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(js::ContextFriendFields::get(cx));
-    }
-
-    explicit Rooted(js::ContextFriendFields* cx
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(js::GCMethods<T>::initial())
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(cx);
-    }
-
-    template <typename S>
-    Rooted(js::ContextFriendFields* cx, S&& initial
-           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(mozilla::Forward<S>(initial))
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(cx);
-    }
-
-    explicit Rooted(js::PerThreadDataFriendFields* pt
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(js::GCMethods<T>::initial())
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(pt);
-    }
-
-    template <typename S>
-    Rooted(js::PerThreadDataFriendFields* pt, S&& initial
-           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(mozilla::Forward<S>(initial))
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(pt);
-    }
-
-    explicit Rooted(JSRuntime* rt
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(js::GCMethods<T>::initial())
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(js::PerThreadDataFriendFields::getMainThread(rt));
-    }
-
-    template <typename S>
-    Rooted(JSRuntime* rt, S&& initial
-           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(mozilla::Forward<S>(initial))
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        registerWithRootLists(js::PerThreadDataFriendFields::getMainThread(rt));
+        registerWithRootLists(rootListsForRootingContext(cx));
     }
 
     ~Rooted() {
@@ -882,16 +844,16 @@ class FakeRooted : public RootedBase<T>
 {
   public:
     template <typename CX>
-    FakeRooted(CX* cx
-               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit FakeRooted(CX* cx
+                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(GCMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     template <typename CX>
-    FakeRooted(CX* cx, T initial
-               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit FakeRooted(CX* cx, T initial
+                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;

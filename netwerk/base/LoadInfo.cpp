@@ -14,6 +14,7 @@
 #include "nsIFrameLoader.h"
 #include "nsISupportsImpl.h"
 #include "nsISupportsUtils.h"
+#include "nsContentUtils.h"
 
 namespace mozilla {
 
@@ -31,6 +32,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mSecurityFlags(aSecurityFlags)
   , mInternalContentPolicyType(aContentPolicyType)
   , mBaseURI(aBaseURI)
+  , mUpgradeInsecureRequests(false)
   , mInnerWindowID(0)
   , mOuterWindowID(0)
   , mParentOuterWindowID(0)
@@ -74,6 +76,8 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
       nsCOMPtr<nsPIDOMWindow> parent = outerWindow->GetScriptableParent();
       mParentOuterWindowID = parent->WindowID();
     }
+
+    mUpgradeInsecureRequests = aLoadingContext->OwnerDoc()->GetUpgradeInsecureRequests();
   }
 }
 
@@ -81,6 +85,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
                    nsIPrincipal* aTriggeringPrincipal,
                    nsSecurityFlags aSecurityFlags,
                    nsContentPolicyType aContentPolicyType,
+                   bool aUpgradeInsecureRequests,
                    uint64_t aInnerWindowID,
                    uint64_t aOuterWindowID,
                    uint64_t aParentOuterWindowID)
@@ -88,6 +93,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mTriggeringPrincipal(aTriggeringPrincipal)
   , mSecurityFlags(aSecurityFlags)
   , mInternalContentPolicyType(aContentPolicyType)
+  , mUpgradeInsecureRequests(aUpgradeInsecureRequests)
   , mInnerWindowID(aInnerWindowID)
   , mOuterWindowID(aOuterWindowID)
   , mParentOuterWindowID(aParentOuterWindowID)
@@ -202,6 +208,13 @@ nsIURI*
 LoadInfo::BaseURI()
 {
   return mBaseURI;
+}
+
+NS_IMETHODIMP
+LoadInfo::GetUpgradeInsecureRequests(bool* aResult)
+{
+  *aResult = mUpgradeInsecureRequests;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

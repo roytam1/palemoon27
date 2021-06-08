@@ -211,7 +211,9 @@ nsresult TestDirectives() {
     { "script-src 'nonce-correctscriptnonce'",
       "script-src 'nonce-correctscriptnonce'" },
     { "script-src 'sha256-siVR8vAcqP06h2ppeNwqgjr0yZ6yned4X2VF84j4GmI='",
-      "script-src 'sha256-siVR8vAcqP06h2ppeNwqgjr0yZ6yned4X2VF84j4GmI='" }
+      "script-src 'sha256-siVR8vAcqP06h2ppeNwqgjr0yZ6yned4X2VF84j4GmI='" },
+    { "referrer no-referrer",
+      "referrer no-referrer" }
   };
 
   uint32_t policyCount = sizeof(policies) / sizeof(PolicyTest);
@@ -273,7 +275,11 @@ nsresult TestIgnoreUpperLowerCasePolicies() {
     { "script-src 'NoncE-NONCENEEDSTOBEUPPERCASE'",
       "script-src 'nonce-NONCENEEDSTOBEUPPERCASE'" },
     { "script-src 'SHA256-siVR8vAcqP06h2ppeNwqgjr0yZ6yned4X2VF84j4GmI='",
-      "script-src 'sha256-siVR8vAcqP06h2ppeNwqgjr0yZ6yned4X2VF84j4GmI='" }
+      "script-src 'sha256-siVR8vAcqP06h2ppeNwqgjr0yZ6yned4X2VF84j4GmI='" },
+    { "refERRer No-refeRRer",
+      "referrer No-refeRRer" },
+    { "upgrade-INSECURE-requests",
+      "upgrade-insecure-requests" }
   };
 
   uint32_t policyCount = sizeof(policies) / sizeof(PolicyTest);
@@ -443,7 +449,11 @@ nsresult TestSimplePolicies() {
     { "default-src -; ",
       "default-src http://-" },
     { "script-src 1",
-      "script-src http://1" }
+      "script-src http://1" },
+    { "upgrade-insecure-requests",
+      "upgrade-insecure-requests" },
+    { "upgrade-insecure-requests https:",
+      "upgrade-insecure-requests" }
   };
 
   uint32_t policyCount = sizeof(policies) / sizeof(PolicyTest);

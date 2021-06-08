@@ -49,6 +49,7 @@ include protocol PVoicemail;
 include protocol PJavaScript;
 include protocol PRemoteSpellcheckEngine;
 include protocol PWebrtcGlobal;
+include protocol PPresentation;
 include DOMTypes;
 include JavaScriptTypes;
 include InputStreamParams;
@@ -447,6 +448,7 @@ prio(normal upto urgent) sync protocol PContent
     manages PJavaScript;
     manages PRemoteSpellcheckEngine;
     manages PWebrtcGlobal;
+    manages PPresentation;
 
 both:
     // Depending on exactly how the new browser is being created, it might be
@@ -557,6 +559,7 @@ child:
 
     AppInfo(nsCString version, nsCString buildID, nsCString name, nsCString UAName,
             nsCString ID, nsCString vendor);
+    AppInit();
 
     // Notify child that last-pb-context-exited notification was observed
     LastPrivateDocShellDestroyed();
@@ -644,6 +647,13 @@ child:
      * Send gamepad status update to child.
      */
     GamepadUpdate(GamepadChangeEvent aGamepadEvent);
+
+    /**
+     * Notify the child that presentation receiver has been launched with the
+     * correspondent iframe.
+     */
+    async NotifyPresentationReceiverLaunched(PBrowser aIframe, nsString aSessionId);
+
 parent:
     /**
      * Tell the content process some attributes of itself.  This is
@@ -763,6 +773,8 @@ parent:
     PAsmJSCacheEntry(OpenMode openMode, WriteParams write, Principal principal);
 
     PWebrtcGlobal();
+    
+    PPresentation();
 
     // Services remoting
 

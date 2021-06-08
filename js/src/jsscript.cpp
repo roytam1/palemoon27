@@ -1342,7 +1342,7 @@ static inline ScriptCountsMap::Ptr GetScriptCountsMapEntry(JSScript* script)
     return p;
 }
 
-js::PCCounts
+js::PCCounts&
 JSScript::getPCCounts(jsbytecode* pc) {
     MOZ_ASSERT(containsPC(pc));
     ScriptCountsMap::Ptr p = GetScriptCountsMapEntry(this);
@@ -3625,6 +3625,33 @@ LazyScript::finalize(FreeOp* fop)
 {
     if (table_)
         fop->free_(table_);
+}
+
+size_t
+JSScript::calculateLiveFixed(jsbytecode* pc)
+{
+    size_t nlivefixed = nbodyfixed();
+
+    if (nfixed() != nlivefixed) {
+        NestedScopeObject* staticScope = getStaticBlockScope(pc);
+        if (staticScope)
+            staticScope = MaybeForwarded(staticScope);
+        while (staticScope && !staticScope->is<StaticBlockObject>()) {
+            staticScope = staticScope->enclosingNestedScope();
+            if (staticScope)
+                staticScope = MaybeForwarded(staticScope);
+        }
+
+        if (staticScope) {
+            StaticBlockObject& blockObj = staticScope->as<StaticBlockObject>();
+            nlivefixed = blockObj.localOffset() + blockObj.numVariables();
+        }
+    }
+
+    MOZ_ASSERT(nlivefixed <= nfixed());
+    MOZ_ASSERT(nlivefixed >= nbodyfixed());
+
+    return nlivefixed;
 }
 
 NestedScopeObject*

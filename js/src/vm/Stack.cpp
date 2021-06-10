@@ -356,21 +356,7 @@ InterpreterFrame::markValues(JSTracer* trc, Value* sp, jsbytecode* pc)
 
     JSScript* script = this->script();
     size_t nfixed = script->nfixed();
-    size_t nlivefixed = script->nbodyfixed();
-
-    if (nfixed != nlivefixed) {
-        NestedScopeObject* staticScope = script->getStaticBlockScope(pc);
-        while (staticScope && !staticScope->is<StaticBlockObject>())
-            staticScope = staticScope->enclosingNestedScope();
-
-        if (staticScope) {
-            StaticBlockObject& blockObj = staticScope->as<StaticBlockObject>();
-            nlivefixed = blockObj.localOffset() + blockObj.numVariables();
-        }
-    }
-
-    MOZ_ASSERT(nlivefixed <= nfixed);
-    MOZ_ASSERT(nlivefixed >= script->nbodyfixed());
+    size_t nlivefixed = script->calculateLiveFixed(pc);
 
     if (nfixed == nlivefixed) {
         // All locals are live.
@@ -1404,14 +1390,10 @@ jit::JitActivation::JitActivation(JSContext* cx, CalleeToken entryPoint, bool ac
     if (entryMonitor_) {
         MOZ_ASSERT(entryPoint);
 
-        RootedValue stack(cx_);
-        stack.setObjectOrNull(asyncStack_.get());
-        if (!cx_->compartment()->wrap(cx_, &stack))
-            stack.setUndefined();
         if (CalleeTokenIsFunction(entryPoint))
-            entryMonitor_->Entry(cx_, CalleeTokenToFunction(entryPoint), stack, asyncCause_);
+            entryMonitor_->Entry(cx_, CalleeTokenToFunction(entryPoint));
         else
-            entryMonitor_->Entry(cx_, CalleeTokenToScript(entryPoint), stack, asyncCause_);
+            entryMonitor_->Entry(cx_, CalleeTokenToScript(entryPoint));
     }
 }
 

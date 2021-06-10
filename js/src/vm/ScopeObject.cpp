@@ -831,7 +831,7 @@ js::XDRStaticBlockObject(XDRState<mode>* xdr, HandleObject enclosingScope,
             obj->setAliased(i, aliased);
         }
     } else {
-        AutoShapeVector shapes(cx);
+        Rooted<ShapeVector> shapes(cx, ShapeVector(cx));
         if (!shapes.growBy(count))
             return false;
 
@@ -884,19 +884,20 @@ CloneStaticBlockObject(JSContext* cx, HandleObject enclosingScope, Handle<Static
     clone->setLocalOffset(srcBlock->localOffset());
 
     /* Shape::Range is reverse order, so build a list in forward order. */
-    AutoShapeVector shapes(cx);
+    Rooted<ShapeVector> shapes(cx, ShapeVector(cx));
     if (!shapes.growBy(srcBlock->numVariables()))
         return nullptr;
 
     for (Shape::Range<NoGC> r(srcBlock->lastProperty()); !r.empty(); r.popFront())
         shapes[srcBlock->shapeToIndex(r.front())].set(&r.front());
 
-    for (Shape** p = shapes.begin(); p != shapes.end(); ++p) {
-        RootedId id(cx, (*p)->propid());
-        unsigned i = srcBlock->shapeToIndex(**p);
+    RootedId id(cx);
+    for (Shape* shape : shapes) {
+        id = shape->propid();
+        unsigned i = srcBlock->shapeToIndex(*shape);
 
         bool redeclared;
-        if (!StaticBlockObject::addVar(cx, clone, id, !(*p)->writable(), i, &redeclared)) {
+        if (!StaticBlockObject::addVar(cx, clone, id, !shape->writable(), i, &redeclared)) {
             MOZ_ASSERT(!redeclared);
             return nullptr;
         }
@@ -1874,17 +1875,10 @@ js::IsDebugScopeSlow(ProxyObject *proxy)
 /*****************************************************************************/
 
 /* static */ MOZ_ALWAYS_INLINE void
-DebugScopes::liveScopesPostWriteBarrier(JSRuntime *rt, LiveScopeMap *map, ScopeObject *key)
+DebugScopes::liveScopesPostWriteBarrier(JSRuntime* rt, LiveScopeMap* map, ScopeObject* key)
 {
-    // As above.  Otherwise, barriers could fire during GC when moving the
-    // value.
-    typedef HashMap<ScopeObject*,
-                    MissingScopeKey,
-                    DefaultHasher<ScopeObject*>,
-                    RuntimeAllocPolicy> UnbarrieredLiveScopeMap;
-    typedef gc::HashKeyRef<UnbarrieredLiveScopeMap, ScopeObject*> Ref;
     if (key && IsInsideNursery(key))
-        rt->gc.storeBuffer.putGeneric(Ref(reinterpret_cast<UnbarrieredLiveScopeMap*>(map), key));
+        rt->gc.storeBuffer.putGeneric(gc::HashKeyRef<LiveScopeMap, ScopeObject*>(map, key));
 }
 
 DebugScopes::DebugScopes(JSContext* cx)

@@ -24,7 +24,6 @@
 #include "nsCRT.h"
 #include "nsSecCheckWrapChannel.h"
 #include "nsSimpleNestedURI.h"
-#include "nsNetUtil.h"
 #include "nsTArray.h"
 #include "nsIConsoleService.h"
 #include "nsIUploadChannel2.h"
@@ -43,6 +42,9 @@
 #include "nsThreadUtils.h"
 #include "mozilla/LoadInfo.h"
 #include "mozilla/net/NeckoCommon.h"
+#include "mozilla/net/DNS.h"
+#include "CaptivePortalService.h"
+#include "ReferrerPolicy.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsINetworkManager.h"
@@ -54,6 +56,7 @@
 
 using namespace mozilla;
 using mozilla::net::IsNeckoChild;
+using mozilla::net::CaptivePortalService;
 
 #define PORT_PREF_PREFIX           "network.security.ports."
 #define PORT_PREF(x)               PORT_PREF_PREFIX x
@@ -67,6 +70,7 @@ using mozilla::net::IsNeckoChild;
 #define NECKO_BUFFER_CACHE_COUNT_PREF "network.buffer.cache.count"
 #define NECKO_BUFFER_CACHE_SIZE_PREF  "network.buffer.cache.size"
 #define NETWORK_NOTIFY_CHANGED_PREF   "network.notify.changed"
+#define NETWORK_CAPTIVE_PORTAL_PREF   "network.captive-portal-service.enabled"
 
 #define MAX_RECURSION_COUNT 50
 
@@ -193,7 +197,9 @@ nsIOService::Init()
     }
     else
         NS_WARNING("failed to get error service");
-    
+
+    InitializeCaptivePortalService();
+
     // setup our bad port list stuff
     for(int i=0; gBadPortList[i]; i++)
         mRestrictedPortList.AppendElement(gBadPortList[i]);
@@ -208,6 +214,7 @@ nsIOService::Init()
         prefBranch->AddObserver(NECKO_BUFFER_CACHE_COUNT_PREF, this, true);
         prefBranch->AddObserver(NECKO_BUFFER_CACHE_SIZE_PREF, this, true);
         prefBranch->AddObserver(NETWORK_NOTIFY_CHANGED_PREF, this, true);
+        prefBranch->AddObserver(NETWORK_CAPTIVE_PORTAL_PREF, this, true);
         PrefsChanged(prefBranch);
     }
     
@@ -240,6 +247,22 @@ nsIOService::Init()
 nsIOService::~nsIOService()
 {
     gIOService = nullptr;
+}
+
+nsresult
+nsIOService::InitializeCaptivePortalService()
+{
+    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        // We only initalize a captive portal service in the main process
+        return NS_OK;
+    }
+
+    mCaptivePortalService = do_GetService(NS_CAPTIVEPORTAL_CID);
+    if (mCaptivePortalService) {
+        return static_cast<CaptivePortalService*>(mCaptivePortalService.get())->Initialize();
+    }
+
+    return NS_OK;
 }
 
 nsresult
@@ -316,7 +339,6 @@ NS_IMPL_ISUPPORTS(nsIOService,
                   nsIIOService,
                   nsIIOService2,
                   nsINetUtil,
-                  nsINetUtil_ESR_38,
                   nsISpeculativeConnect,
                   nsIObserver,
                   nsIIOServiceInternal,
@@ -325,10 +347,52 @@ NS_IMPL_ISUPPORTS(nsIOService,
 ////////////////////////////////////////////////////////////////////////////////
 
 nsresult
+nsIOService::RecheckCaptivePortalIfLocalRedirect(nsIChannel* newChan)
+{
+    nsresult rv;
+
+    if (!mCaptivePortalService) {
+        return NS_OK;
+    }
+
+    nsCOMPtr<nsIURI> uri;
+    rv = newChan->GetURI(getter_AddRefs(uri));
+    if (NS_FAILED(rv)) {
+        return rv;
+    }
+
+    nsCString host;
+    rv = uri->GetHost(host);
+    if (NS_FAILED(rv)) {
+        return rv;
+    }
+
+    PRNetAddr prAddr;
+    if (PR_StringToNetAddr(host.BeginReading(), &prAddr) != PR_SUCCESS) {
+        // The redirect wasn't to an IP literal, so there's probably no need
+        // to trigger the captive portal detection right now. It can wait.
+        return NS_OK;
+    }
+
+    mozilla::net::NetAddr netAddr;
+    PRNetAddrToNetAddr(&prAddr, &netAddr);
+    if (IsIPAddrLocal(&netAddr)) {
+        // Redirects to local IP addresses are probably captive portals
+        mCaptivePortalService->RecheckCaptivePortal();
+    }
+
+    return NS_OK;
+}
+
+nsresult
 nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
                                     uint32_t flags,
                                     nsAsyncRedirectVerifyHelper *helper)
 {
+    // If a redirect to a local network address occurs, then chances are we
+    // are in a captive portal, so we trigger a recheck.
+    RecheckCaptivePortalIfLocalRedirect(newChan);
+
     nsCOMPtr<nsIChannelEventSink> sink =
         do_GetService(NS_GLOBAL_CHANNELEVENTSINK_CONTRACTID);
     if (sink) {
@@ -1129,6 +1193,28 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mNetworkNotifyChanged = allow;
         }
     }
+
+    if (!pref || strcmp(pref, NETWORK_CAPTIVE_PORTAL_PREF) == 0) {
+        static int disabledForTest = -1;
+        if (disabledForTest == -1) {
+            char *s = getenv("MOZ_DISABLE_NONLOCAL_CONNECTIONS");
+            if (s) {
+                disabledForTest = (strncmp(s, "0", 1) == 0) ? 0 : 1;
+            } else {
+                disabledForTest = 0;
+            }
+        }
+
+        bool captivePortalEnabled;
+        nsresult rv = prefs->GetBoolPref(NETWORK_CAPTIVE_PORTAL_PREF, &captivePortalEnabled);
+        if (NS_SUCCEEDED(rv) && mCaptivePortalService) {
+            if (captivePortalEnabled && !disabledForTest) {
+                static_cast<CaptivePortalService*>(mCaptivePortalService.get())->Start();
+            } else {
+                static_cast<CaptivePortalService*>(mCaptivePortalService.get())->Stop();
+            }
+        }
+    }
 }
 
 void
@@ -1276,6 +1362,10 @@ nsIOService::Observe(nsISupports *subject,
 
         SetOffline(true);
 
+        if (mCaptivePortalService) {
+            static_cast<CaptivePortalService*>(mCaptivePortalService.get())->Stop();
+        }
+
         // Break circular reference.
         mProxyService = nullptr;
     } else if (!strcmp(topic, NS_NETWORK_LINK_TOPIC)) {
@@ -1292,6 +1382,10 @@ nsIOService::Observe(nsISupports *subject,
                 NotifyObservers(nullptr,
                                 NS_NETWORK_LINK_TOPIC,
                                 MOZ_UTF16(NS_NETWORK_LINK_DATA_CHANGED));
+        }
+
+        if (mCaptivePortalService) {
+            mCaptivePortalService->RecheckCaptivePortal();
         }
     } else if (!strcmp(topic, kNetworkActiveChanged)) {
 #ifdef MOZ_WIDGET_GONK
@@ -1340,10 +1434,10 @@ nsIOService::ParseRequestContentType(const nsACString &aTypeHeader,
 
 // nsINetUtil interface
 NS_IMETHODIMP
-nsIOService::ParseContentType(const nsACString &aTypeHeader,
-                              nsACString &aCharset,
-                              bool *aHadCharset,
-                              nsACString &aContentType)
+nsIOService::ParseResponseContentType(const nsACString &aTypeHeader,
+                                      nsACString &aCharset,
+                                      bool *aHadCharset,
+                                      nsACString &aContentType)
 {
     net_ParseContentType(aTypeHeader, aContentType, aCharset, aHadCharset);
     return NS_OK;
@@ -1499,6 +1593,10 @@ nsIOService::OnNetworkLinkEvent(const char *data)
     } else if (!strcmp(data, NS_NETWORK_LINK_DATA_DOWN)) {
         isUp = false;
     } else if (!strcmp(data, NS_NETWORK_LINK_DATA_UP)) {
+        if (mCaptivePortalService) {
+            // Interface is up. Triggering a captive portal recheck.
+            mCaptivePortalService->RecheckCaptivePortal();
+        }
         isUp = true;
     } else if (!strcmp(data, NS_NETWORK_LINK_DATA_UNKNOWN)) {
         nsresult rv = mNetworkLinkService->GetIsLinkUp(&isUp);
@@ -1563,6 +1661,16 @@ nsIOService::ExtractCharsetFromContentType(const nsACString &aTypeHeader,
         *aHadCharset = false;
     }
     return NS_OK;
+}
+
+// parse policyString to policy enum value (see ReferrerPolicy.h)
+NS_IMETHODIMP
+nsIOService::ParseAttributePolicyString(const nsAString& policyString,
+                                                uint32_t *outPolicyEnum)
+{
+  NS_ENSURE_ARG(outPolicyEnum);
+  *outPolicyEnum = (uint32_t)mozilla::net::AttributeReferrerPolicyFromString(policyString);
+  return NS_OK;
 }
 
 // nsISpeculativeConnect

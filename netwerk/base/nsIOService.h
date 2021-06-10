@@ -14,12 +14,12 @@
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "nsINetUtil.h"
-#include "nsINetUtil_ESR_38.h"
 #include "nsIChannelEventSink.h"
 #include "nsCategoryCache.h"
 #include "nsISpeculativeConnect.h"
 #include "nsDataHashtable.h"
 #include "mozilla/Attributes.h"
+#include "nsICaptivePortalService.h"
 
 #define NS_N(x) (sizeof(x)/sizeof(*x))
 
@@ -49,7 +49,6 @@ namespace net {
 class nsIOService final : public nsIIOService2
                         , public nsIObserver
                         , public nsINetUtil
-                        , public nsINetUtil_ESR_38
                         , public nsISpeculativeConnect
                         , public nsSupportsWeakReference
                         , public nsIIOServiceInternal
@@ -60,7 +59,6 @@ public:
     NS_DECL_NSIIOSERVICE2
     NS_DECL_NSIOBSERVER
     NS_DECL_NSINETUTIL
-    NS_DECL_NSINETUTIL_ESR_38
     NS_DECL_NSISPECULATIVECONNECT
     NS_DECL_NSIIOSERVICEINTERNAL
 
@@ -102,6 +100,9 @@ private:
                                                   uint32_t end=0);
     nsresult CacheProtocolHandler(const char *scheme,
                                               nsIProtocolHandler* hdlr);
+
+    nsresult InitializeCaptivePortalService();
+    nsresult RecheckCaptivePortalIfLocalRedirect(nsIChannel* newChan);
 
     // Prefs wrangling
     void PrefsChanged(nsIPrefBranch *prefs, const char *pref = nullptr);
@@ -149,6 +150,7 @@ private:
     nsCOMPtr<nsPISocketTransportService> mSocketTransportService;
     nsCOMPtr<nsPIDNSService>             mDNSService;
     nsCOMPtr<nsIProtocolProxyService2>   mProxyService;
+    nsCOMPtr<nsICaptivePortalService>    mCaptivePortalService;
     nsCOMPtr<nsINetworkLinkService>      mNetworkLinkService;
     bool                                 mNetworkLinkServiceInitialized;
 

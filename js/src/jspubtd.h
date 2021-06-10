@@ -37,6 +37,7 @@ class Rooted;
 class JS_FRIEND_API(CompileOptions);
 class JS_FRIEND_API(ReadOnlyCompileOptions);
 class JS_FRIEND_API(OwningCompileOptions);
+class JS_FRIEND_API(TransitiveCompileOptions);
 class JS_PUBLIC_API(CompartmentOptions);
 
 class Value;
@@ -47,7 +48,6 @@ struct Zone;
 namespace js {
 struct ContextFriendFields;
 class RootLists;
-class Shape;
 } // namespace js
 
 /*
@@ -219,9 +219,7 @@ class JS_PUBLIC_API(AutoGCRooter)
     enum {
         VALARRAY =     -2, /* js::AutoValueArray */
         PARSER =       -3, /* js::frontend::Parser */
-        SHAPEVECTOR =  -4, /* js::AutoShapeVector */
         IDARRAY =      -6, /* js::AutoIdArray */
-        DESCVECTOR =   -7, /* js::AutoPropertyDescriptorVector */
         VALVECTOR =   -10, /* js::AutoValueVector */
         IDVECTOR =    -11, /* js::AutoIdVector */
         IDVALVECTOR = -12, /* js::AutoIdValueVector */
@@ -233,7 +231,6 @@ class JS_PUBLIC_API(AutoGCRooter)
         IONMASM =     -19, /* js::jit::MacroAssembler */
         WRAPVECTOR =  -20, /* js::AutoWrapperVector */
         WRAPPER =     -21, /* js::AutoWrapperRooter */
-        OBJU32HASHMAP=-23, /* js::AutoObjectUnsigned32HashMap */
         JSONPARSER =  -25, /* js::JSONParser */
         CUSTOM =      -26  /* js::CustomAutoRooter */
     };
@@ -243,8 +240,6 @@ class JS_PUBLIC_API(AutoGCRooter)
     static ptrdiff_t GetTag(JSObject* obj) { return OBJVECTOR; }
     static ptrdiff_t GetTag(JSScript* script) { return SCRIPTVECTOR; }
     static ptrdiff_t GetTag(JSString* string) { return STRINGVECTOR; }
-    static ptrdiff_t GetTag(js::Shape* shape) { return SHAPEVECTOR; }
-    static ptrdiff_t GetTag(const JSPropertyDescriptor& pd) { return DESCVECTOR; }
 
   private:
     AutoGCRooter ** const stackTop;

@@ -42,6 +42,7 @@
 
 #include "builtin/MapObject.h"
 #include "js/Date.h"
+#include "js/TraceableHashTable.h"
 #include "vm/SharedArrayObject.h"
 #include "vm/TypedArrayObject.h"
 #include "vm/WrapperObject.h"
@@ -268,8 +269,9 @@ struct JSStructuredCloneWriter {
                                      Value tVal)
         : out(cx), objs(out.context()),
           counts(out.context()), entries(out.context()),
-          memory(out.context()), callbacks(cb), closure(cbClosure),
-          transferable(out.context(), tVal), transferableObjects(out.context()) { }
+          memory(out.context(), CloneMemory(out.context())), callbacks(cb),
+          closure(cbClosure), transferable(out.context(), tVal), transferableObjects(out.context())
+    {}
 
     ~JSStructuredCloneWriter();
 
@@ -284,6 +286,9 @@ struct JSStructuredCloneWriter {
     }
 
   private:
+    JSStructuredCloneWriter() = delete;
+    JSStructuredCloneWriter(const JSStructuredCloneWriter&) = delete;
+
     JSContext* context() { return out.context(); }
 
     bool writeTransferMap();
@@ -325,8 +330,8 @@ struct JSStructuredCloneWriter {
     // The "memory" list described in the HTML5 internal structured cloning algorithm.
     // memory is a superset of objs; items are never removed from Memory
     // until a serialization operation is finished
-    typedef AutoObjectUnsigned32HashMap CloneMemory;
-    CloneMemory memory;
+    using CloneMemory = TraceableHashMap<JSObject*, uint32_t>;
+    Rooted<CloneMemory> memory;
 
     // The user defined callbacks that will be used for cloning.
     const JSStructuredCloneCallbacks* callbacks;
@@ -2027,17 +2032,23 @@ JSAutoStructuredCloneBuffer::operator=(JSAutoStructuredCloneBuffer&& other)
 }
 
 void
-JSAutoStructuredCloneBuffer::clear()
+JSAutoStructuredCloneBuffer::clear(const JSStructuredCloneCallbacks* optionalCallbacks,
+                                   void* optionalClosure)
 {
-    if (data_) {
-        if (ownTransferables_ == OwnsTransferablesIfAny)
-            DiscardTransferables(data_, nbytes_, callbacks_, closure_);
-        ownTransferables_ = NoTransferables;
-        js_free(data_);
-        data_ = nullptr;
-        nbytes_ = 0;
-        version_ = 0;
-    }
+    if (!data_)
+        return;
+
+    const JSStructuredCloneCallbacks* callbacks =
+        optionalCallbacks ?  optionalCallbacks : callbacks_;
+    void* closure = optionalClosure ?  optionalClosure : closure_;
+
+    if (ownTransferables_ == OwnsTransferablesIfAny)
+        DiscardTransferables(data_, nbytes_, callbacks, closure);
+    ownTransferables_ = NoTransferables;
+    js_free(data_);
+    data_ = nullptr;
+    nbytes_ = 0;
+    version_ = 0;
 }
 
 bool

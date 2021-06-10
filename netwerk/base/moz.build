@@ -27,6 +27,7 @@ XPIDL_SOURCES += [
     'nsICacheInfoChannel.idl',
     'nsICachingChannel.idl',
     'nsICancelable.idl',
+    'nsICaptivePortalService.idl',
     'nsIChannel.idl',
     'nsIChannelEventSink.idl',
     'nsIChildChannel.idl',
@@ -59,7 +60,6 @@ XPIDL_SOURCES += [
     'nsINestedURI.idl',
     'nsINetAddr.idl',
     'nsINetUtil.idl',
-    'nsINetUtil_ESR_38.idl',
     'nsINetworkInterceptController.idl',
     'nsINetworkLinkService.idl',
     'nsINetworkPredictor.idl',
@@ -149,6 +149,7 @@ EXPORTS += [
     'nsInputStreamPump.h',
     'nsMIMEInputStream.h',
     'nsNetUtil.h',
+    'nsNetUtil.inl',
     'nsReadLine.h',
     'nsSerializationHelper.h',
     'nsSimpleNestedURI.h',
@@ -165,6 +166,7 @@ EXPORTS.mozilla += [
 ]
 
 EXPORTS.mozilla.net += [
+    'CaptivePortalService.h',
     'ChannelDiverterChild.h',
     'ChannelDiverterParent.h',
     'Dashboard.h',
@@ -182,6 +184,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
 UNIFIED_SOURCES += [
     'ArrayBufferInputStream.cpp',
     'BackgroundFileSaver.cpp',
+    'CaptivePortalService.cpp',
     'ChannelDiverterChild.cpp',
     'ChannelDiverterParent.cpp',
     'Dashboard.cpp',

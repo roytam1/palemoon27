@@ -9,6 +9,7 @@
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/NuwaParent.h"
 #include "mozilla/dom/PBlobParent.h"
 #include "mozilla/dom/MessagePortParent.h"
 #include "mozilla/dom/ServiceWorkerRegistrar.h"
@@ -23,6 +24,7 @@
 #include "mozilla/dom/network/UDPSocketParent.h"
 #include "nsIAppsService.h"
 #include "nsNetUtil.h"
+#include "nsIScriptSecurityManager.h"
 #include "mozilla/nsRefPtr.h"
 #include "nsThreadUtils.h"
 #include "nsTraceRefcnt.h"
@@ -41,6 +43,8 @@ using mozilla::dom::cache::PCacheStorageParent;
 using mozilla::dom::cache::PCacheStreamControlParent;
 using mozilla::dom::MessagePortParent;
 using mozilla::dom::PMessagePortParent;
+using mozilla::dom::PNuwaParent;
+using mozilla::dom::NuwaParent;
 using mozilla::dom::UDPSocketParent;
 
 namespace {
@@ -230,6 +234,24 @@ BackgroundParentImpl::DeallocPFileDescriptorSetParent(
 
   delete static_cast<FileDescriptorSetParent*>(aActor);
   return true;
+}
+
+PNuwaParent*
+BackgroundParentImpl::AllocPNuwaParent()
+{
+  return mozilla::dom::NuwaParent::Alloc();
+}
+
+bool
+BackgroundParentImpl::RecvPNuwaConstructor(PNuwaParent* aActor)
+{
+  return mozilla::dom::NuwaParent::ActorConstructed(aActor);
+}
+
+bool
+BackgroundParentImpl::DeallocPNuwaParent(PNuwaParent *aActor)
+{
+  return mozilla::dom::NuwaParent::Dealloc(aActor);
 }
 
 BackgroundParentImpl::PVsyncParent*
@@ -586,6 +608,17 @@ BackgroundParentImpl::DeallocPMessagePortParent(PMessagePortParent* aActor)
 
   delete static_cast<MessagePortParent*>(aActor);
   return true;
+}
+
+bool
+BackgroundParentImpl::RecvMessagePortForceClose(const nsID& aUUID,
+                                                const nsID& aDestinationUUID,
+                                                const uint32_t& aSequenceID)
+{
+  AssertIsInMainProcess();
+  AssertIsOnBackgroundThread();
+
+  return MessagePortParent::ForceClose(aUUID, aDestinationUUID, aSequenceID);
 }
 
 } // namespace ipc

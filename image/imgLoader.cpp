@@ -20,15 +20,19 @@
 #include "nsContentUtils.h"
 #include "nsCORSListenerProxy.h"
 #include "nsNetUtil.h"
+#include "nsNetCID.h"
+#include "nsIProtocolHandler.h"
 #include "nsMimeTypes.h"
 #include "nsStreamUtils.h"
 #include "nsIHttpChannel.h"
 #include "nsICachingChannel.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIFileURL.h"
+#include "nsIFile.h"
 #include "nsCRT.h"
 #include "nsINetworkPredictor.h"
 #include "mozilla/dom/nsMixedContentBlocker.h"
@@ -39,6 +43,7 @@
 #include "nsIMemoryReporter.h"
 #include "Image.h"
 #include "gfxPrefs.h"
+#include "prtime.h"
 
 // we want to explore making the document own the load group
 // so we can associate the document URI with the load group.
@@ -661,6 +666,9 @@ ValidateSecurityInfo(imgRequest* request, bool forcePrincipalCheck,
                      nsISupports* aCX, ReferrerPolicy referrerPolicy)
 {
   // If the entry's Referrer Policy doesn't match, we can't use this request.
+  // XXX: this will return false if an image has different referrer attributes,
+  // i.e. we currently don't use the cached image but reload the image with
+  // the new referrer policy bug 1174921
   if (referrerPolicy != request->GetReferrerPolicy()) {
     return false;
   }

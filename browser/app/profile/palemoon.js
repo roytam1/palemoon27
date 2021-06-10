@@ -1098,19 +1098,28 @@ pref("devtools.performance.profiler.buffer-size", 10000000);
 pref("devtools.performance.profiler.sample-frequency-khz", 1);
 pref("devtools.performance.ui.show-jit-optimizations", false);
 
-// If in aurora (40.0, will revert for 40.1), set default
-// to retro mode.
-// TODO bug 1160313
-#if MOZ_UPDATE_CHANNEL == aurora
-  pref("devtools.performance.ui.retro-mode", true);
+// Enable experimental options in the UI only in Nightly
+#if defined(NIGHTLY_BUILD)
+pref("devtools.performance.ui.experimental", true);
 #else
-  pref("devtools.performance.ui.retro-mode", false);
+pref("devtools.performance.ui.experimental", false);
 #endif
 
 // Set imgur upload client ID
 pref("devtools.gcli.imgurClientID", '0df414e888d7240');
 // Imgur's upload URL
 pref("devtools.gcli.imgurUploadURL", "https://api.imgur.com/3/image");
+
+pref("devtools.webconsole.filter.serviceworkers", false);
+pref("devtools.webconsole.filter.sharedworkers", false);
+pref("devtools.webconsole.filter.windowlessworkers", false);
+
+pref("devtools.browserconsole.filter.serviceworkers", true);
+pref("devtools.browserconsole.filter.sharedworkers", true);
+pref("devtools.browserconsole.filter.windowlessworkers", true);
+
+// Max number of inputs to store in web console history.
+pref("devtools.webconsole.inputHistoryCount", 50);
 
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.

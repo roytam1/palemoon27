@@ -13,6 +13,8 @@
 #include "nsReadableUtils.h"
 #include "pratom.h"
 #include "nsIURI.h"
+#include "nsIURL.h"
+#include "nsIURIWithPrincipal.h"
 #include "nsJSPrincipals.h"
 #include "nsIEffectiveTLDService.h"
 #include "nsIClassInfoImpl.h"
@@ -232,6 +234,12 @@ nsPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport, bool aAllowIfInheritsPrinc
   }
   if (uriPrin && nsIPrincipal::Subsumes(uriPrin)) {
       return NS_OK;
+  }
+
+  // If this principal is associated with an addon, check whether that addon
+  // has been given permission to load from this domain.
+  if (AddonAllowsLoad(aURI)) {
+    return NS_OK;
   }
 
   if (nsScriptSecurityManager::SecurityCompareURIs(mCodebase, aURI)) {

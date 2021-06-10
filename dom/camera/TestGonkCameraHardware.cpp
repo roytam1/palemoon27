@@ -22,8 +22,8 @@
 #include "mozilla/dom/ErrorEvent.h"
 #include "mozilla/dom/CameraFacesDetectedEvent.h"
 #include "mozilla/dom/CameraStateChangeEvent.h"
-#include "DOMCameraDetectedFace.h"
 #include "nsNetUtil.h"
+#include "DOMCameraDetectedFace.h"
 #include "nsServiceManagerUtils.h"
 #include "nsICameraTestHardware.h"
 
@@ -405,6 +405,32 @@ TestGonkCameraHardware::AutoFocus()
     RunImpl() override
     {
       return mJSTestWrapper->AutoFocus();
+    }
+  };
+
+  DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
+  nsresult rv = WaitWhileRunningOnMainThread(new Delegate(this));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return UNKNOWN_ERROR;
+  }
+  return OK;
+}
+
+int
+TestGonkCameraHardware::CancelAutoFocus()
+{
+  class Delegate : public ControlMessage
+  {
+  public:
+    Delegate(TestGonkCameraHardware* aTestHw)
+      : ControlMessage(aTestHw)
+    { }
+
+  protected:
+    NS_IMETHOD
+    RunImpl() override
+    {
+      return mJSTestWrapper->CancelAutoFocus();
     }
   };
 

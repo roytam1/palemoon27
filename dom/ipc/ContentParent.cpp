@@ -41,6 +41,7 @@
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/FileSystemRequestParent.h"
 #include "mozilla/dom/GeolocationBinding.h"
+#include "mozilla/dom/NuwaParent.h"
 #include "mozilla/dom/PContentBridgeParent.h"
 #include "mozilla/dom/PContentPermissionRequestParent.h"
 #include "mozilla/dom/PCycleCollectWithLogsParent.h"
@@ -55,6 +56,8 @@
 #include "mozilla/dom/mobileconnection/MobileConnectionParent.h"
 #include "mozilla/dom/mobilemessage/SmsParent.h"
 #include "mozilla/dom/power/PowerManagerService.h"
+#include "mozilla/dom/PresentationParent.h"
+#include "mozilla/dom/PPresentationParent.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/dom/telephony/TelephonyParent.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
@@ -73,6 +76,7 @@
 #include "mozilla/layers/ImageBridgeParent.h"
 #include "mozilla/layers/SharedBufferManagerParent.h"
 #include "mozilla/LookAndFeel.h"
+#include "mozilla/Move.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/plugins/PluginBridge.h"
 #include "mozilla/Preferences.h"
@@ -663,6 +667,8 @@ static const char* sObserverTopics[] = {
 #ifdef MOZ_ENABLE_PROFILER_SPS
     "profiler-started",
     "profiler-stopped",
+    "profiler-paused",
+    "profiler-resumed",
     "profiler-subprocess-gather",
     "profiler-subprocess",
 #endif
@@ -2342,6 +2348,18 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
     // must come after the Open() call above.
     ProcessPriorityManager::SetProcessPriority(this, aInitialPriority);
 
+    if (gAppData) {
+        nsCString version(gAppData->version);
+        nsCString buildID(gAppData->buildID);
+        nsCString name(gAppData->name);
+        nsCString UAName(gAppData->UAName);
+        nsCString ID(gAppData->ID);
+        nsCString vendor(gAppData->vendor);
+
+        // Sending all information to content process.
+        unused << SendAppInfo(version, buildID, name, UAName, ID, vendor);
+    }
+
     if (aSetupOffMainThreadCompositing) {
         // NB: internally, this will send an IPC message to the child
         // process to get it to create the CompositorChild.  This
@@ -2380,15 +2398,8 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
     }
 
     if (gAppData) {
-        nsCString version(gAppData->version);
-        nsCString buildID(gAppData->buildID);
-        nsCString name(gAppData->name);
-        nsCString UAName(gAppData->UAName);
-        nsCString ID(gAppData->ID);
-        nsCString vendor(gAppData->vendor);
-
         // Sending all information to content process.
-        unused << SendAppInfo(version, buildID, name, UAName, ID, vendor);
+        unused << SendAppInit();
     }
 
     nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
@@ -2759,47 +2770,54 @@ ContentParent::RecvDataStoreGetStores(
   return true;
 }
 
-bool
-ContentParent::RecvNuwaReady()
+void
+ContentParent::ForkNewProcess(bool aBlocking)
 {
 #ifdef MOZ_NUWA_PROCESS
-    if (!IsNuwaProcess()) {
-        NS_ERROR(
-            nsPrintfCString(
-                "Terminating child process %d for unauthorized IPC message: NuwaReady",
-                Pid()).get());
+  uint32_t pid;
+  auto fds = MakeUnique<nsTArray<ProtocolFdMapping>>();
 
-        KillHard("NuwaReady");
-        return false;
-    }
-    sNuwaReady = true;
-    PreallocatedProcessManager::OnNuwaReady();
-    return true;
+  MOZ_ASSERT(IsNuwaProcess() && mNuwaParent);
+
+  if (mNuwaParent->ForkNewProcess(pid, mozilla::Move(fds), aBlocking)) {
+    OnNewProcessCreated(pid, mozilla::Move(fds));
+  }
 #else
-    NS_ERROR("ContentParent::RecvNuwaReady() not implemented!");
-    return false;
+  NS_ERROR("ContentParent::ForkNewProcess() not implemented!");
 #endif
 }
 
-bool
-ContentParent::RecvAddNewProcess(const uint32_t& aPid,
-                                 InfallibleTArray<ProtocolFdMapping>&& aFds)
+void
+ContentParent::OnNuwaReady()
 {
 #ifdef MOZ_NUWA_PROCESS
-    if (!IsNuwaProcess()) {
-        NS_ERROR(
-            nsPrintfCString(
-                "Terminating child process %d for unauthorized IPC message: "
-                "AddNewProcess(%d)", Pid(), aPid).get());
+    // Protection from unauthorized IPC message is done in PNuwa protocol.
+    // Just assert that this actor is really for the Nuwa process.
+    MOZ_ASSERT(IsNuwaProcess());
 
-        KillHard("AddNewProcess");
-        return false;
-    }
+    sNuwaReady = true;
+    PreallocatedProcessManager::OnNuwaReady();
+    return;
+#else
+    NS_ERROR("ContentParent::OnNuwaReady() not implemented!");
+    return;
+#endif
+}
+
+void
+ContentParent::OnNewProcessCreated(uint32_t aPid,
+                                   UniquePtr<nsTArray<ProtocolFdMapping>>&& aFds)
+{
+#ifdef MOZ_NUWA_PROCESS
+    // Protection from unauthorized IPC message is done in PNuwa protocol.
+    // Just assert that this actor is really for the Nuwa process.
+    MOZ_ASSERT(IsNuwaProcess());
+
     nsRefPtr<ContentParent> content;
     content = new ContentParent(this,
                                 MAGIC_PREALLOCATED_APP_MANIFEST_URL,
                                 aPid,
-                                Move(aFds));
+                                Move(*aFds.get()));
     content->Init();
 
     size_t numNuwaPrefUpdates = sNuwaPrefUpdates ?
@@ -2827,10 +2845,10 @@ ContentParent::RecvAddNewProcess(const uint32_t& aPid,
                "Unexpected values");
 
     PreallocatedProcessManager::PublishSpareProcess(content);
-    return true;
+    return;
 #else
-    NS_ERROR("ContentParent::RecvAddNewProcess() not implemented!");
-    return false;
+    NS_ERROR("ContentParent::OnNewProcessCreated() not implemented!");
+    return;
 #endif
 }
 
@@ -3049,6 +3067,17 @@ ContentParent::Observe(nsISupports* aSubject,
     }
     else if (!strcmp(aTopic, "profiler-stopped")) {
         unused << SendStopProfiler();
+    }
+    else if (!strcmp(aTopic, "profiler-paused")) {
+        unused << SendPauseProfiler(true);
+    }
+    else if (!strcmp(aTopic, "profiler-resumed")) {
+        unused << SendPauseProfiler(false);
+    }
+    else if (!strcmp(aTopic, "profiler-subprocess-gather")) {
+        mGatherer = static_cast<ProfileGatherer*>(aSubject);
+        mGatherer->WillGatherOOPProfile();
+        unused << SendGatherProfile();
     }
     else if (!strcmp(aTopic, "profiler-subprocess")) {
         nsCOMPtr<nsIProfileSaveEvent> pse = do_QueryInterface(aSubject);
@@ -3736,6 +3765,27 @@ ContentParent::DeallocPFMRadioParent(PFMRadioParent* aActor)
     NS_WARNING("No support for FMRadio on this platform!");
     return false;
 #endif
+}
+
+PPresentationParent*
+ContentParent::AllocPPresentationParent()
+{
+  nsRefPtr<PresentationParent> actor = new PresentationParent();
+  return actor.forget().take();
+}
+
+bool
+ContentParent::DeallocPPresentationParent(PPresentationParent* aActor)
+{
+  nsRefPtr<PresentationParent> actor =
+    dont_AddRef(static_cast<PresentationParent*>(aActor));
+  return true;
+}
+
+bool
+ContentParent::RecvPPresentationConstructor(PPresentationParent* aActor)
+{
+  return static_cast<PresentationParent*>(aActor)->Init();
 }
 
 asmjscache::PAsmJSCacheEntryParent*

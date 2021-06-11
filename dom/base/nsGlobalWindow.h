@@ -893,6 +893,13 @@ public:
                   mozilla::ErrorResult& aRv);
   already_AddRefed<mozilla::dom::External> GetExternal(mozilla::ErrorResult& aRv);
 
+  // Exposed only for testing
+  static bool
+  TokenizeDialogOptions(nsAString& aToken, nsAString::const_iterator& aIter,
+                        nsAString::const_iterator aEnd);
+  static void
+  ConvertDialogOptions(const nsAString& aOptions, nsAString& aResult);
+
 protected:
   bool AlertOrConfirm(bool aAlert, const nsAString& aMessage,
                       mozilla::ErrorResult& aError);
@@ -1622,6 +1629,7 @@ protected:
   nsRefPtr<mozilla::dom::Navigator> mNavigator;
   nsRefPtr<nsScreen>            mScreen;
   nsRefPtr<nsDOMWindowList>     mFrames;
+  // All BarProps are inner window only.
   nsRefPtr<mozilla::dom::BarProp> mMenubar;
   nsRefPtr<mozilla::dom::BarProp> mToolbar;
   nsRefPtr<mozilla::dom::BarProp> mLocationbar;

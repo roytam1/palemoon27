@@ -15,6 +15,7 @@
 #include "mozilla/dom/indexedDB/PBackgroundIDBFactoryChild.h"
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/dom/MessagePortChild.h"
+#include "mozilla/dom/NuwaChild.h"
 #include "mozilla/ipc/PBackgroundTestChild.h"
 #include "mozilla/layout/VsyncChild.h"
 #include "mozilla/net/PUDPSocketChild.h"
@@ -58,6 +59,7 @@ using mozilla::net::PUDPSocketChild;
 using mozilla::dom::cache::PCacheChild;
 using mozilla::dom::cache::PCacheStorageChild;
 using mozilla::dom::cache::PCacheStreamControlChild;
+using mozilla::dom::PNuwaChild;
 
 // -----------------------------------------------------------------------------
 // BackgroundChildImpl::ThreadLocal
@@ -360,6 +362,21 @@ BackgroundChildImpl::DeallocPMessagePortChild(PMessagePortChild* aActor)
   nsRefPtr<dom::MessagePortChild> child =
     dont_AddRef(static_cast<dom::MessagePortChild*>(aActor));
   MOZ_ASSERT(child);
+  return true;
+}
+
+PNuwaChild*
+BackgroundChildImpl::AllocPNuwaChild()
+{
+  return new mozilla::dom::NuwaChild();
+}
+
+bool
+BackgroundChildImpl::DeallocPNuwaChild(PNuwaChild* aActor)
+{
+  MOZ_ASSERT(aActor);
+
+  delete aActor;
   return true;
 }
 

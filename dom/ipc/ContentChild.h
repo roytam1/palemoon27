@@ -21,7 +21,7 @@
 
 struct ChromePackage;
 class nsIObserver;
-struct ResourceMapping;
+struct SubstitutionMapping;
 struct OverrideMapping;
 class nsIDomainPolicy;
 
@@ -262,6 +262,11 @@ public:
     virtual PFMRadioChild* AllocPFMRadioChild() override;
     virtual bool DeallocPFMRadioChild(PFMRadioChild* aActor) override;
 
+    virtual PPresentationChild* AllocPPresentationChild() override;
+    virtual bool DeallocPPresentationChild(PPresentationChild* aActor) override;
+    virtual bool RecvNotifyPresentationReceiverLaunched(PBrowserChild* aIframe,
+                                                        const nsString& aSessionId) override;
+
     virtual PAsmJSCacheEntryChild* AllocPAsmJSCacheEntryChild(
                                  const asmjscache::OpenMode& aOpenMode,
                                  const asmjscache::WriteParams& aWriteParams,
@@ -273,7 +278,7 @@ public:
     virtual bool DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor) override;
 
     virtual bool RecvRegisterChrome(InfallibleTArray<ChromePackage>&& packages,
-                                    InfallibleTArray<ResourceMapping>&& resources,
+                                    InfallibleTArray<SubstitutionMapping>&& resources,
                                     InfallibleTArray<OverrideMapping>&& overrides,
                                     const nsCString& locale,
                                     const bool& reset) override;
@@ -332,6 +337,7 @@ public:
     virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID,
                              const nsCString& name, const nsCString& UAName,
                              const nsCString& ID, const nsCString& vendor) override;
+    virtual bool RecvAppInit() override;
 
     virtual bool RecvLastPrivateDocShellDestroyed() override;
 
@@ -352,8 +358,6 @@ public:
                                       const bool& aIsRemovable,
                                       const bool& aIsHotSwappable) override;
     virtual bool RecvVolumeRemoved(const nsString& aFsName) override;
-
-    virtual bool RecvNuwaFork() override;
 
     virtual bool
     RecvNotifyProcessPriorityChanged(const hal::ProcessPriority& aPriority) override;
@@ -383,6 +387,7 @@ public:
                                    const double& aInterval,
                                    nsTArray<nsCString>&& aFeatures,
                                    nsTArray<nsCString>&& aThreadNameFilters) override;
+    virtual bool RecvPauseProfiler(const bool& aPause) override;
     virtual bool RecvStopProfiler() override;
     virtual bool RecvGatherProfile() override;
     virtual bool RecvDomainSetChanged(const uint32_t& aSetType, const uint32_t& aChangeType,
@@ -503,6 +508,9 @@ private:
 
     DISALLOW_EVIL_CONSTRUCTORS(ContentChild);
 };
+
+void
+InitOnContentProcessCreated();
 
 uint64_t
 NextWindowID();

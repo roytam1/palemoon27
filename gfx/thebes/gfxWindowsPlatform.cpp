@@ -15,6 +15,7 @@
 #include "nsUnicharUtils.h"
 
 #include "mozilla/Preferences.h"
+#include "mozilla/Services.h"
 #include "mozilla/WindowsVersion.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
@@ -72,6 +73,7 @@
 #include "gfxPrefs.h"
 
 #include "VsyncSource.h"
+#include "DriverInitCrashDetection.h"
 
 using namespace mozilla;
 using namespace mozilla::gfx;
@@ -498,7 +500,7 @@ gfxWindowsPlatform::UpdateRenderMode()
     bool d2dForceEnabled = false;
     bool d2dBlocked = false;
 
-    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+    nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
     if (gfxInfo) {
         int32_t status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT2D, &status))) {
@@ -650,6 +652,11 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
     }
     
 #ifdef CAIRO_HAS_D2D_SURFACE
+    DriverInitCrashDetection detectCrashes;
+    if (detectCrashes.DisableAcceleration()) {
+      return;
+    }
+
     if (mD2DDevice) {
         ID3D10Device1 *device = cairo_d2d_device_get_device(mD2DDevice);
 
@@ -1780,7 +1787,7 @@ bool DoesD3D11TextureSharingWork(ID3D11Device *device)
   }
 
   if (GetModuleHandleW(L"atidxx32.dll")) {
-    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+    nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
     if (gfxInfo) {
       nsString vendorID, vendorID2;
       gfxInfo->GetAdapterVendorID(vendorID);
@@ -1859,13 +1866,19 @@ gfxWindowsPlatform::InitD3D11Devices()
 
   MOZ_ASSERT(!mD3D11Device); 
 
-  if (InSafeMode()) {
+  DriverInitCrashDetection detectCrashes;
+  if (InSafeMode() || detectCrashes.DisableAcceleration()) {
     return;
   }
 
   bool useWARP = false;
+  bool allowWARP = false;
 
-  nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+  if (IsWin8OrLater()) {
+    allowWARP = true;
+  }
+
+  nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
   if (gfxInfo) {
     int32_t status;
     if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_11_LAYERS, &status))) {
@@ -1887,7 +1900,7 @@ gfxWindowsPlatform::InitD3D11Devices()
             }
         }
 
-        useWARP = true;
+        useWARP = allowWARP;
       }
     }
   }
@@ -1923,7 +1936,7 @@ gfxWindowsPlatform::InitD3D11Devices()
       if (!gfxPrefs::LayersD3D11DisableWARP()) {
         return;
       }
-      useWARP = true;
+      useWARP = allowWARP;
     }
   }
 
@@ -1943,7 +1956,7 @@ gfxWindowsPlatform::InitD3D11Devices()
         return;
       }
 
-      useWARP = true;
+      useWARP = allowWARP;
       adapter = nullptr;
     }
 
@@ -1952,7 +1965,7 @@ gfxWindowsPlatform::InitD3D11Devices()
         return;
       }
 
-      useWARP = true;
+      useWARP = allowWARP;
       adapter = nullptr;
     }
   }

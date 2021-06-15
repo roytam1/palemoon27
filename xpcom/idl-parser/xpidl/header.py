@@ -19,11 +19,14 @@ else:
     def printComments(fd, clist, indent):
         pass
 
+
 def firstCap(str):
     return str[0].upper() + str[1:]
 
+
 def attributeParamName(a):
     return "a" + firstCap(a.name)
+
 
 def attributeParamNames(a):
     l = [attributeParamName(a)]
@@ -31,9 +34,11 @@ def attributeParamNames(a):
         l.insert(0, "cx")
     return ", ".join(l)
 
+
 def attributeNativeName(a, getter):
     binaryname = a.binaryname is not None and a.binaryname or firstCap(a.name)
     return "%s%s" % (getter and 'Get' or 'Set', binaryname)
+
 
 def attributeReturnType(a, macro):
     """macro should be NS_IMETHOD or NS_IMETHODIMP"""
@@ -41,6 +46,7 @@ def attributeReturnType(a, macro):
         return macro == "NS_IMETHOD" and "virtual nsresult" or "nsresult"
     else:
         return macro
+
 
 def attributeParamlist(a, getter):
     l = ["%s%s" % (a.realtype.nativeType(getter and 'out' or 'in'),
@@ -50,16 +56,19 @@ def attributeParamlist(a, getter):
 
     return ", ".join(l)
 
-def attributeAsNative(a, getter):
+
+def attributeAsNative(a, getter, declType = 'NS_IMETHOD'):
         deprecated = a.deprecated and "NS_DEPRECATED " or ""
         params = {'deprecated': deprecated,
-                  'returntype': attributeReturnType(a, 'NS_IMETHOD'),
+                  'returntype': attributeReturnType(a, declType),
                   'binaryname': attributeNativeName(a, getter),
                   'paramlist': attributeParamlist(a, getter)}
         return "%(deprecated)s%(returntype)s %(binaryname)s(%(paramlist)s)" % params
 
+
 def methodNativeName(m):
     return m.binaryname is not None and m.binaryname or firstCap(m.name)
+
 
 def methodReturnType(m, macro):
     """macro should be NS_IMETHOD or NS_IMETHODIMP"""
@@ -73,10 +82,12 @@ def methodReturnType(m, macro):
     else:
         return macro
 
-def methodAsNative(m):
-    return "%s %s(%s)" % (methodReturnType(m, 'NS_IMETHOD'),
+
+def methodAsNative(m, declType = 'NS_IMETHOD'):
+    return "%s %s(%s)" % (methodReturnType(m, declType),
                           methodNativeName(m),
                           paramlistAsNative(m))
+
 
 def paramlistAsNative(m, empty='void'):
     l = [paramAsNative(p) for p in m.params]
@@ -100,9 +111,11 @@ def paramlistAsNative(m, empty='void'):
 
     return ", ".join(l)
 
+
 def paramAsNative(p):
     return "%s%s" % (p.nativeType(),
                      p.name)
+
 
 def paramlistNames(m):
     names = [p.name for p in m.params]
@@ -157,9 +170,11 @@ forward_decl = """class %(name)s; /* forward declaration */
 
 """
 
+
 def idl_basename(f):
     """returns the base name of a file with the last extension stripped"""
     return os.path.basename(f).rpartition('.')[0]
+
 
 def print_header(idl, fd, filename):
     fd.write(header % {'filename': filename,
@@ -234,6 +249,11 @@ iface_epilog = """};
 /* Use this macro when declaring classes that implement this interface. */
 #define NS_DECL_%(macroname)s """
 
+iface_nonvirtual = """
+
+/* Use this macro when declaring the members of this interface when the
+   class doesn't implement the interface. This is useful for forwarding. */
+#define NS_DECL_NON_VIRTUAL_%(macroname)s """
 
 iface_forward = """
 
@@ -301,6 +321,7 @@ attr_infallible_tmpl = """\
     return result;
   }
 """
+
 
 def write_interface(iface, fd):
     if iface.namemap is None:
@@ -384,7 +405,7 @@ def write_interface(iface, fd):
 
     for key, group in itertools.groupby(iface.members, key=type):
         if key == xpidl.ConstMember:
-            write_const_decls(group) # iterator of all the consts
+            write_const_decls(group)  # iterator of all the consts
         else:
             for member in group:
                 if key == xpidl.Attribute:
@@ -398,20 +419,26 @@ def write_interface(iface, fd):
 
     fd.write(iface_epilog % names)
 
-    for member in iface.members:
-        if isinstance(member, xpidl.Attribute):
-            if member.infallible:
-                fd.write("\\\n  using %s::%s; " % (iface.name, attributeNativeName(member, True)))
-            fd.write("\\\n  %s override; " % attributeAsNative(member, True))
-            if not member.readonly:
-                fd.write("\\\n  %s override; " % attributeAsNative(member, False))
-        elif isinstance(member, xpidl.Method):
-            fd.write("\\\n  %s override; " % methodAsNative(member))
-    if len(iface.members) == 0:
-        fd.write('\\\n  /* no methods! */')
-    elif not member.kind in ('attribute', 'method'):
-       fd.write('\\')
+    def writeDeclaration(fd, iface, virtual):
+        declType = "NS_IMETHOD" if virtual else "NS_METHOD"
+        suffix = " override" if virtual else ""
+        for member in iface.members:
+            if isinstance(member, xpidl.Attribute):
+                if member.infallible:
+                    fd.write("\\\n  using %s::%s; " % (iface.name, attributeNativeName(member, True)))
+                fd.write("\\\n  %s%s; " % (attributeAsNative(member, True, declType), suffix))
+                if not member.readonly:
+                    fd.write("\\\n  %s%s; " % (attributeAsNative(member, False, declType), suffix))
+            elif isinstance(member, xpidl.Method):
+                fd.write("\\\n  %s%s; " % (methodAsNative(member, declType), suffix))
+        if len(iface.members) == 0:
+            fd.write('\\\n  /* no methods! */')
+        elif not member.kind in ('attribute', 'method'):
+            fd.write('\\')
 
+    writeDeclaration(fd, iface, True);
+    fd.write(iface_nonvirtual % names)
+    writeDeclaration(fd, iface, False);
     fd.write(iface_forward % names)
 
     def emitTemplate(forward_infallible, tmpl, tmpl_notxpcom=None):
@@ -478,7 +505,8 @@ def write_interface(iface, fd):
 
     fd.write(iface_template_epilog)
 
-if __name__ == '__main__':
+
+def main():
     from optparse import OptionParser
     o = OptionParser()
     o.add_option('-I', action='append', dest='incdirs', default=['.'],
@@ -546,3 +574,6 @@ if __name__ == '__main__':
         print >>depfd, "%s: %s" % (options.outfile, " ".join(deps))
         for dep in deps:
             print >>depfd, "%s:" % dep
+
+if __name__ == '__main__':
+    main()

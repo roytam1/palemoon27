@@ -49,13 +49,20 @@ DIRS += [
     'statusfilter',
     'telemetry',
     'thumbnails',
+    'timermanager',
     'typeaheadfind',
+    'utils',
     'urlformatter',
     'viewconfig',
-    'viewsource',
     'workerloader',
     'xulstore'
 ]
+
+if CONFIG['MOZ_BUILD_APP'] != 'mobile/android':
+    DIRS += ['viewsource'];
+
+    if CONFIG['NS_PRINTING']:
+        DIRS += ['printing']
 
 if CONFIG['MOZ_SOCIAL']:
     DIRS += ['social']
@@ -68,9 +75,6 @@ if CONFIG['MOZ_FEEDS']:
 
 if CONFIG['MOZ_HELP_VIEWER']:
     DIRS += ['help']
-
-if CONFIG['NS_PRINTING']:
-    DIRS += ['printing']
 
 if CONFIG['MOZ_XUL']:
     DIRS += ['autocomplete', 'satchel']

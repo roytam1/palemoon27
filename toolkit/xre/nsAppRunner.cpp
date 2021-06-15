@@ -19,12 +19,15 @@
 #include "mozilla/Likely.h"
 #include "mozilla/Poison.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Services.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/MemoryChecking.h"
 
 #include "nsAppRunner.h"
 #include "mozilla/AppData.h"
+#if defined(MOZ_UPDATER) && !defined(MOZ_WIDGET_ANDROID)
 #include "nsUpdateDriver.h"
+#endif
 #include "ProfileReset.h"
 
 #ifdef MOZ_INSTRUMENT_EVENT_LOOP
@@ -3310,7 +3313,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   }
 #endif
 
-#if defined(USE_MOZ_UPDATER)
+#if defined(MOZ_UPDATER) && !defined(MOZ_WIDGET_ANDROID)
   // Check for and process any available updates
   nsCOMPtr<nsIFile> updRoot;
   bool persistent;
@@ -4107,7 +4110,7 @@ mozilla::BrowserTabsRemoteAutostart()
 
     // Check for blocked drivers
     if (!accelDisabled) {
-      nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+      nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
       if (gfxInfo) {
         int32_t status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_OPENGL_LAYERS, &status)) &&

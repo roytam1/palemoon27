@@ -156,11 +156,6 @@ WMFVideoMFTManager::InitializeDXVA()
     return false;
   }
 
-  if (gfxWindowsPlatform::GetPlatform()->IsWARP() ||
-      !gfxPlatform::CanUseHardwareVideoDecoding()) {
-    return false;
-  }
-
   // The DXVA manager must be created on the main thread.
   nsRefPtr<CreateDXVAManagerEvent> event(new CreateDXVAManagerEvent(mLayersBackend));
 

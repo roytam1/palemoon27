@@ -115,8 +115,8 @@ public:
     virtual gfxPlatformFontList* CreatePlatformFontList();
 
     virtual already_AddRefed<gfxASurface>
-      CreateOffscreenSurface(const IntSize& size,
-                             gfxContentType contentType) override;
+      CreateOffscreenSurface(const IntSize& aSize,
+                             gfxImageFormat aFormat) override;
 
     virtual already_AddRefed<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
@@ -203,6 +203,8 @@ public:
                                            const uint8_t* aFontData,
                                            uint32_t aLength);
 
+    virtual bool CanUseHardwareVideoDecoding() override;
+
     /**
      * Check whether format is supported on a platform or not (if unclear, returns true)
      */
@@ -238,13 +240,11 @@ public:
     void OnDeviceManagerDestroy(mozilla::layers::DeviceManagerD3D9* aDeviceManager);
     mozilla::layers::DeviceManagerD3D9* GetD3D9DeviceManager();
     IDirect3DDevice9* GetD3D9Device();
-#ifdef CAIRO_HAS_D2D_SURFACE
-    cairo_device_t *GetD2DDevice() { return mD2DDevice; }
-    ID3D10Device1 *GetD3D10Device() { return mD2DDevice ? cairo_d2d_device_get_device(mD2DDevice) : nullptr; }
-#endif
+    ID3D10Device1 *GetD3D10Device() { return mD3D10Device; }
     ID3D11Device *GetD3D11Device();
     ID3D11Device *GetD3D11ContentDevice();
-    ID3D11Device *GetD3D11MediaDevice();
+    // Device to be used on the ImageBridge thread
+    ID3D11Device *GetD3D11ImageBridgeDevice();
 
     // Create a D3D11 device to be used for DXVA decoding.
     already_AddRefed<ID3D11Device> CreateD3D11DecoderDevice();
@@ -254,6 +254,7 @@ public:
     static bool IsOptimus();
 
     bool IsWARP() { return mIsWARP; }
+    bool DoesD3D11TextureSharingWork() { return mDoesD3D11TextureSharingWork; }
 
     bool SupportsApzWheelInput() const override {
       return true;
@@ -267,6 +268,12 @@ public:
     static mozilla::Atomic<size_t> sD3D9SharedTextureUsed;
 
 protected:
+    bool AccelerateLayersByDefault() override {
+      return true;
+    }
+    void GetAcceleratedCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aBackends);
+
+protected:
     RenderMode mRenderMode;
 
     int8_t mUseClearTypeForDownloadableFonts;
@@ -274,7 +281,26 @@ protected:
 
 private:
     void Init();
+
     void InitD3D11Devices();
+
+    // Used by InitD3D11Devices().
+    enum class D3D11Status {
+      Ok,
+      TryWARP,
+      ForceWARP,
+      Blocked
+    };
+    D3D11Status CheckD3D11Support();
+    bool AttemptD3D11DeviceCreation(const nsTArray<D3D_FEATURE_LEVEL>& aFeatureLevels);
+    bool AttemptWARPDeviceCreation(const nsTArray<D3D_FEATURE_LEVEL>& aFeatureLevels);
+    bool AttemptD3D11ImageBridgeDeviceCreation(const nsTArray<D3D_FEATURE_LEVEL>& aFeatureLevels);
+    bool AttemptD3D11ContentDeviceCreation(const nsTArray<D3D_FEATURE_LEVEL>& aFeatureLevels);
+
+    // Used by UpdateRenderMode().
+    void InitD2DSupport();
+    void InitDWriteSupport();
+
     IDXGIAdapter1 *GetDXGIAdapter();
     bool IsDeviceReset(HRESULT hr, DeviceResetReason* aReason);
 
@@ -287,25 +313,20 @@ private:
     nsRefPtr<IDWriteRenderingParams> mRenderingParams[TEXT_RENDERING_COUNT];
     DWRITE_MEASURING_MODE mMeasuringMode;
 #endif
-#ifdef CAIRO_HAS_D2D_SURFACE
-    cairo_device_t *mD2DDevice;
-#endif
     mozilla::RefPtr<IDXGIAdapter1> mAdapter;
     nsRefPtr<mozilla::layers::DeviceManagerD3D9> mDeviceManager;
+    mozilla::RefPtr<ID3D10Device1> mD3D10Device;
     mozilla::RefPtr<ID3D11Device> mD3D11Device;
     mozilla::RefPtr<ID3D11Device> mD3D11ContentDevice;
-    mozilla::RefPtr<ID3D11Device> mD3D11MediaDevice;
+    mozilla::RefPtr<ID3D11Device> mD3D11ImageBridgeDevice;
     bool mD3D11DeviceInitialized;
     mozilla::RefPtr<mozilla::layers::ReadbackManagerD3D11> mD3D11ReadbackManager;
     bool mIsWARP;
-    bool mCanInitMediaDevice;
     bool mHasDeviceReset;
+    bool mDoesD3D11TextureSharingWork;
     DeviceResetReason mDeviceResetReason;
 
     virtual void GetPlatformCMSOutputProfile(void* &mem, size_t &size);
 };
-
-bool DoesD3D11TextureSharingWork(ID3D11Device *device);
-bool DoesD3D11DeviceWork(ID3D11Device *device);
 
 #endif /* GFX_WINDOWS_PLATFORM_H */

@@ -131,6 +131,8 @@ enum eGfxLog {
 // when searching through pref langs, max number of pref langs
 const uint32_t kMaxLenPrefLangList = 32;
 
+extern bool gANGLESupportsD3D11;
+
 #define UNINITIALIZED_VALUE  (-1)
 
 inline const char*
@@ -201,8 +203,8 @@ public:
      * and image format.
      */
     virtual already_AddRefed<gfxASurface>
-      CreateOffscreenSurface(const IntSize& size,
-                             gfxContentType contentType) = 0;
+      CreateOffscreenSurface(const IntSize& aSize,
+                             gfxImageFormat aFormat) = 0;
 
     /**
      * Beware that these methods may return DrawTargets which are not fully supported
@@ -505,8 +507,14 @@ public:
 
     static bool CanUseDirect3D9();
     static bool CanUseDirect3D11();
-    static bool CanUseHardwareVideoDecoding();
+    virtual bool CanUseHardwareVideoDecoding();
     static bool CanUseDirect3D11ANGLE();
+
+    // Returns whether or not layers acceleration should be used.
+    bool ShouldUseLayersAcceleration();
+
+    // Returns a prioritized list of all available compositor backends.
+    void GetCompositorBackends(bool useAcceleration, nsTArray<mozilla::layers::LayersBackend>& aBackends);
 
     /**
      * Is it possible to use buffer rotation.  Note that these
@@ -665,6 +673,17 @@ protected:
      * Initialized hardware vsync based on each platform.
      */
     virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource();
+
+    // Returns whether or not layers should be accelerated by default on this platform.
+    virtual bool AccelerateLayersByDefault();
+
+    // Returns a prioritized list of available compositor backends for acceleration.
+    virtual void GetAcceleratedCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aBackends);
+
+    // Returns whether or not the basic compositor is supported.
+    virtual bool SupportsBasicCompositor() const {
+      return true;
+    }
 
     /**
      * Initialise the preferred and fallback canvas backends

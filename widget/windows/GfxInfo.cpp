@@ -997,11 +997,6 @@ GfxInfo::GetGfxDriverInfo()
       nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
       DRIVER_EQUAL, V(15,200,1006,0));
 
-    APPEND_TO_DRIVER_BLOCKLIST2(DRIVER_OS_ALL,
-      (nsAString&)GfxDriverInfo::GetDeviceVendor(VendorIntel), GfxDriverInfo::allDevices,
-      nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_LESS_THAN, V(8,15,10,2622));
-
     APPEND_TO_DRIVER_BLOCKLIST2(DRIVER_OS_WINDOWS_7,
       (nsAString&)GfxDriverInfo::GetDeviceVendor(VendorIntel), (GfxDeviceFamily*)GfxDriverInfo::GetDeviceFamily(Bug1155608),
       nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
@@ -1144,6 +1139,42 @@ GfxInfo::FindMonitors(JSContext* aCx, JS::HandleObject aOutArray)
     JS_SetElement(aCx, aOutArray, deviceCount++, element);
   }
   return NS_OK;
+}
+
+void
+GfxInfo::DescribeFeatures(JSContext* aCx, JS::Handle<JSObject*> aObj)
+{
+  JS::Rooted<JSObject*> obj(aCx);
+
+  gfxWindowsPlatform* platform = gfxWindowsPlatform::GetPlatform();
+
+  gfx::FeatureStatus d3d11 = platform->GetD3D11Status();
+  if (!InitFeatureObject(aCx, aObj, "d3d11", d3d11, &obj)) {
+    return;
+  }
+  if (d3d11 == gfx::FeatureStatus::Available) {
+    JS::Rooted<JS::Value> val(aCx, JS::Int32Value(platform->GetD3D11Version()));
+    JS_SetProperty(aCx, obj, "version", val);
+
+    val = JS::BooleanValue(platform->IsWARP());
+    JS_SetProperty(aCx, obj, "warp", val);
+
+    val = JS::BooleanValue(platform->DoesD3D11TextureSharingWork());
+    JS_SetProperty(aCx, obj, "textureSharing", val);
+  }
+
+  gfx::FeatureStatus d2d = platform->GetD2DStatus();
+  if (!InitFeatureObject(aCx, aObj, "d2d", d2d, &obj)) {
+    return;
+  }
+  {
+    const char* version = "1.0";
+    if (platform->GetD2D1Status() == gfx::FeatureStatus::Available)
+      version = "1.1";
+    JS::Rooted<JSString*> str(aCx, JS_NewStringCopyZ(aCx, version));
+    JS::Rooted<JS::Value> val(aCx, JS::StringValue(str));
+    JS_SetProperty(aCx, obj, "version", val);
+  }
 }
 
 #ifdef DEBUG

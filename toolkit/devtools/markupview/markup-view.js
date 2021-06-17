@@ -154,7 +154,7 @@ MarkupView.prototype = {
     // Show markup-containers as hovered on toolbox "picker-node-hovered" event
     // which happens when the "pick" button is pressed
     this._onToolboxPickerHover = (event, nodeFront) => {
-      this.showNode(nodeFront, true).then(() => {
+      this.showNode(nodeFront).then(() => {
         this._showContainerAsHovered(nodeFront);
       });
     };
@@ -440,7 +440,7 @@ MarkupView.prototype = {
         this._brieflyShowBoxModel(selection.nodeFront);
       }
 
-      this.showNode(selection.nodeFront, true).then(() => {
+      this.showNode(selection.nodeFront).then(() => {
         if (this._destroyer) {
           return promise.reject("markupview destroyed");
         }
@@ -504,9 +504,9 @@ MarkupView.prototype = {
         } else {
           let node = this._selectedContainer.node;
           if (node.hidden) {
-            this.walker.unhideNode(node).then(() => this.nodeChanged(node));
+            this.walker.unhideNode(node);
           } else {
-            this.walker.hideNode(node).then(() => this.nodeChanged(node));
+            this.walker.hideNode(node);
           }
         }
         break;
@@ -840,7 +840,7 @@ MarkupView.prototype = {
    * Make sure the given node's parents are expanded and the
    * node is scrolled on to screen.
    */
-  showNode: function(aNode, centered) {
+  showNode: function(aNode, centered=true) {
     let parent = aNode;
 
     this.importNode(aNode);
@@ -856,7 +856,6 @@ MarkupView.prototype = {
       }
       return this._ensureVisible(aNode);
     }).then(() => {
-      // Why is this not working?
       this.layoutHelpers.scrollIntoViewIfNeeded(this.getContainer(aNode).editor.elt, centered);
     }, e => {
       // Only report this rejection as an error if the panel hasn't been
@@ -879,7 +878,7 @@ MarkupView.prototype = {
         console.warn("Could not expand the node, the markup-view was destroyed");
         return;
       } 
-      aContainer.expanded = true;
+      aContainer.setExpanded(true);
     });
   },
 
@@ -924,7 +923,7 @@ MarkupView.prototype = {
    */
   collapseNode: function(aNode) {
     let container = this.getContainer(aNode);
-    container.expanded = false;
+    container.setExpanded(false);
   },
 
   /**
@@ -1211,15 +1210,6 @@ MarkupView.prototype = {
   },
 
   /**
-   * Called when the markup panel initiates a change on a node.
-   */
-  nodeChanged: function(aNode) {
-    if (aNode === this._inspector.selection.nodeFront) {
-      this._inspector.change("markupview");
-    }
-  },
-
-  /**
    * Check if the current selection is a descendent of the container.
    * if so, make sure it's among the visible set for the container,
    * and set the dirty flag if needed.
@@ -1278,11 +1268,40 @@ MarkupView.prototype = {
       return promise.resolve(aContainer);
     }
 
+    if (aContainer.singleTextChild
+        && aContainer.singleTextChild != aContainer.node.singleTextChild) {
+
+      // This container was doing double duty as a container for a single
+      // text child, back that out.
+      this._containers.delete(aContainer.singleTextChild);
+      aContainer.clearSingleTextChild();
+
+      if (aContainer.hasChildren && aContainer.selected) {
+        aContainer.setExpanded(true);
+      }
+    }
+
+    if (aContainer.node.singleTextChild) {
+      aContainer.setExpanded(false);
+      // this container will do double duty as the container for the single
+      // text child.
+      while (aContainer.children.firstChild) {
+        aContainer.children.removeChild(aContainer.children.firstChild);
+      }
+
+      aContainer.setSingleTextChild(aContainer.node.singleTextChild);
+
+      this._containers.set(aContainer.node.singleTextChild, aContainer);
+      aContainer.childrenDirty = false;
+      return promise.resolve(aContainer);
+    }
+
     if (!aContainer.hasChildren) {
       while (aContainer.children.firstChild) {
         aContainer.children.removeChild(aContainer.children.firstChild);
       }
       aContainer.childrenDirty = false;
+      aContainer.setExpanded(false);
       return promise.resolve(aContainer);
     }
 
@@ -1719,11 +1738,22 @@ MarkupContainer.prototype = {
 
   set hasChildren(aValue) {
     this._hasChildren = aValue;
+    this.updateExpander();
+  },
+
+  /**
+   * True if the current node can be expanded.
+   */
+  get canExpand() {
+    return this._hasChildren && !this.node.singleTextChild;
+  },
+
+  updateExpander: function() {
     if (!this.expander) {
       return;
     }
 
-    if (aValue) {
+    if (this.canExpand) {
       this.expander.style.visibility = "visible";
     } else {
       this.expander.style.visibility = "hidden";
@@ -1749,9 +1779,13 @@ MarkupContainer.prototype = {
     return !this.elt.classList.contains("collapsed");
   },
 
-  set expanded(aValue) {
+  setExpanded: function(aValue) {
     if (!this.expander) {
       return;
+    }
+
+    if (!this.canExpand) {
+      aValue = false;
     }
 
     if (aValue && this.elt.classList.contains("collapsed")) {
@@ -1780,6 +1814,7 @@ MarkupContainer.prototype = {
     } else if (!aValue) {
       if (this.closeTagLine) {
         this.elt.removeChild(this.closeTagLine);
+        this.closeTagLine = undefined;
       }
       this.elt.classList.add("collapsed");
       this.expander.removeAttribute("open");
@@ -1824,6 +1859,15 @@ MarkupContainer.prototype = {
     this.hovered = false;
     this.markup.navigate(this);
     event.stopPropagation();
+
+    // Preventing the default behavior will avoid the body to gain focus on
+    // mouseup (through bubbling) when clicking on a non focusable node in the
+    // line. So, if the click happened outside of a focusable element, do
+    // prevent the default behavior, so that the tagname or textcontent gains
+    // focus.
+    if (!target.closest(".editor [tabindex]")) {
+      event.preventDefault();
+    }
 
     // Start dragging the container after a delay.
     this.markup._dragStartEl = target;
@@ -2177,6 +2221,16 @@ MarkupElementContainer.prototype = Heritage.extend(MarkupContainer.prototype, {
         clipboardHelper.copyString(str, this.markup.doc);
       });
     });
+  },
+
+  setSingleTextChild: function(singleTextChild) {
+    this.singleTextChild = singleTextChild;
+    this.editor.updateTextEditor();
+  },
+
+  clearSingleTextChild: function() {
+    this.singleTextChild = undefined;
+    this.editor.updateTextEditor();
   }
 });
 
@@ -2204,7 +2258,9 @@ RootContainer.prototype = {
    */
   getChildContainers: function() {
     return [...this.children.children].map(node => node.container);
-  }
+  },
+
+  setExpanded: function(aValue) {}
 };
 
 /**
@@ -2259,6 +2315,7 @@ function TextEditor(aContainer, aNode, aTemplate) {
     stopOnReturn: true,
     trigger: "dblclick",
     multiline: true,
+    trimOutput: false,
     done: (aVal, aCommit) => {
       if (!aCommit) {
         return;
@@ -2268,13 +2325,9 @@ function TextEditor(aContainer, aNode, aTemplate) {
           longstr.release().then(null, console.error);
 
           this.container.undo.do(() => {
-            this.node.setNodeValue(aVal).then(() => {
-              this.markup.nodeChanged(this.node);
-            });
+            this.node.setNodeValue(aVal);
           }, () => {
-            this.node.setNodeValue(oldValue).then(() => {
-              this.markup.nodeChanged(this.node);
-            });
+            this.node.setNodeValue(oldValue);
           });
         });
       });
@@ -2310,6 +2363,7 @@ TextEditor.prototype = {
         longstr.release().then(null, console.error);
         if (this.selected) {
           this.value.textContent = str;
+          this.markup.emit("text-expand")
         }
       }).then(null, console.error);
     }
@@ -2395,6 +2449,12 @@ function ElementEditor(aContainer, aNode) {
 
 ElementEditor.prototype = {
 
+  set selected(aValue) {
+    if (this.textEditor) {
+      this.textEditor.selected = aValue;
+    }
+  },
+
   flashAttribute: function(attrName) {
     if (this.animationTimers[attrName]) {
       clearTimeout(this.animationTimers[attrName]);
@@ -2446,6 +2506,33 @@ ElementEditor.prototype = {
           this.flashAttribute(attr.name);
         }
       }
+    }
+
+    this.updateTextEditor();
+  },
+
+  /**
+   * Update the inline text editor in case of a single text child node.
+   */
+  updateTextEditor: function() {
+    let node = this.node.singleTextChild;
+
+    if (this.textEditor && this.textEditor.node != node) {
+      this.elt.removeChild(this.textEditor.elt);
+      this.textEditor = null;
+    }
+
+    if (node && !this.textEditor) {
+      // Create a text editor added to this editor.
+      // This editor won't receive an update automatically, so we rely on
+      // child text editors to let us know that we need updating.
+      this.textEditor = new TextEditor(this.container, node, "text");
+      this.elt.insertBefore(this.textEditor.elt,
+                            this.elt.firstChild.nextSibling.nextSibling);
+    }
+
+    if (this.textEditor) {
+      this.textEditor.update();
     }
   },
 

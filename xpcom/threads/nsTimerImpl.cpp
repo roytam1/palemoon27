@@ -17,6 +17,10 @@
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"
 #endif
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracerImpl.h"
+using namespace mozilla::tasktracer;
+#endif
 
 using mozilla::Atomic;
 using mozilla::LogLevel;
@@ -274,7 +278,7 @@ nsTimerImpl::Release(void)
 
 nsTimerImpl::nsTimerImpl() :
   mClosure(nullptr),
-  mCallbackType(CALLBACK_TYPE_UNKNOWN),
+  mCallbackType(CallbackType::Unknown),
   mFiring(false),
   mArmed(false),
   mCanceled(false),
@@ -393,7 +397,7 @@ nsTimerImpl::InitWithFuncCallback(nsTimerCallbackFunc aFunc,
   }
 
   ReleaseCallback();
-  mCallbackType = CALLBACK_TYPE_FUNC;
+  mCallbackType = CallbackType::Function;
   mCallback.c = aFunc;
   mClosure = aClosure;
 
@@ -410,7 +414,7 @@ nsTimerImpl::InitWithCallback(nsITimerCallback* aCallback,
   }
 
   ReleaseCallback();
-  mCallbackType = CALLBACK_TYPE_INTERFACE;
+  mCallbackType = CallbackType::Interface;
   mCallback.i = aCallback;
   NS_ADDREF(mCallback.i);
 
@@ -425,7 +429,7 @@ nsTimerImpl::Init(nsIObserver* aObserver, uint32_t aDelay, uint32_t aType)
   }
 
   ReleaseCallback();
-  mCallbackType = CALLBACK_TYPE_OBSERVER;
+  mCallbackType = CallbackType::Observer;
   mCallback.o = aObserver;
   NS_ADDREF(mCallback.o);
 
@@ -449,7 +453,7 @@ nsTimerImpl::Cancel()
 NS_IMETHODIMP
 nsTimerImpl::SetDelay(uint32_t aDelay)
 {
-  if (mCallbackType == CALLBACK_TYPE_UNKNOWN && mType == TYPE_ONE_SHOT) {
+  if (mCallbackType == CallbackType::Unknown && mType == TYPE_ONE_SHOT) {
     // This may happen if someone tries to re-use a one-shot timer
     // by re-setting delay instead of reinitializing the timer.
     NS_ERROR("nsITimer->SetDelay() called when the "
@@ -508,7 +512,7 @@ nsTimerImpl::GetClosure(void** aClosure)
 NS_IMETHODIMP
 nsTimerImpl::GetCallback(nsITimerCallback** aCallback)
 {
-  if (mCallbackType == CALLBACK_TYPE_INTERFACE) {
+  if (mCallbackType == CallbackType::Interface) {
     NS_IF_ADDREF(*aCallback = mCallback.i);
   } else if (mTimerCallbackWhileFiring) {
     NS_ADDREF(*aCallback = mTimerCallbackWhileFiring);
@@ -531,7 +535,7 @@ nsTimerImpl::GetTarget(nsIEventTarget** aTarget)
 NS_IMETHODIMP
 nsTimerImpl::SetTarget(nsIEventTarget* aTarget)
 {
-  if (NS_WARN_IF(mCallbackType != CALLBACK_TYPE_UNKNOWN)) {
+  if (NS_WARN_IF(mCallbackType != CallbackType::Unknown)) {
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
@@ -554,13 +558,6 @@ nsTimerImpl::Fire()
 #if !defined(MOZILLA_XPCOMRT_API)
   PROFILER_LABEL("Timer", "Fire",
                  js::ProfileEntry::Category::OTHER);
-#endif
-
-#ifdef MOZ_TASK_TRACER
-  // mTracedTask is an instance of FakeTracedTask created by
-  // DispatchTracedTask(). AutoRunFakeTracedTask logs the begin/end time of the
-  // timer/FakeTracedTask instance in ctor/dtor.
-  mozilla::tasktracer::AutoRunFakeTracedTask runTracedTask(mTracedTask);
 #endif
 
   TimeStamp now = TimeStamp::Now();
@@ -595,7 +592,7 @@ nsTimerImpl::Fire()
     timeout -= TimeDuration::FromMilliseconds(mDelay);
   }
 
-  if (mCallbackType == CALLBACK_TYPE_INTERFACE) {
+  if (mCallbackType == CallbackType::Interface) {
     mTimerCallbackWhileFiring = mCallback.i;
   }
   mFiring = true;
@@ -603,22 +600,22 @@ nsTimerImpl::Fire()
   // Handle callbacks that re-init the timer, but avoid leaking.
   // See bug 330128.
   CallbackUnion callback = mCallback;
-  unsigned callbackType = mCallbackType;
-  if (callbackType == CALLBACK_TYPE_INTERFACE) {
+  CallbackType callbackType = mCallbackType;
+  if (callbackType == CallbackType::Interface) {
     NS_ADDREF(callback.i);
-  } else if (callbackType == CALLBACK_TYPE_OBSERVER) {
+  } else if (callbackType == CallbackType::Observer) {
     NS_ADDREF(callback.o);
   }
   ReleaseCallback();
 
   switch (callbackType) {
-    case CALLBACK_TYPE_FUNC:
+    case CallbackType::Function:
       callback.c(this, mClosure);
       break;
-    case CALLBACK_TYPE_INTERFACE:
+    case CallbackType::Interface:
       callback.i->Notify(this);
       break;
-    case CALLBACK_TYPE_OBSERVER:
+    case CallbackType::Observer:
       callback.o->Observe(static_cast<nsITimer*>(this),
                           NS_TIMER_CALLBACK_TOPIC,
                           nullptr);
@@ -629,15 +626,15 @@ nsTimerImpl::Fire()
 
   // If the callback didn't re-init the timer, and it's not a one-shot timer,
   // restore the callback state.
-  if (mCallbackType == CALLBACK_TYPE_UNKNOWN &&
+  if (mCallbackType == CallbackType::Unknown &&
       mType != TYPE_ONE_SHOT && !mCanceled) {
     mCallback = callback;
     mCallbackType = callbackType;
   } else {
     // The timer was a one-shot, or the callback was reinitialized.
-    if (callbackType == CALLBACK_TYPE_INTERFACE) {
+    if (callbackType == CallbackType::Interface) {
       NS_RELEASE(callback.i);
-    } else if (callbackType == CALLBACK_TYPE_OBSERVER) {
+    } else if (callbackType == CallbackType::Observer) {
       NS_RELEASE(callback.o);
     }
   }
@@ -752,6 +749,14 @@ nsTimerImpl::PostTimerEvent(already_AddRefed<nsTimerImpl> aTimerRef)
     }
   }
 
+#ifdef MOZ_TASK_TRACER
+  // During the dispatch of TimerEvent, we overwrite the current TraceInfo
+  // partially with the info saved in timer earlier, and restore it back by
+  // AutoSaveCurTraceInfo.
+  AutoSaveCurTraceInfo saveCurTraceInfo;
+  (timer->GetTracedTask()).SetTLSTraceInfo();
+#endif
+
   nsIEventTarget* target = timer->mEventTarget;
   event->SetTimer(timer.forget());
 
@@ -796,21 +801,17 @@ nsTimerImpl::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   return aMallocSizeOf(this);
 }
 
-// NOT FOR PUBLIC CONSUMPTION!
-nsresult
-NS_NewTimer(nsITimer** aResult, nsTimerCallbackFunc aCallback, void* aClosure,
-            uint32_t aDelay, uint32_t aType)
+#ifdef MOZ_TASK_TRACER
+void
+nsTimerImpl::GetTLSTraceInfo()
 {
-  nsTimerImpl* timer = new nsTimerImpl();
-  NS_ADDREF(timer);
-
-  nsresult rv = timer->InitWithFuncCallback(aCallback, aClosure,
-                                            aDelay, aType);
-  if (NS_FAILED(rv)) {
-    NS_RELEASE(timer);
-    return rv;
-  }
-
-  *aResult = timer;
-  return NS_OK;
+  mTracedTask.GetTLSTraceInfo();
 }
+
+TracedTaskCommon
+nsTimerImpl::GetTracedTask()
+{
+  return mTracedTask;
+}
+#endif
+

@@ -20,6 +20,7 @@
 #include "gfxDWriteFonts.h"
 #endif
 #include "gfxPlatform.h"
+#include "gfxTelemetry.h"
 #include "gfxTypes.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Atomics.h"
@@ -243,6 +244,7 @@ public:
     ID3D10Device1 *GetD3D10Device() { return mD3D10Device; }
     ID3D11Device *GetD3D11Device();
     ID3D11Device *GetD3D11ContentDevice();
+    ID3D11Device* GetD3D11DeviceForCurrentThread();
     // Device to be used on the ImageBridge thread
     ID3D11Device *GetD3D11ImageBridgeDevice();
 
@@ -260,6 +262,18 @@ public:
       return true;
     }
     bool SupportsApzTouchInput() const override;
+
+    // Return the diagnostic status of DirectX initialization. If
+    // initialization has not been attempted, this returns
+    // FeatureStatus::Unused.
+    mozilla::gfx::FeatureStatus GetD3D11Status() const {
+      return mD3D11Status;
+    }
+    mozilla::gfx::FeatureStatus GetD2DStatus() const {
+      return mD2DStatus;
+    }
+    unsigned GetD3D11Version();
+    mozilla::gfx::FeatureStatus GetD2D1Status();
 
     virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource() override;
     static mozilla::Atomic<size_t> sD3D11MemoryUsed;
@@ -298,7 +312,7 @@ private:
     bool AttemptD3D11ContentDeviceCreation(const nsTArray<D3D_FEATURE_LEVEL>& aFeatureLevels);
 
     // Used by UpdateRenderMode().
-    void InitD2DSupport();
+    mozilla::gfx::FeatureStatus InitD2DSupport();
     void InitDWriteSupport();
 
     IDXGIAdapter1 *GetDXGIAdapter();
@@ -325,6 +339,9 @@ private:
     bool mHasDeviceReset;
     bool mDoesD3D11TextureSharingWork;
     DeviceResetReason mDeviceResetReason;
+
+    mozilla::gfx::FeatureStatus mD3D11Status;
+    mozilla::gfx::FeatureStatus mD2DStatus;
 
     virtual void GetPlatformCMSOutputProfile(void* &mem, size_t &size);
 };

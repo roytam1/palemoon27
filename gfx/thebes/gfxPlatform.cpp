@@ -2350,7 +2350,7 @@ gfxPlatform::ShouldUseLayersAcceleration()
   if (gfxPrefs::LayersAccelerationForceEnabled()) {
     return true;
   }
-  if (gfxPlatform::GetPlatform()->AccelerateLayersByDefault()) {
+  if (AccelerateLayersByDefault()) {
     return true;
   }
   if (acceleratedEnv && *acceleratedEnv != '0') {
@@ -2426,7 +2426,7 @@ gfxPlatform::UsesOffMainThreadCompositing()
 already_AddRefed<mozilla::gfx::VsyncSource>
 gfxPlatform::CreateHardwareVsyncSource()
 {
-  NS_WARNING("Hardware Vsync support not yet implemented. Falling back to software timers\n");
+  NS_WARNING("Hardware Vsync support not yet implemented. Falling back to software timers");
   nsRefPtr<mozilla::gfx::VsyncSource> softwareVsync = new SoftwareVsyncSource();
   return softwareVsync.forget();
 }

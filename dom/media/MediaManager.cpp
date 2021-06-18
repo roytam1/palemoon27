@@ -808,19 +808,19 @@ void
 MediaOperationTask::ReturnCallbackError(nsresult rv, const char* errorLog)
 {
   MM_LOG(("%s , rv=%d", errorLog, rv));
-  NS_DispatchToMainThread(new ReleaseMediaOperationResource(mStream.forget(),
-      mOnTracksAvailableCallback.forget()));
+  NS_DispatchToMainThread(do_AddRef(new ReleaseMediaOperationResource(mStream.forget(),
+    mOnTracksAvailableCallback.forget())));
   nsString log;
 
   log.AssignASCII(errorLog);
   nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> onSuccess;
   nsRefPtr<MediaMgrError> error = new MediaMgrError(
     NS_LITERAL_STRING("InternalError"), log);
-  NS_DispatchToMainThread(
+  NS_DispatchToMainThread(do_AddRef(
     new ErrorCallbackRunnable<nsIDOMGetUserMediaSuccessCallback>(onSuccess,
                                                                  mOnFailure,
                                                                  *error,
-                                                                 mWindowID));
+                                                                 mWindowID)));
 }
 
 /**
@@ -1207,9 +1207,9 @@ public:
     MOZ_ASSERT(!mOnSuccess);
     MOZ_ASSERT(!mOnFailure);
 
-    NS_DispatchToMainThread(runnable);
+    NS_DispatchToMainThread(runnable.forget());
     // Do after ErrorCallbackRunnable Run()s, as it checks active window list
-    NS_DispatchToMainThread(new GetUserMediaListenerRemove(mWindowID, mListener));
+    NS_DispatchToMainThread(do_AddRef(new GetUserMediaListenerRemove(mWindowID, mListener)));
   }
 
   void
@@ -1379,10 +1379,10 @@ public:
       peerIdentity = new PeerIdentity(mConstraints.mPeerIdentity);
     }
 
-    NS_DispatchToMainThread(new GetUserMediaStreamRunnable(
+    NS_DispatchToMainThread(do_AddRef(new GetUserMediaStreamRunnable(
       mOnSuccess, mOnFailure, mWindowID, mListener, aAudioSource, aVideoSource,
       peerIdentity
-    ));
+    )));
 
     MOZ_ASSERT(!mOnSuccess);
     MOZ_ASSERT(!mOnFailure);
@@ -2233,7 +2233,7 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
       {
         MOZ_ASSERT(MediaManager::IsInMediaThread());
         mozilla::ipc::BackgroundChild::CloseForCurrentThread();
-        NS_DispatchToMainThread(mReply);
+        NS_DispatchToMainThread(mReply.forget());
       }
       nsRefPtr<nsRunnable> mReply;
     };
@@ -2692,7 +2692,7 @@ GetUserMediaCallbackMediaStreamListener::NotifyFinished(MediaStreamGraph* aGraph
 {
   mFinished = true;
   Invalidate(); // we know it's been activated
-  NS_DispatchToMainThread(new GetUserMediaListenerRemove(mWindowID, this));
+  NS_DispatchToMainThread(do_AddRef(new GetUserMediaListenerRemove(mWindowID, this)));
 }
 
 // Called from the MediaStreamGraph thread

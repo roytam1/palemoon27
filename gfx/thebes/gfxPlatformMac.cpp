@@ -78,7 +78,8 @@ gfxPlatformMac::gfxPlatformMac()
     uint32_t canvasMask = BackendTypeBit(BackendType::CAIRO) |
                           BackendTypeBit(BackendType::SKIA) |
                           BackendTypeBit(BackendType::COREGRAPHICS);
-    uint32_t contentMask = BackendTypeBit(BackendType::COREGRAPHICS);
+    uint32_t contentMask = BackendTypeBit(BackendType::COREGRAPHICS) |
+                           BackendTypeBit(BackendType::SKIA);
     InitBackendPrefs(canvasMask, BackendType::COREGRAPHICS,
                      contentMask, BackendType::COREGRAPHICS);
 
@@ -460,11 +461,24 @@ public:
     OSXDisplay()
       : mDisplayLink(nullptr)
     {
+      MOZ_ASSERT(NS_IsMainThread());
+      mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
     }
 
     ~OSXDisplay()
     {
+      MOZ_ASSERT(NS_IsMainThread());
+      mTimer->Cancel();
+      mTimer = nullptr;
       DisableVsync();
+    }
+
+    static void RetryEnableVsync(nsITimer* aTimer, void* aOsxDisplay)
+    {
+      MOZ_ASSERT(NS_IsMainThread());
+      OSXDisplay* osxDisplay = static_cast<OSXDisplay*>(aOsxDisplay);
+      MOZ_ASSERT(osxDisplay);
+      osxDisplay->EnableVsync();
     }
 
     virtual void EnableVsync() override
@@ -479,18 +493,25 @@ public:
       // situations. According to the docs, it is compatible with all displays running on the computer
       // But if we have different monitors at different display rates, we may hit issues.
       if (CVDisplayLinkCreateWithActiveCGDisplays(&mDisplayLink) != kCVReturnSuccess) {
-        NS_WARNING("Could not create a display link with all active displays. Falling back to main display\n");
+        NS_WARNING("Could not create a display link with all active displays. Retrying");
         CVDisplayLinkRelease(mDisplayLink);
+        mDisplayLink = nullptr;
 
-        // bug 1142708 - When coming back from sleep, there may be no active displays ready yet,
-        // even if listening for the kIOMessageSystemHasPoweredOn event from OS X sleep notifications.
+        // bug 1142708 - When coming back from sleep,
+        // or when changing displays, active displays may not be ready yet,
+        // even if listening for the kIOMessageSystemHasPoweredOn event
+        // from OS X sleep notifications.
         // Active displays are those that are drawable.
-        // In these cases, default back to the main display to try to get a vsync event.
-        // The alternative would be to keep polling the CGActiveDisplayList for the displays to be ready.
-        if (CVDisplayLinkCreateWithCGDisplay(CGMainDisplayID(), &mDisplayLink) != kCVReturnSuccess) {
-          MOZ_CRASH("Could not create a CVDisplayLink with either active displays or the main display");
-        }
-        NS_WARNING("Using the CVDisplayLink from the main display\n");
+        // bug 1144638 - When changing display configurations and getting
+        // notifications from CGDisplayReconfigurationCallBack, the
+        // callback gets called twice for each active display
+        // so it's difficult to know when all displays are active.
+        // Instead, try again soon. The delay is arbitrary. 100ms chosen
+        // because on a late 2013 15" retina, it takes about that
+        // long to come back up from sleep.
+        uint32_t delay = 100;
+        mTimer->InitWithFuncCallback(RetryEnableVsync, this, delay, nsITimer::TYPE_ONE_SHOT);
+        return;
       }
 
       if (CVDisplayLinkSetOutputCallback(mDisplayLink, &VsyncCallback, this) != kCVReturnSuccess) {
@@ -538,6 +559,7 @@ public:
   private:
     // Manages the display link render thread
     CVDisplayLinkRef   mDisplayLink;
+    nsRefPtr<nsITimer> mTimer;
   }; // OSXDisplay
 
 private:
@@ -575,7 +597,7 @@ gfxPlatformMac::CreateHardwareVsyncSource()
   VsyncSource::Display& primaryDisplay = osxVsyncSource->GetGlobalDisplay();
   primaryDisplay.EnableVsync();
   if (!primaryDisplay.IsVsyncEnabled()) {
-    NS_WARNING("OS X Vsync source not enabled. Falling back to software vsync.\n");
+    NS_WARNING("OS X Vsync source not enabled. Falling back to software vsync.");
     return gfxPlatform::CreateHardwareVsyncSource();
   }
 

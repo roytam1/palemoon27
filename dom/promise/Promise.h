@@ -99,7 +99,9 @@ public:
   // object, so we addref before doing that and return the addrefed pointer
   // here.
   static already_AddRefed<Promise>
-  Create(nsIGlobalObject* aGlobal, ErrorResult& aRv);
+  Create(nsIGlobalObject* aGlobal, ErrorResult& aRv,
+         // Passing null for aDesiredProto will use Promise.prototype.
+         JS::Handle<JSObject*> aDesiredProto = nullptr);
 
   typedef void (Promise::*MaybeFunc)(JSContext* aCx,
                                      JS::Handle<JS::Value> aValue);
@@ -158,7 +160,7 @@ public:
 
   static already_AddRefed<Promise>
   Constructor(const GlobalObject& aGlobal, PromiseInit& aInit,
-              ErrorResult& aRv);
+              ErrorResult& aRv, JS::Handle<JSObject*> aDesiredProto);
 
   static already_AddRefed<Promise>
   Resolve(const GlobalObject& aGlobal,
@@ -204,6 +206,10 @@ public:
   // Return a unique-to-the-process identifier for this Promise.
   uint64_t GetID();
 
+  // Queue an async microtask to current main or worker thread.
+  static void
+  DispatchToMicroTask(nsIRunnable* aRunnable);
+
 protected:
   // Do NOT call this unless you're Promise::Create.  I wish we could enforce
   // that from inside this class too, somehow.
@@ -211,12 +217,9 @@ protected:
 
   virtual ~Promise();
 
-  // Queue an async microtask to current main or worker thread.
-  static void
-  DispatchToMicroTask(nsIRunnable* aRunnable);
-
-  // Do JS-wrapping after Promise creation.
-  void CreateWrapper(ErrorResult& aRv);
+  // Do JS-wrapping after Promise creation.  Passing null for aDesiredProto will
+  // use the default prototype for the sort of Promise we have.
+  void CreateWrapper(JS::Handle<JSObject*> aDesiredProto, ErrorResult& aRv);
 
   // Create the JS resolving functions of resolve() and reject(). And provide
   // references to the two functions by calling PromiseInit passed from Promise

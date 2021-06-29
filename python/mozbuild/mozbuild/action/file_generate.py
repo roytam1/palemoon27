@@ -15,6 +15,7 @@ import sys
 import traceback
 
 from mozbuild.util import FileAvoidWrite
+from mozbuild.makeutil import Makefile
 
 def main(argv):
     parser = argparse.ArgumentParser('Generate a file from a Python script',
@@ -25,12 +26,24 @@ def main(argv):
                         help='The method of the script to invoke')
     parser.add_argument('output_file', metavar='output-file', type=str,
                         help='The file to generate')
+    parser.add_argument('dep_file', metavar='dep-file', type=str,
+                        help='File to write any additional make dependencies to')
     parser.add_argument('additional_arguments', metavar='arg', nargs='*',
                         help="Additional arguments to the script's main() method")
 
     args = parser.parse_args(argv)
 
     script = args.python_script
+    # Permit the script to import modules from the same directory in which it
+    # resides.  The justification for doing this is that if we were invoking
+    # the script as:
+    #
+    #    python script arg1...
+    #
+    # then importing modules from the script's directory would come for free.
+    # Since we're invoking the script in a roundabout way, we provide this
+    # bit of convenience.
+    sys.path.append(os.path.dirname(script))
     with open(script, 'r') as fh:
         module = imp.load_module('script', fh, script,
                                  ('.py', 'r', imp.PY_SOURCE))
@@ -44,6 +57,16 @@ def main(argv):
     try:
         with FileAvoidWrite(args.output_file) as output:
             ret = module.__dict__[method](output, *args.additional_arguments)
+            # We treat sets as a statement of success.  Everything else
+            # is an error (so scripts can conveniently |return 1| or
+            # similar).
+            if isinstance(ret, set) and ret:
+                mk = Makefile()
+                mk.create_rule([args.output_file]).add_dependencies(ret)
+                with FileAvoidWrite(args.dep_file) as dep_file:
+                    mk.dump(dep_file)
+                # The script succeeded, so reset |ret| to indicate that.
+                ret = None
     except IOError as e:
         print('Error opening file "{0}"'.format(e.filename), file=sys.stderr)
         traceback.print_exc()

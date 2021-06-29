@@ -195,11 +195,11 @@ public:
   }
   void GetReferrer(nsAString& aReferrer)
   {
-    GetEnumAttr(nsGkAtoms::referrer, nullptr, aReferrer);
+    GetHTMLAttr(nsGkAtoms::referrer, aReferrer);
   }
 
-  mozilla::net::ReferrerPolicy
-  GetImageReferrerPolicy()
+  net::ReferrerPolicy
+  GetImageReferrerPolicy() override
   {
     return GetReferrerPolicy();
   }

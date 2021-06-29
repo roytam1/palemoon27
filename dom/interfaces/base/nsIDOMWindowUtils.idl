@@ -49,7 +49,7 @@ interface nsIJSRAIIHelper;
 interface nsIContentPermissionRequest;
 interface nsIObserver;
 
-[scriptable, uuid(e7b44320-8255-4ad1-bbe9-d78a8a1867c9)]
+[scriptable, uuid(bbcb87fb-ce2e-4e05-906b-9258687664e2)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -1746,7 +1746,8 @@ interface nsIDOMWindowUtils : nsISupports {
     * If the property is NOT currently being animated on the compositor thread,
     * returns an empty string.
     */
-   AString getOMTAStyle(in nsIDOMElement aElement, in AString aProperty);
+   AString getOMTAStyle(in nsIDOMElement aElement, in AString aProperty,
+                        [optional] in AString aPseudoElement);
 
    /**
     * Special function that gets a property syncronously from the last composite
@@ -1856,6 +1857,15 @@ interface nsIDOMWindowUtils : nsISupports {
    * Decrease the chaos mode activation level. See enterChaosMode().
    */
   void leaveChaosMode();
+
+  /**
+   * Returns whether the document's style set's rule processor for the
+   * specified level of the cascade is shared by multiple style sets.
+   * (Used by tests to ensure that certain optimizations do not regress.)
+   *
+   * @param aSheetType One of the nsIStyleSheetService.*_SHEET constants.
+   */
+  bool hasRuleProcessorUsedByMultipleStyleSets(in unsigned long aSheetType);
 };
 
 [scriptable, uuid(c694e359-7227-4392-a138-33c0cc1f15a6)]

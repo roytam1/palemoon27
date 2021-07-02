@@ -5081,7 +5081,7 @@ MOZ_ARG_DISABLE_BOOL(applemedia,
     MOZ_APPLEMEDIA=,
     MOZ_APPLEMEDIA=1)
 
-if test -n "$MOZ_WIDGET_TOOLKIT" = "cocoa" && test -n "$MOZ_APPLEMEDIA"; then
+if test "$MOZ_WIDGET_TOOLKIT" = "cocoa" -a -n "$MOZ_APPLEMEDIA"; then
   AC_DEFINE(MOZ_APPLEMEDIA)
   # hack in frameworks for fmp4 - see bug 1029974
   # We load VideoToolbox and CoreMedia dynamically, so they don't appear here.

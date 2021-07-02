@@ -900,7 +900,7 @@ void nsJARChannel::ResetInterception()
 {
     LOG(("nsJARChannel::ResetInterception [this=%x]\n", this));
 
-    // Continue with the origin request.
+    // Continue with the original request.
     nsresult rv = ContinueAsyncOpen();
     NS_ENSURE_SUCCESS_VOID(rv);
 }
@@ -927,6 +927,8 @@ nsJARChannel::OverrideWithSynthesizedResponse(nsIInputStream* aSynthesizedInput)
       return;
     }
 
+    FinishAsyncOpen();
+
     rv = mSynthesizedResponsePump->AsyncRead(this, nullptr);
     NS_ENSURE_SUCCESS_VOID(rv);
 }
@@ -950,6 +952,9 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
     mListenerContext = ctx;
     mIsPending = true;
 
+// Bug 1171651 -  Disable the interception of app:// URIs in service workers
+//                on release builds
+#ifndef RELEASE_BUILD
     // Check if this channel should intercept the network request and prepare
     // for a possible synthesized response instead.
     if (ShouldIntercept()) {
@@ -962,8 +967,17 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
       nsRefPtr<InterceptedJARChannel> intercepted =
         new InterceptedJARChannel(this, controller, isNavigation);
       intercepted->NotifyController();
+
+      // We get the JAREntry so we can infer the content type later in case
+      // that it isn't provided along with the synthesized response.
+      nsresult rv = mJarURI->GetJAREntry(mJarEntry);
+      if (NS_FAILED(rv)) {
+          return rv;
+      }
+
       return NS_OK;
     }
+#endif
 
     return ContinueAsyncOpen();
 }
@@ -1017,11 +1031,18 @@ nsJARChannel::ContinueAsyncOpen()
     }
 
 
+    FinishAsyncOpen();
+
+    return NS_OK;
+}
+
+void
+nsJARChannel::FinishAsyncOpen()
+{
     if (mLoadGroup)
         mLoadGroup->AddRequest(this, nullptr);
 
     mOpened = true;
-    return NS_OK;
 }
 
 //-----------------------------------------------------------------------------

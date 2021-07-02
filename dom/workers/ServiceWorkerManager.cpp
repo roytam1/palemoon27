@@ -39,6 +39,7 @@
 #include "mozilla/dom/indexedDB/IDBFactory.h"
 #include "mozilla/dom/InternalHeaders.h"
 #include "mozilla/dom/Navigator.h"
+#include "mozilla/dom/NotificationEvent.h"
 #include "mozilla/dom/PromiseNativeHandler.h"
 #include "mozilla/dom/Request.h"
 #include "mozilla/dom/RootedDictionary.h"
@@ -286,7 +287,7 @@ private:
   nsRefPtr<ServiceWorkerManagerChild> mActor;
 };
 
-} // Anonymous namespace
+} // anonymous namespace
 
 NS_IMPL_ISUPPORTS0(ServiceWorkerJob)
 NS_IMPL_ISUPPORTS0(ServiceWorkerRegistrationInfo)
@@ -1592,6 +1593,74 @@ ServiceWorkerManager::AppendPendingOperation(nsIRunnable* aRunnable)
   }
 }
 
+namespace {
+// Just holds a ref to a ServiceWorker until the Promise is fulfilled.
+class KeepAliveHandler final : public PromiseNativeHandler
+{
+  nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
+
+  virtual ~KeepAliveHandler()
+  {}
+
+public:
+  explicit KeepAliveHandler(const nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker)
+    : mServiceWorker(aServiceWorker)
+  {}
+
+  void
+  ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override
+  {
+#ifdef DEBUG
+    WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
+    MOZ_ASSERT(workerPrivate);
+    workerPrivate->AssertIsOnWorkerThread();
+#endif
+  }
+
+  void
+  RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override
+  {
+#ifdef DEBUG
+    WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
+    MOZ_ASSERT(workerPrivate);
+    workerPrivate->AssertIsOnWorkerThread();
+#endif
+  }
+};
+
+// Returns a Promise if the event was successfully dispatched and no exceptions
+// were raised, otherwise returns null.
+already_AddRefed<Promise>
+DispatchExtendableEventOnWorkerScope(JSContext* aCx,
+                                     WorkerGlobalScope* aWorkerScope,
+                                     ExtendableEvent* aEvent)
+{
+  MOZ_ASSERT(aWorkerScope);
+  MOZ_ASSERT(aEvent);
+  nsCOMPtr<nsIGlobalObject> sgo = aWorkerScope;
+  WidgetEvent* internalEvent = aEvent->GetInternalNSEvent();
+
+  ErrorResult result;
+  result = aWorkerScope->DispatchDOMEvent(nullptr, aEvent, nullptr, nullptr);
+  if (result.Failed() || internalEvent->mFlags.mExceptionHasBeenRisen) {
+    return nullptr;
+  }
+
+  nsRefPtr<Promise> waitUntilPromise = aEvent->GetPromise();
+  if (!waitUntilPromise) {
+    ErrorResult result;
+    waitUntilPromise =
+      Promise::Resolve(sgo, aCx, JS::UndefinedHandleValue, result);
+    if (NS_WARN_IF(result.Failed())) {
+      return nullptr;
+    }
+  }
+
+  MOZ_ASSERT(waitUntilPromise);
+  return waitUntilPromise.forget();
+}
+}; // anonymous namespace
+
 /*
  * Used to handle ExtendableEvent::waitUntil() and proceed with
  * installation/activation.
@@ -1639,6 +1708,22 @@ public:
     nsRefPtr<ContinueLifecycleRunnable> r =
       new ContinueLifecycleRunnable(mTask, false /* success */, mActivateImmediately);
     NS_DispatchToMainThread(r);
+
+    JS::Rooted<JSObject*> obj(aCx, workerPrivate->GlobalScope()->GetWrapper());
+    JS::ExposeValueToActiveJS(aValue);
+
+    js::ErrorReport report(aCx);
+    if (NS_WARN_IF(!report.init(aCx, aValue))) {
+      JS_ClearPendingException(aCx);
+      return;
+    }
+
+    nsRefPtr<xpc::ErrorReport> xpcReport = new xpc::ErrorReport();
+    xpcReport->Init(report.report(), report.message(), /* aIsChrome = */ false, /* aWindowID = */ 0);
+
+    nsRefPtr<AsyncErrorReporter> aer =
+      new AsyncErrorReporter(CycleCollectedJSRuntime::Get()->Runtime(), xpcReport);
+    NS_DispatchToMainThread(aer);
   }
 };
 
@@ -1663,39 +1748,22 @@ LifecycleEventWorkerRunnable::DispatchLifecycleEvent(JSContext* aCx, WorkerPriva
 
   event->SetTrusted(true);
 
-  nsRefPtr<Promise> waitUntilPromise;
-
-  ErrorResult result;
-  result = target->DispatchDOMEvent(nullptr, event, nullptr, nullptr);
-
-  nsCOMPtr<nsIGlobalObject> sgo = aWorkerPrivate->GlobalScope();
-  WidgetEvent* internalEvent = event->GetInternalNSEvent();
-  if (!result.Failed() && !internalEvent->mFlags.mExceptionHasBeenRisen) {
-    waitUntilPromise = event->GetPromise();
-    if (!waitUntilPromise) {
-      ErrorResult result;
-      waitUntilPromise =
-        Promise::Resolve(sgo, aCx, JS::UndefinedHandleValue, result);
-      if (NS_WARN_IF(result.Failed())) {
-        return true;
-      }
-    }
+  nsRefPtr<Promise> waitUntilPromise =
+    DispatchExtendableEventOnWorkerScope(aCx, aWorkerPrivate->GlobalScope(), event);
+  if (waitUntilPromise) {
+    nsRefPtr<LifecycleEventPromiseHandler> handler =
+      new LifecycleEventPromiseHandler(mTask, mServiceWorker, false /* activateImmediately */);
+    waitUntilPromise->AppendNativeHandler(handler);
   } else {
     // Continue with a canceled install.
     // Although the spec has different routines to deal with popping stuff
     // off it's internal queues, we can reuse the ContinueAfterInstallEvent()
     // logic.
-    waitUntilPromise = Promise::Reject(sgo, aCx,
-                                       JS::UndefinedHandleValue, result);
+    nsRefPtr<ContinueLifecycleRunnable> r =
+      new ContinueLifecycleRunnable(mTask, false /* success */, false /* activate immediately */);
+    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(r)));
   }
 
-  if (result.Failed()) {
-    return false;
-  }
-
-  nsRefPtr<LifecycleEventPromiseHandler> handler =
-    new LifecycleEventPromiseHandler(mTask, mServiceWorker, false /* activateImmediately */);
-  waitUntilPromise->AppendNativeHandler(handler);
   return true;
 }
 
@@ -2082,8 +2150,13 @@ public:
     event->SetTrusted(true);
     event->PostInit(mServiceWorker);
 
-    nsRefPtr<EventTarget> target = do_QueryObject(aWorkerPrivate->GlobalScope());
-    target->DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+    nsRefPtr<Promise> waitUntilPromise =
+      DispatchExtendableEventOnWorkerScope(aCx, aWorkerPrivate->GlobalScope(), event);
+    if (waitUntilPromise) {
+      nsRefPtr<KeepAliveHandler> handler = new KeepAliveHandler(mServiceWorker);
+      waitUntilPromise->AppendNativeHandler(handler);
+    }
+
     return true;
   }
 };
@@ -2133,16 +2206,15 @@ public:
 #endif /* ! MOZ_SIMPLEPUSH */
 
 NS_IMETHODIMP
-ServiceWorkerManager::SendPushEvent(JS::Handle<JS::Value> aOriginAttributes,
+ServiceWorkerManager::SendPushEvent(const nsACString& aOriginAttributes,
                                     const nsACString& aScope,
-                                    const nsAString& aData,
-                                    JSContext* aCx)
+                                    const nsAString& aData)
 {
 #ifdef MOZ_SIMPLEPUSH
   return NS_ERROR_NOT_AVAILABLE;
 #else
   OriginAttributes attrs;
-  if (!aOriginAttributes.isObject() || !attrs.Init(aCx, aOriginAttributes)) {
+  if (!attrs.PopulateFromSuffix(aOriginAttributes)) {
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -2159,7 +2231,9 @@ ServiceWorkerManager::SendPushEvent(JS::Handle<JS::Value> aOriginAttributes,
     new SendPushEventRunnable(serviceWorker->GetWorkerPrivate(), aData,
                               serviceWorkerHandle);
 
-  if (NS_WARN_IF(!r->Dispatch(aCx))) {
+  AutoJSAPI jsapi;
+  jsapi.Init();
+  if (NS_WARN_IF(!r->Dispatch(jsapi.cx()))) {
     return NS_ERROR_FAILURE;
   }
 
@@ -2168,15 +2242,14 @@ ServiceWorkerManager::SendPushEvent(JS::Handle<JS::Value> aOriginAttributes,
 }
 
 NS_IMETHODIMP
-ServiceWorkerManager::SendPushSubscriptionChangeEvent(JS::Handle<JS::Value> aOriginAttributes,
-                                                      const nsACString& aScope,
-                                                      JSContext* aCx)
+ServiceWorkerManager::SendPushSubscriptionChangeEvent(const nsACString& aOriginAttributes,
+                                                      const nsACString& aScope)
 {
 #ifdef MOZ_SIMPLEPUSH
   return NS_ERROR_NOT_AVAILABLE;
 #else
   OriginAttributes attrs;
-  if (!aOriginAttributes.isObject() || !attrs.Init(aCx, aOriginAttributes)) {
+  if (!attrs.PopulateFromSuffix(aOriginAttributes)) {
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -2192,12 +2265,125 @@ ServiceWorkerManager::SendPushSubscriptionChangeEvent(JS::Handle<JS::Value> aOri
     new SendPushSubscriptionChangeEventRunnable(
       serviceWorker->GetWorkerPrivate(), serviceWorkerHandle);
 
-  if (NS_WARN_IF(!r->Dispatch(aCx))) {
+  AutoJSAPI jsapi;
+  jsapi.Init();
+  if (NS_WARN_IF(!r->Dispatch(jsapi.cx()))) {
     return NS_ERROR_FAILURE;
   }
 
   return NS_OK;
 #endif
+}
+
+class SendNotificationClickEventRunnable final : public WorkerRunnable
+{
+  nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
+  const nsString mID;
+  const nsString mTitle;
+  const nsString mDir;
+  const nsString mLang;
+  const nsString mBody;
+  const nsString mTag;
+  const nsString mIcon;
+  const nsString mData;
+  const nsString mBehavior;
+
+public:
+  SendNotificationClickEventRunnable(
+    WorkerPrivate* aWorkerPrivate,
+    nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker,
+    const nsAString& aID,
+    const nsAString& aTitle,
+    const nsAString& aDir,
+    const nsAString& aLang,
+    const nsAString& aBody,
+    const nsAString& aTag,
+    const nsAString& aIcon,
+    const nsAString& aData,
+    const nsAString& aBehavior)
+      : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount)
+      , mServiceWorker(aServiceWorker)
+      , mID(aID)
+      , mTitle(aTitle)
+      , mDir(aDir)
+      , mLang(aLang)
+      , mBody(aBody)
+      , mTag(aTag)
+      , mIcon(aIcon)
+      , mData(aData)
+      , mBehavior(aBehavior)
+  {
+    AssertIsOnMainThread();
+    MOZ_ASSERT(aWorkerPrivate);
+    MOZ_ASSERT(aWorkerPrivate->IsServiceWorker());
+  }
+
+  bool
+  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override
+  {
+    MOZ_ASSERT(aWorkerPrivate);
+
+    nsRefPtr<EventTarget> target = do_QueryObject(aWorkerPrivate->GlobalScope());
+
+    ErrorResult result;
+    nsRefPtr<Notification> notification =
+      Notification::ConstructFromFields(aWorkerPrivate->GlobalScope(), mID, mTitle, mDir, mLang, mBody, mTag, mIcon, mData, result);
+    if (NS_WARN_IF(result.Failed())) {
+      return false;
+    }
+
+    NotificationEventInit nei;
+    nei.mNotification = notification;
+    nei.mBubbles = false;
+    nei.mCancelable = true;
+
+    nsRefPtr<NotificationEvent> event =
+      NotificationEvent::Constructor(target, NS_LITERAL_STRING("notificationclick"), nei, result);
+    if (NS_WARN_IF(result.Failed())) {
+      return false;
+    }
+
+    event->SetTrusted(true);
+    target->DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+    return true;
+  }
+};
+
+NS_IMETHODIMP
+ServiceWorkerManager::SendNotificationClickEvent(const nsACString& aOriginSuffix,
+                                                 const nsACString& aScope,
+                                                 const nsAString& aID,
+                                                 const nsAString& aTitle,
+                                                 const nsAString& aDir,
+                                                 const nsAString& aLang,
+                                                 const nsAString& aBody,
+                                                 const nsAString& aTag,
+                                                 const nsAString& aIcon,
+                                                 const nsAString& aData,
+                                                 const nsAString& aBehavior)
+{
+  OriginAttributes attrs;
+  if (!attrs.PopulateFromSuffix(aOriginSuffix)) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  nsRefPtr<ServiceWorker> serviceWorker = CreateServiceWorkerForScope(attrs, aScope);
+  if (!serviceWorker) {
+    return NS_ERROR_FAILURE;
+  }
+  nsMainThreadPtrHandle<ServiceWorker> serviceWorkerHandle(
+    new nsMainThreadPtrHolder<ServiceWorker>(serviceWorker));
+
+  nsRefPtr<SendNotificationClickEventRunnable> r =
+    new SendNotificationClickEventRunnable(serviceWorker->GetWorkerPrivate(), serviceWorkerHandle, aID, aTitle, aDir, aLang, aBody, aTag, aIcon, aData, aBehavior);
+
+  AutoJSAPI jsapi;
+  jsapi.Init();
+  if (NS_WARN_IF(!r->Dispatch(jsapi.cx()))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

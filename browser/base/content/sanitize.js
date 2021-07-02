@@ -407,6 +407,11 @@ Sanitizer.prototype = {
         var sss = Components.classes["@mozilla.org/ssservice;1"]
                             .getService(Components.interfaces.nsISiteSecurityService);
         sss.clearAll();
+
+        // Clear all push notification subscriptions
+        var push = Cc["@mozilla.org/push/NotificationService;1"]
+                    .getService(Ci.nsIPushNotificationService);
+        push.clearAll();
       },
 
       get canClear()

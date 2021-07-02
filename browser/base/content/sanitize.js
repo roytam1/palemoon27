@@ -95,6 +95,7 @@ Sanitizer.prototype = {
       return deferred.promise;
     }
 
+
     // Cache the range of times to clear
     if (this.ignoreTimespan)
       var range = null;  // If we ignore timespan, clear everything
@@ -463,6 +464,7 @@ Sanitizer.prototype = {
         var push = Cc["@mozilla.org/push/NotificationService;1"]
                     .getService(Ci.nsIPushNotificationService);
         push.clearAll();
+
       },
 
       get canClear()

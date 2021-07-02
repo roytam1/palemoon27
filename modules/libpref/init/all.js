@@ -157,6 +157,12 @@ pref("dom.workers.sharedWorkers.enabled", true);
 // Service workers
 pref("dom.serviceWorkers.enabled", false);
 
+// Allow service workers to intercept network requests using the fetch event
+pref("dom.serviceWorkers.interception.enabled", false);
+
+// Allow service workers to intercept opaque (cross origin) responses
+pref("dom.serviceWorkers.interception.opaque.enabled", false);
+
 // Whether nonzero values can be returned from performance.timing.*
 pref("dom.enable_performance", true);
 
@@ -1307,7 +1313,7 @@ pref("dom.require_user_interaction_for_beforeunload", true);
 
 pref("dom.disable_open_during_load",                false);
 pref("dom.popup_maximum",                           20);
-pref("dom.popup_allowed_events", "change click dblclick mouseup reset submit touchend");
+pref("dom.popup_allowed_events", "change click dblclick mouseup notificationclick reset submit touchend");
 pref("dom.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
@@ -4636,6 +4642,11 @@ pref("dom.push.adaptive.upperLimit", 1740000); // 29 min
 
 // enable udp wakeup support
 pref("dom.push.udp.wakeupEnabled", false);
+
+// WebPush prefs:
+pref("dom.push.http2.reset_retry_count_after_ms", 60000);
+pref("dom.push.http2.maxRetries", 2);
+pref("dom.push.http2.retryInterval", 5000);
 
 // WebNetworkStats
 pref("dom.mozNetworkStats.enabled", false);

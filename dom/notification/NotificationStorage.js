@@ -4,7 +4,7 @@
 
 "use strict";
 
-const DEBUG = false;
+const DEBUG = true;
 function debug(s) { dump("-*- NotificationStorage.js: " + s + "\n"); }
 
 const Cc = Components.classes;
@@ -85,7 +85,7 @@ NotificationStorage.prototype = {
 
   put: function(origin, id, title, dir, lang, body, tag, icon, alertName,
                 data, behavior) {
-    if (DEBUG) { debug("PUT: " + id + ": " + title); }
+    if (DEBUG) { debug("PUT: " + origin + " " + id + ": " + title); }
     var notification = {
       id: id,
       title: title,
@@ -132,6 +132,25 @@ NotificationStorage.prototype = {
     } else {
       this._fetchFromDB(origin, tag, callback);
     }
+  },
+
+  getByID: function(origin, id, callback) {
+    if (DEBUG) { debug("GETBYID: " + origin + " " + id); }
+    var GetByIDProxyCallback = function(id, originalCallback) {
+      this.searchID = id;
+      this.originalCallback = originalCallback;
+      var self = this;
+      this.handle = function(id, title, dir, lang, body, tag, icon, data, behavior) {
+        if (id == this.searchID) {
+          self.originalCallback.handle(id, title, dir, lang, body, tag, icon, data, behavior);
+        }
+      };
+      this.done = function() {
+        self.originalCallback.done();
+      };
+    };
+
+    return this.get(origin, "", new GetByIDProxyCallback(id, callback));
   },
 
   delete: function(origin, id) {
@@ -211,23 +230,29 @@ NotificationStorage.prototype = {
     }
 
     // Pass each notification back separately.
+    // The callback is called asynchronously to match the behaviour when
+    // fetching from the database.
     notifications.forEach(function(notification) {
       try {
-        callback.handle(notification.id,
-                        notification.title,
-                        notification.dir,
-                        notification.lang,
-                        notification.body,
-                        notification.tag,
-                        notification.icon,
-                        notification.data,
-                        notification.mozbehavior);
+        Services.tm.currentThread.dispatch(
+          callback.handle.bind(callback,
+                               notification.id,
+                               notification.title,
+                               notification.dir,
+                               notification.lang,
+                               notification.body,
+                               notification.tag,
+                               notification.icon,
+                               notification.data,
+                               notification.mozbehavior),
+          Ci.nsIThread.DISPATCH_NORMAL);
       } catch (e) {
         if (DEBUG) { debug("Error calling callback handle: " + e); }
       }
     });
     try {
-      callback.done();
+      Services.tm.currentThread.dispatch(callback.done,
+                                         Ci.nsIThread.DISPATCH_NORMAL);
     } catch (e) {
       if (DEBUG) { debug("Error calling callback done: " + e); }
     }

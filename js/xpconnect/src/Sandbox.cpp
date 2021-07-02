@@ -291,9 +291,9 @@ SandboxFetch(JSContext* cx, JS::HandleObject scope, const CallArgs& args)
         FetchRequest(global, Constify(request), Constify(options), rv);
     rv.WouldReportJSException();
     if (rv.Failed()) {
-        return ThrowMethodFailedWithDetails(cx, rv, "Sandbox", "fetch");
+        return ThrowMethodFailed(cx, rv);
     }
-    if (!GetOrCreateDOMReflector(cx, scope, response, args.rval())) {
+    if (!GetOrCreateDOMReflector(cx, response, args.rval())) {
         return false;
     }
     return true;

@@ -626,7 +626,7 @@
 @RESPATH@/components/AppsService.manifest
 @RESPATH@/components/Push.js
 @BINPATH@/components/Push.manifest
-@BINPATH@/components/PushServiceLauncher.js
+@BINPATH@/components/PushNotificationService.js
 
 @BINPATH@/components/InterAppComm.manifest
 @BINPATH@/components/InterAppCommService.js
@@ -677,6 +677,7 @@
 #if defined(ENABLE_TESTS) && defined(MOZ_DEBUG)
 @RESPATH@/components/TestInterfaceJS.js
 @RESPATH@/components/TestInterfaceJS.manifest
+@RESPATH@/components/TestInterfaceJSMaplike.js
 #endif
 
 @RESPATH@/components/PACGenerator.js

@@ -43,6 +43,9 @@ class nsIJSID;
 class nsPIDOMWindow;
 
 namespace mozilla {
+
+enum UseCounter : int16_t;
+
 namespace dom {
 template<typename DataType> class MozMap;
 
@@ -99,9 +102,7 @@ ThrowInvalidThis(JSContext* aCx, const JS::CallArgs& aArgs,
                  prototypes::ID aProtoId);
 
 inline bool
-ThrowMethodFailedWithDetails(JSContext* cx, ErrorResult& rv,
-                             const char* ifaceName,
-                             const char* memberName)
+ThrowMethodFailed(JSContext* cx, ErrorResult& rv)
 {
   if (rv.IsUncatchableException()) {
     // Nuke any existing exception on aCx, to make sure we're uncatchable.
@@ -116,10 +117,6 @@ ThrowMethodFailedWithDetails(JSContext* cx, ErrorResult& rv,
   }
   if (rv.IsJSException()) {
     rv.ReportJSException(cx);
-    return false;
-  }
-  if (rv.IsNotEnoughArgsError()) {
-    rv.ReportNotEnoughArgsError(cx, ifaceName, memberName);
     return false;
   }
   rv.ReportGenericError(cx);
@@ -908,30 +905,95 @@ struct TypeNeedsOuterization
     IsBaseOf<nsGlobalWindow, T>::value || IsSame<EventTarget, T>::value;
 };
 
+#ifdef DEBUG
+template<typename T, bool isISupports=IsBaseOf<nsISupports, T>::value>
+struct CheckWrapperCacheTracing
+{
+  static inline void Check(T* aObject)
+  {
+  }
+};
+
+template<typename T>
+struct CheckWrapperCacheTracing<T, true>
+{
+  static void Check(T* aObject)
+  {
+    // Rooting analysis thinks QueryInterface may GC, but we're dealing with
+    // a subset of QueryInterface, C++ only types here.
+    JS::AutoSuppressGCAnalysis nogc;
+
+    nsWrapperCache* wrapperCacheFromQI = nullptr;
+    aObject->QueryInterface(NS_GET_IID(nsWrapperCache),
+                            reinterpret_cast<void**>(&wrapperCacheFromQI));
+
+    MOZ_ASSERT(wrapperCacheFromQI,
+               "Missing nsWrapperCache from QueryInterface implementation?");
+
+    if (!wrapperCacheFromQI->GetWrapperPreserveColor()) {
+      // Can't assert that we trace the wrapper, since we don't have any
+      // wrapper to trace.
+      return;
+    }
+
+    nsISupports* ccISupports = nullptr;
+    aObject->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
+                            reinterpret_cast<void**>(&ccISupports));
+    MOZ_ASSERT(ccISupports,
+               "nsWrapperCache object which isn't cycle collectable?");
+
+    nsXPCOMCycleCollectionParticipant* participant = nullptr;
+    CallQueryInterface(ccISupports, &participant);
+    MOZ_ASSERT(participant, "Can't QI to CycleCollectionParticipant?");
+
+    bool wasPreservingWrapper = wrapperCacheFromQI->PreservingWrapper();
+    wrapperCacheFromQI->SetPreservingWrapper(true);
+    wrapperCacheFromQI->CheckCCWrapperTraversal(ccISupports, participant);
+    wrapperCacheFromQI->SetPreservingWrapper(wasPreservingWrapper);
+  }
+};
+
+void
+AssertReflectorHasGivenProto(JSContext* aCx, JSObject* aReflector,
+                             JS::Handle<JSObject*> aGivenProto);
+#endif // DEBUG
+
 template <class T, GetOrCreateReflectorWrapBehavior wrapBehavior>
 MOZ_ALWAYS_INLINE bool
 DoGetOrCreateDOMReflector(JSContext* cx, T* value,
+                          JS::Handle<JSObject*> givenProto,
                           JS::MutableHandle<JS::Value> rval)
 {
   MOZ_ASSERT(value);
-  JSObject* obj = value->GetWrapperPreserveColor();
   // We can get rid of this when we remove support for hasXPConnectImpls.
   bool couldBeDOMBinding = CouldBeDOMBinding(value);
+  JSObject* obj = value->GetWrapper();
   if (obj) {
-    JS::ExposeObjectToActiveJS(obj);
+#ifdef DEBUG
+    AssertReflectorHasGivenProto(cx, obj, givenProto);
+    // Have to reget obj because AssertReflectorHasGivenProto can
+    // trigger gc so the pointer may now be invalid.
+    obj = value->GetWrapper();
+#endif
   } else {
     // Inline this here while we have non-dom objects in wrapper caches.
     if (!couldBeDOMBinding) {
       return false;
     }
 
-    obj = value->WrapObject(cx, nullptr);
+    obj = value->WrapObject(cx, givenProto);
     if (!obj) {
       // At this point, obj is null, so just return false.
       // Callers seem to be testing JS_IsExceptionPending(cx) to
       // figure out whether WrapObject() threw.
       return false;
     }
+
+#ifdef DEBUG
+    if (IsBaseOf<nsWrapperCache, T>::value) {
+      CheckWrapperCacheTracing<T>::Check(value);
+    }
+#endif
   }
 
 #ifdef DEBUG
@@ -984,10 +1046,12 @@ DoGetOrCreateDOMReflector(JSContext* cx, T* value,
 template <class T>
 MOZ_ALWAYS_INLINE bool
 GetOrCreateDOMReflector(JSContext* cx, T* value,
-                        JS::MutableHandle<JS::Value> rval)
+                        JS::MutableHandle<JS::Value> rval,
+                        JS::Handle<JSObject*> givenProto = nullptr)
 {
   using namespace binding_detail;
   return DoGetOrCreateDOMReflector<T, eWrapIntoContextCompartment>(cx, value,
+                                                                   givenProto,
                                                                    rval);
 }
 
@@ -1001,6 +1065,7 @@ GetOrCreateDOMReflectorNoWrap(JSContext* cx, T* value,
   using namespace binding_detail;
   return DoGetOrCreateDOMReflector<T, eDontWrapIntoContextCompartment>(cx,
                                                                        value,
+                                                                       nullptr,
                                                                        rval);
 }
 
@@ -1012,7 +1077,8 @@ inline bool
 WrapNewBindingNonWrapperCachedObject(JSContext* cx,
                                      JS::Handle<JSObject*> scopeArg,
                                      T* value,
-                                     JS::MutableHandle<JS::Value> rval)
+                                     JS::MutableHandle<JS::Value> rval,
+                                     JS::Handle<JSObject*> givenProto = nullptr)
 {
   static_assert(IsRefcounted<T>::value, "Don't pass owned classes in here.");
   MOZ_ASSERT(value);
@@ -1026,15 +1092,19 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx,
     // more Maybe (one for a Rooted and one for a Handle) adds more
     // code (and branches!) than just adding a single rooted.
     JS::Rooted<JSObject*> scope(cx, scopeArg);
+    JS::Rooted<JSObject*> proto(cx, givenProto);
     if (js::IsWrapper(scope)) {
       scope = js::CheckedUnwrap(scope, /* stopAtOuter = */ false);
       if (!scope)
         return false;
       ac.emplace(cx, scope);
+      if (!JS_WrapObject(cx, &proto)) {
+        return false;
+      }
     }
 
     MOZ_ASSERT(js::IsObjectInContextCompartment(scope, cx));
-    if (!value->WrapObject(cx, nullptr, &obj)) {
+    if (!value->WrapObject(cx, proto, &obj)) {
       return false;
     }
   }
@@ -1054,7 +1124,8 @@ inline bool
 WrapNewBindingNonWrapperCachedObject(JSContext* cx,
                                      JS::Handle<JSObject*> scopeArg,
                                      nsAutoPtr<T>& value,
-                                     JS::MutableHandle<JS::Value> rval)
+                                     JS::MutableHandle<JS::Value> rval,
+                                     JS::Handle<JSObject*> givenProto = nullptr)
 {
   static_assert(!IsRefcounted<T>::value, "Only pass owned classes in here.");
   // We do a runtime check on value, because otherwise we might in
@@ -1072,15 +1143,19 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx,
     // more Maybe (one for a Rooted and one for a Handle) adds more
     // code (and branches!) than just adding a single rooted.
     JS::Rooted<JSObject*> scope(cx, scopeArg);
+    JS::Rooted<JSObject*> proto(cx, givenProto);
     if (js::IsWrapper(scope)) {
       scope = js::CheckedUnwrap(scope, /* stopAtOuter = */ false);
       if (!scope)
         return false;
       ac.emplace(cx, scope);
+      if (!JS_WrapObject(cx, &proto)) {
+        return false;
+      }
     }
 
     MOZ_ASSERT(js::IsObjectInContextCompartment(scope, cx));
-    if (!value->WrapObject(cx, nullptr, &obj)) {
+    if (!value->WrapObject(cx, proto, &obj)) {
       return false;
     }
 
@@ -1099,9 +1174,11 @@ template <template <typename> class SmartPtr, typename T,
 inline bool
 WrapNewBindingNonWrapperCachedObject(JSContext* cx, JS::Handle<JSObject*> scope,
                                      const SmartPtr<T>& value,
-                                     JS::MutableHandle<JS::Value> rval)
+                                     JS::MutableHandle<JS::Value> rval,
+                                     JS::Handle<JSObject*> givenProto = nullptr)
 {
-  return WrapNewBindingNonWrapperCachedObject(cx, scope, value.get(), rval);
+  return WrapNewBindingNonWrapperCachedObject(cx, scope, value.get(), rval,
+                                              givenProto);
 }
 
 // Only set allowNativeWrapper to false if you really know you need it, if in
@@ -1621,9 +1698,10 @@ template <class T, bool isSmartPtr=IsSmartPtr<T>::value>
 struct GetOrCreateDOMReflectorHelper
 {
   static inline bool GetOrCreate(JSContext* cx, const T& value,
+                                 JS::Handle<JSObject*> givenProto,
                                  JS::MutableHandle<JS::Value> rval)
   {
-    return GetOrCreateDOMReflector(cx, value.get(), rval);
+    return GetOrCreateDOMReflector(cx, value.get(), rval, givenProto);
   }
 };
 
@@ -1631,30 +1709,22 @@ template <class T>
 struct GetOrCreateDOMReflectorHelper<T, false>
 {
   static inline bool GetOrCreate(JSContext* cx, T& value,
+                                 JS::Handle<JSObject*> givenProto,
                                  JS::MutableHandle<JS::Value> rval)
   {
     static_assert(IsRefcounted<T>::value, "Don't pass owned classes in here.");
-    return GetOrCreateDOMReflector(cx, &value, rval);
+    return GetOrCreateDOMReflector(cx, &value, rval, givenProto);
   }
 };
 
 template<class T>
 inline bool
 GetOrCreateDOMReflector(JSContext* cx, T& value,
-                        JS::MutableHandle<JS::Value> rval)
+                        JS::MutableHandle<JS::Value> rval,
+                        JS::Handle<JSObject*> givenProto = nullptr)
 {
-  return GetOrCreateDOMReflectorHelper<T>::GetOrCreate(cx, value, rval);
-}
-
-// We need this version of GetOrCreateDOMReflector for codegen, so it'll have
-// the same signature as WrapNewBindingNonWrapperCachedObject and
-// WrapNewBindingNonWrapperCachedOwnedObject, which still need the scope.
-template<class T>
-inline bool
-GetOrCreateDOMReflector(JSContext* cx, JS::Handle<JSObject*> scope, T& value,
-                        JS::MutableHandle<JS::Value> rval)
-{
-  return GetOrCreateDOMReflector(cx, value, rval);
+  return GetOrCreateDOMReflectorHelper<T>::GetOrCreate(cx, value, givenProto,
+                                                       rval);
 }
 
 // Helper for calling GetOrCreateDOMReflectorNoWrap with smart pointers
@@ -3257,6 +3327,39 @@ bool SystemGlobalResolve(JSContext* cx, JS::Handle<JSObject*> obj,
 // Exposed=System webidl annotations.  False return value means exception
 // thrown.
 bool SystemGlobalEnumerate(JSContext* cx, JS::Handle<JSObject*> obj);
+
+// Slot indexes for maplike/setlike forEach functions
+#define FOREACH_CALLBACK_SLOT 0
+#define FOREACH_MAPLIKEORSETLIKEOBJ_SLOT 1
+
+// Backing function for running .forEach() on maplike/setlike interfaces.
+// Unpacks callback and maplike/setlike object from reserved slots, then runs
+// callback for each key (and value, for maplikes)
+bool ForEachHandler(JSContext* aCx, unsigned aArgc, JS::Value* aVp);
+
+// Unpacks backing object (ES6 map/set) from the reserved slot of a reflector
+// for a maplike/setlike interface. If backing object does not exist, creates
+// backing object in the compartment of the reflector involved, making this safe
+// to use across compartments/via xrays. Return values of these methods will
+// always be in the context compartment.
+bool GetMaplikeBackingObject(JSContext* aCx, JS::Handle<JSObject*> aObj,
+                             size_t aSlotIndex,
+                             JS::MutableHandle<JSObject*> aBackingObj,
+                             bool* aBackingObjCreated);
+bool GetSetlikeBackingObject(JSContext* aCx, JS::Handle<JSObject*> aObj,
+                             size_t aSlotIndex,
+                             JS::MutableHandle<JSObject*> aBackingObj,
+                             bool* aBackingObjCreated);
+
+// Get the desired prototype object for an object construction from the given
+// CallArgs.  Null is returned if the default prototype should be used.
+bool
+GetDesiredProto(JSContext* aCx, const JS::CallArgs& aCallArgs,
+                JS::MutableHandle<JSObject*> aDesiredProto);
+
+void
+SetDocumentAndPageUseCounter(JSContext* aCx, JSObject* aObject,
+                             UseCounter aUseCounter);
 
 // A callback to perform funToString on an interface object
 JSString*

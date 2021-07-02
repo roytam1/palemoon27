@@ -164,6 +164,7 @@ static_assert(MAX_WORKERS_PER_DOMAIN >= 1,
 #define PREF_SERVICEWORKERS_ENABLED    "dom.serviceWorkers.enabled"
 #define PREF_SERVICEWORKERS_TESTING_ENABLED "dom.serviceWorkers.testing.enabled"
 #define PREF_INTERCEPTION_ENABLED      "dom.serviceWorkers.interception.enabled"
+#define PREF_INTERCEPTION_OPAQUE_ENABLED "dom.serviceWorkers.interception.opaque.enabled"
 
 namespace {
 
@@ -1906,6 +1907,10 @@ RuntimeService::Init()
                                   reinterpret_cast<void *>(WORKERPREF_INTERCEPTION_ENABLED))) ||
       NS_FAILED(Preferences::RegisterCallbackAndCall(
                                   WorkerPrefChanged,
+                                  PREF_INTERCEPTION_OPAQUE_ENABLED,
+                                  reinterpret_cast<void *>(WORKERPREF_INTERCEPTION_OPAQUE_ENABLED))) ||
+      NS_FAILED(Preferences::RegisterCallbackAndCall(
+                                  WorkerPrefChanged,
                                   PREF_DOM_CACHES_TESTING_ENABLED,
                                   reinterpret_cast<void *>(WORKERPREF_DOM_CACHES_TESTING))) ||
       NS_FAILED(Preferences::RegisterCallbackAndCall(
@@ -2115,6 +2120,10 @@ RuntimeService::Cleanup()
                                   WorkerPrefChanged,
                                   PREF_DOM_CACHES_TESTING_ENABLED,
                                   reinterpret_cast<void *>(WORKERPREF_DOM_CACHES_TESTING))) ||
+        NS_FAILED(Preferences::UnregisterCallback(
+                                  WorkerPrefChanged,
+                                  PREF_INTERCEPTION_OPAQUE_ENABLED,
+                                  reinterpret_cast<void *>(WORKERPREF_INTERCEPTION_OPAQUE_ENABLED))) ||
         NS_FAILED(Preferences::UnregisterCallback(
                                   WorkerPrefChanged,
                                   PREF_INTERCEPTION_ENABLED,
@@ -2657,39 +2666,26 @@ RuntimeService::WorkerPrefChanged(const char* aPrefName, void* aClosure)
 {
   AssertIsOnMainThread();
 
-  uintptr_t tmp = reinterpret_cast<uintptr_t>(aClosure);
-  MOZ_ASSERT(tmp < WORKERPREF_COUNT);
-  WorkerPreference key = static_cast<WorkerPreference>(tmp);
+  const WorkerPreference key =
+    static_cast<WorkerPreference>(reinterpret_cast<uintptr_t>(aClosure));
 
+  switch (key) {
+    case WORKERPREF_DOM_CACHES:
+    case WORKERPREF_DOM_CACHES_TESTING:
+    case WORKERPREF_DOM_WORKERNOTIFICATION:
 #ifdef DUMP_CONTROLLED_BY_PREF
-  if (key == WORKERPREF_DUMP) {
-    sDefaultPreferences[key] =
-      Preferences::GetBool(PREF_DOM_WINDOW_DUMP_ENABLED, false);
-  }
+    case WORKERPREF_DUMP:
 #endif
+    case WORKERPREF_INTERCEPTION_ENABLED:
+    case WORKERPREF_INTERCEPTION_OPAQUE_ENABLED:
+    case WORKERPREF_SERVICEWORKERS:
+    case WORKERPREF_SERVICEWORKERS_TESTING:
+      sDefaultPreferences[key] = Preferences::GetBool(aPrefName, false);
+      break;
 
-  if (key == WORKERPREF_DOM_CACHES) {
-    sDefaultPreferences[WORKERPREF_DOM_CACHES] =
-      Preferences::GetBool(PREF_DOM_CACHES_ENABLED, false);
-  } else if (key == WORKERPREF_DOM_WORKERNOTIFICATION) {
-    sDefaultPreferences[key] =
-      Preferences::GetBool(PREF_DOM_WORKERNOTIFICATION_ENABLED, false);
-  } else if (key == WORKERPREF_SERVICEWORKERS) {
-    key = WORKERPREF_SERVICEWORKERS;
-    sDefaultPreferences[WORKERPREF_SERVICEWORKERS] =
-      Preferences::GetBool(PREF_SERVICEWORKERS_ENABLED, false);
-  } else if (key == WORKERPREF_INTERCEPTION_ENABLED) {
-    key = WORKERPREF_INTERCEPTION_ENABLED;
-    sDefaultPreferences[key] =
-      Preferences::GetBool(PREF_INTERCEPTION_ENABLED, false);
-  } else if (key == WORKERPREF_DOM_CACHES_TESTING) {
-    key = WORKERPREF_DOM_CACHES_TESTING;
-    sDefaultPreferences[WORKERPREF_DOM_CACHES_TESTING] =
-      Preferences::GetBool(PREF_DOM_CACHES_TESTING_ENABLED, false);
-  } else if (key == WORKERPREF_SERVICEWORKERS_TESTING) {
-    key = WORKERPREF_SERVICEWORKERS_TESTING;
-    sDefaultPreferences[WORKERPREF_SERVICEWORKERS_TESTING] =
-      Preferences::GetBool(PREF_SERVICEWORKERS_TESTING_ENABLED, false);
+    default:
+      MOZ_ASSERT_UNREACHABLE("Invalid pref key");
+      break;
   }
 
   RuntimeService* rts = RuntimeService::GetService();

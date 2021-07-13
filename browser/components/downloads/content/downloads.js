@@ -65,22 +65,6 @@
 "use strict";
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Globals
-
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
-                                  "resource://gre/modules/DownloadUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
-                                  "resource:///modules/DownloadsCommon.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-                                  "resource://gre/modules/osfile.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-                                  "resource://gre/modules/PlacesUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-                                  "resource://gre/modules/NetUtil.jsm");
-
-////////////////////////////////////////////////////////////////////////////////
 //// DownloadsPanel
 
 /**
@@ -133,9 +117,8 @@ const DownloadsPanel = {
 
     window.addEventListener("unload", this.onWindowUnload, false);
 
-    // Ensure that the Download Manager service is running.  This resumes
-    // active downloads if required.  If there are downloads to be shown in the
-    // panel, starting the service will make us load their data asynchronously.
+    // Load and resume active downloads if required.  If there are downloads to
+    // be shown in the panel, they will be loaded asynchronously.
     DownloadsCommon.initializeAllDataLinks();
 
     // Now that data loading has eventually started, load the required XUL
@@ -816,10 +799,10 @@ const DownloadsView = {
   },
 
   // DownloadsView
-  onDataItemStateChanged(aDataItem, aOldState) {
+  onDataItemStateChanged(aDataItem) {
     let viewItem = this._visibleViewItems.get(aDataItem);
     if (viewItem) {
-      viewItem.onStateChanged(aOldState);
+      viewItem.onStateChanged();
     }
   },
 
@@ -867,7 +850,7 @@ const DownloadsView = {
    */
   _removeViewItem(aDataItem) {
     DownloadsCommon.log("Removing a DownloadsViewItem from the downloads list.");
-    let element = this._visibleViewItems.get(aDataItem)._element;
+    let element = this._visibleViewItems.get(aDataItem).element;
     let previousSelectedIndex = this.richListBox.selectedIndex;
     this.richListBox.removeChild(element);
     if (previousSelectedIndex != -1) {
@@ -923,8 +906,7 @@ const DownloadsView = {
       return;
     }
 
-    if (aEvent.keyCode == KeyEvent.DOM_VK_ENTER ||
-        aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
+    if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
       goDoCommand("downloadsCmd_doDefault");
     }
   },
@@ -1002,43 +984,20 @@ const DownloadsView = {
  *        XUL element corresponding to the single download item in the view.
  */
 function DownloadsViewItem(aDataItem, aElement) {
-  this._element = aElement;
   this.dataItem = aDataItem;
+  this.element = aElement;
+  this.element._shell = this;
 
-  this.lastEstimatedSecondsLeft = Infinity;
+  this.element.setAttribute("type", "download");
+  this.element.classList.add("download-state");
 
-  // Set the URI that represents the correct icon for the target file.  As soon
-  // as bug 239948 comment 12 is handled, the "file" property will be always a
-  // file URL rather than a file name.  At that point we should remove the "//"
-  // (double slash) from the icon URI specification (see test_moz_icon_uri.js).
-  this.image = "moz-icon://" + this.dataItem.file + "?size=32";
-
-  let s = DownloadsCommon.strings;
-  let [displayHost, fullHost] =
-    DownloadUtils.getURIHost(this.dataItem.referrer || this.dataItem.uri);
-
-  let attributes = {
-    "type": "download",
-    "class": "download-state",
-    "state": this.dataItem.state,
-    "progress": this.dataItem.inProgress ? this.dataItem.percentComplete : 100,
-    "displayName": this.dataItem.target,
-    "extendedDisplayName": s.statusSeparator(this.dataItem.target, displayHost),
-    "extendedDisplayNameTip": s.statusSeparator(this.dataItem.target, fullHost),
-    "image": this.image
-  };
-
-  for (let attributeName in attributes) {
-    this._element.setAttribute(attributeName, attributes[attributeName]);
-  }
-
-  // Initialize more complex attributes.
-  this._updateProgress();
-  this._updateStatusLine();
+  this._updateState();
   this.verifyTargetExists();
 }
 
 DownloadsViewItem.prototype = {
+  __proto__: DownloadElementShell.prototype,
+
   /**
    * The DownloadDataItem associated with this view item.
    */
@@ -1049,177 +1008,30 @@ DownloadsViewItem.prototype = {
    */
   _element: null,
 
-  /**
-   * The inner XUL element for the progress bar, or null if not available.
-   */
-  _progressElement: null,
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// Callback functions from DownloadsData
-
-  /**
-   * Called when the download state might have changed.  Sometimes the state of
-   * the download might be the same as before, if the data layer received
-   * multiple events for the same download.
-   */
-  onStateChanged(aOldState) {
+  onStateChanged() {
     // If a download just finished successfully, it means that the target file
     // now exists and we can extract its specific icon.  To ensure that the icon
     // is reloaded, we must change the URI used by the XUL image element, for
     // example by adding a query parameter.  Since this URI has a "moz-icon"
     // scheme, this only works if we add one of the parameters explicitly
     // supported by the nsIMozIconURI interface.
-    if (aOldState != Ci.nsIDownloadManager.DOWNLOAD_FINISHED &&
-        aOldState != this.dataItem.state) {
-      this._element.setAttribute("image", this.image + "&state=normal");
+    if (this.dataItem.state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED) {
+      this.element.setAttribute("image", this.image + "&state=normal");
 
       // We assume the existence of the target of a download that just completed
       // successfully, without checking the condition in the background.  If the
       // panel is already open, this will take effect immediately.  If the panel
       // is opened later, a new background existence check will be performed.
-      this._element.setAttribute("exists", "true");
+      this.element.setAttribute("exists", "true");
     }
 
     // Update the user interface after switching states.
-    this._element.setAttribute("state", this.dataItem.state);
+    this.element.setAttribute("state", this.dataItem.state);
   },
 
-  /**
-   * Called when the download progress has changed.
-   */
   onChanged() {
     this._updateProgress();
-    this._updateStatusLine();
   },
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// Functions for updating the user interface
-
-  /**
-   * Updates the progress bar.
-   */
-  _updateProgress() {
-    if (this.dataItem.starting) {
-      // Before the download starts, the progress meter has its initial value.
-      this._element.setAttribute("progressmode", "normal");
-      this._element.setAttribute("progress", "0");
-    } else if (this.dataItem.state == Ci.nsIDownloadManager.DOWNLOAD_SCANNING ||
-               this.dataItem.percentComplete == -1) {
-      // We might not know the progress of a running download, and we don't know
-      // the remaining time during the malware scanning phase.
-      this._element.setAttribute("progressmode", "undetermined");
-    } else {
-      // This is a running download of which we know the progress.
-      this._element.setAttribute("progressmode", "normal");
-      this._element.setAttribute("progress", this.dataItem.percentComplete);
-    }
-
-    // Find the progress element as soon as the download binding is accessible.
-    if (!this._progressElement) {
-      this._progressElement =
-           document.getAnonymousElementByAttribute(this._element, "anonid",
-                                                   "progressmeter");
-    }
-
-    // Dispatch the ValueChange event for accessibility, if possible.
-    if (this._progressElement) {
-      let event = document.createEvent("Events");
-      event.initEvent("ValueChange", true, true);
-      this._progressElement.dispatchEvent(event);
-    }
-  },
-
-  /**
-   * Updates the main status line, including bytes transferred, bytes total,
-   * download rate, and time remaining.
-   */
-  _updateStatusLine() {
-    const nsIDM = Ci.nsIDownloadManager;
-
-    let status = "";
-    let statusTip = "";
-
-    if (this.dataItem.paused) {
-      let transfer = DownloadUtils.getTransferTotal(this.dataItem.currBytes,
-                                                    this.dataItem.maxBytes);
-
-      // We use the same XUL label to display both the state and the amount
-      // transferred, for example "Paused -  1.1 MB".
-      status = DownloadsCommon.strings.statusSeparatorBeforeNumber(
-                                            DownloadsCommon.strings.statePaused,
-                                            transfer);
-    } else if (this.dataItem.state == nsIDM.DOWNLOAD_DOWNLOADING) {
-      // We don't show the rate for each download in order to reduce clutter.
-      // The remaining time per download is likely enough information for the
-      // panel.
-      [status] =
-        DownloadUtils.getDownloadStatusNoRate(this.dataItem.currBytes,
-                                              this.dataItem.maxBytes,
-                                              this.dataItem.speed,
-                                              this.lastEstimatedSecondsLeft);
-
-      // We are, however, OK with displaying the rate in the tooltip.
-      let newEstimatedSecondsLeft;
-      [statusTip, newEstimatedSecondsLeft] =
-        DownloadUtils.getDownloadStatus(this.dataItem.currBytes,
-                                        this.dataItem.maxBytes,
-                                        this.dataItem.speed,
-                                        this.lastEstimatedSecondsLeft);
-      this.lastEstimatedSecondsLeft = newEstimatedSecondsLeft;
-    } else if (this.dataItem.starting) {
-      status = DownloadsCommon.strings.stateStarting;
-    } else if (this.dataItem.state == nsIDM.DOWNLOAD_SCANNING) {
-      status = DownloadsCommon.strings.stateScanning;
-    } else if (!this.dataItem.inProgress) {
-      let stateLabel = function () {
-        let s = DownloadsCommon.strings;
-        switch (this.dataItem.state) {
-          case nsIDM.DOWNLOAD_FAILED:           return s.stateFailed;
-          case nsIDM.DOWNLOAD_CANCELED:         return s.stateCanceled;
-          case nsIDM.DOWNLOAD_BLOCKED_PARENTAL: return s.stateBlockedParentalControls;
-          case nsIDM.DOWNLOAD_BLOCKED_POLICY:   return s.stateBlockedPolicy;
-          case nsIDM.DOWNLOAD_DIRTY:            return s.stateDirty;
-          case nsIDM.DOWNLOAD_FINISHED:         return this._fileSizeText;
-        }
-        return null;
-      }.apply(this);
-
-      let [displayHost, fullHost] =
-        DownloadUtils.getURIHost(this.dataItem.referrer || this.dataItem.uri);
-
-      let end = new Date(this.dataItem.endTime);
-      let [displayDate, fullDate] = DownloadUtils.getReadableDates(end);
-
-      // We use the same XUL label to display the state, the host name, and the
-      // end time, for example "Canceled - 222.net - 11:15" or "1.1 MB -
-      // website2.com - Yesterday".  We show the full host and the complete date
-      // in the tooltip.
-      let firstPart = DownloadsCommon.strings.statusSeparator(stateLabel,
-                                                              displayHost);
-      status = DownloadsCommon.strings.statusSeparator(firstPart, displayDate);
-      statusTip = DownloadsCommon.strings.statusSeparator(fullHost, fullDate);
-    }
-
-    this._element.setAttribute("status", status);
-    this._element.setAttribute("statusTip", statusTip || status);
-  },
-
-  /**
-   * Localized string representing the total size of completed downloads, for
-   * example "1.5 MB" or "Unknown size".
-   */
-  get _fileSizeText() {
-    // Display the file size, but show "Unknown" for negative sizes.
-    let fileSize = this.dataItem.maxBytes;
-    if (fileSize < 0) {
-      return DownloadsCommon.strings.sizeUnknown;
-    }
-    let [size, unit] = DownloadUtils.convertByteUnits(fileSize);
-    return DownloadsCommon.strings.sizeWithUnits(size, unit);
-  },
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// Functions called by the panel
 
   /**
    * Starts checking whether the target file of a finished download is still
@@ -1230,15 +1042,15 @@ DownloadsViewItem.prototype = {
    */
   verifyTargetExists() {
     // We don't need to check if the download is not finished successfully.
-    if (!this.dataItem.openable) {
+    if (!this.download.succeeded) {
       return;
     }
 
-    OS.File.exists(this.dataItem.localFile.path).then(aExists => {
+    OS.File.exists(this.download.target.path).then(aExists => {
       if (aExists) {
-        this._element.setAttribute("exists", "true");
+        this.element.setAttribute("exists", "true");
       } else {
-        this._element.removeAttribute("exists");
+        this.element.removeAttribute("exists");
       }
     }).catch(Cu.reportError);
   },
@@ -1358,18 +1170,20 @@ DownloadsViewItemController.prototype = {
   isCommandEnabled(aCommand) {
     switch (aCommand) {
       case "downloadsCmd_open": {
-        return this.dataItem.openable && this.dataItem.localFile.exists();
+        return this.dataItem.download.succeeded &&
+               this.dataItem.localFile.exists();
       }
       case "downloadsCmd_show": {
         return this.dataItem.localFile.exists() ||
                this.dataItem.partFile.exists();
       }
       case "downloadsCmd_pauseResume":
-        return this.dataItem.inProgress && this.dataItem.resumable;
+        return this.dataItem.inProgress &&
+               this.dataItem.download.hasPartialData;
       case "downloadsCmd_retry":
         return this.dataItem.canRetry;
       case "downloadsCmd_openReferrer":
-        return !!this.dataItem.referrer;
+        return !!this.dataItem.download.source.referrer;
       case "cmd_delete":
       case "downloadsCmd_cancel":
       case "downloadsCmd_copyLocation":
@@ -1396,18 +1210,20 @@ DownloadsViewItemController.prototype = {
   commands: {
     cmd_delete() {
       Downloads.getList(Downloads.ALL)
-               .then(list => list.remove(this.dataItem._download))
-               .then(() => this.dataItem._download.finalize(true))
+               .then(list => list.remove(this.dataItem.download))
+               .then(() => this.dataItem.download.finalize(true))
                .catch(Cu.reportError);
-      PlacesUtils.bhistory.removePage(NetUtil.newURI(this.dataItem.uri));
+      PlacesUtils.bhistory.removePage(
+                             NetUtil.newURI(this.dataItem.download.source.url));
     },
 
     downloadsCmd_cancel() {
-      this.dataItem.cancel();
+      this.dataItem.download.cancel().catch(() => {});
+      this.dataItem.download.removePartialData().catch(Cu.reportError);
     },
 
     downloadsCmd_open() {
-      this.dataItem.openLocalFile();
+      this.dataItem.download.launch().catch(Cu.reportError);
 
       // We explicitly close the panel here to give the user the feedback that
       // their click has been received, and we're handling the action.
@@ -1418,7 +1234,7 @@ DownloadsViewItemController.prototype = {
     },
 
     downloadsCmd_show() {
-      this.dataItem.showLocalFile();
+      DownloadsCommon.showDownloadedFile(this.dataItem.localFile);
 
       // We explicitly close the panel here to give the user the feedback that
       // their click has been received, and we're handling the action.
@@ -1429,21 +1245,25 @@ DownloadsViewItemController.prototype = {
     },
 
     downloadsCmd_pauseResume() {
-      this.dataItem.togglePauseResume();
+      if (this.dataItem.download.stopped) {
+        this.dataItem.download.start();
+      } else {
+        this.dataItem.download.cancel();
+      }
     },
 
     downloadsCmd_retry() {
-      this.dataItem.retry();
+      this.dataItem.download.start().catch(() => {});
     },
 
     downloadsCmd_openReferrer() {
-      openURL(this.dataItem.referrer);
+      openURL(this.dataItem.download.source.referrer);
     },
 
     downloadsCmd_copyLocation() {
       let clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"]
                       .getService(Ci.nsIClipboardHelper);
-      clipboard.copyString(this.dataItem.uri, document);
+      clipboard.copyString(this.dataItem.download.source.url, document);
     },
 
     downloadsCmd_doDefault() {
@@ -1588,7 +1408,6 @@ const DownloadsSummary = {
    */
   onKeyDown(aEvent) {
     if (aEvent.charCode == " ".charCodeAt(0) ||
-        aEvent.keyCode == KeyEvent.DOM_VK_ENTER ||
         aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
       DownloadsPanel.showDownloadsHistory();
     }

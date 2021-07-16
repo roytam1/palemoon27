@@ -628,12 +628,7 @@ public:
     return mLoadInfo.mChannel.forget();
   }
 
-  nsIDocument*
-  GetDocument() const
-  {
-    AssertIsOnMainThread();
-    return mLoadInfo.mWindow ? mLoadInfo.mWindow->GetExtantDoc() : nullptr;
-  }
+  nsIDocument* GetDocument() const;
 
   nsPIDOMWindow*
   GetWindow()
@@ -802,6 +797,12 @@ public:
   void
   UpdateOverridenLoadGroup(nsILoadGroup* aBaseLoadGroup);
 
+  already_AddRefed<nsIRunnable>
+  StealLoadFailedAsyncRunnable()
+  {
+    return mLoadInfo.mLoadFailedAsyncRunnable.forget();
+  }
+
   IMPL_EVENT_HANDLER(message)
   IMPL_EVENT_HANDLER(error)
 
@@ -959,6 +960,9 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   nsRefPtr<MemoryReporter> mMemoryReporter;
 
   nsRefPtrHashtable<nsUint64HashKey, MessagePort> mWorkerPorts;
+
+  // fired on the main thread if the worker script fails to load
+  nsCOMPtr<nsIRunnable> mLoadFailedRunnable;
 
   TimeStamp mKillTime;
   uint32_t mErrorHandlerRecursionCount;
@@ -1333,6 +1337,9 @@ public:
   }
 
   void
+  ClearMainEventQueue(WorkerRanOrNot aRanOrNot);
+
+  void
   OnProcessNextEvent(uint32_t aRecursionDepth);
 
   void
@@ -1368,14 +1375,14 @@ public:
   bool
   RunBeforeNextEvent(nsIRunnable* aRunnable);
 
+  void
+  MaybeDispatchLoadFailedRunnable();
+
 private:
   WorkerPrivate(JSContext* aCx, WorkerPrivate* aParent,
                 const nsAString& aScriptURL, bool aIsChromeWorker,
                 WorkerType aWorkerType, const nsACString& aSharedWorkerName,
                 WorkerLoadInfo& aLoadInfo);
-
-  void
-  ClearMainEventQueue(WorkerRanOrNot aRanOrNot);
 
   bool
   MayContinueRunning()

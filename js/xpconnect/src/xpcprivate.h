@@ -247,8 +247,7 @@ static inline bool IS_WN_REFLECTOR(JSObject* obj)
 // to this rule are noted explicitly.
 
 class nsXPConnect final : public nsIXPConnect,
-                          public nsIThreadObserver,
-                          public nsSupportsWeakReference
+                          public nsIThreadObserver
 {
 public:
     // all the interface method declarations...
@@ -586,9 +585,6 @@ public:
     inline void AddVariantRoot(XPCTraceableVariant* variant);
     inline void AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS);
     inline void AddObjectHolderRoot(XPCJSObjectHolder* holder);
-
-    static void SuspectWrappedNative(XPCWrappedNative* wrapper,
-                                     nsCycleCollectionNoteRootCallback& cb);
 
     void DebugDump(int16_t depth);
 
@@ -2252,6 +2248,7 @@ public:
 
     bool HasExternalReference() const {return mRefCnt > 1;}
 
+    void Suspect(nsCycleCollectionNoteRootCallback& cb);
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
 
     // Make ctor and dtor protected (rather than private) to placate nsCOMPtr.
@@ -2398,7 +2395,7 @@ private:
                                uint16_t methodIndex,
                                uint8_t paramIndex,
                                nsXPTCMiniVariant* params,
-                               uint32_t* result);
+                               uint32_t* result) const;
 
     bool GetInterfaceTypeFromParam(JSContext* cx,
                                    const XPTMethodDescriptor* method,
@@ -2406,14 +2403,17 @@ private:
                                    uint16_t methodIndex,
                                    const nsXPTType& type,
                                    nsXPTCMiniVariant* params,
-                                   nsID* result);
+                                   nsID* result) const;
 
-    void CleanupPointerArray(const nsXPTType& datum_type,
-                             uint32_t array_count,
-                             void** arrayp);
+    static void CleanupPointerArray(const nsXPTType& datum_type,
+                                    uint32_t array_count,
+                                    void** arrayp);
 
-    void CleanupPointerTypeObject(const nsXPTType& type,
-                                  void** pp);
+    static void CleanupPointerTypeObject(const nsXPTType& type,
+                                         void** pp);
+
+    void CleanupOutparams(JSContext* cx, uint16_t methodIndex, const nsXPTMethodInfo* info,
+                          nsXPTCMiniVariant* nativeParams, bool inOutOnly, uint8_t n) const;
 
 private:
     XPCJSRuntime* mRuntime;
@@ -2993,18 +2993,17 @@ xpc_PrintJSStack(JSContext* cx, bool showArgs, bool showLocals,
 
 // Definition of nsScriptError, defined here because we lack a place to put
 // XPCOM objects associated with the JavaScript engine.
-class nsScriptError : public nsIScriptError {
+class nsScriptErrorBase : public nsIScriptError {
 public:
-    nsScriptError();
+    nsScriptErrorBase();
 
   // TODO - do something reasonable on getting null from these babies.
 
-    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICONSOLEMESSAGE
     NS_DECL_NSISCRIPTERROR
 
 protected:
-    virtual ~nsScriptError();
+    virtual ~nsScriptErrorBase();
 
     void
     InitializeOnMainThread();
@@ -3026,7 +3025,16 @@ protected:
     bool mIsFromPrivateWindow;
 };
 
-class nsScriptErrorWithStack : public nsScriptError {
+class nsScriptError final : public nsScriptErrorBase {
+public:
+    nsScriptError() {}
+    NS_DECL_THREADSAFE_ISUPPORTS
+
+private:
+    virtual ~nsScriptError() {}
+};
+
+class nsScriptErrorWithStack : public nsScriptErrorBase {
 public:
     explicit nsScriptErrorWithStack(JS::HandleObject);
 
@@ -3470,6 +3478,7 @@ public:
                             JSObject* options = nullptr)
         : OptionsBase(cx, options)
         , wantXrays(true)
+        , allowWaivers(true)
         , wantComponents(true)
         , wantExportHelpers(false)
         , proto(cx)
@@ -3485,6 +3494,7 @@ public:
     virtual bool Parse();
 
     bool wantXrays;
+    bool allowWaivers;
     bool wantComponents;
     bool wantExportHelpers;
     JS::RootedObject proto;
@@ -3569,11 +3579,13 @@ public:
         : OptionsBase(cx, options)
         , wrapReflectors(false)
         , cloneFunctions(false)
+        , deepFreeze(false)
     { }
 
     virtual bool Parse() {
         return ParseBoolean("wrapReflectors", &wrapReflectors) &&
-               ParseBoolean("cloneFunctions", &cloneFunctions);
+               ParseBoolean("cloneFunctions", &cloneFunctions) &&
+               ParseBoolean("deepFreeze", &deepFreeze);
     }
 
     // When a reflector is encountered, wrap it rather than aborting the clone.
@@ -3582,6 +3594,9 @@ public:
     // When a function is encountered, clone it (exportFunction-style) rather than
     // aborting the clone.
     bool cloneFunctions;
+
+    // If true, the resulting object is deep-frozen after being cloned.
+    bool deepFreeze;
 };
 
 JSObject*
@@ -3681,6 +3696,7 @@ public:
 
     explicit CompartmentPrivate(JSCompartment* c)
         : wantXrays(false)
+        , allowWaivers(true)
         , writeToGlobalPrototype(false)
         , skipWriteToGlobalPrototype(false)
         , universalXPConnectEnabled(false)
@@ -3708,8 +3724,16 @@ public:
         return Get(compartment);
     }
 
-
+    // Controls whether this compartment gets Xrays to same-origin. This behavior
+    // is deprecated, but is still the default for sandboxes for compatibity
+    // reasons.
     bool wantXrays;
+
+    // Controls whether this compartment is allowed to waive Xrays to content
+    // that it subsumes. This should generally be true, except in cases where we
+    // want to prevent code from depending on Xray Waivers (which might make it
+    // more portable to other browser architectures).
+    bool allowWaivers;
 
     // This flag is intended for a very specific use, internal to Gecko. It may
     // go away or change behavior at any time. It should not be added to any

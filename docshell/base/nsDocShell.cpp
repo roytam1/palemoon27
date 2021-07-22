@@ -3730,12 +3730,10 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
 static bool
 ItemIsActive(nsIDocShellTreeItem* aItem)
 {
-  nsCOMPtr<nsPIDOMWindow> window = aItem->GetWindow();
-
-  if (window) {
-    bool isClosed;
-
-    if (NS_SUCCEEDED(window->GetClosed(&isClosed)) && !isClosed) {
+  if (nsCOMPtr<nsPIDOMWindow> window = aItem->GetWindow()) {
+    auto* win = static_cast<nsGlobalWindow*>(window.get());
+    MOZ_ASSERT(win->IsOuterWindow());
+    if (!win->GetClosedOuter()) {
       return true;
     }
   }
@@ -13712,15 +13710,9 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
   // if per element referrer is enabled, the element referrer overrules
   // the document wide referrer
   if (IsElementAnchor(aContent)) {
-    MOZ_ASSERT(aContent->IsHTMLElement());
-    if (Preferences::GetBool("network.http.enablePerElementReferrer", false)) {
-      nsAutoString referrerPolicy;
-      if (aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::referrer, referrerPolicy)) {
-        uint32_t refPolEnum = mozilla::net::ReferrerPolicyFromString(referrerPolicy);
-        if (refPolEnum != mozilla::net::RP_Unset) {
-          refererPolicy = refPolEnum;
-        }
-      }
+    net::ReferrerPolicy refPolEnum = aContent->AsElement()->GetReferrerPolicy();
+    if (refPolEnum != net::RP_Unset) {
+      refererPolicy = refPolEnum;
     }
   }
 

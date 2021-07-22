@@ -525,10 +525,10 @@ HasAcceleratedLayers(const nsCOMPtr<nsIGfxInfo>& gfxInfo)
 }
 
 static already_AddRefed<GLContext>
-CreateHeadlessNativeGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
-                       bool requireCompatProfile, WebGLContext* webgl)
+CreateHeadlessNativeGL(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
+                       WebGLContext* webgl)
 {
-    if (!forceEnabled &&
+    if (!(flags & CreateContextFlags::FORCE_ENABLE_HARDWARE) &&
         IsFeatureInBlacklist(gfxInfo, nsIGfxInfo::FEATURE_WEBGL_OPENGL))
     {
         webgl->GenerateWarning("Refused to create native OpenGL context"
@@ -536,7 +536,7 @@ CreateHeadlessNativeGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
         return nullptr;
     }
 
-    nsRefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless(requireCompatProfile);
+    nsRefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless(flags);
     if (!gl) {
         webgl->GenerateWarning("Error during native OpenGL init.");
         return nullptr;
@@ -550,21 +550,13 @@ CreateHeadlessNativeGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
 // right now, we get ANGLE implicitly by using EGL on Windows.
 // Eventually, we want to be able to pick ANGLE-EGL or native EGL.
 static already_AddRefed<GLContext>
-CreateHeadlessANGLE(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
-                    bool requireCompatProfile, WebGLContext* webgl)
+CreateHeadlessANGLE(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
+                    WebGLContext* webgl)
 {
     nsRefPtr<GLContext> gl;
 
 #ifdef XP_WIN
-    if (!forceEnabled &&
-        IsFeatureInBlacklist(gfxInfo, nsIGfxInfo::FEATURE_WEBGL_ANGLE))
-    {
-        webgl->GenerateWarning("Refused to create ANGLE OpenGL context"
-                               " because of blacklisting.");
-        return nullptr;
-    }
-
-    gl = gl::GLContextProviderEGL::CreateHeadless(requireCompatProfile);
+    gl = gl::GLContextProviderEGL::CreateHeadless(flags);
     if (!gl) {
         webgl->GenerateWarning("Error during ANGLE OpenGL init.");
         return nullptr;
@@ -576,13 +568,12 @@ CreateHeadlessANGLE(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
 }
 
 static already_AddRefed<GLContext>
-CreateHeadlessEGL(bool forceEnabled, bool requireCompatProfile,
-                  WebGLContext* webgl)
+CreateHeadlessEGL(CreateContextFlags flags, WebGLContext* webgl)
 {
     nsRefPtr<GLContext> gl;
 
 #ifdef ANDROID
-    gl = gl::GLContextProviderEGL::CreateHeadless(requireCompatProfile);
+    gl = gl::GLContextProviderEGL::CreateHeadless(flags);
     if (!gl) {
         webgl->GenerateWarning("Error during EGL OpenGL init.");
         return nullptr;
@@ -594,7 +585,7 @@ CreateHeadlessEGL(bool forceEnabled, bool requireCompatProfile,
 }
 
 static already_AddRefed<GLContext>
-CreateHeadlessGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
+CreateHeadlessGL(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
                  WebGLContext* webgl)
 {
     bool preferEGL = PR_GetEnv("MOZ_WEBGL_PREFER_EGL");
@@ -603,21 +594,21 @@ CreateHeadlessGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
     if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL"))
         disableANGLE = true;
 
-    bool requireCompatProfile = webgl->IsWebGL2() ? false : true;
+    if (!webgl->IsWebGL2()) {
+        flags |= CreateContextFlags::REQUIRE_COMPAT_PROFILE;
+    }
 
     nsRefPtr<GLContext> gl;
 
     if (preferEGL)
-        gl = CreateHeadlessEGL(forceEnabled, requireCompatProfile, webgl);
+        gl = CreateHeadlessEGL(flags, webgl);
 
     if (!gl && !disableANGLE) {
-        gl = CreateHeadlessANGLE(forceEnabled, gfxInfo, requireCompatProfile,
-                                 webgl);
+        gl = CreateHeadlessANGLE(flags, gfxInfo, webgl);
     }
 
     if (!gl) {
-        gl = CreateHeadlessNativeGL(forceEnabled, gfxInfo,
-                                    requireCompatProfile, webgl);
+        gl = CreateHeadlessNativeGL(flags, gfxInfo, webgl);
     }
 
     return gl.forget();
@@ -742,7 +733,10 @@ WebGLContext::CreateOffscreenGL(bool forceEnabled)
     }
 #endif
 
-    gl = CreateHeadlessGL(forceEnabled, gfxInfo, this);
+    CreateContextFlags flags = forceEnabled ? CreateContextFlags::FORCE_ENABLE_HARDWARE :
+                                              CreateContextFlags::NONE;
+
+    gl = CreateHeadlessGL(flags, gfxInfo, this);
 
     do {
         if (!gl)

@@ -241,6 +241,7 @@ private:
   DECL_GFX_PREF(Once, "gfx.max-alloc-size",                    MaxAllocSize, int32_t, (int32_t)500000000);
   DECL_GFX_PREF(Once, "gfx.max-texture-size",                  MaxTextureSize, int32_t, (int32_t)32767);
   DECL_GFX_PREF(Live, "gfx.perf-warnings.enabled",             PerfWarnings, bool, false);
+  DECL_GFX_PREF(Live, "gfx.testing.device-reset",              DeviceResetForTesting, int32_t, 0);
   DECL_GFX_PREF(Once, "gfx.touch.resample",                    TouchResampling, bool, false);
 
   // These times should be in milliseconds
@@ -389,8 +390,9 @@ private:
   DECL_GFX_PREF(Live, "test.mousescroll",                      MouseScrollTestingEnabled, bool, false);
 
   DECL_GFX_PREF(Live, "ui.click_hold_context_menus.delay",     UiClickHoldContextMenusDelay, int32_t, 500);
-  DECL_GFX_PREF(Once, "webgl.angle.try-d3d11",                 WebGLANGLETryD3D11, bool, false);
   DECL_GFX_PREF(Once, "webgl.angle.force-d3d11",               WebGLANGLEForceD3D11, bool, false);
+  DECL_GFX_PREF(Once, "webgl.angle.try-d3d11",                 WebGLANGLETryD3D11, bool, false);
+  DECL_GFX_PREF(Once, "webgl.angle.force-warp",                WebGLANGLEForceWARP, bool, false);
   DECL_GFX_PREF(Live, "webgl.disable-fail-if-major-performance-caveat",
                 WebGLDisableFailIfMajorPerformanceCaveat, bool, false);
   DECL_GFX_PREF(Once, "webgl.force-layers-readback",           WebGLForceLayersReadback, bool, false);

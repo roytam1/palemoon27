@@ -419,10 +419,11 @@ Promise::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 }
 
 already_AddRefed<Promise>
-Promise::Create(nsIGlobalObject* aGlobal, ErrorResult& aRv)
+Promise::Create(nsIGlobalObject* aGlobal, ErrorResult& aRv,
+                JS::Handle<JSObject*> aDesiredProto)
 {
   nsRefPtr<Promise> p = new Promise(aGlobal);
-  p->CreateWrapper(aRv);
+  p->CreateWrapper(aDesiredProto, aRv);
   if (aRv.Failed()) {
     return nullptr;
   }
@@ -430,7 +431,7 @@ Promise::Create(nsIGlobalObject* aGlobal, ErrorResult& aRv)
 }
 
 void
-Promise::CreateWrapper(ErrorResult& aRv)
+Promise::CreateWrapper(JS::Handle<JSObject*> aDesiredProto, ErrorResult& aRv)
 {
   AutoJSAPI jsapi;
   if (!jsapi.Init(mGlobal)) {
@@ -440,7 +441,7 @@ Promise::CreateWrapper(ErrorResult& aRv)
   JSContext* cx = jsapi.cx();
 
   JS::Rooted<JS::Value> wrapper(cx);
-  if (!GetOrCreateDOMReflector(cx, this, &wrapper)) {
+  if (!GetOrCreateDOMReflector(cx, this, &wrapper, aDesiredProto)) {
     JS_ClearPendingException(cx);
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
@@ -482,10 +483,10 @@ bool
 Promise::PerformMicroTaskCheckpoint()
 {
   CycleCollectedJSRuntime* runtime = CycleCollectedJSRuntime::Get();
-  nsTArray<nsCOMPtr<nsIRunnable>>& microtaskQueue =
+  std::queue<nsCOMPtr<nsIRunnable>>& microtaskQueue =
     runtime->GetPromiseMicroTaskQueue();
 
-  if (microtaskQueue.IsEmpty()) {
+  if (microtaskQueue.empty()) {
     return false;
   }
 
@@ -495,11 +496,11 @@ Promise::PerformMicroTaskCheckpoint()
   }
 
   do {
-    nsCOMPtr<nsIRunnable> runnable = microtaskQueue.ElementAt(0);
+    nsCOMPtr<nsIRunnable> runnable = microtaskQueue.front();
     MOZ_ASSERT(runnable);
 
     // This function can re-enter, so we remove the element before calling.
-    microtaskQueue.RemoveElementAt(0);
+    microtaskQueue.pop();
     nsresult rv = runnable->Run();
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return false;
@@ -507,7 +508,8 @@ Promise::PerformMicroTaskCheckpoint()
     if (cx.isSome()) {
       JS_CheckForInterrupt(cx.ref());
     }
-  } while (!microtaskQueue.IsEmpty());
+    runtime->AfterProcessMicrotask();
+  } while (!microtaskQueue.empty());
 
   return true;
 }
@@ -640,8 +642,8 @@ Promise::CreateThenableFunction(JSContext* aCx, Promise* aPromise, uint32_t aTas
 }
 
 /* static */ already_AddRefed<Promise>
-Promise::Constructor(const GlobalObject& aGlobal,
-                     PromiseInit& aInit, ErrorResult& aRv)
+Promise::Constructor(const GlobalObject& aGlobal, PromiseInit& aInit,
+                     ErrorResult& aRv, JS::Handle<JSObject*> aDesiredProto)
 {
   nsCOMPtr<nsIGlobalObject> global;
   global = do_QueryInterface(aGlobal.GetAsSupports());
@@ -650,7 +652,7 @@ Promise::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Create(global, aRv);
+  nsRefPtr<Promise> promise = Create(global, aRv, aDesiredProto);
   if (aRv.Failed()) {
     return nullptr;
   }
@@ -1168,10 +1170,10 @@ Promise::DispatchToMicroTask(nsIRunnable* aRunnable)
   MOZ_ASSERT(aRunnable);
 
   CycleCollectedJSRuntime* runtime = CycleCollectedJSRuntime::Get();
-  nsTArray<nsCOMPtr<nsIRunnable>>& microtaskQueue =
+  std::queue<nsCOMPtr<nsIRunnable>>& microtaskQueue =
     runtime->GetPromiseMicroTaskQueue();
 
-  microtaskQueue.AppendElement(aRunnable);
+  microtaskQueue.push(aRunnable);
 }
 
 #if defined(DOM_PROMISE_DEPRECATED_REPORTING)

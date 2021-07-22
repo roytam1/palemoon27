@@ -571,7 +571,7 @@
 @RESPATH@/components/AlarmsManager.manifest
 @RESPATH@/components/Push.js
 @RESPATH@/components/Push.manifest
-@RESPATH@/components/PushServiceLauncher.js
+@RESPATH@/components/PushNotificationService.js
 
 @RESPATH@/components/SlowScriptDebug.manifest
 @RESPATH@/components/SlowScriptDebug.js
@@ -636,6 +636,7 @@
 #if defined(ENABLE_TESTS) && defined(MOZ_DEBUG)
 @RESPATH@/components/TestInterfaceJS.js
 @RESPATH@/components/TestInterfaceJS.manifest
+@RESPATH@/components/TestInterfaceJSMaplike.js
 #endif
 
 @RESPATH@/components/PACGenerator.js

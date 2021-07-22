@@ -24,12 +24,6 @@ namespace image {
 
 // Inherited methods from Image.
 
-nsresult
-DynamicImage::Init(const char* aMimeType, uint32_t aFlags)
-{
-  return NS_OK;
-}
-
 already_AddRefed<ProgressTracker>
 DynamicImage::GetProgressTracker()
 {
@@ -340,6 +334,12 @@ DynamicImage::Unwrap()
 {
   nsCOMPtr<imgIContainer> self(this);
   return self.forget();
+}
+
+void
+DynamicImage::PropagateUseCounters(nsIDocument*)
+{
+  // No use counters.
 }
 
 } // namespace image

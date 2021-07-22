@@ -7729,7 +7729,7 @@ PresShell::HandlePositionedEvent(nsIFrame* aTargetFrame,
       // We use weak pointers because during this tight loop, the node
       // will *not* go away.  And this happens on every mousemove.
       while (targetElement && !targetElement->IsElement()) {
-        targetElement = targetElement->GetParent();
+        targetElement = targetElement->GetFlattenedTreeParent();
       }
 
       // If we found an element, target it.  Otherwise, target *nothing*.
@@ -10883,4 +10883,28 @@ nsIPresShell::SyncWindowProperties(nsView* aView)
     nsRenderingContext rcx(CreateReferenceRenderingContext());
     nsContainerFrame::SyncWindowProperties(mPresContext, frame, aView, &rcx, 0);
   }
+}
+
+nsresult
+nsIPresShell::HasRuleProcessorUsedByMultipleStyleSets(uint32_t aSheetType,
+                                                      bool* aRetVal)
+{
+  nsStyleSet::sheetType type;
+  switch (aSheetType) {
+    case nsIStyleSheetService::AGENT_SHEET:
+      type = nsStyleSet::eAgentSheet;
+      break;
+    case nsIStyleSheetService::USER_SHEET:
+      type = nsStyleSet::eUserSheet;
+      break;
+    case nsIStyleSheetService::AUTHOR_SHEET:
+      type = nsStyleSet::eDocSheet;
+      break;
+    default:
+      MOZ_ASSERT(false, "unexpected aSheetType value");
+      return NS_ERROR_ILLEGAL_VALUE;
+  }
+
+  *aRetVal = mStyleSet->HasRuleProcessorUsedByMultipleStyleSets(type);
+  return NS_OK;
 }

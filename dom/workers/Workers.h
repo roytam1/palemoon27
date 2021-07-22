@@ -39,6 +39,7 @@ class nsIPrincipal;
 class nsILoadGroup;
 class nsITabChild;
 class nsIChannel;
+class nsIRunnable;
 class nsIURI;
 
 namespace mozilla {
@@ -203,6 +204,7 @@ enum WorkerPreference
   WORKERPREF_DOM_WORKERNOTIFICATION, // dom.webnotifications.workers.enabled
   WORKERPREF_DOM_CACHES_TESTING, // dom.caches.testing.enabled
   WORKERPREF_SERVICEWORKERS_TESTING, // dom.serviceWorkers.testing.enabled
+  WORKERPREF_INTERCEPTION_OPAQUE_ENABLED, // dom.serviceWorkers.interception.opaque.enabled
   WORKERPREF_COUNT
 };
 
@@ -219,6 +221,12 @@ struct WorkerLoadInfo
   nsCOMPtr<nsIContentSecurityPolicy> mCSP;
   nsCOMPtr<nsIChannel> mChannel;
   nsCOMPtr<nsILoadGroup> mLoadGroup;
+
+  // mLoadFailedAsyncRunnable will execute on main thread if script loading
+  // fails during script loading.  If script loading is never started due to
+  // a synchronous error, then the runnable is never executed.  The runnable
+  // is guaranteed to be released on the main thread.
+  nsCOMPtr<nsIRunnable> mLoadFailedAsyncRunnable;
 
   class InterfaceRequestor final : public nsIInterfaceRequestor
   {

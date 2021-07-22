@@ -107,6 +107,7 @@ class mozilla::gl::SkiaGLGlue : public GenericAtomicRefCounted {
 #include "nsIXULRuntime.h"
 #include "VsyncSource.h"
 #include "SoftwareVsyncSource.h"
+#include "nscore.h" // for NS_FREE_PERMANENT_DATA
 
 namespace mozilla {
 namespace layers {
@@ -119,6 +120,7 @@ void ShutdownTileCache();
 
 using namespace mozilla;
 using namespace mozilla::layers;
+using namespace mozilla::gl;
 
 gfxPlatform *gPlatform = nullptr;
 static bool gEverInitialized = false;
@@ -250,7 +252,7 @@ void CrashStatsLogForwarder::UpdateCrashReport()
            mCrashCriticalKey.get(), message.str().c_str());
   }
 }
-  
+
 void CrashStatsLogForwarder::Log(const std::string& aString)
 {
   MutexAutoLock lock(mMutex);
@@ -536,7 +538,7 @@ gfxPlatform::Init()
 #endif
 
 #ifdef MOZ_GL_DEBUG
-    mozilla::gl::GLContext::StaticInit();
+    GLContext::StaticInit();
 #endif
 
     InitLayersAccelerationPrefs();
@@ -584,11 +586,11 @@ gfxPlatform::Init()
     gPlatform->mFontPrefsObserver = new FontPrefsObserver();
     Preferences::AddStrongObservers(gPlatform->mFontPrefsObserver, kObservedPrefs);
 
-    mozilla::gl::GLContext::PlatformStartup();
+    GLContext::PlatformStartup();
 
 #ifdef MOZ_WIDGET_ANDROID
     // Texture pool init
-    mozilla::gl::TexturePoolOGL::Init();
+    TexturePoolOGL::Init();
 #endif
 
 #ifdef MOZ_WIDGET_GONK
@@ -668,11 +670,11 @@ gfxPlatform::Shutdown()
 
 #ifdef MOZ_WIDGET_ANDROID
     // Shut down the texture pool
-    mozilla::gl::TexturePoolOGL::Shutdown();
+    TexturePoolOGL::Shutdown();
 #endif
 
     // Shut down the default GL context provider.
-    mozilla::gl::GLContextProvider::Shutdown();
+    GLContextProvider::Shutdown();
 
 #if defined(XP_WIN)
     // The above shutdown calls operate on the available context providers on
@@ -681,11 +683,11 @@ gfxPlatform::Shutdown()
     // We should only support the default GL provider on Windows; then, this
     // could go away. Unfortunately, we currently support WGL (the default) for
     // WebGL on Optimus.
-    mozilla::gl::GLContextProviderEGL::Shutdown();
+    GLContextProviderEGL::Shutdown();
 #endif
 
     // This is a bit iffy - we're assuming that we were the ones that set the
-    // log forwarder in the Factory, so that it's our responsibility to 
+    // log forwarder in the Factory, so that it's our responsibility to
     // delete it.
     delete mozilla::gfx::Factory::GetLogForwarder();
     mozilla::gfx::Factory::SetLogForwarder(nullptr);
@@ -760,7 +762,7 @@ gfxPlatform::~gfxPlatform()
     // cairo_debug_* function unconditionally.
     //
     // because cairo can assert and thus crash on shutdown, don't do this in release builds
-#if defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) || defined(MOZ_VALGRIND)
+#ifdef NS_FREE_PERMANENT_DATA
 #ifdef USE_SKIA
     // must do Skia cleanup before Cairo cleanup, because Skia may be referencing
     // Cairo objects e.g. through SkCairoFTTypeface
@@ -1133,7 +1135,7 @@ gfxPlatform::InitializeSkiaCacheLimits()
   }
 }
 
-mozilla::gl::SkiaGLGlue*
+SkiaGLGlue*
 gfxPlatform::GetSkiaGLGlue()
 {
 #ifdef USE_SKIA_GPU
@@ -1143,14 +1145,13 @@ gfxPlatform::GetSkiaGLGlue()
      * FIXME: This should be stored in TLS or something, since there needs to be one for each thread using it. As it
      * stands, this only works on the main thread.
      */
-    bool requireCompatProfile = true;
-    nsRefPtr<mozilla::gl::GLContext> glContext;
-    glContext = mozilla::gl::GLContextProvider::CreateHeadless(requireCompatProfile);
+    nsRefPtr<GLContext> glContext;
+    glContext = GLContextProvider::CreateHeadless(CreateContextFlags::REQUIRE_COMPAT_PROFILE);
     if (!glContext) {
       printf_stderr("Failed to create GLContext for SkiaGL!\n");
       return nullptr;
     }
-    mSkiaGlue = new mozilla::gl::SkiaGLGlue(glContext);
+    mSkiaGlue = new SkiaGLGlue(glContext);
     MOZ_ASSERT(mSkiaGlue->GetGrContext(), "No GrContext");
     InitializeSkiaCacheLimits();
   }
@@ -1238,7 +1239,7 @@ gfxPlatform::CreateDrawTargetForData(unsigned char* aData, const IntSize& aSize,
   NS_ASSERTION(mContentBackend != BackendType::NONE, "No backend.");
 
   BackendType backendType = mContentBackend;
-  
+
   if (!Factory::DoesBackendSupportDataDrawtarget(mContentBackend)) {
     backendType = BackendType::CAIRO;
   }
@@ -2350,7 +2351,7 @@ gfxPlatform::ShouldUseLayersAcceleration()
   if (gfxPrefs::LayersAccelerationForceEnabled()) {
     return true;
   }
-  if (gfxPlatform::GetPlatform()->AccelerateLayersByDefault()) {
+  if (AccelerateLayersByDefault()) {
     return true;
   }
   if (acceleratedEnv && *acceleratedEnv != '0') {
@@ -2426,7 +2427,7 @@ gfxPlatform::UsesOffMainThreadCompositing()
 already_AddRefed<mozilla::gfx::VsyncSource>
 gfxPlatform::CreateHardwareVsyncSource()
 {
-  NS_WARNING("Hardware Vsync support not yet implemented. Falling back to software timers\n");
+  NS_WARNING("Hardware Vsync support not yet implemented. Falling back to software timers");
   nsRefPtr<mozilla::gfx::VsyncSource> softwareVsync = new SoftwareVsyncSource();
   return softwareVsync.forget();
 }

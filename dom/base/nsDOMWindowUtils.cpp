@@ -88,8 +88,7 @@
 #include "nsViewportInfo.h"
 #include "nsIFormControl.h"
 #include "nsIScriptError.h"
-#include "nsIAppShell.h"
-#include "nsWidgetsCID.h"
+//#include "nsWidgetsCID.h"
 #include "FrameLayerBuilder.h"
 #include "nsDisplayList.h"
 #include "nsROCSSPrimitiveValue.h"
@@ -101,6 +100,7 @@
 #include "nsIContentIterator.h"
 #include "nsIDOMStyleSheet.h"
 #include "nsIStyleSheet.h"
+#include "nsIStyleSheetService.h"
 #include "nsContentPermissionHelper.h"
 #include "nsNetUtil.h"
 
@@ -116,8 +116,6 @@ using namespace mozilla::widget;
 using namespace mozilla::gfx;
 
 class gfxContext;
-
-static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 NS_INTERFACE_MAP_BEGIN(nsDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWindowUtils)
@@ -2434,6 +2432,18 @@ nsDOMWindowUtils::GetIsTestControllingRefreshes(bool *aResult)
 }
 
 NS_IMETHODIMP
+nsDOMWindowUtils::GetAsyncPanZoomEnabled(bool *aResult)
+{
+  nsIWidget* widget = GetWidget();
+  if (widget) {
+    *aResult = widget->AsyncPanZoomEnabled();
+  } else {
+    *aResult = gfxPlatform::AsyncPanZoomEnabled();
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDOMWindowUtils::SetAsyncScrollOffset(nsIDOMNode* aNode,
                                        int32_t aX, int32_t aY)
 {
@@ -3477,30 +3487,6 @@ nsDOMWindowUtils::DispatchEventToChromeOnly(nsIDOMEventTarget* aTarget,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::RunInStableState(nsIRunnable *aRunnable)
-{
-  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
-
-  nsCOMPtr<nsIRunnable> runnable = aRunnable;
-  nsContentUtils::RunInStableState(runnable.forget());
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::RunBeforeNextEvent(nsIRunnable *runnable)
-{
-  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
-
-  nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
-  if (!appShell) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  return appShell->RunBeforeNextEvent(runnable);
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::RequestCompositorProperty(const nsAString& property,
                                             float* aResult)
 {
@@ -3520,6 +3506,7 @@ nsDOMWindowUtils::RequestCompositorProperty(const nsAString& property,
 NS_IMETHODIMP
 nsDOMWindowUtils::GetOMTAStyle(nsIDOMElement* aElement,
                                const nsAString& aProperty,
+                               const nsAString& aPseudoElement,
                                nsAString& aResult)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
@@ -3531,6 +3518,15 @@ nsDOMWindowUtils::GetOMTAStyle(nsIDOMElement* aElement,
 
   nsRefPtr<nsROCSSPrimitiveValue> cssValue = nullptr;
   nsIFrame* frame = element->GetPrimaryFrame();
+  if (frame && !aPseudoElement.IsEmpty()) {
+    if (aPseudoElement.EqualsLiteral("::before")) {
+      frame = nsLayoutUtils::GetBeforeFrame(frame);
+    } else if (aPseudoElement.EqualsLiteral("::after")) {
+      frame = nsLayoutUtils::GetAfterFrame(frame);
+    } else {
+      return NS_ERROR_INVALID_ARG;
+    }
+  }
   if (frame && nsLayoutUtils::AreAsyncAnimationsEnabled()) {
     if (aProperty.EqualsLiteral("opacity")) {
       Layer* layer =
@@ -3862,6 +3858,21 @@ nsDOMWindowUtils::LeaveChaosMode()
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
   ChaosMode::leaveChaosMode();
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::HasRuleProcessorUsedByMultipleStyleSets(uint32_t aSheetType,
+                                                          bool* aRetVal)
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+  nsIPresShell* presShell = GetPresShell();
+  if (!presShell) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return presShell->HasRuleProcessorUsedByMultipleStyleSets(aSheetType,
+                                                            aRetVal);
 }
 
 NS_INTERFACE_MAP_BEGIN(nsTranslationNodeList)

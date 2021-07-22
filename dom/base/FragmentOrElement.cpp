@@ -1273,13 +1273,10 @@ public:
     nsAutoScriptBlocker scriptBlocker;
     uint32_t len = mSubtreeRoots.Length();
     if (len) {
-      PRTime start = PR_Now();
       for (uint32_t i = 0; i < len; ++i) {
         UnbindSubtree(mSubtreeRoots[i]);
       }
       mSubtreeRoots.Clear();
-      Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_CONTENT_UNBIND,
-                            uint32_t(PR_Now() - start) / PR_USEC_PER_MSEC);
     }
     nsCycleCollector_dispatchDeferredDeletion();
     if (this == sContentUnbinder) {

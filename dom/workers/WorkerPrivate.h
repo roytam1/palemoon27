@@ -628,12 +628,7 @@ public:
     return mLoadInfo.mChannel.forget();
   }
 
-  nsIDocument*
-  GetDocument() const
-  {
-    AssertIsOnMainThread();
-    return mLoadInfo.mWindow ? mLoadInfo.mWindow->GetExtantDoc() : nullptr;
-  }
+  nsIDocument* GetDocument() const;
 
   nsPIDOMWindow*
   GetWindow()
@@ -802,6 +797,12 @@ public:
   void
   UpdateOverridenLoadGroup(nsILoadGroup* aBaseLoadGroup);
 
+  already_AddRefed<nsIRunnable>
+  StealLoadFailedAsyncRunnable()
+  {
+    return mLoadInfo.mLoadFailedAsyncRunnable.forget();
+  }
+
   IMPL_EVENT_HANDLER(message)
   IMPL_EVENT_HANDLER(error)
 
@@ -947,9 +948,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   // modifications are done with mMutex held *only* in DEBUG builds.
   nsTArray<nsAutoPtr<SyncLoopInfo>> mSyncLoopStack;
 
-  struct PreemptingRunnableInfo;
-  nsTArray<PreemptingRunnableInfo> mPreemptingRunnableInfos;
-
   nsCOMPtr<nsITimer> mTimer;
 
   nsCOMPtr<nsITimer> mGCTimer;
@@ -959,6 +957,9 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   nsRefPtr<MemoryReporter> mMemoryReporter;
 
   nsRefPtrHashtable<nsUint64HashKey, MessagePort> mWorkerPorts;
+
+  // fired on the main thread if the worker script fails to load
+  nsCOMPtr<nsIRunnable> mLoadFailedRunnable;
 
   TimeStamp mKillTime;
   uint32_t mErrorHandlerRecursionCount;
@@ -1296,6 +1297,13 @@ public:
   }
 
   bool
+  OpaqueInterceptionEnabled() const
+  {
+    AssertIsOnWorkerThread();
+    return mPreferences[WORKERPREF_INTERCEPTION_OPAQUE_ENABLED];
+  }
+
+  bool
   DOMWorkerNotificationEnabled() const
   {
     AssertIsOnWorkerThread();
@@ -1326,10 +1334,13 @@ public:
   }
 
   void
-  OnProcessNextEvent(uint32_t aRecursionDepth);
+  ClearMainEventQueue(WorkerRanOrNot aRanOrNot);
 
   void
-  AfterProcessNextEvent(uint32_t aRecursionDepth);
+  OnProcessNextEvent();
+
+  void
+  AfterProcessNextEvent();
 
   void
   AssertValidSyncLoop(nsIEventTarget* aSyncLoopTarget)
@@ -1356,19 +1367,14 @@ public:
     return mWorkerScriptExecutedSuccessfully;
   }
 
-  // Just like nsIAppShell::RunBeforeNextEvent. May only be called on the worker
-  // thread.
-  bool
-  RunBeforeNextEvent(nsIRunnable* aRunnable);
+  void
+  MaybeDispatchLoadFailedRunnable();
 
 private:
   WorkerPrivate(JSContext* aCx, WorkerPrivate* aParent,
                 const nsAString& aScriptURL, bool aIsChromeWorker,
                 WorkerType aWorkerType, const nsACString& aSharedWorkerName,
                 WorkerLoadInfo& aLoadInfo);
-
-  void
-  ClearMainEventQueue(WorkerRanOrNot aRanOrNot);
 
   bool
   MayContinueRunning()

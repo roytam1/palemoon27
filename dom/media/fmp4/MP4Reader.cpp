@@ -61,43 +61,6 @@ TrackTypeToStr(TrackInfo::TrackType aTrack)
   }
 }
 
-uint8_t sTestExtraData[40] = { 0x01, 0x64, 0x00, 0x0a, 0xff, 0xe1, 0x00, 0x17, 0x67, 0x64, 0x00, 0x0a, 0xac, 0xd9, 0x44, 0x26, 0x84, 0x00, 0x00, 0x03,
-                               0x00, 0x04, 0x00, 0x00, 0x03, 0x00, 0xc8, 0x3c, 0x48, 0x96, 0x58, 0x01, 0x00, 0x06, 0x68, 0xeb, 0xe3, 0xcb, 0x22, 0xc0 };
-
-/* static */ bool
-MP4Reader::IsVideoAccelerated(LayersBackend aBackend)
-{
-  VideoInfo config;
-  config.mMimeType = "video/avc";
-  config.mId = 1;
-  config.mDuration = 40000;
-  config.mMediaTime = 0;
-  config.mDisplay = config.mImage = nsIntSize(64, 64);
-  config.mExtraData = new MediaByteBuffer();
-  config.mExtraData->AppendElements(sTestExtraData, 40);
-
-  PlatformDecoderModule::Init();
-
-  nsRefPtr<PlatformDecoderModule> platform = PlatformDecoderModule::Create();
-  if (!platform) {
-    return false;
-  }
-
-  nsRefPtr<MediaDataDecoder> decoder =
-    platform->CreateDecoder(config, nullptr, nullptr, aBackend, nullptr);
-  if (!decoder) {
-    return false;
-  }
-  nsresult rv = decoder->Init();
-  NS_ENSURE_SUCCESS(rv, false);
-
-  bool result = decoder->IsHardwareAccelerated();
-
-  decoder->Shutdown();
-
-  return result;
-}
-
 // MP4Demuxer wants to do various blocking reads, which cause deadlocks while
 // mDemuxerMonitor is held. This stuff should really be redesigned, but we don't
 // have time for that right now. So in order to get proper synchronization while
@@ -538,7 +501,8 @@ MP4Reader::ShouldSkip(bool aSkipToNextKeyframe, int64_t aTimeThreshold)
 
 nsRefPtr<MediaDecoderReader::VideoDataPromise>
 MP4Reader::RequestVideoData(bool aSkipToNextKeyframe,
-                            int64_t aTimeThreshold)
+                            int64_t aTimeThreshold,
+                            bool aForceDecodeAhead)
 {
   MOZ_ASSERT(OnTaskQueue());
   VLOG("skip=%d time=%lld", aSkipToNextKeyframe, aTimeThreshold);
@@ -556,6 +520,7 @@ MP4Reader::RequestVideoData(bool aSkipToNextKeyframe,
   MOZ_ASSERT(HasVideo() && mPlatform && mVideo.mDecoder);
 
   bool eos = false;
+  mVideo.mForceDecodeAhead = aForceDecodeAhead;
   if (ShouldSkip(aSkipToNextKeyframe, aTimeThreshold)) {
     uint32_t parsed = 0;
     eos = !SkipVideoDemuxToNextKeyFrame(aTimeThreshold, parsed);
@@ -627,9 +592,10 @@ MP4Reader::NeedInput(DecoderData& aDecoder)
   return
     !aDecoder.mError &&
     !aDecoder.mDemuxEOS &&
-    aDecoder.HasPromise() &&
+    (aDecoder.HasPromise() || aDecoder.mForceDecodeAhead) &&
     aDecoder.mOutput.IsEmpty() &&
     (aDecoder.mInputExhausted ||
+     aDecoder.mForceDecodeAhead ||
      aDecoder.mNumSamplesInput - aDecoder.mNumSamplesOutput < aDecoder.mDecodeAhead);
 }
 
@@ -891,12 +857,13 @@ MP4Reader::Flush(TrackType aTrack)
     MonitorAutoLock mon(data.mMonitor);
     data.mIsFlushing = true;
     data.mDemuxEOS = false;
-    data.mDrainComplete = false;
   }
   data.mDecoder->Flush();
   {
     MonitorAutoLock mon(data.mMonitor);
+    data.mForceDecodeAhead = false;
     data.mIsFlushing = false;
+    data.mDrainComplete = false;
     data.mOutput.Clear();
     data.mNumSamplesInput = 0;
     data.mNumSamplesOutput = 0;
@@ -1005,7 +972,7 @@ MP4Reader::GetBuffered()
     return buffered;
   }
   UpdateIndex();
-  NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
+  NS_ENSURE_TRUE(HaveStartTime(), media::TimeIntervals());
 
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
   nsTArray<MediaByteRange> ranges;
@@ -1016,8 +983,8 @@ MP4Reader::GetBuffered()
     mDemuxer->ConvertByteRangesToTime(ranges, &timeRanges);
     for (size_t i = 0; i < timeRanges.Length(); i++) {
       buffered += media::TimeInterval(
-        media::TimeUnit::FromMicroseconds(timeRanges[i].start - mStartTime),
-        media::TimeUnit::FromMicroseconds(timeRanges[i].end - mStartTime));
+        media::TimeUnit::FromMicroseconds(timeRanges[i].start - StartTime()),
+        media::TimeUnit::FromMicroseconds(timeRanges[i].end - StartTime()));
     }
   }
 

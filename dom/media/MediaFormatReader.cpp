@@ -465,7 +465,8 @@ MediaFormatReader::ShouldSkip(bool aSkipToNextKeyframe, media::TimeUnit aTimeThr
 
 nsRefPtr<MediaDecoderReader::VideoDataPromise>
 MediaFormatReader::RequestVideoData(bool aSkipToNextKeyframe,
-                                    int64_t aTimeThreshold)
+                                    int64_t aTimeThreshold,
+                                    bool aForceDecodeAhead)
 {
   MOZ_ASSERT(OnTaskQueue());
   MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty(), "No sample requests allowed while seeking");
@@ -498,6 +499,7 @@ MediaFormatReader::RequestVideoData(bool aSkipToNextKeyframe,
 
   MOZ_ASSERT(HasVideo() && mPlatform && mVideo.mDecoder);
 
+  mVideo.mForceDecodeAhead = aForceDecodeAhead;
   media::TimeUnit timeThreshold{media::TimeUnit::FromMicroseconds(aTimeThreshold)};
   if (ShouldSkip(aSkipToNextKeyframe, timeThreshold)) {
     Flush(TrackInfo::kVideoTrack);
@@ -698,11 +700,12 @@ MediaFormatReader::NeedInput(DecoderData& aDecoder)
   return
     !aDecoder.mDraining &&
     !aDecoder.mError &&
-    aDecoder.HasPromise() &&
+    (aDecoder.HasPromise() || aDecoder.mForceDecodeAhead) &&
     !aDecoder.mDemuxRequest.Exists() &&
     aDecoder.mOutput.IsEmpty() &&
     (aDecoder.mInputExhausted || !aDecoder.mQueuedSamples.IsEmpty() ||
      aDecoder.mTimeThreshold.isSome() ||
+     aDecoder.mForceDecodeAhead ||
      aDecoder.mNumSamplesInput - aDecoder.mNumSamplesOutput < aDecoder.mDecodeAhead);
 }
 
@@ -963,18 +966,25 @@ MediaFormatReader::Update(TrackType aTrack)
     needOutput = true;
     if (!decoder.mOutput.IsEmpty()) {
       // We have a decoded sample ready to be returned.
-      nsRefPtr<MediaData> output = decoder.mOutput[0];
-      decoder.mOutput.RemoveElementAt(0);
-      decoder.mSizeOfQueue -= 1;
-      if (decoder.mTimeThreshold.isNothing() ||
-          media::TimeUnit::FromMicroseconds(output->mTime) >= decoder.mTimeThreshold.ref()) {
-        ReturnOutput(output, aTrack);
-        decoder.mTimeThreshold.reset();
-      } else {
-        LOGV("Internal Seeking: Dropping frame time:%f wanted:%f (kf:%d)",
-             media::TimeUnit::FromMicroseconds(output->mTime).ToSeconds(),
-             decoder.mTimeThreshold.ref().ToSeconds(),
-             output->mKeyframe);
+      if (aTrack == TrackType::kVideoTrack) {
+        mVideo.mIsHardwareAccelerated =
+          mVideo.mDecoder && mVideo.mDecoder->IsHardwareAccelerated();
+      }
+      while (decoder.mOutput.Length()) {
+        nsRefPtr<MediaData> output = decoder.mOutput[0];
+        decoder.mOutput.RemoveElementAt(0);
+        decoder.mSizeOfQueue -= 1;
+        if (decoder.mTimeThreshold.isNothing() ||
+            media::TimeUnit::FromMicroseconds(output->mTime) >= decoder.mTimeThreshold.ref()) {
+          ReturnOutput(output, aTrack);
+          decoder.mTimeThreshold.reset();
+          break;
+        } else {
+          LOGV("Internal Seeking: Dropping frame time:%f wanted:%f (kf:%d)",
+               media::TimeUnit::FromMicroseconds(output->mTime).ToSeconds(),
+               decoder.mTimeThreshold.ref().ToSeconds(),
+               output->mKeyframe);
+        }
       }
     } else if (decoder.mDrainComplete) {
       decoder.mDrainComplete = false;
@@ -1377,8 +1387,8 @@ MediaFormatReader::GetBuffered()
   int64_t startTime;
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
-    startTime = mStartTime;
+    NS_ENSURE_TRUE(HaveStartTime(), media::TimeIntervals());
+    startTime = StartTime();
   }
   // Ensure we have up to date buffered time range.
   if (HasVideo()) {
@@ -1433,6 +1443,12 @@ MediaFormatReader::SetSharedDecoderManager(SharedDecoderManager* aManager)
 #if !defined(MOZ_WIDGET_ANDROID)
   mSharedDecoderManager = aManager;
 #endif
+}
+
+bool
+MediaFormatReader::VideoIsHardwareAccelerated() const
+{
+  return mVideo.mIsHardwareAccelerated;
 }
 
 void

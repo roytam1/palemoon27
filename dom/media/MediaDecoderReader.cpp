@@ -76,7 +76,6 @@ MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder,
   , mThrottleDuration(TimeDuration::FromMilliseconds(500))
   , mLastThrottledNotify(TimeStamp::Now() - mThrottleDuration)
   , mIgnoreAudioOutputFormat(false)
-  , mStartTime(-1)
   , mHitAudioDecodeError(false)
   , mShutdown(false)
   , mTaskQueueIsBorrowed(!!aBorrowedTaskQueue)
@@ -237,7 +236,7 @@ media::TimeIntervals
 MediaDecoderReader::GetBuffered()
 {
   MOZ_ASSERT(OnTaskQueue());
-  NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
+  NS_ENSURE_TRUE(HaveStartTime(), media::TimeIntervals());
   AutoPinned<MediaResource> stream(mDecoder->GetResource());
 
   if (!mDuration.Ref().isSome()) {
@@ -296,7 +295,8 @@ public:
 
     // Make sure ResetDecode hasn't been called in the mean time.
     if (!mReader->mBaseVideoPromise.IsEmpty()) {
-      mReader->RequestVideoData(/* aSkip = */ true, mTimeThreshold);
+      mReader->RequestVideoData(/* aSkip = */ true, mTimeThreshold,
+                                /* aForceDecodeAhead = */ false);
     }
 
     return NS_OK;
@@ -333,7 +333,8 @@ private:
 
 nsRefPtr<MediaDecoderReader::VideoDataPromise>
 MediaDecoderReader::RequestVideoData(bool aSkipToNextKeyframe,
-                                     int64_t aTimeThreshold)
+                                     int64_t aTimeThreshold,
+                                     bool aForceDecodeAhead)
 {
   nsRefPtr<VideoDataPromise> p = mBaseVideoPromise.Ensure(__func__);
   bool skip = aSkipToNextKeyframe;

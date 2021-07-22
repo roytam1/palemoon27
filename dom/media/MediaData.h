@@ -279,13 +279,17 @@ public:
   // This frame's image.
   nsRefPtr<Image> mImage;
 
+  int32_t mFrameID;
+
+  bool mSentToCompositor;
 
   VideoData(int64_t aOffset,
             int64_t aTime,
             int64_t aDuration,
             bool aKeyframe,
             int64_t aTimecode,
-            IntSize aDisplay);
+            IntSize aDisplay,
+            int32_t aFrameID);
 
 protected:
   ~VideoData();

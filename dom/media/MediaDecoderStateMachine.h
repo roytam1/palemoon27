@@ -145,8 +145,6 @@ public:
     DECODER_STATE_ERROR
   };
 
-  DecodedStreamData* GetDecodedStream() const;
-
   void AddOutputStream(ProcessedMediaStream* aStream, bool aFinishWhenEnded);
 
   // Set/Unset dormant state.
@@ -159,18 +157,6 @@ private:
   void InitializationTask();
 
   void DispatchAudioCaptured();
-
-  // Update blocking state of mDecodedStream when mPlayState or
-  // mLogicallySeeking change. Decoder monitor must be held.
-  void UpdateStreamBlockingForPlayState();
-
-  // Call this IsPlaying() changes. Decoder monitor must be held.
-  void UpdateStreamBlockingForStateMachinePlaying();
-
-  // Recreates mDecodedStream. Call this to create mDecodedStream at first,
-  // and when seeking, to ensure a new stream is set up with fresh buffers.
-  // Decoder monitor must be held.
-  void RecreateDecodedStream(MediaStreamGraph* aGraph);
 
   void Shutdown();
 public:
@@ -317,10 +303,7 @@ public:
     if (mReader) {
       mReader->BreakCycles();
     }
-    {
-      ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mDecodedStream.DestroyData();
-    }
+    mDecodedStream->DestroyData();
     mDecoder = nullptr;
   }
 
@@ -433,9 +416,7 @@ protected:
   bool OutOfDecodedVideo()
   {
     MOZ_ASSERT(OnTaskQueue());
-    // In buffering mode, we keep the last already-played frame in the queue.
-    int emptyVideoSize = mState == DECODER_STATE_BUFFERING ? 1 : 0;
-    return IsVideoDecoding() && !VideoQueue().IsFinished() && VideoQueue().GetSize() <= emptyVideoSize;
+    return IsVideoDecoding() && !VideoQueue().IsFinished() && VideoQueue().GetSize() <= 1;
   }
 
 
@@ -476,13 +457,15 @@ protected:
 
   // Get the video stream position, taking the |playbackRate| change into
   // account. This is a position in the media, not the duration of the playback
-  // so far.
-  int64_t GetVideoStreamPosition() const;
+  // so far. Returns the position for the given time aTimeStamp.
+  int64_t GetVideoStreamPosition(TimeStamp aTimeStamp) const;
 
   // Return the current time, either the audio clock if available (if the media
   // has audio, and the playback is possible), or a clock for the video.
   // Called on the state machine thread.
-  int64_t GetClock() const;
+  // If aTimeStamp is non-null, set *aTimeStamp to the TimeStamp corresponding
+  // to the returned stream time.
+  int64_t GetClock(TimeStamp* aTimeStamp = nullptr) const;
 
   nsresult DropAudioUpToSeekTarget(AudioData* aSample);
   nsresult DropVideoUpToSeekTarget(VideoData* aSample);
@@ -634,11 +617,6 @@ protected:
   // to run.
   // The decoder monitor must be held.
   void CheckIfDecodeComplete();
-
-  // Copy audio from an AudioData packet to aOutput. This may require
-  // inserting silence depending on the timing of the audio packet.
-  void SendStreamAudio(AudioData* aAudio, DecodedStreamData* aStream,
-                       AudioSegment* aOutput);
 
   // Performs one "cycle" of the state machine. Polls the state, and may send
   // a video frame to be displayed, and generally manages the decode. Called
@@ -1162,7 +1140,8 @@ protected:
   {
     MOZ_ASSERT(OnTaskQueue());
     AssertCurrentThreadInMonitor();
-    return !IsAudioDecoding() || GetDecodedAudioDuration() >= AudioPrerollUsecs() * mPlaybackRate;
+    return !IsAudioDecoding() ||
+        GetDecodedAudioDuration() >= AudioPrerollUsecs() * mPlaybackRate;
   }
 
   bool DonePrerollingVideo()
@@ -1170,7 +1149,8 @@ protected:
     MOZ_ASSERT(OnTaskQueue());
     AssertCurrentThreadInMonitor();
     return !IsVideoDecoding() ||
-           static_cast<uint32_t>(VideoQueue().GetSize()) >= VideoPrerollFrames() * mPlaybackRate;
+        static_cast<uint32_t>(VideoQueue().GetSize()) >=
+            VideoPrerollFrames() * mPlaybackRate + 1;
   }
 
   void StopPrerollingAudio()
@@ -1360,7 +1340,7 @@ protected:
   // Only written on the main thread while holding the monitor. Therefore it
   // can be read on any thread while holding the monitor, or on the main thread
   // without holding the monitor.
-  DecodedStream mDecodedStream;
+  nsRefPtr<DecodedStream> mDecodedStream;
 };
 
 } // namespace mozilla

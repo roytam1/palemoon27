@@ -34,7 +34,7 @@ public:
   size_t SizeOfAudioQueueInFrames() override;
 
   nsRefPtr<VideoDataPromise>
-  RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold) override;
+  RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold, bool aForceDecodeAhead) override;
 
   nsRefPtr<AudioDataPromise> RequestAudioData() override;
 
@@ -81,6 +81,8 @@ public:
   nsRefPtr<ShutdownPromise> Shutdown() override;
 
   bool IsAsync() const override { return true; }
+
+  bool VideoIsHardwareAccelerated() const override;
 
   void DisableHardwareAcceleration() override;
 
@@ -182,6 +184,7 @@ private:
       : mOwner(aOwner)
       , mType(aType)
       , mDecodeAhead(aDecodeAhead)
+      , mForceDecodeAhead(false)
       , mUpdateScheduled(false)
       , mDemuxEOS(false)
       , mWaitingForData(false)
@@ -196,6 +199,7 @@ private:
       , mNumSamplesInput(0)
       , mNumSamplesOutput(0)
       , mSizeOfQueue(0)
+      , mIsHardwareAccelerated(false)
       , mLastStreamSourceID(UINT32_MAX)
     {}
 
@@ -213,6 +217,7 @@ private:
 
     // Only accessed from reader's task queue.
     uint32_t mDecodeAhead;
+    bool mForceDecodeAhead;
     bool mUpdateScheduled;
     bool mDemuxEOS;
     bool mWaitingForData;
@@ -266,6 +271,7 @@ private:
     void ResetState()
     {
       MOZ_ASSERT(mOwner->OnTaskQueue());
+      mForceDecodeAhead = false;
       mDemuxEOS = false;
       mWaitingForData = false;
       mReceivedNewData = false;
@@ -285,6 +291,9 @@ private:
 
     // Used by the MDSM for logging purposes.
     Atomic<size_t> mSizeOfQueue;
+    // Used by the MDSM to determine if video decoding is hardware accelerated.
+    // This value is updated after a frame is successfully decoded.
+    Atomic<bool> mIsHardwareAccelerated;
     // Sample format monitoring.
     uint32_t mLastStreamSourceID;
     Maybe<uint32_t> mNextStreamSourceID;

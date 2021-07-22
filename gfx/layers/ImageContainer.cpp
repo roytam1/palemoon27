@@ -16,6 +16,7 @@
 #include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
 #include "mozilla/layers/PImageContainerChild.h"
 #include "mozilla/layers/ImageClient.h"  // for ImageClient
+#include "mozilla/layers/LayersMessages.h"
 #include "nsISupportsUtils.h"           // for NS_IF_ADDREF
 #include "YCbCrUtils.h"                 // for YCbCr conversions
 #ifdef MOZ_WIDGET_GONK
@@ -170,7 +171,9 @@ ImageContainer::ImageContainer(Mode flag)
 : mReentrantMonitor("ImageContainer.mReentrantMonitor"),
   mGenerationCounter(++sGenerationCounter),
   mPaintCount(0),
+  mDroppedImageCount(0),
   mPreviousImagePainted(false),
+  mCurrentImageComposited(false),
   mImageFactory(new ImageFactory()),
   mRecycleBin(new BufferRecycleBin()),
   mImageClient(nullptr),
@@ -234,59 +237,55 @@ ImageContainer::CreateImage(ImageFormat aFormat)
 }
 
 void
-ImageContainer::SetCurrentImageInternal(Image *aImage)
+ImageContainer::SetCurrentImageInternal(Image *aImage,
+                                        const TimeStamp& aTimeStamp)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
   if (mActiveImage != aImage) {
+    if (!mCurrentImageComposited && !mCurrentImageTimeStamp.IsNull() &&
+        (aTimeStamp.IsNull() || aTimeStamp > mCurrentImageTimeStamp)) {
+      mFrameIDsNotYetComposited.AppendElement(mGenerationCounter);
+    }
     mGenerationCounter = ++sGenerationCounter;
+    mCurrentImageComposited = false;
+    mActiveImage = aImage;
+    mCurrentImageTimeStamp = aTimeStamp;
   }
-  mActiveImage = aImage;
   CurrentImageChanged();
 }
 
 void
-ImageContainer::ClearCurrentImage()
+ImageContainer::ClearImagesFromImageBridge()
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  SetCurrentImageInternal(nullptr);
+  SetCurrentImageInternal(nullptr, TimeStamp());
 }
 
 void
-ImageContainer::SetCurrentImage(Image *aImage)
+ImageContainer::SetCurrentImages(const nsTArray<NonOwningImage>& aImages)
 {
-  if (!aImage) {
-    ClearAllImages();
-    return;
-  }
-
+  MOZ_ASSERT(!aImages.IsEmpty());
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   if (IsAsync()) {
     ImageBridgeChild::DispatchImageClientUpdate(mImageClient, this);
   }
-  SetCurrentImageInternal(aImage);
+  MOZ_ASSERT(aImages.Length() == 1);
+  SetCurrentImageInternal(aImages[0].mImage, aImages[0].mTimeStamp);
 }
 
  void
 ImageContainer::ClearAllImages()
 {
   if (IsAsync()) {
-    // Let ImageClient release all TextureClients.
-    ImageBridgeChild::FlushAllImages(mImageClient, this, false);
+    // Let ImageClient release all TextureClients. This doesn't return
+    // until ImageBridge has called ClearCurrentImageFromImageBridge.
+    ImageBridgeChild::FlushAllImages(mImageClient, this);
     return;
   }
 
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  SetCurrentImageInternal(nullptr);
-}
-
-void
-ImageContainer::ClearAllImagesExceptFront()
-{
-  if (IsAsync()) {
-    // Let ImageClient release all TextureClients except front one.
-    ImageBridgeChild::FlushAllImages(mImageClient, this, true);
-  }
+  SetCurrentImageInternal(nullptr, TimeStamp());
 }
 
 void
@@ -295,10 +294,11 @@ ImageContainer::SetCurrentImageInTransaction(Image *aImage)
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   NS_ASSERTION(!mImageClient, "Should use async image transfer with ImageBridge.");
 
-  SetCurrentImageInternal(aImage);
+  SetCurrentImageInternal(aImage, TimeStamp());
 }
 
-bool ImageContainer::IsAsync() const {
+bool ImageContainer::IsAsync() const
+{
   return mImageClient != nullptr;
 }
 
@@ -347,6 +347,31 @@ ImageContainer::GetCurrentSize()
   }
 
   return mActiveImage->GetSize();
+}
+
+void
+ImageContainer::NotifyCompositeInternal(const ImageCompositeNotification& aNotification)
+{
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+
+  while (!mFrameIDsNotYetComposited.IsEmpty()) {
+    if (mFrameIDsNotYetComposited[0] <= aNotification.frameID()) {
+      if (mFrameIDsNotYetComposited[0] < aNotification.frameID()) {
+        ++mDroppedImageCount;
+      }
+      mFrameIDsNotYetComposited.RemoveElementAt(0);
+    } else {
+      break;
+    }
+  }
+  if (aNotification.frameID() == mGenerationCounter) {
+    mCurrentImageComposited = true;
+  }
+
+  if (!aNotification.imageTimeStamp().IsNull()) {
+    mPaintDelay = aNotification.firstCompositeTimeStamp() -
+        aNotification.imageTimeStamp();
+  }
 }
 
 PlanarYCbCrImage::PlanarYCbCrImage(BufferRecycleBin *aRecycleBin)

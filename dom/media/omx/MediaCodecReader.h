@@ -83,7 +83,8 @@ public:
   // Disptach a DecodeVideoFrameTask to decode video data.
   virtual nsRefPtr<VideoDataPromise>
   RequestVideoData(bool aSkipToNextKeyframe,
-                   int64_t aTimeThreshold) override;
+                   int64_t aTimeThreshold,
+                   bool aForceDecodeAhead) override;
 
   // Disptach a DecodeAduioDataTask to decode video data.
   virtual nsRefPtr<AudioDataPromise> RequestAudioData() override;
@@ -147,15 +148,13 @@ protected:
 
     // playback parameters
     CheckedUint32 mInputIndex;
-    // mDiscontinuity, mFlushed, mInputEndOfStream, mInputEndOfStream,
-    // mSeekTimeUs don't be protected by a lock because the
-    // mTaskQueue->Flush() will flush all tasks.
+
     bool mInputEndOfStream;
     bool mOutputEndOfStream;
     int64_t mSeekTimeUs;
     bool mFlushed; // meaningless when mSeekTimeUs is invalid.
     bool mDiscontinuity;
-    nsRefPtr<FlushableMediaTaskQueue> mTaskQueue;
+    nsRefPtr<MediaTaskQueue> mTaskQueue;
     Monitor mTrackMonitor;
 
   private:

@@ -3551,6 +3551,9 @@ nsCycleCollector::CleanupAfterCollection()
 #endif
 
   if (mJSRuntime) {
+    mJSRuntime->FinalizeDeferredThings(mResults.mAnyManual
+                                       ? CycleCollectedJSRuntime::FinalizeNow
+                                       : CycleCollectedJSRuntime::FinalizeIncrementally);
     mJSRuntime->EndCycleCollectionCallback(mResults);
     timeLog.Checkpoint("CleanupAfterCollection::EndCycleCollectionCallback()");
   }
@@ -3611,6 +3614,10 @@ nsCycleCollector::Collect(ccType aCCType,
     TimeLog timeLog;
     FreeSnowWhite(true);
     timeLog.Checkpoint("Collect::FreeSnowWhite");
+  }
+
+  if (aCCType != SliceCC) {
+    mResults.mAnyManual = true;
   }
 
   ++mResults.mNumSlices;
@@ -3810,6 +3817,7 @@ nsCycleCollector::BeginCollection(ccType aCCType,
   // Set up the data structures for building the graph.
   mGraph.Init();
   mResults.Init();
+  mResults.mAnyManual = (aCCType != SliceCC);
   bool mergeZones = ShouldMergeZones(aCCType);
   mResults.mMergedZones = mergeZones;
 

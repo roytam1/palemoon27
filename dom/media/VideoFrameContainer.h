@@ -12,17 +12,13 @@
 #include "gfxPoint.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
+#include "ImageContainer.h"
 
 namespace mozilla {
 
 namespace dom {
 class HTMLMediaElement;
 } // namespace dom
-
-namespace layers {
-class Image;
-class ImageContainer;
-}
 
 /**
  * This object is used in the decoder backend threads and the main thread
@@ -47,7 +43,14 @@ public:
 
   // Call on any thread
   B2G_ACL_EXPORT void SetCurrentFrame(const gfxIntSize& aIntrinsicSize, Image* aImage,
-                       TimeStamp aTargetTime);
+                       const TimeStamp& aTargetTime);
+  void SetCurrentFrames(const gfxIntSize& aIntrinsicSize,
+                        const nsTArray<ImageContainer::NonOwningImage>& aImages);
+  void ClearCurrentFrame(const gfxIntSize& aIntrinsicSize)
+  {
+    SetCurrentFrames(aIntrinsicSize, nsTArray<ImageContainer::NonOwningImage>());
+  }
+
   void ClearCurrentFrame();
   // Time in seconds by which the last painted video frame was late by.
   // E.g. if the last painted frame should have been painted at time t,
@@ -64,6 +67,9 @@ public:
   void ForgetElement() { mElement = nullptr; }
 
 protected:
+  void SetCurrentFramesLocked(const gfxIntSize& aIntrinsicSize,
+                              const nsTArray<ImageContainer::NonOwningImage>& aImages);
+
   // Non-addreffed pointer to the element. The element calls ForgetElement
   // to clear this reference when the element is destroyed.
   dom::HTMLMediaElement* mElement;
@@ -77,6 +83,9 @@ protected:
   // specifies that the Image should be stretched to have the correct aspect
   // ratio.
   gfxIntSize mIntrinsicSize;
+  // For SetCurrentFrame callers we maintain our own mFrameID which is auto-
+  // incremented at every SetCurrentFrame.
+  ImageContainer::FrameID mFrameID;
   // True when the intrinsic size has been changed by SetCurrentFrame() since
   // the last call to Invalidate().
   // The next call to Invalidate() will recalculate

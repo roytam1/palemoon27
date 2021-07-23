@@ -10,7 +10,6 @@
 #include "nsIFrame.h"
 #include "nsDisplayList.h"
 #include "nsSVGEffects.h"
-#include "ImageContainer.h"
 
 using namespace mozilla::layers;
 
@@ -20,6 +19,7 @@ VideoFrameContainer::VideoFrameContainer(dom::HTMLMediaElement* aElement,
                                          already_AddRefed<ImageContainer> aContainer)
   : mElement(aElement),
     mImageContainer(aContainer), mMutex("nsVideoFrameContainer"),
+    mFrameID(0),
     mIntrinsicSizeChanged(false), mImageSizeChanged(false)
 {
   NS_ASSERTION(aElement, "aElement must not be null");
@@ -31,9 +31,30 @@ VideoFrameContainer::~VideoFrameContainer()
 
 void VideoFrameContainer::SetCurrentFrame(const gfxIntSize& aIntrinsicSize,
                                           Image* aImage,
-                                          TimeStamp aTargetTime)
+                                          const TimeStamp& aTargetTime)
+{
+  if (aImage) {
+    MutexAutoLock lock(mMutex);
+    nsAutoTArray<ImageContainer::NonOwningImage,1> imageList;
+    imageList.AppendElement(
+        ImageContainer::NonOwningImage(aImage, aTargetTime, ++mFrameID));
+    SetCurrentFramesLocked(aIntrinsicSize, imageList);
+  } else {
+    ClearCurrentFrame(aIntrinsicSize);
+  }
+}
+
+void VideoFrameContainer::SetCurrentFrames(const gfxIntSize& aIntrinsicSize,
+                                           const nsTArray<ImageContainer::NonOwningImage>& aImages)
 {
   MutexAutoLock lock(mMutex);
+  SetCurrentFramesLocked(aIntrinsicSize, aImages);
+}
+
+void VideoFrameContainer::SetCurrentFramesLocked(const gfxIntSize& aIntrinsicSize,
+                                                 const nsTArray<ImageContainer::NonOwningImage>& aImages)
+{
+  mMutex.AssertCurrentThreadOwns();
 
   if (aIntrinsicSize != mIntrinsicSize) {
     mIntrinsicSize = aIntrinsicSize;
@@ -51,13 +72,10 @@ void VideoFrameContainer::SetCurrentFrame(const gfxIntSize& aIntrinsicSize,
   nsTArray<ImageContainer::OwningImage> kungFuDeathGrip;
   mImageContainer->GetCurrentImages(&kungFuDeathGrip);
 
-  if (aImage) {
-    nsAutoTArray<ImageContainer::NonOwningImage,1> imageList;
-    imageList.AppendElement(
-        ImageContainer::NonOwningImage(aImage, aTargetTime));
-    mImageContainer->SetCurrentImages(imageList);
-  } else {
+  if (aImages.IsEmpty()) {
     mImageContainer->ClearAllImages();
+  } else {
+    mImageContainer->SetCurrentImages(aImages);
   }
   gfx::IntSize newFrameSize = mImageContainer->GetCurrentSize();
   if (oldFrameSize != newFrameSize) {

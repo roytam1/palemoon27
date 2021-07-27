@@ -10,7 +10,7 @@
 #include "MediaData.h"
 #include "MediaSourceDecoder.h"
 #include "SharedThreadPool.h"
-#include "MediaTaskQueue.h"
+#include "mozilla/TaskQueue.h"
 #include "SourceBufferDecoder.h"
 #include "SourceBufferResource.h"
 #include "VideoUtils.h"
@@ -51,7 +51,7 @@ TrackBuffer::TrackBuffer(MediaSourceDecoder* aParentDecoder, const nsACString& a
   MOZ_COUNT_CTOR(TrackBuffer);
   mParser = ContainerParser::CreateForMIMEType(aType);
   mTaskQueue =
-    new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK));
+    new TaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK));
   aParentDecoder->AddTrackBuffer(this);
   mDecoderPerSegment = Preferences::GetBool("media.mediasource.decoder-per-segment", false);
   MSE_DEBUG("TrackBuffer created for parent decoder %p", aParentDecoder);
@@ -112,10 +112,10 @@ TrackBuffer::Shutdown()
   MOZ_ASSERT(mShutdownPromise.IsEmpty());
   nsRefPtr<ShutdownPromise> p = mShutdownPromise.Ensure(__func__);
 
-  RefPtr<MediaTaskQueue> queue = mTaskQueue;
+  RefPtr<TaskQueue> queue = mTaskQueue;
   mTaskQueue = nullptr;
   queue->BeginShutdown()
-       ->Then(mParentDecoder->GetReader()->TaskQueue(), __func__, this,
+       ->Then(mParentDecoder->GetReader()->OwnerThread(), __func__, this,
               &TrackBuffer::ContinueShutdown, &TrackBuffer::ContinueShutdown);
 
   return p;
@@ -127,7 +127,7 @@ TrackBuffer::ContinueShutdown()
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
   if (mDecoders.Length()) {
     mDecoders[0]->GetReader()->Shutdown()
-                ->Then(mParentDecoder->GetReader()->TaskQueue(), __func__, this,
+                ->Then(mParentDecoder->GetReader()->OwnerThread(), __func__, this,
                        &TrackBuffer::ContinueShutdown, &TrackBuffer::ContinueShutdown);
     mShutdownDecoders.AppendElement(mDecoders[0]);
     mDecoders.RemoveElementAt(0);
@@ -267,10 +267,10 @@ TrackBuffer::BufferAppend()
 
   nsRefPtr<TrackBuffer> self = this;
 
-  ProxyMediaCall(mParentDecoder->GetReader()->TaskQueue(), this, __func__,
+  ProxyMediaCall(mParentDecoder->GetReader()->OwnerThread(), this, __func__,
                  &TrackBuffer::UpdateBufferedRanges,
                  mLastAppendRange, /* aNotifyParent */ true)
-      ->Then(mParentDecoder->GetReader()->TaskQueue(), __func__,
+      ->Then(mParentDecoder->GetReader()->OwnerThread(), __func__,
              [self] {
                self->mInitializationPromise.ResolveIfExists(self->HasInitSegment(), __func__);
              },
@@ -348,7 +348,7 @@ TrackBuffer::NotifyTimeRangesChanged()
   RefPtr<nsIRunnable> task =
     NS_NewRunnableMethod(mParentDecoder->GetReader(),
                          &MediaSourceReader::NotifyTimeRangesChanged);
-  mParentDecoder->GetReader()->TaskQueue()->Dispatch(task.forget());
+  mParentDecoder->GetReader()->OwnerThread()->Dispatch(task.forget());
 }
 
 void
@@ -363,7 +363,7 @@ TrackBuffer::NotifyReaderDataRemoved(MediaDecoderReader* aReader)
       reader->NotifyDataRemoved();
       self->UpdateBufferedRanges(Interval<int64_t>(), /* aNotifyParent */ false);
     });
-  aReader->TaskQueue()->Dispatch(task.forget());
+  aReader->OwnerThread()->Dispatch(task.forget());
 }
 
 class DecoderSorter
@@ -679,7 +679,7 @@ TrackBuffer::NewDecoder(TimeUnit aTimestampOffset)
   mLastEndTimestamp.reset();
   mLastTimestampOffset = aTimestampOffset;
 
-  decoder->SetTaskQueue(decoder->GetReader()->TaskQueue());
+  decoder->SetTaskQueue(decoder->GetReader()->OwnerThread());
   return decoder.forget();
 }
 
@@ -695,7 +695,7 @@ TrackBuffer::QueueInitializeDecoder(SourceBufferDecoder* aDecoder)
                                                       &TrackBuffer::InitializeDecoder,
                                                       aDecoder);
   // We need to initialize the reader on its own task queue
-  aDecoder->GetReader()->TaskQueue()->Dispatch(task.forget());
+  aDecoder->GetReader()->OwnerThread()->Dispatch(task.forget());
   return true;
 }
 
@@ -797,11 +797,10 @@ TrackBuffer::InitializeDecoder(SourceBufferDecoder* aDecoder)
     return;
   }
 
-  mMetadataRequest.Begin(promise
-                           ->Then(reader->TaskQueue(), __func__,
-                                  recipient.get(),
-                                  &MetadataRecipient::OnMetadataRead,
-                                  &MetadataRecipient::OnMetadataNotRead));
+  mMetadataRequest.Begin(promise->Then(reader->OwnerThread(), __func__,
+                                       recipient.get(),
+                                       &MetadataRecipient::OnMetadataRead,
+                                       &MetadataRecipient::OnMetadataNotRead));
 }
 
 void
@@ -869,7 +868,7 @@ void
 TrackBuffer::OnMetadataNotRead(ReadMetadataFailureReason aReason,
                                SourceBufferDecoder* aDecoder)
 {
-  MOZ_ASSERT(aDecoder->GetReader()->TaskQueue()->IsCurrentThreadIn());
+  MOZ_ASSERT(aDecoder->GetReader()->OwnerThread()->IsCurrentThreadIn());
 
   mParentDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
@@ -942,10 +941,10 @@ TrackBuffer::CompleteInitializeDecoder(SourceBufferDecoder* aDecoder)
   MSE_DEBUG("Reader %p activated",
             aDecoder->GetReader());
   nsRefPtr<TrackBuffer> self = this;
-  ProxyMediaCall(mParentDecoder->GetReader()->TaskQueue(), this, __func__,
+  ProxyMediaCall(mParentDecoder->GetReader()->OwnerThread(), this, __func__,
                  &TrackBuffer::UpdateBufferedRanges,
                  Interval<int64_t>(), /* aNotifyParent */ true)
-      ->Then(mParentDecoder->GetReader()->TaskQueue(), __func__,
+      ->Then(mParentDecoder->GetReader()->OwnerThread(), __func__,
              [self] {
                self->mInitializationPromise.ResolveIfExists(self->HasInitSegment(), __func__);
              },
@@ -1098,7 +1097,7 @@ TrackBuffer::AbortAppendData()
     RemoveDecoder(current);
   }
   // The SourceBuffer would have disconnected its promise.
-  // However we must ensure that the MediaPromiseHolder handle all pending
+  // However we must ensure that the MozPromiseHolder handle all pending
   // promises.
   mInitializationPromise.RejectIfExists(NS_ERROR_ABORT, __func__);
 }
@@ -1185,7 +1184,7 @@ TrackBuffer::RemoveDecoder(SourceBufferDecoder* aDecoder)
     // Remove associated buffered range from our cache.
     mReadersBuffered.erase(aDecoder);
   }
-  aDecoder->GetReader()->TaskQueue()->Dispatch(task.forget());
+  aDecoder->GetReader()->OwnerThread()->Dispatch(task.forget());
 }
 
 nsRefPtr<TrackBuffer::RangeRemovalPromise>
@@ -1258,10 +1257,10 @@ TrackBuffer::RangeRemoval(TimeUnit aStart, TimeUnit aEnd)
 
   // Make sure our buffered ranges got updated before resolving promise.
   nsRefPtr<TrackBuffer> self = this;
-  ProxyMediaCall(mParentDecoder->GetReader()->TaskQueue(), this, __func__,
+  ProxyMediaCall(mParentDecoder->GetReader()->OwnerThread(), this, __func__,
                  &TrackBuffer::UpdateBufferedRanges,
                  Interval<int64_t>(), /* aNotifyParent */ false)
-    ->Then(mParentDecoder->GetReader()->TaskQueue(), __func__,
+    ->Then(mParentDecoder->GetReader()->OwnerThread(), __func__,
            [self] {
              self->mRangeRemovalPromise.ResolveIfExists(true, __func__);
            },

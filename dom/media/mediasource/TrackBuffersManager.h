@@ -7,13 +7,15 @@
 #ifndef MOZILLA_TRACKBUFFERSMANAGER_H_
 #define MOZILLA_TRACKBUFFERSMANAGER_H_
 
-#include "SourceBufferContentManager.h"
-#include "MediaDataDemuxer.h"
-#include "MediaSourceDecoder.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Pair.h"
+#include "mozilla/StateMirroring.h"
+
+#include "SourceBufferContentManager.h"
+#include "MediaDataDemuxer.h"
+#include "MediaSourceDecoder.h"
 #include "nsProxyRelease.h"
 #include "nsTArray.h"
 
@@ -36,7 +38,7 @@ using dom::SourceBufferAppendMode;
 
 class TrackBuffersManager : public SourceBufferContentManager {
 public:
-  typedef MediaPromise<bool, nsresult, /* IsExclusive = */ true> CodedFrameProcessingPromise;
+  typedef MozPromise<bool, nsresult, /* IsExclusive = */ true> CodedFrameProcessingPromise;
   typedef TrackInfo::TrackType TrackType;
   typedef MediaData::Type MediaType;
   typedef nsTArray<nsRefPtr<MediaRawData>> TrackBuffer;
@@ -173,7 +175,7 @@ private:
 
   void OnDemuxerInitDone(nsresult);
   void OnDemuxerInitFailed(DemuxerFailureReason aFailure);
-  MediaPromiseRequestHolder<MediaDataDemuxer::InitPromise> mDemuxerInitRequest;
+  MozPromiseRequestHolder<MediaDataDemuxer::InitPromise> mDemuxerInitRequest;
   bool mEncrypted;
 
   void OnDemuxFailed(TrackType aTrack, DemuxerFailureReason aFailure);
@@ -228,7 +230,7 @@ private:
     // buffer.
     bool mNeedRandomAccessPoint;
     nsRefPtr<MediaTrackDemuxer> mDemuxer;
-    MediaPromiseRequestHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
+    MozPromiseRequestHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
     // If set, position where the next contiguous frame will be inserted.
     // If a discontinuity is detected, it will be unset and recalculated upon
     // the next insertion.
@@ -287,10 +289,10 @@ private:
   void UpdateBufferedRanges();
   void RejectProcessing(nsresult aRejectValue, const char* aName);
   void ResolveProcessing(bool aResolveValue, const char* aName);
-  MediaPromiseRequestHolder<CodedFrameProcessingPromise> mProcessingRequest;
-  MediaPromiseHolder<CodedFrameProcessingPromise> mProcessingPromise;
+  MozPromiseRequestHolder<CodedFrameProcessingPromise> mProcessingRequest;
+  MozPromiseHolder<CodedFrameProcessingPromise> mProcessingPromise;
 
-  MediaPromiseHolder<AppendPromise> mAppendPromise;
+  MozPromiseHolder<AppendPromise> mAppendPromise;
 
   // Trackbuffers definition.
   nsTArray<TrackData*> GetTracksList();
@@ -315,7 +317,7 @@ private:
   {
     return !GetTaskQueue() || GetTaskQueue()->IsCurrentThreadIn();
   }
-  RefPtr<MediaTaskQueue> mTaskQueue;
+  RefPtr<TaskQueue> mTaskQueue;
 
   TimeInterval mAppendWindow;
   TimeUnit mTimestampOffset;

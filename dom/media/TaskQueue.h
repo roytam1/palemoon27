@@ -4,17 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MediaTaskQueue_h_
-#define MediaTaskQueue_h_
+#ifndef TaskQueue_h_
+#define TaskQueue_h_
+
+#include "mozilla/Monitor.h"
+#include "mozilla/MozPromise.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/TaskDispatcher.h"
+#include "mozilla/unused.h"
 
 #include <queue>
-#include "mozilla/RefPtr.h"
-#include "mozilla/Monitor.h"
-#include "mozilla/unused.h"
+
 #include "SharedThreadPool.h"
 #include "nsThreadUtils.h"
-#include "MediaPromise.h"
-#include "TaskDispatcher.h"
 
 class nsIRunnable;
 
@@ -22,18 +24,20 @@ namespace mozilla {
 
 class SharedThreadPool;
 
-typedef MediaPromise<bool, bool, false> ShutdownPromise;
+typedef MozPromise<bool, bool, false> ShutdownPromise;
 
 // Abstracts executing runnables in order in a thread pool. The runnables
-// dispatched to the MediaTaskQueue will be executed in the order in which
+// dispatched to the TaskQueue will be executed in the order in which
 // they're received, and are guaranteed to not be executed concurrently.
 // They may be executed on different threads, and a memory barrier is used
 // to make this threadsafe for objects that aren't already threadsafe.
-class MediaTaskQueue : public AbstractThread {
+class TaskQueue : public AbstractThread {
 public:
-  explicit MediaTaskQueue(already_AddRefed<SharedThreadPool> aPool, bool aSupportsTailDispatch = false);
+  explicit TaskQueue(already_AddRefed<SharedThreadPool> aPool, bool aSupportsTailDispatch = false);
 
   TaskDispatcher& TailDispatcher() override;
+
+  TaskQueue* AsTaskQueue() override { return this; }
 
   void Dispatch(already_AddRefed<nsIRunnable> aRunnable,
                 DispatchFailureHandling aFailureHandling = AssertDispatchSuccess,
@@ -45,8 +49,8 @@ public:
     unused << rv;
   }
 
-  // DEPRECATED; do not use! If a flush happens at the same time, this function
-  // can hang and block forever! This needs to be removed in the future.
+  // DEPRECATED! Do not us, if a flush happens at the same time, this function
+  // can hang and block forever!
   void SyncDispatch(already_AddRefed<nsIRunnable> aRunnable);
 
   // Puts the queue in a shutdown state and returns immediately. The queue will
@@ -71,7 +75,7 @@ public:
   bool IsCurrentThreadIn() override;
 
 protected:
-  virtual ~MediaTaskQueue();
+  virtual ~TaskQueue();
 
 
   // Blocks until all task finish executing. Called internally by methods
@@ -116,7 +120,7 @@ protected:
   class AutoTaskGuard : public AutoTaskDispatcher
   {
   public:
-    explicit AutoTaskGuard(MediaTaskQueue* aQueue)
+    explicit AutoTaskGuard(TaskQueue* aQueue)
       : AutoTaskDispatcher(/* aIsTailDispatcher = */ true), mQueue(aQueue)
     {
       // NB: We don't hold the lock to aQueue here. Don't do anything that
@@ -142,7 +146,7 @@ protected:
       mQueue->mTailDispatcher = nullptr;
     }
   private:
-  MediaTaskQueue* mQueue;
+  TaskQueue* mQueue;
   };
 
   TaskDispatcher* mTailDispatcher;
@@ -153,27 +157,27 @@ protected:
 
   // True if we've started our shutdown process.
   bool mIsShutdown;
-  MediaPromiseHolder<ShutdownPromise> mShutdownPromise;
+  MozPromiseHolder<ShutdownPromise> mShutdownPromise;
 
   // True if we're flushing; we reject new tasks if we're flushing.
   bool mIsFlushing;
 
   class Runner : public nsRunnable {
   public:
-    explicit Runner(MediaTaskQueue* aQueue)
+    explicit Runner(TaskQueue* aQueue)
       : mQueue(aQueue)
     {
     }
     NS_METHOD Run() override;
   private:
-    RefPtr<MediaTaskQueue> mQueue;
+    RefPtr<TaskQueue> mQueue;
   };
 };
 
-class FlushableMediaTaskQueue : public MediaTaskQueue
+class FlushableTaskQueue : public TaskQueue
 {
 public:
-  explicit FlushableMediaTaskQueue(already_AddRefed<SharedThreadPool> aPool) : MediaTaskQueue(Move(aPool)) {}
+  explicit FlushableTaskQueue(already_AddRefed<SharedThreadPool> aPool) : TaskQueue(Move(aPool)) {}
   nsresult FlushAndDispatch(already_AddRefed<nsIRunnable> aRunnable);
   void Flush();
 
@@ -184,7 +188,7 @@ private:
   class MOZ_STACK_CLASS AutoSetFlushing
   {
   public:
-    explicit AutoSetFlushing(FlushableMediaTaskQueue* aTaskQueue) : mTaskQueue(aTaskQueue)
+    explicit AutoSetFlushing(FlushableTaskQueue* aTaskQueue) : mTaskQueue(aTaskQueue)
     {
       mTaskQueue->mQueueMonitor.AssertCurrentThreadOwns();
       mTaskQueue->mIsFlushing = true;
@@ -196,7 +200,7 @@ private:
     }
 
   private:
-    FlushableMediaTaskQueue* mTaskQueue;
+    FlushableTaskQueue* mTaskQueue;
   };
 
   void FlushLocked();
@@ -205,4 +209,4 @@ private:
 
 } // namespace mozilla
 
-#endif // MediaTaskQueue_h_
+#endif // TaskQueue_h_

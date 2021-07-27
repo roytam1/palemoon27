@@ -6,11 +6,12 @@
 #if !defined(MediaQueue_h_)
 #define MediaQueue_h_
 
-#include "nsDeque.h"
-#include "nsTArray.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/RefPtr.h"
-#include "MediaTaskQueue.h"
+#include "mozilla/TaskQueue.h"
+
+#include "nsDeque.h"
+#include "nsTArray.h"
 
 namespace mozilla {
 
@@ -164,7 +165,7 @@ template <class T> class MediaQueue : private nsDeque {
     mPopListeners.Clear();
   }
 
-  void AddPopListener(nsIRunnable* aRunnable, MediaTaskQueue* aTarget) {
+  void AddPopListener(nsIRunnable* aRunnable, TaskQueue* aTarget) {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     mPopListeners.AppendElement(Listener(aRunnable, aTarget));
   }
@@ -173,7 +174,7 @@ private:
   mutable ReentrantMonitor mReentrantMonitor;
 
   struct Listener {
-    Listener(nsIRunnable* aRunnable, MediaTaskQueue* aTarget)
+    Listener(nsIRunnable* aRunnable, TaskQueue* aTarget)
       : mRunnable(aRunnable)
       , mTarget(aTarget)
     {
@@ -184,7 +185,7 @@ private:
     {
     }
     nsCOMPtr<nsIRunnable> mRunnable;
-    RefPtr<MediaTaskQueue> mTarget;
+    RefPtr<TaskQueue> mTarget;
   };
 
   nsTArray<Listener> mPopListeners;

@@ -133,7 +133,7 @@ private:
   // Queue on the parent's decoder task queue a call to NotifyDataRemoved.
   void NotifyReaderDataRemoved(MediaDecoderReader* aReader);
 
-  typedef MediaPromise<bool, nsresult, /* IsExclusive = */ true> BufferedRangesUpdatedPromise;
+  typedef MozPromise<bool, nsresult, /* IsExclusive = */ true> BufferedRangesUpdatedPromise;
   nsRefPtr<BufferedRangesUpdatedPromise> UpdateBufferedRanges(Interval<int64_t> aByteRange, bool aNotifyParent);
 
   // Queue execution of InitializeDecoder on mTaskQueue.
@@ -180,7 +180,7 @@ private:
   // A task queue using the shared media thread pool.  Used exclusively to
   // initialize (i.e. call ReadMetadata on) decoders as they are created via
   // NewDecoder.
-  RefPtr<MediaTaskQueue> mTaskQueue;
+  RefPtr<TaskQueue> mTaskQueue;
 
   // All of the decoders managed by this TrackBuffer.  Access protected by
   // mParentDecoder's monitor.
@@ -221,15 +221,15 @@ private:
   MediaInfo mInfo;
 
   void ContinueShutdown();
-  MediaPromiseHolder<ShutdownPromise> mShutdownPromise;
+  MozPromiseHolder<ShutdownPromise> mShutdownPromise;
   bool mDecoderPerSegment;
   bool mShutdown;
 
-  MediaPromiseHolder<AppendPromise> mInitializationPromise;
+  MozPromiseHolder<AppendPromise> mInitializationPromise;
   // Track our request for metadata from the reader.
-  MediaPromiseRequestHolder<MediaDecoderReader::MetadataPromise> mMetadataRequest;
+  MozPromiseRequestHolder<MediaDecoderReader::MetadataPromise> mMetadataRequest;
 
-  MediaPromiseHolder<RangeRemovalPromise> mRangeRemovalPromise;
+  MozPromiseHolder<RangeRemovalPromise> mRangeRemovalPromise;
 
   Interval<int64_t> mLastAppendRange;
 

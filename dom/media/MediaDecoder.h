@@ -6,7 +6,7 @@
 /*
 Each video element based on MediaDecoder has a state machine to manage
 its play state and keep the current frame up to date. All state machines
-share time in a single shared thread. Each decoder also has a MediaTaskQueue
+share time in a single shared thread. Each decoder also has a TaskQueue
 running in a SharedThreadPool to decode audio and video data.
 Each decoder also has a thread to push decoded audio
 to the hardware. This thread is not created until playback starts, but
@@ -184,21 +184,23 @@ destroying the MediaDecoder object.
 #if !defined(MediaDecoder_h_)
 #define MediaDecoder_h_
 
+#include "mozilla/MozPromise.h"
+#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/StateMirroring.h"
+#include "mozilla/StateWatching.h"
+
+#include "mozilla/dom/AudioChannelBinding.h"
+
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
 #include "nsITimer.h"
-#include "MediaPromise.h"
 #include "MediaResource.h"
-#include "mozilla/dom/AudioChannelBinding.h"
-#include "mozilla/ReentrantMonitor.h"
 #include "MediaDecoderOwner.h"
 #include "MediaStreamGraph.h"
 #include "AbstractMediaDecoder.h"
 #include "DecodedStream.h"
-#include "StateMirroring.h"
-#include "StateWatching.h"
 #include "necko-config.h"
 #include "TimeUnits.h"
 
@@ -271,7 +273,7 @@ public:
     MediaDecoderEventVisibility mEventVisibility;
   };
 
-  typedef MediaPromise<SeekResolveValue, bool /* aIgnored */, /* IsExclusive = */ true> SeekPromise;
+  typedef MozPromise<SeekResolveValue, bool /* aIgnored */, /* IsExclusive = */ true> SeekPromise;
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
@@ -970,7 +972,7 @@ private:
 protected:
   virtual void CallSeek(const SeekTarget& aTarget);
 
-  MediaPromiseRequestHolder<SeekPromise> mSeekRequest;
+  MozPromiseRequestHolder<SeekPromise> mSeekRequest;
 
   // True when seeking or otherwise moving the play position around in
   // such a manner that progress event data is inaccurate. This is set

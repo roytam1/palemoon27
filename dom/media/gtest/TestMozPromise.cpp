@@ -4,22 +4,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gtest/gtest.h"
+
+#include "mozilla/TaskQueue.h"
+#include "mozilla/MozPromise.h"
+
 #include "nsISupportsImpl.h"
-#include "MediaTaskQueue.h"
-#include "MediaPromise.h"
 #include "SharedThreadPool.h"
 #include "VideoUtils.h"
 
 using namespace mozilla;
 
-typedef MediaPromise<int, double, false> TestPromise;
+typedef MozPromise<int, double, false> TestPromise;
 typedef TestPromise::ResolveOrRejectValue RRValue;
 
 class MOZ_STACK_CLASS AutoTaskQueue
 {
 public:
   AutoTaskQueue()
-    : mTaskQueue(new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK)))
+    : mTaskQueue(new TaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK)))
   {}
 
   ~AutoTaskQueue()
@@ -27,15 +29,15 @@ public:
     mTaskQueue->AwaitShutdownAndIdle();
   }
 
-  MediaTaskQueue* TaskQueue() { return mTaskQueue; }
+  TaskQueue* Queue() { return mTaskQueue; }
 private:
-  nsRefPtr<MediaTaskQueue> mTaskQueue;
+  nsRefPtr<TaskQueue> mTaskQueue;
 };
 
 class DelayedResolveOrReject : public nsRunnable
 {
 public:
-  DelayedResolveOrReject(MediaTaskQueue* aTaskQueue,
+  DelayedResolveOrReject(TaskQueue* aTaskQueue,
                          TestPromise::Private* aPromise,
                          TestPromise::ResolveOrRejectValue aValue,
                          int aIterations)
@@ -71,7 +73,7 @@ protected:
   ~DelayedResolveOrReject() {}
 
 private:
-  nsRefPtr<MediaTaskQueue> mTaskQueue;
+  nsRefPtr<TaskQueue> mTaskQueue;
   nsRefPtr<TestPromise::Private> mPromise;
   TestPromise::ResolveOrRejectValue mValue;
   int mIterations;
@@ -79,7 +81,7 @@ private:
 
 template<typename FunctionType>
 void
-RunOnTaskQueue(MediaTaskQueue* aQueue, FunctionType aFun)
+RunOnTaskQueue(TaskQueue* aQueue, FunctionType aFun)
 {
   nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction(aFun);
   aQueue->Dispatch(r.forget());
@@ -88,10 +90,10 @@ RunOnTaskQueue(MediaTaskQueue* aQueue, FunctionType aFun)
 // std::function can't come soon enough. :-(
 #define DO_FAIL []()->void { EXPECT_TRUE(false); }
 
-TEST(MediaPromise, BasicResolve)
+TEST(MozPromise, BasicResolve)
 {
   AutoTaskQueue atq;
-  nsRefPtr<MediaTaskQueue> queue = atq.TaskQueue();
+  nsRefPtr<TaskQueue> queue = atq.Queue();
   RunOnTaskQueue(queue, [queue] () -> void {
     TestPromise::CreateAndResolve(42, __func__)->Then(queue, __func__,
       [queue] (int aResolveValue) -> void { EXPECT_EQ(aResolveValue, 42); queue->BeginShutdown(); },
@@ -99,10 +101,10 @@ TEST(MediaPromise, BasicResolve)
   });
 }
 
-TEST(MediaPromise, BasicReject)
+TEST(MozPromise, BasicReject)
 {
   AutoTaskQueue atq;
-  nsRefPtr<MediaTaskQueue> queue = atq.TaskQueue();
+  nsRefPtr<TaskQueue> queue = atq.Queue();
   RunOnTaskQueue(queue, [queue] () -> void {
     TestPromise::CreateAndReject(42.0, __func__)->Then(queue, __func__,
       DO_FAIL,
@@ -110,10 +112,10 @@ TEST(MediaPromise, BasicReject)
   });
 }
 
-TEST(MediaPromise, AsyncResolve)
+TEST(MozPromise, AsyncResolve)
 {
   AutoTaskQueue atq;
-  nsRefPtr<MediaTaskQueue> queue = atq.TaskQueue();
+  nsRefPtr<TaskQueue> queue = atq.Queue();
   RunOnTaskQueue(queue, [queue] () -> void {
     nsRefPtr<TestPromise::Private> p = new TestPromise::Private(__func__);
 
@@ -139,11 +141,11 @@ TEST(MediaPromise, AsyncResolve)
   });
 }
 
-TEST(MediaPromise, CompletionPromises)
+TEST(MozPromise, CompletionPromises)
 {
   bool invokedPass = false;
   AutoTaskQueue atq;
-  nsRefPtr<MediaTaskQueue> queue = atq.TaskQueue();
+  nsRefPtr<TaskQueue> queue = atq.Queue();
   RunOnTaskQueue(queue, [queue, &invokedPass] () -> void {
     TestPromise::CreateAndResolve(40, __func__)
     ->Then(queue, __func__,
@@ -171,10 +173,10 @@ TEST(MediaPromise, CompletionPromises)
   });
 }
 
-TEST(MediaPromise, PromiseAllResolve)
+TEST(MozPromise, PromiseAllResolve)
 {
   AutoTaskQueue atq;
-  nsRefPtr<MediaTaskQueue> queue = atq.TaskQueue();
+  nsRefPtr<TaskQueue> queue = atq.Queue();
   RunOnTaskQueue(queue, [queue] () -> void {
 
     nsTArray<nsRefPtr<TestPromise>> promises;
@@ -195,10 +197,10 @@ TEST(MediaPromise, PromiseAllResolve)
   });
 }
 
-TEST(MediaPromise, PromiseAllReject)
+TEST(MozPromise, PromiseAllReject)
 {
   AutoTaskQueue atq;
-  nsRefPtr<MediaTaskQueue> queue = atq.TaskQueue();
+  nsRefPtr<TaskQueue> queue = atq.Queue();
   RunOnTaskQueue(queue, [queue] () -> void {
 
     nsTArray<nsRefPtr<TestPromise>> promises;

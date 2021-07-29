@@ -505,10 +505,11 @@ struct AutoResolving {
 /*
  * Enumerate all contexts in a runtime.
  */
-class ContextIter {
+class ContextIter
+{
     JSContext* iter;
 
-public:
+  public:
     explicit ContextIter(JSRuntime* rt) {
         iter = rt->contextList.getFirst();
     }
@@ -663,10 +664,10 @@ CheckForInterrupt(JSContext* cx)
 
 /************************************************************************/
 
-typedef JS::AutoVectorRooter<JSString*> AutoStringVector;
 typedef JS::AutoVectorRooter<PropertyName*> AutoPropertyNameVector;
 
 using ShapeVector = js::TraceableVector<Shape*>;
+using StringVector = js::TraceableVector<JSString*>;
 
 /* AutoArrayRooter roots an external array of Values. */
 class AutoArrayRooter : private JS::AutoGCRooter
@@ -768,6 +769,7 @@ bool intrinsic_IsPackedArray(JSContext* cx, unsigned argc, Value* vp);
 
 bool intrinsic_IsSuspendedStarGenerator(JSContext* cx, unsigned argc, Value* vp);
 bool intrinsic_IsArrayIterator(JSContext* cx, unsigned argc, Value* vp);
+bool intrinsic_IsMapIterator(JSContext* cx, unsigned argc, Value* vp);
 bool intrinsic_IsStringIterator(JSContext* cx, unsigned argc, Value* vp);
 
 bool intrinsic_IsArrayBuffer(JSContext* cx, unsigned argc, Value* vp);

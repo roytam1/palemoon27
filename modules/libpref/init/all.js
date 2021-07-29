@@ -341,7 +341,6 @@ pref("media.fragmented-mp4.enabled", true);
 // decoder works on all platforms.
 pref("media.use-blank-decoder", false);
 #ifdef MOZ_WMF
-pref("media.windows-media-foundation.enabled", true);
 pref("media.wmf.decoder.thread-count", -1);
 #endif
 #if defined(MOZ_FFMPEG)
@@ -494,10 +493,10 @@ pref("media.mediasource.webm.enabled", false);
 // Enable new MediaSource architecture.
 pref("media.mediasource.format-reader", true);
 
-// Enable the MediaFormatReader architecture for MP4 + MSE.
-pref("media.mediasource.format-reader.mp4", true);
-// Enable the MediaFormatReader architecture for plain MP4.
-pref("media.format-reader.mp4", true);
+// Enable new MediaFormatReader architecture for webm in MSE
+pref("media.mediasource.format-reader.webm", false);
+// Enable new MediaFormatReader architecture for plain webm.
+pref("media.format-reader.webm", false);
 
 #ifdef MOZ_WEBSPEECH
 pref("media.webspeech.recognition.enable", false);

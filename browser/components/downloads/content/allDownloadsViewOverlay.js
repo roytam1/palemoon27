@@ -2,10 +2,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadsDataItem",
+let { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
+
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
+                                  "resource://gre/modules/DownloadUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
                                   "resource:///modules/DownloadsCommon.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadsViewUI",
+                                  "resource:///modules/DownloadsViewUI.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
+                                  "resource://gre/modules/FileUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
+                                  "resource://gre/modules/NetUtil.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "OS",
+                                  "resource://gre/modules/osfile.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
+                                  "resource://gre/modules/PlacesUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
                                   "resource:///modules/RecentWindow.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Services",
+                                  "resource://gre/modules/Services.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Task",
+                                  "resource://gre/modules/Task.jsm");
 
 const nsIDM = Ci.nsIDownloadManager;
 
@@ -22,16 +42,19 @@ const DOWNLOAD_VIEW_SUPPORTED_COMMANDS =
  * Represents a download from the browser history. It implements part of the
  * interface of the Download object.
  *
- * @param url
- *        URI string for the download source.
- * @param endTime
- *        Timestamp with the end time for the download, used if there is no
- *        additional metadata available.
+ * @param aPlacesNode
+ *        The Places node from which the history download should be initialized.
  */
 function HistoryDownload(aPlacesNode) {
   // TODO (bug 829201): history downloads should get the referrer from Places.
-  this.source = { url: aPlacesNode.uri };
-  this.target = { path: undefined, size: undefined };
+  this.source = {
+    url: aPlacesNode.uri,
+  };
+  this.target = {
+    path: undefined,
+    exists: false,
+    size: undefined,
+  };
 
   // In case this download cannot obtain its end time from the Places metadata,
   // use the time from the Places node, that is the start time of the download.
@@ -42,18 +65,16 @@ HistoryDownload.prototype = {
   /**
    * Pushes information from Places metadata into this object.
    */
-  updateFromMetaData(aPlacesMetaData) {
+  updateFromMetaData(metaData) {
     try {
       this.target.path = Cc["@mozilla.org/network/protocol;1?name=file"]
                            .getService(Ci.nsIFileProtocolHandler)
-                           .getFileFromURLSpec(aPlacesMetaData.
-                                               targetFileURISpec).path;
+                           .getFileFromURLSpec(metaData.targetFileSpec).path;
     } catch (ex) {
       this.target.path = undefined;
     }
 
-    try {
-      let metaData = JSON.parse(aPlacesMetaData.jsonDetails);
+    if ("state" in metaData) {
       this.succeeded = metaData.state == nsIDM.DOWNLOAD_FINISHED;
       this.error = metaData.state == nsIDM.DOWNLOAD_FAILED
                    ? { message: "History download failed." }
@@ -65,8 +86,12 @@ HistoryDownload.prototype = {
       this.canceled = metaData.state == nsIDM.DOWNLOAD_CANCELED ||
                       metaData.state == nsIDM.DOWNLOAD_PAUSED;
       this.endTime = metaData.endTime;
+
+      // Normal history downloads are assumed to exist until the user interface
+      // is refreshed, at which point these values may be updated.
+      this.target.exists = true;
       this.target.size = metaData.fileSize;
-    } catch (ex) {
+    } else {
       // Metadata might be missing from a download that has started but hasn't
       // stopped already. Normally, this state is overridden with the one from
       // the corresponding in-progress session download. But if the browser is
@@ -80,13 +105,11 @@ HistoryDownload.prototype = {
       this.succeeded = !this.target.path;
       this.error = this.target.path ? { message: "Unstarted download." } : null;
       this.canceled = false;
-      this.target.size = -1;
-    }
 
-    // This property is currently used to get the size of downloads, but will be
-    // replaced by download.target.size when available for session downloads.
-    this.totalBytes = this.target.size;
-    this.currentBytes = this.target.size;
+      // These properties may be updated if the user interface is refreshed.
+      this.exists = false;
+      this.target.size = undefined;
+    }
   },
 
   /**
@@ -111,11 +134,14 @@ HistoryDownload.prototype = {
   /**
    * This method mimicks the "start" method of session downloads, and is called
    * when the user retries a history download.
+   *
+   * At present, we always ask the user for a new target path when retrying a
+   * history download. In the future we may consider reusing the known target
+   * path if the folder still exists and the file name is not already used,
+   * except when the user preferences indicate that the target path should be
+   * requested every time a new download is started.
    */
   start() {
-    // In future we may try to download into the same original target uri, when
-    // we have it.  Though that requires verifying the path is still valid and
-    // may surprise the user if he wants to be requested every time.
     let browserWin = RecentWindow.getMostRecentBrowserWindow();
     let initiatingDoc = browserWin ? browserWin.document : document;
 
@@ -125,21 +151,20 @@ HistoryDownload.prototype = {
 
     return Promise.resolve();
   },
-};
 
-/**
- * Represents a download from the browser history. It uses the same interface as
- * the DownloadsDataItem object.
- *
- * @param aPlacesNode
- *        The Places node for the history download.
- */
-function DownloadsHistoryDataItem(aPlacesNode) {
-  this.download = new HistoryDownload(aPlacesNode);
-}
-
-DownloadsHistoryDataItem.prototype = {
-  __proto__: DownloadsDataItem.prototype,
+  /**
+   * This method mimicks the "refresh" method of session downloads, except that
+   * it cannot notify that the data changed to the Downloads View.
+   */
+  refresh: Task.async(function* () {
+    try {
+      this.target.size = (yield OS.File.stat(this.target.path)).size;
+      this.target.exists = true;
+    } catch (ex) {
+      // We keep the known file size from the metadata, if any.
+      this.target.exists = false;
+    }
+  }),
 };
 
 /**
@@ -147,7 +172,7 @@ DownloadsHistoryDataItem.prototype = {
  * displayed data for a single download view element.
  *
  * The shell may contain a session download, a history download, or both.  When
- * both a history and a current download are present, the current download gets
+ * both a history and a session download are present, the session download gets
  * priority and its information is displayed.
  *
  * On construction, a new richlistitem is created, and can be accessed through
@@ -157,28 +182,28 @@ DownloadsHistoryDataItem.prototype = {
  * The caller is also responsible for forwarding status notifications for
  * session downloads, calling the onStateChanged and onChanged methods.
  *
- * @param [optional] aSessionDataItem
- *        The session download, required if aHistoryDataItem is not set.
- * @param [optional] aHistoryDataItem
- *        The history download, required if aSessionDataItem is not set.
+ * @param [optional] aSessionDownload
+ *        The session download, required if aHistoryDownload is not set.
+ * @param [optional] aHistoryDownload
+ *        The history download, required if aSessionDownload is not set.
  */
-function HistoryDownloadElementShell(aSessionDataItem, aHistoryDataItem) {
+function HistoryDownloadElementShell(aSessionDownload, aHistoryDownload) {
   this.element = document.createElement("richlistitem");
   this.element._shell = this;
 
   this.element.classList.add("download");
   this.element.classList.add("download-state");
 
-  if (aSessionDataItem) {
-    this.sessionDataItem = aSessionDataItem;
+  if (aSessionDownload) {
+    this.sessionDownload = aSessionDownload;
   }
-  if (aHistoryDataItem) {
-    this.historyDataItem = aHistoryDataItem;
+  if (aHistoryDownload) {
+    this.historyDownload = aHistoryDownload;
   }
 }
 
 HistoryDownloadElementShell.prototype = {
-  __proto__: DownloadElementShell.prototype,
+  __proto__: DownloadsViewUI.DownloadElementShell.prototype,
 
   /**
    * Manages the "active" state of the shell.  By default all the shells without
@@ -196,20 +221,20 @@ HistoryDownloadElementShell.prototype = {
   get active() !!this._active,
 
   /**
-   * DownloadsDataItem or DownloadsHistoryDataItem object to use for displaying
-   * information and for executing commands in the user interface.
+   * Overrides the base getter to return the Download or HistoryDownload object
+   * for displaying information and executing commands in the user interface.
    */
-  get dataItem() this._sessionDataItem || this._historyDataItem,
+  get download() this._sessionDownload || this._historyDownload,
 
-  _sessionDataItem: null,
-  get sessionDataItem() this._sessionDataItem,
-  set sessionDataItem(aValue) {
-    if (this._sessionDataItem != aValue) {
-      if (!aValue && !this._historyDataItem) {
-        throw new Error("Should always have either a dataItem or a historyDataItem");
+  _sessionDownload: null,
+  get sessionDownload() this._sessionDownload,
+  set sessionDownload(aValue) {
+    if (this._sessionDownload != aValue) {
+      if (!aValue && !this._historyDownload) {
+        throw new Error("Should always have either a Download or a HistoryDownload");
       }
 
-      this._sessionDataItem = aValue;
+      this._sessionDownload = aValue;
 
       this.ensureActive();
       this._updateUI();
@@ -217,19 +242,19 @@ HistoryDownloadElementShell.prototype = {
     return aValue;
   },
 
-  _historyDataItem: null,
-  get historyDataItem() this._historyDataItem,
-  set historyDataItem(aValue) {
-    if (this._historyDataItem != aValue) {
-      if (!aValue && !this._sessionDataItem) {
-        throw new Error("Should always have either a dataItem or a historyDataItem");
+  _historyDownload: null,
+  get historyDownload() this._historyDownload,
+  set historyDownload(aValue) {
+    if (this._historyDownload != aValue) {
+      if (!aValue && !this._sessionDownload) {
+        throw new Error("Should always have either a Download or a HistoryDownload");
       }
 
-      this._historyDataItem = aValue;
+      this._historyDownload = aValue;
 
       // We don't need to update the UI if we had a session data item, because
       // the places information isn't used in this case.
-      if (!this._sessionDataItem) {
+      if (!this._sessionDownload) {
         this._updateUI();
       }
     }
@@ -285,36 +310,19 @@ HistoryDownloadElementShell.prototype = {
     }
     switch (aCommand) {
       case "downloadsCmd_open":
-        // We cannot open a session download file unless it's succeeded.
-        // If it's succeeded, we need to make sure the file was not removed,
-        // as we do for past downloads.
-        if (this._sessionDataItem && !this.download.succeeded) {
-          return false;
-        }
-
-        if (this._targetFileChecked) {
-          return this._targetFileExists;
-        }
-
-        // If the target file information is not yet fetched,
-        // temporarily assume that the file is in place.
-        return this.download.succeeded;
+        // This property is false if the download did not succeed.
+        return this.download.target.exists;
       case "downloadsCmd_show":
         // TODO: Bug 827010 - Handle part-file asynchronously.
-        if (this._sessionDataItem && this.download.target.partFilePath) {
+        if (this._sessionDownload && this.download.target.partFilePath) {
           let partFile = new FileUtils.File(this.download.target.partFilePath);
           if (partFile.exists()) {
             return true;
           }
         }
 
-        if (this._targetFileChecked) {
-          return this._targetFileExists;
-        }
-
-        // If the target file information is not yet fetched,
-        // temporarily assume that the file is in place.
-        return this.download.succeeded;
+        // This property is false if the download did not succeed.
+        return this.download.target.exists;
       case "downloadsCmd_pauseResume":
         return this.download.hasPartialData && !this.download.error;
       case "downloadsCmd_retry":
@@ -325,7 +333,7 @@ HistoryDownloadElementShell.prototype = {
         // We don't want in-progress downloads to be removed accidentally.
         return this.download.stopped;
       case "downloadsCmd_cancel":
-        return !!this._sessionDataItem;
+        return !!this._sessionDownload;
     }
     return false;
   },
@@ -353,13 +361,10 @@ HistoryDownloadElementShell.prototype = {
         break;
       }
       case "cmd_delete": {
-        if (this._sessionDataItem) {
-          Downloads.getList(Downloads.ALL)
-                   .then(list => list.remove(this.download))
-                   .then(() => this.download.finalize(true))
-                   .catch(Cu.reportError);
+        if (this._sessionDownload) {
+          DownloadsCommon.removeAndFinalizeDownload(this.download);
         }
-        if (this._historyDataItem) {
+        if (this._historyDownload) {
           let uri = NetUtil.newURI(this.download.source.url);
           PlacesUtils.bhistory.removePage(uri);
         }
@@ -418,8 +423,8 @@ HistoryDownloadElementShell.prototype = {
       }
       return "";
     }
-    let command = getDefaultCommandForState(
-                            DownloadsCommon.stateOfDownload(this.download));
+    let state = DownloadsCommon.stateOfDownload(this.download);
+    let command = getDefaultCommandForState(state);
     if (command && this.isCommandEnabled(command)) {
       this.doCommand(command);
     }
@@ -451,7 +456,7 @@ HistoryDownloadElementShell.prototype = {
 
   _checkTargetFileOnSelect: Task.async(function* () {
     try {
-      this._targetFileExists = yield OS.File.exists(this.download.target.path);
+      yield this.download.refresh();
     } finally {
       // Do not try to check for existence again if this failed once.
       this._targetFileChecked = true;
@@ -461,12 +466,16 @@ HistoryDownloadElementShell.prototype = {
     if (this.element.selected) {
       goUpdateDownloadCommands();
     }
+
+    // Ensure the interface has been updated based on the new values. We need to
+    // do this because history downloads can't trigger update notifications.
+    this._updateProgress();
   }),
 };
 
 /**
  * A Downloads Places View is a places view designed to show a places query
- * for history downloads alongside the current "session"-downloads.
+ * for history downloads alongside the session downloads.
  *
  * As we don't use the places controller, some methods implemented by other
  * places views are not implemented by this view.
@@ -485,7 +494,7 @@ function DownloadsPlacesView(aRichListBox, aActive = true) {
   this._downloadElementsShellsForURI = new Map();
 
   // Map download data items to their element shells.
-  this._viewItemsForDataItems = new WeakMap();
+  this._viewItemsForDownloads = new WeakMap();
 
   // Points to the last session download element. We keep track of this
   // in order to keep all session downloads above past downloads.
@@ -529,94 +538,82 @@ DownloadsPlacesView.prototype = {
   },
 
   /**
-   * Map containing a metadata object for each download source URI found in
-   * Places annotations, or null if this cache must be rebuilt.
+   * This cache exists in order to optimize the load of the Downloads View, when
+   * Places annotations for history downloads must be read. In fact, annotations
+   * are stored in a single table, and reading all of them at once is much more
+   * efficient than an individual query.
+   *
+   * When this property is first requested, it reads the annotations for all the
+   * history downloads and stores them indefinitely.
+   *
+   * The historical annotations are not expected to change for the duration of
+   * the session, except in the case where a session download is running for the
+   * same URI as a history download. To ensure we don't use stale data, URIs
+   * corresponding to session downloads are permanently removed from the cache.
+   * This is a very small mumber compared to history downloads.
+   *
+   * This property returns a Map from each download source URI found in Places
+   * annotations to an object with the format:
+   *
+   * { targetFileSpec, state, endTime, fileSize, ... }
+   *
+   * The targetFileSpec property is the value of "downloads/destinationFileURI",
+   * while the other properties are taken from "downloads/metaData". Any of the
+   * properties may be missing from the object.
    */
-  _cachedPlacesMetaData: null,
+  get _cachedPlacesMetaData() {
+    if (!this.__cachedPlacesMetaData) {
+      this.__cachedPlacesMetaData = new Map();
 
-  /**
-   * This method exists in order to optimize the first load of the Downloads
-   * View, when Places annotations for history downloads must be read. In fact,
-   * annotations are stored in a single table, and reading all of them at once
-   * is much more efficient than an individual query.
-   *
-   * When this metod is first called, after the Places result container has been
-   * invalidated, it reads the annotations for all the history downloads.
-   *
-   * At this point, as metadata for the various elements is requested by the
-   * view, it is pulled from the cache and returned as an object.
-   *
-   * This works efficiently because the metadata is requested only for newly
-   * created element shells that contain a history download but don't have a
-   * matching session download, and at most one such element shell is created
-   * for each source URI.
-   *
-   * @param url
-   *        URI string of the Places node for which metadata is requested.
-   *
-   * @return Object of the form { targetFileURISpec, jsonDetails }.
-   *         Any of the properties may be missing from the object.
-   */
-  _getCachedPlacesMetaDataFor(url) {
-    if (!this._cachedPlacesMetaData) {
-      this._cachedPlacesMetaData = new Map();
-
-      // Use the destination file annotation to build the initial Map of items.
-      for (let result of PlacesUtils.annotations.getAnnotationsWithName(
-                                                 DESTINATION_FILE_URI_ANNO)) {
-        this._cachedPlacesMetaData.set(result.uri.spec, {
-          targetFileURISpec: result.annotationValue,
-        });
-      }
-
-      // Add the string with the JSON details from the metadata annotation.
+      // Read the metadata annotations first, but ignore invalid JSON.
       for (let result of PlacesUtils.annotations.getAnnotationsWithName(
                                                  DOWNLOAD_META_DATA_ANNO)) {
-        let metadata = this._cachedPlacesMetaData.get(result.uri.spec);
+        try {
+          this.__cachedPlacesMetaData.set(result.uri.spec,
+                                          JSON.parse(result.annotationValue));
+        } catch (ex) {}
+      }
 
-        // The destination file annotation is expected to be present for all
-        // the downloads with the metadata annotation. If this is not the case,
-        // we simply ignore the item, as if it has no JSON details at all.
-        if (metadata) {
-          metadata.jsonDetails = result.annotationValue;
+      // Add the target file annotations to the metadata.
+      for (let result of PlacesUtils.annotations.getAnnotationsWithName(
+                                                 DESTINATION_FILE_URI_ANNO)) {
+        let metaData = this.__cachedPlacesMetaData.get(result.uri.spec);
+        if (!metaData) {
+          metaData = {};
+          this.__cachedPlacesMetaData.set(result.uri.spec, metaData);
         }
+        metaData.targetFileSpec = result.annotationValue;
       }
     }
 
-    let metadata = this._cachedPlacesMetaData.get(url);
-    this._cachedPlacesMetaData.delete(url);
-
-    // In the rare case where a history download is added again, but there is no
-    // corresponding session download, read the metadata from the database. This
-    // could potentially cause an inefficient database access for very old
-    // downloads with no metadata to begin with, but these should have been
-    // already deleted from history on a recent browser profile.
-    return metadata || this._getPlacesMetaDataFor(url);
+    return this.__cachedPlacesMetaData;
   },
+  __cachedPlacesMetaData: null,
 
   /**
-   * Read the latest version of the Places metadata for the given URI.
+   * Reads current metadata from Places annotations for the specified URI, and
+   * returns an object with the format:
    *
-   * @param url
-   *        URI string of the Places node for which metadata is requested.
+   * { targetFileSpec, state, endTime, fileSize, ... }
    *
-   * @return Object of the form { targetFileURISpec, jsonDetails }.
-   *         Any of the properties may be missing from the object.
+   * The targetFileSpec property is the value of "downloads/destinationFileURI",
+   * while the other properties are taken from "downloads/metaData". Any of the
+   * properties may be missing from the object.
    */
-  _getPlacesMetaDataFor(url) {
-    let metadata = {};
+  _getPlacesMetaDataFor(spec) {
+    let metaData = {};
 
     try {
-      let uri = NetUtil.newURI(url);
-      metadata = {
-        targetFileURISpec: PlacesUtils.annotations.getPageAnnotation(
-                                       uri, DESTINATION_FILE_URI_ANNO),
-      };
-      metadata.jsonDetails = PlacesUtils.annotations.getPageAnnotation(
-                                         uri, DOWNLOAD_META_DATA_ANNO);
+      let uri = NetUtil.newURI(spec);
+      try {
+        metaData = JSON.parse(PlacesUtils.annotations.getPageAnnotation(
+                                          uri, DOWNLOAD_META_DATA_ANNO));
+      } catch (ex) {}
+      metaData.targetFileSpec = PlacesUtils.annotations.getPageAnnotation(
+                                            uri, DESTINATION_FILE_URI_ANNO);
     } catch (ex) {}
 
-    return metadata;
+    return metaData;
   },
 
   /**
@@ -631,14 +628,12 @@ DownloadsPlacesView.prototype = {
    *     alongside the other session downloads. If we don't, then we go ahead
    *     and create a new element for the download.
    *
-   * @param aDataItem
-   *        The data item of a session download. Set to null for history
-   *        downloads data.
+   * @param [optional] sessionDownload
+   *        A Download object, or null for history downloads.
    * @param [optional] aPlacesNode
-   *        The places node for a history download. Required if there's no data
-   *        item.
+   *        The Places node for a history download, or null for session downloads.
    * @param [optional] aNewest
-   *        @see onDataItemAdded. Ignored for history downloads.
+   *        @see onDownloadAdded. Ignored for history downloads.
    * @param [optional] aDocumentFragment
    *        To speed up the appending of multiple elements to the end of the
    *        list which are coming in a single batch (i.e. invalidateContainer),
@@ -646,15 +641,26 @@ DownloadsPlacesView.prototype = {
    *        be appended. It's the caller's job to ensure the fragment is merged
    *        to the richlistbox at the end.
    */
-  _addDownloadData(aDataItem, aPlacesNode, aNewest = false,
+  _addDownloadData(sessionDownload, aPlacesNode, aNewest = false,
                    aDocumentFragment = null) {
-    let sessionDownload = aDataItem && aDataItem.download;
     let downloadURI = aPlacesNode ? aPlacesNode.uri
                                   : sessionDownload.source.url;
     let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI);
     if (!shellsForURI) {
       shellsForURI = new Set();
       this._downloadElementsShellsForURI.set(downloadURI, shellsForURI);
+    }
+
+    // When a session download is attached to a shell, we ensure not to keep
+    // stale metadata around for the corresponding history download. This
+    // prevents stale state from being used if the view is rebuilt.
+    //
+    // Note that we will eagerly load the data in the cache at this point, even
+    // if we have seen no history download. The case where no history download
+    // will appear at all is rare enough in normal usage, so we can apply this
+    // simpler solution rather than keeping a list of cache items to ignore.
+    if (sessionDownload) {
+      this._cachedPlacesMetaData.delete(sessionDownload.source.url);
     }
 
     let newOrUpdatedShell = null;
@@ -674,21 +680,21 @@ DownloadsPlacesView.prototype = {
     //    item).
     //
     // Note: If a cancelled session download is already in the list, and the
-    // download is retired, onDataItemAdded is called again for the same
+    // download is retried, onDownloadAdded is called again for the same
     // data item. Thus, we also check that we make sure we don't have a view item
     // already.
     if (!shouldCreateShell &&
-        aDataItem && !this._viewItemsForDataItems.has(aDataItem)) {
+        sessionDownload && !this._viewItemsForDownloads.has(sessionDownload)) {
       // If there's a past-download-only shell for this download-uri with no
       // associated data item, use it for the new data item. Otherwise, go ahead
       // and create another shell.
       shouldCreateShell = true;
       for (let shell of shellsForURI) {
-        if (!shell.sessionDataItem) {
+        if (!shell.sessionDownload) {
           shouldCreateShell = false;
-          shell.sessionDataItem = aDataItem;
+          shell.sessionDownload = sessionDownload;
           newOrUpdatedShell = shell;
-          this._viewItemsForDataItems.set(aDataItem, shell);
+          this._viewItemsForDownloads.set(sessionDownload, shell);
           break;
         }
       }
@@ -698,18 +704,20 @@ DownloadsPlacesView.prototype = {
       // If we are adding a new history download here, it means there is no
       // associated session download, thus we must read the Places metadata,
       // because it will not be obscured by the session download.
-      let historyDataItem = null;
+      let historyDownload = null;
       if (aPlacesNode) {
-        let metaData = this._getCachedPlacesMetaDataFor(aPlacesNode.uri);
-        historyDataItem = new DownloadsHistoryDataItem(aPlacesNode);
-        historyDataItem.download.updateFromMetaData(metaData);
+        let metaData = this._cachedPlacesMetaData.get(aPlacesNode.uri) ||
+                       this._getPlacesMetaDataFor(aPlacesNode.uri);
+        historyDownload = new HistoryDownload(aPlacesNode);
+        historyDownload.updateFromMetaData(metaData);
       }
-      let shell = new HistoryDownloadElementShell(aDataItem, historyDataItem);
+      let shell = new HistoryDownloadElementShell(sessionDownload,
+                                                  historyDownload);
       shell.element._placesNode = aPlacesNode;
       newOrUpdatedShell = shell;
       shellsForURI.add(shell);
-      if (aDataItem) {
-        this._viewItemsForDataItems.set(aDataItem, shell);
+      if (sessionDownload) {
+        this._viewItemsForDownloads.set(sessionDownload, shell);
       }
     } else if (aPlacesNode) {
       // We are updating information for a history download for which we have
@@ -724,9 +732,9 @@ DownloadsPlacesView.prototype = {
       //    changed, just the reference to the Places node object is different.
       // So, we update all the node references and keep the metadata intact.
       for (let shell of shellsForURI) {
-        if (!shell.historyDataItem) {
+        if (!shell.historyDownload) {
           // Create the element to host the metadata when needed.
-          shell.historyDataItem = new DownloadsHistoryDataItem(aPlacesNode);
+          shell.historyDownload = new HistoryDownload(aPlacesNode);
         }
         shell.element._placesNode = aPlacesNode;
       }
@@ -743,7 +751,7 @@ DownloadsPlacesView.prototype = {
         // the top of the richlistbox, along with other session downloads.
         // More generally, if a new download is added, should be made visible.
         this._richlistbox.ensureElementIsVisible(newOrUpdatedShell.element);
-      } else if (aDataItem) {
+      } else if (sessionDownload) {
         let before = this._lastSessionDownloadElement ?
           this._lastSessionDownloadElement.nextSibling : this._richlistbox.firstChild;
         this._richlistbox.insertBefore(newOrUpdatedShell.element, before);
@@ -793,8 +801,8 @@ DownloadsPlacesView.prototype = {
     let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI);
     if (shellsForURI) {
       for (let shell of shellsForURI) {
-        if (shell.sessionDataItem) {
-          shell.historyDataItem = null;
+        if (shell.sessionDownload) {
+          shell.historyDownload = null;
         } else {
           this._removeElement(shell.element);
           shellsForURI.delete(shell);
@@ -805,15 +813,14 @@ DownloadsPlacesView.prototype = {
     }
   },
 
-  _removeSessionDownloadFromView(aDataItem) {
-    let download = aDataItem.download;
+  _removeSessionDownloadFromView(download) {
     let shells = this._downloadElementsShellsForURI
                      .get(download.source.url);
     if (shells.size == 0) {
       throw new Error("Should have had at leaat one shell for this uri");
     }
 
-    let shell = this._viewItemsForDataItems.get(aDataItem);
+    let shell = this._viewItemsForDownloads.get(download);
     if (!shells.has(shell)) {
       throw new Error("Missing download element shell in shells list for url");
     }
@@ -822,7 +829,7 @@ DownloadsPlacesView.prototype = {
     // view item for this this particular data item go away.
     // If there's only one item for this download uri, we should only
     // keep it if it is associated with a history download.
-    if (shells.size > 1 || !shell.historyDataItem) {
+    if (shells.size > 1 || !shell.historyDownload) {
       this._removeElement(shell.element);
       shells.delete(shell);
       if (shells.size == 0) {
@@ -834,10 +841,10 @@ DownloadsPlacesView.prototype = {
       // Previously, we did not use the Places metadata because it was obscured
       // by the session download. Since this is no longer the case, we have to
       // read the latest metadata before removing the session download.
-      let url = shell.historyDataItem.download.source.url;
+      let url = shell.historyDownload.source.url;
       let metaData = this._getPlacesMetaDataFor(url);
-      shell.historyDataItem.download.updateFromMetaData(metaData);
-      shell.sessionDataItem = null;
+      shell.historyDownload.updateFromMetaData(metaData);
+      shell.sessionDownload = null;
       // Move it below the session-download items;
       if (this._lastSessionDownloadElement == shell.element) {
         this._lastSessionDownloadElement = shell.element.previousSibling;
@@ -974,12 +981,6 @@ DownloadsPlacesView.prototype = {
       throw new Error("Root container for the downloads query cannot be closed");
     }
 
-    // When the container is invalidated, it means we are about to re-read all
-    // the information about history downloads from the database, discarding the
-    // download element shells, thus we fully rebuild the Places annotation
-    // cache with the latest values.
-    this._cachedPlacesMetaData = null;
-
     let suppressOnSelect = this._richlistbox.suppressOnSelect;
     this._richlistbox.suppressOnSelect = true;
     try {
@@ -1113,22 +1114,20 @@ DownloadsPlacesView.prototype = {
     this._ensureInitialSelection();
   },
 
-  onDataItemAdded(aDataItem, aNewest) {
-    this._addDownloadData(aDataItem, null, aNewest);
+  onDownloadAdded(download, newest) {
+    this._addDownloadData(download, null, newest);
   },
 
-  onDataItemRemoved(aDataItem) {
-    this._removeSessionDownloadFromView(aDataItem);
+  onDownloadStateChanged(download) {
+    this._viewItemsForDownloads.get(download).onStateChanged();
   },
 
-  // DownloadsView
-  onDataItemStateChanged(aDataItem) {
-    this._viewItemsForDataItems.get(aDataItem).onStateChanged();
+  onDownloadChanged(download) {
+    this._viewItemsForDownloads.get(download).onChanged();
   },
 
-  // DownloadsView
-  onDataItemChanged(aDataItem) {
-    this._viewItemsForDataItems.get(aDataItem).onChanged();
+  onDownloadRemoved(download) {
+    this._removeSessionDownloadFromView(download);
   },
 
   supportsCommand(aCommand) {

@@ -1,0 +1,40 @@
+FINAL_LIBRARY = 'mozglue'
+
+EXPORTS.mozilla += [
+    'TimeStamp.h',
+]
+
+if CONFIG['OS_ARCH'] == 'WINNT':
+    EXPORTS.mozilla += [
+        'TimeStamp_windows.h',
+    ]
+
+SOURCES += [
+    'TimeStamp.cpp',
+]
+
+OS_LIBS += CONFIG['REALTIME_LIBS']
+
+# Don't use STL wrappers here (i.e. wrapped <new>); they require mozalloc
+DISABLE_STL_WRAPPING = True
+
+DEFINES['MOZ_NO_MOZALLOC'] = True
+
+DEFINES['IMPL_MFBT'] = True
+
+if CONFIG['OS_ARCH'] == 'WINNT':
+    SOURCES += [
+        'TimeStamp_windows.cpp',
+    ]
+elif CONFIG['HAVE_CLOCK_MONOTONIC']:
+    SOURCES += [
+        'TimeStamp_posix.cpp',
+    ]
+elif CONFIG['OS_ARCH'] == 'Darwin':
+    SOURCES += [
+        'TimeStamp_darwin.cpp',
+    ]
+elif CONFIG['COMPILE_ENVIRONMENT']:
+    error('No TimeStamp implementation on this platform.  Build will not succeed')
+
+FAIL_ON_WARNINGS = True

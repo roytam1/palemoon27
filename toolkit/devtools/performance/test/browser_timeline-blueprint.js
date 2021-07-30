@@ -5,8 +5,8 @@
  * Tests if the timeline blueprint has a correct structure.
  */
 
-function spawnTest () {
-  let { TIMELINE_BLUEPRINT } = devtools.require("devtools/performance/global");
+function* spawnTest() {
+  let { TIMELINE_BLUEPRINT } = devtools.require("devtools/performance/markers");
 
   ok(TIMELINE_BLUEPRINT,
     "A timeline blueprint should be available.");
@@ -15,11 +15,20 @@ function spawnTest () {
     "The timeline blueprint has at least one entry.");
 
   for (let [key, value] of Iterator(TIMELINE_BLUEPRINT)) {
-    ok("group" in value,
-      "Each entry in the timeline blueprint contains a `group` key.");
-    ok("colorName" in value,
-      "Each entry in the timeline blueprint contains a `colorName` key.");
-    ok("label" in value,
-      "Each entry in the timeline blueprint contains a `label` key.");
+    if (key.startsWith("meta::")) {
+      ok(!("group" in value),
+        "No meta entry in the timeline blueprint can contain a `group` key.");
+      ok("colorName" in value,
+        "Each meta entry in the timeline blueprint contains a `colorName` key.");
+      ok("label" in value,
+        "Each meta entry in the timeline blueprint contains a `label` key.");
+    } else {
+      ok("group" in value,
+        "Each entry in the timeline blueprint contains a `group` key.");
+      ok("colorName" in value,
+        "Each entry in the timeline blueprint contains a `colorName` key.");
+      ok("label" in value,
+        "Each entry in the timeline blueprint contains a `label` key.");
+    }
   }
 }

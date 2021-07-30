@@ -66,6 +66,8 @@
 
 let { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
                                   "resource:///modules/DownloadsCommon.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadsViewUI",
@@ -285,8 +287,14 @@ const DownloadsPanel = {
    * visualization.
    */
   handleEvent(aEvent) {
-    if (aEvent.type == "mousemove") {
-      this.keyFocusing = false;
+    switch (aEvent.type) {
+      case "mousemove":
+        this.keyFocusing = false;
+        break;
+      case "keydown":
+        return this._onKeyDown(aEvent);
+      case "keypress":
+        return this._onKeyPress(aEvent);
     }
   },
 
@@ -376,10 +384,10 @@ const DownloadsPanel = {
    */
   _attachEventListeners() {
     // Handle keydown to support accel-V.
-    this.panel.addEventListener("keydown", this._onKeyDown.bind(this), false);
+    this.panel.addEventListener("keydown", this, false);
     // Handle keypress to be able to preventDefault() events before they reach
     // the richlistbox, for keyboard navigation.
-    this.panel.addEventListener("keypress", this._onKeyPress.bind(this), false);
+    this.panel.addEventListener("keypress", this, false);
   },
 
   /**
@@ -387,10 +395,8 @@ const DownloadsPanel = {
    * is called automatically on panel termination.
    */
   _unattachEventListeners() {
-    this.panel.removeEventListener("keydown", this._onKeyDown.bind(this),
-                                   false);
-    this.panel.removeEventListener("keypress", this._onKeyPress.bind(this),
-                                   false);
+    this.panel.removeEventListener("keydown", this, false);
+    this.panel.removeEventListener("keypress", this, false);
   },
 
   _onKeyPress(aEvent) {
@@ -974,11 +980,11 @@ const DownloadsView = {
     }
 
     let dataTransfer = aEvent.dataTransfer;
-    dataTransfer.mozSetDataAt("application/x-moz-file", localFile, 0);
+    dataTransfer.mozSetDataAt("application/x-moz-file", file, 0);
     dataTransfer.effectAllowed = "copyMove";
-    var url = Services.io.newFileURI(localFile).spec;
-    dataTransfer.setData("text/uri-list", url);
-    dataTransfer.setData("text/plain", url);
+    let spec = NetUtil.newURI(file).spec;
+    dataTransfer.setData("text/uri-list", spec);
+    dataTransfer.setData("text/plain", spec);
     dataTransfer.addElement(element);
 
     aEvent.stopPropagation();
@@ -1236,7 +1242,7 @@ DownloadsViewItemController.prototype = {
     downloadsCmd_copyLocation() {
       let clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"]
                       .getService(Ci.nsIClipboardHelper);
-      clipboard.copyString(this.download.source.url, document);
+      clipboard.copyString(this.download.source.url);
     },
 
     downloadsCmd_doDefault() {

@@ -33,7 +33,9 @@ pref("@GUAO_PREF@.google.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @
 pref("@GUAO_PREF@.googlevideos.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @GRE_VERSION_SLICE@ Firefox/52.0 @PM_SLICE@");
 pref("@GUAO_PREF@.gstatic.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) Gecko/20010101 @GRE_VERSION_SLICE@ Firefox/52.0 @PM_SLICE@");
 // now YouTube needs to be fooled too
-pref("@GUAO_PREF@.youtube.com","Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
+pref("@GUAO_PREF@.youtube.com","Mozilla/5.0 (Linux; U; Android 4.4.2) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30");
+// also GMail
+pref("@GUAO_PREF@.mail.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:48.0) Gecko/20100101 Firefox/48.0");
 
 pref("@GUAO_PREF@.dropbox.com","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");
 pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko");

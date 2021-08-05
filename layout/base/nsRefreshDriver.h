@@ -340,6 +340,8 @@ private:
   double GetRegularTimerInterval(bool *outIsDefault = nullptr) const;
   static double GetThrottledTimerInterval();
 
+  static mozilla::TimeDuration GetMinRecomputeVisibilityInterval();
+
   bool HaveFrameRequestCallbacks() const {
     return mFrameRequestCallbackDocs.Length() != 0;
   }
@@ -368,7 +370,14 @@ private:
   // non-visible) documents registered with a non-throttled refresh driver.
   const mozilla::TimeDuration mThrottledFrameRequestInterval;
 
+  // How long we wait, at a minimum, before recomputing image visibility
+  // information. This is a minimum because, regardless of this interval, we
+  // only recompute visibility when we've seen a layout or style flush since the
+  // last time we did it.
+  const mozilla::TimeDuration mMinRecomputeVisibilityInterval;
+
   bool mThrottled;
+  bool mNeedToRecomputeVisibility;
   bool mTestControllingRefreshes;
   bool mViewManagerFlushIsPending;
   bool mRequestedHighPrecision;
@@ -387,6 +396,7 @@ private:
   mozilla::TimeStamp mMostRecentTick;
   mozilla::TimeStamp mTickStart;
   mozilla::TimeStamp mNextThrottledFrameRequestTick;
+  mozilla::TimeStamp mNextRecomputeVisibilityTick;
 
   // separate arrays for each flush type we support
   ObserverArray mObservers[3];

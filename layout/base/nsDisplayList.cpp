@@ -3244,6 +3244,7 @@ nsDisplayCaret::nsDisplayCaret(nsDisplayListBuilder* aBuilder,
   : nsDisplayItem(aBuilder, aCaretFrame)
   , mCaret(aBuilder->GetCaret())
   , mBounds(aBuilder->GetCaretRect() + ToReferenceFrame())
+  , mNeedsCustomScrollClip(false)
 {
   MOZ_COUNT_CTOR(nsDisplayCaret);
 }

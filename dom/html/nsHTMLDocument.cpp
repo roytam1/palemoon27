@@ -2340,21 +2340,16 @@ nsHTMLDocument::NameIsEnumerable(const nsAString& aName)
   return true;
 }
 
-static PLDHashOperator
-IdentifierMapEntryAddNames(nsIdentifierMapEntry* aEntry, void* aArg)
-{
-  nsTArray<nsString>* aNames = static_cast<nsTArray<nsString>*>(aArg);
-  if (aEntry->HasNameElement() ||
-      aEntry->HasIdElementExposedAsHTMLDocumentProperty()) {
-    aNames->AppendElement(aEntry->GetKey());
-  }
-  return PL_DHASH_NEXT;
-}
-
 void
 nsHTMLDocument::GetSupportedNames(unsigned, nsTArray<nsString>& aNames)
 {
-  mIdentifierMap.EnumerateEntries(IdentifierMapEntryAddNames, &aNames);
+  for (auto iter = mIdentifierMap.Iter(); !iter.Done(); iter.Next()) {
+    nsIdentifierMapEntry* entry = iter.Get();
+    if (entry->HasNameElement() ||
+        entry->HasIdElementExposedAsHTMLDocumentProperty()) {
+      aNames.AppendElement(entry->GetKey());
+    }
+  }
 }
 
 //----------------------------

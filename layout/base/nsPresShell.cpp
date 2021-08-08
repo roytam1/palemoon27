@@ -5587,12 +5587,13 @@ PresShell::MarkImagesInListVisible(const nsDisplayList& aList)
   }
 }
 
-static PLDHashOperator
-DecrementVisibleCount(nsRefPtrHashKey<nsIImageLoadingContent>* aEntry, void*)
+static void
+DecrementVisibleCount(nsTHashtable<nsRefPtrHashKey<nsIImageLoadingContent>>& aImages,
+                      uint32_t aNonvisibleAction)
 {
-  aEntry->GetKey()->DecrementVisibleCount(
-    nsIImageLoadingContent::ON_NONVISIBLE_NO_ACTION);
-  return PL_DHASH_NEXT;
+  for (auto iter = aImages.Iter(); !iter.Done(); iter.Next()) {
+    iter.Get()->GetKey()->DecrementVisibleCount(aNonvisibleAction);
+  }
 }
 
 void
@@ -5605,7 +5606,8 @@ PresShell::RebuildImageVisibilityDisplayList(const nsDisplayList& aList)
   nsTHashtable< nsRefPtrHashKey<nsIImageLoadingContent> > oldVisibleImages;
   mVisibleImages.SwapElements(oldVisibleImages);
   MarkImagesInListVisible(aList);
-  oldVisibleImages.EnumerateEntries(DecrementVisibleCount, nullptr);
+  DecrementVisibleCount(oldVisibleImages,
+                        nsIImageLoadingContent::ON_NONVISIBLE_NO_ACTION);
 }
 
 /* static */ void
@@ -5625,23 +5627,10 @@ PresShell::ClearImageVisibilityVisited(nsView* aView, bool aClear)
   }
 }
 
-static PLDHashOperator
-DecrementVisibleCountAndDiscard(nsRefPtrHashKey<nsIImageLoadingContent>* aEntry,
-                                void*)
-{
-  aEntry->GetKey()->DecrementVisibleCount(
-    nsIImageLoadingContent::ON_NONVISIBLE_REQUEST_DISCARD);
-  return PL_DHASH_NEXT;
-}
-
 void
 PresShell::ClearVisibleImagesList(uint32_t aNonvisibleAction)
 {
-  auto enumerator
-    = aNonvisibleAction == nsIImageLoadingContent::ON_NONVISIBLE_REQUEST_DISCARD
-    ? DecrementVisibleCountAndDiscard
-    : DecrementVisibleCount;
-  mVisibleImages.EnumerateEntries(enumerator, nullptr);
+  DecrementVisibleCount(mVisibleImages, aNonvisibleAction);
   mVisibleImages.Clear();
 }
 
@@ -5753,7 +5742,8 @@ PresShell::RebuildImageVisibility(nsRect* aRect)
   }
   MarkImagesInSubtreeVisible(rootFrame, vis);
 
-  oldVisibleImages.EnumerateEntries(DecrementVisibleCount, nullptr);
+  DecrementVisibleCount(oldVisibleImages,
+                        nsIImageLoadingContent::ON_NONVISIBLE_NO_ACTION);
 }
 
 void
@@ -8852,22 +8842,6 @@ PresShell::GetPerformanceNow()
   return now;
 }
 
-static PLDHashOperator
-MarkFramesDirtyToRoot(nsPtrHashKey<nsIFrame>* p, void* closure)
-{
-  nsIFrame* target = static_cast<nsIFrame*>(closure);
-  for (nsIFrame* f = p->GetKey(); f && !NS_SUBTREE_DIRTY(f);
-       f = f->GetParent()) {
-    f->AddStateBits(NS_FRAME_HAS_DIRTY_CHILDREN);
-
-    if (f == target) {
-      break;
-    }
-  }
-
-  return PL_DHASH_NEXT;
-}
-
 void
 PresShell::sReflowContinueCallback(nsITimer* aTimer, void* aPresShell)
 {
@@ -9062,7 +9036,20 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   bool interrupted = mPresContext->HasPendingInterrupt();
   if (interrupted) {
     // Make sure target gets reflowed again.
-    mFramesToDirty.EnumerateEntries(&MarkFramesDirtyToRoot, target);
+    for (auto iter = mFramesToDirty.Iter(); !iter.Done(); iter.Next()) {
+      // Mark frames dirty until target frame.
+      nsPtrHashKey<nsIFrame>* p = iter.Get();
+      for (nsIFrame* f = p->GetKey();
+           f && !NS_SUBTREE_DIRTY(f);
+           f = f->GetParent()) {
+        f->AddStateBits(NS_FRAME_HAS_DIRTY_CHILDREN);
+
+        if (f == target) {
+          break;
+        }
+      }
+    }
+
     NS_ASSERTION(NS_SUBTREE_DIRTY(target), "Why is the target not dirty?");
     mDirtyRoots.AppendElement(target);
     mDocument->SetNeedLayoutFlush();

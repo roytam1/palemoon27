@@ -1234,21 +1234,11 @@ nsGlobalWindow::Init()
   sWindowsById = new WindowByIdTable();
 }
 
-static PLDHashOperator
-DisconnectEventTargetObjects(nsPtrHashKey<DOMEventTargetHelper>* aKey,
-                             void* aClosure)
-{
-  nsRefPtr<DOMEventTargetHelper> target = aKey->GetKey();
-  target->DisconnectFromOwner();
-  return PL_DHASH_NEXT;
-}
-
 nsGlobalWindow::~nsGlobalWindow()
 {
   AssertIsOnMainThread();
 
-  mEventTargetObjects.EnumerateEntries(DisconnectEventTargetObjects, nullptr);
-  mEventTargetObjects.Clear();
+  DisconnectEventTargetObjects();
 
   // We have to check if sWindowsById isn't null because ::Shutdown might have
   // been called.
@@ -1359,6 +1349,17 @@ nsGlobalWindow::RemoveEventTargetObject(DOMEventTargetHelper* aObject)
   mEventTargetObjects.RemoveEntry(aObject);
 }
 
+void
+nsGlobalWindow::DisconnectEventTargetObjects()
+{
+  for (auto iter = mEventTargetObjects.ConstIter(); !iter.Done();
+       iter.Next()) {
+    nsRefPtr<DOMEventTargetHelper> target = iter.Get()->GetKey();
+    target->DisconnectFromOwner();
+  }
+  mEventTargetObjects.Clear();
+}
+
 // static
 void
 nsGlobalWindow::ShutDown()
@@ -1418,8 +1419,7 @@ nsGlobalWindow::CleanUp()
 
   StartDying();
 
-  mEventTargetObjects.EnumerateEntries(DisconnectEventTargetObjects, nullptr);
-  mEventTargetObjects.Clear();
+  DisconnectEventTargetObjects();
 
   if (mObserver) {
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
@@ -3473,17 +3473,16 @@ nsPIDOMWindow::SetFrameElementInternal(Element* aFrameElement)
   mOuterWindow->SetFrameElementInternal(aFrameElement);
 }
 
-void
+bool
 nsPIDOMWindow::AddAudioContext(AudioContext* aAudioContext)
 {
   MOZ_ASSERT(IsInnerWindow());
 
   mAudioContexts.AppendElement(aAudioContext);
 
+  // Return true if the context should be muted and false if not.
   nsIDocShell* docShell = GetDocShell();
-  if (docShell && !docShell->GetAllowMedia() && !aAudioContext->IsOffline()) {
-    aAudioContext->Mute();
-  }
+  return docShell && !docShell->GetAllowMedia() && !aAudioContext->IsOffline();
 }
 
 void
@@ -13345,27 +13344,6 @@ nsGlobalWindow::DisableTimeChangeNotifications()
   mozilla::time::RemoveWindowListener(this);
 }
 
-static PLDHashOperator
-CollectSizeAndListenerCount(
-  nsPtrHashKey<DOMEventTargetHelper>* aEntry,
-  void *arg)
-{
-  nsWindowSizes* windowSizes = static_cast<nsWindowSizes*>(arg);
-
-  DOMEventTargetHelper* et = aEntry->GetKey();
-
-  if (nsCOMPtr<nsISizeOfEventTarget> iSizeOf = do_QueryObject(et)) {
-    windowSizes->mDOMEventTargetsSize +=
-      iSizeOf->SizeOfEventTargetIncludingThis(windowSizes->mMallocSizeOf);
-  }
-
-  if (EventListenerManager* elm = et->GetExistingListenerManager()) {
-    windowSizes->mDOMEventListenersCount += elm->ListenerCount();
-  }
-
-  return PL_DHASH_NEXT;
-}
-
 void
 nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 {
@@ -13399,10 +13377,19 @@ nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
   aWindowSizes->mDOMEventTargetsSize +=
     mEventTargetObjects.SizeOfExcludingThis(nullptr,
                                             aWindowSizes->mMallocSizeOf);
-  aWindowSizes->mDOMEventTargetsCount +=
-    const_cast<nsTHashtable<nsPtrHashKey<DOMEventTargetHelper> >*>
-      (&mEventTargetObjects)->EnumerateEntries(CollectSizeAndListenerCount,
-                                               aWindowSizes);
+
+
+  for (auto iter = mEventTargetObjects.ConstIter(); !iter.Done(); iter.Next()) {
+    DOMEventTargetHelper* et = iter.Get()->GetKey();
+    if (nsCOMPtr<nsISizeOfEventTarget> iSizeOf = do_QueryObject(et)) {
+      aWindowSizes->mDOMEventTargetsSize +=
+        iSizeOf->SizeOfEventTargetIncludingThis(aWindowSizes->mMallocSizeOf);
+    }
+    if (EventListenerManager* elm = et->GetExistingListenerManager()) {
+      aWindowSizes->mDOMEventListenersCount += elm->ListenerCount();
+    }
+    ++aWindowSizes->mDOMEventTargetsCount;
+  }
 }
 
 

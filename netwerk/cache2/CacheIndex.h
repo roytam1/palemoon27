@@ -720,8 +720,6 @@ private:
 
   // Merge all pending operations from mPendingUpdates into mIndex.
   void ProcessPendingOperations();
-  static PLDHashOperator UpdateEntryInIndex(CacheIndexEntryUpdate *aEntry,
-                                            void* aClosure);
 
   // Following methods perform writing of the index file.
   //
@@ -742,11 +740,6 @@ private:
   // Finalizes writing process.
   void FinishWrite(bool aSucceeded);
 
-  static PLDHashOperator CopyRecordsToRWBuf(CacheIndexEntry *aEntry,
-                                            void* aClosure);
-  static PLDHashOperator ApplyIndexChanges(CacheIndexEntry *aEntry,
-                                           void* aClosure);
-
   // Following methods perform writing of the journal during shutdown. All these
   // methods must be called only during shutdown since they write/delete files
   // directly on the main thread instead of using CacheFileIOManager that does
@@ -759,9 +752,6 @@ private:
   void     RemoveIndexFromDisk();
   // Writes journal to the disk and clears dirty flag in index header.
   nsresult WriteLogToDisk();
-
-  static PLDHashOperator WriteEntryToLog(CacheIndexEntry *aEntry,
-                                         void* aClosure);
 
   // Following methods perform reading of the index from the disk.
   //
@@ -817,12 +807,8 @@ private:
   // In debug build this method is called after processing pending operations
   // to make sure mIndexStats contains correct information.
   void EnsureCorrectStats();
-  static PLDHashOperator SumIndexStats(CacheIndexEntry *aEntry, void* aClosure);
   // Finalizes reading process.
   void FinishRead(bool aSucceeded);
-
-  static PLDHashOperator ProcessJournalEntry(CacheIndexEntry *aEntry,
-                                             void* aClosure);
 
   // Following methods perform updating and building of the index.
   // Timer callback that starts update or build process.
@@ -850,8 +836,7 @@ private:
   // Finalizes update or build process.
   void FinishUpdate(bool aSucceeded);
 
-  static PLDHashOperator RemoveNonFreshEntries(CacheIndexEntry *aEntry,
-                                               void* aClosure);
+  void RemoveNonFreshEntries();
 
   enum EState {
     // Initial state in which the index is not usable

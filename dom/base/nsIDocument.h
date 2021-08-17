@@ -156,8 +156,8 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x6d18ec0b, 0x1f68, 0x4ae6, \
-  { 0x8b, 0x3d, 0x8d, 0x7d, 0x8b, 0x8e, 0x28, 0xd4 } }
+{ 0xbbce44c8, 0x22fe, 0x404f, \
+  { 0x9e, 0x71, 0x23, 0x1d, 0xf4, 0xcc, 0x8e, 0x34 } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -1167,14 +1167,6 @@ public:
    * in this document.
    */
   virtual void SetFullscreenRoot(nsIDocument* aRoot) = 0;
-
-  /**
-   * Sets whether this document is approved for fullscreen mode.
-   * Documents aren't approved for fullscreen until chrome has sent a
-   * "fullscreen-approved" notification with a subject which is a pointer
-   * to the approved document.
-   */
-  virtual void SetApprovedForFullscreen(bool aIsApproved) = 0;
 
   /**
    * Synchronously cleans up the fullscreen state on the given document.

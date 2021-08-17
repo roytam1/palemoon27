@@ -9295,6 +9295,8 @@ DispatchFullScreenChange(nsIDocument* aTarget)
     /* Bubbles */ true, /* OnlyChrome */ false);
 }
 
+static void ClearPendingFullscreenRequests(nsIDocument* aDoc);
+
 void
 nsDocument::OnPageHide(bool aPersisted,
                        EventTarget* aDispatchStartTarget)
@@ -9359,6 +9361,7 @@ nsDocument::OnPageHide(bool aPersisted,
   EnumerateExternalResources(NotifyPageHide, &aPersisted);
   EnumerateActivityObservers(NotifyActivityChanged, nullptr);
 
+  ClearPendingFullscreenRequests(this);
   if (IsFullScreenDoc()) {
     // If this document was fullscreen, we should exit fullscreen in this
     // doctree branch. This ensures that if the user navigates while in
@@ -11378,9 +11381,7 @@ nsDocument::RestorePreviousFullScreenState()
         // a fullscreen element in a parent document. If this document isn't
         // approved for fullscreen, or if it's cross origin, dispatch an
         // event to chrome so it knows to show the authorization/warning UI.
-        if (!nsContentUtils::HaveEqualPrincipals(fullScreenDoc, doc) ||
-            (!nsContentUtils::IsSitePermAllow(doc->NodePrincipal(), "fullscreen") &&
-             !static_cast<nsDocument*>(doc)->mIsApprovedForFullscreen)) {
+        if (!nsContentUtils::HaveEqualPrincipals(fullScreenDoc, doc)) {
           DispatchCustomEventWithFlush(
             doc, NS_LITERAL_STRING("MozDOMFullscreen:NewOrigin"),
             /* Bubbles */ true, /* ChromeOnly */ true);
@@ -11448,41 +11449,6 @@ LogFullScreenDenied(bool aLogFailure, const char* aMessage, nsIDocument* aDoc)
                                   aMessage);
 }
 
-nsresult
-nsDocument::AddFullscreenApprovedObserver()
-{
-  if (mHasFullscreenApprovedObserver) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
-
-  nsresult res = os->AddObserver(this, "fullscreen-approved", true);
-  NS_ENSURE_SUCCESS(res, res);
-
-  mHasFullscreenApprovedObserver = true;
-
-  return NS_OK;
-}
-
-nsresult
-nsDocument::RemoveFullscreenApprovedObserver()
-{
-  if (!mHasFullscreenApprovedObserver) {
-    return NS_OK;
-  }
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
-
-  nsresult res = os->RemoveObserver(this, "fullscreen-approved");
-  NS_ENSURE_SUCCESS(res, res);
-
-  mHasFullscreenApprovedObserver = false;
-
-  return NS_OK;
-}
-
 void
 nsDocument::CleanupFullscreenState()
 {
@@ -11500,8 +11466,6 @@ nsDocument::CleanupFullscreenState()
     }
     mFullScreenStack.Clear();
   }
-  SetApprovedForFullscreen(false);
-  RemoveFullscreenApprovedObserver();
   mFullscreenRoot = nullptr;
 }
 
@@ -11801,8 +11765,9 @@ nsIDocument::HandlePendingFullscreenRequest(const FullscreenRequest& aRequest,
     return false;
   }
 
-  doc->ApplyFullscreen(aRequest);
-  *aHandled = true;
+  if (doc->ApplyFullscreen(aRequest)) {
+    *aHandled = true;
+  }
   return true;
 }
 
@@ -11834,19 +11799,46 @@ nsIDocument::HandlePendingFullscreenRequests(nsIDocument* aDoc)
   return handled;
 }
 
-void
+static void
+ClearPendingFullscreenRequests(nsIDocument* aDoc)
+{
+  nsIDocShellTreeItem* shell = aDoc->GetDocShell();
+  if (!shell) {
+    return;
+  }
+
+  FullscreenRequest* request = sPendingFullscreenRequests.getFirst();
+  while (request) {
+    nsIDocument* doc = request->GetDocument();
+    bool shouldRemove = false;
+    for (nsCOMPtr<nsIDocShellTreeItem> docShell = doc->GetDocShell();
+         docShell; docShell->GetParent(getter_AddRefs(docShell))) {
+      if (docShell == shell) {
+        shouldRemove = true;
+        break;
+      }
+    }
+    if (shouldRemove) {
+      FullscreenRequest* thisRequest = request;
+      request = request->getNext();
+      delete thisRequest;
+    } else {
+      request = request->getNext();
+    }
+  }
+}
+
+bool
 nsDocument::ApplyFullscreen(const FullscreenRequest& aRequest)
 {
   Element* elem = aRequest.GetElement();
   if (!FullscreenElementReadyCheck(elem, aRequest.mIsCallerChrome)) {
-    return;
+    return false;
   }
 
   // Stash a reference to any existing fullscreen doc, we'll use this later
   // to detect if the origin which is fullscreen has changed.
   nsCOMPtr<nsIDocument> previousFullscreenDoc = GetFullscreenLeaf(this);
-
-  AddFullscreenApprovedObserver();
 
   // Stores a list of documents which we must dispatch "mozfullscreenchange"
   // too. We're required by the spec to dispatch the events in root-to-leaf
@@ -11904,25 +11896,13 @@ nsDocument::ApplyFullscreen(const FullscreenRequest& aRequest)
     }
   }
 
-  // If this document hasn't already been approved in this session,
-  // check to see if the user has granted the fullscreen access
-  // to the document's principal's host, if it has one. Note that documents
-  // in web apps which are the same origin as the web app are considered
-  // trusted and so are automatically approved.
-  if (!mIsApprovedForFullscreen) {
-    mIsApprovedForFullscreen =
-      !Preferences::GetBool("full-screen-api.approval-required") ||
-      NodePrincipal()->GetAppStatus() >= nsIPrincipal::APP_STATUS_INSTALLED ||
-      nsContentUtils::IsSitePermAllow(NodePrincipal(), "fullscreen");
-  }
-
   FullscreenRoots::Add(this);
 
   // If it is the first entry of the fullscreen, trigger an event so
   // that the UI can response to this change, e.g. hide chrome, or
   // notifying parent process to enter fullscreen. Note that chrome
   // code may also want to listen to MozDOMFullscreen:NewOrigin event
-  // to pop up warning/approval UI.
+  // to pop up warning UI.
   if (!previousFullscreenDoc) {
     nsContentUtils::DispatchEventOnlyToChrome(
       this, ToSupports(elem), NS_LITERAL_STRING("MozDOMFullscreen:Entered"),
@@ -11930,7 +11910,7 @@ nsDocument::ApplyFullscreen(const FullscreenRequest& aRequest)
   }
 
   // The origin which is fullscreen gets changed. Trigger an event so
-  // that the chrome knows to pop up a warning/approval UI. Note that
+  // that the chrome knows to pop up a warning UI. Note that
   // previousFullscreenDoc == nullptr upon first entry, so we always
   // take this path on the first entry. Also note that, in a multi-
   // process browser, the code in content process is responsible for
@@ -11949,6 +11929,7 @@ nsDocument::ApplyFullscreen(const FullscreenRequest& aRequest)
   for (uint32_t i = 0; i < changed.Length(); ++i) {
     DispatchFullScreenChange(changed[changed.Length() - i - 1]);
   }
+  return true;
 }
 
 NS_IMETHODIMP
@@ -12119,15 +12100,13 @@ public:
       return NS_OK;
     }
 
-    // We're about to enter fullscreen mode.
     nsDocument* doc = static_cast<nsDocument*>(d.get());
-    if (doc->mPendingFullscreenRequests > 0 ||
-        (doc->mHasFullscreenApprovedObserver && !doc->mIsApprovedForFullscreen)) {
-      // We're still waiting for approval.
+    if (doc->mPendingFullscreenRequests > 0) {
+      // We're still entering fullscreen.
       return NS_OK;
     }
 
-    if (doc->mIsApprovedForFullscreen || doc->mAllowRelocking) {
+    if (doc->IsFullScreenDoc() || doc->mAllowRelocking) {
       Allow(JS::UndefinedHandleValue);
       return NS_OK;
     }
@@ -12232,8 +12211,7 @@ nsPointerLockPermissionRequest::Allow(JS::HandleValue aChoices)
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
   nsDocument* d = static_cast<nsDocument*>(doc.get());
   if (!e || !d || gPendingPointerLockRequest != this ||
-      e->GetUncomposedDoc() != d ||
-      (!mUserInputOrChromeCaller && !d->mIsApprovedForFullscreen)) {
+      e->GetUncomposedDoc() != d) {
     Handled();
     DispatchPointerLockError(d);
     return NS_OK;
@@ -12282,12 +12260,6 @@ nsPointerLockPermissionRequest::GetRequester(nsIContentPermissionRequester** aRe
   return NS_OK;
 }
 
-void
-nsDocument::SetApprovedForFullscreen(bool aIsApproved)
-{
-  mIsApprovedForFullscreen = aIsApproved;
-}
-
 static void
 RedispatchPendingPointerLockRequest(nsIDocument* aDocument)
 {
@@ -12307,7 +12279,7 @@ RedispatchPendingPointerLockRequest(nsIDocument* aDocument)
   }
 
   // We have a request pending on the document which may previously be
-  // blocked for fullscreen approval. Create a clone and re-dispatch it
+  // blocked for fullscreen change. Create a clone and re-dispatch it
   // to guarantee that Run() method gets called again.
   bool userInputOrChromeCaller =
     gPendingPointerLockRequest->mUserInputOrChromeCaller;
@@ -12322,14 +12294,7 @@ nsDocument::Observe(nsISupports *aSubject,
                     const char *aTopic,
                     const char16_t *aData)
 {
-  if (strcmp("fullscreen-approved", aTopic) == 0) {
-    nsCOMPtr<nsIDocument> subject(do_QueryInterface(aSubject));
-    if (subject != this) {
-      return NS_OK;
-    }
-    SetApprovedForFullscreen(true);
-    RedispatchPendingPointerLockRequest(this);
-  } else if (strcmp("app-theme-changed", aTopic) == 0) {
+  if (strcmp("app-theme-changed", aTopic) == 0) {
     if (!nsContentUtils::IsSystemPrincipal(NodePrincipal()) &&
         !IsUnstyledDocument()) {
       // We don't want to style the chrome window, only app ones.

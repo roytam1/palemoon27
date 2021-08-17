@@ -3254,10 +3254,6 @@ GetFullScreenError(nsIDocument* aDoc)
     return "FullScreenDeniedNotInputDriven";
   }
 
-  if (nsContentUtils::IsSitePermDeny(aDoc->NodePrincipal(), "fullscreen")) {
-    return "FullScreenDeniedBlocked";
-  }
-
   return nullptr;
 }
 

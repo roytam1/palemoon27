@@ -193,6 +193,7 @@ UNIFIED_SOURCES += [
     'AbstractThread.cpp',
     'ADTSDecoder.cpp',
     'ADTSDemuxer.cpp',
+    'AudioCaptureStream.cpp',
     'AudioChannelFormat.cpp',
     'AudioCompactor.cpp',
     'AudioSegment.cpp',

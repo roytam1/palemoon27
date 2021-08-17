@@ -119,7 +119,6 @@ extern PRLogModuleInfo* gMediaSampleLog;
 */
 class MediaDecoderStateMachine
 {
-  friend class AudioSink;
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaDecoderStateMachine)
 public:
   typedef MediaDecoderReader::AudioDataPromise AudioDataPromise;
@@ -150,6 +149,8 @@ public:
   };
 
   void AddOutputStream(ProcessedMediaStream* aStream, bool aFinishWhenEnded);
+  // Remove an output stream added with AddOutputStream.
+  void RemoveOutputStream(MediaStream* aStream);
 
   // Set/Unset dormant state.
   void SetDormant(bool aDormant);
@@ -161,6 +162,7 @@ private:
   void InitializationTask();
 
   void DispatchAudioCaptured();
+  void DispatchAudioUncaptured();
 
   void Shutdown();
 public:
@@ -316,6 +318,7 @@ public:
       mReader->BreakCycles();
     }
     mDecodedStream->DestroyData();
+    mResource = nullptr;
     mDecoder = nullptr;
   }
 
@@ -397,8 +400,8 @@ protected:
   void PushFront(AudioData* aSample);
   void PushFront(VideoData* aSample);
 
-  void OnAudioPopped();
-  void OnVideoPopped();
+  void OnAudioPopped(const AudioData* aSample);
+  void OnVideoPopped(const VideoData* aSample);
 
   void VolumeChanged();
   void LogicalPlaybackRateChanged();
@@ -516,7 +519,7 @@ protected:
 
   // Starts the audio thread. The decoder monitor must be held with exactly
   // one lock count. Called on the state machine thread.
-  nsresult StartAudioThread();
+  void StartAudioThread();
 
   // Notification method invoked when mPlayState changes.
   void PlayStateChanged();
@@ -566,20 +569,26 @@ protected:
 
   nsresult DispatchAudioDecodeTaskIfNeeded();
 
-  // Ensures a to decode audio has been dispatched to the decode task queue.
+  // Ensures a task to decode audio has been dispatched to the decode task queue.
   // If a task to decode has already been dispatched, this does nothing,
   // otherwise this dispatches a task to do the decode.
   // This is called on the state machine or decode threads.
   // The decoder monitor must be held.
   nsresult EnsureAudioDecodeTaskQueued();
+  // Start a task to decode audio.
+  // The decoder monitor must be held.
+  void RequestAudioData();
 
   nsresult DispatchVideoDecodeTaskIfNeeded();
 
-  // Ensures a to decode video has been dispatched to the decode task queue.
+  // Ensures a task to decode video has been dispatched to the decode task queue.
   // If a task to decode has already been dispatched, this does nothing,
   // otherwise this dispatches a task to do the decode.
   // The decoder monitor must be held.
   nsresult EnsureVideoDecodeTaskQueued();
+  // Start a task to decode video.
+  // The decoder monitor must be held.
+  void RequestVideoData();
 
   // Re-evaluates the state and determines whether we need to dispatch
   // events to run the decode, or if not whether we should set the reader
@@ -661,38 +670,12 @@ protected:
   void SetPlayStartTime(const TimeStamp& aTimeStamp);
 
 private:
-  // Update mDecoder's playback offset.
-  void OnPlaybackOffsetUpdate(int64_t aPlaybackOffset);
-public:
-  void DispatchOnPlaybackOffsetUpdate(int64_t aPlaybackOffset)
-  {
-    RefPtr<nsRunnable> r =
-      NS_NewRunnableMethodWithArg<int64_t>(this, &MediaDecoderStateMachine::OnPlaybackOffsetUpdate, aPlaybackOffset);
-    OwnerThread()->Dispatch(r.forget());
-  }
-
-private:
-  // Called by the AudioSink to signal that all outstanding work is complete
+  // Resolved by the AudioSink to signal that all outstanding work is complete
   // and the sink is shutting down.
   void OnAudioSinkComplete();
-public:
-  void DispatchOnAudioSinkComplete()
-  {
-    nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkComplete);
-    OwnerThread()->Dispatch(runnable.forget());
-  }
-private:
 
-  // Called by the AudioSink to signal errors.
+  // Rejected by the AudioSink to signal errors.
   void OnAudioSinkError();
-
-  void DispatchOnAudioSinkError()
-  {
-    nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkError);
-    OwnerThread()->Dispatch(runnable.forget());
-  }
 
   // Return true if the video decoder's decode speed can not catch up the
   // play time.
@@ -1305,6 +1288,11 @@ private:
   // can be read on any thread while holding the monitor, or on the main thread
   // without holding the monitor.
   nsRefPtr<DecodedStream> mDecodedStream;
+
+  // Media data resource from the decoder.
+  nsRefPtr<MediaResource> mResource;
+
+  MozPromiseRequestHolder<GenericPromise> mAudioSinkPromise;
 
 private:
   // The buffered range. Mirrored from the decoder thread.

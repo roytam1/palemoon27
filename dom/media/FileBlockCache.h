@@ -13,6 +13,7 @@
 #include "MediaCache.h"
 #include "nsDeque.h"
 #include "nsThreadUtils.h"
+#include "SharedThreadPool.h"
 
 struct PRFileDesc;
 

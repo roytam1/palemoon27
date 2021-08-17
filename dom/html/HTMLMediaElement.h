@@ -132,6 +132,9 @@ public:
                            bool aNotify) override;
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
                              bool aNotify) override;
+  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                                const nsAttrValue* aValue,
+                                bool aNotify) override;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -148,7 +151,12 @@ public:
    * Call this to reevaluate whether we should start/stop due to our owner
    * document being active, inactive, visible or hidden.
    */
-  virtual void NotifyOwnerDocumentActivityChanged();
+  void NotifyOwnerDocumentActivityChanged();
+
+  // This method does the work necessary for the
+  // NotifyOwnerDocumentActivityChanged() notification.  It returns true if the
+  // media element was paused as a result.
+  virtual bool NotifyOwnerDocumentActivityChangedInternal();
 
   // Called by the video decoder object, on the main thread,
   // when it has read the metadata containing video dimensions,
@@ -618,6 +626,13 @@ public:
   // that will soon be gone.
   bool IsBeingDestroyed();
 
+  IMPL_EVENT_HANDLER(mozinterruptbegin)
+  IMPL_EVENT_HANDLER(mozinterruptend)
+
+  // This is for testing only
+  float ComputedVolume() const;
+  bool ComputedMuted() const;
+
 protected:
   virtual ~HTMLMediaElement();
 
@@ -627,7 +642,10 @@ protected:
   class StreamSizeListener;
 
   MediaDecoderOwner::NextFrameStatus NextFrameStatus();
-  void SetDecoder(MediaDecoder* aDecoder) { mDecoder = aDecoder; }
+  void SetDecoder(MediaDecoder* aDecoder) {
+    MOZ_ASSERT(aDecoder); // Use ShutdownDecoder() to clear.
+    mDecoder = aDecoder;
+  }
 
   virtual void GetItemValueText(DOMString& text) override;
   virtual void SetItemValueText(const nsAString& text) override;
@@ -1004,6 +1022,9 @@ protected:
   // Recomputes ready state and fires events as necessary based on current state.
   void UpdateReadyStateInternal();
 
+  // Notifies the audio channel agent when the element starts or stops playing.
+  void NotifyAudioChannelAgent(bool aPlaying);
+
   class nsAsyncEventRunner;
   using nsGenericHTMLElement::DispatchEvent;
   // For nsAsyncEventRunner.
@@ -1032,6 +1053,9 @@ protected:
   // Holds a reference to a MediaInputPort connecting mSrcStream to mPlaybackStream.
   nsRefPtr<MediaInputPort> mPlaybackStreamInputPort;
 
+  // Holds a reference to the stream connecting this stream to the capture sink.
+  nsRefPtr<MediaInputPort> mCaptureStreamPort;
+
   // Holds a reference to a stream with mSrcStream as input but intended for
   // playback. Used so we don't block playback of other video elements
   // playing the same mSrcStream.
@@ -1052,7 +1076,14 @@ protected:
   // mSrcStream.
   nsRefPtr<StreamSizeListener> mMediaStreamSizeListener;
 
-  // Holds a reference to the MediaSource supplying data for playback.
+  // Holds a reference to the MediaSource, if any, referenced by the src
+  // attribute on the media element.
+  nsRefPtr<MediaSource> mSrcMediaSource;
+
+  // Holds a reference to the MediaSource supplying data for playback.  This
+  // may either match mSrcMediaSource or come from Source element children.
+  // This is set when and only when mLoadingSrc corresponds to an object url
+  // that resolved to a MediaSource.
   nsRefPtr<MediaSource> mMediaSource;
 
   // Holds a reference to the first channel we open to the media resource.
@@ -1228,6 +1259,9 @@ protected:
 
   // True if the sound is being captured.
   bool mAudioCaptured;
+
+  // True if the sound is being captured by the window.
+  bool mAudioCapturedByWindow;
 
   // If TRUE then the media element was actively playing before the currently
   // in progress seeking. If FALSE then the media element is either not seeking

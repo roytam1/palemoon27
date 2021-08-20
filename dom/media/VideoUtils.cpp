@@ -8,6 +8,7 @@
 #include "mozilla/Base64.h"
 #include "mozilla/TaskQueue.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/Function.h"
 
 #include "MediaResource.h"
 #include "TimeUnits.h"
@@ -15,8 +16,7 @@
 #include "nsSize.h"
 #include "VorbisUtils.h"
 #include "ImageContainer.h"
-#include "SharedThreadPool.h"
-#include "mozilla/Function.h"
+#include "mozilla/SharedThreadPool.h"
 #include "nsIRandomGenerator.h"
 #include "nsIServiceManager.h"
 #include "nsCharSeparatedTokenizer.h"

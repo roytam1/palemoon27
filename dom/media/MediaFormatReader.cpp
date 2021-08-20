@@ -15,7 +15,7 @@
 #include "MediaFormatReader.h"
 #include "MediaResource.h"
 #include "SharedDecoderManager.h"
-#include "SharedThreadPool.h"
+#include "mozilla/SharedThreadPool.h"
 #include "VideoUtils.h"
 
 #include <algorithm>
@@ -257,10 +257,7 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
   if (videoActive) {
     // We currently only handle the first video track.
     mVideo.mTrackDemuxer = mDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
-    if (!mVideo.mTrackDemuxer) {
-      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-      return;
-    }
+    MOZ_ASSERT(mVideo.mTrackDemuxer);
     mInfo.mVideo = *mVideo.mTrackDemuxer->GetInfo()->GetAsVideoInfo();
     mVideo.mCallback = new DecoderCallback(this, TrackInfo::kVideoTrack);
     mVideo.mTimeRanges = mVideo.mTrackDemuxer->GetBuffered();
@@ -270,10 +267,7 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
   bool audioActive = !!mDemuxer->GetNumberTracks(TrackInfo::kAudioTrack);
   if (audioActive) {
     mAudio.mTrackDemuxer = mDemuxer->GetTrackDemuxer(TrackInfo::kAudioTrack, 0);
-    if (!mAudio.mTrackDemuxer) {
-      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-      return;
-    }
+    MOZ_ASSERT(mAudio.mTrackDemuxer);
     mInfo.mAudio = *mAudio.mTrackDemuxer->GetInfo()->GetAsAudioInfo();
     mAudio.mCallback = new DecoderCallback(this, TrackInfo::kAudioTrack);
     mAudio.mTimeRanges = mAudio.mTrackDemuxer->GetBuffered();
@@ -317,18 +311,12 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
   if (videoActive) {
     mVideoTrackDemuxer =
       mMainThreadDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
-    if (!mVideoTrackDemuxer) {
-      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-      return;
-    }
+    MOZ_ASSERT(mVideoTrackDemuxer);
   }
   if (audioActive) {
     mAudioTrackDemuxer =
       mMainThreadDemuxer->GetTrackDemuxer(TrackInfo::kAudioTrack, 0);
-    if (!mAudioTrackDemuxer) {
-      mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
-      return;
-    }
+    MOZ_ASSERT(mAudioTrackDemuxer);
   }
 
   mInitDone = true;
@@ -374,7 +362,7 @@ MediaFormatReader::EnsureDecodersSetup()
 
   if (HasAudio() && !mAudio.mDecoder) {
     NS_ENSURE_TRUE(IsSupportedAudioMimeType(mInfo.mAudio.mMimeType),
-                  false);
+                   false);
 
     mAudio.mDecoder =
       mPlatform->CreateDecoder(mAudio.mInfo ?
@@ -441,11 +429,15 @@ void
 MediaFormatReader::DisableHardwareAcceleration()
 {
   MOZ_ASSERT(OnTaskQueue());
-  if (HasVideo() && mSharedDecoderManager) {
-    mSharedDecoderManager->DisableHardwareAcceleration();
-
-    if (!mSharedDecoderManager->Recreate(mInfo.mVideo)) {
-      mVideo.mError = true;
+  if (HasVideo()) {
+    mPlatform->DisableHardwareAcceleration();
+    Flush(TrackInfo::kVideoTrack);
+    mVideo.mDecoder->Shutdown();
+    mVideo.mDecoder = nullptr;
+    if (!EnsureDecodersSetup()) {
+      LOG("Unable to re-create decoder, aborting");
+      NotifyError(TrackInfo::kVideoTrack);
+      return;
     }
     ScheduleUpdate(TrackInfo::kVideoTrack);
   }

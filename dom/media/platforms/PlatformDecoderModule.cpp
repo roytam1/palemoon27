@@ -27,7 +27,7 @@
 #include "mozilla/TaskQueue.h"
 
 #include "mozilla/WindowsVersion.h"
-#include "SharedThreadPool.h"
+#include "mozilla/SharedThreadPool.h"
 
 #include "MediaInfo.h"
 #include "H264Converter.h"

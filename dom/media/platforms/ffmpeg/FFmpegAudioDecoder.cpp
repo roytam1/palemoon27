@@ -31,16 +31,18 @@ FFmpegAudioDecoder<LIBAV_VER>::FFmpegAudioDecoder(
   mExtraData->AppendElements(*aConfig.mCodecSpecificConfig);
 }
 
-nsresult
+nsRefPtr<MediaDataDecoder::InitPromise>
 FFmpegAudioDecoder<LIBAV_VER>::Init()
 {
-  nsresult rv = FFmpegDataDecoder::Init();
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv = InitDecoder();
 
-  avcodec_decode_audio4 = (decltype(avcodec_decode_audio4))FFmpegRuntimeLinker::avc_ptr[_decode_audio4];
-  av_init_packet1 = (decltype(av_init_packet1))FFmpegRuntimeLinker::avc_ptr[_init_packet];
+  if(rv == NS_OK) {
+    avcodec_decode_audio4 = (decltype(avcodec_decode_audio4))FFmpegRuntimeLinker::avc_ptr[_decode_audio4];
+    av_init_packet1 = (decltype(av_init_packet1))FFmpegRuntimeLinker::avc_ptr[_init_packet];
+  }
 
-  return NS_OK;
+  return rv == NS_OK ? InitPromise::CreateAndResolve(TrackInfo::kAudioTrack, __func__)
+                     : InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
 }
 
 void

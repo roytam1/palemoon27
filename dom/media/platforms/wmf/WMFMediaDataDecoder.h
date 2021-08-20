@@ -43,7 +43,9 @@ public:
   // Destroys all resources.
   virtual void Shutdown() = 0;
 
-  virtual bool IsHardwareAccelerated() const { return false; }
+  virtual bool IsHardwareAccelerated(nsACString& aFailureReason) const { return false; }
+
+  virtual TrackInfo::TrackType GetType() = 0;
 
 };
 
@@ -55,11 +57,12 @@ public:
 class WMFMediaDataDecoder : public MediaDataDecoder {
 public:
   WMFMediaDataDecoder(MFTManager* aOutputSource,
+                      MFTDecoder* aDecoder,
                       FlushableTaskQueue* aAudioTaskQueue,
                       MediaDataDecoderCallback* aCallback);
   ~WMFMediaDataDecoder();
 
-  virtual nsresult Init() override;
+  virtual nsRefPtr<MediaDataDecoder::InitPromise> Init() override;
 
   virtual nsresult Input(MediaRawData* aSample);
 
@@ -69,7 +72,7 @@ public:
 
   virtual nsresult Shutdown() override;
 
-  virtual bool IsHardwareAccelerated() const override;
+  virtual bool IsHardwareAccelerated(nsACString& aFailureReason) const override;
 
 private:
 

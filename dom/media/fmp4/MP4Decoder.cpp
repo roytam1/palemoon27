@@ -287,22 +287,20 @@ CreateTestH264Decoder(layers::LayersBackend aBackend,
   if (!decoder) {
     return nullptr;
   }
-  nsresult rv = decoder->Init();
-  NS_ENSURE_SUCCESS(rv, nullptr);
 
   return decoder.forget();
 }
 
 /* static */ bool
-MP4Decoder::IsVideoAccelerated(layers::LayersBackend aBackend)
+MP4Decoder::IsVideoAccelerated(layers::LayersBackend aBackend, nsACString& aFailureReason)
 {
   VideoInfo config;
   nsRefPtr<MediaDataDecoder> decoder(CreateTestH264Decoder(aBackend, config));
   if (!decoder) {
+    aFailureReason.AssignLiteral("Failed to create H264 decoder");
     return false;
   }
-  bool result = decoder->IsHardwareAccelerated();
-  decoder->Shutdown();
+  bool result = decoder->IsHardwareAccelerated(aFailureReason);
   return result;
 }
 
@@ -340,8 +338,6 @@ CreateTestAACDecoder(AudioInfo& aConfig)
   if (!decoder) {
     return nullptr;
   }
-  nsresult rv = decoder->Init();
-  NS_ENSURE_SUCCESS(rv, nullptr);
 
   return decoder.forget();
 }
@@ -377,7 +373,6 @@ MP4Decoder::CanCreateAACDecoder()
                                     MOZ_ARRAY_LENGTH(sTestAACExtraData));
   nsRefPtr<MediaDataDecoder> decoder(CreateTestAACDecoder(config));
   if (decoder) {
-    decoder->Shutdown();
     result = true;
   }
   haveCachedResult = true;

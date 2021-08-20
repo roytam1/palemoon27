@@ -60,6 +60,7 @@ include PluginTypes;
 include ProtocolTypes;
 include PContentPermission;
 include BrowserConfiguration;
+include GraphicsMessages;
 
 // Workaround to prevent error if PContentChild.cpp & PContentBridgeParent.cpp
 // are put into different UnifiedProtocolsXX.cpp files.
@@ -929,6 +930,10 @@ parent:
 
     sync GetGraphicsFeatureStatus(int32_t aFeature) returns (int32_t aStatus, bool aSuccess);
 
+    // Driver crash guards. aGuardType must be a member of CrashGuardType.
+    sync BeginDriverCrashGuard(uint32_t aGuardType) returns (bool crashDetected);
+    sync EndDriverCrashGuard(uint32_t aGuardType);
+
     AddIdleObserver(uint64_t observerId, uint32_t idleTimeInS);
     RemoveIdleObserver(uint64_t observerId, uint32_t idleTimeInS);
 
@@ -1060,6 +1065,12 @@ parent:
     GamepadListenerRemoved();
 
     async Profile(nsCString aProfile);
+
+    /**
+     * Request graphics initialization information from the parent.
+     */
+    sync GetGraphicsDeviceInitData()
+        returns (DeviceInitData aData);
 
 both:
      AsyncMessage(nsString aMessage, ClonedMessageData aData,

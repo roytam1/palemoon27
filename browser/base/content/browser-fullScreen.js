@@ -273,7 +273,7 @@ var FullScreen = {
   },
 
   _cancelAnimation: function() {
-    window.mozCancelAnimationFrame(this._animationHandle);
+    window.cancelAnimationFrame(this._animationHandle);
     this._animationHandle = 0;
     clearTimeout(this._animationTimeout);
     this._isAnimating = false;

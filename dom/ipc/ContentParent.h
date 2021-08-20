@@ -25,6 +25,7 @@
 #include "nsIDOMGeoPositionCallback.h"
 #include "nsIDOMGeoPositionErrorCallback.h"
 #include "PermissionMessageUtils.h"
+#include "DriverCrashGuard.h"
 
 #define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
 
@@ -801,6 +802,8 @@ private:
     virtual bool RecvGetGraphicsFeatureStatus(const int32_t& aFeature,
                                               int32_t* aStatus,
                                               bool* aSuccess) override;
+    virtual bool RecvBeginDriverCrashGuard(const uint32_t& aGuardType, bool* aOutCrashed) override;
+    virtual bool RecvEndDriverCrashGuard(const uint32_t& aGuardType) override;
 
     virtual bool RecvAddIdleObserver(const uint64_t& observerId,
                                      const uint32_t& aIdleTimeInS) override;
@@ -853,6 +856,7 @@ private:
     virtual bool RecvGamepadListenerAdded() override;
     virtual bool RecvGamepadListenerRemoved() override;
     virtual bool RecvProfile(const nsCString& aProfile) override;
+    virtual bool RecvGetGraphicsDeviceInitData(DeviceInitData* aOut) override;
 
     // If you add strong pointers to cycle collected objects here, be sure to
     // release these objects in ShutDownProcess.  See the comment there for more
@@ -938,6 +942,8 @@ private:
     nsRefPtr<mozilla::ProfileGatherer> mGatherer;
 #endif
     nsCString mProfile;
+
+    UniquePtr<gfx::DriverCrashGuard> mDriverCrashGuard;
 };
 
 } // namespace dom

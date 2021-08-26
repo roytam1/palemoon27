@@ -119,6 +119,58 @@ MarkUsesAsHoistedLexical(ParseNode* pn)
     }
 }
 
+void
+SharedContext::computeAllowSyntax(JSObject* staticScope)
+{
+    for (StaticScopeIter<CanGC> it(context, staticScope); !it.done(); it++) {
+        if (it.type() == StaticScopeIter<CanGC>::Function && !it.fun().isArrow()) {
+            // Any function supports new.target.
+            allowNewTarget_ = true;
+            allowSuperProperty_ = it.fun().allowSuperProperty();
+            if (it.maybeFunctionBox())
+                superScopeAlreadyNeedsHomeObject_ = it.maybeFunctionBox()->needsHomeObject();
+            break;
+        }
+    }
+}
+
+void
+SharedContext::computeInWith(JSObject* staticScope)
+{
+    for (StaticScopeIter<CanGC> it(context, staticScope); !it.done(); it++) {
+        if (it.type() == StaticScopeIter<CanGC>::With) {
+            inWith_ = true;
+            break;
+        }
+    }
+}
+
+void
+SharedContext::markSuperScopeNeedsHomeObject()
+{
+    MOZ_ASSERT(allowSuperProperty());
+
+    if (superScopeAlreadyNeedsHomeObject_)
+        return;
+
+    for (StaticScopeIter<CanGC> it(context, staticScope()); !it.done(); it++) {
+        if (it.type() == StaticScopeIter<CanGC>::Function && !it.fun().isArrow()) {
+            MOZ_ASSERT(it.fun().allowSuperProperty());
+            // If we are still emitting the outer function that needs a home
+            // object, mark it as needing one. Otherwise, we must be emitting
+            // an eval script, and the outer function must already be marked
+            // as needing a home object since it contains an eval.
+            if (it.maybeFunctionBox())
+                it.maybeFunctionBox()->setNeedsHomeObject();
+            else
+                MOZ_ASSERT(it.fun().nonLazyScript()->needsHomeObject());
+            superScopeAlreadyNeedsHomeObject_ = true;
+            return;
+        }
+    }
+    MOZ_CRASH("Must have found an enclosing function box scope that allows super.property");
+}
+
 // See comment on member function declaration.
 template <>
 bool
@@ -582,16 +634,16 @@ Parser<ParseHandler>::newObjectBox(JSObject* obj)
 
 template <typename ParseHandler>
 FunctionBox::FunctionBox(ExclusiveContext* cx, ObjectBox* traceListHead, JSFunction* fun,
-                         ParseContext<ParseHandler>* outerpc, Directives directives,
-                         bool extraWarnings, GeneratorKind generatorKind)
+                         JSObject* staticScope, ParseContext<ParseHandler>* outerpc,
+                         Directives directives, bool extraWarnings, GeneratorKind generatorKind)
   : ObjectBox(fun, traceListHead),
     SharedContext(cx, directives, extraWarnings),
     bindings(),
+    staticScope_(staticScope),
     bufStart(0),
     bufEnd(0),
     length(0),
     generatorKindBits_(GeneratorKindAsBits(generatorKind)),
-    inWith_(false),                  // initialized below
     inGenexpLambda(false),
     hasDestructuringArgs(false),
     useAsm(false),
@@ -606,45 +658,20 @@ FunctionBox::FunctionBox(ExclusiveContext* cx, ObjectBox* traceListHead, JSFunct
     // the JSScript so cannot be collected during a minor GC anyway.
     MOZ_ASSERT(fun->isTenured());
 
-    if (!outerpc) {
-        inWith_ = false;
+    if (staticScope->is<StaticFunctionBoxScopeObject>())
+        staticScope->as<StaticFunctionBoxScopeObject>().setFunctionBox(this);
 
-    } else if (outerpc->parsingWith) {
-        // This covers cases that don't involve eval().  For example:
-        //
-        //   with (o) { (function() { g(); })(); }
-        //
-        // In this case, |outerpc| corresponds to global code, and
-        // outerpc->parsingWith is true.
-        inWith_ = true;
-
-    } else if (outerpc->sc->isFunctionBox()) {
-        // This is like the above case, but for more deeply nested functions.
-        // For example:
-        //
-        //   with (o) { eval("(function() { (function() { g(); })(); })();"); } }
-        //
-        // In this case, the inner anonymous function needs to inherit the
-        // setting of |inWith| from the outer one.
-        FunctionBox* parent = outerpc->sc->asFunctionBox();
-        if (parent && parent->inWith())
-            inWith_ = true;
-    } else {
-        // This is like the above case, but when inside eval.
-        //
-        // For example:
-        //
-        //   with(o) { eval("(function() { g(); })();"); }
-        //
-        // In this case, the static scope chain tells us the presence of with.
-        inWith_ = outerpc->sc->inWith();
-    }
+    computeAllowSyntax(staticScope);
+    computeInWith(staticScope);
 }
 
 template <typename ParseHandler>
 FunctionBox*
-Parser<ParseHandler>::newFunctionBox(Node fn, JSFunction* fun, ParseContext<ParseHandler>* outerpc,
-                                     Directives inheritedDirectives, GeneratorKind generatorKind)
+Parser<ParseHandler>::newFunctionBoxWithScope(Node fn, JSFunction* fun,
+                                              ParseContext<ParseHandler>* outerpc,
+                                              Directives inheritedDirectives,
+                                              GeneratorKind generatorKind,
+                                              JSObject* staticScope)
 {
     MOZ_ASSERT(fun);
 
@@ -656,8 +683,9 @@ Parser<ParseHandler>::newFunctionBox(Node fn, JSFunction* fun, ParseContext<Pars
      * function.
      */
     FunctionBox* funbox =
-        alloc.new_<FunctionBox>(context, traceListHead, fun, outerpc,
-                                inheritedDirectives, options().extraWarningsOption,
+        alloc.new_<FunctionBox>(context, traceListHead, fun, staticScope, outerpc,
+                                inheritedDirectives,
+                                options().extraWarningsOption,
                                 generatorKind);
     if (!funbox) {
         ReportOutOfMemory(context);
@@ -667,6 +695,28 @@ Parser<ParseHandler>::newFunctionBox(Node fn, JSFunction* fun, ParseContext<Pars
     traceListHead = funbox;
     if (fn)
         handler.setFunctionBox(fn, funbox);
+
+    return funbox;
+}
+
+template <typename ParseHandler>
+FunctionBox*
+Parser<ParseHandler>::newFunctionBox(Node fn, JSFunction* fun, ParseContext<ParseHandler>* outerpc,
+                                     Directives inheritedDirectives, GeneratorKind generatorKind,
+                                     JSObject* enclosingStaticScope)
+{
+    MOZ_ASSERT_IF(outerpc, enclosingStaticScope == outerpc->innermostStaticScope());
+
+    RootedObject enclosing(context, enclosingStaticScope);
+    StaticFunctionBoxScopeObject* scope =
+        StaticFunctionBoxScopeObject::create(context, enclosing);
+    if (!scope)
+        return nullptr;
+
+    FunctionBox* funbox = newFunctionBoxWithScope(fn, fun, outerpc, inheritedDirectives,
+                                                  generatorKind, scope);
+    if (!funbox)
+        return nullptr;
 
     return funbox;
 }
@@ -702,8 +752,7 @@ Parser<ParseHandler>::parse()
      *   protected from the GC by a root or a stack frame reference.
      */
     Directives directives(options().strictOption);
-    GlobalSharedContext globalsc(context, directives,
-                                 /* staticEvalScope = */ nullptr,
+    GlobalSharedContext globalsc(context, /* staticScope = */ nullptr, directives,
                                  options().extraWarningsOption);
     ParseContext<ParseHandler> globalpc(this, /* parent = */ nullptr, ParseHandler::null(),
                                         &globalsc, /* newDirectives = */ nullptr,
@@ -775,7 +824,8 @@ ParseNode*
 Parser<FullParseHandler>::standaloneFunctionBody(HandleFunction fun, const AutoNameVector& formals,
                                                  GeneratorKind generatorKind,
                                                  Directives inheritedDirectives,
-                                                 Directives* newDirectives)
+                                                 Directives* newDirectives,
+                                                 HandleObject enclosingStaticScope)
 {
     MOZ_ASSERT(checkOptionsCalled);
 
@@ -788,8 +838,8 @@ Parser<FullParseHandler>::standaloneFunctionBody(HandleFunction fun, const AutoN
         return null();
     fn->pn_body = argsbody;
 
-    FunctionBox* funbox = newFunctionBox(fn, fun, /* outerpc = */ nullptr, inheritedDirectives,
-                                         generatorKind);
+    FunctionBox* funbox = newFunctionBox(fn, fun, inheritedDirectives, generatorKind,
+                                         enclosingStaticScope);
     if (!funbox)
         return null();
     funbox->length = fun->nargs() - fun->hasRest();
@@ -1126,50 +1176,112 @@ Parser<FullParseHandler>::makeDefIntoUse(Definition* dn, ParseNode* pn, JSAtom* 
 }
 
 /*
- * Parameter block types for the several Binder functions.  We use a common
- * helper function signature in order to share code among destructuring and
- * simple variable declaration parsers.  In the destructuring case, the binder
- * function is called indirectly from the variable declaration parser by way
- * of checkDestructuringPattern and its friends.
+ * Helper class for creating bindings.
+ *
+ * The same instance can be used more than once by repeatedly calling
+ * setNameNode() followed by bind().
+ *
+ * In the destructuring case, bind() is called indirectly from the variable
+ * declaration parser by way of checkDestructuringPattern and its friends.
  */
-
 template <typename ParseHandler>
 struct BindData
 {
-    explicit BindData(ExclusiveContext* cx) : let(cx) {}
-
-    typedef bool
-    (*Binder)(BindData* data, HandlePropertyName name, Parser<ParseHandler>* parser);
-
-    /* name node for definition processing and error source coordinates */
-    typename ParseHandler::Node pn;
-
-    JSOp            op;         /* prologue bytecode or nop */
-    Binder          binder;     /* binder, discriminates u */
-    bool            isConst;    /* const binding? */
-
     struct LetData {
         explicit LetData(ExclusiveContext* cx) : blockObj(cx) {}
         VarContext varContext;
         RootedStaticBlockObject blockObj;
-        unsigned   overflow;
-    } let;
+        unsigned overflow;
+    };
+
+    explicit BindData(ExclusiveContext* cx)
+      : kind_(Uninitialized), nameNode_(ParseHandler::null()), letData_(cx)
+    {}
 
     void initLexical(VarContext varContext, StaticBlockObject* blockObj, unsigned overflow,
-                     bool isConst = false) {
-        this->pn = ParseHandler::null();
-        this->op = JSOP_INITLEXICAL;
-        this->isConst = isConst;
-        this->binder = Parser<ParseHandler>::bindLexical;
-        this->let.varContext = varContext;
-        this->let.blockObj = blockObj;
-        this->let.overflow = overflow;
+                     bool isConst = false)
+    {
+        init(LexicalBinding, JSOP_INITLEXICAL, isConst);
+        letData_.varContext = varContext;
+        letData_.blockObj = blockObj;
+        letData_.overflow = overflow;
     }
 
     void initVarOrGlobalConst(JSOp op) {
-        this->op = op;
-        this->isConst = op == JSOP_DEFCONST;
-        this->binder = Parser<ParseHandler>::bindVarOrGlobalConst;
+        init(VarBinding, op, op == JSOP_DEFCONST);
+    }
+
+    void initDestructuring(JSOp op) {
+        init(DestructuringBinding, op, false);
+    }
+
+    void setNameNode(typename ParseHandler::Node pn) {
+        MOZ_ASSERT(isInitialized());
+        nameNode_ = pn;
+    }
+
+    typename ParseHandler::Node nameNode() {
+        MOZ_ASSERT(isInitialized());
+        return nameNode_;
+    }
+
+    JSOp op() {
+        MOZ_ASSERT(isInitialized());
+        return op_;
+    }
+
+    bool isConst() {
+        MOZ_ASSERT(isInitialized());
+        return isConst_;
+    }
+
+    const LetData& letData() {
+        MOZ_ASSERT(kind_ == LexicalBinding);
+        return letData_;
+    }
+
+    bool bind(HandlePropertyName name, Parser<ParseHandler>* parser) {
+        MOZ_ASSERT(isInitialized());
+        MOZ_ASSERT(nameNode_ != ParseHandler::null());
+        switch (kind_) {
+          case LexicalBinding:
+            return Parser<ParseHandler>::bindLexical(this, name, parser);
+          case VarBinding:
+            return Parser<ParseHandler>::bindVarOrGlobalConst(this, name, parser);
+          case DestructuringBinding:
+            return Parser<ParseHandler>::bindDestructuringArg(this, name, parser);
+          default:
+            MOZ_CRASH();
+        }
+        nameNode_ = ParseHandler::null();
+    }
+
+  private:
+    enum BindingKind {
+        Uninitialized,
+        LexicalBinding,
+        VarBinding,
+        DestructuringBinding
+    };
+
+    BindingKind kind_;
+
+    // Name node for definition processing and error source coordinates.
+    typename ParseHandler::Node nameNode_;
+
+    JSOp op_;         // Prologue bytecode or nop.
+    bool isConst_;    // Whether this is a const binding.
+    LetData letData_;
+
+    bool isInitialized() {
+        return kind_ != Uninitialized;
+    }
+
+    void init(BindingKind kind, JSOp op, bool isConst) {
+        MOZ_ASSERT(!isInitialized());
+        kind_ = kind;
+        op_ = op;
+        isConst_ = isConst;
     }
 };
 
@@ -1389,7 +1501,7 @@ Parser<FullParseHandler>::leaveFunction(ParseNode* fn, ParseContext<FullParseHan
              * by eval and function statements (which both flag the function as
              * having an extensible scope) or any enclosing 'with'.
              */
-            if (funbox->hasExtensibleScope() || outerpc->parsingWith)
+            if (funbox->hasExtensibleScope() || funbox->inWith())
                 handler.deoptimizeUsesWithin(dn, fn->pn_pos);
 
             if (!outer_dn) {
@@ -1569,10 +1681,10 @@ Parser<ParseHandler>::bindDestructuringArg(BindData<ParseHandler>* data,
         return false;
     }
 
-    if (!parser->checkStrictBinding(name, data->pn))
+    if (!parser->checkStrictBinding(name, data->nameNode()))
         return false;
 
-    return pc->define(parser->tokenStream, name, data->pn, Definition::VAR);
+    return pc->define(parser->tokenStream, name, data->nameNode(), Definition::VAR);
 }
 
 template <typename ParseHandler>
@@ -1662,9 +1774,7 @@ Parser<ParseHandler>::functionArguments(YieldHandling yieldHandling, FunctionSyn
                  * binder and its data.
                  */
                 BindData<ParseHandler> data(context);
-                data.pn = ParseHandler::null();
-                data.op = JSOP_DEFVAR;
-                data.binder = bindDestructuringArg;
+                data.initDestructuring(JSOP_DEFVAR);
                 Node destruct = destructuringExprWithoutYield(yieldHandling, &data, tt,
                                                               JSMSG_YIELD_IN_DEFAULT);
                 if (!destruct)
@@ -2324,8 +2434,8 @@ Parser<FullParseHandler>::functionArgsAndBody(InHandling inHandling, ParseNode* 
             if (!parser->tokenStream.seek(position, tokenStream))
                 return false;
 
-            ParseContext<SyntaxParseHandler> funpc(parser, outerpc, SyntaxParseHandler::null(), funbox,
-                                                   newDirectives, outerpc->staticLevel + 1,
+            ParseContext<SyntaxParseHandler> funpc(parser, outerpc, SyntaxParseHandler::null(),
+                                                   funbox, newDirectives, outerpc->staticLevel + 1,
                                                    outerpc->blockidGen, /* blockScopeDepth = */ 0);
             if (!funpc.init(tokenStream))
                 return false;
@@ -2363,9 +2473,9 @@ Parser<FullParseHandler>::functionArgsAndBody(InHandling inHandling, ParseNode* 
     } while (false);
 
     // Continue doing a full parse for this inner function.
-    ParseContext<FullParseHandler> funpc(this, pc, pn, funbox, newDirectives,
-                                         outerpc->staticLevel + 1, outerpc->blockidGen,
-                                         /* blockScopeDepth = */ 0);
+    ParseContext<FullParseHandler> funpc(this, pc, pn, funbox,
+                                         newDirectives, outerpc->staticLevel + 1,
+                                         outerpc->blockidGen, /* blockScopeDepth = */ 0);
     if (!funpc.init(tokenStream))
         return false;
 
@@ -2403,9 +2513,9 @@ Parser<SyntaxParseHandler>::functionArgsAndBody(InHandling inHandling, Node pn, 
         return false;
 
     // Initialize early for possible flags mutation via destructuringExpr.
-    ParseContext<SyntaxParseHandler> funpc(this, pc, handler.null(), funbox, newDirectives,
-                                           outerpc->staticLevel + 1, outerpc->blockidGen,
-                                           /* blockScopeDepth = */ 0);
+    ParseContext<SyntaxParseHandler> funpc(this, pc, handler.null(), funbox,
+                                           newDirectives, outerpc->staticLevel + 1,
+                                           outerpc->blockidGen, /* blockScopeDepth = */ 0);
     if (!funpc.init(tokenStream))
         return false;
 
@@ -2457,9 +2567,9 @@ Parser<FullParseHandler>::standaloneLazyFunction(HandleFunction fun, unsigned st
     if (!tokenStream.peekTokenPos(&pn->pn_pos))
         return null();
 
+    RootedObject enclosing(context, fun->lazyScript()->enclosingScope());
     Directives directives(/* strict = */ strict);
-    FunctionBox* funbox = newFunctionBox(pn, fun, /* outerpc = */ nullptr, directives,
-                                         generatorKind);
+    FunctionBox* funbox = newFunctionBox(pn, fun, directives, generatorKind, enclosing);
     if (!funbox)
         return null();
     funbox->length = fun->nargs() - fun->hasRest();
@@ -2984,18 +3094,18 @@ Parser<FullParseHandler>::bindLexical(BindData<FullParseHandler>* data,
                                       HandlePropertyName name, Parser<FullParseHandler>* parser)
 {
     ParseContext<FullParseHandler>* pc = parser->pc;
-    ParseNode* pn = data->pn;
+    ParseNode* pn = data->nameNode();
     if (!parser->checkStrictBinding(name, pn))
         return false;
 
     ExclusiveContext* cx = parser->context;
-    Rooted<StaticBlockObject*> blockObj(cx, data->let.blockObj);
+    Rooted<StaticBlockObject*> blockObj(cx, data->letData().blockObj);
 
     unsigned index;
     if (blockObj) {
         index = blockObj->numVariables();
         if (index >= StaticBlockObject::LOCAL_INDEX_LIMIT) {
-            parser->report(ParseError, false, pn, data->let.overflow);
+            parser->report(ParseError, false, pn, data->letData().overflow);
             return false;
         }
     } else {
@@ -3019,13 +3129,13 @@ Parser<FullParseHandler>::bindLexical(BindData<FullParseHandler>* data,
         return false;
 
     Definition* dn = pc->decls().lookupFirst(name);
-    Definition::Kind bindingKind = data->isConst ? Definition::CONST : Definition::LET;
+    Definition::Kind bindingKind = data->isConst() ? Definition::CONST : Definition::LET;
 
     /*
      * For bindings that are hoisted to the beginning of the block/function,
      * define() right now. Otherwise, delay define until pushLetScope.
      */
-    if (data->let.varContext == HoistVars) {
+    if (data->letData().varContext == HoistVars) {
         if (dn && dn->pn_blockid == pc->blockid())
             return parser->reportRedeclaration(pn, dn->kind(), name);
         if (!pc->define(parser->tokenStream, name, pn, bindingKind))
@@ -3036,7 +3146,7 @@ Parser<FullParseHandler>::bindLexical(BindData<FullParseHandler>* data,
         bool redeclared;
         RootedId id(cx, NameToId(name));
         RootedShape shape(cx, StaticBlockObject::addVar(cx, blockObj, id,
-                                                        data->isConst, index, &redeclared));
+                                                        data->isConst(), index, &redeclared));
         if (!shape) {
             if (redeclared) {
                 // The only way to be redeclared without a previous definition is if we're in a
@@ -3054,7 +3164,7 @@ Parser<FullParseHandler>::bindLexical(BindData<FullParseHandler>* data,
     } else {
         // Body-level lets are hoisted and need to have been defined via
         // pc->define above.
-        MOZ_ASSERT(data->let.varContext == HoistVars);
+        MOZ_ASSERT(data->letData().varContext == HoistVars);
         MOZ_ASSERT(pc->decls().lookupFirst(name));
     }
 
@@ -3066,7 +3176,7 @@ template <>
 Parser<SyntaxParseHandler>::bindLexical(BindData<SyntaxParseHandler>* data,
                                         HandlePropertyName name, Parser<SyntaxParseHandler>* parser)
 {
-    if (!parser->checkStrictBinding(name, data->pn))
+    if (!parser->checkStrictBinding(name, data->nameNode()))
         return false;
 
     return true;
@@ -3146,10 +3256,7 @@ Parser<ParseHandler>::AutoPushStmtInfoPC::AutoPushStmtInfoPC(Parser<ParseHandler
     stmt_(parser.context)
 {
     stmt_.blockid = parser.pc->blockid();
-    NestedScopeObject* enclosing = nullptr;
-    if (StmtInfoPC* stmt = parser.pc->innermostScopeStmt())
-        enclosing = stmt->staticScope;
-    staticScope.initEnclosingNestedScopeFromParser(enclosing);
+    staticScope.initEnclosingScopeFromParser(parser.pc->innermostStaticScope());
     parser.pc->stmtStack.pushNestedScope(&stmt_, type, staticScope);
 }
 
@@ -3176,7 +3283,7 @@ Parser<ParseHandler>::AutoPushStmtInfoPC::~AutoPushStmtInfoPC()
             MOZ_ASSERT(!blockObj->inDictionaryMode());
             ForEachLetDef(ts, pc, blockObj, PopLetDecl<ParseHandler>());
         }
-        scopeObj->resetEnclosingNestedScopeFromParser();
+        scopeObj->resetEnclosingScopeFromParser();
     }
 }
 
@@ -3217,8 +3324,8 @@ Parser<ParseHandler>::bindVarOrGlobalConst(BindData<ParseHandler>* data,
 {
     ExclusiveContext* cx = parser->context;
     ParseContext<ParseHandler>* pc = parser->pc;
-    Node pn = data->pn;
-    bool isConstDecl = data->op == JSOP_DEFCONST;
+    Node pn = data->nameNode();
+    bool isConstDecl = data->op() == JSOP_DEFCONST;
 
     /* Default best op for pn is JSOP_GETNAME; we'll try to improve below. */
     parser->handler.setOp(pn, JSOP_GETNAME);
@@ -3285,7 +3392,7 @@ Parser<ParseHandler>::bindVarOrGlobalConst(BindData<ParseHandler>* data,
                        (!inCatchBody || OuterLet(pc, stmt, name))));
 
         if (parser->options().extraWarningsOption
-            ? data->op != JSOP_DEFVAR || dn_kind != Definition::VAR
+            ? data->op() != JSOP_DEFVAR || dn_kind != Definition::VAR
             : error)
         {
             JSAutoByteString bytes;
@@ -3384,24 +3491,24 @@ Parser<FullParseHandler>::bindInitialized(BindData<FullParseHandler>* data, Pars
 
     RootedPropertyName name(context, pn->pn_atom->asPropertyName());
 
-    data->pn = pn;
-    if (!data->binder(data, name, this))
+    data->setNameNode(pn);
+    if (!data->bind(name, this))
         return false;
 
     /*
      * Select the appropriate name-setting opcode, respecting eager selection
-     * done by the data->binder function.
+     * done by the data->bind function.
      */
-    if (data->op == JSOP_INITLEXICAL)
+    if (data->op() == JSOP_INITLEXICAL)
         pn->setOp(JSOP_INITLEXICAL);
     else if (pn->pn_dflags & PND_BOUND)
         pn->setOp(JSOP_SETLOCAL);
-    else if (data->op == JSOP_DEFCONST)
+    else if (data->op() == JSOP_DEFCONST)
         pn->setOp(JSOP_SETCONST);
     else
         pn->setOp(JSOP_SETNAME);
 
-    if (data->op == JSOP_DEFCONST)
+    if (data->op() == JSOP_DEFCONST)
         pn->pn_dflags |= PND_CONST;
 
     pn->markAsAssigned();
@@ -3649,6 +3756,7 @@ Parser<ParseHandler>::pushLexicalScope(HandleStaticBlockObject blockObj,
     if (!pn)
         return null();
 
+    blockObj->initEnclosingScopeFromParser(pc->innermostStaticScope());
     if (!stmt.makeInnermostLexicalScope(*blockObj))
         return null();
     handler.setBlockId(pn, stmt->blockid);
@@ -3850,7 +3958,8 @@ Parser<ParseHandler>::variables(YieldHandling yieldHandling,
 
                 MUST_MATCH_TOKEN(TOK_ASSIGN, JSMSG_BAD_DESTRUCT_DECL);
 
-                Node init = assignExpr(InAllowed, yieldHandling);
+                Node init = assignExpr(location == InForInit ? InProhibited : InAllowed,
+                                       yieldHandling);
                 if (!init)
                     return null();
 
@@ -3892,9 +4001,9 @@ Parser<ParseHandler>::variables(YieldHandling yieldHandling,
             pn2 = newBindingNode(name, kind == PNK_VAR || kind == PNK_GLOBALCONST, varContext);
             if (!pn2)
                 return null();
-            if (data.isConst)
+            if (data.isConst())
                 handler.setFlag(pn2, PND_CONST);
-            data.pn = pn2;
+            data.setNameNode(pn2);
 
             handler.addList(pn, pn2);
 
@@ -3914,10 +4023,11 @@ Parser<ParseHandler>::variables(YieldHandling yieldHandling,
                 // now. Otherwise we must wait until after parsing the initializing
                 // assignment.
                 bool bindBeforeInitializer = kind != PNK_LET && kind != PNK_CONST;
-                if (bindBeforeInitializer && !data.binder(&data, name, this))
+                if (bindBeforeInitializer && !data.bind(name, this))
                     return null();
 
-                Node init = assignExpr(InAllowed, yieldHandling);
+                Node init = assignExpr(location == InForInit ? InProhibited : InAllowed,
+                                       yieldHandling);
                 if (!init)
                     return null();
 
@@ -3943,19 +4053,19 @@ Parser<ParseHandler>::variables(YieldHandling yieldHandling,
                 }
 
                 if (performAssignment) {
-                    if (!bindBeforeInitializer && !data.binder(&data, name, this))
+                    if (!bindBeforeInitializer && !data.bind(name, this))
                         return null();
 
-                    if (!handler.finishInitializerAssignment(pn2, init, data.op))
+                    if (!handler.finishInitializerAssignment(pn2, init, data.op()))
                         return null();
                 }
             } else {
-                if (data.isConst && location == NotInForInit) {
+                if (data.isConst() && location == NotInForInit) {
                     report(ParseError, false, null(), JSMSG_BAD_CONST_DECL);
                     return null();
                 }
 
-                if (!data.binder(&data, name, this))
+                if (!data.bind(name, this))
                     return null();
             }
 
@@ -4025,10 +4135,7 @@ Parser<FullParseHandler>::checkAndPrepareLexical(bool isConst, const TokenPos &e
         StaticBlockObject* blockObj = StaticBlockObject::create(context);
         if (!blockObj)
             return false;
-        NestedScopeObject* enclosing = nullptr;
-        if (StmtInfoPC* stmt = pc->innermostScopeStmt())
-            enclosing = stmt->staticScope;
-        blockObj->initEnclosingNestedScopeFromParser(enclosing);
+        blockObj->initEnclosingScopeFromParser(pc->innermostStaticScope());
 
         ObjectBox* blockbox = newObjectBox(blockObj);
         if (!blockbox)
@@ -5576,9 +5683,6 @@ Parser<FullParseHandler>::withStatement(YieldHandling yieldHandling)
         return null();
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_WITH);
 
-    bool oldParsingWith = pc->parsingWith;
-    pc->parsingWith = true;
-
     Rooted<StaticWithObject*> staticWith(context, StaticWithObject::create(context));
     if (!staticWith)
         return null();
@@ -5592,7 +5696,6 @@ Parser<FullParseHandler>::withStatement(YieldHandling yieldHandling)
     }
 
     pc->sc->setBindingsAccessedDynamically();
-    pc->parsingWith = oldParsingWith;
 
     /*
      * Make sure to deoptimize lexical dependencies inside the |with|
@@ -5757,7 +5860,7 @@ Parser<ParseHandler>::tryStatement(YieldHandling yieldHandling)
             data.initLexical(HoistVars,
                              &stmtInfo->staticScope->template as<StaticBlockObject>(),
                              JSMSG_TOO_MANY_CATCH_VARS);
-            MOZ_ASSERT(data.let.blockObj);
+            MOZ_ASSERT(data.letData().blockObj);
 
             if (!tokenStream.getToken(&tt))
                 return null();
@@ -5787,8 +5890,8 @@ Parser<ParseHandler>::tryStatement(YieldHandling yieldHandling)
                 catchName = newBindingNode(label, false);
                 if (!catchName)
                     return null();
-                data.pn = catchName;
-                if (!data.binder(&data, label, this))
+                data.setNameNode(catchName);
+                if (!data.bind(label, this))
                     return null();
                 break;
               }
@@ -7227,8 +7330,8 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode* bodyExpr, unsigned 
             break;
 
           case TOK_NAME:
-            data.pn = pn3;
-            if (!data.binder(&data, name, this))
+            data.setNameNode(pn3);
+            if (!data.bind(name, this))
                 return null();
             break;
 
@@ -7382,7 +7485,8 @@ Parser<ParseHandler>::generatorComprehensionLambda(GeneratorKind comprehensionKi
             return null();
     }
 
-    RootedFunction fun(context, newFunction(/* atom = */ nullptr, Expression, comprehensionKind, proto));
+    RootedFunction fun(context, newFunction(/* atom = */ nullptr, Expression,
+                                            comprehensionKind, proto));
     if (!fun)
         return null();
 
@@ -7563,8 +7667,8 @@ Parser<ParseHandler>::comprehensionFor(GeneratorKind comprehensionKind)
     Node decls = handler.newList(PNK_LET, lhs);
     if (!decls)
         return null();
-    data.pn = lhs;
-    if (!data.binder(&data, name, this))
+    data.setNameNode(lhs);
+    if (!data.bind(name, this))
         return null();
     Node letScope = pushLetScope(blockObj, stmtInfo);
     if (!letScope)
@@ -7826,37 +7930,12 @@ Parser<ParseHandler>::argumentList(YieldHandling yieldHandling, Node listNode, b
 
 template <typename ParseHandler>
 bool
-Parser<ParseHandler>::checkAllowedNestedSyntax(SharedContext::AllowedSyntax allowed,
-                                               SharedContext** allowingContext)
-{
-    for (GenericParseContext* gpc = pc; gpc; gpc = gpc->parent) {
-        SharedContext* sc = gpc->sc;
-
-        // Arrow functions don't help decide whether we should allow nested
-        // syntax, as they don't store any of the necessary state for themselves.
-        if (sc->isFunctionBox() && sc->asFunctionBox()->function()->isArrow())
-            continue;
-
-        if (!sc->allowSyntax(allowed))
-            return false;
-        if (allowingContext)
-            *allowingContext = sc;
-        return true;
-    }
-    return false;
-}
-
-template <typename ParseHandler>
-bool
 Parser<ParseHandler>::checkAndMarkSuperScope()
 {
-    SharedContext* foundContext = nullptr;
-    if (checkAllowedNestedSyntax(SharedContext::AllowedSyntax::SuperProperty, &foundContext)) {
-        if (foundContext->isFunctionBox())
-            foundContext->asFunctionBox()->setNeedsHomeObject();
-        return true;
-    }
-    return false;
+    if (!pc->sc->allowSuperProperty())
+        return false;
+    pc->sc->markSuperScopeNeedsHomeObject();
+    return true;
 }
 
 template <typename ParseHandler>
@@ -8655,7 +8734,7 @@ Parser<ParseHandler>::tryNewTarget(Node &newTarget)
         return false;
     }
 
-    if (!checkAllowedNestedSyntax(SharedContext::AllowedSyntax::NewTarget)) {
+    if (!pc->sc->allowNewTarget()) {
         reportWithOffset(ParseError, false, begin, JSMSG_BAD_NEWTARGET);
         return false;
     }

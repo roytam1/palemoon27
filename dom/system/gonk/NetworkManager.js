@@ -31,6 +31,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "gNetworkService",
                                    "@mozilla.org/network/service;1",
                                    "nsINetworkService");
 
+XPCOMUtils.defineLazyServiceGetter(this, "gPACGenerator",
+                                   "@mozilla.org/pac-generator;1",
+                                   "nsIPACGenerator");
+
 const TOPIC_INTERFACE_REGISTERED     = "network-interface-registered";
 const TOPIC_INTERFACE_UNREGISTERED   = "network-interface-unregistered";
 const TOPIC_ACTIVE_CHANGED           = "network-active-changed";
@@ -38,6 +42,7 @@ const TOPIC_PREF_CHANGED             = "nsPref:changed";
 const TOPIC_XPCOM_SHUTDOWN           = "xpcom-shutdown";
 const TOPIC_CONNECTION_STATE_CHANGED = "network-connection-state-changed";
 const PREF_MANAGE_OFFLINE_STATUS     = "network.gonk.manage-offline-status";
+const PREF_NETWORK_DEBUG_ENABLED     = "network.debugging.enabled";
 
 const IPV4_ADDRESS_ANY                 = "0.0.0.0";
 const IPV6_ADDRESS_ANY                 = "::0";
@@ -53,13 +58,25 @@ const CONNECTION_TYPE_WIFI      = 3;
 const CONNECTION_TYPE_OTHER     = 4;
 const CONNECTION_TYPE_NONE      = 5;
 
-let DEBUG = false;
+const PROXY_TYPE_MANUAL = Ci.nsIProtocolProxyService.PROXYCONFIG_MANUAL;
+const PROXY_TYPE_PAC    = Ci.nsIProtocolProxyService.PROXYCONFIG_PAC;
 
-// Read debug setting from pref.
-try {
-  let debugPref = Services.prefs.getBoolPref("network.debugging.enabled");
-  DEBUG = DEBUG || debugPref;
-} catch (e) {}
+let debug;
+function updateDebug() {
+  let debugPref = false; // set default value here.
+  try {
+    debugPref = debugPref || Services.prefs.getBoolPref(PREF_NETWORK_DEBUG_ENABLED);
+  } catch (e) {}
+
+  if (debugPref) {
+    debug = function(s) {
+      dump("-*- NetworkManager: " + s + "\n");
+    };
+  } else {
+    debug = function(s) {};
+  }
+}
+updateDebug();
 
 function defineLazyRegExp(obj, name, pattern) {
   obj.__defineGetter__(name, function() {
@@ -121,6 +138,7 @@ function NetworkManager() {
     // Ignore.
   }
   Services.prefs.addObserver(PREF_MANAGE_OFFLINE_STATUS, this, false);
+  Services.prefs.addObserver(PREF_NETWORK_DEBUG_ENABLED, this, false);
   Services.obs.addObserver(this, TOPIC_XPCOM_SHUTDOWN, false);
 
   this.setAndConfigureActive();
@@ -147,13 +165,18 @@ NetworkManager.prototype = {
   observe: function(subject, topic, data) {
     switch (topic) {
       case TOPIC_PREF_CHANGED:
-        this._manageOfflineStatus =
-          Services.prefs.getBoolPref(PREF_MANAGE_OFFLINE_STATUS);
-        debug(PREF_MANAGE_OFFLINE_STATUS + " has changed to " + this._manageOfflineStatus);
+        if (data === PREF_NETWORK_DEBUG_ENABLED) {
+          updateDebug();
+        } else if (data === PREF_MANAGE_OFFLINE_STATUS) {
+          this._manageOfflineStatus =
+            Services.prefs.getBoolPref(PREF_MANAGE_OFFLINE_STATUS);
+          debug(PREF_MANAGE_OFFLINE_STATUS + " has changed to " + this._manageOfflineStatus);
+        }
         break;
       case TOPIC_XPCOM_SHUTDOWN:
         Services.obs.removeObserver(this, TOPIC_XPCOM_SHUTDOWN);
         Services.prefs.removeObserver(PREF_MANAGE_OFFLINE_STATUS, this);
+        Services.prefs.removeObserver(PREF_NETWORK_DEBUG_ENABLED, this);
         break;
     }
   },
@@ -261,48 +284,53 @@ NetworkManager.prototype = {
     switch (network.state) {
       case Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED:
         gNetworkService.createNetwork(network.name, () => {
-          // Add host route for data calls
-          if (this.isNetworkTypeMobile(network.type)) {
-            let currentInterfaceLinks = this.networkInterfaceLinks[networkId];
-            let newLinkRoutes = network.getDnses().concat(network.httpProxyHost);
-            // If gateways have changed, remove all old routes first.
-            this._handleGateways(networkId, network.getGateways())
-              .then(() => this._updateRoutes(currentInterfaceLinks.linkRoutes,
-                                             newLinkRoutes,
-                                             network.getGateways(), network.name))
-              .then(() => currentInterfaceLinks.setLinks(newLinkRoutes,
-                                                         network.getGateways(),
-                                                         network.name));
-          }
 
           // Remove pre-created default route and let setAndConfigureActive()
           // to set default route only on preferred network
           gNetworkService.removeDefaultRoute(network);
 
-          // Dun type is a special case where we add the default route to a
-          // secondary table.
-          if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_DUN) {
-            this.setSecondaryDefaultRoute(network);
-          }
-
-          this._addSubnetRoutes(network);
-          this.setAndConfigureActive();
-
-          // Update data connection when Wifi connected/disconnected
-          if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI && this.mRil) {
-            for (let i = 0; i < this.mRil.numRadioInterfaces; i++) {
-              this.mRil.getRadioInterface(i).updateRILNetworkInterface();
+          // Set DNS server as early as possible to prevent from
+          // premature domain name lookup.
+          gNetworkService.setDNS(network, () => {
+            // Add host route for data calls
+            if (this.isNetworkTypeMobile(network.type)) {
+              let currentInterfaceLinks = this.networkInterfaceLinks[networkId];
+              let newLinkRoutes = network.getDnses().concat(network.httpProxyHost);
+              // If gateways have changed, remove all old routes first.
+              this._handleGateways(networkId, network.getGateways())
+                .then(() => this._updateRoutes(currentInterfaceLinks.linkRoutes,
+                                               newLinkRoutes,
+                                               network.getGateways(), network.name))
+                .then(() => currentInterfaceLinks.setLinks(newLinkRoutes,
+                                                           network.getGateways(),
+                                                           network.name));
             }
-          }
 
-          // Probing the public network accessibility after routing table is ready
-          CaptivePortalDetectionHelper
-            .notify(CaptivePortalDetectionHelper.EVENT_CONNECT, this.active);
+            // Dun type is a special case where we add the default route to a
+            // secondary table.
+            if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_DUN) {
+              this.setSecondaryDefaultRoute(network);
+            }
 
-          // Notify outer modules like MmsService to start the transaction after
-          // the configuration of the network interface is done.
-          Services.obs.notifyObservers(network, TOPIC_CONNECTION_STATE_CHANGED,
-                                       this.convertConnectionType(network));
+            this._addSubnetRoutes(network);
+            this.setAndConfigureActive();
+
+            // Update data connection when Wifi connected/disconnected
+            if (network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI && this.mRil) {
+              for (let i = 0; i < this.mRil.numRadioInterfaces; i++) {
+                this.mRil.getRadioInterface(i).updateRILNetworkInterface();
+              }
+            }
+
+            // Probing the public network accessibility after routing table is ready
+            CaptivePortalDetectionHelper
+              .notify(CaptivePortalDetectionHelper.EVENT_CONNECT, this.active);
+
+            // Notify outer modules like MmsService to start the transaction after
+            // the configuration of the network interface is done.
+            Services.obs.notifyObservers(network, TOPIC_CONNECTION_STATE_CHANGED,
+                                         this.convertConnectionType(network));
+          });
         });
 
         break;
@@ -323,7 +351,7 @@ NetworkManager.prototype = {
         }
         // Clear http proxy on active network.
         if (this.active && network.type == this.active.type) {
-          gNetworkService.clearNetworkProxy();
+          this.clearNetworkProxy();
         }
 
         // Abort ongoing captive portal detection on the wifi interface
@@ -625,7 +653,7 @@ NetworkManager.prototype = {
       // The override was just set, so reconfigure the network.
       if (this.active != this._overriddenActive) {
         this.active = this._overriddenActive;
-        this._setDefaultRouteAndDNS(this.active, oldActive);
+        this._setDefaultRouteAndProxy(this.active, oldActive);
         Services.obs.notifyObservers(this.active, TOPIC_ACTIVE_CHANGED, null);
       }
       return;
@@ -636,7 +664,7 @@ NetworkManager.prototype = {
         this.active.state == Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED &&
         this.active.type == this._preferredNetworkType) {
       debug("Active network is already our preferred type.");
-      this._setDefaultRouteAndDNS(this.active, oldActive);
+      this._setDefaultRouteAndProxy(this.active, oldActive);
       return;
     }
 
@@ -670,10 +698,8 @@ NetworkManager.prototype = {
         this.active = defaultDataNetwork;
       }
       // Don't set default route on secondary APN
-      if (this.isNetworkTypeSecondaryMobile(this.active.type)) {
-        gNetworkService.setDNS(this.active, function() {});
-      } else {
-        this._setDefaultRouteAndDNS(this.active, oldActive);
+      if (!this.isNetworkTypeSecondaryMobile(this.active.type)) {
+        this._setDefaultRouteAndProxy(this.active, oldActive);
       }
     }
 
@@ -697,44 +723,48 @@ NetworkManager.prototype = {
       return Promise.resolve([hostname]);
     }
 
-    let deferred = Promise.defer();
-    let onLookupComplete = (aRequest, aRecord, aStatus) => {
-      if (!Components.isSuccessCode(aStatus)) {
-        deferred.reject(new Error(
-          "Failed to resolve '" + hostname + "', with status: " + aStatus));
-        return;
-      }
+    // Wrap gDNSService.asyncResolveExtended to a promise, which
+    // resolves with an array of ip addresses or rejects with
+    // the reason otherwise.
+    let hostResolveWrapper = aNetId => {
+      return new Promise((aResolve, aReject) => {
+        // Callback for gDNSService.asyncResolveExtended.
+        let onLookupComplete = (aRequest, aRecord, aStatus) => {
+          if (!Components.isSuccessCode(aStatus)) {
+            aReject(new Error("Failed to resolve '" + hostname +
+                              "', with status: " + aStatus));
+            return;
+          }
 
-      let retval = [];
-      while (aRecord.hasMore()) {
-        retval.push(aRecord.getNextAddrAsString());
-      }
+          let retval = [];
+          while (aRecord.hasMore()) {
+            retval.push(aRecord.getNextAddrAsString());
+          }
 
-      if (!retval.length) {
-        deferred.reject(new Error("No valid address after DNS lookup!"));
-        return;
-      }
+          if (!retval.length) {
+            aReject(new Error("No valid address after DNS lookup!"));
+            return;
+          }
 
-      if (DEBUG) debug("hostname is resolved: " + hostname);
-      if (DEBUG) debug("Addresses: " + JSON.stringify(retval));
+          debug("hostname is resolved: " + hostname);
+          debug("Addresses: " + JSON.stringify(retval));
 
-      deferred.resolve(retval);
+          aResolve(retval);
+        };
+
+        debug('Calling gDNSService.asyncResolveExtended: ' + aNetId + ', ' + hostname);
+        gDNSService.asyncResolveExtended(hostname,
+                                         0,
+                                         aNetId,
+                                         onLookupComplete,
+                                         Services.tm.mainThread);
+      });
     };
 
-    // Bug 1058282 - Explicitly request ipv4 to get around 8.8.8.8 probe at
-    // http://androidxref.com/4.3_r2.1/xref/bionic/libc/netbsd/net/getaddrinfo.c#1923
-    //
-    // Whenever MMS connection is the only network interface, there is no
-    // default route so that any ip probe will fail.
-    let flags = 0;
-    if (network.type === Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS) {
-      flags |= Ci.nsIDNSService.RESOLVE_DISABLE_IPV6;
-    }
-
-    // TODO: Bug 992772 - Resolve the hostname with specified networkInterface.
-    gDNSService.asyncResolve(hostname, flags, onLookupComplete, Services.tm.mainThread);
-
-    return deferred.promise;
+    // TODO: |getNetId| will be implemented as a sync call in nsINetworkManager
+    //       once Bug 1141903 is landed.
+    return gNetworkService.getNetId(network.name)
+      .then(aNetId => hostResolveWrapper(aNetId));
   },
 
   convertConnectionType: function(network) {
@@ -758,16 +788,75 @@ NetworkManager.prototype = {
     }
   },
 
-  _setDefaultRouteAndDNS: function(network, oldInterface) {
-    gNetworkService.setDefaultRoute(network, oldInterface, function(success) {
+  _setDefaultRouteAndProxy: function(network, oldInterface) {
+    gNetworkService.setDefaultRoute(network, oldInterface, (success) => {
       if (!success) {
         gNetworkService.destroyNetwork(network, function() {});
         return;
       }
-      gNetworkService.setDNS(network, function(result) {
-        gNetworkService.setNetworkProxy(network);
-      });
+      this.setNetworkProxy(network);
     });
+  },
+
+  setNetworkProxy: function(network) {
+    try {
+      if (!network.httpProxyHost || network.httpProxyHost === "") {
+        // Sets direct connection to internet.
+        this.clearNetworkProxy();
+
+        debug("No proxy support for " + network.name + " network interface.");
+        return;
+      }
+
+      debug("Going to set proxy settings for " + network.name + " network interface.");
+
+      // Do not use this proxy server for all protocols.
+      Services.prefs.setBoolPref("network.proxy.share_proxy_settings", false);
+      Services.prefs.setCharPref("network.proxy.http", network.httpProxyHost);
+      Services.prefs.setCharPref("network.proxy.ssl", network.httpProxyHost);
+      let port = network.httpProxyPort === 0 ? 8080 : network.httpProxyPort;
+      Services.prefs.setIntPref("network.proxy.http_port", port);
+      Services.prefs.setIntPref("network.proxy.ssl_port", port);
+
+      let usePAC;
+      try {
+        usePAC = Services.prefs.getBoolPref("network.proxy.pac_generator");
+      } catch (ex) {}
+
+      if (usePAC) {
+        Services.prefs.setCharPref("network.proxy.autoconfig_url",
+                                   gPACGenerator.generate());
+        Services.prefs.setIntPref("network.proxy.type", PROXY_TYPE_PAC);
+      } else {
+        Services.prefs.setIntPref("network.proxy.type", PROXY_TYPE_MANUAL);
+      }
+    } catch(ex) {
+        debug("Exception " + ex + ". Unable to set proxy setting for " +
+              network.name + " network interface.");
+    }
+  },
+
+  clearNetworkProxy: function() {
+    debug("Going to clear all network proxy.");
+
+    Services.prefs.clearUserPref("network.proxy.share_proxy_settings");
+    Services.prefs.clearUserPref("network.proxy.http");
+    Services.prefs.clearUserPref("network.proxy.http_port");
+    Services.prefs.clearUserPref("network.proxy.ssl");
+    Services.prefs.clearUserPref("network.proxy.ssl_port");
+
+    let usePAC;
+    try {
+      usePAC = Services.prefs.getBoolPref("network.proxy.pac_generator");
+    } catch (ex) {}
+
+    if (usePAC) {
+      Services.prefs.setCharPref("network.proxy.autoconfig_url",
+                                 gPACGenerator.generate());
+      Services.prefs.setIntPref("network.proxy.type", PROXY_TYPE_PAC);
+    } else {
+      Services.prefs.clearUserPref("network.proxy.type");
+    }
   },
 };
 
@@ -854,13 +943,3 @@ XPCOMUtils.defineLazyGetter(NetworkManager.prototype, "mRil", function() {
 });
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkManager]);
-
-
-let debug;
-if (DEBUG) {
-  debug = function(s) {
-    dump("-*- NetworkManager: " + s + "\n");
-  };
-} else {
-  debug = function(s) {};
-}

@@ -142,6 +142,24 @@ function runTests(obj) {
     });
   })
 
+  // non transfering tests
+  .then(function() {
+    if (obj.transferableObjects) {
+      return;
+    }
+
+    // MessagePort
+    return new Promise(function(r, rr) {
+      var mc = new MessageChannel();
+      obj.send(42, [mc.port1]).then(function(received) {
+        ok(false, "This object should not support port transferring");
+      }, function() {
+        ok(true, "This object should not support port transferring");
+      })
+      .then(r);
+    });
+  })
+
   // done.
   .then(function() {
     obj.finished();
@@ -170,7 +188,13 @@ function test_windowToWindow() {
     send: function(what, ports) {
       return new Promise(function(r, rr) {
         resolve = r;
-        postMessage(what, '*', ports);
+
+        try {
+          postMessage(what, '*', ports);
+        } catch(e) {
+          resolve = null;
+          rr();
+        }
       });
     },
 
@@ -217,7 +241,12 @@ function test_windowToIframeURL(url) {
       send: function(what, ports) {
         return new Promise(function(r, rr) {
           resolve = r;
-          ifr.contentWindow.postMessage(what, '*', ports);
+          try {
+            ifr.contentWindow.postMessage(what, '*', ports);
+          } catch(e) {
+            resolve = null;
+            rr();
+          }
         });
       },
 
@@ -231,12 +260,100 @@ function test_windowToIframeURL(url) {
   document.body.appendChild(ifr);
 }
 
+// PostMessage for BroadcastChannel
+function test_broadcastChannel() {
+  info("Testing broadcastChannel");
+
+  var bc1 = new BroadcastChannel('postMessagesTest');
+  var bc2 = new BroadcastChannel('postMessagesTest');
+
+  var resolve;
+
+  bc2.onmessage = function(e) {
+    if (!resolve) {
+      ok(false, "Unexpected message!");
+      return;
+    }
+
+    let tmp = resolve;
+    resolve = null;
+    tmp({ data: e.data, ports: [] });
+  }
+
+  runTests({
+    clonableObjects: true,
+    transferableObjects: false,
+    send: function(what, ports) {
+      return new Promise(function(r, rr) {
+        if (ports.length) {
+          rr();
+          return;
+        }
+
+        resolve = r;
+        bc1.postMessage(what);
+      });
+    },
+
+    finished: function() {
+      onmessage = null;
+      next();
+    }
+  });
+}
+
+// PostMessage for MessagePort
+function test_messagePort() {
+  info("Testing messagePort");
+
+  var mc = new MessageChannel();
+  var resolve;
+
+  mc.port2.onmessage = function(e) {
+    if (!resolve) {
+      ok(false, "Unexpected message!");
+      return;
+    }
+
+    let tmp = resolve;
+    resolve = null;
+    tmp({ data: e.data, ports: e.ports });
+  }
+
+  runTests({
+    clonableObjects: true,
+    transferableObjects: true,
+    send: function(what, ports) {
+      return new Promise(function(r, rr) {
+        resolve = r;
+        try {
+          mc.port1.postMessage(what, ports);
+        } catch(e) {
+          resolve = null;
+          rr();
+        }
+      });
+    },
+
+    finished: function() {
+      onmessage = null;
+      next();
+    }
+  });
+}
+
 var tests = [
   create_fileList,
 
   test_windowToWindow,
   test_windowToIframe,
   test_windowToCrossOriginIframe,
+
+  test_broadcastChannel,
+  // TODO BroadcastChannel in worker
+
+  test_messagePort,
+  // TODO MessagePort in worker
 ];
 
 function next() {

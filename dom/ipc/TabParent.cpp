@@ -2893,9 +2893,9 @@ TabParent::SetHasContentOpener(bool aHasContentOpener)
 }
 
 NS_IMETHODIMP
-TabParent::NavigateDocument(bool aForward)
+TabParent::NavigateByKey(bool aForward, bool aForDocumentNavigation)
 {
-  unused << SendNavigateDocument(aForward);
+  unused << SendNavigateByKey(aForward, aForDocumentNavigation);
   return NS_OK;
 }
 
@@ -3102,7 +3102,9 @@ public:
   NS_IMETHOD GetContentLength(int64_t*) NO_IMPL
   NS_IMETHOD SetContentLength(int64_t) NO_IMPL
   NS_IMETHOD Open(nsIInputStream**) NO_IMPL
+  NS_IMETHOD Open2(nsIInputStream**) NO_IMPL
   NS_IMETHOD AsyncOpen(nsIStreamListener*, nsISupports*) NO_IMPL
+  NS_IMETHOD AsyncOpen2(nsIStreamListener*) NO_IMPL
   NS_IMETHOD GetContentDisposition(uint32_t*) NO_IMPL
   NS_IMETHOD SetContentDisposition(uint32_t) NO_IMPL
   NS_IMETHOD GetContentDispositionFilename(nsAString&) NO_IMPL

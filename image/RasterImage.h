@@ -23,6 +23,7 @@
 #include "nsIProperties.h"
 #include "nsTArray.h"
 #include "imgFrame.h"
+#include "LookupResult.h"
 #include "nsThreadUtils.h"
 #include "DecodePool.h"
 #include "Orientation.h"
@@ -179,8 +180,8 @@ public:
 
   virtual size_t SizeOfSourceWithComputedFallback(MallocSizeOf aMallocSizeOf)
     const override;
-  virtual size_t SizeOfDecoded(gfxMemoryLocation aLocation,
-                               MallocSizeOf aMallocSizeOf) const override;
+  virtual void CollectSizeOfSurfaces(nsTArray<SurfaceMemoryCounter>& aCounters,
+                                     MallocSizeOf aMallocSizeOf) const override;
 
   /* Triggers discarding. */
   void Discard();
@@ -205,7 +206,10 @@ public:
   void     SetLoopCount(int32_t aLoopCount);
 
   /// Notification that the entire image has been decoded.
-  void OnDecodingComplete();
+  void OnDecodingComplete(bool aIsAnimated);
+
+  /// Helper method for OnDecodingComplete.
+  void MarkAnimationDecoded();
 
   /**
    * Sends the provided progress notifications to ProgressTracker.
@@ -245,7 +249,6 @@ public:
                                        bool aLastPart) override;
 
   void NotifyForLoadEvent(Progress aProgress);
-  void NotifyForDecodeOnlyOnDraw();
 
   /**
    * A hint of the number of bytes of source data that the image contains. If
@@ -301,9 +304,9 @@ private:
   Pair<DrawResult, RefPtr<gfx::SourceSurface>>
     GetFrameInternal(uint32_t aWhichFrame, uint32_t aFlags);
 
-  DrawableFrameRef LookupFrameInternal(uint32_t aFrameNum,
-                                       const gfx::IntSize& aSize,
-                                       uint32_t aFlags);
+  LookupResult LookupFrameInternal(uint32_t aFrameNum,
+                                   const gfx::IntSize& aSize,
+                                   uint32_t aFlags);
   DrawableFrameRef LookupFrame(uint32_t aFrameNum,
                                const nsIntSize& aSize,
                                uint32_t aFlags);
@@ -372,8 +375,8 @@ private: // data
   // Image locking.
   uint32_t                   mLockCount;
 
-  // Source data members
-  nsCString                  mSourceDataMimeType;
+  // The type of decoder this image needs. Computed from the MIME type in Init().
+  eDecoderType               mDecoderType;
 
   // How many times we've decoded this image.
   // This is currently only used for statistics
@@ -406,7 +409,6 @@ private: // data
 
   // Boolean flags (clustered together to conserve space):
   bool                       mHasSize:1;       // Has SetSize() been called?
-  bool                       mDecodeOnlyOnDraw:1; // Decoding only on draw?
   bool                       mTransient:1;     // Is the image short-lived?
   bool                       mSyncLoad:1;      // Are we loading synchronously?
   bool                       mDiscardable:1;   // Is container discardable?

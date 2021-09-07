@@ -144,6 +144,13 @@ nsHttpTransaction::nsHttpTransaction()
 {
     LOG(("Creating nsHttpTransaction @%p\n", this));
     gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
+
+#ifdef MOZ_VALGRIND
+    memset(&mSelfAddr, 0, sizeof(NetAddr));
+    memset(&mPeerAddr, 0, sizeof(NetAddr));
+#endif
+    mSelfAddr.raw.family = PR_AF_UNSPEC;
+    mPeerAddr.raw.family = PR_AF_UNSPEC;
 }
 
 nsHttpTransaction::~nsHttpTransaction()
@@ -247,10 +254,10 @@ nsHttpTransaction::Init(uint32_t caps,
 
 #ifdef MOZ_WIDGET_GONK
     if (mAppId != NECKO_NO_APP_ID) {
-        nsCOMPtr<nsINetworkInterface> activeNetwork;
-        GetActiveNetworkInterface(activeNetwork);
-        mActiveNetwork =
-            new nsMainThreadPtrHolder<nsINetworkInterface>(activeNetwork);
+        nsCOMPtr<nsINetworkInfo> activeNetworkInfo;
+        GetActiveNetworkInfo(activeNetworkInfo);
+        mActiveNetworkInfo =
+            new nsMainThreadPtrHolder<nsINetworkInfo>(activeNetworkInfo);
     }
 #endif
 
@@ -505,6 +512,17 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
 {
     LOG(("nsHttpTransaction::OnSocketStatus [this=%p status=%x progress=%lld]\n",
         this, status, progress));
+
+    if (status == NS_NET_STATUS_CONNECTED_TO ||
+        status == NS_NET_STATUS_WAITING_FOR) {
+        nsISocketTransport *socketTransport =
+            mConnection ? mConnection->Transport() : nullptr;
+        if (socketTransport) {
+            MutexAutoLock lock(mLock);
+            socketTransport->GetSelfAddr(&mSelfAddr);
+            socketTransport->GetPeerAddr(&mPeerAddr);
+        }
+    }
 
     // A transaction can given to multiple HalfOpen sockets (this is a bug in
     // nsHttpConnectionMgr). We are going to fix it here as a work around to be
@@ -833,7 +851,7 @@ nsHttpTransaction::SaveNetworkStats(bool enforce)
 {
 #ifdef MOZ_WIDGET_GONK
     // Check if active network and appid are valid.
-    if (!mActiveNetwork || mAppId == NECKO_NO_APP_ID) {
+    if (!mActiveNetworkInfo || mAppId == NECKO_NO_APP_ID) {
         return NS_OK;
     }
 
@@ -853,7 +871,7 @@ nsHttpTransaction::SaveNetworkStats(bool enforce)
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
     nsRefPtr<nsRunnable> event =
-        new SaveNetworkStatsEvent(mAppId, mIsInBrowser, mActiveNetwork,
+        new SaveNetworkStatsEvent(mAppId, mIsInBrowser, mActiveNetworkInfo,
                                   mCountRecv, mCountSent, false);
     NS_DispatchToMainThread(event);
 
@@ -2251,6 +2269,14 @@ nsHttpTransaction::RestartVerifier::Set(int64_t contentLength,
 
         mSetup = true;
     }
+}
+
+void
+nsHttpTransaction::GetNetworkAddresses(NetAddr &self, NetAddr &peer)
+{
+    MutexAutoLock lock(mLock);
+    self = mSelfAddr;
+    peer = mPeerAddr;
 }
 
 bool

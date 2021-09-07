@@ -3,10 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
-#include "nsINetworkManager.idl"
+#include "nsINetworkInterface.idl"
 
-[scriptable, uuid(e48d290b-ea3b-4987-9333-2e01f64c92ba)]
-interface nsIRilNetworkInterface : nsINetworkInterface
+[scriptable, uuid(501b7041-0754-4ddb-9174-946e2c2ebd83)]
+interface nsIRilNetworkInfo : nsINetworkInfo
 {
   readonly attribute unsigned long serviceId;
   readonly attribute DOMString iccId;

@@ -391,14 +391,22 @@ var WifiManager = (function() {
       return null;
 
     let networkKey = getNetworkKey(network);
-    return ((networkKey in httpProxyConfig) ? httpProxyConfig : null);
+    return httpProxyConfig[networkKey];
   }
 
   function setHttpProxy(network) {
     if (!network)
       return;
 
-    gNetworkService.setNetworkProxy(network);
+    // If we got here, arg network must be the currentNetwork, so we just update
+    // WifiNetworkInterface correspondingly and notify NetworkManager.
+    WifiNetworkInterface.httpProxyHost = network.httpProxyHost;
+    WifiNetworkInterface.httpProxyPort = network.httpProxyPort;
+
+    if (WifiNetworkInterface.state ==
+        Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED) {
+      gNetworkManager.updateNetworkInterface(WifiNetworkInterface);
+    }
   }
 
   var staticIpConfig = Object.create(null);
@@ -2190,11 +2198,6 @@ function WifiWorker() {
         }
 
         var _oncompleted = function() {
-          // Update http proxy when connected to network.
-          let netConnect = WifiManager.getHttpProxyNetwork(self.currentNetwork);
-          if (netConnect)
-            WifiManager.setHttpProxy(netConnect);
-
           // The full authentication process is completed, reset the count.
           WifiManager.authenticationFailuresCount = 0;
           WifiManager.loopDetectionCount = 0;
@@ -2238,22 +2241,6 @@ function WifiWorker() {
         }
 
         self._fireEvent("ondisconnect", {network: netToDOM(self.currentNetwork)});
-
-        // When disconnected, clear the http proxy setting if it exists.
-        // Temporarily set http proxy to empty and restore user setting after setHttpProxy.
-        let netDisconnect = WifiManager.getHttpProxyNetwork(self.currentNetwork);
-        if (netDisconnect) {
-          let prehttpProxyHostSetting = netDisconnect.httpProxyHost;
-          let prehttpProxyPortSetting = netDisconnect.httpProxyPort;
-
-          netDisconnect.httpProxyHost = "";
-          netDisconnect.httpProxyPort = 0;
-
-          WifiManager.setHttpProxy(netDisconnect);
-
-          netDisconnect.httpProxyHost = prehttpProxyHostSetting;
-          netDisconnect.httpProxyPort = prehttpProxyPortSetting;
-        }
 
         self.currentNetwork = null;
         self.ipAddress = "";
@@ -2315,6 +2302,13 @@ function WifiWorker() {
     if (!maskLength) {
       maskLength = 32; // max prefix for IPv4.
     }
+
+    let netConnect = WifiManager.getHttpProxyNetwork(self.currentNetwork);
+    if (netConnect) {
+      WifiNetworkInterface.httpProxyHost = netConnect.httpProxyHost;
+      WifiNetworkInterface.httpProxyPort = netConnect.httpProxyPort;
+    }
+
     WifiNetworkInterface.state =
       Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED;
     WifiNetworkInterface.ips = [this.info.ipaddr_str];
@@ -3283,6 +3277,17 @@ WifiWorker.prototype = {
       }
     }
 
+    function connectToNetwork() {
+      WifiManager.updateNetwork(privnet, (function(ok) {
+        if (!ok) {
+          self._sendMessage(message, false, "Network is misconfigured", msg);
+          return;
+        }
+
+        networkReady();
+      }));
+    }
+
     let ssid = privnet.ssid;
     let networkKey = getNetworkKey(privnet);
     let configured;
@@ -3304,14 +3309,22 @@ WifiWorker.prototype = {
       // it can be sorted correctly in _reprioritizeNetworks() because the
       // function sort network based on priority in configure list.
       configured.priority = privnet.priority;
-      WifiManager.updateNetwork(privnet, (function(ok) {
-        if (!ok) {
-          this._sendMessage(message, false, "Network is misconfigured", msg);
-          return;
-        }
 
-        networkReady();
-      }).bind(this));
+      // When investigating Bug 1123680, we observed that gaia may unexpectedly
+      // request to associate with incorrect password before successfully
+      // forgetting the network. It would cause the network unable to connect
+      // subsequently. Aside from preventing the racing forget/associate, we
+      // also try to disable network prior to updating the network.
+      WifiManager.getNetworkId(dequote(configured.ssid), function(netId) {
+        if (netId) {
+          WifiManager.disableNetwork(netId, function() {
+            connectToNetwork();
+          });
+        }
+        else {
+          connectToNetwork();
+        }
+      });
     } else {
       // networkReady, above, calls saveConfig. We want to remember the new
       // network as being enabled, which isn't the default, so we explicitly

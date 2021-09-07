@@ -63,7 +63,7 @@ add_task(function test_corrupt_database() {
   yield BookmarkHTMLUtils.exportToFile(bookmarksFile);
 
   // Import again and check for correctness.
-  remove_all_bookmarks();
+  yield PlacesUtils.bookmarks.eraseEverything();
   yield BookmarkHTMLUtils.importFromFile(bookmarksFile, true);
   yield database_check();
 });
@@ -150,15 +150,22 @@ function database_check() {
     do_check_eq(toolbar.childCount, 3);
 
     // livemark
-    var livemark = toolbar.getChild(1);
-    // title
-    do_check_eq("Latest Headlines", livemark.title);
+  // For now some promises are resolved later, so we can't guarantee an order.
+  let foundLivemark = false;
+  for (let i = 0; i < root.childCount; ++i) {
+    let node = root.getChild(i);
+    if (node.title == "Latest Headlines") {
+      foundLivemark = true;
+      Assert.equal("Latest Headlines", node.title);
 
-    let foundLivemark = yield PlacesUtils.livemarks.getLivemark({ id: livemark.itemId });
-    do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
-                foundLivemark.siteURI.spec);
-    do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
-                foundLivemark.feedURI.spec);
+      let livemark = yield PlacesUtils.livemarks.getLivemark({ guid: node.bookmarkGuid });
+      Assert.equal("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
+                   livemark.siteURI.spec);
+      Assert.equal("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
+                   livemark.feedURI.spec);
+    }
+  }
+  Assert.ok(foundLivemark);
 
     // cleanup
     toolbar.containerOpen = false;

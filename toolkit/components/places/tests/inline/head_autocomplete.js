@@ -181,8 +181,10 @@ function add_autocomplete_test(aTestData) {
 }
 
 function waitForCleanup(aCallback) {
-  remove_all_bookmarks();
-  PlacesTestUtils.clearHistory().then(aCallback);
+      Promise.all([
+        PlacesUtils.bookmarks.eraseEverything(),
+        PlacesTestUtils.clearHistory()
+      ]).then(aCallback);
 }
 
 function addBookmark(aBookmarkObj) {

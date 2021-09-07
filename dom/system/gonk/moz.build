@@ -88,6 +88,9 @@ EXTRA_JS_MODULES += [
 
 if CONFIG['MOZ_B2G_RIL']:
     XPIDL_SOURCES += [
+        'nsIDataCallInterfaceService.idl',
+        'nsIDataCallManager.idl',
+        'nsIGonkDataCallInterfaceService.idl',
         'nsIRadioInterfaceLayer.idl',
     ]
     EXTRA_COMPONENTS += [
@@ -100,10 +103,13 @@ if CONFIG['MOZ_B2G_RIL']:
         'ril_consts.js',
         'ril_worker.js',
         'ril_worker_buf_object.js',
+        'ril_worker_telephony_request_queue.js',
         'RILSystemMessenger.jsm',
     ]
     if not CONFIG['DISABLE_MOZ_RIL_GEOLOC']:
         EXTRA_COMPONENTS += [
+            'DataCallInterfaceService.js',
+            'DataCallInterfaceService.manifest',
             'RadioInterfaceLayer.js',
             'RadioInterfaceLayer.manifest',
         ]

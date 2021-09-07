@@ -218,7 +218,7 @@ BookmarkImporter.prototype = {
                                                    principal,
                                                    null,      // aTriggeringPrincipal
                                                    Ci.nsILoadInfo.SEC_NORMAL,
-                                                   Ci.nsIContentPolicy.TYPE_DATAREQUEST);
+                                                   Ci.nsIContentPolicy.TYPE_INTERNAL_XMLHTTPREQUEST);
       let streamLoader = Cc["@mozilla.org/network/stream-loader;1"].
                          createInstance(Ci.nsIStreamLoader);
 

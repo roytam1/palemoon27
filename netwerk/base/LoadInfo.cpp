@@ -23,8 +23,7 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
                    nsIPrincipal* aTriggeringPrincipal,
                    nsINode* aLoadingContext,
                    nsSecurityFlags aSecurityFlags,
-                   nsContentPolicyType aContentPolicyType,
-                   nsIURI* aBaseURI)
+                   nsContentPolicyType aContentPolicyType)
   : mLoadingPrincipal(aLoadingContext ?
                         aLoadingContext->NodePrincipal() : aLoadingPrincipal)
   , mTriggeringPrincipal(aTriggeringPrincipal ?
@@ -32,7 +31,6 @@ LoadInfo::LoadInfo(nsIPrincipal* aLoadingPrincipal,
   , mLoadingContext(do_GetWeakReference(aLoadingContext))
   , mSecurityFlags(aSecurityFlags)
   , mInternalContentPolicyType(aContentPolicyType)
-  , mBaseURI(aBaseURI)
   , mUpgradeInsecureRequests(false)
   , mInnerWindowID(0)
   , mOuterWindowID(0)
@@ -222,6 +220,14 @@ LoadInfo::GetAboutBlankInherits(bool* aResult)
 }
 
 NS_IMETHODIMP
+LoadInfo::GetAllowChrome(bool* aResult)
+{
+  *aResult =
+    (mSecurityFlags & nsILoadInfo::SEC_ALLOW_CHROME);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 LoadInfo::GetExternalContentPolicyType(nsContentPolicyType* aResult)
 {
   *aResult = nsContentUtils::InternalContentPolicyTypeToExternal(mInternalContentPolicyType);
@@ -232,20 +238,6 @@ nsContentPolicyType
 LoadInfo::InternalContentPolicyType()
 {
   return mInternalContentPolicyType;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetBaseURI(nsIURI** aBaseURI)
-{
-  *aBaseURI = mBaseURI;
-  NS_IF_ADDREF(*aBaseURI);
-  return NS_OK;
-}
-
-nsIURI*
-LoadInfo::BaseURI()
-{
-  return mBaseURI;
 }
 
 NS_IMETHODIMP

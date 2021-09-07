@@ -32,47 +32,30 @@ ValidateSecurityFlags(nsILoadInfo* aLoadInfo)
   return NS_OK;
 }
 
-nsresult
-DoSOPChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
+static bool SchemeIs(nsIURI* aURI, const char* aScheme)
 {
-  nsSecurityFlags securityMode = aLoadInfo->GetSecurityMode();
+  nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
+  NS_ENSURE_TRUE(baseURI, false);
 
-  // if none of the REQUIRE_SAME_ORIGIN flags are set, then SOP does not apply
-  if ((securityMode != nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_INHERITS) &&
-      (securityMode != nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_IS_BLOCKED)) {
-    return NS_OK;
-  }
-
-  nsIPrincipal* loadingPrincipal = aLoadInfo->LoadingPrincipal();
-  bool sameOriginDataInherits =
-    securityMode == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_INHERITS;
-  return loadingPrincipal->CheckMayLoad(aURI,
-                                        true, // report to console
-                                        sameOriginDataInherits);
+  bool isScheme = false;
+  return NS_SUCCEEDED(baseURI->SchemeIs(aScheme, &isScheme)) && isScheme;
 }
 
 nsresult
 DoCheckLoadURIChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
 {
   nsresult rv = NS_OK;
-  nsSecurityFlags securityMode = aLoadInfo->GetSecurityMode();
-  // Please note that checkLoadURIWithPrincipal should only be enforced for
-  // cross origin requests. If the flag SEC_REQUIRE_CORS_DATA_INHERITS is set
-  // within the loadInfo, then then CheckLoadURIWithPrincipal is performed
-  // within nsCorsListenerProxy
-  if ((securityMode != nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_INHERITS) &&
-      (securityMode != nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL)) {
-    return NS_OK;
-  }
 
   nsCOMPtr<nsIPrincipal> loadingPrincipal = aLoadInfo->LoadingPrincipal();
-  // XXX: @arg nsIScriptSecurityManager::STANDARD
-  // lets use STANDARD for now and evaluate on a callsite basis, see also:
-  // http://mxr.mozilla.org/mozilla-central/source/caps/nsIScriptSecurityManager.idl#62
+  uint32_t flags = nsIScriptSecurityManager::STANDARD;
+  if (aLoadInfo->GetAllowChrome()) {
+    flags |= nsIScriptSecurityManager::ALLOW_CHROME;
+  }
+
   rv = nsContentUtils::GetSecurityManager()->
     CheckLoadURIWithPrincipal(loadingPrincipal,
                               aURI,
-                              nsIScriptSecurityManager::STANDARD);
+                              flags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // If the loadingPrincipal and the triggeringPrincipal are different, then make
@@ -82,20 +65,33 @@ DoCheckLoadURIChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
     rv = nsContentUtils::GetSecurityManager()->
            CheckLoadURIWithPrincipal(triggeringPrincipal,
                                      aURI,
-                                     nsIScriptSecurityManager::STANDARD);
+                                     flags);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
 }
 
 nsresult
+DoSOPChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
+{
+  if (aLoadInfo->GetAllowChrome() && SchemeIs(aURI, "chrome")) {
+    // Enforce same-origin policy, except to chrome.
+    return DoCheckLoadURIChecks(aURI, aLoadInfo);
+  }
+
+  nsIPrincipal* loadingPrincipal = aLoadInfo->LoadingPrincipal();
+  bool sameOriginDataInherits =
+    aLoadInfo->GetSecurityMode() == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_INHERITS;
+  return loadingPrincipal->CheckMayLoad(aURI,
+                                        true, // report to console
+                                        sameOriginDataInherits);
+}
+
+nsresult
 DoCORSChecks(nsIChannel* aChannel, nsILoadInfo* aLoadInfo,
              nsCOMPtr<nsIStreamListener>& aInAndOutListener)
 {
-  if (aLoadInfo->GetSecurityMode() != nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS) {
-    return NS_OK;
-  }
-
+  MOZ_ASSERT(aInAndOutListener, "can not perform CORS checks without a listener");
   nsIPrincipal* loadingPrincipal = aLoadInfo->LoadingPrincipal();
   nsRefPtr<nsCORSListenerProxy> corsListener =
     new nsCORSListenerProxy(aInAndOutListener,
@@ -116,6 +112,8 @@ DoContentSecurityChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
   nsContentPolicyType contentPolicyType = aLoadInfo->GetExternalContentPolicyType();
   nsCString mimeTypeGuess;
   nsCOMPtr<nsINode> requestingContext = nullptr;
+  nsContentPolicyType internalContentPolicyType =
+    aLoadInfo->InternalContentPolicyType();
 
   switch(contentPolicyType) {
     case nsIContentPolicy::TYPE_OTHER: {
@@ -128,22 +126,56 @@ DoContentSecurityChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
     case nsIContentPolicy::TYPE_IMAGE:
     case nsIContentPolicy::TYPE_STYLESHEET:
     case nsIContentPolicy::TYPE_OBJECT:
-    case nsIContentPolicy::TYPE_DOCUMENT:
-    case nsIContentPolicy::TYPE_SUBDOCUMENT:
-    case nsIContentPolicy::TYPE_REFRESH:
-    case nsIContentPolicy::TYPE_XBL:
-    case nsIContentPolicy::TYPE_PING: {
+    case nsIContentPolicy::TYPE_DOCUMENT: {
       MOZ_ASSERT(false, "contentPolicyType not supported yet");
+      break;
+    }
+
+    case nsIContentPolicy::TYPE_SUBDOCUMENT: {
+      mimeTypeGuess = NS_LITERAL_CSTRING("text/html");
+      requestingContext = aLoadInfo->LoadingNode();
+      MOZ_ASSERT(!requestingContext ||
+                 requestingContext->NodeType() == nsIDOMNode::DOCUMENT_NODE,
+                 "type_subdocument requires requestingContext of type Document");
+      break;
+    }
+
+    case nsIContentPolicy::TYPE_REFRESH: {
+      MOZ_ASSERT(false, "contentPolicyType not supported yet");
+      break;
+    }
+
+    case nsIContentPolicy::TYPE_XBL: {
+      mimeTypeGuess = EmptyCString();
+      requestingContext = aLoadInfo->LoadingNode();
+      break;
+    }
+
+    case nsIContentPolicy::TYPE_PING: {
+      mimeTypeGuess = EmptyCString();
+      requestingContext = aLoadInfo->LoadingNode();
       break;
     }
 
     case nsIContentPolicy::TYPE_XMLHTTPREQUEST: {
       // alias nsIContentPolicy::TYPE_DATAREQUEST:
-      mimeTypeGuess = NS_LITERAL_CSTRING(TEXT_EVENT_STREAM);
       requestingContext = aLoadInfo->LoadingNode();
+      MOZ_ASSERT(!requestingContext ||
+                 requestingContext->NodeType() == nsIDOMNode::DOCUMENT_NODE,
+                 "type_xml requires requestingContext of type Document");
+
+      if (internalContentPolicyType ==
+            nsIContentPolicy::TYPE_INTERNAL_XMLHTTPREQUEST) {
+        mimeTypeGuess = NS_LITERAL_CSTRING("application/xml");
+      }
+      else {
+        MOZ_ASSERT(internalContentPolicyType ==
+                   nsIContentPolicy::TYPE_INTERNAL_EVENTSOURCE,
+                   "can not set mime type guess for unexpected internal type");
+        mimeTypeGuess = NS_LITERAL_CSTRING(TEXT_EVENT_STREAM);
+      }
       break;
     }
-
 
     case nsIContentPolicy::TYPE_OBJECT_SUBREQUEST: {
       mimeTypeGuess = EmptyCString();
@@ -161,9 +193,6 @@ DoContentSecurityChecks(nsIURI* aURI, nsILoadInfo* aLoadInfo)
     }
 
     case nsIContentPolicy::TYPE_MEDIA: {
-      nsContentPolicyType internalContentPolicyType =
-        aLoadInfo->InternalContentPolicyType();
-
       if (internalContentPolicyType == nsIContentPolicy::TYPE_INTERNAL_TRACK) {
         mimeTypeGuess = NS_LITERAL_CSTRING("text/vtt");
       }
@@ -279,9 +308,14 @@ nsContentSecurityManager::doContentSecurityCheck(nsIChannel* aChannel,
   rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(finalChannelURI));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Perform Same Origin Policy check
-  rv = DoSOPChecks(finalChannelURI, loadInfo);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsSecurityFlags securityMode = loadInfo->GetSecurityMode();
+
+  // if none of the REQUIRE_SAME_ORIGIN flags are set, then SOP does not apply
+  if ((securityMode == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_INHERITS) ||
+      (securityMode == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_IS_BLOCKED)) {
+    rv = DoSOPChecks(finalChannelURI, loadInfo);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   // if dealing with a redirected channel then we only enforce SOP
   // and can return at this point.
@@ -289,12 +323,20 @@ nsContentSecurityManager::doContentSecurityCheck(nsIChannel* aChannel,
     return NS_OK;
   }
 
-  rv = DoCheckLoadURIChecks(finalChannelURI, loadInfo);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if ((securityMode == nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_INHERITS) ||
+      (securityMode == nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL)) {
+    // Please note that DoCheckLoadURIChecks should only be enforced for
+    // cross origin requests. If the flag SEC_REQUIRE_CORS_DATA_INHERITS is set
+    // within the loadInfo, then then CheckLoadURIWithPrincipal is performed
+    // within nsCorsListenerProxy
+    rv = DoCheckLoadURIChecks(finalChannelURI, loadInfo);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
-  // Check if CORS needs to be set up
-  rv = DoCORSChecks(aChannel, loadInfo, aInAndOutListener);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (securityMode == nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS) {
+    rv = DoCORSChecks(aChannel, loadInfo, aInAndOutListener);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   // Perform all ContentPolicy checks (MixedContent, CSP, ...)
   rv = DoContentSecurityChecks(finalChannelURI, loadInfo);

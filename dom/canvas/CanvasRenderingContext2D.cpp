@@ -5157,7 +5157,7 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
     srand(time(nullptr));
 
   CheckedInt<uint32_t> len = CheckedInt<uint32_t>(aWidth) * aHeight * 4;
-  if (!len.isValid()) {
+  if (!len.isValid() || len.value() > INT32_MAX) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -5488,7 +5488,7 @@ CreateImageData(JSContext* cx, CanvasRenderingContext2D* context,
       h = 1;
 
   CheckedInt<uint32_t> len = CheckedInt<uint32_t>(w) * h * 4;
-  if (!len.isValid()) {
+  if (!len.isValid() || len.value() > INT32_MAX) {
     error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }

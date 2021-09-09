@@ -28,10 +28,12 @@
 #include "nsSVGEffects.h" // for nsSVGRenderingObserver
 #include "nsWindowMemoryReporter.h"
 #include "ImageRegion.h"
+#include "LookupResult.h"
 #include "Orientation.h"
 #include "SVGDocumentWrapper.h"
 #include "nsIDOMEventListener.h"
 #include "SurfaceCache.h"
+#include "nsDocument.h"
 
 // undef the GetCurrentTime macro defined in WinBase.h from the MS Platform SDK
 #undef GetCurrentTime
@@ -395,11 +397,11 @@ VectorImage::SizeOfSourceWithComputedFallback(MallocSizeOf aMallocSizeOf) const
   return windowSizes.getTotalSize();
 }
 
-size_t
-VectorImage::SizeOfDecoded(gfxMemoryLocation aLocation,
-                           MallocSizeOf aMallocSizeOf) const
+void
+VectorImage::CollectSizeOfSurfaces(nsTArray<SurfaceMemoryCounter>& aCounters,
+                                   MallocSizeOf aMallocSizeOf) const
 {
-  return SurfaceCache::SizeOfSurfaces(ImageKey(this), aLocation, aMallocSizeOf);
+  SurfaceCache::CollectSizeOfSurfaces(ImageKey(this), aCounters, aMallocSizeOf);
 }
 
 nsresult
@@ -825,18 +827,18 @@ VectorImage::Draw(gfxContext* aContext,
     return DrawResult::SUCCESS;
   }
 
-  DrawableFrameRef frameRef =
+  LookupResult result =
     SurfaceCache::Lookup(ImageKey(this),
                          VectorSurfaceKey(params.size,
                                           params.svgContext,
                                           params.animationTime));
 
   // Draw.
-  if (frameRef) {
-    RefPtr<SourceSurface> surface = frameRef->GetSurface();
+  if (result) {
+    RefPtr<SourceSurface> surface = result.DrawableRef()->GetSurface();
     if (surface) {
       nsRefPtr<gfxDrawable> svgDrawable =
-        new gfxSurfaceDrawable(surface, frameRef->GetSize());
+        new gfxSurfaceDrawable(surface, result.DrawableRef()->GetSize());
       Show(svgDrawable, params);
       return DrawResult::SUCCESS;
     }
@@ -1110,12 +1112,10 @@ VectorImage::OnStartRequest(nsIRequest* aRequest, nsISupports* aCtxt)
     return rv;
   }
 
-  // Sending StartDecode will block page load until the document's ready.  (We
-  // unblock it by sending StopDecode in OnSVGDocumentLoaded or
-  // OnSVGDocumentError.)
+  // Block page load until the document's ready.  (We unblock it in
+  // OnSVGDocumentLoaded or OnSVGDocumentError.)
   if (mProgressTracker) {
-    mProgressTracker->SyncNotifyProgress(FLAG_DECODE_STARTED |
-                                         FLAG_ONLOAD_BLOCKED);
+    mProgressTracker->SyncNotifyProgress(FLAG_ONLOAD_BLOCKED);
   }
 
   // Create a listener to wait until the SVG document is fully loaded, which
@@ -1264,6 +1264,15 @@ VectorImage::PropagateUseCounters(nsIDocument* aParentDocument)
   nsIDocument* doc = mSVGDocumentWrapper->GetDocument();
   if (doc) {
     doc->PropagateUseCounters(aParentDocument);
+  }
+}
+
+void
+VectorImage::ReportUseCounters()
+{
+  nsIDocument* doc = mSVGDocumentWrapper->GetDocument();
+  if (doc) {
+    static_cast<nsDocument*>(doc)->ReportUseCounters();
   }
 }
 

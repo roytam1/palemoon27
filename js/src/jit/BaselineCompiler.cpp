@@ -109,8 +109,10 @@ BaselineCompiler::compile()
     if (!emitOutOfLinePostBarrierSlot())
         return Method_Error;
 
-    if (masm.oom())
+    if (masm.oom()) {
+        ReportOutOfMemory(cx);
         return Method_Error;
+    }
 
     Linker linker(masm);
     AutoFlushICache afc("Baseline");
@@ -172,8 +174,10 @@ BaselineCompiler::compile()
         previousOffset = entry.nativeOffset;
     }
 
-    if (pcEntries.oom())
+    if (pcEntries.oom()) {
+        ReportOutOfMemory(cx);
         return Method_Error;
+    }
 
     prologueOffset_.fixup(&masm);
     epilogueOffset_.fixup(&masm);
@@ -288,6 +292,7 @@ BaselineCompiler::compile()
         JitcodeGlobalTable* globalTable = cx->runtime()->jitRuntime()->getJitcodeGlobalTable();
         if (!globalTable->addEntry(entry, cx->runtime())) {
             entry.destroy();
+            ReportOutOfMemory(cx);
             return Method_Error;
         }
 
@@ -798,6 +803,22 @@ BaselineCompiler::emitDebugTrap()
     return appendICEntry(ICEntry::Kind_DebugTrap, masm.currentOffset());
 }
 
+void
+BaselineCompiler::emitCoverage(jsbytecode* pc)
+{
+    double* counterAddr = &script->getPCCounts(pc).numExec();
+    AllocatableRegisterSet regs(RegisterSet::Volatile());
+    Register counterAddrReg = R2.scratchReg();
+    FloatRegister counter = regs.takeAnyFloat();
+    FloatRegister one = regs.takeAnyFloat();
+
+    masm.movePtr(ImmPtr(counterAddr), counterAddrReg);
+    masm.loadDouble(Address(counterAddrReg, 0), counter);
+    masm.loadConstantDouble(1.0, one);
+    masm.addDouble(one, counter);
+    masm.storeDouble(counter, Address(counterAddrReg, 0));
+}
+
 #ifdef JS_TRACE_LOGGING
 bool
 BaselineCompiler::emitTraceLoggerEnter()
@@ -895,6 +916,7 @@ BaselineCompiler::emitBody()
     bool lastOpUnreachable = false;
     uint32_t emittedOps = 0;
     mozilla::DebugOnly<jsbytecode*> prevpc = pc;
+    bool compileCoverage = script->hasScriptCounts();
 
     while (true) {
         JSOp op = JSOp(*pc);
@@ -940,12 +962,18 @@ BaselineCompiler::emitBody()
         bool addIndexEntry = (pc == script->code() || lastOpUnreachable || emittedOps > 100);
         if (addIndexEntry)
             emittedOps = 0;
-        if (!addPCMappingEntry(addIndexEntry))
+        if (!addPCMappingEntry(addIndexEntry)) {
+            ReportOutOfMemory(cx);
             return Method_Error;
+        }
 
         // Emit traps for breakpoints and step mode.
         if (compileDebugInstrumentation_ && !emitDebugTrap())
             return Method_Error;
+
+        // Emit code coverage code, to fill the same data as the interpreter.
+        if (compileCoverage)
+            emitCoverage(pc);
 
         switch (op) {
           default:

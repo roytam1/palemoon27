@@ -2017,9 +2017,13 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         MessageLoop::current()->PostTask(
             FROM_HERE,
             NewRunnableMethod(cp, &ContentParent::ShutDownProcess,
-                              CLOSE_CHANNEL));
+                              SEND_SHUTDOWN_MESSAGE));
     }
     cpm->RemoveContentProcess(this->ChildID());
+
+    if (mDriverCrashGuard) {
+      mDriverCrashGuard->NotifyCrashed();
+    }
 }
 
 void
@@ -4202,13 +4206,14 @@ ContentParent::GetConsoleService()
         return mConsoleService.get();
     }
 
+    // XXXkhuey everything about this is terrible.
     // Get the ConsoleService by CID rather than ContractID, so that we
     // can cast the returned pointer to an nsConsoleService (rather than
     // just an nsIConsoleService). This allows us to call the non-idl function
     // nsConsoleService::LogMessageWithMode.
     NS_DEFINE_CID(consoleServiceCID, NS_CONSOLESERVICE_CID);
-    nsCOMPtr<nsConsoleService>  consoleService(do_GetService(consoleServiceCID));
-    mConsoleService = consoleService;
+    nsCOMPtr<nsIConsoleService> consoleService(do_GetService(consoleServiceCID));
+    mConsoleService = static_cast<nsConsoleService*>(consoleService.get());
     return mConsoleService.get();
 }
 
@@ -5034,6 +5039,52 @@ ContentParent::RecvProfile(const nsCString& aProfile)
     mGatherer = nullptr;
 #endif
     return true;
+}
+
+bool
+ContentParent::RecvGetGraphicsDeviceInitData(DeviceInitData* aOut)
+{
+  gfxPlatform::GetPlatform()->GetDeviceInitData(aOut);
+  return true;
+}
+
+bool
+ContentParent::RecvBeginDriverCrashGuard(const uint32_t& aGuardType, bool* aOutCrashed)
+{
+  // Only one driver crash guard should be active at a time, per-process.
+  MOZ_ASSERT(!mDriverCrashGuard);
+
+  UniquePtr<gfx::DriverCrashGuard> guard;
+  switch (gfx::CrashGuardType(aGuardType)) {
+    case gfx::CrashGuardType::D3D11Layers:
+      guard = MakeUnique<gfx::D3D11LayersCrashGuard>(this);
+      break;
+    case gfx::CrashGuardType::D3D9Video:
+      guard = MakeUnique<gfx::D3D9VideoCrashGuard>(this);
+      break;
+    case gfx::CrashGuardType::GLContext:
+      guard = MakeUnique<gfx::GLContextCrashGuard>(this);
+      break;
+    default:
+      MOZ_ASSERT_UNREACHABLE("unknown crash guard type");
+      return false;
+  }
+
+  if (guard->Crashed()) {
+    *aOutCrashed = true;
+    return true;
+  }
+
+  *aOutCrashed = false;
+  mDriverCrashGuard = Move(guard);
+  return true;
+}
+
+bool
+ContentParent::RecvEndDriverCrashGuard(const uint32_t& aGuardType)
+{
+  mDriverCrashGuard = nullptr;
+  return true;
 }
 
 } // namespace dom

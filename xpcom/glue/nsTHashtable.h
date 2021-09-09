@@ -270,68 +270,47 @@ public:
   }
 
   /**
-   * client must provide a <code>SizeOfEntryExcludingThisFun</code> function for
-   *   SizeOfExcludingThis.
-   * @param     aEntry the entry being enumerated
-   * @param     mallocSizeOf the function used to measure heap-allocated blocks
-   * @param     arg passed unchanged from <code>SizeOf{In,Ex}cludingThis</code>
-   * @return    summed size of the things pointed to by the entries
-   */
-  typedef size_t (*SizeOfEntryExcludingThisFun)(EntryType* aEntry,
-                                                mozilla::MallocSizeOf aMallocSizeOf,
-                                                void* aArg);
-
-  /**
-   * Measure the size of the table's entry storage, and if
-   * |aSizeOfEntryExcludingThis| is non-nullptr, measure the size of things
-   * pointed to by entries.
+   * Measure the size of the table's entry storage. Does *not* measure anything
+   * hanging off table entries; hence the "Shallow" prefix. To measure that,
+   * either use SizeOfExcludingThis() or iterate manually over the entries,
+   * calling SizeOfExcludingThis() on each one.
    *
-   * @param     sizeOfEntryExcludingThis the
-   *            <code>SizeOfEntryExcludingThisFun</code> function to call
-   * @param     mallocSizeOf the function used to measure heap-allocated blocks
-   * @param     userArg a pointer to pass to the
-   *            <code>SizeOfEntryExcludingThisFun</code> function
-   * @return    the summed size of all the entries
+   * @param     aMallocSizeOf the function used to measure heap-allocated blocks
+   * @return    the measured shallow size of the table
    */
-  size_t SizeOfExcludingThis(SizeOfEntryExcludingThisFun aSizeOfEntryExcludingThis,
-                             mozilla::MallocSizeOf aMallocSizeOf,
-                             void* aUserArg = nullptr) const
+  size_t ShallowSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   {
-    if (aSizeOfEntryExcludingThis) {
-      s_SizeOfArgs args = { aSizeOfEntryExcludingThis, aUserArg };
-      return PL_DHashTableSizeOfExcludingThis(&mTable, s_SizeOfStub,
-                                              aMallocSizeOf, &args);
-    }
-    return PL_DHashTableSizeOfExcludingThis(&mTable, nullptr, aMallocSizeOf);
+    return mTable.ShallowSizeOfExcludingThis(aMallocSizeOf);
   }
 
   /**
-   * If the EntryType defines SizeOfExcludingThis, there's no need to define a new
-   * SizeOfEntryExcludingThisFun.
+   * Like ShallowSizeOfExcludingThis, but includes sizeof(*this).
+   */
+  size_t ShallowSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  {
+    return aMallocSizeOf(this) + ShallowSizeOfExcludingThis(aMallocSizeOf);
+  }
+
+  /**
+   * This is a "deep" measurement of the table. To use it, |EntryType| must
+   * define SizeOfExcludingThis, and that method will be called on all live
+   * entries.
    */
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   {
-    return SizeOfExcludingThis(BasicSizeOfEntryExcludingThisFun, aMallocSizeOf);
+    size_t n = ShallowSizeOfExcludingThis(aMallocSizeOf);
+    for (auto iter = ConstIter(); !iter.Done(); iter.Next()) {
+      n += (*iter.Get()).SizeOfExcludingThis(aMallocSizeOf);
+    }
+    return n;
   }
 
   /**
    * Like SizeOfExcludingThis, but includes sizeof(*this).
    */
-  size_t SizeOfIncludingThis(SizeOfEntryExcludingThisFun aSizeOfEntryExcludingThis,
-                             mozilla::MallocSizeOf aMallocSizeOf,
-                             void* aUserArg = nullptr) const
-  {
-    return aMallocSizeOf(this) +
-      SizeOfExcludingThis(aSizeOfEntryExcludingThis, aMallocSizeOf, aUserArg);
-  }
-
-  /**
-   * If the EntryType defines SizeOfExcludingThis, there's no need to define a new
-   * SizeOfEntryExcludingThisFun.
-   */
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   {
-    return SizeOfIncludingThis(BasicSizeOfEntryExcludingThisFun, aMallocSizeOf);
+    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
 
   /**
@@ -374,22 +353,6 @@ protected:
 
   static void s_InitEntry(PLDHashEntryHdr* aEntry, const void* aKey);
 
-  /**
-   * passed internally during sizeOf counting.  Allocated on the stack.
-   *
-   * @param userFunc the SizeOfEntryExcludingThisFun passed to
-   *                 SizeOf{In,Ex}cludingThis by the client
-   * @param userArg the userArg passed unaltered
-   */
-  struct s_SizeOfArgs
-  {
-    SizeOfEntryExcludingThisFun userFunc;
-    void* userArg;
-  };
-
-  static size_t s_SizeOfStub(PLDHashEntryHdr* aEntry,
-                             mozilla::MallocSizeOf aMallocSizeOf, void* aArg);
-
 private:
   // copy constructor, not implemented
   nsTHashtable(nsTHashtable<EntryType>& aToCopy) = delete;
@@ -398,14 +361,6 @@ private:
    * Gets the table's ops.
    */
   static const PLDHashTableOps* Ops();
-
-  /**
-   * An implementation of SizeOfEntryExcludingThisFun that calls SizeOfExcludingThis()
-   * on each entry.
-   */
-  static size_t BasicSizeOfEntryExcludingThisFun(EntryType* aEntry,
-                                                 mozilla::MallocSizeOf aMallocSizeOf,
-                                                 void*);
 
   // assignment operator, not implemented
   nsTHashtable<EntryType>& operator=(nsTHashtable<EntryType>& aToEqual) = delete;
@@ -445,16 +400,6 @@ nsTHashtable<EntryType>::Ops()
     s_InitEntry
   };
   return &sOps;
-}
-
-// static
-template<class EntryType>
-size_t
-nsTHashtable<EntryType>::BasicSizeOfEntryExcludingThisFun(EntryType* aEntry,
-                                                          mozilla::MallocSizeOf aMallocSizeOf,
-                                                          void*)
-{
-  return aEntry->SizeOfExcludingThis(aMallocSizeOf);
 }
 
 // static definitions
@@ -504,19 +449,6 @@ nsTHashtable<EntryType>::s_InitEntry(PLDHashEntryHdr* aEntry,
                                      const void* aKey)
 {
   new (aEntry) EntryType(reinterpret_cast<KeyTypePointer>(aKey));
-}
-
-template<class EntryType>
-size_t
-nsTHashtable<EntryType>::s_SizeOfStub(PLDHashEntryHdr* aEntry,
-                                      mozilla::MallocSizeOf aMallocSizeOf,
-                                      void* aArg)
-{
-  // dereferences the function-pointer to the user's enumeration function
-  return (*reinterpret_cast<s_SizeOfArgs*>(aArg)->userFunc)(
-    static_cast<EntryType*>(aEntry),
-    aMallocSizeOf,
-    reinterpret_cast<s_SizeOfArgs*>(aArg)->userArg);
 }
 
 class nsCycleCollectionTraversalCallback;

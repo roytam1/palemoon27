@@ -24,7 +24,7 @@ class nsIPrefBranch;
 class nsICancelable;
 class nsICookieService;
 class nsIIOService;
-class nsIObserverService;
+class nsISchedulingContextService;
 class nsISiteSecurityService;
 class nsIStreamConverterService;
 class nsITimer;
@@ -335,6 +335,11 @@ public:
     void SetCacheSkippedUntil(TimeStamp arg) { mCacheSkippedUntil = arg; }
     void ClearCacheSkippedUntil() { mCacheSkippedUntil = TimeStamp(); }
 
+    nsISchedulingContextService *GetSchedulingContextService()
+    {
+        return mSchedulingContextService.get();
+    }
+
 private:
     virtual ~nsHttpHandler();
 
@@ -359,7 +364,6 @@ private:
     // cached services
     nsMainThreadPtrHandle<nsIIOService>              mIOService;
     nsMainThreadPtrHandle<nsIStreamConverterService> mStreamConvSvc;
-    nsMainThreadPtrHandle<nsIObserverService>        mObserverService;
     nsMainThreadPtrHandle<nsICookieService>          mCookieService;
     nsMainThreadPtrHandle<nsISiteSecurityService>    mSSService;
 
@@ -469,6 +473,9 @@ private:
     bool           mSafeHintEnabled;
     bool           mParentalControlEnabled;
 
+    // The value of 'hidden' network.http.debug-observations : 1;
+    uint32_t           mDebugObservations : 1;
+
     // true in between init and shutdown states
     uint32_t           mHandlerActive : 1;
 
@@ -534,6 +541,8 @@ private:
     // if true, generate NS_ERROR_PARTIAL_TRANSFER for h1 responses with
     // incorrect content lengths or malformed chunked encodings
     FrameCheckLevel mEnforceH1Framing;
+
+    nsCOMPtr<nsISchedulingContextService> mSchedulingContextService;
 
 private:
     // For Rate Pacing Certain Network Events. Only assign this pointer on

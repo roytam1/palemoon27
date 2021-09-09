@@ -178,6 +178,7 @@ nsHttpHandler::nsHttpHandler()
     , mDoNotTrackEnabled(false)
     , mSafeHintEnabled(false)
     , mParentalControlEnabled(false)
+    , mDebugObservations(false)
     , mHandlerActive(false)
     , mEnableSpdy(false)
     , mSpdyV31(true)
@@ -318,6 +319,9 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
+    mSchedulingContextService =
+        do_GetService("@mozilla.org/network/scheduling-context-service;1");
+
 #ifdef ANDROID
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
 #else
@@ -355,20 +359,20 @@ nsHttpHandler::Init()
                                   NS_HTTP_STARTUP_TOPIC);
 
     nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
-    mObserverService = new nsMainThreadPtrHolder<nsIObserverService>(obsService);
-    if (mObserverService) {
+    if (obsService) {
         // register the handler object as a weak callback as we don't need to worry
         // about shutdown ordering.
-        mObserverService->AddObserver(this, "profile-change-net-teardown", true);
-        mObserverService->AddObserver(this, "profile-change-net-restore", true);
-        mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);
-        mObserverService->AddObserver(this, "net:clear-active-logins", true);
-        mObserverService->AddObserver(this, "net:prune-dead-connections", true);
-        mObserverService->AddObserver(this, "net:failed-to-process-uri-content", true);
-        mObserverService->AddObserver(this, "last-pb-context-exited", true);
-        mObserverService->AddObserver(this, "webapps-clear-data", true);
-        mObserverService->AddObserver(this, "browser:purge-session-history", true);
-        mObserverService->AddObserver(this, NS_NETWORK_LINK_TOPIC, true);
+        obsService->AddObserver(this, "profile-change-net-teardown", true);
+        obsService->AddObserver(this, "profile-change-net-restore", true);
+        obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);
+        obsService->AddObserver(this, "net:clear-active-logins", true);
+        obsService->AddObserver(this, "net:prune-dead-connections", true);
+        obsService->AddObserver(this, "net:failed-to-process-uri-content", true);
+        obsService->AddObserver(this, "last-pb-context-exited", true);
+        obsService->AddObserver(this, "webapps-clear-data", true);
+        obsService->AddObserver(this, "browser:purge-session-history", true);
+        obsService->AddObserver(this, NS_NETWORK_LINK_TOPIC, true);
+        obsService->AddObserver(this, "application-background", true);
     }
 
     MakeNewRequestTokenBucket();
@@ -575,8 +579,9 @@ void
 nsHttpHandler::NotifyObservers(nsIHttpChannel *chan, const char *event)
 {
     LOG(("nsHttpHandler::NotifyObservers [chan=%x event=\"%s\"]\n", chan, event));
-    if (mObserverService)
-        mObserverService->NotifyObservers(chan, event, nullptr);
+    nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
+    if (obsService)
+        obsService->NotifyObservers(chan, event, nullptr);
 }
 
 nsresult
@@ -1461,6 +1466,15 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
+    // network.http.debug-observations
+    if (PREF_CHANGED("network.http.debug-observations")) {
+        cVar = false;
+        rv = prefs->GetBoolPref("network.http.debug-observations", &cVar);
+        if (NS_SUCCEEDED(rv)) {
+            mDebugObservations = cVar;
+        }
+    }
+
     if (requestTokenBucketUpdated) {
         MakeNewRequestTokenBucket();
     }
@@ -2001,6 +2015,12 @@ nsHttpHandler::Observe(nsISupports *subject,
                 mConnMgr->VerifyTraffic();
             }
         }
+    } else if (!strcmp(topic, "application-background")) {
+        // going to the background on android means we should close
+        // down idle connections for power conservation
+        if (mConnMgr) {
+            mConnMgr->DoShiftReloadConnectionCleanup(nullptr);
+        }
     }
 
     return NS_OK;
@@ -2022,6 +2042,18 @@ nsHttpHandler::SpeculativeConnectInternal(nsIURI *aURI,
 
     if (!mHandlerActive)
         return NS_OK;
+
+    MOZ_ASSERT(NS_IsMainThread());
+    nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
+    if (mDebugObservations && obsService) {
+        // this is basically used for test coverage of an otherwise 'hintable' feature
+        nsAutoCString spec;
+        aURI->GetSpec(spec);
+        spec.Append(anonymous ? NS_LITERAL_CSTRING("[A]") : NS_LITERAL_CSTRING("[.]"));
+        obsService->NotifyObservers(nullptr,
+                                    "speculative-connect-request",
+                                    NS_ConvertUTF8toUTF16(spec).get());
+    }
 
     nsISiteSecurityService* sss = gHttpHandler->GetSSService();
     bool isStsHost = false;

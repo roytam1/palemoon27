@@ -33,6 +33,7 @@
 #include "InterceptedChannel.h"
 #include "nsPerformance.h"
 #include "mozIThirdPartyUtil.h"
+#include "nsContentSecurityManager.h"
 
 #ifdef OS_POSIX
 #include "chrome/common/file_descriptor_set_posix.h"
@@ -1240,8 +1241,14 @@ HttpChannelChild::Redirect3Complete()
   if (mLoadGroup)
     mLoadGroup->RemoveRequest(this, nullptr, NS_BINDING_ABORTED);
 
-  if (NS_FAILED(rv))
+  if (NS_SUCCEEDED(rv)) {
+    if (mLoadInfo) {
+      mLoadInfo->AppendRedirectedPrincipal(GetURIPrincipal());
+    }
+  }
+  else {
     NS_WARNING("CompleteRedirectSetup failed, HttpChannelChild already open?");
+  }
 
   // Release ref to new channel.
   mRedirectChannelChild = nullptr;
@@ -1547,6 +1554,15 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   return ContinueAsyncOpen();
 }
 
+NS_IMETHODIMP
+HttpChannelChild::AsyncOpen2(nsIStreamListener *aListener)
+{
+  nsCOMPtr<nsIStreamListener> listener = aListener;
+  nsresult rv = nsContentSecurityManager::doContentSecurityCheck(this, listener);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return AsyncOpen(listener, nullptr);
+}
+
 nsresult
 HttpChannelChild::ContinueAsyncOpen()
 {
@@ -1675,6 +1691,11 @@ HttpChannelChild::ContinueAsyncOpen()
 
   nsresult rv = mozilla::ipc::LoadInfoToLoadInfoArgs(mLoadInfo, &openArgs.loadInfo());
   NS_ENSURE_SUCCESS(rv, rv);
+
+  EnsureSchedulingContextID();
+  char scid[NSID_LENGTH];
+  mSchedulingContextID.ToProvidedString(scid);
+  openArgs.schedulingContextID().AssignASCII(scid);
 
   // The socket transport in the chrome process now holds a logical ref to us
   // until OnStopRequest, or we do a redirect, or we hit an IPDL error.

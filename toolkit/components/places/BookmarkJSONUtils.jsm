@@ -218,7 +218,7 @@ BookmarkImporter.prototype = {
                                                    principal,
                                                    null,      // aTriggeringPrincipal
                                                    Ci.nsILoadInfo.SEC_NORMAL,
-                                                   Ci.nsIContentPolicy.TYPE_DATAREQUEST);
+                                                   Ci.nsIContentPolicy.TYPE_INTERNAL_XMLHTTPREQUEST);
       let streamLoader = Cc["@mozilla.org/network/stream-loader;1"].
                          createInstance(Ci.nsIStreamLoader);
 
@@ -415,7 +415,7 @@ BookmarkImporter.prototype = {
           });
 
           if (feedURI) {
-            PlacesUtils.livemarks.addLivemark({
+            let lmPromise = PlacesUtils.livemarks.addLivemark({
               title: aData.title,
               feedURI: feedURI,
               parentId: aContainer,
@@ -428,7 +428,8 @@ BookmarkImporter.prototype = {
                 PlacesUtils.bookmarks.setItemDateAdded(id, aData.dateAdded);
               if (aData.annos && aData.annos.length)
                 PlacesUtils.setAnnotationsForItem(id, aData.annos);
-            }, Cu.reportError);
+            });
+            this._importPromises.push(lmPromise);
           }
         } else {
           id = PlacesUtils.bookmarks.createFolder(

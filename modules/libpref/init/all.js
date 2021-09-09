@@ -1472,7 +1472,12 @@ pref("network.protocol-handler.external.hcp", false);
 pref("network.protocol-handler.external.vbscript", false);
 pref("network.protocol-handler.external.javascript", false);
 pref("network.protocol-handler.external.data", false);
+pref("network.protocol-handler.external.ie.http", false);
+pref("network.protocol-handler.external.iehistory", false);
+pref("network.protocol-handler.external.ierss", false);
+pref("network.protocol-handler.external.mk", false);
 pref("network.protocol-handler.external.ms-help", false);
+pref("network.protocol-handler.external.res", false);
 pref("network.protocol-handler.external.shell", false);
 pref("network.protocol-handler.external.vnd.ms.radio", false);
 #ifdef XP_MACOSX
@@ -1485,9 +1490,11 @@ pref("network.protocol-handler.external.moz-icon", false);
 
 // Don't allow  external protocol handlers for common typos
 pref("network.protocol-handler.external.ttp", false);  // http
+pref("network.protocol-handler.external.htp", false);  // http
 pref("network.protocol-handler.external.ttps", false); // https
 pref("network.protocol-handler.external.tps", false);  // https
 pref("network.protocol-handler.external.ps", false);   // https
+pref("network.protocol-handler.external.htps", false); // https
 pref("network.protocol-handler.external.ile", false);  // file
 pref("network.protocol-handler.external.le", false);   // file
 
@@ -4236,12 +4243,7 @@ pref("image.cache.size", 5242880);
 // Size is given a weight of 1000 - timeweight.
 pref("image.cache.timeweight", 500);
 
-// Prevents images from automatically being decoded on load, instead allowing
-// them to be decoded on demand when they are drawn.
-pref("image.decode-only-on-draw.enabled", true);
-
 // Decode all images automatically on load, ignoring our normal heuristics.
-// Overrides image.decode-only-on-draw.enabled.
 pref("image.decode-immediately.enabled", false);
 
 // Whether we attempt to downscale images during decoding.
@@ -5008,6 +5010,9 @@ pref("dom.system_update.debug", false);
 
 // UDPSocket API
 pref("dom.udpsocket.enabled", false);
+
+// MessageChannel enabled by default.
+pref("dom.messageChannel.enabled", true);
 
 // Disable before keyboard events and after keyboard events by default.
 pref("dom.beforeAfterKeyboardEvent.enabled", false);

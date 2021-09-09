@@ -103,7 +103,7 @@ nsGIFDecoder2::FinishInternal()
   MOZ_ASSERT(!HasError(), "Shouldn't call FinishInternal after error!");
 
   // If the GIF got cut off, handle it anyway
-  if (!IsSizeDecode() && mGIFOpen) {
+  if (!IsMetadataDecode() && mGIFOpen) {
     if (mCurrentFrameIndex == mGIFStruct.images_decoded) {
       EndImageFrame();
     }
@@ -689,7 +689,7 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
       mGIFStruct.screen_height = GETINT16(q + 2);
       mGIFStruct.global_colormap_depth = (q[4]&0x07) + 1;
 
-      if (IsSizeDecode()) {
+      if (IsMetadataDecode()) {
         MOZ_ASSERT(!mGIFOpen, "Gif should not be open at this point");
         PostSize(mGIFStruct.screen_width, mGIFStruct.screen_height);
         return;
@@ -901,6 +901,13 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
       break;
 
     case gif_image_header: {
+      if (mGIFStruct.images_decoded > 0 && IsFirstFrameDecode()) {
+        // We're about to get a second frame, but we only want the first. Stop
+        // decoding now.
+        mGIFStruct.state = gif_done;
+        break;
+      }
+
       // Get image offsets, with respect to the screen origin
       mGIFStruct.x_offset = GETINT16(q);
       mGIFStruct.y_offset = GETINT16(q + 2);
@@ -929,8 +936,8 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
           return;
         }
 
-        // If we were doing a size decode, we're done
-        if (IsSizeDecode()) {
+        // If we were doing a metadata decode, we're done.
+        if (IsMetadataDecode()) {
           return;
         }
       }
@@ -1090,7 +1097,8 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
       break;
 
     case gif_done:
-      MOZ_ASSERT(!IsSizeDecode(), "Size decodes shouldn't reach gif_done");
+      MOZ_ASSERT(!IsMetadataDecode(),
+                 "Metadata decodes shouldn't reach gif_done");
       FinishInternal();
       goto done;
 

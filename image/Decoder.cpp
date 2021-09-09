@@ -10,8 +10,6 @@
 #include "DecodePool.h"
 #include "GeckoProfiler.h"
 #include "imgIContainer.h"
-#include "nsIConsoleService.h"
-#include "nsIScriptError.h"
 #include "nsProxyRelease.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
@@ -24,27 +22,30 @@ namespace mozilla {
 namespace image {
 
 Decoder::Decoder(RasterImage* aImage)
-  : mImage(aImage)
-  , mProgress(NoProgress)
-  , mImageData(nullptr)
+  : mImageData(nullptr)
+  , mImageDataLength(0)
   , mColormap(nullptr)
+  , mColormapSize(0)
+  , mImage(aImage)
+  , mProgress(NoProgress)
+  , mFrameCount(0)
+  , mFailCode(NS_OK)
   , mChunkCount(0)
   , mFlags(0)
   , mBytesDecoded(0)
+  , mInitialized(false)
+  , mMetadataDecode(false)
   , mSendPartialInvalidations(false)
+  , mImageIsTransient(false)
+  , mImageIsLocked(false)
+  , mFirstFrameDecode(false)
+  , mInFrame(false)
+  , mIsAnimated(false)
   , mDataDone(false)
   , mDecodeDone(false)
   , mDataError(false)
   , mDecodeAborted(false)
   , mShouldReportError(false)
-  , mImageIsTransient(false)
-  , mImageIsLocked(false)
-  , mFrameCount(0)
-  , mFailCode(NS_OK)
-  , mInitialized(false)
-  , mSizeDecode(false)
-  , mInFrame(false)
-  , mIsAnimated(false)
 { }
 
 Decoder::~Decoder()
@@ -55,7 +56,7 @@ Decoder::~Decoder()
              "Destroying Decoder without taking all its invalidations");
   mInitialized = false;
 
-  if (!NS_IsMainThread()) {
+  if (mImage && !NS_IsMainThread()) {
     // Dispatch mImage to main thread to prevent it from being destructed by the
     // decode thread.
     nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
@@ -80,6 +81,11 @@ Decoder::Init()
 {
   // No re-initializing
   MOZ_ASSERT(!mInitialized, "Can't re-initialize a decoder!");
+
+  // It doesn't make sense to decode anything but the first frame if we can't
+  // store anything in the SurfaceCache, since only the last frame we decode
+  // will be retrievable.
+  MOZ_ASSERT(ShouldUseSurfaceCache() || IsFirstFrameDecode());
 
   // Implementation-specific initialization
   InitInternal();
@@ -169,7 +175,7 @@ Decoder::Write(const char* aBuffer, uint32_t aCount)
     return;
   }
 
-  if (IsSizeDecode() && HasSize()) {
+  if (IsMetadataDecode() && HasSize()) {
     // More data came in since we found the size. We have nothing to do here.
     return;
   }
@@ -200,7 +206,7 @@ Decoder::CompleteDecode()
   // early because of low-memory conditions or losing a race with another
   // decoder, we need to send teardown notifications (and report an error to the
   // console later).
-  if (!IsSizeDecode() && !mDecodeDone && !WasAborted()) {
+  if (!IsMetadataDecode() && !mDecodeDone && !WasAborted()) {
     mShouldReportError = true;
 
     // If we only have a data error, we're usable if we have at least one
@@ -218,52 +224,14 @@ Decoder::CompleteDecode()
       PostDecodeDone();
     } else {
       // We're not usable. Record some final progress indicating the error.
-      if (!IsSizeDecode()) {
+      if (!IsMetadataDecode()) {
         mProgress |= FLAG_DECODE_COMPLETE;
       }
       mProgress |= FLAG_HAS_ERROR;
     }
   }
-}
 
-void
-Decoder::Finish()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  MOZ_ASSERT(HasError() || !mInFrame, "Finishing while we're still in a frame");
-
-  // If we detected an error in CompleteDecode(), log it to the error console.
-  if (mShouldReportError && !WasAborted()) {
-    nsCOMPtr<nsIConsoleService> consoleService =
-      do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    nsCOMPtr<nsIScriptError> errorObject =
-      do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
-
-    if (consoleService && errorObject && !HasDecoderError()) {
-      nsAutoString msg(NS_LITERAL_STRING("Image corrupt or truncated: ") +
-                       NS_ConvertUTF8toUTF16(mImage->GetURIString()));
-
-      if (NS_SUCCEEDED(errorObject->InitWithWindowID(
-                         msg,
-                         NS_ConvertUTF8toUTF16(mImage->GetURIString()),
-                         EmptyString(), 0, 0, nsIScriptError::errorFlag,
-                         "Image", mImage->InnerWindowID()
-                       ))) {
-        consoleService->LogMessage(errorObject);
-      }
-    }
-  }
-
-  // Set image metadata before calling DecodingComplete, because
-  // DecodingComplete calls Optimize().
-  mImageMetadata.SetOnImage(mImage);
-
-  if (HasSize()) {
-    SetSizeOnImage();
-  }
-
-  if (mDecodeDone && !IsSizeDecode()) {
+  if (mDecodeDone && !IsMetadataDecode()) {
     MOZ_ASSERT(HasError() || mCurrentFrame, "Should have an error or a frame");
 
     // If this image wasn't animated and isn't a transient image, mark its frame
@@ -272,8 +240,6 @@ Decoder::Finish()
     if (!mIsAnimated && !mImageIsTransient && mCurrentFrame) {
       mCurrentFrame->SetOptimizable();
     }
-
-    mImage->OnDecodingComplete(mIsAnimated);
   }
 }
 
@@ -399,26 +365,11 @@ Decoder::AllocateFrameInternal(uint32_t aFrameNum,
   return ref;
 }
 
-void
-Decoder::SetSizeOnImage()
-{
-  MOZ_ASSERT(mImageMetadata.HasSize(), "Should have size");
-  MOZ_ASSERT(mImageMetadata.HasOrientation(), "Should have orientation");
-
-  nsresult rv = mImage->SetSize(mImageMetadata.GetWidth(),
-                                mImageMetadata.GetHeight(),
-                                mImageMetadata.GetOrientation());
-  if (NS_FAILED(rv)) {
-    PostResizeError();
-  }
-}
-
 /*
  * Hook stubs. Override these as necessary in decoder implementations.
  */
 
 void Decoder::InitInternal() { }
-void Decoder::WriteInternal(const char* aBuffer, uint32_t aCount) { }
 void Decoder::FinishInternal() { }
 void Decoder::FinishWithErrorInternal() { }
 
@@ -472,7 +423,7 @@ Decoder::PostFrameStop(Opacity aFrameOpacity    /* = Opacity::TRANSPARENT */,
                        BlendMethod aBlendMethod /* = BlendMethod::OVER */)
 {
   // We should be mid-frame
-  MOZ_ASSERT(!IsSizeDecode(), "Stopping frame during a size decode");
+  MOZ_ASSERT(!IsMetadataDecode(), "Stopping frame during metadata decode");
   MOZ_ASSERT(mInFrame, "Stopping frame when we didn't start one");
   MOZ_ASSERT(mCurrentFrame, "Stopping frame when we don't have one");
 
@@ -511,7 +462,7 @@ Decoder::PostInvalidation(const nsIntRect& aRect,
 void
 Decoder::PostDecodeDone(int32_t aLoopCount /* = 0 */)
 {
-  MOZ_ASSERT(!IsSizeDecode(), "Can't be done with decoding with size decode!");
+  MOZ_ASSERT(!IsMetadataDecode(), "Done with decoding in metadata decode");
   MOZ_ASSERT(!mInFrame, "Can't be done decoding if we're mid-frame!");
   MOZ_ASSERT(!mDecodeDone, "Decode already done!");
   mDecodeDone = true;

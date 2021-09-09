@@ -43,12 +43,6 @@ public:
   nsresult Decode();
 
   /**
-   * Cleans up the decoder's state and notifies our image about success or
-   * failure. May only be called on the main thread.
-   */
-  void Finish();
-
-  /**
    * Given a maximum number of bytes we're willing to decode, @aByteLimit,
    * returns true if we should attempt to run this decoder synchronously.
    */
@@ -97,15 +91,17 @@ public:
    * State.
    */
 
-  // If we're doing a "size decode", we more or less pass through the image
-  // data, stopping only to scoop out the image dimensions. A size decode
-  // must be enabled by SetSizeDecode() _before_calling Init().
-  bool IsSizeDecode() { return mSizeDecode; }
-  void SetSizeDecode(bool aSizeDecode)
+  /**
+   * If we're doing a metadata decode, we only decode the image's headers, which
+   * is enough to determine the image's intrinsic size. A metadata decode is
+   * enabled by calling SetMetadataDecode() *before* calling Init().
+   */
+  void SetMetadataDecode(bool aMetadataDecode)
   {
     MOZ_ASSERT(!mInitialized, "Shouldn't be initialized yet");
-    mSizeDecode = aSizeDecode;
+    mMetadataDecode = aMetadataDecode;
   }
+  bool IsMetadataDecode() const { return mMetadataDecode; }
 
   /**
    * If this decoder supports downscale-during-decode, sets the target size that
@@ -124,6 +120,22 @@ public:
   {
     return NS_ERROR_NOT_AVAILABLE;
   }
+
+  /**
+   * Set the requested sample size for this decoder. Used to implement the
+   * -moz-sample-size media fragment.
+   *
+   *  XXX(seth): Support for -moz-sample-size will be removed in bug 1120056.
+   */
+  virtual void SetSampleSize(int aSampleSize) { }
+
+  /**
+   * Set the requested resolution for this decoder. Used to implement the
+   * -moz-resolution media fragment.
+   *
+   *  XXX(seth): Support for -moz-resolution will be removed in bug 1118926.
+   */
+  virtual void SetResolution(const gfx::IntSize& aResolution) { }
 
   /**
    * Set whether should send partial invalidations.
@@ -182,6 +194,18 @@ public:
 
   bool ImageIsLocked() const { return mImageIsLocked; }
 
+
+  /**
+   * Set whether we should stop decoding after the first frame.
+   */
+  void SetIsFirstFrameDecode()
+  {
+    MOZ_ASSERT(!mInitialized, "Shouldn't be initialized yet");
+    mFirstFrameDecode = true;
+  }
+
+  bool IsFirstFrameDecode() const { return mFirstFrameDecode; }
+
   size_t BytesDecoded() const { return mBytesDecoded; }
 
   // The amount of time we've spent inside Write() so far for this decoder.
@@ -200,17 +224,30 @@ public:
     return mInFrame ? mFrameCount - 1 : mFrameCount;
   }
 
+  // Did we discover that the image we're decoding is animated?
+  bool HasAnimation() const { return mIsAnimated; }
+
   // Error tracking
   bool HasError() const { return HasDataError() || HasDecoderError(); }
   bool HasDataError() const { return mDataError; }
   bool HasDecoderError() const { return NS_FAILED(mFailCode); }
+  bool ShouldReportError() const { return mShouldReportError; }
   nsresult GetDecoderError() const { return mFailCode; }
   void PostResizeError() { PostDataError(); }
 
+  /// Did we finish decoding enough that calling Decode() again would be useless?
   bool GetDecodeDone() const
   {
-    return mDecodeDone || (mSizeDecode && HasSize()) || HasError() || mDataDone;
+    return mDecodeDone || (mMetadataDecode && HasSize()) ||
+           HasError() || mDataDone;
   }
+
+  /// Did we finish decoding enough to set |RasterImage::mHasBeenDecoded|?
+  // XXX(seth): This will be removed in bug 1187401.
+  bool GetDecodeTotallyDone() const { return mDecodeDone && !IsMetadataDecode(); }
+
+  /// Are we in the middle of a frame right now? Used for assertions only.
+  bool InFrame() const { return mInFrame; }
 
   /**
    * Returns true if this decoder was aborted.
@@ -234,7 +271,6 @@ public:
   uint32_t GetDecodeFlags() const { return DecodeFlags(mFlags); }
 
   bool HasSize() const { return mImageMetadata.HasSize(); }
-  void SetSizeOnImage();
 
   nsIntSize GetSize() const
   {
@@ -251,9 +287,6 @@ public:
    */
   RasterImage* GetImage() const { MOZ_ASSERT(mImage); return mImage.get(); }
 
-  // XXX(seth): This should be removed once we can optimize imgFrame objects
-  // off-main-thread. It only exists to support the code in Finish() for
-  // nsICODecoder.
   RawAccessFrameRef GetCurrentFrameRef()
   {
     return mCurrentFrame ? mCurrentFrame->RawAccessRef()
@@ -282,7 +315,7 @@ protected:
    * only these methods.
    */
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount) = 0;
   virtual void FinishInternal();
   virtual void FinishWithErrorInternal();
 
@@ -386,10 +419,13 @@ protected:
                                           uint8_t aPaletteDepth,
                                           imgFrame* aPreviousFrame);
 
-  /*
-   * Member variables.
-   *
-   */
+protected:
+  uint8_t* mImageData;  // Pointer to image data in either Cairo or 8bit format
+  uint32_t mImageDataLength;
+  uint32_t* mColormap;  // Current colormap to be used in Cairo format
+  uint32_t mColormapSize;
+
+private:
   nsRefPtr<RasterImage> mImage;
   Maybe<SourceBufferIterator> mIterator;
   RawAccessFrameRef mCurrentFrame;
@@ -397,10 +433,9 @@ protected:
   nsIntRect mInvalidRect; // Tracks an invalidation region in the current frame.
   Progress mProgress;
 
-  uint8_t* mImageData;  // Pointer to image data in either Cairo or 8bit format
-  uint32_t mImageDataLength;
-  uint32_t* mColormap;  // Current colormap to be used in Cairo format
-  uint32_t mColormapSize;
+  uint32_t mFrameCount; // Number of frames, including anything in-progress
+
+  nsresult mFailCode;
 
   // Telemetry data for this decoder.
   TimeDuration mDecodeTime;
@@ -408,24 +443,20 @@ protected:
 
   uint32_t mFlags;
   size_t mBytesDecoded;
-  bool mSendPartialInvalidations;
-  bool mDataDone;
-  bool mDecodeDone;
-  bool mDataError;
-  bool mDecodeAborted;
-  bool mShouldReportError;
-  bool mImageIsTransient;
-  bool mImageIsLocked;
 
-private:
-  uint32_t mFrameCount; // Number of frames, including anything in-progress
-
-  nsresult mFailCode;
-
-  bool mInitialized;
-  bool mSizeDecode;
-  bool mInFrame;
-  bool mIsAnimated;
+  bool mInitialized : 1;
+  bool mMetadataDecode : 1;
+  bool mSendPartialInvalidations : 1;
+  bool mImageIsTransient : 1;
+  bool mImageIsLocked : 1;
+  bool mFirstFrameDecode : 1;
+  bool mInFrame : 1;
+  bool mIsAnimated : 1;
+  bool mDataDone : 1;
+  bool mDecodeDone : 1;
+  bool mDataError : 1;
+  bool mDecodeAborted : 1;
+  bool mShouldReportError : 1;
 };
 
 } // namespace image

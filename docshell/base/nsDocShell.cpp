@@ -1881,7 +1881,6 @@ nsDocShell::GetChromeEventHandler(nsIDOMEventTarget** aChromeEventHandler)
   return NS_OK;
 }
 
-/* void setCurrentURI (in nsIURI uri); */
 NS_IMETHODIMP
 nsDocShell::SetCurrentURI(nsIURI* aURI)
 {
@@ -7183,7 +7182,6 @@ nsDocShell::Embed(nsIContentViewer* aContentViewer,
   return NS_OK;
 }
 
-/* void setIsPrinting (in boolean aIsPrinting); */
 NS_IMETHODIMP
 nsDocShell::SetIsPrinting(bool aIsPrinting)
 {
@@ -12976,7 +12974,6 @@ nsDocShell::IsFrame()
   return !!parent;
 }
 
-/* boolean IsBeingDestroyed (); */
 NS_IMETHODIMP
 nsDocShell::IsBeingDestroyed(bool* aDoomed)
 {

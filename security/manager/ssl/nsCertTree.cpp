@@ -807,7 +807,6 @@ nsCertTree::DeleteEntryObject(uint32_t index)
 //
 /////////////////////////////////////////////////////////////////////////////
 
-/* nsIX509Cert getCert(in unsigned long index); */
 NS_IMETHODIMP
 nsCertTree::GetCert(uint32_t aIndex, nsIX509Cert **_cert)
 {
@@ -843,7 +842,6 @@ nsCertTree::IsHostPortOverride(uint32_t aIndex, bool *_retval)
   return NS_OK;
 }
 
-/* readonly attribute long rowCount; */
 NS_IMETHODIMP 
 nsCertTree::GetRowCount(int32_t *aRowCount)
 {
@@ -860,7 +858,6 @@ nsCertTree::GetRowCount(int32_t *aRowCount)
   return NS_OK;
 }
 
-/* attribute nsITreeSelection selection; */
 NS_IMETHODIMP 
 nsCertTree::GetSelection(nsITreeSelection * *aSelection)
 {
@@ -894,7 +891,6 @@ nsCertTree::GetColumnProperties(nsITreeColumn* col, nsAString& aProps)
 {
   return NS_OK;
 }
-/* boolean isContainer (in long index); */
 NS_IMETHODIMP 
 nsCertTree::IsContainer(int32_t index, bool *_retval)
 {
@@ -909,7 +905,6 @@ nsCertTree::IsContainer(int32_t index, bool *_retval)
   return NS_OK;
 }
 
-/* boolean isContainerOpen (in long index); */
 NS_IMETHODIMP 
 nsCertTree::IsContainerOpen(int32_t index, bool *_retval)
 {
@@ -924,7 +919,6 @@ nsCertTree::IsContainerOpen(int32_t index, bool *_retval)
   return NS_OK;
 }
 
-/* boolean isContainerEmpty (in long index); */
 NS_IMETHODIMP 
 nsCertTree::IsContainerEmpty(int32_t index, bool *_retval)
 {
@@ -932,7 +926,6 @@ nsCertTree::IsContainerEmpty(int32_t index, bool *_retval)
   return NS_OK;
 }
 
-/* boolean isSeparator (in long index); */
 NS_IMETHODIMP 
 nsCertTree::IsSeparator(int32_t index, bool *_retval)
 {
@@ -940,7 +933,6 @@ nsCertTree::IsSeparator(int32_t index, bool *_retval)
   return NS_OK;
 }
 
-/* long getParentIndex (in long rowIndex); */
 NS_IMETHODIMP 
 nsCertTree::GetParentIndex(int32_t rowIndex, int32_t *_retval)
 {
@@ -960,7 +952,6 @@ nsCertTree::GetParentIndex(int32_t rowIndex, int32_t *_retval)
   return NS_OK;
 }
 
-/* boolean hasNextSibling (in long rowIndex, in long afterIndex); */
 NS_IMETHODIMP 
 nsCertTree::HasNextSibling(int32_t rowIndex, int32_t afterIndex, 
                                bool *_retval)
@@ -982,7 +973,6 @@ nsCertTree::HasNextSibling(int32_t rowIndex, int32_t afterIndex,
   return NS_OK;
 }
 
-/* long getLevel (in long index); */
 NS_IMETHODIMP 
 nsCertTree::GetLevel(int32_t index, int32_t *_retval)
 {
@@ -997,7 +987,6 @@ nsCertTree::GetLevel(int32_t index, int32_t *_retval)
   return NS_OK;
 }
 
-/* Astring getImageSrc (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
 nsCertTree::GetImageSrc(int32_t row, nsITreeColumn* col, 
                         nsAString& _retval)
@@ -1006,14 +995,12 @@ nsCertTree::GetImageSrc(int32_t row, nsITreeColumn* col,
   return NS_OK;
 }
 
-/* long getProgressMode (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP
 nsCertTree::GetProgressMode(int32_t row, nsITreeColumn* col, int32_t* _retval)
 {
   return NS_OK;
 }
 
-/* Astring getCellValue (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
 nsCertTree::GetCellValue(int32_t row, nsITreeColumn* col, 
                          nsAString& _retval)
@@ -1022,7 +1009,6 @@ nsCertTree::GetCellValue(int32_t row, nsITreeColumn* col,
   return NS_OK;
 }
 
-/* Astring getCellText (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
 nsCertTree::GetCellText(int32_t row, nsITreeColumn* col, 
                         nsAString& _retval)
@@ -1216,7 +1202,6 @@ nsCertTree::GetCellText(int32_t row, nsITreeColumn* col,
   return rv;
 }
 
-/* void setTree (in nsITreeBoxObject tree); */
 NS_IMETHODIMP 
 nsCertTree::SetTree(nsITreeBoxObject *tree)
 {
@@ -1224,7 +1209,6 @@ nsCertTree::SetTree(nsITreeBoxObject *tree)
   return NS_OK;
 }
 
-/* void toggleOpenState (in long index); */
 NS_IMETHODIMP 
 nsCertTree::ToggleOpenState(int32_t index)
 {
@@ -1239,28 +1223,24 @@ nsCertTree::ToggleOpenState(int32_t index)
   return NS_OK;
 }
 
-/* void cycleHeader (in nsITreeColumn); */
 NS_IMETHODIMP 
 nsCertTree::CycleHeader(nsITreeColumn* col)
 {
   return NS_OK;
 }
 
-/* void selectionChanged (); */
 NS_IMETHODIMP 
 nsCertTree::SelectionChanged()
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-/* void cycleCell (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
 nsCertTree::CycleCell(int32_t row, nsITreeColumn* col)
 {
   return NS_OK;
 }
 
-/* boolean isEditable (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
 nsCertTree::IsEditable(int32_t row, nsITreeColumn* col, bool *_retval)
 {
@@ -1268,7 +1248,6 @@ nsCertTree::IsEditable(int32_t row, nsITreeColumn* col, bool *_retval)
   return NS_OK;
 }
 
-/* boolean isSelectable (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
 nsCertTree::IsSelectable(int32_t row, nsITreeColumn* col, bool *_retval)
 {
@@ -1276,7 +1255,6 @@ nsCertTree::IsSelectable(int32_t row, nsITreeColumn* col, bool *_retval)
   return NS_OK;
 }
 
-/* void setCellValue (in long row, in nsITreeColumn col, in AString value); */
 NS_IMETHODIMP 
 nsCertTree::SetCellValue(int32_t row, nsITreeColumn* col, 
                          const nsAString& value)
@@ -1284,7 +1262,6 @@ nsCertTree::SetCellValue(int32_t row, nsITreeColumn* col,
   return NS_OK;
 }
 
-/* void setCellText (in long row, in nsITreeColumn col, in AString value); */
 NS_IMETHODIMP 
 nsCertTree::SetCellText(int32_t row, nsITreeColumn* col, 
                         const nsAString& value)
@@ -1292,14 +1269,12 @@ nsCertTree::SetCellText(int32_t row, nsITreeColumn* col,
   return NS_OK;
 }
 
-/* void performAction (in wstring action); */
 NS_IMETHODIMP 
 nsCertTree::PerformAction(const char16_t *action)
 {
   return NS_OK;
 }
 
-/* void performActionOnRow (in wstring action, in long row); */
 NS_IMETHODIMP 
 nsCertTree::PerformActionOnRow(const char16_t *action, int32_t row)
 {

@@ -678,7 +678,6 @@ nsLoadGroup::GetSchedulingContextID(nsID *aSCID)
 ////////////////////////////////////////////////////////////////////////////////
 // nsILoadGroupChild methods:
 
-/* attribute nsILoadGroup parentLoadGroup; */
 NS_IMETHODIMP
 nsLoadGroup::GetParentLoadGroup(nsILoadGroup * *aParentLoadGroup)
 {
@@ -697,7 +696,6 @@ nsLoadGroup::SetParentLoadGroup(nsILoadGroup *aParentLoadGroup)
     return NS_OK;
 }
 
-/* readonly attribute nsILoadGroup childLoadGroup; */
 NS_IMETHODIMP
 nsLoadGroup::GetChildLoadGroup(nsILoadGroup * *aChildLoadGroup)
 {
@@ -705,7 +703,6 @@ nsLoadGroup::GetChildLoadGroup(nsILoadGroup * *aChildLoadGroup)
     return NS_OK;
 }
 
-/* readonly attribute nsILoadGroup rootLoadGroup; */
 NS_IMETHODIMP
 nsLoadGroup::GetRootLoadGroup(nsILoadGroup * *aRootLoadGroup)
 {

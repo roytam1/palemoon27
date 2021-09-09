@@ -35,15 +35,12 @@ AudioChannelAgent::~AudioChannelAgent()
   }
 }
 
-/* readonly attribute long audioChannelType; */
 NS_IMETHODIMP AudioChannelAgent::GetAudioChannelType(int32_t *aAudioChannelType)
 {
   *aAudioChannelType = mAudioChannelType;
   return NS_OK;
 }
 
-/* boolean init (in nsIDOMWindow window, in long channelType,
- *               in nsIAudioChannelAgentCallback callback); */
 NS_IMETHODIMP
 AudioChannelAgent::Init(nsIDOMWindow* aWindow, int32_t aChannelType,
                         nsIAudioChannelAgentCallback *aCallback)
@@ -52,8 +49,6 @@ AudioChannelAgent::Init(nsIDOMWindow* aWindow, int32_t aChannelType,
                       /* useWeakRef = */ false);
 }
 
-/* boolean initWithWeakCallback (in nsIDOMWindow window, in long channelType,
- *                               in nsIAudioChannelAgentCallback callback); */
 NS_IMETHODIMP
 AudioChannelAgent::InitWithWeakCallback(nsIDOMWindow* aWindow,
                                         int32_t aChannelType,
@@ -118,7 +113,6 @@ AudioChannelAgent::InitInternal(nsIDOMWindow* aWindow, int32_t aChannelType,
   return NS_OK;
 }
 
-/* boolean startPlaying (); */
 NS_IMETHODIMP AudioChannelAgent::StartPlaying(float *aVolume, bool* aMuted)
 {
   MOZ_ASSERT(aVolume);
@@ -139,7 +133,6 @@ NS_IMETHODIMP AudioChannelAgent::StartPlaying(float *aVolume, bool* aMuted)
   return NS_OK;
 }
 
-/* void stopPlaying (); */
 NS_IMETHODIMP AudioChannelAgent::StopPlaying(void)
 {
   if (mAudioChannelType == AUDIO_AGENT_CHANNEL_ERROR ||

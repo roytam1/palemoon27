@@ -85,6 +85,7 @@ nsJPEGDecoder::nsJPEGDecoder(RasterImage* aImage,
                              Decoder::DecodeStyle aDecodeStyle)
  : Decoder(aImage)
  , mDecodeStyle(aDecodeStyle)
+ , mSampleSize(0)
 {
   mState = JPEG_HEADER;
   mReading = true;
@@ -196,7 +197,7 @@ nsJPEGDecoder::FinishInternal()
   // If we're not in any sort of error case, force our state to JPEG_DONE.
   if ((mState != JPEG_DONE && mState != JPEG_SINK_NON_JPEG_TRAILER) &&
       (mState != JPEG_ERROR) &&
-      !IsSizeDecode()) {
+      !IsMetadataDecode()) {
     mState = JPEG_DONE;
   }
 }
@@ -249,10 +250,10 @@ nsJPEGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
         return; // I/O suspension
       }
 
-      int sampleSize = mImage->GetRequestedSampleSize();
-      if (sampleSize > 0) {
+      // If we have a sample size specified for -moz-sample-size, use it.
+      if (mSampleSize > 0) {
         mInfo.scale_num = 1;
-        mInfo.scale_denom = sampleSize;
+        mInfo.scale_denom = mSampleSize;
       }
 
       // Used to set up image size so arrays can be allocated
@@ -267,8 +268,8 @@ nsJPEGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
         return;
       }
 
-      // If we're doing a size decode, we're done.
-      if (IsSizeDecode()) {
+      // If we're doing a metadata decode, we're done.
+      if (IsMetadataDecode()) {
         return;
       }
 

@@ -1147,7 +1147,6 @@ nsXPCFunctionThisTranslator::~nsXPCFunctionThisTranslator()
 {
 }
 
-/* nsISupports TranslateThis (in nsISupports aInitialThis); */
 NS_IMETHODIMP
 nsXPCFunctionThisTranslator::TranslateThis(nsISupports* aInitialThis,
                                            nsISupports** _retval)

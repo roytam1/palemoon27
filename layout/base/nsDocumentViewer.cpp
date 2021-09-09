@@ -2750,7 +2750,6 @@ NS_IMETHODIMP nsDocumentViewer::GetCopyable(bool *aCopyable)
   return NS_OK;
 }
 
-/* AString getContents (in string mimeType, in boolean selectionOnly); */
 NS_IMETHODIMP nsDocumentViewer::GetContents(const char *mimeType, bool selectionOnly, nsAString& aOutValue)
 {
   aOutValue.Truncate();
@@ -2775,7 +2774,6 @@ NS_IMETHODIMP nsDocumentViewer::GetContents(const char *mimeType, bool selection
                                     mDocument, aOutValue);
 }
 
-/* readonly attribute boolean canGetContents; */
 NS_IMETHODIMP nsDocumentViewer::GetCanGetContents(bool *aCanGetContents)
 {
   NS_ENSURE_ARG_POINTER(aCanGetContents);
@@ -3994,14 +3992,12 @@ nsDocumentViewer::PrintPreviewNavigate(int16_t aType, int32_t aPageNum)
 
 }
 
-/* readonly attribute nsIPrintSettings globalPrintSettings; */
 NS_IMETHODIMP
 nsDocumentViewer::GetGlobalPrintSettings(nsIPrintSettings * *aGlobalPrintSettings)
 {
   return nsPrintEngine::GetGlobalPrintSettings(aGlobalPrintSettings);
 }
 
-/* readonly attribute boolean doingPrint; */
 // XXX This always returns false for subdocuments
 NS_IMETHODIMP
 nsDocumentViewer::GetDoingPrint(bool *aDoingPrint)
@@ -4016,7 +4012,6 @@ nsDocumentViewer::GetDoingPrint(bool *aDoingPrint)
   return NS_OK;
 }
 
-/* readonly attribute boolean doingPrintPreview; */
 // XXX This always returns false for subdocuments
 NS_IMETHODIMP
 nsDocumentViewer::GetDoingPrintPreview(bool *aDoingPrintPreview)
@@ -4030,7 +4025,6 @@ nsDocumentViewer::GetDoingPrintPreview(bool *aDoingPrintPreview)
   return NS_OK;
 }
 
-/* readonly attribute nsIPrintSettings currentPrintSettings; */
 NS_IMETHODIMP
 nsDocumentViewer::GetCurrentPrintSettings(nsIPrintSettings * *aCurrentPrintSettings)
 {
@@ -4043,7 +4037,6 @@ nsDocumentViewer::GetCurrentPrintSettings(nsIPrintSettings * *aCurrentPrintSetti
 }
 
 
-/* readonly attribute nsIDOMWindow currentChildDOMWindow; */
 NS_IMETHODIMP 
 nsDocumentViewer::GetCurrentChildDOMWindow(nsIDOMWindow * *aCurrentChildDOMWindow)
 {
@@ -4052,7 +4045,6 @@ nsDocumentViewer::GetCurrentChildDOMWindow(nsIDOMWindow * *aCurrentChildDOMWindo
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-/* void cancel (); */
 NS_IMETHODIMP
 nsDocumentViewer::Cancel()
 {
@@ -4060,7 +4052,6 @@ nsDocumentViewer::Cancel()
   return mPrintEngine->Cancelled();
 }
 
-/* void exitPrintPreview (); */
 NS_IMETHODIMP
 nsDocumentViewer::ExitPrintPreview()
 {
@@ -4091,7 +4082,6 @@ nsDocumentViewer::EnumerateDocumentNames(uint32_t* aCount,
 #endif
 }
 
-/* readonly attribute boolean isFramesetFrameSelected; */
 NS_IMETHODIMP 
 nsDocumentViewer::GetIsFramesetFrameSelected(bool *aIsFramesetFrameSelected)
 {
@@ -4105,7 +4095,6 @@ nsDocumentViewer::GetIsFramesetFrameSelected(bool *aIsFramesetFrameSelected)
 #endif
 }
 
-/* readonly attribute long printPreviewNumPages; */
 NS_IMETHODIMP
 nsDocumentViewer::GetPrintPreviewNumPages(int32_t *aPrintPreviewNumPages)
 {
@@ -4119,7 +4108,6 @@ nsDocumentViewer::GetPrintPreviewNumPages(int32_t *aPrintPreviewNumPages)
 #endif
 }
 
-/* readonly attribute boolean isFramesetDocument; */
 NS_IMETHODIMP
 nsDocumentViewer::GetIsFramesetDocument(bool *aIsFramesetDocument)
 {
@@ -4133,7 +4121,6 @@ nsDocumentViewer::GetIsFramesetDocument(bool *aIsFramesetDocument)
 #endif
 }
 
-/* readonly attribute boolean isIFrameSelected; */
 NS_IMETHODIMP 
 nsDocumentViewer::GetIsIFrameSelected(bool *aIsIFrameSelected)
 {
@@ -4147,7 +4134,6 @@ nsDocumentViewer::GetIsIFrameSelected(bool *aIsIFrameSelected)
 #endif
 }
 
-/* readonly attribute boolean isRangeSelection; */
 NS_IMETHODIMP 
 nsDocumentViewer::GetIsRangeSelection(bool *aIsRangeSelection)
 {

@@ -6531,11 +6531,11 @@ var gIdentityHandler = {
     this._encryptionLabel[this.IDENTITY_MODE_UNKNOWN] =
       gNavigatorBundle.getString("identity.unencrypted");
     this._encryptionLabel[this.IDENTITY_MODE_MIXED_DISPLAY_LOADED] =
-      gNavigatorBundle.getString("identity.mixed_display_loaded");
+      gNavigatorBundle.getString("identity.broken_loaded");
     this._encryptionLabel[this.IDENTITY_MODE_MIXED_ACTIVE_LOADED] =
       gNavigatorBundle.getString("identity.mixed_active_loaded2");
     this._encryptionLabel[this.IDENTITY_MODE_MIXED_DISPLAY_LOADED_ACTIVE_BLOCKED] =
-      gNavigatorBundle.getString("identity.mixed_display_loaded");
+      gNavigatorBundle.getString("identity.broken_loaded");
     return this._encryptionLabel;
   },
   get _identityPopup () {
@@ -6703,11 +6703,9 @@ var gIdentityHandler = {
     } else if (state & nsIWebProgressListener.STATE_IS_SECURE) {
       this.setMode(this.IDENTITY_MODE_DOMAIN_VERIFIED);
     } else if (state & nsIWebProgressListener.STATE_IS_BROKEN) {
-      if ((state & nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) &&
-          gPrefService.getBoolPref("security.mixed_content.block_active_content")) {
+      if (state & nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) {
         this.setMode(this.IDENTITY_MODE_MIXED_ACTIVE_LOADED);
-      } else if ((state & nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT) &&
-                gPrefService.getBoolPref("security.mixed_content.block_active_content")) {
+      } else if (state & nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT) {
         this.setMode(this.IDENTITY_MODE_MIXED_DISPLAY_LOADED_ACTIVE_BLOCKED);
       } else {
         this.setMode(this.IDENTITY_MODE_MIXED_DISPLAY_LOADED);

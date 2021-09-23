@@ -971,7 +971,8 @@ nsContextMenu.prototype = {
   },
 
   viewFrameInfo: function() {
-    BrowserPageInfo(this.target.ownerDocument);
+    BrowserPageInfo(this.target.ownerDocument, null, null,
+                    this.frameOuterWindowID);
   },
 
   reloadImage: function() {
@@ -1574,7 +1575,7 @@ nsContextMenu.prototype = {
   },
 
   savePageAs: function CM_savePageAs() {
-    saveDocument(this.browser.contentDocumentAsCPOW);
+    saveBrowser(this.browser);
   },
 
   sendPage: function CM_sendPage() {

@@ -8,15 +8,15 @@
 this.EXPORTED_SYMBOLS = [ "LoginManagerContent",
                           "UserAutoCompleteResult" ];
 
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cc = Components.classes;
-const Cu = Components.utils;
+const { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "LoginRecipesContent",
+                                  "resource://gre/modules/LoginRecipes.jsm");
 
 // These mirror signon.* prefs.
 var gEnabled, gDebug, gAutofillForms, gStoreWhenAutocompleteOff;
@@ -165,22 +165,48 @@ var LoginManagerContent = {
   },
 
   receiveMessage: function (msg) {
+    // Convert an array of logins in simple JS-object form to an array of
+    // nsILoginInfo objects.
+    function jsLoginsToXPCOM(logins) {
+      return logins.map(login => {
+        var formLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                      createInstance(Ci.nsILoginInfo);
+        formLogin.init(login.hostname, login.formSubmitURL,
+                       login.httpRealm, login.username,
+                       login.password, login.usernameField,
+                       login.passwordField);
+        return formLogin;
+      });
+    }
+
     let request = this._takeRequest(msg);
     switch (msg.name) {
       case "RemoteLogins:loginsFound": {
-        request.promise.resolve({ form: request.form,
-                                  loginsFound: msg.data.logins });
+        let loginsFound = jsLoginsToXPCOM(msg.data.logins);
+        request.promise.resolve({
+          form: request.form,
+          loginsFound: loginsFound,
+          recipes: msg.data.recipes,
+        });
         break;
       }
 
       case "RemoteLogins:loginsAutoCompleted": {
-        request.promise.resolve(msg.data.logins);
+        let loginsFound = jsLoginsToXPCOM(msg.data.logins);
+        request.promise.resolve(loginsFound);
         break;
       }
     }
   },
 
-  _asyncFindLogins: function(form, options) {
+  /**
+   * Get relevant logins and recipes from the parent
+   *
+   * @param {HTMLFormElement} form - form to get login data for
+   * @param {Object} options
+   * @param {boolean} options.showMasterPassword - whether to show a master password prompt
+   */
+  _getLoginDataFromParent: function(form, options) {
     let doc = form.ownerDocument;
     let win = doc.defaultView;
 
@@ -246,16 +272,16 @@ var LoginManagerContent = {
       return;
 
     log("onFormPassword for", form.ownerDocument.documentURI);
-    this._asyncFindLogins(form, { showMasterPassword: true })
+    this._getLoginDataFromParent(form, { showMasterPassword: true })
         .then(this.loginsFound.bind(this))
         .then(null, Cu.reportError);
   },
 
-  loginsFound: function({ form, loginsFound }) {
+  loginsFound: function({ form, loginsFound, recipes }) {
     let doc = form.ownerDocument;
     let autofillForm = gAutofillForms && !PrivateBrowsingUtils.isContentWindowPrivate(doc.defaultView);
 
-    this._fillForm(form, autofillForm, false, false, loginsFound);
+    this._fillForm(form, autofillForm, false, false, loginsFound, recipes);
   },
 
   /*
@@ -296,9 +322,9 @@ var LoginManagerContent = {
     var [usernameField, passwordField, ignored] =
         this._getFormFields(acForm, false);
     if (usernameField == acInputField && passwordField) {
-      this._asyncFindLogins(acForm, { showMasterPassword: false })
-          .then(({ form, loginsFound }) => {
-              this._fillForm(form, true, true, true, loginsFound);
+      this._getLoginDataFromParent(acForm, { showMasterPassword: false })
+          .then(({ form, loginsFound, recipes }) => {
+            this._fillForm(form, true, true, true, loginsFound, recipes);
           })
           .then(null, Cu.reportError);
     } else {
@@ -366,14 +392,15 @@ var LoginManagerContent = {
   },
 
 
-  /*
-   * _getFormFields
-   *
+  /**
    * Returns the username and password fields found in the form.
    * Can handle complex forms by trying to figure out what the
    * relevant fields are.
    *
-   * Returns: [usernameField, newPasswordField, oldPasswordField]
+   * @param {HTMLFormElement} form
+   * @param {bool} isSubmission
+   * @param {Set} recipes
+   * @return {Array} [usernameField, newPasswordField, oldPasswordField]
    *
    * usernameField may be null.
    * newPasswordField will always be non-null.
@@ -382,37 +409,69 @@ var LoginManagerContent = {
    * change-password field, with oldPasswordField containing the password
    * that is being changed.
    */
-  _getFormFields : function (form, isSubmission) {
+  _getFormFields : function (form, isSubmission, recipes) {
     var usernameField = null;
+    var pwFields = null;
+    var fieldOverrideRecipe = LoginRecipesContent.getFieldOverrides(recipes, form);
+    if (fieldOverrideRecipe) {
+      var pwOverrideField = LoginRecipesContent.queryLoginField(
+        form,
+        fieldOverrideRecipe.passwordSelector
+      );
+      if (pwOverrideField) {
+        pwFields = [{
+          index   : [...pwOverrideField.form.elements].indexOf(pwOverrideField),
+          element : pwOverrideField,
+        }];
+      }
 
-    // Locate the password field(s) in the form. Up to 3 supported.
-    // If there's no password field, there's nothing for us to do.
-    var pwFields = this._getPasswordFields(form, isSubmission);
-    if (!pwFields)
+      var usernameOverrideField = LoginRecipesContent.queryLoginField(
+        form,
+        fieldOverrideRecipe.usernameSelector
+      );
+      if (usernameOverrideField) {
+        usernameField = usernameOverrideField;
+      }
+    }
+
+    if (!pwFields) {
+      // Locate the password field(s) in the form. Up to 3 supported.
+      // If there's no password field, there's nothing for us to do.
+      pwFields = this._getPasswordFields(form, isSubmission);
+    }
+
+    if (!pwFields) {
       return [null, null, null];
+    }
 
-
-    // Locate the username field in the form by searching backwards
-    // from the first passwordfield, assume the first text field is the
-    // username. We might not find a username field if the user is
-    // already logged in to the site.
-    for (var i = pwFields[0].index - 1; i >= 0; i--) {
-      var element = form.elements[i];
-      if (this._isUsernameFieldType(element)) {
-        usernameField = element;
-        break;
+    if (!usernameField) {
+      // Locate the username field in the form by searching backwards
+      // from the first passwordfield, assume the first text field is the
+      // username. We might not find a username field if the user is
+      // already logged in to the site.
+      for (var i = pwFields[0].index - 1; i >= 0; i--) {
+        var element = form.elements[i];
+        if (this._isUsernameFieldType(element)) {
+          usernameField = element;
+          break;
+        }
       }
     }
 
     if (!usernameField)
       log("(form -- no username field found)");
-
+    else
+      log("Username field id/name/value is: ", usernameField.id, " / ",
+          usernameField.name, " / ", usernameField.value);
 
     // If we're not submitting a form (it's a page load), there are no
     // password field values for us to use for identifying fields. So,
     // just assume the first password field is the one to be filled in.
-    if (!isSubmission || pwFields.length == 1)
-      return [usernameField, pwFields[0].element, null];
+    if (!isSubmission || pwFields.length == 1) {
+      var passwordField = pwFields[0].element;
+      log("Password field id/name is: ", passwordField.id, " / ", passwordField.name);
+      return [usernameField, passwordField, null];
+    }
 
 
     // Try to figure out WTF is in the form based on the password values.
@@ -455,6 +514,8 @@ var LoginManagerContent = {
       }
     }
 
+    log("Password field (new) id/name is: ", newPasswordField.id, " / ", newPasswordField.name);
+    log("Password field (old) id/name is: ", oldPasswordField.id, " / ", oldPasswordField.name);
     return [usernameField, newPasswordField, oldPasswordField];
   },
 
@@ -559,21 +620,21 @@ var LoginManagerContent = {
                                     { openerWin: opener });
   },
 
-  /*
-   * _fillform
+  /**
+   * Attempt to find the username and password fields in a form, and fill them
+   * in using the provided logins and recipes.
    *
-   * Fill the form with the provided login information.
-   * The logins are returned so they can be reused for
-   * optimization. Success of action is also returned in format
-   * [success, foundLogins].
-   *
-   * - autofillForm denotes if we should fill the form in automatically
-   * - userTriggered is an indication of whether this filling was triggered by
-   *     the user
-   * - foundLogins is an array of nsILoginInfo
+   * @param {HTMLFormElement} form
+   * @param {bool} autofillForm denotes if we should fill the form in automatically
+   * @param {bool} clobberPassword controls if an existing password value can be
+   *                               overwritten
+   * @param {bool} userTriggered is an indication of whether this filling was triggered by
+   *                             the user
+   * @param {nsILoginInfo[]} foundLogins is an array of nsILoginInfo that could be used for the form
+   * @param {Set} recipes that could be used to affect how the form is filled
    */
   _fillForm : function (form, autofillForm, clobberPassword,
-                        userTriggered, foundLogins) {
+                        userTriggered, foundLogins, recipes) {
     let ignoreAutocomplete = true;
     const AUTOFILL_RESULT = {
       FILLED: 0,
@@ -602,7 +663,7 @@ var LoginManagerContent = {
     if (foundLogins.length == 0) {
       // We don't log() here since this is a very common case.
       recordAutofillResult(AUTOFILL_RESULT.NO_SAVED_LOGINS);
-      return [false, foundLogins];
+      return;
     }
 
     // Heuristically determine what the user/pass fields are
@@ -610,20 +671,20 @@ var LoginManagerContent = {
     // so that the user isn't prompted for a master password
     // without need.
     var [usernameField, passwordField, ignored] =
-        this._getFormFields(form, false);
+          this._getFormFields(form, false, recipes);
 
     // Need a valid password field to do anything.
     if (passwordField == null) {
       log("not filling form, no password field found");
       recordAutofillResult(AUTOFILL_RESULT.NO_PASSWORD_FIELD);
-      return [false, foundLogins];
+      return;
     }
 
     // If the password field is disabled or read-only, there's nothing to do.
     if (passwordField.disabled || passwordField.readOnly) {
       log("not filling form, password field disabled or read-only");
       recordAutofillResult(AUTOFILL_RESULT.PASSWORD_DISABLED_READONLY);
-      return [false, foundLogins];
+      return;
     }
 
     // Discard logins which have username/password values that don't
@@ -639,15 +700,6 @@ var LoginManagerContent = {
     if (passwordField.maxLength >= 0)
       maxPasswordLen = passwordField.maxLength;
 
-    foundLogins = foundLogins.map(login => {
-      var formLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                      createInstance(Ci.nsILoginInfo);
-      formLogin.init(login.hostname, login.formSubmitURL,
-                     login.httpRealm, login.username,
-                     login.password, login.usernameField,
-                     login.passwordField);
-      return formLogin;
-    });
     var logins = foundLogins.filter(function (l) {
       var fit = (l.username.length <= maxUsernameLen &&
                  l.password.length <= maxPasswordLen);
@@ -660,7 +712,7 @@ var LoginManagerContent = {
     if (logins.length == 0) {
       log("form not filled, none of the logins fit in the field");
       recordAutofillResult(AUTOFILL_RESULT.NO_LOGINS_FIT);
-      return [false, foundLogins];
+      return;
     }
 
     // The reason we didn't end up filling the form, if any.  We include
@@ -681,7 +733,7 @@ var LoginManagerContent = {
                               passwordField, foundLogins, null);
       log("form not filled, the password field was already filled");
       recordAutofillResult(AUTOFILL_RESULT.EXISTING_PASSWORD);
-      return [false, foundLogins];
+      return;
     }
 
     // If the form has an autocomplete=off attribute in play, don't
@@ -768,16 +820,10 @@ var LoginManagerContent = {
       }
       didFillForm = true;
     } else if (selectedLogin && !autofillForm) {
-      // For when autofillForm is false, but we still have the information
-      // to fill a form, we notify observers.
       didntFillReason = "noAutofillForms";
-      Services.obs.notifyObservers(form, "passwordmgr-found-form", didntFillReason);
       log("autofillForms=false but form can be filled; notified observers");
     } else if (selectedLogin && isFormDisabled) {
-      // For when autocomplete is off, but we still have the information
-      // to fill a form, we notify observers.
       didntFillReason = "autocompleteOff";
-      Services.obs.notifyObservers(form, "passwordmgr-found-form", didntFillReason);
       log("autocomplete=off but form can be filled; notified observers");
     }
 
@@ -809,8 +855,6 @@ var LoginManagerContent = {
       }
       recordAutofillResult(autofillResult);
     }
-
-    return [didFillForm, foundLogins];
   },
 
 

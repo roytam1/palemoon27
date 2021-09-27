@@ -9,7 +9,20 @@
 
 #include <mach/vm_map.h>
 #include <mach/mach_port.h>
+#if defined(XP_IOS)
+#include <mach/vm_map.h>
+#define mach_vm_address_t vm_address_t
+#define mach_vm_allocate vm_allocate
+#define mach_vm_deallocate vm_deallocate
+#define mach_vm_map vm_map
+#define mach_vm_read vm_read
+#define mach_vm_region_recurse vm_region_recurse_64
+#define mach_vm_size_t vm_size_t
+#else
 #include <mach/mach_vm.h>
+#endif
+#include <pthread.h>
+#include <unistd.h>
 #include "SharedMemoryBasic.h"
 #include "chrome/common/mach_ipc_mac.h"
 
@@ -94,6 +107,7 @@ enum {
 };
 
 const int kTimeout = 1000;
+const int kLongTimeout = 60 * kTimeout;
 
 pid_t gParentPid = 0;
 
@@ -112,6 +126,11 @@ struct ListeningThread {
   ListeningThread() {}
   ListeningThread(pthread_t thread, MemoryPorts* ports)
    : mThread(thread), mPorts(ports) {}
+};
+
+struct SharePortsReply {
+  uint64_t serial;
+  mach_port_t port;
 };
 
 std::map<pid_t, ListeningThread> gThreads;
@@ -264,8 +283,13 @@ void
 HandleSharePortsMessage(MachReceiveMessage* rmsg, MemoryPorts* ports)
 {
   mach_port_t port = rmsg->GetTranslatedPort(0);
+  uint64_t* serial = reinterpret_cast<uint64_t*>(rmsg->GetData());
   MachSendMessage msg(kReturnIdMsg);
-  msg.SetData(&port, sizeof(port));
+  // Construct the reply message, echoing the serial, and adding the port
+  SharePortsReply replydata;
+  replydata.port = port;
+  replydata.serial = *serial;
+  msg.SetData(&replydata, sizeof(SharePortsReply));
   kern_return_t err = ports->mSender->SendMessage(msg, kTimeout);
   if (KERN_SUCCESS != err) {
     LOG_ERROR("SendMessage failed 0x%x %s\n", err, mach_error_string(err));
@@ -565,7 +589,17 @@ bool
 SharedMemoryBasic::ShareToProcess(base::ProcessId pid,
                                   Handle* aNewHandle)
 {
+  if (pid == getpid()) {
+    *aNewHandle = mPort;
+    return mach_port_mod_refs(mach_task_self(), *aNewHandle, MACH_PORT_RIGHT_SEND, 1) == KERN_SUCCESS;
+  }
   StaticMutexAutoLock smal(gMutex);
+
+   // Serially number the messages, to check whether
+  // the reply we get was meant for us.
+  static uint64_t serial = 0;
+  uint64_t my_serial = serial;
+  serial++;
 
   MemoryPorts* ports = GetMemoryPortsForPid(pid);
   if (!ports) {
@@ -574,6 +608,7 @@ SharedMemoryBasic::ShareToProcess(base::ProcessId pid,
   }
   MachSendMessage smsg(kSharePortsMsg);
   smsg.AddDescriptor(MachMsgPortDescriptor(mPort, MACH_MSG_TYPE_COPY_SEND));
+  smsg.SetData(&my_serial, sizeof(uint64_t));
   kern_return_t err = ports->mSender->SendMessage(smsg, kTimeout);
   if (err != KERN_SUCCESS) {
     LOG_ERROR("sending port failed %s %x\n", mach_error_string(err), err);
@@ -582,15 +617,27 @@ SharedMemoryBasic::ShareToProcess(base::ProcessId pid,
   MachReceiveMessage msg;
   err = ports->mReceiver->WaitForMessage(&msg, kTimeout);
   if (err != KERN_SUCCESS) {
-    LOG_ERROR("didn't get an id %s %x\n", mach_error_string(err), err);
-    return false;
+    LOG_ERROR("short timeout didn't get an id %s %x\n", mach_error_string(err), err);
+    MOZ_ASSERT(false, "Receiver message short time out");
+    err = ports->mReceiver->WaitForMessage(&msg, kLongTimeout);
+
+    if (err != KERN_SUCCESS) {
+      LOG_ERROR("long timeout didn't get an id %s %x\n", mach_error_string(err), err);
+      return false;
+    }
   }
-  if (msg.GetDataLength() != sizeof(mach_port_t)) {
+  if (msg.GetDataLength() != sizeof(SharePortsReply)) {
     LOG_ERROR("Improperly formatted reply\n");
     return false;
   }
-  mach_port_t *id = reinterpret_cast<mach_port_t*>(msg.GetData());
-  *aNewHandle = *id;
+  SharePortsReply* msg_data = reinterpret_cast<SharePortsReply*>(msg.GetData());
+  mach_port_t id = msg_data->port;
+  uint64_t serial_check = msg_data->serial;
+  if (serial_check != my_serial) {
+    LOG_ERROR("Serials do not match up: %d vs %d", serial_check, my_serial);
+    return false;
+  }
+  *aNewHandle = id;
   return true;
 }
 

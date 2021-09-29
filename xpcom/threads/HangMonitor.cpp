@@ -14,7 +14,7 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/UniquePtr.h"
 #include "nsReadableUtils.h"
-#include "nsStackWalk.h"
+#include "mozilla/StackWalk.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 

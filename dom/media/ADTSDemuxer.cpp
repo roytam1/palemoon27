@@ -450,13 +450,6 @@ ADTSTrackDemuxer::Seek(media::TimeUnit aTime)
   return SeekPromise::CreateAndResolve(seekTime, __func__);
 }
 
-int64_t
-ADTSTrackDemuxer::GetEvictionOffset(media::TimeUnit aTime)
-{
-  // Unused.
-  return 0;
-}
-
 media::TimeUnit
 ADTSTrackDemuxer::FastSeek(const media::TimeUnit& aTime)
 {

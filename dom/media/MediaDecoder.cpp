@@ -345,7 +345,6 @@ MediaDecoder::MediaDecoder() :
   mLogicalPosition(0.0),
   mDuration(std::numeric_limits<double>::quiet_NaN()),
   mMediaSeekable(true),
-  mSameOriginMedia(false),
   mReentrantMonitor("media.decoder"),
   mIgnoreProgressData(false),
   mInfiniteStream(false),
@@ -391,7 +390,9 @@ MediaDecoder::MediaDecoder() :
   mNextState(AbstractThread::MainThread(), PLAY_STATE_PAUSED,
              "MediaDecoder::mNextState (Canonical)"),
   mLogicallySeeking(AbstractThread::MainThread(), false,
-                    "MediaDecoder::mLogicallySeeking (Canonical)")
+                    "MediaDecoder::mLogicallySeeking (Canonical)"),
+  mSameOriginMedia(AbstractThread::MainThread(), false,
+                   "MediaDecoder::mSameOriginMedia (Canonical)")
 {
   MOZ_COUNT_CTOR(MediaDecoder);
   MOZ_ASSERT(NS_IsMainThread());
@@ -518,7 +519,7 @@ nsresult MediaDecoder::InitializeStateMachine(MediaDecoder* aCloneDonor)
   // set them now
   SetStateMachineParameters();
 
-  return ScheduleStateMachine();
+  return NS_OK;
 }
 
 void MediaDecoder::SetStateMachineParameters()
@@ -540,19 +541,6 @@ void MediaDecoder::SetMinimizePrerollUntilPlaybackStarts()
   MOZ_DIAGNOSTIC_ASSERT(!mDecoderStateMachine);
 }
 
-nsresult MediaDecoder::ScheduleStateMachine()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  if (mShuttingDown)
-    return NS_OK;
-
-  MOZ_ASSERT(mDecoderStateMachine);
-  NS_ENSURE_STATE(mDecoderStateMachine);
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  mDecoderStateMachine->ScheduleStateMachineCrossThread();
-  return NS_OK;
-}
-
 nsresult MediaDecoder::Play()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -563,7 +551,7 @@ nsresult MediaDecoder::Play()
   if (mPausedForPlaybackRateNull) {
     return NS_OK;
   }
-  ScheduleStateMachine();
+
   if (IsEnded()) {
     return Seek(0, SeekTarget::PrevSyncPoint);
   } else if (mPlayState == PLAY_STATE_LOADING) {
@@ -766,12 +754,6 @@ void MediaDecoder::UpdateSameOriginStatus(bool aSameOrigin)
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   mSameOriginMedia = aSameOrigin;
-}
-
-bool MediaDecoder::IsSameOriginMedia()
-{
-  GetReentrantMonitor().AssertCurrentThreadIn();
-  return mSameOriginMedia;
 }
 
 bool MediaDecoder::IsSeeking() const
@@ -1012,7 +994,6 @@ void MediaDecoder::ChangeState(PlayState aState)
   }
 
   if (mPlayState == PLAY_STATE_SHUTDOWN) {
-    GetReentrantMonitor().NotifyAll();
     return;
   }
 
@@ -1026,13 +1007,9 @@ void MediaDecoder::ChangeState(PlayState aState)
     RemoveMediaTracks();
   }
 
-  ScheduleStateMachine();
-
   CancelDormantTimer();
   // Start dormant timer if necessary
   StartDormantTimer();
-
-  GetReentrantMonitor().NotifyAll();
 }
 
 void MediaDecoder::UpdateLogicalPosition(MediaDecoderEventVisibility aEventVisibility)

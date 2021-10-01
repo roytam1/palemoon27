@@ -403,7 +403,7 @@ WebMDemuxer::Read(char* aBuffer, uint32_t aCount, uint32_t* aBytes)
     aCount = length - mOffset;
     WEBM_DEBUG("will only return %ld", aCount);
   }
-  nsRefPtr<MediaByteBuffer> bytes = mResource->SilentReadAt(mOffset, aCount);
+  nsRefPtr<MediaByteBuffer> bytes = mResource->MediaReadAt(mOffset, aCount);
   if (!bytes) {
     return NS_ERROR_FAILURE;
   }
@@ -461,7 +461,7 @@ WebMDemuxer::EnsureUpToDateIndex()
   }
   mBufferedState->UpdateIndex(byteRanges, mResource);
   if (!mInitData && mBufferedState->GetInitEndOffset() != -1) {
-    mInitData = mResource->SilentReadAt(0, mBufferedState->GetInitEndOffset());
+    mInitData = mResource->MediaReadAt(0, mBufferedState->GetInitEndOffset());
   }
   mNeedReIndex = false;
 }
@@ -880,7 +880,8 @@ WebMTrackDemuxer::SetNextKeyFrameTime()
       skipSamplesQueue.PushFront(sample);
     }
     while(skipSamplesQueue.GetSize()) {
-      mSamples.PushFront(skipSamplesQueue.PopFront());
+      nsRefPtr<MediaRawData> data = skipSamplesQueue.PopFront();
+      mSamples.PushFront(data);
     }
     if (frameTime == -1) {
       frameTime = mParent->GetNextKeyframeTime();

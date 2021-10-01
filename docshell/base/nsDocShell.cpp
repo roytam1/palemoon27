@@ -4488,7 +4488,9 @@ nsDocShell::GetDocument()
 nsPIDOMWindow*
 nsDocShell::GetWindow()
 {
-  NS_ENSURE_SUCCESS(EnsureScriptEnvironment(), nullptr);
+  if (NS_FAILED(EnsureScriptEnvironment())) {
+    return nullptr;
+  }
   return mScriptGlobal;
 }
 

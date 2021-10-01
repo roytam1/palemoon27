@@ -39,7 +39,7 @@ public:
   ProfileEntry(char aTagName, const char *aTagData);
   ProfileEntry(char aTagName, void *aTagPtr);
   ProfileEntry(char aTagName, ProfilerMarker *aTagMarker);
-  ProfileEntry(char aTagName, float aTagFloat);
+  ProfileEntry(char aTagName, double aTagDouble);
   ProfileEntry(char aTagName, uintptr_t aTagOffset);
   ProfileEntry(char aTagName, Address aTagAddress);
   ProfileEntry(char aTagName, int aTagLine);
@@ -67,7 +67,7 @@ private:
     char        mTagChars[sizeof(void*)];
     void*       mTagPtr;
     ProfilerMarker* mTagMarker;
-    float       mTagFloat;
+    double      mTagDouble;
     Address     mTagAddress;
     uintptr_t   mTagOffset;
     int         mTagInt;
@@ -234,9 +234,9 @@ public:
   explicit ProfileBuffer(int aEntrySize);
 
   void addTag(const ProfileEntry& aTag);
-  void StreamSamplesToJSON(SpliceableJSONWriter& aWriter, int aThreadId, float aSinceTime,
+  void StreamSamplesToJSON(SpliceableJSONWriter& aWriter, int aThreadId, double aSinceTime,
                            JSRuntime* rt, UniqueStacks& aUniqueStacks);
-  void StreamMarkersToJSON(SpliceableJSONWriter& aWriter, int aThreadId, float aSinceTime,
+  void StreamMarkersToJSON(SpliceableJSONWriter& aWriter, int aThreadId, double aSinceTime,
                            UniqueStacks& aUniqueStacks);
   void DuplicateLastSample(int aThreadId);
 
@@ -250,7 +250,7 @@ protected:
   char* processDynamicTag(int readPos, int* tagsConsumed, char* tagBuff);
   int FindLastSampleOfThread(int aThreadId);
 
-  ~ProfileBuffer() {}
+  ~ProfileBuffer();
 
 public:
   // Circular buffer 'Keep One Slot Open' implementation for simplicity
@@ -267,7 +267,7 @@ public:
   int mEntrySize;
 
   // How many times mWritePos has wrapped around.
-  int mGeneration;
+  uint32_t mGeneration;
 
   // Markers that marker entries in the buffer might refer to.
   ProfilerMarkerLinkedList mStoredMarkers;
@@ -381,7 +381,7 @@ public:
   void addStoredMarker(ProfilerMarker *aStoredMarker);
   PseudoStack* GetPseudoStack();
   mozilla::Mutex* GetMutex();
-  void StreamJSON(SpliceableJSONWriter& aWriter, float aSinceTime = 0);
+  void StreamJSON(SpliceableJSONWriter& aWriter, double aSinceTime = 0);
 
   /**
    * Call this method when the JS entries inside the buffer are about to
@@ -410,12 +410,11 @@ public:
   }
 
   uint32_t bufferGeneration() const {
-    MOZ_ASSERT(mBuffer->mGeneration >= 0);
     return mBuffer->mGeneration;
   }
 
 protected:
-  void StreamSamplesAndMarkers(SpliceableJSONWriter& aWriter, float aSinceTime,
+  void StreamSamplesAndMarkers(SpliceableJSONWriter& aWriter, double aSinceTime,
                                UniqueStacks& aUniqueStacks);
 
 private:

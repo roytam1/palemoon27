@@ -686,7 +686,8 @@ int64_t WebMReader::GetNextKeyframeTime(int64_t aTimeThreshold)
     // Restore the packets before we return -1.
     uint32_t size = skipPacketQueue.GetSize();
     for (uint32_t i = 0; i < size; ++i) {
-      PushVideoPacket(skipPacketQueue.PopFront());
+      nsRefPtr<NesteggPacketHolder> packetHolder = skipPacketQueue.PopFront();
+      PushVideoPacket(packetHolder);
     }
     return -1;
   }
@@ -710,7 +711,8 @@ int64_t WebMReader::GetNextKeyframeTime(int64_t aTimeThreshold)
 
   uint32_t size = skipPacketQueue.GetSize();
   for (uint32_t i = 0; i < size; ++i) {
-    PushVideoPacket(skipPacketQueue.PopFront());
+    nsRefPtr<NesteggPacketHolder> packetHolder = skipPacketQueue.PopFront();
+    PushVideoPacket(packetHolder);
   }
 
   return keyframeTime;

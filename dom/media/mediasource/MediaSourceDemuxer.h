@@ -55,7 +55,11 @@ public:
   void DetachSourceBuffer(TrackBuffersManager* aSourceBuffer);
   TaskQueue* GetTaskQueue() { return mTaskQueue; }
 
-	// Gap allowed between frames.
+  // Returns a string describing the state of the MediaSource internal
+  // buffered data. Used for debugging purposes.
+  void GetMozDebugReaderData(nsAString& aString);
+
+  // Gap allowed between frames.
   static const media::TimeUnit EOS_FUZZ;
 
 private:
@@ -106,8 +110,6 @@ public:
 
   media::TimeIntervals GetBuffered() override;
 
-  int64_t GetEvictionOffset(media::TimeUnit aTime) override;
-
   void BreakCycles() override;
 
   bool GetSamplesMayBlock() const override
@@ -118,10 +120,10 @@ public:
 private:
   nsRefPtr<SeekPromise> DoSeek(media::TimeUnit aTime);
   nsRefPtr<SamplesPromise> DoGetSamples(int32_t aNumSamples);
-  nsRefPtr<SkipAccessPointPromise> DoSkipToNextRandomAccessPoint(TimeUnit aTimeThreadshold);
+  nsRefPtr<SkipAccessPointPromise> DoSkipToNextRandomAccessPoint(media::TimeUnit aTimeThreadshold);
   already_AddRefed<MediaRawData> GetSample(DemuxerFailureReason& aFailure);
   // Return the timestamp of the next keyframe after mLastSampleIndex.
-  TimeUnit GetNextRandomAccessPoint();
+  media::TimeUnit GetNextRandomAccessPoint();
 
   nsRefPtr<MediaSourceDemuxer> mParent;
   nsRefPtr<TrackBuffersManager> mManager;

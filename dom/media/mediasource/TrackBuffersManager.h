@@ -11,7 +11,7 @@
 #include "mozilla/Maybe.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Pair.h"
-#include "mozilla/StateMirroring.h"
+#include "mozilla/dom/SourceBufferBinding.h"
 
 #include "SourceBufferContentManager.h"
 #include "MediaDataDemuxer.h"
@@ -34,7 +34,6 @@ namespace dom {
 using media::TimeUnit;
 using media::TimeInterval;
 using media::TimeIntervals;
-using dom::SourceBufferAppendMode;
 
 class TrackBuffersManager : public SourceBufferContentManager {
 public:
@@ -87,6 +86,7 @@ public:
   MediaInfo GetMetadata();
   const TrackBuffer& GetTrackBuffer(TrackInfo::TrackType aTrack);
   const TimeIntervals& Buffered(TrackInfo::TrackType);
+  TimeIntervals SafeBuffered(TrackInfo::TrackType) const;
   bool IsEnded() const
   {
     return mEnded;
@@ -107,6 +107,8 @@ public:
 #endif
 
 private:
+  // for MediaSourceDemuxer::GetMozDebugReaderData
+  friend class MediaSourceDemuxer;
   virtual ~TrackBuffersManager();
   // All following functions run on the taskqueue.
   nsRefPtr<AppendPromise> InitSegmentParserLoop();

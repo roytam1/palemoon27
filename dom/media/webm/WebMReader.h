@@ -10,6 +10,7 @@
 
 #include "FlushableTaskQueue.h"
 #include "MediaDecoderReader.h"
+#include "MediaResource.h"
 #include "PlatformDecoderModule.h"
 #include "nsAutoRef.h"
 #include "nestegg/nestegg.h"
@@ -97,7 +98,6 @@ public:
   Seek(int64_t aTime, int64_t aEndTime) override;
 
   virtual media::TimeIntervals GetBuffered() override;
-  virtual int64_t GetEvictionOffset(double aTime) override;
 
   virtual bool IsMediaSeekable() override;
 
@@ -218,6 +218,9 @@ private:
   // Booleans to indicate if we have audio and/or video data
   bool mHasVideo;
   bool mHasAudio;
+
+  MediaResourceIndex mResource;
+
 };
 
 } // namespace mozilla

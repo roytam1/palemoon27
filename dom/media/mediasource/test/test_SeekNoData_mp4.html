@@ -24,24 +24,25 @@ runWithMSE(function(ms, el) {
     var audiosb = ms.addSourceBuffer("audio/mp4");
     var videosb = ms.addSourceBuffer("video/mp4");
     fetchAndLoad(audiosb, 'bipbop/bipbop_audio', ['init'], '.mp4')
-    .then(fetchAndLoad.bind(null, audiosb, 'bipbop/bipbop_audio', range(1, 5), '.m4s'))
-    .then(fetchAndLoad.bind(null, audiosb, 'bipbop/bipbop_audio', range(6, 12), '.m4s'))
     .then(fetchAndLoad.bind(null, videosb, 'bipbop/bipbop_video', ['init'], '.mp4'))
-    .then(fetchAndLoad.bind(null, videosb, 'bipbop/bipbop_video', range(1, 6), '.m4s'))
-    .then(fetchAndLoad.bind(null, videosb, 'bipbop/bipbop_video', range(7, 14), '.m4s'))
+    .then(once.bind(null, el, 'loadedmetadata'))
     .then(function() {
       var p = once(el, 'seeking');
       el.play();
-      el.currentTime = 4.5; // Seek to a gap in the video
+      el.currentTime = 5;
       return p;
-    }).then(function() {
-      ok(true, "Got seeking event");
-      var p = once(el, 'seeked');
-      el.currentTime = 6; // Seek past the gap.
-      return p;
-    }).then(function() {
+    })
+    .then(function() {
+       ok(true, "Got seeking event");
+       var promises = [];
+       promises.push(once(el, 'seeked'));
+       promises.push(fetchAndLoad(audiosb, 'bipbop/bipbop_audio', range(5, 9), '.m4s'));
+       promises.push(fetchAndLoad(videosb, 'bipbop/bipbop_video', range(6, 10), '.m4s'));
+       return Promise.all(promises);
+    })
+    .then(function() {
       ok(true, "Got seeked event");
-      ok(el.currentTime >= 6, "Time >= 6");
+      ok(el.currentTime >= 5, "Time >= 5");
       once(el, 'ended').then(SimpleTest.finish.bind(SimpleTest));
       ms.endOfStream();
     });

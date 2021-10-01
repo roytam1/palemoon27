@@ -586,7 +586,7 @@ public:
   dom::AudioChannel AudioChannelType() const { return mAudioChannelType; }
 
 protected:
-  virtual void AdvanceTimeVaryingValuesToCurrentTime(GraphTime aCurrentTime, GraphTime aBlockedTime)
+  void AdvanceTimeVaryingValuesToCurrentTime(GraphTime aCurrentTime, GraphTime aBlockedTime)
   {
     mBufferStartTime += aBlockedTime;
     mGraphUpdateIndices.InsertTimeAtStart(aBlockedTime);
@@ -813,25 +813,12 @@ public:
    */
   bool AppendToTrack(TrackID aID, MediaSegment* aSegment, MediaSegment *aRawSegment = nullptr);
   /**
-   * Returns true if the buffer currently has enough data.
-   * Returns false if there isn't enough data or if no such track exists.
-   */
-  bool HaveEnoughBuffered(TrackID aID);
-  /**
    * Get the stream time of the end of the data that has been appended so far.
    * Can be called from any thread but won't be useful if it can race with
    * an AppendToTrack call, so should probably just be called from the thread
    * that also calls AppendToTrack.
    */
   StreamTime GetEndOfAppendedData(TrackID aID);
-  /**
-   * Ensures that aSignalRunnable will be dispatched to aSignalThread
-   * when we don't have enough buffered data in the track (which could be
-   * immediately). Will dispatch the runnable immediately if the track
-   * does not exist. No op if a runnable is already present for this track.
-   */
-  void DispatchWhenNotEnoughBuffered(TrackID aID,
-      TaskQueue* aSignalQueue, nsIRunnable* aSignalRunnable);
   /**
    * Indicate that a track has ended. Do not do any more API calls
    * affecting this track.
@@ -927,11 +914,9 @@ protected:
     // Each time the track updates are flushed to the media graph thread,
     // the segment buffer is emptied.
     nsAutoPtr<MediaSegment> mData;
-    nsTArray<ThreadAndRunnable> mDispatchWhenNotEnough;
     // Each time the track updates are flushed to the media graph thread,
     // this is cleared.
     uint32_t mCommands;
-    bool mHaveEnough;
   };
 
   bool NeedsMixing();

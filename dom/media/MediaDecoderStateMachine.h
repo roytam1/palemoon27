@@ -100,7 +100,7 @@ hardware (via AudioStream).
 namespace mozilla {
 
 namespace media {
-class AudioSink;
+class MediaSink;
 }
 
 class AudioSegment;
@@ -156,6 +156,10 @@ public:
 
   // Set/Unset dormant state.
   void SetDormant(bool aDormant);
+
+  TimedMetadataEventSource& TimedMetadataEvent() {
+    return mMetadataManager.TimedMetadataEvent();
+  }
 
 private:
   // Initialization that needs to happen on the task queue. This is the first
@@ -319,25 +323,18 @@ public:
     if (mReader) {
       mReader->BreakCycles();
     }
-    mDecodedStream->DestroyData();
     mResource = nullptr;
     mDecoder = nullptr;
   }
 
-  // Copy queued audio/video data in the reader to any output MediaStreams that
-  // need it.
-  void SendStreamData();
-  void FinishStreamData();
+  // Discard audio/video data that are already played by MSG.
+  void DiscardStreamData();
   bool HaveEnoughDecodedAudio(int64_t aAmpleAudioUSecs);
   bool HaveEnoughDecodedVideo();
 
   // Returns true if the state machine has shutdown or is in the process of
   // shutting down. The decoder monitor must be held while calling this.
   bool IsShutdown();
-
-  void QueueMetadata(const media::TimeUnit& aPublishTime,
-                     nsAutoPtr<MediaInfo> aInfo,
-                     nsAutoPtr<MetadataTags> aTags);
 
   // Returns true if we're currently playing. The decoder monitor must
   // be held.
@@ -1001,8 +998,8 @@ private:
   // Media Fragment end time in microseconds. Access controlled by decoder monitor.
   int64_t mFragmentEndTime;
 
-  // The audio sink resource.  Used on state machine and audio threads.
-  RefPtr<media::AudioSink> mAudioSink;
+  // The audio sink resource.  Used on the state machine thread.
+  nsRefPtr<media::MediaSink> mAudioSink;
 
   // The reader, don't call its methods with the decoder monitor held.
   // This is created in the state machine's constructor.

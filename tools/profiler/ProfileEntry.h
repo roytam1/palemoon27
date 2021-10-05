@@ -39,7 +39,7 @@ public:
   ProfileEntry(char aTagName, const char *aTagData);
   ProfileEntry(char aTagName, void *aTagPtr);
   ProfileEntry(char aTagName, ProfilerMarker *aTagMarker);
-  ProfileEntry(char aTagName, float aTagFloat);
+  ProfileEntry(char aTagName, double aTagDouble);
   ProfileEntry(char aTagName, uintptr_t aTagOffset);
   ProfileEntry(char aTagName, Address aTagAddress);
   ProfileEntry(char aTagName, int aTagLine);
@@ -67,7 +67,7 @@ private:
     char        mTagChars[sizeof(void*)];
     void*       mTagPtr;
     ProfilerMarker* mTagMarker;
-    float       mTagFloat;
+    double      mTagDouble;
     Address     mTagAddress;
     uintptr_t   mTagOffset;
     int         mTagInt;
@@ -87,12 +87,8 @@ public:
     mStringTableWriter.StartBareList();
   }
 
-  ~UniqueJSONStrings() {
-    mStringTableWriter.EndBareList();
-  }
-
-  void SpliceStringTableElements(SpliceableJSONWriter& aWriter) const {
-    aWriter.Splice(mStringTableWriter.WriteFunc());
+  void SpliceStringTableElements(SpliceableJSONWriter& aWriter) {
+    aWriter.TakeAndSplice(mStringTableWriter.WriteFunc());
   }
 
   void WriteProperty(mozilla::JSONWriter& aWriter, const char* aName, const char* aStr) {
@@ -193,13 +189,12 @@ public:
   };
 
   explicit UniqueStacks(JSRuntime* aRuntime);
-  ~UniqueStacks();
 
   Stack BeginStack(const OnStackFrameKey& aRoot);
   uint32_t LookupJITFrameDepth(void* aAddr);
   void AddJITFrameDepth(void* aAddr, unsigned depth);
-  void SpliceFrameTableElements(SpliceableJSONWriter& aWriter) const;
-  void SpliceStackTableElements(SpliceableJSONWriter& aWriter) const;
+  void SpliceFrameTableElements(SpliceableJSONWriter& aWriter);
+  void SpliceStackTableElements(SpliceableJSONWriter& aWriter);
 
 private:
   uint32_t GetOrAddFrameIndex(const OnStackFrameKey& aFrame);
@@ -234,9 +229,9 @@ public:
   explicit ProfileBuffer(int aEntrySize);
 
   void addTag(const ProfileEntry& aTag);
-  void StreamSamplesToJSON(SpliceableJSONWriter& aWriter, int aThreadId, float aSinceTime,
+  void StreamSamplesToJSON(SpliceableJSONWriter& aWriter, int aThreadId, double aSinceTime,
                            JSRuntime* rt, UniqueStacks& aUniqueStacks);
-  void StreamMarkersToJSON(SpliceableJSONWriter& aWriter, int aThreadId, float aSinceTime,
+  void StreamMarkersToJSON(SpliceableJSONWriter& aWriter, int aThreadId, double aSinceTime,
                            UniqueStacks& aUniqueStacks);
   void DuplicateLastSample(int aThreadId);
 
@@ -381,7 +376,7 @@ public:
   void addStoredMarker(ProfilerMarker *aStoredMarker);
   PseudoStack* GetPseudoStack();
   mozilla::Mutex* GetMutex();
-  void StreamJSON(SpliceableJSONWriter& aWriter, float aSinceTime = 0);
+  void StreamJSON(SpliceableJSONWriter& aWriter, double aSinceTime = 0);
 
   /**
    * Call this method when the JS entries inside the buffer are about to
@@ -414,7 +409,7 @@ public:
   }
 
 protected:
-  void StreamSamplesAndMarkers(SpliceableJSONWriter& aWriter, float aSinceTime,
+  void StreamSamplesAndMarkers(SpliceableJSONWriter& aWriter, double aSinceTime,
                                UniqueStacks& aUniqueStacks);
 
 private:

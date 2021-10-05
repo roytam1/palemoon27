@@ -146,7 +146,8 @@ TableTicker::TableTicker(double aInterval, int aEntrySize,
     mThreadNameFilters[i] = aThreadNameFilters[i];
   }
 
-  sStartTime = mozilla::TimeStamp::Now();
+  bool ignore;
+  sStartTime = mozilla::TimeStamp::ProcessCreation(ignore);
 
   {
     mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
@@ -300,32 +301,57 @@ void TableTicker::StreamMetaJSCustomObject(SpliceableJSONWriter& aWriter)
   }
 }
 
-void TableTicker::ToStreamAsJSON(std::ostream& stream, float aSinceTime)
+void TableTicker::ToStreamAsJSON(std::ostream& stream, double aSinceTime)
 {
   SpliceableJSONWriter b(mozilla::MakeUnique<OStreamJSONWriteFunc>(stream));
   StreamJSON(b, aSinceTime);
 }
 
-JSObject* TableTicker::ToJSObject(JSContext *aCx, float aSinceTime)
+JSObject* TableTicker::ToJSObject(JSContext* aCx, double aSinceTime)
 {
   JS::RootedValue val(aCx);
   {
     UniquePtr<char[]> buf = ToJSON(aSinceTime);
     NS_ConvertUTF8toUTF16 js_string(nsDependentCString(buf.get()));
-    MOZ_ALWAYS_TRUE(JS_ParseJSON(aCx, static_cast<const char16_t*>(js_string.get()),
-                                 js_string.Length(), &val));
+    bool rv = JS_ParseJSON(aCx, static_cast<const char16_t*>(js_string.get()),
+                           js_string.Length(), &val);
+    if (!rv) {
+#ifdef NIGHTLY_BUILD
+      // XXXshu: Temporary code to help debug malformed JSON. See bug 1172157.
+      nsCOMPtr<nsIFile> path;
+      nsresult rv = NS_GetSpecialDirectory("TmpD", getter_AddRefs(path));
+      if (!NS_FAILED(rv)) {
+        rv = path->Append(NS_LITERAL_STRING("bad-profile.json"));
+        if (!NS_FAILED(rv)) {
+          nsCString cpath;
+          rv = path->GetNativePath(cpath);
+          if (!NS_FAILED(rv)) {
+            std::ofstream stream;
+            stream.open(cpath.get());
+            if (stream.is_open()) {
+              stream << buf.get();
+              stream.close();
+              printf_stderr("Malformed profiler JSON dumped to %s! "
+                            "Please upload to https://bugzil.la/1172157\n",
+                            cpath.get());
+            }
+          }
+        }
+      }
+#endif
+    }
   }
   return &val.toObject();
 }
 
-UniquePtr<char[]> TableTicker::ToJSON(float aSinceTime)
+UniquePtr<char[]> TableTicker::ToJSON(double aSinceTime)
 {
   SpliceableChunkedJSONWriter b;
   StreamJSON(b, aSinceTime);
   return b.WriteFunc()->CopyData();
 }
 
-void TableTicker::ToJSObjectAsync(float aSinceTime,
+void TableTicker::ToJSObjectAsync(double aSinceTime,
                                   Promise* aPromise)
 {
   if (NS_WARN_IF(mGatherer)) {
@@ -342,7 +368,7 @@ void TableTicker::ProfileGathered()
 }
 
 struct SubprocessClosure {
-  explicit SubprocessClosure(SpliceableJSONWriter *aWriter)
+  explicit SubprocessClosure(SpliceableJSONWriter* aWriter)
     : mWriter(aWriter)
   {}
 
@@ -364,6 +390,7 @@ void SubProcessCallback(const char* aProfile, void* aClosure)
 static
 void BuildJavaThreadJSObject(SpliceableJSONWriter& aWriter)
 {
+  aWriter.Start(SpliceableJSONWriter::SingleLineStyle);
   aWriter.StringProperty("name", "Java Main Thread");
 
   aWriter.StartArrayProperty("samples");
@@ -408,10 +435,11 @@ void BuildJavaThreadJSObject(SpliceableJSONWriter& aWriter)
     }
 
   aWriter.EndArray();
+  aWriter.End();
 }
 #endif
 
-void TableTicker::StreamJSON(SpliceableJSONWriter& aWriter, float aSinceTime)
+void TableTicker::StreamJSON(SpliceableJSONWriter& aWriter, double aSinceTime)
 {
   aWriter.Start(SpliceableJSONWriter::SingleLineStyle);
   {
@@ -997,7 +1025,7 @@ void TableTicker::InplaceTick(TickSample* sample)
 
   if (sample) {
     mozilla::TimeDuration delta = sample->timestamp - sStartTime;
-    currThreadProfile.addTag(ProfileEntry('t', static_cast<float>(delta.ToMilliseconds())));
+    currThreadProfile.addTag(ProfileEntry('t', delta.ToMilliseconds()));
   }
 
   PseudoStack* stack = currThreadProfile.GetPseudoStack();
@@ -1025,23 +1053,23 @@ void TableTicker::InplaceTick(TickSample* sample)
 
   if (sample && currThreadProfile.GetThreadResponsiveness()->HasData()) {
     mozilla::TimeDuration delta = currThreadProfile.GetThreadResponsiveness()->GetUnresponsiveDuration(sample->timestamp);
-    currThreadProfile.addTag(ProfileEntry('r', static_cast<float>(delta.ToMilliseconds())));
+    currThreadProfile.addTag(ProfileEntry('r', delta.ToMilliseconds()));
   }
 
   // rssMemory is equal to 0 when we are not recording.
   if (sample && sample->rssMemory != 0) {
-    currThreadProfile.addTag(ProfileEntry('R', static_cast<float>(sample->rssMemory)));
+    currThreadProfile.addTag(ProfileEntry('R', static_cast<double>(sample->rssMemory)));
   }
 
   // ussMemory is equal to 0 when we are not recording.
   if (sample && sample->ussMemory != 0) {
-    currThreadProfile.addTag(ProfileEntry('U', static_cast<float>(sample->ussMemory)));
+    currThreadProfile.addTag(ProfileEntry('U', static_cast<double>(sample->ussMemory)));
   }
 
 #if defined(XP_WIN)
   if (mProfilePower) {
     mIntelPowerGadget->TakeSample();
-    currThreadProfile.addTag(ProfileEntry('p', static_cast<float>(mIntelPowerGadget->GetTotalPackagePowerInWatts())));
+    currThreadProfile.addTag(ProfileEntry('p', static_cast<double>(mIntelPowerGadget->GetTotalPackagePowerInWatts())));
   }
 #endif
 

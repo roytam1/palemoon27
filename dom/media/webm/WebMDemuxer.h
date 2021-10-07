@@ -27,12 +27,20 @@ class MediaRawDataQueue {
     mQueue.push_back(aItem);
   }
 
+  void Push(const MediaRawDataQueue& aOther) {
+    mQueue.insert(mQueue.end(), aOther.mQueue.begin(), aOther.mQueue.end());
+  }
+
   void PushFront(MediaRawData* aItem) {
     mQueue.push_front(aItem);
   }
 
+  void PushFront(const MediaRawDataQueue& aOther) {
+    mQueue.insert(mQueue.begin(), aOther.mQueue.begin(), aOther.mQueue.end());
+  }
+
   already_AddRefed<MediaRawData> PopFront() {
-    nsRefPtr<MediaRawData> result = mQueue.front();
+    nsRefPtr<MediaRawData> result = mQueue.front().forget();
     mQueue.pop_front();
     return result.forget();
   }
@@ -41,6 +49,19 @@ class MediaRawDataQueue {
     while (!mQueue.empty()) {
       mQueue.pop_front();
     }
+  }
+
+  MediaRawDataQueue& operator=(const MediaRawDataQueue& aOther) {
+    mQueue = aOther.mQueue;
+    return *this;
+  }
+
+  const nsRefPtr<MediaRawData>& First() const {
+    return mQueue.front();
+  }
+
+  const nsRefPtr<MediaRawData>& Last() const {
+    return mQueue.back();
   }
 
 private:
@@ -58,8 +79,6 @@ public:
   WebMDemuxer(MediaResource* aResource, bool aIsMediaSource);
   
   nsRefPtr<InitPromise> Init() override;
-
-  already_AddRefed<MediaDataDemuxer> Clone() const override;
 
   bool HasTrackType(TrackInfo::TrackType aType) const override;
 
@@ -108,15 +127,13 @@ private:
 
   ~WebMDemuxer();
   void Cleanup();
-  nsresult InitBufferedState();
+  void InitBufferedState();
   nsresult ReadMetadata();
   void NotifyDataArrived(uint32_t aLength, int64_t aOffset) override;
   void NotifyDataRemoved() override;
   void EnsureUpToDateIndex();
   media::TimeIntervals GetBuffered();
   virtual nsresult SeekInternal(const media::TimeUnit& aTarget);
-  // Get the timestamp of the next keyframe
-  int64_t GetNextKeyframeTime();
 
   // Read a packet from the nestegg file. Returns nullptr if all packets for
   // the particular track have been read. Pass TrackInfo::kVideoTrack or
@@ -155,11 +172,10 @@ private:
   // Nanoseconds to discard after seeking.
   uint64_t mSeekPreroll;
 
-  int64_t mLastAudioFrameTime;
-
   // Calculate the frame duration from the last decodeable frame using the
   // previous frame's timestamp.  In NS.
-  int64_t mLastVideoFrameTime;
+  Maybe<int64_t> mLastAudioFrameTime;
+  Maybe<int64_t> mLastVideoFrameTime;
 
   // Codec ID of audio track
   int mAudioCodec;

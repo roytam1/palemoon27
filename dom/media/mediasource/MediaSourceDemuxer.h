@@ -29,14 +29,6 @@ public:
 
   nsRefPtr<InitPromise> Init() override;
 
-  bool IsThreadSafe() override { return true; }
-
-  already_AddRefed<MediaDataDemuxer> Clone() const override
-  {
-    MOZ_CRASH("Shouldn't be called");
-    return nullptr;
-  }
-
   bool HasTrackType(TrackInfo::TrackType aType) const override;
 
   uint32_t GetNumberTracks(TrackInfo::TrackType aType) const override;
@@ -49,6 +41,8 @@ public:
   UniquePtr<EncryptionInfo> GetCrypto() override;
 
   bool ShouldComputeStartTime() const override { return false; }
+
+  void NotifyDataArrived(uint32_t aLength, int64_t aOffset) override;
 
   /* interface for TrackBuffersManager */
   void AttachSourceBuffer(TrackBuffersManager* aSourceBuffer);
@@ -81,6 +75,9 @@ private:
   nsTArray<nsRefPtr<MediaSourceTrackDemuxer>> mDemuxers;
 
   nsTArray<nsRefPtr<TrackBuffersManager>> mSourceBuffers;
+
+  MozPromiseHolder<InitPromise> mInitPromise;
+  bool mInitDone;
 
   // Monitor to protect members below across multiple threads.
   mutable Monitor mMonitor;

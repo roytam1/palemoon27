@@ -315,7 +315,7 @@ ADTSDemuxer::Init()
     ADTSLOG("Init() failure: waiting for data");
 
     return InitPromise::CreateAndReject(
-      DemuxerFailureReason::WAITING_FOR_DATA, __func__);
+      DemuxerFailureReason::DEMUXER_ERROR, __func__);
   }
 
   ADTSLOG("Init() successful");
@@ -427,16 +427,6 @@ UniquePtr<TrackInfo>
 ADTSTrackDemuxer::GetInfo() const
 {
   return mInfo->Clone();
-}
-
-already_AddRefed<MediaDataDemuxer>
-ADTSDemuxer::Clone() const {
-  nsRefPtr<ADTSDemuxer> demuxer = new ADTSDemuxer(mSource);
-  if (!demuxer->InitInternal()) {
-    NS_WARNING("Couldn't recreate ADTSTrackDemuxer");
-    return nullptr;
-  }
-  return demuxer.forget();
 }
 
 nsRefPtr<ADTSTrackDemuxer::SeekPromise>

@@ -53,21 +53,11 @@ MP3Demuxer::Init() {
     MP3DEMUXER_LOG("MP3Demuxer::Init() failure: waiting for data");
 
     return InitPromise::CreateAndReject(
-      DemuxerFailureReason::WAITING_FOR_DATA, __func__);
+      DemuxerFailureReason::DEMUXER_ERROR, __func__);
   }
 
   MP3DEMUXER_LOG("MP3Demuxer::Init() successful");
   return InitPromise::CreateAndResolve(NS_OK, __func__);
-}
-
-already_AddRefed<MediaDataDemuxer>
-MP3Demuxer::Clone() const {
-  nsRefPtr<MP3Demuxer> demuxer = new MP3Demuxer(mSource);
-  if (!demuxer->InitInternal()) {
-    NS_WARNING("Couldn't recreate MP3Demuxer");
-    return nullptr;
-  }
-  return demuxer.forget();
 }
 
 bool

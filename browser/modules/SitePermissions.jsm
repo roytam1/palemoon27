@@ -93,7 +93,7 @@ this.SitePermissions = {
     if (!this.isSupportedURI(aURI))
       return;
 
-    Services.perms.remove(aURI.host, aPermissionID);
+    Services.perms.remove(aURI, aPermissionID);
 
     if (aPermissionID in gPermissionObject &&
         gPermissionObject[aPermissionID].onChange)

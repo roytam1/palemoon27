@@ -84,11 +84,10 @@ MP3Demuxer::IsSeekable() const {
 }
 
 void
-MP3Demuxer::NotifyDataArrived(uint32_t aLength, int64_t aOffset) {
+MP3Demuxer::NotifyDataArrived() {
   // TODO: bug 1169485.
   NS_WARNING("Unimplemented function NotifyDataArrived");
-  MP3DEMUXER_LOGV("NotifyDataArrived(%u, %" PRId64 ") mOffset=%" PRId64,
-                  aLength, aOffset, mTrackDemuxer->GetResourceOffset());
+  MP3DEMUXER_LOGV("NotifyDataArrived()");
 }
 
 void
@@ -325,10 +324,13 @@ MP3TrackDemuxer::GetResourceOffset() const {
 
 TimeIntervals
 MP3TrackDemuxer::GetBuffered() {
-  // TODO: bug 1169485.
-  MP3DEMUXER_LOG("MP3TrackDemuxer::GetBuffered()");
-  NS_WARNING("Unimplemented function GetBuffered");
-  return TimeIntervals();
+  TimeUnit duration = Duration();
+
+  if (duration <= TimeUnit()) {
+    return TimeIntervals();
+  }
+  AutoPinned<MediaResource> stream(mSource.GetResource());
+  return GetEstimatedBufferedTimeRanges(stream, duration.ToMicroseconds());
 }
 
 int64_t

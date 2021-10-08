@@ -36,6 +36,7 @@
 #ifdef DEBUG
 # include "js/Proxy.h" // For AutoEnterPolicy
 #endif
+#include "js/TraceableVector.h"
 #include "js/Vector.h"
 #include "vm/CommonPropertyNames.h"
 #include "vm/DateTime.h"
@@ -140,7 +141,7 @@ struct ScopeCoordinateNameCache {
     void purge();
 };
 
-typedef Vector<ScriptAndCounts, 0, SystemAllocPolicy> ScriptAndCountsVector;
+using ScriptAndCountsVector = TraceableVector<ScriptAndCounts, 0, SystemAllocPolicy>;
 
 struct EvalCacheEntry
 {
@@ -1048,7 +1049,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 #endif
 
     /* Strong references on scripts held for PCCount profiling API. */
-    js::ScriptAndCountsVector* scriptAndCountsVector;
+    JS::PersistentRooted<js::ScriptAndCountsVector>* scriptAndCountsVector;
 
     /* Well-known numbers held for use by this runtime's contexts. */
     const js::Value     NaNValue;

@@ -313,7 +313,8 @@ class CameraPreviewMediaStream;
  * for those objects in arbitrary order and the MediaStreamGraph has to be able
  * to handle this.
  */
-class MediaStream : public mozilla::LinkedListElement<MediaStream> {
+class MediaStream : public mozilla::LinkedListElement<MediaStream>
+{
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaStream)
 
@@ -432,8 +433,6 @@ public:
   virtual AudioNodeStream* AsAudioNodeStream() { return nullptr; }
   virtual CameraPreviewMediaStream* AsCameraPreviewStream() { return nullptr; }
 
-  // media graph thread only
-  void Init();
   // These Impl methods perform the core functionality of the control methods
   // above, on the media graph thread.
   /**
@@ -462,6 +461,9 @@ public:
   }
   void RemoveVideoOutputImpl(VideoFrameContainer* aContainer)
   {
+    // Ensure that any frames currently queued for playback by the compositor
+    // are removed.
+    aContainer->ClearFutureFrames();
     mVideoOutputs.RemoveElement(aContainer);
   }
   void ChangeExplicitBlockerCountImpl(GraphTime aTime, int32_t aDelta)
@@ -631,8 +633,8 @@ protected:
   };
   nsTArray<AudioOutput> mAudioOutputs;
   nsTArray<nsRefPtr<VideoFrameContainer> > mVideoOutputs;
-  // We record the last played video frame to avoid redundant setting
-  // of the current video frame.
+  // We record the last played video frame to avoid playing the frame again
+  // with a different frame id.
   VideoFrame mLastPlayedVideoFrame;
   // The number of times this stream has been explicitly blocked by the control
   // API, minus the number of times it has been explicitly unblocked.
@@ -654,7 +656,8 @@ protected:
 
   // Where audio output is going. There is one AudioOutputStream per
   // audio track.
-  struct AudioOutputStream {
+  struct AudioOutputStream
+  {
     // When we started audio playback for this track.
     // Add mStream->GetPosition() to find the current audio playback position.
     GraphTime mAudioPlaybackStartTime;
@@ -724,7 +727,8 @@ protected:
  * Audio and video can be written on any thread, but you probably want to
  * always write from the same thread to avoid unexpected interleavings.
  */
-class SourceMediaStream : public MediaStream {
+class SourceMediaStream : public MediaStream
+{
 public:
   explicit SourceMediaStream(DOMMediaStream* aWrapper) :
     MediaStream(aWrapper),
@@ -971,7 +975,8 @@ protected:
  * the Destroy message is processed on the graph manager thread we disconnect
  * the port and drop the graph's reference, destroying the object.
  */
-class MediaInputPort final {
+class MediaInputPort final
+{
 private:
   // Do not call this constructor directly. Instead call aDest->AllocateInputPort.
   MediaInputPort(MediaStream* aSource, ProcessedMediaStream* aDest,
@@ -1088,7 +1093,8 @@ private:
  * its output. The details of how the output is produced are handled by
  * subclasses overriding the ProcessInput method.
  */
-class ProcessedMediaStream : public MediaStream {
+class ProcessedMediaStream : public MediaStream
+{
 public:
   explicit ProcessedMediaStream(DOMMediaStream* aWrapper)
     : MediaStream(aWrapper), mAutofinish(false)
@@ -1192,21 +1198,33 @@ protected:
 };
 
 /**
- * Initially, at least, we will have a singleton MediaStreamGraph per
- * process.  Each OfflineAudioContext object creates its own MediaStreamGraph
- * object too.
+ * There can be multiple MediaStreamGraph per process: one per AudioChannel.
+ * Additionaly, each OfflineAudioContext object creates its own MediaStreamGraph
+ * object too..
  */
-class MediaStreamGraph {
+class MediaStreamGraph
+{
 public:
+
   // We ensure that the graph current time advances in multiples of
   // IdealAudioBlockSize()/AudioStream::PreferredSampleRate(). A stream that
   // never blocks and has a track with the ideal audio rate will produce audio
   // in multiples of the block size.
   //
 
+  // Initializing an graph that outputs audio can be quite long on some
+  // platforms. Code that want to output audio at some point can express the
+  // fact that they will need an audio stream at some point by passing
+  // AUDIO_THREAD_DRIVER when getting an instance of MediaStreamGraph, so that
+  // the graph starts with the right driver.
+  enum GraphDriverType {
+    AUDIO_THREAD_DRIVER,
+    SYSTEM_THREAD_DRIVER,
+    OFFLINE_THREAD_DRIVER
+  };
   // Main thread only
-  static MediaStreamGraph* GetInstance(bool aStartWithAudioDriver = false,
-                                       dom::AudioChannel aChannel = dom::AudioChannel::Normal);
+  static MediaStreamGraph* GetInstance(GraphDriverType aGraphDriverRequested,
+                                       dom::AudioChannel aChannel);
   static MediaStreamGraph* CreateNonRealtimeInstance(TrackRate aSampleRate);
   // Idempotent
   static void DestroyNonRealtimeInstance(MediaStreamGraph* aGraph);

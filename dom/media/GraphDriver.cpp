@@ -285,6 +285,15 @@ ThreadedDriver::RunThread()
     GraphTime nextStateComputedTime =
       mGraphImpl->RoundUpToNextAudioBlock(
         mIterationEnd + mGraphImpl->MillisecondsToMediaTime(AUDIO_TARGET_MS));
+    if (nextStateComputedTime < stateComputedTime) {
+      // A previous driver may have been processing further ahead of
+      // iterationEnd.
+      STREAM_LOG(LogLevel::Warning,
+                 ("Prevent state from going backwards. interval[%ld; %ld] state[%ld; %ld]",
+                  (long)mIterationStart, (long)mIterationEnd,
+                  (long)stateComputedTime, (long)nextStateComputedTime));
+      nextStateComputedTime = stateComputedTime;
+    }
     STREAM_LOG(LogLevel::Debug,
                ("interval[%ld; %ld] state[%ld; %ld]",
                (long)mIterationStart, (long)mIterationEnd,
@@ -292,10 +301,7 @@ ThreadedDriver::RunThread()
 
     mGraphImpl->mFlushSourcesNow = mGraphImpl->mFlushSourcesOnNextIteration;
     mGraphImpl->mFlushSourcesOnNextIteration = false;
-    stillProcessing = mGraphImpl->OneIteration(mIterationStart,
-                                               mIterationEnd,
-                                               stateComputedTime,
-                                               nextStateComputedTime);
+    stillProcessing = mGraphImpl->OneIteration(nextStateComputedTime);
 
     if (mNextDriver && stillProcessing) {
       STREAM_LOG(LogLevel::Debug, ("Switching to AudioCallbackDriver"));
@@ -838,10 +844,7 @@ AudioCallbackDriver::DataCallback(AudioDataValue* aBuffer, long aFrames)
       mIterationEnd = stateComputedTime;
     }
 
-    stillProcessing = mGraphImpl->OneIteration(mIterationStart,
-                                               mIterationEnd,
-                                               stateComputedTime,
-                                               nextStateComputedTime);
+    stillProcessing = mGraphImpl->OneIteration(nextStateComputedTime);
   } else {
     NS_WARNING("DataCallback buffer filled entirely from scratch buffer, skipping iteration.");
     stillProcessing = true;

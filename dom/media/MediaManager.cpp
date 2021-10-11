@@ -126,8 +126,6 @@ using dom::Sequence;
 using dom::OwningBooleanOrMediaTrackConstraints;
 using dom::OwningStringOrStringSequence;
 using dom::OwningStringOrStringSequenceOrConstrainDOMStringParameters;
-using dom::SupportedAudioConstraints;
-using dom::SupportedVideoConstraints;
 using media::Pledge;
 using media::NewRunnableFrom;
 using media::NewTaskFrom;

@@ -411,7 +411,7 @@ AudioNodeStream::AccumulateInputChunk(uint32_t aInputIndex, const AudioChunk& aC
 
   for (uint32_t c = 0; c < channels.Length(); ++c) {
     const float* inputData = static_cast<const float*>(channels[c]);
-    float* outputData = static_cast<float*>(const_cast<void*>(aBlock->mChannelData[c]));
+    float* outputData = aBlock->ChannelFloatsForWrite(c);
     if (inputData) {
       if (aInputIndex == 0) {
         AudioBlockCopyChannelWithScale(inputData, aChunk.mVolume, outputData);
@@ -490,26 +490,26 @@ AudioNodeStream::ProcessInput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags)
   bool blocked = mFinished || mBlocked.GetAt(aFrom);
   // If the stream has finished at this time, it will be blocked.
   if (blocked || InMutedCycle()) {
+    mInputChunks.Clear();
     for (uint16_t i = 0; i < outputCount; ++i) {
       mLastChunks[i].SetNull(WEBAUDIO_BLOCK_SIZE);
     }
   } else {
     // We need to generate at least one input
     uint16_t maxInputs = std::max(uint16_t(1), mEngine->InputCount());
-    OutputChunks inputChunks;
-    inputChunks.SetLength(maxInputs);
+    mInputChunks.SetLength(maxInputs);
     for (uint16_t i = 0; i < maxInputs; ++i) {
-      ObtainInputBlock(inputChunks[i], i);
+      ObtainInputBlock(mInputChunks[i], i);
     }
     bool finished = false;
     if (mPassThrough) {
       MOZ_ASSERT(outputCount == 1, "For now, we only support nodes that have one output port");
-      mLastChunks[0] = inputChunks[0];
+      mLastChunks[0] = mInputChunks[0];
     } else {
       if (maxInputs <= 1 && outputCount <= 1) {
-        mEngine->ProcessBlock(this, inputChunks[0], &mLastChunks[0], &finished);
+        mEngine->ProcessBlock(this, mInputChunks[0], &mLastChunks[0], &finished);
       } else {
-        mEngine->ProcessBlocksOnPorts(this, inputChunks, mLastChunks, &finished);
+        mEngine->ProcessBlocksOnPorts(this, mInputChunks, mLastChunks, &finished);
       }
     }
     for (uint16_t i = 0; i < outputCount; ++i) {
@@ -586,6 +586,22 @@ AudioNodeStream::AdvanceOutputSegment()
                                 segment->GetDuration(), 0, tmpSegment);
   }
 }
+
+void
+AudioNodeStream::ReleaseSharedBuffers()
+{
+  // A shared buffer can't be reused, so release the reference now.  Keep
+  // the channel data arrays to save unnecessary free/alloc.
+  // Release shared output buffers first, as they may be shared with input
+  // buffers which can be re-used if there are no other references.
+  for (auto& chunk : mLastChunks) {
+    chunk.ReleaseBufferIfShared();
+  }
+  for (auto& chunk : mInputChunks) {
+    chunk.ReleaseBufferIfShared();
+  }
+}
+
 
 StreamTime
 AudioNodeStream::GetCurrentPosition()

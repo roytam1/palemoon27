@@ -1716,26 +1716,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
     void checkStackAlignment();
 
-    void rshiftPtr(Imm32 imm, Register dest) {
-        ma_lsr(imm, dest, dest);
-    }
-    void rshiftPtrArithmetic(Imm32 imm, Register dest) {
-        ma_asr(imm, dest, dest);
-    }
-    void rshift64(Imm32 imm, Register64 dest) {
-        as_mov(dest.low, lsr(dest.low, imm.value));
-        as_orr(dest.low, dest.low, lsl(dest.high, 32 - imm.value));
-        as_mov(dest.high, lsr(dest.high, imm.value));
-    }
-    void lshiftPtr(Imm32 imm, Register dest) {
-        ma_lsl(imm, dest, dest);
-    }
-    void lshift64(Imm32 imm, Register64 dest) {
-        as_mov(dest.high, lsl(dest.high, imm.value));
-        as_orr(dest.high, dest.high, lsr(dest.low, 32 - imm.value));
-        as_mov(dest.low, lsl(dest.low, imm.value));
-    }
-
     // If source is a double, load it into dest. If source is int32, convert it
     // to double. Else, branch to failure.
     void ensureDouble(const ValueOperand& source, FloatRegister dest, Label* failure);

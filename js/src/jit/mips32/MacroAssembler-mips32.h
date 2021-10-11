@@ -1292,28 +1292,7 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
         moveToDoubleHi(zero, reg);
     }
 
-    void clampIntToUint8(Register reg) {
-        // look at (reg >> 8) if it is 0, then src shouldn't be clamped
-        // if it is <0, then we want to clamp to 0,
-        // otherwise, we wish to clamp to 255
-        Label done;
-        ma_move(ScratchRegister, reg);
-        as_sra(ScratchRegister, ScratchRegister, 8);
-        ma_b(ScratchRegister, ScratchRegister, &done, Assembler::Zero, ShortJump);
-        {
-            Label negative;
-            ma_b(ScratchRegister, ScratchRegister, &negative, Assembler::Signed, ShortJump);
-            {
-                ma_li(reg, Imm32(255));
-                ma_b(&done, ShortJump);
-            }
-            bind(&negative);
-            {
-                ma_move(reg, zero);
-            }
-        }
-        bind(&done);
-    }
+    void clampIntToUint8(Register reg);
 
     void subPtr(Imm32 imm, const Register dest);
     void subPtr(const Address& addr, const Register dest);
@@ -1354,28 +1333,6 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
     void restoreStackPointer();
     static void calculateAlignedStackPointer(void** stackPointer);
 
-    void rshiftPtr(Imm32 imm, Register dest) {
-        ma_srl(dest, dest, imm);
-    }
-    void rshiftPtrArithmetic(Imm32 imm, Register dest) {
-        ma_sra(dest, dest, imm);
-    }
-    void rshift64(Imm32 imm, Register64 dest) {
-        as_srl(dest.low, dest.low, imm.value);
-        as_sll(ScratchRegister, dest.high, 32 - imm.value);
-        as_or(dest.low, dest.low, ScratchRegister);
-        as_srl(dest.high, dest.high, imm.value);
-    }
-    void lshiftPtr(Imm32 imm, Register dest) {
-        ma_sll(dest, dest, imm);
-    }
-    void lshift64(Imm32 imm, Register64 dest) {
-        as_sll(dest.high, dest.high, imm.value);
-        as_srl(ScratchRegister, dest.low, 32 - imm.value);
-        as_or(dest.high, dest.high, ScratchRegister);
-        as_sll(dest.low, dest.low, imm.value);
-    }
-
     // If source is a double, load it into dest. If source is int32,
     // convert it to double. Else, branch to failure.
     void ensureDouble(const ValueOperand& source, FloatRegister dest, Label* failure);
@@ -1401,8 +1358,8 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
     }
 
     void memIntToValue(Address Source, Address Dest) {
-        load32(Source, SecondScratchReg);
-        storeValue(JSVAL_TYPE_INT32, SecondScratchReg, Dest);
+        load32(Source, ScratchRegister);
+        storeValue(JSVAL_TYPE_INT32, ScratchRegister, Dest);
     }
 
     void lea(Operand addr, Register dest) {

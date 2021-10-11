@@ -697,6 +697,20 @@ class MacroAssembler : public MacroAssemblerSpecific
     inline void xorPtr(Register src, Register dest) PER_ARCH;
     inline void xorPtr(Imm32 imm, Register dest) PER_ARCH;
 
+    // ===============================================================
+    // Shift functions
+
+    inline void lshiftPtr(Imm32 imm, Register dest) PER_ARCH;
+
+    inline void lshift64(Imm32 imm, Register64 dest) PER_ARCH;
+
+    inline void rshiftPtr(Imm32 imm, Register dest) PER_ARCH;
+    inline void rshiftPtr(Imm32 imm, Register src, Register dest) DEFINED_ON(arm64);
+
+    inline void rshiftPtrArithmetic(Imm32 imm, Register dest) PER_ARCH;
+
+    inline void rshift64(Imm32 imm, Register64 dest) PER_ARCH;
+
     //}}} check_macroassembler_style
   public:
 

@@ -692,14 +692,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         branchPtr(cond, lhs, ImmWord(uintptr_t(ptr.value) >> 1), label);
     }
 
-    void branchPrivatePtr(Condition cond, Address lhs, Register ptr, Label* label) {
-        ScratchRegisterScope scratch(asMasm());
-        if (ptr != scratch)
-            movePtr(ptr, scratch);
-        rshiftPtr(Imm32(1), scratch);
-        branchPtr(cond, lhs, scratch, label);
-    }
-
+    void branchPrivatePtr(Condition cond, Address lhs, Register ptr, Label* label);
     template <typename T, typename S>
     void branchPtr(Condition cond, const T& lhs, const S& ptr, Label* label) {
         cmpPtr(Operand(lhs), ptr);
@@ -856,21 +849,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void store64(Register64 src, Address address) {
         movq(src.reg, Operand(address));
-    }
-    void rshiftPtr(Imm32 imm, Register dest) {
-        shrq(imm, dest);
-    }
-    void rshiftPtrArithmetic(Imm32 imm, Register dest) {
-        sarq(imm, dest);
-    }
-    void rshift64(Imm32 imm, Register64 dest) {
-        shrq(imm, dest.reg);
-    }
-    void lshiftPtr(Imm32 imm, Register dest) {
-        shlq(imm, dest);
-    }
-    void lshift64(Imm32 imm, Register64 dest) {
-        shlq(imm, dest.reg);
     }
 
     void splitTag(Register src, Register dest) {

@@ -4453,6 +4453,7 @@ pref("layers.async-pan-zoom.enabled", true);
 #ifdef XP_MACOSX
 pref("layers.enable-tiles", true);
 pref("layers.tiled-drawtarget.enabled", true);
+pref("layers.tiles.edge-padding", false);
 #endif
 
 

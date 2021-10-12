@@ -900,9 +900,7 @@ protected:
     // Resampler if the rate of the input track does not match the
     // MediaStreamGraph's.
     nsAutoRef<SpeexResamplerState> mResampler;
-#ifdef DEBUG
     int mResamplerChannelCount;
-#endif
     StreamTime mStart;
     // End-time of data already flushed to the track (excluding mData)
     StreamTime mEndOfFlushedData;
@@ -1254,23 +1252,11 @@ public:
    * Create a stream that will mix all its audio input.
    */
   ProcessedMediaStream* CreateAudioCaptureStream(DOMMediaStream* aWrapper);
-  // Internal AudioNodeStreams can only pass their output to another
-  // AudioNode, whereas external AudioNodeStreams can pass their output
-  // to an nsAudioStream for playback.
-  enum AudioNodeStreamKind { SOURCE_STREAM, INTERNAL_STREAM, EXTERNAL_STREAM };
-  /**
-   * Create a stream that will process audio for an AudioNode.
-   * Takes ownership of aEngine.  aSampleRate is the sampling rate used
-   * for the stream.  If 0 is passed, the sampling rate of the engine's
-   * node will get used.
-   */
-  AudioNodeStream* CreateAudioNodeStream(AudioNodeEngine* aEngine,
-                                         AudioNodeStreamKind aKind,
-                                         TrackRate aSampleRate = 0);
 
-  AudioNodeExternalInputStream*
-  CreateAudioNodeExternalInputStream(AudioNodeEngine* aEngine,
-                                     TrackRate aSampleRate = 0);
+  /**
+   * Add a new stream to the graph.  Main thread.
+   */
+  void AddStream(MediaStream* aStream);
 
   /* From the main thread, ask the MSG to send back an event when the graph
    * thread is running, and audio is being processed. */

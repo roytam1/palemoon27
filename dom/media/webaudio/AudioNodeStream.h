@@ -43,15 +43,33 @@ public:
 
   typedef nsAutoTArray<AudioChunk, 1> OutputChunks;
 
+  // Flags re main thread updates and stream output.
+  typedef unsigned Flags;
+  enum : Flags {
+    NO_STREAM_FLAGS = 0U,
+    NEED_MAIN_THREAD_FINISHED = 1U << 0,
+    NEED_MAIN_THREAD_CURRENT_TIME = 1U << 1,
+    // Internal AudioNodeStreams can only pass their output to another
+    // AudioNode, whereas external AudioNodeStreams can pass their output
+    // to other ProcessedMediaStreams or hardware audio output.
+    EXTERNAL_OUTPUT = 1U << 2,
+  };
+  /**
+   * Create a stream that will process audio for an AudioNode.
+   * Takes ownership of aEngine.
+   */
+  static already_AddRefed<AudioNodeStream>
+  Create(MediaStreamGraph* aGraph, AudioNodeEngine* aEngine, Flags aKind);
+
+protected:
   /**
    * Transfers ownership of aEngine to the new AudioNodeStream.
    */
   AudioNodeStream(AudioNodeEngine* aEngine,
-                  MediaStreamGraph::AudioNodeStreamKind aKind,
+                  Flags aFlags,
                   TrackRate aSampleRate,
                   AudioContext::AudioContextId aContextId);
 
-protected:
   ~AudioNodeStream();
 
 public:
@@ -119,9 +137,8 @@ public:
   }
   virtual bool MainThreadNeedsUpdates() const override
   {
-    // Only source and external streams need updates on the main thread.
-    return (mKind == MediaStreamGraph::SOURCE_STREAM && mFinished) ||
-           mKind == MediaStreamGraph::EXTERNAL_STREAM;
+    return ((mFlags & NEED_MAIN_THREAD_FINISHED) && mFinished) ||
+      (mFlags & NEED_MAIN_THREAD_CURRENT_TIME);
   }
   virtual bool IsIntrinsicallyConsumed() const override
   {
@@ -166,7 +183,7 @@ protected:
                             AudioChunk* aBlock,
                             nsTArray<float>* aDownmixBuffer);
   void UpMixDownMixChunk(const AudioChunk* aChunk, uint32_t aOutputChannelCount,
-                         nsTArray<const void*>& aOutputChannels,
+                         nsTArray<const float*>& aOutputChannels,
                          nsTArray<float>& aDownmixBuffer);
 
   uint32_t ComputedNumberOfChannels(uint32_t aInputChannelCount);
@@ -185,7 +202,7 @@ protected:
   // AudioContext. It is set on the main thread, in the constructor.
   const AudioContext::AudioContextId mAudioContextId;
   // Whether this is an internal or external stream
-  const MediaStreamGraph::AudioNodeStreamKind mKind;
+  const Flags mFlags;
   // The number of input channels that this stream requires. 0 means don't care.
   uint32_t mNumberOfInputChannels;
   // The mixing modes

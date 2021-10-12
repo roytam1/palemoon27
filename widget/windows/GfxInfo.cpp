@@ -1139,8 +1139,11 @@ GfxInfo::DescribeFeatures(JSContext* aCx, JS::Handle<JSObject*> aObj)
     val = JS::BooleanValue(platform->IsWARP());
     JS_SetProperty(aCx, obj, "warp", val);
 
-    val = JS::BooleanValue(platform->DoesD3D11TextureSharingWork());
+    val = JS::BooleanValue(platform->CompositorD3D11TextureSharingWorks());
     JS_SetProperty(aCx, obj, "textureSharing", val);
+
+    val = JS::BooleanValue(!platform->CanUseDirect3D11());
+    JS_SetProperty(aCx, obj, "blacklisted", val);
   }
 
   gfx::FeatureStatus d2d = platform->GetD2DStatus();

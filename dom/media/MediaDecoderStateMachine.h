@@ -93,8 +93,8 @@ hardware (via AudioStream).
 #include "MediaDecoderOwner.h"
 #include "MediaEventSource.h"
 #include "MediaMetadataManager.h"
+#include "MediaStatistics.h"
 #include "MediaTimer.h"
-#include "DecodedStream.h"
 #include "ImageContainer.h"
 
 namespace mozilla {
@@ -104,6 +104,7 @@ class MediaSink;
 }
 
 class AudioSegment;
+class DecodedStream;
 class TaskQueue;
 
 extern PRLogModuleInfo* gMediaDecoderLog;
@@ -155,7 +156,7 @@ public:
   void RemoveOutputStream(MediaStream* aStream);
 
   // Set/Unset dormant state.
-  void SetDormant(bool aDormant);
+  void DispatchSetDormant(bool aDormant);
 
   TimedMetadataEventSource& TimedMetadataEvent() {
     return mMetadataManager.TimedMetadataEvent();
@@ -167,19 +168,18 @@ private:
   // constructor immediately after the task queue is created.
   void InitializationTask();
 
-  void DispatchAudioCaptured();
-  void DispatchAudioUncaptured();
+  void SetDormant(bool aDormant);
+
+  void SetAudioCaptured(bool aCaptured);
+
+  void NotifyWaitingForResourcesStatusChanged();
+
+  nsRefPtr<MediaDecoder::SeekPromise> Seek(SeekTarget aTarget);
 
   void Shutdown();
-public:
 
-  void DispatchShutdown()
-  {
-    mDecodedStream->Shutdown();
-    nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::Shutdown);
-    OwnerThread()->Dispatch(runnable.forget());
-  }
+public:
+  void DispatchShutdown();
 
   void FinishShutdown();
 
@@ -192,8 +192,7 @@ public:
   bool OnTaskQueue() const;
 
   // Seeks to the decoder to aTarget asynchronously.
-  // Must be called on the state machine thread.
-  nsRefPtr<MediaDecoder::SeekPromise> Seek(SeekTarget aTarget);
+  nsRefPtr<MediaDecoder::SeekPromise> InvokeSeek(SeekTarget aTarget);
 
   // Clear the flag indicating that a playback position change event
   // is currently queued. This is called from the main thread and must
@@ -212,8 +211,12 @@ private:
   // immediately stop playback and buffer downloaded data. Called on
   // the state machine thread.
   void StartBuffering();
-public:
 
+  bool CanPlayThrough();
+
+  MediaStatistics GetStatistics();
+
+public:
   void DispatchStartBuffering()
   {
     nsCOMPtr<nsIRunnable> runnable =
@@ -343,7 +346,7 @@ public:
 
   // Called when the reader may have acquired the hardware resources required
   // to begin decoding.
-  void NotifyWaitingForResourcesStatusChanged();
+  void DispatchWaitingForResourcesStatusChanged();
 
   // Notifies the state machine that should minimize the number of samples
   // decoded we preroll, until playback starts. The first time playback starts
@@ -457,8 +460,6 @@ protected:
   // parties.
   void UpdateNextFrameStatus();
 
-  int64_t GetStreamClock() const;
-
   // Return the current time, either the audio clock if available (if the media
   // has audio, and the playback is possible), or a clock for the video.
   // Called on the state machine thread.
@@ -497,19 +498,17 @@ protected:
   // state machine thread.
   void UpdateRenderedVideoFrames();
 
-  // Stops the audio sink and shut it down.
+  media::MediaSink* CreateAudioSink();
+
+  // Stops the media sink and shut it down.
   // The decoder monitor must be held with exactly one lock count.
   // Called on the state machine thread.
-  void StopAudioSink();
+  void StopMediaSink();
 
-  // Create and start the audio sink.
+  // Create and start the media sink.
   // The decoder monitor must be held with exactly one lock count.
   // Called on the state machine thread.
-  void StartAudioSink();
-
-  void StopDecodedStream();
-
-  void StartDecodedStream();
+  void StartMediaSink();
 
   // Notification method invoked when mPlayState changes.
   void PlayStateChanged();
@@ -656,16 +655,12 @@ protected:
   void SetPlayStartTime(const TimeStamp& aTimeStamp);
 
 private:
-  // Resolved by the AudioSink to signal that all outstanding work is complete
+  // Resolved by the MediaSink to signal that all outstanding work is complete
   // and the sink is shutting down.
-  void OnAudioSinkComplete();
+  void OnMediaSinkComplete();
 
-  // Rejected by the AudioSink to signal errors.
-  void OnAudioSinkError();
-
-  void OnDecodedStreamFinish();
-
-  void OnDecodedStreamError();
+  // Rejected by the MediaSink to signal errors.
+  void OnMediaSinkError();
 
   // Return true if the video decoder's decode speed can not catch up the
   // play time.
@@ -985,15 +980,15 @@ private:
   // Media Fragment end time in microseconds. Access controlled by decoder monitor.
   int64_t mFragmentEndTime;
 
-  // The audio sink resource.  Used on the state machine thread.
-  nsRefPtr<media::MediaSink> mAudioSink;
+  // The media sink resource.  Used on the state machine thread.
+  nsRefPtr<media::MediaSink> mMediaSink;
 
   // The reader, don't call its methods with the decoder monitor held.
   // This is created in the state machine's constructor.
   nsRefPtr<MediaDecoderReader> mReader;
 
-  // The end time of the last audio frame that's been pushed onto the audio sink
-  // or DecodedStream in microseconds. This will approximately be the end time
+  // The end time of the last audio frame that's been pushed onto the media sink
+  // in microseconds. This will approximately be the end time
   // of the audio stream, unless another frame is pushed to the hardware.
   int64_t AudioEndTime() const;
 
@@ -1272,13 +1267,12 @@ private:
   // Only written on the main thread while holding the monitor. Therefore it
   // can be read on any thread while holding the monitor, or on the main thread
   // without holding the monitor.
-  nsRefPtr<DecodedStream> mDecodedStream;
+  nsRefPtr<DecodedStream> mStreamSink;
 
   // Media data resource from the decoder.
   nsRefPtr<MediaResource> mResource;
 
-  MozPromiseRequestHolder<GenericPromise> mAudioSinkPromise;
-  MozPromiseRequestHolder<GenericPromise> mDecodedStreamPromise;
+  MozPromiseRequestHolder<GenericPromise> mMediaSinkPromise;
 
   MediaEventListener mAudioQueueListener;
   MediaEventListener mVideoQueueListener;
@@ -1313,6 +1307,18 @@ private:
   // passed to MediaStreams when this is true.
   Mirror<bool> mSameOriginMedia;
 
+  // Estimate of the current playback rate (bytes/second).
+  Mirror<double> mPlaybackBytesPerSecond;
+
+  // True if mPlaybackBytesPerSecond is a reliable estimate.
+  Mirror<bool> mPlaybackRateReliable;
+
+  // Current decoding position in the stream.
+  Mirror<int64_t> mDecoderPosition;
+
+  // True if the media is seekable (i.e. supports random access).
+  Mirror<bool> mMediaSeekable;
+
   // Duration of the media. This is guaranteed to be non-null after we finish
   // decoding the first frame.
   Canonical<media::NullableTimeUnit> mDuration;
@@ -1329,6 +1335,9 @@ private:
   // playback position.
   Canonical<int64_t> mCurrentPosition;
 
+  // Current playback position in the stream in bytes.
+  Canonical<int64_t> mPlaybackOffset;
+
 public:
   AbstractCanonical<media::TimeIntervals>* CanonicalBuffered() {
     return mReader->CanonicalBuffered();
@@ -1344,6 +1353,9 @@ public:
   }
   AbstractCanonical<int64_t>* CanonicalCurrentPosition() {
     return &mCurrentPosition;
+  }
+  AbstractCanonical<int64_t>* CanonicalPlaybackOffset() {
+    return &mPlaybackOffset;
   }
 };
 

@@ -47,6 +47,7 @@ using namespace mozilla;
 
 #if defined(XP_LINUX)
 
+#include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -173,6 +174,26 @@ public:
   }
 };
 NS_IMPL_ISUPPORTS(ResidentUniqueReporter, nsIMemoryReporter)
+
+#define HAVE_SYSTEM_HEAP_REPORTER 1
+nsresult
+SystemHeapSize(int64_t* aSizeOut)
+{
+    struct mallinfo info = mallinfo();
+
+    // The documentation in the glibc man page makes it sound like |uordblks|
+    // would suffice, but that only gets the small allocations that are put in
+    // the brk heap. We need |hblkhd| as well to get the larger allocations
+    // that are mmapped.
+    //
+    // The fields in |struct mallinfo| are all |int|, <sigh>, so it is
+    // unreliable if memory usage gets high. However, the system heap size on
+    // Linux should usually be zero (so long as jemalloc is enabled) so that
+    // shouldn't be a problem. Nonetheless, cast the |int|s to |size_t| before
+    // adding them to provide a small amount of extra overflow protection.
+    *aSizeOut = size_t(info.hblkhd) + size_t(info.uordblks);
+    return NS_OK;
+}
 
 #elif defined(__DragonFly__) || defined(__FreeBSD__) \
     || defined(__NetBSD__) || defined(__OpenBSD__) \
@@ -546,6 +567,57 @@ PrivateDistinguishedAmount(int64_t* aN)
   return NS_OK;
 }
 
+#define HAVE_SYSTEM_HEAP_REPORTER 1
+// Windows can have multiple separate heaps. During testing there were multiple
+// heaps present but the non-default ones had sizes no more than a few 10s of
+// KiBs. So we combine their sizes into a single measurement.
+nsresult
+SystemHeapSize(int64_t* aSizeOut)
+{
+  // Get the number of heaps.
+  DWORD nHeaps = GetProcessHeaps(0, nullptr);
+  NS_ENSURE_TRUE(nHeaps != 0, NS_ERROR_FAILURE);
+
+  // Get handles to all heaps, checking that the number of heaps hasn't
+  // changed in the meantime.
+  UniquePtr<HANDLE[]> heaps(new HANDLE[nHeaps]);
+  DWORD nHeaps2 = GetProcessHeaps(nHeaps, heaps.get());
+  NS_ENSURE_TRUE(nHeaps2 != 0 && nHeaps2 == nHeaps, NS_ERROR_FAILURE);
+
+  // Lock and iterate over each heap to get its size.
+  int64_t heapsSize = 0;
+  for (DWORD i = 0; i < nHeaps; i++) {
+    HANDLE heap = heaps[i];
+
+    NS_ENSURE_TRUE(HeapLock(heap), NS_ERROR_FAILURE);
+
+    int64_t heapSize = 0;
+    PROCESS_HEAP_ENTRY entry;
+    entry.lpData = nullptr;
+    while (HeapWalk(heap, &entry)) {
+      // We don't count entry.cbOverhead, because we just want to measure the
+      // space available to the program.
+      if (entry.wFlags & PROCESS_HEAP_ENTRY_BUSY) {
+        heapSize += entry.cbData;
+      }
+    }
+
+    // Check this result only after unlocking the heap, so that we don't leave
+    // the heap locked if there was an error.
+    DWORD lastError = GetLastError();
+
+    // I have no idea how things would proceed if unlocking this heap failed...
+    NS_ENSURE_TRUE(HeapUnlock(heap), NS_ERROR_FAILURE);
+
+    NS_ENSURE_TRUE(lastError == ERROR_NO_MORE_ITEMS, NS_ERROR_FAILURE);
+
+    heapsSize += heapSize;
+  }
+
+  *aSizeOut = heapsSize;
+  return NS_OK;
+}
+
 class WindowsAddressSpaceReporter final : public nsIMemoryReporter
 {
   ~WindowsAddressSpaceReporter() {}
@@ -800,6 +872,34 @@ public:
 NS_IMPL_ISUPPORTS(ResidentReporter, nsIMemoryReporter)
 
 #endif  // HAVE_VSIZE_AND_RESIDENT_REPORTERS
+
+#ifdef HAVE_SYSTEM_HEAP_REPORTER
+
+class SystemHeapReporter final : public nsIMemoryReporter
+{
+  ~SystemHeapReporter() {}
+
+public:
+  NS_DECL_ISUPPORTS
+
+  NS_METHOD CollectReports(nsIHandleReportCallback* aHandleReport,
+                           nsISupports* aData, bool aAnonymize) override
+  {
+    int64_t amount;
+    nsresult rv = SystemHeapSize(&amount);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return MOZ_COLLECT_REPORT(
+      "system-heap-allocated", KIND_OTHER, UNITS_BYTES, amount,
+"Memory used by the system allocator that is currently allocated to the "
+"application. This is distinct from the jemalloc heap that Firefox uses for "
+"most or all of its heap allocations. Ideally this number is zero, but "
+"on some platforms we cannot force every heap allocation through jemalloc.");
+  }
+};
+NS_IMPL_ISUPPORTS(SystemHeapReporter, nsIMemoryReporter)
+
+#endif // HAVE_SYSTEM_HEAP_REPORTER
 
 #ifdef XP_UNIX
 
@@ -1168,6 +1268,10 @@ nsMemoryReporterManager::Init()
   RegisterStrongReporter(new PrivateReporter());
 #endif
 
+#ifdef HAVE_SYSTEM_HEAP_REPORTER
+  RegisterStrongReporter(new SystemHeapReporter());
+#endif
+
   RegisterStrongReporter(new AtomTablesReporter());
 
 #ifdef DEBUG
@@ -1277,7 +1381,6 @@ nsMemoryReporterManager::GetReportsExtended(
                                          aFinishReporting,
                                          aFinishReportingData,
                                          aDMDDumpIdent);
-  mGetReportsState->mChildrenPending = new nsTArray<nsRefPtr<mozilla::dom::ContentParent>>();
 
   if (aMinimize) {
     rv = MinimizeMemoryUsage(NS_NewRunnableMethod(
@@ -1318,7 +1421,7 @@ nsMemoryReporterManager::StartGettingReports()
     // to be buffered and consume (possibly scarce) memory.
 
     for (size_t i = 0; i < childWeakRefs.Length(); ++i) {
-      s->mChildrenPending->AppendElement(childWeakRefs[i]);
+      s->mChildrenPending.AppendElement(childWeakRefs[i]);
     }
 
     nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
@@ -1515,29 +1618,29 @@ nsMemoryReporterManager::EndProcessReport(uint32_t aGeneration, bool aSuccess)
                        aGeneration, s->mNumProcessesCompleted,
                        aSuccess ? "completed" : "exited during report",
                        s->mNumProcessesRunning,
-                       static_cast<unsigned>(s->mChildrenPending->Length()));
+                       static_cast<unsigned>(s->mChildrenPending.Length()));
 
   // Start pending children up to the concurrency limit.
   while (s->mNumProcessesRunning < s->mConcurrencyLimit &&
-         !s->mChildrenPending->IsEmpty()) {
+         !s->mChildrenPending.IsEmpty()) {
     // Pop last element from s->mChildrenPending
     nsRefPtr<ContentParent> nextChild;
-    nextChild.swap(s->mChildrenPending->LastElement());
-    s->mChildrenPending->TruncateLength(s->mChildrenPending->Length() - 1);
+    nextChild.swap(s->mChildrenPending.LastElement());
+    s->mChildrenPending.TruncateLength(s->mChildrenPending.Length() - 1);
     // Start report (if the child is still alive and not Nuwa).
     if (StartChildReport(nextChild, s)) {
       ++s->mNumProcessesRunning;
       MEMORY_REPORTING_LOG("HandleChildReports (aGen=%u): started child report"
                            " (%u running, %u pending)\n",
                            aGeneration, s->mNumProcessesRunning,
-                           static_cast<unsigned>(s->mChildrenPending->Length()));
+                           static_cast<unsigned>(s->mChildrenPending.Length()));
     }
   }
 
   // If all the child processes (if any) have reported, we can cancel
   // the timer (if started) and finish up.  Otherwise, just return.
   if (s->mNumProcessesRunning == 0) {
-    MOZ_ASSERT(s->mChildrenPending->IsEmpty());
+    MOZ_ASSERT(s->mChildrenPending.IsEmpty());
     if (s->mTimer) {
       s->mTimer->Cancel();
     }
@@ -1557,7 +1660,7 @@ nsMemoryReporterManager::TimeoutCallback(nsITimer* aTimer, void* aData)
   MOZ_RELEASE_ASSERT(s, "mgr->mGetReportsState");
   MEMORY_REPORTING_LOG("TimeoutCallback (s->gen=%u; %u running, %u pending)\n",
                        s->mGeneration, s->mNumProcessesRunning,
-                       static_cast<unsigned>(s->mChildrenPending->Length()));
+                       static_cast<unsigned>(s->mChildrenPending.Length()));
 
   // We don't bother sending any kind of cancellation message to the child
   // processes that haven't reported back.
@@ -1588,9 +1691,27 @@ nsMemoryReporterManager::FinishReporting()
   return rv;
 }
 
-nsMemoryReporterManager::GetReportsState::~GetReportsState()
+nsMemoryReporterManager::GetReportsState::GetReportsState(
+    uint32_t aGeneration, bool aAnonymize, bool aMinimize,
+    uint32_t aConcurrencyLimit,
+    nsIHandleReportCallback* aHandleReport,
+    nsISupports* aHandleReportData,
+    nsIFinishReportingCallback* aFinishReporting,
+    nsISupports* aFinishReportingData,
+    const nsAString& aDMDDumpIdent)
+  : mGeneration(aGeneration)
+  , mAnonymize(aAnonymize)
+  , mMinimize(aMinimize)
+  , mChildrenPending()
+  , mNumProcessesRunning(1) // reporting starts with the parent
+  , mNumProcessesCompleted(0)
+  , mConcurrencyLimit(aConcurrencyLimit)
+  , mHandleReport(aHandleReport)
+  , mHandleReportData(aHandleReportData)
+  , mFinishReporting(aFinishReporting)
+  , mFinishReportingData(aFinishReportingData)
+  , mDMDDumpIdent(aDMDDumpIdent)
 {
-  delete mChildrenPending;
 }
 
 static void
@@ -2215,6 +2336,17 @@ RegisterWeakMemoryReporter(nsIMemoryReporter* aReporter)
 }
 
 nsresult
+UnregisterStrongMemoryReporter(nsIMemoryReporter* aReporter)
+{
+  nsCOMPtr<nsIMemoryReporterManager> mgr =
+    do_GetService("@mozilla.org/memory-reporter-manager;1");
+  if (!mgr) {
+    return NS_ERROR_FAILURE;
+  }
+  return mgr->UnregisterStrongReporter(aReporter);
+}
+
+nsresult
 UnregisterWeakMemoryReporter(nsIMemoryReporter* aReporter)
 {
   nsCOMPtr<nsIMemoryReporterManager> mgr =
@@ -2301,7 +2433,7 @@ public:
   NS_IMETHOD Callback(const nsACString& aProcess, const nsACString& aPath,
                       int32_t aKind, int32_t aUnits, int64_t aAmount,
                       const nsACString& aDescription,
-                      nsISupports* aData)
+                      nsISupports* aData) override
   {
     // Do nothing;  the reporter has already reported to DMD.
     return NS_OK;

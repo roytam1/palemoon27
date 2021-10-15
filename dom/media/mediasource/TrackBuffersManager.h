@@ -98,9 +98,7 @@ public:
                                            bool& aError);
   media::TimeUnit GetNextRandomAccessPoint(TrackInfo::TrackType aTrack);
 
-#if defined(DEBUG)
-  void Dump(const char* aPath) override;
-#endif
+  void AddSizeOfResources(MediaSourceDecoder::ResourceSizes* aSizes);
 
 private:
   // for MediaSourceDemuxer::GetMozDebugReaderData
@@ -274,6 +272,8 @@ private:
       mLongestFrameDuration.reset();
       mNextInsertionIndex.reset();
     }
+
+    void AddSizeOfResources(MediaSourceDecoder::ResourceSizes* aSizes);
   };
 
   void CheckSequenceDiscontinuity(const media::TimeUnit& aPresentationTime);

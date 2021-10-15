@@ -272,14 +272,6 @@ TrackBuffersManager::Detach()
   MSE_DEBUG("");
 }
 
-#if defined(DEBUG)
-void
-TrackBuffersManager::Dump(const char* aPath)
-{
-
-}
-#endif
-
 void
 TrackBuffersManager::CompleteResetParserState()
 {
@@ -2002,6 +1994,24 @@ TrackBuffersManager::GetNextRandomAccessPoint(TrackInfo::TrackType aTrack)
     }
   }
   return media::TimeUnit::FromInfinity();
+}
+
+void
+TrackBuffersManager::TrackData::AddSizeOfResources(MediaSourceDecoder::ResourceSizes* aSizes)
+{
+  for (TrackBuffer& buffer : mBuffers) {
+    for (MediaRawData* data : buffer) {
+      aSizes->mByteSize += data->SizeOfIncludingThis(aSizes->mMallocSizeOf);
+    }
+  }
+}
+
+void
+TrackBuffersManager::AddSizeOfResources(MediaSourceDecoder::ResourceSizes* aSizes)
+{
+  MOZ_ASSERT(OnTaskQueue());
+  mVideoTracks.AddSizeOfResources(aSizes);
+  mAudioTracks.AddSizeOfResources(aSizes);
 }
 
 } // namespace mozilla

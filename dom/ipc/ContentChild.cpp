@@ -31,8 +31,6 @@
 #include "mozilla/dom/ExternalHelperAppChild.h"
 #include "mozilla/dom/ProcessGlobal.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/dom/asmjscache/AsmJSCache.h"
-#include "mozilla/dom/asmjscache/PAsmJSCacheEntryChild.h"
 #include "mozilla/dom/nsIContentChild.h"
 #include "mozilla/psm/PSMContentListener.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
@@ -889,6 +887,32 @@ NS_IMPL_ISUPPORTS(
 , nsIMemoryReporterCallback
 )
 
+class MemoryReportFinishedCallback final : public nsIFinishReportingCallback
+{
+public:
+    NS_DECL_ISUPPORTS
+
+    explicit MemoryReportFinishedCallback(MemoryReportRequestChild* aActor)
+    : mActor(aActor)
+    {
+    }
+
+    NS_IMETHOD Callback(nsISupports* aUnused) override
+    {
+        bool sent = PMemoryReportRequestChild::Send__delete__(mActor);
+        return sent ? NS_OK : NS_ERROR_FAILURE;
+    }
+
+private:
+    ~MemoryReportFinishedCallback() {}
+
+    nsRefPtr<MemoryReportRequestChild> mActor;
+};
+NS_IMPL_ISUPPORTS(
+  MemoryReportFinishedCallback
+, nsIFinishReportingCallback
+)
+
 bool
 ContentChild::RecvPMemoryReportRequestConstructor(
     PMemoryReportRequestChild* aChild,
@@ -925,11 +949,12 @@ NS_IMETHODIMP MemoryReportRequestChild::Run()
     // MemoryReport.
     nsRefPtr<MemoryReportCallback> cb =
         new MemoryReportCallback(this, process);
-    mgr->GetReportsForThisProcessExtended(cb, nullptr, mAnonymize,
-                                          FileDescriptorToFILE(mDMDFile, "wb"));
+    nsRefPtr<MemoryReportFinishedCallback> finished =
+        new MemoryReportFinishedCallback(this);
 
-    bool sent = Send__delete__(this);
-    return sent ? NS_OK : NS_ERROR_FAILURE;
+    return mgr->GetReportsForThisProcessExtended(cb, nullptr, mAnonymize,
+                                                 FileDescriptorToFILE(mDMDFile, "wb"),
+                                                 finished, nullptr);
 }
 
 bool
@@ -1440,23 +1465,6 @@ ContentChild::DeallocPIccChild(PIccChild* aActor)
 {
     // IccChild is refcounted, must not be freed manually.
     static_cast<IccChild*>(aActor)->Release();
-    return true;
-}
-
-asmjscache::PAsmJSCacheEntryChild*
-ContentChild::AllocPAsmJSCacheEntryChild(
-                                    const asmjscache::OpenMode& aOpenMode,
-                                    const asmjscache::WriteParams& aWriteParams,
-                                    const IPC::Principal& aPrincipal)
-{
-    NS_NOTREACHED("Should never get here!");
-    return nullptr;
-}
-
-bool
-ContentChild::DeallocPAsmJSCacheEntryChild(PAsmJSCacheEntryChild* aActor)
-{
-    asmjscache::DeallocEntryChild(aActor);
     return true;
 }
 

@@ -379,6 +379,9 @@ BrowserGlue.prototype = {
       case "flash-plugin-hang":
         this._handleFlashHang();
         break;
+      case "test-initialize-sanitizer":
+        this._sanitizer.onStartup();
+        break;
     }
   },
 
@@ -1341,7 +1344,6 @@ BrowserGlue.prototype = {
    * - export bookmarks as HTML, if so configured.
    */
   _onPlacesShutdown: function BG__onPlacesShutdown() {
-    this._sanitizer.onShutdown();
     PageThumbs.uninit();
 
     if (this._bookmarksBackupIdleTime) {

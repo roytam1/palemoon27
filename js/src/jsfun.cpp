@@ -1535,7 +1535,7 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext* cx, HandleFuncti
 
     /* Lazily cloned self-hosted script. */
     MOZ_ASSERT(fun->isSelfHostedBuiltin());
-    RootedAtom funAtom(cx, &fun->getExtendedSlot(0).toString()->asAtom());
+    RootedAtom funAtom(cx, &fun->getExtendedSlot(LAZY_FUNCTION_NAME_SLOT).toString()->asAtom());
     if (!funAtom)
         return false;
     Rooted<PropertyName*> funName(cx, funAtom->asPropertyName());
@@ -1581,7 +1581,7 @@ JSFunction::maybeRelazify(JSRuntime* rt)
     } else {
         MOZ_ASSERT(isSelfHostedBuiltin());
         MOZ_ASSERT(isExtended());
-        MOZ_ASSERT(getExtendedSlot(0).toString()->isAtom());
+        MOZ_ASSERT(getExtendedSlot(LAZY_FUNCTION_NAME_SLOT).toString()->isAtom());
     }
 }
 
@@ -2186,8 +2186,6 @@ NewFunctionClone(JSContext* cx, HandleFunction fun, NewObjectKind newKind,
     if (!cloneobj)
         return nullptr;
     RootedFunction clone(cx, &cloneobj->as<JSFunction>());
-
-    MOZ_ASSERT(useSameScript || !fun->isInterpretedLazy());
 
     uint16_t flags = fun->flags() & ~JSFunction::EXTENDED;
     if (allocKind == AllocKind::FUNCTION_EXTENDED)

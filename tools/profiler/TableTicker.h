@@ -7,8 +7,10 @@
 #define TableTicker_h
 
 #include "platform.h"
-#include "mozilla/Mutex.h"
+#include "mozilla/Vector.h"
+#ifndef SPS_STANDALONE
 #include "IntelPowerGadget.h"
+#endif
 #ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
 #endif
@@ -17,15 +19,16 @@ namespace mozilla {
 class ProfileGatherer;
 } // namespace mozilla
 
+typedef mozilla::Vector<std::string> ThreadNameFilterList;
+
 static bool
-threadSelected(ThreadInfo* aInfo, char** aThreadNameFilters, uint32_t aFeatureCount) {
-  if (aFeatureCount == 0) {
+threadSelected(ThreadInfo* aInfo, const ThreadNameFilterList &aThreadNameFilters) {
+  if (aThreadNameFilters.empty()) {
     return true;
   }
 
-  for (uint32_t i = 0; i < aFeatureCount; ++i) {
-    const char* filterPrefix = aThreadNameFilters[i];
-    if (strncmp(aInfo->Name(), filterPrefix, strlen(filterPrefix)) == 0) {
+  for (uint32_t i = 0; i < aThreadNameFilters.length(); ++i) {
+    if (aThreadNameFilters[i] == aInfo->Name()) {
       return true;
     }
   }
@@ -49,7 +52,7 @@ class TableTicker: public Sampler {
       return;
     }
 
-    if (!threadSelected(aInfo, mThreadNameFilters, mFilterCount)) {
+    if (!threadSelected(aInfo, mThreadNameFilters)) {
       return;
     }
 
@@ -80,7 +83,7 @@ class TableTicker: public Sampler {
   ThreadProfile* GetPrimaryThreadProfile()
   {
     if (!mPrimaryThreadProfile) {
-      mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
+      ::MutexAutoLock lock(*sRegisteredThreadsMutex);
 
       for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
         ThreadInfo* info = sRegisteredThreads->at(i);
@@ -95,7 +98,9 @@ class TableTicker: public Sampler {
   }
 
   void ToStreamAsJSON(std::ostream& stream, double aSinceTime = 0);
-  virtual JSObject *ToJSObject(JSContext* aCx, double aSinceTime = 0);
+#ifndef SPS_STANDALONE
+  virtual JSObject *ToJSObject(JSContext *aCx, double aSinceTime = 0);
+#endif
   mozilla::UniquePtr<char[]> ToJSON(double aSinceTime = 0);
   virtual void ToJSObjectAsync(double aSinceTime = 0, mozilla::dom::Promise* aPromise = 0);
   void StreamMetaJSCustomObject(SpliceableJSONWriter& aWriter);
@@ -129,7 +134,7 @@ protected:
 
   // This represent the application's main thread (SAMPLER_INIT)
   ThreadProfile* mPrimaryThreadProfile;
-  nsRefPtr<ProfileBuffer> mBuffer;
+  mozilla::RefPtr<ProfileBuffer> mBuffer;
   bool mSaveRequested;
   bool mAddLeafAddresses;
   bool mUseStackWalk;
@@ -144,8 +149,7 @@ protected:
 
   // Keep the thread filter to check against new thread that
   // are started while profiling
-  char** mThreadNameFilters;
-  uint32_t mFilterCount;
+  ThreadNameFilterList mThreadNameFilters;
   bool mPrivacyMode;
   bool mAddMainThreadIO;
   bool mProfileMemory;

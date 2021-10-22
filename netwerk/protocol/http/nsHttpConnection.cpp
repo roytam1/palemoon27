@@ -400,9 +400,6 @@ nsHttpConnection::EnsureNPNComplete(nsresult &aOut0RTTWriteHandshakeValue,
             uint8_t   Version[4];
             Version[0] = SPDY_VERSION_31;
             Version[1] = HTTP_VERSION_2;
-            Version[2] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
-            Version[3] = HTTP_VERSION_2_DRAFT_15; // 14 and 15 are aliased
-            Version[4] = HTTP_VERSION_2_DRAFT_LATEST;
             const SpdyInformation *info = gHttpHandler->SpdyInfo();
             if (NS_SUCCEEDED(info->GetNPNIndex(negotiatedNPN, &infoIndex))) {
                 StartSpdy(Version[infoIndex]);

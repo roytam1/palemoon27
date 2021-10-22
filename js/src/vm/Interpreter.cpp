@@ -663,6 +663,12 @@ private:
 
 }
 
+// MSVC with PGO inlines a lot of functions in RunScript, resulting in large
+// stack frames and stack overflow issues, see bug 1167883. Turn off PGO to
+// avoid this.
+#ifdef _MSC_VER
+# pragma optimize("g", off)
+#endif
 bool
 js::RunScript(JSContext* cx, RunState& state)
 {
@@ -703,6 +709,9 @@ js::RunScript(JSContext* cx, RunState& state)
 
     return Interpret(cx, state);
 }
+#ifdef _MSC_VER
+# pragma optimize("", on)
+#endif
 
 struct AutoGCIfRequested
 {
@@ -768,10 +777,8 @@ js::Invoke(JSContext* cx, const CallArgs& args, MaybeConstruct construct)
 
     // Check to see if createSingleton flag should be set for this frame.
     if (construct) {
-        FrameIter iter(cx);
-        if (!iter.done() && iter.hasScript()) {
-            JSScript* script = iter.script();
-            jsbytecode* pc = iter.pc();
+        jsbytecode* pc;
+        if (JSScript* script = cx->currentScript(&pc)) {
             if (ObjectGroup::useSingletonForNewObject(cx, script, pc))
                 state.setCreateSingleton();
         }
@@ -1488,6 +1495,14 @@ HandleError(JSContext* cx, InterpreterRegs& regs)
 {
     MOZ_ASSERT(regs.fp()->script()->containsPC(regs.pc));
 
+    if (regs.fp()->script()->hasScriptCounts()) {
+        PCCounts* counts = regs.fp()->script()->getThrowCounts(regs.pc);
+        // If we failed to allocate, then skip the increment and continue to
+        // handle the exception.
+        if (counts)
+            counts->numExec()++;
+    }
+
     ScopeIter si(cx, regs.fp(), regs.pc);
     bool ok = false;
 
@@ -1515,15 +1530,19 @@ HandleError(JSContext* cx, InterpreterRegs& regs)
             }
         }
 
-        switch (ProcessTryNotes(cx, si, regs)) {
+        HandleErrorContinuation res = ProcessTryNotes(cx, si, regs);
+        switch (res) {
           case SuccessfulReturnContinuation:
             break;
           case ErrorReturnContinuation:
             goto again;
           case CatchContinuation:
-            return CatchContinuation;
           case FinallyContinuation:
-            return FinallyContinuation;
+            // No need to increment the PCCounts number of execution here, as
+            // the interpreter increments any PCCounts if present.
+            MOZ_ASSERT_IF(regs.fp()->script()->hasScriptCounts(),
+                          regs.fp()->script()->maybeGetPCCounts(regs.pc));
+            return res;
         }
 
         ok = HandleClosingGeneratorReturn(cx, regs.fp(), ok);
@@ -2010,8 +2029,9 @@ CASE(EnableInterruptsPseudoOpcode)
     }
 
     if (script->hasScriptCounts()) {
-        PCCounts counts = script->getPCCounts(REGS.pc);
-        counts.numExec()++;
+        PCCounts* counts = script->maybeGetPCCounts(REGS.pc);
+        if (counts)
+            counts->numExec()++;
         moreInterrupts = true;
     }
 

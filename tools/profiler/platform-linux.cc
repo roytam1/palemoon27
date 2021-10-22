@@ -69,6 +69,7 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/LinuxSignal.h"
+#include "mozilla/TimeStamp.h"
 #include "nsThreadUtils.h"
 #include "TableTicker.h"
 #include "ThreadResponsiveness.h"
@@ -116,6 +117,8 @@ static void sLUL_initialization_routine(void)
   read_procmaps(sLUL);
 }
 #endif
+
+using namespace mozilla;
 
 /* static */ Thread::tid_t
 Thread::GetCurrentId()
@@ -311,12 +314,15 @@ static void* SignalSender(void* arg) {
 
   unsigned int nSignalsSent = 0;
 
+  TimeDuration lastSleepOverhead = 0;
+  TimeStamp sampleStart = TimeStamp::Now();
   while (SamplerRegistry::sampler->IsActive()) {
+
     SamplerRegistry::sampler->HandleSaveRequest();
     SamplerRegistry::sampler->DeleteExpiredMarkers();
 
     if (!SamplerRegistry::sampler->IsPaused()) {
-      mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
+      ::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
       std::vector<ThreadInfo*> threads =
         SamplerRegistry::sampler->GetRegisteredThreads();
 
@@ -376,14 +382,13 @@ static void* SignalSender(void* arg) {
       }
     }
 
-    // Convert ms to us and subtract 100 us to compensate delays
-    // occuring during signal delivery.
-    // TODO measure and confirm this.
-    int interval = floor(SamplerRegistry::sampler->interval() * 1000 + 0.5) - 100;
-    if (interval <= 0) {
-      interval = 1;
-    }
-    OS::SleepMicro(interval);
+    TimeStamp targetSleepEndTime = sampleStart + TimeDuration::FromMicroseconds(SamplerRegistry::sampler->interval() * 1000);
+    TimeStamp beforeSleep = TimeStamp::Now();
+    TimeDuration targetSleepDuration = targetSleepEndTime - beforeSleep;
+    double sleepTime = std::max(0.0, (targetSleepDuration - lastSleepOverhead).ToMicroseconds());
+    OS::SleepMicro(sleepTime);
+    sampleStart = TimeStamp::Now();
+    lastSleepOverhead = sampleStart - (beforeSleep + TimeDuration::FromMicroseconds(sleepTime));
   }
   return 0;
 }
@@ -510,7 +515,7 @@ bool Sampler::RegisterCurrentThread(const char* aName,
   if (!Sampler::sRegisteredThreadsMutex)
     return false;
 
-  mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
+  ::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
 
   int id = gettid();
   for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
@@ -558,7 +563,7 @@ void Sampler::UnregisterCurrentThread()
 
   tlsStackTop.set(nullptr);
 
-  mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
+  ::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
 
   int id = gettid();
 

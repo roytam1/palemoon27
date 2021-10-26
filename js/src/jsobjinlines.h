@@ -614,12 +614,12 @@ ToPropertyKey(JSContext* cx, Value argument, MutableHandleId result)
  * or embedding code.
  */
 inline bool
-IsInternalFunctionObject(JSObject* funobj)
+IsInternalFunctionObject(JSObject& funobj)
 {
-    JSFunction* fun = &funobj->as<JSFunction>();
-    MOZ_ASSERT_IF(fun->isLambda(),
-                  fun->isInterpreted() || fun->isAsmJSNative());
-    return fun->isLambda() && fun->isInterpreted() && !fun->environment();
+    JSFunction& fun = funobj.as<JSFunction>();
+    MOZ_ASSERT_IF(fun.isLambda(),
+                  fun.isInterpreted() || fun.isAsmJSNative());
+    return fun.isLambda() && fun.isInterpreted() && !fun.environment();
 }
 
 /*
@@ -712,24 +712,6 @@ NewObjectWithClassProto(ExclusiveContext* cx, const Class* clasp, HandleObject p
 {
     gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
     return NewObjectWithClassProto(cx, clasp, proto, allocKind, newKind);
-}
-
-template<typename T>
-inline T*
-NewObjectWithProto(ExclusiveContext* cx, HandleObject proto,
-                   gc::AllocKind allocKind, NewObjectKind newKind = GenericObject)
-{
-    JSObject* obj = NewObjectWithClassProto(cx, &T::class_, proto, allocKind, newKind);
-    return obj ? &obj->as<T>() : nullptr;
-}
-
-template<typename T>
-inline T*
-NewObjectWithProto(ExclusiveContext* cx, HandleObject proto,
-                   NewObjectKind newKind = GenericObject)
-{
-    JSObject* obj = NewObjectWithClassProto(cx, &T::class_, proto, newKind);
-    return obj ? &obj->as<T>() : nullptr;
 }
 
 /*

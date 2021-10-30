@@ -249,6 +249,9 @@ CSPService::ShouldProcess(uint32_t         aContentType,
                           nsIPrincipal     *aRequestPrincipal,
                           int16_t          *aDecision)
 {
+  MOZ_ASSERT(aContentType == nsContentUtils::InternalContentPolicyTypeToExternal(aContentType),
+             "We should only see external content policy types here.");
+
   if (!aContentLocation)
     return NS_ERROR_FAILURE;
 
@@ -306,7 +309,8 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   nsCOMPtr<nsIURI> originalUri;
   rv = oldChannel->GetOriginalURI(getter_AddRefs(originalUri));
   NS_ENSURE_SUCCESS(rv, rv);
-  nsContentPolicyType policyType = loadInfo->InternalContentPolicyType();
+  nsContentPolicyType policyType =
+    nsContentUtils::InternalContentPolicyTypeToExternal(loadInfo->InternalContentPolicyType());
 
   int16_t aDecision = nsIContentPolicy::ACCEPT;
   csp->ShouldLoad(policyType,     // load type per nsIContentPolicy (uint32_t)

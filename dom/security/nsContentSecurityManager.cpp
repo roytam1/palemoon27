@@ -92,6 +92,14 @@ DoCORSChecks(nsIChannel* aChannel, nsILoadInfo* aLoadInfo,
              nsCOMPtr<nsIStreamListener>& aInAndOutListener)
 {
   MOZ_ASSERT(aInAndOutListener, "can not perform CORS checks without a listener");
+
+  // No need to set up CORS if TriggeringPrincipal is the SystemPrincipal.
+  // For example, allow user stylesheets to load XBL from external files
+  // without requiring CORS.
+  if (nsContentUtils::IsSystemPrincipal(aLoadInfo->TriggeringPrincipal())) {
+    return NS_OK;
+  }
+
   nsIPrincipal* loadingPrincipal = aLoadInfo->LoadingPrincipal();
   nsRefPtr<nsCORSListenerProxy> corsListener =
     new nsCORSListenerProxy(aInAndOutListener,
@@ -309,6 +317,14 @@ nsContentSecurityManager::doContentSecurityCheck(nsIChannel* aChannel,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsSecurityFlags securityMode = loadInfo->GetSecurityMode();
+
+   // Allow subresource loads if TriggeringPrincipal is the SystemPrincipal.
+  // For example, allow user stylesheets to load XBL from external files.
+  if (nsContentUtils::IsSystemPrincipal(loadInfo->TriggeringPrincipal()) &&
+      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_DOCUMENT &&
+      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_SUBDOCUMENT) {
+    return NS_OK;
+  }
 
   // if none of the REQUIRE_SAME_ORIGIN flags are set, then SOP does not apply
   if ((securityMode == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_INHERITS) ||

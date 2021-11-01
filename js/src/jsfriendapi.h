@@ -971,13 +971,16 @@ GetNativeStackLimit(JSContext* cx, int extraAllowance = 0)
 #define JS_CHECK_RECURSION(cx, onerror)                                         \
     JS_CHECK_RECURSION_LIMIT(cx, js::GetNativeStackLimit(cx), onerror)
 
-#define JS_CHECK_RECURSION_DONT_REPORT(cx, onerror)                             \
+#define JS_CHECK_RECURSION_LIMIT_DONT_REPORT(cx, limit, onerror)                \
     JS_BEGIN_MACRO                                                              \
         int stackDummy_;                                                        \
-        if (!JS_CHECK_STACK_SIZE(js::GetNativeStackLimit(cx), &stackDummy_)) {  \
+        if (!JS_CHECK_STACK_SIZE(limit, &stackDummy_)) {                        \
             onerror;                                                            \
         }                                                                       \
     JS_END_MACRO
+
+#define JS_CHECK_RECURSION_DONT_REPORT(cx, onerror)                             \
+    JS_CHECK_RECURSION_LIMIT_DONT_REPORT(cx, js::GetNativeStackLimit(cx), onerror)
 
 #define JS_CHECK_RECURSION_WITH_SP_DONT_REPORT(cx, sp, onerror)                 \
     JS_BEGIN_MACRO                                                              \
@@ -998,7 +1001,14 @@ GetNativeStackLimit(JSContext* cx, int extraAllowance = 0)
     JS_CHECK_RECURSION_LIMIT(cx, js::GetNativeStackLimit(cx, js::StackForSystemCode), onerror)
 
 #define JS_CHECK_RECURSION_CONSERVATIVE(cx, onerror)                            \
-    JS_CHECK_RECURSION_LIMIT(cx, js::GetNativeStackLimit(cx, js::StackForUntrustedScript, -1024 * int(sizeof(size_t))), onerror)
+    JS_CHECK_RECURSION_LIMIT(cx,                                                \
+                             js::GetNativeStackLimit(cx, js::StackForUntrustedScript, -1024 * int(sizeof(size_t))), \
+                             onerror)
+
+#define JS_CHECK_RECURSION_CONSERVATIVE_DONT_REPORT(cx, onerror)                \
+    JS_CHECK_RECURSION_LIMIT_DONT_REPORT(cx,                                    \
+                                         js::GetNativeStackLimit(cx, js::StackForUntrustedScript, -1024 * int(sizeof(size_t))), \
+                                         onerror)
 
 JS_FRIEND_API(void)
 StartPCCountProfiling(JSContext* cx);
@@ -1354,6 +1364,9 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
     // for some reason (probably out of memory).
     bool populateUncaughtExceptionReport(JSContext* cx, ...);
     bool populateUncaughtExceptionReportVA(JSContext* cx, va_list ap);
+
+    // Reports exceptions from add-on scopes to telementry.
+    void ReportAddonExceptionToTelementry(JSContext* cx);
 
     // We may have a provided JSErrorReport, so need a way to represent that.
     JSErrorReport* reportp;

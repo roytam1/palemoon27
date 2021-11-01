@@ -219,7 +219,7 @@ let gPermissionObject = {
     },
     onChange: function (aURI, aState) {
       if (aState == SitePermissions.ALLOW || aState == SitePermissions.BLOCK)
-        Services.perms.remove(aURI.host, "indexedDB-unlimited");
+        Services.perms.remove(aURI, "indexedDB-unlimited");
     }
   },
 

@@ -1304,6 +1304,10 @@ HttpChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
     // fresh - we will intercept the child channel this time, before creating a new
     // parent channel unnecessarily.
     PHttpChannelChild::Send__delete__(this);
+    if (mLoadInfo && mLoadInfo->GetEnforceSecurity()) {
+        MOZ_ASSERT(!aContext, "aContext should be null!");
+        return AsyncOpen2(listener);
+    }
     return AsyncOpen(listener, aContext);
   }
 
@@ -1485,6 +1489,10 @@ HttpChannelChild::GetSecurityInfo(nsISupports **aSecurityInfo)
 NS_IMETHODIMP
 HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
 {
+  MOZ_ASSERT(!mLoadInfo || mLoadInfo->GetSecurityMode() == 0 ||
+             mLoadInfo->GetInitialSecurityCheckDone(),
+             "security flags in loadInfo but asyncOpen2() not called");
+
   LOG(("HttpChannelChild::AsyncOpen [this=%p uri=%s]\n", this, mSpec.get()));
 
   if (mCanceled)

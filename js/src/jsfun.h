@@ -81,6 +81,7 @@ class JSFunction : public js::NativeObject
         INTERPRETED_LAMBDA = INTERPRETED | LAMBDA | CONSTRUCTOR,
         INTERPRETED_LAMBDA_ARROW = INTERPRETED | LAMBDA | ARROW_KIND,
         INTERPRETED_NORMAL = INTERPRETED | CONSTRUCTOR,
+        NO_XDR_FLAGS = RESOLVED_LENGTH | RESOLVED_NAME,
 
         STABLE_ACROSS_CLONES = IS_FUN_PROTO | CONSTRUCTOR | EXPR_BODY | HAS_GUESSED_ATOM |
                                LAMBDA | SELF_HOSTED |  HAS_REST | FUNCTION_KIND_MASK
@@ -600,8 +601,7 @@ IdToFunctionName(JSContext* cx, HandleId id);
 extern JSFunction*
 DefineFunction(JSContext* cx, HandleObject obj, HandleId id, JSNative native,
                unsigned nargs, unsigned flags,
-               gc::AllocKind allocKind = gc::AllocKind::FUNCTION,
-               NewObjectKind newKind = GenericObject);
+               gc::AllocKind allocKind = gc::AllocKind::FUNCTION);
 
 bool
 FunctionHasResolveHook(const JSAtomState& atomState, jsid id);

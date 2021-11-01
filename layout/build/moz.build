@@ -121,7 +121,14 @@ if CONFIG['MOZ_B2G_BT']:
 
 if CONFIG['MOZ_WEBSPEECH']:
     LOCAL_INCLUDES += [
+        '/dom/media/webspeech/recognition',
         '/dom/media/webspeech/synth',
+    ]
+
+if CONFIG['MOZ_WEBSPEECH_POCKETSPHINX']:
+    LOCAL_INCLUDES += [
+        '/media/pocketsphinx',
+        '/media/sphinxbase',
     ]
 
 if CONFIG['MOZ_SECUREELEMENT']:

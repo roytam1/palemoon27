@@ -59,6 +59,7 @@
 #include "frontend/Parser.h"
 #include "gc/GCInternals.h"
 #include "jit/arm/Simulator-arm.h"
+#include "jit/InlinableNatives.h"
 #include "jit/Ion.h"
 #include "jit/JitcodeMap.h"
 #include "jit/OptimizationTracking.h"
@@ -257,10 +258,8 @@ extern JS_EXPORT_API(void)   add_history(char* line);
 #endif
 
 static char*
-GetLine(FILE* file, const char* prompt)
+GetLine(FILE* file, const char * prompt)
 {
-    size_t size;
-    char* buffer;
 #ifdef EDITLINE
     /*
      * Use readline only if file is stdin, because there's no way to specify
@@ -283,17 +282,29 @@ GetLine(FILE* file, const char* prompt)
         return linep;
     }
 #endif
+
     size_t len = 0;
     if (*prompt != '\0') {
         fprintf(gOutFile, "%s", prompt);
         fflush(gOutFile);
     }
-    size = 80;
-    buffer = (char*) malloc(size);
+
+    size_t size = 80;
+    char* buffer = static_cast<char*>(malloc(size));
     if (!buffer)
         return nullptr;
+
     char* current = buffer;
-    while (fgets(current, size - len, file)) {
+    while (true) {
+        while (true) {
+            if (fgets(current, size - len, file))
+                break;
+            if (errno != EINTR) {
+                free(buffer);
+                return nullptr;
+            }
+        }
+
         len += strlen(current);
         char* t = buffer + len - 1;
         if (*t == '\n') {
@@ -301,9 +312,10 @@ GetLine(FILE* file, const char* prompt)
             *t = '\0';
             return buffer;
         }
+
         if (len + 1 == size) {
             size = size * 2;
-            char* tmp = (char*) js_realloc(buffer, size);
+            char* tmp = static_cast<char*>(realloc(buffer, size));
             if (!tmp) {
                 free(buffer);
                 return nullptr;
@@ -312,6 +324,7 @@ GetLine(FILE* file, const char* prompt)
         }
         current = buffer + len;
     }
+
     if (len && !ferror(file))
         return buffer;
     free(buffer);
@@ -1246,9 +1259,13 @@ Evaluate(JSContext* cx, unsigned argc, Value* vp)
             if (saveLength != loadLength) {
                 JS_ReportErrorNumber(cx, my_GetErrorMessage, nullptr, JSSMSG_CACHE_EQ_SIZE_FAILED,
                                      loadLength, saveLength);
-            } else if (!PodEqual(loadBuffer, saveBuffer.get(), loadLength)) {
+                return false;
+            }
+
+            if (!PodEqual(loadBuffer, saveBuffer.get(), loadLength)) {
                 JS_ReportErrorNumber(cx, my_GetErrorMessage, nullptr,
                                      JSSMSG_CACHE_EQ_CONTENT_FAILED);
+                return false;
             }
         }
 
@@ -4801,11 +4818,12 @@ static const JSFunctionSpecWithHelp fuzzing_unsafe_functions[] = {
 "  arguments[0] (of the call to nestedShell) will be argv[1], arguments[1] will\n"
 "  be argv[2], etc."),
 
-    JS_FN_HELP("assertFloat32", testingFunc_assertFloat32, 2, 0,
+    JS_INLINABLE_FN_HELP("assertFloat32", testingFunc_assertFloat32, 2, 0, TestAssertFloat32,
 "assertFloat32(value, isFloat32)",
 "  In IonMonkey only, asserts that value has (resp. hasn't) the MIRType_Float32 if isFloat32 is true (resp. false)."),
 
-    JS_FN_HELP("assertRecoveredOnBailout", testingFunc_assertRecoveredOnBailout, 2, 0,
+    JS_INLINABLE_FN_HELP("assertRecoveredOnBailout", testingFunc_assertRecoveredOnBailout, 2, 0,
+TestAssertRecoveredOnBailout,
 "assertRecoveredOnBailout(var)",
 "  In IonMonkey only, asserts that variable has RecoveredOnBailout flag."),
 
@@ -5140,7 +5158,7 @@ dom_doFoo(JSContext* cx, HandleObject obj, void* self, const JSJitMethodCallArgs
 
 static const JSJitInfo dom_x_getterinfo = {
     { (JSJitGetterOp)dom_get_x },
-    0,        /* protoID */
+    { 0 },    /* protoID */
     0,        /* depth */
     JSJitInfo::AliasNone, /* aliasSet */
     JSJitInfo::Getter,
@@ -5156,7 +5174,7 @@ static const JSJitInfo dom_x_getterinfo = {
 
 static const JSJitInfo dom_x_setterinfo = {
     { (JSJitGetterOp)dom_set_x },
-    0,        /* protoID */
+    { 0 },    /* protoID */
     0,        /* depth */
     JSJitInfo::Setter,
     JSJitInfo::AliasEverything, /* aliasSet */
@@ -5172,7 +5190,7 @@ static const JSJitInfo dom_x_setterinfo = {
 
 static const JSJitInfo doFoo_methodinfo = {
     { (JSJitGetterOp)dom_doFoo },
-    0,        /* protoID */
+    { 0 },    /* protoID */
     0,        /* depth */
     JSJitInfo::Method,
     JSJitInfo::AliasEverything, /* aliasSet */
@@ -6189,6 +6207,7 @@ main(int argc, char** argv, char** envp)
         || !op.addStringOption('\0', "ion-regalloc", "[mode]",
                                "Specify Ion register allocation:\n"
                                "  backtracking: Priority based backtracking register allocation (default)\n"
+                               "  testbed: Backtracking allocator with experimental features\n"
                                "  stupid: Simple block local register allocation")
         || !op.addBoolOption('\0', "ion-eager", "Always ion-compile methods (implies --baseline-eager)")
         || !op.addStringOption('\0', "ion-offthread-compile", "on/off",

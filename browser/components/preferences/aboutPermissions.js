@@ -200,7 +200,7 @@ Site.prototype = {
    *        e.g. "cookie", "geo", "indexedDB", "popup", "image"
    */
   clearPermission: function Site_clearPermission(aType) {
-    Services.perms.remove(this.host, aType);
+    Services.perms.remove(this.httpURI, aType);
   },
 
   /**

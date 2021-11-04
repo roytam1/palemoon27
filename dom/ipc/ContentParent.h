@@ -208,9 +208,10 @@ public:
     virtual bool KillChild() override;
 
     /** Notify that a tab is beginning its destruction sequence. */
-    void NotifyTabDestroying(PBrowserParent* aTab);
+    static void NotifyTabDestroying(const TabId& aTabId,
+                                    const ContentParentId& aCpId);
     /** Notify that a tab was destroyed during normal operation. */
-    void NotifyTabDestroyed(PBrowserParent* aTab,
+    void NotifyTabDestroyed(const TabId& aTabId,
                             bool aNotifiedDestroying);
 
     TestShellParent* CreateTestShell();
@@ -223,7 +224,21 @@ public:
                   const IPCTabContext& aContext,
                   const ContentParentId& aCpId);
     static void
-    DeallocateTabId(const TabId& aTabId, const ContentParentId& aCpId);
+    DeallocateTabId(const TabId& aTabId,
+                    const ContentParentId& aCpId,
+                    bool aMarkedDestroying);
+
+    /*
+     * Add the appId's reference count by the given ContentParentId and TabId
+     */
+    static bool
+    PermissionManagerAddref(const ContentParentId& aCpId, const TabId& aTabId);
+
+    /*
+     * Release the appId's reference count by the given ContentParentId and TabId
+     */
+    static bool
+    PermissionManagerRelease(const ContentParentId& aCpId, const TabId& aTabId);
 
     static bool
     GetBrowserConfiguration(const nsCString& aURI, BrowserConfiguration& aConfig);
@@ -344,7 +359,12 @@ public:
                                    const ContentParentId& aCpId,
                                    TabId* aTabId) override;
 
-    virtual bool RecvDeallocateTabId(const TabId& aTabId) override;
+    virtual bool RecvDeallocateTabId(const TabId& aTabId,
+                                     const ContentParentId& aCpId,
+                                     const bool& aMarkedDestroying) override;
+
+    virtual bool RecvNotifyTabDestroying(const TabId& aTabId,
+                                         const ContentParentId& aCpId) override;
 
     nsTArray<TabContext> GetManagedTabContext();
 
@@ -914,7 +934,7 @@ private:
     nsRefPtr<nsConsoleService>  mConsoleService;
     nsConsoleService* GetConsoleService();
 
-    nsDataHashtable<nsUint64HashKey, nsRefPtr<ParentIdleListener> > mIdleListeners;
+    nsTArray<nsCOMPtr<nsIObserver>> mIdleListeners;
 
 #ifdef MOZ_X11
     // Dup of child's X socket, used to scope its resources to this
@@ -945,17 +965,20 @@ private:
 } // namespace mozilla
 
 class ParentIdleListener : public nsIObserver {
+  friend class mozilla::dom::ContentParent;
+
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
-  ParentIdleListener(mozilla::dom::ContentParent* aParent, uint64_t aObserver)
-    : mParent(aParent), mObserver(aObserver)
+  ParentIdleListener(mozilla::dom::ContentParent* aParent, uint64_t aObserver, uint32_t aTime)
+    : mParent(aParent), mObserver(aObserver), mTime(aTime)
   {}
 private:
   virtual ~ParentIdleListener() {}
   nsRefPtr<mozilla::dom::ContentParent> mParent;
   uint64_t mObserver;
+  uint32_t mTime;
 };
 
 #endif

@@ -1757,14 +1757,18 @@ GenerateLIR(MIRGenerator* mir)
     {
         AutoTraceLog log(logger, TraceLogger_RegisterAllocation);
 
-        switch (mir->optimizationInfo().registerAllocator()) {
-          case RegisterAllocator_Backtracking: {
+        IonRegisterAllocator allocator = mir->optimizationInfo().registerAllocator();
+
+        switch (allocator) {
+          case RegisterAllocator_Backtracking:
+          case RegisterAllocator_Testbed: {
 #ifdef DEBUG
             if (!integrity.record())
                 return nullptr;
 #endif
 
-            BacktrackingAllocator regalloc(mir, &lirgen, *lir);
+            BacktrackingAllocator regalloc(mir, &lirgen, *lir,
+                                           allocator == RegisterAllocator_Testbed);
             if (!regalloc.go())
                 return nullptr;
 
@@ -2417,8 +2421,10 @@ jit::CanEnter(JSContext* cx, RunState& state)
             return Method_CantCompile;
         }
 
-        if (!state.maybeCreateThisForConstructor(cx))
+        if (!state.maybeCreateThisForConstructor(cx)) {
+            cx->recoverFromOutOfMemory();
             return Method_Skipped;
+        }
     }
 
     // If --ion-eager is used, compile with Baseline first, so that we
@@ -3087,7 +3093,7 @@ AutoFlushICache::setRange(uintptr_t start, size_t len)
 //
 // For efficiency it is expected that all large ranges will be flushed within an
 // AutoFlushICache, so check.  If this assertion is hit then it does not necessarily
-// indicate a progam fault but it might indicate a lost opportunity to merge cache
+// indicate a program fault but it might indicate a lost opportunity to merge cache
 // flushing.  It can be corrected by wrapping the call in an AutoFlushICache to context.
 //
 // Note this can be called without TLS PerThreadData defined so this case needs

@@ -153,8 +153,10 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
 
 #ifdef DEBUG
     HashSet<PropertyName*> added(cx);
-    if (!added.init())
+    if (!added.init()) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 #endif
 
     uint32_t slot = CallObject::RESERVED_SLOTS;
@@ -165,8 +167,10 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
 #ifdef DEBUG
         // The caller ensures no duplicate aliased names.
         MOZ_ASSERT(!added.has(bi->name()));
-        if (!added.put(bi->name()))
+        if (!added.put(bi->name())) {
+            ReportOutOfMemory(cx);
             return false;
+        }
 #endif
 
         StackBaseShape stackBase(cx, &CallObject::class_,
@@ -2754,10 +2758,6 @@ JSScript::linkToFunctionFromEmitter(js::ExclusiveContext* cx, JS::Handle<JSScrip
         fun->setUnlazifiedScript(script);
     else
         fun->setScript(script);
-
-    // Switch the static scope over to the JSFunction now that we have a
-    // JSScript.
-    funbox->switchStaticScopeToFunction();
 }
 
 /* static */ bool

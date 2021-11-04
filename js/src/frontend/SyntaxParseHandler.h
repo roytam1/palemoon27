@@ -45,6 +45,7 @@ class SyntaxParseHandler
         NodeHoistableDeclaration,
         NodeBreak,
         NodeThrow,
+        NodeEmptyStatement,
 
         NodeSuperProperty,
         NodeSuperElement,
@@ -113,14 +114,6 @@ class SyntaxParseHandler
         // |((a(), b) for (x in []))| as a generator that calls |a| and then
         // yields |b| each time it's resumed.
         NodeUnparenthesizedCommaExpr,
-
-        // Yield expressions currently (but not in ES6 -- a SpiderMonkey bug to
-        // fix) must generally be parenthesized.  (See the uses of
-        // isUnparenthesizedYieldExpression in Parser.cpp for the rare
-        // exceptions.)  Thus we need this to treat |yield 1, 2;| as a syntax
-        // error and |(yield 1), 2;| as a comma expression that will yield 1,
-        // then evaluate to 2.
-        NodeUnparenthesizedYieldExpr,
 
         // Assignment expressions in condition contexts could be typos for
         // equality checks.  (Think |if (x = y)| versus |if (x == y)|.)  Thus
@@ -280,14 +273,15 @@ class SyntaxParseHandler
     Node newSuperElement(Node expr, const TokenPos& pos) {
         return NodeSuperElement;
     }
-    Node newNewTarget(const TokenPos& pos) { return NodeGeneric; }
+    Node newNewTarget(Node newHolder, Node targetHolder) { return NodeGeneric; }
+    Node newPosHolder(const TokenPos& pos) { return NodeGeneric; }
 
     bool addPrototypeMutation(Node literal, uint32_t begin, Node expr) { return true; }
     bool addPropertyDefinition(Node literal, Node name, Node expr) { return true; }
     bool addShorthand(Node literal, Node name, Node expr) { return true; }
     bool addObjectMethodDefinition(Node literal, Node name, Node fn, JSOp op) { return true; }
     bool addClassMethodDefinition(Node literal, Node name, Node fn, JSOp op, bool isStatic) { return true; }
-    Node newYieldExpression(uint32_t begin, Node value, Node gen) { return NodeUnparenthesizedYieldExpr; }
+    Node newYieldExpression(uint32_t begin, Node value, Node gen) { return NodeGeneric; }
     Node newYieldStarExpression(uint32_t begin, Node value, Node gen) { return NodeGeneric; }
 
     // Statements
@@ -295,7 +289,7 @@ class SyntaxParseHandler
     Node newStatementList(unsigned blockid, const TokenPos& pos) { return NodeGeneric; }
     void addStatementToList(Node list, Node stmt, ParseContext<SyntaxParseHandler>* pc) {}
     bool prependInitialYield(Node stmtList, Node gen) { return true; }
-    Node newEmptyStatement(const TokenPos& pos) { return NodeGeneric; }
+    Node newEmptyStatement(const TokenPos& pos) { return NodeEmptyStatement; }
 
     Node newExprStatement(Node expr, uint32_t end) {
         return expr == NodeUnparenthesizedString ? NodeStringExprStatement : NodeGeneric;
@@ -414,10 +408,6 @@ class SyntaxParseHandler
         return newBinary(kind, lhs, rhs, op);
     }
 
-    bool isUnparenthesizedYieldExpression(Node node) {
-        return node == NodeUnparenthesizedYieldExpr;
-    }
-
     bool isUnparenthesizedCommaExpression(Node node) {
         return node == NodeUnparenthesizedCommaExpr;
     }
@@ -431,7 +421,8 @@ class SyntaxParseHandler
     }
 
     bool isStatementPermittedAfterReturnStatement(Node pn) {
-        return pn == NodeHoistableDeclaration || pn == NodeBreak || pn == NodeThrow;
+        return pn == NodeHoistableDeclaration || pn == NodeBreak || pn == NodeThrow ||
+               pn == NodeEmptyStatement;
     }
 
     void setOp(Node pn, JSOp op) {}
@@ -458,7 +449,6 @@ class SyntaxParseHandler
         // them to a generic node.
         if (node == NodeUnparenthesizedString ||
             node == NodeUnparenthesizedCommaExpr ||
-            node == NodeUnparenthesizedYieldExpr ||
             node == NodeUnparenthesizedAssignment)
         {
             return NodeGeneric;

@@ -19,6 +19,7 @@
 
 #include "asmjs/AsmJSLink.h"
 #include "asmjs/AsmJSValidate.h"
+#include "jit/InlinableNatives.h"
 #include "jit/JitFrameIterator.h"
 #include "js/Debug.h"
 #include "js/HashTable.h"
@@ -902,6 +903,25 @@ SaveStack(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
+CallFunctionFromNativeFrame(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (args.length() != 1) {
+        JS_ReportError(cx, "The function takes exactly one argument.");
+        return false;
+    }
+    if (!args[0].isObject() || !IsCallable(args[0])) {
+        JS_ReportError(cx, "The first argument should be a function.");
+        return false;
+    }
+
+    RootedObject function(cx, &args[0].toObject());
+    return Call(cx, UndefinedHandleValue, function,
+                JS::HandleValueArray::empty(), args.rval());
+}
+
+static bool
 CallFunctionWithAsyncStack(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1114,6 +1134,8 @@ DumpHeap(JSContext* cx, unsigned argc, Value* vp)
 
     if (i != args.length()) {
         JS_ReportError(cx, "bad arguments passed to dumpHeap");
+        if (dumpFile)
+            fclose(dumpFile);
         return false;
     }
 
@@ -1383,8 +1405,8 @@ GetObjectMetadata(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-bool
-js::testingFunc_bailout(JSContext* cx, unsigned argc, Value* vp)
+static bool
+testingFunc_bailout(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1393,8 +1415,8 @@ js::testingFunc_bailout(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-bool
-js::testingFunc_inJit(JSContext* cx, unsigned argc, Value* vp)
+static bool
+testingFunc_inJit(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1421,8 +1443,8 @@ js::testingFunc_inJit(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-bool
-js::testingFunc_inIon(JSContext* cx, unsigned argc, Value* vp)
+static bool
+testingFunc_inIon(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -2775,6 +2797,11 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "  of frames. If 'compartment' is given, allocate the js::SavedFrame instances\n"
 "  with the given object's compartment."),
 
+    JS_FN_HELP("callFunctionFromNativeFrame", CallFunctionFromNativeFrame, 1, 0,
+"callFunctionFromNativeFrame(function)",
+"  Call 'function' with a (C++-)native frame on stack.\n"
+"  Required for testing that SaveStack properly handles native frames."),
+
     JS_FN_HELP("callFunctionWithAsyncStack", CallFunctionWithAsyncStack, 0, 0,
 "callFunctionWithAsyncStack(function, stack, asyncCause)",
 "  Call 'function', using the provided stack as the async stack responsible\n"
@@ -2988,7 +3015,7 @@ gc::ZealModeHelpText),
 "getObjectMetadata(obj)",
 "  Get the metadata for an object."),
 
-    JS_FN_HELP("bailout", testingFunc_bailout, 0, 0,
+    JS_INLINABLE_FN_HELP("bailout", testingFunc_bailout, 0, 0, TestBailout,
 "bailout()",
 "  Force a bailout out of ionmonkey (if running in ionmonkey)."),
 

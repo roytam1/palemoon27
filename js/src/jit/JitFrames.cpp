@@ -11,6 +11,7 @@
 #include "jsfun.h"
 #include "jsobj.h"
 #include "jsscript.h"
+#include "jsutil.h"
 
 #include "gc/Marking.h"
 #include "jit/BaselineDebugModeOSR.h"
@@ -362,7 +363,7 @@ JitFrameIterator::machineState() const
     for (GeneralRegisterBackwardIterator iter(reader.allGprSpills()); iter.more(); iter++)
         machine.setRegisterLocation(*iter, --spill);
 
-    uint8_t* spillAlign = alignDoubleSpillWithOffset(reinterpret_cast<uint8_t *>(spill), 0);
+    uint8_t* spillAlign = alignDoubleSpillWithOffset(reinterpret_cast<uint8_t*>(spill), 0);
 
     char* floatSpill = reinterpret_cast<char*>(spillAlign);
     FloatRegisterSet fregs = reader.allFloatSpills().set();
@@ -546,7 +547,7 @@ BaselineFrameAndStackPointersFromTryNote(JSTryNote* tn, const JitFrameIterator& 
 }
 
 static void
-SettleOnTryNote(JSContext* cx, JSTryNote *tn, const JitFrameIterator& frame,
+SettleOnTryNote(JSContext* cx, JSTryNote* tn, const JitFrameIterator& frame,
                 ScopeIter& si, ResumeFromException* rfe, jsbytecode** pc)
 {
     RootedScript script(cx, frame.baselineFrame()->script());
@@ -1052,9 +1053,11 @@ MarkThisAndArguments(JSTracer* trc, JitFrameLayout* layout)
 
     size_t nargs = layout->numActualArgs();
     size_t nformals = 0;
+    size_t newTargetOffset = 0;
     if (CalleeTokenIsFunction(layout->calleeToken())) {
-        JSFunction *fun = CalleeTokenToFunction(layout->calleeToken());
+        JSFunction* fun = CalleeTokenToFunction(layout->calleeToken());
         nformals = fun->nonLazyScript()->mayReadFrameArgsDirectly() ? 0 : fun->nargs();
+        newTargetOffset = Max(nargs, fun->nargs());
     }
 
     Value* argv = layout->argv();
@@ -1062,10 +1065,14 @@ MarkThisAndArguments(JSTracer* trc, JitFrameLayout* layout)
     // Trace |this|.
     TraceRoot(trc, argv, "ion-thisv");
 
-    // Trace actual arguments and newTarget beyond the formals. Note + 1 for thisv.
-    bool constructing = CalleeTokenIsConstructing(layout->calleeToken());
-    for (size_t i = nformals + 1; i < nargs + 1 + constructing; i++)
+    // Trace actual arguments beyond the formals. Note + 1 for thisv.
+    for (size_t i = nformals + 1; i < nargs + 1; i++)
         TraceRoot(trc, &argv[i], "ion-argv");
+
+    // Always mark the new.target from the frame. It's not in the snapshots.
+    // +1 to pass |this|
+    if (CalleeTokenIsConstructing(layout->calleeToken()))
+        TraceRoot(trc, &argv[1 + newTargetOffset], "ion-newTarget");
 }
 
 static void
@@ -1387,7 +1394,6 @@ MarkJitExitFrame(JSTracer* trc, const JitFrameIterator& frame)
         TraceRoot(trc, oolgetter->obj(), "ion-ool-property-op-obj");
         return;
     }
-
 
     if (frame.isExitFrameLayout<IonOOLProxyExitFrameLayout>()) {
         IonOOLProxyExitFrameLayout* oolproxy = frame.exitFrame()->as<IonOOLProxyExitFrameLayout>();
@@ -2969,7 +2975,21 @@ inline ReturnType
 GetPreviousRawFrame(FrameType* frame)
 {
     size_t prevSize = frame->prevFrameLocalSize() + FrameType::Size();
-    return (ReturnType) (((uint8_t*) frame) + prevSize);
+    return ReturnType(((uint8_t*) frame) + prevSize);
+}
+
+template <typename ReturnType=CommonFrameLayout*>
+inline ReturnType
+GetPreviousRawFrameOfExitFrame(ExitFrameLayout* frame)
+{
+    // Unwound exit frames are fake exit frames, and have the size of a
+    // JitFrameLayout instead of ExitFrameLayout. See
+    // JitFrameIterator::prevFp.
+    size_t frameSize = IsUnwoundFrame(frame->prevType())
+                       ? JitFrameLayout::Size()
+                       : ExitFrameLayout::Size();
+    size_t prevSize = frame->prevFrameLocalSize() + frameSize;
+    return ReturnType(((uint8_t*) frame) + prevSize);
 }
 
 JitProfilingFrameIterator::JitProfilingFrameIterator(void* exitFrame)
@@ -2979,14 +2999,14 @@ JitProfilingFrameIterator::JitProfilingFrameIterator(void* exitFrame)
 
     if (prevType == JitFrame_IonJS || prevType == JitFrame_Unwound_IonJS) {
         returnAddressToFp_ = frame->returnAddress();
-        fp_ = GetPreviousRawFrame<ExitFrameLayout, uint8_t*>(frame);
+        fp_ = GetPreviousRawFrameOfExitFrame<uint8_t*>(frame);
         type_ = JitFrame_IonJS;
         return;
     }
 
-    if (prevType == JitFrame_BaselineJS) {
+    if (prevType == JitFrame_BaselineJS || prevType == JitFrame_Unwound_BaselineJS) {
         returnAddressToFp_ = frame->returnAddress();
-        fp_ = GetPreviousRawFrame<ExitFrameLayout, uint8_t *>(frame);
+        fp_ = GetPreviousRawFrameOfExitFrame<uint8_t*>(frame);
         type_ = JitFrame_BaselineJS;
         fixBaselineDebugModeOSRReturnAddress();
         return;
@@ -2994,7 +3014,7 @@ JitProfilingFrameIterator::JitProfilingFrameIterator(void* exitFrame)
 
     if (prevType == JitFrame_BaselineStub || prevType == JitFrame_Unwound_BaselineStub) {
         BaselineStubFrameLayout* stubFrame =
-            GetPreviousRawFrame<ExitFrameLayout, BaselineStubFrameLayout*>(frame);
+            GetPreviousRawFrameOfExitFrame<BaselineStubFrameLayout*>(frame);
         MOZ_ASSERT_IF(prevType == JitFrame_BaselineStub,
                       stubFrame->prevType() == JitFrame_BaselineJS);
         MOZ_ASSERT_IF(prevType == JitFrame_Unwound_BaselineStub,
@@ -3087,7 +3107,7 @@ JitProfilingFrameIterator::fixBaselineDebugModeOSRReturnAddress()
 {
     MOZ_ASSERT(type_ == JitFrame_BaselineJS);
     BaselineFrame* bl = (BaselineFrame*)(fp_ - BaselineFrame::FramePointerOffset -
-                                          BaselineFrame::Size());
+                                         BaselineFrame::Size());
     if (BaselineDebugModeOSRInfo* info = bl->getDebugModeOSRInfo())
         returnAddressToFp_ = info->resumeAddr;
 }

@@ -853,25 +853,6 @@ PreserveWrapper(JSContext *cx, JSObject *obj)
     return mozilla::dom::TryPreserveWrapper(obj);
 }
 
-class DebuggeeGlobalSecurityWrapper : public js::CrossCompartmentSecurityWrapper {
-public:
-  DebuggeeGlobalSecurityWrapper()
-  : js::CrossCompartmentSecurityWrapper(CROSS_COMPARTMENT, false)
-  {
-  }
-
-  bool enter(JSContext* cx, JS::HandleObject wrapper, JS::HandleId id,
-             js::Wrapper::Action act, bool* bp) const
-  {
-    *bp = false;
-    return false;
-  }
-
-  static const DebuggeeGlobalSecurityWrapper singleton;
-};
-
-const DebuggeeGlobalSecurityWrapper DebuggeeGlobalSecurityWrapper::singleton;
-
 JSObject*
 Wrap(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj)
 {
@@ -886,11 +867,7 @@ Wrap(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj)
   if (IsDebuggerGlobal(originGlobal) || IsDebuggerSandbox(originGlobal)) {
     wrapper = &js::CrossCompartmentWrapper::singleton;
   } else {
-    if (obj != originGlobal) {
-      MOZ_CRASH("The should be only edges from the debugger to the debuggee global.");
-    }
-
-    wrapper = &DebuggeeGlobalSecurityWrapper::singleton;
+    wrapper = &js::OpaqueCrossCompartmentWrapper::singleton;
   }
 
   if (existing) {
@@ -1498,6 +1475,9 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     else if (parent) {
       domainInfo->mChildWorkerCount++;
     }
+    else if (isServiceWorker) {
+      domainInfo->mActiveServiceWorkers.AppendElement(aWorkerPrivate);
+    }
     else {
       domainInfo->mActiveWorkers.AppendElement(aWorkerPrivate);
     }
@@ -1602,12 +1582,17 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
       domainInfo->mQueuedWorkers.RemoveElementAt(index);
     }
     else if (parent) {
-      NS_ASSERTION(domainInfo->mChildWorkerCount, "Must be non-zero!");
+      MOZ_ASSERT(domainInfo->mChildWorkerCount, "Must be non-zero!");
       domainInfo->mChildWorkerCount--;
     }
+    else if (aWorkerPrivate->IsServiceWorker()) {
+      MOZ_ASSERT(domainInfo->mActiveServiceWorkers.Contains(aWorkerPrivate),
+                 "Don't know about this worker!");
+      domainInfo->mActiveServiceWorkers.RemoveElement(aWorkerPrivate);
+    }
     else {
-      NS_ASSERTION(domainInfo->mActiveWorkers.Contains(aWorkerPrivate),
-                   "Don't know about this worker!");
+      MOZ_ASSERT(domainInfo->mActiveWorkers.Contains(aWorkerPrivate),
+                 "Don't know about this worker!");
       domainInfo->mActiveWorkers.RemoveElement(aWorkerPrivate);
     }
 
@@ -1640,6 +1625,9 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 
       if (queuedWorker->GetParent()) {
         domainInfo->mChildWorkerCount++;
+      }
+      else if (queuedWorker->IsServiceWorker()) {
+        domainInfo->mActiveServiceWorkers.AppendElement(queuedWorker);
       }
       else {
         domainInfo->mActiveWorkers.AppendElement(queuedWorker);
@@ -2215,12 +2203,17 @@ RuntimeService::AddAllTopLevelWorkersToArray(const nsACString& aKey,
 
 #ifdef DEBUG
   for (uint32_t index = 0; index < aData->mActiveWorkers.Length(); index++) {
-    NS_ASSERTION(!aData->mActiveWorkers[index]->GetParent(),
-                 "Shouldn't have a parent in this list!");
+    MOZ_ASSERT(!aData->mActiveWorkers[index]->GetParent(),
+               "Shouldn't have a parent in this list!");
+  }
+  for (uint32_t index = 0; index < aData->mActiveServiceWorkers.Length(); index++) {
+    MOZ_ASSERT(!aData->mActiveServiceWorkers[index]->GetParent(),
+               "Shouldn't have a parent in this list!");
   }
 #endif
 
   array->AppendElements(aData->mActiveWorkers);
+  array->AppendElements(aData->mActiveServiceWorkers);
 
   // These might not be top-level workers...
   for (uint32_t index = 0; index < aData->mQueuedWorkers.Length(); index++) {

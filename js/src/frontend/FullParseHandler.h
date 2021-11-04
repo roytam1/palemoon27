@@ -352,8 +352,11 @@ class FullParseHandler
     ParseNode* newSuperElement(ParseNode* expr, const TokenPos& pos) {
         return new_<SuperElement>(expr, pos);
     }
-    ParseNode* newNewTarget(const TokenPos& pos) {
-        return new_<NullaryNode>(PNK_NEWTARGET, pos);
+    ParseNode* newNewTarget(ParseNode* newHolder, ParseNode* targetHolder) {
+        return new_<BinaryNode>(PNK_NEWTARGET, JSOP_NOP, newHolder, targetHolder);
+    }
+    ParseNode* newPosHolder(const TokenPos& pos) {
+        return new_<NullaryNode>(PNK_POSHOLDER, pos);
     }
 
     bool addPrototypeMutation(ParseNode* literal, uint32_t begin, ParseNode* expr) {
@@ -699,7 +702,8 @@ class FullParseHandler
 
     bool isStatementPermittedAfterReturnStatement(ParseNode *node) {
         ParseNodeKind kind = node->getKind();
-        return kind == PNK_FUNCTION || kind == PNK_VAR || kind == PNK_BREAK || kind == PNK_THROW;
+        return kind == PNK_FUNCTION || kind == PNK_VAR || kind == PNK_BREAK || kind == PNK_THROW ||
+               (kind == PNK_SEMI && !node->pn_kid);
     }
 
     inline bool finishInitializerAssignment(ParseNode* pn, ParseNode* init, JSOp op);

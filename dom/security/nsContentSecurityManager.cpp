@@ -8,6 +8,8 @@
 
 #include "mozilla/dom/Element.h"
 
+NS_IMPL_ISUPPORTS(nsContentSecurityManager, nsIContentSecurityManager)
+
 nsresult
 ValidateSecurityFlags(nsILoadInfo* aLoadInfo)
 {
@@ -92,6 +94,14 @@ DoCORSChecks(nsIChannel* aChannel, nsILoadInfo* aLoadInfo,
              nsCOMPtr<nsIStreamListener>& aInAndOutListener)
 {
   MOZ_ASSERT(aInAndOutListener, "can not perform CORS checks without a listener");
+
+  // No need to set up CORS if TriggeringPrincipal is the SystemPrincipal.
+  // For example, allow user stylesheets to load XBL from external files
+  // without requiring CORS.
+  if (nsContentUtils::IsSystemPrincipal(aLoadInfo->TriggeringPrincipal())) {
+    return NS_OK;
+  }
+
   nsIPrincipal* loadingPrincipal = aLoadInfo->LoadingPrincipal();
   nsRefPtr<nsCORSListenerProxy> corsListener =
     new nsCORSListenerProxy(aInAndOutListener,
@@ -310,6 +320,14 @@ nsContentSecurityManager::doContentSecurityCheck(nsIChannel* aChannel,
 
   nsSecurityFlags securityMode = loadInfo->GetSecurityMode();
 
+   // Allow subresource loads if TriggeringPrincipal is the SystemPrincipal.
+  // For example, allow user stylesheets to load XBL from external files.
+  if (nsContentUtils::IsSystemPrincipal(loadInfo->TriggeringPrincipal()) &&
+      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_DOCUMENT &&
+      loadInfo->GetExternalContentPolicyType() != nsIContentPolicy::TYPE_SUBDOCUMENT) {
+    return NS_OK;
+  }
+
   // if none of the REQUIRE_SAME_ORIGIN flags are set, then SOP does not apply
   if ((securityMode == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_INHERITS) ||
       (securityMode == nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_IS_BLOCKED)) {
@@ -343,5 +361,21 @@ nsContentSecurityManager::doContentSecurityCheck(nsIChannel* aChannel,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // all security checks passed - lets allow the load
+  return NS_OK;
+}
+
+
+// ==== nsIContentSecurityManager implementation =====
+
+NS_IMETHODIMP
+nsContentSecurityManager::PerformSecurityCheck(nsIChannel* aChannel,
+                                               nsIStreamListener* aStreamListener,
+                                               nsIStreamListener** outStreamListener)
+{
+  nsCOMPtr<nsIStreamListener> inAndOutListener = aStreamListener;
+  nsresult rv = doContentSecurityCheck(aChannel, inAndOutListener);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  inAndOutListener.forget(outStreamListener);
   return NS_OK;
 }

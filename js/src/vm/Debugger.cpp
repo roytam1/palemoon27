@@ -7,6 +7,7 @@
 #include "vm/Debugger-inl.h"
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/ScopeExit.h"
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -46,6 +47,7 @@ using JS::dbg::Builder;
 using js::frontend::IsIdentifier;
 using mozilla::ArrayLength;
 using mozilla::DebugOnly;
+using mozilla::MakeScopeExit;
 using mozilla::Maybe;
 using mozilla::UniquePtr;
 
@@ -123,13 +125,6 @@ GetOrCreateFunctionScript(JSContext* cx, HandleFunction fun)
     if (!EnsureFunctionHasScript(cx, fun))
         return nullptr;
     return fun->nonLazyScript();
-}
-
-bool
-js::ReportObjectRequired(JSContext* cx)
-{
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT, "value");
-    return false;
 }
 
 static bool
@@ -812,6 +807,7 @@ Debugger::wrapDebuggeeValue(JSContext* cx, MutableHandleValue vp)
         RootedObject obj(cx, &vp.toObject());
 
         if (obj->is<JSFunction>()) {
+            MOZ_ASSERT(!IsInternalFunctionObject(*obj));
             RootedFunction fun(cx, &obj->as<JSFunction>());
             if (!EnsureFunctionHasScript(cx, fun))
                 return false;
@@ -2248,7 +2244,6 @@ Debugger::updateObservesAsmJSOnDebuggees(IsObserving observing)
     }
 }
 
-
 
 /*** Allocations Tracking *************************************************************************/
 
@@ -2651,11 +2646,9 @@ const Class Debugger::jsclass = {
 /* static */ Debugger*
 Debugger::fromThisValue(JSContext* cx, const CallArgs& args, const char* fnname)
 {
-    if (!args.thisv().isObject()) {
-        ReportObjectRequired(cx);
+    JSObject* thisobj = NonNullObject(cx, args.thisv());
+    if (!thisobj)
         return nullptr;
-    }
-    JSObject* thisobj = &args.thisv().toObject();
     if (thisobj->getClass() != &Debugger::jsclass) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              "Debugger", fnname, thisobj->getClass()->name);
@@ -3212,10 +3205,9 @@ Debugger::construct(JSContext* cx, unsigned argc, Value* vp)
 
     /* Check that the arguments, if any, are cross-compartment wrappers. */
     for (unsigned i = 0; i < args.length(); i++) {
-        const Value& arg = args[i];
-        if (!arg.isObject())
-            return ReportObjectRequired(cx);
-        JSObject* argobj = &arg.toObject();
+        JSObject* argobj = NonNullObject(cx, args[i]);
+        if (!argobj)
+            return false;
         if (!argobj->is<CrossCompartmentWrapperObject>()) {
             JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_CCW_REQUIRED,
                                  "Debugger");
@@ -3315,75 +3307,86 @@ Debugger::addDebuggeeGlobal(JSContext* cx, Handle<GlobalObject*> global)
     /*
      * For global to become this js::Debugger's debuggee:
      *
-     * 1. global must be in this->debuggees,
-     * 2. this js::Debugger must be in global->getDebuggers(),
+     * 1. this js::Debugger must be in global->getDebuggers(),
+     * 2. global must be in this->debuggees,
      * 3. it must be in zone->getDebuggers(),
-     * 4. JSCompartment::isDebuggee()'s bit must be set, and
+     * 4. the debuggee's zone must be in this->debuggeeZones,
      * 5. if we are tracking allocations, the SavedStacksMetadataCallback must be
-     *    installed for this compartment.
+     *    installed for this compartment, and
+     * 6. JSCompartment::isDebuggee()'s bit must be set.
      *
-     * All five indications must be kept consistent.
+     * All six indications must be kept consistent.
      */
-
-    bool inDebuggees = false;
-    bool inGlobalDebuggers = false;
-    bool inZoneDebuggers = false;
-    bool inDebuggeeZones = false;
 
     AutoCompartment ac(cx, global);
     Zone* zone = global->zone();
 
+    // (1)
     auto* globalDebuggers = GlobalObject::getOrCreateDebuggers(cx, global);
     if (!globalDebuggers)
-        goto error;
-    if (!globalDebuggers->append(this))
-        goto oom;
-    inGlobalDebuggers = true;
-
-    if (!debuggees.put(global))
-        goto oom;
-    inDebuggees = true;
-
-    Zone::DebuggerVector* zoneDebuggers;
-    if (!debuggeeZones.has(zone)) {
-        zoneDebuggers = zone->getOrCreateDebuggers(cx);
-        if (!zoneDebuggers)
-            goto error;
-        if (!zoneDebuggers->append(this))
-            goto oom;
-        inZoneDebuggers = true;
-
-        if (!debuggeeZones.put(zone))
-            goto oom;
-        inDebuggeeZones = true;
+        return false;
+    if (!globalDebuggers->append(this)) {
+        ReportOutOfMemory(cx);
+        return false;
     }
+    auto globalDebuggersGuard = MakeScopeExit([&] {
+        globalDebuggers->popBack();
+    });
 
+    // (2)
+    if (!debuggees.put(global)) {
+        ReportOutOfMemory(cx);
+        return false;
+    }
+    auto debuggeesGuard = MakeScopeExit([&] {
+        debuggees.remove(global);
+    });
+
+    bool addingZoneRelation = !debuggeeZones.has(zone);
+
+    // (3)
+    auto* zoneDebuggers = zone->getOrCreateDebuggers(cx);
+    if (!zoneDebuggers)
+        return false;
+    if (addingZoneRelation && !zoneDebuggers->append(this)) {
+        ReportOutOfMemory(cx);
+        return false;
+    }
+    auto zoneDebuggersGuard = MakeScopeExit([&] {
+        if (addingZoneRelation)
+            zoneDebuggers->popBack();
+    });
+
+    // (4)
+    if (addingZoneRelation && !debuggeeZones.put(zone)) {
+        ReportOutOfMemory(cx);
+        return false;
+    }
+    auto debuggeeZonesGuard = MakeScopeExit([&] {
+        if (addingZoneRelation)
+            debuggeeZones.remove(zone);
+    });
+
+    // (5)
     if (trackingAllocationSites && !Debugger::addAllocationsTracking(cx, *global))
-        goto error;
+            return false;
+    auto allocationsTrackingGuard = MakeScopeExit([&] {
+        if (trackingAllocationSites)
+            Debugger::removeAllocationsTracking(*global);
+    });
 
+    // (6)
     debuggeeCompartment->setIsDebuggee();
     debuggeeCompartment->updateDebuggerObservesAsmJS();
-
     if (observesAllExecution() && !ensureExecutionObservabilityOfCompartment(cx, debuggeeCompartment))
-        goto error;
+        return false;
 
+    globalDebuggersGuard.release();
+    debuggeesGuard.release();
+    zoneDebuggersGuard.release();
+    debuggeeZonesGuard.release();
+    allocationsTrackingGuard.release();
     return true;
-
-  oom:
-    ReportOutOfMemory(cx);
-    // Fall through...
-
-  error:
-    // Maintain consistency on error.
-    if (inGlobalDebuggers)
-        globalDebuggers->popBack();
-    if (inDebuggees)
-        debuggees.remove(global);
-    if (inZoneDebuggers)
-        zoneDebuggers->popBack();
-    if (inDebuggeeZones)
-        debuggeeZones.remove(zone);
-    return false;
 }
 
 bool
@@ -4574,11 +4577,9 @@ Debugger::wrapScript(JSContext* cx, HandleScript script)
 static JSObject*
 DebuggerScript_check(JSContext* cx, const Value& v, const char* clsname, const char* fnname)
 {
-    if (!v.isObject()) {
-        ReportObjectRequired(cx);
+    JSObject* thisobj = NonNullObject(cx, v);
+    if (!thisobj)
         return nullptr;
-    }
-    JSObject* thisobj = &v.toObject();
     if (thisobj->getClass() != &DebuggerScript_class) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              clsname, fnname, thisobj->getClass()->name);
@@ -5592,12 +5593,9 @@ DebuggerSource_construct(JSContext* cx, unsigned argc, Value* vp)
 static NativeObject*
 DebuggerSource_checkThis(JSContext* cx, const CallArgs& args, const char* fnname)
 {
-    if (!args.thisv().isObject()) {
-        ReportObjectRequired(cx);
+    JSObject* thisobj = NonNullObject(cx, args.thisv());
+    if (!thisobj)
         return nullptr;
-    }
-
-    JSObject* thisobj = &args.thisv().toObject();
     if (thisobj->getClass() != &DebuggerSource_class) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              "Debugger.Source", fnname, thisobj->getClass()->name);
@@ -5890,11 +5888,9 @@ const Class DebuggerFrame_class = {
 static NativeObject*
 CheckThisFrame(JSContext* cx, const CallArgs& args, const char* fnname, bool checkLive)
 {
-    if (!args.thisv().isObject()) {
-        ReportObjectRequired(cx);
+    JSObject* thisobj = NonNullObject(cx, args.thisv());
+    if (!thisobj)
         return nullptr;
-    }
-    JSObject* thisobj = &args.thisv().toObject();
     if (thisobj->getClass() != &DebuggerFrame_class) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              "Debugger.Frame", fnname, thisobj->getClass()->name);
@@ -6113,11 +6109,9 @@ DebuggerArguments_getArg(JSContext* cx, unsigned argc, Value* vp)
     int32_t i = args.callee().as<JSFunction>().getExtendedSlot(0).toInt32();
 
     /* Check that the this value is an Arguments object. */
-    if (!args.thisv().isObject()) {
-        ReportObjectRequired(cx);
+    RootedObject argsobj(cx, NonNullObject(cx, args.thisv()));
+    if (!argsobj)
         return false;
-    }
-    RootedObject argsobj(cx, &args.thisv().toObject());
     if (argsobj->getClass() != &DebuggerArguments_class) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              "Arguments", "getArgument", argsobj->getClass()->name);
@@ -6653,11 +6647,9 @@ const Class DebuggerObject_class = {
 static NativeObject*
 DebuggerObject_checkThis(JSContext* cx, const CallArgs& args, const char* fnname)
 {
-    if (!args.thisv().isObject()) {
-        ReportObjectRequired(cx);
+    JSObject* thisobj = NonNullObject(cx, args.thisv());
+    if (!thisobj)
         return nullptr;
-    }
-    JSObject* thisobj = &args.thisv().toObject();
     if (thisobj->getClass() != &DebuggerObject_class) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              "Debugger.Object", fnname, thisobj->getClass()->name);
@@ -7063,17 +7055,17 @@ DebuggerObject_getOwnPropertyDescriptor(JSContext* cx, unsigned argc, Value* vp)
     return FromPropertyDescriptor(cx, desc, args.rval());
 }
 
-static bool
-DebuggerObject_getOwnPropertyNames(JSContext* cx, unsigned argc, Value* vp)
-{
-    THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "getOwnPropertyNames", args, obj);
 
+static bool
+getOwnPropertyKeys(JSContext* cx, unsigned argc, unsigned flags, Value* vp)
+{
+    THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "getOwnPropertyKeys", args, obj);
     AutoIdVector keys(cx);
     {
         Maybe<AutoCompartment> ac;
         ac.emplace(cx, obj);
         ErrorCopier ec(ac);
-        if (!GetPropertyKeys(cx, obj, JSITER_OWNONLY | JSITER_HIDDEN, &keys))
+        if (!GetPropertyKeys(cx, obj, flags, &keys))
             return false;
     }
 
@@ -7090,8 +7082,10 @@ DebuggerObject_getOwnPropertyNames(JSContext* cx, unsigned argc, Value* vp)
              vals[i].setString(str);
          } else if (JSID_IS_ATOM(id)) {
              vals[i].setString(JSID_TO_STRING(id));
+         } else if (JSID_IS_SYMBOL(id)) {
+             vals[i].setSymbol(JSID_TO_SYMBOL(id));
          } else {
-             MOZ_ASSERT_UNREACHABLE("GetPropertyKeys must return only string and int jsids");
+             MOZ_ASSERT_UNREACHABLE("GetPropertyKeys must return only string, int, and Symbol jsids");
          }
     }
 
@@ -7100,6 +7094,18 @@ DebuggerObject_getOwnPropertyNames(JSContext* cx, unsigned argc, Value* vp)
         return false;
     args.rval().setObject(*aobj);
     return true;
+}
+
+static bool
+DebuggerObject_getOwnPropertyNames(JSContext* cx, unsigned argc, Value* vp) {
+    return getOwnPropertyKeys(cx, argc, JSITER_OWNONLY | JSITER_HIDDEN, vp);
+}
+
+static bool
+DebuggerObject_getOwnPropertySymbols(JSContext* cx, unsigned argc, Value* vp) {
+    return getOwnPropertyKeys(cx, argc,
+                              JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS | JSITER_SYMBOLSONLY,
+                              vp);
 }
 
 static bool
@@ -7534,6 +7540,7 @@ static const JSPropertySpec DebuggerObject_properties[] = {
 static const JSFunctionSpec DebuggerObject_methods[] = {
     JS_FN("getOwnPropertyDescriptor", DebuggerObject_getOwnPropertyDescriptor, 1, 0),
     JS_FN("getOwnPropertyNames", DebuggerObject_getOwnPropertyNames, 0, 0),
+    JS_FN("getOwnPropertySymbols", DebuggerObject_getOwnPropertySymbols, 0, 0),
     JS_FN("defineProperty", DebuggerObject_defineProperty, 2, 0),
     JS_FN("defineProperties", DebuggerObject_defineProperties, 1, 0),
     JS_FN("deleteProperty", DebuggerObject_deleteProperty, 1, 0),
@@ -7586,11 +7593,9 @@ static NativeObject*
 DebuggerEnv_checkThis(JSContext* cx, const CallArgs& args, const char* fnname,
                       bool requireDebuggee = true)
 {
-    if (!args.thisv().isObject()) {
-        ReportObjectRequired(cx);
+    JSObject* thisobj = NonNullObject(cx, args.thisv());
+    if (!thisobj)
         return nullptr;
-    }
-    JSObject* thisobj = &args.thisv().toObject();
     if (thisobj->getClass() != &DebuggerEnv_class) {
         JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
                              "Debugger.Environment", fnname, thisobj->getClass()->name);
@@ -7736,7 +7741,11 @@ DebuggerEnv_getCallee(JSContext* cx, unsigned argc, Value* vp)
     if (callobj.isForEval())
         return true;
 
-    args.rval().setObject(callobj.callee());
+    JSFunction& callee = callobj.callee();
+    if (IsInternalFunctionObject(callee))
+        return true;
+
+    args.rval().setObject(callee);
     if (!dbg->wrapDebuggeeValue(cx, args.rval()))
         return false;
     return true;
@@ -7871,6 +7880,16 @@ DebuggerEnv_getVariable(JSContext* cx, unsigned argc, Value* vp)
             if (!GetProperty(cx, env, env, id, &v))
                 return false;
         }
+    }
+
+    // When we've faked up scope chain objects for optimized-out scopes,
+    // declarative environments may contain internal JSFunction objects, which
+    // we shouldn't expose to the user.
+    if (v.isObject()) {
+        RootedObject obj(cx, &v.toObject());
+        if (obj->is<JSFunction>() &&
+            IsInternalFunctionObject(obj->as<JSFunction>()))
+            v.setMagic(JS_OPTIMIZED_OUT);
     }
 
     if (!dbg->wrapDebuggeeValue(cx, &v))
@@ -8179,8 +8198,8 @@ GarbageCollectionEvent::Create(JSRuntime* rt, ::js::gcstats::Statistics& stats, 
         if (!data->collections.growBy(1))
             return nullptr;
 
-        data->collections.back().startTimestamp = range.front().start;
-        data->collections.back().endTimestamp = range.front().end;
+        data->collections.back().startTimestamp = range.front().startTimestamp;
+        data->collections.back().endTimestamp = range.front().endTimestamp;
     }
 
 
@@ -8204,9 +8223,11 @@ JSObject*
 GarbageCollectionEvent::toJSObject(JSContext* cx) const
 {
     RootedObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+    RootedValue gcCycleNumberVal(cx, NumberValue(majorGCNumber_));
     if (!obj ||
         !DefineStringProperty(cx, obj, cx->names().nonincrementalReason, nonincrementalReason) ||
-        !DefineStringProperty(cx, obj, cx->names().reason, reason))
+        !DefineStringProperty(cx, obj, cx->names().reason, reason) ||
+        !DefineProperty(cx, obj, cx->names().gcCycleNumber, gcCycleNumberVal))
     {
         return nullptr;
     }

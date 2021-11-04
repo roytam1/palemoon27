@@ -250,12 +250,16 @@ struct JSFunctionSpecWithHelp {
     JSNative        call;
     uint16_t        nargs;
     uint16_t        flags;
+    const JSJitInfo* jitInfo;
     const char*     usage;
     const char*     help;
 };
 
 #define JS_FN_HELP(name,call,nargs,flags,usage,help)                          \
-    {name, call, nargs, (flags) | JSPROP_ENUMERATE | JSFUN_STUB_GSOPS, usage, help}
+    {name, call, nargs, (flags) | JSPROP_ENUMERATE | JSFUN_STUB_GSOPS, nullptr, usage, help}
+#define JS_INLINABLE_FN_HELP(name,call,nargs,flags,native,usage,help)         \
+    {name, call, nargs, (flags) | JSPROP_ENUMERATE | JSFUN_STUB_GSOPS, &js::jit::JitInfo_##native,\
+     usage, help}
 #define JS_FS_HELP_END                                                        \
     {nullptr, nullptr, 0, 0, nullptr, nullptr}
 
@@ -971,13 +975,16 @@ GetNativeStackLimit(JSContext* cx, int extraAllowance = 0)
 #define JS_CHECK_RECURSION(cx, onerror)                                         \
     JS_CHECK_RECURSION_LIMIT(cx, js::GetNativeStackLimit(cx), onerror)
 
-#define JS_CHECK_RECURSION_DONT_REPORT(cx, onerror)                             \
+#define JS_CHECK_RECURSION_LIMIT_DONT_REPORT(cx, limit, onerror)                \
     JS_BEGIN_MACRO                                                              \
         int stackDummy_;                                                        \
-        if (!JS_CHECK_STACK_SIZE(js::GetNativeStackLimit(cx), &stackDummy_)) {  \
+        if (!JS_CHECK_STACK_SIZE(limit, &stackDummy_)) {                        \
             onerror;                                                            \
         }                                                                       \
     JS_END_MACRO
+
+#define JS_CHECK_RECURSION_DONT_REPORT(cx, onerror)                             \
+    JS_CHECK_RECURSION_LIMIT_DONT_REPORT(cx, js::GetNativeStackLimit(cx), onerror)
 
 #define JS_CHECK_RECURSION_WITH_SP_DONT_REPORT(cx, sp, onerror)                 \
     JS_BEGIN_MACRO                                                              \
@@ -998,7 +1005,14 @@ GetNativeStackLimit(JSContext* cx, int extraAllowance = 0)
     JS_CHECK_RECURSION_LIMIT(cx, js::GetNativeStackLimit(cx, js::StackForSystemCode), onerror)
 
 #define JS_CHECK_RECURSION_CONSERVATIVE(cx, onerror)                            \
-    JS_CHECK_RECURSION_LIMIT(cx, js::GetNativeStackLimit(cx, js::StackForUntrustedScript, -1024 * int(sizeof(size_t))), onerror)
+    JS_CHECK_RECURSION_LIMIT(cx,                                                \
+                             js::GetNativeStackLimit(cx, js::StackForUntrustedScript, -1024 * int(sizeof(size_t))), \
+                             onerror)
+
+#define JS_CHECK_RECURSION_CONSERVATIVE_DONT_REPORT(cx, onerror)                \
+    JS_CHECK_RECURSION_LIMIT_DONT_REPORT(cx,                                    \
+                                         js::GetNativeStackLimit(cx, js::StackForUntrustedScript, -1024 * int(sizeof(size_t))), \
+                                         onerror)
 
 JS_FRIEND_API(void)
 StartPCCountProfiling(JSContext* cx);
@@ -1354,6 +1368,9 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
     // for some reason (probably out of memory).
     bool populateUncaughtExceptionReport(JSContext* cx, ...);
     bool populateUncaughtExceptionReportVA(JSContext* cx, va_list ap);
+
+    // Reports exceptions from add-on scopes to telementry.
+    void ReportAddonExceptionToTelementry(JSContext* cx);
 
     // We may have a provided JSErrorReport, so need a way to represent that.
     JSErrorReport* reportp;
@@ -2157,6 +2174,12 @@ WatchGuts(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject
 extern JS_FRIEND_API(bool)
 UnwatchGuts(JSContext* cx, JS::HandleObject obj, JS::HandleId id);
 
+namespace jit {
+
+enum class InlinableNative : uint16_t;
+
+} // namespace jit
+
 } // namespace js
 
 /*
@@ -2270,6 +2293,7 @@ struct JSJitInfo {
         Setter,
         Method,
         StaticMethod,
+        InlinableNative,
         // Must be last
         OpTypeCount
     };
@@ -2356,7 +2380,11 @@ struct JSJitInfo {
         JSNative staticMethod;
     };
 
-    uint16_t protoID;
+    union {
+        uint16_t protoID;
+        js::jit::InlinableNative inlinableNative;
+    };
+
     uint16_t depth;
 
     // These fields are carefully packed to take up 4 bytes.  If you need more

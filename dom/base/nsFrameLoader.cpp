@@ -155,7 +155,6 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   , mObservingOwnerContent(false)
   , mVisible(true)
 {
-  ResetPermissionManagerStatus();
   mRemoteFrame = ShouldUseRemoteProcess();
 }
 
@@ -394,6 +393,9 @@ nsFrameLoader::ReallyStartLoadingInternal()
   mNeedsAsyncDestroy = tmpState;
   mURIToLoad = nullptr;
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Track the appId's reference count if this frame is in-process
+  ResetPermissionManagerStatus();
 
   return NS_OK;
 }
@@ -2663,7 +2665,9 @@ nsFrameLoader::ResetPermissionManagerStatus()
 {
   // The resetting of the permissions status can run only
   // in the main process.
-  if (XRE_IsContentProcess()) {
+  // only in-main-process && in-process frame is handled here and all other
+  // cases are handled by ContentParent.
+  if (XRE_IsContentProcess() || mRemoteFrame) {
     return;
   }
 

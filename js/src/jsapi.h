@@ -2104,8 +2104,10 @@ struct JSFunctionSpec {
  * Initializer macros for a JSFunctionSpec array element. JS_FN (whose name pays
  * homage to the old JSNative/JSFastNative split) simply adds the flag
  * JSFUN_STUB_GSOPS. JS_FNINFO allows the simple adding of
- * JSJitInfos. JS_SELF_HOSTED_FN declares a self-hosted function. Finally
- * JS_FNSPEC has slots for all the fields.
+ * JSJitInfos. JS_SELF_HOSTED_FN declares a self-hosted function.
+ * JS_INLINABLE_FN allows specifying an InlinableNative enum value for natives
+ * inlined or specialized by the JIT. Finally JS_FNSPEC has slots for all the
+ * fields.
  *
  * The _SYM variants allow defining a function with a symbol key rather than a
  * string key. For example, use JS_SYM_FN(iterator, ...) to define an
@@ -2115,6 +2117,8 @@ struct JSFunctionSpec {
     JS_FNSPEC(name, call, nullptr, nargs, flags, nullptr)
 #define JS_FN(name,call,nargs,flags)                                          \
     JS_FNSPEC(name, call, nullptr, nargs, (flags) | JSFUN_STUB_GSOPS, nullptr)
+#define JS_INLINABLE_FN(name,call,nargs,flags,native)                         \
+    JS_FNSPEC(name, call, &js::jit::JitInfo_##native, nargs, (flags) | JSFUN_STUB_GSOPS, nullptr)
 #define JS_SYM_FN(name,call,nargs,flags)                                      \
     JS_SYM_FNSPEC(symbol, call, nullptr, nargs, (flags) | JSFUN_STUB_GSOPS, nullptr)
 #define JS_FNINFO(name,call,info,nargs,flags)                                 \
@@ -3138,19 +3142,22 @@ extern JS_PUBLIC_API(JSFunction*)
 JS_NewFunction(JSContext* cx, JSNative call, unsigned nargs, unsigned flags,
                const char* name);
 
-/*
- * Create the function with the name given by the id. JSID_IS_STRING(id) must
- * be true.
- */
-extern JS_PUBLIC_API(JSFunction*)
-JS_NewFunctionById(JSContext* cx, JSNative call, unsigned nargs, unsigned flags,
-                   JS::Handle<jsid> id);
-
 namespace JS {
 
 extern JS_PUBLIC_API(JSFunction*)
-GetSelfHostedFunction(JSContext* cx, const char* selfHostedName, JS::Handle<jsid> id,
+GetSelfHostedFunction(JSContext* cx, const char* selfHostedName, HandleId id,
                       unsigned nargs);
+
+/**
+ * Create a new function based on the given JSFunctionSpec, *fs.
+ * id is the result of a successful call to
+ * `PropertySpecNameToPermanentId(cx, fs->name, &id)`.
+ *
+ * Unlike JS_DefineFunctions, this does not treat fs as an array.
+ * *fs must not be JS_FS_END.
+ */
+extern JS_PUBLIC_API(JSFunction*)
+NewFunctionFromSpec(JSContext* cx, const JSFunctionSpec* fs, HandleId id);
 
 } /* namespace JS */
 
@@ -5056,15 +5063,16 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(AutoFilename)
 };
 
 /*
- * Return the current filename and line number of the most currently running
- * frame. Returns true if a scripted frame was found, false otherwise.
+ * Return the current filename, line number and column number of the most
+ * currently running frame. Returns true if a scripted frame was found, false
+ * otherwise.
  *
  * If a the embedding has hidden the scripted caller for the topmost activation
  * record, this will also return false.
  */
 extern JS_PUBLIC_API(bool)
 DescribeScriptedCaller(JSContext* cx, AutoFilename* filename = nullptr,
-                       unsigned* lineno = nullptr);
+                       unsigned* lineno = nullptr, unsigned* column = nullptr);
 
 extern JS_PUBLIC_API(JSObject*)
 GetScriptedCallerGlobal(JSContext* cx);

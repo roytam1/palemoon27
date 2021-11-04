@@ -632,6 +632,9 @@ PluginModuleContentParent::PluginModuleContentParent()
 
 PluginModuleContentParent::~PluginModuleContentParent()
 {
+    XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
+                                     new DeleteTask<Transport>(GetTransport()));
+
     Preferences::UnregisterCallback(TimeoutChanged, kContentTimeoutPref, this);
 }
 
@@ -1122,8 +1125,8 @@ PluginModuleParent::GetPluginDetails()
     if (!pluginTag) {
         return false;
     }
-    mPluginName = pluginTag->mName;
-    mPluginVersion = pluginTag->mVersion;
+    mPluginName = pluginTag->Name();
+    mPluginVersion = pluginTag->Version();
     mIsFlashPlugin = pluginTag->mIsFlashPlugin;
     return true;
 }
@@ -1553,7 +1556,7 @@ PluginModuleParent::StreamCast(NPP instance, NPStream* s,
 
     BrowserStreamParent* sp =
         static_cast<BrowserStreamParent*>(static_cast<AStream*>(s->pdata));
-    if (sp->mNPP != ip || s != sp->mStream) {
+    if (sp && (sp->mNPP != ip || s != sp->mStream)) {
         NS_RUNTIMEABORT("Corrupted plugin stream data.");
     }
     return sp;
@@ -2076,7 +2079,12 @@ bool
 PluginModuleParent::DoShutdown(NPError* error)
 {
     bool ok = true;
-    if (IsChrome()) {
+    if (IsChrome() && mHadLocalInstance) {
+        // We synchronously call NP_Shutdown if the chrome process was using
+        // plugins itself. That way we can service any requests the plugin
+        // makes. If we're in e10s, though, the content processes will have
+        // already shut down and there's no one to talk to. So we shut down
+        // asynchronously in PluginModuleChild::ActorDestroy.
         ok = CallNP_Shutdown(error);
     }
 

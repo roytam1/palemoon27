@@ -181,13 +181,6 @@ TextureClientD3D11::TextureClientD3D11(ISurfaceAllocator* aAllocator,
 
 TextureClientD3D11::~TextureClientD3D11()
 {
-  if (mActor) {
-    if (mTexture) {
-      KeepUntilFullDeallocation(MakeUnique<TKeepAlive<ID3D11Texture2D>>(mTexture));
-    } else if (mTexture10) {
-      KeepUntilFullDeallocation(MakeUnique<TKeepAlive<ID3D10Texture2D>>(mTexture10));
-    }
-  }
 #ifdef DEBUG
   // An Azure DrawTarget needs to be locked when it gets nullptr'ed as this is
   // when it calls EndDraw. This EndDraw should not execute anything so it
@@ -211,6 +204,18 @@ TextureClientD3D11::~TextureClientD3D11()
 #endif
 }
 
+void
+TextureClientD3D11::FinalizeOnIPDLThread()
+{
+  if (mActor) {
+    if (mTexture) {
+      KeepUntilFullDeallocation(MakeUnique<TKeepAlive<ID3D11Texture2D>>(mTexture));
+    } else if (mTexture10) {
+      KeepUntilFullDeallocation(MakeUnique<TKeepAlive<ID3D10Texture2D>>(mTexture10));
+    }
+  }
+}
+
 // static
 already_AddRefed<TextureClientD3D11>
 TextureClientD3D11::Create(ISurfaceAllocator* aAllocator,
@@ -224,6 +229,22 @@ TextureClientD3D11::Create(ISurfaceAllocator* aAllocator,
                                                              aFlags);
   texture->mTexture = aTexture;
   texture->mSize = aSize;
+  return texture.forget();
+}
+
+already_AddRefed<TextureClientD3D11>
+TextureClientD3D11::Create(ISurfaceAllocator* aAllocator,
+                           gfx::SurfaceFormat aFormat,
+                           TextureFlags aFlags,
+                           ID3D11Device* aDevice,
+                           const gfx::IntSize& aSize)
+{
+  RefPtr<TextureClientD3D11> texture = new TextureClientD3D11(aAllocator,
+                                                              aFormat,
+                                                              aFlags);
+  if (!texture->AllocateD3D11Surface(aDevice, aSize)) {
+    return nullptr;
+  }
   return texture.forget();
 }
 
@@ -497,6 +518,35 @@ private:
 };
 
 bool
+TextureClientD3D11::AllocateD3D11Surface(ID3D11Device* aDevice, const gfx::IntSize& aSize)
+{
+  MOZ_ASSERT(aDevice != nullptr);
+
+  CD3D11_TEXTURE2D_DESC newDesc(mFormat == SurfaceFormat::A8 ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM,
+                                aSize.width, aSize.height, 1, 1,
+                                D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+
+  newDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+
+  if (!NS_IsMainThread()) {
+    // On the main thread we use the syncobject to handle synchronization.
+    newDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+  }
+
+  HRESULT hr = aDevice->CreateTexture2D(&newDesc, nullptr, byRef(mTexture));
+  if (FAILED(hr)) {
+    gfxCriticalError(CriticalLog::DefaultOptions(Factory::ReasonableSurfaceSize(aSize))) << "[D3D11] 2 CreateTexture2D failure " << aSize << " Code: " << gfx::hexa(hr);
+    return false;
+  }
+  mTexture->SetPrivateDataInterface(sD3D11TextureUsage,
+                                    new TextureMemoryMeasurer(newDesc.Width * newDesc.Height *
+                                                              (mFormat == SurfaceFormat::A8 ?
+                                                               1 : 4)));
+  mSize = aSize;
+  return true;
+}
+
+bool
 TextureClientD3D11::AllocateForSurface(gfx::IntSize aSize, TextureAllocationFlags aFlags)
 {
   mSize = aSize;
@@ -515,30 +565,10 @@ TextureClientD3D11::AllocateForSurface(gfx::IntSize aSize, TextureAllocationFlag
   bool haveD3d11Backend = windowsPlatform->GetContentBackend() == BackendType::DIRECT2D1_1 || !NS_IsMainThread();
 
   if (haveD3d11Backend) {
-    MOZ_ASSERT(d3d11device != nullptr);
-
-    CD3D11_TEXTURE2D_DESC newDesc(mFormat == SurfaceFormat::A8 ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM,
-                                  aSize.width, aSize.height, 1, 1,
-                                  D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
-
-    newDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-
-    if (!NS_IsMainThread()) {
-      // On the main thread we use the syncobject to handle synchronization.
-      newDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
-    }
-
-    hr = d3d11device->CreateTexture2D(&newDesc, nullptr, byRef(mTexture));
-    if (FAILED(hr)) {
-      gfxCriticalError(CriticalLog::DefaultOptions(Factory::ReasonableSurfaceSize(aSize))) << "[D3D11] 2 CreateTexture2D failure " << aSize << " Code: " << gfx::hexa(hr);
+    if (!AllocateD3D11Surface(d3d11device, aSize)) {
       return false;
     }
-    mTexture->SetPrivateDataInterface(sD3D11TextureUsage,
-                                      new TextureMemoryMeasurer(newDesc.Width * newDesc.Height *
-                                                                (mFormat == SurfaceFormat::A8 ?
-                                                                 1 : 4)));
-  } else
-  {
+  } else {
     ID3D10Device* device = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
 
     CD3D10_TEXTURE2D_DESC newDesc(DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -615,10 +645,15 @@ protected:
 
 DXGIYCbCrTextureClient::~DXGIYCbCrTextureClient()
 {
+  MOZ_COUNT_DTOR(DXGIYCbCrTextureClient);
+}
+
+void
+DXGIYCbCrTextureClient::FinalizeOnIPDLThread()
+{
   if (mHoldRefs[0] && mActor) {
     KeepUntilFullDeallocation(MakeUnique<YCbCrKeepAliveD3D11>(mHoldRefs), true);
   }
-  MOZ_COUNT_DTOR(DXGIYCbCrTextureClient);
 }
 
 // static

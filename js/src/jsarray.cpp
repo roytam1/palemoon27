@@ -1149,43 +1149,6 @@ ArrayJoin(JSContext* cx, CallArgs& args)
     return true;
 }
 
-/* ES5 15.4.4.2. NB: The algorithm here differs from the one in ES3. */
-static bool
-array_toString(JSContext* cx, unsigned argc, Value* vp)
-{
-    JS_CHECK_RECURSION(cx, return false);
-
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject obj(cx, ToObject(cx, args.thisv()));
-    if (!obj)
-        return false;
-
-    RootedValue join(cx, args.calleev());
-    if (!GetProperty(cx, obj, obj, cx->names().join, &join))
-        return false;
-
-    if (!IsCallable(join)) {
-        JSString* str = JS_BasicObjectToString(cx, obj);
-        if (!str)
-            return false;
-        args.rval().setString(str);
-        return true;
-    }
-
-    InvokeArgs args2(cx);
-    if (!args2.init(0))
-        return false;
-
-    args2.setCallee(join);
-    args2.setThis(ObjectValue(*obj));
-
-    /* Do the call. */
-    if (!Invoke(cx, args2))
-        return false;
-    args.rval().set(args2.rval());
-    return true;
-}
-
 /* ES5 15.4.4.3 */
 static bool
 array_toLocaleString(JSContext* cx, unsigned argc, Value* vp)
@@ -1282,10 +1245,10 @@ ArrayReverseDenseKernel(JSContext* cx, HandleObject obj, uint32_t length)
         /* Fill out the array's initialized length to its proper length. */
         obj->as<NativeObject>().ensureDenseInitializedLength(cx, length, 0);
     } else {
-        // Unboxed arrays can only be reversed if their initialized length
+        // Unboxed arrays can only be reversed here if their initialized length
         // matches their actual length. Otherwise the reversal will place holes
         // at the beginning of the array, which we don't support.
-        if (length != obj->as<UnboxedArrayObject>().length())
+        if (length != obj->as<UnboxedArrayObject>().initializedLength())
             return DenseElementResult::Incomplete;
     }
 
@@ -3107,8 +3070,8 @@ static const JSFunctionSpec array_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,      array_toSource,     0,0),
 #endif
-    JS_FN(js_toString_str,      array_toString,     0,0),
-    JS_FN(js_toLocaleString_str,array_toLocaleString,0,0),
+    JS_SELF_HOSTED_FN(js_toString_str, "ArrayToString",      0,0),
+    JS_FN(js_toLocaleString_str,       array_toLocaleString, 0,0),
 
     /* Perl-ish methods. */
     JS_FN("join",               array_join,         1,JSFUN_GENERIC_NATIVE),
@@ -3147,7 +3110,6 @@ static const JSFunctionSpec array_methods[] = {
 
     /* ES7 additions */
     JS_SELF_HOSTED_FN("includes",    "ArrayIncludes",    2,0),
-
     JS_FS_END
 };
 
@@ -3299,7 +3261,7 @@ const Class ArrayObject::class_ = {
     nullptr, /* construct */
     nullptr, /* trace */
     {
-        GenericCreateConstructor<ArrayConstructor, 1, gc::AllocKind::FUNCTION>,
+        GenericCreateConstructor<ArrayConstructor, 1, AllocKind::FUNCTION, &jit::JitInfo_Array>,
         CreateArrayPrototype,
         array_static_methods,
         nullptr,

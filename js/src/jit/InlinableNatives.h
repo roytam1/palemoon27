@@ -8,6 +8,7 @@
 #define jit_InlinableNatives_h
 
 #define INLINABLE_NATIVE_LIST(_)    \
+    _(Array)                        \
     _(ArrayIsArray)                 \
     _(ArrayPop)                     \
     _(ArrayShift)                   \
@@ -67,11 +68,56 @@
     _(RegExpExec)                   \
     _(RegExpTest)                   \
                                     \
+    _(String)                       \
     _(StringSplit)                  \
     _(StringCharCodeAt)             \
     _(StringFromCharCode)           \
     _(StringCharAt)                 \
-    _(StringReplace)
+    _(StringReplace)                \
+                                    \
+    _(ObjectCreate)                 \
+                                    \
+    _(CallBoundFunction)            \
+                                    \
+    _(SimdInt32x4)                  \
+    _(SimdFloat32x4)                \
+                                    \
+    _(TestBailout)                  \
+    _(TestAssertFloat32)            \
+    _(TestAssertRecoveredOnBailout) \
+                                    \
+    _(IntrinsicUnsafeSetReservedSlot) \
+    _(IntrinsicUnsafeGetReservedSlot) \
+    _(IntrinsicUnsafeGetObjectFromReservedSlot) \
+    _(IntrinsicUnsafeGetInt32FromReservedSlot) \
+    _(IntrinsicUnsafeGetStringFromReservedSlot) \
+    _(IntrinsicUnsafeGetBooleanFromReservedSlot) \
+                                    \
+    _(IntrinsicIsCallable)          \
+    _(IntrinsicToObject)            \
+    _(IntrinsicIsObject)            \
+    _(IntrinsicToInteger)           \
+    _(IntrinsicToString)            \
+    _(IntrinsicIsConstructing)      \
+    _(IntrinsicSubstringKernel)     \
+    _(IntrinsicDefineDataProperty)  \
+                                    \
+    _(IntrinsicIsArrayIterator)     \
+    _(IntrinsicIsMapIterator)       \
+    _(IntrinsicIsStringIterator)    \
+                                    \
+    _(IntrinsicIsTypedArray)        \
+    _(IntrinsicIsPossiblyWrappedTypedArray) \
+    _(IntrinsicTypedArrayLength)    \
+    _(IntrinsicSetDisjointTypedElements) \
+                                    \
+    _(IntrinsicObjectIsTypedObject) \
+    _(IntrinsicObjectIsTransparentTypedObject) \
+    _(IntrinsicObjectIsOpaqueTypedObject) \
+    _(IntrinsicObjectIsTypeDescr)   \
+    _(IntrinsicTypeDescrIsSimpleType) \
+    _(IntrinsicTypeDescrIsArrayType)\
+    _(IntrinsicSetTypedObjectOffset)
 
 struct JSJitInfo;
 

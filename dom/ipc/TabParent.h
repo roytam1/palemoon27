@@ -478,6 +478,7 @@ protected:
     LayoutDeviceIntPoint mChromeOffset;
 
 private:
+    void DestroyInternal();
     already_AddRefed<nsFrameLoader> GetFrameLoader(bool aUseCachedFrameLoaderAfterDestroy = false) const;
     nsRefPtr<nsIContentParent> mManager;
     void TryCacheDPIAndScale();

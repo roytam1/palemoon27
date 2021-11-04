@@ -19,6 +19,7 @@
 
 #include "asmjs/AsmJSLink.h"
 #include "asmjs/AsmJSValidate.h"
+#include "jit/InlinableNatives.h"
 #include "jit/JitFrameIterator.h"
 #include "js/Debug.h"
 #include "js/HashTable.h"
@@ -1404,8 +1405,8 @@ GetObjectMetadata(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-bool
-js::testingFunc_bailout(JSContext* cx, unsigned argc, Value* vp)
+static bool
+testingFunc_bailout(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1414,8 +1415,8 @@ js::testingFunc_bailout(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-bool
-js::testingFunc_inJit(JSContext* cx, unsigned argc, Value* vp)
+static bool
+testingFunc_inJit(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1442,8 +1443,8 @@ js::testingFunc_inJit(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-bool
-js::testingFunc_inIon(JSContext* cx, unsigned argc, Value* vp)
+static bool
+testingFunc_inIon(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -3014,7 +3015,7 @@ gc::ZealModeHelpText),
 "getObjectMetadata(obj)",
 "  Get the metadata for an object."),
 
-    JS_FN_HELP("bailout", testingFunc_bailout, 0, 0,
+    JS_INLINABLE_FN_HELP("bailout", testingFunc_bailout, 0, 0, TestBailout,
 "bailout()",
 "  Force a bailout out of ionmonkey (if running in ionmonkey)."),
 

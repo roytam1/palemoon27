@@ -253,7 +253,7 @@ function ArrayMap(callbackfn/*, thisArg*/) {
     var T = arguments.length > 1 ? arguments[1] : void 0;
 
     /* Step 6. */
-    var A = NewDenseArray(len);
+    var A = std_Array(len);
 
     /* Step 7-8. */
     /* Step a (implicit), and d. */
@@ -714,9 +714,7 @@ function ArrayIteratorNext() {
     }
 
     if (itemKind === ITEM_KIND_KEY_AND_VALUE) {
-        var pair = NewDenseArray(2);
-        pair[0] = index;
-        pair[1] = a[index];
+        var pair = [index, a[index]];
         result.value = pair;
         return result;
     }
@@ -804,7 +802,7 @@ function ArrayFrom(items, mapfn=undefined, thisArg=undefined) {
     var len = ToLength(arrayLike.length);
 
     // Steps 12-14.
-    var A = IsConstructor(C) ? new C(len) : NewDenseArray(len);
+    var A = IsConstructor(C) ? new C(len) : std_Array(len);
 
     // Steps 15-16.
     for (var k = 0; k < len; k++) {
@@ -823,4 +821,18 @@ function ArrayFrom(items, mapfn=undefined, thisArg=undefined) {
 
     // Step 19.
     return A;
+}
+
+// ES2015 22.1.3.27 Array.prototype.toString.
+function ArrayToString() {
+    // Steps 1-2.
+    var array = ToObject(this);
+
+    // Steps 3-4.
+    var func = array.join;
+
+    // Steps 5-6.
+    if (!IsCallable(func))
+        return callFunction(std_Object_toString, array);
+    return callFunction(func, array);
 }

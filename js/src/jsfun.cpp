@@ -31,6 +31,7 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
+#include "jit/InlinableNatives.h"
 #include "jit/Ion.h"
 #include "jit/JitFrameIterator.h"
 #include "js/CallNonGenericMethod.h"
@@ -762,12 +763,12 @@ JSFunction::trace(JSTracer* trc)
         // Functions can be be marked as interpreted despite having no script
         // yet at some points when parsing, and can be lazy with no lazy script
         // for self-hosted code.
-        if (hasScript() && u.i.s.script_)
+        if (hasScript() && !hasUncompiledScript())
             TraceManuallyBarrieredEdge(trc, &u.i.s.script_, "script");
         else if (isInterpretedLazy() && u.i.s.lazy_)
             TraceManuallyBarrieredEdge(trc, &u.i.s.lazy_, "lazyScript");
 
-        if (u.i.env_)
+        if (!isBeingParsed() && u.i.env_)
             TraceManuallyBarrieredEdge(trc, &u.i.env_, "fun_environment");
     }
 }
@@ -1376,6 +1377,8 @@ JSFunction::initBoundFunction(JSContext* cx, HandleObject target, HandleValue th
     self->setSlot(JSSLOT_BOUND_FUNCTION_ARGS_COUNT, PrivateUint32Value(argslen));
 
     self->initSlotRange(BOUND_FUNCTION_RESERVED_SLOTS, args, argslen);
+
+    self->setJitInfo(&jit::JitInfo_CallBoundFunction);
 
     return true;
 }

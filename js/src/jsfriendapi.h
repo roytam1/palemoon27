@@ -250,12 +250,16 @@ struct JSFunctionSpecWithHelp {
     JSNative        call;
     uint16_t        nargs;
     uint16_t        flags;
+    const JSJitInfo* jitInfo;
     const char*     usage;
     const char*     help;
 };
 
 #define JS_FN_HELP(name,call,nargs,flags,usage,help)                          \
-    {name, call, nargs, (flags) | JSPROP_ENUMERATE | JSFUN_STUB_GSOPS, usage, help}
+    {name, call, nargs, (flags) | JSPROP_ENUMERATE | JSFUN_STUB_GSOPS, nullptr, usage, help}
+#define JS_INLINABLE_FN_HELP(name,call,nargs,flags,native,usage,help)         \
+    {name, call, nargs, (flags) | JSPROP_ENUMERATE | JSFUN_STUB_GSOPS, &js::jit::JitInfo_##native,\
+     usage, help}
 #define JS_FS_HELP_END                                                        \
     {nullptr, nullptr, 0, 0, nullptr, nullptr}
 
@@ -2170,6 +2174,12 @@ WatchGuts(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject
 extern JS_FRIEND_API(bool)
 UnwatchGuts(JSContext* cx, JS::HandleObject obj, JS::HandleId id);
 
+namespace jit {
+
+enum class InlinableNative : uint16_t;
+
+} // namespace jit
+
 } // namespace js
 
 /*
@@ -2283,6 +2293,7 @@ struct JSJitInfo {
         Setter,
         Method,
         StaticMethod,
+        InlinableNative,
         // Must be last
         OpTypeCount
     };
@@ -2369,7 +2380,11 @@ struct JSJitInfo {
         JSNative staticMethod;
     };
 
-    uint16_t protoID;
+    union {
+        uint16_t protoID;
+        js::jit::InlinableNative inlinableNative;
+    };
+
     uint16_t depth;
 
     // These fields are carefully packed to take up 4 bytes.  If you need more

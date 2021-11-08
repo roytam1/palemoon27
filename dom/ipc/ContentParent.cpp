@@ -2564,12 +2564,12 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
         enumerator->GetNext(getter_AddRefs(supp));
         nsCOMPtr<nsIPermission> perm = do_QueryInterface(supp);
 
-        nsCString host;
-        perm->GetHost(host);
-        uint32_t appId;
-        perm->GetAppId(&appId);
-        bool isInBrowserElement;
-        perm->GetIsInBrowserElement(&isInBrowserElement);
+        nsCOMPtr<nsIPrincipal> principal;
+        perm->GetPrincipal(getter_AddRefs(principal));
+        nsCString origin;
+        if (principal) {
+            principal->GetOrigin(origin);
+        }
         nsCString type;
         perm->GetType(type);
         uint32_t capability;
@@ -2579,8 +2579,7 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
         int64_t expireTime;
         perm->GetExpireTime(&expireTime);
 
-        aPermissions->AppendElement(IPC::Permission(host, appId,
-                                                    isInBrowserElement, type,
+        aPermissions->AppendElement(IPC::Permission(origin, type,
                                                     capability, expireType,
                                                     expireTime));
     }

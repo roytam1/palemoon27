@@ -48,5 +48,3 @@ if CONFIG['MOZ_STACKWALKING']:
     SOURCES += [
         'StackWalk.cpp',
     ]
-
-FAIL_ON_WARNINGS = True

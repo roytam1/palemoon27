@@ -144,8 +144,7 @@ public:
      */
     nsRefPtr<BluetoothDiscoveryHandle> discoveryHandle =
       BluetoothDiscoveryHandle::Create(mAdapter->GetParentObject(),
-                                       mServiceUuids, v.get_nsString(),
-                                       mAdapter);
+                                       mServiceUuids, v.get_nsString());
 
     if (!ToJSValue(cx, discoveryHandle, aValue)) {
       JS_ClearPendingException(cx);
@@ -334,15 +333,35 @@ BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
 
 BluetoothAdapter::~BluetoothAdapter()
 {
-  UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_ADAPTER), this);
+  Cleanup();
 }
 
 void
 BluetoothAdapter::DisconnectFromOwner()
 {
   DOMEventTargetHelper::DisconnectFromOwner();
+  Cleanup();
+}
 
+void
+BluetoothAdapter::Cleanup()
+{
   UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_ADAPTER), this);
+
+  // Stop ongoing LE scans and clear the LeScan handle array
+  if (!mLeScanHandleArray.IsEmpty()) {
+    BluetoothService* bs = BluetoothService::Get();
+    NS_ENSURE_TRUE_VOID(bs);
+
+    nsString uuid;
+    for (uint32_t i = 0; i < mLeScanHandleArray.Length(); ++i) {
+      mLeScanHandleArray[i]->GetLeScanUuid(uuid);
+      nsRefPtr<BluetoothVoidReplyRunnable> results =
+        new BluetoothVoidReplyRunnable(nullptr);
+      bs->StopLeScanInternal(uuid, results);
+    }
+    mLeScanHandleArray.Clear();
+  }
 }
 
 void
@@ -499,11 +518,6 @@ void
 BluetoothAdapter::SetDiscoveryHandleInUse(
   BluetoothDiscoveryHandle* aDiscoveryHandle)
 {
-  // Stop discovery handle in use from listening to "DeviceFound" signal
-  if (mDiscoveryHandleInUse) {
-    mDiscoveryHandleInUse->DisconnectFromOwner();
-  }
-
   mDiscoveryHandleInUse = aDiscoveryHandle;
 }
 
@@ -553,8 +567,6 @@ BluetoothAdapter::StartDiscovery(ErrorResult& aRv)
   BluetoothService* bs = BluetoothService::Get();
   BT_ENSURE_TRUE_REJECT(bs, promise, NS_ERROR_NOT_AVAILABLE);
 
-  BT_API2_LOGR();
-
   // Clear unpaired devices before start discovery
   for (int32_t i = mDevices.Length() - 1; i >= 0; i--) {
     if (!mDevices[i]->Paired()) {
@@ -594,8 +606,6 @@ BluetoothAdapter::StopDiscovery(ErrorResult& aRv)
                         NS_ERROR_DOM_INVALID_STATE_ERR);
   BluetoothService* bs = BluetoothService::Get();
   BT_ENSURE_TRUE_REJECT(bs, promise, NS_ERROR_NOT_AVAILABLE);
-
-  BT_API2_LOGR();
 
   nsRefPtr<BluetoothReplyRunnable> result =
     new BluetoothVoidReplyRunnable(nullptr /* DOMRequest */,
@@ -1006,9 +1016,9 @@ BluetoothAdapter::SetAdapterState(BluetoothAdapterState aState)
 
   // Fire BluetoothAttributeEvent for changed adapter state
   Sequence<nsString> types;
-  BT_APPEND_ENUM_STRING(types,
-                        BluetoothAdapterAttribute,
-                        BluetoothAdapterAttribute::State);
+  BT_APPEND_ENUM_STRING_FALLIBLE(types,
+                                 BluetoothAdapterAttribute,
+                                 BluetoothAdapterAttribute::State);
   DispatchAttributeEvent(types);
 }
 
@@ -1034,7 +1044,7 @@ BluetoothAdapter::HandlePropertyChanged(const BluetoothValue& aValue)
     // BluetoothAdapterAttribute properties
     if (IsAdapterAttributeChanged(type, arr[i].value())) {
       SetPropertyByValue(arr[i]);
-      BT_APPEND_ENUM_STRING(types, BluetoothAdapterAttribute, type);
+      BT_APPEND_ENUM_STRING_FALLIBLE(types, BluetoothAdapterAttribute, type);
     }
   }
 
@@ -1180,8 +1190,6 @@ void
 BluetoothAdapter::DispatchDeviceEvent(const nsAString& aType,
                                       const BluetoothDeviceEventInit& aInit)
 {
-  BT_API2_LOGR("aType (%s)", NS_ConvertUTF16toUTF8(aType).get());
-
   nsRefPtr<BluetoothDeviceEvent> event =
     BluetoothDeviceEvent::Constructor(this, aType, aInit);
   DispatchTrustedEvent(event);

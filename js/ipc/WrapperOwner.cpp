@@ -96,24 +96,24 @@ class CPOWProxyHandler : public BaseProxyHandler
 
     virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
                                           MutableHandle<JSPropertyDescriptor> desc) const override;
-    virtual bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
+    virtual bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
                                 Handle<JSPropertyDescriptor> desc,
-                                ObjectOpResult &result) const override;
-    virtual bool ownPropertyKeys(JSContext *cx, HandleObject proxy,
-                                 AutoIdVector &props) const override;
-    virtual bool delete_(JSContext *cx, HandleObject proxy, HandleId id,
-                         ObjectOpResult &result) const override;
-    virtual bool enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp) const override;
-    virtual bool preventExtensions(JSContext *cx, HandleObject proxy,
-                                   ObjectOpResult &result) const override;
-    virtual bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) const override;
-    virtual bool has(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const override;
-    virtual bool get(JSContext *cx, HandleObject proxy, HandleObject receiver,
+                                ObjectOpResult& result) const override;
+    virtual bool ownPropertyKeys(JSContext* cx, HandleObject proxy,
+                                 AutoIdVector& props) const override;
+    virtual bool delete_(JSContext* cx, HandleObject proxy, HandleId id,
+                         ObjectOpResult& result) const override;
+    virtual bool enumerate(JSContext* cx, HandleObject proxy, MutableHandleObject objp) const override;
+    virtual bool preventExtensions(JSContext* cx, HandleObject proxy,
+                                   ObjectOpResult& result) const override;
+    virtual bool isExtensible(JSContext* cx, HandleObject proxy, bool* extensible) const override;
+    virtual bool has(JSContext* cx, HandleObject proxy, HandleId id, bool* bp) const override;
+    virtual bool get(JSContext* cx, HandleObject proxy, HandleValue receiver,
                      HandleId id, MutableHandleValue vp) const override;
-    virtual bool set(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, JS::HandleValue v,
-                     JS::HandleValue receiver, JS::ObjectOpResult &result) const override;
-    virtual bool call(JSContext *cx, HandleObject proxy, const CallArgs &args) const override;
-    virtual bool construct(JSContext *cx, HandleObject proxy, const CallArgs &args) const override;
+    virtual bool set(JSContext* cx, JS::HandleObject proxy, JS::HandleId id, JS::HandleValue v,
+                     JS::HandleValue receiver, JS::ObjectOpResult& result) const override;
+    virtual bool call(JSContext* cx, HandleObject proxy, const CallArgs& args) const override;
+    virtual bool construct(JSContext* cx, HandleObject proxy, const CallArgs& args) const override;
 
     virtual bool getPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
                                        MutableHandle<JSPropertyDescriptor> desc) const override;
@@ -125,12 +125,12 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual bool objectClassIs(HandleObject obj, js::ESClassValue classValue,
                                JSContext* cx) const override;
     virtual const char* className(JSContext* cx, HandleObject proxy) const override;
-    virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g) const override;
-    virtual void finalize(JSFreeOp *fop, JSObject *proxy) const override;
-    virtual void objectMoved(JSObject *proxy, const JSObject *old) const override;
-    virtual bool isCallable(JSObject *obj) const override;
-    virtual bool isConstructor(JSObject *obj) const override;
-    virtual bool getPrototype(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const override;
+    virtual bool regexp_toShared(JSContext* cx, HandleObject proxy, RegExpGuard* g) const override;
+    virtual void finalize(JSFreeOp* fop, JSObject* proxy) const override;
+    virtual void objectMoved(JSObject* proxy, const JSObject* old) const override;
+    virtual bool isCallable(JSObject* obj) const override;
+    virtual bool isConstructor(JSObject* obj) const override;
+    virtual bool getPrototype(JSContext* cx, HandleObject proxy, MutableHandleObject protop) const override;
 
     static const char family;
     static const CPOWProxyHandler singleton;
@@ -158,7 +158,7 @@ CPOWProxyHandler::getPropertyDescriptor(JSContext* cx, HandleObject proxy, Handl
 }
 
 bool
-WrapperOwner::getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
+WrapperOwner::getPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
                                     MutableHandle<JSPropertyDescriptor> desc)
 {
     ObjectId objId = idOf(proxy);
@@ -263,7 +263,7 @@ CPOWProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id,
 }
 
 bool
-WrapperOwner::delete_(JSContext *cx, HandleObject proxy, HandleId id, ObjectOpResult &result)
+WrapperOwner::delete_(JSContext* cx, HandleObject proxy, HandleId id, ObjectOpResult& result)
 {
     ObjectId objId = idOf(proxy);
 
@@ -338,14 +338,14 @@ WrapperOwner::hasOwn(JSContext* cx, HandleObject proxy, HandleId id, bool* bp)
 }
 
 bool
-CPOWProxyHandler::get(JSContext* cx, HandleObject proxy, HandleObject receiver,
+CPOWProxyHandler::get(JSContext* cx, HandleObject proxy, HandleValue receiver,
                       HandleId id, MutableHandleValue vp) const
 {
     FORWARD(get, (cx, proxy, receiver, id, vp));
 }
 
 static bool
-CPOWDOMQI(JSContext *cx, unsigned argc, Value *vp)
+CPOWDOMQI(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (!args.thisv().isObject() || !IsCPOW(&args.thisv().toObject())) {
@@ -455,13 +455,13 @@ WrapperOwner::DOMQI(JSContext* cx, JS::HandleObject proxy, JS::CallArgs& args)
 }
 
 bool
-WrapperOwner::get(JSContext* cx, HandleObject proxy, HandleObject receiver,
+WrapperOwner::get(JSContext* cx, HandleObject proxy, HandleValue receiver,
                   HandleId id, MutableHandleValue vp)
 {
     ObjectId objId = idOf(proxy);
 
-    ObjectVariant receiverVar;
-    if (!toObjectVariant(cx, receiver, &receiverVar))
+    JSVariant receiverVar;
+    if (!toVariant(cx, receiver, &receiverVar))
         return false;
 
     JSIDVariant idVar;

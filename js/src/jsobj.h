@@ -818,11 +818,11 @@ HasProperty(JSContext* cx, HandleObject obj, PropertyName* name, bool* foundp);
  * `receiver[id]`, and we've already searched the prototype chain up to `obj`.
  */
 inline bool
-GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
+GetProperty(JSContext* cx, HandleObject obj, HandleValue receiver, HandleId id,
             MutableHandleValue vp);
 
 inline bool
-GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, PropertyName* name,
+GetProperty(JSContext* cx, HandleObject obj, HandleValue receiver, PropertyName* name,
             MutableHandleValue vp)
 {
     RootedId id(cx, NameToId(name));
@@ -830,17 +830,52 @@ GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, PropertyName
 }
 
 inline bool
+GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, HandleId id,
+            MutableHandleValue vp)
+{
+    RootedValue receiverValue(cx, ObjectValue(*receiver));
+    return GetProperty(cx, obj, receiverValue, id, vp);
+}
+
+inline bool
+GetProperty(JSContext* cx, HandleObject obj, HandleObject receiver, PropertyName* name,
+            MutableHandleValue vp)
+{
+    RootedValue receiverValue(cx, ObjectValue(*receiver));
+    return GetProperty(cx, obj, receiverValue, name, vp);
+}
+
+inline bool
+GetElement(JSContext* cx, HandleObject obj, HandleValue receiver, uint32_t index,
+           MutableHandleValue vp);
+
+inline bool
 GetElement(JSContext* cx, HandleObject obj, HandleObject receiver, uint32_t index,
            MutableHandleValue vp);
 
 inline bool
-GetPropertyNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, jsid id, Value* vp);
+GetPropertyNoGC(JSContext* cx, JSObject* obj, const Value& receiver, jsid id, Value* vp);
+
+inline bool
+GetPropertyNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, jsid id, Value* vp)
+{
+    return GetPropertyNoGC(cx, obj, ObjectValue(*receiver), id, vp);
+}
+
+inline bool
+GetPropertyNoGC(JSContext* cx, JSObject* obj, const Value& receiver, PropertyName* name, Value* vp)
+{
+    return GetPropertyNoGC(cx, obj, receiver, NameToId(name), vp);
+}
 
 inline bool
 GetPropertyNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, PropertyName* name, Value* vp)
 {
-    return GetPropertyNoGC(cx, obj, receiver, NameToId(name), vp);
+    return GetPropertyNoGC(cx, obj, ObjectValue(*receiver), name, vp);
 }
+
+inline bool
+GetElementNoGC(JSContext* cx, JSObject* obj, const Value& receiver, uint32_t index, Value* vp);
 
 inline bool
 GetElementNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, uint32_t index, Value* vp);
@@ -1015,7 +1050,8 @@ GetObjectClassName(JSContext* cx, HandleObject obj);
  */
 
 /*
- * If obj a WindowProxy, return its current inner Window. Otherwise return obj.
+ * If obj is a WindowProxy, return its current inner Window. Otherwise return
+ * obj. This function can't fail and never returns nullptr.
  *
  * GetInnerObject is called when we need a scope chain; you never want a
  * WindowProxy on a scope chain.
@@ -1038,6 +1074,7 @@ GetInnerObject(JSObject* obj)
 
 /*
  * If obj is a Window object, return the WindowProxy. Otherwise return obj.
+ * This function can't fail; it never sets an exception or returns nullptr.
  *
  * This must be called before passing an object to script, if the object might
  * be a Window. (But usually those cases involve scope objects, and for those,

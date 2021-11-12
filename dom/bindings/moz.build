@@ -31,7 +31,6 @@ EXPORTS.mozilla.dom += [
     'MozMap.h',
     'NonRefcountedDOMObject.h',
     'Nullable.h',
-    'OwningNonNull.h',
     'PrimitiveConversions.h',
     'RootedDictionary.h',
     'StructuredClone.h',
@@ -39,8 +38,6 @@ EXPORTS.mozilla.dom += [
     'TypedArray.h',
     'UnionMember.h',
 ]
-
-FAIL_ON_WARNINGS = True
 
 LOCAL_INCLUDES += [
     '/dom/base',

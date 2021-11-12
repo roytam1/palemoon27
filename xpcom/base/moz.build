@@ -79,6 +79,7 @@ EXPORTS.mozilla += [
     'JSObjectHolder.h',
     'LinuxUtils.h',
     'nsMemoryInfoDumper.h',
+    'OwningNonNull.h',
     'StaticMutex.h',
     'StaticPtr.h',
     'SystemMemoryReporter.h',
@@ -146,5 +147,3 @@ LOCAL_INCLUDES += [
 
 if CONFIG['MOZ_WIDGET_GTK']:
     CXXFLAGS += CONFIG['TK_CFLAGS']
-
-FAIL_ON_WARNINGS = True

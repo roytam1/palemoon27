@@ -80,7 +80,7 @@ Invoke(JSContext* cx, const Value& thisv, const Value& fval, unsigned argc, cons
  * getter/setter calls.
  */
 extern bool
-InvokeGetter(JSContext* cx, JSObject* obj, Value fval, MutableHandleValue rval);
+InvokeGetter(JSContext* cx, const Value& thisv, Value fval, MutableHandleValue rval);
 
 extern bool
 InvokeSetter(JSContext* cx, const Value& thisv, Value fval, HandleValue v);
@@ -383,6 +383,10 @@ SetObjectElement(JSContext* cx, HandleObject obj, HandleValue index, HandleValue
 bool
 SetObjectElement(JSContext* cx, HandleObject obj, HandleValue index, HandleValue value,
                  bool strict, HandleScript script, jsbytecode* pc);
+
+bool
+SetObjectElement(JSContext* cx, HandleObject obj, HandleValue index, HandleValue value,
+                 HandleValue receiver, bool strict, HandleScript script, jsbytecode* pc);
 
 bool
 InitElementArray(JSContext* cx, jsbytecode* pc,

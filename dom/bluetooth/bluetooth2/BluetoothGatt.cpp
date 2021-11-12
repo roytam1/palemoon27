@@ -121,13 +121,8 @@ BluetoothGatt::Connect(ErrorResult& aRv)
   }
 
   UpdateConnectionState(BluetoothConnectionState::Connecting);
-  nsRefPtr<BluetoothReplyRunnable> result =
-    new BluetoothVoidReplyRunnable(nullptr /* DOMRequest */,
-                                   promise,
-                                   NS_LITERAL_STRING("ConnectGattClient"));
-  bs->ConnectGattClientInternal(mAppUuid,
-                                mDeviceAddr,
-                                result);
+  bs->ConnectGattClientInternal(
+    mAppUuid, mDeviceAddr, new BluetoothVoidReplyRunnable(nullptr, promise));
 
   return promise.forget();
 }
@@ -153,11 +148,8 @@ BluetoothGatt::Disconnect(ErrorResult& aRv)
   BT_ENSURE_TRUE_REJECT(bs, promise, NS_ERROR_NOT_AVAILABLE);
 
   UpdateConnectionState(BluetoothConnectionState::Disconnecting);
-  nsRefPtr<BluetoothReplyRunnable> result =
-    new BluetoothVoidReplyRunnable(nullptr /* DOMRequest */,
-                                   promise,
-                                   NS_LITERAL_STRING("DisconnectGattClient"));
-  bs->DisconnectGattClientInternal(mAppUuid, mDeviceAddr, result);
+  bs->DisconnectGattClientInternal(
+    mAppUuid, mDeviceAddr, new BluetoothVoidReplyRunnable(nullptr, promise));
 
   return promise.forget();
 }
@@ -166,8 +158,7 @@ class ReadRemoteRssiTask final : public BluetoothReplyRunnable
 {
 public:
   ReadRemoteRssiTask(Promise* aPromise)
-    : BluetoothReplyRunnable(nullptr, aPromise,
-                             NS_LITERAL_STRING("GattClientReadRemoteRssi"))
+    : BluetoothReplyRunnable(nullptr, aPromise)
   {
     MOZ_ASSERT(aPromise);
   }
@@ -205,9 +196,8 @@ BluetoothGatt::ReadRemoteRssi(ErrorResult& aRv)
   BluetoothService* bs = BluetoothService::Get();
   BT_ENSURE_TRUE_REJECT(bs, promise, NS_ERROR_NOT_AVAILABLE);
 
-  nsRefPtr<BluetoothReplyRunnable> result =
-    new ReadRemoteRssiTask(promise);
-  bs->GattClientReadRemoteRssiInternal(mClientIf, mDeviceAddr, result);
+  bs->GattClientReadRemoteRssiInternal(
+    mClientIf, mDeviceAddr, new ReadRemoteRssiTask(promise));
 
   return promise.forget();
 }
@@ -234,11 +224,11 @@ BluetoothGatt::DiscoverServices(ErrorResult& aRv)
   BT_ENSURE_TRUE_REJECT(bs, promise, NS_ERROR_NOT_AVAILABLE);
 
   mDiscoveringServices = true;
-  nsRefPtr<BluetoothReplyRunnable> result =
-    new BluetoothVoidReplyRunnable(nullptr /* DOMRequest */,
-                                   promise,
-                                   NS_LITERAL_STRING("DiscoverGattServices"));
-  bs->DiscoverGattServicesInternal(mAppUuid, result);
+  mServices.Clear();
+  BluetoothGattBinding::ClearCachedServicesValue(this);
+
+  bs->DiscoverGattServicesInternal(
+    mAppUuid, new BluetoothVoidReplyRunnable(nullptr, promise));
 
   return promise.forget();
 }
@@ -270,6 +260,7 @@ BluetoothGatt::HandleServicesDiscovered(const BluetoothValue& aValue)
   const InfallibleTArray<BluetoothGattServiceId>& serviceIds =
     aValue.get_ArrayOfBluetoothGattServiceId();
 
+  mServices.Clear();
   for (uint32_t i = 0; i < serviceIds.Length(); i++) {
     mServices.AppendElement(new BluetoothGattService(
       GetParentObject(), mAppUuid, serviceIds[i]));

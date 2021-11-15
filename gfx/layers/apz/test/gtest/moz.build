@@ -4,20 +4,18 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-Program('logalloc-replay')
-
-SOURCES += [
-    '../FdPrintf.cpp',
-    'Replay.cpp',
+UNIFIED_SOURCES += [
+    'TestAsyncPanZoomController.cpp',
 ]
+
+include('/ipc/chromium/chromium-config.mozbuild')
 
 LOCAL_INCLUDES += [
-    '..',
+    '/gfx/2d',
+    '/gfx/layers',
+    '/gfx/tests/gtest'  # for TestLayers.h, which is shared with the gfx gtests
 ]
 
-# Link replace-malloc and the default allocator.
-USE_LIBS += [
-    'memory',
-]
+FINAL_LIBRARY = 'xul-gtest'
 
-DISABLE_STL_WRAPPING = True
+CXXFLAGS += CONFIG['MOZ_CAIRO_CFLAGS']

@@ -5,8 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __nsGtkIMModule_h__
-#define __nsGtkIMModule_h__
+#ifndef IMContextWrapper_h_
+#define IMContextWrapper_h_
 
 #include <gdk/gdk.h>
 #include <gtk/gtk.h>
@@ -22,24 +22,24 @@
 
 class nsWindow;
 
-class nsGtkIMModule
-{
-protected:
-    typedef mozilla::widget::IMENotification IMENotification;
-    typedef mozilla::widget::InputContext InputContext;
-    typedef mozilla::widget::InputContextAction InputContextAction;
+namespace mozilla {
+namespace widget {
 
+class IMContextWrapper final
+{
 public:
     // aOwnerWindow is a pointer of the owner window.  When aOwnerWindow is
     // destroyed, the related IME contexts are released (i.e., IME cannot be
     // used with the instance after that).
-    explicit nsGtkIMModule(nsWindow* aOwnerWindow);
+    explicit IMContextWrapper(nsWindow* aOwnerWindow);
 
-    NS_INLINE_DECL_REFCOUNTING(nsGtkIMModule)
+    NS_INLINE_DECL_REFCOUNTING(IMContextWrapper)
 
     // "Enabled" means the users can use all IMEs.
     // I.e., the focus is in the normal editors.
     bool IsEnabled() const;
+
+    nsIMEUpdatePreference GetIMEUpdatePreference() const;
 
     // OnFocusWindow is a notification that aWindow is going to be focused.
     void OnFocusWindow(nsWindow* aWindow);
@@ -72,7 +72,7 @@ public:
     void OnLayoutChange();
 
 protected:
-    ~nsGtkIMModule();
+    ~IMContextWrapper();
 
     // Owner of an instance of this class. This should be top level window.
     // The owner window must release the contexts when it's destroyed because
@@ -126,8 +126,27 @@ protected:
     // event.
     GdkEventKey* mProcessingKeyEvent;
 
-    // current target offset of IME composition
-    uint32_t mCompositionTargetOffset;
+    struct Range
+    {
+        uint32_t mOffset;
+        uint32_t mLength;
+
+        Range()
+            : mOffset(UINT32_MAX)
+            , mLength(UINT32_MAX)
+        {
+        }
+
+        bool IsValid() const { return mOffset != UINT32_MAX; }
+        void Clear()
+        {
+            mOffset = UINT32_MAX;
+            mLength = UINT32_MAX;
+        }
+    };
+
+    // current target offset and length of IME composition
+    Range mCompositionTargetRange;
 
     // mCompositionState indicates current status of composition.
     enum eCompositionState {
@@ -186,7 +205,7 @@ protected:
     {
         uint32_t mOffset;
         uint32_t mLength;
-        mozilla::WritingMode mWritingMode;
+        WritingMode mWritingMode;
 
         Selection()
             : mOffset(UINT32_MAX)
@@ -198,11 +217,11 @@ protected:
         {
             mOffset = UINT32_MAX;
             mLength = UINT32_MAX;
-            mWritingMode = mozilla::WritingMode();
+            mWritingMode = WritingMode();
         }
 
         void Assign(const IMENotification& aIMENotification);
-        void Assign(const mozilla::WidgetQueryContentEvent& aSelectedTextEvent);
+        void Assign(const WidgetQueryContentEvent& aSelectedTextEvent);
 
         bool IsValid() const { return mOffset != UINT32_MAX; }
         bool Collapsed() const { return !mLength; }
@@ -211,8 +230,8 @@ protected:
             if (NS_WARN_IF(!IsValid())) {
                 return UINT32_MAX;
             }
-            mozilla::CheckedInt<uint32_t> endOffset =
-                mozilla::CheckedInt<uint32_t>(mOffset) + mLength;
+            CheckedInt<uint32_t> endOffset =
+                CheckedInt<uint32_t>(mOffset) + mLength;
             if (NS_WARN_IF(!endOffset.isValid())) {
                 return UINT32_MAX;
             }
@@ -240,11 +259,15 @@ protected:
     // mLayoutChanged is true after OnLayoutChange() is called.  This is reset
     // when NS_COMPOSITION_CHANGE is being dispatched.
     bool mLayoutChanged;
+    // mSetCursorPositionOnKeyEvent true when caret rect or position is updated
+    // with no composition.  If true, we update candidate window position
+    // before key down
+    bool mSetCursorPositionOnKeyEvent;
 
-    // sLastFocusedModule is a pointer to the last focused instance of this
-    // class.  When a instance is destroyed and sLastFocusedModule refers it,
+    // sLastFocusedContext is a pointer to the last focused instance of this
+    // class.  When a instance is destroyed and sLastFocusedContext refers it,
     // this is cleared.  So, this refers valid pointer always.
-    static nsGtkIMModule* sLastFocusedModule;
+    static IMContextWrapper* sLastFocusedContext;
 
     // sUseSimpleContext indeicates if password editors and editors with
     // |ime-mode: disabled;| should use GtkIMContextSimple.
@@ -253,32 +276,32 @@ protected:
 
     // Callback methods for native IME events.  These methods should call
     // the related instance methods simply.
-    static gboolean OnRetrieveSurroundingCallback(GtkIMContext  *aContext,
-                                                  nsGtkIMModule *aModule);
-    static gboolean OnDeleteSurroundingCallback(GtkIMContext  *aContext,
-                                                gint           aOffset,
-                                                gint           aNChars,
-                                                nsGtkIMModule *aModule);
-    static void OnCommitCompositionCallback(GtkIMContext *aContext,
-                                            const gchar *aString,
-                                            nsGtkIMModule* aModule);
-    static void OnChangeCompositionCallback(GtkIMContext *aContext,
-                                            nsGtkIMModule* aModule);
-    static void OnStartCompositionCallback(GtkIMContext *aContext,
-                                           nsGtkIMModule* aModule);
-    static void OnEndCompositionCallback(GtkIMContext *aContext,
-                                         nsGtkIMModule* aModule);
+    static gboolean OnRetrieveSurroundingCallback(GtkIMContext* aContext,
+                                                  IMContextWrapper* aModule);
+    static gboolean OnDeleteSurroundingCallback(GtkIMContext* aContext,
+                                                gint aOffset,
+                                                gint aNChars,
+                                                IMContextWrapper* aModule);
+    static void OnCommitCompositionCallback(GtkIMContext* aContext,
+                                            const gchar* aString,
+                                            IMContextWrapper* aModule);
+    static void OnChangeCompositionCallback(GtkIMContext* aContext,
+                                            IMContextWrapper* aModule);
+    static void OnStartCompositionCallback(GtkIMContext* aContext,
+                                           IMContextWrapper* aModule);
+    static void OnEndCompositionCallback(GtkIMContext* aContext,
+                                         IMContextWrapper* aModule);
 
     // The instance methods for the native IME events.
-    gboolean OnRetrieveSurroundingNative(GtkIMContext  *aContext);
-    gboolean OnDeleteSurroundingNative(GtkIMContext  *aContext,
-                                       gint           aOffset,
-                                       gint           aNChars);
-    void OnCommitCompositionNative(GtkIMContext *aContext,
-                                   const gchar *aString);
-    void OnChangeCompositionNative(GtkIMContext *aContext);
-    void OnStartCompositionNative(GtkIMContext *aContext);
-    void OnEndCompositionNative(GtkIMContext *aContext);
+    gboolean OnRetrieveSurroundingNative(GtkIMContext* aContext);
+    gboolean OnDeleteSurroundingNative(GtkIMContext* aContext,
+                                       gint aOffset,
+                                       gint aNChars);
+    void OnCommitCompositionNative(GtkIMContext* aContext,
+                                   const gchar* aString);
+    void OnChangeCompositionNative(GtkIMContext* aContext);
+    void OnStartCompositionNative(GtkIMContext* aContext);
+    void OnEndCompositionNative(GtkIMContext* aContext);
 
     /**
      * GetCurrentContext() returns current IM context which is chosen with the
@@ -326,19 +349,16 @@ protected:
      *                              of current composition.  This should be
      *                              mDispatchedCompositionString.
      */
-    already_AddRefed<mozilla::TextRangeArray>
+    already_AddRefed<TextRangeArray>
         CreateTextRangeArray(GtkIMContext* aContext,
                              const nsAString& aLastDispatchedData);
 
     /**
-     * Sets the offset's cursor position to IME.
+     * Move the candidate window with "fake" cursor position.
      *
      * @param aContext              A GtkIMContext which is being handled.
-     * @param aTargetOffset         Offset of a character which is anchor of
-     *                              a candidate window.  This is offset in
-     *                              UTF-16 string.
      */
-    void SetCursorPosition(GtkIMContext* aContext, uint32_t aTargetOffset);
+    void SetCursorPosition(GtkIMContext* aContext);
 
     // Queries the current selection offset of the window.
     uint32_t GetSelectionOffset(nsWindow* aWindow);
@@ -359,10 +379,10 @@ protected:
                         uint32_t aNChars);
 
     // Initializes the GUI event.
-    void InitEvent(mozilla::WidgetGUIEvent& aEvent);
+    void InitEvent(WidgetGUIEvent& aEvent);
 
     // Called before destroying the context to work around some platform bugs.
-    void PrepareToDestroyContext(GtkIMContext *aContext);
+    void PrepareToDestroyContext(GtkIMContext* aContext);
 
     /**
      *  WARNING:
@@ -410,4 +430,7 @@ protected:
              const nsAString* aCommitString = nullptr);
 };
 
-#endif // __nsGtkIMModule_h__
+} // namespace widget
+} // namespace mozilla
+
+#endif // #ifndef IMContextWrapper_h_

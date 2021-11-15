@@ -4258,25 +4258,38 @@ MaybeUnwrapElements(const MDefinition *elementsOrObj)
     return elementsOrObj->toElements();
 }
 
+static inline const MDefinition*
+GetElementsObject(const MDefinition* elementsOrObj)
+{
+    if (elementsOrObj->type() == MIRType_Object)
+        return elementsOrObj;
+
+    const MDefinition* elements = MaybeUnwrapElements(elementsOrObj);
+    if (elements)
+        return elements->toElements()->input();
+
+    return nullptr;
+}
+
 // Gets the MDefinition of the target Object for the given store operation.
 static inline const MDefinition*
 GetStoreObject(const MDefinition* store)
 {
     switch (store->op()) {
-      case MDefinition::Op_StoreElement: {
-        const MDefinition* elementsOrObj = store->toStoreElement()->elements();
-        if (elementsOrObj->type() == MIRType_Object)
-            return elementsOrObj;
-
-        const MDefinition* elements = MaybeUnwrapElements(elementsOrObj);
-        if (elements)
-            return elements->toElements()->input();
-
-        return nullptr;
-      }
+      case MDefinition::Op_StoreElement:
+        return GetElementsObject(store->toStoreElement()->elements());
 
       case MDefinition::Op_StoreElementHole:
         return store->toStoreElementHole()->object();
+
+      case MDefinition::Op_StoreUnboxedObjectOrNull:
+        return GetElementsObject(store->toStoreUnboxedObjectOrNull()->elements());
+
+      case MDefinition::Op_StoreUnboxedString:
+        return GetElementsObject(store->toStoreUnboxedString()->elements());
+
+      case MDefinition::Op_StoreUnboxedScalar:
+        return GetElementsObject(store->toStoreUnboxedScalar()->elements());
 
       default:
         return nullptr;
@@ -4336,6 +4349,30 @@ bool
 MInitializedLength::mightAlias(const MDefinition* store) const
 {
     return GenericLoadMightAlias(elements(), store);
+}
+
+bool
+MLoadUnboxedObjectOrNull::mightAlias(const MDefinition* store) const
+{
+    return GenericLoadMightAlias(elements(), store);
+}
+
+bool
+MLoadUnboxedString::mightAlias(const MDefinition* store) const
+{
+    return GenericLoadMightAlias(elements(), store);
+}
+
+bool
+MLoadUnboxedScalar::mightAlias(const MDefinition* store) const
+{
+    return GenericLoadMightAlias(elements(), store);
+}
+
+bool
+MUnboxedArrayInitializedLength::mightAlias(const MDefinition* store) const
+{
+    return GenericLoadMightAlias(object(), store);
 }
 
 bool
@@ -4875,6 +4912,12 @@ PropertyReadNeedsTypeBarrier(CompilerConstraintList* constraints,
                 property.freeze(constraints);
                 return BarrierKind::TypeTagOnly;
             }
+            // If all possible primitives have been observed, we don't have to
+            // guard on those primitives.
+            if (property.maybeTypes()->primitivesAreSubset(observed)) {
+                property.freeze(constraints);
+                return BarrierKind::ObjectTypesOnly;
+            }
             return BarrierKind::TypeSet;
         }
     }
@@ -4902,9 +4945,12 @@ jit::PropertyReadNeedsTypeBarrier(JSContext* propertycx,
                                   TypeSet::ObjectKey* key, PropertyName* name,
                                   TemporaryTypeSet* observed, bool updateObserved)
 {
+    if (!updateObserved)
+        return PropertyReadNeedsTypeBarrier(constraints, key, name, observed);
+
     // If this access has never executed, try to add types to the observed set
     // according to any property which exists on the object or its prototype.
-    if (updateObserved && observed->empty() && name) {
+    if (observed->empty() && name) {
         JSObject* obj;
         if (key->isSingleton())
             obj = key->singleton();
@@ -4960,15 +5006,9 @@ jit::PropertyReadNeedsTypeBarrier(JSContext* propertycx,
         if (TypeSet::ObjectKey* key = types->getObject(i)) {
             BarrierKind kind = PropertyReadNeedsTypeBarrier(propertycx, constraints, key, name,
                                                             observed, updateObserved);
-            if (kind == BarrierKind::TypeSet)
+            res = CombineBarrierKinds(res, kind);
+            if (res == BarrierKind::TypeSet)
                 return BarrierKind::TypeSet;
-
-            if (kind == BarrierKind::TypeTagOnly) {
-                MOZ_ASSERT(res == BarrierKind::NoBarrier || res == BarrierKind::TypeTagOnly);
-                res = BarrierKind::TypeTagOnly;
-            } else {
-                MOZ_ASSERT(kind == BarrierKind::NoBarrier);
-            }
         }
     }
 
@@ -5002,15 +5042,9 @@ jit::PropertyReadOnPrototypeNeedsTypeBarrier(IonBuilder* builder,
             key = TypeSet::ObjectKey::get(proto);
             BarrierKind kind = PropertyReadNeedsTypeBarrier(builder->constraints(),
                                                             key, name, observed);
-            if (kind == BarrierKind::TypeSet)
+            res = CombineBarrierKinds(res, kind);
+            if (res == BarrierKind::TypeSet)
                 return BarrierKind::TypeSet;
-
-            if (kind == BarrierKind::TypeTagOnly) {
-                MOZ_ASSERT(res == BarrierKind::NoBarrier || res == BarrierKind::TypeTagOnly);
-                res = BarrierKind::TypeTagOnly;
-            } else {
-                MOZ_ASSERT(kind == BarrierKind::NoBarrier);
-            }
         }
     }
 
@@ -5235,8 +5269,12 @@ TryAddTypeBarrierForWrite(TempAllocator& alloc, CompilerConstraintList* constrai
     // If all possible objects can be stored without a barrier, we don't have to
     // guard on the specific object types.
     BarrierKind kind = BarrierKind::TypeSet;
-    if ((*pvalue)->resultTypeSet() && (*pvalue)->resultTypeSet()->objectsAreSubset(types))
-        kind = BarrierKind::TypeTagOnly;
+    if ((*pvalue)->resultTypeSet()) {
+        if ((*pvalue)->resultTypeSet()->objectsAreSubset(types))
+            kind = BarrierKind::TypeTagOnly;
+        else if ((*pvalue)->resultTypeSet()->primitivesAreSubset(types))
+            kind = BarrierKind::ObjectTypesOnly;
+    }
 
     MInstruction* ins = MMonitorTypes::New(alloc, *pvalue, types, kind);
     current->add(ins);

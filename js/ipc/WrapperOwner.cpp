@@ -33,6 +33,9 @@ struct AuxCPOWData
     // however they see fit.
     nsCString objectTag;
 
+    // The class name for WrapperOwner::className, below.
+    nsCString className;
+
     AuxCPOWData(ObjectId id,
                 bool isCallable,
                 bool isConstructor,
@@ -124,6 +127,8 @@ class CPOWProxyHandler : public BaseProxyHandler
                              MutableHandleValue v, bool* bp) const override;
     virtual bool objectClassIs(HandleObject obj, js::ESClassValue classValue,
                                JSContext* cx) const override;
+    virtual bool isArray(JSContext* cx, HandleObject obj,
+                         IsArrayAnswer* answer) const override;
     virtual const char* className(JSContext* cx, HandleObject proxy) const override;
     virtual bool regexp_toShared(JSContext* cx, HandleObject proxy, RegExpGuard* g) const override;
     virtual void finalize(JSFreeOp* fop, JSObject* proxy) const override;
@@ -738,6 +743,33 @@ WrapperOwner::objectClassIs(JSContext* cx, HandleObject proxy, js::ESClassValue 
     return result;
 }
 
+bool
+CPOWProxyHandler::isArray(JSContext* cx, HandleObject proxy,
+                          IsArrayAnswer* answer) const
+{
+    FORWARD(isArray, (cx, proxy, answer));
+}
+
+bool
+WrapperOwner::isArray(JSContext* cx, HandleObject proxy, IsArrayAnswer* answer)
+{
+    ObjectId objId = idOf(proxy);
+
+    uint32_t ans;
+    ReturnStatus status;
+    if (!SendIsArray(objId, &status, &ans))
+        return ipcfail(cx);
+
+    LOG_STACK();
+
+    *answer = IsArrayAnswer(ans);
+    MOZ_ASSERT(*answer == IsArrayAnswer::Array ||
+               *answer == IsArrayAnswer::NotArray ||
+               *answer == IsArrayAnswer::RevokedProxy);
+
+    return ok(cx, status);
+}
+
 const char*
 CPOWProxyHandler::className(JSContext* cx, HandleObject proxy) const
 {
@@ -750,15 +782,17 @@ CPOWProxyHandler::className(JSContext* cx, HandleObject proxy) const
 const char*
 WrapperOwner::className(JSContext* cx, HandleObject proxy)
 {
-    ObjectId objId = idOf(proxy);
+    AuxCPOWData* data = AuxCPOWDataOf(proxy);
+    if (data->className.IsEmpty()) {
+        ObjectId objId = idOf(proxy);
 
-    nsString name;
-    if (!SendClassName(objId, &name))
-        return "<error>";
+        if (!SendClassName(objId, &data->className))
+            return "<error>";
 
-    LOG_STACK();
+        LOG_STACK();
+    }
 
-    return ToNewCString(name);
+    return data->className.get();
 }
 
 bool

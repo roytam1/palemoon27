@@ -12,6 +12,8 @@
 
 using namespace js;
 
+using JS::IsArrayAnswer;
+
 bool
 BaseProxyHandler::enter(JSContext* cx, HandleObject wrapper, HandleId id, Action act,
                         bool* bp) const
@@ -317,9 +319,18 @@ BaseProxyHandler::hasInstance(JSContext* cx, HandleObject proxy, MutableHandleVa
 }
 
 bool
-BaseProxyHandler::objectClassIs(HandleObject proxy, ESClassValue classValue, JSContext* cx) const
+BaseProxyHandler::getBuiltinClass(JSContext* cx, HandleObject proxy,
+                                  ESClassValue* classValue) const
 {
-    return false;
+    *classValue = ESClass_Other;
+    return true;
+}
+
+bool
+BaseProxyHandler::isArray(JSContext* cx, HandleObject proxy, IsArrayAnswer* answer) const
+{
+    *answer = IsArrayAnswer::NotArray;
+    return true;
 }
 
 void

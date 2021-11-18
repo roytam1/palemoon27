@@ -349,7 +349,8 @@ class JSObject : public js::gc::Cell
      * is a proxy. In the lazy case, we store (JSObject*)0x1 in the proto field
      * of the object's group. We offer three ways of getting the prototype:
      *
-     * 1. obj->getProto() returns the prototype, but asserts if obj is a proxy.
+     * 1. obj->getProto() returns the prototype, but asserts if obj is a proxy
+     *    with a relevant getPrototype() handler.
      * 2. obj->getTaggedProto() returns a TaggedProto, which can be tested to
      *    check if the proto is an object, nullptr, or lazily computed.
      * 3. js::GetPrototype(cx, obj, &proto) computes the proto of an object.
@@ -366,7 +367,7 @@ class JSObject : public js::gc::Cell
     bool uninlinedIsProxy() const;
 
     JSObject* getProto() const {
-        MOZ_ASSERT(!uninlinedIsProxy());
+        MOZ_ASSERT(!hasLazyPrototype());
         return getTaggedProto().toObjectOrNull();
     }
 
@@ -535,7 +536,7 @@ class JSObject : public js::gc::Cell
      *
      * Note that X represents a low-level representation and does not query the
      * [[Class]] property of object defined by the spec (for this, see
-     * js::ObjectClassIs).
+     * js::GetBuiltinClass).
      */
 
     template <class T>
@@ -1003,29 +1004,24 @@ WatchProperty(JSContext* cx, HandleObject obj, HandleId id, HandleObject callabl
 extern bool
 UnwatchProperty(JSContext* cx, HandleObject obj, HandleId id);
 
-/* ES6 draft rev 36 (2015 March 17) 7.1.1 ToPrimitive(vp, preferredType) */
+/* ES6 draft rev 36 (2015 March 17) 7.1.1 ToPrimitive(vp[, preferredType]) */
 extern bool
-ToPrimitiveSlow(JSContext* cx, MutableHandleValue vp);
+ToPrimitiveSlow(JSContext* cx, JSType hint, MutableHandleValue vp);
 
 inline bool
 ToPrimitive(JSContext* cx, MutableHandleValue vp)
 {
     if (vp.isPrimitive())
         return true;
-    return ToPrimitiveSlow(cx, vp);
+    return ToPrimitiveSlow(cx, JSTYPE_VOID, vp);
 }
-
-extern bool
-ToPrimitive(JSContext* cx, HandleObject obj, JSType hint, MutableHandleValue vp);
 
 inline bool
 ToPrimitive(JSContext* cx, JSType preferredType, MutableHandleValue vp)
 {
-    MOZ_ASSERT(preferredType != JSTYPE_VOID);  // Use the other ToPrimitive!
     if (vp.isPrimitive())
         return true;
-    RootedObject obj(cx, &vp.toObject());
-    return ToPrimitive(cx, obj, preferredType, vp);
+    return ToPrimitiveSlow(cx, preferredType, vp);
 }
 
 /*

@@ -784,7 +784,6 @@ XPCWrappedNative::Init(const XPCNativeScriptableCreateInfo* sci)
                jsclazz->name &&
                jsclazz->flags &&
                jsclazz->resolve &&
-               jsclazz->convert &&
                jsclazz->finalize, "bad class");
 
     // XXXbz JS_GetObjectPrototype wants an object, even though it then asserts
@@ -1507,7 +1506,10 @@ CallMethodHelper::GetArraySizeFromParam(uint8_t paramIndex,
         MOZ_ASSERT(mMethodInfo->GetParam(paramIndex).IsOptional());
         RootedObject arrayOrNull(mCallContext, maybeArray.isObject() ? &maybeArray.toObject()
                                                                      : nullptr);
-        if (!JS_IsArrayObject(mCallContext, maybeArray) ||
+
+        bool isArray;
+        if (!JS_IsArrayObject(mCallContext, maybeArray, &isArray) ||
+            !isArray ||
             !JS_GetArrayLength(mCallContext, arrayOrNull, &GetDispatchParam(paramIndex)->val.u32))
         {
             return Throw(NS_ERROR_XPC_CANT_CONVERT_OBJECT_TO_ARRAY, mCallContext);

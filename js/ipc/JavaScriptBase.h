@@ -87,11 +87,13 @@ class JavaScriptBase : public WrapperOwner, public WrapperAnswer, public Base
     bool RecvHasInstance(const uint64_t& objId, const JSVariant& v, ReturnStatus* rs, bool* bp) {
         return Answer::RecvHasInstance(ObjectId::deserialize(objId), v, rs, bp);
     }
-    bool RecvObjectClassIs(const uint64_t& objId, const uint32_t& classValue,
-                             bool* result) {
-        return Answer::RecvObjectClassIs(ObjectId::deserialize(objId), classValue, result);
+    bool RecvGetBuiltinClass(const uint64_t& objId, ReturnStatus* rs, uint32_t* classValue) {
+        return Answer::RecvGetBuiltinClass(ObjectId::deserialize(objId), rs, classValue);
     }
-    bool RecvClassName(const uint64_t& objId, nsString* result) {
+    bool RecvIsArray(const uint64_t& objId, ReturnStatus* rs, uint32_t* answer) {
+        return Answer::RecvIsArray(ObjectId::deserialize(objId), rs, answer);
+    }
+    bool RecvClassName(const uint64_t& objId, nsCString* result) {
         return Answer::RecvClassName(ObjectId::deserialize(objId), result);
     }
     bool RecvGetPrototype(const uint64_t& objId, ReturnStatus* rs, ObjectOrNullVariant* result) {
@@ -175,14 +177,17 @@ class JavaScriptBase : public WrapperOwner, public WrapperAnswer, public Base
     bool SendHasInstance(const ObjectId& objId, const JSVariant& v, ReturnStatus* rs, bool* bp) {
         return Base::SendHasInstance(objId.serialize(), v, rs, bp);
     }
-    bool SendObjectClassIs(const ObjectId& objId, const uint32_t& classValue,
-                           bool* result) {
-        return Base::SendObjectClassIs(objId.serialize(), classValue, result);
+    bool SendGetBuiltinClass(const ObjectId& objId, ReturnStatus* rs, uint32_t* classValue) {
+        return Base::SendGetBuiltinClass(objId.serialize(), rs, classValue);
     }
-    bool SendClassName(const ObjectId &objId, nsString* result) {
+    bool SendIsArray(const ObjectId& objId, ReturnStatus* rs, uint32_t* answer)
+    {
+        return Base::SendIsArray(objId.serialize(), rs, answer);
+    }
+    bool SendClassName(const ObjectId& objId, nsCString* result) {
         return Base::SendClassName(objId.serialize(), result);
     }
-    bool SendGetPrototype(const ObjectId &objId, ReturnStatus* rs, ObjectOrNullVariant* result) {
+    bool SendGetPrototype(const ObjectId& objId, ReturnStatus* rs, ObjectOrNullVariant* result) {
         return Base::SendGetPrototype(objId.serialize(), rs, result);
     }
 

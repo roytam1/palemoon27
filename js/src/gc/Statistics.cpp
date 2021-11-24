@@ -621,8 +621,8 @@ Statistics::formatJsonDescription(uint64_t timestamp)
 
     const char *format =
         "\"timestamp\":%llu,"
-        "\"max_pause\":%lu.%03lu,"
-        "\"total_time\":%lu.%03lu,"
+        "\"max_pause\":%llu.%03llu,"
+        "\"total_time\":%llu.%03llu,"
         "\"zones_collected\":%d,"
         "\"total_zones\":%d,"
         "\"total_compartments\":%d,"
@@ -630,8 +630,8 @@ Statistics::formatJsonDescription(uint64_t timestamp)
         "\"store_buffer_overflows\":%d,"
         "\"mmu_20ms\":%d,"
         "\"mmu_50ms\":%d,"
-        "\"scc_sweep_total\":%lu.%03lu,"
-        "\"scc_sweep_max_pause\":%lu.%03lu,"
+        "\"scc_sweep_total\":%llu.%03llu,"
+        "\"scc_sweep_max_pause\":%llu.%03llu,"
         "\"nonincremental_reason\":\"%s\","
         "\"allocated\":%u,"
         "\"added_chunks\":%d,"
@@ -669,8 +669,8 @@ Statistics::formatJsonSliceDescription(unsigned i, const SliceData& slice)
 
     const char* format =
         "\"slice\":%d,"
-        "\"pause\":%lu.%03lu,"
-        "\"when\":%lu.%03lu,"
+        "\"pause\":%llu.%03llu,"
+        "\"when\":%llu.%03llu,"
         "\"reason\":\"%s\","
         "\"budget\":\"%s\","
         "\"page_faults\":%llu,"
@@ -717,7 +717,7 @@ Statistics::formatJsonPhaseTimes(const PhaseTimeTable phaseTimes)
 
         UniqueChars name = FilterJsonKey(phases[phase].name);
         int64_t ownTime = phaseTimes[dagSlot][phase];
-        JS_snprintf(buffer, sizeof(buffer), "\"%s\":%lu.%03lu",
+        JS_snprintf(buffer, sizeof(buffer), "\"%s\":%llu.%03llu",
                     name.get(), ownTime / 1000, ownTime % 1000);
 
         if (!fragments.append(make_string_copy(buffer)))

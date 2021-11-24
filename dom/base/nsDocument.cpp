@@ -8160,17 +8160,17 @@ nsIDocument::CreateEvent(const nsAString& aEventType, ErrorResult& rv) const
   }
 
   // Create event even without presContext.
-  nsCOMPtr<nsIDOMEvent> ev;
-  rv = EventDispatcher::CreateEvent(const_cast<nsIDocument*>(this),
-                                    presContext, nullptr, aEventType,
-                                    getter_AddRefs(ev));
+  nsRefPtr<Event> ev =
+    EventDispatcher::CreateEvent(const_cast<nsIDocument*>(this), presContext,
+                                 nullptr, aEventType);
   if (!ev) {
+    rv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }
   WidgetEvent* e = ev->GetInternalNSEvent();
   e->mFlags.mBubbles = false;
   e->mFlags.mCancelable = false;
-  return dont_AddRef(ev.forget().take()->InternalDOMEvent());
+  return ev.forget();
 }
 
 void

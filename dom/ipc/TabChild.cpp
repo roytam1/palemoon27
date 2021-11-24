@@ -249,7 +249,16 @@ TabChildBase::InitializeRootMetrics()
   // This is the root layer, so the cumulative resolution is the same
   // as the resolution.
   mLastRootMetrics.SetPresShellResolution(mLastRootMetrics.GetCumulativeResolution().ToScaleFactor().scale);
-  mLastRootMetrics.SetScrollOffset(CSSPoint(0, 0));
+
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+  if (shell && shell->GetRootScrollFrameAsScrollable()) {
+    // The session history code might restore a scroll position when navigating
+    // back or forward, and we don't want to clobber that.
+    nsPoint pos = shell->GetRootScrollFrameAsScrollable()->GetScrollPosition();
+    mLastRootMetrics.SetScrollOffset(CSSPoint::FromAppUnits(pos));
+  } else {
+    mLastRootMetrics.SetScrollOffset(CSSPoint(0, 0));
+  }
 
   TABC_LOG("After InitializeRootMetrics, mLastRootMetrics is %s\n",
     Stringify(mLastRootMetrics).c_str());
@@ -1592,15 +1601,22 @@ TabChild::ProvideWindowCommon(nsIDOMWindow* aOpener,
     // tab, then we want to enforce that the new window is also a remote tab.
     features.AppendLiteral(",remote");
 
+    nsresult rv;
+
     if (!SendCreateWindow(newChild,
                           aChromeFlags, aCalledFromJS, aPositionSpecified,
                           aSizeSpecified, url,
                           name, NS_ConvertUTF8toUTF16(features),
                           NS_ConvertUTF8toUTF16(baseURIString),
+                          &rv,
                           aWindowIsNew,
                           &frameScripts,
                           &urlToLoad)) {
       return NS_ERROR_NOT_AVAILABLE;
+    }
+
+    if (NS_FAILED(rv)) {
+      return rv;
     }
   }
   if (!*aWindowIsNew) {
@@ -2210,6 +2226,13 @@ TabChild::RecvNotifyAPZStateChange(const ViewID& aViewId,
                                    const int& aArg)
 {
   mAPZEventState->ProcessAPZStateChange(GetDocument(), aViewId, aChange, aArg);
+  if (aChange == APZStateChange::TransformEnd) {
+    // This is used by tests to determine when the APZ is done doing whatever
+    // it's doing. XXX generify this as needed when writing additional tests.
+    DispatchMessageManagerMessage(
+      NS_LITERAL_STRING("APZ:TransformEnd"),
+      NS_LITERAL_STRING("{}"));
+  }
   return true;
 }
 
@@ -3508,6 +3531,10 @@ TabChildGlobal::MarkForCC()
 {
   if (mTabChild) {
     mTabChild->MarkScopesForCC();
+  }
+  EventListenerManager* elm = GetExistingListenerManager();
+  if (elm) {
+    elm->MarkForCC();
   }
   return mMessageManager ? mMessageManager->MarkForCC() : false;
 }

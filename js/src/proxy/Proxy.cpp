@@ -455,10 +455,16 @@ Proxy::hasInstance(JSContext* cx, HandleObject proxy, MutableHandleValue v, bool
 }
 
 bool
-Proxy::objectClassIs(HandleObject proxy, ESClassValue classValue, JSContext* cx)
+Proxy::getBuiltinClass(JSContext* cx, HandleObject proxy, ESClassValue* classValue)
 {
     JS_CHECK_RECURSION(cx, return false);
-    return proxy->as<ProxyObject>().handler()->objectClassIs(proxy, classValue, cx);
+    return proxy->as<ProxyObject>().handler()->getBuiltinClass(cx, proxy, classValue);
+}
+
+bool
+Proxy::isArray(JSContext* cx, HandleObject proxy, JS::IsArrayAnswer* answer)
+{
+    return proxy->as<ProxyObject>().handler()->isArray(cx, proxy, answer);
 }
 
 const char*
@@ -505,13 +511,6 @@ Proxy::boxedValue_unbox(JSContext* cx, HandleObject proxy, MutableHandleValue vp
 {
     JS_CHECK_RECURSION(cx, return false);
     return proxy->as<ProxyObject>().handler()->boxedValue_unbox(cx, proxy, vp);
-}
-
-bool
-Proxy::defaultValue(JSContext* cx, HandleObject proxy, JSType hint, MutableHandleValue vp)
-{
-    JS_CHECK_RECURSION(cx, return false);
-    return proxy->as<ProxyObject>().handler()->defaultValue(cx, proxy, hint, vp);
 }
 
 JSObject * const TaggedProto::LazyProto = reinterpret_cast<JSObject*>(0x1);
@@ -672,13 +671,6 @@ js::proxy_WeakmapKeyDelegate(JSObject* obj)
 {
     MOZ_ASSERT(obj->is<ProxyObject>());
     return obj->as<ProxyObject>().handler()->weakmapKeyDelegate(obj);
-}
-
-bool
-js::proxy_Convert(JSContext* cx, HandleObject proxy, JSType hint, MutableHandleValue vp)
-{
-    MOZ_ASSERT(proxy->is<ProxyObject>());
-    return Proxy::defaultValue(cx, proxy, hint, vp);
 }
 
 void

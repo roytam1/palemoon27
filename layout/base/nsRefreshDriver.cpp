@@ -64,6 +64,7 @@
 #include "nsThreadUtils.h"
 #include "mozilla/unused.h"
 #include "mozilla/TimelineConsumers.h"
+#include "nsAnimationManager.h"
 
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"
@@ -1482,6 +1483,70 @@ TakeFrameRequestCallbacksFrom(nsIDocument* aDocument,
   aDocument->TakeFrameRequestCallbacks(aTarget.LastElement().mCallbacks);
 }
 
+namespace {
+  enum class AnimationEventType {
+    CSSAnimations,
+    CSSTransitions
+  };
+
+  struct DispatchAnimationEventParams {
+    AnimationEventType mEventType;
+    nsRefreshDriver* mRefreshDriver;
+  };
+}
+
+static bool
+DispatchAnimationEventsOnSubDocuments(nsIDocument* aDocument,
+                                      void* aParams)
+{
+  MOZ_ASSERT(aParams, "Animation event parameters should be set");
+  auto params = static_cast<DispatchAnimationEventParams*>(aParams);
+
+  nsIPresShell* shell = aDocument->GetShell();
+  if (!shell) {
+    return true;
+  }
+
+  nsPresContext* context = shell->GetPresContext();
+  if (!context || context->RefreshDriver() != params->mRefreshDriver) {
+    return true;
+  }
+
+  nsCOMPtr<nsIDocument> kungFuDeathGrip(aDocument);
+
+  if (params->mEventType == AnimationEventType::CSSAnimations) {
+    context->AnimationManager()->DispatchEvents();
+  } else {
+    context->TransitionManager()->DispatchEvents();
+  }
+  aDocument->EnumerateSubDocuments(DispatchAnimationEventsOnSubDocuments,
+                                   aParams);
+
+  return true;
+}
+
+void
+nsRefreshDriver::DispatchAnimationEvents()
+{
+  if (!mPresContext) {
+    return;
+  }
+
+  nsIDocument* doc = mPresContext->Document();
+
+  // Dispatch transition events first since transitions conceptually sit
+  // below animations in terms of compositing order.
+  DispatchAnimationEventParams params { AnimationEventType::CSSTransitions,
+                                        this };
+  DispatchAnimationEventsOnSubDocuments(doc, &params);
+  if (!mPresContext) {
+    return;
+  }
+
+  params.mEventType = AnimationEventType::CSSAnimations;
+  DispatchAnimationEventsOnSubDocuments(doc, &params);
+}
+
 void
 nsRefreshDriver::DispatchPendingEvents()
 {
@@ -1494,7 +1559,7 @@ nsRefreshDriver::DispatchPendingEvents()
 }
 
 void
-nsRefreshDriver::RunFrameRequestCallbacks(int64_t aNowEpoch, TimeStamp aNowTime)
+nsRefreshDriver::RunFrameRequestCallbacks(TimeStamp aNowTime)
 {
   // Grab all of our frame request callbacks up front.
   nsTArray<DocumentFrameCallbacks>
@@ -1669,7 +1734,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       // This is the Flush_Style case.
 
       DispatchPendingEvents();
-      RunFrameRequestCallbacks(aNowEpoch, aNowTime);
+      DispatchAnimationEvents();
+      RunFrameRequestCallbacks(aNowTime);
 
       if (mPresContext && mPresContext->GetPresShell()) {
         bool tracingStyleFlush = false;

@@ -12,7 +12,6 @@
 
 #include "nsIContent.h"
 #include "nsStyleContext.h"
-#include "nsCSSProps.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
 #include "nsRefreshDriver.h"
@@ -20,7 +19,6 @@
 #include "nsRuleWalker.h"
 #include "nsCSSPropertySet.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/ContentEvents.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/Element.h"
@@ -45,8 +43,8 @@ using namespace mozilla::css;
 double
 ElementPropertyTransition::CurrentValuePortion() const
 {
-  // It would be easy enough to handle finished transitions by using a time
-  // fraction of 1 but currently we should not be called for finished
+  // It would be easy enough to handle finished transitions by using a
+  // progress of 1 but currently we should not be called for finished
   // transitions.
   MOZ_ASSERT(!IsFinishedTransition(),
              "Getting the value portion of a finished transition");
@@ -55,28 +53,26 @@ ElementPropertyTransition::CurrentValuePortion() const
              "sampled");
 
   // Transitions use a fill mode of 'backwards' so GetComputedTiming will
-  // never return a null time fraction due to being *before* the animation
+  // never return a null time progress due to being *before* the animation
   // interval. However, it might be possible that we're behind on flushing
   // causing us to get called *after* the animation interval. So, just in
-  // case, we override the fill mode to 'both' to ensure the time fraction
+  // case, we override the fill mode to 'both' to ensure the progress
   // is never null.
   AnimationTiming timingToUse = mTiming;
   timingToUse.mFillMode = NS_STYLE_ANIMATION_FILL_MODE_BOTH;
   ComputedTiming computedTiming = GetComputedTiming(&timingToUse);
 
-  MOZ_ASSERT(computedTiming.mTimeFraction != ComputedTiming::kNullTimeFraction,
-             "Got a null time fraction for a fill mode of 'both'");
+  MOZ_ASSERT(computedTiming.mProgress != ComputedTiming::kNullProgress,
+             "Got a null progress for a fill mode of 'both'");
   MOZ_ASSERT(mProperties.Length() == 1,
              "Should have one animation property for a transition");
   MOZ_ASSERT(mProperties[0].mSegments.Length() == 1,
              "Animation property should have one segment for a transition");
   return mProperties[0].mSegments[0].mTimingFunction
-         .GetValue(computedTiming.mTimeFraction);
+         .GetValue(computedTiming.mProgress);
 }
 
-/*****************************************************************************
- * CSSTransition                                                             *
- *****************************************************************************/
+////////////////////////// CSSTransition ////////////////////////////
 
 JSObject*
 CSSTransition::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
@@ -119,6 +115,42 @@ CSSTransition::GetAnimationManager() const
   }
 
   return context->TransitionManager();
+}
+
+void
+CSSTransition::QueueEvents()
+{
+  AnimationPlayState playState = PlayState();
+  bool newlyFinished = !mWasFinishedOnLastTick &&
+                       playState == AnimationPlayState::Finished;
+  mWasFinishedOnLastTick = playState == AnimationPlayState::Finished;
+
+  if (!newlyFinished || !mEffect || !mOwningElement.IsSet()) {
+    return;
+  }
+
+  dom::Element* owningElement;
+  nsCSSPseudoElements::Type owningPseudoType;
+  mOwningElement.GetElement(owningElement, owningPseudoType);
+  MOZ_ASSERT(owningElement, "Owning element should be set");
+
+  nsPresContext* presContext = mOwningElement.GetRenderedPresContext();
+  if (!presContext) {
+    return;
+  }
+  nsTransitionManager* manager = presContext->TransitionManager();
+
+  manager->QueueEvent(
+    TransitionEventInfo(owningElement, TransitionProperty(),
+                        mEffect->Timing().mIterationDuration,
+                        owningPseudoType));
+}
+
+void
+CSSTransition::Tick()
+{
+  Animation::Tick();
+  QueueEvents();
 }
 
 nsCSSProperty
@@ -176,9 +208,17 @@ CSSTransition::HasLowerCompositeOrderThan(const Animation& aOther) const
          nsCSSProps::GetStringValue(otherTransition->TransitionProperty());
 }
 
-/*****************************************************************************
- * nsTransitionManager                                                       *
- *****************************************************************************/
+////////////////////////// nsTransitionManager ////////////////////////////
+
+NS_IMPL_CYCLE_COLLECTION(nsTransitionManager, mEventDispatcher)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTransitionManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTransitionManager)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTransitionManager)
+  NS_INTERFACE_MAP_ENTRY(nsIStyleRuleProcessor)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 void
 nsTransitionManager::StyleContextChanged(dom::Element *aElement,
@@ -841,6 +881,10 @@ nsTransitionManager::UpdateCascadeResults(AnimationCollection* aTransitions,
 nsTransitionManager::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 {
   return CommonAnimationManager::SizeOfExcludingThis(aMallocSizeOf);
+
+  // Measurement of the following members may be added later if DMD finds it is
+  // worthwhile:
+  // - mEventDispatcher
 }
 
 /* virtual */ size_t
@@ -848,32 +892,6 @@ nsTransitionManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
-
-struct TransitionEventInfo {
-  nsCOMPtr<nsIContent> mElement;
-  InternalTransitionEvent mEvent;
-
-  TransitionEventInfo(nsIContent *aElement, nsCSSProperty aProperty,
-                      TimeDuration aDuration, const nsAString& aPseudoElement)
-    : mElement(aElement)
-    , mEvent(true, NS_TRANSITION_END)
-  {
-    // XXX Looks like nobody initialize WidgetEvent::time
-    mEvent.propertyName =
-      NS_ConvertUTF8toUTF16(nsCSSProps::GetStringValue(aProperty));
-    mEvent.elapsedTime = aDuration.ToSeconds();
-    mEvent.pseudoElement = aPseudoElement;
-  }
-
-  // InternalTransitionEvent doesn't support copy-construction, so we need
-  // to ourselves in order to work with nsTArray
-  TransitionEventInfo(const TransitionEventInfo &aOther)
-    : mElement(aOther.mElement)
-    , mEvent(true, NS_TRANSITION_END)
-  {
-    mEvent.AssignTransitionEventData(aOther.mEvent, false);
-  }
-};
 
 /* virtual */ void
 nsTransitionManager::WillRefresh(mozilla::TimeStamp aTime)
@@ -901,7 +919,6 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
     return;
   }
 
-  nsTArray<TransitionEventInfo> events;
   TimeStamp now = mPresContext->RefreshDriver()->MostRecentRefresh();
   bool didThrottle = false;
   // Trim transitions that have completed, post restyle events for frames that
@@ -936,15 +953,6 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
           ComputedTiming computedTiming =
             anim->GetEffect()->GetComputedTiming();
           if (computedTiming.mPhase == ComputedTiming::AnimationPhase_After) {
-            nsCSSProperty prop =
-              anim->GetEffect()->AsTransition()->TransitionProperty();
-            TimeDuration duration =
-              anim->GetEffect()->Timing().mIterationDuration;
-            events.AppendElement(
-              TransitionEventInfo(collection->mElement, prop,
-                                  duration,
-                                  collection->PseudoElement()));
-
             // Leave this transition in the list for one more refresh
             // cycle, since we haven't yet processed its style change, and
             // if we also have (already, or will have from processing
@@ -995,13 +1003,4 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
   }
 
   MaybeStartOrStopObservingRefreshDriver();
-
-  for (uint32_t i = 0, i_end = events.Length(); i < i_end; ++i) {
-    TransitionEventInfo &info = events[i];
-    EventDispatcher::Dispatch(info.mElement, mPresContext, &info.mEvent);
-
-    if (!mPresContext) {
-      break;
-    }
-  }
 }

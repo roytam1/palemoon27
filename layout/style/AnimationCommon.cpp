@@ -51,8 +51,6 @@ IsGeometricProperty(nsCSSProperty aProperty)
   }
 }
 
-namespace css {
-
 CommonAnimationManager::CommonAnimationManager(nsPresContext *aPresContext)
   : mPresContext(aPresContext)
   , mIsObservingRefreshDriver(false)
@@ -167,12 +165,6 @@ CommonAnimationManager::GetAnimationsForCompositor(const nsIFrame* aFrame,
   // This animation can be done on the compositor.
   return collection;
 }
-
-/*
- * nsISupports implementation
- */
-
-NS_IMPL_ISUPPORTS(CommonAnimationManager, nsIStyleRuleProcessor)
 
 nsRestyleHint
 CommonAnimationManager::HasStateDependentStyle(StateRuleProcessorData* aData)
@@ -435,7 +427,7 @@ CommonAnimationManager::LayerAnimationRecordFor(nsCSSProperty aProperty)
 /* static */ void
 CommonAnimationManager::Initialize()
 {
-  const auto& info = css::CommonAnimationManager::sLayerAnimationInfo;
+  const auto& info = CommonAnimationManager::sLayerAnimationInfo;
   for (size_t i = 0; i < ArrayLength(info); i++) {
     auto record = info[i];
     MOZ_ASSERT(nsCSSProps::PropHasFlags(record.mProperty,
@@ -519,8 +511,6 @@ AnimValuesStyleRule::List(FILE* out, int32_t aIndent) const
   fprintf_stderr(out, "%s", str.get());
 }
 #endif
-
-} // namespace css
 
 bool
 AnimationCollection::CanAnimatePropertyOnCompositor(
@@ -683,7 +673,7 @@ AnimationCollection::PostUpdateLayerAnimations()
                                    CSS_PROPERTY_CAN_ANIMATE_ON_COMPOSITOR) &&
           !propsHandled.HasProperty(prop)) {
         propsHandled.AddProperty(prop);
-        nsChangeHint changeHint = css::CommonAnimationManager::
+        nsChangeHint changeHint = CommonAnimationManager::
           LayerAnimationRecordFor(prop)->mChangeHint;
         dom::Element* element = GetElementToRestyle();
         if (element) {
@@ -706,6 +696,21 @@ AnimationCollection::HasAnimationOfProperty(nsCSSProperty aProperty) const
     }
   }
   return false;
+}
+
+/*static*/ nsString
+AnimationCollection::PseudoTypeAsString(nsCSSPseudoElements::Type aPseudoType)
+{
+  switch (aPseudoType) {
+    case nsCSSPseudoElements::ePseudo_before:
+      return NS_LITERAL_STRING("::before");
+    case nsCSSPseudoElements::ePseudo_after:
+      return NS_LITERAL_STRING("::after");
+    default:
+      MOZ_ASSERT(aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                 "Unexpected pseudo type");
+      return EmptyString();
+  }
 }
 
 mozilla::dom::Element*
@@ -908,7 +913,7 @@ AnimationCollection::CanThrottleAnimation(TimeStamp aTime)
   }
 
 
-  const auto& info = css::CommonAnimationManager::sLayerAnimationInfo;
+  const auto& info = CommonAnimationManager::sLayerAnimationInfo;
   for (size_t i = 0; i < ArrayLength(info); i++) {
     auto record = info[i];
     if (!HasAnimationOfProperty(record.mProperty)) {
@@ -973,6 +978,26 @@ AnimationCollection::HasCurrentAnimationsForProperties(
   }
 
   return false;
+}
+
+nsPresContext*
+OwningElementRef::GetRenderedPresContext() const
+{
+  if (!mElement) {
+    return nullptr;
+  }
+
+  nsIDocument* doc = mElement->GetComposedDoc();
+  if (!doc) {
+    return nullptr;
+  }
+
+  nsIPresShell* shell = doc->GetShell();
+  if (!shell) {
+    return nullptr;
+  }
+
+  return shell->GetPresContext();
 }
 
 } // namespace mozilla

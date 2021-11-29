@@ -62,6 +62,7 @@
 #include "mozilla/VsyncDispatcher.h"
 #include "nsThreadUtils.h"
 #include "mozilla/unused.h"
+#include "mozilla/TimelineConsumers.h"
 
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"
@@ -995,7 +996,7 @@ RefreshDriverTimer*
 nsRefreshDriver::ChooseTimer() const
 {
   if (mThrottled) {
-    if (!sThrottledRateTimer) 
+    if (!sThrottledRateTimer)
       sThrottledRateTimer = new InactiveRefreshDriverTimer(GetThrottledTimerInterval(),
                                                            DEFAULT_INACTIVE_TIMER_DISABLE_SECONDS * 1000.0);
     return sThrottledRateTimer;
@@ -1053,7 +1054,7 @@ nsRefreshDriver::~nsRefreshDriver()
   MOZ_ASSERT(ObserverCount() == 0,
              "observers should have unregistered");
   MOZ_ASSERT(!mActiveTimer, "timer should be gone");
-  
+
   if (mRootRefresh) {
     mRootRefresh->RemoveRefreshObserver(this, Flush_Style);
     mRootRefresh = nullptr;
@@ -1437,7 +1438,7 @@ HasPendingAnimations(nsIPresShell* aShell)
 static void GetProfileTimelineSubDocShells(nsDocShell* aRootDocShell,
                                            nsTArray<nsDocShell*>& aShells)
 {
-  if (!aRootDocShell || nsDocShell::gProfileTimelineRecordingsCount == 0) {
+  if (!aRootDocShell || TimelineConsumers::IsEmpty()) {
     return;
   }
 
@@ -1801,9 +1802,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     for (nsDocShell* docShell : profilingDocShells) {
       // For the sake of the profile timeline's simplicity, this is flagged as
       // paint even if it includes creating display lists
-      docShell->AddProfileTimelineMarker("Paint", TRACING_INTERVAL_START);
+      TimelineConsumers::AddMarkerForDocShell(docShell, "Paint", TRACING_INTERVAL_START);
     }
-    profiler_tracing("Paint", "DisplayList", TRACING_INTERVAL_START);
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
       printf_stderr("Starting ProcessPendingUpdates\n");
@@ -1819,9 +1819,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     }
 #endif
     for (nsDocShell* docShell : profilingDocShells) {
-      docShell->AddProfileTimelineMarker("Paint", TRACING_INTERVAL_END);
+      TimelineConsumers::AddMarkerForDocShell(docShell, "Paint", TRACING_INTERVAL_END);
     }
-    profiler_tracing("Paint", "DisplayList", TRACING_INTERVAL_END);
 
     if (nsContentUtils::XPConnect()) {
       nsContentUtils::XPConnect()->NotifyDidPaint();

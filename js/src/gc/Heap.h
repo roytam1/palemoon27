@@ -75,7 +75,9 @@ enum InitialHeap {
 };
 
 /* The GC allocation kinds. */
-enum class AllocKind : uint8_t {
+// FIXME: uint8_t would make more sense for the underlying type, but causes
+// miscompilations in GCC (fixed in 4.8.5 and 4.9.3). See also bug 1143966.
+enum class AllocKind {
     FIRST,
     OBJECT_FIRST = FIRST,
     FUNCTION = FIRST,
@@ -636,14 +638,14 @@ struct ArenaHeader
                   "cover allocKind and hasDelayedMarking.");
 
     inline uintptr_t address() const;
-    inline Chunk *chunk() const;
+    inline Chunk* chunk() const;
 
     bool allocated() const {
         MOZ_ASSERT(IsAllocKind(AllocKind(allocKind)));
         return IsValidAllocKind(AllocKind(allocKind));
     }
 
-    void init(JS::Zone *zoneArg, AllocKind kind) {
+    void init(JS::Zone* zoneArg, AllocKind kind) {
         MOZ_ASSERT(!allocated());
         MOZ_ASSERT(!markOverflow);
         MOZ_ASSERT(!allocatedDuringIncremental);

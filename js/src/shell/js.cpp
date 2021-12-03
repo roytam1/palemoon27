@@ -4129,7 +4129,7 @@ ReflectTrackedOptimizations(JSContext* cx, unsigned argc, Value* vp)
     if (!sp.init())
         return false;
 
-    const jit::IonTrackedOptimizationsRegionTable *regions =
+    const jit::IonTrackedOptimizationsRegionTable* regions =
         entry.ionEntry().trackedOptimizationsRegionTable();
 
     Sprint(&sp, "{\"regions\": [");

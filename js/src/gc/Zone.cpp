@@ -27,6 +27,7 @@ JS::Zone::Zone(JSRuntime* rt)
     debuggers(nullptr),
     arenas(rt),
     types(this),
+    gcWeakMapList(nullptr),
     compartments(),
     gcGrayRoots(),
     gcMallocBytes(0),
@@ -204,6 +205,13 @@ Zone::sweepBreakpoints(FreeOp* fop)
 }
 
 void
+Zone::sweepWeakMaps()
+{
+    /* Finalize unreachable (key,value) pairs in all weak maps. */
+    WeakMapBase::sweepZone(this);
+}
+
+void
 Zone::discardJitCode(FreeOp* fop)
 {
     if (!jitZone())
@@ -216,7 +224,7 @@ Zone::discardJitCode(FreeOp* fop)
 #ifdef DEBUG
         /* Assert no baseline scripts are marked as active. */
         for (ZoneCellIterUnderGC i(this, AllocKind::SCRIPT); !i.done(); i.next()) {
-            JSScript *script = i.get<JSScript>();
+            JSScript* script = i.get<JSScript>();
             MOZ_ASSERT_IF(script->hasBaselineScript(), !script->baselineScript()->active());
         }
 #endif
@@ -228,7 +236,7 @@ Zone::discardJitCode(FreeOp* fop)
         jit::InvalidateAll(fop, this);
 
         for (ZoneCellIterUnderGC i(this, AllocKind::SCRIPT); !i.done(); i.next()) {
-            JSScript *script = i.get<JSScript>();
+            JSScript* script = i.get<JSScript>();
             jit::FinishInvalidation(fop, script);
 
             /*
@@ -300,7 +308,7 @@ Zone::notifyObservingDebuggers()
         if (!global)
             continue;
 
-        GlobalObject::DebuggerVector *dbgs = global->getDebuggers();
+        GlobalObject::DebuggerVector* dbgs = global->getDebuggers();
         if (!dbgs)
             continue;
 

@@ -66,7 +66,7 @@ enum : uint32_t {
     /* Mask containing all primitives */
     TYPE_FLAG_PRIMITIVE = TYPE_FLAG_UNDEFINED | TYPE_FLAG_NULL | TYPE_FLAG_BOOLEAN |
                           TYPE_FLAG_INT32 | TYPE_FLAG_DOUBLE | TYPE_FLAG_STRING |
-                          TYPE_FLAG_SYMBOL,
+                          TYPE_FLAG_SYMBOL | TYPE_FLAG_LAZYARGS,
 
     /* Mask/shift for the number of objects in objectSet */
     TYPE_FLAG_OBJECT_COUNT_MASK     = 0x3e00,
@@ -483,11 +483,10 @@ class TypeSet
      */
     bool isSubset(const TypeSet* other) const;
 
-    /*
-     * Get whether the objects in this TypeSet are a subset of the objects
-     * in other.
-     */
+    // Return whether this is a subset of other, ignoring primitive or object
+    // types respectively.
     bool objectsAreSubset(TypeSet* other);
+    bool primitivesAreSubset(TypeSet* other);
 
     /* Whether this TypeSet contains exactly the same types as other. */
     bool equals(const TypeSet* other) const {
@@ -811,7 +810,7 @@ class PreliminaryObjectArray
 
 class PreliminaryObjectArrayWithTemplate : public PreliminaryObjectArray
 {
-    HeapPtrShape shape_;
+    RelocatablePtrShape shape_;
 
   public:
     explicit PreliminaryObjectArrayWithTemplate(Shape* shape)
@@ -1271,9 +1270,9 @@ enum SpewChannel {
 
 #ifdef DEBUG
 
-const char* InferSpewColorReset();
-const char* InferSpewColor(TypeConstraint* constraint);
-const char* InferSpewColor(TypeSet* types);
+const char * InferSpewColorReset();
+const char * InferSpewColor(TypeConstraint* constraint);
+const char * InferSpewColor(TypeSet* types);
 
 void InferSpew(SpewChannel which, const char* fmt, ...);
 
@@ -1282,9 +1281,9 @@ bool ObjectGroupHasProperty(JSContext* cx, ObjectGroup* group, jsid id, const Va
 
 #else
 
-inline const char* InferSpewColorReset() { return nullptr; }
-inline const char* InferSpewColor(TypeConstraint* constraint) { return nullptr; }
-inline const char* InferSpewColor(TypeSet* types) { return nullptr; }
+inline const char * InferSpewColorReset() { return nullptr; }
+inline const char * InferSpewColor(TypeConstraint* constraint) { return nullptr; }
+inline const char * InferSpewColor(TypeSet* types) { return nullptr; }
 inline void InferSpew(SpewChannel which, const char* fmt, ...) {}
 
 #endif

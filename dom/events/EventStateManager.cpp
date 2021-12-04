@@ -16,6 +16,7 @@
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/DragEvent.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/UIEvent.h"
@@ -54,7 +55,6 @@
 #include "nsIObserverService.h"
 #include "nsIDocShell.h"
 #include "nsIDOMWheelEvent.h"
-#include "nsIDOMDragEvent.h"
 #include "nsIDOMUIEvent.h"
 #include "nsIMozBrowserFrame.h"
 
@@ -599,6 +599,15 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     }
     break;
   }
+  case NS_MOUSE_ENTER_WIDGET:
+    // In some cases on e10s NS_MOUSE_ENTER_WIDGET
+    // event was sent twice into child process of content.
+    // (From specific widget code (sending is not permanent) and
+    // from ESM::DispatchMouseOrPointerEvent (sending is permanent)).
+    // Flag mNoCrossProcessBoundaryForwarding helps to
+    // suppress sending accidental event from widget code.
+    aEvent->mFlags.mNoCrossProcessBoundaryForwarding = true;
+    break;
   case NS_MOUSE_EXIT_WIDGET:
     // If this is a remote frame, we receive NS_MOUSE_EXIT_WIDGET from the parent
     // the mouse exits our content. Since the parent may update the cursor
@@ -610,6 +619,10 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     if (XRE_IsContentProcess()) {
       ClearCachedWidgetCursor(mCurrentTarget);
     }
+
+    // Flag helps to suppress double event sending into process of content.
+    // For more information see comment above, at NS_MOUSE_ENTER_WIDGET case.
+    aEvent->mFlags.mNoCrossProcessBoundaryForwarding = true;
 
     // If the event is not a top-level window exit, then it's not
     // really an exit --- we may have traversed widget boundaries but
@@ -1177,7 +1190,6 @@ CrossProcessSafeEvent(const WidgetEvent& aEvent)
     case NS_CONTEXTMENU:
     case NS_MOUSE_ENTER_WIDGET:
     case NS_MOUSE_EXIT_WIDGET:
-    case NS_MOUSE_OVER:
       return true;
     default:
       return false;
@@ -1882,13 +1894,8 @@ EventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   // XXXndeakin don't really want to create a new drag DOM event
   // here, but we need something to pass to the InvokeDragSession
   // methods.
-  nsCOMPtr<nsIDOMEvent> domEvent;
-  NS_NewDOMDragEvent(getter_AddRefs(domEvent), dragTarget,
-                     aPresContext, aDragEvent);
-
-  nsCOMPtr<nsIDOMDragEvent> domDragEvent = do_QueryInterface(domEvent);
-  // if creating a drag event failed, starting a drag session will
-  // just fail.
+  nsRefPtr<DragEvent> event =
+    NS_NewDOMDragEvent(dragTarget, aPresContext, aDragEvent);
 
   // Use InvokeDragSessionWithSelection if a selection is being dragged,
   // such that the image can be generated from the selected text. However,
@@ -1896,8 +1903,7 @@ EventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   // other than a selection is being dragged.
   if (!dragImage && aSelection) {
     dragService->InvokeDragSessionWithSelection(aSelection, transArray,
-                                                action, domDragEvent,
-                                                aDataTransfer);
+                                                action, event, aDataTransfer);
   }
   else {
     // if dragging within a XUL tree and no custom drag image was
@@ -1923,8 +1929,7 @@ EventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
                                             region, action,
                                             dragImage ? dragImage->AsDOMNode() :
                                                         nullptr,
-                                            imageX,
-                                            imageY, domDragEvent,
+                                            imageX, imageY, event,
                                             aDataTransfer);
   }
 

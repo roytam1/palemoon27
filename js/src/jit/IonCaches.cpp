@@ -1537,6 +1537,20 @@ PushObjectOpResult(MacroAssembler& masm)
 }
 
 static bool
+ProxyGetProperty(JSContext* cx, HandleObject proxy, HandleId id, MutableHandleValue vp)
+{
+    RootedValue receiver(cx, ObjectValue(*proxy));
+    return Proxy::get(cx, proxy, receiver, id, vp);
+}
+
+static bool
+ProxyCallProperty(JSContext* cx, HandleObject proxy, HandleId id, MutableHandleValue vp)
+{
+    RootedValue receiver(cx, ObjectValue(*proxy));
+    return Proxy::callProp(cx, proxy, receiver, id, vp);
+}
+
+static bool
 EmitCallProxyGet(JSContext* cx, MacroAssembler& masm, IonCache::StubAttacher& attacher,
                  PropertyName* name, LiveRegisterSet liveRegs, Register object,
                  TypedOrValueRegister output, jsbytecode* pc, void* returnAddr)
@@ -1549,8 +1563,8 @@ EmitCallProxyGet(JSContext* cx, MacroAssembler& masm, IonCache::StubAttacher& at
     AllocatableRegisterSet regSet(RegisterSet::All());
     regSet.take(AnyRegister(object));
 
-    // Proxy::get(JSContext* cx, HandleObject proxy, HandleObject receiver, HandleId id,
-    //            MutableHandleValue vp)
+    // ProxyGetProperty(JSContext* cx, HandleObject proxy, HandleId id,
+    //                  MutableHandleValue vp)
     Register argJSContextReg = regSet.takeAnyGeneral();
     Register argProxyReg     = regSet.takeAnyGeneral();
     Register argIdReg        = regSet.takeAnyGeneral();
@@ -1558,9 +1572,9 @@ EmitCallProxyGet(JSContext* cx, MacroAssembler& masm, IonCache::StubAttacher& at
 
     Register scratch         = regSet.takeAnyGeneral();
 
-    void* getFunction = JSOp(*pc) == JSOP_CALLPROP                      ?
-                            JS_FUNC_TO_DATA_PTR(void*, Proxy::callProp) :
-                            JS_FUNC_TO_DATA_PTR(void*, Proxy::get);
+    void* getFunction = JSOp(*pc) == JSOP_CALLPROP                        ?
+                            JS_FUNC_TO_DATA_PTR(void*, ProxyCallProperty) :
+                            JS_FUNC_TO_DATA_PTR(void*, ProxyGetProperty);
 
     // Push stubCode for marking.
     attacher.pushStubCodePointer(masm);
@@ -1573,9 +1587,7 @@ EmitCallProxyGet(JSContext* cx, MacroAssembler& masm, IonCache::StubAttacher& at
     masm.Push(propId, scratch);
     masm.moveStackPtrTo(argIdReg);
 
-    // Pushing object and receiver.  Both are the same, so Handle to one is equivalent to
-    // handle to other.
-    masm.Push(object);
+    // Push the proxy. Also used as receiver.
     masm.Push(object);
     masm.moveStackPtrTo(argProxyReg);
 
@@ -1588,7 +1600,6 @@ EmitCallProxyGet(JSContext* cx, MacroAssembler& masm, IonCache::StubAttacher& at
     // Make the call.
     masm.setupUnalignedABICall(scratch);
     masm.passABIArg(argJSContextReg);
-    masm.passABIArg(argProxyReg);
     masm.passABIArg(argProxyReg);
     masm.passABIArg(argIdReg);
     masm.passABIArg(argVpReg);
@@ -2298,9 +2309,7 @@ EmitCallProxySet(JSContext* cx, MacroAssembler& masm, IonCache::StubAttacher& at
     masm.Push(propId, scratch);
     masm.moveStackPtrTo(argIdReg);
 
-    // Pushing object and receiver.  Both are the same, so Handle to one is equivalent to
-    // handle to other.
-    masm.Push(object);
+    // Push object.
     masm.Push(object);
     masm.moveStackPtrTo(argProxyReg);
 
@@ -2543,7 +2552,7 @@ GenerateCallSetter(JSContext* cx, IonScript* ion, MacroAssembler& masm,
         MOZ_ASSERT(target);
 
         // JSSetterOp: bool fn(JSContext* cx, HandleObject obj,
-        //                     HandleId id, HandleValue value, ObjectOpResult &result);
+        //                     HandleId id, HandleValue value, ObjectOpResult& result);
 
         // First, allocate an ObjectOpResult on the stack. We push this before
         // the stubCode pointer in order to match the layout of
@@ -2659,32 +2668,23 @@ GenerateCallSetter(JSContext* cx, IonScript* ion, MacroAssembler& masm,
 
 static bool
 IsCacheableDOMProxyUnshadowedSetterCall(JSContext* cx, HandleObject obj, HandlePropertyName name,
-                                        MutableHandleObject holder, MutableHandleShape shape,
-                                        bool* isSetter)
+                                        MutableHandleObject holder, MutableHandleShape shape)
 {
     MOZ_ASSERT(IsCacheableDOMProxy(obj));
 
-    *isSetter = false;
-
     RootedObject checkObj(cx, obj->getTaggedProto().toObjectOrNull());
     if (!checkObj)
-        return true;
+        return false;
 
-    if (!LookupProperty(cx, obj, name, holder, shape))
+    if (!LookupPropertyPure(cx, obj, NameToId(name), holder.address(), shape.address()))
         return false;
 
     if (!holder)
-        return true;
+        return false;
 
-    if (!IsCacheableSetPropCallNative(checkObj, holder, shape) &&
-        !IsCacheableSetPropCallPropertyOp(checkObj, holder, shape) &&
-        !IsCacheableSetPropCallScripted(checkObj, holder, shape))
-    {
-        return true;
-    }
-
-    *isSetter = true;
-    return true;
+    return IsCacheableSetPropCallNative(checkObj, holder, shape) ||
+           IsCacheableSetPropCallPropertyOp(checkObj, holder, shape) ||
+           IsCacheableSetPropCallScripted(checkObj, holder, shape);
 }
 
 bool
@@ -2708,14 +2708,7 @@ SetPropertyIC::attachDOMProxyUnshadowed(JSContext* cx, HandleScript outerScript,
     RootedPropertyName propName(cx, name());
     RootedObject holder(cx);
     RootedShape shape(cx);
-    bool isSetter;
-    if (!IsCacheableDOMProxyUnshadowedSetterCall(cx, obj, propName, &holder,
-                                                 &shape, &isSetter))
-    {
-        return false;
-    }
-
-    if (isSetter) {
+    if (IsCacheableDOMProxyUnshadowedSetterCall(cx, obj, propName, &holder, &shape)) {
         if (!GenerateCallSetter(cx, ion, masm, attacher, obj, holder, shape, strict(),
                                 object(), value(), &failures, liveRegs_, returnAddr))
         {
@@ -3355,16 +3348,16 @@ SetPropertyIC::update(JSContext* cx, HandleScript outerScript, size_t cacheIndex
         if (!addedSetterStub && canCache == MaybeCanAttachAddSlot &&
             IsPropertyAddInlineable(cx, &obj->as<NativeObject>(), id, cache.value(), oldShape,
                                     cache.needsTypeBarrier(), &checkTypeset))
-    {
-        if (!cache.attachAddSlot(cx, outerScript, ion, obj, oldShape, oldGroup, checkTypeset))
-            return false;
-        addedSetterStub = true;
-    }
+        {
+            if (!cache.attachAddSlot(cx, outerScript, ion, obj, oldShape, oldGroup, checkTypeset))
+                return false;
+            addedSetterStub = true;
+        }
 
-    checkTypeset = false;
-    if (!addedSetterStub && cache.canAttachStub() &&
-        CanAttachAddUnboxedExpando(cx, obj, oldShape, id, cache.value(),
-                                   cache.needsTypeBarrier(), &checkTypeset))
+        checkTypeset = false;
+        if (!addedSetterStub && cache.canAttachStub() &&
+            CanAttachAddUnboxedExpando(cx, obj, oldShape, id, cache.value(),
+                                       cache.needsTypeBarrier(), &checkTypeset))
         {
             if (!cache.attachAddSlot(cx, outerScript, ion, obj, oldShape, oldGroup, checkTypeset))
                 return false;

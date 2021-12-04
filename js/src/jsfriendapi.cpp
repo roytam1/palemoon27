@@ -262,9 +262,37 @@ JS_DefineFunctionsWithHelp(JSContext* cx, HandleObject obj, const JSFunctionSpec
 }
 
 JS_FRIEND_API(bool)
-js::ObjectClassIs(JSContext* cx, HandleObject obj, ESClassValue classValue)
+js::GetBuiltinClass(JSContext* cx, HandleObject obj, ESClassValue* classValue)
 {
-    return ObjectClassIs(obj, classValue, cx);
+    if (MOZ_UNLIKELY(obj->is<ProxyObject>()))
+        return Proxy::getBuiltinClass(cx, obj, classValue);
+
+    if (obj->is<PlainObject>() || obj->is<UnboxedPlainObject>())
+        *classValue = ESClass_Object;
+    else if (obj->is<ArrayObject>() || obj->is<UnboxedArrayObject>())
+        *classValue = ESClass_Array;
+    else if (obj->is<NumberObject>())
+        *classValue = ESClass_Number;
+    else if (obj->is<StringObject>())
+        *classValue = ESClass_String;
+    else if (obj->is<BooleanObject>())
+        *classValue = ESClass_Boolean;
+    else if (obj->is<RegExpObject>())
+        *classValue = ESClass_RegExp;
+    else if (obj->is<ArrayBufferObject>())
+        *classValue = ESClass_ArrayBuffer;
+    else if (obj->is<SharedArrayBufferObject>())
+        *classValue = ESClass_SharedArrayBuffer;
+    else if (obj->is<DateObject>())
+        *classValue = ESClass_Date;
+    else if (obj->is<SetObject>())
+        *classValue = ESClass_Set;
+    else if (obj->is<MapObject>())
+        *classValue = ESClass_Map;
+    else
+        *classValue = ESClass_Other;
+
+    return true;
 }
 
 JS_FRIEND_API(const char*)
@@ -398,7 +426,7 @@ js::DefineFunctionWithReserved(JSContext* cx, JSObject* objArg, const char* name
 
 JS_FRIEND_API(JSFunction*)
 js::NewFunctionWithReserved(JSContext* cx, JSNative native, unsigned nargs, unsigned flags,
-                            const char *name)
+                            const char* name)
 {
     MOZ_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
 
@@ -416,8 +444,8 @@ js::NewFunctionWithReserved(JSContext* cx, JSNative native, unsigned nargs, unsi
         NewNativeFunction(cx, native, nargs, atom, gc::AllocKind::FUNCTION_EXTENDED);
 }
 
-JS_FRIEND_API(JSFunction *)
-js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags,
+JS_FRIEND_API(JSFunction*)
+js::NewFunctionByIdWithReserved(JSContext* cx, JSNative native, unsigned nargs, unsigned flags,
                                 jsid id)
 {
     MOZ_ASSERT(JSID_IS_STRING(id));
@@ -446,7 +474,7 @@ js::SetFunctionNativeReserved(JSObject* fun, size_t which, const Value& val)
 }
 
 JS_FRIEND_API(bool)
-js::FunctionHasNativeReserved(JSObject *fun)
+js::FunctionHasNativeReserved(JSObject* fun)
 {
     MOZ_ASSERT(fun->as<JSFunction>().isNative());
     return fun->as<JSFunction>().isExtended();
@@ -513,7 +541,7 @@ JS_GetCustomIteratorCount(JSContext* cx)
 }
 
 JS_FRIEND_API(unsigned)
-JS_PCToLineNumber(JSScript *script, jsbytecode *pc, unsigned *columnp)
+JS_PCToLineNumber(JSScript* script, jsbytecode* pc, unsigned* columnp)
 {
     return PCToLineNumber(script, pc, columnp);
 }
@@ -590,19 +618,19 @@ JS_CloneObject(JSContext* cx, HandleObject obj, HandleObject protoArg)
 
 #ifdef DEBUG
 JS_FRIEND_API(void)
-js::DumpString(JSString *str)
+js::DumpString(JSString* str)
 {
     str->dump();
 }
 
 JS_FRIEND_API(void)
-js::DumpAtom(JSAtom *atom)
+js::DumpAtom(JSAtom* atom)
 {
     atom->dump();
 }
 
 JS_FRIEND_API(void)
-js::DumpChars(const char16_t *s, size_t n)
+js::DumpChars(const char16_t* s, size_t n)
 {
     fprintf(stderr, "char16_t * (%p) = ", (void*) s);
     JSString::dumpChars(s, n);
@@ -610,7 +638,7 @@ js::DumpChars(const char16_t *s, size_t n)
 }
 
 JS_FRIEND_API(void)
-js::DumpObject(JSObject *obj)
+js::DumpObject(JSObject* obj)
 {
     if (!obj) {
         fprintf(stderr, "NULL\n");
@@ -1131,10 +1159,10 @@ js::SetObjectMetadataCallback(JSContext* cx, ObjectMetadataCallback callback)
     cx->compartment()->setObjectMetadataCallback(callback);
 }
 
-JS_FRIEND_API(JSObject *)
-js::GetObjectMetadata(JSObject *obj)
+JS_FRIEND_API(JSObject*)
+js::GetObjectMetadata(JSObject* obj)
 {
-    ObjectWeakMap *map = obj->compartment()->objectMetadataTable;
+    ObjectWeakMap* map = obj->compartment()->objectMetadataTable;
     if (map)
         return map->lookup(obj);
     return nullptr;

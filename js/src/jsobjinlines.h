@@ -11,6 +11,7 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "jsfriendapi.h"
 #include "jsfun.h"
 
 #include "builtin/MapObject.h"
@@ -180,7 +181,7 @@ js::HasProperty(JSContext* cx, HandleObject obj, PropertyName* name, bool* found
 }
 
 inline bool
-js::GetElement(JSContext* cx, HandleObject obj, HandleObject receiver, uint32_t index,
+js::GetElement(JSContext* cx, HandleObject obj, HandleValue receiver, uint32_t index,
                MutableHandleValue vp)
 {
     RootedId id(cx);
@@ -190,7 +191,15 @@ js::GetElement(JSContext* cx, HandleObject obj, HandleObject receiver, uint32_t 
 }
 
 inline bool
-js::GetElementNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, uint32_t index, Value* vp)
+js::GetElement(JSContext* cx, HandleObject obj, HandleObject receiver, uint32_t index,
+               MutableHandleValue vp)
+{
+    RootedValue receiverValue(cx, ObjectValue(*receiver));
+    return GetElement(cx, obj, receiverValue, index, vp);
+}
+
+inline bool
+js::GetElementNoGC(JSContext* cx, JSObject* obj, const Value& receiver, uint32_t index, Value* vp)
 {
     if (obj->getOps()->getProperty)
         return false;
@@ -198,6 +207,12 @@ js::GetElementNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, uint32_t in
     if (index > JSID_INT_MAX)
         return false;
     return GetPropertyNoGC(cx, obj, receiver, INT_TO_JSID(index), vp);
+}
+
+inline bool
+js::GetElementNoGC(JSContext* cx, JSObject* obj, JSObject* receiver, uint32_t index, Value* vp)
+{
+    return GetElementNoGC(cx, obj, ObjectValue(*receiver), index, vp);
 }
 
 inline bool
@@ -348,16 +363,16 @@ JSObject::create(js::ExclusiveContext* cx, js::gc::AllocKind kind, js::gc::Initi
 }
 
 inline void
-JSObject::setInitialShapeMaybeNonNative(js::Shape *shape)
+JSObject::setInitialShapeMaybeNonNative(js::Shape* shape)
 {
-    static_cast<js::NativeObject *>(this)->shape_.init(shape);
+    static_cast<js::NativeObject*>(this)->shape_.init(shape);
 }
 
 inline void
-JSObject::setShapeMaybeNonNative(js::Shape *shape)
+JSObject::setShapeMaybeNonNative(js::Shape* shape)
 {
     MOZ_ASSERT(!is<js::UnboxedPlainObject>());
-    static_cast<js::NativeObject *>(this)->shape_ = shape;
+    static_cast<js::NativeObject*>(this)->shape_ = shape;
 }
 
 inline void
@@ -367,12 +382,12 @@ JSObject::setInitialSlotsMaybeNonNative(js::HeapSlot* slots)
 }
 
 inline void
-JSObject::setInitialElementsMaybeNonNative(js::HeapSlot *elements)
+JSObject::setInitialElementsMaybeNonNative(js::HeapSlot* elements)
 {
-    static_cast<js::NativeObject *>(this)->elements_ = elements;
+    static_cast<js::NativeObject*>(this)->elements_ = elements;
 }
 
-inline js::GlobalObject &
+inline js::GlobalObject&
 JSObject::global() const
 {
     /*
@@ -472,7 +487,7 @@ JSObject::wasNewScriptCleared() const
 namespace js {
 
 static MOZ_ALWAYS_INLINE bool
-IsFunctionObject(const js::Value &v)
+IsFunctionObject(const js::Value& v)
 {
     return v.isObject() && v.toObject().is<JSFunction>();
 }
@@ -674,15 +689,15 @@ NewObjectWithClassProto(ExclusiveContext* cx, const Class* clasp, HandleObject p
  * Create a native instance of the given class with parent and proto set
  * according to the context's active global.
  */
-inline JSObject *
-NewBuiltinClassInstance(ExclusiveContext *cx, const Class *clasp, gc::AllocKind allocKind,
+inline JSObject*
+NewBuiltinClassInstance(ExclusiveContext* cx, const Class* clasp, gc::AllocKind allocKind,
                         NewObjectKind newKind = GenericObject)
 {
     return NewObjectWithClassProto(cx, clasp, nullptr, allocKind, newKind);
 }
 
-inline JSObject *
-NewBuiltinClassInstance(ExclusiveContext *cx, const Class *clasp, NewObjectKind newKind = GenericObject)
+inline JSObject*
+NewBuiltinClassInstance(ExclusiveContext* cx, const Class* clasp, NewObjectKind newKind = GenericObject)
 {
     gc::AllocKind allocKind = gc::GetGCObjectKind(clasp);
     return NewBuiltinClassInstance(cx, clasp, allocKind, newKind);
@@ -751,48 +766,19 @@ GuessArrayGCKind(size_t numSlots)
     return gc::AllocKind::OBJECT8;
 }
 
+// Returns ESClass_Other if the value isn't an object, or if the object
+// isn't of one of the enumerated classes.  Otherwise returns the appropriate
+// class.
 inline bool
-ObjectClassIs(HandleObject obj, ESClassValue classValue, JSContext* cx)
+GetClassOfValue(JSContext* cx, HandleValue v, ESClassValue* classValue)
 {
-    if (MOZ_UNLIKELY(obj->is<ProxyObject>()))
-        return Proxy::objectClassIs(obj, classValue, cx);
-
-    switch (classValue) {
-      case ESClass_Object: return obj->is<PlainObject>() || obj->is<UnboxedPlainObject>();
-      case ESClass_Array:
-      case ESClass_IsArray:
-        // The difference between Array and IsArray is only relevant for proxies.
-        return obj->is<ArrayObject>() || obj->is<UnboxedArrayObject>();
-      case ESClass_Number: return obj->is<NumberObject>();
-      case ESClass_String: return obj->is<StringObject>();
-      case ESClass_Boolean: return obj->is<BooleanObject>();
-      case ESClass_RegExp: return obj->is<RegExpObject>();
-      case ESClass_ArrayBuffer: return obj->is<ArrayBufferObject>();
-      case ESClass_SharedArrayBuffer: return obj->is<SharedArrayBufferObject>();
-      case ESClass_Date: return obj->is<DateObject>();
-      case ESClass_Set: return obj->is<SetObject>();
-      case ESClass_Map: return obj->is<MapObject>();
-    }
-    MOZ_CRASH("bad classValue");
-}
-
-inline bool
-IsObjectWithClass(const Value& v, ESClassValue classValue, JSContext* cx)
-{
-    if (!v.isObject())
-        return false;
-    RootedObject obj(cx, &v.toObject());
-    return ObjectClassIs(obj, classValue, cx);
-}
-
-// ES6 7.2.2
-inline bool
-IsArray(HandleObject obj, JSContext* cx)
-{
-    if (obj->is<ArrayObject>() || obj->is<UnboxedArrayObject>())
+    if (!v.isObject()) {
+        *classValue = ESClass_Other;
         return true;
+    }
 
-    return ObjectClassIs(obj, ESClass_IsArray, cx);
+    RootedObject obj(cx, &v.toObject());
+    return GetBuiltinClass(cx, obj, classValue);
 }
 
 inline bool

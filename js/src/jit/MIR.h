@@ -4464,6 +4464,7 @@ class MGuardObject
         setGuard();
         setMovable();
         setResultType(MIRType_Object);
+        setResultTypeSet(ins->resultTypeSet());
     }
 
   public:
@@ -4510,6 +4511,7 @@ class MPolyInlineGuard
     {
         setGuard();
         setResultType(MIRType_Object);
+        setResultTypeSet(ins->resultTypeSet());
     }
 
   public:
@@ -8013,6 +8015,7 @@ class MUnboxedArrayInitializedLength
     AliasSet getAliasSet() const override {
         return AliasSet::Load(AliasSet::ObjectFields);
     }
+    bool mightAlias(const MDefinition* store) const override;
 
     ALLOW_CLONE(MUnboxedArrayInitializedLength)
 };
@@ -8766,6 +8769,7 @@ class MLoadUnboxedObjectOrNull
     AliasSet getAliasSet() const override {
         return AliasSet::Load(AliasSet::UnboxedElement);
     }
+    bool mightAlias(const MDefinition* store) const override;
 
     ALLOW_CLONE(MLoadUnboxedObjectOrNull)
 };
@@ -8815,6 +8819,7 @@ class MLoadUnboxedString
     AliasSet getAliasSet() const override {
         return AliasSet::Load(AliasSet::UnboxedElement);
     }
+    bool mightAlias(const MDefinition* store) const override;
 
     ALLOW_CLONE(MLoadUnboxedString)
 };
@@ -9461,6 +9466,7 @@ class MLoadUnboxedScalar
             return AliasSet::Store(AliasSet::UnboxedElement);
         return AliasSet::Load(AliasSet::UnboxedElement);
     }
+    bool mightAlias(const MDefinition* store) const override;
 
     bool congruentTo(const MDefinition* ins) const override {
         if (requiresBarrier_)
@@ -10624,6 +10630,7 @@ class MGuardShape
         setGuard();
         setMovable();
         setResultType(MIRType_Object);
+        setResultTypeSet(obj->resultTypeSet());
 
         // Disallow guarding on unboxed object shapes. The group is better to
         // guard on, and guarding on the shape can interact badly with
@@ -10677,6 +10684,7 @@ class MGuardReceiverPolymorphic
         setGuard();
         setMovable();
         setResultType(MIRType_Object);
+        setResultTypeSet(obj->resultTypeSet());
     }
 
   public:
@@ -12329,7 +12337,7 @@ class MTypeBarrier
       : MUnaryInstruction(def),
         barrierKind_(kind)
     {
-        MOZ_ASSERT(kind == BarrierKind::TypeTagOnly || kind == BarrierKind::TypeSet);
+        MOZ_ASSERT(kind != BarrierKind::NoBarrier);
 
         MOZ_ASSERT(!types->unknown());
         setResultType(types->getKnownMIRType());
@@ -12395,7 +12403,7 @@ class MMonitorTypes
         typeSet_(types),
         barrierKind_(kind)
     {
-        MOZ_ASSERT(kind == BarrierKind::TypeTagOnly || kind == BarrierKind::TypeSet);
+        MOZ_ASSERT(kind != BarrierKind::NoBarrier);
 
         setGuard();
         MOZ_ASSERT(!types->unknown());
@@ -12903,7 +12911,7 @@ class MRecompileCheck : public MNullaryInstruction
 
 // All barriered operations - MMemoryBarrier, MCompareExchangeTypedArrayElement,
 // MExchangeTypedArrayElement, and MAtomicTypedArrayElementBinop, as well as
-// MLoadUnboxedScalar and MStoreUnboxedSclaar when they are marked as requiring
+// MLoadUnboxedScalar and MStoreUnboxedScalar when they are marked as requiring
 // a memory barrer - have the following attributes:
 //
 // - Not movable

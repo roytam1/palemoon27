@@ -145,7 +145,7 @@ JS_BasicObjectToString(JSContext* cx, JS::HandleObject obj);
 namespace js {
 
 JS_FRIEND_API(bool)
-ObjectClassIs(JSContext* cx, JS::HandleObject obj, ESClassValue classValue);
+GetBuiltinClass(JSContext* cx, JS::HandleObject obj, ESClassValue* classValue);
 
 JS_FRIEND_API(const char*)
 ObjectClassName(JSContext* cx, JS::HandleObject obj);
@@ -299,7 +299,7 @@ namespace js {
         nullptr,                 /* enumerate */                                        \
         nullptr,                 /* resolve */                                          \
         nullptr,                 /* mayResolve */                                       \
-        js::proxy_Convert,                                                              \
+        nullptr,                 /* convert */                                          \
         js::proxy_Finalize,      /* finalize    */                                      \
         nullptr,                 /* call        */                                      \
         js::proxy_HasInstance,   /* hasInstance */                                      \
@@ -339,26 +339,26 @@ namespace js {
  */
 
 extern JS_FRIEND_API(bool)
-proxy_LookupProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleObject objp,
+proxy_LookupProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleObject objp,
                     JS::MutableHandle<Shape*> propp);
 extern JS_FRIEND_API(bool)
-proxy_DefineProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+proxy_DefineProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                      JS::Handle<JSPropertyDescriptor> desc,
-                     JS::ObjectOpResult &result);
+                     JS::ObjectOpResult& result);
 extern JS_FRIEND_API(bool)
-proxy_HasProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool* foundp);
+proxy_HasProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* foundp);
 extern JS_FRIEND_API(bool)
-proxy_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
+proxy_GetProperty(JSContext* cx, JS::HandleObject obj, JS::HandleValue receiver, JS::HandleId id,
                   JS::MutableHandleValue vp);
 extern JS_FRIEND_API(bool)
-proxy_SetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue bp,
+proxy_SetProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue bp,
                   JS::HandleValue receiver, JS::ObjectOpResult &result);
 extern JS_FRIEND_API(bool)
-proxy_GetOwnPropertyDescriptor(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+proxy_GetOwnPropertyDescriptor(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                                JS::MutableHandle<JSPropertyDescriptor> desc);
 extern JS_FRIEND_API(bool)
-proxy_DeleteProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                     JS::ObjectOpResult &result);
+proxy_DeleteProperty(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
+                     JS::ObjectOpResult& result);
 
 extern JS_FRIEND_API(void)
 proxy_Trace(JSTracer* trc, JSObject* obj);
@@ -1234,15 +1234,12 @@ inline bool DOMProxyIsShadowing(DOMProxyShadowsResult result) {
 
 /* Implemented in jsdate.cpp. */
 
-/*
- * Detect whether the internal date value is NaN.  (Because failure is
- * out-of-band for js_DateGet*)
- */
+/* Detect whether the internal date value is NaN. */
 extern JS_FRIEND_API(bool)
-DateIsValid(JSContext* cx, JSObject* obj);
+DateIsValid(JSContext* cx, JS::HandleObject obj, bool* isValid);
 
-extern JS_FRIEND_API(double)
-DateGetMsecSinceEpoch(JSContext* cx, JSObject* obj);
+extern JS_FRIEND_API(bool)
+DateGetMsecSinceEpoch(JSContext* cx, JS::HandleObject obj, double* msecSinceEpoch);
 
 } /* namespace js */
 
@@ -2115,6 +2112,16 @@ JS_IsNeuteredArrayBufferObject(JSObject* obj);
  */
 JS_FRIEND_API(bool)
 JS_IsDataViewObject(JSObject* obj);
+
+/*
+ * Create a new DataView using the given ArrayBuffer for storage. The given
+ * buffer must be an ArrayBuffer (or a cross-compartment wrapper of an
+ * ArrayBuffer), and the offset and length must fit within the bounds of the
+ * arrayBuffer. Currently, nullptr will be returned and an exception will be
+ * thrown if these conditions do not hold, but do not depend on that behavior.
+ */
+JS_FRIEND_API(JSObject*)
+JS_NewDataView(JSContext* cx, JS::HandleObject arrayBuffer, uint32_t byteOffset, int32_t byteLength);
 
 /*
  * Return the byte offset of a data view into its array buffer. |obj| must be a

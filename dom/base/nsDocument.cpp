@@ -199,7 +199,7 @@
 #include "mozilla/dom/HTMLInputElement.h"
 #include "mozilla/dom/MediaQueryList.h"
 #include "mozilla/dom/NodeFilterBinding.h"
-#include "mozilla/dom/OwningNonNull.h"
+#include "mozilla/OwningNonNull.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/dom/UndoManager.h"
 #include "mozilla/dom/WebComponentsBinding.h"
@@ -4222,7 +4222,7 @@ nsDocument::AddStyleSheetToStyleSets(nsIStyleSheet* aSheet)
     event->SetTarget(this);                                                   \
     nsRefPtr<AsyncEventDispatcher> asyncDispatcher =                          \
       new AsyncEventDispatcher(this, event);                                  \
-    asyncDispatcher->mDispatchChromeOnly = true;                              \
+    asyncDispatcher->mOnlyChromeDispatch = true;                              \
     asyncDispatcher->PostDOMEvent();                                          \
   } while (0);
 
@@ -8160,17 +8160,17 @@ nsIDocument::CreateEvent(const nsAString& aEventType, ErrorResult& rv) const
   }
 
   // Create event even without presContext.
-  nsCOMPtr<nsIDOMEvent> ev;
-  rv = EventDispatcher::CreateEvent(const_cast<nsIDocument*>(this),
-                                    presContext, nullptr, aEventType,
-                                    getter_AddRefs(ev));
+  nsRefPtr<Event> ev =
+    EventDispatcher::CreateEvent(const_cast<nsIDocument*>(this), presContext,
+                                 nullptr, aEventType);
   if (!ev) {
+    rv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }
   WidgetEvent* e = ev->GetInternalNSEvent();
   e->mFlags.mBubbles = false;
   e->mFlags.mCancelable = false;
-  return dont_AddRef(ev.forget().take()->InternalDOMEvent());
+  return ev.forget();
 }
 
 void

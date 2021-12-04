@@ -39,6 +39,9 @@
 
 namespace JS {
 
+extern JS_PUBLIC_API(void)
+ResetTimeZone();
+
 class TwoByteChars;
 
 #ifdef JS_DEBUG
@@ -1901,15 +1904,32 @@ JS_StringToId(JSContext* cx, JS::HandleString s, JS::MutableHandleId idp);
 extern JS_PUBLIC_API(bool)
 JS_IdToValue(JSContext* cx, jsid id, JS::MutableHandle<JS::Value> vp);
 
-/*
- * Invoke the [[DefaultValue]] hook (see ES5 8.6.2) with the provided hint on
- * the specified object, computing a primitive default value for the object.
- * The hint must be JSTYPE_STRING, JSTYPE_NUMBER, or JSTYPE_VOID (no hint).  On
- * success the resulting value is stored in *vp.
+/**
+ * Convert obj to a primitive value. On success, store the result in vp and
+ * return true.
+ *
+ * The hint argument must be JSTYPE_STRING, JSTYPE_NUMBER, or JSTYPE_VOID (no
+ * hint).
+ *
+ * Implements: ES6 7.1.1 ToPrimitive(input, [PreferredType]).
  */
 extern JS_PUBLIC_API(bool)
-JS_DefaultValue(JSContext* cx, JS::Handle<JSObject*> obj, JSType hint,
-                JS::MutableHandle<JS::Value> vp);
+JS_DefaultValue(JSContext* cx, JS::HandleObject obj, JSType hint,
+                JS::MutableHandleValue vp);
+
+namespace JS {
+
+/**
+ * If args.get(0) is one of the strings "string", "number", or "default", set
+ * *result to JSTYPE_STRING, JSTYPE_NUMBER, or JSTYPE_VOID accordingly and
+ * return true. Otherwise, return false with a TypeError pending.
+ *
+ * This can be useful in implementing a @@toPrimitive method.
+ */
+extern JS_PUBLIC_API(bool)
+GetFirstArgumentAsTypeHint(JSContext* cx, CallArgs args, JSType *result);
+
+} /* namespace JS */
 
 extern JS_PUBLIC_API(bool)
 JS_PropertyStub(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
@@ -2116,7 +2136,7 @@ struct JSFunctionSpec {
     JS_FNSPEC(name, call, nullptr, nargs, (flags) | JSFUN_STUB_GSOPS, nullptr)
 #define JS_INLINABLE_FN(name,call,nargs,flags,native)                         \
     JS_FNSPEC(name, call, &js::jit::JitInfo_##native, nargs, (flags) | JSFUN_STUB_GSOPS, nullptr)
-#define JS_SYM_FN(name,call,nargs,flags)                                      \
+#define JS_SYM_FN(symbol,call,nargs,flags)                                    \
     JS_SYM_FNSPEC(symbol, call, nullptr, nargs, (flags) | JSFUN_STUB_GSOPS, nullptr)
 #define JS_FNINFO(name,call,info,nargs,flags)                                 \
     JS_FNSPEC(name, call, info, nargs, flags, nullptr)
@@ -2392,8 +2412,8 @@ JS_GlobalObjectTraceHook(JSTracer* trc, JSObject* global);
 extern JS_PUBLIC_API(void)
 JS_FireOnNewGlobalObject(JSContext* cx, JS::HandleObject global);
 
-extern JS_PUBLIC_API(JSObject *)
-JS_NewObject(JSContext *cx, const JSClass *clasp);
+extern JS_PUBLIC_API(JSObject*)
+JS_NewObject(JSContext* cx, const JSClass* clasp);
 
 /* Queries the [[Extensible]] property of the object. */
 extern JS_PUBLIC_API(bool)
@@ -2409,12 +2429,12 @@ JS_GetObjectRuntime(JSObject* obj);
  * Unlike JS_NewObject, JS_NewObjectWithGivenProto does not compute a default
  * proto. If proto is nullptr, the JS object will have `null` as [[Prototype]].
  */
-extern JS_PUBLIC_API(JSObject *)
-JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> proto);
+extern JS_PUBLIC_API(JSObject*)
+JS_NewObjectWithGivenProto(JSContext* cx, const JSClass* clasp, JS::Handle<JSObject*> proto);
 
 // Creates a new plain object, like `new Object()`, with Object.prototype as [[Prototype]].
-extern JS_PUBLIC_API(JSObject *)
-JS_NewPlainObject(JSContext *cx);
+extern JS_PUBLIC_API(JSObject*)
+JS_NewPlainObject(JSContext* cx);
 
 /*
  * Freeze obj, and all objects it refers to, recursively. This will not recurse
@@ -2438,10 +2458,10 @@ JS_FreezeObject(JSContext* cx, JS::Handle<JSObject*> obj);
  * to false.
  */
 extern JS_PUBLIC_API(bool)
-JS_PreventExtensions(JSContext *cx, JS::HandleObject obj, JS::ObjectOpResult &result);
+JS_PreventExtensions(JSContext* cx, JS::HandleObject obj, JS::ObjectOpResult& result);
 
-extern JS_PUBLIC_API(JSObject *)
-JS_New(JSContext *cx, JS::HandleObject ctor, const JS::HandleValueArray &args);
+extern JS_PUBLIC_API(JSObject*)
+JS_New(JSContext* cx, JS::HandleObject ctor, const JS::HandleValueArray& args);
 
 /*** Property descriptors ************************************************************************/
 
@@ -2646,9 +2666,9 @@ class MutablePropertyDescriptorOperations : public PropertyDescriptorOperations<
     JS::MutableHandleObject object() {
         return JS::MutableHandleObject::fromMarkedLocation(&desc()->obj);
     }
-    unsigned &attributesRef() { return desc()->attrs; }
-    JSGetterOp &getter() { return desc()->getter; }
-    JSSetterOp &setter() { return desc()->setter; }
+    unsigned& attributesRef() { return desc()->attrs; }
+    JSGetterOp& getter() { return desc()->getter; }
+    JSSetterOp& setter() { return desc()->setter; }
     JS::MutableHandleValue value() {
         return JS::MutableHandleValue::fromMarkedLocation(&desc()->value);
     }
@@ -2751,7 +2771,7 @@ class MutableHandleBase<JSPropertyDescriptor>
 namespace JS {
 
 extern JS_PUBLIC_API(bool)
-ObjectToCompletePropertyDescriptor(JSContext *cx,
+ObjectToCompletePropertyDescriptor(JSContext* cx,
                                    JS::HandleObject obj,
                                    JS::HandleValue descriptor,
                                    JS::MutableHandle<JSPropertyDescriptor> desc);
@@ -2761,75 +2781,75 @@ ObjectToCompletePropertyDescriptor(JSContext *cx,
 /*** [[DefineOwnProperty]] and variations ********************************************************/
 
 extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, JS::HandleValue value,
+JS_DefineProperty(JSContext* cx, JS::HandleObject obj, const char* name, JS::HandleValue value,
                   unsigned attrs,
                   JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, JS::HandleObject value,
+JS_DefineProperty(JSContext* cx, JS::HandleObject obj, const char* name, JS::HandleObject value,
                   unsigned attrs,
                   JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, JS::HandleString value,
+JS_DefineProperty(JSContext* cx, JS::HandleObject obj, const char* name, JS::HandleString value,
                   unsigned attrs,
                   JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, int32_t value,
+JS_DefineProperty(JSContext* cx, JS::HandleObject obj, const char* name, int32_t value,
                   unsigned attrs,
                   JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, uint32_t value,
+JS_DefineProperty(JSContext* cx, JS::HandleObject obj, const char* name, uint32_t value,
                   unsigned attrs,
                   JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, double value,
+JS_DefineProperty(JSContext* cx, JS::HandleObject obj, const char* name, double value,
                   unsigned attrs,
                   JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
                       unsigned attrs,
                       JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject value,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject value,
                       unsigned attrs,
                       JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleString value,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleString value,
                       unsigned attrs,
                       JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id, int32_t value,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, int32_t value,
                       unsigned attrs,
                       JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id, uint32_t value,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, uint32_t value,
                       unsigned attrs,
                       JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id, double value,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, double value,
                       unsigned attrs,
                       JSNative getter = nullptr, JSNative setter = nullptr);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                       JS::Handle<JSPropertyDescriptor> desc,
-                      JS::ObjectOpResult &result);
+                      JS::ObjectOpResult& result);
 
 extern JS_PUBLIC_API(bool)
-JS_DefinePropertyById(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+JS_DefinePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
                       JS::Handle<JSPropertyDescriptor> desc);
 
-extern JS_PUBLIC_API(JSObject *)
+extern JS_PUBLIC_API(JSObject*)
 JS_DefineObject(JSContext* cx, JS::HandleObject obj, const char* name,
                 const JSClass* clasp = nullptr, unsigned attrs = 0);
 
@@ -2898,7 +2918,7 @@ extern JS_PUBLIC_API(bool)
 JS_GetPropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
-JS_ForwardGetPropertyTo(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject onBehalfOf,
+JS_ForwardGetPropertyTo(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue onBehalfOf,
                         JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
@@ -2909,21 +2929,21 @@ JS_SetPropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::Han
 
 extern JS_PUBLIC_API(bool)
 JS_ForwardSetPropertyTo(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue v,
-                        JS::HandleValue receiver, JS::ObjectOpResult &result);
+                        JS::HandleValue receiver, JS::ObjectOpResult& result);
 
 extern JS_PUBLIC_API(bool)
 JS_DeleteProperty(JSContext* cx, JS::HandleObject obj, const char* name);
 
 extern JS_PUBLIC_API(bool)
 JS_DeleteProperty(JSContext* cx, JS::HandleObject obj, const char* name,
-                  JS::ObjectOpResult &result);
+                  JS::ObjectOpResult& result);
 
 extern JS_PUBLIC_API(bool)
 JS_DeletePropertyById(JSContext* cx, JS::HandleObject obj, jsid id);
 
 extern JS_PUBLIC_API(bool)
 JS_DeletePropertyById(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
-                      JS::ObjectOpResult &result);
+                      JS::ObjectOpResult& result);
 
 extern JS_PUBLIC_API(bool)
 JS_DefineUCProperty(JSContext* cx, JS::HandleObject obj, const char16_t* name, size_t namelen,
@@ -2958,7 +2978,7 @@ JS_DefineUCProperty(JSContext* cx, JS::HandleObject obj, const char16_t* name, s
 extern JS_PUBLIC_API(bool)
 JS_DefineUCProperty(JSContext* cx, JS::HandleObject obj, const char16_t* name, size_t namelen,
                     JS::Handle<JSPropertyDescriptor> desc,
-                    JS::ObjectOpResult &result);
+                    JS::ObjectOpResult& result);
 
 extern JS_PUBLIC_API(bool)
 JS_DefineUCProperty(JSContext* cx, JS::HandleObject obj, const char16_t* name, size_t namelen,
@@ -2985,7 +3005,7 @@ JS_SetUCProperty(JSContext* cx, JS::HandleObject obj,
 
 extern JS_PUBLIC_API(bool)
 JS_DeleteUCProperty(JSContext* cx, JS::HandleObject obj, const char16_t* name, size_t namelen,
-                    JS::ObjectOpResult &result);
+                    JS::ObjectOpResult& result);
 
 extern JS_PUBLIC_API(JSObject*)
 JS_NewArrayObject(JSContext* cx, const JS::HandleValueArray& contents);
@@ -2993,11 +3013,21 @@ JS_NewArrayObject(JSContext* cx, const JS::HandleValueArray& contents);
 extern JS_PUBLIC_API(JSObject*)
 JS_NewArrayObject(JSContext* cx, size_t length);
 
+// Returns true and sets |*isArray| indicating whether |value| is an Array
+// object or a wrapper around one, otherwise returns false on failure.
+//
+// This method returns true with |*isArray == false| when passed a proxy whose
+// target is an Array, or when passed a revoked proxy.
 extern JS_PUBLIC_API(bool)
-JS_IsArrayObject(JSContext* cx, JS::HandleValue value);
+JS_IsArrayObject(JSContext* cx, JS::HandleValue value, bool* isArray);
 
+// Returns true and sets |*isArray| indicating whether |obj| is an Array object
+// or a wrapper around one, otherwise returns false on failure.
+//
+// This method returns true with |*isArray == false| when passed a proxy whose
+// target is an Array, or when passed a revoked proxy.
 extern JS_PUBLIC_API(bool)
-JS_IsArrayObject(JSContext* cx, JS::HandleObject obj);
+JS_IsArrayObject(JSContext* cx, JS::HandleObject obj, bool* isArray);
 
 extern JS_PUBLIC_API(bool)
 JS_GetArrayLength(JSContext* cx, JS::Handle<JSObject*> obj, uint32_t* lengthp);
@@ -3070,7 +3100,7 @@ extern JS_PUBLIC_API(bool)
 JS_DeleteElement(JSContext* cx, JS::HandleObject obj, uint32_t index);
 
 extern JS_PUBLIC_API(bool)
-JS_DeleteElement(JSContext* cx, JS::HandleObject obj, uint32_t index, JS::ObjectOpResult &result);
+JS_DeleteElement(JSContext* cx, JS::HandleObject obj, uint32_t index, JS::ObjectOpResult& result);
 
 /*
  * Assign 'undefined' to all of the object's non-reserved slots. Note: this is
@@ -3276,7 +3306,7 @@ JS_BufferIsCompilableUnit(JSContext* cx, JS::Handle<JSObject*> obj, const char* 
  * |script| will always be set. On failure, it will be set to nullptr.
  */
 extern JS_PUBLIC_API(bool)
-JS_CompileScript(JSContext *cx, const char *ascii, size_t length,
+JS_CompileScript(JSContext* cx, const char* ascii, size_t length,
                  const JS::CompileOptions& options,
                  JS::MutableHandleScript script);
 
@@ -3284,7 +3314,7 @@ JS_CompileScript(JSContext *cx, const char *ascii, size_t length,
  * |script| will always be set. On failure, it will be set to nullptr.
  */
 extern JS_PUBLIC_API(bool)
-JS_CompileUCScript(JSContext *cx, const char16_t *chars, size_t length,
+JS_CompileUCScript(JSContext* cx, const char16_t* chars, size_t length,
                    const JS::CompileOptions& options,
                    JS::MutableHandleScript script);
 
@@ -3683,11 +3713,11 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
  * |script| will always be set. On failure, it will be set to nullptr.
  */
 extern JS_PUBLIC_API(bool)
-Compile(JSContext* cx, const ReadOnlyCompileOptions &options,
+Compile(JSContext* cx, const ReadOnlyCompileOptions& options,
         SourceBufferHolder& srcBuf, JS::MutableHandleScript script);
 
 extern JS_PUBLIC_API(bool)
-Compile(JSContext* cx, const ReadOnlyCompileOptions &options,
+Compile(JSContext* cx, const ReadOnlyCompileOptions& options,
         const char* bytes, size_t length, JS::MutableHandleScript script);
 
 extern JS_PUBLIC_API(bool)
@@ -3818,10 +3848,10 @@ JS_DecompileFunctionBody(JSContext* cx, JS::Handle<JSFunction*> fun, unsigned in
  * Evaluate a script in the scope of the current global of cx.
  */
 extern JS_PUBLIC_API(bool)
-JS_ExecuteScript(JSContext *cx, JS::HandleScript script, JS::MutableHandleValue rval);
+JS_ExecuteScript(JSContext* cx, JS::HandleScript script, JS::MutableHandleValue rval);
 
 extern JS_PUBLIC_API(bool)
-JS_ExecuteScript(JSContext *cx, JS::HandleScript script);
+JS_ExecuteScript(JSContext* cx, JS::HandleScript script);
 
 /*
  * As above, but providing an explicit scope chain.  scopeChain must not include
@@ -3852,7 +3882,7 @@ namespace JS {
  * Evaluate the given source buffer in the scope of the current global of cx.
  */
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, const ReadOnlyCompileOptions &options,
+Evaluate(JSContext* cx, const ReadOnlyCompileOptions& options,
          SourceBufferHolder& srcBuf, JS::MutableHandleValue rval);
 
 /*
@@ -3868,8 +3898,8 @@ Evaluate(JSContext* cx, AutoObjectVector& scopeChain, const ReadOnlyCompileOptio
  * Evaluate the given character buffer in the scope of the current global of cx.
  */
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, const ReadOnlyCompileOptions &options,
-         const char16_t *chars, size_t length, JS::MutableHandleValue rval);
+Evaluate(JSContext* cx, const ReadOnlyCompileOptions& options,
+         const char16_t* chars, size_t length, JS::MutableHandleValue rval);
 
 /*
  * As above, but providing an explicit scope chain.  scopeChain must not include
@@ -3877,21 +3907,21 @@ Evaluate(JSContext *cx, const ReadOnlyCompileOptions &options,
  * objects that should end up on the script's scope chain.
  */
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, AutoObjectVector &scopeChain, const ReadOnlyCompileOptions &options,
+Evaluate(JSContext* cx, AutoObjectVector& scopeChain, const ReadOnlyCompileOptions& options,
          const char16_t* chars, size_t length, JS::MutableHandleValue rval);
 
 /*
  * Evaluate the given byte buffer in the scope of the current global of cx.
  */
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, const ReadOnlyCompileOptions &options,
+Evaluate(JSContext* cx, const ReadOnlyCompileOptions& options,
          const char* bytes, size_t length, JS::MutableHandleValue rval);
 
 /*
  * Evaluate the given file in the scope of the current global of cx.
  */
 extern JS_PUBLIC_API(bool)
-Evaluate(JSContext *cx, const ReadOnlyCompileOptions &options,
+Evaluate(JSContext* cx, const ReadOnlyCompileOptions& options,
          const char* filename, JS::MutableHandleValue rval);
 
 } /* namespace JS */
@@ -4400,6 +4430,7 @@ GetSymbolDescription(HandleSymbol symbol);
     macro(iterator) \
     macro(match) \
     macro(species) \
+    macro(toPrimitive) \
     macro(hasInstance) \
     macro(unscopables)
 
@@ -4767,11 +4798,13 @@ SetForEach(JSContext *cx, HandleObject obj, HandleValue callbackFn, HandleValue 
 extern JS_PUBLIC_API(JSObject*)
 JS_NewDateObject(JSContext* cx, int year, int mon, int mday, int hour, int min, int sec);
 
-/*
- * Infallible predicate to test whether obj is a date object.
- */
+// Returns true and sets |*isDate| indicating whether |obj| is a Date object or
+// a wrapper around one, otherwise returns false on failure.
+//
+// This method returns true with |*isDate == false| when passed a proxy whose
+// target is a Date, or when passed a revoked proxy.
 extern JS_PUBLIC_API(bool)
-JS_ObjectIsDate(JSContext* cx, JS::HandleObject obj);
+JS_ObjectIsDate(JSContext* cx, JS::HandleObject obj, bool* isDate);
 
 /*
  * Clears the cache of calculated local time from each Date object.
@@ -4822,8 +4855,13 @@ extern JS_PUBLIC_API(bool)
 JS_ExecuteRegExpNoStatics(JSContext* cx, JS::HandleObject reobj, char16_t* chars, size_t length,
                           size_t* indexp, bool test, JS::MutableHandleValue rval);
 
+// Returns true and sets |*isRegExp| indicating whether |obj| is a RegExp
+// object or a wrapper around one, otherwise returns false on failure.
+//
+// This method returns true with |*isRegExp == false| when passed a proxy whose
+// target is a RegExp, or when passed a revoked proxy.
 extern JS_PUBLIC_API(bool)
-JS_ObjectIsRegExp(JSContext* cx, JS::HandleObject obj);
+JS_ObjectIsRegExp(JSContext* cx, JS::HandleObject obj, bool* isRegExp);
 
 extern JS_PUBLIC_API(unsigned)
 JS_GetRegExpFlags(JSContext* cx, JS::HandleObject obj);
@@ -5361,19 +5399,19 @@ enum class SavedFrameResult {
  * string.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameSource(JSContext *cx, HandleObject savedFrame, MutableHandleString sourcep);
+GetSavedFrameSource(JSContext* cx, HandleObject savedFrame, MutableHandleString sourcep);
 
 /*
  * Given a SavedFrame JSObject, get its line property. Defaults to 0.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameLine(JSContext *cx, HandleObject savedFrame, uint32_t *linep);
+GetSavedFrameLine(JSContext* cx, HandleObject savedFrame, uint32_t* linep);
 
 /*
  * Given a SavedFrame JSObject, get its column property. Defaults to 0.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameColumn(JSContext *cx, HandleObject savedFrame, uint32_t *columnp);
+GetSavedFrameColumn(JSContext* cx, HandleObject savedFrame, uint32_t* columnp);
 
 /*
  * Given a SavedFrame JSObject, get its functionDisplayName string, or nullptr
@@ -5381,13 +5419,13 @@ GetSavedFrameColumn(JSContext *cx, HandleObject savedFrame, uint32_t *columnp);
  * function. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameFunctionDisplayName(JSContext *cx, HandleObject savedFrame, MutableHandleString namep);
+GetSavedFrameFunctionDisplayName(JSContext* cx, HandleObject savedFrame, MutableHandleString namep);
 
 /*
  * Given a SavedFrame JSObject, get its asyncCause string. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameAsyncCause(JSContext *cx, HandleObject savedFrame, MutableHandleString asyncCausep);
+GetSavedFrameAsyncCause(JSContext* cx, HandleObject savedFrame, MutableHandleString asyncCausep);
 
 /*
  * Given a SavedFrame JSObject, get its asyncParent SavedFrame object or nullptr
@@ -5395,7 +5433,7 @@ GetSavedFrameAsyncCause(JSContext *cx, HandleObject savedFrame, MutableHandleStr
  * guaranteed to be in the cx's compartment. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameAsyncParent(JSContext *cx, HandleObject savedFrame, MutableHandleObject asyncParentp);
+GetSavedFrameAsyncParent(JSContext* cx, HandleObject savedFrame, MutableHandleObject asyncParentp);
 
 /*
  * Given a SavedFrame JSObject, get its parent SavedFrame object or nullptr if
@@ -5403,7 +5441,7 @@ GetSavedFrameAsyncParent(JSContext *cx, HandleObject savedFrame, MutableHandleOb
  * guaranteed to be in the cx's compartment. Defaults to nullptr.
  */
 extern JS_PUBLIC_API(SavedFrameResult)
-GetSavedFrameParent(JSContext *cx, HandleObject savedFrame, MutableHandleObject parentp);
+GetSavedFrameParent(JSContext* cx, HandleObject savedFrame, MutableHandleObject parentp);
 
 /*
  * Given a SavedFrame JSObject stack, stringify it in the same format as
@@ -5415,7 +5453,7 @@ GetSavedFrameParent(JSContext *cx, HandleObject savedFrame, MutableHandleObject 
  * SavedFrame object, or a wrapper (CCW or Xray) around a SavedFrame object.
  */
 extern JS_PUBLIC_API(bool)
-BuildStackString(JSContext *cx, HandleObject stack, MutableHandleString stringp);
+BuildStackString(JSContext* cx, HandleObject stack, MutableHandleString stringp);
 
 } /* namespace JS */
 

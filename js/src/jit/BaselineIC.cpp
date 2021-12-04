@@ -3533,7 +3533,7 @@ SetElemAddHasSameShapes(ICSetElem_DenseOrUnboxedArrayAdd* stub, JSObject* obj)
             return false;
         if (proto->as<NativeObject>().lastProperty() != nstub->shape(i + 1))
             return false;
-        proto = obj->getProto();
+        proto = proto->getProto();
         if (!proto) {
             if (i != stub->protoChainDepth() - 1)
                 return false;
@@ -3551,20 +3551,51 @@ DenseOrUnboxedArraySetElemStubExists(JSContext* cx, ICStub::Kind kind,
     MOZ_ASSERT(kind == ICStub::SetElem_DenseOrUnboxedArray ||
                kind == ICStub::SetElem_DenseOrUnboxedArrayAdd);
 
+    if (obj->isSingleton())
+        return false;
+
     for (ICStubConstIterator iter = stub->beginChainConst(); !iter.atEnd(); iter++) {
         if (kind == ICStub::SetElem_DenseOrUnboxedArray && iter->isSetElem_DenseOrUnboxedArray()) {
             ICSetElem_DenseOrUnboxedArray* nstub = iter->toSetElem_DenseOrUnboxedArray();
-            if (obj->maybeShape() == nstub->shape() && obj->getGroup(cx) == nstub->group())
+            if (obj->maybeShape() == nstub->shape() && obj->group() == nstub->group())
                 return true;
         }
 
         if (kind == ICStub::SetElem_DenseOrUnboxedArrayAdd && iter->isSetElem_DenseOrUnboxedArrayAdd()) {
             ICSetElem_DenseOrUnboxedArrayAdd* nstub = iter->toSetElem_DenseOrUnboxedArrayAdd();
-            if (obj->getGroup(cx) == nstub->group() && SetElemAddHasSameShapes(nstub, obj))
+            if (obj->group() == nstub->group() && SetElemAddHasSameShapes(nstub, obj))
                 return true;
         }
     }
     return false;
+}
+
+static void
+RemoveMatchingDenseOrUnboxedArraySetElemAddStub(JSContext* cx,
+                                                ICSetElem_Fallback* stub, HandleObject obj)
+{
+    if (obj->isSingleton())
+        return;
+
+    // Before attaching a new stub to add elements to a dense or unboxed array,
+    // remove any other stub with the same group/shape but different prototype
+    // shapes.
+    for (ICStubIterator iter = stub->beginChain(); !iter.atEnd(); iter++) {
+        if (!iter->isSetElem_DenseOrUnboxedArrayAdd())
+            continue;
+
+        ICSetElem_DenseOrUnboxedArrayAdd* nstub = iter->toSetElem_DenseOrUnboxedArrayAdd();
+        if (obj->group() != nstub->group())
+            continue;
+
+        static const size_t MAX_DEPTH = ICSetElem_DenseOrUnboxedArrayAdd::MAX_PROTO_CHAIN_DEPTH;
+        ICSetElem_DenseOrUnboxedArrayAddImpl<MAX_DEPTH>* nostub = nstub->toImplUnchecked<MAX_DEPTH>();
+
+        if (obj->maybeShape() == nostub->shape(0)) {
+            iter.unlink(cx);
+            return;
+        }
+    }
 }
 
 static bool
@@ -3712,7 +3743,7 @@ DoSetElemFallback(JSContext* cx, BaselineFrame* frame, ICSetElem_Fallback* stub_
         if (!InitArrayElemOperation(cx, pc, obj, index.toInt32(), rhs))
             return false;
     } else {
-        if (!SetObjectElement(cx, obj, index, rhs, JSOp(*pc) == JSOP_STRICTSETELEM, script, pc))
+        if (!SetObjectElement(cx, obj, index, rhs, objv, JSOp(*pc) == JSOP_STRICTSETELEM, script, pc))
             return false;
     }
 
@@ -3748,6 +3779,8 @@ DoSetElemFallback(JSContext* cx, BaselineFrame* frame, ICSetElem_Fallback* stub_
                 !DenseOrUnboxedArraySetElemStubExists(cx, ICStub::SetElem_DenseOrUnboxedArrayAdd,
                                                       stub, obj))
             {
+                RemoveMatchingDenseOrUnboxedArraySetElemAddStub(cx, stub, obj);
+
                 JitSpew(JitSpew_BaselineIC,
                         "  Generating SetElem_DenseOrUnboxedArrayAdd stub "
                         "(shape=%p, group=%p, protoDepth=%u)",
@@ -6897,8 +6930,9 @@ ICGetProp_DOMProxyShadowed::Compiler::getStub(ICStubSpace* space)
 static bool
 ProxyGet(JSContext* cx, HandleObject proxy, HandlePropertyName name, MutableHandleValue vp)
 {
+    RootedValue receiver(cx, ObjectValue(*proxy));
     RootedId id(cx, NameToId(name));
-    return Proxy::get(cx, proxy, proxy, id, vp);
+    return Proxy::get(cx, proxy, receiver, id, vp);
 }
 
 typedef bool (*ProxyGetFn)(JSContext* cx, HandleObject proxy, HandlePropertyName name,
@@ -7554,9 +7588,12 @@ DoSetPropFallback(JSContext* cx, BaselineFrame* frame, ICSetProp_Fallback* stub_
     } else {
         MOZ_ASSERT(op == JSOP_SETPROP || op == JSOP_STRICTSETPROP);
 
-        RootedValue v(cx, rhs);
-        if (!PutProperty(cx, obj, id, v, op == JSOP_STRICTSETPROP))
+        ObjectOpResult result;
+        if (!SetProperty(cx, obj, id, rhs, lhs, result) ||
+            !result.checkStrictErrorOrWarning(cx, obj, id, op == JSOP_STRICTSETPROP))
+        {
             return false;
+        }
     }
 
     // Leave the RHS on the stack.

@@ -255,7 +255,9 @@ GetPropertyOperation(JSContext* cx, InterpreterFrame* fp, HandleScript script, j
     }
 
     MOZ_ASSERT(op == JSOP_GETPROP || op == JSOP_LENGTH);
-    return GetProperty(cx, lval, name, vp);
+    // Copy lval, because it might alias vp.
+    RootedValue v(cx, lval);
+    return GetProperty(cx, v, name, vp);
 }
 
 static inline bool
@@ -307,11 +309,8 @@ SetPropertyOperation(JSContext* cx, JSOp op, HandleValue lval, HandleId id, Hand
     if (!obj)
         return false;
 
-    // Note: ES6 specifies that the value lval, not obj, is passed as receiver
-    // to obj's [[Set]] internal method. See bug 603201.
-    RootedValue receiver(cx, ObjectValue(*obj));
     ObjectOpResult result;
-    return SetProperty(cx, obj, id, rval, receiver, result) &&
+    return SetProperty(cx, obj, id, rval, lval, result) &&
            result.checkStrictErrorOrWarning(cx, obj, id, op == JSOP_STRICTSETPROP);
 }
 
@@ -922,7 +921,7 @@ js::InternalConstructWithProvidedThis(JSContext* cx, HandleValue fval, HandleVal
 }
 
 bool
-js::InvokeGetter(JSContext* cx, JSObject* obj, Value fval, MutableHandleValue rval)
+js::InvokeGetter(JSContext* cx, const Value& thisv, Value fval, MutableHandleValue rval)
 {
     /*
      * Invoke could result in another try to get or set the same id again, see
@@ -930,7 +929,7 @@ js::InvokeGetter(JSContext* cx, JSObject* obj, Value fval, MutableHandleValue rv
      */
     JS_CHECK_RECURSION(cx, return false);
 
-    return Invoke(cx, ObjectValue(*obj), fval, 0, nullptr, rval);
+    return Invoke(cx, thisv, fval, 0, nullptr, rval);
 }
 
 bool
@@ -1755,9 +1754,9 @@ ModOperation(JSContext* cx, HandleValue lhs, HandleValue rhs, MutableHandleValue
 }
 
 static MOZ_ALWAYS_INLINE bool
-SetObjectElementOperation(JSContext* cx, HandleObject obj, HandleValue receiver, HandleId id,
-                          const Value& value, bool strict, JSScript* script = nullptr,
-                          jsbytecode* pc = nullptr)
+SetObjectElementOperation(JSContext* cx, HandleObject obj, HandleId id, HandleValue value,
+                          HandleValue receiver, bool strict,
+                          JSScript* script = nullptr, jsbytecode* pc = nullptr)
 {
     // receiver != obj happens only at super[expr], where we expect to find the property
     // People probably aren't building hashtables with |super| anyway.
@@ -1776,9 +1775,8 @@ SetObjectElementOperation(JSContext* cx, HandleObject obj, HandleValue receiver,
     if (obj->isNative() && !JSID_IS_INT(id) && !obj->setHadElementsAccess(cx))
         return false;
 
-    RootedValue tmp(cx, value);
     ObjectOpResult result;
-    return SetProperty(cx, obj, id, tmp, receiver, result) &&
+    return SetProperty(cx, obj, id, value, receiver, result) &&
            result.checkStrictErrorOrWarning(cx, obj, id, strict);
 }
 
@@ -2322,7 +2320,7 @@ END_CASE(JSOP_AND)
 
 #define FETCH_ELEMENT_ID(n, id)                                               \
     JS_BEGIN_MACRO                                                            \
-        if (!ValueToId<CanGC>(cx, REGS.stackHandleAt(n), &(id))) \
+        if (!ToPropertyKey(cx, REGS.stackHandleAt(n), &(id)))                 \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -2788,7 +2786,7 @@ CASE(JSOP_STRICTDELELEM)
 
     ObjectOpResult result;
     ReservedRooted<jsid> id(&rootId0);
-    if (!ValueToId<CanGC>(cx, propval, &id))
+    if (!ToPropertyKey(cx, propval, &id))
         goto error;
     if (!DeleteProperty(cx, obj, id, result))
         goto error;
@@ -2998,13 +2996,15 @@ CASE(JSOP_STRICTSETELEM)
 {
     static_assert(JSOP_SETELEM_LENGTH == JSOP_STRICTSETELEM_LENGTH,
                   "setelem and strictsetelem must be the same size");
+    HandleValue receiver = REGS.stackHandleAt(-3);
     ReservedRooted<JSObject*> obj(&rootObject0);
-    FETCH_OBJECT(cx, -3, obj);
+    obj = ToObjectFromStack(cx, receiver);
+    if (!obj)
+        goto error;
     ReservedRooted<jsid> id(&rootId0);
     FETCH_ELEMENT_ID(-2, id);
-    Value& value = REGS.sp[-1];
-    ReservedRooted<Value> receiver(&rootValue0, ObjectValue(*obj));
-    if (!SetObjectElementOperation(cx, obj, receiver, id, value, *REGS.pc == JSOP_STRICTSETELEM))
+    HandleValue value = REGS.stackHandleAt(-1);
+    if (!SetObjectElementOperation(cx, obj, id, value, receiver, *REGS.pc == JSOP_STRICTSETELEM))
         goto error;
     REGS.sp[-3] = value;
     REGS.sp -= 2;
@@ -3021,10 +3021,10 @@ CASE(JSOP_STRICTSETELEM_SUPER)
     FETCH_ELEMENT_ID(-4, id);
     ReservedRooted<Value> receiver(&rootValue0, REGS.sp[-3]);
     ReservedRooted<JSObject*> obj(&rootObject1, &REGS.sp[-2].toObject());
-    Value& value = REGS.sp[-1];
+    HandleValue value = REGS.stackHandleAt(-1);
 
     bool strict = JSOp(*REGS.pc) == JSOP_STRICTSETELEM_SUPER;
-    if (!SetObjectElementOperation(cx, obj, receiver, id, value, strict))
+    if (!SetObjectElementOperation(cx, obj, id, value, receiver, strict))
         goto error;
     REGS.sp[-4] = value;
     REGS.sp -= 3;
@@ -4241,7 +4241,7 @@ js::GetProperty(JSContext* cx, HandleValue v, HandlePropertyName name, MutableHa
             proto = GlobalObject::getOrCreateSymbolPrototype(cx, cx->global());
         }
         if (!proto)
-             return false;
+            return false;
 
         if (GetPropertyPure(cx, proto, NameToId(name), vp.address()))
             return true;
@@ -4251,7 +4251,9 @@ js::GetProperty(JSContext* cx, HandleValue v, HandlePropertyName name, MutableHa
     if (!obj)
         return false;
 
-    return GetProperty(cx, obj, obj, name, vp);
+    // Bug 603201: Pass primitive receiver here.
+    RootedValue receiver(cx, ObjectValue(*obj));
+    return GetProperty(cx, obj, receiver, name, vp);
 }
 
 bool
@@ -4496,7 +4498,7 @@ js::DeleteElementJit(JSContext* cx, HandleValue val, HandleValue index, bool* bp
         return false;
 
     RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, index, &id))
+    if (!ToPropertyKey(cx, index, &id))
         return false;
     ObjectOpResult result;
     if (!DeleteProperty(cx, obj, id, result))
@@ -4532,10 +4534,10 @@ js::SetObjectElement(JSContext* cx, HandleObject obj, HandleValue index, HandleV
                      bool strict)
 {
     RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, index, &id))
+    if (!ToPropertyKey(cx, index, &id))
         return false;
     RootedValue receiver(cx, ObjectValue(*obj));
-    return SetObjectElementOperation(cx, obj, receiver, id, value, strict);
+    return SetObjectElementOperation(cx, obj, id, value, receiver, strict);
 }
 
 bool
@@ -4544,10 +4546,21 @@ js::SetObjectElement(JSContext* cx, HandleObject obj, HandleValue index, HandleV
 {
     MOZ_ASSERT(pc);
     RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, index, &id))
+    if (!ToPropertyKey(cx, index, &id))
         return false;
     RootedValue receiver(cx, ObjectValue(*obj));
-    return SetObjectElementOperation(cx, obj, receiver, id, value, strict, script, pc);
+    return SetObjectElementOperation(cx, obj, id, value, receiver, strict, script, pc);
+}
+
+bool
+js::SetObjectElement(JSContext* cx, HandleObject obj, HandleValue index, HandleValue value,
+                     HandleValue receiver, bool strict, HandleScript script, jsbytecode* pc)
+{
+    MOZ_ASSERT(pc);
+    RootedId id(cx);
+    if (!ToPropertyKey(cx, index, &id))
+        return false;
+    return SetObjectElementOperation(cx, obj, id, value, receiver, strict, script, pc);
 }
 
 bool
@@ -4717,7 +4730,7 @@ js::InitGetterSetterOperation(JSContext* cx, jsbytecode* pc, HandleObject obj, H
                               HandleObject val)
 {
     RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, idval, &id))
+    if (!ToPropertyKey(cx, idval, &id))
         return false;
 
     return InitGetterSetterOperation(cx, pc, obj, id, val);

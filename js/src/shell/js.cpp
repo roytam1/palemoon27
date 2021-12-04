@@ -4129,7 +4129,7 @@ ReflectTrackedOptimizations(JSContext* cx, unsigned argc, Value* vp)
     if (!sp.init())
         return false;
 
-    const jit::IonTrackedOptimizationsRegionTable *regions =
+    const jit::IonTrackedOptimizationsRegionTable* regions =
         entry.ionEntry().trackedOptimizationsRegionTable();
 
     Sprint(&sp, "{\"regions\": [");
@@ -6275,7 +6275,7 @@ main(int argc, char** argv, char** envp)
     op.setArgCapturesRest("scriptArgs");
 
     switch (op.parseArgs(argc, argv)) {
-      case OptionParser::ParseHelp:
+      case OptionParser::EarlyExit:
         return EXIT_SUCCESS;
       case OptionParser::ParseError:
         op.printHelp(argv[0]);

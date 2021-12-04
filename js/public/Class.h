@@ -650,7 +650,7 @@ typedef void (*JSClassInternal)();
 struct JSClass {
     JS_CLASS_MEMBERS(JSFinalizeOp);
 
-    void                *reserved[26];
+    void*                reserved[26];
 };
 
 #define JSCLASS_HAS_PRIVATE             (1<<0)  // objects have private slot

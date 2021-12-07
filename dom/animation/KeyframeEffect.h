@@ -196,7 +196,6 @@ public:
     : AnimationEffectReadOnly(aDocument)
     , mTarget(aTarget)
     , mTiming(aTiming)
-    , mIsFinishedTransition(false)
     , mPseudoType(aPseudoType)
   {
     MOZ_ASSERT(aTarget, "null animation target is not yet supported");
@@ -243,6 +242,10 @@ public:
     return mTiming;
   }
 
+  // FIXME: Drop |aOwningAnimation| once we make AnimationEffects track their
+  // owning animation.
+  void SetTiming(const AnimationTiming& aTiming, Animation& aOwningAnimtion);
+
   // Return the duration from the start the active interval to the point where
   // the animation begins playback. This is zero unless the animation has
   // a negative delay in which case it is the absolute value of the delay.
@@ -282,20 +285,6 @@ public:
   static StickyTimeDuration
   ActiveDuration(const AnimationTiming& aTiming);
 
-  // After transitions finish they need to be retained in order to
-  // address the issue described in
-  // https://lists.w3.org/Archives/Public/www-style/2015Jan/0444.html .
-  // However, finished transitions are ignored for many purposes.
-  bool IsFinishedTransition() const {
-    return mIsFinishedTransition;
-  }
-
-  void SetIsFinishedTransition(bool aIsFinished) {
-    MOZ_ASSERT(AsTransition(),
-               "Calling SetIsFinishedTransition but it's not a transition");
-    mIsFinishedTransition = aIsFinished;
-  }
-
   bool IsInPlay(const Animation& aAnimation) const;
   bool IsCurrent(const Animation& aAnimation) const;
   bool IsInEffect() const;
@@ -328,9 +317,6 @@ protected:
   Nullable<TimeDuration> mParentTime;
 
   AnimationTiming mTiming;
-  // A flag to mark transitions that have finished and are due to
-  // be removed on the next throttle-able cycle.
-  bool mIsFinishedTransition;
   nsCSSPseudoElements::Type mPseudoType;
 
   InfallibleTArray<AnimationProperty> mProperties;

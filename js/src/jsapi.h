@@ -1444,9 +1444,13 @@ class JS_PUBLIC_API(JSAutoCompartment)
     JSContext* cx_;
     JSCompartment* oldCompartment_;
   public:
-    JSAutoCompartment(JSContext* cx, JSObject* target);
-    JSAutoCompartment(JSContext* cx, JSScript* target);
+    JSAutoCompartment(JSContext* cx, JSObject* target
+                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+    JSAutoCompartment(JSContext* cx, JSScript* target
+                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
     ~JSAutoCompartment();
+
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class JS_PUBLIC_API(JSAutoNullableCompartment)
@@ -1454,8 +1458,11 @@ class JS_PUBLIC_API(JSAutoNullableCompartment)
     JSContext* cx_;
     JSCompartment* oldCompartment_;
   public:
-    explicit JSAutoNullableCompartment(JSContext* cx, JSObject* targetOrNull);
+    explicit JSAutoNullableCompartment(JSContext* cx, JSObject* targetOrNull
+                                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
     ~JSAutoNullableCompartment();
+
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /* NB: This API is infallible; a nullptr return value does not indicate error. */
@@ -2084,7 +2091,7 @@ inline int CheckIsSetterOp(JSSetterOp op);
 #define JS_SELF_HOSTED_GET(name, getterName, flags) \
     {name, \
      uint8_t(JS_CHECK_ACCESSOR_FLAGS(flags) | JSPROP_SHARED | JSPROP_GETTER), \
-     { { nullptr, JS_CAST_STRING_TO(getterName, const JSJitInfo *) } }, \
+     { { nullptr, JS_CAST_STRING_TO(getterName, const JSJitInfo*) } }, \
      JSNATIVE_WRAPPER(nullptr) }
 #define JS_SELF_HOSTED_GETSET(name, getterName, setterName, flags) \
     {name, \
@@ -2641,7 +2648,7 @@ class MutablePropertyDescriptorOperations : public PropertyDescriptorOperations<
         setSetter(setterOp);
     }
 
-    void assign(JSPropertyDescriptor &other) {
+    void assign(JSPropertyDescriptor& other) {
         object().set(other.obj);
         setAttributes(other.attrs);
         setGetter(other.getter);
@@ -5192,6 +5199,7 @@ enum AsmJSCacheResult
     AsmJSCache_ModuleTooSmall,
     AsmJSCache_SynchronousScript,
     AsmJSCache_QuotaExceeded,
+    AsmJSCache_StorageInitFailure,
     AsmJSCache_Disabled_Internal,
     AsmJSCache_Disabled_ShellFlags,
     AsmJSCache_Disabled_JitInspector,

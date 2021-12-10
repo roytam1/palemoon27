@@ -87,6 +87,17 @@ KeyframeEffectReadOnly::SetParentTime(Nullable<TimeDuration> aParentTime)
   mParentTime = aParentTime;
 }
 
+void
+KeyframeEffectReadOnly::SetTiming(const AnimationTiming& aTiming,
+                                  Animation& aOwningAnimation)
+{
+  if (mTiming == aTiming) {
+    return;
+  }
+  mTiming = aTiming;
+  aOwningAnimation.NotifyEffectTimingUpdated();
+}
+
 ComputedTiming
 KeyframeEffectReadOnly::GetComputedTimingAt(
                           const Nullable<TimeDuration>& aLocalTime,
@@ -236,8 +247,7 @@ KeyframeEffectReadOnly::ActiveDuration(const AnimationTiming& aTiming)
 bool
 KeyframeEffectReadOnly::IsInPlay(const Animation& aAnimation) const
 {
-  if (IsFinishedTransition() ||
-      aAnimation.PlayState() == AnimationPlayState::Finished) {
+  if (aAnimation.PlayState() == AnimationPlayState::Finished) {
     return false;
   }
 
@@ -248,8 +258,7 @@ KeyframeEffectReadOnly::IsInPlay(const Animation& aAnimation) const
 bool
 KeyframeEffectReadOnly::IsCurrent(const Animation& aAnimation) const
 {
-  if (IsFinishedTransition() ||
-      aAnimation.PlayState() == AnimationPlayState::Finished) {
+  if (aAnimation.PlayState() == AnimationPlayState::Finished) {
     return false;
   }
 
@@ -261,10 +270,6 @@ KeyframeEffectReadOnly::IsCurrent(const Animation& aAnimation) const
 bool
 KeyframeEffectReadOnly::IsInEffect() const
 {
-  if (IsFinishedTransition()) {
-    return false;
-  }
-
   ComputedTiming computedTiming = GetComputedTiming();
   return computedTiming.mProgress != ComputedTiming::kNullProgress;
 }

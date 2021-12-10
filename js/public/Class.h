@@ -407,7 +407,7 @@ typedef bool
                      JS::MutableHandle<JSPropertyDescriptor> desc);
 typedef bool
 (* DeletePropertyOp)(JSContext* cx, JS::HandleObject obj, JS::HandleId id,
-                     JS::ObjectOpResult &result);
+                     JS::ObjectOpResult& result);
 
 typedef bool
 (* WatchOp)(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject callable);
@@ -650,7 +650,7 @@ typedef void (*JSClassInternal)();
 struct JSClass {
     JS_CLASS_MEMBERS(JSFinalizeOp);
 
-    void                *reserved[26];
+    void*                reserved[26];
 };
 
 #define JSCLASS_HAS_PRIVATE             (1<<0)  // objects have private slot

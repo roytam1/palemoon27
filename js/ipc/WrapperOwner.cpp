@@ -97,7 +97,7 @@ class CPOWProxyHandler : public BaseProxyHandler
         return false;
     }
 
-    virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
+    virtual bool getOwnPropertyDescriptor(JSContext* cx, HandleObject proxy, HandleId id,
                                           MutableHandle<JSPropertyDescriptor> desc) const override;
     virtual bool defineProperty(JSContext* cx, HandleObject proxy, HandleId id,
                                 Handle<JSPropertyDescriptor> desc,
@@ -261,8 +261,8 @@ WrapperOwner::ownPropertyKeys(JSContext* cx, HandleObject proxy, AutoIdVector& p
 }
 
 bool
-CPOWProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id,
-                          ObjectOpResult &result) const
+CPOWProxyHandler::delete_(JSContext* cx, HandleObject proxy, HandleId id,
+                          ObjectOpResult& result) const
 {
     FORWARD(delete_, (cx, proxy, id, result));
 }
@@ -568,13 +568,13 @@ WrapperOwner::getOwnEnumerablePropertyKeys(JSContext* cx, HandleObject proxy, Au
 }
 
 bool
-CPOWProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy, ObjectOpResult &result) const
+CPOWProxyHandler::preventExtensions(JSContext* cx, HandleObject proxy, ObjectOpResult& result) const
 {
     FORWARD(preventExtensions, (cx, proxy, result));
 }
 
 bool
-WrapperOwner::preventExtensions(JSContext *cx, HandleObject proxy, ObjectOpResult &result)
+WrapperOwner::preventExtensions(JSContext* cx, HandleObject proxy, ObjectOpResult& result)
 {
     ObjectId objId = idOf(proxy);
 

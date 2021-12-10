@@ -61,6 +61,9 @@ public:
   virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
     const MOZ_MUST_OVERRIDE override;
 
+  // nsARefreshObserver
+  void WillRefresh(TimeStamp aTime) override;
+
 #ifdef DEBUG
   static void Initialize();
 #endif
@@ -96,14 +99,11 @@ public:
     return false;
   }
 
-  // Notify this manager that one of its collections of animations,
-  // has been updated.
-  void NotifyCollectionUpdated(AnimationCollection& aCollection);
-
   enum FlushFlags {
     Can_Throttle,
     Cannot_Throttle
   };
+  void FlushAnimations(FlushFlags aFlags);
 
   nsIStyleRule* GetAnimationRule(dom::Element* aElement,
                                  nsCSSPseudoElements::Type aPseudoType);
@@ -171,6 +171,12 @@ public:
   GetAnimationsForCompositor(const nsIFrame* aFrame,
                              nsCSSProperty aProperty);
 
+  // Given the frame aFrame with possibly animated content, finds its
+  // associated collection of animations. If it is a generated content
+  // frame, it may examine the parent frame to search for such animations.
+  AnimationCollection*
+  GetAnimationCollection(const nsIFrame* aFrame);
+
 protected:
   PRCList mElementCollections;
   nsPresContext *mPresContext; // weak (non-null from ctor to Disconnect)
@@ -227,11 +233,6 @@ private:
 
 typedef InfallibleTArray<nsRefPtr<dom::Animation>> AnimationPtrArray;
 
-enum EnsureStyleRuleFlags {
-  EnsureStyleRule_IsThrottled,
-  EnsureStyleRule_IsNotThrottled
-};
-
 struct AnimationCollection : public PRCList
 {
   AnimationCollection(dom::Element *aElement, nsIAtom *aElementProperty,
@@ -242,6 +243,7 @@ struct AnimationCollection : public PRCList
     , mAnimationGeneration(0)
     , mCheckGeneration(0)
     , mNeedsRefreshes(true)
+    , mHasPendingAnimationRestyle(false)
 #ifdef DEBUG
     , mCalledPropertyDtor(false)
 #endif
@@ -269,11 +271,7 @@ struct AnimationCollection : public PRCList
 
   void Tick();
 
-  void EnsureStyleRuleFor(TimeStamp aRefreshTime, EnsureStyleRuleFlags aFlags);
-
-  bool CanThrottleTransformChanges(TimeStamp aTime);
-
-  bool CanThrottleAnimation(TimeStamp aTime);
+  void EnsureStyleRuleFor(TimeStamp aRefreshTime);
 
   enum CanAnimateFlags {
     // Testing for width, height, top, right, bottom, or left.
@@ -283,11 +281,32 @@ struct AnimationCollection : public PRCList
     CanAnimate_AllowPartial = 2
   };
 
+  enum class RestyleType {
+    // Animation style has changed but the compositor is applying the same
+    // change so we might be able to defer updating the main thread until it
+    // becomes necessary.
+    Throttled,
+    // Animation style has changed and needs to be updated on the main thread.
+    Standard,
+    // Animation style has changed and needs to be updated on the main thread
+    // as well as forcing animations on layers to be updated.
+    // This is needed in cases such as when an animation becomes paused or has
+    // its playback rate changed. In such a case, although the computed style
+    // and refresh driver time might not change, we still need to ensure the
+    // corresponding animations on layers are updated to reflect the new
+    // configuration of the animation.
+    Layer
+  };
+  void RequestRestyle(RestyleType aRestyleType);
+
 private:
   static bool
   CanAnimatePropertyOnCompositor(const dom::Element *aElement,
                                  nsCSSProperty aProperty,
                                  CanAnimateFlags aFlags);
+
+  bool CanThrottleAnimation(TimeStamp aTime);
+  bool CanThrottleTransformChanges(TimeStamp aTime);
 
 public:
   static bool IsCompositorAnimationDisabledForFrame(nsIFrame* aFrame);
@@ -311,9 +330,7 @@ public:
   // off-main-thread compositing is enabled as a whole.
   bool CanPerformOnCompositorThread(CanAnimateFlags aFlags) const;
 
-  void PostUpdateLayerAnimations();
-
-  bool HasAnimationOfProperty(nsCSSProperty aProperty) const;
+  bool HasCurrentAnimationOfProperty(nsCSSProperty aProperty) const;
 
   bool IsForElement() const { // rather than for a pseudo-element
     return mElementProperty == nsGkAtoms::animationsProperty ||
@@ -367,8 +384,6 @@ public:
       aPresContext->PresShell()->RestyleForAnimation(element, hint);
     }
   }
-
-  void NotifyAnimationUpdated();
 
   static void LogAsyncAnimationFailure(nsCString& aMessage,
                                        const nsIContent* aContent = nullptr);
@@ -426,6 +441,12 @@ public:
   // indefinitely into the future (because all of our animations are
   // either completed or paused).  May be invalidated by a style change.
   bool mNeedsRefreshes;
+
+private:
+  // Whether or not we have already posted for animation restyle.
+  // This is used to avoid making redundant requests and is reset each time
+  // the animation restyle is performed.
+  bool mHasPendingAnimationRestyle;
 
 #ifdef DEBUG
   bool mCalledPropertyDtor;

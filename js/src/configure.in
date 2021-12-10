@@ -297,7 +297,7 @@ dnl ========================================================
 
 # Target the Windows 8.1 SDK by default
 WINSDK_TARGETVER=603
-WINVER=600
+WINVER=502
 
 MOZ_ARG_WITH_STRING(windows-version,
 [  --with-windows-version=WINSDK_TARGETVER

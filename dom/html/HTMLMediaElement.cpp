@@ -88,6 +88,7 @@
 #include "ImageContainer.h"
 #include "nsRange.h"
 #include <algorithm>
+#include <cmath>
 
 static PRLogModuleInfo* gMediaElementLog;
 static PRLogModuleInfo* gMediaElementEventsLog;
@@ -1796,6 +1797,8 @@ void HTMLMediaElement::SetVolumeInternal()
       stream->SetAudioOutputVolume(this, effectiveVolume);
     }
   }
+
+  UpdateAudioChannelPlayingState();
 }
 
 NS_IMETHODIMP HTMLMediaElement::SetMuted(bool aMuted)
@@ -4502,6 +4505,8 @@ HTMLMediaElement::UpdateAudioChannelPlayingState()
 
   bool playingThroughTheAudioChannel =
      (!mPaused &&
+      !Muted() &&
+      std::fabs(Volume()) > 1e-7 &&
       (HasAttr(kNameSpaceID_None, nsGkAtoms::loop) ||
        (mReadyState >= nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA &&
         !IsPlaybackEnded()) ||
@@ -4523,6 +4528,11 @@ HTMLMediaElement::UpdateAudioChannelPlayingState()
 void
 HTMLMediaElement::NotifyAudioChannelAgent(bool aPlaying)
 {
+  // Don't do anything if this element doesn't have any audio tracks.
+  if (!HasAudio()) {
+    return;
+  }
+
   // Immediately check if this should go to the MSG instead of the normal
   // media playback route.
   WindowAudioCaptureChanged();

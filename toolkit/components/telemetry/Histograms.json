@@ -6775,5 +6775,13 @@
     "n_values": 20,
     "releaseChannelCollection": "opt-out",
     "description": "Reports whether or not graphics drivers crashed during startup."
+  },
+  "PERF_MONITORING_TEST_CPU_RESCHEDULING_PROPORTION_MOVED": {
+    "alert_emails": ["dteller@mozilla.com"],
+    "expires_in_version": "44",
+    "kind": "linear",
+    "high": "100",
+    "n_buckets": "20",
+    "description": "Proportion (%) of reschedulings of the main process to another CPU during the execution of code inside a JS compartment. Updated while we are measuring jank."
   }
 }

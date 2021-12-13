@@ -14,6 +14,7 @@
 #include "mozilla/arm.h"
 
 #ifdef XP_WIN
+#include <time.h>
 #include <windows.h>
 #include <winioctl.h>
 #include "base/scoped_handle_win.h"
@@ -21,6 +22,11 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsIObserverService.h"
+#include "nsWindowsHelpers.h"
+#endif
+
+#ifdef XP_MACOSX
+#include "MacHelpers.h"
 #endif
 
 #ifdef MOZ_WIDGET_GTK
@@ -130,7 +136,71 @@ GetHDDInfo(const char* aSpecialDirName, nsAutoCString& aModel,
   free(deviceOutput);
   return NS_OK;
 }
-} // anonymous namespace
+
+nsresult GetInstallYear(uint32_t& aYear)
+{
+  HKEY hKey;
+  LONG status = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+                              NS_LITERAL_STRING(
+                              "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
+                              ).get(),
+                              0, KEY_READ | KEY_WOW64_64KEY, &hKey);
+
+  if (status != ERROR_SUCCESS) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  nsAutoRegKey key(hKey);
+
+  DWORD type = 0;
+  time_t raw_time = 0;
+  DWORD time_size = sizeof(time_t);
+
+  status = RegQueryValueExW(hKey, NS_LITERAL_STRING("InstallDate").get(),
+                            nullptr, &type, (LPBYTE)&raw_time, &time_size);
+
+  if (status != ERROR_SUCCESS) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  if (type != REG_DWORD) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  tm time;
+  if (localtime_s(&time, &raw_time) != 0) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  aYear = 1900UL + time.tm_year;
+  return NS_OK;
+}
+
+nsresult GetCountryCode(nsAString& aCountryCode)
+{
+  GEOID geoid = GetUserGeoID(GEOCLASS_NATION);
+  if (geoid == GEOID_NOT_AVAILABLE) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  // Get required length
+  int numChars = GetGeoInfoW(geoid, GEO_ISO2, nullptr, 0, 0);
+  if (!numChars) {
+    return NS_ERROR_FAILURE;
+  }
+  // Now get the string for real
+  aCountryCode.SetLength(numChars);
+  numChars = GetGeoInfoW(geoid, GEO_ISO2, wwc(aCountryCode.BeginWriting()),
+                         aCountryCode.Length(), 0);
+  if (!numChars) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // numChars includes null terminator
+  aCountryCode.Truncate(numChars - 1);
+  return NS_OK;
+}
+
+} // namespace
 #endif // defined(XP_WIN)
 
 using namespace mozilla;
@@ -250,6 +320,28 @@ nsSystemInfo::Init()
     NS_ENSURE_SUCCESS(rv, rv);
     rv = SetPropertyAsACString(NS_LITERAL_STRING("winHDDRevision"),
                                hddRevision);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  nsAutoString countryCode;
+  if (NS_SUCCEEDED(GetCountryCode(countryCode))) {
+    rv = SetPropertyAsAString(NS_LITERAL_STRING("countryCode"), countryCode);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  uint32_t installYear = 0;
+  if (NS_SUCCEEDED(GetInstallYear(installYear))) {
+    rv = SetPropertyAsUint32(NS_LITERAL_STRING("installYear"), installYear);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  }
+#endif
+
+#if defined(XP_MACOSX)
+  nsAutoString countryCode;
+  if (NS_SUCCEEDED(GetSelectedCityInfo(countryCode))) {
+    rv = SetPropertyAsAString(NS_LITERAL_STRING("countryCode"), countryCode);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 #endif

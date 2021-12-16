@@ -97,7 +97,8 @@ def generate_and_maybe_import_cert(key_type, cert_name_prefix, cert_name_suffix,
         signer_key_filename,
         signer_cert_filename,
         subject_string,
-        key_size)
+        key_size,
+        3 * 365 + 3 * 31) # 39 months
     generated_certs.append([cert_name, key_filename, cert_filename])
 
     if generate_ev:
@@ -236,9 +237,6 @@ def generate_combination_chains():
 # Create a NSS DB for use by the OCSP responder.
 CertUtils.init_nss_db(srcdir)
 
-# TODO(bug 636807): SECKEY_PublicKeyStrengthInBits() rounds up the number of
-# bits to the next multiple of 8 - therefore the highest key size less than 1024
-# that can be tested is 1016, less than 2048 is 2040 and so on.
 generate_rsa_chains('1016', '1024', False)
 generate_rsa_chains('2040', '2048', True)
 generate_ecc_chains()

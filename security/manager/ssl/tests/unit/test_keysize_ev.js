@@ -72,7 +72,7 @@ function addKeySizeTestForEV(expectedNamesForOCSP,
  * none of the chains validate as EV.
  *
  * Note: This function assumes that the key size requirements for EV are greater
- * than or equal to the requirements for DV.
+ * than the requirements for DV.
  *
  * @param {Number} inadequateKeySize
  *        The inadequate key size of the generated certs.
@@ -132,6 +132,7 @@ function checkRSAChains(inadequateKeySize, adequateKeySize) {
 
 function run_test() {
   Services.prefs.setCharPref("network.dns.localDomains", "www.example.com");
+  Services.prefs.setIntPref("security.OCSP.enabled", 1);
 
   checkRSAChains(2040, 2048);
 

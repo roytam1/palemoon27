@@ -268,6 +268,7 @@ public:
 
   virtual Result CheckRevocation(EndEntityOrCA endEntityOrCA,
                                  const CertID& certID, Time time,
+                                 Duration validityDuration,
                     /*optional*/ const Input* stapledOCSPresponse,
                     /*optional*/ const Input* aiaExtension) = 0;
 
@@ -315,6 +316,15 @@ public:
   // verification of the public key validity as specified in NIST SP 800-56A.
   virtual Result VerifyECDSASignedDigest(const SignedDigest& signedDigest,
                                          Input subjectPublicKeyInfo) = 0;
+
+  // Check that the validity duration is acceptable.
+  //
+  // Return Success if the validity duration is acceptable,
+  // Result::ERROR_VALIDITY_TOO_LONG if the validity duration is not acceptable,
+  // or another error code if another error occurred.
+  virtual Result CheckValidityIsAcceptable(Time notBefore, Time notAfter,
+                                           EndEntityOrCA endEntityOrCA,
+                                           KeyPurposeId keyPurpose) = 0;
 
   // Compute a digest of the data in item using the given digest algorithm.
   //

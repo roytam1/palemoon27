@@ -14,6 +14,11 @@
 
 namespace mozilla { namespace psm {
 
+enum class ValidityCheckingMode {
+  CheckingOff = 0,
+  CheckForEV = 1,
+};
+
 SECStatus InitializeNSS(const char* dir, bool readOnly);
 
 void DisableMD5();
@@ -53,8 +58,10 @@ public:
   NSSCertDBTrustDomain(SECTrustType certDBTrustType, OCSPFetching ocspFetching,
                        OCSPCache& ocspCache, void* pinArg,
                        CertVerifier::OcspGetConfig ocspGETConfig,
+                       uint32_t certShortLifetimeInDays,
                        CertVerifier::PinningMode pinningMode,
-                       unsigned int minimumNonECCKeyBits,
+                       unsigned int minRSABits,
+                       ValidityCheckingMode validityCheckingMode,
           /*optional*/ const char* hostname = nullptr,
       /*optional out*/ ScopedCERTCertList* builtChain = nullptr);
 
@@ -92,10 +99,16 @@ public:
                            /*out*/ uint8_t* digestBuf,
                            size_t digestBufLen) override;
 
+  virtual Result CheckValidityIsAcceptable(
+                   mozilla::pkix::Time notBefore, mozilla::pkix::Time notAfter,
+                   mozilla::pkix::EndEntityOrCA endEntityOrCA,
+                   mozilla::pkix::KeyPurposeId keyPurpose) override;
+
   virtual Result CheckRevocation(
                    mozilla::pkix::EndEntityOrCA endEntityOrCA,
                    const mozilla::pkix::CertID& certID,
                    mozilla::pkix::Time time,
+                   mozilla::pkix::Duration validityDuration,
       /*optional*/ const mozilla::pkix::Input* stapledOCSPResponse,
       /*optional*/ const mozilla::pkix::Input* aiaExtension)
                    override;
@@ -127,8 +140,10 @@ private:
   OCSPCache& mOCSPCache; // non-owning!
   void* mPinArg; // non-owning!
   const CertVerifier::OcspGetConfig mOCSPGetConfig;
+  const uint32_t mCertShortLifetimeInDays;
   CertVerifier::PinningMode mPinningMode;
-  const unsigned int mMinimumNonECCBits;
+  const unsigned int mMinRSABits;
+  ValidityCheckingMode mValidityCheckingMode;
   const char* mHostname; // non-owning - only used for pinning checks
   ScopedCERTCertList* mBuiltChain; // non-owning
   nsCOMPtr<nsICertBlocklist> mCertBlocklist;

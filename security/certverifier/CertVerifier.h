@@ -13,8 +13,6 @@
 
 namespace mozilla { namespace psm {
 
-struct ChainValidationCallbackState;
-
 // These values correspond to the CERT_CHAIN_KEY_SIZE_STATUS telemetry.
 enum class KeySizeStatus {
   NeverChecked = 0,
@@ -75,21 +73,25 @@ public:
     pinningEnforceTestMode = 3
   };
 
-  enum OcspDownloadConfig { ocspOff = 0, ocspOn };
+  enum OcspDownloadConfig {
+    ocspOff = 0,
+    ocspOn = 1,
+    ocspEVOnly = 2
+  };
   enum OcspStrictConfig { ocspRelaxed = 0, ocspStrict };
   enum OcspGetConfig { ocspGetDisabled = 0, ocspGetEnabled = 1 };
 
-  bool IsOCSPDownloadEnabled() const { return mOCSPDownloadEnabled; }
-
   CertVerifier(OcspDownloadConfig odc, OcspStrictConfig osc,
-               OcspGetConfig ogc, PinningMode pinningMode);
+               OcspGetConfig ogc, uint32_t certShortLifetimeInDays,
+               PinningMode pinningMode);
   ~CertVerifier();
 
   void ClearOCSPCache() { mOCSPCache.Clear(); }
 
-  const bool mOCSPDownloadEnabled;
+  const OcspDownloadConfig mOCSPDownloadConfig;
   const bool mOCSPStrict;
   const bool mOCSPGETEnabled;
+  const uint32_t mCertShortLifetimeInDays;
   const PinningMode mPinningMode;
 
 private:

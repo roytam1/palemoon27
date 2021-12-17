@@ -26,6 +26,7 @@ function add_non_overridable_test(aHost, aExpectedError) {
 }
 
 function run_test() {
+  Services.prefs.setIntPref("security.OCSP.enabled", 1);
   add_tls_server_setup("BadCertServer");
 
   let fakeOCSPResponder = new HttpServer();

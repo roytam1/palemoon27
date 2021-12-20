@@ -721,24 +721,24 @@ NewBuiltinClassInstance(ExclusiveContext* cx, gc::AllocKind allocKind, NewObject
 
 // Used to optimize calls to (new Object())
 bool
-NewObjectScriptedCall(JSContext *cx, MutableHandleObject obj);
+NewObjectScriptedCall(JSContext* cx, MutableHandleObject obj);
 
-JSObject *
-NewObjectWithGroupCommon(ExclusiveContext *cx, HandleObjectGroup group,
+JSObject*
+NewObjectWithGroupCommon(ExclusiveContext* cx, HandleObjectGroup group,
                          gc::AllocKind allocKind, NewObjectKind newKind);
 
 template <typename T>
-inline T *
-NewObjectWithGroup(ExclusiveContext *cx, HandleObjectGroup group,
+inline T*
+NewObjectWithGroup(ExclusiveContext* cx, HandleObjectGroup group,
                    gc::AllocKind allocKind, NewObjectKind newKind = GenericObject)
 {
-    JSObject *obj = NewObjectWithGroupCommon(cx, group, allocKind, newKind);
+    JSObject* obj = NewObjectWithGroupCommon(cx, group, allocKind, newKind);
     return obj ? &obj->as<T>() : nullptr;
 }
 
 template <typename T>
-inline T *
-NewObjectWithGroup(ExclusiveContext *cx, HandleObjectGroup group,
+inline T*
+NewObjectWithGroup(ExclusiveContext* cx, HandleObjectGroup group,
                    NewObjectKind newKind = GenericObject)
 {
     gc::AllocKind allocKind = gc::GetGCObjectKind(group->clasp());
@@ -801,43 +801,8 @@ Unbox(JSContext* cx, HandleObject obj, MutableHandleValue vp)
     return true;
 }
 
-static inline unsigned
-ApplyAttributes(unsigned attrs, bool enumerable, bool writable, bool configurable)
-{
-    /*
-     * Respect the fact that some callers may want to preserve existing attributes as much as
-     * possible, or install defaults otherwise.
-     */
-    if (attrs & JSPROP_IGNORE_ENUMERATE) {
-        attrs &= ~JSPROP_IGNORE_ENUMERATE;
-        if (enumerable)
-            attrs |= JSPROP_ENUMERATE;
-        else
-            attrs &= ~JSPROP_ENUMERATE;
-    }
-    if (attrs & JSPROP_IGNORE_READONLY) {
-        attrs &= ~JSPROP_IGNORE_READONLY;
-        // Only update the writability if it's relevant
-        if (!(attrs & (JSPROP_GETTER | JSPROP_SETTER))) {
-            if (!writable)
-                attrs |= JSPROP_READONLY;
-            else
-                attrs &= ~JSPROP_READONLY;
-        }
-    }
-    if (attrs & JSPROP_IGNORE_PERMANENT) {
-        attrs &= ~JSPROP_IGNORE_PERMANENT;
-        if (!configurable)
-            attrs |= JSPROP_PERMANENT;
-        else
-            attrs &= ~JSPROP_PERMANENT;
-    }
-    return attrs;
-}
-
-
-extern js::NativeObject*
-InitClass(JSContext* cx, js::HandleObject obj, HandleObject parent_proto,
+extern NativeObject*
+InitClass(JSContext* cx, HandleObject obj, HandleObject parent_proto,
           const Class* clasp, JSNative constructor, unsigned nargs,
           const JSPropertySpec* ps, const JSFunctionSpec* fs,
           const JSPropertySpec* static_ps, const JSFunctionSpec* static_fs,

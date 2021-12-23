@@ -6783,5 +6783,15 @@
     "high": "100",
     "n_buckets": "20",
     "description": "Proportion (%) of reschedulings of the main process to another CPU during the execution of code inside a JS compartment. Updated while we are measuring jank."
+  },
+  "PERMISSIONS_SQL_CORRUPTED": {
+    "expires_in_version": "never",
+    "kind": "count",
+    "description": "Record the permissions.sqlite init failure"
+  },
+  "DEFECTIVE_PERMISSIONS_SQL_REMOVED": {
+    "expires_in_version": "never",
+    "kind": "count",
+    "description": "Record the removal of defective permissions.sqlite"
   }
 }

@@ -14,11 +14,13 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
+#include "WebGLActiveInfo.h"
 #include "WebGLBuffer.h"
 #include "WebGLContextUtils.h"
 #include "WebGLFramebuffer.h"
 #include "WebGLProgram.h"
 #include "WebGLRenderbuffer.h"
+#include "WebGLSampler.h"
 #include "WebGLShader.h"
 #include "WebGLTexture.h"
 #include "WebGLUniformLocation.h"
@@ -1945,7 +1947,9 @@ WebGLContext::InitAndValidateGL()
     }
 
     // Default value for all disabled vertex attributes is [0, 0, 0, 1]
+    mVertexAttribType = MakeUnique<GLenum[]>(mGLMaxVertexAttribs);
     for (int32_t index = 0; index < mGLMaxVertexAttribs; ++index) {
+        mVertexAttribType[index] = LOCAL_GL_FLOAT;
         VertexAttrib4f(index, 0, 0, 0, 1);
     }
 

@@ -3430,7 +3430,7 @@ pref("intl.imm.vertical_writing.always_assume_not_supported", false);
 // We cannot retrieve active IME name with IMM32 API if a TIP of TSF is active.
 // This pref can specify active IME name when Japanese TIP is active.
 // For example:
-//   Google Japanese Input: "Google 日本語入力 IMM32 モジュール"
+//   Google Japanese Input: "Google ?�本語入??IMM32 ?�ジ?�ー??
 //   ATOK 2011: "ATOK 2011" (similarly, e.g., ATOK 2013 is "ATOK 2013")
 pref("intl.imm.japanese.assume_active_tip_name_as", "");
 
@@ -4609,6 +4609,10 @@ pref("dom.push.debug", false);
 pref("dom.push.serverURL", "wss://push.services.mozilla.com/");
 pref("dom.push.userAgentID", "");
 
+// The maximum number of notifications that a service worker can receive
+// without user interaction.
+pref("dom.push.maxQuotaPerSubscription", 16);
+
 // Is the network connection allowed to be up?
 // This preference should be used in UX to enable/disable push.
 pref("dom.push.connection.enabled", true);
@@ -5191,6 +5195,9 @@ pref("dom.fetch.enabled", true);
 
 // Turn rewriting of youtube embeds on/off
 pref("plugins.rewrite_youtube_embeds", true);
+
+// Expose Request.context. Currently disabled since the spec is in flux.
+pref("dom.requestcontext.enabled", false);
 
 pref("devtools.serviceWorkers.testing.enabled", false);
 

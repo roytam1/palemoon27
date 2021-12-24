@@ -2489,6 +2489,8 @@ public:
                                                 nsIDocument* aDoc,
                                                 nsIHttpChannel* aChannel);
 
+  static bool PushEnabled(JSContext* aCx, JSObject* aObj);
+
 private:
   static bool InitializeEventTable();
 

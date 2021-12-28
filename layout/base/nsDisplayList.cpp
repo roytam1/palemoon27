@@ -926,7 +926,7 @@ nsDisplayListBuilder::MarkPreserve3DFramesForDisplayList(nsIFrame* aDirtyFrame, 
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame *child = childFrames.get();
-      if (child->Preserves3D()) {
+      if (child->Combines3DTransformWithAncestors()) {
         mFramesMarkedForDisplay.AppendElement(child);
         nsRect dirty = aDirtyRect - child->GetOffsetTo(aDirtyFrame);
 
@@ -1834,7 +1834,7 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
       // so we can sort them later, otherwise we add them directly to the output list.
       nsTArray<nsIFrame*> *writeFrames = aOutFrames;
       if (item->GetType() == nsDisplayItem::TYPE_TRANSFORM &&
-          item->Frame()->Preserves3D()) {
+          item->Frame()->Combines3DTransformWithAncestors()) {
         if (outFrames.Length()) {
           nsDisplayTransform *transform = static_cast<nsDisplayTransform*>(item);
           nsPoint point = aRect.TopLeft();
@@ -3565,7 +3565,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
   // inside this list afterwards (see WrapPreserve3DList in nsFrame.cpp).
   // In this case we will always be outside of the transform, so share
   // our parents reference frame.
-  if (aFrame->Preserves3DChildren()) {
+  if (aFrame->Extend3DContext()) {
     mReferenceFrame = 
       aBuilder->FindReferenceFrameFor(GetTransformRootFrame(aFrame));
     mToReferenceFrame = aFrame->GetOffsetToCrossDoc(mReferenceFrame);
@@ -3611,7 +3611,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
     return;
   }
 
-  if (aFrame->Preserves3DChildren()) {
+  if (aFrame->Extend3DContext()) {
     mReferenceFrame = 
       aBuilder->FindReferenceFrameFor(GetTransformRootFrame(aFrame));
     mToReferenceFrame = aFrame->GetOffsetToCrossDoc(mReferenceFrame);
@@ -4804,19 +4804,12 @@ nsDisplayTransform::GetDeltaToPerspectiveOrigin(const nsIFrame* aFrame,
 
   //TODO: Should this be using our bounds or the parent's bounds?
   // How do we handle aBoundsOverride in the latter case?
-  nsIFrame* parent;
-  nsStyleContext* psc = aFrame->GetParentStyleContext(&parent);
-  if (!psc) {
+  nsIFrame* cbFrame = aFrame->GetContainingBlock(nsIFrame::SKIP_SCROLLED_FRAME);
+  if (!cbFrame) {
     return Point3D();
   }
-  if (!parent) {
-    parent = aFrame->GetParent();
-    if (!parent) {
-      return Point3D();
-    }
-  }
-  const nsStyleDisplay* display = psc->StyleDisplay();
-  TransformReferenceBox refBox(parent);
+  const nsStyleDisplay* display = cbFrame->StyleDisplay();
+  TransformReferenceBox refBox(cbFrame);
 
   /* Allows us to access named variables by index. */
   Point3D result;
@@ -4847,7 +4840,7 @@ nsDisplayTransform::GetDeltaToPerspectiveOrigin(const nsIFrame* aFrame,
     }
   }
 
-  nsPoint parentOffset = aFrame->GetOffsetTo(parent);
+  nsPoint parentOffset = aFrame->GetOffsetTo(cbFrame);
   Point3D gfxOffset(
             NSAppUnitsToFloatPixels(parentOffset.x, aAppUnitsPerPixel),
             NSAppUnitsToFloatPixels(parentOffset.y, aAppUnitsPerPixel),
@@ -4864,17 +4857,16 @@ nsDisplayTransform::FrameTransformProperties::FrameTransformProperties(const nsI
   , mToTransformOrigin(GetDeltaToTransformOrigin(aFrame, aAppUnitsPerPixel, aBoundsOverride))
   , mChildPerspective(0)
 {
-  const nsStyleDisplay* parentDisp = nullptr;
-  nsStyleContext* parentStyleContext = aFrame->StyleContext()->GetParent();
-  if (parentStyleContext) {
-    parentDisp = parentStyleContext->StyleDisplay();
-  }
-  if (parentDisp && parentDisp->mChildPerspective.GetUnit() == eStyleUnit_Coord) {
-    mChildPerspective = parentDisp->mChildPerspective.GetCoordValue();
-    // Calling GetDeltaToPerspectiveOrigin can be expensive, so we avoid
-    // calling it unnecessarily.
-    if (mChildPerspective > 0.0) {
-      mToPerspectiveOrigin = GetDeltaToPerspectiveOrigin(aFrame, aAppUnitsPerPixel);
+  nsIFrame* cbFrame = aFrame->GetContainingBlock(nsIFrame::SKIP_SCROLLED_FRAME);
+  if (cbFrame) {
+    const nsStyleDisplay* display = cbFrame->StyleDisplay();
+    if (display->mChildPerspective.GetUnit() == eStyleUnit_Coord) {
+      mChildPerspective = display->mChildPerspective.GetCoordValue();
+      // Calling GetDeltaToPerspectiveOrigin can be expensive, so we avoid
+      // calling it unnecessarily.
+      if (mChildPerspective > 0.0) {
+        mToPerspectiveOrigin = GetDeltaToPerspectiveOrigin(aFrame, aAppUnitsPerPixel);
+      }
     }
   }
 }
@@ -5032,11 +5024,11 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
     }
   }
 
-  if (frame && frame->Preserves3D()) {
+  if (frame && frame->Combines3DTransformWithAncestors()) {
     // Include the transform set on our parent
     NS_ASSERTION(frame->GetParent() &&
                  frame->GetParent()->IsTransformed() &&
-                 frame->GetParent()->Preserves3DChildren(),
+                 frame->GetParent()->Extend3DContext(),
                  "Preserve3D mismatch!");
     FrameTransformProperties props(frame->GetParent(),
                                    aAppUnitsPerPixel,
@@ -5237,10 +5229,10 @@ already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBu
 
   // Add the preserve-3d flag for this layer, BuildContainerLayerFor clears all flags,
   // so we never need to explicitely unset this flag.
-  if (mFrame->Preserves3D() || mFrame->Preserves3DChildren()) {
-    container->SetContentFlags(container->GetContentFlags() | Layer::CONTENT_PRESERVE_3D);
+  if (mFrame->Combines3DTransformWithAncestors() || mFrame->Extend3DContext()) {
+    container->SetContentFlags(container->GetContentFlags() | Layer::CONTENT_EXTEND_3D_CONTEXT);
   } else {
-    container->SetContentFlags(container->GetContentFlags() & ~Layer::CONTENT_PRESERVE_3D);
+    container->SetContentFlags(container->GetContentFlags() & ~Layer::CONTENT_EXTEND_3D_CONTEXT);
   }
 
   nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(container, aBuilder,
@@ -5263,7 +5255,7 @@ nsDisplayTransform::GetLayerState(nsDisplayListBuilder* aBuilder,
                                   const ContainerLayerParameters& aParameters) {
   // If the transform is 3d, or the layer takes part in preserve-3d sorting
   // then we *always* want this to be an active layer.
-  if (!GetTransform().Is2D() || mFrame->Preserves3D()) {
+  if (!GetTransform().Is2D() || mFrame->Combines3DTransformWithAncestors()) {
     return LAYER_ACTIVE_FORCE;
   }
   // Here we check if the *post-transform* bounds of this item are big enough

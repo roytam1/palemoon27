@@ -1228,18 +1228,18 @@ public:
                                 Matrix *aFromParentTransforms = nullptr) const;
 
   /**
-   * Returns whether this frame will attempt to preserve the 3d transforms of its
+   * Returns whether this frame will attempt to extend the 3d transforms of its
    * children. This requires transform-style: preserve-3d, as well as no clipping
    * or svg effects.
    */
-  bool Preserves3DChildren() const;
+  bool Extend3DContext() const;
 
   /**
-   * Returns whether this frame has a parent that Preserves3DChildren() and has
+   * Returns whether this frame has a parent that Extend3DContext() and has
    * its own transform (or hidden backface) to be combined with the parent's
    * transform.
    */
-  bool Preserves3D() const;
+  bool Combines3DTransformWithAncestors() const;
 
   bool HasPerspective() const;
 
@@ -1248,7 +1248,7 @@ public:
   // Calculate the overflow size of all child frames, taking preserve-3d into account
   void ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, const nsRect& aBounds);
 
-  void RecomputePerspectiveChildrenOverflow(const nsStyleContext* aStartStyle, const nsRect* aBounds);
+  void RecomputePerspectiveChildrenOverflow(const nsIFrame* aStartFrame, const nsRect* aBounds);
 
   /**
    * Returns the number of ancestors between this and the root of our frame tree
@@ -2117,8 +2117,18 @@ public:
    *
    * NOTE: This is guaranteed to return a non-null pointer when invoked on any
    * frame other than the root frame.
+   *
+   * Requires SKIP_SCROLLED_FRAME to get behaviour matching the spec, otherwise
+   * it can return anonymous inner scrolled frames. Bug 1204044 is filed for
+   * investigating whether any of the callers actually require the default
+   * behaviour.
    */
-  nsIFrame* GetContainingBlock() const;
+  enum {
+    // If the containing block is an anonymous scrolled frame, then skip over
+    // this and return the outer scroll frame.
+    SKIP_SCROLLED_FRAME = 0x01
+  };
+  nsIFrame* GetContainingBlock(uint32_t aFlags = 0) const;
 
   /**
    * Is this frame a containing block for floating elements?

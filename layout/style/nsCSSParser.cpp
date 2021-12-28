@@ -11378,10 +11378,14 @@ CSSParserImpl::ParseBorderImage()
   nsCSSValue imageSourceValue;
   while (!CheckEndProperty()) {
     // <border-image-source>
-    if (!foundSource && ParseVariant(imageSourceValue, VARIANT_IMAGE, nullptr)) {
-      AppendValue(eCSSProperty_border_image_source, imageSourceValue);
-      foundSource = true;
-      continue;
+    if (!foundSource) {
+      nsAutoCSSParserInputStateRestorer stateRestorer(this);
+      if (ParseVariant(imageSourceValue, VARIANT_IMAGE, nullptr)) {
+        AppendValue(eCSSProperty_border_image_source, imageSourceValue);
+        foundSource = true;
+        stateRestorer.DoNotRestore();
+        continue;
+      }
     }
 
     // <border-image-slice>

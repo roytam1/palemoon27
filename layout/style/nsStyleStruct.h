@@ -2068,6 +2068,10 @@ struct nsStyleDisplay {
     return NS_STYLE_POSITION_RELATIVE == mPosition ||
            NS_STYLE_POSITION_STICKY == mPosition;
   }
+  bool IsPositionForcingStackingContext() const {
+    return NS_STYLE_POSITION_STICKY == mPosition ||
+           NS_STYLE_POSITION_FIXED == mPosition;
+  }
 
   static bool IsRubyDisplayType(uint8_t aDisplay) {
     return NS_STYLE_DISPLAY_RUBY == aDisplay ||
@@ -2198,7 +2202,8 @@ struct nsStylePosition {
   static nsChangeHint MaxDifference() {
     return NS_CombineHint(NS_STYLE_HINT_REFLOW,
                           nsChangeHint(nsChangeHint_RecomputePosition |
-                                       nsChangeHint_UpdateParentOverflow));
+                                       nsChangeHint_UpdateParentOverflow |
+                                       nsChangeHint_UpdateComputedBSize));
   }
   static nsChangeHint DifferenceAlwaysHandledForDescendants() {
     // CalcDifference can return all of the reflow hints that are

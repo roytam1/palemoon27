@@ -172,10 +172,13 @@ nsCSPContext::ShouldLoad(nsContentPolicyType aContentType,
 
   nsAutoString nonce;
   if (!isPreload) {
-    nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(aRequestContext);
-    if (htmlElement) {
-      rv = htmlElement->GetAttribute(NS_LITERAL_STRING("nonce"), nonce);
-      NS_ENSURE_SUCCESS(rv, rv);
+    if (aContentType == nsIContentPolicy::TYPE_SCRIPT ||
+        aContentType == nsIContentPolicy::TYPE_STYLESHEET) {
+      nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(aRequestContext);
+      if (htmlElement) {
+        rv = htmlElement->GetAttribute(NS_LITERAL_STRING("nonce"), nonce);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
     }
   }
 
@@ -340,9 +343,10 @@ nsCSPContext::GetReferrerPolicy(uint32_t* outPolicy, bool* outIsSet)
   mozilla::net::ReferrerPolicy previousPolicy = mozilla::net::RP_Default;
   for (uint32_t i = 0; i < mPolicies.Length(); i++) {
     mPolicies[i]->getReferrerPolicy(refpol);
-    // an empty string in refpol means it wasn't set (that's the default in
-    // nsCSPPolicy).
-    if (!refpol.IsEmpty()) {
+    // only set the referrer policy if not delievered through a CSPRO and
+    // note that and an empty string in refpol means it wasn't set
+    // (that's the default in nsCSPPolicy).
+    if (!mPolicies[i]->getReportOnlyFlag() && !refpol.IsEmpty()) {
       // if there are two policies that specify a referrer policy, then they
       // must agree or the employed policy is no-referrer.
       uint32_t currentPolicy = mozilla::net::ReferrerPolicyFromString(refpol);

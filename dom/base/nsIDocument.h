@@ -1384,10 +1384,11 @@ public:
 
   /**
    * Create an element with the specified name, prefix and namespace ID.
+   * Returns null if element name parsing failed.
    */
-  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
-                              int32_t aNamespaceID,
-                              nsIContent** aResult) = 0;
+  virtual already_AddRefed<Element> CreateElem(const nsAString& aName,
+                                               nsIAtom* aPrefix,
+                                               int32_t aNamespaceID) = 0;
 
   /**
    * Get the security info (i.e. SSL state etc) that the document got

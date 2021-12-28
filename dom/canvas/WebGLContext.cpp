@@ -682,9 +682,10 @@ CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
     if (!baseCaps.alpha)
         baseCaps.premultAlpha = true;
 
-    if (gl->IsANGLE()) {
+    if (gl->IsANGLE() || gl->GetContextType() == GLContextType::GLX) {
         // We can't use no-alpha formats on ANGLE yet because of:
         // https://code.google.com/p/angleproject/issues/detail?id=764
+        // GLX only supports GL_RGBA pixmaps as well.
         baseCaps.alpha = true;
     }
 
@@ -887,6 +888,11 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
         return NS_ERROR_FAILURE; // exit without changing the value of mGeneration
     }
 
+    // increment the generation number - Do this early because later
+    // in CreateOffscreenGL(), "default" objects are created that will
+    // pick up the old generation.
+    ++mGeneration;
+
     // Get some prefs for some preferred/overriden things
     NS_ENSURE_TRUE(Preferences::GetRootBranch(), NS_ERROR_FAILURE);
 
@@ -930,16 +936,13 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     mResetLayer = true;
     mOptionsFrozen = true;
 
-    // increment the generation number
-    ++mGeneration;
-
     // Update our internal stuff:
-    if (gl->WorkAroundDriverBugs() && gl->IsANGLE()) {
+    if (gl->WorkAroundDriverBugs()) {
         if (!mOptions.alpha && gl->Caps().alpha)
             mNeedsFakeNoAlpha = true;
 
         // ANGLE doesn't quite handle this properly.
-        if (gl->Caps().depth && !gl->Caps().stencil)
+        if (gl->Caps().depth && !gl->Caps().stencil && gl->IsANGLE())
             mNeedsFakeNoStencil = true;
     }
 
@@ -1808,8 +1811,11 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
                                        GLenum format, GLenum type,
                                        mozilla::dom::Element& elt)
 {
-    if (type == LOCAL_GL_HALF_FLOAT_OES)
+    if (type == LOCAL_GL_HALF_FLOAT_OES &&
+        !gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float))
+    {
         type = LOCAL_GL_HALF_FLOAT;
+    }
 
     if (!ValidateTexImageFormatAndType(format, type,
                                        WebGLTexImageFunc::TexImage,
@@ -1948,7 +1954,7 @@ WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xoffset
     TexSubImage2D_base(texImageTarget.get(), level, xoffset, yoffset, size.width,
                        size.height, data->Stride(), format, type, data->GetData(),
                        byteLength, js::Scalar::MaxTypedArrayViewType, srcFormat,
-                       mPixelStorePremultiplyAlpha);
+                       res.mIsPremultiplied);
 }
 
 size_t

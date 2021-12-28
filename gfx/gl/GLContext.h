@@ -32,6 +32,7 @@
 #define MOZ_GL_DEBUG 1
 #endif
 
+#include "../../mfbt/Maybe.h"
 #include "../../mfbt/RefPtr.h"
 #include "../../mfbt/UniquePtr.h"
 
@@ -320,6 +321,13 @@ public:
     virtual GLContextType GetContextType() const = 0;
 
     virtual bool IsCurrent() = 0;
+
+    /**
+     * Get the default framebuffer for this context.
+     */
+    virtual GLuint GetDefaultFramebuffer() {
+        return 0;
+    }
 
 protected:
     bool mInitialized;
@@ -3269,6 +3277,13 @@ public:
     GLuint GetReadFB();
 
     GLuint GetFB();
+
+    /*
+     * Retrieves the size of the native windowing system drawable.
+     */
+    virtual Maybe<gfx::IntSize> GetTargetSize() {
+        return Maybe<gfx::IntSize>();
+    };
 
 private:
     void GetShaderPrecisionFormatNonES2(GLenum shadertype, GLenum precisiontype, GLint* range, GLint* precision) {

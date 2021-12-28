@@ -11080,37 +11080,6 @@ nsIDocument::MozCancelFullScreen()
   RestorePreviousFullScreenState();
 }
 
-// Runnable to set window full-screen mode. Used as a script runner
-// to ensure we only call nsGlobalWindow::SetFullScreen() when it's safe to
-// run script. nsGlobalWindow::SetFullScreen() dispatches a synchronous event
-// (handled in chome code) which is unsafe to run if this is called in
-// Element::UnbindFromTree().
-class nsSetWindowFullScreen : public nsRunnable {
-public:
-  nsSetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRHMDInfo* aHMD = nullptr)
-    : mDoc(aDoc), mValue(aValue), mHMD(aHMD) {}
-
-  NS_IMETHOD Run()
-  {
-    if (mDoc->GetWindow()) {
-      mDoc->GetWindow()->SetFullscreenInternal(
-        nsPIDOMWindow::eForFullscreenAPI, mValue, mHMD);
-    }
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsIDocument> mDoc;
-  bool mValue;
-  nsRefPtr<gfx::VRHMDInfo> mHMD;
-};
-
-static void
-SetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRHMDInfo *aVRHMD = nullptr)
-{
-  nsContentUtils::AddScriptRunner(new nsSetWindowFullScreen(aDoc, aValue, aVRHMD));
-}
-
 static void
 AskWindowToExitFullscreen(nsIDocument* aDoc)
 {
@@ -11120,7 +11089,9 @@ AskWindowToExitFullscreen(nsIDocument* aDoc)
       /* Bubbles */ true, /* Cancelable */ false,
       /* DefaultAction */ nullptr);
   } else {
-    SetWindowFullScreen(aDoc, false);
+    if (nsPIDOMWindow* win = aDoc->GetWindow()) {
+      win->SetFullscreenInternal(nsPIDOMWindow::eForFullscreenAPI, false);
+    }
   }
 }
 
@@ -11187,12 +11158,42 @@ ResetFullScreen(nsIDocument* aDocument, void* aData)
         "Should have at most 1 fullscreen subdocument.");
     static_cast<nsDocument*>(aDocument)->CleanupFullscreenState();
     NS_ASSERTION(!aDocument->IsFullScreenDoc(), "Should reset full-screen");
-    nsTArray<nsIDocument*>* changed = reinterpret_cast<nsTArray<nsIDocument*>*>(aData);
+    auto changed = reinterpret_cast<nsCOMArray<nsIDocument>*>(aData);
     changed->AppendElement(aDocument);
     aDocument->EnumerateSubDocuments(ResetFullScreen, aData);
   }
   return true;
 }
+
+// Since nsIDocument::ExitFullscreenInDocTree() could be called from
+// Element::UnbindFromTree() where it is not safe to synchronously run
+// script. This runnable is the script part of that function.
+class ExitFullscreenScriptRunnable : public nsRunnable
+{
+public:
+  explicit ExitFullscreenScriptRunnable(nsCOMArray<nsIDocument>&& aDocuments)
+    : mDocuments(Move(aDocuments)) { }
+
+  NS_IMETHOD Run() override
+  {
+    // Dispatch MozDOMFullscreen:Exited to the last document in
+    // the list since we want this event to follow the same path
+    // MozDOMFullscreen:Entered dispatched.
+    nsIDocument* lastDocument = mDocuments[mDocuments.Length() - 1];
+    nsContentUtils::DispatchEventOnlyToChrome(
+      lastDocument, ToSupports(lastDocument),
+      NS_LITERAL_STRING("MozDOMFullscreen:Exited"),
+      /* Bubbles */ true, /* Cancelable */ false, /* DefaultAction */ nullptr);
+    // Ensure the window exits fullscreen.
+    if (nsPIDOMWindow* win = mDocuments[0]->GetWindow()) {
+      win->SetFullscreenInternal(nsPIDOMWindow::eForForceExitFullscreen, false);
+    }
+    return NS_OK;
+  }
+
+private:
+  nsCOMArray<nsIDocument> mDocuments;
+};
 
 /* static */ void
 nsIDocument::ExitFullscreenInDocTree(nsIDocument* aMaybeNotARootDoc)
@@ -11220,7 +11221,7 @@ nsIDocument::ExitFullscreenInDocTree(nsIDocument* aMaybeNotARootDoc)
   // order when exiting fullscreen, but we traverse the doctree in a
   // root-to-leaf order, so we save references to the documents we must
   // dispatch to so that we dispatch in the specified order.
-  nsAutoTArray<nsIDocument*, 8> changed;
+  nsCOMArray<nsIDocument> changed;
 
   // Walk the tree of fullscreen documents, and reset their fullscreen state.
   ResetFullScreen(root, static_cast<void*>(&changed));
@@ -11235,16 +11236,11 @@ nsIDocument::ExitFullscreenInDocTree(nsIDocument* aMaybeNotARootDoc)
   NS_ASSERTION(!root->IsFullScreenDoc(),
     "Fullscreen root should no longer be a fullscreen doc...");
 
-  // Dispatch MozDOMFullscreen:Exited to the last document in
-  // the list since we want this event to follow the same path
-  // MozDOMFullscreen:Entered dispatched.
-  nsContentUtils::DispatchEventOnlyToChrome(
-    changed.LastElement(), ToSupports(changed.LastElement()),
-    NS_LITERAL_STRING("MozDOMFullscreen:Exited"),
-    /* Bubbles */ true, /* Cancelable */ false, /* DefaultAction */ nullptr);
   // Move the top-level window out of fullscreen mode.
   FullscreenRoots::Remove(root);
-  SetWindowFullScreen(root, false);
+
+  nsContentUtils::AddScriptRunner(
+    new ExitFullscreenScriptRunnable(Move(changed)));
 }
 
 bool
@@ -11702,7 +11698,8 @@ nsDocument::RequestFullScreen(UniquePtr<FullscreenRequest>&& aRequest)
   } else {
     // Make the window fullscreen.
     FullscreenRequest* lastRequest = sPendingFullscreenRequests.getLast();
-    SetWindowFullScreen(this, true, lastRequest->mVRHMDDevice);
+    rootWin->SetFullscreenInternal(nsPIDOMWindow::eForFullscreenAPI, true,
+                                   lastRequest->mVRHMDDevice);
   }
 }
 

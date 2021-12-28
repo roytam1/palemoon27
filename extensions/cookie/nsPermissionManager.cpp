@@ -1723,10 +1723,9 @@ NS_IMETHODIMP nsPermissionManager::GetEnumerator(nsISimpleEnumerator **aEnum)
       }
 
       nsCOMPtr<nsIPrincipal> principal;
-      if (NS_FAILED(GetPrincipal(entry->GetKey()->mHost,
-                                 entry->GetKey()->mAppId,
-                                 entry->GetKey()->mIsInBrowserElement,
-                                 getter_AddRefs(principal)))) {
+      nsresult rv = GetPrincipalFromOrigin(entry->GetKey()->mOrigin,
+                                           getter_AddRefs(principal));
+      if (NS_FAILED(rv)) {
         continue;
       }
 

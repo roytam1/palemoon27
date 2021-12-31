@@ -7,7 +7,9 @@
 #include "Animation.h"
 #include "AnimationUtils.h"
 #include "mozilla/dom/AnimationBinding.h"
+#include "mozilla/dom/AnimationPlaybackEvent.h"
 #include "mozilla/AutoRestore.h"
+#include "mozilla/AsyncEventDispatcher.h" //For AsyncEventDispatcher
 #include "AnimationCommon.h" // For AnimationCollection,
                              // CommonAnimationManager
 #include "nsIDocument.h" // For nsIDocument
@@ -20,16 +22,19 @@ namespace mozilla {
 namespace dom {
 
 // Static members
-uint64_t Animation::sNextSequenceNum = 0;
+uint64_t Animation::sNextAnimationIndex = 0;
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(Animation, mGlobal, mTimeline,
-                                      mEffect, mReady, mFinished)
-NS_IMPL_CYCLE_COLLECTING_ADDREF(Animation)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(Animation)
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Animation)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
+NS_IMPL_CYCLE_COLLECTION_INHERITED(Animation, DOMEventTargetHelper,
+                                   mTimeline,
+                                   mEffect,
+                                   mReady,
+                                   mFinished)
+
+NS_IMPL_ADDREF_INHERITED(Animation, DOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(Animation, DOMEventTargetHelper)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(Animation)
+NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 
 JSObject*
 Animation::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
@@ -81,6 +86,7 @@ Animation::SetTimeline(AnimationTimeline* aTimeline)
   // (but *not* when this method gets called from style).
 }
 
+// https://w3c.github.io/web-animations/#set-the-animation-start-time
 void
 Animation::SetStartTime(const Nullable<TimeDuration>& aNewStartTime)
 {
@@ -116,7 +122,7 @@ Animation::SetStartTime(const Nullable<TimeDuration>& aNewStartTime)
   PostUpdate();
 }
 
-// http://w3c.github.io/web-animations/#current-time
+// https://w3c.github.io/web-animations/#current-time
 Nullable<TimeDuration>
 Animation::GetCurrentTime() const
 {
@@ -136,7 +142,7 @@ Animation::GetCurrentTime() const
   return result;
 }
 
-// Implements http://w3c.github.io/web-animations/#set-the-current-time
+// https://w3c.github.io/web-animations/#set-the-current-time
 void
 Animation::SetCurrentTime(const TimeDuration& aSeekTime)
 {
@@ -157,6 +163,7 @@ Animation::SetCurrentTime(const TimeDuration& aSeekTime)
   PostUpdate();
 }
 
+// https://w3c.github.io/web-animations/#set-the-animation-playback-rate
 void
 Animation::SetPlaybackRate(double aPlaybackRate)
 {
@@ -169,6 +176,7 @@ Animation::SetPlaybackRate(double aPlaybackRate)
   }
 }
 
+// https://w3c.github.io/web-animations/#play-state
 AnimationPlayState
 Animation::PlayState() const
 {
@@ -196,8 +204,9 @@ Animation::PlayState() const
 Promise*
 Animation::GetReady(ErrorResult& aRv)
 {
-  if (!mReady && mGlobal) {
-    mReady = Promise::Create(mGlobal, aRv); // Lazily create on demand
+  nsCOMPtr<nsIGlobalObject> global = GetOwnerGlobal();
+  if (!mReady && global) {
+    mReady = Promise::Create(global, aRv); // Lazily create on demand
   }
   if (!mReady) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -210,8 +219,9 @@ Animation::GetReady(ErrorResult& aRv)
 Promise*
 Animation::GetFinished(ErrorResult& aRv)
 {
-  if (!mFinished && mGlobal) {
-    mFinished = Promise::Create(mGlobal, aRv); // Lazily create on demand
+  nsCOMPtr<nsIGlobalObject> global = GetOwnerGlobal();
+  if (!mFinished && global) {
+    mFinished = Promise::Create(global, aRv); // Lazily create on demand
   }
   if (!mFinished) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -288,6 +298,23 @@ Animation::Pause(ErrorResult& aRv)
 {
   DoPause(aRv);
   PostUpdate();
+}
+
+// https://w3c.github.io/web-animations/#reverse-an-animation
+void
+Animation::Reverse(ErrorResult& aRv)
+{
+  if (!mTimeline || mTimeline->GetCurrentTime().IsNull()) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+    return;
+  }
+
+  if (mPlaybackRate == 0.0) {
+    return;
+  }
+
+  SilentlySetPlaybackRate(-mPlaybackRate);
+  Play(aRv, LimitBehavior::AutoRewind);
 }
 
 // ---------------------------------------------------------------------------
@@ -425,7 +452,7 @@ Animation::GetCurrentOrPendingStartTime() const
   return result;
 }
 
-// http://w3c.github.io/web-animations/#silently-set-the-current-time
+// https://w3c.github.io/web-animations/#silently-set-the-current-time
 void
 Animation::SilentlySetCurrentTime(const TimeDuration& aSeekTime)
 {
@@ -458,6 +485,7 @@ Animation::SilentlySetPlaybackRate(double aPlaybackRate)
   }
 }
 
+// https://w3c.github.io/web-animations/#cancel-an-animation
 void
 Animation::DoCancel()
 {
@@ -472,6 +500,8 @@ Animation::DoCancel()
     mFinished->MaybeReject(NS_ERROR_DOM_ABORT_ERR);
   }
   ResetFinishedPromise();
+
+  DispatchPlaybackEvent(NS_LITERAL_STRING("cancel"));
 
   mHoldTime.SetNull();
   mStartTime.SetNull();
@@ -496,15 +526,15 @@ Animation::UpdateRelevance()
 bool
 Animation::HasLowerCompositeOrderThan(const Animation& aOther) const
 {
-  // We only ever sort non-idle animations so we don't ever expect
-  // mSequenceNum to be set to kUnsequenced
-  MOZ_ASSERT(mSequenceNum != kUnsequenced &&
-             aOther.mSequenceNum != kUnsequenced,
-             "Animations to compare should not be idle");
-  MOZ_ASSERT(mSequenceNum != aOther.mSequenceNum || &aOther == this,
-             "Sequence numbers should be unique");
+  // Due to the way subclasses of this repurpose the mAnimationIndex to
+  // implement their own brand of composite ordering it is possible for
+  // two animations to have an identical mAnimationIndex member.
+  // However, these subclasses override this method so we shouldn't see
+  // identical animation indices here.
+  MOZ_ASSERT(mAnimationIndex != aOther.mAnimationIndex || &aOther == this,
+             "Animation indices should be unique");
 
-  return mSequenceNum < aOther.mSequenceNum;
+  return mAnimationIndex < aOther.mAnimationIndex;
 }
 
 bool
@@ -553,7 +583,8 @@ Animation::ComposeStyle(nsRefPtr<AnimValuesStyleRule>& aStyleRule,
 
   AnimationPlayState playState = PlayState();
   if (playState == AnimationPlayState::Running ||
-      playState == AnimationPlayState::Pending) {
+      playState == AnimationPlayState::Pending ||
+      HasEndEventToQueue()) {
     aNeedsRefreshes = true;
   }
 
@@ -639,7 +670,7 @@ Animation::NotifyEffectTimingUpdated()
                Animation::SyncNotifyFlag::Async);
 }
 
-// http://w3c.github.io/web-animations/#play-an-animation
+// https://w3c.github.io/web-animations/#play-an-animation
 void
 Animation::DoPlay(ErrorResult& aRv, LimitBehavior aLimitBehavior)
 {
@@ -706,7 +737,7 @@ Animation::DoPlay(ErrorResult& aRv, LimitBehavior aLimitBehavior)
   UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Async);
 }
 
-// http://w3c.github.io/web-animations/#pause-an-animation
+// https://w3c.github.io/web-animations/#pause-an-animation
 void
 Animation::DoPause(ErrorResult& aRv)
 {
@@ -812,16 +843,6 @@ Animation::PauseAt(const TimeDuration& aReadyTime)
 void
 Animation::UpdateTiming(SeekFlag aSeekFlag, SyncNotifyFlag aSyncNotifyFlag)
 {
-  // Update the sequence number each time we transition in or out of the
-  // idle state
-  if (!IsUsingCustomCompositeOrder()) {
-    if (PlayState() == AnimationPlayState::Idle) {
-      mSequenceNum = kUnsequenced;
-    } else if (mSequenceNum == kUnsequenced) {
-      mSequenceNum = sNextSequenceNum++;
-    }
-  }
-
   // We call UpdateFinishedState before UpdateEffect because the former
   // can change the current time, which is used by the latter.
   UpdateFinishedState(aSeekFlag, aSyncNotifyFlag);
@@ -863,6 +884,7 @@ Animation::UpdateTiming(SeekFlag aSeekFlag, SyncNotifyFlag aSyncNotifyFlag)
   }
 }
 
+// https://w3c.github.io/web-animations/#update-an-animations-finished-state
 void
 Animation::UpdateFinishedState(SeekFlag aSeekFlag,
                                SyncNotifyFlag aSyncNotifyFlag)
@@ -1082,10 +1104,10 @@ void
 Animation::DoFinishNotification(SyncNotifyFlag aSyncNotifyFlag)
 {
   if (aSyncNotifyFlag == SyncNotifyFlag::Sync) {
-    MaybeResolveFinishedPromise();
+    DoFinishNotificationImmediately();
   } else if (!mFinishNotificationTask.IsPending()) {
     nsRefPtr<nsRunnableMethod<Animation>> runnable =
-      NS_NewRunnableMethod(this, &Animation::MaybeResolveFinishedPromise);
+      NS_NewRunnableMethod(this, &Animation::DoFinishNotificationImmediately);
     Promise::DispatchToMicroTask(runnable);
     mFinishNotificationTask = runnable;
   }
@@ -1101,16 +1123,45 @@ Animation::ResetFinishedPromise()
 void
 Animation::MaybeResolveFinishedPromise()
 {
+  if (mFinished) {
+    mFinished->MaybeResolve(this);
+  }
+  mFinishedIsResolved = true;
+}
+
+void
+Animation::DoFinishNotificationImmediately()
+{
   mFinishNotificationTask.Revoke();
 
   if (PlayState() != AnimationPlayState::Finished) {
     return;
   }
 
-  if (mFinished) {
-    mFinished->MaybeResolve(this);
+  MaybeResolveFinishedPromise();
+
+  DispatchPlaybackEvent(NS_LITERAL_STRING("finish"));
+}
+
+void
+Animation::DispatchPlaybackEvent(const nsAString& aName)
+{
+  AnimationPlaybackEventInit init;
+
+  if (aName.EqualsLiteral("finish")) {
+    init.mCurrentTime = GetCurrentTimeAsDouble();
   }
-  mFinishedIsResolved = true;
+  if (mTimeline) {
+    init.mTimelineTime = mTimeline->GetCurrentTimeAsDouble();
+  }
+
+  nsRefPtr<AnimationPlaybackEvent> event =
+    AnimationPlaybackEvent::Constructor(this, aName, init);
+  event->SetTrusted(true);
+
+  nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
+    new AsyncEventDispatcher(this, event);
+  asyncDispatcher->PostDOMEvent();
 }
 
 } // namespace dom

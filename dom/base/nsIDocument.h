@@ -158,8 +158,8 @@ struct FullScreenOptions {
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x6d18ec0b, 0x1f68, 0x4ae6, \
-  { 0x8b, 0x3d, 0x8d, 0x7d, 0x8b, 0x8e, 0x28, 0xd4 } }
+{ 0x72391609, 0x673d, 0x4bec, \
+  { 0xbd, 0x75, 0x64, 0xbf, 0x1f, 0x6a, 0x6b, 0x5e } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -1375,10 +1375,11 @@ public:
 
   /**
    * Create an element with the specified name, prefix and namespace ID.
+   * Returns null if element name parsing failed.
    */
-  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
-                              int32_t aNamespaceID,
-                              nsIContent** aResult) = 0;
+  virtual already_AddRefed<Element> CreateElem(const nsAString& aName,
+                                               nsIAtom* aPrefix,
+                                               int32_t aNamespaceID) = 0;
 
   /**
    * Get the security info (i.e. SSL state etc) that the document got

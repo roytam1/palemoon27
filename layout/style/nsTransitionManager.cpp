@@ -113,6 +113,18 @@ CSSTransition::GetAnimationManager() const
 }
 
 void
+CSSTransition::UpdateTiming(SeekFlag aSeekFlag, SyncNotifyFlag aSyncNotifyFlag)
+{
+  if (mNeedsNewAnimationIndexWhenRun &&
+      PlayState() != AnimationPlayState::Idle) {
+    mAnimationIndex = sNextAnimationIndex++;
+    mNeedsNewAnimationIndexWhenRun = false;
+  }
+
+  Animation::UpdateTiming(aSeekFlag, aSyncNotifyFlag);
+}
+
+void
 CSSTransition::QueueEvents()
 {
   AnimationPlayState playState = PlayState();
@@ -139,6 +151,17 @@ CSSTransition::QueueEvents()
     TransitionEventInfo(owningElement, TransitionProperty(),
                         mEffect->Timing().mIterationDuration,
                         owningPseudoType));
+}
+
+bool
+CSSTransition::HasEndEventToQueue() const
+{
+  if (!mEffect) {
+    return false;
+  }
+
+  return !mWasFinishedOnLastTick &&
+         PlayState() == AnimationPlayState::Finished;
 }
 
 void
@@ -176,26 +199,23 @@ CSSTransition::HasLowerCompositeOrderThan(const Animation& aOther) const
 
   // 2. CSS transitions that correspond to a transition-property property sort
   // lower than CSS transitions owned by script.
-  if (!IsUsingCustomCompositeOrder()) {
-    return !aOther.IsUsingCustomCompositeOrder() ?
+  if (!IsTiedToMarkup()) {
+    return !otherTransition->IsTiedToMarkup() ?
            Animation::HasLowerCompositeOrderThan(aOther) :
            false;
   }
-  if (!aOther.IsUsingCustomCompositeOrder()) {
+  if (!otherTransition->IsTiedToMarkup()) {
     return true;
   }
 
   // 3. Sort by document order
-  MOZ_ASSERT(mOwningElement.IsSet() && otherTransition->OwningElement().IsSet(),
-             "Transitions using custom composite order should have an owning "
-             "element");
-  if (!mOwningElement.Equals(otherTransition->OwningElement())) {
-    return mOwningElement.LessThan(otherTransition->OwningElement());
+  if (!mOwningElement.Equals(otherTransition->mOwningElement)) {
+    return mOwningElement.LessThan(otherTransition->mOwningElement);
   }
 
   // 4. (Same element and pseudo): Sort by transition generation
-  if (mSequenceNum != otherTransition->mSequenceNum) {
-    return mSequenceNum < otherTransition->mSequenceNum;
+  if (mAnimationIndex != otherTransition->mAnimationIndex) {
+    return mAnimationIndex < otherTransition->mAnimationIndex;
   }
 
   // 5. (Same transition generation): Sort by transition property
@@ -329,7 +349,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
     afterChangeStyle = newStyleContext;
   }
 
-  nsAutoAnimationMutationBatch mb(aElement);
+  nsAutoAnimationMutationBatch mb(aElement->OwnerDoc());
 
   // Per http://lists.w3.org/Archives/Public/www-style/2009Aug/0109.html
   // I'll consider only the transitions from the number of items in

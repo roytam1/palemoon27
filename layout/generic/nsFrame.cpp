@@ -1120,7 +1120,7 @@ nsIFrame::IsSVGTransformed(gfx::Matrix *aOwnTransforms,
 }
 
 bool
-nsIFrame::Preserves3DChildren() const
+nsIFrame::Extend3DContext() const
 {
   const nsStyleDisplay* disp = StyleDisplay();
   if (disp->mTransformStyle != NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D ||
@@ -1140,9 +1140,9 @@ nsIFrame::Preserves3DChildren() const
 }
 
 bool
-nsIFrame::Preserves3D() const
+nsIFrame::Combines3DTransformWithAncestors() const
 {
-  if (!GetParent() || !GetParent()->Preserves3DChildren()) {
+  if (!GetParent() || !GetParent()->Extend3DContext()) {
     return false;
   }
   return StyleDisplay()->HasTransform(this) || StyleDisplay()->BackfaceIsHidden();
@@ -1154,12 +1154,11 @@ nsIFrame::HasPerspective() const
   if (!IsTransformed()) {
     return false;
   }
-  nsStyleContext* parentStyleContext = StyleContext()->GetParent();
-  if (!parentStyleContext) {
+  nsIFrame* containingBlock = GetContainingBlock(SKIP_SCROLLED_FRAME);
+  if (!containingBlock) {
     return false;
   }
-  const nsStyleDisplay* parentDisp = parentStyleContext->StyleDisplay();
-  return parentDisp->mChildPerspective.GetUnit() == eStyleUnit_Coord;
+  return containingBlock->ChildrenHavePerspective();
 }
 
 bool
@@ -1805,7 +1804,7 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
     // nsDisplayTransform.
 
     if (childFrame->GetParent() &&
-        (childFrame->GetParent()->Preserves3DChildren() || childFrame == aFrame)) {
+        (childFrame->GetParent()->Extend3DContext() || childFrame == aFrame)) {
       switch (item->GetType()) {
         case nsDisplayItem::TYPE_TRANSFORM: {
           if (!aTemp->IsEmpty()) {
@@ -1929,8 +1928,8 @@ CheckForApzAwareEventHandlers(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
   if (!content) {
     return;
   }
-  EventListenerManager* elm = nsContentUtils::GetExistingListenerManagerForNode(content);
-  if (nsLayoutUtils::HasApzAwareListeners(elm)) {
+
+  if (content->HasApzAwareListeners()) {
     aBuilder->SetAncestorHasApzAwareEventHandler(true);
   }
 }
@@ -1984,7 +1983,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
         nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder, this)) {
       dirtyRect = overflow;
     } else {
-      if (overflow.IsEmpty() && !Preserves3DChildren()) {
+      if (overflow.IsEmpty() && !Extend3DContext()) {
         return;
       }
 
@@ -2054,7 +2053,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
 
     // Preserve3DChildren() also guarantees that applyAbsPosClipping and usingSVGEffects are false
     // We only modify the preserve-3d rect if we are the top of a preserve-3d heirarchy
-    if (Preserves3DChildren()) {
+    if (Extend3DContext()) {
       aBuilder->MarkPreserve3DFramesForDisplayList(this, aDirtyRect);
     }
 
@@ -2189,7 +2188,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     buildingDisplayList.SetReferenceFrameAndCurrentOffset(outerReferenceFrame,
       GetOffsetToCrossDoc(outerReferenceFrame));
 
-    if (Preserves3DChildren()) {
+    if (Extend3DContext()) {
       WrapPreserve3DList(this, aBuilder, &resultList);
     } else {
       resultList.AppendNewToTop(
@@ -2307,7 +2306,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     }
     pseudoStackingContext = true;
   }
-  if (child->Preserves3D()) {
+  if (child->Combines3DTransformWithAncestors()) {
     nsRect* savedDirty = static_cast<nsRect*>
       (child->Properties().Get(nsDisplayListBuilder::Preserve3DDirtyRectProperty()));
     if (savedDirty) {
@@ -2379,7 +2378,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
 
   bool isPositioned = disp->IsAbsPosContainingBlock(child);
   bool isStackingContext =
-    (isPositioned && (disp->mPosition == NS_STYLE_POSITION_STICKY ||
+    (isPositioned && (disp->IsPositionForcingStackingContext() ||
                       pos->mZIndex.GetUnit() == eStyleUnit_Integer)) ||
      (disp->mWillChangeBitField & NS_STYLE_WILL_CHANGE_STACKING_CONTEXT) ||
      disp->mIsolation != NS_STYLE_ISOLATION_AUTO ||
@@ -5621,16 +5620,27 @@ GetNearestBlockContainer(nsIFrame* frame)
 }
 
 nsIFrame*
-nsIFrame::GetContainingBlock() const
+nsIFrame::GetContainingBlock(uint32_t aFlags) const
 {
+  if (!GetParent()) {
+    return nullptr;
+  }
   // MathML frames might have absolute positioning style, but they would
   // still be in-flow.  So we have to check to make sure that the frame
   // is really out-of-flow too.
+  nsIFrame* f;
   if (IsAbsolutelyPositioned() &&
       (GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-    return GetParent(); // the parent is always the containing block
+    f = GetParent(); // the parent is always the containing block
+  } else {
+    f = GetNearestBlockContainer(GetParent());
   }
-  return GetNearestBlockContainer(GetParent());
+
+  if (aFlags & SKIP_SCROLLED_FRAME && f &&
+      f->StyleContext()->GetPseudo() == nsCSSAnonBoxes::scrolledContent) {
+    f = f->GetParent();
+  }
+  return f;
 }
 
 #ifdef DEBUG_FRAME_DUMP
@@ -5752,10 +5762,10 @@ nsIFrame::ListGeneric(nsACString& aTo, const char* aPrefix, uint32_t aFlags) con
   if (ChildrenHavePerspective()) {
     aTo += nsPrintfCString(" perspective");
   }
-  if (Preserves3DChildren()) {
+  if (Extend3DContext()) {
     aTo += nsPrintfCString(" preserves-3d-children");
   }
-  if (Preserves3D()) {
+  if (Combines3DTransformWithAncestors()) {
     aTo += nsPrintfCString(" preserves-3d");
   }
   if (mContent) {
@@ -7408,14 +7418,14 @@ UnionBorderBoxes(nsIFrame* aFrame, bool aApplyTransform,
     for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
       nsIFrame* child = e.get();
       // Note that passing |true| for aApplyTransform when
-      // child->Preserves3D() is incorrect if our aApplyTransform is
-      // false... but the opposite would be as well.  This is because
-      // elements within a preserve-3d scene are always transformed up
-      // to the top of the scene.  This means we don't have a
-      // mechanism for getting a transform up to an intermediate point
-      // within the scene.  We choose to over-transform rather than
-      // under-transform because this is consistent with other
-      // overflow areas.
+      // child->Combines3DTransformWithAncestors() is incorrect if our
+      // aApplyTransform is false... but the opposite would be as
+      // well.  This is because elements within a preserve-3d scene
+      // are always transformed up to the top of the scene.  This
+      // means we don't have a mechanism for getting a transform up to
+      // an intermediate point within the scene.  We choose to
+      // over-transform rather than under-transform because this is
+      // consistent with other overflow areas.
       nsRect childRect = UnionBorderBoxes(child, true) +
                          child->GetPosition();
 
@@ -7430,7 +7440,7 @@ UnionBorderBoxes(nsIFrame* aFrame, bool aApplyTransform,
       // union.  This doesn't match the way we handle overflow areas
       // with 2-D transforms, though it does match the way we handle
       // overflow areas in preserve-3d 3-D scenes.
-      if (doTransform && !child->Preserves3D()) {
+      if (doTransform && !child->Combines3DTransformWithAncestors()) {
         childRect = nsDisplayTransform::TransformRect(childRect, aFrame,
                                                       nsPoint(0, 0), &bounds);
       }
@@ -7499,7 +7509,7 @@ ComputeAndIncludeOutlineArea(nsIFrame* aFrame, nsOverflowAreas& aOverflowAreas,
         if (parent == aFrame) {
           break;
         }
-        if (parent->IsTransformed() && !f->Preserves3D()) {
+        if (parent->IsTransformed() && !f->Combines3DTransformWithAncestors()) {
           r = nsDisplayTransform::TransformRect(r, parent, nsPoint(0, 0));
         }
       }
@@ -7547,7 +7557,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   nsRect bounds(nsPoint(0, 0), aNewSize);
   // Store the passed in overflow area if we are a preserve-3d frame or we have
   // a transform, and it's not just the frame bounds.
-  if (Preserves3D() || HasPerspective() || IsTransformed()) {
+  if (Combines3DTransformWithAncestors() || IsTransformed()) {
     if (!aOverflowAreas.VisualOverflow().IsEqualEdges(bounds) ||
         !aOverflowAreas.ScrollableOverflow().IsEqualEdges(bounds)) {
       nsOverflowAreas* initial =
@@ -7660,16 +7670,16 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
       nsRect& o = aOverflowAreas.Overflow(otype);
       o = nsDisplayTransform::TransformRect(o, this, nsPoint(0, 0), &newBounds);
     }
-    if (Preserves3DChildren()) {
+    if (Extend3DContext()) {
       ComputePreserve3DChildrenOverflow(aOverflowAreas, newBounds);
     } else if (sizeChanged && ChildrenHavePerspective()) {
-      RecomputePerspectiveChildrenOverflow(this->StyleContext(), &newBounds);
+      RecomputePerspectiveChildrenOverflow(this, &newBounds);
     }
   } else {
     Properties().Delete(nsIFrame::PreTransformOverflowAreasProperty());
     if (ChildrenHavePerspective() && sizeChanged) {
       nsRect newBounds(nsPoint(0, 0), aNewSize);
-      RecomputePerspectiveChildrenOverflow(this->StyleContext(), &newBounds);
+      RecomputePerspectiveChildrenOverflow(this, &newBounds);
     }
   }
 
@@ -7687,7 +7697,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
 }
 
 void
-nsIFrame::RecomputePerspectiveChildrenOverflow(const nsStyleContext* aStartStyle, const nsRect* aBounds)
+nsIFrame::RecomputePerspectiveChildrenOverflow(const nsIFrame* aStartFrame, const nsRect* aBounds)
 {
   // Children may check our size when getting our transform, make sure it's valid.
   nsSize oldSize = GetSize();
@@ -7714,14 +7724,13 @@ nsIFrame::RecomputePerspectiveChildrenOverflow(const nsStyleContext* aStartStyle
           boundsOverflow.SetAllTo(bounds);
           child->FinishAndStoreOverflow(boundsOverflow, bounds.Size());
         }
-      } else if (child->StyleContext()->GetParent() == aStartStyle ||
-                 child->StyleContext() == aStartStyle) {
+      } else if (child->GetContainingBlock(SKIP_SCROLLED_FRAME) == aStartFrame) {
         // If a frame is using perspective, then the size used to compute
         // perspective-origin is the size of the frame belonging to its parent
         // style context. We must find any descendant frames using our size
-        // (by recurse into frames with the same style context, or a direct
-        // child style context) to update their overflow rects too.
-        child->RecomputePerspectiveChildrenOverflow(aStartStyle, nullptr);
+        // (by recursing into frames that have the same containing block)
+        // to update their overflow rects too.
+        child->RecomputePerspectiveChildrenOverflow(aStartFrame, nullptr);
       }
     }
   }
@@ -7751,9 +7760,9 @@ RecomputePreserve3DChildrenOverflow(nsIFrame* aFrame, const nsRect* aBounds)
       if (!FrameMaintainsOverflow(child)) {
         continue; // frame does not maintain overflow rects
       }
-      if (child->Preserves3DChildren()) {
+      if (child->Extend3DContext()) {
         RecomputePreserve3DChildrenOverflow(child, nullptr);
-      } else if (child->Preserves3D()) {
+      } else if (child->Combines3DTransformWithAncestors()) {
         nsOverflowAreas* overflow = 
           static_cast<nsOverflowAreas*>(child->Properties().Get(nsIFrame::InitialOverflowProperty()));
         nsRect bounds(nsPoint(0, 0), child->GetSize());
@@ -7799,7 +7808,7 @@ nsIFrame::ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, con
   // If we're the top frame in a preserve 3d chain then we need to recalculate the overflow
   // areas of all our children since they will have used our size/offset which was invalid at
   // the time.
-  if (!Preserves3D()) {
+  if (!Combines3DTransformWithAncestors()) {
     RecomputePreserve3DChildrenOverflow(this, &aBounds);
   }
 
@@ -7815,7 +7824,7 @@ nsIFrame::ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, con
       nsRect scrollable = child->GetScrollableOverflowRect();
       visual.MoveBy(offset);
       scrollable.MoveBy(offset);
-      if (child->Preserves3D()) {
+      if (child->Combines3DTransformWithAncestors()) {
         childVisual = childVisual.Union(visual);
         childScrollable = childScrollable.Union(scrollable);
       } else {
@@ -8212,7 +8221,9 @@ void nsFrame::FillCursorInformationFromStyle(const nsStyleUserInterface* ui,
        item < item_end; ++item) {
     uint32_t status;
     nsresult rv = item->GetImage()->GetImageStatus(&status);
-    if (NS_SUCCEEDED(rv) && (status & imgIRequest::STATUS_LOAD_COMPLETE)) {
+    if (NS_SUCCEEDED(rv) &&
+        (status & imgIRequest::STATUS_LOAD_COMPLETE) &&
+        !(status & imgIRequest::STATUS_ERROR)) {
       // This is the one we want
       item->GetImage()->GetImage(getter_AddRefs(aCursor.mContainer));
       aCursor.mHaveHotspot = item->mHaveHotspot;
@@ -8852,7 +8863,25 @@ nsIFrame::SetParent(nsContainerFrame* aParent)
       f->AddStateBits(NS_FRAME_HAS_CHILD_WITH_VIEW);
     }
   }
-  
+
+  if (HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE)) {
+    for (nsIFrame* f = aParent; f; f = f->GetParent()) {
+      if (f->HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE)) {
+        break;
+      }
+      f->AddStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE);
+    }
+  }
+
+  if (HasAnyStateBits(NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE)) {
+    for (nsIFrame* f = aParent; f; f = f->GetParent()) {
+      if (f->HasAnyStateBits(NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE)) {
+        break;
+      }
+      f->AddStateBits(NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE);
+    }
+  }
+
   if (HasInvalidFrameInSubtree()) {
     for (nsIFrame* f = aParent;
          f && !f->HasAnyStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT);

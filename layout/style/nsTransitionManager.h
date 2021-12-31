@@ -85,6 +85,7 @@ public:
  explicit CSSTransition(nsIGlobalObject* aGlobal)
     : dom::Animation(aGlobal)
     , mWasFinishedOnLastTick(false)
+    , mNeedsNewAnimationIndexWhenRun(false)
   {
   }
 
@@ -114,8 +115,17 @@ public:
   void CancelFromStyle() override
   {
     mOwningElement = OwningElementRef();
+
+    // The animation index to use for compositing will be established when
+    // this transition next transitions out of the idle state but we still
+    // update it now so that the sort order of this transition remains
+    // defined until that moment.
+    //
+    // See longer explanation in CSSAnimation::CancelFromStyle.
+    mAnimationIndex = sNextAnimationIndex++;
+    mNeedsNewAnimationIndexWhenRun = true;
+
     Animation::CancelFromStyle();
-    MOZ_ASSERT(mSequenceNum == kUnsequenced);
   }
 
   void Tick() override;
@@ -123,20 +133,44 @@ public:
   nsCSSProperty TransitionProperty() const;
 
   bool HasLowerCompositeOrderThan(const Animation& aOther) const override;
-  bool IsUsingCustomCompositeOrder() const override
-  {
-    return mOwningElement.IsSet();
-  }
-
   void SetCreationSequence(uint64_t aIndex)
   {
-    MOZ_ASSERT(IsUsingCustomCompositeOrder());
-    mSequenceNum = aIndex;
+    MOZ_ASSERT(IsTiedToMarkup());
+    mAnimationIndex = aIndex;
   }
 
-  // Returns the element or pseudo-element whose transition-property property
-  // this CSSTransition corresponds to (if any). This is used for determining
-  // the relative composite order of transitions generated from CSS markup.
+  // Sets the owning element which is used for determining the composite
+  // oder of CSSTransition objects generated from CSS markup.
+  //
+  // @see mOwningElement
+  void SetOwningElement(const OwningElementRef& aElement)
+  {
+    mOwningElement = aElement;
+  }
+  // True for transitions that are generated from CSS markup and continue to
+  // reflect changes to that markup.
+  bool IsTiedToMarkup() const { return mOwningElement.IsSet(); }
+
+protected:
+  virtual ~CSSTransition()
+  {
+    MOZ_ASSERT(!mOwningElement.IsSet(), "Owning element should be cleared "
+                                        "before a CSS transition is destroyed");
+  }
+
+  // Animation overrides
+  CommonAnimationManager* GetAnimationManager() const override;
+  void UpdateTiming(SeekFlag aSeekFlag,
+                    SyncNotifyFlag aSyncNotifyFlag) override;
+
+  void QueueEvents();
+  bool HasEndEventToQueue() const override;
+
+  // The (pseudo-)element whose computed transition-property refers to this
+  // transition (if any).
+  //
+  // This is used for determining the relative composite order of transitions
+  // generated from CSS markup.
   //
   // Typically this will be the same as the target element of the keyframe
   // effect associated with this transition. However, it can differ in the
@@ -148,34 +182,14 @@ public:
   // c) If this object is generated from script using the CSSTransition
   //    constructor.
   //
-  // For (b) and (c) the returned owning element will return !IsSet().
-  const OwningElementRef& OwningElement() const { return mOwningElement; }
-
-  // Sets the owning element which is used for determining the composite
-  // oder of CSSTransition objects generated from CSS markup.
-  //
-  // @see OwningElement()
-  void SetOwningElement(const OwningElementRef& aElement)
-  {
-    mOwningElement = aElement;
-  }
-
-protected:
-  virtual ~CSSTransition()
-  {
-    MOZ_ASSERT(!mOwningElement.IsSet(), "Owning element should be cleared "
-                                        "before a CSS transition is destroyed");
-  }
-
-  virtual CommonAnimationManager* GetAnimationManager() const override;
-
-  void QueueEvents();
-
-  // The (pseudo-)element whose computed transition-property refers to this
-  // transition (if any).
+  // For (b) and (c) the owning element will return !IsSet().
   OwningElementRef mOwningElement;
 
   bool mWasFinishedOnLastTick;
+
+  // When true, indicates that when this transition next leaves the idle state,
+  // its animation index should be updated.
+  bool mNeedsNewAnimationIndexWhenRun;
 };
 
 } // namespace dom

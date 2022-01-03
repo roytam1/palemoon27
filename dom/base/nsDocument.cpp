@@ -1781,6 +1781,10 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDocument)
     if (elm) {
       elm->MarkForCC();
     }
+    if (tmp->mExpandoAndGeneration.expando.isObject()) {
+      JS::ExposeObjectToActiveJS(
+        &(tmp->mExpandoAndGeneration.expando.toObject()));
+    }
     return true;
   }
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
@@ -5476,13 +5480,8 @@ nsIDocument::CreateElement(const nsAString& aTagName, ErrorResult& rv)
     nsContentUtils::ASCIIToLower(aTagName, lcTagName);
   }
 
-  nsCOMPtr<nsIContent> content;
-  rv = CreateElem(needsLowercase ? lcTagName : aTagName,
-                  nullptr, mDefaultElementType, getter_AddRefs(content));
-  if (rv.Failed()) {
-    return nullptr;
-  }
-  return dont_AddRef(content.forget().take()->AsElement());
+  return CreateElem(needsLowercase ? lcTagName : aTagName, nullptr,
+                    mDefaultElementType);
 }
 
 void
@@ -5826,13 +5825,10 @@ nsDocument::CustomElementConstructor(JSContext* aCx, unsigned aArgc, JS::Value* 
 
   nsDependentAtomString localName(definition->mLocalName);
 
-  nsCOMPtr<nsIContent> newElement;
-  nsresult rv = document->CreateElem(localName, nullptr,
-                                     definition->mNamespaceID,
-                                     getter_AddRefs(newElement));
-  NS_ENSURE_SUCCESS(rv, true);
+  nsCOMPtr<Element> element =
+    document->CreateElem(localName, nullptr, definition->mNamespaceID);
+  NS_ENSURE_TRUE(element, true);
 
-  nsCOMPtr<Element> element = do_QueryInterface(newElement);
   if (definition->mLocalName != typeAtom) {
     // This element is a custom element by extension, thus we need to
     // do some special setup. For non-extended custom elements, this happens
@@ -5840,7 +5836,7 @@ nsDocument::CustomElementConstructor(JSContext* aCx, unsigned aArgc, JS::Value* 
     document->SetupCustomElement(element, definition->mNamespaceID, &elemName);
   }
 
-  rv = nsContentUtils::WrapNative(aCx, newElement, newElement, args.rval());
+  nsresult rv = nsContentUtils::WrapNative(aCx, element, element, args.rval());
   NS_ENSURE_SUCCESS(rv, true);
 
   return true;
@@ -8130,7 +8126,7 @@ nsDocument::PreHandleEvent(EventChainPreVisitor& aVisitor)
   aVisitor.mForceContentDispatch = true;
 
   // Load events must not propagate to |window| object, see bug 335251.
-  if (aVisitor.mEvent->message != NS_LOAD) {
+  if (aVisitor.mEvent->mMessage != NS_LOAD) {
     nsGlobalWindow* window = static_cast<nsGlobalWindow*>(GetWindow());
     aVisitor.mParentTarget =
       window ? window->GetTargetForEventTargetChain() : nullptr;
@@ -8628,9 +8624,9 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
   }
 }
 
-nsresult
-nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, int32_t aNamespaceID,
-                       nsIContent **aResult)
+already_AddRefed<Element>
+nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix,
+                       int32_t aNamespaceID)
 {
 #ifdef DEBUG
   nsAutoString qName;
@@ -8649,19 +8645,16 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, int32_t aNamesp
                "check caller.");
 #endif
 
-  *aResult = nullptr;
-
   nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
   mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID,
                                 nsIDOMNode::ELEMENT_NODE,
                                 getter_AddRefs(nodeInfo));
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(nodeInfo, nullptr);
 
   nsCOMPtr<Element> element;
   nsresult rv = NS_NewElement(getter_AddRefs(element), nodeInfo.forget(),
                               NOT_FROM_PARSER);
-  element.forget(aResult);
-  return rv;
+  return NS_SUCCEEDED(rv) ? element.forget() : nullptr;
 }
 
 bool
@@ -9038,7 +9031,7 @@ nsDocument::UnblockOnload(bool aFireSync)
       // done loading, in a way comparable to |window.onload|. We fire this
       // event to indicate that the SVG should be considered fully loaded.
       // Because scripting is disabled on SVG-as-image documents, this event
-      // is not accessible to content authors. (See bug 837135.)
+      // is not accessible to content authors. (See bug 837315.)
       nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
         new AsyncEventDispatcher(this,
                                  NS_LITERAL_STRING("MozSVGAsImageDocumentLoad"),

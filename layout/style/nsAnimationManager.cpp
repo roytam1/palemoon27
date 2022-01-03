@@ -141,28 +141,24 @@ CSSAnimation::HasLowerCompositeOrderThan(const Animation& aOther) const
     return false;
   }
 
-  // 2. CSS animations using custom composite ordering (i.e. those that
-  //    correspond to an animation-name property) sort lower than other CSS
-  //    animations (e.g. those created or kept-alive by script).
-  if (!IsUsingCustomCompositeOrder()) {
-    return !aOther.IsUsingCustomCompositeOrder() ?
+  // 2. CSS animations that correspond to an animation-name property sort lower
+  //    than other CSS animations (e.g. those created or kept-alive by script).
+  if (!IsTiedToMarkup()) {
+    return !otherAnimation->IsTiedToMarkup() ?
            Animation::HasLowerCompositeOrderThan(aOther) :
            false;
   }
-  if (!aOther.IsUsingCustomCompositeOrder()) {
+  if (!otherAnimation->IsTiedToMarkup()) {
     return true;
   }
 
   // 3. Sort by document order
-  MOZ_ASSERT(mOwningElement.IsSet() && otherAnimation->OwningElement().IsSet(),
-             "Animations using custom composite order should have an "
-             "owning element");
-  if (!mOwningElement.Equals(otherAnimation->OwningElement())) {
-    return mOwningElement.LessThan(otherAnimation->OwningElement());
+  if (!mOwningElement.Equals(otherAnimation->mOwningElement)) {
+    return mOwningElement.LessThan(otherAnimation->mOwningElement);
   }
 
   // 4. (Same element and pseudo): Sort by position in animation-name
-  return mSequenceNum < otherAnimation->mSequenceNum;
+  return mAnimationIndex < otherAnimation->mAnimationIndex;
 }
 
 void
@@ -277,6 +273,21 @@ CSSAnimation::QueueEvents()
                        owningPseudoType));
 }
 
+bool
+CSSAnimation::HasEndEventToQueue() const
+{
+  if (!mEffect) {
+    return false;
+  }
+
+  bool wasActive = mPreviousPhaseOrIteration != PREVIOUS_PHASE_BEFORE &&
+                   mPreviousPhaseOrIteration != PREVIOUS_PHASE_AFTER;
+  bool isActive = mEffect->GetComputedTiming().mPhase ==
+                    ComputedTiming::AnimationPhase_Active;
+
+  return wasActive && !isActive;
+}
+
 CommonAnimationManager*
 CSSAnimation::GetAnimationManager() const
 {
@@ -286,6 +297,18 @@ CSSAnimation::GetAnimationManager() const
   }
 
   return context->AnimationManager();
+}
+
+void
+CSSAnimation::UpdateTiming(SeekFlag aSeekFlag, SyncNotifyFlag aSyncNotifyFlag)
+{
+  if (mNeedsNewAnimationIndexWhenRun &&
+      PlayState() != AnimationPlayState::Idle) {
+    mAnimationIndex = sNextAnimationIndex++;
+    mNeedsNewAnimationIndexWhenRun = false;
+  }
+
+  Animation::UpdateTiming(aSeekFlag, aSyncNotifyFlag);
 }
 
 ////////////////////////// nsAnimationManager ////////////////////////////
@@ -363,7 +386,7 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
     return nullptr;
   }
 
-  nsAutoAnimationMutationBatch mb(aElement);
+  nsAutoAnimationMutationBatch mb(aElement->OwnerDoc());
 
   // build the animations list
   dom::DocumentTimeline* timeline = aElement->OwnerDoc()->Timeline();

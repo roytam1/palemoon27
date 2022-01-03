@@ -17,11 +17,13 @@
 #include "nsContentPolicy.h"
 #include "nsIURI.h"
 #include "nsIDocShell.h"
+#include "nsIDOMElement.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMWindow.h"
 #include "nsIContent.h"
 #include "nsILoadContext.h"
 #include "nsCOMArray.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/nsMixedContentBlocker.h"
 
 using mozilla::LogLevel;
@@ -141,7 +143,15 @@ nsContentPolicy::CheckPolicy(CPMethod          policyMethod,
     int32_t count = entries.Count();
     for (int32_t i = 0; i < count; i++) {
         /* check the appropriate policy */
-        rv = (entries[i]->*policyMethod)(externalType, contentLocation,
+        // Send the internal content policy type to the mixed content blocker
+        // which needs to know about TYPE_INTERNAL_WORKER,
+        // TYPE_INTERNAL_SHARED_WORKER and TYPE_INTERNAL_SERVICE_WORKER.
+        bool isMixedContentBlocker = mixedContentBlocker == entries[i];
+        nsContentPolicyType type = externalType;
+        if (isMixedContentBlocker) {
+            type = externalTypeOrMCBInternal;
+        }
+        rv = (entries[i]->*policyMethod)(type, contentLocation,
                                          requestingLocation, requestingContext,
                                          mimeType, extra, requestPrincipal,
                                          decision);

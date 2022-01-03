@@ -394,6 +394,13 @@ EventListenerManager::AddEventListenerInternal(
     }
   }
 
+  if (IsApzAwareEvent(aTypeAtom)) {
+    nsCOMPtr<nsINode> node = do_QueryInterface(mTarget);
+    if (node) {
+      node->SetMayHaveApzAwareListeners();
+    }
+  }
+
   if (aTypeAtom && mTarget) {
     mTarget->EventListenerAdded(aTypeAtom);
   }
@@ -556,20 +563,20 @@ EventListenerManager::ListenerCanHandle(Listener* aListener,
                                         WidgetEvent* aEvent)
 {
   // This is slightly different from EVENT_TYPE_EQUALS in that it returns
-  // true even when aEvent->message == NS_USER_DEFINED_EVENT and
+  // true even when aEvent->mMessage == NS_USER_DEFINED_EVENT and
   // aListener=>mEventType != NS_USER_DEFINED_EVENT as long as the atoms are
   // the same
   if (aListener->mAllEvents) {
     return true;
   }
-  if (aEvent->message == NS_USER_DEFINED_EVENT) {
+  if (aEvent->mMessage == NS_USER_DEFINED_EVENT) {
     if (mIsMainThreadELM) {
       return aListener->mTypeAtom == aEvent->userType;
     }
     return aListener->mTypeString.Equals(aEvent->typeString);
   }
   MOZ_ASSERT(mIsMainThreadELM);
-  return aListener->mEventType == aEvent->message;
+  return aListener->mEventType == aEvent->mMessage;
 }
 
 void
@@ -1161,7 +1168,7 @@ EventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
   aEvent->currentTarget = nullptr;
 
   if (mIsMainThreadELM && !hasListener) {
-    mNoListenerForEvent = aEvent->message;
+    mNoListenerForEvent = aEvent->mMessage;
     mNoListenerForEventAtom = aEvent->userType;
   }
 
@@ -1500,6 +1507,30 @@ EventListenerManager::TraceListeners(JSTracer* aTrc)
     // We might have eWrappedJSListener, but that is the legacy type for
     // JS implemented event listeners, and trickier to handle here.
   }
+}
+
+bool
+EventListenerManager::HasApzAwareListeners()
+{
+  uint32_t count = mListeners.Length();
+  for (uint32_t i = 0; i < count; ++i) {
+    Listener* listener = &mListeners.ElementAt(i);
+    if (IsApzAwareEvent(listener->mTypeAtom)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool
+EventListenerManager::IsApzAwareEvent(nsIAtom* aEvent)
+{
+  return aEvent == nsGkAtoms::ontouchstart ||
+         aEvent == nsGkAtoms::ontouchmove ||
+         aEvent == nsGkAtoms::onwheel ||
+         aEvent == nsGkAtoms::onDOMMouseScroll ||
+         aEvent == nsHtml5Atoms::onmousewheel ||
+         aEvent == nsGkAtoms::onMozMousePixelScroll;
 }
 
 already_AddRefed<nsIScriptGlobalObject>

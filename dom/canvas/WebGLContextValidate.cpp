@@ -14,11 +14,13 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
+#include "WebGLActiveInfo.h"
 #include "WebGLBuffer.h"
 #include "WebGLContextUtils.h"
 #include "WebGLFramebuffer.h"
 #include "WebGLProgram.h"
 #include "WebGLRenderbuffer.h"
+#include "WebGLSampler.h"
 #include "WebGLShader.h"
 #include "WebGLTexture.h"
 #include "WebGLUniformLocation.h"
@@ -1078,6 +1080,10 @@ WebGLContext::ValidateTexImageFormatAndType(GLenum format, GLenum type,
                                             WebGLTexImageFunc func,
                                             WebGLTexDimensions dims)
 {
+    if (type == LOCAL_GL_HALF_FLOAT_OES) {
+        type = LOCAL_GL_HALF_FLOAT;
+    }
+
     if (IsCompressedFunc(func) || IsCopyFunc(func)) {
         MOZ_ASSERT(type == LOCAL_GL_NONE && format == LOCAL_GL_NONE);
         return true;
@@ -1945,7 +1951,9 @@ WebGLContext::InitAndValidateGL()
     }
 
     // Default value for all disabled vertex attributes is [0, 0, 0, 1]
+    mVertexAttribType = MakeUnique<GLenum[]>(mGLMaxVertexAttribs);
     for (int32_t index = 0; index < mGLMaxVertexAttribs; ++index) {
+        mVertexAttribType[index] = LOCAL_GL_FLOAT;
         VertexAttrib4f(index, 0, 0, 0, 1);
     }
 

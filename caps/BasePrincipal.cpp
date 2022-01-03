@@ -51,7 +51,7 @@ OriginAttributes::CreateSuffix(nsACString& aStr) const
 
   params->Serialize(value);
   if (!value.IsEmpty()) {
-    aStr.AppendLiteral("!");
+    aStr.AppendLiteral("^");
     aStr.Append(NS_ConvertUTF16toUTF8(value));
   }
 }
@@ -117,7 +117,7 @@ OriginAttributes::PopulateFromSuffix(const nsACString& aStr)
     return true;
   }
 
-  if (aStr[0] != '!') {
+  if (aStr[0] != '^') {
     return false;
   }
 
@@ -134,7 +134,7 @@ OriginAttributes::PopulateFromOrigin(const nsACString& aOrigin,
 {
   // RFindChar is only available on nsCString.
   nsCString origin(aOrigin);
-  int32_t pos = origin.RFindChar('!');
+  int32_t pos = origin.RFindChar('^');
 
   if (pos == kNotFound) {
     aOriginNoSuffix = origin;
@@ -143,12 +143,6 @@ OriginAttributes::PopulateFromOrigin(const nsACString& aOrigin,
 
   aOriginNoSuffix = Substring(origin, 0, pos);
   return PopulateFromSuffix(Substring(origin, pos));
-}
-
-void
-OriginAttributes::CookieJar(nsACString& aStr)
-{
-  mozilla::GetJarPrefix(mAppId, mInBrowser, aStr);
 }
 
 BasePrincipal::BasePrincipal()
@@ -248,7 +242,7 @@ BasePrincipal::GetJarPrefix(nsACString& aJarPrefix)
 {
   MOZ_ASSERT(AppId() != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  mOriginAttributes.CookieJar(aJarPrefix);
+  mozilla::GetJarPrefix(mOriginAttributes.mAppId, mOriginAttributes.mInBrowser, aJarPrefix);
   return NS_OK;
 }
 
@@ -265,13 +259,6 @@ NS_IMETHODIMP
 BasePrincipal::GetOriginSuffix(nsACString& aOriginAttributes)
 {
   mOriginAttributes.CreateSuffix(aOriginAttributes);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-BasePrincipal::GetCookieJar(nsACString& aCookieJar)
-{
-  mOriginAttributes.CookieJar(aCookieJar);
   return NS_OK;
 }
 

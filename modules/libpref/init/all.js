@@ -4610,6 +4610,10 @@ pref("dom.push.debug", false);
 pref("dom.push.serverURL", "wss://push.services.mozilla.com/");
 pref("dom.push.userAgentID", "");
 
+// The maximum number of notifications that a service worker can receive
+// without user interaction.
+pref("dom.push.maxQuotaPerSubscription", 16);
+
 // Is the network connection allowed to be up?
 // This preference should be used in UX to enable/disable push.
 pref("dom.push.connection.enabled", true);
@@ -5197,5 +5201,8 @@ pref("media.useAudioChannelAPI", false);
 
 // Turn rewriting of youtube embeds on/off
 pref("plugins.rewrite_youtube_embeds", true);
+
+// Expose Request.context. Currently disabled since the spec is in flux.
+pref("dom.requestcontext.enabled", false);
 
 pref("devtools.serviceWorkers.testing.enabled", false);

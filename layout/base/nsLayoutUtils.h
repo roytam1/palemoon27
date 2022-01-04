@@ -485,12 +485,16 @@ public:
    * properties (top, left, right, bottom) are auto. aAnchorRect is in the
    * coordinate space of aLayer's container layer (i.e. relative to the reference
    * frame of the display item which is building aLayer's container layer).
+   * aIsClipFixed is true if the layer's clip rect should also remain fixed
+   * during async-scrolling (true for fixed position elements, false for
+   * fixed backgrounds).
    */
   static void SetFixedPositionLayerData(Layer* aLayer, const nsIFrame* aViewportFrame,
                                         const nsRect& aAnchorRect,
                                         const nsIFrame* aFixedPosFrame,
                                         nsPresContext* aPresContext,
-                                        const ContainerLayerParameters& aContainerParameters);
+                                        const ContainerLayerParameters& aContainerParameters,
+                                        bool aIsClipFixed);
 
   /**
    * Return true if aPresContext's viewport has a displayport.
@@ -1918,10 +1922,8 @@ public:
 
   /**
    * Get the reference frame that would be used when constructing a
-   * display item for this frame.  (Note, however, that
-   * nsDisplayTransform use the reference frame appropriate for their
-   * GetTransformRootFrame(), rather than using their own frame as a
-   * reference frame.)
+   * display item for this frame.  Rather than using their own frame
+   * as a reference frame.)
    *
    * This duplicates some of the logic of GetDisplayRootFrame above and
    * of nsDisplayListBuilder::FindReferenceFrameFor.
@@ -1930,16 +1932,6 @@ public:
    * frame from it instead of calling this.
    */
   static nsIFrame* GetReferenceFrame(nsIFrame* aFrame);
-
-  /**
-   * Get the parent of this frame, except if that parent is part of a
-   * preserve-3d hierarchy, get the parent of the root of the
-   * preserve-3d hierarchy.
-   *
-   * (This is used as the starting point for reference frame computation
-   * for nsDisplayTransform display items.)
-   */
-  static nsIFrame* GetTransformRootFrame(nsIFrame* aFrame);
 
   /**
    * Get textrun construction flags determined by a given style; in particular

@@ -24,6 +24,7 @@
 #include "HwcComposer2D.h"
 #include "VsyncSource.h"
 #include "nsWindow.h"
+#include "mozilla/layers/CompositorParent.h"
 #include "mozilla/Services.h"
 #include "mozilla/ProcessPriorityManager.h"
 #include "nsIdleService.h"
@@ -45,6 +46,7 @@ using namespace mozilla;
 using namespace mozilla::hal;
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
+using namespace mozilla::layers;
 using namespace mozilla::dom;
 
 namespace {
@@ -117,9 +119,10 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
 #if ANDROID_VERSION >= 17
     , mDisplaySurface(aNativeData.mDisplaySurface)
 #endif
+    , mIsMirroring(false)
     , mDisplayType(aDisplayType)
-    , mDpy(EGL_NO_DISPLAY)
-    , mSur(EGL_NO_SURFACE)
+    , mEGLDisplay(EGL_NO_DISPLAY)
+    , mEGLSurface(EGL_NO_SURFACE)
     , mGLContext(nullptr)
 {
     if (mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_WIDTH, &mVirtualBounds.width) ||
@@ -139,8 +142,22 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
     mColorDepth = SurfaceFormatToColorDepth(mSurfaceFormat);
 }
 
+static void
+ReleaseGLContextSync(mozilla::gl::GLContext* aGLContext) {
+    MOZ_ASSERT(CompositorParent::IsInCompositorThread());
+    aGLContext->Release();
+}
+
 nsScreenGonk::~nsScreenGonk()
 {
+    // Release GLContext on compositor thread
+    if (mGLContext) {
+        CompositorParent::CompositorLoop()->PostTask(
+            FROM_HERE,
+            NewRunnableFunction(&ReleaseGLContextSync,
+                                mGLContext.forget().take()));
+        mGLContext = nullptr;
+    }
 }
 
 bool
@@ -355,24 +372,134 @@ nsScreenGonk::GetDisplayType()
 }
 
 void
-nsScreenGonk::SetEGLInfo(hwc_display_t aDisplay, hwc_surface_t aSurface,
+nsScreenGonk::SetEGLInfo(hwc_display_t aDisplay,
+                         hwc_surface_t aSurface,
                          gl::GLContext* aGLContext)
 {
-    mDpy = aDisplay;
-    mSur = aSurface;
+    MOZ_ASSERT(CompositorParent::IsInCompositorThread());
+    mEGLDisplay = aDisplay;
+    mEGLSurface = aSurface;
     mGLContext = aGLContext;
 }
 
 hwc_display_t
-nsScreenGonk::GetDpy()
+nsScreenGonk::GetEGLDisplay()
 {
-    return mDpy;
+    MOZ_ASSERT(CompositorParent::IsInCompositorThread());
+    return mEGLDisplay;
 }
 
 hwc_surface_t
-nsScreenGonk::GetSur()
+nsScreenGonk::GetEGLSurface()
 {
-    return mSur;
+    return mEGLSurface;
+}
+
+static void
+UpdateMirroringWidgetSync(nsScreenGonk* aScreen, nsWindow* aWindow) {
+    MOZ_ASSERT(CompositorParent::IsInCompositorThread());
+    already_AddRefed<nsWindow> window(aWindow);
+    aScreen->UpdateMirroringWidget(window);
+}
+
+bool
+nsScreenGonk::EnableMirroring()
+{
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(!IsPrimaryScreen());
+
+    nsRefPtr<nsScreenGonk> primaryScreen = nsScreenManagerGonk::GetPrimaryScreen();
+    NS_ENSURE_TRUE(primaryScreen, false);
+
+    bool ret = primaryScreen->SetMirroringScreen(this);
+    NS_ENSURE_TRUE(ret, false);
+
+    // Create a widget for mirroring
+    nsWidgetInitData initData;
+    initData.mScreenId = mId;
+    nsRefPtr<nsWindow> window = new nsWindow();
+    window->Create(nullptr, nullptr, mNaturalBounds, &initData);
+    MOZ_ASSERT(static_cast<nsWindow*>(window)->GetScreen() == this);
+
+    // Update mMirroringWidget on compositor thread
+    CompositorParent::CompositorLoop()->PostTask(
+        FROM_HERE,
+        NewRunnableFunction(&UpdateMirroringWidgetSync,
+                            primaryScreen,
+                            window.forget().take()));
+
+    mIsMirroring = true;
+    return true;
+}
+
+bool
+nsScreenGonk::DisableMirroring()
+{
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(!IsPrimaryScreen());
+
+    mIsMirroring = false;
+    nsRefPtr<nsScreenGonk> primaryScreen = nsScreenManagerGonk::GetPrimaryScreen();
+    NS_ENSURE_TRUE(primaryScreen, false);
+
+    bool ret = primaryScreen->ClearMirroringScreen(this);
+    NS_ENSURE_TRUE(ret, false);
+
+    // Update mMirroringWidget on compositor thread
+    CompositorParent::CompositorLoop()->PostTask(
+        FROM_HERE,
+        NewRunnableFunction(&UpdateMirroringWidgetSync,
+                            primaryScreen,
+                            nullptr));
+    return true;
+}
+
+bool
+nsScreenGonk::SetMirroringScreen(nsScreenGonk* aScreen)
+{
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(IsPrimaryScreen());
+
+    if (mMirroringScreen) {
+        return false;
+    }
+    mMirroringScreen = mMirroringScreen;
+    return true;
+}
+
+bool
+nsScreenGonk::ClearMirroringScreen(nsScreenGonk* aScreen)
+{
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(IsPrimaryScreen());
+
+    if (mMirroringScreen != aScreen) {
+        return false;
+    }
+    mMirroringScreen = nullptr;
+    return true;
+}
+
+void
+nsScreenGonk::UpdateMirroringWidget(already_AddRefed<nsWindow>& aWindow)
+{
+    MOZ_ASSERT(CompositorParent::IsInCompositorThread());
+    MOZ_ASSERT(IsPrimaryScreen());
+
+    if (mMirroringWidget) {
+        nsCOMPtr<nsIWidget> widget = mMirroringWidget.forget();
+        NS_ReleaseOnMainThread(widget);
+    }
+    mMirroringWidget = aWindow;
+}
+
+nsWindow*
+nsScreenGonk::GetMirroringWidget()
+{
+    MOZ_ASSERT(CompositorParent::IsInCompositorThread());
+    MOZ_ASSERT(IsPrimaryScreen());
+
+    return mMirroringWidget;
 }
 
 NS_IMPL_ISUPPORTS(nsScreenManagerGonk, nsIScreenManager)
@@ -604,7 +731,7 @@ NotifyDisplayChange(uint32_t aId, bool aConnected)
 
 nsresult
 nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType,
-                               android::IGraphicBufferProducer* aProducer)
+                               android::IGraphicBufferProducer* aSink)
 {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -615,12 +742,18 @@ nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType,
     NS_ENSURE_TRUE(!IsScreenConnected(id), NS_ERROR_FAILURE);
 
     GonkDisplay::NativeData nativeData =
-        GetGonkDisplay()->GetNativeData(aDisplayType, aProducer);
+        GetGonkDisplay()->GetNativeData(aDisplayType, aSink);
     nsScreenGonk* screen = new nsScreenGonk(id, aDisplayType, nativeData);
 
     mScreens.AppendElement(screen);
 
     NotifyDisplayChange(id, true);
+
+    // By default, non primary screen does mirroring.
+    if (aDisplayType != GonkDisplay::DISPLAY_PRIMARY &&
+        gfxPrefs::ScreenMirroringEnabled()) {
+        screen->EnableMirroring();
+    }
 
     return NS_OK;
 }
@@ -638,6 +771,9 @@ nsScreenManagerGonk::RemoveScreen(GonkDisplay::DisplayType aDisplayType)
 
     for (size_t i = 0; i < mScreens.Length(); i++) {
         if (mScreens[i]->GetId() == screenId) {
+            if (mScreens[i]->IsMirroring()) {
+                mScreens[i]->DisableMirroring();
+            }
             mScreens.RemoveElementAt(i);
             break;
         }

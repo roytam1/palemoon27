@@ -229,6 +229,10 @@ public:
     mTarget = aTarget;
     mTargetBounds = aRect;
   }
+  gfx::DrawTarget* GetTargetContext() const
+  {
+    return mTarget;
+  }
   void ClearTargetContext()
   {
     mTarget = nullptr;
@@ -316,6 +320,21 @@ public:
       DrawQuad(aRect, aClipRect, aEffectChain, aOpacity, aTransform, aRect);
   }
 
+  /**
+   * Draw an unfilled solid color rect. Typically used for debugging overlays.
+   */
+  void SlowDrawRect(const gfx::Rect& aRect, const gfx::Color& color,
+                const gfx::Rect& aClipRect = gfx::Rect(),
+                const gfx::Matrix4x4& aTransform = gfx::Matrix4x4(),
+                int aStrokeWidth = 1);
+
+  /**
+   * Draw a solid color filled rect. This is a simple DrawQuad helper.
+   */
+  void FillRect(const gfx::Rect& aRect, const gfx::Color& color,
+                    const gfx::Rect& aClipRect = gfx::Rect(),
+                    const gfx::Matrix4x4& aTransform = gfx::Matrix4x4());
+
   /*
    * Clear aRect on current render target.
    */
@@ -351,7 +370,7 @@ public:
    */
   virtual void EndFrame() = 0;
 
-  virtual void SetDispAcquireFence(Layer* aLayer) {}
+  virtual void SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget) {}
 
   virtual FenceHandle GetReleaseFence()
   {
@@ -477,17 +496,20 @@ public:
   }
   void SetCompositionTime(TimeStamp aTimeStamp) {
     mCompositionTime = aTimeStamp;
-    mCompositeAgainTime = TimeStamp();
-  }
-
-  void CompositeAgainAt(TimeStamp aTimeStamp) {
-    if (mCompositeAgainTime.IsNull() ||
-        mCompositeAgainTime > aTimeStamp) {
-      mCompositeAgainTime = aTimeStamp;
+    if (!mCompositionTime.IsNull() && !mCompositeUntilTime.IsNull() &&
+        mCompositionTime >= mCompositeUntilTime) {
+      mCompositeUntilTime = TimeStamp();
     }
   }
-  TimeStamp GetCompositeAgainTime() const {
-    return mCompositeAgainTime;
+
+  void CompositeUntil(TimeStamp aTimeStamp) {
+    if (mCompositeUntilTime.IsNull() ||
+        mCompositeUntilTime < aTimeStamp) {
+      mCompositeUntilTime = aTimeStamp;
+    }
+  }
+  TimeStamp GetCompositeUntilTime() const {
+    return mCompositeUntilTime;
   }
 
 protected:
@@ -510,9 +532,10 @@ protected:
   TimeStamp mCompositionTime;
   /**
    * When nonnull, during rendering, some compositable indicated that it will
-   * change its rendering at this time (and this is the earliest such time).
+   * change its rendering at this time. In order not to miss it, we composite
+   * on every vsync until this time occurs (this is the latest such time).
    */
-  TimeStamp mCompositeAgainTime;
+  TimeStamp mCompositeUntilTime;
 
   uint32_t mCompositorID;
   DiagnosticTypes mDiagnosticTypes;

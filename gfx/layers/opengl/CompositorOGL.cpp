@@ -166,6 +166,11 @@ CompositorOGL::CleanupResources()
   if (!mGLContext)
     return;
 
+#ifdef MOZ_WIDGET_GONK
+  mWidget->SetNativeData(NS_NATIVE_OPENGL_CONTEXT,
+                         reinterpret_cast<uintptr_t>(nullptr));
+#endif
+
   nsRefPtr<GLContext> ctx = mGLContext->GetSharedContext();
   if (!ctx) {
     ctx = mGLContext;
@@ -444,6 +449,8 @@ CompositorOGL::PrepareViewport(CompositingRenderTargetOGL* aRenderTarget)
 
   // Set the viewport correctly.
   mGLContext->fViewport(0, 0, size.width, size.height);
+
+  mRenderBound = Rect(0, 0, size.width, size.height);
 
   mViewportSize = size;
 
@@ -976,6 +983,22 @@ CompositorOGL::DrawQuad(const Rect& aRect,
     DrawVRDistortion(aRect, aClipRect, aEffectChain, aOpacity, aTransform);
     return;
   }
+
+  // XXX: This doesn't handle 3D transforms. It also doesn't handled rotated
+  //      quads. Fix me.
+  Rect destRect = aTransform.TransformBounds(aRect);
+  mPixelsFilled += destRect.width * destRect.height;
+
+  IntPoint offset = mCurrentRenderTarget->GetOrigin();
+
+  // Do a simple culling if this rect is out of target buffer.
+  // Inflate a small size to avoid some numerical imprecision issue.
+  destRect.Inflate(1, 1);
+  destRect.MoveBy(-offset);
+  if (!mRenderBound.Intersects(destRect)) {
+    return;
+  }
+
   LayerScope::DrawBegin();
 
   Rect clipRect = aClipRect;
@@ -1025,13 +1048,6 @@ CompositorOGL::DrawQuad(const Rect& aRect,
     maskType = MaskType::MaskNone;
   }
 
-  {
-    // XXX: This doesn't handle 3D transforms. It also doesn't handled rotated
-    //      quads. Fix me.
-    const Rect destRect = aTransform.TransformBounds(aRect);
-    mPixelsFilled += destRect.width * destRect.height;
-  }
-
   // Determine the color if this is a color shader and fold the opacity into
   // the color since color shaders don't have an opacity uniform.
   Color color;
@@ -1078,7 +1094,6 @@ CompositorOGL::DrawQuad(const Rect& aRect,
       program->SetColorMatrix(effectColorMatrix->mColorMatrix);
   }
 
-  IntPoint offset = mCurrentRenderTarget->GetOrigin();
   program->SetRenderOffset(offset.x, offset.y);
   LayerScope::SetRenderOffset(offset.x, offset.y);
 
@@ -1457,7 +1472,7 @@ CompositorOGL::EndFrame()
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
 void
-CompositorOGL::SetDispAcquireFence(Layer* aLayer)
+CompositorOGL::SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget)
 {
   // OpenGL does not provide ReleaseFence for rendering.
   // Instead use DispAcquireFence as layer buffer's ReleaseFence
@@ -1466,10 +1481,10 @@ CompositorOGL::SetDispAcquireFence(Layer* aLayer)
   // AcquireFence will be signaled when a buffer's content is available.
   // See Bug 974152.
 
-  if (!aLayer) {
+  if (!aLayer || !aWidget) {
     return;
   }
-  nsWindow* window = static_cast<nsWindow*>(mWidget);
+  nsWindow* window = static_cast<nsWindow*>(aWidget);
   RefPtr<FenceHandle::FdObj> fence = new FenceHandle::FdObj(
       window->GetScreen()->GetPrevDispAcquireFd());
   mReleaseFenceHandle.Merge(FenceHandle(fence));
@@ -1488,7 +1503,7 @@ CompositorOGL::GetReleaseFence()
 
 #else
 void
-CompositorOGL::SetDispAcquireFence(Layer* aLayer)
+CompositorOGL::SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget)
 {
 }
 

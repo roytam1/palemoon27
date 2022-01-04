@@ -564,6 +564,7 @@ pref("apz.fling_stopped_threshold", "0.01");
 pref("apz.max_velocity_inches_per_ms", "-1.0");
 pref("apz.max_velocity_queue_size", 5);
 pref("apz.min_skate_speed", "1.0");
+pref("apz.minimap.enabled", false);
 pref("apz.num_paint_duration_samples", 3);
 pref("apz.overscroll.enabled", false);
 pref("apz.overscroll.min_pan_distance_ratio", "1.0");
@@ -4787,6 +4788,9 @@ pref("dom.placeholder.show_on_focus", true);
 pref("dom.vr.enabled", false);
 // 0 = never; 1 = only if real devices aren't there; 2 = always
 pref("dom.vr.add-test-devices", 1);
+// true = show the VR textures in our compositing output; false = don't.
+// true might have performance impact
+pref("gfx.vr.mirror-textures", false);
 
 // MMS UA Profile settings
 pref("wap.UAProf.url", "");

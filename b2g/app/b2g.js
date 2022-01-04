@@ -916,8 +916,11 @@ pref("gfx.canvas.max-size-for-skia-gl", -1);
 // enable fence with readpixels for SurfaceStream
 pref("gfx.gralloc.fence-with-readpixels", true);
 
+// enable screen mirroring to external display
+pref("gfx.screen-mirroring.enabled", true);
+
 // The url of the page used to display network error details.
-pref("b2g.neterror.url", "app://system.gaiamobile.org/net_error.html");
+pref("b2g.neterror.url", "net_error.html");
 
 // The origin used for the shared themes uri space.
 pref("b2g.theme.origin", "app://theme.gaiamobile.org");
@@ -1062,18 +1065,11 @@ pref("dom.mozSettings.allowForceReadOnly", false);
 // RequestSync API is enabled by default on B2G.
 pref("dom.requestSync.enabled", true);
 
-// Only enable for kit kat and above devices
-// kit kat == 19, L = 21, 20 is kit-kat for wearables
-// 15 is for the ICS emulators which will fallback to software vsync
-#if ANDROID_VERSION == 19 || ANDROID_VERSION == 21 || ANDROID_VERSION == 15
+// Use vsync aligned rendering
 pref("gfx.vsync.hw-vsync.enabled", true);
 pref("gfx.vsync.compositor", true);
 pref("gfx.touch.resample", true);
-#else
-pref("gfx.vsync.hw-vsync.enabled", false);
-pref("gfx.vsync.compositor", false);
-pref("gfx.touch.resample", false);
-#endif
+pref("gfx.vsync.refreshdriver", true);
 
 // Comma separated list of activity names that can only be provided by
 // the system app in dev mode.

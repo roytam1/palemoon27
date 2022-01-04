@@ -1786,124 +1786,10 @@ DisplayDebugBorders(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
 }
 #endif
 
-static nsresult
-WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
-                           nsDisplayList *aList, nsDisplayList *aOutput,
-                           uint32_t& aIndex, nsDisplayList* aTemp)
-{
-  if (aIndex > nsDisplayTransform::INDEX_MAX) {
-    return NS_OK;
-  }
-
-  nsresult rv = NS_OK;
-  while (nsDisplayItem *item = aList->RemoveBottom()) {
-    nsIFrame *childFrame = item->Frame();
-
-    // We accumulate sequential items that aren't transforms into the 'temp' list
-    // and then flush this list into aOutput by wrapping the whole lot with a single
-    // nsDisplayTransform.
-
-    if (childFrame->GetParent() &&
-        (childFrame->GetParent()->Extend3DContext() || childFrame == aFrame)) {
-      switch (item->GetType()) {
-        case nsDisplayItem::TYPE_TRANSFORM: {
-          if (!aTemp->IsEmpty()) {
-            // Flush current aTemp contents
-            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
-                aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
-          }
-          // Override item's clipping with our current clip state (if any). Since we're
-          // bubbling up a preserve-3d transformed child to a preserve-3d parent,
-          // we can be sure the child doesn't have clip state of its own.
-          NS_ASSERTION(!item->GetClip().HasClip(), "Unexpected clip on item");
-          const DisplayItemClip* clip = aBuilder->ClipState().GetCurrentCombinedClip(aBuilder);
-          if (clip) {
-            item->SetClip(aBuilder, *clip);
-          }
-          aOutput->AppendToTop(item);
-          break;
-        }
-        case nsDisplayItem::TYPE_WRAP_LIST: {
-          nsDisplayWrapList *list = static_cast<nsDisplayWrapList*>(item);
-          rv = WrapPreserve3DListInternal(aFrame, aBuilder,
-              list->GetChildren(), aOutput, aIndex, aTemp);
-          list->~nsDisplayWrapList();
-          break;
-        }
-        case nsDisplayItem::TYPE_OPACITY: {
-          if (!aTemp->IsEmpty()) {
-            // Flush current aTemp contents
-            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
-                aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
-          }
-          nsDisplayOpacity *opacity = static_cast<nsDisplayOpacity*>(item);
-          nsDisplayList output;
-          // Call GetChildren, not GetSameCoordinateSystemChildren, because
-          // the preserve-3d children of 'opacity' are temporarily not in the
-          // same coordinate system as the opacity --- until this wrapping is done.
-          rv = WrapPreserve3DListInternal(aFrame, aBuilder,
-              opacity->GetChildren(), &output, aIndex, aTemp);
-          if (!aTemp->IsEmpty()) {
-            output.AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
-                aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
-          }
-
-          opacity->SetVisibleRect(output.GetVisibleRect());
-          opacity->SetReferenceFrame(output.GetBottom()->ReferenceFrame());
-          opacity->GetChildren()->AppendToTop(&output);
-          opacity->UpdateBounds(aBuilder);
-          aOutput->AppendToTop(item);
-          break;
-        }
-        default: {
-          if (childFrame->StyleDisplay()->BackfaceIsHidden()) {
-            if (!aTemp->IsEmpty()) {
-              aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
-                  aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
-            }
-
-            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
-                childFrame, item, item->GetVisibleRect(), aIndex++));
-          } else {
-            aTemp->AppendToTop(item);
-          }
-          break;
-        }
-      } 
-    } else {
-      aTemp->AppendToTop(item);
-    }
- 
-    if (NS_FAILED(rv) || !item || aIndex > nsDisplayTransform::INDEX_MAX)
-      return rv;
-  }
-    
-  return NS_OK;
-}
-
 static bool
 IsScrollFrameActive(nsDisplayListBuilder* aBuilder, nsIScrollableFrame* aScrollableFrame)
 {
   return aScrollableFrame && aScrollableFrame->IsScrollingActive(aBuilder);
-}
-
-static nsresult
-WrapPreserve3DList(nsIFrame* aFrame, nsDisplayListBuilder* aBuilder,
-                   nsDisplayList *aList)
-{
-  uint32_t index = 0;
-  nsDisplayList temp;
-  nsDisplayList output;
-  nsresult rv = WrapPreserve3DListInternal(aFrame, aBuilder, aList, &output,
-      index, &temp);
-
-  if (!temp.IsEmpty()) {
-    output.AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame,
-        &temp, temp.GetVisibleRect(), index++));
-  }
-
-  aList->AppendToTop(&output);
-  return rv;
 }
 
 class AutoSaveRestoreBlendMode
@@ -1918,6 +1804,87 @@ public:
 
   ~AutoSaveRestoreBlendMode() {
     mBuilder.SetContainsBlendModes(mSavedBlendModes);
+  }
+};
+
+class AutoHoistScrollInfoItems
+{
+  nsDisplayListBuilder& mBuilder;
+  nsDisplayList* mParentPendingList;
+  nsDisplayList mPendingList;
+
+public:
+  explicit AutoHoistScrollInfoItems(nsDisplayListBuilder& aBuilder)
+    : mBuilder(aBuilder),
+      mParentPendingList(nullptr)
+  {
+    if (!mBuilder.ShouldBuildScrollInfoItemsForHoisting()) {
+      return;
+    }
+    mParentPendingList = mBuilder.EnterScrollInfoItemHoisting(&mPendingList);
+  }
+  ~AutoHoistScrollInfoItems() {
+    if (!mParentPendingList) {
+      // If we have no parent stacking context, we will throw out any scroll
+      // info items that are pending (meaning, we can safely ignore them since
+      // the scrollable layers they represent will not be flattened).
+      return;
+    }
+    mParentPendingList->AppendToTop(&mPendingList);
+    mBuilder.LeaveScrollInfoItemHoisting(mParentPendingList);
+  }
+
+  // The current stacking context will definitely be flattened, so commit all
+  // pending scroll info items and make sure they will not be optimized away
+  // in the case they were also inside a compositor-supported mix-blend-mode.
+  void Commit() {
+    nsDisplayItem* iter = nullptr;
+    while ((iter = mPendingList.RemoveBottom()) != nullptr) {
+      MOZ_ASSERT(iter->GetType() == nsDisplayItem::TYPE_SCROLL_INFO_LAYER);
+      auto item = static_cast<nsDisplayScrollInfoLayer*>(iter);
+
+      item->UnsetIgnoreIfCompositorSupportsBlending();
+      mBuilder.CommittedScrollInfoItems()->AppendToTop(item);
+    }
+  }
+
+  // The current stacking context will only be flattened if the given mix-blend
+  // mode is not supported in the compositor. Annotate the scroll info items
+  // and keep them in the pending list.
+  void AnnotateForBlendModes(BlendModeSet aBlendModes) {
+    for (nsDisplayItem* iter = mPendingList.GetBottom(); iter; iter = iter->GetAbove()) {
+      MOZ_ASSERT(iter->GetType() == nsDisplayItem::TYPE_SCROLL_INFO_LAYER);
+      auto item = static_cast<nsDisplayScrollInfoLayer*>(iter);
+
+      item->IgnoreIfCompositorSupportsBlending(aBlendModes);
+    }
+  }
+
+  bool IsRootStackingContext() {
+    // We're only finished building the hoisted list if we have no parent
+    // stacking context.
+    return !mParentPendingList;
+  }
+
+  // Any scroll info items which contain a mix-blend mode are moved into the
+  // parent display list.
+  void Finish(nsDisplayList* aResultList) {
+    MOZ_ASSERT(IsRootStackingContext());
+
+    nsDisplayItem* iter = nullptr;
+    while ((iter = mPendingList.RemoveBottom()) != nullptr) {
+      MOZ_ASSERT(iter->GetType() == nsDisplayItem::TYPE_SCROLL_INFO_LAYER);
+      nsDisplayScrollInfoLayer *item = static_cast<decltype(item)>(iter);
+
+      if (!item->ContainedInMixBlendMode()) {
+        // Discard the item, it was not committed for having an SVG effect nor
+        // was it contained with a mix-blend mode.
+        item->~nsDisplayScrollInfoLayer();
+        continue;
+      }
+
+      aResultList->AppendToTop(item);
+    }
   }
 };
 
@@ -1966,6 +1933,19 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     aBuilder->AddToWillChangeBudget(this, GetSize());
   }
 
+  Maybe<nsDisplayListBuilder::AutoPreserves3DContext> autoPreserves3DContext;
+  if (Extend3DContext() && !Combines3DTransformWithAncestors()) {
+    // Start a new preserves3d context to keep informations on
+    // nsDisplayListBuilder.
+    autoPreserves3DContext.emplace(aBuilder);
+    // Save dirty rect on the builder to avoid being distorted for
+    // multiple transforms along the chain.
+    aBuilder->SetPreserves3DDirtyRect(aDirtyRect);
+  }
+
+  // For preserves3d, use the dirty rect already installed on the
+  // builder, since aDirtyRect maybe distorted for transforms along
+  // the chain.
   nsRect dirtyRect = aDirtyRect;
 
   bool inTransform = aBuilder->IsInTransform();
@@ -1980,16 +1960,18 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   if (isTransformed) {
     const nsRect overflow = GetVisualOverflowRectRelativeToSelf();
     if (aBuilder->IsForPainting() &&
-        nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder, this)) {
+        (nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder,
+                                                               this) ||
+         Extend3DContext() || Combines3DTransformWithAncestors())) {
       dirtyRect = overflow;
     } else {
-      if (overflow.IsEmpty() && !Extend3DContext()) {
+      if (overflow.IsEmpty()) {
         return;
       }
 
       nsRect untransformedDirtyRect;
       if (nsDisplayTransform::UntransformRect(dirtyRect, overflow, this,
-            nsPoint(0,0), &untransformedDirtyRect)) {
+            nsPoint(0,0), &untransformedDirtyRect, false)) {
         dirtyRect = untransformedDirtyRect;
       } else {
         NS_WARNING("Unable to untransform dirty rect!");
@@ -2000,13 +1982,13 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     inTransform = true;
   }
 
+  AutoHoistScrollInfoItems hoistedScrollInfoItems(*aBuilder);
+
   bool usingSVGEffects = nsSVGIntegrationUtils::UsingEffectsForFrame(this);
   nsRect dirtyRectOutsideSVGEffects = dirtyRect;
-  nsDisplayList hoistedScrollInfoItemsStorage;
   if (usingSVGEffects) {
     dirtyRect =
       nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(this, dirtyRect);
-    aBuilder->EnterSVGEffectsContents(&hoistedScrollInfoItemsStorage);
   }
 
   bool useOpacity = HasVisualOpacity() && !nsSVGUtils::CanOptimizeOpacity(this);
@@ -2051,10 +2033,11 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
 
     MarkAbsoluteFramesForDisplayList(aBuilder, dirtyRect);
 
-    // Preserve3DChildren() also guarantees that applyAbsPosClipping and usingSVGEffects are false
+    // Extend3DContext() also guarantees that applyAbsPosClipping and usingSVGEffects are false
     // We only modify the preserve-3d rect if we are the top of a preserve-3d heirarchy
     if (Extend3DContext()) {
-      aBuilder->MarkPreserve3DFramesForDisplayList(this, aDirtyRect);
+      nsRect dirty = aBuilder->GetPreserves3DDirtyRect(this);
+      aBuilder->MarkPreserve3DFramesForDisplayList(this, dirty);
     }
 
     if (aBuilder->IsBuildingLayerEventRegions()) {
@@ -2140,10 +2123,6 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     /* List now emptied, so add the new list to the top. */
     resultList.AppendNewToTop(
         new (aBuilder) nsDisplaySVGEffects(aBuilder, this, &resultList));
-    // Also add the hoisted scroll info items. We need those for APZ scrolling
-    // because nsDisplaySVGEffects items can't build active layers.
-    aBuilder->ExitSVGEffectsContents();
-    resultList.AppendToTop(&hoistedScrollInfoItemsStorage);
   }
   /* Else, if the list is non-empty and there is CSS group opacity without SVG
    * effects, wrap it up in an opacity item.
@@ -2183,16 +2162,59 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     buildingDisplayList.SetDirtyRect(dirtyRectOutsideTransform);
     // Revert to the outer reference frame and offset because all display
     // items we create from now on are outside the transform.
+    nsPoint toOuterReferenceFrame;
     const nsIFrame* outerReferenceFrame =
-      aBuilder->FindReferenceFrameFor(nsLayoutUtils::GetTransformRootFrame(this));
+      aBuilder->FindReferenceFrameFor(GetParent(), &toOuterReferenceFrame);
     buildingDisplayList.SetReferenceFrameAndCurrentOffset(outerReferenceFrame,
       GetOffsetToCrossDoc(outerReferenceFrame));
 
-    if (Extend3DContext()) {
-      WrapPreserve3DList(this, aBuilder, &resultList);
-    } else {
-      resultList.AppendNewToTop(
-        new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList, dirtyRect));
+    nsDisplayTransform *transformItem =
+      new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList, dirtyRect);
+    resultList.AppendNewToTop(transformItem);
+
+    /*
+     * Create an additional transform item as a separator layer
+     * between current and parent's 3D context if necessary.
+     *
+     * Separator layers avoid improperly exteding 3D context by
+     * children.
+     */
+    {
+      bool needAdditionalTransform = false;
+      if (Extend3DContext()) {
+        if (outerReferenceFrame->Extend3DContext()) {
+          for (nsIFrame *f = nsLayoutUtils::GetCrossDocParentFrame(this);
+               f && f != outerReferenceFrame && !f->IsTransformed();
+               f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
+            if (!f->Extend3DContext()) {
+              // The first one with transform in it's 3D context chain,
+              // and it is different 3D context with the outer reference
+              // frame.
+              needAdditionalTransform = true;
+              break;
+            }
+          }
+        }
+      } else if (outerReferenceFrame->Extend3DContext() &&
+                 outerReferenceFrame != nsLayoutUtils::GetCrossDocParentFrame(this)) {
+        // The content should be transformed and drawn on a buffer,
+        // then tranformed and drawn again for outerReferenceFrame.
+        // So, a separator layer is required.
+        needAdditionalTransform = true;
+      }
+      if (needAdditionalTransform) {
+        nsRect sepDirty = dirtyRectOutsideTransform;
+        // The separator item is with ID transform and is out of this
+        // frame, so it is in the coordination of the outer reference
+        // frame.  Here translate the dirty rect back.
+        sepDirty.MoveBy(toOuterReferenceFrame);
+        nsDisplayTransform *sepIdItem =
+          new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList,
+                                            sepDirty,
+                                            Matrix4x4(), 1);
+        sepIdItem->SetNoExtendContext();
+        resultList.AppendNewToTop(sepIdItem);
+      }
     }
   }
 
@@ -2212,8 +2234,25 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
    */
 
   if (aBuilder->ContainsBlendMode()) {
-      resultList.AppendNewToTop(
-        new (aBuilder) nsDisplayBlendContainer(aBuilder, this, &resultList, aBuilder->ContainedBlendModes()));
+    resultList.AppendNewToTop(
+      new (aBuilder) nsDisplayBlendContainer(aBuilder, this, &resultList, aBuilder->ContainedBlendModes()));
+  }
+
+  if (aBuilder->ShouldBuildScrollInfoItemsForHoisting()) {
+    if (usingSVGEffects) {
+      // We know this stacking context will be flattened, so hoist any scroll
+      // info items we created.
+      hoistedScrollInfoItems.Commit();
+    } else if (aBuilder->ContainsBlendMode()) {
+      hoistedScrollInfoItems.AnnotateForBlendModes(aBuilder->ContainedBlendModes());
+    }
+
+    if (hoistedScrollInfoItems.IsRootStackingContext()) {
+      // If we're the root stacking context, no more mix-blend modes can be
+      // introduced and it's safe to hoist scroll info items.
+      resultList.AppendToTop(aBuilder->CommittedScrollInfoItems());
+      hoistedScrollInfoItems.Finish(&resultList);
+    }
   }
 
   /* If there's blending, wrap up the list in a blend-mode item. Note

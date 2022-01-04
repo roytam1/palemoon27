@@ -1604,8 +1604,6 @@ DetachContainerRecurse(nsIDocShell *aShell)
 NS_IMETHODIMP
 nsDocumentViewer::Destroy()
 {
-  NS_ASSERTION(mDocument, "No document in Destroy()!");
-
 #ifdef NS_PRINTING
   // Here is where we check to see if the document was still being prepared 
   // for printing when it was asked to be destroy from someone externally

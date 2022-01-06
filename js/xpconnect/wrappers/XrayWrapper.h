@@ -240,6 +240,9 @@ public:
     {
         JSXrayTraits& self = JSXrayTraits::singleton;
         JS::RootedObject holder(cx, self.ensureHolder(cx, wrapper));
+        if (!holder) {
+          return false;
+        }
         if (self.getProtoKey(holder) == JSProto_Function)
             return baseInstance.call(cx, wrapper, args);
 
@@ -253,6 +256,9 @@ public:
     {
         JSXrayTraits& self = JSXrayTraits::singleton;
         JS::RootedObject holder(cx, self.ensureHolder(cx, wrapper));
+        if (!holder) {
+          return false;
+        }
         if (self.getProtoKey(holder) == JSProto_Function)
             return baseInstance.construct(cx, wrapper, args);
 
@@ -266,6 +272,9 @@ public:
                       JS::MutableHandleObject protop)
     {
         JS::RootedObject holder(cx, ensureHolder(cx, wrapper));
+        if (!holder) {
+          return false;
+        }
         JSProtoKey key = getProtoKey(holder);
         if (isPrototype(holder)) {
             JSProtoKey parentKey = js::ParentKeyForStandardClass(key);

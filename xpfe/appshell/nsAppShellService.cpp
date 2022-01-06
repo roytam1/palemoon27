@@ -109,6 +109,13 @@ nsAppShellService::EnsurePrivateHiddenWindow()
 nsresult
 nsAppShellService::CreateHiddenWindowHelper(bool aIsPrivate)
 {
+  if (!aIsPrivate && mHiddenWindow) {
+    return NS_OK;
+  }
+  if (aIsPrivate && mHiddenPrivateWindow) {
+    return NS_OK;
+  }
+
   nsresult rv;
   int32_t initialHeight = 100, initialWidth = 100;
 

@@ -173,6 +173,7 @@ struct CompositorOGLVRObjects {
   GLint mUTexture[2];
   GLint mUVREyeToSource[2];
   GLint mUVRDestionatinScaleAndOffset[2];
+  GLint mUHeight[2];
 };
 
 // If you want to make this class not final, first remove calls to virtual
@@ -233,7 +234,7 @@ public:
                         const gfx::Rect& aVisibleRect) override;
 
   virtual void EndFrame() override;
-  virtual void SetDispAcquireFence(Layer* aLayer) override;
+  virtual void SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget) override;
   virtual FenceHandle GetReleaseFence() override;
   virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) override;
 
@@ -455,6 +456,8 @@ private:
 
   FenceHandle mReleaseFenceHandle;
   ShaderProgramOGL *mCurrentProgram;
+
+  gfx::Rect mRenderBound;
 
   CompositorOGLVRObjects mVR;
 };

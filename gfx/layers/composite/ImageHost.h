@@ -85,6 +85,15 @@ public:
 
   virtual already_AddRefed<TexturedEffect> GenEffect(const gfx::Filter& aFilter) override;
 
+  enum Bias {
+    // Don't apply bias to frame times
+    BIAS_NONE,
+    // Apply a negative bias to frame times to keep them before the vsync time
+    BIAS_NEGATIVE,
+    // Apply a positive bias to frame times to keep them after the vsync time
+    BIAS_POSITIVE,
+  };
+
 protected:
   struct TimedImage {
     CompositableTextureHostRef mFrontBuffer;
@@ -97,8 +106,9 @@ protected:
 
   /**
    * ChooseImage is guaranteed to return the same TimedImage every time it's
-   * called during the same composition --- it depends only on mImages and
-   * mCompositor->GetCompositionTime().
+   * called during the same composition, up to the end of Composite() ---
+   * it depends only on mImages, mCompositor->GetCompositionTime(), and mBias.
+   * mBias is updated at the end of Composite().
    */
   const TimedImage* ChooseImage() const;
   TimedImage* ChooseImage();
@@ -109,6 +119,10 @@ protected:
   ImageContainerParent* mImageContainer;
   int32_t mLastFrameID;
   int32_t mLastProducerID;
+  /**
+   * Bias to apply to the next frame.
+   */
+  Bias mBias;
 
   bool mLocked;
 };

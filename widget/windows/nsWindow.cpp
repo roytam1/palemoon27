@@ -3857,7 +3857,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
   LONG curMsgTime = ::GetMessageTime();
 
   if (aEventType == NS_MOUSE_DOUBLECLICK) {
-    event.message = NS_MOUSE_BUTTON_DOWN;
+    event.mMessage = NS_MOUSE_BUTTON_DOWN;
     event.button = aButton;
     sLastClickCount = 2;
     sLastMouseDownTime = curMsgTime;
@@ -6225,7 +6225,7 @@ bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
         // Pres shell expects this event to be a NS_TOUCH_START if new contact
         // points have been added since the last event sent.
         if (pInputs[i].dwFlags & TOUCHEVENTF_DOWN) {
-          touchEventToSend->message = msg = NS_TOUCH_START;
+          touchEventToSend->mMessage = msg = NS_TOUCH_START;
         } else {
           msg = NS_TOUCH_MOVE;
         }

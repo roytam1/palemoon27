@@ -9780,15 +9780,11 @@ nsDocShell::InternalLoad2(nsIURI* aURI,
       if (aURI) {
         aURI->GetSpec(spec);
       }
-      nsAutoString features;
-      if (mInPrivateBrowsing) {
-        features.AssignLiteral("private");
-      }
       // RM 2018-12-03 We miss all loadInfo setting up here 
       // so we cannot set aIsFromProcessingFrameAttributes
       rv = win->OpenNoNavigate(NS_ConvertUTF8toUTF16(spec),
                                name,  // window name
-                               features,
+                               EmptyString(), // Features
                                getter_AddRefs(newWin));
 
       // In some cases the Open call doesn't actually result in a new

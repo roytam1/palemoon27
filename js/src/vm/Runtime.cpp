@@ -855,7 +855,7 @@ js::AssertCurrentThreadCanLock(RuntimeLock which)
 #endif // DEBUG
 
 JS_FRIEND_API(void)
-JS::UpdateJSRuntimeProfilerSampleBufferGen(JSRuntime *runtime, uint32_t generation,
+JS::UpdateJSRuntimeProfilerSampleBufferGen(JSRuntime* runtime, uint32_t generation,
                                            uint32_t lapCount)
 {
     runtime->setProfilerSampleBufferGen(generation);
@@ -863,7 +863,7 @@ JS::UpdateJSRuntimeProfilerSampleBufferGen(JSRuntime *runtime, uint32_t generati
 }
 
 JS_FRIEND_API(bool)
-JS::IsProfilingEnabledForRuntime(JSRuntime *runtime)
+JS::IsProfilingEnabledForRuntime(JSRuntime* runtime)
 {
     MOZ_ASSERT(runtime);
     return runtime->spsProfiler.enabled();

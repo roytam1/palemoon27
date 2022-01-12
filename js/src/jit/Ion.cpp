@@ -517,6 +517,27 @@ FinishAllOffThreadCompilations(JSCompartment* comp)
     }
 }
 
+class AutoLazyLinkExitFrame
+{
+    JitActivation* jitActivation_;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+
+  public:
+    explicit AutoLazyLinkExitFrame(JitActivation* jitActivation
+                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : jitActivation_(jitActivation)
+    {
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZ_ASSERT(!jitActivation_->isLazyLinkExitFrame(),
+                   "Cannot stack multiple lazy-link frames.");
+        jitActivation_->setLazyLinkExitFrame(true);
+    }
+
+    ~AutoLazyLinkExitFrame() {
+        jitActivation_->setLazyLinkExitFrame(false);
+    }
+};
+
 static bool
 LinkCodeGen(JSContext* cx, IonBuilder* builder, CodeGenerator *codegen,
             AutoScriptVector* scripts, OnIonCompilationInfo* info)
@@ -551,27 +572,6 @@ LinkBackgroundCodeGen(JSContext* cx, IonBuilder* builder,
 
     return LinkCodeGen(cx, builder, codegen, scripts, info);
 }
-
-class AutoLazyLinkExitFrame
-{
-    JitActivation* jitActivation_;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-  public:
-    explicit AutoLazyLinkExitFrame(JitActivation* jitActivation
-                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : jitActivation_(jitActivation)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        MOZ_ASSERT(!jitActivation_->isLazyLinkExitFrame(),
-                   "Cannot stack multiple lazy-link frames.");
-        jitActivation_->setLazyLinkExitFrame(true);
-    }
-
-    ~AutoLazyLinkExitFrame() {
-        jitActivation_->setLazyLinkExitFrame(false);
-    }
-};
 
 void
 jit::LazyLink(JSContext* cx, HandleScript calleeScript)
@@ -1671,6 +1671,18 @@ OptimizeMIR(MIRGenerator* mir)
         AssertExtendedGraphCoherency(graph);
 
         if (mir->shouldCancel("Sink"))
+            return false;
+    }
+
+    if (mir->optimizationInfo().instructionReorderingEnabled()) {
+        AutoTraceLog log(logger, TraceLogger_ReorderInstructions);
+        if (!ReorderInstructions(mir, graph))
+            return false;
+        gs.spewPass("Reordering");
+
+        AssertExtendedGraphCoherency(graph);
+
+        if (mir->shouldCancel("Reordering"))
             return false;
     }
 
@@ -2959,8 +2971,10 @@ jit::IonScript::invalidate(JSContext* cx, bool resetUses, const char* reason)
 {
     JitSpew(JitSpew_IonInvalidate, " Invalidate IonScript %p: %s", this, reason);
     RecompileInfoVector list;
-    if (!list.append(recompileInfo()))
+    if (!list.append(recompileInfo())) {
+        ReportOutOfMemory(cx);
         return false;
+    }
     Invalidate(cx, list, resetUses, true);
     return true;
 }
@@ -2993,8 +3007,10 @@ jit::Invalidate(JSContext* cx, JSScript* script, bool resetUses, bool cancelOffT
 
     RecompileInfoVector scripts;
     MOZ_ASSERT(script->hasIonScript());
-    if (!scripts.append(script->ionScript()->recompileInfo()))
+    if (!scripts.append(script->ionScript()->recompileInfo())) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     Invalidate(cx, scripts, resetUses, cancelOffThread);
     return true;

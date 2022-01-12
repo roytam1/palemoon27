@@ -1600,6 +1600,9 @@ class JitActivation : public Activation
     uint8_t* prevJitTop() const {
         return prevJitTop_;
     }
+    JitActivation* prevJitActivation() const {
+        return prevJitActivation_;
+    }
     static size_t offsetOfPrevJitTop() {
         return offsetof(JitActivation, prevJitTop_);
     }
@@ -1638,6 +1641,10 @@ class JitActivation : public Activation
     // Look up a rematerialized frame by the fp. If inlineDepth is out of
     // bounds of what has been rematerialized, nullptr is returned.
     RematerializedFrame* lookupRematerializedFrame(uint8_t* top, size_t inlineDepth = 0);
+
+    // Remove all rematerialized frames associated with the fp top from the
+    // Debugger.
+    void removeRematerializedFramesFromDebugger(JSContext* cx, uint8_t* top);
 
     bool hasRematerializedFrame(uint8_t* top, size_t inlineDepth = 0) {
         return !!lookupRematerializedFrame(top, inlineDepth);

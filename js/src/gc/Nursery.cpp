@@ -7,10 +7,12 @@
 
 #include "gc/Nursery-inl.h"
 
+#include "mozilla/DebugOnly.h"
 #include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/Move.h"
 
 #include "jscompartment.h"
+#include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsutil.h"
 
@@ -34,6 +36,7 @@ using namespace js;
 using namespace gc;
 
 using mozilla::ArrayLength;
+using mozilla::DebugOnly;
 using mozilla::PodCopy;
 using mozilla::PodZero;
 
@@ -62,6 +65,9 @@ js::Nursery::init(uint32_t maxNurseryBytes)
         return true;
 
     if (!mallocedBuffers.init())
+        return false;
+
+    if (!cellsWithUid_.init())
         return false;
 
     void* heap = MapAlignedPages(nurserySize(), Alignment);
@@ -232,6 +238,7 @@ js::Nursery::allocate(size_t size)
     position_ = position() + size;
 
     JS_EXTRA_POISON(thing, JS_ALLOCATED_NURSERY_PATTERN, size);
+    MemProfiler::SampleNursery(reinterpret_cast<void*>(thing), size);
     return thing;
 }
 
@@ -644,6 +651,16 @@ js::Nursery::waitBackgroundFreeEnd()
 void
 js::Nursery::sweep()
 {
+    /* Sweep unique id's in all in-use chunks. */
+    for (CellsWithUniqueIdSet::Enum e(cellsWithUid_); !e.empty(); e.popFront()) {
+        JSObject* obj = static_cast<JSObject*>(e.front());
+        if (!IsForwarded(obj))
+            obj->zone()->removeUniqueId(obj);
+        else
+            MOZ_ASSERT(Forwarded(obj)->zone()->hasUniqueId(Forwarded(obj)));
+    }
+    cellsWithUid_.clear();
+
 #ifdef JS_GC_ZEAL
     /* Poison the nursery contents so touching a freed object will crash. */
     JS_POISON((void*)start(), JS_SWEPT_NURSERY_PATTERN, nurserySize());
@@ -661,16 +678,15 @@ js::Nursery::sweep()
     {
 #ifdef JS_CRASH_DIAGNOSTICS
         JS_POISON((void*)start(), JS_SWEPT_NURSERY_PATTERN, allocationEnd() - start());
-        for (int i = 0; i < numActiveChunks_; ++i) {
-            chunk(i).trailer.location = gc::ChunkLocationBitNursery;
-            chunk(i).trailer.runtime = runtime();
-        }
+        for (int i = 0; i < numActiveChunks_; ++i)
+            initChunk(i);
 #endif
         setCurrentChunk(0);
     }
 
     /* Set current start position for isEmpty checks. */
     currentStart_ = position();
+    MemProfiler::SweepNursery(runtime());
 }
 
 void

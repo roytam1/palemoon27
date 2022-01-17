@@ -9,6 +9,7 @@
 
 #include "mozilla/Atomics.h"
 
+#include "jsfriendapi.h"
 #include "jsgc.h"
 
 #include "gc/Heap.h"
@@ -654,6 +655,11 @@ class GCRuntime
 
     size_t maxMallocBytesAllocated() { return maxMallocBytes; }
 
+    uint64_t nextCellUniqueId() {
+        MOZ_ASSERT(nextCellUniqueId_ > 0);
+        return nextCellUniqueId_++;
+    }
+
   public:
     // Internal public interface
     js::gc::State state() const { return incrementalState; }
@@ -975,6 +981,8 @@ class GCRuntime
     GCSchedulingTunables tunables;
     GCSchedulingState schedulingState;
 
+    MemProfiler mMemProfiler;
+
   private:
     // When empty, chunks reside in the emptyChunks pool and are re-used as
     // needed or eventually expired if not re-used. The emptyChunks pool gets
@@ -997,6 +1005,9 @@ class GCRuntime
     RootedValueMap rootsHash;
 
     size_t maxMallocBytes;
+
+    // An incrementing id used to assign unique ids to cells that require one.
+    uint64_t nextCellUniqueId_;
 
     /*
      * Number of the committed arenas in all GC chunks including empty chunks.

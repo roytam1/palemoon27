@@ -522,6 +522,10 @@ UnboxedLayout::makeNativeGroup(JSContext* cx, ObjectGroup* group)
             if (!PropagatePropertyTypes(cx, id, group, nativeGroup))
                 return false;
 
+            // If we are OOM we may not be able to propagate properties.
+            if (nativeGroup->unknownProperties())
+                break;
+
             HeapTypeSet* nativeProperty = nativeGroup->maybeGetProperty(id);
             if (nativeProperty && nativeProperty->canSetDefinite(i))
                 nativeProperty->setDefinite(i);
@@ -1245,7 +1249,7 @@ UnboxedArrayObject::objectMovedDuringMinorGC(JSTracer* trc, JSObject* dst, JSObj
 /* static */ const uint32_t
 UnboxedArrayObject::CapacityArray[] = {
     UINT32_MAX, // For CapacityMatchesLengthIndex.
-    0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 16, 17, 18, 20, 24, 26, 32, 34, 36, 48, 52, 64, 68,
+    0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 16, 17, 18, 20, 24, 26, 32, 34, 36, 40, 48, 52, 64, 68,
     72, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288,
     1048576, 2097152, 3145728, 4194304, 5242880, 6291456, 7340032, 8388608, 9437184, 11534336,
     13631488, 15728640, 17825792, 20971520, 24117248, 27262976, 31457280, 35651584, 40894464,
@@ -1260,24 +1264,24 @@ Pow2CapacityIndexes[] = {
     8,  // 8
     13, // 16
     19, // 32
-    24, // 64
-    27, // 128
-    28, // 256
-    29, // 512
-    30, // 1024
-    31, // 2048
-    32, // 4096
-    33, // 8192
-    34, // 16384
-    35, // 32768
-    36, // 65536
-    37, // 131072
-    38, // 262144
-    39, // 524288
-    40  // 1048576
+    25, // 64
+    28, // 128
+    29, // 256
+    30, // 512
+    31, // 1024
+    32, // 2048
+    33, // 4096
+    34, // 8192
+    35, // 16384
+    36, // 32768
+    37, // 65536
+    38, // 131072
+    39, // 262144
+    40, // 524288
+    41  // 1048576
 };
 
-static const uint32_t MebiCapacityIndex = 40;
+static const uint32_t MebiCapacityIndex = 41;
 
 /* static */ uint32_t
 UnboxedArrayObject::chooseCapacityIndex(uint32_t capacity, uint32_t length)
@@ -1287,7 +1291,8 @@ UnboxedArrayObject::chooseCapacityIndex(uint32_t capacity, uint32_t length)
     // should generally be matched by the other.
 
     // Make sure we have enough space to store all possible values for the capacity index.
-    MOZ_ASSERT(mozilla::ArrayLength(CapacityArray) - 1 <= CapacityMask >> CapacityShift);
+    // This ought to be a static_assert, but MSVC doesn't like that.
+    MOZ_ASSERT(mozilla::ArrayLength(CapacityArray) - 1 <= (CapacityMask >> CapacityShift));
 
     // The caller should have ensured the capacity is possible for an unboxed array.
     MOZ_ASSERT(capacity <= MaximumCapacity);
@@ -1972,12 +1977,6 @@ js::TryConvertToUnboxedLayout(ExclusiveContext* cx, Shape* templateShape,
         // element type for the objects.
         if (UnboxedTypeSize(elementType) == 0)
             return true;
-
-        // Don't use an unboxed representation if objects in the group have
-        // ever had holes in the past. Even if they have been filled in, future
-        // objects that are created might be given holes as well.
-        if (group->flags() & OBJECT_FLAG_NON_PACKED)
-            return true;
     } else {
         if (objectCount <= 1) {
             // If only one of the objects has been created, it is more likely
@@ -2011,8 +2010,7 @@ js::TryConvertToUnboxedLayout(ExclusiveContext* cx, Shape* templateShape,
             return true;
     }
 
-    UniquePtr<UnboxedLayout, JS::DeletePolicy<UnboxedLayout> > layout;
-    layout.reset(group->zone()->new_<UnboxedLayout>());
+    AutoInitGCManagedObject<UnboxedLayout> layout(group->zone()->make_unique<UnboxedLayout>());
     if (!layout)
         return false;
 
@@ -2068,7 +2066,7 @@ js::TryConvertToUnboxedLayout(ExclusiveContext* cx, Shape* templateShape,
     }
 
     group->setClasp(clasp);
-    group->setUnboxedLayout(layout.get());
+    group->setUnboxedLayout(layout.release());
 
     size_t valueCursor = 0;
     for (size_t i = 0; i < PreliminaryObjectArray::COUNT; i++) {

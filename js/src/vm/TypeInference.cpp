@@ -399,13 +399,6 @@ TypeSet::objectsAreSubset(TypeSet* other)
 }
 
 bool
-TypeSet::primitivesAreSubset(TypeSet* other)
-{
-    uint32_t primitiveFlags = baseFlags() & TYPE_FLAG_PRIMITIVE;
-    return (primitiveFlags & other->baseFlags()) == primitiveFlags;
-}
-
-bool
 TypeSet::isSubset(const TypeSet* other) const
 {
     if ((baseFlags() & other->baseFlags()) != baseFlags())
@@ -4348,13 +4341,15 @@ TypeScript::destroy()
 void
 Zone::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                              size_t* typePool,
-                             size_t* baselineStubsOptimized)
+                             size_t* baselineStubsOptimized,
+                             size_t* uniqueIdMap)
 {
     *typePool += types.typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
     if (jitZone()) {
         *baselineStubsOptimized +=
             jitZone()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf);
     }
+    *uniqueIdMap += uniqueIds_.sizeOfExcludingThis(mallocSizeOf);
 }
 
 TypeZone::TypeZone(Zone* zone)

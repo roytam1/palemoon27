@@ -57,6 +57,8 @@ public:
 
   uint16_t GetInputSource() { return mInputSource; }
 
+  int32_t TakeChildProcessDragAction();
+
 protected:
   virtual ~nsBaseDragService();
 
@@ -135,6 +137,8 @@ protected:
   bool mDragEventDispatchedToChildProcess;
 
   uint32_t mDragAction;
+  uint32_t mDragActionFromChildProcess;
+
   nsSize mTargetSize;
   nsCOMPtr<nsIDOMNode> mSourceNode;
   nsCOMPtr<nsIDOMDocument> mSourceDocument;       // the document at the drag source. will be null

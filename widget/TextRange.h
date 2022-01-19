@@ -197,18 +197,32 @@ class TextRangeArray final : public nsAutoTArray<TextRange, 10>
 
   NS_INLINE_DECL_REFCOUNTING(TextRangeArray)
 
-  // Returns target clase offset.  If there are selected clauses, this returns
-  // the first selected clause offset.  Otherwise, 0.
-  uint32_t TargetClauseOffset() const
+  const TextRange* GetTargetClause() const
   {
     for (uint32_t i = 0; i < Length(); ++i) {
       const TextRange& range = ElementAt(i);
       if (range.mRangeType == NS_TEXTRANGE_SELECTEDRAWTEXT ||
           range.mRangeType == NS_TEXTRANGE_SELECTEDCONVERTEDTEXT) {
-        return range.mStartOffset;
+        return &range;
       }
     }
-    return 0;
+    return nullptr;
+  }
+
+  // Returns target clause offset.  If there are selected clauses, this returns
+  // the first selected clause offset.  Otherwise, 0.
+  uint32_t TargetClauseOffset() const
+  {
+    const TextRange* range = GetTargetClause();
+    return range ? range->mStartOffset : 0;
+  }
+
+  // Returns target clause length.  If there are selected clauses, this returns
+  // the first selected clause length.  Otherwise, UINT32_MAX.
+  uint32_t TargetClauseLength() const
+  {
+    const TextRange* range = GetTargetClause();
+    return range ? range->Length() : UINT32_MAX;
   }
 
 public:

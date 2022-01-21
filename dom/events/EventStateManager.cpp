@@ -641,7 +641,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       }
       GenerateMouseEnterExit(mouseEvent);
       //This is a window level mouse exit event and should stop here
-      aEvent->mMessage = 0;
+      aEvent->mMessage = NS_EVENT_NULL;
       break;
     }
   case NS_MOUSE_MOVE:
@@ -851,6 +851,8 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       NS_ASSERTION(selectedText.mSucceeded, "Failed to get selected text");
       compositionEvent->mData = selectedText.mReply.mString;
     }
+    break;
+  default:
     break;
   }
   return NS_OK;
@@ -1210,6 +1212,8 @@ CrossProcessSafeEvent(const WidgetEvent& aEvent)
     case NS_DRAGDROP_EXIT:
     case NS_DRAGDROP_DROP:
       return true;
+    default:
+      break;
     }
   default:
     return false;
@@ -3264,12 +3268,13 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       }
       if (dispatchedToContentProcess) {
         dragSession->SetCanDrop(true);
-      }
-
-      // now set the drop effect in the initial dataTransfer. This ensures
-      // that we can get the desired drop effect in the drop event.
-      if (initialDataTransfer)
+      } else if (initialDataTransfer) {
+        // Now set the drop effect in the initial dataTransfer. This ensures
+        // that we can get the desired drop effect in the drop event. For events
+        // dispatched to content, the content process will take care of setting
+        // this.
         initialDataTransfer->SetDropEffectInt(dropEffect);
+      }
     }
     break;
 
@@ -3343,6 +3348,9 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     }
     break;
 #endif
+
+  default:
+    break;
   }
 
   //Reset target frame to null to avoid mistargeting after reentrant event
@@ -3696,7 +3704,7 @@ EventStateManager::IsHandlingUserInput()
 
 static void
 CreateMouseOrPointerWidgetEvent(WidgetMouseEvent* aMouseEvent,
-                                uint32_t aMessage,
+                                EventMessage aMessage,
                                 nsIContent* aRelatedContent,
                                 nsAutoPtr<WidgetMouseEvent>& aNewEvent)
 {
@@ -3736,7 +3744,7 @@ CreateMouseOrPointerWidgetEvent(WidgetMouseEvent* aMouseEvent,
 
 nsIFrame*
 EventStateManager::DispatchMouseOrPointerEvent(WidgetMouseEvent* aMouseEvent,
-                                               uint32_t aMessage,
+                                               EventMessage aMessage,
                                                nsIContent* aTargetContent,
                                                nsIContent* aRelatedContent)
 {
@@ -3828,10 +3836,11 @@ class EnterLeaveDispatcher
 public:
   EnterLeaveDispatcher(EventStateManager* aESM,
                        nsIContent* aTarget, nsIContent* aRelatedTarget,
-                       WidgetMouseEvent* aMouseEvent, uint32_t aType)
+                       WidgetMouseEvent* aMouseEvent,
+                       EventMessage aEventMessage)
     : mESM(aESM)
     , mMouseEvent(aMouseEvent)
-    , mType(aType)
+    , mEventMessage(aEventMessage)
   {
     nsPIDOMWindow* win =
       aTarget ? aTarget->OwnerDoc()->GetInnerWindow() : nullptr;
@@ -3858,16 +3867,16 @@ public:
 
   ~EnterLeaveDispatcher()
   {
-    if (mType == NS_MOUSEENTER ||
-        mType == NS_POINTER_ENTER) {
+    if (mEventMessage == NS_MOUSEENTER ||
+        mEventMessage == NS_POINTER_ENTER) {
       for (int32_t i = mTargets.Count() - 1; i >= 0; --i) {
-        mESM->DispatchMouseOrPointerEvent(mMouseEvent, mType, mTargets[i],
-                                          mRelatedTarget);
+        mESM->DispatchMouseOrPointerEvent(mMouseEvent, mEventMessage,
+                                          mTargets[i], mRelatedTarget);
       }
     } else {
       for (int32_t i = 0; i < mTargets.Count(); ++i) {
-        mESM->DispatchMouseOrPointerEvent(mMouseEvent, mType, mTargets[i],
-                                          mRelatedTarget);
+        mESM->DispatchMouseOrPointerEvent(mMouseEvent, mEventMessage,
+                                          mTargets[i], mRelatedTarget);
       }
     }
   }
@@ -3876,7 +3885,7 @@ public:
   nsCOMArray<nsIContent> mTargets;
   nsCOMPtr<nsIContent> mRelatedTarget;
   WidgetMouseEvent* mMouseEvent;
-  uint32_t mType;
+  EventMessage mEventMessage;
 };
 
 void
@@ -4065,7 +4074,8 @@ GetWindowInnerRectCenter(nsPIDOMWindow* aWindow,
 }
 
 void
-EventStateManager::GeneratePointerEnterExit(uint32_t aMessage, WidgetMouseEvent* aEvent)
+EventStateManager::GeneratePointerEnterExit(EventMessage aMessage,
+                                            WidgetMouseEvent* aEvent)
 {
   WidgetPointerEvent pointerEvent(*aEvent);
   pointerEvent.mMessage = aMessage;
@@ -4187,6 +4197,8 @@ EventStateManager::GenerateMouseEnterExit(WidgetMouseEvent* aMouseEvent)
 
       NotifyMouseOut(aMouseEvent, nullptr);
     }
+    break;
+  default:
     break;
   }
 
@@ -4334,6 +4346,9 @@ EventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
       }
     }
     break;
+
+  default:
+    break;
   }
 
   //reset mCurretTargetContent to what it was
@@ -4346,13 +4361,13 @@ EventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
 void
 EventStateManager::FireDragEnterOrExit(nsPresContext* aPresContext,
                                        WidgetDragEvent* aDragEvent,
-                                       uint32_t aMsg,
+                                       EventMessage aMessage,
                                        nsIContent* aRelatedTarget,
                                        nsIContent* aTargetContent,
                                        nsWeakFrame& aTargetFrame)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetDragEvent event(aDragEvent->mFlags.mIsTrusted, aMsg,
+  WidgetDragEvent event(aDragEvent->mFlags.mIsTrusted, aMessage,
                         aDragEvent->widget);
   event.refPoint = aDragEvent->refPoint;
   event.modifiers = aDragEvent->modifiers;
@@ -4370,15 +4385,19 @@ EventStateManager::FireDragEnterOrExit(nsPresContext* aPresContext,
     }
 
     // adjust the drag hover if the dragenter event was cancelled or this is a drag exit
-    if (status == nsEventStatus_eConsumeNoDefault || aMsg == NS_DRAGDROP_EXIT)
-      SetContentState((aMsg == NS_DRAGDROP_ENTER) ? aTargetContent : nullptr,
+    if (status == nsEventStatus_eConsumeNoDefault ||
+        aMessage == NS_DRAGDROP_EXIT) {
+      SetContentState((aMessage == NS_DRAGDROP_ENTER) ?
+                        aTargetContent : nullptr,
                       NS_EVENT_STATE_DRAGOVER);
+    }
 
     // collect any changes to moz cursor settings stored in the event's
     // data transfer.
-    if (aMsg == NS_DRAGDROP_LEAVE || aMsg == NS_DRAGDROP_EXIT ||
-        aMsg == NS_DRAGDROP_ENTER)
+    if (aMessage == NS_DRAGDROP_LEAVE || aMessage == NS_DRAGDROP_EXIT ||
+        aMessage == NS_DRAGDROP_ENTER) {
       UpdateDragDataTransfer(&event);
+    }
   }
 
   // Finally dispatch the event to the frame
@@ -4490,13 +4509,13 @@ EventStateManager::SetClickCount(nsPresContext* aPresContext,
 nsresult
 EventStateManager::InitAndDispatchClickEvent(WidgetMouseEvent* aEvent,
                                              nsEventStatus* aStatus,
-                                             uint32_t aType,
+                                             EventMessage aMessage,
                                              nsIPresShell* aPresShell,
                                              nsIContent* aMouseTarget,
                                              nsWeakFrame aCurrentTarget,
                                              bool aNoContentDispatch)
 {
-  WidgetMouseEvent event(aEvent->mFlags.mIsTrusted, aType,
+  WidgetMouseEvent event(aEvent->mFlags.mIsTrusted, aMessage,
                          aEvent->widget, WidgetMouseEvent::eReal);
 
   event.refPoint = aEvent->refPoint;

@@ -21,7 +21,9 @@ function add_non_overridable_test(aHost, aExpectedError) {
       // error, which is what we're testing (although it would be best to test
       // this directly).
       securityInfo.QueryInterface(Ci.nsISSLStatusProvider);
-      do_check_eq(securityInfo.SSLStatus, null);
+      equal(securityInfo.SSLStatus, null,
+            "As a proxy to checking that the connection error is" +
+            " non-overridable, SSLStatus should be null");
     });
 }
 
@@ -70,7 +72,14 @@ function add_simple_tests() {
   add_cert_override_test("md5signature.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED);
+  // This has name information in the subject alternative names extension,
+  // but not the subject common name.
   add_cert_override_test("mismatch.example.com",
+                         Ci.nsICertOverrideService.ERROR_MISMATCH,
+                         SSL_ERROR_BAD_CERT_DOMAIN);
+  // This has name information in the subject common name but not the subject
+  // alternative names extension.
+  add_cert_override_test("mismatch-CN.example.com",
                          Ci.nsICertOverrideService.ERROR_MISMATCH,
                          SSL_ERROR_BAD_CERT_DOMAIN);
 
@@ -93,7 +102,8 @@ function add_simple_tests() {
     setCertTrust(rootCert, ",,");
     run_next_test();
   });
-  add_non_overridable_test("badSubjectAltNames.example.com", SEC_ERROR_BAD_DER);
+  add_non_overridable_test("nsCertTypeCritical.example.com",
+                           SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION);
   add_test(function() {
     let rootCert = constructCertFromFile("tlsserver/test-ca.der");
     setCertTrust(rootCert, "CTu,,");
@@ -146,12 +156,23 @@ function add_simple_tests() {
   // small and terminates the connection. The error is not overridable.
   add_non_overridable_test("inadequate-key-size-ee.example.com",
                            SSL_ERROR_WEAK_SERVER_CERT_KEY);
+
+  add_cert_override_test("ipAddressAsDNSNameInSAN.example.com",
+                         Ci.nsICertOverrideService.ERROR_MISMATCH,
+                         SSL_ERROR_BAD_CERT_DOMAIN);
+  add_cert_override_test("noValidNames.example.com",
+                         Ci.nsICertOverrideService.ERROR_MISMATCH,
+                         SSL_ERROR_BAD_CERT_DOMAIN);
+  add_cert_override_test("badSubjectAltNames.example.com",
+                         Ci.nsICertOverrideService.ERROR_MISMATCH,
+                         SSL_ERROR_BAD_CERT_DOMAIN);
 }
 
 function add_combo_tests() {
   add_cert_override_test("mismatch-expired.example.com",
                          Ci.nsICertOverrideService.ERROR_MISMATCH |
                          Ci.nsICertOverrideService.ERROR_TIME,
+                         SSL_ERROR_BAD_CERT_DOMAIN);
   add_cert_override_test("mismatch-notYetValid.example.com",
                          Ci.nsICertOverrideService.ERROR_MISMATCH |
                          Ci.nsICertOverrideService.ERROR_TIME,

@@ -131,8 +131,7 @@ ProcessVersion(SECItem         *versionItem,
   if (NS_FAILED(rv))
     return rv;
 
-  *retItem = printableItem;
-  NS_ADDREF(*retItem);
+  printableItem.forget(retItem);
   return NS_OK;
 }
 
@@ -159,8 +158,7 @@ ProcessSerialNumberDER(SECItem         *serialItem,
     return NS_ERROR_OUT_OF_MEMORY;
 
   rv = printableItem->SetDisplayValue(NS_ConvertASCIItoUTF16(serialNumber));
-  *retItem = printableItem;
-  NS_ADDREF(*retItem);
+  printableItem.forget(retItem);
   return rv;
 }
 
@@ -1612,8 +1610,7 @@ ProcessSingleExtension(CERTCertExtension *extension,
   text.Append(extvalue);
 
   extensionItem->SetDisplayValue(text);
-  *retExtension = extensionItem;
-  NS_ADDREF(*retExtension);
+  extensionItem.forget(retExtension);
   return NS_OK;
 }
 
@@ -1658,8 +1655,7 @@ ProcessSECAlgorithmID(SECAlgorithmID *algID,
     }
     printableItem->SetDisplayValue(text);
   }
-  *retSequence = sequence;
-  NS_ADDREF(*retSequence);
+  sequence.forget(retSequence);
   return NS_OK;
 }
 
@@ -2014,8 +2010,7 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
     if (NS_FAILED(rv))
       return rv;
   }
-  *retSequence = sequence;
-  NS_ADDREF(*retSequence);  
+  sequence.forget(retSequence);
   return NS_OK;
 }
 

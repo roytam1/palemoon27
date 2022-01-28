@@ -185,7 +185,8 @@ FindPinningInformation(const char* hostname, mozilla::pkix::Time time,
 static nsresult
 CheckPinsForHostname(const CERTCertList* certList, const char* hostname,
                      bool enforceTestMode, mozilla::pkix::Time time,
-             /*out*/ bool& chainHasValidPins)
+             /*out*/ bool& chainHasValidPins,
+    /*optional out*/ PinningTelemetryInfo* pinningTelemetryInfo)
 {
   chainHasValidPins = false;
   if (!certList) {
@@ -212,7 +213,8 @@ PublicKeyPinningService::ChainHasValidPins(const CERTCertList* certList,
                                            const char* hostname,
                                            mozilla::pkix::Time time,
                                            bool enforceTestMode,
-                                   /*out*/ bool& chainHasValidPins)
+                                   /*out*/ bool& chainHasValidPins,
+                          /*optional out*/ PinningTelemetryInfo* pinningTelemetryInfo)
 {
   chainHasValidPins = false;
   if (!certList) {
@@ -223,7 +225,8 @@ PublicKeyPinningService::ChainHasValidPins(const CERTCertList* certList,
   }
   nsAutoCString canonicalizedHostname(CanonicalizeHostname(hostname));
   return CheckPinsForHostname(certList, canonicalizedHostname.get(),
-                              enforceTestMode, time, chainHasValidPins);
+                              enforceTestMode, time, chainHasValidPins,
+                              pinningTelemetryInfo);
 }
 
 nsresult

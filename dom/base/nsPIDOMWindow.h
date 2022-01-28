@@ -63,8 +63,8 @@ enum UIStateChangeType
 };
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x2485d4d7, 0xf7cb, 0x481e, \
-  { 0x9c, 0x89, 0xb2, 0xa8, 0x12, 0x67, 0x7f, 0x97 } }
+{ 0x052e675a, 0xacd3, 0x48d1, \
+  { 0x8a, 0xcd, 0xbf, 0xff, 0xbd, 0x24, 0x4c, 0xed } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -638,7 +638,7 @@ public:
    *
    * Inner windows only.
    */
-  virtual void EnableNetworkEvent(uint32_t aType) = 0;
+  virtual void EnableNetworkEvent(mozilla::EventMessage aEventMessage) = 0;
 
   /**
    * Tell the window that it should stop to listen to the network event of the
@@ -646,7 +646,7 @@ public:
    *
    * Inner windows only.
    */
-  virtual void DisableNetworkEvent(uint32_t aType) = 0;
+  virtual void DisableNetworkEvent(mozilla::EventMessage aEventMessage) = 0;
 #endif // MOZ_B2G
 
   /**

@@ -1747,8 +1747,8 @@ nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent)
   if (controller) {
     CSSPoint geckoScreenPoint;
     if (ConvertToGecko(aEvent.mPoint, &geckoScreenPoint)) {
-      if (CurrentTouchBlock()->IsDuringFastMotion()) {
-        APZC_LOG("%p dropping long-press because of fast motion\n", this);
+      if (CurrentTouchBlock()->IsDuringFastFling()) {
+        APZC_LOG("%p dropping long-press because of fast fling\n", this);
         return nsEventStatus_eIgnore;
       }
       uint64_t blockId = GetInputQueue()->InjectNewTouchBlock(this);
@@ -2483,9 +2483,10 @@ bool AsyncPanZoomController::SnapBackIfOverscrolled() {
   return false;
 }
 
-bool AsyncPanZoomController::IsMovingFast() const {
+bool AsyncPanZoomController::IsFlingingFast() const {
   ReentrantMonitorAutoEnter lock(mMonitor);
-  if (GetVelocityVector().Length() > gfxPrefs::APZFlingStopOnTapThreshold()) {
+  if (mState == FLING &&
+      GetVelocityVector().Length() > gfxPrefs::APZFlingStopOnTapThreshold()) {
     APZC_LOG("%p is moving fast\n", this);
     return true;
   }
@@ -2999,7 +3000,7 @@ APZCTreeManager* AsyncPanZoomController::GetApzcTreeManager() const {
 
 void AsyncPanZoomController::ZoomToRect(CSSRect aRect) {
   if (!aRect.IsFinite()) {
-    NS_WARNING("ZoomToRect got called with a non-finite rect; ignoring...\n");
+    NS_WARNING("ZoomToRect got called with a non-finite rect; ignoring...");
     return;
   }
 
@@ -3106,13 +3107,12 @@ AsyncPanZoomController::CurrentTouchBlock()
 void
 AsyncPanZoomController::ResetInputState()
 {
-  SetState(NOTHING);
-  // Also clear the state in the gesture event listener
+  MultiTouchInput cancel(MultiTouchInput::MULTITOUCH_CANCEL, 0, TimeStamp::Now(), 0);
   nsRefPtr<GestureEventListener> listener = GetGestureEventListener();
   if (listener) {
-    MultiTouchInput cancel(MultiTouchInput::MULTITOUCH_CANCEL, 0, TimeStamp::Now(), 0);
     listener->HandleInputEvent(cancel);
   }
+  OnTouchCancel(cancel);
 }
 
 bool
@@ -3169,7 +3169,7 @@ void AsyncPanZoomController::UpdateZoomConstraints(const ZoomConstraints& aConst
   APZC_LOG("%p updating zoom constraints to %d %d %f %f\n", this, aConstraints.mAllowZoom,
     aConstraints.mAllowDoubleTapZoom, aConstraints.mMinZoom.scale, aConstraints.mMaxZoom.scale);
   if (IsNaN(aConstraints.mMinZoom.scale) || IsNaN(aConstraints.mMaxZoom.scale)) {
-    NS_WARNING("APZC received zoom constraints with NaN values; dropping...\n");
+    NS_WARNING("APZC received zoom constraints with NaN values; dropping...");
     return;
   }
   // inf float values and other bad cases should be sanitized by the code below.

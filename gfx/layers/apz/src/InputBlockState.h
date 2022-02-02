@@ -113,6 +113,12 @@ public:
   void DispatchImmediate(const InputData& aEvent) const;
 
   /**
+   * Dispatch the event to the target APZC. Mostly this is a hook for
+   * subclasses to do any per-event processing they need to.
+   */
+  virtual void DispatchEvent(const InputData& aEvent) const;
+
+  /**
    * @return true iff this block has received all the information needed
    *         to properly dispatch the events in the block.
    */
@@ -258,7 +264,7 @@ class TouchBlockState : public CancelableBlockState
 {
 public:
   explicit TouchBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
-                           bool aTargetConfirmed);
+                           bool aTargetConfirmed, TouchCounter& aTouchCounter);
 
   TouchBlockState *AsTouchBlock() override {
     return this;
@@ -269,6 +275,12 @@ public:
    * @return false if this block already has these flags set, true if not.
    */
   bool SetAllowedTouchBehaviors(const nsTArray<TouchBehaviorFlags>& aBehaviors);
+  /**
+   * If the allowed touch behaviors have been set, populate them into
+   * |aOutBehaviors| and return true. Else, return false.
+   */
+  bool GetAllowedTouchBehaviors(nsTArray<TouchBehaviorFlags>& aOutBehaviors) const;
+
   /**
    * Copy various properties from another block.
    */
@@ -282,19 +294,19 @@ public:
 
   /**
    * Sets a flag that indicates this input block occurred while the APZ was
-   * in a state of fast motion. This affects gestures that may be produced
+   * in a state of fast flinging. This affects gestures that may be produced
    * from input events in this block.
    */
-  void SetDuringFastMotion();
+  void SetDuringFastFling();
   /**
-   * @return true iff SetDuringFastMotion was called on this block.
+   * @return true iff SetDuringFastFling was called on this block.
    */
-  bool IsDuringFastMotion() const;
+  bool IsDuringFastFling() const;
   /**
    * Set the single-tap-occurred flag that indicates that this touch block
    * triggered a single tap event.
    * @return true if the flag was set. This may not happen if, for example,
-   *         SetDuringFastMotion was previously called.
+   *         SetDuringFastFling was previously called.
    */
   bool SetSingleTapOccurred();
   /**
@@ -328,15 +340,18 @@ public:
   bool HasEvents() const override;
   void DropEvents() override;
   void HandleEvents() override;
+  void DispatchEvent(const InputData& aEvent) const override;
   bool MustStayActive() override;
   const char* Type() override;
 
 private:
   nsTArray<TouchBehaviorFlags> mAllowedTouchBehaviors;
   bool mAllowedTouchBehaviorSet;
-  bool mDuringFastMotion;
+  bool mDuringFastFling;
   bool mSingleTapOccurred;
   nsTArray<MultiTouchInput> mEvents;
+  // A reference to the InputQueue's touch counter
+  TouchCounter& mTouchCounter;
 };
 
 } // namespace layers

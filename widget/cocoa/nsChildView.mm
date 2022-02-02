@@ -73,6 +73,9 @@
 #include "nsAccessibilityService.h"
 #include "mozilla/a11y/Platform.h"
 #endif
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
 
 #include "mozilla/Preferences.h"
 
@@ -291,10 +294,6 @@ public:
   void UpdateFromCGContext(const nsIntSize& aNewSize,
                            const nsIntRegion& aDirtyRegion,
                            CGContextRef aCGContext);
-
-  void UpdateFromDrawTarget(const nsIntSize& aNewSize,
-                            const nsIntRegion& aDirtyRegion,
-                            gfx::DrawTarget* aFromDrawTarget);
 
   nsIntRegion GetUpdateRegion() {
     MOZ_ASSERT(mInUpdate, "update region only valid during update");
@@ -1128,7 +1127,7 @@ nsresult nsChildView::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
   NSEvent* event = [NSEvent mouseEventWithType:(NSEventType)aNativeMessage
                                       location:windowPoint
                                  modifierFlags:aModifierFlags
-                                     timestamp:[NSDate timeIntervalSinceReferenceDate]
+                                     timestamp:[[NSProcessInfo processInfo] systemUptime]
                                   windowNumber:[[mView window] windowNumber]
                                        context:nil
                                    eventNumber:0
@@ -1498,6 +1497,17 @@ void nsChildView::ReportSizeEvent()
 
 #pragma mark -
 
+nsIntPoint nsChildView::GetClientOffset()
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  NSPoint origin = [mView convertPoint:NSMakePoint(0, 0) toView:nil];
+  origin.y = [[mView window] frame].size.height - origin.y;
+  return CocoaPointsToDevPixels(origin);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0, 0));
+}
+
 //    Return the offset between this child view and the screen.
 //    @return       -- widget origin in device-pixel coords
 LayoutDeviceIntPoint nsChildView::WidgetToScreenOffset()
@@ -1655,7 +1665,7 @@ nsChildView::StartPluginIME(const mozilla::WidgetKeyboardEvent& aKeyboardEvent,
   // currently exists.  So nested IME should never reach here, and so it should
   // be fine to use the last key-down event received by -[ChildView keyDown:]
   // (as we currently do).
-  ctiPanel->InterpretKeyEvent([mView lastKeyDownEvent], aCommitted);
+  ctiPanel->InterpretKeyEvent([(ChildView*)mView lastKeyDownEvent], aCommitted);
 
   return NS_OK;
 }
@@ -1918,9 +1928,13 @@ nsChildView::ConfigureAPZCTreeManager()
 void
 nsChildView::ConfigureAPZControllerThread()
 {
-  // On OS X the EventThreadRunner is the controller thread, but it doesn't
-  // have a MessageLoop.
-  APZThreadUtils::SetControllerThread(nullptr);
+  if (gfxPrefs::AsyncPanZoomSeparateEventThread()) {
+    // The EventThreadRunner is the controller thread, but it doesn't
+    // have a MessageLoop.
+    APZThreadUtils::SetControllerThread(nullptr);
+  } else {
+    nsBaseWidget::ConfigureAPZControllerThread();
+  }
 }
 
 nsIntRect
@@ -2402,11 +2416,13 @@ nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometri
   if (![[mView window] isKindOfClass:[ToolbarWindow class]])
     return;
 
-  // Update unified toolbar height.
+  // Update unified toolbar height and sheet attachment position.
   int32_t windowWidth = mBounds.width;
   int32_t titlebarBottom = FindTitlebarBottom(aThemeGeometries, windowWidth);
   int32_t unifiedToolbarBottom =
     FindUnifiedToolbarBottom(aThemeGeometries, windowWidth, titlebarBottom);
+  int32_t toolboxBottom =
+    FindFirstRectOfType(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeToolbox).YMost();
 
   ToolbarWindow* win = (ToolbarWindow*)[mView window];
   bool drawsContentsIntoWindowFrame = [win drawsContentsIntoWindowFrame];
@@ -2414,6 +2430,8 @@ nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometri
   int32_t contentOffset = drawsContentsIntoWindowFrame ? titlebarHeight : 0;
   int32_t devUnifiedHeight = titlebarHeight + unifiedToolbarBottom - contentOffset;
   [win setUnifiedToolbarHeight:DevPixelsToCocoaPoints(devUnifiedHeight)];
+  int32_t devSheetPosition = titlebarHeight + std::max(toolboxBottom, unifiedToolbarBottom) - contentOffset;
+  [win setSheetAttachmentPosition:DevPixelsToCocoaPoints(devSheetPosition)];
 
   // Update titlebar control offsets.
   nsIntRect windowButtonRect = FindFirstRectOfType(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeWindowButtons);
@@ -2640,6 +2658,60 @@ nsChildView::UpdateWindowDraggingRegion(const nsIntRegion& aRegion)
   }
 }
 
+WidgetWheelEvent
+nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent)
+{
+  WidgetWheelEvent event(true, NS_WHEEL_WHEEL, this);
+  if (mAPZC) {
+    uint64_t inputBlockId = 0;
+    ScrollableLayerGuid guid;
+
+    nsEventStatus result = mAPZC->ReceiveInputEvent(aEvent, &guid, &inputBlockId);
+    if (result == nsEventStatus_eConsumeNoDefault) {
+      return event;
+    }
+
+    switch(aEvent.mInputType) {
+      case PANGESTURE_INPUT: {
+        event = aEvent.AsPanGestureInput().ToWidgetWheelEvent(this);
+        break;
+      }
+      case SCROLLWHEEL_INPUT: {
+        event = aEvent.AsScrollWheelInput().ToWidgetWheelEvent(this);
+        break;
+      };
+      default:
+        MOZ_CRASH("unsupported event type");
+        return event;
+    }
+    if (event.mMessage == NS_WHEEL_WHEEL &&
+        (event.deltaX != 0 || event.deltaY != 0)) {
+      ProcessUntransformedAPZEvent(&event, guid, inputBlockId, result);
+    }
+    return event;
+  }
+
+  nsEventStatus status;
+  switch(aEvent.mInputType) {
+    case PANGESTURE_INPUT: {
+      event = aEvent.AsPanGestureInput().ToWidgetWheelEvent(this);
+      break;
+    }
+    case SCROLLWHEEL_INPUT: {
+      event = aEvent.AsScrollWheelInput().ToWidgetWheelEvent(this);
+      break;
+    }
+    default:
+      MOZ_CRASH("unexpected event type");
+      return event;
+  }
+  if (event.mMessage == NS_WHEEL_WHEEL &&
+      (event.deltaX != 0 || event.deltaY != 0)) {
+    DispatchEvent(&event, status);
+  }
+  return event;
+}
+
 #ifdef ACCESSIBILITY
 already_AddRefed<a11y::Accessible>
 nsChildView::GetDocumentAccessible()
@@ -2785,29 +2857,6 @@ RectTextureImage::UpdateFromCGContext(const nsIntSize& aNewSize,
 }
 
 void
-RectTextureImage::UpdateFromDrawTarget(const nsIntSize& aNewSize,
-                                       const nsIntRegion& aDirtyRegion,
-                                       gfx::DrawTarget* aFromDrawTarget)
-{
-  mUpdateDrawTarget = aFromDrawTarget;
-  mBufferSize.SizeTo(aFromDrawTarget->GetSize().width, aFromDrawTarget->GetSize().height);
-  RefPtr<gfx::DrawTarget> drawTarget = BeginUpdate(aNewSize, aDirtyRegion);
-  if (drawTarget) {
-    if (drawTarget != aFromDrawTarget) {
-      RefPtr<gfx::SourceSurface> source = aFromDrawTarget->Snapshot();
-      gfx::Rect rect(0, 0, aFromDrawTarget->GetSize().width, aFromDrawTarget->GetSize().height);
-      gfxUtils::ClipToRegion(drawTarget, GetUpdateRegion());
-      drawTarget->DrawSurface(source, rect, rect,
-                              gfx::DrawSurfaceOptions(),
-                              gfx::DrawOptions(1.0, gfx::CompositionOp::OP_SOURCE));
-      drawTarget->PopClip();
-    }
-    EndUpdate();
-  }
-  mUpdateDrawTarget = nullptr;
-}
-
-void
 RectTextureImage::Draw(GLManager* aManager,
                        const nsIntPoint& aLocation,
                        const Matrix4x4& aTransform)
@@ -2815,6 +2864,7 @@ RectTextureImage::Draw(GLManager* aManager,
   ShaderProgramOGL* program = aManager->GetProgram(LOCAL_GL_TEXTURE_RECTANGLE_ARB,
                                                    gfx::SurfaceFormat::R8G8B8A8);
 
+  aManager->gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   aManager->gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, mTexture);
 
   aManager->ActivateProgram(program);
@@ -3197,7 +3247,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (mGeckoChild) {
     nsIWidgetListener* listener = mGeckoChild->GetWidgetListener();
     if (listener) {
-      listener->GetPresShell()->ReconstructFrames();
+      nsIPresShell* presShell = listener->GetPresShell();
+      if (presShell) {
+        presShell->ReconstructFrames();
+      }
     }
   }
 }
@@ -3504,29 +3557,13 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // Create Cairo objects.
   nsRefPtr<gfxQuartzSurface> targetSurface;
 
-  nsRefPtr<gfxContext> targetContext;
-  if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(gfx::BackendType::COREGRAPHICS)) {
-    RefPtr<gfx::DrawTarget> dt =
-      gfx::Factory::CreateDrawTargetForCairoCGContext(aContext,
-                                                      gfx::IntSize(backingSize.width,
-                                                                   backingSize.height));
-    MOZ_ASSERT(dt); // see implementation
-    dt->AddUserData(&gfxContext::sDontUseAsSourceKey, dt, nullptr);
-    targetContext = new gfxContext(dt);
-  } else if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(gfx::BackendType::CAIRO)) {
-    // This is dead code unless you mess with prefs, but keep it around for
-    // debugging.
-    targetSurface = new gfxQuartzSurface(aContext, backingSize);
-    targetSurface->SetAllowUseAsSource(false);
-    RefPtr<gfx::DrawTarget> dt =
-      gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(targetSurface,
-                                                             gfx::IntSize(backingSize.width,
-                                                                          backingSize.height));
-    dt->AddUserData(&gfxContext::sDontUseAsSourceKey, dt, nullptr);
-    targetContext = new gfxContext(dt);
-  } else {
-    MOZ_ASSERT_UNREACHABLE("COREGRAPHICS is the only supported backed");
-  }
+  RefPtr<gfx::DrawTarget> dt =
+    gfx::Factory::CreateDrawTargetForCairoCGContext(aContext,
+                                                    gfx::IntSize(backingSize.width,
+                                                                 backingSize.height));
+  MOZ_ASSERT(dt); // see implementation
+  dt->AddUserData(&gfxContext::sDontUseAsSourceKey, dt, nullptr);
+  nsRefPtr<gfxContext> targetContext = new gfxContext(dt);
 
   // Set up the clip region.
   nsIntRegionRectIterator iter(region);
@@ -4865,6 +4902,38 @@ static int32_t RoundUp(double aDouble)
   [self sendWheelStartOrStop:second forEvent:theEvent];
 }
 
+static PanGestureInput::PanGestureType
+PanGestureTypeForEvent(NSEvent* aEvent)
+{
+  switch (nsCocoaUtils::EventPhase(aEvent)) {
+    case NSEventPhaseMayBegin:
+      return PanGestureInput::PANGESTURE_MAYSTART;
+    case NSEventPhaseCancelled:
+      return PanGestureInput::PANGESTURE_CANCELLED;
+    case NSEventPhaseBegan:
+      return PanGestureInput::PANGESTURE_START;
+    case NSEventPhaseChanged:
+      return PanGestureInput::PANGESTURE_PAN;
+    case NSEventPhaseEnded:
+      return PanGestureInput::PANGESTURE_END;
+    case NSEventPhaseNone:
+      switch (nsCocoaUtils::EventMomentumPhase(aEvent)) {
+        case NSEventPhaseBegan:
+          return PanGestureInput::PANGESTURE_MOMENTUMSTART;
+        case NSEventPhaseChanged:
+          return PanGestureInput::PANGESTURE_MOMENTUMPAN;
+        case NSEventPhaseEnded:
+          return PanGestureInput::PANGESTURE_MOMENTUMEND;
+        default:
+          NS_ERROR("unexpected event phase");
+          return PanGestureInput::PANGESTURE_PAN;
+      }
+    default:
+      NS_ERROR("unexpected event phase");
+      return PanGestureInput::PANGESTURE_PAN;
+  }
+}
+
 - (void)scrollWheel:(NSEvent*)theEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -4891,58 +4960,88 @@ static int32_t RoundUp(double aDouble)
   // Fire NS_WHEEL_START/STOP events when 2 fingers touch/release the touchpad.
   if (phase & NSEventPhaseMayBegin) {
     [self sendWheelCondition:YES first:NS_WHEEL_STOP second:NS_WHEEL_START forEvent:theEvent];
-    return;
-  }
-
-  if (phase & (NSEventPhaseEnded | NSEventPhaseCancelled)) {
+  } else if (phase & (NSEventPhaseEnded | NSEventPhaseCancelled)) {
     [self sendWheelCondition:NO first:NS_WHEEL_START second:NS_WHEEL_STOP forEvent:theEvent];
-    return;
   }
 
-  WidgetWheelEvent wheelEvent(true, NS_WHEEL_WHEEL, mGeckoChild);
-  [self convertCocoaMouseWheelEvent:theEvent toGeckoEvent:&wheelEvent];
+  NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(theEvent, [self window]);
 
-  wheelEvent.lineOrPageDeltaX = RoundUp(-[theEvent deltaX]);
-  wheelEvent.lineOrPageDeltaY = RoundUp(-[theEvent deltaY]);
+  ScreenPoint position = ScreenPoint::FromUntyped(
+    [self convertWindowCoordinates:locationInWindow]);
 
-  // wheelEvent.deltaMode was set by convertCocoaMouseWheelEvent:toGeckoEvent:
-  // and depends on whether the current scrolling device supports pixel deltas.
-  if (wheelEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL) {
-    double scale = mGeckoChild->BackingScaleFactor();
+  bool usePreciseDeltas = nsCocoaUtils::HasPreciseScrollingDeltas(theEvent) &&
+    Preferences::GetBool("mousewheel.enable_pixel_scrolling", true);
+  bool hasPhaseInformation = nsCocoaUtils::EventHasPhaseInformation(theEvent);
+
+  int32_t lineOrPageDeltaX = RoundUp(-[theEvent deltaX]);
+  int32_t lineOrPageDeltaY = RoundUp(-[theEvent deltaY]);
+
+  Modifiers modifiers = nsCocoaUtils::ModifiersForEvent(theEvent);
+
+  WidgetWheelEvent widgetWheelEvent(true, NS_WHEEL_WHEEL, mGeckoChild);
+
+  NSTimeInterval beforeNow = [[NSProcessInfo processInfo] systemUptime] - [theEvent timestamp];
+  PRIntervalTime eventIntervalTime = PR_IntervalNow() - PR_MillisecondsToInterval(beforeNow * 1000);
+  TimeStamp eventTimeStamp = TimeStamp::Now() - TimeDuration::FromSeconds(beforeNow);
+
+  ScreenPoint preciseDelta;
+  if (usePreciseDeltas) {
     CGFloat pixelDeltaX = 0, pixelDeltaY = 0;
     nsCocoaUtils::GetScrollingDeltas(theEvent, &pixelDeltaX, &pixelDeltaY);
-    wheelEvent.deltaX = -pixelDeltaX * scale;
-    wheelEvent.deltaY = -pixelDeltaY * scale;
-  } else {
-    wheelEvent.deltaX = -[theEvent deltaX];
-    wheelEvent.deltaY = -[theEvent deltaY];
+    double scale = mGeckoChild->BackingScaleFactor();
+    preciseDelta = ScreenPoint(-pixelDeltaX * scale, -pixelDeltaY * scale);
   }
 
-  // TODO: We should not set deltaZ for now because we're not sure if we should
-  //       revert the sign.
-  // wheelEvent.deltaZ = [theEvent deltaZ];
+  if (usePreciseDeltas && hasPhaseInformation) {
+    PanGestureInput panEvent(PanGestureTypeForEvent(theEvent),
+                             eventIntervalTime, eventTimeStamp,
+                             position, preciseDelta, modifiers);
+    panEvent.mLineOrPageDeltaX = lineOrPageDeltaX;
+    panEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
+    widgetWheelEvent = mGeckoChild->DispatchAPZWheelInputEvent(panEvent);
 
-  if (!wheelEvent.deltaX && !wheelEvent.deltaY && !wheelEvent.deltaZ) {
-    // No sense in firing off a Gecko event.
-    return;
-  }
-
-  mGeckoChild->DispatchWindowEvent(wheelEvent);
-  if (!mGeckoChild) {
-    return;
-  }
+    if (!mGeckoChild) {
+      return;
+    }
 
 #ifdef __LP64__
-  // overflowDeltaX and overflowDeltaY tell us when the user has tried to
-  // scroll past the edge of a page (in those cases it's non-zero).
-  if ((wheelEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL) &&
-      (wheelEvent.deltaX != 0.0 || wheelEvent.deltaY != 0.0)) {
-    [self maybeTrackScrollEventAsSwipe:theEvent
-                       scrollOverflowX:wheelEvent.overflowDeltaX
-                       scrollOverflowY:wheelEvent.overflowDeltaY
-                viewPortIsOverscrolled:wheelEvent.mViewPortIsOverscrolled];
-  }
+    if ((widgetWheelEvent.deltaX != 0.0 || widgetWheelEvent.deltaY != 0.0)) {
+      // overflowDeltaX and overflowDeltaY tell us when the user has tried to
+      // scroll past the edge of a page (in those cases it's non-zero).
+      [self maybeTrackScrollEventAsSwipe:theEvent
+                         scrollOverflowX:widgetWheelEvent.overflowDeltaX
+                         scrollOverflowY:widgetWheelEvent.overflowDeltaY
+                  viewPortIsOverscrolled:widgetWheelEvent.mViewPortIsOverscrolled];
+    }
 #endif // #ifdef __LP64__
+
+  } else if (usePreciseDeltas) {
+    // This is on 10.6 or old touchpads that don't have any phase information.
+    ScrollWheelInput wheelEvent(eventIntervalTime, eventTimeStamp, modifiers,
+                                ScrollWheelInput::SCROLLMODE_INSTANT,
+                                ScrollWheelInput::SCROLLDELTA_PIXEL,
+                                position,
+                                preciseDelta.x,
+                                preciseDelta.y);
+    wheelEvent.mLineOrPageDeltaX = lineOrPageDeltaX;
+    wheelEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
+    wheelEvent.mIsMomentum = nsCocoaUtils::IsMomentumScrollEvent(theEvent);
+    widgetWheelEvent = mGeckoChild->DispatchAPZWheelInputEvent(wheelEvent);
+  } else {
+    ScrollWheelInput::ScrollMode scrollMode = ScrollWheelInput::SCROLLMODE_INSTANT;
+    if (gfxPrefs::SmoothScrollEnabled() && gfxPrefs::WheelSmoothScrollEnabled()) {
+      scrollMode = ScrollWheelInput::SCROLLMODE_SMOOTH;
+    }
+    ScrollWheelInput wheelEvent(eventIntervalTime, eventTimeStamp, modifiers,
+                                scrollMode,
+                                ScrollWheelInput::SCROLLDELTA_LINE,
+                                position,
+                                lineOrPageDeltaX,
+                                lineOrPageDeltaY);
+    wheelEvent.mLineOrPageDeltaX = lineOrPageDeltaX;
+    wheelEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
+    widgetWheelEvent = mGeckoChild->DispatchAPZWheelInputEvent(wheelEvent);
+  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -5168,12 +5267,38 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+- (BOOL)shouldZoomOnDoubleClick
+{
+  if ([NSWindow respondsToSelector:@selector(_shouldZoomOnDoubleClick)]) {
+    return [NSWindow _shouldZoomOnDoubleClick];
+  }
+  return nsCocoaFeatures::OnYosemiteOrLater();
+}
+
+- (BOOL)shouldMinimizeOnTitlebarDoubleClick
+{
+  NSString *MDAppleMiniaturizeOnDoubleClickKey =
+                                      @"AppleMiniaturizeOnDoubleClick";
+  NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+  bool shouldMinimize = [[userDefaults
+          objectForKey:MDAppleMiniaturizeOnDoubleClickKey] boolValue];
+
+  return shouldMinimize;
+}
+
 #pragma mark -
 // NSTextInput implementation
 
 - (void)insertText:(id)insertString
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  // We're considering not implementing NSTextInput. Start by just
+  // preffing its methods off.
+  if (!Preferences::GetBool("intl.ime.nstextinput.enable", false)) {
+    NSLog(@"Set intl.ime.nstextinput.enable to true in about:config to fix input.");
+    return;
+  }
 
   NS_ENSURE_TRUE_VOID(mGeckoChild);
 
@@ -5194,28 +5319,66 @@ static int32_t RoundUp(double aDouble)
 
 - (void)insertNewline:(id)sender
 {
-  [self insertText:@"\n"];
-}
-
-- (void) doCommandBySelector:(SEL)aSelector
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (!mGeckoChild || !mTextInputHandler) {
+  // We're considering not implementing NSTextInput. Start by just
+  // preffing its methods off.
+  if (!Preferences::GetBool("intl.ime.nstextinput.enable", false)) {
+    NSLog(@"Set intl.ime.nstextinput.enable to true in about:config to fix input.");
     return;
   }
 
-  const char* sel = reinterpret_cast<const char*>(aSelector);
-  if (!mTextInputHandler->DoCommandBySelector(sel)) {
-    [super doCommandBySelector:aSelector];
-  }
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  [self insertText:@"\n"];
 }
 
-- (void) setMarkedText:(id)aString selectedRange:(NSRange)selRange
+- (NSInteger)conversationIdentifier
+{
+  // We're considering not implementing NSTextInput. Start by just
+  // preffing its methods off.
+  if (!Preferences::GetBool("intl.ime.nstextinput.enable", false)) {
+    NSLog(@"Set intl.ime.nstextinput.enable to true in about:config to fix input.");
+    return 0;
+  }
+
+  NS_ENSURE_TRUE(mTextInputHandler, reinterpret_cast<NSInteger>(self));
+  return mTextInputHandler->ConversationIdentifier();
+}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)theRange
+{
+  // We're considering not implementing NSTextInput. Start by just
+  // preffing its methods off.
+  if (!Preferences::GetBool("intl.ime.nstextinput.enable", false)) {
+    NSLog(@"Set intl.ime.nstextinput.enable to true in about:config to fix input.");
+    return NSMakeRect(0.0, 0.0, 0.0, 0.0);
+  }
+
+  NSRect rect;
+  NS_ENSURE_TRUE(mTextInputHandler, rect);
+  return mTextInputHandler->FirstRectForCharacterRange(theRange);
+}
+
+- (NSAttributedString *)attributedSubstringFromRange:(NSRange)theRange
+{
+  // We're considering not implementing NSTextInput. Start by just
+  // preffing its methods off.
+  if (!Preferences::GetBool("intl.ime.nstextinput.enable", false)) {
+    NSLog(@"Set intl.ime.nstextinput.enable to true in about:config to fix input.");
+    return nil;
+  }
+
+  NS_ENSURE_TRUE(mTextInputHandler, nil);
+  return mTextInputHandler->GetAttributedSubstringFromRange(theRange);
+}
+
+- (void)setMarkedText:(id)aString selectedRange:(NSRange)selRange
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  // We're considering not implementing NSTextInput. Start by just
+  // preffing its methods off.
+  if (!Preferences::GetBool("intl.ime.nstextinput.enable", false)) {
+    NSLog(@"Set intl.ime.nstextinput.enable to true in about:config to fix input.");
+    return;
+  }
 
   NS_ENSURE_TRUE_VOID(mTextInputHandler);
 
@@ -5233,50 +5396,10 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void) unmarkText
-{
-  NS_ENSURE_TRUE(mTextInputHandler, );
-  mTextInputHandler->CommitIMEComposition();
-}
+#pragma mark -
+// NSTextInputClient implementation
 
-- (BOOL) hasMarkedText
-{
-  NS_ENSURE_TRUE(mTextInputHandler, NO);
-  return mTextInputHandler->HasMarkedText();
-}
-
-- (BOOL)shouldZoomOnDoubleClick
-{
-  if ([NSWindow respondsToSelector:@selector(_shouldZoomOnDoubleClick)]) {
-    return [NSWindow _shouldZoomOnDoubleClick];
-  }
-  return nsCocoaFeatures::OnYosemiteOrLater();
-}
-
-- (BOOL)shouldMinimizeOnTitlebarDoubleClick
-{
-  NSString *MDAppleMiniaturizeOnDoubleClickKey =
-                                      @"AppleMiniaturizeOnDoubleClick";
-  NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-  bool shouldMinimize = [[userDefaults
-          objectForKey:MDAppleMiniaturizeOnDoubleClickKey] boolValue];
-
-  return shouldMinimize;
-}
-
-- (NSInteger) conversationIdentifier
-{
-  NS_ENSURE_TRUE(mTextInputHandler, reinterpret_cast<NSInteger>(self));
-  return mTextInputHandler->ConversationIdentifier();
-}
-
-- (NSAttributedString *) attributedSubstringFromRange:(NSRange)theRange
-{
-  NS_ENSURE_TRUE(mTextInputHandler, nil);
-  return mTextInputHandler->GetAttributedSubstringFromRange(theRange);
-}
-
-- (NSRange) markedRange
+- (NSRange)markedRange
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -5286,7 +5409,7 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRange(0, 0));
 }
 
-- (NSRange) selectedRange
+- (NSRange)selectedRange
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -5305,20 +5428,13 @@ static int32_t RoundUp(double aDouble)
   return mTextInputHandler->DrawsVerticallyForCharacterAtIndex(charIndex);
 }
 
-- (NSRect) firstRectForCharacterRange:(NSRange)theRange
-{
-  NSRect rect;
-  NS_ENSURE_TRUE(mTextInputHandler, rect);
-  return mTextInputHandler->FirstRectForCharacterRange(theRange);
-}
-
 - (NSUInteger)characterIndexForPoint:(NSPoint)thePoint
 {
   NS_ENSURE_TRUE(mTextInputHandler, 0);
   return mTextInputHandler->CharacterIndexForPoint(thePoint);
 }
 
-- (NSArray*) validAttributesForMarkedText
+- (NSArray*)validAttributesForMarkedText
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
@@ -5327,9 +5443,6 @@ static int32_t RoundUp(double aDouble)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
-
-#pragma mark -
-// NSTextInputClient implementation
 
 - (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
 {
@@ -5349,6 +5462,34 @@ static int32_t RoundUp(double aDouble)
   mTextInputHandler->InsertText(attrStr, &replacementRange);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+- (void)doCommandBySelector:(SEL)aSelector
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (!mGeckoChild || !mTextInputHandler) {
+    return;
+  }
+
+  const char* sel = reinterpret_cast<const char*>(aSelector);
+  if (!mTextInputHandler->DoCommandBySelector(sel)) {
+    [super doCommandBySelector:aSelector];
+  }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+- (void)unmarkText
+{
+  NS_ENSURE_TRUE_VOID(mTextInputHandler);
+  mTextInputHandler->CommitIMEComposition();
+}
+
+- (BOOL) hasMarkedText
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NO);
+  return mTextInputHandler->HasMarkedText();
 }
 
 - (void)setMarkedText:(id)aString selectedRange:(NSRange)selectedRange
@@ -5433,15 +5574,33 @@ static int32_t RoundUp(double aDouble)
   }
 
 #if !defined(RELEASE_BUILD) || defined(DEBUG)
-  if (mGeckoChild && mTextInputHandler && mTextInputHandler->IsFocused()) {
+  if (!Preferences::GetBool("intl.allow-insecure-text-input", false) &&
+      mGeckoChild && mTextInputHandler && mTextInputHandler->IsFocused()) {
+#ifdef MOZ_CRASHREPORTER
+    NSWindow* window = [self window];
+    NSString* info = [NSString stringWithFormat:@"\nview [%@], window [%@], window is key %i, is fullscreen %i, app is active %i",
+                      self, window, [window isKeyWindow], ([window styleMask] & (1 << 14)) != 0,
+                      [NSApp isActive]];
+    nsAutoCString additionalInfo([info UTF8String]);
+#endif
     if (mGeckoChild->GetInputContext().IsPasswordEditor() &&
                !TextInputHandler::IsSecureEventInputEnabled()) {
       #define CRASH_MESSAGE "A password editor has focus, but not in secure input mode"
+#ifdef MOZ_CRASHREPORTER
+      CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("\nBug 893973: ") +
+                                                 NS_LITERAL_CSTRING(CRASH_MESSAGE));
+      CrashReporter::AppendAppNotesToCrashReport(additionalInfo);
+#endif
       MOZ_CRASH(CRASH_MESSAGE);
       #undef CRASH_MESSAGE
     } else if (!mGeckoChild->GetInputContext().IsPasswordEditor() &&
                TextInputHandler::IsSecureEventInputEnabled()) {
       #define CRASH_MESSAGE "A non-password editor has focus, but in secure input mode"
+#ifdef MOZ_CRASHREPORTER
+      CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("\nBug 893973: ") +
+                                                 NS_LITERAL_CSTRING(CRASH_MESSAGE));
+      CrashReporter::AppendAppNotesToCrashReport(additionalInfo);
+#endif
       MOZ_CRASH(CRASH_MESSAGE);
       #undef CRASH_MESSAGE
     }

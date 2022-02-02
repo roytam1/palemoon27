@@ -601,12 +601,12 @@ protected:
   void FireAsyncScrollOnTimeout();
 
   /**
-   * Convert ScreenPoint relative to this APZC to CSSPoint relative
+   * Convert ScreenPoint relative to the screen to CSSPoint relative
    * to the parent document. This excludes the transient compositor transform.
    * NOTE: This must be converted to CSSPoint relative to the child
-   * document before sending over IPC.
+   * document before sending over IPC to a child process.
    */
-  bool ConvertToGecko(const ParentLayerPoint& aPoint, CSSPoint* aOut);
+  bool ConvertToGecko(const ScreenIntPoint& aPoint, CSSPoint* aOut);
 
   enum AxisLockMode {
     FREE,     /* No locking at all */
@@ -617,7 +617,7 @@ protected:
   static AxisLockMode GetAxisLockMode();
 
   // Helper function for OnSingleTapUp() and OnSingleTapConfirmed().
-  nsEventStatus GenerateSingleTap(const ParentLayerPoint& aPoint, mozilla::Modifiers aModifiers);
+  nsEventStatus GenerateSingleTap(const ScreenIntPoint& aPoint, mozilla::Modifiers aModifiers);
 
   // Common processing at the end of a touch block.
   void OnTouchEndOrCancel();
@@ -727,6 +727,8 @@ protected:
     PANNING,                  /* panning the frame */
     PANNING_LOCKED_X,         /* touch-start followed by move (i.e. panning with axis lock) X axis */
     PANNING_LOCKED_Y,         /* as above for Y axis */
+
+    PAN_MOMENTUM,             /* like PANNING, but controlled by momentum PanGestureInput events */
 
     CROSS_SLIDING_X,          /* Panning disabled while user does a horizontal gesture
                                  on a vertically-scrollable view. This used for the
@@ -885,8 +887,7 @@ public:
   }
 
   /* Returns true if there is no APZC higher in the tree with the same
-   * layers id. Deprecated. New code shouldn't use this. Old code should be
-   * updated to not use this.
+   * layers id.
    */
   bool HasNoParentWithSameLayersId() const {
     return !mParent || (mParent->mLayersId != mLayersId);

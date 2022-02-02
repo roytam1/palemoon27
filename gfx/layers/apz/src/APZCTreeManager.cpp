@@ -601,12 +601,13 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
         // want to pass to gecko should be the pre-scroll event coordinates,
         // transformed into the gecko space. (pre-scroll because the mouse
         // cursor is stationary during wheel scrolling, unlike touchmove
-        // events). Also, since we just flushed the pending repaints the
-        // transform to gecko space is a no-op so we can just skip it.
-        MOZ_ASSERT(
-          (GetScreenToApzcTransform(apzc) * GetApzcToGeckoTransform(apzc))
-          .NudgeToIntegersFixedEpsilon()
-          .IsIdentity());
+        // events). Since we just flushed the pending repaints the transform to
+        // gecko space should only consist of overscroll-cancelling transforms.
+        Matrix4x4 transformToGecko = GetScreenToApzcTransform(apzc)
+                                   * GetApzcToGeckoTransform(apzc);
+        MOZ_ASSERT(transformToGecko.Is2D());
+        ScreenPoint untransformedOrigin = TransformTo<ScreenPixel>(
+          transformToGecko, wheelInput.mOrigin);
 
         result = mInputQueue->ReceiveInputEvent(
           apzc,
@@ -615,6 +616,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
 
         // Update the out-parameters so they are what the caller expects.
         apzc->GetGuid(aOutTargetGuid);
+        wheelInput.mOrigin = untransformedOrigin;
       }
       break;
     } case PANGESTURE_INPUT: {
@@ -633,6 +635,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
         apzc->GetGuid(aOutTargetGuid);
         Matrix4x4 transformToGecko = GetScreenToApzcTransform(apzc)
                                    * GetApzcToGeckoTransform(apzc);
+        MOZ_ASSERT(transformToGecko.Is2D());
         panInput.mPanStartPoint = TransformTo<ScreenPixel>(
             transformToGecko, panInput.mPanStartPoint);
         panInput.mPanDisplacement = TransformVector<ScreenPixel>(
@@ -655,6 +658,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
         apzc->GetGuid(aOutTargetGuid);
         Matrix4x4 outTransform = GetScreenToApzcTransform(apzc)
                                * GetApzcToGeckoTransform(apzc);
+        MOZ_ASSERT(outTransform.Is2D());
         pinchInput.mFocusPoint = TransformTo<ScreenPixel>(
             outTransform, pinchInput.mFocusPoint);
       }
@@ -675,6 +679,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
         apzc->GetGuid(aOutTargetGuid);
         Matrix4x4 outTransform = GetScreenToApzcTransform(apzc)
                                * GetApzcToGeckoTransform(apzc);
+        MOZ_ASSERT(outTransform.Is2D());
         tapInput.mPoint = TransformTo<ScreenPixel>(outTransform, tapInput.mPoint);
       }
       break;
@@ -784,12 +789,8 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
     Matrix4x4 transformToApzc = GetScreenToApzcTransform(mApzcForInputBlock);
     Matrix4x4 transformToGecko = GetApzcToGeckoTransform(mApzcForInputBlock);
     Matrix4x4 outTransform = transformToApzc * transformToGecko;
-    if (aInput.mType == MultiTouchInput::MULTITOUCH_START) {
-      // For touch-start events we should have flushed all pending repaints
-      // above as part of the GetTouchInputBlockAPZC call, and so we expect
-      // the apzc-to-gecko transform to be empty.
-      MOZ_ASSERT(outTransform.NudgeToIntegersFixedEpsilon().IsIdentity());
-    }
+    MOZ_ASSERT(outTransform.Is2D());
+    
     for (size_t i = 0; i < aInput.mTouches.Length(); i++) {
       SingleTouchData& touchData = aInput.mTouches[i];
       touchData.mScreenPoint = TransformTo<ScreenPixel>(
@@ -830,6 +831,7 @@ APZCTreeManager::TransformCoordinateToGecko(const ScreenIntPoint& aPoint,
     Matrix4x4 transformToApzc = GetScreenToApzcTransform(apzc);
     Matrix4x4 transformToGecko = GetApzcToGeckoTransform(apzc);
     Matrix4x4 outTransform = transformToApzc * transformToGecko;
+    MOZ_ASSERT(outTransform.Is2D());
     *aOutTransformedPoint = TransformTo<LayoutDevicePixel>(outTransform, aPoint);
   }
 }
@@ -899,6 +901,7 @@ APZCTreeManager::ProcessEvent(WidgetInputEvent& aEvent,
     Matrix4x4 transformToApzc = GetScreenToApzcTransform(apzc);
     Matrix4x4 transformToGecko = GetApzcToGeckoTransform(apzc);
     Matrix4x4 outTransform = transformToApzc * transformToGecko;
+    MOZ_ASSERT(outTransform.Is2D());
     aEvent.refPoint = TransformTo<LayoutDevicePixel>(outTransform, aEvent.refPoint);
   }
   return result;
@@ -910,14 +913,15 @@ APZCTreeManager::ProcessWheelEvent(WidgetWheelEvent& aEvent,
                                    uint64_t* aOutInputBlockId)
 {
   ScrollWheelInput::ScrollMode scrollMode = ScrollWheelInput::SCROLLMODE_INSTANT;
-  if (gfxPrefs::SmoothScrollEnabled() && gfxPrefs::WheelSmoothScrollEnabled()) {
+  if (aEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_LINE &&
+      gfxPrefs::SmoothScrollEnabled() && gfxPrefs::WheelSmoothScrollEnabled()) {
     scrollMode = ScrollWheelInput::SCROLLMODE_SMOOTH;
   }
 
   ScreenPoint origin(aEvent.refPoint.x, aEvent.refPoint.y);
   ScrollWheelInput input(aEvent.time, aEvent.timeStamp, 0,
                          scrollMode,
-                         ScrollWheelInput::SCROLLDELTA_LINE,
+                         ScrollWheelInput::DeltaTypeForDeltaMode(aEvent.deltaMode),
                          origin,
                          aEvent.deltaX,
                          aEvent.deltaY);
@@ -938,8 +942,15 @@ APZCTreeManager::ProcessWheelEvent(WidgetWheelEvent& aEvent,
 static bool
 WillHandleWheelEvent(WidgetWheelEvent* aEvent)
 {
+  // Only support pixel units on OS X for now because it causes more test
+  // failures when APZ is turned on, and we want to do that on Windows very
+  // soon.
   return EventStateManager::WheelEventIsScrollAction(aEvent) &&
-         aEvent->deltaMode == nsIDOMWheelEvent::DOM_DELTA_LINE &&
+         (aEvent->deltaMode == nsIDOMWheelEvent::DOM_DELTA_LINE
+#ifdef XP_MACOSX
+            || aEvent->deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL
+#endif
+           ) &&
          !EventStateManager::WheelEventNeedsDeltaMultipliers(aEvent);
 }
 
@@ -1187,8 +1198,9 @@ APZCTreeManager::GetRootNode() const
  * @param aTarget the target APZC
  * @param aStartPoint the start point of the displacement
  * @param aEndPoint the end point of the displacement
+ * @return true on success, false if aStartPoint or aEndPoint cannot be transformed into target's coordinate space
  */
-static void
+static bool
 TransformDisplacement(APZCTreeManager* aTreeManager,
                       AsyncPanZoomController* aSource,
                       AsyncPanZoomController* aTarget,
@@ -1199,10 +1211,18 @@ TransformDisplacement(APZCTreeManager* aTreeManager,
   ScreenPoint screenStart = TransformTo<ScreenPixel>(untransformToApzc, aStartPoint);
   ScreenPoint screenEnd = TransformTo<ScreenPixel>(untransformToApzc, aEndPoint);
 
+
   // Convert start and end points to aTarget's ParentLayer coordinates.
   Matrix4x4 transformToApzc = aTreeManager->GetScreenToApzcTransform(aTarget);
-  aStartPoint = TransformTo<ParentLayerPixel>(transformToApzc, screenStart);
-  aEndPoint = TransformTo<ParentLayerPixel>(transformToApzc, screenEnd);
+  Maybe<ParentLayerPoint> startPoint = UntransformTo<ParentLayerPixel>(transformToApzc, screenStart);
+  Maybe<ParentLayerPoint> endPoint = UntransformTo<ParentLayerPixel>(transformToApzc, screenEnd);
+  if (!startPoint || !endPoint) {
+    return false;
+  }
+  aEndPoint = *endPoint;
+  aStartPoint = *startPoint;
+
+  return true;
 }
 
 bool
@@ -1233,7 +1253,9 @@ APZCTreeManager::DispatchScroll(AsyncPanZoomController* aPrev,
   // scroll grabbing to grab the scroll from it), don't bother doing the
   // transformations in that case.
   if (next != aPrev) {
-    TransformDisplacement(this, aPrev, next, aStartPoint, aEndPoint);
+    if (!TransformDisplacement(this, aPrev, next, aStartPoint, aEndPoint)) {
+      return false;
+    }
   }
 
   // Scroll |next|. If this causes overscroll, it will call DispatchScroll()
@@ -1286,19 +1308,20 @@ APZCTreeManager::DispatchFling(AsyncPanZoomController* aPrev,
 
     // Only transform when current apcz can be transformed with previous
     if (startIndex > 0) {
-      TransformDisplacement(this,
+      if (!TransformDisplacement(this,
                             aOverscrollHandoffChain->GetApzcAtIndex(startIndex - 1),
                             current,
                             startPoint,
-                            endPoint);
+                            endPoint)) {
+          return false;
+      }
     }
 
     transformedVelocity = endPoint - startPoint;
 
-    bool handoff = (startIndex < 1) ? aHandoff : true;
     if (current->AttemptFling(transformedVelocity,
                               aOverscrollHandoffChain,
-                              handoff)) {
+                              aHandoff)) {
       return true;
     }
   }
@@ -1519,26 +1542,30 @@ APZCTreeManager::GetAPZCAtPoint(HitTestingTreeNode* aNode,
   return nullptr;
 }
 
-AsyncPanZoomController*
-APZCTreeManager::FindRootApzcForLayersId(uint64_t aLayersId) const
+/*
+ * Do a breadth-first search of the tree rooted at |aRoot|, and return the
+ * first visited node that satisfies |aCondition|, or nullptr if no such node
+ * was found.
+ *
+ * |Node| should have methods GetLastChild() and GetPrevSibling().
+ */
+template <typename Node, typename Condition>
+static const Node* BreadthFirstSearch(const Node* aRoot, const Condition& aCondition)
 {
-  mTreeLock.AssertCurrentThreadOwns();
-
-  if (!mRootNode) {
+  if (!aRoot) {
     return nullptr;
   }
-  std::deque<const HitTestingTreeNode*> queue;
-  queue.push_back(mRootNode);
+  std::deque<const Node*> queue;
+  queue.push_back(aRoot);
   while (!queue.empty()) {
-    const HitTestingTreeNode* node = queue.front();
+    const Node* node = queue.front();
     queue.pop_front();
 
-    AsyncPanZoomController* apzc = node->GetApzc();
-    if (apzc && apzc->GetLayersId() == aLayersId && apzc->IsRootForLayersId()) {
-      return apzc;
+    if (aCondition(node)) {
+      return node;
     }
 
-    for (HitTestingTreeNode* child = node->GetLastChild();
+    for (const Node* child = node->GetLastChild();
          child;
          child = child->GetPrevSibling()) {
       queue.push_back(child);
@@ -1546,6 +1573,44 @@ APZCTreeManager::FindRootApzcForLayersId(uint64_t aLayersId) const
   }
 
   return nullptr;
+}
+
+AsyncPanZoomController*
+APZCTreeManager::FindRootApzcForLayersId(uint64_t aLayersId) const
+{
+  mTreeLock.AssertCurrentThreadOwns();
+
+  struct RootForLayersIdMatcher {
+    uint64_t mLayersId;
+    bool operator()(const HitTestingTreeNode* aNode) const {
+      AsyncPanZoomController* apzc = aNode->GetApzc();
+      return apzc
+          && apzc->GetLayersId() == mLayersId
+          && apzc->IsRootForLayersId();
+    }
+  };
+  const HitTestingTreeNode* resultNode = BreadthFirstSearch(mRootNode.get(),
+      RootForLayersIdMatcher{aLayersId});
+  return resultNode ? resultNode->GetApzc() : nullptr;
+}
+
+AsyncPanZoomController*
+APZCTreeManager::FindRootContentApzcForLayersId(uint64_t aLayersId) const
+{
+  mTreeLock.AssertCurrentThreadOwns();
+
+  struct RootContentForLayersIdMatcher {
+    uint64_t mLayersId;
+    bool operator()(const HitTestingTreeNode* aNode) const {
+      AsyncPanZoomController* apzc = aNode->GetApzc();
+      return apzc
+          && apzc->GetLayersId() == mLayersId
+          && apzc->IsRootContent();
+    }
+  };
+  const HitTestingTreeNode* resultNode = BreadthFirstSearch(mRootNode.get(),
+      RootContentForLayersIdMatcher{aLayersId});
+  return resultNode ? resultNode->GetApzc() : nullptr;
 }
 
 /* The methods GetScreenToApzcTransform() and GetApzcToGeckoTransform() return
@@ -1716,17 +1781,31 @@ APZCTreeManager::GetApzcToGeckoTransform(const AsyncPanZoomController *aApzc) co
 already_AddRefed<AsyncPanZoomController>
 APZCTreeManager::GetMultitouchTarget(AsyncPanZoomController* aApzc1, AsyncPanZoomController* aApzc2) const
 {
-  nsRefPtr<AsyncPanZoomController> apzc = CommonAncestor(aApzc1, aApzc2);
-  // For now, we only ever want to do pinching on the root APZC for a given layers id. So
-  // when we find the common ancestor of multiple points, also walk up to the root APZC.
-  apzc = RootAPZCForLayersId(apzc);
+  MonitorAutoLock lock(mTreeLock);
+  nsRefPtr<AsyncPanZoomController> apzc;
+  // For now, we only ever want to do pinching on the root-content APZC for
+  // a given layers id.
+  if (aApzc1 && aApzc2 && aApzc1->GetLayersId() == aApzc2->GetLayersId()) {
+    // If the two APZCs have the same layers id, find the root-content APZC
+    // for that layers id. Don't call CommonAncestor() because there may not
+    // be a common ancestor for the layers id (e.g. if one APZCs is inside a
+    // fixed-position element).
+    apzc = FindRootContentApzcForLayersId(aApzc1->GetLayersId());
+  } else {
+    // Otherwise, find the common ancestor (to reach a common layers id), and
+    // get the root-content APZC for that layers id.
+    apzc = CommonAncestor(aApzc1, aApzc2);
+    if (apzc) {
+      apzc = FindRootContentApzcForLayersId(apzc->GetLayersId());
+    }
+  }
   return apzc.forget();
 }
 
 already_AddRefed<AsyncPanZoomController>
 APZCTreeManager::CommonAncestor(AsyncPanZoomController* aApzc1, AsyncPanZoomController* aApzc2) const
 {
-  MonitorAutoLock lock(mTreeLock);
+  mTreeLock.AssertCurrentThreadOwns();
   nsRefPtr<AsyncPanZoomController> ancestor;
 
   // If either aApzc1 or aApzc2 is null, min(depth1, depth2) will be 0 and this function
@@ -1767,17 +1846,6 @@ APZCTreeManager::CommonAncestor(AsyncPanZoomController* aApzc1, AsyncPanZoomCont
     aApzc2 = aApzc2->GetParent();
   }
   return ancestor.forget();
-}
-
-already_AddRefed<AsyncPanZoomController>
-APZCTreeManager::RootAPZCForLayersId(AsyncPanZoomController* aApzc) const
-{
-  MonitorAutoLock lock(mTreeLock);
-  nsRefPtr<AsyncPanZoomController> apzc = aApzc;
-  while (apzc && !apzc->HasNoParentWithSameLayersId()) {
-    apzc = apzc->GetParent();
-  }
-  return apzc.forget();
 }
 
 } // namespace layers

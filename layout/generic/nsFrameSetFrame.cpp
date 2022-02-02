@@ -661,6 +661,8 @@ nsresult nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
           EndMouseDrag(aPresContext);
         }
 	      break;
+      default:
+        break;
     }
     *aEventStatus = nsEventStatus_eConsumeNoDefault;
   } else {

@@ -5598,7 +5598,9 @@ Parser<ParseHandler>::yieldExpression(InHandling inHandling)
           case TOK_COMMA:
             // No value.
             exprNode = null();
-            tokenStream.addModifierException(TokenStream::NoneIsOperand);
+            tokenStream.addModifierException((tt == TOK_EOL || tt == TOK_EOF)
+                                             ? TokenStream::NoneIsOperandYieldEOL
+                                             : TokenStream::NoneIsOperand);
             break;
           case TOK_MUL:
             kind = PNK_YIELD_STAR;
@@ -5660,7 +5662,9 @@ Parser<ParseHandler>::yieldExpression(InHandling inHandling)
           case TOK_COMMA:
             // No value.
             exprNode = null();
-            tokenStream.addModifierException(TokenStream::NoneIsOperand);
+            tokenStream.addModifierException((tt == TOK_EOL || tt == TOK_EOF)
+                                             ? TokenStream::NoneIsOperandYieldEOL
+                                             : TokenStream::NoneIsOperand);
             break;
           default:
             exprNode = assignExpr(inHandling, YieldIsKeyword);

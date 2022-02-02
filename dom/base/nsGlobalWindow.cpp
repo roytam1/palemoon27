@@ -3050,7 +3050,7 @@ nsGlobalWindow::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
   NS_PRECONDITION(IsInnerWindow(), "PreHandleEvent is used on outer window!?");
   static uint32_t count = 0;
-  uint32_t msg = aVisitor.mEvent->mMessage;
+  EventMessage msg = aVisitor.mEvent->mMessage;
 
   aVisitor.mCanHandle = true;
   aVisitor.mForceContentDispatch = true; //FIXME! Bug 329119
@@ -14554,7 +14554,7 @@ nsGlobalWindow::GetIsPrerendered()
 
 #ifdef MOZ_B2G
 void
-nsGlobalWindow::EnableNetworkEvent(uint32_t aType)
+nsGlobalWindow::EnableNetworkEvent(EventMessage aEventMessage)
 {
   MOZ_ASSERT(IsInnerWindow());
 
@@ -14579,7 +14579,7 @@ nsGlobalWindow::EnableNetworkEvent(uint32_t aType)
     return;
   }
 
-  switch (aType) {
+  switch (aEventMessage) {
     case NS_NETWORK_UPLOAD_EVENT:
       if (!mNetworkUploadObserverEnabled) {
         mNetworkUploadObserverEnabled = true;
@@ -14592,11 +14592,13 @@ nsGlobalWindow::EnableNetworkEvent(uint32_t aType)
         os->AddObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC, false);
       }
       break;
+    default:
+      break;
   }
 }
 
 void
-nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
+nsGlobalWindow::DisableNetworkEvent(EventMessage aEventMessage)
 {
   MOZ_ASSERT(IsInnerWindow());
 
@@ -14605,7 +14607,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
     return;
   }
 
-  switch (aType) {
+  switch (aEventMessage) {
     case NS_NETWORK_UPLOAD_EVENT:
       if (mNetworkUploadObserverEnabled) {
         mNetworkUploadObserverEnabled = false;
@@ -14617,6 +14619,8 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
         mNetworkDownloadObserverEnabled = false;
         os->RemoveObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC);
       }
+      break;
+    default:
       break;
   }
 }

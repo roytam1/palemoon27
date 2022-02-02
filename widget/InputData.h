@@ -6,6 +6,7 @@
 #ifndef InputData_h__
 #define InputData_h__
 
+#include "nsIDOMWheelEvent.h"
 #include "nsDebug.h"
 #include "nsPoint.h"
 #include "nsTArray.h"
@@ -234,7 +235,7 @@ public:
   // and rotation angle.
   explicit MultiTouchInput(const WidgetMouseEvent& aMouseEvent);
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
+  bool TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   MultiTouchType mType;
   nsTArray<SingleTouchData> mTouches;
@@ -302,11 +303,17 @@ public:
     : InputData(PANGESTURE_INPUT, aTime, aTimeStamp, aModifiers),
       mType(aType),
       mPanStartPoint(aPanStartPoint),
-      mPanDisplacement(aPanDisplacement)
+      mPanDisplacement(aPanDisplacement),
+      mLineOrPageDeltaX(0),
+      mLineOrPageDeltaY(0)
   {
   }
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
+  bool IsMomentum() const;
+
+  WidgetWheelEvent ToWidgetWheelEvent(nsIWidget* aWidget) const;
+
+  bool TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   PanGestureType mType;
   ScreenPoint mPanStartPoint;
@@ -318,6 +325,10 @@ public:
   // coordinates of the APZC receiving the pan. These are set and used by APZ.
   ParentLayerPoint mLocalPanStartPoint;
   ParentLayerPoint mLocalPanDisplacement;
+
+  // See lineOrPageDeltaX/Y on WidgetWheelEvent.
+  int32_t mLineOrPageDeltaX;
+  int32_t mLineOrPageDeltaY;
 };
 
 /**
@@ -369,7 +380,7 @@ public:
   {
   }
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
+  bool TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   PinchGestureType mType;
 
@@ -439,7 +450,7 @@ public:
   {
   }
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
+  bool TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   TapGestureType mType;
 
@@ -460,9 +471,24 @@ public:
   enum ScrollDeltaType
   {
     // There are three kinds of scroll delta modes in Gecko: "page", "line" and
-    // "pixel". For apz, we currently only support "line" mode.
-    SCROLLDELTA_LINE
+    // "pixel". For apz, we currently only support the "line" and "pixel" modes.
+    SCROLLDELTA_LINE,
+    SCROLLDELTA_PIXEL
   };
+
+  static ScrollDeltaType
+  DeltaTypeForDeltaMode(uint32_t aDeltaMode)
+  {
+    switch (aDeltaMode) {
+      case nsIDOMWheelEvent::DOM_DELTA_LINE:
+        return SCROLLDELTA_LINE;
+      case nsIDOMWheelEvent::DOM_DELTA_PIXEL:
+        return SCROLLDELTA_PIXEL;
+      default:
+        MOZ_CRASH();
+    }
+    return SCROLLDELTA_LINE;
+  }
 
   enum ScrollMode
   {
@@ -483,10 +509,14 @@ public:
      mScrollMode(aScrollMode),
      mOrigin(aOrigin),
      mDeltaX(aDeltaX),
-     mDeltaY(aDeltaY)
+     mDeltaY(aDeltaY),
+     mLineOrPageDeltaX(0),
+     mLineOrPageDeltaY(0),
+     mIsMomentum(false)
   {}
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
+  WidgetWheelEvent ToWidgetWheelEvent(nsIWidget* aWidget) const;
+  bool TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   ScrollDeltaType mDeltaType;
   ScrollMode mScrollMode;
@@ -505,6 +535,12 @@ public:
   // The location of the scroll in local coordinates. This is set and used by
   // APZ.
   ParentLayerPoint mLocalOrigin;
+
+  // See lineOrPageDeltaX/Y on WidgetWheelEvent.
+  int32_t mLineOrPageDeltaX;
+  int32_t mLineOrPageDeltaY;
+
+  bool mIsMomentum;
 };
 
 } // namespace mozilla

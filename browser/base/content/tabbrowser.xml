@@ -39,7 +39,7 @@
       </xul:tabbox>
       <children/>
     </content>
-    <implementation implements="nsIDOMEventListener, nsIMessageListener">
+    <implementation implements="nsIDOMEventListener, nsIMessageListener, nsIObserver">
 
       <property name="tabContextMenu" readonly="true"
                 onget="return this.tabContainer.contextMenu;"/>
@@ -106,6 +106,9 @@
       </field>
       <field name="mProgressListeners">
         []
+      </field>
+      <field name="mActiveResizeDisplayportSuppression">
+        null
       </field>
       <field name="mTabsProgressListeners">
         []
@@ -3034,6 +3037,11 @@
             // Map from tabs to STATE_* (below).
             tabState: new Map(),
 
+            // Keep an exact list of content processes (tabParent) in which
+            // we're actively suppressing the display port. This gives a robust
+            // way to make sure we don't forget to un-suppress.
+            activeSuppressDisplayport: new Set(),
+
             // Set of tabs that might be visible right now. We maintain
             // this set because we can't be sure when a tab is actually
             // drawn. A tab is added to this set when we ask to make it
@@ -3086,6 +3094,22 @@
               this.setTabState(this.requestedTab, this.STATE_LOADED);
             },
 
+            destroy: function() {
+              clearTimeout(this.unloadTimer);
+              clearTimeout(this.loadTimer);
+              window.removeEventListener("MozAfterPaint", this);
+              window.removeEventListener("MozLayerTreeReady", this);
+              window.removeEventListener("MozLayerTreeCleared", this);
+              window.removeEventListener("TabRemotenessChange", this);
+
+              this.tabbrowser._switcher = null;
+
+              this.activeSuppressDisplayport.forEach(function(tabParent) {
+                tabParent.suppressDisplayport(false);
+              });
+              this.activeSuppressDisplayport.clear();
+            },
+
             finish: function() {
               this.log("FINISH");
 
@@ -3096,14 +3120,7 @@
               this.assert(this.lastVisibleTab === this.requestedTab);
               this.assert(this.getTabState(this.requestedTab) == this.STATE_LOADED);
 
-              clearTimeout(this.unloadTimer);
-
-              window.removeEventListener("MozAfterPaint", this);
-              window.removeEventListener("MozLayerTreeReady", this);
-              window.removeEventListener("MozLayerTreeCleared", this);
-              window.removeEventListener("TabRemotenessChange", this);
-
-              this.tabbrowser._switcher = null;
+              this.destroy();
 
               let toBrowser = this.requestedTab.linkedBrowser;
               toBrowser.setAttribute("type", "content-primary");
@@ -3362,6 +3379,13 @@
               this.logState("requestTab " + this.tinfo(tab));
 
               this.requestedTab = tab;
+
+              let browser = this.requestedTab.linkedBrowser;
+              let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
+              if (fl && fl.tabParent && !this.activeSuppressDisplayport.has(fl.tabParent)) {
+                fl.tabParent.suppressDisplayport(true);
+                this.activeSuppressDisplayport.add(fl.tabParent);
+              }
 
               this.preActions();
 
@@ -3897,14 +3921,45 @@
         ]]></body>
       </method>
 
+      <method name="observe">
+        <parameter name="aSubject"/>
+        <parameter name="aTopic"/>
+        <parameter name="aData"/>
+        <body><![CDATA[
+          if (aTopic == "live-resize-start") {
+            let browser = this.mCurrentTab.linkedBrowser;
+            let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
+            if (fl && fl.tabParent && !this.mActiveResizeDisplayportSuppression) {
+              fl.tabParent.suppressDisplayport(true);
+              this.mActiveResizeDisplayportSuppression = browser;
+            }
+          } else if (aTopic == "live-resize-end") {
+            let browser = this.mActiveResizeDisplayportSuppression;
+            if (browser) {
+              let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
+              if (fl && fl.tabParent) {
+                fl.tabParent.suppressDisplayport(false);
+                this.mActiveResizeDisplayportSuppression = null;
+              }
+            }
+          }
+        ]]></body>
+      </method>
+
       <constructor>
         <![CDATA[
           let browserStack = document.getAnonymousElementByAttribute(this, "anonid", "browserStack");
           this.mCurrentBrowser = document.getAnonymousElementByAttribute(this, "anonid", "initialBrowser");
           this.mCurrentBrowser.permanentKey = {};
 
+          Services.obs.addObserver(this, "live-resize-start", false);
+          Services.obs.addObserver(this, "live-resize-end", false);
+
           this.mCurrentTab = this.tabContainer.firstChild;
-          let els = Cc["@mozilla.org/eventlistenerservice;1"].getService(Ci.nsIEventListenerService);
+          const nsIEventListenerService =
+            Components.interfaces.nsIEventListenerService;
+          let els = Components.classes["@mozilla.org/eventlistenerservice;1"]
+                              .getService(nsIEventListenerService);
           els.addSystemEventListener(document, "keydown", this, false);
           if (this.AppConstants.platform == "macosx") {
             els.addSystemEventListener(document, "keypress", this, false);
@@ -4018,6 +4073,9 @@
 
       <destructor>
         <![CDATA[
+          Services.obs.removeObserver(this, "live-resize-start", false);
+          Services.obs.removeObserver(this, "live-resize-end", false);
+
           for (var i = 0; i < this.mTabListeners.length; ++i) {
             let browser = this.getBrowserAtIndex(i);
             if (browser.registeredOpenURI) {

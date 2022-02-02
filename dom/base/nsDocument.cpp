@@ -10421,6 +10421,19 @@ static const char* kDocumentWarnings[] = {
 };
 #undef DOCUMENT_WARNING
 
+static UseCounter
+OperationToUseCounter(nsIDocument::DeprecatedOperations aOperation)
+{
+  switch(aOperation) {
+#define DEPRECATED_OPERATION(_op) \
+    case nsIDocument::e##_op: return eUseCounter_##_op;
+#include "nsDeprecatedOperationList.h"
+#undef DEPRECATED_OPERATION
+  default:
+    MOZ_CRASH();
+  }
+}
+
 bool
 nsIDocument::HasWarnedAbout(DeprecatedOperations aOperation) const
 {
@@ -10436,6 +10449,7 @@ nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
     return;
   }
   mDeprecationWarnedAbout[aOperation] = true;
+  const_cast<nsIDocument*>(this)->SetDocumentAndPageUseCounter(OperationToUseCounter(aOperation));
   uint32_t flags = asError ? nsIScriptError::errorFlag
                            : nsIScriptError::warningFlag;
   nsContentUtils::ReportToConsole(flags,

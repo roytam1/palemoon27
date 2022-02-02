@@ -1367,7 +1367,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             return hn;
         }
         static bool match(const ExitDescriptor& lhs, const ExitDescriptor& rhs) {
-            return lhs.name_ == rhs.name_ && lhs.sig_ == rhs.sig_;
+            return lhs.name_ == rhs.name_ && *lhs.sig_ == *rhs.sig_;
         }
     };
 
@@ -6012,7 +6012,7 @@ CheckAtomicsLoad(FunctionBuilder& f, ParseNode* call, Type* type)
     f.patchU8(needsBoundsCheckAt, uint8_t(needsBoundsCheck));
     f.patchU8(viewTypeAt, uint8_t(viewType));
 
-    *type = Type::Intish;
+    *type = Type::Int;
     return true;
 }
 
@@ -6109,7 +6109,7 @@ CheckAtomicsBinop(FunctionBuilder& f, ParseNode* call, Type* type, js::jit::Atom
     f.patchU8(needsBoundsCheckAt, uint8_t(needsBoundsCheck));
     f.patchU8(viewTypeAt, uint8_t(viewType));
 
-    *type = Type::Intish;
+    *type = Type::Int;
     return true;
 }
 
@@ -6184,7 +6184,7 @@ CheckAtomicsCompareExchange(FunctionBuilder& f, ParseNode* call, Type* type)
     f.patchU8(needsBoundsCheckAt, uint8_t(needsBoundsCheck));
     f.patchU8(viewTypeAt, uint8_t(viewType));
 
-    *type = Type::Intish;
+    *type = Type::Int;
     return true;
 }
 
@@ -6236,7 +6236,7 @@ CheckAtomicsExchange(FunctionBuilder& f, ParseNode* call, Type* type)
     f.patchU8(needsBoundsCheckAt, uint8_t(needsBoundsCheck));
     f.patchU8(viewTypeAt, uint8_t(viewType));
 
-    *type = Type::Intish;
+    *type = Type::Int;
     return true;
 }
 
@@ -10320,7 +10320,6 @@ EmitMIR(ModuleCompiler& m, const AsmFunction& function, LifoAlloc& lifo,
     }
 
     MIRGenerator *mir = f.extractMIR();
-    mir->initMinAsmJSHeapLength(f.m().minHeapLength());
 
     jit::SpewBeginFunction(mir, nullptr);
 

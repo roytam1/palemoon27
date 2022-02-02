@@ -537,7 +537,7 @@ NS_IMETHODIMP nsCocoaWindow::Destroy()
     if (mInNativeFullScreenMode) {
       DestroyNativeWindow();
     } else if (mWindow) {
-      nsCocoaUtils::HideOSChromeOnScreen(false, [mWindow screen]);
+      nsCocoaUtils::HideOSChromeOnScreen(false);
     }
   }
 
@@ -1475,7 +1475,7 @@ nsCocoaWindow::DoMakeFullScreen(bool aFullScreen, bool aUseSystemTransition)
     // The order here matters. When we exit full screen mode, we need to show the
     // Dock first, otherwise the newly-created window won't have its minimize
     // button enabled. See bug 526282.
-    nsCocoaUtils::HideOSChromeOnScreen(aFullScreen, [mWindow screen]);
+    nsCocoaUtils::HideOSChromeOnScreen(aFullScreen);
     nsresult rv = nsBaseWidget::MakeFullScreen(aFullScreen);
     NSEnableScreenUpdates();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -3445,10 +3445,6 @@ static const NSString* kStateCollectionBehavior = @"collectionBehavior";
 
   mUnifiedToolbarHeight = aHeight;
 
-  // Update sheet positioning hint
-  CGFloat topMargin = mUnifiedToolbarHeight - [self titlebarHeight];
-  [self setContentBorderThickness:topMargin forEdge:NSMaxYEdge];
-
   if (![self drawsContentsIntoWindowFrame]) {
     // Redraw the title bar. If we're inside painting, we'll do it right now,
     // otherwise we'll just invalidate it.
@@ -3488,6 +3484,12 @@ static const NSString* kStateCollectionBehavior = @"collectionBehavior";
 {
   [super setWantsTitleDrawn:aDrawTitle];
   [self setTitlebarNeedsDisplayInRect:[self titlebarRect]];
+}
+
+- (void)setSheetAttachmentPosition:(CGFloat)aY
+{
+  CGFloat topMargin = aY - [self titlebarHeight];
+  [self setContentBorderThickness:topMargin forEdge:NSMaxYEdge];
 }
 
 - (void)placeWindowButtons:(NSRect)aRect

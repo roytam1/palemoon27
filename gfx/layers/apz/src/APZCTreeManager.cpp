@@ -28,6 +28,8 @@
 #include "UnitTransforms.h"             // for ViewAs
 #include "gfxPrefs.h"                   // for gfxPrefs
 #include "OverscrollHandoffState.h"     // for OverscrollHandoffState
+#include "TaskThrottler.h"              // for TaskThrottler
+#include "TreeTraversal.h"              // for generic tree traveral algorithms
 #include "LayersLogging.h"              // for Stringify
 #include "Units.h"                      // for ParentlayerPixel
 
@@ -106,11 +108,18 @@ APZCTreeManager::~APZCTreeManager()
 }
 
 AsyncPanZoomController*
-APZCTreeManager::MakeAPZCInstance(uint64_t aLayersId,
-                                  GeckoContentController* aController)
+APZCTreeManager::NewAPZCInstance(uint64_t aLayersId,
+                                 GeckoContentController* aController,
+                                 TaskThrottler* aPaintThrottler)
 {
   return new AsyncPanZoomController(aLayersId, this, mInputQueue,
-    aController, AsyncPanZoomController::USE_GESTURE_DETECTOR);
+    aController, aPaintThrottler, AsyncPanZoomController::USE_GESTURE_DETECTOR);
+}
+
+TimeStamp
+APZCTreeManager::GetFrameTime()
+{
+  return TimeStamp::Now();
 }
 
 void
@@ -371,9 +380,12 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
 
     // If the content represented by the scrollable layer has changed (which may
     // be possible because of DLBI heuristics) then we don't want to keep using
-    // the same old APZC for the new content. Null it out so we run through the
-    // code to find another one or create one.
-    if (apzc && !apzc->Matches(guid)) {
+    // the same old APZC for the new content. Also, when reparenting a tab into a
+    // new window a layer might get moved to a different layer tree with a
+    // different APZCTreeManager. In these cases we don't want to reuse the same
+    // APZC, so null it out so we run through the code to find another one or
+    // create one.
+    if (apzc && (!apzc->Matches(guid) || !apzc->HasTreeManager(this))) {
       apzc = nullptr;
     }
 
@@ -409,7 +421,17 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
     // a destroyed APZC and so we need to throw that out and make a new one.
     bool newApzc = (apzc == nullptr || apzc->IsDestroyed());
     if (newApzc) {
-      apzc = MakeAPZCInstance(aLayersId, state->mController);
+      // Look up the paint throttler for this layers id, or create it if
+      // this is the first APZC for this layers id.
+      auto throttlerInsertResult = mPaintThrottlerMap.insert(
+          std::make_pair(aLayersId, nsRefPtr<TaskThrottler>()));
+      if (throttlerInsertResult.second) {
+        throttlerInsertResult.first->second = new TaskThrottler(
+            GetFrameTime(), TimeDuration::FromMilliseconds(500));
+      }
+
+      apzc = NewAPZCInstance(aLayersId, state->mController,
+                             throttlerInsertResult.first->second);
       apzc->SetCompositorParent(aState.mCompositor);
       if (state->mCrossProcessParent != nullptr) {
         apzc->ShareFrameMetricsAcrossProcesses();
@@ -764,11 +786,14 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
                                    uint64_t* aOutInputBlockId)
 {
   if (aInput.mType == MultiTouchInput::MULTITOUCH_START) {
-    // If we are in an overscrolled state and a second finger goes down,
+    // If we are panned into overscroll and a second finger goes down,
     // ignore that second touch point completely. The touch-start for it is
     // dropped completely; subsequent touch events until the touch-end for it
     // will have this touch point filtered out.
-    if (mApzcForInputBlock && BuildOverscrollHandoffChain(mApzcForInputBlock)->HasOverscrolledApzc()) {
+    // (By contrast, if we're in overscroll but not panning, such as after
+    // putting two fingers down during an overscroll animation, we process the
+    // second touch and proceed to pinch.)
+    if (mApzcForInputBlock && BuildOverscrollHandoffChain(mApzcForInputBlock)->HasApzcPannedIntoOverscroll()) {
       if (mRetainedTouchIdentifier == -1) {
         mRetainedTouchIdentifier = mApzcForInputBlock->GetLastTouchIdentifier();
       }
@@ -1202,6 +1227,10 @@ TransformDisplacement(APZCTreeManager* aTreeManager,
                       AsyncPanZoomController* aTarget,
                       ParentLayerPoint& aStartPoint,
                       ParentLayerPoint& aEndPoint) {
+  if (aSource == aTarget) {
+    return true;
+  }
+
   // Convert start and end points to Screen coordinates.
   Matrix4x4 untransformToApzc = aTreeManager->GetScreenToApzcTransform(aSource).Inverse();
   ScreenPoint screenStart = TransformTo<ScreenPixel>(untransformToApzc, aStartPoint);
@@ -1221,10 +1250,10 @@ TransformDisplacement(APZCTreeManager* aTreeManager,
   return true;
 }
 
-bool
+void
 APZCTreeManager::DispatchScroll(AsyncPanZoomController* aPrev,
-                                ParentLayerPoint aStartPoint,
-                                ParentLayerPoint aEndPoint,
+                                ParentLayerPoint& aStartPoint,
+                                ParentLayerPoint& aEndPoint,
                                 OverscrollHandoffState& aOverscrollHandoffState)
 {
   const OverscrollHandoffChain& overscrollHandoffChain = aOverscrollHandoffState.mChain;
@@ -1234,34 +1263,39 @@ APZCTreeManager::DispatchScroll(AsyncPanZoomController* aPrev,
   // nothing more to scroll, so we ignore the rest of the pan gesture.
   if (overscrollHandoffChainIndex >= overscrollHandoffChain.Length()) {
     // Nothing more to scroll - ignore the rest of the pan gesture.
-    return false;
+    return;
   }
 
   next = overscrollHandoffChain.GetApzcAtIndex(overscrollHandoffChainIndex);
 
   if (next == nullptr || next->IsDestroyed()) {
-    return false;
+    return;
   }
 
   // Convert the start and end points from |aPrev|'s coordinate space to
-  // |next|'s coordinate space. Since |aPrev| may be the same as |next|
-  // (if |aPrev| is the APZC that is initiating the scroll and there is no
-  // scroll grabbing to grab the scroll from it), don't bother doing the
-  // transformations in that case.
-  if (next != aPrev) {
-    if (!TransformDisplacement(this, aPrev, next, aStartPoint, aEndPoint)) {
-      return false;
-    }
+  // |next|'s coordinate space.
+  if (!TransformDisplacement(this, aPrev, next, aStartPoint, aEndPoint)) {
+    return;
   }
 
   // Scroll |next|. If this causes overscroll, it will call DispatchScroll()
   // again with an incremented index.
-  return next->AttemptScroll(aStartPoint, aEndPoint, aOverscrollHandoffState);
+  if (!next->AttemptScroll(aStartPoint, aEndPoint, aOverscrollHandoffState)) {
+    // Transform |aStartPoint| and |aEndPoint| (which now represent the
+    // portion of the displacement that wasn't consumed by APZCs later
+    // in the handoff chain) back into |aPrev|'s coordinate space. This
+    // allows the caller (which is |aPrev|) to interpret the unconsumed
+    // displacement in its own coordinate space, and make use of it
+    // (e.g. by going into overscroll).
+    if (!TransformDisplacement(this, next, aPrev, aStartPoint, aEndPoint)) {
+      NS_WARNING("Failed to untransform scroll points during dispatch");
+    }
+  }
 }
 
-bool
+void
 APZCTreeManager::DispatchFling(AsyncPanZoomController* aPrev,
-                               ParentLayerPoint aVelocity,
+                               ParentLayerPoint& aVelocity,
                                nsRefPtr<const OverscrollHandoffChain> aOverscrollHandoffChain,
                                bool aHandoff)
 {
@@ -1278,7 +1312,7 @@ APZCTreeManager::DispatchFling(AsyncPanZoomController* aPrev,
   // rather than (0, 0).
   ParentLayerPoint startPoint;  // (0, 0)
   ParentLayerPoint endPoint;
-  ParentLayerPoint transformedVelocity = aVelocity;
+  ParentLayerPoint usedTransformedVelocity = aVelocity;
 
   if (aHandoff) {
     startIndex = aOverscrollHandoffChain->IndexOf(aPrev) + 1;
@@ -1286,7 +1320,7 @@ APZCTreeManager::DispatchFling(AsyncPanZoomController* aPrev,
     // IndexOf will return aOverscrollHandoffChain->Length() if
     // |aPrev| is not found.
     if (startIndex >= aOverscrollHandoffChainLength) {
-      return false;
+      return;
     }
   } else {
     startIndex = 0;
@@ -1297,10 +1331,10 @@ APZCTreeManager::DispatchFling(AsyncPanZoomController* aPrev,
 
     // Make sure the apcz about to be handled can be handled
     if (current == nullptr || current->IsDestroyed()) {
-      return false;
+      return;
     }
 
-    endPoint = startPoint + transformedVelocity;
+    endPoint = startPoint + usedTransformedVelocity;
 
     // Only transform when current apcz can be transformed with previous
     if (startIndex > 0) {
@@ -1309,20 +1343,34 @@ APZCTreeManager::DispatchFling(AsyncPanZoomController* aPrev,
                             current,
                             startPoint,
                             endPoint)) {
-          return false;
+        return;
       }
     }
 
-    transformedVelocity = endPoint - startPoint;
+    ParentLayerPoint transformedVelocity = endPoint - startPoint;
+    usedTransformedVelocity = transformedVelocity;
 
-    if (current->AttemptFling(transformedVelocity,
+    if (current->AttemptFling(usedTransformedVelocity,
                               aOverscrollHandoffChain,
                               aHandoff)) {
-      return true;
+      if (IsZero(usedTransformedVelocity)) {
+        aVelocity = ParentLayerPoint();
+        return;
+      }
+
+      // Subtract the proportion of used velocity from aVelocity
+      if (!FuzzyEqualsAdditive(transformedVelocity.x,
+                               usedTransformedVelocity.x, COORDINATE_EPSILON)) {
+        aVelocity.x = aVelocity.x *
+          (usedTransformedVelocity.x / transformedVelocity.x);
+      }
+      if (!FuzzyEqualsAdditive(transformedVelocity.y,
+                               usedTransformedVelocity.y, COORDINATE_EPSILON)) {
+        aVelocity.y = aVelocity.y *
+          (usedTransformedVelocity.y / transformedVelocity.y);
+      }
     }
   }
-
-  return false;
 }
 
 bool
@@ -1399,7 +1447,7 @@ APZCTreeManager::BuildOverscrollHandoffChain(const nsRefPtr<AsyncPanZoomControll
     result->Add(apzc);
 
     if (apzc->GetScrollHandoffParentId() == FrameMetrics::NULL_SCROLL_ID) {
-      if (!apzc->HasNoParentWithSameLayersId()) {
+      if (!apzc->IsRootForLayersId()) {
         // This probably indicates a bug or missed case in layout code
         NS_WARNING("Found a non-root APZ with no handoff parent");
       }
@@ -1412,9 +1460,9 @@ APZCTreeManager::BuildOverscrollHandoffChain(const nsRefPtr<AsyncPanZoomControll
     MOZ_ASSERT(apzc->GetScrollHandoffParentId() != apzc->GetGuid().mScrollId);
 
     // Find the AsyncPanZoomController instance with a matching layersId and
-    // the scroll id that matches apzc->GetScrollHandoffParentId(). To do this
-    // search the subtree with the same layersId for the apzc with the specified
-    // scroll id.
+    // the scroll id that matches apzc->GetScrollHandoffParentId().
+    // As an optimization, we start by walking up the APZC tree from 'apzc'
+    // until we reach the top of the layer subtree for this layers id.
     AsyncPanZoomController* scrollParent = nullptr;
     AsyncPanZoomController* parent = apzc;
     while (!parent->HasNoParentWithSameLayersId()) {
@@ -1427,6 +1475,7 @@ APZCTreeManager::BuildOverscrollHandoffChain(const nsRefPtr<AsyncPanZoomControll
         break;
       }
     }
+    // If that heuristic didn't turn up the scroll parent, do a full tree search.
     if (!scrollParent) {
       ScrollableLayerGuid guid(parent->GetGuid().mLayersId, 0, apzc->GetScrollHandoffParentId());
       nsRefPtr<HitTestingTreeNode> node = GetTargetNode(guid, &GuidComparatorIgnoringPresShell);
@@ -1538,55 +1587,18 @@ APZCTreeManager::GetAPZCAtPoint(HitTestingTreeNode* aNode,
   return nullptr;
 }
 
-/*
- * Do a breadth-first search of the tree rooted at |aRoot|, and return the
- * first visited node that satisfies |aCondition|, or nullptr if no such node
- * was found.
- *
- * |Node| should have methods GetLastChild() and GetPrevSibling().
- */
-template <typename Node, typename Condition>
-static const Node* BreadthFirstSearch(const Node* aRoot, const Condition& aCondition)
-{
-  if (!aRoot) {
-    return nullptr;
-  }
-  std::deque<const Node*> queue;
-  queue.push_back(aRoot);
-  while (!queue.empty()) {
-    const Node* node = queue.front();
-    queue.pop_front();
-
-    if (aCondition(node)) {
-      return node;
-    }
-
-    for (const Node* child = node->GetLastChild();
-         child;
-         child = child->GetPrevSibling()) {
-      queue.push_back(child);
-    }
-  }
-
-  return nullptr;
-}
-
 AsyncPanZoomController*
 APZCTreeManager::FindRootApzcForLayersId(uint64_t aLayersId) const
 {
   mTreeLock.AssertCurrentThreadOwns();
 
-  struct RootForLayersIdMatcher {
-    uint64_t mLayersId;
-    bool operator()(const HitTestingTreeNode* aNode) const {
-      AsyncPanZoomController* apzc = aNode->GetApzc();
-      return apzc
-          && apzc->GetLayersId() == mLayersId
-          && apzc->IsRootForLayersId();
-    }
-  };
   const HitTestingTreeNode* resultNode = BreadthFirstSearch(mRootNode.get(),
-      RootForLayersIdMatcher{aLayersId});
+      [aLayersId](const HitTestingTreeNode* aNode) {
+        AsyncPanZoomController* apzc = aNode->GetApzc();
+        return apzc
+            && apzc->GetLayersId() == aLayersId
+            && apzc->IsRootForLayersId();
+      });
   return resultNode ? resultNode->GetApzc() : nullptr;
 }
 
@@ -1595,17 +1607,13 @@ APZCTreeManager::FindRootContentApzcForLayersId(uint64_t aLayersId) const
 {
   mTreeLock.AssertCurrentThreadOwns();
 
-  struct RootContentForLayersIdMatcher {
-    uint64_t mLayersId;
-    bool operator()(const HitTestingTreeNode* aNode) const {
-      AsyncPanZoomController* apzc = aNode->GetApzc();
-      return apzc
-          && apzc->GetLayersId() == mLayersId
-          && apzc->IsRootContent();
-    }
-  };
   const HitTestingTreeNode* resultNode = BreadthFirstSearch(mRootNode.get(),
-      RootContentForLayersIdMatcher{aLayersId});
+      [aLayersId](const HitTestingTreeNode* aNode) {
+        AsyncPanZoomController* apzc = aNode->GetApzc();
+        return apzc
+            && apzc->GetLayersId() == aLayersId
+            && apzc->IsRootContent();
+      });
   return resultNode ? resultNode->GetApzc() : nullptr;
 }
 

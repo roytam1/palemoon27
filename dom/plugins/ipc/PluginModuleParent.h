@@ -123,6 +123,8 @@ public:
         mHadLocalInstance = true;
     }
 
+    int GetQuirks() { return mQuirks; }
+
 protected:
     virtual mozilla::ipc::RacyInterruptPolicy
     MediateInterruptRace(const Message& parent, const Message& child) override
@@ -248,6 +250,13 @@ protected:
                                        uint64_t maxAge) override;
     virtual nsresult NPP_GetSitesWithData(InfallibleTArray<nsCString>& result) override;
 
+private:
+
+    nsCString mPluginFilename;
+    int mQuirks;
+    void InitQuirksModes(const nsCString& aMimeType);
+
+public:
 #if defined(XP_MACOSX)
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing) override;
     virtual nsresult ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor) override;

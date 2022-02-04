@@ -661,7 +661,7 @@ nsPluginInstanceOwner::GetContainingWidgetIfOffset()
     if (win) {
       nsView *view = nsView::GetViewFor(win);
       NS_ASSERTION(view, "No view for widget");
-      if (!view) return NS_ERROR_FAILURE;
+      if (!view) return nullptr;
       nsPoint offset = view->GetOffsetTo(nullptr);
 
       if (offset.x || offset.y) {

@@ -22,6 +22,7 @@
 #include "Axis.h"
 #include "InputQueue.h"
 #include "APZUtils.h"
+#include "Layers.h"                     // for Layer::ScrollDirection
 #include "LayersTypes.h"
 #include "TaskThrottler.h"
 #include "mozilla/gfx/Matrix.h"
@@ -48,6 +49,7 @@ class AsyncPanZoomAnimation;
 class FlingAnimation;
 class InputBlockState;
 class TouchBlockState;
+class PanGestureBlockState;
 class OverscrollHandoffChain;
 class StateChangeNotificationBlocker;
 
@@ -363,17 +365,27 @@ public:
 
   // Return whether or not a wheel event will be able to scroll in either
   // direction.
-  bool CanScroll(const ScrollWheelInput& aEvent) const;
+  bool CanScroll(const InputData& aEvent) const;
 
   // Return whether or not a scroll delta will be able to scroll in either
   // direction.
-  bool CanScrollWithWheel(const LayoutDevicePoint& aDelta) const;
+  bool CanScrollWithWheel(const ParentLayerPoint& aDelta) const;
+
+  // Return whether or not there is room to scroll this APZC
+  // in the given direction.
+  bool CanScroll(Layer::ScrollDirection aDirection) const;
 
   void NotifyMozMouseScrollEvent(const nsString& aString) const;
 
 protected:
+  // These functions are protected virtual so test code can override them.
+
+  // Returns the cached current frame time.
+  virtual TimeStamp GetFrameTime() const;
+
+protected:
   // Protected destructor, to discourage deletion outside of Release():
-  ~AsyncPanZoomController();
+  virtual ~AsyncPanZoomController();
 
   /**
    * Helper method for touches beginning. Sets everything up for panning and any
@@ -423,7 +435,7 @@ protected:
   nsEventStatus OnPanMayBegin(const PanGestureInput& aEvent);
   nsEventStatus OnPanCancelled(const PanGestureInput& aEvent);
   nsEventStatus OnPanBegin(const PanGestureInput& aEvent);
-  nsEventStatus OnPan(const PanGestureInput& aEvent, ScrollSource aSource, bool aFingersOnTouchpad);
+  nsEventStatus OnPan(const PanGestureInput& aEvent, bool aFingersOnTouchpad);
   nsEventStatus OnPanEnd(const PanGestureInput& aEvent);
   nsEventStatus OnPanMomentumStart(const PanGestureInput& aEvent);
   nsEventStatus OnPanMomentumEnd(const PanGestureInput& aEvent);
@@ -433,7 +445,7 @@ protected:
    */
   nsEventStatus OnScrollWheel(const ScrollWheelInput& aEvent);
 
-  LayoutDevicePoint GetScrollWheelDelta(const ScrollWheelInput& aEvent) const;
+  ParentLayerPoint GetScrollWheelDelta(const ScrollWheelInput& aEvent) const;
 
   /**
    * Helper methods for long press gestures.
@@ -802,10 +814,13 @@ public:
   void ResetInputState();
 
 private:
+  void CancelAnimationAndGestureState();
+
   nsRefPtr<InputQueue> mInputQueue;
   TouchBlockState* CurrentTouchBlock();
   bool HasReadyTouchBlock();
 
+  PanGestureBlockState* CurrentPanGestureBlock();
 
   /* ===================================================================
    * The functions and members in this section are used to manage
@@ -813,9 +828,6 @@ private:
    */
 
 private:
-  UniquePtr<InputBlockState> mPanGestureState;
-
-
   /* ===================================================================
    * The functions and members in this section are used to manage
    * fling animations, smooth scroll animations, and overscroll
@@ -840,9 +852,6 @@ private:
   friend class OverscrollAnimation;
   friend class SmoothScrollAnimation;
   friend class WheelScrollAnimation;
-
-  // Returns the cached current frame time.
-  static TimeStamp GetFrameTime();
 
   // The initial velocity of the most recent fling.
   ParentLayerPoint mLastFlingVelocity;
@@ -869,8 +878,8 @@ private:
 
   void StartSmoothScroll(ScrollSource aSource);
 
-  // Returns whether overscroll is allowed during a wheel event.
-  bool AllowScrollHandoffInWheelTransaction() const;
+  // Returns whether overscroll is allowed during an event.
+  bool AllowScrollHandoffInCurrentBlock() const;
 
   /* ===================================================================
    * The functions and members in this section are used to make ancestor chains
@@ -1060,12 +1069,6 @@ private:
    * and assertion purposes only.
    */
 public:
-  /**
-   * Sync panning and zooming animation using a fixed frame time.
-   * This will ensure that we animate the APZC correctly with other external
-   * animations to the same timestamp.
-   */
-  static void SetFrameTime(const TimeStamp& aMilliseconds);
   /**
    * Set an extra offset for testing async scrolling.
    */

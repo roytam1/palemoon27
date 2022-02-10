@@ -496,6 +496,8 @@ public:
   virtual void UpdateWindowDraggingRegion(const nsIntRegion& aRegion) override;
   const nsIntRegion& GetDraggableRegion() { return mDraggableRegion; }
 
+  virtual void ReportSwipeStarted(uint64_t aInputBlockId, bool aStartSwipe) override;
+
   void              ResetParent();
 
   static bool DoHasPendingInputEvent();
@@ -674,6 +676,14 @@ protected:
   mozilla::UniquePtr<mozilla::VibrancyManager> mVibrancyManager;
   nsRefPtr<mozilla::SwipeTracker> mSwipeTracker;
   mozilla::UniquePtr<mozilla::SwipeEventQueue> mSwipeEventQueue;
+
+  // This flag is only used when APZ is off. It indicates that the current pan
+  // gesture was processed as a swipe. Sometimes the swipe animation can finish
+  // before momentum events of the pan gesture have stopped firing, so this
+  // flag tells us that we shouldn't allow the remaining events to cause
+  // scrolling. It is reset to false once a new gesture starts (as indicated by
+  // a PANGESTURE_(MAY)START event).
+  bool mCurrentPanGestureBelongsToSwipe;
 
   static uint32_t sLastInputEventCount;
 

@@ -2736,6 +2736,22 @@ nsChildView::UpdateWindowDraggingRegion(const nsIntRegion& aRegion)
 }
 
 void
+nsChildView::ReportSwipeStarted(uint64_t aInputBlockId,
+                                bool aStartSwipe)
+{
+  if (mSwipeEventQueue && mSwipeEventQueue->inputBlockId == aInputBlockId) {
+    if (aStartSwipe) {
+      PanGestureInput& startEvent = mSwipeEventQueue->queuedEvents[0];
+      TrackScrollEventAsSwipe(startEvent, mSwipeEventQueue->allowedDirections);
+      for (size_t i = 1; i < mSwipeEventQueue->queuedEvents.Length(); i++) {
+        mSwipeTracker->ProcessEvent(mSwipeEventQueue->queuedEvents[i]);
+      }
+    }
+    mSwipeEventQueue = nullptr;
+  }
+}
+
+void
 nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe)
 {
   if (mSwipeTracker && aEvent.mInputType == PANGESTURE_INPUT) {
@@ -2768,8 +2784,23 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
           SwipeInfo swipeInfo = SendMayStartSwipe(panInput);
           event.mCanTriggerSwipe = swipeInfo.wantsSwipe;
           if (swipeInfo.wantsSwipe) {
-            mSwipeEventQueue = MakeUnique<SwipeEventQueue>(swipeInfo.allowedDirections,
-                                                           inputBlockId);
+            if (result == nsEventStatus_eIgnore) {
+              // APZ has determined and that scrolling horizontally in the
+              // requested direction is impossible, so it didn't do any
+              // scrolling for the event.
+              // We know now that MayStartSwipe wants a swipe, so we can start
+              // the swipe now.
+              TrackScrollEventAsSwipe(panInput, swipeInfo.allowedDirections);
+            } else {
+              // We don't know whether this event can start a swipe, so we need
+              // to queue up events and wait for a call to ReportSwipeStarted.
+              // APZ might already have started scrolling in response to the
+              // event if it knew that it's the right thing to do. In that case
+              // we'll still get a call to ReportSwipeStarted, and we will
+              // discard the queued events at that point.
+              mSwipeEventQueue = MakeUnique<SwipeEventQueue>(swipeInfo.allowedDirections,
+                                                             inputBlockId);
+            }
           }
         }
 
@@ -2797,6 +2828,19 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
   switch(aEvent.mInputType) {
     case PANGESTURE_INPUT: {
       PanGestureInput panInput = aEvent.AsPanGestureInput();
+      if (panInput.mType == PanGestureInput::PANGESTURE_MAYSTART ||
+          panInput.mType == PanGestureInput::PANGESTURE_START) {
+        mCurrentPanGestureBelongsToSwipe = false;
+      }
+      if (mCurrentPanGestureBelongsToSwipe) {
+        // Ignore this event. It's a momentum event from a scroll gesture
+        // that was processed as a swipe, and the swipe animation has
+        // already finished (so mSwipeTracker is already null).
+        MOZ_ASSERT(panInput.IsMomentum(),
+          "If the fingers are still on the touchpad, we should still have a SwipeTracker, and it should have consumed this event.");
+        return;
+      }
+
       event = panInput.ToWidgetWheelEvent(this);
       if (aCanTriggerSwipe) {
         SwipeInfo swipeInfo = SendMayStartSwipe(panInput);
@@ -2804,6 +2848,7 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
         DispatchEvent(&event, status);
         if (event.TriggersSwipe()) {
           TrackScrollEventAsSwipe(panInput, swipeInfo.allowedDirections);
+          mCurrentPanGestureBelongsToSwipe = true;
         }
         return;
       }
@@ -4907,6 +4952,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
     panEvent.mLineOrPageDeltaY = lineOrPageDeltaY;
 
     bool canTriggerSwipe = [self shouldConsiderStartingSwipeFromEvent:theEvent];
+    panEvent.mRequiresContentResponseIfCannotScrollHorizontallyInStartDirection = canTriggerSwipe;
     mGeckoChild->DispatchAPZWheelInputEvent(panEvent, canTriggerSwipe);
   } else if (usePreciseDeltas) {
     // This is on 10.6 or old touchpads that don't have any phase information.

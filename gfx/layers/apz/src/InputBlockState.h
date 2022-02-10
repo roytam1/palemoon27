@@ -20,6 +20,7 @@ class OverscrollHandoffChain;
 class CancelableBlockState;
 class TouchBlockState;
 class WheelBlockState;
+class PanGestureBlockState;
 
 /**
  * A base class that stores state common to various input blocks.
@@ -38,7 +39,7 @@ public:
   virtual ~InputBlockState()
   {}
 
-  bool SetConfirmedTargetApzc(const nsRefPtr<AsyncPanZoomController>& aTargetApzc);
+  virtual bool SetConfirmedTargetApzc(const nsRefPtr<AsyncPanZoomController>& aTargetApzc);
   const nsRefPtr<AsyncPanZoomController>& GetTargetApzc() const;
   const nsRefPtr<const OverscrollHandoffChain>& GetOverscrollHandoffChain() const;
   uint64_t GetBlockId() const;
@@ -46,7 +47,7 @@ public:
   bool IsTargetConfirmed() const;
 
 protected:
-  void UpdateTargetApzc(const nsRefPtr<AsyncPanZoomController>& aTargetApzc);
+  virtual void UpdateTargetApzc(const nsRefPtr<AsyncPanZoomController>& aTargetApzc);
 
 private:
   nsRefPtr<AsyncPanZoomController> mTargetApzc;
@@ -85,6 +86,9 @@ public:
   virtual WheelBlockState *AsWheelBlock() {
     return nullptr;
   }
+  virtual PanGestureBlockState *AsPanGestureBlock() {
+    return nullptr;
+  }
 
   /**
    * Record whether or not content cancelled this block of events.
@@ -92,13 +96,18 @@ public:
    * @return false if this block has already received a response from
    *         web content, true if not.
    */
-  bool SetContentResponse(bool aPreventDefault);
+  virtual bool SetContentResponse(bool aPreventDefault);
 
   /**
    * Record that content didn't respond in time.
    * @return false if this block already timed out, true if not.
    */
   bool TimeoutContentResponse();
+
+  /**
+   * Checks if the content response timer has already expired.
+   */
+  bool IsContentResponseTimerExpired() const;
 
   /**
    * @return true iff web content cancelled this block of events.
@@ -167,12 +176,14 @@ public:
                   bool aTargetConfirmed,
                   const ScrollWheelInput& aEvent);
 
+  bool SetContentResponse(bool aPreventDefault) override;
   bool IsReadyForHandling() const override;
   bool HasEvents() const override;
   void DropEvents() override;
   void HandleEvents() override;
   bool MustStayActive() override;
   const char* Type() override;
+  bool SetConfirmedTargetApzc(const nsRefPtr<AsyncPanZoomController>& aTargetApzc) override;
 
   void AddEvent(const ScrollWheelInput& aEvent);
 
@@ -230,11 +241,54 @@ public:
    */
   void Update(const ScrollWheelInput& aEvent);
 
+protected:
+  void UpdateTargetApzc(const nsRefPtr<AsyncPanZoomController>& aTargetApzc) override;
+
 private:
   nsTArray<ScrollWheelInput> mEvents;
   TimeStamp mLastEventTime;
   TimeStamp mLastMouseMove;
   bool mTransactionEnded;
+};
+
+/**
+ * A single block of pan gesture events.
+ */
+class PanGestureBlockState : public CancelableBlockState
+{
+public:
+  PanGestureBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
+                       bool aTargetConfirmed,
+                       const PanGestureInput& aEvent);
+
+  bool SetContentResponse(bool aPreventDefault) override;
+  bool IsReadyForHandling() const override;
+  bool HasEvents() const override;
+  void DropEvents() override;
+  void HandleEvents() override;
+  bool MustStayActive() override;
+  const char* Type() override;
+  bool SetConfirmedTargetApzc(const nsRefPtr<AsyncPanZoomController>& aTargetApzc) override;
+
+  void AddEvent(const PanGestureInput& aEvent);
+
+  PanGestureBlockState *AsPanGestureBlock() override {
+    return this;
+  }
+
+  /**
+   * @return Whether or not overscrolling is prevented for this block.
+   */
+  bool AllowScrollHandoff() const;
+
+  bool WasInterrupted() const { return mInterrupted; }
+
+  void SetNeedsToWaitForContentResponse(bool aWaitForContentResponse);
+
+private:
+  nsTArray<PanGestureInput> mEvents;
+  bool mInterrupted;
+  bool mWaitingForContentResponse;
 };
 
 /**

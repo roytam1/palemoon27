@@ -976,16 +976,18 @@ GetDisplayPortFromMarginsData(nsIContent* aContent,
     if (screenRect.height < maxHeightInScreenPixels) {
       int32_t budget = maxHeightInScreenPixels - screenRect.height;
 
-      int32_t top = std::min(int32_t(margins.top), budget);
+      float top = std::min(margins.top, float(budget));
+      float bottom = std::min(margins.bottom, budget - top);
       screenRect.y -= top;
-      screenRect.height += top + std::min(int32_t(margins.bottom), budget - top);
+      screenRect.height += top + bottom;
     }
     if (screenRect.width < maxWidthInScreenPixels) {
       int32_t budget = maxWidthInScreenPixels - screenRect.width;
 
-      int32_t left = std::min(int32_t(margins.left), budget);
+      float left = std::min(margins.left, float(budget));
+      float right = std::min(margins.right, budget - left);
       screenRect.x -= left;
-      screenRect.width += left + std::min(int32_t(margins.right), budget - left);
+      screenRect.width += left + right;
     }
   }
 
@@ -2299,22 +2301,34 @@ nsLayoutUtils::MatrixTransformRectOut(const nsRect &aBounds,
 {
   nsRect outside = aBounds;
   outside.ScaleRoundOut(1/aFactor);
-  gfxRect image = gfxRect(outside.x, outside.y, outside.width, outside.height);
-  image.TransformBounds(aMatrix);
-  return RoundGfxRectToAppRect(image, aFactor);
+  RectDouble image = RectDouble(outside.x, outside.y,
+                                outside.width, outside.height);
+
+  RectDouble maxBounds = RectDouble(double(nscoord_MIN) / aFactor * 0.5,
+                                    double(nscoord_MIN) / aFactor * 0.5,
+                                    double(nscoord_MAX) / aFactor,
+                                    double(nscoord_MAX) / aFactor);
+  image = aMatrix.TransformAndClipBounds(image, maxBounds);
+  return RoundGfxRectToAppRect(ThebesRect(image), aFactor);
 }
 
 nsRect
 nsLayoutUtils::MatrixTransformRect(const nsRect &aBounds,
                                    const Matrix4x4 &aMatrix, float aFactor)
 {
-  gfxRect image = gfxRect(NSAppUnitsToDoublePixels(aBounds.x, aFactor),
-                          NSAppUnitsToDoublePixels(aBounds.y, aFactor),
-                          NSAppUnitsToDoublePixels(aBounds.width, aFactor),
-                          NSAppUnitsToDoublePixels(aBounds.height, aFactor));
-  image.TransformBounds(aMatrix);
+  RectDouble image = RectDouble(NSAppUnitsToDoublePixels(aBounds.x, aFactor),
+                                NSAppUnitsToDoublePixels(aBounds.y, aFactor),
+                                NSAppUnitsToDoublePixels(aBounds.width, aFactor),
+                                NSAppUnitsToDoublePixels(aBounds.height, aFactor));
 
-  return RoundGfxRectToAppRect(image, aFactor);
+  RectDouble maxBounds = RectDouble(double(nscoord_MIN) / aFactor * 0.5,
+                                    double(nscoord_MIN) / aFactor * 0.5,
+                                    double(nscoord_MAX) / aFactor,
+                                    double(nscoord_MAX) / aFactor);
+
+  image = aMatrix.TransformAndClipBounds(image, maxBounds);
+
+  return RoundGfxRectToAppRect(ThebesRect(image), aFactor);
 }
 
 nsPoint
@@ -2662,7 +2676,11 @@ TransformGfxRectToAncestor(nsIFrame *aFrame,
     *aPreservesAxisAlignedRectangles =
       ctm.Is2D(&matrix2d) && matrix2d.PreservesAxisAlignedRectangles();
   }
-  return ctm.TransformBounds(aRect);
+  Rect maxBounds = Rect(-std::numeric_limits<float>::max() * 0.5,
+                        -std::numeric_limits<float>::max() * 0.5,
+                        std::numeric_limits<float>::max(),
+                        std::numeric_limits<float>::max());
+  return ctm.TransformAndClipBounds(aRect, maxBounds);
 }
 
 static SVGTextFrame*
@@ -3047,6 +3065,18 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   TimeStamp startBuildDisplayList = TimeStamp::Now();
   nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::PAINTING,
                            !(aFlags & PAINT_HIDE_CARET));
+  if (aFlags & PAINT_IN_TRANSFORM) {
+    builder.SetInTransform(true);
+  }
+  if (aFlags & PAINT_SYNC_DECODE_IMAGES) {
+    builder.SetSyncDecodeImages(true);
+  }
+  if (aFlags & (PAINT_WIDGET_LAYERS | PAINT_TO_WINDOW)) {
+    builder.SetPaintingToWindow(true);
+  }
+  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
+    builder.IgnorePaintSuppression();
+  }
 
   nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
   bool usingDisplayPort = false;
@@ -3082,29 +3112,11 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     visibleRegion = aDirtyRegion;
   }
 
-  // If we're going to display something different from what we'd normally
-  // paint in a window then we will flush out any retained layer trees before
-  // *and after* we draw.
-  bool willFlushRetainedLayers = (aFlags & PAINT_HIDE_CARET) != 0;
-
   nsDisplayList list;
-  if (aFlags & PAINT_IN_TRANSFORM) {
-    builder.SetInTransform(true);
-  }
-  if (aFlags & PAINT_SYNC_DECODE_IMAGES) {
-    builder.SetSyncDecodeImages(true);
-  }
-  if (aFlags & (PAINT_WIDGET_LAYERS | PAINT_TO_WINDOW)) {
-    builder.SetPaintingToWindow(true);
-  }
-  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
-    builder.IgnorePaintSuppression();
-  }
 
   // If the root has embedded plugins, flag the builder so we know we'll need
   // to update plugin geometry after painting.
   if ((aFlags & PAINT_WIDGET_LAYERS) &&
-      !willFlushRetainedLayers &&
       !(aFlags & PAINT_DOCUMENT_RELATIVE) &&
       rootPresContext->NeedToComputePluginGeometryUpdates()) {
     builder.SetWillComputePluginGeometry(true);
@@ -3220,32 +3232,11 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
       buildingDisplayList(&builder, aFrame, canvasArea, false);
     presShell->AddCanvasBackgroundColorItem(
            builder, list, aFrame, canvasArea, aBackstop);
-
-    // If the passed in backstop color makes us draw something different from
-    // normal, we need to flush layers.
-    if ((aFlags & PAINT_WIDGET_LAYERS) && !willFlushRetainedLayers) {
-      nsView* view = aFrame->GetView();
-      if (view) {
-        nscolor backstop = presShell->ComputeBackstopColor(view);
-        // The PresShell's canvas background color doesn't get updated until
-        // EnterPresShell, so this check has to be done after that.
-        nscolor canvasColor = presShell->GetCanvasBackground();
-        if (NS_ComposeColors(aBackstop, canvasColor) !=
-            NS_ComposeColors(backstop, canvasColor)) {
-          willFlushRetainedLayers = true;
-        }
-      }
-    }
   }
 
   builder.LeavePresShell(aFrame);
   Telemetry::AccumulateTimeDelta(Telemetry::PAINT_BUILD_DISPLAYLIST_TIME,
                                  startBuildDisplayList);
-
-  if (builder.GetHadToIgnorePaintSuppression()) {
-    willFlushRetainedLayers = true;
-  }
-
 
   bool profilerNeedsDisplayList = profiler_feature_active("displaylistdump");
   bool consoleNeedsDisplayList = gfxUtils::DumpDisplayList() || gfxUtils::sDumpPainting;
@@ -3290,16 +3281,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   uint32_t flags = nsDisplayList::PAINT_DEFAULT;
   if (aFlags & PAINT_WIDGET_LAYERS) {
     flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
-    if (willFlushRetainedLayers) {
-      // The caller wanted to paint from retained layers, but set up
-      // the paint in such a way that we can't use them.  We're going
-      // to display something different from what we'd normally paint
-      // in a window, so make sure we flush out any retained layer
-      // trees before *and after* we draw.  Callers should be fixed to
-      // not do this.
-      NS_WARNING("Flushing retained layers!");
-      flags |= nsDisplayList::PAINT_FLUSH_LAYERS;
-    } else if (!(aFlags & PAINT_DOCUMENT_RELATIVE)) {
+    if (!(aFlags & PAINT_DOCUMENT_RELATIVE)) {
       nsIWidget *widget = aFrame->GetNearestWidget();
       if (widget) {
         // If we're finished building display list items for painting of the outermost
@@ -3374,7 +3356,6 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   // glass boundaries on Windows. Also set up the window dragging region
   // and plugin clip regions and bounds.
   if ((aFlags & PAINT_WIDGET_LAYERS) &&
-      !willFlushRetainedLayers &&
       !(aFlags & PAINT_DOCUMENT_RELATIVE)) {
     nsIWidget *widget = aFrame->GetNearestWidget();
     if (widget) {

@@ -166,6 +166,9 @@ public:
 
     /* Notify content that the repaint flush is complete. */
     static void NotifyFlushComplete();
+
+private:
+  static uint64_t sLastTargetAPZCNotificationInputBlock;
 };
 
 } // namespace layers

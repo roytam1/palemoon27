@@ -2452,6 +2452,16 @@
             if (!remoteBrowser._beginRemoveTab(aOtherTab, true, true))
               return;
 
+            let modifiedAttrs = [];
+            if (aOtherTab.hasAttribute("muted")) {
+              aOurTab.setAttribute("muted", "true");
+              modifiedAttrs.push("muted");
+            }
+            if (aOtherTab.hasAttribute("soundplaying")) {
+              aOurTab.setAttribute("soundplaying", "true");
+              modifiedAttrs.push("soundplaying");
+            }
+
             let ourBrowser = this.getBrowserForTab(aOurTab);
             let otherBrowser = aOtherTab.linkedBrowser;
 
@@ -2471,7 +2481,7 @@
               var isBusy = aOtherTab.hasAttribute("busy");
               if (isBusy) {
                 aOurTab.setAttribute("busy", "true");
-                this._tabAttrModified(aOurTab);
+                modifiedAttrs.push("busy");
                 if (aOurTab.selected)
                   this.mIsBusy = true;
               }
@@ -2500,6 +2510,10 @@
             // of replaceTabWithWindow), notify onLocationChange, etc.
             if (aOurTab.selected)
               this.updateCurrentBrowser(true);
+
+            if (modifiedAttrs.length) {
+              this._tabAttrModified(aOurTab, modifiedAttrs);
+            }
           ]]>
         </body>
       </method>
@@ -3799,11 +3813,21 @@
             event.preventDefault();
             return;
           }
-          event.target.setAttribute("label",
-                                    tab.mOverCloseButton ?
-                                    tab.getAttribute("closetabtext") :
-                                    tab.getAttribute("label") +
-                                      (this.AppConstants.E10S_TESTING_ONLY && tab.linkedBrowser && tab.linkedBrowser.isRemoteBrowser ? " - e10s" : ""));
+          var label;
+          if (tab.mOverCloseButton) {
+            label = this.mStringBundle.getString("tabs.closeTab.tooltip");
+          } else if (tab._overPlayingIcon) {
+            var stringID = tab.linkedBrowser.audioMuted ?
+              "tabs.unmuteAudio.tooltip" :
+              "tabs.muteAudio.tooltip";
+            var key = document.getElementById("key_toggleMute");
+            var shortcut = ShortcutUtils.prettifyShortcut(key);
+            label = this.mStringBundle.getFormattedString(stringID, [shortcut]);
+          } else {
+            label = tab.getAttribute("label") +
+                      (this.AppConstants.E10S_TESTING_ONLY && tab.linkedBrowser && tab.linkedBrowser.isRemoteBrowser ? " - e10s" : "");
+          }
+          event.target.setAttribute("label", label);
         ]]></body>
       </method>
 
@@ -4409,7 +4433,7 @@
       <field name="_afterSelectedTab">null</field>
       <field name="_beforeHoveredTab">null</field>
       <field name="_afterHoveredTab">null</field>
-
+      <field name="_hoveredTab">null</field>
       <method name="_setPositionalAttributes">
         <body><![CDATA[
           let visibleTabs = this.tabbrowser.visibleTabs;
@@ -4439,6 +4463,12 @@
             this._lastTab.removeAttribute("last-visible-tab");
           this._lastTab = visibleTabs[lastVisible];
           this._lastTab.setAttribute("last-visible-tab", "true");
+
+          let hoveredTab = this._hoveredTab;
+          if (hoveredTab) {
+            hoveredTab._mouseleave();
+            hoveredTab._mouseenter();
+          }
         ]]></body>
       </method>
 
@@ -5579,7 +5609,7 @@
       <stylesheet src="chrome://browser/content/tabbrowser.css"/>
     </resources>
 
-    <content context="tabContextMenu" closetabtext="&closeTab.label;">
+    <content context="tabContextMenu">
       <xul:stack class="tab-stack" flex="1">
         <xul:hbox xbl:inherits="pinned,selected,visuallyselected,titlechanged,fadein"
                   class="tab-background">
@@ -5679,58 +5709,98 @@
       </property>
 
       <field name="mOverCloseButton">false</field>
+      <field name="_overPlayingIcon">false</field>
       <field name="mCorrespondingMenuitem">null</field>
       <field name="closing">false</field>
       <field name="lastAccessed">0</field>
+
+      <method name="_mouseenter">
+        <body><![CDATA[
+          if (this.closing)
+            return;
+          let tabContainer = this.parentNode;
+          let visibleTabs = tabContainer.tabbrowser.visibleTabs;
+          let tabIndex = visibleTabs.indexOf(this);
+          if (tabIndex == 0) {
+            tabContainer._beforeHoveredTab = null;
+          } else {
+            let candidate = visibleTabs[tabIndex - 1];
+            if (!candidate.selected) {
+              tabContainer._beforeHoveredTab = candidate;
+              candidate.setAttribute("beforehovered", "true");
+            }
+          }
+          if (tabIndex == visibleTabs.length - 1) {
+            tabContainer._afterHoveredTab = null;
+          } else {
+            let candidate = visibleTabs[tabIndex + 1];
+            if (!candidate.selected) {
+              tabContainer._afterHoveredTab = candidate;
+              candidate.setAttribute("afterhovered", "true");
+            }
+          }
+          tabContainer._hoveredTab = this;
+        ]]></body>
+      </method>
+
+      <method name="_mouseleave">
+        <body><![CDATA[
+          let tabContainer = this.parentNode;
+          if (tabContainer._beforeHoveredTab) {
+            tabContainer._beforeHoveredTab.removeAttribute("beforehovered");
+            tabContainer._beforeHoveredTab = null;
+          }
+          if (tabContainer._afterHoveredTab) {
+            tabContainer._afterHoveredTab.removeAttribute("afterhovered");
+            tabContainer._afterHoveredTab = null;
+          }
+
+          tabContainer._hoveredTab = null;
+        ]]></body>
+      </method>
+
+      <method name="toggleMuteAudio">
+        <body>
+        <![CDATA[
+          let tabContainer = this.parentNode;
+          let browser = this.linkedBrowser;
+          if (browser.audioMuted) {
+            browser.unmute();
+            this.removeAttribute("muted");
+          } else {
+            browser.mute();
+            this.setAttribute("muted", "true");
+          }
+          tabContainer.tabbrowser._tabAttrModified(this, ["muted"]);
+        ]]>
+        </body>
+      </method>
     </implementation>
 
     <handlers>
       <handler event="mouseover"><![CDATA[
         let anonid = event.originalTarget.getAttribute("anonid");
+        let iconVisible = this.hasAttribute("soundplaying") ||
+                          this.hasAttribute("muted");
         if (anonid == "close-button")
           this.mOverCloseButton = true;
+        else if ((anonid == "soundplaying-icon") ||
+                 ((anonid == "overlay-icon") && iconVisible))
+          this._overPlayingIcon = true;
 
-        let tab = event.target;
-        if (tab.closing)
-          return;
-
-        let tabContainer = this.parentNode;
-        let visibleTabs = tabContainer.tabbrowser.visibleTabs;
-        let tabIndex = visibleTabs.indexOf(tab);
-        if (tabIndex == 0) {
-          tabContainer._beforeHoveredTab = null;
-        } else {
-          let candidate = visibleTabs[tabIndex - 1];
-          if (!candidate.selected) {
-            tabContainer._beforeHoveredTab = candidate;
-            candidate.setAttribute("beforehovered", "true");
-          }
-        }
-
-        if (tabIndex == visibleTabs.length - 1) {
-          tabContainer._afterHoveredTab = null;
-        } else {
-          let candidate = visibleTabs[tabIndex + 1];
-          if (!candidate.selected) {
-            tabContainer._afterHoveredTab = candidate;
-            candidate.setAttribute("afterhovered", "true");
-          }
-        }
+        this._mouseenter();
       ]]></handler>
       <handler event="mouseout"><![CDATA[
         let anonid = event.originalTarget.getAttribute("anonid");
+        let iconVisible = this.hasAttribute("soundplaying") ||
+                          this.hasAttribute("muted");
         if (anonid == "close-button")
           this.mOverCloseButton = false;
+        else if ((anonid == "soundplaying-icon") ||
+                 ((anonid == "overlay-icon") && iconVisible))
+          this._overPlayingIcon = false;
 
-        let tabContainer = this.parentNode;
-        if (tabContainer._beforeHoveredTab) {
-          tabContainer._beforeHoveredTab.removeAttribute("beforehovered");
-          tabContainer._beforeHoveredTab = null;
-        }
-        if (tabContainer._afterHoveredTab) {
-          tabContainer._afterHoveredTab.removeAttribute("afterhovered");
-          tabContainer._afterHoveredTab = null;
-        }
+        this._mouseleave();
       ]]></handler>
       <handler event="dragstart" phase="capturing">
         this.style.MozUserFocus = '';
@@ -5740,7 +5810,8 @@
         if (this.selected) {
           this.style.MozUserFocus = 'ignore';
           this.clientTop; // just using this to flush style updates
-        } else if (this.mOverCloseButton) {
+        } else if (this.mOverCloseButton ||
+                   this._overPlayingIcon) {
           // Prevent tabbox.xml from selecting the tab.
           event.stopPropagation();
         }
@@ -5755,9 +5826,12 @@
           return;
         }
         let anonid = event.originalTarget.getAttribute("anonid");
+        let iconVisible = this.hasAttribute("soundplaying") ||
+                          this.hasAttribute("muted");
         if ((anonid == "soundplaying-icon") ||
-            ((anonid == "overlay-icon") && this.hasAttribute("soundplaying"))) {
-          this._toggleMuteAudio();
+            ((anonid == "overlay-icon") && iconVisible)) {
+          this.toggleMuteAudio();
+          this._overPlayingIcon = false;
         }
       ]]>
       </handler>
@@ -5867,23 +5941,6 @@
           else
             aMenuitem.removeAttribute("selected");
         ]]></body>
-      </method>
-
-      <method name="_toggleMuteAudio">
-        <body>
-        <![CDATA[
-          let tabContainer = this.parentNode;
-          let browser = this.linkedBrowser;
-          if (browser.audioMuted) {
-            browser.unmute();
-            this.removeAttribute("muted");
-          } else {
-            browser.mute();
-            this.setAttribute("muted", "true");
-          }
-          tabContainer.tabbrowser._tabAttrModified(this, ["muted"]);
-        ]]>
-        </body>
       </method>
     </implementation>
 

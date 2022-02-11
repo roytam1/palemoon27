@@ -137,7 +137,7 @@ moz_posix_memalign(void **ptr, size_t alignment, size_t size)
     if (code)
         return code;
 
-#if defined(XP_MACOSX)
+#if defined(XP_DARWIN)
     // Workaround faulty OSX posix_memalign, which provides memory with the
     // incorrect alignment sometimes, but returns 0 as if nothing was wrong.
     size_t mask = alignment - 1;
@@ -186,7 +186,7 @@ moz_malloc_usable_size(void *ptr)
     if (!ptr)
         return 0;
 
-#if defined(XP_MACOSX)
+#if defined(XP_DARWIN)
     return malloc_size(ptr);
 #elif defined(HAVE_MALLOC_USABLE_SIZE) || defined(MOZ_MEMORY)
     return malloc_usable_size(ptr);

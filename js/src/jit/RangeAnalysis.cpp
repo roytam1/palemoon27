@@ -570,9 +570,16 @@ Range::Range(const MDefinition* def)
         *this = *other;
 
         // Simulate the effect of converting the value to its type.
+        // Note: we cannot clamp here, since ranges aren't allowed to shrink
+        // and truncation can increase range again. So doing wrapAround to
+        // mimick a possible truncation.
         switch (def->type()) {
           case MIRType_Int32:
-            wrapAroundToInt32();
+            // MToInt32 cannot truncate. So we can safely clamp.
+            if (def->isToInt32())
+                clampToInt32();
+            else
+                wrapAroundToInt32();
             break;
           case MIRType_Boolean:
             wrapAroundToBoolean();
@@ -1649,9 +1656,8 @@ MTruncateToInt32::computeRange(TempAllocator& alloc)
 void
 MToInt32::computeRange(TempAllocator& alloc)
 {
-    Range* output = new(alloc) Range(getOperand(0));
-    output->clampToInt32();
-    setRange(output);
+    // No clamping since this computes the range *before* bailouts.
+    setRange(new(alloc) Range(getOperand(0)));
 }
 
 void
@@ -1667,8 +1673,8 @@ MFilterTypeSet::computeRange(TempAllocator& alloc)
     setRange(new(alloc) Range(getOperand(0)));
 }
 
-static Range *
-GetTypedArrayRange(TempAllocator &alloc, Scalar::Type type)
+static Range*
+GetTypedArrayRange(TempAllocator& alloc, Scalar::Type type)
 {
     switch (type) {
       case Scalar::Uint8Clamped:
@@ -1697,7 +1703,7 @@ GetTypedArrayRange(TempAllocator &alloc, Scalar::Type type)
 }
 
 void
-MLoadUnboxedScalar::computeRange(TempAllocator &alloc)
+MLoadUnboxedScalar::computeRange(TempAllocator& alloc)
 {
     // We have an Int32 type and if this is a UInt32 load it may produce a value
     // outside of our range, but we have a bailout to handle those cases.
@@ -1705,7 +1711,7 @@ MLoadUnboxedScalar::computeRange(TempAllocator &alloc)
 }
 
 void
-MLoadTypedArrayElementStatic::computeRange(TempAllocator &alloc)
+MLoadTypedArrayElementStatic::computeRange(TempAllocator& alloc)
 {
     // We don't currently use MLoadTypedArrayElementStatic for uint32, so we
     // don't have to worry about it returning a value outside our type.
@@ -3052,8 +3058,10 @@ RangeAnalysis::truncate()
     for (size_t i = 0; i < bitops.length(); i++) {
         MBinaryBitwiseInstruction* ins = bitops[i];
         MDefinition* folded = ins->foldUnnecessaryBitop();
-        if (folded != ins)
-            ins->replaceAllUsesWith(folded);
+        if (folded != ins) {
+            ins->replaceAllLiveUsesWith(folded);
+            ins->setRecoveredOnBailout();
+        }
     }
 
     return true;
@@ -3084,12 +3092,12 @@ MLoadElementHole::collectRangeInfoPreTrunc()
 void
 MLoadTypedArrayElementStatic::collectRangeInfoPreTrunc()
 {
-    Range* range = ptr()->range();
+    Range range(ptr());
 
-    if (range && range->hasInt32LowerBound() && range->hasInt32UpperBound()) {
+    if (range.hasInt32LowerBound() && range.hasInt32UpperBound()) {
         int64_t offset = this->offset();
-        int64_t lower = range->lower() + offset;
-        int64_t upper = range->upper() + offset;
+        int64_t lower = range.lower() + offset;
+        int64_t upper = range.upper() + offset;
         int64_t length = this->length();
         if (lower >= 0 && upper < length)
             setNeedsBoundsCheck(false);
@@ -3099,12 +3107,12 @@ MLoadTypedArrayElementStatic::collectRangeInfoPreTrunc()
 void
 MStoreTypedArrayElementStatic::collectRangeInfoPreTrunc()
 {
-    Range* range = ptr()->range();
+    Range range(ptr());
 
-    if (range && range->hasInt32LowerBound() && range->hasInt32UpperBound()) {
+    if (range.hasInt32LowerBound() && range.hasInt32UpperBound()) {
         int64_t offset = this->offset();
-        int64_t lower = range->lower() + offset;
-        int64_t upper = range->upper() + offset;
+        int64_t lower = range.lower() + offset;
+        int64_t upper = range.upper() + offset;
         int64_t length = this->length();
         if (lower >= 0 && upper < length)
             setNeedsBoundsCheck(false);
@@ -3328,7 +3336,7 @@ bool RangeAnalysis::tryRemovingGuards()
     // bailout-paths which are used to shrink the input range of the
     // operands of the condition.
     for (size_t i = 0; i < guards.length(); i++) {
-        MDefinition *guard = guards[i];
+        MDefinition* guard = guards[i];
 
 #ifdef DEBUG
         // There is no need to mark an instructions if there is

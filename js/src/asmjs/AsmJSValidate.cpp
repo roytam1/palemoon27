@@ -1094,11 +1094,11 @@ class AsmFunction
 
     unsigned funcIndex_;
     unsigned srcBegin_;
+    unsigned lineno_;
+    unsigned column_;
     unsigned compileTime_;
 
-
   public:
-
     explicit AsmFunction(LifoAlloc& alloc)
       : varInitializers_(alloc),
         bytecode_(alloc),
@@ -1107,6 +1107,8 @@ class AsmFunction
         name_(nullptr),
         funcIndex_(-1),
         srcBegin_(-1),
+        lineno_(-1),
+        column_(-1),
         compileTime_(-1)
     {}
 
@@ -1119,7 +1121,7 @@ class AsmFunction
     }
 
     bool finish(const VarTypeVector& args, PropertyName* name, unsigned funcIndex,
-                unsigned srcBegin, unsigned compileTime)
+                unsigned srcBegin, unsigned lineno, unsigned column, unsigned compileTime)
     {
         if (!argTypes_.initCapacity(args.length()))
             return false;
@@ -1134,6 +1136,12 @@ class AsmFunction
 
         MOZ_ASSERT(srcBegin_ == unsigned(-1));
         srcBegin_ = srcBegin;
+
+        MOZ_ASSERT(lineno_ == unsigned(-1));
+        lineno_ = lineno;
+
+        MOZ_ASSERT(column_ == unsigned(-1));
+        column_ = column;
 
         MOZ_ASSERT(compileTime_ == unsigned(-1));
         compileTime_ = compileTime;
@@ -1241,6 +1249,8 @@ class AsmFunction
     PropertyName* name() const { return name_; }
     unsigned funcIndex() const { return funcIndex_; }
     unsigned srcBegin() const { return srcBegin_; }
+    unsigned lineno() const { return lineno_; }
+    unsigned column() const { return column_; }
     unsigned compileTime() const { return compileTime_; }
 
     size_t size() const { return bytecode_.length(); }
@@ -1257,11 +1267,15 @@ class AsmFunction
 
 struct ModuleCompileInputs
 {
-    bool usesSignalHandlersForInterrupt;
+    CompileCompartment* compartment;
+    CompileRuntime* runtime;
     bool usesSignalHandlersForOOB;
 
-    ModuleCompileInputs(bool usesSignalHandlersForInterrupt, bool usesSignalHandlersForOOB)
-      : usesSignalHandlersForInterrupt(usesSignalHandlersForInterrupt),
+    ModuleCompileInputs(CompileCompartment* compartment,
+                        CompileRuntime* runtime,
+                        bool usesSignalHandlersForOOB)
+      : compartment(compartment),
+        runtime(runtime),
         usesSignalHandlersForOOB(usesSignalHandlersForOOB)
     {}
 };
@@ -1281,23 +1295,25 @@ class ModuleCompileResults
         unsigned column;
     };
 
-    typedef Vector<SlowFunction> SlowFunctionVector;
-    typedef Vector<Label*> LabelVector;
+    typedef Vector<SlowFunction                  , 0, SystemAllocPolicy> SlowFunctionVector;
+    typedef Vector<Label*                        , 8, SystemAllocPolicy> LabelVector;
+    typedef Vector<AsmJSModule::FunctionCodeRange, 8, SystemAllocPolicy> FunctionCodeRangeVector;
+    typedef Vector<jit::IonScriptCounts*         , 0, SystemAllocPolicy> ScriptCountVector;
+#if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
+    typedef Vector<AsmJSModule::ProfiledFunction , 0, SystemAllocPolicy> ProfiledFunctionVector;
+#endif // defined(MOZ_VTUNE) || defined(JS_ION_PERF)
 
   private:
     LifoAlloc           lifo_;
     MacroAssembler      masm_;
 
-    SlowFunctionVector slowFunctions_;
-    LabelVector functionEntries_;
-    Vector<AsmJSModule::FunctionCodeRange> codeRanges_;
-    Vector<jit::IonScriptCounts*> functionCounts_;
+    SlowFunctionVector      slowFunctions_;
+    LabelVector             functionEntries_;
+    FunctionCodeRangeVector codeRanges_;
+    ScriptCountVector       functionCounts_;
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
-    Vector<AsmJSModule::ProfiledFunction> profiledFunctions_;
+    ProfiledFunctionVector  profiledFunctions_;
 #endif // defined(MOZ_VTUNE) || defined(JS_ION_PERF)
-#if defined(JS_ION_PERF)
-    Vector<AsmJSModule::ProfiledBlocksFunction> perfProfiledBlocksFunctions_;
-#endif
 
     NonAssertingLabel   stackOverflowLabel_;
     NonAssertingLabel   asyncInterruptLabel_;
@@ -1308,19 +1324,9 @@ class ModuleCompileResults
     int64_t             usecBefore_;
 
   public:
-    explicit ModuleCompileResults(ExclusiveContext* cx)
+    ModuleCompileResults()
       : lifo_(LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
         masm_(MacroAssembler::AsmJSToken()),
-        slowFunctions_(cx),
-        functionEntries_(cx),
-        codeRanges_(cx),
-        functionCounts_(cx),
-#if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
-        profiledFunctions_(cx),
-#endif // defined(MOZ_VTUNE) || defined(JS_ION_PERF)
-#if defined(JS_ION_PERF)
-        perfProfiledBlocksFunctions_(cx),
-#endif // defined(JS_ION_PERF)
         usecBefore_(PRMJ_Now())
     {}
 
@@ -1367,15 +1373,6 @@ class ModuleCompileResults
         return profiledFunctions_[i];
     }
 #endif // defined(MOZ_VTUNE) || defined(JS_ION_PERF)
-#if defined(JS_ION_PERF)
-    size_t numProfiledBlocks() const { return perfProfiledBlocksFunctions_.length(); }
-    bool addProfiledBlocks(AsmJSModule::ProfiledBlocksFunction&& func) {
-        return perfProfiledBlocksFunctions_.append(Move(func));
-    }
-    AsmJSModule::ProfiledBlocksFunction& profiledBlocks(unsigned i) {
-        return perfProfiledBlocksFunctions_[i];
-    }
-#endif // defined(JS_ION_PERF)
 };
 
 // The ModuleValidator encapsulates the entire validation of an asm.js module.
@@ -2314,12 +2311,6 @@ class MOZ_STACK_CLASS ModuleValidator
                 return false;
         }
 #endif // defined(MOZ_VTUNE) || defined(JS_ION_PERF)
-#if defined(JS_ION_PERF)
-        for (size_t i = 0; i < compileResults_->numProfiledBlocks(); ++i) {
-            if (!module().addProfiledBlocks(Move(compileResults_->profiledBlocks(i))))
-                return false;
-        }
-#endif // defined(JS_ION_PERF)
 
         // Hand in code ranges, script counts and perf profiling data to the AsmJSModule
         for (size_t i = 0; i < compileResults_->numCodeRanges(); ++i) {
@@ -2404,7 +2395,9 @@ class MOZ_STACK_CLASS ModuleValidator
     }
 
     ModuleCompileInputs compileInputs() const {
-        return ModuleCompileInputs(module().usesSignalHandlersForInterrupt(),
+        CompileCompartment* compartment = CompileCompartment::get(cx()->compartment());
+        return ModuleCompileInputs(compartment,
+                                   compartment->runtime(),
                                    module().usesSignalHandlersForOOB());
     }
 };
@@ -2464,24 +2457,16 @@ class MOZ_STACK_CLASS ModuleValidator
 // well.
 class MOZ_STACK_CLASS ModuleCompiler
 {
-    ExclusiveContext*                       cx_;
-    TokenStream&                            tokenStream_;
-
     ModuleCompileInputs                     compileInputs_;
     ScopedJSDeletePtr<ModuleCompileResults> compileResults_;
 
   public:
-    ModuleCompiler(ExclusiveContext* cx, TokenStream& ts, const ModuleCompileInputs& inputs)
-      : cx_(cx),
-        tokenStream_(ts),
-        compileInputs_(inputs),
-        compileResults_(js_new<ModuleCompileResults>(cx))
+    explicit ModuleCompiler(const ModuleCompileInputs& inputs)
+      : compileInputs_(inputs),
+        compileResults_(js_new<ModuleCompileResults>())
     {}
 
     /*************************************************** Read-only interface */
-
-    ExclusiveContext* cx() const     { return cx_; }
-    TokenStream& tokenStream() const { return tokenStream_; }
 
     MacroAssembler& masm()          { return compileResults_->masm(); }
     Label& stackOverflowLabel()     { return compileResults_->stackOverflowLabel(); }
@@ -2491,12 +2476,9 @@ class MOZ_STACK_CLASS ModuleCompiler
     Label& onConversionErrorLabel() { return compileResults_->onConversionErrorLabel(); }
     int64_t usecBefore()            { return compileResults_->usecBefore(); }
 
-    bool usesSignalHandlersForInterrupt() const {
-        return compileInputs_.usesSignalHandlersForInterrupt;
-    }
-    bool usesSignalHandlersForOOB() const {
-        return compileInputs_.usesSignalHandlersForOOB;
-    }
+    bool usesSignalHandlersForOOB() const   { return compileInputs_.usesSignalHandlersForOOB; }
+    CompileRuntime* runtime() const         { return compileInputs_.runtime; }
+    CompileCompartment* compartment() const { return compileInputs_.compartment; }
 
     /***************************************************** Mutable interface */
 
@@ -2509,9 +2491,8 @@ class MOZ_STACK_CLASS ModuleCompiler
                                   const AsmJSFunctionLabels& labels)
     {
         // Code range
-        uint32_t line, column;
-        tokenStream().srcCoords.lineNumAndColumnIndex(func.srcBegin(), &line, &column);
-
+        unsigned line = func.lineno();
+        unsigned column = func.column();
         PropertyName* funcName = func.name();
         if (!compileResults_->addCodeRange(AsmJSModule::FunctionCodeRange(funcName, line, labels)))
             return false;
@@ -2537,19 +2518,6 @@ class MOZ_STACK_CLASS ModuleCompiler
         AsmJSModule::ProfiledFunction profiledFunc(funcName, begin, end, line, column);
         if (!compileResults_->addProfiledFunction(profiledFunc))
             return false;
-# ifdef JS_ION_PERF
-        // Per-block profiling info uses significantly more memory so only store
-        // this information if it is actively requested.
-        if (PerfBlockEnabled()) {
-            AsmJSPerfSpewer& ps = codegen.mirGen().perfSpewer();
-            ps.noteBlocksOffsets();
-            AsmJSModule::ProfiledBlocksFunction profiledBlocksFunction(
-                funcName, begin, ps.endInlineCode.offset(), end, ps.basicBlocks()
-            );
-            if (!compileResults_->addProfiledBlocks(Move(profiledBlocksFunction)))
-                return false;
-        }
-# endif // JS_ION_PERF
 #endif // defined(MOZ_VTUNE) || defined(JS_ION_PERF)
         return true;
     }
@@ -2886,6 +2854,8 @@ enum class Stmt : uint8_t {
 
     Id,
     Noop,
+    InterruptCheckHead,
+    InterruptCheckLoop,
 
     DebugCheckPoint,
 
@@ -3359,6 +3329,10 @@ class FunctionBuilder
 
     /************************************************* Packing interface */
 
+    bool startedPacking() const {
+        return func_.size() != 0;
+    }
+
     template<class T>
     size_t writeOp(T op) {
         static_assert(sizeof(T) == sizeof(uint8_t), "opcodes must be uint8");
@@ -3459,8 +3433,8 @@ NoExceptionPending(ExclusiveContext* cx)
     return !cx->isJSContext() || !cx->asJSContext()->isExceptionPending();
 }
 
-typedef Vector<size_t,1> LabelVector;
-typedef Vector<MBasicBlock*,8> BlockVector;
+typedef Vector<size_t, 1, SystemAllocPolicy> LabelVector;
+typedef Vector<MBasicBlock*, 8, SystemAllocPolicy> BlockVector;
 
 // Encapsulates the compilation of a single function in an asm.js module. The
 // function compiler handles the creation and final backend compilation of the
@@ -3468,34 +3442,34 @@ typedef Vector<MBasicBlock*,8> BlockVector;
 class FunctionCompiler
 {
   private:
-    typedef HashMap<uint32_t, BlockVector> LabeledBlockMap;
-    typedef HashMap<size_t, BlockVector> UnlabeledBlockMap;
-    typedef Vector<size_t, 4> PositionStack;
-    typedef Vector<Type, 4> LocalVarTypes;
+    typedef HashMap<uint32_t, BlockVector, DefaultHasher<uint32_t>, SystemAllocPolicy> LabeledBlockMap;
+    typedef HashMap<size_t, BlockVector, DefaultHasher<uint32_t>, SystemAllocPolicy> UnlabeledBlockMap;
+    typedef Vector<size_t, 4, SystemAllocPolicy> PositionStack;
+    typedef Vector<Type, 4, SystemAllocPolicy> LocalVarTypes;
 
-    ModuleCompiler &       m_;
-    LifoAlloc &            lifo_;
-    RetType                retType_;
+    ModuleCompiler &         m_;
+    LifoAlloc &              lifo_;
+    RetType                  retType_;
 
-    const AsmFunction &    func_;
-    size_t                 pc_;
+    const AsmFunction &      func_;
+    size_t                   pc_;
 
-    TempAllocator *        alloc_;
-    MIRGraph *             graph_;
-    CompileInfo *          info_;
-    MIRGenerator *         mirGen_;
-    Maybe<JitContext>      jitContext_;
+    TempAllocator *          alloc_;
+    MIRGraph *               graph_;
+    CompileInfo *            info_;
+    MIRGenerator *           mirGen_;
+    Maybe<JitContext>        jitContext_;
 
-    MBasicBlock *          curBlock_;
+    MBasicBlock *            curBlock_;
 
-    PositionStack          loopStack_;
-    PositionStack          breakableStack_;
-    UnlabeledBlockMap      unlabeledBreaks_;
-    UnlabeledBlockMap      unlabeledContinues_;
-    LabeledBlockMap        labeledBreaks_;
-    LabeledBlockMap        labeledContinues_;
+    PositionStack            loopStack_;
+    PositionStack            breakableStack_;
+    UnlabeledBlockMap        unlabeledBreaks_;
+    UnlabeledBlockMap        unlabeledContinues_;
+    LabeledBlockMap          labeledBreaks_;
+    LabeledBlockMap          labeledContinues_;
 
-    LocalVarTypes          localVarTypes_;
+    LocalVarTypes            localVarTypes_;
 
   public:
     FunctionCompiler(ModuleCompiler& m, const AsmFunction& func, LifoAlloc& lifo)
@@ -3508,21 +3482,13 @@ class FunctionCompiler
         graph_(nullptr),
         info_(nullptr),
         mirGen_(nullptr),
-        curBlock_(nullptr),
-        loopStack_(m.cx()),
-        breakableStack_(m.cx()),
-        unlabeledBreaks_(m.cx()),
-        unlabeledContinues_(m.cx()),
-        labeledBreaks_(m.cx()),
-        labeledContinues_(m.cx()),
-        localVarTypes_(m.cx())
+        curBlock_(nullptr)
     {}
 
     ModuleCompiler &        m() const            { return m_; }
     TempAllocator &         alloc() const        { return *alloc_; }
     LifoAlloc &             lifo() const         { return lifo_; }
     RetType                 returnedType() const { return retType_; }
-    ExclusiveContext *      cx() const           { return m_.cx(); }
 
     bool init()
     {
@@ -3947,17 +3913,11 @@ class FunctionCompiler
         curBlock_->add(MAsmJSStoreGlobalVar::New(alloc(), globalDataOffset, v));
     }
 
-    void maybeAddInterruptCheck(size_t pos)
+    void addInterruptCheck(unsigned lineno, unsigned column)
     {
         if (inDeadCode())
             return;
 
-        if (m().usesSignalHandlersForInterrupt())
-            return;
-
-        unsigned lineno = 0, column = 0;
-        unsigned offset = sourceOffsetFromBytecodePosition(pos);
-        m().tokenStream().srcCoords.lineNumAndColumnIndex(offset, &lineno, &column);
         CallSiteDesc callDesc(lineno, column, CallSiteDesc::Relative);
         curBlock_->add(MAsmJSInterruptCheck::New(alloc(), &m().syncInterruptLabel(), callDesc));
     }
@@ -4019,25 +3979,25 @@ class FunctionCompiler
 
     class Call
     {
-        uint32_t nodePosition_;
+        uint32_t lineno_;
+        uint32_t column_;
         ABIArgGenerator abi_;
         uint32_t prevMaxStackBytes_;
         uint32_t maxChildStackBytes_;
         uint32_t spIncrement_;
         MAsmJSCall::Args regArgs_;
-        Vector<MAsmJSPassStackArg*> stackArgs_;
+        Vector<MAsmJSPassStackArg*, 0, SystemAllocPolicy> stackArgs_;
         bool childClobbers_;
 
         friend class FunctionCompiler;
 
       public:
-        Call(FunctionCompiler& f, uint32_t callNodePosition)
-          : nodePosition_(callNodePosition),
+        Call(FunctionCompiler& f, uint32_t lineno, uint32_t column)
+          : lineno_(lineno),
+            column_(column),
             prevMaxStackBytes_(0),
             maxChildStackBytes_(0),
             spIncrement_(0),
-            regArgs_(f.cx()),
-            stackArgs_(f.cx()),
             childClobbers_(false)
         { }
     };
@@ -4101,9 +4061,6 @@ class FunctionCompiler
             return true;
         }
 
-        uint32_t line, column;
-        m_.tokenStream().srcCoords.lineNumAndColumnIndex(call.nodePosition_, &line, &column);
-
         CallSiteDesc::Kind kind = CallSiteDesc::Kind(-1);  // initialize to silence GCC warning
         switch (callee.which()) {
           case MAsmJSCall::Callee::Internal: kind = CallSiteDesc::Relative; break;
@@ -4111,8 +4068,8 @@ class FunctionCompiler
           case MAsmJSCall::Callee::Builtin:  kind = CallSiteDesc::Register; break;
         }
 
-        MAsmJSCall* ins = MAsmJSCall::New(alloc(), CallSiteDesc(line, column, kind), callee,
-                                          call.regArgs_, returnType, call.spIncrement_);
+        MAsmJSCall* ins = MAsmJSCall::New(alloc(), CallSiteDesc(call.lineno_, call.column_, kind),
+                                          callee, call.regArgs_, returnType, call.spIncrement_);
         if (!ins)
             return false;
 
@@ -4189,8 +4146,7 @@ class FunctionCompiler
         curBlock_ = nullptr;
     }
 
-    bool branchAndStartThen(MDefinition* cond, size_t thenPos, size_t elsePos,
-                            MBasicBlock** thenBlock, MBasicBlock** elseBlock)
+    bool branchAndStartThen(MDefinition* cond, MBasicBlock** thenBlock, MBasicBlock** elseBlock)
     {
         if (inDeadCode())
             return true;
@@ -4198,9 +4154,9 @@ class FunctionCompiler
         bool hasThenBlock = *thenBlock != nullptr;
         bool hasElseBlock = *elseBlock != nullptr;
 
-        if (!hasThenBlock && !newBlock(curBlock_, thenPos, thenBlock))
+        if (!hasThenBlock && !newBlock(curBlock_, thenBlock))
             return false;
-        if (!hasElseBlock && !newBlock(curBlock_, elsePos, elseBlock))
+        if (!hasElseBlock && !newBlock(curBlock_, elseBlock))
             return false;
 
         curBlock_->end(MTest::New(alloc(), cond, *thenBlock, *elseBlock));
@@ -4252,13 +4208,13 @@ class FunctionCompiler
         mirGraph().moveBlockToEnd(curBlock_);
     }
 
-    bool joinIfElse(const BlockVector& thenBlocks, size_t joinPos)
+    bool joinIfElse(const BlockVector& thenBlocks)
     {
         if (inDeadCode() && thenBlocks.empty())
             return true;
         MBasicBlock* pred = curBlock_ ? curBlock_ : thenBlocks[0];
         MBasicBlock* join;
-        if (!newBlock(pred, joinPos, &join))
+        if (!newBlock(pred, &join))
             return false;
         if (curBlock_)
             curBlock_->end(MGoto::New(alloc(), join));
@@ -4303,16 +4259,13 @@ class FunctionCompiler
         if (!*loopEntry)
             return false;
         mirGraph().addBlock(*loopEntry);
-        noteBasicBlockPosition(*loopEntry, pos);
         (*loopEntry)->setLoopDepth(loopStack_.length());
         curBlock_->end(MGoto::New(alloc(), *loopEntry));
         curBlock_ = *loopEntry;
-        maybeAddInterruptCheck(pos);
         return true;
     }
 
-    bool branchAndStartLoopBody(MDefinition* cond, size_t bodyPos, size_t afterPos,
-                                MBasicBlock** afterLoop)
+    bool branchAndStartLoopBody(MDefinition* cond, MBasicBlock** afterLoop)
     {
         if (inDeadCode()) {
             *afterLoop = nullptr;
@@ -4320,13 +4273,13 @@ class FunctionCompiler
         }
         MOZ_ASSERT(curBlock_->loopDepth() > 0);
         MBasicBlock* body;
-        if (!newBlock(curBlock_, bodyPos, &body))
+        if (!newBlock(curBlock_, &body))
             return false;
         if (cond->isConstant() && cond->toConstant()->valueToBoolean()) {
             *afterLoop = nullptr;
             curBlock_->end(MGoto::New(alloc(), body));
         } else {
-            if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterPos, afterLoop))
+            if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterLoop))
                 return false;
             curBlock_->end(MTest::New(alloc(), cond, body, *afterLoop));
         }
@@ -4367,7 +4320,7 @@ class FunctionCompiler
         return bindUnlabeledBreaks(pos);
     }
 
-    bool branchAndCloseDoWhileLoop(MDefinition* cond, MBasicBlock* loopEntry, size_t afterPos)
+    bool branchAndCloseDoWhileLoop(MDefinition* cond, MBasicBlock* loopEntry)
     {
         size_t pos = popLoop();
         if (!loopEntry) {
@@ -4386,14 +4339,14 @@ class FunctionCompiler
                     curBlock_ = nullptr;
                 } else {
                     MBasicBlock* afterLoop;
-                    if (!newBlock(curBlock_, afterPos, &afterLoop))
+                    if (!newBlock(curBlock_, &afterLoop))
                         return false;
                     curBlock_->end(MGoto::New(alloc(), afterLoop));
                     curBlock_ = afterLoop;
                 }
             } else {
                 MBasicBlock* afterLoop;
-                if (!newBlock(curBlock_, afterPos, &afterLoop))
+                if (!newBlock(curBlock_, &afterLoop))
                     return false;
                 curBlock_->end(MTest::New(alloc(), cond, loopEntry, afterLoop));
                 if (!loopEntry->setBackedgeAsmJS(curBlock_))
@@ -4408,17 +4361,17 @@ class FunctionCompiler
     {
         bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledContinues_.lookup(pos)) {
-            if (!bindBreaksOrContinues(&p->value(), pos, &createdJoinBlock))
+            if (!bindBreaksOrContinues(&p->value(), &createdJoinBlock))
                 return false;
             unlabeledContinues_.remove(p);
         }
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock, pos);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock);
     }
 
-    bool bindLabeledBreaks(size_t pos, const LabelVector* maybeLabels)
+    bool bindLabeledBreaks(const LabelVector* maybeLabels)
     {
         bool createdJoinBlock = false;
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock, pos);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock);
     }
 
     bool addBreak(uint32_t* maybeLabelId) {
@@ -4448,13 +4401,13 @@ class FunctionCompiler
         return true;
     }
 
-    bool startSwitchCase(MBasicBlock* switchBlock, size_t pos, MBasicBlock** next)
+    bool startSwitchCase(MBasicBlock* switchBlock, MBasicBlock** next)
     {
         if (!switchBlock) {
             *next = nullptr;
             return true;
         }
-        if (!newBlock(switchBlock, pos, next))
+        if (!newBlock(switchBlock, next))
             return false;
         if (curBlock_) {
             curBlock_->end(MGoto::New(alloc(), *next));
@@ -4465,10 +4418,9 @@ class FunctionCompiler
         return true;
     }
 
-    bool startSwitchDefault(MBasicBlock* switchBlock, BlockVector* cases, size_t defaultPos,
-                            MBasicBlock** defaultBlock)
+    bool startSwitchDefault(MBasicBlock* switchBlock, BlockVector* cases, MBasicBlock** defaultBlock)
     {
-        if (!startSwitchCase(switchBlock, defaultPos, defaultBlock))
+        if (!startSwitchCase(switchBlock, defaultBlock))
             return false;
         if (!*defaultBlock)
             return true;
@@ -4476,8 +4428,7 @@ class FunctionCompiler
         return true;
     }
 
-    bool joinSwitch(MBasicBlock* switchBlock, const BlockVector& cases, MBasicBlock* defaultBlock,
-                    size_t nextPos)
+    bool joinSwitch(MBasicBlock* switchBlock, const BlockVector& cases, MBasicBlock* defaultBlock)
     {
         size_t pos = breakableStack_.popCopy();
         if (!switchBlock)
@@ -4500,7 +4451,7 @@ class FunctionCompiler
         }
         if (curBlock_) {
             MBasicBlock* next;
-            if (!newBlock(curBlock_, nextPos, &next))
+            if (!newBlock(curBlock_, &next))
                 return false;
             curBlock_->end(MGoto::New(alloc(), next));
             curBlock_ = next;
@@ -4539,18 +4490,17 @@ class FunctionCompiler
         alloc_  = lifo_.new_<TempAllocator>(&lifo_);
         if (!alloc_)
             return false;
-        jitContext_.emplace(m_.cx(), alloc_);
-
-        MOZ_ASSERT(numLocals == argTypes.length() + varInitializers.length());
+        jitContext_.emplace(m().runtime(), /* CompileCompartment = */ nullptr, alloc_);
         graph_  = lifo_.new_<MIRGraph>(alloc_);
         if (!graph_)
             return false;
+        MOZ_ASSERT(numLocals == argTypes.length() + varInitializers.length());
         info_   = lifo_.new_<CompileInfo>(numLocals);
         if (!info_)
             return false;
         const OptimizationInfo* optimizationInfo = js_IonOptimizations.get(Optimization_AsmJS);
         const JitCompileOptions options;
-        mirGen_ = lifo_.new_<MIRGenerator>(CompileCompartment::get(cx()->compartment()),
+        mirGen_ = lifo_.new_<MIRGenerator>(m().compartment(),
                                            options, alloc_,
                                            graph_, info_, optimizationInfo,
                                            &m().onOutOfBoundsLabel(),
@@ -4559,7 +4509,7 @@ class FunctionCompiler
         if (!mirGen_)
             return false;
 
-        if (!newBlock(/* pred = */ nullptr, 0, &curBlock_))
+        if (!newBlock(/* pred = */ nullptr, &curBlock_))
             return false;
 
         // Emit parameters and local variables
@@ -4591,7 +4541,6 @@ class FunctionCompiler
             localVarTypes_.append(type);
         }
 
-        maybeAddInterruptCheck(/* pos = */ 0);
         return true;
     }
 
@@ -4607,40 +4556,22 @@ class FunctionCompiler
 
     /*************************************************************************/
   private:
-    unsigned sourceOffsetFromBytecodePosition(size_t pos)
-    {
-        // TODO (bug 1178840) : implement me!
-        return 0;
-    }
-
-    void noteBasicBlockPosition(MBasicBlock* blk, size_t pos)
-    {
-#if defined(JS_ION_PERF) || defined(DEBUG)
-        unsigned offset = sourceOffsetFromBytecodePosition(pos);
-        unsigned line = 0U, column = 0U;
-        m().tokenStream().srcCoords.lineNumAndColumnIndex(offset, &line, &column);
-        blk->setLineno(line);
-        blk->setColumnIndex(column);
-#endif
-    }
-
-    bool newBlockWithDepth(MBasicBlock* pred, unsigned loopDepth, size_t pos, MBasicBlock** block)
+    bool newBlockWithDepth(MBasicBlock* pred, unsigned loopDepth, MBasicBlock** block)
     {
         *block = MBasicBlock::NewAsmJS(mirGraph(), info(), pred, MBasicBlock::NORMAL);
         if (!*block)
             return false;
-        noteBasicBlockPosition(*block, pos);
         mirGraph().addBlock(*block);
         (*block)->setLoopDepth(loopDepth);
         return true;
     }
 
-    bool newBlock(MBasicBlock* pred, size_t pos, MBasicBlock** block)
+    bool newBlock(MBasicBlock* pred, MBasicBlock** block)
     {
-        return newBlockWithDepth(pred, loopStack_.length(), pos, block);
+        return newBlockWithDepth(pred, loopStack_.length(), block);
     }
 
-    bool bindBreaksOrContinues(BlockVector* preds, size_t joinPos, bool* createdJoinBlock)
+    bool bindBreaksOrContinues(BlockVector* preds, bool* createdJoinBlock)
     {
         for (unsigned i = 0; i < preds->length(); i++) {
             MBasicBlock* pred = (*preds)[i];
@@ -4650,7 +4581,7 @@ class FunctionCompiler
                     return false;
             } else {
                 MBasicBlock* next;
-                if (!newBlock(pred, joinPos, &next))
+                if (!newBlock(pred, &next))
                     return false;
                 pred->end(MGoto::New(alloc(), next));
                 if (curBlock_) {
@@ -4670,14 +4601,14 @@ class FunctionCompiler
     }
 
     bool bindLabeledBreaksOrContinues(const LabelVector* maybeLabels, LabeledBlockMap* map,
-                                      bool* createdJoinBlock, size_t pos)
+                                      bool* createdJoinBlock)
     {
         if (!maybeLabels)
             return true;
         const LabelVector& labels = *maybeLabels;
         for (unsigned i = 0; i < labels.length(); i++) {
             if (LabeledBlockMap::Ptr p = map->lookup(labels[i])) {
-                if (!bindBreaksOrContinues(&p->value(), pos, createdJoinBlock))
+                if (!bindBreaksOrContinues(&p->value(), createdJoinBlock))
                     return false;
                 map->remove(p);
             }
@@ -4694,7 +4625,7 @@ class FunctionCompiler
             return true;
         typename Map::AddPtr p = map->lookupForAdd(key);
         if (!p) {
-            BlockVector empty(m().cx());
+            BlockVector empty;
             if (!map->add(p, key, Move(empty)))
                 return false;
         }
@@ -4708,7 +4639,7 @@ class FunctionCompiler
     {
         bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledBreaks_.lookup(pos)) {
-            if (!bindBreaksOrContinues(&p->value(), pos, &createdJoinBlock))
+            if (!bindBreaksOrContinues(&p->value(), &createdJoinBlock))
                 return false;
             unlabeledBreaks_.remove(p);
         }
@@ -6647,6 +6578,22 @@ CheckIsVarType(FunctionBuilder& f, ParseNode* argNode, Type type)
     return true;
 }
 
+static void
+WriteCallLineCol(FunctionBuilder& f, ParseNode* pn)
+{
+    uint32_t line, column;
+    f.m().tokenStream().srcCoords.lineNumAndColumnIndex(pn->pn_pos.begin, &line, &column);
+    f.writeU32(line);
+    f.writeU32(column);
+}
+
+static void
+ReadCallLineCol(FunctionCompiler& f, uint32_t* line, uint32_t* column)
+{
+    *line = f.readU32();
+    *column = f.readU32();
+}
+
 static bool
 CheckInternalCall(FunctionBuilder& f, ParseNode* callNode, PropertyName* calleeName,
                   RetType retType, Type* type)
@@ -6670,7 +6617,7 @@ CheckInternalCall(FunctionBuilder& f, ParseNode* callNode, PropertyName* calleeN
     // Function's signature in lifo
     size_t signatureAt = f.tempPtr();
     // Call node position (asm.js specific)
-    f.writeU32(callNode->pn_pos.begin);
+    WriteCallLineCol(f, callNode);
 
     Signature signature(f.m().lifo(), retType);
     if (!CheckCallArgs(f, callNode, CheckIsVarType, signature))
@@ -6699,9 +6646,10 @@ EmitInternalCall(FunctionCompiler& f, RetType retType, MDefinition** def)
 
     MOZ_ASSERT_IF(sig.retType() != RetType::Void, sig.retType() == retType);
 
-    uint32_t callNodePosition = f.readU32();
+    uint32_t lineno, column;
+    ReadCallLineCol(f, &lineno, &column);
 
-    FunctionCompiler::Call call(f, callNodePosition);
+    FunctionCompiler::Call call(f, lineno, column);
     if (!EmitCallArgs(f, sig, &call))
         return false;
 
@@ -6782,7 +6730,7 @@ CheckFuncPtrCall(FunctionBuilder& f, ParseNode* callNode, RetType retType, Type*
     // Signature
     size_t signatureAt = f.tempPtr();
     // Call node position (asm.js specific)
-    f.writeU32(callNode->pn_pos.begin);
+    WriteCallLineCol(f, callNode);
 
     Type indexType;
     if (!CheckExpr(f, indexNode, &indexType))
@@ -6815,13 +6763,14 @@ EmitFuncPtrCall(FunctionCompiler& f, RetType retType, MDefinition** def)
     const Signature& sig = *f.readSignature();
     MOZ_ASSERT_IF(sig.retType() != RetType::Void, sig.retType() == retType);
 
-    uint32_t callNodePosition = f.readU32();
+    uint32_t lineno, column;
+    ReadCallLineCol(f, &lineno, &column);
 
     MDefinition *index;
     if (!EmitI32Expr(f, &index))
         return false;
 
-    FunctionCompiler::Call call(f, callNodePosition);
+    FunctionCompiler::Call call(f, lineno, column);
     if (!EmitCallArgs(f, sig, &call))
         return false;
 
@@ -6866,7 +6815,7 @@ CheckFFICall(FunctionBuilder& f, ParseNode* callNode, unsigned ffiIndex, RetType
     // Pointer to the exit's signature in the module's lifo
     size_t sigAt = f.tempPtr();
     // Call node position (asm.js specific)
-    f.writeU32(callNode->pn_pos.begin);
+    WriteCallLineCol(f, callNode);
 
     Signature signature(f.m().lifo(), retType);
     if (!CheckCallArgs(f, callNode, CheckIsExternType, signature))
@@ -6894,8 +6843,10 @@ EmitFFICall(FunctionCompiler& f, RetType retType, MDefinition** def)
     const Signature& sig = *f.readSignature();
     MOZ_ASSERT_IF(sig.retType() != RetType::Void, sig.retType() == retType);
 
-    uint32_t callNodePosition = f.readU32();
-    FunctionCompiler::Call call(f, callNodePosition);
+    uint32_t lineno, column;
+    ReadCallLineCol(f, &lineno, &column);
+
+    FunctionCompiler::Call call(f, lineno, column);
     if (!EmitCallArgs(f, sig, &call))
         return false;
 
@@ -7019,7 +6970,7 @@ CheckMathBuiltinCall(FunctionBuilder& f, ParseNode* callNode, AsmJSMathBuiltinFu
 
     size_t opcodeAt = f.tempOp();
     // Call node position (asm.js specific)
-    f.writeU32(callNode->pn_pos.begin);
+    WriteCallLineCol(f, callNode);
 
     Type firstType;
     ParseNode* argNode = CallArgList(callNode);
@@ -7059,9 +7010,10 @@ EmitMathBuiltinCall(FunctionCompiler& f, F32 f32, MDefinition** def)
 {
     MOZ_ASSERT(f32 == F32::Ceil || f32 == F32::Floor);
 
-    uint32_t callNodePos = f.readU32();
+    uint32_t lineno, column;
+    ReadCallLineCol(f, &lineno, &column);
 
-    FunctionCompiler::Call call(f, callNodePos);
+    FunctionCompiler::Call call(f, lineno, column);
     f.startCallArgs(&call);
 
     MDefinition* firstArg;
@@ -7077,9 +7029,10 @@ EmitMathBuiltinCall(FunctionCompiler& f, F32 f32, MDefinition** def)
 static bool
 EmitMathBuiltinCall(FunctionCompiler& f, F64 f64, MDefinition** def)
 {
-    uint32_t callNodePos = f.readU32();
+    uint32_t lineno, column;
+    ReadCallLineCol(f, &lineno, &column);
 
-    FunctionCompiler::Call call(f, callNodePos);
+    FunctionCompiler::Call call(f, lineno, column);
     f.startCallArgs(&call);
 
     MDefinition* firstArg;
@@ -8549,17 +8502,14 @@ EmitConditional(FunctionCompiler& f, AsmType type, MDefinition** def)
 
     MBasicBlock* thenBlock = nullptr;
     MBasicBlock* elseBlock = nullptr;
-
-    // TODO (bug 1178840) : find thenPos and elsePos
-    uint32_t thenPos = 0, elsePos = 0;
-    if (!f.branchAndStartThen(cond, thenPos, elsePos, &thenBlock, &elseBlock))
+    if (!f.branchAndStartThen(cond, &thenBlock, &elseBlock))
         return false;
 
     MDefinition* ifTrue;
     if (!EmitExpr(f, type, &ifTrue))
         return false;
 
-    BlockVector thenBlocks(f.cx());
+    BlockVector thenBlocks;
     if (!f.appendThenBlock(&thenBlocks))
         return false;
 
@@ -8573,7 +8523,7 @@ EmitConditional(FunctionCompiler& f, AsmType type, MDefinition** def)
 
     f.pushPhiInput(ifFalse);
 
-    if (!f.joinIfElse(thenBlocks, f.pc()))
+    if (!f.joinIfElse(thenBlocks))
         return false;
 
     *def = f.popPhiOutput();
@@ -9169,6 +9119,45 @@ CheckExprStatement(FunctionBuilder& f, ParseNode* exprStmt)
     return CheckAsExprStatement(f, expr);
 }
 
+enum class InterruptCheckPosition {
+    Head,
+    Loop
+};
+
+static void
+MaybeAddInterruptCheck(FunctionBuilder& f, InterruptCheckPosition pos, ParseNode* pn)
+{
+    if (f.m().module().usesSignalHandlersForInterrupt())
+        return;
+
+    switch (pos) {
+      case InterruptCheckPosition::Head: f.writeOp(Stmt::InterruptCheckHead); break;
+      case InterruptCheckPosition::Loop: f.writeOp(Stmt::InterruptCheckLoop); break;
+    }
+
+    unsigned lineno = 0, column = 0;
+    f.m().tokenStream().srcCoords.lineNumAndColumnIndex(pn->pn_pos.begin, &lineno, &column);
+    f.writeU32(lineno);
+    f.writeU32(column);
+}
+
+static bool
+EmitInterruptCheck(FunctionCompiler& f)
+{
+    unsigned lineno = f.readU32();
+    unsigned column = f.readU32();
+    f.addInterruptCheck(lineno, column);
+    return true;
+}
+
+static bool
+EmitInterruptCheckLoop(FunctionCompiler& f)
+{
+    if (!EmitInterruptCheck(f))
+        return false;
+    return EmitStatement(f);
+}
+
 static bool
 CheckWhile(FunctionBuilder& f, ParseNode* whileStmt)
 {
@@ -9183,6 +9172,8 @@ CheckWhile(FunctionBuilder& f, ParseNode* whileStmt)
         return false;
     if (!condType.isInt())
         return f.failf(cond, "%s is not a subtype of int", condType.toChars());
+
+    MaybeAddInterruptCheck(f, InterruptCheckPosition::Loop, whileStmt);
 
     return CheckStatement(f, body);
 }
@@ -9201,9 +9192,7 @@ EmitWhile(FunctionCompiler& f, const LabelVector* maybeLabels)
         return false;
 
     MBasicBlock* afterLoop;
-    // TODO (bug 1178840) : find afterPos' value
-    size_t bodyPos = f.pc(), afterPos = 0;
-    if (!f.branchAndStartLoopBody(condDef, bodyPos, afterPos, &afterLoop))
+    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
         return false;
 
     if (!EmitStatement(f))
@@ -9230,7 +9219,7 @@ CheckFor(FunctionBuilder& f, ParseNode* forStmt)
     ParseNode* maybeInc = TernaryKid3(forHead);
 
     f.writeOp(maybeInit ? (maybeInc ? Stmt::ForInitInc   : Stmt::ForInitNoInc)
-                       : (maybeInc ? Stmt::ForNoInitInc : Stmt::ForNoInitNoInc));
+                        : (maybeInc ? Stmt::ForNoInitInc : Stmt::ForNoInitNoInc));
 
     if (maybeInit && !CheckAsExprStatement(f, maybeInit))
         return false;
@@ -9244,6 +9233,8 @@ CheckFor(FunctionBuilder& f, ParseNode* forStmt)
     } else {
         f.writeInt32Lit(1);
     }
+
+    MaybeAddInterruptCheck(f, InterruptCheckPosition::Loop, forStmt);
 
     if (!CheckStatement(f, body))
         return false;
@@ -9276,9 +9267,7 @@ EmitFor(FunctionCompiler& f, Stmt stmt, const LabelVector* maybeLabels)
         return false;
 
     MBasicBlock* afterLoop;
-    // TODO (bug 1178840) : find afterPos' value
-    size_t bodyPos = f.pc(), afterPos = 0;
-    if (!f.branchAndStartLoopBody(condDef, bodyPos, afterPos, &afterLoop))
+    if (!f.branchAndStartLoopBody(condDef, &afterLoop))
         return false;
 
     if (!EmitStatement(f))
@@ -9305,6 +9294,8 @@ CheckDoWhile(FunctionBuilder& f, ParseNode* whileStmt)
     ParseNode* cond = BinaryRight(whileStmt);
 
     f.writeOp(Stmt::DoWhile);
+
+    MaybeAddInterruptCheck(f, InterruptCheckPosition::Loop, cond);
 
     if (!CheckStatement(f, body))
         return false;
@@ -9337,7 +9328,7 @@ EmitDoWhile(FunctionCompiler& f, const LabelVector* maybeLabels)
     if (!EmitI32Expr(f, &condDef))
         return false;
 
-    return f.branchAndCloseDoWhileLoop(condDef, loopEntry, f.pc());
+    return f.branchAndCloseDoWhileLoop(condDef, loopEntry);
 }
 
 static bool
@@ -9365,7 +9356,6 @@ CheckLabel(FunctionBuilder& f, ParseNode* labeledStmt)
 static bool
 EmitLabel(FunctionCompiler& f, LabelVector* maybeLabels)
 {
-    size_t labelPc = f.pc();
     uint32_t labelId = f.readU32();
 
     if (maybeLabels) {
@@ -9374,14 +9364,14 @@ EmitLabel(FunctionCompiler& f, LabelVector* maybeLabels)
         return EmitStatement(f, maybeLabels);
     }
 
-    LabelVector labels(f.cx());
+    LabelVector labels;
     if (!labels.append(labelId))
         return false;
 
     if (!EmitStatement(f, &labels))
         return false;
 
-    return f.bindLabeledBreaks(labelPc, &labels);
+    return f.bindLabeledBreaks(&labels);
 }
 
 static bool EmitStatement(FunctionCompiler& f, Stmt stmt, LabelVector* maybeLabels = nullptr);
@@ -9432,7 +9422,7 @@ EmitIfElse(FunctionCompiler& f, bool hasElse)
     // avoids blowing the C stack quota for long if/else-if chains and also
     // creates fewer MBasicBlocks at join points (by creating one join block
     // for the entire if/else-if chain).
-    BlockVector thenBlocks(f.cx());
+    BlockVector thenBlocks;
 
   recurse:
     MDefinition* condition;
@@ -9441,10 +9431,7 @@ EmitIfElse(FunctionCompiler& f, bool hasElse)
 
     MBasicBlock* thenBlock = nullptr;
     MBasicBlock* elseOrJoinBlock = nullptr;
-
-    // TODO (bug 1178840) : find thenPos and elsePos
-    uint32_t thenPos = 0, elsePos = 0;
-    if (!f.branchAndStartThen(condition, thenPos, elsePos, &thenBlock, &elseOrJoinBlock))
+    if (!f.branchAndStartThen(condition, &thenBlock, &elseOrJoinBlock))
         return false;
 
     if (!EmitStatement(f))
@@ -9469,7 +9456,7 @@ EmitIfElse(FunctionCompiler& f, bool hasElse)
         if (!EmitStatement(f, nextStmt))
             return false;
 
-        return f.joinIfElse(thenBlocks, f.pc());
+        return f.joinIfElse(thenBlocks);
     } else {
         return f.joinIf(thenBlocks, elseOrJoinBlock);
     }
@@ -9648,7 +9635,7 @@ EmitSwitch(FunctionCompiler& f)
     if (!hasDefault && numCases == 0)
         return true;
 
-    BlockVector cases(f.cx());
+    BlockVector cases;
     if (!cases.resize(high - low + 1))
         return false;
 
@@ -9660,20 +9647,20 @@ EmitSwitch(FunctionCompiler& f)
         int32_t caseValue = f.readI32();
         MOZ_ASSERT(caseValue >= low && caseValue <= high);
         unsigned caseIndex = caseValue - low;
-        if (!f.startSwitchCase(switchBlock, f.pc(), &cases[caseIndex]))
+        if (!f.startSwitchCase(switchBlock, &cases[caseIndex]))
             return false;
         if (!EmitStatement(f))
             return false;
     }
 
     MBasicBlock* defaultBlock;
-    if (!f.startSwitchDefault(switchBlock, &cases, f.pc(), &defaultBlock))
+    if (!f.startSwitchDefault(switchBlock, &cases, &defaultBlock))
         return false;
 
     if (hasDefault && !EmitStatement(f))
         return false;
 
-    return f.joinSwitch(switchBlock, cases, defaultBlock, f.pc());
+    return f.joinSwitch(switchBlock, cases, defaultBlock);
 }
 
 static bool
@@ -9857,33 +9844,35 @@ EmitStatement(FunctionCompiler& f, Stmt stmt, LabelVector* maybeLabels /*= nullp
 
     MDefinition* _;
     switch (stmt) {
-      case Stmt::Block:           return EmitBlock(f);
-      case Stmt::IfThen:          return EmitIfElse(f, HasElseBlock(false));
-      case Stmt::IfElse:          return EmitIfElse(f, HasElseBlock(true));
-      case Stmt::Switch:          return EmitSwitch(f);
-      case Stmt::While:           return EmitWhile(f, maybeLabels);
-      case Stmt::DoWhile:         return EmitDoWhile(f, maybeLabels);
+      case Stmt::Block:              return EmitBlock(f);
+      case Stmt::IfThen:             return EmitIfElse(f, HasElseBlock(false));
+      case Stmt::IfElse:             return EmitIfElse(f, HasElseBlock(true));
+      case Stmt::Switch:             return EmitSwitch(f);
+      case Stmt::While:              return EmitWhile(f, maybeLabels);
+      case Stmt::DoWhile:            return EmitDoWhile(f, maybeLabels);
       case Stmt::ForInitInc:
       case Stmt::ForInitNoInc:
       case Stmt::ForNoInitNoInc:
-      case Stmt::ForNoInitInc:    return EmitFor(f, stmt, maybeLabels);
-      case Stmt::Label:           return EmitLabel(f, maybeLabels);
-      case Stmt::Continue:        return EmitContinue(f, HasLabel(false));
-      case Stmt::ContinueLabel:   return EmitContinue(f, HasLabel(true));
-      case Stmt::Break:           return EmitBreak(f, HasLabel(false));
-      case Stmt::BreakLabel:      return EmitBreak(f, HasLabel(true));
-      case Stmt::Ret:             return EmitRet(f);
-      case Stmt::I32Expr:         return EmitI32Expr(f, &_);
-      case Stmt::F32Expr:         return EmitF32Expr(f, &_);
-      case Stmt::F64Expr:         return EmitF64Expr(f, &_);
-      case Stmt::I32X4Expr:       return EmitI32X4Expr(f, &_);
-      case Stmt::F32X4Expr:       return EmitF32X4Expr(f, &_);
-      case Stmt::CallInternal:    return EmitInternalCall(f, RetType::Void, &_);
-      case Stmt::CallIndirect:    return EmitFuncPtrCall(f, RetType::Void, &_);
-      case Stmt::CallImport:      return EmitFFICall(f, RetType::Void, &_);
-      case Stmt::AtomicsFence:    f.memoryBarrier(MembarFull); return true;
-      case Stmt::Noop:            return true;
-      case Stmt::Id:              return EmitStatement(f);
+      case Stmt::ForNoInitInc:       return EmitFor(f, stmt, maybeLabels);
+      case Stmt::Label:              return EmitLabel(f, maybeLabels);
+      case Stmt::Continue:           return EmitContinue(f, HasLabel(false));
+      case Stmt::ContinueLabel:      return EmitContinue(f, HasLabel(true));
+      case Stmt::Break:              return EmitBreak(f, HasLabel(false));
+      case Stmt::BreakLabel:         return EmitBreak(f, HasLabel(true));
+      case Stmt::Ret:                return EmitRet(f);
+      case Stmt::I32Expr:            return EmitI32Expr(f, &_);
+      case Stmt::F32Expr:            return EmitF32Expr(f, &_);
+      case Stmt::F64Expr:            return EmitF64Expr(f, &_);
+      case Stmt::I32X4Expr:          return EmitI32X4Expr(f, &_);
+      case Stmt::F32X4Expr:          return EmitF32X4Expr(f, &_);
+      case Stmt::CallInternal:       return EmitInternalCall(f, RetType::Void, &_);
+      case Stmt::CallIndirect:       return EmitFuncPtrCall(f, RetType::Void, &_);
+      case Stmt::CallImport:         return EmitFFICall(f, RetType::Void, &_);
+      case Stmt::AtomicsFence:       f.memoryBarrier(MembarFull); return true;
+      case Stmt::Noop:               return true;
+      case Stmt::Id:                 return EmitStatement(f);
+      case Stmt::InterruptCheckHead: return EmitInterruptCheck(f);
+      case Stmt::InterruptCheckLoop: return EmitInterruptCheckLoop(f);
       case Stmt::DebugCheckPoint:
       case Stmt::Bad:             break;
     }
@@ -10653,6 +10642,9 @@ CheckFunction(ModuleValidator& m, LifoAlloc& lifo, AsmFunction** funcOut)
     if (!CheckVariables(f, &stmtIter))
         return false;
 
+    MOZ_ASSERT(!f.startedPacking(), "No bytecode should be written at this point.");
+    MaybeAddInterruptCheck(f, InterruptCheckPosition::Head, fn);
+
     ParseNode* lastNonEmptyStmt = nullptr;
     for (; stmtIter; stmtIter = NextNode(stmtIter)) {
         if (!CheckStatement(f, stmtIter))
@@ -10676,8 +10668,10 @@ CheckFunction(ModuleValidator& m, LifoAlloc& lifo, AsmFunction** funcOut)
 
     func->accumulateCompileTime((PRMJ_Now() - before) / PRMJ_USEC_PER_MSEC);
 
-    if (!asmFunc->finish(func->sig().args(), func->name(), func->funcIndex(), func->srcBegin(),
-                         func->compileTime()))
+    unsigned lineno, column;
+    m.tokenStream().srcCoords.lineNumAndColumnIndex(func->srcBegin(), &lineno, &column);
+    if (!asmFunc->finish(func->sig().args(), func->name(), func->funcIndex(),
+                         func->srcBegin(), lineno, column, func->compileTime()))
     {
         return false;
     }
@@ -10746,7 +10740,7 @@ CheckFunctionsSequential(ModuleValidator& m, ScopedJSDeletePtr<ModuleCompileResu
     // function by the LifoAllocScope inside the loop.
     LifoAlloc lifo(LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
 
-    ModuleCompiler mc(m.cx(), m.parser().tokenStream, m.compileInputs());
+    ModuleCompiler mc(m.compileInputs());
 
     while (true) {
         TokenKind tk;
@@ -10876,7 +10870,7 @@ GetUsedTask(ModuleCompiler& m, ParallelGroupState& group, AsmJSParallelTask** ou
 
     {
         // Perform code generation on the main thread.
-        JitContext jitContext(m.cx(), &task->mir->alloc());
+        JitContext jitContext(m.runtime(), /* CompileCompartment = */ nullptr, &task->mir->alloc());
         if (!GenerateCode(m, func, *task->mir, *task->lir))
             return false;
     }
@@ -10917,7 +10911,7 @@ CheckFunctionsParallel(ModuleValidator& m, ParallelGroupState& group,
 #endif
     HelperThreadState().resetAsmJSFailureState();
 
-    ModuleCompiler mc(m.cx(), m.parser().tokenStream, m.compileInputs());
+    ModuleCompiler mc(m.compileInputs());
 
     AsmJSParallelTask* task = nullptr;
     for (unsigned i = 0;; i++) {

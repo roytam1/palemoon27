@@ -146,15 +146,15 @@ public:
                      nsIPrincipal*           aSheetPrincipal,
                      css::Rule**             aResult);
 
-  nsresult ParseProperty(const nsCSSProperty aPropID,
-                         const nsAString& aPropValue,
-                         nsIURI* aSheetURL,
-                         nsIURI* aBaseURL,
-                         nsIPrincipal* aSheetPrincipal,
-                         css::Declaration* aDeclaration,
-                         bool* aChanged,
-                         bool aIsImportant,
-                         bool aIsSVGMode);
+  void ParseProperty(const nsCSSProperty aPropID,
+                     const nsAString& aPropValue,
+                     nsIURI* aSheetURL,
+                     nsIURI* aBaseURL,
+                     nsIPrincipal* aSheetPrincipal,
+                     css::Declaration* aDeclaration,
+                     bool* aChanged,
+                     bool aIsImportant,
+                     bool aIsSVGMode);
 
   void ParseMediaList(const nsSubstring& aBuffer,
                       nsIURI* aURL, // for error reporting
@@ -169,14 +169,14 @@ public:
                            InfallibleTArray<nsCSSValue>& aValues,
                            bool aHTMLMode);
 
-  nsresult ParseVariable(const nsAString& aVariableName,
-                         const nsAString& aPropValue,
-                         nsIURI* aSheetURL,
-                         nsIURI* aBaseURL,
-                         nsIPrincipal* aSheetPrincipal,
-                         css::Declaration* aDeclaration,
-                         bool* aChanged,
-                         bool aIsImportant);
+  void ParseVariable(const nsAString& aVariableName,
+                     const nsAString& aPropValue,
+                     nsIURI* aSheetURL,
+                     nsIURI* aBaseURL,
+                     nsIPrincipal* aSheetPrincipal,
+                     css::Declaration* aDeclaration,
+                     bool* aChanged,
+                     bool aIsImportant);
 
   bool ParseFontFamilyListString(const nsSubstring& aBuffer,
                                  nsIURI* aURL, // for error reporting
@@ -309,10 +309,6 @@ public:
                                            uint32_t aLineNumber,
                                            uint32_t aLineOffset);
 
-  bool ChromeOrCertifiedAppRulesEnabled() const {
-    return mIsChromeOrCertifiedApp;
-  }
-
   nsCSSProps::EnabledState PropertyEnabledState() const {
     static_assert(nsCSSProps::eEnabledForAllContent == 0,
                   "nsCSSProps::eEnabledForAllContent should be zero for "
@@ -320,9 +316,6 @@ public:
     nsCSSProps::EnabledState enabledState = nsCSSProps::eEnabledForAllContent;
     if (mUnsafeRulesEnabled) {
       enabledState |= nsCSSProps::eEnabledInUASheets;
-    }
-    if (mIsChromeOrCertifiedApp) {
-      enabledState |= nsCSSProps::eEnabledInChromeOrCertifiedApp;
     }
     return enabledState;
   }
@@ -742,6 +735,11 @@ protected:
                                            bool aMustCallValueAppended,
                                            bool* aChanged,
                                            nsCSSContextType aContext);
+  // When we detect a webkit-prefixed gradient expression, this function can
+  // be used to parse its body into outparam |aValue|. Only call if
+  // ShouldUseUnprefixingService() returns true.
+  bool ParseWebkitPrefixedGradient(nsAString& aPrefixedFuncName,
+                                   nsCSSValue& aValue);
 
   bool ParseProperty(nsCSSProperty aPropID);
   bool ParsePropertyByFunction(nsCSSProperty aPropID);
@@ -840,7 +838,7 @@ protected:
   // to indicate that we parsed the empty list,
   // or set it to a eCSSUnit_List of eCSSUnit_Ident.
   //
-  // To parse an optional <line-names> (ie. if not finding an open paren
+  // To parse an optional <line-names> (ie. if not finding an open bracket
   // is considered the same as an empty list),
   // treat CSSParseResult::NotFound the same as CSSParseResult::Ok.
   //
@@ -1200,12 +1198,6 @@ protected:
   // True if unsafe rules should be allowed
   bool mUnsafeRulesEnabled : 1;
 
-  // True if we are in parsing rules for Chrome or Certified App content,
-  // in which case CSS properties with the
-  // CSS_PROPERTY_ALWAYS_ENABLED_IN_CHROME_OR_CERTIFIED_APP
-  // flag should be allowed.
-  bool mIsChromeOrCertifiedApp : 1;
-
   // True if viewport units should be allowed.
   bool mViewportUnitsEnabled : 1;
 
@@ -1231,11 +1223,33 @@ protected:
   // @supports rule.
   bool mSuppressErrors : 1;
 
-  // True if we've parsed "display: -webkit-box" as "display: flex" in an
-  // earlier declaration within the current block of declarations, as part of
-  // emulating support for certain -webkit-prefixed properties on certain
-  // sites.
-  bool mDidUnprefixWebkitBoxInEarlierDecl; // not :1 so we can use AutoRestore
+  // True if any parsing of URL values requires a sheet principal to have
+  // been passed in the nsCSSScanner constructor.  This is usually the case.
+  // It can be set to false, for example, when we create an nsCSSParser solely
+  // to parse a property value to test it for syntactic correctness.  When
+  // false, an assertion that mSheetPrincipal is non-null is skipped.  Should
+  // not be set to false if any nsCSSValues created during parsing can escape
+  // out of the parser.
+  bool mSheetPrincipalRequired;
+
+  // This enum helps us track whether we've unprefixed "display: -webkit-box"
+  // (treating it as "display: flex") in an earlier declaration within a series
+  // of declarations.  (This only impacts behavior when the function
+  // "ShouldUseUnprefixingService()" returns true, and that should only happen
+  // for a short whitelist of origins.)
+  enum WebkitBoxUnprefixState : uint8_t {
+    eNotParsingDecls, // We are *not* currently parsing a sequence of
+                      // CSS declarations. (default state)
+
+    // The next two enum values indicate that we *are* currently parsing a
+    // sequence of declarations (in ParseDeclarations or ParseDeclarationBlock)
+    // and...
+    eHaveNotUnprefixed, // ...we have not unprefixed 'display:-webkit-box' in
+                        // this sequence of CSS declarations.
+    eHaveUnprefixed // ...we *have* unprefixed 'display:-webkit-box' earlier in
+                    // this sequence of CSS declarations.
+  };
+  WebkitBoxUnprefixState mWebkitBoxUnprefixState;
 
   // Stack of rule groups; used for @media and such.
   InfallibleTArray<nsRefPtr<css::GroupRule> > mGroupStack;
@@ -1306,14 +1320,14 @@ CSSParserImpl::CSSParserImpl()
     mHashlessColorQuirk(false),
     mUnitlessLengthQuirk(false),
     mUnsafeRulesEnabled(false),
-    mIsChromeOrCertifiedApp(false),
     mViewportUnitsEnabled(true),
     mHTMLMediaMode(false),
     mParsingCompoundProperty(false),
     mInSupportsCondition(false),
     mInFailingSupportsRule(false),
     mSuppressErrors(false),
-    mDidUnprefixWebkitBoxInEarlierDecl(false),
+    mSheetPrincipalRequired(true),
+    mWebkitBoxUnprefixState(eNotParsingDecls),
     mNextFree(nullptr)
 {
 }
@@ -1457,9 +1471,6 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
   }
 
   mUnsafeRulesEnabled = aAllowUnsafeRules;
-  mIsChromeOrCertifiedApp =
-    dom::IsChromeURI(aSheetURI) ||
-    aSheetPrincipal->GetAppStatus() == nsIPrincipal::APP_STATUS_CERTIFIED;
 
   nsCSSToken* tk = &mToken;
   for (;;) {
@@ -1483,7 +1494,6 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
   ReleaseScanner();
 
   mUnsafeRulesEnabled = false;
-  mIsChromeOrCertifiedApp = false;
 
   // XXX check for low level errors
   return NS_OK;
@@ -1551,9 +1561,10 @@ CSSParserImpl::ParseDeclarations(const nsAString&  aBuffer,
   css::ErrorReporter reporter(scanner, mSheet, mChildLoader, aSheetURI);
   InitScanner(scanner, reporter, aSheetURI, aBaseURI, aSheetPrincipal);
 
-  MOZ_ASSERT(!mDidUnprefixWebkitBoxInEarlierDecl,
-             "Someone forgot to clear the 'did unprefix webkit-box' flag");
-  AutoRestore<bool> autoRestore(mDidUnprefixWebkitBoxInEarlierDecl);
+  MOZ_ASSERT(mWebkitBoxUnprefixState == eNotParsingDecls,
+             "Someone forgot to clear mWebkitBoxUnprefixState!");
+  AutoRestore<WebkitBoxUnprefixState> autoRestore(mWebkitBoxUnprefixState);
+  mWebkitBoxUnprefixState = eHaveNotUnprefixed;
 
   mSection = eCSSSection_General;
 
@@ -1628,14 +1639,7 @@ CSSParserImpl::ParseRule(const nsAString&        aRule,
   return rv;
 }
 
-// See Bug 723197
-#ifdef _MSC_VER
-#pragma optimize( "", off )
-#pragma warning( push )
-#pragma warning( disable : 4748 )
-#endif
-
-nsresult
+void
 CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
                              const nsAString& aPropValue,
                              nsIURI* aSheetURI,
@@ -1674,7 +1678,7 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
     REPORT_UNEXPECTED(PEDeclDropped);
     OUTPUT_ERROR();
     ReleaseScanner();
-    return NS_OK;
+    return;
   }
 
   bool parsedOK = ParseProperty(aPropID);
@@ -1714,10 +1718,9 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
   mTempData.AssertInitialState();
 
   ReleaseScanner();
-  return NS_OK;
 }
 
-nsresult
+void
 CSSParserImpl::ParseVariable(const nsAString& aVariableName,
                              const nsAString& aPropValue,
                              nsIURI* aSheetURI,
@@ -1770,13 +1773,7 @@ CSSParserImpl::ParseVariable(const nsAString& aVariableName,
   mTempData.AssertInitialState();
 
   ReleaseScanner();
-  return NS_OK;
 }
-
-#ifdef _MSC_VER
-#pragma warning( pop )
-#pragma optimize( "", on )
-#endif
 
 void
 CSSParserImpl::ParseMediaList(const nsSubstring& aBuffer,
@@ -3133,9 +3130,6 @@ CSSParserImpl::ParseMediaQuery(eMediaQueryType aQueryType,
       // case insensitive from CSS - must be lower cased
       nsContentUtils::ASCIIToLower(mToken.mIdent);
       mediaType = do_GetAtom(mToken.mIdent);
-      if (!mediaType) {
-        NS_RUNTIMEABORT("do_GetAtom failed - out of memory?");
-      }
       if (!gotNotOrOnly && mediaType == nsGkAtoms::_not) {
         gotNotOrOnly = true;
         query->SetNegated();
@@ -3276,9 +3270,6 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
   }
 
   nsCOMPtr<nsIAtom> mediaFeatureAtom = do_GetAtom(featureString);
-  if (!mediaFeatureAtom) {
-    NS_RUNTIMEABORT("do_GetAtom failed - out of memory?");
-  }
   const nsMediaFeature *feature = nsMediaFeatures::features;
   for (; feature->mName; ++feature) {
     if (*(feature->mName) == mediaFeatureAtom) {
@@ -3638,9 +3629,6 @@ CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
 
   if (!aPrefix.IsEmpty()) {
     prefix = do_GetAtom(aPrefix);
-    if (!prefix) {
-      NS_RUNTIMEABORT("do_GetAtom failed - out of memory?");
-    }
   }
 
   nsRefPtr<css::NameSpaceRule> rule = new css::NameSpaceRule(prefix, aURLSpec,
@@ -5564,9 +5552,6 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
   buffer.Append(mToken.mIdent);
   nsContentUtils::ASCIIToLower(buffer);
   nsCOMPtr<nsIAtom> pseudo = do_GetAtom(buffer);
-  if (!pseudo) {
-    NS_RUNTIMEABORT("do_GetAtom failed - out of memory?");
-  }
 
   // stash away some info about this pseudo so we only have to get it once.
   bool isTreePseudo = false;
@@ -5581,10 +5566,7 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
       ((pseudoElementType < nsCSSPseudoElements::ePseudo_PseudoElementCount &&
         nsCSSPseudoElements::PseudoElementIsUASheetOnly(pseudoElementType)) ||
        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
-        nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)) ||
-       (!ChromeOrCertifiedAppRulesEnabled() &&
-        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
-         nsCSSPseudoClasses::PseudoClassIsUASheetAndChromeOnly(pseudoClassType))))) {
+        nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)))) {
     // This pseudo-element or pseudo-class is not exposed to content.
     REPORT_UNEXPECTED_TOKEN(PEPseudoSelUnknown);
     UngetToken();
@@ -6227,9 +6209,10 @@ CSSParserImpl::ParseDeclarationBlock(uint32_t aFlags, nsCSSContextType aContext)
 {
   bool checkForBraces = (aFlags & eParseDeclaration_InBraces) != 0;
 
-  MOZ_ASSERT(!mDidUnprefixWebkitBoxInEarlierDecl,
-             "Someone forgot to clear the 'did unprefix webkit-box' flag");
-  AutoRestore<bool> restorer(mDidUnprefixWebkitBoxInEarlierDecl);
+  MOZ_ASSERT(mWebkitBoxUnprefixState == eNotParsingDecls,
+             "Someone forgot to clear mWebkitBoxUnprefixState!");
+  AutoRestore<WebkitBoxUnprefixState> autoRestore(mWebkitBoxUnprefixState);
+  mWebkitBoxUnprefixState = eHaveNotUnprefixed;
 
   if (checkForBraces) {
     if (!ExpectSymbol('{', true)) {
@@ -6651,7 +6634,9 @@ CSSParserImpl::LookupKeywordPrefixAware(nsAString& aKeywordStr,
       // Treat "display: -webkit-box" as "display: flex". In simple scenarios,
       // they largely behave the same, as long as we use the CSS Unprefixing
       // Service to also translate the associated properties.
-      mDidUnprefixWebkitBoxInEarlierDecl = true;
+      if (mWebkitBoxUnprefixState == eHaveNotUnprefixed) {
+        mWebkitBoxUnprefixState = eHaveUnprefixed;
+      }
       return eCSSKeyword_flex;
     }
 
@@ -6662,7 +6647,8 @@ CSSParserImpl::LookupKeywordPrefixAware(nsAString& aKeywordStr,
     // on our emulation of the earlier -webkit-box display-value, via the CSS
     // cascade. To prevent this problem, we also treat "display: -moz-box" as
     // "display: flex" (but only if we unprefixed an earlier "-webkit-box").
-    if (mDidUnprefixWebkitBoxInEarlierDecl && keyword == eCSSKeyword__moz_box) {
+    if (mWebkitBoxUnprefixState == eHaveUnprefixed &&
+        keyword == eCSSKeyword__moz_box) {
       MOZ_ASSERT(ShouldUseUnprefixingService(),
                  "mDidUnprefixWebkitBoxInEarlierDecl should only be set if "
                  "we're using the unprefixing service on this site");
@@ -6739,6 +6725,72 @@ CSSParserImpl::ParsePropertyWithUnprefixingService(
   }
 
   return success;
+}
+
+bool
+CSSParserImpl::ParseWebkitPrefixedGradient(nsAString& aPrefixedFuncName,
+                                           nsCSSValue& aValue)
+{
+  MOZ_ASSERT(ShouldUseUnprefixingService(),
+             "Should only call if we're allowed to use unprefixing service");
+
+  // Record the body of the "-webkit-*gradient" function into a string.
+  // Note: we're already just after the opening "(".
+  nsAutoString prefixedFuncBody;
+  mScanner->StartRecording();
+  bool gotCloseParen = SkipUntil(')');
+  mScanner->StopRecording(prefixedFuncBody);
+  if (gotCloseParen) {
+    // Strip off trailing close-paren, so that the value we pass to the
+    // unprefixing service is *just* the function-body (no parens).
+    prefixedFuncBody.Truncate(prefixedFuncBody.Length() - 1);
+  }
+
+  // NOTE: Even if we fail, we'll be leaving the parser's cursor just after
+  // the close of the "-webkit-*gradient(...)" expression. This is the same
+  // behavior that the other Parse*Gradient functions have in their failure
+  // cases -- they call "SkipUntil(')') before returning false. So this is
+  // probably what we want.
+  nsCOMPtr<nsICSSUnprefixingService> unprefixingSvc =
+    do_GetService(NS_CSSUNPREFIXINGSERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(unprefixingSvc, false);
+
+  bool success;
+  nsAutoString unprefixedFuncName;
+  nsAutoString unprefixedFuncBody;
+  nsresult rv =
+    unprefixingSvc->GenerateUnprefixedGradientValue(aPrefixedFuncName,
+                                                    prefixedFuncBody,
+                                                    unprefixedFuncName,
+                                                    unprefixedFuncBody,
+                                                    &success);
+
+  if (NS_FAILED(rv) || !success) {
+    return false;
+  }
+
+  // JS service thinks it successfully converted the gradient! Now let's try
+  // to parse the resulting string.
+
+  // First, add a close-paren if we originally recorded one (so that what we're
+  // about to put into the CSS parser is a faithful representation of what it
+  // would've seen if it were just parsing the original input stream):
+  if (gotCloseParen) {
+    unprefixedFuncBody.Append(char16_t(')'));
+  }
+
+  nsAutoScannerChanger scannerChanger(this, unprefixedFuncBody);
+  if (unprefixedFuncName.EqualsLiteral("linear-gradient")) {
+    return ParseLinearGradient(aValue, false, false);
+  }
+  if (unprefixedFuncName.EqualsLiteral("radial-gradient")) {
+    return ParseRadialGradient(aValue, false, false);
+  }
+
+  NS_ERROR("CSSUnprefixingService returned an unrecognized type of "
+           "gradient function");
+
+  return false;
 }
 
 //----------------------------------------------------------------------
@@ -6942,15 +6994,15 @@ static const nsCSSProperty kBorderLeftIDs[] = {
   eCSSProperty_border_left_style,
   eCSSProperty_border_left_color
 };
-static const nsCSSProperty kBorderStartIDs[] = {
-  eCSSProperty_border_start_width,
-  eCSSProperty_border_start_style,
-  eCSSProperty_border_start_color
+static const nsCSSProperty kBorderInlineStartIDs[] = {
+  eCSSProperty_border_inline_start_width,
+  eCSSProperty_border_inline_start_style,
+  eCSSProperty_border_inline_start_color
 };
-static const nsCSSProperty kBorderEndIDs[] = {
-  eCSSProperty_border_end_width,
-  eCSSProperty_border_end_style,
-  eCSSProperty_border_end_color
+static const nsCSSProperty kBorderInlineEndIDs[] = {
+  eCSSProperty_border_inline_end_width,
+  eCSSProperty_border_inline_end_style,
+  eCSSProperty_border_inline_end_color
 };
 static const nsCSSProperty kBorderBlockStartIDs[] = {
   eCSSProperty_border_block_start_width,
@@ -7365,6 +7417,14 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
     if (tmp.LowerCaseEqualsLiteral("radial-gradient")) {
       return ParseRadialGradient(aValue, isRepeating, isLegacy);
     }
+    if (ShouldUseUnprefixingService() &&
+        !isRepeating && !isLegacy &&
+        StringBeginsWith(tmp, NS_LITERAL_STRING("-webkit-"))) {
+      // Copy 'tmp' into a string on the stack, since as soon as we
+      // start parsing, its backing store (in "tk") will be overwritten
+      nsAutoString prefixedFuncName(tmp);
+      return ParseWebkitPrefixedGradient(prefixedFuncName, aValue);
+    }
   }
   if ((aVariantMask & VARIANT_IMAGE_RECT) != 0 &&
       eCSSToken_Function == tk->mType &&
@@ -7666,6 +7726,11 @@ bool
 CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
 {
   if (!mSheetPrincipal) {
+    if (!mSheetPrincipalRequired) {
+      /* Pretend to succeed.  */
+      return true;
+    }
+
     NS_NOTREACHED("Codepaths that expect to parse URLs MUST pass in an "
                   "origin principal");
     return false;
@@ -7978,10 +8043,10 @@ CSSParserImpl::ParseGridAutoFlow()
 CSSParseResult
 CSSParserImpl::ParseGridLineNames(nsCSSValue& aValue)
 {
-  if (!ExpectSymbol('(', true)) {
+  if (!ExpectSymbol('[', true)) {
     return CSSParseResult::NotFound;
   }
-  if (!GetToken(true) || mToken.IsSymbol(')')) {
+  if (!GetToken(true) || mToken.IsSymbol(']')) {
     return CSSParseResult::Ok;
   }
   // 'return' so far leaves aValue untouched, to represent an empty list.
@@ -8008,10 +8073,10 @@ CSSParserImpl::ParseGridLineNames(nsCSSValue& aValue)
     if (!(eCSSToken_Ident == mToken.mType &&
           ParseCustomIdent(item->mValue, mToken.mIdent))) {
       UngetToken();
-      SkipUntil(')');
+      SkipUntil(']');
       return CSSParseResult::Error;
     }
-    if (!GetToken(true) || mToken.IsSymbol(')')) {
+    if (!GetToken(true) || mToken.IsSymbol(']')) {
       return CSSParseResult::Ok;
     }
     item->mNext = new nsCSSValueList;
@@ -10035,7 +10100,8 @@ CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
             tokenStream->mBaseURI = mBaseURI;
             tokenStream->mSheetURI = mSheetURI;
             tokenStream->mSheetPrincipal = mSheetPrincipal;
-            tokenStream->mSheet = mSheet;
+            // XXX Should store sheet here (see bug 952338).
+            // tokenStream->mSheet = mSheet;
             tokenStream->mLineNumber = stateBeforeProperty.mPosition.LineNumber();
             tokenStream->mLineOffset = stateBeforeProperty.mPosition.LineOffset();
             value.SetTokenStreamValue(tokenStream);
@@ -10048,7 +10114,8 @@ CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
           tokenStream->mBaseURI = mBaseURI;
           tokenStream->mSheetURI = mSheetURI;
           tokenStream->mSheetPrincipal = mSheetPrincipal;
-          tokenStream->mSheet = mSheet;
+          // XXX Should store sheet here (see bug 952338).
+          // tokenStream->mSheet = mSheet;
           tokenStream->mLineNumber = stateBeforeProperty.mPosition.LineNumber();
           tokenStream->mLineOffset = stateBeforeProperty.mPosition.LineOffset();
           value.SetTokenStreamValue(tokenStream);
@@ -10097,10 +10164,10 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseBorderSide(kBorderBlockStartIDs, false);
   case eCSSProperty_border_bottom:
     return ParseBorderSide(kBorderBottomIDs, false);
-  case eCSSProperty_border_end:
-    return ParseBorderSide(kBorderEndIDs, false);
-  case eCSSProperty_border_start:
-    return ParseBorderSide(kBorderStartIDs, false);
+  case eCSSProperty_border_inline_end:
+    return ParseBorderSide(kBorderInlineEndIDs, false);
+  case eCSSProperty_border_inline_start:
+    return ParseBorderSide(kBorderInlineStartIDs, false);
   case eCSSProperty_border_left:
     return ParseBorderSide(kBorderLeftIDs, false);
   case eCSSProperty_border_right:
@@ -10674,7 +10741,11 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
                  mToken.mIdent.LowerCaseEqualsLiteral("-moz-repeating-linear-gradient") ||
                  mToken.mIdent.LowerCaseEqualsLiteral("-moz-repeating-radial-gradient") ||
                  mToken.mIdent.LowerCaseEqualsLiteral("-moz-image-rect") ||
-                 mToken.mIdent.LowerCaseEqualsLiteral("-moz-element")))) {
+                 mToken.mIdent.LowerCaseEqualsLiteral("-moz-element") ||
+                 (ShouldUseUnprefixingService() &&
+                  (mToken.mIdent.LowerCaseEqualsLiteral("-webkit-gradient") ||
+                   mToken.mIdent.LowerCaseEqualsLiteral("-webkit-linear-gradient") ||
+                   mToken.mIdent.LowerCaseEqualsLiteral("-webkit-radial-gradient")))))) {
       if (haveImage)
         return false;
       haveImage = true;
@@ -14938,9 +15009,6 @@ CSSParserImpl::GetNamespaceIdForPrefix(const nsString& aPrefix)
   if (mNameSpaceMap) {
     // user-specified identifiers are case-sensitive (bug 416106)
     nsCOMPtr<nsIAtom> prefix = do_GetAtom(aPrefix);
-    if (!prefix) {
-      NS_RUNTIMEABORT("do_GetAtom failed - out of memory?");
-    }
     nameSpaceID = mNameSpaceMap->FindNameSpaceID(prefix);
   }
   // else no declared namespaces
@@ -15531,6 +15599,15 @@ CSSParserImpl::IsValueValidForProperty(const nsCSSProperty aPropID,
   css::ErrorReporter reporter(scanner, mSheet, mChildLoader, nullptr);
   InitScanner(scanner, reporter, nullptr, nullptr, nullptr);
 
+  // We normally would need to pass in a sheet principal to InitScanner,
+  // because we might parse a URL value.  However, we will never use the
+  // parsed nsCSSValue (and so whether we have a sheet principal or not
+  // doesn't really matter), so to avoid failing the assertion in
+  // SetValueToURL, we set mSheetPrincipalRequired to false to declare
+  // that it's safe to skip the assertion.
+  AutoRestore<bool> autoRestore(mSheetPrincipalRequired);
+  mSheetPrincipalRequired = false;
+
   nsAutoSuppressErrors suppressErrors(this);
 
   mSection = eCSSSection_General;
@@ -15692,7 +15769,7 @@ nsCSSParser::ParseRule(const nsAString&        aRule,
     ParseRule(aRule, aSheetURI, aBaseURI, aSheetPrincipal, aResult);
 }
 
-nsresult
+void
 nsCSSParser::ParseProperty(const nsCSSProperty aPropID,
                            const nsAString&    aPropValue,
                            nsIURI*             aSheetURI,
@@ -15703,13 +15780,13 @@ nsCSSParser::ParseProperty(const nsCSSProperty aPropID,
                            bool                aIsImportant,
                            bool                aIsSVGMode)
 {
-  return static_cast<CSSParserImpl*>(mImpl)->
+  static_cast<CSSParserImpl*>(mImpl)->
     ParseProperty(aPropID, aPropValue, aSheetURI, aBaseURI,
                   aSheetPrincipal, aDeclaration, aChanged,
                   aIsImportant, aIsSVGMode);
 }
 
-nsresult
+void
 nsCSSParser::ParseVariable(const nsAString&    aVariableName,
                            const nsAString&    aPropValue,
                            nsIURI*             aSheetURI,
@@ -15719,7 +15796,7 @@ nsCSSParser::ParseVariable(const nsAString&    aVariableName,
                            bool*               aChanged,
                            bool                aIsImportant)
 {
-  return static_cast<CSSParserImpl*>(mImpl)->
+  static_cast<CSSParserImpl*>(mImpl)->
     ParseVariable(aVariableName, aPropValue, aSheetURI, aBaseURI,
                   aSheetPrincipal, aDeclaration, aChanged, aIsImportant);
 }

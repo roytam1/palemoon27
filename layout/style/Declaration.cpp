@@ -367,8 +367,8 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
     case eCSSProperty_border_right:
     case eCSSProperty_border_bottom:
     case eCSSProperty_border_left:
-    case eCSSProperty_border_start:
-    case eCSSProperty_border_end:
+    case eCSSProperty_border_inline_start:
+    case eCSSProperty_border_inline_end:
     case eCSSProperty_border_block_start:
     case eCSSProperty_border_block_end:
     case eCSSProperty_column_rule:
@@ -1040,10 +1040,10 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
 
         } else if (unit == eCSSUnit_List || unit == eCSSUnit_ListDep) {
           // Non-empty <line-names>
-          aValue.Append('(');
+          aValue.Append('[');
           rowsItem->mValue.AppendToString(eCSSProperty_grid_template_rows,
                                           aValue, aSerialization);
-          aValue.Append(')');
+          aValue.Append(']');
 
         } else {
           nsStyleUtil::AppendEscapedCSSString(areas->mTemplates[row++], aValue);

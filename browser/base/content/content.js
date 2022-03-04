@@ -285,3 +285,7 @@ addMessageListener("Finder:Initialize", function () {
 addEventListener("DOMWebNotificationClicked", function(event) {
   sendAsyncMessage("DOMWebNotificationClicked", {});
 }, false);
+
+addEventListener("DOMServiceWorkerFocusClient", function(event) {
+  sendAsyncMessage("DOMServiceWorkerFocusClient", {});
+}, false);

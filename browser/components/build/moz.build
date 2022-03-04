@@ -22,6 +22,11 @@ LOCAL_INCLUDES += [
     '../shell',
 ]
 
+if CONFIG['JS_SHARED_LIBRARY']:
+    USE_LIBS += [
+        'js',
+]
+
 if CONFIG['OS_ARCH'] == 'WINNT':
     OS_LIBS += [
         'ole32',

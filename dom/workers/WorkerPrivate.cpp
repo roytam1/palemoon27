@@ -1575,6 +1575,7 @@ class ReportErrorRunnable final : public WorkerRunnable
   uint32_t mColumnNumber;
   uint32_t mFlags;
   uint32_t mErrorNumber;
+  JSExnType mExnType;
 
 public:
   // aWorkerPrivate is the worker thread we're on (or the main thread, if null)
@@ -1586,7 +1587,7 @@ public:
               const nsString& aMessage, const nsString& aFilename,
               const nsString& aLine, uint32_t aLineNumber,
               uint32_t aColumnNumber, uint32_t aFlags,
-              uint32_t aErrorNumber, uint64_t aInnerWindowId)
+              uint32_t aErrorNumber, JSExnType aExnType, uint64_t aInnerWindowId)
   {
     if (aWorkerPrivate) {
       aWorkerPrivate->AssertIsOnWorkerThread();
@@ -1691,7 +1692,7 @@ public:
       nsRefPtr<ReportErrorRunnable> runnable =
         new ReportErrorRunnable(aWorkerPrivate, aMessage, aFilename, aLine,
                                 aLineNumber, aColumnNumber, aFlags,
-                                aErrorNumber);
+                                aErrorNumber, aExnType);
       return runnable->Dispatch(aCx);
     }
 
@@ -1705,11 +1706,12 @@ private:
   ReportErrorRunnable(WorkerPrivate* aWorkerPrivate, const nsString& aMessage,
                       const nsString& aFilename, const nsString& aLine,
                       uint32_t aLineNumber, uint32_t aColumnNumber,
-                      uint32_t aFlags, uint32_t aErrorNumber)
+                      uint32_t aFlags, uint32_t aErrorNumber,
+                      JSExnType aExnType)
   : WorkerRunnable(aWorkerPrivate, ParentThreadUnchangedBusyCount),
     mMessage(aMessage), mFilename(aFilename), mLine(aLine),
     mLineNumber(aLineNumber), mColumnNumber(aColumnNumber), mFlags(aFlags),
-    mErrorNumber(aErrorNumber)
+    mErrorNumber(aErrorNumber), mExnType(aExnType)
   { }
 
   virtual void
@@ -1745,7 +1747,7 @@ private:
       }
 
       if (aWorkerPrivate->IsServiceWorker() || aWorkerPrivate->IsSharedWorker()) {
-        if (aWorkerPrivate->IsServiceWorker()) {
+        if (aWorkerPrivate->IsServiceWorker() && !JSREPORT_IS_WARNING(mFlags)) {
           nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
           MOZ_ASSERT(swm);
           bool handled = swm->HandleError(aCx, aWorkerPrivate->GetPrincipal(),
@@ -1753,7 +1755,7 @@ private:
                                           aWorkerPrivate->ScriptURL(),
                                           mMessage,
                                           mFilename, mLine, mLineNumber,
-                                          mColumnNumber, mFlags);
+                                          mColumnNumber, mFlags, mExnType);
           if (handled) {
             return true;
           }
@@ -1782,7 +1784,7 @@ private:
 
     return ReportError(aCx, parent, fireAtScope, aWorkerPrivate, mMessage,
                        mFilename, mLine, mLineNumber, mColumnNumber, mFlags,
-                       mErrorNumber, innerWindowId);
+                       mErrorNumber, mExnType, innerWindowId);
   }
 };
 
@@ -1868,68 +1870,6 @@ DummyCallback(nsITimer* aTimer, void* aClosure)
 {
   // Nothing!
 }
-
-class TimerThreadEventTarget final : public nsIEventTarget
-{
-  ~TimerThreadEventTarget() {}
-
-  WorkerPrivate* mWorkerPrivate;
-  nsRefPtr<WorkerRunnable> mWorkerRunnable;
-
-public:
-  TimerThreadEventTarget(WorkerPrivate* aWorkerPrivate,
-                         WorkerRunnable* aWorkerRunnable)
-  : mWorkerPrivate(aWorkerPrivate), mWorkerRunnable(aWorkerRunnable)
-  {
-    MOZ_ASSERT(aWorkerPrivate);
-    MOZ_ASSERT(aWorkerRunnable);
-  }
-
-  NS_DECL_THREADSAFE_ISUPPORTS
-
-protected:
-  NS_IMETHOD
-  DispatchFromScript(nsIRunnable* aRunnable, uint32_t aFlags) override
-  {
-    nsCOMPtr<nsIRunnable> runnable(aRunnable);
-    return Dispatch(runnable.forget(), aFlags);
-  }
-
-  NS_IMETHOD
-  Dispatch(already_AddRefed<nsIRunnable>&& aRunnable, uint32_t aFlags) override
-  {
-    // This should only happen on the timer thread.
-    MOZ_ASSERT(!NS_IsMainThread());
-    MOZ_ASSERT(aFlags == nsIEventTarget::DISPATCH_NORMAL);
-
-    nsRefPtr<TimerThreadEventTarget> kungFuDeathGrip = this;
-
-    // Run the runnable we're given now (should just call DummyCallback()),
-    // otherwise the timer thread will leak it...  If we run this after
-    // dispatch running the event can race against resetting the timer.
-    nsCOMPtr<nsIRunnable> runnable(aRunnable);
-    runnable->Run();
-
-    // This can fail if we're racing to terminate or cancel, should be handled
-    // by the terminate or cancel code.
-    mWorkerRunnable->Dispatch(nullptr);
-
-    return NS_OK;
-  }
-
-  NS_IMETHOD
-  IsOnCurrentThread(bool* aIsOnCurrentThread) override
-  {
-    MOZ_ASSERT(aIsOnCurrentThread);
-
-    nsresult rv = mWorkerPrivate->IsOnCurrentThread(aIsOnCurrentThread);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-
-    return NS_OK;
-  }
-};
 
 class KillCloseEventRunnable final : public WorkerRunnable
 {
@@ -2383,6 +2323,60 @@ PRThreadFromThread(nsIThread* aThread)
 NS_IMPL_ISUPPORTS_INHERITED0(MainThreadReleaseRunnable, nsRunnable)
 
 NS_IMPL_ISUPPORTS_INHERITED0(TopLevelWorkerFinishedRunnable, nsRunnable)
+
+TimerThreadEventTarget::TimerThreadEventTarget(WorkerPrivate* aWorkerPrivate,
+                                               WorkerRunnable* aWorkerRunnable)
+  : mWorkerPrivate(aWorkerPrivate), mWorkerRunnable(aWorkerRunnable)
+{
+  MOZ_ASSERT(aWorkerPrivate);
+  MOZ_ASSERT(aWorkerRunnable);
+}
+
+TimerThreadEventTarget::~TimerThreadEventTarget()
+{
+}
+
+NS_IMETHODIMP
+TimerThreadEventTarget::DispatchFromScript(nsIRunnable* aRunnable, uint32_t aFlags)
+{
+  nsCOMPtr<nsIRunnable> runnable(aRunnable);
+  return Dispatch(runnable.forget(), aFlags);
+}
+
+NS_IMETHODIMP
+TimerThreadEventTarget::Dispatch(already_AddRefed<nsIRunnable>&& aRunnable, uint32_t aFlags)
+{
+  // This should only happen on the timer thread.
+  MOZ_ASSERT(!NS_IsMainThread());
+  MOZ_ASSERT(aFlags == nsIEventTarget::DISPATCH_NORMAL);
+
+  nsRefPtr<TimerThreadEventTarget> kungFuDeathGrip = this;
+
+  // Run the runnable we're given now (should just call DummyCallback()),
+  // otherwise the timer thread will leak it...  If we run this after
+  // dispatch running the event can race against resetting the timer.
+  nsCOMPtr<nsIRunnable> runnable(aRunnable);
+  runnable->Run();
+
+  // This can fail if we're racing to terminate or cancel, should be handled
+  // by the terminate or cancel code.
+  mWorkerRunnable->Dispatch(nullptr);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TimerThreadEventTarget::IsOnCurrentThread(bool* aIsOnCurrentThread)
+{
+  MOZ_ASSERT(aIsOnCurrentThread);
+
+  nsresult rv = mWorkerPrivate->IsOnCurrentThread(aIsOnCurrentThread);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  return NS_OK;
+}
 
 NS_IMPL_ISUPPORTS(TimerThreadEventTarget, nsIEventTarget)
 
@@ -6599,6 +6593,7 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
 
   nsString message, filename, line;
   uint32_t lineNumber, columnNumber, flags, errorNumber;
+  JSExnType exnType = JSEXN_ERR;
 
   if (aReport) {
     // ErrorEvent objects don't have a |name| field the way ES |Error| objects
@@ -6620,6 +6615,8 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
     columnNumber = aReport->uctokenptr - aReport->uclinebuf;
     flags = aReport->flags;
     errorNumber = aReport->errorNumber;
+    MOZ_ASSERT(aReport->exnType >= JSEXN_NONE && aReport->exnType < JSEXN_LIMIT);
+    exnType = JSExnType(aReport->exnType);
   }
   else {
     lineNumber = columnNumber = errorNumber = 0;
@@ -6640,7 +6637,7 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
 
   if (!ReportErrorRunnable::ReportError(aCx, this, fireAtScope, nullptr, message,
                                         filename, line, lineNumber,
-                                        columnNumber, flags, errorNumber, 0)) {
+                                        columnNumber, flags, errorNumber, exnType, 0)) {
     JS_ReportPendingException(aCx);
   }
 

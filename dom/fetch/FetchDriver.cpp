@@ -412,7 +412,11 @@ FetchDriver::HttpFetch(bool aCORSFlag, bool aCORSPreflightFlag, bool aAuthentica
     nsAutoTArray<InternalHeaders::Entry, 5> headers;
     mRequest->Headers()->GetEntries(headers);
     for (uint32_t i = 0; i < headers.Length(); ++i) {
-      httpChan->SetRequestHeader(headers[i].mName, headers[i].mValue, false /* merge */);
+      if (headers[i].mValue.IsEmpty()) {
+        httpChan->SetEmptyRequestHeader(headers[i].mName);
+      } else {
+        httpChan->SetRequestHeader(headers[i].mName, headers[i].mValue, false /* merge */);
+      }
     }
 
     // Step 2. Set the referrer.
@@ -777,13 +781,19 @@ FetchDriver::OnStopRequest(nsIRequest* aRequest,
                            nsresult aStatusCode)
 {
   workers::AssertIsOnMainThread();
-  if (mPipeOutputStream) {
-    mPipeOutputStream->Close();
+  if (NS_FAILED(aStatusCode)) {
+    nsCOMPtr<nsIAsyncOutputStream> outputStream = do_QueryInterface(mPipeOutputStream);
+    if (outputStream) {
+      outputStream->CloseWithStatus(NS_BINDING_FAILED);
+    }
+    // We proceed as usual here, since we've already created a successful response
+    // from OnStartRequest.
+    SucceedWithResponse();
+    return aStatusCode;
   }
 
-  if (NS_FAILED(aStatusCode)) {
-    FailWithNetworkError();
-    return aStatusCode;
+  if (mPipeOutputStream) {
+    mPipeOutputStream->Close();
   }
 
   ContinueHttpFetchAfterNetworkFetch();

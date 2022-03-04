@@ -10,6 +10,11 @@ SOURCES += [
 
 XPCOMBinaryComponent('simpletest')
 
+if CONFIG['JS_SHARED_LIBRARY']:
+    USE_LIBS += [
+        'js',
+]
+
 EXTRA_COMPONENTS += [
     'SimpleTest.js',
     'SimpleTest.manifest',

@@ -3492,7 +3492,7 @@ IonBuilder::prepareForSimdLoadStore(CallInfo& callInfo, Scalar::Type simdType, M
     if (!ElementAccessIsAnyTypedArray(constraints(), array, *index, arrayType))
         return false;
 
-    MInstruction *indexAsInt32 = MToInt32::New(alloc(), *index);
+    MInstruction* indexAsInt32 = MToInt32::New(alloc(), *index);
     current->add(indexAsInt32);
     *index = indexAsInt32;
 

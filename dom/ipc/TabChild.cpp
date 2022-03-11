@@ -543,22 +543,6 @@ TabChild::Create(nsIContentChild* aManager,
     return NS_SUCCEEDED(iframe->Init()) ? iframe.forget() : nullptr;
 }
 
-class TabChildSetAllowedTouchBehaviorCallback : public SetAllowedTouchBehaviorCallback {
-public:
-  explicit TabChildSetAllowedTouchBehaviorCallback(TabChild* aTabChild)
-    : mTabChild(do_GetWeakReference(static_cast<nsITabChild*>(aTabChild)))
-  {}
-
-  void Run(uint64_t aInputBlockId, const nsTArray<TouchBehaviorFlags>& aFlags) const override {
-    if (nsCOMPtr<nsITabChild> tabChild = do_QueryReferent(mTabChild)) {
-      static_cast<TabChild*>(tabChild.get())->SendSetAllowedTouchBehavior(aInputBlockId, aFlags);
-    }
-  }
-
-private:
-  nsWeakPtr mTabChild;
-};
-
 class TabChildContentReceivedInputBlockCallback : public ContentReceivedInputBlockCallback {
 public:
   explicit TabChildContentReceivedInputBlockCallback(TabChild* aTabChild)
@@ -592,7 +576,6 @@ TabChild::TabChild(nsIContentChild* aManager,
   , mOrientation(eScreenOrientation_PortraitPrimary)
   , mUpdateHitRegion(false)
   , mIgnoreKeyPressEvent(false)
-  , mSetAllowedTouchBehaviorCallback(new TabChildSetAllowedTouchBehaviorCallback(this))
   , mHasValidInnerSize(false)
   , mDestroyed(false)
   , mUniqueId(aTabId)
@@ -607,6 +590,15 @@ TabChild::TabChild(nsIContentChild* aManager,
   // TabChild corresponds to a widget type that would have APZ enabled, and just
   // check the other conditions necessary for enabling APZ.
   mAsyncPanZoomEnabled = gfxPlatform::AsyncPanZoomEnabled();
+
+  nsWeakPtr weakPtrThis(do_GetWeakReference(static_cast<nsITabChild*>(this)));  // for capture by the lambda
+  mSetAllowedTouchBehaviorCallback = [weakPtrThis](uint64_t aInputBlockId,
+                                                   const nsTArray<TouchBehaviorFlags>& aFlags)
+  {
+    if (nsCOMPtr<nsITabChild> tabChild = do_QueryReferent(weakPtrThis)) {
+      static_cast<TabChild*>(tabChild.get())->SendSetAllowedTouchBehavior(aInputBlockId, aFlags);
+    }
+  };
 
   // preloaded TabChild should not be added to child map
   if (mUniqueId) {
@@ -1694,6 +1686,7 @@ TabChild::RecvShow(const ScreenIntSize& aSize,
 
 bool
 TabChild::RecvUpdateDimensions(const CSSRect& rect, const CSSSize& size,
+                               const nsSizeMode& sizeMode,
                                const ScreenOrientationInternal& orientation,
                                const LayoutDeviceIntPoint& chromeDisp)
 {
@@ -1720,6 +1713,7 @@ TabChild::RecvUpdateDimensions(const CSSRect& rect, const CSSSize& size,
     baseWin->SetPositionAndSize(0, 0, screenSize.width, screenSize.height,
                                 true);
 
+    mPuppetWidget->SetSizeMode(sizeMode);
     mPuppetWidget->Resize(screenRect.x + chromeDisp.x,
                           screenRect.y + chromeDisp.y,
                           screenSize.width, screenSize.height, true);

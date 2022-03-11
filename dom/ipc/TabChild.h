@@ -32,6 +32,7 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/layers/CompositorTypes.h"
+#include "mozilla/layers/APZCCallbackHelper.h"
 #include "nsIWebBrowserChrome3.h"
 #include "mozilla/dom/ipc/IdType.h"
 #include "AudioChannelService.h"
@@ -49,7 +50,6 @@ namespace layers {
 class APZEventState;
 class ImageCompositeNotification;
 struct SetTargetAPZCCallback;
-struct SetAllowedTouchBehaviorCallback;
 } // namespace layers
 
 namespace widget {
@@ -303,6 +303,7 @@ public:
                           const bool& aParentIsActive) override;
     virtual bool RecvUpdateDimensions(const CSSRect& rect,
                                       const CSSSize& size,
+                                      const nsSizeMode& sizeMode,
                                       const ScreenOrientationInternal& orientation,
                                       const LayoutDeviceIntPoint& chromeDisp) override;
     virtual bool RecvUpdateFrame(const layers::FrameMetrics& aFrameMetrics) override;
@@ -629,7 +630,7 @@ private:
 
     bool mIgnoreKeyPressEvent;
     nsRefPtr<APZEventState> mAPZEventState;
-    nsRefPtr<SetAllowedTouchBehaviorCallback> mSetAllowedTouchBehaviorCallback;
+    SetAllowedTouchBehaviorCallback mSetAllowedTouchBehaviorCallback;
     bool mHasValidInnerSize;
     bool mDestroyed;
     // Position of tab, relative to parent widget (typically the window)

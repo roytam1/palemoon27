@@ -265,6 +265,14 @@ public:
     return !(*this == other);
   }
 
+  /* Verifies that the matrix contains no Infs or NaNs. */
+  bool IsFinite() const
+  {
+    return mozilla::IsFinite(_11) && mozilla::IsFinite(_12) &&
+           mozilla::IsFinite(_21) && mozilla::IsFinite(_22) &&
+           mozilla::IsFinite(_31) && mozilla::IsFinite(_32);
+  }
+
   /* Returns true if the matrix is a rectilinear transformation (i.e.
    * grid-aligned rectangles are transformed to grid-aligned rectangles)
    */
@@ -690,12 +698,15 @@ public:
     _11 *= aX;
     _12 *= aX;
     _13 *= aX;
+    _14 *= aX;
     _21 *= aY;
     _22 *= aY;
     _23 *= aY;
+    _24 *= aY;
     _31 *= aZ;
     _32 *= aZ;
     _33 *= aZ;
+    _34 *= aZ;
 
     return *this;
   }

@@ -41,8 +41,11 @@ namespace dom {
 class ContentParent;
 class PBrowserParent;
 class TabParent;
-struct StructuredCloneData;
 } // namespace dom
+
+namespace ipc {
+class StructuredCloneData;
+} // namespace ipc
 
 namespace layout {
 class RenderFrameParent;
@@ -86,7 +89,7 @@ public:
                                           bool aRunInGlobalScope) override;
   virtual bool DoSendAsyncMessage(JSContext* aCx,
                                   const nsAString& aMessage,
-                                  const mozilla::dom::StructuredCloneData& aData,
+                                  mozilla::dom::ipc::StructuredCloneData& aData,
                                   JS::Handle<JSObject *> aCpows,
                                   nsIPrincipal* aPrincipal) override;
   virtual bool CheckPermission(const nsAString& aPermission) override;

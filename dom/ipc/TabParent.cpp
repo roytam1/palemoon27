@@ -78,7 +78,7 @@
 #include "nsWindowWatcher.h"
 #include "private/pprio.h"
 #include "PermissionMessageUtils.h"
-#include "StructuredCloneUtils.h"
+#include "StructuredCloneData.h"
 #include "ColorPickerParent.h"
 #include "FilePickerParent.h"
 #include "TabChild.h"
@@ -1806,7 +1806,7 @@ TabParent::RecvSyncMessage(const nsString& aMessage,
                            const ClonedMessageData& aData,
                            InfallibleTArray<CpowEntry>&& aCpows,
                            const IPC::Principal& aPrincipal,
-                           nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal)
+                           nsTArray<StructuredCloneData>* aRetVal)
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
@@ -1818,9 +1818,11 @@ TabParent::RecvSyncMessage(const nsString& aMessage,
     }
   }
 
-  StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
+  StructuredCloneData data;
+  ipc::UnpackClonedMessageDataForParent(aData, data);
+
   CrossProcessCpowHolder cpows(Manager(), aCpows);
-  return ReceiveMessage(aMessage, true, &cloneData, &cpows, aPrincipal, aRetVal);
+  return ReceiveMessage(aMessage, true, &data, &cpows, aPrincipal, aRetVal);
 }
 
 bool
@@ -1828,7 +1830,7 @@ TabParent::RecvRpcMessage(const nsString& aMessage,
                           const ClonedMessageData& aData,
                           InfallibleTArray<CpowEntry>&& aCpows,
                           const IPC::Principal& aPrincipal,
-                          nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal)
+                          nsTArray<StructuredCloneData>* aRetVal)
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
@@ -1840,9 +1842,11 @@ TabParent::RecvRpcMessage(const nsString& aMessage,
     }
   }
 
-  StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
+  StructuredCloneData data;
+  ipc::UnpackClonedMessageDataForParent(aData, data);
+
   CrossProcessCpowHolder cpows(Manager(), aCpows);
-  return ReceiveMessage(aMessage, true, &cloneData, &cpows, aPrincipal, aRetVal);
+  return ReceiveMessage(aMessage, true, &data, &cpows, aPrincipal, aRetVal);
 }
 
 bool
@@ -1861,9 +1865,11 @@ TabParent::RecvAsyncMessage(const nsString& aMessage,
     }
   }
 
-  StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
+  StructuredCloneData data;
+  ipc::UnpackClonedMessageDataForParent(aData, data);
+
   CrossProcessCpowHolder cpows(Manager(), aCpows);
-  return ReceiveMessage(aMessage, false, &cloneData, &cpows, aPrincipal, nullptr);
+  return ReceiveMessage(aMessage, false, &data, &cpows, aPrincipal, nullptr);
 }
 
 bool
@@ -2590,10 +2596,10 @@ TabParent::RecvDispatchFocusToTopLevelWindow()
 bool
 TabParent::ReceiveMessage(const nsString& aMessage,
                           bool aSync,
-                          const StructuredCloneData* aCloneData,
+                          StructuredCloneData* aData,
                           CpowHolder* aCpows,
                           nsIPrincipal* aPrincipal,
-                          nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal)
+                          nsTArray<StructuredCloneData>* aRetVal)
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader(true);
   if (frameLoader && frameLoader->GetFrameMessageManager()) {
@@ -2604,7 +2610,7 @@ TabParent::ReceiveMessage(const nsString& aMessage,
                             frameLoader,
                             aMessage,
                             aSync,
-                            aCloneData,
+                            aData,
                             aCpows,
                             aPrincipal,
                             aRetVal);

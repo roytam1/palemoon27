@@ -75,7 +75,7 @@
 #include "nsWindowWatcher.h"
 #include "PermissionMessageUtils.h"
 #include "PuppetWidget.h"
-#include "StructuredCloneUtils.h"
+#include "StructuredCloneData.h"
 #include "nsViewportInfo.h"
 #include "nsILoadContext.h"
 #include "ipc/nsGUIEventIPC.h"
@@ -229,15 +229,16 @@ TabChildBase::DispatchMessageManagerMessage(const nsAString& aMessageName,
 {
     AutoSafeJSContext cx;
     JS::Rooted<JS::Value> json(cx, JS::NullValue());
-    StructuredCloneData cloneData;
-    JSAutoStructuredCloneBuffer buffer;
+    StructuredCloneData data;
     if (JS_ParseJSON(cx,
                       static_cast<const char16_t*>(aJSONData.BeginReading()),
                       aJSONData.Length(),
                       &json)) {
-        WriteStructuredClone(cx, json, buffer, cloneData.mClosure);
-        cloneData.mData = buffer.data();
-        cloneData.mDataLength = buffer.nbytes();
+        ErrorResult rv;
+        data.Write(cx, json, rv);
+        if (NS_WARN_IF(rv.Failed())) {
+            return;
+        }
     }
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> kungFuDeathGrip(GetGlobal());
@@ -246,7 +247,7 @@ TabChildBase::DispatchMessageManagerMessage(const nsAString& aMessageName,
     nsRefPtr<nsFrameMessageManager> mm =
       static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
     mm->ReceiveMessage(static_cast<EventTarget*>(mTabChildGlobal), nullptr,
-                       aMessageName, false, &cloneData, nullptr, nullptr, nullptr);
+                       aMessageName, false, &data, nullptr, nullptr, nullptr);
 }
 
 bool
@@ -2396,12 +2397,13 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
 {
   if (mTabChildGlobal) {
     nsCOMPtr<nsIXPConnectJSObjectHolder> kungFuDeathGrip(GetGlobal());
-    StructuredCloneData cloneData = UnpackClonedMessageDataForChild(aData);
+    StructuredCloneData data;
+    UnpackClonedMessageDataForChild(aData, data);
     nsRefPtr<nsFrameMessageManager> mm =
       static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
     CrossProcessCpowHolder cpows(Manager(), aCpows);
     mm->ReceiveMessage(static_cast<EventTarget*>(mTabChildGlobal), nullptr,
-                       aMessage, false, &cloneData, &cpows, aPrincipal, nullptr);
+                       aMessage, false, &data, &cpows, aPrincipal, nullptr);
   }
   return true;
 }
@@ -2823,10 +2825,10 @@ TabChild::SetTabId(const TabId& aTabId)
 bool
 TabChild::DoSendBlockingMessage(JSContext* aCx,
                                 const nsAString& aMessage,
-                                const StructuredCloneData& aData,
+                                StructuredCloneData& aData,
                                 JS::Handle<JSObject *> aCpows,
                                 nsIPrincipal* aPrincipal,
-                                nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal,
+                                nsTArray<StructuredCloneData>* aRetVal,
                                 bool aIsSync)
 {
   ClonedMessageData data;
@@ -2849,7 +2851,7 @@ TabChild::DoSendBlockingMessage(JSContext* aCx,
 bool
 TabChild::DoSendAsyncMessage(JSContext* aCx,
                              const nsAString& aMessage,
-                             const StructuredCloneData& aData,
+                             StructuredCloneData& aData,
                              JS::Handle<JSObject *> aCpows,
                              nsIPrincipal* aPrincipal)
 {

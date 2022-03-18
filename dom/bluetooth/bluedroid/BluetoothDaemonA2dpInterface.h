@@ -10,6 +10,7 @@
 #include "BluetoothDaemonHelpers.h"
 #include "BluetoothInterface.h"
 #include "BluetoothInterfaceHelpers.h"
+#include "mozilla/ipc/DaemonRunnables.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -30,7 +31,7 @@ public:
 
   static const int MAX_NUM_CLIENTS;
 
-  virtual nsresult Send(BluetoothDaemonPDU* aPDU, void* aUserData) = 0;
+  virtual nsresult Send(DaemonSocketPDU* aPDU, void* aUserData) = 0;
 
   virtual nsresult RegisterModule(uint8_t aId, uint8_t aMode,
                                   uint32_t aMaxNumClients,
@@ -52,37 +53,38 @@ public:
                          BluetoothA2dpResultHandler* aRes);
 
 protected:
-  nsresult Send(BluetoothDaemonPDU* aPDU,
+  nsresult Send(DaemonSocketPDU* aPDU,
                 BluetoothA2dpResultHandler* aRes);
 
-  void HandleSvc(const BluetoothDaemonPDUHeader& aHeader,
-                 BluetoothDaemonPDU& aPDU, void* aUserData);
+  void HandleSvc(const DaemonSocketPDUHeader& aHeader,
+                 DaemonSocketPDU& aPDU, void* aUserData);
 
   //
   // Responses
   //
 
-  typedef BluetoothResultRunnable0<BluetoothA2dpResultHandler, void>
+  typedef mozilla::ipc::DaemonResultRunnable0<
+    BluetoothA2dpResultHandler, void>
     ResultRunnable;
 
-  typedef BluetoothResultRunnable1<BluetoothA2dpResultHandler, void,
-                                   BluetoothStatus, BluetoothStatus>
+  typedef mozilla::ipc::DaemonResultRunnable1<
+    BluetoothA2dpResultHandler, void, BluetoothStatus, BluetoothStatus>
     ErrorRunnable;
 
-  void ErrorRsp(const BluetoothDaemonPDUHeader& aHeader,
-                BluetoothDaemonPDU& aPDU,
+  void ErrorRsp(const DaemonSocketPDUHeader& aHeader,
+                DaemonSocketPDU& aPDU,
                 BluetoothA2dpResultHandler* aRes);
 
-  void ConnectRsp(const BluetoothDaemonPDUHeader& aHeader,
-                  BluetoothDaemonPDU& aPDU,
+  void ConnectRsp(const DaemonSocketPDUHeader& aHeader,
+                  DaemonSocketPDU& aPDU,
                   BluetoothA2dpResultHandler* aRes);
 
-  void DisconnectRsp(const BluetoothDaemonPDUHeader& aHeader,
-                     BluetoothDaemonPDU& aPDU,
+  void DisconnectRsp(const DaemonSocketPDUHeader& aHeader,
+                     DaemonSocketPDU& aPDU,
                      BluetoothA2dpResultHandler* aRes);
 
-  void HandleRsp(const BluetoothDaemonPDUHeader& aHeader,
-                 BluetoothDaemonPDU& aPDU,
+  void HandleRsp(const DaemonSocketPDUHeader& aHeader,
+                 DaemonSocketPDU& aPDU,
                  void* aUserData);
 
   //
@@ -91,40 +93,36 @@ protected:
 
   class NotificationHandlerWrapper;
 
-  typedef BluetoothNotificationRunnable2<NotificationHandlerWrapper, void,
-                                         BluetoothA2dpConnectionState,
-                                         nsString,
-                                         BluetoothA2dpConnectionState,
-                                         const nsAString&>
+  typedef mozilla::ipc::DaemonNotificationRunnable2<
+    NotificationHandlerWrapper, void, BluetoothA2dpConnectionState, nsString,
+    BluetoothA2dpConnectionState, const nsAString&>
     ConnectionStateNotification;
 
-  typedef BluetoothNotificationRunnable2<NotificationHandlerWrapper, void,
-                                         BluetoothA2dpAudioState,
-                                         nsString,
-                                         BluetoothA2dpAudioState,
-                                         const nsAString&>
+  typedef mozilla::ipc::DaemonNotificationRunnable2<
+    NotificationHandlerWrapper, void, BluetoothA2dpAudioState, nsString,
+    BluetoothA2dpAudioState, const nsAString&>
     AudioStateNotification;
 
-  typedef BluetoothNotificationRunnable3<NotificationHandlerWrapper, void,
-                                         nsString, uint32_t, uint8_t,
-                                         const nsAString&, uint32_t, uint8_t>
+  typedef mozilla::ipc::DaemonNotificationRunnable3<
+    NotificationHandlerWrapper, void, nsString, uint32_t, uint8_t,
+    const nsAString&, uint32_t, uint8_t>
     AudioConfigNotification;
 
   class ConnectionStateInitOp;
   class AudioStateInitOp;
   class AudioConfigInitOp;
 
-  void ConnectionStateNtf(const BluetoothDaemonPDUHeader& aHeader,
-                          BluetoothDaemonPDU& aPDU);
+  void ConnectionStateNtf(const DaemonSocketPDUHeader& aHeader,
+                          DaemonSocketPDU& aPDU);
 
-  void AudioStateNtf(const BluetoothDaemonPDUHeader& aHeader,
-                     BluetoothDaemonPDU& aPDU);
+  void AudioStateNtf(const DaemonSocketPDUHeader& aHeader,
+                     DaemonSocketPDU& aPDU);
 
-  void AudioConfigNtf(const BluetoothDaemonPDUHeader& aHeader,
-                      BluetoothDaemonPDU& aPDU);
+  void AudioConfigNtf(const DaemonSocketPDUHeader& aHeader,
+                      DaemonSocketPDU& aPDU);
 
-  void HandleNtf(const BluetoothDaemonPDUHeader& aHeader,
-                 BluetoothDaemonPDU& aPDU,
+  void HandleNtf(const DaemonSocketPDUHeader& aHeader,
+                 DaemonSocketPDU& aPDU,
                  void* aUserData);
 
   static BluetoothA2dpNotificationHandler* sNotificationHandler;

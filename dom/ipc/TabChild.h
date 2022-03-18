@@ -228,7 +228,6 @@ class TabChild final : public TabChildBase,
                        public nsITooltipListener
 {
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
-    typedef mozilla::OwningSerializedStructuredCloneBuffer OwningSerializedStructuredCloneBuffer;
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
     typedef mozilla::layers::APZEventState APZEventState;
     typedef mozilla::layers::SetTargetAPZCCallback SetTargetAPZCCallback;
@@ -277,14 +276,14 @@ public:
      */
     virtual bool DoSendBlockingMessage(JSContext* aCx,
                                        const nsAString& aMessage,
-                                       const mozilla::dom::StructuredCloneData& aData,
+                                       StructuredCloneData& aData,
                                        JS::Handle<JSObject *> aCpows,
                                        nsIPrincipal* aPrincipal,
-                                       nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal,
+                                       nsTArray<StructuredCloneData>* aRetVal,
                                        bool aIsSync) override;
     virtual bool DoSendAsyncMessage(JSContext* aCx,
                                     const nsAString& aMessage,
-                                    const mozilla::dom::StructuredCloneData& aData,
+                                    StructuredCloneData& aData,
                                     JS::Handle<JSObject *> aCpows,
                                     nsIPrincipal* aPrincipal) override;
     virtual bool DoUpdateZoomConstraints(const uint32_t& aPresShellId,
@@ -522,11 +521,6 @@ protected:
 private:
     /**
      * Create a new TabChild object.
-     *
-     * |aOwnOrContainingAppId| is the app-id of our frame or of the closest app
-     * frame in the hierarchy which contains us.
-     *
-     * |aIsBrowserElement| indicates whether we're a browser (but not an app).
      */
     TabChild(nsIContentChild* aManager,
              const TabId& aTabId,

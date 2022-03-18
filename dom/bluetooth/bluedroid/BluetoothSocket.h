@@ -10,6 +10,8 @@
 #include "BluetoothCommon.h"
 #include "mozilla/ipc/DataSocket.h"
 
+class MessageLoop;
+
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothSocketObserver;
@@ -20,6 +22,15 @@ class BluetoothSocket final : public mozilla::ipc::DataSocket
 {
 public:
   BluetoothSocket(BluetoothSocketObserver* aObserver);
+  ~BluetoothSocket();
+
+  nsresult Connect(const nsAString& aDeviceAddress,
+                   const BluetoothUuid& aServiceUuid,
+                   BluetoothSocketType aType,
+                   int aChannel,
+                   bool aAuth, bool aEncrypt,
+                   MessageLoop* aConsumerLoop,
+                   MessageLoop* aIOLoop);
 
   nsresult Connect(const nsAString& aDeviceAddress,
                    const BluetoothUuid& aServiceUuid,
@@ -31,11 +42,19 @@ public:
                   const BluetoothUuid& aServiceUuid,
                   BluetoothSocketType aType,
                   int aChannel,
+                  bool aAuth, bool aEncrypt,
+                  MessageLoop* aConsumerLoop,
+                  MessageLoop* aIOLoop);
+
+  nsresult Listen(const nsAString& aServiceName,
+                  const BluetoothUuid& aServiceUuid,
+                  BluetoothSocketType aType,
+                  int aChannel,
                   bool aAuth, bool aEncrypt);
 
   /**
    * Method to be called whenever data is received. This is only called on the
-   * main thread.
+   * consumer thread.
    *
    * @param aBuffer Data received from the socket.
    */

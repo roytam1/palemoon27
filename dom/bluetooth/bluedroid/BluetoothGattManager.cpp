@@ -33,6 +33,7 @@ namespace {
   StaticRefPtr<BluetoothGattManager> sBluetoothGattManager;
   static BluetoothGattInterface* sBluetoothGattInterface;
   static BluetoothGattClientInterface* sBluetoothGattClientInterface;
+  static BluetoothGattServerInterface* sBluetoothGattServerInterface;
 } // anonymous namespace
 
 bool BluetoothGattManager::mInShutdown = false;
@@ -306,6 +307,10 @@ BluetoothGattManager::InitGattInterface(BluetoothProfileResultHandler* aRes)
     sBluetoothGattInterface->GetBluetoothGattClientInterface();
   NS_ENSURE_TRUE_VOID(sBluetoothGattClientInterface);
 
+  sBluetoothGattServerInterface =
+    sBluetoothGattInterface->GetBluetoothGattServerInterface();
+  NS_ENSURE_TRUE_VOID(sBluetoothGattServerInterface);
+
   if (!sClients) {
     sClients = new nsTArray<nsRefPtr<BluetoothGattClient> >;
   }
@@ -335,6 +340,7 @@ public:
   void Cleanup() override
   {
     sBluetoothGattClientInterface = nullptr;
+    sBluetoothGattServerInterface = nullptr;
     sBluetoothGattInterface = nullptr;
     sClients = nullptr;
 
@@ -479,7 +485,10 @@ BluetoothGattManager::UnregisterClient(int aClientIf,
 
   size_t index = sClients->IndexOf(aClientIf, 0 /* Start */,
                                    ClientIfComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  if (NS_WARN_IF(index == sClients->NoIndex)) {
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
+    return;
+  }
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   client->mUnregisterClientRunnable = aRunnable;
@@ -522,8 +531,7 @@ public:
       gattManager->UnregisterClient(mClient->mClientIf, result);
     }
 
-    DispatchReplyError(mClient->mStartLeScanRunnable,
-                       BluetoothValue(mClient->mAppUuid));
+    DispatchReplyError(mClient->mStartLeScanRunnable, aStatus);
     mClient->mStartLeScanRunnable = nullptr;
   }
 
@@ -581,7 +589,7 @@ BluetoothGattManager::StartLeScan(const nsTArray<nsString>& aServiceUuids,
   size_t index = sClients->IndexOf(appUuidStr, 0 /* Start */, UuidComparator());
 
   // Reject the startLeScan request if the clientIf is being used.
-  if (index != sClients->NoIndex) {
+  if (NS_WARN_IF(index != sClients->NoIndex)) {
     DispatchReplyError(aRunnable,
                        NS_LITERAL_STRING("start LE scan failed"));
     return;
@@ -739,7 +747,10 @@ BluetoothGattManager::Disconnect(const nsAString& aAppUuid,
   ENSURE_GATT_CLIENT_INTF_IS_READY_VOID(aRunnable);
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  if (NS_WARN_IF(index == sClients->NoIndex)) {
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
+    return;
+  }
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   client->mDisconnectRunnable = aRunnable;
@@ -783,7 +794,10 @@ BluetoothGattManager::Discover(const nsAString& aAppUuid,
   ENSURE_GATT_CLIENT_INTF_IS_READY_VOID(aRunnable);
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  if (NS_WARN_IF(index == sClients->NoIndex)) {
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
+    return;
+  }
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   MOZ_ASSERT(client->mConnId > 0);
@@ -852,7 +866,10 @@ BluetoothGattManager::ReadRemoteRssi(int aClientIf,
 
   size_t index = sClients->IndexOf(aClientIf, 0 /* Start */,
                                    ClientIfComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  if (NS_WARN_IF(index == sClients->NoIndex)) {
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
+    return;
+  }
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   client->mReadRemoteRssiRunnable = aRunnable;
@@ -916,7 +933,10 @@ BluetoothGattManager::RegisterNotifications(
   ENSURE_GATT_CLIENT_INTF_IS_READY_VOID(aRunnable);
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  if (NS_WARN_IF(index == sClients->NoIndex)) {
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
+    return;
+  }
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
 
@@ -989,7 +1009,10 @@ BluetoothGattManager::DeregisterNotifications(
   ENSURE_GATT_CLIENT_INTF_IS_READY_VOID(aRunnable);
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  if (NS_WARN_IF(index == sClients->NoIndex)) {
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
+    return;
+  }
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
 
@@ -1050,9 +1073,7 @@ BluetoothGattManager::ReadCharacteristicValue(
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
   if (NS_WARN_IF(index == sClients->NoIndex)) {
-    // Reject the read characteristic value request
-    DispatchReplyError(aRunnable,
-                       NS_LITERAL_STRING("ReadCharacteristicValue failed"));
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
     return;
   }
 
@@ -1132,9 +1153,7 @@ BluetoothGattManager::WriteCharacteristicValue(
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
   if (NS_WARN_IF(index == sClients->NoIndex)) {
-    // Reject the write characteristic value request
-    DispatchReplyError(aRunnable,
-                       NS_LITERAL_STRING("WriteCharacteristicValue failed"));
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
     return;
   }
 
@@ -1215,9 +1234,7 @@ BluetoothGattManager::ReadDescriptorValue(
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
   if (NS_WARN_IF(index == sClients->NoIndex)) {
-    // Reject the read descriptor value request
-    DispatchReplyError(aRunnable,
-                       NS_LITERAL_STRING("ReadDescriptorValue failed"));
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
     return;
   }
 
@@ -1298,9 +1315,7 @@ BluetoothGattManager::WriteDescriptorValue(
 
   size_t index = sClients->IndexOf(aAppUuid, 0 /* Start */, UuidComparator());
   if (NS_WARN_IF(index == sClients->NoIndex)) {
-    // Reject the write descriptor value request
-    DispatchReplyError(aRunnable,
-                       NS_LITERAL_STRING("WriteDescriptorValue failed"));
+    DispatchReplyError(aRunnable, STATUS_PARM_INVALID);
     return;
   }
 
@@ -1352,7 +1367,8 @@ BluetoothGattManager::RegisterClientNotification(BluetoothGattStatus aStatus,
   UuidToString(aAppUuid, uuid);
 
   size_t index = sClients->IndexOf(uuid, 0 /* Start */, UuidComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
+
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
 
   BluetoothService* bs = BluetoothService::Get();
@@ -1406,6 +1422,53 @@ BluetoothGattManager::RegisterClientNotification(BluetoothGattStatus aStatus,
   }
 }
 
+class BluetoothGattManager::ScanDeviceTypeResultHandler final
+  : public BluetoothGattClientResultHandler
+{
+public:
+  ScanDeviceTypeResultHandler(const nsAString& aBdAddr, int aRssi,
+                              const BluetoothGattAdvData& aAdvData)
+  : mBdAddr(aBdAddr)
+  , mRssi(static_cast<int32_t>(aRssi))
+  {
+    mAdvData.AppendElements(aAdvData.mAdvData, sizeof(aAdvData.mAdvData));
+  }
+
+  void GetDeviceType(BluetoothTypeOfDevice type)
+  {
+    DistributeSignalDeviceFound(type);
+  }
+
+  void OnError(BluetoothStatus aStatus) override
+  {
+    DistributeSignalDeviceFound(TYPE_OF_DEVICE_BLE);
+  }
+
+private:
+  void DistributeSignalDeviceFound(BluetoothTypeOfDevice type)
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    InfallibleTArray<BluetoothNamedValue> properties;
+
+    BT_APPEND_NAMED_VALUE(properties, "Address", mBdAddr);
+    BT_APPEND_NAMED_VALUE(properties, "Rssi", mRssi);
+    BT_APPEND_NAMED_VALUE(properties, "GattAdv", mAdvData);
+    BT_APPEND_NAMED_VALUE(properties, "Type", static_cast<uint32_t>(type));
+
+    BluetoothService* bs = BluetoothService::Get();
+    NS_ENSURE_TRUE_VOID(bs);
+
+    bs->DistributeSignal(NS_LITERAL_STRING("LeDeviceFound"),
+                         NS_LITERAL_STRING(KEY_ADAPTER),
+                         BluetoothValue(properties));
+  }
+
+  nsString mBdAddr;
+  int32_t mRssi;
+  nsTArray<uint8_t> mAdvData;
+};
+
 void
 BluetoothGattManager::ScanResultNotification(
   const nsAString& aBdAddr, int aRssi,
@@ -1413,21 +1476,13 @@ BluetoothGattManager::ScanResultNotification(
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  InfallibleTArray<BluetoothNamedValue> properties;
+  NS_ENSURE_TRUE_VOID(sBluetoothGattClientInterface);
 
-  nsTArray<uint8_t> advData;
-  advData.AppendElements(aAdvData.mAdvData, sizeof(aAdvData.mAdvData));
-
-  BT_APPEND_NAMED_VALUE(properties, "Address", nsString(aBdAddr));
-  BT_APPEND_NAMED_VALUE(properties, "Rssi", static_cast<int32_t>(aRssi));
-  BT_APPEND_NAMED_VALUE(properties, "GattAdv", advData);
-
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE_VOID(bs);
-
-  bs->DistributeSignal(NS_LITERAL_STRING("LeDeviceFound"),
-                       NS_LITERAL_STRING(KEY_ADAPTER),
-                       BluetoothValue(properties));
+  // Distribute "LeDeviceFound" signal after we know the corresponding
+  // BluetoothTypeOfDevice of the device
+  sBluetoothGattClientInterface->GetDeviceType(
+    aBdAddr,
+    new ScanDeviceTypeResultHandler(aBdAddr, aRssi, aAdvData));
 }
 
 void
@@ -1443,7 +1498,8 @@ BluetoothGattManager::ConnectNotification(int aConnId,
 
   size_t index = sClients->IndexOf(aClientIf, 0 /* Start */,
                                    ClientIfComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
+
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
 
   if (aStatus != GATT_STATUS_SUCCESS) {
@@ -1494,7 +1550,8 @@ BluetoothGattManager::DisconnectNotification(int aConnId,
 
   size_t index = sClients->IndexOf(aClientIf, 0 /* Start */,
                                    ClientIfComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
+
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
 
   if (aStatus != GATT_STATUS_SUCCESS) {
@@ -1540,7 +1597,7 @@ BluetoothGattManager::SearchCompleteNotification(int aConnId,
 
   size_t index = sClients->IndexOf(aConnId, 0 /* Start */,
                                    ConnIdComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   MOZ_ASSERT(client->mDiscoverRunnable);
@@ -1577,7 +1634,7 @@ BluetoothGattManager::SearchResultNotification(
 
   size_t index = sClients->IndexOf(aConnId, 0 /* Start */,
                                    ConnIdComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
 
   // Save to mServices for distributing to application and discovering
   // included services, characteristics of this service later
@@ -1598,7 +1655,7 @@ BluetoothGattManager::GetCharacteristicNotification(
 
   size_t index = sClients->IndexOf(aConnId, 0 /* Start */,
                                    ConnIdComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   MOZ_ASSERT(client->mDiscoverRunnable);
@@ -1624,13 +1681,15 @@ BluetoothGattManager::GetCharacteristicNotification(
       aCharId,
       new DiscoverResultHandler(client));
   } else { // all characteristics of this service are discovered
-    // Notify BluetoothGattService to create characteristics then proceed
-    nsString path;
-    GeneratePathFromGattId(aServiceId.mId, path);
+    // Notify BluetoothGatt to make BluetoothGattService create characteristics
+    // then proceed
+    nsTArray<BluetoothNamedValue> values;
+    BT_APPEND_NAMED_VALUE(values, "serviceId", aServiceId);
+    BT_APPEND_NAMED_VALUE(values, "characteristics", client->mCharacteristics);
 
     bs->DistributeSignal(NS_LITERAL_STRING("CharacteristicsDiscovered"),
-                         path,
-                         BluetoothValue(client->mCharacteristics));
+                         client->mAppUuid,
+                         BluetoothValue(values));
 
     ProceedDiscoverProcess(client, aServiceId);
   }
@@ -1650,7 +1709,7 @@ BluetoothGattManager::GetDescriptorNotification(
 
   size_t index = sClients->IndexOf(aConnId, 0 /* Start */,
                                    ConnIdComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   MOZ_ASSERT(client->mDiscoverRunnable);
@@ -1668,13 +1727,16 @@ BluetoothGattManager::GetDescriptorNotification(
       aDescriptorId,
       new DiscoverResultHandler(client));
   } else { // all descriptors of this characteristic are discovered
-    // Notify BluetoothGattCharacteristic to create descriptors then proceed
-    nsString path;
-    GeneratePathFromGattId(aCharId, path);
+    // Notify BluetoothGatt to make BluetoothGattCharacteristic create
+    // descriptors then proceed
+    nsTArray<BluetoothNamedValue> values;
+    BT_APPEND_NAMED_VALUE(values, "serviceId", aServiceId);
+    BT_APPEND_NAMED_VALUE(values, "characteristicId", aCharId);
+    BT_APPEND_NAMED_VALUE(values, "descriptors", client->mDescriptors);
 
     bs->DistributeSignal(NS_LITERAL_STRING("DescriptorsDiscovered"),
-                         path,
-                         BluetoothValue(client->mDescriptors));
+                         client->mAppUuid,
+                         BluetoothValue(values));
     client->mDescriptors.Clear();
 
     ProceedDiscoverProcess(client, aServiceId);
@@ -1694,7 +1756,7 @@ BluetoothGattManager::GetIncludedServiceNotification(
 
   size_t index = sClients->IndexOf(aConnId, 0 /* Start */,
                                    ConnIdComparator());
-  MOZ_ASSERT(index != sClients->NoIndex);
+  NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
 
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
   MOZ_ASSERT(client->mDiscoverRunnable);
@@ -1711,13 +1773,16 @@ BluetoothGattManager::GetIncludedServiceNotification(
       aIncludedServId,
       new DiscoverResultHandler(client));
   } else { // all included services of this service are discovered
-    // Notify BluetoothGattService to create included services
-    nsString path;
-    GeneratePathFromGattId(aServiceId.mId, path);
+    // Notify BluetoothGatt to make BluetoothGattService create included
+    // services
+    nsTArray<BluetoothNamedValue> values;
+    BT_APPEND_NAMED_VALUE(values, "serviceId", aServiceId);
+    BT_APPEND_NAMED_VALUE(values, "includedServices",
+                          client->mIncludedServices);
 
     bs->DistributeSignal(NS_LITERAL_STRING("IncludedServicesDiscovered"),
-                         path,
-                         BluetoothValue(client->mIncludedServices));
+                         client->mAppUuid,
+                         BluetoothValue(values));
     client->mIncludedServices.Clear();
 
     // Start to discover characteristics of this service
@@ -2012,6 +2077,7 @@ BluetoothGattManager::ReadRemoteRssiNotification(int aClientIf,
   size_t index = sClients->IndexOf(aClientIf, 0 /* Start */,
                                    ClientIfComparator());
   NS_ENSURE_TRUE_VOID(index != sClients->NoIndex);
+
   nsRefPtr<BluetoothGattClient> client = sClients->ElementAt(index);
 
   if (aStatus != GATT_STATUS_SUCCESS) { // operation failed

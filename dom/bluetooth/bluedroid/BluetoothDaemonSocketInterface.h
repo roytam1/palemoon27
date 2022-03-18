@@ -10,6 +10,7 @@
 #include "BluetoothDaemonHelpers.h"
 #include "BluetoothInterface.h"
 #include "BluetoothInterfaceHelpers.h"
+#include "mozilla/ipc/DaemonRunnables.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -20,7 +21,7 @@ class BluetoothDaemonSocketModule
 public:
   static const int MAX_NUM_CLIENTS;
 
-  virtual nsresult Send(BluetoothDaemonPDU* aPDU, void* aUserData) = 0;
+  virtual nsresult Send(DaemonSocketPDU* aPDU, void* aUserData) = 0;
 
   // Commands
   //
@@ -43,10 +44,10 @@ public:
 
 protected:
 
-  void HandleSvc(const BluetoothDaemonPDUHeader& aHeader,
-                 BluetoothDaemonPDU& aPDU, void* aUserData);
+  void HandleSvc(const DaemonSocketPDUHeader& aHeader,
+                 DaemonSocketPDU& aPDU, void* aUserData);
 
-  nsresult Send(BluetoothDaemonPDU* aPDU, BluetoothSocketResultHandler* aRes);
+  nsresult Send(DaemonSocketPDU* aPDU, BluetoothSocketResultHandler* aRes);
 
 private:
   class AcceptWatcher;
@@ -58,32 +59,33 @@ private:
   // Responses
   //
 
-  typedef BluetoothResultRunnable0<BluetoothSocketResultHandler, void>
+  typedef mozilla::ipc::DaemonResultRunnable0<
+    BluetoothSocketResultHandler, void>
     ResultRunnable;
 
-  typedef BluetoothResultRunnable1<BluetoothSocketResultHandler, void,
-                                   int, int>
+  typedef mozilla::ipc::DaemonResultRunnable1<
+    BluetoothSocketResultHandler, void, int, int>
     IntResultRunnable;
 
-  typedef BluetoothResultRunnable1<BluetoothSocketResultHandler, void,
-                                   BluetoothStatus, BluetoothStatus>
+  typedef mozilla::ipc::DaemonResultRunnable1<
+    BluetoothSocketResultHandler, void, BluetoothStatus, BluetoothStatus>
     ErrorRunnable;
 
-  typedef BluetoothResultRunnable3<BluetoothSocketResultHandler, void,
-                                   int, nsString, int,
-                                   int, const nsAString_internal&, int>
+  typedef mozilla::ipc::DaemonResultRunnable3<
+    BluetoothSocketResultHandler, void, int, nsString, int, int,
+    const nsAString_internal&, int>
     IntStringIntResultRunnable;
 
-  void ErrorRsp(const BluetoothDaemonPDUHeader& aHeader,
-                BluetoothDaemonPDU& aPDU,
+  void ErrorRsp(const DaemonSocketPDUHeader& aHeader,
+                DaemonSocketPDU& aPDU,
                 BluetoothSocketResultHandler* aRes);
 
-  void ListenRsp(const BluetoothDaemonPDUHeader& aHeader,
-                 BluetoothDaemonPDU& aPDU,
+  void ListenRsp(const DaemonSocketPDUHeader& aHeader,
+                 DaemonSocketPDU& aPDU,
                  BluetoothSocketResultHandler* aRes);
 
-  void ConnectRsp(const BluetoothDaemonPDUHeader& aHeader,
-                  BluetoothDaemonPDU& aPDU,
+  void ConnectRsp(const DaemonSocketPDUHeader& aHeader,
+                  DaemonSocketPDU& aPDU,
                   BluetoothSocketResultHandler* aRes);
 };
 

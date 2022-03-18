@@ -15,6 +15,11 @@ typedef
 
 typedef
   BluetoothHALInterfaceRunnable1<BluetoothGattClientResultHandler, void,
+                                 BluetoothTypeOfDevice, BluetoothTypeOfDevice>
+  BluetoothGattClientGetDeviceTypeHALResultRunnable;
+
+typedef
+  BluetoothHALInterfaceRunnable1<BluetoothGattClientResultHandler, void,
                                  BluetoothStatus, BluetoothStatus>
   BluetoothGattClientHALErrorRunnable;
 
@@ -74,6 +79,35 @@ DispatchBluetoothGattServerHALResult(
   } else {
     runnable = new BluetoothGattServerHALErrorRunnable(aRes,
       &BluetoothGattServerResultHandler::OnError, aStatus);
+  }
+  nsresult rv = NS_DispatchToMainThread(runnable);
+  if (NS_FAILED(rv)) {
+    BT_WARNING("NS_DispatchToMainThread failed: %X", rv);
+  }
+  return rv;
+}
+
+template <typename ResultRunnable, typename Tin1, typename Arg1>
+static nsresult
+DispatchBluetoothGattClientHALResult(
+  BluetoothGattClientResultHandler* aRes,
+  void (BluetoothGattClientResultHandler::*aMethod)(Arg1),
+  Tin1 aArg1,
+  BluetoothStatus aStatus)
+{
+  MOZ_ASSERT(aRes);
+
+  nsRunnable* runnable;
+  Arg1 arg1;
+
+  if (aStatus != STATUS_SUCCESS) {
+    runnable = new BluetoothGattClientHALErrorRunnable(aRes,
+      &BluetoothGattClientResultHandler::OnError, aStatus);
+  } else if (NS_FAILED(Convert(aArg1, arg1))) {
+    runnable = new BluetoothGattClientHALErrorRunnable(aRes,
+      &BluetoothGattClientResultHandler::OnError, STATUS_PARM_INVALID);
+  } else {
+    runnable = new ResultRunnable(aRes, aMethod, arg1);
   }
   nsresult rv = NS_DispatchToMainThread(runnable);
   if (NS_FAILED(rv)) {
@@ -470,10 +504,10 @@ struct BluetoothGattServerCallback
     int, int, const nsAString&, int, int, bool>
     RequestReadNotification;
 
-  typedef BluetoothNotificationHALRunnable8<
+  typedef BluetoothNotificationHALRunnable9<
     GattServerNotificationHandlerWrapper, void,
-    int, int, nsString, int, int, nsTArray<uint8_t>, bool, bool,
-    int, int, const nsAString&, int, int, const nsTArray<uint8_t>&, bool, bool>
+    int, int, nsString, int, int, int, nsAutoArrayPtr<uint8_t>, bool, bool,
+    int, int, const nsAString&, int, int, int, const uint8_t*, bool, bool>
     RequestWriteNotification;
 
   typedef BluetoothNotificationHALRunnable4<
@@ -599,12 +633,10 @@ struct BluetoothGattServerCallback
                int aAttrHandle, int aOffset, int aLength,
                bool aNeedRsp, bool aIsPrep, uint8_t* aValue)
   {
-    nsTArray<uint8_t> value;
-    value.AppendElements(aValue, aLength);
     RequestWriteNotification::Dispatch(
       &BluetoothGattServerNotificationHandler::RequestWriteNotification,
-      aConnId, aTransId, *aBdAddr, aAttrHandle, aOffset, value, aNeedRsp,
-      aIsPrep);
+      aConnId, aTransId, *aBdAddr, aAttrHandle, aOffset, aLength,
+      ConvertArray<uint8_t>(aValue, aLength), aNeedRsp, aIsPrep);
   }
 
   static void
@@ -1210,22 +1242,23 @@ void
 BluetoothGattClientHALInterface::GetDeviceType(
   const nsAString& aBdAddr, BluetoothGattClientResultHandler* aRes)
 {
-  int status;
+  int status = BT_STATUS_FAIL;
+  bt_device_type_t type = BT_DEVICE_DEVTYPE_BLE;
 #if ANDROID_VERSION >= 19
   bt_bdaddr_t bdAddr;
 
   if (NS_SUCCEEDED(Convert(aBdAddr, bdAddr))) {
-    status = mInterface->get_device_type(&bdAddr);
-  } else {
-    status = BT_STATUS_PARM_INVALID;
+    status = BT_STATUS_SUCCESS;
+    type = static_cast<bt_device_type_t>(mInterface->get_device_type(&bdAddr));
   }
 #else
   status = BT_STATUS_UNSUPPORTED;
 #endif
 
   if (aRes) {
-    DispatchBluetoothGattClientHALResult(
-      aRes, &BluetoothGattClientResultHandler::GetDeviceType,
+    DispatchBluetoothGattClientHALResult<
+      BluetoothGattClientGetDeviceTypeHALResultRunnable>(
+      aRes, &BluetoothGattClientResultHandler::GetDeviceType, type,
       ConvertDefault(status, STATUS_FAIL));
   }
 }

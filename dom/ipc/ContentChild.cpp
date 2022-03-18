@@ -175,13 +175,13 @@
 #endif
 
 #include "ProcessUtils.h"
-#include "StructuredCloneUtils.h"
 #include "URIUtils.h"
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
 #include "nsDeviceStorage.h"
 #include "DomainPolicy.h"
 #include "mozilla/dom/DataStoreService.h"
+#include "mozilla/dom/ipc/StructuredCloneData.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
 #include "mozilla/dom/voicemail/VoicemailIPCService.h"
@@ -790,7 +790,7 @@ ContentChild::InitXPCOM()
     bool isConnected;
     ClipboardCapabilities clipboardCaps;
     DomainPolicyClone domainPolicy;
-    OwningSerializedStructuredCloneBuffer initialData;
+    StructuredCloneData initialData;
 
     SendGetXPCOMProcessAttributes(&isOffline, &isConnected,
                                   &isLangRTL, &mAvailableDictionaries,
@@ -822,9 +822,10 @@ ContentChild::InitXPCOM()
         if (NS_WARN_IF(!jsapi.Init(xpc::PrivilegedJunkScope()))) {
             MOZ_CRASH();
         }
+        ErrorResult rv;
         JS::RootedValue data(jsapi.cx());
-        if (!JS_ReadStructuredClone(jsapi.cx(), initialData.data, initialData.dataLength,
-                                    JS_STRUCTURED_CLONE_VERSION, &data, nullptr, nullptr)) {
+        initialData.Read(jsapi.cx(), &data, rv);
+        if (NS_WARN_IF(rv.Failed())) {
             MOZ_CRASH();
         }
         ProcessGlobal* global = ProcessGlobal::Get();
@@ -2043,10 +2044,11 @@ ContentChild::RecvAsyncMessage(const nsString& aMsg,
 {
     nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::GetChildProcessManager();
     if (cpm) {
-        StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForChild(aData);
+        StructuredCloneData data;
+        ipc::UnpackClonedMessageDataForChild(aData, data);
         CrossProcessCpowHolder cpows(this, aCpows);
         cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()), nullptr,
-                            aMsg, false, &cloneData, &cpows, aPrincipal, nullptr);
+                            aMsg, false, &data, &cpows, aPrincipal, nullptr);
     }
     return true;
 }
@@ -2832,4 +2834,3 @@ ContentChild::RecvTestGraphicsDeviceReset(const uint32_t& aResetReason)
 
 } // namespace dom
 } // namespace mozilla
-

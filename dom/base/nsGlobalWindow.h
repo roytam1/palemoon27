@@ -1504,7 +1504,7 @@ public:
   bool WindowExists(const nsAString& aName, bool aLookForCallerOnJSStack);
 
   already_AddRefed<nsIWidget> GetMainWidget();
-  nsIWidget* GetNearestWidget();
+  nsIWidget* GetNearestWidget() const;
 
   void Freeze()
   {

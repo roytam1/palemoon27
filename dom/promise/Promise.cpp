@@ -21,6 +21,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 
 #include "jsfriendapi.h"
+#include "js/StructuredClone.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -1603,7 +1604,7 @@ PromiseWorkerProxy::GetWorkerPromise() const
 {
 
 #ifdef DEBUG
-  WorkerPrivate* worker = GetCurrentThreadWorkerPrivate();
+  workers::WorkerPrivate* worker = GetCurrentThreadWorkerPrivate();
   MOZ_ASSERT(worker);
   worker->AssertIsOnWorkerThread();
 #endif

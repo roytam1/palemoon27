@@ -8,9 +8,6 @@
 #if ANDROID_VERSION >= 17
 #include <cutils/properties.h>
 #endif
-#ifdef MOZ_B2G_BT_BLUEDROID
-#include "BluetoothHALInterface.h"
-#endif
 #ifdef MOZ_B2G_BT_DAEMON
 #include "BluetoothDaemonInterface.h"
 #endif
@@ -144,20 +141,8 @@ BluetoothInterface::GetInstance()
    */
 
   static const char* const sDefaultBackend[] = {
-#if MOZ_B2G_BT_API_V2
-#ifdef MOZ_B2G_BT_BLUEDROID
-    "bluedroid",
-#endif
 #ifdef MOZ_B2G_BT_DAEMON
     "bluetoothd",
-#endif
-#else
-#ifdef MOZ_B2G_BT_DAEMON
-    "bluetoothd",
-#endif
-#ifdef MOZ_B2G_BT_BLUEDROID
-    "bluedroid",
-#endif
 #endif
     nullptr // no default backend; must be final element in array
   };
@@ -195,11 +180,6 @@ BluetoothInterface::GetInstance()
    * correct one at runtime is also an option.
    */
 
-#ifdef MOZ_B2G_BT_BLUEDROID
-  if (backend.LowerCaseEqualsLiteral("bluedroid")) {
-    return BluetoothHALInterface::GetInstance();
-  } else
-#endif
 #ifdef MOZ_B2G_BT_DAEMON
   if (backend.LowerCaseEqualsLiteral("bluetoothd")) {
     return BluetoothDaemonInterface::GetInstance();

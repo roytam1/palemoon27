@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetoothcommon_h
-#define mozilla_dom_bluetooth_bluetoothcommon_h
+#ifndef mozilla_dom_bluetooth_BluetoothCommon_h
+#define mozilla_dom_bluetooth_BluetoothCommon_h
 
 #include "mozilla/Compiler.h"
 #include "mozilla/Observer.h"
@@ -88,8 +88,6 @@ extern bool gBluetoothDebugFlag;
 /**
  * Wrap literal name and value into a BluetoothNamedValue
  * and insert it to the array.
- *
- * TODO: remove with bluetooth1
  */
 #define BT_INSERT_NAMED_VALUE(array, index, name, value)                      \
   array.InsertElementAt(index, BluetoothNamedValue(NS_LITERAL_STRING(name),   \
@@ -187,21 +185,6 @@ extern bool gBluetoothDebugFlag;
 #define PAIRING_REQ_TYPE_ENTERPINCODE         "enterpincodereq"
 #define PAIRING_REQ_TYPE_CONFIRMATION         "pairingconfirmationreq"
 #define PAIRING_REQ_TYPE_CONSENT              "pairingconsentreq"
-
-/**
- * When the pair status of a Bluetooth device is changed, we'll dispatch an
- * event.
- *
- * TODO: remove with bluetooth1
- */
-#define PAIRED_STATUS_CHANGED_ID             "pairedstatuschanged"
-
-/**
- * This event would be fired when discovery procedure starts or stops.
- *
- * TODO: remove with bluetooth1
- */
-#define DISCOVERY_STATE_CHANGED_ID           "discoverystatechanged"
 
 /**
  * System message to launch bluetooth app if no pairing listener is ready to
@@ -811,4 +794,4 @@ enum BluetoothGapDataType {
 
 END_BLUETOOTH_NAMESPACE
 
-#endif // mozilla_dom_bluetooth_bluetoothcommon_h__
+#endif // mozilla_dom_bluetooth_BluetoothCommon_h

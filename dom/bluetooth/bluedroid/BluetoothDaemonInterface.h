@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluedroid_bluetoothdaemoninterface_h__
-#define mozilla_dom_bluetooth_bluedroid_bluetoothdaemoninterface_h__
+#ifndef mozilla_dom_bluetooth_bluedroid_BluetoothDaemonInterface_h
+#define mozilla_dom_bluetooth_bluedroid_BluetoothDaemonInterface_h
 
 #include "BluetoothInterface.h"
 #include "mozilla/ipc/DaemonSocketConsumer.h"
@@ -139,10 +139,6 @@ protected:
   BluetoothDaemonInterface();
   ~BluetoothDaemonInterface();
 
-  nsresult CreateRandomAddressString(const nsACString& aPrefix,
-                                     unsigned long aPostfixLength,
-                                     nsACString& aAddress);
-
   // Methods for |DaemonSocketConsumer| and |ListenSocketConsumer|
   //
 
@@ -171,4 +167,4 @@ private:
 
 END_BLUETOOTH_NAMESPACE
 
-#endif
+#endif // mozilla_dom_bluetooth_bluedroid_BluetoothDaemonInterface_h

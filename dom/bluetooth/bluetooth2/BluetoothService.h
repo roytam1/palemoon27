@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetootheventservice_h__
-#define mozilla_dom_bluetooth_bluetootheventservice_h__
+#ifndef mozilla_dom_bluetooth_BluetoothService_h
+#define mozilla_dom_bluetooth_BluetoothService_h
 
 #include "BluetoothCommon.h"
 #include "BluetoothInterface.h"
@@ -281,9 +281,6 @@ public:
   virtual void
   Disconnect(const nsAString& aDeviceAddress, uint16_t aServiceUuid,
              BluetoothReplyRunnable* aRunnable) = 0;
-
-  virtual bool
-  IsConnected(uint16_t aServiceUuid) = 0;
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
@@ -564,4 +561,4 @@ protected:
 
 END_BLUETOOTH_NAMESPACE
 
-#endif
+#endif // mozilla_dom_bluetooth_BluetoothService_h

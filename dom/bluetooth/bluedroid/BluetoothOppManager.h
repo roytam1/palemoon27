@@ -76,12 +76,7 @@ private:
   BluetoothOppManager();
   bool Init();
   void HandleShutdown();
-
-#ifdef MOZ_B2G_BT_API_V2
-  // Removed in bluetooth2
-#else
   void HandleVolumeStateChanged(nsISupports* aSubject);
-#endif
 
   void StartFileTransfer();
   void StartSendingNextFile();
@@ -155,6 +150,12 @@ private:
    * refreshing SDP records is necessary.
    */
   bool mNeedsUpdatingSdpRecords;
+
+  /**
+   * This holds the time when OPP manager fail to get service channel and
+   * prepare to refresh SDP records.
+   */
+  mozilla::TimeStamp mLastServiceChannelCheck;
 
   /**
    * Set when StopSendingFile() is called.

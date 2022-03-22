@@ -17,24 +17,23 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothServiceBluedroid : public BluetoothService
                                 , public BluetoothNotificationHandler
 {
-  class CancelDiscoveryResultHandler;
   class CleanupResultHandler;
-  class CreateBondResultHandler;
   class DisableResultHandler;
+  class DispatchReplyErrorResultHandler;
   class EnableResultHandler;
   class GetRemoteDevicePropertiesResultHandler;
+  class GetRemoteServiceRecordResultHandler;
   class GetRemoteServicesResultHandler;
   class InitResultHandler;
   class PinReplyResultHandler;
   class ProfileDeinitResultHandler;
   class ProfileInitResultHandler;
-  class RemoveBondResultHandler;
   class SetAdapterPropertyDiscoverableResultHandler;
-  class SetAdapterPropertyResultHandler;
   class SspReplyResultHandler;
-  class StartDiscoveryResultHandler;
 
   class GetDeviceRequest;
+  struct GetRemoteServiceRecordRequest;
+  struct GetRemoteServicesRequest;
 
 public:
   BluetoothServiceBluedroid();
@@ -146,6 +145,37 @@ public:
 
   virtual void
   IsScoConnected(BluetoothReplyRunnable* aRunnable);
+
+  virtual void
+  ReplyTovCardPulling(BlobParent* aBlobParent,
+                      BlobChild* aBlobChild,
+                      BluetoothReplyRunnable* aRunnable);
+
+  virtual void
+  ReplyTovCardPulling(Blob* aBlob,
+                      BluetoothReplyRunnable* aRunnable);
+
+  virtual void
+  ReplyToPhonebookPulling(BlobParent* aBlobParent,
+                          BlobChild* aBlobChild,
+                          uint16_t aPhonebookSize,
+                          BluetoothReplyRunnable* aRunnable);
+
+  virtual void
+  ReplyToPhonebookPulling(Blob* aBlob,
+                          uint16_t aPhonebookSize,
+                          BluetoothReplyRunnable* aRunnable);
+
+  virtual void
+  ReplyTovCardListing(BlobParent* aBlobParent,
+                      BlobChild* aBlobChild,
+                      uint16_t aPhonebookSize,
+                      BluetoothReplyRunnable* aRunnable);
+
+  virtual void
+  ReplyTovCardListing(Blob* aBlob,
+                      uint16_t aPhonebookSize,
+                      BluetoothReplyRunnable* aRunnable);
 
   virtual void
   AnswerWaitingCall(BluetoothReplyRunnable* aRunnable);
@@ -264,6 +294,22 @@ public:
     const nsTArray<uint8_t>& aValue,
     BluetoothReplyRunnable* aRunnable) override;
 
+  virtual void
+  GattServerConnectPeripheralInternal(
+    const nsAString& aAppUuid,
+    const nsAString& aAddress,
+    BluetoothReplyRunnable* aRunnable) override;
+
+  virtual void
+  GattServerDisconnectPeripheralInternal(
+    const nsAString& aAppUuid,
+    const nsAString& aAddress,
+    BluetoothReplyRunnable* aRunnable) override;
+
+  virtual void
+  UnregisterGattServerInternal(int aServerIf,
+                               BluetoothReplyRunnable* aRunnable) override;
+
   //
   // Bluetooth notifications
   //
@@ -352,6 +398,10 @@ protected:
 
   // <address, name> mapping table for remote devices
   nsDataHashtable<nsStringHashKey, nsString> mDeviceNameMap;
+
+  // Arrays for SDP operations
+  nsTArray<GetRemoteServiceRecordRequest> mGetRemoteServiceRecordArray;
+  nsTArray<GetRemoteServicesRequest> mGetRemoteServicesArray;
 };
 
 END_BLUETOOTH_NAMESPACE

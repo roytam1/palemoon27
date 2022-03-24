@@ -2190,8 +2190,8 @@ pref("intl.hyphenation-alias.sh-*", "sh");
 pref("intl.hyphenation-alias.sr-*", "sh");
 pref("intl.hyphenation-alias.bs-*", "sh");
 
-// Norwegian has two forms, BokmÃ¥l and Nynorsk, with "no" as a macrolanguage encompassing both.
-// For "no", we'll alias to "nb" (BokmÃ¥l) as that is the more widely used written form.
+// Norwegian has two forms, Bokm æl and Nynorsk, with "no" as a macrolanguage encompassing both.
+// For "no", we'll alias to "nb" (Bokm æl) as that is the more widely used written form.
 pref("intl.hyphenation-alias.no", "nb");
 pref("intl.hyphenation-alias.no-*", "nb");
 pref("intl.hyphenation-alias.nb-*", "nb");
@@ -3458,7 +3458,7 @@ pref("intl.imm.vertical_writing.always_assume_not_supported", false);
 // We cannot retrieve active IME name with IMM32 API if a TIP of TSF is active.
 // This pref can specify active IME name when Japanese TIP is active.
 // For example:
-//   Google Japanese Input: "Google ?¥æœ¬èªžå…¥??IMM32 ?¢ã‚¸?¥ãƒ¼??
+//   Google Japanese Input: "Google ¤é¥»»y¤J¤O IMM32 ÇÞÇ´ÇáÆãÇç"
 //   ATOK 2011: "ATOK 2011" (similarly, e.g., ATOK 2013 is "ATOK 2013")
 pref("intl.imm.japanese.assume_active_tip_name_as", "");
 
@@ -4563,6 +4563,9 @@ pref("browser.history.maxStateObjectSize", 655360);
 
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
+// Only Firefox requires add-on signatures
+pref("xpinstall.signatures.required", false);
+pref("xpinstall.signatures.infoURL", "https://wiki.mozilla.org/Addons/Extension_Signing");
 pref("extensions.alwaysUnpack", false);
 pref("extensions.minCompatiblePlatformVersion", "1.8");
 

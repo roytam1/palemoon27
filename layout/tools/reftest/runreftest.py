@@ -218,6 +218,11 @@ class RefTest(object):
     # And for about:newtab content fetch and pings.
     prefs['browser.newtabpage.directory.source'] = 'data:application/json,{"reftest":1}'
     prefs['browser.newtabpage.directory.ping'] = ''
+    # Only allow add-ons from the profile and app and allow foreign injection
+    prefs["extensions.enabledScopes"] = 5;
+    prefs["extensions.autoDisableScopes"] = 0;
+    # Allow unsigned add-ons
+    prefs['xpinstall.signatures.required'] = False
 
     #Don't use auto-enabled e10s
     prefs['browser.tabs.remote.autostart.1'] = False

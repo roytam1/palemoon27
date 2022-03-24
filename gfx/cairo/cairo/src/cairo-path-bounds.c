@@ -139,6 +139,16 @@ _cairo_path_bounder_curve_to (void *closure,
 static cairo_status_t
 _cairo_path_bounder_close_path (void *closure)
 {
+    // XXXMC: This addition of a closure point isn't strictly needed but
+    // if our clipping extents code changes then this might cause problems
+    // if the extra point isn't added (in case of 0-length paths).
+    cairo_path_bounder_t *bounder = closure;
+
+    if (bounder->has_initial_point) {
+	_cairo_path_bounder_add_point (bounder, &bounder->current_point);
+	bounder->has_initial_point = FALSE;
+    } 
+
     return CAIRO_STATUS_SUCCESS;
 }
 

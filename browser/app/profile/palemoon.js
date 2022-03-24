@@ -41,6 +41,8 @@ pref("extensions.minCompatibleAppVersion", "1.5");
 
 pref("xpinstall.customConfirmationUI", true);
 
+pref("extensions.getAddons.link.url", "https://addons.mozilla.org/%LOCALE%/firefox/");
+
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
@@ -57,6 +59,10 @@ pref("extensions.update.autoUpdateDefault", true);
 // Disable add-ons that are not installed by the user in all scopes by default.
 // See the SCOPE constants in AddonManager.jsm for values to use here.
 pref("extensions.autoDisableScopes", 15);
+
+// Don't require signed add-ons by default
+pref("xpinstall.signatures.required", false);
+pref("xpinstall.signatures.devInfoURL", "https://wiki.mozilla.org/Addons/Extension_Signing");
 
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "http://repository.binaryoutcast.com/dicts/");

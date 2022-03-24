@@ -106,7 +106,8 @@ function get_test_items() {
   var item = gManagerWindow.document.getElementById("addon-list").firstChild;
 
   while (item) {
-    if (item.mAddon.id.substring(item.mAddon.id.length - tests.length) == tests)
+    if (item.mAddon.id.substring(item.mAddon.id.length - tests.length) == tests &&
+        !is_hidden(item))
       items[item.mAddon.name] = item;
     item = item.nextSibling;
   }
@@ -674,7 +675,35 @@ add_test(function() {
     is(a2.pendingOperations, 0, "Add-on 1 should not have any pending operations");
     is(a4.pendingOperations, 0, "Add-on 1 should not have any pending operations");
 
-    run_next_test();
+    info("Filter for disabled unsigned extensions");
+    let filterButton = gManagerWindow.document.getElementById("show-disabled-unsigned-extensions");
+    let showAllButton = gManagerWindow.document.getElementById("show-all-extensions");
+    let signingInfoUI = gManagerWindow.document.getElementById("disabled-unsigned-addons-info");
+    is_element_visible(filterButton, "Button for showing disabled unsigned extensions should be visible");
+    is_element_hidden(showAllButton, "Button for showing all extensions should be hidden");
+    is_element_hidden(signingInfoUI, "Signing info UI should be hidden");
+
+    filterButton.click();
+    wait_for_view_load(gManagerWindow, () => {
+      is_element_hidden(filterButton, "Button for showing disabled unsigned extensions should be hidden");
+      is_element_visible(showAllButton, "Button for showing all extensions should be visible");
+      is_element_visible(signingInfoUI, "Signing info UI should be visible");
+
+      items = get_test_items();
+      is(Object.keys(items).length, 1, "Only one add-on should be shown");
+      is(Object.keys(items)[0], "Test add-on 11", "The disabled unsigned extension should be shown");
+
+      showAllButton.click();
+      wait_for_view_load(gManagerWindow, () => {
+        items = get_test_items();
+        is(Object.keys(items).length, 11, "All add-ons should be shown again");
+        is_element_visible(filterButton, "Button for showing disabled unsigned extensions should be visible again");
+        is_element_hidden(showAllButton, "Button for showing all extensions should be hidden again");
+        is_element_hidden(signingInfoUI, "Signing info UI should be hidden again");
+
+        run_next_test();
+      });
+    });
   });
 });
 

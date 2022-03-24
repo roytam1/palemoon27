@@ -120,6 +120,9 @@ XPCOMUtils.defineLazyGetter(this, "ShellService", function() {
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
                                   "resource://gre/modules/LightweightThemeManager.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "ExtensionManagement",
+                                  "resource://gre/modules/ExtensionManagement.jsm");
+
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -382,6 +385,69 @@ BrowserGlue.prototype = {
       case "test-initialize-sanitizer":
         this._sanitizer.onStartup();
         break;
+      case "xpi-signature-changed":
+        if (JSON.parse(data).disabled.length)
+          this._notifyUnsignedAddonsDisabled();
+        break;
+      case "autocomplete-did-enter-text":
+        this._handleURLBarTelemetry(subject.QueryInterface(Ci.nsIAutoCompleteInput));
+        break;
+    }
+  },
+
+  _handleURLBarTelemetry(input) {
+    if (!input ||
+        input.id != "urlbar" ||
+        input.inPrivateContext ||
+        input.popup.selectedIndex < 0) {
+      return;
+    }
+    let controller =
+      input.popup.view.QueryInterface(Ci.nsIAutoCompleteController);
+    let idx = input.popup.selectedIndex;
+    let value = controller.getValueAt(idx);
+    let action = input._parseActionUrl(value);
+    let actionType;
+    if (action) {
+      actionType =
+        action.type == "searchengine" && action.params.searchSuggestion ?
+          "searchsuggestion" :
+        action.type;
+    }
+    if (!actionType) {
+      let styles = controller.getStyleAt(idx).split(/\s+/);
+      let style = ["autofill", "tag", "bookmark"].find(s => styles.includes(s));
+      actionType = style || "history";
+    }
+
+    Services.telemetry
+            .getHistogramById("FX_URLBAR_SELECTED_RESULT_INDEX")
+            .add(idx);
+
+    // Ideally this would be a keyed histogram and we'd just add(actionType),
+    // but keyed histograms aren't currently shown on the telemetry dashboard
+    // (bug 1151756).
+    //
+    // You can add values but don't change any of the existing values.
+    // Otherwise you'll break our data.
+    let buckets = {
+      autofill: 0,
+      bookmark: 1,
+      history: 2,
+      keyword: 3,
+      searchengine: 4,
+      searchsuggestion: 5,
+      switchtab: 6,
+      tag: 7,
+      visiturl: 8,
+    };
+    if (actionType in buckets) {
+      Services.telemetry
+              .getHistogramById("FX_URLBAR_SELECTED_RESULT_TYPE")
+              .add(buckets[actionType]);
+    } else {
+      Cu.reportError("Unknown FX_URLBAR_SELECTED_RESULT_TYPE type: " +
+                     actionType);
     }
   },
 
@@ -427,6 +493,14 @@ BrowserGlue.prototype = {
     os.addObserver(this, "browser-search-service", false);
     os.addObserver(this, "restart-in-safe-mode", false);
     os.addObserver(this, "flash-plugin-hang", false);
+    os.addObserver(this, "xpi-signature-changed", false);
+    os.addObserver(this, "autocomplete-did-enter-text", false);
+
+    ExtensionManagement.registerScript("chrome://browser/content/ext-utils.js");
+    ExtensionManagement.registerScript("chrome://browser/content/ext-browserAction.js");
+    ExtensionManagement.registerScript("chrome://browser/content/ext-contextMenus.js");
+    ExtensionManagement.registerScript("chrome://browser/content/ext-tabs.js");
+    ExtensionManagement.registerScript("chrome://browser/content/ext-windows.js");
 
     this._flashHangCount = 0;
   },
@@ -468,6 +542,8 @@ BrowserGlue.prototype = {
       // may have already been removed by the observer
     } catch (ex) {}
     os.removeObserver(this, "flash-plugin-hang");
+    os.removeObserver(this, "xpi-signature-changed");
+    os.removeObserver(this, "autocomplete-did-enter-text");
   },
 
   _onAppDefaults: function BG__onAppDefaults() {
@@ -746,6 +822,27 @@ BrowserGlue.prototype = {
     nb.appendNotification(message, "reset-unused-profile",
                           "chrome://global/skin/icons/question-16.png",
                           nb.PRIORITY_INFO_LOW, buttons);
+  },
+
+  _notifyUnsignedAddonsDisabled: function () {
+    let win = this.getMostRecentBrowserWindow();
+    if (!win)
+      return;
+
+    let message = win.gNavigatorBundle.getString("unsignedAddonsDisabled.message");
+    let buttons = [
+      {
+        label:     win.gNavigatorBundle.getString("unsignedAddonsDisabled.learnMore.label"),
+        accessKey: win.gNavigatorBundle.getString("unsignedAddonsDisabled.learnMore.accesskey"),
+        callback: function () {
+          win.BrowserOpenAddonsMgr("addons://list/extension?unsigned=true");
+        }
+      },
+    ];
+
+    let nb = win.document.getElementById("high-priority-global-notificationbox");
+    nb.appendNotification(message, "unsigned-addons-disabled", "",
+                          nb.PRIORITY_WARNING_MEDIUM, buttons);
   },
 
   // the first browser window has finished initializing

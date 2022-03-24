@@ -367,7 +367,9 @@ function openModalWindow(domWin, uri, args) {
     // DOMModalDialogClosed events here, wwatcher's OpenWindowInternal
     // will do that. Similarly for enterModalState / leaveModalState.
 
-    Services.ww.openWindow(domWin, uri, "_blank", "centerscreen,chrome,modal,titlebar", args);
+    try {
+        Services.ww.openWindow(domWin, uri, "_blank", "centerscreen,chrome,modal,titlebar", args);
+    } catch (e) { }
 }
 
 function openTabPrompt(domWin, tabPrompt, args) {

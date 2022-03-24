@@ -411,7 +411,8 @@ nsPreflightCache::GetCacheKey(nsIURI* aURI,
 
 NS_IMPL_ISUPPORTS(nsCORSListenerProxy, nsIStreamListener,
                   nsIRequestObserver, nsIChannelEventSink,
-                  nsIInterfaceRequestor, nsIAsyncVerifyRedirectCallback)
+                  nsIInterfaceRequestor, nsIAsyncVerifyRedirectCallback,
+                  nsIThreadRetargetableStreamListener)
 
 /* static */
 void
@@ -674,11 +675,15 @@ nsCORSListenerProxy::OnStopRequest(nsIRequest* aRequest,
 
 NS_IMETHODIMP
 nsCORSListenerProxy::OnDataAvailable(nsIRequest* aRequest,
-                                     nsISupports* aContext, 
+                                     nsISupports* aContext,
                                      nsIInputStream* aInputStream,
                                      uint64_t aOffset,
                                      uint32_t aCount)
 {
+  // NB: This can be called on any thread!  But we're guaranteed that it is
+  // called between OnStartRequest and OnStopRequest, so we don't need to worry
+  // about races.
+
   MOZ_ASSERT(mInited, "nsCORSListenerProxy has not been initialized properly");
   if (!mRequestApproved) {
     return NS_ERROR_DOM_BAD_URI;
@@ -823,6 +828,19 @@ nsCORSListenerProxy::OnRedirectVerifyCallback(nsresult result)
   mRedirectCallback->OnRedirectVerifyCallback(result);
   mRedirectCallback   = nullptr;
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCORSListenerProxy::CheckListenerChain()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (nsCOMPtr<nsIThreadRetargetableStreamListener> retargetableListener =
+        do_QueryInterface(mOuterListener)) {
+    return retargetableListener->CheckListenerChain();
+  }
+
+  return NS_ERROR_NO_INTERFACE;
 }
 
 // Please note that the CSP directive 'upgrade-insecure-requests' relies
@@ -1188,7 +1206,24 @@ nsCORSPreflightListener::OnStartRequest(nsIRequest *aRequest,
     // Everything worked, try to cache and then fire off the actual request.
     AddResultToCache(aRequest);
 
-    rv = mOuterChannel->AsyncOpen(mOuterListener, mOuterContext);
+    nsCOMPtr<nsILoadInfo> loadInfo = mOuterChannel->GetLoadInfo();
+    MOZ_ASSERT(loadInfo, "can not perform CORS preflight without a loadInfo");
+    if (!loadInfo) {
+      return NS_ERROR_FAILURE;
+    }
+    nsSecurityFlags securityMode = loadInfo->GetSecurityMode();
+
+    MOZ_ASSERT(securityMode == 0 ||
+               securityMode == nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS,
+               "how did we end up here?");
+
+    if (securityMode == nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS) {
+      MOZ_ASSERT(!mOuterContext, "AsyncOpen(2) does not take context as a second arg");
+      rv = mOuterChannel->AsyncOpen2(mOuterListener);
+    }
+    else {
+      rv = mOuterChannel->AsyncOpen(mOuterListener, mOuterContext);
+    }
   }
 
   if (NS_FAILED(rv)) {
@@ -1247,7 +1282,6 @@ nsCORSPreflightListener::GetInterface(const nsIID & aIID, void **aResult)
   return QueryInterface(aIID, aResult);
 }
 
-
 nsresult
 NS_StartCORSPreflight(nsIChannel* aRequestChannel,
                       nsIStreamListener* aListener,
@@ -1267,6 +1301,18 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
   nsresult rv = NS_GetFinalChannelURI(aRequestChannel, getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsILoadInfo> loadInfo = aRequestChannel->GetLoadInfo();
+  MOZ_ASSERT(loadInfo, "can not perform CORS preflight without a loadInfo");
+  if (!loadInfo) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsSecurityFlags securityMode = loadInfo->GetSecurityMode();
+
+  MOZ_ASSERT(securityMode == 0 ||
+             securityMode == nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS,
+             "how did we end up here?");
+
   nsPreflightCache::CacheEntry* entry =
     sPreflightCache ?
     sPreflightCache->GetEntry(uri, aPrincipal, aWithCredentials, false) :
@@ -1274,6 +1320,9 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
 
   if (entry && entry->CheckRequest(method, aUnsafeHeaders)) {
     // We have a cached preflight result, just start the original channel
+    if (securityMode == nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS) {
+      return aRequestChannel->AsyncOpen2(aListener);
+    }
     return aRequestChannel->AsyncOpen(aListener, nullptr);
   }
 
@@ -1288,29 +1337,13 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
   rv = aRequestChannel->GetLoadFlags(&loadFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsILoadInfo> loadInfo;
-  rv = aRequestChannel->GetLoadInfo(getter_AddRefs(loadInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIChannel> preflightChannel;
-  if (loadInfo) {
-    rv = NS_NewChannelInternal(getter_AddRefs(preflightChannel),
-                               uri,
-                               loadInfo,
-                               loadGroup,
-                               nullptr,   // aCallbacks
-                               loadFlags);
-  }
-  else {
-    rv = NS_NewChannel(getter_AddRefs(preflightChannel),
-                       uri,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER,
-                       loadGroup,
-                       nullptr,   // aCallbacks
-                       loadFlags);
-  }
+  rv = NS_NewChannelInternal(getter_AddRefs(preflightChannel),
+                             uri,
+                             loadInfo,
+                             loadGroup,
+                             nullptr,   // aCallbacks
+                             loadFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIHttpChannel> preHttp = do_QueryInterface(preflightChannel);
@@ -1336,16 +1369,19 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
                                 method, aWithCredentials);
   NS_ENSURE_TRUE(preflightListener, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<nsCORSListenerProxy> corsListener =
-    new nsCORSListenerProxy(preflightListener, aPrincipal,
-                            aWithCredentials, method,
-                            aUnsafeHeaders);
-  rv = corsListener->Init(preflightChannel, DataURIHandling::Disallow);
-  NS_ENSURE_SUCCESS(rv, rv);
-  preflightListener = corsListener;
-
   // Start preflight
-  rv = preflightChannel->AsyncOpen(preflightListener, nullptr);
+  if (securityMode == nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS) {
+    rv = preflightChannel->AsyncOpen2(preflightListener);
+  }
+  else {
+    nsRefPtr<nsCORSListenerProxy> corsListener =
+      new nsCORSListenerProxy(preflightListener, aPrincipal,
+                              aWithCredentials, method,
+                              aUnsafeHeaders);
+    rv = corsListener->Init(preflightChannel, DataURIHandling::Disallow);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = preflightChannel->AsyncOpen(corsListener, nullptr);
+  }
   NS_ENSURE_SUCCESS(rv, rv);
   
   // Return newly created preflight channel

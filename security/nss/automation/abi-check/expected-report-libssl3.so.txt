@@ -11,3 +11,7 @@
             'PRUint32 SSLPreliminaryChannelInfoStr::authKeyBits', at offset 224 (in bits) at sslt.h:419:1
             'SSLSignatureScheme SSLPreliminaryChannelInfoStr::signatureScheme', at offset 256 (in bits) at sslt.h:420:1
 
+2 Added functions:
+
+  'function PRBool SSL_CertIsUsable(PRFileDesc*, CERTCertificate*)'    {SSL_CertIsUsable@@NSS_3.77}
+  'function SECStatus SSL_FilterClientCertListBySocket(PRFileDesc*, CERTCertList*)'    {SSL_FilterClientCertListBySocket@@NSS_3.77}

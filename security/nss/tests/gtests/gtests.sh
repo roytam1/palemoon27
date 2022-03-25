@@ -98,7 +98,7 @@ gtest_cleanup()
 }
 
 ################## main #################################################
-GTESTS="${GTESTS:-prng_gtest certhigh_gtest certdb_gtest der_gtest pk11_gtest util_gtest freebl_gtest softoken_gtest sysinit_gtest blake2b_gtest smime_gtest mozpkix_gtest}"
+GTESTS="${GTESTS:-base_gtest prng_gtest certhigh_gtest certdb_gtest der_gtest pk11_gtest util_gtest freebl_gtest softoken_gtest sysinit_gtest blake2b_gtest smime_gtest mozpkix_gtest}"
 SOURCE_DIR="$PWD"/../..
 gtest_init "$0"
 gtest_start

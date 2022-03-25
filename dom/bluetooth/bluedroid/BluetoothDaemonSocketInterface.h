@@ -4,37 +4,49 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluedroid_bluetoothdaemonsocketinterface_h__
-#define mozilla_dom_bluetooth_bluedroid_bluetoothdaemonsocketinterface_h__
+#ifndef mozilla_dom_bluetooth_bluedroid_BluetoothDaemonSocketInterface_h
+#define mozilla_dom_bluetooth_bluedroid_BluetoothDaemonSocketInterface_h
 
 #include "BluetoothDaemonHelpers.h"
 #include "BluetoothInterface.h"
-#include "BluetoothInterfaceHelpers.h"
 #include "mozilla/ipc/DaemonRunnables.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-using namespace mozilla::ipc;
+using mozilla::ipc::DaemonSocketPDU;
+using mozilla::ipc::DaemonSocketPDUHeader;
+using mozilla::ipc::DaemonSocketResultHandler;
 
 class BluetoothDaemonSocketModule
 {
 public:
+  enum {
+    SERVICE_ID = 0x02
+  };
+
+  enum {
+    OPCODE_ERROR = 0x00,
+    OPCODE_LISTEN = 0x01,
+    OPCODE_CONNECT = 0x02
+  };
+
   static const int MAX_NUM_CLIENTS;
 
-  virtual nsresult Send(DaemonSocketPDU* aPDU, void* aUserData) = 0;
+  virtual nsresult Send(DaemonSocketPDU* aPDU,
+                        DaemonSocketResultHandler* aRes) = 0;
 
   // Commands
   //
 
   nsresult ListenCmd(BluetoothSocketType aType,
                      const nsAString& aServiceName,
-                     const uint8_t aServiceUuid[16],
+                     const BluetoothUuid& aServiceUuid,
                      int aChannel, bool aEncrypt, bool aAuth,
                      BluetoothSocketResultHandler* aRes);
 
   nsresult ConnectCmd(const nsAString& aBdAddr,
                       BluetoothSocketType aType,
-                      const uint8_t aUuid[16],
+                      const BluetoothUuid& aServiceUuid,
                       int aChannel, bool aEncrypt, bool aAuth,
                       BluetoothSocketResultHandler* aRes);
 
@@ -45,9 +57,7 @@ public:
 protected:
 
   void HandleSvc(const DaemonSocketPDUHeader& aHeader,
-                 DaemonSocketPDU& aPDU, void* aUserData);
-
-  nsresult Send(DaemonSocketPDU* aPDU, BluetoothSocketResultHandler* aRes);
+                 DaemonSocketPDU& aPDU, DaemonSocketResultHandler* aRes);
 
 private:
   class AcceptWatcher;
@@ -98,19 +108,19 @@ public:
 
   void Listen(BluetoothSocketType aType,
               const nsAString& aServiceName,
-              const uint8_t aServiceUuid[16],
+              const BluetoothUuid& aServiceUuid,
               int aChannel, bool aEncrypt, bool aAuth,
-              BluetoothSocketResultHandler* aRes);
+              BluetoothSocketResultHandler* aRes) override;
 
   void Connect(const nsAString& aBdAddr,
                BluetoothSocketType aType,
-               const uint8_t aUuid[16],
+               const BluetoothUuid& aServiceUuid,
                int aChannel, bool aEncrypt, bool aAuth,
-               BluetoothSocketResultHandler* aRes);
+               BluetoothSocketResultHandler* aRes) override;
 
-  void Accept(int aFd, BluetoothSocketResultHandler* aRes);
+  void Accept(int aFd, BluetoothSocketResultHandler* aRes) override;
 
-  void Close(BluetoothSocketResultHandler* aRes);
+  void Close(BluetoothSocketResultHandler* aRes) override;
 
 private:
   void DispatchError(BluetoothSocketResultHandler* aRes,
@@ -122,4 +132,4 @@ private:
 
 END_BLUETOOTH_NAMESPACE
 
-#endif
+#endif // mozilla_dom_bluetooth_bluedroid_BluetoothDaemonSocketInterface_h

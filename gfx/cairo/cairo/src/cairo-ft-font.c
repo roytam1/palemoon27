@@ -100,9 +100,12 @@ static setLcdFilterFunc setLcdFilter;
 /* This is the max number of FT_face objects we keep open at once
  */
 #define MAX_OPEN_FACES 10
-/* This is the maximum font size we allow to be passed to FT_Set_Char_Size
+
+/* This is the (arbitrary) maximum font size we allow to be passed to
+   FT_Set_Char_Size. 
+   Note: This should be equal to FONT_MAX_SIZE in thebes/gfxFont.h
  */
-#define MAX_FONT_SIZE 1000
+#define MAX_FONT_SIZE 2000
 
 /**
  * SECTION:cairo-ft

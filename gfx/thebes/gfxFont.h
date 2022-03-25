@@ -44,6 +44,7 @@ class gfxShapedWord;
 class gfxSkipChars;
 class gfxTextContextPaint;
 
+// If you change this value, also change MAX_FONT_SIZE in cairo-ft-font.c to match
 #define FONT_MAX_SIZE                  2000.0
 
 #define NO_FONT_LANGUAGE_OVERRIDE      0

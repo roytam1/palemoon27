@@ -24,6 +24,10 @@ if CONFIG['OS_ARCH'] != 'Darwin' and CONFIG['GNU_CC']:
             'pixman-arm-simd-asm-scaled.S',
             'pixman-arm-simd-asm.S',
         ]
+    if CONFIG['CLANG_CXX']:
+        ASFLAGS += [
+            '-no-integrated-as',
+        ]
 
 SOURCES += [
     'pixman-access-accessors.c',
@@ -31,7 +35,6 @@ SOURCES += [
     'pixman-arm.c',
     'pixman-bits-image.c',
     'pixman-combine-float.c',
-    'pixman-combine16.c',
     'pixman-combine32.c',
     'pixman-conical-gradient.c',
     'pixman-edge-accessors.c',
@@ -58,6 +61,7 @@ SOURCES += [
     'pixman.c',
 ]
 
+# We allow warnings for third-party code that can be updated from upstream.
 ALLOW_COMPILER_WARNINGS = True
 
 FINAL_LIBRARY = 'gkmedias'
@@ -66,7 +70,7 @@ LOCAL_INCLUDES += [
 ]
 
 if CONFIG['MOZ_USE_PTHREADS']:
-    DEFINES['HAVE_PTHREAD_SETSPECIFIC'] = True
+    DEFINES['HAVE_PTHREADS'] = True
 
 if CONFIG['_MSC_VER']:
     DEFINES['PIXMAN_USE_XP_DLL_TLS_WORKAROUND'] = True
@@ -77,11 +81,13 @@ DEFINES['_USE_MATH_DEFINES'] = True
 
 use_mmx = False
 use_sse2 = False
+use_ssse3 = False
 use_vmx = False
 use_arm_simd_gcc = False
 use_arm_neon_gcc = False
 if '86' in CONFIG['OS_TEST']:
     use_sse2 = True
+    use_ssse3 = True
     if '64' not in CONFIG['OS_TEST']:
         if CONFIG['_MSC_VER']:
             use_mmx = True
@@ -108,8 +114,8 @@ if use_mmx:
     if CONFIG['GNU_CC']:
         SOURCES['pixman-mmx.c'].flags += [
             '-Winline',
-            '--param inline-unit-growth=10000',
-            '--param large-function-growth=10000',
+            '--param', 'inline-unit-growth=10000',
+            '--param', 'large-function-growth=10000',
         ]
 
 if use_sse2:
@@ -119,6 +125,15 @@ if use_sse2:
     SOURCES['pixman-sse2.c'].flags += CONFIG['SSE_FLAGS'] + CONFIG['SSE2_FLAGS']
     if CONFIG['GNU_CC']:
         SOURCES['pixman-sse2.c'].flags += ['-Winline']
+
+if use_ssse3:
+    DEFINES['USE_SSE'] = True
+    DEFINES['USE_SSE2'] = True
+    DEFINES['USE_SSSE3'] = True
+    SOURCES += ['pixman-ssse3.c']
+    SOURCES['pixman-ssse3.c'].flags += CONFIG['SSE_FLAGS'] + CONFIG['SSE2_FLAGS']
+    if CONFIG['GNU_CC']:
+        SOURCES['pixman-ssse3.c'].flags += ['-mssse3', '-Winline']
 
 if use_vmx:
     DEFINES['USE_VMX'] = True
@@ -135,20 +150,21 @@ if use_arm_neon_gcc:
     SOURCES['pixman-arm-neon.c'].flags += ['-mfpu=neon']
 
 # Suppress warnings in third-party code.
-if CONFIG['GNU_CC']:
+if CONFIG['GNU_CC'] or CONFIG['CLANG_CL']:
     CFLAGS += [
         '-Wno-address',
-        '-Wno-sign-compare',
         '-Wno-missing-field-initializers',
-		'-Wno-unused',
+        '-Wno-sign-compare',
+        '-Wno-incompatible-pointer-types',
+        '-Wno-unused',                      # too many unused warnings; ignore
     ]
-if CONFIG['CLANG_CXX']:
+if CONFIG['CLANG_CXX'] or CONFIG['CLANG_CL']:
     CFLAGS += [
         '-Wno-incompatible-pointer-types',
         '-Wno-tautological-compare',
         '-Wno-tautological-constant-out-of-range-compare',
     ]
-
-# See bug 386897.
-if CONFIG['OS_TARGET'] == 'Android' and CONFIG['MOZ_OPTIMIZE']:
-    CFLAGS += ['-O2']
+if CONFIG['CLANG_CL']:
+    CFLAGS += [
+        '-Wno-unused-variable',
+    ]

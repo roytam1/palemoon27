@@ -4043,7 +4043,7 @@ LazyScript::staticLevel(JSContext* cx) const
 void
 JSScript::updateBaselineOrIonRaw(JSContext* maybecx)
 {
-    if (hasBaselineScript() && baseline->hasPendingIonBuilder()) {
+    if (maybecx && !isIonCompilingOffThread() && hasBaselineScript() && baseline->hasPendingIonBuilder()) {
         MOZ_ASSERT(maybecx);
         MOZ_ASSERT(!isIonCompilingOffThread());
         baselineOrIonRaw = maybecx->runtime()->jitRuntime()->lazyLinkStub()->raw();

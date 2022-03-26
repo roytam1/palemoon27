@@ -6334,11 +6334,19 @@ ssl_CanUseSignatureScheme(SSLSignatureScheme scheme,
 }
 
 SECStatus
-ssl_PrivateKeySupportsRsaPss(SECKEYPrivateKey *privKey,
-                             PRBool *supportsRsaPss)
+ssl_PrivateKeySupportsRsaPss(SECKEYPrivateKey *privKey, CERTCertificate *cert,
+                             void *pwarg, PRBool *supportsRsaPss)
 {
-    PK11SlotInfo *slot;
-    slot = PK11_GetSlotFromPrivateKey(privKey);
+    PK11SlotInfo *slot = NULL;
+    if (privKey) {
+        slot = PK11_GetSlotFromPrivateKey(privKey);
+    } else {
+        CK_OBJECT_HANDLE certID = PK11_FindObjectForCert(cert, pwarg, &slot);
+        if (certID == CK_INVALID_HANDLE) {
+            PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
+            return SECFailure;
+        }
+    }
     if (!slot) {
         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
         return SECFailure;
@@ -6355,7 +6363,8 @@ ssl_PickSignatureScheme(sslSocket *ss,
                         SECKEYPrivateKey *privKey,
                         const SSLSignatureScheme *peerSchemes,
                         unsigned int peerSchemeCount,
-                        PRBool requireSha1)
+                        PRBool requireSha1,
+                        SSLSignatureScheme *schemePtr)
 {
     unsigned int i;
     PRBool doesRsaPss;
@@ -6366,13 +6375,13 @@ ssl_PickSignatureScheme(sslSocket *ss,
 
     /* We can't require SHA-1 in TLS 1.3. */
     PORT_Assert(!(requireSha1 && isTLS13));
-    if (!pubKey || !privKey) {
+    if (!pubKey || !cert) {
         PORT_Assert(0);
         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
         return SECFailure;
     }
-
-    rv = ssl_PrivateKeySupportsRsaPss(privKey, &doesRsaPss);
+    rv = ssl_PrivateKeySupportsRsaPss(privKey, cert, ss->pkcs11PinArg,
+                                      &doesRsaPss);
     if (rv != SECSuccess) {
         return SECFailure;
     }
@@ -6390,7 +6399,7 @@ ssl_PickSignatureScheme(sslSocket *ss,
             PORT_SetError(SSL_ERROR_UNSUPPORTED_SIGNATURE_ALGORITHM);
             return SECFailure;
         }
-        ss->ssl3.hs.signatureScheme = scheme;
+        *schemePtr = scheme;
         return SECSuccess;
     }
 
@@ -6404,7 +6413,7 @@ ssl_PickSignatureScheme(sslSocket *ss,
         if (ssl_SignatureSchemeValid(scheme, spkiOid, isTLS13) &&
             ssl_CanUseSignatureScheme(scheme, peerSchemes, peerSchemeCount,
                                       requireSha1, doesRsaPss)) {
-            ss->ssl3.hs.signatureScheme = scheme;
+            *schemePtr = scheme;
             return SECSuccess;
         }
     }
@@ -6462,17 +6471,20 @@ ssl3_PickServerSignatureScheme(sslSocket *ss)
                                    cert->serverKeyPair->privKey,
                                    ss->xtnData.sigSchemes,
                                    ss->xtnData.numSigSchemes,
-                                   PR_FALSE /* requireSha1 */);
+                                   PR_FALSE /* requireSha1 */,
+                                   &ss->ssl3.hs.signatureScheme);
 }
 
-static SECStatus
-ssl_PickClientSignatureScheme(sslSocket *ss, const SSLSignatureScheme *schemes,
-                              unsigned int numSchemes)
+SECStatus
+ssl_PickClientSignatureScheme(sslSocket *ss, CERTCertificate *clientCertificate,
+                              SECKEYPrivateKey *privKey,
+                              const SSLSignatureScheme *schemes,
+                              unsigned int numSchemes,
+                              SSLSignatureScheme *schemePtr)
 {
-    SECKEYPrivateKey *privKey = ss->ssl3.clientPrivateKey;
     SECStatus rv;
     PRBool isTLS13 = (PRBool)ss->version >= SSL_LIBRARY_VERSION_TLS_1_3;
-    SECKEYPublicKey *pubKey = CERT_ExtractPublicKey(ss->ssl3.clientCertificate);
+    SECKEYPublicKey *pubKey = CERT_ExtractPublicKey(clientCertificate);
 
     PORT_Assert(pubKey);
 
@@ -6492,9 +6504,9 @@ ssl_PickClientSignatureScheme(sslSocket *ss, const SSLSignatureScheme *schemes,
          * older, DSA key size is at most 1024 bits and the hash function must
          * be SHA-1.
          */
-        rv = ssl_PickSignatureScheme(ss, ss->ssl3.clientCertificate,
+        rv = ssl_PickSignatureScheme(ss, clientCertificate,
                                      pubKey, privKey, schemes, numSchemes,
-                                     PR_TRUE /* requireSha1 */);
+                                     PR_TRUE /* requireSha1 */, schemePtr);
         if (rv == SECSuccess) {
             SECKEY_DestroyPublicKey(pubKey);
             return SECSuccess;
@@ -6502,9 +6514,9 @@ ssl_PickClientSignatureScheme(sslSocket *ss, const SSLSignatureScheme *schemes,
         /* If this fails, that's because the peer doesn't advertise SHA-1,
          * so fall back to the full negotiation. */
     }
-    rv = ssl_PickSignatureScheme(ss, ss->ssl3.clientCertificate,
+    rv = ssl_PickSignatureScheme(ss, clientCertificate,
                                  pubKey, privKey, schemes, numSchemes,
-                                 PR_FALSE /* requireSha1 */);
+                                 PR_FALSE /* requireSha1 */, schemePtr);
     SECKEY_DestroyPublicKey(pubKey);
     return rv;
 }
@@ -7690,11 +7702,23 @@ ssl3_CompleteHandleCertificateRequest(sslSocket *ss,
         PORT_Assert(ss->ssl3.clientPrivateKey == NULL);
         PORT_Assert(ss->ssl3.clientCertificate == NULL);
         PORT_Assert(ss->ssl3.clientCertChain == NULL);
+        /*
+         * Peer signatures are only available while in the context of
+         * of a getClientAuthData callback. It is required for proper
+         * functioning of SSL_CertIsUsable and SSL_FilterClientCertListBySocket
+         * Calling these functions outside the context of a getClientAuthData
+         * callback will result in no filtering.*/
+        ss->peerSignatureSchemes = signatureSchemes;
+        ss->peerSignatureSchemeCount = signatureSchemeCount;
         /* XXX Should pass cert_types and algorithms in this call!! */
         rv = (SECStatus)(*ss->getClientAuthData)(ss->getClientAuthDataArg,
                                                  ss->fd, ca_list,
                                                  &ss->ssl3.clientCertificate,
                                                  &ss->ssl3.clientPrivateKey);
+        /* memory for the signature schemes will go away after the request,
+         * so don't leave dangling pointers around */
+        ss->peerSignatureSchemes = NULL;
+        ss->peerSignatureSchemeCount = 0;
     } else {
         rv = SECFailure; /* force it to send a no_certificate alert */
     }
@@ -7734,8 +7758,12 @@ ssl3_CompleteHandleCertificateRequest(sslSocket *ss,
             }
             if (ss->ssl3.hs.hashType == handshake_hash_record ||
                 ss->ssl3.hs.hashType == handshake_hash_single) {
-                rv = ssl_PickClientSignatureScheme(ss, signatureSchemes,
-                                                   signatureSchemeCount);
+                rv = ssl_PickClientSignatureScheme(ss,
+                                                   ss->ssl3.clientCertificate,
+                                                   ss->ssl3.clientPrivateKey,
+                                                   signatureSchemes,
+                                                   signatureSchemeCount,
+                                                   &ss->ssl3.hs.signatureScheme);
             }
             break; /* not an error */
 

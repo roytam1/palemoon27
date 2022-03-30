@@ -444,7 +444,8 @@ class covAction(argparse.Action):
     def runSslGtests(self, outdir):
         env = {
             "GTESTFILTER": "*", # Prevent parallel test runs.
-            "ASAN_OPTIONS": "coverage=1:coverage_dir=" + outdir
+            "ASAN_OPTIONS": "coverage=1:coverage_dir=" + outdir,
+            "NSS_DISABLE_UNLOAD": "1"
         }
 
         run_tests("ssl_gtests", env=env, silent=True)

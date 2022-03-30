@@ -381,6 +381,10 @@ ssl_DupSocket(sslSocket *os)
                 goto loser;
             }
         }
+        /* The original socket 'owns' the copy of these, so
+         * just set the target copies to zero */
+        ss->peerSignatureSchemes = NULL;
+        ss->peerSignatureSchemeCount = 0;
 
         /* Create security data */
         rv = ssl_CopySecurityInfo(ss, os);
@@ -467,6 +471,11 @@ ssl_DestroySocketContents(sslSocket *ss)
 
     ssl_ClearPRCList(&ss->ssl3.hs.dtlsSentHandshake, NULL);
     ssl_ClearPRCList(&ss->ssl3.hs.dtlsRcvdHandshake, NULL);
+
+    /* data in peer Signature schemes comes from the buffer system,
+     * so there is nothing to free here. Make sure that's the case */
+    PORT_Assert(ss->peerSignatureSchemes == NULL);
+    PORT_Assert(ss->peerSignatureSchemeCount == 0);
 
     tls13_DestroyESNIKeys(ss->esniKeys);
     tls13_ReleaseAntiReplayContext(ss->antiReplay);
@@ -2482,6 +2491,8 @@ SSL_ReconfigFD(PRFileDesc *model, PRFileDesc *fd)
         ss->handshakeCallbackData = sm->handshakeCallbackData;
     if (sm->pkcs11PinArg)
         ss->pkcs11PinArg = sm->pkcs11PinArg;
+    ss->peerSignatureSchemes = NULL;
+    ss->peerSignatureSchemeCount = 0;
     return fd;
 }
 
@@ -4149,6 +4160,8 @@ ssl_NewSocket(PRBool makeLocks, SSLProtocolVariant protocolVariant)
 
     ss->esniKeys = NULL;
     ss->antiReplay = NULL;
+    ss->peerSignatureSchemes = NULL;
+    ss->peerSignatureSchemeCount = 0;
 
     if (makeLocks) {
         rv = ssl_MakeLocks(ss);

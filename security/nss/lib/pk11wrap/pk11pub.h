@@ -680,6 +680,8 @@ CERTCertificate *PK11_FindBestKEAMatch(CERTCertificate *serverCert, void *wincx)
 PRBool PK11_FortezzaHasKEA(CERTCertificate *cert);
 CK_OBJECT_HANDLE PK11_FindCertInSlot(PK11SlotInfo *slot, CERTCertificate *cert,
                                      void *wincx);
+CK_OBJECT_HANDLE PK11_FindObjectForCert(CERTCertificate *cert,
+                                        void *wincx, PK11SlotInfo **pSlot);
 SECStatus PK11_TraverseCertsForNicknameInSlot(SECItem *nickname,
                                               PK11SlotInfo *slot, SECStatus (*callback)(CERTCertificate *, void *),
                                               void *arg);

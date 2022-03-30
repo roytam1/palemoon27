@@ -175,6 +175,9 @@ pref("dom.enable_user_timing", true);
 // Enable printing performance marks/measures to log
 pref("dom.performance.enable_user_timing_logging", false);
 
+// Enable notification of performance timing
+pref("dom.performance.enable_notify_performance_timing", false);
+
 // Whether the Gamepad API is enabled
 pref("dom.gamepad.enabled", true);
 #ifdef RELEASE_BUILD
@@ -4769,6 +4772,9 @@ pref("dom.idle-observers-api.fuzz_time.disabled", true);
 
 // Lowest localId for apps.
 pref("dom.mozApps.maxLocalId", 1000);
+
+// Reset apps permissions
+pref("dom.apps.reset-permissions", false);
 
 // XXX Security: You CANNOT safely add a new app store for
 // installing privileged apps just by modifying this pref and

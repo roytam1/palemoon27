@@ -267,6 +267,7 @@ WebappsRegistry.prototype = {
     cpmm.sendAsyncMessage("Webapps:UnregisterForMessages",
                           ["Webapps:Install:Return:OK",
                            "Webapps:AdditionalLanguageChange"]);
+    this._window.removeEventListener("pagehide", this);
   },
 
   installPackage: function(aURL, aParams) {
@@ -337,6 +338,7 @@ WebappsRegistry.prototype = {
     const prefs = new Preferences();
 
     this._window = aWindow;
+    this._window.addEventListener("pagehide", this);
 
     this.initDOMRequestHelper(aWindow, ["Webapps:Install:Return:OK",
                                         "Webapps:AdditionalLanguageChange"]);
@@ -373,6 +375,15 @@ WebappsRegistry.prototype = {
     this.hasMgmtPrivilege = hasWebappsPermission ||
          (isCurrentHomescreen && hasHomescreenPermission);
     this.hasFullMgmtPrivilege = hasWebappsPermission;
+  },
+
+  handleEvent(event) {
+    if (event.type == "pagehide" &&
+        event.target.defaultView == this._window) {
+      cpmm.sendAsyncMessage("Webapps:LocationChange", {
+        oid: this._id,
+      });
+    }
   },
 
   classID: Components.ID("{fff440b3-fae2-45c1-bf03-3b5a2e432270}"),
@@ -688,6 +699,24 @@ WebappsApplication.prototype = {
     });
   },
 
+  getLocalizedValue: function(aProperty, aLang, aEntryPoint) {
+    this.addMessageListeners(["Webapps:GetLocalizedValue:Return"]);
+    return this.createPromise((aResolve, aReject) => {
+      cpmm.sendAsyncMessage("Webapps:GetLocalizedValue",
+        { manifestURL: this.manifestURL,
+          oid: this._id,
+          topId: this._topId,
+          property: aProperty,
+          lang: aLang,
+          entryPoint: aEntryPoint,
+          requestID: this.getPromiseResolverId({
+            resolve: aResolve,
+            reject: aReject
+          })
+        });
+    });
+  },
+
   _prepareForContent: function() {
     if (this.__DOM_IMPL__) {
       return this.__DOM_IMPL__;
@@ -725,7 +754,8 @@ WebappsApplication.prototype = {
     if (aMessage.name == "Webapps:Connect:Return:OK" ||
         aMessage.name == "Webapps:Connect:Return:KO" ||
         aMessage.name == "Webapps:GetConnections:Return:OK" ||
-        aMessage.name == "Webapps:Export:Return") {
+        aMessage.name == "Webapps:Export:Return" ||
+        aMessage.name == "Webapps:GetLocalizedValue:Return") {
       req = this.takePromiseResolver(msg.requestID);
     } else {
       req = this.takeRequest(msg.requestID);
@@ -817,6 +847,14 @@ WebappsApplication.prototype = {
         this.removeMessageListeners(["Webapps:Export:Return"]);
         if (msg.success) {
           req.resolve(Cu.cloneInto(msg.blob, this._window));
+        } else {
+          req.reject(new this._window.DOMError(msg.error || ""));
+        }
+        break;
+      case "Webapps:GetLocalizedValue:Return":
+        this.removeMessageListeners(["Webapps:GetLocalizedValue:Return"]);
+        if (msg.success) {
+          req.resolve(msg.value);
         } else {
           req.reject(new this._window.DOMError(msg.error || ""));
         }

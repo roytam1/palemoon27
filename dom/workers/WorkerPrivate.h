@@ -500,14 +500,12 @@ public:
   const ChannelInfo&
   GetChannelInfo() const
   {
-    MOZ_ASSERT(IsServiceWorker());
     return mLoadInfo.mChannelInfo;
   }
 
   void
   SetChannelInfo(const ChannelInfo& aChannelInfo)
   {
-    MOZ_ASSERT(IsServiceWorker());
     AssertIsOnMainThread();
     MOZ_ASSERT(!mLoadInfo.mChannelInfo.IsInitialized());
     MOZ_ASSERT(aChannelInfo.IsInitialized());
@@ -768,9 +766,9 @@ public:
   }
 
   bool
-  IsIndexedDBAllowed() const
+  IsStorageAllowed() const
   {
-    return mLoadInfo.mIndexedDBAllowed;
+    return mLoadInfo.mStorageAllowed;
   }
 
   bool

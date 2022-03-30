@@ -35,7 +35,7 @@ for header in ('GCAPI.h', 'HeapAPI.h', 'RootingAPI.h', 'SliceBudget.h', 'TraceKi
     with Files('../public/' + header):
         BUG_COMPONENT = component_gc
 
-for stlfile in ['jsarray.*', 'jsbool*', 'jsdate.*', 'jsnum.*', 'json.*', 'jsreflect.*', 'jsstr.*']:
+for stlfile in ['jsarray.*', 'jsbool*', 'jsdate.*', 'jsnum.*', 'json.*', 'jsstr.*']:
     with Files(stlfile):
         BUG_COMPONENT = component_stl
 
@@ -177,7 +177,6 @@ UNIFIED_SOURCES += [
     'gc/Nursery.cpp',
     'gc/RootMarking.cpp',
     'gc/Statistics.cpp',
-    'gc/StoreBuffer.cpp',
     'gc/Tracer.cpp',
     'gc/Verifier.cpp',
     'gc/Zone.cpp',
@@ -344,9 +343,13 @@ UNIFIED_SOURCES += [
 # from <stdlib.h> on Windows through a preprocessor define.
 # jsutil.cpp cannot be built in unified mode because it is needed for
 # check-vanilla-allocations.
+# StoreBuffer.cpp cannot be built in unified because its template
+# instantiations may or may not be needed depending on what it gets bundled
+# with.
 SOURCES += [
     'builtin/RegExp.cpp',
     'frontend/Parser.cpp',
+    'gc/StoreBuffer.cpp',
     'jsarray.cpp',
     'jsatom.cpp',
     'jsmath.cpp',
@@ -622,6 +625,9 @@ if CONFIG['OS_ARCH'] == 'SunOS':
         'nsl',
         'socket',
     ]
+
+CFLAGS += CONFIG['MOZ_ICU_CFLAGS']
+CXXFLAGS += CONFIG['MOZ_ICU_CFLAGS']
 
 if not CONFIG['GNU_CXX']:
     ALLOW_COMPILER_WARNINGS = True

@@ -1498,6 +1498,9 @@ cairo_public void
 cairo_scaled_font_get_font_options (cairo_scaled_font_t		*scaled_font,
 				    cairo_font_options_t	*options);
 
+// API extension for GRE.
+cairo_public cairo_hint_metrics_t
+cairo_scaled_font_get_hint_metrics (cairo_scaled_font_t	*scaled_font);
 
 /* Toy fonts */
 

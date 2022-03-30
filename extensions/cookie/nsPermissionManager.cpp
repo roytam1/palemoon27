@@ -37,6 +37,7 @@
 #include "nsIDocument.h"
 #include "mozilla/net/NeckoMessageUtils.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/BasePrincipal.h"
 #include "nsReadLine.h"
 #include "mozilla/Telemetry.h"
 #include "nsIConsoleService.h"

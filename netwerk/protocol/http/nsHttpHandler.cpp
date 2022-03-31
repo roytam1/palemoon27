@@ -192,6 +192,7 @@ nsHttpHandler::nsHttpHandler()
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
     , mSpdySendBufferSize(ASpdySession::kTCPSendBufferSize)
     , mSpdyPushAllowance(32768)
+    , mSpdyPullAllowance(ASpdySession::kInitialRwin)
     , mDefaultSpdyConcurrent(ASpdySession::kDefaultMaxConcurrent)
     , mSpdyPingThreshold(PR_SecondsToInterval(58))
     , mSpdyPingTimeout(PR_SecondsToInterval(8))
@@ -1379,6 +1380,14 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
+    if (PREF_CHANGED(HTTP_PREF("spdy.pull-allowance"))) {
+        rv = prefs->GetIntPref(HTTP_PREF("spdy.pull-allowance"), &val);
+        if (NS_SUCCEEDED(rv)) {
+            mSpdyPullAllowance =
+                static_cast<uint32_t>(clamped(val, 1024, 0x7fffffff));
+        }
+    }
+
     if (PREF_CHANGED(HTTP_PREF("spdy.default-concurrent"))) {
         rv = prefs->GetIntPref(HTTP_PREF("spdy.default-concurrent"), &val);
         if (NS_SUCCEEDED(rv)) {
@@ -1490,23 +1499,19 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
-    if (requestTokenBucketUpdated) {
-        MakeNewRequestTokenBucket();
-    }
-
     if (PREF_CHANGED(HTTP_PREF("pacing.requests.enabled"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("pacing.requests.enabled"),
-                                &cVar);
-        if (NS_SUCCEEDED(rv)){
-            requestTokenBucketUpdated = true;
+        rv = prefs->GetBoolPref(HTTP_PREF("pacing.requests.enabled"), &cVar);
+        if (NS_SUCCEEDED(rv)) {
             mRequestTokenBucketEnabled = cVar;
+            requestTokenBucketUpdated = true;
         }
     }
-
     if (PREF_CHANGED(HTTP_PREF("pacing.requests.min-parallelism"))) {
         rv = prefs->GetIntPref(HTTP_PREF("pacing.requests.min-parallelism"), &val);
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv)) {
             mRequestTokenBucketMinParallelism = static_cast<uint16_t>(clamped(val, 1, 1024));
+            requestTokenBucketUpdated = true;
+        }
     }
     if (PREF_CHANGED(HTTP_PREF("pacing.requests.hz"))) {
         rv = prefs->GetIntPref(HTTP_PREF("pacing.requests.hz"), &val);
@@ -1523,9 +1528,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
     if (requestTokenBucketUpdated) {
-        mRequestTokenBucket =
-            new EventTokenBucket(RequestTokenBucketHz(),
-                                 RequestTokenBucketBurst());
+        MakeNewRequestTokenBucket();
     }
 
     // Keepalive values for initial and idle connections.

@@ -13,6 +13,7 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/BlobSet.h"
 #include "mozilla/dom/File.h"
+#include "mozilla/dom/FetchUtil.h"
 #include "mozilla/dom/XMLDocument.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 #include "mozilla/EventDispatcher.h"
@@ -1613,31 +1614,10 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
 
   NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
 
-  // Disallow HTTP/1.1 TRACE method (see bug 302489)
-  // and MS IIS equivalent TRACK (see bug 381264)
-  // and CONNECT
-  if (inMethod.LowerCaseEqualsLiteral("trace") ||
-      inMethod.LowerCaseEqualsLiteral("connect") ||
-      inMethod.LowerCaseEqualsLiteral("track")) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
   nsAutoCString method;
-  // GET, POST, DELETE, HEAD, OPTIONS, PUT methods normalized to upper case
-  if (inMethod.LowerCaseEqualsLiteral("get")) {
-    method.AssignLiteral("GET");
-  } else if (inMethod.LowerCaseEqualsLiteral("post")) {
-    method.AssignLiteral("POST");
-  } else if (inMethod.LowerCaseEqualsLiteral("delete")) {
-    method.AssignLiteral("DELETE");
-  } else if (inMethod.LowerCaseEqualsLiteral("head")) {
-    method.AssignLiteral("HEAD");
-  } else if (inMethod.LowerCaseEqualsLiteral("options")) {
-    method.AssignLiteral("OPTIONS");
-  } else if (inMethod.LowerCaseEqualsLiteral("put")) {
-    method.AssignLiteral("PUT");
-  } else {
-    method = inMethod; // other methods are not normalized
+  nsresult rv = FetchUtil::GetValidRequestMethod(inMethod, method);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
   }
 
   // sync request is not allowed to use responseType or timeout
@@ -1654,7 +1634,6 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
 
-  nsresult rv;
   nsCOMPtr<nsIURI> uri;
 
   if (mState & (XML_HTTP_REQUEST_OPENED |
@@ -1848,9 +1827,7 @@ nsXMLHttpRequest::StreamReaderFunc(nsIInputStream* in,
   } else if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_DEFAULT &&
              xmlHttpRequest->mResponseXML) {
     // Copy for our own use
-    uint32_t previousLength = xmlHttpRequest->mResponseBody.Length();
-    xmlHttpRequest->mResponseBody.Append(fromRawSegment,count);
-    if (count > 0 && xmlHttpRequest->mResponseBody.Length() == previousLength) {
+    if (!xmlHttpRequest->mResponseBody.Append(fromRawSegment, count, fallible)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   } else if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_DEFAULT ||
@@ -3563,7 +3540,7 @@ nsXMLHttpRequest::OnProgress(nsIRequest *aRequest, nsISupports *aContext, int64_
     mUploadTransferred = loaded;
     mProgressSinceLastProgressEvent = true;
 
-    MaybeDispatchProgressEvents(false);
+    MaybeDispatchProgressEvents((mUploadTransferred == mUploadTotal));
   } else {
     mLoadLengthComputable = lengthComputable;
     mLoadTotal = lengthComputable ? aProgressMax : 0;
@@ -4061,13 +4038,12 @@ ArrayBufferBuilder::mapToFileInPackage(const nsCString& aFile,
     uint32_t offset = zip->GetDataOffset(zipItem);
     uint32_t size = zipItem->RealSize();
     mozilla::AutoFDClose pr_fd;
-    mozilla::ScopedClose fd;
     rv = aJarFile->OpenNSPRFileDesc(PR_RDONLY, 0, &pr_fd.rwget());
     if (NS_FAILED(rv)) {
       return rv;
     }
-    fd.rwget() = PR_FileDesc2NativeHandle(pr_fd);
-    mMapPtr = JS_CreateMappedArrayBufferContents(fd, offset, size);
+    mMapPtr = JS_CreateMappedArrayBufferContents(PR_FileDesc2NativeHandle(pr_fd),
+                                                 offset, size);
     if (mMapPtr) {
       mLength = size;
       return NS_OK;

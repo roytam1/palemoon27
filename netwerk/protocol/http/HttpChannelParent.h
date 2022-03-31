@@ -122,6 +122,7 @@ protected:
                    const uint32_t&            aCacheKey,
                    const nsCString&           aSchedulingContextID,
                    const OptionalCorsPreflightArgs& aCorsPreflightArgs,
+                   const uint32_t&            aInitialRwin,
                    const bool&                aAllowStaleCacheContent);
 
   virtual bool RecvSetPriority(const uint16_t& priority) override;
@@ -163,6 +164,19 @@ protected:
 
 private:
   void UpdateAndSerializeSecurityInfo(nsACString& aSerializedSecurityInfoOut);
+
+  void DivertOnDataAvailable(const nsCString& data,
+                             const uint64_t& offset,
+                             const uint32_t& count);
+  void DivertOnStopRequest(const nsresult& statusCode);
+  void DivertComplete();
+
+  void SynthesizeResponse(nsIInterceptedChannel* aChannel);
+
+  friend class DivertDataAvailableEvent;
+  friend class DivertStopRequestEvent;
+  friend class DivertCompleteEvent;
+  friend class ResponseSynthesizer;
 
   nsRefPtr<nsHttpChannel>       mChannel;
   nsCOMPtr<nsICacheEntry>       mCacheEntry;
@@ -217,6 +231,8 @@ private:
 
   // Handle to the channel wrapper if this channel has been intercepted.
   nsCOMPtr<nsIInterceptedChannel> mInterceptedChannel;
+
+  nsRefPtr<ChannelEventQueue> mEventQ;
 };
 
 } // namespace net

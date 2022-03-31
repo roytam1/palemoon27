@@ -52,6 +52,7 @@
 #include "mozilla/dom/TouchEvent.h"
 #include "mozilla/dom/ShadowRoot.h"
 #include "mozilla/dom/WorkerPrivate.h"
+#include "mozilla/dom/workers/ServiceWorkerManager.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/EventStateManager.h"
@@ -260,6 +261,7 @@ bool nsContentUtils::sIsFullScreenApiEnabled = false;
 bool nsContentUtils::sTrustedFullScreenOnly = true;
 bool nsContentUtils::sFullscreenApiIsContentOnly = false;
 bool nsContentUtils::sIsCutCopyAllowed = true;
+bool nsContentUtils::sIsFrameTimingPrefEnabled = false;
 bool nsContentUtils::sIsPerformanceTimingEnabled = false;
 bool nsContentUtils::sIsResourceTimingEnabled = false;
 bool nsContentUtils::sIsUserTimingLoggingEnabled = false;
@@ -268,6 +270,7 @@ bool nsContentUtils::sEncodeDecodeURLHash = false;
 bool nsContentUtils::sGettersDecodeURLHash = false;
 bool nsContentUtils::sPrivacyResistFingerprinting = false;
 bool nsContentUtils::sSendPerformanceTimingNotifications = false;
+bool nsContentUtils::sSWInterceptionEnabled = false;
 
 uint32_t nsContentUtils::sHandlingInputTimeout = 1000;
 
@@ -552,6 +555,9 @@ nsContentUtils::Init()
   Preferences::AddBoolVarCache(&sIsUserTimingLoggingEnabled,
                                "dom.performance.enable_user_timing_logging", false);
 
+  Preferences::AddBoolVarCache(&sIsFrameTimingPrefEnabled,
+                               "dom.enable_frame_timing", true);
+
   Preferences::AddBoolVarCache(&sIsExperimentalAutocompleteEnabled,
                                "dom.forms.autocomplete.experimental", false);
 
@@ -563,6 +569,10 @@ nsContentUtils::Init()
 
   Preferences::AddBoolVarCache(&sPrivacyResistFingerprinting,
                                "privacy.resistFingerprinting", false);
+
+  Preferences::AddBoolVarCache(&sSWInterceptionEnabled,
+                               "dom.serviceWorkers.interception.enabled",
+                               false);
 
   Preferences::AddUintVarCache(&sHandlingInputTimeout,
                                "dom.event.handling-user-input-time-limit",
@@ -1751,9 +1761,37 @@ nsContentUtils::ParseLegacyFontSize(const nsAString& aValue)
 }
 
 /* static */
+bool
+nsContentUtils::IsControlledByServiceWorker(nsIDocument* aDocument)
+{
+  if (!ServiceWorkerInterceptionEnabled() ||
+      nsContentUtils::IsInPrivateBrowsing(aDocument)) {
+    return false;
+  }
+
+  nsRefPtr<workers::ServiceWorkerManager> swm =
+    workers::ServiceWorkerManager::GetInstance();
+  MOZ_ASSERT(swm);
+
+  ErrorResult rv;
+  bool controlled = swm->IsControlled(aDocument, rv);
+  NS_WARN_IF(rv.Failed());
+
+  return !rv.Failed() && controlled;
+}
+
+/* static */
 void
 nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aDocument);
+  *aURI = nullptr;
+
+  if (IsControlledByServiceWorker(aDocument)) {
+    return;
+  }
+
   Element* docElement = aDocument->GetRootElement();
   if (!docElement) {
     return;
@@ -3700,7 +3738,7 @@ nsContentUtils::GetEventMessage(nsIAtom* aName)
     }
   }
 
-  return NS_USER_DEFINED_EVENT;
+  return eUnidentifiedEvent;
 }
 
 // static
@@ -3723,7 +3761,7 @@ nsContentUtils::GetEventMessageAndAtom(const nsAString& aName,
   if (sStringEventTable->Get(aName, &mapping)) {
     *aEventMessage =
       mapping.mEventClassID == aEventClassID ? mapping.mMessage :
-                                               NS_USER_DEFINED_EVENT;
+                                               eUnidentifiedEvent;
     return mapping.mAtom;
   }
 
@@ -3736,11 +3774,11 @@ nsContentUtils::GetEventMessageAndAtom(const nsAString& aName,
     }
   }
 
-  *aEventMessage = NS_USER_DEFINED_EVENT;
+  *aEventMessage = eUnidentifiedEvent;
   nsCOMPtr<nsIAtom> atom = NS_AtomizeMainThread(NS_LITERAL_STRING("on") + aName);
   sUserDefinedEvents->AppendObject(atom);
   mapping.mAtom = atom;
-  mapping.mMessage = NS_USER_DEFINED_EVENT;
+  mapping.mMessage = eUnidentifiedEvent;
   mapping.mType = EventNameType_None;
   mapping.mEventClassID = eBasicEventClass;
   sStringEventTable->Put(aName, mapping);
@@ -4079,7 +4117,7 @@ nsContentUtils::MaybeFireNodeRemoved(nsINode* aChild, nsINode* aParent,
 
   if (HasMutationListeners(aChild,
         NS_EVENT_BITS_MUTATION_NODEREMOVED, aParent)) {
-    InternalMutationEvent mutation(true, NS_MUTATION_NODEREMOVED);
+    InternalMutationEvent mutation(true, eLegacyNodeRemoved);
     mutation.mRelatedNode = do_QueryInterface(aParent);
 
     mozAutoSubtreeModified subtree(aOwnerDoc, aParent);
@@ -6753,6 +6791,13 @@ nsContentUtils::IsCutCopyAllowed()
 
 /* static */
 bool
+nsContentUtils::IsFrameTimingEnabled()
+{
+  return sIsFrameTimingPrefEnabled;
+}
+
+/* static */
+bool
 nsContentUtils::HaveEqualPrincipals(nsIDocument* aDoc1, nsIDocument* aDoc2)
 {
   if (!aDoc1 || !aDoc2) {
@@ -7669,7 +7714,7 @@ nsContentUtils::GetViewToDispatchEvent(nsPresContext* presContext,
 }
 
 nsresult
-nsContentUtils::SendKeyEvent(nsCOMPtr<nsIWidget> aWidget,
+nsContentUtils::SendKeyEvent(nsIWidget* aWidget,
                              const nsAString& aType,
                              int32_t aKeyCode,
                              int32_t aCharCode,
@@ -7683,7 +7728,7 @@ nsContentUtils::SendKeyEvent(nsCOMPtr<nsIWidget> aWidget,
 
   EventMessage msg;
   if (aType.EqualsLiteral("keydown"))
-    msg = NS_KEY_DOWN;
+    msg = eKeyDown;
   else if (aType.EqualsLiteral("keyup"))
     msg = eKeyUp;
   else if (aType.EqualsLiteral("keypress"))
@@ -8095,6 +8140,14 @@ nsContentUtils::PushEnabled(JSContext* aCx, JSObject* aObj)
   }
 
   return workerPrivate->PushEnabled();
+}
+
+// static
+bool
+nsContentUtils::IsWorkerLoad(nsContentPolicyType aType)
+{
+  return aType == nsIContentPolicy::TYPE_INTERNAL_WORKER ||
+         aType == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER;
 }
 
 // static, public

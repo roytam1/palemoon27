@@ -20,7 +20,7 @@ let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 this.DevToolsUtils = devtools.require("devtools/toolkit/DevToolsUtils.js");
 
 XPCOMUtils.defineLazyServiceGetter(
-    this, "cookieManager", "@mozilla.org/cookiemanager;1", "nsICookieManager");
+    this, "cookieManager", "@mozilla.org/cookiemanager;1", "nsICookieManager2");
 
 Cu.import("chrome://marionette/content/actions.js");
 Cu.import("chrome://marionette/content/elements.js");
@@ -245,15 +245,15 @@ this.GeckoDriver = function(appName, device, emulator) {
     "browserVersion": Services.appinfo.version,
     "platformName": Services.appinfo.OS.toUpperCase(),
     "platformVersion": Services.appinfo.platformVersion,
+    "specificationLevel": "1",
 
     // Supported features
-    "handlesAlerts": false,
-    "nativeEvents": false,
     "raisesAccessibilityExceptions": false,
     "rotatable": this.appName == "B2G",
-    "secureSsl": false,
+    "acceptSslCerts": false,
     "takesElementScreenshot": true,
     "takesScreenshot": true,
+    "proxy": {},
 
     // Selenium 2 compat
     "platform": Services.appinfo.OS.toUpperCase(),
@@ -576,7 +576,7 @@ GeckoDriver.prototype.registerPromise = function() {
   const li = "Marionette:register";
 
   return new Promise((resolve) => {
-    this.mm.addMessageListener(li, function cb(msg) {
+    let cb = (msg) => {
       let wid = msg.json.value;
       let be = msg.target;
       let rv = this.registerBrowser(wid, be);
@@ -592,25 +592,28 @@ GeckoDriver.prototype.registerPromise = function() {
 
       // this is a sync message and listeners expect the ID back
       return rv;
-    }.bind(this));
+    };
+    this.mm.addMessageListener(li, cb);
   });
 };
 
 GeckoDriver.prototype.listeningPromise = function() {
   const li = "Marionette:listenersAttached";
   return new Promise((resolve) => {
-    this.mm.addMessageListener(li, function() {
-      this.mm.removeMessageListener(li, this);
+    let cb = () => {
+      this.mm.removeMessageListener(li, cb);
       resolve();
-    }.bind(this));
+    };
+    this.mm.addMessageListener(li, cb);
   });
 };
 
 /** Create a new session. */
 GeckoDriver.prototype.newSession = function(cmd, resp) {
+  let uuid = uuidGen.generateUUID().toString();
   this.sessionId = cmd.parameters.sessionId ||
       cmd.parameters.session_id ||
-      uuidGen.generateUUID().toString();
+      uuid.substring(1, uuid.length - 1);
 
   this.newSessionCommandId = cmd.id;
   this.setSessionCapabilities(cmd.parameters.capabilities);
@@ -702,9 +705,6 @@ GeckoDriver.prototype.getSessionCapabilities = function(cmd, resp) {
  * Update the sessionCapabilities object with the keys that have been
  * passed in when a new session is created.
  *
- * This part of the WebDriver spec is currently in flux, see
- * http://lists.w3.org/Archives/Public/public-browser-tools-testing/2014OctDec/0000.html
- *
  * This is not a public API, only available when a new session is
  * created.
  *
@@ -713,22 +713,46 @@ GeckoDriver.prototype.getSessionCapabilities = function(cmd, resp) {
  */
 GeckoDriver.prototype.setSessionCapabilities = function(newCaps) {
   const copy = (from, to={}) => {
-    let errors = {};
+    let errors = [];
 
-    for (let key in from) {
-      if (key === "desiredCapabilities") {
-        // Keeping desired capabilities separate for now so that we can keep
-        // backwards compatibility
-        to = copy(from[key], to);
-      } else if (key === "requiredCapabilities") {
-        for (let caps in from[key]) {
-          if (from[key][caps] !== this.sessionCapabilities[caps]) {
-            errors[caps] = from[key][caps] + " does not equal " +
-                this.sessionCapabilities[caps];
-          }
+    // Remove any duplicates between required and desired in favour of the
+    // required capabilities
+    if (from !== null && from.desiredCapabilities) {
+      for (let cap in from.requiredCapabilities) {
+        if (from.desiredCapabilities[cap]) {
+          delete from.desiredCapabilities[cap];
         }
       }
-      to[key] = from[key];
+
+      // Let's remove the sessionCapabilities from desired capabilities
+      for (let cap in this.sessionCapabilities) {
+        if (from.desiredCapabilities && from.desiredCapabilities[cap]) {
+          delete from.desiredCapabilities[cap];
+        }
+      }
+    }
+
+    for (let key in from) {
+      switch (key) {
+        case "desiredCapabilities":
+          to = copy(from[key], to);
+          break;
+        case "requiredCapabilities":
+          if (from[key]["proxy"]) {
+              this.setUpProxy(from[key]["proxy"]);
+              to["proxy"] = from[key]["proxy"];
+              delete from[key]["proxy"];
+          }
+          for (let caps in from[key]) {
+            if (from[key][caps] !== this.sessionCapabilities[caps]) {
+              errors.push(from[key][caps] + " does not equal " +
+                  this.sessionCapabilities[caps])   ;
+            }
+          }
+          break;
+        default:
+          to[key] = from[key];
+      }
     }
 
     if (Object.keys(errors).length === 0) {
@@ -743,6 +767,53 @@ GeckoDriver.prototype.setSessionCapabilities = function(newCaps) {
   let caps = copy(this.sessionCapabilities);
   caps = copy(newCaps, caps);
   this.sessionCapabilities = caps;
+};
+
+GeckoDriver.prototype.setUpProxy = function (proxy) {
+  logger.debug("Setup Proxy has been entered. Will attempt to setup the following proxy");
+  logger.debug("Proxy object contains " + JSON.stringify(proxy));
+  if (typeof proxy == "object" && proxy.hasOwnProperty("proxyType")) {
+
+    switch (proxy.proxyType.toUpperCase()) {
+      case "MANUAL":
+        Services.prefs.setIntPref("network.proxy.type", 1);
+        if (proxy.httpProxy && proxy.httpProxyPort){
+          Services.prefs.setCharPref("network.proxy.http", proxy.httpProxy);
+          Services.prefs.setIntPref("network.proxy.http_port", proxy.httpProxyPort);
+        }
+        if (proxy.sslProxy && proxy.sslProxyPort){
+          Services.prefs.setCharPref("network.proxy.ssl", proxy.sslProxy);
+          Services.prefs.setIntPref("network.proxy.ssl_port", proxy.sslProxyPort);
+        }
+        if (proxy.ftpProxy && proxy.ftpProxyPort) {
+          Services.prefs.setCharPref("network.proxy.ftp", proxy.ftpProxy);
+          Services.prefs.setIntPref("network.proxy.ftp_port", proxy.ftpProxyPort);
+        }
+        if (proxy.socksProxy) {
+          Services.prefs.setCharPref("network.proxy.socks", proxy.socksProxy);
+          Services.prefs.setIntPref("network.proxy.socks_port", proxy.socksProxyPort);
+          if (proxy.socksVersion) {
+            Services.prefs.setIntPref("network.proxy.socks_version", proxy.socksVersion);
+          }
+        }
+        break;
+      case "PAC":
+        Services.prefs.setIntPref("network.proxy.type", 2);
+        Services.prefs.setCharPref("network.proxy.autoconfig_url", proxy.pacUrl);
+        break;
+      case "AUTODETECT":
+        Services.prefs.setIntPref("network.proxy.type", 4);
+        break;
+      case "SYSTEM":
+        Services.prefs.setIntPref("network.proxy.type", 5);
+        break;
+      case "NOPROXY":
+      default:
+        Services.prefs.setIntPref("network.proxy.type", 0);
+    }
+  } else {
+    throw new InvalidArgumentError("the value of 'proxy' should be an object");
+  }
 };
 
 /**
@@ -829,7 +900,8 @@ GeckoDriver.prototype.createExecuteSandbox = function(win, mn, sandboxName) {
  * execution sandbox.
  */
 GeckoDriver.prototype.applyArgumentsToSandbox = function(win, sb, args) {
-  sb.__marionetteParams = this.curBrowser.elementManager.convertWrappedArguments(args, win);
+  sb.__marionetteParams = this.curBrowser.elementManager.convertWrappedArguments(args,
+    { frame: win });
   sb.__namedArgs = this.curBrowser.elementManager.applyNamedArgs(args);
 };
 
@@ -1323,7 +1395,7 @@ GeckoDriver.prototype.getCurrentUrl = function(cmd, resp) {
 
     case Context.CONTENT:
       let isB2G = this.appName == "B2G";
-      resp.value = yield this.listener.getCurrentUrl({isB2G: isB2G});
+      resp.value = yield this.listener.getCurrentUrl(isB2G);
       break;
   }
 };
@@ -1587,7 +1659,6 @@ GeckoDriver.prototype.switchToWindow = function(cmd, resp) {
             win: win,
             outerId: outerId,
             tabIndex: i,
-            contentId: contentWindowId
           };
           break;
         }
@@ -1606,7 +1677,7 @@ GeckoDriver.prototype.switchToWindow = function(cmd, resp) {
     // content browser.
     if (!(found.outerId in this.browsers)) {
       let registerBrowsers, browserListening;
-      if (found.contentId) {
+      if ("tabIndex" in found) {
         registerBrowsers = this.registerPromise();
         browserListening = this.listeningPromise();
       }
@@ -1621,8 +1692,8 @@ GeckoDriver.prototype.switchToWindow = function(cmd, resp) {
       utils.window = found.win;
       this.curBrowser = this.browsers[found.outerId];
 
-      if (found.contentId) {
-        this.curBrowser.switchToTab(found.tabIndex);
+      if ("tabIndex" in found) {
+        this.curBrowser.switchToTab(found.tabIndex, found.win);
       }
     }
   } else {
@@ -1691,7 +1762,7 @@ GeckoDriver.prototype.switchToFrame = function(cmd, resp) {
       if (this.curBrowser.elementManager.seenItems[cmd.parameters.element]) {
         // HTMLIFrameElement
         let wantedFrame = this.curBrowser.elementManager
-            .getKnownElement(cmd.parameters.element, curWindow);
+            .getKnownElement(cmd.parameters.element, { frame: curWindow });
         // Deal with an embedded xul:browser case
         if (wantedFrame.tagName == "xul:browser" || wantedFrame.tagName == "browser") {
           curWindow = wantedFrame.contentWindow;
@@ -1872,7 +1943,7 @@ GeckoDriver.prototype.actionChain = function(cmd, resp) {
 
       let win = this.getCurrentWindow();
       let elm = this.curBrowser.elementManager;
-      this.actions.dispatchActions(chain, nextId, win, elm, cbs);
+      this.actions.dispatchActions(chain, nextId, { frame: win }, elm, cbs);
       break;
 
     case Context.CONTENT:
@@ -1917,7 +1988,7 @@ GeckoDriver.prototype.findElement = function(cmd, resp) {
       resp.value = yield new Promise((resolve, reject) => {
         let win = this.getCurrentWindow();
         this.curBrowser.elementManager.find(
-            win,
+            { frame: win },
             cmd.parameters,
             this.searchTimeout,
             false /* all */,
@@ -1969,7 +2040,7 @@ GeckoDriver.prototype.findElements = function(cmd, resp) {
       resp.value = yield new Promise((resolve, reject) => {
         let win = this.getCurrentWindow();
         this.curBrowser.elementManager.find(
-            win,
+            { frame: win },
             cmd.parameters,
             this.searchTimeout,
             true /* all */,
@@ -1980,10 +2051,10 @@ GeckoDriver.prototype.findElements = function(cmd, resp) {
 
     case Context.CONTENT:
       resp.value = yield this.listener.findElementsContent({
-        value: cmd.parameters.value,
-        using: cmd.parameters.using,
-        element: cmd.parameters.element,
-        searchTimeout: this.searchTimeout});
+          value: cmd.parameters.value,
+          using: cmd.parameters.using,
+          element: cmd.parameters.element,
+          searchTimeout: this.searchTimeout});
       break;
   }
 };
@@ -2025,7 +2096,7 @@ GeckoDriver.prototype.clickElement = function(cmd, resp) {
     case Context.CHROME:
       // click atom fails, fall back to click() action
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       el.click();
       break;
 
@@ -2054,7 +2125,7 @@ GeckoDriver.prototype.getElementAttribute = function(cmd, resp) {
   switch (this.context) {
     case Context.CHROME:
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       resp.value = utils.getElementAttribute(el, name);
       break;
 
@@ -2078,7 +2149,7 @@ GeckoDriver.prototype.getElementText = function(cmd, resp) {
     case Context.CHROME:
       // for chrome, we look at text nodes, and any node with a "label" field
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       let lines = [];
       this.getVisibleText(el, lines);
       resp.value = lines.join("\n");
@@ -2102,7 +2173,7 @@ GeckoDriver.prototype.getElementTagName = function(cmd, resp) {
   switch (this.context) {
     case Context.CHROME:
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       resp.value = el.tagName.toLowerCase();
       break;
 
@@ -2124,12 +2195,12 @@ GeckoDriver.prototype.isElementDisplayed = function(cmd, resp) {
   switch (this.context) {
     case Context.CHROME:
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       resp.value = utils.isElementDisplayed(el);
       break;
 
     case Context.CONTENT:
-      resp.value = yield this.listener.isElementDisplayed({id: id});
+      resp.value = yield this.listener.isElementDisplayed(id);
       break;
   }
 };
@@ -2148,14 +2219,13 @@ GeckoDriver.prototype.getElementValueOfCssProperty = function(cmd, resp) {
   switch (this.context) {
     case Context.CHROME:
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       let sty = win.document.defaultView.getComputedStyle(el, null);
       resp.value = sty.getPropertyValue(prop);
       break;
 
     case Context.CONTENT:
-      resp.value = yield this.listener.getElementValueOfCssProperty(
-          {id: id, propertyName: prop});
+      resp.value = yield this.listener.getElementValueOfCssProperty(id, prop);
       break;
   }
 };
@@ -2173,7 +2243,7 @@ GeckoDriver.prototype.isElementEnabled = function(cmd, resp) {
     case Context.CHROME:
       // Selenium atom doesn't quite work here
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       resp.value = !(!!el.disabled);
       break;
 
@@ -2196,7 +2266,7 @@ GeckoDriver.prototype.isElementSelected = function(cmd, resp) {
     case Context.CHROME:
       // Selenium atom doesn't quite work here
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       if (typeof el.checked != "undefined") {
         resp.value = !!el.checked;
       } else if (typeof el.selected != "undefined") {
@@ -2207,7 +2277,7 @@ GeckoDriver.prototype.isElementSelected = function(cmd, resp) {
       break;
 
     case Context.CONTENT:
-      resp.value = yield this.listener.isElementSelected({id: id});
+      resp.value = yield this.listener.isElementSelected(id);
       break;
   }
 };
@@ -2218,7 +2288,7 @@ GeckoDriver.prototype.getElementSize = function(cmd, resp) {
   switch (this.context) {
     case Context.CHROME:
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       let rect = el.getBoundingClientRect();
       resp.value = {width: rect.width, height: rect.height};
       break;
@@ -2235,7 +2305,7 @@ GeckoDriver.prototype.getElementRect = function(cmd, resp) {
   switch (this.context) {
     case Context.CHROME:
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       let rect = el.getBoundingClientRect();
       resp.value = {
         x: rect.x + win.pageXOffset,
@@ -2269,7 +2339,7 @@ GeckoDriver.prototype.sendKeysToElement = function(cmd, resp) {
   switch (this.context) {
     case Context.CHROME:
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       utils.sendKeysToElement(
           win,
           el,
@@ -2335,7 +2405,7 @@ GeckoDriver.prototype.clearElement = function(cmd, resp) {
     case Context.CHROME:
       // the selenium atom doesn't work here
       let win = this.getCurrentWindow();
-      let el = this.curBrowser.elementManager.getKnownElement(id, win);
+      let el = this.curBrowser.elementManager.getKnownElement(id, { frame: win });
       if (el.nodeName == "textbox") {
         el.value = "";
       } else if (el.nodeName == "checkbox") {
@@ -2344,7 +2414,7 @@ GeckoDriver.prototype.clearElement = function(cmd, resp) {
       break;
 
     case Context.CONTENT:
-      yield this.listener.clearElement({id: id});
+      yield this.listener.clearElement(id);
       break;
   }
 };
@@ -2360,8 +2430,18 @@ GeckoDriver.prototype.clearElement = function(cmd, resp) {
  *     A point containing X and Y coordinates as properties.
  */
 GeckoDriver.prototype.getElementLocation = function(cmd, resp) {
-  resp.value = yield this.listener.getElementLocation(
-      {id: cmd.parameters.id});
+  return this.listener.getElementLocation(cmd.parameters.id);
+};
+
+/**
+ * Switch to shadow root of the given host element.
+ *
+ * @param {string} id element id.
+ */
+GeckoDriver.prototype.switchToShadowRoot = function(cmd, resp) {
+  let id;
+  if (cmd.parameters) { id = cmd.parameters.id; }
+  yield this.listener.switchToShadowRoot(id);
 };
 
 /** Add a cookie to the document. */
@@ -2899,9 +2979,9 @@ GeckoDriver.prototype.receiveMessage = function(message) {
       let isForCurrentPath = path => currentPath.indexOf(path) != -1;
       let results = [];
 
-      let en = cookieManager.enumerator;
+      let en = cookieManager.getCookiesFromHost(host);
       while (en.hasMoreElements()) {
-        let cookie = en.getNext().QueryInterface(Ci.nsICookie);
+        let cookie = en.getNext().QueryInterface(Ci.nsICookie2);
         // take the hostname and progressively shorten
         let hostname = host;
         do {
@@ -2913,7 +2993,8 @@ GeckoDriver.prototype.receiveMessage = function(message) {
               "path": cookie.path,
               "host": cookie.host,
               "secure": cookie.isSecure,
-              "expiry": cookie.expires
+              "expiry": cookie.expires,
+              "httpOnly": cookie.isHttpOnly
             });
             break;
           }
@@ -2930,7 +3011,7 @@ GeckoDriver.prototype.receiveMessage = function(message) {
           cookieToAdd.name,
           cookieToAdd.value,
           cookieToAdd.secure,
-          false,
+          cookieToAdd.httpOnly,
           false,
           cookieToAdd.expiry);
       return true;
@@ -3055,6 +3136,7 @@ GeckoDriver.prototype.commands = {
   "getActiveFrame": GeckoDriver.prototype.getActiveFrame,
   "switchToFrame": GeckoDriver.prototype.switchToFrame,
   "switchToWindow": GeckoDriver.prototype.switchToWindow,
+  "switchToShadowRoot": GeckoDriver.prototype.switchToShadowRoot,
   "deleteSession": GeckoDriver.prototype.deleteSession,
   "importScript": GeckoDriver.prototype.importScript,
   "clearImportedScripts": GeckoDriver.prototype.clearImportedScripts,
@@ -3219,12 +3301,17 @@ BrowserObj.prototype.addTab = function(uri) {
 
 /**
  * Re-sets this BrowserObject's current tab and updates remoteness tracking.
+ * If a window is provided, this BrowserObj's internal reference is updated
+ * before proceeding.
  */
-BrowserObj.prototype.switchToTab = function(ind) {
-  if (this.browser) {
-    this.browser.selectTabAtIndex(ind);
-    this.tab = this.browser.selectedTab;
+BrowserObj.prototype.switchToTab = function(ind, win) {
+  if (win) {
+    this.window = win;
+    this.setBrowser(win);
   }
+
+  this.browser.selectTabAtIndex(ind);
+  this.tab = this.browser.selectedTab;
   this._browserWasRemote = this.browserForTab.isRemoteBrowser;
   this._hasRemotenessChange = false;
 };

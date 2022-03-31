@@ -785,9 +785,9 @@ TouchCaret::HandleEvent(WidgetEvent* aEvent)
       SetState(TOUCHCARET_NONE);
       LaunchExpirationTimer();
       break;
-    case NS_KEY_UP:
+    case eKeyUp:
     case NS_KEY_DOWN:
-    case NS_KEY_PRESS:
+    case eKeyPress:
     case NS_WHEEL_WHEEL:
     case NS_WHEEL_START:
     case NS_WHEEL_STOP:

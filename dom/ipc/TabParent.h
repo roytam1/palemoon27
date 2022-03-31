@@ -124,6 +124,8 @@ public:
     nsIXULBrowserWindow* GetXULBrowserWindow();
 
     void Destroy();
+    void Detach();
+    void Attach(nsFrameLoader* aFrameLoader);
 
     void RemoveWindowListeners();
     void AddWindowListeners();
@@ -503,6 +505,9 @@ private:
 
     bool AsyncPanZoomEnabled() const;
 
+    // Cached value indicating the docshell active state of the remote browser.
+    bool mDocShellIsActive;
+
     // Update state prior to routing an APZ-aware event to the child process.
     // |aOutTargetGuid| will contain the identifier
     // of the APZC instance that handled the event. aOutTargetGuid may be null.
@@ -517,6 +522,8 @@ private:
     bool mMarkedDestroying;
     // When true, the TabParent is invalid and we should not send IPC messages anymore.
     bool mIsDestroyed;
+    // When true, the TabParent is detached from the frame loader.
+    bool mIsDetached;
     // Whether we have already sent a FileDescriptor for the app package.
     bool mAppPackageFileDescriptorSent;
 

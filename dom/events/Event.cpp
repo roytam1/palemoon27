@@ -270,7 +270,7 @@ Event::GetType(nsAString& aType)
   if (name) {
     CopyASCIItoUTF16(name, aType);
     return NS_OK;
-  } else if (mEvent->mMessage == NS_USER_DEFINED_EVENT && mEvent->userType) {
+  } else if (mEvent->mMessage == eUnidentifiedEvent && mEvent->userType) {
     aType = Substring(nsDependentAtomString(mEvent->userType), 2); // Remove "on"
     mEvent->typeString = aType;
     return NS_OK;
@@ -567,7 +567,7 @@ Event::SetEventType(const nsAString& aEventTypeArg)
                                              &(mEvent->mMessage));
   } else {
     mEvent->userType = nullptr;
-    mEvent->mMessage = NS_USER_DEFINED_EVENT;
+    mEvent->mMessage = eUnidentifiedEvent;
     mEvent->typeString = aEventTypeArg;
   }
 }
@@ -786,7 +786,7 @@ Event::GetEventPopupControlState(WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent)
           abuse = openControlled;
         }
         break;
-      case NS_KEY_DOWN :
+      case eKeyDown:
         if (PopupAllowedForEvent("keydown")) {
           abuse = openControlled;
         }

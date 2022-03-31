@@ -84,7 +84,7 @@ WebappsRegistry.prototype = {
         break;
       case "Webapps:CheckInstalled:Return:OK":
         this.removeMessageListeners(aMessage.name);
-        Services.DOMRequest.fireSuccess(req, msg.app);
+        Services.DOMRequest.fireSuccess(req, createContentApplicationObject(this._window, msg.app));
         break;
       case "Webapps:GetInstalled:Return:OK":
         this.removeMessageListeners(aMessage.name);
@@ -549,7 +549,8 @@ WebappsApplication.prototype = {
   },
 
   get enabled() {
-    return this._proxy.enabled;
+    let value = this._proxy.enabled;
+    return (value === undefined ? true : value);
   },
 
   download: function() {
@@ -609,10 +610,12 @@ WebappsApplication.prototype = {
     this.addMessageListeners(["Webapps:Connect:Return:OK",
                               "Webapps:Connect:Return:KO"]);
     return this.createPromise(function (aResolve, aReject) {
+      let from = this._window.location.origin + this._window.location.pathname;
       cpmm.sendAsyncMessage("Webapps:Connect", {
         keyword: aKeyword,
         rules: aRules,
         manifestURL: this.manifestURL,
+        pubPageURL: from,
         outerWindowID: this._id,
         topWindowID: this._topId,
         requestID: this.getPromiseResolverId({

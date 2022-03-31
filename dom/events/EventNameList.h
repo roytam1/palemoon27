@@ -227,7 +227,7 @@ EVENT(invalid,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(keydown,
-      NS_KEY_DOWN,
+      eKeyDown,
       EventNameType_HTMLXUL,
       eKeyboardEventClass)
 EVENT(keypress,
@@ -239,19 +239,19 @@ EVENT(keyup,
       EventNameType_HTMLXUL,
       eKeyboardEventClass)
 NON_IDL_EVENT(mozbrowserbeforekeydown,
-              NS_KEY_BEFORE_DOWN,
+              eBeforeKeyDown,
               EventNameType_None,
               eBeforeAfterKeyboardEventClass)
 NON_IDL_EVENT(mozbrowserafterkeydown,
-              NS_KEY_AFTER_DOWN,
+              eAfterKeyDown,
               EventNameType_None,
               eBeforeAfterKeyboardEventClass)
 NON_IDL_EVENT(mozbrowserbeforekeyup,
-              NS_KEY_BEFORE_UP,
+              eBeforeKeyUp,
               EventNameType_None,
               eBeforeAfterKeyboardEventClass)
 NON_IDL_EVENT(mozbrowserafterkeyup,
-              NS_KEY_AFTER_UP,
+              eAfterKeyUp,
               EventNameType_None,
               eBeforeAfterKeyboardEventClass)
 EVENT(loadeddata,
@@ -468,11 +468,11 @@ FORWARDED_EVENT(load,
                 EventNameType_All,
                 eBasicEventClass)
 FORWARDED_EVENT(resize,
-                NS_RESIZE_EVENT,
+                eResize,
                 EventNameType_All,
                 eBasicEventClass)
 FORWARDED_EVENT(scroll,
-                NS_SCROLL_EVENT,
+                eScroll,
                 (EventNameType_HTMLXUL | EventNameType_SVGSVG),
                 eBasicEventClass)
 
@@ -607,31 +607,31 @@ NON_IDL_EVENT(MozMouseHittest,
               eMouseEventClass)
 
 NON_IDL_EVENT(DOMAttrModified,
-              NS_MUTATION_ATTRMODIFIED,
+              eLegacyAttrModified,
               EventNameType_HTMLXUL,
               eMutationEventClass)
 NON_IDL_EVENT(DOMCharacterDataModified,
-              NS_MUTATION_CHARACTERDATAMODIFIED,
+              eLegacyCharacterDataModified,
               EventNameType_HTMLXUL,
               eMutationEventClass)
 NON_IDL_EVENT(DOMNodeInserted,
-              NS_MUTATION_NODEINSERTED,
+              eLegacyNodeInserted,
               EventNameType_HTMLXUL,
               eMutationEventClass)
 NON_IDL_EVENT(DOMNodeRemoved,
-              NS_MUTATION_NODEREMOVED,
+              eLegacyNodeRemoved,
               EventNameType_HTMLXUL,
               eMutationEventClass)
 NON_IDL_EVENT(DOMNodeInsertedIntoDocument,
-              NS_MUTATION_NODEINSERTEDINTODOCUMENT,
+              eLegacyNodeInsertedIntoDocument,
               EventNameType_HTMLXUL,
               eMutationEventClass)
 NON_IDL_EVENT(DOMNodeRemovedFromDocument,
-              NS_MUTATION_NODEREMOVEDFROMDOCUMENT,
+              eLegacyNodeRemovedFromDocument,
               EventNameType_HTMLXUL,
               eMutationEventClass)
 NON_IDL_EVENT(DOMSubtreeModified,
-              NS_MUTATION_SUBTREEMODIFIED,
+              eLegacySubtreeModified,
               EventNameType_HTMLXUL,
               eMutationEventClass)
 

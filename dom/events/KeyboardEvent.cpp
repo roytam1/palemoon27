@@ -153,12 +153,12 @@ KeyboardEvent::CharCode()
   }
 
   switch (mEvent->mMessage) {
-  case NS_KEY_BEFORE_DOWN:
-  case NS_KEY_DOWN:
-  case NS_KEY_AFTER_DOWN:
-  case NS_KEY_BEFORE_UP:
+  case eBeforeKeyDown:
+  case eKeyDown:
+  case eAfterKeyDown:
+  case eBeforeKeyUp:
   case eKeyUp:
-  case NS_KEY_AFTER_UP:
+  case eAfterKeyUp:
     return 0;
   case eKeyPress:
     return mEvent->AsKeyboardEvent()->charCode;
@@ -199,12 +199,12 @@ KeyboardEvent::Which()
   }
 
   switch (mEvent->mMessage) {
-    case NS_KEY_BEFORE_DOWN:
-    case NS_KEY_DOWN:
-    case NS_KEY_AFTER_DOWN:
-    case NS_KEY_BEFORE_UP:
+    case eBeforeKeyDown:
+    case eKeyDown:
+    case eAfterKeyDown:
+    case eBeforeKeyUp:
     case eKeyUp:
-    case NS_KEY_AFTER_UP:
+    case eAfterKeyUp:
       return KeyCode();
     case eKeyPress:
       //Special case for 4xp bug 62878.  Try to make value of which

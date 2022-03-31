@@ -1539,9 +1539,6 @@ pref("network.http.proxy.version", "1.1");    // default
 // pref("network.http.proxy.version", "1.0"); // uncomment this out in case of problems
                                               // (required if using junkbuster proxy)
 
-// enable caching of http documents
-pref("network.http.use-cache", true);
-
 // this preference can be set to override the socket type used for normal
 // HTTP traffic.  an empty value indicates the normal TCP/IP socket type.
 pref("network.http.default-socket-type", "");
@@ -1698,8 +1695,6 @@ pref("network.http.spdy.default-concurrent", 100);
 
 // alt-svc allows separation of transport routing from
 // the origin host without using a proxy.
-pref("network.http.atsvc.enabled", false);
-pref("network.http.atsvc.oe", false);
 pref("network.http.altsvc.enabled", false);
 pref("network.http.altsvc.oe", false);
 
@@ -1722,6 +1717,12 @@ pref("network.http.tcp_keepalive.long_lived_idle_time", 600);
 
 pref("network.http.enforce-framing.http1", false); // should be named "strict"
 pref("network.http.enforce-framing.soft", true);
+
+// Whether nsHttpChannel should use the PackagedAppService to load
+// resources from a package when directed to a URL
+// such as http://domain.com/package.pak!//resource.html
+// See http://www.w3.org/TR/web-packaging/#streamable-package-format
+pref("network.http.enable-packaged-apps", false);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,

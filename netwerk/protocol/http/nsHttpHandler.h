@@ -79,6 +79,7 @@ public:
     uint8_t        ReferrerTrimmingPolicy()  { return mReferrerTrimmingPolicy; }
     uint8_t        ReferrerXOriginPolicy()   { return mReferrerXOriginPolicy; }
     bool           SendSecureXSiteReferrer() { return mSendSecureXSiteReferrer; }
+    bool           PackagedAppsEnabled()     { return mPackagedAppsEnabled; }
     uint8_t        RedirectionLimit()        { return mRedirectionLimit; }
     PRIntervalTime IdleTimeout()             { return mIdleTimeout; }
     PRIntervalTime SpdyTimeout()             { return mSpdyTimeout; }
@@ -164,7 +165,6 @@ public:
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
-    bool UseCache() const { return mUseCache; }
     uint32_t GenerateUniqueID() { return ++mLastUniqueID; }
     uint32_t SessionStartTime() { return mSessionStartTime; }
 
@@ -410,6 +410,9 @@ private:
     PRIntervalTime mPipelineReadTimeout;
     nsCOMPtr<nsITimer> mPipelineTestTimer;
 
+    // Whether a URL containing !// should be interpreted as a packaged app channel
+    bool mPackagedAppsEnabled = false;
+
     uint8_t  mRedirectionLimit;
 
     // we'll warn the user if we load an URL containing a userpass field
@@ -455,7 +458,6 @@ private:
     nsXPIDLCString mUserAgentOverride;
     bool           mUserAgentIsDirty; // true if mUserAgent should be rebuilt
 
-    bool           mUseCache;
 
     bool           mPromptTempRedirect;
     // mSendSecureXSiteReferrer: default is false,

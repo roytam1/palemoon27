@@ -121,6 +121,7 @@ protected:
                    const nsCString&           aSecurityInfoSerialization,
                    const uint32_t&            aCacheKey,
                    const nsCString&           aSchedulingContextID,
+                   const OptionalCorsPreflightArgs& aCorsPreflightArgs,
                    const bool&                aAllowStaleCacheContent);
 
   virtual bool RecvSetPriority(const uint16_t& priority) override;
@@ -141,6 +142,8 @@ protected:
                                          const uint32_t& count) override;
   virtual bool RecvDivertOnStopRequest(const nsresult& statusCode) override;
   virtual bool RecvDivertComplete() override;
+  virtual bool RecvRemoveCorsPreflightCacheEntry(const URIParams& uri,
+                                                 const mozilla::ipc::PrincipalInfo& requestingPrincipal) override;
   virtual void ActorDestroy(ActorDestroyReason why) override;
 
   // Supporting function for ADivertableParentChannel.

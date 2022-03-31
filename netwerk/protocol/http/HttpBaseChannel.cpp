@@ -1493,6 +1493,13 @@ HttpBaseChannel::VisitRequestHeaders(nsIHttpHeaderVisitor *visitor)
 }
 
 NS_IMETHODIMP
+HttpBaseChannel::VisitNonDefaultRequestHeaders(nsIHttpHeaderVisitor *visitor)
+{
+  return mRequestHead.Headers().VisitHeaders(
+      visitor, nsHttpHeaderArray::eFilterSkipDefault);
+}
+
+NS_IMETHODIMP
 HttpBaseChannel::GetResponseHeader(const nsACString &header, nsACString &value)
 {
   if (!mResponseHead)
@@ -2459,6 +2466,16 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   if (!httpChannel)
     return NS_OK; // no other options to set
 
+  // Preserve the CORS preflight information.
+  nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
+  if (mRequireCORSPreflight && httpInternal) {
+    rv = httpInternal->SetCorsPreflightParameters(mUnsafeHeaders, mWithCredentials,
+                                                  mPreflightPrincipal);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  }
+
   if (preserveMethod) {
     nsCOMPtr<nsIUploadChannel> uploadChannel =
       do_QueryInterface(httpChannel);
@@ -2528,7 +2545,6 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
     }
   }
 
-  nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
   if (httpInternal) {
     // Convey third party cookie and spdy flags.
     httpInternal->SetThirdPartyFlags(mThirdPartyFlags);

@@ -171,7 +171,6 @@ nsHttpHandler::nsHttpHandler()
     , mLegacyAppVersion("5.0")
     , mProduct("Goanna")
     , mUserAgentIsDirty(true)
-    , mUseCache(true)
     , mPromptTempRedirect(true)
     , mSendSecureXSiteReferrer(true)
     , mEnablePersistentHttpsCaching(false)
@@ -188,8 +187,8 @@ nsHttpHandler::nsHttpHandler()
     , mCoalesceSpdy(true)
     , mSpdyPersistentSettings(false)
     , mAllowPush(true)
-    , mEnableAltSvc(true)
-    , mEnableAltSvcOE(true)
+    , mEnableAltSvc(false)
+    , mEnableAltSvcOE(false)
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
     , mSpdySendBufferSize(ASpdySession::kTCPSendBufferSize)
     , mSpdyPushAllowance(32768)
@@ -277,6 +276,12 @@ nsHttpHandler::Init()
         prefBranch->AddObserver(HTTP_PREF("tcp_keepalive.long_lived_connections"), this, true);
         prefBranch->AddObserver(SAFE_HINT_HEADER_VALUE, this, true);
         PrefsChanged(prefBranch, nullptr);
+    }
+
+    rv = Preferences::AddBoolVarCache(&mPackagedAppsEnabled,
+        "network.http.enable-packaged-apps", false);
+    if (NS_FAILED(rv)) {
+        mPackagedAppsEnabled = false;
     }
 
     nsHttpChannelAuthProvider::InitializePrefs();
@@ -393,8 +398,7 @@ nsHttpHandler::MakeNewRequestTokenBucket()
         return;
 
     nsRefPtr<EventTokenBucket> tokenBucket =
-        new EventTokenBucket(RequestTokenBucketHz(),
-                                           RequestTokenBucketBurst());
+        new EventTokenBucket(RequestTokenBucketHz(), RequestTokenBucketBurst());
     mConnMgr->UpdateRequestTokenBucket(tokenBucket);
 }
 
@@ -425,38 +429,45 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request, bool isSecu
     nsresult rv;
 
     // Add the "User-Agent" header
-    rv = request->SetHeader(nsHttp::User_Agent, UserAgent());
+    rv = request->SetHeader(nsHttp::User_Agent, UserAgent(),
+                            false, nsHttpHeaderArray::eVarietyDefault);
     if (NS_FAILED(rv)) return rv;
 
     // MIME based content negotiation lives!
     // Add the "Accept" header
-    rv = request->SetHeader(nsHttp::Accept, mAccept);
+    rv = request->SetHeader(nsHttp::Accept, mAccept,
+                            false, nsHttpHeaderArray::eVarietyDefault);
     if (NS_FAILED(rv)) return rv;
 
     // Add the "Accept-Language" header
     if (!mAcceptLanguages.IsEmpty()) {
         // Add the "Accept-Language" header
-        rv = request->SetHeader(nsHttp::Accept_Language, mAcceptLanguages);
+        rv = request->SetHeader(nsHttp::Accept_Language, mAcceptLanguages,
+                                false, nsHttpHeaderArray::eVarietyDefault);
         if (NS_FAILED(rv)) return rv;
     }
 
     // Add the "Accept-Encoding" header
     if (isSecure) {
-        rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpsAcceptEncodings);
+        rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpsAcceptEncodings,
+                                false, nsHttpHeaderArray::eVarietyDefault);
     } else {
-        rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpAcceptEncodings);
+        rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpAcceptEncodings,
+                                false, nsHttpHeaderArray::eVarietyDefault);
     }
     if (NS_FAILED(rv)) return rv;
 
     // Add the "Do-Not-Track" header
     if (mDoNotTrackEnabled) {
-      rv = request->SetHeader(nsHttp::DoNotTrack, NS_LITERAL_CSTRING("1"));
+      rv = request->SetHeader(nsHttp::DoNotTrack, NS_LITERAL_CSTRING("1"),
+                              false, nsHttpHeaderArray::eVarietyDefault);
       if (NS_FAILED(rv)) return rv;
     }
 
     // add the "Send Hint" header
     if (mSafeHintEnabled || mParentalControlEnabled) {
-      rv = request->SetHeader(nsHttp::Prefer, NS_LITERAL_CSTRING("safe"));
+      rv = request->SetHeader(nsHttp::Prefer, NS_LITERAL_CSTRING("safe"),
+                              false, nsHttpHeaderArray::eVarietyDefault);
       if (NS_FAILED(rv)) return rv;
     }
     return NS_OK;
@@ -729,14 +740,32 @@ nsHttpHandler::InitUserAgentComponents()
     );
 #endif
 
-   // Add the `Mobile` or `Tablet` token when running on device or in the
-   // b2g desktop simulator.
+
 #if defined(ANDROID) || defined(FXOS_SIMULATOR)
     nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
     MOZ_ASSERT(infoService, "Could not find a system info service");
-
+    nsresult rv;
+    // Add the Android version number to the Fennec platform identifier.
+#if defined MOZ_WIDGET_ANDROID
+    nsAutoString androidVersion;
+    rv = infoService->GetPropertyAsAString(
+        NS_LITERAL_STRING("release_version"), androidVersion);
+    if (NS_SUCCEEDED(rv)) {
+      mPlatform += " ";
+      // If the 2nd character is a ".", we know the major version is a single
+      // digit. If we're running on a version below 4 we pretend to be on
+      // Android KitKat (4.4) to work around scripts sniffing for low versions.
+      if (androidVersion[1] == 46 && androidVersion[0] < 52) {
+        mPlatform += "4.4";
+      } else {
+        mPlatform += NS_LossyConvertUTF16toASCII(androidVersion);
+      }
+    }
+#endif
+    // Add the `Mobile` or `Tablet` token when running on device or in the
+    // b2g desktop simulator.
     bool isTablet;
-    nsresult rv = infoService->GetPropertyAsBool(NS_LITERAL_STRING("tablet"), &isTablet);
+    rv = infoService->GetPropertyAsBool(NS_LITERAL_STRING("tablet"), &isTablet);
     if (NS_SUCCEEDED(rv) && isTablet)
         mCompatDevice.AssignLiteral("Tablet");
     else
@@ -1184,20 +1213,13 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             SetAcceptEncodings(acceptEncodings, false);
         }
     }
-    
+
     if (PREF_CHANGED(HTTP_PREF("accept-encoding.secure"))) {
         nsXPIDLCString acceptEncodings;
         rv = prefs->GetCharPref(HTTP_PREF("accept-encoding.secure"),
                                   getter_Copies(acceptEncodings));
         if (NS_SUCCEEDED(rv)) {
             SetAcceptEncodings(acceptEncodings, true);
-        }
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("use-cache"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("use-cache"), &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mUseCache = cVar;
         }
     }
 
@@ -1334,7 +1356,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     }
 
     if (PREF_CHANGED(HTTP_PREF("altsvc.enabled"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("atsvc.enabled"),
+        rv = prefs->GetBoolPref(HTTP_PREF("altsvc.enabled"),
                                 &cVar);
         if (NS_SUCCEEDED(rv))
             mEnableAltSvc = cVar;
@@ -1342,7 +1364,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
 
     if (PREF_CHANGED(HTTP_PREF("altsvc.oe"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("atsvc.oe"),
+        rv = prefs->GetBoolPref(HTTP_PREF("altsvc.oe"),
                                 &cVar);
         if (NS_SUCCEEDED(rv))
             mEnableAltSvcOE = cVar;
@@ -1582,22 +1604,47 @@ nsHttpHandler::TimerCallback(nsITimer * aTimer, void * aClosure)
         thisObject->mCapabilities &= ~NS_HTTP_ALLOW_PIPELINING;
 }
 
+/**
+ * Currently, only regularizes the case of subtags.
+ */
 static void
-NormalizeLanguageTag(char *code)
+CanonicalizeLanguageTag(char *languageTag)
 {
-    bool is_region = false;
-    while (*code != '\0')
-    {
-        if (*code == '-') {
-            is_region = true;
+    char *s = languageTag;
+    while (*s != '\0') {
+        *s = nsCRT::ToLower(*s);
+        s++;
+    }
+
+    s = languageTag;
+    bool isFirst = true;
+    bool seenSingleton = false;
+    while (*s != '\0') {
+        char *subTagEnd = strchr(s, '-');
+        if (subTagEnd == nullptr) {
+            subTagEnd = strchr(s, '\0');
+        }
+
+        if (isFirst) {
+            isFirst = false;
+        } else if (seenSingleton) {
+            // Do nothing
         } else {
-            if (is_region) {
-                *code = nsCRT::ToUpper(*code);
-            } else {
-                *code = nsCRT::ToLower(*code);
+            size_t subTagLength = subTagEnd - s;
+            if (subTagLength == 1) {
+                seenSingleton = true;
+            } else if (subTagLength == 2) {
+                *s = nsCRT::ToUpper(*s);
+                *(s + 1) = nsCRT::ToUpper(*(s + 1));
+            } else if (subTagLength == 4) {
+                *s = nsCRT::ToUpper(*s);
             }
         }
-        code++;
+
+        s = subTagEnd;
+        if (*s != '\0') {
+            s++;
+        }
     }
 }
 
@@ -1656,7 +1703,7 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
             *trim = '\0';
 
         if (*token != '\0') {
-            NormalizeLanguageTag(token);
+            CanonicalizeLanguageTag(token);
 
             comma = count_n++ != 0 ? "," : ""; // delimiter if not first item
             uint32_t u = QVAL_TO_UINT(q);

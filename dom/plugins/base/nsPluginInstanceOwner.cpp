@@ -1809,7 +1809,7 @@ CocoaEventTypeForEvent(const WidgetGUIEvent& anEvent, nsIFrame* aObjectFrame)
       return NPCocoaEventMouseUp;
     case NS_KEY_DOWN:
       return NPCocoaEventKeyDown;
-    case NS_KEY_UP:
+    case eKeyUp:
       return NPCocoaEventKeyUp;
     case NS_FOCUS_CONTENT:
     case NS_BLUR_CONTENT:
@@ -1886,7 +1886,7 @@ TranslateToNPCocoaEvent(WidgetGUIEvent* anEvent, nsIFrame* aObjectFrame)
       break;
     }
     case NS_KEY_DOWN:
-    case NS_KEY_UP:
+    case eKeyUp:
     {
       WidgetKeyboardEvent* keyEvent = anEvent->AsKeyboardEvent();
 
@@ -2270,14 +2270,14 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
             {
             case NS_KEY_DOWN:
               // Handle NS_KEY_DOWN for modifier key presses
-              // For non-modifiers we get NS_KEY_PRESS
+              // For non-modifiers we get eKeyPress
               if (gdkEvent->is_modifier)
                 event.type = XKeyPress;
               break;
-            case NS_KEY_PRESS:
+            case eKeyPress:
               event.type = XKeyPress;
               break;
-            case NS_KEY_UP:
+            case eKeyUp:
               event.type = KeyRelease;
               break;
             default:

@@ -125,24 +125,10 @@ AccessibleCaretManager::UpdateCaretsForCursorMode()
     return;
   }
 
-  nsRefPtr<nsFrameSelection> fs = GetFrameSelection();
-  Selection* selection = GetSelection();
-  if (!fs || !selection) {
-    HideCarets();
-    return;
-  }
-
-  nsINode* focusNode = selection->GetFocusNode();
-  nsIContent* focusContent = focusNode->AsContent();
-  uint32_t focusOffset = selection->FocusOffset();
-
-  nsIFrame* frame = nullptr;
   int32_t offset = 0;
-  nsresult rv = nsCaret::GetCaretFrameForNodeOffset(
-    fs, focusContent, focusOffset, fs->GetHint(), fs->GetCaretBidiLevel(),
-    &frame, &offset);
+  nsIFrame* frame = nsCaret::GetFrameAndOffset(GetSelection(), nullptr, 0, &offset);
 
-  if (NS_FAILED(rv) || !frame) {
+  if (!frame) {
     HideCarets();
     return;
   }
@@ -153,23 +139,35 @@ AccessibleCaretManager::UpdateCaretsForCursorMode()
     return;
   }
 
-  // No need to consider whether the caret's position is out of scrollport.
-  // According to the spec, we need to explicitly hide it after the scrolling is
-  // ended.
   bool oldSecondCaretVisible = mSecondCaret->IsLogicallyVisible();
-  PositionChangedResult caretResult = mFirstCaret->SetPosition(frame, offset);
-  mFirstCaret->SetSelectionBarEnabled(false);
-  if (nsContentUtils::HasNonEmptyTextContent(
-        editingHost, nsContentUtils::eRecurseIntoChildren)) {
-    mFirstCaret->SetAppearance(Appearance::Normal);
-  } else {
-    mFirstCaret->SetAppearance(Appearance::NormalNotShown);
+  PositionChangedResult result = mFirstCaret->SetPosition(frame, offset);
+
+  switch (result) {
+    case PositionChangedResult::NotChanged:
+      // Do nothing
+      break;
+
+    case PositionChangedResult::Changed:
+      if (nsContentUtils::HasNonEmptyTextContent(
+            editingHost, nsContentUtils::eRecurseIntoChildren)) {
+        mFirstCaret->SetAppearance(Appearance::Normal);
+      } else {
+        mFirstCaret->SetAppearance(Appearance::NormalNotShown);
+      }
+      break;
+
+    case PositionChangedResult::Invisible:
+      mFirstCaret->SetAppearance(Appearance::NormalNotShown);
+      break;
   }
-  LaunchCaretTimeoutTimer();
+
+  mFirstCaret->SetSelectionBarEnabled(false);
   mSecondCaret->SetAppearance(Appearance::None);
 
-  if ((caretResult == PositionChangedResult::Changed ||
-      oldSecondCaretVisible) && !mActiveCaret) {
+  LaunchCaretTimeoutTimer();
+
+  if ((result != PositionChangedResult::NotChanged || oldSecondCaretVisible) &&
+      !mActiveCaret) {
     DispatchCaretStateChangedEvent(CaretChangedReason::Updateposition);
   }
 }

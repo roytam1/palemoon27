@@ -85,6 +85,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "Langpacks",
 XPCOMUtils.defineLazyModuleGetter(this, "ImportExport",
                                   "resource://gre/modules/ImportExport.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "AppConstants",
+                                  "resource://gre/modules/AppConstants.jsm");
+
 #ifdef MOZ_WIDGET_GONK
 XPCOMUtils.defineLazyGetter(this, "libcutils", function() {
   Cu.import("resource://gre/modules/systemlibs.js");
@@ -774,9 +777,9 @@ this.DOMApplicationRegistry = {
           }
         }
 
-#ifdef MOZ_WIDGET_GONK
-        yield this.installSystemApps();
-#endif
+        if (AppConstants.MOZ_B2GDROID || AppConstants.MOZ_B2G) {
+          yield this.installSystemApps();
+        }
 
         // At first run, install preloaded apps and set up their permissions.
         for (let id in this.webapps) {
@@ -851,8 +854,16 @@ this.DOMApplicationRegistry = {
       root = aManifest.entry_points[aEntryPoint];
     }
 
-    if (!root.messages || !Array.isArray(root.messages) ||
-        root.messages.length == 0) {
+    if (!root.messages) {
+      // This application just doesn't use system messages.
+      return;
+    }
+
+    if (!Array.isArray(root.messages) || root.messages.length == 0) {
+      dump("Could not register invalid system message entry for " + aApp.manifestURL + "\n");
+      try {
+        dump(JSON.stringify(root.messages) + "\n");
+      } catch(e) {}
       return;
     }
 
@@ -862,27 +873,31 @@ this.DOMApplicationRegistry = {
     root.messages.forEach(function registerPages(aMessage) {
       let handlerPageURI = launchPathURI;
       let messageName;
-      if (typeof(aMessage) === "object" && Object.keys(aMessage).length === 1) {
-        messageName = Object.keys(aMessage)[0];
-        let handlerPath = aMessage[messageName];
-        // Resolve the handler path from origin. If |handler_path| is absent,
-        // simply skip.
-        let fullHandlerPath;
+      if (typeof(aMessage) !== "object" || Object.keys(aMessage).length !== 1) {
+        dump("Could not register invalid system message entry for " + aApp.manifestURL + "\n");
         try {
-          if (handlerPath && handlerPath.trim()) {
-            fullHandlerPath = manifest.resolveURL(handlerPath);
-          } else {
-            throw new Error("Empty or blank handler path.");
-          }
-        } catch(e) {
-          debug("system message handler path (" + handlerPath + ") is " +
-                "invalid, skipping. Error is: " + e);
-          return;
-        }
-        handlerPageURI = Services.io.newURI(fullHandlerPath, null, null);
-      } else {
-        messageName = aMessage;
+          dump(JSON.stringify(aMessage) + "\n");
+        } catch(e) {}
+        return;
       }
+
+      messageName = Object.keys(aMessage)[0];
+      let handlerPath = aMessage[messageName];
+      // Resolve the handler path from origin. If |handler_path| is absent,
+      // simply skip.
+      let fullHandlerPath;
+      try {
+        if (handlerPath && handlerPath.trim()) {
+          fullHandlerPath = manifest.resolveURL(handlerPath);
+        } else {
+          throw new Error("Empty or blank handler path.");
+        }
+      } catch(e) {
+        debug("system message handler path (" + handlerPath + ") is " +
+              "invalid, skipping. Error is: " + e);
+        return;
+      }
+      handlerPageURI = Services.io.newURI(fullHandlerPath, null, null);
 
       if (SystemMessagePermissionsChecker
             .isSystemMessagePermittedToRegister(messageName,
@@ -2939,6 +2954,12 @@ this.DOMApplicationRegistry = {
     // don't update the permissions yet.
     if (!aData.isPackage) {
       if (supportUseCurrentProfile()) {
+        try {
+          if (Services.prefs.getBoolPref("dom.apps.developer_mode")) {
+            this.webapps[id].appStatus =
+              AppsUtils.getAppManifestStatus(app.manifest);
+          }
+        } catch(e) {};
         PermissionsInstaller.installPermissions(
           {
             origin: appObject.origin,

@@ -1428,6 +1428,8 @@ NS_IMETHODIMP
 HttpBaseChannel::GetRequestHeader(const nsACString& aHeader,
                                   nsACString& aValue)
 {
+  aValue.Truncate();
+
   // XXX might be better to search the header list directly instead of
   // hitting the http atom hash table.
   nsHttpAtom atom = nsHttp::ResolveAtom(aHeader);
@@ -1503,6 +1505,8 @@ HttpBaseChannel::VisitNonDefaultRequestHeaders(nsIHttpHeaderVisitor *visitor)
 NS_IMETHODIMP
 HttpBaseChannel::GetResponseHeader(const nsACString &header, nsACString &value)
 {
+  value.Truncate();
+
   if (!mResponseHead)
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -2309,7 +2313,7 @@ HttpBaseChannel::ShouldIntercept()
   nsCOMPtr<nsINetworkInterceptController> controller;
   GetCallback(controller);
   bool shouldIntercept = false;
-  if (controller && !mForceNoIntercept) {
+  if (controller && !mForceNoIntercept && mLoadInfo) {
     nsContentPolicyType type = mLoadInfo->InternalContentPolicyType();
     nsresult rv = controller->ShouldPrepareForIntercept(mURI,
                                                         IsNavigation(),

@@ -36,6 +36,7 @@
 #include "nsIDocument.h"
 #include "mozilla/net/NeckoMessageUtils.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/BasePrincipal.h"
 #include "nsReadLine.h"
 #include "mozilla/Telemetry.h"
 #include "nsIConsoleService.h"
@@ -104,9 +105,6 @@ nsresult
 GetPrincipal(const nsACString& aHost, uint32_t aAppId, bool aIsInBrowserElement,
              nsIPrincipal** aPrincipal)
 {
-  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-  NS_ENSURE_TRUE(secMan, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aHost);
   if (NS_FAILED(rv)) {
@@ -123,7 +121,13 @@ GetPrincipal(const nsACString& aHost, uint32_t aAppId, bool aIsInBrowserElement,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  return secMan->GetAppCodebasePrincipal(uri, aAppId, aIsInBrowserElement, aPrincipal);
+  // TODO: Bug 1165267 - Use OriginAttributes for nsCookieService
+  mozilla::OriginAttributes attrs(aAppId, aIsInBrowserElement);
+  nsCOMPtr<nsIPrincipal> principal = mozilla::BasePrincipal::CreateCodebasePrincipal(uri, attrs);
+  NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
+
+  principal.forget(aPrincipal);
+  return NS_OK;
 }
 
 nsresult

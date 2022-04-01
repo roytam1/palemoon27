@@ -9,45 +9,45 @@
  * NS_EVENT_MESSAGE(aMessage, aValue)
  */
 
-NS_EVENT_MESSAGE(NS_EVENT_NULL,         0)
+NS_EVENT_MESSAGE(eVoidEvent,            0)
 
 // This is a dummy event message for all event listener implementation in
 // EventListenerManager.
-NS_EVENT_MESSAGE(NS_EVENT_ALL,          1)
+NS_EVENT_MESSAGE(eAllEvents,            1)
 
-NS_EVENT_MESSAGE(NS_WINDOW_START,       100)
+NS_EVENT_MESSAGE(eWindowEventFirst,     100)
 // Widget may be destroyed
-NS_EVENT_MESSAGE(NS_XUL_CLOSE,          NS_WINDOW_START + 1)
+NS_EVENT_MESSAGE(eWindowClose,          eWindowEventFirst + 1)
 
-NS_EVENT_MESSAGE(NS_KEY_PRESS,          NS_WINDOW_START + 31)
-NS_EVENT_MESSAGE(NS_KEY_UP,             NS_WINDOW_START + 32)
-NS_EVENT_MESSAGE(NS_KEY_DOWN,           NS_WINDOW_START + 33)
+NS_EVENT_MESSAGE(eKeyPress,             eWindowEventFirst + 31)
+NS_EVENT_MESSAGE(eKeyUp,                eWindowEventFirst + 32)
+NS_EVENT_MESSAGE(eKeyDown,              eWindowEventFirst + 33)
 
-NS_EVENT_MESSAGE(NS_KEY_BEFORE_DOWN,    NS_WINDOW_START + 34)
-NS_EVENT_MESSAGE(NS_KEY_AFTER_DOWN,     NS_WINDOW_START + 35)
-NS_EVENT_MESSAGE(NS_KEY_BEFORE_UP,      NS_WINDOW_START + 36)
-NS_EVENT_MESSAGE(NS_KEY_AFTER_UP,       NS_WINDOW_START + 37)
+NS_EVENT_MESSAGE(eBeforeKeyDown,        eWindowEventFirst + 34)
+NS_EVENT_MESSAGE(eAfterKeyDown,         eWindowEventFirst + 35)
+NS_EVENT_MESSAGE(eBeforeKeyUp,          eWindowEventFirst + 36)
+NS_EVENT_MESSAGE(eAfterKeyUp,           eWindowEventFirst + 37)
 
-NS_EVENT_MESSAGE(NS_RESIZE_EVENT,       NS_WINDOW_START + 60)
-NS_EVENT_MESSAGE(NS_SCROLL_EVENT,       NS_WINDOW_START + 61)
+NS_EVENT_MESSAGE(eResize,               eWindowEventFirst + 60)
+NS_EVENT_MESSAGE(eScroll,               eWindowEventFirst + 61)
 
 // A plugin was clicked or otherwise focused. NS_PLUGIN_ACTIVATE should be
 // used when the window is not active. NS_PLUGIN_FOCUS should be used when
 // the window is active. In the latter case, the dispatcher of the event
 // is expected to ensure that the plugin's widget is focused beforehand.
-NS_EVENT_MESSAGE(NS_PLUGIN_ACTIVATE,    NS_WINDOW_START + 62)
-NS_EVENT_MESSAGE(NS_PLUGIN_FOCUS,       NS_WINDOW_START + 63)
+NS_EVENT_MESSAGE(NS_PLUGIN_ACTIVATE,    eWindowEventFirst + 62)
+NS_EVENT_MESSAGE(NS_PLUGIN_FOCUS,       eWindowEventFirst + 63)
 
-NS_EVENT_MESSAGE(NS_OFFLINE,            NS_WINDOW_START + 64)
-NS_EVENT_MESSAGE(NS_ONLINE,             NS_WINDOW_START + 65)
+NS_EVENT_MESSAGE(NS_OFFLINE,            eWindowEventFirst + 64)
+NS_EVENT_MESSAGE(NS_ONLINE,             eWindowEventFirst + 65)
 
-// NS_BEFORERESIZE_EVENT used to be here (NS_WINDOW_START + 66)
+// NS_BEFORERESIZE_EVENT used to be here (eWindowEventFirst + 66)
 
 // Indicates that the user is either idle or active
-NS_EVENT_MESSAGE(NS_MOZ_USER_IDLE,      NS_WINDOW_START + 67)
-NS_EVENT_MESSAGE(NS_MOZ_USER_ACTIVE,    NS_WINDOW_START + 68)
+NS_EVENT_MESSAGE(NS_MOZ_USER_IDLE,      eWindowEventFirst + 67)
+NS_EVENT_MESSAGE(NS_MOZ_USER_ACTIVE,    eWindowEventFirst + 68)
 
-NS_EVENT_MESSAGE(NS_LANGUAGECHANGE,     NS_WINDOW_START + 70)
+NS_EVENT_MESSAGE(NS_LANGUAGECHANGE,     eWindowEventFirst + 70)
 
 NS_EVENT_MESSAGE(NS_MOUSE_MESSAGE_START, 300)
 NS_EVENT_MESSAGE(NS_MOUSE_MOVE,         NS_MOUSE_MESSAGE_START)
@@ -135,17 +135,17 @@ NS_EVENT_MESSAGE(NS_SCROLLPORT_START,     1700)
 NS_EVENT_MESSAGE(NS_SCROLLPORT_UNDERFLOW, NS_SCROLLPORT_START)
 NS_EVENT_MESSAGE(NS_SCROLLPORT_OVERFLOW,  NS_SCROLLPORT_START + 1)
 
-NS_EVENT_MESSAGE(NS_MUTATION_START,                    1800)
-NS_EVENT_MESSAGE(NS_MUTATION_SUBTREEMODIFIED,          NS_MUTATION_START)
-NS_EVENT_MESSAGE(NS_MUTATION_NODEINSERTED,             NS_MUTATION_START + 1)
-NS_EVENT_MESSAGE(NS_MUTATION_NODEREMOVED,              NS_MUTATION_START + 2)
-NS_EVENT_MESSAGE(NS_MUTATION_NODEREMOVEDFROMDOCUMENT,  NS_MUTATION_START + 3)
-NS_EVENT_MESSAGE(NS_MUTATION_NODEINSERTEDINTODOCUMENT, NS_MUTATION_START + 4)
-NS_EVENT_MESSAGE(NS_MUTATION_ATTRMODIFIED,             NS_MUTATION_START + 5)
-NS_EVENT_MESSAGE(NS_MUTATION_CHARACTERDATAMODIFIED,    NS_MUTATION_START + 6)
-NS_EVENT_MESSAGE(NS_MUTATION_END,                      NS_MUTATION_START + 6)
+NS_EVENT_MESSAGE(eLegacyMutationEventFirst,       1800)
+NS_EVENT_MESSAGE(eLegacySubtreeModified,          eLegacyMutationEventFirst)
+NS_EVENT_MESSAGE(eLegacyNodeInserted,             eLegacyMutationEventFirst + 1)
+NS_EVENT_MESSAGE(eLegacyNodeRemoved,              eLegacyMutationEventFirst + 2)
+NS_EVENT_MESSAGE(eLegacyNodeRemovedFromDocument,  eLegacyMutationEventFirst + 3)
+NS_EVENT_MESSAGE(eLegacyNodeInsertedIntoDocument, eLegacyMutationEventFirst + 4)
+NS_EVENT_MESSAGE(eLegacyAttrModified,             eLegacyMutationEventFirst + 5)
+NS_EVENT_MESSAGE(eLegacyCharacterDataModified,    eLegacyMutationEventFirst + 6)
+NS_EVENT_MESSAGE(eLegacyMutationEventLast,        eLegacyCharacterDataModified)
 
-NS_EVENT_MESSAGE(NS_USER_DEFINED_EVENT, 2000)
+NS_EVENT_MESSAGE(eUnidentifiedEvent,    2000)
  
 // composition events
 NS_EVENT_MESSAGE(NS_COMPOSITION_EVENT_START,  2200)

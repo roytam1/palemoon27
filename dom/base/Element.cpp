@@ -2458,7 +2458,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
   }
 
   if (aFireMutation) {
-    InternalMutationEvent mutation(true, NS_MUTATION_ATTRMODIFIED);
+    InternalMutationEvent mutation(true, eLegacyAttrModified);
 
     nsAutoString ns;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNamespaceID, ns);
@@ -2700,7 +2700,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
 
   if (hasMutationListeners) {
-    InternalMutationEvent mutation(true, NS_MUTATION_ATTRMODIFIED);
+    InternalMutationEvent mutation(true, eLegacyAttrModified);
 
     mutation.mRelatedNode = attrNode;
     mutation.mAttrName = aName;
@@ -2904,7 +2904,7 @@ Element::CheckHandleEventForLinksPrecondition(EventChainVisitor& aVisitor,
   if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
       (!aVisitor.mEvent->mFlags.mIsTrusted &&
        (aVisitor.mEvent->mMessage != NS_MOUSE_CLICK) &&
-       (aVisitor.mEvent->mMessage != NS_KEY_PRESS) &&
+       (aVisitor.mEvent->mMessage != eKeyPress) &&
        (aVisitor.mEvent->mMessage != NS_UI_ACTIVATE)) ||
       !aVisitor.mPresContext ||
       aVisitor.mEvent->mFlags.mMultipleActionsPrevented) {
@@ -2985,7 +2985,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
   case NS_MOUSE_BUTTON_DOWN:
   case NS_MOUSE_CLICK:
   case NS_UI_ACTIVATE:
-  case NS_KEY_PRESS:
+  case eKeyPress:
     break;
   default:
     return NS_OK;
@@ -3063,7 +3063,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
     }
     break;
 
-  case NS_KEY_PRESS:
+  case eKeyPress:
     {
       WidgetKeyboardEvent* keyEvent = aVisitor.mEvent->AsKeyboardEvent();
       if (keyEvent && keyEvent->keyCode == NS_VK_RETURN) {

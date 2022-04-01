@@ -121,6 +121,8 @@ class B2GMochitest(MochitestUtilsMixin):
     def run_tests(self, options):
         """ Prepare, configure, run tests and cleanup """
 
+        self.setTestRoot(options)
+
         manifest = self.build_profile(options)
         self.logPreamble(self.getActiveTests(options))
 
@@ -215,6 +217,21 @@ class B2GMochitest(MochitestUtilsMixin):
                 Components.utils.import("resource://gre/modules/Services.jsm");
                 Services.io.manageOfflineStatus = false;
                 Services.io.offline = false;
+                """)
+
+            self.marionette.execute_script("""
+                let SECURITY_PREF = "security.turn_off_all_security_so_that_viruses_can_take_over_this_computer";
+                Services.prefs.setBoolPref(SECURITY_PREF, true);
+
+                if (!testUtils.hasOwnProperty("specialPowersObserver")) {
+                  let loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"]
+                    .getService(Components.interfaces.mozIJSSubScriptLoader);
+                  loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserver.js",
+                    testUtils);
+                  testUtils.specialPowersObserver = new testUtils.SpecialPowersObserver();
+                  testUtils.specialPowersObserver.init();
+                  testUtils.specialPowersObserver._loadFrameScript();
+                }
                 """)
 
             if options.chrome:

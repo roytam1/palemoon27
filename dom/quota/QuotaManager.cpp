@@ -27,6 +27,7 @@
 #include <algorithm>
 #include "GeckoProfiler.h"
 #include "mozilla/Atomics.h"
+#include "mozilla/BasePrincipal.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/dom/PContent.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
@@ -5305,10 +5306,9 @@ StorageDirectoryHelper::RunOnMainThread()
           rv = secMan->GetSimpleCodebasePrincipal(uri,
                                                   getter_AddRefs(principal));
         } else {
-          rv = secMan->GetAppCodebasePrincipal(uri,
-                                               originProps.mAppId,
-                                               originProps.mInMozBrowser,
-                                               getter_AddRefs(principal));
+          OriginAttributes attrs(originProps.mAppId, originProps.mInMozBrowser);
+          principal = BasePrincipal::CreateCodebasePrincipal(uri, attrs);
+          rv = principal ? NS_OK : NS_ERROR_FAILURE;
         }
         if (NS_WARN_IF(NS_FAILED(rv))) {
           return rv;

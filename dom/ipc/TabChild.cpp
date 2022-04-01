@@ -1594,23 +1594,15 @@ TabChild::MaybeRequestPreinitCamera()
       return;
     }
 
-    nsString manifestUrl = EmptyString();
-    appsService->GetManifestURLByLocalId(OwnAppId(), manifestUrl);
-    nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-    if (NS_WARN_IF(!secMan)) {
-      return;
-    }
-
-    nsCOMPtr<nsIURI> uri;
-    nsresult rv = NS_NewURI(getter_AddRefs(uri), manifestUrl);
+    nsCOMPtr<mozIApplication> app;
+    nsresult rv = appsService->GetAppByLocalId(OwnAppId(), getter_AddRefs(app));
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return;
     }
 
     nsCOMPtr<nsIPrincipal> principal;
-    rv = secMan->GetAppCodebasePrincipal(uri, OwnAppId(), false,
-                                         getter_AddRefs(principal));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
+    app->GetPrincipal(getter_AddRefs(principal));
+    if (NS_WARN_IF(!principal)) {
       return;
     }
 
@@ -2178,7 +2170,7 @@ TabChild::RecvRealKeyEvent(const WidgetKeyboardEvent& event,
 {
   AutoCacheNativeKeyCommands autoCache(mPuppetWidget);
 
-  if (event.mMessage == NS_KEY_PRESS) {
+  if (event.mMessage == eKeyPress) {
     // If content code called preventDefault() on a keydown event, then we don't
     // want to process any following keypress events.
     if (mIgnoreKeyPressEvent) {
@@ -2198,7 +2190,7 @@ TabChild::RecvRealKeyEvent(const WidgetKeyboardEvent& event,
   localEvent.widget = mPuppetWidget;
   nsEventStatus status = APZCCallbackHelper::DispatchWidgetEvent(localEvent);
 
-  if (event.mMessage == NS_KEY_DOWN) {
+  if (event.mMessage == eKeyDown) {
     mIgnoreKeyPressEvent = status == nsEventStatus_eConsumeNoDefault;
   }
 
@@ -2221,10 +2213,7 @@ TabChild::RecvKeyEvent(const nsString& aType,
                        const bool& aPreventDefault)
 {
   bool ignored = false;
-  // XXX Why nsContentUtils::SendKeyEvent takes nsCOMPtr<nsIWidget> for the
-  //     first argument? Why not just nsIWidget*?
-  nsCOMPtr<nsIWidget> widget(mPuppetWidget);
-  nsContentUtils::SendKeyEvent(widget, aType, aKeyCode, aCharCode,
+  nsContentUtils::SendKeyEvent(mPuppetWidget, aType, aKeyCode, aCharCode,
                                aModifiers, aPreventDefault, &ignored);
   return true;
 }
@@ -2505,7 +2494,7 @@ TabChild::RecvSetUpdateHitRegion(const bool& aEnabled)
 }
 
 bool
-TabChild::RecvSetIsDocShellActive(const bool& aIsActive)
+TabChild::RecvSetDocShellIsActive(const bool& aIsActive)
 {
     nsCOMPtr<nsIDocShell> docShell = do_GetInterface(WebNavigation());
     if (docShell) {

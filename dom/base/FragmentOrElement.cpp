@@ -812,12 +812,12 @@ nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
       case NS_FORM_CHANGE:
       case NS_LOAD:
       case NS_FORM_RESET:
-      case NS_RESIZE_EVENT:
-      case NS_SCROLL_EVENT:
+      case eResize:
+      case eScroll:
       case NS_SELECT_START:
         stopEvent = true;
         break;
-      case NS_USER_DEFINED_EVENT:
+      case eUnidentifiedEvent:
         if (aVisitor.mDOMEvent) {
           nsAutoString eventType;
           aVisitor.mDOMEvent->GetType(eventType);
@@ -1217,7 +1217,7 @@ FragmentOrElement::FireNodeInserted(nsIDocument* aDoc,
 
     if (nsContentUtils::HasMutationListeners(childContent,
           NS_EVENT_BITS_MUTATION_NODEINSERTED, aParent)) {
-      InternalMutationEvent mutation(true, NS_MUTATION_NODEINSERTED);
+      InternalMutationEvent mutation(true, eLegacyNodeInserted);
       mutation.mRelatedNode = do_QueryInterface(aParent);
 
       mozAutoSubtreeModified subtree(aDoc, aParent);

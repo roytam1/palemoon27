@@ -81,16 +81,6 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
       trustedDER.len = mozilla::ArrayLength(xpcshellRoot);
       break;
 
-    case nsIX509CertDB::TrustedHostedAppPublicRoot:
-      trustedDER.data = const_cast<uint8_t*>(trustedAppPublicRoot);
-      trustedDER.len = mozilla::ArrayLength(trustedAppPublicRoot);
-      break;
-
-    case nsIX509CertDB::TrustedHostedAppTestRoot:
-      trustedDER.data = const_cast<uint8_t*>(trustedAppTestRoot);
-      trustedDER.len = mozilla::ArrayLength(trustedAppTestRoot);
-      break;
-
     default:
       PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
       return SECFailure;

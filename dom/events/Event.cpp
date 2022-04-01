@@ -106,7 +106,7 @@ Event::ConstructorInit(EventTarget* aOwner,
           ...
         }
      */
-    mEvent = new WidgetEvent(false, NS_EVENT_NULL);
+    mEvent = new WidgetEvent(false, eVoidEvent);
     mEvent->time = PR_Now();
   }
 
@@ -270,7 +270,7 @@ Event::GetType(nsAString& aType)
   if (name) {
     CopyASCIItoUTF16(name, aType);
     return NS_OK;
-  } else if (mEvent->mMessage == NS_USER_DEFINED_EVENT && mEvent->userType) {
+  } else if (mEvent->mMessage == eUnidentifiedEvent && mEvent->userType) {
     aType = Substring(nsDependentAtomString(mEvent->userType), 2); // Remove "on"
     mEvent->typeString = aType;
     return NS_OK;
@@ -567,7 +567,7 @@ Event::SetEventType(const nsAString& aEventTypeArg)
                                              &(mEvent->mMessage));
   } else {
     mEvent->userType = nullptr;
-    mEvent->mMessage = NS_USER_DEFINED_EVENT;
+    mEvent->mMessage = eUnidentifiedEvent;
     mEvent->typeString = aEventTypeArg;
   }
 }
@@ -770,7 +770,7 @@ Event::GetEventPopupControlState(WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent)
     if (aEvent->mFlags.mIsTrusted) {
       uint32_t key = aEvent->AsKeyboardEvent()->keyCode;
       switch(aEvent->mMessage) {
-      case NS_KEY_PRESS :
+      case eKeyPress:
         // return key on focused button. see note at NS_MOUSE_CLICK.
         if (key == nsIDOMKeyEvent::DOM_VK_RETURN) {
           abuse = openAllowed;
@@ -778,7 +778,7 @@ Event::GetEventPopupControlState(WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent)
           abuse = openControlled;
         }
         break;
-      case NS_KEY_UP :
+      case eKeyUp:
         // space key on focused button. see note at NS_MOUSE_CLICK.
         if (key == nsIDOMKeyEvent::DOM_VK_SPACE) {
           abuse = openAllowed;
@@ -786,7 +786,7 @@ Event::GetEventPopupControlState(WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent)
           abuse = openControlled;
         }
         break;
-      case NS_KEY_DOWN :
+      case eKeyDown:
         if (PopupAllowedForEvent("keydown")) {
           abuse = openControlled;
         }
@@ -1055,10 +1055,10 @@ const char*
 Event::GetEventName(EventMessage aEventType)
 {
   switch(aEventType) {
-#define ID_TO_EVENT(name_, _id, _type, _struct) \
-  case _id: return #name_;
+#define MESSAGE_TO_EVENT(name_, _message, _type, _struct) \
+  case _message: return #name_;
 #include "mozilla/EventNameList.h"
-#undef ID_TO_EVENT
+#undef MESSAGE_TO_EVENT
   default:
     break;
   }

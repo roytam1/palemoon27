@@ -151,6 +151,7 @@ Request::Constructor(const GlobalObject& aGlobal,
                      const RequestOrUSVString& aInput,
                      const RequestInit& aInit, ErrorResult& aRv)
 {
+  nsCOMPtr<nsIInputStream> temporaryBody;
   nsRefPtr<InternalRequest> request;
 
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
@@ -163,9 +164,8 @@ Request::Constructor(const GlobalObject& aGlobal,
       if (inputReq->BodyUsed()) {
         aRv.ThrowTypeError(MSG_FETCH_BODY_CONSUMED_ERROR);
         return nullptr;
-      } else {
-        inputReq->SetBodyUsed();
       }
+      temporaryBody = body;
     }
 
     request = inputReq->GetInternalRequest();
@@ -279,6 +279,10 @@ Request::Constructor(const GlobalObject& aGlobal,
   }
 
   requestHeaders->Clear();
+  // From "Let r be a new Request object associated with request and a new
+  // Headers object whose guard is "request"."
+  requestHeaders->SetGuard(HeadersGuardEnum::Request, aRv);
+  MOZ_ASSERT(!aRv.Failed());
 
   if (request->Mode() == RequestMode::No_cors) {
     if (!request->HasSimpleMethod()) {
@@ -300,7 +304,7 @@ Request::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  if (aInit.mBody.WasPassed()) {
+  if (aInit.mBody.WasPassed() || temporaryBody) {
     // HEAD and GET are not allowed to have a body.
     nsAutoCString method;
     request->GetMethod(method);
@@ -309,7 +313,9 @@ Request::Constructor(const GlobalObject& aGlobal,
       aRv.ThrowTypeError(MSG_NO_BODY_ALLOWED_FOR_GET_AND_HEAD);
       return nullptr;
     }
+  }
 
+  if (aInit.mBody.WasPassed()) {
     const OwningArrayBufferOrArrayBufferViewOrBlobOrFormDataOrUSVStringOrURLSearchParams& bodyInit = aInit.mBody.Value();
     nsCOMPtr<nsIInputStream> stream;
     nsAutoCString contentType;
@@ -318,8 +324,8 @@ Request::Constructor(const GlobalObject& aGlobal,
     if (NS_WARN_IF(aRv.Failed())) {
       return nullptr;
     }
-    request->ClearCreatedByFetchEvent();
-    request->SetBody(stream);
+
+    temporaryBody = stream;
 
     if (!contentType.IsVoid() &&
         !requestHeaders->Has(NS_LITERAL_CSTRING("Content-Type"), aRv)) {
@@ -327,13 +333,26 @@ Request::Constructor(const GlobalObject& aGlobal,
                              contentType, aRv);
     }
 
-    if (aRv.Failed()) {
+    if (NS_WARN_IF(aRv.Failed())) {
       return nullptr;
     }
+
+    request->ClearCreatedByFetchEvent();
+    request->SetBody(temporaryBody);
   }
 
   nsRefPtr<Request> domRequest = new Request(global, request);
   domRequest->SetMimeType();
+
+  if (aInput.IsRequest()) {
+    nsRefPtr<Request> inputReq = &aInput.GetAsRequest();
+    nsCOMPtr<nsIInputStream> body;
+    inputReq->GetBody(getter_AddRefs(body));
+    if (body) {
+      inputReq->SetBody(nullptr);
+      inputReq->SetBodyUsed();
+    }
+  }
   return domRequest.forget();
 }
 

@@ -1238,6 +1238,9 @@ GetPKPConsoleErrorTag(uint32_t failureResult, nsAString& consoleErrorTag)
         case nsISiteSecurityService::ERROR_COULD_NOT_SAVE_STATE:
             consoleErrorTag = NS_LITERAL_STRING("PKPCouldNotSaveState");
             break;
+        case nsISiteSecurityService::ERROR_ROOT_NOT_BUILT_IN:
+            consoleErrorTag = NS_LITERAL_STRING("PKPRootNotBuiltIn");
+            break;
         default:
             consoleErrorTag = NS_LITERAL_STRING("PKPUnknownError");
             break;
@@ -3000,8 +3003,11 @@ nsHttpChannel::OpenCacheEntry(bool isHttps)
         rv = cacheStorageService->AppCacheStorage(info,
             mApplicationCache,
             getter_AddRefs(cacheStorage));
-    }
-    else if (PossiblyIntercepted() || mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
+    } else if (PossiblyIntercepted()) {
+        // The synthesized cache has less restrictions on file size and so on.
+        rv = cacheStorageService->SynthesizedCacheStorage(info,
+            getter_AddRefs(cacheStorage));
+    } else if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
         rv = cacheStorageService->MemoryCacheStorage(info, // ? choose app cache as well...
             getter_AddRefs(cacheStorage));
     }
@@ -5014,7 +5020,10 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     MOZ_ASSERT(NS_IsMainThread());
     if (gHttpHandler->PackagedAppsEnabled()) {
         nsAutoCString path;
-        mURI->GetPath(path);
+        nsCOMPtr<nsIURL> url(do_QueryInterface(mURI));
+        if (url) {
+            url->GetFilePath(path);
+        }
         mIsPackagedAppResource = path.Find(PACKAGED_APP_TOKEN) != kNotFound;
     }
 
@@ -5108,12 +5117,15 @@ nsHttpChannel::BeginConnect()
         mURI->GetUsername(mUsername);
     if (NS_SUCCEEDED(rv))
         rv = mURI->GetAsciiSpec(mSpec);
-    if (NS_FAILED(rv))
+    if (NS_FAILED(rv)) {
         return rv;
+    }
 
     // Reject the URL if it doesn't specify a host
-    if (host.IsEmpty())
-        return NS_ERROR_MALFORMED_URI;
+    if (host.IsEmpty()) {
+        rv = NS_ERROR_MALFORMED_URI;
+        return rv;
+    }
     LOG(("host=%s port=%d\n", host.get(), port));
     LOG(("uri=%s\n", mSpec.get()));
 
@@ -5128,6 +5140,7 @@ nsHttpChannel::BeginConnect()
     if (mAllowAltSvc && // per channel
         (scheme.Equals(NS_LITERAL_CSTRING("http")) ||
          scheme.Equals(NS_LITERAL_CSTRING("https"))) &&
+        (!proxyInfo || proxyInfo->IsDirect()) &&
         (mapping = gHttpHandler->GetAltServiceMapping(scheme,
                                                       host, port,
                                                       mPrivateBrowsing))) {
@@ -5176,8 +5189,9 @@ nsHttpChannel::BeginConnect()
                           &rv);
     if (NS_SUCCEEDED(rv))
         rv = mAuthProvider->Init(this);
-    if (NS_FAILED(rv))
+    if (NS_FAILED(rv)) {
         return rv;
+    }
 
     // check to see if authorization headers should be included
     mAuthProvider->AddAuthorizationHeaders();
@@ -5226,16 +5240,27 @@ nsHttpChannel::BeginConnect()
         // If this is a packaged app resource, the content will be fetched
         // by the packaged app service into the cache, and the cache entry will
         // be passed to OnCacheEntryAvailable.
+
+        // Pass the original load flags to the packaged app request.
+        uint32_t loadFlags = mLoadFlags;
+
         mLoadFlags |= LOAD_ONLY_FROM_CACHE;
         mLoadFlags |= LOAD_FROM_CACHE;
         mLoadFlags &= ~VALIDATE_ALWAYS;
         nsCOMPtr<nsIPackagedAppService> pas =
-          do_GetService("@mozilla.org/network/packaged-app-service;1", &rv);
+            do_GetService("@mozilla.org/network/packaged-app-service;1", &rv);
         if (NS_WARN_IF(NS_FAILED(rv))) {
-          return rv;
+            AsyncAbort(rv);
+            return rv;
         }
 
-        return pas->RequestURI(mURI, GetLoadContextInfo(this), this);
+        nsCOMPtr<nsIPrincipal> principal = GetURIPrincipal();
+        nsCOMPtr<nsILoadContextInfo> loadInfo = GetLoadContextInfo(this);
+        rv = pas->GetResource(principal, loadFlags, loadInfo, this);
+        if (NS_FAILED(rv)) {
+            AsyncAbort(rv);
+        }
+        return rv;
     }
 
     // when proxying only use the pipeline bit if ProxyPipelining() allows it.
@@ -5308,6 +5333,7 @@ nsHttpChannel::BeginConnect()
         ContinueBeginConnect();
         return NS_OK;
     }
+
     // mLocalBlocklist is true only if tracking protection is enabled and the
     // URI is a tracking domain, it makes no guarantees about phishing or
     // malware, so if LOAD_CLASSIFY_URI is true we must call

@@ -35,7 +35,6 @@ import zipfile
 import bisection
 
 from automationutils import (
-    processLeakLog,
     dumpScreen,
     printstatus,
     setAutomationLog,
@@ -59,6 +58,7 @@ from urllib import quote_plus as encodeURIComponent
 from mozlog.structured.formatters import TbplFormatter
 from mozlog.structured import commandline
 from mozrunner.utils import test_environment
+import mozleak
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -2041,10 +2041,41 @@ class Mochitest(MochitestUtilsMixin):
 
         return result
 
+    def killNamedOrphans(self, pname):
+        """ Kill orphan processes matching the given command name """
+        self.log.info("Checking for orphan %s processes..." % pname)
+        def _psInfo(line):
+            if pname in line:
+                self.log.info(line)
+        process = mozprocess.ProcessHandler(['ps', '-f'],
+                                            processOutputLine=_psInfo)
+        process.run()
+        process.wait()
+
+        def _psKill(line):
+            parts = line.split()
+            if len(parts) == 3 and parts[0].isdigit():
+                pid = int(parts[0])
+                if parts[2] == pname and parts[1] == '1':
+                    self.log.info("killing %s orphan with pid %d" % (pname, pid))
+                    killPid(pid, self.log)
+        process = mozprocess.ProcessHandler(['ps', '-o', 'pid,ppid,comm'],
+                                            processOutputLine=_psKill)
+        process.run()
+        process.wait()
+
     def runTests(self, options, onLaunch=None):
         """ Prepare, configure, run tests and cleanup """
 
         self.setTestRoot(options)
+
+        # Despite our efforts to clean up servers started by this script, in practice
+        # we still see infrequent cases where a process is orphaned and interferes
+        # with future tests, typically because the old server is keeping the port in use.
+        # Try to avoid those failures by checking for and killing orphan servers before
+        # trying to start new ones.
+        self.killNamedOrphans('ssltunnel')
+        self.killNamedOrphans('xpcshell')
 
         # Until we have all green, this only runs on bc*/dt*/mochitest-chrome
         # jobs, not webapprt*, jetpack*, or plain
@@ -2236,7 +2267,12 @@ class Mochitest(MochitestUtilsMixin):
                 self.stopVMwareRecording()
             self.stopServers()
 
-        processLeakLog(self.leak_report_file, options)
+        mozleak.process_leak_log(
+            self.leak_report_file,
+            leak_thresholds=options.leakThresholds,
+            ignore_missing_leaks=options.ignoreMissingLeaks,
+            log=self.log,
+        )
 
         if self.nsprLogs:
             with zipfile.ZipFile("%s/nsprlog.zip" % self.browserEnv["MOZ_UPLOAD_DIR"], "w", zipfile.ZIP_DEFLATED) as logzip:

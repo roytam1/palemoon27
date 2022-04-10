@@ -212,7 +212,7 @@ BookmarkImporter.prototype = {
 
     try {
       var uri = NetUtil.newURI(aSpec);
-      let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
+      let principal = Services.scriptSecurityManager.createCodebasePrincipal(uri, {});
       let channel = Services.io.newChannelFromURI2(uri,
                                                    null,      // aLoadingNode
                                                    principal,

@@ -248,7 +248,7 @@ nsresult CacheEntry::HashingKey(nsCSubstring const& aStorageID,
    * Changing it will cause we will not be able to find files on disk.
    */
 
-  aResult.Append(aStorageID);
+  aResult.Assign(aStorageID);
 
   if (!aEnhanceID.IsEmpty()) {
     CacheFileUtils::AppendTagWithValue(aResult, '~', aEnhanceID);
@@ -1574,7 +1574,7 @@ void CacheEntry::BackgroundOp(uint32_t aOperations, bool aForceAsync)
       // Because CacheFile::Set*() are not thread-safe to use (uses WeakReference that
       // is not thread-safe) we must post to the main thread...
       nsRefPtr<nsRunnableMethod<CacheEntry> > event =
-        NS_NewRunnableMethod(this, &CacheEntry::StoreFrecency);
+        NS_NewRunnableMethodWithArg<double>(this, &CacheEntry::StoreFrecency, mFrecency);
       NS_DispatchToMainThread(event);
     }
 
@@ -1598,14 +1598,12 @@ void CacheEntry::BackgroundOp(uint32_t aOperations, bool aForceAsync)
   }
 }
 
-void CacheEntry::StoreFrecency()
+void CacheEntry::StoreFrecency(double aFrecency)
 {
-  // No need for thread safety over mFrecency, it will be rewriten
-  // correctly on following invocation if broken by concurrency.
   MOZ_ASSERT(NS_IsMainThread());
 
   if (NS_SUCCEEDED(mFileStatus)) {
-    mFile->SetFrecency(FRECENCY2INT(mFrecency));
+    mFile->SetFrecency(FRECENCY2INT(aFrecency));
   }
 }
 

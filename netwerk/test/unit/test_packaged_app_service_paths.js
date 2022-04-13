@@ -1,6 +1,7 @@
 Cu.import('resource://gre/modules/LoadContextInfo.jsm');
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");
 
 var gRequestNo = 0;
 function packagedAppContentHandler(metadata, response)
@@ -119,8 +120,8 @@ function test_paths() {
   for (var i in subresourcePaths) {
     packagePath = "/package/" + i;
     dump("Iteration " + i + "\n");
-    paservice.getResource(getPrincipal(uri + packagePath + "!//" + subresourcePaths[i][1]), 0,
-      LoadContextInfo.default,
+    let url = uri + packagePath + "!//" + subresourcePaths[i][1];
+    paservice.getResource(getChannelForURL(url),
       new packagedResourceListener(subresourcePaths[i][1], content));
     yield undefined;
   }

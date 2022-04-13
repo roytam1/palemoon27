@@ -334,6 +334,8 @@ bool CacheEntry::Load(bool aTruncate, bool aPriority)
   nsAutoCString fileKey;
   rv = HashingKeyWithStorage(fileKey);
 
+  bool reportMiss = false;
+
   // Check the index under two conditions for two states and take appropriate action:
   // 1. When this is a disk entry and not told to truncate, check there is a disk file.
   //    If not, set the 'truncate' flag to true so that this entry will open instantly
@@ -348,6 +350,9 @@ bool CacheEntry::Load(bool aTruncate, bool aPriority)
       switch (status) {
       case CacheIndex::DOES_NOT_EXIST:
         LOG(("  entry doesn't exist according information from the index, truncating"));
+        if (!aTruncate && mUseDisk) {
+          reportMiss = true;
+        }
         aTruncate = true;
         break;
       case CacheIndex::EXISTS:
@@ -369,6 +374,11 @@ bool CacheEntry::Load(bool aTruncate, bool aPriority)
 
   {
     mozilla::MutexAutoUnlock unlock(mLock);
+
+    if (reportMiss) {
+      /*CacheFileUtils::DetailedCacheHitTelemetry::AddRecord(
+        CacheFileUtils::DetailedCacheHitTelemetry::MISS, mLoadStart);*/
+    }
 
     LOG(("  performing load, file=%p", mFile.get()));
     if (NS_SUCCEEDED(rv)) {
@@ -772,7 +782,7 @@ void CacheEntry::InvokeAvailableCallback(Callback const & aCallback)
     return;
   }
 
-  // Read-Only callbacks may do revalidation, so let them fall through
+  // R/O callbacks may do revalidation, let them fall through
   if (aCallback.mReadOnly && !aCallback.mRevalidating) {
     LOG(("  r/o and not ready, notifying OCEA with NS_ERROR_CACHE_KEY_NOT_FOUND"));
     aCallback.mCallback->OnCacheEntryAvailable(

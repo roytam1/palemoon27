@@ -26,8 +26,9 @@ struct nsPoint;
 namespace mozilla {
 
 namespace dom {
+class Element;
 class Selection;
-}
+} // namespace dom
 
 class AccessibleCaret;
 
@@ -75,10 +76,8 @@ public:
   // Handle scroll-end event.
   virtual void OnScrollEnd();
 
-  // Handle NS_WHEEL_WHEEL event.
-  virtual void OnScrolling();
-
-  // Handle ScrollPositionChanged from nsIScrollObserver.
+  // Handle ScrollPositionChanged from nsIScrollObserver. This might be called
+  // at anytime, not necessary between OnScrollStart and OnScrollEnd.
   virtual void OnScrollPositionChanged();
 
   // Handle reflow event from nsIReflowObserver.
@@ -106,14 +105,31 @@ protected:
     // Two carets, i.e. the selection is not collapsed.
     Selection
   };
-  CaretMode GetCaretMode() const;
 
-  void UpdateCarets();
+  friend std::ostream& operator<<(std::ostream& aStream,
+                                  const CaretMode& aCaretMode);
+
+  enum class UpdateCaretsHint : uint8_t {
+    // Update everything including appearance and position.
+    Default,
+
+    // Update everything while respecting the old appearance. For example, if
+    // the caret in cursor mode is hidden due to timeout, do not change its
+    // appearance to Normal.
+    RespectOldAppearance
+  };
+
+  friend std::ostream& operator<<(std::ostream& aStream,
+                                  const UpdateCaretsHint& aResult);
+
+  // Update carets based on current selection status.
+  void UpdateCarets(UpdateCaretsHint aHint = UpdateCaretsHint::Default);
+
+  // Force hiding all carets regardless of the current selection status.
   void HideCarets();
 
-  void UpdateCaretsForCursorMode();
-  void UpdateCaretsForSelectionMode();
-  void UpdateCaretsForTilt();
+  void UpdateCaretsForCursorMode(UpdateCaretsHint aHint);
+  void UpdateCaretsForSelectionMode(UpdateCaretsHint aHint);
 
   // Get the nearest enclosing focusable frame of aFrame.
   // @return focusable frame if there is any; nullptr otherwise.
@@ -135,14 +151,10 @@ protected:
   nsresult DragCaretInternal(const nsPoint& aPoint);
   nsPoint AdjustDragBoundary(const nsPoint& aPoint) const;
   void ClearMaintainedSelection() const;
-
+  void FlushLayout() const;
+  dom::Element* GetEditingHostForFrame(nsIFrame* aFrame) const;
   dom::Selection* GetSelection() const;
   already_AddRefed<nsFrameSelection> GetFrameSelection() const;
-  nsIContent* GetFocusedContent() const;
-
-  // This function will call FlushPendingNotifications. So caller must ensure
-  // everything exists after calling this method.
-  void DispatchCaretStateChangedEvent(dom::CaretChangedReason aReason) const;
 
   // If we're dragging the first caret, we do not want to drag it over the
   // previous character of the second caret. Same as the second caret. So we
@@ -156,7 +168,34 @@ protected:
   void LaunchCaretTimeoutTimer();
   void CancelCaretTimeoutTimer();
 
+  // ---------------------------------------------------------------------------
+  // The following functions are made virtual for stubbing or mocking in gtest.
+  //
+  // Get caret mode based on current selection.
+  virtual CaretMode GetCaretMode() const;
+
+  // @return true if aStartFrame comes before aEndFrame.
+  virtual bool CompareTreePosition(nsIFrame* aStartFrame,
+                                   nsIFrame* aEndFrame) const;
+
+  // Check if the two carets is overlapping to become tilt.
+  virtual void UpdateCaretsForTilt();
+
+  // Check whether AccessibleCaret is displayable in cursor mode or not.
+  // @param aOutFrame returns frame of the cursor if it's displayable.
+  // @param aOutOffset returns frame offset as well.
+  virtual bool IsCaretDisplayableInCursorMode(nsIFrame** aOutFrame = nullptr,
+                                              int32_t* aOutOffset = nullptr) const;
+
+  virtual bool HasNonEmptyTextContent(nsINode* aNode) const;
+
+  // This function will call FlushPendingNotifications. So caller must ensure
+  // everything exists after calling this method.
+  virtual void DispatchCaretStateChangedEvent(dom::CaretChangedReason aReason) const;
+
+  // ---------------------------------------------------------------------------
   // Member variables
+  //
   nscoord mOffsetYToCaretLogicalPosition = NS_UNCONSTRAINEDSIZE;
 
   // AccessibleCaretEventHub owns us. When it's Terminate() called by
@@ -175,11 +214,21 @@ protected:
   // The caret being pressed or dragged.
   AccessibleCaret* mActiveCaret = nullptr;
 
+  // The timer for hiding the caret in cursor mode after timeout behind the
+  // preference "layout.accessiblecaret.timeout_ms".
   nsCOMPtr<nsITimer> mCaretTimeoutTimer;
-  CaretMode mCaretMode = CaretMode::None;
+
+  // The caret mode since last update carets.
+  CaretMode mLastUpdateCaretMode = CaretMode::None;
 
   static const int32_t kAutoScrollTimerDelay = 30;
 };
+
+std::ostream& operator<<(std::ostream& aStream,
+                         const AccessibleCaretManager::CaretMode& aCaretMode);
+
+std::ostream& operator<<(std::ostream& aStream,
+                         const AccessibleCaretManager::UpdateCaretsHint& aResult);
 
 } // namespace mozilla
 

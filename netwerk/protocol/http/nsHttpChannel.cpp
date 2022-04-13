@@ -3003,8 +3003,11 @@ nsHttpChannel::OpenCacheEntry(bool isHttps)
         rv = cacheStorageService->AppCacheStorage(info,
             mApplicationCache,
             getter_AddRefs(cacheStorage));
-    }
-    else if (PossiblyIntercepted() || mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
+    } else if (PossiblyIntercepted()) {
+        // The synthesized cache has less restrictions on file size and so on.
+        rv = cacheStorageService->SynthesizedCacheStorage(info,
+            getter_AddRefs(cacheStorage));
+    } else if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
         rv = cacheStorageService->MemoryCacheStorage(info, // ? choose app cache as well...
             getter_AddRefs(cacheStorage));
     }
@@ -5017,7 +5020,10 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     MOZ_ASSERT(NS_IsMainThread());
     if (gHttpHandler->PackagedAppsEnabled()) {
         nsAutoCString path;
-        mURI->GetPath(path);
+        nsCOMPtr<nsIURL> url(do_QueryInterface(mURI));
+        if (url) {
+            url->GetFilePath(path);
+        }
         mIsPackagedAppResource = path.Find(PACKAGED_APP_TOKEN) != kNotFound;
     }
 
@@ -5111,12 +5117,15 @@ nsHttpChannel::BeginConnect()
         mURI->GetUsername(mUsername);
     if (NS_SUCCEEDED(rv))
         rv = mURI->GetAsciiSpec(mSpec);
-    if (NS_FAILED(rv))
+    if (NS_FAILED(rv)) {
         return rv;
+    }
 
     // Reject the URL if it doesn't specify a host
-    if (host.IsEmpty())
-        return NS_ERROR_MALFORMED_URI;
+    if (host.IsEmpty()) {
+        rv = NS_ERROR_MALFORMED_URI;
+        return rv;
+    }
     LOG(("host=%s port=%d\n", host.get(), port));
     LOG(("uri=%s\n", mSpec.get()));
 
@@ -5131,6 +5140,7 @@ nsHttpChannel::BeginConnect()
     if (mAllowAltSvc && // per channel
         (scheme.Equals(NS_LITERAL_CSTRING("http")) ||
          scheme.Equals(NS_LITERAL_CSTRING("https"))) &&
+        (!proxyInfo || proxyInfo->IsDirect()) &&
         (mapping = gHttpHandler->GetAltServiceMapping(scheme,
                                                       host, port,
                                                       mPrivateBrowsing))) {
@@ -5179,8 +5189,9 @@ nsHttpChannel::BeginConnect()
                           &rv);
     if (NS_SUCCEEDED(rv))
         rv = mAuthProvider->Init(this);
-    if (NS_FAILED(rv))
+    if (NS_FAILED(rv)) {
         return rv;
+    }
 
     // check to see if authorization headers should be included
     mAuthProvider->AddAuthorizationHeaders();
@@ -5197,24 +5208,29 @@ nsHttpChannel::BeginConnect()
     nsRefPtr<nsChannelClassifier> channelClassifier = new nsChannelClassifier();
     if (mLoadFlags & LOAD_CLASSIFY_URI) {
         nsCOMPtr<nsIURIClassifier> classifier = do_GetService(NS_URICLASSIFIERSERVICE_CONTRACTID);
-        if (classifier) {
-            bool tp = false;
-            channelClassifier->ShouldEnableTrackingProtection(this, &tp);
+        bool tpEnabled = false;
+        channelClassifier->ShouldEnableTrackingProtection(this, &tpEnabled);
+        if (classifier && tpEnabled) {
             // We skip speculative connections by setting mLocalBlocklist only
             // when tracking protection is enabled. Though we could do this for
             // both phishing and malware, it is not necessary for correctness,
             // since no network events will be received while the
             // nsChannelClassifier is in progress. See bug 1122691.
-            if (tp) {
-                nsCOMPtr<nsIPrincipal> principal = GetURIPrincipal();
-                nsresult response = NS_OK;
-                classifier->ClassifyLocal(principal, tp, &response);
-                if (NS_FAILED(response)) {
-                    LOG(("nsHttpChannel::ClassifyLocal found principal on local "
-                         "blocklist [this=%p]", this));
+            nsCOMPtr<nsIURI> uri;
+            rv = GetURI(getter_AddRefs(uri));
+            if (NS_SUCCEEDED(rv) && uri) {
+                nsAutoCString tables;
+                Preferences::GetCString("urlclassifier.trackingTable", &tables);
+                nsAutoCString results;
+                rv = classifier->ClassifyLocalWithTables(uri, tables, results);
+                if (NS_SUCCEEDED(rv) && !results.IsEmpty()) {
+                    LOG(("nsHttpChannel::ClassifyLocalWithTables found "
+                         "uri on local tracking blocklist [this=%p]",
+                         this));
                     mLocalBlocklist = true;
                 } else {
-                    LOG(("nsHttpChannel::ClassifyLocal no result found [this=%p]", this));
+                    LOG(("nsHttpChannel::ClassifyLocalWithTables no result "
+                         "found [this=%p]", this));
                 }
             }
         }
@@ -5229,16 +5245,27 @@ nsHttpChannel::BeginConnect()
         // If this is a packaged app resource, the content will be fetched
         // by the packaged app service into the cache, and the cache entry will
         // be passed to OnCacheEntryAvailable.
+
+        nsCOMPtr<nsIPackagedAppService> pas =
+            do_GetService("@mozilla.org/network/packaged-app-service;1", &rv);
+        if (NS_WARN_IF(NS_FAILED(rv))) {
+            AsyncAbort(rv);
+            return rv;
+        }
+
+        rv = pas->GetResource(this, this);
+        if (NS_FAILED(rv)) {
+            AsyncAbort(rv);
+        }
+
+        // We need to alter the flags so the cache entry returned by the
+        // packaged app service is always accepted. Revalidation is handled
+        // by the service.
         mLoadFlags |= LOAD_ONLY_FROM_CACHE;
         mLoadFlags |= LOAD_FROM_CACHE;
         mLoadFlags &= ~VALIDATE_ALWAYS;
-        nsCOMPtr<nsIPackagedAppService> pas =
-          do_GetService("@mozilla.org/network/packaged-app-service;1", &rv);
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-          return rv;
-        }
 
-        return pas->RequestURI(mURI, GetLoadContextInfo(this), this);
+        return rv;
     }
 
     // when proxying only use the pipeline bit if ProxyPipelining() allows it.
@@ -5311,6 +5338,7 @@ nsHttpChannel::BeginConnect()
         ContinueBeginConnect();
         return NS_OK;
     }
+
     // mLocalBlocklist is true only if tracking protection is enabled and the
     // URI is a tracking domain, it makes no guarantees about phishing or
     // malware, so if LOAD_CLASSIFY_URI is true we must call

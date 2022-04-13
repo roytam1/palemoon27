@@ -520,13 +520,13 @@ nsHostResolver::nsHostResolver(uint32_t maxCacheEntries,
     , mDefaultGracePeriod(defaultGracePeriod)
     , mLock("nsHostResolver.mLock")
     , mIdleThreadCV(mLock, "nsHostResolver.mIdleThreadCV")
+    , mDB(&gHostDB_ops, sizeof(nsHostDBEnt), 0)
+    , mEvictionQSize(0)
+    , mShutdown(true)
     , mNumIdleThreads(0)
     , mThreadCount(0)
     , mActiveAnyThreadCount(0)
-    , mDB(&gHostDB_ops, sizeof(nsHostDBEnt), 0)
-    , mEvictionQSize(0)
     , mPendingCount(0)
-    , mShutdown(true)
 {
     mCreationTime = PR_Now();
     PR_INIT_CLIST(&mHighQ);
@@ -1049,10 +1049,10 @@ nsHostResolver::IssueLookup(nsHostRecord *rec)
     rv = ConditionallyCreateThread(rec);
     
     LOG (("  DNS thread counters: total=%d any-live=%d idle=%d pending=%d\n",
-          mThreadCount,
-          mActiveAnyThreadCount,
-          mNumIdleThreads,
-          mPendingCount));
+          static_cast<uint32_t>(mThreadCount),
+          static_cast<uint32_t>(mActiveAnyThreadCount),
+          static_cast<uint32_t>(mNumIdleThreads),
+          static_cast<uint32_t>(mPendingCount)));
 
     return rv;
 }
@@ -1084,7 +1084,7 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
 {
     bool timedOut = false;
     PRIntervalTime epoch, now, timeout;
-    
+
     MutexAutoLock lock(mLock);
 
     timeout = (mNumIdleThreads >= HighThreadThreshold) ? mShortIdleTimeout : mLongIdleTimeout;
@@ -1152,7 +1152,6 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
     }
     
     // tell thread to exit...
-    mThreadCount--;
     return false;
 }
 
@@ -1368,15 +1367,11 @@ nsHostResolver::ThreadFunc(void *arg)
         bool getTtl = false;
 #endif
 
-        // We need to remove IPv4 records manually
-        // because PR_GetAddrInfoByName doesn't support PR_AF_INET6.
-        bool disableIPv4 = rec->af == PR_AF_INET6;
-        uint16_t af = disableIPv4 ? PR_AF_UNSPEC : rec->af;
-        nsresult status = GetAddrInfo(rec->host, af, rec->flags, rec->netInterface,
+        nsresult status = GetAddrInfo(rec->host, rec->af, rec->flags, rec->netInterface,
                                       &ai, getTtl);
 #if defined(RES_RETRY_ON_FAILURE)
         if (NS_FAILED(status) && rs.Reset()) {
-            status = GetAddrInfo(rec->host, af, rec->flags, rec->netInterface, &ai,
+            status = GetAddrInfo(rec->host, rec->af, rec->flags, rec->netInterface, &ai,
                                  getTtl);
         }
 #endif
@@ -1393,6 +1388,7 @@ nsHostResolver::ThreadFunc(void *arg)
             rec = nullptr;
         }
     }
+    resolver->mThreadCount--;
     NS_RELEASE(resolver);
     LOG(("DNS lookup thread - queue empty, thread finished.\n"));
 }

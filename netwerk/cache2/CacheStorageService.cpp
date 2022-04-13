@@ -681,7 +681,7 @@ NS_IMETHODIMP CacheStorageService::MemoryCacheStorage(nsILoadContextInfo *aLoadC
 
   nsCOMPtr<nsICacheStorage> storage;
   if (CacheObserver::UseNewCache()) {
-    storage = new CacheStorage(aLoadContextInfo, false, false);
+    storage = new CacheStorage(aLoadContextInfo, false, false, false);
   }
   else {
     storage = new _OldStorage(aLoadContextInfo, false, false, false, nullptr);
@@ -706,7 +706,7 @@ NS_IMETHODIMP CacheStorageService::DiskCacheStorage(nsILoadContextInfo *aLoadCon
 
   nsCOMPtr<nsICacheStorage> storage;
   if (CacheObserver::UseNewCache()) {
-    storage = new CacheStorage(aLoadContextInfo, useDisk, aLookupAppCache);
+    storage = new CacheStorage(aLoadContextInfo, useDisk, aLookupAppCache, false);
   }
   else {
     storage = new _OldStorage(aLoadContextInfo, useDisk, aLookupAppCache, false, nullptr);
@@ -731,6 +731,24 @@ NS_IMETHODIMP CacheStorageService::AppCacheStorage(nsILoadContextInfo *aLoadCont
   }
   else {
     storage = new _OldStorage(aLoadContextInfo, true, false, true, aApplicationCache);
+  }
+
+  storage.forget(_retval);
+  return NS_OK;
+}
+
+NS_IMETHODIMP CacheStorageService::SynthesizedCacheStorage(nsILoadContextInfo *aLoadContextInfo,
+                                                           nsICacheStorage * *_retval)
+{
+  NS_ENSURE_ARG(aLoadContextInfo);
+  NS_ENSURE_ARG(_retval);
+
+  nsCOMPtr<nsICacheStorage> storage;
+  if (CacheObserver::UseNewCache()) {
+    storage = new CacheStorage(aLoadContextInfo, false, false, true /* skip size checks for synthesized cache */);
+  }
+  else {
+    storage = new _OldStorage(aLoadContextInfo, false, false, false, nullptr);
   }
 
   storage.forget(_retval);
@@ -874,8 +892,8 @@ CacheStorageService::RegisterEntry(CacheEntry* aEntry)
   LOG(("CacheStorageService::RegisterEntry [entry=%p]", aEntry));
 
   MemoryPool& pool = Pool(aEntry->IsUsingDisk());
-  pool.mFrecencyArray.InsertElementSorted(aEntry, FrecencyComparator());
-  pool.mExpirationArray.InsertElementSorted(aEntry, ExpirationComparator());
+  pool.mFrecencyArray.AppendElement(aEntry);
+  pool.mExpirationArray.AppendElement(aEntry);
 
   aEntry->SetRegistered(true);
 }
@@ -1335,7 +1353,8 @@ CacheStorageService::AddStorageEntry(CacheStorage const* aStorage,
   CacheFileUtils::AppendKeyPrefix(aStorage->LoadInfo(), contextKey);
 
   return AddStorageEntry(contextKey, aURI, aIdExtension,
-                         aStorage->WriteToDisk(), aCreateIfNotExist, aReplace,
+                         aStorage->WriteToDisk(), aStorage->SkipSizeCheck(),
+                         aCreateIfNotExist, aReplace,
                          aResult);
 }
 
@@ -1344,6 +1363,7 @@ CacheStorageService::AddStorageEntry(nsCSubstring const& aContextKey,
                                      nsIURI* aURI,
                                      const nsACString & aIdExtension,
                                      bool aWriteToDisk,
+                                     bool aSkipSizeCheck,
                                      bool aCreateIfNotExist,
                                      bool aReplace,
                                      CacheEntryHandle** aResult)
@@ -1406,7 +1426,7 @@ CacheStorageService::AddStorageEntry(nsCSubstring const& aContextKey,
     // Ensure entry for the particular URL, if not read/only
     if (!entryExists && (aCreateIfNotExist || aReplace)) {
       // Entry is not in the hashtable or has just been truncated...
-      entry = new CacheEntry(aContextKey, aURI, aIdExtension, aWriteToDisk);
+      entry = new CacheEntry(aContextKey, aURI, aIdExtension, aWriteToDisk, aSkipSizeCheck);
       entries->Put(entryKey, entry);
       LOG(("  new entry %p for %s", entry.get(), entryKey.get()));
     }

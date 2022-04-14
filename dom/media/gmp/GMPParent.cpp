@@ -57,6 +57,7 @@ GMPParent::GMPParent()
   , mAsyncShutdownRequired(false)
   , mAsyncShutdownInProgress(false)
   , mChildPid(0)
+  , mHoldingSelfRef(false)
 {
   LOGD("GMPParent ctor");
   mPluginId = GeckoChildProcessHost::GetUniqueID();
@@ -65,6 +66,8 @@ GMPParent::GMPParent()
 GMPParent::~GMPParent()
 {
   LOGD("GMPParent dtor");
+
+  MOZ_ASSERT(!mProcess);
 }
 
 nsresult
@@ -129,43 +132,49 @@ GMPParent::LoadProcess()
   if (!mProcess) {
     mProcess = new GMPProcessParent(NS_ConvertUTF16toUTF8(path).get());
     if (!mProcess->Launch(30 * 1000)) {
+      LOGD("%s: Failed to launch new child process", __FUNCTION__);
       mProcess->Delete();
       mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
 
     mChildPid = base::GetProcId(mProcess->GetChildProcessHandle());
+    LOGD("%s: Launched new child process", __FUNCTION__);
 
     bool opened = Open(mProcess->GetChannel(),
                        base::GetProcId(mProcess->GetChildProcessHandle()));
     if (!opened) {
-      LOGD("%s: Failed to create new child process", __FUNCTION__);
+      LOGD("%s: Failed to open channel to new child process", __FUNCTION__);
       mProcess->Delete();
       mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
-    LOGD("%s: Created new child process", __FUNCTION__);
+    LOGD("%s: Opened channel to new child process", __FUNCTION__);
 
     bool ok = SendSetNodeId(mNodeId);
     if (!ok) {
       LOGD("%s: Failed to send node id to child process", __FUNCTION__);
-      mProcess->Delete();
-      mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
     LOGD("%s: Sent node id to child process", __FUNCTION__);
 
-    ok = SendStartPlugin();
+    // Intr call to block initialization on plugin load.
+    ok = CallStartPlugin();
     if (!ok) {
       LOGD("%s: Failed to send start to child process", __FUNCTION__);
-      mProcess->Delete();
-      mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
     LOGD("%s: Sent StartPlugin to child process", __FUNCTION__);
   }
 
   mState = GMPStateLoaded;
+
+  // Hold a self ref while the child process is alive. This ensures that
+  // during shutdown the GMPParent stays alive long enough to
+  // terminate the child process.
+  MOZ_ASSERT(!mHoldingSelfRef);
+  mHoldingSelfRef = true;
+  AddRef();
 
   return NS_OK;
 }
@@ -185,6 +194,7 @@ AbortWaitingForGMPAsyncShutdown(nsITimer* aTimer, void* aClosure)
 nsresult
 GMPParent::EnsureAsyncShutdownTimeoutSet()
 {
+  MOZ_ASSERT(mAsyncShutdownRequired);
   if (mAsyncShutdownTimeout) {
     return NS_OK;
   }
@@ -208,9 +218,11 @@ GMPParent::EnsureAsyncShutdownTimeoutSet()
   if (service) {
     timeout = service->AsyncShutdownTimeoutMs();
   }
-  return mAsyncShutdownTimeout->InitWithFuncCallback(
+  rv = mAsyncShutdownTimeout->InitWithFuncCallback(
     &AbortWaitingForGMPAsyncShutdown, this, timeout,
     nsITimer::TYPE_ONE_SHOT);
+  unused << NS_WARN_IF(NS_FAILED(rv));
+  return rv;
 }
 
 bool
@@ -241,13 +253,40 @@ GMPParent::CloseIfUnused()
     if (mAsyncShutdownRequired) {
       if (!mAsyncShutdownInProgress) {
         LOGD("%s: sending async shutdown notification", __FUNCTION__);
+#if defined(MOZ_CRASHREPORTER)
+        if (mService) {
+          mService->SetAsyncShutdownPluginState(this, 'H',
+            NS_LITERAL_CSTRING("Sent BeginAsyncShutdown"));
+        }
+#endif
         mAsyncShutdownInProgress = true;
-        if (!SendBeginAsyncShutdown() ||
-            NS_FAILED(EnsureAsyncShutdownTimeoutSet())) {
+        if (!SendBeginAsyncShutdown()) {
+#if defined(MOZ_CRASHREPORTER)
+          if (mService) {
+            mService->SetAsyncShutdownPluginState(this, 'I',
+              NS_LITERAL_CSTRING("Could not send BeginAsyncShutdown - Aborting async shutdown"));
+          }
+#endif
+          AbortAsyncShutdown();
+        } else if (NS_FAILED(EnsureAsyncShutdownTimeoutSet())) {
+#if defined(MOZ_CRASHREPORTER)
+          if (mService) {
+            mService->SetAsyncShutdownPluginState(this, 'J',
+              NS_LITERAL_CSTRING("Could not start timer after sending BeginAsyncShutdown - Aborting async shutdown"));
+          }
+#endif
           AbortAsyncShutdown();
         }
       }
     } else {
+#if defined(MOZ_CRASHREPORTER)
+      if (mService) {
+        mService->SetAsyncShutdownPluginState(this, 'K',
+          NS_LITERAL_CSTRING("No (more) async-shutdown required"));
+      }
+#endif
+      // No async-shutdown, kill async-shutdown timer started in CloseActive().
+      AbortAsyncShutdown();
       // Any async shutdown must be complete. Shutdown GMPStorage.
       for (size_t i = mStorage.Length(); i > 0; i--) {
         mStorage[i - 1]->Shutdown();
@@ -292,7 +331,47 @@ GMPParent::CloseActive(bool aDieWhenUnloaded)
     mState = GMPStateUnloading;
   }
   if (mState != GMPStateNotLoaded && IsUsed()) {
-    unused << SendCloseActive();
+#if defined(MOZ_CRASHREPORTER)
+    if (mService) {
+      mService->SetAsyncShutdownPluginState(this, 'A',
+        nsPrintfCString("Sent CloseActive, content children to close: %u", mGMPContentChildCount));
+    }
+#endif
+    if (!SendCloseActive()) {
+#if defined(MOZ_CRASHREPORTER)
+      if (mService) {
+        mService->SetAsyncShutdownPluginState(this, 'B',
+          NS_LITERAL_CSTRING("Could not send CloseActive - Aborting async shutdown"));
+      }
+#endif
+      AbortAsyncShutdown();
+    } else if (IsUsed()) {
+      // We're expecting RecvPGMPContentChildDestroyed's -> Start async-shutdown timer now if needed.
+      if (mAsyncShutdownRequired && NS_FAILED(EnsureAsyncShutdownTimeoutSet())) {
+#if defined(MOZ_CRASHREPORTER)
+        if (mService) {
+          mService->SetAsyncShutdownPluginState(this, 'C',
+            NS_LITERAL_CSTRING("Could not start timer after sending CloseActive - Aborting async shutdown"));
+        }
+#endif
+        AbortAsyncShutdown();
+      }
+    } else {
+      // We're not expecting any RecvPGMPContentChildDestroyed
+      // -> Call CloseIfUnused() now, to run async shutdown if necessary.
+      // Note that CloseIfUnused() may have already been called from a prior
+      // RecvPGMPContentChildDestroyed(), however depending on the state at
+      // that time, it might not have proceeded with shutdown; And calling it
+      // again after shutdown is fine because after the first one we'll be in
+      // GMPStateNotLoaded.
+#if defined(MOZ_CRASHREPORTER)
+      if (mService) {
+        mService->SetAsyncShutdownPluginState(this, 'D',
+          NS_LITERAL_CSTRING("Content children already destroyed"));
+      }
+#endif
+      CloseIfUnused();
+    }
   }
 }
 
@@ -397,6 +476,10 @@ GMPParent::DeleteProcess()
     new NotifyGMPShutdownTask(NS_ConvertUTF8toUTF16(mNodeId)),
     NS_DISPATCH_NORMAL);
 
+  if (mHoldingSelfRef) {
+    Release();
+    mHoldingSelfRef = false;
+  }
 }
 
 GMPState

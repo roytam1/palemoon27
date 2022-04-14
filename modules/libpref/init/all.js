@@ -3465,7 +3465,7 @@ pref("intl.imm.vertical_writing.always_assume_not_supported", false);
 // We cannot retrieve active IME name with IMM32 API if a TIP of TSF is active.
 // This pref can specify active IME name when Japanese TIP is active.
 // For example:
-//   Google Japanese Input: "Google ?�本語入??IMM32 ?�ジ?�ー??
+//   Google Japanese Input: "Google 日本語入力 IMM32 モジュール"
 //   ATOK 2011: "ATOK 2011" (similarly, e.g., ATOK 2013 is "ATOK 2013")
 pref("intl.imm.japanese.assume_active_tip_name_as", "");
 
@@ -4819,7 +4819,14 @@ pref("dom.browserElement.maxScreenshotDelayMS", 2000);
 // Whether we should show the placeholder when the element is focused but empty.
 pref("dom.placeholder.show_on_focus", true);
 
+// VR is disabled by default
 pref("dom.vr.enabled", false);
+// Oculus > 0.5
+pref("dom.vr.oculus.enabled", true);
+// Oculus <= 0.5; will only trigger if > 0.5 is not used or found
+pref("dom.vr.oculus050.enabled", true);
+// Cardboard VR device is disabled by default
+pref("dom.vr.cardboard.enabled", false);
 // 0 = never; 1 = only if real devices aren't there; 2 = always
 pref("dom.vr.add-test-devices", 1);
 // true = show the VR textures in our compositing output; false = don't.
@@ -5069,6 +5076,9 @@ pref("dom.beforeAfterKeyboardEvent.enabled", false);
 
 // Presentation API
 pref("dom.presentation.enabled", false);
+pref("dom.presentation.tcp_server.debug", false);
+pref("dom.presentation.discovery.enabled", true);
+pref("dom.presentation.discoverable", false);
 
 #ifdef XP_MACOSX
 // Use raw ICU instead of CoreServices API in Unicode collation

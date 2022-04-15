@@ -374,7 +374,7 @@ GMPChild::GetLibPath(nsACString& aOutLibPath)
 }
 
 bool
-GMPChild::RecvStartPlugin()
+GMPChild::AnswerStartPlugin()
 {
   LOGD("%s", __FUNCTION__);
 

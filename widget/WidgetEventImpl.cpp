@@ -151,8 +151,8 @@ WidgetEvent::HasIMEEventMessage() const
 bool
 WidgetEvent::HasPluginActivationEventMessage() const
 {
-  return mMessage == NS_PLUGIN_ACTIVATE ||
-         mMessage == NS_PLUGIN_FOCUS;
+  return mMessage == ePluginActivate ||
+         mMessage == ePluginFocus;
 }
 
 /******************************************************************************

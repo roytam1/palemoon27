@@ -606,9 +606,19 @@ nsPluginFrame::CallSetWindow(bool aCheckIsHidden)
   if (aCheckIsHidden && IsHidden())
     return NS_ERROR_FAILURE;
 
+  // Calling either nsPluginInstanceOwner::FixUpPluginWindow() (here,
+  // on OS X) or SetWindow() (below, on all platforms) can destroy this
+  // frame.  (FixUpPluginWindow() calls SetWindow()).  So grab a safe
+  // reference to mInstanceOwner which we can use below, if needed.
+  nsRefPtr<nsPluginInstanceOwner> instanceOwnerRef(mInstanceOwner);
+
   // refresh the plugin port as well
 #ifdef XP_MACOSX
   mInstanceOwner->FixUpPluginWindow(nsPluginInstanceOwner::ePluginPaintEnable);
+  // Bail now if our frame has been destroyed.
+  if (!instanceOwnerRef->GetFrame()) {
+    return NS_ERROR_FAILURE;
+  }
 #endif
   window->window = mInstanceOwner->GetPluginPort();
 
@@ -639,10 +649,6 @@ nsPluginFrame::CallSetWindow(bool aCheckIsHidden)
   window->y = intBounds.y / intScaleFactor;
   window->width = intBounds.width / intScaleFactor;
   window->height = intBounds.height / intScaleFactor;
-
-  // Calling SetWindow might destroy this frame. We need to use the instance
-  // owner to clean up so hold a ref.
-  nsRefPtr<nsPluginInstanceOwner> instanceOwnerRef(mInstanceOwner);
 
   // This will call pi->SetWindow and take care of window subclassing
   // if needed, see bug 132759. Calling SetWindow can destroy this frame
@@ -1751,13 +1757,13 @@ nsPluginFrame::HandleEvent(nsPresContext* aPresContext,
 
   mInstanceOwner->ConsiderNewEventloopNestingLevel();
 
-  if (anEvent->mMessage == NS_PLUGIN_ACTIVATE) {
+  if (anEvent->mMessage == ePluginActivate) {
     nsIFocusManager* fm = nsFocusManager::GetFocusManager();
     nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(GetContent());
     if (fm && elem)
       return fm->SetFocus(elem, 0);
   }
-  else if (anEvent->mMessage == NS_PLUGIN_FOCUS) {
+  else if (anEvent->mMessage == ePluginFocus) {
     nsIFocusManager* fm = nsFocusManager::GetFocusManager();
     if (fm) {
       nsCOMPtr<nsIContent> content = GetContent();

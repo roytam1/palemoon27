@@ -66,11 +66,6 @@ public:
     aContext->SetState(aContext->ScrollState());
   }
 
-  virtual void OnScrolling(AccessibleCaretEventHub* aContext) override
-  {
-    aContext->mManager->OnScrolling();
-  }
-
   virtual void OnScrollPositionChanged(AccessibleCaretEventHub* aContext) override
   {
     aContext->mManager->OnScrollPositionChanged();
@@ -610,9 +605,9 @@ nsEventStatus
 AccessibleCaretEventHub::HandleKeyboardEvent(WidgetKeyboardEvent* aEvent)
 {
   switch (aEvent->mMessage) {
-  case NS_KEY_UP:
-  case NS_KEY_DOWN:
-  case NS_KEY_PRESS:
+  case eKeyUp:
+  case eKeyDown:
+  case eKeyPress:
     mManager->OnKeyboardEvent();
     break;
 

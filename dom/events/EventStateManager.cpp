@@ -518,7 +518,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 
     nsCOMPtr<nsINode> node = do_QueryInterface(aTargetContent);
     if (node &&
-        (aEvent->mMessage == NS_KEY_UP || aEvent->mMessage == NS_MOUSE_BUTTON_UP ||
+        (aEvent->mMessage == eKeyUp || aEvent->mMessage == NS_MOUSE_BUTTON_UP ||
          aEvent->mMessage == NS_WHEEL_WHEEL || aEvent->mMessage == NS_TOUCH_END ||
          aEvent->mMessage == NS_POINTER_UP)) {
       nsIDocument* doc = node->OwnerDoc();
@@ -641,7 +641,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       }
       GenerateMouseEnterExit(mouseEvent);
       //This is a window level mouse exit event and should stop here
-      aEvent->mMessage = NS_EVENT_NULL;
+      aEvent->mMessage = eVoidEvent;
       break;
     }
   case NS_MOUSE_MOVE:
@@ -674,7 +674,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     GenerateDragDropEnterExit(aPresContext, aEvent->AsDragEvent());
     break;
 
-  case NS_KEY_PRESS:
+  case eKeyPress:
     {
       WidgetKeyboardEvent* keyEvent = aEvent->AsKeyboardEvent();
 
@@ -699,12 +699,12 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       }
     }
     // then fall through...
-  case NS_KEY_BEFORE_DOWN:
-  case NS_KEY_DOWN:
-  case NS_KEY_AFTER_DOWN:
-  case NS_KEY_BEFORE_UP:
-  case NS_KEY_UP:
-  case NS_KEY_AFTER_UP:
+  case eBeforeKeyDown:
+  case eKeyDown:
+  case eAfterKeyDown:
+  case eBeforeKeyUp:
+  case eKeyUp:
+  case eAfterKeyUp:
     {
       nsIContent* content = GetFocusedContent();
       if (content)
@@ -3336,12 +3336,12 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     GenerateDragDropEnterExit(presContext, aEvent->AsDragEvent());
     break;
 
-  case NS_KEY_BEFORE_UP:
-  case NS_KEY_UP:
-  case NS_KEY_AFTER_UP:
+  case eBeforeKeyUp:
+  case eKeyUp:
+  case eAfterKeyUp:
     break;
 
-  case NS_KEY_PRESS:
+  case eKeyPress:
     {
       WidgetKeyboardEvent* keyEvent = aEvent->AsKeyboardEvent();
       PostHandleKeyboardEvent(keyEvent, *aStatus, dispatchedToContentProcess);

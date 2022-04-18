@@ -20,17 +20,12 @@
 #endif
 #include "SourceBufferResource.h"
 
-extern PRLogModuleInfo* GetMediaSourceLog();
-
-/* Polyfill __func__ on MSVC to pass to the log. */
-#ifdef _MSC_VER
-#define __func__ __FUNCTION__
-#endif
+extern PRLogModuleInfo* GetMediaSourceSamplesLog();
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
-#define MSE_DEBUG(name, arg, ...) MOZ_LOG(GetMediaSourceLog(), mozilla::LogLevel::Debug, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
-#define MSE_DEBUGV(name, arg, ...) MOZ_LOG(GetMediaSourceLog(), mozilla::LogLevel::Verbose, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
+#define MSE_DEBUG(name, arg, ...) MOZ_LOG(GetMediaSourceSamplesLog(), mozilla::LogLevel::Debug, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
+#define MSE_DEBUGV(name, arg, ...) MOZ_LOG(GetMediaSourceSamplesLog(), mozilla::LogLevel::Verbose, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
 
 namespace mozilla {
 
@@ -40,16 +35,18 @@ ContainerParser::ContainerParser(const nsACString& aType)
 {
 }
 
+ContainerParser::~ContainerParser() = default;
+
 bool
 ContainerParser::IsInitSegmentPresent(MediaByteBuffer* aData)
 {
-MSE_DEBUG(ContainerParser, "aLength=%u [%x%x%x%x]",
+  MSE_DEBUG(ContainerParser, "aLength=%u [%x%x%x%x]",
             aData->Length(),
             aData->Length() > 0 ? (*aData)[0] : 0,
             aData->Length() > 1 ? (*aData)[1] : 0,
             aData->Length() > 2 ? (*aData)[2] : 0,
             aData->Length() > 3 ? (*aData)[3] : 0);
-return false;
+  return false;
 }
 
 bool
@@ -140,7 +137,7 @@ public:
                   // elements that follow)
     // 0x1549a966 // -> Segment Info
     // 0x1654ae6b // -> One or more Tracks
-    
+
     // 0x1a45dfa3 // EBML
     if (aData->Length() >= 4 &&
         (*aData)[0] == 0x1a && (*aData)[1] == 0x45 && (*aData)[2] == 0xdf &&
@@ -163,7 +160,7 @@ public:
     // 0x18538067 // Segment (must be "unknown" size)
     // 0x1549a966 // -> Segment Info
     // 0x1654ae6b // -> One or more Tracks
-    
+
     // 0x1f43b675 // Cluster
     if (aData->Length() >= 4 &&
         (*aData)[0] == 0x1f && (*aData)[1] == 0x43 && (*aData)[2] == 0xb6 &&
@@ -370,8 +367,9 @@ private:
         uint64_t size = reader.ReadU32();
         const uint8_t* typec = reader.Peek(4);
         uint32_t type = reader.ReadU32();
-        MSE_DEBUGV(AtomParser ,"Checking atom:'%c%c%c%c'",
-                   typec[0], typec[1], typec[2], typec[3]);
+        MSE_DEBUGV(AtomParser ,"Checking atom:'%c%c%c%c' @ %u",
+                   typec[0], typec[1], typec[2], typec[3],
+                   (uint32_t)reader.Offset() - 8);
         if (mInitOffset.isNothing() &&
             mp4_demuxer::AtomType(type) == initAtom) {
           mInitOffset = Some(reader.Offset());

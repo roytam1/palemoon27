@@ -9,7 +9,9 @@
 #include "nsHttpNTLMAuth.h"
 #include "nsIAuthModule.h"
 #include "nsCOMPtr.h"
+#include "nsServiceManagerUtils.h"
 #include "plbase64.h"
+#include "plstr.h"
 #include "prnetdb.h"
 
 //-----------------------------------------------------------------------------
@@ -19,6 +21,7 @@
 #include "nsIHttpAuthenticableChannel.h"
 #include "nsIURI.h"
 #ifdef XP_WIN
+#include "nsIChannel.h"
 #include "nsIX509Cert.h"
 #include "nsISSLStatus.h"
 #include "nsISSLStatusProvider.h"

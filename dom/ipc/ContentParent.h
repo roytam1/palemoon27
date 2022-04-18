@@ -255,6 +255,15 @@ public:
     bool IsNuwaProcess();
 #endif
 
+    // A shorthand for checking if the Nuwa process is ready.
+    bool IsReadyNuwaProcess() {
+#ifdef MOZ_NUWA_PROCESS
+        return IsNuwaProcess() && IsNuwaReady();
+#else
+        return false;
+#endif
+    }
+
     GeckoChildProcessHost* Process() {
         return mSubprocess;
     }
@@ -306,6 +315,14 @@ public:
     virtual void OnChannelError() override;
 
     virtual void OnBeginSyncTransaction() override;
+
+    virtual PCrashReporterParent*
+    AllocPCrashReporterParent(const NativeThreadId& tid,
+                              const uint32_t& processType) override;
+    virtual bool
+    RecvPCrashReporterConstructor(PCrashReporterParent* actor,
+                                  const NativeThreadId& tid,
+                                  const uint32_t& processType) override;
 
     virtual PNeckoParent* AllocPNeckoParent() override;
     virtual bool RecvPNeckoConstructor(PNeckoParent* aActor) override {
@@ -449,7 +466,6 @@ private:
                   ContentParent* aOpener,
                   bool aIsForBrowser,
                   bool aIsForPreallocated,
-                  hal::ProcessPriority aInitialPriority = hal::PROCESS_PRIORITY_FOREGROUND,
                   bool aIsNuwaProcess = false);
 
 #ifdef MOZ_NUWA_PROCESS
@@ -462,7 +478,11 @@ private:
     // The common initialization for the constructors.
     void InitializeMembers();
 
-    // The common initialization logic shared by all constuctors.
+    // Launch the subprocess and associated initialization.
+    // Returns false if the process fails to start.
+    bool LaunchSubprocess(hal::ProcessPriority aInitialPriority = hal::PROCESS_PRIORITY_FOREGROUND);
+
+    // Common initialization after sub process launch or adoption.
     void InitInternal(ProcessPriority aPriority,
                       bool aSetupOffMainThreadCompositing,
                       bool aSendRegisteredChrome);
@@ -593,6 +613,8 @@ private:
     virtual PBlobParent* AllocPBlobParent(const BlobConstructorParams& aParams)
                                           override;
     virtual bool DeallocPBlobParent(PBlobParent* aActor) override;
+
+    virtual bool DeallocPCrashReporterParent(PCrashReporterParent* crashreporter) override;
 
     virtual bool RecvGetRandomValues(const uint32_t& length,
                                      InfallibleTArray<uint8_t>* randomValues) override;
@@ -926,6 +948,8 @@ private:
     bool mCreatedPairedMinidumps;
     bool mShutdownPending;
     bool mIPCOpen;
+
+    friend class CrashReporterParent;
 
     // Allows NuwaParent to access OnNuwaReady() and OnNewProcessCreated().
     friend class NuwaParent;

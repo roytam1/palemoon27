@@ -6,7 +6,8 @@
 
 [JSImplementation="@mozilla.org/b2g-inputmethod;1",
  NavigatorProperty="mozInputMethod",
- Func="Navigator::HasInputMethodSupport"]
+ Pref="dom.mozInputMethod.enabled",
+ CheckAnyPermissions="input input-manage"]
 interface MozInputMethod : EventTarget {
   // Input Method Manager contain a few global methods expose to apps
   readonly attribute MozInputMethodManager mgmt;
@@ -193,7 +194,7 @@ interface MozInputContext: EventTarget {
 
     /*
       * send a character with its key events.
-      * @param modifiers see http://mxr.mozilla.org/mozilla-central/source/dom/interfaces/base/nsIDOMWindowUtils.idl#206
+      * @param modifiers this paramater is no longer honored.
       * @param repeat indicates whether a key would be sent repeatedly.
       * @return true if succeeds. Otherwise false if the input context becomes void.
       * Alternative: sendKey(KeyboardEvent event), but we will likely

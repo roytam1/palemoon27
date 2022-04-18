@@ -1148,13 +1148,13 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
   mWidget->InitEvent(aKeyEvent, &point);
 
   switch (aKeyEvent.mMessage) {
-    case NS_KEY_DOWN:
+    case eKeyDown:
       aKeyEvent.keyCode = mDOMKeyCode;
       // Unique id for this keydown event and its associated keypress.
       sUniqueKeyEventId++;
       aKeyEvent.mUniqueId = sUniqueKeyEventId;
       break;
-    case NS_KEY_UP:
+    case eKeyUp:
       aKeyEvent.keyCode = mDOMKeyCode;
       // Set defaultPrevented of the key event if the VK_MENU is not a system
       // key release, so that the menu bar does not trigger.  This helps avoid
@@ -1164,7 +1164,7 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
       aKeyEvent.mFlags.mDefaultPrevented =
         (mOriginalVirtualKeyCode == VK_MENU && mMsg.message != WM_SYSKEYUP);
       break;
-    case NS_KEY_PRESS:
+    case eKeyPress:
       aKeyEvent.mUniqueId = sUniqueKeyEventId;
       break;
     default:
@@ -1304,7 +1304,7 @@ NativeKey::HandleAppCommandMessage() const
   bool consumed = false;
 
   if (dispatchKeyEvent) {
-    WidgetKeyboardEvent keydownEvent(true, NS_KEY_DOWN, mWidget);
+    WidgetKeyboardEvent keydownEvent(true, eKeyDown, mWidget);
     InitKeyEvent(keydownEvent, mModKeyState);
     // NOTE: If the keydown event is consumed by web contents, we shouldn't
     //       continue to handle the command.
@@ -1319,7 +1319,7 @@ NativeKey::HandleAppCommandMessage() const
   // supported.
   if (!consumed) {
     uint32_t appCommand = GET_APPCOMMAND_LPARAM(mMsg.lParam);
-    EventMessage contentCommandMessage = NS_EVENT_NULL;
+    EventMessage contentCommandMessage = eVoidEvent;
     switch (appCommand) {
       case APPCOMMAND_BROWSER_BACKWARD:
       case APPCOMMAND_BROWSER_FORWARD:
@@ -1381,7 +1381,7 @@ NativeKey::HandleAppCommandMessage() const
   // Dispatch a keyup event if the command is caused by pressing a key and
   // the key isn't mapped to a virtual keycode.
   if (dispatchKeyEvent && !mVirtualKeyCode) {
-    WidgetKeyboardEvent keyupEvent(true, NS_KEY_UP, mWidget);
+    WidgetKeyboardEvent keyupEvent(true, eKeyUp, mWidget);
     InitKeyEvent(keyupEvent, mModKeyState);
     // NOTE: Ignore if the keyup event is consumed because keyup event
     //       represents just a physical key event state change.
@@ -1421,7 +1421,7 @@ NativeKey::HandleKeyDownMessage(bool* aEventDispatched) const
     }
 
     bool isIMEEnabled = WinUtils::IsIMEEnabled(mWidget->GetInputContext());
-    WidgetKeyboardEvent keydownEvent(true, NS_KEY_DOWN, mWidget);
+    WidgetKeyboardEvent keydownEvent(true, eKeyDown, mWidget);
     InitKeyEvent(keydownEvent, mModKeyState);
     if (aEventDispatched) {
       *aEventDispatched = true;
@@ -1568,7 +1568,7 @@ NativeKey::HandleCharMessage(const MSG& aCharMsg,
       mModKeyState.IsAltGr() ||
       (mOriginalVirtualKeyCode &&
        !KeyboardLayout::IsPrintableCharKey(mOriginalVirtualKeyCode))) {
-    WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+    WidgetKeyboardEvent keypressEvent(true, eKeyPress, mWidget);
     if (aCharMsg.wParam >= U_SPACE) {
       keypressEvent.charCode = static_cast<uint32_t>(aCharMsg.wParam);
     } else {
@@ -1632,7 +1632,7 @@ NativeKey::HandleCharMessage(const MSG& aCharMsg,
     uniChar = towlower(uniChar);
   }
 
-  WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+  WidgetKeyboardEvent keypressEvent(true, eKeyPress, mWidget);
   keypressEvent.charCode = uniChar;
   if (!keypressEvent.charCode) {
     keypressEvent.keyCode = mDOMKeyCode;
@@ -1659,7 +1659,7 @@ NativeKey::HandleKeyUpMessage(bool* aEventDispatched) const
     return false;
   }
 
-  WidgetKeyboardEvent keyupEvent(true, NS_KEY_UP, mWidget);
+  WidgetKeyboardEvent keyupEvent(true, eKeyUp, mWidget);
   InitKeyEvent(keyupEvent, mModKeyState);
   if (aEventDispatched) {
     *aEventDispatched = true;
@@ -1941,7 +1941,7 @@ NativeKey::DispatchKeyPressEventsWithKeyboardLayout() const
 
   if (inputtingChars.IsEmpty() &&
       shiftedChars.IsEmpty() && unshiftedChars.IsEmpty()) {
-    WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+    WidgetKeyboardEvent keypressEvent(true, eKeyPress, mWidget);
     keypressEvent.keyCode = mDOMKeyCode;
     InitKeyEvent(keypressEvent, mModKeyState);
     return DispatchKeyEvent(keypressEvent);
@@ -2011,7 +2011,7 @@ NativeKey::DispatchKeyPressEventsWithKeyboardLayout() const
       }
     }
 
-    WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+    WidgetKeyboardEvent keypressEvent(true, eKeyPress, mWidget);
     keypressEvent.charCode = uniChar;
     keypressEvent.alternativeCharCodes.AppendElements(altArray);
     InitKeyEvent(keypressEvent, modKeyState);

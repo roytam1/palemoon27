@@ -11,6 +11,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/AutoRestore.h"
+#include "mozilla/BasePrincipal.h"
 #include "mozilla/Casting.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/Element.h"
@@ -79,6 +80,7 @@
 #include "IHistory.h"
 #include "nsViewSourceHandler.h"
 #include "nsWhitespaceTokenizer.h"
+#include "nsICookieService.h"
 
 // we want to explore making the document own the load group
 // so we can associate the document URI with the load group.
@@ -209,10 +211,6 @@
 #endif
 
 #include "mozIThirdPartyUtil.h"
-// Values for the network.cookie.cookieBehavior pref are documented in
-// nsCookieService.cpp
-#define COOKIE_BEHAVIOR_ACCEPT 0 // Allow all cookies.
-#define COOKIE_BEHAVIOR_REJECT_FOREIGN 1 // Reject all third-party cookies.
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -232,12 +230,11 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using mozilla::dom::workers::ServiceWorkerManager;
 
-// True means sUseErrorPages and sInterceptionEnabled has been added to
+// True means sUseErrorPages has been added to
 // preferences var cache.
 static bool gAddedPreferencesVarCache = false;
 
 bool nsDocShell::sUseErrorPages = false;
-bool nsDocShell::sInterceptionEnabled = false;
 
 // Number of documents currently loading
 static int32_t gNumberOfDocumentsLoading = 0;
@@ -1614,20 +1611,22 @@ nsDocShell::LoadStream(nsIInputStream* aStream, nsIURI* aURI,
   }
 
   uint32_t loadType = LOAD_NORMAL;
+  nsCOMPtr<nsIPrincipal> requestingPrincipal;
   if (aLoadInfo) {
     nsDocShellInfoLoadType lt = nsIDocShellLoadInfo::loadNormal;
     (void)aLoadInfo->GetLoadType(&lt);
     // Get the appropriate LoadType from nsIDocShellLoadInfo type
     loadType = ConvertDocShellLoadInfoToLoadType(lt);
+  
+    nsCOMPtr<nsISupports> owner;
+    aLoadInfo->GetOwner(getter_AddRefs(owner));
+    requestingPrincipal = do_QueryInterface(owner);
   }
 
   NS_ENSURE_SUCCESS(Stop(nsIWebNavigation::STOP_NETWORK), NS_ERROR_FAILURE);
 
   mLoadType = loadType;
 
-  nsCOMPtr<nsISupports> owner;
-  aLoadInfo->GetOwner(getter_AddRefs(owner));
-  nsCOMPtr<nsIPrincipal> requestingPrincipal = do_QueryInterface(owner);
   if (!requestingPrincipal) {
     requestingPrincipal = nsContentUtils::GetSystemPrincipal();
   }
@@ -5650,9 +5649,6 @@ nsDocShell::Create()
     Preferences::AddBoolVarCache(&sUseErrorPages,
                                  "browser.xul.error_pages.enabled",
                                  mUseErrorPages);
-    Preferences::AddBoolVarCache(&sInterceptionEnabled,
-                                 "dom.serviceWorkers.interception.enabled",
-                                 false);
     gAddedPreferencesVarCache = true;
   }
 
@@ -6081,7 +6077,10 @@ nsDocShell::SetIsActive(bool aIsActive)
   if (mScriptGlobal) {
     mScriptGlobal->SetIsBackground(!aIsActive);
     if (nsCOMPtr<nsIDocument> doc = mScriptGlobal->GetExtantDoc()) {
-      if (aIsActive) {
+      // Update orientation when the top-level browsing context becomes active.
+      // We make an exception for apps because they currently rely on
+      // orientation locks persisting across browsing contexts.
+      if (aIsActive && !GetIsApp()) {
         nsCOMPtr<nsIDocShellTreeItem> parent;
         GetSameTypeParent(getter_AddRefs(parent));
         if (!parent) {
@@ -6399,7 +6398,9 @@ nsDocShell::GetCurScrollPos(int32_t aScrollOrientation, int32_t* aCurPos)
   NS_ENSURE_ARG_POINTER(aCurPos);
 
   nsIScrollableFrame* sf = GetRootScrollFrame();
-  NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+  if (!sf) {
+    return NS_ERROR_FAILURE;
+  }
 
   nsPoint pt = sf->GetScrollPosition();
 
@@ -9528,9 +9529,6 @@ nsDocShell::CreatePrincipalFromReferrer(nsIURI* aReferrer,
                                         nsIPrincipal** aResult)
 {
   nsresult rv;
-  nsCOMPtr<nsIScriptSecurityManager> secMan =
-    do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t appId;
   rv = GetAppId(&appId);
@@ -9538,12 +9536,14 @@ nsDocShell::CreatePrincipalFromReferrer(nsIURI* aReferrer,
   bool isInBrowserElement;
   rv = GetIsInBrowserElement(&isInBrowserElement);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = secMan->GetAppCodebasePrincipal(aReferrer,
-                                       appId,
-                                       isInBrowserElement,
-                                       aResult);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+
+  // TODO: Bug 1165466 - Pass mOriginAttributes directly.
+  OriginAttributes attrs(appId, isInBrowserElement);
+  nsCOMPtr<nsIPrincipal> prin =
+    BasePrincipal::CreateCodebasePrincipal(aReferrer, attrs);
+  prin.forget(aResult);
+
+  return *aResult ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -10300,7 +10300,9 @@ nsDocShell::InternalLoad2(nsIURI* aURI,
   // lock the orientation of the document to the document's default
   // orientation. We don't explicitly check for a top-level browsing context
   // here because orientation is only set on top-level browsing contexts.
-  if (OrientationLock() != eScreenOrientation_None) {
+  // We make an exception for apps because they currently rely on
+  // orientation locks persisting across browsing contexts.
+  if (OrientationLock() != eScreenOrientation_None && !GetIsApp()) {
 #ifdef DEBUG
     nsCOMPtr<nsIDocShellTreeItem> parent;
     GetSameTypeParent(getter_AddRefs(parent));
@@ -14153,11 +14155,12 @@ nsDocShell::MaybeNotifyKeywordSearchLoading(const nsString& aProvider,
 
 NS_IMETHODIMP
 nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
+                                      nsContentPolicyType aLoadContentType,
                                       bool* aShouldIntercept)
 {
   *aShouldIntercept = false;
   // Preffed off.
-  if (!sInterceptionEnabled) {
+  if (!nsContentUtils::ServiceWorkerInterceptionEnabled()) {
     return NS_OK;
   }
 
@@ -14192,17 +14195,20 @@ nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
       bool isThirdPartyURI = true;
       result = thirdPartyUtil->IsThirdPartyURI(mCurrentURI, aURI,
                                                &isThirdPartyURI);
-      NS_ENSURE_SUCCESS(result, result);
+      if (NS_FAILED(result)) {
+          return result;
+      }
+
       if (isThirdPartyURI &&
           (Preferences::GetInt("network.cookie.cookieBehavior",
-                               COOKIE_BEHAVIOR_ACCEPT) ==
-                               COOKIE_BEHAVIOR_REJECT_FOREIGN)) {
+                               nsICookieService::BEHAVIOR_ACCEPT) ==
+                               nsICookieService::BEHAVIOR_REJECT_FOREIGN)) {
         return NS_OK;
       }
     }
   }
 
-  if (aIsNavigate) {
+  if (aIsNavigate || nsContentUtils::IsWorkerLoad(aLoadContentType)) {
     OriginAttributes attrs(GetAppId(), GetIsInBrowserElement());
     *aShouldIntercept = swm->IsAvailable(attrs, aURI);
     return NS_OK;
@@ -14222,8 +14228,55 @@ nsDocShell::ShouldPrepareForIntercept(nsIURI* aURI, bool aIsNavigate,
   return NS_OK;
 }
 
+namespace {
+
+class FetchEventDispatcher final : public nsIFetchEventDispatcher
+{
+public:
+  FetchEventDispatcher(nsIInterceptedChannel* aChannel,
+                       nsIRunnable* aContinueRunnable)
+    : mChannel(aChannel)
+    , mContinueRunnable(aContinueRunnable)
+  {
+  }
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIFETCHEVENTDISPATCHER
+
+private:
+  ~FetchEventDispatcher()
+  {
+  }
+
+  nsCOMPtr<nsIInterceptedChannel> mChannel;
+  nsCOMPtr<nsIRunnable> mContinueRunnable;
+};
+
+NS_IMPL_ISUPPORTS(FetchEventDispatcher, nsIFetchEventDispatcher)
+
 NS_IMETHODIMP
-nsDocShell::ChannelIntercepted(nsIInterceptedChannel* aChannel)
+FetchEventDispatcher::Dispatch()
+{
+  nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
+  if (!swm) {
+    mChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
+    return NS_OK;
+  }
+
+  ErrorResult error;
+  swm->DispatchPreparedFetchEvent(mChannel, mContinueRunnable, error);
+  if (NS_WARN_IF(error.Failed())) {
+    return error.StealNSResult();
+  }
+
+  return NS_OK;
+}
+
+}
+
+NS_IMETHODIMP
+nsDocShell::ChannelIntercepted(nsIInterceptedChannel* aChannel,
+                               nsIFetchEventDispatcher** aFetchDispatcher)
 {
   nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
   if (!swm) {
@@ -14235,9 +14288,15 @@ nsDocShell::ChannelIntercepted(nsIInterceptedChannel* aChannel)
   nsresult rv = aChannel->GetIsNavigation(&isNavigation);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsContentPolicyType loadType;
+  rv = aChannel->GetInternalContentPolicyType(&loadType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIDocument> doc;
 
-  if (!isNavigation) {
+  bool isSubresourceLoad = !isNavigation &&
+                           !nsContentUtils::IsWorkerLoad(loadType);
+  if (isSubresourceLoad) {
     doc = GetDocument();
     if (!doc) {
       return NS_ERROR_NOT_AVAILABLE;
@@ -14249,10 +14308,16 @@ nsDocShell::ChannelIntercepted(nsIInterceptedChannel* aChannel)
   OriginAttributes attrs(GetAppId(), GetIsInBrowserElement());
 
   ErrorResult error;
-  swm->DispatchFetchEvent(attrs, doc, aChannel, isReload, error);
+  nsCOMPtr<nsIRunnable> runnable =
+    swm->PrepareFetchEvent(attrs, doc, aChannel, isReload, isSubresourceLoad, error);
   if (NS_WARN_IF(error.Failed())) {
     return error.StealNSResult();
   }
+
+  MOZ_ASSERT(runnable);
+  nsRefPtr<FetchEventDispatcher> dispatcher =
+    new FetchEventDispatcher(aChannel, runnable);
+  dispatcher.forget(aFetchDispatcher);
 
   return NS_OK;
 }

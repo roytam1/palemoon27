@@ -43,7 +43,7 @@ namespace dom {
  * frame             | TYPE_INTERNAL_FRAME
  * hyperlink         |
  * iframe            | TYPE_INTERNAL_IFRAME
- * image             | TYPE_IMAGE
+ * image             | TYPE_INTERNAL_IMAGE, TYPE_INTERNAL_IMAGE_PRELOAD
  * imageset          | TYPE_IMAGESET
  * import            | Not supported by Gecko
  * internal          | TYPE_DOCUMENT, TYPE_XBL, TYPE_OTHER
@@ -53,10 +53,10 @@ namespace dom {
  * ping              | TYPE_PING
  * plugin            | TYPE_OBJECT_SUBREQUEST
  * prefetch          |
- * script            | TYPE_INTERNAL_SCRIPT
+ * script            | TYPE_INTERNAL_SCRIPT, TYPE_INTERNAL_SCRIPT_PRELOAD
  * sharedworker      | TYPE_INTERNAL_SHARED_WORKER
  * subresource       | Not supported by Gecko
- * style             | TYPE_STYLESHEET
+ * style             | TYPE_INTERNAL_STYLESHEET, TYPE_INTERNAL_STYLESHEET_PRELOAD
  * track             | TYPE_INTERNAL_TRACK
  * video             | TYPE_INTERNAL_VIDEO
  * worker            | TYPE_INTERNAL_WORKER
@@ -333,7 +333,7 @@ public:
   SetBody(nsIInputStream* aStream)
   {
     // A request's body may not be reset once set.
-    MOZ_ASSERT(!mBodyStream);
+    MOZ_ASSERT_IF(aStream, !mBodyStream);
     mBodyStream = aStream;
   }
 
@@ -388,6 +388,7 @@ private:
   MapContentPolicyTypeToRequestContext(nsContentPolicyType aContentPolicyType);
 
   nsCString mMethod;
+  // mURL always stores the url with the ref stripped
   nsCString mURL;
   nsRefPtr<InternalHeaders> mHeaders;
   nsCOMPtr<nsIInputStream> mBodyStream;

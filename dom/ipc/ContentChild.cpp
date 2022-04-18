@@ -15,6 +15,7 @@
 #include "ContentChild.h"
 
 #include "BlobChild.h"
+#include "CrashReporterChild.h"
 #include "GeckoProfiler.h"
 #include "TabChild.h"
 
@@ -29,6 +30,7 @@
 #include "mozilla/dom/DataTransfer.h"
 #include "mozilla/dom/DOMStorageIPC.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
+#include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/ProcessGlobal.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/nsIContentChild.h"
@@ -658,6 +660,11 @@ ContentChild::Init(MessageLoop* aIOLoop,
     SendBackUpXResources(FileDescriptor(xSocketFd));
 #endif
 
+#ifdef MOZ_CRASHREPORTER
+    SendPCrashReporterConstructor(CrashReporter::CurrentThreadId(),
+                                  XRE_GetProcessType());
+#endif
+
     SendGetProcessAttributes(&mID, &mIsForApp, &mIsForBrowser);
     InitProcessAttributes();
 
@@ -832,9 +839,6 @@ ContentChild::InitXPCOM()
         ProcessGlobal* global = ProcessGlobal::Get();
         global->SetInitialProcessData(data);
     }
-
-    DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
-    NS_ASSERTION(observer, "FileUpdateDispatcher is null");
 
     // This object is held alive by the observer service.
     nsRefPtr<SystemMessageHandledObserver> sysMsgObserver =
@@ -1227,16 +1231,6 @@ ContentChild::RecvSpeakerManagerNotify()
 }
 
 bool
-ContentChild::RecvUpdateServiceWorkerRegistrations()
-{
-    nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
-    if (swm) {
-        swm->UpdateAllRegistrations();
-    }
-    return true;
-}
-
-bool
 ContentChild::RecvBidiKeyboardNotify(const bool& aIsLangRTL)
 {
     // bidi is always of type PuppetBidiKeyboard* (because in the child, the only
@@ -1244,6 +1238,16 @@ ContentChild::RecvBidiKeyboardNotify(const bool& aIsLangRTL)
     PuppetBidiKeyboard* bidi = static_cast<PuppetBidiKeyboard*>(nsContentUtils::GetBidiKeyboard());
     if (bidi) {
         bidi->SetIsLangRTL(aIsLangRTL);
+    }
+    return true;
+}
+
+bool
+ContentChild::RecvUpdateServiceWorkerRegistrations()
+{
+    nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
+    if (swm) {
+        swm->UpdateAllRegistrations();
     }
     return true;
 }
@@ -1429,6 +1433,36 @@ ContentChild::RecvNotifyPresentationReceiverLaunched(PBrowserChild* aIframe,
 
     NS_WARN_IF(NS_FAILED(static_cast<PresentationIPCService*>(service.get())->MonitorResponderLoading(aSessionId, docShell)));
 
+    return true;
+}
+
+bool
+ContentChild::RecvNotifyPresentationReceiverCleanUp(const nsString& aSessionId)
+{
+  nsCOMPtr<nsIPresentationService> service =
+      do_GetService(PRESENTATION_SERVICE_CONTRACTID);
+  NS_WARN_IF(!service);
+
+  NS_WARN_IF(NS_FAILED(service->UntrackSessionInfo(aSessionId)));
+
+  return true;
+}
+
+PCrashReporterChild*
+ContentChild::AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
+                                       const uint32_t& processType)
+{
+#ifdef MOZ_CRASHREPORTER
+    return new CrashReporterChild();
+#else
+    return nullptr;
+#endif
+}
+
+bool
+ContentChild::DeallocPCrashReporterChild(PCrashReporterChild* crashreporter)
+{
+    delete crashreporter;
     return true;
 }
 
@@ -1943,6 +1977,14 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
     }
     mIsAlive = false;
 
+#ifdef MOZ_NUWA_PROCESS
+    if (IsNuwaProcess()) {
+        // The Nuwa cannot go through the full XPCOM shutdown path or deadlock
+        // will result.
+        QuickExit();
+    }
+#endif
+
     XRE_ShutdownChildProcess();
 }
 
@@ -1966,6 +2008,16 @@ ContentChild::ProcessingError(Result aCode, const char* aReason)
             NS_RUNTIMEABORT("not reached");
     }
 
+#if defined(MOZ_CRASHREPORTER) && !defined(MOZ_B2G)
+    if (ManagedPCrashReporterChild().Length() > 0) {
+        CrashReporterChild* crashReporter =
+            static_cast<CrashReporterChild*>(ManagedPCrashReporterChild()[0]);
+            nsDependentCString reason(aReason);
+            crashReporter->SendAnnotateCrashReport(
+                NS_LITERAL_CSTRING("ipc_channel_error"),
+                reason);
+    }
+#endif
     NS_RUNTIMEABORT("Content child abort due to IPC error");
 }
 
@@ -2153,10 +2205,7 @@ bool
 ContentChild::RecvFlushMemory(const nsString& reason)
 {
 #ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-        // Don't flush memory in the nuwa process: the GC thread could be frozen.
-        return true;
-    }
+    MOZ_ASSERT(!IsNuwaProcess() || !IsNuwaReady());
 #endif
     nsCOMPtr<nsIObserverService> os =
         mozilla::services::GetObserverService();
@@ -2263,11 +2312,7 @@ ContentChild::RecvAppInit()
     // PreloadSlowThings() may set the docshell of the first TabChild
     // inactive, and we can only safely restore it to active from
     // BrowserElementChild.js.
-    if ((mIsForApp || mIsForBrowser)
-#ifdef MOZ_NUWA_PROCESS
-        && !IsNuwaProcess()
-#endif
-       ) {
+    if (mIsForApp || mIsForBrowser) {
         PreloadSlowThings();
     }
 
@@ -2399,11 +2444,7 @@ bool
 ContentChild::RecvMinimizeMemoryUsage()
 {
 #ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-        // Don't minimize memory in the nuwa process: it will perform GC, but the
-        // GC thread could be frozen.
-        return true;
-    }
+    MOZ_ASSERT(!IsNuwaProcess() || !IsNuwaReady());
 #endif
     nsCOMPtr<nsIMemoryReporterManager> mgr =
         do_GetService("@mozilla.org/memory-reporter-manager;1");

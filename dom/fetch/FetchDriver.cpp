@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/DebugOnly.h"
 #include "mozilla/dom/FetchDriver.h"
 
 #include "nsIDocument.h"
@@ -604,17 +605,18 @@ FetchDriver::HttpFetch(bool aCORSFlag, bool aCORSPreflightFlag, bool aAuthentica
   if (aCORSPreflightFlag) {
     MOZ_ASSERT(mRequest->Mode() != RequestMode::No_cors,
                "FetchDriver::ContinueFetch() should ensure that the request is not no-cors");
-    nsCOMPtr<nsIChannel> preflightChannel;
+    MOZ_ASSERT(httpChan, "CORS preflight can only be used with HTTP channels");
     nsAutoTArray<nsCString, 5> unsafeHeaders;
     mRequest->Headers()->GetUnsafeHeaders(unsafeHeaders);
 
-    rv = NS_StartCORSPreflight(chan, listener, mPrincipal,
-                               useCredentials,
-                               unsafeHeaders,
-                               getter_AddRefs(preflightChannel));
-  } else {
-    rv = chan->AsyncOpen(listener, nullptr);
+    nsCOMPtr<nsIHttpChannelInternal> internalChan = do_QueryInterface(httpChan);
+    rv = internalChan->SetCorsPreflightParameters(unsafeHeaders, useCredentials, mPrincipal);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return FailWithNetworkError();
+    }
   }
+
+  rv = chan->AsyncOpen(listener, nullptr);
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return FailWithNetworkError();
@@ -644,7 +646,8 @@ FetchDriver::BeginAndGetFilteredResponse(InternalResponse* aResponse, nsIURI* aF
   } else {
     mRequest->GetURL(reqURL);
   }
-  aResponse->SetUrl(reqURL);
+  DebugOnly<nsresult> rv = aResponse->StripFragmentAndSetUrl(reqURL);
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
 
   // FIXME(nsm): Handle mixed content check, step 7 of fetch.
 

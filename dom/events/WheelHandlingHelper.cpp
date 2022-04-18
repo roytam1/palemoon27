@@ -207,9 +207,9 @@ WheelTransaction::OnEvent(WidgetEvent* aEvent)
       }
       return;
     }
-    case NS_KEY_PRESS:
-    case NS_KEY_UP:
-    case NS_KEY_DOWN:
+    case eKeyPress:
+    case eKeyUp:
+    case eKeyDown:
     case NS_MOUSE_BUTTON_UP:
     case NS_MOUSE_BUTTON_DOWN:
     case NS_MOUSE_DOUBLECLICK:

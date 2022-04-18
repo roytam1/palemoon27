@@ -27,6 +27,7 @@
 #include "AppProcessChecker.h"
 #include "AudioChannelService.h"
 #include "BlobParent.h"
+#include "CrashReporterParent.h"
 #include "GMPServiceParent.h"
 #include "IHistory.h"
 #include "imgIContainer.h"
@@ -248,6 +249,9 @@ using base::KillProcess;
 using mozilla::ProfileGatherer;
 #endif
 
+#ifdef MOZ_CRASHREPORTER
+using namespace CrashReporter;
+#endif
 using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::cellbroadcast;
 using namespace mozilla::dom::devicestorage;
@@ -675,6 +679,22 @@ static const char* sObserverTopics[] = {
 #endif
 };
 
+#ifdef MOZ_NUWA_PROCESS
+// Contains the observer topics that can be sent to the Nuwa process after it
+// becomes ready. The ContentParent instance will unregister sObserverTopics
+// if not listed in sNuwaSafeObserverTopics.
+static const char* sNuwaSafeObserverTopics[] = {
+    "xpcom-shutdown",
+    "profile-before-change",
+#ifdef MOZ_WIDGET_GONK
+    "phone-state-changed",
+#endif
+#ifdef ACCESSIBILITY
+    "a11y-init-or-shutdown",
+#endif
+    "nsPref:Changed"
+};
+#endif
 /* static */ already_AddRefed<ContentParent>
 ContentParent::RunNuwaProcess()
 {
@@ -684,8 +704,12 @@ ContentParent::RunNuwaProcess()
                           /* aOpener = */ nullptr,
                           /* aIsForBrowser = */ false,
                           /* aIsForPreallocated = */ true,
-                          PROCESS_PRIORITY_BACKGROUND,
                           /* aIsNuwaProcess = */ true);
+
+    if (!nuwaProcess->LaunchSubprocess(PROCESS_PRIORITY_BACKGROUND)) {
+        return nullptr;
+    }
+
     nuwaProcess->Init();
 #ifdef MOZ_NUWA_PROCESS
     sNuwaPid = nuwaProcess->Pid();
@@ -704,8 +728,12 @@ ContentParent::PreallocateAppProcess()
         new ContentParent(/* app = */ nullptr,
                           /* aOpener = */ nullptr,
                           /* isForBrowserElement = */ false,
-                          /* isForPreallocated = */ true,
-                          PROCESS_PRIORITY_PREALLOC);
+                          /* isForPreallocated = */ true);
+
+    if (!process->LaunchSubprocess(PROCESS_PRIORITY_PREALLOC)) {
+        return nullptr;
+    }
+
     process->Init();
     return process.forget();
 }
@@ -748,8 +776,12 @@ ContentParent::GetNewOrPreallocatedAppProcess(mozIApplication* aApp,
     process = new ContentParent(aApp,
                                 /* aOpener = */ aOpener,
                                 /* isForBrowserElement = */ false,
-                                /* isForPreallocated = */ false,
-                                aInitialPriority);
+                                /* isForPreallocated = */ false);
+
+    if (!process->LaunchSubprocess(aInitialPriority)) {
+        return nullptr;
+    }
+
     process->Init();
     process->ForwardKnownInfo();
 
@@ -893,8 +925,12 @@ ContentParent::GetNewOrUsedBrowserProcess(bool aForBrowserElement,
         p = new ContentParent(/* app = */ nullptr,
                               aOpener,
                               aForBrowserElement,
-                              /* isForPreallocated = */ false,
-                              aPriority);
+                              /* isForPreallocated = */ false);
+
+        if (!p->LaunchSubprocess(aPriority)) {
+            return nullptr;
+        }
+
         p->Init();
     }
     p->ForwardKnownInfo();
@@ -1163,6 +1199,9 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
                 constructorSender =
                     GetNewOrUsedBrowserProcess(aContext.IsBrowserElement(),
                                                initialPriority);
+                if (!constructorSender) {
+                    return nullptr;
+                }
             }
             tabId = AllocateTabId(openerTabId,
                                   aContext.AsIPCTabContext(),
@@ -1434,9 +1473,6 @@ ContentParent::Init()
         unused << SendActivateA11y();
     }
 #endif
-
-    DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
-    NS_ASSERTION(observer, "FileUpdateDispatcher is null");
 }
 
 void
@@ -1926,11 +1962,6 @@ struct DelayedDeleteContentParentTask : public nsRunnable
 void
 ContentParent::ActorDestroy(ActorDestroyReason why)
 {
-#ifdef MOZ_CRASHREPORTER
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ChildShutdownState"),
-                                       NS_LITERAL_CSTRING("ActorDestroy"));
-#endif
-
     if (mForceKillTimer) {
         mForceKillTimer->Cancel();
         mForceKillTimer = nullptr;
@@ -1939,6 +1970,11 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     // Signal shutdown completion regardless of error state, so we can
     // finish waiting in the xpcom-shutdown/profile-before-change observer.
     mIPCOpen = false;
+
+    if (mHangMonitorActor) {
+        ProcessHangMonitor::RemoveProcess(mHangMonitorActor);
+        mHangMonitorActor = nullptr;
+    }
 
     if (why == NormalShutdown && !mCalledClose) {
         // If we shut down normally but haven't called Close, assume somebody
@@ -1950,11 +1986,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     // Make sure we always clean up.
     ShutDownProcess(why == NormalShutdown ? CLOSE_CHANNEL
                                           : CLOSE_CHANNEL_WITH_ERROR);
-
-    if (mHangMonitorActor) {
-        ProcessHangMonitor::RemoveProcess(mHangMonitorActor);
-        mHangMonitorActor = nullptr;
-    }
 
     nsRefPtr<ContentParent> kungFuDeathGrip(this);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -1992,6 +2023,35 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
 
+#ifdef MOZ_CRASHREPORTER
+            // There's a window in which child processes can crash
+            // after IPC is established, but before a crash reporter
+            // is created.
+            if (ManagedPCrashReporterParent().Length() > 0) {
+                CrashReporterParent* crashReporter =
+                    static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
+
+                // If we're an app process, always stomp the latest URI
+                // loaded in the child process with our manifest URL.  We
+                // would rather associate the crashes with apps than
+                // random child windows loaded in them.
+                //
+                // XXX would be nice if we could get both ...
+                if (!mAppManifestURL.IsEmpty()) {
+                    crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("URL"),
+                                                       NS_ConvertUTF16toUTF8(mAppManifestURL));
+                }
+
+                // if mCreatedPairedMinidumps is true, we've already generated
+                // parent/child dumps for dekstop crashes.
+                if (!mCreatedPairedMinidumps) {
+                    crashReporter->GenerateCrashReport(this, nullptr);
+                }
+
+                nsAutoString dumpID(crashReporter->ChildDumpID());
+                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
+            }
+#endif
         }
         nsAutoString cpId;
         cpId.AppendInt(static_cast<uint64_t>(this->ChildID()));
@@ -2096,12 +2156,6 @@ ContentParent::NotifyTabDestroying(const TabId& aTabId,
   }
 }
 
-static int32_t
-ForceKillTimeout()
-{
-    return Preferences::GetInt("dom.ipc.tabs.shutdownTimeoutSecs", 5);
-}
-
 void
 ContentParent::StartForceKillTimer()
 {
@@ -2109,7 +2163,7 @@ ContentParent::StartForceKillTimer()
         return;
     }
 
-    int32_t timeoutSecs = ForceKillTimeout();
+    int32_t timeoutSecs = Preferences::GetInt("dom.ipc.tabs.shutdownTimeoutSecs", 5);
     if (timeoutSecs > 0) {
         mForceKillTimer = do_CreateInstance("@mozilla.org/timer;1");
         MOZ_ASSERT(mForceKillTimer);
@@ -2203,11 +2257,40 @@ ContentParent::InitializeMembers()
     mHangMonitorActor = nullptr;
 }
 
+bool
+ContentParent::LaunchSubprocess(ProcessPriority aInitialPriority /* = PROCESS_PRIORITY_FOREGROUND */)
+{
+    std::vector<std::string> extraArgs;
+    if (mIsNuwaProcess) {
+        extraArgs.push_back("-nuwa");
+    }
+
+    if (!mSubprocess->LaunchAndWaitForProcessHandle(extraArgs)) {
+        MarkAsDead();
+        return false;
+    }
+
+    Open(mSubprocess->GetChannel(),
+         base::GetProcId(mSubprocess->GetChildProcessHandle()));
+
+    InitInternal(aInitialPriority,
+                 true, /* Setup off-main thread compositing */
+                 true  /* Send registered chrome */);
+
+    ContentProcessManager::GetSingleton()->AddContentProcess(this);
+
+    ProcessHangMonitor::AddProcess(this);
+
+    // Set a reply timeout for CPOWs.
+    SetReplyTimeoutMs(Preferences::GetInt("dom.ipc.cpow.timeout", 0));
+
+    return true;
+}
+
 ContentParent::ContentParent(mozIApplication* aApp,
                              ContentParent* aOpener,
                              bool aIsForBrowser,
                              bool aIsForPreallocated,
-                             ProcessPriority aInitialPriority /* = PROCESS_PRIORITY_FOREGROUND */,
                              bool aIsNuwaProcess /* = false */)
     : nsIContentParent()
     , mOpener(aOpener)
@@ -2261,26 +2344,6 @@ ContentParent::ContentParent(mozIApplication* aApp,
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content, privs);
 
     IToplevelProtocol::SetTransport(mSubprocess->GetChannel());
-
-    std::vector<std::string> extraArgs;
-    if (aIsNuwaProcess) {
-        extraArgs.push_back("-nuwa");
-    }
-    mSubprocess->LaunchAndWaitForProcessHandle(extraArgs);
-
-    Open(mSubprocess->GetChannel(),
-         base::GetProcId(mSubprocess->GetChildProcessHandle()));
-
-    InitInternal(aInitialPriority,
-                 true, /* Setup off-main thread compositing */
-                 true  /* Send registered chrome */);
-
-    ContentProcessManager::GetSingleton()->AddContentProcess(this);
-
-    ProcessHangMonitor::AddProcess(this);
-
-    // Set a reply timeout for CPOWs.
-    SetReplyTimeoutMs(Preferences::GetInt("dom.ipc.cpow.timeout", 0));
 }
 
 #ifdef MOZ_NUWA_PROCESS
@@ -2391,6 +2454,13 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
                             bool aSetupOffMainThreadCompositing,
                             bool aSendRegisteredChrome)
 {
+    if (aSendRegisteredChrome) {
+        nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
+        nsChromeRegistryChrome* chromeRegistry =
+            static_cast<nsChromeRegistryChrome*>(registrySvc.get());
+        chromeRegistry->SendRegisteredChrome(this);
+    }
+
     // Initialize the message manager (and load delayed scripts) now that we
     // have established communications with the child.
     mMessageManager->InitWithCallback(this);
@@ -2443,13 +2513,6 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
         DebugOnly<bool> opened = PSharedBufferManager::Open(this);
         MOZ_ASSERT(opened);
 #endif
-    }
-
-    if (aSendRegisteredChrome) {
-        nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
-        nsChromeRegistryChrome* chromeRegistry =
-            static_cast<nsChromeRegistryChrome*>(registrySvc.get());
-        chromeRegistry->SendRegisteredChrome(this);
     }
 
     if (gAppData) {
@@ -2860,6 +2923,41 @@ ContentParent::ForkNewProcess(bool aBlocking)
 #endif
 }
 
+#ifdef MOZ_NUWA_PROCESS
+// Keep only observer topics listed in sNuwaSafeObserverTopics and unregister
+// all the other registered topics.
+static void
+KeepNuwaSafeObserverTopics(ContentParent* aNuwaContentParent)
+{
+  MOZ_ASSERT(aNuwaContentParent && aNuwaContentParent->IsNuwaProcess());
+
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (!obs) {
+      return;
+  }
+
+  size_t topicLength = ArrayLength(sObserverTopics);
+  for (size_t i = 0; i < topicLength; ++i) {
+      bool nuwaSafe = false;
+      size_t safeTopicLength = ArrayLength(sNuwaSafeObserverTopics);
+
+      for (size_t j = 0; j < safeTopicLength; j++) {
+          if (!nsCRT::strcmp(sObserverTopics[i],
+                            sNuwaSafeObserverTopics[j])) {
+              // In the whitelist: don't need to unregister.
+              nuwaSafe = true;
+              break;
+          }
+      }
+
+      if (!nuwaSafe) {
+          obs->RemoveObserver(aNuwaContentParent, sObserverTopics[i]);
+      }
+  }
+
+}
+#endif
+
 void
 ContentParent::OnNuwaReady()
 {
@@ -2869,6 +2967,8 @@ ContentParent::OnNuwaReady()
     MOZ_ASSERT(IsNuwaProcess());
 
     sNuwaReady = true;
+    KeepNuwaSafeObserverTopics(this);
+
     PreallocatedProcessManager::OnNuwaReady();
     return;
 #else
@@ -2947,27 +3047,13 @@ ContentParent::Observe(nsISupports* aSubject,
 {
     if (mSubprocess && (!strcmp(aTopic, "profile-before-change") ||
                         !strcmp(aTopic, "xpcom-shutdown"))) {
-#ifdef MOZ_CRASHREPORTER
-        CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ChildShutdownState"),
-                                           NS_LITERAL_CSTRING("Begin"));
-#endif
-
         // Okay to call ShutDownProcess multiple times.
         ShutDownProcess(SEND_SHUTDOWN_MESSAGE);
-
-        int32_t timeout = ForceKillTimeout();
-
-        // Make sure we have a KillHard timer before we start waiting.
-        MOZ_RELEASE_ASSERT(!timeout || !mIPCOpen || mCalledKillHard || mForceKillTimer);
 
         // Wait for shutdown to complete, so that we receive any shutdown
         // data (e.g. telemetry) from the child before we quit.
         // This loop terminate prematurely based on mForceKillTimer.
-        while (mIPCOpen) {
-            // If we clear the KillHard timer, it should only be because we
-            // called KillHard. In that case, ActorDestroy should happen
-            // momentarily.
-            MOZ_RELEASE_ASSERT(!timeout || mCalledKillHard || mForceKillTimer);
+        while (mIPCOpen && !mCalledKillHard) {
             NS_ProcessNextEvent(nullptr, true);
         }
         NS_ASSERTION(!mSubprocess, "Close should have nulled mSubprocess");
@@ -2975,6 +3061,16 @@ ContentParent::Observe(nsISupports* aSubject,
 
     if (!mIsAlive || !mSubprocess)
         return NS_OK;
+
+    // The Nuwa process unregisters the topics after it becomes ready except for
+    // the ones listed in sNuwaSafeObserverTopics. If the topic needs to be
+    // observed by the Nuwa process, either for:
+    // 1. The topic is safe for the Nuwa process, either:
+    // 1.1 The state can safely happen (only run on the main thread) in the Nuwa
+    //     process (e.g. "a11y-init-or-shutdown"), or
+    // 1.2 The topic doesn't send an IPC message (e.g. "xpcom-shutdown").
+    // 2. The topic needs special handling (e.g. nsPref:Changed),
+    // add the topic to sNuwaSafeObserverTopics and then handle it if necessary.
 
     // listening for memory pressure event
     if (!strcmp(aTopic, "memory-pressure") &&
@@ -2990,7 +3086,7 @@ ContentParent::Observe(nsISupports* aSubject,
         PrefSetting pref(strData, null_t(), null_t());
         Preferences::GetPreference(&pref);
 #ifdef MOZ_NUWA_PROCESS
-        if (IsNuwaProcess() && PreallocatedProcessManager::IsNuwaReady()) {
+        if (IsReadyNuwaProcess()) {
             // Don't send the pref update to the Nuwa process. Save the update
             // to send to the forked child.
             if (!sNuwaPrefUpdates) {
@@ -3007,28 +3103,16 @@ ContentParent::Observe(nsISupports* aSubject,
 #endif
     }
     else if (!strcmp(aTopic, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC)) {
-      NS_ConvertUTF16toUTF8 dataStr(aData);
-      const char *offline = dataStr.get();
-#ifdef MOZ_NUWA_PROCESS
-      if (!(IsNuwaReady() && IsNuwaProcess())) {
-#endif
-          if (!SendSetOffline(!strcmp(offline, "true") ? true : false)) {
-              return NS_ERROR_NOT_AVAILABLE;
-          }
-#ifdef MOZ_NUWA_PROCESS
-      }
-#endif
+        NS_ConvertUTF16toUTF8 dataStr(aData);
+        const char *offline = dataStr.get();
+        if (!SendSetOffline(!strcmp(offline, "true") ? true : false)) {
+            return NS_ERROR_NOT_AVAILABLE;
+        }
     }
     else if (!strcmp(aTopic, NS_IPC_IOSERVICE_SET_CONNECTIVITY_TOPIC)) {
-#ifdef MOZ_NUWA_PROCESS
-        if (!(IsNuwaReady() && IsNuwaProcess())) {
-#endif
-            if (!SendSetConnectivity(NS_LITERAL_STRING("true").Equals(aData))) {
-                return NS_ERROR_NOT_AVAILABLE;
-            }
-#ifdef MOZ_NUWA_PROCESS
+        if (!SendSetConnectivity(NS_LITERAL_STRING("true").Equals(aData))) {
+            return NS_ERROR_NOT_AVAILABLE;
         }
-#endif
     }
     // listening for alert notifications
     else if (!strcmp(aTopic, "alertfinished") ||
@@ -3054,13 +3138,7 @@ ContentParent::Observe(nsISupports* aSubject,
         nsCString creason;
         CopyUTF16toUTF8(aData, creason);
         DeviceStorageFile* file = static_cast<DeviceStorageFile*>(aSubject);
-
-#ifdef MOZ_NUWA_PROCESS
-        if (!(IsNuwaReady() && IsNuwaProcess()))
-#endif
-        {
-            unused << SendFilePathUpdate(file->mStorageType, file->mStorageName, file->mPath, creason);
-        }
+        unused << SendFilePathUpdate(file->mStorageType, file->mStorageName, file->mPath, creason);
     }
 #ifdef MOZ_WIDGET_GONK
     else if(!strcmp(aTopic, NS_VOLUME_STATE_CHANGED)) {
@@ -3093,27 +3171,17 @@ ContentParent::Observe(nsISupports* aSubject,
         vol->GetIsRemovable(&isRemovable);
         vol->GetIsHotSwappable(&isHotSwappable);
 
-#ifdef MOZ_NUWA_PROCESS
-        if (!(IsNuwaReady() && IsNuwaProcess()))
-#endif
-        {
-            unused << SendFileSystemUpdate(volName, mountPoint, state,
-                                           mountGeneration, isMediaPresent,
-                                           isSharing, isFormatting, isFake,
-                                           isUnmounting, isRemovable, isHotSwappable);
-        }
+        unused << SendFileSystemUpdate(volName, mountPoint, state,
+                                       mountGeneration, isMediaPresent,
+                                       isSharing, isFormatting, isFake,
+                                       isUnmounting, isRemovable, isHotSwappable);
     } else if (!strcmp(aTopic, "phone-state-changed")) {
         nsString state(aData);
         unused << SendNotifyPhoneStateChange(state);
     }
     else if(!strcmp(aTopic, NS_VOLUME_REMOVED)) {
-#ifdef MOZ_NUWA_PROCESS
-        if (!(IsNuwaReady() && IsNuwaProcess()))
-#endif
-        {
-            nsString volName(aData);
-            unused << SendVolumeRemoved(volName);
-        }
+        nsString volName(aData);
+        unused << SendVolumeRemoved(volName);
     }
 #endif
 #ifdef ACCESSIBILITY
@@ -3391,11 +3459,6 @@ ContentParent::ForceKillTimerCallback(nsITimer* aTimer, void* aClosure)
 void
 ContentParent::KillHard(const char* aReason)
 {
-#ifdef MOZ_CRASHREPORTER
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ChildShutdownState"),
-                                       NS_LITERAL_CSTRING("KillHard"));
-#endif
-
     // On Windows, calling KillHard multiple times causes problems - the
     // process handle becomes invalid on the first call, causing a second call
     // to crash our process - more details in bug 890840.
@@ -3405,6 +3468,36 @@ ContentParent::KillHard(const char* aReason)
     mCalledKillHard = true;
     mForceKillTimer = nullptr;
 
+#if defined(MOZ_CRASHREPORTER) && !defined(MOZ_B2G)
+    // We're about to kill the child process associated with this content.
+    // Something has gone wrong to get us here, so we generate a minidump
+    // of the parent and child for submission to the crash server.
+    if (ManagedPCrashReporterParent().Length() > 0) {
+        CrashReporterParent* crashReporter =
+            static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
+        // GeneratePairedMinidump creates two minidumps for us - the main
+        // one is for the content process we're about to kill, and the other
+        // one is for the main browser process. That second one is the extra
+        // minidump tagging along, so we have to tell the crash reporter that
+        // it exists and is being appended.
+        nsAutoCString additionalDumps("browser");
+        crashReporter->AnnotateCrashReport(
+            NS_LITERAL_CSTRING("additional_minidumps"),
+            additionalDumps);
+        if (IsKillHardAnnotationSet()) {
+          crashReporter->AnnotateCrashReport(
+              NS_LITERAL_CSTRING("kill_hard"),
+              GetKillHardAnnotation());
+        }
+        nsDependentCString reason(aReason);
+        crashReporter->AnnotateCrashReport(
+            NS_LITERAL_CSTRING("ipc_channel_error"),
+            reason);
+
+        // Generate the report and insert into the queue for submittal.
+        mCreatedPairedMinidumps = crashReporter->GenerateCompleteMinidump(this);
+    }
+#endif
     ProcessHandle otherProcessHandle;
     if (!base::OpenProcessHandle(OtherPid(), &otherProcessHandle)) {
         NS_ERROR("Failed to open child process when attempting kill.");
@@ -3456,6 +3549,33 @@ ContentParent::FriendlyName(nsAString& aName, bool aAnonymize)
     } else {
         aName.AssignLiteral("???");
     }
+}
+
+PCrashReporterParent*
+ContentParent::AllocPCrashReporterParent(const NativeThreadId& tid,
+                                         const uint32_t& processType)
+{
+#ifdef MOZ_CRASHREPORTER
+    return new CrashReporterParent();
+#else
+    return nullptr;
+#endif
+}
+
+bool
+ContentParent::RecvPCrashReporterConstructor(PCrashReporterParent* actor,
+                                             const NativeThreadId& tid,
+                                             const uint32_t& processType)
+{
+    static_cast<CrashReporterParent*>(actor)->SetChildData(tid, processType);
+    return true;
+}
+
+bool
+ContentParent::DeallocPCrashReporterParent(PCrashReporterParent* crashreporter)
+{
+    delete crashreporter;
+    return true;
 }
 
 hal_sandbox::PHalParent*
@@ -4327,7 +4447,12 @@ ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
         sPrivateContent->AppendElement(this);
     } else {
         sPrivateContent->RemoveElement(this);
-        if (!sPrivateContent->Length()) {
+
+        // Only fire the notification if we have private and non-private
+        // windows: if privatebrowsing.autostart is true, all windows are
+        // private.
+        if (!sPrivateContent->Length() &&
+            !Preferences::GetBool("browser.privatebrowsing.autostart")) {
             nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
             obs->NotifyObservers(nullptr, "last-pb-context-exited", nullptr);
             delete sPrivateContent;
@@ -4361,12 +4486,10 @@ ContentParent::DoSendAsyncMessage(JSContext* aCx,
     if (aCpows && (!mgr || !mgr->Wrap(aCx, aCpows, &cpows))) {
         return false;
     }
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess() && IsNuwaReady()) {
+    if (IsReadyNuwaProcess()) {
         // Nuwa won't receive frame messages after it is frozen.
         return true;
     }
-#endif
     return SendAsyncMessage(nsString(aMessage), data, cpows, Principal(aPrincipal));
 }
 

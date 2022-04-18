@@ -838,9 +838,6 @@ ContentChild::InitXPCOM()
         global->SetInitialProcessData(data);
     }
 
-    DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
-    NS_ASSERTION(observer, "FileUpdateDispatcher is null");
-
     // This object is held alive by the observer service.
     nsRefPtr<SystemMessageHandledObserver> sysMsgObserver =
         new SystemMessageHandledObserver();
@@ -1437,6 +1434,18 @@ ContentChild::RecvNotifyPresentationReceiverLaunched(PBrowserChild* aIframe,
     return true;
 }
 
+bool
+ContentChild::RecvNotifyPresentationReceiverCleanUp(const nsString& aSessionId)
+{
+  nsCOMPtr<nsIPresentationService> service =
+      do_GetService(PRESENTATION_SERVICE_CONTRACTID);
+  NS_WARN_IF(!service);
+
+  NS_WARN_IF(NS_FAILED(service->UntrackSessionInfo(aSessionId)));
+
+  return true;
+}
+
 PCrashReporterChild*
 ContentChild::AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
                                        const uint32_t& processType)
@@ -1953,6 +1962,14 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
         mConsoleListener->mChild = nullptr;
     }
     mIsAlive = false;
+
+#ifdef MOZ_NUWA_PROCESS
+    if (IsNuwaProcess()) {
+        // The Nuwa cannot go through the full XPCOM shutdown path or deadlock
+        // will result.
+        QuickExit();
+    }
+#endif
 
     XRE_ShutdownChildProcess();
 }

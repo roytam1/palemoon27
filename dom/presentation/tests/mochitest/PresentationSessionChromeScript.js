@@ -152,6 +152,10 @@ const mockedControlChannel = {
     sendAsyncMessage('answer-received');
     this._listener.QueryInterface(Ci.nsIPresentationControlChannelListener).onAnswer(mockedChannelDescription);
   },
+  simulateNotifyOpened: function() {
+    sendAsyncMessage('control-channel-opened');
+    this._listener.QueryInterface(Ci.nsIPresentationControlChannelListener).notifyOpened();
+  },
 };
 
 const mockedDevice = {
@@ -234,6 +238,9 @@ const mockedSessionTransport = {
                 addresses.queryElementAt(0, Ci.nsISupportsCString).data : "",
       port: description.QueryInterface(Ci.nsIPresentationChannelDescription).tcpPort,
     };
+  },
+  enableDataNotification: function() {
+    sendAsyncMessage('data-transport-notification-enabled');
   },
   send: function(data) {
     var binaryStream = Cc["@mozilla.org/binaryinputstream;1"].
@@ -364,6 +371,10 @@ addMessageListener('trigger-incoming-answer', function() {
 
 addMessageListener('trigger-incoming-transport', function() {
   mockedServerSocket.simulateOnSocketAccepted(mockedServerSocket, mockedSocketTransport);
+});
+
+addMessageListener('trigger-control-channel-open', function(reason) {
+  mockedControlChannel.simulateNotifyOpened();
 });
 
 addMessageListener('trigger-control-channel-close', function(reason) {

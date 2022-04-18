@@ -493,7 +493,7 @@ WINDOW_EVENT(hashchange,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(languagechange,
-             NS_LANGUAGECHANGE,
+             eLanguageChange,
              EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 // XXXbz Should the onmessage attribute on <body> really not work?  If so, do we
@@ -504,11 +504,11 @@ WINDOW_EVENT(message,
              EventNameType_None,
              eBasicEventClass)
 WINDOW_EVENT(offline,
-             NS_OFFLINE,
+             eOffline,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(online,
-             NS_ONLINE,
+             eOnline,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(pagehide,

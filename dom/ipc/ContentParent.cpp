@@ -27,6 +27,7 @@
 #include "AppProcessChecker.h"
 #include "AudioChannelService.h"
 #include "BlobParent.h"
+#include "CrashReporterParent.h"
 #include "GMPServiceParent.h"
 #include "IHistory.h"
 #include "imgIContainer.h"
@@ -247,6 +248,9 @@ using base::KillProcess;
 using mozilla::ProfileGatherer;
 #endif
 
+#ifdef MOZ_CRASHREPORTER
+using namespace CrashReporter;
+#endif
 using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::cellbroadcast;
 using namespace mozilla::dom::devicestorage;
@@ -1467,9 +1471,6 @@ ContentParent::Init()
         unused << SendActivateA11y();
     }
 #endif
-
-    DebugOnly<FileUpdateDispatcher*> observer = FileUpdateDispatcher::GetSingleton();
-    NS_ASSERTION(observer, "FileUpdateDispatcher is null");
 }
 
 void
@@ -1959,11 +1960,6 @@ struct DelayedDeleteContentParentTask : public nsRunnable
 void
 ContentParent::ActorDestroy(ActorDestroyReason why)
 {
-#ifdef MOZ_CRASHREPORTER
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ChildShutdownState"),
-                                       NS_LITERAL_CSTRING("ActorDestroy"));
-#endif
-
     if (mForceKillTimer) {
         mForceKillTimer->Cancel();
         mForceKillTimer = nullptr;
@@ -1972,6 +1968,11 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     // Signal shutdown completion regardless of error state, so we can
     // finish waiting in the xpcom-shutdown/profile-before-change observer.
     mIPCOpen = false;
+
+    if (mHangMonitorActor) {
+        ProcessHangMonitor::RemoveProcess(mHangMonitorActor);
+        mHangMonitorActor = nullptr;
+    }
 
     if (why == NormalShutdown && !mCalledClose) {
         // If we shut down normally but haven't called Close, assume somebody
@@ -1983,11 +1984,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     // Make sure we always clean up.
     ShutDownProcess(why == NormalShutdown ? CLOSE_CHANNEL
                                           : CLOSE_CHANNEL_WITH_ERROR);
-
-    if (mHangMonitorActor) {
-        ProcessHangMonitor::RemoveProcess(mHangMonitorActor);
-        mHangMonitorActor = nullptr;
-    }
 
     nsRefPtr<ContentParent> kungFuDeathGrip(this);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -2025,6 +2021,35 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
 
+#ifdef MOZ_CRASHREPORTER
+            // There's a window in which child processes can crash
+            // after IPC is established, but before a crash reporter
+            // is created.
+            if (ManagedPCrashReporterParent().Length() > 0) {
+                CrashReporterParent* crashReporter =
+                    static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
+
+                // If we're an app process, always stomp the latest URI
+                // loaded in the child process with our manifest URL.  We
+                // would rather associate the crashes with apps than
+                // random child windows loaded in them.
+                //
+                // XXX would be nice if we could get both ...
+                if (!mAppManifestURL.IsEmpty()) {
+                    crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("URL"),
+                                                       NS_ConvertUTF16toUTF8(mAppManifestURL));
+                }
+
+                // if mCreatedPairedMinidumps is true, we've already generated
+                // parent/child dumps for dekstop crashes.
+                if (!mCreatedPairedMinidumps) {
+                    crashReporter->GenerateCrashReport(this, nullptr);
+                }
+
+                nsAutoString dumpID(crashReporter->ChildDumpID());
+                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
+            }
+#endif
         }
         nsAutoString cpId;
         cpId.AppendInt(static_cast<uint64_t>(this->ChildID()));
@@ -2129,12 +2154,6 @@ ContentParent::NotifyTabDestroying(const TabId& aTabId,
   }
 }
 
-static int32_t
-ForceKillTimeout()
-{
-    return Preferences::GetInt("dom.ipc.tabs.shutdownTimeoutSecs", 5);
-}
-
 void
 ContentParent::StartForceKillTimer()
 {
@@ -2142,7 +2161,7 @@ ContentParent::StartForceKillTimer()
         return;
     }
 
-    int32_t timeoutSecs = ForceKillTimeout();
+    int32_t timeoutSecs = Preferences::GetInt("dom.ipc.tabs.shutdownTimeoutSecs", 5);
     if (timeoutSecs > 0) {
         mForceKillTimer = do_CreateInstance("@mozilla.org/timer;1");
         MOZ_ASSERT(mForceKillTimer);
@@ -2433,6 +2452,13 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
                             bool aSetupOffMainThreadCompositing,
                             bool aSendRegisteredChrome)
 {
+    if (aSendRegisteredChrome) {
+        nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
+        nsChromeRegistryChrome* chromeRegistry =
+            static_cast<nsChromeRegistryChrome*>(registrySvc.get());
+        chromeRegistry->SendRegisteredChrome(this);
+    }
+
     // Initialize the message manager (and load delayed scripts) now that we
     // have established communications with the child.
     mMessageManager->InitWithCallback(this);
@@ -2485,13 +2511,6 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
         DebugOnly<bool> opened = PSharedBufferManager::Open(this);
         MOZ_ASSERT(opened);
 #endif
-    }
-
-    if (aSendRegisteredChrome) {
-        nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
-        nsChromeRegistryChrome* chromeRegistry =
-            static_cast<nsChromeRegistryChrome*>(registrySvc.get());
-        chromeRegistry->SendRegisteredChrome(this);
     }
 
     if (gAppData) {
@@ -3025,27 +3044,13 @@ ContentParent::Observe(nsISupports* aSubject,
 {
     if (mSubprocess && (!strcmp(aTopic, "profile-before-change") ||
                         !strcmp(aTopic, "xpcom-shutdown"))) {
-#ifdef MOZ_CRASHREPORTER
-        CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ChildShutdownState"),
-                                           NS_LITERAL_CSTRING("Begin"));
-#endif
-
         // Okay to call ShutDownProcess multiple times.
         ShutDownProcess(SEND_SHUTDOWN_MESSAGE);
-
-        int32_t timeout = ForceKillTimeout();
-
-        // Make sure we have a KillHard timer before we start waiting.
-        MOZ_RELEASE_ASSERT(!timeout || !mIPCOpen || mCalledKillHard || mForceKillTimer);
 
         // Wait for shutdown to complete, so that we receive any shutdown
         // data (e.g. telemetry) from the child before we quit.
         // This loop terminate prematurely based on mForceKillTimer.
-        while (mIPCOpen) {
-            // If we clear the KillHard timer, it should only be because we
-            // called KillHard. In that case, ActorDestroy should happen
-            // momentarily.
-            MOZ_RELEASE_ASSERT(!timeout || mCalledKillHard || mForceKillTimer);
+        while (mIPCOpen && !mCalledKillHard) {
             NS_ProcessNextEvent(nullptr, true);
         }
         NS_ASSERTION(!mSubprocess, "Close should have nulled mSubprocess");
@@ -3451,11 +3456,6 @@ ContentParent::ForceKillTimerCallback(nsITimer* aTimer, void* aClosure)
 void
 ContentParent::KillHard(const char* aReason)
 {
-#ifdef MOZ_CRASHREPORTER
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ChildShutdownState"),
-                                       NS_LITERAL_CSTRING("KillHard"));
-#endif
-
     // On Windows, calling KillHard multiple times causes problems - the
     // process handle becomes invalid on the first call, causing a second call
     // to crash our process - more details in bug 890840.
@@ -3465,6 +3465,36 @@ ContentParent::KillHard(const char* aReason)
     mCalledKillHard = true;
     mForceKillTimer = nullptr;
 
+#if defined(MOZ_CRASHREPORTER) && !defined(MOZ_B2G)
+    // We're about to kill the child process associated with this content.
+    // Something has gone wrong to get us here, so we generate a minidump
+    // of the parent and child for submission to the crash server.
+    if (ManagedPCrashReporterParent().Length() > 0) {
+        CrashReporterParent* crashReporter =
+            static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
+        // GeneratePairedMinidump creates two minidumps for us - the main
+        // one is for the content process we're about to kill, and the other
+        // one is for the main browser process. That second one is the extra
+        // minidump tagging along, so we have to tell the crash reporter that
+        // it exists and is being appended.
+        nsAutoCString additionalDumps("browser");
+        crashReporter->AnnotateCrashReport(
+            NS_LITERAL_CSTRING("additional_minidumps"),
+            additionalDumps);
+        if (IsKillHardAnnotationSet()) {
+          crashReporter->AnnotateCrashReport(
+              NS_LITERAL_CSTRING("kill_hard"),
+              GetKillHardAnnotation());
+        }
+        nsDependentCString reason(aReason);
+        crashReporter->AnnotateCrashReport(
+            NS_LITERAL_CSTRING("ipc_channel_error"),
+            reason);
+
+        // Generate the report and insert into the queue for submittal.
+        mCreatedPairedMinidumps = crashReporter->GenerateCompleteMinidump(this);
+    }
+#endif
     ProcessHandle otherProcessHandle;
     if (!base::OpenProcessHandle(OtherPid(), &otherProcessHandle)) {
         NS_ERROR("Failed to open child process when attempting kill.");
@@ -3516,6 +3546,33 @@ ContentParent::FriendlyName(nsAString& aName, bool aAnonymize)
     } else {
         aName.AssignLiteral("???");
     }
+}
+
+PCrashReporterParent*
+ContentParent::AllocPCrashReporterParent(const NativeThreadId& tid,
+                                         const uint32_t& processType)
+{
+#ifdef MOZ_CRASHREPORTER
+    return new CrashReporterParent();
+#else
+    return nullptr;
+#endif
+}
+
+bool
+ContentParent::RecvPCrashReporterConstructor(PCrashReporterParent* actor,
+                                             const NativeThreadId& tid,
+                                             const uint32_t& processType)
+{
+    static_cast<CrashReporterParent*>(actor)->SetChildData(tid, processType);
+    return true;
+}
+
+bool
+ContentParent::DeallocPCrashReporterParent(PCrashReporterParent* crashreporter)
+{
+    delete crashreporter;
+    return true;
 }
 
 hal_sandbox::PHalParent*
@@ -4375,7 +4432,12 @@ ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
         sPrivateContent->AppendElement(this);
     } else {
         sPrivateContent->RemoveElement(this);
-        if (!sPrivateContent->Length()) {
+
+        // Only fire the notification if we have private and non-private
+        // windows: if privatebrowsing.autostart is true, all windows are
+        // private.
+        if (!sPrivateContent->Length() &&
+            !Preferences::GetBool("browser.privatebrowsing.autostart")) {
             nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
             obs->NotifyObservers(nullptr, "last-pb-context-exited", nullptr);
             delete sPrivateContent;

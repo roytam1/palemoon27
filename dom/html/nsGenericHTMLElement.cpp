@@ -2449,9 +2449,9 @@ nsGenericHTMLFormElement::IsElementDisabledForEvents(EventMessage aMessage,
                                                      nsIFrame* aFrame)
 {
   switch (aMessage) {
-    case NS_MOUSE_MOVE:
-    case NS_MOUSE_OVER:
-    case NS_MOUSE_OUT:
+    case eMouseMove:
+    case eMouseOver:
+    case eMouseOut:
     case NS_MOUSEENTER:
     case NS_MOUSELEAVE:
     case NS_POINTER_MOVE:
@@ -2690,7 +2690,7 @@ nsGenericHTMLElement::Click()
   // called from chrome JS. Mark this event trusted if Click()
   // is called from chrome code.
   WidgetMouseEvent event(nsContentUtils::IsCallerChrome(),
-                         NS_MOUSE_CLICK, nullptr, WidgetMouseEvent::eReal);
+                         eMouseClick, nullptr, WidgetMouseEvent::eReal);
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 
   EventDispatcher::Dispatch(static_cast<nsIContent*>(this), context, &event);
@@ -2805,7 +2805,7 @@ nsGenericHTMLElement::DispatchSimulatedClick(nsGenericHTMLElement* aElement,
                                              bool aIsTrusted,
                                              nsPresContext* aPresContext)
 {
-  WidgetMouseEvent event(aIsTrusted, NS_MOUSE_CLICK, nullptr,
+  WidgetMouseEvent event(aIsTrusted, eMouseClick, nullptr,
                          WidgetMouseEvent::eReal);
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
   return EventDispatcher::Dispatch(ToSupports(aElement), aPresContext, &event);

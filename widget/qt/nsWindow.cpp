@@ -999,8 +999,7 @@ nsWindow::mousePressEvent(QMouseEvent* aEvent)
         return nsEventStatus_eIgnore;
     }
 
-    WidgetMouseEvent event(true, NS_MOUSE_BUTTON_DOWN, this,
-                           WidgetMouseEvent::eReal);
+    WidgetMouseEvent event(true, eMouseDown, this, WidgetMouseEvent::eReal);
     InitMouseEvent(event, aEvent, 1);
     nsEventStatus status = DispatchEvent(&event);
 
@@ -1025,8 +1024,7 @@ nsWindow::mouseReleaseEvent(QMouseEvent* aEvent)
     if (!IsAcceptedButton(aEvent->button()))
         return nsEventStatus_eIgnore;
 
-    WidgetMouseEvent event(true, NS_MOUSE_BUTTON_UP, this,
-                           WidgetMouseEvent::eReal);
+    WidgetMouseEvent event(true, eMouseUp, this, WidgetMouseEvent::eReal);
     InitMouseEvent(event, aEvent, 1);
     return DispatchEvent(&event);
 }
@@ -1040,7 +1038,7 @@ nsWindow::mouseDoubleClickEvent(QMouseEvent* aEvent)
     if (!IsAcceptedButton(aEvent->button()))
         return nsEventStatus_eIgnore;
 
-    WidgetMouseEvent event(true, NS_MOUSE_DOUBLECLICK, this,
+    WidgetMouseEvent event(true, eMouseDoubleClick, this,
                            WidgetMouseEvent::eReal);
     InitMouseEvent(event, aEvent, 2);
     return DispatchEvent(&event);
@@ -1964,8 +1962,7 @@ void
 nsWindow::ProcessMotionEvent()
 {
     if (mMoveEvent.needDispatch) {
-        WidgetMouseEvent event(true, NS_MOUSE_MOVE, this,
-                               WidgetMouseEvent::eReal);
+        WidgetMouseEvent event(true, eMouseMove, this, WidgetMouseEvent::eReal);
 
         event.refPoint.x = nscoord(mMoveEvent.pos.x());
         event.refPoint.y = nscoord(mMoveEvent.pos.y());

@@ -158,9 +158,9 @@ private:
     if (sender.state == UIGestureRecognizerStateEnded) {
         ALOG("[ChildView[%p] handleTap]", self);
         LayoutDeviceIntPoint lp = UIKitPointsToDevPixels([sender locationInView:self], [self contentScaleFactor]);
-        [self sendMouseEvent:NS_MOUSE_MOVE point:lp widget:mGeckoChild];
-        [self sendMouseEvent:NS_MOUSE_BUTTON_DOWN point:lp widget:mGeckoChild];
-        [self sendMouseEvent:NS_MOUSE_BUTTON_UP point:lp widget:mGeckoChild];
+        [self sendMouseEvent:eMouseMove point:lp widget:mGeckoChild];
+        [self sendMouseEvent:eMouseDown point:lp widget:mGeckoChild];
+        [self sendMouseEvent:eMouseUp point:lp widget:mGeckoChild];
     }
 }
 

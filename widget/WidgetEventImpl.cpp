@@ -78,17 +78,17 @@ bool
 WidgetEvent::HasMouseEventMessage() const
 {
   switch (mMessage) {
-    case NS_MOUSE_BUTTON_DOWN:
-    case NS_MOUSE_BUTTON_UP:
-    case NS_MOUSE_CLICK:
-    case NS_MOUSE_DOUBLECLICK:
-    case NS_MOUSE_ENTER_WIDGET:
-    case NS_MOUSE_EXIT_WIDGET:
-    case NS_MOUSE_ACTIVATE:
-    case NS_MOUSE_OVER:
-    case NS_MOUSE_OUT:
-    case NS_MOUSE_MOZHITTEST:
-    case NS_MOUSE_MOVE:
+    case eMouseDown:
+    case eMouseUp:
+    case eMouseClick:
+    case eMouseDoubleClick:
+    case eMouseEnterIntoWidget:
+    case eMouseExitFromWidget:
+    case eMouseActivate:
+    case eMouseOver:
+    case eMouseOut:
+    case eMouseHitTest:
+    case eMouseMove:
       return true;
     default:
       return false;

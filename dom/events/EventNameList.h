@@ -271,11 +271,11 @@ EVENT(mousedown,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseenter,
-      NS_MOUSEENTER,
+      eMouseEnter,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseleave,
-      NS_MOUSELEAVE,
+      eMouseLeave,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mousemove,
@@ -323,7 +323,7 @@ EVENT(pointerup,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointercancel,
-      NS_POINTER_CANCEL,
+      ePointerCancel,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerover,
@@ -339,15 +339,15 @@ EVENT(pointerenter,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerleave,
-      NS_POINTER_LEAVE,
+      ePointerLeave,
       EventNameType_All,
       ePointerEventClass)
 EVENT(gotpointercapture,
-      NS_POINTER_GOT_CAPTURE,
+      ePointerGotCapture,
       EventNameType_All,
       ePointerEventClass)
 EVENT(lostpointercapture,
-      NS_POINTER_LOST_CAPTURE,
+      ePointerLostCapture,
       EventNameType_All,
       ePointerEventClass)
 EVENT(selectstart,

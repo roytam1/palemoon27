@@ -204,8 +204,8 @@ protected:
     , clickCount(0)
   {
     switch (aMessage) {
-      case NS_MOUSEENTER:
-      case NS_MOUSELEAVE:
+      case eMouseEnter:
+      case eMouseLeave:
         mFlags.mBubbles = false;
         mFlags.mCancelable = false;
         break;
@@ -224,8 +224,8 @@ public:
     reason(aReason), context(aContext), exit(eChild), clickCount(0)
   {
     switch (aMessage) {
-      case NS_MOUSEENTER:
-      case NS_MOUSELEAVE:
+      case eMouseEnter:
+      case eMouseLeave:
         mFlags.mBubbles = false;
         mFlags.mCancelable = false;
         break;
@@ -626,13 +626,13 @@ public:
   {
     switch (mMessage) {
       case NS_POINTER_ENTER:
-      case NS_POINTER_LEAVE:
+      case ePointerLeave:
         mFlags.mBubbles = false;
         mFlags.mCancelable = false;
         break;
-      case NS_POINTER_CANCEL:
-      case NS_POINTER_GOT_CAPTURE:
-      case NS_POINTER_LOST_CAPTURE:
+      case ePointerCancel:
+      case ePointerGotCapture:
+      case ePointerLostCapture:
         mFlags.mCancelable = false;
         break;
       default:

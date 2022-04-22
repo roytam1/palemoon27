@@ -165,7 +165,7 @@ EVENT(change,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(click,
-      NS_MOUSE_CLICK,
+      eMouseClick,
       EventNameType_All,
       eMouseEventClass)
 EVENT(contextmenu,
@@ -175,7 +175,7 @@ EVENT(contextmenu,
 // Not supported yet
 // EVENT(cuechange)
 EVENT(dblclick,
-      NS_MOUSE_DOUBLECLICK,
+      eMouseDoubleClick,
       EventNameType_HTMLXUL,
       eMouseEventClass)
 EVENT(drag,
@@ -267,31 +267,31 @@ EVENT(loadstart,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(mousedown,
-      NS_MOUSE_BUTTON_DOWN,
+      eMouseDown,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseenter,
-      NS_MOUSEENTER,
+      eMouseEnter,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseleave,
-      NS_MOUSELEAVE,
+      eMouseLeave,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mousemove,
-      NS_MOUSE_MOVE,
+      eMouseMove,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseout,
-      NS_MOUSE_OUT,
+      eMouseOut,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseover,
-      NS_MOUSE_OVER,
+      eMouseOver,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mouseup,
-      NS_MOUSE_BUTTON_UP,
+      eMouseUp,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mozfullscreenchange,
@@ -323,7 +323,7 @@ EVENT(pointerup,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointercancel,
-      NS_POINTER_CANCEL,
+      ePointerCancel,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerover,
@@ -339,15 +339,15 @@ EVENT(pointerenter,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerleave,
-      NS_POINTER_LEAVE,
+      ePointerLeave,
       EventNameType_All,
       ePointerEventClass)
 EVENT(gotpointercapture,
-      NS_POINTER_GOT_CAPTURE,
+      ePointerGotCapture,
       EventNameType_All,
       ePointerEventClass)
 EVENT(lostpointercapture,
-      NS_POINTER_LOST_CAPTURE,
+      ePointerLostCapture,
       EventNameType_All,
       ePointerEventClass)
 EVENT(selectstart,
@@ -493,7 +493,7 @@ WINDOW_EVENT(hashchange,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(languagechange,
-             NS_LANGUAGECHANGE,
+             eLanguageChange,
              EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 // XXXbz Should the onmessage attribute on <body> really not work?  If so, do we
@@ -504,11 +504,11 @@ WINDOW_EVENT(message,
              EventNameType_None,
              eBasicEventClass)
 WINDOW_EVENT(offline,
-             NS_OFFLINE,
+             eOffline,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(online,
-             NS_ONLINE,
+             eOnline,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(pagehide,
@@ -602,7 +602,7 @@ DOCUMENT_ONLY_EVENT(visibilitychange,
                     eBasicEventClass)
 
 NON_IDL_EVENT(MozMouseHittest,
-              NS_MOUSE_MOZHITTEST,
+              eMouseHitTest,
               EventNameType_None,
               eMouseEventClass)
 

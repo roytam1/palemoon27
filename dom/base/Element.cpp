@@ -2089,7 +2089,7 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
   NS_PRECONDITION(aSourceEvent, "Must have source event");
   NS_PRECONDITION(aStatus, "Null out param?");
 
-  WidgetMouseEvent event(aSourceEvent->mFlags.mIsTrusted, NS_MOUSE_CLICK,
+  WidgetMouseEvent event(aSourceEvent->mFlags.mIsTrusted, eMouseClick,
                          aSourceEvent->widget, WidgetMouseEvent::eReal);
   event.refPoint = aSourceEvent->refPoint;
   uint32_t clickCount = 1;
@@ -2903,7 +2903,7 @@ Element::CheckHandleEventForLinksPrecondition(EventChainVisitor& aVisitor,
 {
   if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
       (!aVisitor.mEvent->mFlags.mIsTrusted &&
-       (aVisitor.mEvent->mMessage != NS_MOUSE_CLICK) &&
+       (aVisitor.mEvent->mMessage != eMouseClick) &&
        (aVisitor.mEvent->mMessage != eKeyPress) &&
        (aVisitor.mEvent->mMessage != NS_UI_ACTIVATE)) ||
       !aVisitor.mPresContext ||
@@ -2921,9 +2921,9 @@ Element::PreHandleEventForLinks(EventChainPreVisitor& aVisitor)
   // Optimisation: return early if this event doesn't interest us.
   // IMPORTANT: this switch and the switch below it must be kept in sync!
   switch (aVisitor.mEvent->mMessage) {
-  case NS_MOUSE_OVER:
+  case eMouseOver:
   case NS_FOCUS_CONTENT:
-  case NS_MOUSE_OUT:
+  case eMouseOut:
   case NS_BLUR_CONTENT:
     break;
   default:
@@ -2942,7 +2942,7 @@ Element::PreHandleEventForLinks(EventChainPreVisitor& aVisitor)
   // updated even if the event is consumed before we have a chance to set it.
   switch (aVisitor.mEvent->mMessage) {
   // Set the status bar similarly for mouseover and focus
-  case NS_MOUSE_OVER:
+  case eMouseOver:
     aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
     // FALL THROUGH
   case NS_FOCUS_CONTENT: {
@@ -2957,7 +2957,7 @@ Element::PreHandleEventForLinks(EventChainPreVisitor& aVisitor)
     }
     break;
   }
-  case NS_MOUSE_OUT:
+  case eMouseOut:
     aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
     // FALL THROUGH
   case NS_BLUR_CONTENT:
@@ -2982,8 +2982,8 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
   // Optimisation: return early if this event doesn't interest us.
   // IMPORTANT: this switch and the switch below it must be kept in sync!
   switch (aVisitor.mEvent->mMessage) {
-  case NS_MOUSE_BUTTON_DOWN:
-  case NS_MOUSE_CLICK:
+  case eMouseDown:
+  case eMouseClick:
   case NS_UI_ACTIVATE:
   case eKeyPress:
     break;
@@ -3000,7 +3000,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
   nsresult rv = NS_OK;
 
   switch (aVisitor.mEvent->mMessage) {
-  case NS_MOUSE_BUTTON_DOWN:
+  case eMouseDown:
     {
       if (aVisitor.mEvent->AsMouseEvent()->button ==
             WidgetMouseEvent::eLeftButton) {
@@ -3023,7 +3023,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
     }
     break;
 
-  case NS_MOUSE_CLICK: {
+  case eMouseClick: {
     WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
     if (mouseEvent->IsLeftClickEvent()) {
       if (mouseEvent->IsControl() || mouseEvent->IsMeta() ||

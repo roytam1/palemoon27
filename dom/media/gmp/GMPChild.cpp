@@ -18,10 +18,13 @@
 #include "gmp-video-decode.h"
 #include "gmp-video-encode.h"
 #include "GMPPlatform.h"
+#include "mozilla/dom/CrashReporterChild.h"
 #ifdef XP_WIN
 #include "nsCRT.h"
 #endif
 #include <fstream>
+
+using mozilla::dom::CrashReporterChild;
 
 static const int MAX_VOUCHER_LENGTH = 500000;
 
@@ -260,6 +263,10 @@ GMPChild::Init(const std::string& aPluginPath,
     return false;
   }
 
+#ifdef MOZ_CRASHREPORTER
+  SendPCrashReporterConstructor(CrashReporter::CurrentThreadId());
+#endif
+
   mPluginPath = aPluginPath;
   mVoucherPath = aVoucherPath;
   return true;
@@ -473,6 +480,19 @@ GMPChild::ProcessingError(Result aCode, const char* aReason)
     default:
       MOZ_CRASH("not reached");
   }
+}
+
+mozilla::dom::PCrashReporterChild*
+GMPChild::AllocPCrashReporterChild(const NativeThreadId& aThread)
+{
+  return new CrashReporterChild();
+}
+
+bool
+GMPChild::DeallocPCrashReporterChild(PCrashReporterChild* aCrashReporter)
+{
+  delete aCrashReporter;
+  return true;
 }
 
 PGMPTimerChild*

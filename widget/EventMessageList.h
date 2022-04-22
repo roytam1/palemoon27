@@ -31,52 +31,50 @@ NS_EVENT_MESSAGE(eAfterKeyUp,           eWindowEventFirst + 37)
 NS_EVENT_MESSAGE(eResize,               eWindowEventFirst + 60)
 NS_EVENT_MESSAGE(eScroll,               eWindowEventFirst + 61)
 
-// A plugin was clicked or otherwise focused. NS_PLUGIN_ACTIVATE should be
-// used when the window is not active. NS_PLUGIN_FOCUS should be used when
+// A plugin was clicked or otherwise focused. ePluginActivate should be
+// used when the window is not active. ePluginFocus should be used when
 // the window is active. In the latter case, the dispatcher of the event
 // is expected to ensure that the plugin's widget is focused beforehand.
-NS_EVENT_MESSAGE(NS_PLUGIN_ACTIVATE,    eWindowEventFirst + 62)
-NS_EVENT_MESSAGE(NS_PLUGIN_FOCUS,       eWindowEventFirst + 63)
+NS_EVENT_MESSAGE(ePluginActivate,       eWindowEventFirst + 62)
+NS_EVENT_MESSAGE(ePluginFocus,          eWindowEventFirst + 63)
 
-NS_EVENT_MESSAGE(NS_OFFLINE,            eWindowEventFirst + 64)
-NS_EVENT_MESSAGE(NS_ONLINE,             eWindowEventFirst + 65)
+NS_EVENT_MESSAGE(eOffline,              eWindowEventFirst + 64)
+NS_EVENT_MESSAGE(eOnline,               eWindowEventFirst + 65)
 
 // NS_BEFORERESIZE_EVENT used to be here (eWindowEventFirst + 66)
 
-// Indicates that the user is either idle or active
-NS_EVENT_MESSAGE(NS_MOZ_USER_IDLE,      eWindowEventFirst + 67)
-NS_EVENT_MESSAGE(NS_MOZ_USER_ACTIVE,    eWindowEventFirst + 68)
+NS_EVENT_MESSAGE(eLanguageChange,       eWindowEventFirst + 70)
 
-NS_EVENT_MESSAGE(NS_LANGUAGECHANGE,     eWindowEventFirst + 70)
-
-NS_EVENT_MESSAGE(NS_MOUSE_MESSAGE_START, 300)
-NS_EVENT_MESSAGE(NS_MOUSE_MOVE,         NS_MOUSE_MESSAGE_START)
-NS_EVENT_MESSAGE(NS_MOUSE_BUTTON_UP,    NS_MOUSE_MESSAGE_START + 1)
-NS_EVENT_MESSAGE(NS_MOUSE_BUTTON_DOWN,  NS_MOUSE_MESSAGE_START + 2)
-NS_EVENT_MESSAGE(NS_MOUSE_ENTER_WIDGET, NS_MOUSE_MESSAGE_START + 22)
-NS_EVENT_MESSAGE(NS_MOUSE_EXIT_WIDGET,  NS_MOUSE_MESSAGE_START + 23)
-NS_EVENT_MESSAGE(NS_MOUSE_DOUBLECLICK,  NS_MOUSE_MESSAGE_START + 24)
-NS_EVENT_MESSAGE(NS_MOUSE_CLICK,        NS_MOUSE_MESSAGE_START + 27)
-NS_EVENT_MESSAGE(NS_MOUSE_ACTIVATE,     NS_MOUSE_MESSAGE_START + 30)
-NS_EVENT_MESSAGE(NS_MOUSE_OVER,         NS_MOUSE_MESSAGE_START + 31)
-NS_EVENT_MESSAGE(NS_MOUSE_OUT,          NS_MOUSE_MESSAGE_START + 32)
-NS_EVENT_MESSAGE(NS_MOUSE_MOZHITTEST,   NS_MOUSE_MESSAGE_START + 33)
-NS_EVENT_MESSAGE(NS_MOUSEENTER,         NS_MOUSE_MESSAGE_START + 34)
-NS_EVENT_MESSAGE(NS_MOUSELEAVE,         NS_MOUSE_MESSAGE_START + 35)
-NS_EVENT_MESSAGE(NS_MOUSE_MOZLONGTAP,   NS_MOUSE_MESSAGE_START + 36)
+NS_EVENT_MESSAGE(eMouseEventFirst,      300)
+NS_EVENT_MESSAGE(eMouseMove,            eMouseEventFirst)
+NS_EVENT_MESSAGE(eMouseUp,              eMouseEventFirst + 1)
+NS_EVENT_MESSAGE(eMouseDown,            eMouseEventFirst + 2)
+NS_EVENT_MESSAGE(eMouseEnterIntoWidget, eMouseEventFirst + 22)
+NS_EVENT_MESSAGE(eMouseExitFromWidget,  eMouseEventFirst + 23)
+NS_EVENT_MESSAGE(eMouseDoubleClick,     eMouseEventFirst + 24)
+NS_EVENT_MESSAGE(eMouseClick,           eMouseEventFirst + 27)
+// eMouseActivate is fired when the widget is activated by a click.
+NS_EVENT_MESSAGE(eMouseActivate,        eMouseEventFirst + 30)
+NS_EVENT_MESSAGE(eMouseOver,            eMouseEventFirst + 31)
+NS_EVENT_MESSAGE(eMouseOut,             eMouseEventFirst + 32)
+NS_EVENT_MESSAGE(eMouseHitTest,         eMouseEventFirst + 33)
+NS_EVENT_MESSAGE(eMouseEnter,           eMouseEventFirst + 34)
+NS_EVENT_MESSAGE(eMouseLeave,           eMouseEventFirst + 35)
+NS_EVENT_MESSAGE(eMouseLongTap,         eMouseEventFirst + 36)
 
 // Pointer spec events
-NS_EVENT_MESSAGE(NS_POINTER_EVENT_START,  4400)
-NS_EVENT_MESSAGE(NS_POINTER_MOVE,         NS_POINTER_EVENT_START)
-NS_EVENT_MESSAGE(NS_POINTER_UP,           NS_POINTER_EVENT_START + 1)
-NS_EVENT_MESSAGE(NS_POINTER_DOWN,         NS_POINTER_EVENT_START + 2)
-NS_EVENT_MESSAGE(NS_POINTER_OVER,         NS_POINTER_EVENT_START + 22)
-NS_EVENT_MESSAGE(NS_POINTER_OUT,          NS_POINTER_EVENT_START + 23)
-NS_EVENT_MESSAGE(NS_POINTER_ENTER,        NS_POINTER_EVENT_START + 24)
-NS_EVENT_MESSAGE(NS_POINTER_LEAVE,        NS_POINTER_EVENT_START + 25)
-NS_EVENT_MESSAGE(NS_POINTER_CANCEL,       NS_POINTER_EVENT_START + 26)
-NS_EVENT_MESSAGE(NS_POINTER_GOT_CAPTURE,  NS_POINTER_EVENT_START + 27)
-NS_EVENT_MESSAGE(NS_POINTER_LOST_CAPTURE, NS_POINTER_EVENT_START + 28)
+NS_EVENT_MESSAGE(ePointerEventFirst,    4400)
+NS_EVENT_MESSAGE(NS_POINTER_MOVE,         ePointerEventFirst)
+NS_EVENT_MESSAGE(NS_POINTER_UP,           ePointerEventFirst + 1)
+NS_EVENT_MESSAGE(NS_POINTER_DOWN,         ePointerEventFirst + 2)
+NS_EVENT_MESSAGE(NS_POINTER_OVER,         ePointerEventFirst + 22)
+NS_EVENT_MESSAGE(NS_POINTER_OUT,          ePointerEventFirst + 23)
+NS_EVENT_MESSAGE(NS_POINTER_ENTER,        ePointerEventFirst + 24)
+NS_EVENT_MESSAGE(ePointerLeave,         ePointerEventFirst + 25)
+NS_EVENT_MESSAGE(ePointerCancel,        ePointerEventFirst + 26)
+NS_EVENT_MESSAGE(ePointerGotCapture,    ePointerEventFirst + 27)
+NS_EVENT_MESSAGE(ePointerLostCapture,   ePointerEventFirst + 28)
+NS_EVENT_MESSAGE(ePointerEventLast,     ePointerLostCapture)
 
 NS_EVENT_MESSAGE(NS_CONTEXTMENU_MESSAGE_START, 500)
 NS_EVENT_MESSAGE(NS_CONTEXTMENU,        NS_CONTEXTMENU_MESSAGE_START)

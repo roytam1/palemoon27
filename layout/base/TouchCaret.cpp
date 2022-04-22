@@ -765,19 +765,19 @@ TouchCaret::HandleEvent(WidgetEvent* aEvent)
     case NS_TOUCH_START:
       status = HandleTouchDownEvent(aEvent->AsTouchEvent());
       break;
-    case NS_MOUSE_BUTTON_DOWN:
+    case eMouseDown:
       status = HandleMouseDownEvent(aEvent->AsMouseEvent());
       break;
     case NS_TOUCH_END:
       status = HandleTouchUpEvent(aEvent->AsTouchEvent());
       break;
-    case NS_MOUSE_BUTTON_UP:
+    case eMouseUp:
       status = HandleMouseUpEvent(aEvent->AsMouseEvent());
       break;
     case NS_TOUCH_MOVE:
       status = HandleTouchMoveEvent(aEvent->AsTouchEvent());
       break;
-    case NS_MOUSE_MOVE:
+    case eMouseMove:
       status = HandleMouseMoveEvent(aEvent->AsMouseEvent());
       break;
     case NS_TOUCH_CANCEL:
@@ -795,7 +795,7 @@ TouchCaret::HandleEvent(WidgetEvent* aEvent)
       TOUCHCARET_LOG("Receive key/wheel event %d", aEvent->mMessage);
       SetVisibility(false);
       break;
-    case NS_MOUSE_MOZLONGTAP:
+    case eMouseLongTap:
       if (mState == TOUCHCARET_TOUCHDRAG_ACTIVE) {
         // Disable long tap event from APZ while dragging the touch caret.
         status = nsEventStatus_eConsumeNoDefault;

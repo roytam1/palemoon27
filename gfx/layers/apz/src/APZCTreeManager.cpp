@@ -914,8 +914,8 @@ APZCTreeManager::UpdateWheelTransaction(WidgetInputEvent& aEvent)
    case eMouseDown:
    case eMouseDoubleClick:
    case eMouseClick:
-   case NS_CONTEXTMENU:
-   case NS_DRAGDROP_DROP:
+   case eContextMenu:
+   case eDrop:
      txn->EndTransaction();
      return;
    default:

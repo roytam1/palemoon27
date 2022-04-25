@@ -5081,7 +5081,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
       return nil;
   }
 
-  WidgetMouseEvent geckoEvent(true, NS_CONTEXTMENU, mGeckoChild,
+  WidgetMouseEvent geckoEvent(true, eContextMenu, mGeckoChild,
                               WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
   geckoEvent.button = WidgetMouseEvent::eRightButton;
@@ -5726,8 +5726,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
       // cancelled or not as there isn't actually a means to stop the drag
       mDragService->FireDragEventAtSource(NS_DRAGDROP_DRAG);
       dragSession->SetCanDrop(false);
-    }
-    else if (aMessage == NS_DRAGDROP_DROP) {
+    } else if (aMessage == eDrop) {
       // We make the assumption that the dragOver handlers have correctly set
       // the |canDrop| property of the Drag Session.
       bool canDrop = false;
@@ -5792,7 +5791,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
         return [self dragOperationFromDragAction:dragAction];
       }
       case NS_DRAGDROP_EXIT:
-      case NS_DRAGDROP_DROP: {
+      case eDrop: {
         nsCOMPtr<nsIDOMNode> sourceNode;
         dragSession->GetSourceNode(getter_AddRefs(sourceNode));
         if (!sourceNode) {
@@ -5852,7 +5851,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 - (BOOL)performDragOperation:(id <NSDraggingInfo>)sender
 {
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  BOOL handled = [self doDragAction:NS_DRAGDROP_DROP sender:sender] != NSDragOperationNone;
+  BOOL handled = [self doDragAction:eDrop sender:sender] != NSDragOperationNone;
   NS_IF_RELEASE(mDragService);
   return handled;
 }

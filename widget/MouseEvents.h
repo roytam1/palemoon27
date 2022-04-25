@@ -229,7 +229,7 @@ public:
         mFlags.mBubbles = false;
         mFlags.mCancelable = false;
         break;
-      case NS_CONTEXTMENU:
+      case eContextMenu:
         button = (context == eNormal) ? eRightButton : eLeftButton;
         break;
       default:
@@ -240,10 +240,10 @@ public:
 #ifdef DEBUG
   virtual ~WidgetMouseEvent()
   {
-    NS_WARN_IF_FALSE(mMessage != NS_CONTEXTMENU ||
+    NS_WARN_IF_FALSE(mMessage != eContextMenu ||
                      button ==
                        ((context == eNormal) ? eRightButton : eLeftButton),
-                     "Wrong button set to NS_CONTEXTMENU event?");
+                     "Wrong button set to eContextMenu event?");
   }
 #endif
 
@@ -287,7 +287,7 @@ public:
    */
   bool IsContextMenuKeyEvent() const
   {
-    return mMessage == NS_CONTEXTMENU && context == eContextMenuKey;
+    return mMessage == eContextMenu && context == eContextMenuKey;
   }
 
   /**
@@ -323,7 +323,7 @@ public:
   {
     mFlags.mCancelable =
       (aMessage != NS_DRAGDROP_EXIT &&
-       aMessage != NS_DRAGDROP_LEAVE &&
+       aMessage != eDragLeave &&
        aMessage != NS_DRAGDROP_END);
   }
 
@@ -625,7 +625,7 @@ public:
   void UpdateFlags()
   {
     switch (mMessage) {
-      case NS_POINTER_ENTER:
+      case ePointerEnter:
       case ePointerLeave:
         mFlags.mBubbles = false;
         mFlags.mCancelable = false;

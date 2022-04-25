@@ -2252,8 +2252,7 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
   if (aVisitor.mEvent->mFlags.mIsTrusted) {
     switch (aVisitor.mEvent->mMessage) {
-      case NS_FOCUS_CONTENT:
-      {
+      case eFocus: {
         // Check to see if focus has bubbled up from a form control's
         // child textfield or button.  If that's the case, don't focus
         // this parent file control -- leave focus on the child.
@@ -2263,8 +2262,7 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
           formControlFrame->SetFocus(true, true);
         break;
       }
-      case NS_BLUR_CONTENT:
-      {
+      case eBlur: {
         nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
         if (formControlFrame)
           formControlFrame->SetFocus(false, false);
@@ -2454,10 +2452,10 @@ nsGenericHTMLFormElement::IsElementDisabledForEvents(EventMessage aMessage,
     case eMouseOut:
     case eMouseEnter:
     case eMouseLeave:
-    case NS_POINTER_MOVE:
-    case NS_POINTER_OVER:
-    case NS_POINTER_OUT:
-    case NS_POINTER_ENTER:
+    case ePointerMove:
+    case ePointerOver:
+    case ePointerOut:
+    case ePointerEnter:
     case ePointerLeave:
     case NS_WHEEL_WHEEL:
     case NS_MOUSE_SCROLL:

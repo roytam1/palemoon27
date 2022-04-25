@@ -214,8 +214,8 @@ WheelTransaction::OnEvent(WidgetEvent* aEvent)
     case eMouseDown:
     case eMouseDoubleClick:
     case eMouseClick:
-    case NS_CONTEXTMENU:
-    case NS_DRAGDROP_DROP:
+    case eContextMenu:
+    case eDrop:
       EndTransaction();
       return;
     default:

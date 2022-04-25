@@ -386,7 +386,7 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
       return DragExit(dragEvent);
     }
     // drop
-    case NS_DRAGDROP_DROP: {
+    case eDrop: {
       nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
       return Drop(dragEvent);
     }
@@ -454,10 +454,10 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
       return MouseClick(mouseEvent);
     }
     // focus
-    case NS_FOCUS_CONTENT:
+    case eFocus:
       return Focus(aEvent);
     // blur
-    case NS_BLUR_CONTENT:
+    case eBlur:
       return Blur(aEvent);
     // text
     case NS_COMPOSITION_CHANGE:

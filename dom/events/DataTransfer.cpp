@@ -89,7 +89,7 @@ DataTransfer::DataTransfer(nsISupports* aParent, EventMessage aEventMessage,
   if (aEventMessage == NS_CUT ||
       aEventMessage == NS_COPY ||
       aEventMessage == eDragStart ||
-      aEventMessage == NS_DRAGDROP_GESTURE) {
+      aEventMessage == eLegacyDragGesture) {
     mReadOnly = false;
   } else if (mIsExternal) {
     if (aEventMessage == NS_PASTE) {
@@ -134,7 +134,7 @@ DataTransfer::DataTransfer(nsISupports* aParent,
   // draggesture and dragstart events are the only times when items are
   // modifiable, but those events should have been using the first constructor
   // above.
-  NS_ASSERTION(aEventMessage != NS_DRAGDROP_GESTURE &&
+  NS_ASSERTION(aEventMessage != eLegacyDragGesture &&
                aEventMessage != eDragStart,
                "invalid event type for DataTransfer constructor");
 }
@@ -270,7 +270,7 @@ FileList*
 DataTransfer::GetFiles(ErrorResult& aRv)
 {
   if (mEventMessage != eDrop &&
-      mEventMessage != NS_DRAGDROP_DRAGDROP &&
+      mEventMessage != eLegacyDragDrop &&
       mEventMessage != NS_PASTE) {
     return nullptr;
   }
@@ -615,8 +615,7 @@ DataTransfer::MozGetDataAt(const nsAString& aFormat, uint32_t aIndex,
   // only allow access to the data with the same principal.
   nsIPrincipal* principal = nullptr;
   if (mIsCrossDomainSubFrameDrop ||
-      (mEventMessage != eDrop &&
-       mEventMessage != NS_DRAGDROP_DRAGDROP &&
+      (mEventMessage != eDrop && mEventMessage != eLegacyDragDrop &&
        mEventMessage != NS_PASTE &&
        !nsContentUtils::IsCallerChrome())) {
     principal = nsContentUtils::SubjectPrincipal();

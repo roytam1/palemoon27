@@ -2198,15 +2198,15 @@ TabChild::RecvRealDragEvent(const WidgetDragEvent& aEvent,
     bool canDrop = true;
     if (!dragSession || NS_FAILED(dragSession->GetCanDrop(&canDrop)) ||
         !canDrop) {
-      localEvent.mMessage = NS_DRAGDROP_EXIT;
+      localEvent.mMessage = eDragExit;
     }
-  } else if (aEvent.mMessage == NS_DRAGDROP_OVER) {
+  } else if (aEvent.mMessage == eDragOver) {
     nsCOMPtr<nsIDragService> dragService =
       do_GetService("@mozilla.org/widget/dragservice;1");
     if (dragService) {
       // This will dispatch 'drag' event at the source if the
       // drag transaction started in this process.
-      dragService->FireDragEventAtSource(NS_DRAGDROP_DRAG);
+      dragService->FireDragEventAtSource(eDrag);
     }
   }
 

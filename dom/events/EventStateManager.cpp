@@ -662,16 +662,16 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     FlushPendingEvents(aPresContext);
     break;
   }
-  case NS_DRAGDROP_GESTURE:
+  case eLegacyDragGesture:
     if (Prefs::ClickHoldContextMenu()) {
       // an external drag gesture event came in, not generated internally
       // by Gecko. Make sure we get rid of the click-hold timer.
       KillClickHoldTimer();
     }
     break;
-  case NS_DRAGDROP_OVER:
-    // eDrop is fired before NS_DRAGDROP_DRAGDROP so send
-    // the enter/exit events before eDrop.
+  case eDragOver:
+    // eDrop is fired before eLegacyDragDrop so send the enter/exit events
+    // before eDrop.
     GenerateDragDropEnterExit(aPresContext, aEvent->AsDragEvent());
     break;
 
@@ -1209,8 +1209,8 @@ CrossProcessSafeEvent(const WidgetEvent& aEvent)
     }
   case eDragEventClass:
     switch (aEvent.mMessage) {
-    case NS_DRAGDROP_OVER:
-    case NS_DRAGDROP_EXIT:
+    case eDragOver:
+    case eDragExit:
     case eDrop:
       return true;
     default:
@@ -1683,7 +1683,7 @@ EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       FillInEventFromGestureDown(&startEvent);
 
       WidgetDragEvent gestureEvent(aEvent->mFlags.mIsTrusted,
-                                   NS_DRAGDROP_GESTURE, widget);
+                                   eLegacyDragGesture, widget);
       FillInEventFromGestureDown(&gestureEvent);
 
       startEvent.dataTransfer = gestureEvent.dataTransfer = dataTransfer;
@@ -1742,7 +1742,7 @@ EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
         }
       }
 
-      // Note that frame event handling doesn't care about NS_DRAGDROP_GESTURE,
+      // Note that frame event handling doesn't care about eLegacyDragGesture,
       // which is just as well since we don't really know which frame to
       // send it to
 
@@ -3187,8 +3187,8 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     }
     break;
 
-  case NS_DRAGDROP_ENTER:
-  case NS_DRAGDROP_OVER:
+  case eDragEnter:
+  case eDragOver:
     {
       NS_ASSERTION(aEvent->mClass == eDragEventClass, "Expected a drag event");
 
@@ -3277,13 +3277,13 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
         // For now, do this only for dragover.
         //XXXsmaug dragenter needs some more work.
-        if (aEvent->mMessage == NS_DRAGDROP_OVER && !isChromeDoc) {
+        if (aEvent->mMessage == eDragOver && !isChromeDoc) {
           // Someone has called preventDefault(), check whether is was on
           // content or chrome.
           dragSession->SetOnlyChromeDrop(
             !dragEvent->mDefaultPreventedOnContent);
         }
-      } else if (aEvent->mMessage == NS_DRAGDROP_OVER && !isChromeDoc) {
+      } else if (aEvent->mMessage == eDragOver && !isChromeDoc) {
         // No one called preventDefault(), so handle drop only in chrome.
         dragSession->SetOnlyChromeDrop(true);
       }
@@ -3312,7 +3312,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
         nsCOMPtr<nsIWidget> widget = mCurrentTarget->GetNearestWidget();
         WidgetDragEvent event(aEvent->mFlags.mIsTrusted,
-                              NS_DRAGDROP_DRAGDROP, widget);
+                              eLegacyDragDrop, widget);
 
         WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
         event.refPoint = mouseEvent->refPoint;
@@ -3335,9 +3335,9 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       ClearGlobalActiveContent(this);
       break;
     }
-  case NS_DRAGDROP_EXIT:
+  case eDragExit:
      // make sure to fire the enter and exit_synth events after the
-     // NS_DRAGDROP_EXIT event, otherwise we'll clean up too early
+     // eDragExit event, otherwise we'll clean up too early
     GenerateDragDropEnterExit(presContext, aEvent->AsDragEvent());
     break;
 
@@ -4319,7 +4319,7 @@ EventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
   nsCOMPtr<nsIContent> targetBeforeEvent = mCurrentTargetContent;
 
   switch(aDragEvent->mMessage) {
-  case NS_DRAGDROP_OVER:
+  case eDragOver:
     {
       // when dragging from one frame to another, events are fired in the
       // order: dragexit, dragenter, dragleave
@@ -4336,11 +4336,11 @@ EventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
                                                  getter_AddRefs(lastContent));
 
           FireDragEnterOrExit(sLastDragOverFrame->PresContext(),
-                              aDragEvent, NS_DRAGDROP_EXIT,
+                              aDragEvent, eDragExit,
                               targetContent, lastContent, sLastDragOverFrame);
         }
 
-        FireDragEnterOrExit(aPresContext, aDragEvent, NS_DRAGDROP_ENTER,
+        FireDragEnterOrExit(aPresContext, aDragEvent, eDragEnter,
                             lastContent, targetContent, mCurrentTarget);
 
         if (sLastDragOverFrame) {
@@ -4354,7 +4354,7 @@ EventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
     }
     break;
 
-  case NS_DRAGDROP_EXIT:
+  case eDragExit:
     {
       //This is actually the window mouse exit event.
       if (sLastDragOverFrame) {
@@ -4364,7 +4364,7 @@ EventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
 
         nsRefPtr<nsPresContext> lastDragOverFramePresContext = sLastDragOverFrame->PresContext();
         FireDragEnterOrExit(lastDragOverFramePresContext,
-                            aDragEvent, NS_DRAGDROP_EXIT,
+                            aDragEvent, eDragExit,
                             nullptr, lastContent, sLastDragOverFrame);
         FireDragEnterOrExit(lastDragOverFramePresContext,
                             aDragEvent, eDragLeave,
@@ -4413,17 +4413,15 @@ EventStateManager::FireDragEnterOrExit(nsPresContext* aPresContext,
     }
 
     // adjust the drag hover if the dragenter event was cancelled or this is a drag exit
-    if (status == nsEventStatus_eConsumeNoDefault ||
-        aMessage == NS_DRAGDROP_EXIT) {
-      SetContentState((aMessage == NS_DRAGDROP_ENTER) ?
-                        aTargetContent : nullptr,
+    if (status == nsEventStatus_eConsumeNoDefault || aMessage == eDragExit) {
+      SetContentState((aMessage == eDragEnter) ? aTargetContent : nullptr,
                       NS_EVENT_STATE_DRAGOVER);
     }
 
     // collect any changes to moz cursor settings stored in the event's
     // data transfer.
-    if (aMessage == eDragLeave || aMessage == NS_DRAGDROP_EXIT ||
-        aMessage == NS_DRAGDROP_ENTER) {
+    if (aMessage == eDragLeave || aMessage == eDragExit ||
+        aMessage == eDragEnter) {
       UpdateDragDataTransfer(&event);
     }
   }

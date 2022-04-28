@@ -102,27 +102,26 @@ NS_EVENT_MESSAGE(eFocus,                eFocusEventFirst)
 NS_EVENT_MESSAGE(eBlur,                 eFocusEventFirst + 1)
 
 NS_EVENT_MESSAGE(eDragDropEventFirst,   1400)
-NS_EVENT_MESSAGE(NS_DRAGDROP_ENTER,     eDragDropEventFirst)
-NS_EVENT_MESSAGE(NS_DRAGDROP_OVER,      eDragDropEventFirst + 1)
-NS_EVENT_MESSAGE(NS_DRAGDROP_EXIT,      eDragDropEventFirst + 2)
-NS_EVENT_MESSAGE(NS_DRAGDROP_DRAGDROP,  eDragDropEventFirst + 3)
-NS_EVENT_MESSAGE(NS_DRAGDROP_GESTURE,   eDragDropEventFirst + 4)
-NS_EVENT_MESSAGE(NS_DRAGDROP_DRAG,      eDragDropEventFirst + 5)
-NS_EVENT_MESSAGE(NS_DRAGDROP_END,       eDragDropEventFirst + 6)
+NS_EVENT_MESSAGE(eDragEnter,            eDragDropEventFirst)
+NS_EVENT_MESSAGE(eDragOver,             eDragDropEventFirst + 1)
+NS_EVENT_MESSAGE(eDragExit,             eDragDropEventFirst + 2)
+NS_EVENT_MESSAGE(eLegacyDragDrop,       eDragDropEventFirst + 3)
+NS_EVENT_MESSAGE(eLegacyDragGesture,    eDragDropEventFirst + 4)
+NS_EVENT_MESSAGE(eDrag,                 eDragDropEventFirst + 5)
+NS_EVENT_MESSAGE(eDragEnd,              eDragDropEventFirst + 6)
 NS_EVENT_MESSAGE(eDragStart,            eDragDropEventFirst + 7)
 NS_EVENT_MESSAGE(eDrop,                 eDragDropEventFirst + 8)
 NS_EVENT_MESSAGE(eDragLeave,            eDragDropEventFirst + 9)
 NS_EVENT_MESSAGE(eDragDropEventLast,    eDragLeave)
 
-// Events for popups
-NS_EVENT_MESSAGE(NS_XUL_EVENT_START,    1500)
-NS_EVENT_MESSAGE(NS_XUL_POPUP_SHOWING,  NS_XUL_EVENT_START)
-NS_EVENT_MESSAGE(NS_XUL_POPUP_SHOWN,    NS_XUL_EVENT_START + 1)
-NS_EVENT_MESSAGE(NS_XUL_POPUP_HIDING,   NS_XUL_EVENT_START + 2)
-NS_EVENT_MESSAGE(NS_XUL_POPUP_HIDDEN,   NS_XUL_EVENT_START + 3)
-// NS_XUL_COMMAND used to be here       (NS_XUL_EVENT_START + 4)
-NS_EVENT_MESSAGE(NS_XUL_BROADCAST,      NS_XUL_EVENT_START + 5)
-NS_EVENT_MESSAGE(NS_XUL_COMMAND_UPDATE, NS_XUL_EVENT_START + 6)
+// XUL specific events
+NS_EVENT_MESSAGE(eXULEventFirst,        1500)
+NS_EVENT_MESSAGE(eXULPopupShowing,      eXULEventFirst)
+NS_EVENT_MESSAGE(eXULPopupShown,        eXULEventFirst + 1)
+NS_EVENT_MESSAGE(eXULPopupHiding,       eXULEventFirst + 2)
+NS_EVENT_MESSAGE(eXULPopupHidden,       eXULEventFirst + 3)
+NS_EVENT_MESSAGE(eXULBroadcast,         eXULEventFirst + 5)
+NS_EVENT_MESSAGE(eXULCommandUpdate,     eXULEventFirst + 6)
 
 // Scroll events
 NS_EVENT_MESSAGE(NS_MOUSE_SCROLL_START, 1600)
@@ -187,26 +186,24 @@ NS_EVENT_MESSAGE(eLegacyDOMFocusIn,     eLegacyUIEventFirst + 1)
 NS_EVENT_MESSAGE(eLegacyDOMFocusOut,    eLegacyUIEventFirst + 2)
 
 // pagetransition events
-NS_EVENT_MESSAGE(NS_PAGETRANSITION_START, 2700)
-NS_EVENT_MESSAGE(NS_PAGE_SHOW,          NS_PAGETRANSITION_START + 1)
-NS_EVENT_MESSAGE(NS_PAGE_HIDE,          NS_PAGETRANSITION_START + 2)
+NS_EVENT_MESSAGE(ePageTransitionEventFirst, 2700)
+NS_EVENT_MESSAGE(ePageShow,                 ePageTransitionEventFirst + 1)
+NS_EVENT_MESSAGE(ePageHide,                 ePageTransitionEventFirst + 2)
 
 // SVG events
-NS_EVENT_MESSAGE(NS_SVG_EVENT_START,    2800)
-NS_EVENT_MESSAGE(NS_SVG_LOAD,           NS_SVG_EVENT_START)
-NS_EVENT_MESSAGE(NS_SVG_UNLOAD,         NS_SVG_EVENT_START + 1)
-NS_EVENT_MESSAGE(NS_SVG_ABORT,          NS_SVG_EVENT_START + 2)
-NS_EVENT_MESSAGE(NS_SVG_ERROR,          NS_SVG_EVENT_START + 3)
-NS_EVENT_MESSAGE(NS_SVG_RESIZE,         NS_SVG_EVENT_START + 4)
-NS_EVENT_MESSAGE(NS_SVG_SCROLL,         NS_SVG_EVENT_START + 5)
+NS_EVENT_MESSAGE(eSVGEventFirst,        2800)
+NS_EVENT_MESSAGE(eSVGLoad,              eSVGEventFirst)
+NS_EVENT_MESSAGE(eSVGUnload,            eSVGEventFirst + 1)
+NS_EVENT_MESSAGE(eSVGResize,            eSVGEventFirst + 4)
+NS_EVENT_MESSAGE(eSVGScroll,            eSVGEventFirst + 5)
 
 // SVG Zoom events
-NS_EVENT_MESSAGE(NS_SVGZOOM_EVENT_START, 2900)
-NS_EVENT_MESSAGE(NS_SVG_ZOOM,           NS_SVGZOOM_EVENT_START)
+NS_EVENT_MESSAGE(eSVGZoomEventFirst,    2900)
+NS_EVENT_MESSAGE(eSVGZoom,              eSVGZoomEventFirst)
 
 // XUL command events
-NS_EVENT_MESSAGE(NS_XULCOMMAND_EVENT_START, 3000)
-NS_EVENT_MESSAGE(NS_XUL_COMMAND,        NS_XULCOMMAND_EVENT_START)
+NS_EVENT_MESSAGE(eXULCommandEventFirst, 3000)
+NS_EVENT_MESSAGE(eXULCommand,           eXULCommandEventFirst)
 
 // Cut, copy, paste events
 NS_EVENT_MESSAGE(NS_CUTCOPYPASTE_EVENT_START, 3100)

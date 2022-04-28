@@ -179,15 +179,15 @@ EVENT(dblclick,
       EventNameType_HTMLXUL,
       eMouseEventClass)
 EVENT(drag,
-      NS_DRAGDROP_DRAG,
+      eDrag,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragend,
-      NS_DRAGDROP_END,
+      eDragEnd,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragenter,
-      NS_DRAGDROP_ENTER,
+      eDragEnter,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragleave,
@@ -195,7 +195,7 @@ EVENT(dragleave,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragover,
-      NS_DRAGDROP_OVER,
+      eDragOver,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragstart,
@@ -512,11 +512,11 @@ WINDOW_EVENT(online,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(pagehide,
-             NS_PAGE_HIDE,
+             ePageHide,
              EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(pageshow,
-             NS_PAGE_SHOW,
+             ePageShow,
              EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(popstate,
@@ -704,7 +704,7 @@ NON_IDL_EVENT(compositionend,
               EventNameType_XUL,
               eCompositionEventClass)
 NON_IDL_EVENT(command,
-              NS_XUL_COMMAND,
+              eXULCommand,
               EventNameType_XUL,
               eInputEventClass)
 NON_IDL_EVENT(close,
@@ -712,39 +712,39 @@ NON_IDL_EVENT(close,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popupshowing,
-              NS_XUL_POPUP_SHOWING,
+              eXULPopupShowing,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popupshown,
-              NS_XUL_POPUP_SHOWN,
+              eXULPopupShown,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popuphiding,
-              NS_XUL_POPUP_HIDING,
+              eXULPopupHiding,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popuphidden,
-              NS_XUL_POPUP_HIDDEN,
+              eXULPopupHidden,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(broadcast,
-              NS_XUL_BROADCAST,
+              eXULBroadcast,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(commandupdate,
-              NS_XUL_COMMAND_UPDATE,
+              eXULCommandUpdate,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(dragexit,
-              NS_DRAGDROP_EXIT,
+              eDragExit,
               EventNameType_XUL,
               eDragEventClass)
 NON_IDL_EVENT(dragdrop,
-              NS_DRAGDROP_DRAGDROP,
+              eLegacyDragDrop,
               EventNameType_XUL,
               eDragEventClass)
 NON_IDL_EVENT(draggesture,
-              NS_DRAGDROP_GESTURE,
+              eLegacyDragGesture,
               EventNameType_XUL,
               eDragEventClass)
 NON_IDL_EVENT(overflow,
@@ -758,24 +758,24 @@ NON_IDL_EVENT(underflow,
 
 // Various SVG events
 NON_IDL_EVENT(SVGLoad,
-              NS_SVG_LOAD,
+              eSVGLoad,
               EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(SVGUnload,
-              NS_SVG_UNLOAD,
+              eSVGUnload,
               EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(SVGResize,
-              NS_SVG_RESIZE,
+              eSVGResize,
               EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(SVGScroll,
-              NS_SVG_SCROLL,
+              eSVGScroll,
               EventNameType_None,
               eBasicEventClass)
 
 NON_IDL_EVENT(SVGZoom,
-              NS_SVG_ZOOM,
+              eSVGZoom,
               EventNameType_None,
               eSVGZoomEventClass)
 
@@ -783,7 +783,7 @@ NON_IDL_EVENT(SVGZoom,
 #ifndef MESSAGE_TO_EVENT
 // This is a bit hackish, but SVG's event names are weird.
 NON_IDL_EVENT(zoom,
-              NS_SVG_ZOOM,
+              eSVGZoom,
               EventNameType_SVGSVG,
               eBasicEventClass)
 #endif

@@ -99,13 +99,13 @@ bool
 WidgetEvent::HasDragEventMessage() const
 {
   switch (mMessage) {
-    case NS_DRAGDROP_ENTER:
-    case NS_DRAGDROP_OVER:
-    case NS_DRAGDROP_EXIT:
-    case NS_DRAGDROP_DRAGDROP:
-    case NS_DRAGDROP_GESTURE:
-    case NS_DRAGDROP_DRAG:
-    case NS_DRAGDROP_END:
+    case eDragEnter:
+    case eDragOver:
+    case eDragExit:
+    case eLegacyDragDrop:
+    case eLegacyDragGesture:
+    case eDrag:
+    case eDragEnd:
     case eDragStart:
     case eDrop:
     case eDragLeave:

@@ -149,7 +149,7 @@
 #endif /* BEFOREUNLOAD_EVENT */
 
 EVENT(abort,
-      NS_IMAGE_ABORT,
+      eImageAbort,
       EventNameType_All,
       eBasicEventClass)
 EVENT(canplay,
@@ -161,7 +161,7 @@ EVENT(canplaythrough,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(change,
-      NS_FORM_CHANGE,
+      eFormChange,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(click,
@@ -169,7 +169,7 @@ EVENT(click,
       EventNameType_All,
       eMouseEventClass)
 EVENT(contextmenu,
-      NS_CONTEXTMENU,
+      eContextMenu,
       EventNameType_HTMLXUL,
       eMouseEventClass)
 // Not supported yet
@@ -179,31 +179,31 @@ EVENT(dblclick,
       EventNameType_HTMLXUL,
       eMouseEventClass)
 EVENT(drag,
-      NS_DRAGDROP_DRAG,
+      eDrag,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragend,
-      NS_DRAGDROP_END,
+      eDragEnd,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragenter,
-      NS_DRAGDROP_ENTER,
+      eDragEnter,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragleave,
-      NS_DRAGDROP_LEAVE,
+      eDragLeave,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragover,
-      NS_DRAGDROP_OVER,
+      eDragOver,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(dragstart,
-      NS_DRAGDROP_START,
+      eDragStart,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(drop,
-      NS_DRAGDROP_DROP,
+      eDrop,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(durationchange,
@@ -223,7 +223,7 @@ EVENT(input,
       EventNameType_HTMLXUL,
       eEditorInputEventClass)
 EVENT(invalid,
-      NS_FORM_INVALID,
+      eFormInvalid,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(keydown,
@@ -311,15 +311,15 @@ EVENT(mozpointerlockerror,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(pointerdown,
-      NS_POINTER_DOWN,
+      ePointerDown,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointermove,
-      NS_POINTER_MOVE,
+      ePointerMove,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerup,
-      NS_POINTER_UP,
+      ePointerUp,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointercancel,
@@ -327,15 +327,15 @@ EVENT(pointercancel,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerover,
-      NS_POINTER_OVER,
+      ePointerOver,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerout,
-      NS_POINTER_OUT,
+      ePointerOut,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerenter,
-      NS_POINTER_ENTER,
+      ePointerEnter,
       EventNameType_All,
       ePointerEventClass)
 EVENT(pointerleave,
@@ -378,7 +378,7 @@ EVENT(ratechange,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(reset,
-      NS_FORM_RESET,
+      eFormReset,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(seeked,
@@ -390,7 +390,7 @@ EVENT(seeking,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(select,
-      NS_FORM_SELECTED,
+      eFormSelect,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(show,
@@ -402,7 +402,7 @@ EVENT(stalled,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(submit,
-      NS_FORM_SUBMIT,
+      eFormSubmit,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(suspend,
@@ -452,19 +452,19 @@ EVENT(afterscriptexecute,
       eBasicEventClass)
 
 FORWARDED_EVENT(blur,
-                NS_BLUR_CONTENT,
+                eBlur,
                 EventNameType_HTMLXUL,
                 eFocusEventClass)
 ERROR_EVENT(error,
-            NS_LOAD_ERROR,
+            eLoadError,
             EventNameType_All,
             eBasicEventClass)
 FORWARDED_EVENT(focus,
-                NS_FOCUS_CONTENT,
+                eFocus,
                 EventNameType_HTMLXUL,
                 eFocusEventClass)
 FORWARDED_EVENT(load,
-                NS_LOAD,
+                eLoad,
                 EventNameType_All,
                 eBasicEventClass)
 FORWARDED_EVENT(resize,
@@ -485,11 +485,11 @@ WINDOW_EVENT(beforeprint,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 BEFOREUNLOAD_EVENT(beforeunload,
-                   NS_BEFORE_PAGE_UNLOAD,
+                   eBeforeUnload,
                    EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
                    eBasicEventClass)
 WINDOW_EVENT(hashchange,
-             NS_HASHCHANGE,
+             eHashChange,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(languagechange,
@@ -512,15 +512,15 @@ WINDOW_EVENT(online,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(pagehide,
-             NS_PAGE_HIDE,
+             ePageHide,
              EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(pageshow,
-             NS_PAGE_SHOW,
+             ePageShow,
              EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(popstate,
-             NS_POPSTATE,
+             ePopState,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 // Not supported yet
@@ -530,7 +530,7 @@ WINDOW_EVENT(popstate,
 // Not supported yet
 // WINDOW_EVENT(undo)
 WINDOW_EVENT(unload,
-             NS_PAGE_UNLOAD,
+             eUnload,
              (EventNameType_XUL | EventNameType_SVGSVG |
               EventNameType_HTMLBodyOrFramesetOnly),
              eBasicEventClass)
@@ -589,7 +589,7 @@ TOUCH_EVENT(touchcancel,
             eTouchEventClass)
 
 DOCUMENT_ONLY_EVENT(readystatechange,
-                    NS_READYSTATECHANGE,
+                    eReadyStateChange,
                     EventNameType_HTMLXUL,
                     eBasicEventClass)
 DOCUMENT_ONLY_EVENT(selectionchange,
@@ -636,15 +636,15 @@ NON_IDL_EVENT(DOMSubtreeModified,
               eMutationEventClass)
 
 NON_IDL_EVENT(DOMActivate,
-              NS_UI_ACTIVATE,
+              eLegacyDOMActivate,
               EventNameType_HTMLXUL,
               eUIEventClass)
 NON_IDL_EVENT(DOMFocusIn,
-              NS_UI_FOCUSIN,
+              eLegacyDOMFocusIn,
               EventNameType_HTMLXUL,
               eUIEventClass)
 NON_IDL_EVENT(DOMFocusOut,
-              NS_UI_FOCUSOUT,
+              eLegacyDOMFocusOut,
               EventNameType_HTMLXUL,
               eUIEventClass)
                                   
@@ -704,7 +704,7 @@ NON_IDL_EVENT(compositionend,
               EventNameType_XUL,
               eCompositionEventClass)
 NON_IDL_EVENT(command,
-              NS_XUL_COMMAND,
+              eXULCommand,
               EventNameType_XUL,
               eInputEventClass)
 NON_IDL_EVENT(close,
@@ -712,39 +712,39 @@ NON_IDL_EVENT(close,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popupshowing,
-              NS_XUL_POPUP_SHOWING,
+              eXULPopupShowing,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popupshown,
-              NS_XUL_POPUP_SHOWN,
+              eXULPopupShown,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popuphiding,
-              NS_XUL_POPUP_HIDING,
+              eXULPopupHiding,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(popuphidden,
-              NS_XUL_POPUP_HIDDEN,
+              eXULPopupHidden,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(broadcast,
-              NS_XUL_BROADCAST,
+              eXULBroadcast,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(commandupdate,
-              NS_XUL_COMMAND_UPDATE,
+              eXULCommandUpdate,
               EventNameType_XUL,
               eBasicEventClass)
 NON_IDL_EVENT(dragexit,
-              NS_DRAGDROP_EXIT,
+              eDragExit,
               EventNameType_XUL,
               eDragEventClass)
 NON_IDL_EVENT(dragdrop,
-              NS_DRAGDROP_DRAGDROP,
+              eLegacyDragDrop,
               EventNameType_XUL,
               eDragEventClass)
 NON_IDL_EVENT(draggesture,
-              NS_DRAGDROP_GESTURE,
+              eLegacyDragGesture,
               EventNameType_XUL,
               eDragEventClass)
 NON_IDL_EVENT(overflow,
@@ -758,24 +758,24 @@ NON_IDL_EVENT(underflow,
 
 // Various SVG events
 NON_IDL_EVENT(SVGLoad,
-              NS_SVG_LOAD,
+              eSVGLoad,
               EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(SVGUnload,
-              NS_SVG_UNLOAD,
+              eSVGUnload,
               EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(SVGResize,
-              NS_SVG_RESIZE,
+              eSVGResize,
               EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(SVGScroll,
-              NS_SVG_SCROLL,
+              eSVGScroll,
               EventNameType_None,
               eBasicEventClass)
 
 NON_IDL_EVENT(SVGZoom,
-              NS_SVG_ZOOM,
+              eSVGZoom,
               EventNameType_None,
               eSVGZoomEventClass)
 
@@ -783,7 +783,7 @@ NON_IDL_EVENT(SVGZoom,
 #ifndef MESSAGE_TO_EVENT
 // This is a bit hackish, but SVG's event names are weird.
 NON_IDL_EVENT(zoom,
-              NS_SVG_ZOOM,
+              eSVGZoom,
               EventNameType_SVGSVG,
               eBasicEventClass)
 #endif

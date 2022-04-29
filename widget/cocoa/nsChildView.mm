@@ -3152,7 +3152,7 @@ GLPresenter::EndFrame()
 // in our native NSView (it is set in |draggingEntered:|). It is unset when the
 // drag session ends for this view, either with the mouse exiting or when a drop
 // occurs in this view.
-NSPasteboard* globalDragPboard = nil;
+NSPasteboardWrapper* globalDragPboard = nil;
 
 // gLastDragView and gLastDragMouseDownEvent are used to communicate information
 // to the drag service during drag invocation (starting a drag in from the view).
@@ -5081,7 +5081,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
       return nil;
   }
 
-  WidgetMouseEvent geckoEvent(true, NS_CONTEXTMENU, mGeckoChild,
+  WidgetMouseEvent geckoEvent(true, eContextMenu, mGeckoChild,
                               WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
   geckoEvent.button = WidgetMouseEvent::eRightButton;
@@ -5715,24 +5715,24 @@ PanGestureTypeForEvent(NSEvent* aEvent)
       return NSDragOperationNone;
   }
 
-  if (aMessage == NS_DRAGDROP_ENTER)
+  if (aMessage == eDragEnter) {
     mDragService->StartDragSession();
+  }
 
   nsCOMPtr<nsIDragSession> dragSession;
   mDragService->GetCurrentSession(getter_AddRefs(dragSession));
   if (dragSession) {
-    if (aMessage == NS_DRAGDROP_OVER) {
+    if (aMessage == eDragOver) {
       // fire the drag event at the source. Just ignore whether it was
       // cancelled or not as there isn't actually a means to stop the drag
-      mDragService->FireDragEventAtSource(NS_DRAGDROP_DRAG);
+      mDragService->FireDragEventAtSource(eDrag);
       dragSession->SetCanDrop(false);
-    }
-    else if (aMessage == NS_DRAGDROP_DROP) {
+    } else if (aMessage == eDrop) {
       // We make the assumption that the dragOver handlers have correctly set
       // the |canDrop| property of the Drag Session.
       bool canDrop = false;
       if (!NS_SUCCEEDED(dragSession->GetCanDrop(&canDrop)) || !canDrop) {
-        [self doDragAction:NS_DRAGDROP_EXIT sender:aSender];
+        [self doDragAction:eDragExit sender:aSender];
 
         nsCOMPtr<nsIDOMNode> sourceNode;
         dragSession->GetSourceNode(getter_AddRefs(sourceNode));
@@ -5773,9 +5773,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 
   if (dragSession) {
     switch (aMessage) {
-      case NS_DRAGDROP_ENTER:
-      case NS_DRAGDROP_OVER:
-      {
+      case eDragEnter:
+      case eDragOver: {
         uint32_t dragAction;
         dragSession->GetDragAction(&dragAction);
 
@@ -5791,8 +5790,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 
         return [self dragOperationFromDragAction:dragAction];
       }
-      case NS_DRAGDROP_EXIT:
-      case NS_DRAGDROP_DROP: {
+      case eDragExit:
+      case eDrop: {
         nsCOMPtr<nsIDOMNode> sourceNode;
         dragSession->GetSourceNode(getter_AddRefs(sourceNode));
         if (!sourceNode) {
@@ -5826,9 +5825,10 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   // Set the global drag pasteboard that will be used for this drag session.
   // This will be set back to nil when the drag session ends (mouse exits
   // the view or a drop happens within the view).
-  globalDragPboard = [[sender draggingPasteboard] retain];
+  globalDragPboard =
+    [[NSPasteboardWrapper alloc] initWithPasteboard:[sender draggingPasteboard]];
 
-  return [self doDragAction:NS_DRAGDROP_ENTER sender:sender];
+  return [self doDragAction:eDragEnter sender:sender];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSDragOperationNone);
 }
@@ -5837,7 +5837,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 {
   MOZ_LOG(sCocoaLog, LogLevel::Info, ("ChildView draggingUpdated: entered\n"));
 
-  return [self doDragAction:NS_DRAGDROP_OVER sender:sender];
+  return [self doDragAction:eDragOver sender:sender];
 }
 
 - (void)draggingExited:(id <NSDraggingInfo>)sender
@@ -5845,14 +5845,14 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   MOZ_LOG(sCocoaLog, LogLevel::Info, ("ChildView draggingExited: entered\n"));
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  [self doDragAction:NS_DRAGDROP_EXIT sender:sender];
+  [self doDragAction:eDragExit sender:sender];
   NS_IF_RELEASE(mDragService);
 }
 
 - (BOOL)performDragOperation:(id <NSDraggingInfo>)sender
 {
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  BOOL handled = [self doDragAction:NS_DRAGDROP_DROP sender:sender] != NSDragOperationNone;
+  BOOL handled = [self doDragAction:eDrop sender:sender] != NSDragOperationNone;
   NS_IF_RELEASE(mDragService);
   return handled;
 }

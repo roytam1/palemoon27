@@ -2693,7 +2693,7 @@ nsWindow::OnButtonPressEvent(GdkEventButton *aEvent)
     // right menu click on linux should also pop up a context menu
     if (domButton == WidgetMouseEvent::eRightButton &&
         MOZ_LIKELY(!mIsDestroyed)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+        WidgetMouseEvent contextMenuEvent(true, eContextMenu, this,
                                           WidgetMouseEvent::eReal);
         InitButtonEvent(contextMenuEvent, aEvent);
         contextMenuEvent.pressure = mLastMotionPressure;
@@ -2958,7 +2958,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
     // before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
     if (is_context_menu_key(event)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+        WidgetMouseEvent contextMenuEvent(true, eContextMenu, this,
                                           WidgetMouseEvent::eReal,
                                           WidgetMouseEvent::eContextMenuKey);
 
@@ -3227,7 +3227,7 @@ nsWindow::DispatchDragEvent(EventMessage aMsg, const nsIntPoint& aRefPoint,
 {
     WidgetDragEvent event(true, aMsg, this);
 
-    if (aMsg == NS_DRAGDROP_OVER) {
+    if (aMsg == eDragOver) {
         InitDragEvent(event);
     }
 

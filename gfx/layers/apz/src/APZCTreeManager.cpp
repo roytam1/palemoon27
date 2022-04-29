@@ -896,7 +896,7 @@ APZCTreeManager::UpdateWheelTransaction(WidgetInputEvent& aEvent)
 
   switch (aEvent.mMessage) {
    case eMouseMove:
-   case NS_DRAGDROP_OVER: {
+   case eDragOver: {
      WidgetMouseEvent* mouseEvent = aEvent.AsMouseEvent();
      if (!mouseEvent->IsReal()) {
        return;
@@ -914,8 +914,8 @@ APZCTreeManager::UpdateWheelTransaction(WidgetInputEvent& aEvent)
    case eMouseDown:
    case eMouseDoubleClick:
    case eMouseClick:
-   case NS_CONTEXTMENU:
-   case NS_DRAGDROP_DROP:
+   case eContextMenu:
+   case eDrop:
      txn->EndTransaction();
      return;
    default:

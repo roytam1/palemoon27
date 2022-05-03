@@ -519,7 +519,7 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     nsCOMPtr<nsINode> node = do_QueryInterface(aTargetContent);
     if (node &&
         (aEvent->mMessage == eKeyUp || aEvent->mMessage == eMouseUp ||
-         aEvent->mMessage == eWheel || aEvent->mMessage == NS_TOUCH_END ||
+         aEvent->mMessage == eWheel || aEvent->mMessage == eTouchEnd ||
          aEvent->mMessage == ePointerUp)) {
       nsIDocument* doc = node->OwnerDoc();
       while (doc && !doc->UserHasInteracted()) {
@@ -1169,10 +1169,10 @@ CrossProcessSafeEvent(const WidgetEvent& aEvent)
     }
   case eTouchEventClass:
     switch (aEvent.mMessage) {
-    case NS_TOUCH_START:
-    case NS_TOUCH_MOVE:
-    case NS_TOUCH_END:
-    case NS_TOUCH_CANCEL:
+    case eTouchStart:
+    case eTouchMove:
+    case eTouchEnd:
+    case eTouchCancel:
       return true;
     default:
       return false;
@@ -1205,8 +1205,7 @@ EventStateManager::HandleCrossProcessEvent(WidgetEvent* aEvent,
   //
   // NB: the elements of |targets| must be unique, for correctness.
   nsAutoTArray<nsCOMPtr<nsIContent>, 1> targets;
-  if (aEvent->mClass != eTouchEventClass ||
-      aEvent->mMessage == NS_TOUCH_START) {
+  if (aEvent->mClass != eTouchEventClass || aEvent->mMessage == eTouchStart) {
     // If this event only has one target, and it's remote, add it to
     // the array.
     nsIFrame* frame = GetEventTarget();

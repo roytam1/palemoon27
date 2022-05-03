@@ -347,7 +347,7 @@ NS_EVENT_MESSAGE(eBeforePrint,          ePrintEventFirst)
 NS_EVENT_MESSAGE(eAfterPrint,           ePrintEventFirst + 1)
 
 NS_EVENT_MESSAGE(NS_MESSAGE_EVENT_START, 4700)
-NS_EVENT_MESSAGE(NS_MESSAGE,            NS_MESSAGE_EVENT_START)
+NS_EVENT_MESSAGE(eMessage,              NS_MESSAGE_EVENT_START)
 
 // Open and close events
 NS_EVENT_MESSAGE(eOpenCloseEventFirst,  4800)
@@ -361,18 +361,18 @@ NS_EVENT_MESSAGE(eDeviceProximity,       eDeviceEventFirst + 2)
 NS_EVENT_MESSAGE(eUserProximity,         eDeviceEventFirst + 3)
 NS_EVENT_MESSAGE(eDeviceLight,           eDeviceEventFirst + 4)
 
-NS_EVENT_MESSAGE(NS_SHOW_EVENT,          5000)
+NS_EVENT_MESSAGE(eShow,                  5000)
 
 // Fullscreen DOM API
 NS_EVENT_MESSAGE(eFullscreenEventFirst,  5100)
 NS_EVENT_MESSAGE(eFullscreenChange,      eFullscreenEventFirst)
 NS_EVENT_MESSAGE(eFullscreenError,       eFullscreenEventFirst + 1)
 
-NS_EVENT_MESSAGE(NS_TOUCH_EVENT_START,   5200)
-NS_EVENT_MESSAGE(NS_TOUCH_START,         NS_TOUCH_EVENT_START)
-NS_EVENT_MESSAGE(NS_TOUCH_MOVE,          NS_TOUCH_EVENT_START + 1)
-NS_EVENT_MESSAGE(NS_TOUCH_END,           NS_TOUCH_EVENT_START + 2)
-NS_EVENT_MESSAGE(NS_TOUCH_CANCEL,        NS_TOUCH_EVENT_START + 3)
+NS_EVENT_MESSAGE(eTouchEventFirst,       5200)
+NS_EVENT_MESSAGE(eTouchStart,            eTouchEventFirst)
+NS_EVENT_MESSAGE(eTouchMove,             eTouchEventFirst + 1)
+NS_EVENT_MESSAGE(eTouchEnd,              eTouchEventFirst + 2)
+NS_EVENT_MESSAGE(eTouchCancel,           eTouchEventFirst + 3)
 
 // Pointerlock DOM API
 NS_EVENT_MESSAGE(ePointerLockEventFirst, 5300)
@@ -400,14 +400,14 @@ NS_EVENT_MESSAGE(eNetworkUpload,         eNetworkEventFirst + 1)
 NS_EVENT_MESSAGE(eNetworkDownload,       eNetworkEventFirst + 2)
 
 // MediaRecorder events.
-NS_EVENT_MESSAGE(NS_MEDIARECORDER_EVENT_START, 5700)
-NS_EVENT_MESSAGE(NS_MEDIARECORDER_DATAAVAILABLE, NS_MEDIARECORDER_EVENT_START + 1)
-NS_EVENT_MESSAGE(NS_MEDIARECORDER_WARNING,       NS_MEDIARECORDER_EVENT_START + 2)
-NS_EVENT_MESSAGE(NS_MEDIARECORDER_STOP,          NS_MEDIARECORDER_EVENT_START + 3)
+NS_EVENT_MESSAGE(eMediaRecorderEventFirst,    5700)
+NS_EVENT_MESSAGE(eMediaRecorderDataAvailable, eMediaRecorderEventFirst + 1)
+NS_EVENT_MESSAGE(eMediaRecorderWarning,       eMediaRecorderEventFirst + 2)
+NS_EVENT_MESSAGE(eMediaRecorderStop,          eMediaRecorderEventFirst + 3)
 
 // SpeakerManager events
-NS_EVENT_MESSAGE(NS_SPEAKERMANAGER_EVENT_START, 5800)
-NS_EVENT_MESSAGE(NS_SPEAKERMANAGER_SPEAKERFORCEDCHANGE, NS_SPEAKERMANAGER_EVENT_START + 1)
+NS_EVENT_MESSAGE(eSpeakerManagerEventFirst, 5800)
+NS_EVENT_MESSAGE(eSpeakerForcedChange,      eSpeakerManagerEventFirst + 1)
 
 #ifdef MOZ_GAMEPAD
 // Gamepad input events
@@ -421,13 +421,13 @@ NS_EVENT_MESSAGE(eGamepadEventLast,      eGamepadDisconnected)
 #endif
 
 // input and beforeinput events.
-NS_EVENT_MESSAGE(NS_EDITOR_EVENT_START,   6100)
-NS_EVENT_MESSAGE(NS_EDITOR_INPUT,         NS_EDITOR_EVENT_START)
+NS_EVENT_MESSAGE(eEditorEventFirst,      6100)
+NS_EVENT_MESSAGE(eEditorInput,           eEditorEventFirst)
 
 // Selection events
-NS_EVENT_MESSAGE(NS_SELECT_EVENT_START,   6200)
-NS_EVENT_MESSAGE(NS_SELECT_START,         NS_SELECT_EVENT_START)
-NS_EVENT_MESSAGE(eSelectionChange,       NS_SELECT_EVENT_START + 1)
+NS_EVENT_MESSAGE(eSelectEventFirst,      6200)
+NS_EVENT_MESSAGE(eSelectStart,           eSelectEventFirst)
+NS_EVENT_MESSAGE(eSelectionChange,       eSelectEventFirst + 1)
 
 // Visibility change
 NS_EVENT_MESSAGE(NS_VISIBILITY_START,     6300)

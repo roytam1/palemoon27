@@ -494,7 +494,7 @@ public:
       nsIFrame* frame = mPresShell->GetCurrentEventFrame();
       if (!frame &&
           (aVisitor.mEvent->mMessage == eMouseUp ||
-           aVisitor.mEvent->mMessage == NS_TOUCH_END)) {
+           aVisitor.mEvent->mMessage == eTouchEnd)) {
         // Redirect BUTTON_UP and TOUCH_END events to the root frame to ensure
         // that capturing is released.
         frame = mPresShell->GetRootFrame();
@@ -2657,9 +2657,7 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
 
         nsIFrame::ChildListIterator lists(f);
         for (; !lists.IsDone(); lists.Next()) {
-          nsFrameList::Enumerator childFrames(lists.CurrentList());
-          for (; !childFrames.AtEnd(); childFrames.Next()) {
-            nsIFrame* kid = childFrames.get();
+          for (nsIFrame* kid : lists.CurrentList()) {
             kid->MarkIntrinsicISizesDirty();
             stack.AppendElement(kid);
           }
@@ -4472,8 +4470,7 @@ nsIPresShell::ReconstructStyleDataInternal()
     restyleManager->PostRestyleEvent(root, eRestyle_Subtree,
                                      NS_STYLE_HINT_NONE);
   } else {
-    for (uint32_t i = 0; i < scopeRoots.Length(); i++) {
-      Element* scopeRoot = scopeRoots[i];
+    for (Element* scopeRoot : scopeRoots) {
       restyleManager->PostRestyleEvent(scopeRoot, eRestyle_Subtree,
                                        NS_STYLE_HINT_NONE);
     }
@@ -5050,9 +5047,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   frameSelection->SetDisplaySelection(nsISelectionController::SELECTION_HIDDEN);
 
   // next, paint each range in the selection
-  int32_t count = aItems->Length();
-  for (int32_t i = 0; i < count; i++) {
-    RangePaintInfo* rangeInfo = (*aItems)[i];
+  for (RangePaintInfo* rangeInfo : *aItems) {
     // the display lists paint relative to the offset from the reference
     // frame, so account for that translation too:
     gfxPoint rootOffset =
@@ -5724,10 +5719,7 @@ PresShell::MarkImagesInSubtreeVisible(nsIFrame* aFrame, const nsRect& aRect)
       continue;
     }
 
-    nsFrameList children = childLists.CurrentList();
-    for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
-      nsIFrame* child = e.get();
-
+    for (nsIFrame* child : childLists.CurrentList()) {
       nsRect r = rect - child->GetPosition();
       if (!r.IntersectRect(r, child->GetVisualOverflowRect())) {
         continue;
@@ -6684,16 +6676,16 @@ DispatchPointerFromMouseOrTouch(PresShell* aShell,
     // loop over all touches and dispatch pointer events on each touch
     // copy the event
     switch (touchEvent->mMessage) {
-    case NS_TOUCH_MOVE:
+    case eTouchMove:
       pointerMessage = ePointerMove;
       break;
-    case NS_TOUCH_END:
+    case eTouchEnd:
       pointerMessage = ePointerUp;
       break;
-    case NS_TOUCH_START:
+    case eTouchStart:
       pointerMessage = ePointerDown;
       break;
-    case NS_TOUCH_CANCEL:
+    case eTouchCancel:
       pointerMessage = ePointerCancel;
       break;
     default:
@@ -7289,8 +7281,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
     }
 
     // all touch events except for touchstart use a captured target
-    if (aEvent->mClass == eTouchEventClass &&
-        aEvent->mMessage != NS_TOUCH_START) {
+    if (aEvent->mClass == eTouchEventClass && aEvent->mMessage != eTouchStart) {
       captureRetarget = true;
     }
 
@@ -7306,7 +7297,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
     if (!captureRetarget && !isWindowLevelMouseExit) {
       nsPoint eventPoint;
       uint32_t flags = 0;
-      if (aEvent->mMessage == NS_TOUCH_START) {
+      if (aEvent->mMessage == eTouchStart) {
         flags |= INPUT_IGNORE_ROOT_SCROLL_FRAME;
         WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
         // if this is a continuing session, ensure that all these events are
@@ -7472,14 +7463,12 @@ PresShell::HandleEvent(nsIFrame* aFrame,
     PresShell* shell =
         static_cast<PresShell*>(frame->PresContext()->PresShell());
     switch (aEvent->mMessage) {
-      case NS_TOUCH_MOVE:
-      case NS_TOUCH_CANCEL:
-      case NS_TOUCH_END: {
+      case eTouchMove:
+      case eTouchCancel:
+      case eTouchEnd: {
         // get the correct shell to dispatch to
         WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
-        WidgetTouchEvent::TouchArray& touches = touchEvent->touches;
-        for (uint32_t i = 0; i < touches.Length(); ++i) {
-          dom::Touch* touch = touches[i];
+        for (dom::Touch* touch : touchEvent->touches) {
           if (!touch) {
             break;
           }
@@ -8065,16 +8054,15 @@ PresShell::DispatchTouchEventToDOM(WidgetEvent* aEvent,
   // calling preventDefault on touchstart or the first touchmove for a
   // point prevents mouse events. calling it on the touchend should
   // prevent click dispatching.
-  bool canPrevent = (aEvent->mMessage == NS_TOUCH_START) ||
-                    (aEvent->mMessage == NS_TOUCH_MOVE && aTouchIsNew) ||
-                    (aEvent->mMessage == NS_TOUCH_END);
+  bool canPrevent = (aEvent->mMessage == eTouchStart) ||
+                    (aEvent->mMessage == eTouchMove && aTouchIsNew) ||
+                    (aEvent->mMessage == eTouchEnd);
   bool preventDefault = false;
   nsEventStatus tmpStatus = nsEventStatus_eIgnore;
   WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
 
   // loop over all touches and dispatch events on any that have changed
-  for (uint32_t i = 0; i < touchEvent->touches.Length(); ++i) {
-    dom::Touch* touch = touchEvent->touches[i];
+  for (dom::Touch* touch : touchEvent->touches) {
     if (!touch || !touch->mChanged) {
       continue;
     }
@@ -10740,8 +10728,8 @@ nsIPresShell::MarkFixedFramesForReflow(IntrinsicDirty aIntrinsicDirty)
   nsIFrame* rootFrame = mFrameConstructor->GetRootFrame();
   if (rootFrame) {
     const nsFrameList& childList = rootFrame->GetChildList(nsIFrame::kFixedList);
-    for (nsFrameList::Enumerator e(childList); !e.AtEnd(); e.Next()) {
-      FrameNeedsReflow(e.get(), aIntrinsicDirty, NS_FRAME_IS_DIRTY);
+    for (nsIFrame* childFrame : childList) {
+      FrameNeedsReflow(childFrame, aIntrinsicDirty, NS_FRAME_IS_DIRTY);
     }
   }
 }

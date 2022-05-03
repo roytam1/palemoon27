@@ -2764,7 +2764,7 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
     }
   }
 
-  WidgetWheelEvent event(true, NS_WHEEL_WHEEL, this);
+  WidgetWheelEvent event(true, eWheel, this);
 
   if (mAPZC) {
     uint64_t inputBlockId = 0;
@@ -2817,8 +2817,7 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
         MOZ_CRASH("unsupported event type");
         return;
     }
-    if (event.mMessage == NS_WHEEL_WHEEL &&
-        (event.deltaX != 0 || event.deltaY != 0)) {
+    if (event.mMessage == eWheel && (event.deltaX != 0 || event.deltaY != 0)) {
       ProcessUntransformedAPZEvent(&event, guid, inputBlockId, result);
     }
     return;
@@ -2862,8 +2861,7 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
       MOZ_CRASH("unexpected event type");
       return;
   }
-  if (event.mMessage == NS_WHEEL_WHEEL &&
-      (event.deltaX != 0 || event.deltaY != 0)) {
+  if (event.mMessage == eWheel && (event.deltaX != 0 || event.deltaY != 0)) {
     DispatchEvent(&event, status);
   }
 }
@@ -4819,7 +4817,7 @@ static int32_t RoundUp(double aDouble)
 {
   WidgetWheelEvent wheelEvent(true, msg, mGeckoChild);
   [self convertCocoaMouseWheelEvent:theEvent toGeckoEvent:&wheelEvent];
-  mExpectingWheelStop = (msg == NS_WHEEL_START);
+  mExpectingWheelStop = (msg == eWheelOperationStart);
   mGeckoChild->DispatchAPZAwareEvent(wheelEvent.AsInputEvent());
 }
 
@@ -4889,11 +4887,18 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   }
 
   NSEventPhase phase = nsCocoaUtils::EventPhase(theEvent);
-  // Fire NS_WHEEL_START/STOP events when 2 fingers touch/release the touchpad.
+  // Fire eWheelOperationStart/End events when 2 fingers touch/release the
+  // touchpad.
   if (phase & NSEventPhaseMayBegin) {
-    [self sendWheelCondition:YES first:NS_WHEEL_STOP second:NS_WHEEL_START forEvent:theEvent];
+    [self sendWheelCondition:YES
+                       first:eWheelOperationEnd
+                      second:eWheelOperationStart
+                    forEvent:theEvent];
   } else if (phase & (NSEventPhaseEnded | NSEventPhaseCancelled)) {
-    [self sendWheelCondition:NO first:NS_WHEEL_START second:NS_WHEEL_STOP forEvent:theEvent];
+    [self sendWheelCondition:NO
+                       first:eWheelOperationStart
+                      second:eWheelOperationEnd
+                    forEvent:theEvent];
   }
 
   NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(theEvent, [self window]);

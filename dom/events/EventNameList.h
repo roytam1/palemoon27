@@ -207,7 +207,7 @@ EVENT(drop,
       EventNameType_HTMLXUL,
       eDragEventClass)
 EVENT(durationchange,
-      NS_DURATIONCHANGE,
+      eDurationChange,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(emptied,
@@ -215,7 +215,7 @@ EVENT(emptied,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(ended,
-      NS_ENDED,
+      eEnded,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(input,
@@ -374,7 +374,7 @@ EVENT(progress,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(ratechange,
-      NS_RATECHANGE,
+      eRateChange,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(reset,
@@ -410,7 +410,7 @@ EVENT(suspend,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(timeupdate,
-      NS_TIMEUPDATE,
+      eTimeUpdate,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(toggle,

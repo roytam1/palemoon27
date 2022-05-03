@@ -260,10 +260,10 @@ NS_EVENT_MESSAGE(eCanPlay,              eMediaEventFirst + 11)
 NS_EVENT_MESSAGE(eCanPlayThrough,       eMediaEventFirst + 12)
 NS_EVENT_MESSAGE(eSeeking,              eMediaEventFirst + 13)
 NS_EVENT_MESSAGE(eSeeked,               eMediaEventFirst + 14)
-NS_EVENT_MESSAGE(NS_TIMEUPDATE,         eMediaEventFirst + 15)
-NS_EVENT_MESSAGE(NS_ENDED,              eMediaEventFirst + 16)
-NS_EVENT_MESSAGE(NS_RATECHANGE,         eMediaEventFirst + 17)
-NS_EVENT_MESSAGE(NS_DURATIONCHANGE,     eMediaEventFirst + 18)
+NS_EVENT_MESSAGE(eTimeUpdate,           eMediaEventFirst + 15)
+NS_EVENT_MESSAGE(eEnded,                eMediaEventFirst + 16)
+NS_EVENT_MESSAGE(eRateChange,           eMediaEventFirst + 17)
+NS_EVENT_MESSAGE(eDurationChange,       eMediaEventFirst + 18)
 NS_EVENT_MESSAGE(NS_VOLUMECHANGE,       eMediaEventFirst + 19)
 
 // paint notification events
@@ -289,14 +289,13 @@ NS_EVENT_MESSAGE(NS_SIMPLE_GESTURE_EDGE_CANCELED,  NS_SIMPLE_GESTURE_EVENT_START
 NS_EVENT_MESSAGE(NS_SIMPLE_GESTURE_EDGE_COMPLETED, NS_SIMPLE_GESTURE_EVENT_START + 14)
 
 // These are used to send native events to plugins.
-NS_EVENT_MESSAGE(NS_PLUGIN_EVENT_START, 3600)
-NS_EVENT_MESSAGE(NS_PLUGIN_INPUT_EVENT, NS_PLUGIN_EVENT_START)
-NS_EVENT_MESSAGE(NS_PLUGIN_FOCUS_EVENT, NS_PLUGIN_EVENT_START + 1)
+NS_EVENT_MESSAGE(ePluginEventFirst,     3600)
+NS_EVENT_MESSAGE(ePluginInputEvent,     ePluginEventFirst)
 
 // Events to manipulate selection (WidgetSelectionEvent)
-NS_EVENT_MESSAGE(NS_SELECTION_EVENT_START, 3700)
+NS_EVENT_MESSAGE(eSelectionEventFirst,  3700)
 // Clear any previous selection and set the given range as the selection
-NS_EVENT_MESSAGE(NS_SELECTION_SET,      NS_SELECTION_EVENT_START)
+NS_EVENT_MESSAGE(NS_SELECTION_SET,      eSelectionEventFirst)
 
 // Events of commands for the contents
 NS_EVENT_MESSAGE(NS_CONTENT_COMMAND_EVENT_START,        3800)

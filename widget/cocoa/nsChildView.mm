@@ -2608,7 +2608,7 @@ nsChildView::SendMayStartSwipe(const mozilla::PanGestureInput& aSwipeStartEvent)
   LayoutDeviceIntPoint position =
     RoundedToInt(aSwipeStartEvent.mPanStartPoint * ScreenToLayoutDeviceScale(1));
   WidgetSimpleGestureEvent geckoEvent =
-    SwipeTracker::CreateSwipeGestureEvent(NS_SIMPLE_GESTURE_SWIPE_START, this, position);
+    SwipeTracker::CreateSwipeGestureEvent(eSwipeGestureStart, this, position);
   geckoEvent.direction = direction;
   geckoEvent.delta = 0.0;
   geckoEvent.allowedDirections = 0;
@@ -4158,8 +4158,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   float deltaY = [anEvent deltaY];  // up=1.0, down=-1.0
 
   // Setup the "swipe" event.
-  WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                      mGeckoChild);
+  WidgetSimpleGestureEvent geckoEvent(true, eSwipeGesture, mGeckoChild);
   [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
 
   // Record the left/right direction.
@@ -4213,12 +4212,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   EventMessage msg;
   switch (mGestureState) {
   case eGestureState_StartGesture:
-    msg = NS_SIMPLE_GESTURE_MAGNIFY_START;
+    msg = eMagnifyGestureStart;
     mGestureState = eGestureState_MagnifyGesture;
     break;
 
   case eGestureState_MagnifyGesture:
-    msg = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
+    msg = eMagnifyGestureUpdate;
     break;
 
   case eGestureState_None:
@@ -4252,8 +4251,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   // Setup the "double tap" event.
-  WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_TAP,
-                                      mGeckoChild);
+  WidgetSimpleGestureEvent geckoEvent(true, eTapGesture, mGeckoChild);
   [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
   geckoEvent.clickCount = 1;
 
@@ -4280,12 +4278,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   EventMessage msg;
   switch (mGestureState) {
   case eGestureState_StartGesture:
-    msg = NS_SIMPLE_GESTURE_ROTATE_START;
+    msg = eRotateGestureStart;
     mGestureState = eGestureState_RotateGesture;
     break;
 
   case eGestureState_RotateGesture:
-    msg = NS_SIMPLE_GESTURE_ROTATE_UPDATE;
+    msg = eRotateGestureUpdate;
     break;
 
   case eGestureState_None:
@@ -4331,8 +4329,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   case eGestureState_MagnifyGesture:
     {
       // Setup the "magnify" event.
-      WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_MAGNIFY,
-                                          mGeckoChild);
+      WidgetSimpleGestureEvent geckoEvent(true, eMagnifyGesture, mGeckoChild);
       geckoEvent.delta = mCumulativeMagnification;
       [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
 
@@ -4344,8 +4341,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   case eGestureState_RotateGesture:
     {
       // Setup the "rotate" event.
-      WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_ROTATE,
-                                          mGeckoChild);
+      WidgetSimpleGestureEvent geckoEvent(true, eRotateGesture, mGeckoChild);
       [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
       geckoEvent.delta = -mCumulativeRotation;
       if (mCumulativeRotation > 0.0) {

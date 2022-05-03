@@ -153,11 +153,11 @@ EVENT(abort,
       EventNameType_All,
       eBasicEventClass)
 EVENT(canplay,
-      NS_CANPLAY,
+      eCanPlay,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(canplaythrough,
-      NS_CANPLAYTHROUGH,
+      eCanPlayThrough,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(change,
@@ -211,7 +211,7 @@ EVENT(durationchange,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(emptied,
-      NS_EMPTIED,
+      eEmptied,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(ended,
@@ -255,15 +255,15 @@ NON_IDL_EVENT(mozbrowserafterkeyup,
               EventNameType_None,
               eBeforeAfterKeyboardEventClass)
 EVENT(loadeddata,
-      NS_LOADEDDATA,
+      eLoadedData,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(loadedmetadata,
-      NS_LOADEDMETADATA,
+      eLoadedMetaData,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(loadstart,
-      NS_LOADSTART,
+      eLoadStart,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(mousedown,
@@ -358,19 +358,19 @@ EVENT(selectstart,
 // Not supported yet; probably never because "wheel" is a better idea.
 // EVENT(mousewheel)
 EVENT(pause,
-      NS_PAUSE,
+      ePause,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(play,
-      NS_PLAY,
+      ePlay,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(playing,
-      NS_PLAYING,
+      ePlaying,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(progress,
-      NS_PROGRESS,
+      eProgress,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(ratechange,
@@ -382,11 +382,11 @@ EVENT(reset,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(seeked,
-      NS_SEEKED,
+      eSeeked,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(seeking,
-      NS_SEEKING,
+      eSeeking,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(select,
@@ -398,7 +398,7 @@ EVENT(show,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(stalled,
-      NS_STALLED,
+      eStalled,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(submit,
@@ -406,7 +406,7 @@ EVENT(submit,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(suspend,
-      NS_SUSPEND,
+      eSuspend,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(timeupdate,
@@ -422,7 +422,7 @@ EVENT(volumechange,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(waiting,
-      NS_WAITING,
+      eWaiting,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(wheel,
@@ -430,15 +430,15 @@ EVENT(wheel,
       EventNameType_All,
       eWheelEventClass)
 EVENT(copy,
-      NS_COPY,
+      eCopy,
       EventNameType_HTMLXUL,
       eClipboardEventClass)
 EVENT(cut,
-      NS_CUT,
+      eCut,
       EventNameType_HTMLXUL,
       eClipboardEventClass)
 EVENT(paste,
-      NS_PASTE,
+      ePaste,
       EventNameType_HTMLXUL,
       eClipboardEventClass)
 // Gecko-specific extensions that apply to elements

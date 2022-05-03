@@ -1301,7 +1301,7 @@ TSFTextStore::TSFTextStore()
   , mPendingOnSelectionChange(false)
   , mPendingOnLayoutChange(false)
   , mPendingDestroy(false)
-  , mPendingClearLockedContent(false)
+  , mDeferClearingLockedContent(false)
   , mNativeCaretIsCreated(false)
   , mDeferNotifyingTSF(false)
 {
@@ -1674,11 +1674,6 @@ TSFTextStore::FlushPendingActions()
     return;
   }
 
-  // If dispatching event causes NOTIFY_IME_OF_COMPOSITION_UPDATE, we should
-  // wait to abandon mLockedContent until it's notified because the dispatched
-  // event may be handled asynchronously in e10s mode.
-  mPendingClearLockedContent = !mPendingActions.Length();
-
   nsRefPtr<nsWindowBase> kungFuDeathGrip(mWidget);
   for (uint32_t i = 0; i < mPendingActions.Length(); i++) {
     PendingAction& action = mPendingActions[i];
@@ -1692,7 +1687,7 @@ TSFTextStore::FlushPendingActions()
 
         if (action.mAdjustSelection) {
           // Select composition range so the new composition replaces the range
-          WidgetSelectionEvent selectionSet(true, NS_SELECTION_SET, mWidget);
+          WidgetSelectionEvent selectionSet(true, eSetSelection, mWidget);
           mWidget->InitEvent(selectionSet);
           selectionSet.mOffset = static_cast<uint32_t>(action.mSelectionStart);
           selectionSet.mLength = static_cast<uint32_t>(action.mSelectionLength);
@@ -1701,7 +1696,7 @@ TSFTextStore::FlushPendingActions()
           if (!selectionSet.mSucceeded) {
             MOZ_LOG(sTextStoreLog, LogLevel::Error,
                    ("TSF: 0x%p   TSFTextStore::FlushPendingActions() "
-                    "FAILED due to NS_SELECTION_SET failure", this));
+                    "FAILED due to eSetSelection failure", this));
             break;
           }
         }
@@ -1712,7 +1707,9 @@ TSFTextStore::FlushPendingActions()
                                                 mWidget);
         mWidget->InitEvent(compositionStart);
         // NS_COMPOSITION_START always causes NOTIFY_IME_OF_COMPOSITION_UPDATE.
-        mPendingClearLockedContent = true;
+        // Therefore, we should wait to clear the locked content until it's
+        // notified.
+        mDeferClearingLockedContent = true;
         DispatchEvent(compositionStart);
         if (!mWidget || mWidget->Destroyed()) {
           break;
@@ -1777,9 +1774,11 @@ TSFTextStore::FlushPendingActions()
         }
         compositionChange.mRanges = action.mRanges;
         // When the NS_COMPOSITION_CHANGE causes a DOM text event,
-        // NOTIFY_IME_OF_COMPOSITION_UPDATE will be notified.
+        // the IME will be notified of NOTIFY_IME_OF_COMPOSITION_UPDATE.  In
+        // such case, we should not clear the locked content until we notify
+        // the IME of the composition update.
         if (compositionChange.CausesDOMTextEvent()) {
-          mPendingClearLockedContent = true;
+          mDeferClearingLockedContent = true;
         }
         DispatchEvent(compositionChange);
         // Be aware, the mWidget might already have been destroyed.
@@ -1802,9 +1801,11 @@ TSFTextStore::FlushPendingActions()
         mWidget->InitEvent(compositionCommit);
         compositionCommit.mData = action.mData;
         // When the NS_COMPOSITION_COMMIT causes a DOM text event,
-        // NOTIFY_IME_OF_COMPOSITION_UPDATE will be notified.
+        // the IME will be notified of NOTIFY_IME_OF_COMPOSITION_UPDATE.  In
+        // such case, we should not clear the locked content until we notify
+        // the IME of the composition update.
         if (compositionCommit.CausesDOMTextEvent()) {
-          mPendingClearLockedContent = true;
+          mDeferClearingLockedContent = true;
         }
         DispatchEvent(compositionCommit);
         if (!mWidget || mWidget->Destroyed()) {
@@ -1812,15 +1813,15 @@ TSFTextStore::FlushPendingActions()
         }
         break;
       }
-      case PendingAction::SELECTION_SET: {
+      case PendingAction::SET_SELECTION: {
         MOZ_LOG(sTextStoreLog, LogLevel::Debug,
                ("TSF: 0x%p   TSFTextStore::FlushPendingActions() "
-                "flushing SELECTION_SET={ mSelectionStart=%d, "
+                "flushing SET_SELECTION={ mSelectionStart=%d, "
                 "mSelectionLength=%d, mSelectionReversed=%s }",
                 this, action.mSelectionStart, action.mSelectionLength,
                 GetBoolName(action.mSelectionReversed)));
 
-        WidgetSelectionEvent selectionSet(true, NS_SELECTION_SET, mWidget);
+        WidgetSelectionEvent selectionSet(true, eSetSelection, mWidget);
         selectionSet.mOffset = 
           static_cast<uint32_t>(action.mSelectionStart);
         selectionSet.mLength =
@@ -1868,9 +1869,11 @@ TSFTextStore::MaybeFlushPendingNotifications()
     return;
   }
 
-  if (mPendingClearLockedContent) {
-    mPendingClearLockedContent = false;
+  if (!mDeferClearingLockedContent && mLockedContent.IsInitialized()) {
     mLockedContent.Clear();
+    MOZ_LOG(sTextStoreLog, LogLevel::Debug,
+           ("TSF: 0x%p   TSFTextStore::MaybeFlushPendingNotifications(), "
+            "mLockedContent is cleared", this));
   }
 
   if (mPendingOnLayoutChange) {
@@ -1997,12 +2000,21 @@ TSFTextStore::LockedContent()
   // This should be called when the document is locked or the content hasn't
   // been abandoned yet.
   if (NS_WARN_IF(!IsReadLocked() && !mLockedContent.IsInitialized())) {
+    MOZ_LOG(sTextStoreLog, LogLevel::Error,
+           ("TSF: 0x%p   TSFTextStore::LockedContent(), FAILED, due to "
+            "called wrong timing, IsReadLocked()=%s, "
+            "mLockedContent.IsInitialized()=%s",
+            this, GetBoolName(IsReadLocked()),
+            GetBoolName(mLockedContent.IsInitialized())));
     mLockedContent.Clear();
     return mLockedContent;
   }
 
   Selection& currentSel = CurrentSelection();
   if (currentSel.IsDirty()) {
+    MOZ_LOG(sTextStoreLog, LogLevel::Error,
+           ("TSF: 0x%p   TSFTextStore::LockedContent(), FAILED, due to "
+            "CurrentSelection() failure", this));
     mLockedContent.Clear();
     return mLockedContent;
   }
@@ -2010,19 +2022,31 @@ TSFTextStore::LockedContent()
   if (!mLockedContent.IsInitialized()) {
     nsAutoString text;
     if (NS_WARN_IF(!GetCurrentText(text))) {
+      MOZ_LOG(sTextStoreLog, LogLevel::Error,
+             ("TSF: 0x%p   TSFTextStore::LockedContent(), FAILED, due to "
+              "GetCurrentText() failure", this));
       mLockedContent.Clear();
       return mLockedContent;
     }
 
     mLockedContent.Init(text);
+    // Basically, the locked content should be cleared after the document is
+    // unlocked.  However, in e10s mode, content will be modified
+    // asynchronously.  In such case, mDeferClearingLockedContent may be
+    // true even after the document is unlocked.
+    mDeferClearingLockedContent = false;
   }
 
   MOZ_LOG(sTextStoreLog, LogLevel::Debug,
          ("TSF: 0x%p   TSFTextStore::LockedContent(): "
-          "mLockedContent={ mText.Length()=%d, mLastCompositionString=\"%s\", "
+          "mLockedContent={ mText=\"%s\" (Length()=%u), "
+          "mLastCompositionString=\"%s\" (Length()=%u), "
           "mMinTextModifiedOffset=%u }",
-          this, mLockedContent.Text().Length(),
+          this, mLockedContent.Text().Length() <= 20 ?
+            NS_ConvertUTF16toUTF8(mLockedContent.Text()).get() : "<omitted>",
+          mLockedContent.Text().Length(),
           NS_ConvertUTF16toUTF8(mLockedContent.LastCompositionString()).get(),
+          mLockedContent.LastCompositionString().Length(),
           mLockedContent.MinTextModifiedOffset()));
 
   return mLockedContent;
@@ -2038,11 +2062,18 @@ TSFTextStore::GetCurrentText(nsAString& aTextContent)
 
   MOZ_ASSERT(mWidget && !mWidget->Destroyed());
 
-  WidgetQueryContentEvent queryText(true, NS_QUERY_TEXT_CONTENT, mWidget);
+  MOZ_LOG(sTextStoreLog, LogLevel::Debug,
+         ("TSF: 0x%p   TSFTextStore::GetCurrentText(): "
+          "retrieving text from the content...", this));
+
+  WidgetQueryContentEvent queryText(true, eQueryTextContent, mWidget);
   queryText.InitForQueryTextContent(0, UINT32_MAX);
   mWidget->InitEvent(queryText);
   DispatchEvent(queryText);
   if (NS_WARN_IF(!queryText.mSucceeded)) {
+    MOZ_LOG(sTextStoreLog, LogLevel::Error,
+           ("TSF: 0x%p   TSFTextStore::GetCurrentText(), FAILED, due to "
+            "eQueryTextContent failure", this));
     aTextContent.Truncate();
     return false;
   }
@@ -2061,8 +2092,7 @@ TSFTextStore::CurrentSelection()
       MOZ_CRASH();
     }
 
-    WidgetQueryContentEvent querySelection(true, NS_QUERY_SELECTED_TEXT,
-                                           mWidget);
+    WidgetQueryContentEvent querySelection(true, eQuerySelectedText, mWidget);
     mWidget->InitEvent(querySelection);
     DispatchEvent(querySelection);
     NS_ENSURE_TRUE(querySelection.mSucceeded, mSelection);
@@ -2664,7 +2694,7 @@ TSFTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
 
   CompleteLastActionIfStillIncomplete();
   PendingAction* action = mPendingActions.AppendElement();
-  action->mType = PendingAction::SELECTION_SET;
+  action->mType = PendingAction::SET_SELECTION;
   action->mSelectionStart = pSelection->acpStart;
   action->mSelectionLength = pSelection->acpEnd - pSelection->acpStart;
   action->mSelectionReversed = (pSelection->style.ase == TS_AE_START);
@@ -4676,7 +4706,9 @@ TSFTextStore::OnUpdateCompositionInternal()
      "mDeferNotifyingTSF=%s",
      this, GetBoolName(mDeferNotifyingTSF)));
 
-  mPendingClearLockedContent = true;
+  // Now, all sent composition events are handled by the content even in
+  // e10s mode.
+  mDeferClearingLockedContent = false;
   mDeferNotifyingTSF = false;
   MaybeFlushPendingNotifications();
   return NS_OK;
@@ -4779,14 +4811,14 @@ TSFTextStore::CreateNativeCaret()
   //     collapsed, is it OK?
   uint32_t caretOffset = currentSel.MaxOffset();
 
-  WidgetQueryContentEvent queryCaretRect(true, NS_QUERY_CARET_RECT, mWidget);
+  WidgetQueryContentEvent queryCaretRect(true, eQueryCaretRect, mWidget);
   queryCaretRect.InitForQueryCaretRect(caretOffset);
   mWidget->InitEvent(queryCaretRect);
   DispatchEvent(queryCaretRect);
   if (!queryCaretRect.mSucceeded) {
     MOZ_LOG(sTextStoreLog, LogLevel::Error,
            ("TSF: 0x%p   TSFTextStore::CreateNativeCaret() FAILED due to "
-            "NS_QUERY_CARET_RECT failure (offset=%d)", this, caretOffset));
+            "eQueryCaretRect failure (offset=%d)", this, caretOffset));
     return;
   }
 

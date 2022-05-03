@@ -649,11 +649,11 @@ NON_IDL_EVENT(DOMFocusOut,
               eUIEventClass)
                                   
 NON_IDL_EVENT(DOMMouseScroll,
-              NS_MOUSE_SCROLL,
+              eLegacyMouseLineOrPageScroll,
               EventNameType_HTMLXUL,
               eMouseScrollEventClass)
 NON_IDL_EVENT(MozMousePixelScroll,
-              NS_MOUSE_PIXEL_SCROLL,
+              eLegacyMousePixelScroll,
               EventNameType_HTMLXUL,
               eMouseScrollEventClass)
                                                 

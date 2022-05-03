@@ -1934,13 +1934,13 @@ nsDOMWindowUtils::SendQueryContentEvent(uint32_t aType,
   EventMessage message;
   switch (aType) {
     case QUERY_SELECTED_TEXT:
-      message = NS_QUERY_SELECTED_TEXT;
+      message = eQuerySelectedText;
       break;
     case QUERY_TEXT_CONTENT:
-      message = NS_QUERY_TEXT_CONTENT;
+      message = eQueryTextContent;
       break;
     case QUERY_CARET_RECT:
-      message = NS_QUERY_CARET_RECT;
+      message = eQueryCaretRect;
       break;
     case QUERY_TEXT_RECT:
       message = NS_QUERY_TEXT_RECT;
@@ -1992,10 +1992,10 @@ nsDOMWindowUtils::SendQueryContentEvent(uint32_t aType,
   InitEvent(queryEvent, &pt);
 
   switch (message) {
-    case NS_QUERY_TEXT_CONTENT:
+    case eQueryTextContent:
       queryEvent.InitForQueryTextContent(aOffset, aLength, useNativeLineBreak);
       break;
-    case NS_QUERY_CARET_RECT:
+    case eQueryCaretRect:
       queryEvent.InitForQueryCaretRect(aOffset, useNativeLineBreak);
       break;
     case NS_QUERY_TEXT_RECT:
@@ -2033,7 +2033,7 @@ nsDOMWindowUtils::SendSelectionSetEvent(uint32_t aOffset,
     return NS_ERROR_FAILURE;
   }
 
-  WidgetSelectionEvent selectionEvent(true, NS_SELECTION_SET, widget);
+  WidgetSelectionEvent selectionEvent(true, eSetSelection, widget);
   InitEvent(selectionEvent);
 
   selectionEvent.mOffset = aOffset;

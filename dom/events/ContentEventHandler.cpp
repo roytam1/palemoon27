@@ -796,11 +796,11 @@ nsresult
 ContentEventHandler::HandleQueryContentEvent(WidgetQueryContentEvent* aEvent)
 {
   switch (aEvent->mMessage) {
-    case NS_QUERY_SELECTED_TEXT:
+    case eQuerySelectedText:
       return OnQuerySelectedText(aEvent);
-    case NS_QUERY_TEXT_CONTENT:
+    case eQueryTextContent:
       return OnQueryTextContent(aEvent);
-    case NS_QUERY_CARET_RECT:
+    case eQueryCaretRect:
       return OnQueryCaretRect(aEvent);
     case NS_QUERY_TEXT_RECT:
       return OnQueryTextRect(aEvent);
@@ -808,7 +808,7 @@ ContentEventHandler::HandleQueryContentEvent(WidgetQueryContentEvent* aEvent)
       return OnQueryEditorRect(aEvent);
     case NS_QUERY_CONTENT_STATE:
       return OnQueryContentState(aEvent);
-    case NS_QUERY_SELECTION_AS_TRANSFERABLE:
+    case eQuerySelectionAsTransferable:
       return OnQuerySelectionAsTransferable(aEvent);
     case NS_QUERY_CHARACTER_AT_POINT:
       return OnQueryCharacterAtPoint(aEvent);

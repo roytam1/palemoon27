@@ -1726,14 +1726,13 @@ IMMHandler::HandleDocumentFeed(nsWindow* aWindow,
   }
 
   // Get all contents of the focused editor.
-  WidgetQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, aWindow);
+  WidgetQueryContentEvent textContent(true, eQueryTextContent, aWindow);
   textContent.InitForQueryTextContent(0, UINT32_MAX);
   aWindow->InitEvent(textContent, &point);
   aWindow->DispatchWindowEvent(&textContent);
   if (!textContent.mSucceeded) {
     MOZ_LOG(gIMMLog, LogLevel::Error,
-      ("IMM: HandleDocumentFeed, FAILED, due to NS_QUERY_TEXT_CONTENT "
-       "failure"));
+      ("IMM: HandleDocumentFeed, FAILED, due to eQueryTextContent failure"));
     return false;
   }
 
@@ -2203,13 +2202,13 @@ IMMHandler::GetCaretRect(nsWindow* aWindow,
     return false;
   }
 
-  WidgetQueryContentEvent caretRect(true, NS_QUERY_CARET_RECT, aWindow);
+  WidgetQueryContentEvent caretRect(true, eQueryCaretRect, aWindow);
   caretRect.InitForQueryCaretRect(selection.mOffset);
   aWindow->InitEvent(caretRect, &point);
   aWindow->DispatchWindowEvent(&caretRect);
   if (!caretRect.mSucceeded) {
     MOZ_LOG(gIMMLog, LogLevel::Info,
-      ("IMM: GetCaretRect, FAILED, due to NS_QUERY_CARET_RECT failure"));
+      ("IMM: GetCaretRect, FAILED, due to eQueryCaretRect failure"));
     return false;
   }
   aCaretRect = LayoutDevicePixel::ToUntyped(caretRect.mReply.mRect);
@@ -2753,14 +2752,13 @@ IMMHandler::Selection::Init(nsWindow* aWindow)
 {
   Clear();
 
-  WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
+  WidgetQueryContentEvent selection(true, eQuerySelectedText, aWindow);
   nsIntPoint point(0, 0);
   aWindow->InitEvent(selection, &point);
   aWindow->DispatchWindowEvent(&selection);
   if (NS_WARN_IF(!selection.mSucceeded)) {
     MOZ_LOG(gIMMLog, LogLevel::Error,
-      ("IMM: Selection::Init, FAILED, due to NS_QUERY_SELECTED_TEXT "
-       "failure"));
+      ("IMM: Selection::Init, FAILED, due to eQuerySelectedText failure"));
     return false;
   }
   // If the window is destroyed during querying selected text, we shouldn't

@@ -42,11 +42,11 @@ public:
   // Handle aEvent in the current process.
   nsresult HandleQueryContentEvent(WidgetQueryContentEvent* aEvent);
 
-  // NS_QUERY_SELECTED_TEXT event handler
+  // eQuerySelectedText event handler
   nsresult OnQuerySelectedText(WidgetQueryContentEvent* aEvent);
-  // NS_QUERY_TEXT_CONTENT event handler
+  // eQueryTextContent event handler
   nsresult OnQueryTextContent(WidgetQueryContentEvent* aEvent);
-  // NS_QUERY_CARET_RECT event handler
+  // eQueryCaretRect event handler
   nsresult OnQueryCaretRect(WidgetQueryContentEvent* aEvent);
   // NS_QUERY_TEXT_RECT event handler
   nsresult OnQueryTextRect(WidgetQueryContentEvent* aEvent);
@@ -54,7 +54,7 @@ public:
   nsresult OnQueryEditorRect(WidgetQueryContentEvent* aEvent);
   // NS_QUERY_CONTENT_STATE event handler
   nsresult OnQueryContentState(WidgetQueryContentEvent* aEvent);
-  // NS_QUERY_SELECTION_AS_TRANSFERABLE event handler
+  // eQuerySelectionAsTransferable event handler
   nsresult OnQuerySelectionAsTransferable(WidgetQueryContentEvent* aEvent);
   // NS_QUERY_CHARACTER_AT_POINT event handler
   nsresult OnQueryCharacterAtPoint(WidgetQueryContentEvent* aEvent);

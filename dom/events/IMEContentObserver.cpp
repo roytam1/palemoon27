@@ -59,18 +59,18 @@ ToChar(EventMessage aEventMessage)
       return "eQueryCaretRect";
     case NS_QUERY_TEXT_RECT:
       return "NS_QUERY_TEXT_RECT";
-    case NS_QUERY_EDITOR_RECT:
-      return "NS_QUERY_EDITOR_RECT";
-    case NS_QUERY_CONTENT_STATE:
-      return "NS_QUERY_CONTENT_STATE";
+    case eQueryEditorRect:
+      return "eQueryEditorRect";
+    case eQueryContentState:
+      return "eQueryContentState";
     case eQuerySelectionAsTransferable:
       return "eQuerySelectionAsTransferable";
-    case NS_QUERY_CHARACTER_AT_POINT:
-      return "NS_QUERY_CHARACTER_AT_POINT";
-    case NS_QUERY_DOM_WIDGET_HITTEST:
-      return "NS_QUERY_DOM_WIDGET_HITTEST";
+    case eQueryCharacterAtPoint:
+      return "eQueryCharacterAtPoint";
+    case eQueryDOMWidgetHittest:
+      return "eQueryDOMWidgetHittest";
     default:
-      return "Unsupprted message";
+      return "Unsupported message";
   }
 }
 
@@ -620,7 +620,7 @@ IMEContentObserver::OnMouseButtonEvent(nsPresContext* aPresContext,
 
   nsRefPtr<IMEContentObserver> kungFuDeathGrip(this);
 
-  WidgetQueryContentEvent charAtPt(true, NS_QUERY_CHARACTER_AT_POINT,
+  WidgetQueryContentEvent charAtPt(true, eQueryCharacterAtPoint,
                                    aMouseEvent->widget);
   charAtPt.refPoint = aMouseEvent->refPoint;
   ContentEventHandler handler(aPresContext);

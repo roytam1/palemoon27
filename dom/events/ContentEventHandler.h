@@ -50,15 +50,15 @@ public:
   nsresult OnQueryCaretRect(WidgetQueryContentEvent* aEvent);
   // NS_QUERY_TEXT_RECT event handler
   nsresult OnQueryTextRect(WidgetQueryContentEvent* aEvent);
-  // NS_QUERY_EDITOR_RECT event handler
+  // eQueryEditorRect event handler
   nsresult OnQueryEditorRect(WidgetQueryContentEvent* aEvent);
-  // NS_QUERY_CONTENT_STATE event handler
+  // eQueryContentState event handler
   nsresult OnQueryContentState(WidgetQueryContentEvent* aEvent);
   // eQuerySelectionAsTransferable event handler
   nsresult OnQuerySelectionAsTransferable(WidgetQueryContentEvent* aEvent);
-  // NS_QUERY_CHARACTER_AT_POINT event handler
+  // eQueryCharacterAtPoint event handler
   nsresult OnQueryCharacterAtPoint(WidgetQueryContentEvent* aEvent);
-  // NS_QUERY_DOM_WIDGET_HITTEST event handler
+  // eQueryDOMWidgetHittest event handler
   nsresult OnQueryDOMWidgetHittest(WidgetQueryContentEvent* aEvent);
 
   // NS_SELECTION_* event

@@ -1946,10 +1946,10 @@ nsDOMWindowUtils::SendQueryContentEvent(uint32_t aType,
       message = NS_QUERY_TEXT_RECT;
       break;
     case QUERY_EDITOR_RECT:
-      message = NS_QUERY_EDITOR_RECT;
+      message = eQueryEditorRect;
       break;
     case QUERY_CHARACTER_AT_POINT:
-      message = NS_QUERY_CHARACTER_AT_POINT;
+      message = eQueryCharacterAtPoint;
       break;
     default:
       return NS_ERROR_INVALID_ARG;
@@ -1961,9 +1961,9 @@ nsDOMWindowUtils::SendQueryContentEvent(uint32_t aType,
   bool useNativeLineBreak =
     !(aAdditionalFlags & QUERY_CONTENT_FLAG_USE_XP_LINE_BREAK);
 
-  if (message == NS_QUERY_CHARACTER_AT_POINT) {
+  if (message == eQueryCharacterAtPoint) {
     // Looking for the widget at the point.
-    WidgetQueryContentEvent dummyEvent(true, NS_QUERY_CONTENT_STATE, widget);
+    WidgetQueryContentEvent dummyEvent(true, eQueryContentState, widget);
     dummyEvent.mUseNativeLineBreak = useNativeLineBreak;
     InitEvent(dummyEvent, &pt);
     nsIFrame* popupFrame =
@@ -2062,25 +2062,26 @@ nsDOMWindowUtils::SendContentCommandEvent(const nsAString& aType,
     return NS_ERROR_FAILURE;
 
   EventMessage msg;
-  if (aType.EqualsLiteral("cut"))
-    msg = NS_CONTENT_COMMAND_CUT;
-  else if (aType.EqualsLiteral("copy"))
-    msg = NS_CONTENT_COMMAND_COPY;
-  else if (aType.EqualsLiteral("paste"))
-    msg = NS_CONTENT_COMMAND_PASTE;
-  else if (aType.EqualsLiteral("delete"))
-    msg = NS_CONTENT_COMMAND_DELETE;
-  else if (aType.EqualsLiteral("undo"))
-    msg = NS_CONTENT_COMMAND_UNDO;
-  else if (aType.EqualsLiteral("redo"))
-    msg = NS_CONTENT_COMMAND_REDO;
-  else if (aType.EqualsLiteral("pasteTransferable"))
-    msg = NS_CONTENT_COMMAND_PASTE_TRANSFERABLE;
-  else
+  if (aType.EqualsLiteral("cut")) {
+    msg = eContentCommandCut;
+  } else if (aType.EqualsLiteral("copy")) {
+    msg = eContentCommandCopy;
+  } else if (aType.EqualsLiteral("paste")) {
+    msg = eContentCommandPaste;
+  } else if (aType.EqualsLiteral("delete")) {
+    msg = eContentCommandDelete;
+  } else if (aType.EqualsLiteral("undo")) {
+    msg = eContentCommandUndo;
+  } else if (aType.EqualsLiteral("redo")) {
+    msg = eContentCommandRedo;
+  } else if (aType.EqualsLiteral("pasteTransferable")) {
+    msg = eContentCommandPasteTransferable;
+  } else {
     return NS_ERROR_FAILURE;
+  }
 
   WidgetContentCommandEvent event(true, msg, widget);
-  if (msg == NS_CONTENT_COMMAND_PASTE_TRANSFERABLE) {
+  if (msg == eContentCommandPasteTransferable) {
     event.mTransferable = aTransferable;
   }
 

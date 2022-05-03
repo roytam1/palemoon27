@@ -763,21 +763,17 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     IMEStateManager::HandleSelectionEvent(aPresContext, GetFocusedContent(),
                                           aEvent->AsSelectionEvent());
     break;
-  case NS_CONTENT_COMMAND_CUT:
-  case NS_CONTENT_COMMAND_COPY:
-  case NS_CONTENT_COMMAND_PASTE:
-  case NS_CONTENT_COMMAND_DELETE:
-  case NS_CONTENT_COMMAND_UNDO:
-  case NS_CONTENT_COMMAND_REDO:
-  case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE:
-    {
-      DoContentCommandEvent(aEvent->AsContentCommandEvent());
-    }
+  case eContentCommandCut:
+  case eContentCommandCopy:
+  case eContentCommandPaste:
+  case eContentCommandDelete:
+  case eContentCommandUndo:
+  case eContentCommandRedo:
+  case eContentCommandPasteTransferable:
+    DoContentCommandEvent(aEvent->AsContentCommandEvent());
     break;
-  case NS_CONTENT_COMMAND_SCROLL:
-    {
-      DoContentCommandScrollEvent(aEvent->AsContentCommandEvent());
-    }
+  case eContentCommandScroll:
+    DoContentCommandScrollEvent(aEvent->AsContentCommandEvent());
     break;
   case NS_COMPOSITION_START:
     if (aEvent->mFlags.mIsTrusted) {
@@ -805,7 +801,7 @@ EventStateManager::HandleQueryContentEvent(WidgetQueryContentEvent* aEvent)
     case eQueryTextContent:
     case eQueryCaretRect:
     case NS_QUERY_TEXT_RECT:
-    case NS_QUERY_EDITOR_RECT:
+    case eQueryEditorRect:
       if (!IsTargetCrossProcess(aEvent)) {
         break;
       }
@@ -813,10 +809,10 @@ EventStateManager::HandleQueryContentEvent(WidgetQueryContentEvent* aEvent)
       GetCrossProcessTarget()->HandleQueryContentEvent(*aEvent);
       return;
     // Following events have not been supported in e10s mode yet.
-    case NS_QUERY_CONTENT_STATE:
+    case eQueryContentState:
     case eQuerySelectionAsTransferable:
-    case NS_QUERY_CHARACTER_AT_POINT:
-    case NS_QUERY_DOM_WIDGET_HITTEST:
+    case eQueryCharacterAtPoint:
+    case eQueryDOMWidgetHittest:
       break;
     default:
       return;
@@ -5063,25 +5059,25 @@ EventStateManager::DoContentCommandEvent(WidgetContentCommandEvent* aEvent)
   NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
   const char* cmd;
   switch (aEvent->mMessage) {
-    case NS_CONTENT_COMMAND_CUT:
+    case eContentCommandCut:
       cmd = "cmd_cut";
       break;
-    case NS_CONTENT_COMMAND_COPY:
+    case eContentCommandCopy:
       cmd = "cmd_copy";
       break;
-    case NS_CONTENT_COMMAND_PASTE:
+    case eContentCommandPaste:
       cmd = "cmd_paste";
       break;
-    case NS_CONTENT_COMMAND_DELETE:
+    case eContentCommandDelete:
       cmd = "cmd_delete";
       break;
-    case NS_CONTENT_COMMAND_UNDO:
+    case eContentCommandUndo:
       cmd = "cmd_undo";
       break;
-    case NS_CONTENT_COMMAND_REDO:
+    case eContentCommandRedo:
       cmd = "cmd_redo";
       break;
-    case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE:
+    case eContentCommandPasteTransferable:
       cmd = "cmd_pasteTransferable";
       break;
     default:
@@ -5101,7 +5097,7 @@ EventStateManager::DoContentCommandEvent(WidgetContentCommandEvent* aEvent)
     aEvent->mIsEnabled = canDoIt;
     if (canDoIt && !aEvent->mOnlyEnabledCheck) {
       switch (aEvent->mMessage) {
-        case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE: {
+        case eContentCommandPasteTransferable: {
           nsCOMPtr<nsICommandController> commandController = do_QueryInterface(controller);
           NS_ENSURE_STATE(commandController);
 

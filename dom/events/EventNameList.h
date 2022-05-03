@@ -295,11 +295,11 @@ EVENT(mouseup,
       EventNameType_All,
       eMouseEventClass)
 EVENT(mozfullscreenchange,
-      NS_FULLSCREENCHANGE,
+      eFullscreenChange,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(mozfullscreenerror,
-      NS_FULLSCREENERROR,
+      eFullscreenError,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(mozpointerlockchange,
@@ -418,7 +418,7 @@ EVENT(toggle,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(volumechange,
-      NS_VOLUMECHANGE,
+      eVolumeChange,
       EventNameType_HTML,
       eBasicEventClass)
 EVENT(waiting,
@@ -443,11 +443,11 @@ EVENT(paste,
       eClipboardEventClass)
 // Gecko-specific extensions that apply to elements
 EVENT(beforescriptexecute,
-      NS_BEFORE_SCRIPT_EXECUTE,
+      eBeforeScriptExecute,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 EVENT(afterscriptexecute,
-      NS_AFTER_SCRIPT_EXECUTE,
+      eAfterScriptExecute,
       EventNameType_HTMLXUL,
       eBasicEventClass)
 
@@ -658,7 +658,7 @@ NON_IDL_EVENT(MozMousePixelScroll,
               eMouseScrollEventClass)
                                                 
 NON_IDL_EVENT(open,
-              NS_OPEN,
+              eOpen,
               EventNameType_None,
               eBasicEventClass)
 
@@ -822,7 +822,7 @@ NON_IDL_EVENT(repeatEvent,
               eSMILTimeEventClass)
 
 NON_IDL_EVENT(MozAfterPaint,
-              NS_AFTERPAINT,
+              eAfterPaint,
               EventNameType_None,
               eBasicEventClass)
 
@@ -921,15 +921,15 @@ NON_IDL_EVENT(transitionend,
               EventNameType_None,
               eTransitionEventClass)
 NON_IDL_EVENT(animationstart,
-              NS_ANIMATION_START,
+              eAnimationStart,
               EventNameType_None,
               eAnimationEventClass)
 NON_IDL_EVENT(animationend,
-              NS_ANIMATION_END,
+              eAnimationEnd,
               EventNameType_None,
               eAnimationEventClass)
 NON_IDL_EVENT(animationiteration,
-              NS_ANIMATION_ITERATION,
+              eAnimationIteration,
               EventNameType_None,
               eAnimationEventClass)
 

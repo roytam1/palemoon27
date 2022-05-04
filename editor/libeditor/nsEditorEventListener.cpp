@@ -371,22 +371,22 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
   //       you don't need to check if the QI succeeded before each call.
   switch (internalEvent->mMessage) {
     // dragenter
-    case NS_DRAGDROP_ENTER: {
+    case eDragEnter: {
       nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
       return DragEnter(dragEvent);
     }
     // dragover
-    case NS_DRAGDROP_OVER: {
+    case eDragOver: {
       nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
       return DragOver(dragEvent);
     }
     // dragexit
-    case NS_DRAGDROP_EXIT: {
+    case eDragExit: {
       nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
       return DragExit(dragEvent);
     }
     // drop
-    case NS_DRAGDROP_DROP: {
+    case eDrop: {
       nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
       return Drop(dragEvent);
     }
@@ -454,19 +454,19 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
       return MouseClick(mouseEvent);
     }
     // focus
-    case NS_FOCUS_CONTENT:
+    case eFocus:
       return Focus(aEvent);
     // blur
-    case NS_BLUR_CONTENT:
+    case eBlur:
       return Blur(aEvent);
     // text
-    case NS_COMPOSITION_CHANGE:
+    case eCompositionChange:
       return HandleText(aEvent);
     // compositionstart
-    case NS_COMPOSITION_START:
+    case eCompositionStart:
       return HandleStartComposition(aEvent);
     // compositionend
-    case NS_COMPOSITION_END:
+    case eCompositionEnd:
       HandleEndComposition(aEvent);
       return NS_OK;
     default:

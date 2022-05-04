@@ -1829,7 +1829,7 @@ nsChildView::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
   // the physical direction of the arrow.
   if (aEvent.keyCode >= nsIDOMKeyEvent::DOM_VK_LEFT &&
       aEvent.keyCode <= nsIDOMKeyEvent::DOM_VK_DOWN) {
-    WidgetQueryContentEvent query(true, NS_QUERY_SELECTED_TEXT, this);
+    WidgetQueryContentEvent query(true, eQuerySelectedText, this);
     DispatchWindowEvent(query);
 
     if (query.mSucceeded && query.mReply.mWritingMode.IsVertical()) {
@@ -1915,7 +1915,7 @@ NSView<mozView>* nsChildView::GetEditorView()
   // We need to get editor's view. E.g., when the focus is in the bookmark
   // dialog, the view is <panel> element of the dialog.  At this time, the key
   // events are processed the parent window's view that has native focus.
-  WidgetQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, this);
+  WidgetQueryContentEvent textContent(true, eQueryTextContent, this);
   textContent.InitForQueryTextContent(0, 0);
   DispatchWindowEvent(textContent);
   if (textContent.mSucceeded && textContent.mReply.mFocusedWidget) {
@@ -2608,7 +2608,7 @@ nsChildView::SendMayStartSwipe(const mozilla::PanGestureInput& aSwipeStartEvent)
   LayoutDeviceIntPoint position =
     RoundedToInt(aSwipeStartEvent.mPanStartPoint * ScreenToLayoutDeviceScale(1));
   WidgetSimpleGestureEvent geckoEvent =
-    SwipeTracker::CreateSwipeGestureEvent(NS_SIMPLE_GESTURE_SWIPE_MAY_START, this, position);
+    SwipeTracker::CreateSwipeGestureEvent(eSwipeGestureMayStart, this, position);
   geckoEvent.direction = direction;
   geckoEvent.delta = 0.0;
   geckoEvent.allowedDirections = 0;
@@ -2764,7 +2764,7 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
     }
   }
 
-  WidgetWheelEvent event(true, NS_WHEEL_WHEEL, this);
+  WidgetWheelEvent event(true, eWheel, this);
 
   if (mAPZC) {
     uint64_t inputBlockId = 0;
@@ -2817,8 +2817,7 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
         MOZ_CRASH("unsupported event type");
         return;
     }
-    if (event.mMessage == NS_WHEEL_WHEEL &&
-        (event.deltaX != 0 || event.deltaY != 0)) {
+    if (event.mMessage == eWheel && (event.deltaX != 0 || event.deltaY != 0)) {
       ProcessUntransformedAPZEvent(&event, guid, inputBlockId, result);
     }
     return;
@@ -2862,8 +2861,7 @@ nsChildView::DispatchAPZWheelInputEvent(InputData& aEvent, bool aCanTriggerSwipe
       MOZ_CRASH("unexpected event type");
       return;
   }
-  if (event.mMessage == NS_WHEEL_WHEEL &&
-      (event.deltaX != 0 || event.deltaY != 0)) {
+  if (event.mMessage == eWheel && (event.deltaX != 0 || event.deltaY != 0)) {
     DispatchEvent(&event, status);
   }
 }
@@ -3152,7 +3150,7 @@ GLPresenter::EndFrame()
 // in our native NSView (it is set in |draggingEntered:|). It is unset when the
 // drag session ends for this view, either with the mouse exiting or when a drop
 // occurs in this view.
-NSPasteboard* globalDragPboard = nil;
+NSPasteboardWrapper* globalDragPboard = nil;
 
 // gLastDragView and gLastDragMouseDownEvent are used to communicate information
 // to the drag service during drag invocation (starting a drag in from the view).
@@ -4182,8 +4180,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   float deltaY = [anEvent deltaY];  // up=1.0, down=-1.0
 
   // Setup the "swipe" event.
-  WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                      mGeckoChild);
+  WidgetSimpleGestureEvent geckoEvent(true, eSwipeGesture, mGeckoChild);
   [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
 
   // Record the left/right direction.
@@ -4237,12 +4234,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   EventMessage msg;
   switch (mGestureState) {
   case eGestureState_StartGesture:
-    msg = NS_SIMPLE_GESTURE_MAGNIFY_START;
+    msg = eMagnifyGestureStart;
     mGestureState = eGestureState_MagnifyGesture;
     break;
 
   case eGestureState_MagnifyGesture:
-    msg = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
+    msg = eMagnifyGestureUpdate;
     break;
 
   case eGestureState_None:
@@ -4276,8 +4273,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   // Setup the "double tap" event.
-  WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_TAP,
-                                      mGeckoChild);
+  WidgetSimpleGestureEvent geckoEvent(true, eTapGesture, mGeckoChild);
   [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
   geckoEvent.clickCount = 1;
 
@@ -4304,12 +4300,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   EventMessage msg;
   switch (mGestureState) {
   case eGestureState_StartGesture:
-    msg = NS_SIMPLE_GESTURE_ROTATE_START;
+    msg = eRotateGestureStart;
     mGestureState = eGestureState_RotateGesture;
     break;
 
   case eGestureState_RotateGesture:
-    msg = NS_SIMPLE_GESTURE_ROTATE_UPDATE;
+    msg = eRotateGestureUpdate;
     break;
 
   case eGestureState_None:
@@ -4355,8 +4351,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   case eGestureState_MagnifyGesture:
     {
       // Setup the "magnify" event.
-      WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_MAGNIFY,
-                                          mGeckoChild);
+      WidgetSimpleGestureEvent geckoEvent(true, eMagnifyGesture, mGeckoChild);
       geckoEvent.delta = mCumulativeMagnification;
       [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
 
@@ -4368,8 +4363,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   case eGestureState_RotateGesture:
     {
       // Setup the "rotate" event.
-      WidgetSimpleGestureEvent geckoEvent(true, NS_SIMPLE_GESTURE_ROTATE,
-                                          mGeckoChild);
+      WidgetSimpleGestureEvent geckoEvent(true, eRotateGesture, mGeckoChild);
       [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
       geckoEvent.delta = -mCumulativeRotation;
       if (mCumulativeRotation > 0.0) {
@@ -4841,7 +4835,7 @@ static int32_t RoundUp(double aDouble)
 {
   WidgetWheelEvent wheelEvent(true, msg, mGeckoChild);
   [self convertCocoaMouseWheelEvent:theEvent toGeckoEvent:&wheelEvent];
-  mExpectingWheelStop = (msg == NS_WHEEL_START);
+  mExpectingWheelStop = (msg == eWheelOperationStart);
   mGeckoChild->DispatchAPZAwareEvent(wheelEvent.AsInputEvent());
 }
 
@@ -4911,11 +4905,18 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   }
 
   NSEventPhase phase = nsCocoaUtils::EventPhase(theEvent);
-  // Fire NS_WHEEL_START/STOP events when 2 fingers touch/release the touchpad.
+  // Fire eWheelOperationStart/End events when 2 fingers touch/release the
+  // touchpad.
   if (phase & NSEventPhaseMayBegin) {
-    [self sendWheelCondition:YES first:NS_WHEEL_STOP second:NS_WHEEL_START forEvent:theEvent];
+    [self sendWheelCondition:YES
+                       first:eWheelOperationEnd
+                      second:eWheelOperationStart
+                    forEvent:theEvent];
   } else if (phase & (NSEventPhaseEnded | NSEventPhaseCancelled)) {
-    [self sendWheelCondition:NO first:NS_WHEEL_START second:NS_WHEEL_STOP forEvent:theEvent];
+    [self sendWheelCondition:NO
+                       first:eWheelOperationStart
+                      second:eWheelOperationEnd
+                    forEvent:theEvent];
   }
 
   NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(theEvent, [self window]);
@@ -5103,7 +5104,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
       return nil;
   }
 
-  WidgetMouseEvent geckoEvent(true, NS_CONTEXTMENU, mGeckoChild,
+  WidgetMouseEvent geckoEvent(true, eContextMenu, mGeckoChild,
                               WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
   geckoEvent.button = WidgetMouseEvent::eRightButton;
@@ -5737,24 +5738,24 @@ PanGestureTypeForEvent(NSEvent* aEvent)
       return NSDragOperationNone;
   }
 
-  if (aMessage == NS_DRAGDROP_ENTER)
+  if (aMessage == eDragEnter) {
     mDragService->StartDragSession();
+  }
 
   nsCOMPtr<nsIDragSession> dragSession;
   mDragService->GetCurrentSession(getter_AddRefs(dragSession));
   if (dragSession) {
-    if (aMessage == NS_DRAGDROP_OVER) {
+    if (aMessage == eDragOver) {
       // fire the drag event at the source. Just ignore whether it was
       // cancelled or not as there isn't actually a means to stop the drag
-      mDragService->FireDragEventAtSource(NS_DRAGDROP_DRAG);
+      mDragService->FireDragEventAtSource(eDrag);
       dragSession->SetCanDrop(false);
-    }
-    else if (aMessage == NS_DRAGDROP_DROP) {
+    } else if (aMessage == eDrop) {
       // We make the assumption that the dragOver handlers have correctly set
       // the |canDrop| property of the Drag Session.
       bool canDrop = false;
       if (!NS_SUCCEEDED(dragSession->GetCanDrop(&canDrop)) || !canDrop) {
-        [self doDragAction:NS_DRAGDROP_EXIT sender:aSender];
+        [self doDragAction:eDragExit sender:aSender];
 
         nsCOMPtr<nsIDOMNode> sourceNode;
         dragSession->GetSourceNode(getter_AddRefs(sourceNode));
@@ -5795,9 +5796,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 
   if (dragSession) {
     switch (aMessage) {
-      case NS_DRAGDROP_ENTER:
-      case NS_DRAGDROP_OVER:
-      {
+      case eDragEnter:
+      case eDragOver: {
         uint32_t dragAction;
         dragSession->GetDragAction(&dragAction);
 
@@ -5813,8 +5813,8 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 
         return [self dragOperationFromDragAction:dragAction];
       }
-      case NS_DRAGDROP_EXIT:
-      case NS_DRAGDROP_DROP: {
+      case eDragExit:
+      case eDrop: {
         nsCOMPtr<nsIDOMNode> sourceNode;
         dragSession->GetSourceNode(getter_AddRefs(sourceNode));
         if (!sourceNode) {
@@ -5848,9 +5848,10 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   // Set the global drag pasteboard that will be used for this drag session.
   // This will be set back to nil when the drag session ends (mouse exits
   // the view or a drop happens within the view).
-  globalDragPboard = [[sender draggingPasteboard] retain];
+  globalDragPboard =
+    [[NSPasteboardWrapper alloc] initWithPasteboard:[sender draggingPasteboard]];
 
-  return [self doDragAction:NS_DRAGDROP_ENTER sender:sender];
+  return [self doDragAction:eDragEnter sender:sender];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSDragOperationNone);
 }
@@ -5859,7 +5860,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 {
   MOZ_LOG(sCocoaLog, LogLevel::Info, ("ChildView draggingUpdated: entered\n"));
 
-  return [self doDragAction:NS_DRAGDROP_OVER sender:sender];
+  return [self doDragAction:eDragOver sender:sender];
 }
 
 - (void)draggingExited:(id <NSDraggingInfo>)sender
@@ -5867,14 +5868,14 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   MOZ_LOG(sCocoaLog, LogLevel::Info, ("ChildView draggingExited: entered\n"));
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  [self doDragAction:NS_DRAGDROP_EXIT sender:sender];
+  [self doDragAction:eDragExit sender:sender];
   NS_IF_RELEASE(mDragService);
 }
 
 - (BOOL)performDragOperation:(id <NSDraggingInfo>)sender
 {
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  BOOL handled = [self doDragAction:NS_DRAGDROP_DROP sender:sender] != NSDragOperationNone;
+  BOOL handled = [self doDragAction:eDrop sender:sender] != NSDragOperationNone;
   NS_IF_RELEASE(mDragService);
   return handled;
 }
@@ -6053,8 +6054,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
 
       // Determine if there is a selection (if sending to the service).
       if (sendType) {
-        WidgetQueryContentEvent event(true, NS_QUERY_CONTENT_STATE,
-                                      mGeckoChild);
+        WidgetQueryContentEvent event(true, eQueryContentState, mGeckoChild);
         // This might destroy our widget (and null out mGeckoChild).
         mGeckoChild->DispatchWindowEvent(event);
         if (!mGeckoChild || !event.mSucceeded || !event.mReply.mHasSelection)
@@ -6064,7 +6064,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
       // Determine if we can paste (if receiving data from the service).
       if (mGeckoChild && returnType) {
         WidgetContentCommandEvent command(true,
-                                          NS_CONTENT_COMMAND_PASTE_TRANSFERABLE,
+                                          eContentCommandPasteTransferable,
                                           mGeckoChild, true);
         // This might possibly destroy our widget (and null out mGeckoChild).
         mGeckoChild->DispatchWindowEvent(command);
@@ -6102,8 +6102,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
     return NO;
 
   // Obtain the current selection.
-  WidgetQueryContentEvent event(true,
-                                NS_QUERY_SELECTION_AS_TRANSFERABLE,
+  WidgetQueryContentEvent event(true, eQuerySelectionAsTransferable,
                                 mGeckoChild);
   mGeckoChild->DispatchWindowEvent(event);
   if (!event.mSucceeded || !event.mReply.mTransferable)
@@ -6163,7 +6162,7 @@ PanGestureTypeForEvent(NSEvent* aEvent)
   NS_ENSURE_TRUE(mGeckoChild, false);
 
   WidgetContentCommandEvent command(true,
-                                    NS_CONTENT_COMMAND_PASTE_TRANSFERABLE,
+                                    eContentCommandPasteTransferable,
                                     mGeckoChild);
   command.mTransferable = trans;
   mGeckoChild->DispatchWindowEvent(command);

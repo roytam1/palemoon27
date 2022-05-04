@@ -615,7 +615,6 @@ GK_ATOM(mouseover, "mouseover")
 GK_ATOM(mousethrough, "mousethrough")
 GK_ATOM(mouseup, "mouseup")
 GK_ATOM(mozaudiochannel, "mozaudiochannel")
-GK_ATOM(mozasyncpanzoom, "mozasyncpanzoom")
 GK_ATOM(mozfullscreenchange, "mozfullscreenchange")
 GK_ATOM(mozfullscreenerror, "mozfullscreenerror")
 GK_ATOM(mozpasspointerevents, "mozpasspointerevents")
@@ -948,6 +947,7 @@ GK_ATOM(parent, "parent")
 GK_ATOM(parentapp, "parentapp")
 GK_ATOM(parentfocused, "parentfocused")
 GK_ATOM(parsetype, "parsetype")
+GK_ATOM(password, "password")
 GK_ATOM(pattern, "pattern")
 GK_ATOM(patternSeparator, "pattern-separator")
 GK_ATOM(perMille, "per-mille")
@@ -1912,7 +1912,7 @@ GK_ATOM(ondevicelight, "ondevicelight")
 
 // Audio channel events
 GK_ATOM(onmozinterruptbegin, "onmozinterruptbegin")
-GK_ATOM(onmozinterruptend, "onmozinterruptbegin")
+GK_ATOM(onmozinterruptend, "onmozinterruptend")
 
 //---------------------------------------------------------------------------
 // Special atoms
@@ -2144,6 +2144,9 @@ GK_ATOM(el, "el")
 GK_ATOM(ga, "ga")
 GK_ATOM(nl, "nl")
 
+// mathematical language, used for MathML
+GK_ATOM(x_math, "x-math")
+
 // Names for editor transactions
 GK_ATOM(TypingTxnName, "Typing")
 GK_ATOM(IMETxnName, "IME")
@@ -2185,6 +2188,11 @@ GK_ATOM(physical_home_button, "physical-home-button")
 GK_ATOM(windows_classic, "windows-classic")
 GK_ATOM(windows_theme_aero, "windows-theme-aero")
 GK_ATOM(windows_theme_aero_lite, "windows-theme-aero-lite")
+GK_ATOM(windows_theme_luna_blue, "windows-theme-luna-blue")
+GK_ATOM(windows_theme_luna_olive, "windows-theme-luna-olive")
+GK_ATOM(windows_theme_luna_silver, "windows-theme-luna-silver")
+GK_ATOM(windows_theme_royale, "windows-theme-royale")
+GK_ATOM(windows_theme_zune, "windows-theme-zune")
 GK_ATOM(windows_theme_generic, "windows-theme-generic")
 
 // And the same again, as media query keywords.
@@ -2328,7 +2336,6 @@ GK_ATOM(menuitemradio, "menuitemradio")
 GK_ATOM(mixed, "mixed")
 GK_ATOM(multiline, "multiline")
 GK_ATOM(navigation, "navigation")
-GK_ATOM(password, "password")
 GK_ATOM(polite, "polite")
 GK_ATOM(posinset, "posinset")
 GK_ATOM(presentation, "presentation")

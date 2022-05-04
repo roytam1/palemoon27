@@ -3731,7 +3731,7 @@ ScrollFrameHelper::FireScrollPortEvent()
   InternalScrollPortEvent event(true,
     (orient == InternalScrollPortEvent::horizontal ? mHorizontalOverflow :
                                                      mVerticalOverflow) ?
-    NS_SCROLLPORT_OVERFLOW : NS_SCROLLPORT_UNDERFLOW, nullptr);
+    eScrollPortOverflow : eScrollPortUnderflow, nullptr);
   event.orient = orient;
   return EventDispatcher::Dispatch(mOuter->GetContent(),
                                    mOuter->PresContext(), &event);
@@ -5280,7 +5280,7 @@ ScrollFrameHelper::FireScrolledAreaEvent()
 {
   mScrolledAreaEvent.Forget();
 
-  InternalScrollAreaEvent event(true, NS_SCROLLEDAREACHANGED, nullptr);
+  InternalScrollAreaEvent event(true, eScrolledAreaChanged, nullptr);
   nsPresContext *prescontext = mOuter->PresContext();
   nsIContent* content = mOuter->GetContent();
 

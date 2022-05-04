@@ -1006,7 +1006,7 @@ nsWindow::mousePressEvent(QMouseEvent* aEvent)
     // Right click on linux should also pop up a context menu.
     if (event.button == WidgetMouseEvent::eRightButton &&
         MOZ_LIKELY(!mIsDestroyed)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+        WidgetMouseEvent contextMenuEvent(true, eContextMenu, this,
                                           WidgetMouseEvent::eReal);
         InitMouseEvent(contextMenuEvent, aEvent, 1);
         DispatchEvent(&contextMenuEvent, status);
@@ -1140,7 +1140,7 @@ nsWindow::keyPressEvent(QKeyEvent* aEvent)
     // Before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
     if (IsContextMenuKeyEvent(aEvent)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+        WidgetMouseEvent contextMenuEvent(true, eContextMenu, this,
                                           WidgetMouseEvent::eReal,
                                           WidgetMouseEvent::eContextMenuKey);
         return DispatchEvent(&contextMenuEvent);
@@ -1202,24 +1202,24 @@ nsWindow::keyPressEvent(QKeyEvent* aEvent)
             return DispatchCommandEvent(nsGkAtoms::Home);
         case Qt::Key_Copy:
         case Qt::Key_F16: // F16, F20, F18, F14 are old keysyms for Copy Cut Paste Undo
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_COPY);
+            return DispatchContentCommandEvent(eContentCommandCopy);
         case Qt::Key_Cut:
         case Qt::Key_F20:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_CUT);
+            return DispatchContentCommandEvent(eContentCommandCut);
         case Qt::Key_Paste:
         case Qt::Key_F18:
         case Qt::Key_F9:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_PASTE);
+            return DispatchContentCommandEvent(eContentCommandPaste);
         case Qt::Key_F14:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_UNDO);
+            return DispatchContentCommandEvent(eContentCommandUndo);
     }
 
     // Qt::Key_Redo and Qt::Key_Undo are not available yet.
     if (aEvent->nativeVirtualKey() == 0xff66) {
-        return DispatchContentCommandEvent(NS_CONTENT_COMMAND_REDO);
+        return DispatchContentCommandEvent(eContentCommandRedo);
     }
     if (aEvent->nativeVirtualKey() == 0xff65) {
-        return DispatchContentCommandEvent(NS_CONTENT_COMMAND_UNDO);
+        return DispatchContentCommandEvent(eContentCommandUndo);
     }
 
     WidgetKeyboardEvent event(true, eKeyPress, this);
@@ -1259,7 +1259,7 @@ nsEventStatus
 nsWindow::wheelEvent(QWheelEvent* aEvent)
 {
     // check to see if we should rollup
-    WidgetWheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
+    WidgetWheelEvent wheelEvent(true, eWheel, this);
     wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
 
     // negative values for aEvent->delta indicate downward scrolling;
@@ -1665,7 +1665,7 @@ nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
 }
 
 nsEventStatus
-nsWindow::DispatchContentCommandEvent(int32_t aMsg)
+nsWindow::DispatchContentCommandEvent(EventMessage aMsg)
 {
     WidgetContentCommandEvent event(true, aMsg, this);
 

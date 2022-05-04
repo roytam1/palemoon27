@@ -99,16 +99,16 @@ bool
 WidgetEvent::HasDragEventMessage() const
 {
   switch (mMessage) {
-    case NS_DRAGDROP_ENTER:
-    case NS_DRAGDROP_OVER:
-    case NS_DRAGDROP_EXIT:
-    case NS_DRAGDROP_DRAGDROP:
-    case NS_DRAGDROP_GESTURE:
-    case NS_DRAGDROP_DRAG:
-    case NS_DRAGDROP_END:
-    case NS_DRAGDROP_START:
-    case NS_DRAGDROP_DROP:
-    case NS_DRAGDROP_LEAVE:
+    case eDragEnter:
+    case eDragOver:
+    case eDragExit:
+    case eLegacyDragDrop:
+    case eLegacyDragGesture:
+    case eDrag:
+    case eDragEnd:
+    case eDragStart:
+    case eDrop:
+    case eDragLeave:
       return true;
     default:
       return false;
@@ -136,12 +136,12 @@ bool
 WidgetEvent::HasIMEEventMessage() const
 {
   switch (mMessage) {
-    case NS_COMPOSITION_START:
-    case NS_COMPOSITION_END:
-    case NS_COMPOSITION_UPDATE:
-    case NS_COMPOSITION_CHANGE:
-    case NS_COMPOSITION_COMMIT_AS_IS:
-    case NS_COMPOSITION_COMMIT:
+    case eCompositionStart:
+    case eCompositionEnd:
+    case eCompositionUpdate:
+    case eCompositionChange:
+    case eCompositionCommitAsIs:
+    case eCompositionCommit:
       return true;
     default:
       return false;

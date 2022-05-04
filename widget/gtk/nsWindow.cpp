@@ -2693,7 +2693,7 @@ nsWindow::OnButtonPressEvent(GdkEventButton *aEvent)
     // right menu click on linux should also pop up a context menu
     if (domButton == WidgetMouseEvent::eRightButton &&
         MOZ_LIKELY(!mIsDestroyed)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+        WidgetMouseEvent contextMenuEvent(true, eContextMenu, this,
                                           WidgetMouseEvent::eReal);
         InitButtonEvent(contextMenuEvent, aEvent);
         contextMenuEvent.pressure = mLastMotionPressure;
@@ -2936,18 +2936,18 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
             return DispatchCommandEvent(nsGkAtoms::Home);
         case XF86XK_Copy:
         case GDK_F16:  // F16, F20, F18, F14 are old keysyms for Copy Cut Paste Undo
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_COPY);
+            return DispatchContentCommandEvent(eContentCommandCopy);
         case XF86XK_Cut:
         case GDK_F20:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_CUT);
+            return DispatchContentCommandEvent(eContentCommandCut);
         case XF86XK_Paste:
         case GDK_F18:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_PASTE);
+            return DispatchContentCommandEvent(eContentCommandPaste);
         case GDK_Redo:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_REDO);
+            return DispatchContentCommandEvent(eContentCommandRedo);
         case GDK_Undo:
         case GDK_F14:
-            return DispatchContentCommandEvent(NS_CONTENT_COMMAND_UNDO);
+            return DispatchContentCommandEvent(eContentCommandUndo);
     }
 #endif /* ! AIX */
 #endif /* MOZ_X11 */
@@ -2958,7 +2958,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
     // before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
     if (is_context_menu_key(event)) {
-        WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
+        WidgetMouseEvent contextMenuEvent(true, eContextMenu, this,
                                           WidgetMouseEvent::eReal,
                                           WidgetMouseEvent::eContextMenuKey);
 
@@ -2977,7 +2977,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
         }
         else {
             WidgetCompositionEvent compositionChangeEvent(
-                                     true, NS_COMPOSITION_CHANGE, this);
+                                     true, eCompositionChange, this);
             char16_t textString[3];
             textString[0] = H_SURROGATE(event.charCode);
             textString[1] = L_SURROGATE(event.charCode);
@@ -3027,10 +3027,11 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
         return;
 #if GTK_CHECK_VERSION(3,4,0)
     // check for duplicate legacy scroll event, see GNOME bug 726878
-    if (mLastScrollEventTime == aEvent->time)
+    if (aEvent->direction != GDK_SCROLL_SMOOTH &&
+        mLastScrollEventTime == aEvent->time)
         return; 
 #endif
-    WidgetWheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
+    WidgetWheelEvent wheelEvent(true, eWheel, this);
     wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
     switch (aEvent->direction) {
 #if GTK_CHECK_VERSION(3,4,0)
@@ -3227,7 +3228,7 @@ nsWindow::DispatchDragEvent(EventMessage aMsg, const nsIntPoint& aRefPoint,
 {
     WidgetDragEvent event(true, aMsg, this);
 
-    if (aMsg == NS_DRAGDROP_OVER) {
+    if (aMsg == eDragOver) {
         InitDragEvent(event);
     }
 
@@ -6081,7 +6082,7 @@ nsWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
 
         // Check if we're targeting content with vertical writing mode,
         // and if so remap the arrow keys.
-        WidgetQueryContentEvent query(true, NS_QUERY_SELECTED_TEXT, this);
+        WidgetQueryContentEvent query(true, eQuerySelectedText, this);
         nsEventStatus status;
         DispatchEvent(&query, status);
 

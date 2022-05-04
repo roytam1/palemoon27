@@ -94,7 +94,7 @@ WheelTransaction::BeginTransaction(nsIFrame* aTargetFrame,
                                    WidgetWheelEvent* aEvent)
 {
   NS_ASSERTION(!sTargetFrame, "previous transaction is not finished!");
-  MOZ_ASSERT(aEvent->mMessage == NS_WHEEL_WHEEL,
+  MOZ_ASSERT(aEvent->mMessage == eWheel,
              "Transaction must be started with a wheel event");
   ScrollbarsForWheel::OwnWheelTransaction(false);
   sTargetFrame = aTargetFrame;
@@ -176,7 +176,7 @@ WheelTransaction::OnEvent(WidgetEvent* aEvent)
   }
 
   switch (aEvent->mMessage) {
-    case NS_WHEEL_WHEEL:
+    case eWheel:
       if (sMouseMoved != 0 &&
           OutOfTime(sMouseMoved, GetIgnoreMoveDelayTime())) {
         // Terminate the current mousewheel transaction if the mouse moved more
@@ -185,7 +185,7 @@ WheelTransaction::OnEvent(WidgetEvent* aEvent)
       }
       return;
     case eMouseMove:
-    case NS_DRAGDROP_OVER: {
+    case eDragOver: {
       WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
       if (mouseEvent->IsReal()) {
         // If the cursor is moving to be outside the frame,
@@ -214,8 +214,8 @@ WheelTransaction::OnEvent(WidgetEvent* aEvent)
     case eMouseDown:
     case eMouseDoubleClick:
     case eMouseClick:
-    case NS_CONTEXTMENU:
-    case NS_DRAGDROP_DROP:
+    case eContextMenu:
+    case eDrop:
       EndTransaction();
       return;
     default:
@@ -415,7 +415,7 @@ ScrollbarsForWheel::PrepareToScrollText(EventStateManager* aESM,
                                         nsIFrame* aTargetFrame,
                                         WidgetWheelEvent* aEvent)
 {
-  if (aEvent->mMessage == NS_WHEEL_START) {
+  if (aEvent->mMessage == eWheelOperationStart) {
     WheelTransaction::OwnScrollbars(false);
     if (!IsActive()) {
       TemporarilyActivateAllPossibleScrollTargets(aESM, aTargetFrame, aEvent);

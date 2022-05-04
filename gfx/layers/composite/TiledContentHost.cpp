@@ -18,6 +18,7 @@
 #include "nsPrintfCString.h"            // for nsPrintfCString
 #include "nsRect.h"                     // for IntRect
 #include "mozilla/layers/TiledContentClient.h"
+#include "gfxPrefs.h"
 
 class gfxReusableSurfaceWrapper;
 

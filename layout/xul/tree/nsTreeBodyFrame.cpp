@@ -918,7 +918,7 @@ nsTreeBodyFrame::CheckOverflow(const ScrollParts& aParts)
 
   if (verticalOverflowChanged) {
     InternalScrollPortEvent event(true,
-      mVerticalOverflow ? NS_SCROLLPORT_OVERFLOW : NS_SCROLLPORT_UNDERFLOW,
+      mVerticalOverflow ? eScrollPortOverflow : eScrollPortUnderflow,
       nullptr);
     event.orient = InternalScrollPortEvent::vertical;
     EventDispatcher::Dispatch(content, presContext, &event);
@@ -926,7 +926,7 @@ nsTreeBodyFrame::CheckOverflow(const ScrollParts& aParts)
 
   if (horizontalOverflowChanged) {
     InternalScrollPortEvent event(true,
-      mHorizontalOverflow ? NS_SCROLLPORT_OVERFLOW : NS_SCROLLPORT_UNDERFLOW,
+      mHorizontalOverflow ? eScrollPortOverflow : eScrollPortUnderflow,
       nullptr);
     event.orient = InternalScrollPortEvent::horizontal;
     EventDispatcher::Dispatch(content, presContext, &event);
@@ -2583,7 +2583,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
       InvalidateRow(mMouseOverRow);
       mMouseOverRow = -1;
     }
-  } else if (aEvent->mMessage == NS_DRAGDROP_ENTER) {
+  } else if (aEvent->mMessage == eDragEnter) {
     if (!mSlots)
       mSlots = new Slots();
 
@@ -2600,7 +2600,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     mSlots->mDropRow = -1;
     mSlots->mDropOrient = -1;
     mSlots->mDragAction = GetDropEffect(aEvent);
-  } else if (aEvent->mMessage == NS_DRAGDROP_OVER) {
+  } else if (aEvent->mMessage == eDragOver) {
     // The mouse is hovering over this tree. If we determine things are
     // different from the last time, invalidate the drop feedback at the old
     // position, query the view to see if the current location is droppable,
@@ -2709,7 +2709,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     // Indicate that the drop is allowed by preventing the default behaviour.
     if (mSlots->mDropAllowed)
       *aEventStatus = nsEventStatus_eConsumeNoDefault;
-  } else if (aEvent->mMessage == NS_DRAGDROP_DROP) {
+  } else if (aEvent->mMessage == eDrop) {
      // this event was meant for another frame, so ignore it
      if (!mSlots)
        return NS_OK;
@@ -2733,7 +2733,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     mSlots->mDropOrient = -1;
     mSlots->mIsDragging = false;
     *aEventStatus = nsEventStatus_eConsumeNoDefault; // already handled the drop
-  } else if (aEvent->mMessage == NS_DRAGDROP_EXIT) {
+  } else if (aEvent->mMessage == eDragExit) {
     // this event was meant for another frame, so ignore it
     if (!mSlots)
       return NS_OK;

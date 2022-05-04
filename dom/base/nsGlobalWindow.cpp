@@ -1431,8 +1431,8 @@ nsGlobalWindow::CleanUp()
     }
 
 #ifdef MOZ_B2G
-    DisableNetworkEvent(NS_NETWORK_UPLOAD_EVENT);
-    DisableNetworkEvent(NS_NETWORK_DOWNLOAD_EVENT);
+    DisableNetworkEvent(eNetworkUpload);
+    DisableNetworkEvent(eNetworkDownload);
 #endif // MOZ_B2G
 
     if (mIdleService) {
@@ -3081,7 +3081,7 @@ nsGlobalWindow::PreHandleEvent(EventChainPreVisitor& aVisitor)
     }
   } else if (msg == eMouseDown && aVisitor.mEvent->mFlags.mIsTrusted) {
     gMouseDown = true;
-  } else if ((msg == eMouseUp || msg == NS_DRAGDROP_END) &&
+  } else if ((msg == eMouseUp || msg == eDragEnd) &&
              aVisitor.mEvent->mFlags.mIsTrusted) {
     gMouseDown = false;
     if (gDragServiceDisabled) {
@@ -3260,8 +3260,8 @@ nsGlobalWindow::PostHandleEvent(EventChainPostVisitor& aVisitor)
   // Return early if there is nothing to do.
   switch (aVisitor.mEvent->mMessage) {
     case eResize:
-    case NS_PAGE_UNLOAD:
-    case NS_LOAD:
+    case eUnload:
+    case eLoad:
       break;
     default:
       return NS_OK;
@@ -3275,7 +3275,7 @@ nsGlobalWindow::PostHandleEvent(EventChainPostVisitor& aVisitor)
 
   if (aVisitor.mEvent->mMessage == eResize) {
     mIsHandlingResizeEvent = false;
-  } else if (aVisitor.mEvent->mMessage == NS_PAGE_UNLOAD &&
+  } else if (aVisitor.mEvent->mMessage == eUnload &&
              aVisitor.mEvent->mFlags.mIsTrusted) {
     // Execute bindingdetached handlers before we tear ourselves
     // down.
@@ -3283,7 +3283,7 @@ nsGlobalWindow::PostHandleEvent(EventChainPostVisitor& aVisitor)
       mDoc->BindingManager()->ExecuteDetachedHandlers();
     }
     mIsDocumentLoaded = false;
-  } else if (aVisitor.mEvent->mMessage == NS_LOAD &&
+  } else if (aVisitor.mEvent->mMessage == eLoad &&
              aVisitor.mEvent->mFlags.mIsTrusted) {
     // This is page load event since load events don't propagate to |window|.
     // @see nsDocument::PreHandleEvent.
@@ -3297,7 +3297,7 @@ nsGlobalWindow::PostHandleEvent(EventChainPostVisitor& aVisitor)
       // onload event for the frame element.
 
       nsEventStatus status = nsEventStatus_eIgnore;
-      WidgetEvent event(aVisitor.mEvent->mFlags.mIsTrusted, NS_LOAD);
+      WidgetEvent event(aVisitor.mEvent->mFlags.mIsTrusted, eLoad);
       event.mFlags.mBubbles = false;
 
       // Most of the time we could get a pres context to pass in here,
@@ -14596,13 +14596,13 @@ nsGlobalWindow::EnableNetworkEvent(EventMessage aEventMessage)
   }
 
   switch (aEventMessage) {
-    case NS_NETWORK_UPLOAD_EVENT:
+    case eNetworkUpload:
       if (!mNetworkUploadObserverEnabled) {
         mNetworkUploadObserverEnabled = true;
         os->AddObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC, false);
       }
       break;
-    case NS_NETWORK_DOWNLOAD_EVENT:
+    case eNetworkDownload:
       if (!mNetworkDownloadObserverEnabled) {
         mNetworkDownloadObserverEnabled = true;
         os->AddObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC, false);
@@ -14624,13 +14624,13 @@ nsGlobalWindow::DisableNetworkEvent(EventMessage aEventMessage)
   }
 
   switch (aEventMessage) {
-    case NS_NETWORK_UPLOAD_EVENT:
+    case eNetworkUpload:
       if (mNetworkUploadObserverEnabled) {
         mNetworkUploadObserverEnabled = false;
         os->RemoveObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC);
       }
       break;
-    case NS_NETWORK_DOWNLOAD_EVENT:
+    case eNetworkDownload:
       if (mNetworkDownloadObserverEnabled) {
         mNetworkDownloadObserverEnabled = false;
         os->RemoveObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC);

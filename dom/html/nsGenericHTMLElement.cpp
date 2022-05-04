@@ -2252,8 +2252,7 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
   if (aVisitor.mEvent->mFlags.mIsTrusted) {
     switch (aVisitor.mEvent->mMessage) {
-      case NS_FOCUS_CONTENT:
-      {
+      case eFocus: {
         // Check to see if focus has bubbled up from a form control's
         // child textfield or button.  If that's the case, don't focus
         // this parent file control -- leave focus on the child.
@@ -2263,8 +2262,7 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
           formControlFrame->SetFocus(true, true);
         break;
       }
-      case NS_BLUR_CONTENT:
-      {
+      case eBlur: {
         nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
         if (formControlFrame)
           formControlFrame->SetFocus(false, false);
@@ -2452,16 +2450,16 @@ nsGenericHTMLFormElement::IsElementDisabledForEvents(EventMessage aMessage,
     case eMouseMove:
     case eMouseOver:
     case eMouseOut:
-    case NS_MOUSEENTER:
-    case NS_MOUSELEAVE:
-    case NS_POINTER_MOVE:
-    case NS_POINTER_OVER:
-    case NS_POINTER_OUT:
-    case NS_POINTER_ENTER:
-    case NS_POINTER_LEAVE:
-    case NS_WHEEL_WHEEL:
-    case NS_MOUSE_SCROLL:
-    case NS_MOUSE_PIXEL_SCROLL:
+    case eMouseEnter:
+    case eMouseLeave:
+    case ePointerMove:
+    case ePointerOver:
+    case ePointerOut:
+    case ePointerEnter:
+    case ePointerLeave:
+    case eWheel:
+    case eLegacyMouseLineOrPageScroll:
+    case eLegacyMousePixelScroll:
       return false;
     default:
       break;
@@ -2778,18 +2776,24 @@ nsGenericHTMLElement::RegUnRegAccessKey(bool aDoReg)
   }
 }
 
-void
+bool
 nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
                                        bool aIsTrustedEvent)
 {
   nsPresContext* presContext = GetPresContext(eForUncomposedDoc);
-  if (!presContext)
-    return;
+  if (!presContext) {
+    return false;
+  }
 
   // It's hard to say what HTML4 wants us to do in all cases.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+  bool focused = true;
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm) {
     fm->SetFocus(this, nsIFocusManager::FLAG_BYKEY);
+
+    // Return true if the element became the current focus within its window.
+    nsPIDOMWindow* window = OwnerDoc()->GetWindow();
+    focused = (window && window->GetFocusedNode());
   }
 
   if (aKeyCausesActivation) {
@@ -2798,6 +2802,8 @@ nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
                                             openAllowed : openAbused);
     DispatchSimulatedClick(this, aIsTrustedEvent, presContext);
   }
+
+  return focused;
 }
 
 nsresult

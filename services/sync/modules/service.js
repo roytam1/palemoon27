@@ -56,7 +56,12 @@ const STORAGE_INFO_TYPES = [INFO_COLLECTIONS,
 const TELEMETRY_CUSTOM_SERVER_PREFS = {
   WEAVE_CUSTOM_LEGACY_SERVER_CONFIGURATION: "services.sync.serverURL",
   WEAVE_CUSTOM_FXA_SERVER_CONFIGURATION: "identity.fxaccounts.auth.uri",
-  WEAVE_CUSTOM_TOKEN_SERVER_CONFIGURATION: "services.sync.tokenServerURI",
+  WEAVE_CUSTOM_TOKEN_SERVER_CONFIGURATION: [
+    // The new prefname we use for the tokenserver URI.
+    "identity.sync.tokenserver.uri",
+    // The old deprecated prefname we previously used for the tokenserver URI.
+    "services.sync.tokenServerURI",
+  ],
 };
 
 
@@ -379,7 +384,8 @@ Sync11Service.prototype = {
 
     // Telemetry probes to indicate if the user is using custom servers.
     for (let [probeName, prefName] of Iterator(TELEMETRY_CUSTOM_SERVER_PREFS)) {
-      let isCustomized = Services.prefs.prefHasUserValue(prefName);
+      let prefNames = Array.isArray(prefName) ? prefName : [prefName];
+      let isCustomized = prefNames.some(pref => Services.prefs.prefHasUserValue(pref));
       Services.telemetry.getHistogramById(probeName).add(isCustomized);
     }
 
@@ -684,13 +690,6 @@ Sync11Service.prototype = {
   },
 
   verifyLogin: function verifyLogin(allow40XRecovery = true) {
-    // If the identity isn't ready it  might not know the username...
-    if (!this.identity.readyToAuthenticate) {
-      this._log.info("Not ready to authenticate in verifyLogin.");
-      this.status.login = LOGIN_FAILED_NOT_READY;
-      return false;
-    }
-
     if (!this.identity.username) {
       this._log.warn("No username in verifyLogin.");
       this.status.login = LOGIN_FAILED_NO_USERNAME;
@@ -937,25 +936,22 @@ Sync11Service.prototype = {
       return;
     }
 
-    this.identity.finalize().then(
-      () => {
-        // an observer so the FxA migration code can take some action before
-        // the new identity is created.
-        Svc.Obs.notify("weave:service:start-over:init-identity");
-        this.identity.username = "";
-        this.status.__authManager = null;
-        this.identity = Status._authManager;
-        this._clusterManager = this.identity.createClusterManager(this);
-        Svc.Obs.notify("weave:service:start-over:finish");
-      }
-    ).then(null,
-      err => {
-        this._log.error("startOver failed to re-initialize the identity manager: " + err);
-        // Still send the observer notification so the current state is
-        // reflected in the UI.
-        Svc.Obs.notify("weave:service:start-over:finish");
-      }
-    );
+    try {
+      this.identity.finalize();
+      // an observer so the FxA migration code can take some action before
+      // the new identity is created.
+      Svc.Obs.notify("weave:service:start-over:init-identity");
+      this.identity.username = "";
+      this.status.__authManager = null;
+      this.identity = Status._authManager;
+      this._clusterManager = this.identity.createClusterManager(this);
+      Svc.Obs.notify("weave:service:start-over:finish");
+    } catch (err) {
+      this._log.error("startOver failed to re-initialize the identity manager: " + err);
+      // Still send the observer notification so the current state is
+      // reflected in the UI.
+      Svc.Obs.notify("weave:service:start-over:finish");
+    }
   },
 
   persistLogin: function persistLogin() {

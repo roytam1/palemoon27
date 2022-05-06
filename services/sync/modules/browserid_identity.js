@@ -39,7 +39,7 @@ XPCOMUtils.defineLazyGetter(this, 'log', function() {
 });
 
 // FxAccountsCommon.js doesn't use a "namespace", so create one here.
-let fxAccountsCommon = {};
+var fxAccountsCommon = {};
 Cu.import("resource://gre/modules/FxAccountsCommon.js", fxAccountsCommon);
 
 const OBSERVER_TOPICS = [
@@ -104,12 +104,6 @@ this.BrowserIDManager.prototype = {
   // we don't consider the lack of a keybundle as a failure state.
   _shouldHaveSyncKeyBundle: false,
 
-  get readyToAuthenticate() {
-    // We are finished initializing when we *should* have a sync key bundle,
-    // although we might not actually have one due to auth failures etc.
-    return this._shouldHaveSyncKeyBundle;
-  },
-
   get needsCustomization() {
     try {
       return Services.prefs.getBoolPref(PREF_SYNC_SHOW_CUSTOMIZATION);
@@ -122,7 +116,19 @@ this.BrowserIDManager.prototype = {
     for (let topic of OBSERVER_TOPICS) {
       Services.obs.addObserver(this, topic, false);
     }
-    return this.initializeWithCurrentIdentity();
+    // and a background fetch of account data just so we can set this.account,
+    // so we have a username available before we've actually done a login.
+    // XXX - this is actually a hack just for tests and really shouldn't be
+    // necessary. Also, you'd think it would be safe to allow this.account to
+    // be set to null when there's no user logged in, but argue with the test
+    // suite, not with me :)
+    this._fxaService.getSignedInUser().then(accountData => {
+      if (accountData) {
+        this.account = accountData.email;
+      }
+    }).catch(err => {
+      // As above, this is only for tests so it is safe to ignore.
+    });
   },
 
   /**
@@ -130,7 +136,7 @@ this.BrowserIDManager.prototype = {
    * the user is logged in, or is rejected if the login attempt has failed.
    */
   ensureLoggedIn: function() {
-    if (!this._shouldHaveSyncKeyBundle) {
+    if (!this._shouldHaveSyncKeyBundle && this.whenReadyToAuthenticate) {
       // We are already in the process of logging in.
       return this.whenReadyToAuthenticate.promise;
     }
@@ -160,7 +166,6 @@ this.BrowserIDManager.prototype = {
     }
     this.resetCredentials();
     this._signedInUser = null;
-    return Promise.resolve();
   },
 
   offerSyncOptions: function () {
@@ -283,7 +288,8 @@ this.BrowserIDManager.prototype = {
       // reauth with the server - in that case we will also get here, but
       // should have the same identity.
       // initializeWithCurrentIdentity will throw and log if these constraints
-      // aren't met, so just go ahead and do the init.
+      // aren't met (indirectly, via _updateSignedInUser()), so just go ahead
+      // and do the init.
       this.initializeWithCurrentIdentity(true);
       break;
 
@@ -506,14 +512,27 @@ this.BrowserIDManager.prototype = {
     return true;
   },
 
+  // Get our tokenServerURL - a private helper. Returns a string.
+  get _tokenServerUrl() {
+    // We used to support services.sync.tokenServerURI but this was a
+    // pain-point for people using non-default servers as Sync may auto-reset
+    // all services.sync prefs. So if that still exists, it wins.
+    let url = Svc.Prefs.get("tokenServerURI"); // Svc.Prefs "root" is services.sync
+    if (!url) {
+      url = Services.prefs.getCharPref("identity.sync.tokenserver.uri");
+    }
+    while (url.endsWith("/")) { // trailing slashes cause problems...
+      url = url.slice(0, -1);
+    }
+    return url;
+  },
+
   // Refresh the sync token for our user. Returns a promise that resolves
   // with a token (which may be null in one sad edge-case), or rejects with an
   // error.
   _fetchTokenForUser: function() {
-    let tokenServerURI = Svc.Prefs.get("tokenServerURI");
-    if (tokenServerURI.endsWith("/")) { // trailing slashes cause problems...
-      tokenServerURI = tokenServerURI.slice(0, -1);
-    }
+    // tokenServerURI is mis-named - convention is uri means nsISomething...
+    let tokenServerURI = this._tokenServerUrl;
     let log = this._log;
     let client = this._tokenServerClient;
     let fxa = this._fxaService;
@@ -592,6 +611,7 @@ this.BrowserIDManager.prototype = {
         } else if (err.code && err.code === 401) {
           err = new AuthenticationError(err);
         }
+        Services.telemetry.getHistogramById("WEAVE_FXA_KEY_FETCH_ERRORS").add();
 
         // TODO: write tests to make sure that different auth error cases are handled here
         // properly: auth error getting assertion, auth error getting token (invalid generation
@@ -612,7 +632,6 @@ this.BrowserIDManager.prototype = {
         // that there is no authentication dance still under way.
         this._shouldHaveSyncKeyBundle = true;
         Weave.Status.login = this._authFailureReason;
-        Services.obs.notifyObservers(null, "weave:ui:login:error", null);
         throw err;
       });
   },

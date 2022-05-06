@@ -15,6 +15,49 @@
 namespace mozilla {
 
 /******************************************************************************
+ * Global helper methods
+ ******************************************************************************/
+
+const char*
+ToChar(EventMessage aEventMessage)
+{
+  switch (aEventMessage) {
+
+#define NS_EVENT_MESSAGE(aMessage) \
+    case aMessage: \
+      return #aMessage;
+
+#include "mozilla/EventMessageList.h"
+
+#undef NS_EVENT_MESSAGE
+    default:
+      return "illegal event message";
+  }
+}
+
+const char*
+ToChar(EventClassID aEventClassID)
+{
+  switch (aEventClassID) {
+
+#define NS_ROOT_EVENT_CLASS(aPrefix, aName) \
+    case eBasic##aName##Class: \
+      return "eBasic" #aName "Class";
+
+#define NS_EVENT_CLASS(aPrefix, aName) \
+    case e##aName##Class: \
+      return "e" #aName "Class";
+
+#include "mozilla/EventClassList.h"
+
+#undef NS_EVENT_CLASS
+#undef NS_ROOT_EVENT_CLASS
+    default:
+      return "illegal event class ID";
+  }
+}
+
+/******************************************************************************
  * As*Event() implementation
  ******************************************************************************/
 
@@ -136,12 +179,12 @@ bool
 WidgetEvent::HasIMEEventMessage() const
 {
   switch (mMessage) {
-    case NS_COMPOSITION_START:
-    case NS_COMPOSITION_END:
-    case NS_COMPOSITION_UPDATE:
-    case NS_COMPOSITION_CHANGE:
-    case NS_COMPOSITION_COMMIT_AS_IS:
-    case NS_COMPOSITION_COMMIT:
+    case eCompositionStart:
+    case eCompositionEnd:
+    case eCompositionUpdate:
+    case eCompositionChange:
+    case eCompositionCommitAsIs:
+    case eCompositionCommit:
       return true;
     default:
       return false;

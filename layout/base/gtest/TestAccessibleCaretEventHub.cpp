@@ -163,17 +163,17 @@ public:
 
   static UniquePtr<WidgetEvent> CreateTouchPressEvent(nscoord aX, nscoord aY)
   {
-    return CreateTouchEvent(NS_TOUCH_START, aX, aY);
+    return CreateTouchEvent(eTouchStart, aX, aY);
   }
 
   static UniquePtr<WidgetEvent> CreateTouchMoveEvent(nscoord aX, nscoord aY)
   {
-    return CreateTouchEvent(NS_TOUCH_MOVE, aX, aY);
+    return CreateTouchEvent(eTouchMove, aX, aY);
   }
 
   static UniquePtr<WidgetEvent> CreateTouchReleaseEvent(nscoord aX, nscoord aY)
   {
-    return CreateTouchEvent(NS_TOUCH_END, aX, aY);
+    return CreateTouchEvent(eTouchEnd, aX, aY);
   }
 
   static UniquePtr<WidgetEvent> CreateWheelEvent(EventMessage aMessage)
@@ -732,22 +732,22 @@ TEST_F(AccessibleCaretEventHubTester, TestWheelEventScroll)
 
   check.Call("1");
 
-  HandleEventAndCheckState(CreateWheelEvent(NS_WHEEL_START),
+  HandleEventAndCheckState(CreateWheelEvent(eWheelOperationStart),
                            MockAccessibleCaretEventHub::ScrollState(),
                            nsEventStatus_eIgnore);
 
-  HandleEventAndCheckState(CreateWheelEvent(NS_WHEEL_WHEEL),
+  HandleEventAndCheckState(CreateWheelEvent(eWheel),
                            MockAccessibleCaretEventHub::ScrollState(),
                            nsEventStatus_eIgnore);
 
   mHub->ScrollPositionChanged();
 
-  HandleEventAndCheckState(CreateWheelEvent(NS_WHEEL_STOP),
+  HandleEventAndCheckState(CreateWheelEvent(eWheelOperationEnd),
                            MockAccessibleCaretEventHub::PostScrollState(),
                            nsEventStatus_eIgnore);
 
   // Momentum scroll
-  HandleEventAndCheckState(CreateWheelEvent(NS_WHEEL_WHEEL),
+  HandleEventAndCheckState(CreateWheelEvent(eWheel),
                            MockAccessibleCaretEventHub::PostScrollState(),
                            nsEventStatus_eIgnore);
 

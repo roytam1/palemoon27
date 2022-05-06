@@ -261,7 +261,7 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIContent *aRoot,
   // recreated with same content. Therefore, we need to forget mIMETextNode,
   // but we need to keep storing mIMETextOffset and mIMETextLength becuase
   // they are necessary to restore IME selection and replacing composing string
-  // when this receives NS_COMPOSITION_CHANGE event next time.
+  // when this receives eCompositionChange event next time.
   if (mIMETextNode && !mIMETextNode->IsInComposedDoc()) {
     mIMETextNode = nullptr;
   }
@@ -1828,7 +1828,7 @@ public:
 
     // Even if the change is caused by untrusted event, we need to dispatch
     // trusted input event since it's a fact.
-    InternalEditorInputEvent inputEvent(true, NS_EDITOR_INPUT, widget);
+    InternalEditorInputEvent inputEvent(true, eEditorInput, widget);
     inputEvent.time = static_cast<uint64_t>(PR_Now() / 1000);
     inputEvent.mIsComposing = mIsComposing;
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -1863,6 +1863,9 @@ nsEditor::NotifyEditorObservers(NotificationForEditorObservers aNotification)
       FireInputEvent();
       break;
     case eNotifyEditorObserversOfBefore:
+      if (NS_WARN_IF(mIsInEditAction)) {
+        break;
+      }
       mIsInEditAction = true;
       for (auto& observer : observers) {
         observer->BeforeEditAction();
@@ -5123,11 +5126,11 @@ nsEditor::IsAcceptableInputEvent(nsIDOMEvent* aEvent)
       // If events are not created with proper event interface, their message
       // are initialized with eUnidentifiedEvent.  Let's ignore such event.
       return false;
-    case NS_COMPOSITION_START:
-    case NS_COMPOSITION_END:
-    case NS_COMPOSITION_UPDATE:
-    case NS_COMPOSITION_CHANGE:
-    case NS_COMPOSITION_COMMIT_AS_IS:
+    case eCompositionStart:
+    case eCompositionEnd:
+    case eCompositionUpdate:
+    case eCompositionChange:
+    case eCompositionCommitAsIs:
       // Don't allow composition events whose internal event are not
       // WidgetCompositionEvent.
       widgetGUIEvent = aEvent->GetInternalNSEvent()->AsCompositionEvent();

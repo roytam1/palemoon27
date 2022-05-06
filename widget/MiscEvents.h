@@ -46,10 +46,10 @@ public:
     return nullptr;
   }
 
-  // NS_CONTENT_COMMAND_PASTE_TRANSFERABLE
+  // eContentCommandPasteTransferable
   nsCOMPtr<nsITransferable> mTransferable; // [in]
 
-  // NS_CONTENT_COMMAND_SCROLL
+  // eContentCommandScroll
   // for mScroll.mUnit
   enum
   {

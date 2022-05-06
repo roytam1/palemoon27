@@ -2099,8 +2099,7 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
     }
     // Delete the selected range.
     nsRefPtr<TextInputHandler> kungFuDeathGrip(this);
-    WidgetContentCommandEvent deleteCommandEvent(true,
-                                                 NS_CONTENT_COMMAND_DELETE,
+    WidgetContentCommandEvent deleteCommandEvent(true, eContentCommandDelete,
                                                  mWidget);
     DispatchEvent(deleteCommandEvent);
     NS_ENSURE_TRUE_VOID(deleteCommandEvent.mSucceeded);
@@ -2715,7 +2714,7 @@ IMEInputHandler::DispatchCompositionChangeEvent(const nsString& aText,
 
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
 
-  WidgetCompositionEvent compositionChangeEvent(true, NS_COMPOSITION_CHANGE,
+  WidgetCompositionEvent compositionChangeEvent(true, eCompositionChange,
                                                 mWidget);
   compositionChangeEvent.time = PR_IntervalNow();
   compositionChangeEvent.mData = aText;
@@ -2741,7 +2740,7 @@ IMEInputHandler::DispatchCompositionCommitEvent(const nsAString* aCommitString)
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
 
   EventMessage message =
-    aCommitString ? NS_COMPOSITION_COMMIT : NS_COMPOSITION_COMMIT_AS_IS;
+    aCommitString ? eCompositionCommit : eCompositionCommitAsIs;
   WidgetCompositionEvent compositionCommitEvent(true, message, mWidget);
   compositionCommitEvent.time = PR_IntervalNow();
   if (aCommitString) {
@@ -2814,7 +2813,7 @@ IMEInputHandler::InsertTextAsCommittingComposition(
 
     // XXXmnakano Probably, we shouldn't emulate composition in this case.
     // I think that we should just fire DOM3 textInput event if we implement it.
-    WidgetCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
+    WidgetCompositionEvent compStart(true, eCompositionStart, mWidget);
     InitCompositionEvent(compStart);
 
     DispatchEvent(compStart);
@@ -2904,7 +2903,7 @@ IMEInputHandler::SetMarkedText(NSAttributedString* aAttrString,
 
     mMarkedRange.location = SelectedRange().location;
 
-    WidgetCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
+    WidgetCompositionEvent compStart(true, eCompositionStart, mWidget);
     InitCompositionEvent(compStart);
 
     DispatchEvent(compStart);
@@ -2969,7 +2968,7 @@ IMEInputHandler::ConversationIdentifier()
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
 
   // NOTE: The size of NSInteger is same as pointer size.
-  WidgetQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, mWidget);
+  WidgetQueryContentEvent textContent(true, eQueryTextContent, mWidget);
   textContent.InitForQueryTextContent(0, 0);
   DispatchEvent(textContent);
   if (!textContent.mSucceeded) {
@@ -3005,7 +3004,7 @@ IMEInputHandler::GetAttributedSubstringFromRange(NSRange& aRange,
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
 
   nsAutoString str;
-  WidgetQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, mWidget);
+  WidgetQueryContentEvent textContent(true, eQueryTextContent, mWidget);
   textContent.InitForQueryTextContent(aRange.location, aRange.length);
   textContent.RequestFontRanges();
   DispatchEvent(textContent);
@@ -3098,7 +3097,7 @@ IMEInputHandler::SelectedRange()
 
   nsRefPtr<IMEInputHandler> kungFuDeathGrip(this);
 
-  WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, mWidget);
+  WidgetQueryContentEvent selection(true, eQuerySelectedText, mWidget);
   DispatchEvent(selection);
 
   MOZ_LOG(gLog, LogLevel::Info,
@@ -3187,7 +3186,7 @@ IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange,
   LayoutDeviceIntRect r;
   bool useCaretRect = (aRange.length == 0);
   if (!useCaretRect) {
-    WidgetQueryContentEvent charRect(true, NS_QUERY_TEXT_RECT, mWidget);
+    WidgetQueryContentEvent charRect(true, eQueryTextRect, mWidget);
     charRect.InitForQueryTextRect(aRange.location, 1);
     DispatchEvent(charRect);
     if (charRect.mSucceeded) {
@@ -3202,7 +3201,7 @@ IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange,
   }
 
   if (useCaretRect) {
-    WidgetQueryContentEvent caretRect(true, NS_QUERY_CARET_RECT, mWidget);
+    WidgetQueryContentEvent caretRect(true, eQueryCaretRect, mWidget);
     caretRect.InitForQueryCaretRect(aRange.location);
     DispatchEvent(caretRect);
     if (!caretRect.mSucceeded) {
@@ -3258,7 +3257,7 @@ IMEInputHandler::CharacterIndexForPoint(NSPoint& aPoint)
     return NSNotFound;
   }
 
-  WidgetQueryContentEvent charAt(true, NS_QUERY_CHARACTER_AT_POINT, mWidget);
+  WidgetQueryContentEvent charAt(true, eQueryCharacterAtPoint, mWidget);
   NSPoint ptInWindow = [mainWindow convertScreenToBase:aPoint];
   NSPoint ptInView = [mView convertPoint:ptInWindow fromView:nil];
   charAt.refPoint.x =
@@ -3978,7 +3977,7 @@ TextInputHandlerBase::SetSelection(NSRange& aRange)
   MOZ_ASSERT(!Destroyed());
 
   nsRefPtr<TextInputHandlerBase> kungFuDeathGrip(this);
-  WidgetSelectionEvent selectionEvent(true, NS_SELECTION_SET, mWidget);
+  WidgetSelectionEvent selectionEvent(true, eSetSelection, mWidget);
   selectionEvent.mOffset = aRange.location;
   selectionEvent.mLength = aRange.length;
   selectionEvent.mReversed = false;

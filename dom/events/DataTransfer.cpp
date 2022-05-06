@@ -86,13 +86,13 @@ DataTransfer::DataTransfer(nsISupports* aParent, EventMessage aEventMessage,
   // For these events, we want to be able to add data to the data transfer, so
   // clear the readonly state. Otherwise, the data is already present. For
   // external usage, cache the data from the native clipboard or drag.
-  if (aEventMessage == NS_CUT ||
-      aEventMessage == NS_COPY ||
+  if (aEventMessage == eCut ||
+      aEventMessage == eCopy ||
       aEventMessage == eDragStart ||
       aEventMessage == eLegacyDragGesture) {
     mReadOnly = false;
   } else if (mIsExternal) {
-    if (aEventMessage == NS_PASTE) {
+    if (aEventMessage == ePaste) {
       CacheExternalClipboardFormats();
     } else if (aEventMessage >= eDragDropEventFirst &&
                aEventMessage <= eDragDropEventLast) {
@@ -271,7 +271,7 @@ DataTransfer::GetFiles(ErrorResult& aRv)
 {
   if (mEventMessage != eDrop &&
       mEventMessage != eLegacyDragDrop &&
-      mEventMessage != NS_PASTE) {
+      mEventMessage != ePaste) {
     return nullptr;
   }
 
@@ -526,8 +526,8 @@ DataTransfer::MozTypesAt(uint32_t aIndex, ErrorResult& aRv) const
 {
   // Only the first item is valid for clipboard events
   if (aIndex > 0 &&
-      (mEventMessage == NS_CUT || mEventMessage == NS_COPY ||
-       mEventMessage == NS_PASTE)) {
+      (mEventMessage == eCut || mEventMessage == eCopy ||
+       mEventMessage == ePaste)) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }
@@ -585,8 +585,8 @@ DataTransfer::MozGetDataAt(const nsAString& aFormat, uint32_t aIndex,
 
   // Only the first item is valid for clipboard events
   if (aIndex > 0 &&
-      (mEventMessage == NS_CUT || mEventMessage == NS_COPY ||
-       mEventMessage == NS_PASTE)) {
+      (mEventMessage == eCut || mEventMessage == eCopy ||
+       mEventMessage == ePaste)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -616,7 +616,7 @@ DataTransfer::MozGetDataAt(const nsAString& aFormat, uint32_t aIndex,
   nsIPrincipal* principal = nullptr;
   if (mIsCrossDomainSubFrameDrop ||
       (mEventMessage != eDrop && mEventMessage != eLegacyDragDrop &&
-       mEventMessage != NS_PASTE &&
+       mEventMessage != ePaste &&
        !nsContentUtils::IsCallerChrome())) {
     principal = nsContentUtils::SubjectPrincipal();
   }
@@ -677,6 +677,7 @@ DataTransfer::MozGetDataAt(JSContext* aCx, const nsAString& aFormat,
   }
 
   if (!data) {
+    aRetval.setNull();
     return;
   }
 
@@ -707,8 +708,8 @@ DataTransfer::MozSetDataAt(const nsAString& aFormat, nsIVariant* aData,
 
   // Only the first item is valid for clipboard events
   if (aIndex > 0 &&
-      (mEventMessage == NS_CUT || mEventMessage == NS_COPY ||
-       mEventMessage == NS_PASTE)) {
+      (mEventMessage == eCut || mEventMessage == eCopy ||
+       mEventMessage == ePaste)) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -761,8 +762,8 @@ DataTransfer::MozClearDataAt(const nsAString& aFormat, uint32_t aIndex,
 
   // Only the first item is valid for clipboard events
   if (aIndex > 0 &&
-      (mEventMessage == NS_CUT || mEventMessage == NS_COPY ||
-       mEventMessage == NS_PASTE)) {
+      (mEventMessage == eCut || mEventMessage == eCopy ||
+       mEventMessage == ePaste)) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return;
   }
@@ -777,8 +778,8 @@ DataTransfer::MozClearDataAtHelper(const nsAString& aFormat, uint32_t aIndex,
   MOZ_ASSERT(!mReadOnly);
   MOZ_ASSERT(aIndex < mItems.Length());
   MOZ_ASSERT(aIndex == 0 ||
-             (mEventMessage != NS_CUT && mEventMessage != NS_COPY &&
-              mEventMessage != NS_PASTE));
+             (mEventMessage != eCut && mEventMessage != eCopy &&
+              mEventMessage != ePaste));
 
   nsAutoString format;
   GetRealFormat(aFormat, format);
@@ -875,12 +876,14 @@ DataTransfer::GetFilesAndDirectories(ErrorResult& aRv)
 {
   nsCOMPtr<nsINode> parentNode = do_QueryInterface(mParent);
   if (!parentNode) {
+    aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
   nsCOMPtr<nsIGlobalObject> global = parentNode->OwnerDoc()->GetScopeObject();
   MOZ_ASSERT(global);
   if (!global) {
+    aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
@@ -890,43 +893,44 @@ DataTransfer::GetFilesAndDirectories(ErrorResult& aRv)
   }
 
   if (!mFiles) {
-    ErrorResult dummy;
-    GetFiles(dummy);
-    if (!mFiles) {
+    GetFiles(aRv);
+    if (NS_WARN_IF(aRv.Failed())) {
       return nullptr;
     }
   }
 
   Sequence<OwningFileOrDirectory> filesAndDirsSeq;
 
-  if (!filesAndDirsSeq.SetLength(mFiles->Length(), mozilla::fallible_t())) {
-    p->MaybeReject(NS_ERROR_OUT_OF_MEMORY);
-    return p.forget();
-  }
+  if (mFiles && mFiles->Length()) {
+    if (!filesAndDirsSeq.SetLength(mFiles->Length(), mozilla::fallible_t())) {
+      p->MaybeReject(NS_ERROR_OUT_OF_MEMORY);
+      return p.forget();
+    }
 
-  nsPIDOMWindow* window = parentNode->OwnerDoc()->GetInnerWindow();
+    nsPIDOMWindow* window = parentNode->OwnerDoc()->GetInnerWindow();
 
-  nsRefPtr<OSFileSystem> fs;
-  for (uint32_t i = 0; i < mFiles->Length(); ++i) {
-    if (mFiles->Item(i)->Impl()->IsDirectory()) {
+    nsRefPtr<OSFileSystem> fs;
+    for (uint32_t i = 0; i < mFiles->Length(); ++i) {
+      if (mFiles->Item(i)->Impl()->IsDirectory()) {
 #if defined(ANDROID) || defined(MOZ_B2G)
-      MOZ_ASSERT(false,
-                 "Directory picking should have been redirected to normal "
-                 "file picking for platforms that don't have a directory "
-                 "picker");
+        MOZ_ASSERT(false,
+                   "Directory picking should have been redirected to normal "
+                   "file picking for platforms that don't have a directory "
+                   "picker");
 #endif
-      nsAutoString path;
-      mFiles->Item(i)->GetMozFullPathInternal(path, aRv);
-      if (aRv.Failed()) {
-        return nullptr;
+        nsAutoString path;
+        mFiles->Item(i)->GetMozFullPathInternal(path, aRv);
+        if (aRv.Failed()) {
+          return nullptr;
+        }
+        int32_t leafSeparatorIndex = path.RFind(FILE_PATH_SEPARATOR);
+        nsDependentSubstring dirname = Substring(path, 0, leafSeparatorIndex);
+        nsDependentSubstring basename = Substring(path, leafSeparatorIndex);
+        fs = MakeOrReuseFileSystem(dirname, fs, window);
+        filesAndDirsSeq[i].SetAsDirectory() = new Directory(fs, basename);
+      } else {
+        filesAndDirsSeq[i].SetAsFile() = mFiles->Item(i);
       }
-      int32_t leafSeparatorIndex = path.RFind(FILE_PATH_SEPARATOR);
-      nsDependentSubstring dirname = Substring(path, 0, leafSeparatorIndex);
-      nsDependentSubstring basename = Substring(path, leafSeparatorIndex);
-      fs = MakeOrReuseFileSystem(dirname, fs, window);
-      filesAndDirsSeq[i].SetAsDirectory() = new Directory(fs, basename);
-    } else {
-      filesAndDirsSeq[i].SetAsFile() = mFiles->Item(i);
     }
   }
 
@@ -1274,7 +1278,7 @@ DataTransfer::CacheExternalDragFormats()
 void
 DataTransfer::CacheExternalClipboardFormats()
 {
-  NS_ASSERTION(mEventMessage == NS_PASTE,
+  NS_ASSERTION(mEventMessage == ePaste,
                "caching clipboard data for invalid event");
 
   // Called during the constructor for paste events to cache the formats
@@ -1316,7 +1320,7 @@ DataTransfer::FillInExternalData(TransferItem& aItem, uint32_t aIndex)
   }
 
   // only drag and paste events should be calling FillInExternalData
-  NS_ASSERTION(mEventMessage != NS_CUT && mEventMessage != NS_COPY,
+  NS_ASSERTION(mEventMessage != eCut && mEventMessage != eCopy,
                "clipboard event with empty data");
 
     NS_ConvertUTF16toUTF8 utf8format(aItem.mFormat);
@@ -1334,7 +1338,7 @@ DataTransfer::FillInExternalData(TransferItem& aItem, uint32_t aIndex)
   trans->Init(nullptr);
   trans->AddDataFlavor(format);
 
-  if (mEventMessage == NS_PASTE) {
+  if (mEventMessage == ePaste) {
     MOZ_ASSERT(aIndex == 0, "index in clipboard must be 0");
 
     nsCOMPtr<nsIClipboard> clipboard = do_GetService("@mozilla.org/widget/clipboard;1");

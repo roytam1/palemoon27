@@ -442,7 +442,7 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
   if (isDraggingThumb())
   {
     switch (aEvent->mMessage) {
-    case NS_TOUCH_MOVE:
+    case eTouchMove:
     case eMouseMove: {
       nsPoint eventPoint;
       if (!GetEventPoint(aEvent, eventPoint)) {
@@ -504,7 +504,7 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
     }
     break;
 
-    case NS_TOUCH_END:
+    case eTouchEnd:
     case eMouseUp:
       if (ShouldScrollForEvent(aEvent)) {
         StopDrag();
@@ -1011,8 +1011,8 @@ bool
 nsSliderFrame::ShouldScrollForEvent(WidgetGUIEvent* aEvent)
 {
   switch (aEvent->mMessage) {
-    case NS_TOUCH_START:
-    case NS_TOUCH_END:
+    case eTouchStart:
+    case eTouchEnd:
       return true;
     case eMouseDown:
     case eMouseUp: {
@@ -1038,7 +1038,7 @@ nsSliderFrame::ShouldScrollToClickForEvent(WidgetGUIEvent* aEvent)
     return false;
   }
 
-  if (aEvent->mMessage == NS_TOUCH_START) {
+  if (aEvent->mMessage == eTouchStart) {
     return GetScrollToClick();
   }
 

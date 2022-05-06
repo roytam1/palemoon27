@@ -534,19 +534,19 @@ nsEventStatus
 AccessibleCaretEventHub::HandleWheelEvent(WidgetWheelEvent* aEvent)
 {
   switch (aEvent->mMessage) {
-  case NS_WHEEL_WHEEL:
-    AC_LOGV("NS_WHEEL_WHEEL, isMomentum %d, state: %s", aEvent->isMomentum,
+  case eWheel:
+    AC_LOGV("eWheel, isMomentum %d, state: %s", aEvent->isMomentum,
             mState->Name());
     mState->OnScrolling(this);
     break;
 
-  case NS_WHEEL_START:
-    AC_LOGV("NS_WHEEL_START, state: %s", mState->Name());
+  case eWheelOperationStart:
+    AC_LOGV("eWheelOperationStart, state: %s", mState->Name());
     mState->OnScrollStart(this);
     break;
 
-  case NS_WHEEL_STOP:
-    AC_LOGV("NS_WHEEL_STOP, state: %s", mState->Name());
+  case eWheelOperationEnd:
+    AC_LOGV("eWheelOperationEnd, state: %s", mState->Name());
     mState->OnScrollEnd(this);
     break;
 
@@ -569,28 +569,28 @@ AccessibleCaretEventHub::HandleTouchEvent(WidgetTouchEvent* aEvent)
   nsPoint point = GetTouchEventPosition(aEvent, id);
 
   switch (aEvent->mMessage) {
-  case NS_TOUCH_START:
-    AC_LOGV("Before NS_TOUCH_START, state: %s", mState->Name());
+  case eTouchStart:
+    AC_LOGV("Before eTouchStart, state: %s", mState->Name());
     rv = mState->OnPress(this, point, id);
-    AC_LOGV("After NS_TOUCH_START, state: %s, consume: %d", mState->Name(), rv);
+    AC_LOGV("After eTouchStart, state: %s, consume: %d", mState->Name(), rv);
     break;
 
-  case NS_TOUCH_MOVE:
-    AC_LOGV("Before NS_TOUCH_MOVE, state: %s", mState->Name());
+  case eTouchMove:
+    AC_LOGV("Before eTouchMove, state: %s", mState->Name());
     rv = mState->OnMove(this, point);
-    AC_LOGV("After NS_TOUCH_MOVE, state: %s, consume: %d", mState->Name(), rv);
+    AC_LOGV("After eTouchMove, state: %s, consume: %d", mState->Name(), rv);
     break;
 
-  case NS_TOUCH_END:
-    AC_LOGV("Before NS_TOUCH_END, state: %s", mState->Name());
+  case eTouchEnd:
+    AC_LOGV("Before eTouchEnd, state: %s", mState->Name());
     rv = mState->OnRelease(this);
-    AC_LOGV("After NS_TOUCH_END, state: %s, consume: %d", mState->Name(), rv);
+    AC_LOGV("After eTouchEnd, state: %s, consume: %d", mState->Name(), rv);
     break;
 
-  case NS_TOUCH_CANCEL:
-    AC_LOGV("Before NS_TOUCH_CANCEL, state: %s", mState->Name());
+  case eTouchCancel:
+    AC_LOGV("Before eTouchCancel, state: %s", mState->Name());
     rv = mState->OnRelease(this);
-    AC_LOGV("After NS_TOUCH_CANCEL, state: %s, consume: %d", mState->Name(),
+    AC_LOGV("After eTouchCancel, state: %s, consume: %d", mState->Name(),
             rv);
     break;
 

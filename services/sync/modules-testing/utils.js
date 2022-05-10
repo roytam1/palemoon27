@@ -18,6 +18,7 @@ this.EXPORTED_SYMBOLS = [
   "add_identity_test",
   "MockFxaStorageManager",
   "AccountState", // from a module import
+  "sumHistogram",
 ];
 
 const {utils: Cu} = Components;
@@ -31,8 +32,10 @@ Cu.import("resource://services-sync/browserid_identity.js");
 Cu.import("resource://testing-common/services/common/logging.js");
 Cu.import("resource://testing-common/services/sync/fakeservices.js");
 Cu.import("resource://gre/modules/FxAccounts.jsm");
+Cu.import("resource://gre/modules/FxAccountsClient.jsm");
 Cu.import("resource://gre/modules/FxAccountsCommon.js");
 Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
 // and grab non-exported stuff via a backstage pass.
 const {AccountState} = Cu.import("resource://gre/modules/FxAccounts.jsm", {});
@@ -181,19 +184,27 @@ this.configureFxAccountIdentity = function(authService,
       }
       let storageManager = new MockFxaStorageManager();
       storageManager.initialize(config.fxaccount.user);
-      let accountState = new AccountState(this, storageManager);
-      // mock getCertificate
-      accountState.getCertificate = function(data, keyPair, mustBeValidUntil) {
-        accountState.cert = {
-          validUntil: fxa.internal.now() + CERT_LIFETIME,
-          cert: "certificate",
-        };
-        return Promise.resolve(this.cert.cert);
-      }
+      let accountState = new AccountState(storageManager);
       return accountState;
-    }
+    },
+    _getAssertion(audience) {
+      return Promise.resolve("assertion");
+    },
+
   };
   fxa = new FxAccounts(MockInternal);
+
+  let MockFxAccountsClient = function() {
+    FxAccountsClient.apply(this);
+  };
+  MockFxAccountsClient.prototype = {
+    __proto__: FxAccountsClient.prototype,
+    accountStatus() {
+      return Promise.resolve(true);
+    }
+  };
+  let mockFxAClient = new MockFxAccountsClient();
+  fxa.internal._fxAccountsClient = mockFxAClient;
 
   let mockTSC = { // TokenServerClient
     getTokenFromBrowserIDAssertion: function(uri, assertion, cb) {
@@ -307,4 +318,16 @@ this.add_identity_test = function(test, testFunction) {
     yield testFunction();
     Status.__authManager = ns.Service.identity = oldIdentity;
   });
+}
+
+this.sumHistogram = function(name, options = {}) {
+  let histogram = options.key ? Services.telemetry.getKeyedHistogramById(name) :
+                  Services.telemetry.getHistogramById(name);
+  let snapshot = histogram.snapshot(options.key);
+  let sum = -Infinity;
+  if (snapshot) {
+    sum = snapshot.sum;
+  }
+  histogram.clear();
+  return sum;
 }

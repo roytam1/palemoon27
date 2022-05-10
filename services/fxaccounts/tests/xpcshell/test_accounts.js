@@ -155,7 +155,7 @@ function MockFxAccounts() {
       // we use a real accountState but mocked storage.
       let storage = new MockStorageManager();
       storage.initialize(credentials);
-      return new AccountState(this, storage);
+      return new AccountState(storage);
     },
     getCertificateSigned: function (sessionToken, serializedPublicKey) {
       _("mock getCertificateSigned\n");
@@ -164,6 +164,22 @@ function MockFxAccounts() {
     },
     fxAccountsClient: new MockFxAccountsClient()
   });
+}
+
+/*
+ * Some tests want a "real" fxa instance - however, we still mock the storage
+ * to keep the tests fast on b2g.
+ */
+function MakeFxAccounts(internal = {}) {
+  if (!internal.newAccountState) {
+    // we use a real accountState but mocked storage.
+    internal.newAccountState = function(credentials) {
+      let storage = new MockStorageManager();
+      storage.initialize(credentials);
+      return new AccountState(storage);
+    };
+  }
+  return new FxAccounts(internal);
 }
 
 add_test(function test_non_https_remote_server_uri_with_requireHttps_false() {
@@ -195,16 +211,8 @@ add_test(function test_non_https_remote_server_uri() {
 });
 
 add_task(function test_get_signed_in_user_initially_unset() {
-  // This test, unlike many of the the rest, uses a (largely) un-mocked
-  // FxAccounts instance.
-  let account = new FxAccounts({
-    newAccountState(credentials) {
-      // we use a real accountState but mocked storage.
-      let storage = new MockStorageManager();
-      storage.initialize(credentials);
-      return new AccountState(this, storage);
-    },
-  });
+  _("Check getSignedInUser initially and after signout reports no user");
+  let account = MakeFxAccounts();
   let credentials = {
     email: "foo@example.com",
     uid: "1234@lcip.org",
@@ -218,6 +226,9 @@ add_task(function test_get_signed_in_user_initially_unset() {
   do_check_eq(result, null);
 
   yield account.setSignedInUser(credentials);
+  let histogram = Services.telemetry.getHistogramById("FXA_CONFIGURED");
+  do_check_eq(histogram.snapshot().sum, 1);
+  histogram.clear();
 
   result = yield account.getSignedInUser();
   do_check_eq(result.email, credentials.email);
@@ -241,38 +252,22 @@ add_task(function test_get_signed_in_user_initially_unset() {
   do_check_eq(result, null);
 });
 
-add_task(function* test_getCertificate() {
-  _("getCertificate()");
-  // This test, unlike many of the the rest, uses a (largely) un-mocked
-  // FxAccounts instance.
-  // We do mock the storage to keep the test fast on b2g.
-  let fxa = new FxAccounts({
-    newAccountState(credentials) {
-      // we use a real accountState but mocked storage.
-      let storage = new MockStorageManager();
-      storage.initialize(credentials);
-      return new AccountState(this, storage);
-    },
-  });
+add_task(function* test_getCertificateOffline() {
+  _("getCertificateOffline()");
+  let fxa = MakeFxAccounts();
   let credentials = {
     email: "foo@example.com",
     uid: "1234@lcip.org",
-    assertion: "foobar",
     sessionToken: "dead",
-    kA: "beef",
-    kB: "cafe",
-    verified: true
+    verified: true,
   };
+
   yield fxa.setSignedInUser(credentials);
 
   // Test that an expired cert throws if we're offline.
-  fxa.internal.currentAccountState.cert = {
-    validUntil: Date.parse("Mon, 13 Jan 2000 21:45:06 GMT")
-  };
   let offline = Services.io.offline;
   Services.io.offline = true;
-  // This call would break from missing parameters ...
-  yield fxa.internal.currentAccountState.getCertificate().then(
+  yield fxa.internal.getKeypairAndCertificate(fxa.internal.currentAccountState).then(
     result => {
       Services.io.offline = offline;
       do_throw("Unexpected success");
@@ -283,8 +278,99 @@ add_task(function* test_getCertificate() {
       do_check_eq(err, "Error: OFFLINE");
     }
   );
+  yield fxa.signOut(/*localOnly = */true);
 });
 
+add_task(function* test_getCertificateCached() {
+  _("getCertificateCached()");
+  let fxa = MakeFxAccounts();
+  let credentials = {
+    email: "foo@example.com",
+    uid: "1234@lcip.org",
+    sessionToken: "dead",
+    verified: true,
+    // A cached keypair and cert that remain valid.
+    keyPair: {
+      validUntil: Date.now() + KEY_LIFETIME + 10000,
+      rawKeyPair: "good-keypair",
+    },
+    cert: {
+      validUntil: Date.now() + CERT_LIFETIME + 10000,
+      rawCert: "good-cert",
+    },
+  };
+
+  yield fxa.setSignedInUser(credentials);
+  let {keyPair, certificate} = yield fxa.internal.getKeypairAndCertificate(fxa.internal.currentAccountState);
+  // should have the same keypair and cert.
+  do_check_eq(keyPair, credentials.keyPair.rawKeyPair);
+  do_check_eq(certificate, credentials.cert.rawCert);
+  yield fxa.signOut(/*localOnly = */true);
+});
+
+add_task(function* test_getCertificateExpiredCert() {
+  _("getCertificateExpiredCert()");
+  let fxa = MakeFxAccounts({
+    getCertificateSigned() {
+      return "new cert";
+    }
+  });
+  let credentials = {
+    email: "foo@example.com",
+    uid: "1234@lcip.org",
+    sessionToken: "dead",
+    verified: true,
+    // A cached keypair that remains valid.
+    keyPair: {
+      validUntil: Date.now() + KEY_LIFETIME + 10000,
+      rawKeyPair: "good-keypair",
+    },
+    // A cached certificate which has expired.
+    cert: {
+      validUntil: Date.parse("Mon, 13 Jan 2000 21:45:06 GMT"),
+      rawCert: "expired-cert",
+    },
+  };
+  yield fxa.setSignedInUser(credentials);
+  let {keyPair, certificate} = yield fxa.internal.getKeypairAndCertificate(fxa.internal.currentAccountState);
+  // should have the same keypair but a new cert.
+  do_check_eq(keyPair, credentials.keyPair.rawKeyPair);
+  do_check_neq(certificate, credentials.cert.rawCert);
+  yield fxa.signOut(/*localOnly = */true);
+});
+
+add_task(function* test_getCertificateExpiredKeypair() {
+  _("getCertificateExpiredKeypair()");
+  let fxa = MakeFxAccounts({
+    getCertificateSigned() {
+      return "new cert";
+    },
+  });
+  let credentials = {
+    email: "foo@example.com",
+    uid: "1234@lcip.org",
+    sessionToken: "dead",
+    verified: true,
+    // A cached keypair that has expired.
+    keyPair: {
+      validUntil: Date.now() - 1000,
+      rawKeyPair: "expired-keypair",
+    },
+    // A cached certificate which remains valid.
+    cert: {
+      validUntil: Date.now() + CERT_LIFETIME + 10000,
+      rawCert: "expired-cert",
+    },
+  };
+
+  yield fxa.setSignedInUser(credentials);
+  let {keyPair, certificate} = yield fxa.internal.getKeypairAndCertificate(fxa.internal.currentAccountState);
+  // even though the cert was valid, the fact the keypair was not means we
+  // should have fetched both.
+  do_check_neq(keyPair, credentials.keyPair.rawKeyPair);
+  do_check_neq(certificate, credentials.cert.rawCert);
+  yield fxa.signOut(/*localOnly = */true);
+});
 
 // Sanity-check that our mocked client is working correctly
 add_test(function test_client_mock() {
@@ -505,8 +591,9 @@ add_task(function test_getAssertion() {
   _("ASSERTION: " + assertion + "\n");
   let pieces = assertion.split("~");
   do_check_eq(pieces[0], "cert1");
-  let keyPair = fxa.internal.currentAccountState.keyPair;
-  let cert = fxa.internal.currentAccountState.cert;
+  let userData = yield fxa.getSignedInUser();
+  let keyPair = userData.keyPair;
+  let cert = userData.cert;
   do_check_neq(keyPair, undefined);
   _(keyPair.validUntil + "\n");
   let p2 = pieces[1].split(".");
@@ -553,9 +640,10 @@ add_task(function test_getAssertion() {
   // expiration time of the assertion should be different.  We compare this to
   // the initial start time, to which they are relative, not the current value
   // of "now".
+  userData = yield fxa.getSignedInUser();
 
-  keyPair = fxa.internal.currentAccountState.keyPair;
-  cert = fxa.internal.currentAccountState.cert;
+  keyPair = userData.keyPair;
+  cert = userData.cert;
   do_check_eq(keyPair.validUntil, start + KEY_LIFETIME);
   do_check_eq(cert.validUntil, start + CERT_LIFETIME);
   exp = Number(payload.exp);
@@ -576,8 +664,9 @@ add_task(function test_getAssertion() {
   header = JSON.parse(atob(p2[0]));
   payload = JSON.parse(atob(p2[1]));
   do_check_eq(payload.aud, "fourth.example.com");
-  keyPair = fxa.internal.currentAccountState.keyPair;
-  cert = fxa.internal.currentAccountState.cert;
+  userData = yield fxa.getSignedInUser();
+  keyPair = userData.keyPair;
+  cert = userData.cert;
   do_check_eq(keyPair.validUntil, now + KEY_LIFETIME);
   do_check_eq(cert.validUntil, now + CERT_LIFETIME);
   exp = Number(payload.exp);

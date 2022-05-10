@@ -596,10 +596,13 @@ ErrorHandler.prototype = {
         let exception = subject;  // exception thrown by engine's sync() method
         let engine_name = data;   // engine name that threw the exception
 
-        this.checkServerError(exception);
+        this.checkServerError(exception, "engines/" + engine_name);
 
         Status.engines = [engine_name, exception.failureCode || ENGINE_UNKNOWN_FAIL];
         this._log.debug(engine_name + " failed: " + Utils.exceptionStr(exception));
+
+        Services.telemetry.getKeyedHistogramById("WEAVE_ENGINE_SYNC_ERRORS")
+                          .add(engine_name);
         break;
       case "weave:service:login:error":
         this._log.error("Sync encountered a login error");
@@ -770,8 +773,12 @@ ErrorHandler.prototype = {
       return false;
     }
 
-    return ([Status.login, Status.sync].indexOf(SERVER_MAINTENANCE) == -1 &&
-            [Status.login, Status.sync].indexOf(LOGIN_FAILED_NETWORK_ERROR) == -1);
+
+    let result = ([Status.login, Status.sync].indexOf(SERVER_MAINTENANCE) == -1 &&
+                  [Status.login, Status.sync].indexOf(LOGIN_FAILED_NETWORK_ERROR) == -1);
+    this._log.trace("shouldReportError: ${result} due to login=${login}, sync=${sync}",
+                    {result, login: Status.login, sync: Status.sync});
+    return result;
   },
 
   get currentAlertMode() {
@@ -842,7 +849,7 @@ ErrorHandler.prototype = {
    *
    * This method also looks for "side-channel" warnings.
    */
-  checkServerError: function (resp) {
+  checkServerError: function (resp, cause) {
     switch (resp.status) {
       case 200:
       case 404:
@@ -872,6 +879,9 @@ ErrorHandler.prototype = {
         break;
 
       case 401:
+        Services.telemetry.getKeyedHistogramById(
+          "WEAVE_STORAGE_AUTH_ERRORS").add(cause);
+
         this.service.logout();
         this._log.info("Got 401 response; resetting clusterURL.");
         Svc.Prefs.reset("clusterURL");

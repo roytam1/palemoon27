@@ -1084,7 +1084,8 @@ protected:
 };
 
 imgCacheExpirationTracker::imgCacheExpirationTracker()
- : nsExpirationTracker<imgCacheEntry, 3>(TIMEOUT_SECONDS * 1000)
+ : nsExpirationTracker<imgCacheEntry, 3>(TIMEOUT_SECONDS * 1000,
+                                         "imgCacheExpirationTracker")
 { }
 
 void

@@ -37,10 +37,8 @@ Decoder::Decoder(RasterImage* aImage)
   , mMetadataDecode(false)
   , mSendPartialInvalidations(false)
   , mImageIsTransient(false)
-  , mImageIsLocked(false)
   , mFirstFrameDecode(false)
   , mInFrame(false)
-  , mIsAnimated(false)
   , mDataDone(false)
   , mDecodeDone(false)
   , mDataError(false)
@@ -94,15 +92,18 @@ Decoder::Init()
 }
 
 nsresult
-Decoder::Decode()
+Decoder::Decode(IResumable* aOnResume)
 {
   MOZ_ASSERT(mInitialized, "Should be initialized here");
   MOZ_ASSERT(mIterator, "Should have a SourceBufferIterator");
 
+  // If no IResumable was provided, default to |this|.
+  IResumable* onResume = aOnResume ? aOnResume : this;
+
   // We keep decoding chunks until the decode completes or there are no more
   // chunks available.
   while (!GetDecodeDone() && !HasError()) {
-    auto newState = mIterator->AdvanceOrScheduleResume(this);
+    auto newState = mIterator->AdvanceOrScheduleResume(onResume);
 
     if (newState == SourceBufferIterator::WAITING) {
       // We can't continue because the rest of the data hasn't arrived from the
@@ -237,7 +238,7 @@ Decoder::CompleteDecode()
     // If this image wasn't animated and isn't a transient image, mark its frame
     // as optimizable. We don't support optimizing animated images and
     // optimizing transient images isn't worth it.
-    if (!mIsAnimated && !mImageIsTransient && mCurrentFrame) {
+    if (!HasAnimation() && !mImageIsTransient && mCurrentFrame) {
       mCurrentFrame->SetOptimizable();
     }
   }
@@ -260,7 +261,12 @@ Decoder::AllocateFrame(uint32_t aFrameNum,
     mCurrentFrame->GetPaletteData(&mColormap, &mColormapSize);
 
     if (aFrameNum + 1 == mFrameCount) {
-      PostFrameStart();
+      // If we're past the first frame, PostIsAnimated() should've been called.
+      MOZ_ASSERT_IF(mFrameCount > 1, HasAnimation());
+
+      // Update our state to reflect the new frame
+      MOZ_ASSERT(!mInFrame, "Starting new frame but not done with old one!");
+      mInFrame = true;
     }
   } else {
     PostDataError();
@@ -406,19 +412,11 @@ Decoder::PostHasTransparency()
 }
 
 void
-Decoder::PostFrameStart()
+Decoder::PostIsAnimated(int32_t aFirstFrameTimeout)
 {
-  // We shouldn't already be mid-frame
-  MOZ_ASSERT(!mInFrame, "Starting new frame but not done with old one!");
-
-  // Update our state to reflect the new frame
-  mInFrame = true;
-
-  // If we just became animated, record that fact.
-  if (mFrameCount > 1) {
-    mIsAnimated = true;
-    mProgress |= FLAG_IS_ANIMATED;
-  }
+  mProgress |= FLAG_IS_ANIMATED;
+  mImageMetadata.SetHasAnimation();
+  mImageMetadata.SetFirstFrameTimeout(aFirstFrameTimeout);
 }
 
 void
@@ -442,7 +440,7 @@ Decoder::PostFrameStop(Opacity aFrameOpacity    /* = Opacity::TRANSPARENT */,
 
   // If we're not sending partial invalidations, then we send an invalidation
   // here when the first frame is complete.
-  if (!mSendPartialInvalidations && !mIsAnimated) {
+  if (!mSendPartialInvalidations && !HasAnimation()) {
     mInvalidRect.UnionRect(mInvalidRect,
                            gfx::IntRect(gfx::IntPoint(0, 0), GetSize()));
   }
@@ -459,7 +457,7 @@ Decoder::PostInvalidation(const nsIntRect& aRect,
 
   // Record this invalidation, unless we're not sending partial invalidations
   // or we're past the first frame.
-  if (mSendPartialInvalidations && !mIsAnimated) {
+  if (mSendPartialInvalidations && !HasAnimation()) {
     mInvalidRect.UnionRect(mInvalidRect, aRect);
     mCurrentFrame->ImageUpdated(aRectAtTargetSize.valueOr(aRect));
   }

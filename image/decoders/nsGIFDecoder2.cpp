@@ -50,6 +50,8 @@ mailing address.
 #include <algorithm>
 #include "mozilla/Telemetry.h"
 
+using namespace mozilla::gfx;
+
 namespace mozilla {
 namespace image {
 
@@ -161,6 +163,27 @@ nsGIFDecoder2::BeginGIF()
   PostSize(mGIFStruct.screen_width, mGIFStruct.screen_height);
 }
 
+void
+nsGIFDecoder2::CheckForTransparency(IntRect aFrameRect)
+{
+  // Check if the image has a transparent color in its palette.
+  if (mGIFStruct.is_transparent) {
+    PostHasTransparency();
+    return;
+  }
+
+  if (mGIFStruct.images_decoded > 0) {
+    return;  // We only care about first frame padding below.
+  }
+
+  // If we need padding on the first frame, that means we don't draw into part
+  // of the image at all. Report that as transparency.
+  IntRect imageRect(0, 0, mGIFStruct.screen_width, mGIFStruct.screen_height);
+  if (!imageRect.IsEqualEdges(aFrameRect)) {
+    PostHasTransparency();
+  }
+}
+
 //******************************************************************************
 nsresult
 nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
@@ -170,13 +193,14 @@ nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
   gfx::SurfaceFormat format;
   if (mGIFStruct.is_transparent) {
     format = gfx::SurfaceFormat::B8G8R8A8;
-    PostHasTransparency();
   } else {
     format = gfx::SurfaceFormat::B8G8R8X8;
   }
 
-  nsIntRect frameRect(mGIFStruct.x_offset, mGIFStruct.y_offset,
-                      mGIFStruct.width, mGIFStruct.height);
+  IntRect frameRect(mGIFStruct.x_offset, mGIFStruct.y_offset,
+                    mGIFStruct.width, mGIFStruct.height);
+
+  CheckForTransparency(frameRect);
 
   // Use correct format, RGB for first frame, PAL for following frames
   // and include transparency to allow for optimization of opaque images
@@ -186,12 +210,6 @@ nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
     rv = AllocateFrame(mGIFStruct.images_decoded, GetSize(),
                        frameRect, format, aDepth);
   } else {
-    if (!nsIntRect(nsIntPoint(), GetSize()).IsEqualEdges(frameRect)) {
-      // We need padding on the first frame, which means that we don't draw into
-      // part of the image at all. Report that as transparency.
-      PostHasTransparency();
-    }
-
     // Regardless of depth of input, the first frame is decoded into 24bit RGB.
     rv = AllocateFrame(mGIFStruct.images_decoded, GetSize(),
                        frameRect, format);
@@ -689,12 +707,6 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
       mGIFStruct.screen_height = GETINT16(q + 2);
       mGIFStruct.global_colormap_depth = (q[4]&0x07) + 1;
 
-      if (IsMetadataDecode()) {
-        MOZ_ASSERT(!mGIFOpen, "Gif should not be open at this point");
-        PostSize(mGIFStruct.screen_width, mGIFStruct.screen_height);
-        return;
-      }
-
       // screen_bgcolor is not used
       //mGIFStruct.screen_bgcolor = q[5];
       // q[6] = Pixel Aspect Ratio
@@ -731,6 +743,9 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
     case gif_image_start:
       switch (*q) {
         case GIF_TRAILER:
+          if (IsMetadataDecode()) {
+            return;
+          }
           mGIFStruct.state = gif_done;
           break;
 
@@ -837,6 +852,11 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
       }
 
       mGIFStruct.delay_time = GETINT16(q + 1) * 10;
+
+      if (mGIFStruct.delay_time > 0) {
+        PostIsAnimated(mGIFStruct.delay_time);
+      }
+
       GETN(1, gif_consume_block);
       break;
 
@@ -901,11 +921,20 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
       break;
 
     case gif_image_header: {
-      if (mGIFStruct.images_decoded > 0 && IsFirstFrameDecode()) {
-        // We're about to get a second frame, but we only want the first. Stop
-        // decoding now.
-        mGIFStruct.state = gif_done;
-        break;
+      if (mGIFStruct.images_decoded == 1) {
+        if (!HasAnimation()) {
+          // We should've already called PostIsAnimated(); this must be a
+          // corrupt animated image with a first frame timeout of zero. Signal
+          // that we're animated now, before the first-frame decode early exit
+          // below, so that RasterImage can detect that this happened.
+          PostIsAnimated(/* aFirstFrameTimeout = */ 0);
+        }
+        if (IsFirstFrameDecode()) {
+          // We're about to get a second frame, but we only want the first. Stop
+          // decoding now.
+          mGIFStruct.state = gif_done;
+          break;
+        }
       }
 
       // Get image offsets, with respect to the screen origin
@@ -938,6 +967,9 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
 
         // If we were doing a metadata decode, we're done.
         if (IsMetadataDecode()) {
+          IntRect frameRect(mGIFStruct.x_offset, mGIFStruct.y_offset,
+                            mGIFStruct.width, mGIFStruct.height);
+          CheckForTransparency(frameRect);
           return;
         }
       }
@@ -1108,7 +1140,9 @@ nsGIFDecoder2::WriteInternal(const char* aBuffer, uint32_t aCount)
 
     // We shouldn't ever get here.
     default:
-      break;
+      MOZ_ASSERT_UNREACHABLE("Unexpected mGIFStruct.state");
+      PostDecoderError(NS_ERROR_UNEXPECTED);
+      return;
     }
   }
 
@@ -1145,8 +1179,6 @@ done:
     mLastFlushedRow = mCurrentRow;
     mLastFlushedPass = mCurrentPass;
   }
-
-  return;
 }
 
 bool
@@ -1178,7 +1210,6 @@ nsGIFDecoder2::SpeedHistogram()
 {
   return Telemetry::IMAGE_DECODE_SPEED_GIF;
 }
-
 
 } // namespace image
 } // namespace mozilla

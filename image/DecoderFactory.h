@@ -40,12 +40,13 @@ public:
   static DecoderType GetDecoderType(const char* aMimeType);
 
   /**
-   * Creates and initializes a decoder of type @aType. The decoder will send
-   * notifications to @aImage.
+   * Creates and initializes a decoder for non-animated images of type @aType.
+   * (If the image *is* animated, only the first frame will be decoded.) The
+   * decoder will send notifications to @aImage.
    *
-   * XXX(seth): @aIsRedecode, @aImageIsTransient, and @aImageIsLocked should
-   * really be part of @aFlags. This requires changes to the way that decoder
-   * flags work, though. See bug 1185800.
+   * XXX(seth): @aIsRedecode and @aImageIsTransient should really be part of
+   * @aFlags. This requires changes to the way that decoder flags work, though.
+   * See bug 1185800.
    *
    * @param aType Which type of decoder to create - JPEG, PNG, etc.
    * @param aImage The image will own the decoder and which should receive
@@ -64,9 +65,6 @@ public:
    *                    empty rect if none).
    * @param aIsRedecode Specify 'true' if this image has been decoded before.
    * @param aImageIsTransient Specify 'true' if this image is transient.
-   * @param aImageIsLocked Specify 'true' if this image is locked for the
-   *                       lifetime of this decoder, and should be unlocked
-   *                       when the decoder finishes.
    */
   static already_AddRefed<Decoder>
   CreateDecoder(DecoderType aType,
@@ -77,8 +75,28 @@ public:
                 int aSampleSize,
                 const gfx::IntSize& aResolution,
                 bool aIsRedecode,
-                bool aImageIsTransient,
-                bool aImageIsLocked);
+                bool aImageIsTransient);
+
+  /**
+   * Creates and initializes a decoder for animated images of type @aType.
+   * The decoder will send notifications to @aImage.
+   *
+   * @param aType Which type of decoder to create - JPEG, PNG, etc.
+   * @param aImage The image will own the decoder and which should receive
+   *               notifications as decoding progresses.
+   * @param aSourceBuffer The SourceBuffer which the decoder will read its data
+   *                      from.
+   * @param aFlags Flags specifying what type of output the decoder should
+   *               produce; see GetDecodeFlags() in RasterImage.h.
+   * @param aResolution The resolution requested using #-moz-resolution (or an
+   *                    empty rect if none).
+   */
+  static already_AddRefed<Decoder>
+  CreateAnimationDecoder(DecoderType aType,
+                         RasterImage* aImage,
+                         SourceBuffer* aSourceBuffer,
+                         uint32_t aFlags,
+                         const gfx::IntSize& aResolution);
 
   /**
    * Creates and initializes a metadata decoder of type @aType. This decoder
@@ -103,10 +121,36 @@ public:
                         int aSampleSize,
                         const gfx::IntSize& aResolution);
 
+  /**
+   * Creates and initializes an anonymous decoder (one which isn't associated
+   * with an Image object). Only the first frame of the image will be decoded.
+   *
+   * @param aType Which type of decoder to create - JPEG, PNG, etc.
+   * @param aSourceBuffer The SourceBuffer which the decoder will read its data
+   *                      from.
+   * @param aFlags Flags specifying what type of output the decoder should
+   *               produce; see GetDecodeFlags() in RasterImage.h.
+   */
   static already_AddRefed<Decoder>
   CreateAnonymousDecoder(DecoderType aType,
                          SourceBuffer* aSourceBuffer,
                          uint32_t aFlags);
+
+  /**
+   * Creates and initializes an anonymous metadata decoder (one which isn't
+   * associated with an Image object). This decoder will only decode the image's
+   * header, extracting metadata like the size of the image. No actual image
+   * data will be decoded and no surfaces will be allocated.
+   *
+   * @param aType Which type of decoder to create - JPEG, PNG, etc.
+   * @param aSourceBuffer The SourceBuffer which the decoder will read its data
+   *                      from.
+   * @param aFlags Flags specifying what type of output the decoder should
+   *               produce; see GetDecodeFlags() in RasterImage.h.
+   */
+  static already_AddRefed<Decoder>
+  CreateAnonymousMetadataDecoder(DecoderType aType,
+                                 SourceBuffer* aSourceBuffer);
 
 private:
   virtual ~DecoderFactory() = 0;

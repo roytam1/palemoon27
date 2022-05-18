@@ -135,17 +135,6 @@ class FrameAnimator;
 class ImageMetadata;
 class SourceBuffer;
 
-/**
- * Given a set of imgIContainer FLAG_* flags, returns those flags that can
- * affect the output of decoders.
- */
-inline MOZ_CONSTEXPR uint32_t
-DecodeFlags(uint32_t aFlags)
-{
-  return aFlags & (imgIContainer::FLAG_DECODE_NO_PREMULTIPLY_ALPHA |
-                   imgIContainer::FLAG_DECODE_NO_COLORSPACE_CONVERSION);
-}
-
 class RasterImage final : public ImageResource
                         , public nsIProperties
                         , public SupportsWeakPtr<RasterImage>
@@ -196,13 +185,13 @@ public:
    *
    * @param aProgress    The progress notifications to send.
    * @param aInvalidRect An invalidation rect to send.
-   * @param aFlags       The decode flags used by the decoder that generated
-   *                     these notifications, or DECODE_FLAGS_DEFAULT if the
+   * @param aFlags       The surface flags used by the decoder that generated
+   *                     these notifications, or DefaultSurfaceFlags() if the
    *                     notifications don't come from a decoder.
    */
   void NotifyProgress(Progress aProgress,
                       const nsIntRect& aInvalidRect = nsIntRect(),
-                      uint32_t aFlags = DECODE_FLAGS_DEFAULT);
+                      SurfaceFlags aSurfaceFlags = DefaultSurfaceFlags());
 
   /**
    * Records telemetry and does final teardown of the provided decoder.
@@ -265,18 +254,20 @@ public:
 private:
   nsresult Init(const char* aMimeType, uint32_t aFlags);
 
-  DrawResult DrawWithPreDownscaleIfNeeded(DrawableFrameRef&& aFrameRef,
-                                          gfxContext* aContext,
-                                          const nsIntSize& aSize,
-                                          const ImageRegion& aRegion,
-                                          GraphicsFilter aFilter,
-                                          uint32_t aFlags);
+  DrawResult DrawInternal(DrawableFrameRef&& aFrameRef,
+                          gfxContext* aContext,
+                          const nsIntSize& aSize,
+                          const ImageRegion& aRegion,
+                          GraphicsFilter aFilter,
+                          uint32_t aFlags);
 
   already_AddRefed<gfx::SourceSurface> CopyFrame(uint32_t aWhichFrame,
                                              uint32_t aFlags);
 
   Pair<DrawResult, RefPtr<gfx::SourceSurface>>
-    GetFrameInternal(uint32_t aWhichFrame, uint32_t aFlags);
+    GetFrameInternal(const gfx::IntSize& aSize,
+                     uint32_t aWhichFrame,
+                     uint32_t aFlags);
 
   LookupResult LookupFrameInternal(uint32_t aFrameNum,
                                    const gfx::IntSize& aSize,
@@ -314,10 +305,6 @@ private:
    *
    * It's an error to call Decode() before this image's intrinsic size is
    * available. A metadata decode must successfully complete first.
-   *
-   * If downscale-during-decode is not enabled for this image (i.e., if
-   * mDownscaleDuringDecode is false), it is an error to pass an @aSize value
-   * different from this image's intrinsic size.
    */
   NS_IMETHOD Decode(const gfx::IntSize& aSize, uint32_t aFlags);
 
@@ -341,11 +328,17 @@ private:
   nsresult SetMetadata(const ImageMetadata& aMetadata, bool aFromMetadataDecode);
 
   /**
-   * In catastrophic circumstances like a GPU driver crash, we may lose our
-   * frames even if they're locked. RecoverFromLossOfFrames discards all
-   * existing frames and redecodes using the provided @aSize and @aFlags.
+   * In catastrophic circumstances like a GPU driver crash, the contents of our
+   * frames may become invalid.  If the information we gathered during the
+   * metadata decode proves to be wrong due to image corruption, the frames we
+   * have may violate this class's invariants. Either way, we need to
+   * immediately discard the invalid frames and redecode so that callers don't
+   * perceive that we've entered an invalid state. 
+   *
+   * RecoverFromInvalidFrames discards all existing frames and redecodes using
+   * the provided @aSize and @aFlags.
    */
-  void RecoverFromLossOfFrames(const nsIntSize& aSize, uint32_t aFlags);
+  void RecoverFromInvalidFrames(const nsIntSize& aSize, uint32_t aFlags);
 
 private: // data
   nsIntSize                  mSize;
@@ -401,7 +394,6 @@ private: // data
   bool                       mDiscardable:1;   // Is container discardable?
   bool                       mHasSourceData:1; // Do we have source data?
   bool                       mHasBeenDecoded:1; // Decoded at least once?
-  bool                       mDownscaleDuringDecode:1;
 
   // Whether we're waiting to start animation. If we get a StartAnimation() call
   // but we don't yet have more than one frame, mPendingAnimation is set so that
@@ -423,21 +415,9 @@ private: // data
   // Scaling.
   //////////////////////////////////////////////////////////////////////////////
 
-  // Initiates an HQ scale for the given frame, if possible.
-  void RequestScale(imgFrame* aFrame, uint32_t aFlags, const nsIntSize& aSize);
-
-  // Determines whether we can perform an HQ scale with the given parameters.
-  bool CanScale(GraphicsFilter aFilter, const nsIntSize& aSize,
-                uint32_t aFlags);
-
   // Determines whether we can downscale during decode with the given
   // parameters.
   bool CanDownscaleDuringDecode(const nsIntSize& aSize, uint32_t aFlags);
-
-  // Called by the HQ scaler when a new scaled frame is ready.
-  void NotifyNewScaledFrame();
-
-  friend class ScaleRunner;
 
 
   // Error handling.

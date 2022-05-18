@@ -287,5 +287,7 @@ Downscaler::DownscaleInputLine()
   }
 }
 
+
+
 } // namespace image
 } // namespace mozilla

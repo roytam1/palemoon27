@@ -531,14 +531,14 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
     // If the bitmap is fully processed, treat any left over data as the ICO's
     // 'AND buffer mask' which appears after the bitmap resource.
     if (!mIsPNG && mPos >= bmpDataEnd) {
+      nsRefPtr<nsBMPDecoder> bmpDecoder =
+        static_cast<nsBMPDecoder*>(mContainedDecoder.get());
+
       // There may be an optional AND bit mask after the data.  This is
       // only used if the alpha data is not already set. The alpha data
       // is used for 32bpp bitmaps as per the comment in ICODecoder.h
       // The alpha mask should be checked in all other cases.
-      if (static_cast<nsBMPDecoder*>(mContainedDecoder.get())->
-            GetBitsPerPixel() != 32 ||
-          !static_cast<nsBMPDecoder*>(mContainedDecoder.get())->
-            HasAlphaData()) {
+      if (bmpDecoder->GetBitsPerPixel() != 32 || !bmpDecoder->HasAlphaData()) {
         uint32_t rowSize = ((GetRealWidth() + 31) / 32) * 4; // + 31 to round up
         if (mPos == bmpDataEnd) {
           mPos++;
@@ -572,9 +572,7 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
             mCurLine--;
             mRowBytes = 0;
 
-            uint32_t* imageData =
-              static_cast<nsBMPDecoder*>(mContainedDecoder.get())->
-                                           GetImageData();
+            uint32_t* imageData = bmpDecoder->GetImageData();
             if (!imageData) {
               PostDataError();
               return;
@@ -600,7 +598,8 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
         // If any bits are set in sawTransparency, then we know at least one
         // pixel was transparent.
         if (sawTransparency) {
-            PostHasTransparency();
+          PostHasTransparency();
+          bmpDecoder->SetHasAlphaData();
         }
       }
     }

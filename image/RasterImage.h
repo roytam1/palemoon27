@@ -325,7 +325,7 @@ private:
    * @param aFromMetadataDecode True if this metadata came from a metadata
    *                            decode; false if it came from a full decode.
    */
-  nsresult SetMetadata(const ImageMetadata& aMetadata, bool aFromMetadataDecode);
+  void SetMetadata(const ImageMetadata& aMetadata, bool aFromMetadataDecode);
 
   /**
    * In catastrophic circumstances like a GPU driver crash, the contents of our
@@ -347,10 +347,10 @@ private: // data
   /// If this has a value, we're waiting for SetSize() to send the load event.
   Maybe<Progress>            mLoadProgress;
 
-  nsCOMPtr<nsIProperties>    mProperties;
+  nsCOMPtr<nsIProperties>   mProperties;
 
   /// If this image is animated, a FrameAnimator which manages its animation.
-  UniquePtr<FrameAnimator>   mAnim;
+  UniquePtr<FrameAnimator> mAnim;
 
   // Image locking.
   uint32_t                   mLockCount;
@@ -360,7 +360,7 @@ private: // data
 
   // How many times we've decoded this image.
   // This is currently only used for statistics
-  int32_t                    mDecodeCount;
+  int32_t                        mDecodeCount;
 
   // If the image contains multiple resolutions, a hint as to which one
   // should be used
@@ -378,7 +378,7 @@ private: // data
   DrawResult mLastImageContainerDrawResult;
 
 #ifdef DEBUG
-  uint32_t                   mFramesNotified;
+  uint32_t                       mFramesNotified;
 #endif
 
   // The source data for this image.

@@ -9,7 +9,6 @@
 #include "gfxContext.h"
 #include "gfxDrawable.h"
 #include "gfxPlatform.h"
-#include "gfxPrefs.h" // for surface cache size
 #include "gfxUtils.h"
 #include "imgFrame.h"
 #include "mozilla/AutoRestore.h"
@@ -49,6 +48,8 @@ namespace image {
 // Helper-class: SVGRootRenderingObserver
 class SVGRootRenderingObserver final : public nsSVGRenderingObserver {
 public:
+  NS_DECL_ISUPPORTS
+
   SVGRootRenderingObserver(SVGDocumentWrapper* aDocWrapper,
                            VectorImage*        aVectorImage)
     : nsSVGRenderingObserver()
@@ -67,10 +68,6 @@ public:
     mInObserverList = true;
   }
 
-  virtual ~SVGRootRenderingObserver()
-  {
-    StopListening();
-  }
 
   void ResumeHonoringInvalidations()
   {
@@ -78,6 +75,11 @@ public:
   }
 
 protected:
+  virtual ~SVGRootRenderingObserver()
+  {
+    StopListening();
+  }
+
   virtual Element* GetTarget() override
   {
     return mDocWrapper->GetRootSVGElem();
@@ -114,6 +116,8 @@ protected:
   VectorImage* const mVectorImage;   // Raw pointer because it owns me.
   bool mHonoringInvalidations;
 };
+
+NS_IMPL_ISUPPORTS(SVGRootRenderingObserver, nsIMutationObserver)
 
 class SVGParseCompleteListener final : public nsStubDocumentObserver {
 public:
@@ -418,13 +422,18 @@ VectorImage::OnImageDataComplete(nsIRequest* aRequest,
   if (NS_FAILED(aStatus)) {
     finalStatus = aStatus;
   }
+  
+  Progress loadProgress = LoadCompleteProgress(aLastPart, mError, finalStatus);
 
-  // Actually fire OnStopRequest.
-  if (mProgressTracker) {
-    mProgressTracker->SyncNotifyProgress(LoadCompleteProgress(aLastPart,
-                                                              mError,
-                                                              finalStatus));
+  if (mIsFullyLoaded || mError) {
+    // Our document is loaded, so we're ready to notify now.
+    mProgressTracker->SyncNotifyProgress(loadProgress);
+  } else {
+    // Record our progress so far; we'll actually send the notifications in
+    // OnSVGDocumentLoaded or OnSVGDocumentError.
+    mLoadProgress = Some(loadProgress);
   }
+
   return finalStatus;
 }
 
@@ -867,32 +876,12 @@ VectorImage::CreateSurfaceAndShow(const SVGDrawingParameters& aParams)
   nsRefPtr<gfxDrawable> svgDrawable =
     new gfxCallbackDrawable(cb, aParams.size);
 
-  // We take an early exit without using the surface cache if too large,
-  // because for vector images this can cause bad perf issues if large sizes
-  // are scaled repeatedly (a rather common scenario) that can quickly exhaust
-  // the cache.
-  // Similar to max image size calculations, this has a max cap and size check.
-  // max cap = 8000 (pixels); size check = 5% of cache
-  int32_t maxDimension = 8000;
-  int32_t maxCacheElemSize = (gfxPrefs::ImageMemSurfaceCacheMaxSizeKB() * 1024) / 20;
-  
   bool bypassCache = bool(aParams.flags & FLAG_BYPASS_SURFACE_CACHE) ||
                      // Refuse to cache animated images:
                      // XXX(seth): We may remove this restriction in bug 922893.
                      mHaveAnimations ||
                      // The image is too big to fit in the cache:
-                     !SurfaceCache::CanHold(aParams.size) ||
-                     // Image x or y is larger than our cache cap:
-                     aParams.size.width > maxDimension ||
-                     aParams.size.height > maxDimension;
-  if (!bypassCache) {
-    // This is separated out to make sure width and height are sane at this point
-    // and the result can't overflow. Note: keep maxDimension low enough so that
-    // (maxDimension)^2 x 4 < INT32_MAX.
-    // Assuming surface size for any rendered vector image is RGBA, so 4Bpp.
-    bypassCache = (aParams.size.width * aParams.size.height * 4) > maxCacheElemSize;
-  }
-
+                     !SurfaceCache::CanHold(aParams.size);
   if (bypassCache) {
     return Show(svgDrawable, aParams);
   }
@@ -1193,12 +1182,19 @@ VectorImage::OnSVGDocumentLoaded()
 
   // Tell *our* observers that we're done loading.
   if (mProgressTracker) {
-    mProgressTracker->SyncNotifyProgress(FLAG_SIZE_AVAILABLE |
-                                         FLAG_HAS_TRANSPARENCY |
-                                         FLAG_FRAME_COMPLETE |
-                                         FLAG_DECODE_COMPLETE |
-                                         FLAG_ONLOAD_UNBLOCKED,
-                                         GetMaxSizedIntRect());
+    Progress progress = FLAG_SIZE_AVAILABLE |
+                        FLAG_HAS_TRANSPARENCY |
+                        FLAG_FRAME_COMPLETE |
+                        FLAG_DECODE_COMPLETE |
+                        FLAG_ONLOAD_UNBLOCKED;
+
+    // Merge in any saved progress from OnImageDataComplete.
+    if (mLoadProgress) {
+      progress |= *mLoadProgress;
+      mLoadProgress = Nothing();
+    }
+
+    mProgressTracker->SyncNotifyProgress(progress, GetMaxSizedIntRect());
   }
 
   EvaluateAnimation();
@@ -1215,10 +1211,18 @@ VectorImage::OnSVGDocumentError()
   mError = true;
 
   if (mProgressTracker) {
-    // Unblock page load.
-    mProgressTracker->SyncNotifyProgress(FLAG_DECODE_COMPLETE |
-                                         FLAG_ONLOAD_UNBLOCKED |
-                                         FLAG_HAS_ERROR);
+    // Notify observers about the error and unblock page load.
+    Progress progress = FLAG_DECODE_COMPLETE |
+                        FLAG_ONLOAD_UNBLOCKED |
+                        FLAG_HAS_ERROR;
+
+    // Merge in any saved progress from OnImageDataComplete.
+    if (mLoadProgress) {
+      progress |= *mLoadProgress;
+      mLoadProgress = Nothing();
+    }
+
+    mProgressTracker->SyncNotifyProgress(progress);
   }
 }
 

@@ -80,7 +80,6 @@ METHODDEF(void) my_error_exit (j_common_ptr cinfo);
 // Normal JFIF markers can't have more bytes than this.
 #define MAX_JPEG_MARKER_LENGTH  (((uint32_t)1 << 16) - 1)
 
-
 nsJPEGDecoder::nsJPEGDecoder(RasterImage* aImage,
                              Decoder::DecodeStyle aDecodeStyle)
  : Decoder(aImage)
@@ -137,25 +136,11 @@ nsJPEGDecoder::SpeedHistogram()
   return Telemetry::IMAGE_DECODE_SPEED_JPEG;
 }
 
-nsresult
-nsJPEGDecoder::SetTargetSize(const nsIntSize& aSize)
-{
-  // Make sure the size is reasonable.
-  if (MOZ_UNLIKELY(aSize.width <= 0 || aSize.height <= 0)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Create a downscaler that we'll filter our output through.
-  mDownscaler.emplace(aSize);
-
-  return NS_OK;
-}
-
 void
 nsJPEGDecoder::InitInternal()
 {
   mCMSMode = gfxPlatform::GetCMSMode();
-  if (GetDecodeFlags() & imgIContainer::FLAG_DECODE_NO_COLORSPACE_CONVERSION) {
+  if (GetSurfaceFlags() & SurfaceFlags::NO_COLORSPACE_CONVERSION) {
     mCMSMode = eCMSMode_Off;
   }
 
@@ -390,7 +375,6 @@ nsJPEGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
           MOZ_LOG(GetJPEGDecoderAccountingLog(), LogLevel::Debug,
                  ("} (unknown colorpsace (3))"));
           return;
-          break;
       }
     }
 
@@ -423,7 +407,6 @@ nsJPEGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
       }
     }
 
-
     MOZ_LOG(GetJPEGDecoderAccountingLog(), LogLevel::Debug,
            ("        JPEGDecoderAccounting: nsJPEGDecoder::"
             "Write -- created image frame with %ux%u pixels",
@@ -452,7 +435,6 @@ nsJPEGDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
              ("} (I/O suspension after jpeg_start_decompress())"));
       return; // I/O suspension
     }
-
 
     // If this is a progressive JPEG ...
     mState = mInfo.buffered_image ?
@@ -737,7 +719,6 @@ nsJPEGDecoder::OutputScanlines(bool* suspend)
   }
 }
 
-
 // Override the standard error method in the IJG JPEG decoder code.
 METHODDEF(void)
 my_error_exit (j_common_ptr cinfo)
@@ -840,7 +821,6 @@ skip_input_data (j_decompress_ptr jd, long num_bytes)
     src->next_input_byte += num_bytes;
   }
 }
-
 
 /******************************************************************************/
 /* data source manager method
@@ -960,7 +940,6 @@ term_source (j_decompress_ptr jd)
 
 } // namespace image
 } // namespace mozilla
-
 
 ///*************** Inverted CMYK -> RGB conversion *************************
 /// Input is (Inverted) CMYK stored as 4 bytes per pixel.

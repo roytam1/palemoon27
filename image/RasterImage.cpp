@@ -819,20 +819,22 @@ RasterImage::OnAddedFrame(uint32_t aNewFrameCount,
   }
 }
 
-nsresult
+void
 RasterImage::SetMetadata(const ImageMetadata& aMetadata,
                          bool aFromMetadataDecode)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   if (mError) {
-    return NS_ERROR_FAILURE;
+    return;
   }
 
   if (aMetadata.HasSize()) {
     IntSize size = aMetadata.GetSize();
     if (size.width < 0 || size.height < 0) {
-      return NS_ERROR_INVALID_ARG;
+      NS_WARNING("Image has negative intrinsic size");
+      DoError();
+      return;
     }
 
     MOZ_ASSERT(aMetadata.HasOrientation());
@@ -843,7 +845,7 @@ RasterImage::SetMetadata(const ImageMetadata& aMetadata,
       NS_WARNING("Image changed size or orientation on redecode! "
                  "This should not happen!");
       DoError();
-      return NS_ERROR_UNEXPECTED;
+      return;
     }
 
     // Set the size and flag that we have it.
@@ -887,8 +889,6 @@ RasterImage::SetMetadata(const ImageMetadata& aMetadata,
     Set("hotspotX", intwrapx);
     Set("hotspotY", intwrapy);
   }
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1074,7 +1074,7 @@ RasterImage::NotifyForLoadEvent(Progress aProgress)
   if (mError) {
     aProgress |= FLAG_HAS_ERROR;
   }
-  
+
   // Notify our listeners, which will fire this image's load event.
   NotifyProgress(aProgress);
 }
@@ -1373,6 +1373,11 @@ RasterImage::RecoverFromInvalidFrames(const IntSize& aSize, uint32_t aFlags)
 
   // Discard all existing frames, since they're probably all now invalid.
   SurfaceCache::RemoveImage(ImageKey(this));
+
+  // Relock the image if it's supposed to be locked.
+  if (mLockCount > 0) {
+    SurfaceCache::LockImage(ImageKey(this));
+  }
 
   // Animated images require some special handling, because we normally require
   // that they never be discarded.
@@ -1707,22 +1712,20 @@ RasterImage::FinalizeDecoder(Decoder* aDecoder)
   MOZ_ASSERT(aDecoder->HasError() || !aDecoder->InFrame(),
              "Finalizing a decoder in the middle of a frame");
 
+  bool wasMetadata = aDecoder->IsMetadataDecode();
+  bool done = aDecoder->GetDecodeDone();
+
   // If the decoder detected an error, log it to the error console.
   if (aDecoder->ShouldReportError() && !aDecoder->WasAborted()) {
     ReportDecoderError(aDecoder);
   }
 
   // Record all the metadata the decoder gathered about this image.
-  nsresult rv = SetMetadata(aDecoder->GetImageMetadata(),
-                            aDecoder->IsMetadataDecode());
-  if (NS_FAILED(rv)) {
-    aDecoder->PostResizeError();
-  }
-
+  SetMetadata(aDecoder->GetImageMetadata(), wasMetadata);
   MOZ_ASSERT(mError || mHasSize || !aDecoder->HasSize(),
-             "Should have handed off size by now");
+             "SetMetadata should've gotten a size");
 
-  if (aDecoder->GetDecodeTotallyDone() && !mError) {
+  if (!wasMetadata && aDecoder->GetDecodeDone() && !aDecoder->WasAborted()) {
     // Flag that we've been decoded before.
     mHasBeenDecoded = true;
     if (mAnim) {
@@ -1734,9 +1737,6 @@ RasterImage::FinalizeDecoder(Decoder* aDecoder)
   NotifyProgress(aDecoder->TakeProgress(),
                  aDecoder->TakeInvalidRect(),
                  aDecoder->GetSurfaceFlags());
-
-  bool wasMetadata = aDecoder->IsMetadataDecode();
-  bool done = aDecoder->GetDecodeDone();
 
   if (!wasMetadata && aDecoder->ChunkCount()) {
     /*Telemetry::Accumulate(Telemetry::IMAGE_DECODE_CHUNKS,

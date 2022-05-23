@@ -845,3 +845,9 @@ bin/libfreebl_32int64_3.so
 #if defined(MOZ_ASAN) && defined(CLANG_CL)
 @BINPATH@/clang_rt.asan_dynamic-i386.dll
 #endif
+
+; gfx
+#ifdef XP_WIN
+@RESPATH@/components/GfxSanityTest.manifest
+@RESPATH@/components/SanityTest.js
+#endif

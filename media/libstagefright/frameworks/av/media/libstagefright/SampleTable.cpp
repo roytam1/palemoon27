@@ -388,8 +388,12 @@ status_t SampleTable::setCompositionTimeToSampleParams(
         return ERROR_IO;
     }
 
-    if (U32_AT(header) != 0) {
-        // Expected version = 0, flags = 0.
+    uint32_t flags = U32_AT(header);
+    uint32_t version = flags >> 24;
+    flags &= 0xffffff;
+
+    if ((version != 0 && version != 1) || flags > 1) {
+        // Expected version = 0 or 1, flags = 0 or 1.
         return ERROR_MALFORMED;
     }
 

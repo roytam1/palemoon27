@@ -7131,6 +7131,14 @@
     "n_buckets": "20",
     "description": "Proportion (%) of reschedulings of the main process to another CPU during the execution of code inside a JS compartment. Updated while we are measuring jank."
   },
+  "GRAPHICS_SANITY_TEST_OS_SNAPSHOT": {
+    "alert_emails": ["danderson@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 10,
+    "releaseChannelCollection": "opt-out",
+    "description": "Reports whether the graphics sanity test passed an OS snapshot test. 0=Pass, 1=Fail, 2=Error, 3=Timed out."
+  },
   "PERMISSIONS_SQL_CORRUPTED": {
     "expires_in_version": "never",
     "kind": "count",

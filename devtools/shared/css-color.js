@@ -9,24 +9,7 @@ const {Services} = Cu.import("resource://gre/modules/Services.jsm", {});
 
 const COLOR_UNIT_PREF = "devtools.defaultColorUnit";
 
-const REGEX_JUST_QUOTES  = /^""$/;
 const REGEX_HSL_3_TUPLE  = /^\bhsl\(([\d.]+),\s*([\d.]+%),\s*([\d.]+%)\)$/i;
-
-/**
- * This regex matches:
- *  - #F00
- *  - #FF0000
- *  - hsl()
- *  - hsla()
- *  - rgb()
- *  - rgba()
- *  - red
- *
- *  It also matches css keywords e.g. "background-color" otherwise
- *  "background" would be replaced with #6363CE ("background" is a platform
- *  color).
- */
-const REGEX_ALL_COLORS = /#[0-9a-fA-F]{3}\b|#[0-9a-fA-F]{6}\b|hsl\(.*?\)|hsla\(.*?\)|rgba?\(.*?\)|\b[a-zA-Z-]+\b/g;
 
 const SPECIALVALUES = new Set([
   "currentcolor",
@@ -66,9 +49,6 @@ const SPECIALVALUES = new Set([
  *   // Color objects can be reused
  *   color.newColor("green") === "#0F0"; // true
  *
- *   let processed = colorUtils.processCSSString("color:red; background-color:green;");
- *   // Returns "color:#F00; background-color:#0F0;"
- *
  *   Valid values for COLOR_UNIT_PREF are contained in CssColor.COLORUNIT.
  */
 
@@ -78,7 +58,6 @@ function CssColor(colorValue) {
 
 module.exports.colorUtils = {
   CssColor: CssColor,
-  processCSSString: processCSSString,
   rgbToHsl: rgbToHsl,
   setAlpha: setAlpha
 };
@@ -95,7 +74,21 @@ CssColor.COLORUNIT = {
 };
 
 CssColor.prototype = {
+  _colorUnit: null,
+
   authored: null,
+
+  get colorUnit() {
+    if (this._colorUnit === null) {
+      let defaultUnit = Services.prefs.getCharPref(COLOR_UNIT_PREF);
+      this._colorUnit = CssColor.COLORUNIT[defaultUnit];
+    }
+    return this._colorUnit;
+  },
+
+  set colorUnit(unit) {
+    this._colorUnit = unit;
+  },
 
   get hasAlpha() {
     if (!this.valid) {
@@ -269,15 +262,31 @@ CssColor.prototype = {
     return this;
   },
 
+  nextColorUnit: function() {
+    // Reorder the formats array to have the current format at the
+    // front so we can cycle through.
+    let formats = ["authored", "hex", "hsl", "rgb", "name"];
+    let putOnEnd = formats.splice(0, formats.indexOf(this.colorUnit));
+    formats = formats.concat(putOnEnd);
+    let currentDisplayedColor = this[formats[0]];
+
+    for (let format of formats) {
+      if (this[format].toLowerCase() !== currentDisplayedColor.toLowerCase()) {
+        this.colorUnit = CssColor.COLORUNIT[format];
+        break;
+      }
+    }
+
+    return this.toString();
+  },
+
   /**
    * Return a string representing a color of type defined in COLOR_UNIT_PREF.
    */
   toString: function() {
     let color;
-    let defaultUnit = Services.prefs.getCharPref(COLOR_UNIT_PREF);
-    let unit = CssColor.COLORUNIT[defaultUnit];
 
-    switch(unit) {
+    switch(this.colorUnit) {
       case CssColor.COLORUNIT.authored:
         color = this.authored;
         break;
@@ -333,31 +342,6 @@ CssColor.prototype = {
     return this.rgba;
   },
 };
-
-/**
- * Process a CSS string
- *
- * @param  {String} value
- *         CSS string e.g. "color:red; background-color:green;"
- * @return {String}
- *         Converted CSS String e.g. "color:#F00; background-color:#0F0;"
- */
-function processCSSString(value) {
-  if (value && REGEX_JUST_QUOTES.test(value)) {
-    return value;
-  }
-
-  let colorPattern = REGEX_ALL_COLORS;
-
-  value = value.replace(colorPattern, function(match) {
-    let color = new CssColor(match);
-    if (color.valid) {
-      return color;
-    }
-    return match;
-  });
-  return value;
-}
 
 /**
  * Convert rgb value to hsl

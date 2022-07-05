@@ -5,10 +5,12 @@
 /* CSS Variables specific to this panel that aren't defined by the themes */
 .theme-light {
   --rule-highlight-background-color: #ffee99;
+  --rule-filter-icon: url(images/magnifying-glass-light.png);
 }
 
 .theme-dark {
   --rule-highlight-background-color: #594724;
+  --rule-filter-icon: url(images/magnifying-glass.png);
 }
 
 .ruleview {
@@ -59,7 +61,11 @@
   padding: 2px 4px;
 }
 
-/* User agent styles are not editable, display them differently */
+/**
+ * Display rules that don't match the current selected element and uneditable
+ * user agent styles differently
+ */
+.ruleview-rule[unmatched=true],
 .ruleview-rule[uneditable=true] {
   background: var(--theme-tab-toolbar-background);
 }
@@ -80,9 +86,9 @@
   cursor: default;
 }
 
-
 .ruleview-rule[uneditable=true] .ruleview-namecontainer > .ruleview-propertyname,
-.ruleview-rule[uneditable=true] .ruleview-propertycontainer > .ruleview-propertyvalue {
+.ruleview-rule[uneditable=true] .ruleview-propertyvaluecontainer >
+.ruleview-propertyvalue {
   border-bottom-color: transparent;
 }
 
@@ -101,11 +107,9 @@
   background-size: 13px 12px;
   -moz-margin-start: 5px;
   display: inline-block;
-  vertical-align: top;
   width: 13px;
   height: 12px;
 }
-
 
 @media (min-resolution: 1.25dppx) {
   .ruleview-warning {
@@ -142,7 +146,7 @@
 }
 
 .ruleview-namecontainer,
-.ruleview-propertycontainer,
+.ruleview-propertyvaluecontainer,
 .ruleview-propertyname,
 .ruleview-propertyvalue {
   text-decoration: inherit;
@@ -219,7 +223,7 @@
   clear: right;
 }
 
-.ruleview-property  > * {
+.ruleview-propertycontainer  > * {
   vertical-align: middle;
 }
 
@@ -232,12 +236,12 @@
 }
 
 .ruleview-namecontainer > .ruleview-propertyname,
-.ruleview-propertycontainer > .ruleview-propertyvalue {
+.ruleview-propertyvaluecontainer > .ruleview-propertyvalue {
   border-bottom: 1px dashed transparent;
 }
 
 .ruleview-namecontainer:hover > .ruleview-propertyname,
-.ruleview-propertycontainer:hover > .ruleview-propertyvalue {
+.ruleview-propertyvaluecontainer:hover > .ruleview-propertyvalue {
   border-bottom-color: hsl(0,0%,50%);
 }
 
@@ -247,4 +251,34 @@
 
 .ruleview-selector-separator, .ruleview-selector-unmatched {
   color: #888;
+}
+
+#ruleview-add-rule-button::before {
+  background-image: url("chrome://devtools/skin/themes/images/add.svg");
+  background-size: cover;
+}
+
+/**
+ * These buttons are using opacity instead of background color to indicate
+ * the state
+ */
+#ruleview-add-rule-button,
+#pseudo-class-panel-toggle,
+.ruleview-overridden-rule-filter {
+  opacity: 0.8;
+}
+
+#ruleview-add-rule-button:not([disabled]):hover,
+#pseudo-class-panel-toggle:hover,
+#pseudo-class-panel-toggle[checked],
+.ruleview-overridden-rule-filter:hover {
+  opacity: 1;
+}
+
+#pseudo-class-panel-toggle::before {
+  background-image: url("chrome://devtools/skin/themes/images/pseudo-class.svg#pseudo-class");
+  background-size: cover;
+}
+#pseudo-class-panel-toggle[checked]::before {
+  background-image: url("chrome://devtools/skin/themes/images/pseudo-class.svg#pseudo-class-checked");
 }

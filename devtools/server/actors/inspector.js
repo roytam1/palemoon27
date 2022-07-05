@@ -230,6 +230,19 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
            this.rawNode.ownerDocument.documentElement === this.rawNode;
   },
 
+  destroy: function () {
+    protocol.Actor.prototype.destroy.call(this);
+
+    if (this.mutationObserver) {
+      if (!Cu.isDeadWrapper(this.mutationObserver)) {
+        this.mutationObserver.disconnect();
+      }
+      this.mutationObserver = null;
+    }
+    this.rawNode = null;
+    this.walker = null;
+  },
+
   // Returns the JSON representation of this object over the wire.
   form: function(detail) {
     if (detail === "actorid") {
@@ -283,7 +296,42 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
       }
     }
 
+    // Add an extra API for custom properties added by other
+    // modules/extensions.
+    form.setFormProperty = (name, value) => {
+      if (!form.props) {
+        form.props = {};
+      }
+      form.props[name] = value;
+    };
+
+    // Fire an event so, other modules can create its own properties
+    // that should be passed to the client (within the form.props field).
+    events.emit(NodeActor, "form", {
+      target: this,
+      data: form
+    });
+
     return form;
+  },
+
+  /**
+   * Watch the given document node for mutations using the DOM observer
+   * API.
+   */
+  watchDocument: function(callback) {
+    let node = this.rawNode;
+    // Create the observer on the node's actor.  The node will make sure
+    // the observer is cleaned up when the actor is released.
+    let observer = new node.defaultView.MutationObserver(callback);
+    observer.mergeAttributeRecords = true;
+    observer.observe(node, {
+      attributes: true,
+      characterData: true,
+      childList: true,
+      subtree: true
+    });
+    this.mutationObserver = observer;
   },
 
   get isBeforePseudoElement() {
@@ -303,24 +351,20 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
       return 0;
     }
 
-    let numChildren = this.rawNode.childNodes.length;
+    let rawNode = this.rawNode;
+    let numChildren = rawNode.childNodes.length;
+    let hasAnonChildren = rawNode.nodeType === Ci.nsIDOMNode.ELEMENT_NODE &&
+                          rawNode.ownerDocument.getAnonymousNodes(rawNode);
+
     if (numChildren === 0 &&
-        (this.rawNode.contentDocument || this.rawNode.getSVGDocument)) {
+        (rawNode.contentDocument || rawNode.getSVGDocument)) {
       // This might be an iframe with virtual children.
       numChildren = 1;
     }
 
-    // Count any anonymous children
-    if (this.rawNode.nodeType === Ci.nsIDOMNode.ELEMENT_NODE) {
-      let anonChildren = this.rawNode.ownerDocument.getAnonymousNodes(this.rawNode);
-      if (anonChildren) {
-        numChildren += anonChildren.length;
-      }
-    }
-
-    // Normal counting misses ::before/::after, so we have to check to make sure
-    // we aren't missing anything
-    if (numChildren === 0) {
+    // Normal counting misses ::before/::after.  Also, some anonymous children
+    // may ultimately be skipped, so we have to consult with the walker.
+    if (numChildren === 0 || hasAnonChildren) {
       numChildren = this.walker.children(this).nodes.length;
     }
 
@@ -425,6 +469,10 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
         // do nothing.
       }
     }
+
+    events.sort((a, b) => {
+      return a.type.localeCompare(b.type);
+    });
 
     return events;
   },
@@ -616,16 +664,12 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
    * transfered in the longstring back to the client will be that much smaller
    */
   getImageData: method(function(maxDim) {
-    // imageToImageData may fail if the node isn't an image
-    try {
-      let imageData = imageToImageData(this.rawNode, maxDim);
-      return promise.resolve({
+    return imageToImageData(this.rawNode, maxDim).then(imageData => {
+      return {
         data: LongStringActor(this.conn, imageData.data),
         size: imageData.size
-      });
-    } catch(e) {
-      return promise.reject(new Error("Image not available"));
-    }
+      };
+    });
   }, {
     request: {maxDim: Arg(0, "nullable:number")},
     response: RetVal("imageData")
@@ -735,12 +779,6 @@ var NodeFront = protocol.FrontClass(NodeActor, {
    * is being destroyed.
    */
   destroy: function() {
-    // If an observer was added on this node, shut it down.
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null;
-    }
-
     protocol.Front.prototype.destroy.call(this);
   },
 
@@ -835,6 +873,12 @@ var NodeFront = protocol.FrontClass(NodeActor, {
   get nodeName() {
     return this._form.nodeName;
   },
+  get doctypeString() {
+    return '<!DOCTYPE ' + this._form.name +
+     (this._form.publicId ? ' PUBLIC "' +  this._form.publicId + '"': '') +
+     (this._form.systemId ? ' "' + this._form.systemId + '"' : '') +
+     '>';
+  },
 
   get baseURI() {
     return this._form.baseURI;
@@ -923,6 +967,17 @@ var NodeFront = protocol.FrontClass(NodeActor, {
     return "isDisplayed" in this._form ? this._form.isDisplayed : true;
   },
 
+  get isTreeDisplayed() {
+    let parent = this;
+    while (parent) {
+      if (!parent.isDisplayed) {
+        return false;
+      }
+      parent = parent.parentNode();
+    }
+    return true;
+  },
+
   getNodeValue: protocol.custom(function() {
     if (!this.incompleteValue) {
       return delayedResolve(new ShortLongString(this.shortValue));
@@ -932,6 +987,18 @@ var NodeFront = protocol.FrontClass(NodeActor, {
   }, {
     impl: "_getNodeValue"
   }),
+
+  // Accessors for custom form properties.
+
+  getFormProperty: function(name) {
+    return this._form.props ? this._form.props[name] : null;
+  },
+
+  hasFormProperty: function(name) {
+    return this._form.props ? (name in this._form.props) : null;
+  },
+
+  get formProperties() this._form.props,
 
   /**
    * Return a new AttributeModificationList for this node.
@@ -1158,7 +1225,7 @@ var NodeListFront = exports.NodeListFront = protocol.FrontClass(NodeListActor, {
 
 // Some common request/response templates for the dom walker
 
-let nodeArrayMethod = {
+var nodeArrayMethod = {
   request: {
     node: Arg(0, "domnode"),
     maxNodes: Option(1),
@@ -1171,7 +1238,7 @@ let nodeArrayMethod = {
   }))
 };
 
-let traversalMethod = {
+var traversalMethod = {
   request: {
     node: Arg(0, "domnode"),
     whatToShow: Option(1)
@@ -1259,7 +1326,13 @@ var WalkerActor = protocol.ActorClass({
   form: function() {
     return {
       actor: this.actorID,
-      root: this.rootNode.form()
+      root: this.rootNode.form(),
+      traits: {
+        // FF42+ Inspector starts managing the Walker, while the inspector also
+        // starts cleaning itself up automatically on client disconnection.
+        // So that there is no need to manually release the walker anymore.
+        autoReleased: true
+      }
     }
   },
 
@@ -1269,29 +1342,51 @@ var WalkerActor = protocol.ActorClass({
 
   getDocumentWalker: function(node, whatToShow) {
     // Allow native anon content (like <video> controls) if preffed on
-    let nodeFilter = this.showAllAnonymousContent ? allAnonymousContentTreeWalkerFilter : standardTreeWalkerFilter;
+    let nodeFilter = this.showAllAnonymousContent
+                        ? allAnonymousContentTreeWalkerFilter
+                        : standardTreeWalkerFilter;
     return new DocumentWalker(node, this.rootWin, whatToShow, nodeFilter);
   },
 
   destroy: function() {
+    if (this._destroyed) {
+      return;
+    }
+    this._destroyed = true;
+    protocol.Actor.prototype.destroy.call(this);
     try {
-      this._destroyed = true;
-
       this.clearPseudoClassLocks();
       this._activePseudoClassLocks = null;
 
       this._hoveredNode = null;
+      this.rootWin = null;
       this.rootDoc = null;
+      this.rootNode = null;
+      this.layoutHelpers = null;
+      this._orphaned = null;
+      this._retainedOrphans = null;
+      this._refMap = null;
+
+      events.off(this.tabActor, "will-navigate", this.onFrameUnload);
+      events.off(this.tabActor, "navigate", this.onFrameLoad);
+
+      this.onFrameLoad = null;
+      this.onFrameUnload = null;
 
       this.reflowObserver.off("reflows", this._onReflows);
       this.reflowObserver = null;
+      this._onReflows = null;
       releaseLayoutChangesObserver(this.tabActor);
+
+      this.onMutations = null;
+
+      this.tabActor = null;
 
       events.emit(this, "destroyed");
     } catch(e) {
       console.error(e);
     }
-    protocol.Actor.prototype.destroy.call(this);
+
   },
 
   release: method(function() {}, { release: true }),
@@ -1307,6 +1402,10 @@ var WalkerActor = protocol.ActorClass({
     protocol.Actor.prototype.unmanage.call(this, actor);
   },
 
+  hasNode: function(node) {
+    return this._refMap.has(node);
+  },
+
   _ref: function(node) {
     let actor = this._refMap.get(node);
     if (actor) return actor;
@@ -1319,7 +1418,7 @@ var WalkerActor = protocol.ActorClass({
     this._refMap.set(node, actor);
 
     if (node.nodeType === Ci.nsIDOMNode.DOCUMENT_NODE) {
-      this._watchDocument(actor);
+      actor.watchDocument(this.onMutations);
     }
     return actor;
   },
@@ -1392,9 +1491,16 @@ var WalkerActor = protocol.ActorClass({
     let nodeActors = [];
     let newParents = new Set();
     for (let node of nodes) {
-      // Be sure we deal with NodeActor only.
-      if (!(node instanceof NodeActor))
+      if (!(node instanceof NodeActor)) {
+        // If an anonymous node was passed in and we aren't supposed to know
+        // about it, then consult with the document walker as the source of
+        // truth about which elements exist.
+        if (!this.showAllAnonymousContent && isAnonymous(node)) {
+          node = this.getDocumentWalker(node).currentNode;
+        }
+
         node = this._ref(node);
+      }
 
       this.ensurePathToRoot(node, newParents);
       // If nodes may be an array of raw nodes, we're sure to only have
@@ -1406,24 +1512,6 @@ var WalkerActor = protocol.ActorClass({
       nodes: nodeActors,
       newParents: [...newParents]
     };
-  },
-
-  /**
-   * Watch the given document node for mutations using the DOM observer
-   * API.
-   */
-  _watchDocument: function(actor) {
-    let node = actor.rawNode;
-    // Create the observer on the node's actor.  The node will make sure
-    // the observer is cleaned up when the actor is released.
-    actor.observer = new actor.rawNode.defaultView.MutationObserver(this.onMutations);
-    actor.observer.mergeAttributeRecords = true;
-    actor.observer.observe(node, {
-      attributes: true,
-      characterData: true,
-      childList: true,
-      subtree: true
-    });
   },
 
   /**
@@ -1922,6 +2010,42 @@ var WalkerActor = protocol.ActorClass({
   }),
 
   /**
+   * Get a list of nodes that match the given selector in all known frames of
+   * the current content page.
+   * @param {String} selector.
+   * @return {Array}
+   */
+  _multiFrameQuerySelectorAll: function(selector) {
+    let nodes = [];
+
+    for (let {document} of this.tabActor.windows) {
+      try {
+        nodes = [...nodes, ...document.querySelectorAll(selector)];
+      } catch(e) {
+        // Bad selector. Do nothing as the selector can come from a searchbox.
+      }
+    }
+
+    return nodes;
+  },
+
+  /**
+   * Return a NodeListActor with all nodes that match the given selector in all
+   * frames of the current content page.
+   * @param {String} selector
+   */
+  multiFrameQuerySelectorAll: method(function(selector) {
+    return new NodeListActor(this, this._multiFrameQuerySelectorAll(selector));
+  }, {
+    request: {
+      selector: Arg(0)
+    },
+    response: {
+      list: RetVal("domnodelist")
+    }
+  }),
+
+  /**
    * Returns a list of matching results for CSS selector autocompletion.
    *
    * @param string query
@@ -1934,7 +2058,8 @@ var WalkerActor = protocol.ActorClass({
   getSuggestionsForQuery: method(function(query, completing, selectorState) {
     let sugs = {
       classes: new Map,
-      tags: new Map
+      tags: new Map,
+      ids: new Map
     };
     let result = [];
     let nodes = null;
@@ -1948,10 +2073,10 @@ var WalkerActor = protocol.ActorClass({
 
       case "class":
         if (!query) {
-          nodes = this.rootDoc.querySelectorAll("[class]");
+          nodes = this._multiFrameQuerySelectorAll("[class]");
         }
         else {
-          nodes = this.rootDoc.querySelectorAll(query);
+          nodes = this._multiFrameQuerySelectorAll(query);
         }
         for (let node of nodes) {
           for (let className of node.classList) {
@@ -1973,24 +2098,27 @@ var WalkerActor = protocol.ActorClass({
 
       case "id":
         if (!query) {
-          nodes = this.rootDoc.querySelectorAll("[id]");
+          nodes = this._multiFrameQuerySelectorAll("[id]");
         }
         else {
-          nodes = this.rootDoc.querySelectorAll(query);
+          nodes = this._multiFrameQuerySelectorAll(query);
         }
         for (let node of nodes) {
-          if (node.id.startsWith(completing)) {
-            result.push(["#" + node.id, 1]);
+          sugs.ids.set(node.id, (sugs.ids.get(node.id)|0) + 1);
+        }
+        for (let [id, count] of sugs.ids) {
+          if (id.startsWith(completing)) {
+            result.push(["#" + CSS.escape(id), count, selectorState]);
           }
         }
         break;
 
       case "tag":
         if (!query) {
-          nodes = this.rootDoc.getElementsByTagName("*");
+          nodes = this._multiFrameQuerySelectorAll("*");
         }
         else {
-          nodes = this.rootDoc.querySelectorAll(query);
+          nodes = this._multiFrameQuerySelectorAll(query);
         }
         for (let node of nodes) {
           let tag = node.tagName.toLowerCase();
@@ -2015,17 +2143,20 @@ var WalkerActor = protocol.ActorClass({
         break;
 
       case "null":
-        nodes = this.rootDoc.querySelectorAll(query);
+        nodes = this._multiFrameQuerySelectorAll(query);
         for (let node of nodes) {
-          node.id && result.push(["#" + node.id, 1]);
+          sugs.ids.set(node.id, (sugs.ids.get(node.id)|0) + 1);
           let tag = node.tagName.toLowerCase();
           sugs.tags.set(tag, (sugs.tags.get(tag)|0) + 1);
-          for (let className of node.classList) {
+          for (let className of node.className.split(" ")) {
             sugs.classes.set(className, (sugs.classes.get(className)|0) + 1);
           }
         }
         for (let [tag, count] of sugs.tags) {
           tag && result.push([tag, count]);
+        }
+        for (let [id, count] of sugs.ids) {
+          id && result.push(["#" + id, count]);
         }
         sugs.classes.delete("");
         // Editing the style editor may make the stylesheet have errors and
@@ -2038,11 +2169,38 @@ var WalkerActor = protocol.ActorClass({
         }
     }
 
-    // Sort alphabetically in increaseing order.
-    result = result.sort();
-    // Sort based on count in decreasing order.
-    result = result.sort(function(a, b) {
-      return b[1] - a[1];
+    // Sort by count (desc) and name (asc)
+    result = result.sort((a, b) => {
+      // Computed a sortable string with first the inverted count, then the name
+      let sortA = (10000-a[1]) + a[0];
+      let sortB = (10000-b[1]) + b[0];
+
+      // Prefixing ids, classes and tags, to group results
+      let firstA = a[0].substring(0, 1);
+      let firstB = b[0].substring(0, 1);
+
+      if (firstA === "#") {
+        sortA = "2" + sortA;
+      }
+      else if (firstA === ".") {
+        sortA = "1" + sortA;
+      }
+      else {
+        sortA = "0" + sortA;
+      }
+
+      if (firstB === "#") {
+        sortB = "2" + sortB;
+      }
+      else if (firstB === ".") {
+        sortB = "1" + sortB;
+      }
+      else {
+        sortB = "0" + sortB;
+      }
+
+      // String compare
+      return sortA.localeCompare(sortB);
     });
 
     result.slice(0, 25);
@@ -2282,11 +2440,11 @@ var WalkerActor = protocol.ActorClass({
    * @param {NodeActor} node The node.
    */
   outerHTML: method(function(node) {
-    let html = "";
+    let outerHTML = "";
     if (!isNodeDead(node)) {
-      html = node.rawNode.outerHTML;
+      outerHTML = node.rawNode.outerHTML;
     }
-    return LongStringActor(this.conn, html);
+    return LongStringActor(this.conn, outerHTML);
   }, {
     request: {
       node: Arg(0, "domnode")
@@ -2655,13 +2813,14 @@ var WalkerActor = protocol.ActorClass({
       let mutation = {
         type: change.type,
         target: targetActor.actorID,
-        numChildren: targetActor.numChildren
       };
 
       if (mutation.type === "attributes") {
         mutation.attributeName = change.attributeName;
         mutation.attributeNamespace = change.attributeNamespace || undefined;
-        mutation.newValue = targetNode.getAttribute(mutation.attributeName);
+        mutation.newValue = targetNode.hasAttribute(mutation.attributeName) ?
+                            targetNode.getAttribute(mutation.attributeName)
+                            : null;
       } else if (mutation.type === "characterData") {
         if (targetNode.nodeValue.length > gValueSummaryLength) {
           mutation.newValue = targetNode.nodeValue.substring(0, gValueSummaryLength);
@@ -2700,6 +2859,7 @@ var WalkerActor = protocol.ActorClass({
           addedActors.push(addedActor.actorID);
         }
 
+        mutation.numChildren = targetActor.numChildren;
         mutation.removed = removedActors;
         mutation.added = addedActors;
 
@@ -2988,6 +3148,8 @@ var WalkerFront = exports.WalkerFront = protocol.FrontClass(WalkerActor, {
     this.actorID = json.actor;
     this.rootNode = types.getType("domnode").read(json.root, this);
     this._rootNodeDeferred.resolve(this.rootNode);
+    // FF42+ the actor starts exposing traits
+    this.traits = json.traits || {};
   },
 
   /**
@@ -3377,6 +3539,11 @@ var InspectorActor = exports.InspectorActor = protocol.ActorClass({
 
   destroy: function () {
     protocol.Actor.prototype.destroy.call(this);
+    this._highlighterPromise = null;
+    this._pageStylePromise = null;
+    this._walkerPromise = null;
+    this.walker = null;
+    this.tabActor = null;
   },
 
   // Forces destruction of the actor and all its children
@@ -3402,6 +3569,7 @@ var InspectorActor = exports.InspectorActor = protocol.ActorClass({
       let tabActor = this.tabActor;
       window.removeEventListener("DOMContentLoaded", domReady, true);
       this.walker = WalkerActor(this.conn, tabActor, options);
+      this.manage(this.walker);
       events.once(this.walker, "destroyed", () => {
         this._walkerPromise = null;
         this._pageStylePromise = null;
@@ -3431,7 +3599,9 @@ var InspectorActor = exports.InspectorActor = protocol.ActorClass({
     }
 
     this._pageStylePromise = this.getWalker().then(walker => {
-      return PageStyleActor(this);
+      let pageStyle = PageStyleActor(this);
+      this.manage(pageStyle);
+      return pageStyle;
     });
     return this._pageStylePromise;
   }, {
@@ -3460,7 +3630,9 @@ var InspectorActor = exports.InspectorActor = protocol.ActorClass({
     }
 
     this._highlighterPromise = this.getWalker().then(walker => {
-      return HighlighterActor(this, autohide);
+      let highlighter = HighlighterActor(this, autohide);
+      this.manage(highlighter);
+      return highlighter;
     });
     return this._highlighterPromise;
   }, {
@@ -3510,39 +3682,16 @@ var InspectorActor = exports.InspectorActor = protocol.ActorClass({
    * transfered in the longstring back to the client will be that much smaller
    */
   getImageDataFromURL: method(function(url, maxDim) {
-    let deferred = promise.defer();
     let img = new this.window.Image();
-
-    // On load, get the image data and send the response
-    img.onload = () => {
-      // imageToImageData throws an error if the image is missing
-      try {
-        let imageData = imageToImageData(img, maxDim);
-        deferred.resolve({
-          data: LongStringActor(this.conn, imageData.data),
-          size: imageData.size
-        });
-      } catch (e) {
-        deferred.reject(new Error("Image " + url+ " not available"));
-      }
-    }
-
-    // If the URL doesn't point to a resource, reject
-    img.onerror = () => {
-      deferred.reject(new Error("Image " + url+ " not available"));
-    }
-
-    // If the request hangs for too long, kill it to avoid queuing up other requests
-    // to the same actor, except if we're running tests
-    if (!DevToolsUtils.testing) {
-      this.window.setTimeout(() => {
-        deferred.reject(new Error("Image " + url + " could not be retrieved in time"));
-      }, IMAGE_FETCHING_TIMEOUT);
-    }
-
     img.src = url;
 
-    return deferred.promise;
+    // imageToImageData waits for the image to load.
+    return imageToImageData(img, maxDim).then(imageData => {
+      return {
+        data: LongStringActor(this.conn, imageData.data),
+        size: imageData.size
+      };
+    });
   }, {
     request: {url: Arg(0), maxDim: Arg(1, "nullable:number")},
     response: RetVal("imageData")
@@ -3661,8 +3810,16 @@ function DocumentWalker(node, rootWin, whatToShow=Ci.nsIDOMNodeFilter.SHOW_ALL, 
   this.walker.showSubDocuments = true;
   this.walker.showDocumentsAsNodes = true;
   this.walker.init(rootWin.document, whatToShow);
-  this.walker.currentNode = node;
   this.filter = filter;
+
+  // Make sure that the walker knows about the initial node (which could
+  // be skipped due to a filter).  Note that simply calling parentNode()
+  // causes currentNode to be updated.
+  this.walker.currentNode = node;
+  while (node &&
+         this.filter(node) === Ci.nsIDOMNodeFilter.FILTER_SKIP) {
+    node = this.walker.parentNode();
+  }
 }
 
 DocumentWalker.prototype = {
@@ -3726,9 +3883,11 @@ DocumentWalker.prototype = {
   }
 };
 
-function isXULElement(el) {
-  return el &&
-         el.namespaceURI === XUL_NS;
+function isInXULDocument(el) {
+  let doc = nodeDocument(el);
+  return doc &&
+         doc.documentElement &&
+         doc.documentElement.namespaceURI === XUL_NS;
 }
 
 /**
@@ -3777,20 +3936,84 @@ function allAnonymousContentTreeWalkerFilter(aNode) {
 }
 
 /**
- * Given an image DOMNode, return the image data-uri.
- * @param {DOMNode} node The image node
- * @param {Number} maxDim Optionally pass a maximum size you want the longest
- * side of the image to be resized to before getting the image data.
- * @return {Object} An object containing the data-uri and size-related information
- * {data: "...", size: {naturalWidth: 400, naturalHeight: 300, resized: true}}
- * @throws an error if the node isn't an image or if the image is missing
+ * Returns a promise that is settled once the given HTMLImageElement has
+ * finished loading.
+ *
+ * @param {HTMLImageElement} image - The image element.
+ * @param {Number} timeout - Maximum amount of time the image is allowed to load
+ * before the waiting is aborted. Ignored if DevToolsUtils.testing is set.
+ *
+ * @return {Promise} that is fulfilled once the image has loaded. If the image
+ * fails to load or the load takes too long, the promise is rejected.
  */
-function imageToImageData(node, maxDim) {
-  let isImg = node.tagName.toLowerCase() === "img";
-  let isCanvas = node.tagName.toLowerCase() === "canvas";
+function ensureImageLoaded(image, timeout) {
+  let { HTMLImageElement } = image.ownerDocument.defaultView;
+  if (!(image instanceof HTMLImageElement)) {
+    return promise.reject("image must be an HTMLImageELement");
+  }
+
+  if (image.complete) {
+    // The image has already finished loading.
+    return promise.resolve();
+  }
+
+  // This image is still loading.
+  let onLoad = AsyncUtils.listenOnce(image, "load");
+
+  // Reject if loading fails.
+  let onError = AsyncUtils.listenOnce(image, "error").then(() => {
+    return promise.reject("Image '" + image.src + "' failed to load.");
+  });
+
+  // Don't timeout when testing. This is never settled.
+  let onAbort = new promise(() => {});
+
+  if (!DevToolsUtils.testing) {
+    // Tests are not running. Reject the promise after given timeout.
+    onAbort = DevToolsUtils.waitForTime(timeout).then(() => {
+      return promise.reject("Image '" + image.src + "' took too long to load.");
+    });
+  }
+
+  // See which happens first.
+  return promise.race([onLoad, onError, onAbort]);
+}
+
+/**
+ * Given an <img> or <canvas> element, return the image data-uri. If @param node
+ * is an <img> element, the method waits a while for the image to load before
+ * the data is generated. If the image does not finish loading in a reasonable
+ * time (IMAGE_FETCHING_TIMEOUT milliseconds) the process aborts.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} node - The <img> or <canvas>
+ * element, or Image() object. Other types cause the method to reject.
+ * @param {Number} maxDim - Optionally pass a maximum size you want the longest
+ * side of the image to be resized to before getting the image data.
+
+ * @return {Promise} A promise that is fulfilled with an object containing the
+ * data-uri and size-related information:
+ * { data: "...",
+ *   size: {
+ *     naturalWidth: 400,
+ *     naturalHeight: 300,
+ *     resized: true }
+ *  }.
+ *
+ * If something goes wrong, the promise is rejected.
+ */
+var imageToImageData = Task.async(function* (node, maxDim) {
+  let { HTMLCanvasElement, HTMLImageElement } = node.ownerDocument.defaultView;
+
+  let isImg = node instanceof HTMLImageElement;
+  let isCanvas = node instanceof HTMLCanvasElement;
 
   if (!isImg && !isCanvas) {
-    return null;
+    throw "node is not a <canvas> or <img> element.";
+  }
+
+  if (isImg) {
+    // Ensure that the image is ready.
+    yield ensureImageLoaded(node, IMAGE_FETCHING_TIMEOUT);
   }
 
   // Get the image resize ratio if a maxDim was provided
@@ -3828,7 +4051,7 @@ function imageToImageData(node, maxDim) {
       resized: resizeRatio !== 1
     }
   }
-}
+});
 
 loader.lazyGetter(this, "DOMUtils", function () {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);

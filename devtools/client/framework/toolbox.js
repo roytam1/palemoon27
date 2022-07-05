@@ -575,8 +575,14 @@ Toolbox.prototype = {
     let inKey2 = this.doc.getElementById("toolbox-zoom-in-key2");
     inKey2.addEventListener("command", this.zoomIn.bind(this), true);
 
+    let inKey3 = this.doc.getElementById("toolbox-zoom-in-key3");
+    inKey3.addEventListener("command", this.zoomIn.bind(this), true);
+
     let outKey = this.doc.getElementById("toolbox-zoom-out-key");
     outKey.addEventListener("command", this.zoomOut.bind(this), true);
+
+    let outKey2 = this.doc.getElementById("toolbox-zoom-out-key2");
+    outKey2.addEventListener("command", this.zoomOut.bind(this), true);
 
     let resetKey = this.doc.getElementById("toolbox-zoom-reset-key");
     resetKey.addEventListener("command", this.zoomReset.bind(this), true);
@@ -1826,41 +1832,6 @@ Toolbox.prototype = {
     return this.doc.getElementById("toolbox-notificationbox");
   },
 
-  _getScreenDimensions: function() {
-    let width = {};
-    let height = {};
-
-    screenManager.primaryScreen.GetRect({}, {}, width, height);
-    let dims = width.value + "x" + height.value;
-
-    if (width.value < 800 || height.value < 600) return 0;
-    if (dims === "800x600")   return 1;
-    if (dims === "1024x768")  return 2;
-    if (dims === "1280x800")  return 3;
-    if (dims === "1280x1024") return 4;
-    if (dims === "1366x768")  return 5;
-    if (dims === "1440x900")  return 6;
-    if (dims === "1920x1080") return 7;
-    if (dims === "2560×1440") return 8;
-    if (dims === "2560×1600") return 9;
-    if (dims === "2880x1800") return 10;
-    if (width.value > 2880 || height.value > 1800) return 12;
-
-    return 11; // Other dimension such as a VM.
-  },
-
-  _getOsCpu: function() {
-    if (oscpu.includes("NT 5.1") || oscpu.includes("NT 5.2")) return 0;
-    if (oscpu.includes("NT 6.0")) return 1;
-    if (oscpu.includes("NT 6.1")) return 2;
-    if (oscpu.includes("NT 6.2")) return 3;
-    if (oscpu.includes("NT 6.3")) return 4;
-    if (oscpu.includes("OS X"))   return 5;
-    if (oscpu.includes("Linux"))  return 6;
-
-    return 12; // Other OS.
-  },
-
   /**
    * Destroy the current host, and remove event listeners from its frame.
    *
@@ -2032,15 +2003,8 @@ Toolbox.prototype = {
    */
   _updateTextboxMenuItems: function() {
     let window = this.doc.defaultView;
-    ['cmd_undo', 'cmd_delete', 'cmd_cut',
-     'cmd_copy', 'cmd_paste','cmd_selectAll'].forEach(window.goUpdateCommand);
-  },
-
-  getPerformanceActorsConnection: function() {
-    if (!this._performanceConnection) {
-      this._performanceConnection = getPerformanceActorsConnection(this.target);
-    }
-    return this._performanceConnection;
+    ["cmd_undo", "cmd_delete", "cmd_cut",
+     "cmd_copy", "cmd_paste", "cmd_selectAll"].forEach(window.goUpdateCommand);
   },
 
   /**

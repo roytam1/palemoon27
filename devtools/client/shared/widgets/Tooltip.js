@@ -36,9 +36,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "VariablesViewController",
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");
 
-const GRADIENT_RE = /\b(repeating-)?(linear|radial)-gradient\(((rgb|hsl)a?\(.+?\)|[^\)])+\)/gi;
-const BORDERCOLOR_RE = /^border-[-a-z]*color$/ig;
-const BORDER_RE = /^border(-(top|bottom|left|right))?$/ig;
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
 const SPECTRUM_FRAME = "chrome://devtools/content/shared/widgets/spectrum-frame.xhtml";
 const CUBIC_BEZIER_FRAME =
@@ -92,9 +89,8 @@ OptionsStore.prototype = {
   get: function(name) {
     if (typeof this.options[name] !== "undefined") {
       return this.options[name];
-    } else {
-      return this.defaults[name];
     }
+    return this.defaults[name];
   }
 };
 
@@ -116,7 +112,8 @@ var PanelFactory = {
     panel.setAttribute("ignorekeys", true);
     panel.setAttribute("animate", false);
 
-    panel.setAttribute("consumeoutsideclicks", options.get("consumeOutsideClick"));
+    panel.setAttribute("consumeoutsideclicks",
+                       options.get("consumeOutsideClick"));
     panel.setAttribute("noautofocus", options.get("noAutoFocus"));
     panel.setAttribute("type", "arrow");
     panel.setAttribute("level", "top");
@@ -157,11 +154,13 @@ var PanelFactory = {
  *        Defaults to false.
  *        - closeOnKeys {Array} An array of key codes that should close the
  *        tooltip. Defaults to [27] (escape key).
- *        - closeOnEvents [{emitter: {Object}, event: {String}, useCapture: {Boolean}}]
+ *        - closeOnEvents [{emitter: {Object}, event: {String},
+ *                          useCapture: {Boolean}}]
  *        Provide an optional list of emitter objects and event names here to
  *        trigger the closing of the tooltip when these events are fired by the
- *        emitters. The emitter objects should either implement on/off(event, cb)
- *        or addEventListener/removeEventListener(event, cb). Defaults to [].
+ *        emitters. The emitter objects should either implement
+ *        on/off(event, cb) or addEventListener/removeEventListener(event, cb).
+ *        Defaults to [].
  *        For instance, the following would close the tooltip whenever the
  *        toolbox selects a new tool and when a DOM node gets scrolled:
  *        new Tooltip(doc, {
@@ -195,13 +194,17 @@ function Tooltip(doc, options) {
   // Used for namedTimeouts in the mouseover handling
   this.uid = "tooltip-" + Date.now();
 
-  // Emit show/hide events
-  for (let event of POPUP_EVENTS) {
-    this["_onPopup" + event] = ((e) => {
-      return () => this.emit(e);
-    })(event);
-    this.panel.addEventListener("popup" + event,
-      this["_onPopup" + event], false);
+  // Emit show/hide events when the panel does.
+  for (let eventName of POPUP_EVENTS) {
+    this["_onPopup" + eventName] = (name => {
+      return e => {
+        if (e.target === this.panel) {
+          this.emit(name);
+        }
+      };
+    })(eventName);
+    this.panel.addEventListener("popup" + eventName,
+      this["_onPopup" + eventName], false);
   }
 
   // Listen to keypress events to close the tooltip if configured to do so
@@ -237,9 +240,12 @@ module.exports.Tooltip = Tooltip;
 
 Tooltip.prototype = {
   defaultPosition: "before_start",
-  defaultOffsetX: 0, // px
-  defaultOffsetY: 0, // px
-  defaultShowDelay: 50, // ms
+  // px
+  defaultOffsetX: 0,
+  // px
+  defaultOffsetY: 0,
+  // px
+  defaultShowDelay: 50,
 
   /**
    * Show the tooltip. It might be wise to append some content first if you
@@ -310,9 +316,9 @@ Tooltip.prototype = {
   destroy: function() {
     this.hide();
 
-    for (let event of POPUP_EVENTS) {
-      this.panel.removeEventListener("popup" + event,
-        this["_onPopup" + event], false);
+    for (let eventName of POPUP_EVENTS) {
+      this.panel.removeEventListener("popup" + eventName,
+        this["_onPopup" + eventName], false);
     }
 
     let win = this.doc.querySelector("window");
@@ -375,7 +381,8 @@ Tooltip.prototype = {
    *        An optional delay that will be observed before showing the tooltip.
    *        Defaults to this.defaultShowDelay.
    */
-  startTogglingOnHover: function(baseNode, targetNodeCb, showDelay=this.defaultShowDelay) {
+  startTogglingOnHover: function(baseNode, targetNodeCb,
+                                 showDelay=this.defaultShowDelay) {
     if (this._basedNode) {
       this.stopTogglingOnHover();
     }
@@ -455,13 +462,10 @@ Tooltip.prototype = {
     if (res && res.then) {
       return res.then(arg => {
         return arg instanceof Ci.nsIDOMNode ? arg : target;
-      }, () => {
-        return false;
       });
-    } else {
-      let newTarget = res instanceof Ci.nsIDOMNode ? res : target;
-      return res ? promise.resolve(newTarget) : promise.reject(false);
     }
+    let newTarget = res instanceof Ci.nsIDOMNode ? res : target;
+    return res ? promise.resolve(newTarget) : promise.reject(false);
   },
 
   _onBaseNodeMouseLeave: function() {
@@ -588,14 +592,12 @@ Tooltip.prototype = {
    *        Pass the instance of the current toolbox if you want the variables
    *        view widget to allow highlighting and selection of DOM nodes
    */
-  setVariableContent: function(
-    objectActor,
-    viewOptions = {},
-    controllerOptions = {},
-    relayEvents = {},
-    extraButtons = [],
-    toolbox = null) {
-
+  setVariableContent: function(objectActor,
+                               viewOptions = {},
+                               controllerOptions = {},
+                               relayEvents = {},
+                               extraButtons = [],
+                               toolbox = null) {
     let vbox = this.doc.createElement("vbox");
     vbox.className = "devtools-tooltip-variables-view-box";
     vbox.setAttribute("flex", "1");
@@ -646,13 +648,15 @@ Tooltip.prototype = {
    * @return a promise that resolves when the image is shown in the tooltip or
    * resolves when the broken image tooltip content is ready, but never rejects.
    */
-  setRelativeImageContent: Task.async(function*(imageUrl, inspectorFront, maxDim) {
+  setRelativeImageContent: Task.async(function*(imageUrl, inspectorFront,
+                                                maxDim) {
     if (imageUrl.startsWith("data:")) {
       // If the imageUrl already is a data-url, save ourselves a round-trip
       this.setImageContent(imageUrl, {maxDim: maxDim});
     } else if (inspectorFront) {
       try {
-        let {data, size} = yield inspectorFront.getImageDataFromURL(imageUrl, maxDim);
+        let {data, size} = yield inspectorFront.getImageDataFromURL(imageUrl,
+                                                                    maxDim);
         size.maxDim = maxDim;
         let str = yield data.string();
         this.setImageContent(str, size);
@@ -885,7 +889,8 @@ Tooltip.prototype = {
 
   /**
    * Set the content of the tooltip to display a font family preview.
-   * This is based on Lea Verou's Dablet. See https://github.com/LeaVerou/dabblet
+   * This is based on Lea Verou's Dablet.
+   * See https://github.com/LeaVerou/dabblet
    * for more info.
    * @param {String} font The font family value.
    * @param {object} nodeFront
@@ -896,7 +901,7 @@ Tooltip.prototype = {
    */
   setFontFamilyContent: Task.async(function*(font, nodeFront) {
     if (!font || !nodeFront) {
-      throw "Missing font";
+      throw new Error("Missing font");
     }
 
     if (typeof nodeFront.getFontFamilyDataURL === "function") {
@@ -904,8 +909,9 @@ Tooltip.prototype = {
       font = font.replace("!important", "");
       font = font.trim();
 
-      let fillStyle = (Services.prefs.getCharPref("devtools.theme") === "light") ?
-        "black" : "white";
+      let fillStyle =
+          (Services.prefs.getCharPref("devtools.theme") === "light") ?
+          "black" : "white";
 
       let {data, size} = yield nodeFront.getFontFamilyDataURL(font, fillStyle);
       let str = yield data.string();
@@ -986,7 +992,8 @@ SwatchBasedEditorTooltip.prototype = {
 
       // When the tooltip is closed by clicking outside the panel we want to
       // commit any changes. Because the "hidden" event destroys the tooltip we
-      // need to do this before the tooltip is destroyed (in the "hiding" event).
+      // need to do this before the tooltip is destroyed (in the "hiding"
+      // event).
       this.tooltip.once("hiding", () => {
         if (!this._reverted && !this.eyedropperOpen) {
           this.commit();
@@ -1017,15 +1024,26 @@ SwatchBasedEditorTooltip.prototype = {
    * @param {object} callbacks
    *        Callbacks that will be executed when the editor wants to preview a
    *        value change, or revert a change, or commit a change.
-   *        - onPreview: will be called when one of the sub-classes calls preview
+   *        - onShow: will be called when one of the swatch tooltip is shown
+   *        - onPreview: will be called when one of the sub-classes calls
+   *        preview
    *        - onRevert: will be called when the user ESCapes out of the tooltip
    *        - onCommit: will be called when the user presses ENTER or clicks
    *        outside the tooltip.
    */
   addSwatch: function(swatchEl, callbacks={}) {
-    if (!callbacks.onPreview) callbacks.onPreview = function() {};
-    if (!callbacks.onRevert) callbacks.onRevert = function() {};
-    if (!callbacks.onCommit) callbacks.onCommit = function() {};
+    if (!callbacks.onShow) {
+      callbacks.onShow = function() {};
+    }
+    if (!callbacks.onPreview) {
+      callbacks.onPreview = function() {};
+    }
+    if (!callbacks.onRevert) {
+      callbacks.onRevert = function() {};
+    }
+    if (!callbacks.onCommit) {
+      callbacks.onCommit = function() {};
+    }
 
     this.swatches.set(swatchEl, {
       callbacks: callbacks
@@ -1046,9 +1064,15 @@ SwatchBasedEditorTooltip.prototype = {
 
   _onSwatchClick: function(event) {
     let swatch = this.swatches.get(event.target);
+
+    if (event.shiftKey) {
+      event.stopPropagation();
+      return;
+    }
     if (swatch) {
       this.activeSwatch = event.target;
       this.show();
+      swatch.callbacks.onShow();
       event.stopPropagation();
     }
   },
@@ -1255,8 +1279,9 @@ EventTooltip.prototype = {
       if (!listener.hide.debugger) {
         let debuggerIcon = doc.createElement("image");
         debuggerIcon.className = "event-tooltip-debugger-icon";
-        debuggerIcon.setAttribute("src", "chrome://global/skin/devtools/tool-debugger.svg");
-        let openInDebugger = l10n.strings.GetStringFromName("eventsTooltip.openInDebugger");
+        debuggerIcon.setAttribute("src", "chrome://devtools/skin/themes/images/tool-debugger.svg");
+        let openInDebugger =
+            l10n.strings.GetStringFromName("eventsTooltip.openInDebugger");
         debuggerIcon.setAttribute("tooltiptext", openInDebugger);
         header.appendChild(debuggerIcon);
       }
@@ -1279,7 +1304,8 @@ EventTooltip.prototype = {
       }
 
       let attributesContainer = doc.createElement("hbox");
-      attributesContainer.setAttribute("class", "event-tooltip-attributes-container");
+      attributesContainer.setAttribute("class",
+                                       "event-tooltip-attributes-container");
       header.appendChild(attributesContainer);
 
       if (!listener.hide.capturing) {
@@ -1339,7 +1365,8 @@ EventTooltip.prototype = {
     }
 
     this._tooltip.content = container;
-    this._tooltip.panel.setAttribute("clamped-dimensions-no-max-or-min-height", "");
+    this._tooltip.panel.setAttribute("clamped-dimensions-no-max-or-min-height",
+                                     "");
     this._tooltip.panel.setAttribute("wide", "");
 
     this._tooltip.panel.addEventListener("popuphiding", () => {
@@ -1445,11 +1472,11 @@ EventTooltip.prototype = {
               // there is only one possible match in the file.
               if (index !== -1 && index === lastIndex) {
                 text = text.substr(0, index);
-                let matches = text.match(/\n/g);
+                let newlineMatches = text.match(/\n/g);
 
-                if (matches) {
+                if (newlineMatches) {
                   DebuggerView.editor.setCursor({
-                    line: matches.length
+                    line: newlineMatches.length
                   });
                 }
               }
@@ -1471,7 +1498,8 @@ EventTooltip.prototype = {
 
   destroy: function(container) {
     if (this._tooltip) {
-      this._tooltip.panel.removeEventListener("popuphiding", this.destroy, false);
+      this._tooltip.panel.removeEventListener("popuphiding", this.destroy,
+                                              false);
 
       let boxes = container.querySelectorAll(".event-tooltip-content-box");
 
@@ -1490,7 +1518,8 @@ EventTooltip.prototype = {
       node.removeEventListener("click", this._headerClicked);
     }
 
-    let sourceNodes = container.querySelectorAll(".event-tooltip-debugger-icon");
+    let sourceNodes =
+        container.querySelectorAll(".event-tooltip-debugger-icon");
     for (let node of sourceNodes) {
       node.removeEventListener("click", this._debugClicked);
     }
@@ -1530,7 +1559,6 @@ SwatchCubicBezierTooltip.prototype = Heritage.extend(SwatchBasedEditorTooltip.pr
     // Then set the curve and listen to changes to preview them
     if (this.activeSwatch) {
       this.currentBezierValue = this.activeSwatch.nextSibling;
-      let swatch = this.swatches.get(this.activeSwatch);
       this.widget.then(widget => {
         widget.off("updated", this._onUpdate);
         widget.cssCubicBezierValue = this.currentBezierValue.textContent;
@@ -1638,7 +1666,14 @@ SwatchFilterTooltip.prototype = Heritage.extend(SwatchBasedEditorTooltip.prototy
       return;
     }
 
-    this.currentFilterValue.textContent = filters;
+    // Remove the old children and reparse the property value to
+    // recompute them.
+    while (this.currentFilterValue.firstChild) {
+      this.currentFilterValue.firstChild.remove();
+    }
+    let node = this._parser.parseCssProperty("filter", filters, this._options);
+    this.currentFilterValue.appendChild(node);
+
     this.preview();
   },
 
@@ -1649,6 +1684,27 @@ SwatchFilterTooltip.prototype = Heritage.extend(SwatchBasedEditorTooltip.prototy
       widget.off("updated", this._onUpdate);
       widget.destroy();
     });
+  },
+
+  /**
+   * Like SwatchBasedEditorTooltip.addSwatch, but accepts a parser object
+   * to use when previewing the updated property value.
+   *
+   * @param {node} swatchEl
+   *        @see SwatchBasedEditorTooltip.addSwatch
+   * @param {object} callbacks
+   *        @see SwatchBasedEditorTooltip.addSwatch
+   * @param {object} parser
+   *        A parser object; @see OutputParser object
+   * @param {object} options
+   *        options to pass to the output parser, with
+   *          the option |filterSwatch| set.
+   */
+  addSwatch: function(swatchEl, callbacks, parser, options) {
+    SwatchBasedEditorTooltip.prototype.addSwatch.call(this, swatchEl,
+                                                      callbacks);
+    this._parser = parser;
+    this._options = options;
   }
 });
 

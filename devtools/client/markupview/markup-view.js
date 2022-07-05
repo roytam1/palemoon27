@@ -114,6 +114,9 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
   this._boundKeyDown = this._onKeyDown.bind(this);
   this._frame.contentWindow.addEventListener("keydown", this._boundKeyDown, false);
 
+  this._onCopy = this._onCopy.bind(this);
+  this._frame.contentWindow.addEventListener("copy", this._onCopy);
+
   this._boundFocus = this._onFocus.bind(this);
   this._frame.addEventListener("focus", this._boundFocus, false);
 
@@ -422,10 +425,13 @@ MarkupView.prototype = {
   },
 
   /**
-   * Highlight the inspector selected node.
+   * React to new-node-front selection events.
+   * Highlights the node if needed, and make sure it is shown and selected in
+   * the view.
    */
   _onNewSelection: function() {
     let selection = this._inspector.selection;
+    let reason = selection.reason;
 
     this.htmlEditor.hide();
     if (this._hoveredNode && this._hoveredNode !== selection.nodeFront) {
@@ -433,34 +439,55 @@ MarkupView.prototype = {
       this._hoveredNode = null;
     }
 
+    if (!selection.isNode()) {
+      this.unmarkSelectedNode();
+      return;
+    }
+
     let done = this._inspector.updating("markup-view");
-    if (selection.isNode()) {
-      if (this._shouldNewSelectionBeHighlighted()) {
-        this._brieflyShowBoxModel(selection.nodeFront);
+    // Highlight the element briefly if needed.
+    if (this._shouldNewSelectionBeHighlighted()) {
+      this._brieflyShowBoxModel(selection.nodeFront);
+    }
+
+    this.showNode(selection.nodeFront).then(() => {
+      // We could be destroyed by now.
+      if (this._destroyer) {
+        return promise.reject("markupview destroyed");
       }
 
-      this.showNode(selection.nodeFront).then(() => {
-        if (this._destroyer) {
-          return promise.reject("markupview destroyed");
-        }
-        if (selection.reason !== "treepanel") {
-          this.markNodeAsSelected(selection.nodeFront);
-        }
-        done();
-      }).then(null, e => {
-        if (!this._destroyer) {
-          console.error(e);
-        } else {
-          console.warn("Could not mark node as selected, the markup-view was " +
-            "destroyed while showing the node.");
-        }
+      // Mark the node as selected.
+      this.markNodeAsSelected(selection.nodeFront);
 
-        done();
-      });
-    } else {
-      this.unmarkSelectedNode();
+      // Make sure the new selection receives focus so the keyboard can be used.
+      this.maybeFocusNewSelection();
+
       done();
+    }).catch(e => {
+      if (!this._destroyer) {
+        console.error(e);
+      } else {
+        console.warn("Could not mark node as selected, the markup-view was " +
+          "destroyed while showing the node.");
+      }
+      done();
+    });
+  },
+
+  /**
+   * Focus the current node selection's MarkupContainer if the selection
+   * happened because the user picked an element using the element picker or
+   * browser context menu.
+   */
+  maybeFocusNewSelection: function() {
+    let {reason, nodeFront} = this._inspector.selection;
+
+    if (reason !== "browser-context-menu" &&
+        reason !== "picker-node-picked") {
+      return;
     }
+
+    this.getContainer(nodeFront).focus();
   },
 
   /**
@@ -484,6 +511,20 @@ MarkupView.prototype = {
     return walker;
   },
 
+  _onCopy: function (evt) {
+    // Ignore copy events from editors
+    if (this._isInputOrTextarea(evt.target)) {
+      return;
+    }
+
+    let selection = this._inspector.selection;
+    if (selection.isNode()) {
+      this._inspector.copyOuterHTML();
+    }
+    evt.stopPropagation();
+    evt.preventDefault();
+  },
+
   /**
    * Key handling.
    */
@@ -491,8 +532,7 @@ MarkupView.prototype = {
     let handled = true;
 
     // Ignore keystrokes that originated in editors.
-    if (aEvent.target.tagName.toLowerCase() === "input" ||
-        aEvent.target.tagName.toLowerCase() === "textarea") {
+    if (this._isInputOrTextarea(aEvent.target)) {
       return;
     }
 
@@ -589,6 +629,14 @@ MarkupView.prototype = {
       aEvent.stopPropagation();
       aEvent.preventDefault();
     }
+  },
+
+  /**
+   * Check if a node is an input or textarea
+   */
+  _isInputOrTextarea : function (element) {
+    let name = element.tagName.toLowerCase();
+    return name === "input" || name === "textarea";
   },
 
   /**
@@ -709,6 +757,8 @@ MarkupView.prototype = {
     container.childrenDirty = true;
 
     this._updateChildren(container);
+
+    this._inspector.emit("container-created", container);
 
     return container;
   },
@@ -1158,22 +1208,33 @@ MarkupView.prototype = {
   /**
    * Mark the given node selected, and update the inspector.selection
    * object's NodeFront to keep consistent state between UI and selection.
-   * @param aNode The NodeFront to mark as selected.
+   * @param {NodeFront} aNode The NodeFront to mark as selected.
+   * @param {String} reason The reason for marking the node as selected.
+   * @return {Boolean} False if the node is already marked as selected, true
+   * otherwise.
    */
-  markNodeAsSelected: function(aNode, reason) {
-    let container = this.getContainer(aNode);
+  markNodeAsSelected: function(node, reason) {
+    let container = this.getContainer(node);
     if (this._selectedContainer === container) {
       return false;
     }
+
+    // Un-select the previous container.
     if (this._selectedContainer) {
       this._selectedContainer.selected = false;
     }
+
+    // Select the new container.
     this._selectedContainer = container;
-    if (aNode) {
+    if (node) {
       this._selectedContainer.selected = true;
     }
 
-    this._inspector.selection.setNodeFront(aNode, reason || "nodeselected");
+    // Change the current selection if needed.
+    if (this._inspector.selection.nodeFront !== node) {
+      this._inspector.selection.setNodeFront(node, reason || "nodeselected");
+    }
+
     return true;
   },
 
@@ -1448,6 +1509,9 @@ MarkupView.prototype = {
     this._frame.contentWindow.removeEventListener("keydown",
       this._boundKeyDown, false);
     this._boundKeyDown = null;
+
+    this._frame.contentWindow.removeEventListener("copy", this._onCopy);
+    this._onCopy = null;
 
     this._inspector.selection.off("new-node-front", this._boundOnNewSelection);
     this._boundOnNewSelection = null;
@@ -1869,6 +1933,16 @@ MarkupContainer.prototype = {
       event.preventDefault();
     }
 
+    let isMiddleClick = event.button === 1;
+    let isMetaClick = event.button === 0 && (event.metaKey || event.ctrlKey);
+
+    if (isMiddleClick || isMetaClick) {
+      let link = target.dataset.link;
+      let type = target.dataset.type;
+      this.markup._inspector.followAttributeLink(type, link);
+      return;
+    }
+
     // Start dragging the container after a delay.
     this.markup._dragStartEl = target;
     win.setTimeout(() => {
@@ -2278,10 +2352,7 @@ function GenericEditor(aContainer, aNode) {
     this.tag.textContent = aNode.isBeforePseudoElement ? "::before" : "::after";
   } else if (aNode.nodeType == Ci.nsIDOMNode.DOCUMENT_TYPE_NODE) {
     this.elt.classList.add("comment");
-    this.tag.textContent = '<!DOCTYPE ' + aNode.name +
-       (aNode.publicId ? ' PUBLIC "' +  aNode.publicId + '"': '') +
-       (aNode.systemId ? ' "' + aNode.systemId + '"' : '') +
-       '>';
+    this.tag.textContent = aNode.doctypeString;
   } else {
     this.tag.textContent = aNode.nodeName;
   }

@@ -3,7 +3,7 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 <!DOCTYPE window [
-<!ENTITY % toolboxDTD SYSTEM "chrome://global/locale/devtools/toolbox.dtd" >
+<!ENTITY % toolboxDTD SYSTEM "chrome://browser/locale/devtools/toolbox.dtd" >
  %toolboxDTD;
 ]>
 
@@ -37,5 +37,9 @@
        for example when viewing network request details. -->
   <popupset id="mainPopupSet"></popupset>
 
+  <vbox id="error-message-container" hidden="true" flex="1">
+    <box>&browserToolboxErrorMessage;</box>
+    <textbox multiline="true" id="error-message" flex="1"></textbox>
+  </vbox>
   <iframe id="toolbox-iframe" flex="1"></iframe>
 </window>

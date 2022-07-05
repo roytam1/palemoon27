@@ -17,7 +17,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 XPCOMUtils.defineLazyModuleGetter(this, "AppConstants",
   "resource://gre/modules/AppConstants.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console",
-  "resource://gre/modules/devtools/Console.jsm");
+  "resource://gre/modules/devtools/shared/Console.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivacyFilter",
   "resource:///modules/sessionstore/PrivacyFilter.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
@@ -88,7 +88,7 @@ this.SessionSaver = Object.freeze({
 /**
  * The internal API.
  */
-let SessionSaverInternal = {
+var SessionSaverInternal = {
   /**
    * The timeout ID referencing an active timer for a delayed save. When no
    * save is pending, this is null.
@@ -167,7 +167,6 @@ let SessionSaverInternal = {
     }
 
     let state = SessionStore.getCurrentState(forceUpdateAllWindows);
-
     PrivacyFilter.filterPrivateWindowsAndTabs(state);
 
     // Make sure that we keep the previous session if we started with a single

@@ -158,6 +158,9 @@ addMessageListener("devtools:test:setStyle", function(msg) {
  * - {String} namespaceURI.
  * - {Number} numChildren The number of children in the element.
  * - {Array} attributes An array of {name, value, namespaceURI} objects.
+ * - {String} outerHTML.
+ * - {String} innerHTML.
+ * - {String} textContent.
  */
 addMessageListener("devtools:test:getDomElementInfo", function(msg) {
   let {selector} = msg.data;
@@ -171,7 +174,10 @@ addMessageListener("devtools:test:getDomElementInfo", function(msg) {
       numChildren: node.children.length,
       attributes: [...node.attributes].map(({name, value, namespaceURI}) => {
         return {name, value, namespaceURI};
-      })
+      }),
+      outerHTML: node.outerHTML,
+      innerHTML: node.innerHTML,
+      textContent: node.textContent
     };
   }
 
@@ -196,41 +202,6 @@ addMessageListener("devtools:test:setAttribute", function(msg) {
   node.setAttribute(attributeName, attributeValue);
 
   sendAsyncMessage("devtools:test:setAttribute");
-});
-
-/**
- * Synthesize a mouse event on an element. This handler doesn't send a message
- * back. Consumers should listen to specific events on the inspector/highlighter
- * to know when the event got synthesized.
- * @param {Object} msg The msg.data part expects the following properties:
- * - {Number} x
- * - {Number} y
- * - {Boolean} center If set to true, x/y will be ignored and
- *             synthesizeMouseAtCenter will be used instead
- * - {Object} options Other event options
- * - {String} selector An optional selector that will be used to find the node to
- *            synthesize the event on, if msg.objects doesn't contain the CPOW.
- * The msg.objects part should be the element.
- * @param {Object} data Event detail properties:
- */
-addMessageListener("Test:SynthesizeMouse", function(msg) {
-  let {x, y, center, options, selector} = msg.data;
-  let {node} = msg.objects;
-
-  if (!node && selector) {
-    node = superQuerySelector(selector);
-  }
-
-  if (center) {
-    EventUtils.synthesizeMouseAtCenter(node, options, node.ownerDocument.defaultView);
-  } else {
-    EventUtils.synthesizeMouse(node, x, y, options, node.ownerDocument.defaultView);
-  }
-
-  // Most consumers won't need to listen to this message, unless they want to
-  // wait for the mouse event to be synthesized and don't have another event
-  // to listen to instead.
-  sendAsyncMessage("Test:SynthesizeMouse");
 });
 
 /**

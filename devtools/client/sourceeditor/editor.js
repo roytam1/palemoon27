@@ -8,14 +8,17 @@
 
 const { Cu, Cc, Ci, components } = require("chrome");
 
-const TAB_SIZE    = "devtools.editor.tabsize";
+const {
+  EXPAND_TAB,
+  TAB_SIZE,
+  DETECT_INDENT,
+  getIndentationFromIteration
+} = require("devtools/shared/shared/indentation");
+
 const ENABLE_CODE_FOLDING = "devtools.editor.enableCodeFolding";
-const EXPAND_TAB  = "devtools.editor.expandtab";
 const KEYMAP      = "devtools.editor.keymap";
 const AUTO_CLOSE  = "devtools.editor.autoclosebrackets";
 const AUTOCOMPLETE  = "devtools.editor.autocomplete";
-const DETECT_INDENT = "devtools.editor.detectindentation";
-const DETECT_INDENT_MAX_LINES = 500;
 const L10N_BUNDLE = "chrome://browser/locale/devtools/sourceeditor.properties";
 const XUL_NS      = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const VALID_KEYMAPS = new Set(["emacs", "vim", "sublime"]);
@@ -35,6 +38,8 @@ const { PrefObserver } = require("devtools/client/styleeditor/utils");
 
 Cu.import("resource://gre/modules/Services.jsm");
 const L10N = Services.strings.createBundle(L10N_BUNDLE);
+
+const { OS } = Services.appinfo;
 
 // CM_STYLES, CM_SCRIPTS and CM_IFRAME represent the HTML,
 // JavaScript and CSS that is injected into an iframe in
@@ -156,7 +161,7 @@ function Editor(config) {
     extraKeys:         {},
     indentWithTabs:    useTabs,
     styleActiveLine:   true,
-    autoCloseBrackets: "()[]{}''\"\"",
+    autoCloseBrackets: "()[]{}''\"\"``",
     autoCloseEnabled:  useAutoClose,
     theme:             "mozilla",
     themeSwitching:    true,
@@ -221,6 +226,11 @@ function Editor(config) {
     cm.replaceSelection(" ".repeat(num), "end", "+input");
   };
 
+  // Allow add-ons to inject scripts for their editor instances
+  if (!this.config.externalScripts) {
+    this.config.externalScripts = [];
+  }
+
   events.decorate(this);
 }
 
@@ -259,9 +269,11 @@ Editor.prototype = {
       if (!this.config.themeSwitching)
         win.document.documentElement.setAttribute("force-theme", "light");
 
-      CM_SCRIPTS.forEach((url) =>
-        Services.scriptloader.loadSubScript(url, win, "utf8"));
-
+      let scriptsToInject = CM_SCRIPTS.concat(this.config.externalScripts);
+      scriptsToInject.forEach((url) => {
+        if (url.startsWith("chrome://"))
+          Services.scriptloader.loadSubScript(url, win, "utf8");
+      });
       // Replace the propertyKeywords, colorKeywords and valueKeywords
       // properties of the CSS MIME type with the values provided by Gecko.
       let cssSpec = win.CodeMirror.resolveMode("text/css");
@@ -291,6 +303,62 @@ Editor.prototype = {
           popup = el.ownerDocument.getElementById(this.config.contextMenu);
         popup.openPopupAtScreen(ev.screenX, ev.screenY, true);
       }, false);
+
+      // Intercept the find and find again keystroke on CodeMirror, to avoid
+      // the browser's search
+
+      let findKey = L10N.GetStringFromName("find.commandkey");
+      let findAgainKey = L10N.GetStringFromName("findAgain.commandkey");
+      let [accel, modifier] = OS === "Darwin"
+                                      ? ["metaKey", "altKey"]
+                                      : ["ctrlKey", "shiftKey"];
+
+      cm.getWrapperElement().addEventListener("keydown", (ev) => {
+        let key = ev.key.toUpperCase();
+        let node = ev.originalTarget;
+        let isInput = node.tagName === "INPUT";
+        let isSearchInput = isInput && node.type === "search";
+
+        // replace box is a different input instance than search, and it is
+        // located in a code mirror dialog
+        let isDialogInput = isInput &&
+                       node.parentNode &&
+                       node.parentNode.classList.contains("CodeMirror-dialog");
+
+        if (!ev[accel] || !(isSearchInput || isDialogInput)) return;
+
+        if (key === findKey) {
+          ev.preventDefault();
+
+          if (isSearchInput || ev[modifier]) {
+            node.select();
+          }
+        } else if (key === findAgainKey) {
+          ev.preventDefault();
+
+          if (!isSearchInput) return;
+
+          let query = node.value;
+
+          // If there isn't a search state, or the text in the input does not
+          // match with the current search state, we need to create a new one
+          if (!cm.state.search || cm.state.search.query !== query) {
+            cm.state.search = {
+              posFrom: null,
+              posTo: null,
+              overlay: null,
+              query
+            };
+          }
+
+          if (ev.shiftKey) {
+            cm.execCommand("findPrev");
+          } else {
+            cm.execCommand("findNext");
+          }
+        }
+      });
+
 
       cm.on("focus", () => this.emit("focus"));
       cm.on("scroll", () => this.emit("scroll"));
@@ -336,6 +404,11 @@ Editor.prototype = {
       this._prefObserver.on(ENABLE_CODE_FOLDING, this.reloadPreferences);
 
       this.reloadPreferences();
+
+      win.editor = this;
+      let editorReadyEvent = new win.CustomEvent("editorReady");
+      win.dispatchEvent(editorReadyEvent);
+
       def.resolve();
     };
 
@@ -444,28 +517,23 @@ Editor.prototype = {
   resetIndentUnit: function() {
     let cm = editors.get(this);
 
-    let indentWithTabs = !Services.prefs.getBoolPref(EXPAND_TAB);
-    let indentUnit = Services.prefs.getIntPref(TAB_SIZE);
-    let shouldDetect = Services.prefs.getBoolPref(DETECT_INDENT);
+    let iterFn = function(start, end, callback) {
+      cm.eachLine(start, end, (line) => {
+        return callback(line.text);
+      });
+    };
+
+    let {indentUnit, indentWithTabs} = getIndentationFromIteration(iterFn);
 
     cm.setOption("tabSize", indentUnit);
-
-    if (shouldDetect) {
-      let indent = detectIndentation(this);
-      if (indent != null) {
-        indentWithTabs = indent.tabs;
-        indentUnit = indent.spaces ? indent.spaces : indentUnit;
-      }
-    }
-
     cm.setOption("indentUnit", indentUnit);
     cm.setOption("indentWithTabs", indentWithTabs);
   },
 
   /**
    * Replaces contents of a text area within the from/to {line, ch}
-   * range. If neither from nor to arguments are provided works
-   * exactly like setText. If only from object is provided, inserts
+   * range. If neither `from` nor `to` arguments are provided works
+   * exactly like setText. If only `from` object is provided, inserts
    * text at that point, *overwriting* as many characters as needed.
    */
   replaceText: function (value, from, to) {
@@ -1144,7 +1212,7 @@ function getCSSKeywords() {
   let cssColors = {};
   let cssValues = {};
   cssProperties.forEach(property => {
-    if (property.contains("color")) {
+    if (property.includes("color")) {
       domUtils.getCSSValuesForProperty(property).forEach(value => {
         cssColors[value] = true;
       });
@@ -1228,75 +1296,6 @@ function controller(ed) {
 
     onEvent: function () {}
   };
-}
-
-/**
- * Detect the indentation used in an editor. Returns an object
- * with 'tabs' - whether this is tab-indented and 'spaces' - the
- * width of one indent in spaces. Or `null` if it's inconclusive.
- */
-function detectIndentation(ed) {
-  let cm = editors.get(ed);
-
-  let spaces = {};  // # spaces indent -> # lines with that indent
-  let last = 0;     // indentation width of the last line we saw
-  let tabs = 0;     // # of lines that start with a tab
-  let total = 0;    // # of indented lines (non-zero indent)
-
-  cm.eachLine(0, DETECT_INDENT_MAX_LINES, (line) => {
-    let text = line.text;
-
-    if (text.startsWith("\t")) {
-      tabs++;
-      total++;
-      return;
-    }
-    let width = 0;
-    while (text[width] === " ") {
-      width++;
-    }
-    // don't count lines that are all spaces
-    if (width == text.length) {
-      last = 0;
-      return;
-    }
-    if (width > 1) {
-      total++;
-    }
-
-    // see how much this line is offset from the line above it
-    let indent = Math.abs(width - last);
-    if (indent > 1 && indent <= 8) {
-      spaces[indent] = (spaces[indent] || 0) + 1;
-    }
-    last = width;
-  });
-
-  // this file is not indented at all
-  if (total == 0) {
-    return null;
-  }
-
-  // mark as tabs if they start more than half the lines
-  if (tabs >= total / 2) {
-    return { tabs: true };
-  }
-
-  // find most frequent non-zero width difference between adjacent lines
-  let freqIndent = null, max = 1;
-  for (let width in spaces) {
-    width = parseInt(width, 10);
-    let tally = spaces[width];
-    if (tally > max) {
-      max = tally;
-      freqIndent = width;
-    }
-  }
-  if (!freqIndent) {
-    return null;
-  }
-
-  return { tabs: false, spaces: freqIndent };
 }
 
 module.exports = Editor;

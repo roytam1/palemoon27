@@ -919,6 +919,12 @@ InspectorPanel.prototype = {
     let button = this._paneToggleButton;
     let isVisible = !button.hasAttribute("pane-collapsed");
 
+    // Make sure the sidebar has a width attribute before collapsing because
+    // ViewHelpers needs it.
+    if (isVisible && !sidePane.hasAttribute("width")) {
+      sidePane.setAttribute("width", sidePane.getBoundingClientRect().width);
+    }
+
     ViewHelpers.togglePane({
       visible: !isVisible,
       animated: true,
@@ -967,6 +973,36 @@ InspectorPanel.prototype = {
 
       jsterm.execute("inspect($0)");
       jsterm.inputNode.focus();
+    });
+  },
+
+  /**
+   * Use in Console.
+   *
+   * Takes the currently selected node in the inspector and assigns it to a
+   * temp variable on the content window.  Also opens the split console and
+   * autofills it with the temp variable.
+   */
+  useInConsole: function() {
+    this._toolbox.openSplitConsole().then(() => {
+      let panel = this._toolbox.getPanel("webconsole");
+      let jsterm = panel.hud.jsterm;
+
+      let evalString = `let i = 0;
+        while (window.hasOwnProperty("temp" + i) && i < 1000) {
+          i++;
+        }
+        window["temp" + i] = $0;
+        "temp" + i;
+      `;
+
+      let options = {
+        selectedNodeActor: this.selection.nodeFront.actorID,
+      };
+      jsterm.requestEvaluation(evalString, options).then((res) => {
+        jsterm.setInputValue(res.result);
+        this.emit("console-var-ready");
+      });
     });
   },
 

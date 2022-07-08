@@ -19,6 +19,7 @@ const HTML_NS = "http://www.w3.org/1999/xhtml";
 
 const LEVEL_INDENT = 10; // px
 const ARROW_NODE_OFFSET = -15; // px
+const WATERFALL_MARKER_SIDEBAR_SAFE_BOUNDS = 20; // px
 const WATERFALL_MARKER_SIDEBAR_WIDTH = 175; // px
 const WATERFALL_MARKER_TIMEBAR_WIDTH_MIN = 5; // px
 
@@ -55,19 +56,20 @@ MarkerView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
    * This should be invoked every time the container node is resized.
    */
   recalculateBounds: function() {
-    this.root._waterfallWidth = this.bounds.width - WATERFALL_MARKER_SIDEBAR_WIDTH;
+    this.root._waterfallWidth = this.bounds.width
+      - WATERFALL_MARKER_SIDEBAR_WIDTH
+      - WATERFALL_MARKER_SIDEBAR_SAFE_BOUNDS;
   },
 
   /**
-   * Sets a list of names and colors used to paint markers.
-   * @see TIMELINE_BLUEPRINT in timeline/widgets/global.js
-   * @param object blueprint
+   * Sets a list of marker types to be filtered out of this view.
+   * @param Array<String> filter
    */
-  set blueprint(blueprint) {
-    this.root._blueprint = blueprint;
+  set filter(filter) {
+    this.root._filter = filter;
   },
-  get blueprint() {
-    return this.root._blueprint;
+  get filter() {
+    return this.root._filter;
   },
 
   /**
@@ -138,7 +140,6 @@ MarkerView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
     if (!submarkers || !submarkers.length) {
       return;
     }
-    let blueprint = this.root._blueprint;
     let startTime = this.root._interval.startTime;
     let endTime = this.root._interval.endTime;
     let newLevel = this.level + 1;
@@ -146,17 +147,15 @@ MarkerView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
     for (let i = 0, len = submarkers.length; i < len; i++) {
       let marker = submarkers[i];
 
-      // If this marker isn't in the global timeline blueprint, don't display
-      // it, but dump a warning message to the console.
-      if (!(marker.name in blueprint)) {
-        if (!(marker.name in ORIGINAL_BP)) {
-          console.warn(`Marker not found in timeline blueprint: ${marker.name}.`);
-        }
+      // Skip filtered markers
+      if (!MarkerUtils.isMarkerValid(marker, this.filter)) {
         continue;
       }
+
       if (!isMarkerInRange(marker, startTime|0, endTime|0)) {
         continue;
       }
+
       children.push(new MarkerView({
         owner: this,
         marker: marker,
@@ -173,21 +172,13 @@ MarkerView.prototype = Heritage.extend(AbstractTreeItem.prototype, {
    * @param nsIDOMNode arrowNode
    */
   _buildMarkerCells: function(doc, targetNode, arrowNode) {
-    // Root markers are an implementation detail and shouldn't be shown.
     let marker = this.marker;
-    if (marker.name == "(root)") {
-      return;
-    }
-
-    let style = this.root._blueprint[marker.name];
+    let blueprint = MarkerUtils.getBlueprintFor(marker);
     let startTime = this.root._interval.startTime;
     let endTime = this.root._interval.endTime;
 
-    let sidebarCell = this._buildMarkerSidebar(
-      doc, style, marker);
-
-    let timebarCell = this._buildMarkerTimebar(
-      doc, style, marker, startTime, endTime, arrowNode);
+    let sidebarCell = this._buildMarkerSidebar(doc, blueprint, marker);
+    let timebarCell = this._buildMarkerTimebar(doc, blueprint, marker, startTime, endTime, arrowNode);
 
     targetNode.appendChild(sidebarCell);
     targetNode.appendChild(timebarCell);
@@ -301,4 +292,5 @@ function isMarkerInRange(e, start, end) {
 }
 
 exports.MarkerView = MarkerView;
+exports.WATERFALL_MARKER_SIDEBAR_SAFE_BOUNDS = WATERFALL_MARKER_SIDEBAR_SAFE_BOUNDS;
 exports.WATERFALL_MARKER_SIDEBAR_WIDTH = WATERFALL_MARKER_SIDEBAR_WIDTH;

@@ -13,13 +13,33 @@ add_task(function*() {
   yield promiseTab("data:text/html;charset=utf-8,inline editor tests");
   let [host, win, doc] = yield createHost();
 
+  yield testMultipleInitialization(doc);
   yield testReturnCommit(doc);
   yield testBlurCommit(doc);
   yield testAdvanceCharCommit(doc);
+  yield testAdvanceCharsFunction(doc);
 
   host.destroy();
   gBrowser.removeCurrentTab();
 });
+
+function testMultipleInitialization(doc) {
+  doc.body.innerHTML = "";
+  let options = {};
+  let span = options.element = createSpan(doc);
+
+  info("Creating multiple inplace-editor fields");
+  editableField(options);
+  editableField(options);
+
+  info("Clicking on the inplace-editor field to turn to edit mode");
+  span.click();
+
+  is (span.style.display, "none", "The original <span> is hidden");
+  is (doc.querySelectorAll("input").length, 1, "Only one <input>");
+  is (doc.querySelectorAll("span").length, 2, "Correct number of <span> elements");
+  is (doc.querySelectorAll("span.autosizer").length, 1, "There is an autosizer element");
+}
 
 function testReturnCommit(doc) {
   info("Testing that pressing return commits the new value");
@@ -62,11 +82,40 @@ function testAdvanceCharCommit(doc) {
     advanceChars: ":",
     start: function(editor) {
       let input = editor.input;
-      for each (let ch in "Test:") {
+      EventUtils.sendString("Test:");
+    },
+    done: onDone("Test", true, def)
+  }, doc);
+
+  return def.promise;
+}
+
+function testAdvanceCharsFunction(doc) {
+  info("Testing advanceChars as a function");
+  let def = promise.defer();
+
+  let firstTime = true;
+
+  createInplaceEditorAndClick({
+    initial: "",
+    advanceChars: function(aCharCode, aText, aInsertionPoint) {
+      if (aCharCode !== Components.interfaces.nsIDOMKeyEvent.DOM_VK_COLON) {
+        return false;
+      }
+      if (firstTime) {
+        firstTime = false;
+        return false;
+      }
+
+      // Just to make sure we check it somehow.
+      return aText.length > 0;
+    },
+    start: function(editor) {
+      for (let ch of ":Test:") {
         EventUtils.sendChar(ch);
       }
     },
-    done: onDone("Test", true, def)
+    done: onDone(":Test", true, def)
   }, doc);
 
   return def.promise;
@@ -98,7 +147,7 @@ function onDone(value, isCommit, def) {
 }
 
 function createInplaceEditorAndClick(options, doc) {
-  clearBody(doc);
+  doc.body.innerHTML = "";
   let span = options.element = createSpan(doc);
 
   info("Creating an inplace-editor field");
@@ -106,11 +155,6 @@ function createInplaceEditorAndClick(options, doc) {
 
   info("Clicking on the inplace-editor field to turn to edit mode");
   span.click();
-}
-
-function clearBody(doc) {
-  info("Clearing the page body");
-  doc.body.innerHTML = "";
 }
 
 function createSpan(doc) {

@@ -5,16 +5,17 @@
 
 const URL_LABEL_TOOLTIP = L10N.getStr("table.url.tooltiptext");
 const OPTIMIZATION_FAILURE = L10N.getStr("jit.optimizationFailure");
-const JIT_SAMPLES = L10N.getStr("jit.samples2");
+const JIT_SAMPLES = L10N.getStr("jit.samples");
 const JIT_EMPTY_TEXT = L10N.getStr("jit.empty");
+const PROPNAME_MAX_LENGTH = 4;
 
 /**
- * View for rendering JIT Optimization data. The terminology and types
- * used here can be referenced:
- * @see toolkit/devtools/performance/modules/logic/jit.js
+ * View for rendering a list of all optmizations found in a frame.
+ * The terminology and types used here can be referenced:
+ * @see devtools/client/performance/modules/logic/jit.js
  */
 
-let JITOptimizationsView = {
+var OptimizationsListView = {
 
   _currentFrame: null,
 
@@ -23,8 +24,7 @@ let JITOptimizationsView = {
    */
   initialize: function () {
     this.reset = this.reset.bind(this);
-    this._onFocusFrame = this._onFocusFrame.bind(this);
-    this._toggleVisibility = this._toggleVisibility.bind(this);
+    this._onThemeChanged = this._onThemeChanged.bind(this);
 
     this.el = $("#jit-optimizations-view");
     this.$headerName = $("#jit-optimizations-header .header-function-name");
@@ -35,26 +35,22 @@ let JITOptimizationsView = {
       sorted: false,
       emptyText: JIT_EMPTY_TEXT
     });
+    this.graph = new OptimizationsGraph($("#optimizations-graph"));
+    this.graph.setTheme(PerformanceController.getTheme());
 
     // Start the tree by resetting.
     this.reset();
 
-    this._toggleVisibility();
-
-    PerformanceController.on(EVENTS.RECORDING_SELECTED, this.reset);
-    PerformanceController.on(EVENTS.PREF_CHANGED, this._toggleVisibility);
-    JsCallTreeView.on("focus", this._onFocusFrame);
+    PerformanceController.on(EVENTS.THEME_CHANGED, this._onThemeChanged);
   },
 
   /**
    * Destruction function called when the tool cleans up.
    */
   destroy: function () {
+    PerformanceController.off(EVENTS.THEME_CHANGED, this._onThemeChanged);
     this.tree = null;
     this.$headerName = this.$headerFile = this.$headerLine = this.el = null;
-    PerformanceController.off(EVENTS.RECORDING_SELECTED, this.reset);
-    PerformanceController.off(EVENTS.PREF_CHANGED, this._toggleVisibility);
-    JsCallTreeView.off("focus", this._onFocusFrame);
   },
 
   /**
@@ -63,7 +59,10 @@ let JITOptimizationsView = {
    *
    * @param {FrameNode} frameNode
    */
-  setCurrentFrame: function (frameNode) {
+  setCurrentFrame: function (threadNode, frameNode) {
+    if (threadNode !== this.getCurrentThread()) {
+      this._currentThread = threadNode;
+    }
     if (frameNode !== this.getCurrentFrame()) {
       this._currentFrame = frameNode;
     }
@@ -74,8 +73,17 @@ let JITOptimizationsView = {
    *
    * @return {?FrameNode}
    */
-  getCurrentFrame: function (frameNode) {
+  getCurrentFrame: function () {
     return this._currentFrame;
+  },
+
+  /**
+   * Returns the current thread node for this view.
+   *
+   * @return {?ThreadNode}
+   */
+  getCurrentThread: function () {
+    return this._currentThread;
   },
 
   /**
@@ -83,7 +91,7 @@ let JITOptimizationsView = {
    * and removes current frame.
    */
   reset: function () {
-    this.setCurrentFrame(null);
+    this.setCurrentFrame(null, null);
     this.clear();
     this.el.classList.add("empty");
     this.emit(EVENTS.OPTIMIZATIONS_RESET);
@@ -98,22 +106,11 @@ let JITOptimizationsView = {
   },
 
   /**
-   * Helper to determine whether or not this view should be enabled.
-   */
-  isEnabled: function () {
-    return PerformanceController.getOption("show-jit-optimizations");
-  },
-
-  /**
    * Takes a JITOptimizations object and builds a view containing all attempted
    * optimizations for this frame. This view is very verbose and meant for those
    * who understand JIT compilers.
    */
   render: function () {
-    if (!this.isEnabled()) {
-      return;
-    }
-
     let frameNode = this.getCurrentFrame();
 
     if (!frameNode) {
@@ -144,7 +141,16 @@ let JITOptimizationsView = {
       this._renderSite(view, site, frameData);
     }
 
+    this._renderTierGraph();
+
     this.emit(EVENTS.OPTIMIZATIONS_RENDERED, this.getCurrentFrame());
+  },
+
+  /**
+   * Renders the optimization tier graph over time.
+   */
+  _renderTierGraph: function () {
+    this.graph.render(this.getCurrentThread(), this.getCurrentFrame());
   },
 
   /**
@@ -196,7 +202,6 @@ let JITOptimizationsView = {
   /**
    * Creates an element for insertion in the raw view for an OptimizationSite.
    */
-
   _createSiteNode: function (frameData, site) {
     let node = document.createElement("span");
     let desc = document.createElement("span");
@@ -207,6 +212,16 @@ let JITOptimizationsView = {
     let attempts = site.getAttempts();
     let lastStrategy = attempts[attempts.length - 1].strategy;
 
+    let propString = "";
+    if (site.data.propertyName) {
+      if (site.data.propertyName.length > PROPNAME_MAX_LENGTH) {
+        propString = ` (.${site.data.propertyName.substr(0, PROPNAME_MAX_LENGTH)}…)`;
+        desc.setAttribute("tooltiptext", site.data.propertyName);
+      } else {
+        propString = ` (.${site.data.propertyName})`;
+      }
+    }
+
     if (!site.hasSuccessfulOutcome()) {
       let icon = document.createElement("span");
       icon.setAttribute("tooltiptext", OPTIMIZATION_FAILURE);
@@ -216,7 +231,7 @@ let JITOptimizationsView = {
     }
 
     let sampleString = PluralForm.get(site.samples, JIT_SAMPLES).replace("#1", site.samples);
-    desc.textContent = `${lastStrategy} – (${sampleString})`;
+    desc.textContent = `${lastStrategy}${propString} – (${sampleString})`;
     line.textContent = site.data.line;
     line.className = "opt-line";
     column.textContent = site.data.column;
@@ -232,11 +247,10 @@ let JITOptimizationsView = {
   /**
    * Creates an element for insertion in the raw view for an IonType.
    *
-   * @see toolkit/devtools/performance/modules/logic/jit.js
+   * @see devtools/client/performance/modules/logic/jit.js
    * @param {IonType} ionType
    * @return {Element}
    */
-
   _createIonNode: function (ionType) {
     let node = document.createElement("span");
     node.textContent = `${ionType.site} : ${ionType.mirType}`;
@@ -247,11 +261,10 @@ let JITOptimizationsView = {
   /**
    * Creates an element for insertion in the raw view for an ObservedType.
    *
-   * @see toolkit/devtools/performance/modules/logic/jit.js
+   * @see devtools/client/performance/modules/logic/jit.js
    * @param {ObservedType} type
    * @return {Element}
    */
-
   _createObservedTypeNode: function (type) {
     let node = document.createElement("span");
     let typeNode = document.createElement("span");
@@ -287,11 +300,10 @@ let JITOptimizationsView = {
   /**
    * Creates an element for insertion in the raw view for an OptimizationAttempt.
    *
-   * @see toolkit/devtools/performance/modules/logic/jit.js
+   * @see devtools/client/performance/modules/logic/jit.js
    * @param {OptimizationAttempt} attempt
    * @return {Element}
    */
-
   _createAttemptNode: function (attempt) {
     let node = document.createElement("span");
     let strategyNode = document.createElement("span");
@@ -320,7 +332,6 @@ let JITOptimizationsView = {
    * @param {?Element} el
    * @return {Element}
    */
-
   _createDebuggerLinkNode: function (url, line, el) {
     let node = el || document.createElement("span");
     node.className = "opt-url";
@@ -340,7 +351,6 @@ let JITOptimizationsView = {
   /**
    * Updates the headers with the current frame's data.
    */
-
   _setHeaders: function (frameData) {
     let isMeta = frameData.isMetaCategory;
     let name = isMeta ? frameData.categoryData.label : frameData.functionName;
@@ -362,7 +372,6 @@ let JITOptimizationsView = {
    * @param {String} url
    * @return {Boolean}
    */
-
   _isLinkableURL: function (url) {
     return url && url.indexOf &&
        (url.indexOf("http") === 0 ||
@@ -371,46 +380,14 @@ let JITOptimizationsView = {
   },
 
   /**
-   * Toggles the visibility of the JITOptimizationsView based on the preference
-   * devtools.performance.ui.show-jit-optimizations.
+   * Called when `devtools.theme` changes.
    */
-
-  _toggleVisibility: function () {
-    let enabled = this.isEnabled();
-    this.el.hidden = !enabled;
-
-    // If view is toggled on, and there's a frame node selected,
-    // attempt to render it
-    if (enabled) {
-      this.render();
-    }
+  _onThemeChanged: function (_, theme) {
+    this.graph.setTheme(theme);
+    this.graph.refresh({ force: true });
   },
 
-  /**
-   * Called when the JSCallTreeView focuses on a frame.
-   */
-
-  _onFocusFrame: function (_, view) {
-    if (!view.frame) {
-      return;
-    }
-
-    // Only attempt to rerender if this is new -- focus is called even
-    // when the window removes focus and comes back, so this prevents
-    // repeating rendering of the same frame
-    let shouldRender = this.getCurrentFrame() !== view.frame;
-
-    // Save the frame even if the view is disabled, so we can
-    // render it if it becomes enabled
-    this.setCurrentFrame(view.frame);
-
-    if (shouldRender) {
-      this.render();
-    }
-  },
-
-  toString: () => "[object JITOptimizationsView]"
-
+  toString: () => "[object OptimizationsListView]"
 };
 
-EventEmitter.decorate(JITOptimizationsView);
+EventEmitter.decorate(OptimizationsListView);

@@ -23,6 +23,22 @@ loader.lazyRequireGetter(this, "WebConsoleUtils",
 const GECKO_SYMBOL = "(Gecko)";
 
 /**
+ * Takes a marker, blueprint, and filter list and
+ * determines if this marker should be filtered or not.
+ */
+function isMarkerValid (marker, filter) {
+  if (!filter || filter.length === 0) {
+    return true;
+  }
+
+  let isUnknown = !(marker.name in TIMELINE_BLUEPRINT);
+  if (isUnknown) {
+    return filter.indexOf("UNKNOWN") === -1;
+  }
+  return filter.indexOf(marker.name) === -1;
+}
+
+/**
  * Returns the correct label to display for passed in marker, based
  * off of the blueprints.
  *
@@ -30,7 +46,7 @@ const GECKO_SYMBOL = "(Gecko)";
  * @return {string}
  */
 function getMarkerLabel (marker) {
-  let blueprint = TIMELINE_BLUEPRINT[marker.name];
+  let blueprint = getBlueprintFor(marker);
   // Either use the label function in the blueprint, or use it directly
   // as a string.
   return typeof blueprint.label === "function" ? blueprint.label(marker) : blueprint.label;
@@ -44,7 +60,7 @@ function getMarkerLabel (marker) {
  * @return {string}
  */
 function getMarkerClassName (type) {
-  let blueprint = TIMELINE_BLUEPRINT[type];
+  let blueprint = getBlueprintFor({ name: type });
   // Either use the label function in the blueprint, or use it directly
   // as a string.
   let className = typeof blueprint.label === "function" ? blueprint.label() : blueprint.label;
@@ -72,17 +88,13 @@ function getMarkerClassName (type) {
  * @return {Array<object>}
  */
 function getMarkerFields (marker) {
-  let blueprint = TIMELINE_BLUEPRINT[marker.name];
+  let blueprint = getBlueprintFor(marker);
 
   // If blueprint.fields is a function, use that
   if (typeof blueprint.fields === "function") {
     let fields = blueprint.fields(marker);
-    // Add a ":" to the label since the localization files contain the ":"
-    // if not present. This should be changed, ugh.
     return Object.keys(fields || []).map(label => {
-      // TODO revisit localization strings for markers bug 1163763
-      let normalizedLabel = label.indexOf(":") !== -1 ? label : (label + ":");
-      return { label: normalizedLabel, value: fields[label] };
+      return { label, value: fields[label] };
     });
   }
 
@@ -111,7 +123,7 @@ const DOM = {
    * @return {Array<Element>}
    */
   buildFields: function (doc, marker) {
-    let blueprint = TIMELINE_BLUEPRINT[marker.name];
+    let blueprint = getBlueprintFor(marker);
     let fields = getMarkerFields(marker);
 
     return fields.map(({ label, value }) => DOM.buildNameValueLabel(doc, label, value));
@@ -125,7 +137,7 @@ const DOM = {
    * @return {Element}
    */
   buildTitle: function (doc, marker) {
-    let blueprint = TIMELINE_BLUEPRINT[marker.name];
+    let blueprint = getBlueprintFor(marker);
 
     let hbox = doc.createElement("hbox");
     hbox.setAttribute("align", "center");
@@ -152,7 +164,7 @@ const DOM = {
    * @return {Element}
    */
   buildDuration: function (doc, marker) {
-    let label = L10N.getStr("timeline.markerDetail.duration");
+    let label = L10N.getStr("marker.field.duration");
     let start = L10N.getFormatStrWithNumbers("timeline.tick", marker.start);
     let end = L10N.getFormatStrWithNumbers("timeline.tick", marker.end);
     let duration = L10N.getFormatStrWithNumbers("timeline.tick", marker.end - marker.start);
@@ -201,7 +213,7 @@ const DOM = {
     let container = doc.createElement("vbox");
     let labelName = doc.createElement("label");
     labelName.className = "plain marker-details-labelname";
-    labelName.setAttribute("value", L10N.getStr(`timeline.markerDetail.${type}`));
+    labelName.setAttribute("value", L10N.getStr(`marker.field.${type}`));
     container.setAttribute("type", type);
     container.className = "marker-details-stack";
     container.appendChild(labelName);
@@ -219,7 +231,7 @@ const DOM = {
         let asyncBox = doc.createElement("hbox");
         let asyncLabel = doc.createElement("label");
         asyncLabel.className = "devtools-monospace";
-        asyncLabel.setAttribute("value", L10N.getFormatStr("timeline.markerDetail.asyncStack",
+        asyncLabel.setAttribute("value", L10N.getFormatStr("marker.field.asyncStack",
                                                            frame.asyncCause));
         asyncBox.appendChild(asyncLabel);
         container.appendChild(asyncBox);
@@ -262,7 +274,7 @@ const DOM = {
 
       if (!displayName && !url) {
         let label = doc.createElement("label");
-        label.setAttribute("value", L10N.getStr("timeline.markerDetail.unknownFrame"));
+        label.setAttribute("value", L10N.getStr("marker.value.unknownFrame"));
         hbox.appendChild(label);
       }
 
@@ -277,66 +289,36 @@ const DOM = {
     }
 
     return container;
-  }
-};
-
-/**
- * A series of collapsers used by the blueprint. These functions are
- * invoked on a moving window of two markers.
- */
-
-const CollapseFunctions = {
-  identical: function (parent, curr, peek) {
-    // If there is a parent marker currently being filled and the current marker
-    // should go into the parent marker, make it so.
-    if (parent && parent.name == curr.name) {
-      return { toParent: parent.name };
-    }
-    // Otherwise if the current marker is the same type as the next marker type,
-    // create a new parent marker containing the current marker.
-    let next = peek(1);
-    if (next && curr.name == next.name) {
-      return { toParent: curr.name };
-    }
   },
 
-  adjacent: function (parent, curr, peek) {
-    let next = peek(1);
-    if (next && (next.start < curr.end || next.start - curr.end <= 10 /* ms */)) {
-      return CollapseFunctions.identical(parent, curr, peek);
-    }
-  },
+  /**
+   * Builds any custom fields specific to the marker.
+   *
+   * @param {Document} doc
+   * @param {ProfileTimelineMarker} marker
+   * @param {object} options
+   * @return {Array<Element>}
+   */
+  buildCustom: function (doc, marker, options) {
+    let elements = [];
 
-  DOMtoDOMJS: function (parent, curr, peek) {
-    // If the next marker is a JavaScript marker, create a new meta parent marker
-    // containing the current marker.
-    let next = peek(1);
-    if (next && next.name == "Javascript") {
-      return {
-        forceNew: true,
-        toParent: "meta::DOMEvent+JS",
-        withData: {
-          type: curr.type,
-          eventPhase: curr.eventPhase
-        },
-      };
-    }
-  },
+    if (options.allocations && showAllocationsTrigger(marker)) {
+      let hbox = doc.createElement("hbox");
+      hbox.className = "marker-details-customcontainer";
 
-  JStoDOMJS: function (parent, curr, peek) {
-    // If there is a parent marker currently being filled, and it's the one
-    // created from a `DOMEvent` via `collapseDOMIntoDOMJS`, then the current
-    // marker has to go into that one.
-    if (parent && parent.name == "meta::DOMEvent+JS") {
-      return {
-        forceEnd: true,
-        toParent: "meta::DOMEvent+JS",
-        withData: {
-          stack: curr.stack,
-          endStack: curr.endStack
-        },
-      };
+      let label = doc.createElement("label");
+      label.className = "custom-button devtools-button";
+      label.setAttribute("value", "Show allocation triggers");
+      label.setAttribute("type", "show-allocations");
+      label.setAttribute("data-action", JSON.stringify({
+        endTime: marker.start, action: "show-allocations"
+      }));
+
+      hbox.appendChild(label);
+      elements.push(hbox);
     }
+
+    return elements;
   },
 };
 
@@ -345,36 +327,47 @@ const CollapseFunctions = {
  * markers that are considered "from content" should be labeled here.
  */
 const JS_MARKER_MAP = {
-  "<script> element":          "Script Tag",
+  "<script> element":          L10N.getStr("marker.label.javascript.scriptElement"),
+  "promise callback":          L10N.getStr("marker.label.javascript.promiseCallback"),
+  "promise initializer":       L10N.getStr("marker.label.javascript.promiseInit"),
+  "Worker runnable":           L10N.getStr("marker.label.javascript.workerRunnable"),
+  "javascript: URI":           L10N.getStr("marker.label.javascript.jsURI"),
+  // The difference between these two event handler markers are differences
+  // in their WebIDL implementation, so distinguishing them is not necessary.
+  "EventHandlerNonNull":       L10N.getStr("marker.label.javascript.eventHandler"),
+  "EventListener.handleEvent": L10N.getStr("marker.label.javascript.eventHandler"),
+  // These markers do not get L10N'd because they're JS names.
   "setInterval handler":       "setInterval",
   "setTimeout handler":        "setTimeout",
   "FrameRequestCallback":      "requestAnimationFrame",
-  "promise callback":          "Promise Callback",
-  "promise initializer":       "Promise Init",
-  "Worker runnable":           "Worker",
-  "javascript: URI":           "JavaScript URI",
-  // The difference between these two event handler markers are differences
-  // in their WebIDL implementation, so distinguishing them is not necessary.
-  "EventHandlerNonNull":       "Event Handler",
-  "EventListener.handleEvent": "Event Handler",
 };
 
 /**
  * A series of formatters used by the blueprint.
  */
 const Formatters = {
-  GCLabel: function (marker={}) {
-    let label = L10N.getStr("timeline.label.garbageCollection");
+  /**
+   * Uses the marker name as the label for markers that do not have
+   * a blueprint entry. Uses "Other" in the marker filter menu.
+   */
+  UnknownLabel: function (marker={}) {
+    return marker.name || L10N.getStr("marker.label.unknown");
+  },
+
+  GCLabel: function (marker) {
+    if (!marker) {
+      return L10N.getStr("marker.label.garbageCollection2");
+    }
     // Only if a `nonincrementalReason` exists, do we want to label
     // this as a non incremental GC event.
     if ("nonincrementalReason" in marker) {
-      label = `${label} (Non-incremental)`;
+      return L10N.getStr("marker.label.garbageCollection.nonIncremental");
     }
-    return label;
+    return L10N.getStr("marker.label.garbageCollection.incremental");
   },
 
   JSLabel: function (marker={}) {
-    let generic = L10N.getStr("timeline.label.javascript2");
+    let generic = L10N.getStr("marker.label.javascript");
     if ("causeName" in marker) {
       return JS_MARKER_MAP[marker.causeName] || generic;
     }
@@ -393,46 +386,88 @@ const Formatters = {
    */
   JSFields: function (marker) {
     if ("causeName" in marker && !JS_MARKER_MAP[marker.causeName]) {
-      return { Reason: PREFS["show-platform-data"] ? marker.causeName : GECKO_SYMBOL };
+      let cause = PREFS["show-platform-data"] ? marker.causeName : GECKO_SYMBOL;
+      return {
+        [L10N.getStr("marker.field.causeName")]: cause
+      };
     }
+  },
+
+  GCFields: function (marker) {
+    let fields = Object.create(null);
+    let cause = marker.causeName;
+    let label = L10N.getStr(`marker.gcreason.label.${cause}`) || cause;
+
+    fields[L10N.getStr("marker.field.causeName")] = label;
+
+    if ("nonincrementalReason" in marker) {
+      fields[L10N.getStr("marker.field.nonIncrementalCause")] = marker.nonincrementalReason;
+    }
+
+    return fields;
   },
 
   DOMEventFields: function (marker) {
     let fields = Object.create(null);
     if ("type" in marker) {
-      fields[L10N.getStr("timeline.markerDetail.DOMEventType")] = marker.type;
+      fields[L10N.getStr("marker.field.DOMEventType")] = marker.type;
     }
     if ("eventPhase" in marker) {
       let phase;
       if (marker.eventPhase === Ci.nsIDOMEvent.AT_TARGET) {
-        phase = L10N.getStr("timeline.markerDetail.DOMEventTargetPhase");
+        phase = L10N.getStr("marker.value.DOMEventTargetPhase");
       } else if (marker.eventPhase === Ci.nsIDOMEvent.CAPTURING_PHASE) {
-        phase = L10N.getStr("timeline.markerDetail.DOMEventCapturingPhase");
+        phase = L10N.getStr("marker.value.DOMEventCapturingPhase");
       } else if (marker.eventPhase === Ci.nsIDOMEvent.BUBBLING_PHASE) {
-        phase = L10N.getStr("timeline.markerDetail.DOMEventBubblingPhase");
+        phase = L10N.getStr("marker.value.DOMEventBubblingPhase");
       }
-      fields[L10N.getStr("timeline.markerDetail.DOMEventPhase")] = phase;
+      fields[L10N.getStr("marker.field.DOMEventPhase")] = phase;
     }
     return fields;
   },
 
   StylesFields: function (marker) {
     if ("restyleHint" in marker) {
-      return { "Restyle Hint": marker.restyleHint.replace(/eRestyle_/g, "") };
+      return {
+        [L10N.getStr("marker.field.restyleHint")]: marker.restyleHint.replace(/eRestyle_/g, "")
+      };
     }
   },
 
   CycleCollectionFields: function (marker) {
-    let Type = PREFS["show-platform-data"]
-        ? marker.name
-        : marker.name.replace(/nsCycleCollector::/g, "");
-    return { Type };
+    return {
+      [L10N.getStr("marker.field.type")]: marker.name.replace(/nsCycleCollector::/g, "")
+    };
   },
 };
 
+/**
+ * Takes a marker and returns the definition for that marker type,
+ * falling back to the UNKNOWN definition if undefined.
+ *
+ * @param {Marker} marker
+ * @return {object}
+ */
+function getBlueprintFor (marker) {
+  return TIMELINE_BLUEPRINT[marker.name] || TIMELINE_BLUEPRINT.UNKNOWN;
+}
+
+/**
+ * Takes a marker and determines if this marker should display
+ * the allocations trigger button.
+ *
+ * @param {Marker} marker
+ * @return {boolean}
+ */
+function showAllocationsTrigger (marker) {
+  return marker.name === "GarbageCollection" &&
+         PREFS["show-triggers-for-gc-types"].split(" ").indexOf(marker.causeName) !== -1;
+}
+
+exports.isMarkerValid = isMarkerValid;
 exports.getMarkerLabel = getMarkerLabel;
 exports.getMarkerClassName = getMarkerClassName;
 exports.getMarkerFields = getMarkerFields;
 exports.DOM = DOM;
-exports.CollapseFunctions = CollapseFunctions;
 exports.Formatters = Formatters;
+exports.getBlueprintFor = getBlueprintFor;

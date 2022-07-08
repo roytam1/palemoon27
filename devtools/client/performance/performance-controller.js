@@ -138,8 +138,6 @@ const EVENTS = {
 
   // Emitted by the OverviewView when a range has been selected in the graphs
   OVERVIEW_RANGE_SELECTED: "Performance:UI:OverviewRangeSelected",
-  // Emitted by the OverviewView when a selection range has been removed
-  OVERVIEW_RANGE_CLEARED: "Performance:UI:OverviewRangeCleared",
 
   // Emitted by the DetailsView when a subview is selected
   DETAILS_VIEW_SELECTED: "Performance:UI:DetailsViewSelected",
@@ -347,7 +345,7 @@ var PerformanceController = {
    */
   exportRecording: Task.async(function*(_, recording, file) {
     yield recording.exportRecording(file);
-    this.emit(EVENTS.RECORDING_EXPORTED, recording);
+    this.emit(EVENTS.RECORDING_EXPORTED, recording, file);
   }),
 
   /**
@@ -422,16 +420,6 @@ var PerformanceController = {
       }
     }
     return null;
-  },
-
-  /**
-   * Gets the current timeline blueprint without the hidden markers.
-   * @return object
-   */
-  getTimelineBlueprint: function() {
-    let blueprint = TIMELINE_BLUEPRINT;
-    let hiddenMarkers = this.getPref("hidden-markers");
-    return RecordingUtils.getFilteredBlueprint({ blueprint, hiddenMarkers });
   },
 
   /**

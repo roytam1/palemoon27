@@ -245,7 +245,7 @@
   "GC_REASON_2": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "JS::gcreason::NUM_TELEMETRY_REASONS",
+    "n_values": "10",
     "description": "Reason (enum value) for initiating a GC"
   },
   "GC_IS_COMPARTMENTAL": {
@@ -364,13 +364,13 @@
   "GC_MINOR_REASON": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "JS::gcreason::NUM_TELEMETRY_REASONS",
+    "n_values": "10",
     "description": "Reason (enum value) for initiating a minor GC"
   },
   "GC_MINOR_REASON_LONG": {
     "expires_in_version": "never",
     "kind": "enumerated",
-    "n_values": "JS::gcreason::NUM_TELEMETRY_REASONS",
+    "n_values": "10",
     "description": "Reason (enum value) that caused a long (>1ms) minor GC"
   },
   "GC_MINOR_US": {

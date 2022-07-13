@@ -33,8 +33,8 @@ exports.emit = events.emit;
 var types = Object.create(null);
 exports.types = types;
 
-let registeredTypes = new Map();
-let registeredLifetimes = new Map();
+var registeredTypes = types.registeredTypes = new Map();
+var registeredLifetimes = types.registeredLifetimes = new Map();
 
 /**
  * Return the type object associated with a given typestring.
@@ -108,6 +108,11 @@ types.getType = function(type) {
 function identityWrite(v) {
   if (v === undefined) {
     throw Error("undefined passed where a value is required");
+  }
+  // This has to handle iterator->array conversion because arrays of
+  // primitive types pass through here.
+  if (v && typeof (v) === "object" && Symbol.iterator in v) {
+    return [...v];
   }
   return v;
 }
@@ -190,8 +195,8 @@ types.addArrayType = function(subtype) {
   }
   return types.addType(name, {
     category: "array",
-    read: (v, ctx) => v.map(i => subtype.read(i, ctx)),
-    write: (v, ctx) => v.map(i => subtype.write(i, ctx))
+    read: (v, ctx) => [...v].map(i => subtype.read(i, ctx)),
+    write: (v, ctx) => [...v].map(i => subtype.write(i, ctx))
   });
 };
 
@@ -928,6 +933,7 @@ exports.Actor = Actor;
  *      request (object): a request template.
  *      response (object): a response template.
  *      oneway (bool): 'true' if no response should be sent.
+ *      telemetry (string): Telemetry probe ID for measuring completion time.
  */
 exports.method = function(fn, spec={}) {
   fn._methodSpec = Object.freeze(spec);
@@ -973,6 +979,7 @@ var actorProto = function(actorProto) {
       spec.name = frozenSpec.name || name;
       spec.request = Request(object.merge({type: spec.name}, frozenSpec.request || undefined));
       spec.response = Response(frozenSpec.response || undefined);
+      spec.telemetry = frozenSpec.telemetry;
       spec.release = frozenSpec.release;
       spec.oneway = frozenSpec.oneway;
 
@@ -1111,9 +1118,11 @@ var Front = Class({
     // Reject all outstanding requests, they won't make sense after
     // the front is destroyed.
     while (this._requests && this._requests.length > 0) {
-      let { deferred, to, type } = this._requests.shift();
-      deferred.reject(new Error("Connection closed, pending request to " + to +
-                                ", type " + type + " failed"));
+      let { deferred, to, type, stack } = this._requests.shift();
+      let msg = "Connection closed, pending request to " + to +
+                ", type " + type + " failed" +
+                "\n\nRequest stack:\n" + stack.formattedStack;
+      deferred.reject(new Error(msg));
     }
     Pool.prototype.destroy.call(this);
     this.actorID = null;
@@ -1165,7 +1174,8 @@ var Front = Class({
     this._requests.push({
       deferred,
       to: to || this.actorID,
-      type
+      type,
+      stack: components.stack,
     });
     this.send(packet);
     return deferred.promise;
@@ -1188,8 +1198,16 @@ var Front = Class({
         throw ex;
       }
       if (event.pre) {
-        event.pre.forEach((pre) => pre.apply(this, args));
+        let results = event.pre.map(pre => pre.apply(this, args));
+
+        // Check to see if any of the preEvents returned a promise -- if so,
+        // wait for their resolution before emitting. Otherwise, emit synchronously.
+        if (results.some(result => result && typeof result.then === "function")) {
+          promise.all(results).then(() => events.emit.apply(null, [this, event.name].concat(args)));
+          return;
+        }
       }
+
       events.emit.apply(null, [this, event.name].concat(args));
       return;
     }
@@ -1202,20 +1220,22 @@ var Front = Class({
       throw err;
     }
 
-    let { deferred } = this._requests.shift();
-    if (packet.error) {
-      // "Protocol error" is here to avoid TBPL heuristics. See also
-      // https://mxr.mozilla.org/webtools-central/source/tbpl/php/inc/GeneralErrorFilter.php
-      let message;
-      if (packet.error && packet.message) {
-        message = "Protocol error (" + packet.error + "): " + packet.message;
+    let { deferred, stack } = this._requests.shift();
+    Cu.callFunctionWithAsyncStack(() => {
+      if (packet.error) {
+        // "Protocol error" is here to avoid TBPL heuristics. See also
+        // https://mxr.mozilla.org/webtools-central/source/tbpl/php/inc/GeneralErrorFilter.php
+        let message;
+        if (packet.error && packet.message) {
+          message = "Protocol error (" + packet.error + "): " + packet.message;
+        } else {
+          message = packet.error;
+        }
+        deferred.reject(message);
       } else {
-        message = packet.error;
+        deferred.resolve(packet);
       }
-      deferred.reject(message);
-    } else {
-      deferred.resolve(packet);
-    }
+    }, stack, "DevTools RDP");
   }
 });
 exports.Front = Front;
@@ -1281,6 +1301,27 @@ var frontProto = function(proto) {
     }
 
     proto[name] = function(...args) {
+      let histogram, startTime;
+      if (spec.telemetry) {
+        if (spec.oneway) {
+          // That just doesn't make sense.
+          throw Error("Telemetry specified for a oneway request");
+        }
+        let transportType = this.conn.localTransport
+          ? "LOCAL_"
+          : "REMOTE_";
+        let histogramId = "DEVTOOLS_DEBUGGER_RDP_"
+          + transportType + spec.telemetry + "_MS";
+        try {
+          histogram = Services.telemetry.getHistogramById(histogramId);
+          startTime = new Date();
+        } catch(ex) {
+          // XXX: Is this expected in xpcshell tests?
+          console.error(ex);
+          spec.telemetry = false;
+        }
+      }
+
       let packet;
       try {
         packet = spec.request.write(args, this);
@@ -1301,6 +1342,10 @@ var frontProto = function(proto) {
         } catch(ex) {
           console.error("Error reading response to: " + name);
           throw ex;
+        }
+
+        if (histogram) {
+          histogram.add(+new Date - startTime);
         }
 
         return ret;

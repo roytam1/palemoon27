@@ -316,8 +316,8 @@ OptionsPanel.prototype = {
 
     if (this.target.activeTab) {
       this.target.client.attachTab(this.target.activeTab._actor, (response) => {
-        this._origJavascriptEnabled = response.javascriptEnabled;
-        this.disableJSNode.checked = !this._origJavascriptEnabled;
+        this._origJavascriptEnabled = !response.javascriptEnabled;
+        this.disableJSNode.checked = this._origJavascriptEnabled;
         this.disableJSNode.addEventListener("click", this._disableJSClicked, false);
       });
     } else {
@@ -364,50 +364,35 @@ OptionsPanel.prototype = {
     this.target.activeTab.reconfigure(options);
   },
 
-  /**
-   * Returns a boolean indicating whether or not the dev edition
-   * browser theme is applied.
-   */
-  _isDevEditionThemeOn: function() {
-    let win = Services.wm.getMostRecentWindow("navigator:browser");
-    return !!(win && win.DevEdition && win.DevEdition.styleSheet);
-  },
-
-  /**
-   * Called on observer notification for "devedition-theme-state-changed"
-   * to possibly change the state of the dev edition button
-   */
-  observe: function(aSubject, aTopic, aData) {
-    if (aTopic === kDeveditionChangedNotification) {
-      this.updateBrowserThemeButton();
-    }
-  },
-
   destroy: function() {
     if (this.destroyPromise) {
       return this.destroyPromise;
     }
 
     let deferred = promise.defer();
-
     this.destroyPromise = deferred.promise;
+
     this._removeListeners();
 
     if (this.target.activeTab) {
-      this.disableJSNode.removeEventListener("click", this._disableJSClicked, false);
-      // If JavaScript is disabled we need to revert it to it's original value.
-      let options = {
-        "javascriptEnabled": this._origJavascriptEnabled
-      };
-      this.target.activeTab.reconfigure(options, () => {
-        this.toolbox = null;
+      this.disableJSNode.removeEventListener("click", this._disableJSClicked);
+      // FF41+ automatically cleans up state in actor on disconnect
+      if (!this.target.activeTab.traits.noTabReconfigureOnClose) {
+        let options = {
+          "javascriptEnabled": this._origJavascriptEnabled,
+          "performReload": false
+        };
+        this.target.activeTab.reconfigure(options, deferred.resolve);
+      } else {
         deferred.resolve();
-      }, true);
+      }
+    } else {
+      deferred.resolve();
     }
 
-    this.panelWin = this.panelDoc = this.disableJSNode = null;
+    this.panelWin = this.panelDoc = this.disableJSNode = this.toolbox = null;
 
-    return deferred.promise;
+    return this.destroyPromise;
   }
 };
 

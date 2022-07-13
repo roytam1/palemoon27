@@ -34,6 +34,7 @@ function ThreadNode(thread, options = {}) {
   this.sampleTimes = [];
   this.youngestFrameSamples = 0;
   this.calls = [];
+  this.duration = options.endTime - options.startTime;
   this.nodeType = "Thread";
   this.inverted = options.invertTree;
 
@@ -41,14 +42,14 @@ function ThreadNode(thread, options = {}) {
   this.byteSize = 0;
   this.youngestFrameByteSize = 0;
 
-  let { samples, stackTable, frameTable, stringTable, allocationsTable } = thread;
+  let { samples, stackTable, frameTable, stringTable } = thread;
 
   // Nothing to do if there are no samples.
   if (samples.data.length === 0) {
     return;
   }
 
-  this._buildInverted(samples, stackTable, frameTable, stringTable, allocationsTable, options);
+  this._buildInverted(samples, stackTable, frameTable, stringTable, options);
   if (!options.invertTree) {
     this._uninvert();
   }
@@ -71,9 +72,6 @@ ThreadNode.prototype = {
    *        The table of deduplicated frames from the backend.
    * @param object stringTable
    *        The table of deduplicated strings from the backend.
-   * @param object allocationsTable
-   *        The table of allocation counts from the backend. Indexed by frame
-   *        index.
    * @param object options
    *        Additional supported options
    *          - number startTime
@@ -81,7 +79,7 @@ ThreadNode.prototype = {
    *          - boolean contentOnly [optional]
    *          - boolean invertTree [optional]
    */
-  _buildInverted: function buildInverted(samples, stackTable, frameTable, stringTable, allocationsTable, options) {
+  _buildInverted: function buildInverted(samples, stackTable, frameTable, stringTable, options) {
     function getOrAddFrameNode(calls, isLeaf, frameKey, inflatedFrame, isMetaCategory, leafTable) {
       // Insert the inflated frame into the call tree at the current level.
       let frameNode;
@@ -213,7 +211,7 @@ ThreadNode.prototype = {
 
         // Inflate the frame.
         let inflatedFrame = getOrAddInflatedFrame(inflatedFrameCache, frameIndex, frameTable,
-                                                  stringTable, allocationsTable);
+                                                  stringTable);
 
         // Compute the frame key.
         mutableFrameKeyOptions.isRoot = stackIndex === null;
@@ -226,7 +224,8 @@ ThreadNode.prototype = {
 
         // If we shouldn't flatten the current frame into the previous one, advance a
         // level in the call tree.
-        if (!flattenRecursion || frameKey !== prevFrameKey) {
+        let shouldFlatten = flattenRecursion && frameKey === prevFrameKey;
+        if (!shouldFlatten) {
           calls = prevCalls;
         }
 
@@ -242,8 +241,14 @@ ThreadNode.prototype = {
             frameNode.youngestFrameByteSize += byteSize;
           }
         }
-        frameNode.samples++;
-        frameNode._addOptimizations(inflatedFrame.optimizations, stringTable);
+
+        // Don't overcount flattened recursive frames.
+        if (!shouldFlatten) {
+          frameNode.samples++;
+          if (byteSize) {
+            frameNode.byteSize += byteSize;
+          }
+        }
 
         prevFrameKey = frameKey;
         prevCalls = frameNode.calls;
@@ -396,7 +401,7 @@ ThreadNode.prototype = {
  *        Whether or not this is a platform node that should appear as a
  *        generalized meta category or not.
  */
-function FrameNode(frameKey, { location, line, category, allocations, isContent }, isMetaCategory) {
+function FrameNode(frameKey, { location, line, category, isContent }, isMetaCategory) {
   this.key = frameKey;
   this.location = location;
   this.line = line;
@@ -411,6 +416,7 @@ function FrameNode(frameKey, { location, line, category, allocations, isContent 
   this.category = category;
   this.nodeType = "Frame";
   this.byteSize = 0;
+  this.youngestFrameByteSize = 0;
 }
 
 FrameNode.prototype = {
@@ -482,6 +488,15 @@ FrameNode.prototype = {
        opts.push(otherOpts[i]);
       }
     }
+
+    if (otherNode._tierData.length) {
+      let tierData = this._tierData;
+      let otherTierData = otherNode._tierData;
+      for (let i = 0; i < otherTierData.length; i++) {
+        tierData.push(otherTierData[i]);
+      }
+      tierData.sort((a, b) => a.time - b.time);
+    }
   },
 
   /**
@@ -537,4 +552,3 @@ FrameNode.prototype = {
 
 exports.ThreadNode = ThreadNode;
 exports.FrameNode = FrameNode;
-exports.FrameNode.isContent = FrameUtils.isContent;

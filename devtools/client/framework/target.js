@@ -194,7 +194,13 @@ TabTarget.prototype = {
    * Returns a promise for the protocol description from the root actor.
    * Used internally with `target.actorHasMethod`. Takes advantage of
    * caching if definition was fetched previously with the corresponding
-   * actor information. Must be a remote target.
+   * actor information. Actors are lazily loaded, so not only must the tool using
+   * a specific actor be in use, the actors are only registered after invoking
+   * a method (for performance reasons, added in bug 988237), so to use these actor
+   * detection methods, one must already be communicating with a specific actor of
+   * that type.
+   *
+   * Must be a remote target.
    *
    * @return {Promise}
    * {
@@ -260,7 +266,8 @@ TabTarget.prototype = {
 
   /**
    * Queries the protocol description to see if an actor has
-   * an available method. The actor must already be lazily-loaded,
+   * an available method. The actor must already be lazily-loaded (read
+   * the restrictions in the `getActorDescription` comments),
    * so this is for use inside of tool. Returns a promise that
    * resolves to a boolean. Must be a remote target.
    *
@@ -440,26 +447,9 @@ TabTarget.prototype = {
 
     if (this.isLocalTab) {
       this._client.connect((aType, aTraits) => {
-        this._client.listTabs(aResponse => {
-          this._root = aResponse;
-
-          if (this.window) {
-            let windowUtils = this.window
-              .QueryInterface(Ci.nsIInterfaceRequestor)
-              .getInterface(Ci.nsIDOMWindowUtils);
-            let outerWindow = windowUtils.outerWindowID;
-            aResponse.tabs.some((tab) => {
-              if (tab.outerWindowID === outerWindow) {
-                this._form = tab;
-                return true;
-              }
-              return false;
-            });
-          }
-
-          if (!this._form) {
-            this._form = aResponse.tabs[aResponse.selected];
-          }
+        this._client.getTab({ tab: this.tab })
+            .then(aResponse => {
+          this._form = aResponse.tab;
           attachTab();
         });
       });

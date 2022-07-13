@@ -302,7 +302,7 @@ BrowserTabList.prototype.getList = function() {
   // As a sanity check, make sure all the actors presently in our map get
   // picked up when we iterate over all windows' tabs.
   let initialMapSize = this._actorByBrowser.size;
-  let foundCount = 0;
+  this._foundCount = 0;
 
   // To avoid mysterious behavior if tabs are closed or opened mid-iteration,
   // we update the map first, and then make a second pass over it to yield
@@ -312,33 +312,86 @@ BrowserTabList.prototype.getList = function() {
   let actorPromises = [];
 
   for (let browser of this._getBrowsers()) {
-    // Do we have an existing actor for this browser? If not, create one.
-    let actor = this._actorByBrowser.get(browser);
-    if (actor) {
-      actorPromises.push(actor.update());
-      foundCount++;
-    } else if (this._isRemoteBrowser(browser)) {
-      actor = new RemoteBrowserTabActor(this._connection, browser);
-      this._actorByBrowser.set(browser, actor);
-      actorPromises.push(actor.connect());
-    } else {
-      actor = new BrowserTabActor(this._connection, browser,
-                                  browser.getTabBrowser());
-      this._actorByBrowser.set(browser, actor);
-      actorPromises.push(promise.resolve(actor));
-    }
-
-    // Set the 'selected' properties on all actors correctly.
-    actor.selected = browser === selectedBrowser;
+    let selected = browser === selectedBrowser;
+    actorPromises.push(
+      this._getActorForBrowser(browser)
+          .then(actor => {
+            // Set the 'selected' properties on all actors correctly.
+            actor.selected = selected;
+            return actor;
+          })
+    );
   }
 
-  if (this._testing && initialMapSize !== foundCount)
+  if (this._testing && initialMapSize !== this._foundCount)
     throw Error("_actorByBrowser map contained actors for dead tabs");
 
   this._mustNotify = true;
   this._checkListening();
 
   return promise.all(actorPromises);
+};
+
+BrowserTabList.prototype._getActorForBrowser = function(browser) {
+  // Do we have an existing actor for this browser? If not, create one.
+  let actor = this._actorByBrowser.get(browser);
+  if (actor) {
+    this._foundCount++;
+    return actor.update();
+  } else if (this._isRemoteBrowser(browser)) {
+    actor = new RemoteBrowserTabActor(this._connection, browser);
+    this._actorByBrowser.set(browser, actor);
+    this._checkListening();
+    return actor.connect();
+  } else {
+    actor = new BrowserTabActor(this._connection, browser,
+                                browser.getTabBrowser());
+    this._actorByBrowser.set(browser, actor);
+    this._checkListening();
+    return promise.resolve(actor);
+  }
+};
+
+BrowserTabList.prototype.getTab = function({ outerWindowID, tabId }) {
+  if (typeof(outerWindowID) == "number") {
+    // Tabs in parent process
+    for (let browser of this._getBrowsers()) {
+      if (browser.contentWindow) {
+        let windowUtils = browser.contentWindow
+          .QueryInterface(Ci.nsIInterfaceRequestor)
+          .getInterface(Ci.nsIDOMWindowUtils);
+        if (windowUtils.outerWindowID === outerWindowID) {
+          return this._getActorForBrowser(browser);
+        }
+      }
+    }
+    return promise.reject({
+      error: "noTab",
+      message: "Unable to find tab with outerWindowID '" + outerWindowID + "'"
+    });
+  } else if (typeof(tabId) == "number") {
+    // Tabs OOP
+    for (let browser of this._getBrowsers()) {
+      if (browser.frameLoader.tabParent &&
+          browser.frameLoader.tabParent.tabId === tabId) {
+        return this._getActorForBrowser(browser);
+      }
+    }
+    return promise.reject({
+      error: "noTab",
+      message: "Unable to find tab with tabId '" + tabId + "'"
+    });
+  }
+
+  let topXULWindow = Services.wm.getMostRecentWindow(DebuggerServer.chromeWindowType);
+  if (topXULWindow) {
+    let selectedBrowser = this._getSelectedBrowser(topXULWindow);
+    return this._getActorForBrowser(selectedBrowser);
+  }
+  return promise.reject({
+    error: "noTab",
+    message: "Unable to find any selected browser"
+  });
 };
 
 Object.defineProperty(BrowserTabList.prototype, 'onListChanged', {
@@ -551,18 +604,103 @@ BrowserTabList.prototype.onCloseWindow = DevToolsUtils.makeInfallible(function(a
 exports.BrowserTabList = BrowserTabList;
 
 /**
- * Creates a tab actor for handling requests to a browser tab, like
- * attaching and detaching. TabActor respects the actor factories
- * registered with DebuggerServer.addTabActor.
+ * Creates a TabActor whose main goal is to manage lifetime and
+ * expose the tab actors being registered via DebuggerServer.registerModule.
+ * But also track the lifetime of the document being tracked.
+ *
+ * ### Main requests:
+ *
+ * `attach`/`detach` requests:
+ *  - start/stop document watching:
+ *    Starts watching for new documents and emits `tabNavigated` and
+ *    `frameUpdate` over RDP.
+ *  - retrieve the thread actor:
+ *    Instantiates a ThreadActor that can be later attached to in order to
+ *    debug JS sources in the document.
+ * `switchToFrame`:
+ *  Change the targeted document of the whole TabActor, and its child tab actors
+ *  to an iframe or back to its original document.
+ *
+ * Most of the TabActor properties (like `chromeEventHandler` or `docShells`)
+ * are meant to be used by the various child tab actors.
+ *
+ * ### RDP events:
+ *
+ *  - `tabNavigated`:
+ *    Sent when the tab is about to navigate or has just navigated to
+ *    a different document.
+ *    This event contains the following attributes:
+ *     * url (string) The new URI being loaded.
+ *     * nativeConsoleAPI (boolean) `false` if the console API of the page has been
+ *                                          overridden (e.g. by Firebug),
+ *                                  `true`  if the Gecko implementation is used.
+ *     * state (string) `start` if we just start requesting the new URL,
+ *                      `stop`  if the new URL is done loading.
+ *     * isFrameSwitching (boolean) Indicates the event is dispatched when
+ *                                  switching the TabActor context to
+ *                                  a different frame. When we switch to
+ *                                  an iframe, there is no document load.
+ *                                  The targeted document is most likely
+ *                                  going to be already done loading.
+ *     * title (string) The document title being loaded.
+ *                      (sent only on state=stop)
+ *
+ *  - `frameUpdate`:
+ *    Sent when there was a change in the child frames contained in the document
+ *    or when the tab's context was switched to another frame.
+ *    This event can have four different forms depending on the type of incident:
+ *    * One or many frames are updated:
+ *      { frames: [{ id, url, title, parentID }, ...] }
+ *    * One frame got destroyed:
+ *      { frames: [{ id, destroy: true }]}
+ *    * All frames got destroyed:
+ *      { destroyAll: true }
+ *    * We switched the context of the TabActor to a specific frame:
+ *      { selected: #id }
+ *
+ * ### Internal, non-rdp events:
+ * Various events are also dispatched on the TabActor itself that are not
+ * related to RDP, so, not sent to the client. They all relate to the documents
+ * tracked by the TabActor (its main targeted document, but also any of its iframes).
+ *  - will-navigate
+ *    This event fires once navigation starts.
+ *    All pending user prompts are dealt with,
+ *    but it is fired before the first request starts.
+ *  - navigate
+ *    This event is fired once the document's readyState is "complete".
+ *  - window-ready
+ *    This event is fired on three distinct scenarios:
+ *     * When a new Window object is crafted, equivalent of `DOMWindowCreated`.
+ *       It is dispatched before any page script is executed.
+ *     * We will have already received a window-ready event for this window
+ *       when it was created, but we received a window-destroyed event when
+ *       it was frozen into the bfcache, and now the user navigated back to
+ *       this page, so it's now live again and we should resume handling it.
+ *     * For each existing document, when an `attach` request is received.
+ *       At this point scripts in the page will be already loaded.
+ *  - window-destroyed
+ *    This event is fired in two cases:
+ *     * When the window object is destroyed, i.e. when the related document
+ *       is garbage collected. This can happen when the tab is closed or the
+ *       iframe is removed from the DOM.
+ *       It is equivalent of `inner-window-destroyed` event.
+ *     * When the page goes into the bfcache and gets frozen.
+ *       The equivalent of `pagehide`.
+ *  - changed-toplevel-document
+ *    This event fires when we switch the TabActor targeted document
+ *    to one of its iframes, or back to its original top document.
+ *    It is dispatched between window-destroyed and window-ready.
+ *
+ * Note that *all* these events are dispatched in the following order
+ * when we switch the context of the TabActor to a given iframe:
+ *   will-navigate, window-destroyed, changed-toplevel-document, window-ready, navigate
  *
  * This class is subclassed by BrowserTabActor and
  * ContentActor. Subclasses are expected to implement a getter
- * the docShell properties.
+ * for the docShell property.
  *
  * @param aConnection DebuggerServerConnection
  *        The conection to the client.
- * @param aChromeEventHandler
- *        An object on which listen for DOMWindowCreated and pageshow events.
  */
 function TabActor(aConnection)
 {
@@ -587,7 +725,15 @@ function TabActor(aConnection)
   // Used on b2g to catch activity frames and in chrome to list all frames
   this.listenForNewDocShells = Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT;
 
-  this.traits = { reconfigure: true, frames: true };
+  this.traits = {
+    reconfigure: true,
+    // Supports frame listing via `listFrames` request and `frameUpdate` events
+    // as well as frame switching via `switchToFrame` request
+    frames: true,
+    // Do not require to send reconfigure request to reset the document state
+    // to what it was before using the TabActor
+    noTabReconfigureOnClose: true
+  };
 
   this._workerActorList = null;
   this._workerActorPool = null;
@@ -832,7 +978,6 @@ TabActor.prototype = {
     });
 
     this._extraActors = null;
-    this._styleSheetActors.clear();
 
     this._exited = true;
   },
@@ -998,6 +1143,12 @@ TabActor.prototype = {
     //   http://hg.mozilla.org/mozilla-central/annotate/74d7fb43bb44/dom/ipc/TabChild.cpp#l944
     // So wait a tick before watching it:
     DevToolsUtils.executeSoon(() => {
+      // Bug 1142752: sometimes, the docshell appears to be immediately destroyed,
+      // bailout early to prevent random exceptions.
+      if (docShell.isBeingDestroyed()) {
+        return;
+      }
+
       // In child processes, we have new root docshells,
       // let's watch them and all their child docshells.
       if (this._isRootDocShell(docShell)) {
@@ -1084,10 +1235,24 @@ TabActor.prototype = {
     }
 
     if (webProgress.DOMWindow == this._originalWindow) {
-      // If for some reason (typically during Firefox shutdown), the original
-      // document is destroyed, we detach the tab actor to unregister all listeners
-      // and prevent any exception.
-      this.exit();
+      // If the original top level document we connected to is removed,
+      // we try to switch to any other top level document
+      let rootDocShells = this.docShells
+                              .filter(d => {
+                                return d != this.docShell &&
+                                       this._isRootDocShell(d);
+                              });
+      if (rootDocShells.length > 0) {
+        let newRoot = rootDocShells[0];
+        this._originalWindow = newRoot.DOMWindow;
+        this._changeTopLevelDocument(this._originalWindow);
+      } else {
+        // If for some reason (typically during Firefox shutdown), the original
+        // document is destroyed, and there is no other top level docshell,
+        // we detach the tab actor to unregister all listeners and prevent any
+        // exception
+        this.exit();
+      }
       return;
     }
 
@@ -1149,6 +1314,7 @@ TabActor.prototype = {
     // during Firefox shutdown.
     if (this.docShell) {
       this._progressListener.unwatch(this.docShell);
+      this._restoreDocumentSettings();
     }
     if (this._progressListener) {
       this._progressListener.destroy();
@@ -1165,6 +1331,10 @@ TabActor.prototype = {
     this._popContext();
 
     // Shut down actors that belong to this tab's pool.
+    for (let sheetActor of this._styleSheetActors.values()) {
+      this._tabPool.removeActor(sheetActor);
+    }
+    this._styleSheetActors.clear();
     this.conn.removeActorPool(this._tabPool);
     this._tabPool = null;
     if (this._tabActorPool) {
@@ -1239,14 +1409,19 @@ TabActor.prototype = {
   onReconfigure: function (aRequest) {
     let options = aRequest.options || {};
 
-    this._toggleDevtoolsSettings(options);
+    if (!this.docShell) {
+      // The tab is already closed.
+      return {};
+    }
+    this._toggleDevToolsSettings(options);
+
     return {};
   },
 
   /**
    * Handle logic to enable/disable JS/cache/Service Worker testing.
    */
-  _toggleDevtoolsSettings: function(options) {
+  _toggleDevToolsSettings: function(options) {
     // Wait a tick so that the response packet can be dispatched before the
     // subsequent navigation event packet.
     let reload = false;
@@ -1279,6 +1454,16 @@ TabActor.prototype = {
   },
 
   /**
+   * Opposite of the _toggleDevToolsSettings method, that reset document state
+   * when closing the toolbox.
+   */
+  _restoreDocumentSettings: function () {
+    this._restoreJavascript();
+    this._setCacheDisabled(false);
+    this._setServiceWorkersTestingEnabled(false);
+  },
+
+  /**
    * Disable or enable the cache via docShell.
    */
   _setCacheDisabled: function(disabled) {
@@ -1286,29 +1471,46 @@ TabActor.prototype = {
     let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
                   Ci.nsIRequest.INHIBIT_CACHING;
 
-    if (this.docShell) {
-      this.docShell.defaultLoadFlags = disabled ? disable : enable;
-    }
+    this.docShell.defaultLoadFlags = disabled ? disable : enable;
   },
 
   /**
    * Disable or enable JS via docShell.
    */
+  _wasJavascriptEnabled: null,
   _setJavascriptEnabled: function(allow) {
-    if (this.docShell) {
-      this.docShell.allowJavascript = allow;
+    if (this._wasJavascriptEnabled === null) {
+      this._wasJavascriptEnabled = this.docShell.allowJavascript;
     }
+    this.docShell.allowJavascript = allow;
+  },
+
+  /**
+   * Restore JS state, before the actor modified it.
+   */
+  _restoreJavascript: function () {
+    if (this._wasJavascriptEnabled !== null) {
+      this._setJavascriptEnabled(this._wasJavascriptEnabled);
+      this._wasJavascriptEnabled = null;
+    }
+  },
+
+  /**
+   * Return JS allowed status.
+   */
+  _getJavascriptEnabled: function() {
+    if (!this.docShell) {
+      // The tab is already closed.
+      return null;
+    }
+
+    return this.docShell.allowJavascript;
   },
 
   /**
    * Disable or enable the service workers testing features.
    */
   _setServiceWorkersTestingEnabled: function(enabled) {
-    if (!this.docShell) {
-      // The tab is already closed.
-      return null;
-    }
-
     let windowUtils = this.window.QueryInterface(Ci.nsIInterfaceRequestor)
                                  .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.serviceWorkersTestingEnabled = enabled;
@@ -1326,18 +1528,6 @@ TabActor.prototype = {
     let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
                   Ci.nsIRequest.INHIBIT_CACHING;
     return this.docShell.defaultLoadFlags === disable;
-  },
-
-  /**
-   * Return JS allowed status.
-   */
-  _getJavascriptEnabled: function() {
-    if (!this.docShell) {
-      // The tab is already closed.
-      return null;
-    }
-
-    return this.docShell.allowJavascript;
   },
 
   /**
@@ -1452,23 +1642,15 @@ TabActor.prototype = {
 
     // TODO bug 997119: move that code to ThreadActor by listening to window-ready
     let threadActor = this.threadActor;
-    if (isTopLevel) {
+    if (isTopLevel && threadActor.state != "detached") {
       this.sources.reset({ sourceMaps: true });
       threadActor.clearDebuggees();
-      if (threadActor.dbg) {
-        threadActor.dbg.enabled = true;
-        threadActor.maybePauseOnExceptions();
-      }
+      threadActor.dbg.enabled = true;
+      threadActor.maybePauseOnExceptions();
       // Update the global no matter if the debugger is on or off,
       // otherwise the global will be wrong when enabled later.
       threadActor.global = window;
     }
-
-    for (let sheetActor of this._styleSheetActors.values()) {
-      this._tabPool.removeActor(sheetActor);
-    }
-    this._styleSheetActors.clear();
-
 
     // Refresh the debuggee list when a new window object appears (top window or
     // iframe).
@@ -1533,7 +1715,7 @@ TabActor.prototype = {
     let threadActor = this.threadActor;
     if (request && threadActor.state == "paused") {
       request.suspend();
-      threadActor.onResume();
+      this.conn.send(threadActor.unsafeSynchronize(Promise.resolve(threadActor.onResume())));
       threadActor.dbg.enabled = false;
       this._pendingNavigation = request;
     }

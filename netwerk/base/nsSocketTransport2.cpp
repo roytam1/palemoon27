@@ -15,6 +15,7 @@
 #include "nsProxyInfo.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
+#include "ClosingService.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "plstr.h"
@@ -1213,6 +1214,9 @@ nsSocketTransport::InitiateSocket()
     bool isLocal;
     IsLocal(&isLocal);
 
+    if (gIOService->IsShutdown()) {
+        return NS_ERROR_ABORT;
+    }
     if (gIOService->IsOffline()) {
         if (!isLocal)
             return NS_ERROR_OFFLINE;
@@ -1310,6 +1314,9 @@ nsSocketTransport::InitiateSocket()
 
     // Attach network activity monitor
     mozilla::net::NetworkActivityMonitor::AttachIOLayer(fd);
+
+    // Attach closing service.
+    ClosingService::AttachIOLayer(fd);
 
     PRStatus status;
 
@@ -1915,7 +1922,8 @@ nsSocketTransport::OnSocketDetached(PRFileDesc *fd)
         }
     }
 
-    if (RecoverFromError())
+    // If we are not shutting down try again.
+    if (!gIOService->IsShutdown() && RecoverFromError())
         mCondition = NS_OK;
     else {
         mState = STATE_CLOSED;

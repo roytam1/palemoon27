@@ -18,7 +18,9 @@
 #include "nsCategoryCache.h"
 #include "nsISpeculativeConnect.h"
 #include "nsDataHashtable.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
+#include "prtime.h"
 #include "nsICaptivePortalService.h"
 
 #define NS_N(x) (sizeof(x)/sizeof(*x))
@@ -79,6 +81,7 @@ public:
                                     nsAsyncRedirectVerifyHelper *helper);
 
     bool IsOffline() { return mOffline; }
+    bool IsShutdown() { return mShutdown; }
     bool IsLinkUp();
 
     // Should only be called from NeckoChild. Use SetAppOffline instead.

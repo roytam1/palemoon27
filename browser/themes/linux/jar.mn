@@ -25,8 +25,6 @@ browser.jar:
 * skin/classic/browser/engineManager.css
   skin/classic/browser/Geolocation-16.png
   skin/classic/browser/Geolocation-64.png
-  skin/classic/browser/Push-16.png
-  skin/classic/browser/Push-64.png
   skin/classic/browser/Go-arrow.png
   skin/classic/browser/identity.png
   skin/classic/browser/imagedocument.png 
@@ -49,8 +47,6 @@ browser.jar:
   skin/classic/browser/bad-content-blocked-64.png
   skin/classic/browser/monitor.png
   skin/classic/browser/monitor_16-10.png
-  skin/classic/browser/notification-16.png
-  skin/classic/browser/notification-64.png
 * skin/classic/browser/pageInfo.css
   skin/classic/browser/pageInfo.png
   skin/classic/browser/page-livemarks.png

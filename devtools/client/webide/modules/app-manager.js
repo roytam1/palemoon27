@@ -532,6 +532,7 @@ var AppManager = exports.AppManager = {
     // Fx <39 exposes chrome tab actors on RootActor
     // Fx >=39 exposes a dedicated actor via getProcess request
     return this.connection.client &&
+           this.connection.client.mainRoot &&
            this.connection.client.mainRoot.traits.allowChromeProcess ||
            (this._listTabsResponse &&
             this._listTabsResponse.consoleActor);
@@ -658,7 +659,7 @@ var AppManager = exports.AppManager = {
 
       // Addons don't have any document to load (yet?)
       // So that there is no need to run them, installing is enough
-      if (project.manifest.role && project.manifest.role === "addon") {
+      if (project.manifest.manifest_version || project.manifest.role === "addon") {
         return;
       }
 

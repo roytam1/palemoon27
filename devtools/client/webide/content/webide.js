@@ -36,6 +36,8 @@ const HELP_URL = "https://developer.mozilla.org/docs/Tools/WebIDE/Troubleshootin
 const MAX_ZOOM = 1.4;
 const MIN_ZOOM = 0.6;
 
+const MS_PER_DAY = 86400000;
+
 // Download remote resources early
 getJSON("devtools.webide.addonsURL", true);
 getJSON("devtools.webide.templatesURL", true);
@@ -75,6 +77,16 @@ var UI = {
     projectList = new ProjectList(window, window);
     if (projectList.sidebarsEnabled) {
       ProjectPanel.toggleSidebar();
+
+      // TODO: Remove if/when dropdown layout is removed.
+      let toolbarNode = document.querySelector("#main-toolbar");
+      toolbarNode.classList.add("sidebar-layout");
+      let projectNode = document.querySelector("#project-panel-button");
+      projectNode.setAttribute("hidden", "true");
+      let runtimeNode = document.querySelector("#runtime-panel-button");
+      runtimeNode.setAttribute("hidden", "true");
+      let openAppNode = document.querySelector("#menuitem-show_projectPanel");
+      openAppNode.setAttribute("hidden", "true");
     }
     runtimeList = new RuntimeList(window, window);
     if (runtimeList.sidebarsEnabled) {
@@ -213,6 +225,9 @@ var UI = {
         this.updateCommands();
         break;
       case "runtime-global-actors":
+        // Check runtime version only on runtime-global-actors,
+        // as we expect to use device actor
+        this.checkRuntimeVersion();
         this.updateCommands();
         break;
       case "runtime-details":
@@ -457,12 +472,51 @@ var UI = {
       }
     }
 
+    // Runtime commands
+    let monitorCmd = document.querySelector("#cmd_showMonitor");
+    let screenshotCmd = document.querySelector("#cmd_takeScreenshot");
+    let permissionsCmd = document.querySelector("#cmd_showPermissionsTable");
+    let detailsCmd = document.querySelector("#cmd_showRuntimeDetails");
+    let disconnectCmd = document.querySelector("#cmd_disconnectRuntime");
+    let devicePrefsCmd = document.querySelector("#cmd_showDevicePrefs");
+    let settingsCmd = document.querySelector("#cmd_showSettings");
+
+    if (AppManager.connected) {
+      if (AppManager.deviceFront) {
+        monitorCmd.removeAttribute("disabled");
+        detailsCmd.removeAttribute("disabled");
+        permissionsCmd.removeAttribute("disabled");
+        screenshotCmd.removeAttribute("disabled");
+      }
+      if (AppManager.preferenceFront) {
+        devicePrefsCmd.removeAttribute("disabled");
+      }
+      if (AppManager.settingsFront) {
+        settingsCmd.removeAttribute("disabled");
+      }
+      disconnectCmd.removeAttribute("disabled");
+    } else {
+      monitorCmd.setAttribute("disabled", "true");
+      detailsCmd.setAttribute("disabled", "true");
+      permissionsCmd.setAttribute("disabled", "true");
+      screenshotCmd.setAttribute("disabled", "true");
+      disconnectCmd.setAttribute("disabled", "true");
+      devicePrefsCmd.setAttribute("disabled", "true");
+      settingsCmd.setAttribute("disabled", "true");
+    }
+
     let runtimePanelButton = document.querySelector("#runtime-panel-button");
 
     if (AppManager.connected) {
       runtimePanelButton.setAttribute("active", "true");
+      if (projectList.sidebarsEnabled) {
+        runtimePanelButton.removeAttribute("hidden");
+      }
     } else {
       runtimePanelButton.removeAttribute("active");
+      if (projectList.sidebarsEnabled) {
+        runtimePanelButton.setAttribute("hidden", "true");
+      }
     }
 
     projectPanelCmd.removeAttribute("disabled");
@@ -580,6 +634,7 @@ var UI = {
     if (!this._actionsToLog.has(action)) {
       return;
     }
+    this.logActionState(action, true);
     this._actionsToLog.delete(action);
   },
 
@@ -588,7 +643,16 @@ var UI = {
    * actions as having not occurred.
    */
   updateConnectionTelemetry: function() {
+    for (let action of this._actionsToLog.values()) {
+      this.logActionState(action, false);
+    }
     this._actionsToLog.clear();
+  },
+
+  logActionState: function(action, state) {
+    let histogramId = "DEVTOOLS_WEBIDE_CONNECTION_" +
+                      action.toUpperCase() + "_USED";
+    this._telemetry.log(histogramId, state);
   },
 
   /********** PROJECTS **********/
@@ -678,10 +742,6 @@ var UI = {
 
   isProjectEditorEnabled: function() {
     return Services.prefs.getBoolPref("devtools.webide.showProjectEditor");
-  },
-
-  isRuntimeConfigurationEnabled: function() {
-    return Services.prefs.getBoolPref("devtools.webide.enableRuntimeConfiguration");
   },
 
   openProject: function() {
@@ -896,6 +956,31 @@ var UI = {
     this.onChangeProjectEditorSelected();
   },
 
+  buildIDToDate(buildID) {
+    let fields = buildID.match(/(\d{4})(\d{2})(\d{2})/);
+    // Date expects 0 - 11 for months
+    return new Date(fields[1], Number.parseInt(fields[2]) - 1, fields[3]);
+  },
+
+  checkRuntimeVersion: Task.async(function* () {
+    if (AppManager.connected && AppManager.deviceFront) {
+      let desc = yield AppManager.deviceFront.getDescription();
+      // Compare device and firefox build IDs
+      // and only compare by day (strip hours/minutes) to prevent
+      // warning against builds of the same day.
+      let deviceID = desc.appbuildid.substr(0, 8);
+      let localID = Services.appinfo.appBuildID.substr(0, 8);
+      let deviceDate = this.buildIDToDate(deviceID);
+      let localDate = this.buildIDToDate(localID);
+      // Allow device to be newer by up to a week.  This accommodates those with
+      // local device builds, since their devices will almost always be newer
+      // than the client.
+      if (deviceDate - localDate > 7 * MS_PER_DAY) {
+        this.reportError("error_runtimeVersionTooRecent", deviceID, localID);
+      }
+    }
+  }),
+
   /********** TOOLBOX **********/
 
   onMessage: function(event) {
@@ -973,6 +1058,10 @@ var UI = {
   },
 
   updateToolboxFullscreenState: function() {
+    if (projectList.sidebarsEnabled) {
+      return;
+    }
+
     let panel = document.querySelector("#deck").selectedPanel;
     let nbox = document.querySelector("#notificationbox");
     if (panel && panel.id == "deck-panel-details" &&
@@ -1046,14 +1135,9 @@ var Cmds = {
       ProjectPanel.showPopup();
     }
 
-    // There are currently no available events to listen for when an unselected
-    // tab navigates.  Since we show every tab's location in the project menu,
-    // we re-list all the tabs each time the menu is displayed.
-    // TODO: An event-based solution will be needed for the sidebar UI.
+    // TODO: Remove this check if/when we remove the dropdown view.
     if (!projectList.sidebarsEnabled && AppManager.connected) {
-      return AppManager.listTabs().then(() => {
-        projectList.updateTabs();
-      }).catch(console.error);
+      projectList.refreshTabs();
     }
 
     return promise.resolve();

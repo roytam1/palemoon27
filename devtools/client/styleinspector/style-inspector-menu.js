@@ -239,13 +239,13 @@ StyleInspectorMenu.prototype = {
    * node and selection in the rule view.
    */
   _updateCopyMenuItems: function() {
-    this.menuitemCopy.hidden = !this._hasTextSelected();
+    this.menuitemCopy.disabled = !this._hasTextSelected();
+
     this.menuitemCopyColor.hidden = !this._isColorPopup();
     this.menuitemCopyImageDataUrl.hidden = !this._isImageUrl();
     this.menuitemCopyUrl.hidden = !this._isImageUrl();
     this.menuitemCopyRule.hidden = !this.isRuleView;
 
-    this.menuitemCopyRule.hidden = true;
     this.menuitemCopyLocation.hidden = true;
     this.menuitemCopyPropertyDeclaration.hidden = true;
     this.menuitemCopyPropertyName.hidden = true;
@@ -254,8 +254,6 @@ StyleInspectorMenu.prototype = {
 
     this._clickedNodeInfo = this._getClickedNodeInfo();
     if (this.isRuleView && this._clickedNodeInfo) {
-      this.menuitemCopyRule.hidden = false;
-
       switch (this._clickedNodeInfo.type) {
         case overlays.VIEW_NODE_PROPERTY_TYPE :
           this.menuitemCopyPropertyDeclaration.hidden = false;
@@ -394,6 +392,10 @@ StyleInspectorMenu.prototype = {
    * Retrieve the url for the selected image and copy it to the clipboard
    */
   _onCopyUrl: function() {
+    if (!this._clickedNodeInfo) {
+      return;
+    }
+
     clipboardHelper.copyString(this._clickedNodeInfo.value.url);
   },
 

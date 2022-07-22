@@ -76,55 +76,30 @@ var StyleSheetsActor = exports.StyleSheetsActor = protocol.ActorClass({
    * Protocol method for getting a list of StyleSheetActors representing
    * all the style sheets in this document.
    */
-  getStyleSheets: method(function() {
-    let deferred = promise.defer();
+  getStyleSheets: method(Task.async(function* () {
+    // Iframe document can change during load (bug 1171919). Track their windows
+    // instead.
+    let windows = [this.window];
+    let actors = [];
 
-    let window = this.window;
-    var domReady = () => {
-      window.removeEventListener("DOMContentLoaded", domReady, true);
-      this._addAllStyleSheets().then(deferred.resolve, Cu.reportError);
-    };
+    for (let win of windows) {
+      let sheets = yield this._addStyleSheets(win);
+      actors = actors.concat(sheets);
 
-    if (window.document.readyState === "loading") {
-      window.addEventListener("DOMContentLoaded", domReady, true);
-    } else {
-      domReady();
+      // Recursively handle style sheets of the documents in iframes.
+      for (let iframe of win.document.querySelectorAll("iframe, browser, frame")) {
+        if (iframe.contentDocument && iframe.contentWindow) {
+          // Sometimes, iframes don't have any document, like the
+          // one that are over deeply nested (bug 285395)
+          windows.push(iframe.contentWindow);
+        }
+      }
     }
-
-    return deferred.promise;
-  }, {
+    return actors;
+  }), {
     request: {},
     response: { styleSheets: RetVal("array:stylesheet") }
   }),
-
-  /**
-   * Add all the stylesheets in this document and its subframes.
-   * Assumes the document is loaded.
-   *
-   * @return {Promise}
-   *         Promise that resolves with an array of StyleSheetActors
-   */
-  _addAllStyleSheets: function() {
-    return Task.spawn(function*() {
-      let documents = [this.document];
-      let actors = [];
-
-      for (let doc of documents) {
-        let sheets = yield this._addStyleSheets(doc);
-        actors = actors.concat(sheets);
-
-        // Recursively handle style sheets of the documents in iframes.
-        for (let iframe of doc.querySelectorAll("iframe, browser, frame")) {
-          if (iframe.contentDocument) {
-            // Sometimes, iframes don't have any document, like the
-            // one that are over deeply nested (bug 285395)
-            documents.push(iframe.contentDocument);
-          }
-        }
-      }
-      return actors;
-    }.bind(this));
-  },
 
   /**
    * Check if we should be showing this stylesheet.
@@ -149,18 +124,31 @@ var StyleSheetsActor = exports.StyleSheetsActor = protocol.ActorClass({
   },
 
   /**
-   * Add all the stylesheets for this document to the map and create an actor
-   * for each one if not already created.
+   * Add all the stylesheets for the document in this window to the map and
+   * create an actor for each one if not already created.
    *
-   * @param {Document} doc
-   *        Document for which to add stylesheets
+   * @param {Window} win
+   *        Window for which to add stylesheets
    *
    * @return {Promise}
    *         Promise that resolves to an array of StyleSheetActors
    */
- _addStyleSheets: function(doc)
+  _addStyleSheets: function(win)
   {
     return Task.spawn(function*() {
+      let doc = win.document;
+      // readyState can be uninitialized if an iframe has just been created but
+      // it has not started to load yet.
+      if (doc.readyState === "loading" || doc.readyState === "uninitialized") {
+        // Wait for the document to load first.
+        yield listenOnce(win, "DOMContentLoaded", true);
+
+        // Make sure we have the actual document for this window. If the
+        // readyState was initially uninitialized, the initial dummy document
+        // was replaced with the actual document (bug 1171919).
+        doc = win.document;
+      }
+
       let isChrome = Services.scriptSecurityManager.isSystemPrincipal(doc.nodePrincipal);
       let styleSheets = isChrome ? DOMUtils.getAllStyleSheets(doc) : doc.styleSheets;
       let actors = [];
@@ -943,53 +931,6 @@ var StyleSheetActor = protocol.ActorClass({
     events.emit(this, "style-applied");
   }
 })
-
-/**
- * Find the line/column for a rule.
- * This is like DOMUtils.getRule[Line|Column] except for inline <style> sheets,
- * the line number returned here is relative to the <style> tag rather than the
- * containing HTML document (which is what DOMUtils does).
- * This is hacky, but we don't know of a better implementation right now.
- */
-const getRuleLocation = exports.getRuleLocation = function(rule) {
-  let reply = {
-    line: DOMUtils.getRuleLine(rule),
-    column: DOMUtils.getRuleColumn(rule)
-  };
-
-  let sheet = rule.parentStyleSheet;
-  if (sheet.ownerNode && sheet.ownerNode.localName === "style") {
-     // For inline sheets, the line is relative to HTML not the stylesheet, so
-     // Get the location of the first { to know the line num of the first rule,
-     // relative to this sheet, to get the offset
-     let text = sheet.ownerNode.textContent;
-     // Hacky for now, because this will fail if { appears in a comment before
-     // but better than nothing, and faster than parsing the whole text
-     let start = text.substring(0, text.indexOf("{"));
-     let relativeStartLine = start.split("\n").length;
-
-     let absoluteStartLine;
-     let i = 0;
-     while (absoluteStartLine == null) {
-       let irule = sheet.cssRules[i];
-       if (irule instanceof Ci.nsIDOMCSSStyleRule) {
-         absoluteStartLine = DOMUtils.getRuleLine(irule);
-       }
-       else if (irule == null) {
-         break;
-       }
-
-       i++;
-     }
-
-     if (absoluteStartLine != null) {
-       let offset = absoluteStartLine - relativeStartLine;
-       reply.line -= offset;
-     }
-  }
-
-  return reply;
-};
 
 /**
  * StyleSheetFront is the client-side counterpart to a StyleSheetActor.

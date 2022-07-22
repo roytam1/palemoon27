@@ -30,6 +30,7 @@ const {
   throttle
 } = require("devtools/client/styleinspector/utils");
 const {
+  escapeCSSComment,
   parseDeclarations,
   parseSingleValue,
   parsePseudoClassesAndAttributes,
@@ -378,7 +379,9 @@ ElementStyle.prototype = {
       let overridden;
       if (earlier &&
           computedProp.priority === "important" &&
-          earlier.priority !== "important") {
+          earlier.priority !== "important" &&
+          (earlier.textProp.rule.inherited ||
+           !computedProp.textProp.rule.inherited)) {
         // New property is higher priority.  Mark the earlier property
         // overridden (which will reverse its dirty state).
         earlier._overriddenDirty = !earlier._overriddenDirty;
@@ -1119,7 +1122,7 @@ TextProperty.prototype = {
 
     // Comment out property declarations that are not enabled
     if (!this.enabled) {
-      declaration = "/* " + declaration + " */";
+      declaration = "/* " + escapeCSSComment(declaration) + " */";
     }
 
     return declaration;

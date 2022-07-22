@@ -10,7 +10,7 @@ const {Connection} = require("devtools/shared/client/connection-manager");
 const {RuntimeTypes} = require("devtools/client/webide/modules/runtimes");
 const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
 
-const UNRESTRICTED_HELP_URL = "https://developer.mozilla.org/docs/Tools/WebIDE#Unrestricted_app_debugging_%28including_certified_apps.2C_main_process.2C_etc.%29";
+const UNRESTRICTED_HELP_URL = "https://developer.mozilla.org/docs/Tools/WebIDE/Running_and_debugging_apps#Unrestricted_app_debugging_%28including_certified_apps_main_process_etc.%29";
 
 window.addEventListener("load", function onLoad() {
   window.removeEventListener("load", onLoad);
@@ -55,7 +55,7 @@ function generateFields(json) {
   };
 }
 
-let getDescriptionPromise; // Used by tests
+var getDescriptionPromise; // Used by tests
 function BuildUI() {
   let table = document.querySelector("table");
   table.innerHTML = "";
@@ -125,7 +125,7 @@ function CheckLockState() {
       }, e => console.error(e));
     } catch(e) {
       // Exception. pref actor is only accessible if forbird-certified-apps is false
-      devtoolsCheckResult.textContent = sYes;
+      devtoolsCheckResult.textContent = sNo;
       flipCertPerfAction.removeAttribute("hidden");
     }
 
@@ -135,10 +135,14 @@ function CheckLockState() {
 
 function EnableCertApps() {
   let device = AppManager.selectedRuntime.device;
+  // TODO: Remove `network.disable.ipc.security` once bug 1125916 is fixed.
   device.shell(
     "stop b2g && " +
     "cd /data/b2g/mozilla/*.default/ && " +
     "echo 'user_pref(\"devtools.debugger.forbid-certified-apps\", false);' >> prefs.js && " +
+    "echo 'user_pref(\"dom.apps.developer_mode\", true);' >> prefs.js && " +
+    "echo 'user_pref(\"network.disable.ipc.security\", true);' >> prefs.js && " +
+    "echo 'user_pref(\"dom.webcomponents.enabled\", true);' >> prefs.js && " +
     "start b2g"
   );
 }

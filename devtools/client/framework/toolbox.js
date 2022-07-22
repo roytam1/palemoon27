@@ -92,7 +92,8 @@ const ToolboxButtons = exports.ToolboxButtons = [
   { id: "command-button-scratchpad" },
   { id: "command-button-eyedropper" },
   { id: "command-button-screenshot" },
-  { id: "command-button-rulers"}
+  { id: "command-button-rulers" },
+  { id: "command-button-measure" }
 ];
 
 /**
@@ -514,6 +515,11 @@ Toolbox.prototype = {
 
     let toggleKey = this.doc.getElementById("toolbox-toggle-host-key");
     toggleKey.addEventListener("command", this.switchToPreviousHost.bind(this), true);
+
+    if (Services.prefs.prefHasUserValue("devtools.loader.srcdir")) {
+      let reloadKey = this.doc.getElementById("tools-reload-key");
+      reloadKey.addEventListener("command", this.reload.bind(this), true);
+    }
 
     // Split console uses keypress instead of command so the event can be
     // cancelled with stopPropagation on the keypress, and not preventDefault.
@@ -1493,10 +1499,8 @@ Toolbox.prototype = {
       toolName = toolboxStrings("toolbox.defaultTitle");
     }
     let title = toolboxStrings("toolbox.titleTemplate",
-                               toolName,
-                               this.target.isAddon ?
-                               this.target.name :
-                               this.target.url || this.target.name);
+                               toolName, this.target.name ||
+                                         this.target.url);
     this._host.setTitle(title);
   },
 
@@ -1613,6 +1617,11 @@ Toolbox.prototype = {
     let newHost = new Hosts[hostType](this.target.tab, options);
     newHost.on("window-closed", this.destroy);
     return newHost;
+  },
+
+  reload: function () {
+    const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
+    devtools.reload(true);
   },
 
   /**

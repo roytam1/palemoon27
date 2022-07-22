@@ -16,6 +16,14 @@
   padding: 0 12px;
 }
 
+/*
+ * Hide dropdown anchor when we switch to the sidebar layout.
+ * TODO: Remove if/when we remove the dropdown layout permanently.
+ */
+#main-toolbar.sidebar-layout .panel-button-anchor {
+  display: none;
+}
+
 #action-buttons-container {
   -moz-box-pack: center;
   height: 50px;
@@ -154,8 +162,12 @@ panel > .panel-arrowcontainer > .panel-arrowcontent {
 .panel-list {
   display: none;
   position: relative;
-  max-width: 250px;
+  max-width: 180px;
   overflow: hidden;
+}
+
+#project-listing-panel.panel-list {
+  max-width: 165px;
 }
 
 .panel-list-wrapper {
@@ -324,7 +336,7 @@ panel > .panel-arrowcontainer > .panel-arrowcontent {
 
 #deck {
   background-color: rgb(225, 225, 225);
-  background-image: url('chrome://global/skin/devtools/app-manager/rocket.svg'), url('chrome://browser/skin/devtools/app-manager/noise.png');
+  background-image: url('chrome://devtools/skin/themes/app-manager/images/rocket.svg'), url('chrome://devtools/skin/themes/app-manager/images/noise.png');
   background-repeat: no-repeat, repeat;
   background-size: 35%, auto;
   background-position: center center, top left;
@@ -340,11 +352,13 @@ panel > .panel-arrowcontainer > .panel-arrowcontent {
 
 /* Toolbox */
 
-#notificationbox[toolboxfullscreen] > .devtools-horizontal-splitter,
-#notificationbox[toolboxfullscreen] > #deck,
-#notificationbox[toolboxfullscreen] > #deck > iframe {
+#notificationbox[toolboxfullscreen] > .devtools-horizontal-splitter {
   min-height: 0;
   max-height: 0;
+}
+
+#notificationbox[toolboxfullscreen] > #deck-panels {
+  display: none;
 }
 
 #notificationbox[toolboxfullscreen] > #toolbox {

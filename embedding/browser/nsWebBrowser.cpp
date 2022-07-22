@@ -1683,7 +1683,7 @@ static void
 DrawPaintedLayer(PaintedLayer* aLayer,
                  gfxContext* aContext,
                  const nsIntRegion& aRegionToDraw,
-                 const nsIntRegion* aDirtyRegion,
+                 const nsIntRegion& aDirtyRegion,
                  DrawRegionClip aClip,
                  const nsIntRegion& aRegionToInvalidate,
                  void* aCallbackData)

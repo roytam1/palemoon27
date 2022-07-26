@@ -5112,6 +5112,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
       case NS_ERROR_INTERCEPTED_USED_RESPONSE:
       case NS_ERROR_CLIENT_REQUEST_OPAQUE_INTERCEPTION:
       case NS_ERROR_BAD_OPAQUE_REDIRECT_INTERCEPTION:
+      case NS_ERROR_INTERCEPTION_CANCELED:
         // ServiceWorker intercepted request, but something went wrong.
         nsContentUtils::MaybeReportInterceptionErrorToConsole(GetDocument(),
                                                               aError);
@@ -7796,6 +7797,7 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
                aStatus == NS_ERROR_INTERCEPTED_ERROR_RESPONSE ||
                aStatus == NS_ERROR_INTERCEPTED_USED_RESPONSE ||
                aStatus == NS_ERROR_CLIENT_REQUEST_OPAQUE_INTERCEPTION ||
+               aStatus == NS_ERROR_INTERCEPTION_CANCELED ||
                NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
       // Errors to be shown for any frame
       DisplayLoadError(aStatus, url, nullptr, aChannel);
@@ -9552,17 +9554,7 @@ nsresult
 nsDocShell::CreatePrincipalFromReferrer(nsIURI* aReferrer,
                                         nsIPrincipal** aResult)
 {
-  nsresult rv;
-
-  uint32_t appId;
-  rv = GetAppId(&appId);
-  NS_ENSURE_SUCCESS(rv, rv);
-  bool isInBrowserElement;
-  rv = GetIsInBrowserElement(&isInBrowserElement);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // TODO: Bug 1165466 - Pass mOriginAttributes directly.
-  OriginAttributes attrs(appId, isInBrowserElement);
+  OriginAttributes attrs = GetOriginAttributes();
   nsCOMPtr<nsIPrincipal> prin =
     BasePrincipal::CreateCodebasePrincipal(aReferrer, attrs);
   prin.forget(aResult);
@@ -13996,6 +13988,38 @@ nsDocShell::GetAppId(uint32_t* aAppId)
   }
 
   return parent->GetAppId(aAppId);
+}
+
+OriginAttributes
+nsDocShell::GetOriginAttributes()
+{
+  OriginAttributes attrs;
+  nsRefPtr<nsDocShell> parent = GetParentDocshell();
+  if (parent) {
+    attrs.InheritFromDocShellParent(parent->GetOriginAttributes());
+  }
+
+  if (mOwnOrContainingAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID) {
+    attrs.mAppId = mOwnOrContainingAppId;
+  }
+
+  if (mFrameType == eFrameTypeBrowser) {
+    attrs.mInBrowser = true;
+  }
+
+  return attrs;
+}
+
+NS_IMETHODIMP
+nsDocShell::GetOriginAttributes(JS::MutableHandle<JS::Value> aVal)
+{
+  JSContext* cx = nsContentUtils::GetCurrentJSContext();
+  MOZ_ASSERT(cx);
+
+  OriginAttributes attrs = GetOriginAttributes();
+  bool ok = ToJSValue(cx, attrs, aVal);
+  NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

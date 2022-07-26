@@ -34,6 +34,7 @@
 #include "mozilla/dom/IDBMutableFileBinding.h"
 #include "mozilla/dom/BlobBinding.h"
 #include "mozilla/dom/IDBObjectStoreBinding.h"
+#include "mozilla/dom/StructuredCloneHelper.h"
 #include "mozilla/dom/StructuredCloneTags.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBSharedTypes.h"
 #include "mozilla/dom/ipc/BlobChild.h"
@@ -365,14 +366,7 @@ StructuredCloneWriteCallback(JSContext* aCx,
     }
   }
 
-  // Try using the runtime callbacks
-  const JSStructuredCloneCallbacks* runtimeCallbacks =
-    js::GetContextStructuredCloneCallbacks(aCx);
-  if (runtimeCallbacks) {
-    return runtimeCallbacks->write(aCx, aWriter, aObj, nullptr);
-  }
-
-  return false;
+  return StructuredCloneHelper::WriteFullySerializableObjects(aCx, aWriter, aObj);
 }
 
 nsresult
@@ -834,14 +828,8 @@ CommonStructuredCloneReadCallback(JSContext* aCx,
     return result;
   }
 
-  const JSStructuredCloneCallbacks* runtimeCallbacks =
-    js::GetContextStructuredCloneCallbacks(aCx);
-
-  if (runtimeCallbacks) {
-    return runtimeCallbacks->read(aCx, aReader, aTag, aData, nullptr);
-  }
-
-  return nullptr;
+  return StructuredCloneHelper::ReadFullySerializableObjects(aCx, aReader,
+                                                             aTag, aData);
 }
 
 // static
@@ -904,11 +892,16 @@ IDBObjectStore::AppendIndexUpdateInfo(
                                     const KeyPath& aKeyPath,
                                     bool aUnique,
                                     bool aMultiEntry,
+                                    const nsCString& aLocale,
                                     JSContext* aCx,
                                     JS::Handle<JS::Value> aVal,
                                     nsTArray<IndexUpdateInfo>& aUpdateInfoArray)
 {
   nsresult rv;
+
+#ifdef ENABLE_INTL_API
+  const bool localeAware = !aLocale.IsEmpty();
+#endif
 
   if (!aMultiEntry) {
     Key key;
@@ -926,6 +919,14 @@ IDBObjectStore::AppendIndexUpdateInfo(
     IndexUpdateInfo* updateInfo = aUpdateInfoArray.AppendElement();
     updateInfo->indexId() = aIndexID;
     updateInfo->value() = key;
+#ifdef ENABLE_INTL_API
+    if (localeAware) {
+      rv = key.ToLocaleBasedKey(updateInfo->localizedValue(), aLocale);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      }
+    }
+#endif
 
     return NS_OK;
   }
@@ -965,6 +966,14 @@ IDBObjectStore::AppendIndexUpdateInfo(
       IndexUpdateInfo* updateInfo = aUpdateInfoArray.AppendElement();
       updateInfo->indexId() = aIndexID;
       updateInfo->value() = value;
+#ifdef ENABLE_INTL_API
+      if (localeAware) {
+        rv = value.ToLocaleBasedKey(updateInfo->localizedValue(), aLocale);
+        if (NS_WARN_IF(NS_FAILED(rv))) {
+          return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+        }
+      }
+#endif
     }
   }
   else {
@@ -978,6 +987,14 @@ IDBObjectStore::AppendIndexUpdateInfo(
     IndexUpdateInfo* updateInfo = aUpdateInfoArray.AppendElement();
     updateInfo->indexId() = aIndexID;
     updateInfo->value() = value;
+#ifdef ENABLE_INTL_API
+    if (localeAware) {
+      rv = value.ToLocaleBasedKey(updateInfo->localizedValue(), aLocale);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      }
+    }
+#endif
   }
 
   return NS_OK;
@@ -1122,25 +1139,20 @@ IDBObjectStore::GetAddInfo(JSContext* aCx,
   }
 
   // Figure out indexes and the index values to update here.
-  /* XXX we have no Clone here, 
-  if (mSpec->indexes().Length() && !aValue.Clone(aCx)) {
-     return NS_ERROR_DOM_DATA_CLONE_ERR;
-  } */
-  {
-    const nsTArray<IndexMetadata>& indexes = mSpec->indexes();
+  const nsTArray<IndexMetadata>& indexes = mSpec->indexes();
 
-    const uint32_t idxCount = indexes.Length();
-    aUpdateInfoArray.SetCapacity(idxCount); // Pretty good estimate
+  const uint32_t idxCount = indexes.Length();
+  aUpdateInfoArray.SetCapacity(idxCount); // Pretty good estimate
 
-    for (uint32_t idxIndex = 0; idxIndex < idxCount; idxIndex++) {
-      const IndexMetadata& metadata = indexes[idxIndex];
+  for (uint32_t idxIndex = 0; idxIndex < idxCount; idxIndex++) {
+    const IndexMetadata& metadata = indexes[idxIndex];
 
-      rv = AppendIndexUpdateInfo(metadata.id(), metadata.keyPath(),
-                               metadata.unique(), metadata.multiEntry(), aCx,
-                               aValue, aUpdateInfoArray);
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-        return rv;
-      }
+    rv = AppendIndexUpdateInfo(metadata.id(), metadata.keyPath(),
+                               metadata.unique(), metadata.multiEntry(),
+                               metadata.locale(), aCx, aValue,
+                               aUpdateInfoArray);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
     }
   }
 
@@ -1794,10 +1806,24 @@ IDBObjectStore::CreateIndexInternal(
   const IndexMetadata* oldMetadataElements =
     indexes.IsEmpty() ? nullptr : indexes.Elements();
 
+  // With this setup we only validate the passed in locale name by the time we
+  // get to encoding Keys. Maybe we should do it here right away and error out.
+
+  // Valid locale names are always ASCII as per BCP-47.
+  nsCString locale = NS_LossyConvertUTF16toASCII(aOptionalParameters.mLocale);
+  bool autoLocale = locale.EqualsASCII("auto");
+#ifdef ENABLE_INTL_API
+  if (autoLocale) {
+    locale = IndexedDatabaseManager::GetLocale();
+  }
+#endif
+
   IndexMetadata* metadata = indexes.AppendElement(
     IndexMetadata(transaction->NextIndexId(), nsString(aName), aKeyPath,
+                  locale,
                   aOptionalParameters.mUnique,
-                  aOptionalParameters.mMultiEntry));
+                  aOptionalParameters.mMultiEntry,
+                  autoLocale));
 
   if (oldMetadataElements &&
       oldMetadataElements != indexes.Elements()) {

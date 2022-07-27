@@ -6,15 +6,18 @@
 
 #include "ServiceWorkerEvents.h"
 #include "ServiceWorkerClient.h"
+#include "ServiceWorkerManager.h"
 
 #include "nsIHttpChannelInternal.h"
 #include "nsINetworkInterceptController.h"
 #include "nsIOutputStream.h"
+#include "nsContentPolicyUtils.h"
 #include "nsContentUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStreamUtils.h"
 #include "nsNetCID.h"
+#include "nsNetUtil.h"
 #include "nsSerializationHelper.h"
 #include "nsQueryObject.h"
 
@@ -31,6 +34,22 @@
 using namespace mozilla::dom;
 
 BEGIN_WORKERS_NAMESPACE
+
+CancelChannelRunnable::CancelChannelRunnable(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                                             nsresult aStatus)
+  : mChannel(aChannel)
+  , mStatus(aStatus)
+{
+}
+
+NS_IMETHODIMP
+CancelChannelRunnable::Run()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  nsresult rv = mChannel->Cancel(mStatus);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
+}
 
 FetchEvent::FetchEvent(EventTarget* aOwner)
 : Event(aOwner, nullptr, nullptr)
@@ -76,37 +95,20 @@ FetchEvent::Constructor(const GlobalObject& aGlobal,
 
 namespace {
 
-class CancelChannelRunnable final : public nsRunnable
-{
-  nsMainThreadPtrHandle<nsIInterceptedChannel> mChannel;
-  const nsresult mStatus;
-public:
-  CancelChannelRunnable(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
-                        nsresult aStatus)
-    : mChannel(aChannel)
-    , mStatus(aStatus)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    nsresult rv = mChannel->Cancel(mStatus);
-    NS_ENSURE_SUCCESS(rv, rv);
-    return NS_OK;
-  }
-};
-
 class FinishResponse final : public nsRunnable
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mChannel;
+  nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
   nsRefPtr<InternalResponse> mInternalResponse;
   ChannelInfo mWorkerChannelInfo;
+
 public:
   FinishResponse(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                 nsMainThreadPtrHandle<ServiceWorker> aServiceWorker,
                  InternalResponse* aInternalResponse,
                  const ChannelInfo& aWorkerChannelInfo)
     : mChannel(aChannel)
+    , mServiceWorker(aServiceWorker)
     , mInternalResponse(aInternalResponse)
     , mWorkerChannelInfo(aWorkerChannelInfo)
   {
@@ -116,6 +118,11 @@ public:
   Run()
   {
     AssertIsOnMainThread();
+
+    if (!CSPPermitsResponse()) {
+      mChannel->Cancel(NS_ERROR_CONTENT_BLOCKED);
+      return NS_OK;
+    }
 
     ChannelInfo channelInfo;
     if (mInternalResponse->GetChannelInfo().IsInitialized()) {
@@ -142,6 +149,34 @@ public:
     rv = mChannel->FinishSynthesizedResponse();
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to finish synthesized response");
     return rv;
+  }
+
+  bool CSPPermitsResponse()
+  {
+    AssertIsOnMainThread();
+
+    nsresult rv;
+    nsCOMPtr<nsIURI> uri;
+    nsAutoCString url;
+    mInternalResponse->GetUnfilteredUrl(url);
+    if (url.IsEmpty()) {
+      // Synthetic response. The buck stops at the worker script.
+      url = mServiceWorker->Info()->ScriptSpec();
+    }
+    rv = NS_NewURI(getter_AddRefs(uri), url, nullptr, nullptr);
+    NS_ENSURE_SUCCESS(rv, false);
+
+    nsCOMPtr<nsIChannel> underlyingChannel;
+    rv = mChannel->GetChannel(getter_AddRefs(underlyingChannel));
+    NS_ENSURE_SUCCESS(rv, false);
+    NS_ENSURE_TRUE(underlyingChannel, false);
+    nsCOMPtr<nsILoadInfo> loadInfo = underlyingChannel->GetLoadInfo();
+
+    int16_t decision = nsIContentPolicy::ACCEPT;
+    rv = NS_CheckContentLoadPolicy(loadInfo->InternalContentPolicyType(), uri, loadInfo->LoadingPrincipal(),
+                                   loadInfo->LoadingNode(), EmptyCString(), nullptr, &decision);
+    NS_ENSURE_SUCCESS(rv, false);
+    return decision == nsIContentPolicy::ACCEPT;
   }
 };
 
@@ -179,13 +214,16 @@ private:
 struct RespondWithClosure
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mInterceptedChannel;
+  nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
   nsRefPtr<InternalResponse> mInternalResponse;
   ChannelInfo mWorkerChannelInfo;
 
   RespondWithClosure(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                     nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker,
                      InternalResponse* aInternalResponse,
                      const ChannelInfo& aWorkerChannelInfo)
     : mInterceptedChannel(aChannel)
+    , mServiceWorker(aServiceWorker)
     , mInternalResponse(aInternalResponse)
     , mWorkerChannelInfo(aWorkerChannelInfo)
   {
@@ -198,6 +236,7 @@ void RespondWithCopyComplete(void* aClosure, nsresult aStatus)
   nsCOMPtr<nsIRunnable> event;
   if (NS_SUCCEEDED(aStatus)) {
     event = new FinishResponse(data->mInterceptedChannel,
+                               data->mServiceWorker,
                                data->mInternalResponse,
                                data->mWorkerChannelInfo);
   } else {
@@ -302,7 +341,7 @@ RespondWithHandler::ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValu
   }
 
   nsAutoPtr<RespondWithClosure> closure(
-      new RespondWithClosure(mInterceptedChannel, ir, worker->GetChannelInfo()));
+      new RespondWithClosure(mInterceptedChannel, mServiceWorker, ir, worker->GetChannelInfo()));
   nsCOMPtr<nsIInputStream> body;
   ir->GetUnfilteredBody(getter_AddRefs(body));
   // Errors and redirects may not have a body.
@@ -399,14 +438,34 @@ ExtendableEvent::ExtendableEvent(EventTarget* aOwner)
 }
 
 void
-ExtendableEvent::WaitUntil(Promise& aPromise)
+ExtendableEvent::WaitUntil(Promise& aPromise, ErrorResult& aRv)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  // Only first caller counts.
-  if (EventPhase() == AT_TARGET && !mPromise) {
-    mPromise = &aPromise;
+  if (EventPhase() == nsIDOMEvent::NONE) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+    return;
   }
+
+  mPromises.AppendElement(&aPromise);
+}
+
+already_AddRefed<Promise>
+ExtendableEvent::GetPromise()
+{
+  WorkerPrivate* worker = GetCurrentThreadWorkerPrivate();
+  MOZ_ASSERT(worker);
+  worker->AssertIsOnWorkerThread();
+
+  GlobalObject global(worker->GetJSContext(), worker->GlobalScope()->GetGlobalJSObject());
+
+  ErrorResult result;
+  nsRefPtr<Promise> p = Promise::All(global, Move(mPromises), result);
+  if (NS_WARN_IF(result.Failed())) {
+    return nullptr;
+  }
+
+  return p.forget();
 }
 
 NS_IMPL_ADDREF_INHERITED(ExtendableEvent, Event)
@@ -415,7 +474,7 @@ NS_IMPL_RELEASE_INHERITED(ExtendableEvent, Event)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(ExtendableEvent)
 NS_INTERFACE_MAP_END_INHERITING(Event)
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED(ExtendableEvent, Event, mPromise)
+NS_IMPL_CYCLE_COLLECTION_INHERITED(ExtendableEvent, Event, mPromises)
 
 #ifndef MOZ_SIMPLEPUSH
 
@@ -470,12 +529,6 @@ PushEvent::PushEvent(EventTarget* aOwner)
   : ExtendableEvent(aOwner)
 {
 }
-
-NS_INTERFACE_MAP_BEGIN(PushEvent)
-NS_INTERFACE_MAP_END_INHERITING(ExtendableEvent)
-
-NS_IMPL_ADDREF_INHERITED(PushEvent, ExtendableEvent)
-NS_IMPL_RELEASE_INHERITED(PushEvent, ExtendableEvent)
 
 #endif /* ! MOZ_SIMPLEPUSH */
 

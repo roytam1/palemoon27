@@ -36,6 +36,17 @@ BEGIN_WORKERS_NAMESPACE
 
 class ServiceWorkerClient;
 
+class CancelChannelRunnable final : public nsRunnable
+{
+  nsMainThreadPtrHandle<nsIInterceptedChannel> mChannel;
+  const nsresult mStatus;
+public:
+  CancelChannelRunnable(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
+                        nsresult aStatus);
+
+  NS_IMETHOD Run() override;
+};
+
 class FetchEvent final : public Event
 {
   nsMainThreadPtrHandle<nsIInterceptedChannel> mChannel;
@@ -102,7 +113,7 @@ public:
 
 class ExtendableEvent : public Event
 {
-  nsRefPtr<Promise> mPromise;
+  nsTArray<nsRefPtr<Promise>> mPromises;
 
 protected:
   explicit ExtendableEvent(mozilla::dom::EventTarget* aOwner);
@@ -141,14 +152,10 @@ public:
   }
 
   void
-  WaitUntil(Promise& aPromise);
+  WaitUntil(Promise& aPromise, ErrorResult& aRv);
 
   already_AddRefed<Promise>
-  GetPromise() const
-  {
-    nsRefPtr<Promise> p = mPromise;
-    return p.forget();
-  }
+  GetPromise();
 
   virtual ExtendableEvent* AsExtendableEvent() override
   {
@@ -189,7 +196,8 @@ private:
 
 class PushEvent final : public ExtendableEvent
 {
-  nsString mData;
+  // FIXME(nsm): Bug 1149195.
+  // nsRefPtr<PushMessageData> mData;
   nsMainThreadPtrHandle<ServiceWorker> mServiceWorker;
 
 protected:
@@ -197,7 +205,8 @@ protected:
   ~PushEvent() {}
 
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  // FIXME(nsm): Bug 1149195.
+  // Add cycle collection macros once data is re-exposed.
   NS_FORWARD_TO_EVENT
 
   virtual JSObject* WrapObjectInternal(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override
@@ -214,9 +223,10 @@ public:
     bool trusted = e->Init(aOwner);
     e->InitEvent(aType, aOptions.mBubbles, aOptions.mCancelable);
     e->SetTrusted(trusted);
-    if(aOptions.mData.WasPassed()){
-      e->mData = aOptions.mData.Value();
-    }
+    // FIXME(nsm): Bug 1149195.
+    //if(aOptions.mData.WasPassed()){
+    //  e->mData = new PushMessageData(aOptions.mData.Value());
+    //}
     return e.forget();
   }
 
@@ -235,10 +245,11 @@ public:
     mServiceWorker = aServiceWorker;
   }
 
-  already_AddRefed<PushMessageData> Data()
+  PushMessageData* Data()
   {
-    nsRefPtr<PushMessageData> data = new PushMessageData(mData);
-    return data.forget();
+    // FIXME(nsm): Bug 1149195.
+    MOZ_CRASH("Should not be called!");
+    return nullptr;
   }
 };
 #endif /* ! MOZ_SIMPLEPUSH */

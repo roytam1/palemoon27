@@ -81,7 +81,9 @@ AccountState.prototype = {
   whenKeysReadyDeferred: null,
   profile: null,
 
-  get isCurrent() this.fxaInternal && this.fxaInternal.currentAccountState === this,
+  get isCurrent() {
+    return this.fxaInternal && this.fxaInternal.currentAccountState === this;
+  },
 
   abort: function() {
     if (this.whenVerifiedDeferred) {

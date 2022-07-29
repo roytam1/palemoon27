@@ -36,6 +36,9 @@
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 #include "xpcpublic.h"
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
 
 namespace mozilla {
 namespace dom {
@@ -43,7 +46,7 @@ namespace dom {
 namespace {
 // Generator used by Promise::GetID.
 Atomic<uintptr_t> gIDGenerator(0);
-}
+} // namespace
 
 using namespace workers;
 
@@ -536,10 +539,10 @@ Promise::JSCallback(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
   PromiseCallback::Task task = static_cast<PromiseCallback::Task>(v.toInt32());
 
   if (task == PromiseCallback::Resolve) {
-    promise->MaybeResolveInternal(aCx, args.get(0));
     if (!promise->CaptureStack(aCx, promise->mFullfillmentStack)) {
       return false;
     }
+    promise->MaybeResolveInternal(aCx, args.get(0));
   } else {
     promise->MaybeRejectInternal(aCx, args.get(0));
     if (!promise->CaptureStack(aCx, promise->mRejectionStack)) {
@@ -1342,6 +1345,29 @@ Promise::RejectInternal(JSContext* aCx,
 void
 Promise::Settle(JS::Handle<JS::Value> aValue, PromiseState aState)
 {
+#ifdef MOZ_CRASHREPORTER
+  if (!mGlobal && mFullfillmentStack) {
+    AutoJSAPI jsapi;
+    jsapi.Init();
+    JSContext* cx = jsapi.cx();
+    JS::RootedObject stack(cx, mFullfillmentStack);
+    JSAutoCompartment ac(cx, stack);
+    JS::RootedString stackJSString(cx);
+    if (JS::BuildStackString(cx, stack, &stackJSString)) {
+      nsAutoJSString stackString;
+      if (stackString.init(cx, stackJSString)) {
+        // Put the string in the crash report here, since we're about to crash
+        CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("cced_promise_stack"),
+                                           NS_ConvertUTF16toUTF8(stackString));
+      } else {
+        JS_ClearPendingException(cx);
+      }
+    } else {
+      JS_ClearPendingException(cx);
+    }
+  }
+#endif
+
   if (mGlobal->IsDying()) {
     return;
   }
@@ -1487,14 +1513,10 @@ class PromiseWorkerProxyRunnable : public workers::WorkerRunnable
 {
 public:
   PromiseWorkerProxyRunnable(PromiseWorkerProxy* aPromiseWorkerProxy,
-                             const JSStructuredCloneCallbacks* aCallbacks,
-                             JSAutoStructuredCloneBuffer&& aBuffer,
                              PromiseWorkerProxy::RunCallbackFunc aFunc)
     : WorkerRunnable(aPromiseWorkerProxy->GetWorkerPrivate(),
                      WorkerThreadUnchangedBusyCount)
     , mPromiseWorkerProxy(aPromiseWorkerProxy)
-    , mCallbacks(aCallbacks)
-    , mBuffer(Move(aBuffer))
     , mFunc(aFunc)
   {
     MOZ_ASSERT(NS_IsMainThread());
@@ -1513,7 +1535,7 @@ public:
 
     // Here we convert the buffer to a JS::Value.
     JS::Rooted<JS::Value> value(aCx);
-    if (!mBuffer.read(aCx, &value, mCallbacks, mPromiseWorkerProxy)) {
+    if (!mPromiseWorkerProxy->Read(aCx, &value)) {
       JS_ClearPendingException(aCx);
       return false;
     }
@@ -1530,8 +1552,6 @@ protected:
 
 private:
   nsRefPtr<PromiseWorkerProxy> mPromiseWorkerProxy;
-  const JSStructuredCloneCallbacks* mCallbacks;
-  JSAutoStructuredCloneBuffer mBuffer;
 
   // Function pointer for calling Promise::{ResolveInternal,RejectInternal}.
   PromiseWorkerProxy::RunCallbackFunc mFunc;
@@ -1541,11 +1561,12 @@ private:
 already_AddRefed<PromiseWorkerProxy>
 PromiseWorkerProxy::Create(workers::WorkerPrivate* aWorkerPrivate,
                            Promise* aWorkerPromise,
-                           const JSStructuredCloneCallbacks* aCb)
+                           const PromiseWorkerProxyStructuredCloneCallbacks* aCb)
 {
   MOZ_ASSERT(aWorkerPrivate);
   aWorkerPrivate->AssertIsOnWorkerThread();
   MOZ_ASSERT(aWorkerPromise);
+  MOZ_ASSERT_IF(aCb, !!aCb->Write && !!aCb->Read);
 
   nsRefPtr<PromiseWorkerProxy> proxy =
     new PromiseWorkerProxy(aWorkerPrivate, aWorkerPromise, aCb);
@@ -1566,7 +1587,7 @@ NS_IMPL_ISUPPORTS0(PromiseWorkerProxy)
 
 PromiseWorkerProxy::PromiseWorkerProxy(workers::WorkerPrivate* aWorkerPrivate,
                                        Promise* aWorkerPromise,
-                                       const JSStructuredCloneCallbacks* aCallbacks)
+                                       const PromiseWorkerProxyStructuredCloneCallbacks* aCallbacks)
   : mWorkerPrivate(aWorkerPrivate)
   , mWorkerPromise(aWorkerPromise)
   , mCleanedUp(false)
@@ -1597,6 +1618,9 @@ PromiseWorkerProxy::CleanProperties()
   mCleanedUp = true;
   mWorkerPromise = nullptr;
   mWorkerPrivate = nullptr;
+
+  // Clear the StructuredCloneHolderBase class.
+  Clear();
 }
 
 bool
@@ -1668,20 +1692,14 @@ PromiseWorkerProxy::RunCallback(JSContext* aCx,
     return;
   }
 
-  // The |aValue| is written into the buffer. Note that we also pass |this|
-  // into the structured-clone write in order to set its |mSupportsArray| to
-  // keep objects alive until the structured-clone read/write is done.
-  JSAutoStructuredCloneBuffer buffer;
-  if (!buffer.write(aCx, aValue, mCallbacks, this)) {
+  // The |aValue| is written into the StructuredCloneHolderBase.
+  if (!Write(aCx, aValue)) {
     JS_ClearPendingException(aCx);
-    MOZ_ASSERT(false, "cannot write the JSAutoStructuredCloneBuffer!");
+    MOZ_ASSERT(false, "cannot serialize the value with the StructuredCloneAlgorithm!");
   }
 
   nsRefPtr<PromiseWorkerProxyRunnable> runnable =
-    new PromiseWorkerProxyRunnable(this,
-                                   mCallbacks,
-                                   Move(buffer),
-                                   aFunc);
+    new PromiseWorkerProxyRunnable(this, aFunc);
 
   runnable->Dispatch(aCx);
 }
@@ -1736,6 +1754,31 @@ PromiseWorkerProxy::CleanUp(JSContext* aCx)
     CleanProperties();
   }
   Release();
+}
+
+JSObject*
+PromiseWorkerProxy::CustomReadHandler(JSContext* aCx,
+                                      JSStructuredCloneReader* aReader,
+                                      uint32_t aTag,
+                                      uint32_t aIndex)
+{
+  if (NS_WARN_IF(!mCallbacks)) {
+    return nullptr;
+  }
+
+  return mCallbacks->Read(aCx, aReader, this, aTag, aIndex);
+}
+
+bool
+PromiseWorkerProxy::CustomWriteHandler(JSContext* aCx,
+                                       JSStructuredCloneWriter* aWriter,
+                                       JS::Handle<JSObject*> aObj)
+{
+  if (NS_WARN_IF(!mCallbacks)) {
+    return false;
+  }
+
+  return mCallbacks->Write(aCx, aWriter, this, aObj);
 }
 
 // Specializations of MaybeRejectBrokenly we actually support.

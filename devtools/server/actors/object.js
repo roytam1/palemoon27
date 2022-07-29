@@ -577,8 +577,68 @@ ObjectActor.prototype = {
   },
 
   /**
-   * Helper function for onAllocationStack which fetches the source location
-   * for a SavedFrame stack.
+   * Handle a protocol request to get the fulfillment stack of a promise.
+   */
+  onFulfillmentStack: function() {
+    if (this.obj.class != "Promise") {
+      return { error: "objectNotPromise",
+               message: "'fulfillmentStack' request is only valid for " +
+                        "object grips with a 'Promise' class." };
+    }
+
+    let rawPromise = this.obj.unsafeDereference();
+    let stack = PromiseDebugging.getFullfillmentStack(rawPromise);
+    let fulfillmentStacks = [];
+
+    while (stack) {
+      if (stack.source) {
+        let source = this._getSourceOriginalLocation(stack);
+
+        if (source) {
+          fulfillmentStacks.push(source);
+        }
+      }
+      stack = stack.parent;
+    }
+
+    return Promise.all(fulfillmentStacks).then(stacks => {
+      return { fulfillmentStack: stacks };
+    });
+  },
+
+  /**
+   * Handle a protocol request to get the rejection stack of a promise.
+   */
+  onRejectionStack: function() {
+    if (this.obj.class != "Promise") {
+      return { error: "objectNotPromise",
+               message: "'rejectionStack' request is only valid for " +
+                        "object grips with a 'Promise' class." };
+    }
+
+    let rawPromise = this.obj.unsafeDereference();
+    let stack = PromiseDebugging.getRejectionStack(rawPromise);
+    let rejectionStacks = [];
+
+    while (stack) {
+      if (stack.source) {
+        let source = this._getSourceOriginalLocation(stack);
+
+        if (source) {
+          rejectionStacks.push(source);
+        }
+      }
+      stack = stack.parent;
+    }
+
+    return Promise.all(rejectionStacks).then(stacks => {
+      return { rejectionStack: stacks };
+    });
+  },
+
+  /**
+   * Helper function for fetching the source location of a SavedFrame stack.
+   *
    * @param SavedFrame stack
    *        The promise allocation stack frame
    * @return object
@@ -625,7 +685,9 @@ ObjectActor.prototype.requestTypes = {
   "release": ObjectActor.prototype.onRelease,
   "scope": ObjectActor.prototype.onScope,
   "dependentPromises": ObjectActor.prototype.onDependentPromises,
-  "allocationStack": ObjectActor.prototype.onAllocationStack
+  "allocationStack": ObjectActor.prototype.onAllocationStack,
+  "fulfillmentStack": ObjectActor.prototype.onFulfillmentStack,
+  "rejectionStack": ObjectActor.prototype.onRejectionStack
 };
 
 /**
@@ -648,8 +710,10 @@ ObjectActor.prototype.requestTypes = {
  *          If true, the iterator will sort the properties by name
  *          before dispatching them.
  *        - query String
- *          If non-empty, will filter the properties by names containing
- *          this query string. The match is not case-sensitive.
+ *          If non-empty, will filter the properties by names and values
+ *          containing this query string. The match is not case-sensitive.
+ *          Regarding value filtering it just compare to the stringification
+ *          of the property value.
  */
 function PropertyIteratorActor(objectActor, options){
   this.objectActor = objectActor;
@@ -708,7 +772,20 @@ function PropertyIteratorActor(objectActor, options){
     let { query } = options;
     query = query.toLowerCase();
     names = names.filter(name => {
-      return name.toLowerCase().includes(query);
+      // Filter on attribute names
+      if (name.toLowerCase().includes(query)) {
+        return true;
+      }
+      // and then on attribute values
+      let desc;
+      try {
+        desc = this.obj.getOwnPropertyDescriptor(name);
+      } catch(e) {}
+      if (desc && desc.value &&
+          String(desc.value).includes(query)) {
+        return true;
+      }
+      return false;
     });
   }
 
@@ -1821,9 +1898,9 @@ function createValueGrip(value, pool, makeObjectGrip) {
       if (value === null) {
         return { type: "null" };
       }
-    else if(value.optimizedOut ||
-            value.uninitialized ||
-            value.missingArguments) {
+    else if (value.optimizedOut ||
+             value.uninitialized ||
+             value.missingArguments) {
         // The slot is optimized out, an uninitialized binding, or
         // arguments on a dead scope
         return {

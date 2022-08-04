@@ -33,9 +33,6 @@
  *  - the GC mode must have been set to JSGC_MODE_INCREMENTAL with
  *    JS_SetGCParameter()
  *  - no thread may have an AutoKeepAtoms instance on the stack
- *  - all native objects that have their own trace hook must indicate that they
- *    implement read and write barriers with the JSCLASS_IMPLEMENTS_BARRIERS
- *    flag
  *
  * The last condition is an engine-internal mechanism to ensure that incremental
  * collection is not carried out without the correct barriers being implemented.
@@ -2016,19 +2013,30 @@ PtrIsInRange(const void* ptr, const void* start, size_t length)
 }
 #endif
 
-static bool
+static TenuredCell*
+AllocRelocatedCell(Zone* zone, AllocKind thingKind, size_t thingSize)
+{
+    AutoEnterOOMUnsafeRegion oomUnsafe;
+    void* dstAlloc = zone->arenas.allocateFromFreeList(thingKind, thingSize);
+    if (!dstAlloc)
+        dstAlloc = GCRuntime::refillFreeListInGC(zone, thingKind);
+    if (!dstAlloc) {
+        // This can only happen in zeal mode or debug builds as we don't
+        // otherwise relocate more cells than we have existing free space
+        // for.
+        oomUnsafe.crash("Could not allocate new arena while compacting");
+    }
+    return TenuredCell::fromPointer(dstAlloc);
+}
+
+static void
 RelocateCell(Zone* zone, TenuredCell* src, AllocKind thingKind, size_t thingSize)
 {
     JS::AutoSuppressGCAnalysis nogc(zone->runtimeFromMainThread());
 
     // Allocate a new cell.
     MOZ_ASSERT(zone == src->zone());
-    void* dstAlloc = zone->arenas.allocateFromFreeList(thingKind, thingSize);
-    if (!dstAlloc)
-        dstAlloc = GCRuntime::refillFreeListInGC(zone, thingKind);
-    if (!dstAlloc)
-        return false;
-    TenuredCell* dst = TenuredCell::fromPointer(dstAlloc);
+    TenuredCell* dst = AllocRelocatedCell(zone, thingKind, thingSize);
 
     // Copy source cell contents to destination.
     memcpy(dst, src, thingSize);
@@ -2072,8 +2080,6 @@ RelocateCell(Zone* zone, TenuredCell* src, AllocKind thingKind, size_t thingSize
     // Mark source cell as forwarded and leave a pointer to the destination.
     RelocationOverlay* overlay = RelocationOverlay::fromCell(src);
     overlay->forwardTo(dst);
-
-    return true;
 }
 
 static void
@@ -2090,12 +2096,7 @@ RelocateArena(ArenaHeader* aheader, SliceBudget& sliceBudget)
     size_t thingSize = aheader->getThingSize();
 
     for (ArenaCellIterUnderFinalize i(aheader); !i.done(); i.next()) {
-        if (!RelocateCell(zone, i.getCell(), thingKind, thingSize)) {
-            // This can only happen in zeal mode or debug builds as we don't
-            // otherwise relocate more cells than we have existing free space
-            // for.
-            CrashAtUnhandlableOOM("Could not allocate new arena while compacting");
-        }
+        RelocateCell(zone, i.getCell(), thingKind, thingSize);
         sliceBudget.step();
     }
 
@@ -2546,6 +2547,7 @@ UpdateCellPointersTask::updateArenas()
 /* virtual */ void
 UpdateCellPointersTask::run()
 {
+    MOZ_ASSERT(!HelperThreadState().isLocked());
     while (arenaList_) {
         updateArenas();
         {
@@ -3393,8 +3395,12 @@ GCHelperState::startBackgroundThread(State newState)
     MOZ_ASSERT(!thread && state() == IDLE && newState != IDLE);
     setState(newState);
 
-    if (!HelperThreadState().gcHelperWorklist().append(this))
-        CrashAtUnhandlableOOM("Could not add to pending GC helpers list");
+    {
+        AutoEnterOOMUnsafeRegion noOOM;
+        if (!HelperThreadState().gcHelperWorklist().append(this))
+            noOOM.crash("Could not add to pending GC helpers list");
+    }
+
     HelperThreadState().notifyAll(GlobalHelperThreadState::PRODUCER);
 }
 
@@ -4232,8 +4238,9 @@ js::gc::MarkingValidator::nonIncrementalMark()
         return;
 
     for (gc::WeakKeyTable::Range r = gc->marker.weakKeys.all(); !r.empty(); r.popFront()) {
+        AutoEnterOOMUnsafeRegion oomUnsafe;
         if (!savedWeakKeys.put(Move(r.front().key), Move(r.front().value)))
-            CrashAtUnhandlableOOM("saving weak keys table for validator");
+            oomUnsafe.crash("saving weak keys table for validator");
     }
 
     /*
@@ -4310,8 +4317,9 @@ js::gc::MarkingValidator::nonIncrementalMark()
 
     gc->marker.weakKeys.clear();
     for (gc::WeakKeyTable::Range r = savedWeakKeys.all(); !r.empty(); r.popFront()) {
+        AutoEnterOOMUnsafeRegion oomUnsafe;
         if (!gc->marker.weakKeys.put(Move(r.front().key), Move(r.front().value)))
-            CrashAtUnhandlableOOM("restoring weak keys table for validator");
+            oomUnsafe.crash("restoring weak keys table for validator");
     }
 
     gc->incrementalState = state;
@@ -4938,7 +4946,9 @@ SweepMiscTask::run()
 void
 GCRuntime::startTask(GCParallelTask& task, gcstats::Phase phase)
 {
+    MOZ_ASSERT(HelperThreadState().isLocked());
     if (!task.startWithLockHeld()) {
+        AutoUnlockHelperThreadState unlock;
         gcstats::AutoPhase ap(stats, phase);
         task.runFromMainThread(rt);
     }

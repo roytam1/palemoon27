@@ -55,6 +55,7 @@
 #endif
 #include "jswrapper.h"
 
+#include "builtin/ModuleObject.h"
 #include "builtin/TestingFunctions.h"
 #include "frontend/Parser.h"
 #include "gc/GCInternals.h"
@@ -1973,8 +1974,8 @@ DisassembleScript(JSContext* cx, HandleScript script, HandleFunction fun, bool l
         Sprint(sp, "flags:");
         if (fun->isLambda())
             Sprint(sp, " LAMBDA");
-        if (fun->isHeavyweight())
-            Sprint(sp, " HEAVYWEIGHT");
+        if (fun->needsCallObject())
+            Sprint(sp, " NEEDS_CALLOBJECT");
         if (fun->isConstructor())
             Sprint(sp, " CONSTRUCTOR");
         if (fun->isExprBody())
@@ -2068,7 +2069,12 @@ DisassembleToSprinter(JSContext* cx, unsigned argc, Value* vp, Sprinter* sprinte
     } else {
         for (unsigned i = 0; i < p.argc; i++) {
             RootedFunction fun(cx);
-            RootedScript script (cx, ValueToScript(cx, p.argv[i], fun.address()));
+            RootedScript script(cx);
+            RootedValue value(cx, p.argv[i]);
+            if (value.isObject() && value.toObject().is<ModuleObject>())
+                script = value.toObject().as<ModuleObject>().script();
+            else
+                script = ValueToScript(cx, value, fun.address());
             if (!script)
                 return false;
             if (!DisassembleScript(cx, script, fun, p.lines, p.recursive, sprinter))
@@ -3057,6 +3063,68 @@ Compile(JSContext* cx, unsigned argc, Value* vp)
     bool ok = JS_CompileUCScript(cx, chars, scriptContents->length(), options, &script);
     args.rval().setUndefined();
     return ok;
+}
+
+static bool
+ParseModule(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() < 1) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
+                             JSMSG_MORE_ARGS_NEEDED, "parseModule", "0", "s");
+        return false;
+    }
+    if (!args[0].isString()) {
+        JS_ReportError(cx, "expected string to compile, got %s",
+                       JS_TypeOfValue(cx, args[0]));
+        return false;
+    }
+
+    RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    JSFlatString* scriptContents = args[0].toString()->ensureFlat(cx);
+    if (!scriptContents)
+        return false;
+
+    CompileOptions options(cx);
+    options.setFileAndLine("<string>", 1);
+
+    AutoStableStringChars stableChars(cx);
+    if (!stableChars.initTwoByte(cx, scriptContents))
+        return false;
+
+    const char16_t* chars = stableChars.twoByteRange().start().get();
+    SourceBufferHolder srcBuf(chars, scriptContents->length(),
+                              SourceBufferHolder::NoOwnership);
+
+    RootedObject module(cx, frontend::CompileModule(cx, global, options, srcBuf));
+    if (!module)
+        return false;
+
+    args.rval().setObject(*module);
+    return true;
+}
+
+static bool
+SetModuleResolveHook(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() != 1) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
+                             JSMSG_MORE_ARGS_NEEDED, "setModuleResolveHook", "0", "s");
+        return false;
+    }
+
+    if (!args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
+        const char* typeName = InformalValueTypeName(args[0]);
+        JS_ReportError(cx, "expected hook function, got %s", typeName);
+        return false;
+    }
+
+    RootedFunction hook(cx, &args[0].toObject().as<JSFunction>());
+    Rooted<GlobalObject*> global(cx, cx->global());
+    global->setModuleResolveHook(hook);
+    args.rval().setUndefined();
+    return true;
 }
 
 static bool
@@ -4201,18 +4269,28 @@ DumpStaticScopeChain(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    if (!args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
-        ReportUsageError(cx, callee, "Argument must be an interpreted function");
+    if (!args[0].isObject() ||
+        !(args[0].toObject().is<JSFunction>() || args[0].toObject().is<ModuleObject>()))
+    {
+        ReportUsageError(cx, callee, "Argument must be an interpreted function or a module");
         return false;
     }
 
-    RootedFunction fun(cx, &args[0].toObject().as<JSFunction>());
-    if (!fun->isInterpreted()) {
-        ReportUsageError(cx, callee, "Argument must be an interpreted function");
-        return false;
+    RootedObject obj(cx, &args[0].toObject());
+    RootedScript script(cx);
+
+    if (obj->is<JSFunction>()) {
+        RootedFunction fun(cx, &obj->as<JSFunction>());
+        if (!fun->isInterpreted()) {
+            ReportUsageError(cx, callee, "Argument must be an interpreted function");
+            return false;
+        }
+        script = fun->getOrCreateScript(cx);
+    } else {
+        script = obj->as<ModuleObject>().script();
     }
 
-    js::DumpStaticScopeChain(fun->getOrCreateScript(cx));
+    js::DumpStaticScopeChain(script);
 
     args.rval().setUndefined();
     return true;
@@ -4607,6 +4685,16 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "compile(code)",
 "  Compiles a string to bytecode, potentially throwing."),
 
+    JS_FN_HELP("parseModule", ParseModule, 1, 0,
+"parseModule(code)",
+"  Parses source text as a module and returns a Module object."),
+
+    JS_FN_HELP("setModuleResolveHook", SetModuleResolveHook, 1, 0,
+"setModuleResolveHook(function(module, specifier) {})",
+"  Set the HostResolveImportedModule hook to |function|.\n"
+"  This hook is used to look up a previously loaded module object.  It should\n"
+"  be implemented by the module loader."),
+
     JS_FN_HELP("parse", Parse, 1, 0,
 "parse(code)",
 "  Parses a string, potentially throwing."),
@@ -4863,8 +4951,8 @@ TestAssertRecoveredOnBailout,
 
 #ifdef DEBUG
     JS_FN_HELP("dumpStaticScopeChain", DumpStaticScopeChain, 1, 0,
-"dumpStaticScopeChain(fun)",
-"  Prints the static scope chain of an interpreted function fun."),
+"dumpStaticScopeChain(obj)",
+"  Prints the static scope chain of an interpreted function or a module."),
 #endif
 
     JS_FS_HELP_END

@@ -97,7 +97,7 @@ struct JSFunctionSpec;
 struct JSLocaleCallbacks;
 struct JSObjectMap;
 struct JSPrincipals;
-struct JSPropertyDescriptor;
+struct JS_PUBLIC_API(JSPropertyDescriptor);
 struct JSPropertyName;
 struct JSPropertySpec;
 struct JSRuntime;
@@ -275,11 +275,7 @@ enum ThingRootKind
     THING_ROOT_LAZY_SCRIPT,
     THING_ROOT_ID,
     THING_ROOT_VALUE,
-    THING_ROOT_BINDINGS,
-    THING_ROOT_PROPERTY_DESCRIPTOR,
-    THING_ROOT_PROP_DESC,
-    THING_ROOT_STATIC_TRACEABLE,
-    THING_ROOT_DYNAMIC_TRACEABLE,
+    THING_ROOT_TRACEABLE,
     THING_ROOT_LIMIT
 };
 

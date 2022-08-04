@@ -378,11 +378,25 @@ var Printing = {
 
   init() {
     this.MESSAGES.forEach(msgName => addMessageListener(msgName, this));
+    addEventListener("PrintingError", this, true);
   },
 
   get shouldSavePrintSettings() {
     return Services.prefs.getBoolPref("print.use_global_printsettings", false) &&
            Services.prefs.getBoolPref("print.save_print_settings", false);
+  },
+
+  handleEvent(event) {
+    if (event.type == "PrintingError") {
+      let win = event.target.defaultView;
+      let wbp = win.QueryInterface(Ci.nsIInterfaceRequestor)
+                   .getInterface(Ci.nsIWebBrowserPrint);
+      let nsresult = event.detail;
+      sendAsyncMessage("Printing:Error", {
+        isPrinting: wbp.doingPrint,
+        nsresult: nsresult,
+      });
+    }
   },
 
   receiveMessage(message) {
@@ -490,6 +504,10 @@ var Printing = {
       if (e.result != Cr.NS_ERROR_ABORT) {
         Cu.reportError(`In Printing:Print:Done handler, got unexpected rv
                         ${e.result}.`);
+        sendAsyncMessage("Printing:Error", {
+          isPrinting: true,
+          nsresult: e.result,
+        });
       }
     }
 
@@ -566,11 +584,11 @@ var FindBar = {
   FAYT_TEXT_KEY: "/".charCodeAt(0),
 
   _findMode: 0,
-  get _findAsYouType() {
-    return Services.prefs.getBoolPref("accessibility.typeaheadfind");
-  },
+  _findAsYouType: false,
 
   init() {
+    this._findAsYouType =
+      Services.prefs.getBoolPref("accessibility.typeaheadfind");
     addMessageListener("Findbar:UpdateState", this);
     Services.els.addSystemEventListener(global, "keypress", this, false);
     Services.els.addSystemEventListener(global, "mouseup", this, false);

@@ -14,6 +14,7 @@
 #include "jsgc.h"
 #include "jsprf.h"
 
+#include "builtin/ModuleObject.h"
 #include "gc/GCInternals.h"
 #include "jit/IonCode.h"
 #include "js/SliceBudget.h"
@@ -372,6 +373,8 @@ AssertRootMarkingPhase(JSTracer* trc)
     D(GlobalObject*) \
     D(JSObject*) \
     D(JSFunction*) \
+    D(ModuleObject*) \
+    D(ModuleEnvironmentObject*) \
     D(NestedScopeObject*) \
     D(PlainObject*) \
     D(SavedFrame*) \
@@ -379,6 +382,8 @@ AssertRootMarkingPhase(JSTracer* trc)
     D(ScriptSourceObject*) \
     D(SharedArrayBufferObject*) \
     D(SharedTypedArrayObject*) \
+    D(ImportEntryObject*) \
+    D(ExportEntryObject*) \
     D(JSScript*) \
     D(LazyScript*) \
     D(Shape*) \
@@ -1162,13 +1167,6 @@ CallTraceHook(Functor f, JSTracer* trc, JSObject* obj, CheckGeneration check, Ar
 
     if (!clasp->trace)
         return &obj->as<NativeObject>();
-
-    // Global objects all have the same trace hook. That hook is safe without barriers
-    // if the global has no custom trace hook of its own, or has been moved to a different
-    // compartment, and so can't have one.
-    MOZ_ASSERT_IF(!(clasp->trace == JS_GlobalObjectTraceHook &&
-                    (!obj->compartment()->options().getTrace() || !obj->isOwnGlobal())),
-                  clasp->flags & JSCLASS_IMPLEMENTS_BARRIERS);
 
     if (clasp->trace == InlineTypedObject::obj_trace) {
         Shape** pshape = obj->as<InlineTypedObject>().addressOfShapeFromGC();
@@ -1983,9 +1981,10 @@ js::TenuringTracer::moveToTenured(JSObject* src)
     if (!t) {
         zone->arenas.checkEmptyFreeList(dstKind);
         AutoMaybeStartBackgroundAllocation maybeStartBackgroundAllocation;
+        AutoEnterOOMUnsafeRegion oomUnsafe;
         t = zone->arenas.allocateFromArena(zone, dstKind, maybeStartBackgroundAllocation);
         if (!t)
-            CrashAtUnhandlableOOM("Failed to allocate object while tenuring.");
+            oomUnsafe.crash("Failed to allocate object while tenuring.");
     }
     JSObject* dst = reinterpret_cast<JSObject*>(t);
     tenuredSize += moveObjectToTenured(dst, src, dstKind);
@@ -2138,9 +2137,14 @@ js::TenuringTracer::moveSlotsToTenured(NativeObject* dst, NativeObject* src, All
 
     Zone* zone = src->zone();
     size_t count = src->numDynamicSlots();
-    dst->slots_ = zone->pod_malloc<HeapSlot>(count);
-    if (!dst->slots_)
-        CrashAtUnhandlableOOM("Failed to allocate slots while tenuring.");
+
+    {
+        AutoEnterOOMUnsafeRegion oomUnsafe;
+        dst->slots_ = zone->pod_malloc<HeapSlot>(count);
+        if (!dst->slots_)
+            oomUnsafe.crash("Failed to allocate slots while tenuring.");
+    }
+
     PodCopy(dst->slots_, src->slots_, count);
     nursery().setSlotsForwardingPointer(src->slots_, dst->slots_, count);
     return count * sizeof(HeapSlot);
@@ -2175,9 +2179,14 @@ js::TenuringTracer::moveElementsToTenured(NativeObject* dst, NativeObject* src, 
     }
 
     MOZ_ASSERT(nslots >= 2);
-    dstHeader = reinterpret_cast<ObjectElements*>(zone->pod_malloc<HeapSlot>(nslots));
-    if (!dstHeader)
-        CrashAtUnhandlableOOM("Failed to allocate elements while tenuring.");
+
+    {
+        AutoEnterOOMUnsafeRegion oomUnsafe;
+        dstHeader = reinterpret_cast<ObjectElements*>(zone->pod_malloc<HeapSlot>(nslots));
+        if (!dstHeader)
+            oomUnsafe.crash("Failed to allocate elements while tenuring.");
+    }
+
     js_memcpy(dstHeader, srcHeader, nslots * sizeof(HeapSlot));
     nursery().setElementsForwardingPointer(srcHeader, dstHeader, nslots);
     dst->elements_ = dstHeader->elements();

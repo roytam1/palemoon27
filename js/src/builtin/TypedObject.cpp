@@ -1520,8 +1520,11 @@ OutlineTypedObject::attach(JSContext* cx, ArrayBufferObject& buffer, int32_t off
 
     buffer.setHasTypedObjectViews();
 
-    if (!buffer.addView(cx, this))
-        CrashAtUnhandlableOOM("TypedObject::attach");
+    {
+        AutoEnterOOMUnsafeRegion oomUnsafe;
+        if (!buffer.addView(cx, this))
+            oomUnsafe.crash("TypedObject::attach");
+    }
 
     setOwnerAndData(&buffer, buffer.dataPointer() + offset);
 }
@@ -2247,7 +2250,7 @@ OutlineTransparentTypedObject::getOrCreateBuffer(JSContext* cx)
 #define DEFINE_TYPEDOBJ_CLASS(Name, Trace)        \
     const Class Name::class_ = {                         \
         # Name,                                          \
-        Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS, \
+        Class::NON_NATIVE, \
         nullptr,        /* addProperty */                \
         nullptr,        /* delProperty */                \
         nullptr,        /* getProperty */                \
@@ -3026,8 +3029,9 @@ TraceListVisitor::visitReference(ReferenceTypeDescr& descr, uint8_t* mem)
       default: MOZ_CRASH("Invalid kind");
     }
 
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     if (!offsets->append((uintptr_t) mem))
-        CrashAtUnhandlableOOM("TraceListVisitor::visitReference");
+        oomUnsafe.crash("TraceListVisitor::visitReference");
 }
 
 bool

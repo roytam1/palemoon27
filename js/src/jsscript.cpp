@@ -63,24 +63,25 @@ using mozilla::PodZero;
 using mozilla::RotateLeft;
 
 /* static */ BindingIter
-Bindings::argumentsBinding(ExclusiveContext* cx, InternalBindingsHandle bindings)
+Bindings::argumentsBinding(ExclusiveContext* cx, HandleScript script)
 {
     HandlePropertyName arguments = cx->names().arguments;
-    BindingIter bi(bindings);
+    BindingIter bi(script);
     while (bi->name() != arguments)
         bi++;
     return bi;
 }
 
 bool
-Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle self,
+Bindings::initWithTemporaryStorage(ExclusiveContext* cx, MutableHandle<Bindings> self,
                                    uint32_t numArgs, uint32_t numVars,
                                    uint32_t numBodyLevelLexicals, uint32_t numBlockScoped,
                                    uint32_t numUnaliasedVars, uint32_t numUnaliasedBodyLevelLexicals,
-                                   Binding* bindingArray)
+                                   const Binding* bindingArray, bool isModule /* = false */)
 {
-    MOZ_ASSERT(!self->callObjShape_);
-    MOZ_ASSERT(self->bindingArrayAndFlag_ == TEMPORARY_STORAGE_BIT);
+    MOZ_ASSERT(!self.callObjShape());
+    MOZ_ASSERT(self.bindingArrayUsingTemporaryStorage());
+    MOZ_ASSERT(!self.bindingArray());
     MOZ_ASSERT(!(uintptr_t(bindingArray) & TEMPORARY_STORAGE_BIT));
     MOZ_ASSERT(numArgs <= ARGC_LIMIT);
     MOZ_ASSERT(numVars <= LOCALNO_LIMIT);
@@ -95,13 +96,13 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
     MOZ_ASSERT(numUnaliasedVars <= numVars);
     MOZ_ASSERT(numUnaliasedBodyLevelLexicals <= numBodyLevelLexicals);
 
-    self->bindingArrayAndFlag_ = uintptr_t(bindingArray) | TEMPORARY_STORAGE_BIT;
-    self->numArgs_ = numArgs;
-    self->numVars_ = numVars;
-    self->numBodyLevelLexicals_ = numBodyLevelLexicals;
-    self->numBlockScoped_ = numBlockScoped;
-    self->numUnaliasedVars_ = numUnaliasedVars;
-    self->numUnaliasedBodyLevelLexicals_ = numUnaliasedBodyLevelLexicals;
+    self.setBindingArray(bindingArray, TEMPORARY_STORAGE_BIT);
+    self.setNumArgs(numArgs);
+    self.setNumVars(numVars);
+    self.setNumBodyLevelLexicals(numBodyLevelLexicals);
+    self.setNumBlockScoped(numBlockScoped);
+    self.setNumUnaliasedVars(numUnaliasedVars);
+    self.setNumUnaliasedBodyLevelLexicals(numUnaliasedBodyLevelLexicals);
 
     // Get the initial shape to use when creating CallObjects for this script.
     // After creation, a CallObject's shape may change completely (via direct eval() or
@@ -139,15 +140,16 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
             nslots++;
         }
     }
-    self->aliasedBodyLevelLexicalBegin_ = aliasedBodyLevelLexicalBegin;
+    self.setAliasedBodyLevelLexicalBegin(aliasedBodyLevelLexicalBegin);
 
     // Put as many of nslots inline into the object header as possible.
     uint32_t nfixed = gc::GetGCKindSlots(gc::GetGCObjectKind(nslots));
 
     // Start with the empty shape and then append one shape per aliased binding.
+    const Class* cls = isModule ? &ModuleEnvironmentObject::class_ : &CallObject::class_;
     RootedShape shape(cx,
-        EmptyShape::getInitialShape(cx, &CallObject::class_, TaggedProto(nullptr),
-                                    nfixed, BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE));
+        EmptyShape::getInitialShape(cx, cls, TaggedProto(nullptr), nfixed,
+                                    BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE));
     if (!shape)
         return false;
 
@@ -161,6 +163,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
 
     uint32_t slot = CallObject::RESERVED_SLOTS;
     for (BindingIter bi(self); bi; bi++) {
+        MOZ_ASSERT_IF(isModule, bi->aliased());
         if (!bi->aliased())
             continue;
 
@@ -173,9 +176,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
         }
 #endif
 
-        StackBaseShape stackBase(cx, &CallObject::class_,
-                                 BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE);
-
+        StackBaseShape stackBase(cx, cls, BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE);
         UnownedBaseShape* base = BaseShape::getUnowned(cx, stackBase);
         if (!base)
             return false;
@@ -183,7 +184,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
         unsigned attrs = JSPROP_PERMANENT |
                          JSPROP_ENUMERATE |
                          (bi->kind() == Binding::CONSTANT ? JSPROP_READONLY : 0);
-        StackShape child(base, NameToId(bi->name()), slot, attrs, 0);
+        Rooted<StackShape> child(cx, StackShape(base, NameToId(bi->name()), slot, attrs, 0));
 
         shape = cx->compartment()->propertyTree.getChild(cx, shape, child);
         if (!shape)
@@ -195,7 +196,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, InternalBindingsHandle 
     MOZ_ASSERT(slot == nslots);
 
     MOZ_ASSERT(!shape->inDictionary());
-    self->callObjShape_.init(shape);
+    self.setCallObjShape(shape);
     return true;
 }
 
@@ -223,12 +224,12 @@ Bindings::switchToScriptStorage(Binding* newBindingArray)
     return reinterpret_cast<uint8_t*>(newBindingArray + count());
 }
 
-bool
-Bindings::clone(JSContext* cx, InternalBindingsHandle self,
+/* static */ bool
+Bindings::clone(JSContext* cx, MutableHandle<Bindings> self,
                 uint8_t* dstScriptData, HandleScript srcScript)
 {
     /* The clone has the same bindingArray_ offset as 'src'. */
-    Bindings& src = srcScript->bindings;
+    Handle<Bindings> src = Handle<Bindings>::fromMarkedLocation(&srcScript->bindings);
     ptrdiff_t off = (uint8_t*)src.bindingArray() - srcScript->data;
     MOZ_ASSERT(off >= 0);
     MOZ_ASSERT(size_t(off) <= srcScript->dataSize());
@@ -248,14 +249,8 @@ Bindings::clone(JSContext* cx, InternalBindingsHandle self,
         return false;
     }
 
-    self->switchToScriptStorage(dstPackedBindings);
+    self.switchToScriptStorage(dstPackedBindings);
     return true;
-}
-
-/* static */ Bindings
-GCMethods<Bindings>::initial()
-{
-    return Bindings();
 }
 
 template<XDRMode mode>
@@ -307,14 +302,15 @@ XDRScriptBindings(XDRState<mode>* xdr, LifoAllocScope& las, uint16_t numArgs, ui
             bindingArray[i] = Binding(name, kind, aliased);
         }
 
-        InternalBindingsHandle bindings(script, &script->bindings);
-        if (!Bindings::initWithTemporaryStorage(cx, bindings, numArgs, numVars,
+        Rooted<Bindings> bindings(cx, script->bindings);
+        if (!Bindings::initWithTemporaryStorage(cx, &bindings, numArgs, numVars,
                                                 numBodyLevelLexicals, numBlockScoped,
                                                 numUnaliasedVars, numUnaliasedBodyLevelLexicals,
                                                 bindingArray))
         {
             return false;
         }
+        script->bindings = bindings;
     }
 
     return true;
@@ -607,6 +603,7 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
         TreatAsRunOnce,
         HasLazyScript,
         HasNonSyntacticScope,
+        HasInnerFunctions,
     };
 
     uint32_t length, lineno, column, nslots;
@@ -742,6 +739,8 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
             scriptBits |= (1 << HasLazyScript);
         if (script->hasNonSyntacticScope())
             scriptBits |= (1 << HasNonSyntacticScope);
+        if (script->hasInnerFunctions())
+            scriptBits |= (1 << HasInnerFunctions);
     }
 
     if (!xdr->codeUint32(&prologueLength))
@@ -876,6 +875,8 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
             script->treatAsRunOnce_ = true;
         if (scriptBits & (1 << HasNonSyntacticScope))
             script->hasNonSyntacticScope_ = true;
+        if (scriptBits & (1 << HasInnerFunctions))
+            script->hasInnerFunctions_ = true;
 
         if (scriptBits & (1 << IsLegacyGenerator)) {
             MOZ_ASSERT(!(scriptBits & (1 << IsStarGenerator)));
@@ -1463,6 +1464,16 @@ JSScript::getIonCounts()
 }
 
 void
+JSScript::takeOverScriptCountsMapEntry(ScriptCounts* entryValue)
+{
+#ifdef DEBUG
+    ScriptCountsMap::Ptr p = GetScriptCountsMapEntry(this);
+    MOZ_ASSERT(entryValue == &p->value());
+#endif
+    hasScriptCounts_ = false;
+}
+
+void
 JSScript::releaseScriptCounts(ScriptCounts* counts)
 {
     ScriptCountsMap::Ptr p = GetScriptCountsMapEntry(this);
@@ -1506,7 +1517,7 @@ ScriptSourceObject::finalize(FreeOp* fop, JSObject* obj)
 const Class ScriptSourceObject::class_ = {
     "ScriptSource",
     JSCLASS_HAS_RESERVED_SLOTS(RESERVED_SLOTS) |
-    JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_IS_ANONYMOUS,
+    JSCLASS_IS_ANONYMOUS,
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -2760,6 +2771,25 @@ JSScript::linkToFunctionFromEmitter(js::ExclusiveContext* cx, JS::Handle<JSScrip
         fun->setScript(script);
 }
 
+/* static */ void
+JSScript::linkToModuleFromEmitter(js::ExclusiveContext* cx, JS::Handle<JSScript*> script,
+                                    js::frontend::ModuleBox* modulebox)
+{
+    script->funHasExtensibleScope_ = false;
+    script->funNeedsDeclEnvObject_ = false;
+    script->needsHomeObject_ = false;
+    script->isDerivedClassConstructor_ = false;
+    script->funLength_ = 0;
+
+    script->isGeneratorExp_ = false;
+    script->setGeneratorKind(NotGenerator);
+
+    // Link the module and the script to each other, so that StaticScopeIter
+    // may walk the scope chain of currently compiling scripts.
+    RootedModuleObject module(cx, modulebox->module());
+    script->setModule(module);
+}
+
 /* static */ bool
 JSScript::fullyInitFromEmitter(ExclusiveContext* cx, HandleScript script, BytecodeEmitter* bce)
 {
@@ -2838,7 +2868,7 @@ JSScript::fullyInitFromEmitter(ExclusiveContext* cx, HandleScript script, Byteco
     if (bce->tryNoteList.length() != 0)
         bce->tryNoteList.finish(script->trynotes());
     if (bce->blockScopeList.length() != 0)
-        bce->blockScopeList.finish(script->blockScopes());
+        bce->blockScopeList.finish(script->blockScopes(), prologueLength);
     script->strict_ = bce->sc->strict();
     script->explicitUseStrict_ = bce->sc->hasExplicitUseStrict();
     script->bindingsAccessedDynamically_ = bce->sc->bindingsAccessedDynamically();
@@ -2977,7 +3007,8 @@ js::GetSrcNote(GSNCache& cache, JSScript* script, jsbytecode* pc)
     if (cache.code != script->code() && script->length() >= GSN_CACHE_THRESHOLD) {
         unsigned nsrcnotes = 0;
         for (jssrcnote* sn = script->notes(); !SN_IS_TERMINATOR(sn);
-             sn = SN_NEXT(sn)) {
+             sn = SN_NEXT(sn))
+        {
             if (SN_IS_GETTABLE(sn))
                 ++nsrcnotes;
         }
@@ -2989,10 +3020,11 @@ js::GetSrcNote(GSNCache& cache, JSScript* script, jsbytecode* pc)
         if (cache.map.init(nsrcnotes)) {
             pc = script->code();
             for (jssrcnote* sn = script->notes(); !SN_IS_TERMINATOR(sn);
-                 sn = SN_NEXT(sn)) {
+                 sn = SN_NEXT(sn))
+            {
                 pc += SN_DELTA(sn);
                 if (SN_IS_GETTABLE(sn))
-                    JS_ALWAYS_TRUE(cache.map.put(pc, sn));
+                    cache.map.putNewInfallible(pc, sn);
             }
             cache.code = script->code();
         }
@@ -3235,15 +3267,15 @@ js::detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScri
 
     size_t size = src->dataSize();
     uint8_t* data = AllocScriptData(cx->zone(), size);
-    if (size && !data)
+    if (size && !data) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     /* Bindings */
 
     Rooted<Bindings> bindings(cx);
-    InternalHandle<Bindings*> bindingsHandle =
-        InternalHandle<Bindings*>::fromMarkedLocation(bindings.address());
-    if (!Bindings::clone(cx, bindingsHandle, data, src))
+    if (!Bindings::clone(cx, &bindings, data, src))
         return false;
 
     /* Objects */
@@ -3350,6 +3382,7 @@ js::detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScri
     dst->funHasAnyAliasedFormal_ = src->funHasAnyAliasedFormal();
     dst->hasSingletons_ = src->hasSingletons();
     dst->treatAsRunOnce_ = src->treatAsRunOnce();
+    dst->hasInnerFunctions_ = src->hasInnerFunctions();
     dst->isGeneratorExp_ = src->isGeneratorExp();
     dst->setGeneratorKind(src->generatorKind());
 
@@ -3714,6 +3747,9 @@ JSScript::traceChildren(JSTracer* trc)
     if (functionNonDelazifying())
         TraceEdge(trc, &function_, "function");
 
+    if (module_)
+        TraceEdge(trc, &module_, "module");
+
     if (enclosingStaticScope_)
         TraceEdge(trc, &enclosingStaticScope_, "enclosingStaticScope");
 
@@ -3774,10 +3810,7 @@ JSScript::getStaticBlockScope(jsbytecode* pc)
     if (!hasBlockScopes())
         return nullptr;
 
-    if (pc < main())
-        return nullptr;
-
-    size_t offset = pc - main();
+    size_t offset = pc - code();
 
     BlockScopeArray* scopes = blockScopes();
     NestedScopeObject* blockChain = nullptr;
@@ -3826,6 +3859,8 @@ JSScript::innermostStaticScopeInScript(jsbytecode* pc)
 {
     if (JSObject* scope = getStaticBlockScope(pc))
         return scope;
+    if (module())
+        return module();
     return functionNonDelazifying();
 }
 
@@ -3861,8 +3896,7 @@ js::SetFrameArgumentsObject(JSContext* cx, AbstractFramePtr frame,
      * object. Note that 'arguments' may have already been overwritten.
      */
 
-    InternalBindingsHandle bindings(script, &script->bindings);
-    BindingIter bi = Bindings::argumentsBinding(cx, bindings);
+    BindingIter bi = Bindings::argumentsBinding(cx, script);
 
     if (script->bindingIsAliased(bi)) {
         /*

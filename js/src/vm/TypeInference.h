@@ -272,7 +272,7 @@ class TypeSet
     // Information about a single concrete type. We pack this into one word,
     // where small values are particular primitive or other singleton types and
     // larger values are either specific JS objects or object groups.
-    class Type : public JS::StaticTraceable
+    class Type : public JS::Traceable
     {
         friend class TypeSet;
 
@@ -475,7 +475,7 @@ class TypeSet
     }
 
     /* Whether any values in this set might have the specified type. */
-    bool mightBeMIRType(jit::MIRType type);
+    bool mightBeMIRType(jit::MIRType type) const;
 
     /*
      * Get whether this type set is known to be a subset of other.
@@ -967,7 +967,7 @@ class TypeNewScript
 
     bool rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* group);
 
-    static void make(JSContext* cx, ObjectGroup* group, JSFunction* fun);
+    static bool make(JSContext* cx, ObjectGroup* group, JSFunction* fun);
     static TypeNewScript* makeNativeVersion(JSContext* cx, TypeNewScript* newScript,
                                             PlainObject* templateObject);
 

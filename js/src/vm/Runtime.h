@@ -1860,8 +1860,9 @@ FreeOp::freeLater(void* p)
     // and won't hold onto the pointers to free indefinitely.
     MOZ_ASSERT(this != runtime()->defaultFreeOp());
 
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     if (!freeLaterList.append(p))
-        CrashAtUnhandlableOOM("FreeOp::freeLater");
+        oomUnsafe.crash("FreeOp::freeLater");
 }
 
 /*
@@ -2095,6 +2096,10 @@ class RuntimeAllocPolicy
 
     void free_(void* p) { js_free(p); }
     void reportAllocOverflow() const {}
+
+    bool checkSimulatedOOM() const {
+        return !js::oom::ShouldFailWithOOM();
+    }
 };
 
 extern const JSSecurityCallbacks NullSecurityCallbacks;
@@ -2175,18 +2180,18 @@ class MOZ_STACK_CLASS AutoInitGCManagedObject
     }
 
     T& operator*() const {
-        return *ptr_.get();
+        return *get();
     }
 
     T* operator->() const {
-        return ptr_.get();
+        return get();
     }
 
     explicit operator bool() const {
-        return ptr_.get() != nullptr;
+        return get() != nullptr;
     }
 
-    T* get() {
+    T* get() const {
         return ptr_.get();
     }
 

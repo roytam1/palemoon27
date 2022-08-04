@@ -117,8 +117,9 @@ js::StartOffThreadIonCompile(JSContext* cx, jit::IonBuilder* builder)
 static void
 FinishOffThreadIonCompile(jit::IonBuilder* builder)
 {
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     if (!HelperThreadState().ionFinishedList().append(builder))
-        CrashAtUnhandlableOOM("FinishOffThreadIonCompile");
+        oomUnsafe.crash("FinishOffThreadIonCompile");
 }
 
 static inline bool
@@ -203,7 +204,7 @@ ParseTask::ParseTask(ExclusiveContext* cx, JSObject* exclusiveContextGlobal, JSC
     alloc(JSRuntime::TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     exclusiveContextGlobal(initCx->runtime(), exclusiveContextGlobal),
     callback(callback), callbackData(callbackData),
-    script(initCx->runtime()), errors(cx), overRecursed(false)
+    script(initCx->runtime()), sourceObject(nullptr), errors(cx), overRecursed(false)
 {
 }
 
@@ -233,10 +234,8 @@ ParseTask::activate(JSRuntime* rt)
 bool
 ParseTask::finish(JSContext* cx)
 {
-    if (script) {
-        // Finish off the ScriptSourceObject initialization that we put off in
-        // js::frontend::CreateScriptSourceObject.
-        RootedScriptSource sso(cx, &script->sourceObject()->as<ScriptSourceObject>());
+    if (sourceObject) {
+        RootedScriptSource sso(cx, sourceObject);
         if (!ScriptSourceObject::initFromOptions(cx, sso, options))
             return false;
     }
@@ -1295,7 +1294,10 @@ HelperThread::handleParseWorkload()
         parseTask->script = frontend::CompileScript(parseTask->cx, &parseTask->alloc,
                                                     nullptr, nullptr, nullptr,
                                                     parseTask->options,
-                                                    srcBuf);
+                                                    srcBuf,
+                                                    /* source_ = */ nullptr,
+                                                    /* extraSct = */ nullptr,
+                                                    /* sourceObjectOut = */ &(parseTask->sourceObject));
     }
 
     // The callback is invoked while we are still off the main thread.

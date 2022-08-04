@@ -279,7 +279,7 @@ SavedFrame::finishSavedFrameInit(JSContext* cx, HandleObject ctor, HandleObject 
 
 /* static */ const Class SavedFrame::class_ = {
     "SavedFrame",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(SavedFrame::JSSLOT_COUNT) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_SavedFrame) |
     JSCLASS_IS_ANONYMOUS,
@@ -1348,12 +1348,13 @@ SavedStacksMetadataCallback(JSContext* cx, JSObject* target)
                                                 std::log(notSamplingProb));
     }
 
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     RootedSavedFrame frame(cx);
     if (!stacks.saveCurrentStack(cx, &frame))
-        CrashAtUnhandlableOOM("SavedStacksMetadataCallback");
+        oomUnsafe.crash("SavedStacksMetadataCallback");
 
     if (!Debugger::onLogAllocationSite(cx, obj, frame, JS_GetCurrentEmbedderTime()))
-        CrashAtUnhandlableOOM("SavedStacksMetadataCallback");
+        oomUnsafe.crash("SavedStacksMetadataCallback");
 
     MOZ_ASSERT_IF(frame, !frame->is<WrapperObject>());
     return frame;

@@ -1713,12 +1713,14 @@ Debugger::TenurePromotionsLogEntry::TenurePromotionsLogEntry(JSRuntime* rt, JSOb
 void
 Debugger::logTenurePromotion(JSRuntime* rt, JSObject& obj, double when)
 {
+    AutoEnterOOMUnsafeRegion oomUnsafe;
+
     if (!tenurePromotionsLog.emplaceBack(rt, obj, when))
-        CrashAtUnhandlableOOM("Debugger::logTenurePromotion");
+        oomUnsafe.crash("Debugger::logTenurePromotion");
 
     if (tenurePromotionsLog.length() > maxTenurePromotionsLogLength) {
         if (!tenurePromotionsLog.popFront())
-            CrashAtUnhandlableOOM("Debugger::logTenurePromotion");
+            oomUnsafe.crash("Debugger::logTenurePromotion");
         MOZ_ASSERT(tenurePromotionsLog.length() == maxTenurePromotionsLogLength);
         tenurePromotionsLogOverflowed = true;
     }
@@ -2654,7 +2656,7 @@ Debugger::finalize(FreeOp* fop, JSObject* obj)
 
 const Class Debugger::jsclass = {
     "Debugger",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUG_COUNT),
     nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, Debugger::finalize,
@@ -3438,15 +3440,15 @@ Debugger::addDebuggeeGlobal(JSContext* cx, Handle<GlobalObject*> global)
     return true;
 }
 
-bool
+void
 Debugger::recomputeDebuggeeZoneSet()
 {
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     debuggeeZones.clear();
     for (auto range = debuggees.all(); !range.empty(); range.popFront()) {
         if (!debuggeeZones.put(range.front()->zone()))
-            return false;
+            oomUnsafe.crash("Debugger::removeDebuggeeGlobal");
     }
-    return true;
 }
 
 template<typename V>
@@ -3515,8 +3517,8 @@ Debugger::removeDebuggeeGlobal(FreeOp* fop, GlobalObject* global,
     else
         debuggees.remove(global);
 
-    if (!recomputeDebuggeeZoneSet())
-        CrashAtUnhandlableOOM("Debugger::removeDebuggeeGlobal");
+    recomputeDebuggeeZoneSet();
+
     if (!debuggeeZones.has(global->zone()))
         zoneDebuggersVector->erase(findDebuggerInVector(this, zoneDebuggersVector));
 
@@ -4573,7 +4575,7 @@ DebuggerScript_trace(JSTracer* trc, JSObject* obj)
 
 const Class DebuggerScript_class = {
     "Script",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSCRIPT_COUNT),
     nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,
@@ -5663,7 +5665,7 @@ DebuggerSource_trace(JSTracer* trc, JSObject* obj)
 
 const Class DebuggerSource_class = {
     "Source",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSOURCE_COUNT),
     nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,
@@ -6516,9 +6518,21 @@ EvaluateInEnv(JSContext* cx, Handle<Env*> env, HandleValue thisv, AbstractFrameP
     Rooted<ScopeObject*> enclosingStaticScope(cx);
     if (!env->is<GlobalObject>())
         enclosingStaticScope = StaticNonSyntacticScopeObjects::create(cx, nullptr);
-    Rooted<StaticEvalObject*> staticScope(cx, StaticEvalObject::create(cx, enclosingStaticScope));
-    if (!staticScope)
-        return false;
+
+    // Do not consider executeInGlobal{WithBindings} as an eval, but instead
+    // as executing a series of statements at the global level. This is to
+    // circumvent the fresh lexical scope that all eval have, so that the
+    // users of executeInGlobal, like the web console, may add new bindings to
+    // the global scope.
+    Rooted<ScopeObject*> staticScope(cx);
+    if (frame) {
+        staticScope = StaticEvalObject::create(cx, enclosingStaticScope);
+        if (!staticScope)
+            return false;
+    } else {
+        staticScope = enclosingStaticScope;
+    }
+
     CompileOptions options(cx);
     options.setIsRunOnce(true)
            .setForEval(true)
@@ -6535,11 +6549,14 @@ EvaluateInEnv(JSContext* cx, Handle<Env*> env, HandleValue thisv, AbstractFrameP
     if (!script)
         return false;
 
-    if (script->strict())
-        staticScope->setStrict();
+    // Again, executeInGlobal is not considered eval.
+    if (frame) {
+        if (script->strict())
+            staticScope->as<StaticEvalObject>().setStrict();
+        script->setActiveEval();
+    }
 
-    script->setActiveEval();
-    ExecuteType type = !frame ? EXECUTE_DEBUG_GLOBAL : EXECUTE_DEBUG;
+    ExecuteType type = !frame ? EXECUTE_GLOBAL : EXECUTE_DEBUG;
     return ExecuteKernel(cx, script, *env, thisv, NullValue(), type, frame, rval.address());
 }
 
@@ -6774,7 +6791,7 @@ DebuggerObject_trace(JSTracer* trc, JSObject* obj)
 
 const Class DebuggerObject_class = {
     "Object",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGOBJECT_COUNT),
     nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,
@@ -7720,7 +7737,7 @@ DebuggerEnv_trace(JSTracer* trc, JSObject* obj)
 
 const Class DebuggerEnv_class = {
     "Environment",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGENV_COUNT),
     nullptr, nullptr, nullptr, nullptr, nullptr,
     nullptr, nullptr, nullptr, nullptr,

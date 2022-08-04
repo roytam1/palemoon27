@@ -39,7 +39,7 @@ ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, ArgumentsObjec
                                           ArgumentsData* data)
 {
     JSScript* script = frame.script();
-    if (frame.fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
+    if (frame.fun()->needsCallObject() && script->argsObjAliasesFormals()) {
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(frame.callObj()));
         for (AliasedFormalIter fi(script); fi; fi++)
             data->args[fi.frameIndex()] = MagicScopeSlotValue(fi.scopeSlot());
@@ -52,7 +52,7 @@ ArgumentsObject::MaybeForwardToCallObject(jit::JitFrameLayout* frame, HandleObje
 {
     JSFunction* callee = jit::CalleeTokenToFunction(frame->calleeToken());
     JSScript* script = callee->nonLazyScript();
-    if (callee->isHeavyweight() && script->argsObjAliasesFormals()) {
+    if (callee->needsCallObject() && script->argsObjAliasesFormals()) {
         MOZ_ASSERT(callObj && callObj->is<CallObject>());
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(*callObj.get()));
         for (AliasedFormalIter fi(script); fi; fi++)
@@ -604,10 +604,11 @@ ArgumentsObject::objectMovedDuringMinorGC(JSTracer* trc, JSObject* dst, JSObject
         return 0;
     }
 
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     uint32_t nbytes = nsrc->data()->dataBytes;
     uint8_t* data = nsrc->zone()->pod_malloc<uint8_t>(nbytes);
     if (!data)
-        CrashAtUnhandlableOOM("Failed to allocate ArgumentsObject data while tenuring.");
+        oomUnsafe.crash("Failed to allocate ArgumentsObject data while tenuring.");
     ndst->initFixedSlot(DATA_SLOT, PrivateValue(data));
 
     mozilla::PodCopy(data, reinterpret_cast<uint8_t*>(nsrc->data()), nbytes);
@@ -626,7 +627,7 @@ ArgumentsObject::objectMovedDuringMinorGC(JSTracer* trc, JSObject* dst, JSObject
  */
 const Class NormalArgumentsObject::class_ = {
     "Arguments",
-    JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_DELAY_METADATA_CALLBACK |
+    JSCLASS_DELAY_METADATA_CALLBACK |
     JSCLASS_HAS_RESERVED_SLOTS(NormalArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
     JSCLASS_SKIP_NURSERY_FINALIZE |
@@ -653,7 +654,7 @@ const Class NormalArgumentsObject::class_ = {
  */
 const Class StrictArgumentsObject::class_ = {
     "Arguments",
-    JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_DELAY_METADATA_CALLBACK |
+    JSCLASS_DELAY_METADATA_CALLBACK |
     JSCLASS_HAS_RESERVED_SLOTS(StrictArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
     JSCLASS_SKIP_NURSERY_FINALIZE |

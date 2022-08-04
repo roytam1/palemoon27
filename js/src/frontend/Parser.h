@@ -24,7 +24,6 @@ namespace js {
 
 class ModuleObject;
 class StaticFunctionBoxScopeObject;
-class StaticModuleBoxScopeObject;
 
 namespace frontend {
 
@@ -212,18 +211,8 @@ struct MOZ_STACK_CLASS ParseContext : public GenericParseContext
      *  - Sometimes a script's bindings are accessed at runtime to retrieve the
      *    contents of the lexical scope (e.g., from the debugger).
      */
-  private:
     bool generateBindings(ExclusiveContext* cx, TokenStream& ts, LifoAlloc& alloc,
                           MutableHandle<Bindings> bindings) const;
-
-  public:
-    bool generateFunctionBindings(ExclusiveContext* cx, TokenStream& ts,
-                                  LifoAlloc& alloc,
-                                  MutableHandle<Bindings> bindings) const;
-
-    bool generateModuleBindings(ExclusiveContext* cx, TokenStream& ts,
-                                LifoAlloc& alloc,
-                                MutableHandle<Bindings> bindings) const;
 
   private:
     ParseContext**  parserPC;     /* this points to the Parser's active pc
@@ -312,11 +301,32 @@ struct MOZ_STACK_CLASS ParseContext : public GenericParseContext
     //   if (cond) { function f3() { if (cond) { function f4() { } } } }
     //
     bool atBodyLevel() {
+        // 'eval' scripts are always under an invisible lexical scope, but
+        // since it is not syntactic, it should still be considered at body
+        // level.
+        if (sc->staticScope() && sc->staticScope()->is<StaticEvalObject>()) {
+            bool bl = !innermostStmt()->enclosing;
+            MOZ_ASSERT_IF(bl, innermostStmt()->type == StmtType::BLOCK);
+            MOZ_ASSERT_IF(bl, innermostStmt()->staticScope
+                                             ->template as<StaticBlockObject>()
+                                             .maybeEnclosingEval() == sc->staticScope());
+            return bl;
+        }
         return !innermostStmt();
     }
 
     bool atGlobalLevel() {
-        return atBodyLevel() && !sc->isFunctionBox() && !innermostScopeStmt();
+        return atBodyLevel() && sc->isGlobalContext() && !innermostScopeStmt();
+    }
+
+    // True if we are at the topmost level of a module only.
+    bool atModuleLevel() {
+        return atBodyLevel() && sc->isModuleBox();
+    }
+
+    // True if the current lexical scope is the topmost level of a module.
+    bool atModuleScope() {
+        return sc->isModuleBox() && !innermostScopeStmt();
     }
 
     // True if this is the ParseContext for the body of a function created by
@@ -566,6 +576,12 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
 
     bool maybeParseDirective(Node list, Node pn, bool* cont);
 
+    // Parse the body of an eval. It is distinguished from global scripts in
+    // that in ES6, per 18.2.1.1 steps 9 and 10, all eval scripts are executed
+    // under a fresh lexical scope.
+    Node evalBody();
+
+    // Parse a module.
     Node standaloneModule(Handle<ModuleObject*> module);
 
     // Parse a function, given only its body. Used for the Function and
@@ -721,7 +737,9 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node destructuringExprWithoutYield(YieldHandling yieldHandling, BindData<ParseHandler>* data,
                                        TokenKind tt, unsigned msg);
 
+    Node newBoundImportForCurrentName();
     bool namedImportsOrNamespaceImport(TokenKind tt, Node importSpecSet);
+    bool addExportName(JSAtom* exportName);
 
     enum ClassContext { ClassStatement, ClassExpression };
     Node classDefinition(YieldHandling yieldHandling, ClassContext classContext, DefaultHandling defaultHandling);
@@ -809,6 +827,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     bool checkDestructuringName(BindData<ParseHandler>* data, Node expr);
 
     bool bindInitialized(BindData<ParseHandler>* data, Node pn);
+    bool bindUninitialized(BindData<ParseHandler>* data, Node pn);
     bool makeSetCall(Node node, unsigned errnum);
     Node cloneDestructuringDefault(Node opn);
     Node cloneLeftHandSide(Node opn);

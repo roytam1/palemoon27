@@ -276,7 +276,8 @@ class Bindings : public JS::Traceable
                                          uint32_t numBlockScoped,
                                          uint32_t numUnaliasedVars,
                                          uint32_t numUnaliasedBodyLevelLexicals,
-                                         const Binding* bindingArray);
+                                         const Binding* bindingArray,
+                                         bool isModule = false);
 
     // Initialize a trivial Bindings with no slots and an empty callObjShape.
     bool initTrivial(ExclusiveContext* cx);
@@ -1175,6 +1176,10 @@ class JSScript : public js::gc::TenuredCell
     // keep it from relazifying.
     bool doNotRelazify_:1;
 
+    // Script contains inner functions. Used to check if we can relazify the
+    // script.
+    bool hasInnerFunctions_:1;
+
     bool needsHomeObject_:1;
 
     bool isDerivedClassConstructor_:1;
@@ -1504,6 +1509,14 @@ class JSScript : public js::gc::TenuredCell
         doNotRelazify_ = b;
     }
 
+    void setHasInnerFunctions(bool b) {
+        hasInnerFunctions_ = b;
+    }
+
+    bool hasInnerFunctions() const {
+        return hasInnerFunctions_;
+    }
+
     bool hasAnyIonScript() const {
         return hasIonScript();
     }
@@ -1566,7 +1579,7 @@ class JSScript : public js::gc::TenuredCell
     }
 
     bool isRelazifiable() const {
-        return (selfHosted() || lazyScript) && !types_ &&
+        return (selfHosted() || lazyScript) && !hasInnerFunctions_ && !types_ &&
                !isGenerator() && !hasBaselineScript() && !hasAnyIonScript() &&
                !hasScriptCounts() && !doNotRelazify_;
     }

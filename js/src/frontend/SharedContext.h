@@ -233,6 +233,7 @@ class SharedContext
     inline FunctionBox* asFunctionBox();
     bool isModuleBox() { return isObjectBox() && toObjectBox()->isModuleBox(); }
     inline ModuleBox* asModuleBox();
+    bool isGlobalContext() { return !toObjectBox(); }
 
     bool allowNewTarget()              const { return allowNewTarget_; }
     bool allowSuperProperty()          const { return allowSuperProperty_; }
@@ -303,6 +304,7 @@ class FunctionBox : public ObjectBox, public SharedContext
     bool            hasDestructuringArgs:1; /* arguments list contains destructuring expression */
     bool            useAsm:1;               /* see useAsmOrInsideUseAsm */
     bool            insideUseAsm:1;         /* see useAsmOrInsideUseAsm */
+    bool            wasEmitted:1;           /* Bytecode has been emitted for this function. */
 
     // Fields for use in heuristics.
     bool            usesArguments:1;  /* contains a free use of 'arguments' */
@@ -381,9 +383,9 @@ class FunctionBox : public ObjectBox, public SharedContext
         startColumn = tokenStream.getColumn();
     }
 
-    bool isHeavyweight()
+    bool needsCallObject()
     {
-        // Note: this should be kept in sync with JSFunction::isHeavyweight().
+        // Note: this should be kept in sync with JSFunction::needsCallObject().
         return bindings.hasAnyAliasedBindings() ||
                hasExtensibleScope() ||
                needsDeclEnvObject() ||
@@ -396,6 +398,7 @@ class ModuleBox : public ObjectBox, public SharedContext
 {
   public:
     Bindings bindings;
+    TraceableVector<JSAtom*> exportNames;
 
     template <typename ParseHandler>
     ModuleBox(ExclusiveContext* cx, ObjectBox* traceListHead, ModuleObject* module,

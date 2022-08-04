@@ -929,13 +929,12 @@ UnboxedPlainObject::obj_enumerate(JSContext* cx, HandleObject obj, AutoIdVector&
 
 const Class UnboxedExpandoObject::class_ = {
     "UnboxedExpandoObject",
-    JSCLASS_IMPLEMENTS_BARRIERS
+    0
 };
 
 const Class UnboxedPlainObject::class_ = {
     js_Object_str,
     Class::NON_NATIVE |
-    JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     nullptr,        /* addProperty */
     nullptr,        /* delProperty */
@@ -1225,9 +1224,10 @@ UnboxedArrayObject::objectMovedDuringMinorGC(JSTracer* trc, JSObject* dst, JSObj
     } else {
         MOZ_ASSERT(allocKind == gc::AllocKind::OBJECT0);
 
+        AutoEnterOOMUnsafeRegion oomUnsafe;
         uint8_t* data = nsrc->zone()->pod_malloc<uint8_t>(nbytes);
         if (!data)
-            CrashAtUnhandlableOOM("Failed to allocate unboxed array elements while tenuring.");
+            oomUnsafe.crash("Failed to allocate unboxed array elements while tenuring.");
         ndst->elements_ = data;
     }
 
@@ -1620,7 +1620,6 @@ UnboxedArrayObject::obj_enumerate(JSContext* cx, HandleObject obj, AutoIdVector&
 const Class UnboxedArrayObject::class_ = {
     "Array",
     Class::NON_NATIVE |
-    JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_SKIP_NURSERY_FINALIZE |
     JSCLASS_BACKGROUND_FINALIZE,
     nullptr,        /* addProperty */
@@ -1903,8 +1902,10 @@ UnboxedArrayObject::fillAfterConvert(ExclusiveContext* cx,
     if (!initlen)
         return;
 
+    AutoEnterOOMUnsafeRegion oomUnsafe;
     if (!growElements(cx, initlen))
-        CrashAtUnhandlableOOM("UnboxedArrayObject::fillAfterConvert");
+        oomUnsafe.crash("UnboxedArrayObject::fillAfterConvert");
+
     setInitializedLength(initlen);
 
     for (size_t i = 0; i < size_t(initlen); i++)

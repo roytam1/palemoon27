@@ -482,6 +482,8 @@ class FullParseHandler
         genName->setOp(JSOP_SETNAME);
         genName->markAsAssigned();
         ParseNode* genInit = newBinary(PNK_ASSIGN, genName, makeGen);
+        if (!genInit)
+            return false;
 
         ParseNode* initialYield = newYieldExpression(yieldPos.begin, nullptr, genInit,
                                                      JSOP_INITIALYIELD);
@@ -520,8 +522,9 @@ class FullParseHandler
         return pn;
     }
 
-    ParseNode* newExportDefaultDeclaration(ParseNode* kid, const TokenPos& pos) {
-        return new_<UnaryNode>(PNK_EXPORT_DEFAULT, JSOP_NOP, pos, kid);
+    ParseNode* newExportDefaultDeclaration(ParseNode* kid, ParseNode* maybeBinding,
+                                           const TokenPos& pos) {
+        return new_<BinaryNode>(PNK_EXPORT_DEFAULT, JSOP_NOP, pos, kid, maybeBinding);
     }
 
     ParseNode* newExprStatement(ParseNode* expr, uint32_t end) {

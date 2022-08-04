@@ -77,7 +77,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, MutableHandle<Bindings>
                                    uint32_t numArgs, uint32_t numVars,
                                    uint32_t numBodyLevelLexicals, uint32_t numBlockScoped,
                                    uint32_t numUnaliasedVars, uint32_t numUnaliasedBodyLevelLexicals,
-                                   const Binding* bindingArray)
+                                   const Binding* bindingArray, bool isModule /* = false */)
 {
     MOZ_ASSERT(!self.callObjShape());
     MOZ_ASSERT(self.bindingArrayUsingTemporaryStorage());
@@ -146,9 +146,10 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, MutableHandle<Bindings>
     uint32_t nfixed = gc::GetGCKindSlots(gc::GetGCObjectKind(nslots));
 
     // Start with the empty shape and then append one shape per aliased binding.
+    const Class* cls = isModule ? &ModuleEnvironmentObject::class_ : &CallObject::class_;
     RootedShape shape(cx,
-        EmptyShape::getInitialShape(cx, &CallObject::class_, TaggedProto(nullptr),
-                                    nfixed, BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE));
+        EmptyShape::getInitialShape(cx, cls, TaggedProto(nullptr), nfixed,
+                                    BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE));
     if (!shape)
         return false;
 
@@ -162,6 +163,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, MutableHandle<Bindings>
 
     uint32_t slot = CallObject::RESERVED_SLOTS;
     for (BindingIter bi(self); bi; bi++) {
+        MOZ_ASSERT_IF(isModule, bi->aliased());
         if (!bi->aliased())
             continue;
 
@@ -174,9 +176,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext* cx, MutableHandle<Bindings>
         }
 #endif
 
-        StackBaseShape stackBase(cx, &CallObject::class_,
-                                 BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE);
-
+        StackBaseShape stackBase(cx, cls, BaseShape::QUALIFIED_VAROBJ | BaseShape::DELEGATE);
         UnownedBaseShape* base = BaseShape::getUnowned(cx, stackBase);
         if (!base)
             return false;
@@ -603,6 +603,7 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
         TreatAsRunOnce,
         HasLazyScript,
         HasNonSyntacticScope,
+        HasInnerFunctions,
     };
 
     uint32_t length, lineno, column, nslots;
@@ -738,6 +739,8 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
             scriptBits |= (1 << HasLazyScript);
         if (script->hasNonSyntacticScope())
             scriptBits |= (1 << HasNonSyntacticScope);
+        if (script->hasInnerFunctions())
+            scriptBits |= (1 << HasInnerFunctions);
     }
 
     if (!xdr->codeUint32(&prologueLength))
@@ -872,6 +875,8 @@ js::XDRScript(XDRState<mode>* xdr, HandleObject enclosingScopeArg, HandleScript 
             script->treatAsRunOnce_ = true;
         if (scriptBits & (1 << HasNonSyntacticScope))
             script->hasNonSyntacticScope_ = true;
+        if (scriptBits & (1 << HasInnerFunctions))
+            script->hasInnerFunctions_ = true;
 
         if (scriptBits & (1 << IsLegacyGenerator)) {
             MOZ_ASSERT(!(scriptBits & (1 << IsStarGenerator)));
@@ -1512,7 +1517,7 @@ ScriptSourceObject::finalize(FreeOp* fop, JSObject* obj)
 const Class ScriptSourceObject::class_ = {
     "ScriptSource",
     JSCLASS_HAS_RESERVED_SLOTS(RESERVED_SLOTS) |
-    JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_IS_ANONYMOUS,
+    JSCLASS_IS_ANONYMOUS,
     nullptr, /* addProperty */
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -2863,7 +2868,7 @@ JSScript::fullyInitFromEmitter(ExclusiveContext* cx, HandleScript script, Byteco
     if (bce->tryNoteList.length() != 0)
         bce->tryNoteList.finish(script->trynotes());
     if (bce->blockScopeList.length() != 0)
-        bce->blockScopeList.finish(script->blockScopes());
+        bce->blockScopeList.finish(script->blockScopes(), prologueLength);
     script->strict_ = bce->sc->strict();
     script->explicitUseStrict_ = bce->sc->hasExplicitUseStrict();
     script->bindingsAccessedDynamically_ = bce->sc->bindingsAccessedDynamically();
@@ -3002,7 +3007,8 @@ js::GetSrcNote(GSNCache& cache, JSScript* script, jsbytecode* pc)
     if (cache.code != script->code() && script->length() >= GSN_CACHE_THRESHOLD) {
         unsigned nsrcnotes = 0;
         for (jssrcnote* sn = script->notes(); !SN_IS_TERMINATOR(sn);
-             sn = SN_NEXT(sn)) {
+             sn = SN_NEXT(sn))
+        {
             if (SN_IS_GETTABLE(sn))
                 ++nsrcnotes;
         }
@@ -3014,10 +3020,11 @@ js::GetSrcNote(GSNCache& cache, JSScript* script, jsbytecode* pc)
         if (cache.map.init(nsrcnotes)) {
             pc = script->code();
             for (jssrcnote* sn = script->notes(); !SN_IS_TERMINATOR(sn);
-                 sn = SN_NEXT(sn)) {
+                 sn = SN_NEXT(sn))
+            {
                 pc += SN_DELTA(sn);
                 if (SN_IS_GETTABLE(sn))
-                    JS_ALWAYS_TRUE(cache.map.put(pc, sn));
+                    cache.map.putNewInfallible(pc, sn);
             }
             cache.code = script->code();
         }
@@ -3260,8 +3267,10 @@ js::detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScri
 
     size_t size = src->dataSize();
     uint8_t* data = AllocScriptData(cx->zone(), size);
-    if (size && !data)
+    if (size && !data) {
+        ReportOutOfMemory(cx);
         return false;
+    }
 
     /* Bindings */
 
@@ -3373,6 +3382,7 @@ js::detail::CopyScript(JSContext* cx, HandleObject scriptStaticScope, HandleScri
     dst->funHasAnyAliasedFormal_ = src->funHasAnyAliasedFormal();
     dst->hasSingletons_ = src->hasSingletons();
     dst->treatAsRunOnce_ = src->treatAsRunOnce();
+    dst->hasInnerFunctions_ = src->hasInnerFunctions();
     dst->isGeneratorExp_ = src->isGeneratorExp();
     dst->setGeneratorKind(src->generatorKind());
 
@@ -3800,10 +3810,7 @@ JSScript::getStaticBlockScope(jsbytecode* pc)
     if (!hasBlockScopes())
         return nullptr;
 
-    if (pc < main())
-        return nullptr;
-
-    size_t offset = pc - main();
+    size_t offset = pc - code();
 
     BlockScopeArray* scopes = blockScopes();
     NestedScopeObject* blockChain = nullptr;
@@ -3852,6 +3859,8 @@ JSScript::innermostStaticScopeInScript(jsbytecode* pc)
 {
     if (JSObject* scope = getStaticBlockScope(pc))
         return scope;
+    if (module())
+        return module();
     return functionNonDelazifying();
 }
 

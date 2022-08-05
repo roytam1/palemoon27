@@ -24,6 +24,7 @@
 #include "gc/Rooting.h"
 #include "js/Vector.h"
 #include "vm/Debugger.h"
+#include "vm/SavedFrame.h"
 #include "vm/StringBuffer.h"
 #include "vm/Time.h"
 #include "vm/WrapperObject.h"
@@ -136,8 +137,8 @@ LiveSavedFrameCache::find(JSContext* cx, FrameIter& frameIter, MutableHandleSave
 struct SavedFrame::Lookup {
     Lookup(JSAtom* source, uint32_t line, uint32_t column,
            JSAtom* functionDisplayName, JSAtom* asyncCause, SavedFrame* parent,
-           JSPrincipals* principals, Maybe<LiveSavedFrameCache::FramePtr> framePtr, jsbytecode* pc,
-           Activation* activation)
+           JSPrincipals* principals, Maybe<LiveSavedFrameCache::FramePtr> framePtr = Nothing(),
+           jsbytecode* pc = nullptr, Activation* activation = nullptr)
       : source(source),
         line(line),
         column(column),
@@ -290,7 +291,6 @@ SavedFrame::finishSavedFrameInit(JSContext* cx, HandleObject ctor, HandleObject 
     nullptr,                    // enumerate
     nullptr,                    // resolve
     nullptr,                    // mayResolve
-    nullptr,                    // convert
     SavedFrame::finalize,       // finalize
     nullptr,                    // call
     nullptr,                    // hasInstance
@@ -442,6 +442,28 @@ SavedFrame::construct(JSContext* cx, unsigned argc, Value* vp)
     return false;
 }
 
+static bool
+SavedFrameSubsumedByCaller(JSContext* cx, HandleSavedFrame frame)
+{
+    auto subsumes = cx->runtime()->securityCallbacks->subsumes;
+    if (!subsumes)
+        return true;
+
+    auto currentCompartmentPrincipals = cx->compartment()->principals();
+    MOZ_ASSERT(!ReconstructedSavedFramePrincipals::is(currentCompartmentPrincipals));
+
+    auto framePrincipals = frame->getPrincipals();
+
+    // Handle SavedFrames that have been reconstructed from stacks in a heap
+    // snapshot.
+    if (framePrincipals == &ReconstructedSavedFramePrincipals::IsSystem)
+        return cx->runningWithTrustedPrincipals();
+    if (framePrincipals == &ReconstructedSavedFramePrincipals::IsNotSystem)
+        return true;
+
+    return subsumes(currentCompartmentPrincipals, framePrincipals);
+}
+
 // Return the first SavedFrame in the chain that starts with |frame| whose
 // principals are subsumed by |principals|, according to |subsumes|. If there is
 // no such frame, return nullptr. |skippedAsync| is set to true if any of the
@@ -452,14 +474,8 @@ GetFirstSubsumedFrame(JSContext* cx, HandleSavedFrame frame, bool& skippedAsync)
 {
     skippedAsync = false;
 
-    JSSubsumesOp subsumes = cx->runtime()->securityCallbacks->subsumes;
-    if (!subsumes)
-        return frame;
-
-    JSPrincipals* principals = cx->compartment()->principals();
-
     RootedSavedFrame rootedFrame(cx, frame);
-    while (rootedFrame && !subsumes(principals, rootedFrame->getPrincipals())) {
+    while (rootedFrame && !SavedFrameSubsumedByCaller(cx, rootedFrame)) {
         if (rootedFrame->getAsyncCause())
             skippedAsync = true;
         rootedFrame = rootedFrame->getParent();
@@ -733,12 +749,10 @@ BuildStackString(JSContext* cx, HandleObject stack, MutableHandleString stringp)
             stringp.set(cx->runtime()->emptyString);
             return true;
         }
-        DebugOnly<JSSubsumesOp> subsumes = cx->runtime()->securityCallbacks->subsumes;
-        DebugOnly<JSPrincipals*> principals = cx->compartment()->principals();
 
         js::RootedSavedFrame parent(cx);
         do {
-            MOZ_ASSERT_IF(subsumes, (*subsumes)(principals, frame->getPrincipals()));
+            MOZ_ASSERT(SavedFrameSubsumedByCaller(cx, frame));
 
             if (!frame->isSelfHosted()) {
                 RootedString asyncCause(cx, frame->getAsyncCause());
@@ -1372,4 +1386,110 @@ CompartmentChecker::check(SavedStacks* stacks)
 }
 #endif /* JS_CRASH_DIAGNOSTICS */
 
+/* static */ ReconstructedSavedFramePrincipals ReconstructedSavedFramePrincipals::IsSystem;
+/* static */ ReconstructedSavedFramePrincipals ReconstructedSavedFramePrincipals::IsNotSystem;
+
 } /* namespace js */
+
+namespace JS {
+namespace ubi {
+
+bool
+ConcreteStackFrame<SavedFrame>::isSystem() const
+{
+    auto trustedPrincipals = get().runtimeFromAnyThread()->trustedPrincipals();
+    return get().getPrincipals() == trustedPrincipals ||
+           get().getPrincipals() == &js::ReconstructedSavedFramePrincipals::IsSystem;
+}
+
+bool
+ConcreteStackFrame<SavedFrame>::constructSavedFrameStack(JSContext* cx,
+                                                         MutableHandleObject outSavedFrameStack)
+    const
+{
+    outSavedFrameStack.set(&get());
+    if (!cx->compartment()->wrap(cx, outSavedFrameStack)) {
+        outSavedFrameStack.set(nullptr);
+        return false;
+    }
+    return true;
+}
+
+// A `mozilla::Variant` matcher that converts the inner value of a
+// `JS::ubi::AtomOrTwoByteChars` string to a `JSAtom*`.
+struct MOZ_STACK_CLASS AtomizingMatcher
+{
+    using ReturnType = JSAtom*;
+
+    JSContext* cx;
+    size_t     length;
+
+    explicit AtomizingMatcher(JSContext* cx, size_t length)
+      : cx(cx)
+      , length(length)
+    { }
+
+    JSAtom* match(JSAtom* atom) {
+        MOZ_ASSERT(atom);
+        return atom;
+    }
+
+    JSAtom* match(const char16_t* chars) {
+        MOZ_ASSERT(chars);
+        return AtomizeChars(cx, chars, length);
+    }
+};
+
+bool ConstructSavedFrameStackSlow(JSContext* cx, JS::ubi::StackFrame& frame,
+                                  MutableHandleObject outSavedFrameStack)
+{
+    SavedFrame::AutoLookupVector stackChain(cx);
+    Rooted<JS::ubi::StackFrame> ubiFrame(cx, frame);
+
+    while (ubiFrame.get()) {
+        // Convert the source and functionDisplayName strings to atoms.
+
+        js::RootedAtom source(cx);
+        AtomizingMatcher atomizer(cx, ubiFrame.get().sourceLength());
+        source = ubiFrame.get().source().match(atomizer);
+        if (!source)
+            return false;
+
+        js::RootedAtom functionDisplayName(cx);
+        auto nameLength = ubiFrame.get().functionDisplayNameLength();
+        if (nameLength > 0) {
+            AtomizingMatcher atomizer(cx, nameLength);
+            functionDisplayName = ubiFrame.get().functionDisplayName().match(atomizer);
+            if (!functionDisplayName)
+                return false;
+        }
+
+        auto principals = js::ReconstructedSavedFramePrincipals::getSingleton(ubiFrame.get());
+
+        if (!stackChain->emplaceBack(source, ubiFrame.get().line(), ubiFrame.get().column(),
+                                     functionDisplayName, /* asyncCause */ nullptr,
+                                     /* parent */ nullptr, principals))
+        {
+            ReportOutOfMemory(cx);
+            return false;
+        }
+
+        ubiFrame = ubiFrame.get().parent();
+    }
+
+    js::RootedSavedFrame parentFrame(cx);
+    for (size_t i = stackChain->length(); i != 0; i--) {
+        SavedFrame::HandleLookup lookup = stackChain[i-1];
+        lookup->parent = parentFrame;
+        parentFrame = cx->compartment()->savedStacks().getOrCreateSavedFrame(cx, lookup);
+        if (!parentFrame)
+            return false;
+    }
+
+    outSavedFrameStack.set(parentFrame);
+    return true;
+}
+
+
+} // namespace ubi
+} // namespace JS

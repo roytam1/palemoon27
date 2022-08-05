@@ -6,11 +6,14 @@
 
 #include "builtin/ModuleObject.h"
 
+#include "frontend/ParseNode.h"
+#include "frontend/SharedContext.h"
 #include "gc/Tracer.h"
 
 #include "jsobjinlines.h"
 
 using namespace js;
+using namespace js::frontend;
 
 typedef JS::Rooted<ImportEntryObject*> RootedImportEntry;
 typedef JS::Rooted<ExportEntryObject*> RootedExportEntry;
@@ -231,8 +234,7 @@ ModuleObject::class_ = {
     nullptr,        /* enumerate   */
     nullptr,        /* resolve     */
     nullptr,        /* mayResolve  */
-    nullptr,        /* convert     */
-    ModuleObject::finalize,
+    nullptr,        /* finalize    */
     nullptr,        /* call        */
     nullptr,        /* hasInstance */
     nullptr,        /* construct   */

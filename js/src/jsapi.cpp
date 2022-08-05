@@ -83,7 +83,6 @@
 #include "vm/StringBuffer.h"
 #include "vm/Symbol.h"
 #include "vm/TypedArrayCommon.h"
-#include "vm/WeakMapObject.h"
 #include "vm/WrapperObject.h"
 #include "vm/Xdr.h"
 
@@ -3331,7 +3330,7 @@ JS_GetSecurityCallbacks(JSRuntime* rt)
 }
 
 JS_PUBLIC_API(void)
-JS_SetTrustedPrincipals(JSRuntime* rt, const JSPrincipals* prin)
+JS_SetTrustedPrincipals(JSRuntime* rt, JSPrincipals* prin)
 {
     rt->setTrustedPrincipals(prin);
 }

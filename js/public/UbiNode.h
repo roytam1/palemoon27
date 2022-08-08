@@ -201,7 +201,7 @@ class JS_FRIEND_API(BaseStackFrame) {
 
     // Get a unique identifier for this StackFrame. The identifier is not valid
     // across garbage collections.
-    virtual uintptr_t identifier() const { return reinterpret_cast<uintptr_t>(ptr); }
+    virtual uint64_t identifier() const { return reinterpret_cast<uint64_t>(ptr); }
 
     // Get this frame's parent frame.
     virtual StackFrame parent() const = 0;
@@ -376,7 +376,7 @@ class JS_FRIEND_API(StackFrame) : public JS::Traceable {
     // Methods that forward to virtual calls through BaseStackFrame.
 
     void trace(JSTracer* trc) { base()->trace(trc); }
-    uintptr_t identifier() const { return base()->identifier(); }
+    uint64_t identifier() const { return base()->identifier(); }
     uint32_t line() const { return base()->line(); }
     uint32_t column() const { return base()->column(); }
     AtomOrTwoByteChars source() const { return base()->source(); }
@@ -415,7 +415,7 @@ class JS_FRIEND_API(ConcreteStackFrame<void>) : public BaseStackFrame {
   public:
     static void construct(void* storage, void*) { new (storage) ConcreteStackFrame(nullptr); }
 
-    uintptr_t identifier() const override { return 0; }
+    uint64_t identifier() const override { return 0; }
     void trace(JSTracer* trc) override { }
     bool constructSavedFrameStack(JSContext* cx, MutableHandleObject out) const override {
         out.set(nullptr);
@@ -436,6 +436,50 @@ JS_FRIEND_API(bool) ConstructSavedFrameStackSlow(JSContext* cx, JS::ubi::StackFr
 
 
 /*** ubi::Node ************************************************************************************/
+
+// A concrete node specialization can claim its referent is a member of a
+// particular "coarse type" which is less specific than the actual
+// implementation type but generally more palatable for web developers. For
+// example, JitCode can be considered to have a coarse type of "Script". This is
+// used by some analyses for putting nodes into different buckets. The default,
+// if a concrete specialization does not provide its own mapping to a CoarseType
+// variant, is "Other".
+//
+// NB: the values associated with a particular enum variant must not change or
+// be reused for new variants. Doing so will cause inspecting ubi::Nodes backed
+// by an offline heap snapshot from an older SpiderMonkey/Firefox version to
+// break. Consider this enum append only.
+enum class CoarseType: uint32_t {
+    Other  = 0,
+    Object = 1,
+    Script = 2,
+    String = 3,
+
+    FIRST  = Other,
+    LAST   = String
+};
+
+inline uint32_t
+CoarseTypeToUint32(CoarseType type)
+{
+    return static_cast<uint32_t>(type);
+}
+
+inline bool
+Uint32IsValidCoarseType(uint32_t n)
+{
+    auto first = static_cast<uint32_t>(CoarseType::FIRST);
+    auto last = static_cast<uint32_t>(CoarseType::LAST);
+    MOZ_ASSERT(first < last);
+    return first <= n && n <= last;
+}
+
+inline CoarseType
+Uint32ToCoarseType(uint32_t n)
+{
+    MOZ_ASSERT(Uint32IsValidCoarseType(n));
+    return static_cast<CoarseType>(n);
+}
 
 // The base class implemented by each ubi::Node referent type. Subclasses must
 // not add data members to this class.
@@ -470,20 +514,23 @@ class JS_FRIEND_API(Base) {
     //
     // This is probably suitable for use in serializations, as it is an integral
     // type. It may also help save memory when constructing HashSets of
-    // ubi::Nodes: since a uintptr_t will always be smaller than a ubi::Node, a
-    // HashSet<ubi::Node::Id> will use less space per element than a
-    // HashSet<ubi::Node>.
+    // ubi::Nodes: since a uint64_t will always be smaller-or-equal-to the size
+    // of a ubi::Node, a HashSet<ubi::Node::Id> may use less space per element
+    // than a HashSet<ubi::Node>.
     //
     // (Note that 'unique' only means 'up to equality on ubi::Node'; see the
     // caveats about multiple objects allocated at the same address for
     // 'ubi::Node::operator=='.)
-    typedef uintptr_t Id;
+    using Id = uint64_t;
     virtual Id identifier() const { return reinterpret_cast<Id>(ptr); }
 
     // Returns true if this node is pointing to something on the live heap, as
     // opposed to something from a deserialized core dump. Returns false,
     // otherwise.
     virtual bool isLive() const { return true; };
+
+    // Return the coarse-grained type-of-thing that this node represents.
+    virtual CoarseType coarseType() const { return CoarseType::Other; }
 
     // Return a human-readable name for the referent's type. The result should
     // be statically allocated. (You can use MOZ_UTF16("strings") for this.)
@@ -495,8 +542,9 @@ class JS_FRIEND_API(Base) {
     // Return the size of this node, in bytes. Include any structures that this
     // node owns exclusively that are not exposed as their own ubi::Nodes.
     // |mallocSizeOf| should be a malloc block sizing function; see
-    // |mfbt/MemoryReporting.h.
-    virtual size_t size(mozilla::MallocSizeOf mallocSizeof) const { return 0; }
+    // |mfbt/MemoryReporting.h|.
+    using Size = uint64_t;
+    virtual Size size(mozilla::MallocSizeOf mallocSizeof) const { return 1; }
 
     // Return an EdgeRange that initially contains all the referent's outgoing
     // edges. The caller takes ownership of the EdgeRange.
@@ -647,9 +695,13 @@ class JS_FRIEND_API(Node) {
 
     bool isLive() const { return base()->isLive(); }
 
+    // Get the canonical type name for the given type T.
+    template<typename T>
+    static const char16_t* canonicalTypeName() { return Concrete<T>::concreteTypeName; }
+
     template<typename T>
     bool is() const {
-        return base()->typeName() == Concrete<T>::concreteTypeName;
+        return base()->typeName() == canonicalTypeName<T>();
     }
 
     template<typename T>
@@ -671,6 +723,7 @@ class JS_FRIEND_API(Node) {
     // not all!) JSObjects can be exposed.
     JS::Value exposeToJS() const;
 
+    CoarseType coarseType()         const { return base()->coarseType(); }
     const char16_t* typeName()      const { return base()->typeName(); }
     JS::Zone* zone()                const { return base()->zone(); }
     JSCompartment* compartment()    const { return base()->compartment(); }
@@ -680,7 +733,8 @@ class JS_FRIEND_API(Node) {
         return base()->jsObjectConstructorName(cx, outName);
     }
 
-    size_t size(mozilla::MallocSizeOf mallocSizeof) const {
+    using Size = Base::Size;
+    Size size(mozilla::MallocSizeOf mallocSizeof) const {
         return base()->size(mallocSizeof);
     }
 
@@ -693,7 +747,7 @@ class JS_FRIEND_API(Node) {
         return base()->allocationStack();
     }
 
-    typedef Base::Id Id;
+    using Id = Base::Id;
     Id identifier() const { return base()->identifier(); }
 
     // A hash policy for ubi::Nodes.
@@ -953,7 +1007,16 @@ class JS_FRIEND_API(TracerConcreteWithCompartment) : public TracerConcrete<Refer
 // Define specializations for some commonly-used public JSAPI types.
 // These can use the generic templates above.
 template<> struct Concrete<JS::Symbol> : TracerConcrete<JS::Symbol> { };
-template<> struct Concrete<JSScript> : TracerConcreteWithCompartment<JSScript> { };
+
+template<> struct Concrete<JSScript> : TracerConcreteWithCompartment<JSScript> {
+    CoarseType coarseType() const final { return CoarseType::Script; }
+
+  protected:
+    explicit Concrete(JSScript *ptr) : TracerConcreteWithCompartment<JSScript>(ptr) { }
+
+  public:
+    static void construct(void *storage, JSScript *ptr) { new (storage) Concrete(ptr); }
+};
 
 // The JSObject specialization.
 template<>
@@ -961,10 +1024,12 @@ class JS_FRIEND_API(Concrete<JSObject>) : public TracerConcreteWithCompartment<J
     const char* jsObjectClassName() const override;
     bool jsObjectConstructorName(JSContext* cx,
                                  UniquePtr<char16_t[], JS::FreePolicy>& outName) const override;
-    size_t size(mozilla::MallocSizeOf mallocSizeOf) const override;
+    Size size(mozilla::MallocSizeOf mallocSizeOf) const override;
 
     bool hasAllocationStack() const override;
     StackFrame allocationStack() const override;
+
+    CoarseType coarseType() const final { return CoarseType::Object; }
 
   protected:
     explicit Concrete(JSObject* ptr) : TracerConcreteWithCompartment(ptr) { }
@@ -977,7 +1042,9 @@ class JS_FRIEND_API(Concrete<JSObject>) : public TracerConcreteWithCompartment<J
 
 // For JSString, we extend the generic template with a 'size' implementation.
 template<> struct Concrete<JSString> : TracerConcrete<JSString> {
-    size_t size(mozilla::MallocSizeOf mallocSizeOf) const override;
+    Size size(mozilla::MallocSizeOf mallocSizeOf) const override;
+
+    CoarseType coarseType() const final { return CoarseType::String; }
 
   protected:
     explicit Concrete(JSString *ptr) : TracerConcrete<JSString>(ptr) { }
@@ -990,10 +1057,11 @@ template<> struct Concrete<JSString> : TracerConcrete<JSString> {
 template<>
 class JS_FRIEND_API(Concrete<void>) : public Base {
     const char16_t* typeName() const override;
-    size_t size(mozilla::MallocSizeOf mallocSizeOf) const override;
+    Size size(mozilla::MallocSizeOf mallocSizeOf) const override;
     UniquePtr<EdgeRange> edges(JSContext* cx, bool wantNames) const override;
     JS::Zone* zone() const override;
     JSCompartment* compartment() const override;
+    CoarseType coarseType() const final;
 
     explicit Concrete(void* ptr) : Base(ptr) { }
 

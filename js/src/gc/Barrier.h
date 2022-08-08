@@ -263,7 +263,7 @@ struct InternalGCMethods<Value>
     static bool isMarkableTaggedPointer(Value v) { return isMarkable(v); }
 
     static void preBarrier(Value v) {
-        DispatchValueTyped(PreBarrierFunctor<Value>(), v);
+        DispatchTyped(PreBarrierFunctor<Value>(), v);
     }
 
     static void postBarrier(Value* vp, const Value& prev, const Value& next) {
@@ -288,7 +288,7 @@ struct InternalGCMethods<Value>
     }
 
     static void readBarrier(const Value& v) {
-        DispatchValueTyped(ReadBarrierFunctor<Value>(), v);
+        DispatchTyped(ReadBarrierFunctor<Value>(), v);
     }
 };
 
@@ -298,7 +298,7 @@ struct InternalGCMethods<jsid>
     static bool isMarkable(jsid id) { return JSID_IS_STRING(id) || JSID_IS_SYMBOL(id); }
     static bool isMarkableTaggedPointer(jsid id) { return isMarkable(id); }
 
-    static void preBarrier(jsid id) { DispatchIdTyped(PreBarrierFunctor<jsid>(), id); }
+    static void preBarrier(jsid id) { DispatchTyped(PreBarrierFunctor<jsid>(), id); }
     static void postBarrier(jsid* idp, jsid prev, jsid next) {}
 };
 
@@ -342,12 +342,7 @@ class MOZ_NON_MEMMOVABLE BarrieredBase : public BarrieredBaseMixins<T>
 
 template <>
 class BarrieredBaseMixins<JS::Value> : public ValueOperations<BarrieredBase<JS::Value> >
-{
-    friend class ValueOperations<BarrieredBase<JS::Value> >;
-    const JS::Value * extract() const {
-        return static_cast<const BarrieredBase<JS::Value>*>(this)->unsafeGet();
-    }
-};
+{};
 
 /*
  * PreBarriered only automatically handles pre-barriers. Post-barriers must

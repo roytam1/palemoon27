@@ -92,7 +92,7 @@
 
   function checkVideo(constraintApplied, stream, done) {
     var video = mkElement('video');
-    video.mozSrcObject = stream;
+    video.srcObject = stream;
 
     var ready = false;
     video.onplaying = function() {

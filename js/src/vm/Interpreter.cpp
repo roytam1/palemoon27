@@ -370,7 +370,7 @@ namespace js {
 // All mutable state is stored in `Runtime::stopwatch` (per-process
 // performance stats and logistics) and in `PerformanceGroup` (per
 // group performance stats).
-class AutoStopwatch final
+class MOZ_RAII AutoStopwatch final
 {
     // The context with which this object was initialized.
     // Non-null.
@@ -1817,12 +1817,7 @@ class ReservedRooted : public ReservedRootedBase<T>
 
 template <>
 class ReservedRootedBase<Value> : public ValueOperations<ReservedRooted<Value>>
-{
-    friend class ValueOperations<ReservedRooted<Value>>;
-    const Value* extract() const {
-        return static_cast<const ReservedRooted<Value>*>(this)->address();
-    }
-};
+{};
 
 static MOZ_NEVER_INLINE bool
 Interpret(JSContext* cx, RunState& state)

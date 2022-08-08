@@ -67,7 +67,7 @@ class JS_PUBLIC_API(AutoCheckRequestDepth)
 
 /* AutoValueArray roots an internal fixed-size array of Values. */
 template <size_t N>
-class AutoValueArray : public AutoGCRooter
+class MOZ_RAII AutoValueArray : public AutoGCRooter
 {
     const size_t length_;
     Value elements_[N];
@@ -99,7 +99,7 @@ class AutoValueArray : public AutoGCRooter
 };
 
 template<class T>
-class AutoVectorRooterBase : protected AutoGCRooter
+class MOZ_RAII AutoVectorRooterBase : protected AutoGCRooter
 {
     typedef js::Vector<T, 8> VectorImpl;
     VectorImpl vector;
@@ -196,7 +196,7 @@ class AutoVectorRooterBase : protected AutoGCRooter
 };
 
 template <typename T>
-class MOZ_STACK_CLASS AutoVectorRooter : public AutoVectorRooterBase<T>
+class MOZ_RAII AutoVectorRooter : public AutoVectorRooterBase<T>
 {
   public:
     explicit AutoVectorRooter(JSContext* cx
@@ -226,7 +226,7 @@ using IdVector = js::TraceableVector<jsid>;
 using ScriptVector = js::TraceableVector<JSScript*>;
 
 template<class Key, class Value>
-class AutoHashMapRooter : protected AutoGCRooter
+class MOZ_RAII AutoHashMapRooter : protected AutoGCRooter
 {
   private:
     typedef js::HashMap<Key, Value> HashMapImpl;
@@ -346,7 +346,7 @@ class AutoHashMapRooter : protected AutoGCRooter
 };
 
 template<class T>
-class AutoHashSetRooter : protected AutoGCRooter
+class MOZ_RAII AutoHashSetRooter : protected AutoGCRooter
 {
   private:
     typedef js::HashSet<T> HashSetImpl;
@@ -453,7 +453,7 @@ class AutoHashSetRooter : protected AutoGCRooter
 /*
  * Custom rooting behavior for internal and external clients.
  */
-class JS_PUBLIC_API(CustomAutoRooter) : private AutoGCRooter
+class MOZ_RAII JS_PUBLIC_API(CustomAutoRooter) : private AutoGCRooter
 {
   public:
     template <typename CX>
@@ -1063,7 +1063,7 @@ AssertHeapIsIdle(JSContext* cx);
 
 } /* namespace js */
 
-class JSAutoRequest
+class MOZ_RAII JSAutoRequest
 {
   public:
     explicit JSAutoRequest(JSContext* cx
@@ -1402,7 +1402,7 @@ JS_RefreshCrossCompartmentWrappers(JSContext* cx, JS::Handle<JSObject*> obj);
  * the corresponding JS_LeaveCompartment call.
  */
 
-class JS_PUBLIC_API(JSAutoCompartment)
+class MOZ_RAII JS_PUBLIC_API(JSAutoCompartment)
 {
     JSContext* cx_;
     JSCompartment* oldCompartment_;
@@ -1416,7 +1416,7 @@ class JS_PUBLIC_API(JSAutoCompartment)
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class JS_PUBLIC_API(JSAutoNullableCompartment)
+class MOZ_RAII JS_PUBLIC_API(JSAutoNullableCompartment)
 {
     JSContext* cx_;
     JSCompartment* oldCompartment_;
@@ -2456,20 +2456,20 @@ namespace JS {
 template <typename Outer>
 class PropertyDescriptorOperations
 {
-    const JSPropertyDescriptor* desc() const { return static_cast<const Outer*>(this)->extract(); }
+    const JSPropertyDescriptor& desc() const { return static_cast<const Outer*>(this)->get(); }
 
     bool has(unsigned bit) const {
         MOZ_ASSERT(bit != 0);
         MOZ_ASSERT((bit & (bit - 1)) == 0);  // only a single bit
-        return (desc()->attrs & bit) != 0;
+        return (desc().attrs & bit) != 0;
     }
 
     bool hasAny(unsigned bits) const {
-        return (desc()->attrs & bits) != 0;
+        return (desc().attrs & bits) != 0;
     }
 
     bool hasAll(unsigned bits) const {
-        return (desc()->attrs & bits) == bits;
+        return (desc().attrs & bits) == bits;
     }
 
     // Non-API attributes bit used internally for arguments objects.
@@ -2480,7 +2480,7 @@ class PropertyDescriptorOperations
     // descriptors. It's complicated.
     bool isAccessorDescriptor() const { return hasAny(JSPROP_GETTER | JSPROP_SETTER); }
     bool isGenericDescriptor() const {
-        return (desc()->attrs&
+        return (desc().attrs&
                 (JSPROP_GETTER | JSPROP_SETTER | JSPROP_IGNORE_READONLY | JSPROP_IGNORE_VALUE)) ==
                (JSPROP_IGNORE_READONLY | JSPROP_IGNORE_VALUE);
     }
@@ -2494,7 +2494,7 @@ class PropertyDescriptorOperations
 
     bool hasValue() const { return !isAccessorDescriptor() && !has(JSPROP_IGNORE_VALUE); }
     JS::HandleValue value() const {
-        return JS::HandleValue::fromMarkedLocation(&desc()->value);
+        return JS::HandleValue::fromMarkedLocation(&desc().value);
     }
 
     bool hasWritable() const { return !isAccessorDescriptor() && !has(JSPROP_IGNORE_READONLY); }
@@ -2504,24 +2504,24 @@ class PropertyDescriptorOperations
     JS::HandleObject getterObject() const {
         MOZ_ASSERT(hasGetterObject());
         return JS::HandleObject::fromMarkedLocation(
-                reinterpret_cast<JSObject* const*>(&desc()->getter));
+                reinterpret_cast<JSObject* const*>(&desc().getter));
     }
     bool hasSetterObject() const { return has(JSPROP_SETTER); }
     JS::HandleObject setterObject() const {
         MOZ_ASSERT(hasSetterObject());
         return JS::HandleObject::fromMarkedLocation(
-                reinterpret_cast<JSObject* const*>(&desc()->setter));
+                reinterpret_cast<JSObject* const*>(&desc().setter));
     }
 
-    bool hasGetterOrSetter() const { return desc()->getter || desc()->setter; }
+    bool hasGetterOrSetter() const { return desc().getter || desc().setter; }
     bool isShared() const { return has(JSPROP_SHARED); }
 
     JS::HandleObject object() const {
-        return JS::HandleObject::fromMarkedLocation(&desc()->obj);
+        return JS::HandleObject::fromMarkedLocation(&desc().obj);
     }
-    unsigned attributes() const { return desc()->attrs; }
-    JSGetterOp getter() const { return desc()->getter; }
-    JSSetterOp setter() const { return desc()->setter; }
+    unsigned attributes() const { return desc().attrs; }
+    JSGetterOp getter() const { return desc().getter; }
+    JSSetterOp setter() const { return desc().setter; }
 
     void assertValid() const {
 #ifdef DEBUG
@@ -2588,7 +2588,7 @@ class PropertyDescriptorOperations
 template <typename Outer>
 class MutablePropertyDescriptorOperations : public PropertyDescriptorOperations<Outer>
 {
-    JSPropertyDescriptor * desc() { return static_cast<Outer*>(this)->extractMutable(); }
+    JSPropertyDescriptor& desc() { return static_cast<Outer*>(this)->get(); }
 
   public:
     void clear() {
@@ -2634,63 +2634,63 @@ class MutablePropertyDescriptorOperations : public PropertyDescriptorOperations<
     }
 
     JS::MutableHandleObject object() {
-        return JS::MutableHandleObject::fromMarkedLocation(&desc()->obj);
+        return JS::MutableHandleObject::fromMarkedLocation(&desc().obj);
     }
-    unsigned& attributesRef() { return desc()->attrs; }
-    JSGetterOp& getter() { return desc()->getter; }
-    JSSetterOp& setter() { return desc()->setter; }
+    unsigned& attributesRef() { return desc().attrs; }
+    JSGetterOp& getter() { return desc().getter; }
+    JSSetterOp& setter() { return desc().setter; }
     JS::MutableHandleValue value() {
-        return JS::MutableHandleValue::fromMarkedLocation(&desc()->value);
+        return JS::MutableHandleValue::fromMarkedLocation(&desc().value);
     }
     void setValue(JS::HandleValue v) {
-        MOZ_ASSERT(!(desc()->attrs & (JSPROP_GETTER | JSPROP_SETTER)));
+        MOZ_ASSERT(!(desc().attrs & (JSPROP_GETTER | JSPROP_SETTER)));
         attributesRef() &= ~JSPROP_IGNORE_VALUE;
         value().set(v);
     }
 
     void setConfigurable(bool configurable) {
-        setAttributes((desc()->attrs & ~(JSPROP_IGNORE_PERMANENT | JSPROP_PERMANENT)) |
+        setAttributes((desc().attrs & ~(JSPROP_IGNORE_PERMANENT | JSPROP_PERMANENT)) |
                       (configurable ? 0 : JSPROP_PERMANENT));
     }
     void setEnumerable(bool enumerable) {
-        setAttributes((desc()->attrs & ~(JSPROP_IGNORE_ENUMERATE | JSPROP_ENUMERATE)) |
+        setAttributes((desc().attrs & ~(JSPROP_IGNORE_ENUMERATE | JSPROP_ENUMERATE)) |
                       (enumerable ? JSPROP_ENUMERATE : 0));
     }
     void setWritable(bool writable) {
-        MOZ_ASSERT(!(desc()->attrs & (JSPROP_GETTER | JSPROP_SETTER)));
-        setAttributes((desc()->attrs & ~(JSPROP_IGNORE_READONLY | JSPROP_READONLY)) |
+        MOZ_ASSERT(!(desc().attrs & (JSPROP_GETTER | JSPROP_SETTER)));
+        setAttributes((desc().attrs & ~(JSPROP_IGNORE_READONLY | JSPROP_READONLY)) |
                       (writable ? 0 : JSPROP_READONLY));
     }
-    void setAttributes(unsigned attrs) { desc()->attrs = attrs; }
+    void setAttributes(unsigned attrs) { desc().attrs = attrs; }
 
     void setGetter(JSGetterOp op) {
         MOZ_ASSERT(op != JS_PropertyStub);
-        desc()->getter = op;
+        desc().getter = op;
     }
     void setSetter(JSSetterOp op) {
         MOZ_ASSERT(op != JS_StrictPropertyStub);
-        desc()->setter = op;
+        desc().setter = op;
     }
     void setGetterObject(JSObject* obj) {
-        desc()->getter = reinterpret_cast<JSGetterOp>(obj);
-        desc()->attrs &= ~(JSPROP_IGNORE_VALUE | JSPROP_IGNORE_READONLY | JSPROP_READONLY);
-        desc()->attrs |= JSPROP_GETTER | JSPROP_SHARED;
+        desc().getter = reinterpret_cast<JSGetterOp>(obj);
+        desc().attrs &= ~(JSPROP_IGNORE_VALUE | JSPROP_IGNORE_READONLY | JSPROP_READONLY);
+        desc().attrs |= JSPROP_GETTER | JSPROP_SHARED;
     }
     void setSetterObject(JSObject* obj) {
-        desc()->setter = reinterpret_cast<JSSetterOp>(obj);
-        desc()->attrs &= ~(JSPROP_IGNORE_VALUE | JSPROP_IGNORE_READONLY | JSPROP_READONLY);
-        desc()->attrs |= JSPROP_SETTER | JSPROP_SHARED;
+        desc().setter = reinterpret_cast<JSSetterOp>(obj);
+        desc().attrs &= ~(JSPROP_IGNORE_VALUE | JSPROP_IGNORE_READONLY | JSPROP_READONLY);
+        desc().attrs |= JSPROP_SETTER | JSPROP_SHARED;
     }
 
     JS::MutableHandleObject getterObject() {
         MOZ_ASSERT(this->hasGetterObject());
         return JS::MutableHandleObject::fromMarkedLocation(
-                reinterpret_cast<JSObject**>(&desc()->getter));
+                reinterpret_cast<JSObject**>(&desc().getter));
     }
     JS::MutableHandleObject setterObject() {
         MOZ_ASSERT(this->hasSetterObject());
         return JS::MutableHandleObject::fromMarkedLocation(
-                reinterpret_cast<JSObject**>(&desc()->setter));
+                reinterpret_cast<JSObject**>(&desc().setter));
     }
 };
 
@@ -2701,40 +2701,17 @@ namespace js {
 template <>
 class RootedBase<JSPropertyDescriptor>
   : public JS::MutablePropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor>>
-{
-    friend class JS::PropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor>>;
-    friend class JS::MutablePropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor>>;
-    const JSPropertyDescriptor* extract() const {
-        return static_cast<const JS::Rooted<JSPropertyDescriptor>*>(this)->address();
-    }
-    JSPropertyDescriptor* extractMutable() {
-        return static_cast<JS::Rooted<JSPropertyDescriptor>*>(this)->address();
-    }
-};
+{};
 
 template <>
 class HandleBase<JSPropertyDescriptor>
   : public JS::PropertyDescriptorOperations<JS::Handle<JSPropertyDescriptor>>
-{
-    friend class JS::PropertyDescriptorOperations<JS::Handle<JSPropertyDescriptor>>;
-    const JSPropertyDescriptor* extract() const {
-        return static_cast<const JS::Handle<JSPropertyDescriptor>*>(this)->address();
-    }
-};
+{};
 
 template <>
 class MutableHandleBase<JSPropertyDescriptor>
   : public JS::MutablePropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor>>
-{
-    friend class JS::PropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor>>;
-    friend class JS::MutablePropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor>>;
-    const JSPropertyDescriptor* extract() const {
-        return static_cast<const JS::MutableHandle<JSPropertyDescriptor>*>(this)->address();
-    }
-    JSPropertyDescriptor* extractMutable() {
-        return static_cast<JS::MutableHandle<JSPropertyDescriptor>*>(this)->address();
-    }
-};
+{};
 
 } /* namespace js */
 
@@ -4275,7 +4252,7 @@ JS_GetStringEncodingLength(JSContext* cx, JSString* str);
 JS_PUBLIC_API(size_t)
 JS_EncodeStringToBuffer(JSContext* cx, JSString* str, char* buffer, size_t length);
 
-class JSAutoByteString
+class MOZ_RAII JSAutoByteString
 {
   public:
     JSAutoByteString(JSContext* cx, JSString* str
@@ -5104,7 +5081,7 @@ HideScriptedCaller(JSContext* cx);
 extern JS_PUBLIC_API(void)
 UnhideScriptedCaller(JSContext* cx);
 
-class AutoHideScriptedCaller
+class MOZ_RAII AutoHideScriptedCaller
 {
   public:
     explicit AutoHideScriptedCaller(JSContext* cx

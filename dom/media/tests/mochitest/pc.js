@@ -62,7 +62,7 @@ function MediaElementChecker(element) {
 
     // If time has passed, then track that and remove the timeupdate event
     // listener.
-    if(element.mozSrcObject && element.mozSrcObject.currentTime > 0 &&
+    if(element.srcObject && element.srcObject.currentTime > 0 &&
        element.currentTime > 0) {
       info('time passed for media element ' + elementId);
       this.timePassed = true;
@@ -880,7 +880,7 @@ PeerConnectionWrapper.prototype = {
 
     var element = createMediaElement(type, this.label + '_' + side + this.streams.length);
     this.mediaCheckers.push(new MediaElementChecker(element));
-    element.mozSrcObject = stream;
+    element.srcObject = stream;
     element.play();
 
     // Store local media elements so that we can stop them when done.

@@ -3788,7 +3788,7 @@ CompartmentCheckTracer::onChild(const JS::GCCellPtr& thing)
 {
     TenuredCell* tenured = TenuredCell::fromPointer(thing.asCell());
 
-    JSCompartment* comp = DispatchTraceKindTyped(MaybeCompartmentFunctor(), tenured, thing.kind());
+    JSCompartment* comp = DispatchTyped(MaybeCompartmentFunctor(), thing);
     if (comp && compartment) {
         MOZ_ASSERT(comp == compartment || runtime()->isAtomsCompartment(comp) ||
                    (srcKind == JS::TraceKind::Object &&
@@ -6971,11 +6971,9 @@ js::UninlinedIsInsideNursery(const gc::Cell* cell)
 }
 
 #ifdef DEBUG
-AutoDisableProxyCheck::AutoDisableProxyCheck(JSRuntime* rt
-                                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+AutoDisableProxyCheck::AutoDisableProxyCheck(JSRuntime* rt)
   : gc(rt->gc)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     gc.disableStrictProxyChecking();
 }
 
@@ -7328,7 +7326,7 @@ JS::IncrementalReferenceBarrier(GCCellPtr thing)
     if (!thing)
         return;
 
-    DispatchTraceKindTyped(IncrementalReferenceBarrierFunctor(), thing.asCell(), thing.kind());
+    DispatchTyped(IncrementalReferenceBarrierFunctor(), thing);
 }
 
 JS_PUBLIC_API(void)

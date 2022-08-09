@@ -267,11 +267,11 @@ protected:
  * An ImageContainer can operate in one of these modes:
  * 1) Normal. Triggered by constructing the ImageContainer with
  * DISABLE_ASYNC or when compositing is happening on the main thread.
- * SetCurrentImage changes ImageContainer state but nothing is sent to the
+ * SetCurrentImages changes ImageContainer state but nothing is sent to the
  * compositor until the next layer transaction.
  * 2) Asynchronous. Initiated by constructing the ImageContainer with
  * ENABLE_ASYNC when compositing is happening on the main thread.
- * SetCurrentImage sends a message through the ImageBridge to the compositor
+ * SetCurrentImages sends a message through the ImageBridge to the compositor
  * thread to update the image, without going through the main thread or
  * a layer transaction.
  * The ImageContainer uses a shared memory block containing a cross-process mutex
@@ -302,24 +302,45 @@ public:
    */
   B2G_ACL_EXPORT already_AddRefed<Image> CreateImage(ImageFormat aFormat);
 
+  struct NonOwningImage {
+    explicit NonOwningImage(Image* aImage = nullptr,
+                            TimeStamp aTimeStamp = TimeStamp(),
+                            FrameID aFrameID = 0,
+                            ProducerID aProducerID = 0)
+      : mImage(aImage), mTimeStamp(aTimeStamp), mFrameID(aFrameID),
+        mProducerID(aProducerID) {}
+    Image* mImage;
+    TimeStamp mTimeStamp;
+    FrameID mFrameID;
+    ProducerID mProducerID;
+  };
   /**
-   * Set an Image as the current image to display. The Image must have
+   * Set aImages as the list of timestamped to display. The Images must have
    * been created by this ImageContainer.
    * Can be called on any thread. This method takes mReentrantMonitor
    * when accessing thread-shared state.
-   * aImage can be null. While it's null, nothing will be painted.
+   * aImages must be non-empty. The first timestamp in the list may be
+   * null but the others must not be, and the timestamps must increase.
+   * Every element of aImages must have non-null mImage.
+   * mFrameID can be zero, in which case you won't get meaningful
+   * painted/dropped frame counts. Otherwise you should use a unique and
+   * increasing ID for each decoded and submitted frame (but it's OK to
+   * pass the same frame to SetCurrentImages).
+   * mProducerID is a unique ID for the stream of images. A change in the
+   * mProducerID means changing to a new mFrameID namespace. All frames in
+   * aImages must have the same mProducerID.
    * 
    * The Image data must not be modified after this method is called!
    * Note that this must not be called if ENABLE_ASYNC has not been set.
    *
-   * Implementations must call CurrentImageChanged() while holding
+   * The implementation calls CurrentImageChanged() while holding
    * mReentrantMonitor.
    *
    * If this ImageContainer has an ImageClient for async video:
-   * Schelude a task to send the image to the compositor using the 
+   * Schedule a task to send the image to the compositor using the
    * PImageBridge protcol without using the main thread.
    */
-  void SetCurrentImage(Image* aImage);
+  void SetCurrentImages(const nsTArray<NonOwningImage>& aImages);
 
   /**
    * Clear all images. Let ImageClient release all TextureClients.
@@ -327,18 +348,12 @@ public:
   void ClearAllImages();
 
   /**
-   * Clear all images except current one.
-   * Let ImageClient release all TextureClients except front one.
-   */
-  void ClearAllImagesExceptFront();
-
-  /**
-   * Clear the current image.
+   * Clear the current images.
    * This function is expect to be called only from a CompositableClient
    * that belongs to ImageBridgeChild. Created to prevent dead lock.
    * See Bug 901224.
    */
-  void ClearCurrentImage();
+  void ClearImagesFromImageBridge();
 
   /**
    * Set an Image as the current image to display. The Image must have
@@ -352,8 +367,7 @@ public:
    * The Image data must not be modified after this method is called!
    * Note that this must not be called if ENABLE_ASYNC been set.
    *
-   * Implementations must call CurrentImageChanged() while holding
-   * mReentrantMonitor.
+   * You won't get meaningful painted/dropped counts when using this method.
    */
   void SetCurrentImageInTransaction(Image* aImage);
 
@@ -382,10 +396,12 @@ public:
   bool HasCurrentImage();
 
   struct OwningImage {
+    OwningImage() : mFrameID(0), mProducerID(0), mComposited(false) {}
     nsRefPtr<Image> mImage;
     TimeStamp mTimeStamp;
     FrameID mFrameID;
     ProducerID mProducerID;
+    bool mComposited;
   };
   /**
    * Copy the current Image list to aImages.
@@ -429,14 +445,17 @@ public:
   }
 
   /**
-   * Returns the time at which the currently contained image was first
-   * painted.  This is reset every time a new image is set as the current
-   * image.  Note this may return a null timestamp if the current image
-   * has not yet been painted.  Can be called from any thread.
+   * Returns the delay between the last composited image's presentation
+   * timestamp and when it was first composited. It's possible for the delay
+   * to be negative if the first image in the list passed to SetCurrentImages
+   * has a presentation timestamp greater than "now".
+   * Returns 0 if the composited image had a null timestamp, or if no
+   * image has been composited yet.
    */
-  TimeStamp GetPaintTime() {
+  TimeDuration GetPaintDelay()
+  {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    return mPaintTime;
+    return mPaintDelay;
   }
 
   /**
@@ -449,31 +468,26 @@ public:
   }
 
   /**
-   * Increments mPaintCount if this is the first time aPainted has been
-   * painted, and sets mPaintTime if the painted image is the current image.
-   * current image.  Can be called from any thread.
+   * An entry in the current image list "expires" when the entry has an
+   * non-null timestamp, and in a SetCurrentImages call the new image list is
+   * non-empty, the timestamp of the first new image is non-null and greater
+   * than the timestamp associated with the image, and the first new image's
+   * frameID is not the same as the entry's.
+   * Every expired image that is never composited is counted as dropped.
    */
-  void NotifyPaintedImage(Image* aPainted) {
+  uint32_t GetDroppedImageCount()
+  {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-
-    nsRefPtr<Image> current = mActiveImage;
-    if (aPainted == current) {
-      if (mPaintTime.IsNull()) {
-        mPaintTime = TimeStamp::Now();
-        mPaintCount++;
-      }
-    } else if (!mPreviousImagePainted) {
-      // While we were painting this image, the current image changed. We
-      // still must count it as painted, but can't set mPaintTime, since we're
-      // no longer the current image.
-      mPaintCount++;
-      mPreviousImagePainted = true;
-    }
+    return mDroppedImageCount;
   }
 
   PImageContainerChild* GetPImageContainerChild();
-
   static void NotifyComposite(const ImageCompositeNotification& aNotification);
+
+  /**
+   * Main thread only.
+   */
+  static ProducerID AllocateProducerID();
 
 private:
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
@@ -481,7 +495,7 @@ private:
   // Private destructor, to discourage deletion outside of Release():
   B2G_ACL_EXPORT ~ImageContainer();
 
-  void SetCurrentImageInternal(Image* aImage);
+  void SetCurrentImageInternal(const nsTArray<NonOwningImage>& aImages);
 
   // This is called to ensure we have an active image, this may not be true
   // when we're storing image information in a RemoteImageData structure.
@@ -489,22 +503,14 @@ private:
   // calling this function!
   void EnsureActiveImage();
 
+  void NotifyCompositeInternal(const ImageCompositeNotification& aNotification);
+
   // ReentrantMonitor to protect thread safe access to the "current
   // image", and any other state which is shared between threads.
   ReentrantMonitor mReentrantMonitor;
 
-  // Performs necessary housekeeping to ensure the painted frame statistics
-  // are accurate. Must be called by SetCurrentImage() implementations with
-  // mReentrantMonitor held.
-  void CurrentImageChanged() {
-    mReentrantMonitor.AssertCurrentThreadIn();
-    mPreviousImagePainted = !mPaintTime.IsNull();
-    mPaintTime = TimeStamp();
-  }
+  nsTArray<OwningImage> mCurrentImages;
 
-  void NotifyCompositeInternal(const ImageCompositeNotification& aNotification) {}
-
-  nsRefPtr<Image> mActiveImage;
   // Updates every time mActiveImage changes
   uint32_t mGenerationCounter;
 
@@ -513,12 +519,11 @@ private:
   // threadsafe.
   uint32_t mPaintCount;
 
-  // Time stamp at which the current image was first painted.  It's up to the
-  // ImageContainer implementation to ensure accesses to this are threadsafe.
-  TimeStamp mPaintTime;
+  // See GetPaintDelay. Accessed only with mReentrantMonitor held.
+  TimeDuration mPaintDelay;
 
-  // Denotes whether the previous image was painted.
-  bool mPreviousImagePainted;
+  // See GetDroppedImageCount. Accessed only with mReentrantMonitor held.
+  uint32_t mDroppedImageCount;
 
   // This is the image factory used by this container, layer managers using
   // this container can set an alternative image factory that will be used to
@@ -537,6 +542,11 @@ private:
   // frames to the compositor through transactions in the main thread rather than
   // asynchronusly using the ImageBridge IPDL protocol.
   ImageClient* mImageClient;
+
+  nsTArray<FrameID> mFrameIDsNotYetComposited;
+  // ProducerID for last current image(s), including the frames in
+  // mFrameIDsNotYetComposited
+  ProducerID mCurrentProducerID;
 
   // Object must be released on the ImageBridge thread. Field is immutable
   // after creation of the ImageContainer.

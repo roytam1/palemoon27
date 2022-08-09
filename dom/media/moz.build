@@ -89,7 +89,6 @@ XPIDL_MODULE = 'dom_media'
 
 EXPORTS += [
     'AbstractMediaDecoder.h',
-    'AbstractThread.h',
     'ADTSDecoder.h',
     'ADTSDemuxer.h',
     'AudioBufferUtils.h',
@@ -106,7 +105,7 @@ EXPORTS += [
     'DOMMediaStream.h',
     'EncodedBufferCache.h',
     'FileBlockCache.h',
-    'GraphDriver.h',
+    'FlushableTaskQueue.h',
     'Intervals.h',
     'Latency.h',
     'MediaCache.h',
@@ -116,16 +115,15 @@ EXPORTS += [
     'MediaDecoderOwner.h',
     'MediaDecoderReader.h',
     'MediaDecoderStateMachine.h',
+    'MediaEventSource.h',
     'MediaFormatReader.h',
     'MediaInfo.h',
     'MediaMetadataManager.h',
-    'MediaPromise.h',
     'MediaQueue.h',
     'MediaRecorder.h',
     'MediaResource.h',
     'MediaSegment.h',
     'MediaStreamGraph.h',
-    'MediaTaskQueue.h',
     'MediaTimer.h',
     'MediaTrack.h',
     'MediaTrackList.h',
@@ -136,11 +134,7 @@ EXPORTS += [
     'RtspMediaResource.h',
     'SelfRef.h',
     'SharedBuffer.h',
-    'SharedThreadPool.h',
-    'StateMirroring.h',
-    'StateWatching.h',
     'StreamBuffer.h',
-    'TaskDispatcher.h',
     'ThreadPoolCOMListener.h',
     'TimeUnits.h',
     'TimeVarying.h',
@@ -153,6 +147,8 @@ EXPORTS += [
 
 EXPORTS.mozilla += [
     'MediaManager.h',
+    'StateMirroring.h',
+    'StateWatching.h',
 ]
 
 EXPORTS.mozilla.media.webrtc += [
@@ -190,9 +186,9 @@ EXPORTS.mozilla.dom += [
 ]
 
 UNIFIED_SOURCES += [
-    'AbstractThread.cpp',
     'ADTSDecoder.cpp',
     'ADTSDemuxer.cpp',
+    'AudioCaptureStream.cpp',
     'AudioChannelFormat.cpp',
     'AudioCompactor.cpp',
     'AudioSegment.cpp',
@@ -207,6 +203,7 @@ UNIFIED_SOURCES += [
     'DOMMediaStream.cpp',
     'EncodedBufferCache.cpp',
     'FileBlockCache.cpp',
+    'FlushableTaskQueue.cpp',
     'GetUserMediaRequest.cpp',
     'GraphDriver.cpp',
     'Latency.cpp',
@@ -225,7 +222,6 @@ UNIFIED_SOURCES += [
     'MediaStreamError.cpp',
     'MediaStreamGraph.cpp',
     'MediaStreamTrack.cpp',
-    'MediaTaskQueue.cpp',
     'MediaTimer.cpp',
     'MediaTrack.cpp',
     'MediaTrackList.cpp',
@@ -233,7 +229,6 @@ UNIFIED_SOURCES += [
     'MP3Demuxer.cpp',
     'MP3FrameParser.cpp',
     'RtspMediaResource.cpp',
-    'SharedThreadPool.cpp',
     'StreamBuffer.cpp',
     'TextTrack.cpp',
     'TextTrackCue.cpp',

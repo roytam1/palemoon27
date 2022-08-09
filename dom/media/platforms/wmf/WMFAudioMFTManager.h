@@ -8,7 +8,6 @@
 #define WMFAudioOutputSource_h_
 
 #include "WMF.h"
-#include "MP4Reader.h"
 #include "MFTDecoder.h"
 #include "mozilla/RefPtr.h"
 #include "WMFMediaDataDecoder.h"
@@ -31,6 +30,10 @@ public:
                          nsRefPtr<MediaData>& aOutput) override;
 
   virtual void Shutdown() override;
+
+  virtual TrackInfo::TrackType GetType() override {
+    return TrackInfo::kAudioTrack;
+  }
 
 private:
 

@@ -34,6 +34,8 @@
 #include "MediaStreamAudioDestinationNode.h"
 #include "MediaStreamAudioSourceNode.h"
 #include "MediaStreamGraph.h"
+#include "OscillatorNode.h"
+#include "blink/PeriodicWave.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsPIDOMWindow.h"
@@ -1051,6 +1053,49 @@ double
 AudioContext::ExtraCurrentTime() const
 {
   return mDestination->ExtraCurrentTime();
+}
+
+BasicWaveFormCache*
+AudioContext::GetBasicWaveFormCache()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!mBasicWaveFormCache) {
+    mBasicWaveFormCache = new BasicWaveFormCache(SampleRate());
+  }
+  return mBasicWaveFormCache;
+}
+
+BasicWaveFormCache::BasicWaveFormCache(uint32_t aSampleRate)
+  : mSampleRate(aSampleRate)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+}
+BasicWaveFormCache::~BasicWaveFormCache()
+{ }
+
+WebCore::PeriodicWave*
+BasicWaveFormCache::GetBasicWaveForm(OscillatorType aType)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+  if (aType == OscillatorType::Sawtooth) {
+    if (!mSawtooth) {
+      mSawtooth = WebCore::PeriodicWave::createSawtooth(mSampleRate);
+    }
+    return mSawtooth;
+  } else if (aType == OscillatorType::Square) {
+    if (!mSquare) {
+      mSquare = WebCore::PeriodicWave::createSquare(mSampleRate);
+    }
+    return mSquare;
+  } else if (aType == OscillatorType::Triangle) {
+    if (!mTriangle) {
+      mTriangle = WebCore::PeriodicWave::createTriangle(mSampleRate);
+    }
+    return mTriangle;
+  } else {
+    MOZ_ASSERT(false, "Not reached");
+    return nullptr;
+  }
 }
 
 } // namespace dom

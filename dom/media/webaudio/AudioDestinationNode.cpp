@@ -313,12 +313,9 @@ AudioDestinationNode::AudioDestinationNode(AudioContext* aContext,
                                            bool aIsOffline,
                                            AudioChannel aChannel,
                                            uint32_t aNumberOfChannels,
-                                           uint32_t aLength,
-                                           float aSampleRate)
-  : AudioNode(aContext,
-              aIsOffline ? aNumberOfChannels : 2,
-              ChannelCountMode::Explicit,
-              ChannelInterpretation::Speakers)
+                                           uint32_t aLength, float aSampleRate)
+  : AudioNode(aContext, aIsOffline ? aNumberOfChannels : 2,
+              ChannelCountMode::Explicit, ChannelInterpretation::Speakers)
   , mFramesToProduce(aLength)
   , mAudioChannel(AudioChannel::Normal)
   , mIsOffline(aIsOffline)
@@ -326,6 +323,7 @@ AudioDestinationNode::AudioDestinationNode(AudioContext* aContext,
   , mExtraCurrentTime(0)
   , mExtraCurrentTimeSinceLastStartedBlocking(0)
   , mExtraCurrentTimeUpdatedSinceLastStableState(false)
+  , mCaptured(false)
 {
   bool startWithAudioDriver = true;
   MediaStreamGraph* graph = aIsOffline ?
@@ -373,7 +371,7 @@ void
 AudioDestinationNode::DestroyAudioChannelAgent()
 {
   if (mAudioChannelAgent && !Context()->IsOffline()) {
-    mAudioChannelAgent->StopPlaying();
+    mAudioChannelAgent->NotifyStoppedPlaying();
     mAudioChannelAgent = nullptr;
   }
 }
@@ -505,6 +503,33 @@ AudioDestinationNode::WindowVolumeChanged(float aVolume, bool aMuted)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+AudioDestinationNode::WindowAudioCaptureChanged()
+{
+  MOZ_ASSERT(mAudioChannelAgent);
+
+  if (!mStream || Context()->IsOffline()) {
+    return NS_OK;
+  }
+
+  bool captured = GetOwner()->GetAudioCaptured();
+
+  if (captured != mCaptured) {
+    if (captured) {
+      nsCOMPtr<nsPIDOMWindow> window = Context()->GetParentObject();
+      uint64_t id = window->WindowID();
+      mCaptureStreamPort =
+        mStream->Graph()->ConnectToCaptureStream(id, mStream);
+    } else {
+      mCaptureStreamPort->Disconnect();
+      mCaptureStreamPort->Destroy();
+    }
+    mCaptured = captured;
+  }
+
+  return NS_OK;
+}
+
 AudioChannel
 AudioDestinationNode::MozAudioChannelType() const
 {
@@ -580,7 +605,7 @@ AudioDestinationNode::CreateAudioChannelAgent()
   }
 
   if (mAudioChannelAgent) {
-    mAudioChannelAgent->StopPlaying();
+    mAudioChannelAgent->NotifyStoppedPlaying();
   }
 
   mAudioChannelAgent = new AudioChannelAgent();
@@ -591,6 +616,8 @@ AudioDestinationNode::CreateAudioChannelAgent()
   // The AudioChannelAgent must start playing immediately in order to avoid
   // race conditions with mozinterruptbegin/end events.
   InputMuted(false);
+
+  WindowAudioCaptureChanged();
 }
 
 void
@@ -669,17 +696,18 @@ AudioDestinationNode::InputMuted(bool aMuted)
   }
 
   if (aMuted) {
-    mAudioChannelAgent->StopPlaying();
+    mAudioChannelAgent->NotifyStoppedPlaying();
     return;
   }
 
   float volume = 0.0;
   bool muted = true;
-  nsresult rv = mAudioChannelAgent->StartPlaying(&volume, &muted);
+  nsresult rv = mAudioChannelAgent->NotifyStartedPlaying(&volume, &muted);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return;
   }
 
+  WindowAudioCaptureChanged();
   WindowVolumeChanged(volume, muted);
 }
 

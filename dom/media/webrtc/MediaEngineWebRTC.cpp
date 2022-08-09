@@ -276,10 +276,9 @@ MediaEngineWebRTC::EnumerateVideoDevices(dom::MediaSourceEnum aMediaSource,
     }
   }
 
-  if (mHasTabVideoSource || dom::MediaSourceEnum::Browser == aMediaSource)
+  if (mHasTabVideoSource || dom::MediaSourceEnum::Browser == aMediaSource) {
     aVSources->AppendElement(new MediaEngineTabVideoSource());
-
-  return;
+  }
 #endif
 }
 
@@ -291,6 +290,13 @@ MediaEngineWebRTC::EnumerateAudioDevices(dom::MediaSourceEnum aMediaSource,
   ScopedCustomReleasePtr<webrtc::VoEHardware> ptrVoEHw;
   // We spawn threads to handle gUM runnables, so we must protect the member vars
   MutexAutoLock lock(mMutex);
+
+  if (aMediaSource == dom::MediaSourceEnum::AudioCapture) {
+    nsRefPtr<MediaEngineWebRTCAudioCaptureSource> audioCaptureSource =
+      new MediaEngineWebRTCAudioCaptureSource(nullptr);
+    aASources->AppendElement(audioCaptureSource);
+    return;
+  }
 
 #ifdef MOZ_WIDGET_ANDROID
   jobject context = mozilla::AndroidBridge::Bridge()->GetGlobalContextRef();
@@ -359,19 +365,39 @@ MediaEngineWebRTC::EnumerateAudioDevices(dom::MediaSourceEnum aMediaSource,
       strcpy(uniqueId,deviceName); // safe given assert and initialization/error-check
     }
 
-    nsRefPtr<MediaEngineWebRTCAudioSource> aSource;
+    nsRefPtr<MediaEngineAudioSource> aSource;
     NS_ConvertUTF8toUTF16 uuid(uniqueId);
     if (mAudioSources.Get(uuid, getter_AddRefs(aSource))) {
       // We've already seen this device, just append.
       aASources->AppendElement(aSource.get());
     } else {
-      aSource = new MediaEngineWebRTCAudioSource(
-        mThread, mVoiceEngine, i, deviceName, uniqueId
-      );
+      aSource = new MediaEngineWebRTCMicrophoneSource(mThread, mVoiceEngine, i,
+                                                      deviceName, uniqueId);
       mAudioSources.Put(uuid, aSource); // Hashtable takes ownership.
       aASources->AppendElement(aSource);
     }
   }
+}
+
+static PLDHashOperator
+ClearVideoSource (const nsAString&, // unused
+                  MediaEngineVideoSource* aData,
+                  void *userArg)
+{
+  if (aData) {
+    aData->Shutdown();
+  }
+  return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+ClearAudioSource(const nsAString &, // unused
+                 MediaEngineAudioSource *aData, void *userArg)
+{
+  if (aData) {
+    aData->Shutdown();
+  }
+  return PL_DHASH_NEXT;
 }
 
 void
@@ -380,9 +406,15 @@ MediaEngineWebRTC::Shutdown()
   // This is likely paranoia
   MutexAutoLock lock(mMutex);
 
-  // Clear callbacks before we go away since the engines may outlive us
+  LOG(("%s", __FUNCTION__));
+  // Shutdown all the sources, since we may have dangling references to the
+  // sources in nsDOMUserMediaStreams waiting for GC/CC
+  mVideoSources.EnumerateRead(ClearVideoSource, nullptr);
+  mAudioSources.EnumerateRead(ClearAudioSource, nullptr);
   mVideoSources.Clear();
   mAudioSources.Clear();
+
+  // Clear callbacks before we go away since the engines may outlive us
   if (mVideoEngine) {
     mVideoEngine->SetTraceCallback(nullptr);
     webrtc::VideoEngine::Delete(mVideoEngine);

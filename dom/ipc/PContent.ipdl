@@ -24,6 +24,7 @@ include protocol PHal;
 include protocol PIcc;
 include protocol PProcessHangMonitor;
 include protocol PImageBridge;
+include protocol PMedia;
 include protocol PMemoryReportRequest;
 include protocol PMobileConnection;
 include protocol PNecko;
@@ -433,6 +434,7 @@ prio(normal upto urgent) sync protocol PContent
     manages PFMRadio;
     manages PHal;
     manages PIcc;
+    manages PMedia;
     manages PMemoryReportRequest;
     manages PMobileConnection;
     manages PNecko;
@@ -777,6 +779,8 @@ parent:
     PTelephony();
 
     PVoicemail();
+
+    PMedia();
 
     PBluetooth();
 

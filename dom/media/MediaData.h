@@ -22,7 +22,6 @@ class Image;
 class ImageContainer;
 } // namespace layers
 
-class MediaLargeByteBuffer;
 class MediaByteBuffer;
 class SharedTrackInfo;
 
@@ -280,13 +279,17 @@ public:
   // This frame's image.
   nsRefPtr<Image> mImage;
 
+  int32_t mFrameID;
+
+  bool mSentToCompositor;
 
   VideoData(int64_t aOffset,
             int64_t aTime,
             int64_t aDuration,
             bool aKeyframe,
             int64_t aTimecode,
-            IntSize aDisplay);
+            IntSize aDisplay,
+            int32_t aFrameID);
 
 protected:
   ~VideoData();
@@ -405,15 +408,6 @@ private:
   uint32_t mCapacity;
   CryptoSample mCryptoInternal;
   MediaRawData(const MediaRawData&); // Not implemented
-};
-
-  // MediaLargeByteBuffer is a ref counted fallible TArray.
-  // It is designed to share potentially big byte arrays.
-class MediaLargeByteBuffer : public FallibleTArray<uint8_t> {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaLargeByteBuffer);
-
-private:
-  ~MediaLargeByteBuffer() {}
 };
 
   // MediaByteBuffer is a ref counted infallible TArray.

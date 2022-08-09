@@ -3,10 +3,14 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "AudioSink.h"
-#include "MediaDecoderStateMachine.h"
 #include "AudioStream.h"
-#include "prenv.h"
+#include "MediaQueue.h"
+#include "VideoUtils.h"
+
+#include "mozilla/CheckedInt.h"
+#include "mozilla/DebugOnly.h"
 
 namespace mozilla {
 
@@ -16,89 +20,90 @@ extern PRLogModuleInfo* gMediaDecoderLog;
 #define SINK_LOG_V(msg, ...) \
   MOZ_LOG(gMediaDecoderLog, LogLevel::Verbose, ("AudioSink=%p " msg, this, ##__VA_ARGS__))
 
-AudioSink::OnAudioEndTimeUpdateTask::OnAudioEndTimeUpdateTask(
-                                     MediaDecoderStateMachine* aStateMachine)
-  : mMutex("OnAudioEndTimeUpdateTask")
-  , mEndTime(0)
-  , mStateMachine(aStateMachine)
-{
-}
-
-NS_IMETHODIMP
-AudioSink::OnAudioEndTimeUpdateTask::Run() {
-  MutexAutoLock lock(mMutex);
-  if (mStateMachine) {
-    mStateMachine->OnAudioEndTimeUpdate(mEndTime);
-  }
-  return NS_OK;
-}
-
-void
-AudioSink::OnAudioEndTimeUpdateTask::Dispatch(int64_t aEndTime) {
-  MutexAutoLock lock(mMutex);
-  if (mStateMachine) {
-    mEndTime = aEndTime;
-    nsRefPtr<AudioSink::OnAudioEndTimeUpdateTask> runnable(this);
-    mStateMachine->TaskQueue()->Dispatch(runnable.forget());
-  }
-}
-
-void
-AudioSink::OnAudioEndTimeUpdateTask::Cancel() {
-  MutexAutoLock lock(mMutex);
-  mStateMachine = nullptr;
-}
-
 // The amount of audio frames that is used to fuzz rounding errors.
 static const int64_t AUDIO_FUZZ_FRAMES = 1;
 
-AudioSink::AudioSink(MediaDecoderStateMachine* aStateMachine,
-                     int64_t aStartTime, AudioInfo aInfo, dom::AudioChannel aChannel)
-  : mStateMachine(aStateMachine)
+AudioSink::AudioSink(MediaQueue<AudioData>& aAudioQueue,
+                     int64_t aStartTime,
+                     const AudioInfo& aInfo,
+                     dom::AudioChannel aChannel)
+  : mAudioQueue(aAudioQueue)
+  , mMonitor("AudioSink::mMonitor")
+  , mState(AUDIOSINK_STATE_INIT)
+  , mAudioLoopScheduled(false)
   , mStartTime(aStartTime)
   , mWritten(0)
   , mLastGoodPosition(0)
   , mInfo(aInfo)
   , mChannel(aChannel)
-  , mVolume(1.0)
-  , mPlaybackRate(1.0)
-  , mPreservesPitch(false)
   , mStopAudioThread(false)
-  , mSetVolume(false)
-  , mSetPlaybackRate(false)
-  , mSetPreservesPitch(false)
   , mPlaying(true)
 {
-  NS_ASSERTION(mStartTime != -1, "Should have audio start time by now");
-  mOnAudioEndTimeUpdateTask = new OnAudioEndTimeUpdateTask(aStateMachine);
 }
 
-nsresult
+void
+AudioSink::SetState(State aState)
+{
+  AssertOnAudioThread();
+  mPendingState = Some(aState);
+}
+
+void
+AudioSink::DispatchTask(already_AddRefed<nsIRunnable>&& event)
+{
+  DebugOnly<nsresult> rv = mThread->Dispatch(Move(event), NS_DISPATCH_NORMAL);
+  // There isn't much we can do if Dispatch() fails.
+  // Just assert it to keep things simple.
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
+}
+
+void
+AudioSink::ScheduleNextLoop()
+{
+  AssertOnAudioThread();
+  if (mAudioLoopScheduled) {
+    return;
+  }
+  mAudioLoopScheduled = true;
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethod(this, &AudioSink::AudioLoop);
+  DispatchTask(r.forget());
+}
+
+void
+AudioSink::ScheduleNextLoopCrossThread()
+{
+  AssertNotOnAudioThread();
+  nsRefPtr<AudioSink> self = this;
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self] () {
+    // Do nothing if there is already a pending task waiting for its turn.
+    if (!self->mAudioLoopScheduled) {
+      self->AudioLoop();
+    }
+  });
+  DispatchTask(r.forget());
+}
+
+nsRefPtr<GenericPromise>
 AudioSink::Init()
 {
+  nsRefPtr<GenericPromise> p = mEndPromise.Ensure(__func__);
   nsresult rv = NS_NewNamedThread("Media Audio",
                                   getter_AddRefs(mThread),
                                   nullptr,
-                                  MEDIA_THREAD_STACK_SIZE);
+                                  SharedThreadPool::kStackSize);
   if (NS_FAILED(rv)) {
-    mStateMachine->OnAudioSinkError();
-    return rv;
+    mEndPromise.Reject(rv, __func__);
+    return p;
   }
 
-  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &AudioSink::AudioLoop);
-  rv =  mThread->Dispatch(event, NS_DISPATCH_NORMAL);
-  if (NS_FAILED(rv)) {
-    mStateMachine->OnAudioSinkError();
-    return rv;
-  }
-
-  return NS_OK;
+  ScheduleNextLoopCrossThread();
+  return p;
 }
 
 int64_t
 AudioSink::GetPosition()
 {
-  AssertCurrentThreadInMonitor();
+  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
 
   int64_t pos;
   if (mAudioStream &&
@@ -107,139 +112,119 @@ AudioSink::GetPosition()
     mLastGoodPosition = pos;
   }
 
-  return mLastGoodPosition;
+  return mStartTime + mLastGoodPosition;
 }
 
 bool
 AudioSink::HasUnplayedFrames()
 {
-  AssertCurrentThreadInMonitor();
+  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   // Experimentation suggests that GetPositionInFrames() is zero-indexed,
   // so we need to add 1 here before comparing it to mWritten.
   return mAudioStream && mAudioStream->GetPositionInFrames() + 1 < mWritten;
 }
 
 void
-AudioSink::PrepareToShutdown()
-{
-  AssertCurrentThreadInMonitor();
-  mStopAudioThread = true;
-  if (mAudioStream) {
-    mAudioStream->Cancel();
-  }
-  GetReentrantMonitor().NotifyAll();
-}
-
-void
 AudioSink::Shutdown()
 {
-  mOnAudioEndTimeUpdateTask->Cancel();
+  {
+    ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
+    if (mAudioStream) {
+      mAudioStream->Cancel();
+    }
+  }
+  nsRefPtr<AudioSink> self = this;
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([=] () {
+    self->mStopAudioThread = true;
+    if (!self->mAudioLoopScheduled) {
+      self->AudioLoop();
+    }
+  });
+  DispatchTask(r.forget());
+
   mThread->Shutdown();
   mThread = nullptr;
-  MOZ_ASSERT(!mAudioStream);
+  if (mAudioStream) {
+    mAudioStream->Shutdown();
+    mAudioStream = nullptr;
+  }
+
+  // Should've reached the final state after shutdown.
+  MOZ_ASSERT(mState == AUDIOSINK_STATE_SHUTDOWN ||
+             mState == AUDIOSINK_STATE_ERROR);
+  // Should have no pending state change.
+  MOZ_ASSERT(mPendingState.isNothing());
 }
 
 void
 AudioSink::SetVolume(double aVolume)
 {
-  AssertCurrentThreadInMonitor();
-  mVolume = aVolume;
-  mSetVolume = true;
+  AssertNotOnAudioThread();
+  nsRefPtr<AudioSink> self = this;
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([=] () {
+    if (self->mState == AUDIOSINK_STATE_PLAYING) {
+      self->mAudioStream->SetVolume(aVolume);
+    }
+  });
+  DispatchTask(r.forget());
 }
 
 void
 AudioSink::SetPlaybackRate(double aPlaybackRate)
 {
-  AssertCurrentThreadInMonitor();
-  NS_ASSERTION(mPlaybackRate != 0, "Don't set the playbackRate to 0 on AudioStream");
-  mPlaybackRate = aPlaybackRate;
-  mSetPlaybackRate = true;
+  AssertNotOnAudioThread();
+  MOZ_ASSERT(aPlaybackRate != 0, "Don't set the playbackRate to 0 on AudioStream");
+  nsRefPtr<AudioSink> self = this;
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([=] () {
+    if (self->mState == AUDIOSINK_STATE_PLAYING) {
+      self->mAudioStream->SetPlaybackRate(aPlaybackRate);
+    }
+  });
+  DispatchTask(r.forget());
 }
 
 void
 AudioSink::SetPreservesPitch(bool aPreservesPitch)
 {
-  AssertCurrentThreadInMonitor();
-  mPreservesPitch = aPreservesPitch;
-  mSetPreservesPitch = true;
+  AssertNotOnAudioThread();
+  nsRefPtr<AudioSink> self = this;
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([=] () {
+    if (self->mState == AUDIOSINK_STATE_PLAYING) {
+      self->mAudioStream->SetPreservesPitch(aPreservesPitch);
+    }
+  });
+  DispatchTask(r.forget());
 }
 
 void
-AudioSink::StartPlayback()
+AudioSink::SetPlaying(bool aPlaying)
 {
-  AssertCurrentThreadInMonitor();
-  mPlaying = true;
-  GetReentrantMonitor().NotifyAll();
+  AssertNotOnAudioThread();
+  nsRefPtr<AudioSink> self = this;
+  nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([=] () {
+    if (self->mState != AUDIOSINK_STATE_PLAYING ||
+        self->mPlaying == aPlaying) {
+      return;
+    }
+    self->mPlaying = aPlaying;
+    // pause/resume AudioStream as necessary.
+    if (!aPlaying && !self->mAudioStream->IsPaused()) {
+      self->mAudioStream->Pause();
+    } else if (aPlaying && self->mAudioStream->IsPaused()) {
+      self->mAudioStream->Resume();
+    }
+    // Wake up the audio loop to play next sample.
+    if (aPlaying && !self->mAudioLoopScheduled) {
+      self->AudioLoop();
+    }
+  });
+  DispatchTask(r.forget());
 }
 
 void
-AudioSink::StopPlayback()
+AudioSink::NotifyData()
 {
-  AssertCurrentThreadInMonitor();
-  mPlaying = false;
-  GetReentrantMonitor().NotifyAll();
-}
-
-void
-AudioSink::AudioLoop()
-{
-  AssertOnAudioThread();
-  SINK_LOG("AudioLoop started");
-
-  if (NS_FAILED(InitializeAudioStream())) {
-    NS_WARNING("Initializing AudioStream failed.");
-    mStateMachine->DispatchOnAudioSinkError();
-    return;
-  }
-
-  while (1) {
-    {
-      ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-      WaitForAudioToPlay();
-      if (!IsPlaybackContinuing()) {
-        break;
-      }
-    }
-    // See if there's a gap in the audio. If there is, push silence into the
-    // audio hardware, so we can play across the gap.
-    // Calculate the timestamp of the next chunk of audio in numbers of
-    // samples.
-    NS_ASSERTION(AudioQueue().GetSize() > 0, "Should have data to play");
-    CheckedInt64 sampleTime = UsecsToFrames(AudioQueue().PeekFront()->mTime, mInfo.mRate);
-
-    // Calculate the number of frames that have been pushed onto the audio hardware.
-    CheckedInt64 playedFrames = UsecsToFrames(mStartTime, mInfo.mRate) +
-                                static_cast<int64_t>(mWritten);
-
-    CheckedInt64 missingFrames = sampleTime - playedFrames;
-    if (!missingFrames.isValid() || !sampleTime.isValid()) {
-      NS_WARNING("Int overflow adding in AudioLoop");
-      break;
-    }
-
-    if (missingFrames.value() > AUDIO_FUZZ_FRAMES) {
-      // The next audio chunk begins some time after the end of the last chunk
-      // we pushed to the audio hardware. We must push silence into the audio
-      // hardware so that the next audio chunk begins playback at the correct
-      // time.
-      missingFrames = std::min<int64_t>(UINT32_MAX, missingFrames.value());
-      mWritten += PlaySilence(static_cast<uint32_t>(missingFrames.value()));
-    } else {
-      mWritten += PlayFromAudioQueue();
-    }
-    int64_t endTime = GetEndTime();
-    if (endTime != -1) {
-      mOnAudioEndTimeUpdateTask->Dispatch(endTime);
-    }
-  }
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  MOZ_ASSERT(mStopAudioThread || AudioQueue().AtEndOfStream());
-  if (!mStopAudioThread && mPlaying) {
-    Drain();
-  }
-  SINK_LOG("AudioLoop complete");
-  Cleanup();
-  SINK_LOG("AudioLoop exit");
+  ScheduleNextLoopCrossThread();
 }
 
 nsresult
@@ -258,7 +243,6 @@ AudioSink::InitializeAudioStream()
 
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   mAudioStream = audioStream;
-  UpdateStreamSettings();
 
   return NS_OK;
 }
@@ -266,30 +250,22 @@ AudioSink::InitializeAudioStream()
 void
 AudioSink::Drain()
 {
+  AssertOnAudioThread();
   MOZ_ASSERT(mPlaying && !mAudioStream->IsPaused());
-  AssertCurrentThreadInMonitor();
   // If the media was too short to trigger the start of the audio stream,
   // start it now.
   mAudioStream->Start();
-  {
-    ReentrantMonitorAutoExit exit(GetReentrantMonitor());
-    mAudioStream->Drain();
-  }
+  mAudioStream->Drain();
 }
 
 void
 AudioSink::Cleanup()
 {
-  AssertCurrentThreadInMonitor();
-  nsRefPtr<AudioStream> audioStream;
-  audioStream.swap(mAudioStream);
-  // Suppress the callback when the stop is requested by MediaDecoderStateMachine.
-  if (!mStopAudioThread) {
-    mStateMachine->DispatchOnAudioSinkComplete();
-  }
-
-  ReentrantMonitorAutoExit exit(GetReentrantMonitor());
-  audioStream->Shutdown();
+  AssertOnAudioThread();
+  mEndPromise.Resolve(true, __func__);
+  // Since the promise if resolved asynchronously, we don't shutdown
+  // AudioStream here so MDSM::ResyncAudioClock can get the correct
+  // audio position.
 }
 
 bool
@@ -298,37 +274,139 @@ AudioSink::ExpectMoreAudioData()
   return AudioQueue().GetSize() == 0 && !AudioQueue().IsFinished();
 }
 
-void
-AudioSink::WaitForAudioToPlay()
+bool
+AudioSink::WaitingForAudioToPlay()
 {
-  // Wait while we're not playing, and we're not shutting down, or we're
+  AssertOnAudioThread();
+  // Return true if we're not playing, and we're not shutting down, or we're
   // playing and we've got no audio to play.
-  AssertCurrentThreadInMonitor();
-  while (!mStopAudioThread && (!mPlaying || ExpectMoreAudioData())) {
-    if (!mPlaying && !mAudioStream->IsPaused()) {
-      mAudioStream->Pause();
-    }
-    GetReentrantMonitor().Wait();
+  if (!mStopAudioThread && (!mPlaying || ExpectMoreAudioData())) {
+    return true;
   }
+  return false;
 }
 
 bool
 AudioSink::IsPlaybackContinuing()
 {
-  AssertCurrentThreadInMonitor();
-  if (mPlaying && mAudioStream->IsPaused()) {
-    mAudioStream->Resume();
-  }
-
+  AssertOnAudioThread();
   // If we're shutting down, captured, or at EOS, break out and exit the audio
   // thread.
   if (mStopAudioThread || AudioQueue().AtEndOfStream()) {
     return false;
   }
 
-  UpdateStreamSettings();
+  return true;
+}
+
+void
+AudioSink::AudioLoop()
+{
+  AssertOnAudioThread();
+  mAudioLoopScheduled = false;
+
+  switch (mState) {
+    case AUDIOSINK_STATE_INIT: {
+      SINK_LOG("AudioLoop started");
+      nsresult rv = InitializeAudioStream();
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Initializing AudioStream failed.");
+        mEndPromise.Reject(rv, __func__);
+        SetState(AUDIOSINK_STATE_ERROR);
+        break;
+      }
+      SetState(AUDIOSINK_STATE_PLAYING);
+      break;
+    }
+
+    case AUDIOSINK_STATE_PLAYING: {
+      if (WaitingForAudioToPlay()) {
+        // NotifyData() will schedule next loop.
+        break;
+      }
+      if (!IsPlaybackContinuing()) {
+        SetState(AUDIOSINK_STATE_COMPLETE);
+        break;
+      }
+      if (!PlayAudio()) {
+        SetState(AUDIOSINK_STATE_COMPLETE);
+        break;
+      }
+      // Schedule next loop to play next sample.
+      ScheduleNextLoop();
+      break;
+    }
+
+    case AUDIOSINK_STATE_COMPLETE: {
+      FinishAudioLoop();
+      SetState(AUDIOSINK_STATE_SHUTDOWN);
+      break;
+    }
+
+    case AUDIOSINK_STATE_SHUTDOWN:
+      break;
+
+    case AUDIOSINK_STATE_ERROR:
+      break;
+  } // end of switch
+
+  // We want mState to stay stable during AudioLoop to keep things simple.
+  // Therefore, we only do state transition at the end of AudioLoop.
+  if (mPendingState.isSome()) {
+    MOZ_ASSERT(mState != mPendingState.ref());
+    SINK_LOG("change mState, %d -> %d", mState, mPendingState.ref());
+    mState = mPendingState.ref();
+    mPendingState.reset();
+    // Schedule next loop when state changes.
+    ScheduleNextLoop();
+  }
+}
+
+bool
+AudioSink::PlayAudio()
+{
+  // See if there's a gap in the audio. If there is, push silence into the
+  // audio hardware, so we can play across the gap.
+  // Calculate the timestamp of the next chunk of audio in numbers of
+  // samples.
+  NS_ASSERTION(AudioQueue().GetSize() > 0, "Should have data to play");
+  CheckedInt64 sampleTime = UsecsToFrames(AudioQueue().PeekFront()->mTime, mInfo.mRate);
+
+  // Calculate the number of frames that have been pushed onto the audio hardware.
+  CheckedInt64 playedFrames = UsecsToFrames(mStartTime, mInfo.mRate) +
+                              static_cast<int64_t>(mWritten);
+
+  CheckedInt64 missingFrames = sampleTime - playedFrames;
+  if (!missingFrames.isValid() || !sampleTime.isValid()) {
+    NS_WARNING("Int overflow adding in AudioLoop");
+    return false;
+  }
+
+  if (missingFrames.value() > AUDIO_FUZZ_FRAMES) {
+    // The next audio chunk begins some time after the end of the last chunk
+    // we pushed to the audio hardware. We must push silence into the audio
+    // hardware so that the next audio chunk begins playback at the correct
+    // time.
+    missingFrames = std::min<int64_t>(UINT32_MAX, missingFrames.value());
+    mWritten += PlaySilence(static_cast<uint32_t>(missingFrames.value()));
+  } else {
+    mWritten += PlayFromAudioQueue();
+  }
 
   return true;
+}
+
+void
+AudioSink::FinishAudioLoop()
+{
+  AssertOnAudioThread();
+  MOZ_ASSERT(mStopAudioThread || AudioQueue().AtEndOfStream());
+  if (!mStopAudioThread && mPlaying) {
+    Drain();
+  }
+  SINK_LOG("AudioLoop complete");
+  Cleanup();
+  SINK_LOG("AudioLoop exit");
 }
 
 uint32_t
@@ -369,44 +447,7 @@ AudioSink::PlayFromAudioQueue()
 
   StartAudioStreamPlaybackIfNeeded();
 
-  if (audio->mOffset != -1) {
-    mStateMachine->DispatchOnPlaybackOffsetUpdate(audio->mOffset);
-  }
   return audio->mFrames;
-}
-
-void
-AudioSink::UpdateStreamSettings()
-{
-  AssertCurrentThreadInMonitor();
-
-  bool setVolume = mSetVolume;
-  bool setPlaybackRate = mSetPlaybackRate;
-  bool setPreservesPitch = mSetPreservesPitch;
-  double volume = mVolume;
-  double playbackRate = mPlaybackRate;
-  bool preservesPitch = mPreservesPitch;
-
-  mSetVolume = false;
-  mSetPlaybackRate = false;
-  mSetPreservesPitch = false;
-
-  {
-    ReentrantMonitorAutoExit exit(GetReentrantMonitor());
-    if (setVolume) {
-      mAudioStream->SetVolume(volume);
-    }
-
-    if (setPlaybackRate &&
-        NS_FAILED(mAudioStream->SetPlaybackRate(playbackRate))) {
-      NS_WARNING("Setting the playback rate failed in AudioSink.");
-    }
-
-    if (setPreservesPitch &&
-      NS_FAILED(mAudioStream->SetPreservesPitch(preservesPitch))) {
-      NS_WARNING("Setting the pitch preservation failed in AudioSink.");
-    }
-  }
 }
 
 void
@@ -435,7 +476,7 @@ AudioSink::WriteSilence(uint32_t aFrames)
 }
 
 int64_t
-AudioSink::GetEndTime()
+AudioSink::GetEndTime() const
 {
   CheckedInt64 playedUsecs = FramesToUsecs(mWritten, mInfo.mRate) + mStartTime;
   if (!playedUsecs.isValid()) {
@@ -445,28 +486,16 @@ AudioSink::GetEndTime()
   return playedUsecs.value();
 }
 
-MediaQueue<AudioData>&
-AudioSink::AudioQueue()
-{
-  return mStateMachine->AudioQueue();
-}
-
-ReentrantMonitor&
-AudioSink::GetReentrantMonitor()
-{
-  return mStateMachine->mDecoder->GetReentrantMonitor();
-}
-
-void
-AudioSink::AssertCurrentThreadInMonitor()
-{
-  return mStateMachine->AssertCurrentThreadInMonitor();
-}
-
 void
 AudioSink::AssertOnAudioThread()
 {
-  MOZ_ASSERT(IsCurrentThread(mThread));
+  MOZ_ASSERT(NS_GetCurrentThread() == mThread);
+}
+
+void
+AudioSink::AssertNotOnAudioThread()
+{
+  MOZ_ASSERT(NS_GetCurrentThread() != mThread);
 }
 
 } // namespace mozilla

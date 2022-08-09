@@ -44,8 +44,11 @@ class MediaOmxReader : public MediaOmxCommonReader
   // If mIsShutdown is false, and mShutdownMutex is held, then
   // AbstractMediaDecoder::mDecoder will be non-null.
   bool mIsShutdown;
-  MediaPromiseHolder<MediaDecoderReader::MetadataPromise> mMetadataPromise;
-  MediaPromiseConsumerHolder<MediaResourcePromise> mMediaResourceRequest;
+  MozPromiseHolder<MediaDecoderReader::MetadataPromise> mMetadataPromise;
+  MozPromiseRequestHolder<MediaResourcePromise> mMediaResourceRequest;
+
+  MozPromiseHolder<MediaDecoderReader::SeekPromise> mSeekPromise;
+  MozPromiseRequestHolder<MediaDecoderReader::VideoDataPromise> mSeekRequest;
 protected:
   android::sp<android::OmxDecoder> mOmxDecoder;
   android::sp<android::MediaExtractor> mExtractor;
@@ -69,7 +72,16 @@ public:
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);
 
-  virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
+protected:
+  virtual void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
+public:
+
+  virtual nsresult ResetDecode()
+  {
+    mSeekRequest.DisconnectIfExists();
+    mSeekPromise.RejectIfExists(NS_OK, __func__);
+    return MediaDecoderReader::ResetDecode();
+  }
 
   virtual bool DecodeAudioData();
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
@@ -85,7 +97,6 @@ public:
     return mHasVideo;
   }
 
-  virtual bool IsDormantNeeded() { return true;}
   virtual void ReleaseMediaResources();
 
   virtual nsRefPtr<MediaDecoderReader::MetadataPromise> AsyncReadMetadata() override;
@@ -99,18 +110,23 @@ public:
 
   virtual nsRefPtr<ShutdownPromise> Shutdown() override;
 
+  android::sp<android::MediaSource> GetAudioOffloadTrack();
+
+  // This method is intended only for private use but public only for
+  // MozPromise::InvokeCallbackMethod().
+  void ReleaseDecoder();
+
+private:
+  class ProcessCachedDataTask;
+  class NotifyDataArrivedRunnable;
+
   bool IsShutdown() {
     MutexAutoLock lock(mShutdownMutex);
     return mIsShutdown;
   }
 
-  void ReleaseDecoder();
+  int64_t ProcessCachedData(int64_t aOffset);
 
-  int64_t ProcessCachedData(int64_t aOffset, bool aWaitForCompletion);
-
-  android::sp<android::MediaSource> GetAudioOffloadTrack();
-
-private:
   already_AddRefed<AbstractMediaDecoder> SafeGetDecoder();
 };
 

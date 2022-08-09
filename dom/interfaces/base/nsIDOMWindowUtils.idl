@@ -1324,7 +1324,7 @@ interface nsIDOMWindowUtils : nsISupports {
    * test video, does not mean that all h264 video decoding will be done
    * in hardware.
    */
-  readonly attribute boolean supportsHardwareH264Decoding;
+  readonly attribute AString supportsHardwareH264Decoding;
 
   /**
    * Record (and return) frame-intervals for frames which were presented

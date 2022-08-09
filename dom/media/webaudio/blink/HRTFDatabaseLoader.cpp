@@ -214,8 +214,7 @@ void HRTFDatabaseLoader::shutdown()
         nsTHashtable<LoaderByRateEntry>* loaderMap = s_loaderMap;
         s_loaderMap = nullptr;
         for (auto iter = loaderMap->Iter(); !iter.Done(); iter.Next()) {
-            // Ensure the loader thread's reference is removed for leak analysis.
-            iter.Get()->mLoader->waitForLoaderThreadCompletion();
+          iter.Get()->mLoader->waitForLoaderThreadCompletion();
         }
         delete loaderMap;
     }

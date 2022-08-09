@@ -10,43 +10,12 @@
 #include "WMF.h"
 #include "nsString.h"
 #include "nsRect.h"
+#include "TimeUnits.h"
 #include "VideoUtils.h"
 
 // Various utilities shared by WMF backend files.
 
 namespace mozilla {
-
-nsCString
-GetGUIDName(const GUID& guid);
-
-// Returns true if the reader has a stream with the specified index.
-// Index can be a specific index, or one of:
-//   MF_SOURCE_READER_FIRST_VIDEO_STREAM
-//   MF_SOURCE_READER_FIRST_AUDIO_STREAM
-bool
-SourceReaderHasStream(IMFSourceReader* aReader, const DWORD aIndex);
-
-// Auto manages the lifecycle of a PROPVARIANT.
-class AutoPropVar {
-public:
-  AutoPropVar() {
-    PropVariantInit(&mVar);
-  }
-  ~AutoPropVar() {
-    PropVariantClear(&mVar);
-  }
-  operator PROPVARIANT&() {
-    return mVar;
-  }
-  PROPVARIANT* operator->() {
-    return &mVar;
-  }
-  PROPVARIANT* operator&() {
-    return &mVar;
-  }
-private:
-  PROPVARIANT mVar;
-};
 
 // Converts from microseconds to hundreds of nanoseconds.
 // We use microseconds for our timestamps, whereas WMF uses
@@ -64,16 +33,8 @@ HNsToUsecs(int64_t hNanoSecs) {
   return hNanoSecs / 10;
 }
 
-// Assigns aUnknown to *aInterface, and AddRef's it.
-// Helper for MSCOM QueryInterface implementations.
-HRESULT
-DoGetInterface(IUnknown* aUnknown, void** aInterface);
-
 HRESULT
 HNsToFrames(int64_t aHNs, uint32_t aRate, int64_t* aOutFrames);
-
-HRESULT
-FramesToUsecs(int64_t aSamples, uint32_t aRate, int64_t* aOutUsecs);
 
 HRESULT
 GetDefaultStride(IMFMediaType *aType, uint32_t* aOutStride);
@@ -86,14 +47,14 @@ MFOffsetToInt32(const MFOffset& aOffset);
 HRESULT
 GetPictureRegion(IMFMediaType* aMediaType, nsIntRect& aOutPictureRegion);
 
-// Returns the duration of a IMFSample in microseconds.
-// Returns -1 on failure.
-int64_t
+// Returns the duration of a IMFSample in TimeUnit.
+// Returns media::TimeUnit::Invalid() on failure.
+media::TimeUnit
 GetSampleDuration(IMFSample* aSample);
 
-// Returns the presentation time of a IMFSample in microseconds.
-// Returns -1 on failure.
-int64_t
+// Returns the presentation time of a IMFSample in TimeUnit.
+// Returns media::TimeUnit::Invalid() on failure.
+media::TimeUnit
 GetSampleTime(IMFSample* aSample);
 
 inline bool

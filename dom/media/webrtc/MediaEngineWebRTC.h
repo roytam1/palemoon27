@@ -86,11 +86,13 @@ public:
     , mMediaSource(aMediaSource)
   {
     MOZ_ASSERT(aVideoEnginePtr);
+    MOZ_ASSERT(aMediaSource != dom::MediaSourceEnum::Other);
     Init();
   }
 
   virtual nsresult Allocate(const dom::MediaTrackConstraints& aConstraints,
-                            const MediaEnginePrefs& aPrefs) override;
+                            const MediaEnginePrefs& aPrefs,
+                            const nsString& aDeviceId) override;
   virtual nsresult Deallocate() override;
   virtual nsresult Start(SourceMediaStream*, TrackID) override;
   virtual nsresult Stop(SourceMediaStream*, TrackID) override;
@@ -109,19 +111,20 @@ public:
 
   void Refresh(int aIndex);
 
+  virtual void Shutdown() override;
+
 protected:
   ~MediaEngineWebRTCVideoSource() { Shutdown(); }
 
 private:
   // Initialize the needed Video engine interfaces.
   void Init();
-  void Shutdown();
 
   // Engine variables.
   webrtc::VideoEngine* mVideoEngine; // Weak reference, don't free.
-  webrtc::ViEBase* mViEBase;
-  webrtc::ViECapture* mViECapture;
-  webrtc::ViERender* mViERender;
+  ScopedCustomReleasePtr<webrtc::ViEBase> mViEBase;
+  ScopedCustomReleasePtr<webrtc::ViECapture> mViECapture;
+  ScopedCustomReleasePtr<webrtc::ViERender> mViERender;
 
   int mMinFps; // Min rate we want to accept
   dom::MediaSourceEnum mMediaSource; // source of media (camera | application | screen)
@@ -130,12 +133,77 @@ private:
   void GetCapability(size_t aIndex, webrtc::CaptureCapability& aOut) override;
 };
 
-class MediaEngineWebRTCAudioSource : public MediaEngineAudioSource,
-                                     public webrtc::VoEMediaProcess
+class MediaEngineWebRTCAudioCaptureSource : public MediaEngineAudioSource
 {
 public:
-  MediaEngineWebRTCAudioSource(nsIThread* aThread, webrtc::VoiceEngine* aVoiceEnginePtr,
-                               int aIndex, const char* name, const char* uuid)
+  NS_DECL_THREADSAFE_ISUPPORTS
+
+  explicit MediaEngineWebRTCAudioCaptureSource(const char* aUuid)
+    : MediaEngineAudioSource(kReleased)
+  {
+  }
+  void GetName(nsAString& aName) override;
+  void GetUUID(nsACString& aUUID) override;
+  nsresult Allocate(const dom::MediaTrackConstraints& aConstraints,
+                    const MediaEnginePrefs& aPrefs,
+                    const nsString& aDeviceId) override
+  {
+    // Nothing to do here, everything is managed in MediaManager.cpp
+    return NS_OK;
+  }
+  nsresult Deallocate() override
+  {
+    // Nothing to do here, everything is managed in MediaManager.cpp
+    return NS_OK;
+  }
+  void Shutdown() override
+  {
+    // Nothing to do here, everything is managed in MediaManager.cpp
+  }
+  nsresult Start(SourceMediaStream* aMediaStream, TrackID aId) override;
+  nsresult Stop(SourceMediaStream* aMediaStream, TrackID aId) override;
+  void SetDirectListeners(bool aDirect) override
+  {}
+  nsresult Config(bool aEchoOn, uint32_t aEcho, bool aAgcOn,
+                  uint32_t aAGC, bool aNoiseOn, uint32_t aNoise,
+                  int32_t aPlayoutDelay) override
+  {
+    return NS_OK;
+  }
+  void NotifyPull(MediaStreamGraph* aGraph, SourceMediaStream* aSource,
+                  TrackID aID, StreamTime aDesiredTime) override
+  {}
+  const dom::MediaSourceEnum GetMediaSource() override
+  {
+    return dom::MediaSourceEnum::AudioCapture;
+  }
+  bool IsFake() override
+  {
+    return false;
+  }
+  nsresult TakePhoto(PhotoCallback* aCallback) override
+  {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+  uint32_t GetBestFitnessDistance(
+    const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets,
+    const nsString& aDeviceId) override;
+
+protected:
+  virtual ~MediaEngineWebRTCAudioCaptureSource() { Shutdown(); }
+  nsCString mUUID;
+};
+
+class MediaEngineWebRTCMicrophoneSource : public MediaEngineAudioSource,
+                                          public webrtc::VoEMediaProcess,
+                                          private MediaConstraintsHelper
+{
+public:
+  MediaEngineWebRTCMicrophoneSource(nsIThread* aThread,
+                                    webrtc::VoiceEngine* aVoiceEnginePtr,
+                                    int aIndex,
+                                    const char* name,
+                                    const char* uuid)
     : MediaEngineAudioSource(kReleased)
     , mVoiceEngine(aVoiceEnginePtr)
     , mMonitor("WebRTCMic.Monitor")
@@ -152,15 +220,16 @@ public:
     , mNullTransport(nullptr) {
     MOZ_ASSERT(aVoiceEnginePtr);
     mDeviceName.Assign(NS_ConvertUTF8toUTF16(name));
-    mDeviceUUID.Assign(NS_ConvertUTF8toUTF16(uuid));
+    mDeviceUUID.Assign(uuid);
     Init();
   }
 
   virtual void GetName(nsAString& aName) override;
-  virtual void GetUUID(nsAString& aUUID) override;
+  virtual void GetUUID(nsACString& aUUID) override;
 
   virtual nsresult Allocate(const dom::MediaTrackConstraints& aConstraints,
-                            const MediaEnginePrefs& aPrefs) override;
+                            const MediaEnginePrefs& aPrefs,
+                            const nsString& aDeviceId) override;
   virtual nsresult Deallocate() override;
   virtual nsresult Start(SourceMediaStream* aStream, TrackID aID) override;
   virtual nsresult Stop(SourceMediaStream* aSource, TrackID aID) override;
@@ -188,6 +257,10 @@ public:
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
+  virtual uint32_t GetBestFitnessDistance(
+      const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets,
+      const nsString& aDeviceId) override;
+
   // VoEMediaProcess.
   void Process(int channel, webrtc::ProcessingTypes type,
                int16_t audio10ms[], int length,
@@ -195,12 +268,13 @@ public:
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
+  virtual void Shutdown() override;
+
 protected:
-  ~MediaEngineWebRTCAudioSource() { Shutdown(); }
+  ~MediaEngineWebRTCMicrophoneSource() { Shutdown(); }
 
 private:
   void Init();
-  void Shutdown();
 
   webrtc::VoiceEngine* mVoiceEngine;
   ScopedCustomReleasePtr<webrtc::VoEBase> mVoEBase;
@@ -221,7 +295,7 @@ private:
   bool mStarted;
 
   nsString mDeviceName;
-  nsString mDeviceUUID;
+  nsCString mDeviceUUID;
 
   bool mEchoOn, mAgcOn, mNoiseOn;
   webrtc::EcModes  mEchoCancel;
@@ -239,12 +313,12 @@ public:
 
   // Clients should ensure to clean-up sources video/audio sources
   // before invoking Shutdown on this class.
-  void Shutdown();
+  void Shutdown() override;
 
   virtual void EnumerateVideoDevices(dom::MediaSourceEnum,
-                                    nsTArray<nsRefPtr<MediaEngineVideoSource> >*);
+                                     nsTArray<nsRefPtr<MediaEngineVideoSource>>*) override;
   virtual void EnumerateAudioDevices(dom::MediaSourceEnum,
-                                    nsTArray<nsRefPtr<MediaEngineAudioSource> >*);
+                                     nsTArray<nsRefPtr<MediaEngineAudioSource>>*) override;
 private:
   ~MediaEngineWebRTC() {
     Shutdown();
@@ -284,7 +358,7 @@ private:
   // Store devices we've already seen in a hashtable for quick return.
   // Maps UUID to MediaEngineSource (one set for audio, one for video).
   nsRefPtrHashtable<nsStringHashKey, MediaEngineVideoSource> mVideoSources;
-  nsRefPtrHashtable<nsStringHashKey, MediaEngineWebRTCAudioSource> mAudioSources;
+  nsRefPtrHashtable<nsStringHashKey, MediaEngineAudioSource> mAudioSources;
 };
 
 }

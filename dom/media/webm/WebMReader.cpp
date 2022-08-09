@@ -13,7 +13,7 @@
 #include "gfx2DGlue.h"
 #include "Layers.h"
 #include "mozilla/Preferences.h"
-#include "SharedThreadPool.h"
+#include "mozilla/SharedThreadPool.h"
 
 #include <algorithm>
 
@@ -144,8 +144,8 @@ static void webm_log(nestegg * context,
 static bool sIsIntelDecoderEnabled = false;
 #endif
 
-WebMReader::WebMReader(AbstractMediaDecoder* aDecoder)
-  : MediaDecoderReader(aDecoder)
+WebMReader::WebMReader(AbstractMediaDecoder* aDecoder, TaskQueue* aBorrowedTaskQueue)
+  : MediaDecoderReader(aDecoder, aBorrowedTaskQueue)
   , mContext(nullptr)
   , mVideoTrack(0)
   , mAudioTrack(0)
@@ -209,7 +209,7 @@ nsresult WebMReader::Init(MediaDecoderReader* aCloneDonor)
 
     InitLayersBackendType();
 
-    mVideoTaskQueue = new FlushableMediaTaskQueue(
+    mVideoTaskQueue = new FlushableTaskQueue(
       SharedThreadPool::Get(NS_LITERAL_CSTRING("IntelVP8 Video Decode")));
     NS_ENSURE_TRUE(mVideoTaskQueue, NS_ERROR_FAILURE);
   }
@@ -276,11 +276,26 @@ void WebMReader::Cleanup()
   }
 }
 
-nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
-                                  MetadataTags** aTags)
+nsRefPtr<MediaDecoderReader::MetadataPromise>
+WebMReader::AsyncReadMetadata()
+{
+  nsRefPtr<MetadataHolder> metadata = new MetadataHolder();
+
+  if (NS_FAILED(RetrieveWebMMetadata(&metadata->mInfo)) ||
+      !metadata->mInfo.HasValidMedia()) {
+    return MetadataPromise::CreateAndReject(ReadMetadataFailureReason::METADATA_ERROR,
+                                            __func__);
+  }
+
+  return MetadataPromise::CreateAndResolve(metadata, __func__);
+}
+
+nsresult
+WebMReader::RetrieveWebMMetadata(MediaInfo* aInfo)
 {
   // We can't use OnTaskQueue() here because of the wacky initialization task
-  // queue that TrackBuffer uses.
+  // queue that TrackBuffer uses. We should be able to fix this when we do
+  // bug 1148234.
   MOZ_ASSERT(mDecoder->OnDecodeTaskQueue());
 
   nestegg_io io;
@@ -329,20 +344,17 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
 #if defined(MOZ_PDM_VPX)
       if (sIsIntelDecoderEnabled) {
         mVideoDecoder = IntelWebMVideoDecoder::Create(this);
-        if (mVideoDecoder &&
-            NS_FAILED(mVideoDecoder->Init(params.display_width, params.display_height))) {
-          mVideoDecoder = nullptr;
-        }
       }
 #endif
 
       // If there's no decoder yet (e.g. HW decoder not available), use the software decoder.
       if (!mVideoDecoder) {
         mVideoDecoder = SoftwareWebMVideoDecoder::Create(this);
-        if (mVideoDecoder &&
-            NS_FAILED(mVideoDecoder->Init(params.display_width, params.display_height))) {
-          mVideoDecoder = nullptr;
-        }
+      }
+
+      if (mVideoDecoder) {
+        mInitPromises.AppendElement(mVideoDecoder->Init(params.display_width,
+                                                        params.display_height));
       }
 
       if (!mVideoDecoder) {
@@ -425,7 +437,10 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
         Cleanup();
         return NS_ERROR_FAILURE;
       }
-      if (NS_FAILED(mAudioDecoder->Init())) {
+
+      if (mAudioDecoder) {
+        mInitPromises.AppendElement(mAudioDecoder->Init());
+      } else {
         Cleanup();
         return NS_ERROR_FAILURE;
       }
@@ -459,8 +474,6 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
   }
 
   *aInfo = mInfo;
-
-  *aTags = nullptr;
 
   return NS_OK;
 }
@@ -738,6 +751,7 @@ WebMReader::Seek(int64_t aTarget, int64_t aEndTime)
 nsresult WebMReader::SeekInternal(int64_t aTarget)
 {
   MOZ_ASSERT(OnTaskQueue());
+  NS_ENSURE_TRUE(HaveStartTime(), NS_ERROR_FAILURE);
   if (mVideoDecoder) {
     nsresult rv = mVideoDecoder->Flush();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -752,7 +766,7 @@ nsresult WebMReader::SeekInternal(int64_t aTarget)
   uint64_t target = aTarget * NS_PER_USEC;
 
   if (mSeekPreroll) {
-    target = std::max(uint64_t(mStartTime * NS_PER_USEC),
+    target = std::max(uint64_t(StartTime() * NS_PER_USEC),
                       target - mSeekPreroll);
   }
   int r = nestegg_track_seek(mContext, trackToSeek, target);
@@ -779,7 +793,8 @@ nsresult WebMReader::SeekInternal(int64_t aTarget)
 
 media::TimeIntervals WebMReader::GetBuffered()
 {
-  NS_ENSURE_TRUE(mStartTime >= 0, media::TimeIntervals());
+  MOZ_ASSERT(OnTaskQueue());
+  NS_ENSURE_TRUE(HaveStartTime(), media::TimeIntervals());
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
 
   media::TimeIntervals buffered;
@@ -806,7 +821,7 @@ media::TimeIntervals WebMReader::GetBuffered()
                                                         ranges[index].mEnd,
                                                         &start, &end);
     if (rv) {
-      int64_t startOffset = mStartTime * NS_PER_USEC;
+      int64_t startOffset = StartTime() * NS_PER_USEC;
       NS_ASSERTION(startOffset >= 0 && uint64_t(startOffset) <= start,
                    "startOffset negative or larger than start time");
       if (!(startOffset >= 0 && uint64_t(startOffset) <= start)) {
@@ -832,10 +847,12 @@ media::TimeIntervals WebMReader::GetBuffered()
   return buffered;
 }
 
-void WebMReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength,
-                                   int64_t aOffset)
+void WebMReader::NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset)
 {
-  mBufferedState->NotifyDataArrived(aBuffer, aLength, aOffset);
+  MOZ_ASSERT(OnTaskQueue());
+  nsRefPtr<MediaByteBuffer> bytes = mDecoder->GetResource()->SilentReadAt(aOffset, aLength);
+  NS_ENSURE_TRUE_VOID(bytes);
+  mBufferedState->NotifyDataArrived(bytes->Elements(), aLength, aOffset);
 }
 
 int64_t WebMReader::GetEvictionOffset(double aTime)

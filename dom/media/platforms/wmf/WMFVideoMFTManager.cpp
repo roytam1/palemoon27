@@ -21,6 +21,7 @@
 #include "IMFYCbCrImage.h"
 #include "mozilla/WindowsVersion.h"
 #include "mozilla/Preferences.h"
+#include "nsPrintfCString.h"
 
 PRLogModuleInfo* GetDemuxerLog();
 #define LOG(...) MOZ_LOG(GetDemuxerLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
@@ -125,8 +126,9 @@ WMFVideoMFTManager::GetMediaSubtypeGUID()
 
 class CreateDXVAManagerEvent : public nsRunnable {
 public:
-  CreateDXVAManagerEvent(LayersBackend aBackend)
+  CreateDXVAManagerEvent(LayersBackend aBackend, nsCString& aFailureReason)
     : mBackend(aBackend)
+    , mFailureReason(aFailureReason)
   {}
 
   NS_IMETHOD Run() {
@@ -134,32 +136,38 @@ public:
     if (mBackend == LayersBackend::LAYERS_D3D11 &&
         Preferences::GetBool("media.windows-media-foundation.allow-d3d11-dxva", false) &&
         IsWin8OrLater()) {
-      mDXVA2Manager = DXVA2Manager::CreateD3D11DXVA();
+      mDXVA2Manager = DXVA2Manager::CreateD3D11DXVA(mFailureReason);
     } else {
-      mDXVA2Manager = DXVA2Manager::CreateD3D9DXVA();
+      mDXVA2Manager = DXVA2Manager::CreateD3D9DXVA(mFailureReason);
     }
     return NS_OK;
   }
   nsAutoPtr<DXVA2Manager> mDXVA2Manager;
   LayersBackend mBackend;
+  nsACString& mFailureReason;
 };
 
 bool
-WMFVideoMFTManager::InitializeDXVA()
+WMFVideoMFTManager::InitializeDXVA(bool aForceD3D9)
 {
   MOZ_ASSERT(!mDXVA2Manager);
 
   // If we use DXVA but aren't running with a D3D layer manager then the
   // readback of decoded video frames from GPU to CPU memory grinds painting
   // to a halt, and makes playback performance *worse*.
-  if (!mDXVAEnabled ||
-      (mLayersBackend != LayersBackend::LAYERS_D3D9 &&
-       mLayersBackend != LayersBackend::LAYERS_D3D11)) {
+  if (!mDXVAEnabled) {
+    mDXVAFailureReason.AssignLiteral("Hardware video decoding disabled or blacklisted");
+    return false;
+  }
+  if (mLayersBackend != LayersBackend::LAYERS_D3D9 &&
+      mLayersBackend != LayersBackend::LAYERS_D3D11) {
+    mDXVAFailureReason.AssignLiteral("Unsupported layers backend");
     return false;
   }
 
   // The DXVA manager must be created on the main thread.
-  nsRefPtr<CreateDXVAManagerEvent> event(new CreateDXVAManagerEvent(mLayersBackend));
+  nsRefPtr<CreateDXVAManagerEvent> event = 
+    new CreateDXVAManagerEvent(aForceD3D9 ? LayersBackend::LAYERS_D3D9 : mLayersBackend, mDXVAFailureReason);
 
   if (NS_IsMainThread()) {
     event->Run();
@@ -174,21 +182,41 @@ WMFVideoMFTManager::InitializeDXVA()
 already_AddRefed<MFTDecoder>
 WMFVideoMFTManager::Init()
 {
+  RefPtr<MFTDecoder> decoder = InitInternal(/* aForceD3D9 = */ false);
+
+  // If initialization failed with d3d11 DXVA then try falling back
+  // to d3d9.
+  if (!decoder && mDXVA2Manager && mDXVA2Manager->IsD3D11()) {
+    mDXVA2Manager = nullptr;
+    nsCString d3d11Failure = mDXVAFailureReason;
+    decoder = InitInternal(true);
+    mDXVAFailureReason.Append(NS_LITERAL_CSTRING("; "));
+    mDXVAFailureReason.Append(d3d11Failure);
+  }
+
+  return decoder.forget();
+}
+
+already_AddRefed<MFTDecoder>
+WMFVideoMFTManager::InitInternal(bool aForceD3D9)
+{
   mUseHwAccel = false; // default value; changed if D3D setup succeeds.
-  bool useDxva = InitializeDXVA();
+  bool useDxva = InitializeDXVA(aForceD3D9);
 
   RefPtr<MFTDecoder> decoder(new MFTDecoder());
 
   HRESULT hr = decoder->Create(GetMFTGUID());
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-  if (useDxva) {
-    RefPtr<IMFAttributes> attr(decoder->GetAttributes());
-
-    UINT32 aware = 0;
-    if (attr) {
+  RefPtr<IMFAttributes> attr(decoder->GetAttributes());
+  UINT32 aware = 0;
+  if (attr) {
       attr->GetUINT32(MF_SA_D3D_AWARE, &aware);
-    }
+      attr->SetUINT32(CODECAPI_AVDecNumWorkerThreads,
+                      WMFDecoderModule::GetNumDecoderThreads());
+  }
+
+  if (useDxva) {
     if (aware) {
       // TODO: Test if I need this anywhere... Maybe on Vista?
       //hr = attr->SetUINT32(CODECAPI_AVDecVideoAcceleration_H264, TRUE);
@@ -198,7 +226,11 @@ WMFVideoMFTManager::Init()
       hr = decoder->SendMFTMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager);
       if (SUCCEEDED(hr)) {
         mUseHwAccel = true;
+      } else {
+        mDXVAFailureReason = nsPrintfCString("MFT_MESSAGE_SET_D3D_MANAGER failed with code %X", hr);
       }
+    } else {
+      mDXVAFailureReason.AssignLiteral("Decoder returned false for MF_SA_D3D_AWARE");
     }
   }
 
@@ -394,8 +426,10 @@ WMFVideoMFTManager::CreateBasicVideoFrame(IMFSample* aSample,
   b.mPlanes[2].mOffset = 0;
   b.mPlanes[2].mSkip = 0;
 
-  Microseconds pts = GetSampleTime(aSample);
-  Microseconds duration = GetSampleDuration(aSample);
+  media::TimeUnit pts = GetSampleTime(aSample);
+  NS_ENSURE_TRUE(pts.IsValid(), E_FAIL);
+  media::TimeUnit duration = GetSampleDuration(aSample);
+  NS_ENSURE_TRUE(duration.IsValid(), E_FAIL);
 
   nsRefPtr<layers::PlanarYCbCrImage> image =
     new IMFYCbCrImage(buffer, twoDBuffer);
@@ -410,8 +444,8 @@ WMFVideoMFTManager::CreateBasicVideoFrame(IMFSample* aSample,
     VideoData::CreateFromImage(mVideoInfo,
                                mImageContainer,
                                aStreamOffset,
-                               std::max(0LL, pts),
-                               duration,
+                               pts.ToMicroseconds(),
+                               duration.ToMicroseconds(),
                                image.forget(),
                                false,
                                -1,
@@ -442,13 +476,15 @@ WMFVideoMFTManager::CreateD3DVideoFrame(IMFSample* aSample,
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
   NS_ENSURE_TRUE(image, E_FAIL);
 
-  Microseconds pts = GetSampleTime(aSample);
-  Microseconds duration = GetSampleDuration(aSample);
+  media::TimeUnit pts = GetSampleTime(aSample);
+  NS_ENSURE_TRUE(pts.IsValid(), E_FAIL);
+  media::TimeUnit duration = GetSampleDuration(aSample);
+  NS_ENSURE_TRUE(duration.IsValid(), E_FAIL);
   nsRefPtr<VideoData> v = VideoData::CreateFromImage(mVideoInfo,
                                                      mImageContainer,
                                                      aStreamOffset,
-                                                     pts,
-                                                     duration,
+                                                     pts.ToMicroseconds(),
+                                                     duration.ToMicroseconds(),
                                                      image.forget(),
                                                      false,
                                                      -1,
@@ -518,8 +554,9 @@ WMFVideoMFTManager::Shutdown()
 }
 
 bool
-WMFVideoMFTManager::IsHardwareAccelerated() const
+WMFVideoMFTManager::IsHardwareAccelerated(nsACString& aFailureReason) const
 {
+  aFailureReason = mDXVAFailureReason;
   return mDecoder && mUseHwAccel;
 }
 

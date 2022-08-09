@@ -347,7 +347,7 @@ pref("media.fragmented-mp4.enabled", true);
 // decoder works on all platforms.
 pref("media.use-blank-decoder", false);
 #ifdef MOZ_WMF
-pref("media.windows-media-foundation.enabled", true);
+pref("media.wmf.decoder.thread-count", -1);
 #endif
 #if defined(MOZ_FFMPEG)
 pref("media.ffmpeg.enabled", true);
@@ -484,6 +484,8 @@ pref("media.getusermedia.screensharing.allowed_domains", "mozilla.github.io,webe
 // OS/X 10.6 and XP have screen/window sharing off by default due to various issues - Caveat emptor
 pref("media.getusermedia.screensharing.allow_on_old_platforms", false);
 
+pref("media.getusermedia.audiocapture.enabled", false);
+
 // TextTrack support
 pref("media.webvtt.enabled", true);
 pref("media.webvtt.regions.enabled", false);
@@ -496,13 +498,8 @@ pref("media.mediasource.enabled", true);
 pref("media.mediasource.mp4.enabled", true);
 pref("media.mediasource.webm.enabled", false);
 
-// Enable new MediaSource architecture.
-pref("media.mediasource.format-reader", true);
-
-// Enable the MediaFormatReader architecture for MP4 + MSE.
-pref("media.mediasource.format-reader.mp4", true);
-// Enable the MediaFormatReader architecture for plain MP4.
-pref("media.format-reader.mp4", true);
+// Enable new MediaFormatReader architecture for plain webm.
+pref("media.format-reader.webm", true);
 
 #ifdef MOZ_WEBSPEECH
 pref("media.webspeech.recognition.enable", false);
@@ -523,6 +520,10 @@ pref("media.autoplay.allowscripted", true);
 // The default number of decoded video frames that are enqueued in
 // MediaDecoderReader's mVideoQueue.
 pref("media.video-queue.default-size", 10);
+
+// The maximum number of queued frames to send to the compositor.
+// By default, send all of them.
+pref("media.video-queue.send-to-compositor-size", 9999);
 
 // Whether to disable the video stats to prevent fingerprinting
 pref("media.video_stats.enabled", true);
@@ -5316,6 +5317,11 @@ pref("dom.messageChannel.enabled", true);
 
 // fetch API
 pref("dom.fetch.enabled", true);
+
+// Make <audio>, <video>, NPAPI plugins and webAudio talk to the AudioChannelService.
+pref("media.useAudioChannelService", true);
+// Add Mozilla AudioChannel APIs.
+pref("media.useAudioChannelAPI", false);
 
 // Turn rewriting of youtube embeds on/off
 pref("plugins.rewrite_youtube_embeds", true);

@@ -40,6 +40,8 @@ public:
     , mRecomputeParameters(true)
     , mCustomLength(0)
   {
+    MOZ_ASSERT(NS_IsMainThread());
+    mBasicWaveFormCache = aDestination->Context()->GetBasicWaveFormCache();
   }
 
   void SetSourceStream(AudioNodeStream* aSource)
@@ -104,13 +106,9 @@ public:
             mPhase = 0.0;
             break;
           case OscillatorType::Square:
-            mPeriodicWave = WebCore::PeriodicWave::createSquare(mSource->SampleRate());
-            break;
           case OscillatorType::Triangle:
-            mPeriodicWave = WebCore::PeriodicWave::createTriangle(mSource->SampleRate());
-            break;
           case OscillatorType::Sawtooth:
-            mPeriodicWave = WebCore::PeriodicWave::createSawtooth(mSource->SampleRate());
+            mPeriodicWave = mBasicWaveFormCache->GetBasicWaveForm(mType);
             break;
           case OscillatorType::Custom:
             break;
@@ -310,8 +308,7 @@ public:
     }
 
     AllocateAudioBlock(1, aOutput);
-    float* output = static_cast<float*>(
-        const_cast<void*>(aOutput->mChannelData[0]));
+    float* output = aOutput->ChannelFloatsForWrite(0);
 
     uint32_t start, end;
     FillBounds(output, ticks, start, end);
@@ -371,8 +368,9 @@ public:
   float mPhaseIncrement;
   bool mRecomputeParameters;
   nsRefPtr<ThreadSharedFloatArrayBufferList> mCustom;
+  nsRefPtr<BasicWaveFormCache> mBasicWaveFormCache;
   uint32_t mCustomLength;
-  nsAutoPtr<WebCore::PeriodicWave> mPeriodicWave;
+  nsRefPtr<WebCore::PeriodicWave> mPeriodicWave;
 };
 
 OscillatorNode::OscillatorNode(AudioContext* aContext)
@@ -386,7 +384,8 @@ OscillatorNode::OscillatorNode(AudioContext* aContext)
   , mStartCalled(false)
 {
   OscillatorNodeEngine* engine = new OscillatorNodeEngine(this, aContext->Destination());
-  mStream = aContext->Graph()->CreateAudioNodeStream(engine, MediaStreamGraph::SOURCE_STREAM);
+  mStream = AudioNodeStream::Create(aContext->Graph(), engine,
+                                    AudioNodeStream::NEED_MAIN_THREAD_FINISHED);
   engine->SetSourceStream(mStream);
   mStream->AddMainThreadListener(this);
 }

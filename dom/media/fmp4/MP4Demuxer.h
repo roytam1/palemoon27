@@ -29,8 +29,6 @@ public:
 
   virtual nsRefPtr<InitPromise> Init() override;
 
-  virtual already_AddRefed<MediaDataDemuxer> Clone() const override;
-
   virtual bool HasTrackType(TrackInfo::TrackType aType) const override;
 
   virtual uint32_t GetNumberTracks(TrackInfo::TrackType aType) const override;
@@ -42,7 +40,7 @@ public:
 
   virtual UniquePtr<EncryptionInfo> GetCrypto() override;
 
-  virtual void NotifyDataArrived(uint32_t aLength, int64_t aOffset) override;
+  virtual void NotifyDataArrived() override;
 
   virtual void NotifyDataRemoved() override;
 
@@ -50,7 +48,7 @@ private:
   friend class MP4TrackDemuxer;
   nsRefPtr<MediaResource> mResource;
   nsRefPtr<mp4_demuxer::ResourceStream> mStream;
-  nsRefPtr<MediaLargeByteBuffer> mInitData;
+  nsRefPtr<MediaByteBuffer> mInitData;
   UniquePtr<mp4_demuxer::MP4Metadata> mMetadata;
   nsTArray<nsRefPtr<MP4TrackDemuxer>> mDemuxers;
 };

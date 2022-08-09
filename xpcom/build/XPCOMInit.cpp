@@ -6,8 +6,10 @@
 
 #include "base/basictypes.h"
 
+#include "mozilla/AbstractThread.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Poison.h"
+#include "mozilla/SharedThreadPool.h"
 #include "mozilla/XPCOM.h"
 #include "nsXULAppAPI.h"
 
@@ -704,6 +706,12 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
   // add any services listed in the "xpcom-directory-providers" category
   // to the directory service.
   nsDirectoryService::gService->RegisterCategoryProviders();
+
+  // Init SharedThreadPool (which needs the service manager).
+  SharedThreadPool::InitStatics();
+
+  // Init AbstractThread.
+  AbstractThread::InitStatics();
 
   // Force layout to spin up so that nsContentUtils is available for cx stack
   // munging.

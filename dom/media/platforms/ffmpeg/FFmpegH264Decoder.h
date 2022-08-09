@@ -32,13 +32,13 @@ class FFmpegH264Decoder<LIBAV_VER> : public FFmpegDataDecoder<LIBAV_VER>
   };
 
 public:
-  FFmpegH264Decoder(FlushableMediaTaskQueue* aTaskQueue,
+  FFmpegH264Decoder(FlushableTaskQueue* aTaskQueue,
                     MediaDataDecoderCallback* aCallback,
                     const VideoInfo& aConfig,
                     ImageContainer* aImageContainer);
   virtual ~FFmpegH264Decoder();
 
-  virtual nsresult Init() override;
+  virtual nsRefPtr<InitPromise> Init() override;
   virtual nsresult Input(MediaRawData* aSample) override;
   virtual nsresult Drain() override;
   virtual nsresult Flush() override;

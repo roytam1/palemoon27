@@ -41,7 +41,7 @@ class GonkNativeWindow;
 
 namespace mozilla {
 
-class FlushableMediaTaskQueue;
+class FlushableTaskQueue;
 class MP3FrameParser;
 
 namespace layers {
@@ -62,9 +62,6 @@ public:
   // on failure.
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);
 
-  // True when this reader need to become dormant state
-  virtual bool IsDormantNeeded() { return true;}
-
   // Release media resources they should be released in dormant state
   virtual void ReleaseMediaResources();
 
@@ -73,12 +70,14 @@ public:
   // irreversible, whereas ReleaseMediaResources() is reversible.
   virtual nsRefPtr<ShutdownPromise> Shutdown();
 
+protected:
   // Used to retrieve some special information that can only be retrieved after
   // all contents have been continuously parsed. (ex. total duration of some
   // variable-bit-rate MP3 files.)
-  virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
+  virtual void NotifyDataArrivedInternal(uint32_t aLength, int64_t aOffset) override;
+public:
 
-  // Flush the MediaTaskQueue, flush MediaCodec and raise the mDiscontinuity.
+  // Flush the TaskQueue, flush MediaCodec and raise the mDiscontinuity.
   virtual nsresult ResetDecode() override;
 
   // Disptach a DecodeVideoFrameTask to decode video data.
@@ -148,15 +147,13 @@ protected:
 
     // playback parameters
     CheckedUint32 mInputIndex;
-    // mDiscontinuity, mFlushed, mInputEndOfStream, mInputEndOfStream,
-    // mSeekTimeUs don't be protected by a lock because the
-    // mTaskQueue->Flush() will flush all tasks.
+
     bool mInputEndOfStream;
     bool mOutputEndOfStream;
     int64_t mSeekTimeUs;
     bool mFlushed; // meaningless when mSeekTimeUs is invalid.
     bool mDiscontinuity;
-    nsRefPtr<FlushableMediaTaskQueue> mTaskQueue;
+    nsRefPtr<TaskQueue> mTaskQueue;
     Monitor mTrackMonitor;
 
   private:
@@ -180,10 +177,10 @@ protected:
 
   android::sp<android::MediaExtractor> mExtractor;
 
-  MediaPromiseHolder<MediaDecoderReader::MetadataPromise> mMetadataPromise;
+  MozPromiseHolder<MediaDecoderReader::MetadataPromise> mMetadataPromise;
   // XXX Remove after bug 1168008 land.
-  MediaPromiseConsumerHolder<MediaResourcePromise> mMediaResourceRequest;
-  MediaPromiseHolder<MediaResourcePromise> mMediaResourcePromise;
+  MozPromiseRequestHolder<MediaResourcePromise> mMediaResourceRequest;
+  MozPromiseHolder<MediaResourcePromise> mMediaResourcePromise;
 
 private:
 
@@ -218,7 +215,7 @@ private:
   {
     AudioTrack();
     // Protected by mTrackMonitor.
-    MediaPromiseHolder<AudioDataPromise> mAudioPromise;
+    MozPromiseHolder<AudioDataPromise> mAudioPromise;
 
   private:
     // Forbidden
@@ -240,9 +237,9 @@ private:
     nsIntRect mPictureRect;
     gfx::IntRect mRelativePictureRect;
     // Protected by mTrackMonitor.
-    MediaPromiseHolder<VideoDataPromise> mVideoPromise;
+    MozPromiseHolder<VideoDataPromise> mVideoPromise;
 
-    nsRefPtr<MediaTaskQueue> mReleaseBufferTaskQueue;
+    nsRefPtr<TaskQueue> mReleaseBufferTaskQueue;
   private:
     // Forbidden
     VideoTrack(const VideoTrack &rhs) = delete;

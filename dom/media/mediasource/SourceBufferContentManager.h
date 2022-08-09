@@ -7,10 +7,10 @@
 #ifndef MOZILLA_SOURCEBUFFERCONTENTMANAGER_H_
 #define MOZILLA_SOURCEBUFFERCONTENTMANAGER_H_
 
+#include "mozilla/MozPromise.h"
+
 #include "MediaData.h"
-#include "MediaPromise.h"
 #include "MediaSourceDecoder.h"
-#include "SourceBuffer.h"
 #include "TimeUnits.h"
 #include "nsString.h"
 
@@ -20,14 +20,15 @@ namespace dom {
   class SourceBufferAttributes;
 }
 
-using media::TimeUnit;
-using media::TimeIntervals;
+namespace dom {
+class SourceBuffer;
+}
 
 class SourceBufferContentManager {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(SourceBufferContentManager);
 
-  typedef MediaPromise<bool, nsresult, /* IsExclusive = */ true> AppendPromise;
+  typedef MozPromise<bool, nsresult, /* IsExclusive = */ true> AppendPromise;
   typedef AppendPromise RangeRemovalPromise;
 
   static already_AddRefed<SourceBufferContentManager>
@@ -38,7 +39,7 @@ public:
   // Add data to the end of the input buffer.
   // Returns false if the append failed.
   virtual bool
-  AppendData(MediaLargeByteBuffer* aData, TimeUnit aTimestampOffset) = 0;
+  AppendData(MediaByteBuffer* aData, media::TimeUnit aTimestampOffset) = 0;
 
   // Run MSE Buffer Append Algorithm
   // 3.5.5 Buffer Append Algorithm.
@@ -55,7 +56,8 @@ public:
 
   // Runs MSE range removal algorithm.
   // http://w3c.github.io/media-source/#sourcebuffer-coded-frame-removal
-  virtual nsRefPtr<RangeRemovalPromise> RangeRemoval(TimeUnit aStart, TimeUnit aEnd) = 0;
+  virtual nsRefPtr<RangeRemovalPromise> RangeRemoval(media::TimeUnit aStart,
+                                                     media::TimeUnit aEnd) = 0;
 
   enum class EvictDataResult : int8_t
   {
@@ -70,10 +72,12 @@ public:
   // bytes. aBufferStartTime contains the new start time of the data after the
   // eviction.
   virtual EvictDataResult
-  EvictData(TimeUnit aPlaybackTime, uint32_t aThreshold, TimeUnit* aBufferStartTime) = 0;
+  EvictData(media::TimeUnit aPlaybackTime,
+            uint32_t aThreshold,
+            media::TimeUnit* aBufferStartTime) = 0;
 
   // Evicts data up to aTime.
-  virtual void EvictBefore(TimeUnit aTime) = 0;
+  virtual void EvictBefore(media::TimeUnit aTime) = 0;
 
   // Returns the buffered range currently managed.
   // This may be called on any thread.
@@ -103,9 +107,9 @@ public:
     return AppendState::WAITING_FOR_SEGMENT;
   }
 
-  virtual void SetGroupStartTimestamp(const TimeUnit& aGroupStartTimestamp) {}
+  virtual void SetGroupStartTimestamp(const media::TimeUnit& aGroupStartTimestamp) {}
   virtual void RestartGroupStartTimestamp() {}
-  virtual TimeUnit GroupEndTimestamp() = 0;
+  virtual media::TimeUnit GroupEndTimestamp() = 0;
 
 protected:
   virtual ~SourceBufferContentManager() { }

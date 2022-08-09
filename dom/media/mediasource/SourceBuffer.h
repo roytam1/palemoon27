@@ -7,7 +7,7 @@
 #ifndef mozilla_dom_SourceBuffer_h_
 #define mozilla_dom_SourceBuffer_h_
 
-#include "MediaPromise.h"
+#include "mozilla/MozPromise.h"
 #include "MediaSource.h"
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
@@ -33,14 +33,11 @@ struct JSContext;
 namespace mozilla {
 
 class ErrorResult;
-class MediaLargeByteBuffer;
+class MediaByteBuffer;
 template <typename T> class AsyncEventRunner;
 class TrackBuffersManager;
 
 namespace dom {
-
-using media::TimeUnit;
-using media::TimeIntervals;
 
 class TimeRanges;
 
@@ -90,16 +87,16 @@ public:
   {
     MonitorAutoLock mon(mMonitor);
     mApparentTimestampOffset = aTimestampOffset;
-    mTimestampOffset = TimeUnit::FromSeconds(aTimestampOffset);
+    mTimestampOffset = media::TimeUnit::FromSeconds(aTimestampOffset);
   }
 
-  TimeUnit GetTimestampOffset()
+  media::TimeUnit GetTimestampOffset()
   {
     MonitorAutoLock mon(mMonitor);
     return mTimestampOffset;
   }
 
-  void SetTimestampOffset(TimeUnit& aTimestampOffset)
+  void SetTimestampOffset(media::TimeUnit& aTimestampOffset)
   {
     MonitorAutoLock mon(mMonitor);
     mTimestampOffset = aTimestampOffset;
@@ -131,7 +128,7 @@ private:
   double mAppendWindowEnd;
   SourceBufferAppendMode mAppendMode;
   double mApparentTimestampOffset;
-  TimeUnit mTimestampOffset;
+  media::TimeUnit mTimestampOffset;
 };
 
 class SourceBuffer final : public DOMEventTargetHelper
@@ -151,6 +148,7 @@ public:
   }
 
   already_AddRefed<TimeRanges> GetBuffered(ErrorResult& aRv);
+  media::TimeIntervals GetTimeIntervals();
 
   double TimestampOffset() const
   {
@@ -222,10 +220,6 @@ public:
     return mActive;
   }
 
-#if defined(DEBUG)
-  void Dump(const char* aPath);
-#endif
-
 private:
   ~SourceBuffer();
 
@@ -255,11 +249,11 @@ private:
   // http://w3c.github.io/media-source/#sourcebuffer-append-error
   void AppendError(bool aDecoderError);
 
-  // Implements the "Prepare Append Algorithm". Returns MediaLargeByteBuffer object
+  // Implements the "Prepare Append Algorithm". Returns MediaByteBuffer object
   // on success or nullptr (with aRv set) on error.
-  already_AddRefed<MediaLargeByteBuffer> PrepareAppend(const uint8_t* aData,
-                                                       uint32_t aLength,
-                                                       ErrorResult& aRv);
+  already_AddRefed<MediaByteBuffer> PrepareAppend(const uint8_t* aData,
+                                                  uint32_t aLength,
+                                                  ErrorResult& aRv);
 
   void AppendDataCompletedWithSuccess(bool aHasActiveTracks);
   void AppendDataErrored(nsresult aError);
@@ -272,13 +266,12 @@ private:
   nsRefPtr<SourceBufferAttributes> mAttributes;
 
   bool mUpdating;
-  bool mIsUsingFormatReader;
 
   mozilla::Atomic<bool> mActive;
 
   int64_t mReportedOffset;
 
-  MediaPromiseRequestHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;
+  MozPromiseRequestHolder<SourceBufferContentManager::AppendPromise> mPendingAppend;
   const nsCString mType;
 };
 

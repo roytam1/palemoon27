@@ -4,8 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ResourceQueue.h"
 #include "nsDeque.h"
 #include "MediaData.h"
+#include "mozilla/ErrorResult.h"
 #include "mozilla/Logging.h"
 
 extern PRLogModuleInfo* GetSourceBufferResourceLog();
@@ -15,7 +17,7 @@ extern PRLogModuleInfo* GetSourceBufferResourceLog();
 
 namespace mozilla {
 
-ResourceItem::ResourceItem(MediaLargeByteBuffer* aData)
+ResourceItem::ResourceItem(MediaByteBuffer* aData)
   : mData(aData)
 {
 }
@@ -77,7 +79,7 @@ ResourceQueue::CopyData(uint64_t aOffset, uint32_t aCount, char* aDest)
 }
 
 void
-ResourceQueue::AppendItem(MediaLargeByteBuffer* aData)
+ResourceQueue::AppendItem(MediaByteBuffer* aData)
 {
   mLogicalLength += aData->Length();
   Push(new ResourceItem(aData));
@@ -106,7 +108,7 @@ uint32_t ResourceQueue::EvictBefore(uint64_t aOffset, ErrorResult& aRv)
       uint32_t offset = aOffset - mOffset;
       mOffset += offset;
       evicted += offset;
-      nsRefPtr<MediaLargeByteBuffer> data = new MediaLargeByteBuffer;
+      nsRefPtr<MediaByteBuffer> data = new MediaByteBuffer;
       if (!data->AppendElements(item->mData->Elements() + offset,
                                 item->mData->Length() - offset,
                                 fallible)) {

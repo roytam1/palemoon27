@@ -10,7 +10,6 @@
 #include "PlatformDecoderModule.h"
 #include "FFmpegLibs.h"
 #include "mozilla/StaticMutex.h"
-#include "mp4_demuxer/mp4_demuxer.h"
 
 namespace mozilla
 {
@@ -24,12 +23,12 @@ template <>
 class FFmpegDataDecoder<LIBAV_VER> : public MediaDataDecoder
 {
 public:
-  FFmpegDataDecoder(FlushableMediaTaskQueue* aTaskQueue, AVCodecID aCodecID);
+  FFmpegDataDecoder(FlushableTaskQueue* aTaskQueue, AVCodecID aCodecID);
   virtual ~FFmpegDataDecoder();
 
   static bool Link();
 
-  virtual nsresult Init() override;
+  virtual nsRefPtr<InitPromise> Init() override = 0;
   virtual nsresult Input(MediaRawData* aSample) override = 0;
   virtual nsresult Flush() override;
   virtual nsresult Drain() override = 0;
@@ -40,8 +39,9 @@ public:
 protected:
   virtual void InitCodecContext() {}
   AVFrame*        PrepareFrame();
+  nsresult        InitDecoder();
 
-  FlushableMediaTaskQueue* mTaskQueue;
+  FlushableTaskQueue* mTaskQueue;
   AVCodecContext* mCodecContext;
   AVFrame*        mFrame;
   nsRefPtr<MediaByteBuffer> mExtraData;

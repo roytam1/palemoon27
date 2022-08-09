@@ -6,13 +6,18 @@
 
 interface nsIDOMWindow;
 
-[uuid(4f537c88-3722-4946-9a09-ce559fa0591d)]
+[uuid(5fe83b24-38b9-4901-a4a1-d1bd57d3fe18)]
 interface nsIAudioChannelAgentCallback : nsISupports
 {
   /**
    * Notified when the window volume/mute is changed
    */
   void windowVolumeChanged(in float aVolume, in bool aMuted);
+
+  /**
+   * Notified when the capture state is changed.
+   */
+  void windowAudioCaptureChanged();
 };
 
 /**
@@ -29,7 +34,7 @@ interface nsIAudioChannelAgentCallback : nsISupports
  *   1. Changes to the playable status of this channel.
  */
 
-[uuid(11138a74-ee64-4a91-9457-f60a5f4527c1)]
+[uuid(ee39a34b-a5c7-4b30-b1ac-cd64ceedef67)]
 interface nsIAudioChannelAgent : nsISupports
 {
   const long AUDIO_AGENT_CHANNEL_NORMAL             = 0;
@@ -39,6 +44,7 @@ interface nsIAudioChannelAgent : nsISupports
   const long AUDIO_AGENT_CHANNEL_TELEPHONY          = 4;
   const long AUDIO_AGENT_CHANNEL_RINGER             = 5;
   const long AUDIO_AGENT_CHANNEL_PUBLICNOTIFICATION = 6;
+  const long AUDIO_AGENT_CHANNEL_SYSTEM             = 7;
 
   const long AUDIO_AGENT_CHANNEL_ERROR              = 1000;
 
@@ -101,15 +107,15 @@ interface nsIAudioChannelAgent : nsISupports
    *    faded state: the agent has registered with audio channel service the
    *          component should start playback as well as reducing the volume.
    */
-  void startPlaying(out float volume, out bool muted);
+  void notifyStartedPlaying(out float volume, out bool muted);
 
   /**
    * Notify the agent we no longer want to play.
    *
-   * Note : even if startPlaying() returned false, the agent would still be
-   *        registered with the audio channel service and receive callbacks for status changes.
-   *        So stopPlaying must still eventually be called to unregister the agent with the
-   *        channel service.
+   * Note : even if notifyStartedPlaying() returned false, the agent would
+   * still be registered with the audio channel service and receive callbacks
+   * for status changes. So notifyStoppedPlaying must still eventually be
+   * called to unregister the agent with the channel service.
    */
-  void stopPlaying();
+  void notifyStoppedPlaying();
 };

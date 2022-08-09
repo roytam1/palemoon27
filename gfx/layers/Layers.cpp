@@ -1301,14 +1301,14 @@ ContainerLayer::SortChildrenBy3DZOrder(nsTArray<Layer*>& aArray)
     } else {
       if (toSort.Length() > 0) {
         SortLayersBy3DZOrder(toSort);
-        aArray.MoveElementsFrom(toSort);
+        aArray.AppendElements(Move(toSort));
       }
       aArray.AppendElement(l);
     }
   }
   if (toSort.Length() > 0) {
     SortLayersBy3DZOrder(toSort);
-    aArray.MoveElementsFrom(toSort);
+    aArray.AppendElements(Move(toSort));
   }
 }
 

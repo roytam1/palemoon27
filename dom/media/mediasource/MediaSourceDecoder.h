@@ -12,7 +12,6 @@
 #include "nsCOMPtr.h"
 #include "nsError.h"
 #include "MediaDecoder.h"
-#include "MediaSourceReader.h"
 
 class nsIStreamListener;
 
@@ -41,6 +40,15 @@ public:
   virtual MediaDecoderStateMachine* CreateStateMachine() override;
   virtual nsresult Load(nsIStreamListener**, MediaDecoder*) override;
   virtual media::TimeIntervals GetSeekable() override;
+  media::TimeIntervals GetBuffered() override;
+
+  // We can't do this in the constructor because we don't know what type of
+  // media we're dealing with by that point.
+  void NotifyDormantSupported(bool aSupported)
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+    mDormantSupported = aSupported;
+  }
 
   virtual void Shutdown() override;
 
@@ -49,14 +57,7 @@ public:
   void AttachMediaSource(dom::MediaSource* aMediaSource);
   void DetachMediaSource();
 
-  already_AddRefed<SourceBufferDecoder> CreateSubDecoder(const nsACString& aType,
-                                                         int64_t aTimestampOffset /* microseconds */);
-  void AddTrackBuffer(TrackBuffer* aTrackBuffer);
-  void RemoveTrackBuffer(TrackBuffer* aTrackBuffer);
-  void OnTrackBufferConfigured(TrackBuffer* aTrackBuffer, const MediaInfo& aInfo);
-
   void Ended(bool aEnded);
-  bool IsExpectingMoreData() override;
 
   // Return the duration of the video in seconds.
   virtual double GetDuration() override;
@@ -65,40 +66,19 @@ public:
   void SetMediaSourceDuration(double aDuration, MSRangeRemovalAction aAction);
   double GetMediaSourceDuration();
 
-  // Called whenever a TrackBuffer has new data appended or a new decoder
-  // initializes.  Safe to call from any thread.
-  void NotifyTimeRangesChanged();
-
-  // Indicates the point in time at which the reader should consider
-  // registered TrackBuffers essential for initialization.
-  void PrepareReaderInitialization();
-
-  MediaSourceReader* GetReader()
-  {
-    MOZ_ASSERT(!mIsUsingFormatReader);
-    return static_cast<MediaSourceReader*>(mReader.get());
-  }
   MediaSourceDemuxer* GetDemuxer()
   {
     return mDemuxer;
   }
 
-  // Returns true if aReader is a currently active audio or video
-  // reader in this decoders MediaSourceReader.
-  bool IsActiveReader(MediaDecoderReader* aReader);
-
-  // Return a decoder from the set available in aTrackDecoders that has data
-  // available in the range requested by aTarget.
-  already_AddRefed<SourceBufferDecoder> SelectDecoder(int64_t aTarget /* microseconds */,
-                                                      int64_t aTolerance /* microseconds */,
-                                                      const nsTArray<nsRefPtr<SourceBufferDecoder>>& aTrackDecoders);
-
   // Returns a string describing the state of the MediaSource internal
   // buffered data. Used for debugging purposes.
   void GetMozDebugReaderData(nsAString& aString);
 
-	MediaDecoderOwner::NextFrameStatus NextFrameBufferedStatus() override;
-	bool CanPlayThrough() override;
+  void AddSizeOfResources(ResourceSizes* aSizes) override;
+
+  MediaDecoderOwner::NextFrameStatus NextFrameBufferedStatus() override;
+  bool CanPlayThrough() override;
 
 private:
   void DoSetMediaSourceDuration(double aDuration);
@@ -107,8 +87,6 @@ private:
   // calls Attach/DetachMediaSource on this decoder to set and clear
   // mMediaSource.
   dom::MediaSource* mMediaSource;
-  nsRefPtr<MediaDecoderReader> mReader;
-  bool mIsUsingFormatReader;
   nsRefPtr<MediaSourceDemuxer> mDemuxer;
   Atomic<bool> mEnded;
 };

@@ -14,9 +14,11 @@
 #include <vorbis/codec.h>
 #endif
 #include "MediaDecoderReader.h"
+#include "MediaResource.h"
 #include "OggCodecState.h"
 #include "VideoUtils.h"
 #include "mozilla/Monitor.h"
+#include "OggDecoder.h"
 
 namespace mozilla {
 
@@ -81,7 +83,8 @@ private:
   // we started playback at the current position. Returns the first video
   // frame, if we have video.
   VideoData* FindStartTime(int64_t& aOutStartTime);
-  AudioData* DecodeToFirstAudioData();
+  AudioData* SyncDecodeToFirstAudioData();
+  VideoData* SyncDecodeToFirstVideoData();
 
   // This monitor should be taken when reading or writing to mIsChained.
   ReentrantMonitor mMonitor;
@@ -314,6 +317,8 @@ private:
 
   // Number of audio frames decoded so far.
   int64_t mDecodedAudioFrames;
+
+  MediaResourceIndex mResource;
 };
 
 } // namespace mozilla

@@ -115,15 +115,12 @@ TextureInfo ImageClientSingle::GetTextureInfo() const
 }
 
 void
-ImageClientSingle::FlushAllImages(bool aExceptFront,
-                                  AsyncTransactionWaiter* aAsyncTransactionWaiter)
+ImageClientSingle::FlushAllImages(AsyncTransactionWaiter* aAsyncTransactionWaiter)
 {
-  if (!aExceptFront) {
-    for (auto& b : mBuffers) {
-      RemoveTextureWithWaiter(b.mTextureClient, aAsyncTransactionWaiter);
-    }
-    mBuffers.Clear();
+  for (auto& b : mBuffers) {
+    RemoveTextureWithWaiter(b.mTextureClient, aAsyncTransactionWaiter);
   }
+  mBuffers.Clear();
 }
 
 bool
@@ -145,6 +142,10 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
     }
   }
   if (images.IsEmpty()) {
+    // This can happen if a ClearAllImages raced with SetCurrentImages from
+    // another thread and ClearImagesFromImageBridge ran after the
+    // SetCurrentImages call but before UpdateImageClientNow.
+    // This can also happen if all images in the list are invalid.
     // We return true because the caller would attempt to recreate the
     // ImageClient otherwise, and that isn't going to help.
     return true;
@@ -261,7 +262,6 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
     newBuf->mImageSerial = image->GetSerial();
     newBuf->mTextureClient = texture;
 
-    aContainer->NotifyPaintedImage(image);
     texture->SyncWithObject(GetForwarder()->GetSyncObject());
   }
 
@@ -314,8 +314,6 @@ ImageClientBridge::UpdateImage(ImageContainer* aContainer, uint32_t aContentFlag
   }
   mAsyncContainerID = aContainer->GetAsyncContainerID();
   static_cast<ShadowLayerForwarder*>(GetForwarder())->AttachAsyncCompositable(mAsyncContainerID, mLayer);
-  AutoLockImage autoLock(aContainer);
-  aContainer->NotifyPaintedImage(autoLock.GetImage());
   return true;
 }
 

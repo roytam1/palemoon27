@@ -37,25 +37,25 @@ typedef android::MediaCodecProxy MediaCodecProxy;
 typedef mozilla::layers::TextureClient TextureClient;
 
 public:
-  GonkVideoDecoderManager(MediaTaskQueue* aTaskQueue,
-                          mozilla::layers::ImageContainer* aImageContainer,
+  GonkVideoDecoderManager(mozilla::layers::ImageContainer* aImageContainer,
 		                      const VideoInfo& aConfig);
 
-  ~GonkVideoDecoderManager();
+  virtual ~GonkVideoDecoderManager() override;
 
   virtual android::sp<MediaCodecProxy> Init(MediaDataDecoderCallback* aCallback) override;
+
+  virtual nsresult Input(MediaRawData* aSample) override;
 
   virtual nsresult Output(int64_t aStreamOffset,
                           nsRefPtr<MediaData>& aOutput) override;
 
   virtual nsresult Flush() override;
 
-  virtual void ReleaseMediaResources();
+  virtual bool HasQueuedSample() override;
+
+  virtual TrackType GetTrackType() override { return TrackType::kVideoTrack; }
 
   static void RecycleCallback(TextureClient* aClient, void* aClosure);
-
-protected:
-  virtual android::status_t SendSampleToOMX(MediaRawData* aSample) override;
 
 private:
   struct FrameInfo
@@ -141,7 +141,6 @@ private:
   nsIntRect mPicture;
   nsIntSize mInitialFrame;
 
-  android::sp<MediaCodecProxy> mDecoder;
   nsRefPtr<layers::ImageContainer> mImageContainer;
 
   android::MediaBuffer* mVideoBuffer;
@@ -178,6 +177,17 @@ private:
   Mutex mPendingVideoBuffersLock;
 
   nsAutoCString mMimeType;
+
+  // MediaCodedc's wrapper that performs the decoding.
+  android::sp<android::MediaCodecProxy> mDecoder;
+
+  // This monitor protects mQueueSample.
+  Monitor mMonitor;
+
+  // An queue with the MP4 samples which are waiting to be sent into OMX.
+  // If an element is an empty MP4Sample, that menas EOS. There should not
+  // any sample be queued after EOS.
+  nsTArray<nsRefPtr<MediaRawData>> mQueueSample;
 };
 
 } // namespace mozilla

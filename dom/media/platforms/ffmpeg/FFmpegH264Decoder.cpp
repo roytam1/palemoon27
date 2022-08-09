@@ -4,7 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "MediaTaskQueue.h"
+#include "mozilla/TaskQueue.h"
+
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
 #include "ImageContainer.h"
@@ -109,7 +110,7 @@ FFmpegH264Decoder<LIBAV_VER>::PtsCorrectionContext::Reset()
 }
 
 FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
-  FlushableMediaTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
+  FlushableTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
   const VideoInfo& aConfig,
   ImageContainer* aImageContainer)
   : FFmpegDataDecoder(aTaskQueue, GetCodecId(aConfig.mMimeType))
@@ -127,14 +128,17 @@ FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   mExtraData->AppendElements(*aConfig.mExtraData);
 }
 
-nsresult
+nsRefPtr<MediaDataDecoder::InitPromise>
 FFmpegH264Decoder<LIBAV_VER>::Init()
 {
-  nsresult rv = FFmpegDataDecoder::Init();
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(InitDecoder())) {
+    return InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
+  }
+
   avcodec_decode_video2 = (decltype(avcodec_decode_video2))FFmpegRuntimeLinker::avc_ptr[_decode_video2];
   av_init_packet = (decltype(av_init_packet))FFmpegRuntimeLinker::avc_ptr[_init_packet];
-  return NS_OK;
+
+  return InitPromise::CreateAndResolve(TrackInfo::kVideoTrack, __func__);
 }
 
 void

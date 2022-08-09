@@ -6,6 +6,9 @@
 
 #include "BroadcastChannelParent.h"
 #include "FileDescriptorSetParent.h"
+#ifdef MOZ_WEBRTC
+#include "CamerasParent.h"
+#endif
 #include "mozilla/media/MediaParent.h"
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/Assertions.h"
@@ -283,6 +286,35 @@ BackgroundParentImpl::DeallocPVsyncParent(PVsyncParent* aActor)
   return true;
 }
 
+camera::PCamerasParent*
+BackgroundParentImpl::AllocPCamerasParent()
+{
+  AssertIsInMainProcess();
+  AssertIsOnBackgroundThread();
+
+#ifdef MOZ_WEBRTC
+  nsRefPtr<mozilla::camera::CamerasParent> actor =
+      mozilla::camera::CamerasParent::Create();
+  return actor.forget().take();
+#else
+  return nullptr;
+#endif
+}
+
+bool
+BackgroundParentImpl::DeallocPCamerasParent(camera::PCamerasParent *aActor)
+{
+  AssertIsInMainProcess();
+  AssertIsOnBackgroundThread();
+  MOZ_ASSERT(aActor);
+
+#ifdef MOZ_WEBRTC
+  nsRefPtr<mozilla::camera::CamerasParent> actor =
+      dont_AddRef(static_cast<mozilla::camera::CamerasParent*>(aActor));
+#endif
+  return true;
+}
+
 namespace {
 
 class InitUDPSocketParentCallback final : public nsRunnable
@@ -514,18 +546,6 @@ BackgroundParentImpl::DeallocPServiceWorkerManagerParent(
 
   delete static_cast<ServiceWorkerManagerParent*>(aActor);
   return true;
-}
-
-media::PMediaParent*
-BackgroundParentImpl::AllocPMediaParent()
-{
-  return media::AllocPMediaParent();
-}
-
-bool
-BackgroundParentImpl::DeallocPMediaParent(media::PMediaParent *aActor)
-{
-  return media::DeallocPMediaParent(aActor);
 }
 
 bool

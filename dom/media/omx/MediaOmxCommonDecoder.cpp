@@ -28,7 +28,9 @@ MediaOmxCommonDecoder::MediaOmxCommonDecoder()
   , mReader(nullptr)
   , mCanOffloadAudio(false)
   , mFallbackToStateMachine(false)
+  , mIsCaptured(false)
 {
+  mDormantSupported = true;
   if (!gMediaDecoderLog) {
     gMediaDecoderLog = PR_NewLogModule("MediaDecoder");
   }
@@ -47,8 +49,7 @@ bool
 MediaOmxCommonDecoder::CheckDecoderCanOffloadAudio()
 {
   return (mCanOffloadAudio && !mFallbackToStateMachine &&
-          !(GetStateMachine() && GetStateMachine()->GetDecodedStream()) &&
-          mPlaybackRate == 1.0);
+          !mIsCaptured && mPlaybackRate == 1.0);
 }
 
 void
@@ -116,12 +117,7 @@ MediaOmxCommonDecoder::PauseStateMachine()
     return;
   }
   // enter dormant state
-  RefPtr<nsRunnable> event =
-    NS_NewRunnableMethodWithArg<bool>(
-      GetStateMachine(),
-      &MediaDecoderStateMachine::SetDormant,
-      true);
-  GetStateMachine()->TaskQueue()->Dispatch(event.forget());
+  GetStateMachine()->DispatchSetDormant(true);
 }
 
 void
@@ -144,15 +140,13 @@ MediaOmxCommonDecoder::ResumeStateMachine()
   SeekTarget target = SeekTarget(mLogicalPosition,
                                  SeekTarget::Accurate,
                                  MediaDecoderEventVisibility::Suppressed);
+  // Call Seek of MediaDecoderStateMachine to suppress seek events.
+  GetStateMachine()->InvokeSeek(target);
+
   mNextState = mPlayState;
   ChangeState(PLAY_STATE_LOADING);
   // exit dormant state
-  RefPtr<nsRunnable> event =
-    NS_NewRunnableMethodWithArg<bool>(
-      GetStateMachine(),
-      &MediaDecoderStateMachine::SetDormant,
-      false);
-  GetStateMachine()->TaskQueue()->Dispatch(event.forget());
+  GetStateMachine()->DispatchSetDormant(false);
   UpdateLogicalPosition();
 }
 
@@ -174,6 +168,8 @@ MediaOmxCommonDecoder::AddOutputStream(ProcessedMediaStream* aStream,
                                        bool aFinishWhenEnded)
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+  mIsCaptured = true;
 
   if (mAudioOffloadPlayer) {
     ResumeStateMachine();

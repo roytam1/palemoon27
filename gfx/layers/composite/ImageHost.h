@@ -85,6 +85,12 @@ public:
 
   virtual already_AddRefed<TexturedEffect> GenEffect(const gfx::Filter& aFilter) override;
 
+  int32_t GetFrameID()
+  {
+    const TimedImage* img = ChooseImage();
+    return img ? img->mFrameID : -1;
+  }
+
   enum Bias {
     // Don't apply bias to frame times
     BIAS_NONE,

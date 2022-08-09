@@ -5,13 +5,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "IntelWebMVideoDecoder.h"
 
+#include "mozilla/TaskQueue.h"
+
 #include "gfx2DGlue.h"
 #include "Layers.h"
 #include "MediaResource.h"
-#include "MediaTaskQueue.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "nsError.h"
-#include "SharedThreadPool.h"
+#include "mozilla/SharedThreadPool.h"
 #include "VorbisUtils.h"
 #include "nestegg/nestegg.h"
 
@@ -22,8 +23,6 @@
 #undef LOG
 PRLogModuleInfo* GetDemuxerLog();
 #define LOG(...) MOZ_LOG(GetDemuxerLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
-
-using namespace mp4_demuxer;
 
 namespace mozilla {
 
@@ -107,12 +106,12 @@ IntelWebMVideoDecoder::IsSupportedVideoMimeType(const nsACString& aMimeType)
          mPlatform->SupportsMimeType(aMimeType);
 }
 
-nsresult
+nsRefPtr<InitPromise>
 IntelWebMVideoDecoder::Init(unsigned int aWidth, unsigned int aHeight)
 {
   mPlatform = PlatformDecoderModule::Create();
   if (!mPlatform) {
-    return NS_ERROR_FAILURE;
+    return InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
   }
 
   mDecoderConfig = new VideoInfo();
@@ -128,12 +127,12 @@ IntelWebMVideoDecoder::Init(unsigned int aWidth, unsigned int aHeight)
     mDecoderConfig->mMimeType = "video/webm; codecs=vp9";
     break;
   default:
-    return NS_ERROR_FAILURE;
+    return InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
   }
 
   const VideoInfo& video = *mDecoderConfig;
   if (!IsSupportedVideoMimeType(video.mMimeType)) {
-    return NS_ERROR_FAILURE;
+    return InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
   }
   mMediaDataDecoder =
     mPlatform->CreateDecoder(video,
@@ -142,11 +141,10 @@ IntelWebMVideoDecoder::Init(unsigned int aWidth, unsigned int aHeight)
                              mReader->GetLayersBackendType(),
                              mReader->GetDecoder()->GetImageContainer());
   if (!mMediaDataDecoder) {
-    return NS_ERROR_FAILURE;
+    return InitPromise::CreateAndReject(DecoderFailureReason::INIT_ERROR, __func__);
   }
-  nsresult rv = mMediaDataDecoder->Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+
+  return mMediaDataDecoder->Init();
 }
 
 bool
@@ -368,7 +366,7 @@ IntelWebMVideoDecoder::PopSample()
   }
 
   MOZ_ASSERT(!mSampleQueue.empty());
-  sample = mSampleQueue.front();
+  sample = mSampleQueue.front().forget();
   mSampleQueue.pop_front();
   return sample.forget();
 }

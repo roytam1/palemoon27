@@ -9,6 +9,10 @@
 #include "SourceBuffer.h"
 #include "MediaSourceDemuxer.h"
 
+#ifdef MOZ_WEBM
+#include "WebMDemuxer.h"
+#endif
+
 #ifdef MOZ_FMP4
 #include "MP4Demuxer.h"
 #endif
@@ -57,7 +61,7 @@ static Atomic<uint32_t> sStreamSourceID(0u);
 TrackBuffersManager::TrackBuffersManager(dom::SourceBufferAttributes* aAttributes,
                                          MediaSourceDecoder* aParentDecoder,
                                          const nsACString& aType)
-  : mInputBuffer(new MediaLargeByteBuffer)
+  : mInputBuffer(new MediaByteBuffer)
   , mAppendState(AppendState::WAITING_FOR_SEGMENT)
   , mBufferFull(false)
   , mFirstInitializationSegmentReceived(false)
@@ -83,7 +87,7 @@ TrackBuffersManager::~TrackBuffersManager()
 }
 
 bool
-TrackBuffersManager::AppendData(MediaLargeByteBuffer* aData,
+TrackBuffersManager::AppendData(MediaByteBuffer* aData,
                                 TimeUnit aTimestampOffset)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -112,8 +116,8 @@ TrackBuffersManager::BufferAppend()
   MSE_DEBUG("");
 
   mAppendRunning = true;
-  return ProxyMediaCall(GetTaskQueue(), this,
-                        __func__, &TrackBuffersManager::InitSegmentParserLoop);
+  return InvokeAsync(GetTaskQueue(), this,
+                     __func__, &TrackBuffersManager::InitSegmentParserLoop);
 }
 
 // The MSE spec requires that we abort the current SegmentParserLoop
@@ -160,9 +164,9 @@ TrackBuffersManager::RangeRemoval(TimeUnit aStart, TimeUnit aEnd)
 
   mEnded = false;
 
-  return ProxyMediaCall(GetTaskQueue(), this, __func__,
-                        &TrackBuffersManager::CodedFrameRemovalWithPromise,
-                        TimeInterval(aStart, aEnd));
+  return InvokeAsync(GetTaskQueue(), this, __func__,
+                     &TrackBuffersManager::CodedFrameRemovalWithPromise,
+                     TimeInterval(aStart, aEnd));
 }
 
 TrackBuffersManager::EvictDataResult
@@ -319,7 +323,7 @@ TrackBuffersManager::CompleteResetParserState()
     CreateDemuxerforMIMEType();
     // Recreate our input buffer. We can't directly assign the initData buffer
     // to mInputBuffer as it will get modified in the Segment Parser Loop.
-    mInputBuffer = new MediaLargeByteBuffer;
+    mInputBuffer = new MediaByteBuffer;
     mInputBuffer->AppendElements(*mInitData, fallible);
   }
   RecreateParser(true);
@@ -697,8 +701,7 @@ TrackBuffersManager::CreateDemuxerforMIMEType()
 
 #ifdef MOZ_WEBM
   if (mType.LowerCaseEqualsLiteral("video/webm") || mType.LowerCaseEqualsLiteral("audio/webm")) {
-    NS_WARNING("Waiting on WebMDemuxer");
-    //mInputDemuxer = new WebMDemuxer(mCurrentInputBuffer);
+    mInputDemuxer = new WebMDemuxer(mCurrentInputBuffer);
     return;
   }
 #endif
@@ -714,12 +717,12 @@ TrackBuffersManager::CreateDemuxerforMIMEType()
 }
 
 void
-TrackBuffersManager::AppendDataToCurrentInputBuffer(MediaLargeByteBuffer* aData)
+TrackBuffersManager::AppendDataToCurrentInputBuffer(MediaByteBuffer* aData)
 {
   MOZ_ASSERT(mCurrentInputBuffer);
   int64_t offset = mCurrentInputBuffer->GetLength();
   mCurrentInputBuffer->AppendData(aData);
-  // A MediaLargeByteBuffer has a maximum size of 2GB.
+  // A MediaByteBuffer has a maximum size of 2GiB.
   mInputDemuxer->NotifyDataArrived(uint32_t(aData->Length()), offset);
 }
 
@@ -988,7 +991,7 @@ TrackBuffersManager::CodedFrameProcessing()
     // The mediaRange is offset by the init segment position previously added.
     uint32_t length =
       mediaRange.mEnd - (mProcessedInput - mInputBuffer->Length());
-    nsRefPtr<MediaLargeByteBuffer> segment = new MediaLargeByteBuffer;
+    nsRefPtr<MediaByteBuffer> segment = new MediaByteBuffer;
     if (!segment->AppendElements(mInputBuffer->Elements(), length, fallible)) {
       return CodedFrameProcessingPromise::CreateAndReject(NS_ERROR_OUT_OF_MEMORY, __func__);
     }

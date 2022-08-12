@@ -9,12 +9,14 @@
 #include "mozilla/Mutex.h"
 #include "nsIChannel.h"
 #include "nsIURI.h"
+#include "nsISeekableStream.h"
 #include "nsIStreamingProtocolController.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
 #include "MediaCache.h"
 #include "MediaData.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/TimeStamp.h"
 #include "nsThreadUtils.h"
@@ -288,6 +290,34 @@ public:
   // results and requirements are the same as per the Read method.
   virtual nsresult ReadAt(int64_t aOffset, char* aBuffer,
                           uint32_t aCount, uint32_t* aBytes) = 0;
+
+  // ReadAt without side-effects. Given that our MediaResource infrastructure
+  // is very side-effecty, this accomplishes its job by checking the initial
+  // position and seeking back to it. If the seek were to fail, a side-effect
+  // might be observable.
+  //
+  // This method returns null if anything fails, including the failure to read
+  // aCount bytes. Otherwise, it returns an owned buffer.
+  virtual already_AddRefed<MediaByteBuffer> SilentReadAt(int64_t aOffset, uint32_t aCount)
+  {
+    nsRefPtr<MediaByteBuffer> bytes = new MediaByteBuffer();
+    bool ok = bytes->SetCapacity(aCount, fallible);
+    NS_ENSURE_TRUE(ok, nullptr);
+    int64_t pos = Tell();
+    char* curr = reinterpret_cast<char*>(bytes->Elements());
+    while (aCount > 0) {
+      uint32_t bytesRead;
+      nsresult rv = ReadAt(aOffset, curr, aCount, &bytesRead);
+      NS_ENSURE_SUCCESS(rv, nullptr);
+      NS_ENSURE_TRUE(bytesRead > 0, nullptr);
+      aOffset += bytesRead;
+      aCount -= bytesRead;
+      curr += bytesRead;
+    }
+    Seek(nsISeekableStream::NS_SEEK_SET, pos);
+    return bytes.forget();
+  }
+
   // Seek to the given bytes offset in the stream. aWhence can be
   // one of:
   //   NS_SEEK_SET
@@ -519,6 +549,47 @@ protected:
   bool mLoadInBackground;
 };
 
+
+/**
+ * This class is responsible for managing the suspend count and report suspend
+ * status of channel.
+ **/
+class ChannelSuspendAgent {
+public:
+  explicit ChannelSuspendAgent(nsIChannel* aChannel)
+  : mChannel(aChannel),
+    mSuspendCount(0),
+    mIsChannelSuspended(false)
+  {}
+
+  // True when the channel has been suspended or needs to be suspended.
+  bool IsSuspended();
+
+  // Return true when the channel is logically suspended, i.e. the suspend
+  // count goes from 0 to 1.
+  bool Suspend();
+
+  // Return true only when the suspend count is equal to zero.
+  bool Resume();
+
+  // Call after opening channel, set channel and check whether the channel
+  // needs to be suspended.
+  void NotifyChannelOpened(nsIChannel* aChannel);
+
+  // Call before closing channel, reset the channel internal status if needed.
+  void NotifyChannelClosing();
+
+  // Check whether we need to suspend the channel.
+  void UpdateSuspendedStatusIfNeeded();
+private:
+  // Only suspends channel but not changes the suspend count.
+  void SuspendInternal();
+
+  nsIChannel* mChannel;
+  Atomic<uint32_t> mSuspendCount;
+  bool mIsChannelSuspended;
+};
+
 /**
  * This is the MediaResource implementation that wraps Necko channels.
  * Much of its functionality is actually delegated to MediaCache via
@@ -599,6 +670,7 @@ public:
   virtual nsresult Read(char* aBuffer, uint32_t aCount, uint32_t* aBytes) override;
   virtual nsresult ReadAt(int64_t offset, char* aBuffer,
                           uint32_t aCount, uint32_t* aBytes) override;
+  virtual already_AddRefed<MediaByteBuffer> SilentReadAt(int64_t aOffset, uint32_t aCount) override;
   virtual nsresult Seek(int32_t aWhence, int64_t aOffset) override;
   virtual int64_t  Tell() override;
 
@@ -690,21 +762,12 @@ protected:
                                       uint32_t aCount,
                                       uint32_t *aWriteCount);
 
-  // Suspend the channel only if the channels is currently downloading data.
-  // If it isn't we set a flag, mIgnoreResume, so that PossiblyResume knows
-  // whether to acutually resume or not.
-  void PossiblySuspend();
-
-  // Resume from a suspend if we actually suspended (See PossiblySuspend).
-  void PossiblyResume();
-
   // Main thread access only
   int64_t            mOffset;
   nsRefPtr<Listener> mListener;
   // A data received event for the decoder that has been dispatched but has
   // not yet been processed.
   nsRevocableEventPtr<nsRunnableMethod<ChannelMediaResource, void, false> > mDataReceivedEvent;
-  uint32_t           mSuspendCount;
   // When this flag is set, if we get a network error we should silently
   // reopen the stream.
   bool               mReopenOnError;
@@ -730,6 +793,8 @@ protected:
   // True if the stream can seek into unbuffered ranged, i.e. if the
   // connection supports byte range requests.
   bool mIsTransportSeekable;
+
+  ChannelSuspendAgent mSuspendAgent;
 };
 
 /**
@@ -739,7 +804,7 @@ protected:
  * us.
  */
 template<class T>
-class MOZ_STACK_CLASS AutoPinned {
+class MOZ_RAII AutoPinned {
  public:
   explicit AutoPinned(T* aResource MOZ_GUARD_OBJECT_NOTIFIER_PARAM) : mResource(aResource) {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;

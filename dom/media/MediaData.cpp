@@ -113,9 +113,12 @@ VideoData::VideoData(int64_t aOffset,
                      int64_t aDuration,
                      bool aKeyframe,
                      int64_t aTimecode,
-                     IntSize aDisplay)
+                     IntSize aDisplay,
+                     layers::ImageContainer::FrameID aFrameID)
   : MediaData(VIDEO_DATA, aOffset, aTime, aDuration)
   , mDisplay(aDisplay)
+  , mFrameID(aFrameID)
+  , mSentToCompositor(false)
 {
   NS_ASSERTION(mDuration >= 0, "Frame must have non-negative duration.");
   mKeyframe = aKeyframe;
@@ -152,7 +155,8 @@ VideoData::ShallowCopyUpdateDuration(const VideoData* aOther,
                                         aDuration,
                                         aOther->mKeyframe,
                                         aOther->mTimecode,
-                                        aOther->mDisplay);
+                                        aOther->mDisplay,
+                                        aOther->mFrameID);
   v->mDiscontinuity = aOther->mDiscontinuity;
   v->mImage = aOther->mImage;
   return v.forget();
@@ -169,7 +173,8 @@ VideoData::ShallowCopyUpdateTimestamp(const VideoData* aOther,
                                         aOther->GetEndTime() - aTimestamp,
                                         aOther->mKeyframe,
                                         aOther->mTimecode,
-                                        aOther->mDisplay);
+                                        aOther->mDisplay,
+                                        aOther->mFrameID);
   v->mDiscontinuity = aOther->mDiscontinuity;
   v->mImage = aOther->mImage;
   return v.forget();
@@ -187,7 +192,8 @@ VideoData::ShallowCopyUpdateTimestampAndDuration(const VideoData* aOther,
                                         aDuration,
                                         aOther->mKeyframe,
                                         aOther->mTimecode,
-                                        aOther->mDisplay);
+                                        aOther->mDisplay,
+                                        aOther->mFrameID);
   v->mDiscontinuity = aOther->mDiscontinuity;
   v->mImage = aOther->mImage;
   return v.forget();
@@ -252,7 +258,8 @@ VideoData::Create(const VideoInfo& aInfo,
                                         aDuration,
                                         aKeyframe,
                                         aTimecode,
-                                        aInfo.mDisplay));
+                                        aInfo.mDisplay,
+                                        0));
     return v.forget();
   }
 
@@ -294,7 +301,8 @@ VideoData::Create(const VideoInfo& aInfo,
                                       aDuration,
                                       aKeyframe,
                                       aTimecode,
-                                      aInfo.mDisplay));
+                                      aInfo.mDisplay,
+                                      0));
 #ifdef MOZ_WIDGET_GONK
   const YCbCrBuffer::Plane &Y = aBuffer.mPlanes[0];
   const YCbCrBuffer::Plane &Cb = aBuffer.mPlanes[1];
@@ -396,7 +404,8 @@ VideoData::CreateFromImage(const VideoInfo& aInfo,
                                       aDuration,
                                       aKeyframe,
                                       aTimecode,
-                                      aInfo.mDisplay));
+                                      aInfo.mDisplay,
+                                      0));
   v->mImage = aImage;
   return v.forget();
 }
@@ -422,7 +431,8 @@ VideoData::Create(const VideoInfo& aInfo,
                                         aDuration,
                                         aKeyframe,
                                         aTimecode,
-                                        aInfo.mDisplay));
+                                        aInfo.mDisplay,
+                                        0));
     return v.forget();
   }
 
@@ -449,7 +459,8 @@ VideoData::Create(const VideoInfo& aInfo,
                                       aDuration,
                                       aKeyframe,
                                       aTimecode,
-                                      aInfo.mDisplay));
+                                      aInfo.mDisplay,
+                                      0));
 
   v->mImage = aContainer->CreateImage(ImageFormat::GRALLOC_PLANAR_YCBCR);
   if (!v->mImage) {

@@ -741,7 +741,9 @@ RasterImage::UpdateImageContainer()
   }
 
   mLastImageContainerDrawResult = drawResult;
-  container->SetCurrentImage(image);
+  nsAutoTArray<ImageContainer::NonOwningImage, 1> imageList;
+  imageList.AppendElement(ImageContainer::NonOwningImage(image));
+  container->SetCurrentImages(imageList);
 }
 
 size_t

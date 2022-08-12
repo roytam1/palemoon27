@@ -94,6 +94,12 @@ public:
     BIAS_POSITIVE,
   };
 
+  int32_t GetFrameID()
+  {
+    const TimedImage* img = ChooseImage();
+    return img ? img->mFrameID : -1;
+  }
+
 protected:
   struct TimedImage {
     CompositableTextureHostRef mFrontBuffer;

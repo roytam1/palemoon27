@@ -8,7 +8,6 @@
 #define WMFVideoMFTManager_h_
 
 #include "WMF.h"
-#include "MP4Reader.h"
 #include "MFTDecoder.h"
 #include "nsRect.h"
 #include "WMFMediaDataDecoder.h"
@@ -35,11 +34,17 @@ public:
 
   virtual void Shutdown() override;
 
-  virtual bool IsHardwareAccelerated() const override;
+  virtual bool IsHardwareAccelerated(nsACString& aFailureReason) const override;
+
+  virtual TrackInfo::TrackType GetType() override {
+    return TrackInfo::kVideoTrack;
+  }
 
 private:
 
-  bool InitializeDXVA();
+  bool InitializeDXVA(bool aForceD3D9);
+
+  already_AddRefed<MFTDecoder> InitInternal(bool aForceD3D9);
 
   HRESULT ConfigureVideoFrameGeometry();
 
@@ -65,6 +70,8 @@ private:
   const bool mDXVAEnabled;
   const layers::LayersBackend mLayersBackend;
   bool mUseHwAccel;
+
+  nsCString mDXVAFailureReason;
 
   enum StreamType {
     Unknown,

@@ -20,6 +20,7 @@
 #include "js/HeapAPI.h"
 #include "js/SliceBudget.h"
 #include "js/TracingAPI.h"
+#include "vm/TaggedProto.h"
 
 class JSLinearString;
 class JSRope;
@@ -182,10 +183,8 @@ class GCMarker : public JSTracer
     template <typename T> void traverse(T thing);
 
     // Calls traverse on target after making additional assertions.
+    template <typename S, typename T> void traverseEdge(S source, T* target);
     template <typename S, typename T> void traverseEdge(S source, T target);
-    // C++ requires explicit declarations of partial template instantiations.
-    template <typename S> void traverseEdge(S source, jsid target);
-    template <typename S> void traverseEdge(S source, Value target);
 
     /*
      * Care must be taken changing the mark color from gray to black. The cycle
@@ -453,9 +452,9 @@ class HashKeyRef : public BufferableRef
 // Wrap a GC thing pointer into a new Value or jsid. The type system enforces
 // that the thing pointer is a wrappable type.
 template <typename S, typename T>
-struct RewrapValueOrId {};
+struct RewrapTaggedPointer{};
 #define DECLARE_REWRAP(S, T, method, prefix) \
-    template <> struct RewrapValueOrId<S, T> { \
+    template <> struct RewrapTaggedPointer<S, T> { \
         static S wrap(T thing) { return method ( prefix thing ); } \
     }
 DECLARE_REWRAP(JS::Value, JSObject*, JS::ObjectOrNullValue, );
@@ -463,11 +462,16 @@ DECLARE_REWRAP(JS::Value, JSString*, JS::StringValue, );
 DECLARE_REWRAP(JS::Value, JS::Symbol*, JS::SymbolValue, );
 DECLARE_REWRAP(jsid, JSString*, NON_INTEGER_ATOM_TO_JSID, (JSAtom*));
 DECLARE_REWRAP(jsid, JS::Symbol*, SYMBOL_TO_JSID, );
+DECLARE_REWRAP(js::TaggedProto, JSObject*, js::TaggedProto, );
 
 } /* namespace gc */
 
 bool
 UnmarkGrayShapeRecursively(Shape* shape);
+
+template<typename T>
+void
+CheckTracedThing(JSTracer* trc, T* thing);
 
 template<typename T>
 void

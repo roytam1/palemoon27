@@ -3047,7 +3047,7 @@ private:
 /******************************************************************************
  * Handles pre/post script processing.
  */
-class MOZ_STACK_CLASS AutoScriptEvaluate
+class MOZ_RAII AutoScriptEvaluate
 {
 public:
     /**
@@ -3084,7 +3084,7 @@ private:
 };
 
 /***************************************************************************/
-class MOZ_STACK_CLASS AutoResolveName
+class MOZ_RAII AutoResolveName
 {
 public:
     AutoResolveName(XPCCallContext& ccx, JS::HandleId name

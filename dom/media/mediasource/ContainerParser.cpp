@@ -37,7 +37,7 @@ ContainerParser::ContainerParser(const nsACString& aType)
 ContainerParser::~ContainerParser() = default;
 
 bool
-ContainerParser::IsInitSegmentPresent(MediaLargeByteBuffer* aData)
+ContainerParser::IsInitSegmentPresent(MediaByteBuffer* aData)
 {
   MSE_DEBUG(ContainerParser, "aLength=%u [%x%x%x%x]",
             aData->Length(),
@@ -49,7 +49,7 @@ ContainerParser::IsInitSegmentPresent(MediaLargeByteBuffer* aData)
 }
 
 bool
-ContainerParser::IsMediaSegmentPresent(MediaLargeByteBuffer* aData)
+ContainerParser::IsMediaSegmentPresent(MediaByteBuffer* aData)
 {
   MSE_DEBUG(ContainerParser, "aLength=%u [%x%x%x%x]",
             aData->Length(),
@@ -61,7 +61,7 @@ ContainerParser::IsMediaSegmentPresent(MediaLargeByteBuffer* aData)
 }
 
 bool
-ContainerParser::ParseStartAndEndTimestamps(MediaLargeByteBuffer* aData,
+ContainerParser::ParseStartAndEndTimestamps(MediaByteBuffer* aData,
                                             int64_t& aStart, int64_t& aEnd)
 {
   return false;
@@ -86,7 +86,7 @@ ContainerParser::HasCompleteInitData()
   return mHasInitData && !!mInitData->Length();
 }
 
-MediaLargeByteBuffer*
+MediaByteBuffer*
 ContainerParser::InitData()
 {
   return mInitData;
@@ -121,7 +121,7 @@ public:
   static const unsigned NS_PER_USEC = 1000;
   static const unsigned USEC_PER_SEC = 1000000;
 
-  bool IsInitSegmentPresent(MediaLargeByteBuffer* aData) override
+  bool IsInitSegmentPresent(MediaByteBuffer* aData) override
   {
     ContainerParser::IsInitSegmentPresent(aData);
     // XXX: This is overly primitive, needs to collect data as it's appended
@@ -146,7 +146,7 @@ public:
     return false;
   }
 
-  bool IsMediaSegmentPresent(MediaLargeByteBuffer* aData) override
+  bool IsMediaSegmentPresent(MediaByteBuffer* aData) override
   {
     ContainerParser::IsMediaSegmentPresent(aData);
     // XXX: This is overly primitive, needs to collect data as it's appended
@@ -185,7 +185,7 @@ public:
     return false;
   }
 
-  bool ParseStartAndEndTimestamps(MediaLargeByteBuffer* aData,
+  bool ParseStartAndEndTimestamps(MediaByteBuffer* aData,
                                   int64_t& aStart, int64_t& aEnd) override
   {
     bool initSegment = IsInitSegmentPresent(aData);
@@ -193,8 +193,10 @@ public:
       mOffset = 0;
       mParser = WebMBufferedParser(0);
       mOverlappedMapping.Clear();
-      mInitData = new MediaLargeByteBuffer();
+      mInitData = new MediaByteBuffer();
       mResource = new SourceBufferResource(NS_LITERAL_CSTRING("video/webm"));
+      mCompleteMediaHeaderRange = MediaByteRange();
+      mCompleteMediaSegmentRange = MediaByteRange();
     }
 
     // XXX if it only adds new mappings, overlapped but not available
@@ -235,8 +237,21 @@ public:
       return false;
     }
 
-    // Exclude frames that we don't enough data to cover the end of.
     uint32_t endIdx = mapping.Length() - 1;
+
+    // Calculate media range for first media segment
+    uint32_t segmentEndIdx = endIdx;
+    while (mapping[0].mSyncOffset != mapping[segmentEndIdx].mSyncOffset) {
+      segmentEndIdx -= 1;
+    }
+    if (segmentEndIdx > 0 && mOffset >= mapping[segmentEndIdx].mEndOffset) {
+      mCompleteMediaHeaderRange = MediaByteRange(mParser.mInitEndOffset,
+                                                 mapping[0].mEndOffset);
+      mCompleteMediaSegmentRange = MediaByteRange(mParser.mInitEndOffset,
+                                                  mapping[segmentEndIdx].mEndOffset);
+    }
+
+    // Exclude frames that we don't have enough data to cover the end of.
     while (mOffset < mapping[endIdx].mEndOffset && endIdx > 0) {
       endIdx -= 1;
     }
@@ -278,7 +293,7 @@ public:
     , mMonitor("MP4ContainerParser Index Monitor")
   {}
 
-  bool IsInitSegmentPresent(MediaLargeByteBuffer* aData) override
+  bool IsInitSegmentPresent(MediaByteBuffer* aData) override
   {
     ContainerParser::IsInitSegmentPresent(aData);
     // Each MP4 atom has a chunk size and chunk type. The root chunk in an MP4
@@ -288,7 +303,7 @@ public:
     return parser.StartWithInitSegment();
   }
 
-  bool IsMediaSegmentPresent(MediaLargeByteBuffer* aData) override
+  bool IsMediaSegmentPresent(MediaByteBuffer* aData) override
   {
     AtomParser parser(mType, aData);
     return parser.StartWithMediaSegment();
@@ -297,7 +312,7 @@ public:
 private:
   class AtomParser {
   public:
-    AtomParser(const nsACString& aType, const MediaLargeByteBuffer* aData)
+    AtomParser(const nsACString& aType, const MediaByteBuffer* aData)
     {
       const nsCString mType(aType); // for logging macro.
       mp4_demuxer::ByteReader reader(aData);
@@ -359,7 +374,7 @@ private:
   };
 
 public:
-  bool ParseStartAndEndTimestamps(MediaLargeByteBuffer* aData,
+  bool ParseStartAndEndTimestamps(MediaByteBuffer* aData,
                                   int64_t& aStart, int64_t& aEnd) override
   {
     MonitorAutoLock mon(mMonitor); // We're not actually racing against anything,
@@ -373,7 +388,7 @@ public:
       // manually. This allows the ContainerParser to be shared across different
       // timestampOffsets.
       mParser = new mp4_demuxer::MoofParser(mStream, 0, /* aIsAudio = */ false, &mMonitor);
-      mInitData = new MediaLargeByteBuffer();
+      mInitData = new MediaByteBuffer();
     } else if (!mStream || !mParser) {
       return false;
     }

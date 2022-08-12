@@ -6,8 +6,13 @@
 #ifndef MOZILLA_MEDIASTREAMGRAPH_H_
 #define MOZILLA_MEDIASTREAMGRAPH_H_
 
-#include "mozilla/Mutex.h"
 #include "mozilla/LinkedList.h"
+#include "mozilla/Mutex.h"
+#include "mozilla/TaskQueue.h"
+
+#include "mozilla/dom/AudioChannelBinding.h"
+
+#include "AudioSegment.h"
 #include "AudioStream.h"
 #include "nsTArray.h"
 #include "nsIRunnable.h"
@@ -16,11 +21,8 @@
 #include "VideoFrameContainer.h"
 #include "VideoSegment.h"
 #include "MainThreadUtils.h"
-#include "MediaTaskQueue.h"
 #include "nsAutoRef.h"
-#include "GraphDriver.h"
 #include <speex/speex_resampler.h>
-#include "mozilla/dom/AudioChannelBinding.h"
 #include "DOMMediaStream.h"
 #include "AudioContext.h"
 
@@ -829,7 +831,7 @@ public:
    * does not exist. No op if a runnable is already present for this track.
    */
   void DispatchWhenNotEnoughBuffered(TrackID aID,
-      MediaTaskQueue* aSignalQueue, nsIRunnable* aSignalRunnable);
+      TaskQueue* aSignalQueue, nsIRunnable* aSignalRunnable);
   /**
    * Indicate that a track has ended. Do not do any more API calls
    * affecting this track.
@@ -893,13 +895,13 @@ public:
 
 protected:
   struct ThreadAndRunnable {
-    void Init(MediaTaskQueue* aTarget, nsIRunnable* aRunnable)
+    void Init(TaskQueue* aTarget, nsIRunnable* aRunnable)
     {
       mTarget = aTarget;
       mRunnable = aRunnable;
     }
 
-    nsRefPtr<MediaTaskQueue> mTarget;
+    nsRefPtr<TaskQueue> mTarget;
     nsCOMPtr<nsIRunnable> mRunnable;
   };
   enum TrackCommands {
@@ -1254,6 +1256,10 @@ public:
    * particular tracks of each input stream.
    */
   ProcessedMediaStream* CreateTrackUnionStream(DOMMediaStream* aWrapper);
+  /**
+   * Create a stream that will mix all its audio input.
+   */
+  ProcessedMediaStream* CreateAudioCaptureStream(DOMMediaStream* aWrapper);
   // Internal AudioNodeStreams can only pass their output to another
   // AudioNode, whereas external AudioNodeStreams can pass their output
   // to an nsAudioStream for playback.
@@ -1309,6 +1315,12 @@ public:
    * Returns graph sample rate in Hz.
    */
   TrackRate GraphRate() const { return mSampleRate; }
+
+  void RegisterCaptureStreamForWindow(uint64_t aWindowId,
+                                      ProcessedMediaStream* aCaptureStream);
+  void UnregisterCaptureStreamForWindow(uint64_t aWindowId);
+  already_AddRefed<MediaInputPort> ConnectToCaptureStream(
+    uint64_t aWindowId, MediaStream* aMediaStream);
 
 protected:
   explicit MediaStreamGraph(TrackRate aSampleRate)

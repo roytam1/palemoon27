@@ -20,12 +20,12 @@ template <>
 class FFmpegAudioDecoder<LIBAV_VER> : public FFmpegDataDecoder<LIBAV_VER>
 {
 public:
-  FFmpegAudioDecoder(FlushableMediaTaskQueue* aTaskQueue,
+  FFmpegAudioDecoder(FlushableTaskQueue* aTaskQueue,
                      MediaDataDecoderCallback* aCallback,
                      const AudioInfo& aConfig);
   virtual ~FFmpegAudioDecoder();
 
-  virtual nsresult Init() override;
+  virtual nsRefPtr<InitPromise> Init() override;
   virtual nsresult Input(MediaRawData* aSample) override;
   virtual nsresult Drain() override;
   void InitCodecContext() override;

@@ -3422,7 +3422,7 @@ runOffThreadScript(JSContext* cx, unsigned argc, Value* vp)
     return JS_ExecuteScript(cx, script, args.rval());
 }
 
-struct FreeOnReturn
+struct MOZ_RAII FreeOnReturn
 {
     JSContext* cx;
     const char* ptr;

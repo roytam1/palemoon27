@@ -149,7 +149,9 @@ class PCUuidGenerator : public mozilla::JsepUuidGenerator {
 class PeerConnectionConfiguration
 {
 public:
-  PeerConnectionConfiguration() : mBundlePolicy(kBundleBalanced) {}
+  PeerConnectionConfiguration()
+  : mBundlePolicy(kBundleBalanced),
+    mIceTransportPolicy(NrIceCtx::ICE_POLICY_ALL) {}
 
   bool addStunServer(const std::string& addr, uint16_t port,
                      const char* transport)
@@ -186,6 +188,8 @@ public:
   const std::vector<NrIceTurnServer>& getTurnServers() const { return mTurnServers; }
   void setBundlePolicy(JsepBundlePolicy policy) { mBundlePolicy = policy;}
   JsepBundlePolicy getBundlePolicy() const { return mBundlePolicy; }
+  void setIceTransportPolicy(NrIceCtx::Policy policy) { mIceTransportPolicy = policy;}
+  NrIceCtx::Policy getIceTransportPolicy() const { return mIceTransportPolicy; }
 
 #ifndef MOZILLA_EXTERNAL_LINKAGE
   nsresult Init(const RTCConfiguration& aSrc);
@@ -196,6 +200,7 @@ private:
   std::vector<NrIceStunServer> mStunServers;
   std::vector<NrIceTurnServer> mTurnServers;
   JsepBundlePolicy mBundlePolicy;
+  NrIceCtx::Policy mIceTransportPolicy;
 };
 
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
@@ -293,6 +298,11 @@ public:
 
   // Configure the ability to use localhost.
   void SetAllowIceLoopback(bool val) { mAllowIceLoopback = val; }
+  bool GetAllowIceLoopback() const { return mAllowIceLoopback; }
+
+  // Configure the ability to use IPV6 link-local addresses.
+  void SetAllowIceLinkLocal(bool val) { mAllowIceLinkLocal = val; }
+  bool GetAllowIceLinkLocal() const { return mAllowIceLinkLocal; }
 
   // Handle system to allow weak references to be passed through C code
   virtual const std::string& GetHandle();
@@ -741,6 +751,7 @@ private:
 #endif
 
   bool mAllowIceLoopback;
+  bool mAllowIceLinkLocal;
   nsRefPtr<PeerConnectionMedia> mMedia;
 
   // The JSEP negotiation session.

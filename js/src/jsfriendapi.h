@@ -1055,12 +1055,6 @@ typedef void
 JS_FRIEND_API(void)
 SetActivityCallback(JSRuntime* rt, ActivityCallback cb, void* arg);
 
-extern JS_FRIEND_API(const JSStructuredCloneCallbacks*)
-GetContextStructuredCloneCallbacks(JSContext* cx);
-
-extern JS_FRIEND_API(bool)
-IsContextRunningJS(JSContext* cx);
-
 typedef bool
 (* DOMInstanceClassHasProtoAtDepth)(const Class* instanceClass,
                                     uint32_t protoID, uint32_t depth);

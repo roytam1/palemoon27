@@ -199,7 +199,7 @@ class MOZ_RAII AutoSetNewObjectMetadata : private JS::CustomAutoRooter
     virtual void trace(JSTracer* trc) override {
         if (prevState_.is<PendingMetadata>()) {
             TraceRoot(trc,
-                      prevState_.as<PendingMetadata>().unsafeGet(),
+                      prevState_.as<PendingMetadata>().unsafeUnbarrieredForTracing(),
                       "Object pending metadata");
         }
     }
@@ -662,7 +662,8 @@ struct JSCompartment
     // Debugger API, or for the entire runtime.
     bool collectCoverage() const {
         return debuggerObservesCoverage() ||
-               runtimeFromAnyThread()->profilingScripts;
+               runtimeFromAnyThread()->profilingScripts ||
+               runtimeFromAnyThread()->lcovOutput.isEnabled();
     }
     void clearScriptCounts();
 
@@ -737,6 +738,11 @@ struct JSCompartment
     };
 
     js::ArgumentsObject* getOrCreateArgumentsTemplateObject(JSContext* cx, bool mapped);
+
+  public:
+    // Aggregated output used to collect JSScript hit counts when code coverage
+    // is enabled.
+    js::coverage::LCovCompartment lcovOutput;
 };
 
 inline bool

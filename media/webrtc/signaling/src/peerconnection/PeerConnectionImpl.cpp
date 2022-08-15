@@ -383,6 +383,7 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mPrivacyRequested(false)
   , mSTSThread(nullptr)
   , mAllowIceLoopback(false)
+  , mAllowIceLinkLocal(false)
   , mMedia(nullptr)
   , mUuidGen(MakeUnique<PCUuidGenerator>())
   , mNumAudioStreams(0)
@@ -404,6 +405,8 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
 #if !defined(MOZILLA_EXTERNAL_LINKAGE)
   mAllowIceLoopback = Preferences::GetBool(
     "media.peerconnection.ice.loopback", false);
+  mAllowIceLinkLocal = Preferences::GetBool(
+    "media.peerconnection.ice.link_local", false);
 #endif
 }
 
@@ -520,6 +523,20 @@ PeerConnectionConfiguration::Init(const RTCConfiguration& aSrc)
       break;
     case dom::RTCBundlePolicy::Max_bundle:
       setBundlePolicy(kBundleMaxBundle);
+      break;
+    default:
+      MOZ_CRASH();
+  }
+
+  switch (aSrc.mIceTransportPolicy) {
+    case dom::RTCIceTransportPolicy::None:
+      setIceTransportPolicy(NrIceCtx::ICE_POLICY_NONE);
+      break;
+    case dom::RTCIceTransportPolicy::Relay:
+      setIceTransportPolicy(NrIceCtx::ICE_POLICY_RELAY);
+      break;
+    case dom::RTCIceTransportPolicy::All:
+      setIceTransportPolicy(NrIceCtx::ICE_POLICY_ALL);
       break;
     default:
       MOZ_CRASH();
@@ -724,7 +741,6 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
   NS_ENSURE_SUCCESS(res, res);
 
   mMedia = new PeerConnectionMedia(this);
-  mMedia->SetAllowIceLoopback(mAllowIceLoopback);
 
   // Connect ICE slots.
   mMedia->SignalIceGatheringStateChange.connect(
@@ -741,7 +757,8 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
 
   // Initialize the media object.
   res = mMedia->Init(aConfiguration.getStunServers(),
-                     aConfiguration.getTurnServers());
+                     aConfiguration.getTurnServers(),
+                     aConfiguration.getIceTransportPolicy());
   if (NS_FAILED(res)) {
     CSFLogError(logTag, "%s: Couldn't initialize media object", __FUNCTION__);
     return res;

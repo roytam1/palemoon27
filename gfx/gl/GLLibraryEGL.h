@@ -17,32 +17,40 @@
 #include <bitset>
 #include <vector>
 
-#ifdef XP_WIN
-    #ifndef WIN32_LEAN_AND_MEAN
-        #define WIN32_LEAN_AND_MEAN 1
-    #endif
+#if defined(XP_WIN)
 
-    #include <windows.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN 1
+#endif
 
-    typedef HDC EGLNativeDisplayType;
-    typedef HBITMAP EGLNativePixmapType;
-    typedef HWND EGLNativeWindowType;
+#include <windows.h>
+
+typedef HDC EGLNativeDisplayType;
+typedef HBITMAP EGLNativePixmapType;
+typedef HWND EGLNativeWindowType;
+
+#define GET_NATIVE_WINDOW(aWidget) ((EGLNativeWindowType)aWidget->GetNativeData(NS_NATIVE_WINDOW))
+
 #else
-    typedef void* EGLNativeDisplayType;
-    typedef void* EGLNativePixmapType;
-    typedef void* EGLNativeWindowType;
+typedef void *EGLNativeDisplayType;
+typedef void *EGLNativePixmapType;
+typedef void *EGLNativeWindowType;
 
-    #ifdef ANDROID
-        // We only need to explicitly dlopen egltrace
-        // on android as we can use LD_PRELOAD or other tricks
-        // on other platforms. We look for it in /data/local
-        // as that's writeable by all users
-        //
-        // This should really go in GLLibraryEGL.cpp but we currently reference
-        // APITRACE_LIB in GLContextProviderEGL.cpp. Further refactoring
-        // will come in subsequent patches on Bug 732865
-        #define APITRACE_LIB "/data/local/tmp/egltrace.so"
-    #endif
+#ifdef ANDROID
+// We only need to explicitly dlopen egltrace
+// on android as we can use LD_PRELOAD or other tricks
+// on other platforms. We look for it in /data/local
+// as that's writeable by all users
+//
+// This should really go in GLLibraryEGL.cpp but we currently reference
+// APITRACE_LIB in GLContextProviderEGL.cpp. Further refactoring
+// will come in subsequent patches on Bug 732865
+#define APITRACE_LIB "/data/local/tmp/egltrace.so"
+
+#ifdef MOZ_WIDGET_ANDROID
+
+#endif // MOZ_WIDGET_ANDROID
+#endif // ANDROID
 #endif
 
 #if defined(MOZ_X11)

@@ -10,11 +10,6 @@
 namespace mozilla {
 namespace devtools {
 
-DeserializedEdge::DeserializedEdge()
-  : referent(0)
-  , name(nullptr)
-{ }
-
 DeserializedEdge::DeserializedEdge(DeserializedEdge&& rhs)
 {
   referent = rhs.referent;
@@ -27,26 +22,6 @@ DeserializedEdge& DeserializedEdge::operator=(DeserializedEdge&& rhs)
   this->~DeserializedEdge();
   new(this) DeserializedEdge(Move(rhs));
   return *this;
-}
-
-bool
-DeserializedEdge::init(const protobuf::Edge& edge, HeapSnapshot& owner)
-{
-  // Although the referent property is optional in the protobuf format for
-  // future compatibility, we can't semantically have an edge to nowhere and
-  // require a referent here.
-  if (!edge.has_referent())
-    return false;
-  referent = edge.referent();
-
-  if (edge.has_name()) {
-    const char16_t* duplicateEdgeName = reinterpret_cast<const char16_t*>(edge.name().c_str());
-    name = owner.borrowUniqueString(duplicateEdgeName, edge.name().length() / sizeof(char16_t));
-    if (!name)
-      return false;
-  }
-
-  return true;
 }
 
 JS::ubi::Node
@@ -100,16 +75,16 @@ Concrete<DeserializedNode>::size(mozilla::MallocSizeOf mallocSizeof) const
 
 class DeserializedEdgeRange : public EdgeRange
 {
-  SimpleEdgeVector edges;
-  size_t           i;
+  EdgeVector edges;
+  size_t     i;
 
   void settle() {
     front_ = i < edges.length() ? &edges[i] : nullptr;
   }
 
 public:
-  explicit DeserializedEdgeRange(JSContext* cx)
-    : edges(cx)
+  explicit DeserializedEdgeRange()
+    : edges()
     , i(0)
   {
     settle();
@@ -132,7 +107,7 @@ public:
       }
 
       auto referent = node.getEdgeReferent(*edgep);
-      edges.infallibleAppend(mozilla::Move(SimpleEdge(name, referent)));
+      edges.infallibleAppend(mozilla::Move(Edge(name, referent)));
     }
 
     settle();
@@ -160,10 +135,10 @@ Concrete<DeserializedNode>::allocationStack() const
 
 
 UniquePtr<EdgeRange>
-Concrete<DeserializedNode>::edges(JSContext* cx, bool) const
+Concrete<DeserializedNode>::edges(JSRuntime* rt, bool) const
 {
   UniquePtr<DeserializedEdgeRange, JS::DeletePolicy<DeserializedEdgeRange>> range(
-    js_new<DeserializedEdgeRange>(cx));
+    js_new<DeserializedEdgeRange>());
 
   if (!range || !range->init(get()))
     return nullptr;

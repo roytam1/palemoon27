@@ -414,8 +414,7 @@ static int nr_ice_component_initialize_tcp(struct nr_ice_ctx_ *ctx,nr_ice_compon
         if(r!=R_NOT_FOUND)
           ABORT(r);
       }
-      else{
-        if(suppress)
+      else if(suppress) {
           continue;
       }
 
@@ -999,6 +998,9 @@ int nr_ice_component_pair_candidate(nr_ice_peer_ctx *pctx, nr_ice_component *pco
         continue;
       if (lcand->tcp_type == TCP_TYPE_PASSIVE)
         continue;
+      if(pcand->addr.ip_version != lcand->addr.ip_version)
+        continue;
+
       /*
         Two modes, depending on |pair_all_remote|
 
@@ -1338,5 +1340,46 @@ int nr_ice_component_insert_pair(nr_ice_component *pcomp, nr_ice_cand_pair *pair
       nr_ice_candidate_pair_destroy(&pair);
     }
     return(_status);
+  }
+
+int nr_ice_component_get_default_candidate(nr_ice_component *comp, nr_ice_candidate **candp, int ip_version)
+  {
+    int _status;
+    nr_ice_candidate *cand;
+    nr_ice_candidate *best_cand = NULL;
+
+    /* We have the component. Now find the "best" candidate, making
+       use of the fact that more "reliable" candidate types have
+       higher numbers. So, we sort by type and then priority within
+       type
+    */
+    cand=TAILQ_FIRST(&comp->candidates);
+    while(cand){
+      if (cand->state == NR_ICE_CAND_STATE_INITIALIZED &&
+          cand->addr.ip_version == ip_version) {
+        if (!best_cand) {
+          best_cand = cand;
+        }
+        else if (best_cand->type < cand->type) {
+          best_cand = cand;
+        } else if (best_cand->type == cand->type &&
+                   best_cand->priority < cand->priority) {
+          best_cand = cand;
+        }
+      }
+
+      cand=TAILQ_NEXT(cand,entry_comp);
+    }
+
+    /* No candidates */
+    if (!best_cand)
+      ABORT(R_NOT_FOUND);
+
+    *candp = best_cand;
+
+    _status=0;
+  abort:
+    return(_status);
+
   }
 

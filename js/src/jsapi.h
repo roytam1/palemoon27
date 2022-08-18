@@ -222,7 +222,6 @@ class MOZ_RAII AutoVectorRooter : public AutoVectorRooterBase<T>
 typedef AutoVectorRooter<Value> AutoValueVector;
 typedef AutoVectorRooter<jsid> AutoIdVector;
 typedef AutoVectorRooter<JSObject*> AutoObjectVector;
-typedef AutoVectorRooter<JSScript*> AutoScriptVector;
 
 using ValueVector = js::TraceableVector<JS::Value>;
 using IdVector = js::TraceableVector<jsid>;
@@ -1147,6 +1146,7 @@ class JS_PUBLIC_API(RuntimeOptions) {
       : baseline_(true),
         ion_(true),
         asmJS_(true),
+        throwOnAsmJSValidationFailure_(false),
         nativeRegExp_(true),
         unboxedArrays_(false),
         asyncStack_(true),
@@ -1183,6 +1183,16 @@ class JS_PUBLIC_API(RuntimeOptions) {
     }
     RuntimeOptions& toggleAsmJS() {
         asmJS_ = !asmJS_;
+        return *this;
+    }
+
+    bool throwOnAsmJSValidationFailure() const { return throwOnAsmJSValidationFailure_; }
+    RuntimeOptions& setThrowOnAsmJSValidationFailure(bool flag) {
+        throwOnAsmJSValidationFailure_ = flag;
+        return *this;
+    }
+    RuntimeOptions& toggleThrowOnAsmJSValidationFailure() {
+        throwOnAsmJSValidationFailure_ = !throwOnAsmJSValidationFailure_;
         return *this;
     }
 
@@ -1238,6 +1248,7 @@ class JS_PUBLIC_API(RuntimeOptions) {
     bool baseline_ : 1;
     bool ion_ : 1;
     bool asmJS_ : 1;
+    bool throwOnAsmJSValidationFailure_ : 1;
     bool nativeRegExp_ : 1;
     bool unboxedArrays_ : 1;
     bool asyncStack_ : 1;
@@ -3371,6 +3382,7 @@ class JS_FRIEND_API(TransitiveCompileOptions)
         extraWarningsOption(false),
         werrorOption(false),
         asmJSOption(false),
+        throwOnAsmJSValidationFailureOption(false),
         forceAsync(false),
         installedFile(false),
         sourceIsLazy(false),
@@ -3405,6 +3417,7 @@ class JS_FRIEND_API(TransitiveCompileOptions)
     bool extraWarningsOption;
     bool werrorOption;
     bool asmJSOption;
+    bool throwOnAsmJSValidationFailureOption;
     bool forceAsync;
     bool installedFile;  // 'true' iff pre-compiling js file in packaged app
     bool sourceIsLazy;

@@ -987,7 +987,8 @@ class PersistentRooted : public js::PersistentRootedBase<T>,
                    kind == js::THING_ROOT_SCRIPT ||
                    kind == js::THING_ROOT_STRING ||
                    kind == js::THING_ROOT_ID ||
-                   kind == js::THING_ROOT_VALUE);
+                   kind == js::THING_ROOT_VALUE ||
+                   kind == js::THING_ROOT_TRACEABLE);
     }
 
   public:
@@ -1067,7 +1068,13 @@ class PersistentRooted : public js::PersistentRootedBase<T>,
         ptr = value;
     }
 
-    T ptr;
+    // See the comment above Rooted::ptr.
+    using MaybeWrapped = typename mozilla::Conditional<
+        mozilla::IsBaseOf<Traceable, T>::value,
+        js::DispatchWrapper<T>,
+        T>::Type;
+
+    MaybeWrapped ptr;
 };
 
 class JS_PUBLIC_API(ObjectPtr)
@@ -1139,6 +1146,30 @@ CallTraceCallbackOnNonHeap(T* v, const TraceCallbacks& aCallbacks, const char* a
 
 } /* namespace gc */
 } /* namespace js */
+
+// mozilla::Swap uses a stack temporary, which prevents classes like Heap<T>
+// from being declared MOZ_HEAP_CLASS.
+namespace mozilla {
+
+template <typename T>
+inline void
+Swap(JS::Heap<T>& aX, JS::Heap<T>& aY)
+{
+    T tmp = aX;
+    aX = aY;
+    aY = tmp;
+}
+
+template <typename T>
+inline void
+Swap(JS::TenuredHeap<T>& aX, JS::TenuredHeap<T>& aY)
+{
+    T tmp = aX;
+    aX = aY;
+    aY = tmp;
+}
+
+} /* namespace mozilla */
 
 #undef DELETE_ASSIGNMENT_OPS
 

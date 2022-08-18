@@ -608,23 +608,19 @@ class DynamicWithObject : public NestedScopeObject
 
 class BlockObject : public NestedScopeObject
 {
-  protected:
-    static const unsigned DEPTH_SLOT = 1;
-
   public:
     static const unsigned RESERVED_SLOTS = 2;
     static const Class class_;
-
-    /* Return the abstract stack depth right before entering this nested scope. */
-    uint32_t stackDepth() const {
-        return getReservedSlot(DEPTH_SLOT).toPrivateUint32();
-    }
 
     /* Return the number of variables associated with this block. */
     uint32_t numVariables() const {
         // TODO: propertyCount() is O(n), use O(1) lastProperty()->slot() instead
         return propertyCount();
     }
+
+    // Global lexical scopes are extensible. Non-global lexicals scopes are
+    // not.
+    bool isExtensible() const;
 
   protected:
     /* Blocks contain an object slot for each slot i: 0 <= i < slotCount. */
@@ -749,6 +745,10 @@ class StaticBlockObject : public BlockObject
         Value v = slotValue(i);
         return reinterpret_cast<frontend::Definition*>(v.toPrivate());
     }
+
+    // Called by BytecodeEmitter to mark regular block scopes as
+    // non-extensible. By contrast, the global lexical scope is extensible.
+    bool makeNonExtensible(ExclusiveContext* cx);
 
     /*
      * While ScopeCoordinate can generally reference up to 2^24 slots, block objects have an

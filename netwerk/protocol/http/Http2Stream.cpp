@@ -999,7 +999,7 @@ Http2Stream::ConvertResponseHeaders(Http2Decompressor *decompressor,
                                     aHeadersOut, false);
   if (NS_FAILED(rv)) {
     LOG3(("Http2Stream::ConvertResponseHeaders %p decode Error\n", this));
-    return NS_ERROR_ILLEGAL_VALUE;
+    return rv;
   }
 
   nsAutoCString statusString;
@@ -1053,7 +1053,7 @@ Http2Stream::ConvertPushHeaders(Http2Decompressor *decompressor,
                                     aHeadersOut, true);
   if (NS_FAILED(rv)) {
     LOG3(("Http2Stream::ConvertPushHeaders %p Error\n", this));
-    return NS_ERROR_ILLEGAL_VALUE;
+    return rv;
   }
 
   nsCString method;

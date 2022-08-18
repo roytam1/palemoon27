@@ -39,6 +39,7 @@
 #endif
 #include "js/TraceableVector.h"
 #include "js/Vector.h"
+#include "vm/CodeCoverage.h"
 #include "vm/CommonPropertyNames.h"
 #include "vm/DateTime.h"
 #include "vm/MallocProvider.h"
@@ -1059,6 +1060,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Strong references on scripts held for PCCount profiling API. */
     JS::PersistentRooted<js::ScriptAndCountsVector>* scriptAndCountsVector;
 
+    /* Code coverage output. */
+    js::coverage::LCovRuntime lcovOutput;
+
     /* Well-known numbers held for use by this runtime's contexts. */
     const js::Value     NaNValue;
     const js::Value     negativeInfinityValue;
@@ -1157,9 +1161,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     const JSSecurityCallbacks* securityCallbacks;
     const js::DOMCallbacks* DOMcallbacks;
     JSDestroyPrincipalsOp destroyPrincipals;
-
-    /* Structured data callbacks are runtime-wide. */
-    const JSStructuredCloneCallbacks* structuredCloneCallbacks;
+    JSReadPrincipalsOp readPrincipals;
 
     /* Optional error reporter. */
     JSErrorReporter     errorReporter;
@@ -2078,6 +2080,21 @@ class RuntimeAllocPolicy
 
   public:
     MOZ_IMPLICIT RuntimeAllocPolicy(JSRuntime* rt) : runtime(rt) {}
+
+    template <typename T>
+    T* maybe_pod_malloc(size_t numElems) {
+        return runtime->maybe_pod_malloc<T>(numElems);
+    }
+
+    template <typename T>
+    T* maybe_pod_calloc(size_t numElems) {
+        return runtime->maybe_pod_calloc<T>(numElems);
+    }
+
+    template <typename T>
+    T* maybe_pod_realloc(T* p, size_t oldSize, size_t newSize) {
+        return runtime->maybe_pod_realloc<T>(p, oldSize, newSize);
+    }
 
     template <typename T>
     T* pod_malloc(size_t numElems) {

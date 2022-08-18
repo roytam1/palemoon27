@@ -594,6 +594,12 @@ JS_Init(void)
     if (!TlsPerThreadData.initialized() && !TlsPerThreadData.init())
         return false;
 
+#if defined(DEBUG) || defined(JS_OOM_BREAKPOINT)
+    if (!js::oom::InitThreadType())
+        return false;
+    js::oom::SetThreadType(js::oom::THREAD_TYPE_MAIN);
+#endif
+
     jit::ExecutableAllocator::initStatic();
 
     if (!jit::InitializeIon())
@@ -3349,6 +3355,14 @@ JS_InitDestroyPrincipalsCallback(JSRuntime* rt, JSDestroyPrincipalsOp destroyPri
     rt->destroyPrincipals = destroyPrincipals;
 }
 
+extern JS_PUBLIC_API(void)
+JS_InitReadPrincipalsCallback(JSRuntime* rt, JSReadPrincipalsOp read)
+{
+    MOZ_ASSERT(read);
+    MOZ_ASSERT(!rt->readPrincipals);
+    rt->readPrincipals = read;
+}
+
 JS_PUBLIC_API(JSFunction*)
 JS_NewFunction(JSContext* cx, JSNative native, unsigned nargs, unsigned flags,
                const char* name)
@@ -3906,6 +3920,7 @@ JS::TransitiveCompileOptions::copyPODTransitiveOptions(const TransitiveCompileOp
     extraWarningsOption = rhs.extraWarningsOption;
     werrorOption = rhs.werrorOption;
     asmJSOption = rhs.asmJSOption;
+    throwOnAsmJSValidationFailureOption = rhs.throwOnAsmJSValidationFailureOption;
     forceAsync = rhs.forceAsync;
     installedFile = rhs.installedFile;
     sourceIsLazy = rhs.sourceIsLazy;
@@ -4028,6 +4043,7 @@ JS::CompileOptions::CompileOptions(JSContext* cx, JSVersion version)
     extraWarningsOption = cx->compartment()->options().extraWarnings(cx);
     werrorOption = cx->runtime()->options().werror();
     asmJSOption = cx->runtime()->options().asmJS();
+    throwOnAsmJSValidationFailureOption = cx->runtime()->options().throwOnAsmJSValidationFailure();
 }
 
 enum SyntacticScopeOption { HasSyntacticScope, HasNonSyntacticScope };
